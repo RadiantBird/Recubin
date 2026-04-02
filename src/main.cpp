@@ -1,8 +1,7 @@
 #include <include/GL/glew.h>
 #include <include/GLFW/glfw3.h>
 
-#include <Math/Vector3.hpp>
-#include <Math/Matrix4.hpp>
+#include <include/Math/Matrix4.hpp>
 
 #include <iostream>
 #include <algorithm>
@@ -39,8 +38,35 @@ std::vector<float> createCubeVertices(float size) {
     };
 }
 
+class Cube {
+    public:
+        Vector3 Position = Vector3(0.0, 0.0, 0.0);
+        std::vector<float> vertices = {};
+        static constexpr unsigned int indices[] = {
+            0, 1, 3,  1, 2, 3, // 前面
+            4, 5, 7,  5, 6, 7, // 背面
+            0, 1, 4,  1, 5, 4, // 右面
+            2, 3, 6,  3, 7, 6, // 左面
+            0, 3, 4,  3, 7, 4, // 上面
+            1, 2, 5,  2, 6, 5  // 下面
+        };
+
+        void draw(int modelLoc) {
+            Matrix4 model = Matrix4::Translate(Position.x, Position.y, Position.z);
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
+            glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+        }
+
+        Cube(Vector3 Pos, float Size) {
+            this->vertices = createCubeVertices(Size);
+            this->Position = Pos;
+        }
+};
+
+constexpr unsigned int Cube::indices[];
+
 int main() {
-    std::cout << "Hello world!\n";
+    std::cout << "Hello world!!\n";
     if (!glfwInit()) {
         std::cout << "GLFW init failed\n";
         return -1;
@@ -60,17 +86,6 @@ int main() {
         return -1;
     }
 
-    std::vector<float> vertices = createCubeVertices(0.5f);
-
-    unsigned int indices[] = {
-        0, 1, 3,  1, 2, 3, // 前面
-        4, 5, 7,  5, 6, 7, // 背面
-        0, 1, 4,  1, 5, 4, // 右面
-        2, 3, 6,  3, 7, 6, // 左面
-        0, 3, 4,  3, 7, 4, // 上面
-        1, 2, 5,  2, 6, 5  // 下面
-    }; 
-
     unsigned int VBO;
     unsigned int VAO;
     unsigned int EBO;
@@ -83,11 +98,11 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 
-    glBufferData(GL_ARRAY_BUFFER, 
-                 vertices.size() * sizeof(float), // 正確なバイト数
-                 vertices.data(),                 // これが const void* (内部配列へのポインタ) になる
-                 GL_STATIC_DRAW);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW); 
+    // glBufferData(GL_ARRAY_BUFFER, 
+    //              vertices.size() * sizeof(float), // 正確なバイト数
+    //              vertices.data(),                 // これが const void* (内部配列へのポインタ) になる
+    //              GL_STATIC_DRAW);
+    // glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW); 
 
     std::string vShaderStr = loadShaderSource("src/vertex.glsl");
     std::string fShaderStr = loadShaderSource("src/fragment.glsl");
@@ -143,7 +158,27 @@ int main() {
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);  
 
+    Cube testCube(Vector3(0, 0, -5), 1.0f);
+
+    glBindVertexArray(VAO);
+
+    // 頂点データをVBOに転送
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, 
+                testCube.vertices.size() * sizeof(float), 
+                testCube.vertices.data(), 
+                GL_STATIC_DRAW);
+
+    // インデックスをEBOに転送 (Cube::indices は static なのでどこからでも取れる)
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 
+                sizeof(Cube::indices), 
+                Cube::indices, 
+                GL_STATIC_DRAW);
+
+    // 属性の設定（ここも忘れずに）
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
     // read position 0(location), for each 3 floats, skip 3 * sizeof float.
     
     glEnableVertexAttribArray(0); 
@@ -152,6 +187,13 @@ int main() {
 
     int rotateX = 0, rotateY = 0, rotateZ = 0;
     Vector3 cam(0, 0, 5);
+
+    // 描画したい Cube たちを並べる
+    std::vector<Cube> world = {
+        Cube(Vector3(0, 0, -2), 1.0f),
+        Cube(Vector3(2, 0, -4), 1.0f),
+        Cube(Vector3(-2, 0, -4), 1.0f)
+    };
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -215,13 +257,16 @@ int main() {
         Matrix4 model = Matrix4::Translate(0.0f, 0.0f, -2.0f);
 
         // --- 4. Uniform転送と描画 ---
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, model.m);
+        int modelLoc = glGetUniformLocation(shaderProgram, "model");
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, view.m);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, projection.m);
 
         glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
-
+        for (Cube& c : world) {
+            c.draw(modelLoc);
+        }
+        
         glfwSwapBuffers(window);
         glfwPollEvents();
     }

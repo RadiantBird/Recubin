@@ -1,4 +1,4 @@
-#include <Math/Vector3.hpp>
+#include <include/Math/Vector3.hpp>
 
 struct Matrix4 {
     float m[16];
