@@ -28,7 +28,16 @@ void main() {
     
     vec3 lighting = ambient + diffuse;
 
-    vec3 result = lighting * texColor.rgb * ourColor.rgb;
+    // 3. 【ここが修正ポイント】
+    // mix関数を使って、アルファ値に基づいて「Cubeの色」と「テクスチャの色」を混ぜる
+    // texColor.a が 0 なら baseColor = ourColor.rgb
+    // texColor.a が 1 なら baseColor = texColor.rgb * ourColor.rgb (色を乗せる)
+    vec3 baseColor = mix(ourColor.rgb, texColor.rgb * ourColor.rgb, texColor.a);
     
-    FragColor = vec4(result, texColor.a * ourColor.a);
+    // ライティングを最終的な色に適用
+    vec3 result = lighting * baseColor;
+    
+    // 最終的な不透明度は、Cube自体の設定(ourColor.a)に従う
+    // これにより、テクスチャが透明な場所でもCubeが消えなくなる
+    FragColor = vec4(result, ourColor.a);
 }

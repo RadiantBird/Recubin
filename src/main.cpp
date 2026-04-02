@@ -120,29 +120,26 @@ class Cube {
         }
 
         void draw(int modelLoc, int shaderProgram) {
-{                // 行列の転送
-                Matrix4 translation = Matrix4::Translate(Position.x, Position.y, Position.z);
-                Matrix4 scaling = Matrix4::Scale(Size.x, Size.y, Size.z);
-                Matrix4 model = translation * scaling; 
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
+            // 行列の転送
+            Matrix4 translation = Matrix4::Translate(Position.x, Position.y, Position.z);
+            Matrix4 scaling = Matrix4::Scale(Size.x, Size.y, Size.z);
+            Matrix4 model = translation * scaling; 
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
 
-                // 【渡し忘れチェック】ourColor を確実に転送
-                int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
-                if (colorLoc != -1) {
-                    glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
-                }
-
-                for (int i = 0; i < 6; i++) {
-                    glActiveTexture(GL_TEXTURE0); 
-                    // 0番をバインドし続けると、テクスチャがない面が前の面のテクスチャを再利用してしまう
-                    // あるいは黒くなるため、テクスチャがない場合は 0 をバインドする
-                    glBindTexture(GL_TEXTURE_2D, faceTextures[i]);
-
-                    // オフセット計算 (i番目の面 * 6頂点 * 4バイト)
-                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(uintptr_t)(i * 6 * sizeof(unsigned int)));
-                }
+            // 【渡し忘れチェック】ourColor を確実に転送
+            int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
+            if (colorLoc != -1) {
+                glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
             }
-}
+
+            for (int i = 0; i < 6; i++) {
+                glActiveTexture(GL_TEXTURE0); 
+                // ここで 0 をチェックする必要はありません。設定がなければ自動的に whiteTexture が入っています。
+                glBindTexture(GL_TEXTURE_2D, faceTextures[i]);
+
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(uintptr_t)(i * 6 * sizeof(unsigned int)));
+            }
+        }
 
         Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex) : Position(Pos), Size(Sz) {
             for(int i = 0; i < 6; i++) faceTextures[i] = defaultTex;
@@ -497,6 +494,7 @@ int main() {
     world[1].Color = Color4(1, 0, 0, 1);
     world[2].Color = Color4(0, 1, 0, 1);
     Cube &C = world[3];
+    C.Color = Color4(1, 1, 0, 1);
     C.setFaceTexture(0, floppa);
     C.setFaceTexture(1, thecat);
     C.setFaceTexture(2, saladcat);
