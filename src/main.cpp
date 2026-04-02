@@ -36,36 +36,40 @@ std::vector<float> createCubeVertices(float size) {
     };
 }
 
-class Vector3 {
-    public:
-        float x, y, z;
+struct Vector3 {
+    float x, y, z;
 
-        Vector3 operator+(const Vector3& v) const { return {x + v.x, y + v.y, z + v.z}; }
-        Vector3 operator-(const Vector3& v) const { return {x - v.x, y - v.y, z - v.z}; }
-        Vector3 operator*(float s) const { return {x * s, y * s, z * s}; }
+    Vector3 operator+(const Vector3& v) const { return {x + v.x, y + v.y, z + v.z}; }
+    Vector3 operator-(const Vector3& v) const { return {x - v.x, y - v.y, z - v.z}; }
+    Vector3 operator*(float s) const { return {x * s, y * s, z * s}; }
 
-        // ベクトルの長さ（距離）を計算
-        float length() const { return std::sqrt(x * x + y * y + z * z); }
+    // ベクトルの長さ（距離）を計算
+    float length() const { return std::sqrt(x * x + y * y + z * z); }
 
-        // 正規化（長さを1にする：方向だけが欲しいとき）
-        Vector3 normalize() const {
-            float l = length();
-            return (l > 0) ? (*this * (1.0f / l)) : Vector3{0, 0, 0};
-        }
+    // 正規化（長さを1にする：方向だけが欲しいとき）
+    Vector3 normalize() const {
+        float l = length();
+        return (l > 0) ? (*this * (1.0f / l)) : Vector3{0, 0, 0};
+    }
 
-        static Vector3 Cross(const Vector3& a, const Vector3& b) {
-            return Vector3(
-                a.y * b.z - a.z * b.y,
-                a.z * b.x - a.x * b.z,
-                a.x * b.y - a.y * b.x
-            );
-        }
-        
-        Vector3(float x, float y, float z) {
-            this->x = x;
-            this->y = y;
-            this->z = z;
-        }
+    static Vector3 Cross(const Vector3& a, const Vector3& b) {
+        return Vector3(
+            a.y * b.z - a.z * b.y,
+            a.z * b.x - a.x * b.z,
+            a.x * b.y - a.y * b.x
+        );
+    }
+    
+    // Vector3クラス内に追加
+    static float Dot(const Vector3& a, const Vector3& b) {
+        return a.x * b.x + a.y * b.y + a.z * b.z;
+    }
+
+    Vector3(float x, float y, float z) {
+        this->x = x;
+        this->y = y;
+        this->z = z;
+    }
 };
 
 struct Matrix4 {
@@ -145,6 +149,21 @@ struct Matrix4 {
         res.m[10] = (zFar + zNear) / (zNear - zFar);
         res.m[11] = -1.0f;
         res.m[14] = (2.0f * zFar * zNear) / (zNear - zFar);
+        return res;
+    }
+
+    static Matrix4 LookAt(Vector3 eye, Vector3 target, Vector3 up) {
+        Vector3 f = (target - eye).normalize(); // 前
+        Vector3 r = Vector3::Cross(f, up).normalize(); // 右
+        Vector3 u = Vector3::Cross(r, f); // 上
+
+        Matrix4 res;
+        res.m[0] = r.x;  res.m[4] = r.y;  res.m[8] = r.z;
+        res.m[1] = u.x;  res.m[5] = u.y;  res.m[9] = u.z;
+        res.m[2] = -f.x; res.m[6] = -f.y; res.m[10] = -f.z;
+        res.m[12] = -Vector3::Dot(r, eye); // Dot(内積)も欲しくなる
+        res.m[13] = -Vector3::Dot(u, eye);
+        res.m[14] = Vector3::Dot(f, eye);
         return res;
     }
 };
@@ -261,24 +280,42 @@ int main() {
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // classic CPU style
 
     int rotateX = 0, rotateY = 0, rotateZ = 0;
-    Vector3 cam(0, 0, -5);
+    Vector3 cam(0, 0, 5);
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
+        // --- 1. 現在の向き(Forward)を計算 ---
+        float radX = rotateX * pi / 180.0f;
+        float radY = rotateY * pi / 180.0f;
+
+        Vector3 forward(
+            sin(radY) * cos(radX),
+            -sin(radX),
+            -cos(radY) * cos(radX)
+        );
+        forward = forward.normalize();
+
+        // 右方向は (前 x 世界の上)
+        Vector3 right = Vector3::Cross(forward, Vector3(0, 1, 0)).normalize();
+        // 上方向は (右 x 前)
+        Vector3 up = Vector3::Cross(right, forward).normalize();
+
+        // --- 2. 入力検知 (向きに基づいた移動) ---
         float speed = 0.05f;
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-            cam.z += speed;
+            cam = cam + forward * speed;
         }
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-            cam.z -= speed;
+            cam = cam - forward * speed;
         }
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-            cam.x += speed;
+            cam = cam - right * speed;
         }
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-            cam.x -= speed;
+            cam = cam + right * speed;
         }
+        // 上下移動は世界軸のYで動くのが直感的（クリエイティブモード風）
         if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
             cam.y += speed;
         }
@@ -286,47 +323,31 @@ int main() {
             cam.y -= speed;
         }
 
-        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-            rotateY = (rotateY + 1) % 360;
-        }
-        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-            rotateY = (rotateY - 1) % 360;
-        }
-        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-            rotateX = (rotateX + 1) % 360;
-        }
-        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-            rotateX = (rotateX - 1) % 360;
-        }
+        // 回転入力はそのまま
+        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) rotateY = (rotateY + 1) % 360;
+        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) rotateY = (rotateY - 1) % 360;
+        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) rotateX = (rotateX + 1) % 360;
+        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) rotateX = (rotateX - 1) % 360;
 
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            break;
-        }
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) break;
 
-        // --- 行列の組み立て (Matrix4 クラスを使用) ---
-
-        // 1. 投影行列 (遠近感)
+        // --- 3. 行列の組み立て ---
         Matrix4 projection = Matrix4::Perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 
-        // 2. ビュー行列 (カメラ)
-        // 回転してから移動させることで、カメラ中心の挙動にする
-        Matrix4 view = Matrix4::RotateX((float)rotateX) * Matrix4::RotateY((float)rotateY) * Matrix4::Translate(cam.x, cam.y, cam.z);
+        // 【ここが LookAt の真骨頂】
+        // 今の camera 位置から、forward 方向にある「注視点」を割り出す
+        Vector3 target = cam + forward; 
+        
+        // cam(位置), target(見たい場所), up(どっちが上か) を渡すだけ
+        Matrix4 view = Matrix4::LookAt(cam, target, Vector3(0, 1, 0));
 
-        // 3. モデル行列 (物体の配置)
-        // 立方体を少し奥(-2.0f)に置いて、その場で回転させる例
         Matrix4 model = Matrix4::Translate(0.0f, 0.0f, -2.0f);
 
-        // --- GPUへのUniform転送 ---
-        int modelLoc = glGetUniformLocation(shaderProgram, "model");
-        int viewLoc = glGetUniformLocation(shaderProgram, "view");
-        int projeLoc = glGetUniformLocation(shaderProgram, "projection");
+        // --- 4. Uniform転送と描画 ---
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, model.m);
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, view.m);
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, projection.m);
 
-        // クラス内の配列 m を直接渡す。列優先なので GL_FALSE
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, view.m);
-        glUniformMatrix4fv(projeLoc, 1, GL_FALSE, projection.m);
-
-        // --- 描画実行 ---
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 
