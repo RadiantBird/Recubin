@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 const float pi = 3.14159265f;
 
@@ -24,6 +25,14 @@ std::string loadShaderSource(const char* filePath) {
     fileStream.close();
     
     return content;
+}
+
+std::vector<float> createCubeVertices(float size) {
+    float h = size / 2.0f;
+    return {
+        h, h, h,  h,-h, h, -h,-h, h, -h, h, h, // 前面
+        h, h,-h,  h,-h,-h, -h,-h,-h, -h, h,-h  // 背面
+    };
 }
 
 int main() {
@@ -47,17 +56,16 @@ int main() {
         return -1;
     }
 
-    float vertices[] = {
-        0.25f,  0.25f, 0.0f,  // top right
-        0.25f, -0.25f, 0.0f,  // bottom right
-        -0.25f, -0.25f, 0.0f,  // bottom left
-        -0.25f, 0.25f, 0.0f // top left
-    };
+    std::vector<float> vertices = createCubeVertices(0.5f);
 
-    unsigned int indices[] = {  // note that we start from 0!
-        0, 1, 2,   // first triangle
-        0, 2, 3
-    };  
+    unsigned int indices[] = {
+        0, 1, 3,  1, 2, 3, // 前面
+        4, 5, 7,  5, 6, 7, // 背面
+        0, 1, 4,  1, 5, 4, // 右面
+        2, 3, 6,  3, 7, 6, // 左面
+        0, 3, 4,  3, 7, 4, // 上面
+        1, 2, 5,  2, 6, 5  // 下面
+    }; 
 
     unsigned int VBO;
     unsigned int VAO;
@@ -71,7 +79,10 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 
+                 vertices.size() * sizeof(float), // 正確なバイト数
+                 vertices.data(),                 // これが const void* (内部配列へのポインタ) になる
+                 GL_STATIC_DRAW);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW); 
 
     std::string vShaderStr = loadShaderSource("src/vertex.glsl");
@@ -142,7 +153,7 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
             y_diff += 1;
@@ -205,7 +216,6 @@ int main() {
         glUniformMatrix4fv(projeLoc, 1, GL_FALSE, projection);
 
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float) * 12, vertices);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
