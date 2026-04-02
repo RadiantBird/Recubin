@@ -105,6 +105,80 @@ class Cube {
         Cube(Vector3 Pos, Vector3 Sz) : Position(Pos), Size(Sz) {}
 };
 
+
+struct camera {
+    int rotateX = 0, rotateY = 0, rotateZ = 0;
+    Vector3 Position = Vector3(0, 0, 5);
+};
+
+class User {
+    public:
+        GLFWwindow* window = nullptr;
+
+        float speed = 0.05f;
+        camera current_camera;
+        camera &cam = current_camera;
+        Vector3 &cpos = cam.Position;
+
+        float radX = cam.rotateX * pi / 180.0f;
+        float radY = cam.rotateY * pi / 180.0f;
+
+        Vector3 forward;
+        Vector3 right;
+        Vector3 up;
+
+        // ベクトルを最新の回転角から計算し直す関数
+        void updateVectors() {
+            float radX = cam.rotateX * pi / 180.0f;
+            float radY = cam.rotateY * pi / 180.0f;
+
+            forward = Vector3(
+                sin(radY) * cos(radX),
+                -sin(radX),
+                -cos(radY) * cos(radX)
+            ).normalize();
+
+            right = Vector3::Cross(forward, Vector3(0, 1, 0)).normalize();
+            up = Vector3::Cross(right, forward).normalize();
+        }
+
+        void processInput() {
+            if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+                cpos = cpos + forward * speed;
+            }
+            if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+                cpos = cpos - forward * speed;
+            }
+            if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+                cpos = cpos - right * speed;
+            }
+            if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+                cpos = cpos + right * speed;
+            }
+            // 上下移動は世界軸のYで動くのが直感的
+            if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
+                cpos.y += speed;
+            }
+            if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+                cpos.y -= speed;
+            }
+
+            if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) cam.rotateY = (cam.rotateY + 1) % 360;
+            if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) cam.rotateY = (cam.rotateY - 1) % 360;
+            if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) cam.rotateX = (cam.rotateX + 1) % 360;
+            if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) cam.rotateX = (cam.rotateX - 1) % 360;
+
+            if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+                // TODO: break
+            }
+        }
+
+        User(GLFWwindow* window) : forward(0, 0, -1), right(1, 0, 0), up(0, 1, 0) {
+            this->window = window;
+            updateVectors();
+        }
+};
+
 int main() {
     std::cout << "Hello world!!\n";
     if (!glfwInit()) {
@@ -228,8 +302,6 @@ int main() {
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // classic CPU style
 
-    int rotateX = 0, rotateY = 0, rotateZ = 0;
-    Vector3 cam(0, 0, 5);
 
     // 描画したい Cube たちを並べる
 
@@ -249,63 +321,25 @@ int main() {
     glUniform3f(lightPosLoc, 10.0f, 10.0f, 10.0f); 
     glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
 
+    User user(window);
+
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
         // --- 1. 現在の向き(Forward)を計算 ---
-        float radX = rotateX * pi / 180.0f;
-        float radY = rotateY * pi / 180.0f;
-
-        Vector3 forward(
-            sin(radY) * cos(radX),
-            -sin(radX),
-            -cos(radY) * cos(radX)
-        );
-        forward = forward.normalize();
-
-        // 右方向は (前 x 世界の上)
-        Vector3 right = Vector3::Cross(forward, Vector3(0, 1, 0)).normalize();
-        // 上方向は (右 x 前)
-        Vector3 up = Vector3::Cross(right, forward).normalize();
+        user.updateVectors();
 
         // --- 2. 入力検知 (向きに基づいた移動) ---
-        float speed = 0.05f;
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-            cam = cam + forward * speed;
-        }
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-            cam = cam - forward * speed;
-        }
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-            cam = cam - right * speed;
-        }
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-            cam = cam + right * speed;
-        }
-        // 上下移動は世界軸のYで動くのが直感的（クリエイティブモード風）
-        if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-            cam.y += speed;
-        }
-        if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-            cam.y -= speed;
-        }
-
-        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) rotateY = (rotateY + 1) % 360;
-        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) rotateY = (rotateY - 1) % 360;
-        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) rotateX = (rotateX + 1) % 360;
-        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) rotateX = (rotateX - 1) % 360;
-
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) break;
-
+        user.processInput();
         // --- 3. 行列の組み立て ---
         Matrix4 projection = Matrix4::Perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 
         // 今の camera 位置から、forward 方向にある「注視点」を割り出す
-        Vector3 target = cam + forward; 
+        Vector3 target = user.cpos + user.forward; 
         
         // cam(位置), target(見たい場所), up(どっちが上か) を渡すだけ
-        Matrix4 view = Matrix4::LookAt(cam, target, Vector3(0, 1, 0));
+        Matrix4 view = Matrix4::LookAt(user.cpos, target, Vector3(0, 1, 0));
 
         Matrix4 model = Matrix4::Translate(0.0f, 0.0f, -2.0f);
 
