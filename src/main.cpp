@@ -144,7 +144,9 @@ class Cube {
             }
 }
 
-        Cube(Vector3 Pos, Vector3 Sz) : Position(Pos), Size(Sz) {}
+        Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex) : Position(Pos), Size(Sz) {
+            for(int i = 0; i < 6; i++) faceTextures[i] = defaultTex;
+        }
 };
 
 struct camera {
@@ -232,6 +234,20 @@ class Renderer {
 
         std::vector<unsigned int> indices = {};
 
+        unsigned int whiteTexture;
+        void createWhiteTexture() {
+            glGenTextures(1, &whiteTexture);
+            glBindTexture(GL_TEXTURE_2D, whiteTexture);
+            
+            // 1x1の白いピクセルデータ（RGBA）
+            unsigned char white[] = { 255, 255, 255, 255 }; 
+            
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, white);
+            
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        }
+
         void init() {
             int maxSize;
             glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxSize);
@@ -300,11 +316,15 @@ class Renderer {
 
             glUseProgram(shaderProgram);
             glEnable(GL_DEPTH_TEST);
+            // ブレンド機能を有効にする
+            glEnable(GL_BLEND);
+            // 計算式の設定：(ソースのアルファ * ソースの色) + ((1 - ソースのアルファ) * 背景の色)
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
             glDeleteShader(vertexShader);
             glDeleteShader(fragmentShader);  
 
-            Cube testCube({0, 0, 0}, {1, 1, 1});
+            Cube testCube({0, 0, 0}, {1, 1, 1}, whiteTexture);
 
             glBindVertexArray(VAO);
 
@@ -346,6 +366,8 @@ class Renderer {
             // 太陽光のような白い光を、右斜め上から
             glUniform3f(lightPosLoc, 10.0f, 10.0f, 10.0f); 
             glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
+
+            createWhiteTexture(); // failsafe用
         }
 
         void render(User &user, GLFWwindow* window, std::vector<Cube> &world) {
@@ -384,7 +406,7 @@ class Renderer {
             int width, height, nrChannels;
             // ここで flip を呼ぶのをやめる（main の冒頭で1回だけ呼ぶ）
 
-            unsigned char *data = stbi_load(path, &width, &height, &nrChannels, 0);
+            unsigned char *data = stbi_load(path, &width, &height, &nrChannels, 4); // RGBAに固定
 
             unsigned int textureID = 0; // 初期化
             if (!data) {
@@ -392,17 +414,14 @@ class Renderer {
                 return 0;
             }
 
+            // ロードされた実際のチャンネル数は無視して、OpenGLには「4chだぞ」と教える
             glGenTextures(1, &textureID);
             glBindTexture(GL_TEXTURE_2D, textureID);
 
-            // チャンネル数に合わせて、内部形式(第3引数)も明示的に指定する
-            GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
-            GLint internalFormat = (nrChannels == 4) ? GL_RGBA8 : GL_RGB8;
-
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1); 
-            
-            // 第3引数を internalFormat に変更
-            glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+
+            // 全部 RGBA で統一して送る
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
             glGenerateMipmap(GL_TEXTURE_2D);
 
             // 基本的なパラメータを設定（これをしないと不安定になる環境がある）
@@ -460,18 +479,18 @@ int main() {
 
     stbi_set_flip_vertically_on_load(true); // OpenGL用
     unsigned int floppa   = renderer.loadTexture("assets/image/floppa2048.jpg");
-    // unsigned int thecat   = renderer.loadTexture("assets/image/the-cat.png");
-    // unsigned int saladcat = renderer.loadTexture("assets/image/salad-cat.jpg");
-    // unsigned int smile    = renderer.loadTexture("assets/image/smile.png");
-    // unsigned int bliss    = renderer.loadTexture("assets/image/bliss.jpg");
-    // unsigned int limabis  = renderer.loadTexture("assets/image/Limabis_logo.png");
+    unsigned int thecat   = renderer.loadTexture("assets/image/the-cat.png");
+    unsigned int saladcat = renderer.loadTexture("assets/image/salad-cat.jpg");
+    unsigned int smile    = renderer.loadTexture("assets/image/smile.png");
+    unsigned int bliss    = renderer.loadTexture("assets/image/bliss.jpg");
+    unsigned int limabis  = renderer.loadTexture("assets/image/Limabis_logo.png");
 
     // make it workspace we ain't unity
     std::vector<Cube> world = {
-        Cube({0, 0, -2}, {1, 4, 1}),
-        Cube({2, 0, -4}, {1, 1, 1}),
-        Cube({-2, 0, -4}, {2, 1, 1}),
-        Cube({0, 0, -8}, {2, 2, 2})
+        Cube({0, 0, -2}, {1, 4, 1}, renderer.whiteTexture),
+        Cube({2, 0, -4}, {1, 1, 1}, renderer.whiteTexture),
+        Cube({-2, 0, -4}, {2, 1, 1}, renderer.whiteTexture),
+        Cube({0, 0, -8}, {2, 2, 2}, renderer.whiteTexture)
     };
 
     world[0].Color = Color4(0, 0, 1, 1);
@@ -479,11 +498,11 @@ int main() {
     world[2].Color = Color4(0, 1, 0, 1);
     Cube &C = world[3];
     C.setFaceTexture(0, floppa);
-    // C.setFaceTexture(1, thecat);
-    // C.setFaceTexture(2, saladcat);
-    // C.setFaceTexture(3, smile);
-    // C.setFaceTexture(4, bliss);
-    // C.setFaceTexture(5, limabis);
+    C.setFaceTexture(1, thecat);
+    C.setFaceTexture(2, saladcat);
+    C.setFaceTexture(3, smile);
+    C.setFaceTexture(4, bliss);
+    C.setFaceTexture(5, limabis);
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
