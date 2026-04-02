@@ -146,33 +146,54 @@ int main() {
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // classic CPU style
 
-    int x_diff = 0, y_diff = 0;
     int rotateX = 0, rotateY = 0, rotateZ = 0;
-
+    float camX = 0.0f, camY = 0.0f, camZ = -5.0f; 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 
+        float view[] = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            camX/100.0f, camY/100.0f, camZ/100.0f, 1.0f  // 世界を動かす量
+        };
+
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-            y_diff += 1;
+            camZ += 1;
         }
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-            y_diff -= 1;
+            camZ -= 1;
         }
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-            x_diff -= 1;
+            camX += 1;
         }
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-            x_diff += 1;
+            camX -= 1;
         }
         if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-            rotateY = (rotateY + 1) % 360;
+            camY += 1;
         }
         if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+            camY -= 1;
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+            rotateY = (rotateY + 1) % 360;
+        }
+        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
             rotateY = (rotateY - 1) % 360;
         }
+
+        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+            rotateX = (rotateX + 1) % 360;
+        }
+        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+            rotateX = (rotateX - 1) % 360;
+        }
+
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             break;
         }
@@ -194,7 +215,7 @@ int main() {
             // 第3列
             cx * sy * cz + sx * sz,           cx * sy * sz - sx * cz,           cx * cy,  0.0f,
             // 第4列（x, y 移動 + zはカメラから離すために -2.0f 固定か変数で）
-            x_diff / 100.0f,                  y_diff / 100.0f,                  -2.0f,    1.0f 
+            0,                  0,                  -2.0f,    1.0f 
         };
 
         float aspect = 800.0f / 600.0f; // ウィンドウの縦横比
@@ -211,8 +232,10 @@ int main() {
         };
 
         int modelLoc = glGetUniformLocation(shaderProgram, "model");
+        int viewLoc = glGetUniformLocation(shaderProgram, "view");
         int projeLoc = glGetUniformLocation(shaderProgram, "projection");
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, transform); // 列優先なのでFALSE
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, view);
         glUniformMatrix4fv(projeLoc, 1, GL_FALSE, projection);
 
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
