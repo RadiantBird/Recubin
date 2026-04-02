@@ -1,6 +1,9 @@
 #include <include/GL/glew.h>
 #include <include/GLFW/glfw3.h>
 
+#include <Math/Vector3.hpp>
+#include <Math/Matrix4.hpp>
+
 #include <iostream>
 #include <algorithm>
 #include <fstream>
@@ -35,138 +38,6 @@ std::vector<float> createCubeVertices(float size) {
         h, h,-h,  h,-h,-h, -h,-h,-h, -h, h,-h  // 背面
     };
 }
-
-struct Vector3 {
-    float x, y, z;
-
-    Vector3 operator+(const Vector3& v) const { return {x + v.x, y + v.y, z + v.z}; }
-    Vector3 operator-(const Vector3& v) const { return {x - v.x, y - v.y, z - v.z}; }
-    Vector3 operator*(float s) const { return {x * s, y * s, z * s}; }
-
-    // ベクトルの長さ（距離）を計算
-    float length() const { return std::sqrt(x * x + y * y + z * z); }
-
-    // 正規化（長さを1にする：方向だけが欲しいとき）
-    Vector3 normalize() const {
-        float l = length();
-        return (l > 0) ? (*this * (1.0f / l)) : Vector3{0, 0, 0};
-    }
-
-    static Vector3 Cross(const Vector3& a, const Vector3& b) {
-        return Vector3(
-            a.y * b.z - a.z * b.y,
-            a.z * b.x - a.x * b.z,
-            a.x * b.y - a.y * b.x
-        );
-    }
-    
-    // Vector3クラス内に追加
-    static float Dot(const Vector3& a, const Vector3& b) {
-        return a.x * b.x + a.y * b.y + a.z * b.z;
-    }
-
-    Vector3(float x, float y, float z) {
-        this->x = x;
-        this->y = y;
-        this->z = z;
-    }
-};
-
-struct Matrix4 {
-    float m[16];
-
-    // 1. デフォルト：単位行列 (Identity)
-    Matrix4() {
-        for (int i = 0; i < 16; i++) m[i] = 0.0f;
-        m[0] = m[5] = m[10] = m[15] = 1.0f;
-    }
-
-    // 2. 行列の掛け算 (A * B) - これがすべての基本
-    Matrix4 operator*(const Matrix4& b) const {
-        Matrix4 res;
-        for (int col = 0; col < 4; col++) {
-            for (int row = 0; row < 4; row++) {
-                res.m[col * 4 + row] =
-                    m[0 * 4 + row] * b.m[col * 4 + 0] +
-                    m[1 * 4 + row] * b.m[col * 4 + 1] +
-                    m[2 * 4 + row] * b.m[col * 4 + 2] +
-                    m[3 * 4 + row] * b.m[col * 4 + 3];
-            }
-        }
-        return res;
-    }
-
-    // 3. 移動 (Translation)
-    static Matrix4 Translate(float x, float y, float z) {
-        Matrix4 res; // 単位行列で初期化される
-        res.m[12] = x;
-        res.m[13] = y;
-        res.m[14] = z;
-        return res;
-    }
-
-    // 4. 拡大縮小 (Scale)
-    static Matrix4 Scale(float x, float y, float z) {
-        Matrix4 res;
-        res.m[0] = x;
-        res.m[5] = y;
-        res.m[10] = z;
-        return res;
-    }
-
-    // 5. 回転 (Rotation) - 各軸
-    static Matrix4 RotateX(float degree) {
-        Matrix4 res;
-        float r = degree * 3.14159265f / 180.0f;
-        res.m[5] = cos(r);  res.m[6] = sin(r);
-        res.m[9] = -sin(r); res.m[10] = cos(r);
-        return res;
-    }
-
-    static Matrix4 RotateY(float degree) {
-        Matrix4 res;
-        float r = degree * 3.14159265f / 180.0f;
-        res.m[0] = cos(r);  res.m[2] = -sin(r);
-        res.m[8] = sin(r);  res.m[10] = cos(r);
-        return res;
-    }
-
-    static Matrix4 RotateZ(float degree) {
-        Matrix4 res;
-        float r = degree * 3.14159265f / 180.0f;
-        res.m[0] = cos(r);  res.m[1] = sin(r);
-        res.m[4] = -sin(r); res.m[5] = cos(r);
-        return res;
-    }
-
-    // 6. 投影 (Perspective) - 遠近感
-    static Matrix4 Perspective(float fovDeg, float aspect, float zNear, float zFar) {
-        Matrix4 res;
-        for(int i=0; i<16; i++) res.m[i] = 0.0f; // 一旦クリア
-        float f = 1.0f / tan(fovDeg * 3.14159265f / 360.0f);
-        res.m[0] = f / aspect;
-        res.m[5] = f;
-        res.m[10] = (zFar + zNear) / (zNear - zFar);
-        res.m[11] = -1.0f;
-        res.m[14] = (2.0f * zFar * zNear) / (zNear - zFar);
-        return res;
-    }
-
-    static Matrix4 LookAt(Vector3 eye, Vector3 target, Vector3 up) {
-        Vector3 f = (target - eye).normalize(); // 前
-        Vector3 r = Vector3::Cross(f, up).normalize(); // 右
-        Vector3 u = Vector3::Cross(r, f); // 上
-
-        Matrix4 res;
-        res.m[0] = r.x;  res.m[4] = r.y;  res.m[8] = r.z;
-        res.m[1] = u.x;  res.m[5] = u.y;  res.m[9] = u.z;
-        res.m[2] = -f.x; res.m[6] = -f.y; res.m[10] = -f.z;
-        res.m[12] = -Vector3::Dot(r, eye); // Dot(内積)も欲しくなる
-        res.m[13] = -Vector3::Dot(u, eye);
-        res.m[14] = Vector3::Dot(f, eye);
-        return res;
-    }
-};
 
 int main() {
     std::cout << "Hello world!\n";
