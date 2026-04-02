@@ -3,6 +3,26 @@
 
 #include <iostream>
 #include <algorithm>
+#include <fstream>
+#include <sstream>
+#include <string>
+
+std::string loadShaderSource(const char* filePath) {
+    std::string content;
+    std::ifstream fileStream(filePath, std::ios::in);
+
+    if (!fileStream.is_open()) {
+        std::cerr << "Could not read file " << filePath << ". File does not exist." << std::endl;
+        return "";
+    }
+
+    std::stringstream sstr;
+    sstr << fileStream.rdbuf();
+    content = sstr.str();
+    fileStream.close();
+    
+    return content;
+}
 
 int main() {
     std::cout << "Hello world!\n";
@@ -26,13 +46,15 @@ int main() {
     }
 
     float vertices[] = {
-        0.0f,  0.25f, 0.0f,  // top right
+        0.25f,  0.25f, 0.0f,  // top right
         0.25f, -0.25f, 0.0f,  // bottom right
         -0.25f, -0.25f, 0.0f,  // bottom left
+        -0.25f, 0.25f, 0.0f // top left
     };
 
     unsigned int indices[] = {  // note that we start from 0!
         0, 1, 2,   // first triangle
+        0, 2, 3
     };  
 
     unsigned int VBO;
@@ -50,26 +72,11 @@ int main() {
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW); 
 
-    const char *vertexShaderSource = 
-    "#version 330 core\n"
-    "layout (location = 0) in vec3 aPos;\n"
-    "uniform vec2 offset;\n"
-    "uniform float deg;\n"
-    "void main()\n"
-    "{\n"
-    "   float rad = deg * 3.1415927 / 180.0;\n"
-    "   float x = aPos.x * cos(rad) - aPos.y * sin(rad) + offset.x;\n"
-    "   float y = aPos.x * sin(rad) + aPos.y * cos(rad) + offset.y;\n"
-    "   gl_Position = vec4(x, y, aPos.z, 1.0);\n"
-    "}\0";
+    std::string vShaderStr = loadShaderSource("src/vertex.glsl");
+    std::string fShaderStr = loadShaderSource("src/fragment.glsl");
 
-    const char *fragmentShaderSource =
-    "#version 330 core\n"
-    "out vec4 FragColor;\n"
-    "void main()\n"
-    "{\n"
-        "FragColor = vec4(0.0f, 1.0f, 0.0f, 1.0f);\n"
-    "}\n";
+    const char *vertexShaderSource = vShaderStr.c_str();
+    const char *fragmentShaderSource = fShaderStr.c_str();
 
     unsigned int vertexShader;
     vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -124,7 +131,6 @@ int main() {
     glEnableVertexAttribArray(0); 
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // classic CPU style
-    glDrawElements(GL_LINE_LOOP, 3, GL_UNSIGNED_INT, 0);
 
     int x_diff = 0, y_diff = 0;
     int rotate = 0;
@@ -133,7 +139,7 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
             y_diff += 1;
@@ -164,7 +170,7 @@ int main() {
         glUniform1f(degLoc, (float)rotate);
 
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float) * 9, vertices);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float) * 12, vertices);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
