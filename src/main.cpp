@@ -476,6 +476,7 @@ int main() {
 
     world[0].Color = Color4(0, 0, 1, 1);
     world[1].Color = Color4(1, 0, 0, 1);
+    world[2].Color = Color4(0, 1, 0, 1);
     Cube &C = world[3];
     C.setFaceTexture(0, floppa);
     // C.setFaceTexture(1, thecat);

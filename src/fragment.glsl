@@ -15,6 +15,14 @@ void main() {
     // 1. テクスチャをサンプリング
     vec4 texColor = texture(ourTexture, TexCoord);
 
+    // 【ここがポイント】
+    // テクスチャが貼られていない、あるいは真っ黒な場合、
+    // lighting * 0 * ourColor = 0 になるのを防ぐため 1.0 に置き換える
+    vec3 effectiveTexColor = texColor.rgb;
+    if (length(texColor.rgb) < 0.01) {
+        effectiveTexColor = vec3(1.0);
+    }
+
     // 2. ライティング計算
     float ambientStrength = 0.3; 
     vec3 ambient = ambientStrength * lightColor;
