@@ -41,7 +41,8 @@ std::vector<float> createCubeVertices(float size) {
 class Cube {
     public:
         Vector3 Position = Vector3(0.0, 0.0, 0.0);
-        std::vector<float> vertices = {};
+        Vector3 Size = Vector3(4.0, 1.0, 2.0);
+
         static constexpr unsigned int indices[] = {
             0, 1, 3,  1, 2, 3, // 前面
             4, 5, 7,  5, 6, 7, // 背面
@@ -52,15 +53,23 @@ class Cube {
         };
 
         void draw(int modelLoc) {
-            Matrix4 model = Matrix4::Translate(Position.x, Position.y, Position.z);
+            // 1. 移動行列を作る
+            Matrix4 translation = Matrix4::Translate(Position.x, Position.y, Position.z);
+            
+            // 2. 拡大縮小行列を作る（Sizeベクトルをそのまま使う）
+            Matrix4 scaling = Matrix4::Scale(Size.x, Size.y, Size.z);
+            
+            // 3. 合成する（Scaleを先に掛けるのがルール！）
+            Matrix4 model = translation * scaling;
+            
+            // 4. GPUに「加工済みの伝票」を送る
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
+            
+            // 5. 描画！
             glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
         }
 
-        Cube(Vector3 Pos, float Size) {
-            this->vertices = createCubeVertices(Size);
-            this->Position = Pos;
-        }
+        Cube(Vector3 Pos, Vector3 Sz) : Position(Pos), Size(Sz) {}
 };
 
 constexpr unsigned int Cube::indices[];
@@ -158,15 +167,16 @@ int main() {
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);  
 
-    Cube testCube(Vector3(0, 0, -5), 1.0f);
+    Cube testCube({0, 0, 0}, {1, 1, 1});
 
     glBindVertexArray(VAO);
 
+    std::vector<float> standardVertices = createCubeVertices(1.0f);
     // 頂点データをVBOに転送
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, 
-                testCube.vertices.size() * sizeof(float), 
-                testCube.vertices.data(), 
+                standardVertices.size() * sizeof(float), 
+                standardVertices.data(), 
                 GL_STATIC_DRAW);
 
     // インデックスをEBOに転送 (Cube::indices は static なのでどこからでも取れる)
@@ -189,11 +199,13 @@ int main() {
     Vector3 cam(0, 0, 5);
 
     // 描画したい Cube たちを並べる
+
     std::vector<Cube> world = {
-        Cube(Vector3(0, 0, -2), 1.0f),
-        Cube(Vector3(2, 0, -4), 1.0f),
-        Cube(Vector3(-2, 0, -4), 1.0f)
+        Cube({0, 0, -2}, {1, 4, 1}),
+        Cube({2, 0, -4}, {1, 1, 1}),
+        Cube({-2, 0, -4}, {2, 1, 1})
     };
+
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -236,7 +248,6 @@ int main() {
             cam.y -= speed;
         }
 
-        // 回転入力はそのまま
         if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) rotateY = (rotateY + 1) % 360;
         if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) rotateY = (rotateY - 1) % 360;
         if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) rotateX = (rotateX + 1) % 360;
@@ -247,7 +258,6 @@ int main() {
         // --- 3. 行列の組み立て ---
         Matrix4 projection = Matrix4::Perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 
-        // 【ここが LookAt の真骨頂】
         // 今の camera 位置から、forward 方向にある「注視点」を割り出す
         Vector3 target = cam + forward; 
         
