@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <cmath>
 
 const float pi = 3.14159265f;
 
@@ -34,6 +35,119 @@ std::vector<float> createCubeVertices(float size) {
         h, h,-h,  h,-h,-h, -h,-h,-h, -h, h,-h  // 背面
     };
 }
+
+class Vector3 {
+    public:
+        float x, y, z;
+
+        Vector3 operator+(const Vector3& v) const { return {x + v.x, y + v.y, z + v.z}; }
+        Vector3 operator-(const Vector3& v) const { return {x - v.x, y - v.y, z - v.z}; }
+        Vector3 operator*(float s) const { return {x * s, y * s, z * s}; }
+
+        // ベクトルの長さ（距離）を計算
+        float length() const { return std::sqrt(x * x + y * y + z * z); }
+
+        // 正規化（長さを1にする：方向だけが欲しいとき）
+        Vector3 normalize() const {
+            float l = length();
+            return (l > 0) ? (*this * (1.0f / l)) : Vector3{0, 0, 0};
+        }
+
+        static Vector3 Cross(const Vector3& a, const Vector3& b) {
+            return Vector3(
+                a.y * b.z - a.z * b.y,
+                a.z * b.x - a.x * b.z,
+                a.x * b.y - a.y * b.x
+            );
+        }
+        
+        Vector3(float x, float y, float z) {
+            this->x = x;
+            this->y = y;
+            this->z = z;
+        }
+};
+
+struct Matrix4 {
+    float m[16];
+
+    // 1. デフォルト：単位行列 (Identity)
+    Matrix4() {
+        for (int i = 0; i < 16; i++) m[i] = 0.0f;
+        m[0] = m[5] = m[10] = m[15] = 1.0f;
+    }
+
+    // 2. 行列の掛け算 (A * B) - これがすべての基本
+    Matrix4 operator*(const Matrix4& b) const {
+        Matrix4 res;
+        for (int col = 0; col < 4; col++) {
+            for (int row = 0; row < 4; row++) {
+                res.m[col * 4 + row] =
+                    m[0 * 4 + row] * b.m[col * 4 + 0] +
+                    m[1 * 4 + row] * b.m[col * 4 + 1] +
+                    m[2 * 4 + row] * b.m[col * 4 + 2] +
+                    m[3 * 4 + row] * b.m[col * 4 + 3];
+            }
+        }
+        return res;
+    }
+
+    // 3. 移動 (Translation)
+    static Matrix4 Translate(float x, float y, float z) {
+        Matrix4 res; // 単位行列で初期化される
+        res.m[12] = x;
+        res.m[13] = y;
+        res.m[14] = z;
+        return res;
+    }
+
+    // 4. 拡大縮小 (Scale)
+    static Matrix4 Scale(float x, float y, float z) {
+        Matrix4 res;
+        res.m[0] = x;
+        res.m[5] = y;
+        res.m[10] = z;
+        return res;
+    }
+
+    // 5. 回転 (Rotation) - 各軸
+    static Matrix4 RotateX(float degree) {
+        Matrix4 res;
+        float r = degree * 3.14159265f / 180.0f;
+        res.m[5] = cos(r);  res.m[6] = sin(r);
+        res.m[9] = -sin(r); res.m[10] = cos(r);
+        return res;
+    }
+
+    static Matrix4 RotateY(float degree) {
+        Matrix4 res;
+        float r = degree * 3.14159265f / 180.0f;
+        res.m[0] = cos(r);  res.m[2] = -sin(r);
+        res.m[8] = sin(r);  res.m[10] = cos(r);
+        return res;
+    }
+
+    static Matrix4 RotateZ(float degree) {
+        Matrix4 res;
+        float r = degree * 3.14159265f / 180.0f;
+        res.m[0] = cos(r);  res.m[1] = sin(r);
+        res.m[4] = -sin(r); res.m[5] = cos(r);
+        return res;
+    }
+
+    // 6. 投影 (Perspective) - 遠近感
+    static Matrix4 Perspective(float fovDeg, float aspect, float zNear, float zFar) {
+        Matrix4 res;
+        for(int i=0; i<16; i++) res.m[i] = 0.0f; // 一旦クリア
+        float f = 1.0f / tan(fovDeg * 3.14159265f / 360.0f);
+        res.m[0] = f / aspect;
+        res.m[5] = f;
+        res.m[10] = (zFar + zNear) / (zNear - zFar);
+        res.m[11] = -1.0f;
+        res.m[14] = (2.0f * zFar * zNear) / (zNear - zFar);
+        return res;
+    }
+};
 
 int main() {
     std::cout << "Hello world!\n";
@@ -147,37 +261,29 @@ int main() {
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // classic CPU style
 
     int rotateX = 0, rotateY = 0, rotateZ = 0;
-    float camX = 0.0f, camY = 0.0f, camZ = -5.0f; 
+    Vector3 cam(0, 0, -5);
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
-
-        float view[] = {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, 0.0f,
-            camX/100.0f, camY/100.0f, camZ/100.0f, 1.0f  // 世界を動かす量
-        };
-
+        float speed = 0.05f;
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-            camZ += 1;
+            cam.z += speed;
         }
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-            camZ -= 1;
+            cam.z -= speed;
         }
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-            camX += 1;
+            cam.x += speed;
         }
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-            camX -= 1;
+            cam.x -= speed;
         }
         if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-            camY += 1;
+            cam.y += speed;
         }
         if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-            camY -= 1;
+            cam.y -= speed;
         }
 
         if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
@@ -186,7 +292,6 @@ int main() {
         if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
             rotateY = (rotateY - 1) % 360;
         }
-
         if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
             rotateX = (rotateX + 1) % 360;
         }
@@ -197,48 +302,33 @@ int main() {
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             break;
         }
-        
-        float rx = rotateX * pi / 180.0f;
-        float ry = rotateY * pi / 180.0f;
-        float rz = rotateZ * pi / 180.0f;
 
-        float cx = cos(rx), sx = sin(rx);
-        float cy = cos(ry), sy = sin(ry);
-        float cz = cos(rz), sz = sin(rz);
+        // --- 行列の組み立て (Matrix4 クラスを使用) ---
 
-        // 3つの回転行列を掛け合わせた結果（列優先）
-        float transform[] = {
-            // 第1列
-            cy * cz,                          cy * sz,                          -sy,      0.0f,
-            // 第2列
-            sx * sy * cz - cx * sz,           sx * sy * sz + cx * cz,           sx * cy,  0.0f,
-            // 第3列
-            cx * sy * cz + sx * sz,           cx * sy * sz - sx * cz,           cx * cy,  0.0f,
-            // 第4列（x, y 移動 + zはカメラから離すために -2.0f 固定か変数で）
-            0,                  0,                  -2.0f,    1.0f 
-        };
+        // 1. 投影行列 (遠近感)
+        Matrix4 projection = Matrix4::Perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 
-        float aspect = 800.0f / 600.0f; // ウィンドウの縦横比
-        float fov = 45.0f * pi / 180.0f; // 視野角
-        float f = 1.0f / tan(fov / 2.0f);
-        float zNear = 0.1f;
-        float zFar = 100.0f;
+        // 2. ビュー行列 (カメラ)
+        // 回転してから移動させることで、カメラ中心の挙動にする
+        Matrix4 view = Matrix4::RotateX((float)rotateX) * Matrix4::RotateY((float)rotateY) * Matrix4::Translate(cam.x, cam.y, cam.z);
 
-        float projection[16] = {
-            f / aspect, 0.0f, 0.0f, 0.0f,
-            0.0f, f, 0.0f, 0.0f,
-            0.0f, 0.0f, (zFar + zNear) / (zNear - zFar), -1.0f, // ここでZ値をWに放り込むのがコツ
-            0.0f, 0.0f, (2.0f * zFar * zNear) / (zNear - zFar), 0.0f
-        };
+        // 3. モデル行列 (物体の配置)
+        // 立方体を少し奥(-2.0f)に置いて、その場で回転させる例
+        Matrix4 model = Matrix4::Translate(0.0f, 0.0f, -2.0f);
 
+        // --- GPUへのUniform転送 ---
         int modelLoc = glGetUniformLocation(shaderProgram, "model");
         int viewLoc = glGetUniformLocation(shaderProgram, "view");
         int projeLoc = glGetUniformLocation(shaderProgram, "projection");
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, transform); // 列優先なのでFALSE
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, view);
-        glUniformMatrix4fv(projeLoc, 1, GL_FALSE, projection);
 
-        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        // クラス内の配列 m を直接渡す。列優先なので GL_FALSE
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, view.m);
+        glUniformMatrix4fv(projeLoc, 1, GL_FALSE, projection.m);
+
+        // --- 描画実行 ---
+        glBindVertexArray(VAO);
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
