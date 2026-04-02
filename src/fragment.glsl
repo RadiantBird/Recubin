@@ -6,27 +6,33 @@ in vec3 FragPos;
 in vec2 TexCoord;
 
 uniform sampler2D ourTexture;
-uniform vec4 ourColor;
-uniform vec3 lightPos;  // 追加：光源の位置 (World座標)
-uniform vec3 viewPos;   // 追加：カメラの位置 (World座標)
-uniform vec3 lightColor; // 追加：光の色 (例: vec3(1.0))
+uniform vec4 ourColor;   // C++から送る色
+uniform vec3 lightPos;
+uniform vec3 viewPos;
+uniform vec3 lightColor;
 
 void main() {
-    // 1. 環境光 (Ambient) - 暗闇でもうっすら見える程度
-    float ambientStrength = 0.2;
-    vec3 ambient = ambientStrength * lightColor;
+    // 1. テクスチャをサンプリング
+    vec4 texColor = texture(ourTexture, TexCoord);
 
-    // 2. 拡散反射 (Diffuse) - 面の向きと光の方向で明るさを決める
+    // 2. ライティング計算
+    float ambientStrength = 0.3; 
+    vec3 ambient = ambientStrength * lightColor;
+    
     vec3 norm = normalize(Normal);
     vec3 lightDir = normalize(lightPos - FragPos);
     float diff = max(dot(norm, lightDir), 0.0);
     vec3 diffuse = diff * lightColor;
 
-    // テクスチャの色を取得
-    vec4 texColor = texture(ourTexture, TexCoord);
-
-    // 最終的な色：(環境光 + 拡散反射) * テクスチャ * 基本色
-    vec3 result = (ambient + diffuse) * vec3(texColor) * vec3(ourColor);
+    // 3. 最終色の合成
+    vec3 lighting = ambient + diffuse;
     
-    FragColor = vec4(result, 1.0);
+    // 【修正】テクスチャがない（texColorが真っ黒、またはバインドされていない）面でも
+    // Cubeの色が出るように「テクスチャの色」と「Cubeの色」を適切に混ぜる
+    // もしテクスチャが(0,0,0)なら、ourColorだけが出るように調整
+    vec3 baseColor = (texColor.rgb == vec3(0.0)) ? ourColor.rgb : texColor.rgb * ourColor.rgb;
+    
+    vec3 result = lighting * baseColor;
+    
+    FragColor = vec4(result, 1.0); 
 }
