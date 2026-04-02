@@ -105,7 +105,6 @@ class Cube {
         Cube(Vector3 Pos, Vector3 Sz) : Position(Pos), Size(Sz) {}
 };
 
-
 struct camera {
     int rotateX = 0, rotateY = 0, rotateZ = 0;
     Vector3 Position = Vector3(0, 0, 5);
@@ -126,6 +125,8 @@ class User {
         Vector3 forward;
         Vector3 right;
         Vector3 up;
+
+        bool wannaExit = false;
 
         // ベクトルを最新の回転角から計算し直す関数
         void updateVectors() {
@@ -169,7 +170,7 @@ class User {
             if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) cam.rotateX = (cam.rotateX - 1) % 360;
 
             if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-                // TODO: break
+                wannaExit = true;
             }
         }
 
@@ -179,132 +180,187 @@ class User {
         }
 };
 
-int main() {
-    std::cout << "Hello world!!\n";
+class Renderer {
+    public:
+        unsigned int VBO;
+        unsigned int VAO;
+        unsigned int EBO;
+
+        unsigned int shaderProgram;
+
+        void init() {
+            glGenBuffers(1, &EBO);
+            glGenVertexArrays(1, &VAO);  
+            glGenBuffers(1, &VBO);
+
+            glBindVertexArray(VAO);
+            glBindBuffer(GL_ARRAY_BUFFER, VBO);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+
+            std::vector<unsigned int> indices = {};
+            for (int i = 0; i < 6; i++) {
+                int start = i * 4;
+                indices.push_back(start + 0); indices.push_back(start + 1); indices.push_back(start + 2);
+                indices.push_back(start + 0); indices.push_back(start + 2); indices.push_back(start + 3);
+            }
+
+            std::string vShaderStr = loadShaderSource("src/vertex.glsl");
+            std::string fShaderStr = loadShaderSource("src/fragment.glsl");
+
+            const char *vertexShaderSource = vShaderStr.c_str();
+            const char *fragmentShaderSource = fShaderStr.c_str();
+
+            unsigned int vertexShader;
+            vertexShader = glCreateShader(GL_VERTEX_SHADER);
+
+            glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+            glCompileShader(vertexShader);
+
+            int  success; // reusing this variable
+            char infoLog[512];
+            glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+
+            if(!success) {
+                glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
+                std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+            }
+
+            unsigned int fragmentShader;
+            fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+            glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+            glCompileShader(fragmentShader);
+
+            char infoLog2[512];
+            glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+
+            if (!success) {
+                glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog2);
+                std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+            }
+
+            shaderProgram = glCreateProgram();
+
+            glAttachShader(shaderProgram, vertexShader);
+            glAttachShader(shaderProgram, fragmentShader);
+            glLinkProgram(shaderProgram);
+
+            char infoLog3[512];
+            glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+            if(!success) {
+                glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+                std::cout << "ERROR::SHADER::PROGRAM::LINK_FAILED\n" << infoLog << std::endl;
+            }
+
+            glUseProgram(shaderProgram);
+            glEnable(GL_DEPTH_TEST);
+
+            glDeleteShader(vertexShader);
+            glDeleteShader(fragmentShader);  
+
+            Cube testCube({0, 0, 0}, {1, 1, 1});
+
+            glBindVertexArray(VAO);
+
+            std::vector<float> standardVertices = createCubeVertices(1.0f);
+            // 頂点データをVBOに転送
+            glBindBuffer(GL_ARRAY_BUFFER, VBO);
+            glBufferData(GL_ARRAY_BUFFER, 
+                        standardVertices.size() * sizeof(float), 
+                        standardVertices.data(), 
+                        GL_STATIC_DRAW);
+
+            // インデックスをEBOに転送 (Cube::indices は static なのでどこからでも取れる)
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, 
+                        indices.size() * sizeof(unsigned int), 
+                        indices.data(), 
+                        GL_STATIC_DRAW);
+
+
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(0);
+            // read position 0(location), for each 3 floats, skip 3 * sizeof float.
+            
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+            glEnableVertexAttribArray(1);
+
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // classic CPU style
+
+            int lightPosLoc = glGetUniformLocation(shaderProgram, "lightPos");
+            int lightColorLoc = glGetUniformLocation(shaderProgram, "lightColor");
+
+            // 太陽光のような白い光を、右斜め上から
+            glUniform3f(lightPosLoc, 10.0f, 10.0f, 10.0f); 
+            glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
+        }
+
+        void render(User user, GLFWwindow* window, std::vector<Cube> world) {
+            Matrix4 projection = Matrix4::Perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
+
+            // 今の camera 位置から、forward 方向にある「注視点」を割り出す
+            Vector3 target = user.cpos + user.forward; 
+            
+            // cam(位置), target(見たい場所), up(どっちが上か) を渡すだけ
+            Matrix4 view = Matrix4::LookAt(user.cpos, target, Vector3(0, 1, 0));
+
+            Matrix4 model = Matrix4::Translate(0.0f, 0.0f, -2.0f);
+
+            // --- 4. Uniform転送と描画 ---
+            int modelLoc = glGetUniformLocation(shaderProgram, "model");
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
+            glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, view.m);
+            glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, projection.m);
+
+            glBindVertexArray(VAO);
+            for (Cube& c : world) {
+                c.draw(modelLoc, shaderProgram);
+            }
+            
+            glfwSwapBuffers(window);
+            glfwPollEvents();
+        }
+};
+
+GLFWwindow* setupWindow() {
+    std::cout << "initing GLFW...\n";
     if (!glfwInit()) {
         std::cout << "GLFW init failed\n";
-        return -1;
+        return nullptr;
     }
 
+    std::cout << "creating window...\n";
     GLFWwindow* window = glfwCreateWindow(800, 600, "Welcome to Recubin", nullptr, nullptr);
     if (!window) {
         std::cout << "Window creation failed\n";
         glfwTerminate();
-        return -1;
+        return nullptr;
     }
 
+    std::cout << "making context...\n";
     glfwMakeContextCurrent(window);
 
+    std::cout << "initing GLEW...\n";
     if (glewInit() != GLEW_OK) {
         std::cout << "GLEW init failed\n";
+        return nullptr;
+    }
+    return window;
+}
+
+int main() {
+    std::cout << "Hello world!!\n";
+    
+    GLFWwindow* window = setupWindow();
+    if (!window) {
+        std::cout << "[ERROR] Failed to setup.\n";
         return -1;
     }
 
-    unsigned int VBO;
-    unsigned int VAO;
-    unsigned int EBO;
+    User user(window);
+    Renderer renderer;
+    renderer.init();
 
-    glGenBuffers(1, &EBO);
-    glGenVertexArrays(1, &VAO);  
-    glGenBuffers(1, &VBO);
-
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-
-    std::vector<unsigned int> indices = {};
-    for (int i = 0; i < 6; i++) {
-        int start = i * 4;
-        indices.push_back(start + 0); indices.push_back(start + 1); indices.push_back(start + 2);
-        indices.push_back(start + 0); indices.push_back(start + 2); indices.push_back(start + 3);
-    }
-
-    std::string vShaderStr = loadShaderSource("src/vertex.glsl");
-    std::string fShaderStr = loadShaderSource("src/fragment.glsl");
-
-    const char *vertexShaderSource = vShaderStr.c_str();
-    const char *fragmentShaderSource = fShaderStr.c_str();
-
-    unsigned int vertexShader;
-    vertexShader = glCreateShader(GL_VERTEX_SHADER);
-
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-    glCompileShader(vertexShader);
-
-    int  success; // reusing this variable
-    char infoLog[512];
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-
-    if(!success) {
-        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-
-    unsigned int fragmentShader;
-    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-    glCompileShader(fragmentShader);
-
-    char infoLog2[512];
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-
-    if (!success) {
-        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog2);
-        std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-
-    unsigned int shaderProgram;
-    shaderProgram = glCreateProgram();
-
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-
-    char infoLog3[512];
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if(!success) {
-        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::PROGRAM::LINK_FAILED\n" << infoLog << std::endl;
-    }
-
-    glUseProgram(shaderProgram);
-    glEnable(GL_DEPTH_TEST);
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);  
-
-    Cube testCube({0, 0, 0}, {1, 1, 1});
-
-    glBindVertexArray(VAO);
-
-    std::vector<float> standardVertices = createCubeVertices(1.0f);
-    // 頂点データをVBOに転送
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, 
-                standardVertices.size() * sizeof(float), 
-                standardVertices.data(), 
-                GL_STATIC_DRAW);
-
-    // インデックスをEBOに転送 (Cube::indices は static なのでどこからでも取れる)
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 
-                indices.size() * sizeof(unsigned int), 
-                indices.data(), 
-                GL_STATIC_DRAW);
-
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    // read position 0(location), for each 3 floats, skip 3 * sizeof float.
-    
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // classic CPU style
-
-
-    // 描画したい Cube たちを並べる
-
+    // make it workspace we ain't unity
     std::vector<Cube> world = {
         Cube({0, 0, -2}, {1, 4, 1}),
         Cube({2, 0, -4}, {1, 1, 1}),
@@ -313,15 +369,6 @@ int main() {
 
     world[0].Color = Color4(0, 0, 1, 1);
     world[1].Color = Color4(1, 0, 0, 1);
-
-    int lightPosLoc = glGetUniformLocation(shaderProgram, "lightPos");
-    int lightColorLoc = glGetUniformLocation(shaderProgram, "lightColor");
-
-    // 太陽光のような白い光を、右斜め上から
-    glUniform3f(lightPosLoc, 10.0f, 10.0f, 10.0f); 
-    glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
-
-    User user(window);
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -332,30 +379,11 @@ int main() {
 
         // --- 2. 入力検知 (向きに基づいた移動) ---
         user.processInput();
-        // --- 3. 行列の組み立て ---
-        Matrix4 projection = Matrix4::Perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
-
-        // 今の camera 位置から、forward 方向にある「注視点」を割り出す
-        Vector3 target = user.cpos + user.forward; 
-        
-        // cam(位置), target(見たい場所), up(どっちが上か) を渡すだけ
-        Matrix4 view = Matrix4::LookAt(user.cpos, target, Vector3(0, 1, 0));
-
-        Matrix4 model = Matrix4::Translate(0.0f, 0.0f, -2.0f);
-
-        // --- 4. Uniform転送と描画 ---
-        int modelLoc = glGetUniformLocation(shaderProgram, "model");
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, view.m);
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, projection.m);
-
-        glBindVertexArray(VAO);
-        for (Cube& c : world) {
-            c.draw(modelLoc, shaderProgram);
+        if (user.wannaExit) {
+            break;
         }
-        
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+
+        renderer.render(user, window, world);
     }
 
     glfwTerminate();
