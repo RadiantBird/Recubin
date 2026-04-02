@@ -32,47 +32,78 @@ std::string loadShaderSource(const char* filePath) {
 
 std::vector<float> createCubeVertices(float size) {
     float h = size / 2.0f;
-    return {
-        h, h, h,  h,-h, h, -h,-h, h, -h, h, h, // 前面
-        h, h,-h,  h,-h,-h, -h,-h,-h, -h, h,-h  // 背面
+    std::vector<float> v;
+
+    // 6つの面の向き（法線）を定義
+    struct Face { float nx, ny, nz; };
+    Face faces[6] = {
+        { 0, 0, 1}, { 0, 0,-1}, // 前, 後
+        { 0, 1, 0}, { 0,-1, 0}, // 上, 下
+        { 1, 0, 0}, {-1, 0, 0}  // 右, 左
     };
+
+    for (int i = 0; i < 6; i++) {
+        float nx = faces[i].nx, ny = faces[i].ny, nz = faces[i].nz;
+        
+        // 法線に垂直な2つのベクトル（面を作るための横と縦の棒）を適当に決める
+        // 本来は外積を使いますが、立方体ならこれで十分
+        float ux = (nx == 0) ? 1 : 0;
+        float uy = (nx != 0 || nz != 0) ? 0 : 1;
+        float uz = (nz == 0 && nx != 0) ? 1 : 0;
+        if (ny != 0) { ux = 1; uy = 0; uz = 0; } // 上下だけ特殊処理
+        
+        float vx = ny * uz - nz * uy;
+        float vy = nz * ux - nx * uz;
+        float vz = nx * uy - ny * ux;
+
+        // 4つの角を計算して vector にブチ込む
+        float p[4][2] = {{1,1}, {1,-1}, {-1,-1}, {-1,1}};
+        for (int j = 0; j < 4; j++) {
+            // 座標 (x, y, z)
+            v.push_back(nx * h + p[j][0] * ux * h + p[j][1] * vx * h);
+            v.push_back(ny * h + p[j][0] * uy * h + p[j][1] * vy * h);
+            v.push_back(nz * h + p[j][0] * uz * h + p[j][1] * vz * h);
+            // 法線 (nx, ny, nz)
+            v.push_back(nx); v.push_back(ny); v.push_back(nz);
+        }
+    }
+    return v;
 }
+
+struct Color4 {
+    float r, g, b, a;
+
+    Color4(float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f)
+        : r(r), g(g), b(b), a(a) {}
+
+    // 0-255
+    static Color4 FromRGB(int r, int g, int b, float a = 1.0f) {
+        return Color4(r / 255.0f, g / 255.0f, b / 255.0f, a);
+    }
+};
 
 class Cube {
     public:
         Vector3 Position = Vector3(0.0, 0.0, 0.0);
         Vector3 Size = Vector3(4.0, 1.0, 2.0);
+        Color4 Color = Color4(0, 1, 0, 1);
 
-        static constexpr unsigned int indices[] = {
-            0, 1, 3,  1, 2, 3, // 前面
-            4, 5, 7,  5, 6, 7, // 背面
-            0, 1, 4,  1, 5, 4, // 右面
-            2, 3, 6,  3, 7, 6, // 左面
-            0, 3, 4,  3, 7, 4, // 上面
-            1, 2, 5,  2, 6, 5  // 下面
-        };
-
-        void draw(int modelLoc) {
-            // 1. 移動行列を作る
+        void draw(int modelLoc, int shaderProgram) {
             Matrix4 translation = Matrix4::Translate(Position.x, Position.y, Position.z);
             
-            // 2. 拡大縮小行列を作る（Sizeベクトルをそのまま使う）
             Matrix4 scaling = Matrix4::Scale(Size.x, Size.y, Size.z);
             
-            // 3. 合成する（Scaleを先に掛けるのがルール！）
+            // 合成する（Scaleを先に掛ける）
             Matrix4 model = translation * scaling;
-            
-            // 4. GPUに「加工済みの伝票」を送る
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
             
-            // 5. 描画！
+            int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
+            glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
             glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
         }
 
         Cube(Vector3 Pos, Vector3 Sz) : Position(Pos), Size(Sz) {}
 };
-
-constexpr unsigned int Cube::indices[];
 
 int main() {
     std::cout << "Hello world!!\n";
@@ -107,11 +138,12 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 
-    // glBufferData(GL_ARRAY_BUFFER, 
-    //              vertices.size() * sizeof(float), // 正確なバイト数
-    //              vertices.data(),                 // これが const void* (内部配列へのポインタ) になる
-    //              GL_STATIC_DRAW);
-    // glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW); 
+    std::vector<unsigned int> indices = {};
+    for (int i = 0; i < 6; i++) {
+        int start = i * 4;
+        indices.push_back(start + 0); indices.push_back(start + 1); indices.push_back(start + 2);
+        indices.push_back(start + 0); indices.push_back(start + 2); indices.push_back(start + 3);
+    }
 
     std::string vShaderStr = loadShaderSource("src/vertex.glsl");
     std::string fShaderStr = loadShaderSource("src/fragment.glsl");
@@ -182,18 +214,19 @@ int main() {
     // インデックスをEBOに転送 (Cube::indices は static なのでどこからでも取れる)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, 
-                sizeof(Cube::indices), 
-                Cube::indices, 
+                indices.size() * sizeof(unsigned int), 
+                indices.data(), 
                 GL_STATIC_DRAW);
 
-    // 属性の設定（ここも忘れずに）
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
     // read position 0(location), for each 3 floats, skip 3 * sizeof float.
     
-    glEnableVertexAttribArray(0); 
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // classic CPU style
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // classic CPU style
 
     int rotateX = 0, rotateY = 0, rotateZ = 0;
     Vector3 cam(0, 0, 5);
@@ -205,6 +238,16 @@ int main() {
         Cube({2, 0, -4}, {1, 1, 1}),
         Cube({-2, 0, -4}, {2, 1, 1})
     };
+
+    world[0].Color = Color4(0, 0, 1, 1);
+    world[1].Color = Color4(1, 0, 0, 1);
+
+    int lightPosLoc = glGetUniformLocation(shaderProgram, "lightPos");
+    int lightColorLoc = glGetUniformLocation(shaderProgram, "lightColor");
+
+    // 太陽光のような白い光を、右斜め上から
+    glUniform3f(lightPosLoc, 10.0f, 10.0f, 10.0f); 
+    glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -274,7 +317,7 @@ int main() {
 
         glBindVertexArray(VAO);
         for (Cube& c : world) {
-            c.draw(modelLoc);
+            c.draw(modelLoc, shaderProgram);
         }
         
         glfwSwapBuffers(window);
