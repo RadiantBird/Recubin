@@ -7,6 +7,8 @@
 #include <sstream>
 #include <string>
 
+const float pi = 3.14159265f;
+
 std::string loadShaderSource(const char* filePath) {
     std::string content;
     std::ifstream fileStream(filePath, std::ios::in);
@@ -121,6 +123,7 @@ int main() {
     }
 
     glUseProgram(shaderProgram);
+    glEnable(GL_DEPTH_TEST);
 
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);  
@@ -133,10 +136,10 @@ int main() {
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // classic CPU style
 
     int x_diff = 0, y_diff = 0;
-    int rotate = 0;
+    int rotateX = 0, rotateY = 0, rotateZ = 0;
 
     while (!glfwWindowShouldClose(window)) {
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
@@ -154,20 +157,52 @@ int main() {
             x_diff += 1;
         }
         if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-            rotate = (rotate + 1) % 360;
+            rotateY = (rotateY + 1) % 360;
         }
         if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-            rotate = (rotate - 1) % 360;
+            rotateY = (rotateY - 1) % 360;
         }
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             break;
         }
+        
+        float rx = rotateX * pi / 180.0f;
+        float ry = rotateY * pi / 180.0f;
+        float rz = rotateZ * pi / 180.0f;
 
-        int offsetLoc = glGetUniformLocation(shaderProgram, "offset");
-        float degLoc = glGetUniformLocation(shaderProgram, "deg");
-        // int x_pos = x_diff + 
-        glUniform2f(offsetLoc, x_diff / 100.0f, y_diff / 100.0f);
-        glUniform1f(degLoc, (float)rotate);
+        float cx = cos(rx), sx = sin(rx);
+        float cy = cos(ry), sy = sin(ry);
+        float cz = cos(rz), sz = sin(rz);
+
+        // 3つの回転行列を掛け合わせた結果（列優先）
+        float transform[] = {
+            // 第1列
+            cy * cz,                          cy * sz,                          -sy,      0.0f,
+            // 第2列
+            sx * sy * cz - cx * sz,           sx * sy * sz + cx * cz,           sx * cy,  0.0f,
+            // 第3列
+            cx * sy * cz + sx * sz,           cx * sy * sz - sx * cz,           cx * cy,  0.0f,
+            // 第4列（x, y 移動 + zはカメラから離すために -2.0f 固定か変数で）
+            x_diff / 100.0f,                  y_diff / 100.0f,                  -2.0f,    1.0f 
+        };
+
+        float aspect = 800.0f / 600.0f; // ウィンドウの縦横比
+        float fov = 45.0f * pi / 180.0f; // 視野角
+        float f = 1.0f / tan(fov / 2.0f);
+        float zNear = 0.1f;
+        float zFar = 100.0f;
+
+        float projection[16] = {
+            f / aspect, 0.0f, 0.0f, 0.0f,
+            0.0f, f, 0.0f, 0.0f,
+            0.0f, 0.0f, (zFar + zNear) / (zNear - zFar), -1.0f, // ここでZ値をWに放り込むのがコツ
+            0.0f, 0.0f, (2.0f * zFar * zNear) / (zNear - zFar), 0.0f
+        };
+
+        int modelLoc = glGetUniformLocation(shaderProgram, "model");
+        int projeLoc = glGetUniformLocation(shaderProgram, "projection");
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, transform); // 列優先なのでFALSE
+        glUniformMatrix4fv(projeLoc, 1, GL_FALSE, projection);
 
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float) * 12, vertices);
