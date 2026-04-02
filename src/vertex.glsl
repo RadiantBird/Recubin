@@ -1,16 +1,22 @@
 #version 330 core
 layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec3 aNormal; // 法線を受け取る
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aTexCoord; // ← これを追加！(CPU側のlocation=2と対応)
+
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
 out vec3 Normal;
 out vec3 FragPos;
+out vec2 TexCoord; // ← Fragmentへ送るための変数
 
 void main() {
-    // モデル行列を掛けて、世界座標系での位置と向きを計算する
     FragPos = vec3(model * vec4(aPos, 1.0));
-    Normal = mat3(transpose(inverse(model))) * aNormal; // 法線の変換
+    Normal = mat3(transpose(inverse(model))) * aNormal;
+    
+    // 【重要】ここでCPUから来た UV を Fragment へ横流しする
+    TexCoord = aTexCoord; 
+
     gl_Position = projection * view * vec4(FragPos, 1.0);
 }

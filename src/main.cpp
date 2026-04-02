@@ -10,6 +10,10 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <cstddef>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "include/stb_image.h"
 
 const float pi = 3.14159265f;
 
@@ -30,9 +34,17 @@ std::string loadShaderSource(const char* filePath) {
     return content;
 }
 
-std::vector<float> createCubeVertices(float size) {
+struct Vertex {
+    Vector3 Position;  // 3 floats
+    Vector3 Normal;    // 3 floats
+    float U, V;        // 2 floats
+
+    Vertex() : Position(0, 0, 0), Normal(0, 0, 0), U(0), V(0) {}
+};
+
+std::vector<Vertex> createCubeVertices(float size) {
     float h = size / 2.0f;
-    std::vector<float> v;
+    std::vector<Vertex> v;
 
     // 6つの面の向き（法線）を定義
     struct Face { float nx, ny, nz; };
@@ -45,8 +57,7 @@ std::vector<float> createCubeVertices(float size) {
     for (int i = 0; i < 6; i++) {
         float nx = faces[i].nx, ny = faces[i].ny, nz = faces[i].nz;
         
-        // 法線に垂直な2つのベクトル（面を作るための横と縦の棒）を適当に決める
-        // 本来は外積を使いますが、立方体ならこれで十分
+        // 法線に垂直な2つのベクトル（面を作るための横と縦の棒）を計算
         float ux = (nx == 0) ? 1 : 0;
         float uy = (nx != 0 || nz != 0) ? 0 : 1;
         float uz = (nz == 0 && nx != 0) ? 1 : 0;
@@ -57,14 +68,29 @@ std::vector<float> createCubeVertices(float size) {
         float vz = nx * uy - ny * ux;
 
         // 4つの角を計算して vector にブチ込む
+        // UV座標の対応: 右上(1,1), 右下(1,0), 左下(0,0), 左上(0,1) 
         float p[4][2] = {{1,1}, {1,-1}, {-1,-1}, {-1,1}};
+        float uv[4][2] = {{1,1}, {1,0}, {0,0}, {0,1}}; // UVの並び
+
         for (int j = 0; j < 4; j++) {
-            // 座標 (x, y, z)
-            v.push_back(nx * h + p[j][0] * ux * h + p[j][1] * vx * h);
-            v.push_back(ny * h + p[j][0] * uy * h + p[j][1] * vy * h);
-            v.push_back(nz * h + p[j][0] * uz * h + p[j][1] * vz * h);
-            // 法線 (nx, ny, nz)
-            v.push_back(nx); v.push_back(ny); v.push_back(nz);
+            Vertex vert;
+
+            // 1. 座標 (x, y, z) を Vertex 構造体のメンバに代入
+            vert.Position.x = nx * h + p[j][0] * ux * h + p[j][1] * vx * h;
+            vert.Position.y = ny * h + p[j][0] * uy * h + p[j][1] * vy * h;
+            vert.Position.z = nz * h + p[j][0] * uz * h + p[j][1] * vz * h;
+
+            // 2. 法線 (nx, ny, nz) を代入
+            vert.Normal.x = nx;
+            vert.Normal.y = ny;
+            vert.Normal.z = nz;
+
+            // 3. UV座標 (u, v) を代入
+            vert.U = uv[j][0];
+            vert.V = uv[j][1];
+
+            // 構造体ごと vector に追加
+            v.push_back(vert);
         }
     }
     return v;
@@ -86,7 +112,12 @@ class Cube {
     public:
         Vector3 Position = Vector3(0.0, 0.0, 0.0);
         Vector3 Size = Vector3(4.0, 1.0, 2.0);
-        Color4 Color = Color4(0, 1, 0, 1);
+        Color4 Color = Color4(1, 1, 1, 1);
+        unsigned int faceTextures[6] = {0, 0, 0, 0, 0, 0};
+
+        void setFaceTexture(int faceIdx, unsigned int texID) {
+            if (faceIdx >= 0 && faceIdx < 6) faceTextures[faceIdx] = texID;
+        }
 
         void draw(int modelLoc, int shaderProgram) {
             Matrix4 translation = Matrix4::Translate(Position.x, Position.y, Position.z);
@@ -99,7 +130,18 @@ class Cube {
             
             int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
             glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
-            glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+            for (int i = 0; i < 6; i++) {
+                if (faceTextures[i] != 0) {
+                    glBindTexture(GL_TEXTURE_2D, faceTextures[i]);
+                } else {
+                    // テクスチャがない面は、バインドを解除するか 
+                    // デフォルトの「白」とかをバインドしておかないと、前の面の絵が漏れます
+                    glBindTexture(GL_TEXTURE_2D, 0); 
+                }
+
+                // ここが重要：i*6*sizeof(unsigned int) は「36個のバッファ内」を指しているか？
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(i * 6 * sizeof(unsigned int)));
+            }
         }
 
         Cube(Vector3 Pos, Vector3 Sz) : Position(Pos), Size(Sz) {}
@@ -188,7 +230,13 @@ class Renderer {
 
         unsigned int shaderProgram;
 
+        std::vector<unsigned int> indices = {};
+
         void init() {
+            int maxSize;
+            glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxSize);
+            std::cout << "Max Texture Size: " << maxSize << std::endl;
+
             glGenBuffers(1, &EBO);
             glGenVertexArrays(1, &VAO);  
             glGenBuffers(1, &VBO);
@@ -197,7 +245,6 @@ class Renderer {
             glBindBuffer(GL_ARRAY_BUFFER, VBO);
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 
-            std::vector<unsigned int> indices = {};
             for (int i = 0; i < 6; i++) {
                 int start = i * 4;
                 indices.push_back(start + 0); indices.push_back(start + 1); indices.push_back(start + 2);
@@ -247,8 +294,8 @@ class Renderer {
             char infoLog3[512];
             glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
             if(!success) {
-                glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-                std::cout << "ERROR::SHADER::PROGRAM::LINK_FAILED\n" << infoLog << std::endl;
+                glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog3);
+                std::cout << "ERROR::SHADER::PROGRAM::LINK_FAILED\n" << infoLog3 << std::endl;
             }
 
             glUseProgram(shaderProgram);
@@ -261,11 +308,11 @@ class Renderer {
 
             glBindVertexArray(VAO);
 
-            std::vector<float> standardVertices = createCubeVertices(1.0f);
-            // 頂点データをVBOに転送
+            std::vector<Vertex> standardVertices = createCubeVertices(1.0f);
+                
             glBindBuffer(GL_ARRAY_BUFFER, VBO);
             glBufferData(GL_ARRAY_BUFFER, 
-                        standardVertices.size() * sizeof(float), 
+                        standardVertices.size() * sizeof(Vertex), 
                         standardVertices.data(), 
                         GL_STATIC_DRAW);
 
@@ -277,14 +324,21 @@ class Renderer {
                         GL_STATIC_DRAW);
 
 
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+            GLsizei stride = sizeof(Vertex);
+            // 0: Position
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(Vertex, Position));
             glEnableVertexAttribArray(0);
-            // read position 0(location), for each 3 floats, skip 3 * sizeof float.
-            
-            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+
+            // 1: Normal
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(Vertex, Normal));
             glEnableVertexAttribArray(1);
 
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // classic CPU style
+            // 2: TexCoord (ここがズレると「色がくそ」になる)
+            // 構造体の中にある U の場所を直接指定
+            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(Vertex, U));
+            glEnableVertexAttribArray(2);
+
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
             int lightPosLoc = glGetUniformLocation(shaderProgram, "lightPos");
             int lightColorLoc = glGetUniformLocation(shaderProgram, "lightColor");
@@ -294,7 +348,7 @@ class Renderer {
             glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
         }
 
-        void render(User user, GLFWwindow* window, std::vector<Cube> world) {
+        void render(User &user, GLFWwindow* window, std::vector<Cube> &world) {
             Matrix4 projection = Matrix4::Perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 
             // 今の camera 位置から、forward 方向にある「注視点」を割り出す
@@ -305,7 +359,13 @@ class Renderer {
 
             Matrix4 model = Matrix4::Translate(0.0f, 0.0f, -2.0f);
 
-            // --- 4. Uniform転送と描画 ---
+            glUniform3f(glGetUniformLocation(shaderProgram, "lightPos"), 10.0f, 10.0f, 10.0f);
+            glUniform3f(glGetUniformLocation(shaderProgram, "lightColor"), 1.0f, 1.0f, 1.0f);
+            glUniform3f(glGetUniformLocation(shaderProgram, "viewPos"), user.cpos.x, user.cpos.y, user.cpos.z);
+
+            // 3. テクスチャユニット0番を使うことを明示
+            glUniform1i(glGetUniformLocation(shaderProgram, "ourTexture"), 0);
+            
             int modelLoc = glGetUniformLocation(shaderProgram, "model");
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
             glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, view.m);
@@ -318,6 +378,44 @@ class Renderer {
             
             glfwSwapBuffers(window);
             glfwPollEvents();
+        }
+
+        unsigned int loadTexture(const char* path) {
+            int width, height, nrChannels;
+            // ここで flip を呼ぶのをやめる（main の冒頭で1回だけ呼ぶ）
+
+            unsigned char *data = stbi_load(path, &width, &height, &nrChannels, 0);
+
+            unsigned int textureID = 0; // 初期化
+            if (!data) {
+                std::cout << "Failed: " << path << std::endl;
+                return 0;
+            }
+
+            glGenTextures(1, &textureID);
+            glBindTexture(GL_TEXTURE_2D, textureID);
+
+            // チャンネル数に合わせて、内部形式(第3引数)も明示的に指定する
+            GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
+            GLint internalFormat = (nrChannels == 4) ? GL_RGBA8 : GL_RGB8;
+
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1); 
+            
+            // 第3引数を internalFormat に変更
+            glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+            glGenerateMipmap(GL_TEXTURE_2D);
+
+            // 基本的なパラメータを設定（これをしないと不安定になる環境がある）
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+            std::cout << "Success: " << path << " (" << nrChannels << "ch)" << std::endl;
+            
+            stbi_image_free(data);
+            return textureID;
         }
 };
 
@@ -360,15 +458,31 @@ int main() {
     Renderer renderer;
     renderer.init();
 
+    stbi_set_flip_vertically_on_load(true); // OpenGL用
+    unsigned int floppa   = renderer.loadTexture("assets/image/floppa2048.jpg");
+    // unsigned int thecat   = renderer.loadTexture("assets/image/the-cat.png");
+    // unsigned int saladcat = renderer.loadTexture("assets/image/salad-cat.jpg");
+    // unsigned int smile    = renderer.loadTexture("assets/image/smile.png");
+    // unsigned int bliss    = renderer.loadTexture("assets/image/bliss.jpg");
+    // unsigned int limabis  = renderer.loadTexture("assets/image/Limabis_logo.png");
+
     // make it workspace we ain't unity
     std::vector<Cube> world = {
         Cube({0, 0, -2}, {1, 4, 1}),
         Cube({2, 0, -4}, {1, 1, 1}),
-        Cube({-2, 0, -4}, {2, 1, 1})
+        Cube({-2, 0, -4}, {2, 1, 1}),
+        Cube({0, 0, -8}, {2, 2, 2})
     };
 
     world[0].Color = Color4(0, 0, 1, 1);
     world[1].Color = Color4(1, 0, 0, 1);
+    Cube &C = world[3];
+    C.setFaceTexture(0, floppa);
+    // C.setFaceTexture(1, thecat);
+    // C.setFaceTexture(2, saladcat);
+    // C.setFaceTexture(3, smile);
+    // C.setFaceTexture(4, bliss);
+    // C.setFaceTexture(5, limabis);
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
