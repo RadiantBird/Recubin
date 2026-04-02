@@ -31,9 +31,6 @@ int main() {
         -0.25f, -0.25f, 0.0f,  // bottom left
     };
 
-    float temp_v[9];
-    std::copy(vertices, vertices + 9, temp_v);
-
     unsigned int indices[] = {  // note that we start from 0!
         0, 1, 2,   // first triangle
     };  
@@ -56,9 +53,14 @@ int main() {
     const char *vertexShaderSource = 
     "#version 330 core\n"
     "layout (location = 0) in vec3 aPos;\n"
+    "uniform vec2 offset;\n"
+    "uniform float deg;\n"
     "void main()\n"
     "{\n"
-    "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
+    "   float rad = deg * 3.1415927 / 180.0;\n"
+    "   float x = aPos.x * cos(rad) - aPos.y * sin(rad) + offset.x;\n"
+    "   float y = aPos.x * sin(rad) + aPos.y * cos(rad) + offset.y;\n"
+    "   gl_Position = vec4(x, y, aPos.z, 1.0);\n"
     "}\0";
 
     const char *fragmentShaderSource =
@@ -122,8 +124,10 @@ int main() {
     glEnableVertexAttribArray(0); 
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // classic CPU style
+    glDrawElements(GL_LINE_LOOP, 3, GL_UNSIGNED_INT, 0);
 
     int x_diff = 0, y_diff = 0;
+    int rotate = 0;
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT);
@@ -143,14 +147,21 @@ int main() {
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
             x_diff += 1;
         }
+        if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
+            rotate = (rotate + 1) % 360;
+        }
+        if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+            rotate = (rotate - 1) % 360;
+        }
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             break;
         }
 
-        for (int i = 0; i < 9; i += 3) {
-            vertices[i] = temp_v[i] + x_diff / 10.0f;
-            vertices[i+1] = temp_v[i+1] + y_diff / 10.0f;
-        }
+        int offsetLoc = glGetUniformLocation(shaderProgram, "offset");
+        float degLoc = glGetUniformLocation(shaderProgram, "deg");
+        // int x_pos = x_diff + 
+        glUniform2f(offsetLoc, x_diff / 100.0f, y_diff / 100.0f);
+        glUniform1f(degLoc, (float)rotate);
 
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float) * 9, vertices);
