@@ -15,6 +15,26 @@
 #include <cmath>
 #include <cstddef>
 
+#include <include/PhysX/PxPhysicsAPI.h>
+
+// テスト用のダミー関数
+void testPhysX() {
+    static physx::PxDefaultAllocator gAllocator;
+    static physx::PxDefaultErrorCallback gErrorCallback;
+
+    // Foundation (基盤) を作ってみる
+    physx::PxFoundation* foundation = PxCreateFoundation(
+        PX_PHYSICS_VERSION, 
+        gAllocator, 
+        gErrorCallback
+    );
+
+    if (foundation) {
+        std::cout << "PhysX Foundation created successfully!" << std::endl;
+        foundation->release();
+    }
+}
+
 GLFWwindow* setupWindow() {
     std::cout << "initing GLFW...\n";
     if (!glfwInit()) {
@@ -45,6 +65,7 @@ int main() {
     std::cout << "Hello world!\n"
               << "Version 0.2\n";
     
+    testPhysX();
     GLFWwindow* window = setupWindow();
     if (!window) {
         std::cout << "[ERROR] Failed to setup.\n";

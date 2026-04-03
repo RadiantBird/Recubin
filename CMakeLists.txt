@@ -18,6 +18,8 @@ add_executable(Recubin ${SOURCES})
 set_target_properties(Recubin PROPERTIES LINK_FLAGS "/NODEFAULTLIB:LIBCMT")
 
 target_link_directories(Recubin PRIVATE ${CMAKE_SOURCE_DIR}/include/libs)
+include_directories(${CMAKE_SOURCE_DIR}/include/PhysX)
+link_directories(${CMAKE_SOURCE_DIR}/include/libs)
 
 target_link_libraries(Recubin 
     glfw3 
@@ -26,4 +28,9 @@ target_link_libraries(Recubin
     user32 
     gdi32 
     shell32
+
+    PhysX_64
+    PhysXCommon_64
+    PhysXFoundation_64
+    PhysXExtensions_static_64
 )
