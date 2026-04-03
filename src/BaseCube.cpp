@@ -2,7 +2,13 @@
 
 BaseCube::BaseCube(Vector3 Pos, Vector3 Sz) 
     : Instance("BaseCube"), Position(Pos), Size(Sz), Color(1, 1, 1, 1) {
-    this->ClassName = "BaseCube";
+}
+
+bool BaseCube::IsA(std::string className) {
+    if (className == "BaseCube") {
+        return true;
+    }
+    return Instance::IsA(className);
 }
 
 void BaseCube::syncPhysics() {

@@ -52,12 +52,16 @@ std::vector<Vertex> createCubeVertices(float size) {
 Cube::Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex) 
     : BaseCube(Pos, Sz) 
 {
-    // ここからは「家が建った後」の作業
-    this->ClassName = "Cube"; // 自分は Cube だと名乗る
-    
     for(int i = 0; i < 6; i++) {
         faceTextures[i] = defaultTex;
     }
+}
+
+bool Cube::IsA(std::string className) {
+    if (className == "Cube") {
+        return true;
+    }
+    return BaseCube::IsA(className);
 }
 
 // テクスチャ設定の実装

@@ -28,4 +28,6 @@ class Cube : public BaseCube {
         // メソッドの宣言
         void setFaceTexture(int faceIdx, unsigned int texID);
         void draw(int modelLoc, int shaderProgram);
+
+        virtual bool IsA(std::string name) override;
 };

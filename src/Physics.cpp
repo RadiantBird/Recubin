@@ -1,6 +1,6 @@
 #include "include/Core/Physics.hpp"
 
-// #define RECUBIN_DEBUG
+#define RECUBIN_DEBUG
 #ifdef RECUBIN_DEBUG
     #define d_print(x) std::cout << "[DEBUG] " << x << std::endl
 #else
@@ -46,7 +46,7 @@ void Physics::createActor(BaseCube* cube) {
 }
 
 void Physics::update(Workspace& workspace, float dt) {
-    d_print("Update Frame Start | dt: " << dt);
+    // d_print("Update Frame Start | dt: " << dt);
     static float accumulator = 0.0f;
     const float fixedStep = 1.0f / 60.0f;
     const int MAX_STEPS = 5; // ★安全装置：1フレーム最大5回まで
@@ -78,12 +78,6 @@ void Physics::update(Workspace& workspace, float dt) {
         }
     }
     workspace.pendingInstances.clear();
-
-    // 2. シミュレーション実行
-    d_print("Simulating PhysX...");
-    scene->simulate(dt);
-    scene->fetchResults(true);
-    d_print("Simulation Done.");
 
     // 3. 全ての子を同期（ここも本来はリスト化すると速い）
     for (auto const& [name, child] : workspace.getChildren()) {

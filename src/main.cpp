@@ -112,7 +112,7 @@ int main() {
     // 4. Custom Textured Cube (元 world[3] / Floppa)
     Cube* floppaCube = new Cube({0.0f, 0.0f, -8.0f}, {2.0f, 2.0f, 2.0f}, renderer.whiteTexture);
     floppaCube->Name = "Floppa";
-    floppaCube->Color = Color4(1.0f, 1.0f, 0.0f, 1.0f);
+    floppaCube->Color = Color4(1.0f, 1.0f, 1.0f, 1.0f);
     
     // 各面のテクスチャ設定
     floppaCube->setFaceTexture(0, floppa);
@@ -123,6 +123,12 @@ int main() {
     floppaCube->setFaceTexture(5, limabis);
     
     workspace.addChild(floppaCube);
+
+    Cube* baseplate = new Cube({0.0f, -10.0f, 0.0f},  {32.0f, 1.0f, 32.0f}, renderer.whiteTexture);
+    baseplate->Name = "Baseplate";
+    baseplate->Color = Color4(0.0f, 1.0f, 0.5f, 1.0f);
+    baseplate->Anchored = true;
+    workspace.addChild(baseplate);
 
     float lastFrame = 0.0f;
     while (!glfwWindowShouldClose(window)) {

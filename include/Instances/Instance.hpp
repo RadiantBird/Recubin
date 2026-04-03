@@ -9,7 +9,6 @@ class Instance {
         using string = std::string;
     public:
         string Name = "Instance";
-        string ClassName = "Instance";
 
         Instance* Parent = nullptr;
         std::unordered_map<string, Instance*> children = {};
@@ -18,8 +17,8 @@ class Instance {
             this->Name = name;
         }
 
-        virtual bool IsA(string className) {
-            if (className == this->ClassName) {
+        virtual bool IsA(std::string className) {
+            if (className == "Instance") {
                 return true;
             }
             return false;

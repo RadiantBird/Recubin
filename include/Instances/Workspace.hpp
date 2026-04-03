@@ -20,7 +20,5 @@ class Workspace : public Instance {
             pendingInstances.push_back(child);
         }
 
-        Workspace () : Instance("Workspace") {
-            this->ClassName = "Workspace";
-        }
+        Workspace () : Instance("Workspace") {};
 };
