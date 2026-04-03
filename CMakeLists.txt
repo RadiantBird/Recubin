@@ -9,7 +9,7 @@ include_directories(.)
 add_definitions(-DGLEW_STATIC)
 
 # コンパイルオプションはターゲットに関係なく全体にかけられるのでここでOK
-add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf8>")
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
 # --- 2. ターゲット作成：ここで "Recubin" が誕生する ---
 add_executable(Recubin ${SOURCES})

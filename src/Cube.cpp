@@ -50,9 +50,14 @@ std::vector<Vertex> createCubeVertices(float size) {
 
 // Cubeコンストラクタの実装
 Cube::Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex) 
-    : Position(Pos), Size(Sz), Color(1, 1, 1, 1) 
+    : BaseCube(Pos, Sz) 
 {
-    for(int i = 0; i < 6; i++) faceTextures[i] = defaultTex;
+    // ここからは「家が建った後」の作業
+    this->ClassName = "Cube"; // 自分は Cube だと名乗る
+    
+    for(int i = 0; i < 6; i++) {
+        faceTextures[i] = defaultTex;
+    }
 }
 
 // テクスチャ設定の実装

@@ -1,7 +1,9 @@
 #pragma once
 
 #include <include/Math/Matrix4.hpp>
-#include <include/Util/Color4.hpp>
+
+#include <include/Instances/BaseCube.hpp>
+
 #include <vector>
 
 // 頂点構造体
@@ -16,17 +18,14 @@ struct Vertex {
 // 頂点生成関数の宣言
 std::vector<Vertex> createCubeVertices(float size);
 
-class Cube {
-public:
-    Vector3 Position;
-    Vector3 Size;
-    Color4 Color;
-    unsigned int faceTextures[6];
+class Cube : public BaseCube {
+    public:
+        unsigned int faceTextures[6];
 
-    // コンストラクタ
-    Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex);
+        // コンストラクタ
+        Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex);
 
-    // メソッドの宣言
-    void setFaceTexture(int faceIdx, unsigned int texID);
-    void draw(int modelLoc, int shaderProgram);
+        // メソッドの宣言
+        void setFaceTexture(int faceIdx, unsigned int texID);
+        void draw(int modelLoc, int shaderProgram);
 };
