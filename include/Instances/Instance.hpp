@@ -1,4 +1,6 @@
 #pragma once
+
+#include <iostream>
 #include <string>
 #include <unordered_map>
 
@@ -37,10 +39,19 @@ class Instance {
             return this->children;
         }
 
-        void addChild(string name) {
-            Instance* child = new Instance(name);
+        void addChild(Instance* child) {
+            // 1. 安全装置：空っぽ（nullptr）が来たら何もしない
+            if (child == nullptr) {
+                std::cout << "[WARN] addChild called but child is nullptr!\n";
+                return;
+            }
+
+            // 2. 親子関係の構築
             child->Parent = this;
-            this->children[name] = child;
+
+            // 3. 自分の子供リストに登録
+            // 名前（child->Name）をキーにして保存する
+            this->children[child->Name] = child;
         }
 
         bool removeChild(string name) {

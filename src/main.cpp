@@ -4,6 +4,8 @@
 #include <include/Math/Matrix4.hpp>
 
 #include <include/Instances/Cube.hpp>
+#include <include/Instances/Workspace.hpp>
+
 #include <include/Core/Renderer.hpp>
 
 #include <iostream>
@@ -63,7 +65,7 @@ GLFWwindow* setupWindow() {
 
 int main() {
     std::cout << "Hello world!\n"
-              << "Version 0.2\n";
+              << "Version 0.3\n";
     
     testPhysX();
     GLFWwindow* window = setupWindow();
@@ -83,25 +85,40 @@ int main() {
     unsigned int bliss    = renderer.loadTexture("assets/image/bliss.jpg"); // right
     unsigned int limabis  = renderer.loadTexture("assets/image/Limabis_logo.png"); // left
 
-    // make it workspace we ain't unity
-    std::vector<Cube> world = {
-        Cube({0, 0, -2}, {1, 4, 1}, renderer.whiteTexture),
-        Cube({2, 0, -4}, {1, 1, 1}, renderer.whiteTexture),
-        Cube({-2, 0, -4}, {2, 1, 1}, renderer.whiteTexture),
-        Cube({0, 0, -8}, {2, 2, 2}, renderer.whiteTexture)
-    };
+    Workspace workspace;
 
-    world[0].Color = Color4(0, 0, 1, 1);
-    world[1].Color = Color4(1, 0, 0, 1);
-    world[2].Color = Color4(0, 1, 0, 1);
-    Cube &C = world[3];
-    C.Color = Color4(1, 1, 0, 1);
-    C.setFaceTexture(0, floppa);
-    C.setFaceTexture(1, thecat);
-    C.setFaceTexture(2, saladcat);
-    C.setFaceTexture(3, smile);
-    C.setFaceTexture(4, bliss);
-    C.setFaceTexture(5, limabis);
+    // 1. Blue Cube (元 world[0])
+    Cube* blueCube = new Cube({0.0f, 0.0f, -2.0f}, {1.0f, 4.0f, 1.0f}, renderer.whiteTexture);
+    blueCube->Name = "Blue";
+    blueCube->Color = Color4(0.0f, 0.0f, 1.0f, 1.0f);
+    workspace.addChild(blueCube);
+
+    // 2. Red Cube (元 world[1])
+    Cube* redCube = new Cube({2.0f, 0.0f, -4.0f}, {1.0f, 1.0f, 1.0f}, renderer.whiteTexture);
+    redCube->Name = "Red";
+    redCube->Color = Color4(1.0f, 0.0f, 0.0f, 1.0f);
+    workspace.addChild(redCube);
+
+    // 3. Green Cube (元 world[2])
+    Cube* greenCube = new Cube({-2.0f, 0.0f, -4.0f}, {2.0f, 1.0f, 1.0f}, renderer.whiteTexture);
+    greenCube->Name = "Green";
+    greenCube->Color = Color4(0.0f, 1.0f, 0.0f, 1.0f);
+    workspace.addChild(greenCube);
+
+    // 4. Custom Textured Cube (元 world[3] / Floppa)
+    Cube* floppaCube = new Cube({0.0f, 0.0f, -8.0f}, {2.0f, 2.0f, 2.0f}, renderer.whiteTexture);
+    floppaCube->Name = "Floppa";
+    floppaCube->Color = Color4(1.0f, 1.0f, 0.0f, 1.0f);
+    
+    // 各面のテクスチャ設定
+    floppaCube->setFaceTexture(0, floppa);
+    floppaCube->setFaceTexture(1, thecat);
+    floppaCube->setFaceTexture(2, saladcat);
+    floppaCube->setFaceTexture(3, smile);
+    floppaCube->setFaceTexture(4, bliss);
+    floppaCube->setFaceTexture(5, limabis);
+    
+    workspace.addChild(floppaCube);
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -113,7 +130,7 @@ int main() {
             break;
         }
 
-        renderer.render(user, window, world);
+        renderer.render(user, window, workspace);
     }
 
     glfwTerminate();

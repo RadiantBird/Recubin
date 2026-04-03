@@ -156,7 +156,7 @@ void Renderer::init() {
     stbi_set_flip_vertically_on_load(true); // OpenGL用
 }
 
-void Renderer::render(User &user, GLFWwindow* window, std::vector<Cube> &world) {
+void Renderer::render(User &user, GLFWwindow* window, Workspace &workspace) {
     Matrix4 projection = Matrix4::Perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 
     // ターゲット（注視点）の計算
@@ -181,8 +181,15 @@ void Renderer::render(User &user, GLFWwindow* window, std::vector<Cube> &world) 
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, projection.m);
 
     glBindVertexArray(VAO);
-    for (Cube& c : world) {
-        c.draw(modelLoc, shaderProgram);
+    for (auto const& [name, child] : workspace.getChildren()) {
+        // 1. まずは型を確認（IsA が真を返すか）
+        if (child->IsA("Cube")) {
+            // 2. 「Instance*」を「Cube*」として扱う（キャスト）
+            Cube* cube = static_cast<Cube*>(child);
+            
+            // 3. 安全に描画！
+            cube->draw(modelLoc, shaderProgram);
+        }
     }
     
     glfwSwapBuffers(window);

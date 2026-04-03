@@ -6,6 +6,7 @@
 
 #include <include/Core/User.hpp>
 #include <include/Instances/Cube.hpp>
+#include <include/Instances/Workspace.hpp>
 
 #include <iostream>
 #include <vector>
@@ -30,7 +31,7 @@ class Renderer {
 
         void init();
 
-        void render(User &user, GLFWwindow* window, std::vector<Cube> &world);
+        void render(User &user, GLFWwindow* window, Workspace &workspace);
 
         unsigned int loadTexture(const char* path);
 };
