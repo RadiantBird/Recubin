@@ -376,7 +376,9 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\BaseCube.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Cube.cpp" />
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Physics.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Render.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\User.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\main.cpp" />

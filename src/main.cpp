@@ -6,6 +6,7 @@
 #include <include/Instances/Cube.hpp>
 #include <include/Instances/Workspace.hpp>
 
+#include <include/Core/Physics.hpp>
 #include <include/Core/Renderer.hpp>
 
 #include <iostream>
@@ -76,6 +77,9 @@ int main() {
 
     User user(window);
     Renderer renderer;
+    Physics physicsEngine;
+
+    physicsEngine.init();
     renderer.init();
 
     unsigned int floppa   = renderer.loadTexture("assets/image/floppa2048.jpg"); // back
@@ -120,7 +124,14 @@ int main() {
     
     workspace.addChild(floppaCube);
 
+    float lastFrame = 0.0f;
     while (!glfwWindowShouldClose(window)) {
+        float currentFrame = static_cast<float>(glfwGetTime());
+        float deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+
+        physicsEngine.update(workspace, deltaTime);
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
 

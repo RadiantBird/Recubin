@@ -39,7 +39,7 @@ class Instance {
             return this->children;
         }
 
-        void addChild(Instance* child) {
+        virtual void addChild(Instance* child) {
             // 1. 安全装置：空っぽ（nullptr）が来たら何もしない
             if (child == nullptr) {
                 std::cout << "[WARN] addChild called but child is nullptr!\n";
