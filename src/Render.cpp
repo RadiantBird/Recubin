@@ -187,9 +187,8 @@ void Renderer::render(User &user, GLFWwindow* window, Workspace &workspace) {
             // 3. 移動行列 (Position)
             Matrix4 translation = Matrix4::Translate(cube->Position.x, cube->Position.y, cube->Position.z);
 
-            // 4. 合成： Model = S * R * T
-            // 行列の掛け算順序に注意（右から適用されるイメージ）
-            Matrix4 modelMat = scale * rotation * translation;
+            // 正しくはT * R * S
+            Matrix4 modelMat = translation * rotation * scale;
 
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
             

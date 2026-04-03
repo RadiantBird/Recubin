@@ -71,10 +71,7 @@ void Cube::setFaceTexture(int faceIdx, unsigned int texID) {
 
 // 描画の実装
 void Cube::draw(int modelLoc, int shaderProgram) {
-    Matrix4 translation = Matrix4::Translate(Position.x, Position.y, Position.z);
-    Matrix4 scaling = Matrix4::Scale(Size.x, Size.y, Size.z);
-    Matrix4 model = translation * scaling; 
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
+    // ここで行列計算はしない
 
     int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
     if (colorLoc != -1) {
