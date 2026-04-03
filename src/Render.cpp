@@ -159,11 +159,12 @@ void Renderer::init() {
 void Renderer::render(User &user, GLFWwindow* window, std::vector<Cube> &world) {
     Matrix4 projection = Matrix4::Perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 
-    // 今の camera 位置から、forward 方向にある「注視点」を割り出す
+    // ターゲット（注視点）の計算
     Vector3 target = user.cpos + user.forward; 
     
-    // cam(位置), target(見たい場所), up(どっちが上か) を渡すだけ
-    Matrix4 view = Matrix4::LookAt(user.cpos, target, Vector3(0, 1, 0));
+    // 【QoL完全回復！】
+    // 第3引数を Vector3(0, 1, 0) から user.up に変更
+    Matrix4 view = Matrix4::LookAt(user.cpos, target, user.up);
 
     Matrix4 model = Matrix4::Translate(0.0f, 0.0f, -2.0f);
 

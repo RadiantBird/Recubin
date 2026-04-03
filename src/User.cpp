@@ -12,48 +12,49 @@ User::User(GLFWwindow* win)
 }
 
 void User::updateVectors() {
-    float radX = cam.rotateX * pi / 180.0f;
-    float radY = cam.rotateY * pi / 180.0f;
-
-    forward = Vector3(
-        sin(radY) * cos(radX),
-        -sin(radX),
-        -cos(radY) * cos(radX)
-    ).normalize();
-
-    right = Vector3::Cross(forward, Vector3(0, 1, 0)).normalize();
-    up = Vector3::Cross(right, forward).normalize();
+    // 外積を使わず、クォータニオンから直接ローカル軸を取り出す
+    forward = cam.Orientation.getForward();
+    right   = cam.Orientation.getRight();
+    up      = cam.Orientation.getUp();
 }
 
 void User::processInput() {
     if (!window) return;
 
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-        cpos = cpos + forward * speed;
+    // 移動処理（変更なし、updateVectorsの結果を使うので常に最新）
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cpos = cpos + forward * speed;
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cpos = cpos - forward * speed;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cpos = cpos - right * speed;
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cpos = cpos + right * speed;
+    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) cpos = cpos + up * speed;
+    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) cpos = cpos - up * speed;
+
+    bool rotated = false;
+
+    // 回転操作：現在の姿勢に対して「追加の回転」を掛け算する
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+        // Y軸（ワールドの上方向）を中心に回転
+        cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), rotationSpeed) * cam.Orientation;
+        rotated = true;
     }
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-        cpos = cpos - forward * speed;
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+        cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), -rotationSpeed) * cam.Orientation;
+        rotated = true;
     }
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-        cpos = cpos - right * speed;
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+        // X軸（カメラから見て右方向）を中心に回転
+        cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), rotationSpeed);
+        rotated = true;
     }
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        cpos = cpos + right * speed;
-    }
-    
-    // 上下移動
-    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-        cpos = cpos + up * speed;
-    }
-    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-        cpos = cpos - up * speed;
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+        cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), -rotationSpeed);
+        rotated = true;
     }
 
-    // 回転操作
-    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)  cam.rotateY = (cam.rotateY - 1) % 360;
-    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) cam.rotateY = (cam.rotateY + 1) % 360;
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)    cam.rotateX = (cam.rotateX - 1) % 360;
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)  cam.rotateX = (cam.rotateX + 1) % 360;
+    // 回転があった場合のみベクトルを更新
+    if (rotated) {
+        updateVectors();
+    }
 
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         wannaExit = true;

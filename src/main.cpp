@@ -42,7 +42,8 @@ GLFWwindow* setupWindow() {
 }
 
 int main() {
-    std::cout << "Hello world!!\n";
+    std::cout << "Hello world!\n"
+              << "Version 0.2\n";
     
     GLFWwindow* window = setupWindow();
     if (!window) {
@@ -84,9 +85,6 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
-
-        // --- 1. 現在の向き(Forward)を計算 ---
-        user.updateVectors();
 
         // --- 2. 入力検知 (向きに基づいた移動) ---
         user.processInput();
