@@ -1,4 +1,4 @@
-call main.exe
+call build\Debug\Recubin.exe
 if %errorlevel% neq 0 (
     echo Error: main.exe exited with code %errorlevel%
 ) else (

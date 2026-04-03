@@ -1,3 +1,5 @@
+#pragma once
+
 #include <include/Math/Vector3.hpp>
 
 struct Matrix4 {

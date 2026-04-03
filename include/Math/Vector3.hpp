@@ -1,4 +1,7 @@
+#pragma once
 #include <cmath>
+
+const float pi = 3.14159265f;
 
 struct Vector3 {
     float x, y, z;
