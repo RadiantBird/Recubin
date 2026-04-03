@@ -1,6 +1,7 @@
 #pragma once
 
 #include <include/Math/Vector3.hpp>
+#include <include/Math/Quaternion.hpp>
 
 struct Matrix4 {
     float m[16];
@@ -94,6 +95,34 @@ struct Matrix4 {
         res.m[12] = -Vector3::Dot(r, eye);
         res.m[13] = -Vector3::Dot(u, eye);
         res.m[14] = Vector3::Dot(f, eye);
+        return res;
+    }
+
+    static Matrix4 FromQuaternion(const Quaternion& q) {
+        Matrix4 res;
+        // 単位行列で初期化されている前提
+        float xx = q.x * q.x;
+        float yy = q.y * q.y;
+        float zz = q.z * q.z;
+        float xy = q.x * q.y;
+        float xz = q.x * q.z;
+        float yz = q.y * q.z;
+        float wx = q.w * q.x;
+        float wy = q.w * q.y;
+        float wz = q.w * q.z;
+
+        res.m[0] = 1.0f - 2.0f * (yy + zz);
+        res.m[1] = 2.0f * (xy + wz);
+        res.m[2] = 2.0f * (xz - wy);
+
+        res.m[4] = 2.0f * (xy - wz);
+        res.m[5] = 1.0f - 2.0f * (xx + zz);
+        res.m[6] = 2.0f * (yz + wx);
+
+        res.m[8] = 2.0f * (xz + wy);
+        res.m[9] = 2.0f * (yz - wx);
+        res.m[10] = 1.0f - 2.0f * (xx + yy);
+
         return res;
     }
 };

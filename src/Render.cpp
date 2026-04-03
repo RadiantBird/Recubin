@@ -157,42 +157,48 @@ void Renderer::init() {
 }
 
 void Renderer::render(User &user, GLFWwindow* window, Workspace &workspace) {
+    // 1. プロジェクションとビュー行列は全オブジェクト共通なので先にセット
     Matrix4 projection = Matrix4::Perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
-
-    // ターゲット（注視点）の計算
     Vector3 target = user.cpos + user.forward; 
-    
-    // 【QoL完全回復！】
-    // 第3引数を Vector3(0, 1, 0) から user.up に変更
     Matrix4 view = Matrix4::LookAt(user.cpos, target, user.up);
 
-    Matrix4 model = Matrix4::Translate(0.0f, 0.0f, -2.0f);
-
-    glUniform3f(glGetUniformLocation(shaderProgram, "lightPos"), 10.0f, 10.0f, 10.0f);
-    glUniform3f(glGetUniformLocation(shaderProgram, "lightColor"), 1.0f, 1.0f, 1.0f);
-    glUniform3f(glGetUniformLocation(shaderProgram, "viewPos"), user.cpos.x, user.cpos.y, user.cpos.z);
-
-    // 3. テクスチャユニット0番を使うことを明示
-    glUniform1i(glGetUniformLocation(shaderProgram, "ourTexture"), 0);
-
-    int modelLoc = glGetUniformLocation(shaderProgram, "model");
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
+    glUseProgram(shaderProgram); // 念のため
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, view.m);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, projection.m);
 
+    // ライティング等の共通パラメータ
+    glUniform3f(glGetUniformLocation(shaderProgram, "viewPos"), user.cpos.x, user.cpos.y, user.cpos.z);
+
+    int modelLoc = glGetUniformLocation(shaderProgram, "model");
+
     glBindVertexArray(VAO);
+
+    // 2. 個別のオブジェクトを描画
     for (auto const& [name, child] : workspace.getChildren()) {
-        // 1. まずは型を確認（IsA が真を返すか）
         if (child->IsA("Cube")) {
-            // 2. 「Instance*」を「Cube*」として扱う（キャスト）
             Cube* cube = static_cast<Cube*>(child);
+
+            // 1. スケール行列 (Sizeをそのまま使う)
+            Matrix4 scale = Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
+
+            // 2. 回転行列 (さっき追加したFromQuaternion)
+            Matrix4 rotation = Matrix4::FromQuaternion(cube->Rotation);
+
+            // 3. 移動行列 (Position)
+            Matrix4 translation = Matrix4::Translate(cube->Position.x, cube->Position.y, cube->Position.z);
+
+            // 4. 合成： Model = S * R * T
+            // 行列の掛け算順序に注意（右から適用されるイメージ）
+            Matrix4 modelMat = scale * rotation * translation;
+
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
             
-            // 3. 安全に描画！
+            // 描画実行
             cube->draw(modelLoc, shaderProgram);
         }
     }
     
-    glfwSwapBuffers(window);
+    glfwSwapBuffers(window); // 背面バッファを表面に出す
     glfwPollEvents();
 }
 

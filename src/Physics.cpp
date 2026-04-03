@@ -1,5 +1,13 @@
 #include "include/Core/Physics.hpp"
 
+// #define RECUBIN_DEBUG
+#ifdef RECUBIN_DEBUG
+    #define d_print(x) std::cout << "[DEBUG] " << x << std::endl
+#else
+    // 何も定義しない = 呼び出し箇所は「無」になる
+    #define d_print(x) ((void)0) 
+#endif
+
 void Physics::init() {
     foundation = PxCreateFoundation(PX_PHYSICS_VERSION, allocator, errorCallback);
     physics = PxCreatePhysics(PX_PHYSICS_VERSION, *foundation, physx::PxTolerancesScale());
@@ -38,10 +46,31 @@ void Physics::createActor(BaseCube* cube) {
 }
 
 void Physics::update(Workspace& workspace, float dt) {
+    d_print("Update Frame Start | dt: " << dt);
     static float accumulator = 0.0f;
     const float fixedStep = 1.0f / 60.0f;
+    const int MAX_STEPS = 5; // ★安全装置：1フレーム最大5回まで
+
+    // あまりにデカすぎるdt（フリーズ後など）は、ここで切り捨てる
+    if (dt > 0.25f) dt = 0.25f; 
 
     accumulator += dt;
+
+    int steps = 0;
+    while (accumulator >= fixedStep) {
+        scene->simulate(fixedStep);
+        scene->fetchResults(true);
+
+        accumulator -= fixedStep;
+        steps++;
+
+        // 安全装置の発動
+        if (steps >= MAX_STEPS) {
+            accumulator = 0.0f; // 追いつけない分は「なかったこと」にする（スローモーション化）
+            d_print("WARNING: Physics safety break engaged! (Spiral of Death prevented)");
+            break;
+        }
+    }
     // 1. 未反映の新入りを登録
     for (Instance* inst : workspace.pendingInstances) {
         if (inst->IsA("BaseCube")) {
@@ -51,16 +80,11 @@ void Physics::update(Workspace& workspace, float dt) {
     workspace.pendingInstances.clear();
 
     // 2. シミュレーション実行
+    d_print("Simulating PhysX...");
     scene->simulate(dt);
     scene->fetchResults(true);
+    d_print("Simulation Done.");
 
-    // 蓄積された時間が 1/60秒を超えるたびに物理を 1ステップ進める
-    while (accumulator >= fixedStep) {
-        scene->simulate(fixedStep);
-        scene->fetchResults(true);
-        accumulator -= fixedStep;
-    }
-    
     // 3. 全ての子を同期（ここも本来はリスト化すると速い）
     for (auto const& [name, child] : workspace.getChildren()) {
         if (child->IsA("BaseCube")) {
