@@ -1,6 +1,6 @@
-call build\Debug\Recubin.exe
+call build\Release\Recubin.exe
 if %errorlevel% neq 0 (
-    echo Error: main.exe exited with code %errorlevel%
+    echo Error: Recubin.exe exited with code %errorlevel%
 ) else (
-    echo main.exe executed successfully.
+    echo Recubin.exe executed successfully.
 )

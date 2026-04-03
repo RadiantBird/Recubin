@@ -43,17 +43,17 @@ void User::processInput() {
     
     // 上下移動
     if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-        cpos.y += speed;
+        cpos = cpos + up * speed;
     }
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-        cpos.y -= speed;
+        cpos = cpos - up * speed;
     }
 
     // 回転操作
-    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)  cam.rotateY = (cam.rotateY + 1) % 360;
-    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) cam.rotateY = (cam.rotateY - 1) % 360;
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)    cam.rotateX = (cam.rotateX + 1) % 360;
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)  cam.rotateX = (cam.rotateX - 1) % 360;
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)  cam.rotateY = (cam.rotateY - 1) % 360;
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) cam.rotateY = (cam.rotateY + 1) % 360;
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)    cam.rotateX = (cam.rotateX - 1) % 360;
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)  cam.rotateX = (cam.rotateX + 1) % 360;
 
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         wannaExit = true;
