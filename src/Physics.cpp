@@ -49,7 +49,7 @@ void Physics::update(Workspace& workspace, float dt) {
     // d_print("Update Frame Start | dt: " << dt);
     static float accumulator = 0.0f;
     const float fixedStep = 1.0f / 60.0f;
-    const int MAX_STEPS = 5; // ★安全装置：1フレーム最大5回まで
+    const int MAX_STEPS = 10;
 
     // あまりにデカすぎるdt（フリーズ後など）は、ここで切り捨てる
     if (dt > 0.25f) dt = 0.25f; 

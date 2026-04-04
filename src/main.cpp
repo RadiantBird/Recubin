@@ -67,7 +67,7 @@ GLFWwindow* setupWindow() {
 
 int main() {
     std::cout << "Hello world!\n"
-              << "Version 0.5\n";
+              << "Version 0.55\n";
 
     testPhysX();
     GLFWwindow* window = setupWindow();
@@ -133,7 +133,7 @@ int main() {
     baseplate->Anchored = true;
     workspace.addChild(baseplate);
 
-    float lastFrame = 0.0f;
+    float lastFrame = static_cast<float>(glfwGetTime());
     while (!glfwWindowShouldClose(window)) {
         float currentFrame = static_cast<float>(glfwGetTime());
         float deltaTime = currentFrame - lastFrame;
