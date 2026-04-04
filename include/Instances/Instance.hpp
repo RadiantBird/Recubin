@@ -13,6 +13,32 @@ class Instance {
         Instance* Parent = nullptr;
         std::unordered_map<string, Instance*> children = {};
 
+        virtual void onAncestorChanged() {
+            // 子孫にも通知を伝播させる
+            for (auto const& [_, child] : this->children) {
+                child->onAncestorChanged();
+            }
+        }
+
+        virtual void setParent(Instance* newParent) {
+            if (this->Parent == newParent) return;
+            
+            // 1. 親子関係の更新
+            this->Parent = newParent;
+            
+            // 2. 自分と子孫に通知 (O(n) だが、移動時のみ実行される)
+            this->onAncestorChanged();
+        }
+
+        Instance* findFirstAncestorWorkspace() {
+            Instance* current = this->Parent;
+            while (current) {
+                if (current->IsA("Workspace")) return current;
+                current = current->Parent;
+            }
+            return nullptr;
+        }
+
         Instance(string name) {
             this->Name = name;
         }

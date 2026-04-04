@@ -83,7 +83,7 @@ int main() {
 
     physicsEngine.init();
     renderer.init();
-    luauEngine.test();
+    luauEngine.execute("print('Hello from Luau <3')");
 
     unsigned int floppa   = renderer.loadTexture("assets/image/floppa2048.jpg"); // back
     unsigned int thecat   = renderer.loadTexture("assets/image/the-cat.png");  // front

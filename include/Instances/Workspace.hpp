@@ -5,20 +5,33 @@
 #include <include/Instances/Instance.hpp>
 
 class Workspace : public Instance {
-    public:
-        Vector3 Gravity = Vector3(0, -9.8f, 0);
+    private:
+        // 信頼できるクラスのみに操作を許可
+        friend class Script;
+        friend class BaseCube;
 
-        std::vector<Instance*> pendingInstances;
-
-        void addChild(Instance* child) override {
-            if (!child) return;
-            
-            // 通常のツリー追加
-            Instance::addChild(child);
-
-            // 物理エンジンへの通知用リストに追加
-            pendingInstances.push_back(child);
+        void registerScript(Instance* s) {
+            scripts.push_back(s);
         }
 
-        Workspace () : Instance("Workspace") {};
+        void unregisterScript(Instance* s) {
+            scripts.erase(std::remove(scripts.begin(), scripts.end(), s), scripts.end());
+        }
+
+        void registerCube(Instance* c) {
+            pendingInstances.push_back(c);
+        }
+        
+        void unregisterCube(Instance* c) {
+            pendingInstances.erase(std::remove(pendingInstances.begin(), pendingInstances.end(), c), pendingInstances.end());
+        }
+
+    public:
+        std::vector<Instance*> pendingInstances;
+        std::vector<Instance*> scripts;
+
+        Workspace() : Instance("Workspace") {};
+        bool IsA(std::string className) override {
+            return (className == "Workspace") || Instance::IsA(className);
+        }
 };
