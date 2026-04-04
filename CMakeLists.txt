@@ -33,4 +33,8 @@ target_link_libraries(Recubin
     PhysXCommon_64
     PhysXFoundation_64
     PhysXExtensions_static_64
+
+    Luau.Ast
+    Luau.Compiler
+    Luau.VM
 )

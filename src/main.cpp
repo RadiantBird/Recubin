@@ -8,6 +8,7 @@
 
 #include <include/Core/Physics.hpp>
 #include <include/Core/Renderer.hpp>
+#include <include/Core/LuauEngine.hpp>
 
 #include <iostream>
 #include <algorithm>
@@ -66,8 +67,8 @@ GLFWwindow* setupWindow() {
 
 int main() {
     std::cout << "Hello world!\n"
-              << "Version 0.3\n";
-    
+              << "Version 0.4\n";
+
     testPhysX();
     GLFWwindow* window = setupWindow();
     if (!window) {
@@ -78,9 +79,11 @@ int main() {
     User user(window);
     Renderer renderer;
     Physics physicsEngine;
+    LuauEngine luauEngine;
 
     physicsEngine.init();
     renderer.init();
+    luauEngine.test();
 
     unsigned int floppa   = renderer.loadTexture("assets/image/floppa2048.jpg"); // back
     unsigned int thecat   = renderer.loadTexture("assets/image/the-cat.png");  // front
