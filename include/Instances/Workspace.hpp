@@ -21,10 +21,10 @@ class Workspace : public Instance {
         void registerCube(Instance* c) {
             pendingInstances.push_back(c);
         }
-        
-        void unregisterCube(Instance* c) {
-            pendingInstances.erase(std::remove(pendingInstances.begin(), pendingInstances.end(), c), pendingInstances.end());
-        }
+
+        // void unregisterCube(Instance* c) {
+        //     pendingInstances.erase(std::remove(pendingInstances.begin(), pendingInstances.end(), c), pendingInstances.end());
+        // }
 
     public:
         std::vector<Instance*> pendingInstances;
@@ -32,6 +32,10 @@ class Workspace : public Instance {
 
         Workspace() : Instance("Workspace") {};
         bool IsA(std::string className) override {
-            return (className == "Workspace") || Instance::IsA(className);
+            if (className == "Workspace") {
+                return true;
+            } else {
+                return Instance::IsA(className);
+            }
         }
 };

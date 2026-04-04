@@ -1,7 +1,9 @@
 #include "include/Instances/BaseCube.hpp"
+#include <iostream>
 
 BaseCube::BaseCube(Vector3 Pos, Vector3 Sz) 
     : Instance("BaseCube"), Position(Pos), Size(Sz), Color(1, 1, 1, 1) {
+    onAncestorChanged();
 }
 
 bool BaseCube::IsA(std::string className) {
@@ -20,15 +22,17 @@ void BaseCube::onAncestorChanged() {
         Workspace* ws = static_cast<Workspace*>(ws_raw);
         
         // 重複登録を防ぎつつ、物理エンジンの待機リストへ
+        // std::cout << "Adding to workspace...\n";
         ws->registerCube(this);
         lastWorkspace = ws;
     } else {
+        // std::cout << "Workspace is null!\n";
         // Workspace の外に出た場合
-        if (lastWorkspace) {
-            // 物理エンジンの管理対象から外してもらう
-            lastWorkspace->unregisterCube(this);
-            lastWorkspace = nullptr;
+        if (actor) {
+            actor->release();
+            actor = nullptr;
         }
+        lastWorkspace = nullptr;
     }
 
     // 2. 子階層への通知も継続（BaseCube の中に何か入っている場合のため）

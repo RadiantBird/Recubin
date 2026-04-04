@@ -67,7 +67,7 @@ GLFWwindow* setupWindow() {
 
 int main() {
     std::cout << "Hello world!\n"
-              << "Version 0.4\n";
+              << "Version 0.5\n";
 
     testPhysX();
     GLFWwindow* window = setupWindow();

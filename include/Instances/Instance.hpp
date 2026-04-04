@@ -23,10 +23,7 @@ class Instance {
         virtual void setParent(Instance* newParent) {
             if (this->Parent == newParent) return;
             
-            // 1. 親子関係の更新
             this->Parent = newParent;
-            
-            // 2. 自分と子孫に通知 (O(n) だが、移動時のみ実行される)
             this->onAncestorChanged();
         }
 
@@ -65,17 +62,12 @@ class Instance {
         }
 
         virtual void addChild(Instance* child) {
-            // 1. 安全装置：空っぽ（nullptr）が来たら何もしない
             if (child == nullptr) {
                 std::cout << "[WARN] addChild called but child is nullptr!\n";
                 return;
             }
-
-            // 2. 親子関係の構築
             child->Parent = this;
-
-            // 3. 自分の子供リストに登録
-            // 名前（child->Name）をキーにして保存する
+            child->onAncestorChanged(); // 追加したってことは、親を変えてるのと同じだよね。
             this->children[child->Name] = child;
         }
 
