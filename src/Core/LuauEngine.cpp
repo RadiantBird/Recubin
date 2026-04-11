@@ -5,6 +5,7 @@ std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEn
 
 void LuauEngine::InitDispatchTable() {
     DispatchTable["Instance"]["Name"] = [](lua_State* L, Instance* obj) {
+        std::cout << "Accessing Name of Instance: " << obj->Name << std::endl;
         lua_pushstring(L, obj->Name.c_str());
         return 1;
     };
@@ -21,7 +22,9 @@ int LuauEngine::instance_index(lua_State* L) {
     std::string_view key = luaL_checkstring(L, 2);
 
     for (const auto& [className, classProps] : DispatchTable) {
+        std::cout << "Checking class: " << className << " for property: " << key << std::endl;
         if (obj->IsA(std::string(className))) {
+            std::cout << "Found class: " << className << " for object: " << obj->GetClassName() << std::endl;
             if (auto it = classProps.find(key); it != classProps.end()) {
                 auto& [name, resolveProperty] = *it;
                 return resolveProperty(L, obj);

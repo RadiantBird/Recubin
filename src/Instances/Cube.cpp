@@ -17,17 +17,17 @@ std::vector<Vertex> createCubeVertices(float size) {
     for (int i = 0; i < 6; i++) {
         float nx = faces[i].nx, ny = faces[i].ny, nz = faces[i].nz;
         
-        float ux = (nx == 0) ? 1 : 0;
-        float uy = (nx != 0 || nz != 0) ? 0 : 1;
-        float uz = (nz == 0 && nx != 0) ? 1 : 0;
-        if (ny != 0) { ux = 1; uy = 0; uz = 0; } 
+        float ux = (nx == 0) ? 1.0f : 0.0f;
+        float uy = (nx != 0 || nz != 0) ? 0.0f : 1.0f;
+        float uz = (nz == 0 && nx != 0) ? 1.0f : 0.0f;
+        if (ny != 0) { ux = 1.0f; uy = 0.0f; uz = 0.0f; } 
         
         float vx = ny * uz - nz * uy;
         float vy = nz * ux - nx * uz;
         float vz = nx * uy - ny * ux;
 
-        float p[4][2] = {{1,1}, {1,-1}, {-1,-1}, {-1,1}};
-        float uv[4][2] = {{1,1}, {1,0}, {0,0}, {0,1}}; 
+        float p[4][2] = {{1.0f,1.0f}, {1.0f,-1.0f}, {-1.0f,-1.0f}, {-1.0f,1.0f}};
+        float uv[4][2] = {{1.0f,1.0f}, {1.0f,0.0f}, {0.0f,0.0f}, {0.0f,1.0f}}; 
 
         for (int j = 0; j < 4; j++) {
             Vertex vert;

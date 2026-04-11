@@ -33,6 +33,7 @@ private:
     void InitDispatchTable();
 
     static int instance_index(lua_State* L);
+    static int instance_tostring(lua_State* L);
 
 public:
     LuauEngine();
@@ -41,8 +42,6 @@ public:
     void setBindings(Instance* instance);
 
     void setGlobalInstance(const std::string& name, Instance* instance);
-
-    static int instance_tostring(lua_State* L);
 
     bool execute(const std::string& source);
 };

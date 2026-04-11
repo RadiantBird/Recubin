@@ -32,6 +32,9 @@ std::string Instance::GetClassName() {
 }
 
 bool Instance::IsA(std::string className) {
+    if (className == "Instance") {
+        return true;
+    }
     return className == GetClassName();
 }
 

@@ -7,7 +7,16 @@
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Cube.cpp">
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\Render.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Instance.cpp">
@@ -17,15 +26,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Workspace.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Physics.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Render.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\User.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\main.cpp">
