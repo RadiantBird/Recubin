@@ -57,6 +57,10 @@ Cube::Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex)
     }
 }
 
+std::string Cube::GetClassName() {
+    return "Cube";
+}
+
 bool Cube::IsA(std::string className) {
     if (className == "Cube") {
         return true;

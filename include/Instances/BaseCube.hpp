@@ -23,9 +23,7 @@ public:
 
     BaseCube(Vector3 Pos, Vector3 Sz);
     
-    virtual string GetClassName() override {
-        return "BaseCube";
-    }
+    virtual string GetClassName() override;
     virtual bool IsA(std::string name) override;
     void syncPhysics();
 

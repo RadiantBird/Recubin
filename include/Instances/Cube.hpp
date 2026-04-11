@@ -1,9 +1,7 @@
 #pragma once
 
 #include <include/Math/Matrix4.hpp>
-
 #include <include/Instances/BaseCube.hpp>
-
 #include <vector>
 
 // 頂点構造体
@@ -29,8 +27,6 @@ class Cube : public BaseCube {
         void setFaceTexture(int faceIdx, unsigned int texID);
         void draw(int modelLoc, int shaderProgram);
 
-        virtual string GetClassName() override {
-            return "Cube";
-        }
+        virtual string GetClassName() override;
         virtual bool IsA(std::string name) override;
 };

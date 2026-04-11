@@ -6,6 +6,10 @@ BaseCube::BaseCube(Vector3 Pos, Vector3 Sz)
     onAncestorChanged();
 }
 
+std::string BaseCube::GetClassName() {
+    return "BaseCube";
+}
+
 bool BaseCube::IsA(std::string className) {
     if (className == "BaseCube") {
         return true;

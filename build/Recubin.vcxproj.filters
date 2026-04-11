@@ -4,7 +4,19 @@
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\BaseCube.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Cube.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Instance.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Script.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Workspace.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Physics.cpp">

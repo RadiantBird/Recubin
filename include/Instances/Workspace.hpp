@@ -10,17 +10,9 @@ class Workspace : public Instance {
         friend class Script;
         friend class BaseCube;
 
-        void registerScript(Instance* s) {
-            scripts.push_back(s);
-        }
-
-        void unregisterScript(Instance* s) {
-            scripts.erase(std::remove(scripts.begin(), scripts.end(), s), scripts.end());
-        }
-
-        void registerCube(Instance* c) {
-            pendingInstances.push_back(c);
-        }
+        void registerScript(Instance* s);
+        void unregisterScript(Instance* s);
+        void registerCube(Instance* c);
 
         // !! <DO NOT UNREGISTER THE CUBE, IT IS HANDLED BY "physics" CLASS.> !!
         // void unregisterCube(Instance* c) {
@@ -31,22 +23,12 @@ class Workspace : public Instance {
         std::vector<Instance*> pendingInstances;
         std::vector<Instance*> scripts;
         
-        Workspace() : Instance("Workspace") {};
+        Workspace();
 
-        virtual string GetClassName() override {
-            return "Workspace";
-        }
+        virtual std::string GetClassName() override;
         
-        bool IsA(std::string className) override {
-            if (className == "Workspace") {
-                return true;
-            } else {
-                return Instance::IsA(className);
-            }
-        }
+        bool IsA(std::string className) override;
 
         // For debugging
-        void buildTestSpace() {
-            // TODO
-        }
+        void buildTestSpace();
 };
