@@ -29,7 +29,7 @@ class Workspace : public Instance {
     public:
         std::vector<Instance*> pendingInstances;
         std::vector<Instance*> scripts;
-
+        
         Workspace() : Instance("Workspace") {};
         bool IsA(std::string className) override {
             if (className == "Workspace") {
@@ -37,5 +37,10 @@ class Workspace : public Instance {
             } else {
                 return Instance::IsA(className);
             }
+        }
+
+        // For debugging
+        void buildTestSpace() {
+            // TODO
         }
 };
