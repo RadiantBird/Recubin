@@ -138,7 +138,7 @@ void Renderer::init() {
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(Vertex, Normal));
     glEnableVertexAttribArray(1);
 
-    // 2: TexCoord (ここがズレると「色がくそ」になる)
+    // 2: TexCoord
     // 構造体の中にある U の場所を直接指定
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(Vertex, U));
     glEnableVertexAttribArray(2);

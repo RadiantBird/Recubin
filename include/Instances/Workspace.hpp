@@ -22,6 +22,7 @@ class Workspace : public Instance {
             pendingInstances.push_back(c);
         }
 
+        // !! <DO NOT UNREGISTER THE CUBE, IT IS HANDLED BY "physics" CLASS.> !!
         // void unregisterCube(Instance* c) {
         //     pendingInstances.erase(std::remove(pendingInstances.begin(), pendingInstances.end(), c), pendingInstances.end());
         // }

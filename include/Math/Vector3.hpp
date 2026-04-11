@@ -1,5 +1,6 @@
 #pragma once
 #include <cmath>
+#include <string>
 
 const float pi = 3.14159265f;
 
@@ -36,5 +37,9 @@ struct Vector3 {
         this->x = x;
         this->y = y;
         this->z = z;
+    }
+
+    std::string toString() const {
+        return std::to_string(x) + ", " + std::to_string(y) + ", " + std::to_string(z);
     }
 };

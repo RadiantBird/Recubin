@@ -83,7 +83,6 @@ int main() {
 
     physicsEngine.init();
     renderer.init();
-    luauEngine.execute("print('Hello from Luau <3')");
 
     unsigned int floppa   = renderer.loadTexture("assets/image/floppa2048.jpg"); // back
     unsigned int thecat   = renderer.loadTexture("assets/image/the-cat.png");  // front
@@ -127,6 +126,9 @@ int main() {
     
     workspace.addChild(floppaCube);
 
+    luauEngine.setGlobalInstance(floppaCube->Name, floppaCube);
+    luauEngine.execute("print(Floppa); print(Floppa.Position)");
+
     Cube* baseplate = new Cube({0.0f, -10.0f, 0.0f},  {32.0f, 1.0f, 32.0f}, renderer.whiteTexture);
     baseplate->Name = "Baseplate";
     baseplate->Color = Color4(0.0f, 1.0f, 0.5f, 1.0f);
@@ -142,7 +144,7 @@ int main() {
         physicsEngine.update(workspace, deltaTime);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
+        glClearColor(0.0f, 0.5f, 0.75f, 1.0f);
 
         // --- 2. 入力検知 (向きに基づいた移動) ---
         user.processInput();
