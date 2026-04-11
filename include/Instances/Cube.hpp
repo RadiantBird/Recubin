@@ -29,5 +29,8 @@ class Cube : public BaseCube {
         void setFaceTexture(int faceIdx, unsigned int texID);
         void draw(int modelLoc, int shaderProgram);
 
+        virtual string GetClassName() override {
+            return "Cube";
+        }
         virtual bool IsA(std::string name) override;
 };

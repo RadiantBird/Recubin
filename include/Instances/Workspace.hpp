@@ -32,6 +32,11 @@ class Workspace : public Instance {
         std::vector<Instance*> scripts;
         
         Workspace() : Instance("Workspace") {};
+
+        virtual string GetClassName() override {
+            return "Workspace";
+        }
+        
         bool IsA(std::string className) override {
             if (className == "Workspace") {
                 return true;

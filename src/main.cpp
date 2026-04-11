@@ -127,7 +127,7 @@ int main() {
     workspace.addChild(floppaCube);
 
     luauEngine.setGlobalInstance(floppaCube->Name, floppaCube);
-    luauEngine.execute("print(Floppa); print(Floppa.Position)");
+    luauEngine.execute("print(Floppa.Name); print(Floppa.Position)");
 
     Cube* baseplate = new Cube({0.0f, -10.0f, 0.0f},  {32.0f, 1.0f, 32.0f}, renderer.whiteTexture);
     baseplate->Name = "Baseplate";

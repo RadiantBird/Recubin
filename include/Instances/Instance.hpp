@@ -40,8 +40,12 @@ class Instance {
             this->Name = name;
         }
 
+        virtual string GetClassName() {
+            return "Instance";
+        }
+
         virtual bool IsA(std::string className) {
-            if (className == "Instance") {
+            if (className == GetClassName()) {
                 return true;
             }
             return false;

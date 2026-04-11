@@ -1,8 +1,10 @@
 #pragma once
 #include <iostream>
 #include <string>
-#include <vector>
+#include <unordered_map>
 #include <cstring>
+#include <string_view>
+#include <functional>
 
 #include "include/luau/lua.h"
 #include "include/luau/lualib.h"
@@ -22,43 +24,53 @@ private:
     static constexpr const char* RCBN_INST_METATABLE = "RCBN_Instance";
     static constexpr const int NIL = 0;
 
-    static int instance_index(lua_State* L) {
-        Instance* obj = *(Instance**)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
-        const char* key = luaL_checkstring(L, 2);
+    using GetterFunc = std::function<int(lua_State*, Instance*)>;
 
-        if (strcmp(key, "Name") == 0) {
-            std::cout << "Printing Name...\n";
+    inline static std::unordered_map<std::string_view, std::unordered_map<std::string_view, GetterFunc>> DispatchTable;
+
+    void InitDispatchTable() {
+        DispatchTable["Instance"]["Name"] = [](lua_State* L, Instance* obj) {
             lua_pushstring(L, obj->Name.c_str());
             return 1;
-        }
-        
-        if (obj->IsA("BaseCube")) {
-            auto basecube = dynamic_cast<BaseCube*>(obj);
+        }; 
 
-            if (strcmp(key, "Position") == 0) {
-                std::cout << "Printing Position...\n";
-                Vector3 v = basecube->Position;
-                lua_pushstring(L, v.toString().c_str());
-                return 1;
-            }
+        DispatchTable["BaseCube"]["Position"] = [](lua_State* L, Instance* obj) {
+            auto cube = static_cast<BaseCube*>(obj);
+            lua_pushstring(L, cube->Position.toString().c_str());
+            return 1;
+        };
+    }
+
+    static int instance_index(lua_State* L) {
+        Instance* obj = *(Instance**)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
+        std::string_view key = luaL_checkstring(L, 2);
+        std::cout << obj->GetClassName() << "\n";
+        auto& classProps = DispatchTable[obj->GetClassName()]; // InstanceはInstanceを返すのでFallbackは不要
+        if (auto it = classProps.find(key); it != classProps.end()) {
+            auto& [name, resolveProperty] = *it; 
+            return resolveProperty(L, obj);
         }
+
         return NIL;
     }
 
 public:
     LuauEngine() {
-        L = luaL_newstate();
-        luaL_openlibs(L);
-        
-        luaL_newmetatable(L, RCBN_INST_METATABLE);
-        
-        lua_pushcfunction(L, instance_index, "instance_index");
-        lua_setfield(L, -2, "__index"); // mt.__index = instance_index
+        {
+            L = luaL_newstate();
+            luaL_openlibs(L);
+            
+            luaL_newmetatable(L, RCBN_INST_METATABLE);
+            
+            lua_pushcfunction(L, instance_index, "instance_index");
+            lua_setfield(L, -2, "__index"); // mt.__index = instance_index
 
-        lua_pushcfunction(L, instance_tostring, "instance_tostring");
-        lua_setfield(L, -2, "__tostring");
-        
-        lua_pop(L, 1); // メタテーブルをスタックから片付ける
+            lua_pushcfunction(L, instance_tostring, "instance_tostring");
+            lua_setfield(L, -2, "__tostring");
+            
+            lua_pop(L, 1); // メタテーブルをスタックから片付ける
+        }
+        InitDispatchTable();
     }
 
     ~LuauEngine() {

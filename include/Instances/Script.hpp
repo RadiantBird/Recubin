@@ -7,6 +7,12 @@ class Script : public Instance {
         Workspace* lastWorkspace = nullptr;
 
         bool Enabled = true;
+        
+        virtual string GetClassName() override {
+            return "Script";
+        }
+
+
         bool IsA(std::string className) {
             if (className == "Script") {
                 return true;
