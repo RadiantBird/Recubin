@@ -10,7 +10,7 @@
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\Render.cpp">
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp">

@@ -379,7 +379,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\BaseCube.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp" />
-    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\Render.cpp" />
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Instance.cpp" />

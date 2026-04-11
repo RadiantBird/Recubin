@@ -1,7 +1,7 @@
 C:\Users\RedDragon\Documents\Recubin\src\BaseCube.cpp;C:\Users\RedDragon\Documents\Recubin\build\Recubin.dir\Release\BaseCube.obj
 C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp;C:\Users\RedDragon\Documents\Recubin\build\Recubin.dir\Release\LuauEngine.obj
 C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp;C:\Users\RedDragon\Documents\Recubin\build\Recubin.dir\Release\Physics.obj
-C:\Users\RedDragon\Documents\Recubin\src\Core\Render.cpp;C:\Users\RedDragon\Documents\Recubin\build\Recubin.dir\Release\Render.obj
+C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp;C:\Users\RedDragon\Documents\Recubin\build\Recubin.dir\Release\Renderer.obj
 C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp;C:\Users\RedDragon\Documents\Recubin\build\Recubin.dir\Release\User.obj
 C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp;C:\Users\RedDragon\Documents\Recubin\build\Recubin.dir\Release\Cube.obj
 C:\Users\RedDragon\Documents\Recubin\src\Instances\Instance.cpp;C:\Users\RedDragon\Documents\Recubin\build\Recubin.dir\Release\Instance.obj

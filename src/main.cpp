@@ -21,24 +21,6 @@
 
 #include <include/PhysX/PxPhysicsAPI.h>
 
-// テスト用のダミー関数
-void testPhysX() {
-    static physx::PxDefaultAllocator gAllocator;
-    static physx::PxDefaultErrorCallback gErrorCallback;
-
-    // Foundation (基盤) を作ってみる
-    physx::PxFoundation* foundation = PxCreateFoundation(
-        PX_PHYSICS_VERSION, 
-        gAllocator, 
-        gErrorCallback
-    );
-
-    if (foundation) {
-        std::cout << "PhysX Foundation created successfully!" << std::endl;
-        foundation->release();
-    }
-}
-
 GLFWwindow* setupWindow() {
     std::cout << "initing GLFW...\n";
     if (!glfwInit()) {
@@ -67,9 +49,8 @@ GLFWwindow* setupWindow() {
 
 int main() {
     std::cout << "Hello world!\n"
-              << "Version 0.55\n";
+              << "Version 0.6\n";
 
-    testPhysX();
     GLFWwindow* window = setupWindow();
     if (!window) {
         std::cout << "[ERROR] Failed to setup.\n";
@@ -127,7 +108,12 @@ int main() {
     workspace.addChild(floppaCube);
 
     luauEngine.setGlobalInstance(floppaCube->Name, floppaCube);
-    luauEngine.execute("print(Floppa.Name); print(Floppa.Position)");
+    luauEngine.execute(R"(
+        print(Floppa.Name);
+        print(Floppa.Position);
+        Floppa.Name = "Big Floppa";
+        print(Floppa.Name);
+    )");
 
     Cube* baseplate = new Cube({0.0f, -10.0f, 0.0f},  {32.0f, 1.0f, 32.0f}, renderer.whiteTexture);
     baseplate->Name = "Baseplate";
