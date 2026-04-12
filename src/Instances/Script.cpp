@@ -1,5 +1,8 @@
 #include <include/Instances/Script.hpp>
 
+Script::Script() : Instance("Script"), Coroutine(nullptr) {
+}
+
 std::string Script::GetClassName() {
     return "Script";
 }

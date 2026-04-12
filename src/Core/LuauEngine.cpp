@@ -1,8 +1,10 @@
 #include "include/Core/LuauEngine.hpp"
+#include "include/Instances/Workspace.hpp"
 
 // DispatchTableの定義
 std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEngine::GetterFunc>> LuauEngine::DispatchTable;
 std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEngine::SetterFunc>> LuauEngine::SetterTable;
+Script* LuauEngine::currentScript = nullptr;
 
 void LuauEngine::InitDispatchTable() {
     DispatchTable["Instance"]["Name"] = [](lua_State* L, Instance* obj) {
@@ -23,6 +25,19 @@ void LuauEngine::InitSetterTable() {
         const char* newName = luaL_checkstring(L, 3);
         std::cout << "Setting Name of Instance from " << obj->Name << " to " << newName << std::endl;
         obj->Name = newName;
+        return 0;
+    };
+
+    SetterTable["BaseCube"]["Position"] = [](lua_State* L, Instance* obj) {
+        auto cube = static_cast<BaseCube*>(obj);
+        // userdataからVector3を取得してセットするロジックをここに実装
+         if (lua_isuserdata(L, 3)) {
+            Vector3* newPos = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
+            cube->Position = *newPos;
+            std::cout << "Setting Position of BaseCube to " << cube->Position.toString() << std::endl;
+        } else {
+            std::cerr << "Expected a Vector3 userdata for Position\n";
+        }
         return 0;
     };
 }
@@ -58,12 +73,27 @@ void LuauEngine::InitMetatables() {
     lua_setfield(L, -2, "__tostring");
     lua_pop(L, 1);
 
+    // グローバル関数を登録
+    RegisterGlobalFunctions(L);
+}
+
+void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     // Register constructors as global functions
     lua_pushcfunction(L, vec3_constructor, "Vector3");
     lua_setglobal(L, "Vector3");
 
     lua_pushcfunction(L, color4_constructor, "Color4");
     lua_setglobal(L, "Color4");
+
+    // Register custom global functions
+    lua_pushcfunction(L, global_add, "add");
+    lua_setglobal(L, "add");
+
+    lua_pushcfunction(L, global_print_message, "print_message");
+    lua_setglobal(L, "print_message");
+    
+    lua_pushcfunction(L, wait, "wait");
+    lua_setglobal(L, "wait");
 }
 
 int LuauEngine::instance_index(lua_State* L) {
@@ -133,26 +163,60 @@ int LuauEngine::instance_tostring(lua_State* L) {
     return 1;
 }
 
-bool LuauEngine::execute(const std::string& source) {
-    size_t bytecodeSize = 0;
-    char* bytecode = luau_compile(source.c_str(), source.length(), nullptr, &bytecodeSize);
-    if (!bytecode) return false;
+bool LuauEngine::execute(Script& script) {
+    // 既にコルーチンがある場合は再開、なければ新規作成
+    if (script.Coroutine == nullptr) {
+        script.Coroutine = lua_newthread(L);
+        // 新しいスレッドにもグローバル関数を登録
+        RegisterGlobalFunctions(script.Coroutine);
+    }
+    
+    lua_State* co = script.Coroutine;
+    
+    // 初回実行の場合、スクリプトをロード
+    // lua_status(): 0=OK, LUA_YIELD=suspended, LUA_ERRERR=error, etc.
+    if (lua_status(co) == 0 && lua_gettop(co) == 0) {  // スタックが空なら初回実行
+        const std::string& source = script.Source;
+        size_t bytecodeSize = 0;
+        char* bytecode = luau_compile(source.c_str(), source.length(), nullptr, &bytecodeSize);
+        if (!bytecode) return false;
 
-    int status = luau_load(L, "@RecubinTask", bytecode, bytecodeSize, 0);
-    free(bytecode);
+        int status = luau_load(co, "@RecubinTask", bytecode, bytecodeSize, 0);
+        free(bytecode);
 
-    if (status != 0) {
-        std::cerr << "Luau Load Error: " << lua_tostring(L, -1) << "\n";
-        lua_pop(L, 1);
+        if (status != 0) {
+            std::cerr << "Luau Load Error: " << lua_tostring(co, -1) << "\n";
+            lua_pop(co, 1);
+            return false;
+        }
+    }
+    
+    // currentScript を設定
+    currentScript = &script;
+    
+    // コルーチンを再開
+    int nargs = 0;
+    int result = lua_resume(co, L, nargs);
+    
+    // 結果を確認
+    if (result == LUA_YIELD) {
+        // wait() で停止した - Script の Sleeping フラグは wait() 内で設定済み
+        currentScript = nullptr;
+        return true;
+    } else if (result == 0) {
+        // 完了
+        script.Sleeping = false;
+        script.Completed = true;  // 完了フラグをセット
+        script.Coroutine = nullptr;  // コルーチンをクリア
+        currentScript = nullptr;
+        return true;
+    } else {
+        // エラー
+        std::cerr << "Luau Run Error: " << lua_tostring(co, -1) << "\n";
+        lua_pop(co, 1);
+        currentScript = nullptr;
         return false;
     }
-
-    if (lua_pcall(L, 0, 0, 0) != 0) {
-        std::cerr << "Luau Run Error: " << lua_tostring(L, -1) << "\n";
-        lua_pop(L, 1);
-        return false;
-    }
-    return true;
 }
 
 // ==================== Vector3 Methods ====================
@@ -288,4 +352,77 @@ int LuauEngine::color4_tostring(lua_State* L) {
                       std::to_string(color->b) + ", " + std::to_string(color->a) + ")";
     lua_pushstring(L, str.c_str());
     return 1;
+}
+
+// ==================== Global Functions ====================
+int LuauEngine::global_add(lua_State* L) {
+    // 2つの数値を取得
+    float a = (float)luaL_checknumber(L, 1);
+    float b = (float)luaL_checknumber(L, 2);
+    
+    // 合計を計算してスタックに積む
+    lua_pushnumber(L, a + b);
+    
+    // 戻り値の個数を返す
+    return 1;
+}
+
+int LuauEngine::wait(lua_State* L) {
+    float s = (float)luaL_checknumber(L, 1);
+    
+    // 現在実行中のスクリプトに待機情報を記録
+    if (currentScript != nullptr) {
+        currentScript->Sleeping = true;
+        currentScript->SleepTime = s;
+        currentScript->SleepRemaining = s;
+    }
+    
+    // スクリプト実行を一時停止
+    return lua_yield(L, 0);
+}
+
+int LuauEngine::global_print_message(lua_State* L) {
+    // 文字列引数を取得
+    const char* message = luaL_checkstring(L, 1);
+    
+    // C++で出力
+    std::cout << "[Luau] " << message << std::endl;
+    
+    // 戻り値なし
+    return 0;
+}
+
+void LuauEngine::setWorkspace(Workspace* ws) {
+    workspace = ws;
+}
+
+void LuauEngine::executeWorkspaceScripts() {
+    if (workspace == nullptr) return;
+    
+    // Workspace 内のすべてのスクリプトを実行
+    for (Instance* inst : workspace->scripts) {
+        Script* script = dynamic_cast<Script*>(inst);
+        // 条件：有効 && 待機中でない && 完了していない
+        if (script && script->Enabled && !script->Sleeping && !script->Completed) {
+            execute(*script);
+        }
+    }
+}
+
+void LuauEngine::update(float deltaTime) {
+    if (workspace == nullptr) return;
+    
+    // 待機中のスクリプトのタイマーを減算
+    for (Instance* inst : workspace->scripts) {
+        Script* script = dynamic_cast<Script*>(inst);
+        if (script && script->Sleeping && script->Coroutine != nullptr) {
+            script->SleepRemaining -= deltaTime;
+            
+            // タイムアウト時にコルーチンを再開
+            if (script->SleepRemaining <= 0.0f) {
+                script->Sleeping = false;
+                execute(*script);
+            }
+        }
+    }
 }

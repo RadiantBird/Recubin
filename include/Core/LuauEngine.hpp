@@ -12,8 +12,12 @@
 
 #include "include/Instances/Instance.hpp"
 #include "include/Instances/BaseCube.hpp"
+#include "include/Instances/Script.hpp"
 #include "include/Math/Vector3.hpp"
 #include "include/Util/Color4.hpp"
+
+// Forward declaration
+class Workspace;
 
 #pragma comment(lib, "Luau.VM.lib")
 #pragma comment(lib, "Luau.Compiler.lib")
@@ -23,6 +27,9 @@
 class LuauEngine {
 private:
     lua_State* L;
+    Workspace* workspace = nullptr;  // 管理対象の Workspace
+    static Script* currentScript;  // 現在実行中のスクリプト
+    
     static constexpr const char* RCBN_INST_METATABLE = "RCBN_Instance";
     static constexpr const char* RCBN_VEC3_METATABLE = "RCBN_Vector3";
     static constexpr const char* RCBN_COLOR4_METATABLE = "RCBN_Color4";
@@ -39,6 +46,7 @@ private:
     void InitDispatchTable();
     void InitSetterTable();
     void InitMetatables();
+    void RegisterGlobalFunctions(lua_State* L);  // コルーチンにも関数を登録するために抽出
 
     static int instance_index(lua_State* L);
     static int instance_newindex(lua_State* L);
@@ -56,6 +64,11 @@ private:
     static int color4_tostring(lua_State* L);
     static int color4_constructor(lua_State* L);
 
+    // Global functions
+    static int global_add(lua_State* L);
+    static int global_print_message(lua_State* L);
+    static int wait(lua_State* L);
+
 public:
     LuauEngine();
     ~LuauEngine();
@@ -64,5 +77,14 @@ public:
 
     void setGlobalInstance(const std::string& name, Instance* instance);
 
-    bool execute(const std::string& source);
+    bool execute(Script& script);
+    
+    // Workspace を設定
+    void setWorkspace(Workspace* ws);
+    
+    // Workspace 内のすべてのスクリプトを実行
+    void executeWorkspaceScripts();
+    
+    // メインループから呼び出し - 待機中のスクリプトを再開
+    void update(float deltaTime);
 };

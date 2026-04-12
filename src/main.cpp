@@ -5,6 +5,7 @@
 
 #include <include/Instances/Cube.hpp>
 #include <include/Instances/Workspace.hpp>
+#include <include/Instances/Script.hpp>
 
 #include <include/Core/Physics.hpp>
 #include <include/Core/Renderer.hpp>
@@ -108,12 +109,32 @@ int main() {
     workspace.addChild(floppaCube);
 
     luauEngine.setGlobalInstance(floppaCube->Name, floppaCube);
-    luauEngine.execute(R"(
+    
+    // Workspace を LuauEngine に設定
+    luauEngine.setWorkspace(&workspace);
+    
+    // テスト用スクリプト
+    Script* script = new Script();
+    script->Name = "TestScript";
+    script->Source = R"(
         print(Floppa.Name);
         print(Floppa.Position);
         Floppa.Name = "Big Floppa";
         print(Floppa.Name);
-    )");
+        Floppa.Position = Vector3(1, 2, 3);
+        print(Floppa.Position);
+        Floppa.Color = Color4(1, 0, 0, 1);
+        print(Floppa.Color);
+        
+        print("Waiting 2 seconds...");
+        wait(2.0);
+        print("Resumed after wait!");
+        
+        print("Waiting 1 second...");
+        wait(1.0);
+        print("Script completed!");
+    )";
+    workspace.addChild(script);
 
     Cube* baseplate = new Cube({0.0f, -10.0f, 0.0f},  {32.0f, 1.0f, 32.0f}, renderer.whiteTexture);
     baseplate->Name = "Baseplate";
@@ -128,6 +149,12 @@ int main() {
         lastFrame = currentFrame;
 
         physicsEngine.update(workspace, deltaTime);
+        
+        // Luau エンジン更新（待機中スクリプトの時間カウント）
+        luauEngine.update(deltaTime);
+        
+        // Workspace のスクリプトを実行
+        luauEngine.executeWorkspaceScripts();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0.0f, 0.5f, 0.75f, 1.0f);
