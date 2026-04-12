@@ -1,7 +1,20 @@
 #include <include/Instances/Script.hpp>
+#include <fstream>
+#include <sstream>
 
-Script::Script() : Instance("Script"), Coroutine(nullptr) {
-}
+Script::Script(string path) : Instance("Script"), Coroutine(nullptr), Path(path) {
+    // load source from path
+    std::ifstream file(path);
+    if (file.is_open()) {
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        Source = buffer.str();
+        std::cout << "Loaded script from " << path << "\n";
+    } else {
+        std::cerr << "Failed to open script file: " << path << "\n";
+        Source = "print('Error: Failed to load script source')";
+    }
+}  
 
 std::string Script::GetClassName() {
     return "Script";

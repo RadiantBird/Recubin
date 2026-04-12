@@ -51,6 +51,7 @@ private:
     static int instance_index(lua_State* L);
     static int instance_newindex(lua_State* L);
     static int instance_tostring(lua_State* L);
+    static int instance_find_child_closure(lua_State* L);
 
     // Vector3 methods
     static int vec3_index(lua_State* L);

@@ -109,36 +109,15 @@ int main() {
     workspace.addChild(floppaCube);
 
     luauEngine.setGlobalInstance(floppaCube->Name, floppaCube);
-    
+    luauEngine.setGlobalInstance(workspace.Name, &workspace);
+    luauEngine.setGlobalInstance("workspace", &workspace); // Add lower-case alias
     // Workspace を LuauEngine に設定
     luauEngine.setWorkspace(&workspace);
     
     // テスト用スクリプト
-    Script* script = new Script();
+    Script* script = new Script("scripts/test.luau");
     script->Name = "TestScript";
-    script->Source = R"(
-        print(Floppa.Name);
-        print(Floppa.Position);
-        Floppa.Name = "Big Floppa";
-        print(Floppa.Name);
-        Floppa.Position = Vector3(1, 2, 3);
-        print(Floppa.Position);
-        Floppa.Color = Color4(1, 0, 0, 1);
-        print(Floppa.Color);
-        
-        print("Waiting 2 seconds...");
-        wait(2.0);
-        print("Resumed after wait!");
-        
-        print("Waiting 1 second...");
-        wait(1.0);
-        print("Resumed after second wait!");
-        for i = 1, 5 do
-            print("Count: " .. i);
-            wait(0.5);
-        end
-        print("Script completed!");
-    )";
+
     workspace.addChild(script);
 
     Cube* baseplate = new Cube({0.0f, -10.0f, 0.0f},  {32.0f, 1.0f, 32.0f}, renderer.whiteTexture);

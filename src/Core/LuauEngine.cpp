@@ -13,6 +13,18 @@ void LuauEngine::InitDispatchTable() {
         return 1;
     };
 
+    DispatchTable["Instance"]["FindChild"] = [](lua_State* L, Instance* obj) {
+        std::cout << "Accessing FindChild method\n";
+        // objをuserdataとしてスタックに積む（クロージャのupvalueとして使用）
+        Instance** userdata = (Instance**)lua_newuserdata(L, sizeof(Instance*));
+        *userdata = obj;
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        // C関数をクロージャとして作成（1つのupvalue）
+        lua_pushcclosure(L, instance_find_child_closure, "FindChild", 1);
+        return 1;
+    };
+
     DispatchTable["BaseCube"]["Position"] = [](lua_State* L, Instance* obj) {
         auto cube = static_cast<BaseCube*>(obj);
         lua_pushstring(L, cube->Position.toString().c_str());
@@ -194,6 +206,28 @@ int LuauEngine::instance_tostring(lua_State* L) {
     return 1;
 }
 
+int LuauEngine::instance_find_child_closure(lua_State* L) {
+    // upvalue[1]はクロージャに渡されたself
+    Instance** objPtr = (Instance**)lua_touserdata(L, lua_upvalueindex(1));
+    Instance* obj = *objPtr;
+    // L[1] is 'self' from the colon call, L[2] is the actual parameter
+    const char* childName = luaL_checkstring(L, 2);
+    
+    std::cout << "FindChild called with: " << childName << std::endl;
+    Instance* child = obj->getChild(childName);
+    
+    if (child) {
+        Instance** userdata = (Instance**)lua_newuserdata(L, sizeof(Instance*));
+        *userdata = child;
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    } else {
+        lua_pushnil(L);
+        return 1;
+    }
+}
+
 bool LuauEngine::execute(Script& script) {
     // 既にコルーチンがある場合は再開、なければ新規作成
     if (script.Coroutine == nullptr) {
@@ -243,7 +277,13 @@ bool LuauEngine::execute(Script& script) {
         return true;
     } else {
         // エラー
-        std::cerr << "Luau Run Error: " << lua_tostring(co, -1) << "\n";
+        script.Completed = true; // DO NOT loop on errored script!
+        std::cerr << "Luau Run Error caught. Status: " << result << "\n";
+        if (lua_type(co, -1) == LUA_TSTRING) {
+            std::cerr << "Luau Run Error: " << lua_tostring(co, -1) << "\n";
+        } else {
+            std::cerr << "Luau Run Error (non-string error object)\n";
+        }
         lua_pop(co, 1);
         currentScript = nullptr;
         return false;

@@ -7,7 +7,9 @@ struct lua_State;
 
 class Script : public Instance {
     public:
-        string Source = R"(print("Hello world!"))";
+        string Source = "";
+        string Path = "";
+
         Workspace* lastWorkspace = nullptr;
 
         bool Enabled = true;
@@ -22,5 +24,5 @@ class Script : public Instance {
         bool IsA(std::string className) override;
         void onAncestorChanged() override;
 
-        Script();
+        Script(string path);
 };
