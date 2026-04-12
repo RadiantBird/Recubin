@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 struct Color4 {
     float r, g, b, a;
 
@@ -9,5 +11,10 @@ struct Color4 {
     // 0-255
     static Color4 FromRGB(int r, int g, int b, float a = 1.0f) {
         return Color4(r / 255.0f, g / 255.0f, b / 255.0f, a);
+    }
+
+    std::string toString() const {
+        return std::to_string(r) + ", " + std::to_string(g) + ", " +
+               std::to_string(b) + ", " + std::to_string(a);
     }
 };

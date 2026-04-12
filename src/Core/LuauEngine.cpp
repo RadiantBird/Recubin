@@ -18,6 +18,12 @@ void LuauEngine::InitDispatchTable() {
         lua_pushstring(L, cube->Position.toString().c_str());
         return 1;
     };
+
+    DispatchTable["BaseCube"]["Color"] = [](lua_State* L, Instance* obj) {
+        auto cube = static_cast<BaseCube*>(obj);
+        lua_pushstring(L, cube->Color.toString().c_str());
+        return 1;
+    };
 }
 
 void LuauEngine::InitSetterTable() {
@@ -37,6 +43,19 @@ void LuauEngine::InitSetterTable() {
             std::cout << "Setting Position of BaseCube to " << cube->Position.toString() << std::endl;
         } else {
             std::cerr << "Expected a Vector3 userdata for Position\n";
+        }
+        return 0;
+    };
+
+    SetterTable["BaseCube"]["Color"] = [](lua_State* L, Instance* obj) {
+        auto cube = static_cast<BaseCube*>(obj);
+        // userdataからColor4を取得してセットするロジックをここに実装
+        if (lua_isuserdata(L, 3)) {
+            Color4* newColor = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+            cube->Color = *newColor;
+            std::cout << "Setting Color of BaseCube to " << cube->Color.toString() << std::endl;
+        } else {
+            std::cerr << "Expected a Color4 userdata for Color\n";
         }
         return 0;
     };
@@ -116,7 +135,13 @@ int LuauEngine::instance_index(lua_State* L) {
 
 LuauEngine::LuauEngine() {
     L = luaL_newstate();
-    luaL_openlibs(L);
+    // luaL_openlibs(L); // !! <Security issue> !!
+    luaopen_base(L);
+    luaopen_coroutine(L);
+    luaopen_math(L);
+    luaopen_string(L);
+    luaopen_table(L);
+    luaopen_bit32(L);
 
     InitMetatables();
     InitDispatchTable();
@@ -141,6 +166,12 @@ void LuauEngine::setGlobalInstance(const std::string& name, Instance* instance) 
 }
 
 int LuauEngine::instance_newindex(lua_State* L) {
+    /*
+    NOTE: index array
+    L[1] = Instance* (obj)
+    L[2] = Property (key)
+    L[3] = userdata (value)
+    */
     Instance* obj = *(Instance**)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
     std::string_view key = luaL_checkstring(L, 2);
 

@@ -132,6 +132,11 @@ int main() {
         
         print("Waiting 1 second...");
         wait(1.0);
+        print("Resumed after second wait!");
+        for i = 1, 5 do
+            print("Count: " .. i);
+            wait(0.5);
+        end
         print("Script completed!");
     )";
     workspace.addChild(script);
