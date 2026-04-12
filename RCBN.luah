@@ -1,0 +1,19 @@
+declare Instance: {
+    FindChild: (any, string) -> any
+}
+
+declare workspace: { [any]: any }
+declare Vector3: {
+    x: number,
+    y: number,
+    z: number
+}
+
+declare Color4: {
+    r: number,
+    g: number,
+    b: number,
+    a: number
+}
+
+declare function wait(seconds: number): ()

@@ -37,6 +37,9 @@ GLFWwindow* setupWindow() {
         return nullptr;
     }
 
+    // アスペクト比を固定 (800 : 600 = 4 : 3)
+    glfwSetWindowAspectRatio(window, 800, 600);
+
     std::cout << "making context...\n";
     glfwMakeContextCurrent(window);
 
@@ -107,8 +110,7 @@ int main() {
     floppaCube->setFaceTexture(5, limabis);
     
     workspace.addChild(floppaCube);
-
-    luauEngine.setGlobalInstance(floppaCube->Name, floppaCube);
+    
     luauEngine.setGlobalInstance(workspace.Name, &workspace);
     luauEngine.setGlobalInstance("workspace", &workspace); // Add lower-case alias
     // Workspace を LuauEngine に設定

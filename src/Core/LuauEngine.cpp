@@ -52,7 +52,15 @@ void LuauEngine::InitSetterTable() {
          if (lua_isuserdata(L, 3)) {
             Vector3* newPos = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
             cube->Position = *newPos;
-            std::cout << "Setting Position of BaseCube to " << cube->Position.toString() << std::endl;
+            
+            // 物理エンジン側にも位置を反映させる
+            if (cube->actor) {
+                physx::PxTransform pose = cube->actor->getGlobalPose();
+                pose.p = physx::PxVec3(newPos->x, newPos->y, newPos->z);
+                cube->actor->setGlobalPose(pose);
+            }
+
+            // std::cout << "Setting Position of BaseCube to " << cube->Position.toString() << std::endl;
         } else {
             std::cerr << "Expected a Vector3 userdata for Position\n";
         }
@@ -65,7 +73,7 @@ void LuauEngine::InitSetterTable() {
         if (lua_isuserdata(L, 3)) {
             Color4* newColor = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
             cube->Color = *newColor;
-            std::cout << "Setting Color of BaseCube to " << cube->Color.toString() << std::endl;
+            // std::cout << "Setting Color of BaseCube to " << cube->Color.toString() << std::endl;
         } else {
             std::cerr << "Expected a Color4 userdata for Color\n";
         }
@@ -246,10 +254,11 @@ bool LuauEngine::execute(Script& script) {
         char* bytecode = luau_compile(source.c_str(), source.length(), nullptr, &bytecodeSize);
         if (!bytecode) return false;
 
-        int status = luau_load(co, "@RecubinTask", bytecode, bytecodeSize, 0);
+        int status = luau_load(co, ("@" + script.Name).c_str(), bytecode, bytecodeSize, 0);
         free(bytecode);
 
         if (status != 0) {
+            script.Aborted = true; // DO NOT loop on errored script compile!
             std::cerr << "Luau Load Error: " << lua_tostring(co, -1) << "\n";
             lua_pop(co, 1);
             return false;
@@ -277,7 +286,7 @@ bool LuauEngine::execute(Script& script) {
         return true;
     } else {
         // エラー
-        script.Completed = true; // DO NOT loop on errored script!
+        script.Aborted = true; // DO NOT loop on errored script!
         std::cerr << "Luau Run Error caught. Status: " << result << "\n";
         if (lua_type(co, -1) == LUA_TSTRING) {
             std::cerr << "Luau Run Error: " << lua_tostring(co, -1) << "\n";
@@ -473,8 +482,8 @@ void LuauEngine::executeWorkspaceScripts() {
     // Workspace 内のすべてのスクリプトを実行
     for (Instance* inst : workspace->scripts) {
         Script* script = dynamic_cast<Script*>(inst);
-        // 条件：有効 && 待機中でない && 完了していない
-        if (script && script->Enabled && !script->Sleeping && !script->Completed) {
+        // 条件：有効 && 待機中でない && 完了していない && 中断されていない
+        if (script && script->Enabled && !script->Sleeping && !script->Completed && !script->Aborted) {
             execute(*script);
         }
     }

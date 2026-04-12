@@ -157,8 +157,15 @@ void Renderer::init() {
 }
 
 void Renderer::render(User &user, GLFWwindow* window, Workspace &workspace) {
+    // 0. ウィンドウサイズを取得してビューポートを更新
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+    if (height == 0) height = 1; // ゼロ除算防止
+    glViewport(0, 0, width, height);
+
     // 1. プロジェクションとビュー行列は全オブジェクト共通なので先にセット
-    Matrix4 projection = Matrix4::Perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
+    float aspect = static_cast<float>(width) / static_cast<float>(height);
+    Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 100.0f);
     Vector3 target = user.cpos + user.forward; 
     Matrix4 view = Matrix4::LookAt(user.cpos, target, user.up);
 

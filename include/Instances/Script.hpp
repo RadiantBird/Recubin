@@ -15,6 +15,7 @@ class Script : public Instance {
         bool Enabled = true;
         bool Sleeping = false;
         bool Completed = false;  // スクリプト実行完了フラグ
+        bool Aborted = false;    // エラーによる強制終了フラグ
         float SleepTime = 0.0f;
         float SleepRemaining = 0.0f;  // 残り待機時間
         
