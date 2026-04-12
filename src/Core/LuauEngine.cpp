@@ -117,11 +117,16 @@ void LuauEngine::InitMetatables() {
 }
 
 void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
-    // Register constructors as global functions
-    lua_pushcfunction(L, vec3_constructor, "Vector3");
+    // Register Vector3 with new method
+    lua_newtable(L);
+    lua_pushcfunction(L, vec3_constructor, "new");
+    lua_setfield(L, -2, "new");
     lua_setglobal(L, "Vector3");
 
-    lua_pushcfunction(L, color4_constructor, "Color4");
+    // Register Color4 with new method
+    lua_newtable(L);
+    lua_pushcfunction(L, color4_constructor, "new");
+    lua_setfield(L, -2, "new");
     lua_setglobal(L, "Color4");
 
     // Register custom global functions
