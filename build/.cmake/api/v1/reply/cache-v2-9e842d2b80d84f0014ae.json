@@ -15,7 +15,19 @@
 				}
 			],
 			"type" : "FILEPATH",
-			"value" : "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/lib.exe"
+			"value" : "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx86/x86/lib.exe"
+		},
+		{
+			"name" : "CMAKE_BUILD_TYPE",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "No help, variable specified on the command line."
+				}
+			],
+			"type" : "STRING",
+			"value" : "Debug"
 		},
 		{
 			"name" : "CMAKE_CACHEFILE_DIR",
@@ -75,19 +87,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "C:/Program Files/CMake/bin/cmake.exe"
-		},
-		{
-			"name" : "CMAKE_CONFIGURATION_TYPES",
-			"properties" : 
-			[
-				{
-					"name" : "HELPSTRING",
-					"value" : "Semicolon separated list of supported configuration types, only supports Debug, Release, MinSizeRel, and RelWithDebInfo, anything else will be ignored."
-				}
-			],
-			"type" : "STRING",
-			"value" : "Debug;Release;MinSizeRel;RelWithDebInfo"
+			"value" : "C:/Program Files/Microsoft Visual Studio/18/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"
 		},
 		{
 			"name" : "CMAKE_CPACK_COMMAND",
@@ -99,7 +99,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "C:/Program Files/CMake/bin/cpack.exe"
+			"value" : "C:/Program Files/Microsoft Visual Studio/18/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cpack.exe"
 		},
 		{
 			"name" : "CMAKE_CTEST_COMMAND",
@@ -111,7 +111,23 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "C:/Program Files/CMake/bin/ctest.exe"
+			"value" : "C:/Program Files/Microsoft Visual Studio/18/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/ctest.exe"
+		},
+		{
+			"name" : "CMAKE_CXX_COMPILER",
+			"properties" : 
+			[
+				{
+					"name" : "ADVANCED",
+					"value" : "1"
+				},
+				{
+					"name" : "HELPSTRING",
+					"value" : "CXX compiler"
+				}
+			],
+			"type" : "FILEPATH",
+			"value" : "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx86/x86/cl.exe"
 		},
 		{
 			"name" : "CMAKE_CXX_FLAGS",
@@ -208,6 +224,22 @@
 			],
 			"type" : "STRING",
 			"value" : "kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib"
+		},
+		{
+			"name" : "CMAKE_C_COMPILER",
+			"properties" : 
+			[
+				{
+					"name" : "ADVANCED",
+					"value" : "1"
+				},
+				{
+					"name" : "HELPSTRING",
+					"value" : "C compiler"
+				}
+			],
+			"type" : "FILEPATH",
+			"value" : "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx86/x86/cl.exe"
 		},
 		{
 			"name" : "CMAKE_C_FLAGS",
@@ -331,7 +363,7 @@
 				}
 			],
 			"type" : "STRING",
-			"value" : "/machine:x64"
+			"value" : "/machine:X86"
 		},
 		{
 			"name" : "CMAKE_EXE_LINKER_FLAGS_DEBUG",
@@ -398,6 +430,34 @@
 			"value" : "/debug /INCREMENTAL"
 		},
 		{
+			"name" : "CMAKE_EXPORT_BUILD_DATABASE",
+			"properties" : 
+			[
+				{
+					"name" : "ADVANCED",
+					"value" : "1"
+				},
+				{
+					"name" : "HELPSTRING",
+					"value" : "Enable/Disable output of build database during the build."
+				}
+			],
+			"type" : "BOOL",
+			"value" : ""
+		},
+		{
+			"name" : "CMAKE_EXPORT_COMPILE_COMMANDS",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "No help, variable specified on the command line."
+				}
+			],
+			"type" : "BOOL",
+			"value" : "TRUE"
+		},
+		{
 			"name" : "CMAKE_EXTRA_GENERATOR",
 			"properties" : 
 			[
@@ -431,7 +491,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "Visual Studio 18 2026"
+			"value" : "Ninja"
 		},
 		{
 			"name" : "CMAKE_GENERATOR_INSTANCE",
@@ -443,7 +503,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "C:/Program Files/Microsoft Visual Studio/18/Community"
+			"value" : ""
 		},
 		{
 			"name" : "CMAKE_GENERATOR_PLATFORM",
@@ -507,7 +567,7 @@
 				}
 			],
 			"type" : "FILEPATH",
-			"value" : "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/link.exe"
+			"value" : "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx86/x86/link.exe"
 		},
 		{
 			"name" : "CMAKE_LIST_FILE_NAME",
@@ -520,6 +580,22 @@
 			],
 			"type" : "INTERNAL",
 			"value" : "CMakeLists.txt"
+		},
+		{
+			"name" : "CMAKE_MAKE_PROGRAM",
+			"properties" : 
+			[
+				{
+					"name" : "ADVANCED",
+					"value" : "1"
+				},
+				{
+					"name" : "HELPSTRING",
+					"value" : "make program"
+				}
+			],
+			"type" : "FILEPATH",
+			"value" : "C:/PROGRA~1/MICROS~2/18/COMMUN~1/Common7/IDE/COMMON~1/MICROS~1/CMake/Ninja/ninja.exe"
 		},
 		{
 			"name" : "CMAKE_MODULE_LINKER_FLAGS",
@@ -535,7 +611,7 @@
 				}
 			],
 			"type" : "STRING",
-			"value" : "/machine:x64"
+			"value" : "/machine:X86"
 		},
 		{
 			"name" : "CMAKE_MODULE_LINKER_FLAGS_DEBUG",
@@ -615,7 +691,7 @@
 				}
 			],
 			"type" : "FILEPATH",
-			"value" : "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/mt.exe"
+			"value" : "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x86/mt.exe"
 		},
 		{
 			"name" : "CMAKE_NUMBER_OF_MAKEFILES",
@@ -727,7 +803,7 @@
 				}
 			],
 			"type" : "FILEPATH",
-			"value" : "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/rc.exe"
+			"value" : "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x86/rc.exe"
 		},
 		{
 			"name" : "CMAKE_RC_COMPILER_WORKS",
@@ -831,7 +907,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "C:/Program Files/CMake/share/cmake-4.2"
+			"value" : "C:/Program Files/Microsoft Visual Studio/18/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-4.2"
 		},
 		{
 			"name" : "CMAKE_SHARED_LINKER_FLAGS",
@@ -847,7 +923,7 @@
 				}
 			],
 			"type" : "STRING",
-			"value" : "/machine:x64"
+			"value" : "/machine:X86"
 		},
 		{
 			"name" : "CMAKE_SHARED_LINKER_FLAGS_DEBUG",
@@ -959,7 +1035,7 @@
 				}
 			],
 			"type" : "STRING",
-			"value" : "/machine:x64"
+			"value" : "/machine:X86"
 		},
 		{
 			"name" : "CMAKE_STATIC_LINKER_FLAGS_DEBUG",
@@ -1026,6 +1102,22 @@
 			"value" : ""
 		},
 		{
+			"name" : "CMAKE_TOOLCHAIN_FILE",
+			"properties" : 
+			[
+				{
+					"name" : "ADVANCED",
+					"value" : "1"
+				},
+				{
+					"name" : "HELPSTRING",
+					"value" : "The CMake toolchain file"
+				}
+			],
+			"type" : "FILEPATH",
+			"value" : "C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+		},
+		{
 			"name" : "CMAKE_VERBOSE_MAKEFILE",
 			"properties" : 
 			[
@@ -1040,18 +1132,6 @@
 			],
 			"type" : "BOOL",
 			"value" : "FALSE"
-		},
-		{
-			"name" : "GLEW_STATIC",
-			"properties" : 
-			[
-				{
-					"name" : "HELPSTRING",
-					"value" : "No help, variable specified on the command line."
-				}
-			],
-			"type" : "UNINITIALIZED",
-			"value" : "ON"
 		},
 		{
 			"name" : "Recubin_BINARY_DIR",
@@ -1088,6 +1168,226 @@
 			],
 			"type" : "STATIC",
 			"value" : "C:/Users/RedDragon/Documents/Recubin"
+		},
+		{
+			"name" : "VCPKG_APPLOCAL_DEPS",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Automatically copy dependencies into the output directory for executables."
+				}
+			],
+			"type" : "BOOL",
+			"value" : "ON"
+		},
+		{
+			"name" : "VCPKG_INSTALLED_DIR",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "The directory which contains the installed libraries for each triplet"
+				}
+			],
+			"type" : "PATH",
+			"value" : "C:/vcpkg/installed"
+		},
+		{
+			"name" : "VCPKG_MANIFEST_DIR",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "The path to the vcpkg manifest directory."
+				}
+			],
+			"type" : "PATH",
+			"value" : ""
+		},
+		{
+			"name" : "VCPKG_MANIFEST_INSTALL",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Install the dependencies listed in your manifest:\n    If this is off, you will have to manually install your dependencies.\n    See https://github.com/microsoft/vcpkg/tree/master/docs/specifications/manifests.md for more info.\n"
+				}
+			],
+			"type" : "INTERNAL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "VCPKG_MANIFEST_MODE",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Use manifest mode, as opposed to classic mode."
+				}
+			],
+			"type" : "BOOL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "VCPKG_PREFER_SYSTEM_LIBS",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Appends the vcpkg paths to CMAKE_PREFIX_PATH, CMAKE_LIBRARY_PATH and CMAKE_FIND_ROOT_PATH so that vcpkg libraries/packages are found after toolchain/system libraries/packages."
+				}
+			],
+			"type" : "BOOL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "VCPKG_SETUP_CMAKE_PROGRAM_PATH",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Enable the setup of CMAKE_PROGRAM_PATH to vcpkg paths"
+				}
+			],
+			"type" : "BOOL",
+			"value" : "ON"
+		},
+		{
+			"name" : "VCPKG_TARGET_TRIPLET",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Vcpkg target triplet (ex. x86-windows)"
+				}
+			],
+			"type" : "STRING",
+			"value" : "x86-windows"
+		},
+		{
+			"name" : "VCPKG_TRACE_FIND_PACKAGE",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Trace calls to find_package()"
+				}
+			],
+			"type" : "BOOL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "VCPKG_VERBOSE",
+			"properties" : 
+			[
+				{
+					"name" : "ADVANCED",
+					"value" : "1"
+				},
+				{
+					"name" : "HELPSTRING",
+					"value" : "Enables messages from the VCPKG toolchain for debugging purposes."
+				}
+			],
+			"type" : "BOOL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "X_VCPKG_APPLOCAL_DEPS_INSTALL",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "(experimental) Automatically copy dependencies into the install target directory for executables. Requires CMake 3.14."
+				}
+			],
+			"type" : "BOOL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "X_VCPKG_APPLOCAL_DEPS_SERIALIZED",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "(experimental) Add USES_TERMINAL to VCPKG_APPLOCAL_DEPS to force serialization."
+				}
+			],
+			"type" : "BOOL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "Z_VCPKG_CHECK_MANIFEST_MODE",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Making sure VCPKG_MANIFEST_MODE doesn't change"
+				}
+			],
+			"type" : "INTERNAL",
+			"value" : "OFF"
+		},
+		{
+			"name" : "Z_VCPKG_CL",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Path to a program."
+				}
+			],
+			"type" : "FILEPATH",
+			"value" : "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx86/x86/cl.exe"
+		},
+		{
+			"name" : "Z_VCPKG_POWERSHELL_PATH",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "The path to the PowerShell implementation to use."
+				}
+			],
+			"type" : "INTERNAL",
+			"value" : "C:/Program Files/PowerShell/7/pwsh.exe"
+		},
+		{
+			"name" : "Z_VCPKG_PWSH_PATH",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Path to a program."
+				}
+			],
+			"type" : "FILEPATH",
+			"value" : "C:/Program Files/PowerShell/7/pwsh.exe"
+		},
+		{
+			"name" : "Z_VCPKG_ROOT_DIR",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "Vcpkg root directory"
+				}
+			],
+			"type" : "INTERNAL",
+			"value" : "C:/vcpkg"
+		},
+		{
+			"name" : "_VCPKG_INSTALLED_DIR",
+			"properties" : 
+			[
+				{
+					"name" : "HELPSTRING",
+					"value" : "The directory which contains the installed libraries for each triplet"
+				}
+			],
+			"type" : "PATH",
+			"value" : "C:/vcpkg/installed"
 		}
 	],
 	"kind" : "cache",

@@ -1,10 +1,19 @@
 #include "include/Core/LuauEngine.hpp"
 #include "include/Instances/Workspace.hpp"
+#include <float.h>
 
 // DispatchTableの定義
 std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEngine::GetterFunc>> LuauEngine::DispatchTable;
 std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEngine::SetterFunc>> LuauEngine::SetterTable;
 Script* LuauEngine::currentScript = nullptr;
+
+void restoreFPU() {
+    unsigned int control;
+    _controlfp_s(&control, 0, 0); // 現在の状態取得
+    // 標準的な安全設定に戻す（double精度、例外マスク全on）
+    _controlfp_s(NULL, _PC_53 | _RC_NEAR | _MCW_EM, 
+                       _MCW_PC | _MCW_RC | _MCW_EM);
+}
 
 void LuauEngine::InitDispatchTable() {
     DispatchTable["Instance"]["Name"] = [](lua_State* L, Instance* obj) {
@@ -300,6 +309,7 @@ bool LuauEngine::execute(Script& script) {
         }
         lua_pop(co, 1);
         currentScript = nullptr;
+        restoreFPU(); // エラー後にFPU状態が乱れる可能性があるため、復元する
         return false;
     }
 }
