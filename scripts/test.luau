@@ -1,4 +1,7 @@
 print("Hello from Luau!");
+-- jkfduh -- 意図的にLoadエラーを発生させる (これはクリアカラーが真っ黒にならない)
+-- local a = nil
+-- a:FindChild("test"); -- index errorさせる(これは真っ黒になる)
 local Floppa: Cube = workspace:FindChild("Floppa");
 if not Floppa then
     print("Floppa not found in workspace!");

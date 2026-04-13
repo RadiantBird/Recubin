@@ -161,7 +161,7 @@ int LuauEngine::instance_index(lua_State* L) {
 LuauEngine::LuauEngine() {
     L = luaL_newstate();
     // luaL_openlibs(L); // !! <Security issue> !!
-    luaopen_base(L);
+    luaopen_base(L); // <- これが原因でGLがバグってる？らしい(Claudeによると)
     luaopen_coroutine(L);
     luaopen_math(L);
     luaopen_string(L);

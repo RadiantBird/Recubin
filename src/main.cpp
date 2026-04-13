@@ -53,7 +53,7 @@ GLFWwindow* setupWindow() {
 
 int main() {
     std::cout << "Hello world!\n"
-              << "Version 0.6\n";
+              << "Version 0.65\n";
 
     GLFWwindow* window = setupWindow();
     if (!window) {
@@ -142,8 +142,24 @@ int main() {
         // Workspace のスクリプトを実行
         luauEngine.executeWorkspaceScripts();
 
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // Luau の longjmp が Windows の WGL ファイバーローカルストレージを破壊する場合があるため、
+        // スクリプト実行後に GL コンテキストを明示的に再設定する
+        glfwMakeContextCurrent(window);
+
         glClearColor(0.0f, 0.5f, 0.75f, 1.0f);
+
+        // デバッグ: GPUに実際にセットされているclear colorを確認
+        GLfloat actualClear[4];
+        glGetFloatv(GL_COLOR_CLEAR_VALUE, actualClear);
+        static int dbgFrame = 0;
+        if (dbgFrame < 5) {
+            std::cout << "[DBG frame " << dbgFrame << "] clear color = "
+                      << actualClear[0] << " " << actualClear[1] << " "
+                      << actualClear[2] << " " << actualClear[3] << std::endl;
+            dbgFrame++;
+        }
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // --- 2. 入力検知 (向きに基づいた移動) ---
         user.processInput();
@@ -152,9 +168,10 @@ int main() {
         }
 
         renderer.render(user, window, workspace);
+        // std::cout << "[DEBUG] Rendered frame" << std::endl;
     }
 
     glfwTerminate();
-
+    std::cout << "[DEBUG] Main loop ended. wannaExit=" << user.wannaExit << " windowShouldClose=" << glfwWindowShouldClose(window) << std::endl;
     return 0;
 }
