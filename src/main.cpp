@@ -136,28 +136,8 @@ int main() {
 
         physicsEngine.update(workspace, deltaTime);
         
-        // Luau エンジン更新（待機中スクリプトの時間カウント）
-        luauEngine.update(deltaTime);
-        
         // Workspace のスクリプトを実行
         luauEngine.executeWorkspaceScripts();
-
-        // Luau の longjmp が Windows の WGL ファイバーローカルストレージを破壊する場合があるため、
-        // スクリプト実行後に GL コンテキストを明示的に再設定する
-        glfwMakeContextCurrent(window);
-
-        glClearColor(0.0f, 0.5f, 0.75f, 1.0f);
-
-        // デバッグ: GPUに実際にセットされているclear colorを確認
-        GLfloat actualClear[4];
-        glGetFloatv(GL_COLOR_CLEAR_VALUE, actualClear);
-        static int dbgFrame = 0;
-        if (dbgFrame < 5) {
-            std::cout << "[DBG frame " << dbgFrame << "] clear color = "
-                      << actualClear[0] << " " << actualClear[1] << " "
-                      << actualClear[2] << " " << actualClear[3] << std::endl;
-            dbgFrame++;
-        }
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 

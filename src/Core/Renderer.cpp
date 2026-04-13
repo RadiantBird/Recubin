@@ -154,6 +154,10 @@ void Renderer::init() {
 
     createWhiteTexture(); // failsafe用
     stbi_set_flip_vertically_on_load(true); // OpenGL用
+
+    // 初期化時に1回だけクリアカラーを設定
+    // Luauエラー時の longjmp によるFPU状態の乱れを避けるため、ループ内での再設定は行わない
+    glClearColor(0.0f, 0.5f, 0.75f, 1.0f);
 }
 
 void Renderer::render(User &user, GLFWwindow* window, Workspace &workspace) {
