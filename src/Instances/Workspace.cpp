@@ -1,4 +1,4 @@
-#include <include/Instances/Workspace.hpp>
+#include <Instances/Workspace.hpp>
 #include <algorithm>
 
 void Workspace::registerScript(Instance* s) {

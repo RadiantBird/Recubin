@@ -1,4 +1,4 @@
-#include <include/Core/Renderer.hpp>
+#include <Core/Renderer.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "include/stb_image.h"

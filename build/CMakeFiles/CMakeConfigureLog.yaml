@@ -104,7 +104,7 @@ events:
       The output was:
       0
       MSBuild 縺ｮ繝舌・繧ｸ繝ｧ繝ｳ 18.4.0+6e61e96ac (.NET Framework)
-      2026/04/14 23:05:07 縺ｫ繝薙Ν繝峨ｒ髢句ｧ九＠縺ｾ縺励◆縲・
+      2026/04/14 23:12:21 縺ｫ繝薙Ν繝峨ｒ髢句ｧ九＠縺ｾ縺励◆縲・
       
       繝弱・繝・1 荳翫・繝励Ο繧ｸ繧ｧ繧ｯ繝・"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\4.2.3\\CompilerIdC\\CompilerIdC.vcxproj" (譌｢螳壹・繧ｿ繝ｼ繧ｲ繝・ヨ)縲・
       PrepareForBuild:
@@ -133,7 +133,7 @@ events:
           0 蛟九・隴ｦ蜻・
           0 繧ｨ繝ｩ繝ｼ
       
-      邨碁℃譎る俣 00:00:00.43
+      邨碁℃譎る俣 00:00:00.41
       
       
       Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CompilerIdC.exe"
@@ -1008,7 +1008,7 @@ events:
       The output was:
       0
       MSBuild 縺ｮ繝舌・繧ｸ繝ｧ繝ｳ 18.4.0+6e61e96ac (.NET Framework)
-      2026/04/14 23:05:08 縺ｫ繝薙Ν繝峨ｒ髢句ｧ九＠縺ｾ縺励◆縲・
+      2026/04/14 23:12:22 縺ｫ繝薙Ν繝峨ｒ髢句ｧ九＠縺ｾ縺励◆縲・
       
       繝弱・繝・1 荳翫・繝励Ο繧ｸ繧ｧ繧ｯ繝・"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\4.2.3\\CompilerIdCXX\\CompilerIdCXX.vcxproj" (譌｢螳壹・繧ｿ繝ｼ繧ｲ繝・ヨ)縲・
       PrepareForBuild:
@@ -1037,7 +1037,7 @@ events:
           0 蛟九・隴ｦ蜻・
           0 繧ｨ繝ｩ繝ｼ
       
-      邨碁℃譎る俣 00:00:00.45
+      邨碁℃譎る俣 00:00:00.42
       
       
       Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.exe"
@@ -1514,8 +1514,8 @@ events:
     checks:
       - "Detecting C compiler ABI info"
     directories:
-      source: "C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-989x0i"
-      binary: "C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-989x0i"
+      source: "C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-4xiymq"
+      binary: "C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-4xiymq"
     cmakeVariables:
       CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS"
       CMAKE_C_FLAGS_DEBUG: "/Ob0 /Od /RTC1"
@@ -1524,33 +1524,33 @@ events:
       variable: "CMAKE_C_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-989x0i'
+        Change Dir: 'C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-4xiymq'
         
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_9b1e2.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_9938e.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
         MSBuild 縺ｮ繝舌・繧ｸ繝ｧ繝ｳ 18.4.0+6e61e96ac (.NET Framework)
-        2026/04/14 23:05:09 縺ｫ繝薙Ν繝峨ｒ髢句ｧ九＠縺ｾ縺励◆縲・
+        2026/04/14 23:12:22 縺ｫ繝薙Ν繝峨ｒ髢句ｧ九＠縺ｾ縺励◆縲・
         
-        繝弱・繝・1 荳翫・繝励Ο繧ｸ繧ｧ繧ｯ繝・"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-989x0i\\cmTC_9b1e2.vcxproj" (譌｢螳壹・繧ｿ繝ｼ繧ｲ繝・ヨ)縲・
+        繝弱・繝・1 荳翫・繝励Ο繧ｸ繧ｧ繧ｯ繝・"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-4xiymq\\cmTC_9938e.vcxproj" (譌｢螳壹・繧ｿ繝ｼ繧ｲ繝・ヨ)縲・
         PrepareForBuild:
           讒矩\xc2\x80蛹門・蜉帙′譛牙柑縺ｫ縺ｪ縺｣縺ｦ縺・∪縺吶\xc2\x80ゅさ繝ｳ繝代う繝ｩ險ｺ譁ｭ縺ｮ譖ｸ蠑剰ｨｭ螳壹↓縺ｯ繧ｨ繝ｩ繝ｼ髫主ｱ､縺悟渚譏縺輔ｌ縺ｾ縺吶\xc2\x80りｩｳ邏ｰ縺ｫ縺､縺・※縺ｯ縲”ttps://aka.ms/cpp/structured-output 繧貞盾辣ｧ縺励※縺上□縺輔＞縲・
-          繝・ぅ繝ｬ繧ｯ繝医Μ "C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-989x0i\\Debug\\" 繧剃ｽ懈・縺励※縺・∪縺吶\xc2\x80・
-          繝・ぅ繝ｬ繧ｯ繝医Μ "cmTC_9b1e2.dir\\Debug\\cmTC_9b1e2.tlog\\" 繧剃ｽ懈・縺励※縺・∪縺吶\xc2\x80・
+          繝・ぅ繝ｬ繧ｯ繝医Μ "C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-4xiymq\\Debug\\" 繧剃ｽ懈・縺励※縺・∪縺吶\xc2\x80・
+          繝・ぅ繝ｬ繧ｯ繝医Μ "cmTC_9938e.dir\\Debug\\cmTC_9938e.tlog\\" 繧剃ｽ懈・縺励※縺・∪縺吶\xc2\x80・
         InitializeBuildStatus:
-          "AlwaysCreate" 縺梧欠螳壹＆繧後◆縺溘ａ "cmTC_9b1e2.dir\\Debug\\cmTC_9b1e2.tlog\\unsuccessfulbuild" 繧剃ｽ懈・縺励※縺・∪縺吶\xc2\x80・
-          "cmTC_9b1e2.dir\\Debug\\cmTC_9b1e2.tlog\\unsuccessfulbuild" 縺ｮ繧ｿ繝・メ 繧ｿ繧ｹ繧ｯ繧貞ｮ溯｡後＠縺ｦ縺・∪縺吶\xc2\x80・
+          "AlwaysCreate" 縺梧欠螳壹＆繧後◆縺溘ａ "cmTC_9938e.dir\\Debug\\cmTC_9938e.tlog\\unsuccessfulbuild" 繧剃ｽ懈・縺励※縺・∪縺吶\xc2\x80・
+          "cmTC_9938e.dir\\Debug\\cmTC_9938e.tlog\\unsuccessfulbuild" 縺ｮ繧ｿ繝・メ 繧ｿ繧ｹ繧ｯ繧貞ｮ溯｡後＠縺ｦ縺・∪縺吶\xc2\x80・
         ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_9b1e2.dir\\Debug\\\\" /Fd"cmTC_9b1e2.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCCompilerABI.c"
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_9938e.dir\\Debug\\\\" /Fd"cmTC_9938e.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCCompilerABI.c"
           Microsoft(R) C/C++ Optimizing Compiler Version 19.50.35727 for x64
           Copyright (C) Microsoft Corporation.  All rights reserved.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_9b1e2.dir\\Debug\\\\" /Fd"cmTC_9b1e2.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCCompilerABI.c"
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_9938e.dir\\Debug\\\\" /Fd"cmTC_9938e.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCCompilerABI.c"
           CMakeCCompilerABI.c
         Link:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-989x0i\\Debug\\cmTC_9b1e2.exe" /INCREMENTAL /ILK:"cmTC_9b1e2.dir\\Debug\\cmTC_9b1e2.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-989x0i/Debug/cmTC_9b1e2.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-989x0i/Debug/cmTC_9b1e2.lib" /MACHINE:X64  /machine:x64 cmTC_9b1e2.dir\\Debug\\CMakeCCompilerABI.obj
-          cmTC_9b1e2.vcxproj -> C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-989x0i\\Debug\\cmTC_9b1e2.exe
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-4xiymq\\Debug\\cmTC_9938e.exe" /INCREMENTAL /ILK:"cmTC_9938e.dir\\Debug\\cmTC_9938e.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-4xiymq/Debug/cmTC_9938e.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-4xiymq/Debug/cmTC_9938e.lib" /MACHINE:X64  /machine:x64 cmTC_9938e.dir\\Debug\\CMakeCCompilerABI.obj
+          cmTC_9938e.vcxproj -> C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-4xiymq\\Debug\\cmTC_9938e.exe
         FinalizeBuildStatus:
-          繝輔ぃ繧､繝ｫ "cmTC_9b1e2.dir\\Debug\\cmTC_9b1e2.tlog\\unsuccessfulbuild" 繧貞炎髯､縺励※縺・∪縺吶\xc2\x80・
-          "cmTC_9b1e2.dir\\Debug\\cmTC_9b1e2.tlog\\cmTC_9b1e2.lastbuildstate" 縺ｮ繧ｿ繝・メ 繧ｿ繧ｹ繧ｯ繧貞ｮ溯｡後＠縺ｦ縺・∪縺吶\xc2\x80・
-        繝励Ο繧ｸ繧ｧ繧ｯ繝・"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-989x0i\\cmTC_9b1e2.vcxproj" (譌｢螳壹・繧ｿ繝ｼ繧ｲ繝・ヨ) 縺ｮ繝薙Ν繝峨′螳御ｺ・＠縺ｾ縺励◆縲・
+          繝輔ぃ繧､繝ｫ "cmTC_9938e.dir\\Debug\\cmTC_9938e.tlog\\unsuccessfulbuild" 繧貞炎髯､縺励※縺・∪縺吶\xc2\x80・
+          "cmTC_9938e.dir\\Debug\\cmTC_9938e.tlog\\cmTC_9938e.lastbuildstate" 縺ｮ繧ｿ繝・メ 繧ｿ繧ｹ繧ｯ繧貞ｮ溯｡後＠縺ｦ縺・∪縺吶\xc2\x80・
+        繝励Ο繧ｸ繧ｧ繧ｯ繝・"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-4xiymq\\cmTC_9938e.vcxproj" (譌｢螳壹・繧ｿ繝ｼ繧ｲ繝・ヨ) 縺ｮ繝薙Ν繝峨′螳御ｺ・＠縺ｾ縺励◆縲・
         
         繝薙Ν繝峨↓謌仙粥縺励∪縺励◆縲・
             0 蛟九・隴ｦ蜻・
@@ -1596,8 +1596,8 @@ events:
     checks:
       - "Detecting CXX compiler ABI info"
     directories:
-      source: "C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-gt4pki"
-      binary: "C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-gt4pki"
+      source: "C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-mv4270"
+      binary: "C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-mv4270"
     cmakeVariables:
       CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /EHsc"
       CMAKE_CXX_FLAGS_DEBUG: "/Ob0 /Od /RTC1"
@@ -1607,39 +1607,39 @@ events:
       variable: "CMAKE_CXX_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-gt4pki'
+        Change Dir: 'C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-mv4270'
         
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_0c682.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_bd8e2.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
         MSBuild 縺ｮ繝舌・繧ｸ繝ｧ繝ｳ 18.4.0+6e61e96ac (.NET Framework)
-        2026/04/14 23:05:09 縺ｫ繝薙Ν繝峨ｒ髢句ｧ九＠縺ｾ縺励◆縲・
+        2026/04/14 23:12:23 縺ｫ繝薙Ν繝峨ｒ髢句ｧ九＠縺ｾ縺励◆縲・
         
-        繝弱・繝・1 荳翫・繝励Ο繧ｸ繧ｧ繧ｯ繝・"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-gt4pki\\cmTC_0c682.vcxproj" (譌｢螳壹・繧ｿ繝ｼ繧ｲ繝・ヨ)縲・
+        繝弱・繝・1 荳翫・繝励Ο繧ｸ繧ｧ繧ｯ繝・"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-mv4270\\cmTC_bd8e2.vcxproj" (譌｢螳壹・繧ｿ繝ｼ繧ｲ繝・ヨ)縲・
         PrepareForBuild:
           讒矩\xc2\x80蛹門・蜉帙′譛牙柑縺ｫ縺ｪ縺｣縺ｦ縺・∪縺吶\xc2\x80ゅさ繝ｳ繝代う繝ｩ險ｺ譁ｭ縺ｮ譖ｸ蠑剰ｨｭ螳壹↓縺ｯ繧ｨ繝ｩ繝ｼ髫主ｱ､縺悟渚譏縺輔ｌ縺ｾ縺吶\xc2\x80りｩｳ邏ｰ縺ｫ縺､縺・※縺ｯ縲”ttps://aka.ms/cpp/structured-output 繧貞盾辣ｧ縺励※縺上□縺輔＞縲・
-          繝・ぅ繝ｬ繧ｯ繝医Μ "C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-gt4pki\\Debug\\" 繧剃ｽ懈・縺励※縺・∪縺吶\xc2\x80・
-          繝・ぅ繝ｬ繧ｯ繝医Μ "cmTC_0c682.dir\\Debug\\cmTC_0c682.tlog\\" 繧剃ｽ懈・縺励※縺・∪縺吶\xc2\x80・
+          繝・ぅ繝ｬ繧ｯ繝医Μ "C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-mv4270\\Debug\\" 繧剃ｽ懈・縺励※縺・∪縺吶\xc2\x80・
+          繝・ぅ繝ｬ繧ｯ繝医Μ "cmTC_bd8e2.dir\\Debug\\cmTC_bd8e2.tlog\\" 繧剃ｽ懈・縺励※縺・∪縺吶\xc2\x80・
         InitializeBuildStatus:
-          "AlwaysCreate" 縺梧欠螳壹＆繧後◆縺溘ａ "cmTC_0c682.dir\\Debug\\cmTC_0c682.tlog\\unsuccessfulbuild" 繧剃ｽ懈・縺励※縺・∪縺吶\xc2\x80・
-          "cmTC_0c682.dir\\Debug\\cmTC_0c682.tlog\\unsuccessfulbuild" 縺ｮ繧ｿ繝・メ 繧ｿ繧ｹ繧ｯ繧貞ｮ溯｡後＠縺ｦ縺・∪縺吶\xc2\x80・
+          "AlwaysCreate" 縺梧欠螳壹＆繧後◆縺溘ａ "cmTC_bd8e2.dir\\Debug\\cmTC_bd8e2.tlog\\unsuccessfulbuild" 繧剃ｽ懈・縺励※縺・∪縺吶\xc2\x80・
+          "cmTC_bd8e2.dir\\Debug\\cmTC_bd8e2.tlog\\unsuccessfulbuild" 縺ｮ繧ｿ繝・メ 繧ｿ繧ｹ繧ｯ繧貞ｮ溯｡後＠縺ｦ縺・∪縺吶\xc2\x80・
         ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /Fo"cmTC_0c682.dir\\Debug\\\\" /Fd"cmTC_0c682.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp"
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /Fo"cmTC_bd8e2.dir\\Debug\\\\" /Fd"cmTC_bd8e2.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp"
           Microsoft(R) C/C++ Optimizing Compiler Version 19.50.35727 for x64
           Copyright (C) Microsoft Corporation.  All rights reserved.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /Fo"cmTC_0c682.dir\\Debug\\\\" /Fd"cmTC_0c682.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp"
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /Fo"cmTC_bd8e2.dir\\Debug\\\\" /Fd"cmTC_bd8e2.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp"
           CMakeCXXCompilerABI.cpp
         Link:
-          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-gt4pki\\Debug\\cmTC_0c682.exe" /INCREMENTAL /ILK:"cmTC_0c682.dir\\Debug\\cmTC_0c682.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-gt4pki/Debug/cmTC_0c682.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-gt4pki/Debug/cmTC_0c682.lib" /MACHINE:X64  /machine:x64 cmTC_0c682.dir\\Debug\\CMakeCXXCompilerABI.obj
-          cmTC_0c682.vcxproj -> C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-gt4pki\\Debug\\cmTC_0c682.exe
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-mv4270\\Debug\\cmTC_bd8e2.exe" /INCREMENTAL /ILK:"cmTC_bd8e2.dir\\Debug\\cmTC_bd8e2.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-mv4270/Debug/cmTC_bd8e2.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/RedDragon/Documents/Recubin/build/CMakeFiles/CMakeScratch/TryCompile-mv4270/Debug/cmTC_bd8e2.lib" /MACHINE:X64  /machine:x64 cmTC_bd8e2.dir\\Debug\\CMakeCXXCompilerABI.obj
+          cmTC_bd8e2.vcxproj -> C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-mv4270\\Debug\\cmTC_bd8e2.exe
         FinalizeBuildStatus:
-          繝輔ぃ繧､繝ｫ "cmTC_0c682.dir\\Debug\\cmTC_0c682.tlog\\unsuccessfulbuild" 繧貞炎髯､縺励※縺・∪縺吶\xc2\x80・
-          "cmTC_0c682.dir\\Debug\\cmTC_0c682.tlog\\cmTC_0c682.lastbuildstate" 縺ｮ繧ｿ繝・メ 繧ｿ繧ｹ繧ｯ繧貞ｮ溯｡後＠縺ｦ縺・∪縺吶\xc2\x80・
-        繝励Ο繧ｸ繧ｧ繧ｯ繝・"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-gt4pki\\cmTC_0c682.vcxproj" (譌｢螳壹・繧ｿ繝ｼ繧ｲ繝・ヨ) 縺ｮ繝薙Ν繝峨′螳御ｺ・＠縺ｾ縺励◆縲・
+          繝輔ぃ繧､繝ｫ "cmTC_bd8e2.dir\\Debug\\cmTC_bd8e2.tlog\\unsuccessfulbuild" 繧貞炎髯､縺励※縺・∪縺吶\xc2\x80・
+          "cmTC_bd8e2.dir\\Debug\\cmTC_bd8e2.tlog\\cmTC_bd8e2.lastbuildstate" 縺ｮ繧ｿ繝・メ 繧ｿ繧ｹ繧ｯ繧貞ｮ溯｡後＠縺ｦ縺・∪縺吶\xc2\x80・
+        繝励Ο繧ｸ繧ｧ繧ｯ繝・"C:\\Users\\RedDragon\\Documents\\Recubin\\build\\CMakeFiles\\CMakeScratch\\TryCompile-mv4270\\cmTC_bd8e2.vcxproj" (譌｢螳壹・繧ｿ繝ｼ繧ｲ繝・ヨ) 縺ｮ繝薙Ν繝峨′螳御ｺ・＠縺ｾ縺励◆縲・
         
         繝薙Ν繝峨↓謌仙粥縺励∪縺励◆縲・
             0 蛟九・隴ｦ蜻・
             0 繧ｨ繝ｩ繝ｼ
         
-        邨碁℃譎る俣 00:00:00.41
+        邨碁℃譎る俣 00:00:00.43
         
       exitCode: 0
   -

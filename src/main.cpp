@@ -1,15 +1,15 @@
-#include <include/GL/glew.h>
-#include <include/GLFW/glfw3.h>
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
 
-#include <include/Math/Matrix4.hpp>
+#include <Math/Matrix4.hpp>
 
-#include <include/Instances/Cube.hpp>
-#include <include/Instances/Workspace.hpp>
-#include <include/Instances/Script.hpp>
+#include <Instances/Cube.hpp>
+#include <Instances/Workspace.hpp>
+#include <Instances/Script.hpp>
 
-#include <include/Core/Physics.hpp>
-#include <include/Core/Renderer.hpp>
-#include <include/Core/LuauEngine.hpp>
+#include <Core/Physics.hpp>
+#include <Core/Renderer.hpp>
+#include <Core/LuauEngine.hpp>
 
 #include <iostream>
 #include <algorithm>
@@ -20,7 +20,7 @@
 #include <cmath>
 #include <cstddef>
 
-#include <include/PhysX/PxPhysicsAPI.h>
+#include <PhysX/PxPhysicsAPI.h>
 
 GLFWwindow* setupWindow() {
     std::cout << "initing GLFW...\n";

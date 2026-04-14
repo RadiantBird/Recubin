@@ -1,4 +1,4 @@
-#include <include/Core/User.hpp>
+#include <Core/User.hpp>
 
 User::User(GLFWwindow* win) 
     : window(win), 

@@ -1,6 +1,6 @@
-#include <include/Instances/Cube.hpp>
-#include <include/GL/glew.h>
-#include <include/GLFW/glfw3.h>
+#include <Instances/Cube.hpp>
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
 
 // 頂点生成関数の実装
 std::vector<Vertex> createCubeVertices(float size) {

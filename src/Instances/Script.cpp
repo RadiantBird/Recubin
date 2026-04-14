@@ -1,4 +1,4 @@
-#include <include/Instances/Script.hpp>
+#include <Instances/Script.hpp>
 #include <fstream>
 #include <sstream>
 
