@@ -3092,17 +3092,17 @@ $LN33@main:
 	lea	rdx, OFFSET FLAT:??_C@_0BC@GILIDJKH@GLEW?5init?5failed?6@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 $LN504@main:
-; Line 60
+; Line 59
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 $LN498@main:
 	lea	rdx, OFFSET FLAT:??_C@_0BK@HFNBFIKJ@?$FLERROR?$FN?5Failed?5to?5setup?4?6@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-; Line 61
+; Line 60
 	mov	eax, -1
 	jmp	$LN1@main
 $LN4@main:
-; Line 64
+; Line 63
 	mov	rdx, rdi
 	lea	rcx, QWORD PTR user$[rbp-256]
 	call	??0User@@QEAA@PEAUGLFWwindow@@@Z	; User::User
@@ -3122,54 +3122,54 @@ $LN4@main:
 	movdqa	XMMWORD PTR physicsEngine$[rbp-208], xmm0
 	mov	QWORD PTR physicsEngine$[rbp-192], rbx
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 67
+; Line 66
 	lea	rcx, QWORD PTR luauEngine$[rsp]
 	call	??0LuauEngine@@QEAA@XZ			; LuauEngine::LuauEngine
 	npad	1
-; Line 69
+; Line 68
 	lea	rcx, QWORD PTR physicsEngine$[rbp-256]
 	call	?init@Physics@@QEAAXXZ			; Physics::init
-; Line 70
+; Line 69
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?init@Renderer@@QEAAXXZ			; Renderer::init
-; Line 72
+; Line 71
 	lea	rdx, OFFSET FLAT:??_C@_0BM@PAPOLKLO@assets?1image?1floppa2048?4jpg@
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?loadTexture@Renderer@@QEAAIPEBD@Z	; Renderer::loadTexture
 	mov	esi, eax
-; Line 73
+; Line 72
 	lea	rdx, OFFSET FLAT:??_C@_0BJ@LKJAONFL@assets?1image?1the?9cat?4png@
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?loadTexture@Renderer@@QEAAIPEBD@Z	; Renderer::loadTexture
 	mov	r14d, eax
-; Line 74
+; Line 73
 	lea	rdx, OFFSET FLAT:??_C@_0BL@HFFFDACB@assets?1image?1salad?9cat?4jpg@
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?loadTexture@Renderer@@QEAAIPEBD@Z	; Renderer::loadTexture
 	mov	r15d, eax
-; Line 75
+; Line 74
 	lea	rdx, OFFSET FLAT:??_C@_0BH@EFEGFJOC@assets?1image?1smile?4png@
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?loadTexture@Renderer@@QEAAIPEBD@Z	; Renderer::loadTexture
 	mov	r12d, eax
-; Line 76
+; Line 75
 	lea	rdx, OFFSET FLAT:??_C@_0BH@PHFEJDFH@assets?1image?1bliss?4jpg@
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?loadTexture@Renderer@@QEAAIPEBD@Z	; Renderer::loadTexture
 	mov	r13d, eax
-; Line 77
+; Line 76
 	lea	rdx, OFFSET FLAT:??_C@_0BO@LEENDELH@assets?1image?1Limabis_logo?4png@
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?loadTexture@Renderer@@QEAAIPEBD@Z	; Renderer::loadTexture
 	mov	DWORD PTR limabis$1$[rsp], eax
-; Line 79
+; Line 78
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	??0Workspace@@QEAA@XZ			; Workspace::Workspace
 	npad	1
-; Line 82
+; Line 81
 	lea	rax, QWORD PTR physicsEngine$[rbp-256]
 	mov	QWORD PTR workspace$[rbp-144], rax
-; Line 85
+; Line 84
 	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T26[rsp], rax
@@ -3187,7 +3187,7 @@ $LN4@main:
 	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
 	mov	rbx, rax
 $LN7@main:
-; Line 86
+; Line 85
 	lea	rcx, QWORD PTR [rbx+8]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 1654
@@ -3195,16 +3195,16 @@ $LN7@main:
 	lea	rdx, OFFSET FLAT:??_C@_04CAKOHOCJ@Blue@
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 87
+; Line 86
 	xor	eax, eax
 	mov	QWORD PTR [rbx+156], rax
 	mov	DWORD PTR [rbx+164], 1065353216		; 3f800000H
 	mov	DWORD PTR [rbx+168], 1065353216		; 3f800000H
-; Line 88
+; Line 87
 	mov	rdx, rbx
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
-; Line 91
+; Line 90
 	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T27[rsp], rax
@@ -3225,7 +3225,7 @@ $LN7@main:
 $LN9@main:
 	xor	ebx, ebx
 $LN10@main:
-; Line 92
+; Line 91
 	lea	rcx, QWORD PTR [rbx+8]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 1654
@@ -3233,16 +3233,16 @@ $LN10@main:
 	lea	rdx, OFFSET FLAT:??_C@_03PADCEAKC@Red@
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 93
+; Line 92
 	mov	QWORD PTR [rbx+156], 1065353216		; 3f800000H
 	xor	eax, eax
 	mov	DWORD PTR [rbx+164], eax
 	mov	DWORD PTR [rbx+168], 1065353216		; 3f800000H
-; Line 94
+; Line 93
 	mov	rdx, rbx
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
-; Line 97
+; Line 96
 	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T28[rsp], rax
@@ -3264,7 +3264,7 @@ $LN10@main:
 $LN11@main:
 	xor	ebx, ebx
 $LN12@main:
-; Line 98
+; Line 97
 	lea	rcx, QWORD PTR [rbx+8]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 1654
@@ -3272,16 +3272,16 @@ $LN12@main:
 	lea	rdx, OFFSET FLAT:??_C@_05GGOIJPPE@Green@
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 99
+; Line 98
 	xor	eax, eax
 	mov	DWORD PTR [rbx+156], eax
 	mov	QWORD PTR [rbx+160], 1065353216		; 3f800000H
 	mov	DWORD PTR [rbx+168], 1065353216		; 3f800000H
-; Line 100
+; Line 99
 	mov	rdx, rbx
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
-; Line 103
+; Line 102
 	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T29[rsp], rax
@@ -3302,7 +3302,7 @@ $LN12@main:
 $LN13@main:
 	xor	ebx, ebx
 $LN14@main:
-; Line 104
+; Line 103
 	lea	rcx, QWORD PTR [rbx+8]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 1654
@@ -3310,46 +3310,46 @@ $LN14@main:
 	lea	rdx, OFFSET FLAT:??_C@_06GCDENNFF@Floppa@
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 105
+; Line 104
 	mov	DWORD PTR [rbx+156], 1065353216		; 3f800000H
 	mov	DWORD PTR [rbx+160], 1065353216		; 3f800000H
 	mov	DWORD PTR [rbx+164], 1065353216		; 3f800000H
 	mov	DWORD PTR [rbx+168], 1065353216		; 3f800000H
-; Line 108
+; Line 107
 	mov	r8d, esi
 	xor	edx, edx
 	mov	rcx, rbx
 	call	?setFaceTexture@Cube@@QEAAXHI@Z		; Cube::setFaceTexture
-; Line 109
+; Line 108
 	mov	r8d, r14d
 	mov	edx, 1
 	mov	rcx, rbx
 	call	?setFaceTexture@Cube@@QEAAXHI@Z		; Cube::setFaceTexture
-; Line 110
+; Line 109
 	mov	r8d, r15d
 	mov	edx, 2
 	mov	rcx, rbx
 	call	?setFaceTexture@Cube@@QEAAXHI@Z		; Cube::setFaceTexture
-; Line 111
+; Line 110
 	mov	r8d, r12d
 	mov	edx, 3
 	mov	rcx, rbx
 	call	?setFaceTexture@Cube@@QEAAXHI@Z		; Cube::setFaceTexture
-; Line 112
+; Line 111
 	mov	r8d, r13d
 	mov	edx, 4
 	mov	rcx, rbx
 	call	?setFaceTexture@Cube@@QEAAXHI@Z		; Cube::setFaceTexture
-; Line 113
+; Line 112
 	mov	r8d, DWORD PTR limabis$1$[rsp]
 	mov	edx, 5
 	mov	rcx, rbx
 	call	?setFaceTexture@Cube@@QEAAXHI@Z		; Cube::setFaceTexture
-; Line 115
+; Line 114
 	mov	rdx, rbx
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
-; Line 117
+; Line 116
 	lea	r8, QWORD PTR workspace$[rbp-256]
 	lea	rdx, QWORD PTR workspace$[rbp-248]
 	lea	rcx, QWORD PTR luauEngine$[rsp]
@@ -3372,7 +3372,7 @@ $LN14@main:
 ; Line 948
 	mov	BYTE PTR $T32[rbp-247], 0
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 118
+; Line 117
 	lea	r8, QWORD PTR workspace$[rbp-256]
 	lea	rdx, QWORD PTR $T32[rbp-256]
 	lea	rcx, QWORD PTR luauEngine$[rsp]
@@ -3415,11 +3415,11 @@ $LN228@main:
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN220@main:
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 120
+; Line 119
 	lea	rdx, QWORD PTR workspace$[rbp-256]
 	lea	rcx, QWORD PTR luauEngine$[rsp]
 	call	?setWorkspace@LuauEngine@@QEAAXPEAVWorkspace@@@Z ; LuauEngine::setWorkspace
-; Line 123
+; Line 122
 	mov	ecx, 208				; 000000d0H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	rbx, rax
@@ -3456,7 +3456,7 @@ $LN220@main:
 ; Line 972
 	mov	BYTE PTR [rax+17], sil
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 123
+; Line 122
 	lea	rdx, QWORD PTR $T33[rbp-256]
 	mov	rcx, rbx
 	call	??0Script@@QEAA@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z ; Script::Script
@@ -3465,7 +3465,7 @@ $LN220@main:
 $LN15@main:
 	mov	rbx, rsi
 $LN16@main:
-; Line 124
+; Line 123
 	lea	rcx, QWORD PTR [rbx+8]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 1654
@@ -3473,11 +3473,11 @@ $LN16@main:
 	lea	rdx, OFFSET FLAT:??_C@_0L@MMCGBOKB@TestScript@
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 126
+; Line 125
 	mov	rdx, rbx
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
-; Line 128
+; Line 127
 	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T31[rsp], rax
@@ -3499,7 +3499,7 @@ $LN16@main:
 $LN17@main:
 	mov	rbx, rsi
 $LN18@main:
-; Line 129
+; Line 128
 	lea	rcx, QWORD PTR [rbx+8]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 1654
@@ -3507,68 +3507,68 @@ $LN18@main:
 	lea	rdx, OFFSET FLAT:??_C@_09KJHLHIEH@Baseplate@
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 130
+; Line 129
 	mov	DWORD PTR [rbx+156], esi
 	mov	DWORD PTR [rbx+160], 1065353216		; 3f800000H
 	mov	DWORD PTR [rbx+164], 1056964608		; 3f000000H
 	mov	DWORD PTR [rbx+168], 1065353216		; 3f800000H
-; Line 131
+; Line 130
 	mov	BYTE PTR [rbx+112], 1
-; Line 132
+; Line 131
 	mov	rdx, rbx
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
-; Line 134
+; Line 133
 	call	glfwGetTime
 	xorps	xmm7, xmm7
 	cvtsd2ss xmm7, xmm0
-; Line 135
+; Line 134
 	mov	rcx, rdi
 	call	glfwWindowShouldClose
 	test	eax, eax
 	jne	SHORT $LN432@main
 	npad	2
 $LL2@main:
-; Line 136
+; Line 135
 	call	glfwGetTime
 	xorps	xmm6, xmm6
 	cvtsd2ss xmm6, xmm0
-; Line 137
+; Line 136
 	movaps	xmm2, xmm6
 	subss	xmm2, xmm7
-; Line 140
+; Line 139
 	lea	rdx, QWORD PTR workspace$[rbp-256]
 	lea	rcx, QWORD PTR physicsEngine$[rbp-256]
 	call	?update@Physics@@QEAAXAEAVWorkspace@@M@Z ; Physics::update
-; Line 143
+; Line 142
 	lea	rcx, QWORD PTR luauEngine$[rsp]
 	call	?executeWorkspaceScripts@LuauEngine@@QEAAXXZ ; LuauEngine::executeWorkspaceScripts
-; Line 145
+; Line 144
 	mov	ecx, 16640				; 00004100H
 	call	QWORD PTR __imp_glClear
-; Line 148
+; Line 147
 	lea	rcx, QWORD PTR user$[rbp-256]
 	call	?processInput@User@@QEAAXXZ		; User::processInput
-; Line 149
+; Line 148
 	cmp	BYTE PTR user$[rbp-156], 0
 	jne	SHORT $LN432@main
-; Line 138
+; Line 137
 	movaps	xmm7, xmm6
-; Line 153
+; Line 152
 	lea	r9, QWORD PTR workspace$[rbp-256]
 	mov	r8, rdi
 	lea	rdx, QWORD PTR user$[rbp-256]
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z ; Renderer::render
-; Line 135
+; Line 134
 	mov	rcx, rdi
 	call	glfwWindowShouldClose
 	test	eax, eax
 	je	SHORT $LL2@main
 $LN432@main:
-; Line 157
+; Line 156
 	call	glfwTerminate
-; Line 158
+; Line 157
 	lea	rdx, OFFSET FLAT:??_C@_0CE@DBCKMAIM@?$FLDEBUG?$FN?5Main?5loop?5ended?4?5wannaE@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -3595,7 +3595,7 @@ $LN432@main:
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	??1Instance@@UEAA@XZ			; Instance::~Instance
 	npad	1
-; Line 159
+; Line 158
 	lea	rcx, QWORD PTR luauEngine$[rsp]
 	call	??1LuauEngine@@QEAA@XZ			; LuauEngine::~LuauEngine
 	npad	1
@@ -3685,10 +3685,10 @@ $LN312@main:
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN304@main:
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 159
+; Line 158
 	xor	eax, eax
 $LN1@main:
-; Line 160
+; Line 159
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
@@ -7267,7 +7267,7 @@ __formal$ = 16
 __formal$ = 24
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 161
+; Line 160
 	ret	0
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -7278,7 +7278,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 161
+; Line 160
 	ret	0
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -7289,7 +7289,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAX_K@Z PROC		; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 161
+; Line 160
 	ret	0
 ?__empty_global_delete@@YAXPEAX_K@Z ENDP		; __empty_global_delete
 _TEXT	ENDS
@@ -7299,7 +7299,7 @@ _TEXT	SEGMENT
 __formal$ = 8
 ?__empty_global_delete@@YAXPEAX@Z PROC			; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 161
+; Line 160
 	ret	0
 ?__empty_global_delete@@YAXPEAX@Z ENDP			; __empty_global_delete
 _TEXT	ENDS
