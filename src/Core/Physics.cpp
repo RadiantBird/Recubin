@@ -45,6 +45,28 @@ void Physics::createActor(BaseCube* cube) {
     cube->actor = actor; // BaseCube側に参照を戻す
 }
 
+void Physics::removeCube(BaseCube* cube) {
+    if (!cube) return;
+    
+    // PhysX から削除
+    if (cube->actor) {
+        try {
+            scene->removeActor(*cube->actor);
+            cube->actor->release();
+        } catch (...) {
+            d_print("WARNING: Error removing actor: " << cube->Name);
+        }
+        cube->actor = nullptr;
+    }
+    
+    // cubes ベクターから削除
+    auto it = std::find(cubes.begin(), cubes.end(), cube);
+    if (it != cubes.end()) {
+        cubes.erase(it);
+        d_print("Removed cube from Physics: " << cube->Name);
+    }
+}
+
 void Physics::update(Workspace& workspace, float dt) {
     // d_print("Update Frame Start | dt: " << dt);
     static float accumulator = 0.0f;
@@ -71,18 +93,35 @@ void Physics::update(Workspace& workspace, float dt) {
             break;
         }
     }
+    
+    // 0. 削除されたキューブをクリーンアップ（Workspace に存在しなくなったキューブを検出）
+    auto it = cubes.begin();
+    while (it != cubes.end()) {
+        BaseCube* cube = *it;
+        // actor が nullptr か、Workspace の子孫でなくなった場合は削除
+        if (!cube->actor || !cube->Parent) {
+            if (cube->actor) {
+                scene->removeActor(*cube->actor);
+                cube->actor->release();
+                cube->actor = nullptr;
+            }
+            d_print("Cleaned up removed cube from Physics: " << cube->Name);
+            it = cubes.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
     // 1. 未反映の新入りを登録
     for (Instance* inst : workspace.pendingInstances) {
         if (inst->IsA("BaseCube")) {
             createActor(static_cast<BaseCube*>(inst));
+            cubes.push_back(static_cast<BaseCube*>(inst));
         }
     }
     workspace.pendingInstances.clear();
 
-    // 3. 全ての子を同期（ここも本来はリスト化すると速い）
-    for (auto const& [name, child] : workspace.getChildren()) {
-        if (child->IsA("BaseCube")) {
-            static_cast<BaseCube*>(child)->syncPhysics();
-        }
+    for (BaseCube* cube : cubes) {
+        cube->syncPhysics();
     }
 }

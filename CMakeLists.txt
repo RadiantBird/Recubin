@@ -10,6 +10,7 @@ add_compile_options(
     "$<$<CXX_COMPILER_ID:MSVC>:/utf-8>"
     "$<$<CXX_COMPILER_ID:MSVC>:/Zi>"        # デバッグ情報
     "$<$<CXX_COMPILER_ID:MSVC>:/permissive->" # 準拠モード (モダンC++には必須)
+    "$<$<CXX_COMPILER_ID:MSVC>:/FA>"        # アセンブリコード生成
 )
 
 # --- 2. ソース収集 ---

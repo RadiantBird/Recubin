@@ -4,11 +4,15 @@
 
 #include <include/Instances/Instance.hpp>
 
+class Physics; // Forward declaration
+
 class Workspace : public Instance {
     private:
         // 信頼できるクラスのみに操作を許可
         friend class Script;
         friend class BaseCube;
+
+        Physics* physicsEngine = nullptr; // Physics エンジンへのポインタ
 
         void registerScript(Instance* s);
         void unregisterScript(Instance* s);
@@ -31,4 +35,7 @@ class Workspace : public Instance {
 
         // For debugging
         void buildTestSpace();
+
+        // Physics エンジンをセット
+        void setPhysicsEngine(Physics* engine) { physicsEngine = engine; }
 };

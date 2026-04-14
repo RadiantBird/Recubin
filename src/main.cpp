@@ -78,6 +78,9 @@ int main() {
 
     Workspace workspace;
 
+    // Physics を Workspace にセット
+    workspace.setPhysicsEngine(&physicsEngine);
+
     // 1. Blue Cube (元 world[0])
     Cube* blueCube = new Cube({0.0f, 0.0f, -2.0f}, {1.0f, 4.0f, 1.0f}, renderer.whiteTexture);
     blueCube->Name = "Blue";

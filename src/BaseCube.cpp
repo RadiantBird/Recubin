@@ -1,4 +1,5 @@
 #include "include/Instances/BaseCube.hpp"
+#include "include/Core/Physics.hpp"
 #include <iostream>
 
 BaseCube::BaseCube(Vector3 Pos, Vector3 Sz) 
@@ -31,10 +32,17 @@ void BaseCube::onAncestorChanged() {
         lastWorkspace = ws;
     } else {
         // std::cout << "Workspace is null!\n";
-        // Workspace の外に出た場合
-        if (actor) {
-            actor->release();
-            actor = nullptr;
+        // Workspace の外に出た場合は Physics から削除
+        if (lastWorkspace) {
+            if (lastWorkspace->physicsEngine) {
+                lastWorkspace->physicsEngine->removeCube(this);
+            } else {
+                // physicsEngine が nullptr の場合は手動でクリーンアップ
+                if (actor) {
+                    actor->release();
+                    actor = nullptr;
+                }
+            }
         }
         lastWorkspace = nullptr;
     }
