@@ -374,14 +374,15 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\BaseCube.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp" />
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\BaseCube.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Instance.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Script.cpp" />
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Spatial.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Workspace.cpp" />
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\main.cpp" />
   </ItemGroup>

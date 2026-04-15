@@ -8356,7 +8356,7 @@ _Arg1$ = 104
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 39
 	mov	rcx, QWORD PTR [r8]
-	add	rcx, 116				; 00000074H
+	add	rcx, 112				; 00000070H
 	lea	rdx, QWORD PTR $T1[rsp]
 	call	?toString@Vector3@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Vector3::toString
 	npad	1
@@ -8755,9 +8755,9 @@ _Arg1$ = 88
 	mov	rbx, rax
 ; Line 63
 	movsd	xmm0, QWORD PTR [rax]
-	movsd	QWORD PTR [rdi+116], xmm0
+	movsd	QWORD PTR [rdi+112], xmm0
 	mov	ecx, DWORD PTR [rax+8]
-	mov	DWORD PTR [rdi+124], ecx
+	mov	DWORD PTR [rdi+120], ecx
 ; Line 66
 	mov	rcx, QWORD PTR [rdi+184]
 	test	rcx, rcx
@@ -11028,9 +11028,9 @@ this$ = 80
 	mov	rbx, rax
 ; Line 63
 	movsd	xmm0, QWORD PTR [rax]
-	movsd	QWORD PTR [rdi+116], xmm0
+	movsd	QWORD PTR [rdi+112], xmm0
 	mov	ecx, DWORD PTR [rax+8]
-	mov	DWORD PTR [rdi+124], ecx
+	mov	DWORD PTR [rdi+120], ecx
 ; Line 66
 	mov	rcx, QWORD PTR [rdi+184]
 	test	rcx, rcx
@@ -11585,7 +11585,7 @@ this$ = 96
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 39
 	mov	rcx, QWORD PTR [r8]
-	add	rcx, 116				; 00000074H
+	add	rcx, 112				; 00000070H
 	lea	rdx, QWORD PTR $T1[rsp]
 	call	?toString@Vector3@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Vector3::toString
 	npad	1
@@ -17051,9 +17051,9 @@ obj$ = 96
 	mov	rdi, rax
 ; Line 63
 	movsd	xmm0, QWORD PTR [rax]
-	movsd	QWORD PTR [rbx+116], xmm0
+	movsd	QWORD PTR [rbx+112], xmm0
 	mov	ecx, DWORD PTR [rax+8]
-	mov	DWORD PTR [rbx+124], ecx
+	mov	DWORD PTR [rbx+120], ecx
 ; Line 66
 	mov	rcx, QWORD PTR [rbx+184]
 	test	rcx, rcx
@@ -17499,7 +17499,7 @@ obj$ = 112
 	mov	QWORD PTR __$ArrayPad$[rsp], rax
 	mov	rbx, rdx
 ; Line 39
-	lea	rcx, QWORD PTR [r8+116]
+	lea	rcx, QWORD PTR [r8+112]
 	lea	rdx, QWORD PTR $T1[rsp]
 	call	?toString@Vector3@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Vector3::toString
 	npad	1

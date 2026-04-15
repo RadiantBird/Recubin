@@ -149,6 +149,7 @@ PUBLIC	?_Maklocwcs@std@@YAPEA_WPEB_W@Z			; std::_Maklocwcs
 PUBLIC	??$_Max_limit@_J@std@@YA_JXZ			; std::_Max_limit<__int64>
 PUBLIC	??$_Getvals@_W@?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@IEAAX_WAEBV_Locinfo@1@@Z ; std::time_get<char,std::istreambuf_iterator<char,std::char_traits<char> > >::_Getvals<wchar_t>
 PUBLIC	??$_Getvals@_W@?$time_get@_WV?$istreambuf_iterator@_WU?$char_traits@_W@std@@@std@@@std@@IEAAX_WAEBV_Locinfo@1@@Z ; std::time_get<wchar_t,std::istreambuf_iterator<wchar_t,std::char_traits<wchar_t> > >::_Getvals<wchar_t>
+PUBLIC	??1Spatial@@UEAA@XZ				; Spatial::~Spatial
 PUBLIC	?FLoad@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::FLoad
 PUBLIC	?V3Load@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::V3Load
 PUBLIC	?V4Load@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::V4Load
@@ -273,6 +274,14 @@ PUBLIC	??_R1A@?0A@EA@bad_alloc@std@@8			; std::bad_alloc::`RTTI Base Class Descr
 PUBLIC	??_R3bad_alloc@std@@8				; std::bad_alloc::`RTTI Class Hierarchy Descriptor'
 PUBLIC	??_R2bad_alloc@std@@8				; std::bad_alloc::`RTTI Base Class Array'
 PUBLIC	??_R4bad_alloc@std@@6B@				; std::bad_alloc::`RTTI Complete Object Locator'
+PUBLIC	??_R0?AVSpatial@@@8				; Spatial `RTTI Type Descriptor'
+PUBLIC	??_R3Spatial@@8					; Spatial::`RTTI Class Hierarchy Descriptor'
+PUBLIC	??_R2Spatial@@8					; Spatial::`RTTI Base Class Array'
+PUBLIC	??_R1A@?0A@EA@Spatial@@8			; Spatial::`RTTI Base Class Descriptor at (0,-1,0,64)'
+PUBLIC	??_R1A@?0A@EA@Instance@@8			; Instance::`RTTI Base Class Descriptor at (0,-1,0,64)'
+PUBLIC	??_R0?AVInstance@@@8				; Instance `RTTI Type Descriptor'
+PUBLIC	??_R3Instance@@8				; Instance::`RTTI Class Hierarchy Descriptor'
+PUBLIC	??_R2Instance@@8				; Instance::`RTTI Base Class Array'
 PUBLIC	??_R4Cube@@6B@					; Cube::`RTTI Complete Object Locator'
 PUBLIC	??_R0?AVCube@@@8				; Cube `RTTI Type Descriptor'
 PUBLIC	??_R3Cube@@8					; Cube::`RTTI Class Hierarchy Descriptor'
@@ -282,10 +291,6 @@ PUBLIC	??_R1A@?0A@EA@BaseCube@@8			; BaseCube::`RTTI Base Class Descriptor at (0
 PUBLIC	??_R0?AVBaseCube@@@8				; BaseCube `RTTI Type Descriptor'
 PUBLIC	??_R3BaseCube@@8				; BaseCube::`RTTI Class Hierarchy Descriptor'
 PUBLIC	??_R2BaseCube@@8				; BaseCube::`RTTI Base Class Array'
-PUBLIC	??_R1A@?0A@EA@Instance@@8			; Instance::`RTTI Base Class Descriptor at (0,-1,0,64)'
-PUBLIC	??_R0?AVInstance@@@8				; Instance `RTTI Type Descriptor'
-PUBLIC	??_R3Instance@@8				; Instance::`RTTI Class Hierarchy Descriptor'
-PUBLIC	??_R2Instance@@8				; Instance::`RTTI Base Class Array'
 PUBLIC	__real@3f000000
 PUBLIC	__real@3f800000
 PUBLIC	__xmm@000000003a83126f3a83126f3a83126f
@@ -492,8 +497,8 @@ $pdata$?IsA@Cube@@UEAA_NV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$??_GCube@@UEAAPEAXI@Z DD imagerel $LN19
-	DD	imagerel $LN19+52
+$pdata$??_GCube@@UEAAPEAXI@Z DD imagerel $LN24
+	DD	imagerel $LN24+52
 	DD	imagerel $unwind$??_GCube@@UEAAPEAXI@Z
 pdata	ENDS
 ;	COMDAT pdata
@@ -717,6 +722,76 @@ CONST	ENDS
 CONST	SEGMENT
 __real@3f000000 DD 03f000000r			; 0.5
 CONST	ENDS
+;	COMDAT ??_R2BaseCube@@8
+rdata$r	SEGMENT
+??_R2BaseCube@@8 DD imagerel ??_R1A@?0A@EA@BaseCube@@8	; BaseCube::`RTTI Base Class Array'
+	DD	imagerel ??_R1A@?0A@EA@Spatial@@8
+	DD	imagerel ??_R1A@?0A@EA@Instance@@8
+	ORG $+3
+rdata$r	ENDS
+;	COMDAT ??_R3BaseCube@@8
+rdata$r	SEGMENT
+??_R3BaseCube@@8 DD 00H					; BaseCube::`RTTI Class Hierarchy Descriptor'
+	DD	00H
+	DD	03H
+	DD	imagerel ??_R2BaseCube@@8
+rdata$r	ENDS
+;	COMDAT ??_R0?AVBaseCube@@@8
+data$rs	SEGMENT
+??_R0?AVBaseCube@@@8 DQ FLAT:??_7type_info@@6B@		; BaseCube `RTTI Type Descriptor'
+	DQ	0000000000000000H
+	DB	'.?AVBaseCube@@', 00H
+data$rs	ENDS
+;	COMDAT ??_R1A@?0A@EA@BaseCube@@8
+rdata$r	SEGMENT
+??_R1A@?0A@EA@BaseCube@@8 DD imagerel ??_R0?AVBaseCube@@@8 ; BaseCube::`RTTI Base Class Descriptor at (0,-1,0,64)'
+	DD	02H
+	DD	00H
+	DD	0ffffffffH
+	DD	00H
+	DD	040H
+	DD	imagerel ??_R3BaseCube@@8
+rdata$r	ENDS
+;	COMDAT ??_R1A@?0A@EA@Cube@@8
+rdata$r	SEGMENT
+??_R1A@?0A@EA@Cube@@8 DD imagerel ??_R0?AVCube@@@8	; Cube::`RTTI Base Class Descriptor at (0,-1,0,64)'
+	DD	03H
+	DD	00H
+	DD	0ffffffffH
+	DD	00H
+	DD	040H
+	DD	imagerel ??_R3Cube@@8
+rdata$r	ENDS
+;	COMDAT ??_R2Cube@@8
+rdata$r	SEGMENT
+??_R2Cube@@8 DD	imagerel ??_R1A@?0A@EA@Cube@@8		; Cube::`RTTI Base Class Array'
+	DD	imagerel ??_R1A@?0A@EA@BaseCube@@8
+	DD	imagerel ??_R1A@?0A@EA@Spatial@@8
+	DD	imagerel ??_R1A@?0A@EA@Instance@@8
+	ORG $+3
+rdata$r	ENDS
+;	COMDAT ??_R3Cube@@8
+rdata$r	SEGMENT
+??_R3Cube@@8 DD	00H					; Cube::`RTTI Class Hierarchy Descriptor'
+	DD	00H
+	DD	04H
+	DD	imagerel ??_R2Cube@@8
+rdata$r	ENDS
+;	COMDAT ??_R0?AVCube@@@8
+data$rs	SEGMENT
+??_R0?AVCube@@@8 DQ FLAT:??_7type_info@@6B@		; Cube `RTTI Type Descriptor'
+	DQ	0000000000000000H
+	DB	'.?AVCube@@', 00H
+data$rs	ENDS
+;	COMDAT ??_R4Cube@@6B@
+rdata$r	SEGMENT
+??_R4Cube@@6B@ DD 01H					; Cube::`RTTI Complete Object Locator'
+	DD	00H
+	DD	00H
+	DD	imagerel ??_R0?AVCube@@@8
+	DD	imagerel ??_R3Cube@@8
+	DD	imagerel ??_R4Cube@@6B@
+rdata$r	ENDS
 ;	COMDAT ??_R2Instance@@8
 rdata$r	SEGMENT
 ??_R2Instance@@8 DD imagerel ??_R1A@?0A@EA@Instance@@8	; Instance::`RTTI Base Class Array'
@@ -745,74 +820,35 @@ rdata$r	SEGMENT
 	DD	040H
 	DD	imagerel ??_R3Instance@@8
 rdata$r	ENDS
-;	COMDAT ??_R2BaseCube@@8
+;	COMDAT ??_R1A@?0A@EA@Spatial@@8
 rdata$r	SEGMENT
-??_R2BaseCube@@8 DD imagerel ??_R1A@?0A@EA@BaseCube@@8	; BaseCube::`RTTI Base Class Array'
-	DD	imagerel ??_R1A@?0A@EA@Instance@@8
-	ORG $+3
-rdata$r	ENDS
-;	COMDAT ??_R3BaseCube@@8
-rdata$r	SEGMENT
-??_R3BaseCube@@8 DD 00H					; BaseCube::`RTTI Class Hierarchy Descriptor'
-	DD	00H
-	DD	02H
-	DD	imagerel ??_R2BaseCube@@8
-rdata$r	ENDS
-;	COMDAT ??_R0?AVBaseCube@@@8
-data$rs	SEGMENT
-??_R0?AVBaseCube@@@8 DQ FLAT:??_7type_info@@6B@		; BaseCube `RTTI Type Descriptor'
-	DQ	0000000000000000H
-	DB	'.?AVBaseCube@@', 00H
-data$rs	ENDS
-;	COMDAT ??_R1A@?0A@EA@BaseCube@@8
-rdata$r	SEGMENT
-??_R1A@?0A@EA@BaseCube@@8 DD imagerel ??_R0?AVBaseCube@@@8 ; BaseCube::`RTTI Base Class Descriptor at (0,-1,0,64)'
+??_R1A@?0A@EA@Spatial@@8 DD imagerel ??_R0?AVSpatial@@@8 ; Spatial::`RTTI Base Class Descriptor at (0,-1,0,64)'
 	DD	01H
 	DD	00H
 	DD	0ffffffffH
 	DD	00H
 	DD	040H
-	DD	imagerel ??_R3BaseCube@@8
+	DD	imagerel ??_R3Spatial@@8
 rdata$r	ENDS
-;	COMDAT ??_R1A@?0A@EA@Cube@@8
+;	COMDAT ??_R2Spatial@@8
 rdata$r	SEGMENT
-??_R1A@?0A@EA@Cube@@8 DD imagerel ??_R0?AVCube@@@8	; Cube::`RTTI Base Class Descriptor at (0,-1,0,64)'
-	DD	02H
-	DD	00H
-	DD	0ffffffffH
-	DD	00H
-	DD	040H
-	DD	imagerel ??_R3Cube@@8
-rdata$r	ENDS
-;	COMDAT ??_R2Cube@@8
-rdata$r	SEGMENT
-??_R2Cube@@8 DD	imagerel ??_R1A@?0A@EA@Cube@@8		; Cube::`RTTI Base Class Array'
-	DD	imagerel ??_R1A@?0A@EA@BaseCube@@8
+??_R2Spatial@@8 DD imagerel ??_R1A@?0A@EA@Spatial@@8	; Spatial::`RTTI Base Class Array'
 	DD	imagerel ??_R1A@?0A@EA@Instance@@8
 	ORG $+3
 rdata$r	ENDS
-;	COMDAT ??_R3Cube@@8
+;	COMDAT ??_R3Spatial@@8
 rdata$r	SEGMENT
-??_R3Cube@@8 DD	00H					; Cube::`RTTI Class Hierarchy Descriptor'
+??_R3Spatial@@8 DD 00H					; Spatial::`RTTI Class Hierarchy Descriptor'
 	DD	00H
-	DD	03H
-	DD	imagerel ??_R2Cube@@8
+	DD	02H
+	DD	imagerel ??_R2Spatial@@8
 rdata$r	ENDS
-;	COMDAT ??_R0?AVCube@@@8
+;	COMDAT ??_R0?AVSpatial@@@8
 data$rs	SEGMENT
-??_R0?AVCube@@@8 DQ FLAT:??_7type_info@@6B@		; Cube `RTTI Type Descriptor'
+??_R0?AVSpatial@@@8 DQ FLAT:??_7type_info@@6B@		; Spatial `RTTI Type Descriptor'
 	DQ	0000000000000000H
-	DB	'.?AVCube@@', 00H
+	DB	'.?AVSpatial@@', 00H
 data$rs	ENDS
-;	COMDAT ??_R4Cube@@6B@
-rdata$r	SEGMENT
-??_R4Cube@@6B@ DD 01H					; Cube::`RTTI Complete Object Locator'
-	DD	00H
-	DD	00H
-	DD	imagerel ??_R0?AVCube@@@8
-	DD	imagerel ??_R3Cube@@8
-	DD	imagerel ??_R4Cube@@6B@
-rdata$r	ENDS
 ;	COMDAT ??_R4bad_alloc@std@@6B@
 rdata$r	SEGMENT
 ??_R4bad_alloc@std@@6B@ DD 01H				; std::bad_alloc::`RTTI Complete Object Locator'
@@ -3731,7 +3767,7 @@ _TEXT	SEGMENT
 this$ = 48
 __flags$ = 56
 ??_GCube@@UEAAPEAXI@Z PROC				; Cube::`scalar deleting destructor', COMDAT
-$LN19:
+$LN24:
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 32					; 00000020H
@@ -3739,11 +3775,11 @@ $LN19:
 	mov	rdi, rcx
 	call	??1Instance@@UEAA@XZ			; Instance::~Instance
 	test	bl, 1
-	je	SHORT $LN15@scalar
+	je	SHORT $LN20@scalar
 	mov	edx, 216				; 000000d8H
 	mov	rcx, rdi
 	call	??3@YAXPEAX_K@Z				; operator delete
-$LN15@scalar:
+$LN20@scalar:
 	mov	rbx, QWORD PTR [rsp+48]
 	mov	rax, rdi
 	add	rsp, 32					; 00000020H
@@ -4451,6 +4487,14 @@ f$ = 8
 ; Line 229
 	ret	0
 ?FLoad@aos@physx@@YA?AT__m128@@M@Z ENDP			; physx::aos::FLoad
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??1Spatial@@UEAA@XZ
+_TEXT	SEGMENT
+this$ = 8
+??1Spatial@@UEAA@XZ PROC				; Spatial::~Spatial, COMDAT
+	jmp	??1Instance@@UEAA@XZ			; Instance::~Instance
+??1Spatial@@UEAA@XZ ENDP				; Spatial::~Spatial
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??$_Getvals@_W@?$time_get@_WV?$istreambuf_iterator@_WU?$char_traits@_W@std@@@std@@@std@@IEAAX_WAEBV_Locinfo@1@@Z

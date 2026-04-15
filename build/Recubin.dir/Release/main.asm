@@ -255,7 +255,7 @@ PUBLIC	??_C@_0BI@MEMILFDL@Window?5creation?5failed?6@	; `string'
 PUBLIC	??_C@_0BD@HJCBHOLF@making?5context?4?4?4?6@	; `string'
 PUBLIC	??_C@_0BB@LBOBDGFB@initing?5GLEW?4?4?4?6@	; `string'
 PUBLIC	??_C@_0BC@GILIDJKH@GLEW?5init?5failed?6@	; `string'
-PUBLIC	??_C@_0O@JOJAFAFJ@Version?50?465?6@		; `string'
+PUBLIC	??_C@_0O@JMNGOOAA@Version?50?466?6@		; `string'
 PUBLIC	??_C@_0O@CMJEMIJA@Hello?5world?$CB?6@		; `string'
 PUBLIC	??_C@_0BK@HFNBFIKJ@?$FLERROR?$FN?5Failed?5to?5setup?4?6@ ; `string'
 PUBLIC	??_C@_0BM@PAPOLKLO@assets?1image?1floppa2048?4jpg@ ; `string'
@@ -367,6 +367,7 @@ EXTRN	??1LuauEngine@@QEAA@XZ:PROC			; LuauEngine::~LuauEngine
 EXTRN	?setGlobalInstance@LuauEngine@@QEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@Z:PROC ; LuauEngine::setGlobalInstance
 EXTRN	?setWorkspace@LuauEngine@@QEAAXPEAVWorkspace@@@Z:PROC ; LuauEngine::setWorkspace
 EXTRN	?executeWorkspaceScripts@LuauEngine@@QEAAXXZ:PROC ; LuauEngine::executeWorkspaceScripts
+EXTRN	?update@LuauEngine@@QEAAXM@Z:PROC		; LuauEngine::update
 EXTRN	_CxxThrowException:PROC
 EXTRN	__CxxFrameHandler4:PROC
 EXTRN	__GSHandlerCheck:PROC
@@ -631,7 +632,7 @@ pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
 $pdata$main DD	imagerel $LN507
-	DD	imagerel $LN507+2330
+	DD	imagerel $LN507+2367
 	DD	imagerel $unwind$main
 pdata	ENDS
 ;	COMDAT pdata
@@ -1056,9 +1057,9 @@ CONST	ENDS
 CONST	SEGMENT
 ??_C@_0O@CMJEMIJA@Hello?5world?$CB?6@ DB 'Hello world!', 0aH, 00H ; `string'
 CONST	ENDS
-;	COMDAT ??_C@_0O@JOJAFAFJ@Version?50?465?6@
+;	COMDAT ??_C@_0O@JMNGOOAA@Version?50?466?6@
 CONST	SEGMENT
-??_C@_0O@JOJAFAFJ@Version?50?465?6@ DB 'Version 0.65', 0aH, 00H ; `string'
+??_C@_0O@JMNGOOAA@Version?50?466?6@ DB 'Version 0.66', 0aH, 00H ; `string'
 CONST	ENDS
 ;	COMDAT ??_C@_0BC@GILIDJKH@GLEW?5init?5failed?6@
 CONST	SEGMENT
@@ -1357,7 +1358,7 @@ xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $ip2state$main DB ','
-	DB	088H
+	DB	092H
 	DB	00H
 	DB	08dH, 04H
 	DB	02H
@@ -1397,7 +1398,7 @@ $ip2state$main DB ','
 	DB	018H
 	DB	0a6H
 	DB	0aH
-	DB	0c1H, 04H
+	DB	'5', 05H
 	DB	08H
 	DB	0e1H, 03H
 	DB	00H
@@ -1416,7 +1417,7 @@ $stateUnwindMap$main DB 018H
 	DB	02H
 	DB	03aH
 	DD	imagerel ??1LuauEngine@@QEAA@XZ
-	DB	0c0H
+	DB	0b0H
 	DB	032H
 	DD	imagerel ??1Workspace@@UEAA@XZ
 	DB	01H
@@ -1448,10 +1449,11 @@ $cppxdata$main DB 028H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$unwind$main DD	0e3619H
-	DD	0247825H
-	DD	0256821H
-	DD	04d011dH
+$unwind$main DD	0103b19H
+	DD	024882aH
+	DD	0257825H
+	DD	0266821H
+	DD	04f011dH
 	DD	0e00df00fH
 	DD	0c009d00bH
 	DD	060067007H
@@ -2994,8 +2996,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -3016,10 +3018,11 @@ $LN507:
 	push	r13
 	push	r14
 	push	r15
-	lea	rbp, QWORD PTR [rax-424]
-	sub	rsp, 616				; 00000268H
+	lea	rbp, QWORD PTR [rax-440]
+	sub	rsp, 632				; 00000278H
 	movaps	XMMWORD PTR [rax-88], xmm6
 	movaps	XMMWORD PTR [rax-104], xmm7
+	movaps	XMMWORD PTR [rax-120], xmm8
 	mov	rax, QWORD PTR __security_cookie
 	xor	rax, rsp
 	mov	QWORD PTR __$ArrayPad$[rbp-256], rax
@@ -3028,7 +3031,7 @@ $LN507:
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	mov	rcx, rax
-	lea	rdx, OFFSET FLAT:??_C@_0O@JOJAFAFJ@Version?50?465?6@
+	lea	rdx, OFFSET FLAT:??_C@_0O@JMNGOOAA@Version?50?466?6@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 ; Line 26
 	lea	rdx, OFFSET FLAT:??_C@_0BB@IAAJCMMM@initing?5GLFW?4?4?4?6@
@@ -3513,48 +3516,53 @@ $LN18@main:
 	mov	DWORD PTR [rbx+164], 1056964608		; 3f000000H
 	mov	DWORD PTR [rbx+168], 1065353216		; 3f800000H
 ; Line 130
-	mov	BYTE PTR [rbx+112], 1
+	mov	BYTE PTR [rbx+152], 1
 ; Line 131
 	mov	rdx, rbx
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
 ; Line 133
 	call	glfwGetTime
-	xorps	xmm7, xmm7
-	cvtsd2ss xmm7, xmm0
+	xorps	xmm8, xmm8
+	cvtsd2ss xmm8, xmm0
 ; Line 134
 	mov	rcx, rdi
 	call	glfwWindowShouldClose
 	test	eax, eax
-	jne	SHORT $LN432@main
-	npad	2
+	jne	$LN432@main
+	npad	4
 $LL2@main:
 ; Line 135
 	call	glfwGetTime
-	xorps	xmm6, xmm6
-	cvtsd2ss xmm6, xmm0
+	xorps	xmm7, xmm7
+	cvtsd2ss xmm7, xmm0
 ; Line 136
-	movaps	xmm2, xmm6
-	subss	xmm2, xmm7
+	movaps	xmm6, xmm7
+	subss	xmm6, xmm8
 ; Line 139
+	movaps	xmm2, xmm6
 	lea	rdx, QWORD PTR workspace$[rbp-256]
 	lea	rcx, QWORD PTR physicsEngine$[rbp-256]
 	call	?update@Physics@@QEAAXAEAVWorkspace@@M@Z ; Physics::update
-; Line 142
+; Line 140
+	movaps	xmm1, xmm6
+	lea	rcx, QWORD PTR luauEngine$[rsp]
+	call	?update@LuauEngine@@QEAAXM@Z		; LuauEngine::update
+; Line 143
 	lea	rcx, QWORD PTR luauEngine$[rsp]
 	call	?executeWorkspaceScripts@LuauEngine@@QEAAXXZ ; LuauEngine::executeWorkspaceScripts
-; Line 144
+; Line 145
 	mov	ecx, 16640				; 00004100H
 	call	QWORD PTR __imp_glClear
-; Line 147
+; Line 148
 	lea	rcx, QWORD PTR user$[rbp-256]
 	call	?processInput@User@@QEAAXXZ		; User::processInput
-; Line 148
+; Line 149
 	cmp	BYTE PTR user$[rbp-156], 0
 	jne	SHORT $LN432@main
 ; Line 137
-	movaps	xmm7, xmm6
-; Line 152
+	movaps	xmm8, xmm7
+; Line 153
 	lea	r9, QWORD PTR workspace$[rbp-256]
 	mov	r8, rdi
 	lea	rdx, QWORD PTR user$[rbp-256]
@@ -3566,9 +3574,9 @@ $LL2@main:
 	test	eax, eax
 	je	SHORT $LL2@main
 $LN432@main:
-; Line 156
-	call	glfwTerminate
 ; Line 157
+	call	glfwTerminate
+; Line 158
 	lea	rdx, OFFSET FLAT:??_C@_0CE@DBCKMAIM@?$FLDEBUG?$FN?5Main?5loop?5ended?4?5wannaE@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -3595,7 +3603,7 @@ $LN432@main:
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	??1Instance@@UEAA@XZ			; Instance::~Instance
 	npad	1
-; Line 158
+; Line 159
 	lea	rcx, QWORD PTR luauEngine$[rsp]
 	call	??1LuauEngine@@QEAA@XZ			; LuauEngine::~LuauEngine
 	npad	1
@@ -3685,16 +3693,18 @@ $LN312@main:
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN304@main:
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 158
+; Line 159
 	xor	eax, eax
 $LN1@main:
-; Line 159
+; Line 160
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
-	movaps	xmm6, XMMWORD PTR [rsp+592]
-	movaps	xmm7, XMMWORD PTR [rsp+576]
-	add	rsp, 616				; 00000268H
+	lea	r11, QWORD PTR [rsp+632]
+	movaps	xmm6, XMMWORD PTR [r11-24]
+	movaps	xmm7, XMMWORD PTR [r11-40]
+	movaps	xmm8, XMMWORD PTR [r11-56]
+	mov	rsp, r11
 	pop	r15
 	pop	r14
 	pop	r13
@@ -3726,8 +3736,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -3759,8 +3769,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -3793,8 +3803,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -3826,8 +3836,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -3859,8 +3869,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -3892,8 +3902,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -3932,8 +3942,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -3972,8 +3982,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -4012,8 +4022,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -4052,8 +4062,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -4085,8 +4095,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -4125,8 +4135,8 @@ $T28 = 80
 $T29 = 80
 $T30 = 80
 $T31 = 80
-limabis$1$ = 88
-luauEngine$ = 96
+luauEngine$ = 88
+limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
@@ -7267,7 +7277,7 @@ __formal$ = 16
 __formal$ = 24
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 160
+; Line 161
 	ret	0
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -7278,7 +7288,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 160
+; Line 161
 	ret	0
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -7289,7 +7299,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAX_K@Z PROC		; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 160
+; Line 161
 	ret	0
 ?__empty_global_delete@@YAXPEAX_K@Z ENDP		; __empty_global_delete
 _TEXT	ENDS
@@ -7299,7 +7309,7 @@ _TEXT	SEGMENT
 __formal$ = 8
 ?__empty_global_delete@@YAXPEAX@Z PROC			; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 160
+; Line 161
 	ret	0
 ?__empty_global_delete@@YAXPEAX@Z ENDP			; __empty_global_delete
 _TEXT	ENDS

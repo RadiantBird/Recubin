@@ -1,19 +1,17 @@
 #pragma once
 #include <include/Instances/Instance.hpp>
+#include <include/Instances/Spatial.hpp>
 #include <include/Instances/Workspace.hpp>
 #include <include/Math/Vector3.hpp>
 #include <include/Math/Quaternion.hpp>
 #include <include/Util/Color4.hpp>
 #include <include/PhysX/PxPhysicsAPI.h>
 
-class BaseCube : public Instance {
+class BaseCube : public Spatial {
 public:
     bool Anchored = false;
     bool CanCollide = true;
 
-    Vector3 Position;
-    Vector3 Size;
-    Quaternion Rotation;
     Color4 Color;
 
     // キャッシュ：自分がどの Workspace に登録されているか

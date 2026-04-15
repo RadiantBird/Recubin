@@ -53,7 +53,7 @@ GLFWwindow* setupWindow() {
 
 int main() {
     std::cout << "Hello world!\n"
-              << "Version 0.65\n";
+              << "Version 0.66\n";
     GLFWwindow* window = setupWindow();
     if (!window) {
         std::cout << "[ERROR] Failed to setup.\n";
@@ -137,6 +137,7 @@ int main() {
         lastFrame = currentFrame;
 
         physicsEngine.update(workspace, deltaTime);
+        luauEngine.update(deltaTime);
         
         // Workspace のスクリプトを実行
         luauEngine.executeWorkspaceScripts();

@@ -3,7 +3,7 @@
 #include <iostream>
 
 BaseCube::BaseCube(Vector3 Pos, Vector3 Sz) 
-    : Instance("BaseCube"), Position(Pos), Size(Sz), Color(1, 1, 1, 1) {
+    : Spatial(Pos, Sz, "BaseCube"), Color(1, 1, 1, 1) {
     onAncestorChanged();
 }
 

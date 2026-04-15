@@ -4169,14 +4169,14 @@ $LN47:
 	push	rdi
 	sub	rsp, 112				; 00000070H
 ; Line 26
-	movss	xmm0, DWORD PTR [rdx+128]
+	movss	xmm0, DWORD PTR [rdx+124]
 	mov	rbp, rcx
 	movss	xmm2, DWORD PTR __real@3f000000
 	mov	rdi, rdx
-	movss	xmm1, DWORD PTR [rdx+136]
+	movss	xmm1, DWORD PTR [rdx+132]
 ; Line 35
 	mov	rcx, QWORD PTR [rcx+8]
-	cmp	BYTE PTR [rdx+112], 0
+	cmp	BYTE PTR [rdx+152], 0
 	mulss	xmm0, xmm2
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\geometry\PxGeometry.h
 ; Line 93
@@ -4189,40 +4189,40 @@ $LN47:
 	movss	DWORD PTR [rax-80], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
 ; Line 26
-	movss	xmm0, DWORD PTR [rdx+132]
+	movss	xmm0, DWORD PTR [rdx+128]
 	mulss	xmm0, xmm2
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
 	movss	DWORD PTR [rax-72], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
-	movss	xmm1, DWORD PTR [rdx+148]
+	movss	xmm1, DWORD PTR [rdx+144]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
 	movss	DWORD PTR [rax-76], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
-	movss	xmm0, DWORD PTR [rdx+144]
+	movss	xmm0, DWORD PTR [rdx+140]
 	movss	DWORD PTR [rax-64], xmm0
-	movss	xmm0, DWORD PTR [rdx+152]
+	movss	xmm0, DWORD PTR [rdx+148]
 	movss	DWORD PTR [rax-56], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
-	movss	xmm0, DWORD PTR [rdx+116]
+	movss	xmm0, DWORD PTR [rdx+112]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
 	movss	DWORD PTR [rax-60], xmm1
-	movss	xmm1, DWORD PTR [rdx+140]
+	movss	xmm1, DWORD PTR [rdx+136]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
 	movss	DWORD PTR [rax-48], xmm0
-	movss	xmm0, DWORD PTR [rdx+124]
+	movss	xmm0, DWORD PTR [rdx+120]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
 	movss	DWORD PTR [rax-52], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
-	movss	xmm1, DWORD PTR [rdx+120]
+	movss	xmm1, DWORD PTR [rdx+116]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
 ; Line 35
 	lea	rdx, QWORD PTR transform$[rsp]
@@ -4519,10 +4519,10 @@ $LL8@update:
 	test	al, al
 	je	$LN6@update
 ; Line 35
-	cmp	BYTE PTR [rbx+112], 0
+	cmp	BYTE PTR [rbx+152], 0
 	lea	rdx, QWORD PTR transform$4[rbp-137]
-	movss	xmm0, DWORD PTR [rbx+128]
-	movss	xmm1, DWORD PTR [rbx+132]
+	movss	xmm0, DWORD PTR [rbx+124]
+	movss	xmm1, DWORD PTR [rbx+128]
 	mov	rcx, QWORD PTR [r13+8]
 	mulss	xmm0, xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\geometry\PxGeometry.h
@@ -4536,40 +4536,40 @@ $LL8@update:
 	movss	DWORD PTR geometry$3[rbp-129], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
 ; Line 26
-	movss	xmm0, DWORD PTR [rbx+136]
+	movss	xmm0, DWORD PTR [rbx+132]
 	mulss	xmm0, xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
 	movss	DWORD PTR geometry$3[rbp-125], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
-	movss	xmm1, DWORD PTR [rbx+148]
+	movss	xmm1, DWORD PTR [rbx+144]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
 	movss	DWORD PTR geometry$3[rbp-121], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
-	movss	xmm0, DWORD PTR [rbx+144]
+	movss	xmm0, DWORD PTR [rbx+140]
 	movss	DWORD PTR transform$4[rbp-137], xmm0
-	movss	xmm0, DWORD PTR [rbx+152]
+	movss	xmm0, DWORD PTR [rbx+148]
 	movss	DWORD PTR transform$4[rbp-129], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
-	movss	xmm0, DWORD PTR [rbx+116]
+	movss	xmm0, DWORD PTR [rbx+112]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
 	movss	DWORD PTR transform$4[rbp-133], xmm1
-	movss	xmm1, DWORD PTR [rbx+140]
+	movss	xmm1, DWORD PTR [rbx+136]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
 	movss	DWORD PTR transform$4[rbp-121], xmm0
-	movss	xmm0, DWORD PTR [rbx+124]
+	movss	xmm0, DWORD PTR [rbx+120]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
 	movss	DWORD PTR transform$4[rbp-125], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
-	movss	xmm1, DWORD PTR [rbx+120]
+	movss	xmm1, DWORD PTR [rbx+116]
 	movss	DWORD PTR transform$4[rbp-113], xmm0
 	movss	DWORD PTR transform$4[rbp-117], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
