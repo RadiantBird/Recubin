@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Instance.hpp"
 #include "Math/Vector3.hpp"
 #include "Math/Quaternion.hpp"

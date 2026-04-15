@@ -21,42 +21,128 @@ void User::updateVectors() {
 void User::processInput() {
     if (!window) return;
 
-    // 移動処理（変更なし、updateVectorsの結果を使うので常に最新）
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cpos = cpos + forward * speed;
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cpos = cpos - forward * speed;
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cpos = cpos - right * speed;
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cpos = cpos + right * speed;
-    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) cpos = cpos - up * speed;
-    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) cpos = cpos + up * speed;
+    if (ControlMode::Free == controlMode) {
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cpos = cpos + forward * speed;
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cpos = cpos - forward * speed;
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cpos = cpos - right * speed;
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cpos = cpos + right * speed;
+        if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) cpos = cpos - up * speed;
+        if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) cpos = cpos + up * speed;
 
-    bool rotated = false;
+        bool rotated = false;
 
-    // 回転操作：現在の姿勢に対して「追加の回転」を掛け算する
-    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-        // Y軸（ワールドの上方向）を中心に回転
-        cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), rotationSpeed) * cam.Orientation;
-        rotated = true;
-    }
-    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-        cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), -rotationSpeed) * cam.Orientation;
-        rotated = true;
-    }
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-        // X軸（カメラから見て右方向）を中心に回転
-        cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), rotationSpeed);
-        rotated = true;
-    }
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-        cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), -rotationSpeed);
-        rotated = true;
-    }
+        // 回転操作：現在の姿勢に対して「追加の回転」を掛け算する
+        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+            // Y軸（ワールドの上方向）を中心に回転
+            cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), rotationSpeed) * cam.Orientation;
+            rotated = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+            cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), -rotationSpeed) * cam.Orientation;
+            rotated = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+            // X軸（カメラから見て右方向）を中心に回転
+            cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), rotationSpeed);
+            rotated = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+            cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), -rotationSpeed);
+            rotated = true;
+        }
 
-    // 回転があった場合のみベクトルを更新
-    if (rotated) {
-        updateVectors();
+        // 回転があった場合のみベクトルを更新
+        if (rotated) {
+            updateVectors();
+        }
+    } 
+    else if (ControlMode::Character == controlMode && character && torso) {
+        // キャラクターモードの入力処理：物理エンジンを使用して移動
+        if (torso->actor) {
+            // 物理エンジンのダイナミックアクターに速度を設定
+            physx::PxRigidDynamic* dynamicActor = torso->actor->is<physx::PxRigidDynamic>();
+            if (dynamicActor) {
+                Vector3 velocity(0, 0, 0);
+                
+                // 水平移動速度の計算
+                if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+                    velocity = velocity + forward * speed;
+                }
+                if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+                    velocity = velocity - forward * speed;
+                }
+                if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+                    velocity = velocity - right * speed;
+                }
+                if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+                    velocity = velocity + right * speed;
+                }
+                
+                // 現在の垂直速度を保持（重力の影響を保つ）
+                physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
+                velocity.y = currentVel.y;
+                
+                // 新しい速度を設定
+                dynamicActor->setLinearVelocity(
+                    physx::PxVec3(velocity.x, velocity.y, velocity.z)
+                );
+            }
+            
+            // カメラ位置もキャラクター位置に追従（torsoの位置から計算）
+            cpos = torso->Position + Vector3(0, 2.0f, 0);
+        }
     }
 
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         wannaExit = true;
     }
+    if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
+        // Free/Character モードの切り替え
+        if (controlMode == ControlMode::Free) {
+            controlMode = ControlMode::Character;
+        } else {
+            controlMode = ControlMode::Free;
+        }
+    }
+    if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+        std::cout << "Camera Position: (" << cpos.x << ", " << cpos.y << ", " << cpos.z << ")\n";
+        if (torso) {
+            std::cout << "Character (Torso) Position: (" << torso->Position.x << ", " 
+                      << torso->Position.y << ", " << torso->Position.z << ")\n";
+        }
+    }
+}
+
+void User::spawnCharacter() {
+    if (character) return; // 既にスポーンしている場合は何もしない
+
+    // キャラクター群を格納するモデル（物理なし）
+    User::character = new Model(Vector3(5.0f, 5.0f, 5.0f), Vector3(1, 1, 1));
+    
+    Cube* head      = new Cube(Vector3(0, 0.5f, 0), Vector3(1, 1, 1), 0);
+    // torsoは物理エンジンに登録されるBaseCubeベース（モデルからのオフセット付き）
+    BaseCube* torso = new BaseCube(Vector3(0, 0, 0), Vector3(1, 1.5f, 0.5f)); // why basecube?
+    Cube* leftArm   = new Cube(Vector3(-0.75f, 0, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
+    Cube* rightArm  = new Cube(Vector3(0.75f, 0, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
+    Cube* leftLeg   = new Cube(Vector3(-0.25f, -1.5f, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
+    Cube* rightLeg  = new Cube(Vector3(0.25f, -1.5f, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
+
+    head->Name = "Head";
+    torso->Name = "Torso";
+    leftArm->Name = "LeftArm";
+    rightArm->Name = "RightArm";
+    leftLeg->Name = "LeftLeg";
+    rightLeg->Name = "RightLeg";
+    
+    // torsoのカラー
+    torso->Color = Color4(1.0f, 0.5f, 0.0f, 1.0f);
+
+    User::torso = torso; // 物理移動に使用
+
+    character->addChild(head);
+    character->addChild(torso);
+    character->addChild(leftArm);
+    character->addChild(rightArm);
+    character->addChild(leftLeg);
+    character->addChild(rightLeg);
 }

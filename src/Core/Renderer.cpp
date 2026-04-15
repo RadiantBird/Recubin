@@ -184,28 +184,54 @@ void Renderer::render(User &user, GLFWwindow* window, Workspace &workspace) {
 
     glBindVertexArray(VAO);
 
-    // 2. 個別のオブジェクトを描画
-    for (auto const& [name, child] : workspace.getChildren()) {
-        if (child->IsA("Cube")) {
-            Cube* cube = static_cast<Cube*>(child);
+    // 再帰描画用のローカル関数
+    auto renderCubeTree = [&](auto& self, Instance* inst, const Matrix4& parentTransform) -> void {
+        if (!inst) return;
 
+        if (inst->IsA("Cube")) {
+            Cube* cube = static_cast<Cube*>(inst);
+            
             // 1. スケール行列 (Sizeをそのまま使う)
             Matrix4 scale = Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
-
-            // 2. 回転行列 (さっき追加したFromQuaternion)
+            
+            // 2. 回転行列
             Matrix4 rotation = Matrix4::FromQuaternion(cube->Rotation);
-
+            
             // 3. 移動行列 (Position)
             Matrix4 translation = Matrix4::Translate(cube->Position.x, cube->Position.y, cube->Position.z);
-
-            // 正しくはT * R * S
-            Matrix4 modelMat = translation * rotation * scale;
-
+            
+            // T * R * S * parentTransform
+            Matrix4 modelMat = parentTransform * translation * rotation * scale;
+            
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
             
             // 描画実行
             cube->draw(modelLoc, shaderProgram);
+        } 
+        else if (inst->IsA("Spatial")) {
+            // Spatialの場合、Position/Rotation/Sizeを親変換に含める
+            Spatial* spatial = static_cast<Spatial*>(inst);
+            Matrix4 spatialScale = Matrix4::Scale(spatial->Size.x, spatial->Size.y, spatial->Size.z);
+            Matrix4 spatialRotation = Matrix4::FromQuaternion(spatial->Rotation);
+            Matrix4 spatialTranslation = Matrix4::Translate(spatial->Position.x, spatial->Position.y, spatial->Position.z);
+            Matrix4 childTransform = parentTransform * spatialTranslation * spatialRotation * spatialScale;
+            
+            // 子要素を再帰的に描画
+            for (auto const& [name, child] : inst->getChildren()) {
+                self(self, child, childTransform);
+            }
         }
+        else {
+            // その他（Model等）の場合も子要素を描画
+            for (auto const& [name, child] : inst->getChildren()) {
+                self(self, child, parentTransform);
+            }
+        }
+    };
+
+    // 2. 個別のオブジェクトを描画
+    for (auto const& [name, child] : workspace.getChildren()) {
+        renderCubeTree(renderCubeTree, child, Matrix4());
     }
     
     glfwSwapBuffers(window); // 背面バッファを表面に出す

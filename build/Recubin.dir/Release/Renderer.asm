@@ -320,6 +320,10 @@ CONST	SEGMENT
 	DD	0dH
 	DD	0dH
 	ORG $+8
+?minus1w@?A0x1aba212e@aos@physx@@3QBMB DD 000000000r ; 0 ; physx::aos::`anonymous namespace'::minus1w
+	DD	000000000r			; 0
+	DD	000000000r			; 0
+	DD	0bf800000r			; -1
 ?stbi__zdefault_length@@3QBEB DB 08H			; stbi__zdefault_length
 	DB	08H
 	DB	08H
@@ -640,10 +644,6 @@ CONST	SEGMENT
 	DB	05H
 	DB	05H
 	DB	05H
-?minus1w@?A0x1aba212e@aos@physx@@3QBMB DD 000000000r ; 0 ; physx::aos::`anonymous namespace'::minus1w
-	DD	000000000r			; 0
-	DD	000000000r			; 0
-	DD	0bf800000r			; -1
 ?stbi__depth_scale_table@@3QBEB DB 00H			; stbi__depth_scale_table
 	DB	0ffH
 	DB	055H
@@ -1024,6 +1024,7 @@ PUBLIC	_CTA2?AVbad_cast@std@@
 PUBLIC	??_R0?AVbad_cast@std@@@8			; std::bad_cast `RTTI Type Descriptor'
 PUBLIC	_CT??_R0?AVbad_cast@std@@@8??0bad_cast@std@@QEAA@AEBV01@@Z24
 PUBLIC	??_C@_00CNPNBAHC@@				; `string'
+PUBLIC	??_C@_07KEJFKDFN@Spatial@			; `string'
 PUBLIC	??_C@_0BD@CBEDEJPH@unknown?5image?5type@	; `string'
 PUBLIC	??_C@_08NOGIMCHF@outofmem@			; `string'
 PUBLIC	??_C@_02JDPG@rb@				; `string'
@@ -1157,12 +1158,12 @@ PUBLIC	??_C@_04CHADEDPO@view@				; `string'
 PUBLIC	??_C@_0L@PPHAJBEH@projection@			; `string'
 PUBLIC	??_C@_07HBJDLKAL@viewPos@			; `string'
 PUBLIC	??_C@_05NCCFOPHA@model@				; `string'
-PUBLIC	??_C@_04CJLGPKHJ@Cube@				; `string'
 PUBLIC	??_C@_08JAMJCLGD@Failed?3?5@			; `string'
 PUBLIC	??_C@_03PFKKHNHN@ch?$CJ@			; `string'
 PUBLIC	??_C@_02GFKOMOKH@?5?$CI@			; `string'
 PUBLIC	??_C@_09DDOBJCBI@Success?3?5@			; `string'
 PUBLIC	??_C@_1BK@MHIKGOKE@?$AA?3?$AAA?$AAM?$AA?3?$AAa?$AAm?$AA?3?$AAP?$AAM?$AA?3?$AAp?$AAm@ ; `string'
+PUBLIC	??_C@_04CJLGPKHJ@Cube@				; `string'
 PUBLIC	?_Psave@?$_Facetptr@V?$codecvt@DDU_Mbstatet@@@std@@@std@@2PEBVfacet@locale@2@EB ; std::_Facetptr<std::codecvt<char,char,_Mbstatet> >::_Psave
 PUBLIC	?_Stinit@?1??_Init@?$basic_filebuf@DU?$char_traits@D@std@@@std@@IEAAXPEAU_iobuf@@W4_Initfl@23@@Z@4U_Mbstatet@@A ; `std::basic_filebuf<char,std::char_traits<char> >::_Init'::`2'::_Stinit
 PUBLIC	??_C@_0BA@FOIKENOD@vector?5too?5long@		; `string'
@@ -1794,21 +1795,9 @@ $pdata$?init@Renderer@@QEAAXXZ DD imagerel $LN203
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z DD imagerel $LN336
-	DD	imagerel $LN336+995
+$pdata$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z DD imagerel $LN117
+	DD	imagerel $LN117+1211
 	DD	imagerel $unwind$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z
-pdata	ENDS
-;	COMDAT pdata
-pdata	SEGMENT
-$pdata$0$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z DD imagerel $LN336+995
-	DD	imagerel $LN336+1908
-	DD	imagerel $chain$0$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z
-pdata	ENDS
-;	COMDAT pdata
-pdata	SEGMENT
-$pdata$1$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z DD imagerel $LN336+1908
-	DD	imagerel $LN336+2006
-	DD	imagerel $chain$1$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
@@ -4128,6 +4117,24 @@ $pdata$?_Tidy@?$vector@UVertex@@V?$allocator@UVertex@@@std@@@std@@AEAAXXZ DD ima
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
+$pdata$??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z DD imagerel ??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z
+	DD	imagerel ??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z+55
+	DD	imagerel $unwind$??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$9$??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z DD imagerel ??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z+55
+	DD	imagerel ??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z+2877
+	DD	imagerel $chain$9$??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$10$??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z DD imagerel ??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z+2877
+	DD	imagerel ??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z+2878
+	DD	imagerel $chain$10$??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
 $pdata$??$_Get_index@$0A@@id@locale@std@@QEAA_KXZ DD imagerel $LN11
 	DD	imagerel $LN11+85
 	DD	imagerel $unwind$??$_Get_index@$0A@@id@locale@std@@QEAA_KXZ
@@ -5091,6 +5098,10 @@ CONST	ENDS
 CONST	SEGMENT
 ??_C@_0BA@FOIKENOD@vector?5too?5long@ DB 'vector too long', 00H ; `string'
 CONST	ENDS
+;	COMDAT ??_C@_04CJLGPKHJ@Cube@
+CONST	SEGMENT
+??_C@_04CJLGPKHJ@Cube@ DB 'Cube', 00H			; `string'
+CONST	ENDS
 ;	COMDAT ??_C@_1BK@MHIKGOKE@?$AA?3?$AAA?$AAM?$AA?3?$AAa?$AAm?$AA?3?$AAP?$AAM?$AA?3?$AAp?$AAm@
 CONST	SEGMENT
 ??_C@_1BK@MHIKGOKE@?$AA?3?$AAA?$AAM?$AA?3?$AAa?$AAm?$AA?3?$AAP?$AAM?$AA?3?$AAp?$AAm@ DB ':'
@@ -5112,10 +5123,6 @@ CONST	ENDS
 ;	COMDAT ??_C@_08JAMJCLGD@Failed?3?5@
 CONST	SEGMENT
 ??_C@_08JAMJCLGD@Failed?3?5@ DB 'Failed: ', 00H		; `string'
-CONST	ENDS
-;	COMDAT ??_C@_04CJLGPKHJ@Cube@
-CONST	SEGMENT
-??_C@_04CJLGPKHJ@Cube@ DB 'Cube', 00H			; `string'
 CONST	ENDS
 ;	COMDAT ??_C@_05NCCFOPHA@model@
 CONST	SEGMENT
@@ -5775,6 +5782,10 @@ _DATA	SEGMENT
 	DB	05H
 	DB	01H
 _DATA	ENDS
+;	COMDAT ??_C@_07KEJFKDFN@Spatial@
+CONST	SEGMENT
+??_C@_07KEJFKDFN@Spatial@ DB 'Spatial', 00H		; `string'
+CONST	ENDS
 ;	COMDAT ??_C@_00CNPNBAHC@@
 CONST	SEGMENT
 ??_C@_00CNPNBAHC@@ DB 00H				; `string'
@@ -6175,6 +6186,40 @@ xdata	ENDS
 xdata	SEGMENT
 $unwind$??$_Get_index@$0A@@id@locale@std@@QEAA_KXZ DD 020601H
 	DD	030023206H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$chain$10$??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z DD 021H
+	DD	imagerel ??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z
+	DD	imagerel ??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z+55
+	DD	imagerel $unwind$??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$chain$9$??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z DD 0146121H
+	DD	010f861H
+	DD	011e859H
+	DD	012d851H
+	DD	013c83dH
+	DD	014b832H
+	DD	015a827H
+	DD	016981fH
+	DD	0178815H
+	DD	018780dH
+	DD	0196805H
+	DD	imagerel ??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z
+	DD	imagerel ??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z+55
+	DD	imagerel $unwind$??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z DD 072e19H
+	DD	0340120H
+	DD	07010e012H
+	DD	0300e600fH
+	DD	0500dH
+	DD	imagerel __GSHandlerCheck
+	DD	0f0H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
@@ -9382,38 +9427,23 @@ $unwind$?loadTexture@Renderer@@QEAAIPEBD@Z DD 095619H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$chain$1$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z DD 021H
-	DD	imagerel $LN336
-	DD	imagerel $LN336+995
-	DD	imagerel $unwind$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z
-xdata	ENDS
-;	COMDAT xdata
-xdata	SEGMENT
-$chain$0$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z DD 020921H
-	DD	01ff809H
-	DD	imagerel $LN336
-	DD	imagerel $LN336+995
-	DD	imagerel $unwind$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z
-xdata	ENDS
-;	COMDAT xdata
-xdata	SEGMENT
-$unwind$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z DD 01b6619H
-	DD	020e855H
-	DD	021d84dH
-	DD	022c845H
-	DD	023b83dH
-	DD	024a835H
-	DD	025982dH
-	DD	0268828H
-	DD	0277823H
-	DD	028681fH
-	DD	052011bH
-	DD	0e00bf00dH
-	DD	07007c009H
-	DD	030056006H
-	DD	05004H
+$unwind$?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z DD 01c6919H
+	DD	013f85bH
+	DD	014e853H
+	DD	015d84bH
+	DD	016c843H
+	DD	017b83bH
+	DD	018a833H
+	DD	019982bH
+	DD	01a8826H
+	DD	01b7821H
+	DD	01c681dH
+	DD	03b0119H
+	DD	0e009f00bH
+	DD	060067007H
+	DD	050043005H
 	DD	imagerel __GSHandlerCheck
-	DD	01e0H
+	DD	0120H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
@@ -12490,6 +12520,859 @@ $LN6@Get_index:
 ??$_Get_index@$0A@@id@locale@std@@QEAA_KXZ ENDP		; std::locale::id::_Get_index<0>
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z
+_TEXT	SEGMENT
+$T1 = 32
+$T2 = 32
+$T3 = 48
+$T4 = 48
+$T5 = 48
+$T6 = 48
+scale$7 = 112
+spatialScale$8 = 112
+rotation$9 = 176
+modelMat$10 = 176
+spatialRotation$11 = 176
+childTransform$12 = 176
+__$ArrayPad$ = 240
+this$ = 464
+self$ = 472
+inst$ = 480
+parentTransform$ = 488
+??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z PROC ; `Renderer::render'::`2'::<lambda_1>::operator()<`Renderer::render'::`2'::<lambda_1> >, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 189
+	test	r8, r8
+	je	$LN596@operator
+	mov	r11, rsp
+	push	rbp
+	push	rbx
+	push	rsi
+	push	rdi
+	push	r14
+	lea	rbp, QWORD PTR [r11-200]
+	sub	rsp, 416				; 000001a0H
+	mov	rax, QWORD PTR __security_cookie
+	xor	rax, rsp
+	mov	QWORD PTR __$ArrayPad$[rbp-256], rax
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 200
+	mov	eax, DWORD PTR ??_C@_04CJLGPKHJ@Cube@
+	xorps	xmm0, xmm0
+	movaps	XMMWORD PTR [r11-56], xmm6
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 188
+	mov	rbx, r8
+	movaps	XMMWORD PTR [r11-72], xmm7
+	mov	rsi, rdx
+	movaps	XMMWORD PTR [r11-88], xmm8
+; Line 191
+	lea	rdx, QWORD PTR $T3[rsp]
+	movaps	XMMWORD PTR [r11-104], xmm9
+	mov	rdi, rcx
+	movaps	XMMWORD PTR [r11-120], xmm10
+	mov	rcx, rbx
+	movaps	XMMWORD PTR [r11-136], xmm11
+	mov	r14, r9
+	movaps	XMMWORD PTR [r11-152], xmm12
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
+; Line 493
+	movups	XMMWORD PTR $T3[rsp], xmm0
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 200
+	mov	DWORD PTR $T3[rsp], eax
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 191
+	mov	rax, QWORD PTR [r8]
+	movaps	XMMWORD PTR [r11-168], xmm13
+	movaps	XMMWORD PTR [r11-184], xmm14
+	movaps	XMMWORD PTR [r11-200], xmm15
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
+; Line 940
+	mov	QWORD PTR $T3[rsp+16], 4
+; Line 941
+	mov	QWORD PTR $T3[rsp+24], 15
+; Line 948
+	mov	BYTE PTR $T3[rsp+4], 0
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 191
+	call	QWORD PTR [rax+24]
+	test	al, al
+	je	$LN9@operator
+; Line 198
+	xorps	xmm0, xmm0
+	lea	rdx, QWORD PTR [rbx+136]
+	lea	rcx, QWORD PTR rotation$9[rbp-256]
+	movups	XMMWORD PTR scale$7[rbp-240], xmm0
+	call	?FromQuaternion@Matrix4@@SA?AU1@AEBUQuaternion@@@Z ; Matrix4::FromQuaternion
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
+; Line 20
+	movss	xmm4, DWORD PTR [r14+16]
+	xorps	xmm0, xmm0
+	movss	xmm10, DWORD PTR [r14+28]
+	xorps	xmm6, xmm6
+	movss	xmm9, DWORD PTR [r14+44]
+	movaps	xmm2, xmm10
+	movss	xmm13, DWORD PTR [r14+24]
+	xorps	xmm7, xmm7
+	movss	xmm11, DWORD PTR [r14+60]
+	movaps	xmm3, xmm13
+	movss	xmm12, DWORD PTR [r14+40]
+	movaps	xmm1, xmm11
+	movss	xmm5, DWORD PTR [r14+20]
+	xorps	xmm8, xmm8
+	movss	xmm14, DWORD PTR [r14+56]
+	movss	xmm15, DWORD PTR [r14+36]
+	shufps	xmm6, xmm0, 85				; 00000055H
+	shufps	xmm8, xmm0, 255				; 000000ffH
+	shufps	xmm7, xmm0, 170				; 000000aaH
+	movaps	xmm0, xmm9
+	mulss	xmm0, xmm7
+	mulss	xmm3, xmm6
+	mulss	xmm1, xmm8
+	addss	xmm3, DWORD PTR [r14+8]
+	mulss	xmm2, xmm6
+	mulss	xmm4, xmm6
+	addss	xmm2, DWORD PTR [r14+12]
+	mulss	xmm5, xmm6
+	addss	xmm4, DWORD PTR [r14]
+	movss	xmm6, DWORD PTR [r14+12]
+	addss	xmm5, DWORD PTR [r14+4]
+	addss	xmm2, xmm0
+	movaps	xmm0, xmm12
+	mulss	xmm0, xmm7
+	addss	xmm2, xmm1
+	movaps	xmm1, xmm14
+	addss	xmm3, xmm0
+	mulss	xmm1, xmm8
+	movaps	xmm0, xmm15
+	mulss	xmm0, xmm7
+	addss	xmm3, xmm1
+	movss	xmm1, DWORD PTR [r14+52]
+	mulss	xmm1, xmm8
+	addss	xmm5, xmm0
+	movss	xmm0, DWORD PTR [r14+32]
+	mulss	xmm0, xmm7
+	xorps	xmm7, xmm7
+	unpcklps xmm3, xmm2
+	xorps	xmm2, xmm2
+	addss	xmm5, xmm1
+	movss	xmm1, DWORD PTR [r14+48]
+	addss	xmm4, xmm0
+	mulss	xmm1, xmm8
+	movaps	xmm0, xmm9
+	addss	xmm4, xmm1
+	movaps	xmm1, xmm4
+	xorps	xmm4, xmm4
+	unpcklps xmm1, xmm5
+	movlhps	xmm1, xmm3
+	movss	xmm3, DWORD PTR [r14+8]
+	mulss	xmm6, xmm4
+	movups	XMMWORD PTR $T1[rsp], xmm1
+	shufps	xmm2, xmm4, 170				; 000000aaH
+	addss	xmm6, xmm10
+	mulss	xmm0, xmm2
+	movaps	xmm1, xmm11
+	mulss	xmm3, xmm4
+	addss	xmm6, xmm0
+	shufps	xmm7, xmm4, 255				; 000000ffH
+	mulss	xmm1, xmm7
+	movaps	xmm0, xmm12
+	addss	xmm3, xmm13
+	mulss	xmm0, xmm2
+	addss	xmm6, xmm1
+	movaps	xmm1, xmm14
+	addss	xmm3, xmm0
+	movss	xmm5, DWORD PTR [r14+4]
+	movaps	xmm0, xmm15
+	movss	xmm8, DWORD PTR [r14+20]
+	mulss	xmm5, xmm4
+	movss	xmm4, DWORD PTR [r14]
+	mulss	xmm0, xmm2
+	mulss	xmm1, xmm7
+	addss	xmm5, xmm8
+	addss	xmm3, xmm1
+	movss	xmm1, DWORD PTR [r14+52]
+	addss	xmm5, xmm0
+	mulss	xmm1, xmm7
+	xorps	xmm0, xmm0
+	mulss	xmm4, xmm0
+	movss	xmm0, DWORD PTR [r14+32]
+	addss	xmm5, xmm1
+	movss	xmm1, DWORD PTR [r14+48]
+	addss	xmm4, DWORD PTR [r14+16]
+	mulss	xmm0, xmm2
+	movss	xmm2, DWORD PTR [r14+52]
+	unpcklps xmm3, xmm6
+	movss	xmm6, DWORD PTR [r14]
+	addss	xmm4, xmm0
+	mulss	xmm1, xmm7
+	xorps	xmm0, xmm0
+	xorps	xmm7, xmm7
+	shufps	xmm0, xmm7, 85				; 00000055H
+	addss	xmm4, xmm1
+	mulss	xmm10, xmm0
+	mulss	xmm8, xmm0
+	mulss	xmm13, xmm0
+	movaps	xmm1, xmm4
+	mulss	xmm6, xmm7
+	movss	xmm4, DWORD PTR [r14+8]
+	unpcklps xmm1, xmm5
+	movss	xmm5, DWORD PTR [r14+4]
+	movlhps	xmm1, xmm3
+	movss	xmm3, DWORD PTR [r14+12]
+	mulss	xmm3, xmm7
+	mulss	xmm4, xmm7
+	addss	xmm3, xmm10
+	mulss	xmm5, xmm7
+	movdqa	xmm10, XMMWORD PTR __xmm@3f8000003f8000003f8000003f800000
+	addss	xmm4, xmm13
+	movups	XMMWORD PTR $T5[rsp], xmm1
+	xorps	xmm1, xmm1
+	addss	xmm5, xmm8
+	shufps	xmm1, xmm7, 255				; 000000ffH
+	addss	xmm3, xmm9
+	mulss	xmm2, xmm1
+	addss	xmm4, xmm12
+	mulss	xmm14, xmm1
+	mulss	xmm11, xmm1
+	addss	xmm5, xmm15
+	addss	xmm4, xmm14
+	addss	xmm3, xmm11
+	addss	xmm5, xmm2
+	movss	xmm2, DWORD PTR [r14+16]
+	mulss	xmm2, xmm0
+	movss	xmm0, DWORD PTR [r14+48]
+	mulss	xmm0, xmm1
+; Line 11
+	movss	xmm1, DWORD PTR [rbx+112]
+; Line 20
+	addss	xmm6, xmm2
+	movaps	xmm2, xmm4
+; Line 11
+	shufps	xmm1, xmm1, 0
+; Line 20
+	unpcklps xmm2, xmm3
+; Line 11
+	movss	xmm3, DWORD PTR [rbx+116]
+	shufps	xmm3, xmm3, 0
+; Line 20
+	addss	xmm6, DWORD PTR [r14+32]
+	addss	xmm6, xmm0
+	movups	xmm0, XMMWORD PTR [r14+16]
+	mulps	xmm3, xmm0
+	movups	xmm0, XMMWORD PTR [r14]
+	movaps	xmm4, xmm6
+	mulps	xmm1, xmm0
+	movups	xmm0, XMMWORD PTR [r14+32]
+	unpcklps xmm4, xmm5
+	movlhps	xmm4, xmm2
+	addps	xmm3, xmm1
+; Line 11
+	movss	xmm2, DWORD PTR [rbx+120]
+	shufps	xmm2, xmm2, 0
+; Line 20
+	mulps	xmm2, xmm0
+	movups	xmm9, XMMWORD PTR $T1[rsp]
+	movss	xmm8, DWORD PTR rotation$9[rbp-256]
+	movss	xmm1, DWORD PTR rotation$9[rbp-248]
+	addps	xmm3, xmm2
+	movups	xmm2, XMMWORD PTR $T5[rsp]
+	movups	xmm0, XMMWORD PTR [r14+48]
+; Line 19
+	movss	xmm7, DWORD PTR rotation$9[rbp-240]
+	movss	xmm6, DWORD PTR rotation$9[rbp-224]
+	movss	xmm5, DWORD PTR rotation$9[rbp-208]
+; Line 20
+	mulps	xmm0, xmm10
+; Line 19
+	shufps	xmm1, xmm1, 0
+; Line 20
+	mulps	xmm1, xmm4
+	addps	xmm3, xmm0
+; Line 19
+	shufps	xmm8, xmm8, 0
+	movss	xmm0, DWORD PTR rotation$9[rbp-252]
+	shufps	xmm0, xmm0, 0
+; Line 20
+	mulps	xmm0, xmm2
+	shufps	xmm7, xmm7, 0
+	mulps	xmm8, xmm9
+	shufps	xmm6, xmm6, 0
+	mulps	xmm7, xmm9
+	addps	xmm8, xmm0
+	shufps	xmm5, xmm5, 0
+	movss	xmm0, DWORD PTR rotation$9[rbp-244]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm3
+	addps	xmm8, xmm1
+	mulps	xmm6, xmm9
+	movss	xmm1, DWORD PTR rotation$9[rbp-232]
+	shufps	xmm1, xmm1, 0
+	mulps	xmm1, xmm4
+	addps	xmm8, xmm0
+	mulps	xmm5, xmm9
+	movss	xmm0, DWORD PTR rotation$9[rbp-236]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm2
+	addps	xmm7, xmm0
+	movss	xmm0, DWORD PTR rotation$9[rbp-228]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm3
+	addps	xmm7, xmm1
+	movss	xmm1, DWORD PTR rotation$9[rbp-216]
+	shufps	xmm1, xmm1, 0
+	mulps	xmm1, xmm4
+	addps	xmm7, xmm0
+	movss	xmm0, DWORD PTR rotation$9[rbp-220]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm2
+	addps	xmm6, xmm0
+	movss	xmm0, DWORD PTR rotation$9[rbp-212]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm3
+	addps	xmm6, xmm1
+	movss	xmm1, DWORD PTR rotation$9[rbp-200]
+	shufps	xmm1, xmm1, 0
+	mulps	xmm1, xmm4
+	xorps	xmm4, xmm4
+	addps	xmm6, xmm0
+	movss	xmm0, DWORD PTR rotation$9[rbp-204]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm2
+; Line 19
+	movss	xmm2, DWORD PTR [rbx+124]
+	shufps	xmm2, xmm2, 0
+; Line 20
+	mulps	xmm2, xmm8
+	addps	xmm5, xmm0
+	movss	xmm0, DWORD PTR rotation$9[rbp-196]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm3
+	addps	xmm5, xmm1
+	xorps	xmm1, xmm1
+	mulps	xmm1, xmm6
+	addps	xmm5, xmm0
+	xorps	xmm0, xmm0
+	mulps	xmm0, xmm7
+	addps	xmm2, xmm0
+	xorps	xmm0, xmm0
+	mulps	xmm0, xmm5
+	addps	xmm2, xmm1
+	addps	xmm2, xmm0
+	movups	XMMWORD PTR modelMat$10[rbp-256], xmm2
+; Line 19
+	movss	xmm2, DWORD PTR [rbx+128]
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 206
+	lea	r9, QWORD PTR modelMat$10[rbp-256]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
+; Line 19
+	movss	xmm1, DWORD PTR scale$7[rbp-232]
+	xorps	xmm0, xmm0
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 206
+	mov	rcx, QWORD PTR [rdi]
+	xorps	xmm3, xmm3
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
+; Line 20
+	mulps	xmm0, xmm8
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 206
+	xor	r8d, r8d
+	mov	edx, 1
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
+; Line 19
+	shufps	xmm1, xmm1, 0
+; Line 20
+	mulps	xmm1, xmm6
+	shufps	xmm2, xmm2, 0
+	mulps	xmm2, xmm7
+	mulps	xmm3, xmm7
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 192
+	movups	XMMWORD PTR scale$7[rbp-224], xmm4
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
+; Line 20
+	addps	xmm2, xmm0
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 192
+	movups	XMMWORD PTR scale$7[rbp-208], xmm4
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
+; Line 19
+	movss	xmm0, DWORD PTR scale$7[rbp-228]
+	shufps	xmm0, xmm0, 0
+; Line 20
+	mulps	xmm0, xmm5
+	addps	xmm2, xmm1
+	mulps	xmm4, xmm8
+	movss	xmm1, DWORD PTR [rbx+132]
+	shufps	xmm1, xmm1, 0
+	mulps	xmm1, xmm6
+	addps	xmm2, xmm0
+	mulps	xmm10, xmm5
+	xorps	xmm0, xmm0
+	mulps	xmm0, xmm8
+	movups	XMMWORD PTR modelMat$10[rbp-240], xmm2
+	addps	xmm3, xmm0
+	movss	xmm0, DWORD PTR scale$7[rbp-212]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm5
+	addps	xmm3, xmm1
+	xorps	xmm1, xmm1
+	mulps	xmm1, xmm7
+	addps	xmm3, xmm0
+	movss	xmm0, DWORD PTR scale$7[rbp-200]
+	addps	xmm1, xmm4
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm6
+	movups	XMMWORD PTR modelMat$10[rbp-224], xmm3
+	addps	xmm1, xmm0
+	addps	xmm1, xmm10
+	movups	XMMWORD PTR modelMat$10[rbp-208], xmm1
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 206
+	mov	ecx, DWORD PTR [rcx]
+	call	QWORD PTR __glewUniformMatrix4fv
+; Line 209
+	mov	r8, QWORD PTR [rdi+8]
+	mov	rcx, rbx
+	mov	rdx, QWORD PTR [rdi]
+	mov	r8d, DWORD PTR [r8+12]
+	mov	edx, DWORD PTR [rdx]
+	call	?draw@Cube@@QEAAXHH@Z			; Cube::draw
+; Line 210
+	jmp	$LN595@operator
+$LN9@operator:
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 200
+	mov	rax, QWORD PTR ??_C@_07KEJFKDFN@Spatial@
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 211
+	lea	rdx, QWORD PTR $T4[rsp]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 200
+	mov	DWORD PTR $T4[rsp], eax
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 211
+	mov	rcx, rbx
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 200
+	movzx	eax, WORD PTR ??_C@_07KEJFKDFN@Spatial@+4
+	mov	WORD PTR $T4[rsp+4], ax
+	movzx	eax, BYTE PTR ??_C@_07KEJFKDFN@Spatial@+6
+	mov	BYTE PTR $T4[rsp+6], al
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 211
+	mov	rax, QWORD PTR [rbx]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
+; Line 493
+	mov	QWORD PTR $T4[rsp+8], 0
+; Line 940
+	mov	QWORD PTR $T4[rsp+16], 7
+; Line 941
+	mov	QWORD PTR $T4[rsp+24], 15
+; Line 948
+	mov	BYTE PTR $T4[rsp+7], 0
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 211
+	call	QWORD PTR [rax+24]
+	test	al, al
+	je	$LN11@operator
+; Line 215
+	xorps	xmm0, xmm0
+	lea	rdx, QWORD PTR [rbx+136]
+	lea	rcx, QWORD PTR spatialRotation$11[rbp-256]
+	movups	XMMWORD PTR spatialScale$8[rbp-240], xmm0
+	call	?FromQuaternion@Matrix4@@SA?AU1@AEBUQuaternion@@@Z ; Matrix4::FromQuaternion
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
+; Line 20
+	movss	xmm9, DWORD PTR [r14+28]
+	xorps	xmm0, xmm0
+	movss	xmm10, DWORD PTR [r14+44]
+	xorps	xmm6, xmm6
+	movss	xmm8, DWORD PTR [r14+12]
+	xorps	xmm5, xmm5
+	movss	xmm13, DWORD PTR [r14+24]
+	xorps	xmm7, xmm7
+	movss	xmm11, DWORD PTR [r14+60]
+	movss	xmm12, DWORD PTR [r14+8]
+	movaps	xmm1, xmm11
+	movss	xmm14, DWORD PTR [r14+40]
+	movss	xmm15, DWORD PTR [r14+56]
+	shufps	xmm6, xmm0, 85				; 00000055H
+	shufps	xmm7, xmm0, 255				; 000000ffH
+	movaps	xmm3, xmm6
+	mulss	xmm3, DWORD PTR [r14+20]
+	movaps	xmm4, xmm6
+	shufps	xmm5, xmm0, 170				; 000000aaH
+	movaps	xmm2, xmm6
+	mulss	xmm6, DWORD PTR [r14+16]
+	movaps	xmm0, xmm10
+	addss	xmm3, DWORD PTR [r14+4]
+	mulss	xmm0, xmm5
+	addss	xmm6, DWORD PTR [r14]
+	mulss	xmm1, xmm7
+	mulss	xmm2, xmm13
+	mulss	xmm4, xmm9
+	addss	xmm2, xmm12
+	addss	xmm4, xmm8
+	addss	xmm4, xmm0
+	movaps	xmm0, xmm5
+	mulss	xmm0, xmm14
+	addss	xmm2, xmm0
+	movaps	xmm0, xmm5
+	mulss	xmm0, DWORD PTR [r14+36]
+	addss	xmm4, xmm1
+	mulss	xmm5, DWORD PTR [r14+32]
+	movaps	xmm1, xmm7
+	addss	xmm3, xmm0
+	mulss	xmm1, xmm15
+	addss	xmm6, xmm5
+	xorps	xmm5, xmm5
+	mulss	xmm5, xmm8
+	addss	xmm2, xmm1
+	movaps	xmm1, xmm7
+	mulss	xmm1, DWORD PTR [r14+52]
+	mulss	xmm7, DWORD PTR [r14+48]
+	addss	xmm5, xmm9
+	addss	xmm3, xmm1
+	unpcklps xmm2, xmm4
+	addss	xmm6, xmm7
+	xorps	xmm7, xmm7
+	movaps	xmm0, xmm3
+	movaps	xmm3, xmm6
+	xorps	xmm6, xmm6
+	unpcklps xmm3, xmm0
+	movlhps	xmm3, xmm2
+	xorps	xmm2, xmm2
+	mulss	xmm2, xmm12
+	movups	XMMWORD PTR $T6[rsp], xmm3
+	xorps	xmm3, xmm3
+	addss	xmm2, xmm13
+	shufps	xmm6, xmm3, 170				; 000000aaH
+	movaps	xmm0, xmm6
+	shufps	xmm7, xmm3, 255				; 000000ffH
+	mulss	xmm0, xmm10
+	movaps	xmm1, xmm7
+	mulss	xmm1, xmm11
+	addss	xmm5, xmm0
+	movaps	xmm0, xmm6
+	mulss	xmm0, xmm14
+	addss	xmm5, xmm1
+	movaps	xmm1, xmm7
+	mulss	xmm1, xmm15
+	addss	xmm2, xmm0
+	mulss	xmm3, DWORD PTR [r14]
+	addss	xmm2, xmm1
+	xorps	xmm4, xmm4
+	movaps	xmm1, xmm7
+	mulss	xmm4, DWORD PTR [r14+4]
+	movaps	xmm0, xmm6
+	mulss	xmm0, DWORD PTR [r14+36]
+	addss	xmm3, DWORD PTR [r14+16]
+	addss	xmm4, DWORD PTR [r14+20]
+	mulss	xmm1, DWORD PTR [r14+52]
+	mulss	xmm7, DWORD PTR [r14+48]
+	mulss	xmm6, DWORD PTR [r14+32]
+	addss	xmm4, xmm0
+	unpcklps xmm2, xmm5
+	xorps	xmm5, xmm5
+	addss	xmm3, xmm6
+	addss	xmm4, xmm1
+	xorps	xmm1, xmm1
+	addss	xmm3, xmm7
+	movaps	xmm7, xmm3
+	xorps	xmm3, xmm3
+	mulss	xmm3, DWORD PTR [r14+4]
+	unpcklps xmm7, xmm4
+	xorps	xmm4, xmm4
+	shufps	xmm1, xmm4, 85				; 00000055H
+	shufps	xmm5, xmm4, 255				; 000000ffH
+	movaps	xmm0, xmm1
+	mulss	xmm0, xmm9
+	mulss	xmm4, xmm8
+	xorps	xmm8, xmm8
+	mulss	xmm8, DWORD PTR [r14]
+	addss	xmm4, xmm0
+	movlhps	xmm7, xmm2
+	xorps	xmm2, xmm2
+	movaps	xmm0, xmm5
+	mulss	xmm0, xmm11
+	mulss	xmm2, xmm12
+	addss	xmm4, xmm10
+	movups	XMMWORD PTR $T2[rsp], xmm7
+	addss	xmm4, xmm0
+	movaps	xmm0, xmm1
+	mulss	xmm0, xmm13
+	addss	xmm2, xmm0
+	movaps	xmm0, xmm5
+	mulss	xmm0, xmm15
+	addss	xmm2, xmm14
+	addss	xmm2, xmm0
+	movaps	xmm0, xmm1
+	mulss	xmm0, DWORD PTR [r14+20]
+	mulss	xmm1, DWORD PTR [r14+16]
+	addss	xmm3, xmm0
+	movaps	xmm0, xmm5
+	mulss	xmm0, DWORD PTR [r14+52]
+	mulss	xmm5, DWORD PTR [r14+48]
+	addss	xmm8, xmm1
+	addss	xmm3, DWORD PTR [r14+36]
+	movaps	xmm1, xmm4
+	unpcklps xmm2, xmm1
+	addss	xmm8, DWORD PTR [r14+32]
+; Line 11
+	movss	xmm1, DWORD PTR [rbx+112]
+; Line 20
+	addss	xmm3, xmm0
+; Line 11
+	shufps	xmm1, xmm1, 0
+; Line 20
+	movups	xmm0, XMMWORD PTR [r14+16]
+	addss	xmm8, xmm5
+	movaps	xmm4, xmm8
+	unpcklps xmm4, xmm3
+; Line 11
+	movss	xmm3, DWORD PTR [rbx+116]
+	shufps	xmm3, xmm3, 0
+; Line 20
+	mulps	xmm3, xmm0
+	movups	xmm0, XMMWORD PTR [r14]
+	movlhps	xmm4, xmm2
+; Line 11
+	movss	xmm2, DWORD PTR [rbx+120]
+; Line 20
+	mulps	xmm1, xmm0
+	movups	xmm0, XMMWORD PTR [r14+32]
+; Line 11
+	shufps	xmm2, xmm2, 0
+; Line 20
+	mulps	xmm2, xmm0
+	addps	xmm3, xmm1
+	movups	xmm0, XMMWORD PTR [r14+48]
+	mulps	xmm0, XMMWORD PTR __xmm@3f8000003f8000003f8000003f800000
+	addps	xmm3, xmm2
+	addps	xmm3, xmm0
+	movups	xmm9, XMMWORD PTR $T6[rsp]
+	movups	xmm2, XMMWORD PTR $T2[rsp]
+	movss	xmm8, DWORD PTR spatialRotation$11[rbp-252]
+	movss	xmm0, DWORD PTR spatialRotation$11[rbp-256]
+	movss	xmm1, DWORD PTR spatialRotation$11[rbp-248]
+	movss	xmm6, DWORD PTR spatialRotation$11[rbp-220]
+	movss	xmm5, DWORD PTR spatialRotation$11[rbp-204]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm9
+	shufps	xmm1, xmm1, 0
+	mulps	xmm1, xmm4
+	shufps	xmm8, xmm8, 0
+	mulps	xmm8, xmm7
+	movss	xmm7, DWORD PTR spatialRotation$11[rbp-236]
+	shufps	xmm7, xmm7, 0
+	mulps	xmm7, xmm2
+	addps	xmm8, xmm0
+	shufps	xmm6, xmm6, 0
+	movss	xmm0, DWORD PTR spatialRotation$11[rbp-244]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm3
+	addps	xmm8, xmm1
+	mulps	xmm6, xmm2
+	movss	xmm1, DWORD PTR spatialRotation$11[rbp-232]
+	shufps	xmm1, xmm1, 0
+	mulps	xmm1, xmm4
+	addps	xmm8, xmm0
+	shufps	xmm5, xmm5, 0
+	movss	xmm0, DWORD PTR spatialRotation$11[rbp-240]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm9
+	mulps	xmm5, xmm2
+; Line 19
+	movss	xmm2, DWORD PTR [rbx+124]
+; Line 20
+	addps	xmm7, xmm0
+; Line 19
+	shufps	xmm2, xmm2, 0
+	movss	xmm0, DWORD PTR spatialRotation$11[rbp-228]
+	shufps	xmm0, xmm0, 0
+; Line 20
+	mulps	xmm0, xmm3
+	addps	xmm7, xmm1
+	mulps	xmm2, xmm8
+; Line 19
+	movss	xmm1, DWORD PTR spatialRotation$11[rbp-216]
+	shufps	xmm1, xmm1, 0
+; Line 20
+	mulps	xmm1, xmm4
+	addps	xmm7, xmm0
+	movss	xmm0, DWORD PTR spatialRotation$11[rbp-224]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm9
+	addps	xmm6, xmm0
+	movss	xmm0, DWORD PTR spatialRotation$11[rbp-212]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm3
+	addps	xmm6, xmm1
+	movss	xmm1, DWORD PTR spatialRotation$11[rbp-200]
+	shufps	xmm1, xmm1, 0
+	mulps	xmm1, xmm4
+	xorps	xmm4, xmm4
+	addps	xmm6, xmm0
+	movss	xmm0, DWORD PTR spatialRotation$11[rbp-208]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm9
+	addps	xmm5, xmm0
+	movss	xmm0, DWORD PTR spatialRotation$11[rbp-196]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm3
+	addps	xmm5, xmm1
+	xorps	xmm1, xmm1
+	mulps	xmm1, xmm6
+	addps	xmm5, xmm0
+	xorps	xmm0, xmm0
+	mulps	xmm0, xmm7
+	addps	xmm2, xmm0
+	xorps	xmm0, xmm0
+	mulps	xmm0, xmm5
+	addps	xmm2, xmm1
+	addps	xmm2, xmm0
+	xorps	xmm0, xmm0
+	mulps	xmm0, xmm8
+	movups	XMMWORD PTR childTransform$12[rbp-256], xmm2
+	movss	xmm2, DWORD PTR [rbx+128]
+	shufps	xmm2, xmm2, 0
+	mulps	xmm2, xmm7
+	movss	xmm1, DWORD PTR spatialScale$8[rbp-232]
+	addps	xmm2, xmm0
+	movss	xmm0, DWORD PTR spatialScale$8[rbp-228]
+	xorps	xmm3, xmm3
+; Line 19
+	shufps	xmm1, xmm1, 0
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 220
+	mov	rcx, rbx
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
+; Line 20
+	mulps	xmm1, xmm6
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm5
+	addps	xmm2, xmm1
+	mulps	xmm3, xmm7
+	movss	xmm1, DWORD PTR [rbx+132]
+	shufps	xmm1, xmm1, 0
+	mulps	xmm1, xmm6
+	addps	xmm2, xmm0
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 213
+	movups	XMMWORD PTR spatialScale$8[rbp-224], xmm4
+	xorps	xmm0, xmm0
+	movups	XMMWORD PTR spatialScale$8[rbp-208], xmm4
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
+; Line 20
+	mulps	xmm0, xmm8
+	mulps	xmm4, xmm8
+	movups	XMMWORD PTR childTransform$12[rbp-240], xmm2
+	addps	xmm3, xmm0
+	movss	xmm0, DWORD PTR spatialScale$8[rbp-212]
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm5
+	mulps	xmm5, XMMWORD PTR __xmm@3f8000003f8000003f8000003f800000
+	addps	xmm3, xmm1
+	xorps	xmm1, xmm1
+	mulps	xmm1, xmm7
+	addps	xmm3, xmm0
+	movss	xmm0, DWORD PTR spatialScale$8[rbp-200]
+	addps	xmm1, xmm4
+	shufps	xmm0, xmm0, 0
+	mulps	xmm0, xmm6
+	movups	XMMWORD PTR childTransform$12[rbp-224], xmm3
+	addps	xmm1, xmm0
+	addps	xmm1, xmm5
+	movups	XMMWORD PTR childTransform$12[rbp-208], xmm1
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 220
+	call	?getChildren@Instance@@QEAAAEBV?$unordered_map@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@XZ ; Instance::getChildren
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 1125
+	mov	rdi, QWORD PTR [rax+8]
+; Line 37
+	mov	rbx, QWORD PTR [rdi]
+; Line 72
+	cmp	rbx, rdi
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 220
+	je	SHORT $LN595@operator
+$LL4@operator:
+; Line 221
+	mov	r8, QWORD PTR [rbx+48]
+	lea	r9, QWORD PTR childTransform$12[rbp-256]
+	mov	rdx, rsi
+	mov	rcx, rsi
+	call	??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z ; `Renderer::render'::`2'::<lambda_1>::operator()<`Renderer::render'::`2'::<lambda_1> >
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 50
+	mov	rbx, QWORD PTR [rbx]
+; Line 72
+	cmp	rbx, rdi
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 220
+	jne	SHORT $LL4@operator
+; Line 223
+	jmp	SHORT $LN595@operator
+$LN11@operator:
+; Line 226
+	mov	rcx, rbx
+	call	?getChildren@Instance@@QEAAAEBV?$unordered_map@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@XZ ; Instance::getChildren
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 1125
+	mov	rdi, QWORD PTR [rax+8]
+; Line 37
+	mov	rbx, QWORD PTR [rdi]
+; Line 72
+	cmp	rbx, rdi
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 226
+	je	SHORT $LN595@operator
+$LL7@operator:
+; Line 227
+	mov	r8, QWORD PTR [rbx+48]
+	mov	r9, r14
+	mov	rdx, rsi
+	mov	rcx, rsi
+	call	??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z ; `Renderer::render'::`2'::<lambda_1>::operator()<`Renderer::render'::`2'::<lambda_1> >
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 50
+	mov	rbx, QWORD PTR [rbx]
+; Line 72
+	cmp	rbx, rdi
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 226
+	jne	SHORT $LL7@operator
+$LN595@operator:
+	movaps	xmm14, XMMWORD PTR [rsp+272]
+	movaps	xmm13, XMMWORD PTR [rsp+288]
+	movaps	xmm12, XMMWORD PTR [rsp+304]
+	movaps	xmm11, XMMWORD PTR [rsp+320]
+	movaps	xmm10, XMMWORD PTR [rsp+336]
+	movaps	xmm9, XMMWORD PTR [rsp+352]
+	movaps	xmm8, XMMWORD PTR [rsp+368]
+	movaps	xmm7, XMMWORD PTR [rsp+384]
+	movaps	xmm6, XMMWORD PTR [rsp+400]
+	movaps	xmm15, XMMWORD PTR [rsp+256]
+; Line 230
+	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
+	xor	rcx, rsp
+	call	__security_check_cookie
+	add	rsp, 416				; 000001a0H
+	pop	r14
+	pop	rdi
+	pop	rsi
+	pop	rbx
+	pop	rbp
+$LN596@operator:
+	ret	0
+??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z ENDP ; `Renderer::render'::`2'::<lambda_1>::operator()<`Renderer::render'::`2'::<lambda_1> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ??$get@$00$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@YAAEBQEAVInstance@@AEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@0@@Z
 _TEXT	SEGMENT
 _Pr$ = 8
@@ -12571,6 +13454,21 @@ _Plist$ = 24
 	mov	rax, rcx
 	ret	0
 ??0?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEAA@PEAU?$_List_node@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@PEAX@1@PEBV?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@1@@Z ENDP ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??0<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEAA@AEAHPEAV2@@Z
+_TEXT	SEGMENT
+this$ = 8
+__modelLoc$ = 16
+_This$ = 24
+??0<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEAA@AEAHPEAV2@@Z PROC ; `Renderer::render'::`2'::<lambda_1>::<lambda_1>, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 230
+	mov	QWORD PTR [rcx], rdx
+	mov	rax, rcx
+	mov	QWORD PTR [rcx+8], r8
+	ret	0
+??0<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEAA@AEAHPEAV2@@Z ENDP ; `Renderer::render'::`2'::<lambda_1>::<lambda_1>
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ?_Get_first@?$_Compressed_pair@V?$allocator@UVertex@@@std@@V?$_Vector_val@U?$_Simple_types@UVertex@@@std@@@2@$00@std@@QEAAAEAV?$allocator@UVertex@@@2@XZ
@@ -52231,7 +53129,7 @@ this$ = 384
 path$ = 392
 ?loadTexture@Renderer@@QEAAIPEBD@Z PROC			; Renderer::loadTexture, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 215
+; Line 241
 $LN34:
 	mov	QWORD PTR [rsp+24], rbx
 	push	rbp
@@ -52246,7 +53144,7 @@ $LN34:
 ; Line 1357
 	lea	r8, OFFSET FLAT:??_C@_02JDPG@rb@
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 215
+; Line 241
 	mov	rdi, rdx
 ; File C:\Users\RedDragon\Documents\Recubin\include\stb_image.h
 ; Line 1357
@@ -52353,24 +53251,24 @@ $LN32@loadTextur:
 	mov	rcx, rbx
 	call	QWORD PTR __imp_fclose
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 228
+; Line 254
 	lea	rdx, QWORD PTR textureID$[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\stb_image.h
 ; Line 1384
 	mov	DWORD PTR textureID$[rsp], r14d
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 228
+; Line 254
 	mov	ecx, 1
 	call	QWORD PTR __imp_glGenTextures
-; Line 229
+; Line 255
 	mov	edx, DWORD PTR textureID$[rsp]
 	mov	ecx, 3553				; 00000de1H
 	call	QWORD PTR __imp_glBindTexture
-; Line 231
+; Line 257
 	mov	edx, 1
 	mov	ecx, 3317				; 00000cf5H
 	call	QWORD PTR __imp_glPixelStorei
-; Line 234
+; Line 260
 	mov	eax, DWORD PTR height$[rsp]
 	xor	edx, edx
 	mov	r9d, DWORD PTR width$[rsp]
@@ -52382,30 +53280,30 @@ $LN32@loadTextur:
 	mov	DWORD PTR [rsp+40], r14d
 	mov	DWORD PTR [rsp+32], eax
 	call	QWORD PTR __imp_glTexImage2D
-; Line 235
+; Line 261
 	mov	ecx, 3553				; 00000de1H
 	call	QWORD PTR __glewGenerateMipmap
-; Line 238
+; Line 264
 	mov	edx, 10241				; 00002801H
 	mov	ecx, 3553				; 00000de1H
 	mov	r8d, 9987				; 00002703H
 	call	QWORD PTR __imp_glTexParameteri
-; Line 239
+; Line 265
 	mov	edx, 10240				; 00002800H
 	mov	ecx, 3553				; 00000de1H
 	mov	r8d, 9729				; 00002601H
 	call	QWORD PTR __imp_glTexParameteri
-; Line 241
+; Line 267
 	mov	edx, 10242				; 00002802H
 	mov	ecx, 3553				; 00000de1H
 	mov	r8d, 10497				; 00002901H
 	call	QWORD PTR __imp_glTexParameteri
-; Line 242
+; Line 268
 	mov	edx, 10243				; 00002803H
 	mov	ecx, 3553				; 00000de1H
 	mov	r8d, 10497				; 00002901H
 	call	QWORD PTR __imp_glTexParameteri
-; Line 244
+; Line 270
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_09DDOBJCBI@Success?3?5@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -52429,7 +53327,7 @@ $LN32@loadTextur:
 	mov	rcx, rsi
 	call	QWORD PTR __imp_free
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 247
+; Line 273
 	mov	eax, DWORD PTR textureID$[rsp]
 	jmp	SHORT $LN1@loadTextur
 $LN13@loadTextur:
@@ -52438,7 +53336,7 @@ $LN13@loadTextur:
 	call	QWORD PTR __imp_fclose
 $LN31@loadTextur:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 223
+; Line 249
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_08JAMJCLGD@Failed?3?5@
 	mov	eax, r14d
@@ -52450,11 +53348,11 @@ $LN31@loadTextur:
 	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
-; Line 224
+; Line 250
 	xor	eax, eax
 $LN1@loadTextur:
 	mov	rsi, QWORD PTR [rsp+384]
-; Line 248
+; Line 274
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
@@ -52471,38 +53369,33 @@ _TEXT	ENDS
 _TEXT	SEGMENT
 height$ = 32
 width$ = 36
-$T5 = 48
-$T6 = 48
-tv1741 = 48
-$T7 = 64
-f$8 = 64
-r$9 = 64
-$T10 = 64
-translation$11 = 96
-rotation$12 = 160
-scale$13 = 224
-view$ = 288
-projection$ = 352
-modelMat$14 = 416
-__$ArrayPad$ = 480
-this$ = 720
-user$ = 728
-window$ = 736
-workspace$ = 744
+$T4 = 40
+$T5 = 40
+f$6 = 56
+r$7 = 56
+modelLoc$ = 72
+renderCubeTree$ = 80
+$T8 = 96
+view$ = 160
+projection$ = 224
+__$ArrayPad$ = 288
+this$ = 528
+user$ = 536
+window$ = 544
+workspace$ = 552
 ?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z PROC ; Renderer::render, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 163
-$LN336:
+$LN117:
 	mov	rax, rsp
 	push	rbp
 	push	rbx
 	push	rsi
 	push	rdi
-	push	r12
 	push	r14
 	push	r15
-	lea	rbp, QWORD PTR [rax-456]
-	sub	rsp, 656				; 00000290H
+	lea	rbp, QWORD PTR [rax-264]
+	sub	rsp, 472				; 000001d8H
 	movaps	XMMWORD PTR [rax-72], xmm6
 	movaps	XMMWORD PTR [rax-88], xmm7
 	movaps	XMMWORD PTR [rax-104], xmm8
@@ -52512,17 +53405,18 @@ $LN336:
 	movaps	XMMWORD PTR [rax-168], xmm12
 	movaps	XMMWORD PTR [rax-184], xmm13
 	movaps	XMMWORD PTR [rax-200], xmm14
+	movaps	XMMWORD PTR [rax-216], xmm15
 	mov	rax, QWORD PTR __security_cookie
 	xor	rax, rsp
 	mov	QWORD PTR __$ArrayPad$[rbp-256], rax
-	mov	r15, r8
+	mov	rsi, r8
 	mov	rdi, rdx
 	mov	r14, rcx
 ; Line 166
 	lea	r8, QWORD PTR height$[rsp]
-	mov	rcx, r15
+	mov	rcx, rsi
 	lea	rdx, QWORD PTR width$[rsp]
-	mov	rsi, r9
+	mov	r15, r9
 	call	glfwGetFramebufferSize
 ; Line 167
 	mov	r9d, DWORD PTR height$[rsp]
@@ -52551,16 +53445,16 @@ $LN5@render:
 ; Line 77
 	movss	xmm3, DWORD PTR __real@3f800000
 ; Line 87
-	lea	rdx, QWORD PTR f$8[rsp]
+	lea	rdx, QWORD PTR f$6[rsp]
 	movd	xmm2, DWORD PTR width$[rsp]
-	lea	rcx, QWORD PTR $T5[rsp]
+	lea	rcx, QWORD PTR $T4[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 173
 	mov	rax, QWORD PTR [rdi+56]
 ; Line 174
-	movss	xmm7, DWORD PTR [rdi+88]
-	movss	xmm8, DWORD PTR [rdi+92]
-	movss	xmm6, DWORD PTR [rdi+96]
+	movss	xmm7, DWORD PTR [rdi+108]
+	movss	xmm8, DWORD PTR [rdi+112]
+	movss	xmm6, DWORD PTR [rdi+116]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 77
 	divss	xmm3, xmm0
@@ -52589,176 +53483,178 @@ $LN5@render:
 	movss	DWORD PTR projection$[rbp-256], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 10
-	movss	xmm12, DWORD PTR [rax]
-	movss	xmm14, DWORD PTR [rax+8]
-	movaps	xmm0, xmm12
-	addss	xmm0, DWORD PTR [rdi+64]
-	movss	xmm13, DWORD PTR [rax+4]
-	movaps	xmm1, xmm14
-	addss	xmm1, DWORD PTR [rdi+72]
-; Line 11
-	subss	xmm0, xmm12
-	subss	xmm1, xmm14
-; Line 37
-	movss	DWORD PTR $T5[rsp], xmm0
-; Line 10
+	movss	xmm13, DWORD PTR [rax]
+	movss	xmm15, DWORD PTR [rax+4]
 	movaps	xmm0, xmm13
-	addss	xmm0, DWORD PTR [rdi+68]
-; Line 39
-	movss	DWORD PTR $T5[rsp+8], xmm1
+	addss	xmm0, DWORD PTR [rdi+84]
+	movss	xmm14, DWORD PTR [rax+8]
+	movaps	xmm1, xmm15
+	addss	xmm1, DWORD PTR [rdi+88]
 ; Line 11
 	subss	xmm0, xmm13
+	subss	xmm1, xmm15
+; Line 37
+	movss	DWORD PTR $T4[rsp], xmm0
+; Line 10
+	movaps	xmm0, xmm14
+	addss	xmm0, DWORD PTR [rdi+92]
 ; Line 38
-	movss	DWORD PTR $T5[rsp+4], xmm0
+	movss	DWORD PTR $T4[rsp+4], xmm1
+; Line 11
+	subss	xmm0, xmm14
+; Line 39
+	movss	DWORD PTR $T4[rsp+8], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 87
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
-	movss	xmm10, DWORD PTR f$8[rsp+4]
+	movss	xmm11, DWORD PTR f$6[rsp+4]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 88
-	lea	rdx, QWORD PTR r$9[rsp]
+	lea	rdx, QWORD PTR r$7[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
-	movss	xmm11, DWORD PTR f$8[rsp+8]
+	movss	xmm12, DWORD PTR f$6[rsp+8]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 88
-	lea	rcx, QWORD PTR $T6[rsp]
+	lea	rcx, QWORD PTR $T5[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
-	movss	xmm9, DWORD PTR f$8[rsp]
+	movss	xmm10, DWORD PTR f$6[rsp]
 	movaps	xmm1, xmm6
-	mulss	xmm1, xmm10
+	mulss	xmm1, xmm11
 	movaps	xmm0, xmm8
-	mulss	xmm0, xmm11
-	mulss	xmm6, xmm9
+	mulss	xmm0, xmm12
+	mulss	xmm6, xmm10
 	subss	xmm1, xmm0
-	mulss	xmm8, xmm9
+	mulss	xmm8, xmm10
 ; Line 37
-	movss	DWORD PTR $T6[rsp], xmm1
+	movss	DWORD PTR $T5[rsp], xmm1
 ; Line 24
 	movaps	xmm1, xmm7
-	mulss	xmm1, xmm11
-	mulss	xmm7, xmm10
+	mulss	xmm1, xmm12
+	mulss	xmm7, xmm11
 	subss	xmm1, xmm6
 	subss	xmm8, xmm7
 ; Line 38
-	movss	DWORD PTR $T6[rsp+4], xmm1
+	movss	DWORD PTR $T5[rsp+4], xmm1
 ; Line 39
-	movss	DWORD PTR $T6[rsp+8], xmm8
+	movss	DWORD PTR $T5[rsp+8], xmm8
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 88
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
-	movss	xmm7, DWORD PTR r$9[rsp]
-	movaps	xmm0, xmm9
-	movss	xmm4, DWORD PTR r$9[rsp+4]
-	movaps	xmm8, xmm10
-	movss	xmm3, DWORD PTR r$9[rsp+8]
-	movaps	xmm6, xmm9
-	mulss	xmm0, xmm4
-	mulss	xmm8, xmm7
-	mulss	xmm6, xmm3
-	subss	xmm8, xmm0
+	movss	xmm6, DWORD PTR r$7[rsp+8]
 	movaps	xmm0, xmm11
-	mulss	xmm0, xmm7
-	subss	xmm6, xmm0
+	movss	xmm5, DWORD PTR r$7[rsp+4]
+	movaps	xmm9, xmm12
+	movss	xmm3, DWORD PTR r$7[rsp]
+	movaps	xmm8, xmm10
+	mulss	xmm0, xmm6
+	mulss	xmm9, xmm5
+	mulss	xmm8, xmm6
+	subss	xmm9, xmm0
+	movaps	xmm0, xmm12
+	mulss	xmm0, xmm3
+	subss	xmm8, xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 94
-	movss	xmm2, DWORD PTR __xmm@80000000800000008000000080000000
+	movss	xmm4, DWORD PTR __xmm@80000000800000008000000080000000
 	xorps	xmm1, xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 176
 	mov	ecx, DWORD PTR [r14+12]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 24
-	movaps	xmm0, xmm10
-	mulss	xmm0, xmm3
-	movaps	xmm5, xmm11
-	mulss	xmm5, xmm4
+; Line 33
+	movaps	xmm2, xmm15
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\cmath
 ; Line 269
 	movups	XMMWORD PTR view$[rbp-208], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 12
 	mov	DWORD PTR view$[rbp-196], 1065353216	; 3f800000H
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 24
-	subss	xmm5, xmm0
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
-	movaps	xmm0, xmm9
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\cmath
 ; Line 269
 	movups	XMMWORD PTR view$[rbp-256], xmm1
 	movups	XMMWORD PTR view$[rbp-240], xmm1
 	movups	XMMWORD PTR view$[rbp-224], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 93
-	movss	DWORD PTR view$[rbp-252], xmm5
-; Line 94
-	xorps	xmm0, xmm2
-	movss	DWORD PTR view$[rbp-256], xmm7
-	movaps	xmm1, xmm11
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 33
-	mulss	xmm5, xmm12
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
-	xorps	xmm1, xmm2
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 33
-	mulss	xmm7, xmm12
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
-	movss	DWORD PTR view$[rbp-248], xmm0
-	movaps	xmm0, xmm10
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 33
-	mulss	xmm9, xmm12
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
-	xorps	xmm0, xmm2
-	movss	DWORD PTR view$[rbp-240], xmm4
-	movss	DWORD PTR view$[rbp-236], xmm6
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 33
-	mulss	xmm4, xmm13
-	mulss	xmm6, xmm13
-	addss	xmm7, xmm4
-	mulss	xmm10, xmm13
-	addss	xmm5, xmm6
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 92
-	movss	DWORD PTR view$[rbp-224], xmm3
-; Line 93
-	movss	DWORD PTR view$[rbp-220], xmm8
+	movss	DWORD PTR view$[rbp-256], xmm3
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 33
-	mulss	xmm3, xmm14
-	addss	xmm9, xmm10
-	mulss	xmm8, xmm14
-	mulss	xmm11, xmm14
-	addss	xmm7, xmm3
-	addss	xmm5, xmm8
+; Line 24
+	movaps	xmm0, xmm10
+	mulss	xmm0, xmm5
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 94
-	movss	DWORD PTR view$[rbp-232], xmm0
+	movaps	xmm1, xmm12
+	xorps	xmm1, xmm4
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 33
+	mulss	xmm2, xmm5
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
+; Line 94
 	movss	DWORD PTR view$[rbp-216], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 24
+	movaps	xmm7, xmm11
+	mulss	xmm7, xmm3
 ; Line 33
-	addss	xmm9, xmm11
+	movaps	xmm1, xmm14
+	mulss	xmm1, xmm6
+; Line 24
+	subss	xmm7, xmm0
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
+; Line 92
+	movss	DWORD PTR view$[rbp-240], xmm5
+; Line 94
+	movaps	xmm0, xmm10
+	movss	DWORD PTR view$[rbp-224], xmm6
+	xorps	xmm0, xmm4
+	movss	DWORD PTR view$[rbp-252], xmm9
+	movss	DWORD PTR view$[rbp-248], xmm0
+	movaps	xmm0, xmm11
+	xorps	xmm0, xmm4
+	movss	DWORD PTR view$[rbp-236], xmm8
+	movss	DWORD PTR view$[rbp-232], xmm0
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 33
+	movaps	xmm0, xmm13
+	mulss	xmm0, xmm3
+	movaps	xmm3, xmm15
+	mulss	xmm3, xmm8
+	addss	xmm2, xmm0
+	mulss	xmm15, xmm11
+	movaps	xmm0, xmm13
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
+; Line 93
+	movss	DWORD PTR view$[rbp-220], xmm7
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 33
+	mulss	xmm0, xmm9
+	addss	xmm2, xmm1
+	mulss	xmm13, xmm10
+	movaps	xmm1, xmm14
+	addss	xmm3, xmm0
+	mulss	xmm14, xmm12
+	mulss	xmm1, xmm7
+	addss	xmm15, xmm13
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 95
-	xorps	xmm7, xmm2
-	movss	DWORD PTR view$[rbp-208], xmm7
+	xorps	xmm2, xmm4
+	movss	DWORD PTR view$[rbp-208], xmm2
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 33
+	addss	xmm3, xmm1
+	addss	xmm15, xmm14
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 96
-	xorps	xmm5, xmm2
-	movss	DWORD PTR view$[rbp-204], xmm5
+	xorps	xmm3, xmm4
+	movss	DWORD PTR view$[rbp-204], xmm3
 ; Line 97
-	movss	DWORD PTR view$[rbp-200], xmm9
+	movss	DWORD PTR view$[rbp-200], xmm15
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 176
 	call	QWORD PTR __glewUseProgram
@@ -52786,13 +53682,13 @@ $LN5@render:
 	call	rbx
 ; Line 181
 	mov	rax, QWORD PTR [rdi+56]
-	lea	rdx, OFFSET FLAT:??_C@_07HBJDLKAL@viewPos@
-	mov	ecx, DWORD PTR [r14+12]
 	mov	rbx, QWORD PTR __glewUniform3f
 	movss	xmm6, DWORD PTR [rax+8]
 	movss	xmm7, DWORD PTR [rax+4]
 	movss	xmm8, DWORD PTR [rax]
 	mov	rax, QWORD PTR __glewGetUniformLocation
+	mov	ecx, DWORD PTR [r14+12]
+	lea	rdx, OFFSET FLAT:??_C@_07HBJDLKAL@viewPos@
 	call	rax
 	movaps	xmm3, xmm6
 	movaps	xmm2, xmm7
@@ -52806,10 +53702,16 @@ $LN5@render:
 	call	rax
 ; Line 185
 	mov	ecx, DWORD PTR [r14+4]
-	mov	r12d, eax
+	mov	DWORD PTR modelLoc$[rsp], eax
 	call	QWORD PTR __glewBindVertexArray
-; Line 188
-	mov	rcx, rsi
+; Line 230
+	lea	rax, QWORD PTR modelLoc$[rsp]
+	mov	QWORD PTR renderCubeTree$[rsp+8], r14
+; Line 233
+	mov	rcx, r15
+; Line 230
+	mov	QWORD PTR renderCubeTree$[rsp], rax
+; Line 233
 	call	?getChildren@Instance@@QEAAAEBV?$unordered_map@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@XZ ; Instance::getChildren
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
 ; Line 1125
@@ -52819,347 +53721,73 @@ $LN5@render:
 ; Line 72
 	cmp	rbx, rdi
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 188
-	je	$LN3@render
-	movaps	XMMWORD PTR [rsp+496], xmm15
-	npad	4
+; Line 233
+	je	SHORT $LN3@render
+	npad	7
 $LL4@render:
-; Line 189
-	mov	rcx, QWORD PTR [rbx+48]
-	lea	rdx, QWORD PTR $T7[rsp]
+; Line 234
+	mov	r8, QWORD PTR [rbx+48]
+	lea	r9, QWORD PTR $T8[rsp]
 	xorps	xmm0, xmm0
-	mov	rax, QWORD PTR [rcx]
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
-; Line 493
-	movups	XMMWORD PTR $T7[rsp], xmm0
-; Line 940
-	mov	QWORD PTR $T7[rsp+16], 4
-; Line 941
-	mov	QWORD PTR $T7[rsp+24], 15
-; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 189
-	mov	r8, QWORD PTR [rax+24]
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 200
-	mov	eax, DWORD PTR ??_C@_04CJLGPKHJ@Cube@
-	mov	DWORD PTR $T7[rsp], eax
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
-; Line 948
-	mov	BYTE PTR $T7[rsp+4], 0
-; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 189
-	call	r8
-	test	al, al
-	je	$LN2@render
-; Line 190
-	mov	rsi, QWORD PTR [rbx+48]
-	xorps	xmm1, xmm1
-	movups	XMMWORD PTR scale$13[rbp-240], xmm1
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 104
-	movss	xmm2, DWORD PTR [rsi+140]
-; Line 105
-	movss	xmm1, DWORD PTR [rsi+144]
-	movaps	xmm7, xmm2
-; Line 110
-	movss	xmm3, DWORD PTR [rsi+136]
-	movaps	xmm15, xmm1
-; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 193
-	movss	xmm0, DWORD PTR [rsi+132]
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 110
-	movaps	xmm5, xmm3
-; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 193
-	movss	xmm14, DWORD PTR [rsi+128]
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 105
-	movaps	xmm8, xmm1
-; Line 110
-	mulss	xmm5, xmm2
-	mulss	xmm15, xmm2
-	mulss	xmm7, xmm2
-; Line 120
-	movaps	xmm11, xmm5
-; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 193
-	movaps	XMMWORD PTR tv1741[rsp], xmm0
-	xorps	xmm0, xmm0
+	lea	rdx, QWORD PTR renderCubeTree$[rsp]
+	movups	XMMWORD PTR $T8[rsp], xmm0
+	lea	rcx, QWORD PTR renderCubeTree$[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 12
-	movups	XMMWORD PTR rotation$12[rbp-256], xmm0
-	movups	XMMWORD PTR rotation$12[rbp-240], xmm0
-	movups	XMMWORD PTR rotation$12[rbp-224], xmm0
-	movups	XMMWORD PTR rotation$12[rbp-208], xmm0
-; Line 106
-	movss	xmm0, DWORD PTR [rsi+148]
-; Line 108
-	movaps	xmm6, xmm0
-	mulss	xmm8, xmm1
-	mulss	xmm6, xmm2
-	movaps	xmm4, xmm0
-	mulss	xmm4, xmm0
-; Line 111
-	movaps	xmm2, xmm3
-	mulss	xmm2, xmm1
-	movaps	xmm12, xmm0
-; Line 112
-	mulss	xmm3, xmm0
-; Line 116
-	movaps	xmm10, xmm6
-	movaps	xmm0, xmm4
-	mulss	xmm12, xmm1
-	movss	xmm1, DWORD PTR __real@3f800000
-	subss	xmm10, xmm2
-; Line 122
-	addss	xmm2, xmm6
-	movaps	xmm9, xmm3
-; Line 35
-	movsd	xmm6, QWORD PTR [rsi+112]
-; Line 115
-	addss	xmm9, xmm15
-	addss	xmm0, xmm8
-	movaps	xmm13, xmm1
-; Line 118
-	subss	xmm15, xmm3
-; Line 119
-	movaps	xmm3, xmm1
-; Line 120
-	addss	xmm11, xmm12
-; Line 122
-	addss	xmm2, xmm2
-; Line 123
-	subss	xmm12, xmm5
-; Line 124
-	movaps	xmm5, xmm1
-	addss	xmm4, xmm7
-	addss	xmm0, xmm0
-	addss	xmm9, xmm9
-	movups	XMMWORD PTR $T10[rsp], xmm2
-; Line 35
-	movss	xmm2, DWORD PTR [rsi+120]
-; Line 124
-	addss	xmm8, xmm7
-	subss	xmm13, xmm0
-; Line 35
-	unpcklps xmm2, xmm1
-	xorps	xmm0, xmm0
-; Line 19
-	shufps	xmm9, xmm9, 0
-; Line 119
-	addss	xmm4, xmm4
-; Line 35
-	movlhps	xmm6, xmm2
+	mov	DWORD PTR $T8[rsp], 1065353216		; 3f800000H
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 233
+	movups	XMMWORD PTR $T8[rsp+16], xmm0
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 12
-	movups	XMMWORD PTR translation$11[rsp], xmm0
-	mov	DWORD PTR translation$11[rsp], 1065353216 ; 3f800000H
-	movups	XMMWORD PTR translation$11[rsp+16], xmm0
-	mov	DWORD PTR translation$11[rsp+20], 1065353216 ; 3f800000H
-; Line 19
-	shufps	xmm13, xmm13, 0
-; Line 116
-	addss	xmm10, xmm10
-; Line 20
-	movups	xmm1, XMMWORD PTR translation$11[rsp+16]
-; Line 119
-	subss	xmm3, xmm4
-; Line 20
-	movups	xmm4, XMMWORD PTR translation$11[rsp]
-; Line 124
-	addss	xmm8, xmm8
-; Line 20
-	mulps	xmm13, xmm4
-; Line 118
-	addss	xmm15, xmm15
-; Line 20
-	mulps	xmm9, xmm1
-; Line 120
-	addss	xmm11, xmm11
+	mov	DWORD PTR $T8[rsp+20], 1065353216	; 3f800000H
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
+; Line 233
+	movups	XMMWORD PTR $T8[rbp-224], xmm0
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 12
-	movups	XMMWORD PTR translation$11[rbp-224], xmm0
-	mov	DWORD PTR translation$11[rbp-216], 1065353216 ; 3f800000H
-; Line 123
-	addss	xmm12, xmm12
-; Line 19
-	shufps	xmm10, xmm10, 0
-; Line 20
-	addps	xmm13, xmm9
-; Line 124
-	subss	xmm5, xmm8
-; Line 20
-	movups	xmm2, XMMWORD PTR translation$11[rbp-224]
-	movss	xmm0, DWORD PTR rotation$12[rbp-244]
-	shufps	xmm0, xmm0, 0
-	mulps	xmm0, xmm6
-	mulps	xmm10, xmm2
-	shufps	xmm3, xmm3, 0
-	mulps	xmm3, xmm1
-	shufps	xmm5, xmm5, 0
-	addps	xmm13, xmm10
-	mulps	xmm5, xmm2
-	shufps	xmm15, xmm15, 0
-	mulps	xmm15, xmm4
-	addps	xmm13, xmm0
-; Line 19
-	shufps	xmm14, xmm14, 0
-	movss	xmm0, DWORD PTR rotation$12[rbp-228]
-	shufps	xmm0, xmm0, 0
-; Line 20
-	mulps	xmm0, xmm6
-	addps	xmm15, xmm3
-	movups	xmm3, XMMWORD PTR $T10[rsp]
-	shufps	xmm11, xmm11, 0
-	mulps	xmm11, xmm2
-	shufps	xmm3, xmm3, 0
-	mulps	xmm3, xmm4
-	shufps	xmm12, xmm12, 0
-	addps	xmm15, xmm11
-	mulps	xmm12, xmm1
-	addps	xmm15, xmm0
-	movss	xmm0, DWORD PTR rotation$12[rbp-212]
-	shufps	xmm0, xmm0, 0
-	addps	xmm3, xmm12
-	mulps	xmm0, xmm6
-	mulps	xmm6, XMMWORD PTR __xmm@3f8000003f8000003f8000003f800000
-	addps	xmm3, xmm5
-	mulps	xmm14, xmm15
-	xorps	xmm5, xmm5
-	mulps	xmm5, xmm4
-	xorps	xmm4, xmm4
-	addps	xmm3, xmm0
+	mov	DWORD PTR $T8[rbp-216], 1065353216	; 3f800000H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 190
-	movups	XMMWORD PTR scale$13[rbp-224], xmm4
+; Line 233
+	movups	XMMWORD PTR $T8[rbp-208], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 19
-	movss	xmm0, DWORD PTR rotation$12[rbp-204]
-	shufps	xmm0, xmm0, 0
-; Line 20
-	mulps	xmm0, xmm1
-	movss	xmm1, DWORD PTR rotation$12[rbp-200]
-	shufps	xmm1, xmm1, 0
-	mulps	xmm1, xmm2
-; Line 19
-	movss	xmm2, DWORD PTR [rsi+124]
-; Line 20
-	addps	xmm5, xmm0
-	xorps	xmm0, xmm0
-; Line 19
-	shufps	xmm2, xmm2, 0
-; Line 20
-	mulps	xmm0, xmm15
-	mulps	xmm2, xmm13
-	addps	xmm5, xmm1
-	xorps	xmm1, xmm1
-	mulps	xmm1, xmm3
-	addps	xmm2, xmm0
-	xorps	xmm0, xmm0
-	addps	xmm5, xmm6
-	addps	xmm2, xmm1
-	movss	xmm1, DWORD PTR scale$13[rbp-232]
-	shufps	xmm1, xmm1, 0
-	mulps	xmm0, xmm5
-	mulps	xmm1, xmm3
-	addps	xmm2, xmm0
-	xorps	xmm0, xmm0
-	mulps	xmm0, xmm13
-	movups	XMMWORD PTR modelMat$14[rbp-256], xmm2
-	addps	xmm14, xmm0
-	movss	xmm0, DWORD PTR scale$13[rbp-228]
-	shufps	xmm0, xmm0, 0
-	mulps	xmm0, xmm5
-	addps	xmm14, xmm1
-	xorps	xmm1, xmm1
-	mulps	xmm1, xmm15
-	addps	xmm14, xmm0
-	xorps	xmm0, xmm0
-	mulps	xmm0, xmm13
-	movups	XMMWORD PTR modelMat$14[rbp-240], xmm14
-	addps	xmm1, xmm0
-	movaps	xmm0, XMMWORD PTR tv1741[rsp]
-	shufps	xmm0, xmm0, 0
-	mulps	xmm0, xmm3
-	addps	xmm1, xmm0
+; Line 12
+	mov	DWORD PTR $T8[rbp-196], 1065353216	; 3f800000H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 190
-	movups	XMMWORD PTR scale$13[rbp-208], xmm4
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 19
-	movss	xmm0, DWORD PTR scale$13[rbp-212]
-; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 204
-	lea	r9, QWORD PTR modelMat$14[rbp-256]
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 19
-	shufps	xmm0, xmm0, 0
-; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 204
-	xor	r8d, r8d
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 20
-	mulps	xmm0, xmm5
-; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 204
-	mov	edx, 1
-	mov	ecx, r12d
-; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 20
-	mulps	xmm5, XMMWORD PTR __xmm@3f8000003f8000003f8000003f800000
-	mulps	xmm4, xmm13
-	addps	xmm1, xmm0
-	movss	xmm0, DWORD PTR scale$13[rbp-200]
-	shufps	xmm0, xmm0, 0
-	mulps	xmm0, xmm3
-	movups	XMMWORD PTR modelMat$14[rbp-224], xmm1
-	xorps	xmm1, xmm1
-	mulps	xmm1, xmm15
-	addps	xmm1, xmm4
-	addps	xmm1, xmm0
-	addps	xmm1, xmm5
-	movups	XMMWORD PTR modelMat$14[rbp-208], xmm1
-; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 204
-	call	QWORD PTR __glewUniformMatrix4fv
-; Line 207
-	mov	r8d, DWORD PTR [r14+12]
-	mov	edx, r12d
-	mov	rcx, rsi
-	call	?draw@Cube@@QEAAXHH@Z			; Cube::draw
-$LN2@render:
+; Line 234
+	call	??$?RV<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@@<lambda_1>@?1??render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z@QEBAXAEAV0?1??12@QEAAX012@Z@PEAVInstance@@AEBUMatrix4@@@Z ; `Renderer::render'::`2'::<lambda_1>::operator()<`Renderer::render'::`2'::<lambda_1> >
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
 ; Line 50
 	mov	rbx, QWORD PTR [rbx]
 ; Line 72
 	cmp	rbx, rdi
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 188
-	jne	$LL4@render
-	movaps	xmm15, XMMWORD PTR [rsp+496]
+; Line 233
+	jne	SHORT $LL4@render
 $LN3@render:
-; Line 211
-	mov	rcx, r15
+; Line 237
+	mov	rcx, rsi
 	call	glfwSwapBuffers
-; Line 212
+; Line 238
 	call	glfwPollEvents
-; Line 213
+; Line 239
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
-	lea	r11, QWORD PTR [rsp+656]
-	movaps	xmm6, XMMWORD PTR [r11-16]
-	movaps	xmm7, XMMWORD PTR [r11-32]
-	movaps	xmm8, XMMWORD PTR [r11-48]
-	movaps	xmm9, XMMWORD PTR [r11-64]
-	movaps	xmm10, XMMWORD PTR [r11-80]
-	movaps	xmm11, XMMWORD PTR [r11-96]
-	movaps	xmm12, XMMWORD PTR [r11-112]
-	movaps	xmm13, XMMWORD PTR [r11-128]
-	movaps	xmm14, XMMWORD PTR [r11-144]
+	lea	r11, QWORD PTR [rsp+472]
+	movaps	xmm6, XMMWORD PTR [r11-24]
+	movaps	xmm7, XMMWORD PTR [r11-40]
+	movaps	xmm8, XMMWORD PTR [r11-56]
+	movaps	xmm9, XMMWORD PTR [r11-72]
+	movaps	xmm10, XMMWORD PTR [r11-88]
+	movaps	xmm11, XMMWORD PTR [r11-104]
+	movaps	xmm12, XMMWORD PTR [r11-120]
+	movaps	xmm13, XMMWORD PTR [r11-136]
+	movaps	xmm14, XMMWORD PTR [r11-152]
+	movaps	xmm15, XMMWORD PTR [r11-168]
 	mov	rsp, r11
 	pop	r15
 	pop	r14
-	pop	r12
 	pop	rdi
 	pop	rsi
 	pop	rbx
@@ -58468,7 +59096,7 @@ __formal$ = 16
 __formal$ = 24
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 249
+; Line 275
 	ret	0
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -58479,7 +59107,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 249
+; Line 275
 	ret	0
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -58490,7 +59118,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAX_K@Z PROC		; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 249
+; Line 275
 	ret	0
 ?__empty_global_delete@@YAXPEAX_K@Z ENDP		; __empty_global_delete
 _TEXT	ENDS
@@ -58500,7 +59128,7 @@ _TEXT	SEGMENT
 __formal$ = 8
 ?__empty_global_delete@@YAXPEAX@Z PROC			; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
-; Line 249
+; Line 275
 	ret	0
 ?__empty_global_delete@@YAXPEAX@Z ENDP			; __empty_global_delete
 _TEXT	ENDS

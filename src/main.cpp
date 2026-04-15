@@ -53,7 +53,7 @@ GLFWwindow* setupWindow() {
 
 int main() {
     std::cout << "Hello world!\n"
-              << "Version 0.66\n";
+              << "Version 0.70\n";
     GLFWwindow* window = setupWindow();
     if (!window) {
         std::cout << "[ERROR] Failed to setup.\n";
@@ -129,6 +129,13 @@ int main() {
     baseplate->Color = Color4(0.0f, 1.0f, 0.5f, 1.0f);
     baseplate->Anchored = true;
     workspace.addChild(baseplate);
+
+    // キャラクターをスポーン
+    user.spawnCharacter();
+    workspace.addChild(user.character);
+    
+    // Freeモード（カメラ操作）がデフォルト
+    // user.controlMode = User::ControlMode::Character; // Fキーで切り替え可能
 
     float lastFrame = static_cast<float>(glfwGetTime());
     while (!glfwWindowShouldClose(window)) {
