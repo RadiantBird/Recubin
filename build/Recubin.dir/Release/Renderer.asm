@@ -52538,7 +52538,7 @@ $LN5@render:
 	call	QWORD PTR __imp_glViewport
 	xorps	xmm0, xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 12
+; Line 10
 	movups	XMMWORD PTR projection$[rbp-256], xmm0
 	movups	XMMWORD PTR projection$[rbp-240], xmm0
 	movups	XMMWORD PTR projection$[rbp-224], xmm0
@@ -52548,9 +52548,9 @@ $LN5@render:
 	movss	xmm0, DWORD PTR __real@3ec90fdb
 	call	tanf
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 77
+; Line 66
 	movss	xmm3, DWORD PTR __real@3f800000
-; Line 87
+; Line 76
 	lea	rdx, QWORD PTR f$8[rsp]
 	movd	xmm2, DWORD PTR width$[rsp]
 	lea	rcx, QWORD PTR $T5[rsp]
@@ -52562,13 +52562,13 @@ $LN5@render:
 	movss	xmm8, DWORD PTR [rdi+92]
 	movss	xmm6, DWORD PTR [rdi+96]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 77
+; Line 66
 	divss	xmm3, xmm0
-; Line 80
+; Line 69
 	mov	DWORD PTR projection$[rbp-216], -1082113638 ; bf80419aH
-; Line 81
+; Line 70
 	mov	DWORD PTR projection$[rbp-212], -1082130432 ; bf800000H
-; Line 82
+; Line 71
 	mov	DWORD PTR projection$[rbp-200], -1102249656 ; be4d0148H
 	movd	xmm0, DWORD PTR height$[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
@@ -52576,15 +52576,15 @@ $LN5@render:
 	cvtdq2ps xmm0, xmm0
 	cvtdq2ps xmm2, xmm2
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 78
+; Line 67
 	movaps	xmm1, xmm3
-; Line 79
+; Line 68
 	movss	DWORD PTR projection$[rbp-236], xmm3
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 171
 	divss	xmm2, xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 78
+; Line 67
 	divss	xmm1, xmm2
 	movss	DWORD PTR projection$[rbp-256], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
@@ -52611,19 +52611,19 @@ $LN5@render:
 ; Line 38
 	movss	DWORD PTR $T5[rsp+4], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 87
+; Line 76
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
 	movss	xmm10, DWORD PTR f$8[rsp+4]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 88
+; Line 77
 	lea	rdx, QWORD PTR r$9[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
 	movss	xmm11, DWORD PTR f$8[rsp+8]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 88
+; Line 77
 	lea	rcx, QWORD PTR $T6[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
@@ -52648,7 +52648,7 @@ $LN5@render:
 ; Line 39
 	movss	DWORD PTR $T6[rsp+8], xmm8
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 88
+; Line 77
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
@@ -52666,7 +52666,7 @@ $LN5@render:
 	mulss	xmm0, xmm7
 	subss	xmm6, xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
+; Line 82
 	movss	xmm2, DWORD PTR __xmm@80000000800000008000000080000000
 	xorps	xmm1, xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
@@ -52682,13 +52682,13 @@ $LN5@render:
 ; Line 269
 	movups	XMMWORD PTR view$[rbp-208], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 12
+; Line 10
 	mov	DWORD PTR view$[rbp-196], 1065353216	; 3f800000H
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
 	subss	xmm5, xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
+; Line 82
 	movaps	xmm0, xmm9
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\cmath
 ; Line 269
@@ -52696,9 +52696,9 @@ $LN5@render:
 	movups	XMMWORD PTR view$[rbp-240], xmm1
 	movups	XMMWORD PTR view$[rbp-224], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 93
+; Line 81
 	movss	DWORD PTR view$[rbp-252], xmm5
-; Line 94
+; Line 82
 	xorps	xmm0, xmm2
 	movss	DWORD PTR view$[rbp-256], xmm7
 	movaps	xmm1, xmm11
@@ -52706,20 +52706,20 @@ $LN5@render:
 ; Line 33
 	mulss	xmm5, xmm12
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
+; Line 82
 	xorps	xmm1, xmm2
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	mulss	xmm7, xmm12
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
+; Line 82
 	movss	DWORD PTR view$[rbp-248], xmm0
 	movaps	xmm0, xmm10
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	mulss	xmm9, xmm12
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
+; Line 82
 	xorps	xmm0, xmm2
 	movss	DWORD PTR view$[rbp-240], xmm4
 	movss	DWORD PTR view$[rbp-236], xmm6
@@ -52731,9 +52731,9 @@ $LN5@render:
 	mulss	xmm10, xmm13
 	addss	xmm5, xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 92
+; Line 80
 	movss	DWORD PTR view$[rbp-224], xmm3
-; Line 93
+; Line 81
 	movss	DWORD PTR view$[rbp-220], xmm8
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
@@ -52744,20 +52744,20 @@ $LN5@render:
 	addss	xmm7, xmm3
 	addss	xmm5, xmm8
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
+; Line 82
 	movss	DWORD PTR view$[rbp-232], xmm0
 	movss	DWORD PTR view$[rbp-216], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	addss	xmm9, xmm11
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 95
+; Line 83
 	xorps	xmm7, xmm2
 	movss	DWORD PTR view$[rbp-208], xmm7
-; Line 96
+; Line 84
 	xorps	xmm5, xmm2
 	movss	DWORD PTR view$[rbp-204], xmm5
-; Line 97
+; Line 85
 	movss	DWORD PTR view$[rbp-200], xmm9
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 176
@@ -52856,138 +52856,136 @@ $LL4@render:
 	xorps	xmm1, xmm1
 	movups	XMMWORD PTR scale$13[rbp-240], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 104
+; Line 91
 	movss	xmm2, DWORD PTR [rsi+140]
-; Line 105
 	movss	xmm1, DWORD PTR [rsi+144]
 	movaps	xmm7, xmm2
-; Line 110
+; Line 93
 	movss	xmm3, DWORD PTR [rsi+136]
 	movaps	xmm15, xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 193
 	movss	xmm0, DWORD PTR [rsi+132]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 110
+; Line 93
 	movaps	xmm5, xmm3
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 193
 	movss	xmm14, DWORD PTR [rsi+128]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 105
+; Line 91
 	movaps	xmm8, xmm1
-; Line 110
+; Line 93
 	mulss	xmm5, xmm2
 	mulss	xmm15, xmm2
 	mulss	xmm7, xmm2
-; Line 120
+; Line 99
 	movaps	xmm11, xmm5
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 193
 	movaps	XMMWORD PTR tv1741[rsp], xmm0
 	xorps	xmm0, xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 12
+; Line 10
 	movups	XMMWORD PTR rotation$12[rbp-256], xmm0
 	movups	XMMWORD PTR rotation$12[rbp-240], xmm0
 	movups	XMMWORD PTR rotation$12[rbp-224], xmm0
 	movups	XMMWORD PTR rotation$12[rbp-208], xmm0
-; Line 106
+; Line 91
 	movss	xmm0, DWORD PTR [rsi+148]
-; Line 108
+; Line 92
 	movaps	xmm6, xmm0
 	mulss	xmm8, xmm1
 	mulss	xmm6, xmm2
 	movaps	xmm4, xmm0
 	mulss	xmm4, xmm0
-; Line 111
+; Line 93
 	movaps	xmm2, xmm3
 	mulss	xmm2, xmm1
 	movaps	xmm12, xmm0
-; Line 112
 	mulss	xmm3, xmm0
-; Line 116
+; Line 96
 	movaps	xmm10, xmm6
 	movaps	xmm0, xmm4
 	mulss	xmm12, xmm1
 	movss	xmm1, DWORD PTR __real@3f800000
 	subss	xmm10, xmm2
-; Line 122
+; Line 100
 	addss	xmm2, xmm6
 	movaps	xmm9, xmm3
-; Line 35
+; Line 29
 	movsd	xmm6, QWORD PTR [rsi+112]
-; Line 115
+; Line 95
 	addss	xmm9, xmm15
 	addss	xmm0, xmm8
 	movaps	xmm13, xmm1
-; Line 118
+; Line 97
 	subss	xmm15, xmm3
-; Line 119
+; Line 98
 	movaps	xmm3, xmm1
-; Line 120
+; Line 99
 	addss	xmm11, xmm12
-; Line 122
+; Line 100
 	addss	xmm2, xmm2
-; Line 123
+; Line 101
 	subss	xmm12, xmm5
-; Line 124
+; Line 102
 	movaps	xmm5, xmm1
 	addss	xmm4, xmm7
 	addss	xmm0, xmm0
 	addss	xmm9, xmm9
 	movups	XMMWORD PTR $T10[rsp], xmm2
-; Line 35
+; Line 29
 	movss	xmm2, DWORD PTR [rsi+120]
-; Line 124
+; Line 102
 	addss	xmm8, xmm7
 	subss	xmm13, xmm0
-; Line 35
+; Line 29
 	unpcklps xmm2, xmm1
 	xorps	xmm0, xmm0
-; Line 19
+; Line 16
 	shufps	xmm9, xmm9, 0
-; Line 119
+; Line 98
 	addss	xmm4, xmm4
-; Line 35
+; Line 29
 	movlhps	xmm6, xmm2
-; Line 12
+; Line 10
 	movups	XMMWORD PTR translation$11[rsp], xmm0
 	mov	DWORD PTR translation$11[rsp], 1065353216 ; 3f800000H
 	movups	XMMWORD PTR translation$11[rsp+16], xmm0
 	mov	DWORD PTR translation$11[rsp+20], 1065353216 ; 3f800000H
-; Line 19
+; Line 16
 	shufps	xmm13, xmm13, 0
-; Line 116
+; Line 96
 	addss	xmm10, xmm10
-; Line 20
+; Line 17
 	movups	xmm1, XMMWORD PTR translation$11[rsp+16]
-; Line 119
+; Line 98
 	subss	xmm3, xmm4
-; Line 20
+; Line 17
 	movups	xmm4, XMMWORD PTR translation$11[rsp]
-; Line 124
+; Line 102
 	addss	xmm8, xmm8
-; Line 20
+; Line 17
 	mulps	xmm13, xmm4
-; Line 118
+; Line 97
 	addss	xmm15, xmm15
-; Line 20
+; Line 17
 	mulps	xmm9, xmm1
-; Line 120
+; Line 99
 	addss	xmm11, xmm11
-; Line 12
+; Line 10
 	movups	XMMWORD PTR translation$11[rbp-224], xmm0
 	mov	DWORD PTR translation$11[rbp-216], 1065353216 ; 3f800000H
-; Line 123
+; Line 101
 	addss	xmm12, xmm12
-; Line 19
+; Line 16
 	shufps	xmm10, xmm10, 0
-; Line 20
+; Line 17
 	addps	xmm13, xmm9
-; Line 124
+; Line 102
 	subss	xmm5, xmm8
-; Line 20
+; Line 17
 	movups	xmm2, XMMWORD PTR translation$11[rbp-224]
 	movss	xmm0, DWORD PTR rotation$12[rbp-244]
 	shufps	xmm0, xmm0, 0
@@ -53001,11 +52999,11 @@ $LL4@render:
 	shufps	xmm15, xmm15, 0
 	mulps	xmm15, xmm4
 	addps	xmm13, xmm0
-; Line 19
+; Line 16
 	shufps	xmm14, xmm14, 0
 	movss	xmm0, DWORD PTR rotation$12[rbp-228]
 	shufps	xmm0, xmm0, 0
-; Line 20
+; Line 17
 	mulps	xmm0, xmm6
 	addps	xmm15, xmm3
 	movups	xmm3, XMMWORD PTR $T10[rsp]
@@ -53032,22 +53030,22 @@ $LL4@render:
 ; Line 190
 	movups	XMMWORD PTR scale$13[rbp-224], xmm4
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 19
+; Line 16
 	movss	xmm0, DWORD PTR rotation$12[rbp-204]
 	shufps	xmm0, xmm0, 0
-; Line 20
+; Line 17
 	mulps	xmm0, xmm1
 	movss	xmm1, DWORD PTR rotation$12[rbp-200]
 	shufps	xmm1, xmm1, 0
 	mulps	xmm1, xmm2
-; Line 19
+; Line 16
 	movss	xmm2, DWORD PTR [rsi+124]
-; Line 20
+; Line 17
 	addps	xmm5, xmm0
 	xorps	xmm0, xmm0
-; Line 19
+; Line 16
 	shufps	xmm2, xmm2, 0
-; Line 20
+; Line 17
 	mulps	xmm0, xmm15
 	mulps	xmm2, xmm13
 	addps	xmm5, xmm1
@@ -53085,26 +53083,26 @@ $LL4@render:
 ; Line 190
 	movups	XMMWORD PTR scale$13[rbp-208], xmm4
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 19
+; Line 16
 	movss	xmm0, DWORD PTR scale$13[rbp-212]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 204
 	lea	r9, QWORD PTR modelMat$14[rbp-256]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 19
+; Line 16
 	shufps	xmm0, xmm0, 0
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 204
 	xor	r8d, r8d
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 20
+; Line 17
 	mulps	xmm0, xmm5
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 204
 	mov	edx, 1
 	mov	ecx, r12d
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 20
+; Line 17
 	mulps	xmm5, XMMWORD PTR __xmm@3f8000003f8000003f8000003f800000
 	mulps	xmm4, xmm13
 	addps	xmm1, xmm0
@@ -55839,28 +55837,28 @@ __$ReturnUdt$ = 112
 q$ = 120
 ?FromQuaternion@Matrix4@@SA?AU1@AEBUQuaternion@@@Z PROC	; Matrix4::FromQuaternion, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 101
+; Line 89
 $LN15:
 	sub	rsp, 104				; 00000068H
-; Line 105
+; Line 91
 	movss	xmm1, DWORD PTR [rdx+8]
 	xorps	xmm0, xmm0
 	movss	xmm2, DWORD PTR [rdx+4]
-; Line 107
+; Line 92
 	movaps	xmm4, xmm1
-; Line 110
+; Line 93
 	movss	xmm3, DWORD PTR [rdx]
-; Line 126
+; Line 103
 	mov	rax, rcx
 	movups	XMMWORD PTR [rcx], xmm0
 	movups	XMMWORD PTR [rcx+16], xmm0
 	movups	XMMWORD PTR [rcx+32], xmm0
 	movups	XMMWORD PTR [rcx+48], xmm0
-; Line 12
+; Line 10
 	mov	DWORD PTR [rcx+60], 1065353216		; 3f800000H
-; Line 106
+; Line 91
 	movss	xmm0, DWORD PTR [rdx+12]
-; Line 111
+; Line 93
 	movaps	xmm5, xmm3
 	movaps	XMMWORD PTR [rsp+80], xmm6
 	movaps	xmm6, xmm0
@@ -55878,7 +55876,7 @@ $LN15:
 	mulss	xmm11, xmm1
 	movaps	xmm10, xmm2
 	mulss	xmm9, xmm1
-; Line 114
+; Line 94
 	movaps	xmm1, xmm6
 	addss	xmm1, xmm11
 	mulss	xmm3, xmm0
@@ -55887,12 +55885,12 @@ $LN15:
 	addss	xmm1, xmm1
 	mulss	xmm8, xmm2
 	mulss	xmm7, xmm2
-; Line 119
+; Line 98
 	addss	xmm6, xmm10
 	movss	xmm2, DWORD PTR __real@3f800000
-; Line 124
+; Line 102
 	addss	xmm11, xmm10
-; Line 127
+; Line 104
 	movaps	xmm10, XMMWORD PTR [rsp+16]
 	movaps	xmm0, xmm2
 	subss	xmm0, xmm1
@@ -55947,7 +55945,7 @@ target$ = 256
 up$ = 264
 ?LookAt@Matrix4@@SA?AU1@UVector3@@00@Z PROC		; Matrix4::LookAt, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 86
+; Line 75
 $LN33:
 	mov	rax, rsp
 	mov	QWORD PTR [rax+8], rbx
@@ -55957,13 +55955,13 @@ $LN33:
 ; Line 11
 	movss	xmm0, DWORD PTR [r8]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 86
+; Line 75
 	mov	rdi, rcx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 11
 	movss	xmm1, DWORD PTR [r8+4]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 87
+; Line 76
 	lea	rcx, QWORD PTR $T1[rsp]
 	movaps	XMMWORD PTR [rax-24], xmm6
 	mov	rbx, r9
@@ -55983,7 +55981,7 @@ $LN33:
 	movaps	XMMWORD PTR [rsp+64], xmm15
 	movss	xmm15, DWORD PTR [rdx+4]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 87
+; Line 76
 	lea	rdx, QWORD PTR f$[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 11
@@ -55998,19 +55996,19 @@ $LN33:
 ; Line 39
 	movss	DWORD PTR $T1[rsp+8], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 87
+; Line 76
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
 	movss	xmm4, DWORD PTR [rbx+4]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 88
+; Line 77
 	lea	rdx, QWORD PTR r$[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
 	movss	xmm3, DWORD PTR [rbx+8]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 88
+; Line 77
 	lea	rcx, QWORD PTR $T2[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
@@ -56037,7 +56035,7 @@ $LN33:
 	movss	DWORD PTR $T2[rsp+8], xmm4
 	movss	DWORD PTR $T2[rsp+4], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 88
+; Line 77
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
@@ -56053,7 +56051,7 @@ $LN33:
 	movups	XMMWORD PTR [rdi+32], xmm1
 	movups	XMMWORD PTR [rdi+48], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 12
+; Line 10
 	mov	DWORD PTR [rdi+60], 1065353216		; 3f800000H
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
@@ -56066,37 +56064,37 @@ $LN33:
 	mulss	xmm7, xmm4
 	movaps	xmm0, xmm12
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 92
+; Line 80
 	movss	DWORD PTR [rdi], xmm4
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
 	mulss	xmm0, xmm4
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 92
+; Line 80
 	movss	DWORD PTR [rdi+16], xmm5
 	movss	DWORD PTR [rdi+32], xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
 	subss	xmm8, xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 93
+; Line 81
 	movss	DWORD PTR [rdi+4], xmm9
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
 	movaps	xmm0, xmm10
 	mulss	xmm0, xmm5
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 93
+; Line 81
 	movss	DWORD PTR [rdi+20], xmm8
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 24
 	subss	xmm7, xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 93
+; Line 81
 	movss	DWORD PTR [rdi+36], xmm7
-; Line 94
+; Line 82
 	movss	xmm3, DWORD PTR __xmm@80000000800000008000000080000000
-; Line 99
+; Line 87
 	lea	r11, QWORD PTR [rsp+224]
 	mov	rbx, QWORD PTR [r11+16]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
@@ -56104,54 +56102,54 @@ $LN33:
 	movaps	xmm2, xmm15
 	mulss	xmm8, xmm15
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
+; Line 82
 	movaps	xmm0, xmm10
-; Line 98
+; Line 86
 	mov	rax, rdi
 	xorps	xmm0, xmm3
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	mulss	xmm9, xmm14
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
+; Line 82
 	movss	DWORD PTR [rdi+8], xmm0
 	movaps	xmm1, xmm12
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	mulss	xmm15, xmm11
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
+; Line 82
 	movaps	xmm0, xmm11
-; Line 99
+; Line 87
 	movaps	xmm11, XMMWORD PTR [r11-96]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	addss	xmm8, xmm9
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 99
+; Line 87
 	movaps	xmm9, XMMWORD PTR [r11-64]
 	xorps	xmm0, xmm3
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	mulss	xmm7, xmm13
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
+; Line 82
 	xorps	xmm1, xmm3
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	mulss	xmm2, xmm5
 	addss	xmm8, xmm7
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 94
+; Line 82
 	movss	DWORD PTR [rdi+24], xmm0
-; Line 99
+; Line 87
 	movaps	xmm7, XMMWORD PTR [r11-32]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	movaps	xmm0, xmm14
 	mulss	xmm14, xmm10
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 99
+; Line 87
 	movaps	xmm10, XMMWORD PTR [r11-80]
 	movss	DWORD PTR [rdi+40], xmm1
 	xorps	xmm8, xmm3
@@ -56162,33 +56160,33 @@ $LN33:
 	addss	xmm15, xmm14
 	mulss	xmm13, xmm12
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 99
+; Line 87
 	movaps	xmm12, XMMWORD PTR [r11-112]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	addss	xmm2, xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 99
+; Line 87
 	movaps	xmm14, XMMWORD PTR [rsp+80]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	mulss	xmm1, xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 99
+; Line 87
 	movaps	xmm6, XMMWORD PTR [r11-16]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	addss	xmm15, xmm13
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 99
+; Line 87
 	movaps	xmm13, XMMWORD PTR [r11-128]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 33
 	addss	xmm2, xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 96
+; Line 84
 	movss	DWORD PTR [rdi+52], xmm8
-; Line 99
+; Line 87
 	movaps	xmm8, XMMWORD PTR [r11-48]
 	movss	DWORD PTR [rdi+56], xmm15
 	movaps	xmm15, XMMWORD PTR [rsp+64]
@@ -56209,43 +56207,43 @@ zNear$ = 104
 zFar$ = 112
 ?Perspective@Matrix4@@SA?AU1@MMMM@Z PROC		; Matrix4::Perspective, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 74
+; Line 63
 $LN28:
 	push	rbx
 	sub	rsp, 64					; 00000040H
-; Line 77
+; Line 66
 	mulss	xmm1, DWORD PTR __real@40490fdb
 	xorps	xmm0, xmm0
 	mov	rbx, rcx
-; Line 12
+; Line 10
 	movups	XMMWORD PTR [rcx], xmm0
-; Line 77
+; Line 66
 	divss	xmm1, DWORD PTR __real@43b40000
-; Line 12
+; Line 10
 	movups	XMMWORD PTR [rcx+16], xmm0
 	movups	XMMWORD PTR [rcx+32], xmm0
 	movaps	XMMWORD PTR [rsp+48], xmm6
-; Line 74
+; Line 63
 	movaps	xmm6, xmm2
-; Line 12
+; Line 10
 	movups	XMMWORD PTR [rcx+48], xmm0
 	movaps	XMMWORD PTR [rsp+32], xmm7
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\cmath
 ; Line 269
 	movaps	xmm0, xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 74
+; Line 63
 	movaps	xmm7, xmm3
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\cmath
 ; Line 269
 	call	tanf
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 77
+; Line 66
 	movss	xmm1, DWORD PTR __real@3f800000
-; Line 80
+; Line 69
 	movaps	xmm3, xmm7
 	movss	xmm2, DWORD PTR zFar$[rsp]
-; Line 83
+; Line 72
 	mov	rax, rbx
 	divss	xmm1, xmm0
 	mov	DWORD PTR [rbx+44], -1082130432		; bf800000H
@@ -56253,7 +56251,7 @@ $LN28:
 	movaps	xmm0, xmm1
 	movss	DWORD PTR [rbx+20], xmm1
 	divss	xmm0, xmm6
-; Line 84
+; Line 73
 	movaps	xmm6, XMMWORD PTR [rsp+48]
 	movss	DWORD PTR [rbx], xmm0
 	movaps	xmm0, xmm7
@@ -56279,24 +56277,22 @@ y$ = 24
 z$ = 32
 ?Scale@Matrix4@@SA?AU1@MMM@Z PROC			; Matrix4::Scale, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 40
+; Line 33
 	xorps	xmm0, xmm0
-; Line 45
+; Line 36
 	mov	rax, rcx
-; Line 11
+; Line 9
 	movups	XMMWORD PTR [rcx], xmm0
 	movups	XMMWORD PTR [rcx+16], xmm0
 	movups	XMMWORD PTR [rcx+32], xmm0
 	movups	XMMWORD PTR [rcx+48], xmm0
-; Line 12
+; Line 10
 	mov	DWORD PTR [rcx+60], 1065353216		; 3f800000H
-; Line 42
+; Line 35
 	movss	DWORD PTR [rcx], xmm1
-; Line 43
 	movss	DWORD PTR [rcx+20], xmm2
-; Line 44
 	movss	DWORD PTR [rcx+40], xmm3
-; Line 46
+; Line 37
 	ret	0
 ?Scale@Matrix4@@SA?AU1@MMM@Z ENDP			; Matrix4::Scale
 _TEXT	ENDS
@@ -56309,28 +56305,26 @@ y$ = 24
 z$ = 32
 ?Translate@Matrix4@@SA?AU1@MMM@Z PROC			; Matrix4::Translate, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 31
+; Line 27
 	xorps	xmm0, xmm0
-; Line 36
+; Line 30
 	mov	rax, rcx
-; Line 11
+; Line 9
 	movups	XMMWORD PTR [rcx], xmm0
 	movups	XMMWORD PTR [rcx+16], xmm0
 	movups	XMMWORD PTR [rcx+32], xmm0
 	movups	XMMWORD PTR [rcx+48], xmm0
-; Line 12
+; Line 10
 	mov	DWORD PTR [rcx+60], 1065353216		; 3f800000H
-; Line 33
+; Line 29
 	movss	DWORD PTR [rcx+48], xmm1
-; Line 34
 	movss	DWORD PTR [rcx+52], xmm2
-; Line 35
 	movss	DWORD PTR [rcx+56], xmm3
-; Line 12
+; Line 10
 	mov	DWORD PTR [rcx+40], 1065353216		; 3f800000H
 	mov	DWORD PTR [rcx+20], 1065353216		; 3f800000H
 	mov	DWORD PTR [rcx], 1065353216		; 3f800000H
-; Line 37
+; Line 31
 	ret	0
 ?Translate@Matrix4@@SA?AU1@MMM@Z ENDP			; Matrix4::Translate
 _TEXT	ENDS
@@ -56342,12 +56336,12 @@ __$ReturnUdt$ = 56
 b$ = 64
 ??DMatrix4@@QEBA?AU0@AEBU0@@Z PROC			; Matrix4::operator*, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 16
+; Line 13
 $LN39:
 	sub	rsp, 40					; 00000028H
-; Line 20
+; Line 17
 	movups	xmm4, XMMWORD PTR [rcx+16]
-; Line 27
+; Line 24
 	mov	rax, rdx
 	movups	xmm5, XMMWORD PTR [rcx]
 	movss	xmm2, DWORD PTR [r8+4]
@@ -56406,7 +56400,7 @@ $LN39:
 	movss	xmm1, DWORD PTR [r8+56]
 	shufps	xmm1, xmm1, 0
 	mulps	xmm1, xmm6
-; Line 28
+; Line 25
 	movaps	xmm6, XMMWORD PTR [rsp+16]
 	addps	xmm2, xmm0
 	movss	xmm0, DWORD PTR [r8+48]
@@ -56431,9 +56425,9 @@ _TEXT	SEGMENT
 this$ = 8
 ??0Matrix4@@QEAA@XZ PROC				; Matrix4::Matrix4, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
-; Line 10
+; Line 8
 	xorps	xmm0, xmm0
-; Line 13
+; Line 11
 	mov	rax, rcx
 	movups	XMMWORD PTR [rcx], xmm0
 	movups	XMMWORD PTR [rcx+16], xmm0

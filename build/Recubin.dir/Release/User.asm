@@ -486,7 +486,7 @@ $LN8@processInp:
 	cmp	eax, 1
 	jne	SHORT $LN116@processInp
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 17
+; Line 12
 	movss	xmm7, DWORD PTR [rdi+12]
 	mulss	xmm7, xmm8
 	divss	xmm7, xmm9
@@ -504,20 +504,20 @@ $LN8@processInp:
 	mov	rbx, QWORD PTR [rdi+48]
 	lea	rdx, QWORD PTR $T9[rbp-89]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	movaps	xmm1, xmm6
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\cmath
 ; Line 89
 	movss	DWORD PTR $T5[rbp-89], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	mulss	xmm1, xmm11
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 37
 	lea	rcx, QWORD PTR $T5[rbp-89]
 	mov	r8, rbx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	movss	DWORD PTR $T5[rbp-81], xmm6
 	movss	DWORD PTR $T5[rbp-85], xmm1
 	movss	DWORD PTR $T5[rbp-77], xmm1
@@ -539,7 +539,7 @@ $LN116@processInp:
 	movss	xmm7, DWORD PTR [rdi+12]
 	xorps	xmm7, DWORD PTR __xmm@80000000800000008000000080000000
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 17
+; Line 12
 	mulss	xmm7, xmm8
 	divss	xmm7, xmm9
 	mulss	xmm7, xmm10
@@ -556,20 +556,20 @@ $LN116@processInp:
 	mov	rbx, QWORD PTR [rdi+48]
 	lea	rdx, QWORD PTR $T10[rbp-89]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	movaps	xmm1, xmm6
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\cmath
 ; Line 89
 	movss	DWORD PTR $T6[rbp-89], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	mulss	xmm1, xmm11
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 41
 	lea	rcx, QWORD PTR $T6[rbp-89]
 	mov	r8, rbx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	movss	DWORD PTR $T6[rbp-81], xmm6
 	movss	DWORD PTR $T6[rbp-85], xmm1
 	movss	DWORD PTR $T6[rbp-77], xmm1
@@ -588,7 +588,7 @@ $LN10@processInp:
 	cmp	eax, 1
 	jne	SHORT $LN11@processInp
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 17
+; Line 12
 	movss	xmm6, DWORD PTR [rdi+12]
 	mulss	xmm6, xmm8
 	divss	xmm6, xmm9
@@ -606,13 +606,13 @@ $LN10@processInp:
 	mov	rbx, QWORD PTR [rdi+48]
 	lea	r8, QWORD PTR $T7[rbp-89]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	movss	DWORD PTR $T7[rbp-85], xmm7
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 46
 	lea	rdx, QWORD PTR $T11[rbp-89]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	mulss	xmm7, xmm11
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 46
@@ -621,7 +621,7 @@ $LN10@processInp:
 ; Line 89
 	movss	DWORD PTR $T7[rbp-89], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	movss	DWORD PTR $T7[rbp-81], xmm7
 	movss	DWORD PTR $T7[rbp-77], xmm7
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
@@ -642,7 +642,7 @@ $LN11@processInp:
 	movss	xmm7, DWORD PTR [rdi+12]
 	xorps	xmm7, DWORD PTR __xmm@80000000800000008000000080000000
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 17
+; Line 12
 	mulss	xmm7, xmm8
 	divss	xmm7, xmm9
 	mulss	xmm7, xmm10
@@ -659,13 +659,13 @@ $LN11@processInp:
 	mov	rbx, QWORD PTR [rdi+48]
 	lea	r8, QWORD PTR $T8[rbp-89]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	movss	DWORD PTR $T8[rbp-85], xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 50
 	lea	rdx, QWORD PTR $T12[rbp-89]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	mulss	xmm6, xmm11
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 50
@@ -674,7 +674,7 @@ $LN11@processInp:
 ; Line 89
 	movss	DWORD PTR $T8[rbp-89], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	movss	DWORD PTR $T8[rbp-81], xmm6
 	movss	DWORD PTR $T8[rbp-77], xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
@@ -735,7 +735,7 @@ $LN16:
 ; Line 16
 	mov	rbx, QWORD PTR [rcx+48]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 56
+; Line 72
 	lea	rdx, QWORD PTR [rax-60]
 	movaps	XMMWORD PTR [rax-24], xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
@@ -743,7 +743,7 @@ $LN16:
 	mov	rdi, rcx
 	movaps	XMMWORD PTR [rax-40], xmm7
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 56
+; Line 72
 	lea	rcx, QWORD PTR [rax-72]
 	movss	xmm7, DWORD PTR __real@3f800000
 	movss	xmm5, DWORD PTR [rbx+8]
@@ -767,7 +767,7 @@ $LN16:
 ; Line 37
 	movss	DWORD PTR [rax-72], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 56
+; Line 72
 	addss	xmm6, xmm6
 	mulss	xmm3, DWORD PTR __real@c0000000
 	subss	xmm0, xmm6
@@ -775,32 +775,32 @@ $LN16:
 ; Line 38
 	movss	DWORD PTR [rax-68], xmm3
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 56
+; Line 72
 	xorps	xmm0, DWORD PTR __xmm@80000000800000008000000080000000
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 39
 	movss	DWORD PTR [rax-64], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 56
+; Line 72
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 16
 	movsd	xmm0, QWORD PTR $T3[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 39
+; Line 64
 	lea	rdx, QWORD PTR $T4[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 16
 	mov	eax, DWORD PTR $T3[rsp+8]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 39
+; Line 64
 	lea	rcx, QWORD PTR $T1[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 16
 	movsd	QWORD PTR [rdi+64], xmm0
 	mov	DWORD PTR [rdi+72], eax
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 39
+; Line 64
 	movss	xmm5, DWORD PTR [rbx+8]
 	movss	xmm4, DWORD PTR [rbx+12]
 	movaps	xmm0, xmm5
@@ -820,7 +820,7 @@ $LN16:
 ; Line 37
 	movss	DWORD PTR $T1[rsp], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 39
+; Line 64
 	movaps	xmm0, xmm3
 	mulss	xmm3, xmm4
 	mulss	xmm0, xmm5
@@ -833,7 +833,7 @@ $LN16:
 	movss	DWORD PTR $T1[rsp+8], xmm3
 	movss	DWORD PTR $T1[rsp+4], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 39
+; Line 64
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 17
@@ -842,7 +842,7 @@ $LN16:
 	movsd	QWORD PTR [rdi+76], xmm0
 	mov	DWORD PTR [rdi+84], eax
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 47
+; Line 68
 	movss	xmm5, DWORD PTR [rbx+4]
 	movss	xmm3, DWORD PTR [rbx+12]
 	movaps	xmm2, xmm5
@@ -859,7 +859,7 @@ $LN16:
 ; Line 37
 	movss	DWORD PTR $T2[rsp], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 47
+; Line 68
 	mulss	xmm5, DWORD PTR [rbx]
 	lea	rdx, QWORD PTR $T5[rsp]
 	lea	rcx, QWORD PTR $T2[rsp]
@@ -873,13 +873,13 @@ $LN16:
 ; Line 39
 	movss	DWORD PTR $T2[rsp+8], xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 47
+; Line 68
 	subss	xmm7, xmm2
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 38
 	movss	DWORD PTR $T2[rsp+4], xmm7
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 47
+; Line 68
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 18
@@ -916,7 +916,7 @@ $LN16:
 	lea	rax, QWORD PTR [rdx+16]
 	mov	DWORD PTR [rcx+12], 1065353216		; 3f800000H
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 9
+; Line 8
 	xor	ecx, ecx
 	mov	QWORD PTR [rdx], 1065353216		; 3f800000H
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
@@ -929,7 +929,7 @@ $LN16:
 ; Line 29
 	mov	BYTE PTR [rbx+100], cl
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 9
+; Line 8
 	mov	QWORD PTR [rdx+8], rcx
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 11
@@ -965,7 +965,7 @@ _TEXT	SEGMENT
 this$ = 8
 ??0camera@@QEAA@XZ PROC					; camera::camera, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 9
+; Line 8
 	xor	eax, eax
 	mov	QWORD PTR [rcx], 1065353216		; 3f800000H
 	mov	QWORD PTR [rcx+8], rax
@@ -986,11 +986,11 @@ this$ = 80
 __$ReturnUdt$ = 88
 ?getForward@Quaternion@@QEBA?AUVector3@@XZ PROC		; Quaternion::getForward, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 54
+; Line 71
 $LN6:
 	push	rbx
 	sub	rsp, 64					; 00000040H
-; Line 56
+; Line 72
 	movss	xmm5, DWORD PTR [rcx+8]
 	mov	rbx, rdx
 	movss	xmm4, DWORD PTR [rcx+12]
@@ -1015,7 +1015,7 @@ $LN6:
 ; Line 37
 	movss	DWORD PTR $T1[rsp], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 56
+; Line 72
 	addss	xmm6, xmm6
 	mulss	xmm4, DWORD PTR __real@c0000000
 	subss	xmm0, xmm6
@@ -1023,15 +1023,15 @@ $LN6:
 ; Line 38
 	movss	DWORD PTR $T1[rsp+4], xmm4
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 56
+; Line 72
 	xorps	xmm0, DWORD PTR __xmm@80000000800000008000000080000000
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 39
 	movss	DWORD PTR $T1[rsp+8], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 56
+; Line 72
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
-; Line 61
+; Line 73
 	movaps	xmm6, XMMWORD PTR [rsp+48]
 	mov	rax, rbx
 	add	rsp, 64					; 00000040H
@@ -1047,11 +1047,11 @@ this$ = 80
 __$ReturnUdt$ = 88
 ?getUp@Quaternion@@QEBA?AUVector3@@XZ PROC		; Quaternion::getUp, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 46
+; Line 67
 $LN6:
 	push	rbx
 	sub	rsp, 64					; 00000040H
-; Line 47
+; Line 68
 	movss	xmm3, DWORD PTR [rcx+12]
 	mov	rbx, rdx
 	movss	xmm5, DWORD PTR [rcx+4]
@@ -1078,21 +1078,21 @@ $LN6:
 ; Line 37
 	movss	DWORD PTR $T1[rsp], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 47
+; Line 68
 	addss	xmm2, xmm2
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 39
 	movss	DWORD PTR $T1[rsp+8], xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 47
+; Line 68
 	subss	xmm0, xmm2
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 38
 	movss	DWORD PTR $T1[rsp+4], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 47
+; Line 68
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
-; Line 52
+; Line 69
 	movaps	xmm6, XMMWORD PTR [rsp+48]
 	mov	rax, rbx
 	add	rsp, 64					; 00000040H
@@ -1108,11 +1108,11 @@ this$ = 64
 __$ReturnUdt$ = 72
 ?getRight@Quaternion@@QEBA?AUVector3@@XZ PROC		; Quaternion::getRight, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 38
+; Line 63
 $LN6:
 	push	rbx
 	sub	rsp, 48					; 00000030H
-; Line 39
+; Line 64
 	movss	xmm5, DWORD PTR [rcx+8]
 	mov	rbx, rdx
 	movss	xmm4, DWORD PTR [rcx+12]
@@ -1134,7 +1134,7 @@ $LN6:
 ; Line 37
 	movss	DWORD PTR $T1[rsp], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 39
+; Line 64
 	movaps	xmm0, xmm3
 	mulss	xmm3, xmm4
 	mulss	xmm0, xmm5
@@ -1147,10 +1147,10 @@ $LN6:
 	movss	DWORD PTR $T1[rsp+8], xmm3
 	movss	DWORD PTR $T1[rsp+4], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 39
+; Line 64
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 	mov	rax, rbx
-; Line 44
+; Line 65
 	add	rsp, 48					; 00000030H
 	pop	rbx
 	ret	0
@@ -1164,10 +1164,10 @@ __$ReturnUdt$ = 120
 q$ = 128
 ??DQuaternion@@QEBA?AU0@AEBU0@@Z PROC			; Quaternion::operator*, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 22
+; Line 48
 $LN6:
 	sub	rsp, 104				; 00000068H
-; Line 24
+; Line 49
 	movss	xmm5, DWORD PTR [rcx]
 	mov	rax, rdx
 	movss	xmm4, DWORD PTR [r8+8]
@@ -1201,9 +1201,9 @@ $LN6:
 	movaps	xmm0, xmm9
 	mulss	xmm0, xmm10
 	addss	xmm3, xmm0
-; Line 13
+; Line 9
 	movss	DWORD PTR [rdx], xmm2
-; Line 24
+; Line 49
 	movaps	xmm0, xmm4
 	movaps	xmm2, xmm5
 	mulss	xmm0, xmm11
@@ -1216,16 +1216,16 @@ $LN6:
 	subss	xmm3, xmm0
 	movaps	xmm0, xmm10
 	mulss	xmm0, xmm6
-; Line 30
+; Line 55
 	movaps	xmm6, XMMWORD PTR [rsp+80]
 	mulss	xmm10, xmm4
 	subss	xmm2, xmm0
-; Line 13
+; Line 9
 	movss	DWORD PTR [rdx+4], xmm3
-; Line 24
+; Line 49
 	movaps	xmm0, xmm7
 	mulss	xmm7, xmm8
-; Line 30
+; Line 55
 	movaps	xmm8, XMMWORD PTR [rsp+48]
 	addss	xmm10, xmm5
 	mulss	xmm0, xmm11
@@ -1236,10 +1236,10 @@ $LN6:
 	addss	xmm2, xmm0
 	addss	xmm10, xmm9
 	movaps	xmm9, XMMWORD PTR [rsp+32]
-; Line 13
+; Line 9
 	movss	DWORD PTR [rdx+8], xmm2
 	movss	DWORD PTR [rdx+12], xmm10
-; Line 30
+; Line 55
 	movaps	xmm10, XMMWORD PTR [rsp+16]
 	add	rsp, 104				; 00000068H
 	ret	0
@@ -1253,7 +1253,7 @@ axis$ = 88
 angleDegree$ = 96
 ?fromAxisAngle@Quaternion@@SA?AU1@AEBUVector3@@M@Z PROC	; Quaternion::fromAxisAngle, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 15
+; Line 11
 $LN13:
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
@@ -1263,7 +1263,7 @@ $LN13:
 	movaps	XMMWORD PTR [rsp+32], xmm7
 	mov	rdi, rcx
 	movaps	xmm7, xmm2
-; Line 17
+; Line 12
 	mulss	xmm7, DWORD PTR __real@40490fdb
 	divss	xmm7, DWORD PTR __real@43340000
 	mulss	xmm7, DWORD PTR __real@3f000000
@@ -1276,27 +1276,27 @@ $LN13:
 	movaps	xmm0, xmm7
 	call	cosf
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 20
+; Line 15
 	movaps	xmm7, XMMWORD PTR [rsp+32]
 	movaps	xmm1, xmm6
 	mulss	xmm1, DWORD PTR [rbx]
 	mov	rax, rdi
-; Line 13
+; Line 9
 	movss	DWORD PTR [rdi], xmm0
-; Line 19
+; Line 14
 	movaps	xmm0, xmm6
 	mulss	xmm6, DWORD PTR [rbx+8]
 	mulss	xmm0, DWORD PTR [rbx+4]
-; Line 20
+; Line 15
 	mov	rbx, QWORD PTR [rsp+80]
-; Line 13
+; Line 9
 	movss	DWORD PTR [rdi+12], xmm6
-; Line 20
+; Line 15
 	movaps	xmm6, XMMWORD PTR [rsp+48]
-; Line 13
+; Line 9
 	movss	DWORD PTR [rdi+8], xmm0
 	movss	DWORD PTR [rdi+4], xmm1
-; Line 20
+; Line 15
 	add	rsp, 64					; 00000040H
 	pop	rdi
 	ret	0
@@ -1312,7 +1312,7 @@ _y$ = 32
 _z$ = 40
 ??0Quaternion@@QEAA@MMMM@Z PROC				; Quaternion::Quaternion, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	movss	xmm0, DWORD PTR _z$[rsp]
 	mov	rax, rcx
 	movss	DWORD PTR [rcx+12], xmm0
@@ -1328,7 +1328,7 @@ _TEXT	SEGMENT
 this$ = 8
 ??0Quaternion@@QEAA@XZ PROC				; Quaternion::Quaternion, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 9
+; Line 8
 	xor	eax, eax
 	mov	QWORD PTR [rcx], 1065353216		; 3f800000H
 	mov	QWORD PTR [rcx+8], rax

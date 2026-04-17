@@ -2193,7 +2193,7 @@ $LN12:
 ; Line 59
 	movss	xmm0, DWORD PTR pose$[rsp+12]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	movss	xmm3, DWORD PTR pose$[rsp]
 	movss	xmm1, DWORD PTR pose$[rsp+4]
 	movss	xmm2, DWORD PTR pose$[rsp+8]
@@ -2392,7 +2392,7 @@ $LN143:
 	mov	eax, DWORD PTR [rdi+8]
 	mov	DWORD PTR [rsi+132], eax
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 9
+; Line 8
 	mov	QWORD PTR [rsi+136], 1065353216		; 3f800000H
 	xor	edi, edi
 	mov	QWORD PTR [rsi+144], rdi
@@ -2764,7 +2764,7 @@ $LN15:
 	mov	edx, DWORD PTR [rdi+8]
 	mov	DWORD PTR [rsi+132], edx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 9
+; Line 8
 	mov	QWORD PTR [rsi+136], 1065353216		; 3f800000H
 	xor	eax, eax
 	mov	QWORD PTR [rsi+144], rax
@@ -2812,7 +2812,7 @@ _y$ = 32
 _z$ = 40
 ??0Quaternion@@QEAA@MMMM@Z PROC				; Quaternion::Quaternion, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 13
+; Line 9
 	movss	xmm0, DWORD PTR _z$[rsp]
 	mov	rax, rcx
 	movss	DWORD PTR [rcx+12], xmm0
@@ -2828,7 +2828,7 @@ _TEXT	SEGMENT
 this$ = 8
 ??0Quaternion@@QEAA@XZ PROC				; Quaternion::Quaternion, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 9
+; Line 8
 	xor	eax, eax
 	mov	QWORD PTR [rcx], 1065353216		; 3f800000H
 	mov	QWORD PTR [rcx+8], rax

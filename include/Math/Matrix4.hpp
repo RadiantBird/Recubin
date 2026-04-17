@@ -1,18 +1,15 @@
 #pragma once
-
-#include <include/Math/Vector3.hpp>
-#include <include/Math/Quaternion.hpp>
+#include "Vector3.hpp"
+#include "Quaternion.hpp"
 
 struct Matrix4 {
     float m[16];
 
-    // 1. デフォルト：単位行列 (Identity)
     Matrix4() {
         for (int i = 0; i < 16; i++) m[i] = 0.0f;
         m[0] = m[5] = m[10] = m[15] = 1.0f;
     }
 
-    // 2. 行列の掛け算 (A * B) - これがすべての基本
     Matrix4 operator*(const Matrix4& b) const {
         Matrix4 res;
         for (int col = 0; col < 4; col++) {
@@ -27,25 +24,18 @@ struct Matrix4 {
         return res;
     }
 
-    // 3. 移動 (Translation)
     static Matrix4 Translate(float x, float y, float z) {
-        Matrix4 res; // 単位行列で初期化される
-        res.m[12] = x;
-        res.m[13] = y;
-        res.m[14] = z;
+        Matrix4 res;
+        res.m[12] = x; res.m[13] = y; res.m[14] = z;
         return res;
     }
 
-    // 4. 拡大縮小 (Scale)
     static Matrix4 Scale(float x, float y, float z) {
         Matrix4 res;
-        res.m[0] = x;
-        res.m[5] = y;
-        res.m[10] = z;
+        res.m[0] = x; res.m[5] = y; res.m[10] = z;
         return res;
     }
 
-    // 5. 回転 (Rotation) - 各軸
     static Matrix4 RotateX(float degree) {
         Matrix4 res;
         float r = degree * 3.14159265f / 180.0f;
@@ -70,10 +60,9 @@ struct Matrix4 {
         return res;
     }
 
-    // 6. 投影 (Perspective) - 遠近感
     static Matrix4 Perspective(float fovDeg, float aspect, float zNear, float zFar) {
         Matrix4 res;
-        for(int i=0; i<16; i++) res.m[i] = 0.0f; // 一旦クリア
+        for(int i=0; i<16; i++) res.m[i] = 0.0f;
         float f = 1.0f / tan(fovDeg * 3.14159265f / 360.0f);
         res.m[0] = f / aspect;
         res.m[5] = f;
@@ -84,10 +73,9 @@ struct Matrix4 {
     }
 
     static Matrix4 LookAt(Vector3 eye, Vector3 target, Vector3 up) {
-        Vector3 f = (target - eye).normalize(); // 前
-        Vector3 r = Vector3::Cross(f, up).normalize(); // 右
-        Vector3 u = Vector3::Cross(r, f); // 上
-
+        Vector3 f = (target - eye).normalize();
+        Vector3 r = Vector3::Cross(f, up).normalize();
+        Vector3 u = Vector3::Cross(r, f);
         Matrix4 res;
         res.m[0] = r.x;  res.m[4] = r.y;  res.m[8] = r.z;
         res.m[1] = u.x;  res.m[5] = u.y;  res.m[9] = u.z;
@@ -100,29 +88,18 @@ struct Matrix4 {
 
     static Matrix4 FromQuaternion(const Quaternion& q) {
         Matrix4 res;
-        // 単位行列で初期化されている前提
-        float xx = q.x * q.x;
-        float yy = q.y * q.y;
-        float zz = q.z * q.z;
-        float xy = q.x * q.y;
-        float xz = q.x * q.z;
-        float yz = q.y * q.z;
-        float wx = q.w * q.x;
-        float wy = q.w * q.y;
-        float wz = q.w * q.z;
-
+        float xx = q.x * q.x; float yy = q.y * q.y; float zz = q.z * q.z;
+        float xy = q.x * q.y; float xz = q.x * q.z; float yz = q.y * q.z;
+        float wx = q.w * q.x; float wy = q.w * q.y; float wz = q.w * q.z;
         res.m[0] = 1.0f - 2.0f * (yy + zz);
         res.m[1] = 2.0f * (xy + wz);
         res.m[2] = 2.0f * (xz - wy);
-
         res.m[4] = 2.0f * (xy - wz);
         res.m[5] = 1.0f - 2.0f * (xx + zz);
         res.m[6] = 2.0f * (yz + wx);
-
         res.m[8] = 2.0f * (xz + wy);
         res.m[9] = 2.0f * (yz - wx);
         res.m[10] = 1.0f - 2.0f * (xx + yy);
-
         return res;
     }
 };
