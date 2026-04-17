@@ -35,66 +35,9 @@ void User::updateVectors() {
 void User::processInput() {
     if (!window) return;
 
-    if (ControlMode::Free == controlMode) {
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cpos = cpos + forward * speed;
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cpos = cpos - forward * speed;
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cpos = cpos - right * speed;
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cpos = cpos + right * speed;
-        if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) cpos = cpos - up * speed;
-        if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) cpos = cpos + up * speed;
-    } 
-    else if (ControlMode::Character == controlMode && character && root) {
-        // キャラクターモードの入力処理：物理エンジンを使用して移動
-        if (root->actor) {
-            physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
-            if (dynamicActor) {
-                Vector3 targetMoveDir(0, 0, 0);
-                bool isPressingMove = false;
-
-                // 水平方向の移動ベクトル（カメラ基準）
-                Vector3 flatForward = Vector3(forward.x, 0, forward.z).normalize();
-                Vector3 flatRight = Vector3(right.x, 0, right.z).normalize();
-
-                if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) { targetMoveDir = targetMoveDir + flatForward; isPressingMove = true; }
-                if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) { targetMoveDir = targetMoveDir - flatForward; isPressingMove = true; }
-                if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) { targetMoveDir = targetMoveDir - flatRight; isPressingMove = true; }
-                if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) { targetMoveDir = targetMoveDir + flatRight; isPressingMove = true; }
-
-                if (isPressingMove) targetMoveDir = targetMoveDir.normalize();
-
-                // 目標ベクトルを約0.25秒で移動させる（60fpsなら factor 0.15程度）
-                currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * 0.15f;
-
-                if (currentMoveDir.length() > 0.01f) {
-                    Vector3 velocity = currentMoveDir * walkPower;
-                    
-                    // 進行方向への目標回転を計算
-                    float targetAnglePos = atan2(currentMoveDir.x, currentMoveDir.z) * 180.0f / 3.14159265f;
-                    Quaternion targetRot = Quaternion::fromAxisAngle(Vector3(0, 1, 0), targetAnglePos);
-                    
-                    // Slerpでさらに滑らかに回転
-                    root->Rotation = Quaternion::Slerp(root->Rotation, targetRot, 0.2f);
-
-                    // 入力が続いているときだけアニメーションを進める
-                    if (isPressingMove) {
-                        walkCycle += 0.15f;
-                    }
-                    
-                    physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
-                    dynamicActor->setLinearVelocity(physx::PxVec3(velocity.x, currentVel.y, velocity.z));
-                } else {
-                    // 完全に止まったとき
-                    physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
-                    dynamicActor->setLinearVelocity(physx::PxVec3(0, currentVel.y, 0));
-                }
-            }
-            
-            // カメラ位置もキャラクター位置に追従
-            cpos = root->Position + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
-        }
-    }
-    // 回転とカメラの距離調整は常に実行する
+    // 1. カメラ回転の先行処理
     bool rotated = false;
+    float rotationSpeed = 1.5f;
 
     if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
         cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), rotationSpeed) * cam.Orientation;
@@ -113,12 +56,87 @@ void User::processInput() {
         rotated = true;
     }
 
+    if (rotated) {
+        updateVectors();
+    }
+
+    // ズーム処理
     if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) {
         cameraDistance -= zoomSpeed; // ズームイン
         if (cameraDistance < 2.0f) cameraDistance = 2.0f;
     }
     if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
         cameraDistance += zoomSpeed; // ズームアウト
+    }
+
+    if (ControlMode::Free == controlMode) {
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cpos = cpos + forward * speed;
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cpos = cpos - forward * speed;
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cpos = cpos - right * speed;
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cpos = cpos + right * speed;
+        if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) cpos = cpos - up * speed;
+        if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) cpos = cpos + up * speed;
+    } 
+    else if (ControlMode::Character == controlMode && character && root) {
+        if (root->actor) {
+            physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
+            if (dynamicActor) {
+                Vector3 targetMoveDir(0, 0, 0);
+                bool isPressingMove = false;
+
+                Vector3 flatForward = Vector3(forward.x, 0, forward.z).normalize();
+                Vector3 flatRight = Vector3(right.x, 0, right.z).normalize();
+
+                if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) { targetMoveDir = targetMoveDir + flatForward; isPressingMove = true; }
+                if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) { targetMoveDir = targetMoveDir - flatForward; isPressingMove = true; }
+                if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) { targetMoveDir = targetMoveDir - flatRight; isPressingMove = true; }
+                if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) { targetMoveDir = targetMoveDir + flatRight; isPressingMove = true; }
+
+                if (isPressingMove) targetMoveDir = targetMoveDir.normalize();
+
+                currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * 0.15f;
+
+                Quaternion targetRot = root->Rotation;
+                if (isPressingMove) {
+                    float targetAnglePos = atan2(targetMoveDir.x, targetMoveDir.z) * 180.0f / 3.14159265f;
+                    targetRot = Quaternion::fromAxisAngle(Vector3(0, 1, 0), targetAnglePos);
+                }
+
+                // Slerpで向きを更新し、物理アクターに反映
+                root->Rotation = Quaternion::Slerp(root->Rotation, targetRot, 0.15f);
+                
+                physx::PxTransform pose = dynamicActor->getGlobalPose();
+                pose.q = physx::PxQuat(root->Rotation.x, root->Rotation.y, root->Rotation.z, root->Rotation.w);
+                dynamicActor->setGlobalPose(pose);
+
+                if (currentMoveDir.length() > 0.01f) {
+                    Vector3 velocity = currentMoveDir * walkPower;
+                    
+                    const float PI = 3.14159265f;
+                    if (isPressingMove) {
+                        walkCycle += 0.15f;
+                    } else {
+                        // 慣性移動中：ニュートラルポーズ（PIの倍数）まで進める
+                        float phase = fmod(walkCycle, PI);
+                        if (phase > 0.15f) walkCycle += 0.15f;
+                    }
+                    
+                    physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
+                    dynamicActor->setLinearVelocity(physx::PxVec3(velocity.x, currentVel.y, velocity.z));
+                } else {
+                    // 速度が0になっても、アニメーションのキリが悪い場合は最後まで動かす
+                    const float PI = 3.14159265f;
+                    float phase = fmod(walkCycle, PI);
+                    if (phase > 0.15f) walkCycle += 0.15f;
+
+                    physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
+                    dynamicActor->setLinearVelocity(physx::PxVec3(0, currentVel.y, 0));
+                }
+            }
+            
+            // カメラ位置もキャラクター位置に追従
+            cpos = root->Position + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
+        }
     }
     
     // CFrameによる極めてシンプルな同期
