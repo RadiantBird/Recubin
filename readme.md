@@ -47,7 +47,11 @@ Robloxの「Assembly」の概念は、PhysXの PxRigidDynamic そのものです
 ```
 
 ## Todoリスト
-- Player Characterを実装する
+(1番から順番にやる)
+- レイキャストをLuau側に開放(1)
+- エディターの作成 (2)
+- 物理制約の作成 (3)
+- アセンブリ剛体を利用した溶接 (4)
 
 ## 使用中の技術
 - C++
