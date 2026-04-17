@@ -10,8 +10,6 @@ void Physics::init() {
     sceneDesc.cpuDispatcher = physx::PxDefaultCpuDispatcherCreate(1);
     sceneDesc.filterShader = physx::PxDefaultSimulationFilterShader;
     scene = physics->createScene(sceneDesc);
-
-    defaultMaterial = physics->createMaterial(0.5f, 0.5f, 0.6f); // 摩擦, 反発
 }
 
 void Physics::createActor(BaseCube* cube) {
@@ -34,7 +32,8 @@ void Physics::createActor(BaseCube* cube) {
     }
 
     // 形状とマテリアルの紐付け
-    physx::PxRigidActorExt::createExclusiveShape(*actor, geometry, *defaultMaterial);
+    physx::PxMaterial* pxMat = getOrCreateMaterial(cube->material);
+    physx::PxRigidActorExt::createExclusiveShape(*actor, geometry, *pxMat);
     
     scene->addActor(*actor);
     actor->userData = cube; // レイキャスト等で逆引きできるようにポインタを保持
@@ -93,6 +92,16 @@ bool Physics::raycast(const Vector3& origin, const Vector3& direction, float max
 
     hitResult.hit = false;
     return false;
+}
+
+physx::PxMaterial* Physics::getOrCreateMaterial(const Material& m) {
+    if (materialCache.count(m.type)) {
+        return materialCache[m.type];
+    }
+
+    physx::PxMaterial* pxMat = physics->createMaterial(m.staticFriction, m.dynamicFriction, m.restitution);
+    materialCache[m.type] = pxMat;
+    return pxMat;
 }
 
 void Physics::removeCube(BaseCube* cube) {

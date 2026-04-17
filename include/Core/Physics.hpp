@@ -2,7 +2,9 @@
 #include <include/PhysX/PxPhysicsAPI.h>
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/BaseCube.hpp>
+#include <include/Util/Material.hpp>
 #include <vector>
+#include <unordered_map>
 
 struct RaycastHit {
     bool hit = false;
@@ -16,12 +18,13 @@ private:
     physx::PxFoundation* foundation = nullptr;
     physx::PxPhysics* physics = nullptr;
     physx::PxScene* scene = nullptr;
-    physx::PxMaterial* defaultMaterial = nullptr;
+    std::unordered_map<MaterialType, physx::PxMaterial*> materialCache;
 
     physx::PxDefaultAllocator allocator;
     physx::PxDefaultErrorCallback errorCallback;
 
     std::vector<BaseCube*> cubes; // 物理シミュレーション対象のキューブを管理
+    physx::PxMaterial* getOrCreateMaterial(const Material& m);
 
 public:
     void init();

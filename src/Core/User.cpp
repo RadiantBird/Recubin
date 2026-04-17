@@ -146,6 +146,13 @@ void User::processInput(Physics* physics) {
                 }
             }
             
+            // 接地判定の更新 (アニメーションと共通化)
+            RaycastHit hit;
+            Vector3 origin = root->Position;
+            Vector3 direction(0, -1, 0);
+            float maxDist = (root->Size.y / 2.0f) + 0.2f;
+            isGrounded = (physics && physics->raycast(origin, direction, maxDist, hit, root->actor));
+
             // カメラ位置もキャラクター位置に追従
             cpos = root->Position + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
         }
@@ -160,16 +167,24 @@ void User::processInput(Physics* physics) {
     }
 
     float swingAngle = sin(walkCycle) * 35.0f;
+    float L_armAngle = swingAngle;
+    float R_armAngle = -swingAngle;
+
+    // ジャンプ中の万歳アニメーション
+    if (!isGrounded) {
+        L_armAngle = -170.0f; // 真上付近
+        R_armAngle = -170.0f;
+    }
 
     if (leftArm) {
-        // 肩の関節位置: x=-1.5, y=2.0 (Torsoの上角)
-        CFrame jointCF = root->cframe * CFrame(-1.5f, 2.0f, 0);
-        leftArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), swingAngle) * CFrame(0, -1.0f, 0);
+        // 肩の関節位置を調整 (少し下げて 1/4 の位置に関節を置く)
+        CFrame jointCF = root->cframe * CFrame(-1.5f, 1.5f, 0);
+        leftArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), L_armAngle) * CFrame(0, -0.5f, 0);
     }
     if (rightArm) {
-        // 肩の関節位置: x=1.5, y=2.0
-        CFrame jointCF = root->cframe * CFrame(1.5f, 2.0f, 0);
-        rightArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), -swingAngle) * CFrame(0, -1.0f, 0);
+        // 肩の関節位置
+        CFrame jointCF = root->cframe * CFrame(1.5f, 1.5f, 0);
+        rightArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), R_armAngle) * CFrame(0, -0.5f, 0);
     }
     if (leftLeg) {
         // 股関節位置: x=-0.5, y=0.0 (Rootの中央高さ)
@@ -215,14 +230,8 @@ void User::processInput(Physics* physics) {
     // スペースキーでジャンプ
     bool spacePressed = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
     if (spacePressed && !lastSpacePressed && controlMode == ControlMode::Character && root && root->actor) {
-        // 接地判定 (Raycast)
-        RaycastHit hit;
-        Vector3 origin = root->Position;
-        Vector3 direction(0, -1, 0); // 真下
-        float maxDist = (root->Size.y / 2.0f) + 0.2f; // 足元から少し先まで
-
-        if (physics && physics->raycast(origin, direction, maxDist, hit, root->actor)) {
-            // 地面が近い（接地）
+        if (isGrounded) {
+            // 接地している場合のみジャンプ
             physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
             if (dynamicActor) {
                 physx::PxVec3 vel = dynamicActor->getLinearVelocity();

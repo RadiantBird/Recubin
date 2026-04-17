@@ -28,6 +28,7 @@ public:
     Vector3 currentMoveDir; // 滑らかな移動・回転用
     bool lastFKeyPressed = false; // トグル判定用
     bool lastSpacePressed = false; // ジャンプ用
+    bool isGrounded = true; // 接地状態
     camera current_camera;
     
     camera &cam;

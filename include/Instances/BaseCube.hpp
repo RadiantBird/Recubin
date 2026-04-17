@@ -5,6 +5,7 @@
 #include <include/Math/Vector3.hpp>
 #include <include/Math/Quaternion.hpp>
 #include <include/Util/Color4.hpp>
+#include <include/Util/Material.hpp>
 #include <include/PhysX/PxPhysicsAPI.h>
 
 class BaseCube : public Spatial {
@@ -13,6 +14,7 @@ public:
     bool CanCollide = true;
 
     Color4 Color;
+    Material material = Material::GetDefault(MaterialType::Plastic);
 
     // キャッシュ：自分がどの Workspace に登録されているか
     Workspace* lastWorkspace = nullptr;
