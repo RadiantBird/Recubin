@@ -157,7 +157,7 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // --- 2. 入力検知 (向きに基づいた移動) ---
-        user.processInput();
+        user.processInput(&physicsEngine);
         if (user.wannaExit) {
             break;
         }

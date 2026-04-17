@@ -4,6 +4,13 @@
 #include <include/Instances/BaseCube.hpp>
 #include <vector>
 
+struct RaycastHit {
+    bool hit = false;
+    float distance = 0.0f;
+    Vector3 position;
+    Instance* instance = nullptr;
+};
+
 class Physics {
 private:
     physx::PxFoundation* foundation = nullptr;
@@ -21,4 +28,6 @@ public:
     void update(Workspace& workspace, float dt);
     void createActor(BaseCube* cube);
     void removeCube(BaseCube* cube);
+
+    bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, physx::PxRigidActor* ignoreActor = nullptr);
 };

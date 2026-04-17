@@ -20,12 +20,14 @@ public:
 
     float speed = 0.05f;
     float walkPower = 5.0f;
+    float jumpPower = 7.0f;
     float rotationSpeed = 1.0f; // 回転の速さ
     float cameraDistance = 10.0f; // カメラの距離
     float zoomSpeed = 0.1f;
     float walkCycle = 0.0f; // 歩行アニメーション用
     Vector3 currentMoveDir; // 滑らかな移動・回転用
     bool lastFKeyPressed = false; // トグル判定用
+    bool lastSpacePressed = false; // ジャンプ用
     camera current_camera;
     
     camera &cam;
@@ -54,6 +56,6 @@ public:
     ~User();
 
     void updateVectors();
-    void processInput();
+    void processInput(class Physics* physics);
     void spawnCharacter();
 };

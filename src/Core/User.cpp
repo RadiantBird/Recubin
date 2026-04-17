@@ -1,5 +1,6 @@
 #include <Core/User.hpp>
 #include <include/Util/Logger.hpp>
+#include <include/Core/Physics.hpp>
 
 User::User(GLFWwindow* win) 
     : window(win), 
@@ -43,7 +44,7 @@ void User::updateVectors() {
     up      = cam.Orientation.getUp();
 }
 
-void User::processInput() {
+void User::processInput(Physics* physics) {
     if (!window) return;
 
     // 1. カメラ回転の先行処理
@@ -210,6 +211,27 @@ void User::processInput() {
                       << root->Position.y << ", " << root->Position.z << ")\n";
         }
     }
+
+    // スペースキーでジャンプ
+    bool spacePressed = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
+    if (spacePressed && !lastSpacePressed && controlMode == ControlMode::Character && root && root->actor) {
+        // 接地判定 (Raycast)
+        RaycastHit hit;
+        Vector3 origin = root->Position;
+        Vector3 direction(0, -1, 0); // 真下
+        float maxDist = (root->Size.y / 2.0f) + 0.2f; // 足元から少し先まで
+
+        if (physics && physics->raycast(origin, direction, maxDist, hit, root->actor)) {
+            // 地面が近い（接地）
+            physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
+            if (dynamicActor) {
+                physx::PxVec3 vel = dynamicActor->getLinearVelocity();
+                vel.y = jumpPower; // 上方向の速度を設定
+                dynamicActor->setLinearVelocity(vel);
+            }
+        }
+    }
+    lastSpacePressed = spacePressed;
 }
 
 void User::spawnCharacter() {

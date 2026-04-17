@@ -37,7 +37,62 @@ void Physics::createActor(BaseCube* cube) {
     physx::PxRigidActorExt::createExclusiveShape(*actor, geometry, *defaultMaterial);
     
     scene->addActor(*actor);
+    actor->userData = cube; // レイキャスト等で逆引きできるようにポインタを保持
     cube->actor = actor; // BaseCube側に参照を戻す
+}
+
+bool Physics::raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, physx::PxRigidActor* ignoreActor) {
+    if (!scene) return false;
+
+    physx::PxVec3 pxOrigin(origin.x, origin.y, origin.z);
+    physx::PxVec3 pxDir(direction.x, direction.y, direction.z);
+    
+    if (pxDir.magnitudeSquared() < 1e-6f) return false;
+    pxDir.normalize();
+
+    // 複数のヒットを想定（自分自身を突き抜けるため）
+    const physx::PxU32 maxHits = 4;
+    physx::PxRaycastHit hitBuffer[maxHits];
+    physx::PxRaycastBuffer buf(hitBuffer, maxHits);
+
+    bool status = scene->raycast(pxOrigin, pxDir, maxDistance, buf);
+
+    if (status) {
+        // ヒットしたアクターを走査し、無視対象以外を見つける
+        physx::PxRaycastHit* bestHit = nullptr;
+        
+        // 通常のブロッキングヒットを確認
+        if (buf.hasBlock) {
+            if (buf.block.actor != ignoreActor) {
+                bestHit = &buf.block;
+            }
+        }
+        
+        // ブロッキングヒットが無視対象だった場合、次の候補を探す
+        if (!bestHit) {
+            for (physx::PxU32 i = 0; i < buf.nbTouches; i++) {
+                if (buf.touches[i].actor != ignoreActor) {
+                    bestHit = &buf.touches[i];
+                    break;
+                }
+            }
+        }
+
+        if (bestHit) {
+            hitResult.hit = true;
+            hitResult.distance = bestHit->distance;
+            hitResult.position = Vector3(bestHit->position.x, bestHit->position.y, bestHit->position.z);
+            if (bestHit->actor && bestHit->actor->userData) {
+                hitResult.instance = static_cast<Instance*>(bestHit->actor->userData);
+            } else {
+                hitResult.instance = nullptr;
+            }
+            return true;
+        }
+    }
+
+    hitResult.hit = false;
+    return false;
 }
 
 void Physics::removeCube(BaseCube* cube) {
