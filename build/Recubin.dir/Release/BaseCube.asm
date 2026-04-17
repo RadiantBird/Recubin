@@ -2374,7 +2374,7 @@ $LN143:
 	lea	rax, QWORD PTR [r11-80]
 	mov	QWORD PTR [r11+32], rax
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Spatial.hpp
-; Line 11
+; Line 13
 	lea	rdx, QWORD PTR [r11-80]
 	lea	rcx, QWORD PTR [r11-48]
 	call	??0?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@AEBV01@@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::basic_string<char,std::char_traits<char>,std::allocator<char> >
@@ -2687,7 +2687,7 @@ this$ = 32
 __$ReturnUdt$ = 40
 ?GetClassName@Spatial@@UEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ PROC ; Spatial::GetClassName, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Spatial.hpp
-; Line 12
+; Line 14
 $LN119:
 	sub	rsp, 24
 	xorps	xmm0, xmm0
@@ -2707,13 +2707,13 @@ $LN119:
 	movzx	eax, BYTE PTR ??_C@_07KEJFKDFN@Spatial@+6
 	mov	BYTE PTR [rdx+6], al
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Spatial.hpp
-; Line 12
+; Line 14
 	mov	rax, rdx
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 948
 	mov	BYTE PTR [rdx+7], 0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Spatial.hpp
-; Line 12
+; Line 14
 	add	rsp, 24
 	ret	0
 ?GetClassName@Spatial@@UEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ENDP ; Spatial::GetClassName
@@ -2731,7 +2731,7 @@ Sz$ = 144
 name$ = 152
 ??0Spatial@@QEAA@UVector3@@0V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z PROC ; Spatial::Spatial, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Spatial.hpp
-; Line 11
+; Line 13
 $LN15:
 	mov	QWORD PTR [rsp+16], rbx
 	push	rbp
@@ -2773,7 +2773,7 @@ $LN15:
 	mov	rcx, rbp
 	call	?_Tidy_deallocate@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAXXZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Tidy_deallocate
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Spatial.hpp
-; Line 11
+; Line 13
 	mov	rax, rsi
 	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
 	xor	rcx, rsp

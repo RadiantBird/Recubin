@@ -255,7 +255,7 @@ PUBLIC	??_C@_0BI@MEMILFDL@Window?5creation?5failed?6@	; `string'
 PUBLIC	??_C@_0BD@HJCBHOLF@making?5context?4?4?4?6@	; `string'
 PUBLIC	??_C@_0BB@LBOBDGFB@initing?5GLEW?4?4?4?6@	; `string'
 PUBLIC	??_C@_0BC@GILIDJKH@GLEW?5init?5failed?6@	; `string'
-PUBLIC	??_C@_0O@JMNGOOAA@Version?50?466?6@		; `string'
+PUBLIC	??_C@_0O@CAOHPFNH@Version?50?470?6@		; `string'
 PUBLIC	??_C@_0O@CMJEMIJA@Hello?5world?$CB?6@		; `string'
 PUBLIC	??_C@_0BK@HFNBFIKJ@?$FLERROR?$FN?5Failed?5to?5setup?4?6@ ; `string'
 PUBLIC	??_C@_0BM@PAPOLKLO@assets?1image?1floppa2048?4jpg@ ; `string'
@@ -359,6 +359,7 @@ EXTRN	?init@Physics@@QEAAXXZ:PROC			; Physics::init
 EXTRN	?update@Physics@@QEAAXAEAVWorkspace@@M@Z:PROC	; Physics::update
 EXTRN	??0User@@QEAA@PEAUGLFWwindow@@@Z:PROC		; User::User
 EXTRN	?processInput@User@@QEAAXXZ:PROC		; User::processInput
+EXTRN	?spawnCharacter@User@@QEAAXXZ:PROC		; User::spawnCharacter
 EXTRN	?init@Renderer@@QEAAXXZ:PROC			; Renderer::init
 EXTRN	?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z:PROC ; Renderer::render
 EXTRN	?loadTexture@Renderer@@QEAAIPEBD@Z:PROC		; Renderer::loadTexture
@@ -632,7 +633,7 @@ pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
 $pdata$main DD	imagerel $LN507
-	DD	imagerel $LN507+2367
+	DD	imagerel $LN507+2415
 	DD	imagerel $unwind$main
 pdata	ENDS
 ;	COMDAT pdata
@@ -1057,9 +1058,9 @@ CONST	ENDS
 CONST	SEGMENT
 ??_C@_0O@CMJEMIJA@Hello?5world?$CB?6@ DB 'Hello world!', 0aH, 00H ; `string'
 CONST	ENDS
-;	COMDAT ??_C@_0O@JMNGOOAA@Version?50?466?6@
+;	COMDAT ??_C@_0O@CAOHPFNH@Version?50?470?6@
 CONST	SEGMENT
-??_C@_0O@JMNGOOAA@Version?50?466?6@ DB 'Version 0.66', 0aH, 00H ; `string'
+??_C@_0O@CAOHPFNH@Version?50?470?6@ DB 'Version 0.70', 0aH, 00H ; `string'
 CONST	ENDS
 ;	COMDAT ??_C@_0BC@GILIDJKH@GLEW?5init?5failed?6@
 CONST	SEGMENT
@@ -1386,19 +1387,19 @@ $ip2state$main DB ','
 	DB	012H
 	DB	096H
 	DB	0aH
-	DB	0d9H, 03H
+	DB	0f1H, 03H
 	DB	014H
 	DB	','
 	DB	0aH
-	DB	0c6H
+	DB	0ccH
 	DB	016H
-	DB	0c0H
+	DB	0d8H
 	DB	0aH
 	DB	'h'
 	DB	018H
 	DB	0a6H
 	DB	0aH
-	DB	'5', 05H
+	DB	0a1H, 05H
 	DB	08H
 	DB	0e1H, 03H
 	DB	00H
@@ -1420,7 +1421,7 @@ $stateUnwindMap$main DB 018H
 	DB	0b0H
 	DB	032H
 	DD	imagerel ??1Workspace@@UEAA@XZ
-	DB	01H
+	DB	041H
 	DB	06H
 	DB	03eH
 	DD	imagerel main$dtor$4
@@ -1432,7 +1433,7 @@ $stateUnwindMap$main DB 018H
 	DD	imagerel main$dtor$7
 	DB	0daH
 	DD	imagerel ??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ
-	DB	081H
+	DB	0c1H
 	DB	05H
 	DB	02dH
 	DB	02H
@@ -1450,17 +1451,17 @@ xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $unwind$main DD	0103b19H
-	DD	024882aH
-	DD	0257825H
-	DD	0266821H
-	DD	04f011dH
+	DD	025882aH
+	DD	0267825H
+	DD	0276821H
+	DD	051011dH
 	DD	0e00df00fH
 	DD	0c009d00bH
 	DD	060067007H
 	DD	050043005H
 	DD	imagerel __GSHandlerCheck_EH4
 	DD	imagerel $cppxdata$main
-	DD	0232H
+	DD	0242H
 xdata	ENDS
 ;	COMDAT voltbl
 voltbl	SEGMENT
@@ -3001,10 +3002,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main	PROC						; COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 54
@@ -3018,8 +3019,8 @@ $LN507:
 	push	r13
 	push	r14
 	push	r15
-	lea	rbp, QWORD PTR [rax-440]
-	sub	rsp, 632				; 00000278H
+	lea	rbp, QWORD PTR [rax-456]
+	sub	rsp, 648				; 00000288H
 	movaps	XMMWORD PTR [rax-88], xmm6
 	movaps	XMMWORD PTR [rax-104], xmm7
 	movaps	XMMWORD PTR [rax-120], xmm8
@@ -3031,7 +3032,7 @@ $LN507:
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	mov	rcx, rax
-	lea	rdx, OFFSET FLAT:??_C@_0O@JMNGOOAA@Version?50?466?6@
+	lea	rdx, OFFSET FLAT:??_C@_0O@CAOHPFNH@Version?50?470?6@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 ; Line 26
 	lea	rdx, OFFSET FLAT:??_C@_0BB@IAAJCMMM@initing?5GLFW?4?4?4?6@
@@ -3521,66 +3522,73 @@ $LN18@main:
 	mov	rdx, rbx
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
-; Line 133
+; Line 134
+	lea	rcx, QWORD PTR user$[rbp-256]
+	call	?spawnCharacter@User@@QEAAXXZ		; User::spawnCharacter
+; Line 135
+	mov	rdx, QWORD PTR user$[rbp-192]
+	lea	rcx, QWORD PTR workspace$[rbp-256]
+	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
+; Line 140
 	call	glfwGetTime
 	xorps	xmm8, xmm8
 	cvtsd2ss xmm8, xmm0
-; Line 134
+; Line 141
 	mov	rcx, rdi
 	call	glfwWindowShouldClose
 	test	eax, eax
 	jne	$LN432@main
-	npad	4
+	npad	6
 $LL2@main:
-; Line 135
+; Line 142
 	call	glfwGetTime
 	xorps	xmm7, xmm7
 	cvtsd2ss xmm7, xmm0
-; Line 136
+; Line 143
 	movaps	xmm6, xmm7
 	subss	xmm6, xmm8
-; Line 139
+; Line 146
 	movaps	xmm2, xmm6
 	lea	rdx, QWORD PTR workspace$[rbp-256]
 	lea	rcx, QWORD PTR physicsEngine$[rbp-256]
 	call	?update@Physics@@QEAAXAEAVWorkspace@@M@Z ; Physics::update
-; Line 140
+; Line 147
 	movaps	xmm1, xmm6
 	lea	rcx, QWORD PTR luauEngine$[rsp]
 	call	?update@LuauEngine@@QEAAXM@Z		; LuauEngine::update
-; Line 143
+; Line 150
 	lea	rcx, QWORD PTR luauEngine$[rsp]
 	call	?executeWorkspaceScripts@LuauEngine@@QEAAXXZ ; LuauEngine::executeWorkspaceScripts
-; Line 145
+; Line 152
 	mov	ecx, 16640				; 00004100H
 	call	QWORD PTR __imp_glClear
-; Line 148
+; Line 155
 	lea	rcx, QWORD PTR user$[rbp-256]
 	call	?processInput@User@@QEAAXXZ		; User::processInput
-; Line 149
-	cmp	BYTE PTR user$[rbp-156], 0
+; Line 156
+	cmp	BYTE PTR user$[rbp-136], 0
 	jne	SHORT $LN432@main
-; Line 137
+; Line 144
 	movaps	xmm8, xmm7
-; Line 153
+; Line 160
 	lea	r9, QWORD PTR workspace$[rbp-256]
 	mov	r8, rdi
 	lea	rdx, QWORD PTR user$[rbp-256]
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?render@Renderer@@QEAAXAEAVUser@@PEAUGLFWwindow@@AEAVWorkspace@@@Z ; Renderer::render
-; Line 134
+; Line 141
 	mov	rcx, rdi
 	call	glfwWindowShouldClose
 	test	eax, eax
 	je	SHORT $LL2@main
 $LN432@main:
-; Line 157
+; Line 164
 	call	glfwTerminate
-; Line 158
+; Line 165
 	lea	rdx, OFFSET FLAT:??_C@_0CE@DBCKMAIM@?$FLDEBUG?$FN?5Main?5loop?5ended?4?5wannaE@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-	movzx	edx, BYTE PTR user$[rbp-156]
+	movzx	edx, BYTE PTR user$[rbp-136]
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@_N@Z
 	mov	rcx, rax
@@ -3603,7 +3611,7 @@ $LN432@main:
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	??1Instance@@UEAA@XZ			; Instance::~Instance
 	npad	1
-; Line 159
+; Line 166
 	lea	rcx, QWORD PTR luauEngine$[rsp]
 	call	??1LuauEngine@@QEAA@XZ			; LuauEngine::~LuauEngine
 	npad	1
@@ -3693,14 +3701,14 @@ $LN312@main:
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN304@main:
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 159
+; Line 166
 	xor	eax, eax
 $LN1@main:
-; Line 160
+; Line 167
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
-	lea	r11, QWORD PTR [rsp+632]
+	lea	r11, QWORD PTR [rsp+648]
 	movaps	xmm6, XMMWORD PTR [r11-24]
 	movaps	xmm7, XMMWORD PTR [r11-40]
 	movaps	xmm8, XMMWORD PTR [r11-56]
@@ -3741,10 +3749,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main$dtor$0 PROC
 	lea	rcx, QWORD PTR renderer$[rdx]
 	jmp	??1Renderer@@QEAA@XZ
@@ -3774,10 +3782,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main$dtor$13 PROC
 	lea	rcx, QWORD PTR physicsEngine$[rdx]
 	add	rcx, 32					; 00000020H
@@ -3808,10 +3816,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main$dtor$1 PROC
 	lea	rcx, QWORD PTR physicsEngine$[rdx]
 	jmp	??1Physics@@QEAA@XZ
@@ -3841,10 +3849,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main$dtor$2 PROC
 	lea	rcx, QWORD PTR luauEngine$[rdx]
 	jmp	??1LuauEngine@@QEAA@XZ			; LuauEngine::~LuauEngine
@@ -3874,10 +3882,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main$dtor$3 PROC
 	lea	rcx, QWORD PTR workspace$[rdx]
 	jmp	??1Workspace@@UEAA@XZ
@@ -3907,10 +3915,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main$dtor$4 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -3947,10 +3955,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main$dtor$5 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -3987,10 +3995,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main$dtor$6 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4027,10 +4035,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main$dtor$7 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4067,10 +4075,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main$dtor$8 PROC
 	lea	rcx, QWORD PTR $T32[rdx]
 	jmp	??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::~basic_string<char,std::char_traits<char>,std::allocator<char> >
@@ -4100,10 +4108,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main$dtor$9 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4140,10 +4148,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 352
-$T33 = 352
-workspace$ = 384
-__$ArrayPad$ = 560
+$T32 = 368
+$T33 = 368
+workspace$ = 400
+__$ArrayPad$ = 576
 main$dtor$11 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -7277,7 +7285,7 @@ __formal$ = 16
 __formal$ = 24
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 161
+; Line 168
 	ret	0
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -7288,7 +7296,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 161
+; Line 168
 	ret	0
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -7299,7 +7307,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAX_K@Z PROC		; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 161
+; Line 168
 	ret	0
 ?__empty_global_delete@@YAXPEAX_K@Z ENDP		; __empty_global_delete
 _TEXT	ENDS
@@ -7309,7 +7317,7 @@ _TEXT	SEGMENT
 __formal$ = 8
 ?__empty_global_delete@@YAXPEAX@Z PROC			; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
-; Line 161
+; Line 168
 	ret	0
 ?__empty_global_delete@@YAXPEAX@Z ENDP			; __empty_global_delete
 _TEXT	ENDS
