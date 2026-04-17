@@ -17,6 +17,7 @@ public:
     // キャッシュ：自分がどの Workspace に登録されているか
     Workspace* lastWorkspace = nullptr;
 
+    physx::PxRigidDynamicLockFlags LockFlags = (physx::PxRigidDynamicLockFlags)0;
     physx::PxRigidActor* actor = nullptr;
 
     BaseCube(Vector3 Pos, Vector3 Sz);

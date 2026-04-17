@@ -255,7 +255,7 @@ PUBLIC	??_C@_0BI@MEMILFDL@Window?5creation?5failed?6@	; `string'
 PUBLIC	??_C@_0BD@HJCBHOLF@making?5context?4?4?4?6@	; `string'
 PUBLIC	??_C@_0BB@LBOBDGFB@initing?5GLEW?4?4?4?6@	; `string'
 PUBLIC	??_C@_0BC@GILIDJKH@GLEW?5init?5failed?6@	; `string'
-PUBLIC	??_C@_0O@CAOHPFNH@Version?50?470?6@		; `string'
+PUBLIC	??_C@_0O@CBCFJPOA@Version?50?471?6@		; `string'
 PUBLIC	??_C@_0O@CMJEMIJA@Hello?5world?$CB?6@		; `string'
 PUBLIC	??_C@_0BK@HFNBFIKJ@?$FLERROR?$FN?5Failed?5to?5setup?4?6@ ; `string'
 PUBLIC	??_C@_0BM@PAPOLKLO@assets?1image?1floppa2048?4jpg@ ; `string'
@@ -633,7 +633,7 @@ pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
 $pdata$main DD	imagerel $LN507
-	DD	imagerel $LN507+2415
+	DD	imagerel $LN507+2446
 	DD	imagerel $unwind$main
 pdata	ENDS
 ;	COMDAT pdata
@@ -1058,9 +1058,9 @@ CONST	ENDS
 CONST	SEGMENT
 ??_C@_0O@CMJEMIJA@Hello?5world?$CB?6@ DB 'Hello world!', 0aH, 00H ; `string'
 CONST	ENDS
-;	COMDAT ??_C@_0O@CAOHPFNH@Version?50?470?6@
+;	COMDAT ??_C@_0O@CBCFJPOA@Version?50?471?6@
 CONST	SEGMENT
-??_C@_0O@CAOHPFNH@Version?50?470?6@ DB 'Version 0.70', 0aH, 00H ; `string'
+??_C@_0O@CBCFJPOA@Version?50?471?6@ DB 'Version 0.71', 0aH, 00H ; `string'
 CONST	ENDS
 ;	COMDAT ??_C@_0BC@GILIDJKH@GLEW?5init?5failed?6@
 CONST	SEGMENT
@@ -1387,19 +1387,19 @@ $ip2state$main DB ','
 	DB	012H
 	DB	096H
 	DB	0aH
-	DB	0f1H, 03H
+	DB	'!', 04H
 	DB	014H
-	DB	','
+	DB	'2'
 	DB	0aH
-	DB	0ccH
+	DB	0d2H
 	DB	016H
-	DB	0d8H
+	DB	0eaH
 	DB	0aH
 	DB	'h'
 	DB	018H
 	DB	0a6H
 	DB	0aH
-	DB	0a1H, 05H
+	DB	0b1H, 05H
 	DB	08H
 	DB	0e1H, 03H
 	DB	00H
@@ -1421,8 +1421,8 @@ $stateUnwindMap$main DB 018H
 	DB	0b0H
 	DB	032H
 	DD	imagerel ??1Workspace@@UEAA@XZ
-	DB	041H
-	DB	06H
+	DB	01H
+	DB	07H
 	DB	03eH
 	DD	imagerel main$dtor$4
 	DB	066H
@@ -1433,8 +1433,8 @@ $stateUnwindMap$main DB 018H
 	DD	imagerel main$dtor$7
 	DB	0daH
 	DD	imagerel ??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ
-	DB	0c1H
-	DB	05H
+	DB	081H
+	DB	06H
 	DB	02dH
 	DB	02H
 	DD	imagerel main$dtor$9
@@ -1451,17 +1451,17 @@ xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $unwind$main DD	0103b19H
-	DD	025882aH
-	DD	0267825H
-	DD	0276821H
-	DD	051011dH
+	DD	028882aH
+	DD	0297825H
+	DD	02a6821H
+	DD	057011dH
 	DD	0e00df00fH
 	DD	0c009d00bH
 	DD	060067007H
 	DD	050043005H
 	DD	imagerel __GSHandlerCheck_EH4
 	DD	imagerel $cppxdata$main
-	DD	0242H
+	DD	0272H
 xdata	ENDS
 ;	COMDAT voltbl
 voltbl	SEGMENT
@@ -3002,10 +3002,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main	PROC						; COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 54
@@ -3019,8 +3019,8 @@ $LN507:
 	push	r13
 	push	r14
 	push	r15
-	lea	rbp, QWORD PTR [rax-456]
-	sub	rsp, 648				; 00000288H
+	lea	rbp, QWORD PTR [rax-504]
+	sub	rsp, 696				; 000002b8H
 	movaps	XMMWORD PTR [rax-88], xmm6
 	movaps	XMMWORD PTR [rax-104], xmm7
 	movaps	XMMWORD PTR [rax-120], xmm8
@@ -3032,7 +3032,7 @@ $LN507:
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	mov	rcx, rax
-	lea	rdx, OFFSET FLAT:??_C@_0O@CAOHPFNH@Version?50?470?6@
+	lea	rdx, OFFSET FLAT:??_C@_0O@CBCFJPOA@Version?50?471?6@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 ; Line 26
 	lea	rdx, OFFSET FLAT:??_C@_0BB@IAAJCMMM@initing?5GLFW?4?4?4?6@
@@ -3526,7 +3526,7 @@ $LN18@main:
 	lea	rcx, QWORD PTR user$[rbp-256]
 	call	?spawnCharacter@User@@QEAAXXZ		; User::spawnCharacter
 ; Line 135
-	mov	rdx, QWORD PTR user$[rbp-192]
+	mov	rdx, QWORD PTR user$[rbp-184]
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
 ; Line 140
@@ -3538,7 +3538,6 @@ $LN18@main:
 	call	glfwWindowShouldClose
 	test	eax, eax
 	jne	$LN432@main
-	npad	6
 $LL2@main:
 ; Line 142
 	call	glfwGetTime
@@ -3566,7 +3565,7 @@ $LL2@main:
 	lea	rcx, QWORD PTR user$[rbp-256]
 	call	?processInput@User@@QEAAXXZ		; User::processInput
 ; Line 156
-	cmp	BYTE PTR user$[rbp-136], 0
+	cmp	BYTE PTR user$[rbp-88], 0
 	jne	SHORT $LN432@main
 ; Line 144
 	movaps	xmm8, xmm7
@@ -3580,7 +3579,7 @@ $LL2@main:
 	mov	rcx, rdi
 	call	glfwWindowShouldClose
 	test	eax, eax
-	je	SHORT $LL2@main
+	je	$LL2@main
 $LN432@main:
 ; Line 164
 	call	glfwTerminate
@@ -3588,7 +3587,7 @@ $LN432@main:
 	lea	rdx, OFFSET FLAT:??_C@_0CE@DBCKMAIM@?$FLDEBUG?$FN?5Main?5loop?5ended?4?5wannaE@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-	movzx	edx, BYTE PTR user$[rbp-136]
+	movzx	edx, BYTE PTR user$[rbp-88]
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@_N@Z
 	mov	rcx, rax
@@ -3708,7 +3707,7 @@ $LN1@main:
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
-	lea	r11, QWORD PTR [rsp+648]
+	lea	r11, QWORD PTR [rsp+696]
 	movaps	xmm6, XMMWORD PTR [r11-24]
 	movaps	xmm7, XMMWORD PTR [r11-40]
 	movaps	xmm8, XMMWORD PTR [r11-56]
@@ -3749,10 +3748,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main$dtor$0 PROC
 	lea	rcx, QWORD PTR renderer$[rdx]
 	jmp	??1Renderer@@QEAA@XZ
@@ -3782,10 +3781,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main$dtor$13 PROC
 	lea	rcx, QWORD PTR physicsEngine$[rdx]
 	add	rcx, 32					; 00000020H
@@ -3816,10 +3815,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main$dtor$1 PROC
 	lea	rcx, QWORD PTR physicsEngine$[rdx]
 	jmp	??1Physics@@QEAA@XZ
@@ -3849,10 +3848,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main$dtor$2 PROC
 	lea	rcx, QWORD PTR luauEngine$[rdx]
 	jmp	??1LuauEngine@@QEAA@XZ			; LuauEngine::~LuauEngine
@@ -3882,10 +3881,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main$dtor$3 PROC
 	lea	rcx, QWORD PTR workspace$[rdx]
 	jmp	??1Workspace@@UEAA@XZ
@@ -3915,10 +3914,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main$dtor$4 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -3955,10 +3954,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main$dtor$5 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -3995,10 +3994,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main$dtor$6 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4035,10 +4034,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main$dtor$7 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4075,10 +4074,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main$dtor$8 PROC
 	lea	rcx, QWORD PTR $T32[rdx]
 	jmp	??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::~basic_string<char,std::char_traits<char>,std::allocator<char> >
@@ -4108,10 +4107,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main$dtor$9 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4148,10 +4147,10 @@ limabis$1$ = 104
 renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
-$T32 = 368
-$T33 = 368
-workspace$ = 400
-__$ArrayPad$ = 576
+$T32 = 416
+$T33 = 416
+workspace$ = 448
+__$ArrayPad$ = 624
 main$dtor$11 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H

@@ -35,7 +35,9 @@ void Physics::createActor(BaseCube* cube) {
     if (cube->Anchored) {
         actor = physics->createRigidStatic(transform);
     } else {
-        actor = physics->createRigidDynamic(transform);
+        physx::PxRigidDynamic* dynamicActor = physics->createRigidDynamic(transform);
+        dynamicActor->setRigidDynamicLockFlags(cube->LockFlags);
+        actor = dynamicActor;
     }
 
     // 形状とマテリアルの紐付け

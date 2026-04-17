@@ -19,7 +19,10 @@ public:
     GLFWwindow* window;
 
     float speed = 0.05f;
+    float walkPower = 5.0f;
     float rotationSpeed = 1.0f; // 回転の速さ
+    float cameraDistance = 10.0f; // カメラの距離
+    float zoomSpeed = 0.1f;
     camera current_camera;
     
     camera &cam;

@@ -28,33 +28,6 @@ void User::processInput() {
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cpos = cpos + right * speed;
         if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) cpos = cpos - up * speed;
         if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) cpos = cpos + up * speed;
-
-        bool rotated = false;
-
-        // 回転操作：現在の姿勢に対して「追加の回転」を掛け算する
-        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-            // Y軸（ワールドの上方向）を中心に回転
-            cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), rotationSpeed) * cam.Orientation;
-            rotated = true;
-        }
-        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-            cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), -rotationSpeed) * cam.Orientation;
-            rotated = true;
-        }
-        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-            // X軸（カメラから見て右方向）を中心に回転
-            cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), rotationSpeed);
-            rotated = true;
-        }
-        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-            cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), -rotationSpeed);
-            rotated = true;
-        }
-
-        // 回転があった場合のみベクトルを更新
-        if (rotated) {
-            updateVectors();
-        }
     } 
     else if (ControlMode::Character == controlMode && character && torso) {
         // キャラクターモードの入力処理：物理エンジンを使用して移動
@@ -66,16 +39,16 @@ void User::processInput() {
                 
                 // 水平移動速度の計算
                 if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-                    velocity = velocity + forward * speed;
+                    velocity = velocity + forward * walkPower;
                 }
                 if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-                    velocity = velocity - forward * speed;
+                    velocity = velocity - forward * walkPower;
                 }
                 if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-                    velocity = velocity - right * speed;
+                    velocity = velocity - right * walkPower;
                 }
                 if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-                    velocity = velocity + right * speed;
+                    velocity = velocity + right * walkPower;
                 }
                 
                 // 現在の垂直速度を保持（重力の影響を保つ）
@@ -88,16 +61,50 @@ void User::processInput() {
                 );
             }
             
-            // カメラ位置もキャラクター位置に追従（torsoの位置から計算）
-            cpos = torso->Position + Vector3(0, 2.0f, 0);
-
-            // キャラクターパーツを胴体に追従させる（レンダラーの親子関係廃止に伴い手動で更新）
-            if (head)     head->Position     = torso->Position + Vector3(0, 1.25f, 0);
-            if (leftArm)  leftArm->Position  = torso->Position + Vector3(-0.75f, 0, 0);
-            if (rightArm) rightArm->Position = torso->Position + Vector3(0.75f, 0, 0);
-            if (leftLeg)  leftLeg->Position  = torso->Position + Vector3(-0.25f, -1.5f, 0);
-            if (rightLeg) rightLeg->Position = torso->Position + Vector3(0.25f, -1.5f, 0);
+            // カメラ位置もキャラクター位置に追従（向きと距離に基づいて計算）
+            cpos = torso->Position + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
         }
+    }
+    // 回転とカメラの距離調整は常に実行する
+    bool rotated = false;
+
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+        // Y軸（ワールドの上方向）を中心に回転
+        cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), rotationSpeed) * cam.Orientation;
+        rotated = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+        cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), -rotationSpeed) * cam.Orientation;
+        rotated = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+        // X軸（カメラから見て右方向）を中心に回転
+        cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), rotationSpeed);
+        rotated = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+        cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), -rotationSpeed);
+        rotated = true;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) {
+        cameraDistance -= zoomSpeed; // ズームイン
+        if (cameraDistance < 2.0f) cameraDistance = 2.0f;
+    }
+    if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
+        cameraDistance += zoomSpeed; // ズームアウト
+    }
+    
+    // 常に同期
+    if (head)     head->Position     = torso->Position + Vector3(0, 1.25f, 0);
+    if (leftArm)  leftArm->Position  = torso->Position + Vector3(-0.75f, 0, 0);
+    if (rightArm) rightArm->Position = torso->Position + Vector3(0.75f, 0, 0);
+    if (leftLeg)  leftLeg->Position  = torso->Position + Vector3(-0.25f, -1.5f, 0);
+    if (rightLeg) rightLeg->Position = torso->Position + Vector3(0.25f, -1.5f, 0);
+    
+    // 回転があった場合のみベクトルを更新
+    if (rotated) {
+        updateVectors();
     }
 
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
@@ -136,6 +143,10 @@ void User::spawnCharacter() {
 
     head->Name = "Head";
     torso->Name = "Torso";
+    
+    // 回転をY軸のみに限定（X軸とZ軸をロック）
+    torso->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+
     leftArm->Name = "LeftArm";
     rightArm->Name = "RightArm";
     leftLeg->Name = "LeftLeg";
