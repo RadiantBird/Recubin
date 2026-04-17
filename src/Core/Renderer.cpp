@@ -192,13 +192,16 @@ void Renderer::render(User &user, GLFWwindow* window, Workspace &workspace) {
         if (inst->IsA("Cube")) {
             Cube* cube = static_cast<Cube*>(inst);
             
-            // CFrameから行列を取得し、サイズ（Scale）を適用
-            Matrix4 modelMat = cube->cframe.toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
-            
-            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
-            
-            // 描画実行
-            cube->draw(modelLoc, shaderProgram);
+            // アルファ値がほぼ0なら描画をスキップ
+            if (cube->Color.a > 0.001f) {
+                // CFrameから行列を取得し、サイズ（Scale）を適用
+                Matrix4 modelMat = cube->cframe.toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
+                
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
+                
+                // 描画実行
+                cube->draw(modelLoc, shaderProgram);
+            }
         }
 
         // 子要素も同様のルールで描画

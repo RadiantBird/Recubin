@@ -190,6 +190,7 @@ PUBLIC	?GetClassName@Spatial@@UEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$al
 PUBLIC	??1Spatial@@UEAA@XZ				; Spatial::~Spatial
 PUBLIC	??_GSpatial@@UEAAPEAXI@Z			; Spatial::`scalar deleting destructor'
 PUBLIC	??0Color4@@QEAA@MMMM@Z				; Color4::Color4
+PUBLIC	?FromRGB@Color4@@SA?AU1@HHHM@Z			; Color4::FromRGB
 PUBLIC	??0?$PxVec3T@M@physx@@QEAA@MMM@Z		; physx::PxVec3T<float>::PxVec3T<float>
 PUBLIC	??0?$PxQuatT@M@physx@@QEAA@MMMM@Z		; physx::PxQuatT<float>::PxQuatT<float>
 PUBLIC	??4?$PxQuatT@M@physx@@QEAAAEAV01@AEBV01@@Z	; physx::PxQuatT<float>::operator=
@@ -322,6 +323,7 @@ PUBLIC	__real@40a00000
 PUBLIC	__real@41200000
 PUBLIC	__real@420c0000
 PUBLIC	__real@43340000
+PUBLIC	__real@437f0000
 PUBLIC	__real@bc567750
 PUBLIC	__real@c0000000
 PUBLIC	__xmm@000000003a83126f3a83126f3a83126f
@@ -767,8 +769,8 @@ $pdata$20$?processInput@User@@QEAAXXZ DD imagerel $LN469+4456
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$?spawnCharacter@User@@QEAAXXZ DD imagerel $LN234
-	DD	imagerel $LN234+1369
+$pdata$?spawnCharacter@User@@QEAAXXZ DD imagerel $LN254
+	DD	imagerel $LN254+1599
 	DD	imagerel $unwind$?spawnCharacter@User@@QEAAXXZ
 pdata	ENDS
 ;	COMDAT pdata
@@ -1021,6 +1023,10 @@ CONST	ENDS
 ;	COMDAT __real@bc567750
 CONST	SEGMENT
 __real@bc567750 DD 0bc567750r			; -0.01309
+CONST	ENDS
+;	COMDAT __real@437f0000
+CONST	SEGMENT
+__real@437f0000 DD 0437f0000r			; 255
 CONST	ENDS
 ;	COMDAT __real@43340000
 CONST	SEGMENT
@@ -1759,7 +1765,7 @@ $ip2state$?spawnCharacter@User@@QEAAXXZ DB '$'
 	DB	00H
 	DB	'r'
 	DB	012H
-	DB	'H'
+	DB	'L'
 	DB	00H
 xdata	ENDS
 ;	COMDAT xdata
@@ -3973,36 +3979,36 @@ text$x	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ?spawnCharacter@User@@QEAAXXZ
 _TEXT	SEGMENT
-$T13 = 32
-$T14 = 32
 $T15 = 32
 $T16 = 32
 $T17 = 32
 $T18 = 32
 $T19 = 32
-$T20 = 48
-$T21 = 48
+$T20 = 32
+$T21 = 32
 $T22 = 48
 $T23 = 48
 $T24 = 48
 $T25 = 48
 $T26 = 48
-$T27 = 64
-$T28 = 96
+$T27 = 48
+$T28 = 48
+$T29 = 64
+$T30 = 96
 this$ = 208
-$T29 = 208
-$T30 = 208
 $T31 = 208
 $T32 = 208
 $T33 = 208
 $T34 = 208
 $T35 = 208
 $T36 = 208
-$T37 = 216
+$T37 = 208
+$T38 = 208
+$T39 = 216
 ?spawnCharacter@User@@QEAAXXZ PROC			; User::spawnCharacter, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 215
-$LN234:
+$LN254:
 	mov	rax, rsp
 	mov	QWORD PTR [rax+32], rbx
 	push	rbp
@@ -4021,37 +4027,37 @@ $LN234:
 	mov	ecx, 168				; 000000a8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	rbx, rax
-	mov	QWORD PTR $T29[rbp-105], rax
+	mov	QWORD PTR $T31[rbp-105], rax
 	movss	xmm8, DWORD PTR __real@3f800000
 	test	rax, rax
 	je	$LN4@spawnChara
 	xorps	xmm0, xmm0
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 493
-	movups	XMMWORD PTR $T27[rbp-105], xmm0
+	movups	XMMWORD PTR $T29[rbp-105], xmm0
 ; Line 940
-	mov	QWORD PTR $T27[rbp-89], 5
+	mov	QWORD PTR $T29[rbp-89], 5
 ; Line 941
-	mov	QWORD PTR $T27[rbp-81], 15
+	mov	QWORD PTR $T29[rbp-81], 15
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 200
 	mov	eax, DWORD PTR ??_C@_05NFIJOKEG@Model@
-	mov	DWORD PTR $T27[rbp-105], eax
+	mov	DWORD PTR $T29[rbp-105], eax
 	movzx	eax, BYTE PTR ??_C@_05NFIJOKEG@Model@+4
-	mov	BYTE PTR $T27[rbp-101], al
+	mov	BYTE PTR $T29[rbp-101], al
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 948
-	mov	BYTE PTR $T27[rbp-100], 0
+	mov	BYTE PTR $T29[rbp-100], 0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Model.hpp
 ; Line 6
-	lea	rax, QWORD PTR $T27[rbp-105]
-	mov	QWORD PTR $T37[rbp-105], rax
+	lea	rax, QWORD PTR $T29[rbp-105]
+	mov	QWORD PTR $T39[rbp-105], rax
 	movss	xmm7, DWORD PTR __real@40a00000
 	movss	xmm6, DWORD PTR __real@41200000
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Spatial.hpp
 ; Line 18
-	lea	rdx, QWORD PTR $T27[rbp-105]
-	lea	rcx, QWORD PTR $T28[rbp-105]
+	lea	rdx, QWORD PTR $T29[rbp-105]
+	lea	rcx, QWORD PTR $T30[rbp-105]
 	call	??0?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@AEBV01@@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::basic_string<char,std::char_traits<char>,std::allocator<char> >
 	mov	rdx, rax
 	mov	rcx, rbx
@@ -4084,7 +4090,7 @@ $LN234:
 	mov	QWORD PTR [rbx+160], rax
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 1433
-	lea	rcx, QWORD PTR $T27[rbp-105]
+	lea	rcx, QWORD PTR $T29[rbp-105]
 	call	?_Tidy_deallocate@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAXXZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Tidy_deallocate
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Model.hpp
 ; Line 6
@@ -4105,17 +4111,17 @@ $LN5@spawnChara:
 ; Line 222
 	mov	ecx, 240				; 000000f0H
 	call	??2@YAPEAX_K@Z				; operator new
-	mov	QWORD PTR $T30[rbp-105], rax
+	mov	QWORD PTR $T32[rbp-105], rax
 	test	rax, rax
 	je	SHORT $LN6@spawnChara
-	mov	DWORD PTR $T13[rbp-105], 1073741824	; 40000000H
-	mov	DWORD PTR $T13[rbp-101], 1082130432	; 40800000H
-	mov	DWORD PTR $T13[rbp-97], 1065353216	; 3f800000H
-	movsd	QWORD PTR $T20[rbp-105], xmm6
-	mov	DWORD PTR $T20[rbp-97], ebx
+	mov	DWORD PTR $T15[rbp-105], 1073741824	; 40000000H
+	mov	DWORD PTR $T15[rbp-101], 1082130432	; 40800000H
+	mov	DWORD PTR $T15[rbp-97], 1065353216	; 3f800000H
+	movsd	QWORD PTR $T22[rbp-105], xmm6
+	mov	DWORD PTR $T22[rbp-97], ebx
 	xor	r9d, r9d
-	lea	r8, QWORD PTR $T13[rbp-105]
-	lea	rdx, QWORD PTR $T20[rbp-105]
+	lea	r8, QWORD PTR $T15[rbp-105]
+	lea	rdx, QWORD PTR $T22[rbp-105]
 	mov	rcx, rax
 	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
 	jmp	SHORT $LN7@spawnChara
@@ -4126,17 +4132,17 @@ $LN7@spawnChara:
 ; Line 223
 	mov	ecx, 240				; 000000f0H
 	call	??2@YAPEAX_K@Z				; operator new
-	mov	QWORD PTR $T31[rbp-105], rax
+	mov	QWORD PTR $T33[rbp-105], rax
 	test	rax, rax
 	je	SHORT $LN8@spawnChara
-	mov	DWORD PTR $T14[rbp-105], 1065353216	; 3f800000H
-	mov	DWORD PTR $T14[rbp-101], 1065353216	; 3f800000H
-	mov	DWORD PTR $T14[rbp-97], 1065353216	; 3f800000H
-	movsd	QWORD PTR $T21[rbp-105], xmm6
-	mov	DWORD PTR $T21[rbp-97], ebx
+	mov	DWORD PTR $T16[rbp-105], 1065353216	; 3f800000H
+	mov	DWORD PTR $T16[rbp-101], 1065353216	; 3f800000H
+	mov	DWORD PTR $T16[rbp-97], 1065353216	; 3f800000H
+	movsd	QWORD PTR $T23[rbp-105], xmm6
+	mov	DWORD PTR $T23[rbp-97], ebx
 	xor	r9d, r9d
-	lea	r8, QWORD PTR $T14[rbp-105]
-	lea	rdx, QWORD PTR $T21[rbp-105]
+	lea	r8, QWORD PTR $T16[rbp-105]
+	lea	rdx, QWORD PTR $T23[rbp-105]
 	mov	rcx, rax
 	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
 	jmp	SHORT $LN9@spawnChara
@@ -4147,17 +4153,17 @@ $LN9@spawnChara:
 ; Line 224
 	mov	ecx, 240				; 000000f0H
 	call	??2@YAPEAX_K@Z				; operator new
-	mov	QWORD PTR $T32[rbp-105], rax
+	mov	QWORD PTR $T34[rbp-105], rax
 	test	rax, rax
 	je	SHORT $LN10@spawnChara
-	mov	DWORD PTR $T15[rbp-105], 1073741824	; 40000000H
-	mov	DWORD PTR $T15[rbp-101], 1073741824	; 40000000H
-	mov	DWORD PTR $T15[rbp-97], 1065353216	; 3f800000H
-	movsd	QWORD PTR $T22[rbp-105], xmm6
-	mov	DWORD PTR $T22[rbp-97], ebx
+	mov	DWORD PTR $T17[rbp-105], 1073741824	; 40000000H
+	mov	DWORD PTR $T17[rbp-101], 1073741824	; 40000000H
+	mov	DWORD PTR $T17[rbp-97], 1065353216	; 3f800000H
+	movsd	QWORD PTR $T24[rbp-105], xmm6
+	mov	DWORD PTR $T24[rbp-97], ebx
 	xor	r9d, r9d
-	lea	r8, QWORD PTR $T15[rbp-105]
-	lea	rdx, QWORD PTR $T22[rbp-105]
+	lea	r8, QWORD PTR $T17[rbp-105]
+	lea	rdx, QWORD PTR $T24[rbp-105]
 	mov	rcx, rax
 	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
 	jmp	SHORT $LN11@spawnChara
@@ -4168,51 +4174,9 @@ $LN11@spawnChara:
 ; Line 225
 	mov	ecx, 240				; 000000f0H
 	call	??2@YAPEAX_K@Z				; operator new
-	mov	QWORD PTR $T33[rbp-105], rax
-	test	rax, rax
-	je	SHORT $LN12@spawnChara
-	mov	DWORD PTR $T16[rbp-105], 1065353216	; 3f800000H
-	mov	DWORD PTR $T16[rbp-101], 1073741824	; 40000000H
-	mov	DWORD PTR $T16[rbp-97], 1065353216	; 3f800000H
-	movsd	QWORD PTR $T23[rbp-105], xmm6
-	mov	DWORD PTR $T23[rbp-97], ebx
-	xor	r9d, r9d
-	lea	r8, QWORD PTR $T16[rbp-105]
-	lea	rdx, QWORD PTR $T23[rbp-105]
-	mov	rcx, rax
-	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
-	jmp	SHORT $LN13@spawnChara
-$LN12@spawnChara:
-	mov	rax, rdi
-$LN13@spawnChara:
-	mov	QWORD PTR [rsi+128], rax
-; Line 226
-	mov	ecx, 240				; 000000f0H
-	call	??2@YAPEAX_K@Z				; operator new
-	mov	QWORD PTR $T34[rbp-105], rax
-	test	rax, rax
-	je	SHORT $LN14@spawnChara
-	mov	DWORD PTR $T17[rbp-105], 1065353216	; 3f800000H
-	mov	DWORD PTR $T17[rbp-101], 1073741824	; 40000000H
-	mov	DWORD PTR $T17[rbp-97], 1065353216	; 3f800000H
-	movsd	QWORD PTR $T24[rbp-105], xmm6
-	mov	DWORD PTR $T24[rbp-97], ebx
-	xor	r9d, r9d
-	lea	r8, QWORD PTR $T17[rbp-105]
-	lea	rdx, QWORD PTR $T24[rbp-105]
-	mov	rcx, rax
-	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
-	jmp	SHORT $LN15@spawnChara
-$LN14@spawnChara:
-	mov	rax, rdi
-$LN15@spawnChara:
-	mov	QWORD PTR [rsi+136], rax
-; Line 227
-	mov	ecx, 240				; 000000f0H
-	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T35[rbp-105], rax
 	test	rax, rax
-	je	SHORT $LN16@spawnChara
+	je	SHORT $LN12@spawnChara
 	mov	DWORD PTR $T18[rbp-105], 1065353216	; 3f800000H
 	mov	DWORD PTR $T18[rbp-101], 1073741824	; 40000000H
 	mov	DWORD PTR $T18[rbp-97], 1065353216	; 3f800000H
@@ -4223,17 +4187,17 @@ $LN15@spawnChara:
 	lea	rdx, QWORD PTR $T25[rbp-105]
 	mov	rcx, rax
 	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
-	jmp	SHORT $LN17@spawnChara
-$LN16@spawnChara:
+	jmp	SHORT $LN13@spawnChara
+$LN12@spawnChara:
 	mov	rax, rdi
-$LN17@spawnChara:
-	mov	QWORD PTR [rsi+144], rax
-; Line 228
+$LN13@spawnChara:
+	mov	QWORD PTR [rsi+128], rax
+; Line 226
 	mov	ecx, 240				; 000000f0H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T36[rbp-105], rax
 	test	rax, rax
-	je	SHORT $LN19@spawnChara
+	je	SHORT $LN14@spawnChara
 	mov	DWORD PTR $T19[rbp-105], 1065353216	; 3f800000H
 	mov	DWORD PTR $T19[rbp-101], 1073741824	; 40000000H
 	mov	DWORD PTR $T19[rbp-97], 1065353216	; 3f800000H
@@ -4244,9 +4208,53 @@ $LN17@spawnChara:
 	lea	rdx, QWORD PTR $T26[rbp-105]
 	mov	rcx, rax
 	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
-	mov	rdi, rax
+	jmp	SHORT $LN15@spawnChara
+$LN14@spawnChara:
+	mov	rax, rdi
+$LN15@spawnChara:
+	mov	QWORD PTR [rsi+136], rax
+; Line 227
+	mov	ecx, 240				; 000000f0H
+	call	??2@YAPEAX_K@Z				; operator new
+	mov	QWORD PTR $T37[rbp-105], rax
+	test	rax, rax
+	je	SHORT $LN16@spawnChara
+	mov	DWORD PTR $T20[rbp-105], 1065353216	; 3f800000H
+	mov	DWORD PTR $T20[rbp-101], 1073741824	; 40000000H
+	mov	DWORD PTR $T20[rbp-97], 1065353216	; 3f800000H
+	movsd	QWORD PTR $T27[rbp-105], xmm6
+	mov	DWORD PTR $T27[rbp-97], ebx
+	xor	r9d, r9d
+	lea	r8, QWORD PTR $T20[rbp-105]
+	lea	rdx, QWORD PTR $T27[rbp-105]
+	mov	rcx, rax
+	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
+	jmp	SHORT $LN17@spawnChara
+$LN16@spawnChara:
+	mov	rax, rdi
+$LN17@spawnChara:
+	mov	QWORD PTR [rsi+144], rax
+; Line 228
+	mov	ecx, 240				; 000000f0H
+	call	??2@YAPEAX_K@Z				; operator new
+	mov	QWORD PTR $T38[rbp-105], rax
+	test	rax, rax
+	je	SHORT $LN18@spawnChara
+	mov	DWORD PTR $T21[rbp-105], 1065353216	; 3f800000H
+	mov	DWORD PTR $T21[rbp-101], 1073741824	; 40000000H
+	mov	DWORD PTR $T21[rbp-97], 1065353216	; 3f800000H
+	movsd	QWORD PTR $T28[rbp-105], xmm6
+	mov	DWORD PTR $T28[rbp-97], ebx
+	xor	r9d, r9d
+	lea	r8, QWORD PTR $T21[rbp-105]
+	lea	rdx, QWORD PTR $T28[rbp-105]
+	mov	rcx, rax
+	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
+	jmp	SHORT $LN19@spawnChara
+$LN18@spawnChara:
+	mov	rax, rdi
 $LN19@spawnChara:
-	mov	QWORD PTR [rsi+152], rdi
+	mov	QWORD PTR [rsi+152], rax
 ; Line 231
 	mov	rcx, QWORD PTR [rsi+104]
 	add	rcx, 8
@@ -4333,48 +4341,80 @@ $LN19@spawnChara:
 	mov	rax, QWORD PTR [rsi+104]
 	mov	BYTE PTR [rax+200], 40			; 00000028H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 247
+; Line 248
 	mov	rax, QWORD PTR [rsi+104]
 	mov	DWORD PTR [rax+172], 1065353216		; 3f800000H
 	mov	DWORD PTR [rax+176], 1056964608		; 3f000000H
-	mov	DWORD PTR [rax+180], 1056964608		; 3f000000H
+	mov	QWORD PTR [rax+180], 1056964608		; 3f000000H
+; Line 249
+	mov	rax, QWORD PTR [rsi+112]
+	mov	DWORD PTR [rax+172], edi
+	mov	DWORD PTR [rax+176], 1041272977		; 3e109091H
+	mov	DWORD PTR [rax+180], 1050845859		; 3ea2a2a3H
 	mov	DWORD PTR [rax+184], 1065353216		; 3f800000H
-; Line 250
+; Line 251
+	mov	rax, QWORD PTR [rsi+120]
+	mov	DWORD PTR [rax+172], 1061997773		; 3f4ccccdH
+	mov	QWORD PTR [rax+176], 1065353216		; 3f800000H
+	mov	DWORD PTR [rax+184], 1065353216		; 3f800000H
+; Line 252
+	mov	rax, QWORD PTR [rsi+128]
+	mov	DWORD PTR [rax+172], 1061997773		; 3f4ccccdH
+	mov	QWORD PTR [rax+176], 1065353216		; 3f800000H
+	mov	DWORD PTR [rax+184], 1065353216		; 3f800000H
+; Line 253
+	mov	rax, QWORD PTR [rsi+136]
+	mov	DWORD PTR [rax+172], 1061997773		; 3f4ccccdH
+	mov	QWORD PTR [rax+176], 1065353216		; 3f800000H
+	mov	DWORD PTR [rax+184], 1065353216		; 3f800000H
+; Line 255
+	mov	rax, QWORD PTR [rsi+144]
+	mov	DWORD PTR [rax+172], edi
+	mov	DWORD PTR [rax+176], 1065353216		; 3f800000H
+	mov	DWORD PTR [rax+180], 1056997505		; 3f008081H
+	mov	DWORD PTR [rax+184], 1065353216		; 3f800000H
+; Line 256
+	mov	rax, QWORD PTR [rsi+152]
+	mov	DWORD PTR [rax+172], edi
+	mov	DWORD PTR [rax+176], 1065353216		; 3f800000H
+	mov	DWORD PTR [rax+180], 1056997505		; 3f008081H
+	mov	DWORD PTR [rax+184], 1065353216		; 3f800000H
+; Line 259
 	mov	rcx, QWORD PTR [rsi+96]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+104]
 	call	QWORD PTR [rax+32]
-; Line 251
+; Line 260
 	mov	rcx, QWORD PTR [rsi+96]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+120]
 	call	QWORD PTR [rax+32]
-; Line 252
+; Line 261
 	mov	rcx, QWORD PTR [rsi+96]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+112]
 	call	QWORD PTR [rax+32]
-; Line 253
+; Line 262
 	mov	rcx, QWORD PTR [rsi+96]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+128]
 	call	QWORD PTR [rax+32]
-; Line 254
+; Line 263
 	mov	rcx, QWORD PTR [rsi+96]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+136]
 	call	QWORD PTR [rax+32]
-; Line 255
+; Line 264
 	mov	rcx, QWORD PTR [rsi+96]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+144]
 	call	QWORD PTR [rax+32]
-; Line 256
+; Line 265
 	mov	rcx, QWORD PTR [rsi+96]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+152]
 	call	QWORD PTR [rax+32]
-; Line 258
+; Line 267
 	lea	rdx, OFFSET FLAT:??_C@_0O@DFEEAMDI@?$FLRCBN_DEBUG?$FN?5@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -4385,7 +4425,7 @@ $LN19@spawnChara:
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
 $LN1@spawnChara:
-; Line 259
+; Line 268
 	lea	r11, QWORD PTR [rsp+176]
 	mov	rbx, QWORD PTR [r11+56]
 	movaps	xmm6, XMMWORD PTR [r11-16]
@@ -4401,38 +4441,38 @@ _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT text$x
 text$x	SEGMENT
-$T13 = 32
-$T14 = 32
 $T15 = 32
 $T16 = 32
 $T17 = 32
 $T18 = 32
 $T19 = 32
-$T20 = 48
-$T21 = 48
+$T20 = 32
+$T21 = 32
 $T22 = 48
 $T23 = 48
 $T24 = 48
 $T25 = 48
 $T26 = 48
-$T27 = 64
-$T28 = 96
+$T27 = 48
+$T28 = 48
+$T29 = 64
+$T30 = 96
 this$ = 208
-$T29 = 208
-$T30 = 208
 $T31 = 208
 $T32 = 208
 $T33 = 208
 $T34 = 208
 $T35 = 208
 $T36 = 208
-$T37 = 216
+$T37 = 208
+$T38 = 208
+$T39 = 216
 ?dtor$0@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$0
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
 	mov	edx, 168				; 000000a8H
-	mov	rcx, QWORD PTR $T29[rbp]
+	mov	rcx, QWORD PTR $T31[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
 	pop	rbp
@@ -4442,149 +4482,67 @@ text$x	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT text$x
 text$x	SEGMENT
-$T13 = 32
-$T14 = 32
 $T15 = 32
 $T16 = 32
 $T17 = 32
 $T18 = 32
 $T19 = 32
-$T20 = 48
-$T21 = 48
+$T20 = 32
+$T21 = 32
 $T22 = 48
 $T23 = 48
 $T24 = 48
 $T25 = 48
 $T26 = 48
-$T27 = 64
-$T28 = 96
+$T27 = 48
+$T28 = 48
+$T29 = 64
+$T30 = 96
 this$ = 208
-$T29 = 208
-$T30 = 208
 $T31 = 208
 $T32 = 208
 $T33 = 208
 $T34 = 208
 $T35 = 208
 $T36 = 208
-$T37 = 216
+$T37 = 208
+$T38 = 208
+$T39 = 216
 ?dtor$12@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$12
-	mov	rcx, QWORD PTR $T37[rdx]
+	mov	rcx, QWORD PTR $T39[rdx]
 	jmp	??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::~basic_string<char,std::char_traits<char>,std::allocator<char> >
 ?dtor$12@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$12
 text$x	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT text$x
 text$x	SEGMENT
-$T13 = 32
-$T14 = 32
 $T15 = 32
 $T16 = 32
 $T17 = 32
 $T18 = 32
 $T19 = 32
-$T20 = 48
-$T21 = 48
+$T20 = 32
+$T21 = 32
 $T22 = 48
 $T23 = 48
 $T24 = 48
 $T25 = 48
 $T26 = 48
-$T27 = 64
-$T28 = 96
+$T27 = 48
+$T28 = 48
+$T29 = 64
+$T30 = 96
 this$ = 208
-$T29 = 208
-$T30 = 208
 $T31 = 208
 $T32 = 208
 $T33 = 208
 $T34 = 208
 $T35 = 208
 $T36 = 208
-$T37 = 216
+$T37 = 208
+$T38 = 208
+$T39 = 216
 ?dtor$1@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$1
-	push	rbp
-	sub	rsp, 32					; 00000020H
-	mov	rbp, rdx
-	mov	edx, 240				; 000000f0H
-	mov	rcx, QWORD PTR $T30[rbp]
-	call	??3@YAXPEAX_K@Z				; operator delete
-	add	rsp, 32					; 00000020H
-	pop	rbp
-	ret	0
-?dtor$1@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$1
-text$x	ENDS
-; Function compile flags: /Ogtpy
-;	COMDAT text$x
-text$x	SEGMENT
-$T13 = 32
-$T14 = 32
-$T15 = 32
-$T16 = 32
-$T17 = 32
-$T18 = 32
-$T19 = 32
-$T20 = 48
-$T21 = 48
-$T22 = 48
-$T23 = 48
-$T24 = 48
-$T25 = 48
-$T26 = 48
-$T27 = 64
-$T28 = 96
-this$ = 208
-$T29 = 208
-$T30 = 208
-$T31 = 208
-$T32 = 208
-$T33 = 208
-$T34 = 208
-$T35 = 208
-$T36 = 208
-$T37 = 216
-?dtor$2@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$2
-	push	rbp
-	sub	rsp, 32					; 00000020H
-	mov	rbp, rdx
-	mov	edx, 240				; 000000f0H
-	mov	rcx, QWORD PTR $T31[rbp]
-	call	??3@YAXPEAX_K@Z				; operator delete
-	add	rsp, 32					; 00000020H
-	pop	rbp
-	ret	0
-?dtor$2@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$2
-text$x	ENDS
-; Function compile flags: /Ogtpy
-;	COMDAT text$x
-text$x	SEGMENT
-$T13 = 32
-$T14 = 32
-$T15 = 32
-$T16 = 32
-$T17 = 32
-$T18 = 32
-$T19 = 32
-$T20 = 48
-$T21 = 48
-$T22 = 48
-$T23 = 48
-$T24 = 48
-$T25 = 48
-$T26 = 48
-$T27 = 64
-$T28 = 96
-this$ = 208
-$T29 = 208
-$T30 = 208
-$T31 = 208
-$T32 = 208
-$T33 = 208
-$T34 = 208
-$T35 = 208
-$T36 = 208
-$T37 = 216
-?dtor$3@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$3
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
@@ -4594,38 +4552,38 @@ $T37 = 216
 	add	rsp, 32					; 00000020H
 	pop	rbp
 	ret	0
-?dtor$3@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$3
+?dtor$1@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$1
 text$x	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT text$x
 text$x	SEGMENT
-$T13 = 32
-$T14 = 32
 $T15 = 32
 $T16 = 32
 $T17 = 32
 $T18 = 32
 $T19 = 32
-$T20 = 48
-$T21 = 48
+$T20 = 32
+$T21 = 32
 $T22 = 48
 $T23 = 48
 $T24 = 48
 $T25 = 48
 $T26 = 48
-$T27 = 64
-$T28 = 96
+$T27 = 48
+$T28 = 48
+$T29 = 64
+$T30 = 96
 this$ = 208
-$T29 = 208
-$T30 = 208
 $T31 = 208
 $T32 = 208
 $T33 = 208
 $T34 = 208
 $T35 = 208
 $T36 = 208
-$T37 = 216
-?dtor$4@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$4
+$T37 = 208
+$T38 = 208
+$T39 = 216
+?dtor$2@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$2
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
@@ -4635,38 +4593,38 @@ $T37 = 216
 	add	rsp, 32					; 00000020H
 	pop	rbp
 	ret	0
-?dtor$4@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$4
+?dtor$2@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$2
 text$x	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT text$x
 text$x	SEGMENT
-$T13 = 32
-$T14 = 32
 $T15 = 32
 $T16 = 32
 $T17 = 32
 $T18 = 32
 $T19 = 32
-$T20 = 48
-$T21 = 48
+$T20 = 32
+$T21 = 32
 $T22 = 48
 $T23 = 48
 $T24 = 48
 $T25 = 48
 $T26 = 48
-$T27 = 64
-$T28 = 96
+$T27 = 48
+$T28 = 48
+$T29 = 64
+$T30 = 96
 this$ = 208
-$T29 = 208
-$T30 = 208
 $T31 = 208
 $T32 = 208
 $T33 = 208
 $T34 = 208
 $T35 = 208
 $T36 = 208
-$T37 = 216
-?dtor$5@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$5
+$T37 = 208
+$T38 = 208
+$T39 = 216
+?dtor$3@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$3
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
@@ -4676,38 +4634,38 @@ $T37 = 216
 	add	rsp, 32					; 00000020H
 	pop	rbp
 	ret	0
-?dtor$5@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$5
+?dtor$3@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$3
 text$x	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT text$x
 text$x	SEGMENT
-$T13 = 32
-$T14 = 32
 $T15 = 32
 $T16 = 32
 $T17 = 32
 $T18 = 32
 $T19 = 32
-$T20 = 48
-$T21 = 48
+$T20 = 32
+$T21 = 32
 $T22 = 48
 $T23 = 48
 $T24 = 48
 $T25 = 48
 $T26 = 48
-$T27 = 64
-$T28 = 96
+$T27 = 48
+$T28 = 48
+$T29 = 64
+$T30 = 96
 this$ = 208
-$T29 = 208
-$T30 = 208
 $T31 = 208
 $T32 = 208
 $T33 = 208
 $T34 = 208
 $T35 = 208
 $T36 = 208
-$T37 = 216
-?dtor$6@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$6
+$T37 = 208
+$T38 = 208
+$T39 = 216
+?dtor$4@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$4
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
@@ -4717,43 +4675,125 @@ $T37 = 216
 	add	rsp, 32					; 00000020H
 	pop	rbp
 	ret	0
-?dtor$6@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$6
+?dtor$4@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$4
 text$x	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT text$x
 text$x	SEGMENT
-$T13 = 32
-$T14 = 32
 $T15 = 32
 $T16 = 32
 $T17 = 32
 $T18 = 32
 $T19 = 32
-$T20 = 48
-$T21 = 48
+$T20 = 32
+$T21 = 32
 $T22 = 48
 $T23 = 48
 $T24 = 48
 $T25 = 48
 $T26 = 48
-$T27 = 64
-$T28 = 96
+$T27 = 48
+$T28 = 48
+$T29 = 64
+$T30 = 96
 this$ = 208
-$T29 = 208
-$T30 = 208
 $T31 = 208
 $T32 = 208
 $T33 = 208
 $T34 = 208
 $T35 = 208
 $T36 = 208
-$T37 = 216
-?dtor$7@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$7
+$T37 = 208
+$T38 = 208
+$T39 = 216
+?dtor$5@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$5
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
 	mov	edx, 240				; 000000f0H
 	mov	rcx, QWORD PTR $T36[rbp]
+	call	??3@YAXPEAX_K@Z				; operator delete
+	add	rsp, 32					; 00000020H
+	pop	rbp
+	ret	0
+?dtor$5@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$5
+text$x	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT text$x
+text$x	SEGMENT
+$T15 = 32
+$T16 = 32
+$T17 = 32
+$T18 = 32
+$T19 = 32
+$T20 = 32
+$T21 = 32
+$T22 = 48
+$T23 = 48
+$T24 = 48
+$T25 = 48
+$T26 = 48
+$T27 = 48
+$T28 = 48
+$T29 = 64
+$T30 = 96
+this$ = 208
+$T31 = 208
+$T32 = 208
+$T33 = 208
+$T34 = 208
+$T35 = 208
+$T36 = 208
+$T37 = 208
+$T38 = 208
+$T39 = 216
+?dtor$6@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$6
+	push	rbp
+	sub	rsp, 32					; 00000020H
+	mov	rbp, rdx
+	mov	edx, 240				; 000000f0H
+	mov	rcx, QWORD PTR $T37[rbp]
+	call	??3@YAXPEAX_K@Z				; operator delete
+	add	rsp, 32					; 00000020H
+	pop	rbp
+	ret	0
+?dtor$6@?0??spawnCharacter@User@@QEAAXXZ@4HA ENDP	; `User::spawnCharacter'::`1'::dtor$6
+text$x	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT text$x
+text$x	SEGMENT
+$T15 = 32
+$T16 = 32
+$T17 = 32
+$T18 = 32
+$T19 = 32
+$T20 = 32
+$T21 = 32
+$T22 = 48
+$T23 = 48
+$T24 = 48
+$T25 = 48
+$T26 = 48
+$T27 = 48
+$T28 = 48
+$T29 = 64
+$T30 = 96
+this$ = 208
+$T31 = 208
+$T32 = 208
+$T33 = 208
+$T34 = 208
+$T35 = 208
+$T36 = 208
+$T37 = 208
+$T38 = 208
+$T39 = 216
+?dtor$7@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$7
+	push	rbp
+	sub	rsp, 32					; 00000020H
+	mov	rbp, rdx
+	mov	edx, 240				; 000000f0H
+	mov	rcx, QWORD PTR $T38[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
 	pop	rbp
@@ -7462,6 +7502,40 @@ nz$ = 32
 	movss	DWORD PTR [rcx+8], xmm3
 	ret	0
 ??0?$PxVec3T@M@physx@@QEAA@MMM@Z ENDP			; physx::PxVec3T<float>::PxVec3T<float>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?FromRGB@Color4@@SA?AU1@HHHM@Z
+_TEXT	SEGMENT
+__$ReturnUdt$ = 8
+r$ = 16
+g$ = 24
+b$ = 32
+a$ = 40
+?FromRGB@Color4@@SA?AU1@HHHM@Z PROC			; Color4::FromRGB, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\include\Util\Color4.hpp
+; Line 13
+	movss	xmm2, DWORD PTR __real@437f0000
+	mov	rax, rcx
+	movd	xmm0, edx
+	cvtdq2ps xmm0, xmm0
+	movd	xmm1, r9d
+	divss	xmm0, xmm2
+	cvtdq2ps xmm1, xmm1
+; Line 9
+	movss	DWORD PTR [rcx], xmm0
+	movd	xmm0, r8d
+; Line 13
+	cvtdq2ps xmm0, xmm0
+	divss	xmm1, xmm2
+	divss	xmm0, xmm2
+; Line 9
+	movss	DWORD PTR [rcx+8], xmm1
+	movss	DWORD PTR [rcx+4], xmm0
+	movss	xmm0, DWORD PTR a$[rsp]
+	movss	DWORD PTR [rcx+12], xmm0
+; Line 14
+	ret	0
+?FromRGB@Color4@@SA?AU1@HHHM@Z ENDP			; Color4::FromRGB
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??0Color4@@QEAA@MMMM@Z
@@ -10862,7 +10936,7 @@ __formal$ = 16
 __formal$ = 24
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 260
+; Line 269
 	ret	0
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -10873,7 +10947,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 260
+; Line 269
 	ret	0
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -10884,7 +10958,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAX_K@Z PROC		; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 260
+; Line 269
 	ret	0
 ?__empty_global_delete@@YAXPEAX_K@Z ENDP		; __empty_global_delete
 _TEXT	ENDS
@@ -10894,7 +10968,7 @@ _TEXT	SEGMENT
 __formal$ = 8
 ?__empty_global_delete@@YAXPEAX@Z PROC			; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 260
+; Line 269
 	ret	0
 ?__empty_global_delete@@YAXPEAX@Z ENDP			; __empty_global_delete
 _TEXT	ENDS
