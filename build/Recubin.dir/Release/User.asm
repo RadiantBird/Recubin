@@ -330,7 +330,6 @@ EXTRN	?addChild@Instance@@UEAAXPEAV1@@Z:PROC		; Instance::addChild
 EXTRN	??1Instance@@UEAA@XZ:PROC			; Instance::~Instance
 EXTRN	?IsA@Spatial@@UEAA_NV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z:PROC ; Spatial::IsA
 EXTRN	??_ESpatial@@UEAAPEAXI@Z:PROC			; Spatial::`vector deleting destructor'
-EXTRN	??0BaseCube@@QEAA@UVector3@@0@Z:PROC		; BaseCube::BaseCube
 EXTRN	??_EModel@@UEAAPEAXI@Z:PROC			; Model::`vector deleting destructor'
 EXTRN	??0Cube@@QEAA@UVector3@@0I@Z:PROC		; Cube::Cube
 EXTRN	glfwGetKey:PROC
@@ -638,7 +637,7 @@ pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
 $pdata$?spawnCharacter@User@@QEAAXXZ DD imagerel $LN224
-	DD	imagerel $LN224+1053
+	DD	imagerel $LN224+1056
 	DD	imagerel $unwind$?spawnCharacter@User@@QEAAXXZ
 pdata	ENDS
 ;	COMDAT pdata
@@ -1491,7 +1490,7 @@ $ip2state$?spawnCharacter@User@@QEAAXXZ DB ' '
 	DB	06H
 	DB	'0'
 	DB	00H
-	DB	'z'
+	DB	080H
 	DB	08H
 	DB	'"'
 	DB	00H
@@ -3631,7 +3630,7 @@ $LN224:
 	movsd	QWORD PTR [rdi+124], xmm0
 	movss	DWORD PTR [rdi+132], xmm7
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 9
+; Line 8
 	mov	QWORD PTR [rdi+136], 1065353216		; 3f800000H
 	mov	QWORD PTR [rdi+144], 0
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
@@ -3671,7 +3670,7 @@ $LN6@spawnChara:
 	mov	QWORD PTR $T34[rbp-121], 0
 $LN7@spawnChara:
 ; Line 124
-	mov	ecx, 192				; 000000c0H
+	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T35[rbp-121], rax
 	test	rax, rax
@@ -3681,10 +3680,11 @@ $LN7@spawnChara:
 	mov	DWORD PTR $T25[rbp-113], 1056964608	; 3f000000H
 	mov	QWORD PTR $T19[rbp-121], 0
 	mov	DWORD PTR $T19[rbp-113], 0
+	xor	r9d, r9d
 	lea	r8, QWORD PTR $T25[rbp-121]
 	lea	rdx, QWORD PTR $T19[rbp-121]
 	mov	rcx, rax
-	call	??0BaseCube@@QEAA@UVector3@@0@Z		; BaseCube::BaseCube
+	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
 	mov	rdi, rax
 	jmp	SHORT $LN9@spawnChara
 $LN8@spawnChara:
@@ -4017,7 +4017,7 @@ $T40 = 232
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 192				; 000000c0H
+	mov	edx, 216				; 000000d8H
 	mov	rcx, QWORD PTR $T35[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4439,17 +4439,10 @@ $LN10@processInp:
 	lea	rcx, QWORD PTR $T11[rbp-89]
 	mov	r8, rbx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-<<<<<<< HEAD
 ; Line 9
-	movss	DWORD PTR $T5[rbp-81], xmm6
-	movss	DWORD PTR $T5[rbp-85], xmm1
-	movss	DWORD PTR $T5[rbp-77], xmm1
-=======
-; Line 13
 	movss	DWORD PTR $T11[rbp-81], xmm6
 	movss	DWORD PTR $T11[rbp-85], xmm1
 	movss	DWORD PTR $T11[rbp-77], xmm1
->>>>>>> a5d1982d0d955b354cabf700b2bb52088e9d0309
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 37
 	call	??DQuaternion@@QEBA?AU0@AEBU0@@Z	; Quaternion::operator*
@@ -4498,17 +4491,10 @@ $LN184@processInp:
 	lea	rcx, QWORD PTR $T12[rbp-89]
 	mov	r8, rbx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-<<<<<<< HEAD
 ; Line 9
-	movss	DWORD PTR $T6[rbp-81], xmm6
-	movss	DWORD PTR $T6[rbp-85], xmm1
-	movss	DWORD PTR $T6[rbp-77], xmm1
-=======
-; Line 13
 	movss	DWORD PTR $T12[rbp-81], xmm6
 	movss	DWORD PTR $T12[rbp-85], xmm1
 	movss	DWORD PTR $T12[rbp-77], xmm1
->>>>>>> a5d1982d0d955b354cabf700b2bb52088e9d0309
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 41
 	call	??DQuaternion@@QEBA?AU0@AEBU0@@Z	; Quaternion::operator*
@@ -4542,13 +4528,8 @@ $LN12@processInp:
 	mov	rbx, QWORD PTR [rdi+48]
 	lea	r8, QWORD PTR $T13[rbp-89]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-<<<<<<< HEAD
 ; Line 9
-	movss	DWORD PTR $T7[rbp-85], xmm7
-=======
-; Line 13
 	movss	DWORD PTR $T13[rbp-85], xmm7
->>>>>>> a5d1982d0d955b354cabf700b2bb52088e9d0309
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 46
 	lea	rdx, QWORD PTR $T8[rbp-89]
@@ -4562,15 +4543,9 @@ $LN12@processInp:
 ; Line 89
 	movss	DWORD PTR $T13[rbp-89], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-<<<<<<< HEAD
 ; Line 9
-	movss	DWORD PTR $T7[rbp-81], xmm7
-	movss	DWORD PTR $T7[rbp-77], xmm7
-=======
-; Line 13
 	movss	DWORD PTR $T13[rbp-81], xmm7
 	movss	DWORD PTR $T13[rbp-77], xmm7
->>>>>>> a5d1982d0d955b354cabf700b2bb52088e9d0309
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 46
 	call	??DQuaternion@@QEBA?AU0@AEBU0@@Z	; Quaternion::operator*
@@ -4606,13 +4581,8 @@ $LN13@processInp:
 	mov	rbx, QWORD PTR [rdi+48]
 	lea	r8, QWORD PTR $T14[rbp-89]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-<<<<<<< HEAD
 ; Line 9
-	movss	DWORD PTR $T8[rbp-85], xmm6
-=======
-; Line 13
 	movss	DWORD PTR $T14[rbp-85], xmm6
->>>>>>> a5d1982d0d955b354cabf700b2bb52088e9d0309
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 50
 	lea	rdx, QWORD PTR $T9[rbp-89]
@@ -4626,15 +4596,9 @@ $LN13@processInp:
 ; Line 89
 	movss	DWORD PTR $T14[rbp-89], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-<<<<<<< HEAD
 ; Line 9
-	movss	DWORD PTR $T8[rbp-81], xmm6
-	movss	DWORD PTR $T8[rbp-77], xmm6
-=======
-; Line 13
 	movss	DWORD PTR $T14[rbp-81], xmm6
 	movss	DWORD PTR $T14[rbp-77], xmm6
->>>>>>> a5d1982d0d955b354cabf700b2bb52088e9d0309
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
 ; Line 50
 	call	??DQuaternion@@QEBA?AU0@AEBU0@@Z	; Quaternion::operator*
@@ -5469,7 +5433,7 @@ $LN127:
 	mov	eax, DWORD PTR [rdi+8]
 	mov	DWORD PTR [rsi+132], eax
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 9
+; Line 8
 	mov	QWORD PTR [rsi+136], 1065353216		; 3f800000H
 	xor	eax, eax
 	mov	QWORD PTR [rsi+144], rax
@@ -5804,7 +5768,7 @@ $LN15:
 	mov	edx, DWORD PTR [rdi+8]
 	mov	DWORD PTR [rsi+132], edx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
-; Line 9
+; Line 8
 	mov	QWORD PTR [rsi+136], 1065353216		; 3f800000H
 	xor	eax, eax
 	mov	QWORD PTR [rsi+144], rax

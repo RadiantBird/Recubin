@@ -90,6 +90,13 @@ void User::processInput() {
             
             // カメラ位置もキャラクター位置に追従（torsoの位置から計算）
             cpos = torso->Position + Vector3(0, 2.0f, 0);
+
+            // キャラクターパーツを胴体に追従させる（レンダラーの親子関係廃止に伴い手動で更新）
+            if (head)     head->Position     = torso->Position + Vector3(0, 1.25f, 0);
+            if (leftArm)  leftArm->Position  = torso->Position + Vector3(-0.75f, 0, 0);
+            if (rightArm) rightArm->Position = torso->Position + Vector3(0.75f, 0, 0);
+            if (leftLeg)  leftLeg->Position  = torso->Position + Vector3(-0.25f, -1.5f, 0);
+            if (rightLeg) rightLeg->Position = torso->Position + Vector3(0.25f, -1.5f, 0);
         }
     }
 
@@ -117,15 +124,15 @@ void User::spawnCharacter() {
     if (character) return; // 既にスポーンしている場合は何もしない
 
     // キャラクター群を格納するモデル（物理なし）
-    User::character = new Model(Vector3(5.0f, 5.0f, 5.0f), Vector3(1, 1, 1));
+    character = new Model(Vector3(5.0f, 5.0f, 5.0f), Vector3(1, 1, 1));
+    Vector3 basePos = character->Position;
     
-    Cube* head      = new Cube(Vector3(0, 0.5f, 0), Vector3(1, 1, 1), 0);
-    // torsoは物理エンジンに登録されるBaseCubeベース（モデルからのオフセット付き）
-    BaseCube* torso = new BaseCube(Vector3(0, 0, 0), Vector3(1, 1.5f, 0.5f)); // why basecube?
-    Cube* leftArm   = new Cube(Vector3(-0.75f, 0, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
-    Cube* rightArm  = new Cube(Vector3(0.75f, 0, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
-    Cube* leftLeg   = new Cube(Vector3(-0.25f, -1.5f, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
-    Cube* rightLeg  = new Cube(Vector3(0.25f, -1.5f, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
+    head      = new Cube(basePos + Vector3(0, 1.25f, 0), Vector3(1, 1, 1), 0);
+    torso     = new Cube(basePos + Vector3(0, 0, 0), Vector3(1, 1.5f, 0.5f), 0); 
+    leftArm   = new Cube(basePos + Vector3(-0.75f, 0, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
+    rightArm  = new Cube(basePos + Vector3(0.75f, 0, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
+    leftLeg   = new Cube(basePos + Vector3(-0.25f, -1.5f, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
+    rightLeg  = new Cube(basePos + Vector3(0.25f, -1.5f, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
 
     head->Name = "Head";
     torso->Name = "Torso";
@@ -137,7 +144,6 @@ void User::spawnCharacter() {
     // torsoのカラー
     torso->Color = Color4(1.0f, 0.5f, 0.0f, 1.0f);
 
-    User::torso = torso; // 物理移動に使用
 
     character->addChild(head);
     character->addChild(torso);

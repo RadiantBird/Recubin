@@ -6,7 +6,7 @@ if not exist "build" (
     mkdir build
 )
 
-cmake -S . -B build -A x64 -D GLEW_STATIC=ON
+cmake -S . -B build x64 -D GLEW_STATIC=ON
 cmake --build build --config Release
 
 echo.

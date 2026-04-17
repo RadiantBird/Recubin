@@ -2,6 +2,8 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+unsigned int Cube::defaultTextureID = 0;
+
 // 頂点生成関数の実装
 std::vector<Vertex> createCubeVertices(float size) {
     float h = size / 2.0f;
@@ -84,7 +86,9 @@ void Cube::draw(int modelLoc, int shaderProgram) {
 
     for (int i = 0; i < 6; i++) {
         glActiveTexture(GL_TEXTURE0); 
-        glBindTexture(GL_TEXTURE_2D, faceTextures[i]);
+        unsigned int tex = faceTextures[i];
+        if (tex == 0) tex = defaultTextureID;
+        glBindTexture(GL_TEXTURE_2D, tex);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(uintptr_t)(i * 6 * sizeof(unsigned int)));
     }
 }

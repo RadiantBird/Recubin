@@ -153,6 +153,7 @@ void Renderer::init() {
     glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
 
     createWhiteTexture(); // failsafe用
+    Cube::defaultTextureID = whiteTexture;
     stbi_set_flip_vertically_on_load(true); // OpenGL用
 
     // 初期化時に1回だけクリアカラーを設定
@@ -184,54 +185,36 @@ void Renderer::render(User &user, GLFWwindow* window, Workspace &workspace) {
 
     glBindVertexArray(VAO);
 
-    // 再帰描画用のローカル関数
-    auto renderCubeTree = [&](auto& self, Instance* inst, const Matrix4& parentTransform) -> void {
+    // 再帰的に描画するローカル関数（親子関係による行列継承は廃止）
+    auto renderInstances = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
 
         if (inst->IsA("Cube")) {
             Cube* cube = static_cast<Cube*>(inst);
             
-            // 1. スケール行列 (Sizeをそのまま使う)
+            // 各オブジェクトの座標、回転、サイズをそのままワールド行列として扱う
             Matrix4 scale = Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
-            
-            // 2. 回転行列
             Matrix4 rotation = Matrix4::FromQuaternion(cube->Rotation);
-            
-            // 3. 移動行列 (Position)
             Matrix4 translation = Matrix4::Translate(cube->Position.x, cube->Position.y, cube->Position.z);
             
-            // T * R * S * parentTransform
-            Matrix4 modelMat = parentTransform * translation * rotation * scale;
+            // T * R * S
+            Matrix4 modelMat = translation * rotation * scale;
             
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
             
             // 描画実行
             cube->draw(modelLoc, shaderProgram);
-        } 
-        else if (inst->IsA("Spatial")) {
-            // Spatialの場合、Position/Rotation/Sizeを親変換に含める
-            Spatial* spatial = static_cast<Spatial*>(inst);
-            Matrix4 spatialScale = Matrix4::Scale(spatial->Size.x, spatial->Size.y, spatial->Size.z);
-            Matrix4 spatialRotation = Matrix4::FromQuaternion(spatial->Rotation);
-            Matrix4 spatialTranslation = Matrix4::Translate(spatial->Position.x, spatial->Position.y, spatial->Position.z);
-            Matrix4 childTransform = parentTransform * spatialTranslation * spatialRotation * spatialScale;
-            
-            // 子要素を再帰的に描画
-            for (auto const& [name, child] : inst->getChildren()) {
-                self(self, child, childTransform);
-            }
         }
-        else {
-            // その他（Model等）の場合も子要素を描画
-            for (auto const& [name, child] : inst->getChildren()) {
-                self(self, child, parentTransform);
-            }
+
+        // 子要素も同様のルールで描画
+        for (auto const& [name, child] : inst->getChildren()) {
+            self(self, child);
         }
     };
 
     // 2. 個別のオブジェクトを描画
     for (auto const& [name, child] : workspace.getChildren()) {
-        renderCubeTree(renderCubeTree, child, Matrix4());
+        renderInstances(renderInstances, child);
     }
     
     glfwSwapBuffers(window); // 背面バッファを表面に出す

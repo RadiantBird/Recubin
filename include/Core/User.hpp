@@ -25,7 +25,12 @@ public:
     camera &cam;
     Vector3 &cpos;
     Model *character = nullptr;
-    BaseCube *torso = nullptr;
+    Cube *torso = nullptr;
+    Cube *head = nullptr;
+    Cube *leftArm = nullptr;
+    Cube *rightArm = nullptr;
+    Cube *leftLeg = nullptr;
+    Cube *rightLeg = nullptr;
 
     enum class ControlMode {
         Free,

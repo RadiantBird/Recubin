@@ -5,6 +5,7 @@ include listing.inc
 INCLUDELIB MSVCRT
 INCLUDELIB OLDNAMES
 
+PUBLIC	?defaultTextureID@Cube@@2IA			; Cube::defaultTextureID
 PUBLIC	_Avx2WmemEnabledWeakValue
 PUBLIC	?g_PXSinCoefficients0@aos@physx@@3UPX_VECTORF32@12@B ; physx::aos::g_PXSinCoefficients0
 PUBLIC	?g_PXSinCoefficients1@aos@physx@@3UPX_VECTORF32@12@B ; physx::aos::g_PXSinCoefficients1
@@ -14,6 +15,9 @@ PUBLIC	?g_PXCosCoefficients1@aos@physx@@3UPX_VECTORF32@12@B ; physx::aos::g_PXCo
 PUBLIC	?g_PXCosCoefficients2@aos@physx@@3UPX_VECTORF32@12@B ; physx::aos::g_PXCosCoefficients2
 PUBLIC	?g_PXReciprocalTwoPi@aos@physx@@3UPX_VECTORF32@12@B ; physx::aos::g_PXReciprocalTwoPi
 PUBLIC	?g_PXTwoPi@aos@physx@@3UPX_VECTORF32@12@B	; physx::aos::g_PXTwoPi
+_BSS	SEGMENT
+?defaultTextureID@Cube@@2IA DD 01H DUP (?)		; Cube::defaultTextureID
+_BSS	ENDS
 ;	COMDAT _Avx2WmemEnabledWeakValue
 _BSS	SEGMENT
 _Avx2WmemEnabledWeakValue DD 01H DUP (?)
@@ -344,6 +348,8 @@ EXTRN	__glewUniform4f:QWORD
 EXTRN	__security_cookie:QWORD
 EXTRN	_fltused:DWORD
 _BSS	SEGMENT
+	ALIGN	8
+
 ?minFError@vecMathTests@aos@physx@@3T__m128@@B DB 010H DUP (?) ; physx::aos::vecMathTests::minFError
 ?maxFError@vecMathTests@aos@physx@@3T__m128@@B DB 010H DUP (?) ; physx::aos::vecMathTests::maxFError
 ?minV3Error@vecMathTests@aos@physx@@3T__m128@@B DB 010H DUP (?) ; physx::aos::vecMathTests::minV3Error
@@ -479,8 +485,8 @@ $pdata$??0Cube@@QEAA@UVector3@@0I@Z DD imagerel $LN17
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$?draw@Cube@@QEAAXHH@Z DD imagerel $LN15
-	DD	imagerel $LN15+166
+$pdata$?draw@Cube@@QEAAXHH@Z DD imagerel $LN29
+	DD	imagerel $LN29+472
 	DD	imagerel $unwind$?draw@Cube@@QEAAXHH@Z
 pdata	ENDS
 ;	COMDAT pdata
@@ -1265,9 +1271,8 @@ $unwind$?GetClassName@Cube@@UEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allo
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$unwind$?draw@Cube@@QEAAXHH@Z DD 040a01H
-	DD	08340aH
-	DD	07006520aH
+$unwind$?draw@Cube@@QEAAXHH@Z DD 020601H
+	DD	030025206H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
@@ -3805,7 +3810,7 @@ this$ = 112
 className$ = 120
 ?IsA@Cube@@UEAA_NV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z PROC ; Cube::IsA, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 64
+; Line 66
 $LN43:
 	mov	QWORD PTR [rsp+24], rbx
 	push	rdi
@@ -3834,18 +3839,18 @@ $LN16@IsA:
 ; Line 681
 	cmp	DWORD PTR [rax], 1700951363		; 65627543H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 65
+; Line 67
 	jne	SHORT $LN2@IsA
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 1433
 	mov	rcx, rdi
 	call	?_Tidy_deallocate@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAXXZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Tidy_deallocate
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 66
+; Line 68
 	mov	al, 1
 	jmp	SHORT $LN1@IsA
 $LN2@IsA:
-; Line 68
+; Line 70
 	lea	rcx, QWORD PTR $T1[rsp]
 	call	??0?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@AEBV01@@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::basic_string<char,std::char_traits<char>,std::allocator<char> >
 	mov	rdx, rax
@@ -3857,10 +3862,10 @@ $LN2@IsA:
 	mov	rcx, rdi
 	call	?_Tidy_deallocate@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAXXZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Tidy_deallocate
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 68
+; Line 70
 	movzx	eax, bl
 $LN1@IsA:
-; Line 69
+; Line 71
 	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
 	xor	rcx, rsp
 	call	__security_check_cookie
@@ -3890,7 +3895,7 @@ this$ = 32
 __$ReturnUdt$ = 40
 ?GetClassName@Cube@@UEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ PROC ; Cube::GetClassName, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 60
+; Line 62
 $LN113:
 	sub	rsp, 24
 	xorps	xmm0, xmm0
@@ -3906,13 +3911,13 @@ $LN113:
 	mov	eax, DWORD PTR ??_C@_04CJLGPKHJ@Cube@
 	mov	DWORD PTR [rdx], eax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 61
+; Line 63
 	mov	rax, rdx
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 948
 	mov	BYTE PTR [rdx+4], 0
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 62
+; Line 64
 	add	rsp, 24
 	ret	0
 ?GetClassName@Cube@@UEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ENDP ; Cube::GetClassName
@@ -3925,56 +3930,108 @@ modelLoc$ = 72
 shaderProgram$ = 80
 ?draw@Cube@@QEAAXHH@Z PROC				; Cube::draw, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 77
-$LN15:
-	mov	QWORD PTR [rsp+8], rbx
-	push	rdi
+; Line 79
+$LN29:
+	push	rbx
 	sub	rsp, 48					; 00000030H
-; Line 80
+; Line 82
 	mov	rax, QWORD PTR __glewGetUniformLocation
 	lea	rdx, OFFSET FLAT:??_C@_08LILHLMFO@ourColor@
-	mov	rdi, rcx
+	mov	rbx, rcx
 	mov	ecx, r8d
 	call	rax
-; Line 81
+; Line 83
 	cmp	eax, -1
 	je	SHORT $LN5@draw
-; Line 82
-	movss	xmm0, DWORD PTR [rdi+168]
+; Line 84
+	movss	xmm0, DWORD PTR [rbx+168]
 	mov	ecx, eax
-	movss	xmm3, DWORD PTR [rdi+164]
-	movss	xmm2, DWORD PTR [rdi+160]
-	movss	xmm1, DWORD PTR [rdi+156]
+	movss	xmm3, DWORD PTR [rbx+164]
+	movss	xmm2, DWORD PTR [rbx+160]
+	movss	xmm1, DWORD PTR [rbx+156]
 	movss	DWORD PTR [rsp+32], xmm0
 	call	QWORD PTR __glewUniform4f
 $LN5@draw:
-; Line 85
-	xor	ebx, ebx
-$LL4@draw:
-; Line 86
+; Line 88
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-; Line 87
-	mov	edx, DWORD PTR [rdi+rbx*4+192]
+; Line 89
+	mov	edx, DWORD PTR [rbx+192]
+; Line 91
 	mov	ecx, 3553				; 00000de1H
+	test	edx, edx
+	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
 	call	QWORD PTR __imp_glBindTexture
-; Line 88
-	lea	eax, DWORD PTR [rbx+rbx*2]
+; Line 92
+	xor	r9d, r9d
 	mov	edx, 6
-	add	eax, eax
-	mov	ecx, 4
-	movsxd	r9, eax
 	mov	r8d, 5125				; 00001405H
-	shl	r9, 2
+	mov	ecx, 4
 	call	QWORD PTR __imp_glDrawElements
-	inc	ebx
-	cmp	ebx, 6
-	jl	SHORT $LL4@draw
-; Line 90
-	mov	rbx, QWORD PTR [rsp+64]
+	mov	ecx, 33984				; 000084c0H
+	call	QWORD PTR __glewActiveTexture
+	mov	edx, DWORD PTR [rbx+196]
+	mov	ecx, 3553				; 00000de1H
+	test	edx, edx
+	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	call	QWORD PTR __imp_glBindTexture
+	mov	edx, 6
+	mov	r9d, 24
+	mov	r8d, 5125				; 00001405H
+	mov	ecx, 4
+	call	QWORD PTR __imp_glDrawElements
+	mov	ecx, 33984				; 000084c0H
+	call	QWORD PTR __glewActiveTexture
+	mov	edx, DWORD PTR [rbx+200]
+	mov	ecx, 3553				; 00000de1H
+	test	edx, edx
+	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	call	QWORD PTR __imp_glBindTexture
+	mov	edx, 6
+	mov	r9d, 48					; 00000030H
+	mov	r8d, 5125				; 00001405H
+	mov	ecx, 4
+	call	QWORD PTR __imp_glDrawElements
+	mov	ecx, 33984				; 000084c0H
+	call	QWORD PTR __glewActiveTexture
+	mov	edx, DWORD PTR [rbx+204]
+	mov	ecx, 3553				; 00000de1H
+	test	edx, edx
+	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	call	QWORD PTR __imp_glBindTexture
+	mov	edx, 6
+	mov	r9d, 72					; 00000048H
+	mov	r8d, 5125				; 00001405H
+	mov	ecx, 4
+	call	QWORD PTR __imp_glDrawElements
+	mov	ecx, 33984				; 000084c0H
+	call	QWORD PTR __glewActiveTexture
+	mov	edx, DWORD PTR [rbx+208]
+	mov	ecx, 3553				; 00000de1H
+	test	edx, edx
+	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	call	QWORD PTR __imp_glBindTexture
+	mov	edx, 6
+	mov	r9d, 96					; 00000060H
+	mov	r8d, 5125				; 00001405H
+	mov	ecx, 4
+	call	QWORD PTR __imp_glDrawElements
+	mov	ecx, 33984				; 000084c0H
+	call	QWORD PTR __glewActiveTexture
+	mov	edx, DWORD PTR [rbx+212]
+	mov	ecx, 3553				; 00000de1H
+	test	edx, edx
+	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	call	QWORD PTR __imp_glBindTexture
+	mov	edx, 6
+	mov	r9d, 120				; 00000078H
+	mov	r8d, 5125				; 00001405H
+	mov	ecx, 4
+; Line 94
 	add	rsp, 48					; 00000030H
-	pop	rdi
-	ret	0
+	pop	rbx
+; Line 92
+	rex_jmp	QWORD PTR __imp_glDrawElements
 ?draw@Cube@@QEAAXHH@Z ENDP				; Cube::draw
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
@@ -3985,13 +4042,13 @@ faceIdx$ = 16
 texID$ = 24
 ?setFaceTexture@Cube@@QEAAXHI@Z PROC			; Cube::setFaceTexture, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 73
+; Line 75
 	cmp	edx, 5
 	ja	SHORT $LN2@setFaceTex
 	movsxd	rax, edx
 	mov	DWORD PTR [rcx+rax*4+192], r8d
 $LN2@setFaceTex:
-; Line 74
+; Line 76
 	ret	0
 ?setFaceTexture@Cube@@QEAAXHI@Z ENDP			; Cube::setFaceTexture
 _TEXT	ENDS
@@ -4006,14 +4063,14 @@ Sz$ = 96
 defaultTex$ = 104
 ??0Cube@@QEAA@UVector3@@0I@Z PROC			; Cube::Cube, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 54
+; Line 56
 $LN17:
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 64					; 00000040H
-; Line 53
+; Line 55
 	movsd	xmm0, QWORD PTR [r8]
-; Line 54
+; Line 56
 	mov	edi, r9d
 	mov	eax, DWORD PTR [r8+8]
 	mov	rbx, rcx
@@ -4028,7 +4085,7 @@ $LN17:
 	call	??0BaseCube@@QEAA@UVector3@@0@Z		; BaseCube::BaseCube
 	lea	rax, OFFSET FLAT:??_7Cube@@6B@
 	mov	QWORD PTR [rbx], rax
-; Line 58
+; Line 60
 	mov	rax, rbx
 	mov	DWORD PTR [rbx+192], edi
 	mov	DWORD PTR [rbx+196], edi
@@ -4057,7 +4114,7 @@ tv896 = 464
 tv897 = 472
 ?createCubeVertices@@YA?AV?$vector@UVertex@@V?$allocator@UVertex@@@std@@@std@@M@Z PROC ; createCubeVertices, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 6
+; Line 8
 $LN81:
 	mov	rax, rsp
 	mov	QWORD PTR [rax+8], rcx
@@ -4083,7 +4140,7 @@ $LN81:
 	mov	rdi, rcx
 	xor	r15d, r15d
 	mov	DWORD PTR $T1[rsp], r15d
-; Line 7
+; Line 9
 	mulss	xmm13, DWORD PTR __real@3f000000
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
 ; Line 400
@@ -4091,22 +4148,22 @@ $LN81:
 	mov	QWORD PTR [rcx+8], r15
 	mov	QWORD PTR [rcx+16], r15
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 8
+; Line 10
 	mov	DWORD PTR $T1[rsp], 1
-; Line 12
+; Line 14
 	movdqa	xmm0, XMMWORD PTR __xmm@000000003f8000000000000000000000
 	movaps	XMMWORD PTR faces$[rbp-256], xmm0
 	movdqa	xmm1, XMMWORD PTR __xmm@3f80000000000000bf80000000000000
 	movaps	XMMWORD PTR faces$[rbp-240], xmm1
-; Line 13
+; Line 15
 	movdqa	xmm0, XMMWORD PTR __xmm@00000000bf8000000000000000000000
 	movaps	XMMWORD PTR faces$[rbp-224], xmm0
-; Line 14
+; Line 16
 	movdqa	xmm1, XMMWORD PTR __xmm@bf80000000000000000000003f800000
 	movaps	XMMWORD PTR faces$[rbp-208], xmm1
 	xorps	xmm6, xmm6
 	mov	QWORD PTR faces$[rbp-192], r15
-; Line 6
+; Line 8
 	mov	r14d, r15d
 	mov	esi, r15d
 	movdqa	xmm2, XMMWORD PTR __xmm@3f800000000000000000000000000000
@@ -4115,11 +4172,11 @@ $LN81:
 	movss	xmm14, DWORD PTR __real@3f800000
 	npad	8
 $LL4@createCube:
-; Line 18
+; Line 20
 	movss	xmm7, DWORD PTR faces$[rbp+rsi-256]
 	movss	xmm9, DWORD PTR faces$[rbp+rsi-252]
 	movss	xmm8, DWORD PTR faces$[rbp+rsi-248]
-; Line 20
+; Line 22
 	ucomiss	xmm7, xmm6
 	jp	SHORT $LN10@createCube
 	jne	SHORT $LN10@createCube
@@ -4128,7 +4185,7 @@ $LL4@createCube:
 $LN10@createCube:
 	xorps	xmm12, xmm12
 $LN11@createCube:
-; Line 21
+; Line 23
 	ucomiss	xmm7, xmm6
 	jp	SHORT $LN12@createCube
 	jne	SHORT $LN12@createCube
@@ -4140,7 +4197,7 @@ $LN11@createCube:
 $LN12@createCube:
 	xorps	xmm11, xmm11
 $LN13@createCube:
-; Line 22
+; Line 24
 	ucomiss	xmm8, xmm6
 	jp	SHORT $LN14@createCube
 	jne	SHORT $LN14@createCube
@@ -4153,7 +4210,7 @@ $LN78@createCube:
 $LN14@createCube:
 	xorps	xmm10, xmm10
 $LN15@createCube:
-; Line 23
+; Line 25
 	ucomiss	xmm9, xmm6
 	jp	SHORT $LN77@createCube
 	je	SHORT $LN8@createCube
@@ -4162,30 +4219,30 @@ $LN77@createCube:
 	xorps	xmm11, xmm11
 	xorps	xmm10, xmm10
 $LN8@createCube:
-; Line 25
+; Line 27
 	movaps	xmm15, xmm10
 	mulss	xmm15, xmm9
 	movaps	xmm0, xmm11
 	mulss	xmm0, xmm8
 	subss	xmm15, xmm0
-; Line 26
+; Line 28
 	movaps	xmm5, xmm12
 	mulss	xmm5, xmm8
 	movaps	xmm0, xmm10
 	mulss	xmm0, xmm7
 	subss	xmm5, xmm0
 	movss	DWORD PTR vy$1$[rsp], xmm5
-; Line 27
+; Line 29
 	movaps	xmm14, xmm11
 	mulss	xmm14, xmm7
 	movaps	xmm0, xmm12
 	mulss	xmm0, xmm9
 	subss	xmm14, xmm0
-; Line 29
+; Line 31
 	movdqa	xmm0, XMMWORD PTR __xmm@bf8000003f8000003f8000003f800000
 	movups	XMMWORD PTR p$3[rsp], xmm0
 	movups	XMMWORD PTR p$3[rsp+16], xmm4
-; Line 30
+; Line 32
 	movups	XMMWORD PTR uv$4[rsp], xmm3
 	movups	XMMWORD PTR uv$4[rsp+16], xmm2
 	movaps	xmm6, xmm7
@@ -4199,7 +4256,7 @@ $LN8@createCube:
 	mov	rbx, r15
 	npad	3
 $LL7@createCube:
-; Line 34
+; Line 36
 	movss	xmm2, DWORD PTR p$3[rsp+rbx*8]
 	movss	xmm1, DWORD PTR p$3[rsp+rbx*8+4]
 	movaps	xmm3, xmm2
@@ -4211,7 +4268,7 @@ $LL7@createCube:
 	mulss	xmm0, xmm13
 	addss	xmm3, xmm0
 	movss	DWORD PTR vert$2[rsp], xmm3
-; Line 35
+; Line 37
 	movaps	xmm4, xmm2
 	mulss	xmm4, xmm11
 	mulss	xmm4, xmm13
@@ -4221,7 +4278,7 @@ $LL7@createCube:
 	mulss	xmm0, xmm13
 	addss	xmm4, xmm0
 	movss	DWORD PTR vert$2[rsp+4], xmm4
-; Line 36
+; Line 38
 	mulss	xmm2, xmm10
 	mulss	xmm2, xmm13
 	addss	xmm2, DWORD PTR tv897[rbp-256]
@@ -4229,16 +4286,16 @@ $LL7@createCube:
 	mulss	xmm1, xmm13
 	addss	xmm2, xmm1
 	movss	DWORD PTR vert$2[rsp+8], xmm2
-; Line 38
-	movss	DWORD PTR vert$2[rsp+12], xmm7
-; Line 39
-	movss	DWORD PTR vert$2[rsp+16], xmm9
 ; Line 40
-	movss	DWORD PTR vert$2[rsp+20], xmm8
+	movss	DWORD PTR vert$2[rsp+12], xmm7
+; Line 41
+	movss	DWORD PTR vert$2[rsp+16], xmm9
 ; Line 42
+	movss	DWORD PTR vert$2[rsp+20], xmm8
+; Line 44
 	movss	xmm0, DWORD PTR uv$4[rsp+rbx*8]
 	movss	DWORD PTR vert$2[rsp+24], xmm0
-; Line 43
+; Line 45
 	movss	xmm1, DWORD PTR uv$4[rsp+rbx*8+4]
 	movss	DWORD PTR vert$2[rsp+28], xmm1
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
@@ -4266,11 +4323,11 @@ $LN39@createCube:
 	movss	xmm5, DWORD PTR vy$1$[rsp]
 $LN5@createCube:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 32
+; Line 34
 	inc	rbx
 	cmp	rbx, 4
 	jne	$LL7@createCube
-; Line 17
+; Line 19
 	inc	r14
 	add	rsi, 12
 	cmp	r14, 6
@@ -4280,9 +4337,9 @@ $LN5@createCube:
 	movdqa	xmm3, XMMWORD PTR __xmm@000000003f8000003f8000003f800000
 	movdqa	xmm4, XMMWORD PTR __xmm@3f800000bf800000bf800000bf800000
 	jne	$LL4@createCube
-; Line 48
+; Line 50
 	mov	rax, rdi
-; Line 49
+; Line 51
 	lea	r11, QWORD PTR [rsp+392]
 	movaps	xmm6, XMMWORD PTR [r11-24]
 	movaps	xmm7, XMMWORD PTR [r11-40]
@@ -6108,7 +6165,7 @@ __formal$ = 16
 __formal$ = 24
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 91
+; Line 95
 	ret	0
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -6119,7 +6176,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 91
+; Line 95
 	ret	0
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -6130,7 +6187,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAX_K@Z PROC		; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 91
+; Line 95
 	ret	0
 ?__empty_global_delete@@YAXPEAX_K@Z ENDP		; __empty_global_delete
 _TEXT	ENDS
@@ -6140,7 +6197,7 @@ _TEXT	SEGMENT
 __formal$ = 8
 ?__empty_global_delete@@YAXPEAX@Z PROC			; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 91
+; Line 95
 	ret	0
 ?__empty_global_delete@@YAXPEAX@Z ENDP			; __empty_global_delete
 _TEXT	ENDS
