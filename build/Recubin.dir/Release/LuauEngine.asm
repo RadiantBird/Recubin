@@ -633,6 +633,9 @@ PUBLIC	??_C@_04FABLJDN@Name@				; `string'
 PUBLIC	??_C@_08GAABMGDB@BaseCube@			; `string'
 PUBLIC	??_C@_08GCJNLIKG@Position@			; `string'
 PUBLIC	??_C@_05PDOBBJNA@Color@				; `string'
+PUBLIC	??_C@_05CCOIDDEK@Decal@				; `string'
+PUBLIC	??_C@_09OCLHBPOP@TextureID@			; `string'
+PUBLIC	??_C@_04DPOPNPPG@Face@				; `string'
 PUBLIC	??_C@_04MKEOLIJC@?5to?5@			; `string'
 PUBLIC	??_C@_0BP@BFMMMHBD@Setting?5Name?5of?5Instance?5from?5@ ; `string'
 PUBLIC	??_C@_0CK@BKIMHDBA@Expected?5a?5Vector3?5userdata?5for@ ; `string'
@@ -1086,14 +1089,14 @@ $pdata$?toString@Color4@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocat
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$?InitDispatchTable@LuauEngine@@AEAAXXZ DD imagerel $LN205
-	DD	imagerel $LN205+635
+$pdata$?InitDispatchTable@LuauEngine@@AEAAXXZ DD imagerel $LN305
+	DD	imagerel $LN305+953
 	DD	imagerel $unwind$?InitDispatchTable@LuauEngine@@AEAAXXZ
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$?InitSetterTable@LuauEngine@@AEAAXXZ DD imagerel $LN155
-	DD	imagerel $LN155+496
+$pdata$?InitSetterTable@LuauEngine@@AEAAXXZ DD imagerel $LN255
+	DD	imagerel $LN255+796
 	DD	imagerel $unwind$?InitSetterTable@LuauEngine@@AEAAXXZ
 pdata	ENDS
 ;	COMDAT pdata
@@ -1200,8 +1203,8 @@ $pdata$?wait@LuauEngine@@CAHPEAUlua_State@@@Z DD imagerel $LN6
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$??0LuauEngine@@QEAA@XZ DD imagerel $LN158
-	DD	imagerel $LN158+592
+$pdata$??0LuauEngine@@QEAA@XZ DD imagerel $LN4
+	DD	imagerel $LN4+106
 	DD	imagerel $unwind$??0LuauEngine@@QEAA@XZ
 pdata	ENDS
 ;	COMDAT pdata
@@ -1896,6 +1899,30 @@ $pdata$??$?4V<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$functio
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
+$pdata$??R<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DD imagerel ??R<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
+	DD	imagerel ??R<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z+34
+	DD	imagerel $unwind$??R<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$??$?4V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z DD imagerel ??$?4V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+	DD	imagerel ??$?4V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z+109
+	DD	imagerel $unwind$??$?4V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$??R<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DD imagerel ??R<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
+	DD	imagerel ??R<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z+32
+	DD	imagerel $unwind$??R<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$??$?4V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z DD imagerel ??$?4V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+	DD	imagerel ??$?4V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z+109
+	DD	imagerel $unwind$??$?4V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
 $pdata$??R<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DD imagerel ??R<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
 	DD	imagerel ??R<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z+158
 	DD	imagerel $unwind$??R<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
@@ -1929,6 +1956,30 @@ pdata	SEGMENT
 $pdata$??$?4V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z DD imagerel ??$?4V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
 	DD	imagerel ??$?4V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z+109
 	DD	imagerel $unwind$??$?4V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$??R<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DD imagerel ??R<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
+	DD	imagerel ??R<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z+38
+	DD	imagerel $unwind$??R<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$??$?4V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z DD imagerel ??$?4V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+	DD	imagerel ??$?4V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z+109
+	DD	imagerel $unwind$??$?4V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$??R<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DD imagerel ??R<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
+	DD	imagerel ??R<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z+37
+	DD	imagerel $unwind$??R<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$??$?4V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z DD imagerel ??$?4V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+	DD	imagerel ??$?4V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z+109
+	DD	imagerel $unwind$??$?4V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
@@ -2334,6 +2385,18 @@ $pdata$?_Do_call@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitDispatchTable@LuauEng
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
+$pdata$?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+	DD	imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+36
+	DD	imagerel $unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$?_Do_call@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+	DD	imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+34
+	DD	imagerel $unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
 $pdata$?_Do_call@?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
 	DD	imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+158
 	DD	imagerel $unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
@@ -2349,6 +2412,18 @@ pdata	SEGMENT
 $pdata$?_Do_call@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
 	DD	imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+108
 	DD	imagerel $unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$?_Do_call@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+	DD	imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+38
+	DD	imagerel $unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+	DD	imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+37
+	DD	imagerel $unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
@@ -2484,6 +2559,18 @@ $pdata$??$destroy_at@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@st
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
+$pdata$??$invoke@AEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ??$invoke@AEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+	DD	imagerel ??$invoke@AEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+37
+	DD	imagerel $unwind$??$invoke@AEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$??$invoke@AEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ??$invoke@AEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+	DD	imagerel ??$invoke@AEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+38
+	DD	imagerel $unwind$??$invoke@AEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
 $pdata$??$invoke@AEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ??$invoke@AEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
 	DD	imagerel ??$invoke@AEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+108
 	DD	imagerel $unwind$??$invoke@AEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
@@ -2499,6 +2586,18 @@ pdata	SEGMENT
 $pdata$??$invoke@AEAV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ??$invoke@AEAV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
 	DD	imagerel ??$invoke@AEAV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+158
 	DD	imagerel $unwind$??$invoke@AEAV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$??$invoke@AEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ??$invoke@AEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+	DD	imagerel ??$invoke@AEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+34
+	DD	imagerel $unwind$??$invoke@AEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$??$invoke@AEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ??$invoke@AEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+	DD	imagerel ??$invoke@AEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+36
+	DD	imagerel $unwind$??$invoke@AEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
@@ -2687,6 +2786,84 @@ CONST	ENDS
 CONST	SEGMENT
 __real@3f800000 DD 03f800000r			; 1
 CONST	ENDS
+;	COMDAT ??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	SEGMENT
+??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD imagerel ??_R0?AV?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8 ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::`RTTI Base Class Descriptor at (0,-1,0,64)'
+	DD	01H
+	DD	00H
+	DD	0ffffffffH
+	DD	00H
+	DD	040H
+	DD	imagerel ??_R3?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	ENDS
+;	COMDAT ??_R2?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	SEGMENT
+??_R2?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD imagerel ??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::`RTTI Base Class Array'
+	DD	imagerel ??_R1A@?0A@EA@?$_Func_base@HPEAUlua_State@@PEAVInstance@@@std@@8
+	ORG $+3
+rdata$r	ENDS
+;	COMDAT ??_R3?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	SEGMENT
+??_R3?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD 00H ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::`RTTI Class Hierarchy Descriptor'
+	DD	00H
+	DD	02H
+	DD	imagerel ??_R2?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	ENDS
+;	COMDAT ??_R0?AV?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8
+data$rs	SEGMENT
+??_R0?AV?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8 DQ FLAT:??_7type_info@@6B@ ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *> `RTTI Type Descriptor'
+	DQ	0000000000000000H
+	DB	'.?AV?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTabl'
+	DB	'e@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@', 00H
+data$rs	ENDS
+;	COMDAT ??_R4?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+rdata$r	SEGMENT
+??_R4?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@ DD 01H ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::`RTTI Complete Object Locator'
+	DD	00H
+	DD	00H
+	DD	imagerel ??_R0?AV?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8
+	DD	imagerel ??_R3?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+	DD	imagerel ??_R4?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+rdata$r	ENDS
+;	COMDAT ??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	SEGMENT
+??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD imagerel ??_R0?AV?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8 ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::`RTTI Base Class Descriptor at (0,-1,0,64)'
+	DD	01H
+	DD	00H
+	DD	0ffffffffH
+	DD	00H
+	DD	040H
+	DD	imagerel ??_R3?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	ENDS
+;	COMDAT ??_R2?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	SEGMENT
+??_R2?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD imagerel ??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::`RTTI Base Class Array'
+	DD	imagerel ??_R1A@?0A@EA@?$_Func_base@HPEAUlua_State@@PEAVInstance@@@std@@8
+	ORG $+3
+rdata$r	ENDS
+;	COMDAT ??_R3?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	SEGMENT
+??_R3?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD 00H ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::`RTTI Class Hierarchy Descriptor'
+	DD	00H
+	DD	02H
+	DD	imagerel ??_R2?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	ENDS
+;	COMDAT ??_R0?AV?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8
+data$rs	SEGMENT
+??_R0?AV?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8 DQ FLAT:??_7type_info@@6B@ ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *> `RTTI Type Descriptor'
+	DQ	0000000000000000H
+	DB	'.?AV?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTabl'
+	DB	'e@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@', 00H
+data$rs	ENDS
+;	COMDAT ??_R4?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+rdata$r	SEGMENT
+??_R4?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@ DD 01H ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::`RTTI Complete Object Locator'
+	DD	00H
+	DD	00H
+	DD	imagerel ??_R0?AV?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8
+	DD	imagerel ??_R3?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+	DD	imagerel ??_R4?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+rdata$r	ENDS
 ;	COMDAT ??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
 rdata$r	SEGMENT
 ??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD imagerel ??_R0?AV?$_Func_impl_no_alloc@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8 ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_3>,int,lua_State *,Instance *>::`RTTI Base Class Descriptor at (0,-1,0,64)'
@@ -2803,6 +2980,84 @@ rdata$r	SEGMENT
 	DD	imagerel ??_R0?AV?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8
 	DD	imagerel ??_R3?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
 	DD	imagerel ??_R4?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+rdata$r	ENDS
+;	COMDAT ??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	SEGMENT
+??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD imagerel ??_R0?AV?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8 ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::`RTTI Base Class Descriptor at (0,-1,0,64)'
+	DD	01H
+	DD	00H
+	DD	0ffffffffH
+	DD	00H
+	DD	040H
+	DD	imagerel ??_R3?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	ENDS
+;	COMDAT ??_R2?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	SEGMENT
+??_R2?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD imagerel ??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::`RTTI Base Class Array'
+	DD	imagerel ??_R1A@?0A@EA@?$_Func_base@HPEAUlua_State@@PEAVInstance@@@std@@8
+	ORG $+3
+rdata$r	ENDS
+;	COMDAT ??_R3?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	SEGMENT
+??_R3?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD 00H ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::`RTTI Class Hierarchy Descriptor'
+	DD	00H
+	DD	02H
+	DD	imagerel ??_R2?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	ENDS
+;	COMDAT ??_R0?AV?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8
+data$rs	SEGMENT
+??_R0?AV?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8 DQ FLAT:??_7type_info@@6B@ ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *> `RTTI Type Descriptor'
+	DQ	0000000000000000H
+	DB	'.?AV?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTa'
+	DB	'ble@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@', 00H
+data$rs	ENDS
+;	COMDAT ??_R4?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+rdata$r	SEGMENT
+??_R4?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@ DD 01H ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::`RTTI Complete Object Locator'
+	DD	00H
+	DD	00H
+	DD	imagerel ??_R0?AV?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8
+	DD	imagerel ??_R3?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+	DD	imagerel ??_R4?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+rdata$r	ENDS
+;	COMDAT ??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	SEGMENT
+??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD imagerel ??_R0?AV?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8 ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::`RTTI Base Class Descriptor at (0,-1,0,64)'
+	DD	01H
+	DD	00H
+	DD	0ffffffffH
+	DD	00H
+	DD	040H
+	DD	imagerel ??_R3?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	ENDS
+;	COMDAT ??_R2?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	SEGMENT
+??_R2?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD imagerel ??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::`RTTI Base Class Array'
+	DD	imagerel ??_R1A@?0A@EA@?$_Func_base@HPEAUlua_State@@PEAVInstance@@@std@@8
+	ORG $+3
+rdata$r	ENDS
+;	COMDAT ??_R3?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	SEGMENT
+??_R3?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8 DD 00H ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::`RTTI Class Hierarchy Descriptor'
+	DD	00H
+	DD	02H
+	DD	imagerel ??_R2?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+rdata$r	ENDS
+;	COMDAT ??_R0?AV?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8
+data$rs	SEGMENT
+??_R0?AV?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8 DQ FLAT:??_7type_info@@6B@ ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *> `RTTI Type Descriptor'
+	DQ	0000000000000000H
+	DB	'.?AV?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTa'
+	DB	'ble@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@', 00H
+data$rs	ENDS
+;	COMDAT ??_R4?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+rdata$r	SEGMENT
+??_R4?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@ DD 01H ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::`RTTI Complete Object Locator'
+	DD	00H
+	DD	00H
+	DD	imagerel ??_R0?AV?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@@8
+	DD	imagerel ??_R3?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
+	DD	imagerel ??_R4?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
 rdata$r	ENDS
 ;	COMDAT ??_R1A@?0A@EA@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@8
 rdata$r	SEGMENT
@@ -3122,6 +3377,20 @@ data$r	SEGMENT
 	DB	'.?AV<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ'
 	DB	'@', 00H
 data$r	ENDS
+;	COMDAT ??_R0?AV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@8
+data$r	SEGMENT
+??_R0?AV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@8 DQ FLAT:??_7type_info@@6B@ ; `LuauEngine::InitDispatchTable'::`2'::<lambda_5> `RTTI Type Descriptor'
+	DQ	0000000000000000H
+	DB	'.?AV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ'
+	DB	'@', 00H
+data$r	ENDS
+;	COMDAT ??_R0?AV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@8
+data$r	SEGMENT
+??_R0?AV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@8 DQ FLAT:??_7type_info@@6B@ ; `LuauEngine::InitDispatchTable'::`2'::<lambda_6> `RTTI Type Descriptor'
+	DQ	0000000000000000H
+	DB	'.?AV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ'
+	DB	'@', 00H
+data$r	ENDS
 ;	COMDAT ??_R0?AV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@8
 data$r	SEGMENT
 ??_R0?AV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@8 DQ FLAT:??_7type_info@@6B@ ; `LuauEngine::InitSetterTable'::`2'::<lambda_1> `RTTI Type Descriptor'
@@ -3140,10 +3409,42 @@ data$r	SEGMENT
 	DQ	0000000000000000H
 	DB	'.?AV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@', 00H
 data$r	ENDS
+;	COMDAT ??_R0?AV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@8
+data$r	SEGMENT
+??_R0?AV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@8 DQ FLAT:??_7type_info@@6B@ ; `LuauEngine::InitSetterTable'::`2'::<lambda_4> `RTTI Type Descriptor'
+	DQ	0000000000000000H
+	DB	'.?AV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@', 00H
+data$r	ENDS
+;	COMDAT ??_R0?AV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@8
+data$r	SEGMENT
+??_R0?AV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@8 DQ FLAT:??_7type_info@@6B@ ; `LuauEngine::InitSetterTable'::`2'::<lambda_5> `RTTI Type Descriptor'
+	DQ	0000000000000000H
+	DB	'.?AV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@', 00H
+data$r	ENDS
 ;	COMDAT ??_C@_0BL@GOIGLPKN@unordered_map?1set?5too?5long@
 CONST	SEGMENT
 ??_C@_0BL@GOIGLPKN@unordered_map?1set?5too?5long@ DB 'unordered_map/set t'
 	DB	'oo long', 00H				; `string'
+CONST	ENDS
+;	COMDAT ??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+CONST	SEGMENT
+??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@ DQ FLAT:??_R4?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@ ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::`vftable'
+	DQ	FLAT:?_Copy@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+	DQ	FLAT:?_Move@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+	DQ	FLAT:?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+	DQ	FLAT:?_Target_type@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ
+	DQ	FLAT:?_Delete_this@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z
+	DQ	FLAT:?_Get@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ
+CONST	ENDS
+;	COMDAT ??_7?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+CONST	SEGMENT
+??_7?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@ DQ FLAT:??_R4?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@ ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::`vftable'
+	DQ	FLAT:?_Copy@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+	DQ	FLAT:?_Move@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+	DQ	FLAT:?_Do_call@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+	DQ	FLAT:?_Target_type@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ
+	DQ	FLAT:?_Delete_this@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z
+	DQ	FLAT:?_Get@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ
 CONST	ENDS
 ;	COMDAT ??_7?$_Func_impl_no_alloc@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
 CONST	SEGMENT
@@ -3174,6 +3475,26 @@ CONST	SEGMENT
 	DQ	FLAT:?_Target_type@?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ
 	DQ	FLAT:?_Delete_this@?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z
 	DQ	FLAT:?_Get@?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ
+CONST	ENDS
+;	COMDAT ??_7?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+CONST	SEGMENT
+??_7?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@ DQ FLAT:??_R4?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@ ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::`vftable'
+	DQ	FLAT:?_Copy@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+	DQ	FLAT:?_Move@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+	DQ	FLAT:?_Do_call@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+	DQ	FLAT:?_Target_type@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ
+	DQ	FLAT:?_Delete_this@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z
+	DQ	FLAT:?_Get@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ
+CONST	ENDS
+;	COMDAT ??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+CONST	SEGMENT
+??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@ DQ FLAT:??_R4?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@ ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::`vftable'
+	DQ	FLAT:?_Copy@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+	DQ	FLAT:?_Move@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+	DQ	FLAT:?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+	DQ	FLAT:?_Target_type@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ
+	DQ	FLAT:?_Delete_this@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z
+	DQ	FLAT:?_Get@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ
 CONST	ENDS
 ;	COMDAT ??_7?$_Func_impl_no_alloc@V<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
 CONST	SEGMENT
@@ -3398,6 +3719,18 @@ CONST	ENDS
 ;	COMDAT ??_C@_04MKEOLIJC@?5to?5@
 CONST	SEGMENT
 ??_C@_04MKEOLIJC@?5to?5@ DB ' to ', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_04DPOPNPPG@Face@
+CONST	SEGMENT
+??_C@_04DPOPNPPG@Face@ DB 'Face', 00H			; `string'
+CONST	ENDS
+;	COMDAT ??_C@_09OCLHBPOP@TextureID@
+CONST	SEGMENT
+??_C@_09OCLHBPOP@TextureID@ DB 'TextureID', 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_05CCOIDDEK@Decal@
+CONST	SEGMENT
+??_C@_05CCOIDDEK@Decal@ DB 'Decal', 00H			; `string'
 CONST	ENDS
 ;	COMDAT ??_C@_05PDOBBJNA@Color@
 CONST	SEGMENT
@@ -3790,6 +4123,16 @@ $unwind$??$invoke@AEAV<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUl
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
+$unwind$??$invoke@AEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD 010401H
+	DD	04204H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??$invoke@AEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD 010401H
+	DD	04204H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
 $unwind$??$invoke@AEAV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD 040a01H
 	DD	06340aH
 	DD	07006320aH
@@ -3805,6 +4148,16 @@ xdata	SEGMENT
 $unwind$??$invoke@AEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD 040a01H
 	DD	06340aH
 	DD	07006320aH
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??$invoke@AEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD 020601H
+	DD	030023206H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??$invoke@AEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD 020601H
+	DD	030023206H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
@@ -4032,6 +4385,16 @@ $unwind$??$?RV?$basic_string_view@DU?$char_traits@D@std@@@std@@V01@@?$_Uhash_com
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
+$unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD 020601H
+	DD	030023206H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD 020601H
+	DD	030023206H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
 $unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD 040a01H
 	DD	06340aH
 	DD	07006320aH
@@ -4047,6 +4410,16 @@ xdata	SEGMENT
 $unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD 040a01H
 	DD	06340aH
 	DD	07006320aH
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD 010401H
+	DD	04204H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD 010401H
+	DD	04204H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
@@ -4748,6 +5121,30 @@ $unwind$??1?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unord
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
+$unwind$??$?4V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z DD 021519H
+	DD	03002d206H
+	DD	imagerel __GSHandlerCheck
+	DD	060H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??R<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DD 020601H
+	DD	030023206H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??$?4V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z DD 021519H
+	DD	03002d206H
+	DD	imagerel __GSHandlerCheck
+	DD	060H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??R<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DD 020601H
+	DD	030023206H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
 $unwind$??$?4V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z DD 021519H
 	DD	03002d206H
 	DD	imagerel __GSHandlerCheck
@@ -4784,6 +5181,30 @@ xdata	SEGMENT
 $unwind$??R<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DD 040a01H
 	DD	06340aH
 	DD	07006320aH
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??$?4V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z DD 021519H
+	DD	03002d206H
+	DD	imagerel __GSHandlerCheck
+	DD	060H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??R<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DD 010401H
+	DD	04204H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??$?4V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z DD 021519H
+	DD	03002d206H
+	DD	imagerel __GSHandlerCheck
+	DD	060H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??R<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DD 010401H
+	DD	04204H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
@@ -5847,13 +6268,8 @@ $unwind$??1LuauEngine@@QEAA@XZ DD 010419H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$unwind$??0LuauEngine@@QEAA@XZ DD 072519H
-	DD	02a7417H
-	DD	0293417H
-	DD	0260117H
-	DD	0500bH
-	DD	imagerel __GSHandlerCheck
-	DD	0120H
+$unwind$??0LuauEngine@@QEAA@XZ DD 020601H
+	DD	030023206H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
@@ -6222,21 +6638,21 @@ $unwind$?InitMetatables@LuauEngine@@AEAAXXZ DD 040a01H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$unwind$?InitSetterTable@LuauEngine@@AEAAXXZ DD 052019H
-	DD	0283412H
-	DD	0260112H
+$unwind$?InitSetterTable@LuauEngine@@AEAAXXZ DD 052619H
+	DD	0383415H
+	DD	0360115H
 	DD	05006H
 	DD	imagerel __GSHandlerCheck
-	DD	0120H
+	DD	01a0H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$unwind$?InitDispatchTable@LuauEngine@@AEAAXXZ DD 052019H
-	DD	0303412H
-	DD	02e0112H
+$unwind$?InitDispatchTable@LuauEngine@@AEAAXXZ DD 052619H
+	DD	0403415H
+	DD	03e0115H
 	DD	05006H
 	DD	imagerel __GSHandlerCheck
-	DD	0160H
+	DD	01e0H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
@@ -7741,6 +8157,30 @@ _Arg$ = 8
 ??$forward@AEBV<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z ENDP ; std::forward<`LuauEngine::InitDispatchTable'::`2'::<lambda_4> const &>
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ??$forward@AEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$forward@AEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z PROC ; std::forward<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> const &>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1510
+	mov	rax, rcx
+; Line 1511
+	ret	0
+??$forward@AEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z ENDP ; std::forward<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> const &>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$forward@AEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$forward@AEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z PROC ; std::forward<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> const &>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1510
+	mov	rax, rcx
+; Line 1511
+	ret	0
+??$forward@AEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z ENDP ; std::forward<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> const &>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ??$forward@AEBV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z
 _TEXT	SEGMENT
 _Arg$ = 8
@@ -7775,6 +8215,30 @@ _Arg$ = 8
 ; Line 1511
 	ret	0
 ??$forward@AEBV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z ENDP ; std::forward<`LuauEngine::InitSetterTable'::`2'::<lambda_3> const &>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$forward@AEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$forward@AEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z PROC ; std::forward<`LuauEngine::InitSetterTable'::`2'::<lambda_4> const &>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1510
+	mov	rax, rcx
+; Line 1511
+	ret	0
+??$forward@AEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z ENDP ; std::forward<`LuauEngine::InitSetterTable'::`2'::<lambda_4> const &>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$forward@AEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$forward@AEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z PROC ; std::forward<`LuauEngine::InitSetterTable'::`2'::<lambda_5> const &>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1510
+	mov	rax, rcx
+; Line 1511
+	ret	0
+??$forward@AEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAAEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z ENDP ; std::forward<`LuauEngine::InitSetterTable'::`2'::<lambda_5> const &>
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??$_Construct_in_place@V?$_List_unchecked_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@std@@@std@@@std@@AEBV12@@std@@YAXAEAV?$_List_unchecked_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@std@@@std@@@0@AEBV10@@Z
@@ -8160,7 +8624,7 @@ _Arg1$ = 56
 ; Line 1688
 	mov	rdi, QWORD PTR [rdx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 20
+; Line 21
 	lea	rdx, OFFSET FLAT:??_C@_0BN@OKFPLPHE@Accessing?5Name?5of?5Instance?3?5@
 	mov	rbx, QWORD PTR [r8]
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
@@ -8179,7 +8643,7 @@ $LN30@invoke:
 	mov	rcx, rax
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 20
+; Line 21
 	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
@@ -8191,7 +8655,7 @@ $LN30@invoke:
 	mov	rbx, QWORD PTR [rbx]
 $LN29@invoke:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 21
+; Line 22
 	mov	rdx, rbx
 	mov	rcx, rdi
 	call	?lua_pushstring@@YAXPEAUlua_State@@PEBD@Z ; lua_pushstring
@@ -8257,31 +8721,31 @@ _Arg1$ = 72
 ; Line 1688
 	mov	rdi, QWORD PTR [rdx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 26
+; Line 27
 	lea	rdx, OFFSET FLAT:??_C@_0BM@LPIPDKFF@Accessing?5FindChild?5method?6@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
 ; Line 1688
 	mov	rbx, QWORD PTR [r8]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 26
+; Line 27
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-; Line 28
+; Line 29
 	xor	r8d, r8d
 	mov	edx, 8
 	mov	rcx, rdi
 	call	?lua_newuserdatatagged@@YAPEAXPEAUlua_State@@_KH@Z ; lua_newuserdatatagged
-; Line 30
+; Line 31
 	lea	r8, OFFSET FLAT:??_C@_0O@CPMMAEMM@RCBN_Instance@
 	mov	edx, -10000				; ffffffffffffd8f0H
 	mov	rcx, rdi
 	mov	QWORD PTR [rax], rbx
 	call	?lua_getfield@@YAHPEAUlua_State@@HPEBD@Z ; lua_getfield
-; Line 31
+; Line 32
 	mov	edx, -2
 	mov	rcx, rdi
 	call	?lua_setmetatable@@YAHPEAUlua_State@@H@Z ; lua_setmetatable
-; Line 33
+; Line 34
 	mov	r9d, 1
 	mov	QWORD PTR [rsp+32], 0
 	lea	r8, OFFSET FLAT:??_C@_09ODHFGNMO@FindChild@
@@ -8354,7 +8818,7 @@ _Arg1$ = 104
 ; Line 1688
 	mov	rbx, QWORD PTR [rdx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 39
+; Line 40
 	mov	rcx, QWORD PTR [r8]
 	lea	rdx, QWORD PTR $T1[rsp]
 	mov	rcx, QWORD PTR [rcx+152]
@@ -8369,7 +8833,7 @@ _Arg1$ = 104
 	mov	rax, QWORD PTR [rax]
 $LN10@invoke:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 39
+; Line 40
 	mov	rdx, rax
 	mov	rcx, rbx
 	call	?lua_pushstring@@YAXPEAUlua_State@@PEBD@Z ; lua_pushstring
@@ -8493,7 +8957,7 @@ _Arg1$ = 104
 ; Line 1688
 	mov	rbx, QWORD PTR [rdx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 45
+; Line 46
 	mov	rcx, QWORD PTR [r8]
 	add	rcx, 172				; 000000acH
 	lea	rdx, QWORD PTR $T1[rsp]
@@ -8508,7 +8972,7 @@ _Arg1$ = 104
 	mov	rax, QWORD PTR [rax]
 $LN10@invoke:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 45
+; Line 46
 	mov	rdx, rax
 	mov	rcx, rbx
 	call	?lua_pushstring@@YAXPEAUlua_State@@PEBD@Z ; lua_pushstring
@@ -8588,6 +9052,133 @@ _Val$ = 8
 ??$addressof@$$CBV<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z ENDP ; std::addressof<`LuauEngine::InitDispatchTable'::`2'::<lambda_4> const >
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ??$?0AEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Val$ = 16
+??$?0AEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *><`LuauEngine::InitDispatchTable'::`2'::<lambda_5> const &,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rcx], rax
+	mov	rax, rcx
+	ret	0
+??$?0AEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *><`LuauEngine::InitDispatchTable'::`2'::<lambda_5> const &,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$move@AEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$move@AEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z PROC ; std::move<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> &>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1521
+	mov	rax, rcx
+; Line 1522
+	ret	0
+??$move@AEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z ENDP ; std::move<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> &>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$invoke@AEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+_TEXT	SEGMENT
+_Obj$ = 48
+_Arg1$ = 56
+<_Args2_0>$ = 64
+??$invoke@AEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z PROC ; std::invoke<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> &,lua_State *,Instance *>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1686
+	sub	rsp, 40					; 00000028H
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
+; Line 52
+	mov	rax, QWORD PTR [r8]
+	xorps	xmm1, xmm1
+	mov	ecx, DWORD PTR [rax+112]
+	cvtsi2sd xmm1, rcx
+	mov	rcx, QWORD PTR [rdx]
+	call	?lua_pushnumber@@YAXPEAUlua_State@@N@Z	; lua_pushnumber
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1688
+	mov	eax, 1
+; Line 1708
+	add	rsp, 40					; 00000028H
+	ret	0
+??$invoke@AEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z ENDP ; std::invoke<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> &,lua_State *,Instance *>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$addressof@$$CBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Val$ = 8
+??$addressof@$$CBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z PROC ; std::addressof<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> const >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1533
+	mov	rax, rcx
+; Line 1534
+	ret	0
+??$addressof@$$CBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z ENDP ; std::addressof<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> const >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?0AEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Val$ = 16
+??$?0AEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *><`LuauEngine::InitDispatchTable'::`2'::<lambda_6> const &,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rcx], rax
+	mov	rax, rcx
+	ret	0
+??$?0AEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *><`LuauEngine::InitDispatchTable'::`2'::<lambda_6> const &,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$move@AEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$move@AEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z PROC ; std::move<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> &>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1521
+	mov	rax, rcx
+; Line 1522
+	ret	0
+??$move@AEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z ENDP ; std::move<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> &>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$invoke@AEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+_TEXT	SEGMENT
+_Obj$ = 48
+_Arg1$ = 56
+<_Args2_0>$ = 64
+??$invoke@AEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z PROC ; std::invoke<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> &,lua_State *,Instance *>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1686
+	sub	rsp, 40					; 00000028H
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
+; Line 58
+	mov	rax, QWORD PTR [r8]
+	mov	rcx, QWORD PTR [rdx]
+	movd	xmm1, DWORD PTR [rax+116]
+	cvtdq2pd xmm1, xmm1
+	call	?lua_pushnumber@@YAXPEAUlua_State@@N@Z	; lua_pushnumber
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1688
+	mov	eax, 1
+; Line 1708
+	add	rsp, 40					; 00000028H
+	ret	0
+??$invoke@AEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z ENDP ; std::invoke<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> &,lua_State *,Instance *>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$addressof@$$CBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Val$ = 8
+??$addressof@$$CBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z PROC ; std::addressof<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> const >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1533
+	mov	rax, rcx
+; Line 1534
+	ret	0
+??$addressof@$$CBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z ENDP ; std::addressof<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> const >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ??$?0AEBV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
 _TEXT	SEGMENT
 this$ = 8
@@ -8626,17 +9217,17 @@ _Arg1$ = 56
 	push	rdi
 	sub	rsp, 32					; 00000020H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 52
+; Line 65
 	mov	rcx, QWORD PTR [rdx]
 	mov	edx, 3
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
 ; Line 1688
 	mov	rbx, QWORD PTR [r8]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 52
+; Line 65
 	xor	r8d, r8d
 	call	?luaL_checklstring@@YAPEBDPEAUlua_State@@HPEA_K@Z ; luaL_checklstring
-; Line 53
+; Line 66
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_0BP@BFMMMHBD@Setting?5Name?5of?5Instance?5from?5@
 	mov	rdi, rax
@@ -8657,7 +9248,7 @@ $LN11@invoke:
 	mov	rcx, rax
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 53
+; Line 66
 	lea	rdx, OFFSET FLAT:??_C@_04MKEOLIJC@?5to?5@
 	mov	rcx, rax
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -8740,30 +9331,30 @@ _Arg1$ = 88
 ; Line 1688
 	mov	rbx, QWORD PTR [rdx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 61
+; Line 74
 	mov	edx, 3
 	mov	rdi, QWORD PTR [r8]
 	mov	rcx, rbx
 	call	?lua_isuserdata@@YAHPEAUlua_State@@H@Z	; lua_isuserdata
 	test	eax, eax
 	je	$LN4@invoke
-; Line 62
+; Line 75
 	lea	r8, OFFSET FLAT:??_C@_0N@HFLCNLHO@RCBN_Vector3@
 	mov	edx, 3
 	mov	rcx, rbx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 63
+; Line 76
 	mov	rdx, QWORD PTR [rdi+152]
 	mov	rbx, rax
 	movsd	xmm0, QWORD PTR [rax]
 	movsd	QWORD PTR [rdx], xmm0
 	mov	ecx, DWORD PTR [rax+8]
 	mov	DWORD PTR [rdx+8], ecx
-; Line 66
+; Line 79
 	mov	rcx, QWORD PTR [rdi+208]
 	test	rcx, rcx
 	je	SHORT $LN15@invoke
-; Line 67
+; Line 80
 	mov	r8, QWORD PTR [rcx]
 	lea	rdx, QWORD PTR pose$2[rsp]
 	call	QWORD PTR [r8+168]
@@ -8771,7 +9362,7 @@ _Arg1$ = 88
 ; Line 101
 	movss	xmm0, DWORD PTR [rbx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 69
+; Line 82
 	lea	rdx, QWORD PTR pose$2[rsp]
 	mov	rcx, QWORD PTR [rdi+208]
 	mov	r8b, 1
@@ -8784,7 +9375,7 @@ _Arg1$ = 88
 	movss	DWORD PTR pose$2[rsp+24], xmm0
 	movss	DWORD PTR pose$2[rsp+20], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 69
+; Line 82
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+176]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
@@ -8796,7 +9387,7 @@ _Arg1$ = 88
 	ret	0
 $LN4@invoke:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 74
+; Line 87
 	mov	rcx, QWORD PTR __imp_?cerr@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_0CK@BKIMHDBA@Expected?5a?5Vector3?5userdata?5for@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -8863,25 +9454,25 @@ _Arg1$ = 56
 ; Line 1688
 	mov	rbx, QWORD PTR [rdx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 82
+; Line 95
 	mov	edx, 3
 	mov	rdi, QWORD PTR [r8]
 	mov	rcx, rbx
 	call	?lua_isuserdata@@YAHPEAUlua_State@@H@Z	; lua_isuserdata
 	test	eax, eax
 	je	SHORT $LN4@invoke
-; Line 83
+; Line 96
 	lea	r8, OFFSET FLAT:??_C@_0M@EEEAIMDE@RCBN_Color4@
 	mov	edx, 3
 	mov	rcx, rbx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 84
+; Line 97
 	movups	xmm0, XMMWORD PTR [rax]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
 ; Line 1708
 	xor	eax, eax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 84
+; Line 97
 	movups	XMMWORD PTR [rdi+172], xmm0
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
 ; Line 1708
@@ -8891,7 +9482,7 @@ _Arg1$ = 56
 	ret	0
 $LN4@invoke:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 87
+; Line 100
 	mov	rcx, QWORD PTR __imp_?cerr@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_0CG@FJFOBLK@Expected?5a?5Color4?5userdata?5for?5@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -8915,6 +9506,138 @@ _Val$ = 8
 ; Line 1534
 	ret	0
 ??$addressof@$$CBV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z ENDP ; std::addressof<`LuauEngine::InitSetterTable'::`2'::<lambda_3> const >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?0AEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Val$ = 16
+??$?0AEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *><`LuauEngine::InitSetterTable'::`2'::<lambda_4> const &,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rcx], rax
+	mov	rax, rcx
+	ret	0
+??$?0AEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *><`LuauEngine::InitSetterTable'::`2'::<lambda_4> const &,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$move@AEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$move@AEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z PROC ; std::move<`LuauEngine::InitSetterTable'::`2'::<lambda_4> &>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1521
+	mov	rax, rcx
+; Line 1522
+	ret	0
+??$move@AEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z ENDP ; std::move<`LuauEngine::InitSetterTable'::`2'::<lambda_4> &>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$invoke@AEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+_TEXT	SEGMENT
+_Obj$ = 48
+_Arg1$ = 56
+<_Args2_0>$ = 64
+??$invoke@AEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z PROC ; std::invoke<`LuauEngine::InitSetterTable'::`2'::<lambda_4> &,lua_State *,Instance *>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1686
+	push	rbx
+	sub	rsp, 32					; 00000020H
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
+; Line 107
+	mov	rcx, QWORD PTR [rdx]
+	mov	edx, 3
+	mov	rbx, QWORD PTR [r8]
+	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
+	cvttsd2si rax, xmm0
+	mov	DWORD PTR [rbx+112], eax
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1688
+	xor	eax, eax
+; Line 1708
+	add	rsp, 32					; 00000020H
+	pop	rbx
+	ret	0
+??$invoke@AEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z ENDP ; std::invoke<`LuauEngine::InitSetterTable'::`2'::<lambda_4> &,lua_State *,Instance *>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$addressof@$$CBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Val$ = 8
+??$addressof@$$CBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z PROC ; std::addressof<`LuauEngine::InitSetterTable'::`2'::<lambda_4> const >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1533
+	mov	rax, rcx
+; Line 1534
+	ret	0
+??$addressof@$$CBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z ENDP ; std::addressof<`LuauEngine::InitSetterTable'::`2'::<lambda_4> const >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?0AEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Val$ = 16
+??$?0AEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *><`LuauEngine::InitSetterTable'::`2'::<lambda_5> const &,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rcx], rax
+	mov	rax, rcx
+	ret	0
+??$?0AEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@AEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *><`LuauEngine::InitSetterTable'::`2'::<lambda_5> const &,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$move@AEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$move@AEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z PROC ; std::move<`LuauEngine::InitSetterTable'::`2'::<lambda_5> &>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1521
+	mov	rax, rcx
+; Line 1522
+	ret	0
+??$move@AEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z ENDP ; std::move<`LuauEngine::InitSetterTable'::`2'::<lambda_5> &>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$invoke@AEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+_TEXT	SEGMENT
+_Obj$ = 48
+_Arg1$ = 56
+<_Args2_0>$ = 64
+??$invoke@AEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z PROC ; std::invoke<`LuauEngine::InitSetterTable'::`2'::<lambda_5> &,lua_State *,Instance *>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1686
+	push	rbx
+	sub	rsp, 32					; 00000020H
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
+; Line 113
+	mov	rcx, QWORD PTR [rdx]
+	mov	edx, 3
+	mov	rbx, QWORD PTR [r8]
+	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
+	cvttsd2si eax, xmm0
+	mov	DWORD PTR [rbx+116], eax
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1688
+	xor	eax, eax
+; Line 1708
+	add	rsp, 32					; 00000020H
+	pop	rbx
+	ret	0
+??$invoke@AEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z ENDP ; std::invoke<`LuauEngine::InitSetterTable'::`2'::<lambda_5> &,lua_State *,Instance *>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$addressof@$$CBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Val$ = 8
+??$addressof@$$CBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z PROC ; std::addressof<`LuauEngine::InitSetterTable'::`2'::<lambda_5> const >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1533
+	mov	rax, rcx
+; Line 1534
+	ret	0
+??$addressof@$$CBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YAPEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEBV1?1??23@AEAAXXZ@@Z ENDP ; std::addressof<`LuauEngine::InitSetterTable'::`2'::<lambda_5> const >
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??$_Deallocate@$07@std@@YAXPEAX_K@Z
@@ -10769,6 +11492,266 @@ _Arg$ = 8
 ??$forward@AEAPEAD@std@@YAAEAPEADAEAPEAD@Z ENDP		; std::forward<char * &>
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ??$?0V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Val$ = 16
+??$?0V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *><`LuauEngine::InitSetterTable'::`2'::<lambda_5>,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rcx], rax
+	mov	rax, rcx
+	ret	0
+??$?0V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *><`LuauEngine::InitSetterTable'::`2'::<lambda_5>,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$_Test_callable@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA_NAEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$_Test_callable@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA_NAEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Test_callable<`LuauEngine::InitSetterTable'::`2'::<lambda_5> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 718
+	mov	al, 1
+; Line 720
+	ret	0
+??$_Test_callable@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA_NAEBV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Test_callable<`LuauEngine::InitSetterTable'::`2'::<lambda_5> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Delete_this@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z
+_TEXT	SEGMENT
+this$ = 8
+_Dealloc$ = 16
+?_Delete_this@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Delete_this, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 906
+	test	dl, dl
+	je	SHORT $LN5@Delete_thi
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xmemory
+; Line 293
+	mov	edx, 16
+	jmp	??3@YAXPEAX_K@Z				; operator delete
+$LN5@Delete_thi:
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 909
+	ret	0
+?_Delete_this@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Delete_this
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Get@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ
+_TEXT	SEGMENT
+this$ = 8
+?_Get@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Get, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 901
+	lea	rax, QWORD PTR [rcx+8]
+; Line 902
+	ret	0
+?_Get@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Get
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Target_type@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ
+_TEXT	SEGMENT
+this$ = 8
+?_Target_type@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Target_type, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 891
+	lea	rax, OFFSET FLAT:??_R0?AV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@8
+; Line 892
+	ret	0
+?_Target_type@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Target_type
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+_TEXT	SEGMENT
+this$ = 48
+<_Args_0>$ = 56
+<_Args_1>$ = 64
+?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Do_call, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 881
+	push	rbx
+	sub	rsp, 32					; 00000020H
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
+; Line 113
+	mov	rcx, QWORD PTR [rdx]
+	mov	edx, 3
+	mov	rbx, QWORD PTR [r8]
+	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
+	cvttsd2si eax, xmm0
+	mov	DWORD PTR [rbx+116], eax
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 885
+	xor	eax, eax
+; Line 887
+	add	rsp, 32					; 00000020H
+	pop	rbx
+	ret	0
+?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Do_call
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Move@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+_TEXT	SEGMENT
+this$ = 8
+_Where$ = 16
+?_Move@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Move, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rdx], rax
+; Line 877
+	mov	rax, rdx
+; Line 879
+	ret	0
+?_Move@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Move
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Copy@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+_TEXT	SEGMENT
+this$ = 8
+_Where$ = 16
+?_Copy@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Copy, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rdx], rax
+; Line 869
+	mov	rax, rdx
+; Line 871
+	ret	0
+?_Copy@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Copy
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?0V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Val$ = 16
+??$?0V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *><`LuauEngine::InitSetterTable'::`2'::<lambda_4>,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rcx], rax
+	mov	rax, rcx
+	ret	0
+??$?0V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *><`LuauEngine::InitSetterTable'::`2'::<lambda_4>,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$_Test_callable@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA_NAEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$_Test_callable@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA_NAEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Test_callable<`LuauEngine::InitSetterTable'::`2'::<lambda_4> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 718
+	mov	al, 1
+; Line 720
+	ret	0
+??$_Test_callable@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA_NAEBV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Test_callable<`LuauEngine::InitSetterTable'::`2'::<lambda_4> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Delete_this@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z
+_TEXT	SEGMENT
+this$ = 8
+_Dealloc$ = 16
+?_Delete_this@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Delete_this, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 906
+	test	dl, dl
+	je	SHORT $LN5@Delete_thi
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xmemory
+; Line 293
+	mov	edx, 16
+	jmp	??3@YAXPEAX_K@Z				; operator delete
+$LN5@Delete_thi:
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 909
+	ret	0
+?_Delete_this@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Delete_this
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Get@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ
+_TEXT	SEGMENT
+this$ = 8
+?_Get@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Get, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 901
+	lea	rax, QWORD PTR [rcx+8]
+; Line 902
+	ret	0
+?_Get@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Get
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Target_type@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ
+_TEXT	SEGMENT
+this$ = 8
+?_Target_type@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Target_type, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 891
+	lea	rax, OFFSET FLAT:??_R0?AV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@8
+; Line 892
+	ret	0
+?_Target_type@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Target_type
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Do_call@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+_TEXT	SEGMENT
+this$ = 48
+<_Args_0>$ = 56
+<_Args_1>$ = 64
+?_Do_call@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Do_call, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 881
+	push	rbx
+	sub	rsp, 32					; 00000020H
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
+; Line 107
+	mov	rcx, QWORD PTR [rdx]
+	mov	edx, 3
+	mov	rbx, QWORD PTR [r8]
+	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
+	cvttsd2si rax, xmm0
+	mov	DWORD PTR [rbx+112], eax
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 885
+	xor	eax, eax
+; Line 887
+	add	rsp, 32					; 00000020H
+	pop	rbx
+	ret	0
+?_Do_call@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Do_call
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Move@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+_TEXT	SEGMENT
+this$ = 8
+_Where$ = 16
+?_Move@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Move, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rdx], rax
+; Line 877
+	mov	rax, rdx
+; Line 879
+	ret	0
+?_Move@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Move
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Copy@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+_TEXT	SEGMENT
+this$ = 8
+_Where$ = 16
+?_Copy@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Copy, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rdx], rax
+; Line 869
+	mov	rax, rdx
+; Line 871
+	ret	0
+?_Copy@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,int,lua_State *,Instance *>::_Copy
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ??$?0V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
 _TEXT	SEGMENT
 this$ = 8
@@ -10854,25 +11837,25 @@ this$ = 48
 ; Line 1688
 	mov	rbx, QWORD PTR [rdx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 82
+; Line 95
 	mov	edx, 3
 	mov	rdi, QWORD PTR [r8]
 	mov	rcx, rbx
 	call	?lua_isuserdata@@YAHPEAUlua_State@@H@Z	; lua_isuserdata
 	test	eax, eax
 	je	SHORT $LN6@Do_call
-; Line 83
+; Line 96
 	lea	r8, OFFSET FLAT:??_C@_0M@EEEAIMDE@RCBN_Color4@
 	mov	edx, 3
 	mov	rcx, rbx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 84
+; Line 97
 	movups	xmm0, XMMWORD PTR [rax]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
 ; Line 887
 	xor	eax, eax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 84
+; Line 97
 	movups	XMMWORD PTR [rdi+172], xmm0
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
 ; Line 887
@@ -10882,7 +11865,7 @@ this$ = 48
 	ret	0
 $LN6@Do_call:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 87
+; Line 100
 	mov	rcx, QWORD PTR __imp_?cerr@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_0CG@FJFOBLK@Expected?5a?5Color4?5userdata?5for?5@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -11014,30 +11997,30 @@ this$ = 80
 ; Line 1688
 	mov	rbx, QWORD PTR [rdx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 61
+; Line 74
 	mov	edx, 3
 	mov	rdi, QWORD PTR [r8]
 	mov	rcx, rbx
 	call	?lua_isuserdata@@YAHPEAUlua_State@@H@Z	; lua_isuserdata
 	test	eax, eax
 	je	$LN6@Do_call
-; Line 62
+; Line 75
 	lea	r8, OFFSET FLAT:??_C@_0N@HFLCNLHO@RCBN_Vector3@
 	mov	edx, 3
 	mov	rcx, rbx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 63
+; Line 76
 	mov	rdx, QWORD PTR [rdi+152]
 	mov	rbx, rax
 	movsd	xmm0, QWORD PTR [rax]
 	movsd	QWORD PTR [rdx], xmm0
 	mov	ecx, DWORD PTR [rax+8]
 	mov	DWORD PTR [rdx+8], ecx
-; Line 66
+; Line 79
 	mov	rcx, QWORD PTR [rdi+208]
 	test	rcx, rcx
 	je	SHORT $LN17@Do_call
-; Line 67
+; Line 80
 	mov	r8, QWORD PTR [rcx]
 	lea	rdx, QWORD PTR pose$2[rsp]
 	call	QWORD PTR [r8+168]
@@ -11045,7 +12028,7 @@ this$ = 80
 ; Line 101
 	movss	xmm0, DWORD PTR [rbx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 69
+; Line 82
 	lea	rdx, QWORD PTR pose$2[rsp]
 	mov	rcx, QWORD PTR [rdi+208]
 	mov	r8b, 1
@@ -11058,7 +12041,7 @@ this$ = 80
 	movss	DWORD PTR pose$2[rsp+24], xmm0
 	movss	DWORD PTR pose$2[rsp+20], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 69
+; Line 82
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+176]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
@@ -11070,7 +12053,7 @@ this$ = 80
 	ret	0
 $LN6@Do_call:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 74
+; Line 87
 	mov	rcx, QWORD PTR __imp_?cerr@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_0CK@BKIMHDBA@Expected?5a?5Vector3?5userdata?5for@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -11199,17 +12182,17 @@ this$ = 48
 	push	rdi
 	sub	rsp, 32					; 00000020H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 52
+; Line 65
 	mov	rcx, QWORD PTR [rdx]
 	mov	edx, 3
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
 ; Line 1688
 	mov	rbx, QWORD PTR [r8]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 52
+; Line 65
 	xor	r8d, r8d
 	call	?luaL_checklstring@@YAPEBDPEAUlua_State@@HPEA_K@Z ; luaL_checklstring
-; Line 53
+; Line 66
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_0BP@BFMMMHBD@Setting?5Name?5of?5Instance?5from?5@
 	mov	rdi, rax
@@ -11230,7 +12213,7 @@ $LN13@Do_call:
 	mov	rcx, rax
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 53
+; Line 66
 	lea	rdx, OFFSET FLAT:??_C@_04MKEOLIJC@?5to?5@
 	mov	rcx, rax
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -11290,6 +12273,261 @@ _Where$ = 16
 ; Line 871
 	ret	0
 ?_Copy@?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitSetterTable'::`2'::<lambda_1>,int,lua_State *,Instance *>::_Copy
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?0V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Val$ = 16
+??$?0V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *><`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rcx], rax
+	mov	rax, rcx
+	ret	0
+??$?0V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *><`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$_Test_callable@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA_NAEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$_Test_callable@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA_NAEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Test_callable<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 718
+	mov	al, 1
+; Line 720
+	ret	0
+??$_Test_callable@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA_NAEBV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Test_callable<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Delete_this@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z
+_TEXT	SEGMENT
+this$ = 8
+_Dealloc$ = 16
+?_Delete_this@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Delete_this, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 906
+	test	dl, dl
+	je	SHORT $LN5@Delete_thi
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xmemory
+; Line 293
+	mov	edx, 16
+	jmp	??3@YAXPEAX_K@Z				; operator delete
+$LN5@Delete_thi:
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 909
+	ret	0
+?_Delete_this@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Delete_this
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Get@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ
+_TEXT	SEGMENT
+this$ = 8
+?_Get@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Get, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 901
+	lea	rax, QWORD PTR [rcx+8]
+; Line 902
+	ret	0
+?_Get@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Get
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Target_type@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ
+_TEXT	SEGMENT
+this$ = 8
+?_Target_type@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Target_type, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 891
+	lea	rax, OFFSET FLAT:??_R0?AV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@8
+; Line 892
+	ret	0
+?_Target_type@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Target_type
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Do_call@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+_TEXT	SEGMENT
+this$ = 48
+<_Args_0>$ = 56
+<_Args_1>$ = 64
+?_Do_call@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Do_call, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 881
+	sub	rsp, 40					; 00000028H
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
+; Line 58
+	mov	rax, QWORD PTR [r8]
+	mov	rcx, QWORD PTR [rdx]
+	movd	xmm1, DWORD PTR [rax+116]
+	cvtdq2pd xmm1, xmm1
+	call	?lua_pushnumber@@YAXPEAUlua_State@@N@Z	; lua_pushnumber
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 885
+	mov	eax, 1
+; Line 887
+	add	rsp, 40					; 00000028H
+	ret	0
+?_Do_call@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Do_call
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Move@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+_TEXT	SEGMENT
+this$ = 8
+_Where$ = 16
+?_Move@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Move, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rdx], rax
+; Line 877
+	mov	rax, rdx
+; Line 879
+	ret	0
+?_Move@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Move
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Copy@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+_TEXT	SEGMENT
+this$ = 8
+_Where$ = 16
+?_Copy@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Copy, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rdx], rax
+; Line 869
+	mov	rax, rdx
+; Line 871
+	ret	0
+?_Copy@?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,int,lua_State *,Instance *>::_Copy
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?0V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Val$ = 16
+??$?0V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *><`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rcx], rax
+	mov	rax, rcx
+	ret	0
+??$?0V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *><`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$_Test_callable@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA_NAEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$_Test_callable@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA_NAEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Test_callable<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 718
+	mov	al, 1
+; Line 720
+	ret	0
+??$_Test_callable@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA_NAEBV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Test_callable<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Delete_this@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z
+_TEXT	SEGMENT
+this$ = 8
+_Dealloc$ = 16
+?_Delete_this@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Delete_this, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 906
+	test	dl, dl
+	je	SHORT $LN5@Delete_thi
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xmemory
+; Line 293
+	mov	edx, 16
+	jmp	??3@YAXPEAX_K@Z				; operator delete
+$LN5@Delete_thi:
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 909
+	ret	0
+?_Delete_this@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAX_N@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Delete_this
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Get@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ
+_TEXT	SEGMENT
+this$ = 8
+?_Get@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Get, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 901
+	lea	rax, QWORD PTR [rcx+8]
+; Line 902
+	ret	0
+?_Get@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEBXXZ ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Get
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Target_type@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ
+_TEXT	SEGMENT
+this$ = 8
+?_Target_type@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Target_type, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 891
+	lea	rax, OFFSET FLAT:??_R0?AV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@8
+; Line 892
+	ret	0
+?_Target_type@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAAEBVtype_info@@XZ ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Target_type
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
+_TEXT	SEGMENT
+this$ = 48
+<_Args_0>$ = 56
+<_Args_1>$ = 64
+?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Do_call, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 881
+	sub	rsp, 40					; 00000028H
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
+; Line 52
+	mov	rax, QWORD PTR [r8]
+	xorps	xmm1, xmm1
+	mov	ecx, DWORD PTR [rax+112]
+	cvtsi2sd xmm1, rcx
+	mov	rcx, QWORD PTR [rdx]
+	call	?lua_pushnumber@@YAXPEAUlua_State@@N@Z	; lua_pushnumber
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 885
+	mov	eax, 1
+; Line 887
+	add	rsp, 40					; 00000028H
+	ret	0
+?_Do_call@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Do_call
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Move@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+_TEXT	SEGMENT
+this$ = 8
+_Where$ = 16
+?_Move@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Move, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rdx], rax
+; Line 877
+	mov	rax, rdx
+; Line 879
+	ret	0
+?_Move@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Move
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Copy@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z
+_TEXT	SEGMENT
+this$ = 8
+_Where$ = 16
+?_Copy@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z PROC ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Copy, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rdx], rax
+; Line 869
+	mov	rax, rdx
+; Line 871
+	ret	0
+?_Copy@?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEBAPEAV?$_Func_base@HPEAUlua_State@@PEAVInstance@@@2@PEAX@Z ENDP ; std::_Func_impl_no_alloc<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,int,lua_State *,Instance *>::_Copy
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??$?0V<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$_Func_impl_no_alloc@V<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@QEAA@$$QEAV<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
@@ -11381,7 +12619,7 @@ this$ = 96
 ; Line 1688
 	mov	rbx, QWORD PTR [rdx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 45
+; Line 46
 	mov	rcx, QWORD PTR [r8]
 	add	rcx, 172				; 000000acH
 	lea	rdx, QWORD PTR $T1[rsp]
@@ -11396,7 +12634,7 @@ this$ = 96
 	mov	rax, QWORD PTR [rax]
 $LN12@Do_call:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 45
+; Line 46
 	mov	rdx, rax
 	mov	rcx, rbx
 	call	?lua_pushstring@@YAXPEAUlua_State@@PEBD@Z ; lua_pushstring
@@ -11585,7 +12823,7 @@ this$ = 96
 ; Line 1688
 	mov	rbx, QWORD PTR [rdx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 39
+; Line 40
 	mov	rcx, QWORD PTR [r8]
 	lea	rdx, QWORD PTR $T1[rsp]
 	mov	rcx, QWORD PTR [rcx+152]
@@ -11600,7 +12838,7 @@ this$ = 96
 	mov	rax, QWORD PTR [rax]
 $LN12@Do_call:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 39
+; Line 40
 	mov	rdx, rax
 	mov	rcx, rbx
 	call	?lua_pushstring@@YAXPEAUlua_State@@PEBD@Z ; lua_pushstring
@@ -11785,31 +13023,31 @@ this$ = 64
 ; Line 1688
 	mov	rdi, QWORD PTR [rdx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 26
+; Line 27
 	lea	rdx, OFFSET FLAT:??_C@_0BM@LPIPDKFF@Accessing?5FindChild?5method?6@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
 ; Line 1688
 	mov	rbx, QWORD PTR [r8]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 26
+; Line 27
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-; Line 28
+; Line 29
 	xor	r8d, r8d
 	mov	edx, 8
 	mov	rcx, rdi
 	call	?lua_newuserdatatagged@@YAPEAXPEAUlua_State@@_KH@Z ; lua_newuserdatatagged
-; Line 30
+; Line 31
 	lea	r8, OFFSET FLAT:??_C@_0O@CPMMAEMM@RCBN_Instance@
 	mov	edx, -10000				; ffffffffffffd8f0H
 	mov	rcx, rdi
 	mov	QWORD PTR [rax], rbx
 	call	?lua_getfield@@YAHPEAUlua_State@@HPEBD@Z ; lua_getfield
-; Line 31
+; Line 32
 	mov	edx, -2
 	mov	rcx, rdi
 	call	?lua_setmetatable@@YAHPEAUlua_State@@H@Z ; lua_setmetatable
-; Line 33
+; Line 34
 	mov	r9d, 1
 	mov	QWORD PTR [rsp+32], 0
 	lea	r8, OFFSET FLAT:??_C@_09ODHFGNMO@FindChild@
@@ -11943,7 +13181,7 @@ this$ = 48
 ; Line 1688
 	mov	rdi, QWORD PTR [rdx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 20
+; Line 21
 	lea	rdx, OFFSET FLAT:??_C@_0BN@OKFPLPHE@Accessing?5Name?5of?5Instance?3?5@
 	mov	rbx, QWORD PTR [r8]
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
@@ -11962,7 +13200,7 @@ $LN32@Do_call:
 	mov	rcx, rax
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 20
+; Line 21
 	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
@@ -11974,7 +13212,7 @@ $LN32@Do_call:
 	mov	rbx, QWORD PTR [rbx]
 $LN31@Do_call:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 21
+; Line 22
 	mov	rdx, rbx
 	mov	rcx, rdi
 	call	?lua_pushstring@@YAXPEAUlua_State@@PEBD@Z ; lua_pushstring
@@ -13822,6 +15060,40 @@ $LN42@Allocate_f:
 ??$_Allocate_for_capacity@$0A@@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@CAPEADAEAV?$allocator@D@1@AEA_K@Z ENDP ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Allocate_for_capacity<0>
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ??$_Reset@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Val$ = 16
+??$_Reset@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Func_class<int,lua_State *,Instance *>::_Reset<`LuauEngine::InitSetterTable'::`2'::<lambda_5> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+; Line 982
+	mov	QWORD PTR [rcx+56], rcx
+; Line 857
+	mov	QWORD PTR [rcx], rax
+; Line 984
+	ret	0
+??$_Reset@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_class<int,lua_State *,Instance *>::_Reset<`LuauEngine::InitSetterTable'::`2'::<lambda_5> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$_Reset@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Val$ = 16
+??$_Reset@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Func_class<int,lua_State *,Instance *>::_Reset<`LuauEngine::InitSetterTable'::`2'::<lambda_4> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+; Line 982
+	mov	QWORD PTR [rcx+56], rcx
+; Line 857
+	mov	QWORD PTR [rcx], rax
+; Line 984
+	ret	0
+??$_Reset@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_class<int,lua_State *,Instance *>::_Reset<`LuauEngine::InitSetterTable'::`2'::<lambda_4> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ??$_Reset@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
 _TEXT	SEGMENT
 this$ = 8
@@ -13871,6 +15143,40 @@ _Val$ = 16
 ; Line 984
 	ret	0
 ??$_Reset@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_class<int,lua_State *,Instance *>::_Reset<`LuauEngine::InitSetterTable'::`2'::<lambda_1> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$_Reset@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Val$ = 16
+??$_Reset@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Func_class<int,lua_State *,Instance *>::_Reset<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+; Line 982
+	mov	QWORD PTR [rcx+56], rcx
+; Line 857
+	mov	QWORD PTR [rcx], rax
+; Line 984
+	ret	0
+??$_Reset@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_class<int,lua_State *,Instance *>::_Reset<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$_Reset@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Val$ = 16
+??$_Reset@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::_Func_class<int,lua_State *,Instance *>::_Reset<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+; Line 982
+	mov	QWORD PTR [rcx+56], rcx
+; Line 857
+	mov	QWORD PTR [rcx], rax
+; Line 984
+	ret	0
+??$_Reset@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::_Func_class<int,lua_State *,Instance *>::_Reset<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> >
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??$_Reset@V<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@?$_Func_class@HPEAUlua_State@@PEAVInstance@@@std@@IEAAX$$QEAV<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
@@ -15302,6 +16608,30 @@ _Val1$ = 24
 ??$?0AEBV?$allocator@D@std@@$$V@?$_Compressed_pair@V?$allocator@D@std@@V?$_String_val@U?$_Simple_types@D@std@@@2@$00@std@@QEAA@U_One_then_variadic_args_t@1@AEBV?$allocator@D@1@@Z ENDP ; std::_Compressed_pair<std::allocator<char>,std::_String_val<std::_Simple_types<char> >,1>::_Compressed_pair<std::allocator<char>,std::_String_val<std::_Simple_types<char> >,1><std::allocator<char> const &>
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ??$forward@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$forward@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z PROC ; std::forward<`LuauEngine::InitSetterTable'::`2'::<lambda_5> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1510
+	mov	rax, rcx
+; Line 1511
+	ret	0
+??$forward@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z ENDP ; std::forward<`LuauEngine::InitSetterTable'::`2'::<lambda_5> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$forward@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$forward@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z PROC ; std::forward<`LuauEngine::InitSetterTable'::`2'::<lambda_4> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1510
+	mov	rax, rcx
+; Line 1511
+	ret	0
+??$forward@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z ENDP ; std::forward<`LuauEngine::InitSetterTable'::`2'::<lambda_4> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ??$forward@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z
 _TEXT	SEGMENT
 _Arg$ = 8
@@ -15336,6 +16666,30 @@ _Arg$ = 8
 ; Line 1511
 	ret	0
 ??$forward@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z ENDP ; std::forward<`LuauEngine::InitSetterTable'::`2'::<lambda_1> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$forward@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$forward@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z PROC ; std::forward<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1510
+	mov	rax, rcx
+; Line 1511
+	ret	0
+??$forward@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z ENDP ; std::forward<`LuauEngine::InitDispatchTable'::`2'::<lambda_6> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$forward@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z
+_TEXT	SEGMENT
+_Arg$ = 8
+??$forward@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z PROC ; std::forward<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
+; Line 1510
+	mov	rax, rcx
+; Line 1511
+	ret	0
+??$forward@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z ENDP ; std::forward<`LuauEngine::InitDispatchTable'::`2'::<lambda_5> >
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??$forward@V<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@std@@YA$$QEAV<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@AEAV1?1??23@AEAAXXZ@@Z
@@ -15718,7 +17072,7 @@ $T2 = 32
 L$ = 112
 ?<lambda_invoker_cdecl>@<lambda_2>@?BF@??vec3_index@LuauEngine@@CAHPEAUlua_State@@@Z@SAH0@Z PROC ; `LuauEngine::vec3_index'::`21'::<lambda_2>::<lambda_invoker_cdecl>, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 352
+; Line 377
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 96					; 00000060H
@@ -15783,7 +17137,7 @@ $LN7@:
 	mov	DWORD PTR $T2[rsp+8], 0
 $LN8@:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 352
+; Line 377
 	xor	r8d, r8d
 	mov	edx, 12
 	mov	rcx, rdi
@@ -15818,7 +17172,7 @@ this$ = 112
 L$ = 120
 ??R<lambda_2>@?BF@??vec3_index@LuauEngine@@CAHPEAUlua_State@@@Z@QEBAH0@Z PROC ; `LuauEngine::vec3_index'::`21'::<lambda_2>::operator(), COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 352
+; Line 377
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 96					; 00000060H
@@ -15884,7 +17238,7 @@ $LN5@operator:
 	mov	DWORD PTR $T2[rsp+8], 0
 $LN6@operator:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 352
+; Line 377
 	xor	r8d, r8d
 	mov	edx, 12
 	mov	rcx, rdi
@@ -15916,7 +17270,7 @@ _TEXT	SEGMENT
 L$ = 48
 ?<lambda_invoker_cdecl>@<lambda_1>@?BB@??vec3_index@LuauEngine@@CAHPEAUlua_State@@@Z@SAH0@Z PROC ; `LuauEngine::vec3_index'::`17'::<lambda_1>::<lambda_invoker_cdecl>, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 345
+; Line 370
 	push	rbx
 	sub	rsp, 32					; 00000020H
 	lea	r8, OFFSET FLAT:??_C@_0N@HFLCNLHO@RCBN_Vector3@
@@ -15946,7 +17300,7 @@ $LN10@:
 	call	sqrtf
 $LN11@:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 345
+; Line 370
 	xorps	xmm1, xmm1
 	mov	rcx, rbx
 	cvtss2sd xmm1, xmm0
@@ -15964,7 +17318,7 @@ this$ = 48
 L$ = 56
 ??R<lambda_1>@?BB@??vec3_index@LuauEngine@@CAHPEAUlua_State@@@Z@QEBAH0@Z PROC ; `LuauEngine::vec3_index'::`17'::<lambda_1>::operator(), COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 345
+; Line 370
 	push	rbx
 	sub	rsp, 32					; 00000020H
 	mov	rbx, rdx
@@ -15995,7 +17349,7 @@ $LN8@operator:
 	call	sqrtf
 $LN9@operator:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 345
+; Line 370
 	xorps	xmm1, xmm1
 	mov	rcx, rbx
 	cvtss2sd xmm1, xmm0
@@ -16836,6 +18190,200 @@ _Plist$ = 24
 ??0?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEAA@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@1@PEBV?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@std@@@1@@Z ENDP ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > > >,std::_Iterator_base0>::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > > >,std::_Iterator_base0>
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ??$?0V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Func$ = 16
+??$?0V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::function<int __cdecl(lua_State *,Instance *)>::function<int __cdecl(lua_State *,Instance *)><`LuauEngine::InitSetterTable'::`2'::<lambda_5>,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rcx], rax
+; Line 1111
+	mov	rax, rcx
+; Line 982
+	mov	QWORD PTR [rcx+56], rcx
+; Line 1111
+	ret	0
+??$?0V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::function<int __cdecl(lua_State *,Instance *)>::function<int __cdecl(lua_State *,Instance *)><`LuauEngine::InitSetterTable'::`2'::<lambda_5>,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?4V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+$T1 = 32
+__$ArrayPad$ = 96
+this$ = 128
+_Func$ = 136
+??$?4V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::function<int __cdecl(lua_State *,Instance *)>::operator=<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 1173
+	push	rbx
+	sub	rsp, 112				; 00000070H
+	mov	rax, QWORD PTR __security_cookie
+	xor	rax, rsp
+	mov	QWORD PTR __$ArrayPad$[rsp], rax
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+; Line 1173
+	mov	rbx, rcx
+; Line 857
+	mov	QWORD PTR $T1[rsp], rax
+; Line 1174
+	mov	rdx, rcx
+; Line 982
+	lea	rax, QWORD PTR $T1[rsp]
+; Line 1174
+	lea	rcx, QWORD PTR $T1[rsp]
+; Line 982
+	mov	QWORD PTR $T1[rsp+56], rax
+; Line 1174
+	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
+; Line 949
+	mov	rcx, QWORD PTR $T1[rsp+56]
+; Line 1012
+	test	rcx, rcx
+	je	SHORT $LN35@operator
+; Line 1013
+	mov	r8, QWORD PTR [rcx]
+	lea	rax, QWORD PTR $T1[rsp]
+	cmp	rcx, rax
+	setne	dl
+	call	QWORD PTR [r8+32]
+$LN35@operator:
+; Line 1176
+	mov	rax, rbx
+	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
+	xor	rcx, rsp
+	call	__security_check_cookie
+	add	rsp, 112				; 00000070H
+	pop	rbx
+	ret	0
+??$?4V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::function<int __cdecl(lua_State *,Instance *)>::operator=<`LuauEngine::InitSetterTable'::`2'::<lambda_5>,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??R<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
+_TEXT	SEGMENT
+this$ = 48
+L$ = 56
+obj$ = 64
+??R<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z PROC ; `LuauEngine::InitSetterTable'::`2'::<lambda_5>::operator(), COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
+; Line 111
+	push	rbx
+	sub	rsp, 32					; 00000020H
+	mov	rcx, rdx
+	mov	rbx, r8
+; Line 113
+	mov	edx, 3
+	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
+	cvttsd2si eax, xmm0
+	mov	DWORD PTR [rbx+116], eax
+; Line 114
+	xor	eax, eax
+; Line 115
+	add	rsp, 32					; 00000020H
+	pop	rbx
+	ret	0
+??R<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z ENDP ; `LuauEngine::InitSetterTable'::`2'::<lambda_5>::operator()
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?0V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Func$ = 16
+??$?0V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::function<int __cdecl(lua_State *,Instance *)>::function<int __cdecl(lua_State *,Instance *)><`LuauEngine::InitSetterTable'::`2'::<lambda_4>,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rcx], rax
+; Line 1111
+	mov	rax, rcx
+; Line 982
+	mov	QWORD PTR [rcx+56], rcx
+; Line 1111
+	ret	0
+??$?0V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::function<int __cdecl(lua_State *,Instance *)>::function<int __cdecl(lua_State *,Instance *)><`LuauEngine::InitSetterTable'::`2'::<lambda_4>,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?4V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+$T1 = 32
+__$ArrayPad$ = 96
+this$ = 128
+_Func$ = 136
+??$?4V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::function<int __cdecl(lua_State *,Instance *)>::operator=<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 1173
+	push	rbx
+	sub	rsp, 112				; 00000070H
+	mov	rax, QWORD PTR __security_cookie
+	xor	rax, rsp
+	mov	QWORD PTR __$ArrayPad$[rsp], rax
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+; Line 1173
+	mov	rbx, rcx
+; Line 857
+	mov	QWORD PTR $T1[rsp], rax
+; Line 1174
+	mov	rdx, rcx
+; Line 982
+	lea	rax, QWORD PTR $T1[rsp]
+; Line 1174
+	lea	rcx, QWORD PTR $T1[rsp]
+; Line 982
+	mov	QWORD PTR $T1[rsp+56], rax
+; Line 1174
+	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
+; Line 949
+	mov	rcx, QWORD PTR $T1[rsp+56]
+; Line 1012
+	test	rcx, rcx
+	je	SHORT $LN35@operator
+; Line 1013
+	mov	r8, QWORD PTR [rcx]
+	lea	rax, QWORD PTR $T1[rsp]
+	cmp	rcx, rax
+	setne	dl
+	call	QWORD PTR [r8+32]
+$LN35@operator:
+; Line 1176
+	mov	rax, rbx
+	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
+	xor	rcx, rsp
+	call	__security_check_cookie
+	add	rsp, 112				; 00000070H
+	pop	rbx
+	ret	0
+??$?4V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::function<int __cdecl(lua_State *,Instance *)>::operator=<`LuauEngine::InitSetterTable'::`2'::<lambda_4>,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??R<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
+_TEXT	SEGMENT
+this$ = 48
+L$ = 56
+obj$ = 64
+??R<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z PROC ; `LuauEngine::InitSetterTable'::`2'::<lambda_4>::operator(), COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
+; Line 105
+	push	rbx
+	sub	rsp, 32					; 00000020H
+	mov	rcx, rdx
+	mov	rbx, r8
+; Line 107
+	mov	edx, 3
+	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
+	cvttsd2si rax, xmm0
+	mov	DWORD PTR [rbx+112], eax
+; Line 108
+	xor	eax, eax
+; Line 109
+	add	rsp, 32					; 00000020H
+	pop	rbx
+	ret	0
+??R<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z ENDP ; `LuauEngine::InitSetterTable'::`2'::<lambda_4>::operator()
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ??$?0V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@@Z
 _TEXT	SEGMENT
 this$ = 8
@@ -16914,26 +18462,26 @@ L$ = 56
 obj$ = 64
 ??R<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z PROC ; `LuauEngine::InitSetterTable'::`2'::<lambda_3>::operator(), COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 79
+; Line 92
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 32					; 00000020H
 	mov	rbx, rdx
 	mov	rdi, r8
-; Line 82
+; Line 95
 	mov	rcx, rbx
 	mov	edx, 3
 	call	?lua_isuserdata@@YAHPEAUlua_State@@H@Z	; lua_isuserdata
 	test	eax, eax
 	je	SHORT $LN2@operator
-; Line 83
+; Line 96
 	lea	r8, OFFSET FLAT:??_C@_0M@EEEAIMDE@RCBN_Color4@
 	mov	edx, 3
 	mov	rcx, rbx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 84
+; Line 97
 	movups	xmm0, XMMWORD PTR [rax]
-; Line 90
+; Line 103
 	xor	eax, eax
 	movups	XMMWORD PTR [rdi+172], xmm0
 	mov	rbx, QWORD PTR [rsp+48]
@@ -16941,11 +18489,11 @@ obj$ = 64
 	pop	rdi
 	ret	0
 $LN2@operator:
-; Line 87
+; Line 100
 	mov	rcx, QWORD PTR __imp_?cerr@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_0CG@FJFOBLK@Expected?5a?5Color4?5userdata?5for?5@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-; Line 90
+; Line 103
 	mov	rbx, QWORD PTR [rsp+48]
 	xor	eax, eax
 	add	rsp, 32					; 00000020H
@@ -17033,35 +18581,35 @@ L$ = 88
 obj$ = 96
 ??R<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z PROC ; `LuauEngine::InitSetterTable'::`2'::<lambda_2>::operator(), COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 58
+; Line 71
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 64					; 00000040H
 	mov	rbx, rdx
 	mov	rdi, r8
-; Line 61
+; Line 74
 	mov	rcx, rbx
 	mov	edx, 3
 	call	?lua_isuserdata@@YAHPEAUlua_State@@H@Z	; lua_isuserdata
 	test	eax, eax
 	je	$LN2@operator
-; Line 62
+; Line 75
 	lea	r8, OFFSET FLAT:??_C@_0N@HFLCNLHO@RCBN_Vector3@
 	mov	edx, 3
 	mov	rcx, rbx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 63
+; Line 76
 	mov	rdx, QWORD PTR [rdi+152]
 	mov	rbx, rax
 	movsd	xmm0, QWORD PTR [rax]
 	movsd	QWORD PTR [rdx], xmm0
 	mov	ecx, DWORD PTR [rax+8]
 	mov	DWORD PTR [rdx+8], ecx
-; Line 66
+; Line 79
 	mov	rcx, QWORD PTR [rdi+208]
 	test	rcx, rcx
 	je	SHORT $LN13@operator
-; Line 67
+; Line 80
 	mov	r8, QWORD PTR [rcx]
 	lea	rdx, QWORD PTR pose$2[rsp]
 	call	QWORD PTR [r8+168]
@@ -17069,7 +18617,7 @@ obj$ = 96
 ; Line 101
 	movss	xmm0, DWORD PTR [rbx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 69
+; Line 82
 	lea	rdx, QWORD PTR pose$2[rsp]
 	mov	rcx, QWORD PTR [rdi+208]
 	mov	r8b, 1
@@ -17082,22 +18630,22 @@ obj$ = 96
 	movss	DWORD PTR pose$2[rsp+24], xmm0
 	movss	DWORD PTR pose$2[rsp+20], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 69
+; Line 82
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+176]
-; Line 77
+; Line 90
 	xor	eax, eax
 	mov	rbx, QWORD PTR [rsp+80]
 	add	rsp, 64					; 00000040H
 	pop	rdi
 	ret	0
 $LN2@operator:
-; Line 74
+; Line 87
 	mov	rcx, QWORD PTR __imp_?cerr@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_0CK@BKIMHDBA@Expected?5a?5Vector3?5userdata?5for@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 $LN13@operator:
-; Line 77
+; Line 90
 	mov	rbx, QWORD PTR [rsp+80]
 	xor	eax, eax
 	add	rsp, 64					; 00000040H
@@ -17184,17 +18732,17 @@ L$ = 56
 obj$ = 64
 ??R<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z PROC ; `LuauEngine::InitSetterTable'::`2'::<lambda_1>::operator(), COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 51
+; Line 64
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 32					; 00000020H
 	mov	rbx, r8
 	mov	rcx, rdx
-; Line 52
+; Line 65
 	xor	r8d, r8d
 	mov	edx, 3
 	call	?luaL_checklstring@@YAPEBDPEAUlua_State@@HPEA_K@Z ; luaL_checklstring
-; Line 53
+; Line 66
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_0BP@BFMMMHBD@Setting?5Name?5of?5Instance?5from?5@
 	mov	rdi, rax
@@ -17215,7 +18763,7 @@ $LN9@operator:
 	mov	rcx, rax
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 53
+; Line 66
 	lea	rdx, OFFSET FLAT:??_C@_04MKEOLIJC@?5to?5@
 	mov	rcx, rax
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -17236,13 +18784,200 @@ $LN9@operator:
 	mov	rdx, rdi
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 56
+; Line 69
 	mov	rbx, QWORD PTR [rsp+48]
 	xor	eax, eax
 	add	rsp, 32					; 00000020H
 	pop	rdi
 	ret	0
 ??R<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z ENDP ; `LuauEngine::InitSetterTable'::`2'::<lambda_1>::operator()
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?0V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Func$ = 16
+??$?0V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::function<int __cdecl(lua_State *,Instance *)>::function<int __cdecl(lua_State *,Instance *)><`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rcx], rax
+; Line 1111
+	mov	rax, rcx
+; Line 982
+	mov	QWORD PTR [rcx+56], rcx
+; Line 1111
+	ret	0
+??$?0V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::function<int __cdecl(lua_State *,Instance *)>::function<int __cdecl(lua_State *,Instance *)><`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?4V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+$T1 = 32
+__$ArrayPad$ = 96
+this$ = 128
+_Func$ = 136
+??$?4V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::function<int __cdecl(lua_State *,Instance *)>::operator=<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 1173
+	push	rbx
+	sub	rsp, 112				; 00000070H
+	mov	rax, QWORD PTR __security_cookie
+	xor	rax, rsp
+	mov	QWORD PTR __$ArrayPad$[rsp], rax
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+; Line 1173
+	mov	rbx, rcx
+; Line 857
+	mov	QWORD PTR $T1[rsp], rax
+; Line 1174
+	mov	rdx, rcx
+; Line 982
+	lea	rax, QWORD PTR $T1[rsp]
+; Line 1174
+	lea	rcx, QWORD PTR $T1[rsp]
+; Line 982
+	mov	QWORD PTR $T1[rsp+56], rax
+; Line 1174
+	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
+; Line 949
+	mov	rcx, QWORD PTR $T1[rsp+56]
+; Line 1012
+	test	rcx, rcx
+	je	SHORT $LN35@operator
+; Line 1013
+	mov	r8, QWORD PTR [rcx]
+	lea	rax, QWORD PTR $T1[rsp]
+	cmp	rcx, rax
+	setne	dl
+	call	QWORD PTR [r8+32]
+$LN35@operator:
+; Line 1176
+	mov	rax, rbx
+	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
+	xor	rcx, rsp
+	call	__security_check_cookie
+	add	rsp, 112				; 00000070H
+	pop	rbx
+	ret	0
+??$?4V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::function<int __cdecl(lua_State *,Instance *)>::operator=<`LuauEngine::InitDispatchTable'::`2'::<lambda_6>,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??R<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
+_TEXT	SEGMENT
+this$ = 48
+L$ = 56
+obj$ = 64
+??R<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z PROC ; `LuauEngine::InitDispatchTable'::`2'::<lambda_6>::operator(), COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
+; Line 56
+	sub	rsp, 40					; 00000028H
+	movd	xmm1, DWORD PTR [r8+116]
+; Line 58
+	mov	rcx, rdx
+	cvtdq2pd xmm1, xmm1
+	call	?lua_pushnumber@@YAXPEAUlua_State@@N@Z	; lua_pushnumber
+; Line 59
+	mov	eax, 1
+; Line 60
+	add	rsp, 40					; 00000028H
+	ret	0
+??R<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z ENDP ; `LuauEngine::InitDispatchTable'::`2'::<lambda_6>::operator()
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?0V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Func$ = 16
+??$?0V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::function<int __cdecl(lua_State *,Instance *)>::function<int __cdecl(lua_State *,Instance *)><`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR [rcx], rax
+; Line 1111
+	mov	rax, rcx
+; Line 982
+	mov	QWORD PTR [rcx+56], rcx
+; Line 1111
+	ret	0
+??$?0V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::function<int __cdecl(lua_State *,Instance *)>::function<int __cdecl(lua_State *,Instance *)><`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$?4V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
+_TEXT	SEGMENT
+$T1 = 32
+__$ArrayPad$ = 96
+this$ = 128
+_Func$ = 136
+??$?4V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z PROC ; std::function<int __cdecl(lua_State *,Instance *)>::operator=<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 1173
+	push	rbx
+	sub	rsp, 112				; 00000070H
+	mov	rax, QWORD PTR __security_cookie
+	xor	rax, rsp
+	mov	QWORD PTR __$ArrayPad$[rsp], rax
+; Line 857
+	lea	rax, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+; Line 1173
+	mov	rbx, rcx
+; Line 857
+	mov	QWORD PTR $T1[rsp], rax
+; Line 1174
+	mov	rdx, rcx
+; Line 982
+	lea	rax, QWORD PTR $T1[rsp]
+; Line 1174
+	lea	rcx, QWORD PTR $T1[rsp]
+; Line 982
+	mov	QWORD PTR $T1[rsp+56], rax
+; Line 1174
+	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
+; Line 949
+	mov	rcx, QWORD PTR $T1[rsp+56]
+; Line 1012
+	test	rcx, rcx
+	je	SHORT $LN35@operator
+; Line 1013
+	mov	r8, QWORD PTR [rcx]
+	lea	rax, QWORD PTR $T1[rsp]
+	cmp	rcx, rax
+	setne	dl
+	call	QWORD PTR [r8+32]
+$LN35@operator:
+; Line 1176
+	mov	rax, rbx
+	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
+	xor	rcx, rsp
+	call	__security_check_cookie
+	add	rsp, 112				; 00000070H
+	pop	rbx
+	ret	0
+??$?4V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAAEAV01@$$QEAV<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z ENDP ; std::function<int __cdecl(lua_State *,Instance *)>::operator=<`LuauEngine::InitDispatchTable'::`2'::<lambda_5>,0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??R<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
+_TEXT	SEGMENT
+this$ = 48
+L$ = 56
+obj$ = 64
+??R<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z PROC ; `LuauEngine::InitDispatchTable'::`2'::<lambda_5>::operator(), COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
+; Line 50
+	sub	rsp, 40					; 00000028H
+; Line 52
+	mov	eax, DWORD PTR [r8+112]
+	xorps	xmm1, xmm1
+	mov	rcx, rdx
+	cvtsi2sd xmm1, rax
+	call	?lua_pushnumber@@YAXPEAUlua_State@@N@Z	; lua_pushnumber
+; Line 53
+	mov	eax, 1
+; Line 54
+	add	rsp, 40					; 00000028H
+	ret	0
+??R<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z ENDP ; `LuauEngine::InitDispatchTable'::`2'::<lambda_5>::operator()
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??$?0V<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$0A@@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAA@$$QEAV<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@@Z
@@ -17325,14 +19060,14 @@ L$ = 104
 obj$ = 112
 ??R<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z PROC ; `LuauEngine::InitDispatchTable'::`2'::<lambda_4>::operator(), COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 43
+; Line 44
 	push	rbx
 	sub	rsp, 80					; 00000050H
 	mov	rax, QWORD PTR __security_cookie
 	xor	rax, rsp
 	mov	QWORD PTR __$ArrayPad$[rsp], rax
 	mov	rbx, rdx
-; Line 45
+; Line 46
 	lea	rcx, QWORD PTR [r8+172]
 	lea	rdx, QWORD PTR $T1[rsp]
 	call	?toString@Color4@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Color4::toString
@@ -17346,7 +19081,7 @@ obj$ = 112
 	mov	rax, QWORD PTR [rax]
 $LN8@operator:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 45
+; Line 46
 	mov	rdx, rax
 	mov	rcx, rbx
 	call	?lua_pushstring@@YAXPEAUlua_State@@PEBD@Z ; lua_pushstring
@@ -17388,9 +19123,9 @@ $LN40@operator:
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN32@operator:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 46
-	mov	eax, 1
 ; Line 47
+	mov	eax, 1
+; Line 48
 	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
 	xor	rcx, rsp
 	call	__security_check_cookie
@@ -17494,14 +19229,14 @@ L$ = 104
 obj$ = 112
 ??R<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z PROC ; `LuauEngine::InitDispatchTable'::`2'::<lambda_3>::operator(), COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 37
+; Line 38
 	push	rbx
 	sub	rsp, 80					; 00000050H
 	mov	rax, QWORD PTR __security_cookie
 	xor	rax, rsp
 	mov	QWORD PTR __$ArrayPad$[rsp], rax
 	mov	rbx, rdx
-; Line 39
+; Line 40
 	lea	rdx, QWORD PTR $T1[rsp]
 	mov	rcx, QWORD PTR [r8+152]
 	call	?toString@Vector3@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Vector3::toString
@@ -17515,7 +19250,7 @@ obj$ = 112
 	mov	rax, QWORD PTR [rax]
 $LN8@operator:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 39
+; Line 40
 	mov	rdx, rax
 	mov	rcx, rbx
 	call	?lua_pushstring@@YAXPEAUlua_State@@PEBD@Z ; lua_pushstring
@@ -17557,9 +19292,9 @@ $LN40@operator:
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN32@operator:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 40
-	mov	eax, 1
 ; Line 41
+	mov	eax, 1
+; Line 42
 	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
 	xor	rcx, rsp
 	call	__security_check_cookie
@@ -17661,39 +19396,39 @@ L$ = 72
 obj$ = 80
 ??R<lambda_2>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z PROC ; `LuauEngine::InitDispatchTable'::`2'::<lambda_2>::operator(), COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 25
+; Line 26
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 48					; 00000030H
-; Line 26
+; Line 27
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	mov	rdi, rdx
 	lea	rdx, OFFSET FLAT:??_C@_0BM@LPIPDKFF@Accessing?5FindChild?5method?6@
 	mov	rbx, r8
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-; Line 28
+; Line 29
 	xor	r8d, r8d
 	mov	edx, 8
 	mov	rcx, rdi
 	call	?lua_newuserdatatagged@@YAPEAXPEAUlua_State@@_KH@Z ; lua_newuserdatatagged
-; Line 30
+; Line 31
 	lea	r8, OFFSET FLAT:??_C@_0O@CPMMAEMM@RCBN_Instance@
 	mov	edx, -10000				; ffffffffffffd8f0H
 	mov	rcx, rdi
 	mov	QWORD PTR [rax], rbx
 	call	?lua_getfield@@YAHPEAUlua_State@@HPEBD@Z ; lua_getfield
-; Line 31
+; Line 32
 	mov	edx, -2
 	mov	rcx, rdi
 	call	?lua_setmetatable@@YAHPEAUlua_State@@H@Z ; lua_setmetatable
-; Line 33
+; Line 34
 	mov	r9d, 1
 	mov	QWORD PTR [rsp+32], 0
 	lea	r8, OFFSET FLAT:??_C@_09ODHFGNMO@FindChild@
 	mov	rcx, rdi
 	lea	rdx, OFFSET FLAT:?instance_find_child_closure@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::instance_find_child_closure
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 35
+; Line 36
 	mov	rbx, QWORD PTR [rsp+64]
 	mov	eax, 1
 	add	rsp, 48					; 00000030H
@@ -18689,11 +20424,11 @@ L$ = 56
 obj$ = 64
 ??R<lambda_1>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z PROC ; `LuauEngine::InitDispatchTable'::`2'::<lambda_1>::operator(), COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 19
+; Line 20
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 32					; 00000020H
-; Line 20
+; Line 21
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rbx, QWORD PTR [r8+8]
 	mov	rdi, rdx
@@ -18712,7 +20447,7 @@ $LN28@operator:
 	mov	rcx, rax
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 20
+; Line 21
 	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
@@ -18724,11 +20459,11 @@ $LN28@operator:
 	mov	rbx, QWORD PTR [rbx]
 $LN27@operator:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 21
+; Line 22
 	mov	rdx, rbx
 	mov	rcx, rdi
 	call	?lua_pushstring@@YAXPEAUlua_State@@PEBD@Z ; lua_pushstring
-; Line 23
+; Line 24
 	mov	rbx, QWORD PTR [rsp+48]
 	mov	eax, 1
 	add	rsp, 32					; 00000020H
@@ -21139,20 +22874,20 @@ _TEXT	SEGMENT
 control$ = 48
 ?restoreFPU@@YAXXZ PROC					; restoreFPU, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 10
+; Line 11
 $LN4:
 	sub	rsp, 40					; 00000028H
-; Line 12
+; Line 13
 	xor	r8d, r8d
 	lea	rcx, QWORD PTR control$[rsp]
 	xor	edx, edx
 	call	QWORD PTR __imp__controlfp_s
-; Line 14
+; Line 15
 	mov	edx, 589855				; 0009001fH
 	mov	r8d, 721695				; 000b031fH
 	xor	ecx, ecx
 	call	QWORD PTR __imp__controlfp_s
-; Line 16
+; Line 17
 	add	rsp, 40					; 00000028H
 	ret	0
 ?restoreFPU@@YAXXZ ENDP					; restoreFPU
@@ -21182,7 +22917,7 @@ text$yd	ENDS
 text$di	SEGMENT
 ??__E?SetterTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A@@YAXXZ PROC ; `dynamic initializer for 'LuauEngine::SetterTable'', COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 7
+; Line 8
 	sub	rsp, 40					; 00000028H
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xmemory
 ; Line 140
@@ -21213,7 +22948,7 @@ text$di	SEGMENT
 	call	?_Assign_grow@?$_Hash_vec@V?$allocator@V?$_List_unchecked_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@std@@@std@@@std@@@std@@@std@@QEAAX_KV?$_List_unchecked_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@std@@@std@@@2@@Z ; std::_Hash_vec<std::allocator<std::_List_unchecked_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > > > > > >::_Assign_grow
 	npad	1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 7
+; Line 8
 	lea	rcx, OFFSET FLAT:??__F?SetterTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A@@YAXXZ ; `dynamic atexit destructor for 'LuauEngine::SetterTable''
 	add	rsp, 40					; 00000028H
 	jmp	atexit
@@ -21262,7 +22997,7 @@ text$yd	ENDS
 text$di	SEGMENT
 ??__E?DispatchTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A@@YAXXZ PROC ; `dynamic initializer for 'LuauEngine::DispatchTable'', COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 6
+; Line 7
 	sub	rsp, 40					; 00000028H
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xmemory
 ; Line 140
@@ -21293,7 +23028,7 @@ text$di	SEGMENT
 	call	?_Assign_grow@?$_Hash_vec@V?$allocator@V?$_List_unchecked_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@std@@@std@@@std@@@std@@@std@@QEAAX_KV?$_List_unchecked_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@std@@@std@@@2@@Z ; std::_Hash_vec<std::allocator<std::_List_unchecked_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > > > > > >::_Assign_grow
 	npad	1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 6
+; Line 7
 	lea	rcx, OFFSET FLAT:??__F?DispatchTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A@@YAXXZ ; `dynamic atexit destructor for 'LuauEngine::DispatchTable''
 	add	rsp, 40					; 00000028H
 	jmp	atexit
@@ -23752,12 +25487,12 @@ this$ = 96
 deltaTime$ = 104
 ?update@LuauEngine@@QEAAXM@Z PROC			; LuauEngine::update, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 507
+; Line 532
 $LN22:
 	mov	QWORD PTR [rsp+24], rbx
 	push	rsi
 	sub	rsp, 80					; 00000050H
-; Line 508
+; Line 533
 	mov	rbx, QWORD PTR [rcx+8]
 	mov	rsi, rcx
 	movaps	XMMWORD PTR [rsp+64], xmm6
@@ -23765,7 +25500,7 @@ $LN22:
 	test	rbx, rbx
 	je	$LN3@update
 	mov	QWORD PTR [rsp+104], rdi
-; Line 511
+; Line 536
 	mov	rdi, QWORD PTR [rbx+152]
 	mov	rbx, QWORD PTR [rbx+144]
 	cmp	rbx, rdi
@@ -23776,34 +25511,34 @@ $LN22:
 	xorps	xmm7, xmm7
 	npad	3
 $LL4@update:
-; Line 512
+; Line 537
 	mov	rcx, QWORD PTR [rbx]
 	lea	r9, OFFSET FLAT:??_R0?AVScript@@@8
 	lea	r8, OFFSET FLAT:??_R0?AVInstance@@@8
 	mov	DWORD PTR [rsp+32], ebp
 	xor	edx, edx
 	call	__RTDynamicCast
-; Line 513
+; Line 538
 	test	rax, rax
 	je	SHORT $LN2@update
 	cmp	BYTE PTR [rax+185], bpl
 	je	SHORT $LN2@update
 	cmp	QWORD PTR [rax+200], rbp
 	je	SHORT $LN2@update
-; Line 514
+; Line 539
 	movss	xmm0, DWORD PTR [rax+192]
 	subss	xmm0, xmm6
-; Line 517
+; Line 542
 	comiss	xmm7, xmm0
 	movss	DWORD PTR [rax+192], xmm0
 	jb	SHORT $LN2@update
-; Line 519
+; Line 544
 	mov	rdx, rax
 	mov	BYTE PTR [rax+185], bpl
 	mov	rcx, rsi
 	call	?execute@LuauEngine@@QEAA_NAEAVScript@@@Z ; LuauEngine::execute
 $LN2@update:
-; Line 511
+; Line 536
 	add	rbx, 8
 	cmp	rbx, rdi
 	jne	SHORT $LL4@update
@@ -23812,7 +25547,7 @@ $LN2@update:
 $LN20@update:
 	mov	rdi, QWORD PTR [rsp+104]
 $LN3@update:
-; Line 523
+; Line 548
 	mov	rbx, QWORD PTR [rsp+112]
 	movaps	xmm6, XMMWORD PTR [rsp+64]
 	add	rsp, 80					; 00000050H
@@ -23826,18 +25561,18 @@ _TEXT	SEGMENT
 this$ = 64
 ?executeWorkspaceScripts@LuauEngine@@QEAAXXZ PROC	; LuauEngine::executeWorkspaceScripts, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 494
+; Line 519
 $LN22:
 	mov	QWORD PTR [rsp+24], rbx
 	push	rsi
 	sub	rsp, 48					; 00000030H
-; Line 495
+; Line 520
 	mov	rbx, QWORD PTR [rcx+8]
 	mov	rsi, rcx
 	test	rbx, rbx
 	je	$LN3@executeWor
 	mov	QWORD PTR [rsp+72], rdi
-; Line 498
+; Line 523
 	mov	rdi, QWORD PTR [rbx+152]
 	mov	rbx, QWORD PTR [rbx+144]
 	cmp	rbx, rdi
@@ -23846,14 +25581,14 @@ $LN22:
 	xor	ebp, ebp
 	npad	7
 $LL4@executeWor:
-; Line 499
+; Line 524
 	mov	rcx, QWORD PTR [rbx]
 	lea	r9, OFFSET FLAT:??_R0?AVScript@@@8
 	lea	r8, OFFSET FLAT:??_R0?AVInstance@@@8
 	mov	DWORD PTR [rsp+32], ebp
 	xor	edx, edx
 	call	__RTDynamicCast
-; Line 501
+; Line 526
 	test	rax, rax
 	je	SHORT $LN2@executeWor
 	cmp	BYTE PTR [rax+184], bpl
@@ -23864,12 +25599,12 @@ $LL4@executeWor:
 	jne	SHORT $LN2@executeWor
 	cmp	BYTE PTR [rax+187], bpl
 	jne	SHORT $LN2@executeWor
-; Line 502
+; Line 527
 	mov	rdx, rax
 	mov	rcx, rsi
 	call	?execute@LuauEngine@@QEAA_NAEAVScript@@@Z ; LuauEngine::execute
 $LN2@executeWor:
-; Line 498
+; Line 523
 	add	rbx, 8
 	cmp	rbx, rdi
 	jne	SHORT $LL4@executeWor
@@ -23877,7 +25612,7 @@ $LN2@executeWor:
 $LN20@executeWor:
 	mov	rdi, QWORD PTR [rsp+72]
 $LN3@executeWor:
-; Line 505
+; Line 530
 	mov	rbx, QWORD PTR [rsp+80]
 	add	rsp, 48					; 00000030H
 	pop	rsi
@@ -23891,9 +25626,9 @@ this$ = 8
 ws$ = 16
 ?setWorkspace@LuauEngine@@QEAAXPEAVWorkspace@@@Z PROC	; LuauEngine::setWorkspace, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 491
+; Line 516
 	mov	QWORD PTR [rcx+8], rdx
-; Line 492
+; Line 517
 	ret	0
 ?setWorkspace@LuauEngine@@QEAAXPEAVWorkspace@@@Z ENDP	; LuauEngine::setWorkspace
 _TEXT	ENDS
@@ -23910,7 +25645,7 @@ this$ = 176
 script$ = 184
 ?execute@LuauEngine@@QEAA_NAEAVScript@@@Z PROC		; LuauEngine::execute, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 253
+; Line 278
 $LN196:
 	mov	QWORD PTR [rsp+24], rbx
 	push	rbp
@@ -23927,21 +25662,21 @@ $LN196:
 	mov	rbx, rdx
 	mov	r15, rcx
 	xor	esi, esi
-; Line 255
+; Line 280
 	cmp	QWORD PTR [rdx+200], rsi
 	jne	SHORT $LN2@execute
-; Line 256
+; Line 281
 	mov	rcx, QWORD PTR [rcx]
 	call	?lua_newthread@@YAPEAUlua_State@@PEAU1@@Z ; lua_newthread
 	mov	QWORD PTR [rbx+200], rax
-; Line 258
+; Line 283
 	mov	rdx, rax
 	mov	rcx, r15
 	call	?RegisterGlobalFunctions@LuauEngine@@AEAAXPEAUlua_State@@@Z ; LuauEngine::RegisterGlobalFunctions
 $LN2@execute:
-; Line 261
+; Line 286
 	mov	rbp, QWORD PTR [rbx+200]
-; Line 265
+; Line 290
 	mov	rcx, rbp
 	call	?lua_status@@YAHPEAUlua_State@@@Z	; lua_status
 	test	eax, eax
@@ -23950,11 +25685,11 @@ $LN2@execute:
 	call	?lua_gettop@@YAHPEAUlua_State@@@Z	; lua_gettop
 	test	eax, eax
 	jne	$LN5@execute
-; Line 266
+; Line 291
 	lea	rcx, QWORD PTR [rbx+112]
-; Line 267
+; Line 292
 	mov	QWORD PTR bytecodeSize$1[rsp], rsi
-; Line 268
+; Line 293
 	mov	rdx, QWORD PTR [rcx+16]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 453
@@ -23965,15 +25700,15 @@ $LN2@execute:
 	mov	rcx, QWORD PTR [rcx]
 $LN18@execute:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 268
+; Line 293
 	lea	r9, QWORD PTR bytecodeSize$1[rsp]
 	xor	r8d, r8d
 	call	?luau_compile@@YAPEADPEBD_KPEAUlua_CompileOptions@@PEA_K@Z ; luau_compile
 	mov	QWORD PTR bytecode$1$[rsp], rax
-; Line 269
+; Line 294
 	test	rax, rax
 	je	$LN189@execute
-; Line 271
+; Line 296
 	lea	r14, QWORD PTR [rbx+8]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 3251
@@ -23985,7 +25720,7 @@ $LN18@execute:
 	cmp	rax, 1
 	jb	$LN193@execute
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 271
+; Line 296
 	mov	rax, QWORD PTR bytecodeSize$1[rsp]
 	mov	QWORD PTR tv868[rsp], rax
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
@@ -24099,7 +25834,7 @@ $LN43@execute:
 ; Line 445
 	cmova	rdx, QWORD PTR $T3[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 271
+; Line 296
 	mov	DWORD PTR [rsp+32], 0
 	mov	r9, QWORD PTR tv868[rsp]
 	mov	rdi, QWORD PTR bytecode$1$[rsp]
@@ -24145,15 +25880,15 @@ $LN154@execute:
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN146@execute:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 272
+; Line 297
 	mov	rcx, rdi
 	call	QWORD PTR __imp_free
-; Line 274
+; Line 299
 	test	esi, esi
 	je	SHORT $LN187@execute
-; Line 275
+; Line 300
 	mov	BYTE PTR [rbx+187], 1
-; Line 276
+; Line 301
 	lea	rdx, OFFSET FLAT:??_C@_0BC@ENAGMCJI@Luau?5Load?5Error?3?5@
 	mov	rcx, QWORD PTR __imp_?cerr@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -24168,43 +25903,43 @@ $LN146@execute:
 	mov	rcx, rax
 	lea	rdx, OFFSET FLAT:??_C@_01EEMJAFIK@?6@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-; Line 277
+; Line 302
 	mov	edx, -2
 	mov	rcx, rbp
 	call	?lua_settop@@YAXPEAUlua_State@@H@Z	; lua_settop
-; Line 278
+; Line 303
 	jmp	$LN189@execute
 $LN187@execute:
-; Line 274
+; Line 299
 	xor	esi, esi
 $LN5@execute:
-; Line 283
+; Line 308
 	mov	QWORD PTR ?currentScript@LuauEngine@@0PEAVScript@@EA, rbx ; LuauEngine::currentScript
-; Line 287
+; Line 312
 	xor	r8d, r8d
 	mov	rdx, QWORD PTR [r15]
 	mov	rcx, rbp
 	call	?lua_resume@@YAHPEAUlua_State@@0H@Z	; lua_resume
 	mov	edi, eax
-; Line 290
+; Line 315
 	cmp	eax, 1
 	je	SHORT $LN191@execute
-; Line 294
+; Line 319
 	test	eax, eax
 	jne	SHORT $LN8@execute
-; Line 296
+; Line 321
 	mov	WORD PTR [rbx+185], 256			; 00000100H
-; Line 298
+; Line 323
 	mov	QWORD PTR [rbx+200], rsi
 $LN191@execute:
-; Line 315
+; Line 340
 	mov	QWORD PTR ?currentScript@LuauEngine@@0PEAVScript@@EA, rsi ; LuauEngine::currentScript
 	mov	al, 1
 	jmp	$LN9@execute
 $LN8@execute:
-; Line 303
+; Line 328
 	mov	BYTE PTR [rbx+187], 1
-; Line 304
+; Line 329
 	lea	rdx, OFFSET FLAT:??_C@_0CA@LAGIFGFE@Luau?5Run?5Error?5caught?4?5Status?3?5@
 	mov	rcx, QWORD PTR __imp_?cerr@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -24214,14 +25949,14 @@ $LN8@execute:
 	mov	rcx, rax
 	lea	rdx, OFFSET FLAT:??_C@_01EEMJAFIK@?6@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-; Line 305
+; Line 330
 	mov	edx, -1
 	mov	rcx, rbp
 	call	?lua_type@@YAHPEAUlua_State@@H@Z	; lua_type
 	mov	rcx, QWORD PTR __imp_?cerr@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	cmp	eax, 5
 	jne	SHORT $LN10@execute
-; Line 306
+; Line 331
 	lea	rdx, OFFSET FLAT:??_C@_0BB@FFKAIEFC@Luau?5Run?5Error?3?5@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	mov	rbx, rax
@@ -24234,31 +25969,31 @@ $LN8@execute:
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	mov	rcx, rax
 	lea	rdx, OFFSET FLAT:??_C@_01EEMJAFIK@?6@
-; Line 307
+; Line 332
 	jmp	SHORT $LN190@execute
 $LN10@execute:
-; Line 308
+; Line 333
 	lea	rdx, OFFSET FLAT:??_C@_0CK@CKMHKKON@Luau?5Run?5Error?5?$CInon?9string?5erro@
 $LN190@execute:
-; Line 310
+; Line 335
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	mov	edx, -2
 	mov	rcx, rbp
 	call	?lua_settop@@YAXPEAUlua_State@@H@Z	; lua_settop
-; Line 311
+; Line 336
 	mov	QWORD PTR ?currentScript@LuauEngine@@0PEAVScript@@EA, rsi ; LuauEngine::currentScript
-; Line 12
+; Line 13
 	xor	r8d, r8d
 	xor	edx, edx
 	lea	rcx, QWORD PTR control$2[rsp]
 	call	QWORD PTR __imp__controlfp_s
-; Line 14
+; Line 15
 	mov	edx, 589855				; 0009001fH
 	xor	ecx, ecx
 	mov	r8d, 721695				; 000b031fH
 	call	QWORD PTR __imp__controlfp_s
 $LN189@execute:
-; Line 315
+; Line 340
 	xor	al, al
 $LN9@execute:
 	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
@@ -24311,7 +26046,7 @@ name$ = 56
 instance$ = 64
 ?setGlobalInstance@LuauEngine@@QEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@Z PROC ; LuauEngine::setGlobalInstance, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 197
+; Line 222
 $LN19:
 	mov	QWORD PTR [rsp+8], rbx
 	mov	QWORD PTR [rsp+16], rsi
@@ -24320,18 +26055,18 @@ $LN19:
 	mov	rbx, r8
 	mov	rdi, rdx
 	mov	rsi, rcx
-; Line 190
+; Line 215
 	xor	r8d, r8d
 	mov	rcx, QWORD PTR [rcx]
 	mov	edx, 8
 	call	?lua_newuserdatatagged@@YAPEAXPEAUlua_State@@_KH@Z ; lua_newuserdatatagged
-; Line 193
+; Line 218
 	lea	r8, OFFSET FLAT:??_C@_0O@CPMMAEMM@RCBN_Instance@
 	mov	edx, -10000				; ffffffffffffd8f0H
 	mov	QWORD PTR [rax], rbx
 	mov	rcx, QWORD PTR [rsi]
 	call	?lua_getfield@@YAHPEAUlua_State@@HPEBD@Z ; lua_getfield
-; Line 194
+; Line 219
 	mov	rcx, QWORD PTR [rsi]
 	mov	edx, -2
 	call	?lua_setmetatable@@YAHPEAUlua_State@@H@Z ; lua_setmetatable
@@ -24343,16 +26078,16 @@ $LN19:
 	mov	rdi, QWORD PTR [rdi]
 $LN15@setGlobalI:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 199
+; Line 224
 	mov	rcx, QWORD PTR [rsi]
 	mov	r8, rdi
 	mov	edx, -10002				; ffffffffffffd8eeH
-; Line 200
+; Line 225
 	mov	rbx, QWORD PTR [rsp+48]
 	mov	rsi, QWORD PTR [rsp+56]
 	add	rsp, 32					; 00000020H
 	pop	rdi
-; Line 199
+; Line 224
 	jmp	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
 ?setGlobalInstance@LuauEngine@@QEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@Z ENDP ; LuauEngine::setGlobalInstance
 _TEXT	ENDS
@@ -24363,32 +26098,32 @@ this$ = 48
 instance$ = 56
 ?setBindings@LuauEngine@@QEAAXPEAVInstance@@@Z PROC	; LuauEngine::setBindings, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 189
+; Line 214
 $LN4:
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 32					; 00000020H
 	mov	rbx, rdx
 	mov	rdi, rcx
-; Line 190
+; Line 215
 	mov	rcx, QWORD PTR [rcx]
 	mov	edx, 8
 	xor	r8d, r8d
 	call	?lua_newuserdatatagged@@YAPEAXPEAUlua_State@@_KH@Z ; lua_newuserdatatagged
-; Line 193
+; Line 218
 	lea	r8, OFFSET FLAT:??_C@_0O@CPMMAEMM@RCBN_Instance@
 	mov	edx, -10000				; ffffffffffffd8f0H
 	mov	QWORD PTR [rax], rbx
 	mov	rcx, QWORD PTR [rdi]
 	call	?lua_getfield@@YAHPEAUlua_State@@HPEBD@Z ; lua_getfield
-; Line 194
+; Line 219
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, -2
-; Line 195
+; Line 220
 	mov	rbx, QWORD PTR [rsp+48]
 	add	rsp, 32					; 00000020H
 	pop	rdi
-; Line 194
+; Line 219
 	jmp	?lua_setmetatable@@YAHPEAUlua_State@@H@Z ; lua_setmetatable
 ?setBindings@LuauEngine@@QEAAXPEAVInstance@@@Z ENDP	; LuauEngine::setBindings
 _TEXT	ENDS
@@ -24398,17 +26133,17 @@ _TEXT	SEGMENT
 this$ = 48
 ??1LuauEngine@@QEAA@XZ PROC				; LuauEngine::~LuauEngine, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 185
+; Line 210
 $LN7:
 	sub	rsp, 40					; 00000028H
-; Line 186
+; Line 211
 	mov	rcx, QWORD PTR [rcx]
 	test	rcx, rcx
 	je	SHORT $LN2@LuauEngine
 	call	?lua_close@@YAXPEAUlua_State@@@Z	; lua_close
 	npad	1
 $LN2@LuauEngine:
-; Line 187
+; Line 212
 	add	rsp, 40					; 00000028H
 	ret	0
 ??1LuauEngine@@QEAA@XZ ENDP				; LuauEngine::~LuauEngine
@@ -24416,256 +26151,52 @@ _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??0LuauEngine@@QEAA@XZ
 _TEXT	SEGMENT
-$T1 = 32
-$T2 = 32
-$T3 = 32
-$T4 = 48
-$T5 = 48
-$T6 = 48
-$T7 = 64
-$T8 = 64
-$T9 = 64
-$T10 = 80
-$T11 = 80
-$T12 = 80
-$T13 = 96
-$T14 = 160
-$T15 = 224
-__$ArrayPad$ = 288
-this$ = 320
+this$ = 48
 ??0LuauEngine@@QEAA@XZ PROC				; LuauEngine::LuauEngine, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 170
-$LN158:
-	mov	QWORD PTR [rsp+16], rbx
-	mov	QWORD PTR [rsp+24], rdi
-	push	rbp
-	lea	rbp, QWORD PTR [rsp-48]
-	sub	rsp, 304				; 00000130H
-	mov	rax, QWORD PTR __security_cookie
-	xor	rax, rsp
-	mov	QWORD PTR __$ArrayPad$[rbp-256], rax
+; Line 195
+$LN4:
+	push	rbx
+	sub	rsp, 32					; 00000020H
 	mov	rbx, rcx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Core\LuauEngine.hpp
 ; Line 30
 	mov	QWORD PTR [rcx+8], 0
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 171
+; Line 196
 	call	?luaL_newstate@@YAPEAUlua_State@@XZ	; luaL_newstate
-; Line 173
+; Line 198
 	mov	rcx, rax
 	mov	QWORD PTR [rbx], rax
 	call	?luaopen_base@@YAHPEAUlua_State@@@Z	; luaopen_base
-; Line 174
+; Line 199
 	mov	rcx, QWORD PTR [rbx]
 	call	?luaopen_coroutine@@YAHPEAUlua_State@@@Z ; luaopen_coroutine
-; Line 175
+; Line 200
 	mov	rcx, QWORD PTR [rbx]
 	call	?luaopen_math@@YAHPEAUlua_State@@@Z	; luaopen_math
-; Line 176
+; Line 201
 	mov	rcx, QWORD PTR [rbx]
 	call	?luaopen_string@@YAHPEAUlua_State@@@Z	; luaopen_string
-; Line 177
+; Line 202
 	mov	rcx, QWORD PTR [rbx]
 	call	?luaopen_table@@YAHPEAUlua_State@@@Z	; luaopen_table
-; Line 178
+; Line 203
 	mov	rcx, QWORD PTR [rbx]
 	call	?luaopen_bit32@@YAHPEAUlua_State@@@Z	; luaopen_bit32
-; Line 180
+; Line 205
 	mov	rcx, rbx
 	call	?InitMetatables@LuauEngine@@AEAAXXZ	; LuauEngine::InitMetatables
-; Line 181
+; Line 206
 	mov	rcx, rbx
 	call	?InitDispatchTable@LuauEngine@@AEAAXXZ	; LuauEngine::InitDispatchTable
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 1494
-	lea	rax, OFFSET FLAT:??_C@_08MOCFFNLD@Instance@
-	mov	QWORD PTR $T1[rsp+8], 8
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	lea	r8, QWORD PTR $T1[rsp]
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 1494
-	mov	QWORD PTR $T1[rsp], rax
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	lea	rdx, QWORD PTR $T7[rsp]
-	lea	rcx, OFFSET FLAT:?SetterTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::SetterTable
-	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
-	lea	r8, QWORD PTR $T4[rsp]
-	lea	rdx, QWORD PTR $T10[rsp]
-	mov	rcx, QWORD PTR [rax]
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 1494
-	lea	rax, OFFSET FLAT:??_C@_04FABLJDN@Name@
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	add	rcx, 32					; 00000020H
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 1494
-	mov	QWORD PTR $T4[rsp], rax
-	mov	QWORD PTR $T4[rsp+8], 4
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
-; Line 857
-	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
-	mov	QWORD PTR $T13[rsp], rcx
-; Line 982
-	lea	rcx, QWORD PTR $T13[rsp]
-	mov	QWORD PTR $T13[rbp-200], rcx
-; Line 1174
-	lea	rcx, QWORD PTR $T13[rsp]
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	mov	rdx, QWORD PTR [rax]
-	add	rdx, 32					; 00000020H
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
-; Line 1174
-	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
-; Line 949
-	mov	rcx, QWORD PTR $T13[rbp-200]
-; Line 1012
-	test	rcx, rcx
-	je	SHORT $LN52@LuauEngine
-; Line 1013
-	mov	rax, QWORD PTR [rcx]
-	lea	rdx, QWORD PTR $T13[rsp]
-	cmp	rcx, rdx
-	setne	dl
-	call	QWORD PTR [rax+32]
-$LN52@LuauEngine:
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 1494
-	lea	rdi, OFFSET FLAT:??_C@_08GAABMGDB@BaseCube@
-	mov	QWORD PTR $T5[rsp+8], 8
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	lea	r8, QWORD PTR $T5[rsp]
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 1494
-	mov	QWORD PTR $T5[rsp], rdi
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	lea	rdx, QWORD PTR $T11[rsp]
-	lea	rcx, OFFSET FLAT:?SetterTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::SetterTable
-	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
-	lea	r8, QWORD PTR $T2[rsp]
-	lea	rdx, QWORD PTR $T8[rsp]
-	mov	rcx, QWORD PTR [rax]
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 1494
-	lea	rax, OFFSET FLAT:??_C@_08GCJNLIKG@Position@
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	add	rcx, 32					; 00000020H
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 1494
-	mov	QWORD PTR $T2[rsp], rax
-	mov	QWORD PTR $T2[rsp+8], 8
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
-; Line 857
-	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
-	mov	QWORD PTR $T14[rbp-256], rcx
-; Line 982
-	lea	rcx, QWORD PTR $T14[rbp-256]
-	mov	QWORD PTR $T14[rbp-200], rcx
-; Line 1174
-	lea	rcx, QWORD PTR $T14[rbp-256]
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	mov	rdx, QWORD PTR [rax]
-	add	rdx, 32					; 00000020H
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
-; Line 1174
-	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
-; Line 949
-	mov	rcx, QWORD PTR $T14[rbp-200]
-; Line 1012
-	test	rcx, rcx
-	je	SHORT $LN101@LuauEngine
-; Line 1013
-	mov	rax, QWORD PTR [rcx]
-	lea	rdx, QWORD PTR $T14[rbp-256]
-	cmp	rcx, rdx
-	setne	dl
-	call	QWORD PTR [rax+32]
-$LN101@LuauEngine:
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	lea	r8, QWORD PTR $T6[rsp]
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 1494
-	mov	QWORD PTR $T6[rsp], rdi
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	lea	rdx, QWORD PTR $T12[rsp]
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 1494
-	mov	QWORD PTR $T6[rsp+8], 8
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	lea	rcx, OFFSET FLAT:?SetterTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::SetterTable
-	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
-	lea	r8, QWORD PTR $T3[rsp]
-	lea	rdx, QWORD PTR $T9[rsp]
-	mov	rcx, QWORD PTR [rax]
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 1494
-	lea	rax, OFFSET FLAT:??_C@_05PDOBBJNA@Color@
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	add	rcx, 32					; 00000020H
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
-; Line 1494
-	mov	QWORD PTR $T3[rsp], rax
-	mov	QWORD PTR $T3[rsp+8], 5
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
-; Line 857
-	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
-	mov	QWORD PTR $T15[rbp-256], rcx
-; Line 982
-	lea	rcx, QWORD PTR $T15[rbp-256]
-	mov	QWORD PTR $T15[rbp-200], rcx
-; Line 1174
-	lea	rcx, QWORD PTR $T15[rbp-256]
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
-; Line 260
-	mov	rdx, QWORD PTR [rax]
-	add	rdx, 32					; 00000020H
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
-; Line 1174
-	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
-; Line 949
-	mov	rcx, QWORD PTR $T15[rbp-200]
-; Line 1012
-	test	rcx, rcx
-	je	SHORT $LN152@LuauEngine
-; Line 1013
-	mov	r8, QWORD PTR [rcx]
-	lea	rax, QWORD PTR $T15[rbp-256]
-	cmp	rcx, rax
-	setne	dl
-	call	QWORD PTR [r8+32]
-$LN152@LuauEngine:
-; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 183
+; Line 207
+	mov	rcx, rbx
+	call	?InitSetterTable@LuauEngine@@AEAAXXZ	; LuauEngine::InitSetterTable
+; Line 208
 	mov	rax, rbx
-	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
-	xor	rcx, rsp
-	call	__security_check_cookie
-	lea	r11, QWORD PTR [rsp+304]
-	mov	rbx, QWORD PTR [r11+24]
-	mov	rdi, QWORD PTR [r11+32]
-	mov	rsp, r11
-	pop	rbp
+	add	rsp, 32					; 00000020H
+	pop	rbx
 	ret	0
 ??0LuauEngine@@QEAA@XZ ENDP				; LuauEngine::LuauEngine
 _TEXT	ENDS
@@ -24675,35 +26206,35 @@ _TEXT	SEGMENT
 L$ = 48
 ?wait@LuauEngine@@CAHPEAUlua_State@@@Z PROC		; LuauEngine::wait, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 465
+; Line 490
 $LN6:
 	push	rbx
 	sub	rsp, 32					; 00000020H
-; Line 466
+; Line 491
 	mov	edx, 1
 	mov	rbx, rcx
 	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
-; Line 469
+; Line 494
 	mov	rax, QWORD PTR ?currentScript@LuauEngine@@0PEAVScript@@EA ; LuauEngine::currentScript
 	test	rax, rax
 	je	SHORT $LN2@wait
-; Line 470
+; Line 495
 	mov	BYTE PTR [rax+185], 1
-; Line 471
+; Line 496
 	mov	rax, QWORD PTR ?currentScript@LuauEngine@@0PEAVScript@@EA ; LuauEngine::currentScript
 	cvtsd2ss xmm0, xmm0
 	movss	DWORD PTR [rax+188], xmm0
-; Line 472
+; Line 497
 	mov	rax, QWORD PTR ?currentScript@LuauEngine@@0PEAVScript@@EA ; LuauEngine::currentScript
 	movss	DWORD PTR [rax+192], xmm0
 $LN2@wait:
-; Line 476
+; Line 501
 	xor	edx, edx
 	mov	rcx, rbx
-; Line 477
+; Line 502
 	add	rsp, 32					; 00000020H
 	pop	rbx
-; Line 476
+; Line 501
 	jmp	?lua_yield@@YAHPEAUlua_State@@H@Z	; lua_yield
 ?wait@LuauEngine@@CAHPEAUlua_State@@@Z ENDP		; LuauEngine::wait
 _TEXT	ENDS
@@ -24713,15 +26244,15 @@ _TEXT	SEGMENT
 L$ = 48
 ?global_print_message@LuauEngine@@CAHPEAUlua_State@@@Z PROC ; LuauEngine::global_print_message, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 479
+; Line 504
 $LN4:
 	push	rbx
 	sub	rsp, 32					; 00000020H
-; Line 481
+; Line 506
 	xor	r8d, r8d
 	mov	edx, 1
 	call	?luaL_checklstring@@YAPEBDPEAUlua_State@@HPEA_K@Z ; luaL_checklstring
-; Line 484
+; Line 509
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_07EDIGNLGL@?$FLLuau?$FN?5@
 	mov	rbx, rax
@@ -24732,9 +26263,9 @@ $LN4:
 	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
-; Line 487
+; Line 512
 	xor	eax, eax
-; Line 488
+; Line 513
 	add	rsp, 32					; 00000020H
 	pop	rbx
 	ret	0
@@ -24746,29 +26277,29 @@ _TEXT	SEGMENT
 L$ = 64
 ?global_add@LuauEngine@@CAHPEAUlua_State@@@Z PROC	; LuauEngine::global_add, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 453
+; Line 478
 $LN4:
 	push	rbx
 	sub	rsp, 48					; 00000030H
-; Line 455
+; Line 480
 	mov	edx, 1
 	movaps	XMMWORD PTR [rsp+32], xmm6
 	mov	rbx, rcx
 	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
 	xorps	xmm6, xmm6
-; Line 456
+; Line 481
 	mov	edx, 2
 	mov	rcx, rbx
 	cvtsd2ss xmm6, xmm0
 	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
-; Line 459
+; Line 484
 	mov	rcx, rbx
 	xorps	xmm1, xmm1
 	cvtsd2ss xmm1, xmm0
 	addss	xmm1, xmm6
 	cvtps2pd xmm1, xmm1
 	call	?lua_pushnumber@@YAXPEAUlua_State@@N@Z	; lua_pushnumber
-; Line 463
+; Line 488
 	movaps	xmm6, XMMWORD PTR [rsp+32]
 	mov	eax, 1
 	add	rsp, 48					; 00000030H
@@ -24782,12 +26313,12 @@ _TEXT	SEGMENT
 L$ = 112
 ?color4_constructor@LuauEngine@@CAHPEAUlua_State@@@Z PROC ; LuauEngine::color4_constructor, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 391
+; Line 416
 $LN9:
 	push	rbx
 	sub	rsp, 96					; 00000060H
 	movaps	XMMWORD PTR [rsp+80], xmm6
-; Line 392
+; Line 417
 	mov	edx, 1
 	movaps	XMMWORD PTR [rsp+64], xmm7
 	mov	rbx, rcx
@@ -24795,18 +26326,18 @@ $LN9:
 	movaps	XMMWORD PTR [rsp+32], xmm9
 	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
 	xorps	xmm7, xmm7
-; Line 393
+; Line 418
 	mov	edx, 2
 	mov	rcx, rbx
 	cvtsd2ss xmm7, xmm0
 	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
-; Line 394
+; Line 419
 	mov	edx, 3
 	mov	rcx, rbx
 	xorps	xmm8, xmm8
 	cvtsd2ss xmm8, xmm0
 	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
-; Line 395
+; Line 420
 	mov	edx, 4
 	mov	rcx, rbx
 	xorps	xmm9, xmm9
@@ -24824,12 +26355,12 @@ $LN9:
 $LN3@color4_con:
 	movss	xmm6, DWORD PTR __real@3f800000
 $LN4@color4_con:
-; Line 397
+; Line 422
 	xor	r8d, r8d
 	mov	edx, 16
 	mov	rcx, rbx
 	call	?lua_newuserdatatagged@@YAPEAXPEAUlua_State@@_KH@Z ; lua_newuserdatatagged
-; Line 400
+; Line 425
 	lea	r8, OFFSET FLAT:??_C@_0M@EEEAIMDE@RCBN_Color4@
 	mov	edx, -10000				; ffffffffffffd8f0H
 	mov	rcx, rbx
@@ -24838,11 +26369,11 @@ $LN4@color4_con:
 	movss	DWORD PTR [rax+8], xmm9
 	movss	DWORD PTR [rax+12], xmm6
 	call	?lua_getfield@@YAHPEAUlua_State@@HPEBD@Z ; lua_getfield
-; Line 401
+; Line 426
 	mov	edx, -2
 	mov	rcx, rbx
 	call	?lua_setmetatable@@YAHPEAUlua_State@@H@Z ; lua_setmetatable
-; Line 403
+; Line 428
 	movaps	xmm6, XMMWORD PTR [rsp+80]
 	mov	eax, 1
 	movaps	xmm7, XMMWORD PTR [rsp+64]
@@ -24876,7 +26407,7 @@ __$ArrayPad$ = 440
 L$ = 512
 ?color4_tostring@LuauEngine@@CAHPEAUlua_State@@@Z PROC	; LuauEngine::color4_tostring, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 444
+; Line 469
 $LN896:
 	mov	rax, rsp
 	mov	QWORD PTR [rax+16], rbx
@@ -24894,7 +26425,7 @@ $LN896:
 	mov	QWORD PTR __$ArrayPad$[rbp-256], rax
 	mov	r15, rcx
 	xor	r12d, r12d
-; Line 445
+; Line 470
 	lea	r8, OFFSET FLAT:??_C@_0M@EEEAIMDE@RCBN_Color4@
 	mov	edx, 1
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
@@ -25659,7 +27190,7 @@ $LN727@color4_tos:
 ; Line 445
 	cmova	rdx, QWORD PTR str$[rbp-256]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 448
+; Line 473
 	mov	rcx, r15
 	call	?lua_pushstring@@YAXPEAUlua_State@@PEBD@Z ; lua_pushstring
 	npad	1
@@ -25700,9 +27231,9 @@ $LN777@color4_tos:
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN769@color4_tos:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 449
+; Line 474
 	mov	eax, 1
-; Line 450
+; Line 475
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
@@ -26038,19 +27569,19 @@ _TEXT	SEGMENT
 L$ = 80
 ?color4_newindex@LuauEngine@@CAHPEAUlua_State@@@Z PROC	; LuauEngine::color4_newindex, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 426
+; Line 451
 $LN106:
 	push	rbx
 	push	rbp
 	push	rsi
 	push	rdi
 	sub	rsp, 40					; 00000028H
-; Line 427
+; Line 452
 	lea	r8, OFFSET FLAT:??_C@_0M@EEEAIMDE@RCBN_Color4@
 	mov	edx, 1
 	mov	rdi, rcx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 428
+; Line 453
 	xor	r8d, r8d
 	mov	edx, 2
 	mov	rcx, rdi
@@ -26060,20 +27591,20 @@ $LN106:
 ; Line 530
 	mov	rcx, rax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 428
+; Line 453
 	mov	rbp, rax
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 530
 	call	strlen
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 429
+; Line 454
 	mov	edx, 3
 	mov	rcx, rdi
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 530
 	mov	rbx, rax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 429
+; Line 454
 	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1946
@@ -26083,14 +27614,14 @@ $LN106:
 ; Line 681
 	cmp	BYTE PTR [rbp], 114			; 00000072H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 429
+; Line 454
 	cvtsd2ss xmm0, xmm0
-; Line 431
+; Line 456
 	jne	SHORT $LN49@color4_new
-; Line 432
+; Line 457
 	movss	DWORD PTR [rsi], xmm0
 $LN98@color4_new:
-; Line 442
+; Line 467
 	xor	eax, eax
 $LN8@color4_new:
 	add	rsp, 40					; 00000028H
@@ -26104,11 +27635,11 @@ $LN49@color4_new:
 ; Line 681
 	cmp	BYTE PTR [rbp], 103			; 00000067H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 433
+; Line 458
 	jne	SHORT $LN69@color4_new
-; Line 434
+; Line 459
 	movss	DWORD PTR [rsi+4], xmm0
-; Line 442
+; Line 467
 	xor	eax, eax
 	add	rsp, 40					; 00000028H
 	pop	rdi
@@ -26121,11 +27652,11 @@ $LN69@color4_new:
 ; Line 681
 	cmp	BYTE PTR [rbp], 98			; 00000062H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 435
+; Line 460
 	jne	SHORT $LN89@color4_new
-; Line 436
+; Line 461
 	movss	DWORD PTR [rsi+8], xmm0
-; Line 442
+; Line 467
 	xor	eax, eax
 	add	rsp, 40					; 00000028H
 	pop	rdi
@@ -26134,17 +27665,17 @@ $LN69@color4_new:
 	pop	rbx
 	ret	0
 $LN89@color4_new:
-; Line 437
+; Line 462
 	xor	eax, eax
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 681
 	cmp	BYTE PTR [rbp], 97			; 00000061H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 437
+; Line 462
 	jne	SHORT $LN8@color4_new
-; Line 438
+; Line 463
 	movss	DWORD PTR [rsi+12], xmm0
-; Line 442
+; Line 467
 	add	rsp, 40					; 00000028H
 	pop	rdi
 	pop	rsi
@@ -26159,18 +27690,18 @@ _TEXT	SEGMENT
 L$ = 48
 ?color4_index@LuauEngine@@CAHPEAUlua_State@@@Z PROC	; LuauEngine::color4_index, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 405
+; Line 430
 $LN105:
 	mov	QWORD PTR [rsp+8], rbx
 	mov	QWORD PTR [rsp+16], rsi
 	push	rdi
 	sub	rsp, 32					; 00000020H
-; Line 406
+; Line 431
 	lea	r8, OFFSET FLAT:??_C@_0M@EEEAIMDE@RCBN_Color4@
 	mov	edx, 1
 	mov	rbx, rcx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 407
+; Line 432
 	xor	r8d, r8d
 	mov	edx, 2
 	mov	rcx, rbx
@@ -26180,7 +27711,7 @@ $LN105:
 ; Line 530
 	mov	rcx, rax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 407
+; Line 432
 	mov	rdi, rax
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 530
@@ -26192,11 +27723,11 @@ $LN105:
 ; Line 681
 	cmp	BYTE PTR [rdi], 114			; 00000072H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 409
+; Line 434
 	jne	SHORT $LN49@color4_ind
 	movss	xmm1, DWORD PTR [rsi]
 $LN102@color4_ind:
-; Line 424
+; Line 449
 	cvtps2pd xmm1, xmm1
 	mov	rcx, rbx
 	call	?lua_pushnumber@@YAXPEAUlua_State@@N@Z	; lua_pushnumber
@@ -26211,9 +27742,9 @@ $LN49@color4_ind:
 ; Line 681
 	cmp	BYTE PTR [rdi], 103			; 00000067H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 412
+; Line 437
 	jne	SHORT $LN69@color4_ind
-; Line 414
+; Line 439
 	movss	xmm1, DWORD PTR [rsi+4]
 	jmp	SHORT $LN102@color4_ind
 $LN69@color4_ind:
@@ -26221,9 +27752,9 @@ $LN69@color4_ind:
 ; Line 681
 	cmp	BYTE PTR [rdi], 98			; 00000062H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 415
+; Line 440
 	jne	SHORT $LN89@color4_ind
-; Line 417
+; Line 442
 	movss	xmm1, DWORD PTR [rsi+8]
 	jmp	SHORT $LN102@color4_ind
 $LN89@color4_ind:
@@ -26231,13 +27762,13 @@ $LN89@color4_ind:
 ; Line 681
 	cmp	BYTE PTR [rdi], 97			; 00000061H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 418
+; Line 443
 	jne	SHORT $LN8@color4_ind
-; Line 420
+; Line 445
 	movss	xmm1, DWORD PTR [rsi+12]
 	jmp	SHORT $LN102@color4_ind
 $LN8@color4_ind:
-; Line 424
+; Line 449
 	mov	rbx, QWORD PTR [rsp+48]
 	xor	eax, eax
 	mov	rsi, QWORD PTR [rsp+56]
@@ -26252,37 +27783,37 @@ _TEXT	SEGMENT
 L$ = 96
 ?vec3_constructor@LuauEngine@@CAHPEAUlua_State@@@Z PROC	; LuauEngine::vec3_constructor, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 318
+; Line 343
 $LN6:
 	push	rbx
 	sub	rsp, 80					; 00000050H
 	movaps	XMMWORD PTR [rsp+64], xmm6
-; Line 319
+; Line 344
 	mov	edx, 1
 	movaps	XMMWORD PTR [rsp+48], xmm7
 	mov	rbx, rcx
 	movaps	XMMWORD PTR [rsp+32], xmm8
 	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
 	xorps	xmm8, xmm8
-; Line 320
+; Line 345
 	mov	edx, 2
 	mov	rcx, rbx
 	cvtsd2ss xmm8, xmm0
 	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
-; Line 321
+; Line 346
 	mov	edx, 3
 	mov	rcx, rbx
 	xorps	xmm7, xmm7
 	cvtsd2ss xmm7, xmm0
 	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
-; Line 323
+; Line 348
 	xor	r8d, r8d
 	mov	edx, 12
 	mov	rcx, rbx
 	xorps	xmm6, xmm6
 	cvtsd2ss xmm6, xmm0
 	call	?lua_newuserdatatagged@@YAPEAXPEAUlua_State@@_KH@Z ; lua_newuserdatatagged
-; Line 326
+; Line 351
 	lea	r8, OFFSET FLAT:??_C@_0N@HFLCNLHO@RCBN_Vector3@
 	mov	edx, -10000				; ffffffffffffd8f0H
 	mov	rcx, rbx
@@ -26290,11 +27821,11 @@ $LN6:
 	movss	DWORD PTR [rax+4], xmm7
 	movss	DWORD PTR [rax+8], xmm6
 	call	?lua_getfield@@YAHPEAUlua_State@@HPEBD@Z ; lua_getfield
-; Line 327
+; Line 352
 	mov	edx, -2
 	mov	rcx, rbx
 	call	?lua_setmetatable@@YAHPEAUlua_State@@H@Z ; lua_setmetatable
-; Line 329
+; Line 354
 	movaps	xmm6, XMMWORD PTR [rsp+64]
 	mov	eax, 1
 	movaps	xmm7, XMMWORD PTR [rsp+48]
@@ -26315,7 +27846,7 @@ __$ArrayPad$ = 152
 L$ = 240
 ?vec3_tostring@LuauEngine@@CAHPEAUlua_State@@@Z PROC	; LuauEngine::vec3_tostring, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 383
+; Line 408
 $LN334:
 	push	rbp
 	push	rbx
@@ -26332,11 +27863,11 @@ $LN334:
 	mov	QWORD PTR __$ArrayPad$[rbp-137], rax
 	mov	r12, rcx
 	xor	r13d, r13d
-; Line 384
+; Line 409
 	lea	r8, OFFSET FLAT:??_C@_0N@HFLCNLHO@RCBN_Vector3@
 	mov	edx, 1
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 385
+; Line 410
 	lea	rdx, QWORD PTR $T3[rbp-137]
 	mov	rcx, rax
 	call	?toString@Vector3@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Vector3::toString
@@ -26559,7 +28090,7 @@ $LN208@vec3_tostr:
 ; Line 445
 	cmova	rdx, QWORD PTR str$[rbp-137]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 386
+; Line 411
 	mov	rcx, r12
 	call	?lua_pushstring@@YAXPEAUlua_State@@PEBD@Z ; lua_pushstring
 	npad	1
@@ -26600,9 +28131,9 @@ $LN258@vec3_tostr:
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN250@vec3_tostr:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 387
+; Line 412
 	mov	eax, 1
-; Line 388
+; Line 413
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-137]
 	xor	rcx, rsp
 	call	__security_check_cookie
@@ -26667,19 +28198,19 @@ _TEXT	SEGMENT
 L$ = 80
 ?vec3_newindex@LuauEngine@@CAHPEAUlua_State@@@Z PROC	; LuauEngine::vec3_newindex, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 367
+; Line 392
 $LN82:
 	push	rbx
 	push	rbp
 	push	rsi
 	push	rdi
 	sub	rsp, 40					; 00000028H
-; Line 368
+; Line 393
 	lea	r8, OFFSET FLAT:??_C@_0N@HFLCNLHO@RCBN_Vector3@
 	mov	edx, 1
 	mov	rdi, rcx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 369
+; Line 394
 	xor	r8d, r8d
 	mov	edx, 2
 	mov	rcx, rdi
@@ -26689,20 +28220,20 @@ $LN82:
 ; Line 530
 	mov	rcx, rax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 369
+; Line 394
 	mov	rbp, rax
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 530
 	call	strlen
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 370
+; Line 395
 	mov	edx, 3
 	mov	rcx, rdi
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 530
 	mov	rbx, rax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 370
+; Line 395
 	call	?luaL_checknumber@@YANPEAUlua_State@@H@Z ; luaL_checknumber
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1946
@@ -26712,14 +28243,14 @@ $LN82:
 ; Line 681
 	cmp	BYTE PTR [rbp], 120			; 00000078H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 370
+; Line 395
 	cvtsd2ss xmm0, xmm0
-; Line 372
+; Line 397
 	jne	SHORT $LN47@vec3_newin
-; Line 373
+; Line 398
 	movss	DWORD PTR [rsi], xmm0
 $LN75@vec3_newin:
-; Line 381
+; Line 406
 	xor	eax, eax
 $LN6@vec3_newin:
 	add	rsp, 40					; 00000028H
@@ -26733,11 +28264,11 @@ $LN47@vec3_newin:
 ; Line 681
 	cmp	BYTE PTR [rbp], 121			; 00000079H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 374
+; Line 399
 	jne	SHORT $LN67@vec3_newin
-; Line 375
+; Line 400
 	movss	DWORD PTR [rsi+4], xmm0
-; Line 381
+; Line 406
 	xor	eax, eax
 	add	rsp, 40					; 00000028H
 	pop	rdi
@@ -26746,17 +28277,17 @@ $LN47@vec3_newin:
 	pop	rbx
 	ret	0
 $LN67@vec3_newin:
-; Line 376
+; Line 401
 	xor	eax, eax
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 681
 	cmp	BYTE PTR [rbp], 122			; 0000007aH
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 376
+; Line 401
 	jne	SHORT $LN6@vec3_newin
-; Line 377
+; Line 402
 	movss	DWORD PTR [rsi+8], xmm0
-; Line 381
+; Line 406
 	add	rsp, 40					; 00000028H
 	pop	rdi
 	pop	rsi
@@ -26771,18 +28302,18 @@ _TEXT	SEGMENT
 L$ = 64
 ?vec3_index@LuauEngine@@CAHPEAUlua_State@@@Z PROC	; LuauEngine::vec3_index, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 331
+; Line 356
 $LN137:
 	mov	QWORD PTR [rsp+8], rbx
 	mov	QWORD PTR [rsp+16], rsi
 	push	rdi
 	sub	rsp, 48					; 00000030H
-; Line 332
+; Line 357
 	lea	r8, OFFSET FLAT:??_C@_0N@HFLCNLHO@RCBN_Vector3@
 	mov	edx, 1
 	mov	rdi, rcx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 333
+; Line 358
 	xor	r8d, r8d
 	mov	edx, 2
 	mov	rcx, rdi
@@ -26792,7 +28323,7 @@ $LN137:
 ; Line 530
 	mov	rcx, rax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 333
+; Line 358
 	mov	rbx, rax
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 530
@@ -26804,11 +28335,11 @@ $LN137:
 ; Line 681
 	cmp	BYTE PTR [rbx], 120			; 00000078H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 335
+; Line 360
 	jne	SHORT $LN51@vec3_index
 	movss	xmm1, DWORD PTR [rsi]
 $LN133@vec3_index:
-; Line 365
+; Line 390
 	cvtps2pd xmm1, xmm1
 	mov	rcx, rdi
 	call	?lua_pushnumber@@YAXPEAUlua_State@@N@Z	; lua_pushnumber
@@ -26824,9 +28355,9 @@ $LN51@vec3_index:
 ; Line 681
 	cmp	BYTE PTR [rbx], 121			; 00000079H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 338
+; Line 363
 	jne	SHORT $LN71@vec3_index
-; Line 340
+; Line 365
 	movss	xmm1, DWORD PTR [rsi+4]
 	jmp	SHORT $LN133@vec3_index
 $LN71@vec3_index:
@@ -26834,9 +28365,9 @@ $LN71@vec3_index:
 ; Line 681
 	cmp	BYTE PTR [rbx], 122			; 0000007aH
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 341
+; Line 366
 	jne	$LN10@vec3_index
-; Line 343
+; Line 368
 	movss	xmm1, DWORD PTR [rsi+8]
 	jmp	SHORT $LN133@vec3_index
 $LN6@vec3_index:
@@ -26856,16 +28387,16 @@ $LN122@vec3_index:
 ; Line 681
 	test	ecx, ecx
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 344
+; Line 369
 	jne	SHORT $LN10@vec3_index
-; Line 345
+; Line 370
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], 0
 	lea	r8, OFFSET FLAT:??_C@_06IJDLPEM@length@
 	mov	rcx, rdi
 	lea	rdx, OFFSET FLAT:?<lambda_invoker_cdecl>@<lambda_1>@?BB@??vec3_index@LuauEngine@@CAHPEAUlua_State@@@Z@SAH0@Z ; `LuauEngine::vec3_index'::`17'::<lambda_1>::<lambda_invoker_cdecl>
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 350
+; Line 375
 	jmp	SHORT $LN134@vec3_index
 $LN8@vec3_index:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
@@ -26886,19 +28417,19 @@ $LN121@vec3_index:
 ; Line 681
 	test	rcx, rcx
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 351
+; Line 376
 	jne	SHORT $LN10@vec3_index
-; Line 352
+; Line 377
 	mov	QWORD PTR [rsp+32], rcx
 	lea	r8, OFFSET FLAT:??_C@_09MMDNNKKJ@normalize@
 	mov	rcx, rdi
 	lea	rdx, OFFSET FLAT:?<lambda_invoker_cdecl>@<lambda_2>@?BF@??vec3_index@LuauEngine@@CAHPEAUlua_State@@@Z@SAH0@Z ; `LuauEngine::vec3_index'::`21'::<lambda_2>::<lambda_invoker_cdecl>
 	xor	r9d, r9d
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 361
+; Line 386
 	jmp	$LN134@vec3_index
 $LN10@vec3_index:
-; Line 365
+; Line 390
 	mov	rbx, QWORD PTR [rsp+64]
 	xor	eax, eax
 	mov	rsi, QWORD PTR [rsp+72]
@@ -26914,23 +28445,23 @@ $T1 = 32
 L$ = 80
 ?instance_find_child_closure@LuauEngine@@CAHPEAUlua_State@@@Z PROC ; LuauEngine::instance_find_child_closure, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 231
+; Line 256
 $LN28:
 	mov	QWORD PTR [rsp+8], rbx
 	mov	QWORD PTR [rsp+24], rsi
 	push	rdi
 	sub	rsp, 64					; 00000040H
-; Line 233
+; Line 258
 	mov	edx, -10003				; ffffffffffffd8edH
 	mov	rsi, rcx
 	call	?lua_touserdata@@YAPEAXPEAUlua_State@@H@Z ; lua_touserdata
-; Line 236
+; Line 261
 	xor	r8d, r8d
 	mov	edx, 2
 	mov	rcx, rsi
 	mov	rdi, QWORD PTR [rax]
 	call	?luaL_checklstring@@YAPEBDPEAUlua_State@@HPEA_K@Z ; luaL_checklstring
-; Line 238
+; Line 263
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_0BI@BJIBGGMK@FindChild?5called?5with?3?5@
 	mov	rbx, rax
@@ -26965,36 +28496,36 @@ $LN28:
 	mov	rdx, rbx
 	call	??$_Construct@$00PEBD@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAXQEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Construct<1,char const *>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 239
+; Line 264
 	lea	rdx, QWORD PTR $T1[rsp]
 	mov	rcx, rdi
 	call	?getChild@Instance@@QEAAPEAV1@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z ; Instance::getChild
 	mov	rbx, rax
-; Line 241
+; Line 266
 	mov	rcx, rsi
 	test	rax, rax
 	je	SHORT $LN2@instance_f
-; Line 242
+; Line 267
 	xor	r8d, r8d
 	mov	edx, 8
 	call	?lua_newuserdatatagged@@YAPEAXPEAUlua_State@@_KH@Z ; lua_newuserdatatagged
-; Line 244
+; Line 269
 	lea	r8, OFFSET FLAT:??_C@_0O@CPMMAEMM@RCBN_Instance@
 	mov	edx, -10000				; ffffffffffffd8f0H
 	mov	rcx, rsi
 	mov	QWORD PTR [rax], rbx
 	call	?lua_getfield@@YAHPEAUlua_State@@HPEBD@Z ; lua_getfield
-; Line 245
+; Line 270
 	mov	edx, -2
 	mov	rcx, rsi
 	call	?lua_setmetatable@@YAHPEAUlua_State@@H@Z ; lua_setmetatable
-; Line 246
+; Line 271
 	jmp	SHORT $LN25@instance_f
 $LN2@instance_f:
-; Line 248
+; Line 273
 	call	?lua_pushnil@@YAXPEAUlua_State@@@Z	; lua_pushnil
 $LN25@instance_f:
-; Line 251
+; Line 276
 	mov	rbx, QWORD PTR [rsp+80]
 	mov	eax, 1
 	mov	rsi, QWORD PTR [rsp+96]
@@ -27011,7 +28542,7 @@ __$ArrayPad$ = 64
 L$ = 96
 ?instance_tostring@LuauEngine@@CAHPEAUlua_State@@@Z PROC ; LuauEngine::instance_tostring, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 224
+; Line 249
 $LN52:
 	push	rbx
 	sub	rsp, 80					; 00000050H
@@ -27019,11 +28550,11 @@ $LN52:
 	xor	rax, rsp
 	mov	QWORD PTR __$ArrayPad$[rsp], rax
 	mov	rbx, rcx
-; Line 225
+; Line 250
 	lea	r8, OFFSET FLAT:??_C@_0O@CPMMAEMM@RCBN_Instance@
 	mov	edx, 1
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 226
+; Line 251
 	mov	r8, QWORD PTR [rax]
 	add	r8, 8
 	lea	rdx, OFFSET FLAT:??_C@_0L@GGEKFKPD@Instance?3?5@
@@ -27038,7 +28569,7 @@ $LN52:
 ; Line 445
 	cmova	rdx, QWORD PTR str$[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 227
+; Line 252
 	mov	rcx, rbx
 	call	?lua_pushstring@@YAXPEAUlua_State@@PEBD@Z ; lua_pushstring
 	npad	1
@@ -27079,9 +28610,9 @@ $LN40@instance_t:
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN32@instance_t:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 228
+; Line 253
 	mov	eax, 1
-; Line 229
+; Line 254
 	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
 	xor	rcx, rsp
 	call	__security_check_cookie
@@ -27111,7 +28642,7 @@ L$ = 128
 <_Args_0>$ = 144
 ?instance_newindex@LuauEngine@@CAHPEAUlua_State@@@Z PROC ; LuauEngine::instance_newindex, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 202
+; Line 227
 $LN197:
 	mov	QWORD PTR [rsp+32], rbx
 	mov	QWORD PTR [rsp+8], rcx
@@ -27123,12 +28654,12 @@ $LN197:
 	push	r14
 	push	r15
 	sub	rsp, 64					; 00000040H
-; Line 209
+; Line 234
 	lea	r8, OFFSET FLAT:??_C@_0O@CPMMAEMM@RCBN_Instance@
 	mov	edx, 1
 	mov	rbx, rcx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-; Line 210
+; Line 235
 	xor	r8d, r8d
 	mov	edx, 2
 	mov	rcx, rbx
@@ -27138,7 +28669,7 @@ $LN197:
 ; Line 530
 	mov	rcx, rax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 210
+; Line 235
 	mov	r15, rax
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 530
@@ -27155,13 +28686,13 @@ $LN197:
 ; Line 72
 	cmp	rbx, rdi
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 212
+; Line 237
 	je	$LN179@instance_n
 	mov	r12, -3750763034362895579		; cbf29ce484222325H
 	mov	r14, 1099511628211			; 00000100000001b3H
 	npad	11
 $LL4@instance_n:
-; Line 213
+; Line 238
 	mov	rax, QWORD PTR [r13]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 1203
@@ -27172,7 +28703,7 @@ $LL4@instance_n:
 ; Line 493
 	movups	XMMWORD PTR $T5[rsp], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 213
+; Line 238
 	mov	rsi, QWORD PTR [rax+24]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 517
@@ -27182,7 +28713,7 @@ $LL4@instance_n:
 ; Line 1203
 	call	??$_Construct@$00PEBD@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAXQEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Construct<1,char const *>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 213
+; Line 238
 	lea	rdx, QWORD PTR $T5[rsp]
 	mov	rcx, r13
 	call	rsi
@@ -27259,7 +28790,7 @@ $LN64@instance_n:
 	test	rsi, rsi
 	je	SHORT $LN181@instance_n
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 214
+; Line 239
 	cmp	rsi, r12
 	jne	SHORT $LN159@instance_n
 $LN181@instance_n:
@@ -27271,13 +28802,13 @@ $LN2@instance_n:
 ; Line 72
 	cmp	rbx, rdi
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 212
+; Line 237
 	jne	$LL4@instance_n
 $LN179@instance_n:
-; Line 221
+; Line 246
 	xor	eax, eax
 $LN1@instance_n:
-; Line 222
+; Line 247
 	mov	rbx, QWORD PTR [rsp+152]
 	add	rsp, 64					; 00000040H
 	pop	r15
@@ -27293,7 +28824,7 @@ $LN159@instance_n:
 ; Line 949
 	mov	rcx, QWORD PTR [rsi+88]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 216
+; Line 241
 	mov	rax, QWORD PTR L$[rsp]
 	mov	QWORD PTR <_Args_1>$[rsp], r13
 	mov	QWORD PTR <_Args_0>$[rsp], rax
@@ -27307,7 +28838,7 @@ $LN159@instance_n:
 	lea	rdx, QWORD PTR <_Args_0>$[rsp]
 	call	QWORD PTR [rax+16]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 216
+; Line 241
 	jmp	SHORT $LN1@instance_n
 $LN195@instance_n:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
@@ -27329,7 +28860,7 @@ __$ArrayPad$ = 112
 L$ = 208
 ?instance_index@LuauEngine@@CAHPEAUlua_State@@@Z PROC	; LuauEngine::instance_index, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 152
+; Line 177
 $LN240:
 	push	rbx
 	push	rbp
@@ -27345,12 +28876,12 @@ $LN240:
 	mov	QWORD PTR __$ArrayPad$[rsp], rax
 	mov	rbx, rcx
 	mov	QWORD PTR L$GSCopy$1$[rsp], rcx
-; Line 153
+; Line 178
 	lea	r8, OFFSET FLAT:??_C@_0O@CPMMAEMM@RCBN_Instance@
 	mov	edx, 1
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
 	mov	r13, QWORD PTR [rax]
-; Line 154
+; Line 179
 	xor	r8d, r8d
 	mov	edx, 2
 	mov	rcx, rbx
@@ -27368,13 +28899,13 @@ $LN240:
 ; Line 72
 	cmp	rbx, rdi
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 156
+; Line 181
 	je	$LN233@instance_i
 	mov	r12, -3750763034362895579		; cbf29ce484222325H
 	mov	r15, 1099511628211			; 00000100000001b3H
 	npad	12
 $LL4@instance_i:
-; Line 157
+; Line 182
 	lea	rdx, OFFSET FLAT:??_C@_0BB@LGGIOMCP@Checking?5class?3?5@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -27385,7 +28916,7 @@ $LL4@instance_i:
 	mov	rcx, rax
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 157
+; Line 182
 	lea	rdx, OFFSET FLAT:??_C@_0BA@GGACINOI@?5for?5property?3?5@
 	mov	rcx, rax
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -27396,11 +28927,11 @@ $LL4@instance_i:
 	mov	rcx, rax
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 157
+; Line 182
 	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
-; Line 158
+; Line 183
 	mov	rax, QWORD PTR [r13]
 	mov	rsi, QWORD PTR [rax+24]
 	xorps	xmm0, xmm0
@@ -27417,13 +28948,13 @@ $LL4@instance_i:
 	lea	rcx, QWORD PTR $T8[rsp]
 	call	??$_Construct@$00PEBD@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAXQEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Construct<1,char const *>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 158
+; Line 183
 	lea	rdx, QWORD PTR $T8[rsp]
 	mov	rcx, r13
 	call	rsi
 	test	al, al
 	je	$LN2@instance_i
-; Line 159
+; Line 184
 	lea	rdx, OFFSET FLAT:??_C@_0O@PAFANENI@Found?5class?3?5@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -27434,7 +28965,7 @@ $LL4@instance_i:
 	mov	rcx, rax
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 159
+; Line 184
 	lea	rdx, OFFSET FLAT:??_C@_0O@BOLPPKLL@?5for?5object?3?5@
 	mov	rcx, rax
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -27459,7 +28990,7 @@ $LN52@instance_i:
 	mov	rcx, rsi
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 159
+; Line 184
 	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
@@ -27563,7 +29094,7 @@ $LN116@instance_i:
 ; Line 197
 	cmp	rsi, r12
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 160
+; Line 185
 	jne	SHORT $LN211@instance_i
 $LN235@instance_i:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
@@ -27575,13 +29106,13 @@ $LN2@instance_i:
 ; Line 72
 	cmp	rbx, rdi
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 156
+; Line 181
 	jne	$LL4@instance_i
 $LN233@instance_i:
-; Line 167
+; Line 192
 	xor	eax, eax
 $LN1@instance_i:
-; Line 168
+; Line 193
 	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
 	xor	rcx, rsp
 	call	__security_check_cookie
@@ -27602,7 +29133,7 @@ $LN210@instance_i:
 	int	41					; 00000029H
 $LN211@instance_i:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 162
+; Line 187
 	mov	QWORD PTR <_Args_1>$[rsp], r13
 	mov	rax, QWORD PTR L$GSCopy$1$[rsp]
 	mov	QWORD PTR <_Args_0>$[rsp], rax
@@ -27618,7 +29149,7 @@ $LN211@instance_i:
 	lea	rdx, QWORD PTR <_Args_0>$[rsp]
 	call	QWORD PTR [rax+16]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 162
+; Line 187
 	jmp	SHORT $LN1@instance_i
 $LN238@instance_i:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
@@ -27650,18 +29181,18 @@ this$ = 64
 L$ = 72
 ?RegisterGlobalFunctions@LuauEngine@@AEAAXPEAUlua_State@@@Z PROC ; LuauEngine::RegisterGlobalFunctions, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 128
+; Line 153
 $LN4:
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 48					; 00000030H
 	mov	rbx, rdx
-; Line 130
+; Line 155
 	xor	r8d, r8d
 	mov	rcx, rbx
 	xor	edx, edx
 	call	?lua_createtable@@YAXPEAUlua_State@@HH@Z ; lua_createtable
-; Line 131
+; Line 156
 	xor	edi, edi
 	lea	r8, OFFSET FLAT:??_C@_03CLCAEGCJ@new@
 	xor	r9d, r9d
@@ -27669,78 +29200,78 @@ $LN4:
 	lea	rdx, OFFSET FLAT:?vec3_constructor@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::vec3_constructor
 	mov	rcx, rbx
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 132
+; Line 157
 	lea	r8, OFFSET FLAT:??_C@_03CLCAEGCJ@new@
 	mov	edx, -2
 	mov	rcx, rbx
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 133
+; Line 158
 	lea	r8, OFFSET FLAT:??_C@_07JCHDLMDF@Vector3@
 	mov	edx, -10002				; ffffffffffffd8eeH
 	mov	rcx, rbx
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 136
+; Line 161
 	xor	r8d, r8d
 	xor	edx, edx
 	mov	rcx, rbx
 	call	?lua_createtable@@YAXPEAUlua_State@@HH@Z ; lua_createtable
-; Line 137
+; Line 162
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	lea	r8, OFFSET FLAT:??_C@_03CLCAEGCJ@new@
 	mov	rcx, rbx
 	lea	rdx, OFFSET FLAT:?color4_constructor@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::color4_constructor
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 138
+; Line 163
 	lea	r8, OFFSET FLAT:??_C@_03CLCAEGCJ@new@
 	mov	edx, -2
 	mov	rcx, rbx
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 139
+; Line 164
 	lea	r8, OFFSET FLAT:??_C@_06DNAKMADK@Color4@
 	mov	edx, -10002				; ffffffffffffd8eeH
 	mov	rcx, rbx
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 142
+; Line 167
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	lea	r8, OFFSET FLAT:??_C@_03BDGOHNNK@add@
 	mov	rcx, rbx
 	lea	rdx, OFFSET FLAT:?global_add@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::global_add
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 143
+; Line 168
 	lea	r8, OFFSET FLAT:??_C@_03BDGOHNNK@add@
 	mov	edx, -10002				; ffffffffffffd8eeH
 	mov	rcx, rbx
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 145
+; Line 170
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	lea	r8, OFFSET FLAT:??_C@_0O@IMLPFNCJ@print_message@
 	mov	rcx, rbx
 	lea	rdx, OFFSET FLAT:?global_print_message@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::global_print_message
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 146
+; Line 171
 	lea	r8, OFFSET FLAT:??_C@_0O@IMLPFNCJ@print_message@
 	mov	edx, -10002				; ffffffffffffd8eeH
 	mov	rcx, rbx
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 148
+; Line 173
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	lea	r8, OFFSET FLAT:??_C@_04PNOAOIAG@wait@
 	mov	rcx, rbx
 	lea	rdx, OFFSET FLAT:?wait@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::wait
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 149
+; Line 174
 	lea	r8, OFFSET FLAT:??_C@_04PNOAOIAG@wait@
 	mov	edx, -10002				; ffffffffffffd8eeH
 	mov	rcx, rbx
-; Line 150
+; Line 175
 	mov	rbx, QWORD PTR [rsp+64]
 	add	rsp, 48					; 00000030H
 	pop	rdi
-; Line 149
+; Line 174
 	jmp	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
 ?RegisterGlobalFunctions@LuauEngine@@AEAAXPEAUlua_State@@@Z ENDP ; LuauEngine::RegisterGlobalFunctions
 _TEXT	ENDS
@@ -27750,17 +29281,17 @@ _TEXT	SEGMENT
 this$ = 64
 ?InitMetatables@LuauEngine@@AEAAXXZ PROC		; LuauEngine::InitMetatables, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 93
+; Line 118
 $LN4:
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 48					; 00000030H
 	mov	rbx, rcx
-; Line 95
+; Line 120
 	lea	rdx, OFFSET FLAT:??_C@_0O@CPMMAEMM@RCBN_Instance@
 	mov	rcx, QWORD PTR [rcx]
 	call	?luaL_newmetatable@@YAHPEAUlua_State@@PEBD@Z ; luaL_newmetatable
-; Line 96
+; Line 121
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0P@BJBPCEPI@instance_index@
 	xor	edi, edi
@@ -27768,135 +29299,135 @@ $LN4:
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 97
+; Line 122
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_07NHABFFHN@__index@
 	mov	edx, -2
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 98
+; Line 123
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0BC@CNNGABNG@instance_newindex@
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	lea	rdx, OFFSET FLAT:?instance_newindex@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::instance_newindex
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 99
+; Line 124
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0L@GADKNKH@__newindex@
 	mov	edx, -2
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 100
+; Line 125
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0BC@FIIKKDIG@instance_tostring@
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	lea	rdx, OFFSET FLAT:?instance_tostring@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::instance_tostring
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 101
+; Line 126
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0L@HDFPAPPH@__tostring@
 	mov	edx, -2
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 102
+; Line 127
 	mov	rcx, QWORD PTR [rbx]
 	mov	edx, -2
 	call	?lua_settop@@YAXPEAUlua_State@@H@Z	; lua_settop
-; Line 105
+; Line 130
 	mov	rcx, QWORD PTR [rbx]
 	lea	rdx, OFFSET FLAT:??_C@_0N@HFLCNLHO@RCBN_Vector3@
 	call	?luaL_newmetatable@@YAHPEAUlua_State@@PEBD@Z ; luaL_newmetatable
-; Line 106
+; Line 131
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0L@BKFHGEOJ@vec3_index@
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	lea	rdx, OFFSET FLAT:?vec3_index@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::vec3_index
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 107
+; Line 132
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_07NHABFFHN@__index@
 	mov	edx, -2
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 108
+; Line 133
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0O@LIEMEODF@vec3_newindex@
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	lea	rdx, OFFSET FLAT:?vec3_newindex@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::vec3_newindex
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 109
+; Line 134
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0L@GADKNKH@__newindex@
 	mov	edx, -2
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 110
+; Line 135
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0O@MNBAOMGF@vec3_tostring@
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	lea	rdx, OFFSET FLAT:?vec3_tostring@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::vec3_tostring
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 111
+; Line 136
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0L@HDFPAPPH@__tostring@
 	mov	edx, -2
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 112
+; Line 137
 	mov	rcx, QWORD PTR [rbx]
 	mov	edx, -2
 	call	?lua_settop@@YAXPEAUlua_State@@H@Z	; lua_settop
-; Line 115
+; Line 140
 	mov	rcx, QWORD PTR [rbx]
 	lea	rdx, OFFSET FLAT:??_C@_0M@EEEAIMDE@RCBN_Color4@
 	call	?luaL_newmetatable@@YAHPEAUlua_State@@PEBD@Z ; luaL_newmetatable
-; Line 116
+; Line 141
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	lea	r8, OFFSET FLAT:??_C@_0N@HNFOIFMD@color4_index@
 	lea	rdx, OFFSET FLAT:?color4_index@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::color4_index
 	mov	rcx, QWORD PTR [rbx]
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 117
+; Line 142
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_07NHABFFHN@__index@
 	mov	edx, -2
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 118
+; Line 143
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0BA@LDCPPHGN@color4_newindex@
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	lea	rdx, OFFSET FLAT:?color4_newindex@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::color4_newindex
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 119
+; Line 144
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0L@GADKNKH@__newindex@
 	mov	edx, -2
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 120
+; Line 145
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0BA@MGHDFFDN@color4_tostring@
 	xor	r9d, r9d
 	mov	QWORD PTR [rsp+32], rdi
 	lea	rdx, OFFSET FLAT:?color4_tostring@LuauEngine@@CAHPEAUlua_State@@@Z ; LuauEngine::color4_tostring
 	call	?lua_pushcclosurek@@YAXPEAUlua_State@@P6AH0@ZPEBDHP6AH0H@Z@Z ; lua_pushcclosurek
-; Line 121
+; Line 146
 	mov	rcx, QWORD PTR [rbx]
 	lea	r8, OFFSET FLAT:??_C@_0L@HDFPAPPH@__tostring@
 	mov	edx, -2
 	call	?lua_setfield@@YAXPEAUlua_State@@HPEBD@Z ; lua_setfield
-; Line 122
+; Line 147
 	mov	rcx, QWORD PTR [rbx]
 	mov	edx, -2
 	call	?lua_settop@@YAXPEAUlua_State@@H@Z	; lua_settop
-; Line 125
+; Line 150
 	mov	rdx, QWORD PTR [rbx]
 	mov	rcx, rbx
-; Line 126
+; Line 151
 	mov	rbx, QWORD PTR [rsp+64]
 	add	rsp, 48					; 00000030H
 	pop	rdi
-; Line 125
+; Line 150
 	jmp	?RegisterGlobalFunctions@LuauEngine@@AEAAXPEAUlua_State@@@Z ; LuauEngine::RegisterGlobalFunctions
 ?InitMetatables@LuauEngine@@AEAAXXZ ENDP		; LuauEngine::InitMetatables
 _TEXT	ENDS
@@ -27906,28 +29437,38 @@ _TEXT	SEGMENT
 $T1 = 32
 $T2 = 32
 $T3 = 32
-$T4 = 48
-$T5 = 48
+$T4 = 32
+$T5 = 32
 $T6 = 48
-$T7 = 64
-$T8 = 64
-$T9 = 64
-$T10 = 80
-$T11 = 80
-$T12 = 80
-$T13 = 96
-$T14 = 160
-$T15 = 224
-__$ArrayPad$ = 288
-this$ = 320
+$T7 = 48
+$T8 = 48
+$T9 = 48
+$T10 = 48
+$T11 = 64
+$T12 = 64
+$T13 = 64
+$T14 = 64
+$T15 = 64
+$T16 = 80
+$T17 = 80
+$T18 = 80
+$T19 = 80
+$T20 = 80
+$T21 = 96
+$T22 = 160
+$T23 = 224
+$T24 = 288
+$T25 = 352
+__$ArrayPad$ = 416
+this$ = 448
 ?InitSetterTable@LuauEngine@@AEAAXXZ PROC		; LuauEngine::InitSetterTable, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 50
-$LN155:
+; Line 63
+$LN255:
 	mov	QWORD PTR [rsp+8], rbx
 	push	rbp
-	lea	rbp, QWORD PTR [rsp-48]
-	sub	rsp, 304				; 00000130H
+	lea	rbp, QWORD PTR [rsp-176]
+	sub	rsp, 432				; 000001b0H
 	mov	rax, QWORD PTR __security_cookie
 	xor	rax, rsp
 	mov	QWORD PTR __$ArrayPad$[rbp-256], rax
@@ -27943,11 +29484,11 @@ $LN155:
 	mov	QWORD PTR $T1[rsp], rax
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
-	lea	rdx, QWORD PTR $T7[rsp]
+	lea	rdx, QWORD PTR $T11[rsp]
 	lea	rcx, OFFSET FLAT:?SetterTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::SetterTable
 	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
-	lea	r8, QWORD PTR $T4[rsp]
-	lea	rdx, QWORD PTR $T10[rsp]
+	lea	r8, QWORD PTR $T6[rsp]
+	lea	rdx, QWORD PTR $T16[rsp]
 	mov	rcx, QWORD PTR [rax]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
@@ -27957,20 +29498,20 @@ $LN155:
 	add	rcx, 32					; 00000020H
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
-	mov	QWORD PTR $T4[rsp], rax
-	mov	QWORD PTR $T4[rsp+8], 4
+	mov	QWORD PTR $T6[rsp], rax
+	mov	QWORD PTR $T6[rsp+8], 4
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
 	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
 ; Line 857
 	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_1>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
-	mov	QWORD PTR $T13[rsp], rcx
+	mov	QWORD PTR $T21[rsp], rcx
 ; Line 982
-	lea	rcx, QWORD PTR $T13[rsp]
-	mov	QWORD PTR $T13[rbp-200], rcx
+	lea	rcx, QWORD PTR $T21[rsp]
+	mov	QWORD PTR $T21[rbp-200], rcx
 ; Line 1174
-	lea	rcx, QWORD PTR $T13[rsp]
+	lea	rcx, QWORD PTR $T21[rsp]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
 	mov	rdx, QWORD PTR [rax]
@@ -27979,13 +29520,13 @@ $LN155:
 ; Line 1174
 	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
 ; Line 949
-	mov	rcx, QWORD PTR $T13[rbp-200]
+	mov	rcx, QWORD PTR $T21[rbp-200]
 ; Line 1012
 	test	rcx, rcx
 	je	SHORT $LN50@InitSetter
 ; Line 1013
 	mov	rax, QWORD PTR [rcx]
-	lea	rdx, QWORD PTR $T13[rsp]
+	lea	rdx, QWORD PTR $T21[rsp]
 	cmp	rcx, rdx
 	setne	dl
 	call	QWORD PTR [rax+32]
@@ -27993,20 +29534,20 @@ $LN50@InitSetter:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
 	lea	rbx, OFFSET FLAT:??_C@_08GAABMGDB@BaseCube@
-	mov	QWORD PTR $T5[rsp+8], 8
+	mov	QWORD PTR $T7[rsp+8], 8
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
-	lea	r8, QWORD PTR $T5[rsp]
+	lea	r8, QWORD PTR $T7[rsp]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
-	mov	QWORD PTR $T5[rsp], rbx
+	mov	QWORD PTR $T7[rsp], rbx
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
-	lea	rdx, QWORD PTR $T11[rsp]
+	lea	rdx, QWORD PTR $T17[rsp]
 	lea	rcx, OFFSET FLAT:?SetterTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::SetterTable
 	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
 	lea	r8, QWORD PTR $T2[rsp]
-	lea	rdx, QWORD PTR $T8[rsp]
+	lea	rdx, QWORD PTR $T12[rsp]
 	mov	rcx, QWORD PTR [rax]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
@@ -28024,12 +29565,12 @@ $LN50@InitSetter:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
 ; Line 857
 	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
-	mov	QWORD PTR $T14[rbp-256], rcx
+	mov	QWORD PTR $T22[rbp-256], rcx
 ; Line 982
-	lea	rcx, QWORD PTR $T14[rbp-256]
-	mov	QWORD PTR $T14[rbp-200], rcx
+	lea	rcx, QWORD PTR $T22[rbp-256]
+	mov	QWORD PTR $T22[rbp-200], rcx
 ; Line 1174
-	lea	rcx, QWORD PTR $T14[rbp-256]
+	lea	rcx, QWORD PTR $T22[rbp-256]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
 	mov	rdx, QWORD PTR [rax]
@@ -28038,35 +29579,35 @@ $LN50@InitSetter:
 ; Line 1174
 	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
 ; Line 949
-	mov	rcx, QWORD PTR $T14[rbp-200]
+	mov	rcx, QWORD PTR $T22[rbp-200]
 ; Line 1012
 	test	rcx, rcx
 	je	SHORT $LN99@InitSetter
 ; Line 1013
 	mov	rax, QWORD PTR [rcx]
-	lea	rdx, QWORD PTR $T14[rbp-256]
+	lea	rdx, QWORD PTR $T22[rbp-256]
 	cmp	rcx, rdx
 	setne	dl
 	call	QWORD PTR [rax+32]
 $LN99@InitSetter:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
-	lea	r8, QWORD PTR $T6[rsp]
+	lea	r8, QWORD PTR $T8[rsp]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
-	mov	QWORD PTR $T6[rsp], rbx
+	mov	QWORD PTR $T8[rsp], rbx
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
-	lea	rdx, QWORD PTR $T12[rsp]
+	lea	rdx, QWORD PTR $T18[rsp]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
-	mov	QWORD PTR $T6[rsp+8], 8
+	mov	QWORD PTR $T8[rsp+8], 8
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
 	lea	rcx, OFFSET FLAT:?SetterTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::SetterTable
 	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
 	lea	r8, QWORD PTR $T3[rsp]
-	lea	rdx, QWORD PTR $T9[rsp]
+	lea	rdx, QWORD PTR $T13[rsp]
 	mov	rcx, QWORD PTR [rax]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
@@ -28084,12 +29625,12 @@ $LN99@InitSetter:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
 ; Line 857
 	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_3>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
-	mov	QWORD PTR $T15[rbp-256], rcx
+	mov	QWORD PTR $T23[rbp-256], rcx
 ; Line 982
-	lea	rcx, QWORD PTR $T15[rbp-256]
-	mov	QWORD PTR $T15[rbp-200], rcx
+	lea	rcx, QWORD PTR $T23[rbp-256]
+	mov	QWORD PTR $T23[rbp-200], rcx
 ; Line 1174
-	lea	rcx, QWORD PTR $T15[rbp-256]
+	lea	rcx, QWORD PTR $T23[rbp-256]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
 	mov	rdx, QWORD PTR [rax]
@@ -28098,24 +29639,143 @@ $LN99@InitSetter:
 ; Line 1174
 	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
 ; Line 949
-	mov	rcx, QWORD PTR $T15[rbp-200]
+	mov	rcx, QWORD PTR $T23[rbp-200]
 ; Line 1012
 	test	rcx, rcx
 	je	SHORT $LN148@InitSetter
 ; Line 1013
 	mov	rax, QWORD PTR [rcx]
-	lea	rdx, QWORD PTR $T15[rbp-256]
+	lea	rdx, QWORD PTR $T23[rbp-256]
 	cmp	rcx, rdx
 	setne	dl
 	call	QWORD PTR [rax+32]
 $LN148@InitSetter:
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	lea	rbx, OFFSET FLAT:??_C@_05CCOIDDEK@Decal@
+	mov	QWORD PTR $T9[rsp+8], 5
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	lea	r8, QWORD PTR $T9[rsp]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	mov	QWORD PTR $T9[rsp], rbx
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	lea	rdx, QWORD PTR $T19[rsp]
+	lea	rcx, OFFSET FLAT:?SetterTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::SetterTable
+	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
+	lea	r8, QWORD PTR $T4[rsp]
+	lea	rdx, QWORD PTR $T14[rsp]
+	mov	rcx, QWORD PTR [rax]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	lea	rax, OFFSET FLAT:??_C@_09OCLHBPOP@TextureID@
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	add	rcx, 32					; 00000020H
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	mov	QWORD PTR $T4[rsp], rax
+	mov	QWORD PTR $T4[rsp+8], 9
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_4>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR $T24[rbp-256], rcx
+; Line 982
+	lea	rcx, QWORD PTR $T24[rbp-256]
+	mov	QWORD PTR $T24[rbp-200], rcx
+; Line 1174
+	lea	rcx, QWORD PTR $T24[rbp-256]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	mov	rdx, QWORD PTR [rax]
+	add	rdx, 32					; 00000020H
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 1174
+	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
+; Line 949
+	mov	rcx, QWORD PTR $T24[rbp-200]
+; Line 1012
+	test	rcx, rcx
+	je	SHORT $LN197@InitSetter
+; Line 1013
+	mov	rax, QWORD PTR [rcx]
+	lea	rdx, QWORD PTR $T24[rbp-256]
+	cmp	rcx, rdx
+	setne	dl
+	call	QWORD PTR [rax+32]
+$LN197@InitSetter:
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	lea	r8, QWORD PTR $T10[rsp]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	mov	QWORD PTR $T10[rsp], rbx
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	lea	rdx, QWORD PTR $T20[rsp]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	mov	QWORD PTR $T10[rsp+8], 5
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	lea	rcx, OFFSET FLAT:?SetterTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::SetterTable
+	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
+	lea	r8, QWORD PTR $T5[rsp]
+	lea	rdx, QWORD PTR $T15[rsp]
+	mov	rcx, QWORD PTR [rax]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	lea	rax, OFFSET FLAT:??_C@_04DPOPNPPG@Face@
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	add	rcx, 32					; 00000020H
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	mov	QWORD PTR $T5[rsp], rax
+	mov	QWORD PTR $T5[rsp+8], 4
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR $T25[rbp-256], rcx
+; Line 982
+	lea	rcx, QWORD PTR $T25[rbp-256]
+	mov	QWORD PTR $T25[rbp-200], rcx
+; Line 1174
+	lea	rcx, QWORD PTR $T25[rbp-256]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	mov	rdx, QWORD PTR [rax]
+	add	rdx, 32					; 00000020H
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 1174
+	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
+; Line 949
+	mov	rcx, QWORD PTR $T25[rbp-200]
+; Line 1012
+	test	rcx, rcx
+	je	SHORT $LN246@InitSetter
+; Line 1013
+	mov	rax, QWORD PTR [rcx]
+	lea	rdx, QWORD PTR $T25[rbp-256]
+	cmp	rcx, rdx
+	setne	dl
+	call	QWORD PTR [rax+32]
+$LN246@InitSetter:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 91
+; Line 116
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
-	mov	rbx, QWORD PTR [rsp+320]
-	add	rsp, 304				; 00000130H
+	mov	rbx, QWORD PTR [rsp+448]
+	add	rsp, 432				; 000001b0H
 	pop	rbp
 	ret	0
 ?InitSetterTable@LuauEngine@@AEAAXXZ ENDP		; LuauEngine::InitSetterTable
@@ -28127,32 +29787,42 @@ $T1 = 32
 $T2 = 32
 $T3 = 32
 $T4 = 32
-$T5 = 48
-$T6 = 48
+$T5 = 32
+$T6 = 32
 $T7 = 48
 $T8 = 48
-$T9 = 64
-$T10 = 64
-$T11 = 64
-$T12 = 64
-$T13 = 80
-$T14 = 80
-$T15 = 80
-$T16 = 80
-$T17 = 96
-$T18 = 160
-$T19 = 224
-$T20 = 288
-__$ArrayPad$ = 352
-this$ = 384
+$T9 = 48
+$T10 = 48
+$T11 = 48
+$T12 = 48
+$T13 = 64
+$T14 = 64
+$T15 = 64
+$T16 = 64
+$T17 = 64
+$T18 = 64
+$T19 = 80
+$T20 = 80
+$T21 = 80
+$T22 = 80
+$T23 = 80
+$T24 = 80
+$T25 = 96
+$T26 = 160
+$T27 = 224
+$T28 = 288
+$T29 = 352
+$T30 = 416
+__$ArrayPad$ = 480
+this$ = 512
 ?InitDispatchTable@LuauEngine@@AEAAXXZ PROC		; LuauEngine::InitDispatchTable, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 18
-$LN205:
+; Line 19
+$LN305:
 	mov	QWORD PTR [rsp+8], rbx
 	push	rbp
-	lea	rbp, QWORD PTR [rsp-112]
-	sub	rsp, 368				; 00000170H
+	lea	rbp, QWORD PTR [rsp-240]
+	sub	rsp, 496				; 000001f0H
 	mov	rax, QWORD PTR __security_cookie
 	xor	rax, rsp
 	mov	QWORD PTR __$ArrayPad$[rbp-256], rax
@@ -28168,11 +29838,11 @@ $LN205:
 	mov	QWORD PTR $T1[rsp], rbx
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
-	lea	rdx, QWORD PTR $T9[rsp]
+	lea	rdx, QWORD PTR $T13[rsp]
 	lea	rcx, OFFSET FLAT:?DispatchTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::DispatchTable
 	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
-	lea	r8, QWORD PTR $T5[rsp]
-	lea	rdx, QWORD PTR $T13[rsp]
+	lea	r8, QWORD PTR $T7[rsp]
+	lea	rdx, QWORD PTR $T20[rsp]
 	mov	rcx, QWORD PTR [rax]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
@@ -28182,20 +29852,20 @@ $LN205:
 	add	rcx, 32					; 00000020H
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
-	mov	QWORD PTR $T5[rsp], rax
-	mov	QWORD PTR $T5[rsp+8], 4
+	mov	QWORD PTR $T7[rsp], rax
+	mov	QWORD PTR $T7[rsp+8], 4
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
 	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
 ; Line 857
 	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_1>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
-	mov	QWORD PTR $T17[rsp], rcx
+	mov	QWORD PTR $T25[rsp], rcx
 ; Line 982
-	lea	rcx, QWORD PTR $T17[rsp]
-	mov	QWORD PTR $T17[rbp-200], rcx
+	lea	rcx, QWORD PTR $T25[rsp]
+	mov	QWORD PTR $T25[rbp-200], rcx
 ; Line 1174
-	lea	rcx, QWORD PTR $T17[rsp]
+	lea	rcx, QWORD PTR $T25[rsp]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
 	mov	rdx, QWORD PTR [rax]
@@ -28204,35 +29874,35 @@ $LN205:
 ; Line 1174
 	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
 ; Line 949
-	mov	rcx, QWORD PTR $T17[rbp-200]
+	mov	rcx, QWORD PTR $T25[rbp-200]
 ; Line 1012
 	test	rcx, rcx
 	je	SHORT $LN50@InitDispat
 ; Line 1013
 	mov	rax, QWORD PTR [rcx]
-	lea	rdx, QWORD PTR $T17[rsp]
+	lea	rdx, QWORD PTR $T25[rsp]
 	cmp	rcx, rdx
 	setne	dl
 	call	QWORD PTR [rax+32]
 $LN50@InitDispat:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
-	lea	r8, QWORD PTR $T6[rsp]
+	lea	r8, QWORD PTR $T8[rsp]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
-	mov	QWORD PTR $T6[rsp], rbx
+	mov	QWORD PTR $T8[rsp], rbx
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
-	lea	rdx, QWORD PTR $T14[rsp]
+	lea	rdx, QWORD PTR $T19[rsp]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
-	mov	QWORD PTR $T6[rsp+8], 8
+	mov	QWORD PTR $T8[rsp+8], 8
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
 	lea	rcx, OFFSET FLAT:?DispatchTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::DispatchTable
 	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
 	lea	r8, QWORD PTR $T2[rsp]
-	lea	rdx, QWORD PTR $T10[rsp]
+	lea	rdx, QWORD PTR $T14[rsp]
 	mov	rcx, QWORD PTR [rax]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
@@ -28250,12 +29920,12 @@ $LN50@InitDispat:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
 ; Line 857
 	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_2>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
-	mov	QWORD PTR $T18[rbp-256], rcx
+	mov	QWORD PTR $T26[rbp-256], rcx
 ; Line 982
-	lea	rcx, QWORD PTR $T18[rbp-256]
-	mov	QWORD PTR $T18[rbp-200], rcx
+	lea	rcx, QWORD PTR $T26[rbp-256]
+	mov	QWORD PTR $T26[rbp-200], rcx
 ; Line 1174
-	lea	rcx, QWORD PTR $T18[rbp-256]
+	lea	rcx, QWORD PTR $T26[rbp-256]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
 	mov	rdx, QWORD PTR [rax]
@@ -28264,13 +29934,13 @@ $LN50@InitDispat:
 ; Line 1174
 	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
 ; Line 949
-	mov	rcx, QWORD PTR $T18[rbp-200]
+	mov	rcx, QWORD PTR $T26[rbp-200]
 ; Line 1012
 	test	rcx, rcx
 	je	SHORT $LN99@InitDispat
 ; Line 1013
 	mov	rax, QWORD PTR [rcx]
-	lea	rdx, QWORD PTR $T18[rbp-256]
+	lea	rdx, QWORD PTR $T26[rbp-256]
 	cmp	rcx, rdx
 	setne	dl
 	call	QWORD PTR [rax+32]
@@ -28278,20 +29948,20 @@ $LN99@InitDispat:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
 	lea	rbx, OFFSET FLAT:??_C@_08GAABMGDB@BaseCube@
-	mov	QWORD PTR $T7[rsp+8], 8
+	mov	QWORD PTR $T9[rsp+8], 8
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
-	lea	r8, QWORD PTR $T7[rsp]
+	lea	r8, QWORD PTR $T9[rsp]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
-	mov	QWORD PTR $T7[rsp], rbx
+	mov	QWORD PTR $T9[rsp], rbx
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
-	lea	rdx, QWORD PTR $T15[rsp]
+	lea	rdx, QWORD PTR $T21[rsp]
 	lea	rcx, OFFSET FLAT:?DispatchTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::DispatchTable
 	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
 	lea	r8, QWORD PTR $T3[rsp]
-	lea	rdx, QWORD PTR $T11[rsp]
+	lea	rdx, QWORD PTR $T15[rsp]
 	mov	rcx, QWORD PTR [rax]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
@@ -28309,12 +29979,12 @@ $LN99@InitDispat:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
 ; Line 857
 	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
-	mov	QWORD PTR $T19[rbp-256], rcx
+	mov	QWORD PTR $T27[rbp-256], rcx
 ; Line 982
-	lea	rcx, QWORD PTR $T19[rbp-256]
-	mov	QWORD PTR $T19[rbp-200], rcx
+	lea	rcx, QWORD PTR $T27[rbp-256]
+	mov	QWORD PTR $T27[rbp-200], rcx
 ; Line 1174
-	lea	rcx, QWORD PTR $T19[rbp-256]
+	lea	rcx, QWORD PTR $T27[rbp-256]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
 	mov	rdx, QWORD PTR [rax]
@@ -28323,35 +29993,35 @@ $LN99@InitDispat:
 ; Line 1174
 	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
 ; Line 949
-	mov	rcx, QWORD PTR $T19[rbp-200]
+	mov	rcx, QWORD PTR $T27[rbp-200]
 ; Line 1012
 	test	rcx, rcx
 	je	SHORT $LN148@InitDispat
 ; Line 1013
 	mov	rax, QWORD PTR [rcx]
-	lea	rdx, QWORD PTR $T19[rbp-256]
+	lea	rdx, QWORD PTR $T27[rbp-256]
 	cmp	rcx, rdx
 	setne	dl
 	call	QWORD PTR [rax+32]
 $LN148@InitDispat:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
-	lea	r8, QWORD PTR $T8[rsp]
+	lea	r8, QWORD PTR $T10[rsp]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
-	mov	QWORD PTR $T8[rsp], rbx
+	mov	QWORD PTR $T10[rsp], rbx
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
-	lea	rdx, QWORD PTR $T16[rsp]
+	lea	rdx, QWORD PTR $T22[rsp]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
-	mov	QWORD PTR $T8[rsp+8], 8
+	mov	QWORD PTR $T10[rsp+8], 8
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
 	lea	rcx, OFFSET FLAT:?DispatchTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::DispatchTable
 	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
 	lea	r8, QWORD PTR $T4[rsp]
-	lea	rdx, QWORD PTR $T12[rsp]
+	lea	rdx, QWORD PTR $T16[rsp]
 	mov	rcx, QWORD PTR [rax]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 1494
@@ -28369,12 +30039,12 @@ $LN148@InitDispat:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
 ; Line 857
 	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_4>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
-	mov	QWORD PTR $T20[rbp-256], rcx
+	mov	QWORD PTR $T28[rbp-256], rcx
 ; Line 982
-	lea	rcx, QWORD PTR $T20[rbp-256]
-	mov	QWORD PTR $T20[rbp-200], rcx
+	lea	rcx, QWORD PTR $T28[rbp-256]
+	mov	QWORD PTR $T28[rbp-200], rcx
 ; Line 1174
-	lea	rcx, QWORD PTR $T20[rbp-256]
+	lea	rcx, QWORD PTR $T28[rbp-256]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
 ; Line 260
 	mov	rdx, QWORD PTR [rax]
@@ -28383,24 +30053,143 @@ $LN148@InitDispat:
 ; Line 1174
 	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
 ; Line 949
-	mov	rcx, QWORD PTR $T20[rbp-200]
+	mov	rcx, QWORD PTR $T28[rbp-200]
 ; Line 1012
 	test	rcx, rcx
 	je	SHORT $LN197@InitDispat
 ; Line 1013
 	mov	rax, QWORD PTR [rcx]
-	lea	rdx, QWORD PTR $T20[rbp-256]
+	lea	rdx, QWORD PTR $T28[rbp-256]
 	cmp	rcx, rdx
 	setne	dl
 	call	QWORD PTR [rax+32]
 $LN197@InitDispat:
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	lea	rbx, OFFSET FLAT:??_C@_05CCOIDDEK@Decal@
+	mov	QWORD PTR $T11[rsp+8], 5
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	lea	r8, QWORD PTR $T11[rsp]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	mov	QWORD PTR $T11[rsp], rbx
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	lea	rdx, QWORD PTR $T23[rsp]
+	lea	rcx, OFFSET FLAT:?DispatchTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::DispatchTable
+	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
+	lea	r8, QWORD PTR $T5[rsp]
+	lea	rdx, QWORD PTR $T17[rsp]
+	mov	rcx, QWORD PTR [rax]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	lea	rax, OFFSET FLAT:??_C@_09OCLHBPOP@TextureID@
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	add	rcx, 32					; 00000020H
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	mov	QWORD PTR $T5[rsp], rax
+	mov	QWORD PTR $T5[rsp+8], 9
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_5>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR $T29[rbp-256], rcx
+; Line 982
+	lea	rcx, QWORD PTR $T29[rbp-256]
+	mov	QWORD PTR $T29[rbp-200], rcx
+; Line 1174
+	lea	rcx, QWORD PTR $T29[rbp-256]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	mov	rdx, QWORD PTR [rax]
+	add	rdx, 32					; 00000020H
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 1174
+	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
+; Line 949
+	mov	rcx, QWORD PTR $T29[rbp-200]
+; Line 1012
+	test	rcx, rcx
+	je	SHORT $LN246@InitDispat
+; Line 1013
+	mov	rax, QWORD PTR [rcx]
+	lea	rdx, QWORD PTR $T29[rbp-256]
+	cmp	rcx, rdx
+	setne	dl
+	call	QWORD PTR [rax+32]
+$LN246@InitDispat:
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	lea	r8, QWORD PTR $T12[rsp]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	mov	QWORD PTR $T12[rsp], rbx
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	lea	rdx, QWORD PTR $T24[rsp]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	mov	QWORD PTR $T12[rsp+8], 5
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	lea	rcx, OFFSET FLAT:?DispatchTable@LuauEngine@@0V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@@std@@A ; LuauEngine::DispatchTable
+	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$unordered_map@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > >,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::unordered_map<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > > > > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
+	lea	r8, QWORD PTR $T6[rsp]
+	lea	rdx, QWORD PTR $T18[rsp]
+	mov	rcx, QWORD PTR [rax]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	lea	rax, OFFSET FLAT:??_C@_04DPOPNPPG@Face@
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	add	rcx, 32					; 00000020H
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 1494
+	mov	QWORD PTR $T6[rsp], rax
+	mov	QWORD PTR $T6[rsp+8], 4
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	call	??$_Try_emplace@V?$basic_string_view@DU?$char_traits@D@std@@@std@@$$V@?$_Hash@V?$_Umap_traits@V?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@V?$_Uhash_compare@V?$basic_string_view@DU?$char_traits@D@std@@@std@@U?$hash@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@U?$equal_to@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@@2@$0A@@std@@@std@@IEAA?AU?$pair@PEAU?$_List_node@U?$pair@$$CBV?$basic_string_view@DU?$char_traits@D@std@@@std@@V?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@2@@std@@PEAX@std@@_N@1@$$QEAV?$basic_string_view@DU?$char_traits@D@std@@@1@@Z ; std::_Hash<std::_Umap_traits<std::basic_string_view<char,std::char_traits<char> >,std::function<int __cdecl(lua_State *,Instance *)>,std::_Uhash_compare<std::basic_string_view<char,std::char_traits<char> >,std::hash<std::basic_string_view<char,std::char_traits<char> > >,std::equal_to<std::basic_string_view<char,std::char_traits<char> > > >,std::allocator<std::pair<std::basic_string_view<char,std::char_traits<char> > const ,std::function<int __cdecl(lua_State *,Instance *)> > >,0> >::_Try_emplace<std::basic_string_view<char,std::char_traits<char> > >
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 857
+	lea	rcx, OFFSET FLAT:??_7?$_Func_impl_no_alloc@V<lambda_6>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@6B@
+	mov	QWORD PTR $T30[rbp-256], rcx
+; Line 982
+	lea	rcx, QWORD PTR $T30[rbp-256]
+	mov	QWORD PTR $T30[rbp-200], rcx
+; Line 1174
+	lea	rcx, QWORD PTR $T30[rbp-256]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\unordered_map
+; Line 260
+	mov	rdx, QWORD PTR [rax]
+	add	rdx, 32					; 00000020H
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
+; Line 1174
+	call	?swap@?$function@$$A6AHPEAUlua_State@@PEAVInstance@@@Z@std@@QEAAXAEAV12@@Z ; std::function<int __cdecl(lua_State *,Instance *)>::swap
+; Line 949
+	mov	rcx, QWORD PTR $T30[rbp-200]
+; Line 1012
+	test	rcx, rcx
+	je	SHORT $LN295@InitDispat
+; Line 1013
+	mov	rax, QWORD PTR [rcx]
+	lea	rdx, QWORD PTR $T30[rbp-256]
+	cmp	rcx, rdx
+	setne	dl
+	call	QWORD PTR [rax+32]
+$LN295@InitDispat:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 48
+; Line 61
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
-	mov	rbx, QWORD PTR [rsp+384]
-	add	rsp, 368				; 00000170H
+	mov	rbx, QWORD PTR [rsp+512]
+	add	rsp, 496				; 000001f0H
 	pop	rbp
 	ret	0
 ?InitDispatchTable@LuauEngine@@AEAAXXZ ENDP		; LuauEngine::InitDispatchTable
@@ -33435,7 +35224,7 @@ __formal$ = 16
 __formal$ = 24
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 524
+; Line 549
 	ret	0
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -33446,7 +35235,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 524
+; Line 549
 	ret	0
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -33457,7 +35246,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAX_K@Z PROC		; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 524
+; Line 549
 	ret	0
 ?__empty_global_delete@@YAXPEAX_K@Z ENDP		; __empty_global_delete
 _TEXT	ENDS
@@ -33467,7 +35256,7 @@ _TEXT	SEGMENT
 __formal$ = 8
 ?__empty_global_delete@@YAXPEAX@Z PROC			; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
-; Line 524
+; Line 549
 	ret	0
 ?__empty_global_delete@@YAXPEAX@Z ENDP			; __empty_global_delete
 _TEXT	ENDS

@@ -54,9 +54,7 @@ std::vector<Vertex> createCubeVertices(float size) {
 Cube::Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex) 
     : BaseCube(Pos, Sz) 
 {
-    for(int i = 0; i < 6; i++) {
-        faceTextures[i] = defaultTex;
-    }
+    // faceTextures は廃止
 }
 
 std::string Cube::GetClassName() {
@@ -70,23 +68,30 @@ bool Cube::IsA(std::string className) {
     return BaseCube::IsA(className);
 }
 
-// テクスチャ設定の実装
-void Cube::setFaceTexture(int faceIdx, unsigned int texID) {
-    if (faceIdx >= 0 && faceIdx < 6) faceTextures[faceIdx] = texID;
-}
-
 // 描画の実装
 void Cube::draw(int modelLoc, int shaderProgram) {
-    // ここで行列計算はしない
-
     int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
     if (colorLoc != -1) {
         glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
     }
 
+    // デカールの収集
+    unsigned int activeTextures[6];
+    for(int i = 0; i < 6; i++) activeTextures[i] = defaultTextureID;
+
+    for (auto const& [name, child] : getChildren()) {
+        if (child->IsA("Decal")) {
+            Decal* decal = static_cast<Decal*>(child);
+            int idx = static_cast<int>(decal->face);
+            if (idx >= 0 && idx < 6) {
+                activeTextures[idx] = decal->TextureID;
+            }
+        }
+    }
+
     for (int i = 0; i < 6; i++) {
         glActiveTexture(GL_TEXTURE0); 
-        unsigned int tex = faceTextures[i];
+        unsigned int tex = activeTextures[i];
         if (tex == 0) tex = defaultTextureID;
         glBindTexture(GL_TEXTURE_2D, tex);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(uintptr_t)(i * 6 * sizeof(unsigned int)));

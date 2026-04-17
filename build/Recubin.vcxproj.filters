@@ -19,6 +19,9 @@
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Decal.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\RedDragon\Documents\Recubin\src\Instances\Instance.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

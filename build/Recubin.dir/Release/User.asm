@@ -4109,7 +4109,7 @@ $LN5@spawnChara:
 	movsd	xmm6, QWORD PTR [rax]
 	mov	ebx, DWORD PTR [rax+8]
 ; Line 222
-	mov	ecx, 240				; 000000f0H
+	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T32[rbp-105], rax
 	test	rax, rax
@@ -4130,7 +4130,7 @@ $LN6@spawnChara:
 $LN7@spawnChara:
 	mov	QWORD PTR [rsi+104], rax
 ; Line 223
-	mov	ecx, 240				; 000000f0H
+	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T33[rbp-105], rax
 	test	rax, rax
@@ -4151,7 +4151,7 @@ $LN8@spawnChara:
 $LN9@spawnChara:
 	mov	QWORD PTR [rsi+120], rax
 ; Line 224
-	mov	ecx, 240				; 000000f0H
+	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T34[rbp-105], rax
 	test	rax, rax
@@ -4172,7 +4172,7 @@ $LN10@spawnChara:
 $LN11@spawnChara:
 	mov	QWORD PTR [rsi+112], rax
 ; Line 225
-	mov	ecx, 240				; 000000f0H
+	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T35[rbp-105], rax
 	test	rax, rax
@@ -4193,7 +4193,7 @@ $LN12@spawnChara:
 $LN13@spawnChara:
 	mov	QWORD PTR [rsi+128], rax
 ; Line 226
-	mov	ecx, 240				; 000000f0H
+	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T36[rbp-105], rax
 	test	rax, rax
@@ -4214,7 +4214,7 @@ $LN14@spawnChara:
 $LN15@spawnChara:
 	mov	QWORD PTR [rsi+136], rax
 ; Line 227
-	mov	ecx, 240				; 000000f0H
+	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T37[rbp-105], rax
 	test	rax, rax
@@ -4235,7 +4235,7 @@ $LN16@spawnChara:
 $LN17@spawnChara:
 	mov	QWORD PTR [rsi+144], rax
 ; Line 228
-	mov	ecx, 240				; 000000f0H
+	mov	ecx, 216				; 000000d8H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T38[rbp-105], rax
 	test	rax, rax
@@ -4546,7 +4546,7 @@ $T39 = 216
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 240				; 000000f0H
+	mov	edx, 216				; 000000d8H
 	mov	rcx, QWORD PTR $T32[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4587,7 +4587,7 @@ $T39 = 216
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 240				; 000000f0H
+	mov	edx, 216				; 000000d8H
 	mov	rcx, QWORD PTR $T33[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4628,7 +4628,7 @@ $T39 = 216
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 240				; 000000f0H
+	mov	edx, 216				; 000000d8H
 	mov	rcx, QWORD PTR $T34[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4669,7 +4669,7 @@ $T39 = 216
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 240				; 000000f0H
+	mov	edx, 216				; 000000d8H
 	mov	rcx, QWORD PTR $T35[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4710,7 +4710,7 @@ $T39 = 216
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 240				; 000000f0H
+	mov	edx, 216				; 000000d8H
 	mov	rcx, QWORD PTR $T36[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4751,7 +4751,7 @@ $T39 = 216
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 240				; 000000f0H
+	mov	edx, 216				; 000000d8H
 	mov	rcx, QWORD PTR $T37[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4792,7 +4792,7 @@ $T39 = 216
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 240				; 000000f0H
+	mov	edx, 216				; 000000d8H
 	mov	rcx, QWORD PTR $T38[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H

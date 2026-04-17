@@ -103,13 +103,13 @@ int main() {
     floppaCube->Name = "Floppa";
     floppaCube->Color = Color4(1.0f, 1.0f, 1.0f, 1.0f);
     
-    // 各面のテクスチャ設定
-    floppaCube->setFaceTexture(0, floppa);
-    floppaCube->setFaceTexture(1, thecat);
-    floppaCube->setFaceTexture(2, saladcat);
-    floppaCube->setFaceTexture(3, smile);
-    floppaCube->setFaceTexture(4, bliss);
-    floppaCube->setFaceTexture(5, limabis);
+    // 各面のテクスチャ設定 (Decal インスタンスとして追加)
+    floppaCube->addChild(new Decal(floppa,   Face::Front));
+    floppaCube->addChild(new Decal(thecat,   Face::Back));
+    floppaCube->addChild(new Decal(saladcat, Face::Top));
+    floppaCube->addChild(new Decal(smile,    Face::Bottom));
+    floppaCube->addChild(new Decal(bliss,    Face::Right));
+    floppaCube->addChild(new Decal(limabis,  Face::Left));
     
     workspace.addChild(floppaCube);
     
@@ -133,6 +133,11 @@ int main() {
     // キャラクターをスポーン
     user.spawnCharacter();
     workspace.addChild(user.character);
+    
+    // 顔（smile）を頭の正面に追加
+    if (user.head) {
+        user.head->addChild(new Decal(smile, Face::Front));
+    }
     
     // Freeモード（カメラ操作）がデフォルト
     // user.controlMode = User::ControlMode::Character; // Fキーで切り替え可能

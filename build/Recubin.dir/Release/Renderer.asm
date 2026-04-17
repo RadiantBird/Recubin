@@ -9486,15 +9486,15 @@ xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $unwind$?init@Renderer@@QEAAXXZ DD 0c3519H
-	DD	07f6824H
-	DD	0101011cH
+	DD	07e6824H
+	DD	0ff011cH
 	DD	0e00bf00dH
 	DD	0c007d009H
 	DD	060047005H
 	DD	050023003H
 	DD	imagerel __GSHandlerCheck_EH4
 	DD	imagerel $cppxdata$?init@Renderer@@QEAAXXZ
-	DD	07e2H
+	DD	07d2H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
@@ -53296,11 +53296,11 @@ fragmentShaderSource$ = 160
 fShaderStr$ = 168
 vShaderStr$ = 200
 testCube$ = 240
-infoLog$ = 480
-infoLog2$ = 992
-infoLog3$ = 1504
-__$ArrayPad$ = 2016
-this$ = 2128
+infoLog$ = 464
+infoLog2$ = 976
+infoLog3$ = 1488
+__$ArrayPad$ = 2000
+this$ = 2112
 ?init@Renderer@@QEAAXXZ PROC				; Renderer::init, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 36
@@ -53313,9 +53313,9 @@ $LN193:
 	push	r13
 	push	r14
 	push	r15
-	lea	rbp, QWORD PTR [rsp-1800]
-	sub	rsp, 2056				; 00000808H
-	movaps	XMMWORD PTR [rsp+2032], xmm6
+	lea	rbp, QWORD PTR [rsp-1784]
+	sub	rsp, 2040				; 000007f8H
+	movaps	XMMWORD PTR [rsp+2016], xmm6
 	mov	rax, QWORD PTR __security_cookie
 	xor	rax, rsp
 	mov	QWORD PTR __$ArrayPad$[rbp-256], rax
@@ -53940,8 +53940,8 @@ $LN156@init:
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
-	movaps	xmm6, XMMWORD PTR [rsp+2032]
-	add	rsp, 2056				; 00000808H
+	movaps	xmm6, XMMWORD PTR [rsp+2016]
+	add	rsp, 2040				; 000007f8H
 	pop	r15
 	pop	r14
 	pop	r13
@@ -53974,11 +53974,11 @@ fragmentShaderSource$ = 160
 fShaderStr$ = 168
 vShaderStr$ = 200
 testCube$ = 240
-infoLog$ = 480
-infoLog2$ = 992
-infoLog3$ = 1504
-__$ArrayPad$ = 2016
-this$ = 2128
+infoLog$ = 464
+infoLog2$ = 976
+infoLog3$ = 1488
+__$ArrayPad$ = 2000
+this$ = 2112
 ?dtor$0@?0??init@Renderer@@QEAAXXZ@4HA PROC		; `Renderer::init'::`1'::dtor$0
 	lea	rcx, QWORD PTR vShaderStr$[rdx]
 	jmp	??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::~basic_string<char,std::char_traits<char>,std::allocator<char> >
@@ -54004,11 +54004,11 @@ fragmentShaderSource$ = 160
 fShaderStr$ = 168
 vShaderStr$ = 200
 testCube$ = 240
-infoLog$ = 480
-infoLog2$ = 992
-infoLog3$ = 1504
-__$ArrayPad$ = 2016
-this$ = 2128
+infoLog$ = 464
+infoLog2$ = 976
+infoLog3$ = 1488
+__$ArrayPad$ = 2000
+this$ = 2112
 ?dtor$1@?0??init@Renderer@@QEAAXXZ@4HA PROC		; `Renderer::init'::`1'::dtor$1
 	lea	rcx, QWORD PTR fShaderStr$[rdx]
 	jmp	??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::~basic_string<char,std::char_traits<char>,std::allocator<char> >
@@ -54034,11 +54034,11 @@ fragmentShaderSource$ = 160
 fShaderStr$ = 168
 vShaderStr$ = 200
 testCube$ = 240
-infoLog$ = 480
-infoLog2$ = 992
-infoLog3$ = 1504
-__$ArrayPad$ = 2016
-this$ = 2128
+infoLog$ = 464
+infoLog2$ = 976
+infoLog3$ = 1488
+__$ArrayPad$ = 2000
+this$ = 2112
 ?dtor$2@?0??init@Renderer@@QEAAXXZ@4HA PROC		; `Renderer::init'::`1'::dtor$2
 	lea	rcx, QWORD PTR testCube$[rdx]
 	jmp	??1Cube@@UEAA@XZ
@@ -54064,11 +54064,11 @@ fragmentShaderSource$ = 160
 fShaderStr$ = 168
 vShaderStr$ = 200
 testCube$ = 240
-infoLog$ = 480
-infoLog2$ = 992
-infoLog3$ = 1504
-__$ArrayPad$ = 2016
-this$ = 2128
+infoLog$ = 464
+infoLog2$ = 976
+infoLog3$ = 1488
+__$ArrayPad$ = 2000
+this$ = 2112
 ?dtor$3@?0??init@Renderer@@QEAAXXZ@4HA PROC		; `Renderer::init'::`1'::dtor$3
 	lea	rcx, QWORD PTR standardVertices$[rdx]
 	jmp	??1?$vector@UVertex@@V?$allocator@UVertex@@@std@@@std@@QEAA@XZ ; std::vector<Vertex,std::allocator<Vertex> >::~vector<Vertex,std::allocator<Vertex> >

@@ -120,6 +120,7 @@ PUBLIC	?_Adjust_manually_vector_aligned@std@@YAXAEAPEAXAEA_K@Z ; std::_Adjust_ma
 PUBLIC	?_Orphan_all@_Container_base0@std@@QEAAXXZ	; std::_Container_base0::_Orphan_all
 PUBLIC	?_Swap_proxy_and_iterators@_Container_base0@std@@QEAAXAEAU12@@Z ; std::_Container_base0::_Swap_proxy_and_iterators
 PUBLIC	?_Alloc_proxy@_Container_base0@std@@QEAAXAEBU_Fake_allocator@2@@Z ; std::_Container_base0::_Alloc_proxy
+PUBLIC	?_Adopt@_Iterator_base0@std@@QEAAXPEBX@Z	; std::_Iterator_base0::_Adopt
 PUBLIC	??0_Fake_proxy_ptr_impl@std@@QEAA@AEBU_Fake_allocator@1@AEBU_Container_base0@1@@Z ; std::_Fake_proxy_ptr_impl::_Fake_proxy_ptr_impl
 PUBLIC	?_Release@_Fake_proxy_ptr_impl@std@@QEAAXXZ	; std::_Fake_proxy_ptr_impl::_Release
 PUBLIC	?_Xlen_string@std@@YAXXZ			; std::_Xlen_string
@@ -153,13 +154,16 @@ PUBLIC	?_Maklocwcs@std@@YAPEA_WPEB_W@Z			; std::_Maklocwcs
 PUBLIC	??$_Max_limit@_J@std@@YA_JXZ			; std::_Max_limit<__int64>
 PUBLIC	??$_Getvals@_W@?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@IEAAX_WAEBV_Locinfo@1@@Z ; std::time_get<char,std::istreambuf_iterator<char,std::char_traits<char> > >::_Getvals<wchar_t>
 PUBLIC	??$_Getvals@_W@?$time_get@_WV?$istreambuf_iterator@_WU?$char_traits@_W@std@@@std@@@std@@IEAAX_WAEBV_Locinfo@1@@Z ; std::time_get<wchar_t,std::istreambuf_iterator<wchar_t,std::char_traits<wchar_t> > >::_Getvals<wchar_t>
+PUBLIC	?_Unchecked_begin@?$list@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ ; std::list<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >::_Unchecked_begin
+PUBLIC	?_Unchecked_end@?$list@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ ; std::list<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >::_Unchecked_end
+PUBLIC	?_Unchecked_begin@?$_Hash@V?$_Umap_traits@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@V?$_Uhash_compare@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@$0A@@std@@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ ; std::_Hash<std::_Umap_traits<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,Instance *,std::_Uhash_compare<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,std::hash<std::basic_string<char,std::char_traits<char>,std::allocator<char> > >,std::equal_to<std::basic_string<char,std::char_traits<char>,std::allocator<char> > > >,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> >,0> >::_Unchecked_begin
+PUBLIC	?_Unchecked_end@?$_Hash@V?$_Umap_traits@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@V?$_Uhash_compare@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@$0A@@std@@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ ; std::_Hash<std::_Umap_traits<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,Instance *,std::_Uhash_compare<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,std::hash<std::basic_string<char,std::char_traits<char>,std::allocator<char> > >,std::equal_to<std::basic_string<char,std::char_traits<char>,std::allocator<char> > > >,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> >,0> >::_Unchecked_end
 PUBLIC	?FLoad@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::FLoad
 PUBLIC	?V3Load@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::V3Load
 PUBLIC	?V4Load@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::V4Load
 PUBLIC	??0Vertex@@QEAA@XZ				; Vertex::Vertex
 PUBLIC	?createCubeVertices@@YA?AV?$vector@UVertex@@V?$allocator@UVertex@@@std@@@std@@M@Z ; createCubeVertices
 PUBLIC	??0Cube@@QEAA@UVector3@@0I@Z			; Cube::Cube
-PUBLIC	?setFaceTexture@Cube@@QEAAXHI@Z			; Cube::setFaceTexture
 PUBLIC	?draw@Cube@@QEAAXHH@Z				; Cube::draw
 PUBLIC	?GetClassName@Cube@@UEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Cube::GetClassName
 PUBLIC	?IsA@Cube@@UEAA_NV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z ; Cube::IsA
@@ -187,6 +191,12 @@ PUBLIC	??0?$_Vector_val@U?$_Simple_types@UVertex@@@std@@@std@@QEAA@PEAUVertex@@0
 PUBLIC	?_Get_first@?$_Compressed_pair@V?$allocator@UVertex@@@std@@V?$_Vector_val@U?$_Simple_types@UVertex@@@std@@@2@$00@std@@QEAAAEAV?$allocator@UVertex@@@2@XZ ; std::_Compressed_pair<std::allocator<Vertex>,std::_Vector_val<std::_Simple_types<Vertex> >,1>::_Get_first
 PUBLIC	?_Get_first@?$_Compressed_pair@V?$allocator@UVertex@@@std@@V?$_Vector_val@U?$_Simple_types@UVertex@@@std@@@2@$00@std@@QEBAAEBV?$allocator@UVertex@@@2@XZ ; std::_Compressed_pair<std::allocator<Vertex>,std::_Vector_val<std::_Simple_types<Vertex> >,1>::_Get_first
 PUBLIC	??$?8DU?$char_traits@D@std@@V?$allocator@D@1@@std@@YA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@0@QEBD@Z ; std::operator==<char,std::char_traits<char>,std::allocator<char> >
+PUBLIC	??0?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEAA@PEAU?$_List_node@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@PEAX@1@PEBV?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@1@@Z ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>
+PUBLIC	??D?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEBAAEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@1@XZ ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::operator*
+PUBLIC	??E?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEAAAEAV01@XZ ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::operator++
+PUBLIC	??8?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEBA_NAEBV01@@Z ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::operator==
+PUBLIC	??$get@$0A@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@YAAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@0@AEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@0@@Z ; std::get<0,std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>
+PUBLIC	??$get@$00$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@YAAEBQEAVInstance@@AEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@0@@Z ; std::get<1,std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>
 PUBLIC	??$_Emplace_one_at_back@AEBUVertex@@@?$vector@UVertex@@V?$allocator@UVertex@@@std@@@std@@AEAAAEAUVertex@@AEBU2@@Z ; std::vector<Vertex,std::allocator<Vertex> >::_Emplace_one_at_back<Vertex const &>
 PUBLIC	??$move@AEAV?$allocator@UVertex@@@std@@@std@@YA$$QEAV?$allocator@UVertex@@@0@AEAV10@@Z ; std::move<std::allocator<Vertex> &>
 PUBLIC	??$exchange@PEAUVertex@@$$T@std@@YAPEAUVertex@@AEAPEAU1@$$QEA$$T@Z ; std::exchange<Vertex *,std::nullptr_t>
@@ -262,6 +272,7 @@ PUBLIC	??_C@_0BA@JFNIOLAK@string?5too?5long@		; `string'
 PUBLIC	??_7Cube@@6B@					; Cube::`vftable'
 PUBLIC	??_C@_04CJLGPKHJ@Cube@				; `string'
 PUBLIC	??_C@_08LILHLMFO@ourColor@			; `string'
+PUBLIC	??_C@_05CCOIDDEK@Decal@				; `string'
 PUBLIC	??_C@_1BK@MHIKGOKE@?$AA?3?$AAA?$AAM?$AA?3?$AAa?$AAm?$AA?3?$AAP?$AAM?$AA?3?$AAp?$AAm@ ; `string'
 PUBLIC	??_C@_0BA@FOIKENOD@vector?5too?5long@		; `string'
 PUBLIC	??_R4exception@std@@6B@				; std::exception::`RTTI Complete Object Locator'
@@ -321,6 +332,7 @@ EXTRN	__imp_?_Getcvt@_Locinfo@std@@QEBA?AU_Cvtvec@@XZ:PROC
 EXTRN	__imp_?_W_Getdays@_Locinfo@std@@QEBAPEBGXZ:PROC
 EXTRN	__imp_?_W_Getmonths@_Locinfo@std@@QEBAPEBGXZ:PROC
 EXTRN	?setParent@Instance@@UEAAXPEAV1@@Z:PROC		; Instance::setParent
+EXTRN	?getChildren@Instance@@QEAAAEBV?$unordered_map@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@XZ:PROC ; Instance::getChildren
 EXTRN	?addChild@Instance@@UEAAXPEAV1@@Z:PROC		; Instance::addChild
 EXTRN	??0BaseCube@@QEAA@UVector3@@0@Z:PROC		; BaseCube::BaseCube
 EXTRN	??1BaseCube@@UEAA@XZ:PROC			; BaseCube::~BaseCube
@@ -477,14 +489,14 @@ $pdata$?dtor$0@?0??createCubeVertices@@YA?AV?$vector@UVertex@@V?$allocator@UVert
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$??0Cube@@QEAA@UVector3@@0I@Z DD imagerel $LN17
-	DD	imagerel $LN17+127
+$pdata$??0Cube@@QEAA@UVector3@@0I@Z DD imagerel $LN6
+	DD	imagerel $LN6+79
 	DD	imagerel $unwind$??0Cube@@QEAA@UVector3@@0I@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$?draw@Cube@@QEAAXHH@Z DD imagerel $LN29
-	DD	imagerel $LN29+472
+$pdata$?draw@Cube@@QEAAXHH@Z DD imagerel $LN188
+	DD	imagerel $LN188+738
 	DD	imagerel $unwind$?draw@Cube@@QEAAXHH@Z
 pdata	ENDS
 ;	COMDAT pdata
@@ -959,6 +971,10 @@ CONST	SEGMENT
 	DB	00H, 'A', 00H, 'M', 00H, ':', 00H, 'a', 00H, 'm', 00H, ':', 00H
 	DB	'P', 00H, 'M', 00H, ':', 00H, 'p', 00H, 'm', 00H, 00H, 00H ; `string'
 CONST	ENDS
+;	COMDAT ??_C@_05CCOIDDEK@Decal@
+CONST	SEGMENT
+??_C@_05CCOIDDEK@Decal@ DB 'Decal', 00H			; `string'
+CONST	ENDS
 ;	COMDAT ??_C@_08LILHLMFO@ourColor@
 CONST	SEGMENT
 ??_C@_08LILHLMFO@ourColor@ DB 'ourColor', 00H		; `string'
@@ -1269,14 +1285,19 @@ $unwind$?GetClassName@Cube@@UEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allo
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$unwind$?draw@Cube@@QEAAXHH@Z DD 020601H
-	DD	030025206H
+$unwind$?draw@Cube@@QEAAXHH@Z DD 0a2619H
+	DD	0193417H
+	DD	0f010f217H
+	DD	0d00ce00eH
+	DD	07008c00aH
+	DD	050066007H
+	DD	imagerel __GSHandlerCheck
+	DD	070H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$unwind$??0Cube@@QEAA@UVector3@@0I@Z DD 040a01H
-	DD	0a340aH
-	DD	07006720aH
+$unwind$??0Cube@@QEAA@UVector3@@0I@Z DD 020601H
+	DD	030027206H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
@@ -3129,6 +3150,89 @@ $LN2@Emplace_on:
 ??$_Emplace_one_at_back@AEBUVertex@@@?$vector@UVertex@@V?$allocator@UVertex@@@std@@@std@@AEAAAEAUVertex@@AEBU2@@Z ENDP ; std::vector<Vertex,std::allocator<Vertex> >::_Emplace_one_at_back<Vertex const &>
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ??$get@$00$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@YAAEBQEAVInstance@@AEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@0@@Z
+_TEXT	SEGMENT
+_Pr$ = 8
+??$get@$00$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@YAAEBQEAVInstance@@AEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@0@@Z PROC ; std::get<1,std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility
+; Line 709
+	lea	rax, QWORD PTR [rcx+32]
+; Line 711
+	ret	0
+??$get@$00$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@YAAEBQEAVInstance@@AEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@0@@Z ENDP ; std::get<1,std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$get@$0A@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@YAAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@0@AEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@0@@Z
+_TEXT	SEGMENT
+_Pr$ = 8
+??$get@$0A@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@YAAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@0@AEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@0@@Z PROC ; std::get<0,std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\utility
+; Line 707
+	mov	rax, rcx
+; Line 711
+	ret	0
+??$get@$0A@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@YAAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@0@AEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@0@@Z ENDP ; std::get<0,std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??8?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEBA_NAEBV01@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Right$ = 16
+??8?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEBA_NAEBV01@@Z PROC ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::operator==, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 72
+	mov	rax, QWORD PTR [rdx]
+	cmp	QWORD PTR [rcx], rax
+	sete	al
+; Line 73
+	ret	0
+??8?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEBA_NAEBV01@@Z ENDP ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::operator==
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??E?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEAAAEAV01@XZ
+_TEXT	SEGMENT
+this$ = 8
+??E?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEAAAEAV01@XZ PROC ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::operator++, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 50
+	mov	rax, QWORD PTR [rcx]
+	mov	rdx, QWORD PTR [rax]
+; Line 51
+	mov	rax, rcx
+	mov	QWORD PTR [rcx], rdx
+; Line 52
+	ret	0
+??E?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEAAAEAV01@XZ ENDP ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::operator++
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??D?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEBAAEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@1@XZ
+_TEXT	SEGMENT
+this$ = 8
+??D?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEBAAEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@1@XZ PROC ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::operator*, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 42
+	mov	rax, QWORD PTR [rcx]
+	add	rax, 16
+; Line 43
+	ret	0
+??D?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEBAAEBU?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@1@XZ ENDP ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::operator*
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??0?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEAA@PEAU?$_List_node@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@PEAX@1@PEBV?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@1@@Z
+_TEXT	SEGMENT
+this$ = 8
+_Pnode$ = 16
+_Plist$ = 24
+??0?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEAA@PEAU?$_List_node@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@PEAX@1@PEBV?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@1@@Z PROC ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 37
+	mov	QWORD PTR [rcx], rdx
+; Line 39
+	mov	rax, rcx
+	ret	0
+??0?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@std@@QEAA@PEAU?$_List_node@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@PEAX@1@PEBV?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@1@@Z ENDP ; std::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>::_List_unchecked_const_iterator<std::_List_val<std::_List_simple_types<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >,std::_Iterator_base0>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ??$?8DU?$char_traits@D@std@@V?$allocator@D@1@@std@@YA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@0@QEBD@Z
 _TEXT	SEGMENT
 _Left$ = 48
@@ -3779,7 +3883,7 @@ $LN14:
 	call	??1BaseCube@@UEAA@XZ			; BaseCube::~BaseCube
 	test	bl, 1
 	je	SHORT $LN10@scalar
-	mov	edx, 240				; 000000f0H
+	mov	edx, 216				; 000000d8H
 	mov	rcx, rdi
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN10@scalar:
@@ -3808,7 +3912,7 @@ this$ = 112
 className$ = 120
 ?IsA@Cube@@UEAA_NV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z PROC ; Cube::IsA, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 66
+; Line 64
 $LN43:
 	mov	QWORD PTR [rsp+24], rbx
 	push	rdi
@@ -3837,18 +3941,18 @@ $LN16@IsA:
 ; Line 681
 	cmp	DWORD PTR [rax], 1700951363		; 65627543H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 67
+; Line 65
 	jne	SHORT $LN2@IsA
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 1433
 	mov	rcx, rdi
 	call	?_Tidy_deallocate@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAXXZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Tidy_deallocate
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 68
+; Line 66
 	mov	al, 1
 	jmp	SHORT $LN1@IsA
 $LN2@IsA:
-; Line 70
+; Line 68
 	lea	rcx, QWORD PTR $T1[rsp]
 	call	??0?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@AEBV01@@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::basic_string<char,std::char_traits<char>,std::allocator<char> >
 	mov	rdx, rax
@@ -3860,10 +3964,10 @@ $LN2@IsA:
 	mov	rcx, rdi
 	call	?_Tidy_deallocate@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAXXZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Tidy_deallocate
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 70
+; Line 68
 	movzx	eax, bl
 $LN1@IsA:
-; Line 71
+; Line 69
 	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
 	xor	rcx, rsp
 	call	__security_check_cookie
@@ -3893,7 +3997,7 @@ this$ = 32
 __$ReturnUdt$ = 40
 ?GetClassName@Cube@@UEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ PROC ; Cube::GetClassName, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 62
+; Line 60
 $LN113:
 	sub	rsp, 24
 	xorps	xmm0, xmm0
@@ -3909,13 +4013,13 @@ $LN113:
 	mov	eax, DWORD PTR ??_C@_04CJLGPKHJ@Cube@
 	mov	DWORD PTR [rdx], eax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 63
+; Line 61
 	mov	rax, rdx
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 948
 	mov	BYTE PTR [rdx+4], 0
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 64
+; Line 62
 	add	rsp, 24
 	ret	0
 ?GetClassName@Cube@@UEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ENDP ; Cube::GetClassName
@@ -3923,25 +4027,38 @@ _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ?draw@Cube@@QEAAXHH@Z
 _TEXT	SEGMENT
-this$ = 64
-modelLoc$ = 72
-shaderProgram$ = 80
+$T1 = 48
+activeTextures$ = 88
+__$ArrayPad$ = 112
+this$ = 192
+modelLoc$ = 200
+shaderProgram$ = 208
 ?draw@Cube@@QEAAXHH@Z PROC				; Cube::draw, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 79
-$LN29:
-	push	rbx
-	sub	rsp, 48					; 00000030H
-; Line 82
+; Line 72
+$LN188:
+	mov	QWORD PTR [rsp+16], rbx
+	push	rbp
+	push	rsi
+	push	rdi
+	push	r12
+	push	r13
+	push	r14
+	push	r15
+	sub	rsp, 128				; 00000080H
+	mov	rax, QWORD PTR __security_cookie
+	xor	rax, rsp
+	mov	QWORD PTR __$ArrayPad$[rsp], rax
+; Line 73
 	mov	rax, QWORD PTR __glewGetUniformLocation
 	lea	rdx, OFFSET FLAT:??_C@_08LILHLMFO@ourColor@
 	mov	rbx, rcx
 	mov	ecx, r8d
 	call	rax
-; Line 83
+; Line 74
 	cmp	eax, -1
-	je	SHORT $LN5@draw
-; Line 84
+	je	SHORT $LN11@draw
+; Line 75
 	movss	xmm0, DWORD PTR [rbx+184]
 	mov	ecx, eax
 	movss	xmm3, DWORD PTR [rbx+180]
@@ -3949,106 +4066,181 @@ $LN29:
 	movss	xmm1, DWORD PTR [rbx+172]
 	movss	DWORD PTR [rsp+32], xmm0
 	call	QWORD PTR __glewUniform4f
+$LN11@draw:
+; Line 80
+	mov	esi, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+; Line 82
+	mov	rcx, rbx
+	mov	DWORD PTR activeTextures$[rsp], esi
+	mov	ebp, esi
+	mov	DWORD PTR activeTextures$[rsp+4], esi
+	mov	r14d, esi
+	mov	DWORD PTR activeTextures$[rsp+8], esi
+	mov	r15d, esi
+	mov	DWORD PTR activeTextures$[rsp+12], esi
+	mov	r12d, esi
+	mov	DWORD PTR activeTextures$[rsp+16], esi
+	mov	r13d, esi
+	mov	DWORD PTR activeTextures$[rsp+20], esi
+	call	?getChildren@Instance@@QEAAAEBV?$unordered_map@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@XZ ; Instance::getChildren
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 1125
+	mov	rdi, QWORD PTR [rax+8]
+; Line 37
+	mov	rbx, QWORD PTR [rdi]
+; Line 72
+	cmp	rbx, rdi
+; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
+; Line 82
+	je	$LN6@draw
+	npad	13
+$LL7@draw:
+; Line 83
+	mov	rcx, QWORD PTR [rbx+48]
+	lea	rdx, QWORD PTR $T1[rsp]
+	xorps	xmm0, xmm0
+	mov	rax, QWORD PTR [rcx]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
+; Line 493
+	movups	XMMWORD PTR $T1[rsp], xmm0
+; Line 940
+	mov	QWORD PTR $T1[rsp+16], 5
+; Line 941
+	mov	QWORD PTR $T1[rsp+24], 15
+; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
+; Line 83
+	mov	r8, QWORD PTR [rax+24]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
+; Line 200
+	mov	eax, DWORD PTR ??_C@_05CCOIDDEK@Decal@
+	mov	DWORD PTR $T1[rsp], eax
+	movzx	eax, BYTE PTR ??_C@_05CCOIDDEK@Decal@+4
+	mov	BYTE PTR $T1[rsp+4], al
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
+; Line 948
+	mov	BYTE PTR $T1[rsp+5], 0
+; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
+; Line 83
+	call	r8
+	test	al, al
+	je	SHORT $LN5@draw
+; Line 84
+	mov	rax, QWORD PTR [rbx+48]
+; Line 85
+	movsxd	rcx, DWORD PTR [rax+116]
+; Line 86
+	cmp	ecx, 5
+	ja	SHORT $LN5@draw
+; Line 87
+	mov	eax, DWORD PTR [rax+112]
+	mov	DWORD PTR activeTextures$[rsp+rcx*4], eax
 $LN5@draw:
-; Line 88
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 50
+	mov	rbx, QWORD PTR [rbx]
+; Line 72
+	cmp	rbx, rdi
+; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
+; Line 82
+	jne	SHORT $LL7@draw
+	mov	r13d, DWORD PTR activeTextures$[rsp+20]
+	mov	r12d, DWORD PTR activeTextures$[rsp+16]
+	mov	r15d, DWORD PTR activeTextures$[rsp+12]
+	mov	r14d, DWORD PTR activeTextures$[rsp+8]
+	mov	ebp, DWORD PTR activeTextures$[rsp+4]
+	mov	esi, DWORD PTR activeTextures$[rsp]
+$LN6@draw:
+; Line 93
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-; Line 89
-	mov	edx, DWORD PTR [rbx+216]
-; Line 91
+; Line 95
+	test	esi, esi
+; Line 96
 	mov	ecx, 3553				; 00000de1H
-	test	edx, edx
-	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	cmove	esi, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	mov	edx, esi
 	call	QWORD PTR __imp_glBindTexture
-; Line 92
+; Line 97
 	xor	r9d, r9d
 	mov	edx, 6
-	mov	r8d, 5125				; 00001405H
 	mov	ecx, 4
+	mov	r8d, 5125				; 00001405H
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+220]
+	test	ebp, ebp
 	mov	ecx, 3553				; 00000de1H
-	test	edx, edx
-	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	cmove	ebp, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	mov	edx, ebp
 	call	QWORD PTR __imp_glBindTexture
 	mov	edx, 6
+	mov	ecx, 4
 	mov	r9d, 24
 	mov	r8d, 5125				; 00001405H
-	mov	ecx, 4
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+224]
+	test	r14d, r14d
 	mov	ecx, 3553				; 00000de1H
-	test	edx, edx
-	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	cmove	r14d, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	mov	edx, r14d
 	call	QWORD PTR __imp_glBindTexture
 	mov	edx, 6
+	mov	ecx, 4
 	mov	r9d, 48					; 00000030H
 	mov	r8d, 5125				; 00001405H
-	mov	ecx, 4
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+228]
+	test	r15d, r15d
 	mov	ecx, 3553				; 00000de1H
-	test	edx, edx
-	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	cmove	r15d, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	mov	edx, r15d
 	call	QWORD PTR __imp_glBindTexture
 	mov	edx, 6
+	mov	ecx, 4
 	mov	r9d, 72					; 00000048H
 	mov	r8d, 5125				; 00001405H
-	mov	ecx, 4
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+232]
+	test	r12d, r12d
 	mov	ecx, 3553				; 00000de1H
-	test	edx, edx
-	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	cmove	r12d, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	mov	edx, r12d
 	call	QWORD PTR __imp_glBindTexture
 	mov	edx, 6
+	mov	ecx, 4
 	mov	r9d, 96					; 00000060H
 	mov	r8d, 5125				; 00001405H
-	mov	ecx, 4
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+236]
+	test	r13d, r13d
 	mov	ecx, 3553				; 00000de1H
-	test	edx, edx
-	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	cmove	r13d, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
+	mov	edx, r13d
 	call	QWORD PTR __imp_glBindTexture
 	mov	edx, 6
+	mov	ecx, 4
 	mov	r9d, 120				; 00000078H
 	mov	r8d, 5125				; 00001405H
-	mov	ecx, 4
-; Line 94
-	add	rsp, 48					; 00000030H
-	pop	rbx
-; Line 92
-	rex_jmp	QWORD PTR __imp_glDrawElements
-?draw@Cube@@QEAAXHH@Z ENDP				; Cube::draw
-_TEXT	ENDS
-; Function compile flags: /Ogtpy
-;	COMDAT ?setFaceTexture@Cube@@QEAAXHI@Z
-_TEXT	SEGMENT
-this$ = 8
-faceIdx$ = 16
-texID$ = 24
-?setFaceTexture@Cube@@QEAAXHI@Z PROC			; Cube::setFaceTexture, COMDAT
-; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 75
-	cmp	edx, 5
-	ja	SHORT $LN2@setFaceTex
-	movsxd	rax, edx
-	mov	DWORD PTR [rcx+rax*4+216], r8d
-$LN2@setFaceTex:
-; Line 76
+	call	QWORD PTR __imp_glDrawElements
+; Line 99
+	mov	rcx, QWORD PTR __$ArrayPad$[rsp]
+	xor	rcx, rsp
+	call	__security_check_cookie
+	mov	rbx, QWORD PTR [rsp+200]
+	add	rsp, 128				; 00000080H
+	pop	r15
+	pop	r14
+	pop	r13
+	pop	r12
+	pop	rdi
+	pop	rsi
+	pop	rbp
 	ret	0
-?setFaceTexture@Cube@@QEAAXHI@Z ENDP			; Cube::setFaceTexture
+?draw@Cube@@QEAAXHH@Z ENDP				; Cube::draw
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??0Cube@@QEAA@UVector3@@0I@Z
@@ -4062,18 +4254,16 @@ defaultTex$ = 104
 ??0Cube@@QEAA@UVector3@@0I@Z PROC			; Cube::Cube, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
 ; Line 56
-$LN17:
-	mov	QWORD PTR [rsp+8], rbx
-	push	rdi
+$LN6:
+	push	rbx
 	sub	rsp, 64					; 00000040H
 ; Line 55
 	movsd	xmm0, QWORD PTR [r8]
 ; Line 56
-	mov	edi, r9d
-	mov	eax, DWORD PTR [r8+8]
 	mov	rbx, rcx
-	movsd	QWORD PTR $T1[rsp], xmm0
+	mov	eax, DWORD PTR [r8+8]
 	lea	r8, QWORD PTR $T1[rsp]
+	movsd	QWORD PTR $T1[rsp], xmm0
 	movsd	xmm0, QWORD PTR [rdx]
 	mov	DWORD PTR $T1[rsp+8], eax
 	mov	eax, DWORD PTR [rdx+8]
@@ -4083,17 +4273,10 @@ $LN17:
 	call	??0BaseCube@@QEAA@UVector3@@0@Z		; BaseCube::BaseCube
 	lea	rax, OFFSET FLAT:??_7Cube@@6B@
 	mov	QWORD PTR [rbx], rax
-; Line 60
+; Line 58
 	mov	rax, rbx
-	mov	DWORD PTR [rbx+216], edi
-	mov	DWORD PTR [rbx+220], edi
-	mov	DWORD PTR [rbx+224], edi
-	mov	DWORD PTR [rbx+228], edi
-	mov	DWORD PTR [rbx+232], edi
-	mov	DWORD PTR [rbx+236], edi
-	mov	rbx, QWORD PTR [rsp+80]
 	add	rsp, 64					; 00000040H
-	pop	rdi
+	pop	rbx
 	ret	0
 ??0Cube@@QEAA@UVector3@@0I@Z ENDP			; Cube::Cube
 _TEXT	ENDS
@@ -4405,7 +4588,7 @@ this$ = 8
 ; Line 40
 	mov	QWORD PTR [rcx+16], rax
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Cube.hpp
-; Line 13
+; Line 14
 	mov	QWORD PTR [rcx+24], rax
 	mov	rax, rcx
 	ret	0
@@ -4534,6 +4717,82 @@ f$ = 8
 ; Line 229
 	ret	0
 ?FLoad@aos@physx@@YA?AT__m128@@M@Z ENDP			; physx::aos::FLoad
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Unchecked_end@?$_Hash@V?$_Umap_traits@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@V?$_Uhash_compare@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@$0A@@std@@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ
+_TEXT	SEGMENT
+this$ = 8
+__$ReturnUdt$ = 16
+?_Unchecked_end@?$_Hash@V?$_Umap_traits@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@V?$_Uhash_compare@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@$0A@@std@@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ PROC ; std::_Hash<std::_Umap_traits<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,Instance *,std::_Uhash_compare<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,std::hash<std::basic_string<char,std::char_traits<char>,std::allocator<char> > >,std::equal_to<std::basic_string<char,std::char_traits<char>,std::allocator<char> > > >,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> >,0> >::_Unchecked_end, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xhash
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 37
+	mov	rax, QWORD PTR [rcx+8]
+	mov	QWORD PTR [rdx], rax
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xhash
+; Line 819
+	mov	rax, rdx
+; Line 820
+	ret	0
+?_Unchecked_end@?$_Hash@V?$_Umap_traits@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@V?$_Uhash_compare@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@$0A@@std@@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ ENDP ; std::_Hash<std::_Umap_traits<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,Instance *,std::_Uhash_compare<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,std::hash<std::basic_string<char,std::char_traits<char>,std::allocator<char> > >,std::equal_to<std::basic_string<char,std::char_traits<char>,std::allocator<char> > > >,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> >,0> >::_Unchecked_end
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Unchecked_begin@?$_Hash@V?$_Umap_traits@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@V?$_Uhash_compare@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@$0A@@std@@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ
+_TEXT	SEGMENT
+this$ = 8
+__$ReturnUdt$ = 16
+?_Unchecked_begin@?$_Hash@V?$_Umap_traits@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@V?$_Uhash_compare@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@$0A@@std@@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ PROC ; std::_Hash<std::_Umap_traits<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,Instance *,std::_Uhash_compare<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,std::hash<std::basic_string<char,std::char_traits<char>,std::allocator<char> > >,std::equal_to<std::basic_string<char,std::char_traits<char>,std::allocator<char> > > >,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> >,0> >::_Unchecked_begin, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xhash
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 1125
+	mov	rax, QWORD PTR [rcx+8]
+; Line 37
+	mov	rcx, QWORD PTR [rax]
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xhash
+; Line 811
+	mov	rax, rdx
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 37
+	mov	QWORD PTR [rdx], rcx
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xhash
+; Line 812
+	ret	0
+?_Unchecked_begin@?$_Hash@V?$_Umap_traits@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@V?$_Uhash_compare@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@$0A@@std@@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ ENDP ; std::_Hash<std::_Umap_traits<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,Instance *,std::_Uhash_compare<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,std::hash<std::basic_string<char,std::char_traits<char>,std::allocator<char> > >,std::equal_to<std::basic_string<char,std::char_traits<char>,std::allocator<char> > > >,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> >,0> >::_Unchecked_begin
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Unchecked_end@?$list@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ
+_TEXT	SEGMENT
+this$ = 8
+__$ReturnUdt$ = 16
+?_Unchecked_end@?$list@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ PROC ; std::list<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >::_Unchecked_end, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 37
+	mov	rax, QWORD PTR [rcx]
+	mov	QWORD PTR [rdx], rax
+; Line 1133
+	mov	rax, rdx
+; Line 1134
+	ret	0
+?_Unchecked_end@?$list@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ ENDP ; std::list<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >::_Unchecked_end
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?_Unchecked_begin@?$list@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ
+_TEXT	SEGMENT
+this$ = 8
+__$ReturnUdt$ = 16
+?_Unchecked_begin@?$list@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ PROC ; std::list<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >::_Unchecked_begin, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\list
+; Line 1125
+	mov	rax, QWORD PTR [rcx]
+; Line 37
+	mov	rcx, QWORD PTR [rax]
+; Line 1125
+	mov	rax, rdx
+; Line 37
+	mov	QWORD PTR [rdx], rcx
+; Line 1126
+	ret	0
+?_Unchecked_begin@?$list@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ ENDP ; std::list<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >::_Unchecked_begin
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??$_Getvals@_W@?$time_get@_WV?$istreambuf_iterator@_WU?$char_traits@_W@std@@@std@@@std@@IEAAX_WAEBV_Locinfo@1@@Z
@@ -5638,6 +5897,17 @@ __formal$ = 24
 ??0_Fake_proxy_ptr_impl@std@@QEAA@AEBU_Fake_allocator@1@AEBU_Container_base0@1@@Z ENDP ; std::_Fake_proxy_ptr_impl::_Fake_proxy_ptr_impl
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ?_Adopt@_Iterator_base0@std@@QEAAXPEBX@Z
+_TEXT	SEGMENT
+this$ = 8
+__formal$ = 16
+?_Adopt@_Iterator_base0@std@@QEAAXPEBX@Z PROC		; std::_Iterator_base0::_Adopt, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xmemory
+; Line 1203
+	ret	0
+?_Adopt@_Iterator_base0@std@@QEAAXPEBX@Z ENDP		; std::_Iterator_base0::_Adopt
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ?_Alloc_proxy@_Container_base0@std@@QEAAXAEBU_Fake_allocator@2@@Z
 _TEXT	SEGMENT
 this$ = 8
@@ -6147,7 +6417,7 @@ __formal$ = 16
 __formal$ = 24
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 95
+; Line 100
 	ret	0
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -6158,7 +6428,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 95
+; Line 100
 	ret	0
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -6169,7 +6439,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAX_K@Z PROC		; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 95
+; Line 100
 	ret	0
 ?__empty_global_delete@@YAXPEAX_K@Z ENDP		; __empty_global_delete
 _TEXT	ENDS
@@ -6179,7 +6449,7 @@ _TEXT	SEGMENT
 __formal$ = 8
 ?__empty_global_delete@@YAXPEAX@Z PROC			; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Instances\Cube.cpp
-; Line 95
+; Line 100
 	ret	0
 ?__empty_global_delete@@YAXPEAX@Z ENDP			; __empty_global_delete
 _TEXT	ENDS

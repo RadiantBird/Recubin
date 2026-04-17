@@ -1,5 +1,6 @@
 #include "include/Core/LuauEngine.hpp"
 #include "include/Instances/Workspace.hpp"
+#include "include/Instances/Decal.hpp"
 #include <float.h>
 
 // DispatchTableの定義
@@ -45,6 +46,18 @@ void LuauEngine::InitDispatchTable() {
         lua_pushstring(L, cube->Color.toString().c_str());
         return 1;
     };
+
+    DispatchTable["Decal"]["TextureID"] = [](lua_State* L, Instance* obj) {
+        auto decal = static_cast<Decal*>(obj);
+        lua_pushnumber(L, decal->TextureID);
+        return 1;
+    };
+
+    DispatchTable["Decal"]["Face"] = [](lua_State* L, Instance* obj) {
+        auto decal = static_cast<Decal*>(obj);
+        lua_pushnumber(L, (int)decal->face);
+        return 1;
+    };
 }
 
 void LuauEngine::InitSetterTable() {
@@ -86,6 +99,18 @@ void LuauEngine::InitSetterTable() {
         } else {
             std::cerr << "Expected a Color4 userdata for Color\n";
         }
+        return 0;
+    };
+
+    SetterTable["Decal"]["TextureID"] = [](lua_State* L, Instance* obj) {
+        auto decal = static_cast<Decal*>(obj);
+        decal->TextureID = (unsigned int)luaL_checknumber(L, 3);
+        return 0;
+    };
+
+    SetterTable["Decal"]["Face"] = [](lua_State* L, Instance* obj) {
+        auto decal = static_cast<Decal*>(obj);
+        decal->face = (Face)(int)luaL_checknumber(L, 3);
         return 0;
     };
 }
