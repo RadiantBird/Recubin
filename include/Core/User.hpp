@@ -23,6 +23,8 @@ public:
     float rotationSpeed = 1.0f; // 回転の速さ
     float cameraDistance = 10.0f; // カメラの距離
     float zoomSpeed = 0.1f;
+    float walkCycle = 0.0f; // 歩行アニメーション用
+    Vector3 currentMoveDir; // 滑らかな移動・回転用
     camera current_camera;
     
     camera &cam;

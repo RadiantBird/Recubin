@@ -69,7 +69,7 @@ void LuauEngine::InitSetterTable() {
                 cube->actor->setGlobalPose(pose);
             }
 
-            // std::cout << "Setting Position of BaseCube to " << cube->Position.toString() << std::endl;
+            // std::cout << "Setting Position of BaseCube to " << cube->cframe.Position.toString() << std::endl;
         } else {
             std::cerr << "Expected a Vector3 userdata for Position\n";
         }

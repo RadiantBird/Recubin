@@ -1873,7 +1873,7 @@ pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
 $pdata$??R<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DD imagerel ??R<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
-	DD	imagerel ??R<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z+151
+	DD	imagerel ??R<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z+154
 	DD	imagerel $unwind$??R<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
 pdata	ENDS
 ;	COMDAT pdata
@@ -1909,7 +1909,7 @@ pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
 $pdata$??R<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DD imagerel ??R<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
-	DD	imagerel ??R<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z+203
+	DD	imagerel ??R<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z+209
 	DD	imagerel $unwind$??R<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z
 pdata	ENDS
 ;	COMDAT pdata
@@ -2323,7 +2323,7 @@ pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
 $pdata$?_Do_call@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
-	DD	imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+154
+	DD	imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+157
 	DD	imagerel $unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
 pdata	ENDS
 ;	COMDAT pdata
@@ -2341,7 +2341,7 @@ pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
 $pdata$?_Do_call@?$_Func_impl_no_alloc@V<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
-	DD	imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+203
+	DD	imagerel ?_Do_call@?$_Func_impl_no_alloc@V<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+209
 	DD	imagerel $unwind$?_Do_call@?$_Func_impl_no_alloc@V<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
 pdata	ENDS
 ;	COMDAT pdata
@@ -2491,7 +2491,7 @@ pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
 $pdata$??$invoke@AEAV<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ??$invoke@AEAV<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
-	DD	imagerel ??$invoke@AEAV<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+203
+	DD	imagerel ??$invoke@AEAV<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+209
 	DD	imagerel $unwind$??$invoke@AEAV<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_2>@?1??InitSetterTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
 pdata	ENDS
 ;	COMDAT pdata
@@ -2509,7 +2509,7 @@ pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
 $pdata$??$invoke@AEAV<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DD imagerel ??$invoke@AEAV<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
-	DD	imagerel ??$invoke@AEAV<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+154
+	DD	imagerel ??$invoke@AEAV<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z+157
 	DD	imagerel $unwind$??$invoke@AEAV<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z
 pdata	ENDS
 ;	COMDAT pdata
@@ -3729,7 +3729,7 @@ xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $ip2state$??$invoke@AEAV<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@PEAUlua_State@@PEAVInstance@@@std@@YAHAEAV<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DB 06H
-	DB	'H'
+	DB	'N'
 	DB	00H
 	DB	','
 	DB	02H
@@ -4082,7 +4082,7 @@ xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $ip2state$?_Do_call@?$_Func_impl_no_alloc@V<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@HPEAUlua_State@@PEAVInstance@@@std@@EEAAH$$QEAPEAUlua_State@@$$QEAPEAVInstance@@@Z DB 06H
-	DB	'H'
+	DB	'N'
 	DB	00H
 	DB	','
 	DB	02H
@@ -4833,7 +4833,7 @@ xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $ip2state$??R<lambda_3>@?1??InitDispatchTable@LuauEngine@@AEAAXXZ@QEBA@PEAUlua_State@@PEAVInstance@@@Z DB 06H
-	DB	'B'
+	DB	'H'
 	DB	00H
 	DB	','
 	DB	02H
@@ -8356,8 +8356,8 @@ _Arg1$ = 104
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 39
 	mov	rcx, QWORD PTR [r8]
-	add	rcx, 112				; 00000070H
 	lea	rdx, QWORD PTR $T1[rsp]
+	mov	rcx, QWORD PTR [rcx+152]
 	call	?toString@Vector3@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Vector3::toString
 	npad	1
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
@@ -8495,7 +8495,7 @@ _Arg1$ = 104
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 45
 	mov	rcx, QWORD PTR [r8]
-	add	rcx, 156				; 0000009cH
+	add	rcx, 172				; 000000acH
 	lea	rdx, QWORD PTR $T1[rsp]
 	call	?toString@Color4@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Color4::toString
 	npad	1
@@ -8752,14 +8752,15 @@ _Arg1$ = 88
 	mov	edx, 3
 	mov	rcx, rbx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-	mov	rbx, rax
 ; Line 63
+	mov	rdx, QWORD PTR [rdi+152]
+	mov	rbx, rax
 	movsd	xmm0, QWORD PTR [rax]
-	movsd	QWORD PTR [rdi+112], xmm0
+	movsd	QWORD PTR [rdx], xmm0
 	mov	ecx, DWORD PTR [rax+8]
-	mov	DWORD PTR [rdi+120], ecx
+	mov	DWORD PTR [rdx+8], ecx
 ; Line 66
-	mov	rcx, QWORD PTR [rdi+192]
+	mov	rcx, QWORD PTR [rdi+208]
 	test	rcx, rcx
 	je	SHORT $LN15@invoke
 ; Line 67
@@ -8772,7 +8773,7 @@ _Arg1$ = 88
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 69
 	lea	rdx, QWORD PTR pose$2[rsp]
-	mov	rcx, QWORD PTR [rdi+192]
+	mov	rcx, QWORD PTR [rdi+208]
 	mov	r8b, 1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 102
@@ -8881,7 +8882,7 @@ _Arg1$ = 56
 	xor	eax, eax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 84
-	movups	XMMWORD PTR [rdi+156], xmm0
+	movups	XMMWORD PTR [rdi+172], xmm0
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\type_traits
 ; Line 1708
 	mov	rbx, QWORD PTR [rsp+48]
@@ -10872,7 +10873,7 @@ this$ = 48
 	xor	eax, eax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 84
-	movups	XMMWORD PTR [rdi+156], xmm0
+	movups	XMMWORD PTR [rdi+172], xmm0
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\functional
 ; Line 887
 	mov	rbx, QWORD PTR [rsp+48]
@@ -11025,14 +11026,15 @@ this$ = 80
 	mov	edx, 3
 	mov	rcx, rbx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-	mov	rbx, rax
 ; Line 63
+	mov	rdx, QWORD PTR [rdi+152]
+	mov	rbx, rax
 	movsd	xmm0, QWORD PTR [rax]
-	movsd	QWORD PTR [rdi+112], xmm0
+	movsd	QWORD PTR [rdx], xmm0
 	mov	ecx, DWORD PTR [rax+8]
-	mov	DWORD PTR [rdi+120], ecx
+	mov	DWORD PTR [rdx+8], ecx
 ; Line 66
-	mov	rcx, QWORD PTR [rdi+192]
+	mov	rcx, QWORD PTR [rdi+208]
 	test	rcx, rcx
 	je	SHORT $LN17@Do_call
 ; Line 67
@@ -11045,7 +11047,7 @@ this$ = 80
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 69
 	lea	rdx, QWORD PTR pose$2[rsp]
-	mov	rcx, QWORD PTR [rdi+192]
+	mov	rcx, QWORD PTR [rdi+208]
 	mov	r8b, 1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 102
@@ -11381,7 +11383,7 @@ this$ = 96
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 45
 	mov	rcx, QWORD PTR [r8]
-	add	rcx, 156				; 0000009cH
+	add	rcx, 172				; 000000acH
 	lea	rdx, QWORD PTR $T1[rsp]
 	call	?toString@Color4@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Color4::toString
 	npad	1
@@ -11585,8 +11587,8 @@ this$ = 96
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 39
 	mov	rcx, QWORD PTR [r8]
-	add	rcx, 112				; 00000070H
 	lea	rdx, QWORD PTR $T1[rsp]
+	mov	rcx, QWORD PTR [rcx+152]
 	call	?toString@Vector3@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Vector3::toString
 	npad	1
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
@@ -15766,18 +15768,18 @@ $LN21@:
 	mulss	xmm0, xmm7
 	mulss	xmm1, xmm8
 	mulss	xmm2, xmm6
-; Line 37
-	movss	DWORD PTR $T1[rsp], xmm0
-; Line 38
-	movss	DWORD PTR $T1[rsp+4], xmm1
 ; Line 39
+	movss	DWORD PTR $T1[rsp], xmm0
+; Line 40
+	movss	DWORD PTR $T1[rsp+4], xmm1
+; Line 41
 	movss	DWORD PTR $T1[rsp+8], xmm2
 ; Line 20
 	jmp	SHORT $LN8@
 $LN7@:
-; Line 37
-	mov	QWORD PTR $T2[rsp], 0
 ; Line 39
+	mov	QWORD PTR $T2[rsp], 0
+; Line 41
 	mov	DWORD PTR $T2[rsp+8], 0
 $LN8@:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
@@ -15867,18 +15869,18 @@ $LN19@operator:
 	mulss	xmm0, xmm7
 	mulss	xmm1, xmm8
 	mulss	xmm2, xmm6
-; Line 37
-	movss	DWORD PTR $T1[rsp], xmm0
-; Line 38
-	movss	DWORD PTR $T1[rsp+4], xmm1
 ; Line 39
+	movss	DWORD PTR $T1[rsp], xmm0
+; Line 40
+	movss	DWORD PTR $T1[rsp+4], xmm1
+; Line 41
 	movss	DWORD PTR $T1[rsp+8], xmm2
 ; Line 20
 	jmp	SHORT $LN6@operator
 $LN5@operator:
-; Line 37
-	mov	QWORD PTR $T2[rsp], 0
 ; Line 39
+	mov	QWORD PTR $T2[rsp], 0
+; Line 41
 	mov	DWORD PTR $T2[rsp+8], 0
 $LN6@operator:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
@@ -16933,7 +16935,7 @@ obj$ = 64
 	movups	xmm0, XMMWORD PTR [rax]
 ; Line 90
 	xor	eax, eax
-	movups	XMMWORD PTR [rdi+156], xmm0
+	movups	XMMWORD PTR [rdi+172], xmm0
 	mov	rbx, QWORD PTR [rsp+48]
 	add	rsp, 32					; 00000020H
 	pop	rdi
@@ -17035,10 +17037,10 @@ obj$ = 96
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 64					; 00000040H
-	mov	rdi, rdx
-	mov	rbx, r8
+	mov	rbx, rdx
+	mov	rdi, r8
 ; Line 61
-	mov	rcx, rdi
+	mov	rcx, rbx
 	mov	edx, 3
 	call	?lua_isuserdata@@YAHPEAUlua_State@@H@Z	; lua_isuserdata
 	test	eax, eax
@@ -17046,16 +17048,17 @@ obj$ = 96
 ; Line 62
 	lea	r8, OFFSET FLAT:??_C@_0N@HFLCNLHO@RCBN_Vector3@
 	mov	edx, 3
-	mov	rcx, rdi
+	mov	rcx, rbx
 	call	?luaL_checkudata@@YAPEAXPEAUlua_State@@HPEBD@Z ; luaL_checkudata
-	mov	rdi, rax
 ; Line 63
+	mov	rdx, QWORD PTR [rdi+152]
+	mov	rbx, rax
 	movsd	xmm0, QWORD PTR [rax]
-	movsd	QWORD PTR [rbx+112], xmm0
+	movsd	QWORD PTR [rdx], xmm0
 	mov	ecx, DWORD PTR [rax+8]
-	mov	DWORD PTR [rbx+120], ecx
+	mov	DWORD PTR [rdx+8], ecx
 ; Line 66
-	mov	rcx, QWORD PTR [rbx+192]
+	mov	rcx, QWORD PTR [rdi+208]
 	test	rcx, rcx
 	je	SHORT $LN13@operator
 ; Line 67
@@ -17064,18 +17067,18 @@ obj$ = 96
 	call	QWORD PTR [r8+168]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 101
-	movss	xmm0, DWORD PTR [rdi]
+	movss	xmm0, DWORD PTR [rbx]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 69
 	lea	rdx, QWORD PTR pose$2[rsp]
-	mov	rcx, QWORD PTR [rbx+192]
+	mov	rcx, QWORD PTR [rdi+208]
 	mov	r8b, 1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 102
-	movss	xmm1, DWORD PTR [rdi+4]
+	movss	xmm1, DWORD PTR [rbx+4]
 	movss	DWORD PTR pose$2[rsp+16], xmm0
 ; Line 103
-	movss	xmm0, DWORD PTR [rdi+8]
+	movss	xmm0, DWORD PTR [rbx+8]
 	movss	DWORD PTR pose$2[rsp+24], xmm0
 	movss	DWORD PTR pose$2[rsp+20], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
@@ -17330,7 +17333,7 @@ obj$ = 112
 	mov	QWORD PTR __$ArrayPad$[rsp], rax
 	mov	rbx, rdx
 ; Line 45
-	lea	rcx, QWORD PTR [r8+156]
+	lea	rcx, QWORD PTR [r8+172]
 	lea	rdx, QWORD PTR $T1[rsp]
 	call	?toString@Color4@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Color4::toString
 	npad	1
@@ -17499,8 +17502,8 @@ obj$ = 112
 	mov	QWORD PTR __$ArrayPad$[rsp], rax
 	mov	rbx, rdx
 ; Line 39
-	lea	rcx, QWORD PTR [r8+112]
 	lea	rdx, QWORD PTR $T1[rsp]
+	mov	rcx, QWORD PTR [r8+152]
 	call	?toString@Vector3@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Vector3::toString
 	npad	1
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
@@ -29529,7 +29532,7 @@ this$ = 304
 __$ReturnUdt$ = 312
 ?toString@Vector3@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ PROC ; Vector3::toString, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 42
+; Line 44
 $LN390:
 	mov	rax, rsp
 	mov	QWORD PTR [rax+24], rbx
@@ -29918,9 +29921,9 @@ $LN352@toString:
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN344@toString:
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 43
+; Line 45
 	mov	rax, rsi
-; Line 44
+; Line 46
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
@@ -30065,9 +30068,9 @@ y$ = 24
 z$ = 32
 ??0Vector3@@QEAA@MMM@Z PROC				; Vector3::Vector3, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 37
+; Line 39
 	movss	DWORD PTR [rcx], xmm1
-; Line 40
+; Line 42
 	mov	rax, rcx
 	movss	DWORD PTR [rcx+4], xmm2
 	movss	DWORD PTR [rcx+8], xmm3
@@ -30129,18 +30132,18 @@ $LN17@normalize:
 	mulss	xmm0, xmm7
 	mulss	xmm1, xmm8
 	mulss	xmm2, xmm6
-; Line 37
-	movss	DWORD PTR $T1[rsp], xmm0
-; Line 38
-	movss	DWORD PTR $T1[rsp+4], xmm1
 ; Line 39
+	movss	DWORD PTR $T1[rsp], xmm0
+; Line 40
+	movss	DWORD PTR $T1[rsp+4], xmm1
+; Line 41
 	movss	DWORD PTR $T1[rsp+8], xmm2
 ; Line 20
 	jmp	SHORT $LN4@normalize
 $LN3@normalize:
-; Line 37
-	mov	QWORD PTR $T2[rsp], 0
 ; Line 39
+	mov	QWORD PTR $T2[rsp], 0
+; Line 41
 	mov	DWORD PTR $T2[rsp+8], 0
 $LN4@normalize:
 ; Line 20
@@ -30205,11 +30208,11 @@ s$ = 24
 	mov	rax, rdx
 	mulss	xmm1, DWORD PTR [rcx+4]
 	mulss	xmm2, DWORD PTR [rcx+8]
-; Line 37
-	movss	DWORD PTR [rdx], xmm0
-; Line 38
-	movss	DWORD PTR [rdx+4], xmm1
 ; Line 39
+	movss	DWORD PTR [rdx], xmm0
+; Line 40
+	movss	DWORD PTR [rdx+4], xmm1
+; Line 41
 	movss	DWORD PTR [rdx+8], xmm2
 ; Line 12
 	ret	0

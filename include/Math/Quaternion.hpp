@@ -71,4 +71,23 @@ struct Quaternion {
     Vector3 getForward() const {
         return Vector3(-2.0f * (x * z + y * w), -2.0f * (y * z - x * w), -(1.0f - 2.0f * (x * x + y * y))).normalize();
     }
+
+    static Quaternion Slerp(const Quaternion& a, const Quaternion& b, float t) {
+        float dot = a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z;
+        Quaternion targetB = b;
+        if (dot < 0.0f) {
+            dot = -dot;
+            targetB = Quaternion(-b.w, -b.x, -b.y, -b.z);
+        }
+        if (dot > 0.9995f) {
+            return Quaternion(a.w + t * (targetB.w - a.w), a.x + t * (targetB.x - a.x), a.y + t * (targetB.y - a.y), a.z + t * (targetB.z - a.z));
+        }
+        float theta_0 = std::acos(dot);
+        float theta = theta_0 * t;
+        float sin_theta = std::sin(theta);
+        float sin_theta_0 = std::sin(theta_0);
+        float s0 = std::cos(theta) - dot * sin_theta / sin_theta_0;
+        float s1 = sin_theta / sin_theta_0;
+        return Quaternion((s0 * a.w) + (s1 * targetB.w), (s0 * a.x) + (s1 * targetB.x), (s0 * a.y) + (s1 * targetB.y), (s0 * a.z) + (s1 * targetB.z));
+    }
 };

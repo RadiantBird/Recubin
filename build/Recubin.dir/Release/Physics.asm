@@ -4019,7 +4019,7 @@ $LN116:
 	mov	rdi, rdx
 	mov	rbx, rcx
 ; Line 47
-	lea	rsi, QWORD PTR [rdx+192]
+	lea	rsi, QWORD PTR [rdx+208]
 	mov	QWORD PTR tv513[rsp], rsi
 	mov	rdx, QWORD PTR [rsi]
 	test	rdx, rdx
@@ -4176,14 +4176,14 @@ $LN48:
 	push	rdi
 	sub	rsp, 112				; 00000070H
 ; Line 19
-	movss	xmm0, DWORD PTR [rdx+124]
+	movss	xmm0, DWORD PTR [rdx+140]
 	mov	rbp, rcx
 	movss	xmm2, DWORD PTR __real@3f000000
 	mov	rdi, rdx
-	movss	xmm1, DWORD PTR [rdx+132]
+	movss	xmm1, DWORD PTR [rdx+148]
 ; Line 28
 	mov	rcx, QWORD PTR [rcx+8]
-	cmp	BYTE PTR [rdx+152], 0
+	cmp	BYTE PTR [rdx+168], 0
 	mulss	xmm0, xmm2
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\geometry\PxGeometry.h
 ; Line 93
@@ -4196,22 +4196,22 @@ $LN48:
 	movss	DWORD PTR [rax-80], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
 ; Line 19
-	movss	xmm0, DWORD PTR [rdx+128]
+	movss	xmm0, DWORD PTR [rdx+144]
 	mulss	xmm0, xmm2
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
 	movss	DWORD PTR [rax-72], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
-	movss	xmm1, DWORD PTR [rdx+144]
+	movss	xmm1, DWORD PTR [rdx+132]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
 	movss	DWORD PTR [rax-76], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
-	movss	xmm0, DWORD PTR [rdx+140]
+	movss	xmm0, DWORD PTR [rdx+128]
 	movss	DWORD PTR [rax-64], xmm0
-	movss	xmm0, DWORD PTR [rdx+148]
+	movss	xmm0, DWORD PTR [rdx+136]
 	movss	DWORD PTR [rax-56], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
@@ -4219,7 +4219,7 @@ $LN48:
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
 	movss	DWORD PTR [rax-60], xmm1
-	movss	xmm1, DWORD PTR [rdx+136]
+	movss	xmm1, DWORD PTR [rdx+124]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
 	movss	DWORD PTR [rax-48], xmm0
@@ -4254,7 +4254,7 @@ $LN2@createActo:
 	lea	rdx, QWORD PTR $T3[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
 ; Line 171
-	movzx	eax, BYTE PTR [rdi+184]
+	movzx	eax, BYTE PTR [rdi+200]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
 ; Line 32
 	mov	rcx, rbx
@@ -4309,7 +4309,7 @@ $LN41@createActo:
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+216]
 ; Line 40
-	mov	QWORD PTR [rdi+192], rbx
+	mov	QWORD PTR [rdi+208], rbx
 ; Line 41
 	mov	rbx, QWORD PTR [rsp+160]
 	add	rsp, 112				; 00000070H
@@ -4433,7 +4433,7 @@ $LL4@update:
 ; Line 95
 	mov	rdi, QWORD PTR [rbx]
 ; Line 97
-	mov	rdx, QWORD PTR [rdi+192]
+	mov	rdx, QWORD PTR [rdi+208]
 	test	rdx, rdx
 	je	SHORT $LN17@update
 	cmp	QWORD PTR [rdi+40], r14
@@ -4450,11 +4450,11 @@ $LN283@update:
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+240]
 ; Line 100
-	mov	rcx, QWORD PTR [rdi+192]
+	mov	rcx, QWORD PTR [rdi+208]
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax]
 ; Line 101
-	mov	QWORD PTR [rdi+192], r14
+	mov	QWORD PTR [rdi+208], r14
 $LN17@update:
 ; Line 103
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
@@ -4543,10 +4543,10 @@ $LL8@update:
 	test	al, al
 	je	$LN6@update
 ; Line 28
-	cmp	BYTE PTR [rbx+152], 0
+	cmp	BYTE PTR [rbx+168], 0
 	lea	rdx, QWORD PTR transform$4[rbp-153]
-	movss	xmm0, DWORD PTR [rbx+124]
-	movss	xmm1, DWORD PTR [rbx+128]
+	movss	xmm0, DWORD PTR [rbx+140]
+	movss	xmm1, DWORD PTR [rbx+144]
 	mov	rcx, QWORD PTR [r13+8]
 	mulss	xmm0, xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\geometry\PxGeometry.h
@@ -4560,22 +4560,22 @@ $LL8@update:
 	movss	DWORD PTR geometry$3[rbp-145], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
 ; Line 19
-	movss	xmm0, DWORD PTR [rbx+132]
+	movss	xmm0, DWORD PTR [rbx+148]
 	mulss	xmm0, xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
 	movss	DWORD PTR geometry$3[rbp-141], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
-	movss	xmm1, DWORD PTR [rbx+144]
+	movss	xmm1, DWORD PTR [rbx+132]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
 	movss	DWORD PTR geometry$3[rbp-137], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
-	movss	xmm0, DWORD PTR [rbx+140]
+	movss	xmm0, DWORD PTR [rbx+128]
 	movss	DWORD PTR transform$4[rbp-153], xmm0
-	movss	xmm0, DWORD PTR [rbx+148]
+	movss	xmm0, DWORD PTR [rbx+136]
 	movss	DWORD PTR transform$4[rbp-145], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
@@ -4583,7 +4583,7 @@ $LL8@update:
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
 	movss	DWORD PTR transform$4[rbp-149], xmm1
-	movss	xmm1, DWORD PTR [rbx+136]
+	movss	xmm1, DWORD PTR [rbx+124]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
 	movss	DWORD PTR transform$4[rbp-137], xmm0
@@ -4613,7 +4613,7 @@ $LN157@update:
 	lea	rdx, QWORD PTR $T7[rbp-153]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
 ; Line 171
-	movzx	eax, BYTE PTR [rbx+184]
+	movzx	eax, BYTE PTR [rbx+200]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
 ; Line 32
 	mov	rcx, rdi
@@ -4668,7 +4668,7 @@ $LN196@update:
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+216]
 ; Line 40
-	mov	QWORD PTR [rbx+192], rdi
+	mov	QWORD PTR [rbx+208], rdi
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
 ; Line 844
 	mov	rdx, QWORD PTR [rsi+8]

@@ -4,28 +4,23 @@
 #include "Matrix4.hpp"
 
 struct CFrame {
-    Vector3 position;
-    Quaternion rotation;
+    Vector3 Position;
+    Quaternion Rotation;
 
-    CFrame() : position(0, 0, 0), rotation() {}
-    CFrame(const Vector3& pos, const Quaternion& rot) : position(pos), rotation(rot) {}
-    CFrame(const Vector3& pos) : position(pos), rotation() {}
+    CFrame() : Position(0, 0, 0), Rotation() {}
+    CFrame(const Vector3& pos, const Quaternion& rot) : Position(pos), Rotation(rot) {}
+    CFrame(const Vector3& pos) : Position(pos), Rotation() {}
+    CFrame(float x, float y, float z) : Position(x, y, z), Rotation() {}
+
+    static CFrame fromAxisAngle(Vector3 axis, float angle) {
+        return CFrame(Vector3(0,0,0), Quaternion::fromAxisAngle(axis, angle));
+    }
 
     // --- 変換関数セット ---
 
-    // CFrameからVector3にする関数
-    Vector3 toVector3() const {
-        return position;
-    }
-
-    // CFrameからQuaternionにする関数
-    Quaternion toQuaternion() const {
-        return rotation;
-    }
-
     Matrix4 toMatrix4() const {
-        Matrix4 rotMat = Matrix4::FromQuaternion(rotation);
-        Matrix4 transMat = Matrix4::Translate(position.x, position.y, position.z);
+        Matrix4 rotMat = Matrix4::FromQuaternion(Rotation);
+        Matrix4 transMat = Matrix4::Translate(Position.x, Position.y, Position.z);
         return transMat * rotMat;
     }
 
@@ -41,12 +36,12 @@ struct CFrame {
 
     CFrame operator*(const CFrame& other) const {
         return CFrame(
-            position + rotation.rotate(other.position),
-            rotation * other.rotation
+            Position + Rotation.rotate(other.Position),
+            Rotation * other.Rotation
         );
     }
 
     Vector3 pointToWorld(const Vector3& localPoint) const {
-        return position + rotation.rotate(localPoint);
+        return Position + Rotation.rotate(localPoint);
     }
 };

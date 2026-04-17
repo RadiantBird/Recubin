@@ -7,7 +7,8 @@ User::User(GLFWwindow* win)
       cpos(current_camera.Position),
       forward(0, 0, -1), 
       right(1, 0, 0), 
-      up(0, 1, 0) 
+      up(0, 1, 0),
+      currentMoveDir(0, 0, 0)
 {
     updateVectors();
 }
@@ -45,36 +46,50 @@ void User::processInput() {
     else if (ControlMode::Character == controlMode && character && root) {
         // キャラクターモードの入力処理：物理エンジンを使用して移動
         if (root->actor) {
-            // 物理エンジンのダイナミックアクターに速度を設定
             physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
             if (dynamicActor) {
-                Vector3 velocity(0, 0, 0);
-                
-                // 水平移動速度の計算
-                if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-                    velocity = velocity + forward * walkPower;
+                Vector3 targetMoveDir(0, 0, 0);
+                bool isPressingMove = false;
+
+                // 水平方向の移動ベクトル（カメラ基準）
+                Vector3 flatForward = Vector3(forward.x, 0, forward.z).normalize();
+                Vector3 flatRight = Vector3(right.x, 0, right.z).normalize();
+
+                if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) { targetMoveDir = targetMoveDir + flatForward; isPressingMove = true; }
+                if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) { targetMoveDir = targetMoveDir - flatForward; isPressingMove = true; }
+                if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) { targetMoveDir = targetMoveDir - flatRight; isPressingMove = true; }
+                if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) { targetMoveDir = targetMoveDir + flatRight; isPressingMove = true; }
+
+                if (isPressingMove) targetMoveDir = targetMoveDir.normalize();
+
+                // 目標ベクトルを約0.25秒で移動させる（60fpsなら factor 0.15程度）
+                currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * 0.15f;
+
+                if (currentMoveDir.length() > 0.01f) {
+                    Vector3 velocity = currentMoveDir * walkPower;
+                    
+                    // 進行方向への目標回転を計算
+                    float targetAnglePos = atan2(currentMoveDir.x, currentMoveDir.z) * 180.0f / 3.14159265f;
+                    Quaternion targetRot = Quaternion::fromAxisAngle(Vector3(0, 1, 0), targetAnglePos);
+                    
+                    // Slerpでさらに滑らかに回転
+                    root->Rotation = Quaternion::Slerp(root->Rotation, targetRot, 0.2f);
+
+                    // 入力が続いているときだけアニメーションを進める
+                    if (isPressingMove) {
+                        walkCycle += 0.15f;
+                    }
+                    
+                    physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
+                    dynamicActor->setLinearVelocity(physx::PxVec3(velocity.x, currentVel.y, velocity.z));
+                } else {
+                    // 完全に止まったとき
+                    physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
+                    dynamicActor->setLinearVelocity(physx::PxVec3(0, currentVel.y, 0));
                 }
-                if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-                    velocity = velocity - forward * walkPower;
-                }
-                if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-                    velocity = velocity - right * walkPower;
-                }
-                if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-                    velocity = velocity + right * walkPower;
-                }
-                
-                // 現在の垂直速度を保持（重力の影響を保つ）
-                physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
-                velocity.y = currentVel.y;
-                
-                // 新しい速度を設定
-                dynamicActor->setLinearVelocity(
-                    physx::PxVec3(velocity.x, velocity.y, velocity.z)
-                );
             }
             
-            // カメラ位置もキャラクター位置に追従（向きと距離に基づいて計算）
+            // カメラ位置もキャラクター位置に追従
             cpos = root->Position + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
         }
     }
@@ -82,7 +97,6 @@ void User::processInput() {
     bool rotated = false;
 
     if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-        // Y軸（ワールドの上方向）を中心に回転
         cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), rotationSpeed) * cam.Orientation;
         rotated = true;
     }
@@ -91,7 +105,6 @@ void User::processInput() {
         rotated = true;
     }
     if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-        // X軸（カメラから見て右方向）を中心に回転
         cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), rotationSpeed);
         rotated = true;
     }
@@ -108,26 +121,28 @@ void User::processInput() {
         cameraDistance += zoomSpeed; // ズームアウト
     }
     
-    // 常に同期（rootの回転に合わせてオフセットも回転させる）
+    // CFrameによる極めてシンプルな同期
     if (head) {
-        head->Position = root->Position + root->Rotation.rotate(Vector3(0, 1.25f, 0));
-        head->Rotation = root->Rotation;
+        head->cframe = root->cframe * CFrame(0, 1.25f, 0);
     }
+
+    float swingAngle = sin(walkCycle) * 35.0f;
+
     if (leftArm) {
-        leftArm->Position = root->Position + root->Rotation.rotate(Vector3(-0.75f, 0, 0));
-        leftArm->Rotation = root->Rotation;
+        CFrame jointCF = root->cframe * CFrame(-0.75f, 0.75f, 0);
+        leftArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), swingAngle) * CFrame(0, -0.75f, 0);
     }
     if (rightArm) {
-        rightArm->Position = root->Position + root->Rotation.rotate(Vector3(0.75f, 0, 0));
-        rightArm->Rotation = root->Rotation;
+        CFrame jointCF = root->cframe * CFrame(0.75f, 0.75f, 0);
+        rightArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), -swingAngle) * CFrame(0, -0.75f, 0);
     }
     if (leftLeg) {
-        leftLeg->Position = root->Position + root->Rotation.rotate(Vector3(-0.25f, -1.5f, 0));
-        leftLeg->Rotation = root->Rotation;
+        CFrame jointCF = root->cframe * CFrame(-0.35f, -0.75f, 0);
+        leftLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), -swingAngle) * CFrame(0, -0.75f, 0);
     }
     if (rightLeg) {
-        rightLeg->Position = root->Position + root->Rotation.rotate(Vector3(0.25f, -1.5f, 0));
-        rightLeg->Rotation = root->Rotation;
+        CFrame jointCF = root->cframe * CFrame(0.35f, -0.75f, 0);
+        rightLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), swingAngle) * CFrame(0, -0.75f, 0);
     }
     
     // 回転があった場合のみベクトルを更新

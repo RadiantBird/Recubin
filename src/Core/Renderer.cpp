@@ -192,13 +192,8 @@ void Renderer::render(User &user, GLFWwindow* window, Workspace &workspace) {
         if (inst->IsA("Cube")) {
             Cube* cube = static_cast<Cube*>(inst);
             
-            // 各オブジェクトの座標、回転、サイズをそのままワールド行列として扱う
-            Matrix4 scale = Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
-            Matrix4 rotation = Matrix4::FromQuaternion(cube->Rotation);
-            Matrix4 translation = Matrix4::Translate(cube->Position.x, cube->Position.y, cube->Position.z);
-            
-            // T * R * S
-            Matrix4 modelMat = translation * rotation * scale;
+            // CFrameから行列を取得し、サイズ（Scale）を適用
+            Matrix4 modelMat = cube->cframe.toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
             
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
             

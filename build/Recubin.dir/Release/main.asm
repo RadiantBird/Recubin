@@ -1426,7 +1426,7 @@ $stateUnwindMap$main DB 01aH
 	DB	0b0H
 	DB	032H
 	DD	imagerel ??1Workspace@@UEAA@XZ
-	DB	01H
+	DB	041H
 	DB	07H
 	DB	03eH
 	DD	imagerel main$dtor$5
@@ -1438,7 +1438,7 @@ $stateUnwindMap$main DB 01aH
 	DD	imagerel main$dtor$8
 	DB	0daH
 	DD	imagerel ??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ
-	DB	081H
+	DB	0c1H
 	DB	06H
 	DB	02dH
 	DB	02H
@@ -1456,17 +1456,17 @@ xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $unwind$main DD	0103b19H
-	DD	028882aH
-	DD	0297825H
-	DD	02a6821H
-	DD	057011dH
+	DD	029882aH
+	DD	02a7825H
+	DD	02b6821H
+	DD	059011dH
 	DD	0e00df00fH
 	DD	0c009d00bH
 	DD	060067007H
 	DD	050043005H
 	DD	imagerel __GSHandlerCheck_EH4
 	DD	imagerel $cppxdata$main
-	DD	0272H
+	DD	0282H
 xdata	ENDS
 ;	COMDAT voltbl
 voltbl	SEGMENT
@@ -3007,10 +3007,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main	PROC						; COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 54
@@ -3024,8 +3024,8 @@ $LN508:
 	push	r13
 	push	r14
 	push	r15
-	lea	rbp, QWORD PTR [rax-504]
-	sub	rsp, 696				; 000002b8H
+	lea	rbp, QWORD PTR [rax-520]
+	sub	rsp, 712				; 000002c8H
 	movaps	XMMWORD PTR [rax-88], xmm6
 	movaps	XMMWORD PTR [rax-104], xmm7
 	movaps	XMMWORD PTR [rax-120], xmm8
@@ -3180,7 +3180,7 @@ $LN4@main:
 	lea	rax, QWORD PTR physicsEngine$[rbp-256]
 	mov	QWORD PTR workspace$[rbp-144], rax
 ; Line 84
-	mov	ecx, 224				; 000000e0H
+	mov	ecx, 240				; 000000f0H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T26[rsp], rax
 	test	rax, rax
@@ -3207,15 +3207,15 @@ $LN7@main:
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 86
 	xor	eax, eax
-	mov	QWORD PTR [rbx+156], rax
-	mov	DWORD PTR [rbx+164], 1065353216		; 3f800000H
-	mov	DWORD PTR [rbx+168], 1065353216		; 3f800000H
+	mov	QWORD PTR [rbx+172], rax
+	mov	DWORD PTR [rbx+180], 1065353216		; 3f800000H
+	mov	DWORD PTR [rbx+184], 1065353216		; 3f800000H
 ; Line 87
 	mov	rdx, rbx
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
 ; Line 90
-	mov	ecx, 224				; 000000e0H
+	mov	ecx, 240				; 000000f0H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T27[rsp], rax
 	test	rax, rax
@@ -3244,16 +3244,16 @@ $LN10@main:
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 92
-	mov	QWORD PTR [rbx+156], 1065353216		; 3f800000H
+	mov	QWORD PTR [rbx+172], 1065353216		; 3f800000H
 	xor	eax, eax
-	mov	DWORD PTR [rbx+164], eax
-	mov	DWORD PTR [rbx+168], 1065353216		; 3f800000H
+	mov	DWORD PTR [rbx+180], eax
+	mov	DWORD PTR [rbx+184], 1065353216		; 3f800000H
 ; Line 93
 	mov	rdx, rbx
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
 ; Line 96
-	mov	ecx, 224				; 000000e0H
+	mov	ecx, 240				; 000000f0H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T28[rsp], rax
 	test	rax, rax
@@ -3284,15 +3284,15 @@ $LN12@main:
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 98
 	xor	eax, eax
-	mov	DWORD PTR [rbx+156], eax
-	mov	QWORD PTR [rbx+160], 1065353216		; 3f800000H
-	mov	DWORD PTR [rbx+168], 1065353216		; 3f800000H
+	mov	DWORD PTR [rbx+172], eax
+	mov	QWORD PTR [rbx+176], 1065353216		; 3f800000H
+	mov	DWORD PTR [rbx+184], 1065353216		; 3f800000H
 ; Line 99
 	mov	rdx, rbx
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
 ; Line 102
-	mov	ecx, 224				; 000000e0H
+	mov	ecx, 240				; 000000f0H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T29[rsp], rax
 	test	rax, rax
@@ -3321,10 +3321,10 @@ $LN14@main:
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 104
-	mov	DWORD PTR [rbx+156], 1065353216		; 3f800000H
-	mov	DWORD PTR [rbx+160], 1065353216		; 3f800000H
-	mov	DWORD PTR [rbx+164], 1065353216		; 3f800000H
-	mov	DWORD PTR [rbx+168], 1065353216		; 3f800000H
+	mov	DWORD PTR [rbx+172], 1065353216		; 3f800000H
+	mov	DWORD PTR [rbx+176], 1065353216		; 3f800000H
+	mov	DWORD PTR [rbx+180], 1065353216		; 3f800000H
+	mov	DWORD PTR [rbx+184], 1065353216		; 3f800000H
 ; Line 107
 	mov	r8d, esi
 	xor	edx, edx
@@ -3488,7 +3488,7 @@ $LN16@main:
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
 ; Line 127
-	mov	ecx, 224				; 000000e0H
+	mov	ecx, 240				; 000000f0H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	QWORD PTR $T31[rsp], rax
 	test	rax, rax
@@ -3518,12 +3518,12 @@ $LN18@main:
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 129
-	mov	DWORD PTR [rbx+156], esi
-	mov	DWORD PTR [rbx+160], 1065353216		; 3f800000H
-	mov	DWORD PTR [rbx+164], 1056964608		; 3f000000H
-	mov	DWORD PTR [rbx+168], 1065353216		; 3f800000H
+	mov	DWORD PTR [rbx+172], esi
+	mov	DWORD PTR [rbx+176], 1065353216		; 3f800000H
+	mov	DWORD PTR [rbx+180], 1056964608		; 3f000000H
+	mov	DWORD PTR [rbx+184], 1065353216		; 3f800000H
 ; Line 130
-	mov	BYTE PTR [rbx+152], 1
+	mov	BYTE PTR [rbx+168], 1
 ; Line 131
 	mov	rdx, rbx
 	lea	rcx, QWORD PTR workspace$[rbp-256]
@@ -3532,7 +3532,7 @@ $LN18@main:
 	lea	rcx, QWORD PTR user$[rbp-256]
 	call	?spawnCharacter@User@@QEAAXXZ		; User::spawnCharacter
 ; Line 135
-	mov	rdx, QWORD PTR user$[rbp-184]
+	mov	rdx, QWORD PTR user$[rbp-168]
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
 ; Line 140
@@ -3571,7 +3571,7 @@ $LL2@main:
 	lea	rcx, QWORD PTR user$[rbp-256]
 	call	?processInput@User@@QEAAXXZ		; User::processInput
 ; Line 156
-	cmp	BYTE PTR user$[rbp-88], 0
+	cmp	BYTE PTR user$[rbp-72], 0
 	jne	SHORT $LN433@main
 ; Line 144
 	movaps	xmm8, xmm7
@@ -3593,7 +3593,7 @@ $LN433@main:
 	lea	rdx, OFFSET FLAT:??_C@_0CE@DBCKMAIM@?$FLDEBUG?$FN?5Main?5loop?5ended?4?5wannaE@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-	movzx	edx, BYTE PTR user$[rbp-88]
+	movzx	edx, BYTE PTR user$[rbp-72]
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@_N@Z
 	mov	rcx, rax
@@ -3721,7 +3721,7 @@ $LN1@main:
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
-	lea	r11, QWORD PTR [rsp+696]
+	lea	r11, QWORD PTR [rsp+712]
 	movaps	xmm6, XMMWORD PTR [r11-24]
 	movaps	xmm7, XMMWORD PTR [r11-40]
 	movaps	xmm8, XMMWORD PTR [r11-56]
@@ -3762,10 +3762,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$0 PROC
 	lea	rcx, QWORD PTR user$[rdx]
 	jmp	??1User@@QEAA@XZ			; User::~User
@@ -3795,10 +3795,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$1 PROC
 	lea	rcx, QWORD PTR renderer$[rdx]
 	jmp	??1Renderer@@QEAA@XZ
@@ -3828,10 +3828,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$14 PROC
 	lea	rcx, QWORD PTR physicsEngine$[rdx]
 	add	rcx, 32					; 00000020H
@@ -3862,10 +3862,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$2 PROC
 	lea	rcx, QWORD PTR physicsEngine$[rdx]
 	jmp	??1Physics@@QEAA@XZ
@@ -3895,10 +3895,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$3 PROC
 	lea	rcx, QWORD PTR luauEngine$[rdx]
 	jmp	??1LuauEngine@@QEAA@XZ			; LuauEngine::~LuauEngine
@@ -3928,10 +3928,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$4 PROC
 	lea	rcx, QWORD PTR workspace$[rdx]
 	jmp	??1Workspace@@UEAA@XZ
@@ -3961,15 +3961,15 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$5 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 224				; 000000e0H
+	mov	edx, 240				; 000000f0H
 	mov	rcx, QWORD PTR $T26[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4001,15 +4001,15 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$6 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 224				; 000000e0H
+	mov	edx, 240				; 000000f0H
 	mov	rcx, QWORD PTR $T27[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4041,15 +4041,15 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$7 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 224				; 000000e0H
+	mov	edx, 240				; 000000f0H
 	mov	rcx, QWORD PTR $T28[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4081,15 +4081,15 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$8 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 224				; 000000e0H
+	mov	edx, 240				; 000000f0H
 	mov	rcx, QWORD PTR $T29[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4121,10 +4121,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$9 PROC
 	lea	rcx, QWORD PTR $T32[rdx]
 	jmp	??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::~basic_string<char,std::char_traits<char>,std::allocator<char> >
@@ -4154,10 +4154,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$10 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4194,15 +4194,15 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 416
-$T33 = 416
-workspace$ = 448
-__$ArrayPad$ = 624
+$T32 = 432
+$T33 = 432
+workspace$ = 464
+__$ArrayPad$ = 640
 main$dtor$12 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 224				; 000000e0H
+	mov	edx, 240				; 000000f0H
 	mov	rcx, QWORD PTR $T31[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -6189,9 +6189,9 @@ y$ = 24
 z$ = 32
 ??0Vector3@@QEAA@MMM@Z PROC				; Vector3::Vector3, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 37
+; Line 39
 	movss	DWORD PTR [rcx], xmm1
-; Line 40
+; Line 42
 	mov	rax, rcx
 	movss	DWORD PTR [rcx+4], xmm2
 	movss	DWORD PTR [rcx+8], xmm3

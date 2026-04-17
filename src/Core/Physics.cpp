@@ -20,8 +20,8 @@ void Physics::createActor(BaseCube* cube) {
     
     // 初期姿勢
     physx::PxTransform transform(
-        physx::PxVec3(cube->Position.x, cube->Position.y, cube->Position.z),
-        physx::PxQuat(cube->Rotation.x, cube->Rotation.y, cube->Rotation.z, cube->Rotation.w)
+        physx::PxVec3(cube->cframe.Position.x, cube->cframe.Position.y, cube->cframe.Position.z),
+        physx::PxQuat(cube->cframe.Rotation.x, cube->cframe.Rotation.y, cube->cframe.Rotation.z, cube->cframe.Rotation.w)
     );
 
     physx::PxRigidActor* actor = nullptr;

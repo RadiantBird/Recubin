@@ -3779,7 +3779,7 @@ $LN14:
 	call	??1BaseCube@@UEAA@XZ			; BaseCube::~BaseCube
 	test	bl, 1
 	je	SHORT $LN10@scalar
-	mov	edx, 224				; 000000e0H
+	mov	edx, 240				; 000000f0H
 	mov	rcx, rdi
 	call	??3@YAXPEAX_K@Z				; operator delete
 $LN10@scalar:
@@ -3942,11 +3942,11 @@ $LN29:
 	cmp	eax, -1
 	je	SHORT $LN5@draw
 ; Line 84
-	movss	xmm0, DWORD PTR [rbx+168]
+	movss	xmm0, DWORD PTR [rbx+184]
 	mov	ecx, eax
-	movss	xmm3, DWORD PTR [rbx+164]
-	movss	xmm2, DWORD PTR [rbx+160]
-	movss	xmm1, DWORD PTR [rbx+156]
+	movss	xmm3, DWORD PTR [rbx+180]
+	movss	xmm2, DWORD PTR [rbx+176]
+	movss	xmm1, DWORD PTR [rbx+172]
 	movss	DWORD PTR [rsp+32], xmm0
 	call	QWORD PTR __glewUniform4f
 $LN5@draw:
@@ -3954,7 +3954,7 @@ $LN5@draw:
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
 ; Line 89
-	mov	edx, DWORD PTR [rbx+200]
+	mov	edx, DWORD PTR [rbx+216]
 ; Line 91
 	mov	ecx, 3553				; 00000de1H
 	test	edx, edx
@@ -3968,7 +3968,7 @@ $LN5@draw:
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+204]
+	mov	edx, DWORD PTR [rbx+220]
 	mov	ecx, 3553				; 00000de1H
 	test	edx, edx
 	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
@@ -3980,7 +3980,7 @@ $LN5@draw:
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+208]
+	mov	edx, DWORD PTR [rbx+224]
 	mov	ecx, 3553				; 00000de1H
 	test	edx, edx
 	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
@@ -3992,7 +3992,7 @@ $LN5@draw:
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+212]
+	mov	edx, DWORD PTR [rbx+228]
 	mov	ecx, 3553				; 00000de1H
 	test	edx, edx
 	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
@@ -4004,7 +4004,7 @@ $LN5@draw:
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+216]
+	mov	edx, DWORD PTR [rbx+232]
 	mov	ecx, 3553				; 00000de1H
 	test	edx, edx
 	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
@@ -4016,7 +4016,7 @@ $LN5@draw:
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+220]
+	mov	edx, DWORD PTR [rbx+236]
 	mov	ecx, 3553				; 00000de1H
 	test	edx, edx
 	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
@@ -4044,7 +4044,7 @@ texID$ = 24
 	cmp	edx, 5
 	ja	SHORT $LN2@setFaceTex
 	movsxd	rax, edx
-	mov	DWORD PTR [rcx+rax*4+200], r8d
+	mov	DWORD PTR [rcx+rax*4+216], r8d
 $LN2@setFaceTex:
 ; Line 76
 	ret	0
@@ -4085,12 +4085,12 @@ $LN17:
 	mov	QWORD PTR [rbx], rax
 ; Line 60
 	mov	rax, rbx
-	mov	DWORD PTR [rbx+200], edi
-	mov	DWORD PTR [rbx+204], edi
-	mov	DWORD PTR [rbx+208], edi
-	mov	DWORD PTR [rbx+212], edi
 	mov	DWORD PTR [rbx+216], edi
 	mov	DWORD PTR [rbx+220], edi
+	mov	DWORD PTR [rbx+224], edi
+	mov	DWORD PTR [rbx+228], edi
+	mov	DWORD PTR [rbx+232], edi
+	mov	DWORD PTR [rbx+236], edi
 	mov	rbx, QWORD PTR [rsp+80]
 	add	rsp, 64					; 00000040H
 	pop	rdi
@@ -4397,12 +4397,12 @@ this$ = 8
 ??0Vertex@@QEAA@XZ PROC					; Vertex::Vertex, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Cube.hpp
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 37
+; Line 39
 	xor	eax, eax
 	mov	QWORD PTR [rcx], rax
-; Line 39
+; Line 41
 	mov	QWORD PTR [rcx+8], rax
-; Line 38
+; Line 40
 	mov	QWORD PTR [rcx+16], rax
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Cube.hpp
 ; Line 13
@@ -4880,9 +4880,9 @@ y$ = 24
 z$ = 32
 ??0Vector3@@QEAA@MMM@Z PROC				; Vector3::Vector3, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
-; Line 37
+; Line 39
 	movss	DWORD PTR [rcx], xmm1
-; Line 40
+; Line 42
 	mov	rax, rcx
 	movss	DWORD PTR [rcx+4], xmm2
 	movss	DWORD PTR [rcx+8], xmm3

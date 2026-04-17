@@ -55,8 +55,8 @@ void BaseCube::syncPhysics() {
     if (!actor || Anchored) return;
 
     physx::PxTransform pose = actor->getGlobalPose();
-    this->Position = Vector3(pose.p.x, pose.p.y, pose.p.z);
-    this->Rotation = Quaternion(pose.q.w, pose.q.x, pose.q.y, pose.q.z);
+    this->cframe.Position = Vector3(pose.p.x, pose.p.y, pose.p.z);
+    this->cframe.Rotation = Quaternion(pose.q.w, pose.q.x, pose.q.y, pose.q.z);
 }
 
 BaseCube::~BaseCube() {
