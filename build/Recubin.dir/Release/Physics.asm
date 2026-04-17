@@ -123,6 +123,7 @@ PUBLIC	??0?$PxFlags@W4Enum@PxShapeFlag@physx@@E@physx@@QEAA@W4Enum@PxShapeFlag@1
 PUBLIC	??0?$PxFlags@W4Enum@PxShapeFlag@physx@@E@physx@@QEAA@AEBV01@@Z ; physx::PxFlags<enum physx::PxShapeFlag::Enum,unsigned char>::PxFlags<enum physx::PxShapeFlag::Enum,unsigned char>
 PUBLIC	??_5?$PxFlags@W4Enum@PxShapeFlag@physx@@E@physx@@QEAAAEAV01@W4Enum@PxShapeFlag@1@@Z ; physx::PxFlags<enum physx::PxShapeFlag::Enum,unsigned char>::operator|=
 PUBLIC	??U?$PxFlags@W4Enum@PxShapeFlag@physx@@E@physx@@QEBA?AV01@W4Enum@PxShapeFlag@1@@Z ; physx::PxFlags<enum physx::PxShapeFlag::Enum,unsigned char>::operator|
+PUBLIC	??0?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAA@AEBV01@@Z ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>
 PUBLIC	??0PxSceneQueryDesc@physx@@QEAA@XZ		; physx::PxSceneQueryDesc::PxSceneQueryDesc
 PUBLIC	??0?$PxFlags@W4Enum@PxSceneFlag@physx@@I@physx@@QEAA@W4Enum@PxSceneFlag@1@@Z ; physx::PxFlags<enum physx::PxSceneFlag::Enum,unsigned int>::PxFlags<enum physx::PxSceneFlag::Enum,unsigned int>
 PUBLIC	??0PxSceneLimits@physx@@QEAA@XZ			; physx::PxSceneLimits::PxSceneLimits
@@ -296,10 +297,11 @@ PUBLIC	_CT??_R0?AVbad_array_new_length@std@@@8??0bad_array_new_length@std@@QEAA@
 PUBLIC	??_R0?AVbad_alloc@std@@@8			; std::bad_alloc `RTTI Type Descriptor'
 PUBLIC	_CT??_R0?AVbad_alloc@std@@@8??0bad_alloc@std@@QEAA@AEBV01@@Z24
 PUBLIC	??_C@_0BA@JFNIOLAK@string?5too?5long@		; `string'
-PUBLIC	??_C@_0CA@CLBDPAIB@WARNING?3?5Error?5removing?5actor?3?5@ ; `string'
-PUBLIC	??_C@_08BHFFLACK@?$FLDEBUG?$FN?5@		; `string'
+PUBLIC	??_C@_0BH@MDIJPNNO@Error?5removing?5actor?3?5@	; `string'
+PUBLIC	??_C@_0N@GLLFEAKE@?$FLRCBN_WARN?$FN?5@		; `string'
 PUBLIC	??_C@_0BM@OBFOGNHP@Removed?5cube?5from?5Physics?3?5@ ; `string'
-PUBLIC	??_C@_0ED@EPAGMLD@WARNING?3?5Physics?5safety?5break?5e@ ; `string'
+PUBLIC	??_C@_0O@DFEEAMDI@?$FLRCBN_DEBUG?$FN?5@		; `string'
+PUBLIC	??_C@_0DK@MJFIONAG@Physics?5safety?5break?5engaged?$CB?5?$CI@ ; `string'
 PUBLIC	??_C@_0CH@CJJHAHIP@Cleaned?5up?5removed?5cube?5from?5Ph@ ; `string'
 PUBLIC	??_C@_08GAABMGDB@BaseCube@			; `string'
 PUBLIC	??_C@_1BK@MHIKGOKE@?$AA?3?$AAA?$AAM?$AA?3?$AAa?$AAm?$AA?3?$AAP?$AAM?$AA?3?$AAp?$AAm@ ; `string'
@@ -554,50 +556,50 @@ $pdata$?init@Physics@@QEAAXXZ DD imagerel $LN32
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN302
-	DD	imagerel $LN302+37
+$pdata$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN303
+	DD	imagerel $LN303+37
 	DD	imagerel $unwind$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$0$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN302+37
-	DD	imagerel $LN302+45
+$pdata$0$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN303+37
+	DD	imagerel $LN303+45
 	DD	imagerel $chain$0$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$5$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN302+45
-	DD	imagerel $LN302+106
+$pdata$5$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN303+45
+	DD	imagerel $LN303+106
 	DD	imagerel $chain$5$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$6$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN302+106
-	DD	imagerel $LN302+277
+$pdata$6$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN303+106
+	DD	imagerel $LN303+277
 	DD	imagerel $chain$6$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$7$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN302+277
-	DD	imagerel $LN302+967
+$pdata$7$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN303+277
+	DD	imagerel $LN303+996
 	DD	imagerel $chain$7$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$8$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN302+967
-	DD	imagerel $LN302+1008
+$pdata$8$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN303+996
+	DD	imagerel $LN303+1031
 	DD	imagerel $chain$8$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$9$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN302+1008
-	DD	imagerel $LN302+1036
+$pdata$9$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD imagerel $LN303+1031
+	DD	imagerel $LN303+1059
 	DD	imagerel $chain$9$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$?createActor@Physics@@QEAAXPEAVBaseCube@@@Z DD imagerel $LN47
-	DD	imagerel $LN47+356
+$pdata$?createActor@Physics@@QEAAXPEAVBaseCube@@@Z DD imagerel $LN48
+	DD	imagerel $LN48+393
 	DD	imagerel $unwind$?createActor@Physics@@QEAAXPEAVBaseCube@@@Z
 pdata	ENDS
 ;	COMDAT pdata
@@ -931,24 +933,28 @@ CONST	SEGMENT
 ??_C@_0CH@CJJHAHIP@Cleaned?5up?5removed?5cube?5from?5Ph@ DB 'Cleaned up r'
 	DB	'emoved cube from Physics: ', 00H		; `string'
 CONST	ENDS
-;	COMDAT ??_C@_0ED@EPAGMLD@WARNING?3?5Physics?5safety?5break?5e@
+;	COMDAT ??_C@_0DK@MJFIONAG@Physics?5safety?5break?5engaged?$CB?5?$CI@
 CONST	SEGMENT
-??_C@_0ED@EPAGMLD@WARNING?3?5Physics?5safety?5break?5e@ DB 'WARNING: Phys'
-	DB	'ics safety break engaged! (Spiral of Death prevented)', 00H ; `string'
+??_C@_0DK@MJFIONAG@Physics?5safety?5break?5engaged?$CB?5?$CI@ DB 'Physics'
+	DB	' safety break engaged! (Spiral of Death prevented)', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0O@DFEEAMDI@?$FLRCBN_DEBUG?$FN?5@
+CONST	SEGMENT
+??_C@_0O@DFEEAMDI@?$FLRCBN_DEBUG?$FN?5@ DB '[RCBN_DEBUG] ', 00H ; `string'
 CONST	ENDS
 ;	COMDAT ??_C@_0BM@OBFOGNHP@Removed?5cube?5from?5Physics?3?5@
 CONST	SEGMENT
 ??_C@_0BM@OBFOGNHP@Removed?5cube?5from?5Physics?3?5@ DB 'Removed cube fro'
 	DB	'm Physics: ', 00H				; `string'
 CONST	ENDS
-;	COMDAT ??_C@_08BHFFLACK@?$FLDEBUG?$FN?5@
+;	COMDAT ??_C@_0N@GLLFEAKE@?$FLRCBN_WARN?$FN?5@
 CONST	SEGMENT
-??_C@_08BHFFLACK@?$FLDEBUG?$FN?5@ DB '[DEBUG] ', 00H	; `string'
+??_C@_0N@GLLFEAKE@?$FLRCBN_WARN?$FN?5@ DB '[RCBN_WARN] ', 00H ; `string'
 CONST	ENDS
-;	COMDAT ??_C@_0CA@CLBDPAIB@WARNING?3?5Error?5removing?5actor?3?5@
+;	COMDAT ??_C@_0BH@MDIJPNNO@Error?5removing?5actor?3?5@
 CONST	SEGMENT
-??_C@_0CA@CLBDPAIB@WARNING?3?5Error?5removing?5actor?3?5@ DB 'WARNING: Er'
-	DB	'ror removing actor: ', 00H			; `string'
+??_C@_0BH@MDIJPNNO@Error?5removing?5actor?3?5@ DB 'Error removing actor: '
+	DB	00H						; `string'
 CONST	ENDS
 ;	COMDAT ??_C@_0BA@JFNIOLAK@string?5too?5long@
 CONST	SEGMENT
@@ -1384,57 +1390,57 @@ xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $chain$9$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD 021H
-	DD	imagerel $LN302
-	DD	imagerel $LN302+37
+	DD	imagerel $LN303
+	DD	imagerel $LN303+37
 	DD	imagerel $unwind$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $chain$8$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD 020021H
-	DD	016f400H
-	DD	imagerel $LN302+37
-	DD	imagerel $LN302+45
+	DD	017f400H
+	DD	imagerel $LN303+37
+	DD	imagerel $LN303+45
 	DD	imagerel $chain$0$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $chain$7$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD 021H
-	DD	imagerel $LN302+45
-	DD	imagerel $LN302+106
+	DD	imagerel $LN303+45
+	DD	imagerel $LN303+106
 	DD	imagerel $chain$5$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $chain$6$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD 020421H
 	DD	097804H
-	DD	imagerel $LN302+45
-	DD	imagerel $LN302+106
+	DD	imagerel $LN303+45
+	DD	imagerel $LN303+106
 	DD	imagerel $chain$5$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $chain$5$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD 0a2121H
 	DD	0a6821H
-	DD	016f416H
-	DD	017e40fH
-	DD	018d408H
-	DD	019c404H
-	DD	imagerel $LN302+37
-	DD	imagerel $LN302+45
+	DD	017f416H
+	DD	018e40fH
+	DD	019d408H
+	DD	01ac404H
+	DD	imagerel $LN303+37
+	DD	imagerel $LN303+45
 	DD	imagerel $chain$0$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $chain$0$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD 020421H
-	DD	0216404H
-	DD	imagerel $LN302
-	DD	imagerel $LN302+37
+	DD	01b6404H
+	DD	imagerel $LN303
+	DD	imagerel $LN303+37
 	DD	imagerel $unwind$?update@Physics@@QEAAXAEAVWorkspace@@M@Z
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $unwind$?update@Physics@@QEAAXAEAVWorkspace@@M@Z DD 051501H
-	DD	01a0115H
+	DD	01c0115H
 	DD	03009700aH
 	DD	05008H
 xdata	ENDS
@@ -3998,12 +4004,12 @@ cube$ = 72
 tv513 = 80
 ?removeCube@Physics@@QEAAXPEAVBaseCube@@@Z PROC		; Physics::removeCube, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 48
+; Line 43
 $LN116:
-; Line 49
+; Line 44
 	test	rdx, rdx
 	je	$LN113@removeCube
-; Line 48
+; Line 43
 	mov	QWORD PTR [rsp+16], rdx
 	mov	QWORD PTR [rsp+8], rcx
 	push	rbx
@@ -4012,18 +4018,18 @@ $LN116:
 	sub	rsp, 32					; 00000020H
 	mov	rdi, rdx
 	mov	rbx, rcx
-; Line 52
-	lea	rsi, QWORD PTR [rdx+184]
+; Line 47
+	lea	rsi, QWORD PTR [rdx+192]
 	mov	QWORD PTR tv513[rsp], rsi
 	mov	rdx, QWORD PTR [rsi]
 	test	rdx, rdx
 	je	SHORT $LN3@removeCube
-; Line 54
+; Line 49
 	mov	rcx, QWORD PTR [rcx+16]
 	mov	rax, QWORD PTR [rcx]
 	mov	r8b, 1
 	call	QWORD PTR [rax+240]
-; Line 55
+; Line 50
 	mov	rcx, QWORD PTR [rsi]
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax]
@@ -4036,7 +4042,7 @@ $LN10@removeCube:
 	mov	rsi, QWORD PTR tv513[rsp]
 $LN9@removeCube:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 59
+; Line 54
 	mov	QWORD PTR [rsi], 0
 $LN3@removeCube:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xutility
@@ -4049,7 +4055,7 @@ $LN3@removeCube:
 ; Line 1852
 	mov	r8, QWORD PTR [rbx+56]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 64
+; Line 59
 	cmp	rax, r8
 	je	SHORT $LN5@removeCube
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
@@ -4065,8 +4071,8 @@ $LN3@removeCube:
 ; Line 1778
 	add	QWORD PTR [rbx+56], -8
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 66
-	lea	rdx, OFFSET FLAT:??_C@_08BHFFLACK@?$FLDEBUG?$FN?5@
+; Line 61
+	lea	rdx, OFFSET FLAT:??_C@_0O@DFEEAMDI@?$FLRCBN_DEBUG?$FN?5@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	mov	rcx, rax
@@ -4086,12 +4092,12 @@ $LN91@removeCube:
 	mov	rcx, rax
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 66
+; Line 61
 	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
 $LN5@removeCube:
-; Line 68
+; Line 63
 	add	rsp, 32					; 00000020H
 	pop	rdi
 	pop	rsi
@@ -4107,18 +4113,18 @@ this$ = 64
 cube$ = 72
 tv513 = 80
 ?catch$0@?0??removeCube@Physics@@QEAAXPEAVBaseCube@@@Z@4HA PROC ; `Physics::removeCube'::`1'::catch$0
-; Line 56
+; Line 51
 	mov	QWORD PTR [rsp+16], rdx
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
 __catch$?removeCube@Physics@@QEAAXPEAVBaseCube@@@Z$0:
-; Line 57
-	lea	rdx, OFFSET FLAT:??_C@_08BHFFLACK@?$FLDEBUG?$FN?5@
+; Line 52
+	lea	rdx, OFFSET FLAT:??_C@_0N@GLLFEAKE@?$FLRCBN_WARN?$FN?5@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	mov	rcx, rax
-	lea	rdx, OFFSET FLAT:??_C@_0CA@CLBDPAIB@WARNING?3?5Error?5removing?5actor?3?5@
+	lea	rdx, OFFSET FLAT:??_C@_0BH@MDIJPNNO@Error?5removing?5actor?3?5@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	mov	rdx, QWORD PTR cube$[rbp]
 	add	rdx, 8
@@ -4136,12 +4142,12 @@ $LN17@catch$0:
 	mov	rcx, rax
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 57
+; Line 52
 	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
 	npad	1
-; Line 58
+; Line 53
 	mov	rax, 0
 	add	rsp, 32					; 00000020H
 	pop	rbp
@@ -4156,25 +4162,26 @@ geometry$ = 48
 transform$ = 72
 this$ = 144
 $T3 = 144
+$T4 = 144
 cube$ = 152
-materialPtr$4 = 152
+materialPtr$5 = 152
 ?createActor@Physics@@QEAAXPEAVBaseCube@@@Z PROC	; Physics::createActor, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 24
-$LN47:
+; Line 17
+$LN48:
 	mov	rax, rsp
 	mov	QWORD PTR [rax+24], rbx
 	push	rbp
 	push	rsi
 	push	rdi
 	sub	rsp, 112				; 00000070H
-; Line 26
+; Line 19
 	movss	xmm0, DWORD PTR [rdx+124]
 	mov	rbp, rcx
 	movss	xmm2, DWORD PTR __real@3f000000
 	mov	rdi, rdx
 	movss	xmm1, DWORD PTR [rdx+132]
-; Line 35
+; Line 28
 	mov	rcx, QWORD PTR [rcx+8]
 	cmp	BYTE PTR [rdx+152], 0
 	mulss	xmm0, xmm2
@@ -4182,13 +4189,13 @@ $LN47:
 ; Line 93
 	mov	DWORD PTR [rax-88], 3
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 26
+; Line 19
 	mulss	xmm1, xmm2
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
 	movss	DWORD PTR [rax-80], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 26
+; Line 19
 	movss	xmm0, DWORD PTR [rdx+128]
 	mulss	xmm0, xmm2
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
@@ -4224,42 +4231,58 @@ $LN47:
 ; Line 90
 	movss	xmm1, DWORD PTR [rdx+116]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 35
+; Line 28
 	lea	rdx, QWORD PTR transform$[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
 	movss	DWORD PTR [rax-40], xmm0
 	movss	DWORD PTR [rax-44], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 35
+; Line 28
 	mov	rax, QWORD PTR [rcx]
 	je	SHORT $LN2@createActo
-; Line 36
+; Line 29
 	call	QWORD PTR [rax+216]
-; Line 37
-	jmp	SHORT $LN45@createActo
+	mov	rbx, rax
+; Line 30
+	jmp	SHORT $LN3@createActo
 $LN2@createActo:
-; Line 38
+; Line 31
 	call	QWORD PTR [rax+224]
-$LN45@createActo:
+	mov	rbx, rax
+; Line 32
+	lea	rdx, QWORD PTR $T3[rsp]
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
+; Line 171
+	movzx	eax, BYTE PTR [rdi+184]
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
+; Line 32
+	mov	rcx, rbx
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
+; Line 171
+	mov	BYTE PTR $T3[rsp], al
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
+; Line 32
+	mov	rax, QWORD PTR [rbx]
+	call	QWORD PTR [rax+632]
+$LN3@createActo:
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\extensions\PxRigidActorExt.h
 ; Line 127
-	mov	rbx, rax
 	mov	rax, QWORD PTR [rbp+24]
-	mov	QWORD PTR materialPtr$4[rsp], rax
+	mov	QWORD PTR materialPtr$5[rsp], rax
 ; Line 85
 	call	QWORD PTR __imp_PxGetPhysics
 	mov	r9d, 1
-	lea	r8, QWORD PTR materialPtr$4[rsp]
+	lea	r8, QWORD PTR materialPtr$5[rsp]
 	lea	rdx, QWORD PTR geometry$[rsp]
 	mov	rcx, QWORD PTR [rax]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
 ; Line 171
-	mov	BYTE PTR $T3[rsp], 11
+	mov	BYTE PTR $T4[rsp], 11
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\extensions\PxRigidActorExt.h
 ; Line 85
 	mov	r10, QWORD PTR [rcx+256]
-	lea	rcx, QWORD PTR $T3[rsp]
+	lea	rcx, QWORD PTR $T4[rsp]
 	mov	QWORD PTR [rsp+40], rcx
 	mov	rcx, rax
 	mov	BYTE PTR [rsp+32], r9b
@@ -4267,7 +4290,7 @@ $LN45@createActo:
 	mov	rsi, rax
 ; Line 86
 	test	rax, rax
-	je	SHORT $LN39@createActo
+	je	SHORT $LN41@createActo
 ; Line 88
 	mov	r8, QWORD PTR [rbx]
 	mov	rdx, rax
@@ -4277,17 +4300,17 @@ $LN45@createActo:
 	mov	rdx, QWORD PTR [rsi]
 	mov	rcx, rsi
 	call	QWORD PTR [rdx]
-$LN39@createActo:
+$LN41@createActo:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 44
+; Line 39
 	mov	rcx, QWORD PTR [rbp+16]
 	xor	r8d, r8d
 	mov	rdx, rbx
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+216]
-; Line 45
-	mov	QWORD PTR [rdi+184], rbx
-; Line 46
+; Line 40
+	mov	QWORD PTR [rdi+192], rbx
+; Line 41
 	mov	rbx, QWORD PTR [rsp+160]
 	add	rsp, 112				; 00000070H
 	pop	rdi
@@ -4302,49 +4325,50 @@ _TEXT	SEGMENT
 geometry$3 = 48
 transform$4 = 72
 $T5 = 104
-this$ = 240
-$T6 = 240
-materialPtr$7 = 240
-workspace$ = 248
-dt$ = 256
-$T8 = 256
+this$ = 256
+$T6 = 256
+workspace$ = 264
+dt$ = 272
+$T7 = 272
+$T8 = 280
+materialPtr$9 = 280
 ?update@Physics@@QEAAXAEAVWorkspace@@M@Z PROC		; Physics::update, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 70
-$LN302:
+; Line 65
+$LN303:
 	mov	rax, rsp
 	mov	QWORD PTR [rax+16], rdx
 	push	rbp
 	push	rbx
 	push	rdi
 	lea	rbp, QWORD PTR [rax-95]
-	sub	rsp, 208				; 000000d0H
-; Line 79
+	sub	rsp, 224				; 000000e0H
+; Line 74
 	movss	xmm1, DWORD PTR ?accumulator@?1??update@Physics@@QEAAXAEAVWorkspace@@M@Z@4MA
 	movss	xmm0, DWORD PTR __real@3e800000
-	mov	QWORD PTR [rax+32], rsi
+	mov	QWORD PTR [rax-32], rsi
 	minss	xmm0, xmm2
-	mov	QWORD PTR [rax-32], r12
-	mov	QWORD PTR [rax-40], r13
+	mov	QWORD PTR [rax-40], r12
+	mov	QWORD PTR [rax-48], r13
 	mov	r13, rcx
-	mov	QWORD PTR [rax-48], r14
-; Line 81
+	mov	QWORD PTR [rax-56], r14
+; Line 76
 	xor	r14d, r14d
-	mov	QWORD PTR [rax-56], r15
+	mov	QWORD PTR [rax-64], r15
 	mov	ebx, r14d
 	addss	xmm1, xmm0
-	movaps	XMMWORD PTR [rax-72], xmm6
+	movaps	XMMWORD PTR [rax-88], xmm6
 	movss	xmm6, DWORD PTR __real@3c888889
 	mov	r15, rdx
 	comiss	xmm1, xmm6
 	movss	DWORD PTR ?accumulator@?1??update@Physics@@QEAAXAEAVWorkspace@@M@Z@4MA, xmm1
-; Line 82
+; Line 77
 	jb	$LN3@update
-	movaps	XMMWORD PTR [rax-88], xmm7
+	movaps	XMMWORD PTR [rax-104], xmm7
 	movss	xmm7, DWORD PTR __real@bc888889
 	npad	10
 $LL2@update:
-; Line 83
+; Line 78
 	mov	rcx, QWORD PTR [r13+16]
 	xor	r9d, r9d
 	mov	BYTE PTR [rsp+40], 1
@@ -4353,48 +4377,48 @@ $LL2@update:
 	mov	DWORD PTR [rsp+32], r14d
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+592]
-; Line 84
+; Line 79
 	mov	rcx, QWORD PTR [r13+16]
 	xor	r8d, r8d
 	mov	dl, 1
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+632]
-; Line 86
+; Line 81
 	movss	xmm0, DWORD PTR ?accumulator@?1??update@Physics@@QEAAXAEAVWorkspace@@M@Z@4MA
-; Line 87
+; Line 82
 	inc	ebx
 	addss	xmm0, xmm7
 	movss	DWORD PTR ?accumulator@?1??update@Physics@@QEAAXAEAVWorkspace@@M@Z@4MA, xmm0
-; Line 90
+; Line 85
 	cmp	ebx, 10
-	jge	SHORT $LN228@update
-; Line 82
+	jge	SHORT $LN230@update
+; Line 77
 	comiss	xmm0, xmm6
 	jae	SHORT $LL2@update
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xmemory
 ; Line 194
-	jmp	SHORT $LN298@update
-$LN228@update:
+	jmp	SHORT $LN300@update
+$LN230@update:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 92
+; Line 87
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
-	lea	rdx, OFFSET FLAT:??_C@_08BHFFLACK@?$FLDEBUG?$FN?5@
+	lea	rdx, OFFSET FLAT:??_C@_0N@GLLFEAKE@?$FLRCBN_WARN?$FN?5@
 	mov	DWORD PTR ?accumulator@?1??update@Physics@@QEAAXAEAVWorkspace@@M@Z@4MA, r14d
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	mov	rcx, rax
-	lea	rdx, OFFSET FLAT:??_C@_0ED@EPAGMLD@WARNING?3?5Physics?5safety?5break?5e@
+	lea	rdx, OFFSET FLAT:??_C@_0DK@MJFIONAG@Physics?5safety?5break?5engaged?$CB?5?$CI@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
-$LN298@update:
+$LN300@update:
 	movaps	xmm7, XMMWORD PTR [rsp+144]
 $LN3@update:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
 ; Line 46
 	mov	rbx, QWORD PTR [r13+48]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 98
+; Line 93
 	lea	rsi, QWORD PTR [r13+48]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
 ; Line 46
@@ -4402,39 +4426,39 @@ $LN3@update:
 ; Line 166
 	cmp	rbx, rax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 99
+; Line 94
 	je	$LN5@update
 	npad	6
 $LL4@update:
-; Line 100
+; Line 95
 	mov	rdi, QWORD PTR [rbx]
-; Line 102
-	mov	rdx, QWORD PTR [rdi+184]
+; Line 97
+	mov	rdx, QWORD PTR [rdi+192]
 	test	rdx, rdx
 	je	SHORT $LN17@update
 	cmp	QWORD PTR [rdi+40], r14
-	je	SHORT $LN281@update
+	je	SHORT $LN283@update
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
 ; Line 82
 	add	rbx, 8
-	jmp	$LN209@update
-$LN281@update:
+	jmp	$LN211@update
+$LN283@update:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 104
+; Line 99
 	mov	rcx, QWORD PTR [r13+16]
 	mov	r8b, 1
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+240]
-; Line 105
-	mov	rcx, QWORD PTR [rdi+184]
+; Line 100
+	mov	rcx, QWORD PTR [rdi+192]
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax]
-; Line 106
-	mov	QWORD PTR [rdi+184], r14
+; Line 101
+	mov	QWORD PTR [rdi+192], r14
 $LN17@update:
-; Line 108
+; Line 103
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
-	lea	rdx, OFFSET FLAT:??_C@_08BHFFLACK@?$FLDEBUG?$FN?5@
+	lea	rdx, OFFSET FLAT:??_C@_0O@DFEEAMDI@?$FLRCBN_DEBUG?$FN?5@
 	add	rdi, 8
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	mov	rcx, rax
@@ -4446,16 +4470,16 @@ $LN17@update:
 ; Line 3534
 	mov	r8, QWORD PTR [rdi+16]
 ; Line 445
-	jbe	SHORT $LN282@update
+	jbe	SHORT $LN284@update
 ; Line 446
 	mov	rdi, QWORD PTR [rdi]
-$LN282@update:
+$LN284@update:
 ; Line 3534
 	mov	rdx, rdi
 	mov	rcx, rax
 	call	??$_Insert_string@DU?$char_traits@D@std@@_K@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@QEBD_K@Z ; std::_Insert_string<char,std::char_traits<char>,unsigned __int64>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 108
+; Line 103
 	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
@@ -4475,14 +4499,14 @@ $LN282@update:
 ; Line 1778
 	add	QWORD PTR [rsi+8], -8
 	mov	rax, QWORD PTR [rsi+8]
-$LN209@update:
+$LN211@update:
 ; Line 166
 	cmp	rbx, rax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 99
+; Line 94
 	jne	$LL4@update
 $LN5@update:
-; Line 116
+; Line 111
 	mov	r14, QWORD PTR [r15+120]
 	mov	r12, QWORD PTR [r15+128]
 	cmp	r14, r12
@@ -4490,118 +4514,134 @@ $LN5@update:
 	movss	xmm6, DWORD PTR __real@3f000000
 $LL8@update:
 	mov	rbx, QWORD PTR [r14]
-; Line 117
-	lea	rdx, QWORD PTR $T5[rbp-137]
+; Line 112
+	lea	rdx, QWORD PTR $T5[rbp-153]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 200
 	mov	rax, QWORD PTR ??_C@_08GAABMGDB@BaseCube@
 	xorps	xmm0, xmm0
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 493
-	movups	XMMWORD PTR $T5[rbp-137], xmm0
+	movups	XMMWORD PTR $T5[rbp-153], xmm0
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 200
-	mov	QWORD PTR $T5[rbp-137], rax
+	mov	QWORD PTR $T5[rbp-153], rax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 117
+; Line 112
 	mov	rcx, rbx
 	mov	rax, QWORD PTR [rbx]
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 940
-	mov	QWORD PTR $T5[rbp-121], 8
+	mov	QWORD PTR $T5[rbp-137], 8
 ; Line 941
-	mov	QWORD PTR $T5[rbp-113], 15
+	mov	QWORD PTR $T5[rbp-129], 15
 ; Line 948
-	mov	BYTE PTR $T5[rbp-129], 0
+	mov	BYTE PTR $T5[rbp-145], 0
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 117
+; Line 112
 	call	QWORD PTR [rax+24]
 	test	al, al
 	je	$LN6@update
-; Line 35
+; Line 28
 	cmp	BYTE PTR [rbx+152], 0
-	lea	rdx, QWORD PTR transform$4[rbp-137]
+	lea	rdx, QWORD PTR transform$4[rbp-153]
 	movss	xmm0, DWORD PTR [rbx+124]
 	movss	xmm1, DWORD PTR [rbx+128]
 	mov	rcx, QWORD PTR [r13+8]
 	mulss	xmm0, xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\geometry\PxGeometry.h
 ; Line 93
-	mov	DWORD PTR geometry$3[rbp-137], 3
+	mov	DWORD PTR geometry$3[rbp-153], 3
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 26
+; Line 19
 	mulss	xmm1, xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
-	movss	DWORD PTR geometry$3[rbp-129], xmm0
+	movss	DWORD PTR geometry$3[rbp-145], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 26
+; Line 19
 	movss	xmm0, DWORD PTR [rbx+132]
 	mulss	xmm0, xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
-	movss	DWORD PTR geometry$3[rbp-125], xmm1
+	movss	DWORD PTR geometry$3[rbp-141], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
 	movss	xmm1, DWORD PTR [rbx+144]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
-	movss	DWORD PTR geometry$3[rbp-121], xmm0
+	movss	DWORD PTR geometry$3[rbp-137], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
 	movss	xmm0, DWORD PTR [rbx+140]
-	movss	DWORD PTR transform$4[rbp-137], xmm0
+	movss	DWORD PTR transform$4[rbp-153], xmm0
 	movss	xmm0, DWORD PTR [rbx+148]
-	movss	DWORD PTR transform$4[rbp-129], xmm0
+	movss	DWORD PTR transform$4[rbp-145], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
 	movss	xmm0, DWORD PTR [rbx+112]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
-	movss	DWORD PTR transform$4[rbp-133], xmm1
+	movss	DWORD PTR transform$4[rbp-149], xmm1
 	movss	xmm1, DWORD PTR [rbx+136]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
-	movss	DWORD PTR transform$4[rbp-121], xmm0
+	movss	DWORD PTR transform$4[rbp-137], xmm0
 	movss	xmm0, DWORD PTR [rbx+120]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxQuat.h
 ; Line 101
-	movss	DWORD PTR transform$4[rbp-125], xmm1
+	movss	DWORD PTR transform$4[rbp-141], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 90
 	movss	xmm1, DWORD PTR [rbx+116]
-	movss	DWORD PTR transform$4[rbp-113], xmm0
-	movss	DWORD PTR transform$4[rbp-117], xmm1
+	movss	DWORD PTR transform$4[rbp-129], xmm0
+	movss	DWORD PTR transform$4[rbp-133], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 35
+; Line 28
 	mov	rax, QWORD PTR [rcx]
 	je	SHORT $LN157@update
-; Line 36
+; Line 29
 	call	QWORD PTR [rax+216]
-; Line 37
-	jmp	SHORT $LN299@update
+	mov	rdi, rax
+; Line 30
+	jmp	SHORT $LN158@update
 $LN157@update:
-; Line 38
+; Line 31
 	call	QWORD PTR [rax+224]
-$LN299@update:
+	mov	rdi, rax
+; Line 32
+	lea	rdx, QWORD PTR $T7[rbp-153]
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
+; Line 171
+	movzx	eax, BYTE PTR [rbx+184]
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
+; Line 32
+	mov	rcx, rdi
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
+; Line 171
+	mov	BYTE PTR $T7[rbp-153], al
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
+; Line 32
+	mov	rax, QWORD PTR [rdi]
+	call	QWORD PTR [rax+632]
+$LN158@update:
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\extensions\PxRigidActorExt.h
 ; Line 127
-	mov	rdi, rax
 	mov	rax, QWORD PTR [r13+24]
-	mov	QWORD PTR materialPtr$7[rbp-137], rax
+	mov	QWORD PTR materialPtr$9[rbp-153], rax
 ; Line 85
 	call	QWORD PTR __imp_PxGetPhysics
 	mov	r9d, 1
-	lea	r8, QWORD PTR materialPtr$7[rbp-137]
-	lea	rdx, QWORD PTR geometry$3[rbp-137]
+	lea	r8, QWORD PTR materialPtr$9[rbp-153]
+	lea	rdx, QWORD PTR geometry$3[rbp-153]
 	mov	rcx, QWORD PTR [rax]
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
 ; Line 171
-	mov	BYTE PTR $T8[rbp-137], 11
+	mov	BYTE PTR $T6[rbp-153], 11
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\extensions\PxRigidActorExt.h
 ; Line 85
 	mov	r10, QWORD PTR [rcx+256]
-	lea	rcx, QWORD PTR $T8[rbp-137]
+	lea	rcx, QWORD PTR $T6[rbp-153]
 	mov	QWORD PTR [rsp+40], rcx
 	mov	rcx, rax
 	mov	BYTE PTR [rsp+32], r9b
@@ -4609,7 +4649,7 @@ $LN299@update:
 	mov	r15, rax
 ; Line 86
 	test	rax, rax
-	je	SHORT $LN194@update
+	je	SHORT $LN196@update
 ; Line 88
 	mov	r8, QWORD PTR [rdi]
 	mov	rdx, rax
@@ -4619,76 +4659,75 @@ $LN299@update:
 	mov	rdx, QWORD PTR [r15]
 	mov	rcx, r15
 	call	QWORD PTR [rdx]
-$LN194@update:
+$LN196@update:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 44
+; Line 39
 	mov	rcx, QWORD PTR [r13+16]
 	xor	r8d, r8d
 	mov	rdx, rdi
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+216]
-; Line 45
-	mov	QWORD PTR [rbx+184], rdi
+; Line 40
+	mov	QWORD PTR [rbx+192], rdi
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
 ; Line 844
 	mov	rdx, QWORD PTR [rsi+8]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 119
-	mov	QWORD PTR $T6[rbp-137], rbx
+; Line 114
+	mov	QWORD PTR $T8[rbp-153], rbx
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
 ; Line 844
 	cmp	rdx, QWORD PTR [rsi+16]
-	je	SHORT $LN201@update
+	je	SHORT $LN203@update
 ; Line 860
 	mov	QWORD PTR [rdx], rbx
 ; Line 869
 	add	QWORD PTR [rsi+8], 8
 ; Line 845
 	jmp	SHORT $LN6@update
-$LN201@update:
+$LN203@update:
 ; Line 848
-	lea	r8, QWORD PTR $T6[rbp-137]
+	lea	r8, QWORD PTR $T8[rbp-153]
 	mov	rcx, rsi
 	call	??$_Emplace_reallocate@PEAVBaseCube@@@?$vector@PEAVBaseCube@@V?$allocator@PEAVBaseCube@@@std@@@std@@AEAAPEAPEAVBaseCube@@QEAPEAV2@$$QEAPEAV2@@Z ; std::vector<BaseCube *,std::allocator<BaseCube *> >::_Emplace_reallocate<BaseCube *>
 $LN6@update:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 116
+; Line 111
 	add	r14, 8
 	cmp	r14, r12
 	jne	$LL8@update
-	mov	r15, QWORD PTR workspace$[rbp-137]
+	mov	r15, QWORD PTR workspace$[rbp-153]
 $LN7@update:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
 ; Line 1812
 	mov	rax, QWORD PTR [r15+120]
 	movaps	xmm6, XMMWORD PTR [rsp+160]
-	mov	r14, QWORD PTR [rsp+184]
-	mov	r13, QWORD PTR [rsp+192]
-	mov	r12, QWORD PTR [rsp+200]
+	mov	r14, QWORD PTR [rsp+192]
+	mov	r13, QWORD PTR [rsp+200]
+	mov	r12, QWORD PTR [rsp+208]
 	cmp	rax, QWORD PTR [r15+128]
 	je	SHORT $LN152@update
 ; Line 1822
 	mov	QWORD PTR [r15+128], rax
 $LN152@update:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 124
+; Line 119
 	mov	rdi, QWORD PTR [rsi+8]
 	mov	rbx, QWORD PTR [rsi]
-	mov	r15, QWORD PTR [rsp+176]
-	mov	rsi, QWORD PTR [rsp+264]
+	mov	r15, QWORD PTR [rsp+184]
+	mov	rsi, QWORD PTR [rsp+216]
 	cmp	rbx, rdi
 	je	SHORT $LN10@update
-	npad	6
 $LL11@update:
-; Line 125
+; Line 120
 	mov	rcx, QWORD PTR [rbx]
 	call	?syncPhysics@BaseCube@@QEAAXXZ		; BaseCube::syncPhysics
 	add	rbx, 8
 	cmp	rbx, rdi
 	jne	SHORT $LL11@update
 $LN10@update:
-; Line 127
-	add	rsp, 208				; 000000d0H
+; Line 122
+	add	rsp, 224				; 000000e0H
 	pop	rdi
 	pop	rbx
 	pop	rbp
@@ -4703,7 +4742,7 @@ this$ = 448
 $T4 = 448
 ?init@Physics@@QEAAXXZ PROC				; Physics::init, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 11
+; Line 4
 $LN32:
 	mov	QWORD PTR [rsp+16], rbx
 	mov	QWORD PTR [rsp+24], rdi
@@ -4711,18 +4750,18 @@ $LN32:
 	lea	rbp, QWORD PTR [rsp-176]
 	sub	rsp, 432				; 000001b0H
 	mov	rbx, rcx
-; Line 12
+; Line 5
 	lea	r8, QWORD PTR [rcx+40]
 	lea	rdx, QWORD PTR [rcx+32]
 	mov	ecx, 84279552				; 05060100H
 	call	QWORD PTR __imp_PxCreateFoundation
-; Line 13
+; Line 6
 	xor	edi, edi
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\common\PxTolerancesScale.h
 ; Line 89
 	mov	DWORD PTR $T4[rbp-256], 1065353216	; 3f800000H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 13
+; Line 6
 	mov	QWORD PTR [rsp+40], rdi
 	lea	r8, QWORD PTR $T4[rbp-256]
 	mov	rdx, rax
@@ -4734,10 +4773,10 @@ $LN32:
 ; Line 90
 	mov	DWORD PTR $T4[rbp-252], 1092616192	; 41200000H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 13
+; Line 6
 	call	QWORD PTR __imp_PxCreatePhysics
 	mov	QWORD PTR [rbx+8], rax
-; Line 15
+; Line 8
 	mov	rcx, rax
 	mov	rdx, QWORD PTR [rax]
 	call	QWORD PTR [rdx+40]
@@ -4865,25 +4904,25 @@ $LN32:
 ; Line 480
 	mov	DWORD PTR sceneDesc$[rbp+68], 1024	; 00000400H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 17
+; Line 10
 	xor	r9d, r9d
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\PxSceneDesc.h
 ; Line 481
 	mov	QWORD PTR sceneDesc$[rbp+72], 1048576	; 00100000H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 17
+; Line 10
 	xor	r8d, r8d
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\PxSceneDesc.h
 ; Line 483
 	mov	QWORD PTR sceneDesc$[rbp+80], 1048576	; 00100000H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 17
+; Line 10
 	xor	edx, edx
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\PxSceneDesc.h
 ; Line 485
 	mov	DWORD PTR sceneDesc$[rbp+88], 1048576	; 00100000H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 17
+; Line 10
 	mov	ecx, 1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\PxSceneDesc.h
 ; Line 486
@@ -4905,9 +4944,9 @@ $LN32:
 ; Line 102
 	mov	DWORD PTR sceneDesc$[rsp+40], -1055066685 ; c11cf5c3H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 17
+; Line 10
 	call	?PxDefaultCpuDispatcherCreate@physx@@YAPEAVPxDefaultCpuDispatcher@1@IPEAIW4Enum@PxDefaultCpuDispatcherWaitForWorkMode@1@I@Z ; physx::PxDefaultCpuDispatcherCreate
-; Line 19
+; Line 12
 	mov	rcx, QWORD PTR [rbx+8]
 	lea	rdx, QWORD PTR sceneDesc$[rsp]
 	mov	QWORD PTR sceneDesc$[rbp-48], rax
@@ -4915,7 +4954,7 @@ $LN32:
 	mov	QWORD PTR sceneDesc$[rbp-152], rax
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+192]
-; Line 21
+; Line 14
 	mov	rcx, QWORD PTR [rbx+8]
 	movss	xmm1, DWORD PTR __real@3f000000
 	movss	xmm3, DWORD PTR __real@3f19999a
@@ -4923,7 +4962,7 @@ $LN32:
 	mov	QWORD PTR [rbx+16], rax
 	mov	rax, QWORD PTR [rcx]
 	call	QWORD PTR [rax+384]
-; Line 22
+; Line 15
 	lea	r11, QWORD PTR [rsp+432]
 	mov	QWORD PTR [rbx+24], rax
 	mov	rbx, QWORD PTR [r11+24]
@@ -7074,6 +7113,21 @@ this$ = 8
 ??0PxSceneQueryDesc@physx@@QEAA@XZ ENDP			; physx::PxSceneQueryDesc::PxSceneQueryDesc
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ??0?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAA@AEBV01@@Z
+_TEXT	SEGMENT
+this$ = 8
+f$ = 16
+??0?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAA@AEBV01@@Z PROC ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
+; Line 171
+	movzx	eax, BYTE PTR [rdx]
+	mov	BYTE PTR [rcx], al
+; Line 172
+	mov	rax, rcx
+	ret	0
+??0?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAA@AEBV01@@Z ENDP ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ??U?$PxFlags@W4Enum@PxShapeFlag@physx@@E@physx@@QEBA?AV01@W4Enum@PxShapeFlag@1@@Z
 _TEXT	SEGMENT
 this$ = 8
@@ -7846,7 +7900,7 @@ __formal$ = 16
 __formal$ = 24
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 128
+; Line 123
 	ret	0
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -7857,7 +7911,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 128
+; Line 123
 	ret	0
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -7868,7 +7922,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAX_K@Z PROC		; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 128
+; Line 123
 	ret	0
 ?__empty_global_delete@@YAXPEAX_K@Z ENDP		; __empty_global_delete
 _TEXT	ENDS
@@ -7878,7 +7932,7 @@ _TEXT	SEGMENT
 __formal$ = 8
 ?__empty_global_delete@@YAXPEAX@Z PROC			; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Physics.cpp
-; Line 128
+; Line 123
 	ret	0
 ?__empty_global_delete@@YAXPEAX@Z ENDP			; __empty_global_delete
 _TEXT	ENDS

@@ -21,6 +21,7 @@ public:
     physx::PxRigidActor* actor = nullptr;
 
     BaseCube(Vector3 Pos, Vector3 Sz);
+    virtual ~BaseCube();
     
     virtual string GetClassName() override;
     virtual bool IsA(std::string name) override;

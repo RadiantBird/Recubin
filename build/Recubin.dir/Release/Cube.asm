@@ -153,11 +153,9 @@ PUBLIC	?_Maklocwcs@std@@YAPEA_WPEB_W@Z			; std::_Maklocwcs
 PUBLIC	??$_Max_limit@_J@std@@YA_JXZ			; std::_Max_limit<__int64>
 PUBLIC	??$_Getvals@_W@?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@IEAAX_WAEBV_Locinfo@1@@Z ; std::time_get<char,std::istreambuf_iterator<char,std::char_traits<char> > >::_Getvals<wchar_t>
 PUBLIC	??$_Getvals@_W@?$time_get@_WV?$istreambuf_iterator@_WU?$char_traits@_W@std@@@std@@@std@@IEAAX_WAEBV_Locinfo@1@@Z ; std::time_get<wchar_t,std::istreambuf_iterator<wchar_t,std::char_traits<wchar_t> > >::_Getvals<wchar_t>
-PUBLIC	??1Spatial@@UEAA@XZ				; Spatial::~Spatial
 PUBLIC	?FLoad@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::FLoad
 PUBLIC	?V3Load@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::V3Load
 PUBLIC	?V4Load@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::V4Load
-PUBLIC	??1BaseCube@@UEAA@XZ				; BaseCube::~BaseCube
 PUBLIC	??0Vertex@@QEAA@XZ				; Vertex::Vertex
 PUBLIC	?createCubeVertices@@YA?AV?$vector@UVertex@@V?$allocator@UVertex@@@std@@@std@@M@Z ; createCubeVertices
 PUBLIC	??0Cube@@QEAA@UVector3@@0I@Z			; Cube::Cube
@@ -324,8 +322,8 @@ EXTRN	__imp_?_W_Getdays@_Locinfo@std@@QEBAPEBGXZ:PROC
 EXTRN	__imp_?_W_Getmonths@_Locinfo@std@@QEBAPEBGXZ:PROC
 EXTRN	?setParent@Instance@@UEAAXPEAV1@@Z:PROC		; Instance::setParent
 EXTRN	?addChild@Instance@@UEAAXPEAV1@@Z:PROC		; Instance::addChild
-EXTRN	??1Instance@@UEAA@XZ:PROC			; Instance::~Instance
 EXTRN	??0BaseCube@@QEAA@UVector3@@0@Z:PROC		; BaseCube::BaseCube
+EXTRN	??1BaseCube@@UEAA@XZ:PROC			; BaseCube::~BaseCube
 EXTRN	?IsA@BaseCube@@UEAA_NV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z:PROC ; BaseCube::IsA
 EXTRN	?onAncestorChanged@BaseCube@@UEAAXXZ:PROC	; BaseCube::onAncestorChanged
 EXTRN	??_ECube@@UEAAPEAXI@Z:PROC			; Cube::`vector deleting destructor'
@@ -503,8 +501,8 @@ $pdata$?IsA@Cube@@UEAA_NV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$??_GCube@@UEAAPEAXI@Z DD imagerel $LN24
-	DD	imagerel $LN24+52
+$pdata$??_GCube@@UEAAPEAXI@Z DD imagerel $LN14
+	DD	imagerel $LN14+52
 	DD	imagerel $unwind$??_GCube@@UEAAPEAXI@Z
 pdata	ENDS
 ;	COMDAT pdata
@@ -3772,19 +3770,19 @@ _TEXT	SEGMENT
 this$ = 48
 __flags$ = 56
 ??_GCube@@UEAAPEAXI@Z PROC				; Cube::`scalar deleting destructor', COMDAT
-$LN24:
+$LN14:
 	mov	QWORD PTR [rsp+8], rbx
 	push	rdi
 	sub	rsp, 32					; 00000020H
 	mov	ebx, edx
 	mov	rdi, rcx
-	call	??1Instance@@UEAA@XZ			; Instance::~Instance
+	call	??1BaseCube@@UEAA@XZ			; BaseCube::~BaseCube
 	test	bl, 1
-	je	SHORT $LN20@scalar
-	mov	edx, 216				; 000000d8H
+	je	SHORT $LN10@scalar
+	mov	edx, 224				; 000000e0H
 	mov	rcx, rdi
 	call	??3@YAXPEAX_K@Z				; operator delete
-$LN20@scalar:
+$LN10@scalar:
 	mov	rbx, QWORD PTR [rsp+48]
 	mov	rax, rdi
 	add	rsp, 32					; 00000020H
@@ -3797,7 +3795,7 @@ _TEXT	ENDS
 _TEXT	SEGMENT
 this$ = 8
 ??1Cube@@UEAA@XZ PROC					; Cube::~Cube, COMDAT
-	jmp	??1Instance@@UEAA@XZ			; Instance::~Instance
+	jmp	??1BaseCube@@UEAA@XZ			; BaseCube::~BaseCube
 ??1Cube@@UEAA@XZ ENDP					; Cube::~Cube
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
@@ -3956,7 +3954,7 @@ $LN5@draw:
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
 ; Line 89
-	mov	edx, DWORD PTR [rbx+192]
+	mov	edx, DWORD PTR [rbx+200]
 ; Line 91
 	mov	ecx, 3553				; 00000de1H
 	test	edx, edx
@@ -3970,7 +3968,7 @@ $LN5@draw:
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+196]
+	mov	edx, DWORD PTR [rbx+204]
 	mov	ecx, 3553				; 00000de1H
 	test	edx, edx
 	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
@@ -3982,7 +3980,7 @@ $LN5@draw:
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+200]
+	mov	edx, DWORD PTR [rbx+208]
 	mov	ecx, 3553				; 00000de1H
 	test	edx, edx
 	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
@@ -3994,7 +3992,7 @@ $LN5@draw:
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+204]
+	mov	edx, DWORD PTR [rbx+212]
 	mov	ecx, 3553				; 00000de1H
 	test	edx, edx
 	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
@@ -4006,7 +4004,7 @@ $LN5@draw:
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+208]
+	mov	edx, DWORD PTR [rbx+216]
 	mov	ecx, 3553				; 00000de1H
 	test	edx, edx
 	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
@@ -4018,7 +4016,7 @@ $LN5@draw:
 	call	QWORD PTR __imp_glDrawElements
 	mov	ecx, 33984				; 000084c0H
 	call	QWORD PTR __glewActiveTexture
-	mov	edx, DWORD PTR [rbx+212]
+	mov	edx, DWORD PTR [rbx+220]
 	mov	ecx, 3553				; 00000de1H
 	test	edx, edx
 	cmove	edx, DWORD PTR ?defaultTextureID@Cube@@2IA ; Cube::defaultTextureID
@@ -4046,7 +4044,7 @@ texID$ = 24
 	cmp	edx, 5
 	ja	SHORT $LN2@setFaceTex
 	movsxd	rax, edx
-	mov	DWORD PTR [rcx+rax*4+192], r8d
+	mov	DWORD PTR [rcx+rax*4+200], r8d
 $LN2@setFaceTex:
 ; Line 76
 	ret	0
@@ -4087,12 +4085,12 @@ $LN17:
 	mov	QWORD PTR [rbx], rax
 ; Line 60
 	mov	rax, rbx
-	mov	DWORD PTR [rbx+192], edi
-	mov	DWORD PTR [rbx+196], edi
 	mov	DWORD PTR [rbx+200], edi
 	mov	DWORD PTR [rbx+204], edi
 	mov	DWORD PTR [rbx+208], edi
 	mov	DWORD PTR [rbx+212], edi
+	mov	DWORD PTR [rbx+216], edi
+	mov	DWORD PTR [rbx+220], edi
 	mov	rbx, QWORD PTR [rsp+80]
 	add	rsp, 64					; 00000040H
 	pop	rdi
@@ -4414,14 +4412,6 @@ this$ = 8
 ??0Vertex@@QEAA@XZ ENDP					; Vertex::Vertex
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
-;	COMDAT ??1BaseCube@@UEAA@XZ
-_TEXT	SEGMENT
-this$ = 8
-??1BaseCube@@UEAA@XZ PROC				; BaseCube::~BaseCube, COMDAT
-	jmp	??1Instance@@UEAA@XZ			; Instance::~Instance
-??1BaseCube@@UEAA@XZ ENDP				; BaseCube::~BaseCube
-_TEXT	ENDS
-; Function compile flags: /Ogtpy
 ;	COMDAT ??__EmaxV4Error@vecMathTests@aos@physx@@YAXXZ
 text$di	SEGMENT
 ??__EmaxV4Error@vecMathTests@aos@physx@@YAXXZ PROC	; physx::aos::vecMathTests::`dynamic initializer for 'maxV4Error'', COMDAT
@@ -4544,14 +4534,6 @@ f$ = 8
 ; Line 229
 	ret	0
 ?FLoad@aos@physx@@YA?AT__m128@@M@Z ENDP			; physx::aos::FLoad
-_TEXT	ENDS
-; Function compile flags: /Ogtpy
-;	COMDAT ??1Spatial@@UEAA@XZ
-_TEXT	SEGMENT
-this$ = 8
-??1Spatial@@UEAA@XZ PROC				; Spatial::~Spatial, COMDAT
-	jmp	??1Instance@@UEAA@XZ			; Instance::~Instance
-??1Spatial@@UEAA@XZ ENDP				; Spatial::~Spatial
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??$_Getvals@_W@?$time_get@_WV?$istreambuf_iterator@_WU?$char_traits@_W@std@@@std@@@std@@IEAAX_WAEBV_Locinfo@1@@Z

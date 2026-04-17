@@ -1,4 +1,5 @@
 #include "include/Instances/Instance.hpp"
+#include "include/Util/Logger.hpp"
 #include <algorithm>
 #include <vector>
 
@@ -52,7 +53,7 @@ const std::unordered_map<std::string, Instance*>& Instance::getChildren() {
 
 void Instance::addChild(Instance* child) {
     if (child == nullptr) {
-        std::cout << "[WARN] addChild called but child is nullptr!\n";
+        RCBN_WARN("addChild called but child is nullptr!");
         return;
     }
     child->Parent = this;
@@ -95,6 +96,7 @@ std::string Instance::getFullPath() {
 }
 
 Instance::~Instance() {
+    RCBN_LOG("Instance Destructor: " << this->Name << " (" << this->GetClassName() << ")");
     for (auto const& [_, child] : this->children) {
         delete child;
     }

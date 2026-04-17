@@ -8759,7 +8759,7 @@ _Arg1$ = 88
 	mov	ecx, DWORD PTR [rax+8]
 	mov	DWORD PTR [rdi+120], ecx
 ; Line 66
-	mov	rcx, QWORD PTR [rdi+184]
+	mov	rcx, QWORD PTR [rdi+192]
 	test	rcx, rcx
 	je	SHORT $LN15@invoke
 ; Line 67
@@ -8772,7 +8772,7 @@ _Arg1$ = 88
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 69
 	lea	rdx, QWORD PTR pose$2[rsp]
-	mov	rcx, QWORD PTR [rdi+184]
+	mov	rcx, QWORD PTR [rdi+192]
 	mov	r8b, 1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 102
@@ -11032,7 +11032,7 @@ this$ = 80
 	mov	ecx, DWORD PTR [rax+8]
 	mov	DWORD PTR [rdi+120], ecx
 ; Line 66
-	mov	rcx, QWORD PTR [rdi+184]
+	mov	rcx, QWORD PTR [rdi+192]
 	test	rcx, rcx
 	je	SHORT $LN17@Do_call
 ; Line 67
@@ -11045,7 +11045,7 @@ this$ = 80
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 69
 	lea	rdx, QWORD PTR pose$2[rsp]
-	mov	rcx, QWORD PTR [rdi+184]
+	mov	rcx, QWORD PTR [rdi+192]
 	mov	r8b, 1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 102
@@ -17055,7 +17055,7 @@ obj$ = 96
 	mov	ecx, DWORD PTR [rax+8]
 	mov	DWORD PTR [rbx+120], ecx
 ; Line 66
-	mov	rcx, QWORD PTR [rbx+184]
+	mov	rcx, QWORD PTR [rbx+192]
 	test	rcx, rcx
 	je	SHORT $LN13@operator
 ; Line 67
@@ -17068,7 +17068,7 @@ obj$ = 96
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\LuauEngine.cpp
 ; Line 69
 	lea	rdx, QWORD PTR pose$2[rsp]
-	mov	rcx, QWORD PTR [rbx+184]
+	mov	rcx, QWORD PTR [rbx+192]
 	mov	r8b, 1
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 102

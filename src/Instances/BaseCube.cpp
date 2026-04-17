@@ -1,6 +1,6 @@
 #include "include/Instances/BaseCube.hpp"
 #include "include/Core/Physics.hpp"
-#include <iostream>
+#include "include/Util/Logger.hpp"
 
 BaseCube::BaseCube(Vector3 Pos, Vector3 Sz) 
     : Spatial(Pos, Sz, "BaseCube"), Color(1, 1, 1, 1) {
@@ -57,4 +57,15 @@ void BaseCube::syncPhysics() {
     physx::PxTransform pose = actor->getGlobalPose();
     this->Position = Vector3(pose.p.x, pose.p.y, pose.p.z);
     this->Rotation = Quaternion(pose.q.w, pose.q.x, pose.q.y, pose.q.z);
+}
+
+BaseCube::~BaseCube() {
+    RCBN_LOG("BaseCube Destructor: " << this->Name);
+    if (lastWorkspace && lastWorkspace->physicsEngine) {
+        lastWorkspace->physicsEngine->removeCube(this);
+    } else if (actor) {
+        // Workspace がない場合でもアクターは解放する
+        actor->release();
+        actor = nullptr;
+    }
 }

@@ -157,11 +157,13 @@ PUBLIC	??GVector3@@QEBA?AU0@AEBU0@@Z			; Vector3::operator-
 PUBLIC	??DVector3@@QEBA?AU0@M@Z			; Vector3::operator*
 PUBLIC	?length@Vector3@@QEBAMXZ			; Vector3::length
 PUBLIC	?normalize@Vector3@@QEBA?AU1@XZ			; Vector3::normalize
+PUBLIC	?Cross@Vector3@@SA?AU1@AEBU1@0@Z		; Vector3::Cross
 PUBLIC	??0Vector3@@QEAA@MMM@Z				; Vector3::Vector3
 PUBLIC	??0Quaternion@@QEAA@XZ				; Quaternion::Quaternion
 PUBLIC	??0Quaternion@@QEAA@MMMM@Z			; Quaternion::Quaternion
 PUBLIC	?fromAxisAngle@Quaternion@@SA?AU1@AEBUVector3@@M@Z ; Quaternion::fromAxisAngle
 PUBLIC	??DQuaternion@@QEBA?AU0@AEBU0@@Z		; Quaternion::operator*
+PUBLIC	?rotate@Quaternion@@QEBA?AUVector3@@AEBU2@@Z	; Quaternion::rotate
 PUBLIC	?getRight@Quaternion@@QEBA?AUVector3@@XZ	; Quaternion::getRight
 PUBLIC	?getUp@Quaternion@@QEBA?AUVector3@@XZ		; Quaternion::getUp
 PUBLIC	?getForward@Quaternion@@QEBA?AUVector3@@XZ	; Quaternion::getForward
@@ -185,6 +187,11 @@ PUBLIC	?V3Load@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::V3Load
 PUBLIC	?V4Load@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::V4Load
 PUBLIC	?name@?$PxTypeInfo@VPxRigidDynamic@physx@@@physx@@SAPEBDXZ ; physx::PxTypeInfo<physx::PxRigidDynamic>::name
 PUBLIC	?getConcreteType@PxBase@physx@@QEBAGXZ		; physx::PxBase::getConcreteType
+PUBLIC	??Uphysx@@YA?AV?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@0@W4Enum@PxRigidDynamicLockFlag@0@0@Z ; physx::operator|
+PUBLIC	??0?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAA@W4Enum@PxRigidDynamicLockFlag@1@@Z ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>
+PUBLIC	??0?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAA@AEBV01@@Z ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>
+PUBLIC	??4?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAAAEAV01@AEBV01@@Z ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::operator=
+PUBLIC	??_5?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAAAEAV01@W4Enum@PxRigidDynamicLockFlag@1@@Z ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::operator|=
 PUBLIC	??0Model@@QEAA@UVector3@@0@Z			; Model::Model
 PUBLIC	?GetClassName@Model@@UEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ ; Model::GetClassName
 PUBLIC	?IsA@Model@@UEAA_NV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z ; Model::IsA
@@ -193,11 +200,13 @@ PUBLIC	??_GModel@@UEAAPEAXI@Z				; Model::`scalar deleting destructor'
 PUBLIC	??$?8DU?$char_traits@D@std@@V?$allocator@D@1@@std@@YA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@0@QEBD@Z ; std::operator==<char,std::char_traits<char>,std::allocator<char> >
 PUBLIC	??0camera@@QEAA@XZ				; camera::camera
 PUBLIC	??0User@@QEAA@PEAUGLFWwindow@@@Z		; User::User
+PUBLIC	??1User@@QEAA@XZ				; User::~User
 PUBLIC	?updateVectors@User@@QEAAXXZ			; User::updateVectors
 PUBLIC	?processInput@User@@QEAAXXZ			; User::processInput
 PUBLIC	?spawnCharacter@User@@QEAAXXZ			; User::spawnCharacter
-PUBLIC	??$is@VPxRigidDynamic@physx@@@PxBase@physx@@QEAAPEAVPxRigidDynamic@1@XZ ; physx::PxBase::is<physx::PxRigidDynamic>
 PUBLIC	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
+PUBLIC	??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
+PUBLIC	??$is@VPxRigidDynamic@physx@@@PxBase@physx@@QEAAPEAVPxRigidDynamic@1@XZ ; physx::PxBase::is<physx::PxRigidDynamic>
 PUBLIC	??$typeMatch@VPxRigidDynamic@physx@@@PxBase@physx@@IEBA_NXZ ; physx::PxBase::typeMatch<physx::PxRigidDynamic>
 PUBLIC	??$_Unfancy@D@std@@YAPEADPEAD@Z			; std::_Unfancy<char>
 PUBLIC	??$_Convert_size@_K_K@std@@YA_K_K@Z		; std::_Convert_size<unsigned __int64,unsigned __int64>
@@ -247,15 +256,18 @@ PUBLIC	??_C@_07KEJFKDFN@Spatial@			; `string'
 PUBLIC	??_C@_0P@HECNJDHO@PxRigidDynamic@		; `string'
 PUBLIC	??_7Model@@6B@					; Model::`vftable'
 PUBLIC	??_C@_05NFIJOKEG@Model@				; `string'
+PUBLIC	??_C@_0DE@HDONFPGG@User?5Destructor?3?5Manually?5delet@ ; `string'
+PUBLIC	??_C@_0O@DFEEAMDI@?$FLRCBN_DEBUG?$FN?5@		; `string'
 PUBLIC	??_C@_02MNMNLDAI@?$CJ?6@			; `string'
 PUBLIC	??_C@_0BD@OMPOOLFM@Camera?5Position?3?5?$CI@	; `string'
-PUBLIC	??_C@_0BO@FIPGDCHH@Character?5?$CITorso?$CJ?5Position?3?5?$CI@ ; `string'
+PUBLIC	??_C@_0BN@ODBIAHJF@Character?5?$CIRoot?$CJ?5Position?3?5?$CI@ ; `string'
 PUBLIC	??_C@_04BFCCBDOP@Head@				; `string'
-PUBLIC	??_C@_05LHKEDNFH@Torso@				; `string'
+PUBLIC	??_C@_04BAJDEDPD@Root@				; `string'
 PUBLIC	??_C@_07ELBAKILC@LeftArm@			; `string'
 PUBLIC	??_C@_08IIJMBGOO@RightArm@			; `string'
 PUBLIC	??_C@_07FKPMCNBA@LeftLeg@			; `string'
 PUBLIC	??_C@_08JJHAJDEM@RightLeg@			; `string'
+PUBLIC	??_C@_0BG@ONKMLAAM@Spawning?5character?4?4?4@	; `string'
 PUBLIC	??_C@_1BK@MHIKGOKE@?$AA?3?$AAA?$AAM?$AA?3?$AAa?$AAm?$AA?3?$AAP?$AAM?$AA?3?$AAp?$AAm@ ; `string'
 PUBLIC	??_R4exception@std@@6B@				; std::exception::`RTTI Complete Object Locator'
 PUBLIC	??_R3exception@std@@8				; std::exception::`RTTI Class Hierarchy Descriptor'
@@ -290,6 +302,7 @@ PUBLIC	__real@3f800000
 PUBLIC	__real@3fa00000
 PUBLIC	__real@3fc00000
 PUBLIC	__real@40000000
+PUBLIC	__real@40400000
 PUBLIC	__real@40490fdb
 PUBLIC	__real@40a00000
 PUBLIC	__real@43340000
@@ -324,8 +337,11 @@ EXTRN	__imp_?setstate@?$basic_ios@DU?$char_traits@D@std@@@std@@QEAAXH_N@Z:PROC
 EXTRN	__imp_?tie@?$basic_ios@DU?$char_traits@D@std@@@std@@QEBAPEAV?$basic_ostream@DU?$char_traits@D@std@@@2@XZ:PROC
 EXTRN	__imp_?rdbuf@?$basic_ios@DU?$char_traits@D@std@@@std@@QEBAPEAV?$basic_streambuf@DU?$char_traits@D@std@@@2@XZ:PROC
 EXTRN	__imp_?fill@?$basic_ios@DU?$char_traits@D@std@@@std@@QEBADXZ:PROC
+EXTRN	__imp_?widen@?$basic_ios@DU?$char_traits@D@std@@@std@@QEBADD@Z:PROC
 EXTRN	__imp_?_Osfx@?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAXXZ:PROC
+EXTRN	__imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z:PROC
 EXTRN	__imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@M@Z:PROC
+EXTRN	__imp_?put@?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV12@D@Z:PROC
 EXTRN	__imp_?flush@?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV12@XZ:PROC
 EXTRN	?onAncestorChanged@Instance@@UEAAXXZ:PROC	; Instance::onAncestorChanged
 EXTRN	?setParent@Instance@@UEAAXPEAV1@@Z:PROC		; Instance::setParent
@@ -490,6 +506,12 @@ $pdata$??DQuaternion@@QEBA?AU0@AEBU0@@Z DD imagerel $LN6
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
+$pdata$?rotate@Quaternion@@QEBA?AUVector3@@AEBU2@@Z DD imagerel $LN30
+	DD	imagerel $LN30+301
+	DD	imagerel $unwind$?rotate@Quaternion@@QEBA?AUVector3@@AEBU2@@Z
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
 $pdata$?getRight@Quaternion@@QEBA?AUVector3@@XZ DD imagerel $LN6
 	DD	imagerel $LN6+137
 	DD	imagerel $unwind$?getRight@Quaternion@@QEBA?AUVector3@@XZ
@@ -604,6 +626,12 @@ $pdata$??0User@@QEAA@PEAUGLFWwindow@@@Z DD imagerel $LN16
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
+$pdata$??1User@@QEAA@XZ DD imagerel $LN10
+	DD	imagerel $LN10+109
+	DD	imagerel $unwind$??1User@@QEAA@XZ
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
 $pdata$?updateVectors@User@@QEAAXXZ DD imagerel $LN16
 	DD	imagerel $LN16+481
 	DD	imagerel $unwind$?updateVectors@User@@QEAAXXZ
@@ -616,50 +644,50 @@ $pdata$?processInput@User@@QEAAXXZ DD imagerel $LN273
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$1$?processInput@User@@QEAAXXZ DD imagerel $LN273+31
-	DD	imagerel $LN273+44
-	DD	imagerel $chain$1$?processInput@User@@QEAAXXZ
+$pdata$2$?processInput@User@@QEAAXXZ DD imagerel $LN273+31
+	DD	imagerel $LN273+43
+	DD	imagerel $chain$2$?processInput@User@@QEAAXXZ
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$5$?processInput@User@@QEAAXXZ DD imagerel $LN273+44
-	DD	imagerel $LN273+74
-	DD	imagerel $chain$5$?processInput@User@@QEAAXXZ
+$pdata$3$?processInput@User@@QEAAXXZ DD imagerel $LN273+43
+	DD	imagerel $LN273+47
+	DD	imagerel $chain$3$?processInput@User@@QEAAXXZ
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$10$?processInput@User@@QEAAXXZ DD imagerel $LN273+74
-	DD	imagerel $LN273+1188
-	DD	imagerel $chain$10$?processInput@User@@QEAAXXZ
-pdata	ENDS
-;	COMDAT pdata
-pdata	SEGMENT
-$pdata$11$?processInput@User@@QEAAXXZ DD imagerel $LN273+1188
-	DD	imagerel $LN273+1682
+$pdata$11$?processInput@User@@QEAAXXZ DD imagerel $LN273+47
+	DD	imagerel $LN273+1707
 	DD	imagerel $chain$11$?processInput@User@@QEAAXXZ
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$12$?processInput@User@@QEAAXXZ DD imagerel $LN273+1682
-	DD	imagerel $LN273+1734
+$pdata$12$?processInput@User@@QEAAXXZ DD imagerel $LN273+1707
+	DD	imagerel $LN273+1762
 	DD	imagerel $chain$12$?processInput@User@@QEAAXXZ
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$13$?processInput@User@@QEAAXXZ DD imagerel $LN273+1734
-	DD	imagerel $LN273+2094
+$pdata$13$?processInput@User@@QEAAXXZ DD imagerel $LN273+1762
+	DD	imagerel $LN273+2291
 	DD	imagerel $chain$13$?processInput@User@@QEAAXXZ
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$14$?processInput@User@@QEAAXXZ DD imagerel $LN273+2094
-	DD	imagerel $LN273+2435
+$pdata$14$?processInput@User@@QEAAXXZ DD imagerel $LN273+2291
+	DD	imagerel $LN273+2441
 	DD	imagerel $chain$14$?processInput@User@@QEAAXXZ
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$?spawnCharacter@User@@QEAAXXZ DD imagerel $LN248
-	DD	imagerel $LN248+1185
+$pdata$15$?processInput@User@@QEAAXXZ DD imagerel $LN273+2441
+	DD	imagerel $LN273+2782
+	DD	imagerel $chain$15$?processInput@User@@QEAAXXZ
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$?spawnCharacter@User@@QEAAXXZ DD imagerel $LN296
+	DD	imagerel $LN296+1337
 	DD	imagerel $unwind$?spawnCharacter@User@@QEAAXXZ
 pdata	ENDS
 ;	COMDAT pdata
@@ -715,6 +743,12 @@ pdata	SEGMENT
 $pdata$?catch$4@?0???$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z@4HA DD imagerel ?catch$4@?0???$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z@4HA
 	DD	imagerel ?catch$4@?0???$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z@4HA+59
 	DD	imagerel $unwind$?catch$4@?0???$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z@4HA
+pdata	ENDS
+;	COMDAT pdata
+pdata	SEGMENT
+$pdata$??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z DD imagerel $LN4
+	DD	imagerel $LN4+57
+	DD	imagerel $unwind$??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
@@ -873,6 +907,10 @@ CONST	ENDS
 ;	COMDAT __real@40490fdb
 CONST	SEGMENT
 __real@40490fdb DD 040490fdbr			; 3.14159
+CONST	ENDS
+;	COMDAT __real@40400000
+CONST	SEGMENT
+__real@40400000 DD 040400000r			; 3
 CONST	ENDS
 ;	COMDAT __real@40000000
 CONST	SEGMENT
@@ -1109,6 +1147,10 @@ CONST	SEGMENT
 	DB	00H, 'A', 00H, 'M', 00H, ':', 00H, 'a', 00H, 'm', 00H, ':', 00H
 	DB	'P', 00H, 'M', 00H, ':', 00H, 'p', 00H, 'm', 00H, 00H, 00H ; `string'
 CONST	ENDS
+;	COMDAT ??_C@_0BG@ONKMLAAM@Spawning?5character?4?4?4@
+CONST	SEGMENT
+??_C@_0BG@ONKMLAAM@Spawning?5character?4?4?4@ DB 'Spawning character...', 00H ; `string'
+CONST	ENDS
 ;	COMDAT ??_C@_08JJHAJDEM@RightLeg@
 CONST	SEGMENT
 ??_C@_08JJHAJDEM@RightLeg@ DB 'RightLeg', 00H		; `string'
@@ -1125,18 +1167,18 @@ CONST	ENDS
 CONST	SEGMENT
 ??_C@_07ELBAKILC@LeftArm@ DB 'LeftArm', 00H		; `string'
 CONST	ENDS
-;	COMDAT ??_C@_05LHKEDNFH@Torso@
+;	COMDAT ??_C@_04BAJDEDPD@Root@
 CONST	SEGMENT
-??_C@_05LHKEDNFH@Torso@ DB 'Torso', 00H			; `string'
+??_C@_04BAJDEDPD@Root@ DB 'Root', 00H			; `string'
 CONST	ENDS
 ;	COMDAT ??_C@_04BFCCBDOP@Head@
 CONST	SEGMENT
 ??_C@_04BFCCBDOP@Head@ DB 'Head', 00H			; `string'
 CONST	ENDS
-;	COMDAT ??_C@_0BO@FIPGDCHH@Character?5?$CITorso?$CJ?5Position?3?5?$CI@
+;	COMDAT ??_C@_0BN@ODBIAHJF@Character?5?$CIRoot?$CJ?5Position?3?5?$CI@
 CONST	SEGMENT
-??_C@_0BO@FIPGDCHH@Character?5?$CITorso?$CJ?5Position?3?5?$CI@ DB 'Charac'
-	DB	'ter (Torso) Position: (', 00H		; `string'
+??_C@_0BN@ODBIAHJF@Character?5?$CIRoot?$CJ?5Position?3?5?$CI@ DB 'Charact'
+	DB	'er (Root) Position: (', 00H			; `string'
 CONST	ENDS
 ;	COMDAT ??_C@_0BD@OMPOOLFM@Camera?5Position?3?5?$CI@
 CONST	SEGMENT
@@ -1145,6 +1187,15 @@ CONST	ENDS
 ;	COMDAT ??_C@_02MNMNLDAI@?$CJ?6@
 CONST	SEGMENT
 ??_C@_02MNMNLDAI@?$CJ?6@ DB ')', 0aH, 00H		; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0O@DFEEAMDI@?$FLRCBN_DEBUG?$FN?5@
+CONST	SEGMENT
+??_C@_0O@DFEEAMDI@?$FLRCBN_DEBUG?$FN?5@ DB '[RCBN_DEBUG] ', 00H ; `string'
+CONST	ENDS
+;	COMDAT ??_C@_0DE@HDONFPGG@User?5Destructor?3?5Manually?5delet@
+CONST	SEGMENT
+??_C@_0DE@HDONFPGG@User?5Destructor?3?5Manually?5delet@ DB 'User Destruct'
+	DB	'or: Manually deleting orphan character', 00H ; `string'
 CONST	ENDS
 ;	COMDAT ??_C@_05NFIJOKEG@Model@
 CONST	SEGMENT
@@ -1405,6 +1456,11 @@ $unwind$??$_Construct@$00PEBD@?$basic_string@DU?$char_traits@D@std@@V?$allocator
 	DD	050036004H
 	DD	03002H
 xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z DD 020601H
+	DD	030023206H
+xdata	ENDS
 ;	COMDAT voltbl
 voltbl	SEGMENT
 _volmd	DB	00H
@@ -1516,37 +1572,37 @@ xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $ip2state$?spawnCharacter@User@@QEAAXXZ DB ' '
-	DB	080H
+	DB	'~'
 	DB	00H
 	DB	0c6H
 	DB	04H
-	DB	0a6H
+	DB	0a2H
 	DB	02H
-	DB	'`'
+	DB	'd'
 	DB	00H
 	DB	0bcH
 	DB	06H
-	DB	01eH
+	DB	'&'
 	DB	00H
-	DB	096H
+	DB	098H
 	DB	08H
-	DB	01eH
+	DB	'&'
 	DB	00H
-	DB	0a6H
+	DB	0acH
 	DB	0aH
-	DB	01eH
+	DB	'&'
 	DB	00H
-	DB	094H
+	DB	09aH
 	DB	0cH
-	DB	01eH
+	DB	'&'
 	DB	00H
 	DB	0b4H
 	DB	0eH
-	DB	01eH
+	DB	'&'
 	DB	00H
 	DB	08cH
 	DB	010H
-	DB	'>'
+	DB	0c6H
 	DB	00H
 xdata	ENDS
 ;	COMDAT xdata
@@ -1556,8 +1612,8 @@ $stateUnwindMap$?spawnCharacter@User@@QEAAXXZ DB 010H
 	DD	imagerel ?dtor$0@?0??spawnCharacter@User@@QEAAXXZ@4HA
 	DB	02cH
 	DD	imagerel ??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ
-	DB	021H
-	DB	04H
+	DB	0e1H
+	DB	03H
 	DB	06eH
 	DD	imagerel ?dtor$1@?0??spawnCharacter@User@@QEAAXXZ@4HA
 	DB	096H
@@ -1581,78 +1637,80 @@ $cppxdata$?spawnCharacter@User@@QEAAXXZ DB 028H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$unwind$?spawnCharacter@User@@QEAAXXZ DD 0112d11H
-	DD	08b82dH
-	DD	09a828H
-	DD	0a9823H
-	DD	0b881eH
-	DD	0c7819H
-	DD	0d6815H
-	DD	01c0111H
-	DD	030056006H
-	DD	05004H
+$unwind$?spawnCharacter@User@@QEAAXXZ DD 0112c11H
+	DD	08a82cH
+	DD	099827H
+	DD	0a8822H
+	DD	0b781dH
+	DD	0c6819H
+	DD	0213415H
+	DD	01a0115H
+	DD	06009700aH
+	DD	05008H
 	DD	imagerel __CxxFrameHandler4
 	DD	imagerel $cppxdata$?spawnCharacter@User@@QEAAXXZ
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$chain$14$?processInput@User@@QEAAXXZ DD 021H
+$chain$15$?processInput@User@@QEAAXXZ DD 021H
 	DD	imagerel $LN273
 	DD	imagerel $LN273+31
 	DD	imagerel $unwind$?processInput@User@@QEAAXXZ
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$chain$13$?processInput@User@@QEAAXXZ DD 021H
+$chain$14$?processInput@User@@QEAAXXZ DD 020021H
+	DD	0223400H
 	DD	imagerel $LN273+31
-	DD	imagerel $LN273+44
-	DD	imagerel $chain$1$?processInput@User@@QEAAXXZ
+	DD	imagerel $LN273+43
+	DD	imagerel $chain$2$?processInput@User@@QEAAXXZ
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$chain$12$?processInput@User@@QEAAXXZ DD 020021H
-	DD	04d800H
+$chain$13$?processInput@User@@QEAAXXZ DD 020021H
+	DD	0223400H
+	DD	imagerel $LN273+43
+	DD	imagerel $LN273+47
+	DD	imagerel $chain$3$?processInput@User@@QEAAXXZ
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$chain$12$?processInput@User@@QEAAXXZ DD 040021H
+	DD	08d800H
+	DD	0223400H
+	DD	imagerel $LN273+43
+	DD	imagerel $LN273+47
+	DD	imagerel $chain$3$?processInput@User@@QEAAXXZ
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$chain$11$?processInput@User@@QEAAXXZ DD 0103521H
+	DD	0d7835H
+	DD	0e6831H
+	DD	022342dH
+	DD	08d820H
+	DD	09b818H
+	DD	0aa813H
+	DD	0b980eH
+	DD	0c8805H
+	DD	imagerel $LN273+43
+	DD	imagerel $LN273+47
+	DD	imagerel $chain$3$?processInput@User@@QEAAXXZ
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$chain$3$?processInput@User@@QEAAXXZ DD 020421H
+	DD	01ef404H
 	DD	imagerel $LN273+31
-	DD	imagerel $LN273+44
-	DD	imagerel $chain$1$?processInput@User@@QEAAXXZ
+	DD	imagerel $LN273+43
+	DD	imagerel $chain$2$?processInput@User@@QEAAXXZ
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$chain$11$?processInput@User@@QEAAXXZ DD 040021H
-	DD	097800H
-	DD	0a6800H
-	DD	imagerel $LN273+44
-	DD	imagerel $LN273+74
-	DD	imagerel $chain$5$?processInput@User@@QEAAXXZ
-xdata	ENDS
-;	COMDAT xdata
-xdata	SEGMENT
-$chain$10$?processInput@User@@QEAAXXZ DD 0a1421H
-	DD	097814H
-	DD	0a6810H
-	DD	016f40cH
-	DD	01ce408H
-	DD	01b6404H
-	DD	imagerel $LN273+44
-	DD	imagerel $LN273+74
-	DD	imagerel $chain$5$?processInput@User@@QEAAXXZ
-xdata	ENDS
-;	COMDAT xdata
-xdata	SEGMENT
-$chain$5$?processInput@User@@QEAAXXZ DD 081521H
-	DD	04d815H
-	DD	05b80fH
-	DD	06a80aH
-	DD	079805H
-	DD	imagerel $LN273+31
-	DD	imagerel $LN273+44
-	DD	imagerel $chain$1$?processInput@User@@QEAAXXZ
-xdata	ENDS
-;	COMDAT xdata
-xdata	SEGMENT
-$chain$1$?processInput@User@@QEAAXXZ DD 040921H
-	DD	088809H
-	DD	01a3404H
+$chain$2$?processInput@User@@QEAAXXZ DD 060c21H
+	DD	025e40cH
+	DD	024c408H
+	DD	0236404H
 	DD	imagerel $LN273
 	DD	imagerel $LN273+31
 	DD	imagerel $unwind$?processInput@User@@QEAAXXZ
@@ -1660,7 +1718,7 @@ xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $unwind$?processInput@User@@QEAAXXZ DD 041001H
-	DD	0170110H
+	DD	01f0110H
 	DD	050047005H
 xdata	ENDS
 ;	COMDAT xdata
@@ -1670,6 +1728,24 @@ $unwind$?updateVectors@User@@QEAAXXZ DD 081f01H
 	DD	056818H
 	DD	0e340cH
 	DD	07008b20cH
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$ip2state$??1User@@QEAA@XZ DB 02H
+	DB	'N'
+	DB	00H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$cppxdata$??1User@@QEAA@XZ DB 060H
+	DD	imagerel $ip2state$??1User@@QEAA@XZ
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$??1User@@QEAA@XZ DD 020619H
+	DD	030023206H
+	DD	imagerel __CxxFrameHandler4
+	DD	imagerel $cppxdata$??1User@@QEAA@XZ
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
@@ -1916,6 +1992,16 @@ xdata	ENDS
 xdata	SEGMENT
 $unwind$?getRight@Quaternion@@QEBA?AUVector3@@XZ DD 020601H
 	DD	030025206H
+xdata	ENDS
+;	COMDAT xdata
+xdata	SEGMENT
+$unwind$?rotate@Quaternion@@QEBA?AUVector3@@AEBU2@@Z DD 0b5b01H
+	DD	0b85bH
+	DD	01a84bH
+	DD	029836H
+	DD	03882cH
+	DD	046820H
+	DD	0a204H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
@@ -3292,6 +3378,50 @@ this$ = 8
 ??$typeMatch@VPxRigidDynamic@physx@@@PxBase@physx@@IEBA_NXZ ENDP ; physx::PxBase::typeMatch<physx::PxRigidDynamic>
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ??$is@VPxRigidDynamic@physx@@@PxBase@physx@@QEAAPEAVPxRigidDynamic@1@XZ
+_TEXT	SEGMENT
+this$ = 8
+??$is@VPxRigidDynamic@physx@@@PxBase@physx@@QEAAPEAVPxRigidDynamic@1@XZ PROC ; physx::PxBase::is<physx::PxRigidDynamic>, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\common\PxBase.h
+; Line 101
+	xor	eax, eax
+	cmp	WORD PTR [rcx+8], 7
+	cmove	rax, rcx
+	ret	0
+??$is@VPxRigidDynamic@physx@@@PxBase@physx@@QEAAPEAVPxRigidDynamic@1@XZ ENDP ; physx::PxBase::is<physx::PxRigidDynamic>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z
+_TEXT	SEGMENT
+_Ostr$ = 48
+??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z PROC ; std::endl<char,std::char_traits<char> >, COMDAT
+; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_ostream.hpp
+; Line 1012
+$LN4:
+	push	rbx
+	sub	rsp, 32					; 00000020H
+; Line 1013
+	mov	rax, QWORD PTR [rcx]
+	mov	rbx, rcx
+	mov	dl, 10
+	movsxd	rcx, DWORD PTR [rax+4]
+	add	rcx, rbx
+	call	QWORD PTR __imp_?widen@?$basic_ios@DU?$char_traits@D@std@@@std@@QEBADD@Z
+	movzx	edx, al
+	mov	rcx, rbx
+	call	QWORD PTR __imp_?put@?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV12@D@Z
+; Line 1014
+	mov	rcx, rbx
+	call	QWORD PTR __imp_?flush@?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV12@XZ
+; Line 1015
+	mov	rax, rbx
+; Line 1016
+	add	rsp, 32					; 00000020H
+	pop	rbx
+	ret	0
+??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ENDP ; std::endl<char,std::char_traits<char> >
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z
 _TEXT	SEGMENT
 _Ok$ = 32
@@ -3587,19 +3717,6 @@ __catch$??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D
 ?catch$4@?0???$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z@4HA ENDP ; `std::operator<<<std::char_traits<char> >'::`1'::catch$4
 text$x	ENDS
 ; Function compile flags: /Ogtpy
-;	COMDAT ??$is@VPxRigidDynamic@physx@@@PxBase@physx@@QEAAPEAVPxRigidDynamic@1@XZ
-_TEXT	SEGMENT
-this$ = 8
-??$is@VPxRigidDynamic@physx@@@PxBase@physx@@QEAAPEAVPxRigidDynamic@1@XZ PROC ; physx::PxBase::is<physx::PxRigidDynamic>, COMDAT
-; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\common\PxBase.h
-; Line 101
-	xor	eax, eax
-	cmp	WORD PTR [rcx+8], 7
-	cmove	rax, rcx
-	ret	0
-??$is@VPxRigidDynamic@physx@@@PxBase@physx@@QEAAPEAVPxRigidDynamic@1@XZ ENDP ; physx::PxBase::is<physx::PxRigidDynamic>
-_TEXT	ENDS
-; Function compile flags: /Ogtpy
 ;	COMDAT ?spawnCharacter@User@@QEAAXXZ
 _TEXT	SEGMENT
 $T24 = 32
@@ -3616,69 +3733,69 @@ $T34 = 48
 $T35 = 48
 $T36 = 64
 $T37 = 96
-this$ = 256
-$T38 = 256
-$T39 = 256
-$T40 = 256
-$T41 = 256
-$T42 = 256
-$T43 = 256
-$T44 = 256
-$T45 = 264
+this$ = 240
+$T38 = 240
+$T39 = 240
+$T40 = 240
+$T41 = 240
+$T42 = 240
+$T43 = 240
+$T44 = 240
+$T45 = 248
 ?spawnCharacter@User@@QEAAXXZ PROC			; User::spawnCharacter, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 130
-$LN248:
+; Line 158
+$LN296:
 	mov	rax, rsp
+	mov	QWORD PTR [rax+32], rbx
 	push	rbp
-	push	rbx
 	push	rsi
+	push	rdi
 	lea	rbp, QWORD PTR [rax-95]
-	sub	rsp, 224				; 000000e0H
+	sub	rsp, 208				; 000000d0H
 	movaps	XMMWORD PTR [rax-40], xmm6
 	movaps	XMMWORD PTR [rax-56], xmm7
 	movaps	XMMWORD PTR [rax-72], xmm8
 	movaps	XMMWORD PTR [rax-88], xmm9
 	movaps	XMMWORD PTR [rax-104], xmm10
-	movaps	XMMWORD PTR [rax-120], xmm11
 	mov	rsi, rcx
-; Line 131
+; Line 159
 	cmp	QWORD PTR [rcx+72], 0
 	jne	$LN1@spawnChara
-; Line 134
+; Line 162
 	mov	ecx, 152				; 00000098H
 	call	??2@YAPEAX_K@Z				; operator new
 	mov	rbx, rax
-	mov	QWORD PTR $T38[rbp-153], rax
+	mov	QWORD PTR $T38[rbp-137], rax
 	movss	xmm7, DWORD PTR __real@3f800000
 	test	rax, rax
 	je	$LN4@spawnChara
 	xorps	xmm0, xmm0
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 493
-	movups	XMMWORD PTR $T36[rbp-153], xmm0
+	movups	XMMWORD PTR $T36[rbp-137], xmm0
 ; Line 940
-	mov	QWORD PTR $T36[rbp-137], 5
+	mov	QWORD PTR $T36[rbp-121], 5
 ; Line 941
-	mov	QWORD PTR $T36[rbp-129], 15
+	mov	QWORD PTR $T36[rbp-113], 15
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\__msvc_string_view.hpp
 ; Line 200
 	mov	eax, DWORD PTR ??_C@_05NFIJOKEG@Model@
-	mov	DWORD PTR $T36[rbp-153], eax
+	mov	DWORD PTR $T36[rbp-137], eax
 	movzx	eax, BYTE PTR ??_C@_05NFIJOKEG@Model@+4
-	mov	BYTE PTR $T36[rbp-149], al
+	mov	BYTE PTR $T36[rbp-133], al
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 948
-	mov	BYTE PTR $T36[rbp-148], 0
+	mov	BYTE PTR $T36[rbp-132], 0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Model.hpp
 ; Line 6
-	lea	rax, QWORD PTR $T36[rbp-153]
-	mov	QWORD PTR $T45[rbp-153], rax
+	lea	rax, QWORD PTR $T36[rbp-137]
+	mov	QWORD PTR $T45[rbp-137], rax
 	movss	xmm6, DWORD PTR __real@40a00000
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Spatial.hpp
 ; Line 13
-	lea	rdx, QWORD PTR $T36[rbp-153]
-	lea	rcx, QWORD PTR $T37[rbp-153]
+	lea	rdx, QWORD PTR $T36[rbp-137]
+	lea	rcx, QWORD PTR $T37[rbp-137]
 	call	??0?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@AEBV01@@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::basic_string<char,std::char_traits<char>,std::allocator<char> >
 	mov	rdx, rax
 	mov	rcx, rbx
@@ -3696,185 +3813,217 @@ $LN248:
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 8
 	mov	QWORD PTR [rbx+136], 1065353216		; 3f800000H
-	mov	QWORD PTR [rbx+144], 0
+	xor	edi, edi
+	mov	QWORD PTR [rbx+144], rdi
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 1433
-	lea	rcx, QWORD PTR $T36[rbp-153]
+	lea	rcx, QWORD PTR $T36[rbp-137]
 	call	?_Tidy_deallocate@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAXXZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Tidy_deallocate
 ; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Model.hpp
 ; Line 6
 	lea	rax, OFFSET FLAT:??_7Model@@6B@
 	mov	QWORD PTR [rbx], rax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 134
+; Line 162
 	jmp	SHORT $LN5@spawnChara
 $LN4@spawnChara:
-	xor	ebx, ebx
+	xor	edi, edi
+	mov	ebx, edi
 $LN5@spawnChara:
 	mov	QWORD PTR [rsi+72], rbx
-; Line 135
-	movss	xmm9, DWORD PTR [rbx+112]
-	movss	xmm7, DWORD PTR [rbx+116]
-	movss	xmm6, DWORD PTR [rbx+120]
-; Line 137
-	mov	ecx, 216				; 000000d8H
+; Line 163
+	movss	xmm8, DWORD PTR [rbx+112]
+	movss	xmm6, DWORD PTR [rbx+116]
+	movss	xmm7, DWORD PTR [rbx+120]
+; Line 165
+	mov	ecx, 224				; 000000e0H
 	call	??2@YAPEAX_K@Z				; operator new
-	mov	QWORD PTR $T39[rbp-153], rax
+	mov	QWORD PTR $T39[rbp-137], rax
 	xorps	xmm10, xmm10
-	movaps	xmm11, xmm9
-	addss	xmm6, xmm10
-	addss	xmm11, xmm10
+	movaps	xmm9, xmm8
+	addss	xmm7, xmm10
+	addss	xmm9, xmm10
 	test	rax, rax
-	je	SHORT $LN7@spawnChara
-	mov	DWORD PTR $T24[rbp-153], 1065353216	; 3f800000H
-	mov	DWORD PTR $T24[rbp-149], 1065353216	; 3f800000H
-	mov	DWORD PTR $T24[rbp-145], 1065353216	; 3f800000H
-	movss	DWORD PTR $T30[rbp-153], xmm11
+	je	SHORT $LN6@spawnChara
+	mov	DWORD PTR $T24[rbp-137], 1065353216	; 3f800000H
+	mov	DWORD PTR $T24[rbp-133], 1065353216	; 3f800000H
+	mov	DWORD PTR $T24[rbp-129], 1065353216	; 3f800000H
+	movss	DWORD PTR $T30[rbp-137], xmm9
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 10
-	movaps	xmm0, xmm7
+	movaps	xmm0, xmm6
 	addss	xmm0, DWORD PTR __real@3fa00000
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 137
-	movss	DWORD PTR $T30[rbp-149], xmm0
-	movss	DWORD PTR $T30[rbp-145], xmm6
+; Line 165
+	movss	DWORD PTR $T30[rbp-133], xmm0
+	movss	DWORD PTR $T30[rbp-129], xmm7
 	xor	r9d, r9d
-	lea	r8, QWORD PTR $T24[rbp-153]
-	lea	rdx, QWORD PTR $T30[rbp-153]
+	lea	r8, QWORD PTR $T24[rbp-137]
+	lea	rdx, QWORD PTR $T30[rbp-137]
 	mov	rcx, rax
 	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
-	npad	1
+	jmp	SHORT $LN7@spawnChara
+$LN6@spawnChara:
+	mov	rax, rdi
 $LN7@spawnChara:
 	mov	QWORD PTR [rsi+88], rax
-; Line 138
-	mov	ecx, 216				; 000000d8H
+; Line 166
+	mov	ecx, 224				; 000000e0H
 	call	??2@YAPEAX_K@Z				; operator new
-	mov	QWORD PTR $T40[rbp-153], rax
-	movaps	xmm8, xmm7
-	addss	xmm8, xmm10
+	mov	QWORD PTR $T40[rbp-137], rax
 	test	rax, rax
-	je	SHORT $LN9@spawnChara
-	mov	DWORD PTR $T31[rbp-153], 1065353216	; 3f800000H
-	mov	DWORD PTR $T31[rbp-149], 1069547520	; 3fc00000H
-	mov	DWORD PTR $T31[rbp-145], 1056964608	; 3f000000H
-	movss	DWORD PTR $T25[rbp-153], xmm11
-	movss	DWORD PTR $T25[rbp-149], xmm8
-	movss	DWORD PTR $T25[rbp-145], xmm6
+	je	SHORT $LN8@spawnChara
+	mov	DWORD PTR $T31[rbp-137], 1065353216	; 3f800000H
+	mov	DWORD PTR $T31[rbp-133], 1077936128	; 40400000H
+	mov	DWORD PTR $T31[rbp-129], 1056964608	; 3f000000H
+	movss	DWORD PTR $T25[rbp-137], xmm9
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 10
+	movaps	xmm0, xmm6
+	subss	xmm0, DWORD PTR __real@40400000
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
+; Line 166
+	movss	DWORD PTR $T25[rbp-133], xmm0
+	movss	DWORD PTR $T25[rbp-129], xmm7
 	xor	r9d, r9d
-	lea	r8, QWORD PTR $T31[rbp-153]
-	lea	rdx, QWORD PTR $T25[rbp-153]
+	lea	r8, QWORD PTR $T31[rbp-137]
+	lea	rdx, QWORD PTR $T25[rbp-137]
 	mov	rcx, rax
 	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
-	npad	1
+	jmp	SHORT $LN9@spawnChara
+$LN8@spawnChara:
+	mov	rax, rdi
 $LN9@spawnChara:
 	mov	QWORD PTR [rsi+80], rax
-; Line 139
-	mov	ecx, 216				; 000000d8H
+; Line 167
+	mov	ecx, 224				; 000000e0H
 	call	??2@YAPEAX_K@Z				; operator new
-	mov	QWORD PTR $T41[rbp-153], rax
-	movss	xmm10, DWORD PTR __real@3f400000
+	mov	QWORD PTR $T41[rbp-137], rax
+	movaps	xmm9, xmm6
+	addss	xmm9, xmm10
 	test	rax, rax
-	je	SHORT $LN11@spawnChara
-	mov	DWORD PTR $T32[rbp-153], 1056964608	; 3f000000H
-	mov	DWORD PTR $T32[rbp-149], 1069547520	; 3fc00000H
-	mov	DWORD PTR $T32[rbp-145], 1056964608	; 3f000000H
+	je	SHORT $LN10@spawnChara
+	mov	DWORD PTR $T32[rbp-137], 1056964608	; 3f000000H
+	mov	DWORD PTR $T32[rbp-133], 1069547520	; 3fc00000H
+	mov	DWORD PTR $T32[rbp-129], 1056964608	; 3f000000H
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 10
-	movaps	xmm0, xmm9
-	subss	xmm0, xmm10
+	movaps	xmm0, xmm8
+	subss	xmm0, DWORD PTR __real@3f400000
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 139
-	movss	DWORD PTR $T26[rbp-153], xmm0
-	movss	DWORD PTR $T26[rbp-149], xmm8
-	movss	DWORD PTR $T26[rbp-145], xmm6
+; Line 167
+	movss	DWORD PTR $T26[rbp-137], xmm0
+	movss	DWORD PTR $T26[rbp-133], xmm9
+	movss	DWORD PTR $T26[rbp-129], xmm7
 	xor	r9d, r9d
-	lea	r8, QWORD PTR $T32[rbp-153]
-	lea	rdx, QWORD PTR $T26[rbp-153]
+	lea	r8, QWORD PTR $T32[rbp-137]
+	lea	rdx, QWORD PTR $T26[rbp-137]
 	mov	rcx, rax
 	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
-	npad	1
+	jmp	SHORT $LN11@spawnChara
+$LN10@spawnChara:
+	mov	rax, rdi
 $LN11@spawnChara:
 	mov	QWORD PTR [rsi+96], rax
-; Line 140
-	mov	ecx, 216				; 000000d8H
+; Line 168
+	mov	ecx, 224				; 000000e0H
 	call	??2@YAPEAX_K@Z				; operator new
-	mov	QWORD PTR $T42[rbp-153], rax
+	mov	QWORD PTR $T42[rbp-137], rax
 	test	rax, rax
-	je	SHORT $LN13@spawnChara
-	mov	DWORD PTR $T33[rbp-153], 1056964608	; 3f000000H
-	mov	DWORD PTR $T33[rbp-149], 1069547520	; 3fc00000H
-	mov	DWORD PTR $T33[rbp-145], 1056964608	; 3f000000H
+	je	SHORT $LN12@spawnChara
+	mov	DWORD PTR $T33[rbp-137], 1056964608	; 3f000000H
+	mov	DWORD PTR $T33[rbp-133], 1069547520	; 3fc00000H
+	mov	DWORD PTR $T33[rbp-129], 1056964608	; 3f000000H
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 10
-	movaps	xmm0, xmm9
-	addss	xmm0, xmm10
+	movaps	xmm0, xmm8
+	addss	xmm0, DWORD PTR __real@3f400000
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 140
-	movss	DWORD PTR $T27[rbp-153], xmm0
-	movss	DWORD PTR $T27[rbp-149], xmm8
-	movss	DWORD PTR $T27[rbp-145], xmm6
+; Line 168
+	movss	DWORD PTR $T27[rbp-137], xmm0
+	movss	DWORD PTR $T27[rbp-133], xmm9
+	movss	DWORD PTR $T27[rbp-129], xmm7
 	xor	r9d, r9d
-	lea	r8, QWORD PTR $T33[rbp-153]
-	lea	rdx, QWORD PTR $T27[rbp-153]
+	lea	r8, QWORD PTR $T33[rbp-137]
+	lea	rdx, QWORD PTR $T27[rbp-137]
 	mov	rcx, rax
 	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
-	npad	1
+	jmp	SHORT $LN13@spawnChara
+$LN12@spawnChara:
+	mov	rax, rdi
 $LN13@spawnChara:
 	mov	QWORD PTR [rsi+104], rax
-; Line 141
-	mov	ecx, 216				; 000000d8H
+; Line 169
+	mov	ecx, 224				; 000000e0H
 	call	??2@YAPEAX_K@Z				; operator new
-	mov	QWORD PTR $T43[rbp-153], rax
-	movss	xmm8, DWORD PTR __real@3e800000
-	subss	xmm7, DWORD PTR __real@3fc00000
+	mov	QWORD PTR $T43[rbp-137], rax
+	movss	xmm9, DWORD PTR __real@3e800000
+	subss	xmm6, DWORD PTR __real@3fc00000
 	test	rax, rax
-	je	SHORT $LN15@spawnChara
-	mov	DWORD PTR $T34[rbp-153], 1056964608	; 3f000000H
-	mov	DWORD PTR $T34[rbp-149], 1069547520	; 3fc00000H
-	mov	DWORD PTR $T34[rbp-145], 1056964608	; 3f000000H
+	je	SHORT $LN14@spawnChara
+	mov	DWORD PTR $T34[rbp-137], 1056964608	; 3f000000H
+	mov	DWORD PTR $T34[rbp-133], 1069547520	; 3fc00000H
+	mov	DWORD PTR $T34[rbp-129], 1056964608	; 3f000000H
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 10
-	movaps	xmm0, xmm9
-	subss	xmm0, xmm8
+	movaps	xmm0, xmm8
+	subss	xmm0, xmm9
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 141
-	movss	DWORD PTR $T28[rbp-153], xmm0
-	movss	DWORD PTR $T28[rbp-149], xmm7
-	movss	DWORD PTR $T28[rbp-145], xmm6
+; Line 169
+	movss	DWORD PTR $T28[rbp-137], xmm0
+	movss	DWORD PTR $T28[rbp-133], xmm6
+	movss	DWORD PTR $T28[rbp-129], xmm7
 	xor	r9d, r9d
-	lea	r8, QWORD PTR $T34[rbp-153]
-	lea	rdx, QWORD PTR $T28[rbp-153]
+	lea	r8, QWORD PTR $T34[rbp-137]
+	lea	rdx, QWORD PTR $T28[rbp-137]
 	mov	rcx, rax
 	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
-	npad	1
+	jmp	SHORT $LN15@spawnChara
+$LN14@spawnChara:
+	mov	rax, rdi
 $LN15@spawnChara:
 	mov	QWORD PTR [rsi+112], rax
-; Line 142
-	mov	ecx, 216				; 000000d8H
+; Line 170
+	mov	ecx, 224				; 000000e0H
 	call	??2@YAPEAX_K@Z				; operator new
-	mov	QWORD PTR $T44[rbp-153], rax
+	mov	QWORD PTR $T44[rbp-137], rax
 	test	rax, rax
 	je	SHORT $LN17@spawnChara
-	mov	DWORD PTR $T35[rbp-153], 1056964608	; 3f000000H
-	mov	DWORD PTR $T35[rbp-149], 1069547520	; 3fc00000H
-	mov	DWORD PTR $T35[rbp-145], 1056964608	; 3f000000H
+	mov	DWORD PTR $T35[rbp-137], 1056964608	; 3f000000H
+	mov	DWORD PTR $T35[rbp-133], 1069547520	; 3fc00000H
+	mov	DWORD PTR $T35[rbp-129], 1056964608	; 3f000000H
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 10
-	addss	xmm9, xmm8
+	addss	xmm8, xmm9
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 142
-	movss	DWORD PTR $T29[rbp-153], xmm9
-	movss	DWORD PTR $T29[rbp-149], xmm7
-	movss	DWORD PTR $T29[rbp-145], xmm6
+; Line 170
+	movss	DWORD PTR $T29[rbp-137], xmm8
+	movss	DWORD PTR $T29[rbp-133], xmm6
+	movss	DWORD PTR $T29[rbp-129], xmm7
 	xor	r9d, r9d
-	lea	r8, QWORD PTR $T35[rbp-153]
-	lea	rdx, QWORD PTR $T29[rbp-153]
+	lea	r8, QWORD PTR $T35[rbp-137]
+	lea	rdx, QWORD PTR $T29[rbp-137]
 	mov	rcx, rax
 	call	??0Cube@@QEAA@UVector3@@0I@Z		; Cube::Cube
-	npad	1
+	mov	rdi, rax
 $LN17@spawnChara:
-	mov	QWORD PTR [rsi+120], rax
-; Line 144
+	mov	QWORD PTR [rsi+120], rdi
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
+; Line 220
+	mov	rax, QWORD PTR [rsi+80]
+	mov	BYTE PTR [rax+184], 40			; 00000028H
+	mov	rax, QWORD PTR [rsi+88]
+	mov	BYTE PTR [rax+184], 40			; 00000028H
+	mov	rax, QWORD PTR [rsi+96]
+	mov	BYTE PTR [rax+184], 40			; 00000028H
+	mov	rax, QWORD PTR [rsi+104]
+	mov	BYTE PTR [rax+184], 40			; 00000028H
+	mov	rax, QWORD PTR [rsi+112]
+	mov	BYTE PTR [rax+184], 40			; 00000028H
+	mov	rax, QWORD PTR [rsi+120]
+	mov	BYTE PTR [rax+184], 40			; 00000028H
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
+; Line 181
 	mov	rcx, QWORD PTR [rsi+88]
 	add	rcx, 8
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
@@ -3883,16 +4032,16 @@ $LN17@spawnChara:
 	lea	rdx, OFFSET FLAT:??_C@_04BFCCBDOP@Head@
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 145
+; Line 182
 	mov	rcx, QWORD PTR [rsi+80]
 	add	rcx, 8
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 1654
-	mov	r8d, 5
-	lea	rdx, OFFSET FLAT:??_C@_05LHKEDNFH@Torso@
+	mov	r8d, 4
+	lea	rdx, OFFSET FLAT:??_C@_04BAJDEDPD@Root@
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 146
+; Line 183
 	mov	rcx, QWORD PTR [rsi+96]
 	add	rcx, 8
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
@@ -3901,7 +4050,7 @@ $LN17@spawnChara:
 	lea	rdx, OFFSET FLAT:??_C@_07ELBAKILC@LeftArm@
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 147
+; Line 184
 	mov	rcx, QWORD PTR [rsi+104]
 	add	rcx, 8
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
@@ -3910,7 +4059,7 @@ $LN17@spawnChara:
 	lea	rdx, OFFSET FLAT:??_C@_08IIJMBGOO@RightArm@
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 148
+; Line 185
 	mov	rcx, QWORD PTR [rsi+112]
 	add	rcx, 8
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
@@ -3919,7 +4068,7 @@ $LN17@spawnChara:
 	lea	rdx, OFFSET FLAT:??_C@_07FKPMCNBA@LeftLeg@
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 149
+; Line 186
 	mov	rcx, QWORD PTR [rsi+120]
 	add	rcx, 8
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
@@ -3928,53 +4077,64 @@ $LN17@spawnChara:
 	lea	rdx, OFFSET FLAT:??_C@_08JJHAJDEM@RightLeg@
 	call	??$_Assign@D@?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEAAAEAV01@QEBD_K@Z ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::_Assign<char>
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 152
+; Line 191
 	mov	rax, QWORD PTR [rsi+80]
 	mov	DWORD PTR [rax+156], 1065353216		; 3f800000H
-	mov	QWORD PTR [rax+160], 1056964608		; 3f000000H
+	mov	DWORD PTR [rax+160], 1056964608		; 3f000000H
+	mov	DWORD PTR [rax+164], 1056964608		; 3f000000H
 	mov	DWORD PTR [rax+168], 1065353216		; 3f800000H
-; Line 155
+; Line 193
+	lea	rdx, OFFSET FLAT:??_C@_0O@DFEEAMDI@?$FLRCBN_DEBUG?$FN?5@
+	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
+	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
+	mov	rcx, rax
+	lea	rdx, OFFSET FLAT:??_C@_0BG@ONKMLAAM@Spawning?5character?4?4?4@
+	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
+	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
+	mov	rcx, rax
+	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
+; Line 194
 	mov	rcx, QWORD PTR [rsi+72]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+88]
 	call	QWORD PTR [rax+32]
-; Line 156
+; Line 195
 	mov	rcx, QWORD PTR [rsi+72]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+80]
 	call	QWORD PTR [rax+32]
-; Line 157
+; Line 196
 	mov	rcx, QWORD PTR [rsi+72]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+96]
 	call	QWORD PTR [rax+32]
-; Line 158
+; Line 197
 	mov	rcx, QWORD PTR [rsi+72]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+104]
 	call	QWORD PTR [rax+32]
-; Line 159
+; Line 198
 	mov	rcx, QWORD PTR [rsi+72]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+112]
 	call	QWORD PTR [rax+32]
-; Line 160
+; Line 199
 	mov	rcx, QWORD PTR [rsi+72]
 	mov	rax, QWORD PTR [rcx]
 	mov	rdx, QWORD PTR [rsi+120]
 	call	QWORD PTR [rax+32]
 $LN1@spawnChara:
-; Line 161
-	lea	r11, QWORD PTR [rsp+224]
+; Line 200
+	lea	r11, QWORD PTR [rsp+208]
+	mov	rbx, QWORD PTR [r11+56]
 	movaps	xmm6, XMMWORD PTR [r11-16]
 	movaps	xmm7, XMMWORD PTR [r11-32]
 	movaps	xmm8, XMMWORD PTR [r11-48]
 	movaps	xmm9, XMMWORD PTR [r11-64]
 	movaps	xmm10, XMMWORD PTR [r11-80]
-	movaps	xmm11, XMMWORD PTR [r11-96]
 	mov	rsp, r11
+	pop	rdi
 	pop	rsi
-	pop	rbx
 	pop	rbp
 	ret	0
 ?spawnCharacter@User@@QEAAXXZ ENDP			; User::spawnCharacter
@@ -3996,15 +4156,15 @@ $T34 = 48
 $T35 = 48
 $T36 = 64
 $T37 = 96
-this$ = 256
-$T38 = 256
-$T39 = 256
-$T40 = 256
-$T41 = 256
-$T42 = 256
-$T43 = 256
-$T44 = 256
-$T45 = 264
+this$ = 240
+$T38 = 240
+$T39 = 240
+$T40 = 240
+$T41 = 240
+$T42 = 240
+$T43 = 240
+$T44 = 240
+$T45 = 248
 ?dtor$0@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$0
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4034,15 +4194,15 @@ $T34 = 48
 $T35 = 48
 $T36 = 64
 $T37 = 96
-this$ = 256
-$T38 = 256
-$T39 = 256
-$T40 = 256
-$T41 = 256
-$T42 = 256
-$T43 = 256
-$T44 = 256
-$T45 = 264
+this$ = 240
+$T38 = 240
+$T39 = 240
+$T40 = 240
+$T41 = 240
+$T42 = 240
+$T43 = 240
+$T44 = 240
+$T45 = 248
 ?dtor$11@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$11
 	mov	rcx, QWORD PTR $T45[rdx]
 	jmp	??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::~basic_string<char,std::char_traits<char>,std::allocator<char> >
@@ -4065,20 +4225,20 @@ $T34 = 48
 $T35 = 48
 $T36 = 64
 $T37 = 96
-this$ = 256
-$T38 = 256
-$T39 = 256
-$T40 = 256
-$T41 = 256
-$T42 = 256
-$T43 = 256
-$T44 = 256
-$T45 = 264
+this$ = 240
+$T38 = 240
+$T39 = 240
+$T40 = 240
+$T41 = 240
+$T42 = 240
+$T43 = 240
+$T44 = 240
+$T45 = 248
 ?dtor$1@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$1
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 216				; 000000d8H
+	mov	edx, 224				; 000000e0H
 	mov	rcx, QWORD PTR $T39[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4103,20 +4263,20 @@ $T34 = 48
 $T35 = 48
 $T36 = 64
 $T37 = 96
-this$ = 256
-$T38 = 256
-$T39 = 256
-$T40 = 256
-$T41 = 256
-$T42 = 256
-$T43 = 256
-$T44 = 256
-$T45 = 264
+this$ = 240
+$T38 = 240
+$T39 = 240
+$T40 = 240
+$T41 = 240
+$T42 = 240
+$T43 = 240
+$T44 = 240
+$T45 = 248
 ?dtor$2@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$2
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 216				; 000000d8H
+	mov	edx, 224				; 000000e0H
 	mov	rcx, QWORD PTR $T40[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4141,20 +4301,20 @@ $T34 = 48
 $T35 = 48
 $T36 = 64
 $T37 = 96
-this$ = 256
-$T38 = 256
-$T39 = 256
-$T40 = 256
-$T41 = 256
-$T42 = 256
-$T43 = 256
-$T44 = 256
-$T45 = 264
+this$ = 240
+$T38 = 240
+$T39 = 240
+$T40 = 240
+$T41 = 240
+$T42 = 240
+$T43 = 240
+$T44 = 240
+$T45 = 248
 ?dtor$3@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$3
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 216				; 000000d8H
+	mov	edx, 224				; 000000e0H
 	mov	rcx, QWORD PTR $T41[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4179,20 +4339,20 @@ $T34 = 48
 $T35 = 48
 $T36 = 64
 $T37 = 96
-this$ = 256
-$T38 = 256
-$T39 = 256
-$T40 = 256
-$T41 = 256
-$T42 = 256
-$T43 = 256
-$T44 = 256
-$T45 = 264
+this$ = 240
+$T38 = 240
+$T39 = 240
+$T40 = 240
+$T41 = 240
+$T42 = 240
+$T43 = 240
+$T44 = 240
+$T45 = 248
 ?dtor$4@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$4
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 216				; 000000d8H
+	mov	edx, 224				; 000000e0H
 	mov	rcx, QWORD PTR $T42[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4217,20 +4377,20 @@ $T34 = 48
 $T35 = 48
 $T36 = 64
 $T37 = 96
-this$ = 256
-$T38 = 256
-$T39 = 256
-$T40 = 256
-$T41 = 256
-$T42 = 256
-$T43 = 256
-$T44 = 256
-$T45 = 264
+this$ = 240
+$T38 = 240
+$T39 = 240
+$T40 = 240
+$T41 = 240
+$T42 = 240
+$T43 = 240
+$T44 = 240
+$T45 = 248
 ?dtor$5@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$5
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 216				; 000000d8H
+	mov	edx, 224				; 000000e0H
 	mov	rcx, QWORD PTR $T43[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4255,20 +4415,20 @@ $T34 = 48
 $T35 = 48
 $T36 = 64
 $T37 = 96
-this$ = 256
-$T38 = 256
-$T39 = 256
-$T40 = 256
-$T41 = 256
-$T42 = 256
-$T43 = 256
-$T44 = 256
-$T45 = 264
+this$ = 240
+$T38 = 240
+$T39 = 240
+$T40 = 240
+$T41 = 240
+$T42 = 240
+$T43 = 240
+$T44 = 240
+$T45 = 248
 ?dtor$6@?0??spawnCharacter@User@@QEAAXXZ@4HA PROC	; `User::spawnCharacter'::`1'::dtor$6
 	push	rbp
 	sub	rsp, 32					; 00000020H
 	mov	rbp, rdx
-	mov	edx, 216				; 000000d8H
+	mov	edx, 224				; 000000e0H
 	mov	rcx, QWORD PTR $T44[rbp]
 	call	??3@YAXPEAX_K@Z				; operator delete
 	add	rsp, 32					; 00000020H
@@ -4284,44 +4444,55 @@ $T7 = 32
 $T8 = 32
 $T9 = 32
 $T10 = 32
-currentVel$11 = 48
-$T12 = 48
-$T13 = 48
-$T14 = 48
-$T15 = 48
-this$ = 208
+$T11 = 32
+$T12 = 32
+$T13 = 32
+$T14 = 32
+$T15 = 32
+currentVel$16 = 48
+$T17 = 48
+$T18 = 64
+$T19 = 76
+$T20 = 88
+$T21 = 100
+$T22 = 112
+$T23 = 112
+$T24 = 112
+$T25 = 112
+this$ = 272
 ?processInput@User@@QEAAXXZ PROC			; User::processInput, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 21
+; Line 34
 $LN273:
 	mov	rax, rsp
 	push	rbp
 	push	rdi
 	lea	rbp, QWORD PTR [rax-95]
-	sub	rsp, 184				; 000000b8H
+	sub	rsp, 248				; 000000f8H
 	mov	rdi, rcx
-; Line 22
+; Line 35
 	mov	rcx, QWORD PTR [rcx]
 	test	rcx, rcx
 	je	$LN36@processInp
-	mov	QWORD PTR [rax+8], rbx
+	mov	QWORD PTR [rax+16], rsi
+	mov	QWORD PTR [rax+24], r12
+	mov	QWORD PTR [rax+32], r14
+	mov	QWORD PTR [rax-24], r15
 	movaps	XMMWORD PTR [rax-72], xmm8
 	xorps	xmm8, xmm8
 	movaps	XMMWORD PTR [rax-88], xmm9
 	movaps	XMMWORD PTR [rax-104], xmm10
 	movaps	XMMWORD PTR [rax-120], xmm11
-	movaps	XMMWORD PTR [rsp+64], xmm13
-; Line 24
+	movaps	XMMWORD PTR [rax-136], xmm13
+; Line 37
 	movss	xmm13, DWORD PTR __real@40000000
-	mov	QWORD PTR [rax+16], rsi
-	mov	QWORD PTR [rax+24], r14
-	mov	QWORD PTR [rax-24], r15
+	mov	QWORD PTR [rax+8], rbx
 	movaps	XMMWORD PTR [rax-40], xmm6
 	movaps	XMMWORD PTR [rax-56], xmm7
 	mov	eax, DWORD PTR [rdi+128]
 	test	eax, eax
 	jne	$LN3@processInp
-; Line 25
+; Line 38
 	mov	edx, 87					; 00000057H
 	call	glfwGetKey
 	lea	rbx, QWORD PTR [rdi+64]
@@ -4342,12 +4513,12 @@ $LN273:
 	addss	xmm1, DWORD PTR [rax+4]
 	addss	xmm0, DWORD PTR [rax+8]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 25
+; Line 38
 	movss	DWORD PTR [rax], xmm2
 	movss	DWORD PTR [rax+4], xmm1
 	movss	DWORD PTR [rax+8], xmm0
 $LN5@processInp:
-; Line 26
+; Line 39
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 83					; 00000053H
 	call	glfwGetKey
@@ -4372,12 +4543,12 @@ $LN5@processInp:
 	movss	xmm0, DWORD PTR [rax]
 	subss	xmm0, xmm3
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 26
+; Line 39
 	movss	DWORD PTR [rax], xmm0
 	movss	DWORD PTR [rax+4], xmm2
 	movss	DWORD PTR [rax+8], xmm1
 $LN6@processInp:
-; Line 27
+; Line 40
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 65					; 00000041H
 	call	glfwGetKey
@@ -4404,7 +4575,7 @@ $LN6@processInp:
 	movss	xmm0, DWORD PTR [rax]
 	subss	xmm0, xmm3
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 27
+; Line 40
 	movss	DWORD PTR [rax], xmm0
 	movss	DWORD PTR [rax+4], xmm2
 	movss	DWORD PTR [rax+8], xmm1
@@ -4413,7 +4584,7 @@ $LN227@processInp:
 	mov	r14, rbx
 	mov	r15, rsi
 $LN7@processInp:
-; Line 28
+; Line 41
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 68					; 00000044H
 	call	glfwGetKey
@@ -4433,12 +4604,12 @@ $LN7@processInp:
 	addss	xmm1, DWORD PTR [rax+4]
 	addss	xmm0, DWORD PTR [rax+8]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 28
+; Line 41
 	movss	DWORD PTR [rax], xmm2
 	movss	DWORD PTR [rax+4], xmm1
 	movss	DWORD PTR [rax+8], xmm0
 $LN8@processInp:
-; Line 29
+; Line 42
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 81					; 00000051H
 	call	glfwGetKey
@@ -4463,12 +4634,12 @@ $LN8@processInp:
 	movss	xmm0, DWORD PTR [rax]
 	subss	xmm0, xmm3
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 29
+; Line 42
 	movss	DWORD PTR [rax], xmm0
 	movss	DWORD PTR [rax+4], xmm2
 	movss	DWORD PTR [rax+8], xmm1
 $LN228@processInp:
-; Line 30
+; Line 43
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 69					; 00000045H
 	call	glfwGetKey
@@ -4488,14 +4659,14 @@ $LN228@processInp:
 	addss	xmm1, DWORD PTR [rax+4]
 	addss	xmm0, DWORD PTR [rax+8]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 30
+; Line 43
 	movss	DWORD PTR [rax], xmm2
 	movss	DWORD PTR [rax+4], xmm1
 	movss	DWORD PTR [rax+8], xmm0
-; Line 31
+; Line 44
 	jmp	$LN12@processInp
 $LN3@processInp:
-; Line 32
+; Line 45
 	cmp	eax, 1
 	jne	$LN12@processInp
 	cmp	QWORD PTR [rdi+72], 0
@@ -4503,8 +4674,8 @@ $LN3@processInp:
 	mov	rax, QWORD PTR [rdi+80]
 	test	rax, rax
 	je	$LN12@processInp
-; Line 34
-	mov	rax, QWORD PTR [rax+184]
+; Line 47
+	mov	rax, QWORD PTR [rax+192]
 	test	rax, rax
 	je	$LN12@processInp
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\common\PxBase.h
@@ -4513,10 +4684,10 @@ $LN3@processInp:
 	cmp	WORD PTR [rax+8], 7
 	cmove	rbx, rax
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 37
+; Line 50
 	test	rbx, rbx
 	je	$LN232@processInp
-; Line 41
+; Line 54
 	mov	edx, 87					; 00000057H
 	xorps	xmm7, xmm7
 	xorps	xmm6, xmm6
@@ -4524,7 +4695,7 @@ $LN3@processInp:
 	lea	rsi, QWORD PTR [rdi+12]
 	cmp	eax, 1
 	jne	SHORT $LN223@processInp
-; Line 42
+; Line 55
 	movss	xmm6, DWORD PTR [rsi]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 12
@@ -4537,13 +4708,13 @@ $LN3@processInp:
 	addss	xmm7, xmm8
 $LN223@processInp:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 44
+; Line 57
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 83					; 00000053H
 	call	glfwGetKey
 	cmp	eax, 1
 	jne	SHORT $LN230@processInp
-; Line 45
+; Line 58
 	movss	xmm1, DWORD PTR [rsi]
 	lea	r14, QWORD PTR [rdi+12]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
@@ -4552,21 +4723,21 @@ $LN223@processInp:
 	mulss	xmm1, DWORD PTR [rdi+140]
 	mulss	xmm0, DWORD PTR [rdi+132]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 45
+; Line 58
 	subss	xmm6, xmm1
 	subss	xmm7, xmm0
 	jmp	SHORT $LN224@processInp
 $LN230@processInp:
-; Line 48
+; Line 61
 	mov	r14, rsi
 $LN224@processInp:
-; Line 47
+; Line 60
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 65					; 00000041H
 	call	glfwGetKey
 	cmp	eax, 1
 	jne	SHORT $LN231@processInp
-; Line 48
+; Line 61
 	movss	xmm1, DWORD PTR [rsi]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 12
@@ -4574,20 +4745,20 @@ $LN224@processInp:
 	mulss	xmm1, DWORD PTR [rdi+152]
 	mulss	xmm0, DWORD PTR [rdi+144]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 48
+; Line 61
 	subss	xmm6, xmm1
 	subss	xmm7, xmm0
 	jmp	SHORT $LN225@processInp
 $LN231@processInp:
 	mov	r14, rsi
 $LN225@processInp:
-; Line 50
+; Line 63
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 68					; 00000044H
 	call	glfwGetKey
 	cmp	eax, 1
 	jne	SHORT $LN17@processInp
-; Line 51
+; Line 64
 	movss	xmm1, DWORD PTR [r14]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 12
@@ -4595,32 +4766,32 @@ $LN225@processInp:
 	mulss	xmm1, DWORD PTR [rdi+152]
 	mulss	xmm0, DWORD PTR [rdi+144]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 51
+; Line 64
 	addss	xmm6, xmm1
 	addss	xmm7, xmm0
 $LN17@processInp:
-; Line 55
+; Line 68
 	mov	rax, QWORD PTR [rbx]
-	lea	rdx, QWORD PTR currentVel$11[rbp-105]
+	lea	rdx, QWORD PTR currentVel$16[rbp-169]
 	mov	rcx, rbx
 	call	QWORD PTR [rax+328]
-; Line 56
-	movss	xmm0, DWORD PTR currentVel$11[rbp-101]
-; Line 59
-	lea	rdx, QWORD PTR $T6[rbp-105]
+; Line 69
+	movss	xmm0, DWORD PTR currentVel$16[rbp-165]
+; Line 72
+	lea	rdx, QWORD PTR $T6[rsp]
 	mov	rax, QWORD PTR [rbx]
 	mov	r8b, 1
 	mov	rcx, rbx
 ; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxVec3.h
 ; Line 83
-	movss	DWORD PTR $T6[rbp-105], xmm7
-	movss	DWORD PTR $T6[rbp-101], xmm0
-	movss	DWORD PTR $T6[rbp-97], xmm6
+	movss	DWORD PTR $T6[rsp], xmm7
+	movss	DWORD PTR $T6[rsp+4], xmm0
+	movss	DWORD PTR $T6[rsp+8], xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 59
+; Line 72
 	call	QWORD PTR [rax+640]
 $LN232@processInp:
-; Line 65
+; Line 78
 	mov	rcx, QWORD PTR [rdi+80]
 	movss	xmm2, DWORD PTR [rdi+20]
 	mov	rax, QWORD PTR [rdi+64]
@@ -4647,22 +4818,19 @@ $LN232@processInp:
 ; Line 39
 	subss	xmm0, xmm2
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 65
+; Line 78
 	movss	DWORD PTR [rax], xmm0
 	movss	DWORD PTR [rax+4], xmm3
 	movss	DWORD PTR [rax+8], xmm1
 $LN12@processInp:
-; Line 71
+; Line 84
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 263				; 00000107H
-	xor	bl, bl
+	xor	r12b, r12b
 	call	glfwGetKey
 	movss	xmm9, DWORD PTR __real@40490fdb
 	movss	xmm10, DWORD PTR __real@43340000
 	movss	xmm11, DWORD PTR __real@3f000000
-	mov	r15, QWORD PTR [rsp+176]
-	mov	r14, QWORD PTR [rsp+224]
-	mov	rsi, QWORD PTR [rsp+216]
 	cmp	eax, 1
 	jne	SHORT $LN233@processInp
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
@@ -4680,42 +4848,42 @@ $LN12@processInp:
 	movaps	xmm0, xmm7
 	call	cosf
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 73
+; Line 86
 	mov	rbx, QWORD PTR [rdi+56]
-	lea	rdx, QWORD PTR $T7[rbp-105]
+	lea	rdx, QWORD PTR $T22[rbp-169]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 9
 	movaps	xmm1, xmm6
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\cmath
 ; Line 89
-	movss	DWORD PTR $T12[rbp-105], xmm0
+	movss	DWORD PTR $T7[rsp], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 9
 	mulss	xmm1, xmm8
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 73
-	lea	rcx, QWORD PTR $T12[rbp-105]
+; Line 86
+	lea	rcx, QWORD PTR $T7[rsp]
 	mov	r8, rbx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 9
-	movss	DWORD PTR $T12[rbp-97], xmm6
-	movss	DWORD PTR $T12[rbp-101], xmm1
-	movss	DWORD PTR $T12[rbp-93], xmm1
+	movss	DWORD PTR $T7[rsp+8], xmm6
+	movss	DWORD PTR $T7[rsp+4], xmm1
+	movss	DWORD PTR $T7[rbp-157], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 73
+; Line 86
 	call	??DQuaternion@@QEBA?AU0@AEBU0@@Z	; Quaternion::operator*
+; Line 87
+	mov	r12b, 1
 	movups	xmm0, XMMWORD PTR [rax]
 	movups	XMMWORD PTR [rbx], xmm0
-; Line 74
-	mov	bl, 1
 $LN233@processInp:
-; Line 76
+; Line 89
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 262				; 00000106H
 	call	glfwGetKey
 	cmp	eax, 1
 	jne	SHORT $LN19@processInp
-; Line 77
+; Line 90
 	movss	xmm7, DWORD PTR [rdi+16]
 	xorps	xmm7, DWORD PTR __xmm@80000000800000008000000080000000
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
@@ -4732,36 +4900,36 @@ $LN233@processInp:
 	movaps	xmm0, xmm7
 	call	cosf
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 77
+; Line 90
 	mov	rbx, QWORD PTR [rdi+56]
-	lea	rdx, QWORD PTR $T8[rbp-105]
+	lea	rdx, QWORD PTR $T23[rbp-169]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 9
 	movaps	xmm1, xmm6
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\cmath
 ; Line 89
-	movss	DWORD PTR $T13[rbp-105], xmm0
+	movss	DWORD PTR $T8[rsp], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 9
 	mulss	xmm1, xmm8
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 77
-	lea	rcx, QWORD PTR $T13[rbp-105]
+; Line 90
+	lea	rcx, QWORD PTR $T8[rsp]
 	mov	r8, rbx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 9
-	movss	DWORD PTR $T13[rbp-97], xmm6
-	movss	DWORD PTR $T13[rbp-101], xmm1
-	movss	DWORD PTR $T13[rbp-93], xmm1
+	movss	DWORD PTR $T8[rsp+8], xmm6
+	movss	DWORD PTR $T8[rsp+4], xmm1
+	movss	DWORD PTR $T8[rbp-157], xmm1
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 77
+; Line 90
 	call	??DQuaternion@@QEBA?AU0@AEBU0@@Z	; Quaternion::operator*
+; Line 91
+	mov	r12b, 1
 	movups	xmm0, XMMWORD PTR [rax]
 	movups	XMMWORD PTR [rbx], xmm0
-; Line 78
-	mov	bl, 1
 $LN19@processInp:
-; Line 80
+; Line 93
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 265				; 00000109H
 	call	glfwGetKey
@@ -4782,43 +4950,43 @@ $LN19@processInp:
 	movaps	xmm0, xmm6
 	call	cosf
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 82
+; Line 95
 	mov	rbx, QWORD PTR [rdi+56]
-	lea	r8, QWORD PTR $T14[rbp-105]
+	lea	r8, QWORD PTR $T9[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 9
-	movss	DWORD PTR $T14[rbp-101], xmm7
+	movss	DWORD PTR $T9[rsp+4], xmm7
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 82
-	lea	rdx, QWORD PTR $T9[rbp-105]
+; Line 95
+	lea	rdx, QWORD PTR $T24[rbp-169]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 9
 	mulss	xmm7, xmm8
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 82
+; Line 95
 	mov	rcx, rbx
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\cmath
 ; Line 89
-	movss	DWORD PTR $T14[rbp-105], xmm0
+	movss	DWORD PTR $T9[rsp], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 9
-	movss	DWORD PTR $T14[rbp-97], xmm7
-	movss	DWORD PTR $T14[rbp-93], xmm7
+	movss	DWORD PTR $T9[rsp+8], xmm7
+	movss	DWORD PTR $T9[rbp-157], xmm7
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 82
+; Line 95
 	call	??DQuaternion@@QEBA?AU0@AEBU0@@Z	; Quaternion::operator*
+; Line 96
+	mov	r12b, 1
 	movups	xmm0, XMMWORD PTR [rax]
 	movups	XMMWORD PTR [rbx], xmm0
-; Line 83
-	mov	bl, 1
 $LN20@processInp:
-; Line 85
+; Line 98
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 264				; 00000108H
 	call	glfwGetKey
 	cmp	eax, 1
 	jne	SHORT $LN21@processInp
-; Line 86
+; Line 99
 	movss	xmm7, DWORD PTR [rdi+16]
 	xorps	xmm7, DWORD PTR __xmm@80000000800000008000000080000000
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
@@ -4835,211 +5003,303 @@ $LN20@processInp:
 	movaps	xmm0, xmm7
 	call	cosf
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 86
+; Line 99
 	mov	rbx, QWORD PTR [rdi+56]
-	lea	r8, QWORD PTR $T15[rbp-105]
+	lea	r8, QWORD PTR $T10[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 9
-	movss	DWORD PTR $T15[rbp-101], xmm6
+	movss	DWORD PTR $T10[rsp+4], xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 86
-	lea	rdx, QWORD PTR $T10[rbp-105]
+; Line 99
+	lea	rdx, QWORD PTR $T25[rbp-169]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 9
 	mulss	xmm6, xmm8
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 86
+; Line 99
 	mov	rcx, rbx
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\cmath
 ; Line 89
-	movss	DWORD PTR $T15[rbp-105], xmm0
+	movss	DWORD PTR $T10[rsp], xmm0
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 9
-	movss	DWORD PTR $T15[rbp-97], xmm6
-	movss	DWORD PTR $T15[rbp-93], xmm6
+	movss	DWORD PTR $T10[rsp+8], xmm6
+	movss	DWORD PTR $T10[rbp-157], xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 86
+; Line 99
 	call	??DQuaternion@@QEBA?AU0@AEBU0@@Z	; Quaternion::operator*
+; Line 100
+	mov	r12b, 1
 	movups	xmm0, XMMWORD PTR [rax]
 	movups	XMMWORD PTR [rbx], xmm0
-; Line 87
-	mov	bl, 1
 $LN21@processInp:
-; Line 90
+; Line 103
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 73					; 00000049H
 	call	glfwGetKey
-	movaps	xmm11, XMMWORD PTR [rsp+80]
-	movaps	xmm10, XMMWORD PTR [rsp+96]
-	movaps	xmm9, XMMWORD PTR [rsp+112]
-	movaps	xmm7, XMMWORD PTR [rsp+144]
-	movaps	xmm6, XMMWORD PTR [rsp+160]
+	movaps	xmm11, XMMWORD PTR [rsp+144]
+	movaps	xmm10, XMMWORD PTR [rsp+160]
+	movaps	xmm9, XMMWORD PTR [rsp+176]
+	movaps	xmm8, XMMWORD PTR [rsp+192]
+	movaps	xmm7, XMMWORD PTR [rsp+208]
+	movaps	xmm6, XMMWORD PTR [rsp+224]
 	cmp	eax, 1
 	jne	SHORT $LN23@processInp
-; Line 91
+; Line 104
 	movss	xmm0, DWORD PTR [rdi+20]
 	subss	xmm0, DWORD PTR [rdi+24]
-; Line 92
+; Line 105
 	comiss	xmm13, xmm0
 	movss	DWORD PTR [rdi+20], xmm0
 	jbe	SHORT $LN23@processInp
 	mov	DWORD PTR [rdi+20], 1073741824		; 40000000H
 $LN23@processInp:
-; Line 94
+; Line 107
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 79					; 0000004fH
 	call	glfwGetKey
-	movaps	xmm13, XMMWORD PTR [rsp+64]
+	movaps	xmm13, XMMWORD PTR [rsp+128]
 	cmp	eax, 1
 	jne	SHORT $LN24@processInp
-; Line 95
+; Line 108
 	movss	xmm0, DWORD PTR [rdi+24]
 	addss	xmm0, DWORD PTR [rdi+20]
 	movss	DWORD PTR [rdi+20], xmm0
 $LN24@processInp:
-; Line 99
-	mov	rdx, QWORD PTR [rdi+88]
-	lea	rcx, QWORD PTR [rdi+80]
-	test	rdx, rdx
+; Line 112
+	mov	r14, QWORD PTR [rdi+88]
+	lea	rsi, QWORD PTR [rdi+80]
+	test	r14, r14
 	je	SHORT $LN25@processInp
-	mov	rax, QWORD PTR [rcx]
+; Line 113
+	mov	rbx, QWORD PTR [rsi]
+	lea	r8, QWORD PTR $T11[rsp]
+	lea	rdx, QWORD PTR $T17[rbp-169]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 37
+	mov	DWORD PTR $T11[rsp], 0
+; Line 38
+	mov	QWORD PTR $T11[rsp+4], 1067450368	; 3fa00000H
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
+; Line 113
+	lea	rcx, QWORD PTR [rbx+136]
+	call	?rotate@Quaternion@@QEBA?AUVector3@@AEBU2@@Z ; Quaternion::rotate
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 10
-	movss	xmm0, DWORD PTR [rax+112]
-	movss	xmm2, DWORD PTR [rax+116]
-	addss	xmm0, xmm8
-	movss	xmm1, DWORD PTR [rax+120]
-	addss	xmm2, DWORD PTR __real@3fa00000
-	addss	xmm1, xmm8
+	movss	xmm0, DWORD PTR [rbx+112]
+	movss	xmm2, DWORD PTR [rax+4]
+	movss	xmm1, DWORD PTR [rax+8]
+	addss	xmm0, DWORD PTR [rax]
+	addss	xmm2, DWORD PTR [rbx+116]
+	addss	xmm1, DWORD PTR [rbx+120]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 99
-	movss	DWORD PTR [rdx+112], xmm0
-	movss	DWORD PTR [rdx+116], xmm2
-	movss	DWORD PTR [rdx+120], xmm1
+; Line 113
+	movss	DWORD PTR [r14+112], xmm0
+	movss	DWORD PTR [r14+116], xmm2
+	movss	DWORD PTR [r14+120], xmm1
+; Line 114
+	mov	rax, QWORD PTR [rsi]
+	mov	rcx, QWORD PTR [rdi+88]
+	movups	xmm0, XMMWORD PTR [rax+136]
+	movups	XMMWORD PTR [rcx+136], xmm0
 $LN25@processInp:
-; Line 100
-	mov	rdx, QWORD PTR [rdi+96]
-	movss	xmm3, DWORD PTR __real@3f400000
-	test	rdx, rdx
+; Line 116
+	mov	r14, QWORD PTR [rdi+96]
+	test	r14, r14
 	je	SHORT $LN26@processInp
-	mov	rax, QWORD PTR [rcx]
+; Line 117
+	mov	rbx, QWORD PTR [rsi]
+	lea	r8, QWORD PTR $T12[rsp]
+	lea	rdx, QWORD PTR $T18[rbp-169]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 37
+	mov	DWORD PTR $T12[rsp], -1086324736	; bf400000H
+; Line 38
+	mov	QWORD PTR $T12[rsp+4], 0
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
+; Line 117
+	lea	rcx, QWORD PTR [rbx+136]
+	call	?rotate@Quaternion@@QEBA?AUVector3@@AEBU2@@Z ; Quaternion::rotate
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 10
-	movss	xmm0, DWORD PTR [rax+112]
-	movss	xmm2, DWORD PTR [rax+116]
-	subss	xmm0, xmm3
-	movss	xmm1, DWORD PTR [rax+120]
-	addss	xmm2, xmm8
-	addss	xmm1, xmm8
+	movss	xmm0, DWORD PTR [rbx+112]
+	movss	xmm2, DWORD PTR [rax+4]
+	movss	xmm1, DWORD PTR [rax+8]
+	addss	xmm0, DWORD PTR [rax]
+	addss	xmm2, DWORD PTR [rbx+116]
+	addss	xmm1, DWORD PTR [rbx+120]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 100
-	movss	DWORD PTR [rdx+112], xmm0
-	movss	DWORD PTR [rdx+116], xmm2
-	movss	DWORD PTR [rdx+120], xmm1
+; Line 117
+	movss	DWORD PTR [r14+112], xmm0
+	movss	DWORD PTR [r14+116], xmm2
+	movss	DWORD PTR [r14+120], xmm1
+; Line 118
+	mov	rax, QWORD PTR [rsi]
+	mov	rcx, QWORD PTR [rdi+96]
+	movups	xmm0, XMMWORD PTR [rax+136]
+	movups	XMMWORD PTR [rcx+136], xmm0
 $LN26@processInp:
-; Line 101
-	mov	rdx, QWORD PTR [rdi+104]
-	test	rdx, rdx
+; Line 120
+	mov	r14, QWORD PTR [rdi+104]
+	test	r14, r14
 	je	SHORT $LN235@processInp
-	mov	rax, QWORD PTR [rcx]
-	lea	r8, QWORD PTR [rdi+80]
+; Line 121
+	mov	rbx, QWORD PTR [rsi]
+	lea	r8, QWORD PTR $T13[rsp]
+	lea	rdx, QWORD PTR $T19[rbp-169]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 37
+	mov	QWORD PTR $T13[rsp], 1061158912		; 3f400000H
+; Line 39
+	mov	DWORD PTR $T13[rsp+8], 0
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
+; Line 121
+	lea	rcx, QWORD PTR [rbx+136]
+	call	?rotate@Quaternion@@QEBA?AUVector3@@AEBU2@@Z ; Quaternion::rotate
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 10
-	movss	xmm0, DWORD PTR [rax+112]
-	movss	xmm2, DWORD PTR [rax+116]
-	addss	xmm0, xmm3
-	movss	xmm1, DWORD PTR [rax+120]
-	addss	xmm2, xmm8
-	addss	xmm1, xmm8
+	movss	xmm0, DWORD PTR [rbx+112]
+	movss	xmm2, DWORD PTR [rax+4]
+	movss	xmm1, DWORD PTR [rax+8]
+	addss	xmm0, DWORD PTR [rax]
+	addss	xmm2, DWORD PTR [rbx+116]
+	addss	xmm1, DWORD PTR [rbx+120]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 101
-	movss	DWORD PTR [rdx+112], xmm0
-	movss	DWORD PTR [rdx+116], xmm2
-	movss	DWORD PTR [rdx+120], xmm1
+; Line 121
+	movss	DWORD PTR [r14+112], xmm0
+	movss	DWORD PTR [r14+116], xmm2
+	movss	DWORD PTR [r14+120], xmm1
+; Line 122
+	lea	r14, QWORD PTR [rdi+80]
+	mov	rax, QWORD PTR [rsi]
+	mov	rcx, QWORD PTR [rdi+104]
+	movups	xmm0, XMMWORD PTR [rax+136]
+	movups	XMMWORD PTR [rcx+136], xmm0
 	jmp	SHORT $LN27@processInp
 $LN235@processInp:
-	mov	r8, rcx
+; Line 120
+	mov	r14, rsi
 $LN27@processInp:
-; Line 102
-	mov	rdx, QWORD PTR [rdi+112]
-	movss	xmm3, DWORD PTR __real@3fc00000
-	movss	xmm4, DWORD PTR __real@3e800000
-	test	rdx, rdx
+; Line 124
+	mov	r15, QWORD PTR [rdi+112]
+	test	r15, r15
 	je	SHORT $LN236@processInp
-	mov	rax, QWORD PTR [rcx]
+; Line 125
+	mov	rbx, QWORD PTR [rsi]
+	lea	r8, QWORD PTR $T14[rsp]
+	lea	rdx, QWORD PTR $T20[rbp-169]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 37
+	mov	DWORD PTR $T14[rsp], -1098907648	; be800000H
+; Line 38
+	mov	DWORD PTR $T14[rsp+4], -1077936128	; bfc00000H
+; Line 39
+	mov	DWORD PTR $T14[rsp+8], 0
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
+; Line 125
+	lea	rcx, QWORD PTR [rbx+136]
+	call	?rotate@Quaternion@@QEBA?AUVector3@@AEBU2@@Z ; Quaternion::rotate
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 10
-	movss	xmm0, DWORD PTR [rax+112]
-	movss	xmm2, DWORD PTR [rax+116]
-	subss	xmm0, xmm4
-	movss	xmm1, DWORD PTR [rax+120]
-	subss	xmm2, xmm3
-	addss	xmm1, xmm8
+	movss	xmm0, DWORD PTR [rbx+112]
+	movss	xmm2, DWORD PTR [rax+4]
+	movss	xmm1, DWORD PTR [rax+8]
+	addss	xmm0, DWORD PTR [rax]
+	addss	xmm2, DWORD PTR [rbx+116]
+	addss	xmm1, DWORD PTR [rbx+120]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 102
-	movss	DWORD PTR [rdx+112], xmm0
-	movss	DWORD PTR [rdx+116], xmm2
-	movss	DWORD PTR [rdx+120], xmm1
+; Line 125
+	movss	DWORD PTR [r15+112], xmm0
+	movss	DWORD PTR [r15+116], xmm2
+	movss	DWORD PTR [r15+120], xmm1
+; Line 126
+	mov	rax, QWORD PTR [rsi]
+	mov	rcx, QWORD PTR [rdi+112]
+	movups	xmm0, XMMWORD PTR [rax+136]
+	movups	XMMWORD PTR [rcx+136], xmm0
 	jmp	SHORT $LN28@processInp
 $LN236@processInp:
-	mov	r8, rcx
+; Line 124
+	mov	r14, rsi
 $LN28@processInp:
-; Line 103
-	mov	rcx, QWORD PTR [rdi+120]
-	test	rcx, rcx
+; Line 128
+	mov	rsi, QWORD PTR [rdi+120]
+	mov	r15, QWORD PTR [rsp+240]
+	test	rsi, rsi
 	je	SHORT $LN29@processInp
-	mov	rax, QWORD PTR [r8]
+; Line 129
+	mov	rbx, QWORD PTR [r14]
+	lea	r8, QWORD PTR $T15[rsp]
+	lea	rdx, QWORD PTR $T21[rbp-169]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 37
+	mov	DWORD PTR $T15[rsp], 1048576000		; 3e800000H
+; Line 38
+	mov	DWORD PTR $T15[rsp+4], -1077936128	; bfc00000H
+; Line 39
+	mov	DWORD PTR $T15[rsp+8], 0
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
+; Line 129
+	lea	rcx, QWORD PTR [rbx+136]
+	call	?rotate@Quaternion@@QEBA?AUVector3@@AEBU2@@Z ; Quaternion::rotate
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 10
-	movss	xmm0, DWORD PTR [rax+112]
-	movss	xmm2, DWORD PTR [rax+116]
-	addss	xmm0, xmm4
-	movss	xmm1, DWORD PTR [rax+120]
-	subss	xmm2, xmm3
-	addss	xmm1, xmm8
+	movss	xmm0, DWORD PTR [rbx+112]
+	movss	xmm2, DWORD PTR [rax+4]
+	movss	xmm1, DWORD PTR [rax+8]
+	addss	xmm0, DWORD PTR [rax]
+	addss	xmm2, DWORD PTR [rbx+116]
+	addss	xmm1, DWORD PTR [rbx+120]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 103
-	movss	DWORD PTR [rcx+112], xmm0
-	movss	DWORD PTR [rcx+116], xmm2
-	movss	DWORD PTR [rcx+120], xmm1
+; Line 129
+	movss	DWORD PTR [rsi+112], xmm0
+	movss	DWORD PTR [rsi+116], xmm2
+	movss	DWORD PTR [rsi+120], xmm1
+; Line 130
+	mov	rax, QWORD PTR [r14]
+	mov	rcx, QWORD PTR [rdi+120]
+	movups	xmm0, XMMWORD PTR [rax+136]
+	movups	XMMWORD PTR [rcx+136], xmm0
 $LN29@processInp:
-; Line 106
-	movaps	xmm8, XMMWORD PTR [rsp+128]
-	test	bl, bl
-	mov	rbx, QWORD PTR [rsp+208]
+; Line 134
+	mov	r14, QWORD PTR [rsp+296]
+	test	r12b, r12b
+	mov	r12, QWORD PTR [rsp+288]
+	mov	rsi, QWORD PTR [rsp+280]
+	mov	rbx, QWORD PTR [rsp+272]
 	je	SHORT $LN30@processInp
-; Line 107
+; Line 135
 	mov	rcx, rdi
 	call	?updateVectors@User@@QEAAXXZ		; User::updateVectors
 $LN30@processInp:
-; Line 110
+; Line 138
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 256				; 00000100H
 	call	glfwGetKey
 	cmp	eax, 1
 	jne	SHORT $LN31@processInp
-; Line 111
+; Line 139
 	mov	BYTE PTR [rdi+168], al
 $LN31@processInp:
-; Line 113
+; Line 141
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 70					; 00000046H
 	call	glfwGetKey
 	cmp	eax, 1
 	jne	SHORT $LN33@processInp
-; Line 115
+; Line 143
 	xor	eax, eax
 	cmp	DWORD PTR [rdi+128], eax
 	sete	al
 	mov	DWORD PTR [rdi+128], eax
 $LN33@processInp:
-; Line 121
+; Line 149
 	mov	rcx, QWORD PTR [rdi]
 	mov	edx, 80					; 00000050H
 	call	glfwGetKey
 	cmp	eax, 1
 	jne	$LN36@processInp
-; Line 122
+; Line 150
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	lea	rdx, OFFSET FLAT:??_C@_0BD@OMPOOLFM@Camera?5Position?3?5?$CI@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -5064,12 +5324,12 @@ $LN33@processInp:
 	mov	rcx, rax
 	lea	rdx, OFFSET FLAT:??_C@_02MNMNLDAI@?$CJ?6@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-; Line 123
+; Line 151
 	cmp	QWORD PTR [rdi+80], 0
 	je	SHORT $LN36@processInp
-; Line 124
+; Line 152
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
-	lea	rdx, OFFSET FLAT:??_C@_0BO@FIPGDCHH@Character?5?$CITorso?$CJ?5Position?3?5?$CI@
+	lea	rdx, OFFSET FLAT:??_C@_0BN@ODBIAHJF@Character?5?$CIRoot?$CJ?5Position?3?5?$CI@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 	mov	rcx, QWORD PTR [rdi+80]
 	movss	xmm1, DWORD PTR [rcx+112]
@@ -5093,8 +5353,8 @@ $LN33@processInp:
 	lea	rdx, OFFSET FLAT:??_C@_02MNMNLDAI@?$CJ?6@
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
 $LN36@processInp:
-; Line 128
-	add	rsp, 184				; 000000b8H
+; Line 156
+	add	rsp, 248				; 000000f8H
 	pop	rdi
 	pop	rbp
 	ret	0
@@ -5111,20 +5371,20 @@ $T5 = 44
 this$ = 112
 ?updateVectors@User@@QEAAXXZ PROC			; User::updateVectors, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 14
+; Line 27
 $LN16:
 	mov	rax, rsp
 	mov	QWORD PTR [rax+8], rbx
 	push	rdi
 	sub	rsp, 96					; 00000060H
-; Line 16
+; Line 29
 	mov	rbx, QWORD PTR [rcx+56]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 72
 	lea	rdx, QWORD PTR [rax-60]
 	movaps	XMMWORD PTR [rax-24], xmm6
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 14
+; Line 27
 	mov	rdi, rcx
 	movaps	XMMWORD PTR [rax-40], xmm7
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
@@ -5169,19 +5429,19 @@ $LN16:
 ; Line 72
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 16
+; Line 29
 	movsd	xmm0, QWORD PTR $T3[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 64
 	lea	rdx, QWORD PTR $T4[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 16
+; Line 29
 	mov	eax, DWORD PTR $T3[rsp+8]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 64
 	lea	rcx, QWORD PTR $T1[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 16
+; Line 29
 	movsd	QWORD PTR [rdi+132], xmm0
 	mov	DWORD PTR [rdi+140], eax
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
@@ -5221,7 +5481,7 @@ $LN16:
 ; Line 64
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 17
+; Line 30
 	movsd	xmm0, QWORD PTR $T4[rsp]
 	mov	eax, DWORD PTR $T4[rsp+8]
 	movsd	QWORD PTR [rdi+144], xmm0
@@ -5267,10 +5527,10 @@ $LN16:
 ; Line 68
 	call	?normalize@Vector3@@QEBA?AU1@XZ		; Vector3::normalize
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 18
+; Line 31
 	movsd	xmm0, QWORD PTR $T5[rsp]
 	mov	eax, DWORD PTR $T5[rsp+8]
-; Line 19
+; Line 32
 	mov	rbx, QWORD PTR [rsp+112]
 	movaps	xmm6, XMMWORD PTR [rsp+80]
 	movaps	xmm7, XMMWORD PTR [rsp+64]
@@ -5282,20 +5542,65 @@ $LN16:
 ?updateVectors@User@@QEAAXXZ ENDP			; User::updateVectors
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ??1User@@QEAA@XZ
+_TEXT	SEGMENT
+this$ = 48
+??1User@@QEAA@XZ PROC					; User::~User, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
+; Line 15
+$LN10:
+	push	rbx
+	sub	rsp, 32					; 00000020H
+	mov	rbx, rcx
+; Line 16
+	mov	rax, QWORD PTR [rcx+72]
+	test	rax, rax
+	je	SHORT $LN2@User
+; Line 18
+	cmp	QWORD PTR [rax+40], 0
+	jne	SHORT $LN5@User
+; Line 19
+	lea	rdx, OFFSET FLAT:??_C@_0O@DFEEAMDI@?$FLRCBN_DEBUG?$FN?5@
+	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
+	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
+	mov	rcx, rax
+	lea	rdx, OFFSET FLAT:??_C@_0DE@HDONFPGG@User?5Destructor?3?5Manually?5delet@
+	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
+	lea	rdx, OFFSET FLAT:??$endl@DU?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@@Z ; std::endl<char,std::char_traits<char> >
+	mov	rcx, rax
+	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
+; Line 20
+	mov	rcx, QWORD PTR [rbx+72]
+	test	rcx, rcx
+	je	SHORT $LN5@User
+	mov	rax, QWORD PTR [rcx]
+	mov	edx, 1
+	call	QWORD PTR [rax+40]
+$LN5@User:
+; Line 22
+	mov	QWORD PTR [rbx+72], 0
+$LN2@User:
+; Line 24
+	add	rsp, 32					; 00000020H
+	pop	rbx
+	ret	0
+??1User@@QEAA@XZ ENDP					; User::~User
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ??0User@@QEAA@PEAUGLFWwindow@@@Z
 _TEXT	SEGMENT
 this$ = 48
 win$ = 56
 ??0User@@QEAA@PEAUGLFWwindow@@@Z PROC			; User::User, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 10
+; Line 11
 $LN16:
 	push	rbx
 	sub	rsp, 32					; 00000020H
 	mov	rbx, rcx
-; Line 4
+; Line 5
 	mov	QWORD PTR [rcx], rdx
-; Line 10
+; Line 11
 	lea	rdx, QWORD PTR [rcx+28]
 	mov	DWORD PTR [rcx+8], 1028443341		; 3d4ccccdH
 	lea	rax, QWORD PTR [rdx+16]
@@ -5314,17 +5619,17 @@ $LN16:
 	mov	QWORD PTR [rbx+72], rcx
 ; Line 31
 	mov	QWORD PTR [rbx+80], rcx
-; Line 32
-	mov	QWORD PTR [rbx+88], rcx
 ; Line 33
-	mov	QWORD PTR [rbx+96], rcx
+	mov	QWORD PTR [rbx+88], rcx
 ; Line 34
-	mov	QWORD PTR [rbx+104], rcx
+	mov	QWORD PTR [rbx+96], rcx
 ; Line 35
-	mov	QWORD PTR [rbx+112], rcx
+	mov	QWORD PTR [rbx+104], rcx
 ; Line 36
+	mov	QWORD PTR [rbx+112], rcx
+; Line 37
 	mov	QWORD PTR [rbx+120], rcx
-; Line 41
+; Line 42
 	mov	QWORD PTR [rbx+128], rcx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 38
@@ -5332,13 +5637,13 @@ $LN16:
 ; Line 39
 	mov	QWORD PTR [rbx+152], rcx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Core\User.hpp
-; Line 47
+; Line 48
 	mov	BYTE PTR [rbx+168], cl
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 8
 	mov	QWORD PTR [rdx+8], rcx
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 11
+; Line 12
 	mov	rcx, rbx
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
 ; Line 8
@@ -5349,9 +5654,9 @@ $LN16:
 ; Line 39
 	mov	DWORD PTR [rax+8], 1084227584		; 40a00000H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 5
-	mov	QWORD PTR [rbx+56], rdx
 ; Line 6
+	mov	QWORD PTR [rbx+56], rdx
+; Line 7
 	mov	QWORD PTR [rbx+64], rax
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
 ; Line 39
@@ -5361,9 +5666,9 @@ $LN16:
 ; Line 38
 	mov	QWORD PTR [rbx+160], 1065353216		; 3f800000H
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 11
-	call	?updateVectors@User@@QEAAXXZ		; User::updateVectors
 ; Line 12
+	call	?updateVectors@User@@QEAAXXZ		; User::updateVectors
+; Line 13
 	mov	rax, rbx
 	add	rsp, 32					; 00000020H
 	pop	rbx
@@ -5723,6 +6028,88 @@ $T2 = 152
 	jmp	??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::~basic_string<char,std::char_traits<char>,std::allocator<char> >
 ?dtor$4@?0???0Model@@QEAA@UVector3@@0@Z@4HA ENDP	; `Model::Model'::`1'::dtor$4
 text$x	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??_5?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAAAEAV01@W4Enum@PxRigidDynamicLockFlag@1@@Z
+_TEXT	SEGMENT
+this$ = 8
+e$ = 16
+??_5?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAAAEAV01@W4Enum@PxRigidDynamicLockFlag@1@@Z PROC ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::operator|=, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
+; Line 227
+	or	BYTE PTR [rcx], dl
+; Line 228
+	mov	rax, rcx
+; Line 229
+	ret	0
+??_5?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAAAEAV01@W4Enum@PxRigidDynamicLockFlag@1@@Z ENDP ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::operator|=
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??4?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAAAEAV01@AEBV01@@Z
+_TEXT	SEGMENT
+this$ = 8
+f$ = 16
+??4?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAAAEAV01@AEBV01@@Z PROC ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::operator=, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
+; Line 220
+	movzx	eax, BYTE PTR [rdx]
+	mov	BYTE PTR [rcx], al
+; Line 221
+	mov	rax, rcx
+; Line 222
+	ret	0
+??4?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAAAEAV01@AEBV01@@Z ENDP ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::operator=
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??0?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAA@AEBV01@@Z
+_TEXT	SEGMENT
+this$ = 8
+f$ = 16
+??0?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAA@AEBV01@@Z PROC ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
+; Line 171
+	movzx	eax, BYTE PTR [rdx]
+	mov	BYTE PTR [rcx], al
+; Line 172
+	mov	rax, rcx
+	ret	0
+??0?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAA@AEBV01@@Z ENDP ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??0?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAA@W4Enum@PxRigidDynamicLockFlag@1@@Z
+_TEXT	SEGMENT
+this$ = 8
+e$ = 16
+??0?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAA@W4Enum@PxRigidDynamicLockFlag@1@@Z PROC ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
+; Line 165
+	mov	BYTE PTR [rcx], dl
+; Line 166
+	mov	rax, rcx
+	ret	0
+??0?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@physx@@QEAA@W4Enum@PxRigidDynamicLockFlag@1@@Z ENDP ; physx::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>::PxFlags<enum physx::PxRigidDynamicLockFlag::Enum,unsigned char>
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ??Uphysx@@YA?AV?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@0@W4Enum@PxRigidDynamicLockFlag@0@0@Z
+_TEXT	SEGMENT
+__$ReturnUdt$ = 8
+a$ = 16
+b$ = 24
+??Uphysx@@YA?AV?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@0@W4Enum@PxRigidDynamicLockFlag@0@0@Z PROC ; physx::operator|, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\PxRigidDynamic.h
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
+; Line 227
+	or	dl, r8b
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\PxRigidDynamic.h
+; Line 59
+	mov	rax, rcx
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\foundation\PxFlags.h
+; Line 227
+	mov	BYTE PTR [rcx], dl
+; File C:\Users\RedDragon\Documents\Recubin\include\PhysX\PxRigidDynamic.h
+; Line 59
+	ret	0
+??Uphysx@@YA?AV?$PxFlags@W4Enum@PxRigidDynamicLockFlag@physx@@E@0@W4Enum@PxRigidDynamicLockFlag@0@0@Z ENDP ; physx::operator|
+_TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ?getConcreteType@PxBase@physx@@QEBAGXZ
 _TEXT	SEGMENT
@@ -6773,6 +7160,143 @@ $LN6:
 ?getRight@Quaternion@@QEBA?AUVector3@@XZ ENDP		; Quaternion::getRight
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
+;	COMDAT ?rotate@Quaternion@@QEBA?AUVector3@@AEBU2@@Z
+_TEXT	SEGMENT
+this$ = 96
+__$ReturnUdt$ = 104
+v$ = 112
+?rotate@Quaternion@@QEBA?AUVector3@@AEBU2@@Z PROC	; Quaternion::rotate, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
+; Line 57
+$LN30:
+	sub	rsp, 88					; 00000058H
+; Line 58
+	movss	xmm5, DWORD PTR [rcx+12]
+; Line 60
+	mov	rax, rdx
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 24
+	movss	xmm3, DWORD PTR [r8]
+	movss	xmm0, DWORD PTR [r8+4]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
+; Line 60
+	movss	xmm4, DWORD PTR [rcx]
+	movaps	XMMWORD PTR [rsp+64], xmm6
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 24
+	movss	xmm6, DWORD PTR [r8+4]
+	movaps	XMMWORD PTR [rsp+48], xmm8
+	movaps	xmm8, xmm3
+	movaps	XMMWORD PTR [rsp+32], xmm9
+	movss	xmm9, DWORD PTR [r8+8]
+	mulss	xmm0, xmm5
+	mulss	xmm8, xmm5
+	movaps	XMMWORD PTR [rsp+16], xmm10
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
+; Line 58
+	movss	xmm10, DWORD PTR [rcx+4]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 24
+	mulss	xmm6, xmm10
+	movaps	XMMWORD PTR [rsp], xmm11
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
+; Line 58
+	movss	xmm11, DWORD PTR [rcx+8]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 24
+	mulss	xmm9, xmm11
+	subss	xmm9, xmm0
+	movss	xmm0, DWORD PTR [r8+8]
+	mulss	xmm0, xmm10
+	subss	xmm8, xmm0
+	movaps	xmm0, xmm3
+	mulss	xmm0, xmm11
+; Line 12
+	addss	xmm9, xmm9
+; Line 24
+	subss	xmm6, xmm0
+; Line 12
+	addss	xmm8, xmm8
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
+; Line 60
+	movaps	xmm1, xmm9
+	mulss	xmm1, xmm4
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 12
+	addss	xmm6, xmm6
+; Line 10
+	addss	xmm1, xmm3
+; Line 39
+	movaps	xmm0, xmm8
+	mulss	xmm0, xmm5
+; Line 24
+	movaps	xmm3, xmm9
+; Line 38
+	mulss	xmm9, xmm11
+; Line 24
+	movaps	xmm2, xmm6
+	mulss	xmm3, xmm5
+	mulss	xmm2, xmm11
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
+; Line 61
+	movaps	xmm11, XMMWORD PTR [rsp]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 24
+	subss	xmm2, xmm0
+; Line 37
+	movaps	xmm0, xmm6
+; Line 38
+	mulss	xmm6, xmm4
+; Line 37
+	mulss	xmm0, xmm10
+; Line 10
+	addss	xmm6, DWORD PTR [r8+8]
+; Line 39
+	addss	xmm2, xmm1
+; Line 37
+	movaps	xmm1, xmm8
+; Line 24
+	mulss	xmm8, xmm10
+	subss	xmm3, xmm0
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
+; Line 61
+	movaps	xmm10, XMMWORD PTR [rsp+16]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 37
+	mulss	xmm1, xmm4
+; Line 24
+	subss	xmm8, xmm9
+; Line 37
+	movss	DWORD PTR [rdx], xmm2
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
+; Line 61
+	movaps	xmm9, XMMWORD PTR [rsp+32]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 10
+	addss	xmm1, DWORD PTR [r8+4]
+; Line 38
+	addss	xmm8, xmm6
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
+; Line 61
+	movaps	xmm6, XMMWORD PTR [rsp+64]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 37
+	addss	xmm3, xmm1
+; Line 39
+	movss	DWORD PTR [rdx+8], xmm8
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
+; Line 61
+	movaps	xmm8, XMMWORD PTR [rsp+48]
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 38
+	movss	DWORD PTR [rdx+4], xmm3
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Quaternion.hpp
+; Line 61
+	add	rsp, 88					; 00000058H
+	ret	0
+?rotate@Quaternion@@QEBA?AUVector3@@AEBU2@@Z ENDP	; Quaternion::rotate
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
 ;	COMDAT ??DQuaternion@@QEBA?AU0@AEBU0@@Z
 _TEXT	SEGMENT
 this$ = 112
@@ -6969,6 +7493,42 @@ z$ = 32
 	movss	DWORD PTR [rcx+8], xmm3
 	ret	0
 ??0Vector3@@QEAA@MMM@Z ENDP				; Vector3::Vector3
+_TEXT	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT ?Cross@Vector3@@SA?AU1@AEBU1@0@Z
+_TEXT	SEGMENT
+__$ReturnUdt$ = 8
+a$ = 16
+b$ = 24
+?Cross@Vector3@@SA?AU1@AEBU1@0@Z PROC			; Vector3::Cross, COMDAT
+; File C:\Users\RedDragon\Documents\Recubin\include\Math\Vector3.hpp
+; Line 24
+	movss	xmm2, DWORD PTR [rdx+8]
+	mov	rax, rcx
+	movss	xmm1, DWORD PTR [rdx+4]
+	movaps	xmm0, xmm2
+	mulss	xmm1, DWORD PTR [r8+8]
+	mulss	xmm0, DWORD PTR [r8+4]
+	movss	xmm5, DWORD PTR [rdx]
+	movss	xmm3, DWORD PTR [r8]
+	subss	xmm1, xmm0
+	movaps	xmm0, xmm5
+	mulss	xmm0, DWORD PTR [r8+8]
+	mulss	xmm5, DWORD PTR [r8+4]
+; Line 37
+	movss	DWORD PTR [rcx], xmm1
+; Line 24
+	movaps	xmm1, xmm3
+	mulss	xmm3, DWORD PTR [rdx+4]
+	mulss	xmm1, xmm2
+	subss	xmm5, xmm3
+	subss	xmm1, xmm0
+; Line 39
+	movss	DWORD PTR [rcx+8], xmm5
+	movss	DWORD PTR [rcx+4], xmm1
+; Line 29
+	ret	0
+?Cross@Vector3@@SA?AU1@AEBU1@0@Z ENDP			; Vector3::Cross
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ?normalize@Vector3@@QEBA?AU1@XZ
@@ -8603,7 +9163,7 @@ __formal$ = 16
 __formal$ = 24
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 162
+; Line 201
 	ret	0
 ?__empty_global_delete@@YAXPEAX_KW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -8614,7 +9174,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z PROC ; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 162
+; Line 201
 	ret	0
 ?__empty_global_delete@@YAXPEAXW4align_val_t@std@@@Z ENDP ; __empty_global_delete
 _TEXT	ENDS
@@ -8625,7 +9185,7 @@ __formal$ = 8
 __formal$ = 16
 ?__empty_global_delete@@YAXPEAX_K@Z PROC		; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 162
+; Line 201
 	ret	0
 ?__empty_global_delete@@YAXPEAX_K@Z ENDP		; __empty_global_delete
 _TEXT	ENDS
@@ -8635,7 +9195,7 @@ _TEXT	SEGMENT
 __formal$ = 8
 ?__empty_global_delete@@YAXPEAX@Z PROC			; __empty_global_delete, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\User.cpp
-; Line 162
+; Line 201
 	ret	0
 ?__empty_global_delete@@YAXPEAX@Z ENDP			; __empty_global_delete
 _TEXT	ENDS

@@ -7,7 +7,7 @@ if not exist "build" (
 )
 
 cmake -S . -B build x64 -D GLEW_STATIC=ON
-cmake --build build --config Release
+cmake --build build --config Release --parallel
 
 echo.
 echo [INFO] Copying DLL files...

@@ -28,7 +28,8 @@ public:
     camera &cam;
     Vector3 &cpos;
     Model *character = nullptr;
-    Cube *torso = nullptr;
+    Cube *root = nullptr; // 追加: キャラクターのルート（全体をまとめる）
+    // Cube *torso = nullptr; // TODO: あとで実装
     Cube *head = nullptr;
     Cube *leftArm = nullptr;
     Cube *rightArm = nullptr;
@@ -47,6 +48,7 @@ public:
     bool wannaExit = false;
 
     User(GLFWwindow* window);
+    ~User();
 
     void updateVectors();
     void processInput();

@@ -1,12 +1,5 @@
 #include "include/Core/Physics.hpp"
-
-#define RECUBIN_DEBUG
-#ifdef RECUBIN_DEBUG
-    #define d_print(x) std::cout << "[DEBUG] " << x << std::endl
-#else
-    // 何も定義しない = 呼び出し箇所は「無」になる
-    #define d_print(x) ((void)0) 
-#endif
+#include "include/Util/Logger.hpp"
 
 void Physics::init() {
     foundation = PxCreateFoundation(PX_PHYSICS_VERSION, allocator, errorCallback);
@@ -56,7 +49,7 @@ void Physics::removeCube(BaseCube* cube) {
             scene->removeActor(*cube->actor);
             cube->actor->release();
         } catch (...) {
-            d_print("WARNING: Error removing actor: " << cube->Name);
+            RCBN_WARN("Error removing actor: " << cube->Name);
         }
         cube->actor = nullptr;
     }
@@ -65,7 +58,7 @@ void Physics::removeCube(BaseCube* cube) {
     auto it = std::find(cubes.begin(), cubes.end(), cube);
     if (it != cubes.end()) {
         cubes.erase(it);
-        d_print("Removed cube from Physics: " << cube->Name);
+        RCBN_LOG("Removed cube from Physics: " << cube->Name);
     }
 }
 
@@ -91,7 +84,7 @@ void Physics::update(Workspace& workspace, float dt) {
         // 安全装置の発動
         if (steps >= MAX_STEPS) {
             accumulator = 0.0f; // 追いつけない分は「なかったこと」にする（スローモーション化）
-            d_print("WARNING: Physics safety break engaged! (Spiral of Death prevented)");
+            RCBN_WARN("Physics safety break engaged! (Spiral of Death prevented)");
             break;
         }
     }
@@ -107,7 +100,7 @@ void Physics::update(Workspace& workspace, float dt) {
                 cube->actor->release();
                 cube->actor = nullptr;
             }
-            d_print("Cleaned up removed cube from Physics: " << cube->Name);
+            RCBN_LOG("Cleaned up removed cube from Physics: " << cube->Name);
             it = cubes.erase(it);
         } else {
             ++it;

@@ -782,11 +782,9 @@ PUBLIC	?_Unchecked_begin@?$list@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@st
 PUBLIC	?_Unchecked_end@?$list@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ ; std::list<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *>,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> > >::_Unchecked_end
 PUBLIC	?_Unchecked_begin@?$_Hash@V?$_Umap_traits@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@V?$_Uhash_compare@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@$0A@@std@@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ ; std::_Hash<std::_Umap_traits<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,Instance *,std::_Uhash_compare<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,std::hash<std::basic_string<char,std::char_traits<char>,std::allocator<char> > >,std::equal_to<std::basic_string<char,std::char_traits<char>,std::allocator<char> > > >,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> >,0> >::_Unchecked_begin
 PUBLIC	?_Unchecked_end@?$_Hash@V?$_Umap_traits@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@V?$_Uhash_compare@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@$0A@@std@@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ ; std::_Hash<std::_Umap_traits<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,Instance *,std::_Uhash_compare<std::basic_string<char,std::char_traits<char>,std::allocator<char> >,std::hash<std::basic_string<char,std::char_traits<char>,std::allocator<char> > >,std::equal_to<std::basic_string<char,std::char_traits<char>,std::allocator<char> > > >,std::allocator<std::pair<std::basic_string<char,std::char_traits<char>,std::allocator<char> > const ,Instance *> >,0> >::_Unchecked_end
-PUBLIC	??1Spatial@@UEAA@XZ				; Spatial::~Spatial
 PUBLIC	?FLoad@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::FLoad
 PUBLIC	?V3Load@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::V3Load
 PUBLIC	?V4Load@aos@physx@@YA?AT__m128@@M@Z		; physx::aos::V4Load
-PUBLIC	??1BaseCube@@UEAA@XZ				; BaseCube::~BaseCube
 PUBLIC	??1Cube@@UEAA@XZ				; Cube::~Cube
 PUBLIC	?deallocate@?$allocator@I@std@@QEAAXQEAI_K@Z	; std::allocator<unsigned int>::deallocate
 PUBLIC	?allocate@?$allocator@I@std@@QEAAPEAI_K@Z	; std::allocator<unsigned int>::allocate
@@ -1391,7 +1389,7 @@ EXTRN	__imp_??0?$basic_iostream@DU?$char_traits@D@std@@@std@@QEAA@PEAV?$basic_st
 EXTRN	__imp_??1?$basic_iostream@DU?$char_traits@D@std@@@std@@UEAA@XZ:PROC
 EXTRN	?_Fiopen@std@@YAPEAU_iobuf@@PEBDHH@Z:PROC	; std::_Fiopen
 EXTRN	?getChildren@Instance@@QEAAAEBV?$unordered_map@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@@std@@XZ:PROC ; Instance::getChildren
-EXTRN	??1Instance@@UEAA@XZ:PROC			; Instance::~Instance
+EXTRN	??1BaseCube@@UEAA@XZ:PROC			; BaseCube::~BaseCube
 EXTRN	?createCubeVertices@@YA?AV?$vector@UVertex@@V?$allocator@UVertex@@@std@@@std@@M@Z:PROC ; createCubeVertices
 EXTRN	??0Cube@@QEAA@UVector3@@0I@Z:PROC		; Cube::Cube
 EXTRN	?draw@Cube@@QEAAXHH@Z:PROC			; Cube::draw
@@ -1789,8 +1787,8 @@ $pdata$?dtor$17@?0??loadShaderSource@Renderer@@QEAA?AV?$basic_string@DU?$char_tr
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$?init@Renderer@@QEAAXXZ DD imagerel $LN203
-	DD	imagerel $LN203+1926
+$pdata$?init@Renderer@@QEAAXXZ DD imagerel $LN193
+	DD	imagerel $LN193+1926
 	DD	imagerel $unwind$?init@Renderer@@QEAAXXZ
 pdata	ENDS
 ;	COMDAT pdata
@@ -53692,7 +53690,7 @@ this$ = 2112
 ?init@Renderer@@QEAAXXZ PROC				; Renderer::init, COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 36
-$LN203:
+$LN193:
 	push	rbp
 	push	rbx
 	push	rsi
@@ -54213,7 +54211,7 @@ $LN7@init:
 	and	rdx, -32				; ffffffffffffffe0H
 ; Line 288
 	cmp	rdx, 4096				; 00001000H
-	jb	SHORT $LN197@init
+	jb	SHORT $LN187@init
 ; Line 209
 	mov	rcx, QWORD PTR [rax-8]
 ; Line 223
@@ -54229,7 +54227,7 @@ $LN39@init:
 ; Line 223
 	mov	ecx, 5
 	int	41					; 00000029H
-$LN197@init:
+$LN187@init:
 ; Line 989
 	mov	rcx, rax
 $LN40@init:
@@ -54243,14 +54241,14 @@ $LN40@init:
 	mov	QWORD PTR standardVertices$[rbp-240], r13
 $LN26@init:
 	lea	rcx, QWORD PTR testCube$[rbp-256]
-	call	??1Instance@@UEAA@XZ			; Instance::~Instance
+	call	??1BaseCube@@UEAA@XZ			; BaseCube::~BaseCube
 	npad	1
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 453
 	mov	rdx, QWORD PTR fShaderStr$[rbp-232]
 	cmp	rdx, 15
 ; Line 3169
-	jbe	SHORT $LN134@init
+	jbe	SHORT $LN124@init
 ; Line 3172
 	mov	rax, QWORD PTR fShaderStr$[rbp-256]
 ; Line 902
@@ -54258,29 +54256,29 @@ $LN26@init:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xmemory
 ; Line 288
 	cmp	rdx, 4096				; 00001000H
-	jb	SHORT $LN198@init
+	jb	SHORT $LN188@init
 ; Line 209
 	mov	rcx, QWORD PTR [rax-8]
 ; Line 223
 	sub	rax, rcx
 	sub	rax, 8
 	cmp	rax, 31
-	ja	SHORT $LN141@init
+	ja	SHORT $LN131@init
 ; Line 206
 	add	rdx, 39					; 00000027H
 ; Line 224
-	jmp	SHORT $LN142@init
-$LN141@init:
+	jmp	SHORT $LN132@init
+$LN131@init:
 ; Line 223
 	mov	ecx, 5
 	int	41					; 00000029H
-$LN198@init:
+$LN188@init:
 ; Line 989
 	mov	rcx, rax
-$LN142@init:
+$LN132@init:
 ; Line 293
 	call	??3@YAXPEAX_K@Z				; operator delete
-$LN134@init:
+$LN124@init:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xstring
 ; Line 3176
 	mov	QWORD PTR fShaderStr$[rbp-240], r13
@@ -54292,7 +54290,7 @@ $LN134@init:
 	mov	rdx, QWORD PTR vShaderStr$[rbp-232]
 	cmp	rdx, 15
 ; Line 3169
-	jbe	SHORT $LN166@init
+	jbe	SHORT $LN156@init
 ; Line 3172
 	mov	rax, QWORD PTR vShaderStr$[rbp-256]
 ; Line 902
@@ -54300,29 +54298,29 @@ $LN134@init:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xmemory
 ; Line 288
 	cmp	rdx, 4096				; 00001000H
-	jb	SHORT $LN199@init
+	jb	SHORT $LN189@init
 ; Line 209
 	mov	rcx, QWORD PTR [rax-8]
 ; Line 223
 	sub	rax, rcx
 	sub	rax, 8
 	cmp	rax, 31
-	ja	SHORT $LN173@init
+	ja	SHORT $LN163@init
 ; Line 206
 	add	rdx, 39					; 00000027H
 ; Line 224
-	jmp	SHORT $LN174@init
-$LN173@init:
+	jmp	SHORT $LN164@init
+$LN163@init:
 ; Line 223
 	mov	ecx, 5
 	int	41					; 00000029H
-$LN199@init:
+$LN189@init:
 ; Line 989
 	mov	rcx, rax
-$LN174@init:
+$LN164@init:
 ; Line 293
 	call	??3@YAXPEAX_K@Z				; operator delete
-$LN166@init:
+$LN156@init:
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 162
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
@@ -54339,7 +54337,7 @@ $LN166@init:
 	pop	rbx
 	pop	rbp
 	ret	0
-$LN200@init:
+$LN190@init:
 ?init@Renderer@@QEAAXXZ ENDP				; Renderer::init
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
@@ -55307,16 +55305,8 @@ _TEXT	ENDS
 _TEXT	SEGMENT
 this$ = 8
 ??1Cube@@UEAA@XZ PROC					; Cube::~Cube, COMDAT
-	jmp	??1Instance@@UEAA@XZ			; Instance::~Instance
+	jmp	??1BaseCube@@UEAA@XZ			; BaseCube::~BaseCube
 ??1Cube@@UEAA@XZ ENDP					; Cube::~Cube
-_TEXT	ENDS
-; Function compile flags: /Ogtpy
-;	COMDAT ??1BaseCube@@UEAA@XZ
-_TEXT	SEGMENT
-this$ = 8
-??1BaseCube@@UEAA@XZ PROC				; BaseCube::~BaseCube, COMDAT
-	jmp	??1Instance@@UEAA@XZ			; Instance::~Instance
-??1BaseCube@@UEAA@XZ ENDP				; BaseCube::~BaseCube
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ??__EmaxV4Error@vecMathTests@aos@physx@@YAXXZ
@@ -55441,14 +55431,6 @@ f$ = 8
 ; Line 229
 	ret	0
 ?FLoad@aos@physx@@YA?AT__m128@@M@Z ENDP			; physx::aos::FLoad
-_TEXT	ENDS
-; Function compile flags: /Ogtpy
-;	COMDAT ??1Spatial@@UEAA@XZ
-_TEXT	SEGMENT
-this$ = 8
-??1Spatial@@UEAA@XZ PROC				; Spatial::~Spatial, COMDAT
-	jmp	??1Instance@@UEAA@XZ			; Instance::~Instance
-??1Spatial@@UEAA@XZ ENDP				; Spatial::~Spatial
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
 ;	COMDAT ?_Unchecked_end@?$_Hash@V?$_Umap_traits@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@V?$_Uhash_compare@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@U?$hash@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@U?$equal_to@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@2@V?$allocator@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@2@$0A@@std@@@std@@QEBA?AV?$_List_unchecked_const_iterator@V?$_List_val@U?$_List_simple_types@U?$pair@$$CBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAVInstance@@@std@@@std@@@std@@U_Iterator_base0@2@@2@XZ
