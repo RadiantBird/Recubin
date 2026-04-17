@@ -60,13 +60,18 @@ int main() {
         return -1;
     }
 
-    User user(window);
+    // コアコンポーネントの宣言 (破棄は逆順: User -> Workspace -> Physics -> Renderer)
     Renderer renderer;
     Physics physicsEngine;
+    Workspace workspace;
+    User user(window);
     LuauEngine luauEngine;
 
     physicsEngine.init();
     renderer.init();
+
+    // Physics を Workspace にセット
+    workspace.setPhysicsEngine(&physicsEngine);
 
     unsigned int floppa   = renderer.loadTexture("assets/image/floppa2048.jpg"); // back
     unsigned int thecat   = renderer.loadTexture("assets/image/the-cat.png");  // front
@@ -74,11 +79,6 @@ int main() {
     unsigned int smile    = renderer.loadTexture("assets/image/smile.png"); // bottom
     unsigned int bliss    = renderer.loadTexture("assets/image/bliss.jpg"); // right
     unsigned int limabis  = renderer.loadTexture("assets/image/Limabis_logo.png"); // left
-
-    Workspace workspace;
-
-    // Physics を Workspace にセット
-    workspace.setPhysicsEngine(&physicsEngine);
 
     // 1. Blue Cube (元 world[0])
     Cube* blueCube = new Cube({0.0f, 0.0f, -2.0f}, {1.0f, 4.0f, 1.0f}, renderer.whiteTexture);

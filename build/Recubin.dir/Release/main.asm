@@ -633,8 +633,8 @@ $pdata$?catch$4@?0???$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$ch
 pdata	ENDS
 ;	COMDAT pdata
 pdata	SEGMENT
-$pdata$main DD	imagerel $LN508
-	DD	imagerel $LN508+2469
+$pdata$main DD	imagerel $LN510
+	DD	imagerel $LN510+2457
 	DD	imagerel $unwind$main
 pdata	ENDS
 ;	COMDAT pdata
@@ -1359,20 +1359,22 @@ $unwind$main$dtor$5 DD 020601H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
-$ip2state$main DB ','
+$ip2state$main DB '.'
 	DB	092H
 	DB	00H
-	DB	'a', 04H
+	DB	']', 04H
 	DB	02H
-	DB	'R'
+	DB	'8'
+	DB	04H
+	DB	'0'
 	DB	06H
-	DB	','
+	DB	01aH
 	DB	08H
-	DB	014H
+	DB	016H
 	DB	0aH
-	DB	'M', 02H
+	DB	014H
 	DB	0cH
-	DB	'4'
+	DB	085H, 02H
 	DB	0eH
 	DB	08eH
 	DB	0cH
@@ -1388,7 +1390,7 @@ $ip2state$main DB ','
 	DB	014H
 	DB	096H
 	DB	0cH
-	DB	01dH, 04H
+	DB	'!', 04H
 	DB	016H
 	DB	'2'
 	DB	0cH
@@ -1402,19 +1404,15 @@ $ip2state$main DB ','
 	DB	0cH
 	DB	0b1H, 05H
 	DB	0aH
-	DB	'=', 04H
+	DB	09H, 04H
 	DB	00H
 xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $stateUnwindMap$main DB 01aH
 	DB	0aH
-	DD	imagerel ??1User@@QEAA@XZ
-	DB	0c1H
-	DB	03H
-	DB	03aH
 	DD	imagerel ??1Renderer@@QEAA@XZ
-	DB	0d0H
+	DB	0e0H
 	DB	036H
 	DD	imagerel main$dtor$14
 	DB	05aH
@@ -1422,28 +1420,32 @@ $stateUnwindMap$main DB 01aH
 	DB	081H
 	DB	02H
 	DB	03aH
-	DD	imagerel ??1LuauEngine@@QEAA@XZ
-	DB	0b0H
-	DB	032H
 	DD	imagerel ??1Workspace@@UEAA@XZ
 	DB	081H
 	DB	07H
-	DB	03eH
+	DB	03aH
+	DD	imagerel ??1User@@QEAA@XZ
+	DB	0c1H
+	DB	03H
+	DB	03aH
+	DD	imagerel ??1LuauEngine@@QEAA@XZ
+	DB	0b0H
+	DB	036H
 	DD	imagerel main$dtor$5
-	DB	066H
+	DB	05eH
 	DD	imagerel main$dtor$6
-	DB	08eH
+	DB	086H
 	DD	imagerel main$dtor$7
-	DB	0b6H
+	DB	0aeH
 	DD	imagerel main$dtor$8
-	DB	0daH
+	DB	0d2H
 	DD	imagerel ??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ
 	DB	01H
 	DB	07H
-	DB	02dH
+	DB	01dH
 	DB	02H
 	DD	imagerel main$dtor$10
-	DB	08dH
+	DB	07dH
 	DB	02H
 	DD	imagerel main$dtor$12
 xdata	ENDS
@@ -3003,8 +3005,8 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448
@@ -3014,7 +3016,7 @@ __$ArrayPad$ = 656
 main	PROC						; COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 54
-$LN508:
+$LN510:
 	mov	rax, rsp
 	push	rbp
 	push	rbx
@@ -3051,7 +3053,7 @@ $LN508:
 ; Line 28
 	lea	rdx, OFFSET FLAT:??_C@_0BC@EBHAINFF@GLFW?5init?5failed?6@
 ; Line 29
-	jmp	$LN505@main
+	jmp	$LN507@main
 $LN33@main:
 ; Line 32
 	lea	rdx, OFFSET FLAT:??_C@_0BE@DPHBGMBN@creating?5window?4?4?4?6@
@@ -3075,7 +3077,7 @@ $LN33@main:
 ; Line 36
 	call	glfwTerminate
 ; Line 37
-	jmp	SHORT $LN499@main
+	jmp	SHORT $LN501@main
 $LN34@main:
 ; Line 41
 	mov	edx, 800				; 00000320H
@@ -3100,10 +3102,10 @@ $LN34@main:
 ; Line 48
 	lea	rdx, OFFSET FLAT:??_C@_0BC@GILIDJKH@GLEW?5init?5failed?6@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
-$LN505@main:
+$LN507@main:
 ; Line 59
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-$LN499@main:
+$LN501@main:
 	lea	rdx, OFFSET FLAT:??_C@_0BK@HFNBFIKJ@?$FLERROR?$FN?5Failed?5to?5setup?4?6@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
@@ -3111,15 +3113,10 @@ $LN499@main:
 	mov	eax, -1
 	jmp	$LN1@main
 $LN4@main:
-; Line 63
-	mov	rdx, rdi
-	lea	rcx, QWORD PTR user$[rbp-256]
-	call	??0User@@QEAA@PEAUGLFWwindow@@@Z	; User::User
-	npad	1
 	xorps	xmm0, xmm0
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
 ; Line 400
-	movdqu	XMMWORD PTR renderer$[rsp+16], xmm0
+	movdqu	XMMWORD PTR renderer$[rbp-240], xmm0
 	mov	QWORD PTR renderer$[rbp-224], rbx
 	movdqa	XMMWORD PTR physicsEngine$[rbp-256], xmm0
 	xorps	xmm1, xmm1
@@ -3133,52 +3130,59 @@ $LN4@main:
 	mov	QWORD PTR physicsEngine$[rbp-192], rbx
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 66
+	lea	rcx, QWORD PTR workspace$[rbp-256]
+	call	??0Workspace@@QEAA@XZ			; Workspace::Workspace
+	npad	1
+; Line 67
+	mov	rdx, rdi
+	lea	rcx, QWORD PTR user$[rbp-256]
+	call	??0User@@QEAA@PEAUGLFWwindow@@@Z	; User::User
+	npad	1
+; Line 68
 	lea	rcx, QWORD PTR luauEngine$[rsp]
 	call	??0LuauEngine@@QEAA@XZ			; LuauEngine::LuauEngine
 	npad	1
-; Line 68
+; Line 70
 	lea	rcx, QWORD PTR physicsEngine$[rbp-256]
 	call	?init@Physics@@QEAAXXZ			; Physics::init
-; Line 69
+; Line 71
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?init@Renderer@@QEAAXXZ			; Renderer::init
-; Line 71
+; File C:\Users\RedDragon\Documents\Recubin\include\Instances\Workspace.hpp
+; Line 40
+	lea	rax, QWORD PTR physicsEngine$[rbp-256]
+	mov	QWORD PTR workspace$[rbp-144], rax
+; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
+; Line 76
 	lea	rdx, OFFSET FLAT:??_C@_0BM@PAPOLKLO@assets?1image?1floppa2048?4jpg@
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?loadTexture@Renderer@@QEAAIPEBD@Z	; Renderer::loadTexture
 	mov	esi, eax
-; Line 72
+; Line 77
 	lea	rdx, OFFSET FLAT:??_C@_0BJ@LKJAONFL@assets?1image?1the?9cat?4png@
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?loadTexture@Renderer@@QEAAIPEBD@Z	; Renderer::loadTexture
 	mov	r14d, eax
-; Line 73
+; Line 78
 	lea	rdx, OFFSET FLAT:??_C@_0BL@HFFFDACB@assets?1image?1salad?9cat?4jpg@
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?loadTexture@Renderer@@QEAAIPEBD@Z	; Renderer::loadTexture
 	mov	r15d, eax
-; Line 74
+; Line 79
 	lea	rdx, OFFSET FLAT:??_C@_0BH@EFEGFJOC@assets?1image?1smile?4png@
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?loadTexture@Renderer@@QEAAIPEBD@Z	; Renderer::loadTexture
 	mov	r12d, eax
-; Line 75
+; Line 80
 	lea	rdx, OFFSET FLAT:??_C@_0BH@PHFEJDFH@assets?1image?1bliss?4jpg@
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?loadTexture@Renderer@@QEAAIPEBD@Z	; Renderer::loadTexture
 	mov	r13d, eax
-; Line 76
+; Line 81
 	lea	rdx, OFFSET FLAT:??_C@_0BO@LEENDELH@assets?1image?1Limabis_logo?4png@
 	lea	rcx, QWORD PTR renderer$[rsp]
 	call	?loadTexture@Renderer@@QEAAIPEBD@Z	; Renderer::loadTexture
-	mov	DWORD PTR limabis$1$[rbp-256], eax
-; Line 78
-	lea	rcx, QWORD PTR workspace$[rbp-256]
-	call	??0Workspace@@QEAA@XZ			; Workspace::Workspace
-	npad	1
-; Line 81
-	lea	rax, QWORD PTR physicsEngine$[rbp-256]
-	mov	QWORD PTR workspace$[rbp-144], rax
+	mov	DWORD PTR limabis$1$[rsp], eax
 ; Line 84
 	mov	ecx, 240				; 000000f0H
 	call	??2@YAPEAX_K@Z				; operator new
@@ -3351,7 +3355,7 @@ $LN14@main:
 	mov	rcx, rbx
 	call	?setFaceTexture@Cube@@QEAAXHI@Z		; Cube::setFaceTexture
 ; Line 112
-	mov	r8d, DWORD PTR limabis$1$[rbp-256]
+	mov	r8d, DWORD PTR limabis$1$[rsp]
 	mov	edx, 5
 	mov	rcx, rbx
 	call	?setFaceTexture@Cube@@QEAAXHI@Z		; Cube::setFaceTexture
@@ -3393,7 +3397,7 @@ $LN14@main:
 	mov	rdx, QWORD PTR $T32[rbp-232]
 	cmp	rdx, 15
 ; Line 3169
-	jbe	SHORT $LN221@main
+	jbe	SHORT $LN223@main
 ; Line 3172
 	mov	rax, QWORD PTR $T32[rbp-256]
 ; Line 902
@@ -3401,29 +3405,29 @@ $LN14@main:
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\xmemory
 ; Line 288
 	cmp	rdx, 4096				; 00001000H
-	jb	SHORT $LN500@main
+	jb	SHORT $LN502@main
 ; Line 209
 	mov	rcx, QWORD PTR [rax-8]
 ; Line 223
 	sub	rax, rcx
 	sub	rax, 8
 	cmp	rax, 31
-	ja	SHORT $LN228@main
+	ja	SHORT $LN230@main
 ; Line 206
 	add	rdx, 39					; 00000027H
 ; Line 224
-	jmp	SHORT $LN229@main
-$LN228@main:
+	jmp	SHORT $LN231@main
+$LN230@main:
 ; Line 223
 	mov	ecx, 5
 	int	41					; 00000029H
-$LN500@main:
+$LN502@main:
 ; Line 989
 	mov	rcx, rax
-$LN229@main:
+$LN231@main:
 ; Line 293
 	call	??3@YAXPEAX_K@Z				; operator delete
-$LN221@main:
+$LN223@main:
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 119
 	lea	rdx, QWORD PTR workspace$[rbp-256]
@@ -3543,7 +3547,7 @@ $LN18@main:
 	mov	rcx, rdi
 	call	glfwWindowShouldClose
 	test	eax, eax
-	jne	$LN433@main
+	jne	$LN435@main
 $LL2@main:
 ; Line 142
 	call	glfwGetTime
@@ -3571,8 +3575,8 @@ $LL2@main:
 	lea	rcx, QWORD PTR user$[rbp-256]
 	call	?processInput@User@@QEAAXXZ		; User::processInput
 ; Line 156
-	cmp	BYTE PTR user$[rbp-64], 0
-	jne	SHORT $LN433@main
+	cmp	BYTE PTR user$[rbp-56], 0
+	jne	SHORT $LN435@main
 ; Line 144
 	movaps	xmm8, xmm7
 ; Line 160
@@ -3586,14 +3590,14 @@ $LL2@main:
 	call	glfwWindowShouldClose
 	test	eax, eax
 	je	$LL2@main
-$LN433@main:
+$LN435@main:
 ; Line 164
 	call	glfwTerminate
 ; Line 165
 	lea	rdx, OFFSET FLAT:??_C@_0CE@DBCKMAIM@?$FLDEBUG?$FN?5Main?5loop?5ended?4?5wannaE@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-	movzx	edx, BYTE PTR user$[rbp-64]
+	movzx	edx, BYTE PTR user$[rbp-56]
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@_N@Z
 	mov	rcx, rax
@@ -3609,6 +3613,13 @@ $LN433@main:
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@P6AAEAV01@AEAV01@@Z@Z
 	npad	1
+; Line 166
+	lea	rcx, QWORD PTR luauEngine$[rsp]
+	call	??1LuauEngine@@QEAA@XZ			; LuauEngine::~LuauEngine
+	npad	1
+	lea	rcx, QWORD PTR user$[rbp-256]
+	call	??1User@@QEAA@XZ			; User::~User
+	npad	1
 	lea	rcx, QWORD PTR workspace$[rbp-112]
 	call	??1?$vector@PEAVInstance@@V?$allocator@PEAVInstance@@@std@@@std@@QEAA@XZ ; std::vector<Instance *,std::allocator<Instance *> >::~vector<Instance *,std::allocator<Instance *> >
 	lea	rcx, QWORD PTR workspace$[rbp-136]
@@ -3616,15 +3627,11 @@ $LN433@main:
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	??1Instance@@UEAA@XZ			; Instance::~Instance
 	npad	1
-; Line 166
-	lea	rcx, QWORD PTR luauEngine$[rsp]
-	call	??1LuauEngine@@QEAA@XZ			; LuauEngine::~LuauEngine
-	npad	1
 ; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
 ; Line 2090
 	mov	rcx, QWORD PTR physicsEngine$[rbp-208]
 	test	rcx, rcx
-	je	SHORT $LN265@main
+	je	SHORT $LN267@main
 ; Line 2093
 	mov	rax, QWORD PTR physicsEngine$[rbp-192]
 	sub	rax, rcx
@@ -3634,26 +3641,26 @@ $LN433@main:
 	lea	rdx, QWORD PTR [rax*8]
 ; Line 288
 	cmp	rdx, 4096				; 00001000H
-	jb	SHORT $LN501@main
+	jb	SHORT $LN503@main
 ; Line 209
 	mov	rax, QWORD PTR [rcx-8]
 ; Line 223
 	sub	rcx, rax
 	sub	rcx, 8
 	cmp	rcx, 31
-	ja	SHORT $LN278@main
+	ja	SHORT $LN280@main
 ; Line 206
 	add	rdx, 39					; 00000027H
 ; Line 224
-	jmp	SHORT $LN279@main
-$LN278@main:
+	jmp	SHORT $LN281@main
+$LN280@main:
 ; Line 223
 	mov	ecx, 5
 	int	41					; 00000029H
-$LN501@main:
+$LN503@main:
 ; Line 989
 	mov	rax, rcx
-$LN279@main:
+$LN281@main:
 ; Line 293
 	mov	rcx, rax
 	call	??3@YAXPEAX_K@Z				; operator delete
@@ -3663,15 +3670,15 @@ $LN279@main:
 	movdqa	XMMWORD PTR physicsEngine$[rbp-208], xmm0
 ; Line 2097
 	mov	QWORD PTR physicsEngine$[rbp-192], rsi
-$LN265@main:
+$LN267@main:
 	lea	rcx, QWORD PTR physicsEngine$[rbp-216]
 	call	??1PxDefaultErrorCallback@physx@@UEAA@XZ ; physx::PxDefaultErrorCallback::~PxDefaultErrorCallback
 	lea	rax, OFFSET FLAT:??_7PxAllocatorCallback@physx@@6B@
 	mov	QWORD PTR physicsEngine$[rbp-224], rax
 ; Line 2090
-	mov	rcx, QWORD PTR renderer$[rsp+16]
+	mov	rcx, QWORD PTR renderer$[rbp-240]
 	test	rcx, rcx
-	je	SHORT $LN299@main
+	je	SHORT $LN307@main
 ; Line 2093
 	mov	rax, QWORD PTR renderer$[rbp-224]
 	sub	rax, rcx
@@ -3681,40 +3688,32 @@ $LN265@main:
 	lea	rdx, QWORD PTR [rax*4]
 ; Line 288
 	cmp	rdx, 4096				; 00001000H
-	jb	SHORT $LN502@main
+	jb	SHORT $LN504@main
 ; Line 209
 	mov	rax, QWORD PTR [rcx-8]
 ; Line 223
 	sub	rcx, rax
 	sub	rcx, 8
 	cmp	rcx, 31
-	ja	SHORT $LN312@main
+	ja	SHORT $LN314@main
 ; Line 206
 	add	rdx, 39					; 00000027H
 ; Line 224
-	jmp	SHORT $LN313@main
-$LN312@main:
+	jmp	SHORT $LN315@main
+$LN314@main:
 ; Line 223
 	mov	ecx, 5
 	int	41					; 00000029H
-$LN502@main:
+$LN504@main:
 ; Line 989
 	mov	rax, rcx
-$LN313@main:
+$LN315@main:
 ; Line 293
 	mov	rcx, rax
 	call	??3@YAXPEAX_K@Z				; operator delete
-	xorps	xmm0, xmm0
-; File C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\include\vector
-; Line 2095
-	movdqu	XMMWORD PTR renderer$[rsp+16], xmm0
-; Line 2097
-	mov	QWORD PTR renderer$[rbp-224], rsi
-$LN299@main:
+$LN307@main:
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 166
-	lea	rcx, QWORD PTR user$[rbp-256]
-	call	??1User@@QEAA@XZ			; User::~User
 	xor	eax, eax
 $LN1@main:
 ; Line 167
@@ -3735,7 +3734,7 @@ $LN1@main:
 	pop	rbx
 	pop	rbp
 	ret	0
-$LN504@main:
+$LN506@main:
 main	ENDP
 _TEXT	ENDS
 ; Function compile flags: /Ogtpy
@@ -3758,8 +3757,8 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448
@@ -3767,8 +3766,8 @@ $T33 = 448
 workspace$ = 480
 __$ArrayPad$ = 656
 main$dtor$0 PROC
-	lea	rcx, QWORD PTR user$[rdx]
-	jmp	??1User@@QEAA@XZ			; User::~User
+	lea	rcx, QWORD PTR renderer$[rdx]
+	jmp	??1Renderer@@QEAA@XZ
 main$dtor$0 ENDP
 text$x	ENDS
 ; Function compile flags: /Ogtpy
@@ -3791,41 +3790,8 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
-physicsEngine$ = 160
-user$ = 240
-$T32 = 448
-$T33 = 448
-workspace$ = 480
-__$ArrayPad$ = 656
-main$dtor$1 PROC
-	lea	rcx, QWORD PTR renderer$[rdx]
-	jmp	??1Renderer@@QEAA@XZ
-main$dtor$1 ENDP
-text$x	ENDS
-; Function compile flags: /Ogtpy
-;	COMDAT text$x
-text$x	SEGMENT
-$T16 = 48
-$T17 = 48
-$T18 = 48
-$T19 = 48
-$T20 = 48
-$T21 = 64
-$T22 = 64
-$T23 = 64
-$T24 = 64
-$T25 = 64
-$T26 = 80
-$T27 = 80
-$T28 = 80
-$T29 = 80
-$T30 = 80
-$T31 = 80
-luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448
@@ -3858,8 +3824,41 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
+physicsEngine$ = 160
+user$ = 240
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
+main$dtor$1 PROC
+	lea	rcx, QWORD PTR physicsEngine$[rdx]
+	jmp	??1Physics@@QEAA@XZ
+main$dtor$1 ENDP
+text$x	ENDS
+; Function compile flags: /Ogtpy
+;	COMDAT text$x
+text$x	SEGMENT
+$T16 = 48
+$T17 = 48
+$T18 = 48
+$T19 = 48
+$T20 = 48
+$T21 = 64
+$T22 = 64
+$T23 = 64
+$T24 = 64
+$T25 = 64
+$T26 = 80
+$T27 = 80
+$T28 = 80
+$T29 = 80
+$T30 = 80
+$T31 = 80
+luauEngine$ = 88
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448
@@ -3867,8 +3866,8 @@ $T33 = 448
 workspace$ = 480
 __$ArrayPad$ = 656
 main$dtor$2 PROC
-	lea	rcx, QWORD PTR physicsEngine$[rdx]
-	jmp	??1Physics@@QEAA@XZ
+	lea	rcx, QWORD PTR workspace$[rdx]
+	jmp	??1Workspace@@UEAA@XZ
 main$dtor$2 ENDP
 text$x	ENDS
 ; Function compile flags: /Ogtpy
@@ -3891,8 +3890,8 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448
@@ -3900,8 +3899,8 @@ $T33 = 448
 workspace$ = 480
 __$ArrayPad$ = 656
 main$dtor$3 PROC
-	lea	rcx, QWORD PTR luauEngine$[rdx]
-	jmp	??1LuauEngine@@QEAA@XZ			; LuauEngine::~LuauEngine
+	lea	rcx, QWORD PTR user$[rdx]
+	jmp	??1User@@QEAA@XZ			; User::~User
 main$dtor$3 ENDP
 text$x	ENDS
 ; Function compile flags: /Ogtpy
@@ -3924,8 +3923,8 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448
@@ -3933,8 +3932,8 @@ $T33 = 448
 workspace$ = 480
 __$ArrayPad$ = 656
 main$dtor$4 PROC
-	lea	rcx, QWORD PTR workspace$[rdx]
-	jmp	??1Workspace@@UEAA@XZ
+	lea	rcx, QWORD PTR luauEngine$[rdx]
+	jmp	??1LuauEngine@@QEAA@XZ			; LuauEngine::~LuauEngine
 main$dtor$4 ENDP
 text$x	ENDS
 ; Function compile flags: /Ogtpy
@@ -3957,8 +3956,8 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448
@@ -3997,8 +3996,8 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448
@@ -4037,8 +4036,8 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448
@@ -4077,8 +4076,8 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448
@@ -4117,8 +4116,8 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448
@@ -4150,8 +4149,8 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448
@@ -4190,8 +4189,8 @@ $T29 = 80
 $T30 = 80
 $T31 = 80
 luauEngine$ = 88
-renderer$ = 104
-limabis$1$ = 152
+limabis$1$ = 104
+renderer$ = 112
 physicsEngine$ = 160
 user$ = 240
 $T32 = 448

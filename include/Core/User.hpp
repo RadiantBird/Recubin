@@ -32,7 +32,7 @@ public:
     Vector3 &cpos;
     Model *character = nullptr;
     Cube *root = nullptr; // 追加: キャラクターのルート（全体をまとめる）
-    // Cube *torso = nullptr; // TODO: あとで実装
+    Cube *torso = nullptr;
     Cube *head = nullptr;
     Cube *leftArm = nullptr;
     Cube *rightArm = nullptr;

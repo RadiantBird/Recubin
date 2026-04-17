@@ -52950,9 +52950,9 @@ $LN5@render:
 ; Line 174
 	mov	rax, QWORD PTR [rdi+88]
 ; Line 175
-	movss	xmm7, DWORD PTR [rdi+180]
-	movss	xmm8, DWORD PTR [rdi+184]
-	movss	xmm6, DWORD PTR [rdi+188]
+	movss	xmm7, DWORD PTR [rdi+188]
+	movss	xmm8, DWORD PTR [rdi+192]
+	movss	xmm6, DWORD PTR [rdi+196]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 66
 	divss	xmm3, xmm0
@@ -52984,10 +52984,10 @@ $LN5@render:
 	movss	xmm13, DWORD PTR [rax]
 	movss	xmm15, DWORD PTR [rax+4]
 	movaps	xmm0, xmm13
-	addss	xmm0, DWORD PTR [rdi+156]
+	addss	xmm0, DWORD PTR [rdi+164]
 	movss	xmm14, DWORD PTR [rax+8]
 	movaps	xmm1, xmm15
-	addss	xmm1, DWORD PTR [rdi+160]
+	addss	xmm1, DWORD PTR [rdi+168]
 ; Line 11
 	subss	xmm0, xmm13
 	subss	xmm1, xmm15
@@ -52995,7 +52995,7 @@ $LN5@render:
 	movss	DWORD PTR $T4[rsp], xmm0
 ; Line 10
 	movaps	xmm0, xmm14
-	addss	xmm0, DWORD PTR [rdi+164]
+	addss	xmm0, DWORD PTR [rdi+172]
 ; Line 40
 	movss	DWORD PTR $T4[rsp+4], xmm1
 ; Line 11

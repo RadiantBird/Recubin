@@ -56,9 +56,16 @@ void Instance::addChild(Instance* child) {
         RCBN_WARN("addChild called but child is nullptr!");
         return;
     }
+
+    // 重複キーの登録を禁止
+    if (this->children.count(child->Name) > 0) {
+        RCBN_WARN("addChild failed: Key collision for '" << child->Name << "' in " << this->Name);
+        return;
+    }
+
     child->Parent = this;
-    child->onAncestorChanged();
     this->children[child->Name] = child;
+    child->onAncestorChanged();
 }
 
 bool Instance::removeChild(string name) {
@@ -97,7 +104,14 @@ std::string Instance::getFullPath() {
 
 Instance::~Instance() {
     RCBN_LOG("Instance Destructor: " << this->Name << " (" << this->GetClassName() << ")");
+    // ループ中の予期せぬ不整合（子要素が親を触るなど）を防ぐため、コピーしたリストを破棄する
+    std::vector<Instance*> toDelete;
     for (auto const& [_, child] : this->children) {
+        toDelete.push_back(child);
+    }
+    this->children.clear();
+    
+    for (Instance* child : toDelete) {
         delete child;
     }
 }

@@ -14,20 +14,30 @@ User::User(GLFWwindow* win)
     updateVectors();
 }
 
+// 文字化けなんとかしてくれ、アセンブリですか（笑）
 User::~User() {
     if (character) {
-        // Workspaceなどの親がいる場合は、親側のデストラクタで削除されるため二重解放を避ける
+        // Workspace縺ｪ縺ｩ縺ｮ隕ｪ縺後＞繧句ｴ蜷医・縲∬ｦｪ蛛ｴ縺ｮ繝・せ繝医Λ繧ｯ繧ｿ縺ｧ蜑企勁縺輔ｌ繧九◆繧∽ｺ碁㍾隗｣謾ｾ繧帝∩縺代ｋ
         if (character->Parent == nullptr) {
-            RCBN_LOG("User Destructor: Manually deleting orphan character");
+            RCBN_LOG("User Destructor: Cleaning up orphaned character");
             delete character;
+        } else {
+            RCBN_LOG("User Destructor: Character is owned by Workspace, skipping manual delete");
         }
         character = nullptr;
+        root = nullptr;
+        torso = nullptr;
+        head = nullptr;
+        leftArm = nullptr;
+        rightArm = nullptr;
+        leftLeg = nullptr;
+        rightLeg = nullptr;
     }
 }
 
 
 void User::updateVectors() {
-    // 外積を使わず、クォータニオンから直接ローカル軸を取り出す
+    // 螟也ｩ阪ｒ菴ｿ繧上★縲√け繧ｩ繝ｼ繧ｿ繝九が繝ｳ縺九ｉ逶ｴ謗･繝ｭ繝ｼ繧ｫ繝ｫ霆ｸ繧貞叙繧雁・縺・
     forward = cam.Orientation.getForward();
     right   = cam.Orientation.getRight();
     up      = cam.Orientation.getUp();
@@ -36,7 +46,7 @@ void User::updateVectors() {
 void User::processInput() {
     if (!window) return;
 
-    // 1. カメラ回転の先行処理
+    // 1. 繧ｫ繝｡繝ｩ蝗櫁ｻ｢縺ｮ蜈郁｡悟・逅・
     bool rotated = false;
     float rotationSpeed = 1.5f;
 
@@ -61,13 +71,13 @@ void User::processInput() {
         updateVectors();
     }
 
-    // ズーム処理
+    // 繧ｺ繝ｼ繝蜃ｦ逅・
     if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) {
-        cameraDistance -= zoomSpeed; // ズームイン
+        cameraDistance -= zoomSpeed; // 繧ｺ繝ｼ繝繧､繝ｳ
         if (cameraDistance < 2.0f) cameraDistance = 2.0f;
     }
     if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
-        cameraDistance += zoomSpeed; // ズームアウト
+        cameraDistance += zoomSpeed; // 繧ｺ繝ｼ繝繧｢繧ｦ繝・
     }
 
     if (ControlMode::Free == controlMode) {
@@ -103,7 +113,7 @@ void User::processInput() {
                     targetRot = Quaternion::fromAxisAngle(Vector3(0, 1, 0), targetAnglePos);
                 }
 
-                // Slerpで向きを更新し、物理アクターに反映
+                // Slerp縺ｧ蜷代″繧呈峩譁ｰ縺励∫黄逅・い繧ｯ繧ｿ繝ｼ縺ｫ蜿肴丐
                 root->Rotation = Quaternion::Slerp(root->Rotation, targetRot, 0.15f);
                 
                 physx::PxTransform pose = dynamicActor->getGlobalPose();
@@ -117,7 +127,7 @@ void User::processInput() {
                     if (isPressingMove) {
                         walkCycle += 0.15f;
                     } else {
-                        // 慣性移動中：ニュートラルポーズ（PIの倍数）まで進める
+                        // 諷｣諤ｧ遘ｻ蜍穂ｸｭ・壹ル繝･繝ｼ繝医Λ繝ｫ繝昴・繧ｺ・・I縺ｮ蛟肴焚・峨∪縺ｧ騾ｲ繧√ｋ
                         float phase = fmod(walkCycle, PI);
                         if (phase > 0.15f) walkCycle += 0.15f;
                     }
@@ -125,7 +135,7 @@ void User::processInput() {
                     physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
                     dynamicActor->setLinearVelocity(physx::PxVec3(velocity.x, currentVel.y, velocity.z));
                 } else {
-                    // 速度が0になっても、アニメーションのキリが悪い場合は最後まで動かす
+                    // 騾溷ｺｦ縺・縺ｫ縺ｪ縺｣縺ｦ繧ゅ√い繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ縺ｮ繧ｭ繝ｪ縺梧が縺・ｴ蜷医・譛蠕後∪縺ｧ蜍輔°縺・
                     const float PI = 3.14159265f;
                     float phase = fmod(walkCycle, PI);
                     if (phase > 0.15f) walkCycle += 0.15f;
@@ -135,36 +145,43 @@ void User::processInput() {
                 }
             }
             
-            // カメラ位置もキャラクター位置に追従
+            // 繧ｫ繝｡繝ｩ菴咲ｽｮ繧ゅく繝｣繝ｩ繧ｯ繧ｿ繝ｼ菴咲ｽｮ縺ｫ霑ｽ蠕・
             cpos = root->Position + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
         }
     }
     
-    // CFrameによる極めてシンプルな同期
+    // CFrame縺ｫ繧医ｋ蜷梧悄縺ｨ繧｢繝九Γ繝ｼ繧ｷ繝ｧ繝ｳ驕ｩ逕ｨ
+    if (torso) {
+        torso->cframe = root->cframe * CFrame(0, 1.0f, 0);
+    }
     if (head) {
-        head->cframe = root->cframe * CFrame(0, 1.25f, 0);
+        head->cframe = root->cframe * CFrame(0, 2.5f, 0);
     }
 
     float swingAngle = sin(walkCycle) * 35.0f;
 
     if (leftArm) {
-        CFrame jointCF = root->cframe * CFrame(-0.75f, 0.75f, 0);
-        leftArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), swingAngle) * CFrame(0, -0.75f, 0);
+        // 閧ｩ縺ｮ髢｢遽菴咲ｽｮ: x=-1.5, y=2.0 (Torso縺ｮ荳願ｧ・
+        CFrame jointCF = root->cframe * CFrame(-1.5f, 2.0f, 0);
+        leftArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), swingAngle) * CFrame(0, -1.0f, 0);
     }
     if (rightArm) {
-        CFrame jointCF = root->cframe * CFrame(0.75f, 0.75f, 0);
-        rightArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), -swingAngle) * CFrame(0, -0.75f, 0);
+        // 閧ｩ縺ｮ髢｢遽菴咲ｽｮ: x=1.5, y=2.0
+        CFrame jointCF = root->cframe * CFrame(1.5f, 2.0f, 0);
+        rightArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), -swingAngle) * CFrame(0, -1.0f, 0);
     }
     if (leftLeg) {
-        CFrame jointCF = root->cframe * CFrame(-0.35f, -0.75f, 0);
-        leftLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), -swingAngle) * CFrame(0, -0.75f, 0);
+        // 閧｡髢｢遽菴咲ｽｮ: x=-0.5, y=0.0 (Root縺ｮ荳ｭ螟ｮ鬮倥＆)
+        CFrame jointCF = root->cframe * CFrame(-0.5f, 0.0f, 0);
+        leftLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), -swingAngle) * CFrame(0, -1.0f, 0);
     }
     if (rightLeg) {
-        CFrame jointCF = root->cframe * CFrame(0.35f, -0.75f, 0);
-        rightLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), swingAngle) * CFrame(0, -0.75f, 0);
+        // 閧｡髢｢遽菴咲ｽｮ: x=0.5, y=0.0
+        CFrame jointCF = root->cframe * CFrame(0.5f, 0.0f, 0);
+        rightLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), swingAngle) * CFrame(0, -1.0f, 0);
     }
     
-    // 回転があった場合のみベクトルを更新
+    // 蝗櫁ｻ｢縺後≠縺｣縺溷ｴ蜷医・縺ｿ繝吶け繝医Ν繧呈峩譁ｰ
     if (rotated) {
         updateVectors();
     }
@@ -172,10 +189,10 @@ void User::processInput() {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         wannaExit = true;
     }
-    // Fキーで制御モードを切り替え (トグル処理)
+    // F繧ｭ繝ｼ縺ｧ蛻ｶ蠕｡繝｢繝ｼ繝峨ｒ蛻・ｊ譖ｿ縺・(繝医げ繝ｫ蜃ｦ逅・
     bool fPressed = (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS);
     if (fPressed && !lastFKeyPressed) {
-        // Free/Character モードの切り替え
+        // Free/Character 繝｢繝ｼ繝峨・蛻・ｊ譖ｿ縺・
         if (controlMode == ControlMode::Free) {
             controlMode = ControlMode::Character;
             RCBN_LOG("Control Mode: Character");
@@ -196,45 +213,47 @@ void User::processInput() {
 }
 
 void User::spawnCharacter() {
-    if (character) return; // 既にスポーンしている場合は何もしない
+    if (character) return;
 
-    // キャラクター群を格納するモデル（物理なし）
-    character = new Model(Vector3(5.0f, 5.0f, 5.0f), Vector3(1, 1, 1));
+    character = new Model(Vector3(5.0f, 10.0f, 5.0f), Vector3(1, 1, 1));
     Vector3 basePos = character->Position;
     
-    head      = new Cube(basePos + Vector3(0, 1.25f, 0), Vector3(1, 1, 1), 0);
-    root     = new Cube(basePos + Vector3(0, -3.0f, 0), Vector3(1, 3.0f, 0.5f), 0); 
-    leftArm   = new Cube(basePos + Vector3(-0.75f, 0, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
-    rightArm  = new Cube(basePos + Vector3(0.75f, 0, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
-    leftLeg   = new Cube(basePos + Vector3(-0.25f, -1.5f, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
-    rightLeg  = new Cube(basePos + Vector3(0.25f, -1.5f, 0), Vector3(0.5f, 1.5f, 0.5f), 0);
-    
-    // 回転をY軸のみに限定（X軸とZ軸をロック）
-    root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
-    // 同様にほかの部位も回転をY軸のみに限定
-    head->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
-    leftArm->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
-    rightArm->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
-    leftLeg->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
-    rightLeg->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+    // 繝代・繝・函謌・
+    root      = new Cube(basePos, Vector3(2.0f, 4.0f, 1.0f), 0); 
+    head      = new Cube(basePos, Vector3(1.0f, 1.0f, 1.0f), 0);
+    torso     = new Cube(basePos, Vector3(2.0f, 2.0f, 1.0f), 0);
+    leftArm   = new Cube(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    rightArm  = new Cube(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    leftLeg   = new Cube(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    rightLeg  = new Cube(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
 
-    head->Name = "Head";
-    root->Name = "Root";
-    leftArm->Name = "LeftArm";
+    // 1. 蜷榊燕繧呈怙蛻昴↓險ｭ螳夲ｼ磯㍾隕・ｼ啾ddChild縺ｮ蜑阪↓險ｭ螳壹＠縺ｦ驥崎､・く繝ｼ繧帝∩縺代ｋ・・
+    root->Name     = "Root";
+    head->Name     = "Head";
+    torso->Name    = "Torso";
+    leftArm->Name  = "LeftArm";
     rightArm->Name = "RightArm";
-    leftLeg->Name = "LeftLeg";
+    leftLeg->Name  = "LeftLeg";
     rightLeg->Name = "RightLeg";
-    
-    // torsoのカラー
-    // torso->Color = Color4(1.0f, 0.5f, 0.0f, 1.0f);
 
-    root->Color = Color4(1.0f, 0.5f, 0.5f, 1.0f); // 確認用。リリース時はA = 0にして透明にする
+    // 2. 迚ｩ逅・・繧｢繝ｳ繧ｫ繝ｼ縺ｮ險ｭ螳・
+    head->Anchored     = true;
+    torso->Anchored    = true;
+    leftArm->Anchored  = true;
+    rightArm->Anchored = true;
+    leftLeg->Anchored  = true;
+    rightLeg->Anchored = true;
+    root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+    root->Color = Color4(1.0f, 0.5f, 0.5f, 1.0f);
 
-    RCBN_LOG("Spawning character...");
-    character->addChild(head);
+    // 3. 隕ｪ縺ｫ霑ｽ蜉・亥錐蜑咲｢ｺ螳壼ｾ後↓addChild縺吶ｋ縺薙→縺ｧ陦晉ｪ√ｒ髦ｲ縺撰ｼ・
     character->addChild(root);
+    character->addChild(head);
+    character->addChild(torso);
     character->addChild(leftArm);
     character->addChild(rightArm);
     character->addChild(leftLeg);
     character->addChild(rightLeg);
+
+    RCBN_LOG("Spawning character...");
 }
