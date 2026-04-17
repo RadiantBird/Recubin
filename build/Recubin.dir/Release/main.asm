@@ -1426,7 +1426,7 @@ $stateUnwindMap$main DB 01aH
 	DB	0b0H
 	DB	032H
 	DD	imagerel ??1Workspace@@UEAA@XZ
-	DB	041H
+	DB	081H
 	DB	07H
 	DB	03eH
 	DD	imagerel main$dtor$5
@@ -1438,8 +1438,8 @@ $stateUnwindMap$main DB 01aH
 	DD	imagerel main$dtor$8
 	DB	0daH
 	DD	imagerel ??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ
-	DB	0c1H
-	DB	06H
+	DB	01H
+	DB	07H
 	DB	02dH
 	DB	02H
 	DD	imagerel main$dtor$10
@@ -1456,17 +1456,17 @@ xdata	ENDS
 ;	COMDAT xdata
 xdata	SEGMENT
 $unwind$main DD	0103b19H
-	DD	029882aH
-	DD	02a7825H
-	DD	02b6821H
-	DD	059011dH
+	DD	02a882aH
+	DD	02b7825H
+	DD	02c6821H
+	DD	05b011dH
 	DD	0e00df00fH
 	DD	0c009d00bH
 	DD	060067007H
 	DD	050043005H
 	DD	imagerel __GSHandlerCheck_EH4
 	DD	imagerel $cppxdata$main
-	DD	0282H
+	DD	0292H
 xdata	ENDS
 ;	COMDAT voltbl
 voltbl	SEGMENT
@@ -3007,10 +3007,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main	PROC						; COMDAT
 ; File C:\Users\RedDragon\Documents\Recubin\src\main.cpp
 ; Line 54
@@ -3024,8 +3024,8 @@ $LN508:
 	push	r13
 	push	r14
 	push	r15
-	lea	rbp, QWORD PTR [rax-520]
-	sub	rsp, 712				; 000002c8H
+	lea	rbp, QWORD PTR [rax-536]
+	sub	rsp, 728				; 000002d8H
 	movaps	XMMWORD PTR [rax-88], xmm6
 	movaps	XMMWORD PTR [rax-104], xmm7
 	movaps	XMMWORD PTR [rax-120], xmm8
@@ -3532,7 +3532,7 @@ $LN18@main:
 	lea	rcx, QWORD PTR user$[rbp-256]
 	call	?spawnCharacter@User@@QEAAXXZ		; User::spawnCharacter
 ; Line 135
-	mov	rdx, QWORD PTR user$[rbp-168]
+	mov	rdx, QWORD PTR user$[rbp-160]
 	lea	rcx, QWORD PTR workspace$[rbp-256]
 	call	?addChild@Instance@@UEAAXPEAV1@@Z	; Instance::addChild
 ; Line 140
@@ -3571,7 +3571,7 @@ $LL2@main:
 	lea	rcx, QWORD PTR user$[rbp-256]
 	call	?processInput@User@@QEAAXXZ		; User::processInput
 ; Line 156
-	cmp	BYTE PTR user$[rbp-72], 0
+	cmp	BYTE PTR user$[rbp-64], 0
 	jne	SHORT $LN433@main
 ; Line 144
 	movaps	xmm8, xmm7
@@ -3593,7 +3593,7 @@ $LN433@main:
 	lea	rdx, OFFSET FLAT:??_C@_0CE@DBCKMAIM@?$FLDEBUG?$FN?5Main?5loop?5ended?4?5wannaE@
 	mov	rcx, QWORD PTR __imp_?cout@std@@3V?$basic_ostream@DU?$char_traits@D@std@@@1@A
 	call	??$?6U?$char_traits@D@std@@@std@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@0@AEAV10@PEBD@Z ; std::operator<<<std::char_traits<char> >
-	movzx	edx, BYTE PTR user$[rbp-72]
+	movzx	edx, BYTE PTR user$[rbp-64]
 	mov	rcx, rax
 	call	QWORD PTR __imp_??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@_N@Z
 	mov	rcx, rax
@@ -3721,7 +3721,7 @@ $LN1@main:
 	mov	rcx, QWORD PTR __$ArrayPad$[rbp-256]
 	xor	rcx, rsp
 	call	__security_check_cookie
-	lea	r11, QWORD PTR [rsp+712]
+	lea	r11, QWORD PTR [rsp+728]
 	movaps	xmm6, XMMWORD PTR [r11-24]
 	movaps	xmm7, XMMWORD PTR [r11-40]
 	movaps	xmm8, XMMWORD PTR [r11-56]
@@ -3762,10 +3762,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$0 PROC
 	lea	rcx, QWORD PTR user$[rdx]
 	jmp	??1User@@QEAA@XZ			; User::~User
@@ -3795,10 +3795,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$1 PROC
 	lea	rcx, QWORD PTR renderer$[rdx]
 	jmp	??1Renderer@@QEAA@XZ
@@ -3828,10 +3828,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$14 PROC
 	lea	rcx, QWORD PTR physicsEngine$[rdx]
 	add	rcx, 32					; 00000020H
@@ -3862,10 +3862,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$2 PROC
 	lea	rcx, QWORD PTR physicsEngine$[rdx]
 	jmp	??1Physics@@QEAA@XZ
@@ -3895,10 +3895,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$3 PROC
 	lea	rcx, QWORD PTR luauEngine$[rdx]
 	jmp	??1LuauEngine@@QEAA@XZ			; LuauEngine::~LuauEngine
@@ -3928,10 +3928,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$4 PROC
 	lea	rcx, QWORD PTR workspace$[rdx]
 	jmp	??1Workspace@@UEAA@XZ
@@ -3961,10 +3961,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$5 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4001,10 +4001,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$6 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4041,10 +4041,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$7 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4081,10 +4081,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$8 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4121,10 +4121,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$9 PROC
 	lea	rcx, QWORD PTR $T32[rdx]
 	jmp	??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QEAA@XZ ; std::basic_string<char,std::char_traits<char>,std::allocator<char> >::~basic_string<char,std::char_traits<char>,std::allocator<char> >
@@ -4154,10 +4154,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$10 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H
@@ -4194,10 +4194,10 @@ renderer$ = 104
 limabis$1$ = 152
 physicsEngine$ = 160
 user$ = 240
-$T32 = 432
-$T33 = 432
-workspace$ = 464
-__$ArrayPad$ = 640
+$T32 = 448
+$T33 = 448
+workspace$ = 480
+__$ArrayPad$ = 656
 main$dtor$12 PROC
 	push	rbp
 	sub	rsp, 32					; 00000020H

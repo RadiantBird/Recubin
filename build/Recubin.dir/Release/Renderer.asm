@@ -52948,11 +52948,11 @@ $LN5@render:
 	lea	rcx, QWORD PTR $T4[rsp]
 ; File C:\Users\RedDragon\Documents\Recubin\src\Core\Renderer.cpp
 ; Line 174
-	mov	rax, QWORD PTR [rdi+80]
+	mov	rax, QWORD PTR [rdi+88]
 ; Line 175
-	movss	xmm7, DWORD PTR [rdi+172]
-	movss	xmm8, DWORD PTR [rdi+176]
-	movss	xmm6, DWORD PTR [rdi+180]
+	movss	xmm7, DWORD PTR [rdi+180]
+	movss	xmm8, DWORD PTR [rdi+184]
+	movss	xmm6, DWORD PTR [rdi+188]
 ; File C:\Users\RedDragon\Documents\Recubin\include\Math\Matrix4.hpp
 ; Line 66
 	divss	xmm3, xmm0
@@ -52984,10 +52984,10 @@ $LN5@render:
 	movss	xmm13, DWORD PTR [rax]
 	movss	xmm15, DWORD PTR [rax+4]
 	movaps	xmm0, xmm13
-	addss	xmm0, DWORD PTR [rdi+148]
+	addss	xmm0, DWORD PTR [rdi+156]
 	movss	xmm14, DWORD PTR [rax+8]
 	movaps	xmm1, xmm15
-	addss	xmm1, DWORD PTR [rdi+152]
+	addss	xmm1, DWORD PTR [rdi+160]
 ; Line 11
 	subss	xmm0, xmm13
 	subss	xmm1, xmm15
@@ -52995,7 +52995,7 @@ $LN5@render:
 	movss	DWORD PTR $T4[rsp], xmm0
 ; Line 10
 	movaps	xmm0, xmm14
-	addss	xmm0, DWORD PTR [rdi+156]
+	addss	xmm0, DWORD PTR [rdi+164]
 ; Line 40
 	movss	DWORD PTR $T4[rsp+4], xmm1
 ; Line 11
@@ -53179,7 +53179,7 @@ $LN5@render:
 	mov	edx, 1
 	call	rbx
 ; Line 182
-	mov	rax, QWORD PTR [rdi+80]
+	mov	rax, QWORD PTR [rdi+88]
 	mov	rbx, QWORD PTR __glewUniform3f
 	movss	xmm6, DWORD PTR [rax+8]
 	movss	xmm7, DWORD PTR [rax+4]

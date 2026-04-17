@@ -25,6 +25,7 @@ public:
     float zoomSpeed = 0.1f;
     float walkCycle = 0.0f; // 歩行アニメーション用
     Vector3 currentMoveDir; // 滑らかな移動・回転用
+    bool lastFKeyPressed = false; // トグル判定用
     camera current_camera;
     
     camera &cam;

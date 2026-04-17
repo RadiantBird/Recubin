@@ -8,7 +8,8 @@ User::User(GLFWwindow* win)
       forward(0, 0, -1), 
       right(1, 0, 0), 
       up(0, 1, 0),
-      currentMoveDir(0, 0, 0)
+      currentMoveDir(0, 0, 0),
+      lastFKeyPressed(false)
 {
     updateVectors();
 }
@@ -171,14 +172,20 @@ void User::processInput() {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         wannaExit = true;
     }
-    if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
+    // Fキーで制御モードを切り替え (トグル処理)
+    bool fPressed = (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS);
+    if (fPressed && !lastFKeyPressed) {
         // Free/Character モードの切り替え
         if (controlMode == ControlMode::Free) {
             controlMode = ControlMode::Character;
+            RCBN_LOG("Control Mode: Character");
         } else {
             controlMode = ControlMode::Free;
+            RCBN_LOG("Control Mode: Free");
         }
     }
+    lastFKeyPressed = fPressed;
+
     if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
         std::cout << "Camera Position: (" << cpos.x << ", " << cpos.y << ", " << cpos.z << ")\n";
         if (root) {
