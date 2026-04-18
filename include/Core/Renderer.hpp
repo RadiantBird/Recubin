@@ -16,6 +16,7 @@
 
 class Renderer {
     public:
+        static Renderer* instance;
         unsigned int VBO;
         unsigned int VAO;
         unsigned int EBO;

@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <yaml-cpp/yaml.h>
+
 class Instance {
     protected:
         using string = std::string;
@@ -23,6 +25,9 @@ class Instance {
 
         virtual string GetClassName();
         virtual bool IsA(std::string className);
+
+        // YAMLなどからプロパティを設定するためのインターフェース
+        virtual void setProperty(const std::string& name, const YAML::Node& value);
 
         Instance* getChild(string child_name);
         const std::unordered_map<string, Instance*>& getChildren();

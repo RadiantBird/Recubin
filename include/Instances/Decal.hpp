@@ -20,4 +20,5 @@ public:
 
     virtual std::string GetClassName() override;
     virtual bool IsA(std::string className) override;
+    virtual void setProperty(const std::string& name, const YAML::Node& value) override;
 };

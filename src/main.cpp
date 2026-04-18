@@ -10,6 +10,8 @@
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
 #include <Core/LuauEngine.hpp>
+#include <Core/SceneLoader.hpp>
+#include <Core/FileLoader.hpp>
 
 #include <iostream>
 #include <algorithm>
@@ -65,13 +67,17 @@ int main() {
     User user(window);
     LuauEngine luauEngine;
 
-    Instance system("System"); // RobloxでいうGameとかDataModel
-    Workspace* workspace = new Workspace();
-
-    system.addChild(workspace);
+    Instance system("System");
 
     physicsEngine.init();
     renderer.init();
+
+    Workspace* workspace = static_cast<Workspace*>(SceneLoader::loadScene("assets/scenes/test_scene.yaml"));
+    if (!workspace) {
+        std::cerr << "[ERROR] Failed to load scene. Creating empty workspace.\n";
+        workspace = new Workspace();
+    }
+    system.addChild(workspace);
 
     // Physics を Workspace にセット
     workspace->setPhysicsEngine(&physicsEngine);
@@ -83,55 +89,9 @@ int main() {
     unsigned int bliss    = renderer.loadTexture("assets/image/bliss.jpg"); // right
     unsigned int limabis  = renderer.loadTexture("assets/image/Limabis_logo.png"); // left
 
-    // 1. Blue Cube (元 world[0])
-    Cube* blueCube = new Cube({0.0f, 0.0f, -2.0f}, {1.0f, 4.0f, 1.0f}, renderer.whiteTexture);
-    blueCube->Name = "Blue";
-    blueCube->Color = Color4(0.0f, 0.0f, 1.0f, 1.0f);
-    workspace->addChild(blueCube);
-
-    // 2. Red Cube (元 world[1])
-    Cube* redCube = new Cube({2.0f, 0.0f, -4.0f}, {1.0f, 1.0f, 1.0f}, renderer.whiteTexture);
-    redCube->Name = "Red";
-    redCube->Color = Color4(1.0f, 0.0f, 0.0f, 1.0f);
-    workspace->addChild(redCube);
-
-    // 3. Green Cube (元 world[2])
-    Cube* greenCube = new Cube({-2.0f, 0.0f, -4.0f}, {2.0f, 1.0f, 1.0f}, renderer.whiteTexture);
-    greenCube->Name = "Green";
-    greenCube->Color = Color4(0.0f, 1.0f, 0.0f, 1.0f);
-    workspace->addChild(greenCube);
-
-    // 4. Custom Textured Cube (元 world[3] / Floppa)
-    Cube* floppaCube = new Cube({0.0f, 0.0f, -8.0f}, {2.0f, 2.0f, 2.0f}, renderer.whiteTexture);
-    floppaCube->Name = "Floppa";
-    floppaCube->Color = Color4(1.0f, 1.0f, 1.0f, 1.0f);
-    
-    // 各面のテクスチャ設定 (Decal インスタンスとして追加)
-    floppaCube->addChild(new Decal(floppa,   Face::Front));
-    floppaCube->addChild(new Decal(thecat,   Face::Back));
-    floppaCube->addChild(new Decal(saladcat, Face::Top));
-    floppaCube->addChild(new Decal(smile,    Face::Bottom));
-    floppaCube->addChild(new Decal(bliss,    Face::Right));
-    floppaCube->addChild(new Decal(limabis,  Face::Left));
-    
-    workspace->addChild(floppaCube);
-    
     luauEngine.setGlobalInstance(workspace->Name, workspace);
-    luauEngine.setGlobalInstance("workspace", workspace); // Add lower-case alias
-    // Workspace を LuauEngine に設定
+    luauEngine.setGlobalInstance("workspace", workspace); 
     luauEngine.setWorkspace(workspace);
-    
-    // テスト用スクリプト
-    Script* script = new Script("scripts/test.luau");
-    script->Name = "TestScript";
-
-    workspace->addChild(script);
-
-    Cube* baseplate = new Cube({0.0f, -10.0f, 0.0f},  {32.0f, 1.0f, 32.0f}, renderer.whiteTexture);
-    baseplate->Name = "Baseplate";
-    baseplate->Color = Color4(0.0f, 1.0f, 0.5f, 1.0f);
-    baseplate->Anchored = true;
-    workspace->addChild(baseplate);
 
     // キャラクターをスポーン
     user.spawnCharacter();

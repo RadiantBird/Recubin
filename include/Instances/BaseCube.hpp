@@ -31,4 +31,5 @@ public:
 
     // 自律的な登録・解除ロジック
     void onAncestorChanged() override;
+    virtual void setProperty(const std::string& name, const YAML::Node& value) override;
 };

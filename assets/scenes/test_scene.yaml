@@ -1,0 +1,64 @@
+Root:
+  ClassName: Workspace
+  Name: Workspace
+  Properties:
+    Gravity: [0, -9.81, 0]
+  Children:
+    # 1. Blue Cube
+    - ClassName: Cube
+      Name: Blue
+      Properties:
+        Position: [0.0, 0.0, -2.0]
+        Size: [1.0, 4.0, 1.0]
+        Color: [0.0, 0.0, 1.0, 1.0]
+
+    # 2. Red Cube
+    - ClassName: Cube
+      Name: Red
+      Properties:
+        Position: [2.0, 0.0, -4.0]
+        Size: [1.0, 1.0, 1.0]
+        Color: [1.0, 0.0, 0.0, 1.0]
+
+    # 3. Green Cube
+    - ClassName: Cube
+      Name: Green
+      Properties:
+        Position: [-2.0, 0.0, -4.0]
+        Size: [2.0, 1.0, 1.0]
+        Color: [0.0, 1.0, 0.0, 1.0]
+
+    # 4. Floppa Cube (Decal付き)
+    - ClassName: Cube
+      Name: Floppa
+      Properties:
+        Position: [0.0, 0.0, -8.0]
+        Size: [2.0, 2.0, 2.0]
+      Children:
+        - ClassName: Decal
+          Properties: { Face: 0, Texture: "assets/image/floppa2048.jpg" }
+        - ClassName: Decal
+          Properties: { Face: 1, Texture: "assets/image/the-cat.png" }
+        - ClassName: Decal
+          Properties: { Face: 2, Texture: "assets/image/salad-cat.jpg" }
+        - ClassName: Decal
+          Properties: { Face: 3, Texture: "assets/image/smile.png" }
+        - ClassName: Decal
+          Properties: { Face: 4, Texture: "assets/image/bliss.jpg" }
+        - ClassName: Decal
+          Properties: { Face: 5, Texture: "assets/image/Limabis_logo.png" }
+
+    # スクリプト
+    - ClassName: Script
+      Name: TestScript
+      Properties:
+        Source: "scripts/test.luau"
+
+    # 床
+    - ClassName: Cube
+      Name: Baseplate
+      Properties:
+        Position: [0.0, -10.0, 0.0]
+        Size: [32.0, 1.0, 32.0]
+        Color: [0.0, 1.0, 0.5, 1.0]
+        Anchored: true

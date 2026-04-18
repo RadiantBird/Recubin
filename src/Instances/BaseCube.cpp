@@ -69,3 +69,14 @@ BaseCube::~BaseCube() {
         actor = nullptr;
     }
 }
+void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
+    if (name == "Anchored") {
+        this->Anchored = value.as<bool>();
+    } else if (name == "CanCollide") {
+        this->CanCollide = value.as<bool>();
+    } else if (name == "Color") {
+        this->Color = value.as<Color4>();
+    } else {
+        Spatial::setProperty(name, value);
+    }
+}

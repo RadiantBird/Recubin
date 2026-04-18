@@ -18,7 +18,10 @@ void Renderer::createWhiteTexture() {
 }
 
 
+Renderer* Renderer::instance = nullptr;
+
 void Renderer::init() {
+    instance = this;
     int maxSize;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxSize);
     std::cout << "Max Texture Size: " << maxSize << std::endl;

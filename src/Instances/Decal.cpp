@@ -1,4 +1,5 @@
 #include <include/Instances/Decal.hpp>
+#include <include/Core/Renderer.hpp>
 
 static const char* faceNames[] = { "Front", "Back", "Top", "Bottom", "Right", "Left" };
 
@@ -14,4 +15,17 @@ std::string Decal::GetClassName() {
 bool Decal::IsA(std::string className) {
     if (className == "Decal") return true;
     return Instance::IsA(className);
+}
+
+void Decal::setProperty(const std::string& name, const YAML::Node& value) {
+    if (name == "Texture") {
+        if (Renderer::instance) {
+            this->TextureID = Renderer::instance->loadTexture(value.as<std::string>().c_str());
+        }
+    } else if (name == "Face") {
+        this->face = static_cast<Face>(value.as<int>());
+        this->Name = "Decal_" + std::string(faceNames[(int)this->face]);
+    } else {
+        Instance::setProperty(name, value);
+    }
 }

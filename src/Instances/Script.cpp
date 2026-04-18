@@ -2,11 +2,25 @@
 #include <Core/FileLoader.hpp>
 
 Script::Script(string path) : Instance("Script"), Coroutine(nullptr), Path(path) {
-    Source = FileLoader::readText(path);
-    if (Source.empty()) {
-        Source = "print('Error: Failed to load script source')";
+    if (!path.empty()) {
+        Source = FileLoader::readText(path);
+        if (Source.empty()) {
+            Source = "print('Error: Failed to load script source')";
+        } else {
+            std::cout << "Loaded script from " << path << "\n";
+        }
+    }
+}
+
+void Script::setProperty(const std::string& name, const YAML::Node& value) {
+    if (name == "Source" || name == "Path") {
+        this->Path = value.as<std::string>();
+        this->Source = FileLoader::readText(this->Path);
+        if (this->Source.empty()) {
+            this->Source = "print('Error: Failed to load script source: " + this->Path + "')";
+        }
     } else {
-        std::cout << "Loaded script from " << path << "\n";
+        Instance::setProperty(name, value);
     }
 }
 

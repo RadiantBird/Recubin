@@ -102,6 +102,12 @@ std::string Instance::getFullPath() {
     return path;
 }
 
+void Instance::setProperty(const std::string& name, const YAML::Node& value) {
+    if (name == "Name") {
+        this->Name = value.as<std::string>();
+    }
+}
+
 Instance::~Instance() {
     RCBN_LOG("Instance Destructor: " << this->Name << " (" << this->GetClassName() << ")");
     // ループ中の予期せぬ不整合（子要素が親を触るなど）を防ぐため、コピーしたリストを破棄する

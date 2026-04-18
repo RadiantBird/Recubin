@@ -1,0 +1,28 @@
+#pragma once
+#include <string>
+#include <Instances/Instance.hpp>
+#include <yaml-cpp/yaml.h>
+
+/**
+ * @brief YAMLファイルからシーン（Instanceツリー）を読み込むクラス
+ */
+class SceneLoader {
+public:
+    /**
+     * @brief 指定されたYAMLファイルからシーンをロードし、ルートオブジェクトを返す
+     * @param filePath YAMLファイルのパス
+     * @return ロードされたルートオブジェクト（通常はWorkspace）
+     */
+    static Instance* loadScene(const std::string& filePath);
+
+private:
+    /**
+     * @brief YAMLノードを再帰的に解析してInstanceを生成する
+     */
+    static Instance* parseInstance(const YAML::Node& node);
+
+    /**
+     * @brief ClassName文字列から適切なInstance派生クラスを生成する
+     */
+    static Instance* createInstance(const std::string& className);
+};

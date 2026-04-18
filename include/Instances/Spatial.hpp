@@ -19,5 +19,5 @@ public:
           Position(cframe.Position), Rotation(cframe.Rotation) {}
     std::string GetClassName() override { return "Spatial"; }
     virtual bool IsA(std::string name) override;
-
+    virtual void setProperty(const std::string& name, const YAML::Node& value) override;
 };
