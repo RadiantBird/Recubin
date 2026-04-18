@@ -3,6 +3,11 @@
 #include <algorithm>
 #include <vector>
 
+#ifdef _WIN32
+    #include <windows.h>
+    #undef GetClassName // Windowsの勝手な置換をここで無効化する
+#endif
+
 void Instance::onAncestorChanged() {
     for (auto const& [_, child] : this->children) {
         child->onAncestorChanged();

@@ -7,6 +7,11 @@
 
 #include <yaml-cpp/yaml.h>
 
+#ifdef _WIN32
+    #include <windows.h>
+    #undef GetClassName // これでInstance::GetClassNameがAに化けるのを防ぐ
+#endif
+
 class Instance {
     protected:
         using string = std::string;

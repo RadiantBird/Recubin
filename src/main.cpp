@@ -6,12 +6,16 @@
 #include <Instances/Cube.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Script.hpp>
+#include <Instances/Sound.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
 #include <Core/FileLoader.hpp>
+#include <Core/AudioService.hpp>
+
+#include <Util/Logger.hpp>
 
 #include <iostream>
 #include <algorithm>
@@ -66,6 +70,7 @@ int main() {
     Physics physicsEngine;
     User user(window);
     LuauEngine luauEngine;
+    AudioService audioService;
 
     Instance system("System");
 
@@ -96,7 +101,19 @@ int main() {
     // キャラクターをスポーン
     user.spawnCharacter();
     workspace->addChild(user.character);
-    
+
+    if (!audioService.initialize()) {
+        RCBN_LOG("[ERROR] Failed to initialize AudioService.");
+        return -1;
+    }
+
+    RCBN_LOG("Loading audio...");
+    Sound *tech = new Sound(audioService, "assets/sound/General Release.wav", true); // shhhhhh...
+    audioService.addSound(tech);
+
+    RCBN_LOG("Playing audio...");
+    tech->play();
+
     // 顔（smile）を頭の正面に追加
     if (user.head) {
         user.head->addChild(new Decal(smile, Face::Front));
@@ -126,6 +143,7 @@ int main() {
         }
 
         renderer.render(user, window, *workspace);
+        audioService.updateSounds();
         // std::cout << "[DEBUG] Rendered frame" << std::endl;
     }
 
