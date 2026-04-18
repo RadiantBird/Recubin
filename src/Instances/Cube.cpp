@@ -11,39 +11,43 @@ std::vector<Vertex> createCubeVertices(float size) {
 
     struct Face { float nx, ny, nz; };
     Face faces[6] = {
-        { 0, 0,-1}, { 0, 0, 1}, // 前, 後
-        { 0, 1, 0}, { 0,-1, 0}, // 上, 下
-        { 1, 0, 0}, {-1, 0, 0}  // 右, 左
+        { 0, 0,-1}, { 0, 0, 1}, // Front, Back
+        { 0, 1, 0}, { 0,-1, 0}, // Top, Bottom
+        { 1, 0, 0}, {-1, 0, 0}  // Right, Left
     };
 
     for (int i = 0; i < 6; i++) {
         float nx = faces[i].nx, ny = faces[i].ny, nz = faces[i].nz;
         
-        float ux = (nx == 0) ? 1.0f : 0.0f;
-        float uy = (nx != 0 || nz != 0) ? 0.0f : 1.0f;
-        float uz = (nz == 0 && nx != 0) ? 1.0f : 0.0f;
-        if (ny != 0) { ux = 1.0f; uy = 0.0f; uz = 0.0f; } 
-        
-        float vx = ny * uz - nz * uy;
-        float vy = nz * ux - nx * uz;
-        float vz = nx * uy - ny * ux;
+        // 【修正】各面におけるテクスチャの「右方向(u)」と「上方向(v)」を厳密に定義
+        Vector3 u, vv;
+        if (ny > 0) { // Top
+            u = Vector3(1, 0, 0); vv = Vector3(0, 0, 1);
+        } else if (ny < 0) { // Bottom
+            u = Vector3(1, 0, 0); vv = Vector3(0, 0, -1);
+        } else { // 垂直な4面 (Front, Back, Right, Left)
+            // 法線に対する右方向を計算
+            u = Vector3(-nz, 0, nx); 
+            // 上方向は常に Y+
+            vv = Vector3(0, 1, 0); 
+        }
 
         float p[4][2] = {{1.0f,1.0f}, {1.0f,-1.0f}, {-1.0f,-1.0f}, {-1.0f,1.0f}};
-        float uv[4][2] = {{1.0f,1.0f}, {1.0f,0.0f}, {0.0f,0.0f}, {0.0f,1.0f}}; 
+        
+        // Renderer.cpp (stbi_set_flip_vertically_on_load(true)) に合わせたUV
+        float uv[4][2] = {
+            {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 1.0f}
+        };
 
         for (int j = 0; j < 4; j++) {
             Vertex vert;
-            vert.Position.x = (nx + p[j][0] * ux + p[j][1] * vx) * h;
-            vert.Position.y = (ny + p[j][0] * uy + p[j][1] * vy) * h;
-            vert.Position.z = (nz + p[j][0] * uz + p[j][1] * vz) * h;
+            // 明示的に定義した u, vv ベクトルを使用して位置を計算
+            vert.Position.x = (nx + p[j][0] * u.x + p[j][1] * vv.x) * h;
+            vert.Position.y = (ny + p[j][0] * u.y + p[j][1] * vv.y) * h;
+            vert.Position.z = (nz + p[j][0] * u.z + p[j][1] * vv.z) * h;
 
-            vert.Normal.x = nx;
-            vert.Normal.y = ny;
-            vert.Normal.z = nz;
-
-            vert.U = uv[j][0];
-            vert.V = uv[j][1];
-
+            vert.Normal.x = nx; vert.Normal.y = ny; vert.Normal.z = nz;
+            vert.U = uv[j][0]; vert.V = uv[j][1];
             v.push_back(vert);
         }
     }

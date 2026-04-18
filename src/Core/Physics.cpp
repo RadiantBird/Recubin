@@ -13,6 +13,7 @@ void Physics::init() {
 }
 
 void Physics::createActor(BaseCube* cube) {
+    if (cube->actor) return; // 二重登録防止
     // 形状(Half-extentsなので半分にする)
     physx::PxBoxGeometry geometry(cube->Size.x/2, cube->Size.y/2, cube->Size.z/2);
     

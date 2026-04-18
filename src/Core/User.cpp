@@ -106,93 +106,91 @@ void User::processInput(Physics* physics) {
 
                 if (isPressingMove) targetMoveDir = targetMoveDir.normalize();
 
+                // 移動ベクトルの補間
                 currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * 0.15f;
 
+                // 1. 向き(Rotation)の更新
                 Quaternion targetRot = root->Rotation;
                 if (isPressingMove) {
-                    float targetAnglePos = atan2(targetMoveDir.x, targetMoveDir.z) * 180.0f / 3.14159265f;
-                    targetRot = Quaternion::fromAxisAngle(Vector3(0, 1, 0), targetAnglePos);
+                    targetRot = Quaternion::LookRotation(targetMoveDir, Vector3(0, 1, 0));
                 }
-
-                // Slerpで向きを更新し、物理アクターに反映
                 root->Rotation = Quaternion::Slerp(root->Rotation, targetRot, 0.15f);
                 
                 physx::PxTransform pose = dynamicActor->getGlobalPose();
                 pose.q = physx::PxQuat(root->Rotation.x, root->Rotation.y, root->Rotation.z, root->Rotation.w);
                 dynamicActor->setGlobalPose(pose);
 
+                // 2. 物理速度の適用
                 if (currentMoveDir.length() > 0.01f) {
                     Vector3 velocity = currentMoveDir * walkPower;
-                    
-                    const float PI = 3.14159265f;
-                    if (isPressingMove) {
-                        walkCycle += 0.15f;
-                    } else {
-                        // 慣性移動中：ニュートラルポーズ（PIの倍数）まで進める
-                        float phase = fmod(walkCycle, PI);
-                        if (phase > 0.15f) walkCycle += 0.15f;
-                    }
-                    
                     physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
                     dynamicActor->setLinearVelocity(physx::PxVec3(velocity.x, currentVel.y, velocity.z));
                 } else {
-                    // 速度が0になっても、アニメーションのキレが悪い場合は最後まで動かす
-                    const float PI = 3.14159265f;
-                    float phase = fmod(walkCycle, PI);
-                    if (phase > 0.15f) walkCycle += 0.15f;
-
                     physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
                     dynamicActor->setLinearVelocity(physx::PxVec3(0, currentVel.y, 0));
                 }
+
+                // 3. アニメーションサイクル(walkCycle: 0.0 ~ 1.0)の更新
+                const float animationSpeed = 0.025f; 
+                if (isPressingMove) {
+                    walkCycle += animationSpeed;
+                    if (walkCycle > 1.0f) walkCycle -= 1.0f;
+                } else {
+                    // 停止時は 0.0 (直立状態) に収束させる
+                    if (walkCycle > 0.0f) {
+                        if (walkCycle > 0.5f) {
+                            walkCycle += animationSpeed;
+                            if (walkCycle >= 1.0f) walkCycle = 0.0f;
+                        } else {
+                            walkCycle -= animationSpeed;
+                            if (walkCycle < 0.0f) walkCycle = 0.0f;
+                        }
+                    }
+                }
             }
             
-            // 接地判定の更新 (アニメーションと共通化)
+            // 地面判定
             RaycastHit hit;
             Vector3 origin = root->Position;
             Vector3 direction(0, -1, 0);
             float maxDist = (root->Size.y / 2.0f) + 0.2f;
             isGrounded = (physics && physics->raycast(origin, direction, maxDist, hit, root->actor));
 
-            // カメラ位置もキャラクター位置に追従
+            // カメラ位置
             cpos = root->Position + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
         }
     }
-    
-    // CFrameによる同期とアニメーション適用
-    if (torso) {
-        torso->cframe = root->cframe * CFrame(0, 1.0f, 0);
-    }
-    if (head) {
-        head->cframe = root->cframe * CFrame(0, 2.5f, 0);
-    }
 
-    float swingAngle = sin(walkCycle) * 35.0f;
+    // --- ここからアニメーションの適用 (CFrame計算) ---
+    const float PI = 3.14159265f;
+    // 0~1 の進捗を 0~2PI に変換して sin に渡す
+    float rad = walkCycle * 2.0f * PI;
+    float swingAngle = std::sin(rad) * 35.0f; 
+
+    if (torso) torso->cframe = root->cframe * CFrame(0, 1.0f, 0);
+    if (head)  head->cframe  = root->cframe * CFrame(0, 2.5f, 0);
+
     float L_armAngle = swingAngle;
     float R_armAngle = -swingAngle;
 
-    // ジャンプ中の万歳アニメーション
     if (!isGrounded) {
-        L_armAngle = -170.0f; // 真上付近
-        R_armAngle = -170.0f;
+        L_armAngle = 180.0f;
+        R_armAngle = 180.0f;
     }
 
     if (leftArm) {
-        // 肩の関節位置を調整 (少し下げて 1/4 の位置に関節を置く)
         CFrame jointCF = root->cframe * CFrame(-1.5f, 1.5f, 0);
         leftArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), L_armAngle) * CFrame(0, -0.5f, 0);
     }
     if (rightArm) {
-        // 肩の関節位置
         CFrame jointCF = root->cframe * CFrame(1.5f, 1.5f, 0);
         rightArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), R_armAngle) * CFrame(0, -0.5f, 0);
     }
     if (leftLeg) {
-        // 股関節位置: x=-0.5, y=0.0 (Rootの中央高さ)
         CFrame jointCF = root->cframe * CFrame(-0.5f, 0.0f, 0);
         leftLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), -swingAngle) * CFrame(0, -1.0f, 0);
     }
     if (rightLeg) {
-        // 股関節位置: x=0.5, y=0.0
         CFrame jointCF = root->cframe * CFrame(0.5f, 0.0f, 0);
         rightLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), swingAngle) * CFrame(0, -1.0f, 0);
     }
@@ -282,7 +280,7 @@ void User::spawnCharacter() {
     head->Color = skinColor;
     leftArm->Color = skinColor;
     rightArm->Color = skinColor;
-    Color4 pantsColor = Color4::FromRGB(0, 255, 128);
+    Color4 pantsColor = Color4::FromRGB(0, 200, 128);
     leftLeg->Color = pantsColor;
     rightLeg->Color = pantsColor;
 

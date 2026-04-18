@@ -90,4 +90,36 @@ struct Quaternion {
         float s1 = sin_theta / sin_theta_0;
         return Quaternion((s0 * a.w) + (s1 * targetB.w), (s0 * a.x) + (s1 * targetB.x), (s0 * a.y) + (s1 * targetB.y), (s0 * a.z) + (s1 * targetB.z));
     }
+
+    static Quaternion LookRotation(Vector3 forward, Vector3 up = Vector3(0, 1, 0)) {
+        // ゼロベクトルによるエラーを回避
+        if (forward.length() < 0.0001f) return Quaternion();
+
+        Vector3 f = forward.normalize();
+        
+        // -Z を正面とするため、ローカルの +Z 方向（Back）を基準に基底を構築します
+        Vector3 back = f * -1.0f;
+        Vector3 right = Vector3::Cross(up, back);
+        
+        // forward と up が平行に近い場合の処理
+        if (right.length() < 0.0001f) {
+            // 代わりの軸で右方向を計算
+            right = Vector3::Cross(Vector3(0, 0, 1), back);
+            if (right.length() < 0.0001f) {
+                right = Vector3::Cross(Vector3(1, 0, 0), back);
+            }
+        }
+        right = right.normalize();
+        Vector3 actualUp = Vector3::Cross(back, right);
+
+        // FromRotationMatrix は列優先（Column-major）のインデックスを参照しているため、
+        // それに合わせた 4x4 行列を作成します
+        float m[16] = { 0 };
+        m[0] = right.x;    m[4] = actualUp.x; m[8] = back.x;
+        m[1] = right.y;    m[5] = actualUp.y; m[9] = back.y;
+        m[2] = right.z;    m[6] = actualUp.z; m[10] = back.z;
+        m[15] = 1.0f;
+
+        return FromRotationMatrix(m);
+    }
 };
