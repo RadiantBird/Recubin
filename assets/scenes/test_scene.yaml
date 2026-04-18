@@ -8,7 +8,7 @@ Root:
     - ClassName: Cube
       Name: Blue
       Properties:
-        Position: [0.0, 0.0, -2.0]
+        Position: [-8.0, 0.0, -32.0]
         Size: [1.0, 4.0, 1.0]
         Color: [0.0, 0.0, 1.0, 1.0]
 
@@ -49,10 +49,10 @@ Root:
           Properties: { Face: 5, Texture: "assets/image/Limabis_logo.png" }
 
     # スクリプト
-    - ClassName: Script
-      Name: TestScript
-      Properties:
-        Source: "scripts/test.luau"
+    # - ClassName: Script
+    #   Name: TestScript
+    #   Properties:
+    #     Source: "scripts/test.luau"
 
     # 床
     - ClassName: Cube

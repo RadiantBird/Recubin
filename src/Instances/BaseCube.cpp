@@ -75,7 +75,12 @@ void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
     } else if (name == "CanCollide") {
         this->CanCollide = value.as<bool>();
     } else if (name == "Color") {
-        this->Color = value.as<Color4>();
+        Color4 color(0,0,0,0);
+        color.r = value[0].as<float>();
+        color.g = value[1].as<float>();
+        color.b = value[2].as<float>();
+        color.a = value[3].as<float>();
+        this->Color = color;
     } else {
         Spatial::setProperty(name, value);
     }

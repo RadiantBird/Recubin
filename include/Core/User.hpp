@@ -18,7 +18,7 @@ class User {
 public:
     GLFWwindow* window;
 
-    float speed = 0.05f;
+    float speed = 0.25f;
     float walkPower = 5.0f;
     float jumpPower = 7.0f;
     float rotationSpeed = 1.0f; // 回転の速さ

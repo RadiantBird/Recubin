@@ -11,7 +11,7 @@ std::vector<Vertex> createCubeVertices(float size) {
 
     struct Face { float nx, ny, nz; };
     Face faces[6] = {
-        { 0, 0, 1}, { 0, 0,-1}, // 前, 後
+        { 0, 0,-1}, { 0, 0, 1}, // 前, 後
         { 0, 1, 0}, { 0,-1, 0}, // 上, 下
         { 1, 0, 0}, {-1, 0, 0}  // 右, 左
     };
@@ -33,9 +33,9 @@ std::vector<Vertex> createCubeVertices(float size) {
 
         for (int j = 0; j < 4; j++) {
             Vertex vert;
-            vert.Position.x = nx * h + p[j][0] * ux * h + p[j][1] * vx * h;
-            vert.Position.y = ny * h + p[j][0] * uy * h + p[j][1] * vy * h;
-            vert.Position.z = nz * h + p[j][0] * uz * h + p[j][1] * vz * h;
+            vert.Position.x = (nx + p[j][0] * ux + p[j][1] * vx) * h;
+            vert.Position.y = (ny + p[j][0] * uy + p[j][1] * vy) * h;
+            vert.Position.z = (nz + p[j][0] * uz + p[j][1] * vz) * h;
 
             vert.Normal.x = nx;
             vert.Normal.y = ny;

@@ -3,16 +3,20 @@
         {
             "name": "Win32",
             "includePath": [
-                "${workspaceFolder}",
+                "${workspaceFolder}/**",
                 "${workspaceFolder}/include"
             ],
             "defines": [
-
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "YAML_CPP_STATIC_LIBRARIES",
+                "GLEW_STATIC"
             ],
-            "windowsSdkVersion": "8.1",
+            "windowsSdkVersion": "10.0.26100.0",
             "compilerPath": "cl.exe",
-            "cStandard": "c11",
-            "cppStandard": "c++17",
+            "cStandard": "c17",
+            "cppStandard": "c++23",
             "intelliSenseMode": "windows-msvc-x64"
         }
     ],
