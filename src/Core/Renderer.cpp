@@ -1,4 +1,5 @@
 #include <Core/Renderer.hpp>
+#include <Core/FileLoader.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "include/stb_image.h"
@@ -16,22 +17,6 @@ void Renderer::createWhiteTexture() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 }
 
-std::string Renderer::loadShaderSource(const char* filePath) {
-    std::string content;
-    std::ifstream fileStream(filePath, std::ios::in);
-
-    if (!fileStream.is_open()) {
-        std::cerr << "Could not read file " << filePath << ". File does not exist." << std::endl;
-        return "";
-    }
-
-    std::stringstream sstr;
-    sstr << fileStream.rdbuf();
-    content = sstr.str();
-    fileStream.close();
-    
-    return content;
-}
 
 void Renderer::init() {
     int maxSize;
@@ -52,8 +37,8 @@ void Renderer::init() {
         indices.push_back(start + 0); indices.push_back(start + 2); indices.push_back(start + 3);
     }
 
-    std::string vShaderStr = loadShaderSource("src/vertex.glsl");
-    std::string fShaderStr = loadShaderSource("src/fragment.glsl");
+    std::string vShaderStr = FileLoader::readText("src/vertex.glsl");
+    std::string fShaderStr = FileLoader::readText("src/fragment.glsl");
 
     const char *vertexShaderSource = vShaderStr.c_str();
     const char *fragmentShaderSource = fShaderStr.c_str();

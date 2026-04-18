@@ -57,4 +57,7 @@ target_link_libraries(Recubin
     Luau.Ast
     Luau.Compiler
     Luau.VM
+
+    # YAML
+    yaml-cpp
 )

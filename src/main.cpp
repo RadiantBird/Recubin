@@ -60,18 +60,21 @@ int main() {
         return -1;
     }
 
-    // コアコンポーネントの宣言 (破棄は逆順: User -> Workspace -> Physics -> Renderer)
     Renderer renderer;
     Physics physicsEngine;
-    Workspace workspace;
     User user(window);
     LuauEngine luauEngine;
+
+    Instance system("System"); // RobloxでいうGameとかDataModel
+    Workspace* workspace = new Workspace();
+
+    system.addChild(workspace);
 
     physicsEngine.init();
     renderer.init();
 
     // Physics を Workspace にセット
-    workspace.setPhysicsEngine(&physicsEngine);
+    workspace->setPhysicsEngine(&physicsEngine);
 
     unsigned int floppa   = renderer.loadTexture("assets/image/floppa2048.jpg"); // back
     unsigned int thecat   = renderer.loadTexture("assets/image/the-cat.png");  // front
@@ -84,19 +87,19 @@ int main() {
     Cube* blueCube = new Cube({0.0f, 0.0f, -2.0f}, {1.0f, 4.0f, 1.0f}, renderer.whiteTexture);
     blueCube->Name = "Blue";
     blueCube->Color = Color4(0.0f, 0.0f, 1.0f, 1.0f);
-    workspace.addChild(blueCube);
+    workspace->addChild(blueCube);
 
     // 2. Red Cube (元 world[1])
     Cube* redCube = new Cube({2.0f, 0.0f, -4.0f}, {1.0f, 1.0f, 1.0f}, renderer.whiteTexture);
     redCube->Name = "Red";
     redCube->Color = Color4(1.0f, 0.0f, 0.0f, 1.0f);
-    workspace.addChild(redCube);
+    workspace->addChild(redCube);
 
     // 3. Green Cube (元 world[2])
     Cube* greenCube = new Cube({-2.0f, 0.0f, -4.0f}, {2.0f, 1.0f, 1.0f}, renderer.whiteTexture);
     greenCube->Name = "Green";
     greenCube->Color = Color4(0.0f, 1.0f, 0.0f, 1.0f);
-    workspace.addChild(greenCube);
+    workspace->addChild(greenCube);
 
     // 4. Custom Textured Cube (元 world[3] / Floppa)
     Cube* floppaCube = new Cube({0.0f, 0.0f, -8.0f}, {2.0f, 2.0f, 2.0f}, renderer.whiteTexture);
@@ -111,28 +114,28 @@ int main() {
     floppaCube->addChild(new Decal(bliss,    Face::Right));
     floppaCube->addChild(new Decal(limabis,  Face::Left));
     
-    workspace.addChild(floppaCube);
+    workspace->addChild(floppaCube);
     
-    luauEngine.setGlobalInstance(workspace.Name, &workspace);
-    luauEngine.setGlobalInstance("workspace", &workspace); // Add lower-case alias
+    luauEngine.setGlobalInstance(workspace->Name, workspace);
+    luauEngine.setGlobalInstance("workspace", workspace); // Add lower-case alias
     // Workspace を LuauEngine に設定
-    luauEngine.setWorkspace(&workspace);
+    luauEngine.setWorkspace(workspace);
     
     // テスト用スクリプト
     Script* script = new Script("scripts/test.luau");
     script->Name = "TestScript";
 
-    workspace.addChild(script);
+    workspace->addChild(script);
 
     Cube* baseplate = new Cube({0.0f, -10.0f, 0.0f},  {32.0f, 1.0f, 32.0f}, renderer.whiteTexture);
     baseplate->Name = "Baseplate";
     baseplate->Color = Color4(0.0f, 1.0f, 0.5f, 1.0f);
     baseplate->Anchored = true;
-    workspace.addChild(baseplate);
+    workspace->addChild(baseplate);
 
     // キャラクターをスポーン
     user.spawnCharacter();
-    workspace.addChild(user.character);
+    workspace->addChild(user.character);
     
     // 顔（smile）を頭の正面に追加
     if (user.head) {
@@ -148,7 +151,7 @@ int main() {
         float deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        physicsEngine.update(workspace, deltaTime);
+        physicsEngine.update(*workspace, deltaTime);
         luauEngine.update(deltaTime);
         
         // Workspace のスクリプトを実行
@@ -162,7 +165,7 @@ int main() {
             break;
         }
 
-        renderer.render(user, window, workspace);
+        renderer.render(user, window, *workspace);
         // std::cout << "[DEBUG] Rendered frame" << std::endl;
     }
 
