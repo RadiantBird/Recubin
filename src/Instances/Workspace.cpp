@@ -15,6 +15,20 @@ void Workspace::registerCube(Instance* c) {
 
 Workspace::Workspace() : Instance("Workspace") {}
 
+Workspace::~Workspace() {
+    // Workspaceのメンバ（scripts等）が破棄される前に、子要素を明示的に破棄する
+    // これにより、子のデストラクタ内で unregisterScript 等が安全に呼ばれる
+    std::vector<Instance*> toDelete;
+    for (auto const& [_, child] : this->children) {
+        toDelete.push_back(child);
+    }
+    this->children.clear();
+    
+    for (Instance* child : toDelete) {
+        delete child;
+    }
+}
+
 std::string Workspace::GetClassName() {
     return "Workspace";
 }

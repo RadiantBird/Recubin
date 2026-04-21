@@ -149,6 +149,17 @@ void Renderer::init() {
     glClearColor(0.0f, 0.5f, 0.75f, 1.0f);
 }
 
+Renderer::~Renderer() {
+    if (instance == this) {
+        instance = nullptr;
+    }
+    // OpenGLリソースの解放
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteProgram(shaderProgram);
+}
+
 void Renderer::render(User &user, GLFWwindow* window, Workspace &workspace) {
     // 0. ウィンドウサイズを取得してビューポートを更新
     int width, height;

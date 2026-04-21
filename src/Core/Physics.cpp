@@ -12,6 +12,21 @@ void Physics::init() {
     scene = physics->createScene(sceneDesc);
 }
 
+Physics::~Physics() {
+    if (scene) {
+        scene->release();
+        scene = nullptr;
+    }
+    if (physics) {
+        physics->release();
+        physics = nullptr;
+    }
+    if (foundation) {
+        foundation->release();
+        foundation = nullptr;
+    }
+}
+
 void Physics::createActor(BaseCube* cube) {
     if (cube->actor) return; // 二重登録防止
     // 形状(Half-extentsなので半分にする)

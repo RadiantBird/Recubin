@@ -34,6 +34,7 @@ class Renderer {
         std::string loadShaderSource(const char* filePath);
 
         void init();
+        virtual ~Renderer();
 
         void render(User &user, GLFWwindow* window, Workspace &workspace);
 

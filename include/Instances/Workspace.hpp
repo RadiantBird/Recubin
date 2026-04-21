@@ -28,6 +28,7 @@ class Workspace : public Instance {
         std::vector<Instance*> scripts;
         
         Workspace();
+        virtual ~Workspace();
 
         virtual std::string GetClassName() override;
         

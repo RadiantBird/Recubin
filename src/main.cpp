@@ -66,18 +66,18 @@ int main() {
         return -1;
     }
 
-    Renderer renderer;
-    Physics physicsEngine;
-    User user(window);
-    LuauEngine luauEngine;
-    AudioService audioService;
+    Renderer* renderer = new Renderer();
+    Physics* physicsEngine = new Physics();
+    User* user = new User(window);
+    LuauEngine* luauEngine = new LuauEngine();
+    AudioService* audioService = new AudioService();
 
-    Instance system("System");
+    Instance* system = new Instance("System");
 
-    physicsEngine.init();
-    renderer.init();
+    physicsEngine->init();
+    renderer->init();
 
-    if (!audioService.initialize()) {
+    if (!audioService->initialize()) {
         RCBN_LOG("[ERROR] Failed to initialize AudioService.");
         return -1;
     }
@@ -87,32 +87,32 @@ int main() {
         std::cerr << "[ERROR] Failed to load scene. Creating empty workspace.\n";
         workspace = new Workspace();
     }
-    system.addChild(workspace);
+    system->addChild(workspace);
 
     // Physics を Workspace にセット
-    workspace->setPhysicsEngine(&physicsEngine);
+    workspace->setPhysicsEngine(physicsEngine);
 
-    unsigned int floppa   = renderer.loadTexture("assets/image/floppa2048.jpg"); // back
-    unsigned int thecat   = renderer.loadTexture("assets/image/the-cat.png");  // front
-    unsigned int saladcat = renderer.loadTexture("assets/image/salad-cat.jpg");// top
-    unsigned int smile    = renderer.loadTexture("assets/image/smile.png"); // bottom
-    unsigned int bliss    = renderer.loadTexture("assets/image/bliss.jpg"); // right
-    unsigned int limabis  = renderer.loadTexture("assets/image/Limabis_logo.png"); // left
+    unsigned int floppa   = renderer->loadTexture("assets/image/floppa2048.jpg"); // back
+    unsigned int thecat   = renderer->loadTexture("assets/image/the-cat.png");  // front
+    unsigned int saladcat = renderer->loadTexture("assets/image/salad-cat.jpg");// top
+    unsigned int smile    = renderer->loadTexture("assets/image/smile.png"); // bottom
+    unsigned int bliss    = renderer->loadTexture("assets/image/bliss.jpg"); // right
+    unsigned int limabis  = renderer->loadTexture("assets/image/Limabis_logo.png"); // left
 
-    luauEngine.setGlobalInstance(workspace->Name, workspace);
-    luauEngine.setGlobalInstance("workspace", workspace); 
-    luauEngine.setWorkspace(workspace);
+    luauEngine->setGlobalInstance(workspace->Name, workspace);
+    luauEngine->setGlobalInstance("workspace", workspace); 
+    luauEngine->setWorkspace(workspace);
 
     // キャラクターをスポーン
-    user.spawnCharacter();
-    workspace->addChild(user.character);
+    user->spawnCharacter();
+    workspace->addChild(user->character);
 
-    if (user.head) {
-        user.head->addChild(new Decal(smile, Face::Front));
+    if (user->head) {
+        user->head->addChild(new Decal(smile, Face::Front));
     }
     
     // Freeモード（カメラ操作）がデフォルト
-    // user.controlMode = User::ControlMode::Character; // Fキーで切り替え可能
+    // user->controlMode = User::ControlMode::Character; // Fキーで切り替え可能
 
     float lastFrame = static_cast<float>(glfwGetTime());
     while (!glfwWindowShouldClose(window)) {
@@ -120,26 +120,46 @@ int main() {
         float deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        physicsEngine.update(*workspace, deltaTime);
-        luauEngine.update(deltaTime);
+        physicsEngine->update(*workspace, deltaTime);
+        luauEngine->update(deltaTime);
         
         // Workspace のスクリプトを実行
-        luauEngine.executeWorkspaceScripts();
+        luauEngine->executeWorkspaceScripts();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // --- 2. 入力検知 (向きに基づいた移動) ---
-        user.processInput(&physicsEngine);
-        if (user.wannaExit) {
+        user->processInput(physicsEngine);
+        if (user->wannaExit) {
             break;
         }
 
-        renderer.render(user, window, *workspace);
-        audioService.updateSounds();
+        renderer->render(*user, window, *workspace);
+        audioService->updateSounds();
         // std::cout << "[DEBUG] Rendered frame" << std::endl;
     }
 
+    std::cout << "[DEBUG] Main loop ended. wannaExit=" << user->wannaExit << " windowShouldClose=" << glfwWindowShouldClose(window) << std::endl;
+
+    // --- Cleanup: 正しい順序で破棄 (依存性の逆順) ---
+    RCBN_LOG("Shutting down...");
+    
+    // 1. ユーザーとスクリプトエンジンを先に破棄 (これらはInstanceへのポインタを保持しているため)
+    delete user;
+    delete luauEngine;
+
+    // 2. 全インスタンスを破棄 (これにはキャラクターも含まれる)
+    delete system;
+
+    // 3. 残りのサービスを破棄
+    if (audioService) {
+        audioService->uninit();
+        delete audioService;
+    }
+
+    delete physicsEngine;
+    delete renderer;
+
     glfwTerminate();
-    std::cout << "[DEBUG] Main loop ended. wannaExit=" << user.wannaExit << " windowShouldClose=" << glfwWindowShouldClose(window) << std::endl;
     return 0;
 }

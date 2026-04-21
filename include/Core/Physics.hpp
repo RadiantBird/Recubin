@@ -28,6 +28,7 @@ private:
 
 public:
     void init();
+    virtual ~Physics();
     void update(Workspace& workspace, float dt);
     void createActor(BaseCube* cube);
     void removeCube(BaseCube* cube);
