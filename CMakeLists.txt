@@ -31,6 +31,7 @@ target_compile_definitions(Recubin PRIVATE
 # --- 5. インクルードパス ---
 target_include_directories(Recubin PRIVATE 
     ${CMAKE_SOURCE_DIR}/include 
+    ${CMAKE_SOURCE_DIR}/include/imgui
     .
 )
 

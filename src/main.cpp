@@ -75,7 +75,7 @@ int main() {
     Instance* system = new Instance("System");
 
     physicsEngine->init();
-    renderer->init();
+    renderer->init(window);
 
     if (!audioService->initialize()) {
         RCBN_LOG("[ERROR] Failed to initialize AudioService.");

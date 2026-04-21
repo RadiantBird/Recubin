@@ -20,8 +20,28 @@ void Renderer::createWhiteTexture() {
 
 Renderer* Renderer::instance = nullptr;
 
-void Renderer::init() {
+void Renderer::init(GLFWwindow* window) {
     instance = this;
+
+    // ImGui Initialization
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;           // Enable Docking
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
+
+    ImGui::StyleColorsDark();
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        style.WindowRounding = 0.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
+
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
     int maxSize;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxSize);
     std::cout << "Max Texture Size: " << maxSize << std::endl;
@@ -153,6 +173,11 @@ Renderer::~Renderer() {
     if (instance == this) {
         instance = nullptr;
     }
+    // ImGui Cleanup
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
     // OpenGLリソースの解放
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &EBO);
@@ -213,9 +238,63 @@ void Renderer::render(User &user, GLFWwindow* window, Workspace &workspace) {
     for (auto const& [name, child] : workspace.getChildren()) {
         renderInstances(renderInstances, child);
     }
+
+    // 3. ImGui描画
+    renderImGui(user, window, workspace);
     
     glfwSwapBuffers(window); // 背面バッファを表面に出す
     glfwPollEvents();
+}
+
+void Renderer::renderImGui(User &user, GLFWwindow* window, Workspace &workspace) {
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    ImGuizmo::BeginFrame();
+
+    static bool showDemo = true;
+    if (showDemo) ImGui::ShowDemoWindow(&showDemo);
+
+    ImGui::Begin("Recubin Editor");
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    
+    // ギズモのテスト用コード (仮)
+    // 本来は選択中のオブジェクトに対して行う
+    static ImGuizmo::OPERATION mCurrentGizmoOperation(ImGuizmo::TRANSLATE);
+    if (ImGui::RadioButton("Translate", mCurrentGizmoOperation == ImGuizmo::TRANSLATE)) mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Rotate", mCurrentGizmoOperation == ImGuizmo::ROTATE)) mCurrentGizmoOperation = ImGuizmo::ROTATE;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Scale", mCurrentGizmoOperation == ImGuizmo::SCALE)) mCurrentGizmoOperation = ImGuizmo::SCALE;
+
+    ImGui::End();
+
+    // ギズモの描画設定
+    ImGuiIO& io = ImGui::GetIO();
+    ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+    
+    // カメラ行列の取得
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+    float aspect = static_cast<float>(width) / static_cast<float>(height);
+    Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 100.0f);
+    Vector3 target = user.cpos + user.forward; 
+    Matrix4 view = Matrix4::LookAt(user.cpos, target, user.up);
+
+    // デバッグ用に原点にギズモを表示 (テスト)
+    // float identity[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
+    // ImGuizmo::DrawGrid(view.m, projection.m, identity, 100.f);
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        GLFWwindow* backup_current_context = glfwGetCurrentContext();
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+        glfwMakeContextCurrent(backup_current_context);
+    }
 }
 
 unsigned int Renderer::loadTexture(const char* path) {

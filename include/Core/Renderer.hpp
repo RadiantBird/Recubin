@@ -15,6 +15,11 @@
 #include <string>
 #include <map>
 
+#include <include/imgui/imgui.h>
+#include <include/imgui/imgui_impl_glfw.h>
+#include <include/imgui/imgui_impl_opengl3.h>
+#include <include/imgui/ImGuizmo.h>
+
 class Renderer {
     public:
         static Renderer* instance;
@@ -33,10 +38,11 @@ class Renderer {
 
         std::string loadShaderSource(const char* filePath);
 
-        void init();
+        void init(GLFWwindow* window);
         virtual ~Renderer();
 
         void render(User &user, GLFWwindow* window, Workspace &workspace);
+        void renderImGui(User &user, GLFWwindow* window, Workspace &workspace);
 
         unsigned int loadTexture(const char* path);
 };
