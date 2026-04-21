@@ -1,23 +1,72 @@
 #include "Instances/Sound.hpp"
 
-Sound::Sound(AudioService& service, const std::string& path, bool isBGM) 
+Sound::Sound(AudioService& service, const std::string& path) 
     : Spatial(Vector3(0,0,0), Vector3(1,1,1), "Sound") {
-    ma_uint32 flags = MA_SOUND_FLAG_DECODE; 
-    ma_sound_group* targetGroup = isBGM ? &service.groupBGM : &service.groupSFX;
+    service.addSound(this);
+    if (!path.empty()) {
+        ma_uint32 flags = MA_SOUND_FLAG_DECODE; 
+        ma_sound_group* targetGroup = (soundGroup == "BGM") ? &service.groupBGM : &service.groupSFX;
 
-    if (ma_sound_init_from_file(&service.engine, path.c_str(), flags, targetGroup, NULL, &sound) == MA_SUCCESS) {
-        loaded = true;
-        std::cout << "[DEBUG] Audio loaded: " << path << std::endl;
-    } else {
-        std::cout << "[ERROR] Failed to load audio: " << path << std::endl;
+        if (ma_sound_init_from_file(&service.engine, path.c_str(), flags, targetGroup, NULL, &sound) == MA_SUCCESS) {
+            loaded = true;
+            std::cout << "[DEBUG] Audio loaded: " << path << std::endl;
+        } else {
+            std::cout << "[ERROR] Failed to load audio: " << path << std::endl;
+        }
     }
 }
 
-void Sound::play() { if (loaded) { ma_sound_start(&sound); playing = true; } }
-void Sound::stop() { if (loaded) { ma_sound_stop(&sound); playing = false; } }
-void Sound::setLooping(bool loop) { if (loaded) ma_sound_set_looping(&sound, loop); }
+void Sound::play() { if (loaded) { ma_sound_start(&sound); } }
+void Sound::stop() { if (loaded) { ma_sound_stop(&sound); } }
+void Sound::setLooping(bool loop) { 
+    this->looping = loop;
+    if (loaded) ma_sound_set_looping(&sound, loop); 
+}
+
+void Sound::setProperty(const std::string& name, const YAML::Node& value) {
+    if (name == "ContentPath") {
+        std::string path = value.as<std::string>();
+        if (loaded) {
+            ma_sound_uninit(&sound);
+            loaded = false;
+        }
+        
+        if (AudioService::instance) {
+            ma_uint32 flags = MA_SOUND_FLAG_DECODE;
+            ma_sound_group* targetGroup = (soundGroup == "BGM") ? &AudioService::instance->groupBGM : &AudioService::instance->groupSFX;
+            if (ma_sound_init_from_file(&AudioService::instance->engine, path.c_str(), flags, targetGroup, NULL, &sound) == MA_SUCCESS) {
+                loaded = true;
+                if (looping) ma_sound_set_looping(&sound, true);
+                std::cout << "[DEBUG] Audio loaded via setProperty: " << path << std::endl;
+            }
+        }
+    } else if (name == "Looped") {
+        setLooping(value.as<bool>());
+    } else if (name == "SoundGroup") {
+        this->soundGroup = value.as<std::string>();
+        // ※ すでにロードされている場合にグループを動的に変更するには re-init が必要ですが、
+        // 現状はロード前に設定されることを想定するか、SoundId設定時に反映されるようにします。
+
+        // TODO: この問題をどうにかする
+    } else if (name == "Playing") {
+        if (value.as<bool>()) {
+            play();
+            std::cout << "[DEBUG] Sound play triggered via setProperty\n";
+        } else {
+            stop();
+            std::cout << "[DEBUG] Sound stop triggered via setProperty\n";
+        }
+    } else {
+        Spatial::setProperty(name, value);
+    }
+}
+
+bool Sound::IsA(std::string name) {
+    return (name == "Sound") || Spatial::IsA(name);
+}
 
 void Sound::update3D() {
+// ... (keep original logic) // <-は？
     if (!loaded) return;
 
     // Parentがいない、またはSpatialでない場合は、3D計算をせず標準音量で鳴らす

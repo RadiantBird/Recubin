@@ -5,6 +5,8 @@
 #include <Instances/Script.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/Sound.hpp>
+#include <Core/AudioService.hpp>
 #include <iostream>
 
 // YAML -> Vector3 変換
@@ -54,7 +56,11 @@ Instance* SceneLoader::parseInstance(const YAML::Node& node) {
     Instance* instance = createInstance(className);
 
     if (!instance) {
-        std::cerr << "[SceneLoader] Warning: Unknown ClassName: " << className << std::endl;
+        if (className == "Sound" && !AudioService::instance) {
+            std::cerr << "[SceneLoader] Warning: Failed to create Sound instance because AudioService is not initialized." << std::endl;
+        } else {
+            std::cerr << "[SceneLoader] Warning: Unknown ClassName: " << className << std::endl;
+        }
         return nullptr;
     }
 
@@ -90,6 +96,12 @@ Instance* SceneLoader::createInstance(const std::string& className) {
     if (className == "Script")    return new Script("");
     if (className == "Model")     return new Model();
     if (className == "Decal")     return new Decal(0, Face::Front);
+    if (className == "Sound") {
+        if (AudioService::instance) {
+            return new Sound(*AudioService::instance);
+        }
+        return nullptr;
+    }
     
     return nullptr;
 }

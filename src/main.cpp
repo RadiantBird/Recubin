@@ -77,6 +77,11 @@ int main() {
     physicsEngine.init();
     renderer.init();
 
+    if (!audioService.initialize()) {
+        RCBN_LOG("[ERROR] Failed to initialize AudioService.");
+        return -1;
+    }
+
     Workspace* workspace = static_cast<Workspace*>(SceneLoader::loadScene("assets/scenes/test_scene.yaml"));
     if (!workspace) {
         std::cerr << "[ERROR] Failed to load scene. Creating empty workspace.\n";
@@ -102,19 +107,6 @@ int main() {
     user.spawnCharacter();
     workspace->addChild(user.character);
 
-    if (!audioService.initialize()) {
-        RCBN_LOG("[ERROR] Failed to initialize AudioService.");
-        return -1;
-    }
-
-    RCBN_LOG("Loading audio...");
-    Sound *tech = new Sound(audioService, "assets/sound/General Release.wav", true); // shhhhhh...
-    audioService.addSound(tech);
-
-    RCBN_LOG("Playing audio...");
-    tech->play();
-
-    // 顔（smile）を頭の正面に追加
     if (user.head) {
         user.head->addChild(new Decal(smile, Face::Front));
     }

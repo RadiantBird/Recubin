@@ -208,6 +208,12 @@ void Renderer::render(User &user, GLFWwindow* window, Workspace &workspace) {
 }
 
 unsigned int Renderer::loadTexture(const char* path) {
+    // キャッシュを確認
+    std::string pathStr(path);
+    if (textureCache.find(pathStr) != textureCache.end()) {
+        return textureCache[pathStr];
+    }
+
     int width, height, nrChannels;
     // ここで flip を呼ぶのをやめる（main の冒頭で1回だけ呼ぶ）
 
@@ -215,7 +221,7 @@ unsigned int Renderer::loadTexture(const char* path) {
 
     unsigned int textureID = 0; // 初期化
     if (!data) {
-        std::cout << "Failed: " << path << std::endl;
+        std::cout << "Failed to load texture: " << path << std::endl;
         return 0;
     }
 
@@ -239,5 +245,9 @@ unsigned int Renderer::loadTexture(const char* path) {
     std::cout << "Success: " << path << " (" << nrChannels << "ch)" << std::endl;
     
     stbi_image_free(data);
+
+    // キャッシュに保存
+    textureCache[pathStr] = textureID;
+
     return textureID;
 }

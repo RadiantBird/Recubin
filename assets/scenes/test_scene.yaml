@@ -62,3 +62,12 @@ Root:
         Size: [32.0, 1.0, 32.0]
         Color: [0.0, 1.0, 0.5, 1.0]
         Anchored: true
+
+    # BGM
+    - ClassName: Sound
+      Name: BGM
+      Properties:
+        ContentPath: "assets/sound/Flight of the Bumblebee.mp3"
+        SoundGroup: "BGM"
+        Looped: true
+        Playing: true

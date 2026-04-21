@@ -7,9 +7,11 @@
     #undef GetClassName
 #endif
 
+AudioService* AudioService::instance = nullptr;
 AudioService::AudioService() : Instance("AudioService") {}
 
 bool AudioService::initialize() {
+    instance = this;
     if (ma_engine_init(NULL, &engine) != MA_SUCCESS) return false;
     ma_sound_group_init(&engine, 0, NULL, &groupBGM);
     ma_sound_group_init(&engine, 0, NULL, &groupSFX);

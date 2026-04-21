@@ -9,6 +9,7 @@ class AudioService : public Instance {
 private:
     std::vector<Sound*> sounds;
 public:
+    static AudioService* instance;
     ma_engine engine;
     ma_sound_group groupSFX;
     ma_sound_group groupBGM;

@@ -13,6 +13,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <map>
 
 class Renderer {
     public:
@@ -24,6 +25,8 @@ class Renderer {
         unsigned int shaderProgram;
 
         std::vector<unsigned int> indices = {};
+
+        std::map<std::string, unsigned int> textureCache;
 
         unsigned int whiteTexture;
         void createWhiteTexture();

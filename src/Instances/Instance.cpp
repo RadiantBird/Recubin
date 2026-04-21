@@ -16,7 +16,34 @@ void Instance::onAncestorChanged() {
 
 void Instance::setParent(Instance* newParent) {
     if (this->Parent == newParent) return;
+
+    // 循環参照の防止（親が自分自身や自分の子孫にならないか）
+    Instance* check = newParent;
+    while (check != nullptr) {
+        if (check == this) {
+            RCBN_ERROR("setParent failed: Circular reference detected! Cannot set " << this->Name << " as child of its own descendant.");
+            return;
+        }
+        check = check->Parent;
+    }
+
+    // 古い親のリストから自分を削除
+    if (this->Parent != nullptr) {
+        this->Parent->children.erase(this->Name);
+    }
+
+    // 新しい親をセット
     this->Parent = newParent;
+
+    // 新しい親のリストに自分を追加
+    if (this->Parent != nullptr) {
+        // 同名の子がいる場合は上書きされる（警告を出すのが親切）
+        if (this->Parent->children.count(this->Name) > 0) {
+            RCBN_WARN("setParent: Key collision for '" << this->Name << "' in " << this->Parent->Name << ". Overwriting existing child.");
+        }
+        this->Parent->children[this->Name] = this;
+    }
+
     this->onAncestorChanged();
 }
 
@@ -62,15 +89,7 @@ void Instance::addChild(Instance* child) {
         return;
     }
 
-    // 重複キーの登録を禁止
-    if (this->children.count(child->Name) > 0) {
-        RCBN_WARN("addChild failed: Key collision for '" << child->Name << "' in " << this->Name);
-        return;
-    }
-
-    child->Parent = this;
-    this->children[child->Name] = child;
-    child->onAncestorChanged();
+    child->setParent(this);
 }
 
 bool Instance::removeChild(string name) {
@@ -109,20 +128,35 @@ std::string Instance::getFullPath() {
 
 void Instance::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Name") {
-        this->Name = value.as<std::string>();
+        string newName = value.as<std::string>();
+        if (this->Name == newName) return;
+
+        // 親がいる場合は、親のマップ内のキーを更新する必要がある
+        if (this->Parent != nullptr) {
+            this->Parent->children.erase(this->Name);
+            this->Name = newName;
+            this->Parent->children[this->Name] = this;
+        } else {
+            this->Name = newName;
+        }
     }
 }
 
 Instance::~Instance() {
     RCBN_LOG("Instance Destructor: " << this->Name << " (" << this->GetClassName() << ")");
+    
+    // 親から安全に離脱
+    setParent(nullptr);
+
     // ループ中の予期せぬ不整合（子要素が親を触るなど）を防ぐため、コピーしたリストを破棄する
     std::vector<Instance*> toDelete;
     for (auto const& [_, child] : this->children) {
         toDelete.push_back(child);
     }
-    this->children.clear();
+    this->children.clear(); // 子要素のデストラクタが親（自分）のchildrenを触っても安全なようにクリアしておく
     
     for (Instance* child : toDelete) {
+        // Hello world! And in case I don’t see ya, good pointer, good borrowing, and goodbye world!
         delete child;
     }
 }
