@@ -27,6 +27,7 @@
 #include <cstddef>
 
 #include <PhysX/PxPhysicsAPI.h>
+#include <memory>
 
 GLFWwindow* setupWindow() {
     std::cout << "initing GLFW...\n";
@@ -59,20 +60,19 @@ GLFWwindow* setupWindow() {
 
 int main() {
     std::cout << "Hello world!\n"
-              << "Version 0.765\n";
+              << "Version 0.77\n";
     GLFWwindow* window = setupWindow();
     if (!window) {
         std::cout << "[ERROR] Failed to setup.\n";
         return -1;
     }
 
-    Renderer* renderer = new Renderer();
-    Physics* physicsEngine = new Physics();
-    User* user = new User(window);
-    LuauEngine* luauEngine = new LuauEngine();
-    AudioService* audioService = new AudioService();
-
-    Instance* system = new Instance("System");
+    auto renderer = std::make_unique<Renderer>();
+    auto physicsEngine = std::make_unique<Physics>();
+    auto audioService = std::make_unique<AudioService>();
+    auto system = std::make_unique<Instance>("System");
+    auto luauEngine = std::make_unique<LuauEngine>();
+    auto user = std::make_unique<User>(window);
 
     physicsEngine->init();
     renderer->init(window);
@@ -90,7 +90,7 @@ int main() {
     system->addChild(workspace);
 
     // Physics を Workspace にセット
-    workspace->setPhysicsEngine(physicsEngine);
+    workspace->setPhysicsEngine(physicsEngine.get());
 
     unsigned int floppa   = renderer->loadTexture("assets/image/floppa2048.jpg"); // back
     unsigned int thecat   = renderer->loadTexture("assets/image/the-cat.png");  // front
@@ -129,7 +129,7 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // --- 2. 入力検知 (向きに基づいた移動) ---
-        user->processInput(physicsEngine);
+        user->processInput(physicsEngine.get());
         if (user->wannaExit) {
             break;
         }
@@ -138,28 +138,12 @@ int main() {
         audioService->updateSounds();
         // std::cout << "[DEBUG] Rendered frame" << std::endl;
     }
-
     std::cout << "[DEBUG] Main loop ended. wannaExit=" << user->wannaExit << " windowShouldClose=" << glfwWindowShouldClose(window) << std::endl;
-
-    // --- Cleanup: 正しい順序で破棄 (依存性の逆順) ---
     RCBN_LOG("Shutting down...");
     
-    // 1. ユーザーとスクリプトエンジンを先に破棄 (これらはInstanceへのポインタを保持しているため)
-    delete user;
-    delete luauEngine;
-
-    // 2. 全インスタンスを破棄 (これにはキャラクターも含まれる)
-    delete system;
-
-    // 3. 残りのサービスを破棄
-    if (audioService) {
-        audioService->uninit();
-        delete audioService;
-    }
-
-    delete physicsEngine;
-    delete renderer;
+    // AudioService の明示的な終了処理は AudioService のデストラクタで行われるため削除されました。
 
     glfwTerminate();
+
     return 0;
 }

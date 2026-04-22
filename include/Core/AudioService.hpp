@@ -21,4 +21,5 @@ public:
     void addSound(Sound* sound);
     void updateSounds();
     void uninit();
+    ~AudioService();
 };

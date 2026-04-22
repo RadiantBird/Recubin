@@ -36,3 +36,7 @@ void AudioService::uninit() {
     ma_sound_group_uninit(&groupSFX);
     ma_engine_uninit(&engine);
 }
+
+AudioService::~AudioService() {
+    uninit();
+}
