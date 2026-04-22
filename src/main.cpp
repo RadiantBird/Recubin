@@ -15,6 +15,8 @@
 #include <Core/FileLoader.hpp>
 #include <Core/AudioService.hpp>
 
+#include <Editor/EditorManager.hpp>
+
 #include <Util/Logger.hpp>
 
 #include <iostream>
@@ -29,6 +31,9 @@
 #include <PhysX/PxPhysicsAPI.h>
 #include <memory>
 
+// ===================================================
+//  ウィンドウセットアップ
+// ===================================================
 GLFWwindow* setupWindow() {
     std::cout << "initing GLFW...\n";
     if (!glfwInit()) {
@@ -37,15 +42,12 @@ GLFWwindow* setupWindow() {
     }
 
     std::cout << "creating window...\n";
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Welcome to Recubin", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1600, 900, "Recubin Editor", nullptr, nullptr);
     if (!window) {
         std::cout << "Window creation failed\n";
         glfwTerminate();
         return nullptr;
     }
-
-    // アスペクト比を固定 (800 : 600 = 4 : 3)
-    glfwSetWindowAspectRatio(window, 800, 600);
 
     std::cout << "making context...\n";
     glfwMakeContextCurrent(window);
@@ -58,23 +60,27 @@ GLFWwindow* setupWindow() {
     return window;
 }
 
+// ===================================================
+//  main
+// ===================================================
 int main() {
     std::cout << "Hello world!\n"
-              << "Version 0.77\n";
+              << "Recubin Editor v0.80\n";
+
     GLFWwindow* window = setupWindow();
     if (!window) {
         std::cout << "[ERROR] Failed to setup.\n";
         return -1;
     }
 
-    auto renderer = std::make_unique<Renderer>();
-    auto physicsEngine = std::make_unique<Physics>();
+    auto renderer     = std::make_unique<Renderer>();
+    auto physics      = std::make_unique<Physics>();
     auto audioService = std::make_unique<AudioService>();
-    auto system = std::make_unique<Instance>("System");
-    auto luauEngine = std::make_unique<LuauEngine>();
-    auto user = std::make_unique<User>(window);
+    auto system       = std::make_unique<Instance>("System");
+    auto luauEngine   = std::make_unique<LuauEngine>();
+    auto user         = std::make_unique<User>(window);
 
-    physicsEngine->init();
+    physics->init();
     renderer->init(window);
 
     if (!audioService->initialize()) {
@@ -82,68 +88,76 @@ int main() {
         return -1;
     }
 
-    Workspace* workspace = static_cast<Workspace*>(SceneLoader::loadScene("assets/scenes/test_scene.yaml"));
+    Workspace* workspace = static_cast<Workspace*>(
+        SceneLoader::loadScene("assets/scenes/test_scene.yaml"));
     if (!workspace) {
         std::cerr << "[ERROR] Failed to load scene. Creating empty workspace.\n";
         workspace = new Workspace();
     }
     system->addChild(workspace);
 
-    // Physics を Workspace にセット
-    workspace->setPhysicsEngine(physicsEngine.get());
+    workspace->setPhysicsEngine(physics.get());
 
-    unsigned int floppa   = renderer->loadTexture("assets/image/floppa2048.jpg"); // back
-    unsigned int thecat   = renderer->loadTexture("assets/image/the-cat.png");  // front
-    unsigned int saladcat = renderer->loadTexture("assets/image/salad-cat.jpg");// top
-    unsigned int smile    = renderer->loadTexture("assets/image/smile.png"); // bottom
-    unsigned int bliss    = renderer->loadTexture("assets/image/bliss.jpg"); // right
-    unsigned int limabis  = renderer->loadTexture("assets/image/Limabis_logo.png"); // left
+    unsigned int floppa   = renderer->loadTexture("assets/image/floppa2048.jpg");
+    unsigned int thecat   = renderer->loadTexture("assets/image/the-cat.png");
+    unsigned int saladcat = renderer->loadTexture("assets/image/salad-cat.jpg");
+    unsigned int smile    = renderer->loadTexture("assets/image/smile.png");
+    unsigned int bliss    = renderer->loadTexture("assets/image/bliss.jpg");
+    unsigned int limabis  = renderer->loadTexture("assets/image/Limabis_logo.png");
 
     luauEngine->setGlobalInstance(workspace->Name, workspace);
-    luauEngine->setGlobalInstance("workspace", workspace); 
+    luauEngine->setGlobalInstance("workspace", workspace);
     luauEngine->setWorkspace(workspace);
 
-    // キャラクターをスポーン
     user->spawnCharacter();
     workspace->addChild(user->character);
 
     if (user->head) {
         user->head->addChild(new Decal(smile, Face::Front));
     }
-    
-    // Freeモード（カメラ操作）がデフォルト
-    // user->controlMode = User::ControlMode::Character; // Fキーで切り替え可能
+
+    // ===================================================
+    //  EditorManager を Renderer に接続
+    // ===================================================
+    renderer->editor = std::make_unique<EditorManager>(workspace, user.get());
+    RCBN_LOG("Editor initialized.");
 
     float lastFrame = static_cast<float>(glfwGetTime());
+
     while (!glfwWindowShouldClose(window)) {
         float currentFrame = static_cast<float>(glfwGetTime());
-        float deltaTime = currentFrame - lastFrame;
-        lastFrame = currentFrame;
+        float deltaTime    = currentFrame - lastFrame;
+        lastFrame          = currentFrame;
 
-        physicsEngine->update(*workspace, deltaTime);
-        luauEngine->update(deltaTime);
-        
-        // Workspace のスクリプトを実行
-        luauEngine->executeWorkspaceScripts();
+        const bool isPlaying =
+            renderer->editor &&
+            !renderer->editor->isEditMode();
 
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        const bool isPaused =
+            renderer->editor &&
+            renderer->editor->isPauseMode();
 
-        // --- 2. 入力検知 (向きに基づいた移動) ---
-        user->processInput(physicsEngine.get());
-        if (user->wannaExit) {
-            break;
+        // ---- エディターモード中は物理・スクリプトを止める ----
+        if (isPlaying && !isPaused) {
+            physics->update(*workspace, deltaTime);
+            luauEngine->update(deltaTime);
+            luauEngine->executeWorkspaceScripts();
         }
 
+        // ---- 入力処理（エディターモードではカメラ操作のみ許可）----
+        user->processInput(physics.get());
+        if (user->wannaExit) break;
+
+        // ---- 描画 ----
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderer->render(*user, window, *workspace);
+
         audioService->updateSounds();
-        // std::cout << "[DEBUG] Rendered frame" << std::endl;
     }
-    std::cout << "[DEBUG] Main loop ended. wannaExit=" << user->wannaExit << " windowShouldClose=" << glfwWindowShouldClose(window) << std::endl;
+
+    std::cout << "[DEBUG] Main loop ended.\n";
     RCBN_LOG("Shutting down...");
-    
-    // AudioService の明示的な終了処理は AudioService のデストラクタで行われるため削除されました。
 
     glfwTerminate();
-
     return 0;
 }
