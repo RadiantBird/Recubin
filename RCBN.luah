@@ -34,11 +34,9 @@ export type Color4 = {
     new: (number, number, number, number) -> Color4
 }
 
--- 実体（変数）としての宣言
 declare Instance: Instance
 declare Workspace: Workspace
-declare workspace: Workspace -- エイリアス
+declare workspace: Workspace
 declare Vector3: Vector3
 declare Color4: Color4
-
-declare function wait(seconds: number): ()
+declare wait: (seconds: number) -> ()
