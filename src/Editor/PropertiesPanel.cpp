@@ -45,7 +45,11 @@ void PropertiesPanel::onRender() {
 
         float pos[3] = { s->Position.x, s->Position.y, s->Position.z };
         if (ImGui::DragFloat3("Position", pos, 0.05f)) {
-            s->Position = Vector3(pos[0], pos[1], pos[2]);
+            if (inst->IsA("BaseCube")) {
+                static_cast<BaseCube*>(inst)->teleportTo(Vector3(pos[0], pos[1], pos[2]));
+            } else {
+                s->Position = Vector3(pos[0], pos[1], pos[2]);
+            }
         }
 
         float size[3] = { s->Size.x, s->Size.y, s->Size.z };

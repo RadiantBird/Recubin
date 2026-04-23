@@ -3,6 +3,7 @@
 #include <Math/Matrix4.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/ImGuizmo.h>
+#include <Instances/BaseCube.hpp>
 
 // ===================================================
 //  ViewportPanel 実装
@@ -144,8 +145,12 @@ void ViewportPanel::onRender() {
 
             if (ImGuizmo::Manipulate(view.m, proj.m, gizmoOp,
                                      ImGuizmo::WORLD, model.m)) {
-                // 移動成分を Position に反映（スケールは無視）
-                s->Position = Vector3(model.m[12], model.m[13], model.m[14]);
+                Vector3 newPos(model.m[12], model.m[13], model.m[14]);
+                if (inst->IsA("BaseCube")) {
+                    static_cast<BaseCube*>(inst)->teleportTo(newPos);
+                } else {
+                    s->Position = newPos;
+                }
             }
         }
     }

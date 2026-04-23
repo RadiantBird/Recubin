@@ -28,6 +28,7 @@ public:
     virtual string GetClassName() override;
     virtual bool IsA(std::string name) override;
     void syncPhysics();
+    void teleportTo(Vector3 pos);
 
     // 自律的な登録・解除ロジック
     void onAncestorChanged() override;

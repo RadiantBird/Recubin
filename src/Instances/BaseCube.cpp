@@ -15,7 +15,7 @@ bool BaseCube::IsA(std::string className) {
     if (className == "BaseCube") {
         return true;
     }
-    return Instance::IsA(className);
+    return Spatial::IsA(className);
 }
 
 void BaseCube::onAncestorChanged() {
@@ -57,6 +57,15 @@ void BaseCube::syncPhysics() {
     physx::PxTransform pose = actor->getGlobalPose();
     this->cframe.Position = Vector3(pose.p.x, pose.p.y, pose.p.z);
     this->cframe.Rotation = Quaternion(pose.q.w, pose.q.x, pose.q.y, pose.q.z);
+}
+
+void BaseCube::teleportTo(Vector3 pos) {
+    cframe.Position = pos;
+    if (actor) {
+        physx::PxTransform pose = actor->getGlobalPose();
+        pose.p = physx::PxVec3(pos.x, pos.y, pos.z);
+        actor->setGlobalPose(pose);
+    }
 }
 
 BaseCube::~BaseCube() {
