@@ -44,28 +44,30 @@ void User::updateVectors() {
     up      = cam.Orientation.getUp();
 }
 
-void User::processInput(Physics* physics) {
+void User::processInput(Physics* physics, bool viewportFocused) {
     if (!window) return;
 
     // 1. カメラ回転の先行処理
     bool rotated = false;
     float rotationSpeed = 1.5f;
 
-    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-        cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), rotationSpeed) * cam.Orientation;
-        rotated = true;
-    }
-    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-        cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), -rotationSpeed) * cam.Orientation;
-        rotated = true;
-    }
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-        cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), rotationSpeed);
-        rotated = true;
-    }
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-        cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), -rotationSpeed);
-        rotated = true;
+    if (viewportFocused) {
+        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+            cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), rotationSpeed) * cam.Orientation;
+            rotated = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+            cam.Orientation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), -rotationSpeed) * cam.Orientation;
+            rotated = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+            cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), rotationSpeed);
+            rotated = true;
+        }
+        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+            cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1, 0, 0), -rotationSpeed);
+            rotated = true;
+        }
     }
 
     if (rotated) {
@@ -73,23 +75,25 @@ void User::processInput(Physics* physics) {
     }
 
     // ズーム処理
-    if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) {
-        cameraDistance -= zoomSpeed; // ズームイン
-        if (cameraDistance < 2.0f) cameraDistance = 2.0f;
-    }
-    if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
-        cameraDistance += zoomSpeed; // ズームアウト
+    if (viewportFocused) {
+        if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) {
+            cameraDistance -= zoomSpeed; // ズームイン
+            if (cameraDistance < 2.0f) cameraDistance = 2.0f;
+        }
+        if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
+            cameraDistance += zoomSpeed; // ズームアウト
+        }
     }
 
-    if (ControlMode::Free == controlMode) {
+    if (viewportFocused && ControlMode::Free == controlMode) {
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cpos = cpos + forward * speed;
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cpos = cpos - forward * speed;
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cpos = cpos - right * speed;
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cpos = cpos + right * speed;
         if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) cpos = cpos - up * speed;
         if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) cpos = cpos + up * speed;
-    } 
-    else if (ControlMode::Character == controlMode && character && root) {
+    }
+    else if (viewportFocused && ControlMode::Character == controlMode && character && root) {
         if (root->actor) {
             physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
             if (dynamicActor) {

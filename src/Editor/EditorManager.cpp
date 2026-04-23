@@ -1,4 +1,5 @@
 #include <Editor/EditorManager.hpp>
+#include <Editor/ViewportFocusManager.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
 #include <include/imgui/imgui_impl_opengl3.h>
@@ -83,10 +84,10 @@ void EditorManager::render() {
 void EditorManager::renderToolbar() {
     // ツールバーをオーバーレイウィンドウとして画面上部中央に表示
     ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImVec2 tbPos  = ImVec2(vp->WorkPos.x + vp->WorkSize.x * 0.5f - 90.0f,
+    ImVec2 tbPos  = ImVec2(vp->WorkPos.x + vp->WorkSize.x * 0.5f - 150.0f,
                             vp->WorkPos.y + 4.0f);
     ImGui::SetNextWindowPos(tbPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(180, 36), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(300, 36), ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.85f);
 
     ImGuiWindowFlags tbFlags =
@@ -94,7 +95,7 @@ void EditorManager::renderToolbar() {
         ImGuiWindowFlags_NoNav         | ImGuiWindowFlags_NoMove   |
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
 
-    // Play / Pause / Stop ボタンは入力を受け付けるので NoInputs を外す
+    // Play / Pause / Stop / Gizmo ボタンは入力を受け付けるので NoInputs を外す
     tbFlags &= ~ImGuiWindowFlags_NoInputs;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
@@ -131,6 +132,38 @@ void EditorManager::renderToolbar() {
         ImGui::PopStyleColor();
     }
 
+    // ---- ギズモ操作モード（T / R / S）----
+    ImGui::SameLine();
+    ImGui::Text("|");
+    ImGui::SameLine();
+
+    if (viewportPanel) {
+        ImGui::PushStyleColor(ImGuiCol_Button,
+            viewportPanel->gizmoOp == ImGuizmo::TRANSLATE
+                ? ImVec4(0.30f, 0.50f, 0.85f, 1.0f)
+                : ImVec4(0.22f, 0.40f, 0.70f, 0.60f));
+        if (ImGui::Button(" T ")) viewportPanel->gizmoOp = ImGuizmo::TRANSLATE;
+        ImGui::PopStyleColor();
+
+        ImGui::SameLine();
+
+        ImGui::PushStyleColor(ImGuiCol_Button,
+            viewportPanel->gizmoOp == ImGuizmo::ROTATE
+                ? ImVec4(0.30f, 0.50f, 0.85f, 1.0f)
+                : ImVec4(0.22f, 0.40f, 0.70f, 0.60f));
+        if (ImGui::Button(" R ")) viewportPanel->gizmoOp = ImGuizmo::ROTATE;
+        ImGui::PopStyleColor();
+
+        ImGui::SameLine();
+
+        ImGui::PushStyleColor(ImGuiCol_Button,
+            viewportPanel->gizmoOp == ImGuizmo::SCALE
+                ? ImVec4(0.30f, 0.50f, 0.85f, 1.0f)
+                : ImVec4(0.22f, 0.40f, 0.70f, 0.60f));
+        if (ImGui::Button(" S ")) viewportPanel->gizmoOp = ImGuizmo::SCALE;
+        ImGui::PopStyleColor();
+    }
+
     ImGui::End();
 }
 
@@ -161,10 +194,10 @@ void EditorManager::applyTheme() {
 
     ImVec4* c = style.Colors;
 
-    // ベースカラー：深いチャコールブルー
-    c[ImGuiCol_WindowBg]          = ImVec4(0.11f, 0.12f, 0.15f, 1.0f);
-    c[ImGuiCol_ChildBg]           = ImVec4(0.09f, 0.10f, 0.12f, 1.0f);
-    c[ImGuiCol_PopupBg]           = ImVec4(0.09f, 0.10f, 0.12f, 0.98f);
+    // ベースカラー：深い青
+    c[ImGuiCol_WindowBg]          = ImVec4(0.11f, 0.17f, 0.40f, 1.0f);
+    c[ImGuiCol_ChildBg]           = ImVec4(0.09f, 0.14f, 0.35f, 1.0f);
+    c[ImGuiCol_PopupBg]           = ImVec4(0.09f, 0.14f, 0.35f, 0.98f);
     c[ImGuiCol_Border]            = ImVec4(0.25f, 0.27f, 0.35f, 1.0f);
     c[ImGuiCol_MenuBarBg]         = ImVec4(0.08f, 0.09f, 0.11f, 1.0f);
 
@@ -184,15 +217,15 @@ void EditorManager::applyTheme() {
     c[ImGuiCol_FrameBgActive]     = ImVec4(0.24f, 0.28f, 0.38f, 1.0f);
 
     // タブ
-    c[ImGuiCol_Tab]               = ImVec4(0.13f, 0.14f, 0.18f, 1.0f);
-    c[ImGuiCol_TabHovered]        = ImVec4(0.28f, 0.45f, 0.72f, 0.85f);
-    c[ImGuiCol_TabSelected]       = ImVec4(0.22f, 0.38f, 0.68f, 1.0f);
-    c[ImGuiCol_TabSelectedOverline] = ImVec4(0.40f, 0.65f, 1.0f, 1.0f);
+    c[ImGuiCol_Tab]               = ImVec4(0.08f, 0.12f, 0.32f, 1.0f);
+    c[ImGuiCol_TabHovered]        = ImVec4(0.18f, 0.32f, 0.68f, 1.0f);
+    c[ImGuiCol_TabSelected]       = ImVec4(0.20f, 0.40f, 0.82f, 1.0f);
+    c[ImGuiCol_TabSelectedOverline] = ImVec4(0.50f, 0.75f, 1.0f, 1.0f);
 
     // タイトルバー
-    c[ImGuiCol_TitleBg]           = ImVec4(0.08f, 0.09f, 0.11f, 1.0f);
-    c[ImGuiCol_TitleBgActive]     = ImVec4(0.14f, 0.22f, 0.38f, 1.0f);
-    c[ImGuiCol_TitleBgCollapsed]  = ImVec4(0.08f, 0.09f, 0.11f, 0.8f);
+    c[ImGuiCol_TitleBg]           = ImVec4(0.05f, 0.10f, 0.28f, 1.0f);
+    c[ImGuiCol_TitleBgActive]     = ImVec4(0.10f, 0.20f, 0.52f, 1.0f);
+    c[ImGuiCol_TitleBgCollapsed]  = ImVec4(0.05f, 0.10f, 0.28f, 0.8f);
 
     // テキスト
     c[ImGuiCol_Text]              = ImVec4(0.90f, 0.92f, 0.95f, 1.0f);

@@ -5,6 +5,7 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/ContentBrowserPanel.hpp>
 #include <Editor/ViewportPanel.hpp>
+#include <Editor/ViewportFocusManager.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
 #include <memory>

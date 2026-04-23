@@ -26,6 +26,10 @@ public:
     Instance** selectedInstance = nullptr;  // SceneHierarchyPanel と共有
     User*      user             = nullptr;
 
+    // フォーカス状態管理フラグ
+    bool isViewportFocused = false;    // このViewportが現在フォーカスされているか
+    bool isHoveringViewport = false;   // マウスがViewport上にあるか
+
     ViewportPanel();
     ~ViewportPanel();
 

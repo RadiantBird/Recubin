@@ -1,4 +1,5 @@
 #include <Editor/ViewportPanel.hpp>
+#include <Editor/ViewportFocusManager.hpp>
 #include <Math/Matrix4.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/ImGuizmo.h>
@@ -90,6 +91,37 @@ void ViewportPanel::onRender() {
     ImTextureRef texRef((ImTextureID)(uintptr_t)colorTexture);
     ImGui::Image(texRef, avail, ImVec2(0, 1), ImVec2(1, 0)); // Y 反転
 
+    // ===================================================
+    //  Viewportクリック検出とフォーカス管理
+    // ===================================================
+    // Viewport領域内でのマウスホバー状態を更新
+    isHoveringViewport = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
+    
+    // Viewport外でクリックされたらフォーカスを解除
+    if (!isHoveringViewport && ImGui::IsMouseClicked(0)) {
+        if (isViewportFocused) {
+            ViewportFocusManager::getInstance().clearFocus();
+        }
+    }
+
+    // Viewportがクリックされたときにフォーカスを設定（排他制御）
+    if (isHoveringViewport && ImGui::IsMouseClicked(0)) {
+        ViewportFocusManager::getInstance().onFocusViewport(this);
+    }
+    
+    // フォーカス状態の可視化（フォーカス時に薄いボーダーを描画）
+    if (isViewportFocused) {
+        ImGui::GetWindowDrawList()->AddRect(
+            ImGui::GetWindowPos(),
+            ImVec2(ImGui::GetWindowPos().x + ImGui::GetWindowSize().x,
+                   ImGui::GetWindowPos().y + ImGui::GetWindowSize().y),
+            IM_COL32(0, 200, 255, 100),  // 薄いシアン色
+            0.0f,
+            0,
+            2.0f
+        );
+    }
+
     // ギズモのオーバーレイ
     if (selectedInstance && *selectedInstance && user) {
         Instance* inst = *selectedInstance;
@@ -117,14 +149,6 @@ void ViewportPanel::onRender() {
             }
         }
     }
-
-    // ギズモ操作ボタン
-    ImGui::SetCursorPos(ImVec2(8, 28));
-    if (ImGui::SmallButton("T")) gizmoOp = ImGuizmo::TRANSLATE;
-    ImGui::SameLine();
-    if (ImGui::SmallButton("R")) gizmoOp = ImGuizmo::ROTATE;
-    ImGui::SameLine();
-    if (ImGui::SmallButton("S")) gizmoOp = ImGuizmo::SCALE;
 
     ImGui::PopStyleVar();
     ImGui::End();

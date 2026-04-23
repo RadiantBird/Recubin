@@ -129,6 +129,7 @@ int main() {
         float deltaTime    = currentFrame - lastFrame;
         lastFrame          = currentFrame;
 
+        // TODO: これらのフラグはUserでも使いたいので、適切に管理する方法を考えておく
         const bool isPlaying =
             renderer->editor &&
             !renderer->editor->isEditMode();
@@ -145,7 +146,12 @@ int main() {
         }
 
         // ---- 入力処理（エディターモードではカメラ操作のみ許可）----
-        user->processInput(physics.get());
+        // TODO: これらのフラグはUserでも使いたいので、適切に管理する方法を考えておく
+        const bool viewportFocused =
+            renderer->editor &&
+            renderer->editor->viewportPanel &&
+            renderer->editor->viewportPanel->isViewportFocused;
+        user->processInput(physics.get(), viewportFocused);
         if (user->wannaExit) break;
 
         // ---- 描画 ----

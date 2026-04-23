@@ -57,6 +57,6 @@ public:
     ~User();
 
     void updateVectors();
-    void processInput(class Physics* physics);
+    void processInput(class Physics* physics, bool viewportFocused = false);
     void spawnCharacter();
 };
