@@ -31,6 +31,7 @@ public:
     virtual ~Physics();
     void update(Workspace& workspace, float dt);
     void createActor(BaseCube* cube);
+    void recreateActor(BaseCube* cube);
     void removeCube(BaseCube* cube);
 
     bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, physx::PxRigidActor* ignoreActor = nullptr);

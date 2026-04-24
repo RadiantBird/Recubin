@@ -51,6 +51,13 @@ void BaseCube::onAncestorChanged() {
     Instance::onAncestorChanged();
 }
 
+void BaseCube::setSize(Vector3 newSize) {
+    Size = newSize;
+    if (lastWorkspace && lastWorkspace->physicsEngine) {
+        lastWorkspace->physicsEngine->recreateActor(this);
+    }
+}
+
 void BaseCube::syncPhysics() {
     if (!actor || Anchored) return;
 

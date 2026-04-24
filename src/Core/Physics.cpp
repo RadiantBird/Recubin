@@ -120,6 +120,16 @@ physx::PxMaterial* Physics::getOrCreateMaterial(const Material& m) {
     return pxMat;
 }
 
+void Physics::recreateActor(BaseCube* cube) {
+    if (!cube) return;
+    if (cube->actor) {
+        scene->removeActor(*cube->actor);
+        cube->actor->release();
+        cube->actor = nullptr;
+    }
+    createActor(cube);
+}
+
 void Physics::removeCube(BaseCube* cube) {
     if (!cube) return;
     

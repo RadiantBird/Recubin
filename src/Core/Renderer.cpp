@@ -172,7 +172,7 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
     glViewport(0, 0, width, height);
 
     float aspect = (float)width / (float)height;
-    Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 100.0f);
+    Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
     Vector3 target = user.cpos + user.forward;
     Matrix4 view   = Matrix4::LookAt(user.cpos, target, user.up);
 

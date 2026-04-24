@@ -109,13 +109,6 @@ int main() {
     luauEngine->setGlobalInstance("workspace", workspace);
     luauEngine->setWorkspace(workspace);
 
-    user->spawnCharacter();
-    workspace->addChild(user->character);
-
-    if (user->head) {
-        user->head->addChild(new Decal(smile, Face::Front));
-    }
-
     // ===================================================
     //  EditorManager を Renderer に接続
     // ===================================================
@@ -123,6 +116,7 @@ int main() {
     RCBN_LOG("Editor initialized.");
 
     float lastFrame = static_cast<float>(glfwGetTime());
+    bool wasPlaying = false;
 
     while (!glfwWindowShouldClose(window)) {
         float currentFrame = static_cast<float>(glfwGetTime());
@@ -137,6 +131,28 @@ int main() {
         const bool isPaused =
             renderer->editor &&
             renderer->editor->isPauseMode();
+
+        // ---- Play/Stop 遷移処理 ----
+        if (isPlaying && !wasPlaying) {
+            user->spawnCharacter();
+            if (user->character) workspace->addChild(user->character);
+            if (user->head) user->head->addChild(new Decal(smile, Face::Front));
+        }
+        if (!isPlaying && wasPlaying) {
+            user->despawnCharacter();
+            system->removeChild(workspace->Name);
+            delete workspace;
+            workspace = static_cast<Workspace*>(
+                SceneLoader::loadScene("assets/scenes/test_scene.yaml"));
+            if (!workspace) workspace = new Workspace();
+            system->addChild(workspace);
+            workspace->setPhysicsEngine(physics.get());
+            luauEngine->setGlobalInstance(workspace->Name, workspace);
+            luauEngine->setGlobalInstance("workspace", workspace);
+            luauEngine->setWorkspace(workspace);
+            renderer->editor->hierarchyPanel->workspace = workspace;
+        }
+        wasPlaying = isPlaying;
 
         // ---- エディターモード中は物理・スクリプトを止める ----
         if (isPlaying && !isPaused) {

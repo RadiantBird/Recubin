@@ -134,7 +134,7 @@ void ViewportPanel::onRender() {
             Spatial* s = static_cast<Spatial*>(inst);
 
             float aspect = (h > 0) ? (float)w / (float)h : 1.0f;
-            Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 100.0f);
+            Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
             Vector3 target = user->cpos + user->forward;
             Matrix4 view   = Matrix4::LookAt(user->cpos, target, user->up);
 

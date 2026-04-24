@@ -29,6 +29,7 @@ public:
     virtual bool IsA(std::string name) override;
     void syncPhysics();
     void teleportTo(Vector3 pos);
+    void setSize(Vector3 newSize);
 
     // 自律的な登録・解除ロジック
     void onAncestorChanged() override;

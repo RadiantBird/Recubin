@@ -315,8 +315,26 @@ void User::processInput(Physics* physics, bool viewportFocused, bool viewportZoo
     lastSpacePressed = spacePressed;
 }
 
+void User::despawnCharacter() {
+    if (!character) return;
+    if (character->Parent) {
+        character->Parent->removeChild(character->Name);
+    }
+    delete character;
+    character = nullptr;
+    root      = nullptr;
+    torso     = nullptr;
+    head      = nullptr;
+    leftArm   = nullptr;
+    rightArm  = nullptr;
+    leftLeg   = nullptr;
+    rightLeg  = nullptr;
+}
+
 void User::spawnCharacter() {
-    if (character) return;
+    if (character) {
+        despawnCharacter();
+    }
 
     character = new Model(Vector3(5.0f, 10.0f, 5.0f), Vector3(1, 1, 1));
     Vector3 basePos = character->Position;
