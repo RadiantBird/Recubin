@@ -1,6 +1,7 @@
 #include "include/Core/LuauEngine.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/Decal.hpp"
+#include "include/Util/Logger.hpp"
 #include <float.h>
 
 // DispatchTableの定義
@@ -167,8 +168,8 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     lua_pushcfunction(L, global_add, "add");
     lua_setglobal(L, "add");
 
-    lua_pushcfunction(L, global_print_message, "print_message");
-    lua_setglobal(L, "print_message");
+    lua_pushcfunction(L, global_print_message, "print");
+    lua_setglobal(L, "print");
     
     lua_pushcfunction(L, wait, "wait");
     lua_setglobal(L, "wait");
@@ -502,13 +503,16 @@ int LuauEngine::wait(lua_State* L) {
 }
 
 int LuauEngine::global_print_message(lua_State* L) {
-    // 文字列引数を取得
-    const char* message = luaL_checkstring(L, 1);
-    
-    // C++で出力
-    std::cout << "[Luau] " << message << std::endl;
-    
-    // 戻り値なし
+    int n = lua_gettop(L);
+    std::ostringstream ss;
+    for (int i = 1; i <= n; i++) {
+        if (i > 1) ss << "\t";
+        ss << luaL_tolstring(L, i, nullptr);
+        lua_pop(L, 1);
+    }
+    const std::string msg = ss.str();
+    std::cout << "[Luau] " << msg << std::endl;
+    if (g_luauLogHook) g_luauLogHook(msg);
     return 0;
 }
 

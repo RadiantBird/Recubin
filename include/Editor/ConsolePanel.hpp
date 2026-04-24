@@ -16,8 +16,13 @@ public:
     bool scrollToBottom = true;
     char filterBuf[256] = {};
 
+    std::deque<std::string> luauLogs;
+    bool luauScrollToBottom = true;
+    char luauFilterBuf[256] = {};
+
     ConsolePanel();
     void onRender() override;
     void clear();
     void pushLog(const std::string& msg);
+    void pushLuauLog(const std::string& msg);
 };

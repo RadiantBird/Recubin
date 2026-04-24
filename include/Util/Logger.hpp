@@ -8,6 +8,7 @@
 
 // ConsolePanel への転送フック（Editor 側で設定される）
 inline std::function<void(const std::string&)> g_logHook;
+inline std::function<void(const std::string&)> g_luauLogHook;
 
 #ifdef RECUBIN_DEBUG
     #define RCBN_LOG(msg) \
