@@ -16,6 +16,8 @@
 #include <Core/AudioService.hpp>
 
 #include <Editor/EditorManager.hpp>
+#include <Editor/ViewportFocusManager.hpp>
+#include <Core/SystemState.hpp>
 
 #include <Util/Logger.hpp>
 
@@ -123,14 +125,12 @@ int main() {
         float deltaTime    = currentFrame - lastFrame;
         lastFrame          = currentFrame;
 
-        // TODO: これらのフラグはUserでも使いたいので、適切に管理する方法を考えておく
-        const bool isPlaying =
-            renderer->editor &&
-            !renderer->editor->isEditMode();
+        SystemState& state = SystemState::get();
+        state.isPlaying = renderer->editor && !renderer->editor->isEditMode();
+        state.isPaused  = renderer->editor &&  renderer->editor->isPauseMode();
 
-        const bool isPaused =
-            renderer->editor &&
-            renderer->editor->isPauseMode();
+        const bool isPlaying = state.isPlaying;
+        const bool isPaused  = state.isPaused;
 
         // ---- Play/Stop 遷移処理 ----
         if (isPlaying && !wasPlaying) {
@@ -140,8 +140,7 @@ int main() {
         }
         if (!isPlaying && wasPlaying) {
             user->despawnCharacter();
-            system->removeChild(workspace->Name);
-            delete workspace;
+            system->removeChild(workspace->Name); // removeChild が delete まで行う
             workspace = static_cast<Workspace*>(
                 SceneLoader::loadScene("assets/scenes/test_scene.yaml"));
             if (!workspace) workspace = new Workspace();
@@ -162,17 +161,10 @@ int main() {
         }
 
         // ---- 入力処理（エディターモードではカメラ操作のみ許可）----
-        // TODO: これらのフラグはUserでも使いたいので、適切に管理する方法を考えておく
-        const bool viewportFocused =
-            renderer->editor &&
-            renderer->editor->viewportPanel &&
-            renderer->editor->viewportPanel->isViewportFocused;
-        const bool viewportZoomEnabled =
-            renderer->editor &&
-            renderer->editor->viewportPanel &&
-            (renderer->editor->viewportPanel->isViewportFocused ||
-             renderer->editor->viewportPanel->isHoveringViewport);
-        user->processInput(physics.get(), viewportFocused, viewportZoomEnabled);
+        ViewportPanel* vp = renderer->editor ? renderer->editor->viewportPanel.get() : nullptr;
+        state.viewportFocused    = vp && IsViewportFocused(vp);
+        state.viewportZoomEnabled = vp && (IsViewportFocused(vp) || vp->isHoveringViewport);
+        user->processInput(physics.get());
         if (user->wannaExit) break;
 
         // ---- 描画 ----

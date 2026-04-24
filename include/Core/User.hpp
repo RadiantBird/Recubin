@@ -64,7 +64,7 @@ public:
     ~User();
 
     void updateVectors();
-    void processInput(class Physics* physics, bool viewportFocused = false, bool viewportZoomEnabled = false);
+    void processInput(class Physics* physics);
     void spawnCharacter();
     void despawnCharacter();
 

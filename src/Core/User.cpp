@@ -1,4 +1,5 @@
 #include <Core/User.hpp>
+#include <Core/SystemState.hpp>
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
 
@@ -56,7 +57,9 @@ void User::updateVectors() {
     up      = cam.Orientation.getUp();
 }
 
-void User::processInput(Physics* physics, bool viewportFocused, bool viewportZoomEnabled) {
+void User::processInput(Physics* physics) {
+    const bool viewportFocused    = SystemState::get().viewportFocused;
+    const bool viewportZoomEnabled = SystemState::get().viewportZoomEnabled;
     if (!window) return;
 
     if (!isScrollCallbackInstalled) {
@@ -318,9 +321,10 @@ void User::processInput(Physics* physics, bool viewportFocused, bool viewportZoo
 void User::despawnCharacter() {
     if (!character) return;
     if (character->Parent) {
-        character->Parent->removeChild(character->Name);
+        character->Parent->removeChild(character->Name); // removeChild が delete まで行う
+    } else {
+        delete character;
     }
-    delete character;
     character = nullptr;
     root      = nullptr;
     torso     = nullptr;

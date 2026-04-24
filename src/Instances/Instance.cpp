@@ -1,6 +1,7 @@
 #include "include/Instances/Instance.hpp"
 #include "include/Util/Logger.hpp"
 #include <algorithm>
+#include <cassert>
 #include <vector>
 
 #ifdef _WIN32
@@ -95,8 +96,8 @@ void Instance::addChild(Instance* child) {
 bool Instance::removeChild(string name) {
     Instance* child = getChild(name);
     if (child) {
-        Instance* parent = child->Parent;
-        parent->children.erase(name);
+        this->children.erase(name);
+        child->Parent = nullptr;
         delete child;
         return true;
     }
@@ -144,18 +145,15 @@ void Instance::setProperty(const std::string& name, const YAML::Node& value) {
 
 Instance::~Instance() {
     RCBN_LOG("Instance Destructor: " << this->Name << " (" << this->GetClassName() << ")");
-    
-    // 親から安全に離脱
-    setParent(nullptr);
+    assert(Parent == nullptr && "Instance deleted directly while still owned by a parent. Use parent->removeChild() instead.");
 
-    // ループ中の予期せぬ不整合（子要素が親を触るなど）を防ぐため、コピーしたリストを破棄する
     std::vector<Instance*> toDelete;
     for (auto const& [_, child] : this->children) {
         toDelete.push_back(child);
     }
-    this->children.clear(); // 子要素のデストラクタが親（自分）のchildrenを触っても安全なようにクリアしておく
-    
+    this->children.clear();
     for (Instance* child : toDelete) {
+        child->Parent = nullptr;
         // Hello world! And in case I don’t see ya, good pointer, good borrowing, and goodbye world!
         delete child;
     }
