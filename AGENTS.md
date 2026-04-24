@@ -1,5 +1,5 @@
-# CLAUDE.md — C++ Game Engine Project
-
+# AGENTS.md — C++ Game Engine Project
+<!-- 自動生成された -->
 このファイルはすべての会話の共通前提。必ず従うこと。
 
 ---
@@ -61,7 +61,7 @@ UPPER_SNAKE_CASE
 ---
 毎回の指示はこの形式で：
 
-## 指示テンプレート（Claudeへのお願い）
+## 指示テンプレート（Codexへのお願い）
  
 ```
 @ファイル名 [何を][どうする]だけして

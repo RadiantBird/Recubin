@@ -109,6 +109,10 @@ void ViewportPanel::onRender() {
     if (isHoveringViewport && ImGui::IsMouseClicked(0)) {
         ViewportFocusManager::getInstance().onFocusViewport(this);
     }
+
+    if (isHoveringViewport && ImGui::GetIO().MouseWheel != 0.0f) {
+        ViewportFocusManager::getInstance().onFocusViewport(this);
+    }
     
     // フォーカス状態の可視化（フォーカス時に薄いボーダーを描画）
     if (isViewportFocused) {

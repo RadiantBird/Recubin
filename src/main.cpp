@@ -151,7 +151,12 @@ int main() {
             renderer->editor &&
             renderer->editor->viewportPanel &&
             renderer->editor->viewportPanel->isViewportFocused;
-        user->processInput(physics.get(), viewportFocused);
+        const bool viewportZoomEnabled =
+            renderer->editor &&
+            renderer->editor->viewportPanel &&
+            (renderer->editor->viewportPanel->isViewportFocused ||
+             renderer->editor->viewportPanel->isHoveringViewport);
+        user->processInput(physics.get(), viewportFocused, viewportZoomEnabled);
         if (user->wannaExit) break;
 
         // ---- 描画 ----

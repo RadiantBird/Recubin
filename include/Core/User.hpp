@@ -24,6 +24,7 @@ public:
     float rotationSpeed = 1.0f; // 回転の速さ
     float cameraDistance = 10.0f; // カメラの距離
     float zoomSpeed = 0.1f;
+    float mouseZoomSpeed = 1.0f; // キーボードより早めに
     float walkCycle = 0.0f; // 歩行アニメーション用
     Vector3 currentMoveDir; // 滑らかな移動・回転用
     bool lastFKeyPressed = false; // トグル判定用
@@ -52,11 +53,21 @@ public:
     Vector3 up;
 
     bool wannaExit = false;
+    bool isRightMouseRotating = false;
+    double lastMouseX = 0.0;
+    double lastMouseY = 0.0;
+    double pendingScrollY = 0.0;
+    bool isScrollCallbackInstalled = false;
+    GLFWscrollfun previousScrollCallback = nullptr;
 
     User(GLFWwindow* window);
     ~User();
 
     void updateVectors();
-    void processInput(class Physics* physics, bool viewportFocused = false);
+    void processInput(class Physics* physics, bool viewportFocused = false, bool viewportZoomEnabled = false);
     void spawnCharacter();
+
+private:
+    static User* s_instance;
+    static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 };

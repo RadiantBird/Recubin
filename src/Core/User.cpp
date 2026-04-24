@@ -2,6 +2,17 @@
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
 
+User* User::s_instance = nullptr;
+
+void User::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+    if (s_instance && s_instance->window == window) {
+        s_instance->pendingScrollY += yoffset;
+        if (s_instance->previousScrollCallback) {
+            s_instance->previousScrollCallback(window, xoffset, yoffset);
+        }
+    }
+}
+
 User::User(GLFWwindow* win) 
     : window(win), 
       cam(current_camera), 
@@ -12,6 +23,7 @@ User::User(GLFWwindow* win)
       currentMoveDir(0, 0, 0),
       lastFKeyPressed(false)
 {
+    s_instance = this;
     updateVectors();
 }
 
@@ -44,12 +56,52 @@ void User::updateVectors() {
     up      = cam.Orientation.getUp();
 }
 
-void User::processInput(Physics* physics, bool viewportFocused) {
+void User::processInput(Physics* physics, bool viewportFocused, bool viewportZoomEnabled) {
     if (!window) return;
+
+    if (!isScrollCallbackInstalled) {
+        previousScrollCallback = glfwSetScrollCallback(window, User::scrollCallback);
+        isScrollCallbackInstalled = true;
+    }
 
     // 1. カメラ回転の先行処理
     bool rotated = false;
     float rotationSpeed = 1.5f;
+    const double mouseRotationSpeed = 0.15;
+
+    if (viewportFocused) {
+        const bool rightMousePressed = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
+        double currentMouseX = 0.0;
+        double currentMouseY = 0.0;
+        glfwGetCursorPos(window, &currentMouseX, &currentMouseY);
+
+        if (rightMousePressed) {
+            if (!isRightMouseRotating) {
+                isRightMouseRotating = true;
+                lastMouseX = currentMouseX;
+                lastMouseY = currentMouseY;
+            } else {
+                const double deltaX = currentMouseX - lastMouseX;
+                const double deltaY = currentMouseY - lastMouseY;
+
+                if (deltaX != 0.0 || deltaY != 0.0) {
+                    cam.Orientation =
+                        Quaternion::fromAxisAngle(Vector3(0, 1, 0), static_cast<float>(-deltaX * mouseRotationSpeed)) *
+                        cam.Orientation;
+                    cam.Orientation =
+                        cam.Orientation *
+                        Quaternion::fromAxisAngle(Vector3(1, 0, 0), static_cast<float>(-deltaY * mouseRotationSpeed));
+                    rotated = true;
+                }
+
+                glfwSetCursorPos(window, lastMouseX, lastMouseY);
+            }
+        } else {
+            isRightMouseRotating = false;
+        }
+    } else {
+        isRightMouseRotating = false;
+    }
 
     if (viewportFocused) {
         if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
@@ -75,13 +127,31 @@ void User::processInput(Physics* physics, bool viewportFocused) {
     }
 
     // ズーム処理
-    if (viewportFocused) {
-        if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) {
-            cameraDistance -= zoomSpeed; // ズームイン
-            if (cameraDistance < 2.0f) cameraDistance = 2.0f;
-        }
-        if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
-            cameraDistance += zoomSpeed; // ズームアウト
+    if (viewportZoomEnabled) {
+        if (controlMode == ControlMode::Free) {
+            if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) {
+                cpos = cpos + forward * zoomSpeed;
+            }
+            if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
+                cpos = cpos - forward * zoomSpeed;
+            }
+            if (pendingScrollY != 0.0) {
+                cpos = cpos + forward * (static_cast<float>(pendingScrollY) * mouseZoomSpeed);
+                pendingScrollY = 0.0;
+            }
+        } else {
+            if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) {
+                cameraDistance -= zoomSpeed;
+                if (cameraDistance < 2.0f) cameraDistance = 2.0f;
+            }
+            if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
+                cameraDistance += zoomSpeed;
+            }
+            if (pendingScrollY != 0.0) {
+                cameraDistance -= static_cast<float>(pendingScrollY) * mouseZoomSpeed;
+                if (cameraDistance < 2.0f) cameraDistance = 2.0f;
+                pendingScrollY = 0.0;
+            }
         }
     }
 
