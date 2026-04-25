@@ -144,7 +144,7 @@ void Instance::setProperty(const std::string& name, const YAML::Node& value) {
 }
 
 Instance::~Instance() {
-    RCBN_LOG("Instance Destructor: " << this->Name << " (" << this->GetClassName() << ")");
+    // RCBN_LOG("Instance Destructor: " << this->Name << " (" << this->GetClassName() << ")");
     assert(Parent == nullptr && "Instance deleted directly while still owned by a parent. Use parent->removeChild() instead.");
 
     std::vector<Instance*> toDelete;

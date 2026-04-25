@@ -1,3 +1,4 @@
 print(erik)
 print(erik.cassel)
-erik = nil -- bro is trying to erase!?!?
+t = {1}
+print(t[2] + 1) -- error test

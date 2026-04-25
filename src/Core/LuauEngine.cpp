@@ -215,6 +215,23 @@ LuauEngine::LuauEngine() {
     luaopen_table(L);
     luaopen_bit32(L);
 
+    lua_callbacks(L)->userdata = this;
+
+    // エラー捕捉時（スタック巻き戻し前）にトレースバックを保存
+    lua_callbacks(L)->debugprotectederror = [](lua_State* L) {
+        const char* trace = lua_debugtrace(L);
+        auto* engine = static_cast<LuauEngine*>(lua_callbacks(L)->userdata);
+        if (engine) engine->m_lastTraceback = trace ? trace : "";
+    };
+
+    // Luauパニック時にプロセスがクラッシュするのを防ぐ
+    lua_callbacks(L)->panic = [](lua_State* L, int) {
+        const char* raw = lua_tostring(L, -1);
+        std::string msg = raw ? raw : "unknown panic";
+        std::cerr << "[LUAU PANIC] " << msg << "\n";
+        if (g_luauLogHook) g_luauLogHook("[ERROR] [PANIC] " + msg);
+    };
+
     InitMetatables();
     InitDispatchTable();
     InitSetterTable();
@@ -311,8 +328,11 @@ bool LuauEngine::execute(Script& script) {
 
         if (status != 0) {
             script.Aborted = true; // DO NOT loop on errored script compile!
-            std::cerr << "Luau Load Error: " << lua_tostring(co, -1) << "\n";
-            lua_pop(co, 1);
+            const char* raw = (lua_gettop(co) > 0) ? lua_tostring(co, -1) : nullptr;
+            const std::string errMsg = raw ? raw : "compile error";
+            std::cerr << "Luau Load Error: " << errMsg << "\n";
+            if (g_luauLogHook) g_luauLogHook("[ERROR] " + errMsg);
+            if (lua_gettop(co) > 0) lua_pop(co, 1);
             return false;
         }
     }
@@ -340,12 +360,22 @@ bool LuauEngine::execute(Script& script) {
         // エラー
         script.Aborted = true; // DO NOT loop on errored script!
         std::cerr << "Luau Run Error caught. Status: " << result << "\n";
-        if (lua_type(co, -1) == LUA_TSTRING) {
-            std::cerr << "Luau Run Error: " << lua_tostring(co, -1) << "\n";
-        } else {
-            std::cerr << "Luau Run Error (non-string error object)\n";
+        // Luauはエラーメッセージをcoではなく親スレッドLに積む場合がある
+        lua_State* errState = (lua_gettop(co) > 0) ? co : L;
+        std::string errMsg = "unknown error";
+        if (lua_gettop(errState) > 0 && lua_type(errState, -1) == LUA_TSTRING) {
+            const char* raw = lua_tostring(errState, -1);
+            if (raw) errMsg = raw;
+            lua_pop(errState, 1);
+        } else if (lua_gettop(errState) > 0) {
+            lua_pop(errState, 1);
         }
-        lua_pop(co, 1);
+
+        // debugprotectederror で取得したスタックトレースを使う
+        const std::string output = m_lastTraceback.empty() ? errMsg : m_lastTraceback;
+        m_lastTraceback.clear();
+        std::cerr << "Luau Run Error: " << output << "\n";
+        if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
         currentScript = nullptr;
         restoreFPU(); // エラー後にFPU状態が乱れる可能性があるため、復元する
         return false;

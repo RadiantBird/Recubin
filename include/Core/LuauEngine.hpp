@@ -29,6 +29,7 @@ private:
     lua_State* L;
     Workspace* workspace = nullptr;  // 管理対象の Workspace
     static Script* currentScript;  // 現在実行中のスクリプト
+    std::string m_lastTraceback;   // debugprotectederror で取得したスタックトレース
     
     static constexpr const char* RCBN_INST_METATABLE = "RCBN_Instance";
     static constexpr const char* RCBN_VEC3_METATABLE = "RCBN_Vector3";

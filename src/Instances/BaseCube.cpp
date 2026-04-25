@@ -76,7 +76,7 @@ void BaseCube::teleportTo(Vector3 pos) {
 }
 
 BaseCube::~BaseCube() {
-    RCBN_LOG("BaseCube Destructor: " << this->Name);
+    // RCBN_LOG("BaseCube Destructor: " << this->Name);
     if (lastWorkspace && lastWorkspace->physicsEngine) {
         lastWorkspace->physicsEngine->removeCube(this);
     } else if (actor) {
