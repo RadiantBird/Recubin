@@ -4,6 +4,9 @@
 #include <include/imgui/imgui.h>
 #include <include/imgui/ImGuizmo.h>
 #include <Instances/BaseCube.hpp>
+#include <Instances/Spatial.hpp>
+#include <algorithm>
+#include <cmath>
 
 // ===================================================
 //  ViewportPanel 実装
@@ -114,6 +117,67 @@ void ViewportPanel::onRender() {
         ViewportFocusManager::getInstance().onFocusViewport(this);
     }
     
+    // ---- Select モード: レイキャストでオブジェクト選択 ----
+    if (selectOnly && isHoveringViewport && ImGui::IsMouseClicked(0) && user && workspace) {
+        ImVec2 mousePos = ImGui::GetMousePos();
+        ImVec2 winPos   = ImGui::GetWindowPos();
+        float mx = mousePos.x - winPos.x;
+        float my = mousePos.y - winPos.y;
+
+        float ndcX  = (mx / (float)w) * 2.0f - 1.0f;
+        float ndcY  = 1.0f - (my / (float)h) * 2.0f;
+        float aspect = (w > 0 && h > 0) ? (float)w / (float)h : 1.0f;
+        float tanH  = std::tan(45.0f * (3.14159265f / 180.0f) * 0.5f);
+
+        Vector3 rayDir = (user->forward
+                        + user->right * (ndcX * aspect * tanH)
+                        + user->up    * (ndcY * tanH)).normalize();
+        Vector3 rayOri = user->cpos;
+
+        Instance* nearest = nullptr;
+        float nearestT = 1e30f;
+
+        auto castRay = [&](auto& self, Instance* inst) -> void {
+            if (!inst) return;
+            if (inst->IsA("Cube")) {
+                Spatial* s = static_cast<Spatial*>(inst);
+                Vector3 center = s->Position;
+                float bmin[3] = { center.x - s->Size.x * 0.5f,
+                                   center.y - s->Size.y * 0.5f,
+                                   center.z - s->Size.z * 0.5f };
+                float bmax[3] = { center.x + s->Size.x * 0.5f,
+                                   center.y + s->Size.y * 0.5f,
+                                   center.z + s->Size.z * 0.5f };
+                float rd[3] = { rayDir.x, rayDir.y, rayDir.z };
+                float ro[3] = { rayOri.x, rayOri.y, rayOri.z };
+
+                float tmin = -1e30f, tmax = 1e30f;
+                bool hit = true;
+                for (int i = 0; i < 3 && hit; ++i) {
+                    if (std::abs(rd[i]) < 1e-8f) {
+                        if (ro[i] < bmin[i] || ro[i] > bmax[i]) hit = false;
+                    } else {
+                        float t1 = (bmin[i] - ro[i]) / rd[i];
+                        float t2 = (bmax[i] - ro[i]) / rd[i];
+                        if (t1 > t2) std::swap(t1, t2);
+                        tmin = (std::max)(tmin, t1);
+                        tmax = (std::min)(tmax, t2);
+                        if (tmax < tmin) hit = false;
+                    }
+                }
+                if (hit && tmax >= 0.0f) {
+                    float t = (tmin >= 0.0f) ? tmin : tmax;
+                    if (t < nearestT) { nearestT = t; nearest = inst; }
+                }
+            }
+            for (auto const& [_, child] : inst->getChildren())
+                self(self, child);
+        };
+        castRay(castRay, workspace);
+
+        if (selectedInstance) *selectedInstance = nearest;
+    }
+
     // フォーカス状態の可視化（フォーカス時に薄いボーダーを描画）
     if (isViewportFocused) {
         ImGui::GetWindowDrawList()->AddRect(
@@ -128,7 +192,7 @@ void ViewportPanel::onRender() {
     }
 
     // ギズモのオーバーレイ
-    if (selectedInstance && *selectedInstance && user) {
+    if (!selectOnly && selectedInstance && *selectedInstance && user) {
         Instance* inst = *selectedInstance;
         if (inst->IsA("Spatial")) {
             Spatial* s = static_cast<Spatial*>(inst);
@@ -156,6 +220,20 @@ void ViewportPanel::onRender() {
                     s->Position = newPos;
                 }
             }
+        }
+    }
+
+    // ---- F キー: 選択オブジェクトにカメラをフォーカス ----
+    if (isViewportFocused && user && selectedInstance && *selectedInstance
+            && ImGui::IsKeyPressed(ImGuiKey_F)) {
+        Instance* inst = *selectedInstance;
+        if (inst->IsA("Spatial")) {
+            Spatial* s = static_cast<Spatial*>(inst);
+            Vector3 objPos = s->Position;
+            float maxSize = (std::max)(s->Size.x, (std::max)(s->Size.y, s->Size.z));
+            float dist = (std::max)(maxSize * 3.0f, 5.0f);
+            user->cpos = objPos - user->forward * dist;
+            user->updateVectors();
         }
     }
 

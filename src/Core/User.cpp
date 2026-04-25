@@ -280,8 +280,8 @@ void User::processInput(Physics* physics) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         wannaExit = true;
     }
-    // Fキーで制御モードを切り替え (トグル処理)
-    bool fPressed = (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS);
+    // Lキーで制御モードを切り替え (トグル処理)
+    bool fPressed = (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS);
     if (fPressed && !lastFKeyPressed) {
         // Free/Character モードの切り替え
         if (controlMode == ControlMode::Free) {

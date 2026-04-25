@@ -52,6 +52,7 @@ public:
     bool isPauseMode() const { return mode == EditorMode::Pause; }
 
 private:
+    Workspace* m_workspace = nullptr;
     void renderToolbar();
     void applyTheme();
 };

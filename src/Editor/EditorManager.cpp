@@ -1,22 +1,27 @@
 #include <Editor/EditorManager.hpp>
 #include <Editor/ViewportFocusManager.hpp>
+#include <Instances/Cube.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
 #include <include/imgui/imgui_impl_opengl3.h>
+#include <string>
 
 // ===================================================
 //  EditorManager 実装
 // ===================================================
 
 EditorManager::EditorManager(Workspace* workspace, User* user) {
+    m_workspace = workspace;
+
     consolePanel        = std::make_unique<ConsolePanel>();
     hierarchyPanel      = std::make_unique<SceneHierarchyPanel>();
     propertiesPanel     = std::make_unique<PropertiesPanel>();
     contentBrowserPanel = std::make_unique<ContentBrowserPanel>();
     viewportPanel       = std::make_unique<ViewportPanel>();
 
-    hierarchyPanel->workspace = workspace;
-    viewportPanel->user       = user;
+    hierarchyPanel->workspace  = workspace;
+    viewportPanel->user        = user;
+    viewportPanel->workspace   = workspace;
 
     // selectedInstance ポインタを共有（SceneHierarchy が書き、Properties/Viewport が読む）
     propertiesPanel->selectedInstance = &hierarchyPanel->selectedInstance;
@@ -82,87 +87,98 @@ void EditorManager::render() {
 }
 
 void EditorManager::renderToolbar() {
-    // ツールバーをオーバーレイウィンドウとして画面上部中央に表示
     ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImVec2 tbPos  = ImVec2(vp->WorkPos.x + vp->WorkSize.x * 0.5f - 150.0f,
-                            vp->WorkPos.y + 4.0f);
-    ImGui::SetNextWindowPos(tbPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(300, 36), ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(0.85f);
+
+    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, 60.0f), ImGuiCond_FirstUseEver);
 
     ImGuiWindowFlags tbFlags =
-        ImGuiWindowFlags_NoDecoration  | ImGuiWindowFlags_NoInputs |
-        ImGuiWindowFlags_NoNav         | ImGuiWindowFlags_NoMove   |
-        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse;
 
-    // Play / Pause / Stop / Gizmo ボタンは入力を受け付けるので NoInputs を外す
-    tbFlags &= ~ImGuiWindowFlags_NoInputs;
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
-    ImGui::Begin("##Toolbar", nullptr, tbFlags);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 10.0f));
+    ImGui::Begin("Toolbar", nullptr, tbFlags);
     ImGui::PopStyleVar();
 
-    // ---- Play ----
+    const ImVec4 colActive   = ImVec4(0.30f, 0.50f, 0.85f, 1.0f);
+    const ImVec4 colInactive = ImVec4(0.22f, 0.40f, 0.70f, 0.60f);
+    const ImVec2 btnSz       = ImVec2(70.0f, 38.0f);
+
+    // ---- Play / Pause / Stop ----
     if (mode == EditorMode::Edit) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.65f, 0.18f, 1.0f));
-        if (ImGui::Button("  Play  ")) {
-            mode = EditorMode::Play;
-        }
+        if (ImGui::Button("  Play  ", btnSz)) mode = EditorMode::Play;
         ImGui::PopStyleColor();
     } else {
-        // ---- Pause ----
         ImGui::PushStyleColor(ImGuiCol_Button,
-            mode == EditorMode::Pause
-                ? ImVec4(0.7f, 0.55f, 0.0f, 1.0f)
-                : ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
-        if (ImGui::Button(" Pause ")) {
-            mode = (mode == EditorMode::Pause)
-                 ? EditorMode::Play
-                 : EditorMode::Pause;
-        }
+            mode == EditorMode::Pause ? ImVec4(0.7f, 0.55f, 0.0f, 1.0f)
+                                      : ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+        if (ImGui::Button(" Pause ", btnSz))
+            mode = (mode == EditorMode::Pause) ? EditorMode::Play : EditorMode::Pause;
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
 
-        // ---- Stop ----
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.18f, 0.18f, 1.0f));
-        if (ImGui::Button("  Stop  ")) {
-            mode = EditorMode::Edit;
-        }
+        if (ImGui::Button("  Stop  ", btnSz)) mode = EditorMode::Edit;
         ImGui::PopStyleColor();
     }
 
-    // ---- ギズモ操作モード（T / R / S）----
     ImGui::SameLine();
     ImGui::Text("|");
     ImGui::SameLine();
 
+    // ---- Select / Move / Resize / Rotate ----
     if (viewportPanel) {
-        ImGui::PushStyleColor(ImGuiCol_Button,
-            viewportPanel->gizmoOp == ImGuizmo::TRANSLATE
-                ? ImVec4(0.30f, 0.50f, 0.85f, 1.0f)
-                : ImVec4(0.22f, 0.40f, 0.70f, 0.60f));
-        if (ImGui::Button(" T ")) viewportPanel->gizmoOp = ImGuizmo::TRANSLATE;
+        bool& selectOnly = viewportPanel->selectOnly;
+        ImGuizmo::OPERATION& op = viewportPanel->gizmoOp;
+
+        ImGui::PushStyleColor(ImGuiCol_Button, selectOnly ? colActive : colInactive);
+        if (ImGui::Button("Select", btnSz)) { selectOnly = true; }
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button,
-            viewportPanel->gizmoOp == ImGuizmo::ROTATE
-                ? ImVec4(0.30f, 0.50f, 0.85f, 1.0f)
-                : ImVec4(0.22f, 0.40f, 0.70f, 0.60f));
-        if (ImGui::Button(" R ")) viewportPanel->gizmoOp = ImGuizmo::ROTATE;
+            (!selectOnly && op == ImGuizmo::TRANSLATE) ? colActive : colInactive);
+        if (ImGui::Button("Move", btnSz)) { selectOnly = false; op = ImGuizmo::TRANSLATE; }
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button,
-            viewportPanel->gizmoOp == ImGuizmo::SCALE
-                ? ImVec4(0.30f, 0.50f, 0.85f, 1.0f)
-                : ImVec4(0.22f, 0.40f, 0.70f, 0.60f));
-        if (ImGui::Button(" S ")) viewportPanel->gizmoOp = ImGuizmo::SCALE;
+            (!selectOnly && op == ImGuizmo::SCALE) ? colActive : colInactive);
+        if (ImGui::Button("Resize", btnSz)) { selectOnly = false; op = ImGuizmo::SCALE; }
+        ImGui::PopStyleColor();
+
+        ImGui::SameLine();
+
+        ImGui::PushStyleColor(ImGuiCol_Button,
+            (!selectOnly && op == ImGuizmo::ROTATE) ? colActive : colInactive);
+        if (ImGui::Button("Rotate", btnSz)) { selectOnly = false; op = ImGuizmo::ROTATE; }
         ImGui::PopStyleColor();
     }
+
+    ImGui::SameLine();
+    ImGui::Text("|");
+    ImGui::SameLine();
+
+    // ---- New Cube ----
+    if (ImGui::Button("New Cube", btnSz) && m_workspace) {
+        auto* cube = new Cube(Vector3(0, 5, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+        std::string name = "Cube";
+        int n = 1;
+        while (m_workspace->children.count(name) > 0)
+            name = "Cube" + std::to_string(n++);
+        cube->Name = name;
+        m_workspace->addChild(cube);
+    }
+
+    // ---- Save / Load（右端）----
+    float saveLoadW = btnSz.x * 2 + ImGui::GetStyle().ItemSpacing.x;
+    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - saveLoadW - 8.0f);
+
+    ImGui::Button("Save", btnSz);
+    ImGui::SameLine();
+    ImGui::Button("Load", btnSz);
 
     ImGui::End();
 }

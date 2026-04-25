@@ -5,6 +5,7 @@
 #include <include/imgui/imgui.h>
 #include <include/imgui/ImGuizmo.h>
 #include <Instances/Instance.hpp>
+#include <Instances/Workspace.hpp>
 #include <Math/Matrix4.hpp>
 #include <Core/User.hpp>
 
@@ -22,9 +23,11 @@ public:
 
     // ギズモ操作モード
     ImGuizmo::OPERATION gizmoOp = ImGuizmo::TRANSLATE;
+    bool selectOnly = false;  // true のとき ImGuizmo を描画しない
 
     Instance** selectedInstance = nullptr;  // SceneHierarchyPanel と共有
     User*      user             = nullptr;
+    Workspace* workspace        = nullptr;
 
     // フォーカス状態管理フラグ
     bool isViewportFocused = false;    // このViewportが現在フォーカスされているか
