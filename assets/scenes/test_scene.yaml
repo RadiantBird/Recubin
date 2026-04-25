@@ -49,10 +49,20 @@ Root:
           Properties: { Face: 5, Texture: "assets/image/Limabis_logo.png" }
 
     # スクリプト
+    # - ClassName: Script
+    #   Name: TestScript
+    #   Properties:
+    #     Source: "scripts/test.luau"
+
     - ClassName: Script
-      Name: TestScript
+      Name: 2006
       Properties:
-        Source: "scripts/test.luau"
+        Source: "scripts/2006.luau"
+
+    # - ClassName: Script
+    #   Name: Hello
+    #   Properties:
+    #     Source: "scripts/hello.luau"
 
     # 床
     - ClassName: Cube

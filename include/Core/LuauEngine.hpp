@@ -33,6 +33,9 @@ private:
     static constexpr const char* RCBN_INST_METATABLE = "RCBN_Instance";
     static constexpr const char* RCBN_VEC3_METATABLE = "RCBN_Vector3";
     static constexpr const char* RCBN_COLOR4_METATABLE = "RCBN_Color4";
+
+    static constexpr const char* ERIK = "erik";
+
     static constexpr const int NIL = 0;
 
 public:
@@ -69,6 +72,9 @@ private:
     static int global_add(lua_State* L);
     static int global_print_message(lua_State* L);
     static int wait(lua_State* L);
+
+    static int erik_index(lua_State* L);
+    static int erik_tostring(lua_State* L);
 
 public:
     LuauEngine();

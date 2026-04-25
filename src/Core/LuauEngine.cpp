@@ -145,6 +145,13 @@ void LuauEngine::InitMetatables() {
     lua_setfield(L, -2, "__newindex");
     lua_pushcfunction(L, color4_tostring, "color4_tostring");
     lua_setfield(L, -2, "__tostring");
+
+    // The legend who built something nice
+    luaL_newmetatable(L, ERIK);
+    lua_pushcfunction(L, erik_index, "erik_index");
+    lua_setfield(L, -2, "__index");
+    lua_pushcfunction(L, erik_tostring, "erik_tostring");
+    lua_setfield(L, -2, "__tostring");
     lua_pop(L, 1);
 
     // グローバル関数を登録
@@ -163,6 +170,11 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     lua_pushcfunction(L, color4_constructor, "new");
     lua_setfield(L, -2, "new");
     lua_setglobal(L, "Color4");
+
+    lua_newtable(L);
+    luaL_getmetatable(L, ERIK);
+    lua_setmetatable(L, -2);
+    lua_setglobal(L, ERIK);
 
     // Register custom global functions
     lua_pushcfunction(L, global_add, "add");
@@ -514,6 +526,22 @@ int LuauEngine::global_print_message(lua_State* L) {
     std::cout << "[Luau] " << msg << std::endl;
     if (g_luauLogHook) g_luauLogHook(msg);
     return 0;
+}
+
+int LuauEngine::erik_tostring(lua_State* L) {
+    lua_pushstring(L, "What is the most important part of a sandwich?");
+    return 1;
+}
+
+int LuauEngine::erik_index(lua_State* L) {
+    std::cout << "erik index called!\n";
+    // L, 1 is table (maybe self)
+    std::string_view key = luaL_checkstring(L, 2);
+    RCBN_LOG(key);
+    if (key == "cassel") {
+        lua_pushstring(L, "Who you share it with.");
+        return 1;
+    }
 }
 
 void LuauEngine::setWorkspace(Workspace* ws) {
