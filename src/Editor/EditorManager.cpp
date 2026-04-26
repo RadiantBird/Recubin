@@ -12,6 +12,7 @@
 
 EditorManager::EditorManager(Workspace* workspace, User* user) {
     m_workspace = workspace;
+    m_user      = user;
 
     consolePanel        = std::make_unique<ConsolePanel>();
     hierarchyPanel      = std::make_unique<SceneHierarchyPanel>();
@@ -31,6 +32,9 @@ EditorManager::EditorManager(Workspace* workspace, User* user) {
 }
 
 void EditorManager::render() {
+    // Edit モード中は L キーによるモード切替をブロック
+    if (m_user) m_user->allowControlModeSwitch = !isEditMode();
+
     // ---- 全画面 DockSpace ----
     ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(vp->WorkPos);
@@ -118,7 +122,10 @@ void EditorManager::renderToolbar() {
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.18f, 0.18f, 1.0f));
-        if (ImGui::Button("  Stop  ", btnSz)) mode = EditorMode::Edit;
+        if (ImGui::Button("  Stop  ", btnSz)) {
+            mode = EditorMode::Edit;
+            if (m_user) m_user->controlMode = User::ControlMode::Free;
+        }
         ImGui::PopStyleColor();
     }
 
@@ -172,15 +179,21 @@ void EditorManager::renderToolbar() {
         m_workspace->addChild(cube);
     }
 
-    // ---- Save / Load（右端）----
+    // ---- Save / Load（右端、同一行に揃える）----
     float saveLoadW = btnSz.x * 2 + ImGui::GetStyle().ItemSpacing.x;
-    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - saveLoadW - 8.0f);
+    ImGui::SameLine(ImGui::GetWindowWidth() - saveLoadW - 8.0f);
 
     ImGui::Button("Save", btnSz);
     ImGui::SameLine();
     ImGui::Button("Load", btnSz);
 
     ImGui::End();
+}
+
+void EditorManager::setWorkspace(Workspace* ws) {
+    m_workspace                  = ws;
+    hierarchyPanel->workspace    = ws;
+    viewportPanel->workspace     = ws;
 }
 
 void EditorManager::beginViewportRender() {

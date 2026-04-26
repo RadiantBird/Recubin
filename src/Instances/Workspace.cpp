@@ -25,6 +25,7 @@ Workspace::~Workspace() {
     this->children.clear();
     
     for (Instance* child : toDelete) {
+        child->Parent = nullptr;
         delete child;
     }
 }

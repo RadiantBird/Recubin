@@ -40,6 +40,9 @@ public:
     // DockSpace + 全パネルを描画する（ImGui フレーム内で呼ぶ）
     void render();
 
+    // Stop 後の workspace リロード時に全パネルのポインタを一括更新する
+    void setWorkspace(Workspace* ws);
+
     // ViewportPanel の FBO へ 3D シーン描画を開始する前に呼ぶ
     void beginViewportRender();
 
@@ -53,6 +56,7 @@ public:
 
 private:
     Workspace* m_workspace = nullptr;
+    User*      m_user      = nullptr;
     void renderToolbar();
     void applyTheme();
 };

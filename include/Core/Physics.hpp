@@ -34,5 +34,7 @@ public:
     void recreateActor(BaseCube* cube);
     void removeCube(BaseCube* cube);
 
+    void clearCubes() { cubes.clear(); }
+
     bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, physx::PxRigidActor* ignoreActor = nullptr);
 };

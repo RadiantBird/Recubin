@@ -144,6 +144,7 @@ int main() {
         }
         if (!isPlaying && wasPlaying) {
             user->despawnCharacter();
+            physics->clearCubes();                // stale ポインタをベクターから除去
             system->removeChild(workspace->Name); // removeChild が delete まで行う
             workspace = static_cast<Workspace*>(
                 SceneLoader::loadScene("assets/scenes/test_scene.yaml"));
@@ -153,7 +154,7 @@ int main() {
             luauEngine->setGlobalInstance(workspace->Name, workspace);
             luauEngine->setGlobalInstance("workspace", workspace);
             luauEngine->setWorkspace(workspace);
-            renderer->editor->hierarchyPanel->workspace = workspace;
+            renderer->editor->setWorkspace(workspace); // 全パネルのポインタを一括更新
         }
         wasPlaying = isPlaying;
 

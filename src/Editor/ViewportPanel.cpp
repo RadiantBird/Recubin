@@ -101,16 +101,17 @@ void ViewportPanel::onRender() {
     // Viewport領域内でのマウスホバー状態を更新
     isHoveringViewport = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
     
-    // Viewport外でクリックされたらフォーカスを解除
-    if (!isHoveringViewport && ImGui::IsMouseClicked(0)) {
+    // Viewport外でクリック（左右）されたらフォーカスを解除
+    if (!isHoveringViewport && (ImGui::IsMouseClicked(0) || ImGui::IsMouseClicked(1))) {
         if (isViewportFocused) {
             ViewportFocusManager::getInstance().clearFocus();
         }
     }
 
     // Viewportがクリックされたときにフォーカスを設定（排他制御）
-    if (isHoveringViewport && ImGui::IsMouseClicked(0)) {
+    if (isHoveringViewport && (ImGui::IsMouseClicked(0) || ImGui::IsMouseClicked(1))) {
         ViewportFocusManager::getInstance().onFocusViewport(this);
+        ImGui::SetWindowFocus();  // ImGui のウィンドウフォーカスも更新
     }
 
     if (isHoveringViewport && ImGui::GetIO().MouseWheel != 0.0f) {

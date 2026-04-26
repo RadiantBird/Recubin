@@ -28,6 +28,7 @@ public:
     float walkCycle = 0.0f; // 歩行アニメーション用
     Vector3 currentMoveDir; // 滑らかな移動・回転用
     bool lastFKeyPressed = false; // トグル判定用
+    bool allowControlModeSwitch = true; // false のとき L キーをブロック
     bool lastSpacePressed = false; // ジャンプ用
     bool isGrounded = true; // 接地状態
     camera current_camera;
