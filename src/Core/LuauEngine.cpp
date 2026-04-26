@@ -1,4 +1,5 @@
 #include "include/Core/LuauEngine.hpp"
+#include "include/Core/Physics.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/Decal.hpp"
 #include "include/Util/Logger.hpp"
@@ -57,6 +58,15 @@ void LuauEngine::InitDispatchTable() {
     DispatchTable["Decal"]["Face"] = [](lua_State* L, Instance* obj) {
         auto decal = static_cast<Decal*>(obj);
         lua_pushnumber(L, (int)decal->face);
+        return 1;
+    };
+
+    DispatchTable["Workspace"]["Raycast"] = [](lua_State* L, Instance* obj) {
+        Instance** userdata = (Instance**)lua_newuserdata(L, sizeof(Instance*));
+        *userdata = obj;
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        lua_pushcclosure(L, workspace_raycast_closure, "Raycast", 1);
         return 1;
     };
 }
@@ -163,6 +173,11 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     lua_newtable(L);
     lua_pushcfunction(L, vec3_constructor, "new");
     lua_setfield(L, -2, "new");
+    Vector3* zeroVec = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+    *zeroVec = Vector3(0.0f, 0.0f, 0.0f);
+    luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+    lua_setmetatable(L, -2);
+    lua_setfield(L, -2, "zero");
     lua_setglobal(L, "Vector3");
 
     // Register Color4 with new method
@@ -382,6 +397,55 @@ bool LuauEngine::execute(Script& script) {
     }
 }
 
+// ==================== Workspace Methods ====================
+int LuauEngine::workspace_raycast_closure(lua_State* L) {
+    Instance** ptr = (Instance**)lua_touserdata(L, lua_upvalueindex(1));
+    Workspace* ws = static_cast<Workspace*>(*ptr);
+
+    // L[1] = self, L[2] = origin, L[3] = direction, L[4] = params (ignored)
+    Vector3* origin    = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+    Vector3* direction = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
+
+    Physics* physics = ws->getPhysicsEngine();
+    if (!physics) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    RaycastHit hit;
+    // NOTE: 最大距離が1000ユニットなので拡大は要検討
+    bool didHit = physics->raycast(*origin, *direction, 1000.0f, hit);
+
+    if (!didHit || !hit.hit) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_newtable(L);
+
+    lua_pushnumber(L, hit.distance);
+    lua_setfield(L, -2, "Distance");
+
+    Vector3* pos = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+    *pos = hit.position;
+    luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+    lua_setmetatable(L, -2);
+    lua_setfield(L, -2, "Position");
+
+    if (hit.instance) {
+        Instance** instPtr = (Instance**)lua_newuserdata(L, sizeof(Instance*));
+        *instPtr = hit.instance;
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        lua_setfield(L, -2, "Instance");
+    } else {
+        lua_pushnil(L);
+        lua_setfield(L, -2, "Instance");
+    }
+
+    return 1;
+}
+
 // ==================== Vector3 Methods ====================
 int LuauEngine::vec3_constructor(lua_State* L) {
     float x = (float)luaL_checknumber(L, 1);
@@ -395,6 +459,15 @@ int LuauEngine::vec3_constructor(lua_State* L) {
     lua_setmetatable(L, -2);
     return 1;
 }
+
+// int LuauEngine::vec3_zeroconstructor(lua_State* L) {
+//     Vector3* vec = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+//     *vec = Vector3(0.0f, 0.0f, 0.0f);
+
+//     luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+//     lua_setmetatable(L, -2);
+//     return 1;
+// }
 
 int LuauEngine::vec3_index(lua_State* L) {
     Vector3* vec = (Vector3*)luaL_checkudata(L, 1, RCBN_VEC3_METATABLE);
@@ -564,7 +637,6 @@ int LuauEngine::erik_tostring(lua_State* L) {
 }
 
 int LuauEngine::erik_index(lua_State* L) {
-    std::cout << "erik index called!\n";
     // L, 1 is table (maybe self)
     std::string_view key = luaL_checkstring(L, 2);
     RCBN_LOG(key);

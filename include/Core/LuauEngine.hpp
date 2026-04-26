@@ -57,11 +57,15 @@ private:
     static int instance_tostring(lua_State* L);
     static int instance_find_child_closure(lua_State* L);
 
+    // Workspace methods
+    static int workspace_raycast_closure(lua_State* L);
+
     // Vector3 methods
     static int vec3_index(lua_State* L);
     static int vec3_newindex(lua_State* L);
     static int vec3_tostring(lua_State* L);
     static int vec3_constructor(lua_State* L);
+    // static int vec3_zeroconstructor(lua_State* L);
 
     // Color4 methods
     static int color4_index(lua_State* L);

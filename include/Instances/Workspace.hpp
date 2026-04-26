@@ -39,4 +39,6 @@ class Workspace : public Instance {
 
         // Physics エンジンをセット
         void setPhysicsEngine(Physics* engine) { physicsEngine = engine; }
+
+        Physics* getPhysicsEngine() const { return physicsEngine; }
 };
