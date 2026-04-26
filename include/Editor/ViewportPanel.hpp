@@ -1,5 +1,9 @@
 #pragma once
 #include <Editor/EditorPanel.hpp>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 #include <include/GL/glew.h>
 #include <include/GLFW/glfw3.h>
 #include <include/imgui/imgui.h>

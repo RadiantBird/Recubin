@@ -38,6 +38,8 @@ target_include_directories(Recubin PRIVATE
 # --- 6. リンク設定 ---
 set(LIB_DIR "${CMAKE_SOURCE_DIR}/include/libs")
 
+target_link_options(Recubin PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>)
+
 target_link_libraries(Recubin PRIVATE
     "${LIB_DIR}/glfw3.lib"
     "${LIB_DIR}/glew32s.lib"

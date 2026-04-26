@@ -644,6 +644,7 @@ int LuauEngine::erik_index(lua_State* L) {
         lua_pushstring(L, "Who you share it with.");
         return 1;
     }
+    return 0;
 }
 
 void LuauEngine::setWorkspace(Workspace* ws) {
