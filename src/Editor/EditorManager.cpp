@@ -171,7 +171,7 @@ void EditorManager::renderToolbar() {
 
     // ---- New Cube ----
     if (ImGui::Button("New Cube", btnSz) && m_workspace) {
-        auto* cube = new Cube(Vector3(0, 5, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+        auto cube = std::make_shared<Cube>(Vector3(0, 5, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
         std::string name = "Cube";
         int n = 1;
         while (m_workspace->children.count(name) > 0)

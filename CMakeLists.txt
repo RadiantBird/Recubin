@@ -5,8 +5,9 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # --- 1. MSVC ランタイム設定 (修正済み) ---
-# /MD (Release) と /MDd (Debug) を適切に切り替えます
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+# 依存ライブラリが Release ランタイム (/MD) でビルドされているため、
+# Debug 構成でも /MD を使ってランタイム不一致を避けます
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 
 # --- 2. グローバル設定 ---
 add_compile_options(
@@ -26,6 +27,7 @@ add_executable(Recubin ${SOURCES})
 target_compile_definitions(Recubin PRIVATE 
     YAML_CPP_STATIC_LIBRARIES
     GLEW_STATIC
+    $<$<CONFIG:Debug>:NDEBUG>
 )
 
 # --- 5. インクルードパス ---

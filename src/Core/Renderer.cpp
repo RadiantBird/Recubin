@@ -197,12 +197,12 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
             }
         }
         for (auto const& [name, child] : inst->getChildren()) {
-            self(self, child);
+            self(self, child.get());
         }
     };
 
     for (auto const& [name, child] : workspace.getChildren()) {
-        renderInstances(renderInstances, child);
+        renderInstances(renderInstances, child.get());
     }
 }
 

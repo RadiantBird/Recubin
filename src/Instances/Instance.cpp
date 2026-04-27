@@ -15,44 +15,44 @@ void Instance::onAncestorChanged() {
     }
 }
 
-void Instance::setParent(Instance* newParent) {
-    if (this->Parent == newParent) return;
+void Instance::setParent(std::shared_ptr<Instance> newParent) {
+    auto currentParent = this->Parent.lock();
+    if (currentParent == newParent) return;
 
     // 循環参照の防止（親が自分自身や自分の子孫にならないか）
-    Instance* check = newParent;
+    std::shared_ptr<Instance> check = newParent;
     while (check != nullptr) {
-        if (check == this) {
+        if (check.get() == this) {
             RCBN_ERROR("setParent failed: Circular reference detected! Cannot set " << this->Name << " as child of its own descendant.");
             return;
         }
-        check = check->Parent;
+        check = check->Parent.lock();
     }
 
     // 古い親のリストから自分を削除
-    if (this->Parent != nullptr) {
-        this->Parent->children.erase(this->Name);
+    if (currentParent) {
+        currentParent->children.erase(this->Name);
     }
 
     // 新しい親をセット
     this->Parent = newParent;
 
     // 新しい親のリストに自分を追加
-    if (this->Parent != nullptr) {
-        // 同名の子がいる場合は上書きされる（警告を出すのが親切）
-        if (this->Parent->children.count(this->Name) > 0) {
-            RCBN_WARN("setParent: Key collision for '" << this->Name << "' in " << this->Parent->Name << ". Overwriting existing child.");
+    if (newParent) {
+        if (newParent->children.count(this->Name) > 0) {
+            RCBN_WARN("setParent: Key collision for '" << this->Name << "' in " << newParent->Name << ". Overwriting existing child.");
         }
-        this->Parent->children[this->Name] = this;
+        newParent->children[this->Name] = shared_from_this();
     }
 
     this->onAncestorChanged();
 }
 
 Instance* Instance::findFirstAncestorWorkspace() {
-    Instance* current = this->Parent;
+    auto current = this->Parent.lock();
     while (current) {
-        if (current->IsA("Workspace")) return current;
-        current = current->Parent;
+        if (current->IsA("Workspace")) return current.get();
+        current = current->Parent.lock();
     }
     return nullptr;
 }
@@ -75,42 +75,41 @@ bool Instance::IsA(std::string className) {
 Instance* Instance::getChild(string child_name) {
     auto it = this->children.find(child_name);
     if (it != this->children.end()) {
-        return it->second;
+        return it->second.get();
     }
     return nullptr;
 }
 
-const std::unordered_map<std::string, Instance*>& Instance::getChildren() {
+const std::unordered_map<std::string, std::shared_ptr<Instance>>& Instance::getChildren() {
     return this->children;
 }
 
-void Instance::addChild(Instance* child) {
+void Instance::addChild(std::shared_ptr<Instance> child) {
     if (child == nullptr) {
         RCBN_WARN("addChild called but child is nullptr!");
         return;
     }
 
-    child->setParent(this);
+    child->setParent(shared_from_this());
 }
 
 bool Instance::removeChild(string name) {
-    Instance* child = getChild(name);
-    if (child) {
-        this->children.erase(name);
-        child->Parent = nullptr;
-        delete child;
+    auto it = this->children.find(name);
+    if (it != this->children.end()) {
+        it->second->Parent = {};
+        this->children.erase(it);
         return true;
     }
     return false;
 }
 
 std::string Instance::getFullPath() {
-    Instance* current = this;
-    std::vector<string> data = {current->Name};
+    std::vector<string> data = {this->Name};
 
-    while (current->Parent != nullptr) {
-        current = current->Parent;
-        data.push_back(current->Name);
+    auto parent = this->Parent.lock();
+    while (parent) {
+        data.push_back(parent->Name);
+        parent = parent->Parent.lock();
     }
 
     std::reverse(data.begin(), data.end());
@@ -132,11 +131,11 @@ void Instance::setProperty(const std::string& name, const YAML::Node& value) {
         string newName = value.as<std::string>();
         if (this->Name == newName) return;
 
-        // 親がいる場合は、親のマップ内のキーを更新する必要がある
-        if (this->Parent != nullptr) {
-            this->Parent->children.erase(this->Name);
+        auto parent = this->Parent.lock();
+        if (parent) {
+            parent->children.erase(this->Name);
             this->Name = newName;
-            this->Parent->children[this->Name] = this;
+            parent->children[this->Name] = shared_from_this();
         } else {
             this->Name = newName;
         }
@@ -144,17 +143,6 @@ void Instance::setProperty(const std::string& name, const YAML::Node& value) {
 }
 
 Instance::~Instance() {
-    // RCBN_LOG("Instance Destructor: " << this->Name << " (" << this->GetClassName() << ")");
-    assert(Parent == nullptr && "Instance deleted directly while still owned by a parent. Use parent->removeChild() instead.");
-
-    std::vector<Instance*> toDelete;
-    for (auto const& [_, child] : this->children) {
-        toDelete.push_back(child);
-    }
+    assert(Parent.expired() && "Instance deleted while still owned by a parent.");
     this->children.clear();
-    for (Instance* child : toDelete) {
-        child->Parent = nullptr;
-        // Hello world! And in case I don’t see ya, good pointer, good borrowing, and goodbye world!
-        delete child;
-    }
 }

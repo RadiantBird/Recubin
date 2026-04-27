@@ -82,7 +82,7 @@ int main() {
     auto renderer     = std::make_unique<Renderer>();
     auto physics      = std::make_unique<Physics>();
     auto audioService = std::make_unique<AudioService>();
-    auto system       = std::make_unique<Instance>("System");
+    auto system       = std::make_shared<Instance>("System");
     auto luauEngine   = std::make_unique<LuauEngine>();
     auto user         = std::make_unique<User>(window);
 
@@ -94,11 +94,11 @@ int main() {
         return -1;
     }
 
-    Workspace* workspace = static_cast<Workspace*>(
+    auto workspace = std::static_pointer_cast<Workspace>(
         SceneLoader::loadScene("assets/scenes/test_scene.yaml"));
     if (!workspace) {
         std::cerr << "[ERROR] Failed to load scene. Creating empty workspace.\n";
-        workspace = new Workspace();
+        workspace = std::make_shared<Workspace>();
     }
     system->addChild(workspace);
 
@@ -111,14 +111,14 @@ int main() {
     unsigned int bliss    = renderer->loadTexture("assets/image/bliss.jpg");
     unsigned int limabis  = renderer->loadTexture("assets/image/Limabis_logo.png");
 
-    luauEngine->setGlobalInstance(workspace->Name, workspace);
-    luauEngine->setGlobalInstance("workspace", workspace);
-    luauEngine->setWorkspace(workspace);
+    luauEngine->setGlobalInstance(workspace->Name, workspace.get());
+    luauEngine->setGlobalInstance("workspace", workspace.get());
+    luauEngine->setWorkspace(workspace.get());
 
     // ===================================================
     //  EditorManager を Renderer に接続
     // ===================================================
-    renderer->editor = std::make_unique<EditorManager>(workspace, user.get());
+    renderer->editor = std::make_unique<EditorManager>(workspace.get(), user.get());
     RCBN_LOG("Editor initialized.");
 
     float lastFrame = static_cast<float>(glfwGetTime());
@@ -140,27 +140,27 @@ int main() {
         if (isPlaying && !wasPlaying) {
             user->spawnCharacter();
             if (user->character) workspace->addChild(user->character);
-            if (user->head) user->head->addChild(new Decal(smile, Face::Front));
+            if (user->head) user->head->addChild(std::make_shared<Decal>(smile, Face::Front));
         }
         if (!isPlaying && wasPlaying) {
             user->despawnCharacter();
             physics->clearCubes();                // stale ポインタをベクターから除去
-            system->removeChild(workspace->Name); // removeChild が delete まで行う
-            workspace = static_cast<Workspace*>(
+            system->removeChild(workspace->Name);
+            workspace = std::static_pointer_cast<Workspace>(
                 SceneLoader::loadScene("assets/scenes/test_scene.yaml"));
-            if (!workspace) workspace = new Workspace();
+            if (!workspace) workspace = std::make_shared<Workspace>();
             system->addChild(workspace);
             workspace->setPhysicsEngine(physics.get());
-            luauEngine->setGlobalInstance(workspace->Name, workspace);
-            luauEngine->setGlobalInstance("workspace", workspace);
-            luauEngine->setWorkspace(workspace);
-            renderer->editor->setWorkspace(workspace); // 全パネルのポインタを一括更新
+            luauEngine->setGlobalInstance(workspace->Name, workspace.get());
+            luauEngine->setGlobalInstance("workspace", workspace.get());
+            luauEngine->setWorkspace(workspace.get());
+            renderer->editor->setWorkspace(workspace.get()); // 全パネルのポインタを一括更新
         }
         wasPlaying = isPlaying;
 
         // ---- エディターモード中は物理・スクリプトを止める ----
         if (isPlaying && !isPaused) {
-            physics->update(*workspace, deltaTime);
+            physics->update(*workspace.get(), deltaTime);
             luauEngine->update(deltaTime);
             luauEngine->executeWorkspaceScripts();
         }
@@ -174,7 +174,7 @@ int main() {
 
         // ---- 描画 ----
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        renderer->render(*user, window, *workspace);
+        renderer->render(*user, window, *workspace.get());
 
         audioService->updateSounds();
     }

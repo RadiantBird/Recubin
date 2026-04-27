@@ -8,6 +8,7 @@
 #include <Instances/Sound.hpp>
 #include <Core/AudioService.hpp>
 #include <iostream>
+#include <memory>
 
 // YAML -> Vector3 変換
 namespace YAML {
@@ -35,7 +36,7 @@ namespace YAML {
     };
 }
 
-Instance* SceneLoader::loadScene(const std::string& filePath) {
+std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
     try {
         YAML::Node config = YAML::LoadFile(filePath);
         if (!config["Root"]) {
@@ -49,11 +50,11 @@ Instance* SceneLoader::loadScene(const std::string& filePath) {
     }
 }
 
-Instance* SceneLoader::parseInstance(const YAML::Node& node) {
+std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
     if (!node["ClassName"]) return nullptr;
 
     std::string className = node["ClassName"].as<std::string>();
-    Instance* instance = createInstance(className);
+    std::shared_ptr<Instance> instance = createInstance(className);
 
     if (!instance) {
         if (className == "Sound" && !AudioService::instance) {
@@ -80,7 +81,7 @@ Instance* SceneLoader::parseInstance(const YAML::Node& node) {
     // 子要素の解析
     if (node["Children"]) {
         for (const auto& childNode : node["Children"]) {
-            Instance* child = parseInstance(childNode);
+            std::shared_ptr<Instance> child = parseInstance(childNode);
             if (child) {
                 instance->addChild(child);
             }
@@ -90,18 +91,18 @@ Instance* SceneLoader::parseInstance(const YAML::Node& node) {
     return instance;
 }
 
-Instance* SceneLoader::createInstance(const std::string& className) {
-    if (className == "Workspace") return new Workspace();
-    if (className == "Cube")      return new Cube(Vector3(0,0,0), Vector3(1,1,1), 0);
-    if (className == "Script")    return new Script("");
-    if (className == "Model")     return new Model();
-    if (className == "Decal")     return new Decal(0, Face::Front);
+std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& className) {
+    if (className == "Workspace") return std::make_shared<Workspace>();
+    if (className == "Cube")      return std::make_shared<Cube>(Vector3(0,0,0), Vector3(1,1,1), 0);
+    if (className == "Script")    return std::make_shared<Script>("");
+    if (className == "Model")     return std::make_shared<Model>();
+    if (className == "Decal")     return std::make_shared<Decal>(0, Face::Front);
     if (className == "Sound") {
         if (AudioService::instance) {
-            return new Sound(*AudioService::instance);
+            return std::make_shared<Sound>(*AudioService::instance);
         }
         return nullptr;
     }
-    
+
     return nullptr;
 }

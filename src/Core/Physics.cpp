@@ -205,7 +205,7 @@ void Physics::update(Workspace& workspace, float dt) {
     while (it != cubes.end()) {
         BaseCube* cube = *it;
         // actor が nullptr か、Workspace の子孫でなくなった場合は削除
-        if (!cube->actor || !cube->Parent) {
+        if (!cube->actor || cube->Parent.expired()) {
             if (cube->actor) {
                 scene->removeActor(*cube->actor);
                 cube->actor->release();

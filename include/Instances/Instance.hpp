@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -12,18 +13,17 @@
     #undef GetClassName // これでInstance::GetClassNameがAに化けるのを防ぐ
 #endif
 
-// TODO: Instance自体も普段はweak_ptrで管理するようにし、削除済みなら処理をキャンセルするようにする(ほかのプログラムで)
-class Instance {
+class Instance : public std::enable_shared_from_this<Instance> {
     protected:
         using string = std::string;
     public:
         string Name = "Instance";
 
-        Instance* Parent = nullptr; // TODO: weak_ptrにする
-        std::unordered_map<string, Instance*> children = {}; // TODO: shared_ptrにする
+        std::weak_ptr<Instance> Parent;
+        std::unordered_map<string, std::shared_ptr<Instance>> children = {};
 
         virtual void onAncestorChanged();
-        virtual void setParent(Instance* newParent);
+        virtual void setParent(std::shared_ptr<Instance> newParent);
 
         Instance* findFirstAncestorWorkspace();
 
@@ -36,9 +36,9 @@ class Instance {
         virtual void setProperty(const std::string& name, const YAML::Node& value);
 
         Instance* getChild(string child_name);
-        const std::unordered_map<string, Instance*>& getChildren();
+        const std::unordered_map<string, std::shared_ptr<Instance>>& getChildren();
 
-        virtual void addChild(Instance* child);
+        virtual void addChild(std::shared_ptr<Instance> child);
         bool removeChild(string name);
 
         string getFullPath();

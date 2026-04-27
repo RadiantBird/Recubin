@@ -8,6 +8,7 @@ private:
     bool loaded = false;
     bool looping = false;
     std::string soundGroup = "SFX";
+    std::string m_currentPath = "";
 
 public:
     Sound(AudioService& service, const std::string& path = "");

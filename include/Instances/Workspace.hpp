@@ -34,9 +34,6 @@ class Workspace : public Instance {
         
         bool IsA(std::string className) override;
 
-        // For debugging
-        void buildTestSpace();
-
         // Physics エンジンをセット
         void setPhysicsEngine(Physics* engine) { physicsEngine = engine; }
 

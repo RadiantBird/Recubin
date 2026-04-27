@@ -36,6 +36,7 @@ void Sound::setProperty(const std::string& name, const YAML::Node& value) {
             ma_sound_group* targetGroup = (soundGroup == "BGM") ? &AudioService::instance->groupBGM : &AudioService::instance->groupSFX;
             if (ma_sound_init_from_file(&AudioService::instance->engine, path.c_str(), flags, targetGroup, NULL, &sound) == MA_SUCCESS) {
                 loaded = true;
+                m_currentPath = path;
                 if (looping) ma_sound_set_looping(&sound, true);
                 std::cout << "[DEBUG] Audio loaded via setProperty: " << path << std::endl;
             }
@@ -44,10 +45,19 @@ void Sound::setProperty(const std::string& name, const YAML::Node& value) {
         setLooping(value.as<bool>());
     } else if (name == "SoundGroup") {
         this->soundGroup = value.as<std::string>();
-        // ※ すでにロードされている場合にグループを動的に変更するには re-init が必要ですが、
-        // 現状はロード前に設定されることを想定するか、SoundId設定時に反映されるようにします。
-
-        // TODO: この問題をどうにかする
+        if (loaded && AudioService::instance && !m_currentPath.empty()) {
+            ma_sound_uninit(&sound);
+            loaded = false;
+            ma_uint32 flags = MA_SOUND_FLAG_DECODE;
+            ma_sound_group* targetGroup = (soundGroup == "BGM")
+                ? &AudioService::instance->groupBGM
+                : &AudioService::instance->groupSFX;
+            if (ma_sound_init_from_file(&AudioService::instance->engine,
+                    m_currentPath.c_str(), flags, targetGroup, NULL, &sound) == MA_SUCCESS) {
+                loaded = true;
+                if (looping) ma_sound_set_looping(&sound, true);
+            }
+        }
     } else if (name == "Playing") {
         if (value.as<bool>()) {
             play();
@@ -70,14 +80,15 @@ void Sound::update3D() {
     if (!loaded) return;
 
     // Parentがいない、またはSpatialでない場合は、3D計算をせず標準音量で鳴らす
-    if (!Parent || !Parent->IsA("Spatial")) {
+    auto parentPtr = Parent.lock();
+    if (!parentPtr || !parentPtr->IsA("Spatial")) {
         ma_sound_set_volume(&sound, 1.0f);
         ma_sound_set_pan(&sound, 0.0f); // 中央
         return;
     }
 
     // ここからは空間配置されている場合の計算
-    Spatial* ps = static_cast<Spatial*>(Parent);
+    Spatial* ps = static_cast<Spatial*>(parentPtr.get());
     Vector3 relativePos = this->Position - ps->Position;
     float dist = relativePos.length();
 

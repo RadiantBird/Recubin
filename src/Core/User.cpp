@@ -30,23 +30,15 @@ User::User(GLFWwindow* win)
 
 // 文字化けなんとかしてくれ、アセンブリですか（笑）
 User::~User() {
-    if (character) {
-        // Workspaceなどの親がいる場合は、親側のデストラクタで削除されるため二重解放を避ける
-        if (character->Parent == nullptr) {
-            RCBN_LOG("User Destructor: Cleaning up orphaned character");
-            delete character;
-        } else {
-            RCBN_LOG("User Destructor: Character is owned by Workspace, skipping manual delete");
-        }
-        character = nullptr;
-        root = nullptr;
-        torso = nullptr;
-        head = nullptr;
-        leftArm = nullptr;
-        rightArm = nullptr;
-        leftLeg = nullptr;
-        rightLeg = nullptr;
-    }
+    // shared_ptr なので参照カウントが 0 になれば自動解放される
+    character = nullptr;
+    root = nullptr;
+    torso = nullptr;
+    head = nullptr;
+    leftArm = nullptr;
+    rightArm = nullptr;
+    leftLeg = nullptr;
+    rightLeg = nullptr;
 }
 
 
@@ -320,10 +312,9 @@ void User::processInput(Physics* physics) {
 
 void User::despawnCharacter() {
     if (!character) return;
-    if (character->Parent) {
-        character->Parent->removeChild(character->Name); // removeChild が delete まで行う
-    } else {
-        delete character;
+    auto parent = character->Parent.lock();
+    if (parent) {
+        parent->removeChild(character->Name);
     }
     character = nullptr;
     root      = nullptr;
@@ -340,17 +331,17 @@ void User::spawnCharacter() {
         despawnCharacter();
     }
 
-    character = new Model(Vector3(5.0f, 10.0f, 5.0f), Vector3(1, 1, 1));
+    character = std::make_shared<Model>(Vector3(5.0f, 10.0f, 5.0f), Vector3(1, 1, 1));
     Vector3 basePos = character->Position;
-    
+
     // パーツ生成
-    root      = new Cube(basePos, Vector3(2.0f, 4.0f, 1.0f), 0); 
-    head      = new Cube(basePos, Vector3(1.0f, 1.0f, 1.0f), 0);
-    torso     = new Cube(basePos, Vector3(2.0f, 2.0f, 1.0f), 0);
-    leftArm   = new Cube(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
-    rightArm  = new Cube(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
-    leftLeg   = new Cube(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
-    rightLeg  = new Cube(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    root      = std::make_shared<Cube>(basePos, Vector3(2.0f, 4.0f, 1.0f), 0);
+    head      = std::make_shared<Cube>(basePos, Vector3(1.0f, 1.0f, 1.0f), 0);
+    torso     = std::make_shared<Cube>(basePos, Vector3(2.0f, 2.0f, 1.0f), 0);
+    leftArm   = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    rightArm  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    leftLeg   = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    rightLeg  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
 
     // 1. 名前を最初に設定（重要：addChildの前に設定して重複キーを避ける）
     root->Name     = "Root";

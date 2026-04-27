@@ -184,7 +184,7 @@ void ViewportPanel::onRender() {
                     }
                 }
             }
-            for (auto const& [_, child] : inst->getChildren()) self(self, child);
+            for (auto const& [_, child] : inst->getChildren()) self(self, child.get());
         };
         visit(visit, workspace);
         outAxis = foundAxis;
@@ -213,7 +213,7 @@ void ViewportPanel::onRender() {
                     p[axis] += (d >= 0.0f ? oa[axis] : -oa[axis]);
                 }
             }
-            for (auto const& [_, child] : inst->getChildren()) self(self, child);
+            for (auto const& [_, child] : inst->getChildren()) self(self, child.get());
         };
         visit(visit, workspace);
         return p[axis];
@@ -240,7 +240,7 @@ void ViewportPanel::onRender() {
                         pos.z += (dz >= 0.0f ? oz : -oz);
                 }
             }
-            for (auto const& [_, child] : inst->getChildren()) self(self, child);
+            for (auto const& [_, child] : inst->getChildren()) self(self, child.get());
         };
         visit(visit, workspace);
         return pos;
@@ -288,7 +288,7 @@ void ViewportPanel::onRender() {
                 }
             }
             for (auto const& [_, child] : inst->getChildren())
-                self(self, child);
+                self(self, child.get());
         };
         castRay(castRay, workspace);
 

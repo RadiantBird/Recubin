@@ -35,14 +35,14 @@ public:
     
     camera &cam;
     Vector3 &cpos;
-    Model *character = nullptr;
-    Cube *root = nullptr; // 追加: キャラクターのルート（全体をまとめる）
-    Cube *torso = nullptr;
-    Cube *head = nullptr;
-    Cube *leftArm = nullptr;
-    Cube *rightArm = nullptr;
-    Cube *leftLeg = nullptr;
-    Cube *rightLeg = nullptr;
+    std::shared_ptr<Model> character = nullptr;
+    std::shared_ptr<Cube> root = nullptr; // キャラクターのルート（全体をまとめる）
+    std::shared_ptr<Cube> torso = nullptr;
+    std::shared_ptr<Cube> head = nullptr;
+    std::shared_ptr<Cube> leftArm = nullptr;
+    std::shared_ptr<Cube> rightArm = nullptr;
+    std::shared_ptr<Cube> leftLeg = nullptr;
+    std::shared_ptr<Cube> rightLeg = nullptr;
 
     enum class ControlMode {
         Free,

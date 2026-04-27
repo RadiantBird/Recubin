@@ -58,7 +58,7 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
 
     if (open) {
         for (auto& [name, child] : inst->getChildren()) {
-            drawNode(child);
+            drawNode(child.get());
         }
         ImGui::TreePop();
     }

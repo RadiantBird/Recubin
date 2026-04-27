@@ -85,7 +85,7 @@ void Cube::draw(int modelLoc, int shaderProgram) {
 
     for (auto const& [name, child] : getChildren()) {
         if (child->IsA("Decal")) {
-            Decal* decal = static_cast<Decal*>(child);
+            Decal* decal = static_cast<Decal*>(child.get());
             int idx = static_cast<int>(decal->face);
             if (idx >= 0 && idx < 6) {
                 activeTextures[idx] = decal->TextureID;

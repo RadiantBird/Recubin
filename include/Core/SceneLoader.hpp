@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <string>
 #include <Instances/Instance.hpp>
 #include <yaml-cpp/yaml.h>
@@ -13,16 +14,16 @@ public:
      * @param filePath YAMLファイルのパス
      * @return ロードされたルートオブジェクト（通常はWorkspace）
      */
-    static Instance* loadScene(const std::string& filePath);
+    static std::shared_ptr<Instance> loadScene(const std::string& filePath);
 
 private:
     /**
      * @brief YAMLノードを再帰的に解析してInstanceを生成する
      */
-    static Instance* parseInstance(const YAML::Node& node);
+    static std::shared_ptr<Instance> parseInstance(const YAML::Node& node);
 
     /**
      * @brief ClassName文字列から適切なInstance派生クラスを生成する
      */
-    static Instance* createInstance(const std::string& className);
+    static std::shared_ptr<Instance> createInstance(const std::string& className);
 };
