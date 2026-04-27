@@ -4,6 +4,7 @@
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
 #include <include/imgui/imgui_impl_opengl3.h>
+#include <include/imgui/ImGuizmo.h>
 #include <string>
 
 // ===================================================
@@ -274,4 +275,7 @@ void EditorManager::applyTheme() {
     // ドックスプリッター
     c[ImGuiCol_DockingPreview]    = ImVec4(0.30f, 0.55f, 0.95f, 0.70f);
     c[ImGuiCol_DockingEmptyBg]    = ImVec4(0.08f, 0.09f, 0.11f, 1.0f);
+
+    // ImGuizmo: 中央スフィア（デフォルト自由移動ハンドル）を非表示
+    ImGuizmo::GetStyle().CenterCircleSize = 0.0f;
 }
