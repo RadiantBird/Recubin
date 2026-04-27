@@ -12,14 +12,15 @@
     #undef GetClassName // これでInstance::GetClassNameがAに化けるのを防ぐ
 #endif
 
+// TODO: Instance自体も普段はweak_ptrで管理するようにし、削除済みなら処理をキャンセルするようにする(ほかのプログラムで)
 class Instance {
     protected:
         using string = std::string;
     public:
         string Name = "Instance";
 
-        Instance* Parent = nullptr;
-        std::unordered_map<string, Instance*> children = {};
+        Instance* Parent = nullptr; // TODO: weak_ptrにする
+        std::unordered_map<string, Instance*> children = {}; // TODO: shared_ptrにする
 
         virtual void onAncestorChanged();
         virtual void setParent(Instance* newParent);

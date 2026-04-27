@@ -1,5 +1,6 @@
 #include "include/Instances/BaseCube.hpp"
 #include "include/Core/Physics.hpp"
+#include "include/Core/SystemState.hpp"
 #include "include/Util/Logger.hpp"
 
 BaseCube::BaseCube(Vector3 Pos, Vector3 Sz) 
@@ -54,7 +55,23 @@ void BaseCube::onAncestorChanged() {
 void BaseCube::setSize(Vector3 newSize) {
     Size = newSize;
     if (lastWorkspace && lastWorkspace->physicsEngine) {
-        lastWorkspace->physicsEngine->recreateActor(this);
+        if (SystemState::get().isPlaying) {
+            lastWorkspace->physicsEngine->enqueueResize(this);
+        } else {
+            lastWorkspace->physicsEngine->recreateActor(this);
+        }
+    }
+}
+
+void BaseCube::setRotation(Quaternion rot) {
+    cframe.Rotation = rot;
+    if (!actor) return;
+    if (lastWorkspace && lastWorkspace->physicsEngine && SystemState::get().isPlaying) {
+        lastWorkspace->physicsEngine->enqueueSetRotation(this, rot);
+    } else {
+        physx::PxTransform pose = actor->getGlobalPose();
+        pose.q = physx::PxQuat(rot.x, rot.y, rot.z, rot.w);
+        actor->setGlobalPose(pose);
     }
 }
 

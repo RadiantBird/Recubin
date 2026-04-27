@@ -30,6 +30,7 @@ public:
     void syncPhysics();
     void teleportTo(Vector3 pos);
     void setSize(Vector3 newSize);
+    void setRotation(Quaternion rot);
 
     // 自律的な登録・解除ロジック
     void onAncestorChanged() override;

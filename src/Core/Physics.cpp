@@ -120,6 +120,14 @@ physx::PxMaterial* Physics::getOrCreateMaterial(const Material& m) {
     return pxMat;
 }
 
+void Physics::enqueueResize(BaseCube* cube) {
+    m_pendingOps.push_back({ PendingOp::Type::Resize, cube, {} });
+}
+
+void Physics::enqueueSetRotation(BaseCube* cube, Quaternion rot) {
+    m_pendingOps.push_back({ PendingOp::Type::SetRotation, cube, rot });
+}
+
 void Physics::recreateActor(BaseCube* cube) {
     if (!cube) return;
     if (cube->actor) {
@@ -179,6 +187,19 @@ void Physics::update(Workspace& workspace, float dt) {
         }
     }
     
+    // 遅延キューをフラッシュ（fetchResults 完了後の安全ウインドウ）
+    for (auto& op : m_pendingOps) {
+        if (!op.cube || !op.cube->actor) continue;
+        if (op.type == PendingOp::Type::Resize) {
+            recreateActor(op.cube);
+        } else if (op.type == PendingOp::Type::SetRotation) {
+            physx::PxTransform pose = op.cube->actor->getGlobalPose();
+            pose.q = physx::PxQuat(op.rotation.x, op.rotation.y, op.rotation.z, op.rotation.w);
+            op.cube->actor->setGlobalPose(pose);
+        }
+    }
+    m_pendingOps.clear();
+
     // 0. 削除されたキューブをクリーンアップ（Workspace に存在しなくなったキューブを検出）
     auto it = cubes.begin();
     while (it != cubes.end()) {

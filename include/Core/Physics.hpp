@@ -3,6 +3,7 @@
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/BaseCube.hpp>
 #include <include/Util/Material.hpp>
+#include <include/Math/Quaternion.hpp>
 #include <vector>
 #include <unordered_map>
 
@@ -26,6 +27,14 @@ private:
     std::vector<BaseCube*> cubes; // 物理シミュレーション対象のキューブを管理
     physx::PxMaterial* getOrCreateMaterial(const Material& m);
 
+    struct PendingOp {
+        enum class Type { Resize, SetRotation };
+        Type      type;
+        BaseCube* cube;
+        Quaternion rotation; // SetRotation 時のみ使用
+    };
+    std::vector<PendingOp> m_pendingOps;
+
 public:
     void init();
     virtual ~Physics();
@@ -35,6 +44,9 @@ public:
     void removeCube(BaseCube* cube);
 
     void clearCubes() { cubes.clear(); }
+
+    void enqueueResize(BaseCube* cube);
+    void enqueueSetRotation(BaseCube* cube, Quaternion rot);
 
     bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, physx::PxRigidActor* ignoreActor = nullptr);
 };

@@ -195,6 +195,7 @@ void EditorManager::setWorkspace(Workspace* ws) {
     m_workspace                  = ws;
     hierarchyPanel->workspace    = ws;
     viewportPanel->workspace     = ws;
+    hierarchyPanel->selectedInstance = nullptr;
 }
 
 void EditorManager::beginViewportRender() {

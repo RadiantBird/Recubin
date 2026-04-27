@@ -34,8 +34,9 @@ public:
     Workspace* workspace        = nullptr;
 
     // フォーカス状態管理フラグ
-    bool isViewportFocused = false;    // このViewportが現在フォーカスされているか
-    bool isHoveringViewport = false;   // マウスがViewport上にあるか
+    bool isViewportFocused   = false;  // このViewportが現在フォーカスされているか
+    bool isHoveringViewport  = false;  // マウスがViewport上にあるか
+    bool m_isDraggingSelected = false; // 選択キューブ上でドラッグ開始したか
 
     ViewportPanel();
     ~ViewportPanel();
