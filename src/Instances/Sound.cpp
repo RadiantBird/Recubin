@@ -58,6 +58,8 @@ void Sound::setProperty(const std::string& name, const YAML::Node& value) {
                 if (looping) ma_sound_set_looping(&sound, true);
             }
         }
+    } else if (name == "AutoPlay") {
+        autoPlay = value.as<bool>();
     } else if (name == "Playing") {
         if (value.as<bool>()) {
             play();
@@ -101,4 +103,7 @@ void Sound::update3D() {
     }
 }
 
-Sound::~Sound() { if (loaded) ma_sound_uninit(&sound); }
+Sound::~Sound() {
+    if (AudioService::instance) AudioService::instance->removeSound(this);
+    if (loaded) ma_sound_uninit(&sound);
+}

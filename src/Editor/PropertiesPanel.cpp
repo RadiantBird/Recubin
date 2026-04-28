@@ -1,10 +1,14 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Instances/BaseCube.hpp>
+#include <Instances/Script.hpp>
+#include <Instances/Sound.hpp>
 #include <Util/Color4.hpp>
 #include <include/imgui/imgui.h>
 #include <unordered_map>
 #include <string>
+#include <windows.h>
+#include <shellapi.h>
 
 // ===================================================
 //  PropertiesPanel 実装
@@ -167,6 +171,30 @@ void PropertiesPanel::onRender() {
         if (ImGui::Checkbox("CanCollide", &bc->CanCollide) && m_history) {
             m_history->record(std::make_unique<SetBoolCommand>(
                 bcSp, "CanCollide", prevCanCollide, bc->CanCollide));
+        }
+    }
+
+    // ---- Sound ----
+    if (inst->GetClassName() == "Sound") {
+        Sound* snd = static_cast<Sound*>(inst);
+        ImGui::SeparatorText("Sound");
+        ImGui::LabelText("Path", "%s", snd->getContentPath().c_str());
+        ImGui::Checkbox("AutoPlay", &snd->autoPlay);
+        bool looping = snd->isLooping();
+        if (ImGui::Checkbox("Looped", &looping)) snd->setLooping(looping);
+        if (ImGui::Button("Play"))  snd->play();
+        ImGui::SameLine();
+        if (ImGui::Button("Stop"))  snd->stop();
+    }
+
+    // ---- Script ----
+    if (inst->GetClassName() == "Script") {
+        Script* sc = static_cast<Script*>(inst);
+        ImGui::SeparatorText("Script");
+        ImGui::LabelText("Path", "%s", sc->Path.c_str());
+        if (ImGui::Button("外部エディタで開く") && !sc->Path.empty()) {
+            std::wstring wp(sc->Path.begin(), sc->Path.end());
+            ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOW);
         }
     }
 

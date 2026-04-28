@@ -1,6 +1,7 @@
 #define MINIAUDIO_IMPLEMENTATION
 #include "Core/AudioService.hpp"
 #include "Instances/Sound.hpp"
+#include <algorithm>
 
 #ifdef _WIN32
     #include <windows.h>
@@ -23,6 +24,20 @@ void AudioService::setSFXVolume(float volume) { ma_sound_group_set_volume(&group
 
 void AudioService::addSound(Sound* sound) {
     sounds.push_back(sound);
+}
+
+void AudioService::removeSound(Sound* sound) {
+    sounds.erase(std::remove(sounds.begin(), sounds.end(), sound), sounds.end());
+}
+
+void AudioService::playAutoPlaySounds() {
+    for (Sound* s : sounds) {
+        if (s->autoPlay) s->play();
+    }
+}
+
+void AudioService::stopAllSounds() {
+    for (Sound* s : sounds) s->stop();
 }
 
 void AudioService::updateSounds() {

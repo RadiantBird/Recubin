@@ -26,6 +26,12 @@ private:
     std::shared_ptr<Instance> m_pendingScriptParent;
     bool                      m_openScriptDialog = false;
 
+    // フォルダ/ファイル選択待ち（ピッカーはポップアップ外で実行）
+    bool                      m_doPick      = false;
+    bool                      m_pickExisting = false; // true=既存ファイル選択
+    std::string               m_pickName;
+    std::shared_ptr<Instance> m_pickParent;
+
     void drawNode(Instance* inst);
     void renderNewScriptDialog();
 };

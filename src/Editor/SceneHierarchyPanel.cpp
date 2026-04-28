@@ -2,8 +2,65 @@
 #include <Editor/CommandHistory.hpp>
 #include <Instances/Cube.hpp>
 #include <Instances/Script.hpp>
+#include <Instances/Sound.hpp>
+#include <Core/AudioService.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
+#include <windows.h>
+#include <shobjidl.h>
+#include <shellapi.h>
+
+static std::string pickFile() {
+    std::string result;
+    IFileOpenDialog* pfd = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                   CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
+        COMDLG_FILTERSPEC filter = { L"Luau Script (*.luau)", L"*.luau" };
+        pfd->SetFileTypes(1, &filter);
+        if (SUCCEEDED(pfd->Show(nullptr))) {
+            IShellItem* item = nullptr;
+            if (SUCCEEDED(pfd->GetResult(&item))) {
+                PWSTR wpath = nullptr;
+                item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
+                int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
+                if (len > 1) {
+                    result.resize(len - 1);
+                    WideCharToMultiByte(CP_UTF8, 0, wpath, -1, result.data(), len, nullptr, nullptr);
+                }
+                CoTaskMemFree(wpath);
+                item->Release();
+            }
+        }
+        pfd->Release();
+    }
+    return result;
+}
+
+static std::string pickFolder() {
+    std::string result;
+    IFileOpenDialog* pfd = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                   CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
+        DWORD opts; pfd->GetOptions(&opts);
+        pfd->SetOptions(opts | FOS_PICKFOLDERS);
+        if (SUCCEEDED(pfd->Show(nullptr))) {
+            IShellItem* item = nullptr;
+            if (SUCCEEDED(pfd->GetResult(&item))) {
+                PWSTR wpath = nullptr;
+                item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
+                int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
+                if (len > 1) {
+                    result.resize(len - 1);
+                    WideCharToMultiByte(CP_UTF8, 0, wpath, -1, result.data(), len, nullptr, nullptr);
+                }
+                CoTaskMemFree(wpath);
+                item->Release();
+            }
+        }
+        pfd->Release();
+    }
+    return result;
+}
 
 // ===================================================
 //  SceneHierarchyPanel 実装
@@ -73,6 +130,16 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
             if (ImGui::MenuItem("Script")) {
                 m_pendingScriptParent = inst->shared_from_this();
                 m_openScriptDialog    = true;
+            }
+            if (ImGui::MenuItem("Sound", nullptr, false, AudioService::instance != nullptr) && m_history) {
+                auto parentSp = inst->shared_from_this();
+                auto sound = std::make_shared<Sound>(*AudioService::instance);
+                std::string name = "Sound";
+                int n = 1;
+                while (parentSp->children.count(name) > 0)
+                    name = "Sound" + std::to_string(n++);
+                sound->Name = name;
+                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, sound));
             }
             ImGui::EndMenu();
         }
@@ -146,21 +213,25 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
 
     if (ImGui::BeginPopupModal("New Script", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         static char s_name[128] = "NewScript";
-        ImGui::Text("Script name:");
-        ImGui::SetNextItemWidth(220.0f);
-        ImGui::InputText("##sname", s_name, sizeof(s_name));
+        static int  s_mode = 0; // 0=新規作成, 1=既存ファイル
+
+        ImGui::RadioButton("新規作成",         &s_mode, 0); ImGui::SameLine();
+        ImGui::RadioButton("既存ファイルを選択", &s_mode, 1);
+        ImGui::Separator();
+
+        if (s_mode == 0) {
+            ImGui::Text("Script name:");
+            ImGui::SetNextItemWidth(220.0f);
+            ImGui::InputText("##sname", s_name, sizeof(s_name));
+        } else {
+            ImGui::TextDisabled("ファイルピッカーで .luau を選択します");
+        }
 
         if (ImGui::Button("OK", ImVec2(100, 0))) {
-            std::string path = std::string("assets/scripts/") + s_name + ".lua";
-            std::ofstream f(path);
-            if (f) f << "-- " << s_name << "\n";
-
-            if (m_pendingScriptParent && m_history) {
-                auto script = std::make_shared<Script>(path);
-                script->Name = std::string(s_name);
-                m_history->execute(std::make_unique<AddInstanceCommand>(
-                    m_pendingScriptParent, script));
-            }
+            m_pickName     = std::string(s_name);
+            m_pickParent   = m_pendingScriptParent;
+            m_pickExisting = (s_mode == 1);
+            m_doPick       = true;
             m_pendingScriptParent.reset();
             ImGui::CloseCurrentPopup();
         }
@@ -171,5 +242,42 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
         }
 
         ImGui::EndPopup();
+    }
+
+    // ポップアップが閉じた後にフォルダ/ファイル選択を実行
+    if (m_doPick) {
+        m_doPick = false;
+        std::string filePath;
+
+        if (m_pickExisting) {
+            filePath = pickFile();
+        } else {
+            std::string folder = pickFolder();
+            if (!folder.empty()) {
+                filePath = folder + "\\" + m_pickName + ".luau";
+                {
+                    std::ofstream f(filePath);
+                    if (f) f << "-- " << m_pickName << "\n";
+                }
+            }
+        }
+
+        if (!filePath.empty() && m_pickParent && m_history) {
+            std::wstring wp(filePath.begin(), filePath.end());
+            ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOW);
+
+            // 既存選択時はファイル名をスクリプト名にする
+            if (m_pickExisting) {
+                auto slash = filePath.find_last_of("/\\");
+                std::string fname = (slash == std::string::npos) ? filePath : filePath.substr(slash + 1);
+                auto dot = fname.rfind('.');
+                m_pickName = (dot == std::string::npos) ? fname : fname.substr(0, dot);
+            }
+
+            auto script = std::make_shared<Script>(filePath);
+            script->Name = m_pickName;
+            m_history->execute(std::make_unique<AddInstanceCommand>(m_pickParent, script));
+        }
+        m_pickParent.reset();
     }
 }

@@ -19,14 +19,16 @@ bool Decal::IsA(std::string className) {
 
 std::shared_ptr<Instance> Decal::clone() const {
     auto copy = std::make_shared<Decal>(this->TextureID, this->face);
-    copy->Name = this->Name;
+    copy->Name        = this->Name;
+    copy->texturePath = this->texturePath;
     return copy;
 }
 
 void Decal::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Texture") {
+        this->texturePath = value.as<std::string>();
         if (Renderer::instance) {
-            this->TextureID = Renderer::instance->loadTexture(value.as<std::string>().c_str());
+            this->TextureID = Renderer::instance->loadTexture(this->texturePath.c_str());
         }
     } else if (name == "Face") {
         this->face = static_cast<Face>(value.as<int>());

@@ -1,5 +1,6 @@
 #pragma once
 #include <include/Instances/Instance.hpp>
+#include <string>
 
 enum class Face {
     Front = 0,
@@ -13,7 +14,8 @@ enum class Face {
 class Decal : public Instance {
 public:
     unsigned int TextureID = 0;
-    Face face = Face::Front;
+    Face         face      = Face::Front;
+    std::string  texturePath;
 
     Decal(unsigned int textureID = 0, Face targetFace = Face::Front);
     virtual ~Decal();

@@ -19,7 +19,10 @@ public:
     void setBGMVolume(float volume);
     void setSFXVolume(float volume);
     void addSound(Sound* sound);
+    void removeSound(Sound* sound);
     void updateSounds();
+    void playAutoPlaySounds();
+    void stopAllSounds();
     void uninit();
     ~AudioService();
 };

@@ -115,7 +115,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
 
     // プロパティ
     bool hasProps = inst->IsA("Spatial") || inst->GetClassName() == "Script"
-                 || inst->GetClassName() == "Sound";
+                 || inst->GetClassName() == "Sound" || inst->GetClassName() == "Decal";
     if (hasProps) {
         out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
 
@@ -143,11 +143,18 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             const Script* sc = static_cast<const Script*>(inst);
             out << YAML::Key << "ContentPath" << YAML::Value << sc->Path;
         }
+        if (inst->GetClassName() == "Decal") {
+            const Decal* d = static_cast<const Decal*>(inst);
+            out << YAML::Key << "Face"    << YAML::Value << static_cast<int>(d->face);
+            if (!d->texturePath.empty())
+                out << YAML::Key << "Texture" << YAML::Value << d->texturePath;
+        }
         if (inst->GetClassName() == "Sound") {
             const Sound* snd = static_cast<const Sound*>(inst);
             out << YAML::Key << "ContentPath" << YAML::Value << snd->getContentPath();
             out << YAML::Key << "Looped"      << YAML::Value << snd->isLooping();
             out << YAML::Key << "SoundGroup"  << YAML::Value << snd->getSoundGroup();
+            out << YAML::Key << "AutoPlay"    << YAML::Value << snd->getAutoPlay();
         }
 
         out << YAML::EndMap;

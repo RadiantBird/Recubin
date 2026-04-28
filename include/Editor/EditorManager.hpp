@@ -65,7 +65,8 @@ public:
     bool isPlayMode()  const { return mode == EditorMode::Play;  }
     bool isPauseMode() const { return mode == EditorMode::Pause; }
 
-    bool isDirty() const { return m_isDirty; }
+    bool isDirty()  const { return m_isDirty; }
+    void markDirty()      { m_isDirty = true; }
 
     // 未保存確認ダイアログを ImGui モーダルで表示する（毎フレーム render() 内で処理する）
     void requestSaveDialog(GLFWwindow* window);

@@ -134,6 +134,8 @@ int main() {
 
     float lastFrame = static_cast<float>(glfwGetTime());
     bool wasPlaying = false;
+    bool snapshotDirty = false;
+    const std::string snapshotPath = "assets/scenes/_snapshot.yaml";
 
     while (true) {
         if (glfwWindowShouldClose(window)) {
@@ -154,16 +156,20 @@ int main() {
 
         // ---- Play/Stop 遷移処理 ----
         if (isPlaying && !wasPlaying) {
+            snapshotDirty = renderer->editor && renderer->editor->isDirty();
+            SceneLoader::saveScene(workspace.get(), snapshotPath);
             user->spawnCharacter();
+            audioService->playAutoPlaySounds();
             if (user->character) workspace->addChild(user->character);
             if (user->head) user->head->addChild(std::make_shared<Decal>(smile, Face::Front));
         }
         if (!isPlaying && wasPlaying) {
+            audioService->stopAllSounds();
             user->despawnCharacter();
             physics->clearCubes();                // stale ポインタをベクターから除去
             system->removeChild(workspace->Name);
             workspace = std::static_pointer_cast<Workspace>(
-                SceneLoader::loadScene("assets/scenes/test_scene.yaml"));
+                SceneLoader::loadScene(snapshotPath));
             if (!workspace) workspace = std::make_shared<Workspace>();
             system->addChild(workspace);
             workspace->setPhysicsEngine(physics.get());
@@ -171,6 +177,7 @@ int main() {
             luauEngine->setGlobalInstance("workspace", workspace.get());
             luauEngine->setWorkspace(workspace.get());
             renderer->editor->setWorkspace(workspace.get()); // 全パネルのポインタを一括更新
+            if (snapshotDirty) renderer->editor->markDirty();
         }
         wasPlaying = isPlaying;
 

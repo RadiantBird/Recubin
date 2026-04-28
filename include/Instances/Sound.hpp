@@ -21,8 +21,11 @@ public:
     virtual std::string GetClassName() override { return "Sound"; }
     virtual bool IsA(std::string name) override;
 
+    bool autoPlay = false;
+
     std::string getContentPath() const { return m_currentPath; }
-    bool isLooping() const { return looping; }
+    bool isLooping()   const { return looping;    }
+    bool getAutoPlay() const { return autoPlay;   }
     std::string getSoundGroup() const { return soundGroup; }
 
     ~Sound();

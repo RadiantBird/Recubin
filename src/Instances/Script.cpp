@@ -13,7 +13,7 @@ Script::Script(string path) : Instance("Script"), Coroutine(nullptr), Path(path)
 }
 
 void Script::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "Source" || name == "Path") {
+    if (name == "Source" || name == "Path" || name == "ContentPath") {
         this->Path = value.as<std::string>();
         this->Source = FileLoader::readText(this->Path);
         if (this->Source.empty()) {
