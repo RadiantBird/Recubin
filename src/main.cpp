@@ -204,7 +204,7 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderer->render(*user, window, *workspace.get());
 
-        audioService->updateSounds();
+        audioService->updateSounds(user->cpos, user->right);
     }
 
     std::cout << "[DEBUG] Main loop ended.\n";

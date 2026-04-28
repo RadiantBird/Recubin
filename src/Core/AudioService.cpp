@@ -40,9 +40,9 @@ void AudioService::stopAllSounds() {
     for (Sound* s : sounds) s->stop();
 }
 
-void AudioService::updateSounds() {
+void AudioService::updateSounds(const Vector3& listenerPos, const Vector3& listenerRight) {
     for (Sound* sound : sounds) {
-        sound->update3D(); // ここでSoundの定義が必要なのでcppでやるのが正解
+        sound->update3D(listenerPos, listenerRight);
     }
 }
 

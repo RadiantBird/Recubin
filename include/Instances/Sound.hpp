@@ -15,7 +15,7 @@ public:
     void play();
     void stop();
     void setLooping(bool loop);
-    void update3D();
+    void update3D(const Vector3& listenerPos, const Vector3& listenerRight);
 
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
     virtual std::string GetClassName() override { return "Sound"; }

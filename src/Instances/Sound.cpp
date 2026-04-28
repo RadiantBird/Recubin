@@ -77,29 +77,32 @@ bool Sound::IsA(std::string name) {
     return (name == "Sound") || Spatial::IsA(name);
 }
 
-void Sound::update3D() {
-// ... (keep original logic) // <-は？
+void Sound::update3D(const Vector3& listenerPos, const Vector3& listenerRight) {
     if (!loaded) return;
 
-    // Parentがいない、またはSpatialでない場合は、3D計算をせず標準音量で鳴らす
+    // 親が Spatial でない場合はグローバル再生
     auto parentPtr = Parent.lock();
     if (!parentPtr || !parentPtr->IsA("Spatial")) {
         ma_sound_set_volume(&sound, 1.0f);
-        ma_sound_set_pan(&sound, 0.0f); // 中央
+        ma_sound_set_pan(&sound, 0.0f);
         return;
     }
 
-    // ここからは空間配置されている場合の計算
     Spatial* ps = static_cast<Spatial*>(parentPtr.get());
-    Vector3 relativePos = this->Position - ps->Position;
-    float dist = relativePos.length();
+    // Sound のワールド位置 = 親の Position + Sound 自身の Position
+    Vector3 worldPos = ps->Position + this->Position;
+    Vector3 toSound  = worldPos - listenerPos;
+    float dist = toSound.length();
 
     // 距離減衰
     ma_sound_set_volume(&sound, 1.0f / (1.0f + dist * 0.1f));
 
-    // パンニング
+    // 左右パンニング（カメラの right ベクトルを基準に）
     if (dist > 0.001f) {
-        ma_sound_set_pan(&sound, Vector3::Dot(relativePos.normalize(), Vector3(1, 0, 0)));
+        float pan = Vector3::Dot(toSound.normalize(), listenerRight);
+        ma_sound_set_pan(&sound, pan);
+    } else {
+        ma_sound_set_pan(&sound, 0.0f);
     }
 }
 

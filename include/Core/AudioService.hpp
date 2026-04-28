@@ -1,6 +1,7 @@
 #pragma once
 #include "miniaudio.h"
 #include "Instances/Instance.hpp"
+#include "Math/Vector3.hpp"
 #include <vector>
 
 class Sound; // 前方宣言
@@ -20,7 +21,7 @@ public:
     void setSFXVolume(float volume);
     void addSound(Sound* sound);
     void removeSound(Sound* sound);
-    void updateSounds();
+    void updateSounds(const Vector3& listenerPos, const Vector3& listenerRight);
     void playAutoPlaySounds();
     void stopAllSounds();
     void uninit();

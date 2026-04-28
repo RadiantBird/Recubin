@@ -111,6 +111,36 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
         selectedInstance = inst;
     }
 
+    // ---- ドラッグソース ----
+    if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
+        ImGui::SetDragDropPayload("INSTANCE_PTR", &inst, sizeof(Instance*));
+        ImGui::Text("%s", inst->Name.c_str());
+        ImGui::EndDragDropSource();
+    }
+
+    // ---- ドロップターゲット ----
+    if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("INSTANCE_PTR")) {
+            Instance* dragged = *static_cast<Instance* const*>(payload->Data);
+            // 自分自身・子孫へのドロップは禁止
+            bool isSelfOrDescendant = false;
+            Instance* check = inst;
+            while (check) {
+                if (check == dragged) { isSelfOrDescendant = true; break; }
+                auto p = check->Parent.lock();
+                check = p ? p.get() : nullptr;
+            }
+            if (!isSelfOrDescendant && dragged->Parent.lock() && m_history) {
+                auto oldParent = dragged->Parent.lock();
+                auto newParent = inst->shared_from_this();
+                auto child     = oldParent->children.at(dragged->Name);
+                m_history->execute(std::make_unique<MoveInstanceCommand>(oldParent, newParent, child));
+                selectedInstance = dragged;
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+
     // ---- 右クリックコンテキストメニュー ----
     std::string popupId = "ctx##" + std::to_string(reinterpret_cast<uintptr_t>(inst));
     if (ImGui::BeginPopupContextItem(popupId.c_str())) {

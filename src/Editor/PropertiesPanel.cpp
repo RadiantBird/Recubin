@@ -9,10 +9,34 @@
 #include <string>
 #include <windows.h>
 #include <shellapi.h>
+#include <shobjidl.h>
 
 // ===================================================
 //  PropertiesPanel 実装
 // ===================================================
+
+static std::string browseFile(const wchar_t* filterName, const wchar_t* filterSpec) {
+    std::string result;
+    IFileOpenDialog* pfd = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                   CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
+        COMDLG_FILTERSPEC filter = { filterName, filterSpec };
+        pfd->SetFileTypes(1, &filter);
+        if (SUCCEEDED(pfd->Show(nullptr))) {
+            IShellItem* item = nullptr;
+            if (SUCCEEDED(pfd->GetResult(&item))) {
+                PWSTR wpath = nullptr;
+                item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
+                int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
+                if (len > 1) { result.resize(len - 1); WideCharToMultiByte(CP_UTF8, 0, wpath, -1, result.data(), len, nullptr, nullptr); }
+                CoTaskMemFree(wpath);
+                item->Release();
+            }
+        }
+        pfd->Release();
+    }
+    return result;
+}
 
 PropertiesPanel::PropertiesPanel()
     : EditorPanel("Properties") {}
@@ -178,7 +202,14 @@ void PropertiesPanel::onRender() {
     if (inst->GetClassName() == "Sound") {
         Sound* snd = static_cast<Sound*>(inst);
         ImGui::SeparatorText("Sound");
-        ImGui::LabelText("Path", "%s", snd->getContentPath().c_str());
+        ImGui::LabelText("ContentPath", "%s", snd->getContentPath().c_str());
+        if (ImGui::Button("参照...##sound")) {
+            std::string path = browseFile(L"Audio (*.mp3;*.wav;*.ogg)", L"*.mp3;*.wav;*.ogg");
+            if (!path.empty()) {
+                YAML::Node node; node = path;
+                snd->setProperty("ContentPath", node);
+            }
+        }
         ImGui::Checkbox("AutoPlay", &snd->autoPlay);
         bool looping = snd->isLooping();
         if (ImGui::Checkbox("Looped", &looping)) snd->setLooping(looping);
@@ -191,7 +222,15 @@ void PropertiesPanel::onRender() {
     if (inst->GetClassName() == "Script") {
         Script* sc = static_cast<Script*>(inst);
         ImGui::SeparatorText("Script");
-        ImGui::LabelText("Path", "%s", sc->Path.c_str());
+        ImGui::LabelText("Source", "%s", sc->Path.c_str());
+        if (ImGui::Button("参照...##script")) {
+            std::string path = browseFile(L"Luau Script (*.luau;*.lua)", L"*.luau;*.lua");
+            if (!path.empty()) {
+                YAML::Node node; node = path;
+                sc->setProperty("Path", node);
+            }
+        }
+        ImGui::SameLine();
         if (ImGui::Button("外部エディタで開く") && !sc->Path.empty()) {
             std::wstring wp(sc->Path.begin(), sc->Path.end());
             ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOW);

@@ -70,6 +70,27 @@ struct RemoveInstanceCommand : Command {
     }
 };
 
+// --- インスタンス移動（親変更） ---
+struct MoveInstanceCommand : Command {
+    std::shared_ptr<Instance> m_oldParent;
+    std::shared_ptr<Instance> m_newParent;
+    std::shared_ptr<Instance> m_child;
+
+    MoveInstanceCommand(std::shared_ptr<Instance> oldParent,
+                        std::shared_ptr<Instance> newParent,
+                        std::shared_ptr<Instance> child)
+        : m_oldParent(std::move(oldParent)), m_newParent(std::move(newParent)), m_child(std::move(child)) {}
+
+    void execute() override {
+        if (m_oldParent) m_oldParent->removeChild(m_child->Name);
+        if (m_newParent) m_newParent->addChild(m_child);
+    }
+    void undo() override {
+        if (m_newParent) m_newParent->removeChild(m_child->Name);
+        if (m_oldParent) m_oldParent->addChild(m_child);
+    }
+};
+
 // --- Vector3プロパティ変更（Position / Size） ---
 struct SetVec3Command : Command {
     std::shared_ptr<BaseCube> m_target;
