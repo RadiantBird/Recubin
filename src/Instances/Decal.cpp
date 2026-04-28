@@ -17,6 +17,12 @@ bool Decal::IsA(std::string className) {
     return Instance::IsA(className);
 }
 
+std::shared_ptr<Instance> Decal::clone() const {
+    auto copy = std::make_shared<Decal>(this->TextureID, this->face);
+    copy->Name = this->Name;
+    return copy;
+}
+
 void Decal::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Texture") {
         if (Renderer::instance) {

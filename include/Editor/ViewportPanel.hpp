@@ -1,5 +1,6 @@
 #pragma once
 #include <Editor/EditorPanel.hpp>
+class CommandHistory;
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -37,6 +38,8 @@ public:
     bool isViewportFocused   = false;  // このViewportが現在フォーカスされているか
     bool isHoveringViewport  = false;  // マウスがViewport上にあるか
     bool m_isDraggingSelected = false; // 選択キューブ上でドラッグ開始したか
+
+    CommandHistory* m_history = nullptr;
 
     ViewportPanel();
     ~ViewportPanel();

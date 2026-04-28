@@ -94,10 +94,23 @@ void Cube::draw(int modelLoc, int shaderProgram) {
     }
 
     for (int i = 0; i < 6; i++) {
-        glActiveTexture(GL_TEXTURE0); 
+        glActiveTexture(GL_TEXTURE0);
         unsigned int tex = activeTextures[i];
         if (tex == 0) tex = defaultTextureID;
         glBindTexture(GL_TEXTURE_2D, tex);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(uintptr_t)(i * 6 * sizeof(unsigned int)));
     }
+}
+
+std::shared_ptr<Instance> Cube::clone() const {
+    auto copy = std::make_shared<Cube>(this->Position, this->Size, Cube::defaultTextureID);
+    copy->Name     = this->Name;
+    copy->Color    = this->Color;
+    copy->Anchored = this->Anchored;
+    copy->CanCollide = this->CanCollide;
+    copy->cframe   = this->cframe;
+    for (auto const& [name, child] : children) {
+        copy->addChild(child->clone());
+    }
+    return copy;
 }

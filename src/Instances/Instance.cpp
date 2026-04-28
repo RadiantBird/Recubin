@@ -142,6 +142,14 @@ void Instance::setProperty(const std::string& name, const YAML::Node& value) {
     }
 }
 
+std::shared_ptr<Instance> Instance::clone() const {
+    auto copy = std::make_shared<Instance>(this->Name);
+    for (auto const& [name, child] : children) {
+        copy->addChild(child->clone());
+    }
+    return copy;
+}
+
 Instance::~Instance() {
     assert(Parent.expired() && "Instance deleted while still owned by a parent.");
     this->children.clear();

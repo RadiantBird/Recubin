@@ -1,5 +1,6 @@
 #include <Editor/ViewportPanel.hpp>
 #include <Editor/ViewportFocusManager.hpp>
+#include <Editor/CommandHistory.hpp>
 #include <Math/Matrix4.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/ImGuizmo.h>
@@ -311,6 +312,23 @@ void ViewportPanel::onRender() {
         Instance* inst = *selectedInstance;
         if (inst->IsA("Spatial")) {
             Spatial* s = static_cast<Spatial*>(inst);
+
+            // Gizmo Undo: ドラッグ開始/終了を検知して GizmoCommand を記録
+            static bool       s_wasUsingGizmo = false;
+            static GizmoState s_gizmoBefore;
+            bool isUsingGizmo = ImGuizmo::IsUsing();
+
+            if (!s_wasUsingGizmo && isUsingGizmo && inst->IsA("BaseCube")) {
+                BaseCube* bc = static_cast<BaseCube*>(inst);
+                s_gizmoBefore = { bc->Position, bc->Size, bc->Rotation };
+            }
+            if (s_wasUsingGizmo && !isUsingGizmo && inst->IsA("BaseCube") && m_history) {
+                BaseCube* bc = static_cast<BaseCube*>(inst);
+                GizmoState after = { bc->Position, bc->Size, bc->Rotation };
+                auto bcSp = std::static_pointer_cast<BaseCube>(inst->shared_from_this());
+                m_history->record(std::make_unique<GizmoCommand>(bcSp, s_gizmoBefore, after));
+            }
+            s_wasUsingGizmo = isUsingGizmo;
 
             float aspect = (h > 0) ? (float)w / (float)h : 1.0f;
             Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);

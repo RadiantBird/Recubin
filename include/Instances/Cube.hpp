@@ -29,4 +29,5 @@ class Cube : public BaseCube {
 
         virtual string GetClassName() override;
         virtual bool IsA(std::string name) override;
+        std::shared_ptr<Instance> clone() const override;
 };

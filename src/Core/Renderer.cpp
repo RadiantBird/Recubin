@@ -36,6 +36,9 @@ void Renderer::init(GLFWwindow* window) {
 
     ImGui::StyleColorsDark();
 
+    io.Fonts->AddFontFromFileTTF("assets/fonts/DotGothic16-Regular.ttf", 22.0f, nullptr,
+                                  io.Fonts->GetGlyphRangesJapanese());
+
     ImGuiStyle& style = ImGui::GetStyle();
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
         style.WindowRounding = 0.0f;
@@ -204,6 +207,28 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
     for (auto const& [name, child] : workspace.getChildren()) {
         renderInstances(renderInstances, child.get());
     }
+
+    // ---- 選択インスタンスの黄色ワイヤーフレームハイライト ----
+    if (editor && editor->hierarchyPanel->selectedInstance) {
+        Instance* sel = editor->hierarchyPanel->selectedInstance;
+        if (sel->IsA("Cube")) {
+            Cube* cube = static_cast<Cube*>(sel);
+            Matrix4 modelMat = cube->cframe.toMatrix4() *
+                               Matrix4::Scale(cube->Size.x * 1.02f,
+                                              cube->Size.y * 1.02f,
+                                              cube->Size.z * 1.02f);
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
+            int colorLocHl = glGetUniformLocation(shaderProgram, "ourColor");
+            if (colorLocHl != -1) glUniform4f(colorLocHl, 1.0f, 1.0f, 0.0f, 1.0f);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, whiteTexture);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            glLineWidth(2.0f);
+            glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+            glLineWidth(1.0f);
+        }
+    }
 }
 
 // ===================================================
@@ -242,7 +267,7 @@ void Renderer::renderImGui(User& user, GLFWwindow* window, Workspace& workspace)
 
     // EditorManager が全パネルを描画
     if (editor) {
-        editor->render();
+        editor->render(window);
     }
 
     ImGui::Render();

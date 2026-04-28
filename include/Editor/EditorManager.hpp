@@ -1,5 +1,6 @@
 #pragma once
 #include <Editor/EditorPanel.hpp>
+#include <Editor/CommandHistory.hpp>
 #include <Editor/ConsolePanel.hpp>
 #include <Editor/SceneHierarchyPanel.hpp>
 #include <Editor/PropertiesPanel.hpp>
@@ -8,7 +9,13 @@
 #include <Editor/ViewportFocusManager.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <include/GLFW/glfw3.h>
 #include <memory>
+#include <string>
 #include <vector>
 
 // ===================================================
@@ -29,16 +36,20 @@ public:
     EditorMode mode = EditorMode::Edit;
 
     // 各パネル（所有権あり）
-    std::unique_ptr<ConsolePanel>       consolePanel;
+    std::unique_ptr<ConsolePanel>        consolePanel;
     std::unique_ptr<SceneHierarchyPanel> hierarchyPanel;
-    std::unique_ptr<PropertiesPanel>    propertiesPanel;
+    std::unique_ptr<PropertiesPanel>     propertiesPanel;
     std::unique_ptr<ContentBrowserPanel> contentBrowserPanel;
-    std::unique_ptr<ViewportPanel>      viewportPanel;
+    std::unique_ptr<ViewportPanel>       viewportPanel;
+
+    std::string scenePath = "assets/scenes/test_scene.yaml";
 
     EditorManager(Workspace* workspace, User* user);
 
     // DockSpace + 全パネルを描画する（ImGui フレーム内で呼ぶ）
-    void render();
+    void render(GLFWwindow* window);
+    // 旧互換オーバーロード（window なし）
+    void render() { render(nullptr); }
 
     // Stop 後の workspace リロード時に全パネルのポインタを一括更新する
     void setWorkspace(Workspace* ws);
@@ -54,9 +65,26 @@ public:
     bool isPlayMode()  const { return mode == EditorMode::Play;  }
     bool isPauseMode() const { return mode == EditorMode::Pause; }
 
+    bool isDirty() const { return m_isDirty; }
+
+    // 未保存確認ダイアログを ImGui モーダルで表示する（毎フレーム render() 内で処理する）
+    void requestSaveDialog(GLFWwindow* window);
+
+    CommandHistory m_history;
+
 private:
     Workspace* m_workspace = nullptr;
     User*      m_user      = nullptr;
+    bool       m_isDirty   = false;
+    std::shared_ptr<Instance> m_clipboard;
+
+    // 未保存ダイアログ関連
+    bool        m_showSaveDialog = false;
+    GLFWwindow* m_dialogWindow   = nullptr;
+
     void renderToolbar();
     void applyTheme();
+    void handleEditorShortcuts();
+    void renderSaveDialog();
+    void saveCurrentScene();
 };

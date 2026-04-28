@@ -16,6 +16,8 @@ public:
      */
     static std::shared_ptr<Instance> loadScene(const std::string& filePath);
 
+    static void saveScene(Instance* root, const std::string& filePath);
+
 private:
     /**
      * @brief YAMLノードを再帰的に解析してInstanceを生成する
@@ -26,4 +28,5 @@ private:
      * @brief ClassName文字列から適切なInstance派生クラスを生成する
      */
     static std::shared_ptr<Instance> createInstance(const std::string& className);
+    static void saveNode(YAML::Emitter& out, Instance* inst);
 };

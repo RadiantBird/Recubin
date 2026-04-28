@@ -8,6 +8,7 @@
 #include <Instances/Sound.hpp>
 #include <Core/AudioService.hpp>
 #include <iostream>
+#include <fstream>
 #include <memory>
 
 // YAML -> Vector3 変換
@@ -105,4 +106,73 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     }
 
     return nullptr;
+}
+
+void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
+    out << YAML::BeginMap;
+    out << YAML::Key << "ClassName" << YAML::Value << inst->GetClassName();
+    out << YAML::Key << "Name"      << YAML::Value << inst->Name;
+
+    // プロパティ
+    bool hasProps = inst->IsA("Spatial") || inst->GetClassName() == "Script"
+                 || inst->GetClassName() == "Sound";
+    if (hasProps) {
+        out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
+
+        if (inst->IsA("Spatial")) {
+            const Spatial* s = static_cast<const Spatial*>(inst);
+            out << YAML::Key << "Position" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << s->Position.x << s->Position.y << s->Position.z
+                << YAML::EndSeq;
+            out << YAML::Key << "Size" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << s->Size.x << s->Size.y << s->Size.z
+                << YAML::EndSeq;
+        }
+        if (inst->IsA("BaseCube")) {
+            const BaseCube* bc = static_cast<const BaseCube*>(inst);
+            out << YAML::Key << "Color" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << bc->Color.r << bc->Color.g << bc->Color.b << bc->Color.a
+                << YAML::EndSeq;
+            out << YAML::Key << "Anchored"   << YAML::Value << bc->Anchored;
+            out << YAML::Key << "CanCollide" << YAML::Value << bc->CanCollide;
+        }
+        if (inst->GetClassName() == "Script") {
+            const Script* sc = static_cast<const Script*>(inst);
+            out << YAML::Key << "ContentPath" << YAML::Value << sc->Path;
+        }
+        if (inst->GetClassName() == "Sound") {
+            const Sound* snd = static_cast<const Sound*>(inst);
+            out << YAML::Key << "ContentPath" << YAML::Value << snd->getContentPath();
+            out << YAML::Key << "Looped"      << YAML::Value << snd->isLooping();
+            out << YAML::Key << "SoundGroup"  << YAML::Value << snd->getSoundGroup();
+        }
+
+        out << YAML::EndMap;
+    }
+
+    // 子要素
+    if (!inst->children.empty()) {
+        out << YAML::Key << "Children" << YAML::Value << YAML::BeginSeq;
+        for (auto const& [name, child] : inst->children) {
+            saveNode(out, child.get());
+        }
+        out << YAML::EndSeq;
+    }
+
+    out << YAML::EndMap;
+}
+
+void SceneLoader::saveScene(Instance* root, const std::string& filePath) {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "Root" << YAML::Value;
+    saveNode(out, root);
+    out << YAML::EndMap;
+
+    std::ofstream file(filePath);
+    if (file) file << out.c_str();
+    else std::cerr << "[SceneLoader] Failed to open for write: " << filePath << std::endl;
 }

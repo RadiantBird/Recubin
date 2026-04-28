@@ -1,0 +1,153 @@
+#pragma once
+#include <Instances/BaseCube.hpp>
+#include <memory>
+#include <string>
+#include <vector>
+
+// ===================================================
+//  Command インターフェース
+// ===================================================
+struct Command {
+    virtual void execute() = 0;
+    virtual void undo() = 0;
+    virtual ~Command() = default;
+};
+
+// ===================================================
+//  CommandHistory  — Undo/Redo スタック管理
+// ===================================================
+class CommandHistory {
+    std::vector<std::unique_ptr<Command>> m_undoStack;
+    std::vector<std::unique_ptr<Command>> m_redoStack;
+public:
+    // execute: コマンドを適用してUndoスタックに積む（redo クリア）
+    void execute(std::unique_ptr<Command> cmd);
+    // record: すでに適用済みの変更をUndoスタックに記録する（インタラクティブ編集用）
+    void record(std::unique_ptr<Command> cmd);
+    void undo();
+    void redo();
+    void clear();
+    bool canUndo() const { return !m_undoStack.empty(); }
+    bool canRedo() const { return !m_redoStack.empty(); }
+};
+
+// ===================================================
+//  Command サブクラス
+// ===================================================
+
+// --- インスタンス追加 ---
+struct AddInstanceCommand : Command {
+    std::shared_ptr<Instance> m_parent;
+    std::shared_ptr<Instance> m_child;
+
+    AddInstanceCommand(std::shared_ptr<Instance> parent, std::shared_ptr<Instance> child)
+        : m_parent(std::move(parent)), m_child(std::move(child)) {}
+
+    void execute() override {
+        if (m_parent && m_child) m_parent->addChild(m_child);
+    }
+    void undo() override {
+        if (m_parent && m_child) m_parent->removeChild(m_child->Name);
+    }
+};
+
+// --- インスタンス削除 ---
+struct RemoveInstanceCommand : Command {
+    std::shared_ptr<Instance> m_parent;
+    std::string m_name;
+    std::shared_ptr<Instance> m_child;
+
+    RemoveInstanceCommand(std::shared_ptr<Instance> parent,
+                          std::string name,
+                          std::shared_ptr<Instance> child)
+        : m_parent(std::move(parent)), m_name(std::move(name)), m_child(std::move(child)) {}
+
+    void execute() override {
+        if (m_parent) m_parent->removeChild(m_name);
+    }
+    void undo() override {
+        if (m_parent && m_child) m_parent->addChild(m_child);
+    }
+};
+
+// --- Vector3プロパティ変更（Position / Size） ---
+struct SetVec3Command : Command {
+    std::shared_ptr<BaseCube> m_target;
+    std::string m_prop;
+    Vector3 m_before, m_after;
+
+    SetVec3Command(std::shared_ptr<BaseCube> target,
+                   std::string prop,
+                   Vector3 before, Vector3 after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(const Vector3& v) {
+        if (!m_target) return;
+        if (m_prop == "Position") m_target->teleportTo(v);
+        else if (m_prop == "Size") m_target->setSize(v);
+    }
+};
+
+// --- Color変更 ---
+struct SetColorCommand : Command {
+    std::shared_ptr<BaseCube> m_target;
+    Color4 m_before, m_after;
+
+    SetColorCommand(std::shared_ptr<BaseCube> target, Color4 before, Color4 after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->Color = m_after; }
+    void undo()    override { if (m_target) m_target->Color = m_before; }
+};
+
+// --- bool プロパティ変更（Anchored / CanCollide） ---
+struct SetBoolCommand : Command {
+    std::shared_ptr<BaseCube> m_target;
+    std::string m_prop;
+    bool m_before, m_after;
+
+    SetBoolCommand(std::shared_ptr<BaseCube> target, std::string prop, bool before, bool after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(bool v) {
+        if (!m_target) return;
+        if (m_prop == "Anchored")   m_target->Anchored   = v;
+        else if (m_prop == "CanCollide") m_target->CanCollide = v;
+    }
+};
+
+// --- Gizmo操作（位置/サイズ/回転をまとめてundoできる） ---
+struct GizmoState {
+    Vector3    position;
+    Vector3    size;
+    Quaternion rotation;
+};
+
+struct GizmoCommand : Command {
+    std::shared_ptr<BaseCube> m_target;
+    GizmoState m_before, m_after;
+
+    GizmoCommand(std::shared_ptr<BaseCube> target, GizmoState before, GizmoState after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(const GizmoState& s) {
+        if (!m_target) return;
+        m_target->teleportTo(s.position);
+        m_target->setSize(s.size);
+        m_target->setRotation(s.rotation);
+    }
+};

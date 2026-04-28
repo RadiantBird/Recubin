@@ -1,6 +1,8 @@
 #include <Editor/EditorManager.hpp>
 #include <Editor/ViewportFocusManager.hpp>
+#include <Editor/CommandHistory.hpp>
 #include <Instances/Cube.hpp>
+#include <Core/SceneLoader.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
 #include <include/imgui/imgui_impl_opengl3.h>
@@ -29,12 +31,24 @@ EditorManager::EditorManager(Workspace* workspace, User* user) {
     propertiesPanel->selectedInstance = &hierarchyPanel->selectedInstance;
     viewportPanel->selectedInstance   = &hierarchyPanel->selectedInstance;
 
+    // CommandHistory と clipboard を各パネルに渡す
+    hierarchyPanel->m_history   = &m_history;
+    hierarchyPanel->m_clipboard = &m_clipboard;
+    propertiesPanel->m_history  = &m_history;
+    viewportPanel->m_history    = &m_history;
+
     applyTheme();
 }
 
-void EditorManager::render() {
+void EditorManager::render(GLFWwindow* window) {
     // Edit モード中は L キーによるモード切替をブロック
     if (m_user) m_user->allowControlModeSwitch = !isEditMode();
+
+    // ---- エディターショートカット処理 ----
+    if (isEditMode()) handleEditorShortcuts();
+
+    // ---- 未保存ダイアログ ----
+    renderSaveDialog();
 
     // ---- 全画面 DockSpace ----
     ImGuiViewport* vp = ImGui::GetMainViewport();
@@ -57,10 +71,10 @@ void EditorManager::render() {
     // ---- メニューバー ----
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("Save Scene", "Ctrl+S") && isEditMode()) saveCurrentScene();
             ImGui::MenuItem("Open Scene",  "Ctrl+O");
-            ImGui::MenuItem("Save Scene",  "Ctrl+S");
             ImGui::Separator();
-            ImGui::MenuItem("Quit",        "Alt+F4");
+            ImGui::MenuItem("Quit", "Alt+F4");
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("View")) {
@@ -89,6 +103,126 @@ void EditorManager::render() {
     if (viewportPanel->isOpen)       viewportPanel->onRender();
     if (contentBrowserPanel->isOpen) contentBrowserPanel->onRender();
     if (consolePanel->isOpen)        consolePanel->onRender();
+}
+
+void EditorManager::handleEditorShortcuts() {
+    // テキスト入力中はショートカットをスキップ
+    bool textActive = ImGui::GetIO().WantTextInput;
+
+    // Ctrl+S: 保存
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S)) {
+        saveCurrentScene();
+        return;
+    }
+
+    if (!textActive) {
+        // Ctrl+Z: Undo
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Z)) {
+            m_history.undo();
+        }
+        // Ctrl+Shift+Z: Redo
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z)) {
+            m_history.redo();
+        }
+
+        // BackSpace: 選択インスタンス削除
+        if (ImGui::IsKeyPressed(ImGuiKey_Backspace) && !IsViewportFocused(viewportPanel.get())) {
+            Instance* sel = hierarchyPanel->selectedInstance;
+            if (sel) {
+                auto parent = sel->Parent.lock();
+                if (parent) {
+                    auto childPtr = parent->children.at(sel->Name);
+                    m_history.execute(std::make_unique<RemoveInstanceCommand>(
+                        parent, sel->Name, childPtr));
+                    hierarchyPanel->selectedInstance = nullptr;
+                    m_isDirty = true;
+                }
+            }
+        }
+
+        // Ctrl+C: コピー
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_C)) {
+            Instance* sel = hierarchyPanel->selectedInstance;
+            if (sel) m_clipboard = sel->clone();
+        }
+
+        // Ctrl+V: ペースト（兄弟として）
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_V) && m_clipboard) {
+            std::shared_ptr<Instance> parent;
+            Instance* sel = hierarchyPanel->selectedInstance;
+            if (sel)
+                parent = sel->Parent.lock();
+            else if (m_workspace)
+                parent = m_workspace->shared_from_this();
+
+            if (parent) {
+                auto cloned = m_clipboard->clone();
+                // 名前衝突を回避
+                std::string baseName = cloned->Name;
+                int n = 1;
+                while (parent->children.count(cloned->Name) > 0)
+                    cloned->Name = baseName + std::to_string(n++);
+                m_history.execute(std::make_unique<AddInstanceCommand>(parent, cloned));
+                m_isDirty = true;
+            }
+        }
+
+        // Ctrl+Shift+V: 選択インスタンスの子としてペースト
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_V) && m_clipboard) {
+            Instance* sel = hierarchyPanel->selectedInstance;
+            if (sel) {
+                auto selSp = sel->shared_from_this();
+                auto cloned = m_clipboard->clone();
+                std::string baseName = cloned->Name;
+                int n = 1;
+                while (selSp->children.count(cloned->Name) > 0)
+                    cloned->Name = baseName + std::to_string(n++);
+                m_history.execute(std::make_unique<AddInstanceCommand>(selSp, cloned));
+                m_isDirty = true;
+            }
+        }
+    }
+}
+
+void EditorManager::saveCurrentScene() {
+    if (!m_workspace) return;
+    SceneLoader::saveScene(m_workspace, scenePath);
+    m_isDirty = false;
+}
+
+void EditorManager::requestSaveDialog(GLFWwindow* window) {
+    m_showSaveDialog = true;
+    m_dialogWindow   = window;
+}
+
+void EditorManager::renderSaveDialog() {
+    if (m_showSaveDialog) {
+        ImGui::OpenPopup("Unsaved Changes");
+        m_showSaveDialog = false;
+    }
+
+    if (ImGui::BeginPopupModal("Unsaved Changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("シーンに未保存の変更があります。");
+        ImGui::Text("終了する前に保存しますか？");
+        ImGui::Separator();
+
+        if (ImGui::Button("保存「して」終了", ImVec2(130, 0))) {
+            saveCurrentScene();
+            if (m_dialogWindow) glfwSetWindowShouldClose(m_dialogWindow, GLFW_TRUE);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("保存「せず」終了", ImVec2(130, 0))) {
+            m_isDirty = false;
+            if (m_dialogWindow) glfwSetWindowShouldClose(m_dialogWindow, GLFW_TRUE);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("キャンセル", ImVec2(90, 0))) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
 }
 
 void EditorManager::renderToolbar() {
@@ -169,7 +303,7 @@ void EditorManager::renderToolbar() {
     ImGui::Text("|");
     ImGui::SameLine();
 
-    // ---- New Cube ----
+    // ---- New Cube（CommandHistory経由） ----
     if (ImGui::Button("New Cube", btnSz) && m_workspace) {
         auto cube = std::make_shared<Cube>(Vector3(0, 5, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
         std::string name = "Cube";
@@ -177,14 +311,18 @@ void EditorManager::renderToolbar() {
         while (m_workspace->children.count(name) > 0)
             name = "Cube" + std::to_string(n++);
         cube->Name = name;
-        m_workspace->addChild(cube);
+        m_history.execute(std::make_unique<AddInstanceCommand>(
+            m_workspace->shared_from_this(), cube));
+        m_isDirty = true;
     }
 
-    // ---- Save / Load（右端、同一行に揃える）----
+    // ---- Save / Load（右端）----
     float saveLoadW = btnSz.x * 2 + ImGui::GetStyle().ItemSpacing.x;
     ImGui::SameLine(ImGui::GetWindowWidth() - saveLoadW - 8.0f);
 
-    ImGui::Button("Save", btnSz);
+    if (ImGui::Button("Save", btnSz)) {
+        saveCurrentScene();
+    }
     ImGui::SameLine();
     ImGui::Button("Load", btnSz);
 
@@ -196,6 +334,8 @@ void EditorManager::setWorkspace(Workspace* ws) {
     hierarchyPanel->workspace    = ws;
     viewportPanel->workspace     = ws;
     hierarchyPanel->selectedInstance = nullptr;
+    m_history.clear();
+    m_isDirty = false;
 }
 
 void EditorManager::beginViewportRender() {
@@ -231,51 +371,41 @@ void EditorManager::applyTheme() {
     c[ImGuiCol_Border]            = ImVec4(0.25f, 0.27f, 0.35f, 1.0f);
     c[ImGuiCol_MenuBarBg]         = ImVec4(0.08f, 0.09f, 0.11f, 1.0f);
 
-    // ヘッダー・選択
     c[ImGuiCol_Header]            = ImVec4(0.22f, 0.40f, 0.70f, 0.55f);
     c[ImGuiCol_HeaderHovered]     = ImVec4(0.30f, 0.50f, 0.85f, 0.70f);
     c[ImGuiCol_HeaderActive]      = ImVec4(0.25f, 0.45f, 0.80f, 1.0f);
 
-    // ボタン
     c[ImGuiCol_Button]            = ImVec4(0.22f, 0.40f, 0.70f, 0.60f);
     c[ImGuiCol_ButtonHovered]     = ImVec4(0.30f, 0.50f, 0.85f, 0.80f);
     c[ImGuiCol_ButtonActive]      = ImVec4(0.20f, 0.38f, 0.70f, 1.0f);
 
-    // フレーム
     c[ImGuiCol_FrameBg]           = ImVec4(0.16f, 0.18f, 0.22f, 1.0f);
     c[ImGuiCol_FrameBgHovered]    = ImVec4(0.20f, 0.24f, 0.30f, 1.0f);
     c[ImGuiCol_FrameBgActive]     = ImVec4(0.24f, 0.28f, 0.38f, 1.0f);
 
-    // タブ
     c[ImGuiCol_Tab]               = ImVec4(0.08f, 0.12f, 0.32f, 1.0f);
     c[ImGuiCol_TabHovered]        = ImVec4(0.18f, 0.32f, 0.68f, 1.0f);
     c[ImGuiCol_TabSelected]       = ImVec4(0.20f, 0.40f, 0.82f, 1.0f);
     c[ImGuiCol_TabSelectedOverline] = ImVec4(0.50f, 0.75f, 1.0f, 1.0f);
 
-    // タイトルバー
     c[ImGuiCol_TitleBg]           = ImVec4(0.05f, 0.10f, 0.28f, 1.0f);
     c[ImGuiCol_TitleBgActive]     = ImVec4(0.10f, 0.20f, 0.52f, 1.0f);
     c[ImGuiCol_TitleBgCollapsed]  = ImVec4(0.05f, 0.10f, 0.28f, 0.8f);
 
-    // テキスト
     c[ImGuiCol_Text]              = ImVec4(0.90f, 0.92f, 0.95f, 1.0f);
     c[ImGuiCol_TextDisabled]      = ImVec4(0.45f, 0.48f, 0.55f, 1.0f);
 
-    // スクロールバー
     c[ImGuiCol_ScrollbarBg]       = ImVec4(0.09f, 0.10f, 0.12f, 1.0f);
     c[ImGuiCol_ScrollbarGrab]     = ImVec4(0.30f, 0.35f, 0.45f, 1.0f);
     c[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.38f, 0.44f, 0.56f, 1.0f);
     c[ImGuiCol_ScrollbarGrabActive]  = ImVec4(0.44f, 0.52f, 0.68f, 1.0f);
 
-    // セパレーター
     c[ImGuiCol_Separator]         = ImVec4(0.25f, 0.27f, 0.35f, 1.0f);
     c[ImGuiCol_SeparatorHovered]  = ImVec4(0.40f, 0.60f, 0.90f, 0.78f);
     c[ImGuiCol_SeparatorActive]   = ImVec4(0.40f, 0.60f, 0.90f, 1.0f);
 
-    // ドックスプリッター
     c[ImGuiCol_DockingPreview]    = ImVec4(0.30f, 0.55f, 0.95f, 0.70f);
     c[ImGuiCol_DockingEmptyBg]    = ImVec4(0.08f, 0.09f, 0.11f, 1.0f);
 
-    // ImGuizmo: 中央スフィア（デフォルト自由移動ハンドル）を非表示
     ImGuizmo::GetStyle().CenterCircleSize = 0.0f;
 }

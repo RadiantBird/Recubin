@@ -66,12 +66,23 @@ GLFWwindow* setupWindow() {
     return window;
 }
 
+// 安全な終了処理関数
+bool checkExit(Renderer& renderer, GLFWwindow& window) {
+    if (renderer.editor && renderer.editor->isDirty()) {
+        renderer.editor->requestSaveDialog(&window);
+        glfwSetWindowShouldClose(&window, GLFW_FALSE);
+    } else {
+        return true;
+    }
+    return false;
+}
+
 // ===================================================
 //  main
 // ===================================================
 int main() {
     std::cout << "Hello world!\n"
-              << "Recubin Editor v0.80\n";
+              << "Recubin Editor v0.88\n";
 
     GLFWwindow* window = setupWindow();
     if (!window) {
@@ -124,7 +135,12 @@ int main() {
     float lastFrame = static_cast<float>(glfwGetTime());
     bool wasPlaying = false;
 
-    while (!glfwWindowShouldClose(window)) {
+    while (true) {
+        if (glfwWindowShouldClose(window)) {
+            if (checkExit(*renderer, *window)) {
+                break;
+            }
+        }
         float currentFrame = static_cast<float>(glfwGetTime());
         float deltaTime    = currentFrame - lastFrame;
         lastFrame          = currentFrame;
@@ -170,7 +186,12 @@ int main() {
         state.viewportFocused    = vp && IsViewportFocused(vp);
         state.viewportZoomEnabled = vp && (IsViewportFocused(vp) || vp->isHoveringViewport);
         user->processInput(physics.get());
-        if (user->wannaExit) break;
+        if (user->wannaExit) {
+            user->wannaExit = false;
+            if (checkExit(*renderer, *window)) {
+                break;
+            }
+        }
 
         // ---- 描画 ----
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

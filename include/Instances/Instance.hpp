@@ -43,5 +43,7 @@ class Instance : public std::enable_shared_from_this<Instance> {
 
         string getFullPath();
 
+        virtual std::shared_ptr<Instance> clone() const;
+
         virtual ~Instance();
 };
