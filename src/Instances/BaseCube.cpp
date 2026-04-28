@@ -102,6 +102,18 @@ BaseCube::~BaseCube() {
         actor = nullptr;
     }
 }
+unsigned int BaseCube::getDecalTexture(Face face, unsigned int fallback) const {
+    for (auto const& [name, child] : children) {
+        if (child->IsA("Decal")) {
+            Decal* d = static_cast<Decal*>(child.get());
+            if (d->face == face && d->TextureID != 0) {
+                return d->TextureID;
+            }
+        }
+    }
+    return fallback;
+}
+
 void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Anchored") {
         this->Anchored = value.as<bool>();

@@ -7,6 +7,7 @@
 #include <include/Util/Color4.hpp>
 #include <include/Util/Material.hpp>
 #include <include/PhysX/PxPhysicsAPI.h>
+#include <include/Instances/Decal.hpp>
 #include <vector>
 
 enum class PhysicsShape { Box, Sphere, ConvexMesh };
@@ -30,6 +31,10 @@ public:
 
     virtual PhysicsShape getPhysicsShape() const { return PhysicsShape::Box; }
     virtual std::vector<physx::PxVec3> getConvexVertices() const { return {}; }
+
+    // 子デカールから指定方向のテクスチャIDを取得するヘルパー
+    // 該当するデカールがなければ fallback を返す
+    unsigned int getDecalTexture(Face face, unsigned int fallback) const;
     
     virtual string GetClassName() override;
     virtual bool IsA(std::string name) override;

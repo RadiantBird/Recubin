@@ -128,6 +128,18 @@ bool TriangularPrism::IsA(std::string className) {
     return BaseCube::IsA(className);
 }
 
+// インデックスバッファのリージョン境界 (initGeometry の生成順)
+// [0..3)   : Top   (Face::Top)
+// [3..6)   : Bottom(Face::Bottom)
+// [6..12)  : 面AB  (Face::Front)
+// [12..18) : 面BC  (Face::Back)
+// [18..24) : 面CA  (Face::Right)
+static const int TP_TOP_OFF  = 0,  TP_TOP_COUNT  = 3;
+static const int TP_BOT_OFF  = 3,  TP_BOT_COUNT  = 3;
+static const int TP_AB_OFF   = 6,  TP_AB_COUNT   = 6;
+static const int TP_BC_OFF   = 12, TP_BC_COUNT   = 6;
+static const int TP_CA_OFF   = 18, TP_CA_COUNT   = 6;
+
 void TriangularPrism::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(s_VAO);
 
@@ -137,8 +149,23 @@ void TriangularPrism::draw(int modelLoc, int shaderProgram) {
     }
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, defaultTextureID);
-    glDrawElements(GL_TRIANGLES, s_IndexCount, GL_UNSIGNED_INT, nullptr);
+
+    unsigned int topTex   = getDecalTexture(Face::Top,    defaultTextureID);
+    unsigned int botTex   = getDecalTexture(Face::Bottom, defaultTextureID);
+    unsigned int frontTex = getDecalTexture(Face::Front,  defaultTextureID);
+    unsigned int backTex  = getDecalTexture(Face::Back,   defaultTextureID);
+    unsigned int rightTex = getDecalTexture(Face::Right,  defaultTextureID);
+
+    auto draw = [](int count, int off) {
+        glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT,
+                       (void*)(uintptr_t)(off * sizeof(unsigned int)));
+    };
+
+    glBindTexture(GL_TEXTURE_2D, topTex);   draw(TP_TOP_COUNT, TP_TOP_OFF);
+    glBindTexture(GL_TEXTURE_2D, botTex);   draw(TP_BOT_COUNT, TP_BOT_OFF);
+    glBindTexture(GL_TEXTURE_2D, frontTex); draw(TP_AB_COUNT,  TP_AB_OFF);
+    glBindTexture(GL_TEXTURE_2D, backTex);  draw(TP_BC_COUNT,  TP_BC_OFF);
+    glBindTexture(GL_TEXTURE_2D, rightTex); draw(TP_CA_COUNT,  TP_CA_OFF);
 }
 
 std::shared_ptr<Instance> TriangularPrism::clone() const {

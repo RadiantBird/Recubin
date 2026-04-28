@@ -111,6 +111,17 @@ bool Cylinder::IsA(std::string className) {
     return BaseCube::IsA(className);
 }
 
+// インデックスバッファのリージョン境界 (initGeometry の生成順に対応)
+// [0..96)    : トップキャップ  (CYL_SEG * 3)
+// [96..192)  : ボトムキャップ  (CYL_SEG * 3)
+// [192..384) : 側面            (CYL_SEG * 6)
+static const int CYL_TOP_COUNT  = CYL_SEG * 3;          // 96
+static const int CYL_BOT_COUNT  = CYL_SEG * 3;          // 96
+static const int CYL_SIDE_COUNT = CYL_SEG * 6;          // 192
+static const int CYL_TOP_OFF    = 0;
+static const int CYL_BOT_OFF    = CYL_TOP_COUNT;        // 96
+static const int CYL_SIDE_OFF   = CYL_TOP_COUNT + CYL_BOT_COUNT; // 192
+
 void Cylinder::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(s_VAO);
 
@@ -120,8 +131,29 @@ void Cylinder::draw(int modelLoc, int shaderProgram) {
     }
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, defaultTextureID ? defaultTextureID : Cylinder::defaultTextureID);
-    glDrawElements(GL_TRIANGLES, s_IndexCount, GL_UNSIGNED_INT, nullptr);
+
+    // Top cap: Face::Top
+    unsigned int topTex  = getDecalTexture(Face::Top,    defaultTextureID);
+    // Bottom cap: Face::Bottom
+    unsigned int botTex  = getDecalTexture(Face::Bottom, defaultTextureID);
+    // Side: 4方向いずれかのデカールを使用 (最初に見つかったもの)
+    unsigned int sideTex = defaultTextureID;
+    for (Face f : { Face::Front, Face::Back, Face::Right, Face::Left }) {
+        unsigned int t = getDecalTexture(f, 0);
+        if (t != 0) { sideTex = t; break; }
+    }
+
+    glBindTexture(GL_TEXTURE_2D, topTex);
+    glDrawElements(GL_TRIANGLES, CYL_TOP_COUNT,  GL_UNSIGNED_INT,
+                   (void*)(uintptr_t)(CYL_TOP_OFF  * sizeof(unsigned int)));
+
+    glBindTexture(GL_TEXTURE_2D, botTex);
+    glDrawElements(GL_TRIANGLES, CYL_BOT_COUNT,  GL_UNSIGNED_INT,
+                   (void*)(uintptr_t)(CYL_BOT_OFF  * sizeof(unsigned int)));
+
+    glBindTexture(GL_TEXTURE_2D, sideTex);
+    glDrawElements(GL_TRIANGLES, CYL_SIDE_COUNT, GL_UNSIGNED_INT,
+                   (void*)(uintptr_t)(CYL_SIDE_OFF * sizeof(unsigned int)));
 }
 
 std::shared_ptr<Instance> Cylinder::clone() const {

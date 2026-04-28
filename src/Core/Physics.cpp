@@ -15,6 +15,14 @@ void Physics::init() {
 
 Physics::~Physics() {
     if (scene) {
+        for (BaseCube* cube : cubes) {
+            if (cube && cube->actor) {
+                scene->removeActor(*cube->actor);
+                cube->actor->release();
+                cube->actor = nullptr;
+            }
+        }
+        cubes.clear();
         scene->release();
         scene = nullptr;
     }
@@ -176,12 +184,10 @@ void Physics::removeCube(BaseCube* cube) {
     
     // PhysX から削除
     if (cube->actor) {
-        try {
+        if (scene) {
             scene->removeActor(*cube->actor);
-            cube->actor->release();
-        } catch (...) {
-            RCBN_WARN("Error removing actor: " << cube->Name);
         }
+        cube->actor->release();
         cube->actor = nullptr;
     }
     

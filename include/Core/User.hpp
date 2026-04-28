@@ -5,6 +5,7 @@
 #include <Instances/Model.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Instances/Cube.hpp>
+#include <Instances/Cylinder.hpp>
 #include <include/GL/glew.h>
 #include <include/GLFW/glfw3.h>
 #include <cmath>
@@ -38,7 +39,7 @@ public:
     std::shared_ptr<Model> character = nullptr;
     std::shared_ptr<Cube> root = nullptr; // キャラクターのルート（全体をまとめる）
     std::shared_ptr<Cube> torso = nullptr;
-    std::shared_ptr<Cube> head = nullptr;
+    std::shared_ptr<Cylinder> head = nullptr;
     std::shared_ptr<Cube> leftArm = nullptr;
     std::shared_ptr<Cube> rightArm = nullptr;
     std::shared_ptr<Cube> leftLeg = nullptr;

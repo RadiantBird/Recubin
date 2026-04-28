@@ -11,12 +11,12 @@ Root:
         Anchored: false
         CanCollide: true
     - ClassName: Cube
-      Name: Baseplate
+      Name: Red
       Properties:
-        Position: [0, -10, 0]
-        Size: [32, 1, 32]
-        Color: [0, 1, 0.5, 1]
-        Anchored: true
+        Position: [2, 0, -4]
+        Size: [1, 1, 1]
+        Color: [1, 0, 0, 1]
+        Anchored: false
         CanCollide: true
     - ClassName: Cube
       Name: Green
@@ -27,12 +27,12 @@ Root:
         Anchored: false
         CanCollide: true
     - ClassName: Cube
-      Name: Red
+      Name: Baseplate
       Properties:
-        Position: [2, 0, -4]
-        Size: [1, 1, 1]
-        Color: [1, 0, 0, 1]
-        Anchored: false
+        Position: [0, -10, 0]
+        Size: [128, 1, 256]
+        Color: [0, 1, 0.5, 1]
+        Anchored: true
         CanCollide: true
     - ClassName: Script
       Name: HiGeorge
@@ -60,30 +60,30 @@ Root:
         CanCollide: true
       Children:
         - ClassName: Decal
-          Name: Decal_Left
+          Name: Decal_Front
           Properties:
-            Face: 5
-            Texture: assets/image/Limabis_logo.png
+            Face: 0
+            Texture: assets/image/floppa2048.jpg
         - ClassName: Decal
           Name: Decal_Top
           Properties:
             Face: 2
             Texture: assets/image/salad-cat.jpg
         - ClassName: Decal
-          Name: Decal_Front
+          Name: Decal_Left
           Properties:
-            Face: 0
-            Texture: assets/image/floppa2048.jpg
-        - ClassName: Decal
-          Name: Decal_Bottom
-          Properties:
-            Face: 3
-            Texture: assets/image/smile.png
+            Face: 5
+            Texture: assets/image/Limabis_logo.png
         - ClassName: Decal
           Name: Decal_Back
           Properties:
             Face: 1
             Texture: assets/image/the-cat.png
+        - ClassName: Decal
+          Name: Decal_Bottom
+          Properties:
+            Face: 3
+            Texture: assets/image/smile.png
         - ClassName: Decal
           Name: Decal_Right
           Properties:

@@ -3,6 +3,7 @@
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
 
+
 User* User::s_instance = nullptr;
 
 void User::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
@@ -237,7 +238,8 @@ void User::processInput(Physics* physics) {
     float swingAngle = std::sin(rad) * 35.0f; 
 
     if (torso) torso->cframe = root->cframe * CFrame(0, 1.0f, 0);
-    if (head)  head->cframe  = root->cframe * CFrame(0, 2.5f, 0);
+    // cylinderなので90度回転させる
+    if (head)  head->cframe  = root->cframe * CFrame(0, 2.5f, 0) * CFrame::fromAxisAngle(Vector3(0, 1, 0), -90.0f);
 
     float L_armAngle = swingAngle;
     float R_armAngle = -swingAngle;
@@ -336,13 +338,15 @@ void User::spawnCharacter() {
 
     // パーツ生成
     root      = std::make_shared<Cube>(basePos, Vector3(2.0f, 4.0f, 1.0f), 0);
-    head      = std::make_shared<Cube>(basePos, Vector3(1.0f, 1.0f, 1.0f), 0);
+    head      = std::make_shared<Cylinder>(basePos, Vector3(1.0f, 1.0f, 1.0f));
     torso     = std::make_shared<Cube>(basePos, Vector3(2.0f, 2.0f, 1.0f), 0);
     leftArm   = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
     rightArm  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
     leftLeg   = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
     rightLeg  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
 
+    // headを90度回転させて顔が前を向くようにする
+    head->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f));
     // 1. 名前を最初に設定（重要：addChildの前に設定して重複キーを避ける）
     root->Name     = "Root";
     head->Name     = "Head";

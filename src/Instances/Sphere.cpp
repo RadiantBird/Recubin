@@ -100,8 +100,15 @@ void Sphere::draw(int modelLoc, int shaderProgram) {
         glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
     }
 
+    // 球は連続面なので全体に1枚のテクスチャ
+    // いずれかの方向にデカールが存在すれば優先的に使用
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, defaultTextureID);
+    unsigned int tex = defaultTextureID;
+    for (Face f : { Face::Front, Face::Top, Face::Back, Face::Bottom, Face::Right, Face::Left }) {
+        unsigned int t = getDecalTexture(f, 0);
+        if (t != 0) { tex = t; break; }
+    }
+    glBindTexture(GL_TEXTURE_2D, tex);
     glDrawElements(GL_TRIANGLES, s_IndexCount, GL_UNSIGNED_INT, nullptr);
 }
 
