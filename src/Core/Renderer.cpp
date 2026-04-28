@@ -1,6 +1,9 @@
 #include <Core/Renderer.hpp>
 #include <Core/FileLoader.hpp>
 #include <Editor/EditorManager.hpp>
+#include <Instances/Cylinder.hpp>
+#include <Instances/TriangularPrism.hpp>
+#include <Instances/Sphere.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "include/stb_image.h"
@@ -140,7 +143,12 @@ void Renderer::init(GLFWwindow* window) {
     glUniform3f(lightColorLoc, 1.0f,  1.0f,  1.0f);
 
     createWhiteTexture();
-    Cube::defaultTextureID = whiteTexture;
+    Cube::defaultTextureID            = whiteTexture;
+    Cube::s_VAO                       = VAO;
+    Cube::s_EBO                       = EBO;
+    Cylinder::defaultTextureID        = whiteTexture;
+    TriangularPrism::defaultTextureID = whiteTexture;
+    Sphere::defaultTextureID          = whiteTexture;
     stbi_set_flip_vertically_on_load(true);
 
     glClearColor(0.08f, 0.09f, 0.11f, 1.0f);
@@ -198,6 +206,30 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
                 glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
                 cube->draw(modelLoc, shaderProgram);
             }
+        } else if (inst->IsA("Cylinder")) {
+            Cylinder* c = static_cast<Cylinder*>(inst);
+            if (c->Color.a > 0.001f) {
+                Matrix4 modelMat = c->cframe.toMatrix4() *
+                                   Matrix4::Scale(c->Size.x, c->Size.y, c->Size.z);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
+                c->draw(modelLoc, shaderProgram);
+            }
+        } else if (inst->IsA("TriangularPrism")) {
+            TriangularPrism* tp = static_cast<TriangularPrism*>(inst);
+            if (tp->Color.a > 0.001f) {
+                Matrix4 modelMat = tp->cframe.toMatrix4() *
+                                   Matrix4::Scale(tp->Size.x, tp->Size.y, tp->Size.z);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
+                tp->draw(modelLoc, shaderProgram);
+            }
+        } else if (inst->IsA("Sphere")) {
+            Sphere* sp = static_cast<Sphere*>(inst);
+            if (sp->Color.a > 0.001f) {
+                Matrix4 modelMat = sp->cframe.toMatrix4() *
+                                   Matrix4::Scale(sp->Size.x, sp->Size.y, sp->Size.z);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
+                sp->draw(modelLoc, shaderProgram);
+            }
         }
         for (auto const& [name, child] : inst->getChildren()) {
             self(self, child.get());
@@ -211,12 +243,12 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
     // ---- 選択インスタンスの黄色ワイヤーフレームハイライト ----
     if (editor && editor->hierarchyPanel->selectedInstance) {
         Instance* sel = editor->hierarchyPanel->selectedInstance;
-        if (sel->IsA("Cube")) {
-            Cube* cube = static_cast<Cube*>(sel);
-            Matrix4 modelMat = cube->cframe.toMatrix4() *
-                               Matrix4::Scale(cube->Size.x * 1.02f,
-                                              cube->Size.y * 1.02f,
-                                              cube->Size.z * 1.02f);
+        if (sel->IsA("BaseCube")) {
+            BaseCube* bc = static_cast<BaseCube*>(sel);
+            Matrix4 modelMat = bc->cframe.toMatrix4() *
+                               Matrix4::Scale(bc->Size.x * 1.02f,
+                                              bc->Size.y * 1.02f,
+                                              bc->Size.z * 1.02f);
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
             int colorLocHl = glGetUniformLocation(shaderProgram, "ourColor");
             if (colorLocHl != -1) glUniform4f(colorLocHl, 1.0f, 1.0f, 0.0f, 1.0f);
@@ -224,7 +256,20 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
             glBindTexture(GL_TEXTURE_2D, whiteTexture);
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
             glLineWidth(2.0f);
-            glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+            // 形状ごとに正しいVAOをバインドしてワイヤーフレームを描画
+            if (sel->IsA("Cylinder")) {
+                glBindVertexArray(Cylinder::s_VAO);
+                glDrawElements(GL_TRIANGLES, Cylinder::s_IndexCount, GL_UNSIGNED_INT, nullptr);
+            } else if (sel->IsA("TriangularPrism")) {
+                glBindVertexArray(TriangularPrism::s_VAO);
+                glDrawElements(GL_TRIANGLES, TriangularPrism::s_IndexCount, GL_UNSIGNED_INT, nullptr);
+            } else if (sel->IsA("Sphere")) {
+                glBindVertexArray(Sphere::s_VAO);
+                glDrawElements(GL_TRIANGLES, Sphere::s_IndexCount, GL_UNSIGNED_INT, nullptr);
+            } else {
+                glBindVertexArray(Cube::s_VAO);
+                glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+            }
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
             glLineWidth(1.0f);
         }

@@ -2,6 +2,9 @@
 #include <Core/FileLoader.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Cube.hpp>
+#include <Instances/Cylinder.hpp>
+#include <Instances/TriangularPrism.hpp>
+#include <Instances/Sphere.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/Decal.hpp>
@@ -94,7 +97,10 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
 
 std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& className) {
     if (className == "Workspace") return std::make_shared<Workspace>();
-    if (className == "Cube")      return std::make_shared<Cube>(Vector3(0,0,0), Vector3(1,1,1), 0);
+    if (className == "Cube")           return std::make_shared<Cube>(Vector3(0,0,0), Vector3(1,1,1), 0);
+    if (className == "Cylinder")       return std::make_shared<Cylinder>(Vector3(0,0,0), Vector3(1,1,1));
+    if (className == "TriangularPrism") return std::make_shared<TriangularPrism>(Vector3(0,0,0), Vector3(1,1,1));
+    if (className == "Sphere")         return std::make_shared<Sphere>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "Script")    return std::make_shared<Script>("");
     if (className == "Model")     return std::make_shared<Model>();
     if (className == "Decal")     return std::make_shared<Decal>(0, Face::Front);

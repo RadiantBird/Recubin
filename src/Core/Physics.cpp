@@ -1,5 +1,6 @@
 #include "include/Core/Physics.hpp"
 #include "include/Util/Logger.hpp"
+#include <include/PhysX/cooking/PxCooking.h>
 
 void Physics::init() {
     foundation = PxCreateFoundation(PX_PHYSICS_VERSION, allocator, errorCallback);
@@ -29,9 +30,7 @@ Physics::~Physics() {
 
 void Physics::createActor(BaseCube* cube) {
     if (cube->actor) return; // 二重登録防止
-    // 形状(Half-extentsなので半分にする)
-    physx::PxBoxGeometry geometry(cube->Size.x/2, cube->Size.y/2, cube->Size.z/2);
-    
+
     // 初期姿勢
     physx::PxTransform transform(
         physx::PxVec3(cube->cframe.Position.x, cube->cframe.Position.y, cube->cframe.Position.z),
@@ -47,10 +46,44 @@ void Physics::createActor(BaseCube* cube) {
         actor = dynamicActor;
     }
 
-    // 形状とマテリアルの紐付け
     physx::PxMaterial* pxMat = getOrCreateMaterial(cube->material);
-    physx::PxRigidActorExt::createExclusiveShape(*actor, geometry, *pxMat);
-    
+
+    switch (cube->getPhysicsShape()) {
+    case PhysicsShape::Box: {
+        physx::PxBoxGeometry geom(cube->Size.x/2, cube->Size.y/2, cube->Size.z/2);
+        physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *pxMat);
+        break;
+    }
+    case PhysicsShape::Sphere: {
+        physx::PxSphereGeometry geom(cube->Size.x / 2.f);
+        physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *pxMat);
+        break;
+    }
+    case PhysicsShape::ConvexMesh: {
+        auto verts = cube->getConvexVertices();
+        physx::PxCookingParams cookParams(physics->getTolerancesScale());
+        physx::PxConvexMeshDesc desc;
+        desc.points.count  = static_cast<physx::PxU32>(verts.size());
+        desc.points.stride = sizeof(physx::PxVec3);
+        desc.points.data   = verts.data();
+        desc.flags         = physx::PxConvexFlag::eCOMPUTE_CONVEX;
+        physx::PxDefaultMemoryOutputStream buf;
+        physx::PxConvexMeshCookingResult::Enum result;
+        if (!PxCookConvexMesh(cookParams, desc, buf, &result)) {
+            RCBN_WARN("ConvexMesh cooking failed for: " << cube->Name);
+            actor->release();
+            return;
+        }
+        physx::PxDefaultMemoryInputData input(buf.getData(), buf.getSize());
+        physx::PxConvexMesh* mesh = physics->createConvexMesh(input);
+        physx::PxMeshScale scale(physx::PxVec3(cube->Size.x, cube->Size.y, cube->Size.z));
+        physx::PxConvexMeshGeometry geom(mesh, scale);
+        physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *pxMat);
+        mesh->release();
+        break;
+    }
+    }
+
     scene->addActor(*actor);
     actor->userData = cube; // レイキャスト等で逆引きできるようにポインタを保持
     cube->actor = actor; // BaseCube側に参照を戻す

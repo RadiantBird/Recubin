@@ -2,6 +2,9 @@
 #include <Editor/ViewportFocusManager.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Instances/Cube.hpp>
+#include <Instances/Cylinder.hpp>
+#include <Instances/TriangularPrism.hpp>
+#include <Instances/Sphere.hpp>
 #include <Core/SceneLoader.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
@@ -313,6 +316,42 @@ void EditorManager::renderToolbar() {
         cube->Name = name;
         m_history.execute(std::make_unique<AddInstanceCommand>(
             m_workspace->shared_from_this(), cube));
+        m_isDirty = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("New Cylinder", btnSz) && m_workspace) {
+        auto obj = std::make_shared<Cylinder>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+        std::string name = "Cylinder";
+        int n = 1;
+        while (m_workspace->children.count(name) > 0)
+            name = "Cylinder" + std::to_string(n++);
+        obj->Name = name;
+        m_history.execute(std::make_unique<AddInstanceCommand>(
+            m_workspace->shared_from_this(), obj));
+        m_isDirty = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("New Prism", btnSz) && m_workspace) {
+        auto obj = std::make_shared<TriangularPrism>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+        std::string name = "TriangularPrism";
+        int n = 1;
+        while (m_workspace->children.count(name) > 0)
+            name = "TriangularPrism" + std::to_string(n++);
+        obj->Name = name;
+        m_history.execute(std::make_unique<AddInstanceCommand>(
+            m_workspace->shared_from_this(), obj));
+        m_isDirty = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("New Sphere", btnSz) && m_workspace) {
+        auto obj = std::make_shared<Sphere>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+        std::string name = "Sphere";
+        int n = 1;
+        while (m_workspace->children.count(name) > 0)
+            name = "Sphere" + std::to_string(n++);
+        obj->Name = name;
+        m_history.execute(std::make_unique<AddInstanceCommand>(
+            m_workspace->shared_from_this(), obj));
         m_isDirty = true;
     }
 

@@ -20,6 +20,8 @@ std::vector<Vertex> createCubeVertices(float size);
 class Cube : public BaseCube {
     public:
         static unsigned int defaultTextureID;
+        static unsigned int s_VAO;
+        static unsigned int s_EBO;
 
         // コンストラクタ
         Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex);

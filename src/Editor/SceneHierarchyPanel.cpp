@@ -1,6 +1,9 @@
 #include <Editor/SceneHierarchyPanel.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Instances/Cube.hpp>
+#include <Instances/Cylinder.hpp>
+#include <Instances/TriangularPrism.hpp>
+#include <Instances/Sphere.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
 #include <Core/AudioService.hpp>
@@ -156,6 +159,36 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
                     name = "Cube" + std::to_string(n++);
                 cube->Name = name;
                 m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, cube));
+            }
+            if (ImGui::MenuItem("Cylinder") && m_history) {
+                auto parentSp = inst->shared_from_this();
+                auto obj = std::make_shared<Cylinder>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+                std::string name = "Cylinder";
+                int n = 1;
+                while (parentSp->children.count(name) > 0)
+                    name = "Cylinder" + std::to_string(n++);
+                obj->Name = name;
+                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+            }
+            if (ImGui::MenuItem("TriangularPrism") && m_history) {
+                auto parentSp = inst->shared_from_this();
+                auto obj = std::make_shared<TriangularPrism>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+                std::string name = "TriangularPrism";
+                int n = 1;
+                while (parentSp->children.count(name) > 0)
+                    name = "TriangularPrism" + std::to_string(n++);
+                obj->Name = name;
+                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+            }
+            if (ImGui::MenuItem("Sphere") && m_history) {
+                auto parentSp = inst->shared_from_this();
+                auto obj = std::make_shared<Sphere>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+                std::string name = "Sphere";
+                int n = 1;
+                while (parentSp->children.count(name) > 0)
+                    name = "Sphere" + std::to_string(n++);
+                obj->Name = name;
+                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
             }
             if (ImGui::MenuItem("Script")) {
                 m_pendingScriptParent = inst->shared_from_this();

@@ -38,6 +38,14 @@ Root:
       Name: HiGeorge
       Properties:
         ContentPath: C:\Users\Ryarta\Documents\TestLuau\HiGeorge.luau
+    - ClassName: TriangularPrism
+      Name: TriangularPrism
+      Properties:
+        Position: [-3.2510529, 5, 0]
+        Size: [1, 1, 1]
+        Color: [1, 1, 1, 1]
+        Anchored: false
+        CanCollide: true
     - ClassName: Script
       Name: 2006
       Properties:
@@ -98,4 +106,20 @@ Root:
             ContentPath: assets/sound/Newalks.mp3
             Looped: false
             SoundGroup: SFX
-            AutoPlay: true
+            AutoPlay: false
+    - ClassName: Cylinder
+      Name: Cylinder
+      Properties:
+        Position: [0, 5, 1.5317817]
+        Size: [1, 1, 1]
+        Color: [1, 1, 1, 1]
+        Anchored: false
+        CanCollide: true
+    - ClassName: Sphere
+      Name: Sphere
+      Properties:
+        Position: [2.7700124, 5, 0]
+        Size: [1, 1, 1]
+        Color: [1, 1, 1, 1]
+        Anchored: false
+        CanCollide: true

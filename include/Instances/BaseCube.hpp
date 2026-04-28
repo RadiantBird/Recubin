@@ -7,6 +7,9 @@
 #include <include/Util/Color4.hpp>
 #include <include/Util/Material.hpp>
 #include <include/PhysX/PxPhysicsAPI.h>
+#include <vector>
+
+enum class PhysicsShape { Box, Sphere, ConvexMesh };
 
 class BaseCube : public Spatial {
 public:
@@ -24,6 +27,9 @@ public:
 
     BaseCube(Vector3 Pos, Vector3 Sz);
     virtual ~BaseCube();
+
+    virtual PhysicsShape getPhysicsShape() const { return PhysicsShape::Box; }
+    virtual std::vector<physx::PxVec3> getConvexVertices() const { return {}; }
     
     virtual string GetClassName() override;
     virtual bool IsA(std::string name) override;

@@ -143,7 +143,7 @@ void ViewportPanel::onRender() {
         float foundSign = 1.0f;
         auto visit = [&](auto& self, Instance* inst) -> void {
             if (!inst || inst == exclude) return;
-            if (inst->IsA("Cube")) {
+            if (inst->IsA("BaseCube")) {
                 Spatial* sp = static_cast<Spatial*>(inst);
                 float bmin[3] = { sp->Position.x - sp->Size.x * 0.5f,
                                    sp->Position.y - sp->Size.y * 0.5f,
@@ -259,7 +259,7 @@ void ViewportPanel::onRender() {
 
         auto castRay = [&](auto& self, Instance* inst) -> void {
             if (!inst) return;
-            if (inst->IsA("Cube")) {
+            if (inst->IsA("BaseCube")) {
                 Spatial* s = static_cast<Spatial*>(inst);
                 float bmin[3] = { s->Position.x - s->Size.x * 0.5f,
                                    s->Position.y - s->Size.y * 0.5f,

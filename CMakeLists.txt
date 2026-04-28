@@ -50,6 +50,7 @@ target_link_libraries(Recubin PRIVATE
     "${LIB_DIR}/PhysXCommon_64.lib"
     "${LIB_DIR}/PhysXFoundation_64.lib"
     "${LIB_DIR}/PhysXExtensions_static_64.lib"
+    "${LIB_DIR}/PhysXCooking_64.lib"
     "${LIB_DIR}/Luau.Ast.lib"
     "${LIB_DIR}/Luau.Compiler.lib"
     "${LIB_DIR}/Luau.VM.lib"

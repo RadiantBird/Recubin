@@ -3,6 +3,8 @@
 #include <GLFW/glfw3.h>
 
 unsigned int Cube::defaultTextureID = 0;
+unsigned int Cube::s_VAO = 0;
+unsigned int Cube::s_EBO = 0;
 
 // 頂点生成関数の実装
 std::vector<Vertex> createCubeVertices(float size) {
@@ -74,6 +76,7 @@ bool Cube::IsA(std::string className) {
 
 // 描画の実装
 void Cube::draw(int modelLoc, int shaderProgram) {
+    glBindVertexArray(s_VAO);
     int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
     if (colorLoc != -1) {
         glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
