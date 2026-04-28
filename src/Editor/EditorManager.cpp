@@ -225,7 +225,6 @@ void EditorManager::applyTheme() {
 
     ImVec4* c = style.Colors;
 
-    // ベースカラー：深い青
     c[ImGuiCol_WindowBg]          = ImVec4(0.11f, 0.17f, 0.40f, 1.0f);
     c[ImGuiCol_ChildBg]           = ImVec4(0.09f, 0.14f, 0.35f, 1.0f);
     c[ImGuiCol_PopupBg]           = ImVec4(0.09f, 0.14f, 0.35f, 0.98f);
