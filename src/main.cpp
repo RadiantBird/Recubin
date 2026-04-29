@@ -181,6 +181,26 @@ int main() {
         }
         wasPlaying = isPlaying;
 
+        // ---- Load ボタンによるシーンリロード ----
+        if (renderer->editor && !renderer->editor->pendingLoadPath.empty()
+                && renderer->editor->isEditMode()) {
+            std::string loadPath = renderer->editor->pendingLoadPath;
+            renderer->editor->pendingLoadPath.clear();
+
+            physics->clearCubes();
+            system->removeChild(workspace->Name);
+            workspace = std::static_pointer_cast<Workspace>(
+                SceneLoader::loadScene(loadPath));
+            if (!workspace) workspace = std::make_shared<Workspace>();
+            system->addChild(workspace);
+            workspace->setPhysicsEngine(physics.get());
+            luauEngine->setGlobalInstance(workspace->Name, workspace.get());
+            luauEngine->setGlobalInstance("workspace", workspace.get());
+            luauEngine->setWorkspace(workspace.get());
+            renderer->editor->setWorkspace(workspace.get());
+            renderer->editor->scenePath = loadPath;
+        }
+
         // ---- エディターモード中は物理・スクリプトを止める ----
         if (isPlaying && !isPaused) {
             physics->update(*workspace.get(), deltaTime);

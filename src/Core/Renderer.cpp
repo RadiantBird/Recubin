@@ -201,7 +201,7 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
         if (inst->IsA("Cube")) {
             Cube* cube = static_cast<Cube*>(inst);
             if (cube->Color.a > 0.001f) {
-                Matrix4 modelMat = cube->cframe.toMatrix4() *
+                Matrix4 modelMat = cube->getWorldCFrame().toMatrix4() *
                                    Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
                 glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
                 cube->draw(modelLoc, shaderProgram);
@@ -209,7 +209,7 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
         } else if (inst->IsA("Cylinder")) {
             Cylinder* c = static_cast<Cylinder*>(inst);
             if (c->Color.a > 0.001f) {
-                Matrix4 modelMat = c->cframe.toMatrix4() *
+                Matrix4 modelMat = c->getWorldCFrame().toMatrix4() *
                                    Matrix4::Scale(c->Size.x, c->Size.y, c->Size.z);
                 glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
                 c->draw(modelLoc, shaderProgram);
@@ -217,7 +217,7 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
         } else if (inst->IsA("TriangularPrism")) {
             TriangularPrism* tp = static_cast<TriangularPrism*>(inst);
             if (tp->Color.a > 0.001f) {
-                Matrix4 modelMat = tp->cframe.toMatrix4() *
+                Matrix4 modelMat = tp->getWorldCFrame().toMatrix4() *
                                    Matrix4::Scale(tp->Size.x, tp->Size.y, tp->Size.z);
                 glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
                 tp->draw(modelLoc, shaderProgram);
@@ -225,7 +225,7 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
         } else if (inst->IsA("Sphere")) {
             Sphere* sp = static_cast<Sphere*>(inst);
             if (sp->Color.a > 0.001f) {
-                Matrix4 modelMat = sp->cframe.toMatrix4() *
+                Matrix4 modelMat = sp->getWorldCFrame().toMatrix4() *
                                    Matrix4::Scale(sp->Size.x, sp->Size.y, sp->Size.z);
                 glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
                 sp->draw(modelLoc, shaderProgram);
@@ -245,7 +245,7 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
         Instance* sel = editor->hierarchyPanel->selectedInstance;
         if (sel->IsA("BaseCube")) {
             BaseCube* bc = static_cast<BaseCube*>(sel);
-            Matrix4 modelMat = bc->cframe.toMatrix4() *
+            Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
                                Matrix4::Scale(bc->Size.x * 1.02f,
                                               bc->Size.y * 1.02f,
                                               bc->Size.z * 1.02f);

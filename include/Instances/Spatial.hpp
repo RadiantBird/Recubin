@@ -20,4 +20,9 @@ public:
     std::string GetClassName() override { return "Spatial"; }
     virtual bool IsA(std::string name) override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
+
+    // 親チェーンを辿ってワールド CFrame を合成する
+    // Workspace より上は合成しないため、Workspace 直下の Spatial は自身の cframe がワールド値
+    CFrame getWorldCFrame() const;
+    Vector3 getWorldPosition() const { return getWorldCFrame().Position; }
 };

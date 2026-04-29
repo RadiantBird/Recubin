@@ -42,7 +42,8 @@ public:
     std::unique_ptr<ContentBrowserPanel> contentBrowserPanel;
     std::unique_ptr<ViewportPanel>       viewportPanel;
 
-    std::string scenePath = "assets/scenes/test_scene.yaml";
+    std::string scenePath      = "assets/scenes/test_scene.yaml";
+    std::string pendingLoadPath;  // 非空のとき main.cpp がリロードを実行する
 
     EditorManager(Workspace* workspace, User* user);
 

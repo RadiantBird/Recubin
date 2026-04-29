@@ -1,0 +1,51 @@
+Root:
+  ClassName: Workspace
+  Name: Workspace
+  Children:
+    - ClassName: Cube
+      Name: Wood1
+      Properties:
+        Position: [-2.7453752, 3, 15.886478]
+        Size: [1, 5, 1]
+        Rotation: [0, 0, 0, 1]
+        Color: [0.28615385, 0.18327935, 0.022892304, 1]
+        Anchored: false
+        CanCollide: true
+      Children:
+        - ClassName: Sphere
+          Name: Leaves
+          Properties:
+            Position: [-2.708472, 6, 15.796976]
+            Size: [5, 5, 5]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.91692305, 1, 1]
+            Anchored: false
+            CanCollide: true
+    - ClassName: Cube
+      Name: Plate
+      Properties:
+        Position: [0, 0, 0]
+        Size: [128, 1, 128]
+        Rotation: [0, 0, 0, 1]
+        Color: [0.23763312, 0.60943764, 0.7723077, 1]
+        Anchored: true
+        CanCollide: true
+    - ClassName: Cube
+      Name: Wood
+      Properties:
+        Position: [7.5740585, 3, 15.886478]
+        Size: [1, 5, 1]
+        Rotation: [0, 0, 0, 1]
+        Color: [0.28615385, 0.18327935, 0.022892304, 1]
+        Anchored: false
+        CanCollide: true
+      Children:
+        - ClassName: Sphere
+          Name: Leaves
+          Properties:
+            Position: [7.5740585, 6, 15.796976]
+            Size: [5, 5, 5]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.91692305, 1, 1]
+            Anchored: false
+            CanCollide: true

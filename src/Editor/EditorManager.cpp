@@ -1,5 +1,6 @@
 #include <Editor/EditorManager.hpp>
 #include <Editor/ViewportFocusManager.hpp>
+#include <shobjidl.h>
 #include <Editor/CommandHistory.hpp>
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
@@ -391,7 +392,29 @@ void EditorManager::renderToolbar() {
         saveCurrentScene();
     }
     ImGui::SameLine();
-    ImGui::Button("Load", btnSz);
+    if (ImGui::Button("Load", btnSz)) {
+        IFileOpenDialog* pfd = nullptr;
+        if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                       CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
+            COMDLG_FILTERSPEC filter = { L"Scene (*.yaml;*.yml)", L"*.yaml;*.yml" };
+            pfd->SetFileTypes(1, &filter);
+            if (SUCCEEDED(pfd->Show(nullptr))) {
+                IShellItem* item = nullptr;
+                if (SUCCEEDED(pfd->GetResult(&item))) {
+                    PWSTR wpath = nullptr;
+                    item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
+                    int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
+                    if (len > 1) {
+                        pendingLoadPath.resize(len - 1);
+                        WideCharToMultiByte(CP_UTF8, 0, wpath, -1, pendingLoadPath.data(), len, nullptr, nullptr);
+                    }
+                    CoTaskMemFree(wpath);
+                    item->Release();
+                }
+            }
+            pfd->Release();
+        }
+    }
 
     ImGui::End();
 }

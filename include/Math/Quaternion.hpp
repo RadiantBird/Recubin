@@ -54,6 +54,9 @@ struct Quaternion {
         };
     }
 
+    // 単位クォータニオンの共役 (= 逆回転)
+    Quaternion conjugate() const { return Quaternion(w, -x, -y, -z); }
+
     Vector3 rotate(const Vector3& v) const {
         Vector3 qv = {x, y, z};
         Vector3 t = Vector3::Cross(qv, v) * 2.0f;

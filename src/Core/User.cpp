@@ -221,13 +221,13 @@ void User::processInput(Physics* physics) {
             
             // 地面判定
             RaycastHit hit;
-            Vector3 origin = root->Position;
+            Vector3 origin = root->getWorldPosition();
             Vector3 direction(0, -1, 0);
             float maxDist = (root->Size.y / 2.0f) + 0.2f;
             isGrounded = (physics && physics->raycast(origin, direction, maxDist, hit, root->actor));
 
             // カメラ位置
-            cpos = root->Position + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
+            cpos = root->getWorldPosition() + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
         }
     }
 
@@ -237,9 +237,11 @@ void User::processInput(Physics* physics) {
     float rad = walkCycle * 2.0f * PI;
     float swingAngle = std::sin(rad) * 35.0f; 
 
-    if (torso) torso->cframe = root->cframe * CFrame(0, 1.0f, 0);
+    // root center を基準に ±2.75 で対称配置 (高さ 5.5)
+    // 頭頂: +2.75、足先: -2.75
+    if (torso) torso->cframe = root->cframe * CFrame(0, 0.75f, 0);
     // cylinderなので90度回転させる
-    if (head)  head->cframe  = root->cframe * CFrame(0, 2.5f, 0) * CFrame::fromAxisAngle(Vector3(0, 1, 0), -90.0f);
+    if (head)  head->cframe  = root->cframe * CFrame(0, 2.25f, 0) * CFrame::fromAxisAngle(Vector3(0, 1, 0), -90.0f);
 
     float L_armAngle = swingAngle;
     float R_armAngle = -swingAngle;
@@ -250,19 +252,19 @@ void User::processInput(Physics* physics) {
     }
 
     if (leftArm) {
-        CFrame jointCF = root->cframe * CFrame(-1.25f, 1.25f, 0);
+        CFrame jointCF = root->cframe * CFrame(-1.25f, 1.0f, 0);
         leftArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), L_armAngle) * CFrame(0, -0.5f, 0);
     }
     if (rightArm) {
-        CFrame jointCF = root->cframe * CFrame(1.25f, 1.25f, 0);
+        CFrame jointCF = root->cframe * CFrame(1.25f, 1.0f, 0);
         rightArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), R_armAngle) * CFrame(0, -0.5f, 0);
     }
     if (leftLeg) {
-        CFrame jointCF = root->cframe * CFrame(-0.5f, -0.25f, 0);
+        CFrame jointCF = root->cframe * CFrame(-0.5f, -0.5f, 0);
         leftLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), -swingAngle) * CFrame(0, -1.0f, 0);
     }
     if (rightLeg) {
-        CFrame jointCF = root->cframe * CFrame(0.5f, -0.25f, 0);
+        CFrame jointCF = root->cframe * CFrame(0.5f, -0.5f, 0);
         rightLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), swingAngle) * CFrame(0, -1.0f, 0);
     }
     
@@ -337,7 +339,7 @@ void User::spawnCharacter() {
     Vector3 basePos = character->Position;
 
     // パーツ生成
-    root      = std::make_shared<Cube>(basePos, Vector3(1.75f, 4.75f, 1.0f), 0);
+    root      = std::make_shared<Cube>(basePos, Vector3(1.75f, 5.5f, 1.0f), 0);
     head      = std::make_shared<Cylinder>(basePos, Vector3(1.0f, 1.0f, 1.0f));
     torso     = std::make_shared<Cube>(basePos, Vector3(1.75f, 2.0f, 1.0f), 0);
     leftArm   = std::make_shared<Cube>(basePos, Vector3(0.75f, 2.5f, 1.0f), 0);
@@ -365,7 +367,7 @@ void User::spawnCharacter() {
     rightLeg->Anchored = true;
     root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
 
-    root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // 透明（描画スキップ対象）
+    root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // デバッグのために描画（リリースでは描画スキップ対象）
     torso->Color = Color4::FromRGB(100, 12, 32);
     Color4 skinColor = Color4(1.0f, 1.0f, 1.0f, 1.0f);
     head->Color = skinColor;

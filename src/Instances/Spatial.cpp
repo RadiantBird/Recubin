@@ -1,5 +1,14 @@
 #include "include/Instances/Spatial.hpp"
 
+CFrame Spatial::getWorldCFrame() const {
+    auto par = Parent.lock();
+    if (par && par->IsA("Spatial")) {
+        // 親もワールド CFrame を持つ → 親ワールド * 自ローカル で合成
+        return static_cast<Spatial*>(par.get())->getWorldCFrame() * cframe;
+    }
+    return cframe; // Workspace 直下 or 親なし → ローカル = ワールド
+}
+
 bool Spatial::IsA(std::string className) {
     if (className == "Spatial") {
         return true;

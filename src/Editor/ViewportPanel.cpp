@@ -121,6 +121,26 @@ void ViewportPanel::onRender() {
     //  共用ヘルパーラムダ
     // ===================================================
 
+    // ワールド座標 → 対象 Spatial のローカル座標に変換
+    auto worldToLocal = [](const Vector3& worldPos, const Spatial* sp) -> Vector3 {
+        auto par = sp->Parent.lock();
+        if (par && par->IsA("Spatial")) {
+            CFrame pw = static_cast<Spatial*>(par.get())->getWorldCFrame();
+            return pw.Rotation.conjugate().rotate(worldPos - pw.Position);
+        }
+        return worldPos;
+    };
+
+    // ワールド回転 → 対象 Spatial のローカル回転に変換
+    auto worldToLocalRot = [](const Quaternion& worldRot, const Spatial* sp) -> Quaternion {
+        auto par = sp->Parent.lock();
+        if (par && par->IsA("Spatial")) {
+            CFrame pw = static_cast<Spatial*>(par.get())->getWorldCFrame();
+            return pw.Rotation.conjugate() * worldRot;
+        }
+        return worldRot;
+    };
+
     // マウスパネル座標 → ワールドレイ方向
     auto makeRay = [&](float mx, float my) -> Vector3 {
         float ndcX  = (mx / (float)w) * 2.0f - 1.0f;
@@ -145,12 +165,13 @@ void ViewportPanel::onRender() {
             if (!inst || inst == exclude) return;
             if (inst->IsA("BaseCube")) {
                 Spatial* sp = static_cast<Spatial*>(inst);
-                float bmin[3] = { sp->Position.x - sp->Size.x * 0.5f,
-                                   sp->Position.y - sp->Size.y * 0.5f,
-                                   sp->Position.z - sp->Size.z * 0.5f };
-                float bmax[3] = { sp->Position.x + sp->Size.x * 0.5f,
-                                   sp->Position.y + sp->Size.y * 0.5f,
-                                   sp->Position.z + sp->Size.z * 0.5f };
+                Vector3 wp = sp->getWorldPosition();
+                float bmin[3] = { wp.x - sp->Size.x * 0.5f,
+                                   wp.y - sp->Size.y * 0.5f,
+                                   wp.z - sp->Size.z * 0.5f };
+                float bmax[3] = { wp.x + sp->Size.x * 0.5f,
+                                   wp.y + sp->Size.y * 0.5f,
+                                   wp.z + sp->Size.z * 0.5f };
                 float rd[3] = { dir.x, dir.y, dir.z };
                 float ro[3] = { ori.x, ori.y, ori.z };
                 float tmin = -1e30f, tmax = 1e30f;
@@ -194,7 +215,7 @@ void ViewportPanel::onRender() {
     };
 
     // 指定軸のみで衝突解決する（軸ジャンプ防止用）
-    // axis: 0=X, 1=Y, 2=Z。その軸の解決後座標を返す
+    // axis: 0=X, 1=Y, 2=Z。その軸の解決後ワールド座標を返す
     auto fitOnAxis = [&](Vector3 pos, const Vector3& size, Instance* moving, int axis) -> float {
         float p[3]  = { pos.x,  pos.y,  pos.z  };
         float sz[3] = { size.x, size.y, size.z };
@@ -202,8 +223,9 @@ void ViewportPanel::onRender() {
             if (!inst || inst == moving) return;
             if (inst->IsA("Spatial")) {
                 Spatial* other = static_cast<Spatial*>(inst);
-                float op[3] = { other->Position.x, other->Position.y, other->Position.z };
-                float os[3] = { other->Size.x,     other->Size.y,     other->Size.z     };
+                Vector3 owp = other->getWorldPosition();
+                float op[3] = { owp.x, owp.y, owp.z };
+                float os[3] = { other->Size.x, other->Size.y, other->Size.z };
                 float oa[3] = {
                     (sz[0] + os[0]) * 0.5f - std::abs(p[0] - op[0]),
                     (sz[1] + os[1]) * 0.5f - std::abs(p[1] - op[1]),
@@ -220,19 +242,20 @@ void ViewportPanel::onRender() {
         return p[axis];
     };
 
-    // AABB-AABB MTV 衝突フィット（moving と重なるキューブから押し出した位置を返す）
+    // AABB-AABB MTV 衝突フィット（moving と重なるキューブから押し出したワールド位置を返す）
     auto fitCollision = [&](Vector3 pos, const Vector3& size, Instance* moving) -> Vector3 {
         auto visit = [&](auto& self, Instance* inst) -> void {
             if (!inst || inst == moving) return;
             if (inst->IsA("Spatial")) {
                 Spatial* other = static_cast<Spatial*>(inst);
-                float ox = (size.x + other->Size.x) * 0.5f - std::abs(pos.x - other->Position.x);
-                float oy = (size.y + other->Size.y) * 0.5f - std::abs(pos.y - other->Position.y);
-                float oz = (size.z + other->Size.z) * 0.5f - std::abs(pos.z - other->Position.z);
+                Vector3 owp = other->getWorldPosition();
+                float ox = (size.x + other->Size.x) * 0.5f - std::abs(pos.x - owp.x);
+                float oy = (size.y + other->Size.y) * 0.5f - std::abs(pos.y - owp.y);
+                float oz = (size.z + other->Size.z) * 0.5f - std::abs(pos.z - owp.z);
                 if (ox > 0.0f && oy > 0.0f && oz > 0.0f) {
-                    float dx = pos.x - other->Position.x;
-                    float dy = pos.y - other->Position.y;
-                    float dz = pos.z - other->Position.z;
+                    float dx = pos.x - owp.x;
+                    float dy = pos.y - owp.y;
+                    float dz = pos.z - owp.z;
                     if (ox <= oy && ox <= oz)
                         pos.x += (dx >= 0.0f ? ox : -ox);
                     else if (oy <= ox && oy <= oz)
@@ -261,12 +284,13 @@ void ViewportPanel::onRender() {
             if (!inst) return;
             if (inst->IsA("BaseCube")) {
                 Spatial* s = static_cast<Spatial*>(inst);
-                float bmin[3] = { s->Position.x - s->Size.x * 0.5f,
-                                   s->Position.y - s->Size.y * 0.5f,
-                                   s->Position.z - s->Size.z * 0.5f };
-                float bmax[3] = { s->Position.x + s->Size.x * 0.5f,
-                                   s->Position.y + s->Size.y * 0.5f,
-                                   s->Position.z + s->Size.z * 0.5f };
+                Vector3 wp = s->getWorldPosition();
+                float bmin[3] = { wp.x - s->Size.x * 0.5f,
+                                   wp.y - s->Size.y * 0.5f,
+                                   wp.z - s->Size.z * 0.5f };
+                float bmax[3] = { wp.x + s->Size.x * 0.5f,
+                                   wp.y + s->Size.y * 0.5f,
+                                   wp.z + s->Size.z * 0.5f };
                 float rd[3] = { rayDir.x, rayDir.y, rayDir.z };
                 float ro[3] = { rayOri.x, rayOri.y, rayOri.z };
                 float tmin = -1e30f, tmax = 1e30f;
@@ -335,7 +359,7 @@ void ViewportPanel::onRender() {
             Vector3 target = user->cpos + user->forward;
             Matrix4 view   = Matrix4::LookAt(user->cpos, target, user->up);
 
-            Matrix4 model = s->cframe.toMatrix4() *
+            Matrix4 model = s->getWorldCFrame().toMatrix4() *
                             Matrix4::Scale(s->Size.x, s->Size.y, s->Size.z);
 
             ImGuizmo::SetOrthographic(false);
@@ -368,25 +392,26 @@ void ViewportPanel::onRender() {
                 Quaternion newRot = Quaternion::FromRotationMatrix(rotM);
 
                 if (gizmoOp == ImGuizmo::TRANSLATE && workspace) {
+                    // newPos はワールド座標
                     if (collisionFit) {
-                        // 実際に動いた軸のみを fitOnAxis で解決し、静止軸は移動前にロック
-                        // → 軸方向以外への押しのけを完全に防止する
-                        Vector3 prev = s->Position;
-                        float rx = (std::abs(newPos.x - prev.x) > 1e-5f)
-                                   ? fitOnAxis({newPos.x, prev.y,  prev.z},  s->Size, inst, 0)
-                                   : prev.x;
-                        float ry = (std::abs(newPos.y - prev.y) > 1e-5f)
-                                   ? fitOnAxis({prev.x,  newPos.y, prev.z},  s->Size, inst, 1)
-                                   : prev.y;
-                        float rz = (std::abs(newPos.z - prev.z) > 1e-5f)
-                                   ? fitOnAxis({prev.x,  prev.y,  newPos.z}, s->Size, inst, 2)
-                                   : prev.z;
+                        Vector3 prevWorld = s->getWorldPosition();
+                        float rx = (std::abs(newPos.x - prevWorld.x) > 1e-5f)
+                                   ? fitOnAxis({newPos.x, prevWorld.y, prevWorld.z}, s->Size, inst, 0)
+                                   : prevWorld.x;
+                        float ry = (std::abs(newPos.y - prevWorld.y) > 1e-5f)
+                                   ? fitOnAxis({prevWorld.x, newPos.y, prevWorld.z}, s->Size, inst, 1)
+                                   : prevWorld.y;
+                        float rz = (std::abs(newPos.z - prevWorld.z) > 1e-5f)
+                                   ? fitOnAxis({prevWorld.x, prevWorld.y, newPos.z}, s->Size, inst, 2)
+                                   : prevWorld.z;
                         newPos = Vector3(rx, ry, rz);
                     }
+                    // ワールド → ローカルに変換して設定
+                    Vector3 localPos = worldToLocal(newPos, s);
                     if (inst->IsA("BaseCube"))
-                        static_cast<BaseCube*>(inst)->teleportTo(newPos);
+                        static_cast<BaseCube*>(inst)->teleportTo(localPos);
                     else
-                        s->Position = newPos;
+                        s->Position = localPos;
                 } else if (gizmoOp == ImGuizmo::SCALE) {
                     if (inst->IsA("BaseCube")) {
                         static_cast<BaseCube*>(inst)->setSize(newSize);
@@ -394,10 +419,12 @@ void ViewportPanel::onRender() {
                         s->Size = newSize;
                     }
                 } else if (gizmoOp == ImGuizmo::ROTATE) {
+                    // newRot はワールド回転 → ローカルに変換
+                    Quaternion localRot = worldToLocalRot(newRot, s);
                     if (inst->IsA("BaseCube")) {
-                        static_cast<BaseCube*>(inst)->setRotation(newRot);
+                        static_cast<BaseCube*>(inst)->setRotation(localRot);
                     } else {
-                        s->cframe.Rotation = newRot;
+                        s->cframe.Rotation = localRot;
                     }
                 }
             }
@@ -435,12 +462,13 @@ void ViewportPanel::onRender() {
             Vector3 dir = makeRay(mp.x - wp.x, mp.y - wp.y);
             float rd[3] = { dir.x, dir.y, dir.z };
             float ro[3] = { user->cpos.x, user->cpos.y, user->cpos.z };
-            float bmin[3] = { sp->Position.x - sp->Size.x*0.5f,
-                               sp->Position.y - sp->Size.y*0.5f,
-                               sp->Position.z - sp->Size.z*0.5f };
-            float bmax[3] = { sp->Position.x + sp->Size.x*0.5f,
-                               sp->Position.y + sp->Size.y*0.5f,
-                               sp->Position.z + sp->Size.z*0.5f };
+            Vector3 spWorld = sp->getWorldPosition();
+            float bmin[3] = { spWorld.x - sp->Size.x*0.5f,
+                               spWorld.y - sp->Size.y*0.5f,
+                               spWorld.z - sp->Size.z*0.5f };
+            float bmax[3] = { spWorld.x + sp->Size.x*0.5f,
+                               spWorld.y + sp->Size.y*0.5f,
+                               spWorld.z + sp->Size.z*0.5f };
             float tmin = -1e30f, tmax = 1e30f;
             bool cubeHit = true;
             for (int i = 0; i < 3 && cubeHit; ++i) {
@@ -486,7 +514,8 @@ void ViewportPanel::onRender() {
 
                 // 衝突面の法線軸 (hitAxis) に沿ってオブジェクトを隣接配置し、
                 // 残り2軸はレイと軸平面の交点で決定する
-                float surfPos[3] = { surface->Position.x, surface->Position.y, surface->Position.z };
+                Vector3 surfWorld = surface->getWorldPosition();
+                float surfPos[3] = { surfWorld.x, surfWorld.y, surfWorld.z };
                 float surfHalf[3] = { surface->Size.x * 0.5f, surface->Size.y * 0.5f, surface->Size.z * 0.5f };
                 float movHalf[3]  = { s->Size.x * 0.5f, s->Size.y * 0.5f, s->Size.z * 0.5f };
                 float oriArr[3]   = { ori.x, ori.y, ori.z };
@@ -509,10 +538,11 @@ void ViewportPanel::onRender() {
                 Vector3 newPos(newPosArr[0], newPosArr[1], newPosArr[2]);
 
                 if (collisionFit) newPos = fitCollision(newPos, s->Size, inst);
+                Vector3 localPos = worldToLocal(newPos, s);
                 if (inst->IsA("BaseCube"))
-                    static_cast<BaseCube*>(inst)->teleportTo(newPos);
+                    static_cast<BaseCube*>(inst)->teleportTo(localPos);
                 else
-                    s->Position = newPos;
+                    s->Position = localPos;
             }();
         }
     }

@@ -63,14 +63,16 @@ void BaseCube::setSize(Vector3 newSize) {
     }
 }
 
-void BaseCube::setRotation(Quaternion rot) {
-    cframe.Rotation = rot;
+// localRot: 親 Spatial からの相対回転
+void BaseCube::setRotation(Quaternion localRot) {
+    cframe.Rotation = localRot;
     if (!actor) return;
+    Quaternion worldRot = getWorldCFrame().Rotation;
     if (lastWorkspace && lastWorkspace->physicsEngine && SystemState::get().isPlaying) {
-        lastWorkspace->physicsEngine->enqueueSetRotation(this, rot);
+        lastWorkspace->physicsEngine->enqueueSetRotation(this, worldRot);
     } else {
         physx::PxTransform pose = actor->getGlobalPose();
-        pose.q = physx::PxQuat(rot.x, rot.y, rot.z, rot.w);
+        pose.q = physx::PxQuat(worldRot.x, worldRot.y, worldRot.z, worldRot.w);
         actor->setGlobalPose(pose);
     }
 }
@@ -79,15 +81,28 @@ void BaseCube::syncPhysics() {
     if (!actor || Anchored) return;
 
     physx::PxTransform pose = actor->getGlobalPose();
-    this->cframe.Position = Vector3(pose.p.x, pose.p.y, pose.p.z);
-    this->cframe.Rotation = Quaternion(pose.q.w, pose.q.x, pose.q.y, pose.q.z);
+    Vector3    worldPos(pose.p.x, pose.p.y, pose.p.z);
+    Quaternion worldRot(pose.q.w, pose.q.x, pose.q.y, pose.q.z);
+
+    auto par = Parent.lock();
+    if (par && par->IsA("Spatial")) {
+        CFrame pw = static_cast<Spatial*>(par.get())->getWorldCFrame();
+        Quaternion pConj = pw.Rotation.conjugate();
+        cframe.Position = pConj.rotate(worldPos - pw.Position);
+        cframe.Rotation = pConj * worldRot;
+    } else {
+        cframe.Position = worldPos;
+        cframe.Rotation = worldRot;
+    }
 }
 
-void BaseCube::teleportTo(Vector3 pos) {
-    cframe.Position = pos;
+// localPos: 親 Spatial からの相対座標
+void BaseCube::teleportTo(Vector3 localPos) {
+    cframe.Position = localPos;
     if (actor) {
+        Vector3 worldPos = getWorldCFrame().Position;
         physx::PxTransform pose = actor->getGlobalPose();
-        pose.p = physx::PxVec3(pos.x, pos.y, pos.z);
+        pose.p = physx::PxVec3(worldPos.x, worldPos.y, worldPos.z);
         actor->setGlobalPose(pose);
     }
 }
