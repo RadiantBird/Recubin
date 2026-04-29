@@ -13,6 +13,7 @@
 | 変数 | 型 | 説明 |
 |---|---|---|
 | `selectedInstance` | `Instance**` | `SceneHierarchyPanel::selectedInstance` へのポインタ |
+| `m_history` | `CommandHistory*` | Undo/Redo スタック（EditorManager から借用） |
 
 `Instance**` を持つことで、`SceneHierarchyPanel` で選択が変わるたびに自動的に最新の選択を反映する。
 
@@ -31,8 +32,8 @@
 | `Color` | BaseCube |
 | `Anchored`, `CanCollide` | BaseCube |
 
-値を変更すると `Instance::setProperty()` を呼んでオブジェクトに反映する。
+値を変更すると `m_history` 経由で対応する Command（`SetVec3Command`、`SetColorCommand`、`SetBoolCommand` など）を記録し、Undo 対応で反映する。
 
 ## 依存関係
 
-- `EditorPanel`, `Instance`, ImGui
+- `EditorPanel`, `Instance`, `CommandHistory`, ImGui

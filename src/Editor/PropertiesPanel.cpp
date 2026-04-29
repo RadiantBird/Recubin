@@ -1,8 +1,10 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Instances/BaseCube.hpp>
+#include <Instances/Spatial.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
+#include <Instances/Decal.hpp>
 #include <Util/Color4.hpp>
 #include <include/imgui/imgui.h>
 #include <unordered_map>
@@ -137,10 +139,19 @@ void PropertiesPanel::onRender() {
     ImGui::LabelText("ClassName", "%s", inst->GetClassName().c_str());
     ImGui::LabelText("Path",      "%s", inst->getFullPath().c_str());
 
+    static std::string s_nameBefore;
     char nameBuf[256] = {};
     strncpy_s(nameBuf, inst->Name.c_str(), sizeof(nameBuf) - 1);
     if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf))) {
         inst->Name = std::string(nameBuf);
+    }
+    if (ImGui::IsItemActivated()) s_nameBefore = inst->Name;
+    if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+        std::string after = inst->Name;
+        if (s_nameBefore != after) {
+            m_history->record(std::make_unique<RenameInstanceCommand>(
+                inst->shared_from_this(), s_nameBefore, after));
+        }
     }
 
     // ---- Spatial (Position / Size) ----
@@ -160,6 +171,39 @@ void PropertiesPanel::onRender() {
         ImGui::Text("Size");
         ImGui::SameLine(80.0f);
         drawVec3Field("Size", s->Size, 0.05f, 0.01f, 1000.0f, bcSp, "Size", m_history);
+
+        // Rotation (Euler 角, 度数)
+        ImGui::Text("Rotation");
+        ImGui::SameLine(80.0f);
+        {
+            static std::unordered_map<std::string, Vector3> s_rotBefore;
+            Vector3 euler = s->cframe.Rotation.toEuler();
+            float rot[3] = { euler.x, euler.y, euler.z };
+            float rotW = ImGui::GetContentRegionAvail().x;
+            if (rotW < 60.0f) rotW = 60.0f;
+            ImGui::SetNextItemWidth(rotW);
+            ImGui::PushID("Rotation");
+            bool rotChanged = ImGui::DragFloat3("##rot", rot, 1.0f, -360.0f, 360.0f, "%.1f");
+            if (ImGui::IsItemActivated()) s_rotBefore["rot"] = euler;
+            if (rotChanged) s->cframe.Rotation = Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2]));
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                Quaternion qBefore = Quaternion::fromEuler(s_rotBefore["rot"]);
+                Quaternion qAfter  = Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2]));
+                auto sSp = std::static_pointer_cast<Spatial>(inst->shared_from_this());
+                m_history->record(std::make_unique<SetRotationCommand>(sSp, qBefore, qAfter));
+            }
+            ImGui::PopID();
+        }
+
+        // CFrame (読み取り専用)
+        ImGui::Text("CFrame");
+        ImGui::SameLine(80.0f);
+        {
+            Vector3 euler = s->cframe.Rotation.toEuler();
+            ImGui::TextDisabled("pos(%.2f, %.2f, %.2f)  rot(%.1f, %.1f, %.1f)",
+                s->Position.x, s->Position.y, s->Position.z,
+                euler.x, euler.y, euler.z);
+        }
     }
 
     // ---- BaseCube (Color / Anchored / CanCollide) ----
@@ -234,6 +278,20 @@ void PropertiesPanel::onRender() {
         if (ImGui::Button("外部エディタで開く") && !sc->Path.empty()) {
             std::wstring wp(sc->Path.begin(), sc->Path.end());
             ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOW);
+        }
+    }
+
+    // ---- Decal ----
+    if (inst->GetClassName() == "Decal") {
+        Decal* dcl = static_cast<Decal*>(inst);
+        ImGui::SeparatorText("Decal");
+        ImGui::LabelText("Texture", "%s", dcl->texturePath.c_str());
+        if (ImGui::Button("参照...##decal")) {
+            std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.tga)", L"*.png;*.jpg;*.bmp;*.tga");
+            if (!path.empty()) {
+                YAML::Node node; node = path;
+                dcl->setProperty("Texture", node);
+            }
         }
     }
 

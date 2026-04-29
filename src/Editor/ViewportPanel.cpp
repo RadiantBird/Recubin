@@ -344,8 +344,14 @@ void ViewportPanel::onRender() {
             ImVec2 winPos = ImGui::GetWindowPos();
             ImGuizmo::SetRect(winPos.x, winPos.y, (float)w, (float)h);
 
+            float snapArr[3] = { snapTranslateVal, snapTranslateVal, snapTranslateVal };
+            float rotSnap[3] = { snapRotateVal,    snapRotateVal,    snapRotateVal    };
+            const float* snap = nullptr;
+            if (gizmoOp == ImGuizmo::TRANSLATE && snapTranslate) snap = snapArr;
+            else if (gizmoOp == ImGuizmo::ROTATE && snapRotate)  snap = rotSnap;
+
             if (ImGuizmo::Manipulate(view.m, proj.m, gizmoOp,
-                                     ImGuizmo::WORLD, model.m)) {
+                                     ImGuizmo::WORLD, model.m, nullptr, snap)) {
                 // モデル行列から TRS を分解
                 float sx = std::sqrt(model.m[0]*model.m[0] + model.m[1]*model.m[1] + model.m[2]*model.m[2]);
                 float sy = std::sqrt(model.m[4]*model.m[4] + model.m[5]*model.m[5] + model.m[6]*model.m[6]);
@@ -362,19 +368,21 @@ void ViewportPanel::onRender() {
                 Quaternion newRot = Quaternion::FromRotationMatrix(rotM);
 
                 if (gizmoOp == ImGuizmo::TRANSLATE && workspace) {
-                    // 実際に動いた軸のみを fitOnAxis で解決し、静止軸は移動前にロック
-                    // → 軸方向以外への押しのけを完全に防止する
-                    Vector3 prev = s->Position;
-                    float rx = (std::abs(newPos.x - prev.x) > 1e-5f)
-                               ? fitOnAxis({newPos.x, prev.y,  prev.z},  s->Size, inst, 0)
-                               : prev.x;
-                    float ry = (std::abs(newPos.y - prev.y) > 1e-5f)
-                               ? fitOnAxis({prev.x,  newPos.y, prev.z},  s->Size, inst, 1)
-                               : prev.y;
-                    float rz = (std::abs(newPos.z - prev.z) > 1e-5f)
-                               ? fitOnAxis({prev.x,  prev.y,  newPos.z}, s->Size, inst, 2)
-                               : prev.z;
-                    newPos = Vector3(rx, ry, rz);
+                    if (collisionFit) {
+                        // 実際に動いた軸のみを fitOnAxis で解決し、静止軸は移動前にロック
+                        // → 軸方向以外への押しのけを完全に防止する
+                        Vector3 prev = s->Position;
+                        float rx = (std::abs(newPos.x - prev.x) > 1e-5f)
+                                   ? fitOnAxis({newPos.x, prev.y,  prev.z},  s->Size, inst, 0)
+                                   : prev.x;
+                        float ry = (std::abs(newPos.y - prev.y) > 1e-5f)
+                                   ? fitOnAxis({prev.x,  newPos.y, prev.z},  s->Size, inst, 1)
+                                   : prev.y;
+                        float rz = (std::abs(newPos.z - prev.z) > 1e-5f)
+                                   ? fitOnAxis({prev.x,  prev.y,  newPos.z}, s->Size, inst, 2)
+                                   : prev.z;
+                        newPos = Vector3(rx, ry, rz);
+                    }
                     if (inst->IsA("BaseCube"))
                         static_cast<BaseCube*>(inst)->teleportTo(newPos);
                     else
@@ -397,8 +405,26 @@ void ViewportPanel::onRender() {
     }
 
     // ---- 自由移動ドラッグ開始/終了検出 ----
+    static GizmoState s_freeDragBefore;
+    bool wasDragging = m_isDraggingSelected;
+
     // ボタンを離したらリセット
     if (!ImGui::IsMouseDown(0)) m_isDraggingSelected = false;
+
+    // ドラッグ終了時に GizmoCommand を記録
+    if (wasDragging && !m_isDraggingSelected
+            && selectedInstance && *selectedInstance
+            && (*selectedInstance)->IsA("BaseCube") && m_history) {
+        BaseCube* bc = static_cast<BaseCube*>(*selectedInstance);
+        GizmoState after = { bc->Position, bc->Size, bc->Rotation };
+        if (after.position.x != s_freeDragBefore.position.x ||
+            after.position.y != s_freeDragBefore.position.y ||
+            after.position.z != s_freeDragBefore.position.z) {
+            auto bcSp = std::static_pointer_cast<BaseCube>((*selectedInstance)->shared_from_this());
+            m_history->record(std::make_unique<GizmoCommand>(bcSp, s_freeDragBefore, after));
+        }
+    }
+
     // クリック開始フレームに選択キューブの AABB を判定（ギズモハンドル操作中は除外）
     if (ImGui::IsMouseClicked(0) && isHoveringViewport && !ImGuizmo::IsUsing()
             && selectedInstance && *selectedInstance && user) {
@@ -429,6 +455,14 @@ void ViewportPanel::onRender() {
             }
             m_isDraggingSelected = cubeHit && tmax >= 0.0f;
         }
+    }
+
+    // ドラッグ開始時に before をキャプチャ
+    if (!wasDragging && m_isDraggingSelected
+            && selectedInstance && *selectedInstance
+            && (*selectedInstance)->IsA("BaseCube")) {
+        BaseCube* bc = static_cast<BaseCube*>(*selectedInstance);
+        s_freeDragBefore = { bc->Position, bc->Size, bc->Rotation };
     }
 
     // ---- Move モード自由移動: 選択キューブ上からのドラッグでサーフェスに追従 ----
@@ -474,7 +508,7 @@ void ViewportPanel::onRender() {
                 }
                 Vector3 newPos(newPosArr[0], newPosArr[1], newPosArr[2]);
 
-                newPos = fitCollision(newPos, s->Size, inst);
+                if (collisionFit) newPos = fitCollision(newPos, s->Size, inst);
                 if (inst->IsA("BaseCube"))
                     static_cast<BaseCube*>(inst)->teleportTo(newPos);
                 else

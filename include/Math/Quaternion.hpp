@@ -91,6 +91,34 @@ struct Quaternion {
         return Quaternion((s0 * a.w) + (s1 * targetB.w), (s0 * a.x) + (s1 * targetB.x), (s0 * a.y) + (s1 * targetB.y), (s0 * a.z) + (s1 * targetB.z));
     }
 
+    // Quaternion → Euler 角 (度数, XYZ 内因回転)
+    Vector3 toEuler() const {
+        const float RAD2DEG = 180.0f / 3.14159265f;
+        float sinP = 2.0f * (w * x + y * z);
+        float cosP = 1.0f - 2.0f * (x * x + y * y);
+        float pitch = std::atan2(sinP, cosP);
+        float sinY = 2.0f * (w * y - z * x);
+        float yaw   = (std::abs(sinY) >= 1.0f) ? std::copysign(3.14159265f * 0.5f, sinY) : std::asin(sinY);
+        float sinR = 2.0f * (w * z + x * y);
+        float cosR = 1.0f - 2.0f * (y * y + z * z);
+        float roll  = std::atan2(sinR, cosR);
+        return Vector3(pitch * RAD2DEG, yaw * RAD2DEG, roll * RAD2DEG);
+    }
+
+    // Euler 角 (度数, XYZ 内因回転) → Quaternion
+    static Quaternion fromEuler(const Vector3& degrees) {
+        const float DEG2RAD = 3.14159265f / 180.0f;
+        float cx = std::cos(degrees.x * DEG2RAD * 0.5f), sx = std::sin(degrees.x * DEG2RAD * 0.5f);
+        float cy = std::cos(degrees.y * DEG2RAD * 0.5f), sy = std::sin(degrees.y * DEG2RAD * 0.5f);
+        float cz = std::cos(degrees.z * DEG2RAD * 0.5f), sz = std::sin(degrees.z * DEG2RAD * 0.5f);
+        return Quaternion(
+            cx*cy*cz + sx*sy*sz,
+            sx*cy*cz - cx*sy*sz,
+            cx*sy*cz + sx*cy*sz,
+            cx*cy*sz - sx*sy*cz
+        );
+    }
+
     static Quaternion LookRotation(Vector3 forward, Vector3 up = Vector3(0, 1, 0)) {
         // ゼロベクトルによるエラーを回避
         if (forward.length() < 0.0001f) return Quaternion();

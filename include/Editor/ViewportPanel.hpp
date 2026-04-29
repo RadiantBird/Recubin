@@ -41,6 +41,13 @@ public:
 
     CommandHistory* m_history = nullptr;
 
+    // スナップ・衝突フィット設定（ツールバーから操作）
+    bool  snapTranslate    = false;
+    float snapTranslateVal = 1.0f;
+    bool  snapRotate       = false;
+    float snapRotateVal    = 15.0f;
+    bool  collisionFit     = true;
+
     ViewportPanel();
     ~ViewportPanel();
 

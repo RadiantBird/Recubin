@@ -1,5 +1,7 @@
 #pragma once
 #include <Instances/BaseCube.hpp>
+#include <Instances/Spatial.hpp>
+#include <Instances/Instance.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -145,6 +147,30 @@ private:
         if (m_prop == "Anchored")   m_target->Anchored   = v;
         else if (m_prop == "CanCollide") m_target->CanCollide = v;
     }
+};
+
+// --- インスタンスリネーム ---
+struct RenameInstanceCommand : Command {
+    std::shared_ptr<Instance> m_target;
+    std::string m_before, m_after;
+
+    RenameInstanceCommand(std::shared_ptr<Instance> target, std::string before, std::string after)
+        : m_target(std::move(target)), m_before(std::move(before)), m_after(std::move(after)) {}
+
+    void execute() override { if (m_target) m_target->Name = m_after; }
+    void undo()    override { if (m_target) m_target->Name = m_before; }
+};
+
+// --- Rotation 変更 ---
+struct SetRotationCommand : Command {
+    std::shared_ptr<Spatial> m_target;
+    Quaternion m_before, m_after;
+
+    SetRotationCommand(std::shared_ptr<Spatial> target, Quaternion before, Quaternion after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->cframe.Rotation = m_after; }
+    void undo()    override { if (m_target) m_target->cframe.Rotation = m_before; }
 };
 
 // --- Gizmo操作（位置/サイズ/回転をまとめてundoできる） ---

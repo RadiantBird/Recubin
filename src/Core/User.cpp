@@ -250,19 +250,19 @@ void User::processInput(Physics* physics) {
     }
 
     if (leftArm) {
-        CFrame jointCF = root->cframe * CFrame(-1.5f, 1.5f, 0);
+        CFrame jointCF = root->cframe * CFrame(-1.25f, 1.25f, 0);
         leftArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), L_armAngle) * CFrame(0, -0.5f, 0);
     }
     if (rightArm) {
-        CFrame jointCF = root->cframe * CFrame(1.5f, 1.5f, 0);
+        CFrame jointCF = root->cframe * CFrame(1.25f, 1.25f, 0);
         rightArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), R_armAngle) * CFrame(0, -0.5f, 0);
     }
     if (leftLeg) {
-        CFrame jointCF = root->cframe * CFrame(-0.5f, 0.0f, 0);
+        CFrame jointCF = root->cframe * CFrame(-0.5f, -0.25f, 0);
         leftLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), -swingAngle) * CFrame(0, -1.0f, 0);
     }
     if (rightLeg) {
-        CFrame jointCF = root->cframe * CFrame(0.5f, 0.0f, 0);
+        CFrame jointCF = root->cframe * CFrame(0.5f, -0.25f, 0);
         rightLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), swingAngle) * CFrame(0, -1.0f, 0);
     }
     
@@ -337,13 +337,13 @@ void User::spawnCharacter() {
     Vector3 basePos = character->Position;
 
     // パーツ生成
-    root      = std::make_shared<Cube>(basePos, Vector3(2.0f, 4.0f, 1.0f), 0);
+    root      = std::make_shared<Cube>(basePos, Vector3(1.75f, 4.75f, 1.0f), 0);
     head      = std::make_shared<Cylinder>(basePos, Vector3(1.0f, 1.0f, 1.0f));
-    torso     = std::make_shared<Cube>(basePos, Vector3(2.0f, 2.0f, 1.0f), 0);
-    leftArm   = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
-    rightArm  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
-    leftLeg   = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
-    rightLeg  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    torso     = std::make_shared<Cube>(basePos, Vector3(1.75f, 2.0f, 1.0f), 0);
+    leftArm   = std::make_shared<Cube>(basePos, Vector3(0.75f, 2.5f, 1.0f), 0);
+    rightArm  = std::make_shared<Cube>(basePos, Vector3(0.75f, 2.5f, 1.0f), 0);
+    leftLeg   = std::make_shared<Cube>(basePos, Vector3(0.75f, 2.5f, 1.0f), 0);
+    rightLeg  = std::make_shared<Cube>(basePos, Vector3(0.75f, 2.5f, 1.0f), 0);
 
     // headを90度回転させて顔が前を向くようにする
     head->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f));
@@ -366,12 +366,12 @@ void User::spawnCharacter() {
     root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
 
     root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // 透明（描画スキップ対象）
-    torso->Color = Color4::FromRGB(0, 36, 81);
-    Color4 skinColor = Color4(0.8, 1.0, 0.0, 1.0f);
+    torso->Color = Color4::FromRGB(100, 12, 32);
+    Color4 skinColor = Color4(1.0f, 1.0f, 1.0f, 1.0f);
     head->Color = skinColor;
     leftArm->Color = skinColor;
     rightArm->Color = skinColor;
-    Color4 pantsColor = Color4::FromRGB(0, 200, 128);
+    Color4 pantsColor = Color4::FromRGB(0, 36, 81);
     leftLeg->Color = pantsColor;
     rightLeg->Color = pantsColor;
 

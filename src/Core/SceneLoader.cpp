@@ -135,6 +135,11 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << YAML::Flow << YAML::BeginSeq
                 << s->Size.x << s->Size.y << s->Size.z
                 << YAML::EndSeq;
+            out << YAML::Key << "Rotation" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << s->cframe.Rotation.x << s->cframe.Rotation.y
+                << s->cframe.Rotation.z << s->cframe.Rotation.w
+                << YAML::EndSeq;
         }
         if (inst->IsA("BaseCube")) {
             const BaseCube* bc = static_cast<const BaseCube*>(inst);

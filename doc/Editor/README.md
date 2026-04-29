@@ -21,6 +21,7 @@ EditorManager
 |---|---|---|
 | [EditorPanel](EditorPanel.md) | `include/Editor/EditorPanel.hpp` | 抽象基底パネル |
 | [EditorManager](EditorManager.md) | `include/Editor/EditorManager.hpp` | 全パネルの統括マネージャ |
+| [CommandHistory](CommandHistory.md) | `include/Editor/CommandHistory.hpp` | Undo/Redo スタックと Command サブクラス群 |
 | [ConsolePanel](ConsolePanel.md) | `include/Editor/ConsolePanel.hpp` | C++ / Luau ログコンソール |
 | [SceneHierarchyPanel](SceneHierarchyPanel.md) | `include/Editor/SceneHierarchyPanel.hpp` | シーン階層ツリービュー |
 | [PropertiesPanel](PropertiesPanel.md) | `include/Editor/PropertiesPanel.hpp` | プロパティインスペクタ |

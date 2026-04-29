@@ -16,11 +16,15 @@
 | `colorTexture` | `GLuint` | カラーアタッチメントテクスチャ |
 | `depthRenderbuffer` | `GLuint` | 深度バッファ |
 | `fbWidth`, `fbHeight` | `int` | FBO の解像度（デフォルト 1280×720） |
-| `gizmoOp` | `ImGuizmo::OPERATION` | 現在のギズモモード（移動/回転/スケール） |
+| `gizmoOp` | `ImGuizmo::OPERATION` | 現在のギズモモード（TRANSLATE / SCALE / ROTATE） |
+| `selectOnly` | `bool` | true のとき ImGuizmo を描画しない（Select モード） |
 | `selectedInstance` | `Instance**` | 選択中インスタンスへのポインタ（`SceneHierarchyPanel` と共有） |
-| `user` | `User*` | カメラ行列を取得するためのポインタ |
-| `isViewportFocused` | `bool` | ImGui ウィンドウにフォーカスがあるか |
+| `user` | `User*` | カメラ行列・View 行列を取得するためのポインタ |
+| `workspace` | `Workspace*` | ピッキング判定用 |
+| `isViewportFocused` | `bool` | このビューポートが現在フォーカスされているか |
 | `isHoveringViewport` | `bool` | マウスがビューポート上にあるか |
+| `m_isDraggingSelected` | `bool` | 選択オブジェクト上でドラッグ開始したか（ドラッグ判定用） |
+| `m_history` | `CommandHistory*` | Undo/Redo スタック（EditorManager から借用） |
 
 ## メソッド
 

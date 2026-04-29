@@ -306,6 +306,27 @@ void EditorManager::renderToolbar() {
     ImGui::Text("|");
     ImGui::SameLine();
 
+    // ---- スナップ / 衝突フィット ----
+    if (viewportPanel) {
+        ImGui::Checkbox("移動スナップ##snapT", &viewportPanel->snapTranslate);
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(52.0f);
+        ImGui::DragFloat("m##snapTVal", &viewportPanel->snapTranslateVal, 0.1f, 0.1f, 100.0f, "%.1f");
+        ImGui::SameLine();
+
+        ImGui::Checkbox("回転スナップ##snapR", &viewportPanel->snapRotate);
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(52.0f);
+        ImGui::DragFloat("\xc2\xb0##snapRVal", &viewportPanel->snapRotateVal, 1.0f, 1.0f, 180.0f, "%.0f");
+        ImGui::SameLine();
+
+        ImGui::Checkbox("衝突フィット##cf", &viewportPanel->collisionFit);
+        ImGui::SameLine();
+    }
+
+    ImGui::Text("|");
+    ImGui::SameLine();
+
     // ---- New Cube（CommandHistory経由） ----
     if (ImGui::Button("New Cube", btnSz) && m_workspace) {
         auto cube = std::make_shared<Cube>(Vector3(0, 5, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
