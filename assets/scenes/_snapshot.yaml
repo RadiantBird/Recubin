@@ -112,9 +112,9 @@ Root:
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             ContentPath: assets/sound/Newalks.mp3
-            Looped: false
+            Looped: true
             SoundGroup: SFX
-            AutoPlay: false
+            AutoPlay: true
     - ClassName: Cylinder
       Name: Cylinder
       Properties:

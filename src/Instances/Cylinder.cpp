@@ -28,8 +28,8 @@ void Cylinder::initGeometry() {
     // トップキャップ (法線 +Y)
     unsigned int topBase = 0;
     pushVert(0.f, 0.5f, 0.f, 0.f, 1.f, 0.f, 0.5f, 0.5f); // 中心
-    for (int i = 0; i < CYL_SEG; ++i) {
-        float a = 2.f * CYL_PI * i / CYL_SEG;
+    for (int i = 0; i <= CYL_SEG; ++i) {
+        float a = 2.f * CYL_PI * i / CYL_SEG - CYL_PI / 4.f;
         float x = 0.5f * std::cos(a);
         float z = 0.5f * std::sin(a);
         pushVert(x, 0.5f, z, 0.f, 1.f, 0.f, 0.5f + 0.5f * std::cos(a), 0.5f + 0.5f * std::sin(a));
@@ -37,41 +37,46 @@ void Cylinder::initGeometry() {
     for (int i = 0; i < CYL_SEG; ++i) {
         ebo.push_back(topBase);
         ebo.push_back(topBase + 1 + i);
-        ebo.push_back(topBase + 1 + (i + 1) % CYL_SEG);
+        ebo.push_back(topBase + 2 + i);
     }
 
     // ボトムキャップ (法線 -Y)
     unsigned int botBase = (unsigned int)vbo.size() / 8;
     pushVert(0.f, -0.5f, 0.f, 0.f, -1.f, 0.f, 0.5f, 0.5f); // 中心
-    for (int i = 0; i < CYL_SEG; ++i) {
-        float a = 2.f * CYL_PI * i / CYL_SEG;
+    for (int i = 0; i <= CYL_SEG; ++i) {
+        float a = 2.f * CYL_PI * i / CYL_SEG - CYL_PI / 4.f;
         float x = 0.5f * std::cos(a);
         float z = 0.5f * std::sin(a);
         pushVert(x, -0.5f, z, 0.f, -1.f, 0.f, 0.5f + 0.5f * std::cos(a), 0.5f + 0.5f * std::sin(a));
     }
     for (int i = 0; i < CYL_SEG; ++i) {
         ebo.push_back(botBase);
-        ebo.push_back(botBase + 1 + (i + 1) % CYL_SEG);
+        ebo.push_back(botBase + 2 + i);
         ebo.push_back(botBase + 1 + i);
     }
 
-    // 側面 (法線=径方向)
-    for (int i = 0; i < CYL_SEG; ++i) {
-        float a0 = 2.f * CYL_PI * i / CYL_SEG;
-        float a1 = 2.f * CYL_PI * (i + 1) / CYL_SEG;
-        float nx0 = std::cos(a0), nz0 = std::sin(a0);
-        float nx1 = std::cos(a1), nz1 = std::sin(a1);
-        float u0 = (float)i / CYL_SEG, u1 = (float)(i + 1) / CYL_SEG;
+    // 側面 (4つのクアドラントに分割)
+    for (int q = 0; q < 4; ++q) {
+        for (int i = 0; i < CYL_SEG / 4; ++i) {
+            int absI = q * (CYL_SEG / 4) + i;
+            float a0 = 2.f * CYL_PI * absI / CYL_SEG - CYL_PI / 4.f;
+            float a1 = 2.f * CYL_PI * (absI + 1) / CYL_SEG - CYL_PI / 4.f;
+            float nx0 = std::cos(a0), nz0 = std::sin(a0);
+            float nx1 = std::cos(a1), nz1 = std::sin(a1);
+            float u0 = (float)i / (CYL_SEG / 4);
+            float u1 = (float)(i + 1) / (CYL_SEG / 4);
 
-        unsigned int base = (unsigned int)vbo.size() / 8;
-        pushVert(0.5f * nx0,  0.5f, 0.5f * nz0, nx0, 0.f, nz0, u0, 1.f);
-        pushVert(0.5f * nx0, -0.5f, 0.5f * nz0, nx0, 0.f, nz0, u0, 0.f);
-        pushVert(0.5f * nx1, -0.5f, 0.5f * nz1, nx1, 0.f, nz1, u1, 0.f);
-        pushVert(0.5f * nx1,  0.5f, 0.5f * nz1, nx1, 0.f, nz1, u1, 1.f);
+            unsigned int base = (unsigned int)vbo.size() / 8;
+            pushVert(0.5f * nx0,  0.5f, 0.5f * nz0, nx0, 0.f, nz0, u0, 1.f);
+            pushVert(0.5f * nx0, -0.5f, 0.5f * nz0, nx0, 0.f, nz0, u0, 0.f);
+            pushVert(0.5f * nx1, -0.5f, 0.5f * nz1, nx1, 0.f, nz1, u1, 0.f);
+            pushVert(0.5f * nx1,  0.5f, 0.5f * nz1, nx1, 0.f, nz1, u1, 1.f);
 
-        ebo.push_back(base + 0); ebo.push_back(base + 1); ebo.push_back(base + 2);
-        ebo.push_back(base + 0); ebo.push_back(base + 2); ebo.push_back(base + 3);
+            ebo.push_back(base + 0); ebo.push_back(base + 1); ebo.push_back(base + 2);
+            ebo.push_back(base + 0); ebo.push_back(base + 2); ebo.push_back(base + 3);
+        }
     }
+
 
     s_IndexCount = (int)ebo.size();
 
@@ -111,16 +116,16 @@ bool Cylinder::IsA(std::string className) {
     return BaseCube::IsA(className);
 }
 
-// インデックスバッファのリージョン境界 (initGeometry の生成順に対応)
-// [0..96)    : トップキャップ  (CYL_SEG * 3)
-// [96..192)  : ボトムキャップ  (CYL_SEG * 3)
-// [192..384) : 側面            (CYL_SEG * 6)
+// インデックスバッファのリージョン境界
 static const int CYL_TOP_COUNT  = CYL_SEG * 3;          // 96
 static const int CYL_BOT_COUNT  = CYL_SEG * 3;          // 96
-static const int CYL_SIDE_COUNT = CYL_SEG * 6;          // 192
+static const int CYL_QUAD_COUNT = (CYL_SEG / 4) * 6;    // 48 (8 segments * 6 indices)
 static const int CYL_TOP_OFF    = 0;
 static const int CYL_BOT_OFF    = CYL_TOP_COUNT;        // 96
-static const int CYL_SIDE_OFF   = CYL_TOP_COUNT + CYL_BOT_COUNT; // 192
+static const int CYL_SIDE_OFF_0 = CYL_TOP_COUNT + CYL_BOT_COUNT; // 192 (Right)
+static const int CYL_SIDE_OFF_1 = CYL_SIDE_OFF_0 + CYL_QUAD_COUNT; // 240 (Back)
+static const int CYL_SIDE_OFF_2 = CYL_SIDE_OFF_1 + CYL_QUAD_COUNT; // 288 (Left)
+static const int CYL_SIDE_OFF_3 = CYL_SIDE_OFF_2 + CYL_QUAD_COUNT; // 336 (Front)
 
 void Cylinder::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(s_VAO);
@@ -132,28 +137,26 @@ void Cylinder::draw(int modelLoc, int shaderProgram) {
 
     glActiveTexture(GL_TEXTURE0);
 
-    // Top cap: Face::Top
-    unsigned int topTex  = getDecalTexture(Face::Top,    defaultTextureID);
-    // Bottom cap: Face::Bottom
-    unsigned int botTex  = getDecalTexture(Face::Bottom, defaultTextureID);
-    // Side: 4方向いずれかのデカールを使用 (最初に見つかったもの)
-    unsigned int sideTex = defaultTextureID;
-    for (Face f : { Face::Front, Face::Back, Face::Right, Face::Left }) {
-        unsigned int t = getDecalTexture(f, 0);
-        if (t != 0) { sideTex = t; break; }
-    }
+    // Top cap
+    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Top, defaultTextureID));
+    glDrawElements(GL_TRIANGLES, CYL_TOP_COUNT, GL_UNSIGNED_INT, (void*)(uintptr_t)(CYL_TOP_OFF * sizeof(unsigned int)));
 
-    glBindTexture(GL_TEXTURE_2D, topTex);
-    glDrawElements(GL_TRIANGLES, CYL_TOP_COUNT,  GL_UNSIGNED_INT,
-                   (void*)(uintptr_t)(CYL_TOP_OFF  * sizeof(unsigned int)));
+    // Bottom cap
+    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Bottom, defaultTextureID));
+    glDrawElements(GL_TRIANGLES, CYL_BOT_COUNT, GL_UNSIGNED_INT, (void*)(uintptr_t)(CYL_BOT_OFF * sizeof(unsigned int)));
 
-    glBindTexture(GL_TEXTURE_2D, botTex);
-    glDrawElements(GL_TRIANGLES, CYL_BOT_COUNT,  GL_UNSIGNED_INT,
-                   (void*)(uintptr_t)(CYL_BOT_OFF  * sizeof(unsigned int)));
+    // Sides: Right(0), Back(1), Left(2), Front(3)
+    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Right, defaultTextureID));
+    glDrawElements(GL_TRIANGLES, CYL_QUAD_COUNT, GL_UNSIGNED_INT, (void*)(uintptr_t)(CYL_SIDE_OFF_0 * sizeof(unsigned int)));
 
-    glBindTexture(GL_TEXTURE_2D, sideTex);
-    glDrawElements(GL_TRIANGLES, CYL_SIDE_COUNT, GL_UNSIGNED_INT,
-                   (void*)(uintptr_t)(CYL_SIDE_OFF * sizeof(unsigned int)));
+    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Back, defaultTextureID));
+    glDrawElements(GL_TRIANGLES, CYL_QUAD_COUNT, GL_UNSIGNED_INT, (void*)(uintptr_t)(CYL_SIDE_OFF_1 * sizeof(unsigned int)));
+
+    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Left, defaultTextureID));
+    glDrawElements(GL_TRIANGLES, CYL_QUAD_COUNT, GL_UNSIGNED_INT, (void*)(uintptr_t)(CYL_SIDE_OFF_2 * sizeof(unsigned int)));
+
+    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Front, defaultTextureID));
+    glDrawElements(GL_TRIANGLES, CYL_QUAD_COUNT, GL_UNSIGNED_INT, (void*)(uintptr_t)(CYL_SIDE_OFF_3 * sizeof(unsigned int)));
 }
 
 std::shared_ptr<Instance> Cylinder::clone() const {

@@ -240,8 +240,8 @@ void User::processInput(Physics* physics) {
     // root center を基準に ±2.75 で対称配置 (高さ 5.5)
     // 頭頂: +2.75、足先: -2.75
     if (torso) torso->cframe = root->cframe * CFrame(0, 0.75f, 0);
-    // cylinderなので90度回転させる
-    if (head)  head->cframe  = root->cframe * CFrame(0, 2.25f, 0) * CFrame::fromAxisAngle(Vector3(0, 1, 0), -90.0f);
+    // cylinderなので90度回転させる(必要はもうなくなった)
+    if (head)  head->cframe  = root->cframe * CFrame(0, 2.25f, 0);// * CFrame::fromAxisAngle(Vector3(0, 1, 0), -90.0f);
 
     float L_armAngle = swingAngle;
     float R_armAngle = -swingAngle;

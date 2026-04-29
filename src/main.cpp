@@ -121,7 +121,7 @@ int main() {
     unsigned int smile    = renderer->loadTexture("assets/image/smile.png");
     unsigned int bliss    = renderer->loadTexture("assets/image/bliss.jpg");
     unsigned int limabis  = renderer->loadTexture("assets/image/Limabis_logo.png");
-
+    unsigned int hehe     = renderer->loadTexture("assets/image/hehe.png");
     luauEngine->setGlobalInstance(workspace->Name, workspace.get());
     luauEngine->setGlobalInstance("workspace", workspace.get());
     luauEngine->setWorkspace(workspace.get());
@@ -161,7 +161,7 @@ int main() {
             user->spawnCharacter();
             audioService->playAutoPlaySounds();
             if (user->character) workspace->addChild(user->character);
-            if (user->head) user->head->addChild(std::make_shared<Decal>(smile, Face::Front));
+            if (user->head) user->head->addChild(std::make_shared<Decal>(hehe, Face::Front));
         }
         if (!isPlaying && wasPlaying) {
             audioService->stopAllSounds();
