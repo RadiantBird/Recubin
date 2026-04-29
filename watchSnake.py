@@ -14,3 +14,5 @@ else:
         print("\033[36m[HINT] Access violation. DO NOT touch deleted objects!\033[39m")
     elif hexError == "0xc0000409":
         print("\033[36m[HINT] Buffer overrun... or you aborted Program.\033[39m")
+    elif hexError == "0xc0000374":
+        print("\033[36m[HINT] Heap corruption. I don't know how to fix this XD\033[39m")

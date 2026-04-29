@@ -6,6 +6,7 @@
 #include <Instances/Sphere.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
+#include <Instances/Decal.hpp>
 #include <Core/AudioService.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
@@ -203,6 +204,16 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
                     name = "Sound" + std::to_string(n++);
                 sound->Name = name;
                 m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, sound));
+            }
+            if (ImGui::MenuItem("Decal") && m_history) {
+                auto parentSp = inst->shared_from_this();
+                auto decal = std::make_shared<Decal>(0, Face::Front);
+                std::string name = "Decal";
+                int n = 1;
+                while (parentSp->children.count(name) > 0)
+                    name = "Decal" + std::to_string(n++);
+                decal->Name = name;
+                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, decal));
             }
             ImGui::EndMenu();
         }
