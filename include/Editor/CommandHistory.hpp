@@ -2,6 +2,8 @@
 #include <Instances/BaseCube.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/Instance.hpp>
+#include <Instances/Decal.hpp>
+#include <Instances/Sound.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -196,5 +198,55 @@ private:
         m_target->teleportTo(s.position);
         m_target->setSize(s.size);
         m_target->setRotation(s.rotation);
+    }
+};
+
+// --- Decal Face 変更 ---
+struct SetDecalFaceCommand : Command {
+    std::shared_ptr<Decal> m_target;
+    Face m_before, m_after;
+
+    SetDecalFaceCommand(std::shared_ptr<Decal> target, Face before, Face after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->setFace(m_after); }
+    void undo()    override { if (m_target) m_target->setFace(m_before); }
+};
+
+// --- Decal Texture 変更 ---
+struct SetDecalTextureCommand : Command {
+    std::shared_ptr<Decal> m_target;
+    std::string   m_beforePath, m_afterPath;
+    unsigned int  m_beforeID,   m_afterID;
+
+    SetDecalTextureCommand(std::shared_ptr<Decal> target,
+                           std::string beforePath, unsigned int beforeID,
+                           std::string afterPath,  unsigned int afterID)
+        : m_target(std::move(target)),
+          m_beforePath(std::move(beforePath)), m_afterPath(std::move(afterPath)),
+          m_beforeID(beforeID), m_afterID(afterID) {}
+
+    void execute() override { if (m_target) { m_target->texturePath = m_afterPath;  m_target->TextureID = m_afterID;  } }
+    void undo()    override { if (m_target) { m_target->texturePath = m_beforePath; m_target->TextureID = m_beforeID; } }
+};
+
+// --- Sound bool プロパティ変更 ---
+struct SetSoundBoolCommand : Command {
+    std::shared_ptr<Sound> m_target;
+    std::string m_prop;
+    bool m_before, m_after;
+
+    SetSoundBoolCommand(std::shared_ptr<Sound> target, std::string prop, bool before, bool after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(bool v) {
+        if (!m_target) return;
+        if (m_prop == "AutoPlay")  m_target->autoPlay = v;
+        else if (m_prop == "Looped") m_target->setLooping(v);
     }
 };

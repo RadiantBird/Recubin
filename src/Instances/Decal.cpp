@@ -24,6 +24,11 @@ std::shared_ptr<Instance> Decal::clone() const {
     return copy;
 }
 
+void Decal::setFace(Face f) {
+    face = f;
+    Name = "Decal_" + std::string(faceNames[(int)f]);
+}
+
 void Decal::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Texture") {
         this->texturePath = value.as<std::string>();
@@ -31,8 +36,7 @@ void Decal::setProperty(const std::string& name, const YAML::Node& value) {
             this->TextureID = Renderer::instance->loadTexture(this->texturePath.c_str());
         }
     } else if (name == "Face") {
-        this->face = static_cast<Face>(value.as<int>());
-        this->Name = "Decal_" + std::string(faceNames[(int)this->face]);
+        setFace(static_cast<Face>(value.as<int>()));
     } else {
         Instance::setProperty(name, value);
     }

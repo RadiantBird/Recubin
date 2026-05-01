@@ -248,6 +248,7 @@ void PropertiesPanel::onRender() {
     // ---- Sound ----
     if (inst->GetClassName() == "Sound") {
         Sound* snd = static_cast<Sound*>(inst);
+        auto sndSp = std::static_pointer_cast<Sound>(inst->shared_from_this());
         ImGui::SeparatorText("Sound");
         ImGui::LabelText("ContentPath", "%s", snd->getContentPath().c_str());
         if (ImGui::Button("参照...##sound")) {
@@ -257,9 +258,25 @@ void PropertiesPanel::onRender() {
                 snd->setProperty("ContentPath", node);
             }
         }
-        ImGui::Checkbox("AutoPlay", &snd->autoPlay);
-        bool looping = snd->isLooping();
-        if (ImGui::Checkbox("Looped", &looping)) snd->setLooping(looping);
+
+        // AutoPlay with undo
+        {
+            bool prev = snd->autoPlay;
+            if (ImGui::Checkbox("AutoPlay", &snd->autoPlay) && m_history && snd->autoPlay != prev)
+                m_history->record(std::make_unique<SetSoundBoolCommand>(sndSp, "AutoPlay", prev, snd->autoPlay));
+        }
+
+        // Looped with undo
+        {
+            bool looping = snd->isLooping();
+            bool prev = looping;
+            if (ImGui::Checkbox("Looped", &looping)) {
+                snd->setLooping(looping);
+                if (m_history)
+                    m_history->record(std::make_unique<SetSoundBoolCommand>(sndSp, "Looped", prev, looping));
+            }
+        }
+
         if (ImGui::Button("Play"))  snd->play();
         ImGui::SameLine();
         if (ImGui::Button("Stop"))  snd->stop();
@@ -287,13 +304,36 @@ void PropertiesPanel::onRender() {
     // ---- Decal ----
     if (inst->GetClassName() == "Decal") {
         Decal* dcl = static_cast<Decal*>(inst);
+        auto dclSp = std::static_pointer_cast<Decal>(inst->shared_from_this());
         ImGui::SeparatorText("Decal");
+
+        // Face combo with undo
+        {
+            static const char* faceItems[] = { "Front", "Back", "Top", "Bottom", "Right", "Left" };
+            int faceIdx = static_cast<int>(dcl->face);
+            if (ImGui::Combo("Face", &faceIdx, faceItems, 6)) {
+                Face newFace = static_cast<Face>(faceIdx);
+                if (newFace != dcl->face) {
+                    Face oldFace = dcl->face;
+                    dcl->setFace(newFace);
+                    if (m_history)
+                        m_history->record(std::make_unique<SetDecalFaceCommand>(dclSp, oldFace, newFace));
+                }
+            }
+        }
+
+        // Texture with undo
         ImGui::LabelText("Texture", "%s", dcl->texturePath.c_str());
         if (ImGui::Button("参照...##decal")) {
             std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.tga)", L"*.png;*.jpg;*.bmp;*.tga");
             if (!path.empty()) {
+                std::string oldPath = dcl->texturePath;
+                unsigned int oldID  = dcl->TextureID;
                 YAML::Node node; node = path;
                 dcl->setProperty("Texture", node);
+                if (m_history)
+                    m_history->record(std::make_unique<SetDecalTextureCommand>(
+                        dclSp, oldPath, oldID, dcl->texturePath, dcl->TextureID));
             }
         }
     }
