@@ -77,8 +77,27 @@ void BaseCube::setRotation(Quaternion localRot) {
     }
 }
 
+void BaseCube::setAnchored(bool anchored) {
+    Anchored = anchored;
+    if (lastWorkspace && lastWorkspace->physicsEngine) {
+        lastWorkspace->physicsEngine->recreateActor(this);
+    }
+}
+
 void BaseCube::syncPhysics() {
-    if (!actor || Anchored) return;
+    if (!actor) return;
+    if (Anchored) {
+        physx::PxRigidDynamic* kin = actor->is<physx::PxRigidDynamic>();
+        if (kin) {
+            Vector3    wp = getWorldPosition();
+            Quaternion wr = getWorldCFrame().Rotation;
+            kin->setKinematicTarget(physx::PxTransform(
+                physx::PxVec3(wp.x, wp.y, wp.z),
+                physx::PxQuat(wr.x, wr.y, wr.z, wr.w)
+            ));
+        }
+        return;
+    }
 
     physx::PxTransform pose = actor->getGlobalPose();
     Vector3    worldPos(pose.p.x, pose.p.y, pose.p.z);
@@ -131,7 +150,7 @@ unsigned int BaseCube::getDecalTexture(Face face, unsigned int fallback) const {
 
 void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Anchored") {
-        this->Anchored = value.as<bool>();
+        setAnchored(value.as<bool>());
     } else if (name == "CanCollide") {
         this->CanCollide = value.as<bool>();
     } else if (name == "Color") {

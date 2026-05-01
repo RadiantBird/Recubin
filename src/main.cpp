@@ -82,7 +82,7 @@ bool checkExit(Renderer& renderer, GLFWwindow& window) {
 // ===================================================
 int main() {
     std::cout << "Hello world!\n"
-              << "Recubin Editor v0.88\n";
+              << "Recubin Editor v0.90\n";
 
     GLFWwindow* window = setupWindow();
     if (!window) {

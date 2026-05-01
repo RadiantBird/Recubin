@@ -10,6 +10,7 @@ void Physics::init() {
     sceneDesc.gravity = physx::PxVec3(0.0f, -9.81f, 0.0f); // 重力設定
     sceneDesc.cpuDispatcher = physx::PxDefaultCpuDispatcherCreate(1);
     sceneDesc.filterShader = physx::PxDefaultSimulationFilterShader;
+    sceneDesc.flags |= physx::PxSceneFlag::eENABLE_CCD;
     scene = physics->createScene(sceneDesc);
 }
 
@@ -37,6 +38,7 @@ Physics::~Physics() {
 }
 
 void Physics::createActor(BaseCube* cube) {
+    if (!cube->CanCollide) return; // 衝突無効 → actor 不要
     if (cube->actor) return; // 二重登録防止
 
     // 初期姿勢
@@ -47,10 +49,14 @@ void Physics::createActor(BaseCube* cube) {
 
     physx::PxRigidActor* actor = nullptr;
     if (cube->Anchored) {
-        actor = physics->createRigidStatic(transform);
+        physx::PxRigidDynamic* kin = physics->createRigidDynamic(transform);
+        kin->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
+        actor = kin;
     } else {
         physx::PxRigidDynamic* dynamicActor = physics->createRigidDynamic(transform);
         dynamicActor->setRigidDynamicLockFlags(cube->LockFlags);
+        dynamicActor->setRigidBodyFlag(physx::PxRigidBodyFlag::eENABLE_CCD, true);
+        dynamicActor->setSolverIterationCounts(8, 2);
         actor = dynamicActor;
     }
 
@@ -138,6 +144,7 @@ bool Physics::raycast(const Vector3& origin, const Vector3& direction, float max
             hitResult.hit = true;
             hitResult.distance = bestHit->distance;
             hitResult.position = Vector3(bestHit->position.x, bestHit->position.y, bestHit->position.z);
+            hitResult.normal   = Vector3(bestHit->normal.x,   bestHit->normal.y,   bestHit->normal.z);
             if (bestHit->actor && bestHit->actor->userData) {
                 hitResult.instance = static_cast<Instance*>(bestHit->actor->userData);
             } else {

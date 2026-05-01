@@ -31,6 +31,7 @@ User::User(GLFWwindow* win)
 
 // 文字化けなんとかしてくれ、アセンブリですか（笑）
 User::~User() {
+    s_instance = nullptr;
     // shared_ptr なので参照カウントが 0 になれば自動解放される
     character = nullptr;
     root = nullptr;
@@ -193,6 +194,24 @@ void User::processInput(Physics* physics) {
                 // 2. 物理速度の適用
                 if (currentMoveDir.length() > 0.01f) {
                     Vector3 velocity = currentMoveDir * walkPower;
+
+                    // 壁法線に沿って速度を射影（めり込み防止）
+                    RaycastHit wallHit;
+                    float checkDist = root->Size.x / 2.0f + 0.15f;
+                    if (physics && physics->raycast(root->getWorldPosition(), currentMoveDir, checkDist, wallHit, root->actor)) {
+                        // 壁法線への射影成分を除去（法線は水平面のみで考慮）
+                        Vector3 n(wallHit.normal.x, 0.0f, wallHit.normal.z);
+                        float nLen = n.length();
+                        if (nLen > 0.001f) {
+                            n = n * (1.0f / nLen);
+                            float dot = velocity.x * n.x + velocity.z * n.z;
+                            if (dot < 0.0f) { // 壁に向かっている場合のみ
+                                velocity.x -= dot * n.x;
+                                velocity.z -= dot * n.z;
+                            }
+                        }
+                    }
+
                     physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
                     dynamicActor->setLinearVelocity(physx::PxVec3(velocity.x, currentVel.y, velocity.z));
                 } else {
@@ -365,6 +384,14 @@ void User::spawnCharacter() {
     rightArm->Anchored = true;
     leftLeg->Anchored  = true;
     rightLeg->Anchored = true;
+
+    head->CanCollide     = false;
+    torso->CanCollide    = false;
+    leftArm->CanCollide  = false;
+    rightArm->CanCollide = false;
+    leftLeg->CanCollide  = false;
+    rightLeg->CanCollide = false;
+    
     root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
 
     root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // デバッグのために描画（リリースでは描画スキップ対象）

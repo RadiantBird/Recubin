@@ -7,23 +7,8 @@ Root:
       Properties:
         Position: [-2, 0, -8]
         Size: [1, 4, 1]
+        Rotation: [0, 0, 0, 1]
         Color: [0, 0, 1, 1]
-        Anchored: false
-        CanCollide: true
-    - ClassName: Cube
-      Name: Baseplate
-      Properties:
-        Position: [0, -10, 0]
-        Size: [128, 1, 128]
-        Color: [0, 1, 0.5, 1]
-        Anchored: true
-        CanCollide: true
-    - ClassName: Cube
-      Name: Green
-      Properties:
-        Position: [-2, 0, -4]
-        Size: [2, 1, 1]
-        Color: [0, 1, 0, 1]
         Anchored: false
         CanCollide: true
     - ClassName: Cube
@@ -31,8 +16,27 @@ Root:
       Properties:
         Position: [2, 0, -4]
         Size: [1, 1, 1]
+        Rotation: [0, 0, 0, 1]
         Color: [1, 0, 0, 1]
         Anchored: false
+        CanCollide: true
+    - ClassName: Cube
+      Name: Green
+      Properties:
+        Position: [-2, 0, -4]
+        Size: [2, 1, 1]
+        Rotation: [0, 0, 0, 1]
+        Color: [0, 1, 0, 1]
+        Anchored: false
+        CanCollide: true
+    - ClassName: Cube
+      Name: Baseplate
+      Properties:
+        Position: [0, -10, 0]
+        Size: [128, 1, 128]
+        Rotation: [0, 0, 0, 1]
+        Color: [0, 1, 0.5, 1]
+        Anchored: true
         CanCollide: true
     - ClassName: Script
       Name: HiGeorge
@@ -43,6 +47,7 @@ Root:
       Properties:
         Position: [-3.2510529, 5, 0]
         Size: [1, 1, 1]
+        Rotation: [0, 0, 0, 1]
         Color: [1, 1, 1, 1]
         Anchored: false
         CanCollide: true
@@ -55,45 +60,47 @@ Root:
       Properties:
         Position: [0, 0, -8]
         Size: [2, 2, 2]
+        Rotation: [0, 0, 0, 1]
         Color: [1, 1, 1, 1]
         Anchored: false
         CanCollide: true
       Children:
-        - ClassName: Decal
-          Name: Decal_Left
-          Properties:
-            Face: 5
-            Texture: assets/image/Limabis_logo.png
-        - ClassName: Decal
-          Name: Decal_Top
-          Properties:
-            Face: 2
-            Texture: assets/image/salad-cat.jpg
         - ClassName: Decal
           Name: Decal_Front
           Properties:
             Face: 0
             Texture: assets/image/floppa2048.jpg
         - ClassName: Decal
-          Name: Decal_Bottom
+          Name: Decal_Top
           Properties:
-            Face: 3
-            Texture: assets/image/smile.png
+            Face: 2
+            Texture: assets/image/salad-cat.jpg
+        - ClassName: Decal
+          Name: Decal_Left
+          Properties:
+            Face: 5
+            Texture: assets/image/Limabis_logo.png
         - ClassName: Decal
           Name: Decal_Back
           Properties:
             Face: 1
             Texture: assets/image/the-cat.png
         - ClassName: Decal
+          Name: Decal_Bottom
+          Properties:
+            Face: 3
+            Texture: assets/image/smile.png
+        - ClassName: Decal
           Name: Decal_Right
           Properties:
             Face: 4
             Texture: assets/image/bliss.jpg
     - ClassName: Cube
-      Name: Cube
+      Name: Radio
       Properties:
         Position: [0, 5, 0]
         Size: [2, 4, 1]
+        Rotation: [0, 0, 0, 1]
         Color: [1, 1, 1, 1]
         Anchored: false
         CanCollide: true
@@ -103,15 +110,17 @@ Root:
           Properties:
             Position: [0, 0, 0]
             Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
             ContentPath: assets/sound/Newalks.mp3
             Looped: true
             SoundGroup: SFX
-            AutoPlay: true
+            AutoPlay: false
     - ClassName: Cylinder
       Name: Cylinder
       Properties:
         Position: [0, 5, 1.5317817]
         Size: [1, 1, 1]
+        Rotation: [0, 0, 0, 1]
         Color: [1, 1, 1, 1]
         Anchored: false
         CanCollide: true
@@ -120,6 +129,7 @@ Root:
       Properties:
         Position: [2.7700124, 5, 0]
         Size: [1, 1, 1]
+        Rotation: [0, 0, 0, 1]
         Color: [1, 1, 1, 1]
         Anchored: false
         CanCollide: true

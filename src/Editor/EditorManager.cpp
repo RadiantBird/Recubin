@@ -123,10 +123,16 @@ void EditorManager::handleEditorShortcuts() {
         // Ctrl+Z: Undo
         if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Z)) {
             m_history.undo();
+            // undo で selectedInstance が孤立（親から除去）した場合はクリア
+            if (hierarchyPanel->selectedInstance && hierarchyPanel->selectedInstance->Parent.expired())
+                hierarchyPanel->selectedInstance = nullptr;
         }
         // Ctrl+Shift+Z: Redo
         if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z)) {
             m_history.redo();
+            // redo で selectedInstance が孤立した場合はクリア
+            if (hierarchyPanel->selectedInstance && hierarchyPanel->selectedInstance->Parent.expired())
+                hierarchyPanel->selectedInstance = nullptr;
         }
 
         // BackSpace: 選択インスタンス削除
@@ -215,6 +221,7 @@ void EditorManager::renderSaveDialog() {
             // GL コンテキストが生きている今のうちに GPU リソースを持つ
             // インスタンスの shared_ptr を解放する（コンテキスト破棄後の
             // glDelete* 呼び出しによるヒープ破壊を防ぐ）
+            hierarchyPanel->selectedInstance = nullptr;
             m_history.clear();
             m_clipboard.reset();
             if (m_dialogWindow) glfwSetWindowShouldClose(m_dialogWindow, GLFW_TRUE);
@@ -223,6 +230,7 @@ void EditorManager::renderSaveDialog() {
         ImGui::SameLine();
         if (ImGui::Button("保存「せず」終了", ImVec2(130, 0))) {
             m_isDirty = false;
+            hierarchyPanel->selectedInstance = nullptr;
             m_history.clear();
             m_clipboard.reset();
             if (m_dialogWindow) glfwSetWindowShouldClose(m_dialogWindow, GLFW_TRUE);

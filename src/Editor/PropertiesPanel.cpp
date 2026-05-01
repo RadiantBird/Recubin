@@ -229,9 +229,12 @@ void PropertiesPanel::onRender() {
 
         // Anchored with undo
         bool prevAnchored = bc->Anchored;
-        if (ImGui::Checkbox("Anchored", &bc->Anchored) && m_history) {
-            m_history->record(std::make_unique<SetBoolCommand>(
-                bcSp, "Anchored", prevAnchored, bc->Anchored));
+        bool anchored = bc->Anchored;
+        if (ImGui::Checkbox("Anchored", &anchored)) {
+            bc->setAnchored(anchored);
+            if (m_history)
+                m_history->record(std::make_unique<SetBoolCommand>(
+                    bcSp, "Anchored", prevAnchored, anchored));
         }
 
         // CanCollide with undo

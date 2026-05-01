@@ -144,7 +144,7 @@ struct SetBoolCommand : Command {
 private:
     void apply(bool v) {
         if (!m_target) return;
-        if (m_prop == "Anchored")   m_target->Anchored   = v;
+        if (m_prop == "Anchored")   m_target->setAnchored(v);
         else if (m_prop == "CanCollide") m_target->CanCollide = v;
     }
 };
