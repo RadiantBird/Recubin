@@ -212,8 +212,6 @@ int main() {
                                 Lighting* dst = static_cast<Lighting*>(dstInst);
                                 dst->lightDir   = src->lightDir;
                                 dst->brightness = src->brightness;
-                                for (int i = 0; i < 6; i++) dst->skyboxPaths[i] = src->skyboxPaths[i];
-                                dst->skyboxDirty = true;
                             }
                         }
                     }

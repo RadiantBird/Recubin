@@ -160,6 +160,10 @@ void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
         color.b = value[2].as<float>();
         color.a = value[3].as<float>();
         this->Color = color;
+    } else if (name == "CastShadow") {
+        this->CastShadow = value.as<bool>();
+    } else if (name == "Unlit") {
+        this->Unlit = value.as<bool>();
     } else {
         Spatial::setProperty(name, value);
     }

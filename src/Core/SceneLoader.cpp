@@ -10,10 +10,15 @@
 #include <Instances/Decal.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/Skybox.hpp>
 #include <Core/AudioService.hpp>
 #include <iostream>
 #include <fstream>
 #include <memory>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 // YAML -> Vector3 変換
 namespace YAML {
@@ -43,7 +48,10 @@ namespace YAML {
 
 std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
     try {
-        YAML::Node config = YAML::LoadFile(filePath);
+        std::string yamlContent = FileLoader::readText(filePath);
+        if (yamlContent.empty()) return nullptr;
+        
+        YAML::Node config = YAML::Load(yamlContent);
         if (!config["Root"]) {
             std::cerr << "[SceneLoader] Error: No Root defined in " << filePath << std::endl;
             return nullptr;
@@ -102,6 +110,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Cylinder")       return std::make_shared<Cylinder>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "TriangularPrism") return std::make_shared<TriangularPrism>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "Sphere")         return std::make_shared<Sphere>(Vector3(0,0,0), Vector3(1,1,1));
+    if (className == "Skybox")         return std::make_shared<Skybox>();
     if (className == "Script")    return std::make_shared<Script>("");
     if (className == "Model")     return std::make_shared<Model>();
     if (className == "Decal")     return std::make_shared<Decal>(0, Face::Front);
@@ -125,7 +134,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     // プロパティ
     bool hasProps = inst->IsA("Spatial") || inst->GetClassName() == "Script"
                  || inst->GetClassName() == "Sound" || inst->GetClassName() == "Decal"
-                 || inst->GetClassName() == "Lighting";
+                 || inst->GetClassName() == "Lighting" || inst->GetClassName() == "Skybox";
     if (hasProps) {
         out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
 
@@ -153,6 +162,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << YAML::EndSeq;
             out << YAML::Key << "Anchored"   << YAML::Value << bc->Anchored;
             out << YAML::Key << "CanCollide" << YAML::Value << bc->CanCollide;
+            out << YAML::Key << "CastShadow" << YAML::Value << bc->CastShadow;
+            out << YAML::Key << "Unlit"      << YAML::Value << bc->Unlit;
         }
         if (inst->GetClassName() == "Script") {
             const Script* sc = static_cast<const Script*>(inst);
@@ -165,20 +176,20 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 out << YAML::Key << "Texture" << YAML::Value << d->texturePath;
         }
         if (inst->GetClassName() == "Lighting") {
-            static const char* faceKeys[] = {
-                "SkyboxRight", "SkyboxLeft", "SkyboxTop",
-                "SkyboxBottom", "SkyboxFront", "SkyboxBack"
-            };
             const Lighting* lt = static_cast<const Lighting*>(inst);
             out << YAML::Key << "Direction" << YAML::Value
                 << YAML::Flow << YAML::BeginSeq
                 << lt->lightDir.x << lt->lightDir.y << lt->lightDir.z
                 << YAML::EndSeq;
             out << YAML::Key << "Brightness" << YAML::Value << lt->brightness;
-            for (int i = 0; i < 6; i++) {
-                if (!lt->skyboxPaths[i].empty())
-                    out << YAML::Key << faceKeys[i] << YAML::Value << lt->skyboxPaths[i];
-            }
+        }
+        if (inst->GetClassName() == "Skybox") {
+            const Skybox* sb = static_cast<const Skybox*>(inst);
+            out << YAML::Key << "SkyboxPaths" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << sb->skyboxPaths[0] << sb->skyboxPaths[1] << sb->skyboxPaths[2]
+                << sb->skyboxPaths[3] << sb->skyboxPaths[4] << sb->skyboxPaths[5]
+                << YAML::EndSeq;
         }
         if (inst->GetClassName() == "Sound") {
             const Sound* snd = static_cast<const Sound*>(inst);
@@ -210,7 +221,19 @@ void SceneLoader::saveScene(Instance* root, const std::string& filePath) {
     saveNode(out, root);
     out << YAML::EndMap;
 
+#ifdef _WIN32
+    auto wstrTo = [](const std::string& str) -> std::wstring {
+        if (str.empty()) return std::wstring();
+        int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
+        std::wstring wstrTo(size_needed, 0);
+        MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
+        return wstrTo;
+    };
+    std::ofstream file(wstrTo(filePath));
+#else
     std::ofstream file(filePath);
+#endif
+    
     if (file) file << out.c_str();
     else std::cerr << "[SceneLoader] Failed to open for write: " << filePath << std::endl;
 }

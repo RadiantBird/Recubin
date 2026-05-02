@@ -7,6 +7,7 @@
 #include <Instances/Lighting.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
+#define STBI_WINDOWS_UTF8
 #include "include/stb_image.h"
 
 // ===================================================
@@ -24,31 +25,14 @@ void Renderer::createWhiteTexture() {
 
 Renderer* Renderer::instance = nullptr;
 
-static bool lightingHasSkyboxSource(const Lighting* lighting) {
-    if (!lighting) return false;
-    if (lighting->cubemapTexture != 0 || lighting->skyboxDirty) return true;
-    for (int i = 0; i < 6; i++) {
-        if (!lighting->skyboxPaths[i].empty()) return true;
-    }
-    return false;
-}
-
 static Lighting* findLightingInTree(Instance* inst) {
     if (!inst) return nullptr;
-    Lighting* fallback = nullptr;
-    if (inst->IsA("Lighting")) {
-        Lighting* lighting = static_cast<Lighting*>(inst);
-        fallback = lighting;
-        if (lightingHasSkyboxSource(lighting)) return lighting;
-    }
+    if (inst->IsA("Lighting")) return static_cast<Lighting*>(inst);
     for (auto& [name, child] : inst->getChildren()) {
         Lighting* found = findLightingInTree(child.get());
-        if (found) {
-            if (lightingHasSkyboxSource(found)) return found;
-            if (!fallback) fallback = found;
-        }
+        if (found) return found;
     }
-    return fallback;
+    return nullptr;
 }
 
 // ===================================================
@@ -172,62 +156,7 @@ void Renderer::init(GLFWwindow* window) {
     glUniform3f(lightDirLoc, 1.0f, -1.0f, -1.0f);
     glUniform1f(brightnessLoc, 1.0f);
 
-    // --- Skybox シェーダーのコンパイル ---
-    {
-        std::string svStr = FileLoader::readText("src/skybox_vertex.glsl");
-        std::string sfStr = FileLoader::readText("src/skybox_fragment.glsl");
-        const char* svSrc = svStr.c_str();
-        const char* sfSrc = sfStr.c_str();
 
-        unsigned int sv = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(sv, 1, &svSrc, NULL);
-        glCompileShader(sv);
-        int ok; char log[512];
-        glGetShaderiv(sv, GL_COMPILE_STATUS, &ok);
-        if (!ok) { glGetShaderInfoLog(sv, 512, NULL, log); std::cout << "SKYBOX_VERT: " << log << std::endl; }
-
-        unsigned int sf = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(sf, 1, &sfSrc, NULL);
-        glCompileShader(sf);
-        glGetShaderiv(sf, GL_COMPILE_STATUS, &ok);
-        if (!ok) { glGetShaderInfoLog(sf, 512, NULL, log); std::cout << "SKYBOX_FRAG: " << log << std::endl; }
-
-        skyboxShader = glCreateProgram();
-        glAttachShader(skyboxShader, sv);
-        glAttachShader(skyboxShader, sf);
-        glLinkProgram(skyboxShader);
-        glDeleteShader(sv);
-        glDeleteShader(sf);
-
-        glUseProgram(skyboxShader);
-        glUniform1i(glGetUniformLocation(skyboxShader, "skybox"), 0);
-    }
-
-    // --- Skybox VAO（位置のみの単位キューブ）---
-    {
-        float skyboxVertices[] = {
-            -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
-             1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
-            -1.0f, -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
-            -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
-             1.0f, -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
-             1.0f,  1.0f,  1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
-            -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
-             1.0f,  1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
-            -1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,
-             1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f,
-            -1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,
-             1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f
-        };
-        glGenVertexArrays(1, &skyboxVAO);
-        glGenBuffers(1, &skyboxVBO);
-        glBindVertexArray(skyboxVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), skyboxVertices, GL_STATIC_DRAW);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
-        glBindVertexArray(0);
-    }
 
     // --- Shadow map テクスチャユニットのバインド設定 ---
     glUniform1i(glGetUniformLocation(shaderProgram, "shadowMap"), 1);
@@ -318,9 +247,7 @@ Renderer::~Renderer() {
     glDeleteBuffers(1, &EBO);
     glDeleteVertexArrays(1, &VAO);
     glDeleteProgram(shaderProgram);
-    if (skyboxVAO)    glDeleteVertexArrays(1, &skyboxVAO);
-    if (skyboxVBO)    glDeleteBuffers(1, &skyboxVBO);
-    if (skyboxShader) glDeleteProgram(skyboxShader);
+
     if (shadowFBO)    glDeleteFramebuffers(1, &shadowFBO);
     if (shadowMapTex) glDeleteTextures(1, &shadowMapTex);
     if (depthShader)  glDeleteProgram(depthShader);
@@ -347,40 +274,14 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
         auto systemSp = workspace.Parent.lock();
         Lighting* workspaceLighting = findLightingInTree(static_cast<Instance*>(&workspace));
         Lighting* systemLighting = findLightingInTree(systemSp ? systemSp.get() : static_cast<Instance*>(&workspace));
-        if (lightingHasSkyboxSource(workspaceLighting)) {
-            lighting = workspaceLighting;
-        } else if (lightingHasSkyboxSource(systemLighting)) {
-            lighting = systemLighting;
-        } else {
-            lighting = workspaceLighting ? workspaceLighting : systemLighting;
-        }
+        lighting = workspaceLighting ? workspaceLighting : systemLighting;
     }
-    if (lighting) {
-        bool hasAnyPath = false;
-        for (int i = 0; i < 6; i++) if (!lighting->skyboxPaths[i].empty()) { hasAnyPath = true; break; }
-        if (!hasAnyPath && lighting->cubemapTexture != 0) {
-            glDeleteTextures(1, &lighting->cubemapTexture);
-            lighting->cubemapTexture = 0;
+
+    // Skybox の位置をカメラに同期
+    for (auto const& [name, child] : workspace.getChildren()) {
+        if (child->IsA("Skybox")) {
+            static_cast<BaseCube*>(child.get())->teleportTo(user.cpos);
         }
-        if (hasAnyPath && (lighting->skyboxDirty || lighting->cubemapTexture == 0)) {
-            if (lighting->cubemapTexture != 0) {
-                glDeleteTextures(1, &lighting->cubemapTexture);
-                lighting->cubemapTexture = 0;
-            }
-            std::string skyboxPaths[6];
-            std::string fallbackPath;
-            for (int i = 0; i < 6; i++) {
-                if (!lighting->skyboxPaths[i].empty()) {
-                    fallbackPath = lighting->skyboxPaths[i];
-                    break;
-                }
-            }
-            for (int i = 0; i < 6; i++) {
-                skyboxPaths[i] = lighting->skyboxPaths[i].empty() ? fallbackPath : lighting->skyboxPaths[i];
-            }
-            lighting->cubemapTexture = loadCubemap(skyboxPaths);
-        }
-        lighting->skyboxDirty = false;
     }
 
     // ---- Shadow Pass ----
@@ -416,7 +317,7 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
             if (!inst) return;
             if (inst->IsA("BaseCube")) {
                 BaseCube* bc = static_cast<BaseCube*>(inst);
-                if (bc->Color.a > 0.001f) {
+                if (bc->Color.a > 0.001f && bc->CastShadow) {
                     Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
                                        Matrix4::Scale(bc->Size.x, bc->Size.y, bc->Size.z);
                     glUniformMatrix4fv(modelDepthLoc, 1, GL_FALSE, modelMat.m);
@@ -448,30 +349,7 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
         shadowReady = true;
     }
 
-    // ---- Skybox ----
-    if (lighting && lighting->cubemapTexture != 0 && skyboxVAO && skyboxShader) {
-        GLboolean prevCull = glIsEnabled(GL_CULL_FACE);
-        GLboolean prevDepthMask = GL_TRUE;
-        GLint prevDepthFunc = GL_LESS;
-        glGetBooleanv(GL_DEPTH_WRITEMASK, &prevDepthMask);
-        glGetIntegerv(GL_DEPTH_FUNC, &prevDepthFunc);
 
-        glDisable(GL_CULL_FACE);
-        glDepthMask(GL_FALSE);
-        glDepthFunc(GL_ALWAYS);
-        glUseProgram(skyboxShader);
-        glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "view"),       1, GL_FALSE, view.m);
-        glUniformMatrix4fv(glGetUniformLocation(skyboxShader, "projection"), 1, GL_FALSE, projection.m);
-        glBindVertexArray(skyboxVAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, lighting->cubemapTexture);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
-        glBindVertexArray(0);
-
-        glDepthMask(prevDepthMask);
-        glDepthFunc(prevDepthFunc);
-        if (prevCull) glEnable(GL_CULL_FACE);
-    }
 
     // ---- Main Pass ----
     glUseProgram(shaderProgram);
@@ -494,8 +372,15 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
     int modelLoc = glGetUniformLocation(shaderProgram, "model");
     glBindVertexArray(VAO);
 
+    int unlitLoc = glGetUniformLocation(shaderProgram, "unlit");
+
     auto renderInstances = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
+        if (inst->IsA("BaseCube")) {
+            BaseCube* bc = static_cast<BaseCube*>(inst);
+            if (unlitLoc != -1) glUniform1f(unlitLoc, bc->Unlit ? 1.0f : 0.0f);
+        }
+        
         if (inst->IsA("Cube")) {
             Cube* cube = static_cast<Cube*>(inst);
             if (cube->Color.a > 0.001f) {
@@ -638,6 +523,9 @@ unsigned int Renderer::loadTexture(const char* path) {
     int width, height, nrChannels;
     unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 4);
 
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
     unsigned int textureID = 0;
     if (!data) {
         std::cout << "Failed to load texture: " << path << std::endl;
@@ -646,7 +534,6 @@ unsigned int Renderer::loadTexture(const char* path) {
 
     glGenTextures(1, &textureID);
     glBindTexture(GL_TEXTURE_2D, textureID);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
     glGenerateMipmap(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
@@ -661,41 +548,4 @@ unsigned int Renderer::loadTexture(const char* path) {
     return textureID;
 }
 
-// ===================================================
-//  キューブマップ読み込み（Skybox 用）
-// ===================================================
-unsigned int Renderer::loadCubemap(const std::string paths[6]) {
-    unsigned int textureID;
-    glGenTextures(1, &textureID);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
 
-    stbi_set_flip_vertically_on_load(false); // キューブマップは反転不要
-
-    for (int i = 0; i < 6; i++) {
-        if (paths[i].empty()) {
-            unsigned char white[] = { 200, 200, 200, 255 };
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, white);
-        } else {
-            int w, h, ch;
-            unsigned char* data = stbi_load(paths[i].c_str(), &w, &h, &ch, 4);
-            if (data) {
-                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-                stbi_image_free(data);
-            } else {
-                unsigned char white[] = { 200, 200, 200, 255 };
-                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, white);
-                std::cout << "[Renderer] Cubemap face " << i << " load failed: " << paths[i] << std::endl;
-            }
-        }
-    }
-
-    stbi_set_flip_vertically_on_load(true); // 他のテクスチャ用に戻す
-
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-    return textureID;
-}

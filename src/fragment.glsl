@@ -14,6 +14,7 @@ uniform vec3 lightDir;
 uniform float brightness;
 uniform vec3 viewPos;
 uniform vec3 lightColor;
+uniform float unlit;
 
 float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
@@ -37,6 +38,12 @@ float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
 
 void main() {
     vec4 texColor = texture(ourTexture, TexCoord);
+    vec3 baseColor = mix(ourColor.rgb, texColor.rgb * ourColor.rgb, texColor.a);
+
+    if (unlit > 0.5) {
+        FragColor = vec4(baseColor, ourColor.a);
+        return;
+    }
 
     float ambientStrength = 0.3;
     vec3 ambient = ambientStrength * lightColor;
@@ -49,8 +56,6 @@ void main() {
     float shadow = hasShadows * shadowCalc(FragPosLightSpace, norm, lightDirNorm);
 
     vec3 lighting = ambient + (1.0 - shadow) * diffuse;
-
-    vec3 baseColor = mix(ourColor.rgb, texColor.rgb * ourColor.rgb, texColor.a);
     vec3 result = lighting * baseColor;
 
     FragColor = vec4(result, ourColor.a);

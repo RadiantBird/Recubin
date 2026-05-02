@@ -16,6 +16,8 @@ class BaseCube : public Spatial {
 public:
     bool Anchored = false;
     bool CanCollide = true;
+    bool CastShadow = true;
+    bool Unlit = false;
 
     Color4 Color;
     Material material = Material::GetDefault(MaterialType::Plastic);

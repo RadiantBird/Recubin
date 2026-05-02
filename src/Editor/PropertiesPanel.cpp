@@ -6,6 +6,7 @@
 #include <Instances/Sound.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/Skybox.hpp>
 #include <Util/Color4.hpp>
 #include <include/imgui/imgui.h>
 #include <unordered_map>
@@ -240,9 +241,23 @@ void PropertiesPanel::onRender() {
 
         // CanCollide with undo
         bool prevCanCollide = bc->CanCollide;
-        if (ImGui::Checkbox("CanCollide", &bc->CanCollide) && m_history) {
+        if (ImGui::Checkbox("CanCollide", &bc->CanCollide) && m_history && prevCanCollide != bc->CanCollide) {
             m_history->record(std::make_unique<SetBoolCommand>(
                 bcSp, "CanCollide", prevCanCollide, bc->CanCollide));
+        }
+
+        // CastShadow with undo
+        bool prevCastShadow = bc->CastShadow;
+        if (ImGui::Checkbox("CastShadow", &bc->CastShadow) && m_history && prevCastShadow != bc->CastShadow) {
+            m_history->record(std::make_unique<SetBoolCommand>(
+                bcSp, "CastShadow", prevCastShadow, bc->CastShadow));
+        }
+
+        // Unlit with undo
+        bool prevUnlit = bc->Unlit;
+        if (ImGui::Checkbox("Unlit", &bc->Unlit) && m_history && prevUnlit != bc->Unlit) {
+            m_history->record(std::make_unique<SetBoolCommand>(
+                bcSp, "Unlit", prevUnlit, bc->Unlit));
         }
     }
 
@@ -368,22 +383,28 @@ void PropertiesPanel::onRender() {
             }
         }
 
-        // Skybox faces
-        ImGui::SeparatorText("Skybox");
+    }
+
+    // ---- Skybox ----
+    if (inst->GetClassName() == "Skybox") {
+        Skybox* sb = static_cast<Skybox*>(inst);
+        auto sbSp = std::static_pointer_cast<Skybox>(inst->shared_from_this());
+
+        ImGui::SeparatorText("Skybox Faces");
         static const char* s_skyboxLabels[] = {
             "Right (+X)", "Left (-X)", "Top (+Y)", "Bottom (-Y)", "Front (+Z)", "Back (-Z)"
         };
         for (int i = 0; i < 6; i++) {
             ImGui::LabelText(s_skyboxLabels[i], "%s",
-                lt->skyboxPaths[i].empty() ? "(none)" : lt->skyboxPaths[i].c_str());
+                sb->skyboxPaths[i].empty() ? "(none)" : sb->skyboxPaths[i].c_str());
             std::string btnId = std::string("参照...##skybox") + std::to_string(i);
             if (ImGui::Button(btnId.c_str())) {
                 std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.tga)", L"*.png;*.jpg;*.bmp;*.tga");
                 if (!path.empty()) {
-                    std::string oldPath = lt->skyboxPaths[i];
-                    lt->setSkyboxPath(i, path);
+                    std::string oldPath = sb->skyboxPaths[i];
+                    sb->setSkyboxPath(i, path);
                     if (m_history)
-                        m_history->record(std::make_unique<SetSkyboxFaceCommand>(ltSp, i, oldPath, path));
+                        m_history->record(std::make_unique<SetSkyboxFaceCommand>(sbSp, i, oldPath, path));
                 }
             }
         }

@@ -6,6 +6,7 @@
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Sphere.hpp>
+#include <Instances/Skybox.hpp>
 #include <Core/SceneLoader.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
@@ -390,6 +391,27 @@ void EditorManager::renderToolbar() {
         while (m_workspace->children.count(name) > 0)
             name = "Sphere" + std::to_string(n++);
         obj->Name = name;
+        m_history.execute(std::make_unique<AddInstanceCommand>(
+            m_workspace->shared_from_this(), obj));
+        m_isDirty = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("New Skybox", btnSz) && m_workspace) {
+        auto obj = std::make_shared<Skybox>();
+        std::string name = "Skybox";
+        int n = 1;
+        while (m_workspace->children.count(name) > 0)
+            name = "Skybox" + std::to_string(n++);
+        obj->Name = name;
+        
+        Face faces[6] = { Face::Right, Face::Left, Face::Top, Face::Bottom, Face::Back, Face::Front };
+        for (int i = 0; i < 6; i++) {
+            auto decal = std::make_shared<Decal>();
+            decal->Name = "Face_" + std::to_string(i);
+            decal->setFace(faces[i]);
+            obj->addChild(decal);
+        }
+
         m_history.execute(std::make_unique<AddInstanceCommand>(
             m_workspace->shared_from_this(), obj));
         m_isDirty = true;

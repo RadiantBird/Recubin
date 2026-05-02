@@ -37,9 +37,6 @@ class Renderer {
 
         unsigned int shaderProgram;
 
-        unsigned int skyboxVAO      = 0;
-        unsigned int skyboxVBO      = 0;
-        unsigned int skyboxShader   = 0;
         int          lightDirLoc    = -1;
         int          brightnessLoc  = -1;
 
@@ -72,5 +69,4 @@ class Renderer {
         void renderImGui(User &user, GLFWwindow* window, Workspace &workspace);
 
         unsigned int loadTexture(const char* path);
-        unsigned int loadCubemap(const std::string paths[6]);
 };

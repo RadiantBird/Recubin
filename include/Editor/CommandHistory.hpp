@@ -5,6 +5,7 @@
 #include <Instances/Decal.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/Skybox.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -278,11 +279,11 @@ struct SetLightBrightnessCommand : Command {
 
 // --- Skybox 1面のパス変更 ---
 struct SetSkyboxFaceCommand : Command {
-    std::shared_ptr<Lighting> m_target;
+    std::shared_ptr<Skybox> m_target;
     int         m_faceIndex;
     std::string m_before, m_after;
 
-    SetSkyboxFaceCommand(std::shared_ptr<Lighting> target, int faceIndex,
+    SetSkyboxFaceCommand(std::shared_ptr<Skybox> target, int faceIndex,
                          std::string before, std::string after)
         : m_target(std::move(target)), m_faceIndex(faceIndex),
           m_before(std::move(before)), m_after(std::move(after)) {}
