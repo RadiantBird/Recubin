@@ -112,6 +112,8 @@ int main() {
         std::cerr << "[ERROR] Failed to load scene. Creating empty workspace.\n";
         workspace = std::make_shared<Workspace>();
     }
+
+    // Workspace を System の子として追加（System が親になる）
     system->addChild(workspace);
 
     // デフォルト Lighting を System 子として追加（Workspace の兄弟）
@@ -143,7 +145,12 @@ int main() {
     bool snapshotDirty = false;
     const std::string snapshotPath = "assets/scenes/_snapshot.yaml";
 
-    while (true) {
+    // RCBN_LOG("For debbuging, stopping here...");
+    // int garbage = 0; // anti optimize
+    // std::cin >> garbage;
+    // RCBN_LOG(garbage);
+
+    while (true) { // this loop is broken
         if (glfwWindowShouldClose(window)) {
             if (checkExit(*renderer, *window)) {
                 break;

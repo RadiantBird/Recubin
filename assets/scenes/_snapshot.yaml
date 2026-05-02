@@ -1,191 +1,128 @@
 Root:
-  ClassName: Workspace
-  Name: Workspace
   Children:
     - ClassName: Cube
-      Name: Blue
+      Name: Wood12
       Properties:
-        Position: [-2, 0, -8]
-        Size: [1, 4, 1]
+        Position: [24.610868, 3, 3.7079067]
+        Size: [1, 5, 1]
         Rotation: [0, 0, 0, 1]
-        Color: [0, 0, 1, 1]
-        Anchored: false
+        Color: [0.28615385, 0.18327935, 0.022892304, 1]
+        Anchored: true
         CanCollide: true
         CastShadow: true
         Unlit: false
+      Children:
+        - ClassName: Sphere
+          Name: Leaves
+          Properties:
+            Position: [-0.059556484, 3.283278, 0.28575706]
+            Size: [5, 5, 5]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.91692305, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
     - ClassName: Cube
-      Name: Baseplate
+      Name: Wood1
       Properties:
-        Position: [0, -10, 0]
+        Position: [-2.8061647, 3, 5.930851]
+        Size: [1, 5, 1]
+        Rotation: [0, 0, 0, 1]
+        Color: [0.28615385, 0.18327935, 0.022892304, 1]
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+      Children:
+        - ClassName: Sphere
+          Name: Leaves
+          Properties:
+            Position: [-0.059556484, 3.283278, 0.28575706]
+            Size: [5, 5, 5]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.91692305, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+    - ClassName: Cube
+      Name: Plate
+      Properties:
+        Position: [0, 0, 0]
         Size: [128, 1, 128]
         Rotation: [0, 0, 0, 1]
-        Color: [0, 1, 0.5, 1]
+        Color: [0.23763312, 0.60943764, 0.7723077, 1]
         Anchored: true
         CanCollide: true
         CastShadow: true
         Unlit: false
     - ClassName: Cube
-      Name: Green
+      Name: Wood13
       Properties:
-        Position: [-2, 0, -4]
-        Size: [2, 1, 1]
+        Position: [18.822783, 3, 17.288387]
+        Size: [1, 5, 1]
         Rotation: [0, 0, 0, 1]
-        Color: [0, 1, 0, 1]
-        Anchored: false
-        CanCollide: true
-        CastShadow: true
-        Unlit: false
-    - ClassName: Cube
-      Name: Red
-      Properties:
-        Position: [2, 0, -4]
-        Size: [1, 1, 1]
-        Rotation: [0, 0, 0, 1]
-        Color: [1, 0, 0, 1]
-        Anchored: false
-        CanCollide: true
-        CastShadow: true
-        Unlit: false
-    - ClassName: Skybox
-      Name: Skybox
-      Properties:
-        Position: [-178.47148, 24.404022, -43.26159]
-        Size: [5000, 5000, 5000]
-        Rotation: [0, 0, 0, 1]
-        Color: [0, 0.28923082, 1, 1]
+        Color: [0.28615385, 0.18327935, 0.022892304, 1]
         Anchored: true
-        CanCollide: false
-        CastShadow: false
-        Unlit: true
-        SkyboxPaths: [C:\Users\Ryarta\Pictures\Screenshots\スクリーンショット 2026-04-25 231822.png, "", "", "", "", ""]
-      Children:
-        - ClassName: Decal
-          Name: Decal_Right
-          Properties:
-            Face: 4
-            Texture: C:\Users\Ryarta\Pictures\Screenshots\スクリーンショット 2026-04-25 231822.png
-        - ClassName: Decal
-          Name: Decal_Front
-          Properties:
-            Face: 0
-        - ClassName: Decal
-          Name: Decal_Top
-          Properties:
-            Face: 2
-        - ClassName: Decal
-          Name: Decal_Left
-          Properties:
-            Face: 5
-        - ClassName: Decal
-          Name: Decal_Back
-          Properties:
-            Face: 1
-        - ClassName: Decal
-          Name: Decal_Bottom
-          Properties:
-            Face: 3
-    - ClassName: Script
-      Name: HiGeorge
-      Properties:
-        ContentPath: C:\Users\Ryarta\Documents\TestLuau\HiGeorge.luau
-    - ClassName: TriangularPrism
-      Name: TriangularPrism
-      Properties:
-        Position: [-3.2510529, 5, 0]
-        Size: [1, 1, 1]
-        Rotation: [0, 0, 0, 1]
-        Color: [1, 1, 1, 1]
-        Anchored: false
-        CanCollide: true
-        CastShadow: true
-        Unlit: false
-    - ClassName: Script
-      Name: 2006
-      Properties:
-        ContentPath: scripts/2006.luau
-    - ClassName: Cube
-      Name: Floppa1
-      Properties:
-        Position: [0, 0, -8]
-        Size: [2, 2, 2]
-        Rotation: [0, 0, 0, 1]
-        Color: [1, 1, 1, 1]
-        Anchored: false
         CanCollide: true
         CastShadow: true
         Unlit: false
       Children:
-        - ClassName: Decal
-          Name: Decal_Left
+        - ClassName: Sphere
+          Name: Leaves
           Properties:
-            Face: 5
-            Texture: assets/image/Limabis_logo.png
-        - ClassName: Decal
-          Name: Decal_Top
-          Properties:
-            Face: 2
-            Texture: assets/image/salad-cat.jpg
-        - ClassName: Decal
-          Name: Decal_Front
-          Properties:
-            Face: 0
-            Texture: assets/image/floppa2048.jpg
-        - ClassName: Decal
-          Name: Decal_Bottom
-          Properties:
-            Face: 3
-            Texture: assets/image/smile.png
-        - ClassName: Decal
-          Name: Decal_Back
-          Properties:
-            Face: 1
-            Texture: assets/image/the-cat.png
-        - ClassName: Decal
-          Name: Decal_Right
-          Properties:
-            Face: 4
-            Texture: assets/image/bliss.jpg
-    - ClassName: Cube
-      Name: Radio
-      Properties:
-        Position: [0, 5, 0]
-        Size: [2, 4, 1]
-        Rotation: [0, 0, 0, 1]
-        Color: [1, 1, 1, 1]
-        Anchored: false
-        CanCollide: true
-        CastShadow: true
-        Unlit: false
-      Children:
-        - ClassName: Sound
-          Name: Sound
-          Properties:
-            Position: [0, 0, 0]
-            Size: [1, 1, 1]
+            Position: [-0.059556484, 3.283278, 0.28575706]
+            Size: [5, 5, 5]
             Rotation: [0, 0, 0, 1]
-            ContentPath: assets/sound/Newalks.mp3
-            Looped: true
-            SoundGroup: SFX
-            AutoPlay: false
-    - ClassName: Cylinder
-      Name: Cylinder
+            Color: [0, 0.91692305, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+    - ClassName: Cube
+      Name: Wood
       Properties:
-        Position: [0, 5, 1.5317817]
-        Size: [1, 1, 1]
+        Position: [7.5740585, 3, 15.886478]
+        Size: [1, 5, 1]
         Rotation: [0, 0, 0, 1]
-        Color: [1, 1, 1, 1]
-        Anchored: false
+        Color: [0.28615385, 0.18327935, 0.022892304, 1]
+        Anchored: true
         CanCollide: true
         CastShadow: true
         Unlit: false
-    - ClassName: Sphere
-      Name: Sphere
+      Children:
+        - ClassName: Sphere
+          Name: Leaves
+          Properties:
+            Position: [-0.059556484, 3.283278, 0.28575706]
+            Size: [5, 5, 5]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.91692305, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+    - ClassName: Cube
+      Name: Wood11
       Properties:
-        Position: [2.7700124, 5, 0]
-        Size: [1, 1, 1]
+        Position: [12.95517, 3, 1.1265411]
+        Size: [1, 5, 1]
         Rotation: [0, 0, 0, 1]
-        Color: [1, 1, 1, 1]
-        Anchored: false
+        Color: [0.28615385, 0.18327935, 0.022892304, 1]
+        Anchored: true
         CanCollide: true
         CastShadow: true
         Unlit: false
+      Children:
+        - ClassName: Sphere
+          Name: Leaves
+          Properties:
+            Position: [-0.059556484, 3.283278, 0.28575706]
+            Size: [5, 5, 5]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.91692305, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false

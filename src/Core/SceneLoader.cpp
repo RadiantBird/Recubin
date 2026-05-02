@@ -56,7 +56,37 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
             std::cerr << "[SceneLoader] Error: No Root defined in " << filePath << std::endl;
             return nullptr;
         }
-        return parseInstance(config["Root"]);
+        
+        YAML::Node root = config["Root"];
+        
+        // Root に Children がある場合、それは System の子リスト
+        std::shared_ptr<Workspace> workspace = nullptr;
+        std::vector<std::shared_ptr<Instance>> otherInstances;
+        
+        if (root["Children"]) {
+            for (const auto& childNode : root["Children"]) {
+                std::shared_ptr<Instance> inst = parseInstance(childNode);
+                if (inst) {
+                    if (inst->IsA("Workspace")) {
+                        workspace = std::static_pointer_cast<Workspace>(inst);
+                    } else {
+                        otherInstances.push_back(inst);
+                    }
+                }
+            }
+        }
+        
+        // Workspace が見つからない場合は新規作成
+        if (!workspace) {
+            workspace = std::make_shared<Workspace>();
+        }
+        
+        // Lighting など他の子をすべて Workspace に追加
+        for (auto& inst : otherInstances) {
+            workspace->addChild(inst);
+        }
+        
+        return workspace;
     } catch (const std::exception& e) {
         std::cerr << "[SceneLoader] Exception: " << e.what() << std::endl;
         return nullptr;
@@ -217,8 +247,18 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
 void SceneLoader::saveScene(Instance* root, const std::string& filePath) {
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "Root" << YAML::Value;
-    saveNode(out, root);
+    out << YAML::Key << "Root" << YAML::Value << YAML::BeginMap;
+    
+    // Root は仮想的な親。その全ての子を Children として保存
+    if (!root->children.empty()) {
+        out << YAML::Key << "Children" << YAML::Value << YAML::BeginSeq;
+        for (auto const& [name, child] : root->children) {
+            saveNode(out, child.get());
+        }
+        out << YAML::EndSeq;
+    }
+    
+    out << YAML::EndMap;
     out << YAML::EndMap;
 
 #ifdef _WIN32

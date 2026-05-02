@@ -198,7 +198,8 @@ void EditorManager::handleEditorShortcuts() {
 }
 
 void EditorManager::saveCurrentScene() {
-    if (!m_workspace) return;
+    if (!m_system && !m_workspace) return;
+    // System とその全ての子（Workspace, Lighting など）を保存
     Instance* saveRoot = m_system ? m_system : static_cast<Instance*>(m_workspace);
     SceneLoader::saveScene(saveRoot, scenePath);
     m_isDirty = false;
