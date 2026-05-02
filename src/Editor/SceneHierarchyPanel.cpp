@@ -7,6 +7,7 @@
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/Lighting.hpp>
 #include <Core/AudioService.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
@@ -86,7 +87,7 @@ void SceneHierarchyPanel::onRender() {
         return;
     }
 
-    drawNode(workspace);
+    drawNode(systemRoot ? systemRoot : static_cast<Instance*>(workspace));
 
     renderNewScriptDialog();
 
@@ -214,6 +215,16 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
                     name = "Decal" + std::to_string(n++);
                 decal->Name = name;
                 m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, decal));
+            }
+            if (ImGui::MenuItem("Lighting") && m_history) {
+                auto parentSp = inst->shared_from_this();
+                auto light = std::make_shared<Lighting>();
+                std::string name = "Lighting";
+                int n = 1;
+                while (parentSp->children.count(name) > 0)
+                    name = "Lighting" + std::to_string(n++);
+                light->Name = name;
+                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, light));
             }
             ImGui::EndMenu();
         }

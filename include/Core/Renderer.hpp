@@ -37,6 +37,17 @@ class Renderer {
 
         unsigned int shaderProgram;
 
+        unsigned int skyboxVAO      = 0;
+        unsigned int skyboxVBO      = 0;
+        unsigned int skyboxShader   = 0;
+        int          lightDirLoc    = -1;
+        int          brightnessLoc  = -1;
+
+        unsigned int shadowFBO     = 0;
+        unsigned int shadowMapTex  = 0;
+        unsigned int depthShader   = 0;
+        static const int SHADOW_MAP_SIZE = 2048;
+
         std::vector<unsigned int> indices = {};
 
         std::map<std::string, unsigned int> textureCache;
@@ -61,4 +72,5 @@ class Renderer {
         void renderImGui(User &user, GLFWwindow* window, Workspace &workspace);
 
         unsigned int loadTexture(const char* path);
+        unsigned int loadCubemap(const std::string paths[6]);
 };

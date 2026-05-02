@@ -5,6 +5,7 @@
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/Lighting.hpp>
 #include <Util/Color4.hpp>
 #include <include/imgui/imgui.h>
 #include <unordered_map>
@@ -334,6 +335,56 @@ void PropertiesPanel::onRender() {
                 if (m_history)
                     m_history->record(std::make_unique<SetDecalTextureCommand>(
                         dclSp, oldPath, oldID, dcl->texturePath, dcl->TextureID));
+            }
+        }
+    }
+
+    // ---- Lighting ----
+    if (inst->GetClassName() == "Lighting") {
+        Lighting* lt = static_cast<Lighting*>(inst);
+        auto ltSp = std::static_pointer_cast<Lighting>(inst->shared_from_this());
+        ImGui::SeparatorText("Lighting");
+
+        // Light Direction with undo
+        {
+            static Vector3 s_dirBefore;
+            float dir[3] = { lt->lightDir.x, lt->lightDir.y, lt->lightDir.z };
+            bool changed = ImGui::DragFloat3("Direction", dir, 0.01f, -1.0f, 1.0f, "%.3f");
+            if (ImGui::IsItemActivated()) s_dirBefore = lt->lightDir;
+            if (changed) lt->lightDir = Vector3(dir[0], dir[1], dir[2]);
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                Vector3 after(dir[0], dir[1], dir[2]);
+                m_history->record(std::make_unique<SetLightDirCommand>(ltSp, s_dirBefore, after));
+            }
+        }
+
+        // Brightness with undo
+        {
+            static float s_brightBefore;
+            bool changed = ImGui::DragFloat("Brightness", &lt->brightness, 0.01f, 0.0f, 5.0f, "%.2f");
+            if (ImGui::IsItemActivated()) s_brightBefore = lt->brightness;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                m_history->record(std::make_unique<SetLightBrightnessCommand>(ltSp, s_brightBefore, lt->brightness));
+            }
+        }
+
+        // Skybox faces
+        ImGui::SeparatorText("Skybox");
+        static const char* s_skyboxLabels[] = {
+            "Right (+X)", "Left (-X)", "Top (+Y)", "Bottom (-Y)", "Front (+Z)", "Back (-Z)"
+        };
+        for (int i = 0; i < 6; i++) {
+            ImGui::LabelText(s_skyboxLabels[i], "%s",
+                lt->skyboxPaths[i].empty() ? "(none)" : lt->skyboxPaths[i].c_str());
+            std::string btnId = std::string("参照...##skybox") + std::to_string(i);
+            if (ImGui::Button(btnId.c_str())) {
+                std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.tga)", L"*.png;*.jpg;*.bmp;*.tga");
+                if (!path.empty()) {
+                    std::string oldPath = lt->skyboxPaths[i];
+                    lt->setSkyboxPath(i, path);
+                    if (m_history)
+                        m_history->record(std::make_unique<SetSkyboxFaceCommand>(ltSp, i, oldPath, path));
+                }
             }
         }
     }

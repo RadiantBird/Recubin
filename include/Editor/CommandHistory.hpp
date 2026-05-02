@@ -4,6 +4,7 @@
 #include <Instances/Instance.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/Sound.hpp>
+#include <Instances/Lighting.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -249,4 +250,43 @@ private:
         if (m_prop == "AutoPlay")  m_target->autoPlay = v;
         else if (m_prop == "Looped") m_target->setLooping(v);
     }
+};
+
+// --- Light Direction 変更 ---
+struct SetLightDirCommand : Command {
+    std::shared_ptr<Lighting> m_target;
+    Vector3 m_before, m_after;
+
+    SetLightDirCommand(std::shared_ptr<Lighting> target, Vector3 before, Vector3 after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->lightDir = m_after; }
+    void undo()    override { if (m_target) m_target->lightDir = m_before; }
+};
+
+// --- Brightness 変更 ---
+struct SetLightBrightnessCommand : Command {
+    std::shared_ptr<Lighting> m_target;
+    float m_before, m_after;
+
+    SetLightBrightnessCommand(std::shared_ptr<Lighting> target, float before, float after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->brightness = m_after; }
+    void undo()    override { if (m_target) m_target->brightness = m_before; }
+};
+
+// --- Skybox 1面のパス変更 ---
+struct SetSkyboxFaceCommand : Command {
+    std::shared_ptr<Lighting> m_target;
+    int         m_faceIndex;
+    std::string m_before, m_after;
+
+    SetSkyboxFaceCommand(std::shared_ptr<Lighting> target, int faceIndex,
+                         std::string before, std::string after)
+        : m_target(std::move(target)), m_faceIndex(faceIndex),
+          m_before(std::move(before)), m_after(std::move(after)) {}
+
+    void execute() override { if (m_target) m_target->setSkyboxPath(m_faceIndex, m_after); }
+    void undo()    override { if (m_target) m_target->setSkyboxPath(m_faceIndex, m_before); }
 };

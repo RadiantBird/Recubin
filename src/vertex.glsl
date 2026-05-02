@@ -6,17 +6,17 @@ layout (location = 2) in vec2 aTexCoord; // ← これを追加！(CPU側のloca
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform mat4 lightSpaceMatrix;
 
 out vec3 Normal;
 out vec3 FragPos;
-out vec2 TexCoord; // ← Fragmentへ送るための変数
+out vec2 TexCoord;
+out vec4 FragPosLightSpace;
 
 void main() {
     FragPos = vec3(model * vec4(aPos, 1.0));
     Normal = mat3(transpose(inverse(model))) * aNormal;
-    
-    // 【重要】ここでCPUから来た UV を Fragment へ横流しする
-    TexCoord = aTexCoord; 
-
+    TexCoord = aTexCoord;
+    FragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0);
     gl_Position = projection * view * vec4(FragPos, 1.0);
 }

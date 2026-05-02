@@ -45,7 +45,7 @@ public:
     std::string scenePath      = "assets/scenes/test_scene.yaml";
     std::string pendingLoadPath;  // 非空のとき main.cpp がリロードを実行する
 
-    EditorManager(Workspace* workspace, User* user);
+    EditorManager(Workspace* workspace, User* user, Instance* system = nullptr);
 
     // DockSpace + 全パネルを描画する（ImGui フレーム内で呼ぶ）
     void render(GLFWwindow* window);
@@ -76,6 +76,7 @@ public:
 
 private:
     Workspace* m_workspace = nullptr;
+    Instance*  m_system    = nullptr;
     User*      m_user      = nullptr;
     bool       m_isDirty   = false;
     std::shared_ptr<Instance> m_clipboard;

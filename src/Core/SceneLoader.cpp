@@ -9,6 +9,7 @@
 #include <Instances/Model.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/Sound.hpp>
+#include <Instances/Lighting.hpp>
 #include <Core/AudioService.hpp>
 #include <iostream>
 #include <fstream>
@@ -110,6 +111,8 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
         }
         return nullptr;
     }
+    if (className == "Lighting") return std::make_shared<Lighting>();
+    if (className == "Instance") return std::make_shared<Instance>("Instance");
 
     return nullptr;
 }
@@ -121,7 +124,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
 
     // プロパティ
     bool hasProps = inst->IsA("Spatial") || inst->GetClassName() == "Script"
-                 || inst->GetClassName() == "Sound" || inst->GetClassName() == "Decal";
+                 || inst->GetClassName() == "Sound" || inst->GetClassName() == "Decal"
+                 || inst->GetClassName() == "Lighting";
     if (hasProps) {
         out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
 
@@ -159,6 +163,22 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "Face"    << YAML::Value << static_cast<int>(d->face);
             if (!d->texturePath.empty())
                 out << YAML::Key << "Texture" << YAML::Value << d->texturePath;
+        }
+        if (inst->GetClassName() == "Lighting") {
+            static const char* faceKeys[] = {
+                "SkyboxRight", "SkyboxLeft", "SkyboxTop",
+                "SkyboxBottom", "SkyboxFront", "SkyboxBack"
+            };
+            const Lighting* lt = static_cast<const Lighting*>(inst);
+            out << YAML::Key << "Direction" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << lt->lightDir.x << lt->lightDir.y << lt->lightDir.z
+                << YAML::EndSeq;
+            out << YAML::Key << "Brightness" << YAML::Value << lt->brightness;
+            for (int i = 0; i < 6; i++) {
+                if (!lt->skyboxPaths[i].empty())
+                    out << YAML::Key << faceKeys[i] << YAML::Value << lt->skyboxPaths[i];
+            }
         }
         if (inst->GetClassName() == "Sound") {
             const Sound* snd = static_cast<const Sound*>(inst);

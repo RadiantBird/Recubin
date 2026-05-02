@@ -202,7 +202,7 @@ void Physics::removeCube(BaseCube* cube) {
     auto it = std::find(cubes.begin(), cubes.end(), cube);
     if (it != cubes.end()) {
         cubes.erase(it);
-        RCBN_LOG("Removed cube from Physics: " << cube->Name);
+        // RCBN_LOG("Removed cube from Physics: " << cube->Name);
     }
 }
 

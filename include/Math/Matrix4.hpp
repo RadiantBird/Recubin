@@ -86,6 +86,19 @@ struct Matrix4 {
         return res;
     }
 
+    static Matrix4 Ortho(float l, float r, float b, float t, float n, float f) {
+        Matrix4 res;
+        for (int i = 0; i < 16; i++) res.m[i] = 0.0f;
+        res.m[0]  = 2.0f / (r - l);
+        res.m[5]  = 2.0f / (t - b);
+        res.m[10] = -2.0f / (f - n);
+        res.m[12] = -(r + l) / (r - l);
+        res.m[13] = -(t + b) / (t - b);
+        res.m[14] = -(f + n) / (f - n);
+        res.m[15] = 1.0f;
+        return res;
+    }
+
     static Matrix4 FromQuaternion(const Quaternion& q) {
         Matrix4 res;
         float xx = q.x * q.x; float yy = q.y * q.y; float zz = q.z * q.z;

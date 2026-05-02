@@ -13,6 +13,7 @@ class CommandHistory;
 class SceneHierarchyPanel : public EditorPanel {
 public:
     Workspace*  workspace        = nullptr;
+    Instance*   systemRoot       = nullptr;  // System ノード（Workspace の親）
     Instance*   selectedInstance = nullptr;  // PropertiesPanel と共有
 
     CommandHistory*              m_history   = nullptr;

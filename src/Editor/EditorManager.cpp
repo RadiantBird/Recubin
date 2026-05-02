@@ -17,8 +17,9 @@
 //  EditorManager 実装
 // ===================================================
 
-EditorManager::EditorManager(Workspace* workspace, User* user) {
+EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system) {
     m_workspace = workspace;
+    m_system    = system;
     m_user      = user;
 
     consolePanel        = std::make_unique<ConsolePanel>();
@@ -27,9 +28,10 @@ EditorManager::EditorManager(Workspace* workspace, User* user) {
     contentBrowserPanel = std::make_unique<ContentBrowserPanel>();
     viewportPanel       = std::make_unique<ViewportPanel>();
 
-    hierarchyPanel->workspace  = workspace;
-    viewportPanel->user        = user;
-    viewportPanel->workspace   = workspace;
+    hierarchyPanel->workspace   = workspace;
+    hierarchyPanel->systemRoot  = system;
+    viewportPanel->user         = user;
+    viewportPanel->workspace    = workspace;
 
     // selectedInstance ポインタを共有（SceneHierarchy が書き、Properties/Viewport が読む）
     propertiesPanel->selectedInstance = &hierarchyPanel->selectedInstance;
@@ -196,7 +198,8 @@ void EditorManager::handleEditorShortcuts() {
 
 void EditorManager::saveCurrentScene() {
     if (!m_workspace) return;
-    SceneLoader::saveScene(m_workspace, scenePath);
+    Instance* saveRoot = m_system ? m_system : static_cast<Instance*>(m_workspace);
+    SceneLoader::saveScene(saveRoot, scenePath);
     m_isDirty = false;
 }
 

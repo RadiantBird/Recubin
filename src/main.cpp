@@ -11,6 +11,7 @@
 #include <Instances/Workspace.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
+#include <Instances/Lighting.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
@@ -113,6 +114,11 @@ int main() {
     }
     system->addChild(workspace);
 
+    // デフォルト Lighting を System 子として追加（Workspace の兄弟）
+    auto lighting = std::make_shared<Lighting>();
+    lighting->Name = "Lighting";
+    system->addChild(lighting);
+
     workspace->setPhysicsEngine(physics.get());
 
     unsigned int floppa   = renderer->loadTexture("assets/image/floppa2048.jpg");
@@ -129,7 +135,7 @@ int main() {
     // ===================================================
     //  EditorManager を Renderer に接続
     // ===================================================
-    renderer->editor = std::make_unique<EditorManager>(workspace.get(), user.get());
+    renderer->editor = std::make_unique<EditorManager>(workspace.get(), user.get(), system.get());
     RCBN_LOG("Editor initialized.");
 
     float lastFrame = static_cast<float>(glfwGetTime());
@@ -169,7 +175,7 @@ int main() {
             physics->clearCubes();                // stale ポインタをベクターから除去
             system->removeChild(workspace->Name);
             workspace = std::static_pointer_cast<Workspace>(
-                SceneLoader::loadScene(snapshotPath));
+                SceneLoader::loadScene(snapshotPath)); // スナップショットは Workspace root
             if (!workspace) workspace = std::make_shared<Workspace>();
             system->addChild(workspace);
             workspace->setPhysicsEngine(physics.get());
@@ -189,9 +195,31 @@ int main() {
 
             physics->clearCubes();
             system->removeChild(workspace->Name);
-            workspace = std::static_pointer_cast<Workspace>(
-                SceneLoader::loadScene(loadPath));
-            if (!workspace) workspace = std::make_shared<Workspace>();
+            {
+                auto loaded = SceneLoader::loadScene(loadPath);
+                if (loaded && loaded->IsA("Workspace")) {
+                    workspace = std::static_pointer_cast<Workspace>(loaded);
+                } else if (loaded) {
+                    // System-root フォーマット: Workspace と Lighting を抽出
+                    workspace = nullptr;
+                    for (auto& [n, ch] : loaded->getChildren()) {
+                        if (ch->IsA("Workspace") && !workspace)
+                            workspace = std::static_pointer_cast<Workspace>(ch);
+                        if (ch->GetClassName() == "Lighting") {
+                            Lighting* src = static_cast<Lighting*>(ch.get());
+                            Instance* dstInst = system->getChild("Lighting");
+                            if (dstInst) {
+                                Lighting* dst = static_cast<Lighting*>(dstInst);
+                                dst->lightDir   = src->lightDir;
+                                dst->brightness = src->brightness;
+                                for (int i = 0; i < 6; i++) dst->skyboxPaths[i] = src->skyboxPaths[i];
+                                dst->skyboxDirty = true;
+                            }
+                        }
+                    }
+                }
+                if (!workspace) workspace = std::make_shared<Workspace>();
+            }
             system->addChild(workspace);
             workspace->setPhysicsEngine(physics.get());
             luauEngine->setGlobalInstance(workspace->Name, workspace.get());
