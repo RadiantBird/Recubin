@@ -163,6 +163,7 @@ void ViewportPanel::onRender() {
         float foundSign = 1.0f;
         auto visit = [&](auto& self, Instance* inst) -> void {
             if (!inst || inst == exclude) return;
+            if (inst->GetClassName() == "Skybox") return;
             if (inst->IsA("BaseCube")) {
                 Spatial* sp = static_cast<Spatial*>(inst);
                 Vector3 wp = sp->getWorldPosition();
@@ -221,6 +222,7 @@ void ViewportPanel::onRender() {
         float sz[3] = { size.x, size.y, size.z };
         auto visit = [&](auto& self, Instance* inst) -> void {
             if (!inst || inst == moving) return;
+            if (inst->GetClassName() == "Skybox") return;
             if (inst->IsA("Spatial")) {
                 Spatial* other = static_cast<Spatial*>(inst);
                 Vector3 owp = other->getWorldPosition();
@@ -246,6 +248,7 @@ void ViewportPanel::onRender() {
     auto fitCollision = [&](Vector3 pos, const Vector3& size, Instance* moving) -> Vector3 {
         auto visit = [&](auto& self, Instance* inst) -> void {
             if (!inst || inst == moving) return;
+            if (inst->GetClassName() == "Skybox") return;
             if (inst->IsA("Spatial")) {
                 Spatial* other = static_cast<Spatial*>(inst);
                 Vector3 owp = other->getWorldPosition();
@@ -282,6 +285,7 @@ void ViewportPanel::onRender() {
 
         auto castRay = [&](auto& self, Instance* inst) -> void {
             if (!inst) return;
+            if (inst->GetClassName() == "Skybox") return;
             if (inst->IsA("BaseCube")) {
                 Spatial* s = static_cast<Spatial*>(inst);
                 Vector3 wp = s->getWorldPosition();

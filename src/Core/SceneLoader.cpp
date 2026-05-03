@@ -1,5 +1,6 @@
 #include <Core/SceneLoader.hpp>
 #include <Core/FileLoader.hpp>
+#include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
@@ -19,6 +20,16 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+
+std::unordered_map<std::string, std::shared_ptr<Instance>> SceneLoader::s_singletons;
+
+void SceneLoader::registerSingleton(const std::string& className, std::shared_ptr<Instance> instance) {
+    s_singletons[className] = std::move(instance);
+}
+
+void SceneLoader::clearSingletons() {
+    s_singletons.clear();
+}
 
 // YAML -> Vector3 変換
 namespace YAML {
@@ -50,43 +61,41 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
     try {
         std::string yamlContent = FileLoader::readText(filePath);
         if (yamlContent.empty()) return nullptr;
-        
         YAML::Node config = YAML::Load(yamlContent);
         if (!config["Root"]) {
             std::cerr << "[SceneLoader] Error: No Root defined in " << filePath << std::endl;
             return nullptr;
         }
-        
         YAML::Node root = config["Root"];
-        
-        // Root に Children がある場合、それは System の子リスト
-        std::shared_ptr<Workspace> workspace = nullptr;
-        std::vector<std::shared_ptr<Instance>> otherInstances;
-        
-        if (root["Children"]) {
-            for (const auto& childNode : root["Children"]) {
-                std::shared_ptr<Instance> inst = parseInstance(childNode);
-                if (inst) {
-                    if (inst->IsA("Workspace")) {
-                        workspace = std::static_pointer_cast<Workspace>(inst);
-                    } else {
-                        otherInstances.push_back(inst);
-                    }
+
+        // Root が Sequence のとき（旧形式: Root: [{ ClassName: System, ... }]）
+        if (root.IsSequence()) {
+            auto bag = std::make_shared<Instance>("__root__");
+            for (const auto& itemNode : root) {
+                std::string cn = itemNode["ClassName"] ? itemNode["ClassName"].as<std::string>() : "";
+                auto inst = parseInstance(itemNode);
+                if (inst && s_singletons.count(cn) == 0) {
+                    bag->addChild(inst);
                 }
             }
+            return bag;
         }
-        
-        // Workspace が見つからない場合は新規作成
-        if (!workspace) {
-            workspace = std::make_shared<Workspace>();
+
+        // ClassName のない Root は子リストを直接処理する（フラット形式）
+        if (!root["ClassName"] && root["Children"]) {
+            auto bag = std::make_shared<Instance>("__root__");
+            for (const auto& childNode : root["Children"]) {
+                std::string cn = childNode["ClassName"] ? childNode["ClassName"].as<std::string>() : "";
+                auto inst = parseInstance(childNode);
+                // シングルトンはすでに正しい親にいるので addChild で reparent しない
+                if (inst && s_singletons.count(cn) == 0) {
+                    bag->addChild(inst);
+                }
+            }
+            return bag;
         }
-        
-        // Lighting など他の子をすべて Workspace に追加
-        for (auto& inst : otherInstances) {
-            workspace->addChild(inst);
-        }
-        
-        return workspace;
+
+        return parseInstance(root);
     } catch (const std::exception& e) {
         std::cerr << "[SceneLoader] Exception: " << e.what() << std::endl;
         return nullptr;
@@ -97,20 +106,26 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
     if (!node["ClassName"]) return nullptr;
 
     std::string className = node["ClassName"].as<std::string>();
-    std::shared_ptr<Instance> instance = createInstance(className);
 
-    if (!instance) {
-        if (className == "Sound" && !AudioService::instance) {
-            std::cerr << "[SceneLoader] Warning: Failed to create Sound instance because AudioService is not initialized." << std::endl;
-        } else {
-            std::cerr << "[SceneLoader] Warning: Unknown ClassName: " << className << std::endl;
+    // シングルトン登録済みなら既存インスタンスへマージ（新規生成しない）
+    std::shared_ptr<Instance> instance;
+    auto sit = s_singletons.find(className);
+    if (sit != s_singletons.end()) {
+        instance = sit->second;
+    } else {
+        instance = createInstance(className);
+        if (!instance) {
+            if (className == "Sound" && !AudioService::instance) {
+                std::cerr << "[SceneLoader] Warning: Failed to create Sound instance because AudioService is not initialized." << std::endl;
+            } else {
+                std::cerr << "[SceneLoader] Warning: Unknown ClassName: " << className << std::endl;
+            }
+            return nullptr;
         }
-        return nullptr;
-    }
-
-    // 名前
-    if (node["Name"]) {
-        instance->Name = node["Name"].as<std::string>();
+        // 名前はシングルトン以外のみ上書き
+        if (node["Name"]) {
+            instance->Name = node["Name"].as<std::string>();
+        }
     }
 
     // プロパティの設定
@@ -135,6 +150,7 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
 }
 
 std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& className) {
+    if (className == "System")    return std::make_shared<System>();
     if (className == "Workspace") return std::make_shared<Workspace>();
     if (className == "Cube")           return std::make_shared<Cube>(Vector3(0,0,0), Vector3(1,1,1), 0);
     if (className == "Cylinder")       return std::make_shared<Cylinder>(Vector3(0,0,0), Vector3(1,1,1));

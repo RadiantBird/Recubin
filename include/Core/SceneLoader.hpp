@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <Instances/Instance.hpp>
 #include <yaml-cpp/yaml.h>
 
@@ -18,7 +19,12 @@ public:
 
     static void saveScene(Instance* root, const std::string& filePath);
 
+    // シングルトン登録: YAML に同名 className が現れたとき既存インスタンスへマージする
+    static void registerSingleton(const std::string& className, std::shared_ptr<Instance> instance);
+    static void clearSingletons();
+
 private:
+    static std::unordered_map<std::string, std::shared_ptr<Instance>> s_singletons;
     /**
      * @brief YAMLノードを再帰的に解析してInstanceを生成する
      */

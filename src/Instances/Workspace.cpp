@@ -10,7 +10,9 @@ void Workspace::unregisterScript(Instance* s) {
 }
 
 void Workspace::registerCube(Instance* c) {
-    pendingInstances.push_back(c);
+    if (std::find(pendingInstances.begin(), pendingInstances.end(), c) == pendingInstances.end()) {
+        pendingInstances.push_back(c);
+    }
 }
 
 Workspace::Workspace() : Instance("Workspace") {}

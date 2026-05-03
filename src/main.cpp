@@ -8,6 +8,7 @@
 #include <Math/Matrix4.hpp>
 
 #include <Instances/Cube.hpp>
+#include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
@@ -94,7 +95,7 @@ int main() {
     auto renderer     = std::make_unique<Renderer>();
     auto physics      = std::make_unique<Physics>();
     auto audioService = std::make_unique<AudioService>();
-    auto system       = std::make_shared<Instance>("System");
+    auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
     auto user         = std::make_unique<User>(window);
 
@@ -106,22 +107,20 @@ int main() {
         return -1;
     }
 
-    auto workspace = std::static_pointer_cast<Workspace>(
-        SceneLoader::loadScene("assets/scenes/test_scene.yaml"));
-    if (!workspace) {
-        std::cerr << "[ERROR] Failed to load scene. Creating empty workspace.\n";
-        workspace = std::make_shared<Workspace>();
-    }
-
-    // Workspace を System の子として追加（System が親になる）
-    system->addChild(workspace);
-
-    // デフォルト Lighting を System 子として追加（Workspace の兄弟）
-    auto lighting = std::make_shared<Lighting>();
+    // シングルトンを先に構築して System に接続
+    auto workspace = std::make_shared<Workspace>();
+    auto lighting  = std::make_shared<Lighting>();
     lighting->Name = "Lighting";
+    system->addChild(workspace);
     system->addChild(lighting);
-
     workspace->setPhysicsEngine(physics.get());
+
+    // YAML が System/Workspace/Lighting を重複生成しないようシングルトン登録してロード
+    SceneLoader::registerSingleton("System",    system);
+    SceneLoader::registerSingleton("Workspace", workspace);
+    SceneLoader::registerSingleton("Lighting",  lighting);
+    SceneLoader::loadScene("assets/scenes/test_scene.yaml");
+    SceneLoader::clearSingletons();
 
     unsigned int floppa   = renderer->loadTexture("assets/image/floppa2048.jpg");
     unsigned int thecat   = renderer->loadTexture("assets/image/the-cat.png");
@@ -170,7 +169,7 @@ int main() {
         // ---- Play/Stop 遷移処理 ----
         if (isPlaying && !wasPlaying) {
             snapshotDirty = renderer->editor && renderer->editor->isDirty();
-            SceneLoader::saveScene(workspace.get(), snapshotPath);
+            SceneLoader::saveScene(system.get(), snapshotPath);
             user->spawnCharacter();
             audioService->playAutoPlaySounds();
             if (user->character) workspace->addChild(user->character);
@@ -179,17 +178,22 @@ int main() {
         if (!isPlaying && wasPlaying) {
             audioService->stopAllSounds();
             user->despawnCharacter();
-            physics->clearCubes();                // stale ポインタをベクターから除去
+            physics->clearCubes();
             system->removeChild(workspace->Name);
-            workspace = std::static_pointer_cast<Workspace>(
-                SceneLoader::loadScene(snapshotPath)); // スナップショットは Workspace root
-            if (!workspace) workspace = std::make_shared<Workspace>();
+
+            auto freshWs = std::make_shared<Workspace>();
+            SceneLoader::registerSingleton("Workspace", freshWs);
+            SceneLoader::registerSingleton("Lighting",  lighting);
+            SceneLoader::loadScene(snapshotPath);
+            SceneLoader::clearSingletons();
+            workspace = freshWs;
+
             system->addChild(workspace);
             workspace->setPhysicsEngine(physics.get());
             luauEngine->setGlobalInstance(workspace->Name, workspace.get());
             luauEngine->setGlobalInstance("workspace", workspace.get());
             luauEngine->setWorkspace(workspace.get());
-            renderer->editor->setWorkspace(workspace.get()); // 全パネルのポインタを一括更新
+            renderer->editor->setWorkspace(workspace.get());
             if (snapshotDirty) renderer->editor->markDirty();
         }
         wasPlaying = isPlaying;
@@ -202,29 +206,15 @@ int main() {
 
             physics->clearCubes();
             system->removeChild(workspace->Name);
-            {
-                auto loaded = SceneLoader::loadScene(loadPath);
-                if (loaded && loaded->IsA("Workspace")) {
-                    workspace = std::static_pointer_cast<Workspace>(loaded);
-                } else if (loaded) {
-                    // System-root フォーマット: Workspace と Lighting を抽出
-                    workspace = nullptr;
-                    for (auto& [n, ch] : loaded->getChildren()) {
-                        if (ch->IsA("Workspace") && !workspace)
-                            workspace = std::static_pointer_cast<Workspace>(ch);
-                        if (ch->GetClassName() == "Lighting") {
-                            Lighting* src = static_cast<Lighting*>(ch.get());
-                            Instance* dstInst = system->getChild("Lighting");
-                            if (dstInst) {
-                                Lighting* dst = static_cast<Lighting*>(dstInst);
-                                dst->lightDir   = src->lightDir;
-                                dst->brightness = src->brightness;
-                            }
-                        }
-                    }
-                }
-                if (!workspace) workspace = std::make_shared<Workspace>();
-            }
+
+            auto freshWs = std::make_shared<Workspace>();
+            SceneLoader::registerSingleton("System",    system);
+            SceneLoader::registerSingleton("Workspace", freshWs);
+            SceneLoader::registerSingleton("Lighting",  lighting);
+            SceneLoader::loadScene(loadPath);
+            SceneLoader::clearSingletons();
+            workspace = freshWs;
+
             system->addChild(workspace);
             workspace->setPhysicsEngine(physics.get());
             luauEngine->setGlobalInstance(workspace->Name, workspace.get());

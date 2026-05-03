@@ -1,196 +1,199 @@
 Root:
-  - ClassName: Workspace
-    Name: Workspace
+  - ClassName: System
+    Name: System
     Children:
-      - ClassName: Cube
-        Name: Blue
-        Properties:
-          Position: [-2, 0, -8]
-          Size: [1, 4, 1]
-          Rotation: [0, 0, 0, 1]
-          Color: [0, 0, 1, 1]
-          Anchored: false
-          CanCollide: true
-          CastShadow: true
-          Unlit: false
-      - ClassName: Cube
-        Name: Red
-        Properties:
-          Position: [2, 0, -4]
-          Size: [1, 1, 1]
-          Rotation: [0, 0, 0, 1]
-          Color: [1, 0, 0, 1]
-          Anchored: false
-          CanCollide: true
-          CastShadow: true
-          Unlit: false
-      - ClassName: Cube
-        Name: Green
-        Properties:
-          Position: [-2, 0, -4]
-          Size: [2, 1, 1]
-          Rotation: [0, 0, 0, 1]
-          Color: [0, 1, 0, 1]
-          Anchored: false
-          CanCollide: true
-          CastShadow: true
-          Unlit: false
-      - ClassName: Cube
-        Name: Baseplate
-        Properties:
-          Position: [0, -10, 0]
-          Size: [128, 1, 128]
-          Rotation: [0, 0, 0, 1]
-          Color: [0, 1, 0.5, 1]
-          Anchored: true
-          CanCollide: true
-          CastShadow: true
-          Unlit: false
-      - ClassName: Skybox
-        Name: Skybox
-        Properties:
-          Position: [0, -2, 5]
-          Size: [7500, 5000, 10000]
-          Rotation: [0, 0, 0, 1]
-          Color: [0, 0.28923082, 1, 1]
-          Anchored: true
-          CanCollide: false
-          CastShadow: false
-          Unlit: true
-          SkyboxPaths: [C:\Users\Ryarta\Pictures\libimage.png, "", "", "", "", ""]
+      - ClassName: Workspace
+        Name: Workspace
         Children:
-          - ClassName: Decal
-            Name: Decal_Right
+          - ClassName: Cube
+            Name: Blue
             Properties:
-              Face: 4
-              Texture: C:\Users\Ryarta\Pictures\libimage.png
-          - ClassName: Decal
-            Name: Decal_Left
+              Position: [-2, 0, -8]
+              Size: [1, 4, 1]
+              Rotation: [0, 0, 0, 1]
+              Color: [0, 0, 1, 1]
+              Anchored: false
+              CanCollide: true
+              CastShadow: true
+              Unlit: false
+          - ClassName: Cube
+            Name: Baseplate
             Properties:
-              Face: 5
-          - ClassName: Decal
-            Name: Decal_Top
+              Position: [0, -10, 0]
+              Size: [128, 1, 128]
+              Rotation: [0, 0, 0, 1]
+              Color: [0, 1, 0.5, 1]
+              Anchored: true
+              CanCollide: true
+              CastShadow: true
+              Unlit: false
+          - ClassName: Cube
+            Name: Green
             Properties:
-              Face: 2
-          - ClassName: Decal
-            Name: Decal_Front
+              Position: [-2, 0, -4]
+              Size: [2, 1, 1]
+              Rotation: [0, 0, 0, 1]
+              Color: [0, 1, 0, 1]
+              Anchored: false
+              CanCollide: true
+              CastShadow: true
+              Unlit: false
+          - ClassName: Cube
+            Name: Red
             Properties:
-              Face: 0
-          - ClassName: Decal
-            Name: Decal_Bottom
-            Properties:
-              Face: 3
-          - ClassName: Decal
-            Name: Decal_Back
-            Properties:
-              Face: 1
-      - ClassName: Script
-        Name: HiGeorge
-        Properties:
-          ContentPath: C:\Users\Ryarta\Documents\TestLuau\HiGeorge.luau
-      - ClassName: TriangularPrism
-        Name: TriangularPrism
-        Properties:
-          Position: [-3.2510529, 5, 0]
-          Size: [1, 1, 1]
-          Rotation: [0, 0, 0, 1]
-          Color: [1, 1, 1, 1]
-          Anchored: false
-          CanCollide: true
-          CastShadow: true
-          Unlit: false
-      - ClassName: Script
-        Name: 2006
-        Properties:
-          ContentPath: scripts/2006.luau
-      - ClassName: Cube
-        Name: Floppa1
-        Properties:
-          Position: [0, 0, -8]
-          Size: [2, 2, 2]
-          Rotation: [0, 0, 0, 1]
-          Color: [1, 1, 1, 1]
-          Anchored: false
-          CanCollide: true
-          CastShadow: true
-          Unlit: false
-        Children:
-          - ClassName: Decal
-            Name: Decal_Front
-            Properties:
-              Face: 0
-              Texture: assets/image/floppa2048.jpg
-          - ClassName: Decal
-            Name: Decal_Top
-            Properties:
-              Face: 2
-              Texture: assets/image/salad-cat.jpg
-          - ClassName: Decal
-            Name: Decal_Left
-            Properties:
-              Face: 5
-              Texture: assets/image/Limabis_logo.png
-          - ClassName: Decal
-            Name: Decal_Back
-            Properties:
-              Face: 1
-              Texture: assets/image/the-cat.png
-          - ClassName: Decal
-            Name: Decal_Bottom
-            Properties:
-              Face: 3
-              Texture: assets/image/smile.png
-          - ClassName: Decal
-            Name: Decal_Right
-            Properties:
-              Face: 4
-              Texture: assets/image/bliss.jpg
-      - ClassName: Cube
-        Name: Radio
-        Properties:
-          Position: [0, 5, 0]
-          Size: [2, 4, 1]
-          Rotation: [0, 0, 0, 1]
-          Color: [1, 1, 1, 1]
-          Anchored: false
-          CanCollide: true
-          CastShadow: true
-          Unlit: false
-        Children:
-          - ClassName: Sound
-            Name: Sound
-            Properties:
-              Position: [0, 0, 0]
+              Position: [2, 0, -4]
               Size: [1, 1, 1]
               Rotation: [0, 0, 0, 1]
-              ContentPath: assets/sound/Newalks.mp3
-              Looped: true
-              SoundGroup: SFX
-              AutoPlay: false
-      - ClassName: Cylinder
-        Name: Cylinder
+              Color: [1, 0, 0, 1]
+              Anchored: false
+              CanCollide: true
+              CastShadow: true
+              Unlit: false
+          - ClassName: Skybox
+            Name: Skybox
+            Properties:
+              Position: [0, -2, 5]
+              Size: [7500, 5000, 10000]
+              Rotation: [0, 0, 0, 1]
+              Color: [0, 0.28923082, 1, 1]
+              Anchored: true
+              CanCollide: false
+              CastShadow: false
+              Unlit: true
+              SkyboxPaths: [C:\Users\Ryarta\Pictures\libimage.png, "", "", "", "", ""]
+            Children:
+              - ClassName: Decal
+                Name: Decal_Right
+                Properties:
+                  Face: 4
+                  Texture: C:\Users\Ryarta\Pictures\libimage.png
+              - ClassName: Decal
+                Name: Decal_Front
+                Properties:
+                  Face: 0
+              - ClassName: Decal
+                Name: Decal_Top
+                Properties:
+                  Face: 2
+              - ClassName: Decal
+                Name: Decal_Left
+                Properties:
+                  Face: 5
+              - ClassName: Decal
+                Name: Decal_Back
+                Properties:
+                  Face: 1
+              - ClassName: Decal
+                Name: Decal_Bottom
+                Properties:
+                  Face: 3
+          - ClassName: Script
+            Name: HiGeorge
+            Properties:
+              ContentPath: C:\Users\Ryarta\Documents\TestLuau\HiGeorge.luau
+          - ClassName: TriangularPrism
+            Name: TriangularPrism
+            Properties:
+              Position: [-3.2510529, 5, 0]
+              Size: [1, 1, 1]
+              Rotation: [0, 0, 0, 1]
+              Color: [1, 1, 1, 1]
+              Anchored: false
+              CanCollide: true
+              CastShadow: true
+              Unlit: false
+          - ClassName: Script
+            Name: 2006
+            Properties:
+              ContentPath: scripts/2006.luau
+          - ClassName: Cube
+            Name: Floppa1
+            Properties:
+              Position: [0, 0, -8]
+              Size: [2, 2, 2]
+              Rotation: [0, 0, 0, 1]
+              Color: [1, 1, 1, 1]
+              Anchored: false
+              CanCollide: true
+              CastShadow: true
+              Unlit: false
+            Children:
+              - ClassName: Decal
+                Name: Decal_Left
+                Properties:
+                  Face: 5
+                  Texture: assets/image/Limabis_logo.png
+              - ClassName: Decal
+                Name: Decal_Top
+                Properties:
+                  Face: 2
+                  Texture: assets/image/salad-cat.jpg
+              - ClassName: Decal
+                Name: Decal_Front
+                Properties:
+                  Face: 0
+                  Texture: assets/image/floppa2048.jpg
+              - ClassName: Decal
+                Name: Decal_Bottom
+                Properties:
+                  Face: 3
+                  Texture: assets/image/smile.png
+              - ClassName: Decal
+                Name: Decal_Back
+                Properties:
+                  Face: 1
+                  Texture: assets/image/the-cat.png
+              - ClassName: Decal
+                Name: Decal_Right
+                Properties:
+                  Face: 4
+                  Texture: assets/image/bliss.jpg
+          - ClassName: Cube
+            Name: Radio
+            Properties:
+              Position: [0, 5, 0]
+              Size: [2, 4, 1]
+              Rotation: [0, 0, 0, 1]
+              Color: [1, 1, 1, 1]
+              Anchored: false
+              CanCollide: true
+              CastShadow: true
+              Unlit: false
+            Children:
+              - ClassName: Sound
+                Name: Sound
+                Properties:
+                  Position: [0, 0, 0]
+                  Size: [1, 1, 1]
+                  Rotation: [0, 0, 0, 1]
+                  ContentPath: assets/sound/Newalks.mp3
+                  Looped: true
+                  SoundGroup: SFX
+                  AutoPlay: false
+          - ClassName: Cylinder
+            Name: Cylinder
+            Properties:
+              Position: [0, 5, 1.5317817]
+              Size: [1, 1, 1]
+              Rotation: [0, 0, 0, 1]
+              Color: [1, 1, 1, 1]
+              Anchored: false
+              CanCollide: true
+              CastShadow: true
+              Unlit: false
+          - ClassName: Sphere
+            Name: Sphere
+            Properties:
+              Position: [2.7700124, 5, 0]
+              Size: [1, 1, 1]
+              Rotation: [0, 0, 0, 1]
+              Color: [1, 1, 1, 1]
+              Anchored: false
+              CanCollide: true
+              CastShadow: true
+              Unlit: false
+      - ClassName: Lighting
+        Name: Lighting
         Properties:
-          Position: [0, 5, 1.5317817]
-          Size: [1, 1, 1]
-          Rotation: [0, 0, 0, 1]
-          Color: [1, 1, 1, 1]
-          Anchored: false
-          CanCollide: true
-          CastShadow: true
-          Unlit: false
-      - ClassName: Sphere
-        Name: Sphere
-        Properties:
-          Position: [2.7700124, 5, 0]
-          Size: [1, 1, 1]
-          Rotation: [0, 0, 0, 1]
-          Color: [1, 1, 1, 1]
-          Anchored: false
-          CanCollide: true
-          CastShadow: true
-          Unlit: false
-  - ClassName: Lighting
-    Name: Lighting
-    Properties:
-      Direction: [1, -1, -1]
-      Brightness: 1
+          Direction: [1, -1, -1]
+          Brightness: 1
