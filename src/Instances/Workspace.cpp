@@ -18,8 +18,10 @@ void Workspace::registerCube(Instance* c) {
 Workspace::Workspace() : Instance("Workspace") {}
 
 Workspace::~Workspace() {
-    // children を先に破棄し、子のデストラクタ（BaseCube::~BaseCubeなど）が
-    // Workspaceのメンバ（scripts, pendingInstances等）破棄前に呼ばれることを保証する
+    for (auto& [name, child] : children) {
+        child->Parent = {};
+        child->onAncestorChanged();
+    }
     this->children.clear();
 }
 

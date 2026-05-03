@@ -44,7 +44,7 @@ public:
     void recreateActor(BaseCube* cube);
     void removeCube(BaseCube* cube);
 
-    void clearCubes() { cubes.clear(); }
+    void clearCubes() { cubes.clear(); m_pendingOps.clear(); }
 
     void enqueueResize(BaseCube* cube);
     void enqueueSetRotation(BaseCube* cube, Quaternion rot);

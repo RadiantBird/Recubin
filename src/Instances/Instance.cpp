@@ -96,8 +96,10 @@ void Instance::addChild(std::shared_ptr<Instance> child) {
 bool Instance::removeChild(string name) {
     auto it = this->children.find(name);
     if (it != this->children.end()) {
-        it->second->Parent = {};
+        auto child = it->second;
+        child->Parent = {};
         this->children.erase(it);
+        child->onAncestorChanged();
         return true;
     }
     return false;
