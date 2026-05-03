@@ -81,6 +81,11 @@ private:
     bool       m_isDirty   = false;
     std::shared_ptr<Instance> m_clipboard;
 
+public:
+    void clearClipboard() { m_clipboard.reset(); }
+
+private:
+
     // 未保存ダイアログ関連
     bool        m_showSaveDialog = false;
     GLFWwindow* m_dialogWindow   = nullptr;

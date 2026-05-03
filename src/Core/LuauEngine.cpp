@@ -28,8 +28,8 @@ void LuauEngine::InitDispatchTable() {
     DispatchTable["Instance"]["FindChild"] = [](lua_State* L, Instance* obj) {
         std::cout << "Accessing FindChild method\n";
         // objをuserdataとしてスタックに積む（クロージャのupvalueとして使用）
-        Instance** userdata = (Instance**)lua_newuserdata(L, sizeof(Instance*));
-        *userdata = obj;
+        auto* userdata = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (userdata) std::weak_ptr<Instance>(obj->shared_from_this());
         luaL_getmetatable(L, RCBN_INST_METATABLE);
         lua_setmetatable(L, -2);
         // C関数をクロージャとして作成（1つのupvalue）
@@ -62,8 +62,8 @@ void LuauEngine::InitDispatchTable() {
     };
 
     DispatchTable["Workspace"]["Raycast"] = [](lua_State* L, Instance* obj) {
-        Instance** userdata = (Instance**)lua_newuserdata(L, sizeof(Instance*));
-        *userdata = obj;
+        auto* userdata = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (userdata) std::weak_ptr<Instance>(obj->shared_from_this());
         luaL_getmetatable(L, RCBN_INST_METATABLE);
         lua_setmetatable(L, -2);
         lua_pushcclosure(L, workspace_raycast_closure, "Raycast", 1);
@@ -135,6 +135,12 @@ void LuauEngine::InitMetatables() {
     lua_setfield(L, -2, "__newindex");
     lua_pushcfunction(L, instance_tostring, "instance_tostring");
     lua_setfield(L, -2, "__tostring");
+    lua_pushcfunction(L, [](lua_State* L) -> int {
+        auto* userdata = (std::weak_ptr<Instance>*)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
+        userdata->~weak_ptr();
+        return 0;
+    }, "__gc");
+    lua_setfield(L, -2, "__gc");
     lua_pop(L, 1);
 
     // Vector3 metatable
@@ -203,13 +209,17 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
 }
 
 int LuauEngine::instance_index(lua_State* L) {
-    Instance* obj = *(Instance**)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
+    auto* userdata = (std::weak_ptr<Instance>*)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
+    auto obj_shared = userdata->lock();
+    if (!obj_shared) {
+        lua_pushnil(L);
+        return 1;
+    }
+    Instance* obj = obj_shared.get();
     std::string_view key = luaL_checkstring(L, 2);
 
     for (const auto& [className, classProps] : DispatchTable) {
-        std::cout << "Checking class: " << className << " for property: " << key << std::endl;
         if (obj->IsA(std::string(className))) {
-            std::cout << "Found class: " << className << " for object: " << obj->GetClassName() << std::endl;
             if (auto it = classProps.find(key); it != classProps.end()) {
                 auto& [name, resolveProperty] = *it;
                 return resolveProperty(L, obj);
@@ -256,27 +266,24 @@ LuauEngine::~LuauEngine() {
     if (L) lua_close(L);
 }
 
-void LuauEngine::setBindings(Instance* instance) {
-    Instance** userdata = (Instance**)lua_newuserdata(L, sizeof(Instance*));
-    *userdata = instance;
+void LuauEngine::setBindings(const std::shared_ptr<Instance>& instance) {
+    auto* userdata = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+    new (userdata) std::weak_ptr<Instance>(instance);
 
     luaL_getmetatable(L, RCBN_INST_METATABLE);
     lua_setmetatable(L, -2);
 }
 
-void LuauEngine::setGlobalInstance(const std::string& name, Instance* instance) {
+void LuauEngine::setGlobalInstance(const std::string& name, const std::shared_ptr<Instance>& instance) {
     setBindings(instance);
     lua_setglobal(L, name.c_str());
 }
 
 int LuauEngine::instance_newindex(lua_State* L) {
-    /*
-    NOTE: index array
-    L[1] = Instance* (obj)
-    L[2] = Property (key)
-    L[3] = userdata (value)
-    */
-    Instance* obj = *(Instance**)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
+    auto* userdata = (std::weak_ptr<Instance>*)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
+    auto obj_shared = userdata->lock();
+    if (!obj_shared) return 0;
+    Instance* obj = obj_shared.get();
     std::string_view key = luaL_checkstring(L, 2);
 
     for (const auto& [className, classProps] : SetterTable) {
@@ -292,16 +299,23 @@ int LuauEngine::instance_newindex(lua_State* L) {
 }
 
 int LuauEngine::instance_tostring(lua_State* L) {
-    Instance* obj = *(Instance**)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
-    std::string str = "Instance: " + obj->Name;
+    auto* userdata = (std::weak_ptr<Instance>*)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
+    auto obj_shared = userdata->lock();
+    if (!obj_shared) {
+        lua_pushstring(L, "Instance: (Deleted)");
+        return 1;
+    }
+    std::string str = "Instance: " + obj_shared->Name;
     lua_pushstring(L, str.c_str());
     return 1;
 }
 
 int LuauEngine::instance_find_child_closure(lua_State* L) {
     // upvalue[1]はクロージャに渡されたself
-    Instance** objPtr = (Instance**)lua_touserdata(L, lua_upvalueindex(1));
-    Instance* obj = *objPtr;
+    auto* userdata = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto obj_shared = userdata->lock();
+    if (!obj_shared) return 0;
+    Instance* obj = obj_shared.get();
     // L[1] is 'self' from the colon call, L[2] is the actual parameter
     const char* childName = luaL_checkstring(L, 2);
     
@@ -309,8 +323,8 @@ int LuauEngine::instance_find_child_closure(lua_State* L) {
     Instance* child = obj->getChild(childName);
     
     if (child) {
-        Instance** userdata = (Instance**)lua_newuserdata(L, sizeof(Instance*));
-        *userdata = child;
+        auto* userdata = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (userdata) std::weak_ptr<Instance>(child->shared_from_this());
         luaL_getmetatable(L, RCBN_INST_METATABLE);
         lua_setmetatable(L, -2);
         return 1;
@@ -399,8 +413,10 @@ bool LuauEngine::execute(Script& script) {
 
 // ==================== Workspace Methods ====================
 int LuauEngine::workspace_raycast_closure(lua_State* L) {
-    Instance** ptr = (Instance**)lua_touserdata(L, lua_upvalueindex(1));
-    Workspace* ws = static_cast<Workspace*>(*ptr);
+    auto* ptr = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto ws_shared = ptr->lock();
+    if (!ws_shared) return 0;
+    Workspace* ws = static_cast<Workspace*>(ws_shared.get());
 
     // L[1] = self, L[2] = origin, L[3] = direction, L[4] = params (ignored)
     Vector3* origin    = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
@@ -433,8 +449,8 @@ int LuauEngine::workspace_raycast_closure(lua_State* L) {
     lua_setfield(L, -2, "Position");
 
     if (hit.instance) {
-        Instance** instPtr = (Instance**)lua_newuserdata(L, sizeof(Instance*));
-        *instPtr = hit.instance;
+        auto* userdata = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (userdata) std::weak_ptr<Instance>(hit.instance->shared_from_this());
         luaL_getmetatable(L, RCBN_INST_METATABLE);
         lua_setmetatable(L, -2);
         lua_setfield(L, -2, "Instance");
@@ -647,16 +663,17 @@ int LuauEngine::erik_index(lua_State* L) {
     return 0;
 }
 
-void LuauEngine::setWorkspace(Workspace* ws) {
+void LuauEngine::setWorkspace(const std::shared_ptr<Workspace>& ws) {
     workspace = ws;
 }
 
 void LuauEngine::executeWorkspaceScripts() {
-    if (workspace == nullptr) return;
+    auto ws = workspace.lock();
+    if (!ws) return;
     
     // Workspace 内のすべてのスクリプトを実行
-    for (Instance* inst : workspace->scripts) {
-        Script* script = dynamic_cast<Script*>(inst);
+    for (auto& inst : ws->scripts) {
+        auto script = std::dynamic_pointer_cast<Script>(inst);
         // 条件：有効 && 待機中でない && 完了していない && 中断されていない
         if (script && script->Enabled && !script->Sleeping && !script->Completed && !script->Aborted) {
             execute(*script);
@@ -665,11 +682,12 @@ void LuauEngine::executeWorkspaceScripts() {
 }
 
 void LuauEngine::update(float deltaTime) {
-    if (workspace == nullptr) return;
+    auto ws = workspace.lock();
+    if (!ws) return;
     
     // 待機中のスクリプトのタイマーを減算
-    for (Instance* inst : workspace->scripts) {
-        Script* script = dynamic_cast<Script*>(inst);
+    for (auto& inst : ws->scripts) {
+        auto script = std::dynamic_pointer_cast<Script>(inst);
         if (script && script->Sleeping && script->Coroutine != nullptr) {
             script->SleepRemaining -= deltaTime;
             

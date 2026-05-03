@@ -22,27 +22,46 @@ bool AudioService::initialize() {
 void AudioService::setBGMVolume(float volume) { ma_sound_group_set_volume(&groupBGM, volume); }
 void AudioService::setSFXVolume(float volume) { ma_sound_group_set_volume(&groupSFX, volume); }
 
-void AudioService::addSound(Sound* sound) {
-    sounds.push_back(sound);
+void AudioService::addSound(const std::shared_ptr<Sound>& sound) {
+    sounds.push_back(std::weak_ptr<Sound>(sound));
 }
 
-void AudioService::removeSound(Sound* sound) {
-    sounds.erase(std::remove(sounds.begin(), sounds.end(), sound), sounds.end());
+void AudioService::removeSound(const std::shared_ptr<Sound>& sound) {
+    sounds.erase(std::remove_if(sounds.begin(), sounds.end(), [&](const std::weak_ptr<Sound>& w) {
+        return w.lock() == sound;
+    }), sounds.end());
 }
 
 void AudioService::playAutoPlaySounds() {
-    for (Sound* s : sounds) {
-        if (s->autoPlay) s->play();
+    for (auto it = sounds.begin(); it != sounds.end(); ) {
+        if (auto s = it->lock()) {
+            if (s->autoPlay) s->play();
+            ++it;
+        } else {
+            it = sounds.erase(it);
+        }
     }
 }
 
 void AudioService::stopAllSounds() {
-    for (Sound* s : sounds) s->stop();
+    for (auto it = sounds.begin(); it != sounds.end(); ) {
+        if (auto s = it->lock()) {
+            s->stop();
+            ++it;
+        } else {
+            it = sounds.erase(it);
+        }
+    }
 }
 
 void AudioService::updateSounds(const Vector3& listenerPos, const Vector3& listenerRight) {
-    for (Sound* sound : sounds) {
-        sound->update3D(listenerPos, listenerRight);
+    for (auto it = sounds.begin(); it != sounds.end(); ) {
+        if (auto s = it->lock()) {
+            s->update3D(listenerPos, listenerRight);
+            ++it;
+        } else {
+            it = sounds.erase(it);
+        }
     }
 }
 

@@ -426,7 +426,8 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
     // ---- 選択インスタンスの黄色ワイヤーフレームハイライト ----
     if (editor && editor->hierarchyPanel->selectedInstance) {
         Instance* sel = editor->hierarchyPanel->selectedInstance;
-        if (sel->IsA("BaseCube")) {
+        // 親が無効（ツリーから除去済み）なインスタンスはスキップ
+        if (!sel->Parent.expired() && sel->IsA("BaseCube")) {
             BaseCube* bc = static_cast<BaseCube*>(sel);
             Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
                                Matrix4::Scale(bc->Size.x * 1.02f,

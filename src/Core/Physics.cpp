@@ -16,11 +16,11 @@ void Physics::init() {
 
 Physics::~Physics() {
     if (scene) {
-        for (BaseCube* cube : cubes) {
-            if (cube && cube->actor) {
-                scene->removeActor(*cube->actor);
-                cube->actor->release();
-                cube->actor = nullptr;
+        for (auto& entry : cubes) {
+            if (entry.actor) {
+                scene->removeActor(*entry.actor);
+                entry.actor->release();
+                entry.actor = nullptr;
             }
         }
         cubes.clear();
@@ -37,7 +37,7 @@ Physics::~Physics() {
     }
 }
 
-void Physics::createActor(BaseCube* cube) {
+void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
     if (!cube->CanCollide) return; // 衝突無効 → actor 不要
     if (cube->actor) return; // 二重登録防止
 
@@ -99,7 +99,7 @@ void Physics::createActor(BaseCube* cube) {
     }
 
     scene->addActor(*actor);
-    actor->userData = cube; // レイキャスト等で逆引きできるようにポインタを保持
+    actor->userData = cube.get(); // レイキャスト等で逆引きできるようにポインタを保持
     cube->actor = actor; // BaseCube側に参照を戻す
 }
 
@@ -168,15 +168,15 @@ physx::PxMaterial* Physics::getOrCreateMaterial(const Material& m) {
     return pxMat;
 }
 
-void Physics::enqueueResize(BaseCube* cube) {
-    m_pendingOps.push_back({ PendingOp::Type::Resize, cube, {} });
+void Physics::enqueueResize(const std::shared_ptr<BaseCube>& cube) {
+    m_pendingOps.push_back({ PendingOp::Type::Resize, std::weak_ptr<BaseCube>(cube), {} });
 }
 
-void Physics::enqueueSetRotation(BaseCube* cube, Quaternion rot) {
-    m_pendingOps.push_back({ PendingOp::Type::SetRotation, cube, rot });
+void Physics::enqueueSetRotation(const std::shared_ptr<BaseCube>& cube, Quaternion rot) {
+    m_pendingOps.push_back({ PendingOp::Type::SetRotation, std::weak_ptr<BaseCube>(cube), rot });
 }
 
-void Physics::recreateActor(BaseCube* cube) {
+void Physics::recreateActor(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
     if (cube->actor) {
         scene->removeActor(*cube->actor);
@@ -186,7 +186,7 @@ void Physics::recreateActor(BaseCube* cube) {
     createActor(cube);
 }
 
-void Physics::removeCube(BaseCube* cube) {
+void Physics::removeCube(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
     
     // PhysX から削除
@@ -199,7 +199,9 @@ void Physics::removeCube(BaseCube* cube) {
     }
     
     // cubes ベクターから削除
-    auto it = std::find(cubes.begin(), cubes.end(), cube);
+    auto it = std::find_if(cubes.begin(), cubes.end(), [&](const CubeEntry& entry) {
+        return entry.cube.lock() == cube;
+    });
     if (it != cubes.end()) {
         cubes.erase(it);
         // RCBN_LOG("Removed cube from Physics: " << cube->Name);
@@ -235,13 +237,14 @@ void Physics::update(Workspace& workspace, float dt) {
     
     // 遅延キューをフラッシュ（fetchResults 完了後の安全ウインドウ）
     for (auto& op : m_pendingOps) {
-        if (!op.cube || !op.cube->actor) continue;
+        auto cube = op.cube.lock();
+        if (!cube || !cube->actor) continue;
         if (op.type == PendingOp::Type::Resize) {
-            recreateActor(op.cube);
+            recreateActor(cube);
         } else if (op.type == PendingOp::Type::SetRotation) {
-            physx::PxTransform pose = op.cube->actor->getGlobalPose();
+            physx::PxTransform pose = cube->actor->getGlobalPose();
             pose.q = physx::PxQuat(op.rotation.x, op.rotation.y, op.rotation.z, op.rotation.w);
-            op.cube->actor->setGlobalPose(pose);
+            cube->actor->setGlobalPose(pose);
         }
     }
     m_pendingOps.clear();
@@ -249,15 +252,15 @@ void Physics::update(Workspace& workspace, float dt) {
     // 0. 削除されたキューブをクリーンアップ（Workspace に存在しなくなったキューブを検出）
     auto it = cubes.begin();
     while (it != cubes.end()) {
-        BaseCube* cube = *it;
-        // actor が nullptr か、Workspace の子孫でなくなった場合は削除
-        if (!cube->actor || cube->Parent.expired()) {
-            if (cube->actor) {
-                scene->removeActor(*cube->actor);
-                cube->actor->release();
-                cube->actor = nullptr;
+        auto cube = it->cube.lock();
+        // オブジェクトが消滅しているか、actor が nullptr か、Workspace の子孫でなくなった場合は削除
+        if (!cube || !it->actor || cube->Parent.expired()) {
+            if (it->actor) {
+                scene->removeActor(*it->actor);
+                it->actor->release();
+                it->actor = nullptr;
             }
-            RCBN_LOG("Cleaned up removed cube from Physics: " << cube->Name);
+            RCBN_LOG("Cleaned up removed cube from Physics: " << (cube ? cube->Name : "Unknown"));
             it = cubes.erase(it);
         } else {
             ++it;
@@ -265,15 +268,18 @@ void Physics::update(Workspace& workspace, float dt) {
     }
     
     // 1. 未反映の新入りを登録
-    for (Instance* inst : workspace.pendingInstances) {
+    for (auto& inst : workspace.pendingInstances) {
         if (inst->IsA("BaseCube")) {
-            createActor(static_cast<BaseCube*>(inst));
-            cubes.push_back(static_cast<BaseCube*>(inst));
+            auto cube = std::static_pointer_cast<BaseCube>(inst);
+            createActor(cube);
+            cubes.push_back({ std::weak_ptr<BaseCube>(cube), cube->actor });
         }
     }
     workspace.pendingInstances.clear();
 
-    for (BaseCube* cube : cubes) {
-        cube->syncPhysics();
+    for (auto& entry : cubes) {
+        if (auto cube = entry.cube.lock()) {
+            cube->syncPhysics();
+        }
     }
 }

@@ -129,6 +129,11 @@ void PropertiesPanel::onRender() {
     }
 
     Instance* inst = selectedInstance ? *selectedInstance : nullptr;
+    // ツリーから除去済み（Parent expired）なインスタンスは選択解除
+    if (inst && inst->Parent.expired()) {
+        *selectedInstance = nullptr;
+        inst = nullptr;
+    }
 
     if (!inst) {
         ImGui::TextDisabled("Nothing selected");

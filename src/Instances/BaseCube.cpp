@@ -5,7 +5,6 @@
 
 BaseCube::BaseCube(Vector3 Pos, Vector3 Sz) 
     : Spatial(Pos, Sz, "BaseCube"), Color(1, 1, 1, 1) {
-    onAncestorChanged();
 }
 
 std::string BaseCube::GetClassName() {
@@ -29,14 +28,14 @@ void BaseCube::onAncestorChanged() {
         
         // 重複登録を防ぎつつ、物理エンジンの待機リストへ
         // std::cout << "Adding to workspace...\n";
-        ws->registerCube(this);
+        ws->registerCube(std::static_pointer_cast<BaseCube>(shared_from_this()));
         lastWorkspace = ws;
     } else {
         // std::cout << "Workspace is null!\n";
         // Workspace の外に出た場合は Physics から削除
         if (lastWorkspace) {
             if (lastWorkspace->physicsEngine) {
-                lastWorkspace->physicsEngine->removeCube(this);
+                lastWorkspace->physicsEngine->removeCube(std::static_pointer_cast<BaseCube>(shared_from_this()));
             } else {
                 // physicsEngine が nullptr の場合は手動でクリーンアップ
                 if (actor) {
@@ -55,10 +54,11 @@ void BaseCube::onAncestorChanged() {
 void BaseCube::setSize(Vector3 newSize) {
     Size = newSize;
     if (lastWorkspace && lastWorkspace->physicsEngine) {
+        auto self = std::static_pointer_cast<BaseCube>(shared_from_this());
         if (SystemState::get().isPlaying) {
-            lastWorkspace->physicsEngine->enqueueResize(this);
+            lastWorkspace->physicsEngine->enqueueResize(self);
         } else {
-            lastWorkspace->physicsEngine->recreateActor(this);
+            lastWorkspace->physicsEngine->recreateActor(self);
         }
     }
 }
@@ -69,7 +69,7 @@ void BaseCube::setRotation(Quaternion localRot) {
     if (!actor) return;
     Quaternion worldRot = getWorldCFrame().Rotation;
     if (lastWorkspace && lastWorkspace->physicsEngine && SystemState::get().isPlaying) {
-        lastWorkspace->physicsEngine->enqueueSetRotation(this, worldRot);
+        lastWorkspace->physicsEngine->enqueueSetRotation(std::static_pointer_cast<BaseCube>(shared_from_this()), worldRot);
     } else {
         physx::PxTransform pose = actor->getGlobalPose();
         pose.q = physx::PxQuat(worldRot.x, worldRot.y, worldRot.z, worldRot.w);
@@ -80,7 +80,7 @@ void BaseCube::setRotation(Quaternion localRot) {
 void BaseCube::setAnchored(bool anchored) {
     Anchored = anchored;
     if (lastWorkspace && lastWorkspace->physicsEngine) {
-        lastWorkspace->physicsEngine->recreateActor(this);
+        lastWorkspace->physicsEngine->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
     }
 }
 
@@ -128,12 +128,17 @@ void BaseCube::teleportTo(Vector3 localPos) {
 
 BaseCube::~BaseCube() {
     // RCBN_LOG("BaseCube Destructor: " << this->Name);
-    if (lastWorkspace && lastWorkspace->physicsEngine) {
-        lastWorkspace->physicsEngine->removeCube(this);
-    } else if (actor) {
-        // Workspace がない場合でもアクターは解放する
-        actor->release();
-        actor = nullptr;
+    if (actor) {
+        // 重要：レイキャスト等での逆引きを無効化するため、まず userData をクリアする
+        actor->userData = nullptr;
+
+        // Physics 側で actor を参照している可能性があるため（Physics::cubes など）、
+        // 基本的には Physics::update のクリーンアップループに任せるのが安全。
+        // ただし、物理エンジン自体が存在しない場合（終了時など）は、ここで明示的に解放する。
+        if (!lastWorkspace || !lastWorkspace->physicsEngine) {
+            actor->release();
+            actor = nullptr;
+        }
     }
 }
 unsigned int BaseCube::getDecalTexture(Face face, unsigned int fallback) const {

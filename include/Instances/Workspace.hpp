@@ -14,9 +14,9 @@ class Workspace : public Instance {
 
         Physics* physicsEngine = nullptr; // Physics エンジンへのポインタ
 
-        void registerScript(Instance* s);
-        void unregisterScript(Instance* s);
-        void registerCube(Instance* c);
+        void registerScript(const std::shared_ptr<Instance>& s);
+        void unregisterScript(const std::shared_ptr<Instance>& s);
+        void registerCube(const std::shared_ptr<Instance>& c);
 
         // !! <DO NOT UNREGISTER THE CUBE, IT IS HANDLED BY "physics" CLASS.> !!
         // void unregisterCube(Instance* c) {
@@ -24,8 +24,8 @@ class Workspace : public Instance {
         // }
 
     public:
-        std::vector<Instance*> pendingInstances;
-        std::vector<Instance*> scripts;
+        std::vector<std::shared_ptr<Instance>> pendingInstances;
+        std::vector<std::shared_ptr<Instance>> scripts;
         
         Workspace();
         virtual ~Workspace();

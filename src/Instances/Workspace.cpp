@@ -1,15 +1,15 @@
 #include <Instances/Workspace.hpp>
 #include <algorithm>
 
-void Workspace::registerScript(Instance* s) {
+void Workspace::registerScript(const std::shared_ptr<Instance>& s) {
     scripts.push_back(s);
 }
 
-void Workspace::unregisterScript(Instance* s) {
+void Workspace::unregisterScript(const std::shared_ptr<Instance>& s) {
     scripts.erase(std::remove(scripts.begin(), scripts.end(), s), scripts.end());
 }
 
-void Workspace::registerCube(Instance* c) {
+void Workspace::registerCube(const std::shared_ptr<Instance>& c) {
     if (std::find(pendingInstances.begin(), pendingInstances.end(), c) == pendingInstances.end()) {
         pendingInstances.push_back(c);
     }

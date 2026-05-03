@@ -25,13 +25,17 @@ private:
     physx::PxDefaultAllocator allocator;
     physx::PxDefaultErrorCallback errorCallback;
 
-    std::vector<BaseCube*> cubes; // 物理シミュレーション対象のキューブを管理
+    struct CubeEntry {
+        std::weak_ptr<BaseCube> cube;
+        physx::PxRigidActor* actor = nullptr;
+    };
+    std::vector<CubeEntry> cubes; // 物理シミュレーション対象のキューブを管理
     physx::PxMaterial* getOrCreateMaterial(const Material& m);
 
     struct PendingOp {
         enum class Type { Resize, SetRotation };
         Type      type;
-        BaseCube* cube;
+        std::weak_ptr<BaseCube> cube;
         Quaternion rotation; // SetRotation 時のみ使用
     };
     std::vector<PendingOp> m_pendingOps;
@@ -40,14 +44,14 @@ public:
     void init();
     virtual ~Physics();
     void update(Workspace& workspace, float dt);
-    void createActor(BaseCube* cube);
-    void recreateActor(BaseCube* cube);
-    void removeCube(BaseCube* cube);
+    void createActor(const std::shared_ptr<BaseCube>& cube);
+    void recreateActor(const std::shared_ptr<BaseCube>& cube);
+    void removeCube(const std::shared_ptr<BaseCube>& cube);
 
     void clearCubes() { cubes.clear(); m_pendingOps.clear(); }
 
-    void enqueueResize(BaseCube* cube);
-    void enqueueSetRotation(BaseCube* cube, Quaternion rot);
+    void enqueueResize(const std::shared_ptr<BaseCube>& cube);
+    void enqueueSetRotation(const std::shared_ptr<BaseCube>& cube, Quaternion rot);
 
     bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, physx::PxRigidActor* ignoreActor = nullptr);
 };

@@ -129,9 +129,9 @@ int main() {
     unsigned int bliss    = renderer->loadTexture("assets/image/bliss.jpg");
     unsigned int limabis  = renderer->loadTexture("assets/image/Limabis_logo.png");
     unsigned int hehe     = renderer->loadTexture("assets/image/hehe.png");
-    luauEngine->setGlobalInstance(workspace->Name, workspace.get());
-    luauEngine->setGlobalInstance("workspace", workspace.get());
-    luauEngine->setWorkspace(workspace.get());
+    luauEngine->setGlobalInstance(workspace->Name, workspace);
+    luauEngine->setGlobalInstance("workspace", workspace);
+    luauEngine->setWorkspace(workspace);
 
     // ===================================================
     //  EditorManager を Renderer に接続
@@ -190,9 +190,9 @@ int main() {
 
             system->addChild(workspace);
             workspace->setPhysicsEngine(physics.get());
-            luauEngine->setGlobalInstance(workspace->Name, workspace.get());
-            luauEngine->setGlobalInstance("workspace", workspace.get());
-            luauEngine->setWorkspace(workspace.get());
+            luauEngine->setGlobalInstance(workspace->Name, workspace);
+            luauEngine->setGlobalInstance("workspace", workspace);
+            luauEngine->setWorkspace(workspace);
             renderer->editor->setWorkspace(workspace.get());
             if (snapshotDirty) renderer->editor->markDirty();
         }
@@ -217,9 +217,9 @@ int main() {
 
             system->addChild(workspace);
             workspace->setPhysicsEngine(physics.get());
-            luauEngine->setGlobalInstance(workspace->Name, workspace.get());
-            luauEngine->setGlobalInstance("workspace", workspace.get());
-            luauEngine->setWorkspace(workspace.get());
+            luauEngine->setGlobalInstance(workspace->Name, workspace);
+            luauEngine->setGlobalInstance("workspace", workspace);
+            luauEngine->setWorkspace(workspace);
             renderer->editor->setWorkspace(workspace.get());
             renderer->editor->scenePath = loadPath;
         }
@@ -235,7 +235,7 @@ int main() {
         ViewportPanel* vp = renderer->editor ? renderer->editor->viewportPanel.get() : nullptr;
         state.viewportFocused    = vp && IsViewportFocused(vp);
         state.viewportZoomEnabled = vp && (IsViewportFocused(vp) || vp->isHoveringViewport);
-        user->processInput(physics.get());
+        user->processInput(*physics);
         if (user->wannaExit) {
             user->wannaExit = false;
             if (checkExit(*renderer, *window)) {
@@ -252,6 +252,22 @@ int main() {
 
     std::cout << "[DEBUG] Main loop ended.\n";
     RCBN_LOG("Shutting down...");
+
+    // ---- 明示的クリーンアップ（デストラクタの逆順に依存しない安全な終了）----
+    // EditorManager の Undo スタックや Clipboard が BaseCube の shared_ptr を
+    // 保持している可能性がある。これらが renderer の破棄時（physics 破棄後）に
+    // 解放されると、BaseCube のデストラクタで lastWorkspace->physicsEngine に
+    // アクセスしてクラッシュする。Physics がまだ生きている今のうちにクリアする。
+    if (renderer->editor) {
+        renderer->editor->hierarchyPanel->selectedInstance = nullptr;
+        renderer->editor->m_history.clear();
+        renderer->editor->clearClipboard();
+    }
+    physics->clearCubes();
+    workspace->setPhysicsEngine(nullptr);
+    system->removeChild(workspace->Name);
+    workspace.reset();
+    system.reset();
 
     glfwTerminate();
     return 0;

@@ -51,7 +51,7 @@ void User::updateVectors() {
     up      = cam.Orientation.getUp();
 }
 
-void User::processInput(Physics* physics) {
+void User::processInput(Physics& physics) {
     const bool viewportFocused    = SystemState::get().viewportFocused;
     const bool viewportZoomEnabled = SystemState::get().viewportZoomEnabled;
     if (!window) return;
@@ -198,7 +198,7 @@ void User::processInput(Physics* physics) {
                     // 壁法線に沿って速度を射影（めり込み防止）
                     RaycastHit wallHit;
                     float checkDist = root->Size.x / 2.0f + 0.15f;
-                    if (physics && physics->raycast(root->getWorldPosition(), currentMoveDir, checkDist, wallHit, root->actor)) {
+                    if (physics.raycast(root->getWorldPosition(), currentMoveDir, checkDist, wallHit, root->actor)) {
                         // 壁法線への射影成分を除去（法線は水平面のみで考慮）
                         Vector3 n(wallHit.normal.x, 0.0f, wallHit.normal.z);
                         float nLen = n.length();
@@ -243,7 +243,7 @@ void User::processInput(Physics* physics) {
             Vector3 origin = root->getWorldPosition();
             Vector3 direction(0, -1, 0);
             float maxDist = (root->Size.y / 2.0f) + 0.2f;
-            isGrounded = (physics && physics->raycast(origin, direction, maxDist, hit, root->actor));
+            isGrounded = (physics.raycast(origin, direction, maxDist, hit, root->actor));
 
             // カメラ位置
             cpos = root->getWorldPosition() + Vector3(0, 2.0f, 0) - (forward * cameraDistance);

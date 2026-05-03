@@ -2,7 +2,6 @@
 
 Sound::Sound(AudioService& service, const std::string& path) 
     : Spatial(Vector3(0,0,0), Vector3(1,1,1), "Sound") {
-    service.addSound(this);
     if (!path.empty()) {
         ma_uint32 flags = MA_SOUND_FLAG_DECODE; 
         ma_sound_group* targetGroup = (soundGroup == "BGM") ? &service.groupBGM : &service.groupSFX;
@@ -107,6 +106,15 @@ void Sound::update3D(const Vector3& listenerPos, const Vector3& listenerRight) {
 }
 
 Sound::~Sound() {
-    if (AudioService::instance) AudioService::instance->removeSound(this);
+    // AudioService の登録解除は weak_ptr の自然な消滅に任せるか、
+    // 必要なら明示的に行う（ただし shared_from_this は使えない）。
+    // ここでは ma_sound の解放を確実に行う。
     if (loaded) ma_sound_uninit(&sound);
 }
+
+void Sound::onAncestorChanged() {
+    if (AudioService::instance && findFirstAncestorWorkspace()) {
+        AudioService::instance->addSound(std::static_pointer_cast<Sound>(shared_from_this()));
+    }
+    Spatial::onAncestorChanged();
+}

@@ -27,7 +27,7 @@ class Workspace;
 class LuauEngine {
 private:
     lua_State* L;
-    Workspace* workspace = nullptr;  // 管理対象の Workspace
+    std::weak_ptr<Workspace> workspace;  // 管理対象の Workspace
     static Script* currentScript;  // 現在実行中のスクリプト
     std::string m_lastTraceback;   // debugprotectederror で取得したスタックトレース
     
@@ -85,14 +85,14 @@ public:
     LuauEngine();
     ~LuauEngine();
 
-    void setBindings(Instance* instance);
+    void setBindings(const std::shared_ptr<Instance>& instance);
 
-    void setGlobalInstance(const std::string& name, Instance* instance);
+    void setGlobalInstance(const std::string& name, const std::shared_ptr<Instance>& instance);
 
     bool execute(Script& script);
     
     // Workspace を設定
-    void setWorkspace(Workspace* ws);
+    void setWorkspace(const std::shared_ptr<Workspace>& ws);
     
     // Workspace 内のすべてのスクリプトを実行
     void executeWorkspaceScripts();

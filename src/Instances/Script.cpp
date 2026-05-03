@@ -41,12 +41,12 @@ void Script::onAncestorChanged() {
     
     if (ws_raw) {
         Workspace* ws = static_cast<Workspace*>(ws_raw);
-        ws->registerScript(this);
+        ws->registerScript(std::static_pointer_cast<Script>(shared_from_this()));
         lastWorkspace = ws;
     } else {
         // Workspace 外に放り出されたらリストから抜ける
         if (lastWorkspace) {
-            lastWorkspace->unregisterScript(this);
+            lastWorkspace->unregisterScript(std::static_pointer_cast<Script>(shared_from_this()));
         }
         lastWorkspace = nullptr;
     }
