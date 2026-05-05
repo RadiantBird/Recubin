@@ -15,6 +15,8 @@ uniform float brightness;
 uniform vec3 viewPos;
 uniform vec3 lightColor;
 uniform float unlit;
+uniform float u_textureScale;
+uniform float useTriplanar;
 
 float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
@@ -37,7 +39,21 @@ float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
 }
 
 void main() {
-    vec4 texColor = texture(ourTexture, TexCoord);
+    vec4 texColor;
+    if (useTriplanar > 0.5) {
+        float scale = u_textureScale > 0.0 ? u_textureScale : 1.0;
+        vec2 uvX = FragPos.zy * scale;
+        vec2 uvY = FragPos.xz * scale;
+        vec2 uvZ = FragPos.xy * scale;
+        vec4 colX = texture(ourTexture, uvX);
+        vec4 colY = texture(ourTexture, uvY);
+        vec4 colZ = texture(ourTexture, uvZ);
+        vec3 blend = abs(normalize(Normal));
+        blend /= (blend.x + blend.y + blend.z);
+        texColor = colX * blend.x + colY * blend.y + colZ * blend.z;
+    } else {
+        texColor = texture(ourTexture, TexCoord);
+    }
     vec3 baseColor = mix(ourColor.rgb, texColor.rgb * ourColor.rgb, texColor.a);
 
     if (unlit > 0.5) {

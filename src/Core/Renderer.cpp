@@ -372,13 +372,17 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
     int modelLoc = glGetUniformLocation(shaderProgram, "model");
     glBindVertexArray(VAO);
 
-    int unlitLoc = glGetUniformLocation(shaderProgram, "unlit");
+    int unlitLoc          = glGetUniformLocation(shaderProgram, "unlit");
+    int triplanarLoc      = glGetUniformLocation(shaderProgram, "useTriplanar");
+    int textureScaleLoc   = glGetUniformLocation(shaderProgram, "u_textureScale");
 
     auto renderInstances = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
         if (inst->IsA("BaseCube")) {
             BaseCube* bc = static_cast<BaseCube*>(inst);
-            if (unlitLoc != -1) glUniform1f(unlitLoc, bc->Unlit ? 1.0f : 0.0f);
+            if (unlitLoc        != -1) glUniform1f(unlitLoc,        bc->Unlit          ? 1.0f : 0.0f);
+            if (triplanarLoc    != -1) glUniform1f(triplanarLoc,    bc->UseTriplanar   ? 1.0f : 0.0f);
+            if (textureScaleLoc != -1) glUniform1f(textureScaleLoc, bc->TextureScale);
         }
         
         if (inst->IsA("Cube")) {

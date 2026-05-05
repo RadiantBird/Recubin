@@ -18,6 +18,8 @@ public:
     bool CanCollide = true;
     bool CastShadow = true;
     bool Unlit = false;
+    bool UseTriplanar = false;
+    float TextureScale = 1.0f;
 
     Color4 Color;
     Material material = Material::GetDefault(MaterialType::Plastic);
