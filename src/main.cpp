@@ -50,7 +50,7 @@ GLFWwindow* setupWindow() {
     }
 
     std::cout << "creating window...\n";
-    GLFWwindow* window = glfwCreateWindow(1600, 900, "Recubin Editor", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1600, 900, "Recubin Studio", nullptr, nullptr);
     if (!window) {
         std::cout << "Window creation failed\n";
         glfwTerminate();
@@ -84,7 +84,7 @@ bool checkExit(Renderer& renderer, GLFWwindow& window) {
 // ===================================================
 int main() {
     std::cout << "Hello world!\n"
-              << "Recubin Editor v0.90\n";
+              << "Recubin Studio v0.92\n";
 
     GLFWwindow* window = setupWindow();
     if (!window) {
