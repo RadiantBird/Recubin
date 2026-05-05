@@ -7,10 +7,9 @@ unsigned int Sphere::s_VAO = 0;
 unsigned int Sphere::s_VBO = 0;
 unsigned int Sphere::s_EBO = 0;
 int Sphere::s_IndexCount = 0;
+int Sphere::s_FaceIndexCount = 0;
 
-static const int SPH_LAT = 32;
-static const int SPH_LON = 32;
-static const float SPH_PI = 3.14159265358979323846f;
+static const int SPH_RES = 16;
 
 void Sphere::initGeometry() {
     if (s_VAO != 0) return;
@@ -18,42 +17,54 @@ void Sphere::initGeometry() {
     std::vector<float> vbo;
     std::vector<unsigned int> ebo;
 
-    for (int lat = 0; lat <= SPH_LAT; ++lat) {
-        float theta = SPH_PI * lat / SPH_LAT;
-        float sinT  = std::sin(theta);
-        float cosT  = std::cos(theta);
+    auto pushFace = [&](Vector3 normal, Vector3 right, Vector3 up) {
+        unsigned int offset = (unsigned int)vbo.size() / 8;
+        for (int y = 0; y <= SPH_RES; ++y) {
+            for (int x = 0; x <= SPH_RES; ++x) {
+                float fx = (float)x / SPH_RES;
+                float fy = (float)y / SPH_RES;
+                
+                // キューブの面上の点
+                Vector3 p = normal * 0.5f + right * (fx - 0.5f) + up * (fy - 0.5f);
+                
+                // 正規化して球体にする
+                Vector3 n = p.normalize();
+                Vector3 pos = n * 0.5f;
 
-        for (int lon = 0; lon <= SPH_LON; ++lon) {
-            float phi  = 2.f * SPH_PI * lon / SPH_LON;
-            float sinP = std::sin(phi);
-            float cosP = std::cos(phi);
-
-            float nx = sinT * cosP;
-            float ny = cosT;
-            float nz = sinT * sinP;
-
-            vbo.push_back(0.5f * nx);
-            vbo.push_back(0.5f * ny);
-            vbo.push_back(0.5f * nz);
-            vbo.push_back(nx);
-            vbo.push_back(ny);
-            vbo.push_back(nz);
-            vbo.push_back((float)lon / SPH_LON);
-            vbo.push_back((float)lat / SPH_LAT);
+                vbo.push_back(pos.x); vbo.push_back(pos.y); vbo.push_back(pos.z);
+                vbo.push_back(n.x);   vbo.push_back(n.y);   vbo.push_back(n.z);
+                vbo.push_back(fx);    vbo.push_back(fy);
+            }
         }
-    }
 
-    for (int lat = 0; lat < SPH_LAT; ++lat) {
-        for (int lon = 0; lon < SPH_LON; ++lon) {
-            unsigned int tl = lat * (SPH_LON + 1) + lon;
-            unsigned int tr = tl + 1;
-            unsigned int bl = tl + (SPH_LON + 1);
-            unsigned int br = bl + 1;
-            ebo.push_back(tl); ebo.push_back(bl); ebo.push_back(tr);
-            ebo.push_back(tr); ebo.push_back(bl); ebo.push_back(br);
+        for (int y = 0; y < SPH_RES; ++y) {
+            for (int x = 0; x < SPH_RES; ++x) {
+                unsigned int i0 = offset + y * (SPH_RES + 1) + x;
+                unsigned int i1 = i0 + 1;
+                unsigned int i2 = i0 + (SPH_RES + 1);
+                unsigned int i3 = i2 + 1;
+                // CCW (外向き)
+                ebo.push_back(i0); ebo.push_back(i2); ebo.push_back(i1);
+                ebo.push_back(i1); ebo.push_back(i2); ebo.push_back(i3);
+            }
         }
-    }
+    };
 
+    // Face enum の順序に合わせる: Front, Back, Top, Bottom, Right, Left
+    // Front (-Z)
+    pushFace(Vector3(0, 0, -1), Vector3(1, 0, 0), Vector3(0, 1, 0));
+    // Back (+Z)
+    pushFace(Vector3(0, 0, 1), Vector3(-1, 0, 0), Vector3(0, 1, 0));
+    // Top (+Y)
+    pushFace(Vector3(0, 1, 0), Vector3(1, 0, 0), Vector3(0, 0, 1));
+    // Bottom (-Y)
+    pushFace(Vector3(0, -1, 0), Vector3(1, 0, 0), Vector3(0, 0, -1));
+    // Right (+X)
+    pushFace(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, 1, 0));
+    // Left (-X)
+    pushFace(Vector3(-1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0));
+
+    s_FaceIndexCount = SPH_RES * SPH_RES * 6;
     s_IndexCount = (int)ebo.size();
 
     glGenVertexArrays(1, &s_VAO);
@@ -100,16 +111,12 @@ void Sphere::draw(int modelLoc, int shaderProgram) {
         glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
     }
 
-    // 球は連続面なので全体に1枚のテクスチャ
-    // いずれかの方向にデカールが存在すれば優先的に使用
     glActiveTexture(GL_TEXTURE0);
-    unsigned int tex = defaultTextureID;
-    for (Face f : { Face::Front, Face::Top, Face::Back, Face::Bottom, Face::Right, Face::Left }) {
-        unsigned int t = getDecalTexture(f, 0);
-        if (t != 0) { tex = t; break; }
+    for (int i = 0; i < 6; ++i) {
+        Face f = static_cast<Face>(i);
+        glBindTexture(GL_TEXTURE_2D, getDecalTexture(f, defaultTextureID));
+        glDrawElements(GL_TRIANGLES, s_FaceIndexCount, GL_UNSIGNED_INT, (void*)(uintptr_t)(i * s_FaceIndexCount * sizeof(unsigned int)));
     }
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glDrawElements(GL_TRIANGLES, s_IndexCount, GL_UNSIGNED_INT, nullptr);
 }
 
 std::shared_ptr<Instance> Sphere::clone() const {

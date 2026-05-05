@@ -359,7 +359,7 @@ void User::spawnCharacter() {
 
     // パーツ生成
     root      = std::make_shared<Cube>(basePos, Vector3(1.75f, 5.5f, 1.0f), 0);
-    head      = std::make_shared<Cylinder>(basePos, Vector3(1.0f, 1.0f, 1.0f));
+    head      = std::make_shared<Sphere>(basePos, Vector3(1.25f, 1.25f, 1.25f));
     torso     = std::make_shared<Cube>(basePos, Vector3(1.75f, 2.0f, 1.0f), 0);
     leftArm   = std::make_shared<Cube>(basePos, Vector3(0.75f, 2.5f, 1.0f), 0);
     rightArm  = std::make_shared<Cube>(basePos, Vector3(0.75f, 2.5f, 1.0f), 0);

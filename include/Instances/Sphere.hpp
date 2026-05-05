@@ -10,6 +10,7 @@ public:
     static unsigned int s_VBO;
     static unsigned int s_EBO;
     static int s_IndexCount;
+    static int s_FaceIndexCount;
 
     Sphere(Vector3 Pos, Vector3 Sz);
 
