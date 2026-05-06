@@ -1,0 +1,69 @@
+PS C:\Users\Ryarta\Documents\Recubin> .\run.bat
+[SUCCESS] Copied 6 DLL file(s) to C:\Users\Ryarta\Documents\Recubin\build\Release.
+Hello world!
+Recubin Studio v0.92
+initing GLFW...
+creating window...
+making context...
+initing GLEW...
+Success: C:\Users\Ryarta\Pictures\libimage.png (4ch)
+Success: assets/image/floppa2048.jpg (3ch)
+Success: assets/image/salad-cat.jpg (3ch)
+Success: assets/image/Limabis_logo.png (3ch)
+Success: assets/image/the-cat.png (4ch)
+Success: assets/image/smile.png (2ch)
+Success: assets/image/bliss.jpg (3ch)
+[DEBUG] Audio loaded via setProperty: assets/sound/Newalks.mp3
+Success: assets/image/hehe.png (4ch)
+[RCBN_DEBUG] Editor initialized.
+[RCBN_DEBUG] Spawning character...
+[RCBN_DEBUG] Motor "MotorTest" created at pivot (1, 2, -10)
+[RCBN_DEBUG] Cleaned up removed cube from Physics: RightArm
+[RCBN_DEBUG] Cleaned up removed cube from Physics: Head
+[RCBN_DEBUG] Cleaned up removed cube from Physics: LeftLeg
+[RCBN_DEBUG] Cleaned up removed cube from Physics: Torso
+[RCBN_DEBUG] Cleaned up removed cube from Physics: LeftArm
+[RCBN_DEBUG] Cleaned up removed cube from Physics: RightLeg
+[SceneLoader] Motor "MotorTest": cube not found
+[RCBN_DEBUG] Spawning character...
+[RCBN_WARN] Motor "MotorTest": cube refs unresolved (c0=null, c1=null)
+[RCBN_DEBUG] Cleaned up removed cube from Physics: RightArm
+[RCBN_DEBUG] Cleaned up removed cube from Physics: Head
+[RCBN_DEBUG] Cleaned up removed cube from Physics: LeftLeg
+[RCBN_DEBUG] Cleaned up removed cube from Physics: Torso
+[RCBN_DEBUG] Cleaned up removed cube from Physics: LeftArm
+[RCBN_DEBUG] Cleaned up removed cube from Physics: RightLeg
+[DEBUG] Main loop ended.
+[RCBN_DEBUG] Shutting down...
+Program has run successfully.
+PS C:\Users\Ryarta\Documents\Recubin> .\run.bat
+[SUCCESS] Copied 6 DLL file(s) to C:\Users\Ryarta\Documents\Recubin\build\Release.
+Hello world!
+Recubin Studio v0.92
+initing GLFW...
+creating window...
+making context...
+initing GLEW...
+Success: C:\Users\Ryarta\Pictures\libimage.png (4ch)
+Success: assets/image/floppa2048.jpg (3ch)
+Success: assets/image/salad-cat.jpg (3ch)
+Success: assets/image/Limabis_logo.png (3ch)
+Success: assets/image/the-cat.png (4ch)
+Success: assets/image/smile.png (2ch)
+Success: assets/image/bliss.jpg (3ch)
+[DEBUG] Audio loaded via setProperty: assets/sound/Newalks.mp3
+Success: assets/image/hehe.png (4ch)
+[RCBN_DEBUG] Editor initialized.
+[RCBN_DEBUG] Spawning character...
+[RCBN_DEBUG] Weld "WeldAB" compound created (cubes: PartA, PartB)
+[RCBN_DEBUG] Cleaned up removed cube from Physics: RightArm
+[RCBN_DEBUG] Cleaned up removed cube from Physics: Head
+[RCBN_DEBUG] Cleaned up removed cube from Physics: LeftLeg
+[RCBN_DEBUG] Cleaned up removed cube from Physics: Torso
+[RCBN_DEBUG] Cleaned up removed cube from Physics: LeftArm
+[RCBN_DEBUG] Cleaned up removed cube from Physics: RightLeg
+[RCBN_DEBUG] Control Mode: Character
+[SceneLoader] Weld "WeldAB": cube not found
+Program Crashed!!
+Program returned: 0xc0000005 (3221225477)
+[HINT] Access violation. DO NOT touch deleted objects!

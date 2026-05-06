@@ -256,11 +256,9 @@ void User::processInput(Physics& physics) {
     float rad = walkCycle * 2.0f * PI;
     float swingAngle = std::sin(rad) * 35.0f; 
 
-    // root center を基準に ±2.75 で対称配置 (高さ 5.5)
-    // 頭頂: +2.75、足先: -2.75
-    if (torso) torso->cframe = root->cframe * CFrame(0, 0.75f, 0);
-    // cylinderなので90度回転させる(必要はもうなくなった)
-    if (head)  head->cframe  = root->cframe * CFrame(0, 2.25f, 0);// * CFrame::fromAxisAngle(Vector3(0, 1, 0), -90.0f);
+    // root center を基準に配置
+    if (torso) torso->cframe = root->cframe * CFrame(0, 1.0f, 0);
+    if (head)  head->cframe  = root->cframe * CFrame(0, 2.5f, 0);
 
     float L_armAngle = swingAngle;
     float R_armAngle = -swingAngle;
@@ -270,20 +268,26 @@ void User::processInput(Physics& physics) {
         R_armAngle = 180.0f;
     }
 
+    float shoulderY = isGrounded ? 2.0f : 1.0f;
+
     if (leftArm) {
-        CFrame jointCF = root->cframe * CFrame(-1.25f, 1.0f, 0);
-        leftArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), L_armAngle) * CFrame(0, -0.5f, 0);
+        // 肩の関節位置: x=-1.5, y=shoulderY
+        CFrame jointCF = root->cframe * CFrame(-1.5f, shoulderY, 0);
+        leftArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), L_armAngle) * CFrame(0, -1.0f, 0);
     }
     if (rightArm) {
-        CFrame jointCF = root->cframe * CFrame(1.25f, 1.0f, 0);
-        rightArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), R_armAngle) * CFrame(0, -0.5f, 0);
+        // 肩の関節位置: x=1.5, y=shoulderY
+        CFrame jointCF = root->cframe * CFrame(1.5f, shoulderY, 0);
+        rightArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), R_armAngle) * CFrame(0, -1.0f, 0);
     }
     if (leftLeg) {
-        CFrame jointCF = root->cframe * CFrame(-0.5f, -0.5f, 0);
+        // 股関節位置: x=-0.5, y=0.0
+        CFrame jointCF = root->cframe * CFrame(-0.5f, 0.0f, 0);
         leftLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), -swingAngle) * CFrame(0, -1.0f, 0);
     }
     if (rightLeg) {
-        CFrame jointCF = root->cframe * CFrame(0.5f, -0.5f, 0);
+        // 股関節位置: x=0.5, y=0.0
+        CFrame jointCF = root->cframe * CFrame(0.5f, 0.0f, 0);
         rightLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), swingAngle) * CFrame(0, -1.0f, 0);
     }
     
@@ -358,13 +362,13 @@ void User::spawnCharacter() {
     Vector3 basePos = character->Position;
 
     // パーツ生成
-    root      = std::make_shared<Cube>(basePos, Vector3(1.75f, 5.5f, 1.0f), 0);
+    root      = std::make_shared<Cube>(basePos, Vector3(2.0f, 4.0f, 1.0f), 0);
     head      = std::make_shared<Sphere>(basePos, Vector3(1.25f, 1.25f, 1.25f));
-    torso     = std::make_shared<Cube>(basePos, Vector3(1.75f, 2.0f, 1.0f), 0);
-    leftArm   = std::make_shared<Cube>(basePos, Vector3(0.75f, 2.5f, 1.0f), 0);
-    rightArm  = std::make_shared<Cube>(basePos, Vector3(0.75f, 2.5f, 1.0f), 0);
-    leftLeg   = std::make_shared<Cube>(basePos, Vector3(0.75f, 2.5f, 1.0f), 0);
-    rightLeg  = std::make_shared<Cube>(basePos, Vector3(0.75f, 2.5f, 1.0f), 0);
+    torso     = std::make_shared<Cube>(basePos, Vector3(2.0f, 2.0f, 1.0f), 0);
+    leftArm   = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    rightArm  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    leftLeg   = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    rightLeg  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
 
     // headを90度回転させて顔が前を向くようにする
     head->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f));

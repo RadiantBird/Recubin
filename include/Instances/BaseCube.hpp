@@ -29,6 +29,7 @@ public:
 
     physx::PxRigidDynamicLockFlags LockFlags = (physx::PxRigidDynamicLockFlags)0;
     physx::PxRigidActor* actor = nullptr;
+    physx::PxTransform m_compoundLocalOffset = physx::PxTransform(physx::PxIdentity);
 
     BaseCube(Vector3 Pos, Vector3 Sz);
     virtual ~BaseCube();

@@ -99,7 +99,7 @@ void BaseCube::syncPhysics() {
         return;
     }
 
-    physx::PxTransform pose = actor->getGlobalPose();
+    physx::PxTransform pose = actor->getGlobalPose().transform(m_compoundLocalOffset);
     Vector3    worldPos(pose.p.x, pose.p.y, pose.p.z);
     Quaternion worldRot(pose.q.w, pose.q.x, pose.q.y, pose.q.z);
 

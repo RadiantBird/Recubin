@@ -12,6 +12,10 @@
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/Skybox.hpp>
+#include <Instances/Rope.hpp>
+#include <Instances/Rod.hpp>
+#include <Instances/Weld.hpp>
+#include <Instances/Motor.hpp>
 #include <Core/AudioService.hpp>
 #include <iostream>
 #include <fstream>
@@ -78,6 +82,8 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
                     bag->addChild(inst);
                 }
             }
+            resolveConstraintRefs(bag.get());
+            for (auto& [n, sing] : s_singletons) resolveConstraintRefs(sing.get());
             return bag;
         }
 
@@ -92,10 +98,15 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
                     bag->addChild(inst);
                 }
             }
+            resolveConstraintRefs(bag.get());
+            for (auto& [n, sing] : s_singletons) resolveConstraintRefs(sing.get());
             return bag;
         }
 
-        return parseInstance(root);
+        auto result = parseInstance(root);
+        resolveConstraintRefs(result.get());
+        for (auto& [n, sing] : s_singletons) resolveConstraintRefs(sing.get());
+        return result;
     } catch (const std::exception& e) {
         std::cerr << "[SceneLoader] Exception: " << e.what() << std::endl;
         return nullptr;
@@ -168,8 +179,59 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     }
     if (className == "Lighting") return std::make_shared<Lighting>();
     if (className == "Instance") return std::make_shared<Instance>("Instance");
+    if (className == "Rope")  return std::make_shared<Rope>();
+    if (className == "Rod")   return std::make_shared<Rod>();
+    if (className == "Weld")  return std::make_shared<Weld>();
+    if (className == "Motor") return std::make_shared<Motor>();
 
     return nullptr;
+}
+
+void SceneLoader::resolveConstraintRefs(Instance* node) {
+    if (!node) return;
+
+    if (node->IsA("Workspace")) {
+        // Workspace の直下の制約インスタンスに対してキューブ名を解決する
+        auto resolve = [&](const std::string& cubeName) -> std::shared_ptr<BaseCube> {
+            auto* child = node->getChild(cubeName);
+            if (child && child->IsA("BaseCube")) {
+                return std::static_pointer_cast<BaseCube>(child->shared_from_this());
+            }
+            return nullptr;
+        };
+
+        for (auto& [name, child] : node->children) {
+            if (child->IsA("Rope")) {
+                auto rope = std::static_pointer_cast<Rope>(child);
+                auto c0 = resolve(rope->m_cube0Name);
+                auto c1 = resolve(rope->m_cube1Name);
+                if (c0 && c1) rope->setCubes(c0, c1);
+                else std::cerr << "[SceneLoader] Rope \"" << rope->Name << "\": cube not found\n";
+            } else if (child->IsA("Rod")) {
+                auto rod = std::static_pointer_cast<Rod>(child);
+                auto c0 = resolve(rod->m_cube0Name);
+                auto c1 = resolve(rod->m_cube1Name);
+                if (c0 && c1) rod->setCubes(c0, c1);
+                else std::cerr << "[SceneLoader] Rod \"" << rod->Name << "\": cube not found\n";
+            } else if (child->IsA("Weld")) {
+                auto weld = std::static_pointer_cast<Weld>(child);
+                auto c0 = resolve(weld->m_cube0Name);
+                auto c1 = resolve(weld->m_cube1Name);
+                if (c0 && c1) weld->setCubes(c0, c1);
+                else std::cerr << "[SceneLoader] Weld \"" << weld->Name << "\": cube not found\n";
+            } else if (child->IsA("Motor")) {
+                auto motor = std::static_pointer_cast<Motor>(child);
+                auto c0 = resolve(motor->m_cube0Name);
+                auto c1 = resolve(motor->m_cube1Name);
+                if (c0 && c1) motor->setCubes(c0, c1);
+                else std::cerr << "[SceneLoader] Motor \"" << motor->Name << "\": cube not found\n";
+            }
+        }
+    }
+
+    for (auto& [name, child] : node->children) {
+        resolveConstraintRefs(child.get());
+    }
 }
 
 void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
@@ -180,7 +242,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     // プロパティ
     bool hasProps = inst->IsA("Spatial") || inst->GetClassName() == "Script"
                  || inst->GetClassName() == "Sound" || inst->GetClassName() == "Decal"
-                 || inst->GetClassName() == "Lighting" || inst->GetClassName() == "Skybox";
+                 || inst->GetClassName() == "Lighting" || inst->GetClassName() == "Skybox"
+                 || inst->IsA("Rope") || inst->IsA("Rod")
+                 || inst->IsA("Weld") || inst->IsA("Motor");
     if (hasProps) {
         out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
 
@@ -243,6 +307,35 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "Looped"      << YAML::Value << snd->isLooping();
             out << YAML::Key << "SoundGroup"  << YAML::Value << snd->getSoundGroup();
             out << YAML::Key << "AutoPlay"    << YAML::Value << snd->getAutoPlay();
+        }
+        if (inst->IsA("Rope")) {
+            const Rope* r = static_cast<const Rope*>(inst);
+            out << YAML::Key << "Cube0"       << YAML::Value << r->m_cube0Name;
+            out << YAML::Key << "Cube1"       << YAML::Value << r->m_cube1Name;
+            out << YAML::Key << "MaxDistance" << YAML::Value << r->MaxDistance;
+            out << YAML::Key << "Stiffness"   << YAML::Value << r->Stiffness;
+            out << YAML::Key << "Damping"     << YAML::Value << r->Damping;
+        }
+        if (inst->IsA("Rod")) {
+            const Rod* r = static_cast<const Rod*>(inst);
+            out << YAML::Key << "Cube0" << YAML::Value << r->m_cube0Name;
+            out << YAML::Key << "Cube1" << YAML::Value << r->m_cube1Name;
+        }
+        if (inst->IsA("Weld")) {
+            const Weld* w = static_cast<const Weld*>(inst);
+            out << YAML::Key << "Cube0" << YAML::Value << w->m_cube0Name;
+            out << YAML::Key << "Cube1" << YAML::Value << w->m_cube1Name;
+        }
+        if (inst->IsA("Motor")) {
+            const Motor* m = static_cast<const Motor*>(inst);
+            out << YAML::Key << "Cube0" << YAML::Value << m->m_cube0Name;
+            out << YAML::Key << "Cube1" << YAML::Value << m->m_cube1Name;
+            out << YAML::Key << "Axis"  << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << m->Axis.x << m->Axis.y << m->Axis.z
+                << YAML::EndSeq;
+            out << YAML::Key << "DriveVelocity" << YAML::Value << m->DriveVelocity;
+            out << YAML::Key << "MaxForce"      << YAML::Value << m->MaxForce;
         }
 
         out << YAML::EndMap;

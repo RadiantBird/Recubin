@@ -15,6 +15,12 @@ void Workspace::registerCube(const std::shared_ptr<Instance>& c) {
     }
 }
 
+void Workspace::registerConstraint(const std::shared_ptr<Instance>& c) {
+    if (std::find(pendingConstraints.begin(), pendingConstraints.end(), c) == pendingConstraints.end()) {
+        pendingConstraints.push_back(c);
+    }
+}
+
 Workspace::Workspace() : Instance("Workspace") {}
 
 Workspace::~Workspace() {

@@ -35,4 +35,5 @@ private:
      */
     static std::shared_ptr<Instance> createInstance(const std::string& className);
     static void saveNode(YAML::Emitter& out, Instance* inst);
+    static void resolveConstraintRefs(Instance* root);
 };

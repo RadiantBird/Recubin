@@ -1,0 +1,57 @@
+Root:
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Children:
+        - ClassName: Cube
+          Name: Baseplate
+          Properties:
+            Position: [0, -10, 0]
+            Size: [64, 1, 64]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.3, 0.3, 0.3, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        # 固定ピボット
+        - ClassName: Cube
+          Name: Pivot
+          Properties:
+            Position: [0, 5, -10]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.5, 0, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        # 振り子として振れる錘（3m 離れた位置に配置）
+        # Rod が距離を維持したまま回転を許可するため、振り子として振れる
+        - ClassName: Cube
+          Name: Bob
+          Properties:
+            Position: [3, 5, -10]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.2, 0.8, 0.2, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        # Rod: Pivot - Bob 間の距離を固定、回転は自由
+        # 結果: Bob が振り子のように Pivot の周りを回転する
+        - ClassName: Rod
+          Name: RodTest
+          Properties:
+            Cube0: Pivot
+            Cube1: Bob
+
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction: [1, -1, -1]
+        Brightness: 1

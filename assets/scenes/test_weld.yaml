@@ -1,0 +1,57 @@
+Root:
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Children:
+        - ClassName: Cube
+          Name: Baseplate
+          Properties:
+            Position: [0, -10, 0]
+            Size: [64, 1, 64]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.3, 0.3, 0.3, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        # 溶接される2つのキューブ（隣接配置）
+        # Weld によって PartA と PartB が1つの剛体として動く
+        - ClassName: Cube
+          Name: PartA
+          Properties:
+            Position: [0, 5, -10]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.2, 0.2, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        - ClassName: Cube
+          Name: PartB
+          Properties:
+            Position: [1, 5, -10]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.2, 0.2, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        # Weld: PartA - PartB を1剛体として統合
+        # キャラクターで押しても2体は一体として動く
+        # ※連鎖 Weld（PartB を別の Weld に再利用する）は現状未対応
+        - ClassName: Weld
+          Name: WeldAB
+          Properties:
+            Cube0: PartA
+            Cube1: PartB
+
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction: [1, -1, -1]
+        Brightness: 1

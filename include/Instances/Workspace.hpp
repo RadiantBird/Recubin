@@ -11,12 +11,17 @@ class Workspace : public Instance {
         // 信頼できるクラスのみに操作を許可
         friend class Script;
         friend class BaseCube;
+        friend class Rope;
+        friend class Rod;
+        friend class Weld;
+        friend class Motor;
 
         Physics* physicsEngine = nullptr; // Physics エンジンへのポインタ
 
         void registerScript(const std::shared_ptr<Instance>& s);
         void unregisterScript(const std::shared_ptr<Instance>& s);
         void registerCube(const std::shared_ptr<Instance>& c);
+        void registerConstraint(const std::shared_ptr<Instance>& c);
 
         // !! <DO NOT UNREGISTER THE CUBE, IT IS HANDLED BY "physics" CLASS.> !!
         // void unregisterCube(Instance* c) {
@@ -25,6 +30,7 @@ class Workspace : public Instance {
 
     public:
         std::vector<std::shared_ptr<Instance>> pendingInstances;
+        std::vector<std::shared_ptr<Instance>> pendingConstraints;
         std::vector<std::shared_ptr<Instance>> scripts;
         
         Workspace();

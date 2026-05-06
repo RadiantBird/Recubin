@@ -2,6 +2,10 @@
 #include <include/PhysX/PxPhysicsAPI.h>
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/BaseCube.hpp>
+#include <include/Instances/Rope.hpp>
+#include <include/Instances/Rod.hpp>
+#include <include/Instances/Weld.hpp>
+#include <include/Instances/Motor.hpp>
 #include <include/Util/Material.hpp>
 #include <include/Math/Quaternion.hpp>
 #include <vector>
@@ -40,6 +44,12 @@ private:
     };
     std::vector<PendingOp> m_pendingOps;
 
+    struct ConstraintEntry {
+        std::weak_ptr<Instance> constraint;
+        physx::PxJoint* joint = nullptr; // Weld は nullptr（compound 管理）
+    };
+    std::vector<ConstraintEntry> m_constraints;
+
 public:
     void init();
     virtual ~Physics();
@@ -48,10 +58,16 @@ public:
     void recreateActor(const std::shared_ptr<BaseCube>& cube);
     void removeCube(const std::shared_ptr<BaseCube>& cube);
 
-    void clearCubes() { cubes.clear(); m_pendingOps.clear(); }
+    void clearCubes();
 
     void enqueueResize(const std::shared_ptr<BaseCube>& cube);
     void enqueueSetRotation(const std::shared_ptr<BaseCube>& cube, Quaternion rot);
+
+    void createRope(const std::shared_ptr<Rope>& rope);
+    void createRod(const std::shared_ptr<Rod>& rod);
+    void createWeld(const std::shared_ptr<Weld>& weld);
+    void createMotor(const std::shared_ptr<Motor>& motor);
+    void removeConstraint(const std::shared_ptr<Instance>& c);
 
     bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, physx::PxRigidActor* ignoreActor = nullptr);
 };

@@ -1,17 +1,12 @@
 Root:
   Children:
-    - ClassName: Lighting
-      Name: Lighting
-      Properties:
-        Direction: [1, -1, -1]
-        Brightness: 1
     - ClassName: Workspace
       Name: Workspace
       Children:
         - ClassName: Cube
           Name: Baseplate
           Properties:
-            Position: [0, -0.54397273, 0]
+            Position: [0, -10, 0]
             Size: [64, 1, 64]
             Rotation: [0, 0, 0, 1]
             Color: [0.3, 0.3, 0.3, 1]
@@ -19,6 +14,8 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+
+        # ヒンジの固定側（壁に固定）
         - ClassName: Cube
           Name: Base
           Properties:
@@ -30,6 +27,8 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+
+        # 回転するアーム（Base の +X 面に接着、Y 軸周りに回転）
         - ClassName: Cube
           Name: Arm
           Properties:
@@ -41,11 +40,20 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+
+        # Motor: Base の +X 面を接着面、Y 軸周りにモーター回転
+        # Arm が Base の周りを Y 軸で回り続ける
         - ClassName: Motor
           Name: MotorTest
           Properties:
             Cube0: Base
             Cube1: Arm
             Axis: [0, 1, 0]
-            DriveVelocity: 2
-            MaxForce: 5000
+            DriveVelocity: 2.0
+            MaxForce: 5000.0
+
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction: [1, -1, -1]
+        Brightness: 1

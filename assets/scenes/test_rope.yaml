@@ -1,0 +1,58 @@
+Root:
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Children:
+        - ClassName: Cube
+          Name: Baseplate
+          Properties:
+            Position: [0, -10, 0]
+            Size: [64, 1, 64]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.3, 0.3, 0.3, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        # ロープの固定端（天井に固定）
+        - ClassName: Cube
+          Name: Anchor
+          Properties:
+            Position: [0, 8, -10]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.5, 0, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        # ロープで吊られるオモリ（4m 下に配置）
+        - ClassName: Cube
+          Name: Weight
+          Properties:
+            Position: [0, 4, -10]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.4, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        # Rope: Anchor - Weight 間の最大距離を生成時の距離（4m）に固定
+        # Weight が 4m 以上離れようとすると引張力が働く
+        - ClassName: Rope
+          Name: RopeTest
+          Properties:
+            Cube0: Anchor
+            Cube1: Weight
+            Stiffness: 200.0
+            Damping: 20.0
+
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction: [1, -1, -1]
+        Brightness: 1
