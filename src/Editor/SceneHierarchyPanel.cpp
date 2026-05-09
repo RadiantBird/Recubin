@@ -8,6 +8,10 @@
 #include <Instances/Sound.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/Weld.hpp>
+#include <Instances/Motor.hpp>
+#include <Instances/Rod.hpp>
+#include <Instances/Rope.hpp>
 #include <Core/AudioService.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
@@ -89,6 +93,14 @@ void SceneHierarchyPanel::onRender() {
 
     drawNode(systemRoot ? systemRoot : static_cast<Instance*>(workspace));
 
+    // 選択中インスタンスへの右クリックメニュー（ウィンドウ内の空白エリアでも表示）
+    if (selectedInstance &&
+        ImGui::BeginPopupContextWindow("##hier_wnd_ctx",
+            ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
+        renderContextMenu(selectedInstance);
+        ImGui::EndPopup();
+    }
+
     renderNewScriptDialog();
 
     ImGui::End();
@@ -149,136 +161,7 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     // ---- 右クリックコンテキストメニュー ----
     std::string popupId = "ctx##" + std::to_string(reinterpret_cast<uintptr_t>(inst));
     if (ImGui::BeginPopupContextItem(popupId.c_str())) {
-        // --- Insert Object ---
-        if (ImGui::BeginMenu("Insert Object")) {
-            if (ImGui::MenuItem("Cube") && m_history) {
-                auto parentSp = inst->shared_from_this();
-                auto cube = std::make_shared<Cube>(Vector3(0, 5, 0), Vector3(1, 1, 1),
-                                                   Cube::defaultTextureID);
-                std::string name = "Cube";
-                int n = 1;
-                while (parentSp->children.count(name) > 0)
-                    name = "Cube" + std::to_string(n++);
-                cube->Name = name;
-                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, cube));
-            }
-            if (ImGui::MenuItem("Cylinder") && m_history) {
-                auto parentSp = inst->shared_from_this();
-                auto obj = std::make_shared<Cylinder>(Vector3(0, 5, 0), Vector3(1, 1, 1));
-                std::string name = "Cylinder";
-                int n = 1;
-                while (parentSp->children.count(name) > 0)
-                    name = "Cylinder" + std::to_string(n++);
-                obj->Name = name;
-                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-            }
-            if (ImGui::MenuItem("TriangularPrism") && m_history) {
-                auto parentSp = inst->shared_from_this();
-                auto obj = std::make_shared<TriangularPrism>(Vector3(0, 5, 0), Vector3(1, 1, 1));
-                std::string name = "TriangularPrism";
-                int n = 1;
-                while (parentSp->children.count(name) > 0)
-                    name = "TriangularPrism" + std::to_string(n++);
-                obj->Name = name;
-                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-            }
-            if (ImGui::MenuItem("Sphere") && m_history) {
-                auto parentSp = inst->shared_from_this();
-                auto obj = std::make_shared<Sphere>(Vector3(0, 5, 0), Vector3(1, 1, 1));
-                std::string name = "Sphere";
-                int n = 1;
-                while (parentSp->children.count(name) > 0)
-                    name = "Sphere" + std::to_string(n++);
-                obj->Name = name;
-                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-            }
-            if (ImGui::MenuItem("Script")) {
-                m_pendingScriptParent = inst->shared_from_this();
-                m_openScriptDialog    = true;
-            }
-            if (ImGui::MenuItem("Sound", nullptr, false, AudioService::instance != nullptr) && m_history) {
-                auto parentSp = inst->shared_from_this();
-                auto sound = std::make_shared<Sound>(*AudioService::instance);
-                std::string name = "Sound";
-                int n = 1;
-                while (parentSp->children.count(name) > 0)
-                    name = "Sound" + std::to_string(n++);
-                sound->Name = name;
-                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, sound));
-            }
-            if (ImGui::MenuItem("Decal") && m_history) {
-                auto parentSp = inst->shared_from_this();
-                auto decal = std::make_shared<Decal>(0, Face::Front);
-                std::string name = "Decal";
-                int n = 1;
-                while (parentSp->children.count(name) > 0)
-                    name = "Decal" + std::to_string(n++);
-                decal->Name = name;
-                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, decal));
-            }
-            if (ImGui::MenuItem("Lighting") && m_history) {
-                auto parentSp = inst->shared_from_this();
-                auto light = std::make_shared<Lighting>();
-                std::string name = "Lighting";
-                int n = 1;
-                while (parentSp->children.count(name) > 0)
-                    name = "Lighting" + std::to_string(n++);
-                light->Name = name;
-                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, light));
-            }
-            ImGui::EndMenu();
-        }
-
-        ImGui::Separator();
-
-        // --- Delete ---
-        bool doDelete = ImGui::MenuItem("Delete", "BackSpace");
-        if (doDelete && m_history) {
-            auto parent = inst->Parent.lock();
-            if (parent) {
-                auto childPtr = parent->children.at(inst->Name);
-                m_history->execute(std::make_unique<RemoveInstanceCommand>(
-                    parent, inst->Name, childPtr));
-                if (selectedInstance == inst) selectedInstance = nullptr;
-            }
-        }
-
-        ImGui::Separator();
-
-        // --- Copy ---
-        if (ImGui::MenuItem("Copy", "Ctrl+C") && m_clipboard) {
-            *m_clipboard = inst->clone();
-        }
-
-        // --- Paste (sibling) ---
-        bool canPaste = m_clipboard && *m_clipboard;
-        if (ImGui::MenuItem("Paste", "Ctrl+V", false, canPaste)) {
-            if (canPaste && m_history) {
-                auto parent = inst->Parent.lock();
-                if (parent) {
-                    auto cloned = (*m_clipboard)->clone();
-                    std::string base = cloned->Name;
-                    int n = 1;
-                    while (parent->children.count(cloned->Name) > 0)
-                        cloned->Name = base + std::to_string(n++);
-                    m_history->execute(std::make_unique<AddInstanceCommand>(parent, cloned));
-                }
-            }
-        }
-
-        // --- Paste as Child ---
-        if (ImGui::MenuItem("Paste as Child", "Ctrl+Shift+V", false, canPaste)) {
-            if (canPaste && m_history) {
-                auto parentSp = inst->shared_from_this();
-                auto cloned = (*m_clipboard)->clone();
-                std::string base = cloned->Name;
-                int n = 1;
-                while (parentSp->children.count(cloned->Name) > 0)
-                    cloned->Name = base + std::to_string(n++);
-                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, cloned));
-            }
-        }
-
+        renderContextMenu(inst);
         ImGui::EndPopup();
     }
 
@@ -364,5 +247,150 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
             m_history->execute(std::make_unique<AddInstanceCommand>(m_pickParent, script));
         }
         m_pickParent.reset();
+    }
+}
+
+// ヘルパー: インスタンス名の重複を避けて連番を付ける
+static std::string uniqueName(const std::shared_ptr<Instance>& parent, const std::string& base) {
+    std::string name = base;
+    int n = 1;
+    while (parent->children.count(name) > 0)
+        name = base + std::to_string(n++);
+    return name;
+}
+
+void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
+    auto parentSp = inst->shared_from_this();
+
+    // ---- Cube系 ----
+    if (ImGui::BeginMenu("Cube系")) {
+        if (ImGui::MenuItem("Cube") && m_history) {
+            auto obj = std::make_shared<Cube>(Vector3(0, 5, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+            obj->Name = uniqueName(parentSp, "Cube");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("Cylinder") && m_history) {
+            auto obj = std::make_shared<Cylinder>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+            obj->Name = uniqueName(parentSp, "Cylinder");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("TriangularPrism") && m_history) {
+            auto obj = std::make_shared<TriangularPrism>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+            obj->Name = uniqueName(parentSp, "TriangularPrism");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("Sphere") && m_history) {
+            auto obj = std::make_shared<Sphere>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+            obj->Name = uniqueName(parentSp, "Sphere");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        ImGui::EndMenu();
+    }
+
+    // ---- 効果 ----
+    if (ImGui::BeginMenu("効果")) {
+        if (ImGui::MenuItem("Sound", nullptr, false, AudioService::instance != nullptr) && m_history) {
+            auto obj = std::make_shared<Sound>(*AudioService::instance);
+            obj->Name = uniqueName(parentSp, "Sound");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (AudioService::instance == nullptr)
+            ImGui::SetItemTooltip("AudioService が利用できません");
+        if (ImGui::MenuItem("Decal") && m_history) {
+            auto obj = std::make_shared<Decal>(0, Face::Front);
+            obj->Name = uniqueName(parentSp, "Decal");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        ImGui::EndMenu();
+    }
+
+    // ---- その他 ----
+    if (ImGui::BeginMenu("その他")) {
+        if (ImGui::MenuItem("Script")) {
+            m_pendingScriptParent = parentSp;
+            m_openScriptDialog    = true;
+        }
+        if (ImGui::MenuItem("Lighting") && m_history) {
+            auto obj = std::make_shared<Lighting>();
+            obj->Name = uniqueName(parentSp, "Lighting");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        ImGui::EndMenu();
+    }
+
+    // ---- 物理制約 ----
+    if (ImGui::BeginMenu("物理制約")) {
+        ImGui::TextDisabled("2つのCube名をPropertiesで設定");
+        ImGui::Separator();
+        if (ImGui::MenuItem("Weld") && m_history) {
+            auto obj = std::make_shared<Weld>();
+            obj->Name = uniqueName(parentSp, "Weld");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("Motor") && m_history) {
+            auto obj = std::make_shared<Motor>();
+            obj->Name = uniqueName(parentSp, "Motor");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("Rod") && m_history) {
+            auto obj = std::make_shared<Rod>();
+            obj->Name = uniqueName(parentSp, "Rod");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("Rope") && m_history) {
+            auto obj = std::make_shared<Rope>();
+            obj->Name = uniqueName(parentSp, "Rope");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        ImGui::EndMenu();
+    }
+}
+
+void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
+    if (!inst) return;
+
+    if (ImGui::BeginMenu("Insert Object")) {
+        renderInsertMenu(inst);
+        ImGui::EndMenu();
+    }
+
+    ImGui::Separator();
+
+    // --- Delete ---
+    if (ImGui::MenuItem("Delete", "BackSpace") && m_history) {
+        auto parent = inst->Parent.lock();
+        if (parent) {
+            auto childPtr = parent->children.at(inst->Name);
+            m_history->execute(std::make_unique<RemoveInstanceCommand>(parent, inst->Name, childPtr));
+            if (selectedInstance == inst) selectedInstance = nullptr;
+        }
+    }
+
+    ImGui::Separator();
+
+    // --- Copy ---
+    if (ImGui::MenuItem("Copy", "Ctrl+C") && m_clipboard) {
+        *m_clipboard = inst->clone();
+    }
+
+    // --- Paste (sibling) ---
+    bool canPaste = m_clipboard && *m_clipboard;
+    if (ImGui::MenuItem("Paste", "Ctrl+V", false, canPaste) && m_history) {
+        auto parent = inst->Parent.lock();
+        if (parent) {
+            auto cloned = (*m_clipboard)->clone();
+            std::string base = cloned->Name;
+            cloned->Name = uniqueName(parent, base);
+            m_history->execute(std::make_unique<AddInstanceCommand>(parent, cloned));
+        }
+    }
+
+    // --- Paste as Child ---
+    if (ImGui::MenuItem("Paste as Child", "Ctrl+Shift+V", false, canPaste) && m_history) {
+        auto parentSp = inst->shared_from_this();
+        auto cloned = (*m_clipboard)->clone();
+        std::string base = cloned->Name;
+        cloned->Name = uniqueName(parentSp, base);
+        m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, cloned));
     }
 }

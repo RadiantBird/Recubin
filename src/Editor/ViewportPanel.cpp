@@ -92,6 +92,14 @@ void ViewportPanel::onRender() {
     if (h < 1) h = 1;
     resizeFBO(w, h);
 
+    // コンテンツ領域の画面座標原点（タイトルバー分を除いた正確な左上）
+    ImVec2 contentOrigin;
+    {
+        ImVec2 wp = ImGui::GetWindowPos();
+        ImVec2 cm = ImGui::GetWindowContentRegionMin();
+        contentOrigin = ImVec2(wp.x + cm.x, wp.y + cm.y);
+    }
+
     // FBO のカラーテクスチャを表示
     // ImTextureRef で GLuint を包む（v1.92 以降の API）
     ImTextureRef texRef((ImTextureID)(uintptr_t)colorTexture);
@@ -273,55 +281,69 @@ void ViewportPanel::onRender() {
         return pos;
     };
 
-    // ---- Select モード: レイキャストでオブジェクト選択 ----
-    if (selectOnly && isHoveringViewport && ImGui::IsMouseClicked(0) && user && workspace) {
+    // ---- クリック処理: 選択 & ドラッグ開始（全モード共通） ----
+    // Selectモードでも非Selectモードでもレイキャストでオブジェクトを選択できる。
+    // 非Selectモードでは現在の選択物をクリックしたときのみドラッグ開始する。
+    if (isHoveringViewport && ImGui::IsMouseClicked(0) && !ImGuizmo::IsUsing() && user && workspace) {
         ImVec2 mousePos = ImGui::GetMousePos();
-        ImVec2 winPos   = ImGui::GetWindowPos();
-        Vector3 rayDir = makeRay(mousePos.x - winPos.x, mousePos.y - winPos.y);
+        Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
         Vector3 rayOri = user->cpos;
 
-        Instance* nearest = nullptr;
-        float nearestT = 1e30f;
-
-        auto castRay = [&](auto& self, Instance* inst) -> void {
-            if (!inst) return;
-            if (inst->GetClassName() == "Skybox") return;
-            if (inst->IsA("BaseCube")) {
-                Spatial* s = static_cast<Spatial*>(inst);
-                Vector3 wp = s->getWorldPosition();
-                float bmin[3] = { wp.x - s->Size.x * 0.5f,
-                                   wp.y - s->Size.y * 0.5f,
-                                   wp.z - s->Size.z * 0.5f };
-                float bmax[3] = { wp.x + s->Size.x * 0.5f,
-                                   wp.y + s->Size.y * 0.5f,
-                                   wp.z + s->Size.z * 0.5f };
-                float rd[3] = { rayDir.x, rayDir.y, rayDir.z };
-                float ro[3] = { rayOri.x, rayOri.y, rayOri.z };
-                float tmin = -1e30f, tmax = 1e30f;
-                bool hit = true;
-                for (int i = 0; i < 3 && hit; ++i) {
-                    if (std::abs(rd[i]) < 1e-8f) {
-                        if (ro[i] < bmin[i] || ro[i] > bmax[i]) hit = false;
-                    } else {
-                        float t1 = (bmin[i] - ro[i]) / rd[i];
-                        float t2 = (bmax[i] - ro[i]) / rd[i];
-                        if (t1 > t2) std::swap(t1, t2);
-                        tmin = (std::max)(tmin, t1);
-                        tmax = (std::min)(tmax, t2);
-                        if (tmax < tmin) hit = false;
-                    }
-                }
-                if (hit && tmax >= 0.0f) {
-                    float t = (tmin >= 0.0f) ? tmin : tmax;
-                    if (t < nearestT) { nearestT = t; nearest = inst; }
+        // OBB スラブ法: レイをオブジェクトのローカル空間に変換して AABB テストする
+        // → 回転したオブジェクトでも正確に判定できる
+        auto obbHit = [](const Vector3& ori, const Vector3& dir,
+                         const CFrame& worldCF, const Vector3& size) -> float {
+            // レイをオブジェクトローカル空間へ変換
+            Quaternion invRot = worldCF.Rotation.conjugate();
+            Vector3 lo = invRot.rotate(ori - worldCF.Position);
+            Vector3 ld = invRot.rotate(dir);
+            float ld3[3] = { ld.x, ld.y, ld.z };
+            float lo3[3] = { lo.x, lo.y, lo.z };
+            float hs[3]  = { size.x * 0.5f, size.y * 0.5f, size.z * 0.5f };
+            float tmin = -1e30f, tmax = 1e30f;
+            for (int i = 0; i < 3; ++i) {
+                if (std::abs(ld3[i]) < 1e-8f) {
+                    if (lo3[i] < -hs[i] || lo3[i] > hs[i]) return -1.0f;
+                } else {
+                    float t1 = (-hs[i] - lo3[i]) / ld3[i];
+                    float t2 = ( hs[i] - lo3[i]) / ld3[i];
+                    if (t1 > t2) std::swap(t1, t2);
+                    tmin = (std::max)(tmin, t1);
+                    tmax = (std::min)(tmax, t2);
+                    if (tmax < tmin) return -1.0f;
                 }
             }
-            for (auto const& [_, child] : inst->getChildren())
-                self(self, child.get());
+            if (tmax < 0.0f) return -1.0f;
+            return (tmin >= 0.0f) ? tmin : tmax;
         };
-        castRay(castRay, workspace);
 
-        if (selectedInstance) *selectedInstance = nearest;
+        // Step 1: 現在の選択物のOBBにヒットしたか判定（非Selectモードのドラッグ用）
+        bool hitSelected = false;
+        if (!selectOnly && selectedInstance && *selectedInstance && (*selectedInstance)->IsA("Spatial")) {
+            Spatial* sp = static_cast<Spatial*>(*selectedInstance);
+            float t = obbHit(rayOri, rayDir, sp->getWorldCFrame(), sp->Size);
+            hitSelected = (t >= 0.0f);
+        }
+        m_isDraggingSelected = hitSelected;
+
+        // Step 2: Selectモード、または選択物にヒットしなかった場合 → レイキャストで選択変更
+        if ((selectOnly || !hitSelected) && selectedInstance) {
+            Instance* nearest = nullptr;
+            float nearestT = 1e30f;
+            auto castRay = [&](auto& self, Instance* inst) -> void {
+                if (!inst) return;
+                if (inst->GetClassName() == "Skybox") return;
+                if (inst->IsA("BaseCube")) {
+                    Spatial* s = static_cast<Spatial*>(inst);
+                    float t = obbHit(rayOri, rayDir, s->getWorldCFrame(), s->Size);
+                    if (t >= 0.0f && t < nearestT) { nearestT = t; nearest = inst; }
+                }
+                for (auto const& [_, child] : inst->getChildren())
+                    self(self, child.get());
+            };
+            castRay(castRay, workspace);
+            *selectedInstance = nearest;
+        }
     }
 
     // フォーカス状態の可視化（フォーカス時に薄いボーダーを描画）
@@ -369,8 +391,7 @@ void ViewportPanel::onRender() {
             ImGuizmo::SetOrthographic(false);
             ImGuizmo::SetDrawlist();
 
-            ImVec2 winPos = ImGui::GetWindowPos();
-            ImGuizmo::SetRect(winPos.x, winPos.y, (float)w, (float)h);
+            ImGuizmo::SetRect(contentOrigin.x, contentOrigin.y, (float)w, (float)h);
 
             float snapArr[3] = { snapTranslateVal, snapTranslateVal, snapTranslateVal };
             float rotSnap[3] = { snapRotateVal,    snapRotateVal,    snapRotateVal    };
@@ -456,39 +477,6 @@ void ViewportPanel::onRender() {
         }
     }
 
-    // クリック開始フレームに選択キューブの AABB を判定（ギズモハンドル操作中は除外）
-    if (ImGui::IsMouseClicked(0) && isHoveringViewport && !ImGuizmo::IsUsing()
-            && selectedInstance && *selectedInstance && user) {
-        Instance* clickInst = *selectedInstance;
-        if (clickInst->IsA("Spatial")) {
-            Spatial* sp = static_cast<Spatial*>(clickInst);
-            ImVec2 mp = ImGui::GetMousePos(), wp = ImGui::GetWindowPos();
-            Vector3 dir = makeRay(mp.x - wp.x, mp.y - wp.y);
-            float rd[3] = { dir.x, dir.y, dir.z };
-            float ro[3] = { user->cpos.x, user->cpos.y, user->cpos.z };
-            Vector3 spWorld = sp->getWorldPosition();
-            float bmin[3] = { spWorld.x - sp->Size.x*0.5f,
-                               spWorld.y - sp->Size.y*0.5f,
-                               spWorld.z - sp->Size.z*0.5f };
-            float bmax[3] = { spWorld.x + sp->Size.x*0.5f,
-                               spWorld.y + sp->Size.y*0.5f,
-                               spWorld.z + sp->Size.z*0.5f };
-            float tmin = -1e30f, tmax = 1e30f;
-            bool cubeHit = true;
-            for (int i = 0; i < 3 && cubeHit; ++i) {
-                if (std::abs(rd[i]) < 1e-8f) {
-                    if (ro[i] < bmin[i] || ro[i] > bmax[i]) cubeHit = false;
-                } else {
-                    float t1 = (bmin[i]-ro[i])/rd[i], t2 = (bmax[i]-ro[i])/rd[i];
-                    if (t1 > t2) std::swap(t1, t2);
-                    tmin = (std::max)(tmin, t1); tmax = (std::min)(tmax, t2);
-                    if (tmax < tmin) cubeHit = false;
-                }
-            }
-            m_isDraggingSelected = cubeHit && tmax >= 0.0f;
-        }
-    }
-
     // ドラッグ開始時に before をキャプチャ
     if (!wasDragging && m_isDraggingSelected
             && selectedInstance && *selectedInstance
@@ -505,8 +493,7 @@ void ViewportPanel::onRender() {
         if (inst->IsA("Spatial")) {
             Spatial* s = static_cast<Spatial*>(inst);
             ImVec2 mp = ImGui::GetMousePos();
-            ImVec2 wp = ImGui::GetWindowPos();
-            Vector3 dir = makeRay(mp.x - wp.x, mp.y - wp.y);
+            Vector3 dir = makeRay(mp.x - contentOrigin.x, mp.y - contentOrigin.y);
             Vector3 ori = user->cpos;
 
             [&]() {

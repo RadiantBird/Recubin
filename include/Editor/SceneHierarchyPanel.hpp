@@ -34,5 +34,7 @@ private:
     std::shared_ptr<Instance> m_pickParent;
 
     void drawNode(Instance* inst);
+    void renderInsertMenu(Instance* inst);
+    void renderContextMenu(Instance* inst);
     void renderNewScriptDialog();
 };
