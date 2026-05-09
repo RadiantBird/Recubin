@@ -7,6 +7,10 @@
 #include <Instances/Decal.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/Skybox.hpp>
+#include <Instances/Rope.hpp>
+#include <Instances/Rod.hpp>
+#include <Instances/Weld.hpp>
+#include <Instances/Motor.hpp>
 #include <Util/Color4.hpp>
 #include <include/imgui/imgui.h>
 #include <unordered_map>
@@ -118,6 +122,26 @@ static void drawVec3Field(const char* id,
 
         ImGui::PopID();
         ImGui::Unindent(12.0f);
+    }
+}
+
+static void drawConstraintCubeRef(const char* label, std::string& nameRef,
+                                   const char* prop,
+                                   const std::shared_ptr<Instance>& inst,
+                                   CommandHistory* history)
+{
+    static std::unordered_map<std::string, std::string> s_before;
+    char buf[256] = {};
+    strncpy_s(buf, nameRef.c_str(), sizeof(buf) - 1);
+    std::string key = std::string(prop) + "_" + inst->Name;
+    ImGui::InputText(label, buf, sizeof(buf));
+    if (ImGui::IsItemActivated()) s_before[key] = nameRef;
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        std::string after(buf);
+        nameRef = after;
+        if (history && s_before[key] != after)
+            history->record(std::make_unique<SetConstraintCubeNameCommand>(
+                inst, prop, s_before[key], after));
     }
 }
 
@@ -413,6 +437,81 @@ void PropertiesPanel::onRender() {
                 }
             }
         }
+    }
+
+    // ---- Rope ----
+    if (inst->GetClassName() == "Rope") {
+        Rope* rope = static_cast<Rope*>(inst);
+        auto ropeSp = std::static_pointer_cast<Rope>(inst->shared_from_this());
+        ImGui::SeparatorText("Rope");
+
+        drawConstraintCubeRef("Cube0", rope->m_cube0Name, "Cube0", ropeSp, m_history);
+        drawConstraintCubeRef("Cube1", rope->m_cube1Name, "Cube1", ropeSp, m_history);
+
+        static float s_rf;
+        { ImGui::DragFloat("MaxDistance", &rope->MaxDistance, 0.1f, 0.0f, 1e6f);
+          if (ImGui::IsItemActivated()) s_rf = rope->MaxDistance;
+          if (ImGui::IsItemDeactivatedAfterEdit()) {
+              rope->setMaxDistance(rope->MaxDistance);
+              if (m_history) m_history->record(std::make_unique<SetRopeFloatCommand>(ropeSp, "MaxDistance", s_rf, rope->MaxDistance)); } }
+        { ImGui::DragFloat("Stiffness",   &rope->Stiffness,  1.0f, 0.0f, 1e6f);
+          if (ImGui::IsItemActivated()) s_rf = rope->Stiffness;
+          if (ImGui::IsItemDeactivatedAfterEdit()) {
+              rope->setStiffness(rope->Stiffness);
+              if (m_history) m_history->record(std::make_unique<SetRopeFloatCommand>(ropeSp, "Stiffness", s_rf, rope->Stiffness)); } }
+        { ImGui::DragFloat("Damping",     &rope->Damping,    0.1f, 0.0f, 1e6f);
+          if (ImGui::IsItemActivated()) s_rf = rope->Damping;
+          if (ImGui::IsItemDeactivatedAfterEdit()) {
+              rope->setDamping(rope->Damping);
+              if (m_history) m_history->record(std::make_unique<SetRopeFloatCommand>(ropeSp, "Damping", s_rf, rope->Damping)); } }
+    }
+
+    // ---- Rod ----
+    if (inst->GetClassName() == "Rod") {
+        Rod* rod = static_cast<Rod*>(inst);
+        auto rodSp = std::static_pointer_cast<Rod>(inst->shared_from_this());
+        ImGui::SeparatorText("Rod");
+        drawConstraintCubeRef("Cube0", rod->m_cube0Name, "Cube0", rodSp, m_history);
+        drawConstraintCubeRef("Cube1", rod->m_cube1Name, "Cube1", rodSp, m_history);
+    }
+
+    // ---- Weld ----
+    if (inst->GetClassName() == "Weld") {
+        Weld* weld = static_cast<Weld*>(inst);
+        auto weldSp = std::static_pointer_cast<Weld>(inst->shared_from_this());
+        ImGui::SeparatorText("Weld");
+        drawConstraintCubeRef("Cube0", weld->m_cube0Name, "Cube0", weldSp, m_history);
+        drawConstraintCubeRef("Cube1", weld->m_cube1Name, "Cube1", weldSp, m_history);
+    }
+
+    // ---- Motor ----
+    if (inst->GetClassName() == "Motor") {
+        Motor* motor = static_cast<Motor*>(inst);
+        auto motorSp = std::static_pointer_cast<Motor>(inst->shared_from_this());
+        ImGui::SeparatorText("Motor");
+
+        drawConstraintCubeRef("Cube0", motor->m_cube0Name, "Cube0", motorSp, m_history);
+        drawConstraintCubeRef("Cube1", motor->m_cube1Name, "Cube1", motorSp, m_history);
+
+        { static Vector3 s_axisBefore;
+          float ax[3] = { motor->Axis.x, motor->Axis.y, motor->Axis.z };
+          bool ch = ImGui::DragFloat3("Axis", ax, 0.01f, -1.0f, 1.0f, "%.3f");
+          if (ImGui::IsItemActivated()) s_axisBefore = motor->Axis;
+          if (ch) motor->Axis = Vector3(ax[0], ax[1], ax[2]);
+          if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
+              m_history->record(std::make_unique<SetMotorAxisCommand>(motorSp, s_axisBefore, motor->Axis)); }
+
+        static float s_mf;
+        { ImGui::DragFloat("DriveVelocity", &motor->DriveVelocity, 0.1f, -1e4f, 1e4f);
+          if (ImGui::IsItemActivated()) s_mf = motor->DriveVelocity;
+          if (ImGui::IsItemDeactivatedAfterEdit()) {
+              motor->setDriveVelocity(motor->DriveVelocity);
+              if (m_history) m_history->record(std::make_unique<SetMotorFloatCommand>(motorSp, "DriveVelocity", s_mf, motor->DriveVelocity)); } }
+        { ImGui::DragFloat("MaxForce",      &motor->MaxForce,      10.0f, 0.0f, 1e7f);
+          if (ImGui::IsItemActivated()) s_mf = motor->MaxForce;
+          if (ImGui::IsItemDeactivatedAfterEdit()) {
+              motor->setMaxForce(motor->MaxForce);
+              if (m_history) m_history->record(std::make_unique<SetMotorFloatCommand>(motorSp, "MaxForce", s_mf, motor->MaxForce)); } }
     }
 
     ImGui::End();

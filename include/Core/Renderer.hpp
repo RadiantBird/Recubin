@@ -69,4 +69,11 @@ class Renderer {
         void renderImGui(User &user, GLFWwindow* window, Workspace &workspace);
 
         unsigned int loadTexture(const char* path);
+
+        // 制約ビジュアライザ（Rope/Rod）
+        GLuint m_lineVAO    = 0;
+        GLuint m_lineVBO    = 0;
+        GLuint m_lineShader = 0;
+        void initLineRenderer();
+        void renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection);
 };

@@ -33,22 +33,7 @@ Robloxの「Assembly」の概念は、PhysXの PxRigidDynamic そのものです
 
 ## Todoリスト
 (小さい数字から順番にやる)
-
-- 物理制約のテストを実行し、実行ログを保存しておく
-
-- 物理制約の作成 (5)
-  - Rope(最大距離だけを制限)
-  - Rod(距離を固定し、回転を制限しない)
-- アセンブリ剛体(PxRigidDynamic)を利用した溶接の実装 (6)
-  - これを"Weld"Instanceとして定義。
-    - cube0: BaseCube
-    - cube1: BaseCube
-  - アセンブリ化されたすべてのBaseCubeを収集できるようにする(正しく溶接できるように)
-- モーター(ヒンジ)
-  - cube0: BaseCube
-  - cube1: BaseCube
-  接着面をXYZで決定する
-  接着面の中心を作用点とする
+- エディターで物理制約のプロパティを触れるようにする
 
 ## 中断された作業
 - 特にない

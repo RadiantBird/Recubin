@@ -20,6 +20,16 @@ void Motor::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> 
     m_cube1 = cube1;
 }
 
+void Motor::setDriveVelocity(float v) {
+    DriveVelocity = v;
+    if (m_joint) m_joint->setDriveVelocity(v);
+}
+
+void Motor::setMaxForce(float v) {
+    MaxForce = v;
+    if (m_joint) m_joint->setDriveForceLimit(v);
+}
+
 std::string Motor::GetClassName() { return "Motor"; }
 
 bool Motor::IsA(std::string className) {
@@ -37,9 +47,9 @@ void Motor::setProperty(const std::string& name, const YAML::Node& value) {
         Axis.y = value[1].as<float>();
         Axis.z = value[2].as<float>();
     } else if (name == "DriveVelocity") {
-        DriveVelocity = value.as<float>();
+        setDriveVelocity(value.as<float>());
     } else if (name == "MaxForce") {
-        MaxForce = value.as<float>();
+        setMaxForce(value.as<float>());
     } else {
         Instance::setProperty(name, value);
     }

@@ -20,6 +20,24 @@ void Rope::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> c
     m_cube1 = cube1;
 }
 
+void Rope::setMaxDistance(float v) {
+    MaxDistance = v;
+    if (m_joint) m_joint->setMaxDistance(v);
+}
+
+void Rope::setStiffness(float v) {
+    Stiffness = v;
+    if (m_joint) {
+        m_joint->setStiffness(v);
+        m_joint->setDistanceJointFlag(physx::PxDistanceJointFlag::eSPRING_ENABLED, v > 0.0f);
+    }
+}
+
+void Rope::setDamping(float v) {
+    Damping = v;
+    if (m_joint) m_joint->setDamping(v);
+}
+
 std::string Rope::GetClassName() { return "Rope"; }
 
 bool Rope::IsA(std::string className) {
@@ -30,9 +48,9 @@ bool Rope::IsA(std::string className) {
 void Rope::setProperty(const std::string& name, const YAML::Node& value) {
     if      (name == "Cube0")        m_cube0Name   = value.as<std::string>();
     else if (name == "Cube1")        m_cube1Name   = value.as<std::string>();
-    else if (name == "MaxDistance")  MaxDistance   = value.as<float>();
-    else if (name == "Stiffness")    Stiffness     = value.as<float>();
-    else if (name == "Damping")      Damping       = value.as<float>();
+    else if (name == "MaxDistance")  setMaxDistance(value.as<float>());
+    else if (name == "Stiffness")    setStiffness(value.as<float>());
+    else if (name == "Damping")      setDamping(value.as<float>());
     else Instance::setProperty(name, value);
 }
 

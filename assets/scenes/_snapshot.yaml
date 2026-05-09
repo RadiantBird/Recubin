@@ -11,7 +11,7 @@ Root:
         - ClassName: Cube
           Name: Baseplate
           Properties:
-            Position: [0, -0.54397273, 0]
+            Position: [0, -10, 0]
             Size: [64, 1, 64]
             Rotation: [0, 0, 0, 1]
             Color: [0.3, 0.3, 0.3, 1]
@@ -20,32 +20,29 @@ Root:
             CastShadow: true
             Unlit: false
         - ClassName: Cube
-          Name: Base
+          Name: PartA
           Properties:
-            Position: [0, 2, -10]
-            Size: [2, 2, 2]
+            Position: [0, 5, -10]
+            Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0.5, 0.5, 0.5, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Arm
-          Properties:
-            Position: [3, 2, -10]
-            Size: [2, 0.5, 0.5]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.8, 0, 1]
+            Color: [1, 0.2, 0.2, 1]
             Anchored: false
             CanCollide: true
             CastShadow: true
             Unlit: false
-        - ClassName: Motor
-          Name: MotorTest
+        - ClassName: Cube
+          Name: PartB
           Properties:
-            Cube0: Base
-            Cube1: Arm
-            Axis: [0, 1, 0]
-            DriveVelocity: 2
-            MaxForce: 5000
+            Position: [1, 5, -10]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.2, 0.2, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Weld
+          Name: WeldAB
+          Properties:
+            Cube0: PartA
+            Cube1: PartB

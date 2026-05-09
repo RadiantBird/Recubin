@@ -6,6 +6,9 @@
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/Skybox.hpp>
+#include <Instances/Rope.hpp>
+#include <Instances/Motor.hpp>
+#include <yaml-cpp/yaml.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -290,4 +293,79 @@ struct SetSkyboxFaceCommand : Command {
 
     void execute() override { if (m_target) m_target->setSkyboxPath(m_faceIndex, m_after); }
     void undo()    override { if (m_target) m_target->setSkyboxPath(m_faceIndex, m_before); }
+};
+
+// --- 制約の Cube0/Cube1 参照名変更（全制約型に使える） ---
+struct SetConstraintCubeNameCommand : Command {
+    std::shared_ptr<Instance> m_target;
+    std::string m_prop;
+    std::string m_before, m_after;
+
+    SetConstraintCubeNameCommand(std::shared_ptr<Instance> target,
+                                  std::string prop,
+                                  std::string before, std::string after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(std::move(before)), m_after(std::move(after)) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+private:
+    void apply(const std::string& v) {
+        if (!m_target) return;
+        YAML::Node n; n = v;
+        m_target->setProperty(m_prop, n);
+    }
+};
+
+// --- Rope の float プロパティ変更（MaxDistance / Stiffness / Damping） ---
+struct SetRopeFloatCommand : Command {
+    std::shared_ptr<Rope> m_target;
+    std::string m_prop;
+    float m_before, m_after;
+
+    SetRopeFloatCommand(std::shared_ptr<Rope> target, std::string prop, float before, float after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+private:
+    void apply(float v) {
+        if (!m_target) return;
+        if      (m_prop == "MaxDistance") m_target->setMaxDistance(v);
+        else if (m_prop == "Stiffness")   m_target->setStiffness(v);
+        else if (m_prop == "Damping")     m_target->setDamping(v);
+    }
+};
+
+// --- Motor の float プロパティ変更（DriveVelocity / MaxForce） ---
+struct SetMotorFloatCommand : Command {
+    std::shared_ptr<Motor> m_target;
+    std::string m_prop;
+    float m_before, m_after;
+
+    SetMotorFloatCommand(std::shared_ptr<Motor> target, std::string prop, float before, float after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+private:
+    void apply(float v) {
+        if (!m_target) return;
+        if      (m_prop == "DriveVelocity") m_target->setDriveVelocity(v);
+        else if (m_prop == "MaxForce")      m_target->setMaxForce(v);
+    }
+};
+
+// --- Motor の Axis 変更（次回 Play 時に適用） ---
+struct SetMotorAxisCommand : Command {
+    std::shared_ptr<Motor> m_target;
+    Vector3 m_before, m_after;
+
+    SetMotorAxisCommand(std::shared_ptr<Motor> target, Vector3 before, Vector3 after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->Axis = m_after; }
+    void undo()    override { if (m_target) m_target->Axis = m_before; }
 };

@@ -61,6 +61,9 @@ UPPER_SNAKE_CASE
   - nullptr 許容のオプション参照
 
 ---
+## ビルド
+`python build.py build`でできます
+---
 
 ## アーキテクチャ方針
 

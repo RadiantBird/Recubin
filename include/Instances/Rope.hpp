@@ -14,6 +14,7 @@ class Rope : public Instance {
 
     friend class Physics;
     friend class SceneLoader;
+    friend class Renderer;
 public:
     float MaxDistance = 0.0f; // 0 = 生成時の距離を自動使用
     float Stiffness   = 100.0f;
@@ -27,6 +28,9 @@ public:
     virtual ~Rope();
 
     void setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1);
+    void setMaxDistance(float v);
+    void setStiffness(float v);
+    void setDamping(float v);
 
     virtual std::string GetClassName() override;
     virtual bool IsA(std::string className) override;

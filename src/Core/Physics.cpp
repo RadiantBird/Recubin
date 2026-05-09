@@ -2,6 +2,7 @@
 #include "include/Util/Logger.hpp"
 #include <include/PhysX/cooking/PxCooking.h>
 #include <unordered_set>
+#include <algorithm>
 
 void Physics::init() {
     foundation = PxCreateFoundation(PX_PHYSICS_VERSION, allocator, errorCallback);
@@ -200,6 +201,55 @@ void Physics::recreateActor(const std::shared_ptr<BaseCube>& cube) {
         cube->actor = nullptr;
     }
     createActor(cube);
+
+    // このcubeを参照する制約のジョイントを再構築（古いアクターへのダングリング防止）
+    std::vector<std::shared_ptr<Instance>> toRebuild;
+    for (auto& entry : m_constraints) {
+        auto inst = entry.constraint.lock();
+        if (!inst) continue;
+        bool involves = false;
+        if (inst->IsA("Rope")) {
+            auto r = std::static_pointer_cast<Rope>(inst);
+            involves = (r->m_cube0.lock() == cube || r->m_cube1.lock() == cube);
+        } else if (inst->IsA("Rod")) {
+            auto r = std::static_pointer_cast<Rod>(inst);
+            involves = (r->m_cube0.lock() == cube || r->m_cube1.lock() == cube);
+        } else if (inst->IsA("Motor")) {
+            auto m = std::static_pointer_cast<Motor>(inst);
+            involves = (m->m_cube0.lock() == cube || m->m_cube1.lock() == cube);
+        }
+        if (involves) {
+            if (entry.joint) {
+                entry.joint->release();
+                entry.joint = nullptr;
+            }
+            toRebuild.push_back(inst);
+        }
+    }
+    // push_back によるイテレータ無効化を避けるため削除してから再生成
+    m_constraints.erase(
+        std::remove_if(m_constraints.begin(), m_constraints.end(),
+            [&](const ConstraintEntry& e) {
+                auto inst = e.constraint.lock();
+                return inst && std::find(toRebuild.begin(), toRebuild.end(), inst) != toRebuild.end();
+            }),
+        m_constraints.end()
+    );
+    for (auto& inst : toRebuild) {
+        if (inst->IsA("Rope")) {
+            auto r = std::static_pointer_cast<Rope>(inst);
+            r->m_joint = nullptr;
+            createRope(r);
+        } else if (inst->IsA("Rod")) {
+            auto r = std::static_pointer_cast<Rod>(inst);
+            r->m_joint = nullptr;
+            createRod(r);
+        } else if (inst->IsA("Motor")) {
+            auto m = std::static_pointer_cast<Motor>(inst);
+            m->m_joint = nullptr;
+            createMotor(m);
+        }
+    }
 }
 
 void Physics::clearCubes() {
@@ -393,6 +443,11 @@ void Physics::createRope(const std::shared_ptr<Rope>& rope) {
     joint->setMaxDistance(dist);
     joint->setMinDistance(0.0f);
     joint->setDistanceJointFlag(physx::PxDistanceJointFlag::eMAX_DISTANCE_ENABLED, true);
+    if (rope->Stiffness > 0.0f) {
+        joint->setStiffness(rope->Stiffness);
+        joint->setDamping(rope->Damping);
+        joint->setDistanceJointFlag(physx::PxDistanceJointFlag::eSPRING_ENABLED, true);
+    }
     // 衝突無効化（連結された2体が衝突しないようにする）
     joint->setConstraintFlag(physx::PxConstraintFlag::eCOLLISION_ENABLED, false);
 

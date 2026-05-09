@@ -5,6 +5,8 @@
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/Rope.hpp>
+#include <Instances/Rod.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_WINDOWS_UTF8
@@ -229,6 +231,8 @@ void Renderer::init(GLFWwindow* window) {
     stbi_set_flip_vertically_on_load(true);
 
     glClearColor(0.08f, 0.09f, 0.11f, 1.0f);
+
+    initLineRenderer();
 }
 
 // ===================================================
@@ -251,6 +255,130 @@ Renderer::~Renderer() {
     if (shadowFBO)    glDeleteFramebuffers(1, &shadowFBO);
     if (shadowMapTex) glDeleteTextures(1, &shadowMapTex);
     if (depthShader)  glDeleteProgram(depthShader);
+
+    if (m_lineVBO)    glDeleteBuffers(1, &m_lineVBO);
+    if (m_lineVAO)    glDeleteVertexArrays(1, &m_lineVAO);
+    if (m_lineShader) glDeleteProgram(m_lineShader);
+}
+
+// ===================================================
+//  制約ビジュアライザ
+// ===================================================
+void Renderer::initLineRenderer() {
+    const char* vs = R"(
+#version 330 core
+layout(location = 0) in vec3 aPos;
+uniform mat4 view;
+uniform mat4 projection;
+void main() {
+    gl_Position = projection * view * vec4(aPos, 1.0);
+}
+)";
+    const char* fs = R"(
+#version 330 core
+out vec4 FragColor;
+uniform vec4 lineColor;
+void main() {
+    FragColor = lineColor;
+}
+)";
+    auto compile = [](const char* src, GLenum type) -> GLuint {
+        GLuint sh = glCreateShader(type);
+        glShaderSource(sh, 1, &src, nullptr);
+        glCompileShader(sh);
+        return sh;
+    };
+    GLuint v = compile(vs, GL_VERTEX_SHADER);
+    GLuint f = compile(fs, GL_FRAGMENT_SHADER);
+    m_lineShader = glCreateProgram();
+    glAttachShader(m_lineShader, v);
+    glAttachShader(m_lineShader, f);
+    glLinkProgram(m_lineShader);
+    glDeleteShader(v);
+    glDeleteShader(f);
+
+    glGenVertexArrays(1, &m_lineVAO);
+    glGenBuffers(1, &m_lineVBO);
+    glBindVertexArray(m_lineVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+}
+
+void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection) {
+    if (!m_lineShader) return;
+
+    glUseProgram(m_lineShader);
+    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"),       1, GL_FALSE, view.m);
+    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
+    glBindVertexArray(m_lineVAO);
+    glLineWidth(2.5f);
+    glDisable(GL_DEPTH_TEST);
+
+    int colorLoc = glGetUniformLocation(m_lineShader, "lineColor");
+
+    auto uploadAndDraw = [&](const std::vector<float>& verts) {
+        glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
+        glBufferData(GL_ARRAY_BUFFER, (GLsizei)(verts.size() * sizeof(float)), verts.data(), GL_DYNAMIC_DRAW);
+        glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)(verts.size() / 3));
+    };
+
+    auto scan = [&](auto& self, Instance* inst) -> void {
+        if (!inst) return;
+
+        if (inst->GetClassName() == "Rope") {
+            Rope* rope = static_cast<Rope*>(inst);
+            auto c0 = rope->m_cube0.lock();
+            auto c1 = rope->m_cube1.lock();
+            if (c0 && c1) {
+                Vector3 p0 = c0->getWorldCFrame().Position;
+                Vector3 p1 = c1->getWorldCFrame().Position;
+                float dist = (p1 - p0).length();
+                float sag  = (rope->MaxDistance > dist) ? (rope->MaxDistance - dist) * 0.4f : 0.0f;
+                // 二次ベジェによるカテナリー近似（制御点を重力方向にsagだけ下げる）
+                Vector3 ctrl = (p0 + p1) * 0.5f + Vector3(0.0f, -sag, 0.0f);
+                constexpr int SEG = 24;
+                std::vector<float> verts;
+                verts.reserve((SEG + 1) * 3);
+                for (int i = 0; i <= SEG; i++) {
+                    float t = (float)i / (float)SEG;
+                    float mt = 1.0f - t;
+                    Vector3 p = p0 * (mt * mt) + ctrl * (2.0f * mt * t) + p1 * (t * t);
+                    verts.push_back(p.x); verts.push_back(p.y); verts.push_back(p.z);
+                }
+                glUniform4f(colorLoc, 0.3f, 0.9f, 1.0f, 1.0f); // シアン
+                uploadAndDraw(verts);
+            }
+        } else if (inst->GetClassName() == "Rod") {
+            Rod* rod = static_cast<Rod*>(inst);
+            auto c0 = rod->m_cube0.lock();
+            auto c1 = rod->m_cube1.lock();
+            if (c0 && c1) {
+                Vector3 p0 = c0->getWorldCFrame().Position;
+                Vector3 p1 = c1->getWorldCFrame().Position;
+                std::vector<float> verts = {
+                    p0.x, p0.y, p0.z,
+                    p1.x, p1.y, p1.z
+                };
+                glUniform4f(colorLoc, 1.0f, 0.6f, 0.1f, 1.0f); // オレンジ
+                uploadAndDraw(verts);
+            }
+        }
+
+        for (auto const& [name, child] : inst->getChildren()) {
+            self(self, child.get());
+        }
+    };
+
+    for (auto const& [name, child] : workspace.getChildren()) {
+        scan(scan, child.get());
+    }
+
+    glEnable(GL_DEPTH_TEST);
+    glLineWidth(1.0f);
+    glBindVertexArray(0);
+    glUseProgram(shaderProgram);
 }
 
 // ===================================================
@@ -462,6 +590,9 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
             glLineWidth(1.0f);
         }
     }
+
+    // ---- 制約ビジュアライズ（Rope/Rod） ----
+    renderConstraints(workspace, view, projection);
 
 }
 

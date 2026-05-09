@@ -14,6 +14,7 @@ class Rod : public Instance {
 
     friend class Physics;
     friend class SceneLoader;
+    friend class Renderer;
 public:
     std::string m_cube0Name;
     std::string m_cube1Name;

@@ -28,6 +28,8 @@ public:
     virtual ~Motor();
 
     void setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1);
+    void setDriveVelocity(float v);
+    void setMaxForce(float v);
 
     virtual std::string GetClassName() override;
     virtual bool IsA(std::string className) override;
