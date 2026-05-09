@@ -1,0 +1,158 @@
+Root:
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Children:
+        - ClassName: Cube
+          Name: Baseplate
+          Properties:
+            Position: [0, -10, 0]
+            Size: [64, 1, 64]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.3, 0.3, 0.3, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        # ---- 線形チェーン（左側） ----
+        # ChainAnchor(固定) -> WeldAnchorA -> ChainA -> WeldAB -> ChainB -> WeldBC -> ChainC
+        - ClassName: Cube
+          Name: ChainAnchor
+          Properties:
+            Position: [-8, 2, 0]
+            Size: [1.5, 1.5, 1.5]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.9, 0.9, 0.3, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        - ClassName: Cube
+          Name: ChainA
+          Properties:
+            Position: [-6, 2, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.3, 0.3, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        - ClassName: Cube
+          Name: ChainB
+          Properties:
+            Position: [-5, 2, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.3, 1, 0.3, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        - ClassName: Cube
+          Name: ChainC
+          Properties:
+            Position: [-4, 2, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.3, 0.3, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        - ClassName: Weld
+          Name: WeldAnchorA
+          Properties:
+            Cube0: ChainAnchor
+            Cube1: ChainA
+
+        - ClassName: Weld
+          Name: WeldAB
+          Properties:
+            Cube0: ChainA
+            Cube1: ChainB
+
+        - ClassName: Weld
+          Name: WeldBC
+          Properties:
+            Cube0: ChainB
+            Cube1: ChainC
+
+        # ---- 星形（右側） ----
+        # StarCenter から Left/Right/Top へ 3 方向に Weld
+        - ClassName: Cube
+          Name: StarCenter
+          Properties:
+            Position: [8, 2, 0]
+            Size: [1.5, 1.5, 1.5]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.5, 0, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        - ClassName: Cube
+          Name: StarLeft
+          Properties:
+            Position: [6, 2, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.8, 0.2, 0.8, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        - ClassName: Cube
+          Name: StarRight
+          Properties:
+            Position: [10, 2, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.8, 0.2, 0.8, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        - ClassName: Cube
+          Name: StarTop
+          Properties:
+            Position: [8, 4, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.8, 0.2, 0.8, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        - ClassName: Weld
+          Name: WeldCenterLeft
+          Properties:
+            Cube0: StarCenter
+            Cube1: StarLeft
+
+        - ClassName: Weld
+          Name: WeldCenterRight
+          Properties:
+            Cube0: StarCenter
+            Cube1: StarRight
+
+        - ClassName: Weld
+          Name: WeldCenterTop
+          Properties:
+            Cube0: StarCenter
+            Cube1: StarTop
+
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction: [1, -1, -1]
+        Brightness: 1

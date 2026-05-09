@@ -88,13 +88,16 @@ void BaseCube::syncPhysics() {
     if (!actor) return;
     if (Anchored) {
         physx::PxRigidDynamic* kin = actor->is<physx::PxRigidDynamic>();
-        if (kin) {
+        if (kin && (kin->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) {
             Vector3    wp = getWorldPosition();
             Quaternion wr = getWorldCFrame().Rotation;
-            kin->setKinematicTarget(physx::PxTransform(
+            physx::PxTransform cubeWorldPose(
                 physx::PxVec3(wp.x, wp.y, wp.z),
                 physx::PxQuat(wr.x, wr.y, wr.z, wr.w)
-            ));
+            );
+            // compound の原点姿勢を逆オフセットで計算
+            physx::PxTransform compoundTarget = cubeWorldPose.transform(m_compoundLocalOffset.getInverse());
+            kin->setKinematicTarget(compoundTarget);
         }
         return;
     }

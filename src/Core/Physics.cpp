@@ -3,6 +3,7 @@
 #include <include/PhysX/cooking/PxCooking.h>
 #include <unordered_set>
 #include <algorithm>
+#include <queue>
 
 void Physics::init() {
     foundation = PxCreateFoundation(PX_PHYSICS_VERSION, allocator, errorCallback);
@@ -405,7 +406,7 @@ void Physics::update(Workspace& workspace, float dt) {
     for (auto& c : workspace.pendingConstraints) {
         if (c->IsA("Rope"))       createRope(std::static_pointer_cast<Rope>(c));
         else if (c->IsA("Rod"))   createRod(std::static_pointer_cast<Rod>(c));
-        else if (c->IsA("Weld"))  createWeld(std::static_pointer_cast<Weld>(c));
+        else if (c->IsA("Weld"))  createWeld(std::static_pointer_cast<Weld>(c), workspace);
         else if (c->IsA("Motor")) createMotor(std::static_pointer_cast<Motor>(c));
     }
     workspace.pendingConstraints.clear();
@@ -518,7 +519,96 @@ static void attachShapeToCompound(
     }
 }
 
-void Physics::createWeld(const std::shared_ptr<Weld>& weld) {
+void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembly) {
+    if (assembly.empty()) return;
+
+    // 1. アクター破棄前にワールド姿勢を保存
+    std::unordered_map<BaseCube*, physx::PxTransform> savedPoses;
+    for (auto& cube : assembly) {
+        if (cube->actor) {
+            savedPoses[cube.get()] = cube->actor->getGlobalPose().transform(cube->m_compoundLocalOffset);
+        } else {
+            auto wp = cube->getWorldPosition();
+            auto wr = cube->getWorldCFrame().Rotation;
+            savedPoses[cube.get()] = physx::PxTransform(
+                physx::PxVec3(wp.x, wp.y, wp.z),
+                physx::PxQuat(wr.x, wr.y, wr.z, wr.w)
+            );
+        }
+    }
+
+    // 2. 既存アクターを破棄（compound の重複解放を防ぐため set で管理）
+    std::unordered_set<physx::PxRigidActor*> toRelease;
+    for (auto& cube : assembly) {
+        if (cube->actor) toRelease.insert(cube->actor);
+    }
+    for (auto* a : toRelease) {
+        scene->removeActor(*a);
+        a->release();
+    }
+
+    // 3. cube の actor/offset をリセット
+    std::unordered_set<BaseCube*> assemblyPtrs;
+    for (auto& cube : assembly) {
+        cube->actor = nullptr;
+        cube->m_compoundLocalOffset = physx::PxTransform(physx::PxIdentity);
+        assemblyPtrs.insert(cube.get());
+    }
+    for (auto& entry : cubes) {
+        auto cube = entry.cube.lock();
+        if (cube && assemblyPtrs.count(cube.get())) entry.actor = nullptr;
+    }
+
+    // 4. compound 生成（assembly[0] を原点）
+    physx::PxTransform originPose = savedPoses[assembly[0].get()];
+    physx::PxRigidDynamic* compound = physics->createRigidDynamic(originPose);
+    compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eENABLE_CCD, true);
+    compound->setSolverIterationCounts(8, 2);
+
+    for (size_t i = 0; i < assembly.size(); i++) {
+        auto& cube = assembly[i];
+        physx::PxTransform localOffset = (i == 0)
+            ? physx::PxTransform(physx::PxIdentity)
+            : originPose.getInverse().transform(savedPoses[cube.get()]);
+        physx::PxMaterial* mat = getOrCreateMaterial(cube->material);
+        attachShapeToCompound(physics, cube, compound, localOffset, mat);
+        cube->actor = compound;
+        cube->m_compoundLocalOffset = localOffset;
+    }
+
+    physx::PxRigidBodyExt::updateMassAndInertia(*compound, 1.0f);
+
+    // アンカー付きキューブが含まれる場合は compound をキネマティックに設定
+    bool anyAnchored = false;
+    for (auto& cube : assembly) {
+        if (cube->Anchored) { anyAnchored = true; break; }
+    }
+    if (anyAnchored) {
+        compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
+    }
+
+    scene->addActor(*compound);
+
+    // 5. cubes エントリーを更新
+    for (auto& entry : cubes) {
+        auto cube = entry.cube.lock();
+        if (cube && assemblyPtrs.count(cube.get())) entry.actor = compound;
+    }
+
+    // 6. m_constraints の Weld で、両端が assembly 内にある Weld の m_compound を更新
+    for (auto& cEntry : m_constraints) {
+        auto inst = cEntry.constraint.lock();
+        if (!inst || !inst->IsA("Weld")) continue;
+        auto ew = std::static_pointer_cast<Weld>(inst);
+        auto ec0 = ew->m_cube0.lock();
+        auto ec1 = ew->m_cube1.lock();
+        if (ec0 && ec1 && assemblyPtrs.count(ec0.get()) && assemblyPtrs.count(ec1.get())) {
+            ew->m_compound = compound;
+        }
+    }
+}
+
+void Physics::createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace) {
     auto c0 = weld->m_cube0.lock();
     auto c1 = weld->m_cube1.lock();
     if (!c0 || !c1) {
@@ -530,67 +620,23 @@ void Physics::createWeld(const std::shared_ptr<Weld>& weld) {
         return;
     }
 
-    // 連鎖 Weld は未対応：すでに compound に組み込まれているキューブをチェック
-    for (auto& entry : m_constraints) {
-        auto existing = entry.constraint.lock();
-        if (!existing || !existing->IsA("Weld")) continue;
-        auto ew = std::static_pointer_cast<Weld>(existing);
-        if (ew->m_cube0.lock() == c0 || ew->m_cube1.lock() == c0
-         || ew->m_cube0.lock() == c1 || ew->m_cube1.lock() == c1) {
-            RCBN_WARN("Weld \"" << weld->Name << "\": chained welds not supported, skipping");
-            return;
-        }
+    // collectAssembly でこの Weld を含む全連結キューブを収集
+    // （この Weld は workspace.children に既に存在するので BFS に含まれる）
+    auto assembly = Weld::collectAssembly(c0, workspace);
+
+    // グループ全体を 1 compound として再構築
+    rebuildGroup(assembly);
+
+    // この Weld の m_compound を設定
+    weld->m_compound = static_cast<physx::PxRigidDynamic*>(assembly[0]->actor);
+
+    // m_constraints に未登録なら追加
+    bool alreadyRegistered = std::any_of(m_constraints.begin(), m_constraints.end(),
+        [&](const ConstraintEntry& e) { return e.constraint.lock() == weld; });
+    if (!alreadyRegistered) {
+        m_constraints.push_back({ std::weak_ptr<Instance>(weld), nullptr });
     }
-
-    physx::PxTransform pose0 = c0->actor->getGlobalPose();
-    physx::PxTransform pose1 = c1->actor->getGlobalPose();
-
-    // cube1 の compound 内ローカルオフセット = pose0^-1 * pose1
-    physx::PxTransform offset1 = pose0.getInverse().transform(pose1);
-
-    // 既存アクターをシーンから除去（cubes エントリーの actor は nullptr にしてデストラクタで二重解放を防ぐ）
-    for (auto& entry : cubes) {
-        auto cube = entry.cube.lock();
-        if (cube == c0 || cube == c1) {
-            if (entry.actor) {
-                scene->removeActor(*entry.actor);
-                entry.actor->release();
-                entry.actor = nullptr;
-            }
-        }
-    }
-    c0->actor = nullptr;
-    c1->actor = nullptr;
-
-    // compound アクター生成（cube0 の姿勢を基準）
-    physx::PxRigidDynamic* compound = physics->createRigidDynamic(pose0);
-    compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eENABLE_CCD, true);
-    compound->setSolverIterationCounts(8, 2);
-
-    physx::PxMaterial* mat = getOrCreateMaterial(c0->material);
-    attachShapeToCompound(physics, c0, compound, physx::PxTransform(physx::PxIdentity), mat);
-    attachShapeToCompound(physics, c1, compound, offset1, mat);
-
-    physx::PxRigidBodyExt::updateMassAndInertia(*compound, 1.0f);
-    scene->addActor(*compound);
-
-    c0->actor = compound;
-    c1->actor = compound;
-    c0->m_compoundLocalOffset = physx::PxTransform(physx::PxIdentity);
-    c1->m_compoundLocalOffset = offset1;
-
-    // cubes エントリーを更新して compound を指すようにする
-    for (auto& entry : cubes) {
-        auto cube = entry.cube.lock();
-        if (cube == c0 || cube == c1) {
-            entry.actor = compound;
-        }
-    }
-
-    weld->m_compound = compound;
-    // Weld は joint を持たないので joint = nullptr
-    m_constraints.push_back({ std::weak_ptr<Instance>(weld), nullptr });
-    RCBN_LOG("Weld \"" << weld->Name << "\" compound created (cubes: " << c0->Name << ", " << c1->Name << ")");
+    RCBN_LOG("Weld \"" << weld->Name << "\" created (group size: " << assembly.size() << ")");
 }
 
 // (1,0,0) を to ベクトルに回転させる最短回転クォータニオンを計算
@@ -677,25 +723,88 @@ void Physics::removeConstraint(const std::shared_ptr<Instance>& c) {
 
     if (c->IsA("Weld")) {
         auto weld = std::static_pointer_cast<Weld>(c);
-        if (weld->m_compound) {
-            // compound を解体: cube のアクターポインタと cubes エントリーをリセット
-            auto c0 = weld->m_cube0.lock();
-            auto c1 = weld->m_cube1.lock();
+        physx::PxRigidDynamic* oldCompound = weld->m_compound;
+
+        // 1. 旧 compound を共有していた全キューブを収集
+        std::vector<std::shared_ptr<BaseCube>> oldGroupCubes;
+        if (oldCompound) {
             for (auto& entry : cubes) {
                 auto cube = entry.cube.lock();
-                if (cube == c0 || cube == c1) {
-                    entry.actor = nullptr; // 解放はここでは行わない
+                if (cube && cube->actor == oldCompound)
+                    oldGroupCubes.push_back(cube);
+            }
+            // 旧 compound を破棄
+            scene->removeActor(*oldCompound);
+            oldCompound->release();
+
+            // 全キューブの actor/offset をリセット
+            std::unordered_set<BaseCube*> oldPtrs;
+            for (auto& cube : oldGroupCubes) {
+                cube->actor = nullptr;
+                cube->m_compoundLocalOffset = physx::PxTransform(physx::PxIdentity);
+                oldPtrs.insert(cube.get());
+            }
+            for (auto& entry : cubes) {
+                auto cube = entry.cube.lock();
+                if (cube && oldPtrs.count(cube.get())) entry.actor = nullptr;
+            }
+            // この compound を参照していた全 Weld の m_compound をクリア
+            for (auto& cEntry : m_constraints) {
+                auto inst = cEntry.constraint.lock();
+                if (inst && inst->IsA("Weld")) {
+                    auto ew = std::static_pointer_cast<Weld>(inst);
+                    if (ew->m_compound == oldCompound) ew->m_compound = nullptr;
                 }
             }
-            scene->removeActor(*weld->m_compound);
-            weld->m_compound->release();
             weld->m_compound = nullptr;
-            if (c0) { c0->actor = nullptr; c0->m_compoundLocalOffset = physx::PxTransform(physx::PxIdentity); }
-            if (c1) { c1->actor = nullptr; c1->m_compoundLocalOffset = physx::PxTransform(physx::PxIdentity); }
         }
-    } else if (it->joint) {
-        it->joint->release();
+
+        // 2. この Weld を m_constraints から削除（BFS の前に除外する）
+        m_constraints.erase(it);
+
+        // 3. 旧グループを残存 Weld で連結成分に分割し、各成分を再構築
+        if (!oldGroupCubes.empty()) {
+            std::unordered_set<BaseCube*> processed;
+            for (auto& startCube : oldGroupCubes) {
+                if (processed.count(startCube.get())) continue;
+
+                // BFS（m_constraints の残 Weld のみ使用）
+                std::vector<std::shared_ptr<BaseCube>> subGroup;
+                std::queue<std::shared_ptr<BaseCube>> bfsQ;
+                bfsQ.push(startCube);
+                processed.insert(startCube.get());
+
+                while (!bfsQ.empty()) {
+                    auto current = bfsQ.front(); bfsQ.pop();
+                    subGroup.push_back(current);
+                    for (auto& cEntry : m_constraints) {
+                        auto inst = cEntry.constraint.lock();
+                        if (!inst || !inst->IsA("Weld")) continue;
+                        auto ew = std::static_pointer_cast<Weld>(inst);
+                        auto ec0 = ew->m_cube0.lock();
+                        auto ec1 = ew->m_cube1.lock();
+                        std::shared_ptr<BaseCube> nb;
+                        if      (ec0 == current && ec1 && !processed.count(ec1.get())) nb = ec1;
+                        else if (ec1 == current && ec0 && !processed.count(ec0.get())) nb = ec0;
+                        if (nb) { processed.insert(nb.get()); bfsQ.push(nb); }
+                    }
+                }
+
+                if (subGroup.size() == 1) {
+                    // 単独 cube → 独立アクターを再生成
+                    createActor(subGroup[0]);
+                    for (auto& entry : cubes) {
+                        if (entry.cube.lock() == subGroup[0]) entry.actor = subGroup[0]->actor;
+                    }
+                } else {
+                    rebuildGroup(subGroup);
+                }
+            }
+        }
+        return;
     }
 
+    // Weld 以外: joint を解放してエントリーを削除
+    if (it->joint) it->joint->release();
     m_constraints.erase(it);
 }

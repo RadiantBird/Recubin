@@ -9,40 +9,128 @@ Root:
       Name: Workspace
       Children:
         - ClassName: Cube
-          Name: Baseplate
+          Name: Plate
           Properties:
-            Position: [0, -10, 0]
-            Size: [64, 1, 64]
+            Position: [0, 0, 0]
+            Size: [128, 1, 128]
             Rotation: [0, 0, 0, 1]
-            Color: [0.3, 0.3, 0.3, 1]
+            Color: [0.23763312, 0.60943764, 0.7723077, 1]
             Anchored: true
             CanCollide: true
             CastShadow: true
             Unlit: false
         - ClassName: Cube
-          Name: PartA
+          Name: Wood1
           Properties:
-            Position: [0, 5, -10]
-            Size: [1, 1, 1]
+            Position: [-2.8061647, 3, 5.930851]
+            Size: [1, 5, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 0.2, 0.2, 1]
-            Anchored: false
+            Color: [0.28615385, 0.18327935, 0.022892304, 1]
+            Anchored: true
             CanCollide: true
             CastShadow: true
             Unlit: false
+          Children:
+            - ClassName: Sphere
+              Name: Leaves
+              Properties:
+                Position: [-0.059556484, 3.283278, 0.28575706]
+                Size: [5, 5, 5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.91692305, 1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
         - ClassName: Cube
-          Name: PartB
+          Name: Wood12
           Properties:
-            Position: [1, 5, -10]
-            Size: [1, 1, 1]
+            Position: [24.610868, 3, 3.7079067]
+            Size: [1, 5, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0.2, 0.2, 1, 1]
-            Anchored: false
+            Color: [0.28615385, 0.18327935, 0.022892304, 1]
+            Anchored: true
             CanCollide: true
             CastShadow: true
             Unlit: false
-        - ClassName: Weld
-          Name: WeldAB
+          Children:
+            - ClassName: Sphere
+              Name: Leaves
+              Properties:
+                Position: [-0.059556484, 3.283278, 0.28575706]
+                Size: [5, 5, 5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.91692305, 1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+        - ClassName: Cube
+          Name: Wood
           Properties:
-            Cube0: PartA
-            Cube1: PartB
+            Position: [7.5740585, 3, 15.886478]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.28615385, 0.18327935, 0.022892304, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Sphere
+              Name: Leaves
+              Properties:
+                Position: [-0.059556484, 3.283278, 0.28575706]
+                Size: [5, 5, 5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.91692305, 1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+        - ClassName: Cube
+          Name: Wood13
+          Properties:
+            Position: [18.822783, 3, 17.288387]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.28615385, 0.18327935, 0.022892304, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Sphere
+              Name: Leaves
+              Properties:
+                Position: [-0.059556484, 3.283278, 0.28575706]
+                Size: [5, 5, 5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.91692305, 1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+        - ClassName: Cube
+          Name: Wood11
+          Properties:
+            Position: [12.95517, 3, 1.1265411]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.28615385, 0.18327935, 0.022892304, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Sphere
+              Name: Leaves
+              Properties:
+                Position: [-0.059556484, 3.283278, 0.28575706]
+                Size: [5, 5, 5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.91692305, 1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false

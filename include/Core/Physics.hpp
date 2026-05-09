@@ -50,6 +50,9 @@ private:
     };
     std::vector<ConstraintEntry> m_constraints;
 
+    // Weld グループを 1 つの compound として再構築する内部ヘルパー
+    void rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembly);
+
 public:
     void init();
     virtual ~Physics();
@@ -65,7 +68,7 @@ public:
 
     void createRope(const std::shared_ptr<Rope>& rope);
     void createRod(const std::shared_ptr<Rod>& rod);
-    void createWeld(const std::shared_ptr<Weld>& weld);
+    void createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace);
     void createMotor(const std::shared_ptr<Motor>& motor);
     void removeConstraint(const std::shared_ptr<Instance>& c);
 
