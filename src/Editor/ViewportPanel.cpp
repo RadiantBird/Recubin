@@ -326,8 +326,11 @@ void ViewportPanel::onRender() {
         }
         m_isDraggingSelected = hitSelected;
 
-        // Step 2: Selectモード、または選択物にヒットしなかった場合 → レイキャストで選択変更
-        if ((selectOnly || !hitSelected) && selectedInstance) {
+        // Step 2: Selectモード、または非SelectモードでShift+クリックかつ選択物にヒットしなかった場合
+        //         → レイキャストで選択変更
+        bool shiftHeld = ImGui::GetIO().KeyShift;
+        bool clickFoundSomething = false;
+        if ((selectOnly || (shiftHeld && !hitSelected)) && selectedInstance) {
             Instance* nearest = nullptr;
             float nearestT = 1e30f;
             auto castRay = [&](auto& self, Instance* inst) -> void {
@@ -343,7 +346,81 @@ void ViewportPanel::onRender() {
             };
             castRay(castRay, workspace);
             *selectedInstance = nearest;
+            if (selectedInstances) {
+                selectedInstances->clear();
+                if (nearest) selectedInstances->push_back(nearest);
+            }
+            clickFoundSomething = (nearest != nullptr);
         }
+
+        // ボックス選択 arm: Selectモードのみ、何にもヒットしなかった場合にドラッグで開始
+        // 非Selectモードではギズモ操作と競合するため arm しない
+        m_isBoxSelectArmed = isSelectMode() && !clickFoundSomething && !shiftHeld;
+        m_boxSelectStart   = ImGui::GetMousePos();
+    }
+
+    // ---- ボックス選択 ----
+    // ドラッグ閾値(5px²)を超えたら選択モード開始（Selectモード専用）
+    if (m_isBoxSelectArmed && isSelectMode() && ImGui::IsMouseDown(0) && isHoveringViewport) {
+        ImVec2 cur = ImGui::GetMousePos();
+        float dx = cur.x - m_boxSelectStart.x, dy = cur.y - m_boxSelectStart.y;
+        if (dx*dx + dy*dy > 25.0f) m_isBoxSelecting = true;
+    }
+
+    // ボックスオーバーレイ描画
+    if (m_isBoxSelecting) {
+        ImVec2 cur = ImGui::GetMousePos();
+        ImVec2 a = { (std::min)(m_boxSelectStart.x, cur.x), (std::min)(m_boxSelectStart.y, cur.y) };
+        ImVec2 b = { (std::max)(m_boxSelectStart.x, cur.x), (std::max)(m_boxSelectStart.y, cur.y) };
+        auto* dl = ImGui::GetWindowDrawList();
+        dl->AddRectFilled(a, b, IM_COL32(100, 160, 255, 40));
+        dl->AddRect      (a, b, IM_COL32(100, 160, 255, 200), 0.0f, 0, 1.5f);
+    }
+
+    // マウスを離したとき: ボックス内のオブジェクトを選択
+    if (!ImGui::IsMouseDown(0) && (m_isBoxSelecting || m_isBoxSelectArmed)) {
+        if (m_isBoxSelecting && user && workspace && selectedInstance && selectedInstances) {
+            float aspect = (h > 0) ? (float)w / (float)h : 1.0f;
+            Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
+            Vector3 camTarget = user->cpos + user->forward;
+            Matrix4 view = Matrix4::LookAt(user->cpos, camTarget, user->up);
+            Matrix4 vp   = proj * view;
+            const float* mv = vp.m;
+
+            ImVec2 cur = ImGui::GetMousePos();
+            float minX = (std::min)(m_boxSelectStart.x, cur.x);
+            float maxX = (std::max)(m_boxSelectStart.x, cur.x);
+            float minY = (std::min)(m_boxSelectStart.y, cur.y);
+            float maxY = (std::max)(m_boxSelectStart.y, cur.y);
+
+            selectedInstances->clear();
+            *selectedInstance = nullptr;
+
+            auto collect = [&](auto& self, Instance* node) -> void {
+                if (!node || node->GetClassName() == "Skybox") return;
+                if (node->IsA("BaseCube")) {
+                    Spatial* sp = static_cast<Spatial*>(node);
+                    Vector3 wp  = sp->getWorldPosition();
+                    // column-major VP 行列でワールド座標をスクリーン投影
+                    float cx = mv[0]*wp.x + mv[4]*wp.y + mv[8]*wp.z  + mv[12];
+                    float cy = mv[1]*wp.x + mv[5]*wp.y + mv[9]*wp.z  + mv[13];
+                    float cw = mv[3]*wp.x + mv[7]*wp.y + mv[11]*wp.z + mv[15];
+                    if (cw > 0.0f) {
+                        float sx = contentOrigin.x + (cx/cw + 1.0f) * 0.5f * (float)w;
+                        float sy = contentOrigin.y + (1.0f - cy/cw) * 0.5f * (float)h;
+                        if (sx >= minX && sx <= maxX && sy >= minY && sy <= maxY)
+                            selectedInstances->push_back(node);
+                    }
+                }
+                for (auto const& [_, ch] : node->getChildren()) self(self, ch.get());
+            };
+            collect(collect, workspace);
+
+            if (!selectedInstances->empty())
+                *selectedInstance = selectedInstances->front();
+        }
+        m_isBoxSelecting   = false;
+        m_isBoxSelectArmed = false;
     }
 
     // フォーカス状態の可視化（フォーカス時に薄いボーダーを描画）
@@ -358,27 +435,38 @@ void ViewportPanel::onRender() {
     }
 
     // ---- ギズモのオーバーレイ ----
-    if (!selectOnly && selectedInstance && *selectedInstance && user) {
+    if (!isSelectMode() && selectedInstance && *selectedInstance && user) {
         Instance* inst = *selectedInstance;
         if (inst->IsA("Spatial")) {
             Spatial* s = static_cast<Spatial*>(inst);
 
-            // Gizmo Undo: ドラッグ開始/終了を検知して GizmoCommand を記録
-            static bool       s_wasUsingGizmo = false;
-            static GizmoState s_gizmoBefore;
+            // Gizmo Undo: ドラッグ開始/終了を検知して MultiGizmoCommand を記録
             bool isUsingGizmo = ImGuizmo::IsUsing();
 
-            if (!s_wasUsingGizmo && isUsingGizmo && inst->IsA("BaseCube")) {
-                BaseCube* bc = static_cast<BaseCube*>(inst);
-                s_gizmoBefore = { bc->Position, bc->Size, bc->Rotation };
+            if (!m_wasUsingGizmo && isUsingGizmo) {
+                m_gizmoEntries.clear();
+                // 複数選択中は全対象をキャプチャ、単一なら primary のみ
+                std::vector<Instance*> targets = hasMultiSelection()
+                    ? *selectedInstances : std::vector<Instance*>{ inst };
+                for (Instance* tgt : targets) {
+                    if (tgt && !tgt->Parent.expired() && tgt->IsA("BaseCube")) {
+                        BaseCube* bc = static_cast<BaseCube*>(tgt);
+                        m_gizmoEntries.push_back({
+                            std::static_pointer_cast<BaseCube>(tgt->shared_from_this()),
+                            { bc->Position, bc->Size, bc->Rotation }, {}
+                        });
+                    }
+                }
             }
-            if (s_wasUsingGizmo && !isUsingGizmo && inst->IsA("BaseCube") && m_history) {
-                BaseCube* bc = static_cast<BaseCube*>(inst);
-                GizmoState after = { bc->Position, bc->Size, bc->Rotation };
-                auto bcSp = std::static_pointer_cast<BaseCube>(inst->shared_from_this());
-                m_history->record(std::make_unique<GizmoCommand>(bcSp, s_gizmoBefore, after));
+            if (m_wasUsingGizmo && !isUsingGizmo && m_history && !m_gizmoEntries.empty()) {
+                for (auto& e : m_gizmoEntries) {
+                    if (e.target && !e.target->Parent.expired())
+                        e.after = { e.target->Position, e.target->Size, e.target->Rotation };
+                }
+                m_history->record(std::make_unique<MultiGizmoCommand>(std::move(m_gizmoEntries)));
+                m_gizmoEntries.clear();
             }
-            s_wasUsingGizmo = isUsingGizmo;
+            m_wasUsingGizmo = isUsingGizmo;
 
             float aspect = (h > 0) ? (float)w / (float)h : 1.0f;
             Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
@@ -417,9 +505,12 @@ void ViewportPanel::onRender() {
                 Quaternion newRot = Quaternion::FromRotationMatrix(rotM);
 
                 if (gizmoOp == ImGuizmo::TRANSLATE && workspace) {
+                    // teleportTo 前のワールド座標を保存（複数選択の delta 計算用）
+                    Vector3 prevPrimaryWorld = s->getWorldPosition();
+
                     // newPos はワールド座標
                     if (collisionFit) {
-                        Vector3 prevWorld = s->getWorldPosition();
+                        Vector3 prevWorld = prevPrimaryWorld;
                         float rx = (std::abs(newPos.x - prevWorld.x) > 1e-5f)
                                    ? fitOnAxis({newPos.x, prevWorld.y, prevWorld.z}, s->Size, inst, 0)
                                    : prevWorld.x;
@@ -437,6 +528,17 @@ void ViewportPanel::onRender() {
                         static_cast<BaseCube*>(inst)->teleportTo(localPos);
                     else
                         s->Position = localPos;
+
+                    // 複数選択: primary の delta を残りのオブジェクトに適用
+                    if (hasMultiSelection()) {
+                        Vector3 deltaWorld = s->getWorldPosition() - prevPrimaryWorld;
+                        for (Instance* other : *selectedInstances) {
+                            if (!other || other->Parent.expired() || other == inst || !other->IsA("BaseCube")) continue;
+                            BaseCube* bc = static_cast<BaseCube*>(other);
+                            Vector3 nw = bc->getWorldPosition() + deltaWorld;
+                            bc->teleportTo(worldToLocal(nw, bc));
+                        }
+                    }
                 } else if (gizmoOp == ImGuizmo::SCALE) {
                     if (inst->IsA("BaseCube")) {
                         static_cast<BaseCube*>(inst)->setSize(newSize);
@@ -456,38 +558,92 @@ void ViewportPanel::onRender() {
         }
     }
 
+    // ---- 複数選択ハイライト: 全選択オブジェクトの OBB を画面投影してアウトラインを描画 ----
+    if (user && selectedInstances && !selectedInstances->empty()) {
+        float aspect = (h > 0) ? (float)w / (float)h : 1.0f;
+        Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
+        Matrix4 view = Matrix4::LookAt(user->cpos, user->cpos + user->forward, user->up);
+        Matrix4 vp   = proj * view;
+        const float* mv = vp.m;
+        auto* dl = ImGui::GetWindowDrawList();
+
+        for (Instance* inst : *selectedInstances) {
+            if (!inst || inst->Parent.expired() || !inst->IsA("BaseCube")) continue;
+            Spatial* sp = static_cast<Spatial*>(inst);
+            CFrame   wf = sp->getWorldCFrame();
+            float hx = sp->Size.x * 0.5f, hy = sp->Size.y * 0.5f, hz = sp->Size.z * 0.5f;
+
+            // OBB 8頂点を画面投影し、スクリーン AABB を求める
+            float sxMin = 1e30f, sxMax = -1e30f;
+            float syMin = 1e30f, syMax = -1e30f;
+            bool anyVis = false;
+            for (int ci = 0; ci < 8; ++ci) {
+                float lx = (ci & 1) ? hx : -hx;
+                float ly = (ci & 2) ? hy : -hy;
+                float lz = (ci & 4) ? hz : -hz;
+                Vector3 wc = wf.Position + wf.Rotation.rotate(Vector3(lx, ly, lz));
+                float cx = mv[0]*wc.x + mv[4]*wc.y + mv[8]*wc.z  + mv[12];
+                float cy = mv[1]*wc.x + mv[5]*wc.y + mv[9]*wc.z  + mv[13];
+                float cw = mv[3]*wc.x + mv[7]*wc.y + mv[11]*wc.z + mv[15];
+                if (cw <= 0.0f) continue;
+                float sx = contentOrigin.x + (cx/cw + 1.0f) * 0.5f * (float)w;
+                float sy = contentOrigin.y + (1.0f - cy/cw) * 0.5f * (float)h;
+                sxMin = (std::min)(sxMin, sx); sxMax = (std::max)(sxMax, sx);
+                syMin = (std::min)(syMin, sy); syMax = (std::max)(syMax, sy);
+                anyVis = true;
+            }
+            if (!anyVis) continue;
+
+            bool isPrimary = (selectedInstance && *selectedInstance == inst);
+            ImU32 col = isPrimary
+                ? IM_COL32(255, 240,  80, 220)   // 黄: primary
+                : IM_COL32(255, 150,  30, 180);  // 橙: secondary
+            dl->AddRect(ImVec2(sxMin - 2.0f, syMin - 2.0f),
+                        ImVec2(sxMax + 2.0f, syMax + 2.0f), col, 0.0f, 0, 2.0f);
+        }
+    }
+
     // ---- 自由移動ドラッグ開始/終了検出 ----
-    static GizmoState s_freeDragBefore;
     bool wasDragging = m_isDraggingSelected;
 
     // ボタンを離したらリセット
     if (!ImGui::IsMouseDown(0)) m_isDraggingSelected = false;
 
-    // ドラッグ終了時に GizmoCommand を記録
-    if (wasDragging && !m_isDraggingSelected
-            && selectedInstance && *selectedInstance
-            && (*selectedInstance)->IsA("BaseCube") && m_history) {
-        BaseCube* bc = static_cast<BaseCube*>(*selectedInstance);
-        GizmoState after = { bc->Position, bc->Size, bc->Rotation };
-        if (after.position.x != s_freeDragBefore.position.x ||
-            after.position.y != s_freeDragBefore.position.y ||
-            after.position.z != s_freeDragBefore.position.z) {
-            auto bcSp = std::static_pointer_cast<BaseCube>((*selectedInstance)->shared_from_this());
-            m_history->record(std::make_unique<GizmoCommand>(bcSp, s_freeDragBefore, after));
+    // ドラッグ終了時に MultiGizmoCommand を記録
+    if (wasDragging && !m_isDraggingSelected && m_history && !m_freeDragEntries.empty()) {
+        bool anyChanged = false;
+        for (auto& e : m_freeDragEntries) {
+            if (e.target && !e.target->Parent.expired()) {
+                e.after = { e.target->Position, e.target->Size, e.target->Rotation };
+                if (e.after.position.x != e.before.position.x ||
+                    e.after.position.y != e.before.position.y ||
+                    e.after.position.z != e.before.position.z)
+                    anyChanged = true;
+            }
+        }
+        if (anyChanged)
+            m_history->record(std::make_unique<MultiGizmoCommand>(std::move(m_freeDragEntries)));
+        m_freeDragEntries.clear();
+    }
+
+    // ドラッグ開始時に全選択対象の before をキャプチャ
+    if (!wasDragging && m_isDraggingSelected && selectedInstance && *selectedInstance) {
+        m_freeDragEntries.clear();
+        std::vector<Instance*> targets = hasMultiSelection()
+            ? *selectedInstances : std::vector<Instance*>{ *selectedInstance };
+        for (Instance* tgt : targets) {
+            if (tgt && !tgt->Parent.expired() && tgt->IsA("BaseCube")) {
+                BaseCube* bc = static_cast<BaseCube*>(tgt);
+                m_freeDragEntries.push_back({
+                    std::static_pointer_cast<BaseCube>(tgt->shared_from_this()),
+                    { bc->Position, bc->Size, bc->Rotation }, {}
+                });
+            }
         }
     }
 
-    // ドラッグ開始時に before をキャプチャ
-    if (!wasDragging && m_isDraggingSelected
-            && selectedInstance && *selectedInstance
-            && (*selectedInstance)->IsA("BaseCube")) {
-        BaseCube* bc = static_cast<BaseCube*>(*selectedInstance);
-        s_freeDragBefore = { bc->Position, bc->Size, bc->Rotation };
-    }
-
     // ---- Move モード自由移動: 選択キューブ上からのドラッグでサーフェスに追従 ----
-    if (!selectOnly && gizmoOp == ImGuizmo::TRANSLATE
-            && m_isDraggingSelected && !ImGuizmo::IsUsing()
+    if (isMoveMode() && m_isDraggingSelected && !ImGuizmo::IsUsing()
             && selectedInstance && *selectedInstance && user && workspace) {
         Instance* inst = *selectedInstance;
         if (inst->IsA("Spatial")) {
@@ -529,11 +685,23 @@ void ViewportPanel::onRender() {
                 Vector3 newPos(newPosArr[0], newPosArr[1], newPosArr[2]);
 
                 if (collisionFit) newPos = fitCollision(newPos, s->Size, inst);
+                Vector3 prevPrimaryWorld = s->getWorldPosition();
                 Vector3 localPos = worldToLocal(newPos, s);
                 if (inst->IsA("BaseCube"))
                     static_cast<BaseCube*>(inst)->teleportTo(localPos);
                 else
                     s->Position = localPos;
+
+                // 複数選択: primary の delta を残りのオブジェクトに適用
+                if (hasMultiSelection()) {
+                    Vector3 deltaWorld = s->getWorldPosition() - prevPrimaryWorld;
+                    for (Instance* other : *selectedInstances) {
+                        if (!other || other->Parent.expired() || other == inst || !other->IsA("BaseCube")) continue;
+                        BaseCube* bc = static_cast<BaseCube*>(other);
+                        Vector3 nw = bc->getWorldPosition() + deltaWorld;
+                        bc->teleportTo(worldToLocal(nw, bc));
+                    }
+                }
             }();
         }
     }

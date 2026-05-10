@@ -1,5 +1,6 @@
 #include <Editor/SceneHierarchyPanel.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <algorithm>
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
@@ -113,7 +114,9 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
         ImGuiTreeNodeFlags_OpenOnArrow |
         ImGuiTreeNodeFlags_SpanAvailWidth;
 
-    if (selectedInstance == inst) {
+    bool inSelection = std::find(selectedInstances.begin(), selectedInstances.end(), inst)
+                       != selectedInstances.end();
+    if (selectedInstance == inst || inSelection) {
         flags |= ImGuiTreeNodeFlags_Selected;
     }
 
@@ -125,7 +128,20 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     bool open = ImGui::TreeNodeEx(inst, flags, "%s  [%s]",
                                   inst->Name.c_str(), inst->GetClassName().c_str());
     if (ImGui::IsItemClicked()) {
-        selectedInstance = inst;
+        if (ImGui::GetIO().KeyCtrl) {
+            auto it = std::find(selectedInstances.begin(), selectedInstances.end(), inst);
+            if (it != selectedInstances.end()) {
+                selectedInstances.erase(it);
+                if (selectedInstance == inst)
+                    selectedInstance = selectedInstances.empty() ? nullptr : selectedInstances.back();
+            } else {
+                selectedInstances.push_back(inst);
+                selectedInstance = inst;
+            }
+        } else {
+            selectedInstance = inst;
+            selectedInstances = { inst };
+        }
     }
 
     // ---- ドラッグソース ----
@@ -362,7 +378,11 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
         if (parent) {
             auto childPtr = parent->children.at(inst->Name);
             m_history->execute(std::make_unique<RemoveInstanceCommand>(parent, inst->Name, childPtr));
-            if (selectedInstance == inst) selectedInstance = nullptr;
+            selectedInstances.erase(
+                std::remove(selectedInstances.begin(), selectedInstances.end(), inst),
+                selectedInstances.end());
+            if (selectedInstance == inst)
+                selectedInstance = selectedInstances.empty() ? nullptr : selectedInstances.back();
         }
     }
 

@@ -95,4 +95,5 @@ private:
     void handleEditorShortcuts();
     void renderSaveDialog();
     void saveCurrentScene();
+    void cleanupOrphanedSelection();
 };

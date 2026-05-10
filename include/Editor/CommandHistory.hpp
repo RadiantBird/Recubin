@@ -206,6 +206,29 @@ private:
     }
 };
 
+// --- 複数オブジェクトのGizmo操作（位置/サイズ/回転をまとめてundoできる） ---
+struct MultiGizmoCommand : Command {
+    struct Entry {
+        std::shared_ptr<BaseCube> target;
+        GizmoState before, after;
+    };
+    std::vector<Entry> m_entries;
+
+    explicit MultiGizmoCommand(std::vector<Entry> entries)
+        : m_entries(std::move(entries)) {}
+
+    void execute() override { for (auto& e : m_entries) applyState(e.target, e.after);  }
+    void undo()    override { for (auto& e : m_entries) applyState(e.target, e.before); }
+
+private:
+    static void applyState(const std::shared_ptr<BaseCube>& bc, const GizmoState& s) {
+        if (!bc || bc->Parent.expired()) return;
+        bc->teleportTo(s.position);
+        bc->setSize(s.size);
+        bc->setRotation(s.rotation);
+    }
+};
+
 // --- Decal Face 変更 ---
 struct SetDecalFaceCommand : Command {
     std::shared_ptr<Decal> m_target;

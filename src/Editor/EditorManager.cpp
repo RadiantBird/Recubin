@@ -13,6 +13,7 @@
 #include <include/imgui/imgui_impl_opengl3.h>
 #include <include/imgui/ImGuizmo.h>
 #include <string>
+#include <algorithm>
 
 // ===================================================
 //  EditorManager 実装
@@ -35,8 +36,9 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     viewportPanel->workspace    = workspace;
 
     // selectedInstance ポインタを共有（SceneHierarchy が書き、Properties/Viewport が読む）
-    propertiesPanel->selectedInstance = &hierarchyPanel->selectedInstance;
-    viewportPanel->selectedInstance   = &hierarchyPanel->selectedInstance;
+    propertiesPanel->selectedInstance  = &hierarchyPanel->selectedInstance;
+    viewportPanel->selectedInstance    = &hierarchyPanel->selectedInstance;
+    viewportPanel->selectedInstances   = &hierarchyPanel->selectedInstances;
 
     // CommandHistory と clipboard を各パネルに渡す
     hierarchyPanel->m_history   = &m_history;
@@ -126,16 +128,12 @@ void EditorManager::handleEditorShortcuts() {
         // Ctrl+Z: Undo
         if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Z)) {
             m_history.undo();
-            // undo で selectedInstance が孤立（親から除去）した場合はクリア
-            if (hierarchyPanel->selectedInstance && hierarchyPanel->selectedInstance->Parent.expired())
-                hierarchyPanel->selectedInstance = nullptr;
+            cleanupOrphanedSelection();
         }
         // Ctrl+Shift+Z: Redo
         if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z)) {
             m_history.redo();
-            // redo で selectedInstance が孤立した場合はクリア
-            if (hierarchyPanel->selectedInstance && hierarchyPanel->selectedInstance->Parent.expired())
-                hierarchyPanel->selectedInstance = nullptr;
+            cleanupOrphanedSelection();
         }
 
         // BackSpace: 選択インスタンス削除
@@ -147,7 +145,9 @@ void EditorManager::handleEditorShortcuts() {
                     auto childPtr = parent->children.at(sel->Name);
                     m_history.execute(std::make_unique<RemoveInstanceCommand>(
                         parent, sel->Name, childPtr));
-                    hierarchyPanel->selectedInstance = nullptr;
+                    auto& si = hierarchyPanel->selectedInstances;
+                    si.erase(std::remove(si.begin(), si.end(), sel), si.end());
+                    hierarchyPanel->selectedInstance = si.empty() ? nullptr : si.back();
                     m_isDirty = true;
                 }
             }
@@ -227,6 +227,7 @@ void EditorManager::renderSaveDialog() {
             // インスタンスの shared_ptr を解放する（コンテキスト破棄後の
             // glDelete* 呼び出しによるヒープ破壊を防ぐ）
             hierarchyPanel->selectedInstance = nullptr;
+            hierarchyPanel->selectedInstances.clear();
             m_history.clear();
             m_clipboard.reset();
             if (m_dialogWindow) glfwSetWindowShouldClose(m_dialogWindow, GLFW_TRUE);
@@ -236,6 +237,7 @@ void EditorManager::renderSaveDialog() {
         if (ImGui::Button("保存「せず」終了", ImVec2(130, 0))) {
             m_isDirty = false;
             hierarchyPanel->selectedInstance = nullptr;
+            hierarchyPanel->selectedInstances.clear();
             m_history.clear();
             m_clipboard.reset();
             if (m_dialogWindow) glfwSetWindowShouldClose(m_dialogWindow, GLFW_TRUE);
@@ -294,32 +296,35 @@ void EditorManager::renderToolbar() {
 
     // ---- Select / Move / Resize / Rotate ----
     if (viewportPanel) {
-        bool& selectOnly = viewportPanel->selectOnly;
-        ImGuizmo::OPERATION& op = viewportPanel->gizmoOp;
-
-        ImGui::PushStyleColor(ImGuiCol_Button, selectOnly ? colActive : colInactive);
-        if (ImGui::Button("Select", btnSz)) { selectOnly = true; }
+        ImGui::PushStyleColor(ImGuiCol_Button, viewportPanel->isSelectMode() ? colActive : colInactive);
+        if (ImGui::Button("Select", btnSz)) { viewportPanel->selectOnly = true; }
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
 
-        ImGui::PushStyleColor(ImGuiCol_Button,
-            (!selectOnly && op == ImGuizmo::TRANSLATE) ? colActive : colInactive);
-        if (ImGui::Button("Move", btnSz)) { selectOnly = false; op = ImGuizmo::TRANSLATE; }
+        ImGui::PushStyleColor(ImGuiCol_Button, viewportPanel->isMoveMode() ? colActive : colInactive);
+        if (ImGui::Button("Move", btnSz)) {
+            viewportPanel->selectOnly = false;
+            viewportPanel->gizmoOp   = ImGuizmo::TRANSLATE;
+        }
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
 
-        ImGui::PushStyleColor(ImGuiCol_Button,
-            (!selectOnly && op == ImGuizmo::SCALE) ? colActive : colInactive);
-        if (ImGui::Button("Resize", btnSz)) { selectOnly = false; op = ImGuizmo::SCALE; }
+        ImGui::PushStyleColor(ImGuiCol_Button, viewportPanel->isResizeMode() ? colActive : colInactive);
+        if (ImGui::Button("Resize", btnSz)) {
+            viewportPanel->selectOnly = false;
+            viewportPanel->gizmoOp   = ImGuizmo::SCALE;
+        }
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
 
-        ImGui::PushStyleColor(ImGuiCol_Button,
-            (!selectOnly && op == ImGuizmo::ROTATE) ? colActive : colInactive);
-        if (ImGui::Button("Rotate", btnSz)) { selectOnly = false; op = ImGuizmo::ROTATE; }
+        ImGui::PushStyleColor(ImGuiCol_Button, viewportPanel->isRotateMode() ? colActive : colInactive);
+        if (ImGui::Button("Rotate", btnSz)) {
+            viewportPanel->selectOnly = false;
+            viewportPanel->gizmoOp   = ImGuizmo::ROTATE;
+        }
         ImGui::PopStyleColor();
     }
 
@@ -453,11 +458,22 @@ void EditorManager::renderToolbar() {
     ImGui::End();
 }
 
+void EditorManager::cleanupOrphanedSelection() {
+    auto& si = hierarchyPanel->selectedInstances;
+    si.erase(std::remove_if(si.begin(), si.end(),
+        [](Instance* i){ return !i || i->Parent.expired(); }), si.end());
+    if (hierarchyPanel->selectedInstance &&
+        hierarchyPanel->selectedInstance->Parent.expired()) {
+        hierarchyPanel->selectedInstance = si.empty() ? nullptr : si.back();
+    }
+}
+
 void EditorManager::setWorkspace(Workspace* ws) {
     m_workspace                  = ws;
     hierarchyPanel->workspace    = ws;
     viewportPanel->workspace     = ws;
     hierarchyPanel->selectedInstance = nullptr;
+    hierarchyPanel->selectedInstances.clear();
     m_history.clear();
     m_isDirty = false;
 }

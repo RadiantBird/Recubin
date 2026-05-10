@@ -13,6 +13,8 @@ class CommandHistory;
 #include <Instances/Workspace.hpp>
 #include <Math/Matrix4.hpp>
 #include <Core/User.hpp>
+#include <Editor/CommandHistory.hpp>
+#include <vector>
 
 // ===================================================
 //  ViewportPanel  — FBO 経由でゲームビューを表示
@@ -30,7 +32,8 @@ public:
     ImGuizmo::OPERATION gizmoOp = ImGuizmo::TRANSLATE;
     bool selectOnly = false;  // true のとき ImGuizmo を描画しない
 
-    Instance** selectedInstance = nullptr;  // SceneHierarchyPanel と共有
+    Instance** selectedInstance  = nullptr;  // SceneHierarchyPanel と共有（Primary）
+    std::vector<Instance*>* selectedInstances = nullptr;  // 複数選択セット
     User*      user             = nullptr;
     Workspace* workspace        = nullptr;
 
@@ -39,7 +42,17 @@ public:
     bool isHoveringViewport  = false;  // マウスがViewport上にあるか
     bool m_isDraggingSelected = false; // 選択キューブ上でドラッグ開始したか
 
+    // ボックス選択ステート
+    bool   m_isBoxSelecting   = false;
+    bool   m_isBoxSelectArmed = false;
+    ImVec2 m_boxSelectStart   = {};
+
     CommandHistory* m_history = nullptr;
+
+    // ギズモ / フリードラッグ undo 用状態
+    bool m_wasUsingGizmo = false;
+    std::vector<MultiGizmoCommand::Entry> m_gizmoEntries;
+    std::vector<MultiGizmoCommand::Entry> m_freeDragEntries;
 
     // スナップ・衝突フィット設定（ツールバーから操作）
     bool  snapTranslate    = false;
@@ -47,6 +60,13 @@ public:
     bool  snapRotate       = false;
     float snapRotateVal    = 15.0f;
     bool  collisionFit     = true;
+
+    // ---- ツールモード状態クエリ ----
+    bool isSelectMode()      const { return selectOnly; }
+    bool isMoveMode()        const { return !selectOnly && gizmoOp == ImGuizmo::TRANSLATE; }
+    bool isResizeMode()      const { return !selectOnly && gizmoOp == ImGuizmo::SCALE; }
+    bool isRotateMode()      const { return !selectOnly && gizmoOp == ImGuizmo::ROTATE; }
+    bool hasMultiSelection() const { return selectedInstances && selectedInstances->size() > 1; }
 
     ViewportPanel();
     ~ViewportPanel();
