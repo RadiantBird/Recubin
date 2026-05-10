@@ -125,23 +125,85 @@ static void drawVec3Field(const char* id,
     }
 }
 
-static void drawConstraintCubeRef(const char* label, std::string& nameRef,
-                                   const char* prop,
-                                   const std::shared_ptr<Instance>& inst,
-                                   CommandHistory* history)
+// キューブのワークスペース相対パスを返す（例: "FolderA\CubeName" or "CubeName"）
+static std::string cubeRelativePath(Instance* cube) {
+    Instance* ws = cube->findFirstAncestorWorkspace();
+    if (!ws) return cube->Name;
+    std::vector<std::string> parts;
+    Instance* cur = cube;
+    while (cur) {
+        auto par = cur->Parent.lock();
+        parts.push_back(cur->Name);
+        if (!par || par.get() == ws) break;
+        cur = par.get();
+    }
+    std::reverse(parts.begin(), parts.end());
+    std::string result = parts[0];
+    for (size_t i = 1; i < parts.size(); i++) result += "\\" + parts[i];
+    return result;
+}
+
+void PropertiesPanel::drawConstraintCubeRef(const char* label, std::string& nameRef,
+                                             const char* prop,
+                                             const std::shared_ptr<Instance>& inst)
 {
     static std::unordered_map<std::string, std::string> s_before;
-    char buf[256] = {};
-    strncpy_s(buf, nameRef.c_str(), sizeof(buf) - 1);
     std::string key = std::string(prop) + "_" + inst->Name;
-    ImGui::InputText(label, buf, sizeof(buf));
+
+    bool isPickingThis = m_picker && m_picker->active
+                      && m_picker->constraint == inst.get()
+                      && m_picker->prop == prop;
+    bool anyPicking    = m_picker && m_picker->active;
+
+    // ラベルを左に手動描画し、InputText は ## ID で幅を正確に制御する
+    ImGui::TextUnformatted(label);
+    ImGui::SameLine();
+
+    float btnW  = 46.0f;
+    float space = ImGui::GetStyle().ItemSpacing.x;
+    float fieldW = ImGui::GetContentRegionAvail().x - btnW - space;
+    if (fieldW < 60.0f) fieldW = 60.0f;
+    ImGui::SetNextItemWidth(fieldW);
+
+    char buf[512] = {};
+    strncpy_s(buf, nameRef.c_str(), sizeof(buf) - 1);
+    std::string inputId = "##cuberef_" + key;
+    ImGui::InputText(inputId.c_str(), buf, sizeof(buf));
     if (ImGui::IsItemActivated()) s_before[key] = nameRef;
     if (ImGui::IsItemDeactivatedAfterEdit()) {
         std::string after(buf);
+        if (nameRef != after && m_history)
+            m_history->record(std::make_unique<SetConstraintCubeNameCommand>(
+                inst, prop, nameRef, after));
         nameRef = after;
-        if (history && s_before[key] != after)
-            history->record(std::make_unique<SetConstraintCubeNameCommand>(
-                inst, prop, s_before[key], after));
+    }
+
+    ImGui::SameLine();
+
+    if (isPickingThis) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9f, 0.4f, 0.1f, 1.0f));
+        if (ImGui::Button(("Cancel##pick_" + key).c_str(), ImVec2(btnW, 0)))
+            m_picker->active = false;
+        ImGui::PopStyleColor();
+    } else {
+        if (anyPicking) ImGui::BeginDisabled();
+        if (ImGui::Button(("Pick##" + key).c_str(), ImVec2(btnW, 0))) {
+            m_picker->active     = true;
+            m_picker->prop       = prop;
+            m_picker->constraint = inst.get();
+            m_picker->onPick = [inst, propStr = std::string(prop),
+                                 nameRefPtr = &nameRef, hist = m_history]
+                               (std::shared_ptr<BaseCube> cube) {
+                std::string before = *nameRefPtr;
+                std::string after  = cubeRelativePath(cube.get());
+                YAML::Node n; n = after;
+                inst->setProperty(propStr, n);
+                if (hist && before != after)
+                    hist->record(std::make_unique<SetConstraintCubeNameCommand>(
+                        inst, propStr, before, after));
+            };
+        }
+        if (anyPicking) ImGui::EndDisabled();
     }
 }
 
@@ -163,6 +225,13 @@ void PropertiesPanel::onRender() {
         ImGui::TextDisabled("Nothing selected");
         ImGui::End();
         return;
+    }
+
+    if (m_picker && m_picker->active) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.1f, 1.0f));
+        ImGui::TextUnformatted("Viewport でキューブをクリックして指定");
+        ImGui::PopStyleColor();
+        ImGui::Separator();
     }
 
     // ---- 基本情報 ----
@@ -445,8 +514,8 @@ void PropertiesPanel::onRender() {
         auto ropeSp = std::static_pointer_cast<Rope>(inst->shared_from_this());
         ImGui::SeparatorText("Rope");
 
-        drawConstraintCubeRef("Cube0", rope->m_cube0Name, "Cube0", ropeSp, m_history);
-        drawConstraintCubeRef("Cube1", rope->m_cube1Name, "Cube1", ropeSp, m_history);
+        drawConstraintCubeRef("Cube0", rope->m_cube0Name, "Cube0", ropeSp);
+        drawConstraintCubeRef("Cube1", rope->m_cube1Name, "Cube1", ropeSp);
 
         static float s_rf;
         { ImGui::DragFloat("MaxDistance", &rope->MaxDistance, 0.1f, 0.0f, 1e6f);
@@ -471,8 +540,8 @@ void PropertiesPanel::onRender() {
         Rod* rod = static_cast<Rod*>(inst);
         auto rodSp = std::static_pointer_cast<Rod>(inst->shared_from_this());
         ImGui::SeparatorText("Rod");
-        drawConstraintCubeRef("Cube0", rod->m_cube0Name, "Cube0", rodSp, m_history);
-        drawConstraintCubeRef("Cube1", rod->m_cube1Name, "Cube1", rodSp, m_history);
+        drawConstraintCubeRef("Cube0", rod->m_cube0Name, "Cube0", rodSp);
+        drawConstraintCubeRef("Cube1", rod->m_cube1Name, "Cube1", rodSp);
     }
 
     // ---- Weld ----
@@ -480,8 +549,8 @@ void PropertiesPanel::onRender() {
         Weld* weld = static_cast<Weld*>(inst);
         auto weldSp = std::static_pointer_cast<Weld>(inst->shared_from_this());
         ImGui::SeparatorText("Weld");
-        drawConstraintCubeRef("Cube0", weld->m_cube0Name, "Cube0", weldSp, m_history);
-        drawConstraintCubeRef("Cube1", weld->m_cube1Name, "Cube1", weldSp, m_history);
+        drawConstraintCubeRef("Cube0", weld->m_cube0Name, "Cube0", weldSp);
+        drawConstraintCubeRef("Cube1", weld->m_cube1Name, "Cube1", weldSp);
     }
 
     // ---- Motor ----
@@ -490,8 +559,8 @@ void PropertiesPanel::onRender() {
         auto motorSp = std::static_pointer_cast<Motor>(inst->shared_from_this());
         ImGui::SeparatorText("Motor");
 
-        drawConstraintCubeRef("Cube0", motor->m_cube0Name, "Cube0", motorSp, m_history);
-        drawConstraintCubeRef("Cube1", motor->m_cube1Name, "Cube1", motorSp, m_history);
+        drawConstraintCubeRef("Cube0", motor->m_cube0Name, "Cube0", motorSp);
+        drawConstraintCubeRef("Cube1", motor->m_cube1Name, "Cube1", motorSp);
 
         { static Vector3 s_axisBefore;
           float ax[3] = { motor->Axis.x, motor->Axis.y, motor->Axis.z };

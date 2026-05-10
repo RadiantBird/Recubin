@@ -1,5 +1,6 @@
 #pragma once
 #include <Editor/EditorPanel.hpp>
+struct PickerState;  // PropertiesPanel.hpp で定義
 class CommandHistory;
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -48,6 +49,7 @@ public:
     ImVec2 m_boxSelectStart   = {};
 
     CommandHistory* m_history = nullptr;
+    PickerState*    m_picker  = nullptr;
 
     // ギズモ / フリードラッグ undo 用状態
     bool m_wasUsingGizmo = false;

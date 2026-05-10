@@ -193,7 +193,7 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
     if (node->IsA("Workspace")) {
         // Workspace の直下の制約インスタンスに対してキューブ名を解決する
         auto resolve = [&](const std::string& cubeName) -> std::shared_ptr<BaseCube> {
-            auto* child = node->getChild(cubeName);
+            auto* child = node->getChildByPath(cubeName);
             if (child && child->IsA("BaseCube")) {
                 return std::static_pointer_cast<BaseCube>(child->shared_from_this());
             }

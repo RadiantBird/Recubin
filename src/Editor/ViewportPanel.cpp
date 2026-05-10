@@ -1,4 +1,5 @@
 #include <Editor/ViewportPanel.hpp>
+#include <Editor/PropertiesPanel.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Math/Matrix4.hpp>
@@ -317,6 +318,26 @@ void ViewportPanel::onRender() {
             return (tmin >= 0.0f) ? tmin : tmax;
         };
 
+        // ---- ピッカーモード: Pick ボタン押下中はクリックをキューブ指定に横取り ----
+        if (m_picker && m_picker->active) {
+            Instance* nearest = nullptr;
+            float nearestT = 1e30f;
+            auto pickerCast = [&](auto& self, Instance* node) -> void {
+                if (!node) return;
+                if (node->IsA("BaseCube")) {
+                    auto* s = static_cast<Spatial*>(node);
+                    float t = obbHit(rayOri, rayDir, s->getWorldCFrame(), s->Size);
+                    if (t >= 0.0f && t < nearestT) { nearestT = t; nearest = node; }
+                }
+                for (auto& [_, c] : node->getChildren()) self(self, c.get());
+            };
+            pickerCast(pickerCast, workspace);
+            if (nearest && nearest != m_picker->constraint)
+                m_picker->onPick(std::static_pointer_cast<BaseCube>(nearest->shared_from_this()));
+            m_picker->active     = false;
+            m_isDraggingSelected = false;
+            m_isBoxSelectArmed   = false;
+        } else {
         // Step 1: 現在の選択物のOBBにヒットしたか判定（非Selectモードのドラッグ用）
         bool hitSelected = false;
         if (!selectOnly && selectedInstance && *selectedInstance && (*selectedInstance)->IsA("Spatial")) {
@@ -357,6 +378,7 @@ void ViewportPanel::onRender() {
         // 非Selectモードではギズモ操作と競合するため arm しない
         m_isBoxSelectArmed = isSelectMode() && !clickFoundSomething && !shiftHeld;
         m_boxSelectStart   = ImGui::GetMousePos();
+        } // end else (not picking)
     }
 
     // ---- ボックス選択 ----

@@ -46,6 +46,9 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     propertiesPanel->m_history  = &m_history;
     viewportPanel->m_history    = &m_history;
 
+    propertiesPanel->m_picker = &m_picker;
+    viewportPanel->m_picker   = &m_picker;
+
     applyTheme();
 }
 

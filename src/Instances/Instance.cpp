@@ -82,6 +82,13 @@ Instance* Instance::getChild(string child_name) {
     return nullptr;
 }
 
+Instance* Instance::getChildByPath(const std::string& path) {
+    size_t sep = path.find('\\');
+    if (sep == std::string::npos) return getChild(path);
+    Instance* child = getChild(path.substr(0, sep));
+    return child ? child->getChildByPath(path.substr(sep + 1)) : nullptr;
+}
+
 const std::unordered_map<std::string, std::shared_ptr<Instance>>& Instance::getChildren() {
     return this->children;
 }

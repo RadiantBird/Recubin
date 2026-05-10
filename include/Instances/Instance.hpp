@@ -36,6 +36,7 @@ class Instance : public std::enable_shared_from_this<Instance> {
         virtual void setProperty(const std::string& name, const YAML::Node& value);
 
         Instance* getChild(string child_name);
+        Instance* getChildByPath(const std::string& path);
         const std::unordered_map<string, std::shared_ptr<Instance>>& getChildren();
 
         virtual void addChild(std::shared_ptr<Instance> child);

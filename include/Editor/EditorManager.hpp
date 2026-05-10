@@ -73,6 +73,7 @@ public:
     void requestSaveDialog(GLFWwindow* window);
 
     CommandHistory m_history;
+    PickerState    m_picker;   // PickerState は PropertiesPanel.hpp で定義
 
 private:
     Workspace* m_workspace = nullptr;
