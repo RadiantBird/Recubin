@@ -1,8 +1,21 @@
 Root:
   Children:
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction: [1, -1, -1]
+        Brightness: 1
     - ClassName: Workspace
       Name: Workspace
       Children:
+        - ClassName: Rope
+          Name: Rope
+          Properties:
+            Cube0: Branch
+            Cube1: Saw
+            MaxDistance: 3
+            Stiffness: 100
+            Damping: 10
         - ClassName: Cube
           Name: Blue
           Properties:
@@ -11,6 +24,28 @@ Root:
             Rotation: [0, 0, 0, 1]
             Color: [0, 0, 1, 1]
             Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Cube111
+          Properties:
+            Position: [4.4310784, -7, 11.834326]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Branch
+          Properties:
+            Position: [2.4310784, -4, 11.834326]
+            Size: [5, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
             CanCollide: true
             CastShadow: true
             Unlit: false
@@ -50,10 +85,10 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [-2.4564233, 13.842256, 24.553232]
+            Position: [8.009462, -3.6283698, 26.986462]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 0.28923082, 1, 1]
+            Color: [0, 0.5019608, 0.5019608, 1]
             Anchored: true
             CanCollide: false
             CastShadow: false
@@ -92,7 +127,7 @@ Root:
         - ClassName: TriangularPrism
           Name: TriangularPrism
           Properties:
-            Position: [-3.2510529, 5, 0]
+            Position: [1.03006, -9, 0.87993336]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -103,7 +138,7 @@ Root:
         - ClassName: Script
           Name: 2006
           Properties:
-            ContentPath: scripts/2006.luau
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\2006.luau
         - ClassName: Cube
           Name: Floppa1
           Properties:
@@ -149,7 +184,7 @@ Root:
         - ClassName: Cube
           Name: Radio
           Properties:
-            Position: [-9.02219, -7.5, 1.3189182]
+            Position: [-17.76123, -7.5, -6.6466923]
             Size: [13.340713, 4, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -190,8 +225,60 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
-    - ClassName: Lighting
-      Name: Lighting
-      Properties:
-        Direction: [1, -1, -1]
-        Brightness: 1
+        - ClassName: Cube
+          Name: Cube
+          Properties:
+            Position: [0, 0, 0]
+            Size: [0, 0, 0]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Cube11
+          Properties:
+            Position: [0.43107843, -7, 11.834326]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Saw
+          Properties:
+            Position: [2.8425572, -8, 11.73605]
+            Size: [0.66550756, 0.28469962, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Saw2
+          Properties:
+            Position: [2.1770496, -8, 11.73605]
+            Size: [0.66550756, 0.28469962, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Rope
+          Name: Rope1
+          Properties:
+            Cube0: Branch
+            Cube1: Saw2
+            MaxDistance: 3
+            Stiffness: 100
+            Damping: 10
+        - ClassName: Weld
+          Name: Weld
+          Properties:
+            Cube0: Saw
+            Cube1: Saw2

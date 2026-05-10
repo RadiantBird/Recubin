@@ -402,11 +402,13 @@ void Physics::update(Workspace& workspace, float dt) {
         }
     }
 
-    // 3. 制約の新規登録
+    // 3. 制約の新規登録（Weld を先に処理して compound を確定させてから Rope/Rod/Motor を生成）
     for (auto& c : workspace.pendingConstraints) {
-        if (c->IsA("Rope"))       createRope(std::static_pointer_cast<Rope>(c));
+        if (c->IsA("Weld")) createWeld(std::static_pointer_cast<Weld>(c), workspace);
+    }
+    for (auto& c : workspace.pendingConstraints) {
+        if      (c->IsA("Rope"))  createRope(std::static_pointer_cast<Rope>(c));
         else if (c->IsA("Rod"))   createRod(std::static_pointer_cast<Rod>(c));
-        else if (c->IsA("Weld"))  createWeld(std::static_pointer_cast<Weld>(c), workspace);
         else if (c->IsA("Motor")) createMotor(std::static_pointer_cast<Motor>(c));
     }
     workspace.pendingConstraints.clear();
@@ -430,16 +432,17 @@ void Physics::createRope(const std::shared_ptr<Rope>& rope) {
         return;
     }
 
-    physx::PxTransform frame(physx::PxIdentity);
+    physx::PxTransform frame0 = c0->m_compoundLocalOffset;
+    physx::PxTransform frame1 = c1->m_compoundLocalOffset;
     float dist = rope->MaxDistance;
     if (dist <= 0.0f) {
-        auto p0 = c0->actor->getGlobalPose().p;
-        auto p1 = c1->actor->getGlobalPose().p;
+        auto p0 = c0->actor->getGlobalPose().transform(frame0).p;
+        auto p1 = c1->actor->getGlobalPose().transform(frame1).p;
         dist = (p1 - p0).magnitude();
     }
 
     physx::PxDistanceJoint* joint = PxDistanceJointCreate(
-        *physics, c0->actor, frame, c1->actor, frame
+        *physics, c0->actor, frame0, c1->actor, frame1
     );
     joint->setMaxDistance(dist);
     joint->setMinDistance(0.0f);
@@ -469,13 +472,14 @@ void Physics::createRod(const std::shared_ptr<Rod>& rod) {
         return;
     }
 
-    auto p0 = c0->actor->getGlobalPose().p;
-    auto p1 = c1->actor->getGlobalPose().p;
+    physx::PxTransform frame0 = c0->m_compoundLocalOffset;
+    physx::PxTransform frame1 = c1->m_compoundLocalOffset;
+    auto p0 = c0->actor->getGlobalPose().transform(frame0).p;
+    auto p1 = c1->actor->getGlobalPose().transform(frame1).p;
     float dist = (p1 - p0).magnitude();
 
-    physx::PxTransform frame(physx::PxIdentity);
     physx::PxDistanceJoint* joint = PxDistanceJointCreate(
-        *physics, c0->actor, frame, c1->actor, frame
+        *physics, c0->actor, frame0, c1->actor, frame1
     );
     joint->setMaxDistance(dist);
     joint->setMinDistance(dist);
@@ -604,6 +608,48 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
         auto ec1 = ew->m_cube1.lock();
         if (ec0 && ec1 && assemblyPtrs.count(ec0.get()) && assemblyPtrs.count(ec1.get())) {
             ew->m_compound = compound;
+        }
+    }
+
+    // 7. assembly 内の cube を参照している Rope/Rod/Motor を再構築
+    std::vector<std::shared_ptr<Instance>> constraintsToRebuild;
+    for (auto& cEntry : m_constraints) {
+        auto inst = cEntry.constraint.lock();
+        if (!inst || inst->IsA("Weld")) continue;
+        std::shared_ptr<BaseCube> ec0, ec1;
+        if (inst->IsA("Rope")) {
+            auto r = std::static_pointer_cast<Rope>(inst);
+            ec0 = r->m_cube0.lock(); ec1 = r->m_cube1.lock();
+        } else if (inst->IsA("Rod")) {
+            auto r = std::static_pointer_cast<Rod>(inst);
+            ec0 = r->m_cube0.lock(); ec1 = r->m_cube1.lock();
+        } else if (inst->IsA("Motor")) {
+            auto m = std::static_pointer_cast<Motor>(inst);
+            ec0 = m->m_cube0.lock(); ec1 = m->m_cube1.lock();
+        }
+        bool touched = (ec0 && assemblyPtrs.count(ec0.get())) ||
+                       (ec1 && assemblyPtrs.count(ec1.get()));
+        if (touched) {
+            if (cEntry.joint) { cEntry.joint->release(); cEntry.joint = nullptr; }
+            constraintsToRebuild.push_back(inst);
+        }
+    }
+    m_constraints.erase(std::remove_if(m_constraints.begin(), m_constraints.end(),
+        [&](const ConstraintEntry& e) {
+            auto i = e.constraint.lock();
+            return i && std::find(constraintsToRebuild.begin(),
+                                  constraintsToRebuild.end(), i) != constraintsToRebuild.end();
+        }), m_constraints.end());
+    for (auto& inst : constraintsToRebuild) {
+        if (inst->IsA("Rope")) {
+            auto r = std::static_pointer_cast<Rope>(inst);
+            r->m_joint = nullptr; createRope(r);
+        } else if (inst->IsA("Rod")) {
+            auto r = std::static_pointer_cast<Rod>(inst);
+            r->m_joint = nullptr; createRod(r);
+        } else if (inst->IsA("Motor")) {
+            auto m = std::static_pointer_cast<Motor>(inst);
+            m->m_joint = nullptr; createMotor(m);
         }
     }
 }
