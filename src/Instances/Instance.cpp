@@ -39,8 +39,10 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
 
     // 新しい親のリストに自分を追加
     if (newParent) {
-        if (newParent->children.count(this->Name) > 0) {
+        auto existingIt = newParent->children.find(this->Name);
+        if (existingIt != newParent->children.end()) {
             RCBN_WARN("setParent: Key collision for '" << this->Name << "' in " << newParent->Name << ". Overwriting existing child.");
+            existingIt->second->Parent = {};
         }
         newParent->children[this->Name] = shared_from_this();
     }

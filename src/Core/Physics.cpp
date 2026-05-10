@@ -38,6 +38,9 @@ Physics::~Physics() {
                 entry.actor->release();
                 released.insert(entry.actor);
             }
+            if (auto c = entry.cube.lock()) {
+                c->actor = nullptr;
+            }
             entry.actor = nullptr;
         }
         cubes.clear();

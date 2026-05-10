@@ -73,9 +73,16 @@ void LuauEngine::InitDispatchTable() {
 
 void LuauEngine::InitSetterTable() {
     SetterTable["Instance"]["Name"] = [](lua_State* L, Instance* obj) {
-        const char* newName = luaL_checkstring(L, 3);
-        std::cout << "Setting Name of Instance from " << obj->Name << " to " << newName << std::endl;
-        obj->Name = newName;
+        std::string newName = luaL_checkstring(L, 3);
+        if (obj->Name == newName) return 0;
+        auto parent = obj->Parent.lock();
+        if (parent) {
+            parent->children.erase(obj->Name);
+            obj->Name = newName;
+            parent->children[newName] = obj->shared_from_this();
+        } else {
+            obj->Name = newName;
+        }
         return 0;
     };
 

@@ -47,11 +47,13 @@ public:
 
     // 現在のフォーカスされたViewportを取得
     ViewportPanel* getFocusedViewport() const {
+        std::lock_guard<std::mutex> lock(focusMutex);
         return currentFocusedViewport;
     }
 
     // 指定したViewportが現在フォーカスされているか
     bool isFocused(ViewportPanel* viewport) const {
+        std::lock_guard<std::mutex> lock(focusMutex);
         return currentFocusedViewport == viewport;
     }
 
@@ -73,6 +75,7 @@ public:
 
     // フォーカスされているViewportの数（通常は0か1）
     int getFocusedCount() const {
+        std::lock_guard<std::mutex> lock(focusMutex);
         return currentFocusedViewport ? 1 : 0;
     }
 

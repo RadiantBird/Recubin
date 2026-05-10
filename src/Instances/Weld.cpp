@@ -11,9 +11,6 @@ Weld::Weld(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
     : Instance("Weld"), m_cube0(cube0), m_cube1(cube1) {}
 
 Weld::~Weld() {
-    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_compound) {
-        m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
-    }
     m_compound = nullptr;
 }
 

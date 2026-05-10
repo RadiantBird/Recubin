@@ -37,11 +37,8 @@ void BaseCube::onAncestorChanged() {
             if (lastWorkspace->physicsEngine) {
                 lastWorkspace->physicsEngine->removeCube(std::static_pointer_cast<BaseCube>(shared_from_this()));
             } else {
-                // physicsEngine が nullptr の場合は手動でクリーンアップ
-                if (actor) {
-                    actor->release();
-                    actor = nullptr;
-                }
+                // physicsEngine が nullptr の場合、actor は Physics::~Physics() で解放済み
+                actor = nullptr;
             }
         }
         lastWorkspace = nullptr;

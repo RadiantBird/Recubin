@@ -36,7 +36,7 @@ Root:
         - ClassName: Cube
           Name: Blue
           Properties:
-            Position: [-15.695972, -7.5, -21.739695]
+            Position: [-2, 0, -8]
             Size: [1, 4, 1]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0, 1, 1]
@@ -58,7 +58,7 @@ Root:
         - ClassName: Cube
           Name: Green
           Properties:
-            Position: [-15.695976, -7.5, -17.739695]
+            Position: [-2, 0, -4]
             Size: [2, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [0, 1, 0, 1]
@@ -84,7 +84,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [-35.145252, 5.796969, 19.348274]
+            Position: [-36.702435, 19.555668, 25.293758]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -137,7 +137,7 @@ Root:
         - ClassName: Cube
           Name: Floppa1
           Properties:
-            Position: [-1.1107774, -8.5, 13.686163]
+            Position: [1.0775726, -8.5, -8.327957]
             Size: [2, 2, 2]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -179,7 +179,7 @@ Root:
         - ClassName: Cube
           Name: Radio
           Properties:
-            Position: [-17.76123, -7.5, 18.976954]
+            Position: [-17.76123, -7.5, -6.6466923]
             Size: [13.340713, 4, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -201,7 +201,7 @@ Root:
         - ClassName: Cylinder
           Name: Cylinder
           Properties:
-            Position: [6.8442497, -9, -24.538181]
+            Position: [-7.639315, -9, -10.798485]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
