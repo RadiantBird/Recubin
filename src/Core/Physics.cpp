@@ -1,5 +1,6 @@
 #include "include/Core/Physics.hpp"
 #include "include/Util/Logger.hpp"
+#include <include/Instances/Spatial.hpp>
 #include <include/PhysX/cooking/PxCooking.h>
 #include <unordered_set>
 #include <algorithm>
@@ -715,29 +716,19 @@ void Physics::createMotor(const std::shared_ptr<Motor>& motor) {
         return;
     }
 
-    // 接着面の中心（ピボット）を計算: cube0 の面のうち cube1 に最も近い面
+    // ピボット: 各キューブ自身の CFrame から midpoint を使う
+    // (Weld コンパウンドに取り込まれた場合でも actor pose ではなく個別座標が正しい)
     physx::PxTransform pose0 = c0->actor->getGlobalPose();
     physx::PxTransform pose1 = c1->actor->getGlobalPose();
-    physx::PxVec3 toTarget = pose1.p - pose0.p;
-
-    physx::PxVec3 faces[6] = {
-        {1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}
-    };
-    float bestDot = -FLT_MAX;
-    physx::PxVec3 bestHalf(c0->Size.x / 2, 0, 0);
-    for (int i = 0; i < 6; i++) {
-        physx::PxVec3 worldDir = pose0.rotate(faces[i]);
-        float d = worldDir.dot(toTarget);
-        if (d > bestDot) {
-            bestDot = d;
-            bestHalf = physx::PxVec3(
-                faces[i].x * c0->Size.x / 2,
-                faces[i].y * c0->Size.y / 2,
-                faces[i].z * c0->Size.z / 2
-            );
-        }
-    }
-    physx::PxVec3 pivotWorld = pose0.p + pose0.rotate(bestHalf);
+    auto* sp0 = static_cast<Spatial*>(c0.get());
+    auto* sp1 = static_cast<Spatial*>(c1.get());
+    physx::PxVec3 p0 { sp0->getWorldCFrame().Position.x,
+                        sp0->getWorldCFrame().Position.y,
+                        sp0->getWorldCFrame().Position.z };
+    physx::PxVec3 p1 { sp1->getWorldCFrame().Position.x,
+                        sp1->getWorldCFrame().Position.y,
+                        sp1->getWorldCFrame().Position.z };
+    physx::PxVec3 pivotWorld = (p0 + p1) * 0.5f;
 
     // 回転軸を cube0 ローカルの X 軸として表現するフレームを構築
     physx::PxVec3 axisW(motor->Axis.x, motor->Axis.y, motor->Axis.z);

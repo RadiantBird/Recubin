@@ -46,12 +46,28 @@ bool Rope::IsA(std::string className) {
 }
 
 void Rope::setProperty(const std::string& name, const YAML::Node& value) {
-    if      (name == "Cube0")        m_cube0Name   = value.as<std::string>();
-    else if (name == "Cube1")        m_cube1Name   = value.as<std::string>();
-    else if (name == "MaxDistance")  setMaxDistance(value.as<float>());
-    else if (name == "Stiffness")    setStiffness(value.as<float>());
-    else if (name == "Damping")      setDamping(value.as<float>());
+    if (name == "Cube0") {
+        m_cube0Name = value.as<std::string>();
+        if (auto* ws_raw = findFirstAncestorWorkspace()) {
+            auto* child = ws_raw->getChildByPath(m_cube0Name);
+            if (child && child->IsA("BaseCube"))
+                m_cube0 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
+        }
+    } else if (name == "Cube1") {
+        m_cube1Name = value.as<std::string>();
+        if (auto* ws_raw = findFirstAncestorWorkspace()) {
+            auto* child = ws_raw->getChildByPath(m_cube1Name);
+            if (child && child->IsA("BaseCube"))
+                m_cube1 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
+        }
+    } else if (name == "MaxDistance")  setMaxDistance(value.as<float>());
+    else if (name == "Stiffness")      setStiffness(value.as<float>());
+    else if (name == "Damping")        setDamping(value.as<float>());
     else Instance::setProperty(name, value);
+    if (m_cube0.lock() && m_cube1.lock()) {
+        if (auto* ws_raw = findFirstAncestorWorkspace())
+            static_cast<Workspace*>(ws_raw)->registerConstraint(shared_from_this());
+    }
 }
 
 void Rope::onAncestorChanged() {

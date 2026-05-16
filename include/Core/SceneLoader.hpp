@@ -18,6 +18,7 @@ public:
     static std::shared_ptr<Instance> loadScene(const std::string& filePath);
 
     static void saveScene(Instance* root, const std::string& filePath);
+    static void resolveConstraintRefs(Instance* root);
 
     // シングルトン登録: YAML に同名 className が現れたとき既存インスタンスへマージする
     static void registerSingleton(const std::string& className, std::shared_ptr<Instance> instance);
@@ -35,5 +36,4 @@ private:
      */
     static std::shared_ptr<Instance> createInstance(const std::string& className);
     static void saveNode(YAML::Emitter& out, Instance* inst);
-    static void resolveConstraintRefs(Instance* root);
 };

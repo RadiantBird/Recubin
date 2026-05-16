@@ -106,7 +106,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [-0.21058418, 0.86322176, 20.482838]
+            Position: [-14.894638, -2.0036204, 18.159779]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -234,6 +234,26 @@ Root:
             CastShadow: true
             Unlit: false
         - ClassName: Cube
+          Name: Cube2
+          Properties:
+            Position: [-20.119507, -9, 9.595639]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Rope
+              Name: Rope
+              Properties:
+                Cube0: Cube2
+                Cube1: Cube3
+                MaxDistance: 0
+                Stiffness: 100
+                Damping: 10
+        - ClassName: Cube
           Name: Cube11
           Properties:
             Position: [0.43107843, -7, 11.834326]
@@ -287,6 +307,17 @@ Root:
             Axis: [0, 1, 0]
             DriveVelocity: 1
             MaxForce: 1000
+        - ClassName: Cube
+          Name: Cube3
+          Properties:
+            Position: [-14.929794, -9, 11.445565]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
     - ClassName: Lighting
       Name: Lighting
       Properties:

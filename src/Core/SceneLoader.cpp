@@ -202,33 +202,38 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
             return nullptr;
         };
 
-        for (auto& [name, child] : node->children) {
-            if (child->IsA("Rope")) {
-                auto rope = std::static_pointer_cast<Rope>(child);
-                auto c0 = resolve(rope->m_cube0Name);
-                auto c1 = resolve(rope->m_cube1Name);
-                if (c0 && c1) rope->setCubes(c0, c1);
-                else std::cerr << "[SceneLoader] Rope \"" << rope->Name << "\": cube not found\n";
-            } else if (child->IsA("Rod")) {
-                auto rod = std::static_pointer_cast<Rod>(child);
-                auto c0 = resolve(rod->m_cube0Name);
-                auto c1 = resolve(rod->m_cube1Name);
-                if (c0 && c1) rod->setCubes(c0, c1);
-                else std::cerr << "[SceneLoader] Rod \"" << rod->Name << "\": cube not found\n";
-            } else if (child->IsA("Weld")) {
-                auto weld = std::static_pointer_cast<Weld>(child);
-                auto c0 = resolve(weld->m_cube0Name);
-                auto c1 = resolve(weld->m_cube1Name);
-                if (c0 && c1) weld->setCubes(c0, c1);
-                else std::cerr << "[SceneLoader] Weld \"" << weld->Name << "\": cube not found\n";
-            } else if (child->IsA("Motor")) {
-                auto motor = std::static_pointer_cast<Motor>(child);
-                auto c0 = resolve(motor->m_cube0Name);
-                auto c1 = resolve(motor->m_cube1Name);
-                if (c0 && c1) motor->setCubes(c0, c1);
-                else std::cerr << "[SceneLoader] Motor \"" << motor->Name << "\": cube not found\n";
+        auto resolveSubtree = [&](auto& self, Instance* inst) -> void {
+            for (auto& [name, child] : inst->children) {
+                if (child->IsA("Rope")) {
+                    auto rope = std::static_pointer_cast<Rope>(child);
+                    auto c0 = resolve(rope->m_cube0Name);
+                    auto c1 = resolve(rope->m_cube1Name);
+                    if (c0 && c1) rope->setCubes(c0, c1);
+                    else std::cerr << "[SceneLoader] Rope \"" << rope->Name << "\": cube not found\n";
+                } else if (child->IsA("Rod")) {
+                    auto rod = std::static_pointer_cast<Rod>(child);
+                    auto c0 = resolve(rod->m_cube0Name);
+                    auto c1 = resolve(rod->m_cube1Name);
+                    if (c0 && c1) rod->setCubes(c0, c1);
+                    else std::cerr << "[SceneLoader] Rod \"" << rod->Name << "\": cube not found\n";
+                } else if (child->IsA("Weld")) {
+                    auto weld = std::static_pointer_cast<Weld>(child);
+                    auto c0 = resolve(weld->m_cube0Name);
+                    auto c1 = resolve(weld->m_cube1Name);
+                    if (c0 && c1) weld->setCubes(c0, c1);
+                    else std::cerr << "[SceneLoader] Weld \"" << weld->Name << "\": cube not found\n";
+                } else if (child->IsA("Motor")) {
+                    auto motor = std::static_pointer_cast<Motor>(child);
+                    auto c0 = resolve(motor->m_cube0Name);
+                    auto c1 = resolve(motor->m_cube1Name);
+                    if (c0 && c1) motor->setCubes(c0, c1);
+                    else std::cerr << "[SceneLoader] Motor \"" << motor->Name << "\": cube not found\n";
+                }
+                self(self, child.get());
             }
-        }
+        };
+        resolveSubtree(resolveSubtree, node);
+        return;
     }
 
     for (auto& [name, child] : node->children) {

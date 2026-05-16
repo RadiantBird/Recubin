@@ -15,6 +15,7 @@ class Motor : public Instance {
 
     friend class Physics;
     friend class SceneLoader;
+    friend class Weld;
 public:
     Vector3 Axis          = {1.0f, 0.0f, 0.0f}; // 回転軸（ワールド方向）
     float DriveVelocity   = 1.0f;  // rad/s

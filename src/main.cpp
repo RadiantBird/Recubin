@@ -170,6 +170,7 @@ int main() {
         if (isPlaying && !wasPlaying) {
             snapshotDirty = renderer->editor && renderer->editor->isDirty();
             SceneLoader::saveScene(system.get(), snapshotPath);
+            SceneLoader::resolveConstraintRefs(system.get());
             user->spawnCharacter();
             audioService->playAutoPlaySounds();
             if (user->character) workspace->addChild(user->character);
