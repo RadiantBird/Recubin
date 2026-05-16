@@ -581,9 +581,15 @@ void ViewportPanel::onRender() {
                     }
                 } else if (gizmoOp == ImGuizmo::SCALE) {
                     // Roblox スタイル: size デルタの半分だけ position をオフセット
-                    // ドラッグ開始時の絶対座標から計算することで毎フレームの累積を防ぐ
+                    // 負方向ハンドルのときは符号を反転して逆面を固定する
                     Vector3 deltaSize = newSize - m_scaleBeforeSize;
-                    Vector3 newWorldPos = m_scaleBeforeWorldPos + deltaSize * 0.5f;
+                    float sx = ImGuizmo::IsScaleNegative(0) ? -1.0f : 1.0f;
+                    float sy = ImGuizmo::IsScaleNegative(1) ? -1.0f : 1.0f;
+                    float sz = ImGuizmo::IsScaleNegative(2) ? -1.0f : 1.0f;
+                    Vector3 newWorldPos = m_scaleBeforeWorldPos + Vector3(
+                        deltaSize.x * sx,
+                        deltaSize.y * sy,
+                        deltaSize.z * sz) * 0.5f;
                     Vector3 localPos = worldToLocal(newWorldPos, s);
                     if (inst->IsA("BaseCube")) {
                         BaseCube* bc = static_cast<BaseCube*>(inst);
