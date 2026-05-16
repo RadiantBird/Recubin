@@ -48,7 +48,16 @@ private:
     static std::unordered_map<std::string_view, std::unordered_map<std::string_view, SetterFunc>> SetterTable;
 
     void InitDispatchTable();
+    void InitDispatchTable_Base();     // Instance, BaseCube
+    void InitDispatchTable_World();    // Workspace, Decal, Lighting
+    void InitDispatchTable_Physics();  // Rope, Rod, Weld, Motor
+    void InitDispatchTable_Misc();     // Sound, CharacterSetting, AppImage, Script
+
     void InitSetterTable();
+    void InitSetterTable_Base();
+    void InitSetterTable_World();
+    void InitSetterTable_Physics();
+    void InitSetterTable_Misc();
     void InitMetatables();
     void RegisterGlobalFunctions(lua_State* L);  // コルーチンにも関数を登録するために抽出
 

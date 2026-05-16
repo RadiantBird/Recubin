@@ -463,13 +463,19 @@ void EditorManager::renderToolbar() {
         ImGui::Checkbox("移動スナップ##snapT", &viewportPanel->snapTranslate);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f);
-        ImGui::DragFloat("m##snapTVal", &viewportPanel->snapTranslateVal, 0.1f, 0.1f, 100.0f, "%.1f");
+        ImGui::DragFloat("studs##snapTVal", &viewportPanel->snapTranslateVal, 0.1f, 0.1f, 100.0f, "%.1f");
         ImGui::SameLine();
 
         ImGui::Checkbox("回転スナップ##snapR", &viewportPanel->snapRotate);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f);
         ImGui::DragFloat("\xc2\xb0##snapRVal", &viewportPanel->snapRotateVal, 1.0f, 1.0f, 180.0f, "%.0f");
+        ImGui::SameLine();
+
+        ImGui::Checkbox("リサイズスナップ##snapS", &viewportPanel->snapScale);
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(52.0f);
+        ImGui::DragFloat("studs##snapSVal", &viewportPanel->snapScaleVal, 0.1f, 0.1f, 100.0f, "%.1f");
         ImGui::SameLine();
 
         ImGui::Checkbox("衝突フィット##cf", &viewportPanel->collisionFit);

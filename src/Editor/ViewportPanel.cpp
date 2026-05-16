@@ -521,11 +521,13 @@ void ViewportPanel::onRender() {
 
             ImGuizmo::SetRect(contentOrigin.x, contentOrigin.y, (float)w, (float)h);
 
-            float snapArr[3] = { snapTranslateVal, snapTranslateVal, snapTranslateVal };
-            float rotSnap[3] = { snapRotateVal,    snapRotateVal,    snapRotateVal    };
+            float snapArr[3]   = { snapTranslateVal, snapTranslateVal, snapTranslateVal };
+            float rotSnap[3]   = { snapRotateVal,    snapRotateVal,    snapRotateVal    };
+            float scaleSnap[3] = { snapScaleVal,     snapScaleVal,     snapScaleVal     };
             const float* snap = nullptr;
-            if (gizmoOp == ImGuizmo::TRANSLATE && snapTranslate) snap = snapArr;
-            else if (gizmoOp == ImGuizmo::ROTATE && snapRotate)  snap = rotSnap;
+            if      (gizmoOp == ImGuizmo::TRANSLATE && snapTranslate) snap = snapArr;
+            else if (gizmoOp == ImGuizmo::ROTATE    && snapRotate)    snap = rotSnap;
+            else if (gizmoOp == ImGuizmo::SCALE     && snapScale)     snap = scaleSnap;
 
             if (ImGuizmo::Manipulate(view.m, proj.m, gizmoOp,
                                      ImGuizmo::WORLD, model.m, nullptr, snap)) {

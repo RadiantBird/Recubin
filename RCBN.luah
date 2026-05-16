@@ -1,29 +1,110 @@
 export type Instance = {
     Name: string,
     Parent: Instance?,
-    -- Children: { [string]: Instance }, -- GetChildren()で取得するため、C++でそれを実装
-    FindChild: <T>(Instance, string) -> T
+    FindChild: <T>(Instance, string) -> T?,
+    GetChildren: (Instance) -> { Instance },
+    IsA: (Instance, string) -> boolean,
+    Destroy: (Instance) -> (),
 }
 
 export type BaseCube = Instance & {
     Position: Vector3,
-    -- Size: Vector3, -- C++で実装
-    Color: Color4
+    Size: Vector3,
+    Color: Color4,
+    Anchored: boolean,
+    CanCollide: boolean,
+    Velocity: Vector3, -- read only
 }
 
-export type Cube = BaseCube & {
-    -- Cube独自のプロパティをあとで記述
+export type Cube = BaseCube & {}
+
+export type Sphere = BaseCube & {}
+
+export type Cylinder = BaseCube & {}
+
+export type TriangularPrism = BaseCube & {}
+
+export type Decal = Instance & {
+    TextureID: number,
+    Face: number,
+}
+
+export type Sound = Instance & {
+    IsPlaying: boolean, -- read only
+    Looped: boolean,
+    Volume: number,
+    Play: (Sound) -> (),
+    Stop: (Sound) -> (),
+}
+
+export type Lighting = Instance & {
+    Brightness: number,
+}
+
+export type Rope = Instance & {
+    MaxDistance: number,
+    Stiffness: number,
+    Damping: number,
+    LineWidth: number,
+    Color: Color4,
+}
+
+export type Rod = Instance & {
+    LineWidth: number,
+    Color: Color4,
+}
+
+export type Weld = Instance & {
+    Cube0: string, -- read only
+    Cube1: string, -- read only
+}
+
+export type Motor = Instance & {
+    DriveVelocity: number,
+    MaxForce: number,
+}
+
+export type CharacterSetting = Instance & {
+    JumpPower: number,
+    MoveSpeed: number,
+    FacePath: string,
+    HeadColor: Color4,
+    TorsoColor: Color4,
+    LeftArmColor: Color4,
+    RightArmColor: Color4,
+    LeftLegColor: Color4,
+    RightLegColor: Color4,
+}
+
+export type AppImage = Instance & {
+    IconPath: string,
+}
+
+export type Script = Instance & {
+    Enabled: boolean,
+    Path: string,
+    Source: string, -- read only
+}
+
+export type RaycastResult = {
+    Distance: number,
+    Position: Vector3,
+    Instance: Instance?,
 }
 
 export type Workspace = Instance & {
-    -- Workspace独自のプロパティをあとで記述
+    Gravity: Vector3,
+    Raycast: (Workspace, Vector3, Vector3) -> RaycastResult?,
 }
 
 export type Vector3 = {
     x: number,
     y: number,
     z: number,
-    new: (number, number, number) -> Vector3
+    zero: Vector3,
+    new: (number, number, number) -> Vector3,
+    length: (Vector3) -> number,
+    normalize: (Vector3) -> Vector3,
 }
 
 export type Color4 = {
@@ -31,12 +112,11 @@ export type Color4 = {
     g: number,
     b: number,
     a: number,
-    new: (number, number, number, number) -> Color4
+    new: (number, number, number, number?) -> Color4,
 }
 
-declare Instance: Instance
-declare Workspace: Workspace
 declare workspace: Workspace
 declare Vector3: Vector3
 declare Color4: Color4
 declare wait: (seconds: number) -> ()
+declare print: (...any) -> ()

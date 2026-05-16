@@ -65,6 +65,8 @@ public:
     float snapTranslateVal = 1.0f;
     bool  snapRotate       = false;
     float snapRotateVal    = 15.0f;
+    bool  snapScale        = false;
+    float snapScaleVal     = 1.0f;
     bool  collisionFit     = true;
 
     // ---- ツールモード状態クエリ ----
