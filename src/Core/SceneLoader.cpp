@@ -335,11 +335,15 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "MaxDistance" << YAML::Value << r->MaxDistance;
             out << YAML::Key << "Stiffness"   << YAML::Value << r->Stiffness;
             out << YAML::Key << "Damping"     << YAML::Value << r->Damping;
+            out << YAML::Key << "Color"     << YAML::Value << YAML::Flow << YAML::BeginSeq << r->Color.r << r->Color.g << r->Color.b << r->Color.a << YAML::EndSeq;
+            out << YAML::Key << "LineWidth" << YAML::Value << r->LineWidth;
         }
         if (inst->IsA("Rod")) {
             const Rod* r = static_cast<const Rod*>(inst);
             out << YAML::Key << "Cube0" << YAML::Value << r->m_cube0Name;
             out << YAML::Key << "Cube1" << YAML::Value << r->m_cube1Name;
+            out << YAML::Key << "Color"     << YAML::Value << YAML::Flow << YAML::BeginSeq << r->Color.r << r->Color.g << r->Color.b << r->Color.a << YAML::EndSeq;
+            out << YAML::Key << "LineWidth" << YAML::Value << r->LineWidth;
         }
         if (inst->IsA("Weld")) {
             const Weld* w = static_cast<const Weld*>(inst);

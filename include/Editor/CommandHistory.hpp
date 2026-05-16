@@ -8,6 +8,7 @@
 #include <Instances/Lighting.hpp>
 #include <Instances/Skybox.hpp>
 #include <Instances/Rope.hpp>
+#include <Instances/Rod.hpp>
 #include <Instances/Motor.hpp>
 #include <yaml-cpp/yaml.h>
 #include <memory>
@@ -450,6 +451,46 @@ private:
         if      (m_prop == "DriveVelocity") m_target->setDriveVelocity(v);
         else if (m_prop == "MaxForce")      m_target->setMaxForce(v);
     }
+};
+
+// --- Rod の Color 変更 ---
+struct SetRodColorCommand : Command {
+    std::shared_ptr<Rod> m_target;
+    Color4 m_before, m_after;
+    SetRodColorCommand(std::shared_ptr<Rod> t, Color4 before, Color4 after)
+        : m_target(std::move(t)), m_before(before), m_after(after) {}
+    void execute() override { if (m_target) m_target->Color = m_after; }
+    void undo()    override { if (m_target) m_target->Color = m_before; }
+};
+
+// --- Rod の LineWidth 変更 ---
+struct SetRodLineWidthCommand : Command {
+    std::shared_ptr<Rod> m_target;
+    float m_before, m_after;
+    SetRodLineWidthCommand(std::shared_ptr<Rod> t, float before, float after)
+        : m_target(std::move(t)), m_before(before), m_after(after) {}
+    void execute() override { if (m_target) m_target->LineWidth = m_after; }
+    void undo()    override { if (m_target) m_target->LineWidth = m_before; }
+};
+
+// --- Rope の Color 変更 ---
+struct SetRopeColorCommand : Command {
+    std::shared_ptr<Rope> m_target;
+    Color4 m_before, m_after;
+    SetRopeColorCommand(std::shared_ptr<Rope> t, Color4 before, Color4 after)
+        : m_target(std::move(t)), m_before(before), m_after(after) {}
+    void execute() override { if (m_target) m_target->Color = m_after; }
+    void undo()    override { if (m_target) m_target->Color = m_before; }
+};
+
+// --- Rope の LineWidth 変更 ---
+struct SetRopeLineWidthCommand : Command {
+    std::shared_ptr<Rope> m_target;
+    float m_before, m_after;
+    SetRopeLineWidthCommand(std::shared_ptr<Rope> t, float before, float after)
+        : m_target(std::move(t)), m_before(before), m_after(after) {}
+    void execute() override { if (m_target) m_target->LineWidth = m_after; }
+    void undo()    override { if (m_target) m_target->LineWidth = m_before; }
 };
 
 // --- Motor の Axis 変更（次回 Play 時に適用） ---

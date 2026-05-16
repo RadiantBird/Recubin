@@ -313,8 +313,6 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
     glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"),       1, GL_FALSE, view.m);
     glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
     glBindVertexArray(m_lineVAO);
-    glLineWidth(2.5f);
-    glDisable(GL_DEPTH_TEST);
 
     int colorLoc = glGetUniformLocation(m_lineShader, "lineColor");
 
@@ -347,7 +345,8 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
                     Vector3 p = p0 * (mt * mt) + ctrl * (2.0f * mt * t) + p1 * (t * t);
                     verts.push_back(p.x); verts.push_back(p.y); verts.push_back(p.z);
                 }
-                glUniform4f(colorLoc, 0.3f, 0.9f, 1.0f, 1.0f); // シアン
+                glLineWidth(rope->LineWidth);
+                glUniform4f(colorLoc, rope->Color.r, rope->Color.g, rope->Color.b, rope->Color.a);
                 uploadAndDraw(verts);
             }
         } else if (inst->GetClassName() == "Rod") {
@@ -361,7 +360,8 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
                     p0.x, p0.y, p0.z,
                     p1.x, p1.y, p1.z
                 };
-                glUniform4f(colorLoc, 1.0f, 0.6f, 0.1f, 1.0f); // オレンジ
+                glLineWidth(rod->LineWidth);
+                glUniform4f(colorLoc, rod->Color.r, rod->Color.g, rod->Color.b, rod->Color.a);
                 uploadAndDraw(verts);
             }
         }
@@ -375,7 +375,6 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
         scan(scan, child.get());
     }
 
-    glEnable(GL_DEPTH_TEST);
     glLineWidth(1.0f);
     glBindVertexArray(0);
     glUseProgram(shaderProgram);

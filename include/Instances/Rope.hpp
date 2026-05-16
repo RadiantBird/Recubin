@@ -2,6 +2,7 @@
 #include <include/Instances/Instance.hpp>
 #include <include/Instances/BaseCube.hpp>
 #include <include/PhysX/PxPhysicsAPI.h>
+#include <include/Util/Color4.hpp>
 #include <memory>
 
 class SceneLoader;
@@ -22,6 +23,8 @@ public:
 
     std::string m_cube0Name;
     std::string m_cube1Name;
+    Color4 Color     = {0.3f, 0.9f, 1.0f, 1.0f};
+    float  LineWidth = 2.5f;
 
     Rope();
     Rope(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1);

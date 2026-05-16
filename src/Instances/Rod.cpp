@@ -42,6 +42,13 @@ void Rod::setProperty(const std::string& name, const YAML::Node& value) {
             if (child && child->IsA("BaseCube"))
                 m_cube1 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
         }
+    } else if (name == "Color") {
+        Color.r = value[0].as<float>();
+        Color.g = value[1].as<float>();
+        Color.b = value[2].as<float>();
+        Color.a = value[3].as<float>();
+    } else if (name == "LineWidth") {
+        LineWidth = value.as<float>();
     } else {
         Instance::setProperty(name, value);
     }

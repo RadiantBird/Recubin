@@ -622,6 +622,17 @@ void PropertiesPanel::onRender() {
           if (ImGui::IsItemDeactivatedAfterEdit()) {
               rope->setDamping(rope->Damping);
               if (m_history) m_history->record(std::make_unique<SetRopeFloatCommand>(ropeSp, "Damping", s_rf, rope->Damping)); } }
+        { static Color4 s_rc;
+          float col[4] = { rope->Color.r, rope->Color.g, rope->Color.b, rope->Color.a };
+          if (ImGui::ColorEdit4("Color", col)) { rope->Color = {col[0], col[1], col[2], col[3]}; }
+          if (ImGui::IsItemActivated()) s_rc = rope->Color;
+          if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
+              m_history->record(std::make_unique<SetRopeColorCommand>(ropeSp, s_rc, rope->Color)); }
+        { static float s_rlw;
+          if (ImGui::DragFloat("LineWidth", &rope->LineWidth, 0.1f, 0.5f, 16.0f)){}
+          if (ImGui::IsItemActivated()) s_rlw = rope->LineWidth;
+          if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
+              m_history->record(std::make_unique<SetRopeLineWidthCommand>(ropeSp, s_rlw, rope->LineWidth)); }
     }
 
     // ---- Rod ----
@@ -631,6 +642,17 @@ void PropertiesPanel::onRender() {
         ImGui::SeparatorText("Rod");
         drawConstraintCubeRef("Cube0", rod->m_cube0Name, "Cube0", rodSp);
         drawConstraintCubeRef("Cube1", rod->m_cube1Name, "Cube1", rodSp);
+        { static Color4 s_rdc;
+          float col[4] = { rod->Color.r, rod->Color.g, rod->Color.b, rod->Color.a };
+          if (ImGui::ColorEdit4("Color", col)) { rod->Color = {col[0], col[1], col[2], col[3]}; }
+          if (ImGui::IsItemActivated()) s_rdc = rod->Color;
+          if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
+              m_history->record(std::make_unique<SetRodColorCommand>(rodSp, s_rdc, rod->Color)); }
+        { static float s_rdlw;
+          if (ImGui::DragFloat("LineWidth", &rod->LineWidth, 0.1f, 0.5f, 16.0f)){}
+          if (ImGui::IsItemActivated()) s_rdlw = rod->LineWidth;
+          if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
+              m_history->record(std::make_unique<SetRodLineWidthCommand>(rodSp, s_rdlw, rod->LineWidth)); }
     }
 
     // ---- Weld ----

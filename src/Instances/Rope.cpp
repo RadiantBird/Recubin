@@ -63,7 +63,14 @@ void Rope::setProperty(const std::string& name, const YAML::Node& value) {
     } else if (name == "MaxDistance")  setMaxDistance(value.as<float>());
     else if (name == "Stiffness")      setStiffness(value.as<float>());
     else if (name == "Damping")        setDamping(value.as<float>());
-    else Instance::setProperty(name, value);
+    else if (name == "Color") {
+        Color.r = value[0].as<float>();
+        Color.g = value[1].as<float>();
+        Color.b = value[2].as<float>();
+        Color.a = value[3].as<float>();
+    } else if (name == "LineWidth") {
+        LineWidth = value.as<float>();
+    } else Instance::setProperty(name, value);
     if (m_cube0.lock() && m_cube1.lock()) {
         if (auto* ws_raw = findFirstAncestorWorkspace())
             static_cast<Workspace*>(ws_raw)->registerConstraint(shared_from_this());

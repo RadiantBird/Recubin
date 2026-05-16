@@ -2,6 +2,7 @@
 #include <include/Instances/Instance.hpp>
 #include <include/Instances/BaseCube.hpp>
 #include <include/PhysX/PxPhysicsAPI.h>
+#include <include/Util/Color4.hpp>
 #include <memory>
 
 class SceneLoader;
@@ -18,6 +19,8 @@ class Rod : public Instance {
 public:
     std::string m_cube0Name;
     std::string m_cube1Name;
+    Color4 Color     = {1.0f, 0.6f, 0.1f, 1.0f};
+    float  LineWidth = 2.5f;
 
     Rod();
     Rod(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1);
