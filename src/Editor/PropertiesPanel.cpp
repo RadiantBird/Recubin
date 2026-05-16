@@ -5,6 +5,7 @@
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/Texture.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/Skybox.hpp>
 #include <Instances/Rope.hpp>
@@ -462,6 +463,80 @@ void PropertiesPanel::onRender() {
                 if (m_history)
                     m_history->record(std::make_unique<SetDecalTextureCommand>(
                         dclSp, oldPath, oldID, dcl->texturePath, dcl->TextureID));
+            }
+        }
+    }
+
+    // ---- Texture ----
+    if (inst->GetClassName() == "Texture") {
+        Texture* tx = static_cast<Texture*>(inst);
+        auto txSp = std::static_pointer_cast<Texture>(inst->shared_from_this());
+        ImGui::SeparatorText("Texture");
+
+        // Face combo with undo
+        {
+            static const char* faceItems[] = { "Front", "Back", "Top", "Bottom", "Right", "Left" };
+            int faceIdx = static_cast<int>(tx->face);
+            if (ImGui::Combo("Face##tex", &faceIdx, faceItems, 6)) {
+                Face newFace = static_cast<Face>(faceIdx);
+                if (newFace != tx->face) {
+                    Face oldFace = tx->face;
+                    tx->setFace(newFace);
+                    if (m_history)
+                        m_history->record(std::make_unique<SetTextureFaceCommand>(txSp, oldFace, newFace));
+                }
+            }
+        }
+
+        // Color with undo
+        {
+            static Color4 s_txColorBefore;
+            float col[4] = { tx->Color.r, tx->Color.g, tx->Color.b, tx->Color.a };
+            if (ImGui::IsItemActivated()) s_txColorBefore = tx->Color;
+            bool colorChanged = ImGui::ColorEdit4("Color##tex", col);
+            if (ImGui::IsItemActivated()) s_txColorBefore = tx->Color;
+            if (colorChanged) tx->Color = Color4(col[0], col[1], col[2], col[3]);
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                Color4 after(col[0], col[1], col[2], col[3]);
+                m_history->record(std::make_unique<SetTextureColorCommand>(txSp, s_txColorBefore, after));
+            }
+        }
+
+        // StudsPerTileU / V with undo
+        {
+            static float s_studsUBefore, s_studsVBefore;
+            float studsU = tx->StudsPerTileU;
+            float studsV = tx->StudsPerTileV;
+            if (ImGui::DragFloat("StudsPerTileU", &studsU, 0.1f, 0.01f, 100.0f)) {
+                if (ImGui::IsItemActivated()) { s_studsUBefore = tx->StudsPerTileU; s_studsVBefore = tx->StudsPerTileV; }
+                tx->StudsPerTileU = studsU;
+            }
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                m_history->record(std::make_unique<SetTextureStudsCommand>(
+                    txSp, s_studsUBefore, s_studsVBefore, tx->StudsPerTileU, tx->StudsPerTileV));
+            }
+            if (ImGui::DragFloat("StudsPerTileV", &studsV, 0.1f, 0.01f, 100.0f)) {
+                if (ImGui::IsItemActivated()) { s_studsUBefore = tx->StudsPerTileU; s_studsVBefore = tx->StudsPerTileV; }
+                tx->StudsPerTileV = studsV;
+            }
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                m_history->record(std::make_unique<SetTextureStudsCommand>(
+                    txSp, s_studsUBefore, s_studsVBefore, tx->StudsPerTileU, tx->StudsPerTileV));
+            }
+        }
+
+        // Texture path with undo
+        ImGui::LabelText("Texture##texpath", "%s", tx->texturePath.c_str());
+        if (ImGui::Button("参照...##tex")) {
+            std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.tga)", L"*.png;*.jpg;*.bmp;*.tga");
+            if (!path.empty()) {
+                std::string oldPath = tx->texturePath;
+                unsigned int oldID  = tx->TextureID;
+                YAML::Node node; node = path;
+                tx->setProperty("Texture", node);
+                if (m_history)
+                    m_history->record(std::make_unique<SetTextureTextureCommand>(
+                        txSp, oldPath, oldID, tx->texturePath, tx->TextureID));
             }
         }
     }

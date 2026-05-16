@@ -1,4 +1,5 @@
 #include <Editor/EditorManager.hpp>
+#include <Editor/SpawnUtil.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <shobjidl.h>
 #include <Editor/CommandHistory.hpp>
@@ -32,6 +33,7 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
 
     hierarchyPanel->workspace   = workspace;
     hierarchyPanel->systemRoot  = system;
+    hierarchyPanel->m_user      = user;
     viewportPanel->user         = user;
     viewportPanel->workspace    = workspace;
 
@@ -391,7 +393,8 @@ void EditorManager::renderToolbar() {
 
     // ---- New Cube（CommandHistory経由） ----
     if (ImGui::Button("New Cube", btnSz) && m_workspace) {
-        auto cube = std::make_shared<Cube>(Vector3(0, 5, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+        Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+        auto cube = std::make_shared<Cube>(spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
         std::string name = "Cube";
         int n = 1;
         while (m_workspace->children.count(name) > 0)
@@ -403,7 +406,8 @@ void EditorManager::renderToolbar() {
     }
     ImGui::SameLine();
     if (ImGui::Button("New Cylinder", btnSz) && m_workspace) {
-        auto obj = std::make_shared<Cylinder>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+        Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+        auto obj = std::make_shared<Cylinder>(spawnPos, Vector3(1, 1, 1));
         std::string name = "Cylinder";
         int n = 1;
         while (m_workspace->children.count(name) > 0)
@@ -415,7 +419,8 @@ void EditorManager::renderToolbar() {
     }
     ImGui::SameLine();
     if (ImGui::Button("New Prism", btnSz) && m_workspace) {
-        auto obj = std::make_shared<TriangularPrism>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+        Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+        auto obj = std::make_shared<TriangularPrism>(spawnPos, Vector3(1, 1, 1));
         std::string name = "TriangularPrism";
         int n = 1;
         while (m_workspace->children.count(name) > 0)
@@ -427,7 +432,8 @@ void EditorManager::renderToolbar() {
     }
     ImGui::SameLine();
     if (ImGui::Button("New Sphere", btnSz) && m_workspace) {
-        auto obj = std::make_shared<Sphere>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+        Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+        auto obj = std::make_shared<Sphere>(spawnPos, Vector3(1, 1, 1));
         std::string name = "Sphere";
         int n = 1;
         while (m_workspace->children.count(name) > 0)

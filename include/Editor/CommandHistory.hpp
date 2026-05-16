@@ -3,6 +3,7 @@
 #include <Instances/Spatial.hpp>
 #include <Instances/Instance.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/Texture.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/Skybox.hpp>
@@ -268,6 +269,64 @@ struct SetDecalTextureCommand : Command {
 
     void execute() override { if (m_target) { m_target->texturePath = m_afterPath;  m_target->TextureID = m_afterID;  } }
     void undo()    override { if (m_target) { m_target->texturePath = m_beforePath; m_target->TextureID = m_beforeID; } }
+};
+
+// --- Texture Face 変更 ---
+struct SetTextureFaceCommand : Command {
+    std::shared_ptr<Texture> m_target;
+    Face m_before, m_after;
+
+    SetTextureFaceCommand(std::shared_ptr<Texture> target, Face before, Face after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->setFace(m_after); }
+    void undo()    override { if (m_target) m_target->setFace(m_before); }
+};
+
+// --- Texture テクスチャパス変更 ---
+struct SetTextureTextureCommand : Command {
+    std::shared_ptr<Texture> m_target;
+    std::string  m_beforePath, m_afterPath;
+    unsigned int m_beforeID,   m_afterID;
+
+    SetTextureTextureCommand(std::shared_ptr<Texture> target,
+                             std::string beforePath, unsigned int beforeID,
+                             std::string afterPath,  unsigned int afterID)
+        : m_target(std::move(target)),
+          m_beforePath(std::move(beforePath)), m_afterPath(std::move(afterPath)),
+          m_beforeID(beforeID), m_afterID(afterID) {}
+
+    void execute() override { if (m_target) { m_target->texturePath = m_afterPath;  m_target->TextureID = m_afterID;  } }
+    void undo()    override { if (m_target) { m_target->texturePath = m_beforePath; m_target->TextureID = m_beforeID; } }
+};
+
+// --- Texture Color 変更 ---
+struct SetTextureColorCommand : Command {
+    std::shared_ptr<Texture> m_target;
+    Color4 m_before, m_after;
+
+    SetTextureColorCommand(std::shared_ptr<Texture> target, Color4 before, Color4 after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->Color = m_after; }
+    void undo()    override { if (m_target) m_target->Color = m_before; }
+};
+
+// --- Texture StudsPerTile 変更 ---
+struct SetTextureStudsCommand : Command {
+    std::shared_ptr<Texture> m_target;
+    float m_beforeU, m_afterU;
+    float m_beforeV, m_afterV;
+
+    SetTextureStudsCommand(std::shared_ptr<Texture> target,
+                           float beforeU, float beforeV,
+                           float afterU,  float afterV)
+        : m_target(std::move(target)),
+          m_beforeU(beforeU), m_afterU(afterU),
+          m_beforeV(beforeV), m_afterV(afterV) {}
+
+    void execute() override { if (m_target) { m_target->StudsPerTileU = m_afterU;  m_target->StudsPerTileV = m_afterV;  } }
+    void undo()    override { if (m_target) { m_target->StudsPerTileU = m_beforeU; m_target->StudsPerTileV = m_beforeV; } }
 };
 
 // --- Sound bool プロパティ変更 ---

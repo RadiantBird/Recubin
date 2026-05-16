@@ -79,10 +79,17 @@ void Cube::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(s_VAO);
     int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
 
-    // デカールの収集
+    int uvScaleLoc = glGetUniformLocation(shaderProgram, "uvScale");
+
+    // フェイスごとのデカール・テクスチャ収集
     unsigned int activeTextures[6];
     Decal*       activeDecals[6];
-    for (int i = 0; i < 6; i++) { activeTextures[i] = defaultTextureID; activeDecals[i] = nullptr; }
+    Texture*     activeTexInst[6];
+    for (int i = 0; i < 6; i++) {
+        activeTextures[i] = defaultTextureID;
+        activeDecals[i]   = nullptr;
+        activeTexInst[i]  = nullptr;
+    }
 
     for (auto const& [name, child] : getChildren()) {
         if (child->IsA("Decal")) {
@@ -92,18 +99,42 @@ void Cube::draw(int modelLoc, int shaderProgram) {
                 activeTextures[idx] = decal->TextureID;
                 activeDecals[idx]   = decal;
             }
+        } else if (child->IsA("Texture")) {
+            Texture* tex = static_cast<Texture*>(child.get());
+            int idx = static_cast<int>(tex->face);
+            if (idx >= 0 && idx < 6) {
+                activeTexInst[idx] = tex;
+                if (!activeDecals[idx])
+                    activeTextures[idx] = tex->TextureID;
+            }
         }
     }
 
+    // フェイスごとのサイズ (u軸, v軸) — StudsPerTile の計算に使用
+    // 0 Front(Z-), 1 Back(Z+): X幅, Y高さ
+    // 2 Top(Y+), 3 Bottom(Y-): X幅, Z高さ
+    // 4 Right(X+), 5 Left(X-): Z幅, Y高さ
+    float faceSizeU[6] = { Size.x, Size.x, Size.x, Size.x, Size.z, Size.z };
+    float faceSizeV[6] = { Size.y, Size.y, Size.z, Size.z, Size.y, Size.y };
+
     for (int i = 0; i < 6; i++) {
-        if (colorLoc != -1) {
-            if (activeDecals[i]) {
-                const Color4& dc = activeDecals[i]->Color;
-                glUniform4f(colorLoc, dc.r, dc.g, dc.b, dc.a);
-            } else {
-                glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
-            }
+        if (activeDecals[i]) {
+            const Color4& dc = activeDecals[i]->Color;
+            if (colorLoc  != -1) glUniform4f(colorLoc,  dc.r, dc.g, dc.b, dc.a);
+            if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1.0f, 1.0f);
+        } else if (activeTexInst[i]) {
+            const Color4& tc = activeTexInst[i]->Color;
+            float su = activeTexInst[i]->StudsPerTileU;
+            float sv = activeTexInst[i]->StudsPerTileV;
+            float scaleU = (su > 0.0f) ? faceSizeU[i] / su : 1.0f;
+            float scaleV = (sv > 0.0f) ? faceSizeV[i] / sv : 1.0f;
+            if (colorLoc  != -1) glUniform4f(colorLoc,  tc.r, tc.g, tc.b, tc.a);
+            if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, scaleU, scaleV);
+        } else {
+            if (colorLoc  != -1) glUniform4f(colorLoc,  Color.r, Color.g, Color.b, Color.a);
+            if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1.0f, 1.0f);
         }
+
         glActiveTexture(GL_TEXTURE0);
         unsigned int tex = activeTextures[i];
         if (tex == 0) tex = defaultTextureID;

@@ -1,4 +1,5 @@
 #include <Editor/SceneHierarchyPanel.hpp>
+#include <Editor/SpawnUtil.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <algorithm>
 #include <Instances/Cube.hpp>
@@ -8,6 +9,7 @@
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/Texture.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
@@ -280,23 +282,26 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
 
     // ---- Cube系 ----
     if (ImGui::BeginMenu("Cube系")) {
+        auto spawnPos = [this]() {
+            return computeSpawnPos(m_user, workspace);
+        };
         if (ImGui::MenuItem("Cube") && m_history) {
-            auto obj = std::make_shared<Cube>(Vector3(0, 5, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+            auto obj = std::make_shared<Cube>(spawnPos(), Vector3(1, 1, 1), Cube::defaultTextureID);
             obj->Name = uniqueName(parentSp, "Cube");
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
         if (ImGui::MenuItem("Cylinder") && m_history) {
-            auto obj = std::make_shared<Cylinder>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+            auto obj = std::make_shared<Cylinder>(spawnPos(), Vector3(1, 1, 1));
             obj->Name = uniqueName(parentSp, "Cylinder");
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
         if (ImGui::MenuItem("TriangularPrism") && m_history) {
-            auto obj = std::make_shared<TriangularPrism>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+            auto obj = std::make_shared<TriangularPrism>(spawnPos(), Vector3(1, 1, 1));
             obj->Name = uniqueName(parentSp, "TriangularPrism");
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
         if (ImGui::MenuItem("Sphere") && m_history) {
-            auto obj = std::make_shared<Sphere>(Vector3(0, 5, 0), Vector3(1, 1, 1));
+            auto obj = std::make_shared<Sphere>(spawnPos(), Vector3(1, 1, 1));
             obj->Name = uniqueName(parentSp, "Sphere");
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
@@ -315,6 +320,11 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         if (ImGui::MenuItem("Decal") && m_history) {
             auto obj = std::make_shared<Decal>(0, Face::Front);
             obj->Name = uniqueName(parentSp, "Decal");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("Texture") && m_history) {
+            auto obj = std::make_shared<Texture>(0, Face::Front);
+            obj->Name = uniqueName(parentSp, "Texture");
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
         ImGui::EndMenu();

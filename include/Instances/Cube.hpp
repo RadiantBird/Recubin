@@ -3,6 +3,7 @@
 #include <include/Math/Matrix4.hpp>
 #include <include/Instances/BaseCube.hpp>
 #include <include/Instances/Decal.hpp>
+#include <include/Instances/Texture.hpp>
 #include <vector>
 
 // 頂点構造体

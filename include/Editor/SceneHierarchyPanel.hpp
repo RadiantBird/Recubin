@@ -2,6 +2,7 @@
 #include <Editor/EditorPanel.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Instance.hpp>
+#include <Core/User.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -20,6 +21,7 @@ public:
 
     CommandHistory*              m_history   = nullptr;
     std::shared_ptr<Instance>*   m_clipboard = nullptr;  // EditorManager::m_clipboard へのポインタ
+    User*                        m_user      = nullptr;
 
     SceneHierarchyPanel();
     void onRender() override;

@@ -9,6 +9,7 @@
 #include <Instances/Script.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/Texture.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/Skybox.hpp>
@@ -171,6 +172,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Script")    return std::make_shared<Script>("");
     if (className == "Model")     return std::make_shared<Model>();
     if (className == "Decal")     return std::make_shared<Decal>(0, Face::Front);
+    if (className == "Texture")   return std::make_shared<Texture>(0, Face::Front);
     if (className == "Sound") {
         if (AudioService::instance) {
             return std::make_shared<Sound>(*AudioService::instance);
@@ -242,6 +244,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     // プロパティ
     bool hasProps = inst->IsA("Spatial") || inst->GetClassName() == "Script"
                  || inst->GetClassName() == "Sound" || inst->GetClassName() == "Decal"
+                 || inst->GetClassName() == "Texture"
                  || inst->GetClassName() == "Lighting" || inst->GetClassName() == "Skybox"
                  || inst->IsA("Rope") || inst->IsA("Rod")
                  || inst->IsA("Weld") || inst->IsA("Motor");
@@ -284,6 +287,18 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "Face"    << YAML::Value << static_cast<int>(d->face);
             if (!d->texturePath.empty())
                 out << YAML::Key << "Texture" << YAML::Value << d->texturePath;
+        }
+        if (inst->GetClassName() == "Texture") {
+            const Texture* tx = static_cast<const Texture*>(inst);
+            out << YAML::Key << "Face" << YAML::Value << static_cast<int>(tx->face);
+            out << YAML::Key << "Color" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << tx->Color.r << tx->Color.g << tx->Color.b << tx->Color.a
+                << YAML::EndSeq;
+            out << YAML::Key << "StudsPerTileU" << YAML::Value << tx->StudsPerTileU;
+            out << YAML::Key << "StudsPerTileV" << YAML::Value << tx->StudsPerTileV;
+            if (!tx->texturePath.empty())
+                out << YAML::Key << "Texture" << YAML::Value << tx->texturePath;
         }
         if (inst->GetClassName() == "Lighting") {
             const Lighting* lt = static_cast<const Lighting*>(inst);
