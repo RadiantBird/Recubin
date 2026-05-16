@@ -137,6 +137,7 @@ namespace IMGUIZMO_NAMESPACE
 
    // return true if mouse IsOver or if the gizmo is in moving state
    IMGUI_API bool IsUsing();
+   IMGUI_API bool IsScaleNegative(int axisIndex);
 
    // return true if the view gizmo is in moving state
    IMGUI_API bool IsUsingViewManipulate();

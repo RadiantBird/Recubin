@@ -768,6 +768,8 @@ namespace IMGUIZMO_NAMESPACE
       bool mAllowAxisFlip = true;
       float mGizmoSizeClipSpace = 0.1f;
 
+      bool mScaleNegative[3] = { false, false, false };
+
       inline ImGuiID GetCurrentID()
       {
          if (mIDStack.empty())
@@ -1007,6 +1009,12 @@ namespace IMGUIZMO_NAMESPACE
    bool IsUsing()
    {
       return (gContext.mbUsing && (gContext.GetCurrentID() == gContext.mEditingID)) || gContext.mbUsingBounds;
+   }
+
+   bool IsScaleNegative(int axisIndex)
+   {
+      if (axisIndex < 0 || axisIndex > 2) return false;
+      return gContext.mScaleNegative[axisIndex];
    }
 
    bool IsUsingViewManipulate()
@@ -1435,6 +1443,15 @@ namespace IMGUIZMO_NAMESPACE
                }
                drawList->AddCircleFilled(worldDirSSpace, gContext.mStyle.ScaleLineCircleSize, colors[i + 1]);
 
+               // Negative direction handle
+               ImVec2 negBaseSSpace = worldToPos(-dirAxis * 0.1f * gContext.mScreenFactor, gContext.mMVP);
+               ImVec2 negDirSSpace  = worldToPos((-dirAxis * markerScale * scaleDisplay[i]) * gContext.mScreenFactor, gContext.mMVP);
+               if (!hasTranslateOnAxis || gContext.mbUsing)
+               {
+                  drawList->AddLine(negBaseSSpace, negDirSSpace, colors[i + 1], gContext.mStyle.ScaleLineThickness);
+               }
+               drawList->AddCircleFilled(negDirSSpace, gContext.mStyle.ScaleLineCircleSize, colors[i + 1]);
+
                if (gContext.mAxisFactor[i] < 0.f)
                {
                   DrawHatchedAxis(dirAxis * scaleDisplay[i]);
@@ -1599,6 +1616,18 @@ namespace IMGUIZMO_NAMESPACE
                ImVec2 a(worldDirSSpace + dir);
                drawList->AddTriangleFilled(worldDirSSpace - dir, a + ortogonalDir, a - ortogonalDir, colors[i + 1]);
                // Arrow head end
+
+               // Negative direction arrow
+               ImVec2 negBaseSSpace    = worldToPos(-dirAxis * 0.1f * gContext.mScreenFactor, gContext.mMVP);
+               ImVec2 negWorldDirSSpace = worldToPos(-dirAxis * gContext.mScreenFactor, gContext.mMVP);
+               drawList->AddLine(negBaseSSpace, negWorldDirSSpace, colors[i + 1], gContext.mStyle.TranslationLineThickness);
+               ImVec2 negDir(origin - negWorldDirSSpace);
+               float negD = sqrtf(ImLengthSqr(negDir));
+               negDir /= negD;
+               negDir *= gContext.mStyle.TranslationLineArrowSize;
+               ImVec2 negOrtho(negDir.y, -negDir.x);
+               ImVec2 negA(negWorldDirSSpace + negDir);
+               drawList->AddTriangleFilled(negWorldDirSSpace - negDir, negA + negOrtho, negA - negOrtho, colors[i + 1]);
 
                if (gContext.mAxisFactor[i] < 0.f)
                {
@@ -1946,6 +1975,7 @@ namespace IMGUIZMO_NAMESPACE
       }
 
       // compute
+      gContext.mScaleNegative[0] = gContext.mScaleNegative[1] = gContext.mScaleNegative[2] = false;
       for (int i = 0; i < 3 && type == MT_NONE; i++)
       {
          if(!Intersects(op, static_cast<OPERATION>(SCALE_X << i)))
@@ -1975,7 +2005,25 @@ namespace IMGUIZMO_NAMESPACE
          if ((closestPointOnAxis - makeVect(posOnPlanScreen)).Length() < 12.f) // pixel size
          {
             if (!isAxisMasked)
+            {
                type = MT_SCALE_X + i;
+               gContext.mScaleNegative[i] = false;
+            }
+         }
+         else
+         {
+            // check negative direction handle
+            const ImVec2 axisNegStartOnScreen = worldToPos(gContext.mModelLocal.v.position - dirAxis * gContext.mScreenFactor * startOffset, gContext.mViewProjection);
+            const ImVec2 axisNegEndOnScreen   = worldToPos(gContext.mModelLocal.v.position - dirAxis * gContext.mScreenFactor * endOffset,   gContext.mViewProjection);
+            vec_t closestOnNeg = PointOnSegment(makeVect(posOnPlanScreen), makeVect(axisNegStartOnScreen), makeVect(axisNegEndOnScreen));
+            if ((closestOnNeg - makeVect(posOnPlanScreen)).Length() < 12.f)
+            {
+               if (!isAxisMasked)
+               {
+                  type = MT_SCALE_X + i;
+                  gContext.mScaleNegative[i] = true;
+               }
+            }
          }
       }
 
@@ -2127,6 +2175,17 @@ namespace IMGUIZMO_NAMESPACE
 
          vec_t closestPointOnAxis = PointOnSegment(screenCoord, makeVect(axisStartOnScreen), makeVect(axisEndOnScreen));
          if ((closestPointOnAxis - screenCoord).Length() < 12.f && Intersects(op, static_cast<OPERATION>(TRANSLATE_X << i))) // pixel size
+         {
+            if (isAxisMasked)
+               break;
+            type = MT_MOVE_X + i;
+         }
+
+         // Negative direction arrow hit test
+         const ImVec2 axisNegStartOnScreen = worldToPos(gContext.mModel.v.position - dirAxis * gContext.mScreenFactor * 0.1f, gContext.mViewProjection) - ImVec2(gContext.mX, gContext.mY);
+         const ImVec2 axisNegEndOnScreen   = worldToPos(gContext.mModel.v.position - dirAxis * gContext.mScreenFactor,        gContext.mViewProjection) - ImVec2(gContext.mX, gContext.mY);
+         vec_t closestOnNeg = PointOnSegment(screenCoord, makeVect(axisNegStartOnScreen), makeVect(axisNegEndOnScreen));
+         if (type == MT_NONE && (closestOnNeg - screenCoord).Length() < 12.f && Intersects(op, static_cast<OPERATION>(TRANSLATE_X << i)))
          {
             if (isAxisMasked)
                break;
