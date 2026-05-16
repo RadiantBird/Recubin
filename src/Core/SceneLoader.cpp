@@ -12,12 +12,15 @@
 #include <Instances/Texture.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/AppImage.hpp>
+#include <Instances/CharacterSetting.hpp>
 #include <Instances/Skybox.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
 #include <Core/AudioService.hpp>
+#include <Util/Logger.hpp>
 #include <iostream>
 #include <fstream>
 #include <memory>
@@ -73,9 +76,17 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
         }
         YAML::Node root = config["Root"];
 
+        // 非シングルトンの root 直下インスタンスを受け取るコンテナを決定する。
+        // System シングルトンがある場合はそこへ直接追加し、ない場合は bag を返す。
+        auto getOrphanParent = [&]() -> std::shared_ptr<Instance> {
+            auto it = s_singletons.find("System");
+            if (it != s_singletons.end()) return it->second;
+            return std::make_shared<Instance>("__root__");
+        };
+
         // Root が Sequence のとき（旧形式: Root: [{ ClassName: System, ... }]）
         if (root.IsSequence()) {
-            auto bag = std::make_shared<Instance>("__root__");
+            auto bag = getOrphanParent();
             for (const auto& itemNode : root) {
                 std::string cn = itemNode["ClassName"] ? itemNode["ClassName"].as<std::string>() : "";
                 auto inst = parseInstance(itemNode);
@@ -90,7 +101,7 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
 
         // ClassName のない Root は子リストを直接処理する（フラット形式）
         if (!root["ClassName"] && root["Children"]) {
-            auto bag = std::make_shared<Instance>("__root__");
+            auto bag = getOrphanParent();
             for (const auto& childNode : root["Children"]) {
                 std::string cn = childNode["ClassName"] ? childNode["ClassName"].as<std::string>() : "";
                 auto inst = parseInstance(childNode);
@@ -115,7 +126,10 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
 }
 
 std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
-    if (!node["ClassName"]) return nullptr;
+    if (!node["ClassName"]) {
+        RCBN_WARN("[SceneLoader] Instance node is missing ClassName — skipped");
+        return nullptr;
+    }
 
     std::string className = node["ClassName"].as<std::string>();
 
@@ -128,9 +142,10 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
         instance = createInstance(className);
         if (!instance) {
             if (className == "Sound" && !AudioService::instance) {
-                std::cerr << "[SceneLoader] Warning: Failed to create Sound instance because AudioService is not initialized." << std::endl;
+                RCBN_WARN("[SceneLoader] Sound skipped: AudioService not initialized");
             } else {
-                std::cerr << "[SceneLoader] Warning: Unknown ClassName: " << className << std::endl;
+                RCBN_WARN("[SceneLoader] Unknown ClassName '" + className + "' — instance skipped");
+                std::cerr << "[SceneLoader] WARN: Unknown ClassName '" << className << "'\n";
             }
             return nullptr;
         }
@@ -179,7 +194,9 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
         }
         return nullptr;
     }
-    if (className == "Lighting") return std::make_shared<Lighting>();
+    if (className == "Lighting")  return std::make_shared<Lighting>();
+    if (className == "AppImage")         return std::make_shared<AppImage>();
+    if (className == "CharacterSetting") return std::make_shared<CharacterSetting>();
     if (className == "Instance") return std::make_shared<Instance>("Instance");
     if (className == "Rope")  return std::make_shared<Rope>();
     if (className == "Rod")   return std::make_shared<Rod>();
@@ -251,6 +268,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->GetClassName() == "Sound" || inst->GetClassName() == "Decal"
                  || inst->GetClassName() == "Texture"
                  || inst->GetClassName() == "Lighting" || inst->GetClassName() == "Skybox"
+                 || inst->GetClassName() == "AppImage"
+                 || inst->GetClassName() == "CharacterSetting"
                  || inst->IsA("Rope") || inst->IsA("Rod")
                  || inst->IsA("Weld") || inst->IsA("Motor");
     if (hasProps) {
@@ -304,6 +323,27 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "StudsPerTileV" << YAML::Value << tx->StudsPerTileV;
             if (!tx->texturePath.empty())
                 out << YAML::Key << "Texture" << YAML::Value << tx->texturePath;
+        }
+        if (inst->GetClassName() == "AppImage") {
+            const AppImage* ai = static_cast<const AppImage*>(inst);
+            if (!ai->iconPath.empty())
+                out << YAML::Key << "IconPath" << YAML::Value << ai->iconPath;
+        }
+        if (inst->GetClassName() == "CharacterSetting") {
+            const CharacterSetting* cs = static_cast<const CharacterSetting*>(inst);
+            auto emitColor = [&](const char* key, const Color4& c) {
+                out << YAML::Key << key << YAML::Value
+                    << YAML::Flow << YAML::BeginSeq << c.r << c.g << c.b << c.a << YAML::EndSeq;
+            };
+            if (!cs->facePath.empty()) out << YAML::Key << "FacePath" << YAML::Value << cs->facePath;
+            emitColor("HeadColor",     cs->headColor);
+            emitColor("TorsoColor",    cs->torsoColor);
+            emitColor("LeftArmColor",  cs->leftArmColor);
+            emitColor("RightArmColor", cs->rightArmColor);
+            emitColor("LeftLegColor",  cs->leftLegColor);
+            emitColor("RightLegColor", cs->rightLegColor);
+            out << YAML::Key << "JumpPower" << YAML::Value << cs->jumpPower;
+            out << YAML::Key << "MoveSpeed" << YAML::Value << cs->moveSpeed;
         }
         if (inst->GetClassName() == "Lighting") {
             const Lighting* lt = static_cast<const Lighting*>(inst);

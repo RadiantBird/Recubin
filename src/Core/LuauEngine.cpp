@@ -2,6 +2,9 @@
 #include "include/Core/Physics.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/Decal.hpp"
+#include "include/Instances/Motor.hpp"
+#include "include/Instances/Sound.hpp"
+#include "include/Instances/Lighting.hpp"
 #include "include/Util/Logger.hpp"
 #include <float.h>
 
@@ -38,14 +41,20 @@ void LuauEngine::InitDispatchTable() {
     };
 
     DispatchTable["BaseCube"]["Position"] = [](lua_State* L, Instance* obj) {
-        auto cube = static_cast<BaseCube*>(obj);
-        lua_pushstring(L, cube->Position.toString().c_str());
+        auto* cube = static_cast<BaseCube*>(obj);
+        Vector3* v = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+        *v = cube->Position;
+        luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+        lua_setmetatable(L, -2);
         return 1;
     };
 
     DispatchTable["BaseCube"]["Color"] = [](lua_State* L, Instance* obj) {
-        auto cube = static_cast<BaseCube*>(obj);
-        lua_pushstring(L, cube->Color.toString().c_str());
+        auto* cube = static_cast<BaseCube*>(obj);
+        Color4* c = (Color4*)lua_newuserdata(L, sizeof(Color4));
+        *c = cube->Color;
+        luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
+        lua_setmetatable(L, -2);
         return 1;
     };
 
@@ -67,6 +76,130 @@ void LuauEngine::InitDispatchTable() {
         luaL_getmetatable(L, RCBN_INST_METATABLE);
         lua_setmetatable(L, -2);
         lua_pushcclosure(L, workspace_raycast_closure, "Raycast", 1);
+        return 1;
+    };
+
+    // Instance
+    DispatchTable["Instance"]["Parent"] = [](lua_State* L, Instance* obj) {
+        auto parent = obj->Parent.lock();
+        if (!parent) { lua_pushnil(L); return 1; }
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(parent);
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+    DispatchTable["Instance"]["GetChildren"] = [](lua_State* L, Instance* obj) {
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(obj->shared_from_this());
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        lua_pushcclosure(L, instance_get_children_closure, "GetChildren", 1);
+        return 1;
+    };
+    DispatchTable["Instance"]["IsA"] = [](lua_State* L, Instance* obj) {
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(obj->shared_from_this());
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        lua_pushcclosure(L, instance_is_a_closure, "IsA", 1);
+        return 1;
+    };
+    DispatchTable["Instance"]["Destroy"] = [](lua_State* L, Instance* obj) {
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(obj->shared_from_this());
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        lua_pushcclosure(L, instance_destroy_closure, "Destroy", 1);
+        return 1;
+    };
+
+    // BaseCube
+    DispatchTable["BaseCube"]["Size"] = [](lua_State* L, Instance* obj) {
+        auto* cube = static_cast<BaseCube*>(obj);
+        Vector3* v = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+        *v = cube->Size;
+        luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+    DispatchTable["BaseCube"]["Anchored"] = [](lua_State* L, Instance* obj) {
+        lua_pushboolean(L, static_cast<BaseCube*>(obj)->Anchored);
+        return 1;
+    };
+    DispatchTable["BaseCube"]["CanCollide"] = [](lua_State* L, Instance* obj) {
+        lua_pushboolean(L, static_cast<BaseCube*>(obj)->CanCollide);
+        return 1;
+    };
+    DispatchTable["BaseCube"]["Velocity"] = [](lua_State* L, Instance* obj) {
+        auto* cube = static_cast<BaseCube*>(obj);
+        Vector3* v = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+        *v = Vector3(0.0f, 0.0f, 0.0f);
+        if (cube->actor) {
+            auto* dyn = cube->actor->is<physx::PxRigidDynamic>();
+            if (dyn) {
+                physx::PxVec3 vel = dyn->getLinearVelocity();
+                *v = Vector3(vel.x, vel.y, vel.z);
+            }
+        }
+        luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+
+    // Workspace
+    DispatchTable["Workspace"]["Gravity"] = [](lua_State* L, Instance* obj) {
+        auto* ws = static_cast<Workspace*>(obj);
+        Vector3* v = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+        *v = ws->Gravity;
+        luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+
+    // Motor
+    DispatchTable["Motor"]["DriveVelocity"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<Motor*>(obj)->DriveVelocity);
+        return 1;
+    };
+    DispatchTable["Motor"]["MaxForce"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<Motor*>(obj)->MaxForce);
+        return 1;
+    };
+
+    // Sound
+    DispatchTable["Sound"]["IsPlaying"] = [](lua_State* L, Instance* obj) {
+        lua_pushboolean(L, static_cast<Sound*>(obj)->isPlaying());
+        return 1;
+    };
+    DispatchTable["Sound"]["Looped"] = [](lua_State* L, Instance* obj) {
+        lua_pushboolean(L, static_cast<Sound*>(obj)->isLooping());
+        return 1;
+    };
+    DispatchTable["Sound"]["Volume"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<Sound*>(obj)->getVolume());
+        return 1;
+    };
+    DispatchTable["Sound"]["Play"] = [](lua_State* L, Instance* obj) {
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(obj->shared_from_this());
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        lua_pushcclosure(L, sound_play_closure, "Play", 1);
+        return 1;
+    };
+    DispatchTable["Sound"]["Stop"] = [](lua_State* L, Instance* obj) {
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(obj->shared_from_this());
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        lua_pushcclosure(L, sound_stop_closure, "Stop", 1);
+        return 1;
+    };
+
+    // Lighting
+    DispatchTable["Lighting"]["Brightness"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<Lighting*>(obj)->brightness);
         return 1;
     };
 }
@@ -129,6 +262,57 @@ void LuauEngine::InitSetterTable() {
     SetterTable["Decal"]["Face"] = [](lua_State* L, Instance* obj) {
         auto decal = static_cast<Decal*>(obj);
         decal->face = (Face)(int)luaL_checknumber(L, 3);
+        return 0;
+    };
+
+    // BaseCube
+    SetterTable["BaseCube"]["Size"] = [](lua_State* L, Instance* obj) {
+        auto* cube = static_cast<BaseCube*>(obj);
+        Vector3* v = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
+        cube->setSize(*v);
+        return 0;
+    };
+    SetterTable["BaseCube"]["Anchored"] = [](lua_State* L, Instance* obj) {
+        static_cast<BaseCube*>(obj)->setAnchored(lua_toboolean(L, 3) != 0);
+        return 0;
+    };
+    SetterTable["BaseCube"]["CanCollide"] = [](lua_State* L, Instance* obj) {
+        static_cast<BaseCube*>(obj)->CanCollide = lua_toboolean(L, 3) != 0;
+        return 0;
+    };
+
+    // Workspace
+    SetterTable["Workspace"]["Gravity"] = [](lua_State* L, Instance* obj) {
+        auto* ws = static_cast<Workspace*>(obj);
+        Vector3* v = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
+        ws->Gravity = *v;
+        if (ws->getPhysicsEngine()) ws->getPhysicsEngine()->setGravity(*v);
+        return 0;
+    };
+
+    // Motor
+    SetterTable["Motor"]["DriveVelocity"] = [](lua_State* L, Instance* obj) {
+        static_cast<Motor*>(obj)->setDriveVelocity((float)luaL_checknumber(L, 3));
+        return 0;
+    };
+    SetterTable["Motor"]["MaxForce"] = [](lua_State* L, Instance* obj) {
+        static_cast<Motor*>(obj)->setMaxForce((float)luaL_checknumber(L, 3));
+        return 0;
+    };
+
+    // Sound
+    SetterTable["Sound"]["Looped"] = [](lua_State* L, Instance* obj) {
+        static_cast<Sound*>(obj)->setLooping(lua_toboolean(L, 3) != 0);
+        return 0;
+    };
+    SetterTable["Sound"]["Volume"] = [](lua_State* L, Instance* obj) {
+        static_cast<Sound*>(obj)->setVolume((float)luaL_checknumber(L, 3));
+        return 0;
+    };
+
+    // Lighting
+    SetterTable["Lighting"]["Brightness"] = [](lua_State* L, Instance* obj) {
+        static_cast<Lighting*>(obj)->brightness = (float)luaL_checknumber(L, 3);
         return 0;
     };
 }
@@ -213,6 +397,15 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     
     lua_pushcfunction(L, wait, "wait");
     lua_setglobal(L, "wait");
+
+    auto ws = workspace.lock();
+    if (ws) {
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(ws);
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        lua_setglobal(L, "workspace");
+    }
 }
 
 int LuauEngine::instance_index(lua_State* L) {
@@ -345,8 +538,12 @@ bool LuauEngine::execute(Script& script) {
     // 既にコルーチンがある場合は再開、なければ新規作成
     if (script.Coroutine == nullptr) {
         script.Coroutine = lua_newthread(L);
-        // 新しいスレッドにもグローバル関数を登録
         RegisterGlobalFunctions(script.Coroutine);
+        auto* sud = (std::weak_ptr<Instance>*)lua_newuserdata(script.Coroutine, sizeof(std::weak_ptr<Instance>));
+        new (sud) std::weak_ptr<Instance>(script.shared_from_this());
+        luaL_getmetatable(script.Coroutine, RCBN_INST_METATABLE);
+        lua_setmetatable(script.Coroutine, -2);
+        lua_setglobal(script.Coroutine, "script");
     }
     
     lua_State* co = script.Coroutine;
@@ -355,12 +552,18 @@ bool LuauEngine::execute(Script& script) {
     // lua_status(): 0=OK, LUA_YIELD=suspended, LUA_ERRERR=error, etc.
     if (lua_status(co) == 0 && lua_gettop(co) == 0) {  // スタックが空なら初回実行
         const std::string& source = script.Source;
-        size_t bytecodeSize = 0;
-        char* bytecode = luau_compile(source.c_str(), source.length(), nullptr, &bytecodeSize);
-        if (!bytecode) return false;
-
-        int status = luau_load(co, ("@" + script.Name).c_str(), bytecode, bytecodeSize, 0);
-        free(bytecode);
+        int status;
+        if (script.isPrecompiled) {
+            // .luauc: source already contains raw bytecode, pass directly
+            status = luau_load(co, ("@" + script.Name).c_str(),
+                               source.data(), source.size(), 0);
+        } else {
+            size_t bytecodeSize = 0;
+            char* bytecode = luau_compile(source.c_str(), source.length(), nullptr, &bytecodeSize);
+            if (!bytecode) return false;
+            status = luau_load(co, ("@" + script.Name).c_str(), bytecode, bytecodeSize, 0);
+            free(bytecode);
+        }
 
         if (status != 0) {
             script.Aborted = true; // DO NOT loop on errored script compile!
@@ -672,6 +875,7 @@ int LuauEngine::erik_index(lua_State* L) {
 
 void LuauEngine::setWorkspace(const std::shared_ptr<Workspace>& ws) {
     workspace = ws;
+    setGlobalInstance("workspace", ws);
 }
 
 void LuauEngine::executeWorkspaceScripts() {
@@ -686,6 +890,58 @@ void LuauEngine::executeWorkspaceScripts() {
             execute(*script);
         }
     }
+}
+
+int LuauEngine::instance_get_children_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto obj = ud->lock();
+    lua_newtable(L);
+    if (!obj) return 1;
+    int idx = 1;
+    for (auto& [name, child] : obj->children) {
+        auto* cud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (cud) std::weak_ptr<Instance>(child);
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        lua_rawseti(L, -2, idx++);
+    }
+    return 1;
+}
+
+int LuauEngine::instance_is_a_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto obj = ud->lock();
+    if (!obj) { lua_pushboolean(L, false); return 1; }
+    const char* className = luaL_checkstring(L, 2);
+    lua_pushboolean(L, obj->IsA(className));
+    return 1;
+}
+
+int LuauEngine::instance_destroy_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto obj = ud->lock();
+    if (!obj) return 0;
+    auto parent = obj->Parent.lock();
+    if (parent) {
+        parent->children.erase(obj->Name);
+        obj->Parent.reset();
+        obj->onAncestorChanged();
+    }
+    return 0;
+}
+
+int LuauEngine::sound_play_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto obj = ud->lock();
+    if (obj) static_cast<Sound*>(obj.get())->play();
+    return 0;
+}
+
+int LuauEngine::sound_stop_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto obj = ud->lock();
+    if (obj) static_cast<Sound*>(obj.get())->stop();
+    return 0;
 }
 
 void LuauEngine::update(float deltaTime) {

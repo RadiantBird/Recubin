@@ -6,6 +6,16 @@
 #include <algorithm>
 #include <queue>
 
+void Physics::setGravity(const Vector3& g) {
+    if (scene) scene->setGravity(physx::PxVec3(g.x, g.y, g.z));
+}
+
+Vector3 Physics::getGravity() const {
+    if (!scene) return Vector3(0.0f, -9.81f, 0.0f);
+    physx::PxVec3 g = scene->getGravity();
+    return Vector3(g.x, g.y, g.z);
+}
+
 void Physics::init() {
     foundation = PxCreateFoundation(PX_PHYSICS_VERSION, allocator, errorCallback);
     physics = PxCreatePhysics(PX_PHYSICS_VERSION, *foundation, physx::PxTolerancesScale());

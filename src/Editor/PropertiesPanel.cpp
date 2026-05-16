@@ -12,6 +12,8 @@
 #include <Instances/Rod.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
+#include <Instances/AppImage.hpp>
+#include <Instances/CharacterSetting.hpp>
 #include <Util/Color4.hpp>
 #include <include/imgui/imgui.h>
 #include <unordered_map>
@@ -692,6 +694,57 @@ void PropertiesPanel::onRender() {
           if (ImGui::IsItemDeactivatedAfterEdit()) {
               motor->setMaxForce(motor->MaxForce);
               if (m_history) m_history->record(std::make_unique<SetMotorFloatCommand>(motorSp, "MaxForce", s_mf, motor->MaxForce)); } }
+    }
+
+    // ---- AppImage ----
+    if (inst->GetClassName() == "AppImage") {
+        AppImage* ai = static_cast<AppImage*>(inst);
+        ImGui::SeparatorText("AppImage");
+        ImGui::LabelText("IconPath", "%s", ai->iconPath.empty() ? "(none)" : ai->iconPath.c_str());
+        if (ImGui::Button("参照...##appimage")) {
+            std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.ico)", L"*.png;*.jpg;*.bmp;*.ico");
+            if (!path.empty()) {
+                YAML::Node node; node = path;
+                ai->setProperty("IconPath", node);
+            }
+        }
+    }
+
+    // ---- CharacterSetting ----
+    if (inst->GetClassName() == "CharacterSetting") {
+        CharacterSetting* cs = static_cast<CharacterSetting*>(inst);
+        ImGui::SeparatorText("CharacterSetting");
+
+        // FacePath
+        ImGui::LabelText("FacePath", "%s", cs->facePath.empty() ? "(none)" : cs->facePath.c_str());
+        if (ImGui::Button("参照...##csface")) {
+            std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.tga)", L"*.png;*.jpg;*.bmp;*.tga");
+            if (!path.empty()) {
+                YAML::Node node; node = path;
+                cs->setProperty("FacePath", node);
+            }
+        }
+
+        ImGui::Separator();
+
+        // Colors
+        auto colorEdit = [](const char* label, Color4& c) {
+            float col[4] = { c.r, c.g, c.b, c.a };
+            if (ImGui::ColorEdit4(label, col))
+                c = Color4(col[0], col[1], col[2], col[3]);
+        };
+        colorEdit("HeadColor",     cs->headColor);
+        colorEdit("TorsoColor",    cs->torsoColor);
+        colorEdit("LeftArmColor",  cs->leftArmColor);
+        colorEdit("RightArmColor", cs->rightArmColor);
+        colorEdit("LeftLegColor",  cs->leftLegColor);
+        colorEdit("RightLegColor", cs->rightLegColor);
+
+        ImGui::Separator();
+
+        // JumpPower / MoveSpeed
+        ImGui::DragFloat("JumpPower", &cs->jumpPower, 0.1f, 0.0f, 100.0f, "%.2f");
+        ImGui::DragFloat("MoveSpeed", &cs->moveSpeed, 0.1f, 0.0f, 100.0f, "%.2f");
     }
 
     ImGui::End();

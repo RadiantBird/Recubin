@@ -87,9 +87,39 @@ def run_watchsnake(exit_code: int) -> int:
     return subprocess.call([python_cmd, str(watchsnake_path), str(exit_code)], cwd=ROOT_DIR)
 
 
+def build_launcher(config: str) -> int:
+    src = ROOT_DIR / "launcher" / "main.cpp"
+    if not src.exists():
+        print(f"[ERROR] launcher/main.cpp not found.")
+        return 1
+
+    out_dir = BUILD_DIR / config
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_exe = out_dir / "launcher.exe"
+
+    # Compile with MSVC cl.exe (assumes Developer Command Prompt or vcvars in PATH)
+    args = [
+        "cl.exe",
+        "/std:c++17",
+        "/EHsc",
+        "/W3",
+        "/utf-8",
+        f"/Fe{out_exe}",
+        str(src),
+        "Shell32.lib", "Ole32.lib", "user32.lib",
+        "/link", "/SUBSYSTEM:WINDOWS"
+    ]
+    result = subprocess.call(args, cwd=ROOT_DIR)
+    if result == 0:
+        print(f"[SUCCESS] launcher.exe built at {out_exe}")
+    else:
+        print("[ERROR] Launcher build failed.")
+    return result
+
+
 def main() -> int:
     if len(sys.argv) < 2:
-        print("Usage: <python> build.py <build|run|brun> [Debug|Release]")
+        print("Usage: <python> build.py <build|run|brun|launcher> [Debug|Release]")
         return 1
 
     action = sys.argv[1].lower()
@@ -113,6 +143,9 @@ def main() -> int:
             return result
         exit_code = run_binary(config)
         return run_watchsnake(exit_code)
+
+    if action == "launcher":
+        return build_launcher(config)
 
     print(f"[ERROR] Unknown action: {action}")
     return 1

@@ -15,9 +15,25 @@ Script::Script(string path) : Instance("Script"), Coroutine(nullptr), Path(path)
 void Script::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Source" || name == "Path" || name == "ContentPath") {
         this->Path = value.as<std::string>();
-        this->Source = FileLoader::readText(this->Path);
-        if (this->Source.empty()) {
-            this->Source = "print('Error: Failed to load script source: " + this->Path + "')";
+        // .luauc files are pre-compiled bytecode — load as binary
+        bool isBytecode = this->Path.size() >= 6 &&
+                          this->Path.rfind(".luauc") == this->Path.size() - 6;
+        if (isBytecode) {
+            auto bytes = FileLoader::readBinary(this->Path);
+            if (!bytes.empty()) {
+                this->Source = std::string(bytes.begin(), bytes.end());
+                this->isPrecompiled = true;
+                std::cout << "Loaded bytecode script from " << this->Path << "\n";
+            } else {
+                this->Source = "print('Error: Failed to load bytecode: " + this->Path + "')";
+                this->isPrecompiled = false;
+            }
+        } else {
+            this->Source = FileLoader::readText(this->Path);
+            this->isPrecompiled = false;
+            if (this->Source.empty()) {
+                this->Source = "print('Error: Failed to load script source: " + this->Path + "')";
+            }
         }
     } else {
         Instance::setProperty(name, value);

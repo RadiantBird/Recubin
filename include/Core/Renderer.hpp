@@ -56,6 +56,7 @@ class Renderer {
 
         // Editor 管理
         std::unique_ptr<EditorManager> editor;
+        GLFWwindow* m_window = nullptr; // init() で保持。renderScene の fallback 解像度に使用
 
         void init(GLFWwindow* window);
         virtual ~Renderer();

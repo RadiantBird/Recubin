@@ -41,8 +41,10 @@ static Lighting* findLightingInTree(Instance* inst) {
 //  init
 // ===================================================
 void Renderer::init(GLFWwindow* window) {
-    instance = this;
+    instance  = this;
+    m_window  = window;
 
+#ifndef EDITOR_DISABLED
     // ImGui 初期化
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -64,6 +66,7 @@ void Renderer::init(GLFWwindow* window) {
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
+#endif
 
     // OpenGL バッファ
     glGenBuffers(1, &EBO);
@@ -241,11 +244,13 @@ void Renderer::init(GLFWwindow* window) {
 Renderer::~Renderer() {
     if (instance == this) instance = nullptr;
 
+#ifndef EDITOR_DISABLED
     editor.reset(); // EditorManager を先に破棄（FBO が ImGui より先に解放される）
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+#endif
 
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &EBO);
@@ -384,8 +389,15 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
 //  3D シーン描画（FBO または既定の FB に描く）
 // ===================================================
 void Renderer::renderScene(User& user, Workspace& workspace) {
-    int width  = editor ? editor->viewportPanel->fbWidth  : 800;
-    int height = editor ? editor->viewportPanel->fbHeight : 600;
+    int width, height;
+    if (editor) {
+        width  = editor->viewportPanel->fbWidth;
+        height = editor->viewportPanel->fbHeight;
+    } else if (m_window) {
+        glfwGetFramebufferSize(m_window, &width, &height);
+    } else {
+        width = 1280; height = 720;
+    }
     if (height == 0) height = 1;
 
     glViewport(0, 0, width, height);
@@ -599,22 +611,33 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
 //  メインループから呼ぶ統合描画
 // ===================================================
 void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
-    // 1. FBO に 3D シーンを描画
+    // 1. 3D シーンを描画
     if (editor) {
+        // エディターモード: FBO に描画して ImGui viewport に表示
         editor->beginViewportRender();
         renderScene(user, workspace);
         editor->endViewportRender();
+    } else {
+        // ゲームモード: デフォルトフレームバッファに直接描画
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        renderScene(user, workspace);
     }
 
-    // 2. 既定のフレームバッファをクリア（ImGui 用）
-    int winW, winH;
-    glfwGetFramebufferSize(window, &winW, &winH);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, winW, winH);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+#ifndef EDITOR_DISABLED
+    // 2. 既定のフレームバッファをクリア（ImGui 用。3D シーンは FBO に描かれているので安全）
+    if (editor) {
+        int winW, winH;
+        glfwGetFramebufferSize(window, &winW, &winH);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, winW, winH);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
+#endif
 
+#ifndef EDITOR_DISABLED
     // 3. ImGui（DockSpace + パネル）
     renderImGui(user, window, workspace);
+#endif
 
     glfwSwapBuffers(window);
     glfwPollEvents();

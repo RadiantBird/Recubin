@@ -7,6 +7,7 @@ private:
     ma_sound sound;
     bool loaded = false;
     bool looping = false;
+    float m_volume = 1.0f;
     std::string soundGroup = "SFX";
     std::string m_currentPath = "";
 
@@ -26,7 +27,10 @@ public:
 
     std::string getContentPath() const { return m_currentPath; }
     bool isLooping()   const { return looping;    }
+    bool isPlaying()   const;
     bool getAutoPlay() const { return autoPlay;   }
+    void setVolume(float v);
+    float getVolume()  const;
     std::string getSoundGroup() const { return soundGroup; }
 
     ~Sound();

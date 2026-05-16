@@ -1,4 +1,5 @@
 #include <Editor/EditorManager.hpp>
+#include <Core/Packager.hpp>
 #include <Editor/SpawnUtil.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <shobjidl.h>
@@ -88,6 +89,11 @@ void EditorManager::render(GLFWwindow* window) {
             if (ImGui::MenuItem("Save Scene", "Ctrl+S") && isEditMode()) saveCurrentScene();
             if (ImGui::MenuItem("Open Scene", "Ctrl+O") && isEditMode()) openSceneDialog();
             ImGui::Separator();
+            if (ImGui::MenuItem("Package Game...") && isEditMode()) {
+                m_pkgLog.clear();
+                m_showPackageDialog = true;
+            }
+            ImGui::Separator();
             if (ImGui::MenuItem("Quit", "Alt+F4")) {
                 if (m_isDirty) requestSaveDialog(window);
                 else if (window) glfwSetWindowShouldClose(window, GLFW_TRUE);
@@ -120,6 +126,8 @@ void EditorManager::render(GLFWwindow* window) {
     if (viewportPanel->isOpen)       viewportPanel->onRender();
     if (contentBrowserPanel->isOpen) contentBrowserPanel->onRender();
     if (consolePanel->isOpen)        consolePanel->onRender();
+
+    renderPackageDialog();
 }
 
 void EditorManager::handleEditorShortcuts() {
@@ -285,6 +293,86 @@ void EditorManager::renderSaveDialog() {
         if (ImGui::Button("キャンセル", ImVec2(90, 0))) {
             ImGui::CloseCurrentPopup();
         }
+        ImGui::EndPopup();
+    }
+}
+
+void EditorManager::renderPackageDialog() {
+    if (m_showPackageDialog) {
+        ImGui::OpenPopup("Package Game");
+        m_showPackageDialog = false;
+    }
+
+    ImGui::SetNextWindowSize(ImVec2(520, 400), ImGuiCond_Appearing);
+    if (ImGui::BeginPopupModal("Package Game", nullptr, ImGuiWindowFlags_NoResize)) {
+        ImGui::Text("Game Name:");
+        ImGui::SetNextItemWidth(-1);
+        ImGui::InputText("##pkgname", m_pkgName, sizeof(m_pkgName));
+
+        ImGui::Text("Output Directory:");
+        ImGui::SetNextItemWidth(-60);
+        ImGui::InputText("##pkgoutdir", m_pkgOutDir, sizeof(m_pkgOutDir));
+        ImGui::SameLine();
+        if (ImGui::Button("参照...")) {
+            IFileOpenDialog* pfd = nullptr;
+            if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                           CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
+                DWORD opts = 0;
+                pfd->GetOptions(&opts);
+                pfd->SetOptions(opts | FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
+                if (SUCCEEDED(pfd->Show(nullptr))) {
+                    IShellItem* item = nullptr;
+                    if (SUCCEEDED(pfd->GetResult(&item))) {
+                        PWSTR wpath = nullptr;
+                        item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
+                        int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
+                        if (len > 1 && len <= (int)sizeof(m_pkgOutDir)) {
+                            WideCharToMultiByte(CP_UTF8, 0, wpath, -1, m_pkgOutDir, sizeof(m_pkgOutDir), nullptr, nullptr);
+                        }
+                        CoTaskMemFree(wpath);
+                        item->Release();
+                    }
+                }
+                pfd->Release();
+            }
+        }
+
+        ImGui::Spacing();
+        ImGui::BeginDisabled(m_isPackaging || m_pkgName[0] == '\0' || m_pkgOutDir[0] == '\0');
+        if (ImGui::Button("Package", ImVec2(120, 0))) {
+            m_pkgLog.clear();
+            m_isPackaging = true;
+
+            Packager::Config cfg;
+            cfg.gameName      = m_pkgName;
+            cfg.outputDir     = m_pkgOutDir;
+            cfg.scenePath     = scenePath;
+            cfg.engineExePath = engineExePath;
+
+            auto logFn = [this](const std::string& msg) { m_pkgLog.push_back(msg); };
+            Packager::package(cfg, logFn);
+            m_isPackaging = false;
+        }
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
+        if (ImGui::Button("Close", ImVec2(80, 0))) {
+            ImGui::CloseCurrentPopup();
+        }
+
+        if (m_isPackaging) {
+            ImGui::SameLine();
+            ImGui::Text("Processing...");
+        }
+
+        ImGui::Separator();
+        ImGui::BeginChild("##pkglog", ImVec2(0, 0), true);
+        for (const auto& line : m_pkgLog) {
+            ImGui::TextUnformatted(line.c_str());
+        }
+        if (!m_pkgLog.empty()) ImGui::SetScrollHereY(1.0f);
+        ImGui::EndChild();
+
         ImGui::EndPopup();
     }
 }

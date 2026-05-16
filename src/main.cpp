@@ -13,6 +13,9 @@
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/AppImage.hpp>
+#include <Instances/CharacterSetting.hpp>
+#include <Instances/Decal.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
@@ -35,6 +38,7 @@
 #include <vector>
 #include <cmath>
 #include <cstddef>
+#include "include/stb_image.h"
 
 #include <PhysX/PxPhysicsAPI.h>
 #include <memory>
@@ -68,6 +72,34 @@ GLFWwindow* setupWindow() {
     return window;
 }
 
+static CharacterSetting* findCharacterSetting(Instance* inst) {
+    if (!inst) return nullptr;
+    if (inst->GetClassName() == "CharacterSetting") return static_cast<CharacterSetting*>(inst);
+    for (auto& [name, child] : inst->children) {
+        if (auto* found = findCharacterSetting(child.get())) return found;
+    }
+    return nullptr;
+}
+
+// AppImage インスタンスを Root から探してウィンドウアイコンを設定する
+void applyAppIcon(GLFWwindow* window, Instance* root) {
+    if (!window || !root) return;
+    for (auto& [name, child] : root->children) {
+        if (child->GetClassName() == "AppImage") {
+            auto* ai = static_cast<AppImage*>(child.get());
+            if (ai->iconPath.empty()) return;
+            int w, h, ch;
+            unsigned char* px = stbi_load(ai->iconPath.c_str(), &w, &h, &ch, 4);
+            if (px) {
+                GLFWimage img{ w, h, px };
+                glfwSetWindowIcon(window, 1, &img);
+                stbi_image_free(px);
+            }
+            return;
+        }
+    }
+}
+
 // 安全な終了処理関数
 bool checkExit(Renderer& renderer, GLFWwindow& window) {
     if (renderer.editor && renderer.editor->isDirty()) {
@@ -82,9 +114,10 @@ bool checkExit(Renderer& renderer, GLFWwindow& window) {
 // ===================================================
 //  main
 // ===================================================
-int main() {
+int main(int argc, char* argv[]) {
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.95\n";
+              << "Recubin Studio v0.98\n";
+    std::string engineExePath = (argc > 0 && argv[0]) ? argv[0] : "";
 
     GLFWwindow* window = setupWindow();
     if (!window) {
@@ -121,6 +154,7 @@ int main() {
     SceneLoader::registerSingleton("Lighting",  lighting);
     SceneLoader::loadScene("assets/scenes/test_scene.yaml");
     SceneLoader::clearSingletons();
+    applyAppIcon(window, system.get());
 
     unsigned int floppa   = renderer->loadTexture("assets/image/floppa2048.jpg");
     unsigned int thecat   = renderer->loadTexture("assets/image/the-cat.png");
@@ -137,6 +171,7 @@ int main() {
     //  EditorManager を Renderer に接続
     // ===================================================
     renderer->editor = std::make_unique<EditorManager>(workspace.get(), user.get(), system.get());
+    renderer->editor->engineExePath = engineExePath;
     RCBN_LOG("Editor initialized.");
 
     float lastFrame = static_cast<float>(glfwGetTime());
@@ -171,10 +206,15 @@ int main() {
             snapshotDirty = renderer->editor && renderer->editor->isDirty();
             SceneLoader::saveScene(system.get(), snapshotPath);
             SceneLoader::resolveConstraintRefs(system.get());
-            user->spawnCharacter();
+            CharacterSetting* cs = findCharacterSetting(system.get());
+            user->spawnCharacter(cs);
+            if (cs && !cs->facePath.empty()) {
+                unsigned int faceTexID = renderer->loadTexture(cs->facePath.c_str());
+                if (faceTexID && user->head)
+                    user->head->addChild(std::make_shared<Decal>(faceTexID, Face::Front));
+            }
             audioService->playAutoPlaySounds();
             if (user->character) workspace->addChild(user->character);
-            if (user->head) user->head->addChild(std::make_shared<Decal>(hehe, Face::Front));
         }
         if (!isPlaying && wasPlaying) {
             audioService->stopAllSounds();
@@ -223,6 +263,7 @@ int main() {
             luauEngine->setWorkspace(workspace);
             renderer->editor->setWorkspace(workspace.get());
             renderer->editor->scenePath = loadPath;
+            applyAppIcon(window, system.get());
         }
 
         // ---- エディターモード中は物理・スクリプトを止める ----

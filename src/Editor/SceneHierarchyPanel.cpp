@@ -15,6 +15,9 @@
 #include <Instances/Motor.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/Rope.hpp>
+#include <Instances/Model.hpp>
+#include <Instances/AppImage.hpp>
+#include <Instances/CharacterSetting.hpp>
 #include <Core/AudioService.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
@@ -336,9 +339,24 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
             m_pendingScriptParent = parentSp;
             m_openScriptDialog    = true;
         }
+        if (ImGui::MenuItem("Model") && m_history) {
+            auto obj = std::make_shared<Model>(Vector3(0,0,0), Vector3(1,1,1));
+            obj->Name = uniqueName(parentSp, "Model");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
         if (ImGui::MenuItem("Lighting") && m_history) {
             auto obj = std::make_shared<Lighting>();
             obj->Name = uniqueName(parentSp, "Lighting");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("AppImage") && m_history) {
+            auto obj = std::make_shared<AppImage>();
+            obj->Name = uniqueName(parentSp, "AppImage");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("CharacterSetting") && m_history) {
+            auto obj = std::make_shared<CharacterSetting>();
+            obj->Name = uniqueName(parentSp, "CharacterSetting");
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
         ImGui::EndMenu();

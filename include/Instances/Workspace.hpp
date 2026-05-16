@@ -29,6 +29,8 @@ class Workspace : public Instance {
         // }
 
     public:
+        Vector3 Gravity = {0.0f, -9.81f, 0.0f};
+
         std::vector<std::shared_ptr<Instance>> pendingInstances;
         std::vector<std::shared_ptr<Instance>> pendingConstraints;
         std::vector<std::shared_ptr<Instance>> scripts;

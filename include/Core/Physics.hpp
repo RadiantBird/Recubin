@@ -73,4 +73,7 @@ public:
     void removeConstraint(const std::shared_ptr<Instance>& c);
 
     bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, physx::PxRigidActor* ignoreActor = nullptr);
+
+    void setGravity(const Vector3& g);
+    Vector3 getGravity() const;
 };

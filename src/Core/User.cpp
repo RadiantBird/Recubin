@@ -2,6 +2,7 @@
 #include <Core/SystemState.hpp>
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
+#include <Instances/CharacterSetting.hpp>
 
 
 User* User::s_instance = nullptr;
@@ -52,8 +53,13 @@ void User::updateVectors() {
 }
 
 void User::processInput(Physics& physics) {
-    const bool viewportFocused    = SystemState::get().viewportFocused;
+#ifdef EDITOR_DISABLED
+    const bool viewportFocused     = true;
+    const bool viewportZoomEnabled = true;
+#else
+    const bool viewportFocused     = SystemState::get().viewportFocused;
     const bool viewportZoomEnabled = SystemState::get().viewportZoomEnabled;
+#endif
     if (!window) return;
 
     if (!isScrollCallbackInstalled) {
@@ -353,7 +359,7 @@ void User::despawnCharacter() {
     rightLeg  = nullptr;
 }
 
-void User::spawnCharacter() {
+void User::spawnCharacter(CharacterSetting* cs) {
     if (character) {
         despawnCharacter();
     }
@@ -398,15 +404,26 @@ void User::spawnCharacter() {
     
     root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
 
-    root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // デバッグのために描画（リリースでは描画スキップ対象）
-    torso->Color = Color4::FromRGB(100, 12, 32);
-    Color4 skinColor = Color4(1.0f, 1.0f, 1.0f, 1.0f);
-    head->Color = skinColor;
-    leftArm->Color = skinColor;
-    rightArm->Color = skinColor;
-    Color4 pantsColor = Color4::FromRGB(0, 36, 81);
-    leftLeg->Color = pantsColor;
-    rightLeg->Color = pantsColor;
+    root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // physics root は非表示 (alpha=0)
+    if (cs) {
+        jumpPower        = cs->jumpPower;
+        walkPower        = cs->moveSpeed;
+        head->Color      = cs->headColor;
+        torso->Color     = cs->torsoColor;
+        leftArm->Color   = cs->leftArmColor;
+        rightArm->Color  = cs->rightArmColor;
+        leftLeg->Color   = cs->leftLegColor;
+        rightLeg->Color  = cs->rightLegColor;
+    } else {
+        torso->Color   = Color4::FromRGB(100, 12, 32);
+        Color4 skin    = Color4(1.0f, 1.0f, 1.0f, 1.0f);
+        head->Color    = skin;
+        leftArm->Color = skin;
+        rightArm->Color= skin;
+        Color4 pants   = Color4::FromRGB(0, 36, 81);
+        leftLeg->Color = pants;
+        rightLeg->Color= pants;
+    }
 
     // 3. 親に追加（名前確定後にaddChildすることで衝突を防ぐ）
     character->addChild(root);

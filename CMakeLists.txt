@@ -19,30 +19,21 @@ add_compile_options(
 
 # --- 3. ソース収集 ---
 file(GLOB_RECURSE SOURCES "src/*.cpp")
+list(FILTER SOURCES EXCLUDE REGEX ".*/game_main\\.cpp$")
 
 add_executable(Recubin ${SOURCES})
 
+# ---- RecubinEngine (ゲームランタイム専用) ----
+file(GLOB_RECURSE GAME_SOURCES "src/*.cpp")
+list(FILTER GAME_SOURCES EXCLUDE REGEX ".*/main\\.cpp$")
+list(APPEND GAME_SOURCES "${CMAKE_SOURCE_DIR}/src/game_main.cpp")
+add_executable(RecubinEngine ${GAME_SOURCES})
+
 # --- 4. 静的リンクの強制定義 (重要) ---
-# ここで定義することで、yaml-cppのヘッダーが __declspec(dllimport) を付けるのを防ぎます
-target_compile_definitions(Recubin PRIVATE 
-    YAML_CPP_STATIC_LIBRARIES
-    GLEW_STATIC
-    $<$<CONFIG:Debug>:NDEBUG>
-)
-
-# --- 5. インクルードパス ---
-target_include_directories(Recubin PRIVATE 
-    ${CMAKE_SOURCE_DIR}/include 
-    ${CMAKE_SOURCE_DIR}/include/imgui
-    .
-)
-
-# --- 6. リンク設定 ---
 set(LIB_DIR "${CMAKE_SOURCE_DIR}/include/libs")
-
-target_link_options(Recubin PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>)
-
-target_link_libraries(Recubin PRIVATE
+set(COMMON_DEFS YAML_CPP_STATIC_LIBRARIES GLEW_STATIC $<$<CONFIG:Debug>:NDEBUG>)
+set(COMMON_INCLUDES ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/include/imgui .)
+set(COMMON_LIBS
     "${LIB_DIR}/glfw3.lib"
     "${LIB_DIR}/glew32s.lib"
     opengl32 user32 gdi32 shell32
@@ -57,3 +48,15 @@ target_link_libraries(Recubin PRIVATE
     "${LIB_DIR}/Luau.Common.lib"
     "${LIB_DIR}/yaml-cpp.lib"
 )
+
+# ---- Recubin (エディター付き) ----
+target_compile_definitions(Recubin PRIVATE ${COMMON_DEFS})
+target_include_directories(Recubin PRIVATE ${COMMON_INCLUDES})
+target_link_options(Recubin PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>)
+target_link_libraries(Recubin PRIVATE ${COMMON_LIBS})
+
+# ---- RecubinEngine (ゲームランタイム専用) ----
+target_compile_definitions(RecubinEngine PRIVATE ${COMMON_DEFS} EDITOR_DISABLED)
+target_include_directories(RecubinEngine PRIVATE ${COMMON_INCLUDES})
+target_link_options(RecubinEngine PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>)
+target_link_libraries(RecubinEngine PRIVATE ${COMMON_LIBS})

@@ -1,3 +1,4 @@
+#pragma once
 #include <Instances/Spatial.hpp>
 #include <Instances/BaseCube.hpp>
 

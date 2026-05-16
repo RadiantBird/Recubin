@@ -49,7 +49,7 @@ public:
     enum class ControlMode {
         Free,
         Character
-    } controlMode = ControlMode::Free;
+    } controlMode = ControlMode::Character;
 
     Vector3 forward;
     Vector3 right;
@@ -68,7 +68,7 @@ public:
 
     void updateVectors();
     void processInput(class Physics& physics);
-    void spawnCharacter();
+    void spawnCharacter(class CharacterSetting* cs = nullptr);
     void despawnCharacter();
 
 private:

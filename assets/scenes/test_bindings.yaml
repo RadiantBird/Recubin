@@ -1,0 +1,99 @@
+Root:
+  Children:
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction: [1, -1, -1]
+        Brightness: 1
+    - ClassName: Workspace
+      Name: Workspace
+      Children:
+        - ClassName: Cube
+          Name: Baseplate
+          Properties:
+            Position: [0, -10, 0]
+            Size: [64, 1, 64]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.3, 0.8, 0.3, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: TestCube
+          Properties:
+            Position: [0, 0, 0]
+            Size: [2, 2, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.3, 0.1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Hub
+          Properties:
+            Position: [6, 0, 0]
+            Size: [2, 2, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.2, 0.4, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Wheel
+          Properties:
+            Position: [6, 3, 0]
+            Size: [2, 2, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 0.2, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Motor
+          Name: TestMotor
+          Properties:
+            Cube0: Hub
+            Cube1: Wheel
+            Axis: [0, 0, 1]
+            DriveVelocity: 2
+            MaxForce: 1000
+        - ClassName: Cube
+          Name: Radio
+          Properties:
+            Position: [-5, 0, 0]
+            Size: [2, 2, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.6, 0.6, 0.6, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Sound
+              Name: BGM
+              Properties:
+                Position: [0, 0, 0]
+                Size: [1, 1, 1]
+                Rotation: [0, 0, 0, 1]
+                ContentPath: assets/sound/Flight of the Bumblebee.mp3
+                Looped: false
+                SoundGroup: SFX
+                AutoPlay: false
+        - ClassName: Cube
+          Name: Dummy
+          Properties:
+            Position: [10, 0, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Script
+          Name: TestBindings
+          Properties:
+            ContentPath: scripts/test_bindings.luau

@@ -11,6 +11,8 @@ Root:
             MaxDistance: 3
             Stiffness: 100
             Damping: 10
+            Color: [0.3, 0.9, 1, 1]
+            LineWidth: 2.5
         - ClassName: Cube
           Name: Blue
           Properties:
@@ -80,7 +82,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [-42.59524, 9.720271, 71.2683]
+            Position: [0, -2, 5]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -274,6 +276,8 @@ Root:
             MaxDistance: 3
             Stiffness: 100
             Damping: 10
+            Color: [0.3, 0.9, 1, 1]
+            LineWidth: 2.5
         - ClassName: Weld
           Name: Weld
           Properties:
@@ -287,8 +291,24 @@ Root:
             Axis: [0, 1, 0]
             DriveVelocity: 1
             MaxForce: 1000
+    - ClassName: AppImage
+      Name: AppImage
+      Properties:
+        IconPath: C:\Users\Ryarta\Documents\Recubin\assets\image\the-cat.png
     - ClassName: Lighting
       Name: Lighting
       Properties:
         Direction: [1, -1, -1]
         Brightness: 1
+    - ClassName: CharacterSetting
+      Name: CharacterSetting
+      Properties:
+        FacePath: C:\Users\Ryarta\Documents\Recubin\assets\image\hehe.png
+        HeadColor: [1, 1, 1, 1]
+        TorsoColor: [0.39215687, 0.047058824, 0.1254902, 1]
+        LeftArmColor: [1, 1, 1, 1]
+        RightArmColor: [1, 1, 1, 1]
+        LeftLegColor: [0, 0.14117648, 0.31764707, 1]
+        RightLegColor: [0, 0.14117648, 0.31764707, 1]
+        JumpPower: 7
+        MoveSpeed: 5

@@ -12,7 +12,8 @@ class Script : public Instance {
 
         Workspace* lastWorkspace = nullptr;
 
-        bool Enabled = true;
+        bool Enabled        = true;
+        bool isPrecompiled  = false; // true when Source holds raw .luauc bytecode
         bool Sleeping = false;
         bool Completed = false;  // スクリプト実行完了フラグ
         bool Aborted = false;    // エラーによる強制終了フラグ

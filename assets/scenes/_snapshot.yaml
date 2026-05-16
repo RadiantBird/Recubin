@@ -1,8 +1,50 @@
 Root:
   Children:
+    - ClassName: AppImage
+      Name: AppImage
+      Properties:
+        IconPath: C:\Users\Ryarta\Documents\Recubin\assets\image\the-cat.png
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction: [1, -1, -1]
+        Brightness: 1
+    - ClassName: CharacterSetting
+      Name: CharacterSetting
+      Properties:
+        FacePath: C:\Users\Ryarta\Documents\Recubin\assets\image\hehe.png
+        HeadColor: [1, 1, 1, 1]
+        TorsoColor: [0.2364433, 0.56, 0.05686155, 1]
+        LeftArmColor: [1, 1, 1, 1]
+        RightArmColor: [1, 1, 1, 1]
+        LeftLegColor: [0, 0.14117648, 0.31764707, 1]
+        RightLegColor: [0, 0.14117648, 0.31764707, 1]
+        JumpPower: 7
+        MoveSpeed: 5
     - ClassName: Workspace
       Name: Workspace
       Children:
+        - ClassName: Rope
+          Name: Rope
+          Properties:
+            Cube0: Branch
+            Cube1: Saw
+            MaxDistance: 3
+            Stiffness: 100
+            Damping: 10
+            Color: [0.3, 0.9, 1, 1]
+            LineWidth: 2.5
+        - ClassName: Cube
+          Name: Blue
+          Properties:
+            Position: [-2, 0, -8]
+            Size: [1, 4, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
         - ClassName: Cube
           Name: Cube111
           Properties:
@@ -25,33 +67,14 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
-        - ClassName: Rope
-          Name: Rope
-          Properties:
-            Cube0: Branch
-            Cube1: Saw
-            MaxDistance: 3
-            Stiffness: 100
-            Damping: 10
         - ClassName: Cube
-          Name: Blue
+          Name: Red
           Properties:
-            Position: [-2, 0, -8]
-            Size: [1, 4, 1]
+            Position: [2, 0, -4]
+            Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 0, 1, 1]
+            Color: [1, 0, 0, 1]
             Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Baseplate
-          Properties:
-            Position: [0, -10, 0]
-            Size: [128, 1, 128]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0.5, 1]
-            Anchored: true
             CanCollide: true
             CastShadow: true
             Unlit: false
@@ -67,46 +90,20 @@ Root:
             CastShadow: true
             Unlit: false
         - ClassName: Cube
-          Name: Red
+          Name: Baseplate
           Properties:
-            Position: [2, 0, -4]
-            Size: [1, 1, 1]
+            Position: [0, -10, 0]
+            Size: [128, 1, 128]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 0, 0, 1]
-            Anchored: false
+            Color: [0, 1, 0.5, 1]
+            Anchored: true
             CanCollide: true
             CastShadow: true
             Unlit: false
-        - ClassName: Cube
-          Name: Cube12
-          Properties:
-            Position: [8.118143, -8.859938, 35.223503]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Cube1
-          Properties:
-            Position: [8.118143, -6.9850116, 35.223503]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Script
-          Name: HiGeorge
-          Properties:
-            ContentPath: C:\Users\Ryarta\Documents\TestLuau\HiGeorge.luau
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [-14.894638, -2.0036204, 18.159779]
+            Position: [1.1912453, 15.785862, -31.631474]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -122,9 +119,31 @@ Root:
                 Face: 4
                 Texture: C:\Users\Ryarta\Pictures\libimage.png
         - ClassName: Script
-          Name: 2006
+          Name: HiGeorge
           Properties:
-            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\2006.luau
+            ContentPath: C:\Users\Ryarta\Documents\TestLuau\HiGeorge.luau
+        - ClassName: Cube
+          Name: Cube1
+          Properties:
+            Position: [8.118143, -6.9850116, 35.223503]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Cube12
+          Properties:
+            Position: [8.118143, -8.859938, 35.223503]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
         - ClassName: TriangularPrism
           Name: TriangularPrism
           Properties:
@@ -136,6 +155,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+        - ClassName: Script
+          Name: 2006
+          Properties:
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\2006.luau
         - ClassName: Cube
           Name: Floppa1
           Properties:
@@ -149,30 +172,30 @@ Root:
             Unlit: false
           Children:
             - ClassName: Decal
-              Name: Decal_Left
+              Name: Decal_Front
               Properties:
-                Face: 5
-                Texture: assets/image/Limabis_logo.png
+                Face: 0
+                Texture: assets/image/floppa2048.jpg
             - ClassName: Decal
               Name: Decal_Top
               Properties:
                 Face: 2
                 Texture: assets/image/salad-cat.jpg
             - ClassName: Decal
-              Name: Decal_Front
+              Name: Decal_Left
               Properties:
-                Face: 0
-                Texture: assets/image/floppa2048.jpg
-            - ClassName: Decal
-              Name: Decal_Bottom
-              Properties:
-                Face: 3
-                Texture: assets/image/smile.png
+                Face: 5
+                Texture: assets/image/Limabis_logo.png
             - ClassName: Decal
               Name: Decal_Back
               Properties:
                 Face: 1
                 Texture: assets/image/the-cat.png
+            - ClassName: Decal
+              Name: Decal_Bottom
+              Properties:
+                Face: 3
+                Texture: assets/image/smile.png
             - ClassName: Decal
               Name: Decal_Right
               Properties:
@@ -234,26 +257,6 @@ Root:
             CastShadow: true
             Unlit: false
         - ClassName: Cube
-          Name: Cube2
-          Properties:
-            Position: [-20.119507, -9, 9.595639]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-          Children:
-            - ClassName: Rope
-              Name: Rope
-              Properties:
-                Cube0: Cube2
-                Cube1: Cube3
-                MaxDistance: 0
-                Stiffness: 100
-                Damping: 10
-        - ClassName: Cube
           Name: Cube11
           Properties:
             Position: [0.43107843, -7, 11.834326]
@@ -294,6 +297,8 @@ Root:
             MaxDistance: 3
             Stiffness: 100
             Damping: 10
+            Color: [0.3, 0.9, 1, 1]
+            LineWidth: 2.5
         - ClassName: Weld
           Name: Weld
           Properties:
@@ -307,19 +312,3 @@ Root:
             Axis: [0, 1, 0]
             DriveVelocity: 1
             MaxForce: 1000
-        - ClassName: Cube
-          Name: Cube3
-          Properties:
-            Position: [-14.929794, -9, 11.445565]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-    - ClassName: Lighting
-      Name: Lighting
-      Properties:
-        Direction: [1, -1, -1]
-        Brightness: 1

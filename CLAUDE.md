@@ -10,6 +10,7 @@
 - **グラフィックス**: OpenGL
 - **ビルドシステム**: カスタム Python ベース
 - **目標**: 独自ゲームエンジン
+- **環境**: Windows 11 Home
 
 ---
 
@@ -62,7 +63,11 @@ UPPER_SNAKE_CASE
 
 ---
 ## ビルド
-`python build.py build`でできます
+実装し終わったら確認のため、ビルドしてください。
+- エディターとランタイム(Recubin.exe/RecubinEngine.exe)
+  `python build.py build`でできます。
+- ランチャー
+  `python build.py launcher`でできます。
 ---
 
 ## アーキテクチャ方針

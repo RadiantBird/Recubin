@@ -91,10 +91,22 @@ private:
     bool        m_showSaveDialog = false;
     GLFWwindow* m_dialogWindow   = nullptr;
 
+    // パッケージダイアログ関連
+    bool        m_showPackageDialog = false;
+    char        m_pkgName[256]      = {};
+    char        m_pkgOutDir[512]    = {};
+    bool        m_isPackaging       = false;
+    std::vector<std::string> m_pkgLog;
+
+public:
+    std::string engineExePath;
+
+private:
     void renderToolbar();
     void applyTheme();
     void handleEditorShortcuts();
     void renderSaveDialog();
+    void renderPackageDialog();
     void saveCurrentScene();
     void openSceneDialog();
     void cleanupOrphanedSelection();

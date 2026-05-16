@@ -15,9 +15,16 @@ Sound::Sound(AudioService& service, const std::string& path)
     }
 }
 
-void Sound::play() { if (loaded) { ma_sound_start(&sound); } }
+void Sound::play() {
+    if (!loaded) return;
+    ma_sound_set_volume(&sound, m_volume);
+    ma_sound_start(&sound);
+}
 void Sound::stop() { if (loaded) { ma_sound_stop(&sound); } }
-void Sound::setLooping(bool loop) { 
+bool Sound::isPlaying() const { return loaded && ma_sound_is_playing(const_cast<ma_sound*>(&sound)); }
+void Sound::setVolume(float v) { m_volume = v; if (loaded) ma_sound_set_volume(&sound, v); }
+float Sound::getVolume() const { return m_volume; }
+void Sound::setLooping(bool loop) {
     this->looping = loop;
     if (loaded) ma_sound_set_looping(&sound, loop); 
 }
@@ -82,7 +89,7 @@ void Sound::update3D(const Vector3& listenerPos, const Vector3& listenerRight) {
     // 親が Spatial でない場合はグローバル再生
     auto parentPtr = Parent.lock();
     if (!parentPtr || !parentPtr->IsA("Spatial")) {
-        ma_sound_set_volume(&sound, 1.0f);
+        ma_sound_set_volume(&sound, m_volume);
         ma_sound_set_pan(&sound, 0.0f);
         return;
     }
@@ -93,8 +100,8 @@ void Sound::update3D(const Vector3& listenerPos, const Vector3& listenerRight) {
     Vector3 toSound  = worldPos - listenerPos;
     float dist = toSound.length();
 
-    // 距離減衰
-    ma_sound_set_volume(&sound, 1.0f / (1.0f + dist * 0.1f));
+    // 距離減衰 (ユーザー設定音量に乗算)
+    ma_sound_set_volume(&sound, m_volume / (1.0f + dist * 0.1f));
 
     // 左右パンニング（カメラの right ベクトルを基準に）
     if (dist > 0.001f) {

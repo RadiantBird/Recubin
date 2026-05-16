@@ -56,9 +56,16 @@ private:
     static int instance_newindex(lua_State* L);
     static int instance_tostring(lua_State* L);
     static int instance_find_child_closure(lua_State* L);
+    static int instance_get_children_closure(lua_State* L);
+    static int instance_is_a_closure(lua_State* L);
+    static int instance_destroy_closure(lua_State* L);
 
     // Workspace methods
     static int workspace_raycast_closure(lua_State* L);
+
+    // Sound methods
+    static int sound_play_closure(lua_State* L);
+    static int sound_stop_closure(lua_State* L);
 
     // Vector3 methods
     static int vec3_index(lua_State* L);
