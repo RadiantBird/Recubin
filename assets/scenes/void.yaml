@@ -55,6 +55,17 @@ Root:
                 CastShadow: true
                 Unlit: false
         - ClassName: Cube
+          Name: Cube1
+          Properties:
+            Position: [-22.5, 6.988118, -8.504206]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39215687, 0.39215687, 0.39215687, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
           Name: Plate
           Properties:
             Position: [0, 0, 0]
@@ -112,6 +123,17 @@ Root:
                 CastShadow: true
                 Unlit: false
         - ClassName: Cube
+          Name: Cube
+          Properties:
+            Position: [-25, 7, -5]
+            Size: [4, 1, 8]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
           Name: Wood11
           Properties:
             Position: [12.95517, 3, 1.1265411]
@@ -134,3 +156,132 @@ Root:
                 CanCollide: true
                 CastShadow: true
                 Unlit: false
+        - ClassName: Cylinder
+          Name: Cylinder
+          Properties:
+            Position: [-21, 6.972437, -8.614225]
+            Size: [2, 1, 2]
+            Rotation: [0, 0, 0.70710677, 0.70710677]
+            Color: [0.019607844, 0.019607844, 0.019607844, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Cube11
+          Properties:
+            Position: [-27.5, 6.988118, -8.479044]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39215687, 0.39215687, 0.39215687, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cylinder
+          Name: Cylinder1
+          Properties:
+            Position: [-29, 6.972437, -8.619832]
+            Size: [2, 1, 2]
+            Rotation: [0, 0, 0.70710677, 0.70710677]
+            Color: [0.019607844, 0.019607844, 0.019607844, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Cube111
+          Properties:
+            Position: [-22.5, 6.988118, -1.498049]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39215687, 0.39215687, 0.39215687, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cylinder
+          Name: Cylinder11
+          Properties:
+            Position: [-21, 6.972437, -1.3021722]
+            Size: [2, 1, 2]
+            Rotation: [0, 0, 0.70710677, 0.70710677]
+            Color: [0.019607844, 0.019607844, 0.019607844, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Cube112
+          Properties:
+            Position: [-27.5, 6.988118, -1.498049]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39215687, 0.39215687, 0.39215687, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cylinder
+          Name: Cylinder12
+          Properties:
+            Position: [-29, 6.972437, -1.3021722]
+            Size: [2, 1, 2]
+            Rotation: [0, 0, 0.70710677, 0.70710677]
+            Color: [0.019607844, 0.019607844, 0.019607844, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Motor
+          Name: Motor
+          Properties:
+            Cube0: Cube111
+            Cube1: Cylinder11
+            Axis: [1, 0, 0]
+            DriveVelocity: 5
+            MaxForce: 1000
+        - ClassName: Motor
+          Name: Motor1
+          Properties:
+            Cube0: Cube1
+            Cube1: Cylinder
+            Axis: [1, 0, 0]
+            DriveVelocity: 5
+            MaxForce: 1000
+        - ClassName: Motor
+          Name: Motor2
+          Properties:
+            Cube0: Cube112
+            Cube1: Cylinder12
+            Axis: [1, 0, 0]
+            DriveVelocity: 5
+            MaxForce: 1000
+        - ClassName: Motor
+          Name: Motor3
+          Properties:
+            Cube0: Cube11
+            Cube1: Cylinder1
+            Axis: [1, 0, 0]
+            DriveVelocity: 5
+            MaxForce: 1000
+        - ClassName: Weld
+          Name: Weld
+          Properties:
+            Cube0: Cube
+            Cube1: Cube1
+        - ClassName: Weld
+          Name: Weld1
+          Properties:
+            Cube0: Cube
+            Cube1: Cube111
+        - ClassName: Weld
+          Name: Weld2
+          Properties:
+            Cube0: Cube
+            Cube1: Cube112
+        - ClassName: Weld
+          Name: Weld3
+          Properties:
+            Cube0: Cube
+            Cube1: Cube11

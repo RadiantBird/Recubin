@@ -495,8 +495,26 @@ void ViewportPanel::onRender() {
             Vector3 target = user->cpos + user->forward;
             Matrix4 view   = Matrix4::LookAt(user->cpos, target, user->up);
 
-            Matrix4 model = s->getWorldCFrame().toMatrix4() *
-                            Matrix4::Scale(s->Size.x, s->Size.y, s->Size.z);
+            // Roblox スタイルリサイズ用: ドラッグ中でない間は常に最新状態を保持
+            // IsUsing() は Manipulate() 呼び出し前の状態を返すため、
+            // ドラッグ開始の最初フレームでは !isUsingGizmo が true になり正確な初期値を確保できる
+            if (!isUsingGizmo && gizmoOp == ImGuizmo::SCALE) {
+                m_scaleBeforeSize     = s->Size;
+                m_scaleBeforeWorldPos = s->getWorldPosition();
+            }
+
+            // SCALE ドラッグ中は開始時の不変行列を ImGuizmo に渡す
+            // 毎フレーム変化する行列を渡すと ImGuizmo の内部参照がずれて特異点が生まれるため
+            Matrix4 model;
+            if (isUsingGizmo && gizmoOp == ImGuizmo::SCALE) {
+                CFrame stableCF = s->getWorldCFrame();
+                stableCF.Position = m_scaleBeforeWorldPos;
+                model = stableCF.toMatrix4() *
+                        Matrix4::Scale(m_scaleBeforeSize.x, m_scaleBeforeSize.y, m_scaleBeforeSize.z);
+            } else {
+                model = s->getWorldCFrame().toMatrix4() *
+                        Matrix4::Scale(s->Size.x, s->Size.y, s->Size.z);
+            }
 
             ImGuizmo::SetOrthographic(false);
             ImGuizmo::SetDrawlist();
@@ -562,9 +580,17 @@ void ViewportPanel::onRender() {
                         }
                     }
                 } else if (gizmoOp == ImGuizmo::SCALE) {
+                    // Roblox スタイル: size デルタの半分だけ position をオフセット
+                    // ドラッグ開始時の絶対座標から計算することで毎フレームの累積を防ぐ
+                    Vector3 deltaSize = newSize - m_scaleBeforeSize;
+                    Vector3 newWorldPos = m_scaleBeforeWorldPos + deltaSize * 0.5f;
+                    Vector3 localPos = worldToLocal(newWorldPos, s);
                     if (inst->IsA("BaseCube")) {
-                        static_cast<BaseCube*>(inst)->setSize(newSize);
+                        BaseCube* bc = static_cast<BaseCube*>(inst);
+                        bc->teleportTo(localPos);
+                        bc->setSize(newSize);
                     } else {
+                        s->Position = localPos;
                         s->Size = newSize;
                     }
                 } else if (gizmoOp == ImGuizmo::ROTATE) {

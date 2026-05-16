@@ -84,9 +84,12 @@ void EditorManager::render(GLFWwindow* window) {
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Save Scene", "Ctrl+S") && isEditMode()) saveCurrentScene();
-            ImGui::MenuItem("Open Scene",  "Ctrl+O");
+            if (ImGui::MenuItem("Open Scene", "Ctrl+O") && isEditMode()) openSceneDialog();
             ImGui::Separator();
-            ImGui::MenuItem("Quit", "Alt+F4");
+            if (ImGui::MenuItem("Quit", "Alt+F4")) {
+                if (m_isDirty) requestSaveDialog(window);
+                else if (window) glfwSetWindowShouldClose(window, GLFW_TRUE);
+            }
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("View")) {
@@ -124,6 +127,12 @@ void EditorManager::handleEditorShortcuts() {
     // Ctrl+S: 保存
     if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S)) {
         saveCurrentScene();
+        return;
+    }
+
+    // Ctrl+O: シーンを開く
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_O)) {
+        openSceneDialog();
         return;
     }
 
@@ -206,6 +215,30 @@ void EditorManager::saveCurrentScene() {
     Instance* saveRoot = m_system ? m_system : static_cast<Instance*>(m_workspace);
     SceneLoader::saveScene(saveRoot, scenePath);
     m_isDirty = false;
+}
+
+void EditorManager::openSceneDialog() {
+    IFileOpenDialog* pfd = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                   CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
+        COMDLG_FILTERSPEC filter = { L"Scene (*.yaml;*.yml)", L"*.yaml;*.yml" };
+        pfd->SetFileTypes(1, &filter);
+        if (SUCCEEDED(pfd->Show(nullptr))) {
+            IShellItem* item = nullptr;
+            if (SUCCEEDED(pfd->GetResult(&item))) {
+                PWSTR wpath = nullptr;
+                item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
+                int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
+                if (len > 1) {
+                    pendingLoadPath.resize(len - 1);
+                    WideCharToMultiByte(CP_UTF8, 0, wpath, -1, pendingLoadPath.data(), len, nullptr, nullptr);
+                }
+                CoTaskMemFree(wpath);
+                item->Release();
+            }
+        }
+        pfd->Release();
+    }
 }
 
 void EditorManager::requestSaveDialog(GLFWwindow* window) {

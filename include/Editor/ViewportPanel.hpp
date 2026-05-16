@@ -56,6 +56,10 @@ public:
     std::vector<MultiGizmoCommand::Entry> m_gizmoEntries;
     std::vector<MultiGizmoCommand::Entry> m_freeDragEntries;
 
+    // Roblox スタイルリサイズ: SCALE ドラッグ開始時の状態
+    Vector3 m_scaleBeforeSize;
+    Vector3 m_scaleBeforeWorldPos;
+
     // スナップ・衝突フィット設定（ツールバーから操作）
     bool  snapTranslate    = false;
     float snapTranslateVal = 1.0f;
