@@ -5,6 +5,12 @@
 #include "include/Instances/Motor.hpp"
 #include "include/Instances/Sound.hpp"
 #include "include/Instances/Lighting.hpp"
+#include "include/Instances/Rope.hpp"
+#include "include/Instances/Rod.hpp"
+#include "include/Instances/Weld.hpp"
+#include "include/Instances/CharacterSetting.hpp"
+#include "include/Instances/AppImage.hpp"
+#include "include/Instances/Script.hpp"
 #include "include/Util/Logger.hpp"
 #include <float.h>
 
@@ -202,6 +208,130 @@ void LuauEngine::InitDispatchTable() {
         lua_pushnumber(L, static_cast<Lighting*>(obj)->brightness);
         return 1;
     };
+
+    // Rope
+    DispatchTable["Rope"]["MaxDistance"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<Rope*>(obj)->MaxDistance);
+        return 1;
+    };
+    DispatchTable["Rope"]["Stiffness"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<Rope*>(obj)->Stiffness);
+        return 1;
+    };
+    DispatchTable["Rope"]["Damping"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<Rope*>(obj)->Damping);
+        return 1;
+    };
+    DispatchTable["Rope"]["LineWidth"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<Rope*>(obj)->LineWidth);
+        return 1;
+    };
+    DispatchTable["Rope"]["Color"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)lua_newuserdata(L, sizeof(Color4));
+        *c = static_cast<Rope*>(obj)->Color;
+        luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+
+    // Rod
+    DispatchTable["Rod"]["LineWidth"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<Rod*>(obj)->LineWidth);
+        return 1;
+    };
+    DispatchTable["Rod"]["Color"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)lua_newuserdata(L, sizeof(Color4));
+        *c = static_cast<Rod*>(obj)->Color;
+        luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+
+    // Weld
+    DispatchTable["Weld"]["Cube0"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, static_cast<Weld*>(obj)->m_cube0Name.c_str());
+        return 1;
+    };
+    DispatchTable["Weld"]["Cube1"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, static_cast<Weld*>(obj)->m_cube1Name.c_str());
+        return 1;
+    };
+
+    // CharacterSetting
+    DispatchTable["CharacterSetting"]["JumpPower"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<CharacterSetting*>(obj)->jumpPower);
+        return 1;
+    };
+    DispatchTable["CharacterSetting"]["MoveSpeed"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<CharacterSetting*>(obj)->moveSpeed);
+        return 1;
+    };
+    DispatchTable["CharacterSetting"]["FacePath"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, static_cast<CharacterSetting*>(obj)->facePath.c_str());
+        return 1;
+    };
+    DispatchTable["CharacterSetting"]["HeadColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)lua_newuserdata(L, sizeof(Color4));
+        *c = static_cast<CharacterSetting*>(obj)->headColor;
+        luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+    DispatchTable["CharacterSetting"]["TorsoColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)lua_newuserdata(L, sizeof(Color4));
+        *c = static_cast<CharacterSetting*>(obj)->torsoColor;
+        luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+    DispatchTable["CharacterSetting"]["LeftArmColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)lua_newuserdata(L, sizeof(Color4));
+        *c = static_cast<CharacterSetting*>(obj)->leftArmColor;
+        luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+    DispatchTable["CharacterSetting"]["RightArmColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)lua_newuserdata(L, sizeof(Color4));
+        *c = static_cast<CharacterSetting*>(obj)->rightArmColor;
+        luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+    DispatchTable["CharacterSetting"]["LeftLegColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)lua_newuserdata(L, sizeof(Color4));
+        *c = static_cast<CharacterSetting*>(obj)->leftLegColor;
+        luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+    DispatchTable["CharacterSetting"]["RightLegColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)lua_newuserdata(L, sizeof(Color4));
+        *c = static_cast<CharacterSetting*>(obj)->rightLegColor;
+        luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+
+    // AppImage
+    DispatchTable["AppImage"]["IconPath"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, static_cast<AppImage*>(obj)->iconPath.c_str());
+        return 1;
+    };
+
+    // Script
+    DispatchTable["Script"]["Enabled"] = [](lua_State* L, Instance* obj) {
+        lua_pushboolean(L, static_cast<Script*>(obj)->Enabled);
+        return 1;
+    };
+    DispatchTable["Script"]["Path"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, static_cast<Script*>(obj)->Path.c_str());
+        return 1;
+    };
+    DispatchTable["Script"]["Source"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, static_cast<Script*>(obj)->Source.c_str());
+        return 1;
+    };
 }
 
 void LuauEngine::InitSetterTable() {
@@ -313,6 +443,100 @@ void LuauEngine::InitSetterTable() {
     // Lighting
     SetterTable["Lighting"]["Brightness"] = [](lua_State* L, Instance* obj) {
         static_cast<Lighting*>(obj)->brightness = (float)luaL_checknumber(L, 3);
+        return 0;
+    };
+
+    // Rope
+    SetterTable["Rope"]["MaxDistance"] = [](lua_State* L, Instance* obj) {
+        static_cast<Rope*>(obj)->setMaxDistance((float)luaL_checknumber(L, 3));
+        return 0;
+    };
+    SetterTable["Rope"]["Stiffness"] = [](lua_State* L, Instance* obj) {
+        static_cast<Rope*>(obj)->setStiffness((float)luaL_checknumber(L, 3));
+        return 0;
+    };
+    SetterTable["Rope"]["Damping"] = [](lua_State* L, Instance* obj) {
+        static_cast<Rope*>(obj)->setDamping((float)luaL_checknumber(L, 3));
+        return 0;
+    };
+    SetterTable["Rope"]["LineWidth"] = [](lua_State* L, Instance* obj) {
+        static_cast<Rope*>(obj)->LineWidth = (float)luaL_checknumber(L, 3);
+        return 0;
+    };
+    SetterTable["Rope"]["Color"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        static_cast<Rope*>(obj)->Color = *c;
+        return 0;
+    };
+
+    // Rod
+    SetterTable["Rod"]["LineWidth"] = [](lua_State* L, Instance* obj) {
+        static_cast<Rod*>(obj)->LineWidth = (float)luaL_checknumber(L, 3);
+        return 0;
+    };
+    SetterTable["Rod"]["Color"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        static_cast<Rod*>(obj)->Color = *c;
+        return 0;
+    };
+
+    // CharacterSetting
+    SetterTable["CharacterSetting"]["JumpPower"] = [](lua_State* L, Instance* obj) {
+        static_cast<CharacterSetting*>(obj)->jumpPower = (float)luaL_checknumber(L, 3);
+        return 0;
+    };
+    SetterTable["CharacterSetting"]["MoveSpeed"] = [](lua_State* L, Instance* obj) {
+        static_cast<CharacterSetting*>(obj)->moveSpeed = (float)luaL_checknumber(L, 3);
+        return 0;
+    };
+    SetterTable["CharacterSetting"]["FacePath"] = [](lua_State* L, Instance* obj) {
+        static_cast<CharacterSetting*>(obj)->facePath = luaL_checkstring(L, 3);
+        return 0;
+    };
+    SetterTable["CharacterSetting"]["HeadColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        static_cast<CharacterSetting*>(obj)->headColor = *c;
+        return 0;
+    };
+    SetterTable["CharacterSetting"]["TorsoColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        static_cast<CharacterSetting*>(obj)->torsoColor = *c;
+        return 0;
+    };
+    SetterTable["CharacterSetting"]["LeftArmColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        static_cast<CharacterSetting*>(obj)->leftArmColor = *c;
+        return 0;
+    };
+    SetterTable["CharacterSetting"]["RightArmColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        static_cast<CharacterSetting*>(obj)->rightArmColor = *c;
+        return 0;
+    };
+    SetterTable["CharacterSetting"]["LeftLegColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        static_cast<CharacterSetting*>(obj)->leftLegColor = *c;
+        return 0;
+    };
+    SetterTable["CharacterSetting"]["RightLegColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        static_cast<CharacterSetting*>(obj)->rightLegColor = *c;
+        return 0;
+    };
+
+    // AppImage
+    SetterTable["AppImage"]["IconPath"] = [](lua_State* L, Instance* obj) {
+        static_cast<AppImage*>(obj)->iconPath = luaL_checkstring(L, 3);
+        return 0;
+    };
+
+    // Script
+    SetterTable["Script"]["Enabled"] = [](lua_State* L, Instance* obj) {
+        static_cast<Script*>(obj)->Enabled = lua_toboolean(L, 3) != 0;
+        return 0;
+    };
+    SetterTable["Script"]["Path"] = [](lua_State* L, Instance* obj) {
+        static_cast<Script*>(obj)->Path = luaL_checkstring(L, 3);
         return 0;
     };
 }

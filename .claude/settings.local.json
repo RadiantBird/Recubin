@@ -4,7 +4,10 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(python build.py build)",
       "Bash(xargs -I {} basename {})",
-      "Bash(xargs grep -l \"Vector4\")"
+      "Bash(xargs grep -l \"Vector4\")",
+      "Bash(Get-ChildItem -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "PowerShell(head -30)"
     ]
   }
 }
