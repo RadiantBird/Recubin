@@ -78,13 +78,11 @@ bool Cube::IsA(std::string className) {
 void Cube::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(s_VAO);
     int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
-    if (colorLoc != -1) {
-        glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
-    }
 
     // デカールの収集
     unsigned int activeTextures[6];
-    for(int i = 0; i < 6; i++) activeTextures[i] = defaultTextureID;
+    Decal*       activeDecals[6];
+    for (int i = 0; i < 6; i++) { activeTextures[i] = defaultTextureID; activeDecals[i] = nullptr; }
 
     for (auto const& [name, child] : getChildren()) {
         if (child->IsA("Decal")) {
@@ -92,11 +90,20 @@ void Cube::draw(int modelLoc, int shaderProgram) {
             int idx = static_cast<int>(decal->face);
             if (idx >= 0 && idx < 6) {
                 activeTextures[idx] = decal->TextureID;
+                activeDecals[idx]   = decal;
             }
         }
     }
 
     for (int i = 0; i < 6; i++) {
+        if (colorLoc != -1) {
+            if (activeDecals[i]) {
+                const Color4& dc = activeDecals[i]->Color;
+                glUniform4f(colorLoc, dc.r, dc.g, dc.b, dc.a);
+            } else {
+                glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
+            }
+        }
         glActiveTexture(GL_TEXTURE0);
         unsigned int tex = activeTextures[i];
         if (tex == 0) tex = defaultTextureID;

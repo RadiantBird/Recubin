@@ -229,6 +229,18 @@ private:
     }
 };
 
+// --- Decal Color 変更 ---
+struct SetDecalColorCommand : Command {
+    std::shared_ptr<Decal> m_target;
+    Color4 m_before, m_after;
+
+    SetDecalColorCommand(std::shared_ptr<Decal> target, Color4 before, Color4 after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->Color = m_after; }
+    void undo()    override { if (m_target) m_target->Color = m_before; }
+};
+
 // --- Decal Face 変更 ---
 struct SetDecalFaceCommand : Command {
     std::shared_ptr<Decal> m_target;

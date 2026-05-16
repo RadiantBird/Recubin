@@ -47,8 +47,8 @@ Root:
         - ClassName: Cube
           Name: Red
           Properties:
-            Position: [3.1406903, 3.5704918, -3.0175653]
-            Size: [3.281381, 8.140984, 2.9648697]
+            Position: [2, 0, -4]
+            Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0, 0, 1]
             Anchored: false
@@ -80,7 +80,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [33.775875, 14.626738, -23.787033]
+            Position: [-9.482246, 6.2957325, 18.467413]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -95,26 +95,6 @@ Root:
               Properties:
                 Face: 4
                 Texture: C:\Users\Ryarta\Pictures\libimage.png
-            - ClassName: Decal
-              Name: Decal_Left
-              Properties:
-                Face: 5
-            - ClassName: Decal
-              Name: Decal_Top
-              Properties:
-                Face: 2
-            - ClassName: Decal
-              Name: Decal_Front
-              Properties:
-                Face: 0
-            - ClassName: Decal
-              Name: Decal_Bottom
-              Properties:
-                Face: 3
-            - ClassName: Decal
-              Name: Decal_Back
-              Properties:
-                Face: 1
         - ClassName: Script
           Name: HiGeorge
           Properties:

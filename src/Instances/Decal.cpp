@@ -21,6 +21,7 @@ std::shared_ptr<Instance> Decal::clone() const {
     auto copy = std::make_shared<Decal>(this->TextureID, this->face);
     copy->Name        = this->Name;
     copy->texturePath = this->texturePath;
+    copy->Color       = this->Color;
     return copy;
 }
 
@@ -37,6 +38,13 @@ void Decal::setProperty(const std::string& name, const YAML::Node& value) {
         }
     } else if (name == "Face") {
         setFace(static_cast<Face>(value.as<int>()));
+    } else if (name == "Color") {
+        Color4 c;
+        c.r = value[0].as<float>();
+        c.g = value[1].as<float>();
+        c.b = value[2].as<float>();
+        c.a = value[3].as<float>();
+        this->Color = c;
     } else {
         Instance::setProperty(name, value);
     }

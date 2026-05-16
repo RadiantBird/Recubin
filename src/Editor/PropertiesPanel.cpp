@@ -436,6 +436,20 @@ void PropertiesPanel::onRender() {
             }
         }
 
+        // Color with undo
+        {
+            static Color4 s_dclColorBefore;
+            float col[4] = { dcl->Color.r, dcl->Color.g, dcl->Color.b, dcl->Color.a };
+            if (ImGui::IsItemActivated()) s_dclColorBefore = dcl->Color;
+            bool colorChanged = ImGui::ColorEdit4("Color##decal", col);
+            if (ImGui::IsItemActivated()) s_dclColorBefore = dcl->Color;
+            if (colorChanged) dcl->Color = Color4(col[0], col[1], col[2], col[3]);
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                Color4 after(col[0], col[1], col[2], col[3]);
+                m_history->record(std::make_unique<SetDecalColorCommand>(dclSp, s_dclColorBefore, after));
+            }
+        }
+
         // Texture with undo
         ImGui::LabelText("Texture", "%s", dcl->texturePath.c_str());
         if (ImGui::Button("参照...##decal")) {
