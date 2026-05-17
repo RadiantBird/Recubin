@@ -1,6 +1,7 @@
 #pragma once
 #include <include/Instances/Instance.hpp>
 #include <include/Instances/Spatial.hpp>
+#include <include/Core/RCBNScriptSignal.hpp>
 #include <include/Instances/Workspace.hpp>
 #include <include/Math/Vector3.hpp>
 #include <include/Math/Quaternion.hpp>
@@ -14,6 +15,8 @@ enum class PhysicsShape { Box, Sphere, ConvexMesh };
 
 class BaseCube : public Spatial {
 public:
+    std::shared_ptr<RCBNScriptSignal> Touched;
+
     bool Anchored = false;
     bool CanCollide = true;
     bool CastShadow = true;

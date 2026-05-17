@@ -133,7 +133,12 @@ int main() {
 
     luauEngine->setGlobalInstance(workspace->Name, workspace);
     luauEngine->setGlobalInstance("workspace", workspace);
+    luauEngine->setGlobalInstance("System", system);
     luauEngine->setWorkspace(workspace);
+    luauEngine->setSystem(system.get());
+    physics->onContactCallback = [&](BaseCube* a, BaseCube* b) {
+        luauEngine->onCollision(a, b);
+    };
 
     // ---- ゲーム開始 ----
     CharacterSetting* cs = findCharacterSetting(system.get());
@@ -155,6 +160,7 @@ int main() {
         lastFrame       = now;
 
         physics->update(*workspace, deltaTime);
+        luauEngine->fireHeartbeat(deltaTime);
         luauEngine->update(deltaTime);
         luauEngine->executeWorkspaceScripts();
 

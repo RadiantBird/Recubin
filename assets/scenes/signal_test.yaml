@@ -1,29 +1,11 @@
 Root:
   Children:
-    - ClassName: AppImage
-      Name: AppImage
-      Properties:
-        IconPath: C:\Users\Ryarta\Documents\Recubin\assets\image\the-cat.png
-    - ClassName: Lighting
-      Name: Lighting
-      Properties:
-        Direction: [1, -1, -1]
-        Brightness: 1
-    - ClassName: CharacterSetting
-      Name: CharacterSetting
-      Properties:
-        FacePath: C:\Users\Ryarta\Documents\Recubin\assets\image\hehe.png
-        HeadColor: [1, 1, 1, 1]
-        TorsoColor: [0.39215687, 0.047058824, 0.1254902, 1]
-        LeftArmColor: [1, 1, 1, 1]
-        RightArmColor: [1, 1, 1, 1]
-        LeftLegColor: [0, 0.14117648, 0.31764707, 1]
-        RightLegColor: [0, 0.14117648, 0.31764707, 1]
-        JumpPower: 7
-        MoveSpeed: 5
     - ClassName: Workspace
       Name: Workspace
+      Properties:
+        Gravity: [0, -9.81, 0]
       Children:
+        # 床
         - ClassName: Cube
           Name: Baseplate
           Properties:
@@ -35,6 +17,8 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+
+        # Touched テスト用の落下キューブ（y=2 から落下 → Baseplate に衝突）
         - ClassName: Cube
           Name: Dropper
           Properties:
@@ -46,6 +30,8 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+
+        # テストスクリプト
         - ClassName: Script
           Name: SignalTest
           Properties:

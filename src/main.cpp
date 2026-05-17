@@ -166,7 +166,12 @@ int main(int argc, char* argv[]) {
     unsigned int hehe     = renderer->loadTexture("assets/image/hehe.png");
     luauEngine->setGlobalInstance(workspace->Name, workspace);
     luauEngine->setGlobalInstance("workspace", workspace);
+    luauEngine->setGlobalInstance("System", system);
     luauEngine->setWorkspace(workspace);
+    luauEngine->setSystem(system.get());
+    physics->onContactCallback = [&](BaseCube* a, BaseCube* b) {
+        luauEngine->onCollision(a, b);
+    };
 
     // ===================================================
     //  EditorManager を Renderer に接続
@@ -271,6 +276,7 @@ int main(int argc, char* argv[]) {
         // ---- エディターモード中は物理・スクリプトを止める ----
         if (isPlaying && !isPaused) {
             physics->update(*workspace.get(), deltaTime);
+            luauEngine->fireHeartbeat(deltaTime);
             luauEngine->update(deltaTime);
             luauEngine->executeWorkspaceScripts();
         }

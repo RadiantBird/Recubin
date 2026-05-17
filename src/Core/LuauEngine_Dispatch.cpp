@@ -1,5 +1,6 @@
 #include "include/Core/LuauEngine.hpp"
 #include "include/Core/Physics.hpp"
+#include "include/Core/RCBNScriptSignal.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/Decal.hpp"
 #include "include/Instances/Motor.hpp"
@@ -11,6 +12,8 @@
 #include "include/Instances/CharacterSetting.hpp"
 #include "include/Instances/AppImage.hpp"
 #include "include/Instances/Script.hpp"
+#include "include/Instances/System.hpp"
+#include "include/Instances/Event.hpp"
 
 // ==================== Getter: Instance, BaseCube ====================
 void LuauEngine::InitDispatchTable_Base() {
@@ -106,6 +109,10 @@ void LuauEngine::InitDispatchTable_Base() {
         lua_setmetatable(L, -2);
         return 1;
     };
+    DispatchTable["BaseCube"]["Touched"] = [](lua_State* L, Instance* obj) {
+        LuauEngine::pushSignal(L, static_cast<BaseCube*>(obj)->Touched);
+        return 1;
+    };
 }
 
 // ==================== Getter: Workspace, Decal, Lighting ====================
@@ -137,6 +144,20 @@ void LuauEngine::InitDispatchTable_World() {
 
     DispatchTable["Lighting"]["Brightness"] = [](lua_State* L, Instance* obj) {
         lua_pushnumber(L, static_cast<Lighting*>(obj)->brightness);
+        return 1;
+    };
+
+    DispatchTable["System"]["Heartbeat"] = [](lua_State* L, Instance* obj) {
+        LuauEngine::pushSignal(L, static_cast<System*>(obj)->Heartbeat);
+        return 1;
+    };
+
+    DispatchTable["Event"]["Fire"] = [](lua_State* L, Instance* obj) {
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(obj->shared_from_this());
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        lua_pushcclosure(L, LuauEngine::event_fire_closure, "Fire", 1);
         return 1;
     };
 }

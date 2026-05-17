@@ -3,8 +3,9 @@
 #include "include/Core/SystemState.hpp"
 #include "include/Util/Logger.hpp"
 
-BaseCube::BaseCube(Vector3 Pos, Vector3 Sz) 
+BaseCube::BaseCube(Vector3 Pos, Vector3 Sz)
     : Spatial(Pos, Sz, "BaseCube"), Color(1, 1, 1, 1) {
+    Touched = std::make_shared<RCBNScriptSignal>();
 }
 
 std::string BaseCube::GetClassName() {

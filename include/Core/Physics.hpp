@@ -2,6 +2,7 @@
 #include <include/PhysX/PxPhysicsAPI.h>
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/BaseCube.hpp>
+#include <functional>
 #include <include/Instances/Rope.hpp>
 #include <include/Instances/Rod.hpp>
 #include <include/Instances/Weld.hpp>
@@ -53,7 +54,11 @@ private:
     // Weld グループを 1 つの compound として再構築する内部ヘルパー
     void rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembly);
 
+    physx::PxSimulationEventCallback* m_contactCallback = nullptr;
+
 public:
+    std::function<void(BaseCube*, BaseCube*)> onContactCallback;
+
     void init();
     virtual ~Physics();
     void update(Workspace& workspace, float dt);

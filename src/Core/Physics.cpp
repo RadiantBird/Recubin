@@ -6,6 +6,39 @@
 #include <algorithm>
 #include <queue>
 
+// ===================================================
+//  衝突通知コールバック
+// ===================================================
+struct RCBNContactCallback : physx::PxSimulationEventCallback {
+    Physics* m_physics;
+    explicit RCBNContactCallback(Physics* p) : m_physics(p) {}
+
+    void onContact(const physx::PxContactPairHeader& header,
+                   const physx::PxContactPair*, physx::PxU32) override {
+        auto* a = static_cast<BaseCube*>(header.actors[0]->userData);
+        auto* b = static_cast<BaseCube*>(header.actors[1]->userData);
+        if (a && b && m_physics->onContactCallback)
+            m_physics->onContactCallback(a, b);
+    }
+    void onTrigger(physx::PxTriggerPair*, physx::PxU32) override {}
+    void onWake(physx::PxActor**, physx::PxU32) override {}
+    void onSleep(physx::PxActor**, physx::PxU32) override {}
+    void onConstraintBreak(physx::PxConstraintInfo*, physx::PxU32) override {}
+    void onAdvance(const physx::PxRigidBody* const*, const physx::PxTransform*, physx::PxU32) override {}
+};
+
+// Touched 通知を有効にするカスタムフィルターシェーダー
+static physx::PxFilterFlags rcbnFilterShader(
+    physx::PxFilterObjectAttributes, physx::PxFilterData,
+    physx::PxFilterObjectAttributes, physx::PxFilterData,
+    physx::PxPairFlags& pairFlags, const void*, physx::PxU32)
+{
+    pairFlags = physx::PxPairFlag::eSOLVE_CONTACT
+              | physx::PxPairFlag::eDETECT_DISCRETE_CONTACT
+              | physx::PxPairFlag::eNOTIFY_TOUCH_FOUND;
+    return physx::PxFilterFlag::eDEFAULT;
+}
+
 void Physics::setGravity(const Vector3& g) {
     if (scene) scene->setGravity(physx::PxVec3(g.x, g.y, g.z));
 }
@@ -23,7 +56,9 @@ void Physics::init() {
     physx::PxSceneDesc sceneDesc(physics->getTolerancesScale());
     sceneDesc.gravity = physx::PxVec3(0.0f, -9.81f, 0.0f); // 重力設定
     sceneDesc.cpuDispatcher = physx::PxDefaultCpuDispatcherCreate(1);
-    sceneDesc.filterShader = physx::PxDefaultSimulationFilterShader;
+    sceneDesc.filterShader  = rcbnFilterShader;
+    m_contactCallback = new RCBNContactCallback(this);
+    sceneDesc.simulationEventCallback = m_contactCallback;
     sceneDesc.flags |= physx::PxSceneFlag::eENABLE_CCD;
     scene = physics->createScene(sceneDesc);
     PxInitExtensions(*physics, nullptr);
@@ -67,6 +102,8 @@ Physics::~Physics() {
         foundation->release();
         foundation = nullptr;
     }
+    delete m_contactCallback;
+    m_contactCallback = nullptr;
 }
 
 void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {

@@ -1,7 +1,10 @@
 #include "include/Core/LuauEngine.hpp"
 #include "include/Core/Physics.hpp"
+#include "include/Core/RCBNScriptSignal.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/Sound.hpp"
+#include "include/Instances/System.hpp"
+#include "include/Instances/Event.hpp"
 #include "include/Util/Logger.hpp"
 #include <float.h>
 
@@ -9,6 +12,9 @@
 std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEngine::GetterFunc>> LuauEngine::DispatchTable;
 std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEngine::SetterFunc>> LuauEngine::SetterTable;
 Script* LuauEngine::currentScript = nullptr;
+
+// Instance.new で生成したインスタンスの所有権を保持するストレージ
+static std::vector<std::shared_ptr<Instance>> s_ownedInstances;
 
 void restoreFPU() {
     unsigned int control;
@@ -76,6 +82,30 @@ void LuauEngine::InitMetatables() {
     lua_setfield(L, -2, "__tostring");
     lua_pop(L, 1);
 
+    // Signal metatable
+    luaL_newmetatable(L, RCBN_SIGNAL_METATABLE);
+    lua_pushcfunction(L, signal_index, "signal_index");
+    lua_setfield(L, -2, "__index");
+    lua_pushcfunction(L, [](lua_State* Lx) -> int {
+        auto* ud = (std::shared_ptr<RCBNScriptSignal>*)lua_touserdata(Lx, 1);
+        ud->~shared_ptr();
+        return 0;
+    }, "__gc");
+    lua_setfield(L, -2, "__gc");
+    lua_pop(L, 1);
+
+    // Connection metatable
+    luaL_newmetatable(L, RCBN_CONNECTION_METATABLE);
+    lua_pushcfunction(L, connection_index, "connection_index");
+    lua_setfield(L, -2, "__index");
+    lua_pushcfunction(L, [](lua_State* Lx) -> int {
+        auto* ud = (std::shared_ptr<RCBNScriptConnection>*)lua_touserdata(Lx, 1);
+        ud->~shared_ptr();
+        return 0;
+    }, "__gc");
+    lua_setfield(L, -2, "__gc");
+    lua_pop(L, 1);
+
     // グローバル関数を登録
     RegisterGlobalFunctions(L);
 }
@@ -102,6 +132,12 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     luaL_getmetatable(L, ERIK);
     lua_setmetatable(L, -2);
     lua_setglobal(L, ERIK);
+
+    // Instance.new
+    lua_newtable(L);
+    lua_pushcfunction(L, instance_new_closure, "new");
+    lua_setfield(L, -2, "new");
+    lua_setglobal(L, "Instance");
 
     // Register custom global functions
     lua_pushcfunction(L, global_add, "add");
@@ -513,6 +549,169 @@ int LuauEngine::sound_stop_closure(lua_State* L) {
     auto obj = ud->lock();
     if (obj) static_cast<Sound*>(obj.get())->stop();
     return 0;
+}
+
+// ===================================================
+//  Signal ヘルパー
+// ===================================================
+void LuauEngine::pushSignal(lua_State* Lx, std::shared_ptr<RCBNScriptSignal> sig) {
+    auto* ud = (std::shared_ptr<RCBNScriptSignal>*)lua_newuserdata(Lx, sizeof(std::shared_ptr<RCBNScriptSignal>));
+    new (ud) std::shared_ptr<RCBNScriptSignal>(std::move(sig));
+    luaL_getmetatable(Lx, RCBN_SIGNAL_METATABLE);
+    lua_setmetatable(Lx, -2);
+}
+
+void LuauEngine::pushConnection(lua_State* Lx, std::shared_ptr<RCBNScriptConnection> conn) {
+    auto* ud = (std::shared_ptr<RCBNScriptConnection>*)lua_newuserdata(Lx, sizeof(std::shared_ptr<RCBNScriptConnection>));
+    new (ud) std::shared_ptr<RCBNScriptConnection>(std::move(conn));
+    luaL_getmetatable(Lx, RCBN_CONNECTION_METATABLE);
+    lua_setmetatable(Lx, -2);
+}
+
+// ===================================================
+//  Signal メタテーブル
+// ===================================================
+int LuauEngine::signal_index(lua_State* L) {
+    const char* key = luaL_checkstring(L, 2);
+    if (strcmp(key, "Connect") == 0) {
+        auto* ud = (std::shared_ptr<RCBNScriptSignal>*)luaL_checkudata(L, 1, RCBN_SIGNAL_METATABLE);
+        lua_pushlightuserdata(L, ud->get());
+        lua_pushcclosure(L, signal_connect_closure, "Connect", 1);
+        return 1;
+    }
+    if (strcmp(key, "Once") == 0) {
+        auto* ud = (std::shared_ptr<RCBNScriptSignal>*)luaL_checkudata(L, 1, RCBN_SIGNAL_METATABLE);
+        lua_pushlightuserdata(L, ud->get());
+        lua_pushcclosure(L, signal_once_closure, "Once", 1);
+        return 1;
+    }
+    if (strcmp(key, "Until") == 0) {
+        auto* ud = (std::shared_ptr<RCBNScriptSignal>*)luaL_checkudata(L, 1, RCBN_SIGNAL_METATABLE);
+        lua_pushlightuserdata(L, ud->get());
+        lua_pushcclosure(L, signal_until_closure, "Until", 1);
+        return 1;
+    }
+    lua_pushnil(L);
+    return 1;
+}
+
+int LuauEngine::signal_connect_closure(lua_State* L) {
+    auto* sig = static_cast<RCBNScriptSignal*>(lua_touserdata(L, lua_upvalueindex(1)));
+    // arg1 = self (signal), arg2 = callback function
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    int ref = lua_ref(L, 2);
+    auto shared = sig->shared_from_this();
+    int id = sig->connect(L, ref, false);
+    pushConnection(L, std::make_shared<RCBNScriptConnection>(shared, id));
+    return 1;
+}
+
+int LuauEngine::signal_once_closure(lua_State* L) {
+    auto* sig = static_cast<RCBNScriptSignal*>(lua_touserdata(L, lua_upvalueindex(1)));
+    // arg1 = self (signal), arg2 = callback function
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    int ref = lua_ref(L, 2);
+    auto shared = sig->shared_from_this();
+    int id = sig->connect(L, ref, true);
+    pushConnection(L, std::make_shared<RCBNScriptConnection>(shared, id));
+    return 1;
+}
+
+int LuauEngine::signal_until_closure(lua_State* L) {
+    auto* sig = static_cast<RCBNScriptSignal*>(lua_touserdata(L, lua_upvalueindex(1)));
+    // arg1 = self (signal), arg2 = Event userdata, arg3 = callback function
+    auto* evtUd = (std::weak_ptr<Instance>*)luaL_checkudata(L, 2, RCBN_INST_METATABLE);
+    auto evtInst = evtUd->lock();
+    luaL_checktype(L, 3, LUA_TFUNCTION);
+    int ref = lua_ref(L, 3);
+    auto shared = sig->shared_from_this();
+    int id = sig->connect(L, ref, false);
+    auto conn = std::make_shared<RCBNScriptConnection>(shared, id);
+    if (evtInst && evtInst->IsA("Event")) {
+        static_cast<Event*>(evtInst.get())->addUntilConnection(conn);
+    }
+    pushConnection(L, conn);
+    return 1;
+}
+
+// ===================================================
+//  Connection メタテーブル
+// ===================================================
+int LuauEngine::connection_index(lua_State* L) {
+    const char* key = luaL_checkstring(L, 2);
+    if (strcmp(key, "Disconnect") == 0) {
+        auto* ud = (std::shared_ptr<RCBNScriptConnection>*)luaL_checkudata(L, 1, RCBN_CONNECTION_METATABLE);
+        lua_pushlightuserdata(L, ud->get());
+        lua_pushcclosure(L, connection_disconnect_closure, "Disconnect", 1);
+        return 1;
+    }
+    lua_pushnil(L);
+    return 1;
+}
+
+int LuauEngine::connection_disconnect_closure(lua_State* L) {
+    auto* conn = static_cast<RCBNScriptConnection*>(lua_touserdata(L, lua_upvalueindex(1)));
+    conn->disconnect();
+    return 0;
+}
+
+// ===================================================
+//  Instance.new
+// ===================================================
+int LuauEngine::instance_new_closure(lua_State* L) {
+    const char* className = luaL_checkstring(L, 1);
+    if (strcmp(className, "Event") == 0) {
+        auto inst = std::make_shared<Event>();
+        s_ownedInstances.push_back(inst);  // セッション中は shared_ptr を保持して生存させる
+
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(inst);
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    }
+    lua_pushnil(L);
+    return 1;
+}
+
+// ===================================================
+//  Event:Fire クロージャー
+// ===================================================
+int LuauEngine::event_fire_closure(lua_State* L) {
+    // upvalue 1 = Event の weak_ptr userdata（instance_index が設定）
+    // どちらの metatable でも動くよう両方試みる
+    Instance* raw = nullptr;
+    void* ud = lua_touserdata(L, lua_upvalueindex(1));
+    if (ud) {
+        // weak_ptr として試みる
+        auto* wp = static_cast<std::weak_ptr<Instance>*>(ud);
+        if (auto p = wp->lock()) raw = p.get();
+    }
+    if (!raw) return 0;
+    if (raw->IsA("Event")) {
+        static_cast<Event*>(raw)->fire();
+    }
+    return 0;
+}
+
+// ===================================================
+//  Heartbeat / Collision
+// ===================================================
+void LuauEngine::setSystem(System* s) {
+    m_system = s;
+}
+
+void LuauEngine::fireHeartbeat(float dt) {
+    if (!m_system || !m_system->Heartbeat) return;
+    m_system->Heartbeat->fire(L, [dt](lua_State* Lx) -> int {
+        lua_pushnumber(Lx, static_cast<double>(dt));
+        return 1;
+    });
+}
+
+void LuauEngine::onCollision(BaseCube* a, BaseCube* b) {
+    if (a && a->Touched) a->Touched->fire(L);
+    if (b && b->Touched) b->Touched->fire(L);
 }
 
 void LuauEngine::update(float deltaTime) {
