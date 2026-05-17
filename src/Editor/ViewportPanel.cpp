@@ -8,6 +8,7 @@
 #include <Instances/BaseCube.hpp>
 #include <Instances/Spatial.hpp>
 #include <Core/SystemState.hpp>
+#include <Core/Renderer.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -105,6 +106,12 @@ void ViewportPanel::onRender() {
     // ImTextureRef で GLuint を包む（v1.92 以降の API）
     ImTextureRef texRef((ImTextureID)(uintptr_t)colorTexture);
     ImGui::Image(texRef, avail, ImVec2(0, 1), ImVec2(1, 0)); // Y 反転
+
+    // ゲーム内 GUI をビューポート上に重ねて描画
+    if (workspace && Renderer::instance) {
+        Renderer::instance->renderScreenGui(*workspace, contentOrigin.x, contentOrigin.y, avail.x, avail.y);
+        Renderer::instance->renderWorldGui (*workspace, contentOrigin.x, contentOrigin.y, avail.x, avail.y);
+    }
 
     // ===================================================
     //  Viewportクリック検出とフォーカス管理

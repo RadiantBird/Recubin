@@ -14,6 +14,12 @@
 #include <Instances/Motor.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/CharacterSetting.hpp>
+#include <Instances/ScreenGuiObject.hpp>
+#include <Instances/TextLabel.hpp>
+#include <Instances/TextButton.hpp>
+#include <Instances/WorldGuiObject.hpp>
+#include <Instances/SurfaceGui.hpp>
+#include <Instances/BillboardGui.hpp>
 #include <Util/Color4.hpp>
 #include <include/imgui/imgui.h>
 #include <unordered_map>
@@ -745,6 +751,110 @@ void PropertiesPanel::onRender() {
         // JumpPower / MoveSpeed
         ImGui::DragFloat("JumpPower", &cs->jumpPower, 0.1f, 0.0f, 100.0f, "%.2f");
         ImGui::DragFloat("MoveSpeed", &cs->moveSpeed, 0.1f, 0.0f, 100.0f, "%.2f");
+    }
+
+    // ---- ScreenGuiObject ----
+    if (inst->IsA("ScreenGuiObject")) {
+        ScreenGuiObject* sgo = static_cast<ScreenGuiObject*>(inst);
+        ImGui::SeparatorText("ScreenGuiObject");
+
+        float pos[2] = { sgo->Position.x, sgo->Position.y };
+        if (ImGui::DragFloat2("Position##sgo", pos, 1.0f))
+            { sgo->Position.x = pos[0]; sgo->Position.y = pos[1]; }
+
+        float sz[2] = { sgo->Size.x, sgo->Size.y };
+        if (ImGui::DragFloat2("Size##sgo", sz, 1.0f, 0.0f, 10000.0f))
+            { sgo->Size.x = sz[0]; sgo->Size.y = sz[1]; }
+
+        static const char* sgoNormItems[] = { "Pixel", "Scale" };
+        int normIdx = (sgo->NormType == Norm::Scale) ? 1 : 0;
+        if (ImGui::Combo("NormType##sgo", &normIdx, sgoNormItems, 2))
+            sgo->NormType = (normIdx == 1) ? Norm::Scale : Norm::Pixel;
+
+        ImGui::Checkbox("Visible##sgo", &sgo->Visible);
+        ImGui::Checkbox("Active##sgo",  &sgo->Active);
+
+        float col[4] = { sgo->BackgroundColor.r, sgo->BackgroundColor.g,
+                         sgo->BackgroundColor.b, sgo->BackgroundColor.a };
+        if (ImGui::ColorEdit4("BackgroundColor##sgo", col))
+            sgo->BackgroundColor = Color4(col[0], col[1], col[2], col[3]);
+
+        ImGui::InputInt("ZIndex", &sgo->ZIndex);
+    }
+
+    // ---- TextLabel ----
+    if (inst->GetClassName() == "TextLabel") {
+        TextLabel* lbl = static_cast<TextLabel*>(inst);
+        ImGui::SeparatorText("TextLabel");
+
+        char textBuf[512] = {};
+        strncpy_s(textBuf, lbl->Text.c_str(), sizeof(textBuf) - 1);
+        if (ImGui::InputText("Text##lbl", textBuf, sizeof(textBuf)))
+            lbl->Text = std::string(textBuf);
+
+        float tc[4] = { lbl->TextColor.r, lbl->TextColor.g, lbl->TextColor.b, lbl->TextColor.a };
+        if (ImGui::ColorEdit4("TextColor##lbl", tc))
+            lbl->TextColor = Color4(tc[0], tc[1], tc[2], tc[3]);
+    }
+
+    // ---- TextButton ----
+    if (inst->GetClassName() == "TextButton") {
+        TextButton* btn = static_cast<TextButton*>(inst);
+        ImGui::SeparatorText("TextButton");
+
+        char textBuf[512] = {};
+        strncpy_s(textBuf, btn->Text.c_str(), sizeof(textBuf) - 1);
+        if (ImGui::InputText("Text##tbtn", textBuf, sizeof(textBuf)))
+            btn->Text = std::string(textBuf);
+
+        float tc[4] = { btn->TextColor.r, btn->TextColor.g, btn->TextColor.b, btn->TextColor.a };
+        if (ImGui::ColorEdit4("TextColor##tbtn", tc))
+            btn->TextColor = Color4(tc[0], tc[1], tc[2], tc[3]);
+    }
+
+    // ---- WorldGuiObject ----
+    if (inst->IsA("WorldGuiObject")) {
+        WorldGuiObject* wgo = static_cast<WorldGuiObject*>(inst);
+        ImGui::SeparatorText("WorldGuiObject");
+
+        float sz[2] = { wgo->Size.x, wgo->Size.y };
+        if (ImGui::DragFloat2("Size##wgo", sz, 1.0f, 0.0f, 10000.0f))
+            { wgo->Size.x = sz[0]; wgo->Size.y = sz[1]; }
+
+        static const char* wgoNormItems[] = { "Pixel", "Scale" };
+        int normIdx = (wgo->NormType == Norm::Scale) ? 1 : 0;
+        if (ImGui::Combo("NormType##wgo", &normIdx, wgoNormItems, 2))
+            wgo->NormType = (normIdx == 1) ? Norm::Scale : Norm::Pixel;
+
+        ImGui::Checkbox("Visible##wgo", &wgo->Visible);
+        ImGui::Checkbox("Active##wgo",  &wgo->Active);
+
+        float col[4] = { wgo->BackgroundColor.r, wgo->BackgroundColor.g,
+                         wgo->BackgroundColor.b, wgo->BackgroundColor.a };
+        if (ImGui::ColorEdit4("BackgroundColor##wgo", col))
+            wgo->BackgroundColor = Color4(col[0], col[1], col[2], col[3]);
+    }
+
+    // ---- SurfaceGui ----
+    if (inst->GetClassName() == "SurfaceGui") {
+        SurfaceGui* sg = static_cast<SurfaceGui*>(inst);
+        ImGui::SeparatorText("SurfaceGui");
+
+        static const char* faceItems[] = { "Front", "Back", "Top", "Bottom", "Right", "Left" };
+        int faceIdx = static_cast<int>(sg->face);
+        if (ImGui::Combo("Face##sg", &faceIdx, faceItems, 6))
+            sg->face = static_cast<Face>(faceIdx);
+    }
+
+    // ---- BillboardGui ----
+    if (inst->GetClassName() == "BillboardGui") {
+        BillboardGui* bg = static_cast<BillboardGui*>(inst);
+        ImGui::SeparatorText("BillboardGui");
+
+        static const char* modeItems[] = { "Parallel", "Focus" };
+        int modeIdx = (bg->Mode == BillboardMode::Focus) ? 1 : 0;
+        if (ImGui::Combo("Mode##bg", &modeIdx, modeItems, 2))
+            bg->Mode = (modeIdx == 1) ? BillboardMode::Focus : BillboardMode::Parallel;
     }
 
     ImGui::End();

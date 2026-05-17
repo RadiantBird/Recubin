@@ -5,6 +5,10 @@
 #include "include/Instances/Sound.hpp"
 #include "include/Instances/System.hpp"
 #include "include/Instances/Event.hpp"
+#include "include/Instances/TextLabel.hpp"
+#include "include/Instances/TextButton.hpp"
+#include "include/Instances/SurfaceGui.hpp"
+#include "include/Instances/BillboardGui.hpp"
 #include "include/Util/Logger.hpp"
 #include <float.h>
 
@@ -29,6 +33,7 @@ void LuauEngine::InitDispatchTable() {
     InitDispatchTable_World();
     InitDispatchTable_Physics();
     InitDispatchTable_Misc();
+    InitDispatchTable_GUI();
 }
 
 void LuauEngine::InitSetterTable() {
@@ -36,6 +41,7 @@ void LuauEngine::InitSetterTable() {
     InitSetterTable_World();
     InitSetterTable_Physics();
     InitSetterTable_Misc();
+    InitSetterTable_GUI();
 }
 
 void LuauEngine::InitMetatables() {
@@ -106,6 +112,13 @@ void LuauEngine::InitMetatables() {
     lua_setfield(L, -2, "__gc");
     lua_pop(L, 1);
 
+    // Vector2 metatable
+    luaL_newmetatable(L, RCBN_VEC2_METATABLE);
+    lua_pushcfunction(L, vec2_index,    "vec2_index");    lua_setfield(L, -2, "__index");
+    lua_pushcfunction(L, vec2_newindex, "vec2_newindex"); lua_setfield(L, -2, "__newindex");
+    lua_pushcfunction(L, vec2_tostring, "vec2_tostring"); lua_setfield(L, -2, "__tostring");
+    lua_pop(L, 1);
+
     // グローバル関数を登録
     RegisterGlobalFunctions(L);
 }
@@ -127,6 +140,12 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     lua_pushcfunction(L, color4_constructor, "new");
     lua_setfield(L, -2, "new");
     lua_setglobal(L, "Color4");
+
+    // Register Vector2 with new method
+    lua_newtable(L);
+    lua_pushcfunction(L, vec2_constructor, "new");
+    lua_setfield(L, -2, "new");
+    lua_setglobal(L, "Vector2");
 
     lua_newtable(L);
     luaL_getmetatable(L, ERIK);
@@ -568,6 +587,18 @@ void LuauEngine::pushConnection(lua_State* Lx, std::shared_ptr<RCBNScriptConnect
     lua_setmetatable(Lx, -2);
 }
 
+void LuauEngine::pushVector2(lua_State* L, Vector2 v) {
+    auto* ud = (Vector2*)lua_newuserdata(L, sizeof(Vector2));
+    *ud = v;
+    luaL_getmetatable(L, RCBN_VEC2_METATABLE);
+    lua_setmetatable(L, -2);
+}
+
+void LuauEngine::onGuiButtonActivated(GuiButton* btn) {
+    if (!btn || !btn->Activated) return;
+    btn->Activated->fire(L, nullptr);
+}
+
 // ===================================================
 //  Signal メタテーブル
 // ===================================================
@@ -660,17 +691,21 @@ int LuauEngine::connection_disconnect_closure(lua_State* L) {
 // ===================================================
 int LuauEngine::instance_new_closure(lua_State* L) {
     const char* className = luaL_checkstring(L, 1);
-    if (strcmp(className, "Event") == 0) {
-        auto inst = std::make_shared<Event>();
-        s_ownedInstances.push_back(inst);  // セッション中は shared_ptr を保持して生存させる
 
-        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
-        new (ud) std::weak_ptr<Instance>(inst);
-        luaL_getmetatable(L, RCBN_INST_METATABLE);
-        lua_setmetatable(L, -2);
-        return 1;
-    }
-    lua_pushnil(L);
+    std::shared_ptr<Instance> inst;
+    if      (strcmp(className, "Event")        == 0) inst = std::make_shared<Event>();
+    else if (strcmp(className, "TextLabel")    == 0) inst = std::make_shared<TextLabel>();
+    else if (strcmp(className, "TextButton")   == 0) inst = std::make_shared<TextButton>();
+    else if (strcmp(className, "SurfaceGui")   == 0) inst = std::make_shared<SurfaceGui>();
+    else if (strcmp(className, "BillboardGui") == 0) inst = std::make_shared<BillboardGui>();
+
+    if (!inst) { lua_pushnil(L); return 1; }
+
+    s_ownedInstances.push_back(inst);
+    auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+    new (ud) std::weak_ptr<Instance>(inst);
+    luaL_getmetatable(L, RCBN_INST_METATABLE);
+    lua_setmetatable(L, -2);
     return 1;
 }
 

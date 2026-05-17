@@ -15,12 +15,14 @@
 #include "include/Instances/BaseCube.hpp"
 #include "include/Instances/Script.hpp"
 #include "include/Math/Vector3.hpp"
+#include "include/Math/Vector2.hpp"
 #include "include/Util/Color4.hpp"
 #include "include/Core/RCBNScriptSignal.hpp"
 
 // Forward declarations
 class Workspace;
 class System;
+class GuiButton;
 
 #pragma comment(lib, "Luau.VM.lib")
 #pragma comment(lib, "Luau.Compiler.lib")
@@ -41,6 +43,7 @@ private:
     static constexpr const char* RCBN_COLOR4_METATABLE     = "RCBN_Color4";
     static constexpr const char* RCBN_SIGNAL_METATABLE     = "RCBN_Signal";
     static constexpr const char* RCBN_CONNECTION_METATABLE = "RCBN_Connection";
+    static constexpr const char* RCBN_VEC2_METATABLE       = "RCBN_Vector2";
 
     static constexpr const char* ERIK = "erik";
 
@@ -59,12 +62,14 @@ private:
     void InitDispatchTable_World();    // Workspace, Decal, Lighting
     void InitDispatchTable_Physics();  // Rope, Rod, Weld, Motor
     void InitDispatchTable_Misc();     // Sound, CharacterSetting, AppImage, Script
+    void InitDispatchTable_GUI();      // ScreenGuiObject, TextLabel, GuiButton, TextButton, WorldGuiObject, SurfaceGui, BillboardGui
 
     void InitSetterTable();
     void InitSetterTable_Base();
     void InitSetterTable_World();
     void InitSetterTable_Physics();
     void InitSetterTable_Misc();
+    void InitSetterTable_GUI();
     void InitMetatables();
     void RegisterGlobalFunctions(lua_State* L);  // コルーチンにも関数を登録するために抽出
 
@@ -95,6 +100,12 @@ private:
     static int color4_newindex(lua_State* L);
     static int color4_tostring(lua_State* L);
     static int color4_constructor(lua_State* L);
+
+    // Vector2 methods
+    static int vec2_constructor(lua_State* L);
+    static int vec2_index(lua_State* L);
+    static int vec2_newindex(lua_State* L);
+    static int vec2_tostring(lua_State* L);
 
     // Global functions
     static int global_add(lua_State* L);
@@ -135,4 +146,7 @@ public:
 
     static void pushSignal(lua_State* L, std::shared_ptr<RCBNScriptSignal> sig);
     static void pushConnection(lua_State* L, std::shared_ptr<RCBNScriptConnection> conn);
+    static void pushVector2(lua_State* L, Vector2 v);
+
+    void onGuiButtonActivated(GuiButton* btn);
 };

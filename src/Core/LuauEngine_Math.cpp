@@ -134,3 +134,50 @@ int LuauEngine::color4_tostring(lua_State* L) {
     lua_pushstring(L, str.c_str());
     return 1;
 }
+
+// ==================== Vector2 Methods ====================
+int LuauEngine::vec2_constructor(lua_State* L) {
+    float x = (float)luaL_checknumber(L, 1);
+    float y = (float)luaL_checknumber(L, 2);
+
+    Vector2* vec = (Vector2*)lua_newuserdata(L, sizeof(Vector2));
+    *vec = Vector2(x, y);
+
+    luaL_getmetatable(L, RCBN_VEC2_METATABLE);
+    lua_setmetatable(L, -2);
+    return 1;
+}
+
+int LuauEngine::vec2_index(lua_State* L) {
+    Vector2* vec = (Vector2*)luaL_checkudata(L, 1, RCBN_VEC2_METATABLE);
+    std::string_view key = luaL_checkstring(L, 2);
+
+    if (key == "X" || key == "x") {
+        lua_pushnumber(L, vec->x);
+        return 1;
+    } else if (key == "Y" || key == "y") {
+        lua_pushnumber(L, vec->y);
+        return 1;
+    }
+    return 0;
+}
+
+int LuauEngine::vec2_newindex(lua_State* L) {
+    Vector2* vec = (Vector2*)luaL_checkudata(L, 1, RCBN_VEC2_METATABLE);
+    std::string_view key = luaL_checkstring(L, 2);
+    float value = (float)luaL_checknumber(L, 3);
+
+    if (key == "X" || key == "x") {
+        vec->x = value;
+    } else if (key == "Y" || key == "y") {
+        vec->y = value;
+    }
+    return 0;
+}
+
+int LuauEngine::vec2_tostring(lua_State* L) {
+    Vector2* vec = (Vector2*)luaL_checkudata(L, 1, RCBN_VEC2_METATABLE);
+    std::string str = "Vector2(" + vec->toString() + ")";
+    lua_pushstring(L, str.c_str());
+    return 1;
+}

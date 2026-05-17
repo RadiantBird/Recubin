@@ -7,7 +7,9 @@
       "Bash(xargs grep -l \"Vector4\")",
       "Bash(Get-ChildItem -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "PowerShell(head -30)"
+      "PowerShell(head -30)",
+      "Bash(xargs grep -l \"game_main\\\\|EDITOR_DISABLED\")",
+      "Bash(xargs grep -l \"Vector2\\\\|Vec2\\\\|AppImage\\\\|Decal\")"
     ]
   }
 }

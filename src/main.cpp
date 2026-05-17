@@ -172,6 +172,9 @@ int main(int argc, char* argv[]) {
     physics->onContactCallback = [&](BaseCube* a, BaseCube* b) {
         luauEngine->onCollision(a, b);
     };
+    renderer->m_onButtonActivated = [&](GuiButton* btn) {
+        luauEngine->onGuiButtonActivated(btn);
+    };
 
     // ===================================================
     //  EditorManager を Renderer に接続

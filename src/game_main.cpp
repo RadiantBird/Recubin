@@ -139,6 +139,9 @@ int main() {
     physics->onContactCallback = [&](BaseCube* a, BaseCube* b) {
         luauEngine->onCollision(a, b);
     };
+    renderer->m_onButtonActivated = [&](GuiButton* btn) {
+        luauEngine->onGuiButtonActivated(btn);
+    };
 
     // ---- ゲーム開始 ----
     CharacterSetting* cs = findCharacterSetting(system.get());

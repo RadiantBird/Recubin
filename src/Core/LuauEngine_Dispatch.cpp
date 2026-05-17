@@ -14,6 +14,13 @@
 #include "include/Instances/Script.hpp"
 #include "include/Instances/System.hpp"
 #include "include/Instances/Event.hpp"
+#include "include/Instances/ScreenGuiObject.hpp"
+#include "include/Instances/GuiButton.hpp"
+#include "include/Instances/TextLabel.hpp"
+#include "include/Instances/TextButton.hpp"
+#include "include/Instances/WorldGuiObject.hpp"
+#include "include/Instances/SurfaceGui.hpp"
+#include "include/Instances/BillboardGui.hpp"
 
 // ==================== Getter: Instance, BaseCube ====================
 void LuauEngine::InitDispatchTable_Base() {
@@ -513,6 +520,209 @@ void LuauEngine::InitSetterTable_Misc() {
     };
     SetterTable["Script"]["Path"] = [](lua_State* L, Instance* obj) {
         static_cast<Script*>(obj)->Path = luaL_checkstring(L, 3);
+        return 0;
+    };
+}
+
+// ==================== Getter/Setter: GUI ====================
+
+static void pushColor4GUI(lua_State* L, const Color4& c) {
+    Color4* ud = (Color4*)lua_newuserdata(L, sizeof(Color4));
+    *ud = c;
+    luaL_getmetatable(L, "RCBN_Color4");
+    lua_setmetatable(L, -2);
+}
+
+static const char* normToStr(Norm n) { return n == Norm::Scale ? "Scale" : "Pixel"; }
+static Norm strToNorm(const char* s)  { return (s && std::string_view(s) == "Scale") ? Norm::Scale : Norm::Pixel; }
+
+static const char* faceToStr(Face f) {
+    switch (f) {
+        case Face::Back:   return "Back";
+        case Face::Top:    return "Top";
+        case Face::Bottom: return "Bottom";
+        case Face::Right:  return "Right";
+        case Face::Left:   return "Left";
+        default:           return "Front";
+    }
+}
+static Face strToFace(const char* s) {
+    if (!s) return Face::Front;
+    std::string_view v(s);
+    if (v == "Back")   return Face::Back;
+    if (v == "Top")    return Face::Top;
+    if (v == "Bottom") return Face::Bottom;
+    if (v == "Right")  return Face::Right;
+    if (v == "Left")   return Face::Left;
+    return Face::Front;
+}
+
+void LuauEngine::InitDispatchTable_GUI() {
+    // --- ScreenGuiObject ---
+    DispatchTable["ScreenGuiObject"]["Active"] = [](lua_State* L, Instance* obj) {
+        lua_pushboolean(L, static_cast<ScreenGuiObject*>(obj)->Active); return 1;
+    };
+    DispatchTable["ScreenGuiObject"]["Visible"] = [](lua_State* L, Instance* obj) {
+        lua_pushboolean(L, static_cast<ScreenGuiObject*>(obj)->Visible); return 1;
+    };
+    DispatchTable["ScreenGuiObject"]["ZIndex"] = [](lua_State* L, Instance* obj) {
+        lua_pushinteger(L, static_cast<ScreenGuiObject*>(obj)->ZIndex); return 1;
+    };
+    DispatchTable["ScreenGuiObject"]["Position"] = [](lua_State* L, Instance* obj) {
+        LuauEngine::pushVector2(L, static_cast<ScreenGuiObject*>(obj)->Position); return 1;
+    };
+    DispatchTable["ScreenGuiObject"]["Size"] = [](lua_State* L, Instance* obj) {
+        LuauEngine::pushVector2(L, static_cast<ScreenGuiObject*>(obj)->Size); return 1;
+    };
+    DispatchTable["ScreenGuiObject"]["Norm"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, normToStr(static_cast<ScreenGuiObject*>(obj)->NormType)); return 1;
+    };
+    DispatchTable["ScreenGuiObject"]["BackgroundColor"] = [](lua_State* L, Instance* obj) {
+        pushColor4GUI(L, static_cast<ScreenGuiObject*>(obj)->BackgroundColor); return 1;
+    };
+    DispatchTable["ScreenGuiObject"]["Transparency"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<ScreenGuiObject*>(obj)->getTransparency()); return 1;
+    };
+
+    // --- GuiButton ---
+    DispatchTable["GuiButton"]["Activated"] = [](lua_State* L, Instance* obj) {
+        LuauEngine::pushSignal(L, static_cast<GuiButton*>(obj)->Activated); return 1;
+    };
+
+    // --- TextLabel ---
+    DispatchTable["TextLabel"]["Text"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, static_cast<TextLabel*>(obj)->Text.c_str()); return 1;
+    };
+    DispatchTable["TextLabel"]["TextColor"] = [](lua_State* L, Instance* obj) {
+        pushColor4GUI(L, static_cast<TextLabel*>(obj)->TextColor); return 1;
+    };
+
+    // --- TextButton ---
+    DispatchTable["TextButton"]["Text"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, static_cast<TextButton*>(obj)->Text.c_str()); return 1;
+    };
+    DispatchTable["TextButton"]["TextColor"] = [](lua_State* L, Instance* obj) {
+        pushColor4GUI(L, static_cast<TextButton*>(obj)->TextColor); return 1;
+    };
+
+    // --- WorldGuiObject ---
+    DispatchTable["WorldGuiObject"]["Active"] = [](lua_State* L, Instance* obj) {
+        lua_pushboolean(L, static_cast<WorldGuiObject*>(obj)->Active); return 1;
+    };
+    DispatchTable["WorldGuiObject"]["Visible"] = [](lua_State* L, Instance* obj) {
+        lua_pushboolean(L, static_cast<WorldGuiObject*>(obj)->Visible); return 1;
+    };
+    DispatchTable["WorldGuiObject"]["ZIndex"] = [](lua_State* L, Instance* obj) {
+        lua_pushinteger(L, static_cast<WorldGuiObject*>(obj)->ZIndex); return 1;
+    };
+    DispatchTable["WorldGuiObject"]["Size"] = [](lua_State* L, Instance* obj) {
+        LuauEngine::pushVector2(L, static_cast<WorldGuiObject*>(obj)->Size); return 1;
+    };
+    DispatchTable["WorldGuiObject"]["Norm"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, normToStr(static_cast<WorldGuiObject*>(obj)->NormType)); return 1;
+    };
+    DispatchTable["WorldGuiObject"]["BackgroundColor"] = [](lua_State* L, Instance* obj) {
+        pushColor4GUI(L, static_cast<WorldGuiObject*>(obj)->BackgroundColor); return 1;
+    };
+    DispatchTable["WorldGuiObject"]["Transparency"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<WorldGuiObject*>(obj)->getTransparency()); return 1;
+    };
+
+    // --- SurfaceGui ---
+    DispatchTable["SurfaceGui"]["Face"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, faceToStr(static_cast<SurfaceGui*>(obj)->face)); return 1;
+    };
+
+    // --- BillboardGui ---
+    DispatchTable["BillboardGui"]["Mode"] = [](lua_State* L, Instance* obj) {
+        auto m = static_cast<BillboardGui*>(obj)->Mode;
+        lua_pushstring(L, m == BillboardMode::Focus ? "Focus" : "Parallel"); return 1;
+    };
+}
+
+void LuauEngine::InitSetterTable_GUI() {
+    // --- ScreenGuiObject ---
+    SetterTable["ScreenGuiObject"]["Active"] = [](lua_State* L, Instance* obj) {
+        static_cast<ScreenGuiObject*>(obj)->Active = lua_toboolean(L, 3) != 0; return 0;
+    };
+    SetterTable["ScreenGuiObject"]["Visible"] = [](lua_State* L, Instance* obj) {
+        static_cast<ScreenGuiObject*>(obj)->Visible = lua_toboolean(L, 3) != 0; return 0;
+    };
+    SetterTable["ScreenGuiObject"]["ZIndex"] = [](lua_State* L, Instance* obj) {
+        static_cast<ScreenGuiObject*>(obj)->ZIndex = (int)luaL_checkinteger(L, 3); return 0;
+    };
+    SetterTable["ScreenGuiObject"]["Position"] = [](lua_State* L, Instance* obj) {
+        Vector2* v = (Vector2*)luaL_checkudata(L, 3, RCBN_VEC2_METATABLE);
+        static_cast<ScreenGuiObject*>(obj)->Position = *v; return 0;
+    };
+    SetterTable["ScreenGuiObject"]["Size"] = [](lua_State* L, Instance* obj) {
+        Vector2* v = (Vector2*)luaL_checkudata(L, 3, RCBN_VEC2_METATABLE);
+        static_cast<ScreenGuiObject*>(obj)->Size = *v; return 0;
+    };
+    SetterTable["ScreenGuiObject"]["Norm"] = [](lua_State* L, Instance* obj) {
+        static_cast<ScreenGuiObject*>(obj)->NormType = strToNorm(luaL_checkstring(L, 3)); return 0;
+    };
+    SetterTable["ScreenGuiObject"]["BackgroundColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        static_cast<ScreenGuiObject*>(obj)->BackgroundColor = *c;
+        return 0;
+    };
+    SetterTable["ScreenGuiObject"]["Transparency"] = [](lua_State* L, Instance* obj) {
+        static_cast<ScreenGuiObject*>(obj)->setTransparency((float)luaL_checknumber(L, 3)); return 0;
+    };
+
+    // --- TextLabel ---
+    SetterTable["TextLabel"]["Text"] = [](lua_State* L, Instance* obj) {
+        static_cast<TextLabel*>(obj)->Text = luaL_checkstring(L, 3); return 0;
+    };
+    SetterTable["TextLabel"]["TextColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        static_cast<TextLabel*>(obj)->TextColor = *c; return 0;
+    };
+
+    // --- TextButton ---
+    SetterTable["TextButton"]["Text"] = [](lua_State* L, Instance* obj) {
+        static_cast<TextButton*>(obj)->Text = luaL_checkstring(L, 3); return 0;
+    };
+    SetterTable["TextButton"]["TextColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        static_cast<TextButton*>(obj)->TextColor = *c; return 0;
+    };
+
+    // --- WorldGuiObject ---
+    SetterTable["WorldGuiObject"]["Active"] = [](lua_State* L, Instance* obj) {
+        static_cast<WorldGuiObject*>(obj)->Active = lua_toboolean(L, 3) != 0; return 0;
+    };
+    SetterTable["WorldGuiObject"]["Visible"] = [](lua_State* L, Instance* obj) {
+        static_cast<WorldGuiObject*>(obj)->Visible = lua_toboolean(L, 3) != 0; return 0;
+    };
+    SetterTable["WorldGuiObject"]["ZIndex"] = [](lua_State* L, Instance* obj) {
+        static_cast<WorldGuiObject*>(obj)->ZIndex = (int)luaL_checkinteger(L, 3); return 0;
+    };
+    SetterTable["WorldGuiObject"]["Size"] = [](lua_State* L, Instance* obj) {
+        Vector2* v = (Vector2*)luaL_checkudata(L, 3, RCBN_VEC2_METATABLE);
+        static_cast<WorldGuiObject*>(obj)->Size = *v; return 0;
+    };
+    SetterTable["WorldGuiObject"]["Norm"] = [](lua_State* L, Instance* obj) {
+        static_cast<WorldGuiObject*>(obj)->NormType = strToNorm(luaL_checkstring(L, 3)); return 0;
+    };
+    SetterTable["WorldGuiObject"]["BackgroundColor"] = [](lua_State* L, Instance* obj) {
+        Color4* c = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        static_cast<WorldGuiObject*>(obj)->BackgroundColor = *c; return 0;
+    };
+    SetterTable["WorldGuiObject"]["Transparency"] = [](lua_State* L, Instance* obj) {
+        static_cast<WorldGuiObject*>(obj)->setTransparency((float)luaL_checknumber(L, 3)); return 0;
+    };
+
+    // --- SurfaceGui ---
+    SetterTable["SurfaceGui"]["Face"] = [](lua_State* L, Instance* obj) {
+        static_cast<SurfaceGui*>(obj)->face = strToFace(luaL_checkstring(L, 3)); return 0;
+    };
+
+    // --- BillboardGui ---
+    SetterTable["BillboardGui"]["Mode"] = [](lua_State* L, Instance* obj) {
+        std::string_view v = luaL_checkstring(L, 3);
+        static_cast<BillboardGui*>(obj)->Mode = (v == "Focus") ? BillboardMode::Focus : BillboardMode::Parallel;
         return 0;
     };
 }

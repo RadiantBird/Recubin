@@ -18,6 +18,10 @@
 #include <Instances/Model.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/CharacterSetting.hpp>
+#include <Instances/TextLabel.hpp>
+#include <Instances/TextButton.hpp>
+#include <Instances/SurfaceGui.hpp>
+#include <Instances/BillboardGui.hpp>
 #include <Core/AudioService.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
@@ -357,6 +361,31 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         if (ImGui::MenuItem("CharacterSetting") && m_history) {
             auto obj = std::make_shared<CharacterSetting>();
             obj->Name = uniqueName(parentSp, "CharacterSetting");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        ImGui::EndMenu();
+    }
+
+    // ---- GUI ----
+    if (ImGui::BeginMenu("GUI")) {
+        if (ImGui::MenuItem("TextLabel") && m_history) {
+            auto obj = std::make_shared<TextLabel>();
+            obj->Name = uniqueName(parentSp, "TextLabel");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("TextButton") && m_history) {
+            auto obj = std::make_shared<TextButton>();
+            obj->Name = uniqueName(parentSp, "TextButton");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("SurfaceGui") && m_history) {
+            auto obj = std::make_shared<SurfaceGui>();
+            obj->Name = uniqueName(parentSp, "SurfaceGui");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("BillboardGui") && m_history) {
+            auto obj = std::make_shared<BillboardGui>();
+            obj->Name = uniqueName(parentSp, "BillboardGui");
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
         ImGui::EndMenu();

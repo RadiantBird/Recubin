@@ -603,6 +603,10 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
     // ---- 制約ビジュアライズ（Rope/Rod） ----
     renderConstraints(workspace, view, projection);
 
+    // GUI 描画のためにビュー/プロジェクション行列を保存
+    m_lastView = view;
+    m_lastProj = projection;
+
 }
 
 // ===================================================

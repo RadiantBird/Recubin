@@ -7,6 +7,7 @@
 #include <include/GLFW/glfw3.h>
 
 #include <include/Math/Matrix4.hpp>
+#include <include/Math/Vector2.hpp>
 
 #include <include/Core/User.hpp>
 #include <include/Instances/Cube.hpp>
@@ -19,6 +20,7 @@
 #include <string>
 #include <map>
 #include <memory>
+#include <functional>
 
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
@@ -27,6 +29,7 @@
 
 // 前方宣言（循環インクルード回避）
 class IEditorManager;
+class GuiButton;
 
 class Renderer {
     public:
@@ -77,4 +80,12 @@ class Renderer {
         GLuint m_lineShader = 0;
         void initLineRenderer();
         void renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection);
+
+        // GUI 描画
+        Matrix4  m_lastView;
+        Matrix4  m_lastProj;
+        std::function<void(GuiButton*)> m_onButtonActivated;
+
+        void renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH);
+        void renderWorldGui (Workspace& ws, float vpX, float vpY, float vpW, float vpH);
 };

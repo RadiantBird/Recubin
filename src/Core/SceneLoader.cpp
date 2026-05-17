@@ -19,6 +19,10 @@
 #include <Instances/Rod.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
+#include <Instances/TextLabel.hpp>
+#include <Instances/TextButton.hpp>
+#include <Instances/SurfaceGui.hpp>
+#include <Instances/BillboardGui.hpp>
 #include <Core/AudioService.hpp>
 #include <Util/Logger.hpp>
 #include <iostream>
@@ -201,7 +205,11 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Rope")  return std::make_shared<Rope>();
     if (className == "Rod")   return std::make_shared<Rod>();
     if (className == "Weld")  return std::make_shared<Weld>();
-    if (className == "Motor") return std::make_shared<Motor>();
+    if (className == "Motor")        return std::make_shared<Motor>();
+    if (className == "TextLabel")    return std::make_shared<TextLabel>();
+    if (className == "TextButton")   return std::make_shared<TextButton>();
+    if (className == "SurfaceGui")   return std::make_shared<SurfaceGui>();
+    if (className == "BillboardGui") return std::make_shared<BillboardGui>();
 
     return nullptr;
 }
