@@ -1,4 +1,5 @@
 #pragma once
+#include <Editor/IEditorManager.hpp>
 #include <Editor/EditorPanel.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Editor/ConsolePanel.hpp>
@@ -31,7 +32,7 @@ enum class EditorMode {
 //  EditorManager  — 全パネルを所有・管理するクラス
 //  Renderer が保持して renderImGui() から駆動する
 // ===================================================
-class EditorManager {
+class EditorManager : public IEditorManager {
 public:
     EditorMode mode = EditorMode::Edit;
 
@@ -48,7 +49,7 @@ public:
     EditorManager(Workspace* workspace, User* user, Instance* system = nullptr);
 
     // DockSpace + 全パネルを描画する（ImGui フレーム内で呼ぶ）
-    void render(GLFWwindow* window);
+    void render(GLFWwindow* window) override;
     // 旧互換オーバーロード（window なし）
     void render() { render(nullptr); }
 
@@ -56,10 +57,16 @@ public:
     void setWorkspace(Workspace* ws);
 
     // ViewportPanel の FBO へ 3D シーン描画を開始する前に呼ぶ
-    void beginViewportRender();
+    void beginViewportRender() override;
 
     // 3D シーン描画後に呼ぶ（FBO を解放し Image として表示する）
-    void endViewportRender();
+    void endViewportRender() override;
+
+    // IEditorManager 追加メソッド
+    void getViewportSize(GLFWwindow* window, int& w, int& h) override;
+    Instance* getSelectedInstance() override;
+    void clearForImGui(GLFWwindow* window) override;
+    void renderUI(User& user, GLFWwindow* window, Workspace& workspace) override;
 
     // 現在のモード取得
     bool isEditMode()  const { return mode == EditorMode::Edit;  }

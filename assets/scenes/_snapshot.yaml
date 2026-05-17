@@ -108,7 +108,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [0, -2, 5]
+            Position: [-0.34501287, 4.4936132, 11.583229]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]

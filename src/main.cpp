@@ -101,9 +101,9 @@ void applyAppIcon(GLFWwindow* window, Instance* root) {
 }
 
 // 安全な終了処理関数
-bool checkExit(Renderer& renderer, GLFWwindow& window) {
-    if (renderer.editor && renderer.editor->isDirty()) {
-        renderer.editor->requestSaveDialog(&window);
+bool checkExit(EditorManager* ed, GLFWwindow& window) {
+    if (ed && ed->isDirty()) {
+        ed->requestSaveDialog(&window);
         glfwSetWindowShouldClose(&window, GLFW_FALSE);
     } else {
         return true;
@@ -131,6 +131,7 @@ int main(int argc, char* argv[]) {
     auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
     auto user         = std::make_unique<User>(window);
+    user->controlMode = User::ControlMode::Free;
 
     physics->init();
     renderer->init(window);
@@ -170,8 +171,10 @@ int main(int argc, char* argv[]) {
     // ===================================================
     //  EditorManager を Renderer に接続
     // ===================================================
-    renderer->editor = std::make_unique<EditorManager>(workspace.get(), user.get(), system.get());
-    renderer->editor->engineExePath = engineExePath;
+    auto editorOwned = std::make_unique<EditorManager>(workspace.get(), user.get(), system.get());
+    EditorManager* ed = editorOwned.get();
+    ed->engineExePath = engineExePath;
+    renderer->editor = std::move(editorOwned);
     RCBN_LOG("Editor initialized.");
 
     float lastFrame = static_cast<float>(glfwGetTime());
@@ -186,7 +189,7 @@ int main(int argc, char* argv[]) {
 
     while (true) { // this loop is broken
         if (glfwWindowShouldClose(window)) {
-            if (checkExit(*renderer, *window)) {
+            if (checkExit(ed, *window)) {
                 break;
             }
         }
@@ -195,15 +198,15 @@ int main(int argc, char* argv[]) {
         lastFrame          = currentFrame;
 
         SystemState& state = SystemState::get();
-        state.isPlaying = renderer->editor && !renderer->editor->isEditMode();
-        state.isPaused  = renderer->editor &&  renderer->editor->isPauseMode();
+        state.isPlaying = ed && !ed->isEditMode();
+        state.isPaused  = ed &&  ed->isPauseMode();
 
         const bool isPlaying = state.isPlaying;
         const bool isPaused  = state.isPaused;
 
         // ---- Play/Stop 遷移処理 ----
         if (isPlaying && !wasPlaying) {
-            snapshotDirty = renderer->editor && renderer->editor->isDirty();
+            snapshotDirty = ed && ed->isDirty();
             SceneLoader::saveScene(system.get(), snapshotPath);
             SceneLoader::resolveConstraintRefs(system.get());
             CharacterSetting* cs = findCharacterSetting(system.get());
@@ -234,16 +237,15 @@ int main(int argc, char* argv[]) {
             luauEngine->setGlobalInstance(workspace->Name, workspace);
             luauEngine->setGlobalInstance("workspace", workspace);
             luauEngine->setWorkspace(workspace);
-            renderer->editor->setWorkspace(workspace.get());
-            if (snapshotDirty) renderer->editor->markDirty();
+            ed->setWorkspace(workspace.get());
+            if (snapshotDirty) ed->markDirty();
         }
         wasPlaying = isPlaying;
 
         // ---- Load ボタンによるシーンリロード ----
-        if (renderer->editor && !renderer->editor->pendingLoadPath.empty()
-                && renderer->editor->isEditMode()) {
-            std::string loadPath = renderer->editor->pendingLoadPath;
-            renderer->editor->pendingLoadPath.clear();
+        if (ed && !ed->pendingLoadPath.empty() && ed->isEditMode()) {
+            std::string loadPath = ed->pendingLoadPath;
+            ed->pendingLoadPath.clear();
 
             physics->clearCubes();
             system->removeChild(workspace->Name);
@@ -261,8 +263,8 @@ int main(int argc, char* argv[]) {
             luauEngine->setGlobalInstance(workspace->Name, workspace);
             luauEngine->setGlobalInstance("workspace", workspace);
             luauEngine->setWorkspace(workspace);
-            renderer->editor->setWorkspace(workspace.get());
-            renderer->editor->scenePath = loadPath;
+            ed->setWorkspace(workspace.get());
+            ed->scenePath = loadPath;
             applyAppIcon(window, system.get());
         }
 
@@ -274,13 +276,13 @@ int main(int argc, char* argv[]) {
         }
 
         // ---- 入力処理（エディターモードではカメラ操作のみ許可）----
-        ViewportPanel* vp = renderer->editor ? renderer->editor->viewportPanel.get() : nullptr;
+        ViewportPanel* vp = ed ? ed->viewportPanel.get() : nullptr;
         state.viewportFocused    = vp && IsViewportFocused(vp);
         state.viewportZoomEnabled = vp && (IsViewportFocused(vp) || vp->isHoveringViewport);
         user->processInput(*physics);
         if (user->wannaExit) {
             user->wannaExit = false;
-            if (checkExit(*renderer, *window)) {
+            if (checkExit(ed, *window)) {
                 break;
             }
         }
@@ -300,10 +302,10 @@ int main(int argc, char* argv[]) {
     // 保持している可能性がある。これらが renderer の破棄時（physics 破棄後）に
     // 解放されると、BaseCube のデストラクタで lastWorkspace->physicsEngine に
     // アクセスしてクラッシュする。Physics がまだ生きている今のうちにクリアする。
-    if (renderer->editor) {
-        renderer->editor->hierarchyPanel->selectedInstance = nullptr;
-        renderer->editor->m_history.clear();
-        renderer->editor->clearClipboard();
+    if (ed) {
+        ed->hierarchyPanel->selectedInstance = nullptr;
+        ed->m_history.clear();
+        ed->clearClipboard();
     }
     physics->clearCubes();
     workspace->setPhysicsEngine(nullptr);

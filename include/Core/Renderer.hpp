@@ -26,7 +26,7 @@
 #include <include/imgui/ImGuizmo.h>
 
 // 前方宣言（循環インクルード回避）
-class EditorManager;
+class IEditorManager;
 
 class Renderer {
     public:
@@ -55,7 +55,7 @@ class Renderer {
         std::string loadShaderSource(const char* filePath);
 
         // Editor 管理
-        std::unique_ptr<EditorManager> editor;
+        std::unique_ptr<IEditorManager> editor;
         GLFWwindow* m_window = nullptr; // init() で保持。renderScene の fallback 解像度に使用
 
         void init(GLFWwindow* window);

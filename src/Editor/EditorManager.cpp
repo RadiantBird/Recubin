@@ -622,6 +622,43 @@ void EditorManager::endViewportRender() {
     viewportPanel->endRenderAndDisplay();
 }
 
+void EditorManager::getViewportSize(GLFWwindow*, int& w, int& h) {
+    w = viewportPanel->fbWidth;
+    h = viewportPanel->fbHeight;
+}
+
+Instance* EditorManager::getSelectedInstance() {
+    return hierarchyPanel->selectedInstance;
+}
+
+void EditorManager::clearForImGui(GLFWwindow* window) {
+    int winW, winH;
+    glfwGetFramebufferSize(window, &winW, &winH);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, winW, winH);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void EditorManager::renderUI(User&, GLFWwindow* window, Workspace&) {
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    ImGuizmo::BeginFrame();
+
+    render(window);
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+        GLFWwindow* backup = glfwGetCurrentContext();
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+        glfwMakeContextCurrent(backup);
+    }
+}
+
 // ===================================================
 //  カスタムテーマ（ダークエディター調）
 // ===================================================

@@ -17,7 +17,7 @@
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
 #include <Core/AudioService.hpp>
-#include <Editor/EditorManager.hpp> // Renderer が unique_ptr<EditorManager> を持つため完全型が必要
+#include <Editor/NullEditorManager.hpp>
 
 #include <Util/Logger.hpp>
 #include <yaml-cpp/yaml.h>
@@ -33,6 +33,8 @@
 struct GameConfig {
     std::string gameName  = "Recubin Game";
     std::string startScene = "assets/scenes/game.yaml";
+    bool debugLog = false; // ランタイムのコンソールを表示するかどうか（未実装）
+    // todo: debugLogの書き込み処理を追加しておく
 };
 
 static GameConfig loadStartup() {
@@ -45,6 +47,7 @@ static GameConfig loadStartup() {
         YAML::Node node = YAML::Load(ss.str());
         if (node["GameName"])   cfg.gameName   = node["GameName"].as<std::string>();
         if (node["StartScene"]) cfg.startScene = node["StartScene"].as<std::string>();
+        if (node["DebugLog"])   cfg.debugLog   = node["DebugLog"].as<bool>();
     } catch (...) {}
     return cfg;
 }
@@ -68,6 +71,8 @@ static void applyAppIcon(GLFWwindow* window, Instance* root) {
             auto* ai = static_cast<AppImage*>(child.get());
             if (ai->iconPath.empty()) return;
             int w, h, ch;
+            // OpenGL のテクスチャ座標系は左下が原点だが、Windows のアイコンは左上が原点なので、読み込み時に上下反転させる必要がある
+            stbi_set_flip_vertically_on_load(1);
             unsigned char* px = stbi_load(ai->iconPath.c_str(), &w, &h, &ch, 4);
             if (px) {
                 GLFWimage img{ w, h, px };
@@ -99,9 +104,11 @@ int main() {
     auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
     auto user         = std::make_unique<User>(window);
+    user->controlMode = User::ControlMode::Character;
 
     physics->init();
     renderer->init(window);
+    renderer->editor = std::make_unique<NullEditorManager>();
 
     if (!audioService->initialize()) {
         RCBN_LOG("[ERROR] Failed to initialize AudioService.");

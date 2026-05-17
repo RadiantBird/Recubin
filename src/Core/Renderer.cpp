@@ -1,6 +1,6 @@
 #include <Core/Renderer.hpp>
 #include <Core/FileLoader.hpp>
-#include <Editor/EditorManager.hpp>
+#include <Editor/IEditorManager.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Sphere.hpp>
@@ -391,8 +391,7 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
 void Renderer::renderScene(User& user, Workspace& workspace) {
     int width, height;
     if (editor) {
-        width  = editor->viewportPanel->fbWidth;
-        height = editor->viewportPanel->fbHeight;
+        editor->getViewportSize(m_window, width, height);
     } else if (m_window) {
         glfwGetFramebufferSize(m_window, &width, &height);
     } else {
@@ -567,8 +566,7 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
     }
 
     // ---- 選択インスタンスの黄色ワイヤーフレームハイライト ----
-    if (editor && editor->hierarchyPanel->selectedInstance) {
-        Instance* sel = editor->hierarchyPanel->selectedInstance;
+    if (Instance* sel = editor ? editor->getSelectedInstance() : nullptr) {
         // 親が無効（ツリーから除去済み）なインスタンスはスキップ
         if (!sel->Parent.expired() && sel->IsA("BaseCube")) {
             BaseCube* bc = static_cast<BaseCube*>(sel);
@@ -611,33 +609,16 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
 //  メインループから呼ぶ統合描画
 // ===================================================
 void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
-    // 1. 3D シーンを描画
-    if (editor) {
-        // エディターモード: FBO に描画して ImGui viewport に表示
-        editor->beginViewportRender();
-        renderScene(user, workspace);
-        editor->endViewportRender();
-    } else {
-        // ゲームモード: デフォルトフレームバッファに直接描画
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        renderScene(user, workspace);
-    }
+    // 1. 3D シーンを描画（FBO or デフォルト FB は editor 実装が決定する）
+    editor->beginViewportRender();
+    renderScene(user, workspace);
+    editor->endViewportRender();
 
-#ifndef EDITOR_DISABLED
-    // 2. 既定のフレームバッファをクリア（ImGui 用。3D シーンは FBO に描かれているので安全）
-    if (editor) {
-        int winW, winH;
-        glfwGetFramebufferSize(window, &winW, &winH);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glViewport(0, 0, winW, winH);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    }
-#endif
+    // 2. 既定のフレームバッファをクリア（ImGui 用。ランタイムは no-op）
+    editor->clearForImGui(window);
 
-#ifndef EDITOR_DISABLED
-    // 3. ImGui（DockSpace + パネル）
-    renderImGui(user, window, workspace);
-#endif
+    // 3. ImGui フレーム描画（ランタイムは no-op）
+    editor->renderUI(user, window, workspace);
 
     glfwSwapBuffers(window);
     glfwPollEvents();
