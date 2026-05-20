@@ -52,11 +52,17 @@ set(COMMON_LIBS
 # ---- Recubin (エディター付き) ----
 target_compile_definitions(Recubin PRIVATE ${COMMON_DEFS})
 target_include_directories(Recubin PRIVATE ${COMMON_INCLUDES})
-target_link_options(Recubin PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>)
+target_link_options(Recubin PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>
+    $<$<CXX_COMPILER_ID:MSVC>:/DEBUG>
+)
 target_link_libraries(Recubin PRIVATE ${COMMON_LIBS})
 
 # ---- RecubinEngine (ゲームランタイム専用) ----
 target_compile_definitions(RecubinEngine PRIVATE ${COMMON_DEFS} EDITOR_DISABLED)
 target_include_directories(RecubinEngine PRIVATE ${COMMON_INCLUDES})
-target_link_options(RecubinEngine PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>)
+target_link_options(RecubinEngine PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>
+    $<$<CXX_COMPILER_ID:MSVC>:/DEBUG>
+)
 target_link_libraries(RecubinEngine PRIVATE ${COMMON_LIBS})

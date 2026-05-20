@@ -104,10 +104,12 @@ def build_launcher(config: str) -> int:
         "/EHsc",
         "/W3",
         "/utf-8",
+        "/Zi",
         f"/Fe{out_exe}",
         str(src),
         "Shell32.lib", "Ole32.lib", "user32.lib",
-        "/link", "/SUBSYSTEM:WINDOWS"
+        "/link", "/SUBSYSTEM:WINDOWS",
+        "/DEBUG"
     ]
     result = subprocess.call(args, cwd=ROOT_DIR)
     if result == 0:
