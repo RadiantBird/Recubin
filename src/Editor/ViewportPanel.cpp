@@ -519,9 +519,8 @@ void ViewportPanel::onRender() {
             if (isUsingGizmo && gizmoOp == ImGuizmo::SCALE) {
                 CFrame stableCF = s->getWorldCFrame();
                 stableCF.Position = m_scaleBeforeWorldPos;
-                // 単位スケールを渡す: ImGuizmo の出力 mScale がそのまま加算デルタになる
-                // → ドラッグ量→stud変化量がオブジェクトサイズに依存しなくなる
-                model = stableCF.toMatrix4();
+                model = stableCF.toMatrix4() *
+                        Matrix4::Scale(m_scaleBeforeSize.x, m_scaleBeforeSize.y, m_scaleBeforeSize.z);
             } else {
                 model = s->getWorldCFrame().toMatrix4() *
                         Matrix4::Scale(s->Size.x, s->Size.y, s->Size.z);
@@ -592,11 +591,6 @@ void ViewportPanel::onRender() {
                         }
                     }
                 } else if (gizmoOp == ImGuizmo::SCALE) {
-                    // sx/sy/sz = ImGuizmo 出力の列長 = mScale（入力が単位スケールのため）
-                    // 乗算比率を加算デルタに変換してオブジェクトサイズ非依存の操作感を実現
-                    newSize.x = (std::max)(m_scaleBeforeSize.x + (sx - 1.0f), 0.05f);
-                    newSize.y = (std::max)(m_scaleBeforeSize.y + (sy - 1.0f), 0.05f);
-                    newSize.z = (std::max)(m_scaleBeforeSize.z + (sz - 1.0f), 0.05f);
                     // 絶対サイズスナップ: 変化した軸のみスナップ（未変化軸は before 値を維持）
                     if (snapScale && snapScaleVal > 1e-6f) {
                         if (std::abs(newSize.x - m_scaleBeforeSize.x) >= 1e-4f)
