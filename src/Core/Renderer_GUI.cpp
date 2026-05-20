@@ -19,6 +19,8 @@
 // ===================================================
 static void collectScreenGui(Instance* node, std::vector<ScreenGuiObject*>& out) {
     for (auto& [name, child] : node->getChildren()) {
+        // WorldGuiObject (SurfaceGui, BillboardGui等) の子はベイク専用なのでスキップ
+        if (child->IsA("WorldGuiObject")) continue;
         if (child->IsA("ScreenGuiObject")) {
             out.push_back(static_cast<ScreenGuiObject*>(child.get()));
         }
@@ -125,18 +127,12 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     // 子要素をビジュアルのみ描画（InvisibleButton など ImGui ウィンドウ操作は行わない）
     // printf("\033[46m trying to draw children... \033[0m\n");
 
-    // FIXED: dlの生成が不正だったため修正しました
-    ImDrawList* dl = ImGui::GetWindowDrawList();
+    /*!!!*/ImDrawList* dl = ImGui::GetWindowDrawList(); // !!! IMPORTANT: これ以外でdlを作るとアクセス違反が発生し、まともに動作しない
     dl->PushClipRect(ImVec2(0.f, 0.f), ImVec2((float)w, (float)h), false);
     dl->PushTextureID(ImGui::GetIO().Fonts->TexID);
-    // printf("\033[46m drawing children has succeeded \033[0m\n");
 
     float lineH = ImGui::GetTextLineHeight();
-    // printf("\033[46m [CHILD LOOP] SurfaceGui '%s' children=%zu \033[0m\n",
-        // sg->Name.c_str(), sg->getChildren().size());
     for (auto& [name, child] : sg->getChildren()) {
-        // printf("\033[46m [CHILD] name='%s' ptr=%p class=%s \033[0m\n",
-        //     name.c_str(), child.get(), child->GetClassName().c_str());
         if (!child->IsA("ScreenGuiObject")) continue;
         auto* sgo = static_cast<ScreenGuiObject*>(child.get());
         if (!sgo->Visible) continue;
@@ -168,7 +164,7 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     dl->PopTextureID();
     dl->PopClipRect();
 
-    // 頂点がある場合のみ FBO にレンダリング（空の DrawList で RenderDrawData を呼ぶと UB の可能性）
+    // 頂点がある場合のみ FBO にレンダリング
     if (dl->VtxBuffer.Size > 0) {
         ImDrawData dd{};
         dd.Valid            = true;

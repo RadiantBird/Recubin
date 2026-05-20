@@ -86,10 +86,12 @@ void Cube::draw(int modelLoc, int shaderProgram) {
     unsigned int activeTextures[6];
     Decal*       activeDecals[6];
     Texture*     activeTexInst[6];
+    bool         activeSurfaceGui[6];
     for (int i = 0; i < 6; i++) {
-        activeTextures[i] = defaultTextureID;
-        activeDecals[i]   = nullptr;
-        activeTexInst[i]  = nullptr;
+        activeTextures[i]   = defaultTextureID;
+        activeDecals[i]     = nullptr;
+        activeTexInst[i]    = nullptr;
+        activeSurfaceGui[i] = false;
     }
 
     for (auto const& [name, child] : getChildren()) {
@@ -111,8 +113,10 @@ void Cube::draw(int modelLoc, int shaderProgram) {
         } else if (child->GetClassName() == "SurfaceGui") {
             auto* sg = static_cast<SurfaceGui*>(child.get());
             int idx = static_cast<int>(sg->face);
-            if (idx >= 0 && idx < 6 && sg->m_texID != 0 && !activeDecals[idx])
-                activeTextures[idx] = sg->m_texID;
+            if (idx >= 0 && idx < 6 && sg->m_texID != 0 && !activeDecals[idx]) {
+                activeTextures[idx]   = sg->m_texID;
+                activeSurfaceGui[idx] = true;
+            }
         }
     }
 
@@ -136,6 +140,9 @@ void Cube::draw(int modelLoc, int shaderProgram) {
             float scaleV = (sv > 0.0f) ? faceSizeV[i] / sv : 1.0f;
             if (colorLoc  != -1) glUniform4f(colorLoc,  tc.r, tc.g, tc.b, tc.a);
             if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, scaleU, scaleV);
+        } else if (activeSurfaceGui[i]) {
+            if (colorLoc  != -1) glUniform4f(colorLoc,  1.0f, 1.0f, 1.0f, 1.0f);
+            if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1.0f, 1.0f);
         } else {
             if (colorLoc  != -1) glUniform4f(colorLoc,  Color.r, Color.g, Color.b, Color.a);
             if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1.0f, 1.0f);
