@@ -400,6 +400,7 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
     if (height == 0) height = 1;
 
     glViewport(0, 0, width, height);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     float aspect = (float)width / (float)height;
     Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);

@@ -114,6 +114,7 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     // GL 状態を保存
     GLint prevFBO; glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
     GLint vp[4];   glGetIntegerv(GL_VIEWPORT, vp);
+    GLfloat prevClearColor[4]; glGetFloatv(GL_COLOR_CLEAR_VALUE, prevClearColor);
 
     // printf("\033[46m Setting FrameBuffer... \033[0m\n");
     glBindFramebuffer(GL_FRAMEBUFFER, sg->m_fboID);
@@ -200,6 +201,7 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     // GL 状態を復元
     glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
     glViewport(vp[0], vp[1], vp[2], vp[3]);
+    glClearColor(prevClearColor[0], prevClearColor[1], prevClearColor[2], prevClearColor[3]);
 
     // printf("\033[46m Finished baking SurfaceGui(pointer: %p)\033[0m\n", sg);
 }

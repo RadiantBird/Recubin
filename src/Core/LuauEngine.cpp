@@ -11,6 +11,8 @@
 #include "include/Instances/BillboardGui.hpp"
 #include "include/Util/Logger.hpp"
 #include <float.h>
+#include <fenv.h>
+#include <xmmintrin.h>
 
 // DispatchTableの定義
 std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEngine::GetterFunc>> LuauEngine::DispatchTable;
@@ -20,12 +22,21 @@ Script* LuauEngine::currentScript = nullptr;
 // Instance.new で生成したインスタンスの所有権を保持するストレージ
 static std::vector<std::shared_ptr<Instance>> s_ownedInstances;
 
-void restoreFPU() {
-    unsigned int control;
-    _controlfp_s(&control, 0, 0); // 現在の状態取得
-    // 標準的な安全設定に戻す（double精度、例外マスク全on）
-    _controlfp_s(NULL, _PC_53 | _RC_NEAR | _MCW_EM, 
-                       _MCW_PC | _MCW_RC | _MCW_EM);
+struct FPUState {
+    fenv_t env;
+    unsigned int mxcsr;
+};
+
+FPUState saveFPU() {
+    FPUState s;
+    fegetenv(&s.env);
+    s.mxcsr = _mm_getcsr();
+    return s;
+}
+
+void restoreFPU(const FPUState& s) {
+    fesetenv(&s.env);
+    _mm_setcsr(s.mxcsr);
 }
 
 void LuauEngine::InitDispatchTable() {
@@ -351,8 +362,10 @@ bool LuauEngine::execute(Script& script) {
     
     // コルーチンを再開
     int nargs = 0;
+    FPUState fpuState = saveFPU();
     int result = lua_resume(co, L, nargs);
-    
+    restoreFPU(fpuState);
+
     // 結果を確認
     if (result == LUA_YIELD) {
         // wait() で停止した - Script の Sleeping フラグは wait() 内で設定済み
@@ -386,7 +399,6 @@ bool LuauEngine::execute(Script& script) {
         std::cerr << "Luau Run Error: " << output << "\n";
         if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
         currentScript = nullptr;
-        restoreFPU(); // エラー後にFPU状態が乱れる可能性があるため、復元する
         return false;
     }
 }
