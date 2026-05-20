@@ -95,10 +95,19 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+          Children:
+            - ClassName: Texture
+              Name: Texture_Top
+              Properties:
+                Face: 2
+                Color: [1, 1, 1, 1]
+                StudsPerTileU: 1
+                StudsPerTileV: 1
+                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\Grass_Texture.png
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [4.444054, 19.861296, -17.20572]
+            Position: [11.37647, -6.958553, 8.423351]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -307,8 +316,6 @@ Root:
             Axis: [0, 1, 0]
             DriveVelocity: 1
             MaxForce: 1000
-        - ClassName: SurfaceGui
-          Name: SurfaceGui
     - ClassName: AppImage
       Name: AppImage
       Properties:

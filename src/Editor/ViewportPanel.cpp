@@ -12,6 +12,8 @@
 #include <algorithm>
 #include <cmath>
 
+// NOTE: ImGuizmoは乗算でスケール処理を行っている
+
 // ===================================================
 //  ViewportPanel 実装
 // ===================================================
@@ -512,12 +514,14 @@ void ViewportPanel::onRender() {
 
             // SCALE ドラッグ中は開始時の不変行列を ImGuizmo に渡す
             // 毎フレーム変化する行列を渡すと ImGuizmo の内部参照がずれて特異点が生まれるため
+            // FIX: それぞれの軸が干渉している
             Matrix4 model;
             if (isUsingGizmo && gizmoOp == ImGuizmo::SCALE) {
                 CFrame stableCF = s->getWorldCFrame();
                 stableCF.Position = m_scaleBeforeWorldPos;
-                model = stableCF.toMatrix4() *
-                        Matrix4::Scale(m_scaleBeforeSize.x, m_scaleBeforeSize.y, m_scaleBeforeSize.z);
+                // 単位スケールを渡す: ImGuizmo の出力 mScale がそのまま加算デルタになる
+                // → ドラッグ量→stud変化量がオブジェクトサイズに依存しなくなる
+                model = stableCF.toMatrix4();
             } else {
                 model = s->getWorldCFrame().toMatrix4() *
                         Matrix4::Scale(s->Size.x, s->Size.y, s->Size.z);
@@ -530,11 +534,10 @@ void ViewportPanel::onRender() {
 
             float snapArr[3]   = { snapTranslateVal, snapTranslateVal, snapTranslateVal };
             float rotSnap[3]   = { snapRotateVal,    snapRotateVal,    snapRotateVal    };
-            float scaleSnap[3] = { snapScaleVal,     snapScaleVal,     snapScaleVal     };
             const float* snap = nullptr;
             if      (gizmoOp == ImGuizmo::TRANSLATE && snapTranslate) snap = snapArr;
             else if (gizmoOp == ImGuizmo::ROTATE    && snapRotate)    snap = rotSnap;
-            else if (gizmoOp == ImGuizmo::SCALE     && snapScale)     snap = scaleSnap;
+            // SCALE snap は newSize 抽出後に絶対値で適用するため ImGuizmo には渡さない
 
             if (ImGuizmo::Manipulate(view.m, proj.m, gizmoOp,
                                      ImGuizmo::WORLD, model.m, nullptr, snap)) {
@@ -589,6 +592,23 @@ void ViewportPanel::onRender() {
                         }
                     }
                 } else if (gizmoOp == ImGuizmo::SCALE) {
+                    // sx/sy/sz = ImGuizmo 出力の列長 = mScale（入力が単位スケールのため）
+                    // 乗算比率を加算デルタに変換してオブジェクトサイズ非依存の操作感を実現
+                    newSize.x = (std::max)(m_scaleBeforeSize.x + (sx - 1.0f), 0.05f);
+                    newSize.y = (std::max)(m_scaleBeforeSize.y + (sy - 1.0f), 0.05f);
+                    newSize.z = (std::max)(m_scaleBeforeSize.z + (sz - 1.0f), 0.05f);
+                    // 絶対サイズスナップ: 変化した軸のみスナップ（未変化軸は before 値を維持）
+                    if (snapScale && snapScaleVal > 1e-6f) {
+                        if (std::abs(newSize.x - m_scaleBeforeSize.x) >= 1e-4f)
+                            newSize.x = (std::max)(std::round(newSize.x / snapScaleVal) * snapScaleVal, 0.05f);
+                        else newSize.x = m_scaleBeforeSize.x;
+                        if (std::abs(newSize.y - m_scaleBeforeSize.y) >= 1e-4f)
+                            newSize.y = (std::max)(std::round(newSize.y / snapScaleVal) * snapScaleVal, 0.05f);
+                        else newSize.y = m_scaleBeforeSize.y;
+                        if (std::abs(newSize.z - m_scaleBeforeSize.z) >= 1e-4f)
+                            newSize.z = (std::max)(std::round(newSize.z / snapScaleVal) * snapScaleVal, 0.05f);
+                        else newSize.z = m_scaleBeforeSize.z;
+                    }
                     // Roblox スタイル: size デルタの半分だけ position をオフセット
                     // 負方向ハンドルのときは符号を反転して逆面を固定する
                     Vector3 deltaSize = newSize - m_scaleBeforeSize;

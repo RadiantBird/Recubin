@@ -118,7 +118,7 @@ bool checkExit(EditorManager* ed, GLFWwindow& window) {
 // ===================================================
 int main(int argc, char* argv[]) {
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.98\n";
+              << "Recubin Studio v0.985\n";
     std::string engineExePath = (argc > 0 && argv[0]) ? argv[0] : "";
 
     GLFWwindow* window = setupWindow();

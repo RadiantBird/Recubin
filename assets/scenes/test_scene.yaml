@@ -1,5 +1,26 @@
 Root:
   Children:
+    - ClassName: AppImage
+      Name: AppImage
+      Properties:
+        IconPath: C:\Users\Ryarta\Documents\Recubin\assets\image\the-cat.png
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction: [1, -1, -1]
+        Brightness: 1
+    - ClassName: CharacterSetting
+      Name: CharacterSetting
+      Properties:
+        FacePath: C:\Users\Ryarta\Documents\Recubin\assets\image\hehe.png
+        HeadColor: [1, 1, 1, 1]
+        TorsoColor: [0.39215687, 0.047058824, 0.1254902, 1]
+        LeftArmColor: [1, 1, 1, 1]
+        RightArmColor: [1, 1, 1, 1]
+        LeftLegColor: [0, 0.14117648, 0.31764707, 1]
+        RightLegColor: [0, 0.14117648, 0.31764707, 1]
+        JumpPower: 7
+        MoveSpeed: 5
     - ClassName: Workspace
       Name: Workspace
       Children:
@@ -57,6 +78,15 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+          Children:
+            - ClassName: Texture
+              Name: Texture_Top
+              Properties:
+                Face: 2
+                Color: [1, 1, 1, 1]
+                StudsPerTileU: 1
+                StudsPerTileV: 1
+                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\Grass_Texture.png
         - ClassName: Cube
           Name: Green
           Properties:
@@ -124,7 +154,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [2.5366273, 0.0594602, -5.459701]
+            Position: [-17.010714, 5.173793, -7.223265]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -307,24 +337,3 @@ Root:
             Axis: [0, 1, 0]
             DriveVelocity: 1
             MaxForce: 1000
-    - ClassName: AppImage
-      Name: AppImage
-      Properties:
-        IconPath: C:\Users\Ryarta\Documents\Recubin\assets\image\the-cat.png
-    - ClassName: Lighting
-      Name: Lighting
-      Properties:
-        Direction: [1, -1, -1]
-        Brightness: 1
-    - ClassName: CharacterSetting
-      Name: CharacterSetting
-      Properties:
-        FacePath: C:\Users\Ryarta\Documents\Recubin\assets\image\hehe.png
-        HeadColor: [1, 1, 1, 1]
-        TorsoColor: [0.39215687, 0.047058824, 0.1254902, 1]
-        LeftArmColor: [1, 1, 1, 1]
-        RightArmColor: [1, 1, 1, 1]
-        LeftLegColor: [0, 0.14117648, 0.31764707, 1]
-        RightLegColor: [0, 0.14117648, 0.31764707, 1]
-        JumpPower: 7
-        MoveSpeed: 5
