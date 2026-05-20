@@ -1,6 +1,12 @@
 #include <Instances/SurfaceGui.hpp>
+#include <GL/glew.h>
 
 SurfaceGui::SurfaceGui() : WorldGuiObject("SurfaceGui") {}
+
+SurfaceGui::~SurfaceGui() {
+    if (m_fboID) glDeleteFramebuffers(1, &m_fboID);
+    if (m_texID) glDeleteTextures(1, &m_texID);
+}
 
 std::string SurfaceGui::GetClassName() { return "SurfaceGui"; }
 

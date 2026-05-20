@@ -380,12 +380,14 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         }
         if (ImGui::MenuItem("SurfaceGui") && m_history) {
             auto obj = std::make_shared<SurfaceGui>();
+            printf("\033[46m pointer: %p\033[0m\n", obj.get());
             obj->Name = uniqueName(parentSp, "SurfaceGui");
+            printf("\033[46m %p is a SurfaceGui\033[0m\n", obj.get());
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
         if (ImGui::MenuItem("BillboardGui") && m_history) {
             auto obj = std::make_shared<BillboardGui>();
-            obj->Name = uniqueName(parentSp, "BillboardGui");
+                        obj->Name = uniqueName(parentSp, "BillboardGui");
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
         ImGui::EndMenu();

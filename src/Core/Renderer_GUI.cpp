@@ -9,6 +9,7 @@
 #include "include/Instances/BillboardGui.hpp"
 #include "include/Instances/BaseCube.hpp"
 #include "include/imgui/imgui.h"
+#include "include/imgui/imgui_impl_opengl3.h"
 
 #include <algorithm>
 #include <vector>
@@ -73,6 +74,119 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
             dl->AddText(ImVec2(px + 4, py + (sh - ImGui::GetTextLineHeight()) * 0.5f),
                         textCol, lbl->Text.c_str());
     }
+}
+
+// ===================================================
+//  SurfaceGui → FBO テクスチャへのベイク
+//  ImGui フレーム内（NewFrame〜EndFrame）で呼ぶこと
+// ===================================================
+void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
+    // printf("\033[46m Baking SurfaceGui '%s' (texID=%u, size=%.0fx%.0f)\033[0m\n",
+    //     sg->Name.c_str(), sg->m_texID, sg->Size.x, sg->Size.y);
+
+    int w = (int)sg->Size.x, h = (int)sg->Size.y;
+    if (w <= 0 || h <= 0) return;
+
+    // FBO / テクスチャの作成・リサイズ
+    // printf("\033[46m Creating FBO and texture... \033[0m\n");
+    if (sg->m_texID == 0 || sg->m_texW != w || sg->m_texH != h) {
+        if (sg->m_fboID) { glDeleteFramebuffers(1, &sg->m_fboID); sg->m_fboID = 0; }
+        if (sg->m_texID) { glDeleteTextures(1,    &sg->m_texID);  sg->m_texID = 0; }
+
+        glGenTextures(1, &sg->m_texID);
+        glBindTexture(GL_TEXTURE_2D, sg->m_texID);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        glGenFramebuffers(1, &sg->m_fboID);
+        glBindFramebuffer(GL_FRAMEBUFFER, sg->m_fboID);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_2D, sg->m_texID, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        sg->m_texW = w; sg->m_texH = h;
+    }
+    // printf("\033[46m Created FBO and texture! \033[0m\n");
+    // GL 状態を保存
+    GLint prevFBO; glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
+    GLint vp[4];   glGetIntegerv(GL_VIEWPORT, vp);
+
+    // printf("\033[46m Setting FrameBuffer... \033[0m\n");
+    glBindFramebuffer(GL_FRAMEBUFFER, sg->m_fboID);
+    glViewport(0, 0, w, h);
+    const Color4& bg = sg->BackgroundColor;
+    glClearColor(bg.r, bg.g, bg.b, bg.a);
+    glClear(GL_COLOR_BUFFER_BIT);
+    // printf("\033[46m FrameBuffer Done! \033[0m\n");
+
+
+    // 子要素をビジュアルのみ描画（InvisibleButton など ImGui ウィンドウ操作は行わない）
+    // printf("\033[46m trying to draw children... \033[0m\n");
+
+    // FIXED: dlの生成が不正だったため修正しました
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->PushClipRect(ImVec2(0.f, 0.f), ImVec2((float)w, (float)h), false);
+    dl->PushTextureID(ImGui::GetIO().Fonts->TexID);
+    // printf("\033[46m drawing children has succeeded \033[0m\n");
+
+    float lineH = ImGui::GetTextLineHeight();
+    // printf("\033[46m [CHILD LOOP] SurfaceGui '%s' children=%zu \033[0m\n",
+        // sg->Name.c_str(), sg->getChildren().size());
+    for (auto& [name, child] : sg->getChildren()) {
+        // printf("\033[46m [CHILD] name='%s' ptr=%p class=%s \033[0m\n",
+        //     name.c_str(), child.get(), child->GetClassName().c_str());
+        if (!child->IsA("ScreenGuiObject")) continue;
+        auto* sgo = static_cast<ScreenGuiObject*>(child.get());
+        if (!sgo->Visible) continue;
+
+        float px = (sgo->NormType == Norm::Scale) ? sgo->Position.x * w : sgo->Position.x;
+        float py = (sgo->NormType == Norm::Scale) ? sgo->Position.y * h : sgo->Position.y;
+        float sw = (sgo->NormType == Norm::Scale) ? sgo->Size.x * w : sgo->Size.x;
+        float sh = (sgo->NormType == Norm::Scale) ? sgo->Size.y * h : sgo->Size.y;
+
+        const Color4& bgc = sgo->BackgroundColor;
+        dl->AddRectFilled(ImVec2(px, py), ImVec2(px + sw, py + sh),
+            IM_COL32((int)(bgc.r*255),(int)(bgc.g*255),(int)(bgc.b*255),(int)(bgc.a*255)));
+
+        const char* text = nullptr;
+        const Color4* tc = nullptr;
+        if (sgo->IsA("TextLabel")) {
+            auto* lbl = static_cast<TextLabel*>(sgo);
+            if (!lbl->Text.empty()) { text = lbl->Text.c_str(); tc = &lbl->TextColor; }
+        } else if (sgo->IsA("TextButton")) {
+            auto* btn = static_cast<TextButton*>(sgo);
+            if (!btn->Text.empty()) { text = btn->Text.c_str(); tc = &btn->TextColor; }
+        }
+        if (text && tc)
+            dl->AddText(ImVec2(px + 4.f, py + (sh - lineH) * 0.5f),
+                IM_COL32((int)(tc->r*255),(int)(tc->g*255),(int)(tc->b*255),(int)(tc->a*255)),
+                text);
+    }
+
+    dl->PopTextureID();
+    dl->PopClipRect();
+
+    // 頂点がある場合のみ FBO にレンダリング（空の DrawList で RenderDrawData を呼ぶと UB の可能性）
+    if (dl->VtxBuffer.Size > 0) {
+        ImDrawData dd{};
+        dd.Valid            = true;
+        dd.CmdListsCount    = 1;
+        dd.TotalIdxCount    = dl->IdxBuffer.Size;
+        dd.TotalVtxCount    = dl->VtxBuffer.Size;
+        dd.DisplayPos       = ImVec2(0.f, 0.f);
+        dd.DisplaySize      = ImVec2((float)w, (float)h);
+        dd.FramebufferScale = ImVec2(1.f, 1.f);
+        dd.CmdLists.push_back(dl);
+        ImGui_ImplOpenGL3_RenderDrawData(&dd);
+    }
+
+    // GL 状態を復元
+    glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
+    glViewport(vp[0], vp[1], vp[2], vp[3]);
+
+    // printf("\033[46m Finished baking SurfaceGui(pointer: %p)\033[0m\n", sg);
 }
 
 // ===================================================
@@ -173,6 +287,15 @@ static void drawWorldGuiChildren(ImDrawList* dl, WorldGuiObject* wgo,
 //  renderWorldGui
 // ===================================================
 void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH) {
+    // SurfaceGui を FBO テクスチャにベイク（次フレームの 3D 描画で使用）
+    for (auto& [name, inst] : ws.getChildren()) {
+        if (!inst->IsA("BaseCube")) continue;
+        for (auto& [gname, ginst] : inst->getChildren()) {
+            if (ginst->GetClassName() == "SurfaceGui")
+                bakeSurfaceGui(static_cast<SurfaceGui*>(ginst.get()));
+        }
+    }
+
     ImDrawList* dl = ImGui::GetWindowDrawList();
 
     for (auto& [cubeNameStr, cubeInst] : ws.getChildren()) {
@@ -183,6 +306,7 @@ void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, fl
             if (!guiInst->IsA("WorldGuiObject")) continue;
             auto* wgo = static_cast<WorldGuiObject*>(guiInst.get());
             if (!wgo->Visible) continue;
+            if (wgo->GetClassName() == "SurfaceGui") continue; // 3D フェイス描画に移行
 
             float wx = cube->Position.x;
             float wy = cube->Position.y;

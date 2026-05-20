@@ -30,6 +30,7 @@
 // 前方宣言（循環インクルード回避）
 class IEditorManager;
 class GuiButton;
+class SurfaceGui;
 
 class Renderer {
     public:
@@ -88,4 +89,5 @@ class Renderer {
 
         void renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH);
         void renderWorldGui (Workspace& ws, float vpX, float vpY, float vpW, float vpH);
+        void bakeSurfaceGui (SurfaceGui* sg);
 };
