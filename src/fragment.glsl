@@ -18,6 +18,7 @@ uniform float unlit;
 uniform float u_textureScale;
 uniform float useTriplanar;
 uniform vec2 uvScale;
+uniform float isSurfaceGui;
 
 float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
@@ -56,7 +57,9 @@ void main() {
         vec2 scale = (uvScale.x > 0.0 && uvScale.y > 0.0) ? uvScale : vec2(1.0, 1.0);
         texColor = texture(ourTexture, TexCoord * scale);
     }
-    vec3 baseColor = mix(ourColor.rgb, texColor.rgb * ourColor.rgb, texColor.a);
+    vec3 baseColor = (isSurfaceGui > 0.5)
+        ? mix(ourColor.rgb, texColor.rgb, texColor.a)
+        : mix(ourColor.rgb, texColor.rgb * ourColor.rgb, texColor.a);
 
     if (unlit > 0.5) {
         FragColor = vec4(baseColor, ourColor.a);

@@ -83,14 +83,38 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
 //  ImGui フレーム内（NewFrame〜EndFrame）で呼ぶこと
 // ===================================================
 void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
-    // printf("\033[46m Baking SurfaceGui '%s' (texID=%u, size=%.0fx%.0f)\033[0m\n",
-    //     sg->Name.c_str(), sg->m_texID, sg->Size.x, sg->Size.y);
+    float cW = sg->Size.x, cH = sg->Size.y;
+    if (cW <= 0 || cH <= 0) return;
 
-    int w = (int)sg->Size.x, h = (int)sg->Size.y;
+    // 親 BaseCube からフェイスの物理サイズ（スタッド）を取得
+    float faceU = cW, faceV = cH;
+    if (auto par = sg->Parent.lock()) {
+        if (par->IsA("BaseCube")) {
+            auto* cube = static_cast<BaseCube*>(par.get());
+            switch (sg->face) {
+                case Face::Front: case Face::Back:
+                    faceU = cube->Size.x; faceV = cube->Size.y; break;
+                case Face::Top:   case Face::Bottom:
+                    faceU = cube->Size.x; faceV = cube->Size.z; break;
+                case Face::Right: case Face::Left:
+                    faceU = cube->Size.z; faceV = cube->Size.y; break;
+            }
+        }
+    }
+    if (faceU <= 0) faceU = cW;
+    if (faceV <= 0) faceV = cH;
+
+    // FBO サイズ = フェイスのアスペクト比に合わせる（幅は cW を基準）
+    int w = (int)cW;
+    int h = (int)(cW * faceV / faceU);
     if (w <= 0 || h <= 0) return;
 
+    // キャンバスを FBO に収めるための均一スケールとオフセット（レターボックス）
+    float scale = (std::min)((float)w / cW, (float)h / cH);
+    float offX  = ((float)w - cW * scale) * 0.5f;
+    float offY  = ((float)h - cH * scale) * 0.5f;
+
     // FBO / テクスチャの作成・リサイズ
-    // printf("\033[46m Creating FBO and texture... \033[0m\n");
     if (sg->m_texID == 0 || sg->m_texW != w || sg->m_texH != h) {
         if (sg->m_fboID) { glDeleteFramebuffers(1, &sg->m_fboID); sg->m_fboID = 0; }
         if (sg->m_texID) { glDeleteTextures(1,    &sg->m_texID);  sg->m_texID = 0; }
@@ -110,23 +134,17 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
 
         sg->m_texW = w; sg->m_texH = h;
     }
-    // printf("\033[46m Created FBO and texture! \033[0m\n");
+
     // GL 状態を保存
     GLint prevFBO; glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
     GLint vp[4];   glGetIntegerv(GL_VIEWPORT, vp);
     GLfloat prevClearColor[4]; glGetFloatv(GL_COLOR_CLEAR_VALUE, prevClearColor);
 
-    // printf("\033[46m Setting FrameBuffer... \033[0m\n");
     glBindFramebuffer(GL_FRAMEBUFFER, sg->m_fboID);
     glViewport(0, 0, w, h);
     const Color4& bg = sg->BackgroundColor;
     glClearColor(bg.r, bg.g, bg.b, bg.a);
     glClear(GL_COLOR_BUFFER_BIT);
-    // printf("\033[46m FrameBuffer Done! \033[0m\n");
-
-
-    // 子要素をビジュアルのみ描画（InvisibleButton など ImGui ウィンドウ操作は行わない）
-    // printf("\033[46m trying to draw children... \033[0m\n");
 
     /*!!!*/ImDrawList* dl = ImGui::GetWindowDrawList(); // !!! IMPORTANT: これ以外でdlを作るとアクセス違反が発生し、まともに動作しない
     dl->PushClipRect(ImVec2(0.f, 0.f), ImVec2((float)w, (float)h), false);
@@ -138,10 +156,17 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
         auto* sgo = static_cast<ScreenGuiObject*>(child.get());
         if (!sgo->Visible) continue;
 
-        float px = (sgo->NormType == Norm::Scale) ? sgo->Position.x * w : sgo->Position.x;
-        float py = (sgo->NormType == Norm::Scale) ? sgo->Position.y * h : sgo->Position.y;
-        float sw = (sgo->NormType == Norm::Scale) ? sgo->Size.x * w : sgo->Size.x;
-        float sh = (sgo->NormType == Norm::Scale) ? sgo->Size.y * h : sgo->Size.y;
+        // キャンバス座標 → FBO 座標（均一スケール + オフセット）
+        float cx = (sgo->NormType == Norm::Scale) ? sgo->Position.x * cW : sgo->Position.x;
+        float cy = (sgo->NormType == Norm::Scale) ? sgo->Position.y * cH : sgo->Position.y;
+        float csw = (sgo->NormType == Norm::Scale) ? sgo->Size.x * cW : sgo->Size.x;
+        float csh = (sgo->NormType == Norm::Scale) ? sgo->Size.y * cH : sgo->Size.y;
+
+        float px = offX + cx  * scale;
+        float py = offY + cy  * scale;
+        float sw = csw * scale;
+        float sh = csh * scale;
+
         const Color4& bgc = sgo->BackgroundColor;
         dl->AddRectFilled(ImVec2(px, py), ImVec2(px + sw, py + sh),
             IM_COL32((int)(bgc.r*255),(int)(bgc.g*255),(int)(bgc.b*255),(int)(bgc.a*255)));
@@ -202,8 +227,6 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
     glViewport(vp[0], vp[1], vp[2], vp[3]);
     glClearColor(prevClearColor[0], prevClearColor[1], prevClearColor[2], prevClearColor[3]);
-
-    // printf("\033[46m Finished baking SurfaceGui(pointer: %p)\033[0m\n", sg);
 }
 
 // ===================================================

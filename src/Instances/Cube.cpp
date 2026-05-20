@@ -78,9 +78,9 @@ bool Cube::IsA(std::string className) {
 // 描画の実装
 void Cube::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(s_VAO);
-    int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
-
-    int uvScaleLoc = glGetUniformLocation(shaderProgram, "uvScale");
+    int colorLoc        = glGetUniformLocation(shaderProgram, "ourColor");
+    int uvScaleLoc      = glGetUniformLocation(shaderProgram, "uvScale");
+    int isSurfaceGuiLoc = glGetUniformLocation(shaderProgram, "isSurfaceGui");
 
     // フェイスごとのデカール・テクスチャ収集
     unsigned int activeTextures[6];
@@ -130,22 +130,26 @@ void Cube::draw(int modelLoc, int shaderProgram) {
     for (int i = 0; i < 6; i++) {
         if (activeDecals[i]) {
             const Color4& dc = activeDecals[i]->Color;
-            if (colorLoc  != -1) glUniform4f(colorLoc,  dc.r, dc.g, dc.b, dc.a);
-            if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1.0f, 1.0f);
+            if (colorLoc        != -1) glUniform4f(colorLoc,        dc.r, dc.g, dc.b, dc.a);
+            if (uvScaleLoc      != -1) glUniform2f(uvScaleLoc,      1.0f, 1.0f);
+            if (isSurfaceGuiLoc != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
         } else if (activeTexInst[i]) {
             const Color4& tc = activeTexInst[i]->Color;
             float su = activeTexInst[i]->StudsPerTileU;
             float sv = activeTexInst[i]->StudsPerTileV;
             float scaleU = (su > 0.0f) ? faceSizeU[i] / su : 1.0f;
             float scaleV = (sv > 0.0f) ? faceSizeV[i] / sv : 1.0f;
-            if (colorLoc  != -1) glUniform4f(colorLoc,  tc.r, tc.g, tc.b, tc.a);
-            if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, scaleU, scaleV);
+            if (colorLoc        != -1) glUniform4f(colorLoc,        tc.r, tc.g, tc.b, tc.a);
+            if (uvScaleLoc      != -1) glUniform2f(uvScaleLoc,      scaleU, scaleV);
+            if (isSurfaceGuiLoc != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
         } else if (activeSurfaceGui[i]) {
-            if (colorLoc  != -1) glUniform4f(colorLoc,  1.0f, 1.0f, 1.0f, 1.0f);
-            if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1.0f, 1.0f);
+            if (colorLoc        != -1) glUniform4f(colorLoc,        Color.r, Color.g, Color.b, Color.a);
+            if (uvScaleLoc      != -1) glUniform2f(uvScaleLoc,      1.0f, 1.0f);
+            if (isSurfaceGuiLoc != -1) glUniform1f(isSurfaceGuiLoc, 1.0f);
         } else {
-            if (colorLoc  != -1) glUniform4f(colorLoc,  Color.r, Color.g, Color.b, Color.a);
-            if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1.0f, 1.0f);
+            if (colorLoc        != -1) glUniform4f(colorLoc,        Color.r, Color.g, Color.b, Color.a);
+            if (uvScaleLoc      != -1) glUniform2f(uvScaleLoc,      1.0f, 1.0f);
+            if (isSurfaceGuiLoc != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
         }
 
         glActiveTexture(GL_TEXTURE0);
