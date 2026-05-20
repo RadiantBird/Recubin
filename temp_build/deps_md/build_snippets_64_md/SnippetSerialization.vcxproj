@@ -1,0 +1,419 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="debug|x64">
+      <Configuration>debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="checked|x64">
+      <Configuration>checked</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="profile|x64">
+      <Configuration>profile</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="release|x64">
+      <Configuration>release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{3F8C7944-A38F-38E8-9537-D1F213650843}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>SnippetSerialization</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='checked|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='profile|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='debug|x64'">C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx_out_64\bin\bin\win.x86_64.vc143.md\debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='debug|x64'">SnippetSerialization.dir\debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='debug|x64'">SnippetSerialization_64</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='debug|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='debug|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='debug|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='checked|x64'">C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx_out_64\bin\bin\win.x86_64.vc143.md\checked\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='checked|x64'">SnippetSerialization.dir\checked\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='checked|x64'">SnippetSerialization_64</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='checked|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='checked|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='checked|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='profile|x64'">C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx_out_64\bin\bin\win.x86_64.vc143.md\profile\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='profile|x64'">SnippetSerialization.dir\profile\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='profile|x64'">SnippetSerialization_64</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='profile|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='profile|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='profile|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='release|x64'">C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx_out_64\bin\bin\win.x86_64.vc143.md\release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='release|x64'">SnippetSerialization.dir\release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='release|x64'">SnippetSerialization_64</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='release|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='release|x64'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='release|x64'">true</GenerateManifest>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\cudamanager;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxextensions\src;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\graphics\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /d2Zi+</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <CallingConvention>Cdecl</CallingConvention>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <DisableSpecificWarnings>4514;4820;4127;4710;4711;4577;4996</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <LanguageStandard>stdcpp14</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <OmitFramePointers>true</OmitFramePointers>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <StringPooling>true</StringPooling>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);_HAS_ITERATOR_DEBUGGING=0;_ITERATOR_DEBUG_LEVEL=0;NDEBUG;WIN32;WIN64;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;_WINSOCK_DEPRECATED_NO_WARNINGS;PX_PUBLIC_RELEASE=1;DISABLE_CUDA_PHYSX;RENDER_SNIPPET;CMAKE_INTDIR="debug"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_HAS_ITERATOR_DEBUGGING=0;_ITERATOR_DEBUG_LEVEL=0;NDEBUG;WIN64;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;_WINSOCK_DEPRECATED_NO_WARNINGS;PX_PUBLIC_RELEASE=1;DISABLE_CUDA_PHYSX;RENDER_SNIPPET;CMAKE_INTDIR=\"debug\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\cudamanager;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxextensions\src;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\graphics\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\cudamanager;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxextensions\src;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\graphics\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalDependencies>PhysXExtensions.lib;PhysXPvdSDK.lib;PhysX.lib;PhysXVehicle2.lib;PhysXCharacterKinematic.lib;PhysXCooking.lib;PhysXCommon.lib;PhysXFoundation.lib;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx_out_64\lib\bin\win.x86_64.vc143.md\debug\SnippetUtils_static_64.lib;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx_out_64\lib\bin\win.x86_64.vc143.md\debug\SnippetRender_static_64.lib;SceneQuery.lib;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\lib\win64\freeglutd.lib;PhysXFoundation.lib;opengl32.lib;glu32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <DataExecutionPrevention></DataExecutionPrevention>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImageHasSafeExceptionHandlers></ImageHasSafeExceptionHandlers>
+      <ImportLibrary>C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx_out_64/lib/bin/win.x86_64.vc143.md/debug/SnippetSerialization_64.lib</ImportLibrary>
+      <LinkErrorReporting></LinkErrorReporting>
+      <ProgramDataBaseFile>C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx_out_64/bin/bin/win.x86_64.vc143.md/debug/SnippetSerialization_64.pdb</ProgramDataBaseFile>
+      <RandomizedBaseAddress></RandomizedBaseAddress>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='checked|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\cudamanager;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxextensions\src;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\graphics\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /d2Zi+</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <CallingConvention>Cdecl</CallingConvention>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <DisableSpecificWarnings>4514;4820;4127;4710;4711;4577;4996</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <LanguageStandard>stdcpp14</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <OmitFramePointers>true</OmitFramePointers>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <StringPooling>true</StringPooling>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);_HAS_ITERATOR_DEBUGGING=0;_ITERATOR_DEBUG_LEVEL=0;NDEBUG;WIN32;WIN64;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;_WINSOCK_DEPRECATED_NO_WARNINGS;PX_PUBLIC_RELEASE=1;DISABLE_CUDA_PHYSX;RENDER_SNIPPET;CMAKE_INTDIR="checked"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_HAS_ITERATOR_DEBUGGING=0;_ITERATOR_DEBUG_LEVEL=0;NDEBUG;WIN64;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;_WINSOCK_DEPRECATED_NO_WARNINGS;PX_PUBLIC_RELEASE=1;DISABLE_CUDA_PHYSX;RENDER_SNIPPET;CMAKE_INTDIR=\"checked\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\cudamanager;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxextensions\src;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\graphics\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\cudamanager;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxextensions\src;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\graphics\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalDependencies>PhysXExtensions.lib;PhysXPvdSDK.lib;PhysX.lib;PhysXVehicle2.lib;PhysXCharacterKinematic.lib;PhysXCooking.lib;PhysXCommon.lib;PhysXFoundation.lib;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx_out_64\lib\bin\win.x86_64.vc143.md\checked\SnippetUtils_static_64.lib;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx_out_64\lib\bin\win.x86_64.vc143.md\checked\SnippetRender_static_64.lib;SceneQuery.lib;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\lib\win64\freeglut.lib;PhysXFoundation.lib;opengl32.lib;glu32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <DataExecutionPrevention></DataExecutionPrevention>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImageHasSafeExceptionHandlers></ImageHasSafeExceptionHandlers>
+      <ImportLibrary>C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx_out_64/lib/bin/win.x86_64.vc143.md/checked/SnippetSerialization_64.lib</ImportLibrary>
+      <LinkErrorReporting></LinkErrorReporting>
+      <ProgramDataBaseFile>C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx_out_64/bin/bin/win.x86_64.vc143.md/checked/SnippetSerialization_64.pdb</ProgramDataBaseFile>
+      <RandomizedBaseAddress></RandomizedBaseAddress>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='profile|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\cudamanager;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxextensions\src;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\graphics\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /d2Zi+</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <CallingConvention>Cdecl</CallingConvention>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <DisableSpecificWarnings>4514;4820;4127;4710;4711;4577;4996</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <LanguageStandard>stdcpp14</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <OmitFramePointers>true</OmitFramePointers>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <StringPooling>true</StringPooling>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);_HAS_ITERATOR_DEBUGGING=0;_ITERATOR_DEBUG_LEVEL=0;NDEBUG;WIN32;WIN64;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;_WINSOCK_DEPRECATED_NO_WARNINGS;PX_PUBLIC_RELEASE=1;DISABLE_CUDA_PHYSX;RENDER_SNIPPET;CMAKE_INTDIR="profile"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_HAS_ITERATOR_DEBUGGING=0;_ITERATOR_DEBUG_LEVEL=0;NDEBUG;WIN64;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;_WINSOCK_DEPRECATED_NO_WARNINGS;PX_PUBLIC_RELEASE=1;DISABLE_CUDA_PHYSX;RENDER_SNIPPET;CMAKE_INTDIR=\"profile\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\cudamanager;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxextensions\src;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\graphics\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\cudamanager;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxextensions\src;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\graphics\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalDependencies>PhysXExtensions.lib;PhysXPvdSDK.lib;PhysX.lib;PhysXVehicle2.lib;PhysXCharacterKinematic.lib;PhysXCooking.lib;PhysXCommon.lib;PhysXFoundation.lib;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx_out_64\lib\bin\win.x86_64.vc143.md\profile\SnippetUtils_static_64.lib;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx_out_64\lib\bin\win.x86_64.vc143.md\profile\SnippetRender_static_64.lib;SceneQuery.lib;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\lib\win64\freeglut.lib;PhysXFoundation.lib;opengl32.lib;glu32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <DataExecutionPrevention></DataExecutionPrevention>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImageHasSafeExceptionHandlers></ImageHasSafeExceptionHandlers>
+      <ImportLibrary>C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx_out_64/lib/bin/win.x86_64.vc143.md/profile/SnippetSerialization_64.lib</ImportLibrary>
+      <LinkErrorReporting></LinkErrorReporting>
+      <ProgramDataBaseFile>C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx_out_64/bin/bin/win.x86_64.vc143.md/profile/SnippetSerialization_64.pdb</ProgramDataBaseFile>
+      <RandomizedBaseAddress></RandomizedBaseAddress>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\cudamanager;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxextensions\src;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\graphics\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /d2Zi+</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <CallingConvention>Cdecl</CallingConvention>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <DisableSpecificWarnings>4514;4820;4127;4710;4711;4577;4996</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <ForceConformanceInForLoopScope></ForceConformanceInForLoopScope>
+      <LanguageStandard>stdcpp14</LanguageStandard>
+      <MinimalRebuild></MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <OmitFramePointers>true</OmitFramePointers>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RemoveUnreferencedCodeData></RemoveUnreferencedCodeData>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <StringPooling>true</StringPooling>
+      <SupportJustMyCode></SupportJustMyCode>
+      <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);_HAS_ITERATOR_DEBUGGING=0;_ITERATOR_DEBUG_LEVEL=0;NDEBUG;WIN32;WIN64;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;_WINSOCK_DEPRECATED_NO_WARNINGS;PX_PUBLIC_RELEASE=1;DISABLE_CUDA_PHYSX;RENDER_SNIPPET;CMAKE_INTDIR="release"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_HAS_ITERATOR_DEBUGGING=0;_ITERATOR_DEBUG_LEVEL=0;NDEBUG;WIN64;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;_WINSOCK_DEPRECATED_NO_WARNINGS;PX_PUBLIC_RELEASE=1;DISABLE_CUDA_PHYSX;RENDER_SNIPPET;CMAKE_INTDIR=\"release\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\cudamanager;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxextensions\src;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\graphics\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\cudamanager;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxextensions\src;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\graphics\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalDependencies>PhysXExtensions.lib;PhysXPvdSDK.lib;PhysX.lib;PhysXVehicle2.lib;PhysXCharacterKinematic.lib;PhysXCooking.lib;PhysXCommon.lib;PhysXFoundation.lib;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx_out_64\lib\bin\win.x86_64.vc143.md\release\SnippetUtils_static_64.lib;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx_out_64\lib\bin\win.x86_64.vc143.md\release\SnippetRender_static_64.lib;SceneQuery.lib;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\freeglut\lib\win64\freeglut.lib;PhysXFoundation.lib;opengl32.lib;glu32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <DataExecutionPrevention></DataExecutionPrevention>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImageHasSafeExceptionHandlers></ImageHasSafeExceptionHandlers>
+      <ImportLibrary>C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx_out_64/lib/bin/win.x86_64.vc143.md/release/SnippetSerialization_64.lib</ImportLibrary>
+      <LinkErrorReporting></LinkErrorReporting>
+      <ProgramDataBaseFile>C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx_out_64/bin/bin/win.x86_64.vc143.md/release/SnippetSerialization_64.pdb</ProgramDataBaseFile>
+      <RandomizedBaseAddress></RandomizedBaseAddress>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='debug|x64'">Building Custom Rule C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx/physx/snippets/compiler/cmake/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='debug|x64'">setlocal
+"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx/physx/snippets/compiler/cmake -BC:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/build_snippets_64_md --check-stamp-file C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/build_snippets_64_md/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='debug|x64'">C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeCInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Linker\MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeCCompiler.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeCXXCompiler.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeRCCompiler.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeSystem.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetRender.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetUtils.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetVehicleTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\CMakeLists.txt;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetRender.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetUtils.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetVehicleTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\ConfigureFileMT.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\GetCompilerAndPlatform.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\NvidiaBuildOptions.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\SetOutputPaths.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='debug|x64'">C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='checked|x64'">Building Custom Rule C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx/physx/snippets/compiler/cmake/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='checked|x64'">setlocal
+"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx/physx/snippets/compiler/cmake -BC:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/build_snippets_64_md --check-stamp-file C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/build_snippets_64_md/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='checked|x64'">C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeCInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Linker\MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeCCompiler.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeCXXCompiler.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeRCCompiler.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeSystem.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetRender.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetUtils.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetVehicleTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\CMakeLists.txt;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetRender.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetUtils.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetVehicleTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\ConfigureFileMT.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\GetCompilerAndPlatform.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\NvidiaBuildOptions.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\SetOutputPaths.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='checked|x64'">C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='checked|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='profile|x64'">Building Custom Rule C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx/physx/snippets/compiler/cmake/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='profile|x64'">setlocal
+"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx/physx/snippets/compiler/cmake -BC:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/build_snippets_64_md --check-stamp-file C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/build_snippets_64_md/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='profile|x64'">C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeCInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Linker\MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeCCompiler.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeCXXCompiler.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeRCCompiler.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeSystem.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetRender.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetUtils.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetVehicleTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\CMakeLists.txt;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetRender.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetUtils.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetVehicleTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\ConfigureFileMT.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\GetCompilerAndPlatform.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\NvidiaBuildOptions.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\SetOutputPaths.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='profile|x64'">C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='profile|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='release|x64'">Building Custom Rule C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx/physx/snippets/compiler/cmake/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='release|x64'">setlocal
+"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx/physx/snippets/compiler/cmake -BC:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/build_snippets_64_md --check-stamp-file C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/build_snippets_64_md/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='release|x64'">C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeCInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeCXXInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeGenericSystem.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeLanguageInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeRCInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Compiler\MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Internal\CMakeCLinkerInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Internal\CMakeCXXLinkerInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Internal\CMakeCommonLinkerInformation.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Linker\MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Linker\MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Linker\MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Linker\Windows-MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-C.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\Windows.cmake;C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-4.2\Modules\Platform\WindowsPaths.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeCCompiler.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeCXXCompiler.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeRCCompiler.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\4.2.3-msvc3\CMakeSystem.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetRender.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetUtils.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\SnippetVehicleTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\CMakeLists.txt;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetRender.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetUtils.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\compiler\cmake\windows\SnippetVehicleTemplate.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\ConfigureFileMT.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\GetCompilerAndPlatform.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\NvidiaBuildOptions.cmake;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\modules\SetOutputPaths.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='release|x64'">C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='release|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\snippetcommon\ClassicMain.cpp" />
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\snippetcommon\SnippetPrint.h" />
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\snippetcommon\SnippetPVD.h" />
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\snippetserialization\SnippetSerialization.cpp" />
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\snippets\snippetserialization\SnippetSerializationRender.cpp" />
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\ZERO_CHECK.vcxproj">
+      <Project>{CD54D3B3-AB1D-3242-82EF-3D92C45569B8}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\SnippetRender.vcxproj">
+      <Project>{C5ED50F0-BE4A-3C24-AC95-6DB01E2079F3}</Project>
+      <Name>SnippetRender</Name>
+    </ProjectReference>
+    <ProjectReference Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_snippets_64_md\SnippetUtils.vcxproj">
+      <Project>{1B1DB70C-19AC-35C9-BC49-F496A9AF7BBE}</Project>
+      <Name>SnippetUtils</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

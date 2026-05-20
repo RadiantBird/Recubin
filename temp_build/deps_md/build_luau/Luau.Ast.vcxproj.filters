@@ -1,0 +1,75 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\src\Allocator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\src\Ast.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\src\Confusables.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\src\Cst.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\src\Lexer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\src\Location.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\src\Parser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\src\PrettyPrinter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\include\Luau\Allocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\include\Luau\Ast.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\include\Luau\Confusables.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\include\Luau\Cst.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\include\Luau\Lexer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\include\Luau\Location.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\include\Luau\ParseOptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\include\Luau\Parser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\include\Luau\ParseResult.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Ast\include\Luau\PrettyPrinter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\tools\natvis\Ast.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{2953122B-1A51-33EB-9721-28C236D33F93}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{3E8AA650-C83C-3A7E-8797-53A974B1E754}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

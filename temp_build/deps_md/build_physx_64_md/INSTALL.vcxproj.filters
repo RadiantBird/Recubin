@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_physx_64_md\CMakeFiles\3512b790698c7b161839fa1ac310125c\INSTALL_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{991DE208-7B69-32A5-8D5B-DAFE0E4C3E7E}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

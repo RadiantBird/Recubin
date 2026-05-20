@@ -1,0 +1,66 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\src\BytecodeWire.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\src\StringUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\src\TimeTrace.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\Common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\Bytecode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\BytecodeUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\BytecodeWire.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\DenseHash.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\ExperimentalFlags.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\HashUtil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\InsertionOrderedMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\SmallVector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\StringUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\TimeTrace.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\Variant.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\Common\include\Luau\VecDeque.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\luau\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{2953122B-1A51-33EB-9721-28C236D33F93}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{3E8AA650-C83C-3A7E-8797-53A974B1E754}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

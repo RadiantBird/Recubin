@@ -1,0 +1,10 @@
+^C:\USERS\RYARTA\DOCUMENTS\RECUBIN\TEMP_BUILD\DEPS_MD\BUILD_SNIPPETS_64_MD\CMAKEFILES\75F0D7A51B467A1E5E4A0F9BBF93AF02\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx/physx/snippets/compiler/cmake -BC:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/build_snippets_64_md --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/build_snippets_64_md/Snippets.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

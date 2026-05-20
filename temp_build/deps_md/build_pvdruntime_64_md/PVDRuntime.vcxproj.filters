@@ -1,0 +1,114 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdHelpers.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdLibraryFunctionsImpl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdLog.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdReaderImpl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdWriterImpl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdFileReadStreamImpl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdFileWriteStreamImpl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdMemoryStreamImpl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdMemoryReadStreamImpl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdMemoryWriteStreamImpl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\include\OmniPvdLibraryFunctions.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\include\OmniPvdCommands.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\include\OmniPvdDefines.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\include\OmniPvdReader.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\include\OmniPvdWriter.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\include\OmniPvdReadStream.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\include\OmniPvdWriteStream.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\include\OmniPvdFileReadStream.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\include\OmniPvdFileWriteStream.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\include\OmniPvdMemoryStream.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\include\OmniPvdLibraryHelpers.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\include\OmniPvdLoader.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdDefinesInternal.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdHelpers.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdLog.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdReaderImpl.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdWriterImpl.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdFileReadStreamImpl.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdFileWriteStreamImpl.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdMemoryStreamImpl.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdMemoryReadStreamImpl.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\src\OmniPvdMemoryWriteStreamImpl.h">
+      <Filter>src</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\pvdruntime\compiler\cmake\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="include">
+      <UniqueIdentifier>{F73C0277-A78B-38A8-A603-0F25A15FE2A0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{7C9F09FA-3FEE-3273-8EC4-90C7F628A4B7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

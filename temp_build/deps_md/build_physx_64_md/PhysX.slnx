@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Solution>
+	<Configurations>
+		<BuildType Name="debug"/>
+		<BuildType Name="checked"/>
+		<BuildType Name="profile"/>
+		<BuildType Name="release"/>
+		<Platform Name="x64"/>
+	</Configurations>
+	<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="202d2883-c055-33dc-a5b9-8d501f22f7a2" DefaultStartup="true">
+		<BuildDependency Project="LowLevel.vcxproj"/>
+		<BuildDependency Project="LowLevelAABB.vcxproj"/>
+		<BuildDependency Project="LowLevelDynamics.vcxproj"/>
+		<BuildDependency Project="PhysX.vcxproj"/>
+		<BuildDependency Project="PhysXCharacterKinematic.vcxproj"/>
+		<BuildDependency Project="PhysXCommon.vcxproj"/>
+		<BuildDependency Project="PhysXCooking.vcxproj"/>
+		<BuildDependency Project="PhysXExtensions.vcxproj"/>
+		<BuildDependency Project="PhysXFoundation.vcxproj"/>
+		<BuildDependency Project="PhysXPvdSDK.vcxproj"/>
+		<BuildDependency Project="PhysXTask.vcxproj"/>
+		<BuildDependency Project="PhysXVehicle2.vcxproj"/>
+		<BuildDependency Project="SceneQuery.vcxproj"/>
+		<BuildDependency Project="SimulationController.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="INSTALL.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="f20f5bd1-7421-3c94-80fc-3e3c93a74158">
+		<BuildDependency Project="ALL_BUILD.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<Build Solution="debug|*" Project="false"/>
+		<Build Solution="checked|*" Project="false"/>
+		<Build Solution="profile|*" Project="false"/>
+		<Build Solution="release|*" Project="false"/>
+	</Project>
+	<Project Path="LowLevel.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="3bb52ff8-6ccb-3e69-8095-ecdad4243838">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="LowLevelAABB.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="41371e3f-38e6-39eb-8deb-6f34d58f87ed">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="LowLevelDynamics.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="59e9010b-a392-38f6-a99c-b9438bc71558">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="PhysX.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="8c9fc0cd-b746-3ace-b508-3202724ce94d">
+		<BuildDependency Project="LowLevel.vcxproj"/>
+		<BuildDependency Project="LowLevelAABB.vcxproj"/>
+		<BuildDependency Project="LowLevelDynamics.vcxproj"/>
+		<BuildDependency Project="PhysXCommon.vcxproj"/>
+		<BuildDependency Project="PhysXFoundation.vcxproj"/>
+		<BuildDependency Project="PhysXPvdSDK.vcxproj"/>
+		<BuildDependency Project="PhysXTask.vcxproj"/>
+		<BuildDependency Project="SceneQuery.vcxproj"/>
+		<BuildDependency Project="SimulationController.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="PhysXCharacterKinematic.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="55b93889-50b3-3661-a734-a5b4dbee6677">
+		<BuildDependency Project="PhysXFoundation.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="PhysXCommon.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="5d6a9779-dcd1-3154-989d-7ac97c5010e9">
+		<BuildDependency Project="PhysXFoundation.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="PhysXCooking.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c2f23adf-0eb3-38cb-b66d-c2a3b18602c7">
+		<BuildDependency Project="PhysXCommon.vcxproj"/>
+		<BuildDependency Project="PhysXFoundation.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="PhysXExtensions.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="d9001225-0ba6-324d-b1dc-2d395e8a9010">
+		<BuildDependency Project="PhysX.vcxproj"/>
+		<BuildDependency Project="PhysXFoundation.vcxproj"/>
+		<BuildDependency Project="PhysXPvdSDK.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="PhysXFoundation.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="eb63a4e8-2c28-3d88-9609-cbd59506c982">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="PhysXPvdSDK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="6b023b8b-4d45-3f88-aecf-b6362d6aad8d">
+		<BuildDependency Project="PhysXFoundation.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="PhysXTask.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="2978ba1a-172a-3b97-adbb-df0ebae99a8c">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="PhysXVehicle2.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="d5e77483-a04f-3601-a08c-edc56094def9">
+		<BuildDependency Project="PhysX.vcxproj"/>
+		<BuildDependency Project="PhysXCommon.vcxproj"/>
+		<BuildDependency Project="PhysXCooking.vcxproj"/>
+		<BuildDependency Project="PhysXExtensions.vcxproj"/>
+		<BuildDependency Project="PhysXFoundation.vcxproj"/>
+		<BuildDependency Project="PhysXPvdSDK.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SceneQuery.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="5856be19-9042-3a10-942f-9f06d9c9f022">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SimulationController.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="3918f645-602c-37ff-9ab3-edba6b6eefa7">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c1012e46-c95b-35f7-b734-69d2cef6ad89"/>
+</Solution>

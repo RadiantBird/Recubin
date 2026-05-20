@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Solution>
+	<Configurations>
+		<BuildType Name="debug"/>
+		<BuildType Name="checked"/>
+		<BuildType Name="profile"/>
+		<BuildType Name="release"/>
+		<Platform Name="x64"/>
+	</Configurations>
+	<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="96cd9b63-6507-3d7f-80b4-3792c234ad50" DefaultStartup="true">
+		<BuildDependency Project="SnippetArticulationRC.vcxproj"/>
+		<BuildDependency Project="SnippetBVHStructure.vcxproj"/>
+		<BuildDependency Project="SnippetCCD.vcxproj"/>
+		<BuildDependency Project="SnippetContactModification.vcxproj"/>
+		<BuildDependency Project="SnippetContactReport.vcxproj"/>
+		<BuildDependency Project="SnippetContactReportCCD.vcxproj"/>
+		<BuildDependency Project="SnippetConvexMeshCreate.vcxproj"/>
+		<BuildDependency Project="SnippetCustomConvex.vcxproj"/>
+		<BuildDependency Project="SnippetCustomGeometry.vcxproj"/>
+		<BuildDependency Project="SnippetCustomGeometryCollision.vcxproj"/>
+		<BuildDependency Project="SnippetCustomGeometryQueries.vcxproj"/>
+		<BuildDependency Project="SnippetCustomJoint.vcxproj"/>
+		<BuildDependency Project="SnippetCustomProfiler.vcxproj"/>
+		<BuildDependency Project="SnippetDeformableMesh.vcxproj"/>
+		<BuildDependency Project="SnippetDelayLoadHook.vcxproj"/>
+		<BuildDependency Project="SnippetFixedTendon.vcxproj"/>
+		<BuildDependency Project="SnippetFrustumQuery.vcxproj"/>
+		<BuildDependency Project="SnippetGearJoint.vcxproj"/>
+		<BuildDependency Project="SnippetGeometryQuery.vcxproj"/>
+		<BuildDependency Project="SnippetGyroscopic.vcxproj"/>
+		<BuildDependency Project="SnippetHelloWorld.vcxproj"/>
+		<BuildDependency Project="SnippetImmediateArticulation.vcxproj"/>
+		<BuildDependency Project="SnippetImmediateMode.vcxproj"/>
+		<BuildDependency Project="SnippetJoint.vcxproj"/>
+		<BuildDependency Project="SnippetJointDrive.vcxproj"/>
+		<BuildDependency Project="SnippetLoadCollection.vcxproj"/>
+		<BuildDependency Project="SnippetMBP.vcxproj"/>
+		<BuildDependency Project="SnippetMassProperties.vcxproj"/>
+		<BuildDependency Project="SnippetMimicJoint.vcxproj"/>
+		<BuildDependency Project="SnippetMultiPruners.vcxproj"/>
+		<BuildDependency Project="SnippetMultiThreading.vcxproj"/>
+		<BuildDependency Project="SnippetOmniPvd.vcxproj"/>
+		<BuildDependency Project="SnippetPathTracing.vcxproj"/>
+		<BuildDependency Project="SnippetPointDistanceQuery.vcxproj"/>
+		<BuildDependency Project="SnippetProfilerConverter.vcxproj"/>
+		<BuildDependency Project="SnippetPrunerSerialization.vcxproj"/>
+		<BuildDependency Project="SnippetQuerySystemAllQueries.vcxproj"/>
+		<BuildDependency Project="SnippetQuerySystemCustomCompound.vcxproj"/>
+		<BuildDependency Project="SnippetRackJoint.vcxproj"/>
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetSerialization.vcxproj"/>
+		<BuildDependency Project="SnippetSpatialTendon.vcxproj"/>
+		<BuildDependency Project="SnippetSplitFetchResults.vcxproj"/>
+		<BuildDependency Project="SnippetSplitSim.vcxproj"/>
+		<BuildDependency Project="SnippetStandaloneBVH.vcxproj"/>
+		<BuildDependency Project="SnippetStandaloneBroadphase.vcxproj"/>
+		<BuildDependency Project="SnippetStandaloneQuerySystem.vcxproj"/>
+		<BuildDependency Project="SnippetStepper.vcxproj"/>
+		<BuildDependency Project="SnippetToleranceScale.vcxproj"/>
+		<BuildDependency Project="SnippetTriangleMeshCreate.vcxproj"/>
+		<BuildDependency Project="SnippetTriggers.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="SnippetVehicleCustomSuspension.vcxproj"/>
+		<BuildDependency Project="SnippetVehicleCustomTire.vcxproj"/>
+		<BuildDependency Project="SnippetVehicleDirectDrive.vcxproj"/>
+		<BuildDependency Project="SnippetVehicleFourWheelDrive.vcxproj"/>
+		<BuildDependency Project="SnippetVehicleMultithreading.vcxproj"/>
+		<BuildDependency Project="SnippetVehicleTankDrive.vcxproj"/>
+		<BuildDependency Project="SnippetVehicleTruck.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<Build Solution="debug|*" Project="false"/>
+		<Build Solution="checked|*" Project="false"/>
+		<Build Solution="profile|*" Project="false"/>
+		<Build Solution="release|*" Project="false"/>
+	</Project>
+	<Project Path="SnippetArticulationRC.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="aa7bed17-6aed-3127-9158-2da2a6b14307">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetBVHStructure.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="d8cbd035-afc7-37dc-99d9-c74e3b6f7c7a">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetCCD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="383d9f36-0736-35c5-896a-8883414b50d3">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetContactModification.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="8b1cb8b4-fdc9-30c2-9355-1167a75c2ae0">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetContactReport.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="0b1d189c-0660-3ae2-b620-458884377c04">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetContactReportCCD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="d1050a9c-13c2-3fb6-82d4-5a5cc8022d84">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetConvexMeshCreate.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="4f267270-ee08-3446-85c1-42ab4f65bab0">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetCustomConvex.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c74806a0-f630-31fa-916a-4eff2851e4e7">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetCustomGeometry.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c2c58118-574a-3b99-bee1-63b209b70c35">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetCustomGeometryCollision.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="9a1c6c18-60fc-3b1c-8b1f-9f19a41b66d4">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetCustomGeometryQueries.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="720cca1b-ee3c-3e54-b79b-0a168af5d9c9">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetCustomJoint.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="cadef4ac-d10c-33de-9a7d-4708aaf660ab">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetCustomProfiler.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="53091e8e-3ae4-3c54-9481-a32b53117d66">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetDeformableMesh.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="ced0f5ea-6e6f-3f1a-b59e-759d9daf7661">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetDelayLoadHook.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="902694df-4027-32bc-858f-6d94c02e9d86">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetFixedTendon.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="7bb940bc-fc3c-3b52-897b-b33b5e57598f">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetFrustumQuery.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="fc1d7aa7-d01b-3b13-9b74-bf3bd466457e">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetGearJoint.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="d048ef08-f811-3b5e-a951-6669696cbf5f">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetGeometryQuery.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="84b74f06-534c-3d6d-abea-be308b7bf4ce">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetGyroscopic.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="7c761839-ffcc-371d-98d4-d3b21a9ee1f6">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetHelloWorld.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="eb44417c-2e1f-3dac-b475-e4d1e1c8cc4a">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetImmediateArticulation.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="5786b6c0-d3aa-32d3-88b1-14425594aa4d">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetImmediateMode.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="f1128314-3cff-3871-954c-d9a3fad5c63d">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetJoint.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="fac19f3c-aa3d-32aa-9b15-dc208bb1c0ec">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetJointDrive.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="35652166-137a-3fe3-b805-3cfd682395f1">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetLoadCollection.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="81e9aa77-576d-307d-85f0-394f92806ee5">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetMBP.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="6ec9b09d-c564-36e2-b217-b8ed529cc10a">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetMassProperties.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="dc83e3da-c050-3603-8d44-0af05e4a71b1">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetMimicJoint.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="7642e27c-09a9-3cb4-aa4f-494119fbac6d">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetMultiPruners.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="09c3255f-86f6-3d2b-afb8-800f28f9899a">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetMultiThreading.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="6310131e-8970-3c2f-a8c7-15e2d5b44e7a">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetOmniPvd.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="e9730f20-6cd8-3f3b-9ee5-b60278fc1360">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetPathTracing.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="484f76ca-29cf-3b7a-b05d-04112bdcd107">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetPointDistanceQuery.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="4238a6ba-2250-3027-8d80-2f702cd97c3d">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetProfilerConverter.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="2dcb5d1a-4e5a-33a6-a770-5d32a5236866">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetPrunerSerialization.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="85160989-78e6-30aa-9d69-825058f00a77">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetQuerySystemAllQueries.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="6d9a8c3c-a5f0-38da-abbe-7f29281e15f3">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetQuerySystemCustomCompound.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="303a24ef-bf27-33e5-a8ac-6b6d1537e0a7">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetRackJoint.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="9d374dc7-3108-3be7-81ac-294037525915">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetRender.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c5ed50f0-be4a-3c24-ac95-6db01e2079f3">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetSerialization.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="3f8c7944-a38f-38e8-9537-d1f213650843">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetSpatialTendon.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="68cfabd1-4a0c-34d5-bfb2-49627b71eb55">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetSplitFetchResults.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="38033454-637a-3e18-86b1-c3a73c6a72ad">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetSplitSim.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="2510abaa-c807-3bbe-813f-598c2b8ccff7">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetStandaloneBVH.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="2516cf74-a11d-37c6-ae77-0c9caeda670c">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetStandaloneBroadphase.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="a7405b09-e5ad-365b-9247-ea7f3678f74b">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetStandaloneQuerySystem.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="4459c79d-01b1-34fc-bcc6-14f0d621f9cd">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetStepper.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="85bf0e96-73df-3e72-a469-de7abdfdfaad">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetToleranceScale.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="2f0f4aa8-3640-3715-a863-1ae50f9b86d7">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetTriangleMeshCreate.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="bd8a2f79-8d1a-3a37-b2c0-37b72a1126b6">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetTriggers.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="3637fd75-1907-36bb-92ef-547d74a9a51a">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetUtils.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="1b1db70c-19ac-35c9-bc49-f496a9af7bbe">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetVehicleCustomSuspension.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="9c2b6139-da76-3c80-9540-98db7b9fdced">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetVehicleCustomTire.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="dde48a78-7d8e-3bfd-a654-9e7e6f146117">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetVehicleDirectDrive.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="a260e218-d9a6-3916-8eb0-26fd79b55d96">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetVehicleFourWheelDrive.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="a43e75cb-d152-36f9-961f-f401a9e3ab2c">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetVehicleMultithreading.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="982c9818-7396-3e43-9bab-02508e793a6d">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetVehicleTankDrive.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="40c0bf52-f9b4-37f2-9c90-8f7e67721ad8">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="SnippetVehicleTruck.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="1ba0da09-a5eb-3801-b705-d64b8ed1e876">
+		<BuildDependency Project="SnippetRender.vcxproj"/>
+		<BuildDependency Project="SnippetUtils.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="cd54d3b3-ab1d-3242-82ef-3d92c45569b8"/>
+</Solution>

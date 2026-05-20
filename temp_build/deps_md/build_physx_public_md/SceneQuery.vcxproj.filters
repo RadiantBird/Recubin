@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\src\SqFactory.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\src\SqCompoundPruner.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\src\SqCompoundPruningPool.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\src\SqManager.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\src\SqQuery.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\include\SqFactory.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\include\SqPruner.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\include\SqPrunerData.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\include\SqManager.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\include\SqQuery.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\include\SqTypedef.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\src\SqCompoundPruner.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\scenequery\src\SqCompoundPruningPool.h">
+      <Filter>src</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="include">
+      <UniqueIdentifier>{BC0C93AE-71A6-3A57-B3CF-A2D213CC9EF6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{0922BF23-D3FD-3D11-BD39-6D42D37FCDBE}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_pvdruntime_64_md\CMakeFiles\bd11d5a88b5e2367cbabb54f7df1d713\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{FEFBEDE7-504D-35EA-A1B9-A39DA0A7B819}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,324 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\commands\VhCommandHelpers.cpp">
+      <Filter>src\commands</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\drivetrain\VhDrivetrainFunctions.cpp">
+      <Filter>src\drivetrain</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\drivetrain\VhDrivetrainHelpers.cpp">
+      <Filter>src\drivetrain</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\physxActor\VhPhysXActorFunctions.cpp">
+      <Filter>src\physxActor</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\physxActor\VhPhysXActorHelpers.cpp">
+      <Filter>src\physxActor</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\physxConstraints\VhPhysXConstraintFunctions.cpp">
+      <Filter>src\physxConstraints</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\physxConstraints\VhPhysXConstraintHelpers.cpp">
+      <Filter>src\physxConstraints</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\physxRoadGeometry\VhPhysXRoadGeometryFunctions.cpp">
+      <Filter>src\physxRoadGeometry</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\physxRoadGeometry\VhPhysXRoadGeometryHelpers.cpp">
+      <Filter>src\physxRoadGeometry</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\rigidBody\VhRigidBodyFunctions.cpp">
+      <Filter>src\rigidBody</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\steering\VhSteeringFunctions.cpp">
+      <Filter>src\steering</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\suspension\VhSuspensionFunctions.cpp">
+      <Filter>src\suspension</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\suspension\VhSuspensionHelpers.cpp">
+      <Filter>src\suspension</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\tire\VhTireFunctions.cpp">
+      <Filter>src\tire</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\tire\VhTireHelpers.cpp">
+      <Filter>src\tire</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\wheel\VhWheelFunctions.cpp">
+      <Filter>src\wheel</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\pvd\VhPvdHelpers.cpp">
+      <Filter>src\pvd</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\pvd\VhPvdFunctions.cpp">
+      <Filter>src\pvd</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\pvd\VhPvdWriter.cpp">
+      <Filter>src\pvd</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\pvd\VhPvdAttributeHandles.h">
+      <Filter>src\pvd</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\pvd\VhPvdObjectHandles.h">
+      <Filter>src\pvd</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\physxvehicle\src\pvd\VhPvdWriter.h">
+      <Filter>src\pvd</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\PxVehicleAPI.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\PxVehicleComponent.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\PxVehicleComponentSequence.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\PxVehicleLimits.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\PxVehicleFunctions.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\PxVehicleParams.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\PxVehicleMaths.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\braking\PxVehicleBrakingFunctions.h">
+      <Filter>include\braking</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\braking\PxVehicleBrakingParams.h">
+      <Filter>include\braking</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\commands\PxVehicleCommandHelpers.h">
+      <Filter>include\commands</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\commands\PxVehicleCommandParams.h">
+      <Filter>include\commands</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\commands\PxVehicleCommandStates.h">
+      <Filter>include\commands</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\drivetrain\PxVehicleDrivetrainComponents.h">
+      <Filter>include\drivetrain</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\drivetrain\PxVehicleDrivetrainFunctions.h">
+      <Filter>include\drivetrain</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\drivetrain\PxVehicleDrivetrainHelpers.h">
+      <Filter>include\drivetrain</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\drivetrain\PxVehicleDrivetrainParams.h">
+      <Filter>include\drivetrain</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\drivetrain\PxVehicleDrivetrainStates.h">
+      <Filter>include\drivetrain</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxActor\PxVehiclePhysXActorComponents.h">
+      <Filter>include\physxActor</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxActor\PxVehiclePhysXActorFunctions.h">
+      <Filter>include\physxActor</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxActor\PxVehiclePhysXActorHelpers.h">
+      <Filter>include\physxActor</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxActor\PxVehiclePhysXActorStates.h">
+      <Filter>include\physxActor</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxConstraints\PxVehiclePhysXConstraintComponents.h">
+      <Filter>include\physxConstraints</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxConstraints\PxVehiclePhysXConstraintFunctions.h">
+      <Filter>include\physxConstraints</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxConstraints\PxVehiclePhysXConstraintHelpers.h">
+      <Filter>include\physxConstraints</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxConstraints\PxVehiclePhysXConstraintParams.h">
+      <Filter>include\physxConstraints</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxConstraints\PxVehiclePhysXConstraintStates.h">
+      <Filter>include\physxConstraints</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxRoadGeometry\PxVehiclePhysXRoadGeometryComponents.h">
+      <Filter>include\physxRoadGeometry</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxRoadGeometry\PxVehiclePhysXRoadGeometryFunctions.h">
+      <Filter>include\physxRoadGeometry</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxRoadGeometry\PxVehiclePhysXRoadGeometryHelpers.h">
+      <Filter>include\physxRoadGeometry</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxRoadGeometry\PxVehiclePhysXRoadGeometryParams.h">
+      <Filter>include\physxRoadGeometry</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\physxRoadGeometry\PxVehiclePhysXRoadGeometryState.h">
+      <Filter>include\physxRoadGeometry</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\rigidBody\PxVehicleRigidBodyComponents.h">
+      <Filter>include\rigidBody</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\rigidBody\PxVehicleRigidBodyFunctions.h">
+      <Filter>include\rigidBody</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\rigidBody\PxVehicleRigidBodyParams.h">
+      <Filter>include\rigidBody</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\rigidBody\PxVehicleRigidBodyStates.h">
+      <Filter>include\rigidBody</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\roadGeometry\PxVehicleRoadGeometryState.h">
+      <Filter>include\roadGeometry</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\steering\PxVehicleSteeringFunctions.h">
+      <Filter>include\steering</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\steering\PxVehicleSteeringParams.h">
+      <Filter>include\steering</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\suspension\PxVehicleSuspensionComponents.h">
+      <Filter>include\suspension</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\suspension\PxVehicleSuspensionFunctions.h">
+      <Filter>include\suspension</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\suspension\PxVehicleSuspensionParams.h">
+      <Filter>include\suspension</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\suspension\PxVehicleSuspensionStates.h">
+      <Filter>include\suspension</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\suspension\PxVehicleSuspensionHelpers.h">
+      <Filter>include\suspension</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\tire\PxVehicleTireComponents.h">
+      <Filter>include\tire</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\tire\PxVehicleTireFunctions.h">
+      <Filter>include\tire</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\tire\PxVehicleTireHelpers.h">
+      <Filter>include\tire</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\tire\PxVehicleTireParams.h">
+      <Filter>include\tire</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\tire\PxVehicleTireStates.h">
+      <Filter>include\tire</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\wheel\PxVehicleWheelComponents.h">
+      <Filter>include\wheel</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\wheel\PxVehicleWheelFunctions.h">
+      <Filter>include\wheel</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\wheel\PxVehicleWheelParams.h">
+      <Filter>include\wheel</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\wheel\PxVehicleWheelStates.h">
+      <Filter>include\wheel</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\wheel\PxVehicleWheelHelpers.h">
+      <Filter>include\wheel</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\pvd\PxVehiclePvdComponents.h">
+      <Filter>include\pvd</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\pvd\PxVehiclePvdFunctions.h">
+      <Filter>include\pvd</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\include\vehicle2\pvd\PxVehiclePvdHelpers.h">
+      <Filter>include\pvd</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\physx\physx\source\compiler\cmake\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="include">
+      <UniqueIdentifier>{BC0C93AE-71A6-3A57-B3CF-A2D213CC9EF6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\braking">
+      <UniqueIdentifier>{B025F671-0989-30D4-B428-95B38C9BA83C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\commands">
+      <UniqueIdentifier>{6291A313-49AA-3416-A6DA-AFA705753019}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\drivetrain">
+      <UniqueIdentifier>{F646768D-F759-348B-8343-987792FB8008}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\physxActor">
+      <UniqueIdentifier>{C79AD067-8F81-314B-9DAF-92D69A3BF176}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\physxConstraints">
+      <UniqueIdentifier>{0D33D419-B2D8-3048-B3C1-041D1695164E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\physxRoadGeometry">
+      <UniqueIdentifier>{2C3A7553-DEC8-3F81-9A41-382CC3B300D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\pvd">
+      <UniqueIdentifier>{538853AC-8EBE-3EA7-B40E-0B2AC56DEB5E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\rigidBody">
+      <UniqueIdentifier>{F44DCFD7-73FB-3559-A210-8D9CD55EFD64}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\roadGeometry">
+      <UniqueIdentifier>{642C643D-DA64-3368-A140-63D0065B46D9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\steering">
+      <UniqueIdentifier>{86864E54-EA80-3388-B0F2-E09F01CDD0FA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\suspension">
+      <UniqueIdentifier>{0898A4C9-C225-3FBF-A2E8-7AFC0E930DAA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\tire">
+      <UniqueIdentifier>{99A38A33-9EB1-3B4D-B29C-BE927C15631A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\wheel">
+      <UniqueIdentifier>{707EF216-A579-3893-ACCA-B53709FEE24E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{0922BF23-D3FD-3D11-BD39-6D42D37FCDBE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\commands">
+      <UniqueIdentifier>{48EEA4D8-59F5-3004-B41A-702EC7E3E26A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\drivetrain">
+      <UniqueIdentifier>{F651A88E-64A0-3EB0-BEFA-72AAB6F4BC8A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\physxActor">
+      <UniqueIdentifier>{BF99A837-9FBF-3701-A9D3-7D8953946D1D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\physxConstraints">
+      <UniqueIdentifier>{C591A5AA-F03D-3819-B3AD-9880DA3F5EDE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\physxRoadGeometry">
+      <UniqueIdentifier>{72FC56E0-097F-3310-8BB8-CBFBC06DDE4A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\pvd">
+      <UniqueIdentifier>{482DCEA3-267E-377E-9C04-4DD907828F1F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\rigidBody">
+      <UniqueIdentifier>{545F701E-5440-3988-811D-765FD5492A77}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\steering">
+      <UniqueIdentifier>{84CAAD8A-C0C2-39C6-A28C-BA4619F30EE5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\suspension">
+      <UniqueIdentifier>{1669E40D-2889-34EE-9E30-F5FBF9081A98}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\tire">
+      <UniqueIdentifier>{86E5178F-27D0-3FEC-9587-C2E26489DA92}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\wheel">
+      <UniqueIdentifier>{5D65F228-5919-3D0B-AE2A-AA1827FBB214}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

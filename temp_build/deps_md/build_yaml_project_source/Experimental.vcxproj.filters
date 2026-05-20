@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_yaml_project_source\CMakeFiles\29486c3ce6f7d9213291a72ee185ad33\Experimental.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Ryarta\Documents\Recubin\temp_build\yaml-cpp\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_yaml_project_source\CMakeFiles\Experimental" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{4178BA9D-9CF9-319D-8CF1-67D49CC73480}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Solution>
+	<Configurations>
+		<BuildType Name="debug"/>
+		<BuildType Name="checked"/>
+		<BuildType Name="profile"/>
+		<BuildType Name="release"/>
+		<Platform Name="x64"/>
+	</Configurations>
+	<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="f6448488-e5a2-3c6f-aeb8-be9dcb57e0df" DefaultStartup="true">
+		<BuildDependency Project="PVDRuntime.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="INSTALL.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="eecec472-65c3-3f87-b9fa-68b96b6e7f89">
+		<BuildDependency Project="ALL_BUILD.vcxproj"/>
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+		<Build Solution="debug|*" Project="false"/>
+		<Build Solution="checked|*" Project="false"/>
+		<Build Solution="profile|*" Project="false"/>
+		<Build Solution="release|*" Project="false"/>
+	</Project>
+	<Project Path="PVDRuntime.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="4e1637f9-3f59-3b0b-b50c-ba4d2c9dc2cf">
+		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="aeb3ab62-b8ee-3119-9175-0e365a8ddc02"/>
+</Solution>

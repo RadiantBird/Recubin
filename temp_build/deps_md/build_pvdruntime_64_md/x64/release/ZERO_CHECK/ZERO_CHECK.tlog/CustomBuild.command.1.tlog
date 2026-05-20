@@ -1,0 +1,10 @@
+^C:\USERS\RYARTA\DOCUMENTS\RECUBIN\TEMP_BUILD\DEPS_MD\BUILD_PVDRUNTIME_64_MD\CMAKEFILES\BD11D5A88B5E2367CBABB54F7DF1D713\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/physx/physx/pvdruntime/compiler/cmake -BC:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/build_pvdruntime_64_md --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/Ryarta/Documents/Recubin/temp_build/deps_md/build_pvdruntime_64_md/PVDRuntime.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

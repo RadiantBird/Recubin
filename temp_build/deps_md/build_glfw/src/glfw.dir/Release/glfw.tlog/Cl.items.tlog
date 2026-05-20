@@ -1,0 +1,15 @@
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\context.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\context.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\init.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\init.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\input.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\input.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\monitor.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\monitor.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\vulkan.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\vulkan.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\window.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\window.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\win32_init.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\win32_init.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\win32_joystick.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\win32_joystick.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\win32_monitor.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\win32_monitor.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\win32_time.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\win32_time.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\win32_thread.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\win32_thread.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\win32_window.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\win32_window.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\wgl_context.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\wgl_context.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\egl_context.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\egl_context.obj
+C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\glfw\src\osmesa_context.c;C:\Users\Ryarta\Documents\Recubin\temp_build\deps_md\build_glfw\src\glfw.dir\Release\osmesa_context.obj
