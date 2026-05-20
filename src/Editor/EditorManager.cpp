@@ -485,78 +485,60 @@ void EditorManager::renderToolbar() {
     ImGui::Text("|");
     ImGui::SameLine();
 
-    // ---- New Cube（CommandHistory経由） ----
-    if (ImGui::Button("New Cube", btnSz) && m_workspace) {
-        Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
-        auto cube = std::make_shared<Cube>(spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
-        std::string name = "Cube";
-        int n = 1;
-        while (m_workspace->children.count(name) > 0)
-            name = "Cube" + std::to_string(n++);
-        cube->Name = name;
-        m_history.execute(std::make_unique<AddInstanceCommand>(
-            m_workspace->shared_from_this(), cube));
-        m_isDirty = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("New Cylinder", btnSz) && m_workspace) {
-        Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
-        auto obj = std::make_shared<Cylinder>(spawnPos, Vector3(1, 1, 1));
-        std::string name = "Cylinder";
-        int n = 1;
-        while (m_workspace->children.count(name) > 0)
-            name = "Cylinder" + std::to_string(n++);
-        obj->Name = name;
-        m_history.execute(std::make_unique<AddInstanceCommand>(
-            m_workspace->shared_from_this(), obj));
-        m_isDirty = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("New Prism", btnSz) && m_workspace) {
-        Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
-        auto obj = std::make_shared<TriangularPrism>(spawnPos, Vector3(1, 1, 1));
-        std::string name = "TriangularPrism";
-        int n = 1;
-        while (m_workspace->children.count(name) > 0)
-            name = "TriangularPrism" + std::to_string(n++);
-        obj->Name = name;
-        m_history.execute(std::make_unique<AddInstanceCommand>(
-            m_workspace->shared_from_this(), obj));
-        m_isDirty = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("New Sphere", btnSz) && m_workspace) {
-        Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
-        auto obj = std::make_shared<Sphere>(spawnPos, Vector3(1, 1, 1));
-        std::string name = "Sphere";
-        int n = 1;
-        while (m_workspace->children.count(name) > 0)
-            name = "Sphere" + std::to_string(n++);
-        obj->Name = name;
-        m_history.execute(std::make_unique<AddInstanceCommand>(
-            m_workspace->shared_from_this(), obj));
-        m_isDirty = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("New Skybox", btnSz) && m_workspace) {
-        auto obj = std::make_shared<Skybox>();
-        std::string name = "Skybox";
-        int n = 1;
-        while (m_workspace->children.count(name) > 0)
-            name = "Skybox" + std::to_string(n++);
-        obj->Name = name;
-        
-        Face faces[6] = { Face::Right, Face::Left, Face::Top, Face::Bottom, Face::Back, Face::Front };
-        for (int i = 0; i < 6; i++) {
-            auto decal = std::make_shared<Decal>();
-            decal->Name = "Face_" + std::to_string(i);
-            decal->setFace(faces[i]);
-            obj->addChild(decal);
-        }
+    // ---- Add Object ドロップダウン ----
+    if (ImGui::Button("Add Object v", ImVec2(100.0f, 38.0f)))
+        ImGui::OpenPopup("AddObjectPopup");
 
-        m_history.execute(std::make_unique<AddInstanceCommand>(
-            m_workspace->shared_from_this(), obj));
-        m_isDirty = true;
+    if (ImGui::BeginPopup("AddObjectPopup")) {
+        if (ImGui::MenuItem("New Cube") && m_workspace) {
+            Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+            auto cube = std::make_shared<Cube>(spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
+            std::string name = "Cube";
+            int n = 1;
+            while (m_workspace->children.count(name) > 0)
+                name = "Cube" + std::to_string(n++);
+            cube->Name = name;
+            m_history.execute(std::make_unique<AddInstanceCommand>(
+                m_workspace->shared_from_this(), cube));
+            m_isDirty = true;
+        }
+        if (ImGui::MenuItem("New Cylinder") && m_workspace) {
+            Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+            auto obj = std::make_shared<Cylinder>(spawnPos, Vector3(1, 1, 1));
+            std::string name = "Cylinder";
+            int n = 1;
+            while (m_workspace->children.count(name) > 0)
+                name = "Cylinder" + std::to_string(n++);
+            obj->Name = name;
+            m_history.execute(std::make_unique<AddInstanceCommand>(
+                m_workspace->shared_from_this(), obj));
+            m_isDirty = true;
+        }
+        if (ImGui::MenuItem("New Prism") && m_workspace) {
+            Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+            auto obj = std::make_shared<TriangularPrism>(spawnPos, Vector3(1, 1, 1));
+            std::string name = "TriangularPrism";
+            int n = 1;
+            while (m_workspace->children.count(name) > 0)
+                name = "TriangularPrism" + std::to_string(n++);
+            obj->Name = name;
+            m_history.execute(std::make_unique<AddInstanceCommand>(
+                m_workspace->shared_from_this(), obj));
+            m_isDirty = true;
+        }
+        if (ImGui::MenuItem("New Sphere") && m_workspace) {
+            Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+            auto obj = std::make_shared<Sphere>(spawnPos, Vector3(1, 1, 1));
+            std::string name = "Sphere";
+            int n = 1;
+            while (m_workspace->children.count(name) > 0)
+                name = "Sphere" + std::to_string(n++);
+            obj->Name = name;
+            m_history.execute(std::make_unique<AddInstanceCommand>(
+                m_workspace->shared_from_this(), obj));
+            m_isDirty = true;
+        }
+        ImGui::EndPopup();
     }
 
     // ---- Save / Load（右端）----

@@ -71,9 +71,10 @@ static void applyAppIcon(GLFWwindow* window, Instance* root) {
             auto* ai = static_cast<AppImage*>(child.get());
             if (ai->iconPath.empty()) return;
             int w, h, ch;
-            // OpenGL のテクスチャ座標系は左下が原点だが、Windows のアイコンは左上が原点なので、読み込み時に上下反転させる必要がある
-            stbi_set_flip_vertically_on_load(1);
+            // GLFW/Windows アイコンは左上原点なので flip 不要
+            stbi_set_flip_vertically_on_load(0);
             unsigned char* px = stbi_load(ai->iconPath.c_str(), &w, &h, &ch, 4);
+            stbi_set_flip_vertically_on_load(1);
             if (px) {
                 GLFWimage img{ w, h, px };
                 glfwSetWindowIcon(window, 1, &img);

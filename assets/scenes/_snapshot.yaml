@@ -3,28 +3,6 @@ Root:
     - ClassName: Workspace
       Name: Workspace
       Children:
-        - ClassName: Cube
-          Name: Cube111
-          Properties:
-            Position: [4.4310784, -7, 11.834326]
-            Size: [1, 5, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Branch
-          Properties:
-            Position: [2.4310784, -4, 11.834326]
-            Size: [5, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
         - ClassName: Rope
           Name: Rope
           Properties:
@@ -47,24 +25,24 @@ Root:
             CastShadow: true
             Unlit: false
         - ClassName: Cube
-          Name: Baseplate
+          Name: Cube111
           Properties:
-            Position: [0, -10, 0]
-            Size: [128, 1, 128]
+            Position: [4.4310784, -7, 11.834326]
+            Size: [1, 5, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0.5, 1]
+            Color: [1, 1, 1, 1]
             Anchored: true
             CanCollide: true
             CastShadow: true
             Unlit: false
         - ClassName: Cube
-          Name: Green
+          Name: Branch
           Properties:
-            Position: [-2, 0, -4]
-            Size: [2, 1, 1]
+            Position: [2.4310784, -4, 11.834326]
+            Size: [5, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0, 1]
-            Anchored: false
+            Color: [1, 1, 1, 1]
+            Anchored: true
             CanCollide: true
             CastShadow: true
             Unlit: false
@@ -79,36 +57,48 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+          Children:
+            - ClassName: SurfaceGui
+              Name: SurfaceGui
+              Children:
+                - ClassName: TextLabel
+                  Name: TextLabel
+                  Properties:
+                    Position: [0, 0]
+                    Size: [100, 40]
+                    Norm: Pixel
+                    Visible: true
+                    Active: true
+                    ZIndex: 0
+                    BackgroundColor: [1, 1, 1, 1]
+                    Text: Hello world!
+                    TextColor: [0, 0, 0, 1]
         - ClassName: Cube
-          Name: Cube12
+          Name: Green
           Properties:
-            Position: [8.118143, -8.859938, 35.223503]
-            Size: [1, 1, 1]
+            Position: [-2, 0, -4]
+            Size: [2, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
+            Color: [0, 1, 0, 1]
             Anchored: false
             CanCollide: true
             CastShadow: true
             Unlit: false
         - ClassName: Cube
-          Name: Cube1
+          Name: Baseplate
           Properties:
-            Position: [8.118143, -6.9850116, 35.223503]
-            Size: [1, 1, 1]
+            Position: [0, -10, 0]
+            Size: [128, 1, 128]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 1, 1]
-            Anchored: false
+            Color: [0, 1, 0.5, 1]
+            Anchored: true
             CanCollide: true
             CastShadow: true
             Unlit: false
-        - ClassName: Script
-          Name: HiGeorge
-          Properties:
-            ContentPath: C:\Users\Ryarta\Documents\TestLuau\HiGeorge.luau
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [0, -2, 15]
+            Position: [4.444054, 19.861296, -17.20572]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -124,9 +114,31 @@ Root:
                 Face: 4
                 Texture: C:\Users\Ryarta\Pictures\libimage.png
         - ClassName: Script
-          Name: 2006
+          Name: HiGeorge
           Properties:
-            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\2006.luau
+            ContentPath: C:\Users\Ryarta\Documents\TestLuau\HiGeorge.luau
+        - ClassName: Cube
+          Name: Cube1
+          Properties:
+            Position: [8.118143, -6.9850116, 35.223503]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Cube12
+          Properties:
+            Position: [8.118143, -8.859938, 35.223503]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
         - ClassName: TriangularPrism
           Name: TriangularPrism
           Properties:
@@ -138,6 +150,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+        - ClassName: Script
+          Name: 2006
+          Properties:
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\2006.luau
         - ClassName: Cube
           Name: Floppa1
           Properties:
@@ -151,37 +167,35 @@ Root:
             Unlit: false
           Children:
             - ClassName: Decal
-              Name: Decal_Left
+              Name: Decal_Front
               Properties:
-                Face: 5
-                Texture: assets/image/Limabis_logo.png
+                Face: 0
+                Texture: assets/image/floppa2048.jpg
             - ClassName: Decal
               Name: Decal_Top
               Properties:
                 Face: 2
                 Texture: assets/image/salad-cat.jpg
             - ClassName: Decal
-              Name: Decal_Front
+              Name: Decal_Left
               Properties:
-                Face: 0
-                Texture: assets/image/floppa2048.jpg
-            - ClassName: Decal
-              Name: Decal_Bottom
-              Properties:
-                Face: 3
-                Texture: assets/image/smile.png
+                Face: 5
+                Texture: assets/image/Limabis_logo.png
             - ClassName: Decal
               Name: Decal_Back
               Properties:
                 Face: 1
                 Texture: assets/image/the-cat.png
             - ClassName: Decal
+              Name: Decal_Bottom
+              Properties:
+                Face: 3
+                Texture: assets/image/smile.png
+            - ClassName: Decal
               Name: Decal_Right
               Properties:
                 Face: 4
                 Texture: assets/image/bliss.jpg
-        - ClassName: TextLabel
-          Name: TextLabel
         - ClassName: Cube
           Name: Radio
           Properties:
@@ -293,6 +307,8 @@ Root:
             Axis: [0, 1, 0]
             DriveVelocity: 1
             MaxForce: 1000
+        - ClassName: SurfaceGui
+          Name: SurfaceGui
     - ClassName: AppImage
       Name: AppImage
       Properties:
