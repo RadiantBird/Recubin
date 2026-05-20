@@ -279,7 +279,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->GetClassName() == "AppImage"
                  || inst->GetClassName() == "CharacterSetting"
                  || inst->IsA("Rope") || inst->IsA("Rod")
-                 || inst->IsA("Weld") || inst->IsA("Motor");
+                 || inst->IsA("Weld") || inst->IsA("Motor")
+                 || inst->IsA("ScreenGuiObject");
     if (hasProps) {
         out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
 
@@ -408,6 +409,39 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << YAML::EndSeq;
             out << YAML::Key << "DriveVelocity" << YAML::Value << m->DriveVelocity;
             out << YAML::Key << "MaxForce"      << YAML::Value << m->MaxForce;
+        }
+
+        if (inst->IsA("ScreenGuiObject")) {
+            const ScreenGuiObject* sgo = static_cast<const ScreenGuiObject*>(inst);
+            out << YAML::Key << "Position" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq << sgo->Position.x << sgo->Position.y << YAML::EndSeq;
+            out << YAML::Key << "Size" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq << sgo->Size.x << sgo->Size.y << YAML::EndSeq;
+            out << YAML::Key << "Norm"    << YAML::Value << (sgo->NormType == Norm::Scale ? "Scale" : "Pixel");
+            out << YAML::Key << "Visible" << YAML::Value << sgo->Visible;
+            out << YAML::Key << "Active"  << YAML::Value << sgo->Active;
+            out << YAML::Key << "ZIndex"  << YAML::Value << sgo->ZIndex;
+            out << YAML::Key << "BackgroundColor" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << sgo->BackgroundColor.r << sgo->BackgroundColor.g
+                << sgo->BackgroundColor.b << sgo->BackgroundColor.a
+                << YAML::EndSeq;
+        }
+        if (inst->GetClassName() == "TextLabel") {
+            const TextLabel* lbl = static_cast<const TextLabel*>(inst);
+            out << YAML::Key << "Text" << YAML::Value << lbl->Text;
+            out << YAML::Key << "TextColor" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << lbl->TextColor.r << lbl->TextColor.g << lbl->TextColor.b << lbl->TextColor.a
+                << YAML::EndSeq;
+        }
+        if (inst->GetClassName() == "TextButton") {
+            const TextButton* btn = static_cast<const TextButton*>(inst);
+            out << YAML::Key << "Text" << YAML::Value << btn->Text;
+            out << YAML::Key << "TextColor" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << btn->TextColor.r << btn->TextColor.g << btn->TextColor.b << btn->TextColor.a
+                << YAML::EndSeq;
         }
 
         out << YAML::EndMap;

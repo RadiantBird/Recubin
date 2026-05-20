@@ -141,7 +141,6 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
         float py = (sgo->NormType == Norm::Scale) ? sgo->Position.y * h : sgo->Position.y;
         float sw = (sgo->NormType == Norm::Scale) ? sgo->Size.x * w : sgo->Size.x;
         float sh = (sgo->NormType == Norm::Scale) ? sgo->Size.y * h : sgo->Size.y;
-
         const Color4& bgc = sgo->BackgroundColor;
         dl->AddRectFilled(ImVec2(px, py), ImVec2(px + sw, py + sh),
             IM_COL32((int)(bgc.r*255),(int)(bgc.g*255),(int)(bgc.b*255),(int)(bgc.a*255)));
@@ -176,6 +175,26 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
         dd.FramebufferScale = ImVec2(1.f, 1.f);
         dd.CmdLists.push_back(dl);
         ImGui_ImplOpenGL3_RenderDrawData(&dd);
+    }
+
+    // テクスチャを全ピクセル左右反転
+    {
+        std::vector<unsigned char> pixels(w * h * 4);
+        glBindTexture(GL_TEXTURE_2D, sg->m_texID);
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+        for (int row = 0; row < h; ++row) {
+            unsigned char* rowPtr = pixels.data() + row * w * 4;
+            for (int col = 0; col < w / 2; ++col) {
+                int li = col * 4;
+                int ri = (w - 1 - col) * 4;
+                std::swap(rowPtr[li+0], rowPtr[ri+0]);
+                std::swap(rowPtr[li+1], rowPtr[ri+1]);
+                std::swap(rowPtr[li+2], rowPtr[ri+2]);
+                std::swap(rowPtr[li+3], rowPtr[ri+3]);
+            }
+        }
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     // GL 状態を復元
