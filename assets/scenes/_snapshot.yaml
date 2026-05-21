@@ -1,333 +1,5 @@
 Root:
   Children:
-    - ClassName: Workspace
-      Name: Workspace
-      Children:
-        - ClassName: Rope
-          Name: Rope
-          Properties:
-            Cube0: Branch
-            Cube1: Saw
-            MaxDistance: 3
-            Stiffness: 100
-            Damping: 10
-            Color: [0.3, 0.9, 1, 1]
-            LineWidth: 2.5
-        - ClassName: Cube
-          Name: Blue
-          Properties:
-            Position: [-2, 0, -8]
-            Size: [1, 4, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Cube111
-          Properties:
-            Position: [4.4310784, -7, 11.834326]
-            Size: [1, 5, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Branch
-          Properties:
-            Position: [2.4310784, -4, 11.834326]
-            Size: [5, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Red
-          Properties:
-            Position: [2, 0, -4]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0, 0, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-          Children:
-            - ClassName: SurfaceGui
-              Name: SurfaceGui
-              Children:
-                - ClassName: TextLabel
-                  Name: TextLabel
-                  Properties:
-                    Position: [0, 0]
-                    Size: [100, 40]
-                    Norm: Pixel
-                    Visible: true
-                    Active: true
-                    ZIndex: 0
-                    BackgroundColor: [1, 1, 1, 1]
-                    Text: Hello world!
-                    TextColor: [0.49803922, 0.49803922, 0, 1]
-                - ClassName: TextLabel
-                  Name: TextLabel1
-                  Properties:
-                    Position: [0, 50]
-                    Size: [150, 40]
-                    Norm: Pixel
-                    Visible: true
-                    Active: true
-                    ZIndex: 0
-                    BackgroundColor: [1, 1, 1, 1]
-                    Text: Goodbye world...
-                    TextColor: [0.003921569, 0, 1, 1]
-        - ClassName: Cube
-          Name: Green
-          Properties:
-            Position: [-2, 0, -4]
-            Size: [2, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Baseplate
-          Properties:
-            Position: [0, -10, 0]
-            Size: [128, 1, 128]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0.5, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-          Children:
-            - ClassName: Texture
-              Name: Texture_Top
-              Properties:
-                Face: 2
-                Color: [1, 1, 1, 1]
-                StudsPerTileU: 1
-                StudsPerTileV: 1
-                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\Grass_Texture.png
-        - ClassName: Skybox
-          Name: Skybox
-          Properties:
-            Position: [12.1908655, -4.2677574, -25.103683]
-            Size: [7500, 5000, 10000]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0.5019608, 0.5019608, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: false
-            Unlit: true
-            SkyboxPaths: [C:\Users\Ryarta\Pictures\libimage.png, "", "", "", "", ""]
-          Children:
-            - ClassName: Decal
-              Name: Decal_Right
-              Properties:
-                Face: 4
-                Texture: C:\Users\Ryarta\Pictures\libimage.png
-        - ClassName: Script
-          Name: HiGeorge
-          Properties:
-            ContentPath: C:\Users\Ryarta\Documents\TestLuau\HiGeorge.luau
-        - ClassName: Cube
-          Name: Cube1
-          Properties:
-            Position: [8.118143, -6.9850116, 35.223503]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Cube12
-          Properties:
-            Position: [8.118143, -8.859938, 35.223503]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: TriangularPrism
-          Name: TriangularPrism
-          Properties:
-            Position: [1.03006, -9, 0.87993336]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Script
-          Name: 2006
-          Properties:
-            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\2006.luau
-        - ClassName: Cube
-          Name: Floppa1
-          Properties:
-            Position: [1.0775726, -8.5, -8.327957]
-            Size: [2, 2, 2]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-          Children:
-            - ClassName: Decal
-              Name: Decal_Front
-              Properties:
-                Face: 0
-                Texture: assets/image/floppa2048.jpg
-            - ClassName: Decal
-              Name: Decal_Top
-              Properties:
-                Face: 2
-                Texture: assets/image/salad-cat.jpg
-            - ClassName: Decal
-              Name: Decal_Left
-              Properties:
-                Face: 5
-                Texture: assets/image/Limabis_logo.png
-            - ClassName: Decal
-              Name: Decal_Back
-              Properties:
-                Face: 1
-                Texture: assets/image/the-cat.png
-            - ClassName: Decal
-              Name: Decal_Bottom
-              Properties:
-                Face: 3
-                Texture: assets/image/smile.png
-            - ClassName: Decal
-              Name: Decal_Right
-              Properties:
-                Face: 4
-                Texture: assets/image/bliss.jpg
-        - ClassName: Cube
-          Name: Radio
-          Properties:
-            Position: [-17.76123, -7.5, -6.6466923]
-            Size: [13.340713, 4, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-          Children:
-            - ClassName: Sound
-              Name: Sound
-              Properties:
-                Position: [0, 0, 0]
-                Size: [1, 1, 1]
-                Rotation: [0, 0, 0, 1]
-                ContentPath: assets/sound/Newalks.mp3
-                Looped: true
-                SoundGroup: SFX
-                AutoPlay: false
-        - ClassName: Cylinder
-          Name: Cylinder
-          Properties:
-            Position: [-7.639315, -9, -10.798485]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Sphere
-          Name: Sphere
-          Properties:
-            Position: [2.7700124, 5, 0]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Cube
-          Properties:
-            Position: [0, 0, 0]
-            Size: [0, 0, 0]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Cube11
-          Properties:
-            Position: [0.43107843, -7, 11.834326]
-            Size: [1, 5, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Saw
-          Properties:
-            Position: [2.8425572, -8, 11.73605]
-            Size: [0.66550756, 0.28469962, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Saw2
-          Properties:
-            Position: [2.1770496, -8, 11.73605]
-            Size: [0.66550756, 0.28469962, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Rope
-          Name: Rope1
-          Properties:
-            Cube0: Branch
-            Cube1: Saw2
-            MaxDistance: 3
-            Stiffness: 100
-            Damping: 10
-            Color: [0.3, 0.9, 1, 1]
-            LineWidth: 2.5
-        - ClassName: Weld
-          Name: Weld
-          Properties:
-            Cube0: Saw
-            Cube1: Saw2
-        - ClassName: Motor
-          Name: Motor
-          Properties:
-            Cube0: Cube1
-            Cube1: Cube12
-            Axis: [0, 1, 0]
-            DriveVelocity: 1
-            MaxForce: 1000
     - ClassName: AppImage
       Name: AppImage
       Properties:
@@ -349,3 +21,310 @@ Root:
         RightLegColor: [0, 0.14117648, 0.31764707, 1]
         JumpPower: 7
         MoveSpeed: 5
+    - ClassName: Workspace
+      Name: Workspace
+      Children:
+        - ClassName: Cube
+          Name: Cube1
+          Properties:
+            Position: [-22.5, 6.988118, -8.504206]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39215687, 0.39215687, 0.39215687, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Plate
+          Properties:
+            Position: [0, 0, 0]
+            Size: [128, 1, 128]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.23763312, 0.60943764, 0.7723077, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Wood1
+          Properties:
+            Position: [-2.8061647, 3, 5.930851]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.28615385, 0.18327935, 0.022892304, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Sphere
+              Name: Leaves
+              Properties:
+                Position: [-0.059556484, 3.283278, 0.28575706]
+                Size: [5, 5, 5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.91692305, 1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+        - ClassName: Cube
+          Name: Wood12
+          Properties:
+            Position: [24.610868, 3, 3.7079067]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.28615385, 0.18327935, 0.022892304, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Sphere
+              Name: Leaves
+              Properties:
+                Position: [-0.059556484, 3.283278, 0.28575706]
+                Size: [5, 5, 5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.91692305, 1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+        - ClassName: Cube
+          Name: Cube
+          Properties:
+            Position: [-25, 7, -5]
+            Size: [4, 1, 8]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Wood
+          Properties:
+            Position: [7.5740585, 3, 15.886478]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.28615385, 0.18327935, 0.022892304, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Sphere
+              Name: Leaves
+              Properties:
+                Position: [-0.059556484, 3.283278, 0.28575706]
+                Size: [5, 5, 5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.91692305, 1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+        - ClassName: Cube
+          Name: Wood13
+          Properties:
+            Position: [18.822783, 3, 17.288387]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.28615385, 0.18327935, 0.022892304, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Sphere
+              Name: Leaves
+              Properties:
+                Position: [-0.059556484, 3.283278, 0.28575706]
+                Size: [5, 5, 5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.91692305, 1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+        - ClassName: Cube
+          Name: Wood11
+          Properties:
+            Position: [12.95517, 3, 1.1265411]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.28615385, 0.18327935, 0.022892304, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Sphere
+              Name: Leaves
+              Properties:
+                Position: [-0.059556484, 3.283278, 0.28575706]
+                Size: [5, 5, 5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.91692305, 1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+        - ClassName: Cylinder
+          Name: Cylinder
+          Properties:
+            Position: [-21, 6.972437, -8.614225]
+            Size: [2, 1, 2]
+            Rotation: [0, 0, 0.70710677, 0.70710677]
+            Color: [0.019607844, 0.019607844, 0.019607844, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Button
+          Properties:
+            Position: [8.198534, 1, -2.0212278]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: ProximityPrompt
+              Name: ProximityPrompt
+              Properties:
+                KeyboardKeyCode: E
+                HoldDuration: 0
+                MaxActivationDistance: 10
+                Enabled: true
+                ActionText: Interact
+                ObjectText: ""
+                Size: [200, 100]
+              Children:
+                - ClassName: Script
+                  Name: Prox
+                  Properties:
+                    ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\Prox.luau
+        - ClassName: Cube
+          Name: Cube11
+          Properties:
+            Position: [-27.5, 6.988118, -8.479044]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39215687, 0.39215687, 0.39215687, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cylinder
+          Name: Cylinder1
+          Properties:
+            Position: [-29, 6.972437, -8.619832]
+            Size: [2, 1, 2]
+            Rotation: [0, 0, 0.70710677, 0.70710677]
+            Color: [0.019607844, 0.019607844, 0.019607844, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Cube111
+          Properties:
+            Position: [-22.5, 6.988118, -1.498049]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39215687, 0.39215687, 0.39215687, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cylinder
+          Name: Cylinder11
+          Properties:
+            Position: [-21, 6.972437, -1.3021722]
+            Size: [2, 1, 2]
+            Rotation: [0, 0, 0.70710677, 0.70710677]
+            Color: [0.019607844, 0.019607844, 0.019607844, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Cube112
+          Properties:
+            Position: [-27.5, 6.988118, -1.498049]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39215687, 0.39215687, 0.39215687, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cylinder
+          Name: Cylinder12
+          Properties:
+            Position: [-29, 6.972437, -1.3021722]
+            Size: [2, 1, 2]
+            Rotation: [0, 0, 0.70710677, 0.70710677]
+            Color: [0.019607844, 0.019607844, 0.019607844, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Motor
+          Name: Motor
+          Properties:
+            Cube0: Cube111
+            Cube1: Cylinder11
+            Axis: [1, 0, 0]
+            DriveVelocity: 5
+            MaxForce: 1000
+        - ClassName: Motor
+          Name: Motor1
+          Properties:
+            Cube0: Cube1
+            Cube1: Cylinder
+            Axis: [1, 0, 0]
+            DriveVelocity: 5
+            MaxForce: 1000
+        - ClassName: Motor
+          Name: Motor2
+          Properties:
+            Cube0: Cube112
+            Cube1: Cylinder12
+            Axis: [1, 0, 0]
+            DriveVelocity: 5
+            MaxForce: 1000
+        - ClassName: Motor
+          Name: Motor3
+          Properties:
+            Cube0: Cube11
+            Cube1: Cylinder1
+            Axis: [1, 0, 0]
+            DriveVelocity: 5
+            MaxForce: 1000
+        - ClassName: Weld
+          Name: Weld
+          Properties:
+            Cube0: Cube
+            Cube1: Cube1
+        - ClassName: Weld
+          Name: Weld1
+          Properties:
+            Cube0: Cube
+            Cube1: Cube111
+        - ClassName: Weld
+          Name: Weld2
+          Properties:
+            Cube0: Cube
+            Cube1: Cube112
+        - ClassName: Weld
+          Name: Weld3
+          Properties:
+            Cube0: Cube
+            Cube1: Cube11

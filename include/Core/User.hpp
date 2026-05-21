@@ -70,6 +70,7 @@ public:
     void processInput(class Physics& physics);
     void spawnCharacter(class CharacterSetting* cs = nullptr);
     void despawnCharacter();
+    static User* getInstance() { return s_instance; }
 
 private:
     static User* s_instance;

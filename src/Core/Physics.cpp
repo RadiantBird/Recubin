@@ -417,6 +417,7 @@ void Physics::update(Workspace& workspace, float dt) {
         auto cube = it->cube.lock();
         // オブジェクトが消滅しているか、actor が nullptr か、Workspace の子孫でなくなった場合は削除
         if (!cube || !it->actor || cube->Parent.expired()) {
+            if (cube) cube->actor = nullptr;
             if (it->actor) {
                 scene->removeActor(*it->actor);
                 it->actor->release();

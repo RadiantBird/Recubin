@@ -1,4 +1,5 @@
 #include "include/Core/Renderer.hpp"
+#include "include/Core/SystemState.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/ScreenGuiObject.hpp"
 #include "include/Instances/TextLabel.hpp"
@@ -7,6 +8,7 @@
 #include "include/Instances/WorldGuiObject.hpp"
 #include "include/Instances/SurfaceGui.hpp"
 #include "include/Instances/BillboardGui.hpp"
+#include "include/Instances/ProximityPrompt.hpp"
 #include "include/Instances/BaseCube.hpp"
 #include "include/imgui/imgui.h"
 #include "include/imgui/imgui_impl_opengl3.h"
@@ -371,6 +373,74 @@ void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, fl
                 }
             }
 
+            bool isProximityPrompt = (wgo->GetClassName() == "ProximityPrompt");
+            ProximityPrompt* pp = isProximityPrompt ? static_cast<ProximityPrompt*>(wgo) : nullptr;
+
+            if (pp) {
+                if (!pp->Enabled) continue;
+                if (!SystemState::get().isPlaying) continue;
+
+                // 距離チェック
+                User* user = User::getInstance();
+                if (!user || !user->root) continue;
+
+                Vector3 playerPos = user->root->getWorldPosition();
+                Vector3 cubePos(wx, wy, wz);
+                float dist = (playerPos - cubePos).length();
+                if (dist > pp->MaxActivationDistance) {
+                    pp->m_elapsedTime = 0.0f;
+                    pp->m_isHolding = false;
+                    pp->m_hasTriggered = false;
+                    continue;
+                }
+
+                // キー入力判定と状態更新
+                double curTime = glfwGetTime();
+                if (pp->m_lastUpdateTime == 0.0) pp->m_lastUpdateTime = curTime;
+                float dt = (float)(curTime - pp->m_lastUpdateTime);
+                pp->m_lastUpdateTime = curTime;
+
+                auto getGlfwKey = [](const std::string& keyStr) -> int {
+                    std::string s = keyStr;
+                    std::transform(s.begin(), s.end(), s.begin(), ::toupper);
+                    if (s.length() == 1 && s[0] >= 'A' && s[0] <= 'Z') return GLFW_KEY_A + (s[0] - 'A');
+                    if (s.length() == 1 && s[0] >= '0' && s[0] <= '9') return GLFW_KEY_0 + (s[0] - '0');
+                    if (s == "SPACE") return GLFW_KEY_SPACE;
+                    if (s == "ENTER") return GLFW_KEY_ENTER;
+                    if (s == "SHIFT" || s == "LEFT_SHIFT") return GLFW_KEY_LEFT_SHIFT;
+                    if (s == "CTRL" || s == "LEFT_CONTROL" || s == "CONTROL") return GLFW_KEY_LEFT_CONTROL;
+                    if (s == "ALT" || s == "LEFT_ALT") return GLFW_KEY_LEFT_ALT;
+                    return GLFW_KEY_E;
+                };
+
+                int glfwKey = getGlfwKey(pp->KeyboardKeyCode);
+                GLFWwindow* window = Renderer::instance->m_window;
+                bool isKeyPressed = false;
+                if (window && SystemState::get().viewportFocused) {
+                    isKeyPressed = (glfwGetKey(window, glfwKey) == GLFW_PRESS);
+                }
+
+                if (isKeyPressed) {
+                    pp->m_isHolding = true;
+                    if (!pp->m_hasTriggered) {
+                        pp->m_elapsedTime += dt;
+                        if (pp->HoldDuration <= 0.0f) {
+                            pp->m_elapsedTime = 0.0f;
+                            pp->m_hasTriggered = true;
+                            if (pp->Triggered) pp->Triggered->fire();
+                        } else if (pp->m_elapsedTime >= pp->HoldDuration) {
+                            pp->m_elapsedTime = pp->HoldDuration;
+                            pp->m_hasTriggered = true;
+                            if (pp->Triggered) pp->Triggered->fire();
+                        }
+                    }
+                } else {
+                    pp->m_isHolding = false;
+                    pp->m_hasTriggered = false;
+                    pp->m_elapsedTime = 0.0f;
+                }
+            }
+
             float sx, sy;
             if (!worldToScreen(m_lastView, m_lastProj, wx, wy, wz,
                                 vpX, vpY, vpW, vpH, sx, sy)) continue;
@@ -379,6 +449,41 @@ void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, fl
             float pw = wgo->Size.x, ph = wgo->Size.y;
             float panelX = sx - pw * 0.5f;
             float panelY = sy - ph * 0.5f;
+
+            if (pp) {
+                const Color4& bg = pp->BackgroundColor;
+                ImU32 bgCol = IM_COL32((int)(bg.r*255),(int)(bg.g*255),(int)(bg.b*255),(int)(bg.a*255));
+                dl->AddRectFilled(ImVec2(panelX, panelY), ImVec2(panelX+pw, panelY+ph), bgCol, 8.0f);
+                dl->AddRect(ImVec2(panelX, panelY), ImVec2(panelX+pw, panelY+ph), IM_COL32(255,255,255,80), 8.0f, 0, 1.5f);
+
+                float textY = panelY + 8.0f;
+                if (!pp->ObjectText.empty()) {
+                    ImVec2 textSize = ImGui::CalcTextSize(pp->ObjectText.c_str());
+                    dl->AddText(ImVec2(panelX + (pw - textSize.x)*0.5f, textY), IM_COL32(200,200,200,255), pp->ObjectText.c_str());
+                    textY += textSize.y + 4.0f;
+                }
+
+                std::string actionStr = "[" + pp->KeyboardKeyCode + "] " + pp->ActionText;
+                ImVec2 actionSize = ImGui::CalcTextSize(actionStr.c_str());
+                dl->AddText(ImVec2(panelX + (pw - actionSize.x)*0.5f, textY), IM_COL32(255,255,255,255), actionStr.c_str());
+
+                if (pp->HoldDuration > 0.0f) {
+                    float progress = pp->m_elapsedTime / pp->HoldDuration;
+                    if (progress > 1.0f) progress = 1.0f;
+
+                    float barMargin = 12.0f;
+                    float barY = panelY + ph - 12.0f;
+                    float barW = pw - barMargin * 2.0f;
+                    float barH = 5.0f;
+                    dl->AddRectFilled(ImVec2(panelX + barMargin, barY), ImVec2(panelX + barMargin + barW, barY + barH), IM_COL32(50,50,50,255), 2.0f);
+                    if (progress > 0.0f) {
+                        dl->AddRectFilled(ImVec2(panelX + barMargin, barY), ImVec2(panelX + barMargin + barW * progress, barY + barH), IM_COL32(100,255,100,255), 2.0f);
+                    }
+                }
+
+                drawWorldGuiChildren(dl, wgo, panelX, panelY, pw, ph, m_onButtonActivated);
+                continue;
+            }
 
             const Color4& bg = wgo->BackgroundColor;
             ImU32 bgCol = IM_COL32((int)(bg.r*255),(int)(bg.g*255),(int)(bg.b*255),(int)(bg.a*255));

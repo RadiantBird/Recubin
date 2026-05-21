@@ -22,6 +22,7 @@
 #include <Instances/TextButton.hpp>
 #include <Instances/SurfaceGui.hpp>
 #include <Instances/BillboardGui.hpp>
+#include <Instances/ProximityPrompt.hpp>
 #include <Core/AudioService.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
@@ -388,6 +389,11 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         if (ImGui::MenuItem("BillboardGui") && m_history) {
             auto obj = std::make_shared<BillboardGui>();
                         obj->Name = uniqueName(parentSp, "BillboardGui");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("ProximityPrompt") && m_history) {
+            auto obj = std::make_shared<ProximityPrompt>();
+            obj->Name = uniqueName(parentSp, "ProximityPrompt");
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
         ImGui::EndMenu();

@@ -23,6 +23,7 @@ public:
     int  connect(lua_State* L, int luaRef, bool once);
     void disconnect(int id);
     void fire(lua_State* L, std::function<int(lua_State*)> pushArgs = nullptr);
+    void fire(std::function<int(lua_State*)> pushArgs = nullptr);
 };
 
 class RCBNScriptConnection {

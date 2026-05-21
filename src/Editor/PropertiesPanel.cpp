@@ -20,6 +20,7 @@
 #include <Instances/WorldGuiObject.hpp>
 #include <Instances/SurfaceGui.hpp>
 #include <Instances/BillboardGui.hpp>
+#include <Instances/ProximityPrompt.hpp>
 #include <Util/Color4.hpp>
 #include <include/imgui/imgui.h>
 #include <unordered_map>
@@ -855,6 +856,34 @@ void PropertiesPanel::onRender() {
         int modeIdx = (bg->Mode == BillboardMode::Focus) ? 1 : 0;
         if (ImGui::Combo("Mode##bg", &modeIdx, modeItems, 2))
             bg->Mode = (modeIdx == 1) ? BillboardMode::Focus : BillboardMode::Parallel;
+    }
+
+    // ---- ProximityPrompt ----
+    if (inst->GetClassName() == "ProximityPrompt") {
+        ProximityPrompt* pp = static_cast<ProximityPrompt*>(inst);
+        ImGui::SeparatorText("ProximityPrompt");
+
+        char keyBuf[128] = {};
+        strncpy_s(keyBuf, pp->KeyboardKeyCode.c_str(), sizeof(keyBuf) - 1);
+        if (ImGui::InputText("KeyboardKeyCode", keyBuf, sizeof(keyBuf))) {
+            pp->KeyboardKeyCode = std::string(keyBuf);
+        }
+
+        ImGui::DragFloat("HoldDuration", &pp->HoldDuration, 0.05f, 0.0f, 60.0f, "%.2fs");
+        ImGui::DragFloat("MaxActivationDistance", &pp->MaxActivationDistance, 0.1f, 0.0f, 1000.0f, "%.1f");
+        ImGui::Checkbox("Enabled##pp", &pp->Enabled);
+
+        char actBuf[256] = {};
+        strncpy_s(actBuf, pp->ActionText.c_str(), sizeof(actBuf) - 1);
+        if (ImGui::InputText("ActionText", actBuf, sizeof(actBuf))) {
+            pp->ActionText = std::string(actBuf);
+        }
+
+        char objBuf[256] = {};
+        strncpy_s(objBuf, pp->ObjectText.c_str(), sizeof(objBuf) - 1);
+        if (ImGui::InputText("ObjectText", objBuf, sizeof(objBuf))) {
+            pp->ObjectText = std::string(objBuf);
+        }
     }
 
     ImGui::End();

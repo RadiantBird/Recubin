@@ -23,6 +23,7 @@
 #include <Instances/TextButton.hpp>
 #include <Instances/SurfaceGui.hpp>
 #include <Instances/BillboardGui.hpp>
+#include <Instances/ProximityPrompt.hpp>
 #include <Core/AudioService.hpp>
 #include <Util/Logger.hpp>
 #include <iostream>
@@ -210,6 +211,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "TextButton")   return std::make_shared<TextButton>();
     if (className == "SurfaceGui")   return std::make_shared<SurfaceGui>();
     if (className == "BillboardGui") return std::make_shared<BillboardGui>();
+    if (className == "ProximityPrompt") return std::make_shared<ProximityPrompt>();
 
     return nullptr;
 }
@@ -280,7 +282,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->GetClassName() == "CharacterSetting"
                  || inst->IsA("Rope") || inst->IsA("Rod")
                  || inst->IsA("Weld") || inst->IsA("Motor")
-                 || inst->IsA("ScreenGuiObject");
+                 || inst->IsA("ScreenGuiObject")
+                 || inst->GetClassName() == "ProximityPrompt";
     if (hasProps) {
         out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
 
@@ -442,6 +445,17 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << YAML::Flow << YAML::BeginSeq
                 << btn->TextColor.r << btn->TextColor.g << btn->TextColor.b << btn->TextColor.a
                 << YAML::EndSeq;
+        }
+        if (inst->GetClassName() == "ProximityPrompt") {
+            const ProximityPrompt* pp = static_cast<const ProximityPrompt*>(inst);
+            out << YAML::Key << "KeyboardKeyCode" << YAML::Value << pp->KeyboardKeyCode;
+            out << YAML::Key << "HoldDuration" << YAML::Value << pp->HoldDuration;
+            out << YAML::Key << "MaxActivationDistance" << YAML::Value << pp->MaxActivationDistance;
+            out << YAML::Key << "Enabled" << YAML::Value << pp->Enabled;
+            out << YAML::Key << "ActionText" << YAML::Value << pp->ActionText;
+            out << YAML::Key << "ObjectText" << YAML::Value << pp->ObjectText;
+            out << YAML::Key << "Size" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq << pp->Size.x << pp->Size.y << YAML::EndSeq;
         }
 
         out << YAML::EndMap;

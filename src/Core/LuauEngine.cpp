@@ -9,6 +9,7 @@
 #include "include/Instances/TextButton.hpp"
 #include "include/Instances/SurfaceGui.hpp"
 #include "include/Instances/BillboardGui.hpp"
+#include "include/Instances/ProximityPrompt.hpp"
 #include "include/Util/Logger.hpp"
 #include <float.h>
 #include <fenv.h>
@@ -319,6 +320,15 @@ bool LuauEngine::execute(Script& script) {
     // 既にコルーチンがある場合は再開、なければ新規作成
     if (script.Coroutine == nullptr) {
         script.Coroutine = lua_newthread(L);
+
+        // コルーチンにもデバッグコールバックを伝播させる
+        lua_callbacks(script.Coroutine)->userdata = lua_callbacks(L)->userdata;
+        lua_callbacks(script.Coroutine)->debugprotectederror = [](lua_State* Lco) {
+            const char* trace = lua_debugtrace(Lco);
+            auto* engine = static_cast<LuauEngine*>(lua_callbacks(Lco)->userdata);
+            if (engine) engine->m_lastTraceback = trace ? trace : "";
+        };
+
         RegisterGlobalFunctions(script.Coroutine);
         auto* sud = (std::weak_ptr<Instance>*)lua_newuserdata(script.Coroutine, sizeof(std::weak_ptr<Instance>));
         new (sud) std::weak_ptr<Instance>(script.shared_from_this());
@@ -385,12 +395,10 @@ bool LuauEngine::execute(Script& script) {
         // Luauはエラーメッセージをcoではなく親スレッドLに積む場合がある
         lua_State* errState = (lua_gettop(co) > 0) ? co : L;
         std::string errMsg = "unknown error";
-        if (lua_gettop(errState) > 0 && lua_type(errState, -1) == LUA_TSTRING) {
-            const char* raw = lua_tostring(errState, -1);
+        if (lua_gettop(errState) > 0) {
+            const char* raw = luaL_tolstring(errState, -1, nullptr);
             if (raw) errMsg = raw;
-            lua_pop(errState, 1);
-        } else if (lua_gettop(errState) > 0) {
-            lua_pop(errState, 1);
+            lua_pop(errState, 2); // luaL_tolstring が文字列を積むので2つポップ
         }
 
         // debugprotectederror で取得したスタックトレースを使う
@@ -641,7 +649,6 @@ int LuauEngine::signal_index(lua_State* L) {
 int LuauEngine::signal_connect_closure(lua_State* L) {
     auto* sig = static_cast<RCBNScriptSignal*>(lua_touserdata(L, lua_upvalueindex(1)));
     // arg1 = self (signal), arg2 = callback function
-    luaL_checktype(L, 2, LUA_TFUNCTION);
     int ref = lua_ref(L, 2);
     auto shared = sig->shared_from_this();
     int id = sig->connect(L, ref, false);
@@ -652,7 +659,6 @@ int LuauEngine::signal_connect_closure(lua_State* L) {
 int LuauEngine::signal_once_closure(lua_State* L) {
     auto* sig = static_cast<RCBNScriptSignal*>(lua_touserdata(L, lua_upvalueindex(1)));
     // arg1 = self (signal), arg2 = callback function
-    luaL_checktype(L, 2, LUA_TFUNCTION);
     int ref = lua_ref(L, 2);
     auto shared = sig->shared_from_this();
     int id = sig->connect(L, ref, true);
@@ -665,7 +671,6 @@ int LuauEngine::signal_until_closure(lua_State* L) {
     // arg1 = self (signal), arg2 = Event userdata, arg3 = callback function
     auto* evtUd = (std::weak_ptr<Instance>*)luaL_checkudata(L, 2, RCBN_INST_METATABLE);
     auto evtInst = evtUd->lock();
-    luaL_checktype(L, 3, LUA_TFUNCTION);
     int ref = lua_ref(L, 3);
     auto shared = sig->shared_from_this();
     int id = sig->connect(L, ref, false);
@@ -710,6 +715,7 @@ int LuauEngine::instance_new_closure(lua_State* L) {
     else if (strcmp(className, "TextButton")   == 0) inst = std::make_shared<TextButton>();
     else if (strcmp(className, "SurfaceGui")   == 0) inst = std::make_shared<SurfaceGui>();
     else if (strcmp(className, "BillboardGui") == 0) inst = std::make_shared<BillboardGui>();
+    else if (strcmp(className, "ProximityPrompt") == 0) inst = std::make_shared<ProximityPrompt>();
 
     if (!inst) { lua_pushnil(L); return 1; }
 

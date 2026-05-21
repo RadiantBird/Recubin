@@ -116,6 +116,7 @@ export type Color4 = {
 }
 
 declare workspace: Workspace
+declare script: Script
 declare Vector3: Vector3
 declare Color4: Color4
 declare wait: (seconds: number) -> ()

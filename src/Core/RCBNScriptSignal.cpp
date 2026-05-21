@@ -43,6 +43,12 @@ void RCBNScriptSignal::fire(lua_State* L, std::function<int(lua_State*)> pushArg
     }
 }
 
+void RCBNScriptSignal::fire(std::function<int(lua_State*)> pushArgs) {
+    if (m_mainL) {
+        fire(m_mainL, pushArgs);
+    }
+}
+
 void RCBNScriptConnection::disconnect() {
     if (auto sig = m_signal.lock()) {
         sig->disconnect(m_id);

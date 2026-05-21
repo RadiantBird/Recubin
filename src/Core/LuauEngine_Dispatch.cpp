@@ -21,6 +21,7 @@
 #include "include/Instances/WorldGuiObject.hpp"
 #include "include/Instances/SurfaceGui.hpp"
 #include "include/Instances/BillboardGui.hpp"
+#include "include/Instances/ProximityPrompt.hpp"
 
 // ==================== Getter: Instance, BaseCube ====================
 void LuauEngine::InitDispatchTable_Base() {
@@ -638,6 +639,29 @@ void LuauEngine::InitDispatchTable_GUI() {
         auto m = static_cast<BillboardGui*>(obj)->Mode;
         lua_pushstring(L, m == BillboardMode::Focus ? "Focus" : "Parallel"); return 1;
     };
+
+    // --- ProximityPrompt ---
+    DispatchTable["ProximityPrompt"]["KeyboardKeyCode"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, static_cast<ProximityPrompt*>(obj)->KeyboardKeyCode.c_str()); return 1;
+    };
+    DispatchTable["ProximityPrompt"]["HoldDuration"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<ProximityPrompt*>(obj)->HoldDuration); return 1;
+    };
+    DispatchTable["ProximityPrompt"]["MaxActivationDistance"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<ProximityPrompt*>(obj)->MaxActivationDistance); return 1;
+    };
+    DispatchTable["ProximityPrompt"]["Enabled"] = [](lua_State* L, Instance* obj) {
+        lua_pushboolean(L, static_cast<ProximityPrompt*>(obj)->Enabled); return 1;
+    };
+    DispatchTable["ProximityPrompt"]["ActionText"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, static_cast<ProximityPrompt*>(obj)->ActionText.c_str()); return 1;
+    };
+    DispatchTable["ProximityPrompt"]["ObjectText"] = [](lua_State* L, Instance* obj) {
+        lua_pushstring(L, static_cast<ProximityPrompt*>(obj)->ObjectText.c_str()); return 1;
+    };
+    DispatchTable["ProximityPrompt"]["Triggered"] = [](lua_State* L, Instance* obj) {
+        LuauEngine::pushSignal(L, static_cast<ProximityPrompt*>(obj)->Triggered); return 1;
+    };
 }
 
 void LuauEngine::InitSetterTable_GUI() {
@@ -724,5 +748,25 @@ void LuauEngine::InitSetterTable_GUI() {
         std::string_view v = luaL_checkstring(L, 3);
         static_cast<BillboardGui*>(obj)->Mode = (v == "Focus") ? BillboardMode::Focus : BillboardMode::Parallel;
         return 0;
+    };
+
+    // --- ProximityPrompt ---
+    SetterTable["ProximityPrompt"]["KeyboardKeyCode"] = [](lua_State* L, Instance* obj) {
+        static_cast<ProximityPrompt*>(obj)->KeyboardKeyCode = luaL_checkstring(L, 3); return 0;
+    };
+    SetterTable["ProximityPrompt"]["HoldDuration"] = [](lua_State* L, Instance* obj) {
+        static_cast<ProximityPrompt*>(obj)->HoldDuration = (float)luaL_checknumber(L, 3); return 0;
+    };
+    SetterTable["ProximityPrompt"]["MaxActivationDistance"] = [](lua_State* L, Instance* obj) {
+        static_cast<ProximityPrompt*>(obj)->MaxActivationDistance = (float)luaL_checknumber(L, 3); return 0;
+    };
+    SetterTable["ProximityPrompt"]["Enabled"] = [](lua_State* L, Instance* obj) {
+        static_cast<ProximityPrompt*>(obj)->Enabled = lua_toboolean(L, 3) != 0; return 0;
+    };
+    SetterTable["ProximityPrompt"]["ActionText"] = [](lua_State* L, Instance* obj) {
+        static_cast<ProximityPrompt*>(obj)->ActionText = luaL_checkstring(L, 3); return 0;
+    };
+    SetterTable["ProximityPrompt"]["ObjectText"] = [](lua_State* L, Instance* obj) {
+        static_cast<ProximityPrompt*>(obj)->ObjectText = luaL_checkstring(L, 3); return 0;
     };
 }
