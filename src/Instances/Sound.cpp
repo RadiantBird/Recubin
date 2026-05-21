@@ -1,4 +1,5 @@
 #include "Instances/Sound.hpp"
+#include <Util/Logger.hpp>
 
 Sound::Sound(AudioService& service, const std::string& path) 
     : Spatial(Vector3(0,0,0), Vector3(1,1,1), "Sound") {
@@ -10,7 +11,7 @@ Sound::Sound(AudioService& service, const std::string& path)
             loaded = true;
             std::cout << "[DEBUG] Audio loaded: " << path << std::endl;
         } else {
-            std::cout << "[ERROR] Failed to load audio: " << path << std::endl;
+            RCBN_WARN("Failed to load audio: " << path);
         }
     }
 }

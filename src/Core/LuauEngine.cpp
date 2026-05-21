@@ -1,4 +1,5 @@
 #include "include/Core/LuauEngine.hpp"
+#include "include/Core/LuarCompiler.hpp"
 #include "include/Core/Physics.hpp"
 #include "include/Core/RCBNScriptSignal.hpp"
 #include "include/Instances/Workspace.hpp"
@@ -342,7 +343,23 @@ bool LuauEngine::execute(Script& script) {
     // 初回実行の場合、スクリプトをロード
     // lua_status(): 0=OK, LUA_YIELD=suspended, LUA_ERRERR=error, etc.
     if (lua_status(co) == 0 && lua_gettop(co) == 0) {  // スタックが空なら初回実行
-        const std::string& source = script.Source;
+        std::string compiledSource;
+        const std::string* sourcePtr = &script.Source;
+
+        // .luarファイルはRust製LuarコンパイラでLuauに変換する
+        auto endsWithLuar = [](const std::string& s) {
+            return s.size() >= 5 && s.substr(s.size() - 5) == ".luar";
+        };
+        bool isLuar = endsWithLuar(script.Name) || endsWithLuar(script.Path);
+        if (isLuar) {
+            static LuarCompiler s_luarCompiler;
+            compiledSource = s_luarCompiler.compile(script.Source);
+            if (compiledSource.empty()) { script.Aborted = true; return false; }
+            std::cerr << "[LuarCompiler] Output:\n" << compiledSource << "\n---\n";
+            sourcePtr = &compiledSource;
+        }
+
+        const std::string& source = *sourcePtr;
         int status;
         if (script.isPrecompiled) {
             // .luauc: source already contains raw bytecode, pass directly

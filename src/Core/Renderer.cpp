@@ -1,5 +1,6 @@
 #include <Core/Renderer.hpp>
 #include <Core/FileLoader.hpp>
+#include <Util/Logger.hpp>
 #include <Editor/IEditorManager.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
@@ -672,7 +673,7 @@ unsigned int Renderer::loadTexture(const char* path) {
 
     unsigned int textureID = 0;
     if (!data) {
-        std::cout << "Failed to load texture: " << path << std::endl;
+        RCBN_WARN("Failed to load texture: " << path);
         return 0;
     }
 

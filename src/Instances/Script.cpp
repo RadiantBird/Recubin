@@ -1,10 +1,12 @@
 #include <Instances/Script.hpp>
 #include <Core/FileLoader.hpp>
+#include <Util/Logger.hpp>
 
 Script::Script(string path) : Instance("Script"), Coroutine(nullptr), Path(path) {
     if (!path.empty()) {
         Source = FileLoader::readText(path);
         if (Source.empty()) {
+            RCBN_WARN("Failed to load script source: " << path);
             Source = "print('Error: Failed to load script source')";
         } else {
             std::cout << "Loaded script from " << path << "\n";
@@ -25,6 +27,7 @@ void Script::setProperty(const std::string& name, const YAML::Node& value) {
                 this->isPrecompiled = true;
                 std::cout << "Loaded bytecode script from " << this->Path << "\n";
             } else {
+                RCBN_WARN("Failed to load bytecode: " << this->Path);
                 this->Source = "print('Error: Failed to load bytecode: " + this->Path + "')";
                 this->isPrecompiled = false;
             }
@@ -32,6 +35,7 @@ void Script::setProperty(const std::string& name, const YAML::Node& value) {
             this->Source = FileLoader::readText(this->Path);
             this->isPrecompiled = false;
             if (this->Source.empty()) {
+                RCBN_WARN("Failed to load script source: " << this->Path);
                 this->Source = "print('Error: Failed to load script source: " + this->Path + "')";
             }
         }

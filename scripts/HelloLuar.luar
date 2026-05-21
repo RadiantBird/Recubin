@@ -1,0 +1,9 @@
+class Main is
+    public is
+        static function new()
+            print("Hello, Luar!")
+        end
+    end
+end
+
+local lMain = Main.new()

@@ -35,8 +35,11 @@ static std::string pickFile() {
     IFileOpenDialog* pfd = nullptr;
     if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
                                    CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
-        COMDLG_FILTERSPEC filter = { L"Luau Script (*.luau)", L"*.luau" };
-        pfd->SetFileTypes(1, &filter);
+        COMDLG_FILTERSPEC filters[] = {
+            { L"Luau Script (*.luau)", L"*.luau" },
+            { L"Luar Script (*.luar)", L"*.luar" },
+        };
+        pfd->SetFileTypes(2, filters);
         if (SUCCEEDED(pfd->Show(nullptr))) {
             IShellItem* item = nullptr;
             if (SUCCEEDED(pfd->GetResult(&item))) {
@@ -218,7 +221,7 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
             ImGui::SetNextItemWidth(220.0f);
             ImGui::InputText("##sname", s_name, sizeof(s_name));
         } else {
-            ImGui::TextDisabled("ファイルピッカーで .luau を選択します");
+            ImGui::TextDisabled("ファイルピッカーで .luau/.luar を選択します");
         }
 
         if (ImGui::Button("OK", ImVec2(100, 0))) {
@@ -265,7 +268,8 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
                 auto slash = filePath.find_last_of("/\\");
                 std::string fname = (slash == std::string::npos) ? filePath : filePath.substr(slash + 1);
                 auto dot = fname.rfind('.');
-                m_pickName = (dot == std::string::npos) ? fname : fname.substr(0, dot);
+                bool isLuar = (dot != std::string::npos && fname.substr(dot) == ".luar");
+                m_pickName = (dot == std::string::npos || isLuar) ? fname : fname.substr(0, dot);
             }
 
             auto script = std::make_shared<Script>(filePath);
