@@ -72,7 +72,19 @@ Root:
                     ZIndex: 0
                     BackgroundColor: [1, 1, 1, 1]
                     Text: Hello world!
-                    TextColor: [0, 0, 0, 1]
+                    TextColor: [0.49803922, 0.49803922, 0, 1]
+                - ClassName: TextLabel
+                  Name: TextLabel1
+                  Properties:
+                    Position: [0, 50]
+                    Size: [150, 40]
+                    Norm: Pixel
+                    Visible: true
+                    Active: true
+                    ZIndex: 0
+                    BackgroundColor: [1, 1, 1, 1]
+                    Text: Goodbye world...
+                    TextColor: [0.003921569, 0, 1, 1]
         - ClassName: Cube
           Name: Green
           Properties:
@@ -107,7 +119,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [15.400926, 21.189978, -21.411293]
+            Position: [12.1908655, -4.2677574, -25.103683]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -254,17 +266,6 @@ Root:
           Properties:
             Position: [0, 0, 0]
             Size: [0, 0, 0]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Cube2
-          Properties:
-            Position: [19.408104, -9, 14.531211]
-            Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
             Anchored: false

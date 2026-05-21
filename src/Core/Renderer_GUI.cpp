@@ -146,7 +146,10 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     glClearColor(bg.r, bg.g, bg.b, bg.a);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    /*!!!*/ImDrawList* dl = ImGui::GetWindowDrawList(); // !!! IMPORTANT: これ以外でdlを作るとアクセス違反が発生し、まともに動作しない
+    // スクリーンパイプラインに乗らない独立リスト（GetDrawListSharedDataを渡せばアクセス違反なし）
+    ImDrawList _ownDl(ImGui::GetDrawListSharedData());
+    _ownDl._ResetForNewFrame();
+    ImDrawList* dl = &_ownDl;
     dl->PushClipRect(ImVec2(0.f, 0.f), ImVec2((float)w, (float)h), false);
     dl->PushTextureID(ImGui::GetIO().Fonts->TexID);
 

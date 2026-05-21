@@ -3,16 +3,14 @@
     "allow": [
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(python build.py build)",
+      "Bash(xargs grep -l .*)",
       "Bash(xargs -I {} basename {})",
-      "Bash(xargs grep -l \"Vector4\")",
-      "Bash(Get-ChildItem -Recurse -Directory)",
-      "Bash(Select-Object -ExpandProperty FullName)",
+      "PowerShell(Get-ChildItem .*)",
+      "PowerShell(Select-Object .*)",
+      "PowerShell(ForEach-Object .*)",
       "PowerShell(head -30)",
-      "Bash(xargs grep -l \"game_main\\\\|EDITOR_DISABLED\")",
-      "Bash(xargs grep -l \"Vector2\\\\|Vec2\\\\|AppImage\\\\|Decal\")",
-      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Ryarta\\\\Documents\\\\Recubin\" -Recurse -Directory)",
-      "Bash(Select-Object -First 20)",
-      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Ryarta\\\\Documents\\\\Recubin\" -Recurse -Directory | Select-Object -First 20 | ForEach-Object { $_.FullName })"
+      "Bash(Get-ChildItem .*)",
+      "Bash(Select-Object .*)"
     ]
   }
 }
