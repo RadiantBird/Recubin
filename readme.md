@@ -12,15 +12,26 @@
 
 ## Todoリスト
 (小さい数字から順番にやる)
-1. ProxmityPromptを実装
-  - キーボードのいずれかのキーを長押しする
-  - Triggeredイベントを作成
-  - 秒数を指定できるようにする
-  - BillboardGuiでコア実装する
+1. Folderインスタンスを追加
+  - 特別な機能は特になし
+  - 単なる整理用インスタンス
 
-2. 既存実装の仕様違反を見つける
+2. ModelインスタンスをInsert Object欄に追加
 
-3. このエンジンに何が必要か考える（人間の仕事）
+3. 複数Workspaceを実装
+  - System直下にいろいろなWorkspaceが存在し、演算できることが目標
+  - Pキーでキャラクターはworkspace間を移動
+  - レンダラーはキャラクターが存在するworkspaceを描画
+  - カメラがフリーモードな場合、現在のworkspaceを描画し続ける
+  - エクスプローラーでWorkspaceを右クリックすると、新しくボタンを追加する
+    - 新しいビューポートで開く
+    - このworkspaceに切り替える(レンダラーの描画対象を即座に切り替える)
+  - scriptのworkspace変数は、所属しているworkspaceに基づく
+  - "system"というルートインスタンスのグローバル変数を追加する
+  - workspaceに以下のプロパティを追加する
+    - PhysicsEnabled -> boolean
+    - Gravity -> Vector3
+
 
 ## 中断された作業
 - 特にない

@@ -14,17 +14,6 @@ Root:
             Color: [0.3, 0.9, 1, 1]
             LineWidth: 2.5
         - ClassName: Cube
-          Name: Blue
-          Properties:
-            Position: [-2, 0, -8]
-            Size: [1, 4, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
           Name: Cube111
           Properties:
             Position: [4.4310784, -7, 11.834326]
@@ -43,44 +32,6 @@ Root:
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
             Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Red
-          Properties:
-            Position: [2, 0, -4]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0, 0, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-          Children:
-            - ClassName: SurfaceGui
-              Name: SurfaceGui
-              Children:
-                - ClassName: TextLabel
-                  Name: TextLabel
-                  Properties:
-                    Position: [0, 0]
-                    Size: [100, 40]
-                    Norm: Pixel
-                    Visible: true
-                    Active: true
-                    ZIndex: 0
-                    BackgroundColor: [1, 1, 1, 1]
-                    Text: Hello world!
-                    TextColor: [0, 0, 0, 1]
-        - ClassName: Cube
-          Name: Green
-          Properties:
-            Position: [-2, 0, -4]
-            Size: [2, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0, 1]
-            Anchored: false
             CanCollide: true
             CastShadow: true
             Unlit: false
@@ -107,7 +58,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [0, -2, 5]
+            Position: [-8.291347, 4.788723, -19.49615]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -320,6 +271,58 @@ Root:
           Name: HelloLuar
           Properties:
             ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\HelloLuar.luar
+        - ClassName: Folder
+          Name: Classics
+          Children:
+            - ClassName: Cube
+              Name: Blue
+              Properties:
+                Position: [-2, 0, -8]
+                Size: [1, 4, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0, 1, 1]
+                Anchored: false
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+            - ClassName: Cube
+              Name: Green
+              Properties:
+                Position: [-2, 0, -4]
+                Size: [2, 1, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 1, 0, 1]
+                Anchored: false
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+            - ClassName: Cube
+              Name: Red
+              Properties:
+                Position: [2, 0, -4]
+                Size: [1, 1, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 0, 0, 1]
+                Anchored: false
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+              Children:
+                - ClassName: SurfaceGui
+                  Name: SurfaceGui
+                  Children:
+                    - ClassName: TextLabel
+                      Name: TextLabel
+                      Properties:
+                        Position: [0, 0]
+                        Size: [100, 40]
+                        Norm: Pixel
+                        Visible: true
+                        Active: true
+                        ZIndex: 0
+                        BackgroundColor: [1, 1, 1, 1]
+                        Text: Hello world!
+                        TextColor: [0, 0, 0, 1]
     - ClassName: AppImage
       Name: AppImage
       Properties:

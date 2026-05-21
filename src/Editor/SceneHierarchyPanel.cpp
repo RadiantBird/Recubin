@@ -16,6 +16,7 @@
 #include <Instances/Rod.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Model.hpp>
+#include <Instances/Folder.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/CharacterSetting.hpp>
 #include <Instances/TextLabel.hpp>
@@ -347,6 +348,11 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         if (ImGui::MenuItem("Script")) {
             m_pendingScriptParent = parentSp;
             m_openScriptDialog    = true;
+        }
+        if (ImGui::MenuItem("Folder") && m_history) {
+            auto obj = std::make_shared<Folder>();
+            obj->Name = uniqueName(parentSp, "Folder");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
         if (ImGui::MenuItem("Model") && m_history) {
             auto obj = std::make_shared<Model>(Vector3(0,0,0), Vector3(1,1,1));
