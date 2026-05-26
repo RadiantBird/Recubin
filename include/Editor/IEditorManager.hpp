@@ -16,6 +16,9 @@ public:
     // ビューポートサイズ取得（エディター: FBO サイズ、ランタイム: ウィンドウサイズ）
     virtual void getViewportSize(GLFWwindow* window, int& w, int& h) = 0;
 
+    virtual unsigned int getViewportFBO() = 0;
+    virtual bool isViewportFocused() = 0;
+
     // 選択中インスタンス（ランタイム: nullptr を返す）
     virtual Instance* getSelectedInstance() = 0;
 

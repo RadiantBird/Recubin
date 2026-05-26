@@ -22,13 +22,18 @@ struct RaycastHit {
 
 class Physics {
 private:
-    physx::PxFoundation* foundation = nullptr;
-    physx::PxPhysics* physics = nullptr;
+    // --- 全インスタンス共有（static）---
+    static physx::PxFoundation*            s_foundation;
+    static physx::PxPhysics*               s_pxPhysics;
+    static physx::PxDefaultCpuDispatcher*  s_dispatcher;
+    static physx::PxDefaultAllocator       s_allocator;
+    static physx::PxDefaultErrorCallback   s_errorCallback;
+    static int                             s_refCount;
+
+    // --- インスタンス固有 ---
     physx::PxScene* scene = nullptr;
     std::unordered_map<MaterialType, physx::PxMaterial*> materialCache;
-
-    physx::PxDefaultAllocator allocator;
-    physx::PxDefaultErrorCallback errorCallback;
+    float m_accumulator = 0.0f;
 
     struct CubeEntry {
         std::weak_ptr<BaseCube> cube;
@@ -57,7 +62,7 @@ private:
     physx::PxSimulationEventCallback* m_contactCallback = nullptr;
 
 public:
-    std::function<void(BaseCube*, BaseCube*)> onContactCallback;
+    static std::function<void(BaseCube*, BaseCube*)> s_contactCallback;
 
     void init();
     virtual ~Physics();

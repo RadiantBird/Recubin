@@ -100,14 +100,12 @@ int main() {
 
     // ---- コアシステム初期化 ----
     auto renderer     = std::make_unique<Renderer>();
-    auto physics      = std::make_unique<Physics>();
     auto audioService = std::make_unique<AudioService>();
     auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
     auto user         = std::make_unique<User>(window);
     user->controlMode = User::ControlMode::Character;
 
-    physics->init();
     renderer->init(window);
     renderer->editor = std::make_unique<NullEditorManager>();
 
@@ -121,14 +119,26 @@ int main() {
     auto lighting  = std::make_shared<Lighting>();
     lighting->Name = "Lighting";
     system->addChild(workspace);
-    system->addChild(lighting);
-    workspace->setPhysicsEngine(physics.get());
+    workspace->addChild(lighting);
+    workspace->initPhysics();
 
     SceneLoader::registerSingleton("System",    system);
     SceneLoader::registerSingleton("Workspace", workspace);
-    SceneLoader::registerSingleton("Lighting",  lighting);
     SceneLoader::loadScene(cfg.startScene);
     SceneLoader::clearSingletons();
+
+    // 古い形式のYAML対応: System直下のLightingを見つけたら、WorkspaceのLightingにプロパティを移して削除
+    for (auto it = system->children.begin(); it != system->children.end(); ) {
+        if (it->second->IsA("Lighting")) {
+            auto oldLighting = std::static_pointer_cast<Lighting>(it->second);
+            lighting->lightDir = oldLighting->lightDir;
+            lighting->brightness = oldLighting->brightness;
+            it = system->children.erase(it);
+            break;
+        } else {
+            ++it;
+        }
+    }
 
     applyAppIcon(window, system.get());
 
@@ -137,7 +147,7 @@ int main() {
     luauEngine->setGlobalInstance("System", system);
     luauEngine->setWorkspace(workspace);
     luauEngine->setSystem(system.get());
-    physics->onContactCallback = [&](BaseCube* a, BaseCube* b) {
+    Physics::s_contactCallback = [&](BaseCube* a, BaseCube* b) {
         luauEngine->onCollision(a, b);
     };
     renderer->m_onButtonActivated = [&](GuiButton* btn) {
@@ -163,12 +173,12 @@ int main() {
         float deltaTime = now - lastFrame;
         lastFrame       = now;
 
-        physics->update(*workspace, deltaTime);
+        if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->update(*workspace, deltaTime);
         luauEngine->fireHeartbeat(deltaTime);
         luauEngine->update(deltaTime);
-        luauEngine->executeWorkspaceScripts();
+        luauEngine->executeWorkspaceScripts(*workspace);
 
-        user->processInput(*physics);
+        if (workspace->getPhysicsEngine()) user->processInput(*workspace->getPhysicsEngine());
         if (user->wannaExit) break;
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -178,7 +188,7 @@ int main() {
     }
 
     // ---- クリーンアップ ----
-    physics->clearCubes();
+    if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->clearCubes();
     workspace->setPhysicsEngine(nullptr);
     system->removeChild(workspace->Name);
     workspace.reset();

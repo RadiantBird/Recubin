@@ -19,8 +19,11 @@ public:
     void getViewportSize(GLFWwindow* window, int& w, int& h) override {
         glfwGetFramebufferSize(window, &w, &h);
     }
+    unsigned int getViewportFBO() override { return 0; }
+    bool isViewportFocused() override { return true; }
     Instance* getSelectedInstance() override { return nullptr; }
     void clearForImGui(GLFWwindow*) override {}
+
 
     void renderUI(User&, GLFWwindow* window, Workspace& ws) override {
         ImGui_ImplOpenGL3_NewFrame();

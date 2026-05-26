@@ -56,6 +56,7 @@ public:
     Vector3 up;
 
     bool wannaExit = false;
+    bool wantsSwitchWorkspace = false;
     bool isRightMouseRotating = false;
     double lastMouseX = 0.0;
     double lastMouseY = 0.0;

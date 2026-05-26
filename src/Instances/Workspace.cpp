@@ -1,4 +1,5 @@
 #include <Instances/Workspace.hpp>
+#include <Core/Physics.hpp>
 #include <algorithm>
 
 void Workspace::registerScript(const std::shared_ptr<Instance>& s) {
@@ -40,5 +41,12 @@ bool Workspace::IsA(std::string className) {
         return true;
     }
     return Instance::IsA(className);
+}
+
+void Workspace::initPhysics() {
+    if (m_ownedPhysics) return; // 既に初期化済み
+    m_ownedPhysics = std::make_unique<Physics>();
+    m_ownedPhysics->init();
+    physicsEngine = m_ownedPhysics.get();
 }
 

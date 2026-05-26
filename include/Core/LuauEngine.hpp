@@ -138,7 +138,7 @@ public:
     void setWorkspace(const std::shared_ptr<Workspace>& ws);
     void setSystem(System* s);
 
-    void executeWorkspaceScripts();
+    void executeWorkspaceScripts(Workspace& ws);
     void update(float deltaTime);
 
     void fireHeartbeat(float dt);

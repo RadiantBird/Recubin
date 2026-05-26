@@ -1,5 +1,7 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Core/Physics.hpp>
+#include <Instances/Workspace.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/Script.hpp>
@@ -883,6 +885,18 @@ void PropertiesPanel::onRender() {
         strncpy_s(objBuf, pp->ObjectText.c_str(), sizeof(objBuf) - 1);
         if (ImGui::InputText("ObjectText", objBuf, sizeof(objBuf))) {
             pp->ObjectText = std::string(objBuf);
+        }
+    }
+
+    // ---- Workspace ----
+    if (inst->IsA("Workspace")) {
+        Workspace* ws = static_cast<Workspace*>(inst);
+        ImGui::SeparatorText("Workspace");
+        ImGui::Checkbox("PhysicsEnabled", &ws->PhysicsEnabled);
+        float grav[3] = { ws->Gravity.x, ws->Gravity.y, ws->Gravity.z };
+        if (ImGui::DragFloat3("Gravity", grav, 0.1f, -100.0f, 100.0f)) {
+            ws->Gravity = Vector3(grav[0], grav[1], grav[2]);
+            if (ws->getPhysicsEngine()) ws->getPhysicsEngine()->setGravity(ws->Gravity);
         }
     }
 

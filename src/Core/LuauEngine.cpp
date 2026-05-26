@@ -541,14 +541,17 @@ void LuauEngine::setWorkspace(const std::shared_ptr<Workspace>& ws) {
     setGlobalInstance("workspace", ws);
 }
 
-void LuauEngine::executeWorkspaceScripts() {
-    auto ws = workspace.lock();
-    if (!ws) return;
-    
-    // Workspace 内のすべてのスクリプトを実行
-    for (auto& inst : ws->scripts) {
+void LuauEngine::executeWorkspaceScripts(Workspace& ws) {
+    // このWorkspaceのスクリプトが実行される前に workspace グローバルを切り替える
+    auto wsSp = std::static_pointer_cast<Workspace>(ws.shared_from_this());
+    auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+    new (ud) std::weak_ptr<Instance>(wsSp);
+    luaL_getmetatable(L, RCBN_INST_METATABLE);
+    lua_setmetatable(L, -2);
+    lua_setglobal(L, "workspace");
+
+    for (auto& inst : ws.scripts) {
         auto script = std::dynamic_pointer_cast<Script>(inst);
-        // 条件：有効 && 待機中でない && 完了していない && 中断されていない
         if (script && script->Enabled && !script->Sleeping && !script->Completed && !script->Aborted) {
             execute(*script);
         }

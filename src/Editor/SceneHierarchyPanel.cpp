@@ -359,6 +359,11 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
             obj->Name = uniqueName(parentSp, "Model");
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
+        if (ImGui::MenuItem("Workspace") && m_history) {
+            auto obj = std::make_shared<Workspace>();
+            obj->Name = uniqueName(parentSp, "Workspace");
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
         if (ImGui::MenuItem("Lighting") && m_history) {
             auto obj = std::make_shared<Lighting>();
             obj->Name = uniqueName(parentSp, "Lighting");
@@ -439,6 +444,18 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
 
 void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
     if (!inst) return;
+
+    // ---- Workspace 専用ボタン ----
+    if (inst->IsA("Workspace")) {
+        auto* ws = static_cast<Workspace*>(inst);
+        if (ImGui::MenuItem("このworkspaceに切り替える") && onSwitchWorkspace) {
+            onSwitchWorkspace(ws);
+        }
+        if (ImGui::MenuItem("新しいビューポートで開く") && onOpenSecondaryViewport) {
+            onOpenSecondaryViewport(ws);
+        }
+        ImGui::Separator();
+    }
 
     if (ImGui::BeginMenu("Insert Object")) {
         renderInsertMenu(inst);

@@ -8,6 +8,7 @@
 
 #include <include/Math/Matrix4.hpp>
 #include <include/Math/Vector2.hpp>
+#include <include/Math/Quaternion.hpp>
 
 #include <include/Core/User.hpp>
 #include <include/Instances/Cube.hpp>
@@ -31,6 +32,20 @@
 class IEditorManager;
 class GuiButton;
 class SurfaceGui;
+
+struct ViewportRenderDesc {
+    GLuint fbo = 0;
+    int width = 0;
+    int height = 0;
+    Vector3 cameraPosition;
+    Vector3 cameraForward;
+    Vector3 cameraUp;
+    Workspace* workspace = nullptr;
+    bool renderShadows = true;
+    bool renderHighlights = false;
+    bool renderConstraints = true;
+    bool isFocused = false;
+};
 
 class Renderer {
     public:
@@ -65,8 +80,8 @@ class Renderer {
         void init(GLFWwindow* window);
         virtual ~Renderer();
 
-        // 3D シーンのみ描画（FBO へ書き込む場合も同じ関数を使う）
-        void renderScene(User &user, Workspace &workspace);
+        // 統合されたビューポート描画メソッド
+        void renderViewport(const ViewportRenderDesc& desc);
 
         // メインループから呼ぶ統合描画
         void render(User &user, GLFWwindow* window, Workspace &workspace);
