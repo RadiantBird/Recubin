@@ -127,7 +127,24 @@ void EditorManager::render(GLFWwindow* window) {
     if (contentBrowserPanel->isOpen) contentBrowserPanel->onRender();
     if (consolePanel->isOpen)        consolePanel->onRender();
 
+    // ---- セカンダリビューポート ----
+    for (auto& sv : secondaryViewports) {
+        sv->onRender();
+    }
+    // 閉じられたものを削除
+    secondaryViewports.erase(
+        std::remove_if(secondaryViewports.begin(), secondaryViewports.end(),
+                       [](const std::unique_ptr<SecondaryViewportPanel>& sv) { return !sv->m_open; }),
+        secondaryViewports.end());
+
     renderPackageDialog();
+}
+
+void EditorManager::openSecondaryViewport(Workspace* ws) {
+    if (!ws) return;
+    auto wsSp = std::static_pointer_cast<Workspace>(ws->shared_from_this());
+    std::string title = "Viewport: " + ws->Name;
+    secondaryViewports.push_back(std::make_unique<SecondaryViewportPanel>(wsSp, title));
 }
 
 void EditorManager::handleEditorShortcuts() {
@@ -607,6 +624,14 @@ void EditorManager::endViewportRender() {
 void EditorManager::getViewportSize(GLFWwindow*, int& w, int& h) {
     w = viewportPanel->fbWidth;
     h = viewportPanel->fbHeight;
+}
+
+unsigned int EditorManager::getViewportFBO() {
+    return viewportPanel->framebuffer;
+}
+
+bool EditorManager::isViewportFocused() {
+    return IsViewportFocused(viewportPanel.get());
 }
 
 Instance* EditorManager::getSelectedInstance() {

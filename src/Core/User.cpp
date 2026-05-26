@@ -319,13 +319,12 @@ void User::processInput(Physics& physics) {
     }
     lastFKeyPressed = fPressed;
 
-    if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
-        std::cout << "Camera Position: (" << cpos.x << ", " << cpos.y << ", " << cpos.z << ")\n";
-        if (root) {
-            std::cout << "Character (Root) Position: (" << root->Position.x << ", " 
-                      << root->Position.y << ", " << root->Position.z << ")\n";
-        }
+    static bool lastPPressed = false;
+    bool pPressed = (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS);
+    if (pPressed && !lastPPressed) {
+        wantsSwitchWorkspace = true;
     }
+    lastPPressed = pPressed;
 
     // スペースキーでジャンプ
     bool spacePressed = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);

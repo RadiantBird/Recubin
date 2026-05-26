@@ -132,6 +132,10 @@ void LuauEngine::InitDispatchTable_World() {
         lua_setmetatable(L, -2);
         return 1;
     };
+    DispatchTable["Workspace"]["PhysicsEnabled"] = [](lua_State* L, Instance* obj) {
+        lua_pushboolean(L, static_cast<Workspace*>(obj)->PhysicsEnabled ? 1 : 0);
+        return 1;
+    };
     DispatchTable["Workspace"]["Raycast"] = [](lua_State* L, Instance* obj) {
         auto* userdata = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
         new (userdata) std::weak_ptr<Instance>(obj->shared_from_this());
@@ -394,6 +398,11 @@ void LuauEngine::InitSetterTable_World() {
         Vector3* v = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
         ws->Gravity = *v;
         if (ws->getPhysicsEngine()) ws->getPhysicsEngine()->setGravity(*v);
+        return 0;
+    };
+
+    SetterTable["Workspace"]["PhysicsEnabled"] = [](lua_State* L, Instance* obj) {
+        static_cast<Workspace*>(obj)->PhysicsEnabled = lua_toboolean(L, 3) != 0;
         return 0;
     };
 

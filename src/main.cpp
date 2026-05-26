@@ -128,14 +128,12 @@ int main(int argc, char* argv[]) {
     }
 
     auto renderer     = std::make_unique<Renderer>();
-    auto physics      = std::make_unique<Physics>();
     auto audioService = std::make_unique<AudioService>();
     auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
     auto user         = std::make_unique<User>(window);
     user->controlMode = User::ControlMode::Free;
 
-    physics->init();
     renderer->init(window);
 
     if (!audioService->initialize()) {
@@ -143,20 +141,39 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
+    // s_contactCallback を設定（全Physicsインスタンスで共有）
+    Physics::s_contactCallback = [&](BaseCube* a, BaseCube* b) {
+        luauEngine->onCollision(a, b);
+    };
+
     // シングルトンを先に構築して System に接続
     auto workspace = std::make_shared<Workspace>();
     auto lighting  = std::make_shared<Lighting>();
     lighting->Name = "Lighting";
     system->addChild(workspace);
-    system->addChild(lighting);
-    workspace->setPhysicsEngine(physics.get());
+    workspace->addChild(lighting);
+    workspace->initPhysics();
 
-    // YAML が System/Workspace/Lighting を重複生成しないようシングルトン登録してロード
+    // YAML が System/Workspace を重複生成しないようシングルトン登録してロード
     SceneLoader::registerSingleton("System",    system);
     SceneLoader::registerSingleton("Workspace", workspace);
-    SceneLoader::registerSingleton("Lighting",  lighting);
+
     SceneLoader::loadScene("assets/scenes/test_scene.yaml");
     SceneLoader::clearSingletons();
+
+    // 古い形式のYAML対応: System直下のLightingを見つけたら、WorkspaceのLightingにプロパティを移して削除
+    for (auto it = system->children.begin(); it != system->children.end(); ) {
+        if (it->second->IsA("Lighting")) {
+            auto oldLighting = std::static_pointer_cast<Lighting>(it->second);
+            lighting->lightDir = oldLighting->lightDir;
+            lighting->brightness = oldLighting->brightness;
+            it = system->children.erase(it);
+            break;
+        } else {
+            ++it;
+        }
+    }
+
     applyAppIcon(window, system.get());
 
     unsigned int floppa   = renderer->loadTexture("assets/image/floppa2048.jpg");
@@ -169,11 +186,9 @@ int main(int argc, char* argv[]) {
     luauEngine->setGlobalInstance(workspace->Name, workspace);
     luauEngine->setGlobalInstance("workspace", workspace);
     luauEngine->setGlobalInstance("System", system);
+    luauEngine->setGlobalInstance("system", system);
     luauEngine->setWorkspace(workspace);
     luauEngine->setSystem(system.get());
-    physics->onContactCallback = [&](BaseCube* a, BaseCube* b) {
-        luauEngine->onCollision(a, b);
-    };
     renderer->m_onButtonActivated = [&](GuiButton* btn) {
         luauEngine->onGuiButtonActivated(btn);
     };
@@ -184,6 +199,18 @@ int main(int argc, char* argv[]) {
     auto editorOwned = std::make_unique<EditorManager>(workspace.get(), user.get(), system.get());
     EditorManager* ed = editorOwned.get();
     ed->engineExePath = engineExePath;
+
+    // Workspace 切り替えコールバックを設定
+    ed->hierarchyPanel->onSwitchWorkspace = [&](Workspace* ws) {
+        auto wsSp = std::static_pointer_cast<Workspace>(ws->shared_from_this());
+        workspace = wsSp;
+        luauEngine->setGlobalInstance("workspace", workspace);
+        luauEngine->setWorkspace(workspace);
+        ed->setWorkspace(workspace.get());
+    };
+    ed->hierarchyPanel->onOpenSecondaryViewport = [&](Workspace* ws) {
+        ed->openSecondaryViewport(ws);
+    };
     renderer->editor = std::move(editorOwned);
     RCBN_LOG("Editor initialized.");
 
@@ -219,6 +246,13 @@ int main(int argc, char* argv[]) {
             snapshotDirty = ed && ed->isDirty();
             SceneLoader::saveScene(system.get(), snapshotPath);
             SceneLoader::resolveConstraintRefs(system.get());
+            // 全WorkspaceのPhysicsを初期化
+            for (auto& [name, child] : system->getChildren()) {
+                if (child->IsA("Workspace")) {
+                    auto* ws = static_cast<Workspace*>(child.get());
+                    if (!ws->getPhysicsEngine()) ws->initPhysics();
+                }
+            }
             CharacterSetting* cs = findCharacterSetting(system.get());
             user->spawnCharacter(cs);
             if (cs && !cs->facePath.empty()) {
@@ -232,7 +266,13 @@ int main(int argc, char* argv[]) {
         if (!isPlaying && wasPlaying) {
             audioService->stopAllSounds();
             user->despawnCharacter();
-            physics->clearCubes();
+            // 全Workspaceのクリア（ownedPhysics デストラクタで自動解放）
+            for (auto& [name, child] : system->getChildren()) {
+                if (child->IsA("Workspace")) {
+                    auto* ws = static_cast<Workspace*>(child.get());
+                    if (ws->getPhysicsEngine()) ws->getPhysicsEngine()->clearCubes();
+                }
+            }
             system->removeChild(workspace->Name);
 
             auto freshWs = std::make_shared<Workspace>();
@@ -243,7 +283,6 @@ int main(int argc, char* argv[]) {
             workspace = freshWs;
 
             system->addChild(workspace);
-            workspace->setPhysicsEngine(physics.get());
             luauEngine->setGlobalInstance(workspace->Name, workspace);
             luauEngine->setGlobalInstance("workspace", workspace);
             luauEngine->setWorkspace(workspace);
@@ -257,7 +296,12 @@ int main(int argc, char* argv[]) {
             std::string loadPath = ed->pendingLoadPath;
             ed->pendingLoadPath.clear();
 
-            physics->clearCubes();
+            for (auto& [name, child] : system->getChildren()) {
+                if (child->IsA("Workspace")) {
+                    auto* ws = static_cast<Workspace*>(child.get());
+                    if (ws->getPhysicsEngine()) ws->getPhysicsEngine()->clearCubes();
+                }
+            }
             system->removeChild(workspace->Name);
 
             auto freshWs = std::make_shared<Workspace>();
@@ -269,7 +313,6 @@ int main(int argc, char* argv[]) {
             workspace = freshWs;
 
             system->addChild(workspace);
-            workspace->setPhysicsEngine(physics.get());
             luauEngine->setGlobalInstance(workspace->Name, workspace);
             luauEngine->setGlobalInstance("workspace", workspace);
             luauEngine->setWorkspace(workspace);
@@ -280,23 +323,61 @@ int main(int argc, char* argv[]) {
 
         // ---- エディターモード中は物理・スクリプトを止める ----
         if (isPlaying && !isPaused) {
-            physics->update(*workspace.get(), deltaTime);
+            for (auto& [name, child] : system->getChildren()) {
+                if (!child->IsA("Workspace")) continue;
+                auto* ws = static_cast<Workspace*>(child.get());
+                if (!ws->getPhysicsEngine()) ws->initPhysics();
+                luauEngine->executeWorkspaceScripts(*ws);
+                ws->getPhysicsEngine()->update(*ws, deltaTime);
+            }
             luauEngine->fireHeartbeat(deltaTime);
             luauEngine->update(deltaTime);
-            luauEngine->executeWorkspaceScripts();
         }
 
         // ---- 入力処理（エディターモードではカメラ操作のみ許可）----
         ViewportPanel* vp = ed ? ed->viewportPanel.get() : nullptr;
         state.viewportFocused    = vp && IsViewportFocused(vp);
         state.viewportZoomEnabled = vp && (IsViewportFocused(vp) || vp->isHoveringViewport);
-        user->processInput(*physics);
+        if (workspace->getPhysicsEngine())
+            user->processInput(*workspace->getPhysicsEngine());
         if (user->wannaExit) {
             user->wannaExit = false;
             if (checkExit(ed, *window)) {
                 break;
             }
         }
+
+        // ---- Pキー: Workspace 切り替え ----
+        if (user->wantsSwitchWorkspace && isPlaying) {
+            user->wantsSwitchWorkspace = false;
+            // System直下のWorkspaceリストを収集
+            std::vector<Workspace*> workspaces;
+            for (auto& [name, child] : system->getChildren()) {
+                if (child->IsA("Workspace"))
+                    workspaces.push_back(static_cast<Workspace*>(child.get()));
+            }
+            if (workspaces.size() > 1) {
+                auto it = std::find(workspaces.begin(), workspaces.end(), workspace.get());
+                Workspace* next = (it != workspaces.end() && std::next(it) != workspaces.end())
+                    ? *std::next(it) : workspaces.front();
+                if (next != workspace.get()) {
+                    // キャラクターを新Workspaceに移動（ワールド座標維持）
+                    if (user->character) {
+                        Vector3 worldPos = user->character->getWorldPosition();
+                        auto charSp = std::static_pointer_cast<Instance>(user->character);
+                        workspace->children.erase(user->character->Name);
+                        next->addChild(charSp);
+                        user->character->Position = worldPos;
+                    }
+                    // activeWorkspace 更新
+                    workspace = std::static_pointer_cast<Workspace>(next->shared_from_this());
+                    luauEngine->setGlobalInstance("workspace", workspace);
+                    luauEngine->setWorkspace(workspace);
+                    ed->setWorkspace(workspace.get());
+                }
+            }
+        }
+        user->wantsSwitchWorkspace = false;
 
         // ---- 描画 ----
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -318,9 +399,14 @@ int main(int argc, char* argv[]) {
         ed->m_history.clear();
         ed->clearClipboard();
     }
-    physics->clearCubes();
-    workspace->setPhysicsEngine(nullptr);
-    system->removeChild(workspace->Name);
+    // 全WorkspaceのPhysicsをクリア（m_ownedPhysics デストラクタで PxScene 解放）
+    for (auto& [name, child] : system->getChildren()) {
+        if (child->IsA("Workspace")) {
+            auto* ws = static_cast<Workspace*>(child.get());
+            if (ws->getPhysicsEngine()) ws->getPhysicsEngine()->clearCubes();
+            ws->setPhysicsEngine(nullptr);
+        }
+    }
     workspace.reset();
     system.reset();
 

@@ -7,18 +7,26 @@
 #include <queue>
 
 // ===================================================
+//  static メンバ定義
+// ===================================================
+physx::PxFoundation*            Physics::s_foundation  = nullptr;
+physx::PxPhysics*               Physics::s_pxPhysics   = nullptr;
+physx::PxDefaultCpuDispatcher*  Physics::s_dispatcher  = nullptr;
+physx::PxDefaultAllocator       Physics::s_allocator;
+physx::PxDefaultErrorCallback   Physics::s_errorCallback;
+int                             Physics::s_refCount    = 0;
+std::function<void(BaseCube*, BaseCube*)> Physics::s_contactCallback;
+
+// ===================================================
 //  衝突通知コールバック
 // ===================================================
 struct RCBNContactCallback : physx::PxSimulationEventCallback {
-    Physics* m_physics;
-    explicit RCBNContactCallback(Physics* p) : m_physics(p) {}
-
     void onContact(const physx::PxContactPairHeader& header,
                    const physx::PxContactPair*, physx::PxU32) override {
         auto* a = static_cast<BaseCube*>(header.actors[0]->userData);
         auto* b = static_cast<BaseCube*>(header.actors[1]->userData);
-        if (a && b && m_physics->onContactCallback)
-            m_physics->onContactCallback(a, b);
+        if (a && b && Physics::s_contactCallback)
+            Physics::s_contactCallback(a, b);
     }
     void onTrigger(physx::PxTriggerPair*, physx::PxU32) override {}
     void onWake(physx::PxActor**, physx::PxU32) override {}
@@ -50,18 +58,23 @@ Vector3 Physics::getGravity() const {
 }
 
 void Physics::init() {
-    foundation = PxCreateFoundation(PX_PHYSICS_VERSION, allocator, errorCallback);
-    physics = PxCreatePhysics(PX_PHYSICS_VERSION, *foundation, physx::PxTolerancesScale());
-    
-    physx::PxSceneDesc sceneDesc(physics->getTolerancesScale());
-    sceneDesc.gravity = physx::PxVec3(0.0f, -9.81f, 0.0f); // 重力設定
-    sceneDesc.cpuDispatcher = physx::PxDefaultCpuDispatcherCreate(1);
-    sceneDesc.filterShader  = rcbnFilterShader;
-    m_contactCallback = new RCBNContactCallback(this);
+    // 最初のインスタンスのみ共有リソースを構築
+    if (s_refCount == 0) {
+        s_foundation = PxCreateFoundation(PX_PHYSICS_VERSION, s_allocator, s_errorCallback);
+        s_pxPhysics  = PxCreatePhysics(PX_PHYSICS_VERSION, *s_foundation, physx::PxTolerancesScale());
+        s_dispatcher = physx::PxDefaultCpuDispatcherCreate(1);
+        PxInitExtensions(*s_pxPhysics, nullptr);
+    }
+    ++s_refCount;
+
+    physx::PxSceneDesc sceneDesc(s_pxPhysics->getTolerancesScale());
+    sceneDesc.gravity               = physx::PxVec3(0.0f, -9.81f, 0.0f);
+    sceneDesc.cpuDispatcher         = s_dispatcher;
+    sceneDesc.filterShader          = rcbnFilterShader;
+    m_contactCallback               = new RCBNContactCallback();
     sceneDesc.simulationEventCallback = m_contactCallback;
     sceneDesc.flags |= physx::PxSceneFlag::eENABLE_CCD;
-    scene = physics->createScene(sceneDesc);
-    PxInitExtensions(*physics, nullptr);
+    scene = s_pxPhysics->createScene(sceneDesc);
 }
 
 Physics::~Physics() {
@@ -75,8 +88,6 @@ Physics::~Physics() {
         }
         m_constraints.clear();
 
-        // Weld compound アクターのリリース（cube->actor が compound を指しているため
-        // cubes ループで重複リリースしないよう、リリース済みポインタを nullptr にする）
         std::unordered_set<physx::PxRigidActor*> released;
         for (auto& entry : cubes) {
             if (entry.actor && released.find(entry.actor) == released.end()) {
@@ -93,17 +104,17 @@ Physics::~Physics() {
         scene->release();
         scene = nullptr;
     }
-    PxCloseExtensions();
-    if (physics) {
-        physics->release();
-        physics = nullptr;
-    }
-    if (foundation) {
-        foundation->release();
-        foundation = nullptr;
-    }
     delete m_contactCallback;
     m_contactCallback = nullptr;
+
+    // 最後のインスタンスが共有リソースを解放
+    --s_refCount;
+    if (s_refCount == 0) {
+        PxCloseExtensions();
+        if (s_dispatcher) { s_dispatcher->release(); s_dispatcher = nullptr; }
+        if (s_pxPhysics)  { s_pxPhysics->release();  s_pxPhysics  = nullptr; }
+        if (s_foundation) { s_foundation->release();  s_foundation = nullptr; }
+    }
 }
 
 void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
@@ -118,11 +129,11 @@ void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
 
     physx::PxRigidActor* actor = nullptr;
     if (cube->Anchored) {
-        physx::PxRigidDynamic* kin = physics->createRigidDynamic(transform);
+        physx::PxRigidDynamic* kin = s_pxPhysics->createRigidDynamic(transform);
         kin->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
         actor = kin;
     } else {
-        physx::PxRigidDynamic* dynamicActor = physics->createRigidDynamic(transform);
+        physx::PxRigidDynamic* dynamicActor = s_pxPhysics->createRigidDynamic(transform);
         dynamicActor->setRigidDynamicLockFlags(cube->LockFlags);
         dynamicActor->setRigidBodyFlag(physx::PxRigidBodyFlag::eENABLE_CCD, true);
         dynamicActor->setSolverIterationCounts(8, 2);
@@ -144,7 +155,7 @@ void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
     }
     case PhysicsShape::ConvexMesh: {
         auto verts = cube->getConvexVertices();
-        physx::PxCookingParams cookParams(physics->getTolerancesScale());
+        physx::PxCookingParams cookParams(s_pxPhysics->getTolerancesScale());
         physx::PxConvexMeshDesc desc;
         desc.points.count  = static_cast<physx::PxU32>(verts.size());
         desc.points.stride = sizeof(physx::PxVec3);
@@ -158,7 +169,7 @@ void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
             return;
         }
         physx::PxDefaultMemoryInputData input(buf.getData(), buf.getSize());
-        physx::PxConvexMesh* mesh = physics->createConvexMesh(input);
+        physx::PxConvexMesh* mesh = s_pxPhysics->createConvexMesh(input);
         physx::PxMeshScale scale(physx::PxVec3(cube->Size.x, cube->Size.y, cube->Size.z));
         physx::PxConvexMeshGeometry geom(mesh, scale);
         physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *pxMat);
@@ -232,7 +243,7 @@ physx::PxMaterial* Physics::getOrCreateMaterial(const Material& m) {
         return materialCache[m.type];
     }
 
-    physx::PxMaterial* pxMat = physics->createMaterial(m.staticFriction, m.dynamicFriction, m.restitution);
+    physx::PxMaterial* pxMat = s_pxPhysics->createMaterial(m.staticFriction, m.dynamicFriction, m.restitution);
     materialCache[m.type] = pxMat;
     return pxMat;
 }
@@ -371,27 +382,27 @@ void Physics::removeCube(const std::shared_ptr<BaseCube>& cube) {
 }
 
 void Physics::update(Workspace& workspace, float dt) {
-    // d_print("Update Frame Start | dt: " << dt);
-    static float accumulator = 0.0f;
+    if (!workspace.PhysicsEnabled) return;
+    setGravity(workspace.Gravity);
+
     const float fixedStep = 1.0f / 60.0f;
     const int MAX_STEPS = 10;
 
-    // あまりにデカすぎるdt（フリーズ後など）は、ここで切り捨てる
-    if (dt > 0.25f) dt = 0.25f; 
+    if (dt > 0.25f) dt = 0.25f;
 
-    accumulator += dt;
+    m_accumulator += dt;
 
     int steps = 0;
-    while (accumulator >= fixedStep) {
+    while (m_accumulator >= fixedStep) {
         scene->simulate(fixedStep);
         scene->fetchResults(true);
 
-        accumulator -= fixedStep;
+        m_accumulator -= fixedStep;
         steps++;
 
         // 安全装置の発動
         if (steps >= MAX_STEPS) {
-            accumulator = 0.0f; // 追いつけない分は「なかったこと」にする（スローモーション化）
+            m_accumulator = 0.0f; // 追いつけない分は「なかったこと」にする（スローモーション化）
             RCBN_WARN("Physics safety break engaged! (Spiral of Death prevented)");
             break;
         }
@@ -494,7 +505,7 @@ void Physics::createRope(const std::shared_ptr<Rope>& rope) {
     }
 
     physx::PxDistanceJoint* joint = PxDistanceJointCreate(
-        *physics, c0->actor, frame0, c1->actor, frame1
+        *s_pxPhysics, c0->actor, frame0, c1->actor, frame1
     );
     joint->setMaxDistance(dist);
     joint->setMinDistance(0.0f);
@@ -531,7 +542,7 @@ void Physics::createRod(const std::shared_ptr<Rod>& rod) {
     float dist = (p1 - p0).magnitude();
 
     physx::PxDistanceJoint* joint = PxDistanceJointCreate(
-        *physics, c0->actor, frame0, c1->actor, frame1
+        *s_pxPhysics, c0->actor, frame0, c1->actor, frame1
     );
     joint->setMaxDistance(dist);
     joint->setMinDistance(dist);
@@ -546,7 +557,7 @@ void Physics::createRod(const std::shared_ptr<Rod>& rod) {
 
 // Weld 用シェイプ追加ヘルパー
 static void attachShapeToCompound(
-    physx::PxPhysics* physics,
+    physx::PxPhysics* px,
     const std::shared_ptr<BaseCube>& cube,
     physx::PxRigidDynamic* compound,
     const physx::PxTransform& localOffset,
@@ -555,7 +566,7 @@ static void attachShapeToCompound(
     switch (cube->getPhysicsShape()) {
     case PhysicsShape::Box: {
         physx::PxBoxGeometry geom(cube->Size.x / 2, cube->Size.y / 2, cube->Size.z / 2);
-        physx::PxShape* shape = physics->createShape(geom, *mat);
+        physx::PxShape* shape = px->createShape(geom, *mat);
         shape->setLocalPose(localOffset);
         compound->attachShape(*shape);
         shape->release();
@@ -563,7 +574,7 @@ static void attachShapeToCompound(
     }
     case PhysicsShape::Sphere: {
         physx::PxSphereGeometry geom(cube->Size.x / 2.0f);
-        physx::PxShape* shape = physics->createShape(geom, *mat);
+        physx::PxShape* shape = px->createShape(geom, *mat);
         shape->setLocalPose(localOffset);
         compound->attachShape(*shape);
         shape->release();
@@ -617,7 +628,7 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
 
     // 4. compound 生成（assembly[0] を原点）
     physx::PxTransform originPose = savedPoses[assembly[0].get()];
-    physx::PxRigidDynamic* compound = physics->createRigidDynamic(originPose);
+    physx::PxRigidDynamic* compound = s_pxPhysics->createRigidDynamic(originPose);
     compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eENABLE_CCD, true);
     compound->setSolverIterationCounts(8, 2);
 
@@ -627,7 +638,7 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
             ? physx::PxTransform(physx::PxIdentity)
             : originPose.getInverse().transform(savedPoses[cube.get()]);
         physx::PxMaterial* mat = getOrCreateMaterial(cube->material);
-        attachShapeToCompound(physics, cube, compound, localOffset, mat);
+        attachShapeToCompound(s_pxPhysics, cube, compound, localOffset, mat);
         cube->actor = compound;
         cube->m_compoundLocalOffset = localOffset;
     }
@@ -787,7 +798,7 @@ void Physics::createMotor(const std::shared_ptr<Motor>& motor) {
     physx::PxTransform frame1 = pose1.transformInv(physx::PxTransform(pivotWorld, axisRot));
 
     physx::PxRevoluteJoint* joint = PxRevoluteJointCreate(
-        *physics, c0->actor, frame0, c1->actor, frame1
+        *s_pxPhysics, c0->actor, frame0, c1->actor, frame1
     );
     if (!joint) {
         RCBN_WARN("Motor \"" << motor->Name << "\": PxRevoluteJointCreate failed");

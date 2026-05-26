@@ -7,6 +7,7 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/ContentBrowserPanel.hpp>
 #include <Editor/ViewportPanel.hpp>
+#include <Editor/SecondaryViewportPanel.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
@@ -43,6 +44,10 @@ public:
     std::unique_ptr<ContentBrowserPanel> contentBrowserPanel;
     std::unique_ptr<ViewportPanel>       viewportPanel;
 
+    // セカンダリビューポート（複数可）
+    std::vector<std::unique_ptr<SecondaryViewportPanel>> secondaryViewports;
+    void openSecondaryViewport(Workspace* ws);
+
     std::string scenePath      = "assets/scenes/test_scene.yaml";
     std::string pendingLoadPath;  // 非空のとき main.cpp がリロードを実行する
 
@@ -64,6 +69,8 @@ public:
 
     // IEditorManager 追加メソッド
     void getViewportSize(GLFWwindow* window, int& w, int& h) override;
+    unsigned int getViewportFBO() override;
+    bool isViewportFocused() override;
     Instance* getSelectedInstance() override;
     void clearForImGui(GLFWwindow* window) override;
     void renderUI(User& user, GLFWwindow* window, Workspace& workspace) override;

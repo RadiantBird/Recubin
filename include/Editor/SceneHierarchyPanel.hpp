@@ -3,6 +3,7 @@
 #include <Instances/Workspace.hpp>
 #include <Instances/Instance.hpp>
 #include <Core/User.hpp>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -22,6 +23,10 @@ public:
     CommandHistory*              m_history   = nullptr;
     std::shared_ptr<Instance>*   m_clipboard = nullptr;  // EditorManager::m_clipboard へのポインタ
     User*                        m_user      = nullptr;
+
+    // Workspace 操作コールバック（main.cpp が設定）
+    std::function<void(Workspace*)> onSwitchWorkspace;
+    std::function<void(Workspace*)> onOpenSecondaryViewport;
 
     SceneHierarchyPanel();
     void onRender() override;

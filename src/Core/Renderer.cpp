@@ -387,48 +387,41 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
 }
 
 // ===================================================
-//  3D シーン描画（FBO または既定の FB に描く）
+//  統合されたビューポート描画
 // ===================================================
-void Renderer::renderScene(User& user, Workspace& workspace) {
-    int width, height;
-    if (editor) {
-        editor->getViewportSize(m_window, width, height);
-    } else if (m_window) {
-        glfwGetFramebufferSize(m_window, &width, &height);
-    } else {
-        width = 1280; height = 720;
-    }
-    if (height == 0) height = 1;
+void Renderer::renderViewport(const ViewportRenderDesc& desc) {
+    if (!desc.workspace || desc.width <= 0 || desc.height <= 0) return;
 
-    glViewport(0, 0, width, height);
+    GLint prevFBO = 0;
+    GLint prevViewport[4] = {};
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
+    glGetIntegerv(GL_VIEWPORT, prevViewport);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, desc.fbo);
+    glViewport(0, 0, desc.width, desc.height);
+    glClearColor(0.08f, 0.09f, 0.11f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    float aspect = (float)width / (float)height;
+    float aspect = (float)desc.width / (float)desc.height;
     Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
-    Vector3 target = user.cpos + user.forward;
-    Matrix4 view   = Matrix4::LookAt(user.cpos, target, user.up);
+    Matrix4 view       = Matrix4::LookAt(desc.cameraPosition, desc.cameraPosition + desc.cameraForward, desc.cameraUp);
 
-    // System（Workspace の親）から Lighting を探し、uniform を更新
-    Lighting* lighting = nullptr;
-    {
-        auto systemSp = workspace.Parent.lock();
-        Lighting* workspaceLighting = findLightingInTree(static_cast<Instance*>(&workspace));
-        Lighting* systemLighting = findLightingInTree(systemSp ? systemSp.get() : static_cast<Instance*>(&workspace));
-        lighting = workspaceLighting ? workspaceLighting : systemLighting;
-    }
+    // Workspace 内から Lighting を取得
+    Lighting* lighting = findLightingInTree(static_cast<Instance*>(desc.workspace));
 
-    // Skybox の位置をカメラに同期
-    for (auto const& [name, child] : workspace.getChildren()) {
-        if (child->IsA("Skybox")) {
-            static_cast<BaseCube*>(child.get())->teleportTo(user.cpos);
+    // Skybox の位置をカメラに同期 (フォーカス中のみ)
+    if (desc.isFocused) {
+        for (auto const& [name, child] : desc.workspace->getChildren()) {
+            if (child->IsA("Skybox")) {
+                static_cast<BaseCube*>(child.get())->teleportTo(desc.cameraPosition);
+            }
         }
     }
 
     // ---- Shadow Pass ----
     Matrix4 lightSpaceMatrix;
     bool shadowReady = false;
-    if (lighting && shadowFBO && shadowMapTex && depthShader) {
-        // lightDir を正規化して light eye 位置を計算
+    if (desc.renderShadows && lighting && shadowFBO && shadowMapTex && depthShader) {
         Vector3 ld = lighting->lightDir;
         float len = std::sqrt(ld.x*ld.x + ld.y*ld.y + ld.z*ld.z);
         if (len > 0.001f) { ld.x /= len; ld.y /= len; ld.z /= len; }
@@ -437,11 +430,6 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
         Matrix4 lightView = Matrix4::LookAt(lightEye, Vector3(0.0f, 0.0f, 0.0f), upVec);
         Matrix4 lightProj = Matrix4::Ortho(-80.0f, 80.0f, -80.0f, 80.0f, 0.1f, 400.0f);
         lightSpaceMatrix = lightProj * lightView;
-
-        GLint prevFBO = 0;
-        GLint prevViewport[4] = {};
-        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
-        glGetIntegerv(GL_VIEWPORT, prevViewport);
 
         glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
         glViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
@@ -480,81 +468,73 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
                 self(self, child.get());
             }
         };
-        for (auto const& [name, child] : workspace.getChildren()) {
+        for (auto const& [name, child] : desc.workspace->getChildren()) {
             shadowRender(shadowRender, child.get());
         }
 
-        glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
-        glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
         shadowReady = true;
+        // メインFBOに戻す
+        glBindFramebuffer(GL_FRAMEBUFFER, desc.fbo);
+        glViewport(0, 0, desc.width, desc.height);
     }
-
-
 
     // ---- Main Pass ----
     glUseProgram(shaderProgram);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),       1, GL_FALSE, view.m);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, projection.m);
-    glUniform3f(glGetUniformLocation(shaderProgram, "viewPos"),
-                user.cpos.x, user.cpos.y, user.cpos.z);
+    glUniform3f(glGetUniformLocation(shaderProgram, "viewPos"), desc.cameraPosition.x, desc.cameraPosition.y, desc.cameraPosition.z);
+    
     if (lighting) {
         if (lightDirLoc   != -1) glUniform3f(lightDirLoc,   lighting->lightDir.x,  lighting->lightDir.y,  lighting->lightDir.z);
         if (brightnessLoc != -1) glUniform1f(brightnessLoc, lighting->brightness);
     }
-    // Shadow map をテクスチャユニット 1 にバインド
+    
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, shadowMapTex ? shadowMapTex : 0);
+    glBindTexture(GL_TEXTURE_2D, shadowReady ? shadowMapTex : 0);
     glActiveTexture(GL_TEXTURE0);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, lightSpaceMatrix.m);
-    glUniform1f(glGetUniformLocation(shaderProgram, "hasShadows"),
-                shadowReady ? 1.0f : 0.0f);
+    glUniform1f(glGetUniformLocation(shaderProgram, "hasShadows"), shadowReady ? 1.0f : 0.0f);
 
-    int modelLoc = glGetUniformLocation(shaderProgram, "model");
+    int modelLoc        = glGetUniformLocation(shaderProgram, "model");
+    int unlitLoc        = glGetUniformLocation(shaderProgram, "unlit");
+    int triplanarLoc    = glGetUniformLocation(shaderProgram, "useTriplanar");
+    int texScaleLoc     = glGetUniformLocation(shaderProgram, "u_textureScale");
     glBindVertexArray(VAO);
 
-    int unlitLoc          = glGetUniformLocation(shaderProgram, "unlit");
-    int triplanarLoc      = glGetUniformLocation(shaderProgram, "useTriplanar");
-    int textureScaleLoc   = glGetUniformLocation(shaderProgram, "u_textureScale");
-
-    auto renderInstances = [&](auto& self, Instance* inst) -> void {
+    auto renderInst = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
         if (inst->IsA("BaseCube")) {
             BaseCube* bc = static_cast<BaseCube*>(inst);
-            if (unlitLoc        != -1) glUniform1f(unlitLoc,        bc->Unlit          ? 1.0f : 0.0f);
-            if (triplanarLoc    != -1) glUniform1f(triplanarLoc,    bc->UseTriplanar   ? 1.0f : 0.0f);
-            if (textureScaleLoc != -1) glUniform1f(textureScaleLoc, bc->TextureScale);
+            if (unlitLoc     != -1) glUniform1f(unlitLoc,     bc->Unlit        ? 1.0f : 0.0f);
+            if (triplanarLoc != -1) glUniform1f(triplanarLoc, bc->UseTriplanar ? 1.0f : 0.0f);
+            if (texScaleLoc  != -1) glUniform1f(texScaleLoc,  bc->TextureScale);
         }
-        
         if (inst->IsA("Cube")) {
             Cube* cube = static_cast<Cube*>(inst);
             if (cube->Color.a > 0.001f) {
-                Matrix4 modelMat = cube->getWorldCFrame().toMatrix4() *
-                                   Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
+                Matrix4 m = cube->getWorldCFrame().toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
                 cube->draw(modelLoc, shaderProgram);
             }
         } else if (inst->IsA("Cylinder")) {
             Cylinder* c = static_cast<Cylinder*>(inst);
             if (c->Color.a > 0.001f) {
-                Matrix4 modelMat = c->getWorldCFrame().toMatrix4() *
-                                   Matrix4::Scale(c->Size.x, c->Size.y, c->Size.z);
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
+                Matrix4 m = c->getWorldCFrame().toMatrix4() * Matrix4::Scale(c->Size.x, c->Size.y, c->Size.z);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
                 c->draw(modelLoc, shaderProgram);
             }
         } else if (inst->IsA("TriangularPrism")) {
             TriangularPrism* tp = static_cast<TriangularPrism*>(inst);
             if (tp->Color.a > 0.001f) {
-                Matrix4 modelMat = tp->getWorldCFrame().toMatrix4() *
-                                   Matrix4::Scale(tp->Size.x, tp->Size.y, tp->Size.z);
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
+                Matrix4 m = tp->getWorldCFrame().toMatrix4() * Matrix4::Scale(tp->Size.x, tp->Size.y, tp->Size.z);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
                 tp->draw(modelLoc, shaderProgram);
             }
         } else if (inst->IsA("Sphere")) {
             Sphere* sp = static_cast<Sphere*>(inst);
             if (sp->Color.a > 0.001f) {
-                Matrix4 modelMat = sp->getWorldCFrame().toMatrix4() *
-                                   Matrix4::Scale(sp->Size.x, sp->Size.y, sp->Size.z);
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
+                Matrix4 m = sp->getWorldCFrame().toMatrix4() * Matrix4::Scale(sp->Size.x, sp->Size.y, sp->Size.z);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
                 sp->draw(modelLoc, shaderProgram);
             }
         }
@@ -563,68 +543,98 @@ void Renderer::renderScene(User& user, Workspace& workspace) {
         }
     };
 
-    for (auto const& [name, child] : workspace.getChildren()) {
-        renderInstances(renderInstances, child.get());
+    for (auto const& [name, child] : desc.workspace->getChildren()) {
+        renderInst(renderInst, child.get());
     }
 
     // ---- 選択インスタンスの黄色ワイヤーフレームハイライト ----
-    if (Instance* sel = editor ? editor->getSelectedInstance() : nullptr) {
-        // 親が無効（ツリーから除去済み）なインスタンスはスキップ
-        if (!sel->Parent.expired() && sel->IsA("BaseCube")) {
-            BaseCube* bc = static_cast<BaseCube*>(sel);
-            Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
-                               Matrix4::Scale(bc->Size.x * 1.02f,
-                                              bc->Size.y * 1.02f,
-                                              bc->Size.z * 1.02f);
-            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
-            int colorLocHl = glGetUniformLocation(shaderProgram, "ourColor");
-            if (colorLocHl != -1) glUniform4f(colorLocHl, 1.0f, 1.0f, 0.0f, 1.0f);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, whiteTexture);
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-            glLineWidth(2.0f);
-            // 形状ごとに正しいVAOをバインドしてワイヤーフレームを描画
-            if (sel->IsA("Cylinder")) {
-                glBindVertexArray(Cylinder::s_VAO);
-                glDrawElements(GL_TRIANGLES, Cylinder::s_IndexCount, GL_UNSIGNED_INT, nullptr);
-            } else if (sel->IsA("TriangularPrism")) {
-                glBindVertexArray(TriangularPrism::s_VAO);
-                glDrawElements(GL_TRIANGLES, TriangularPrism::s_IndexCount, GL_UNSIGNED_INT, nullptr);
-            } else if (sel->IsA("Sphere")) {
-                glBindVertexArray(Sphere::s_VAO);
-                glDrawElements(GL_TRIANGLES, Sphere::s_IndexCount, GL_UNSIGNED_INT, nullptr);
-            } else {
-                glBindVertexArray(Cube::s_VAO);
-                glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    if (desc.renderHighlights && editor) {
+        if (Instance* sel = editor->getSelectedInstance()) {
+            if (!sel->Parent.expired() && sel->IsA("BaseCube")) {
+                BaseCube* bc = static_cast<BaseCube*>(sel);
+                Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
+                                   Matrix4::Scale(bc->Size.x * 1.02f, bc->Size.y * 1.02f, bc->Size.z * 1.02f);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
+                int colorLocHl = glGetUniformLocation(shaderProgram, "ourColor");
+                if (colorLocHl != -1) glUniform4f(colorLocHl, 1.0f, 1.0f, 0.0f, 1.0f);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, whiteTexture);
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                glLineWidth(2.0f);
+                if (sel->IsA("Cylinder")) {
+                    glBindVertexArray(Cylinder::s_VAO);
+                    glDrawElements(GL_TRIANGLES, Cylinder::s_IndexCount, GL_UNSIGNED_INT, nullptr);
+                } else if (sel->IsA("TriangularPrism")) {
+                    glBindVertexArray(TriangularPrism::s_VAO);
+                    glDrawElements(GL_TRIANGLES, TriangularPrism::s_IndexCount, GL_UNSIGNED_INT, nullptr);
+                } else if (sel->IsA("Sphere")) {
+                    glBindVertexArray(Sphere::s_VAO);
+                    glDrawElements(GL_TRIANGLES, Sphere::s_IndexCount, GL_UNSIGNED_INT, nullptr);
+                } else {
+                    glBindVertexArray(Cube::s_VAO);
+                    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+                }
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                glLineWidth(1.0f);
             }
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-            glLineWidth(1.0f);
         }
     }
 
     // ---- 制約ビジュアライズ（Rope/Rod） ----
-    renderConstraints(workspace, view, projection);
+    if (desc.renderConstraints) {
+        renderConstraints(*desc.workspace, view, projection);
+    }
 
-    // GUI 描画のためにビュー/プロジェクション行列を保存
-    m_lastView = view;
-    m_lastProj = projection;
-
+    glBindVertexArray(0);
+    glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
+    glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+    
+    // GUI 描画のためにビュー/プロジェクション行列を保存 (Primary Viewport用と仮定)
+    if (desc.renderHighlights) { 
+        m_lastView = view;
+        m_lastProj = projection;
+    }
 }
 
 // ===================================================
 //  メインループから呼ぶ統合描画
 // ===================================================
 void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
-    // 1. 3D シーンを描画（FBO or デフォルト FB は editor 実装が決定する）
-    editor->beginViewportRender();
-    renderScene(user, workspace);
-    editor->endViewportRender();
+    // Primary Viewport用の描画（スタンドアロンまたはエディターのメインビュー）
+    ViewportRenderDesc desc;
+    desc.workspace = &workspace;
+    desc.cameraPosition = user.cpos;
+    desc.cameraForward  = user.forward;
+    desc.cameraUp       = user.up;
+    desc.renderShadows = true;
+    desc.renderConstraints = true;
 
-    // 2. 既定のフレームバッファをクリア（ImGui 用。ランタイムは no-op）
-    editor->clearForImGui(window);
+    int width, height;
+    if (editor) {
+        editor->getViewportSize(window, width, height);
+        desc.fbo = editor->getViewportFBO();
+        desc.renderHighlights = true;
+        desc.isFocused = editor->isViewportFocused();
+    } else {
+        glfwGetFramebufferSize(window, &width, &height);
+        desc.fbo = 0;
+        desc.renderHighlights = false;
+        desc.isFocused = true; // スタンドアロンの場合は常にフォーカスされているとみなす
+    }
+    
+    desc.width = width;
+    desc.height = height > 0 ? height : 1;
 
-    // 3. ImGui フレーム描画（ランタイムは no-op）
-    editor->renderUI(user, window, workspace);
+    // Viewport描画を実行
+    // EditorManagerがFBOをバインドしている場合は、renderViewport内で正しく上書き・復元される
+    renderViewport(desc);
+
+    if (editor) {
+        // 既定のフレームバッファをクリア（ImGui 用）
+        editor->clearForImGui(window);
+        // ImGui フレーム描画
+        editor->renderUI(user, window, workspace);
+    }
 
     glfwSwapBuffers(window);
     glfwPollEvents();
@@ -692,5 +702,3 @@ unsigned int Renderer::loadTexture(const char* path) {
     textureCache[pathStr] = textureID;
     return textureID;
 }
-
-
