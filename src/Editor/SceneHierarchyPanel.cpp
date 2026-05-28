@@ -281,43 +281,18 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
     }
 }
 
-// ヘルパー: インスタンス名の重複を避けて連番を付ける
-static std::string uniqueName(const std::shared_ptr<Instance>& parent, const std::string& base) {
-    std::string name = base;
-    int n = 1;
-    while (parent->children.count(name) > 0)
-        name = base + std::to_string(n++);
-    return name;
-}
-
 void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
     auto parentSp = inst->shared_from_this();
 
     // ---- Cube系 ----
     if (ImGui::BeginMenu("Cube系")) {
-        auto spawnPos = [this]() {
-            return computeSpawnPos(m_user, workspace);
-        };
-        if (ImGui::MenuItem("Cube") && m_history) {
-            auto obj = std::make_shared<Cube>(spawnPos(), Vector3(1, 1, 1), Cube::defaultTextureID);
-            obj->Name = uniqueName(parentSp, "Cube");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("Cylinder") && m_history) {
-            auto obj = std::make_shared<Cylinder>(spawnPos(), Vector3(1, 1, 1));
-            obj->Name = uniqueName(parentSp, "Cylinder");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("TriangularPrism") && m_history) {
-            auto obj = std::make_shared<TriangularPrism>(spawnPos(), Vector3(1, 1, 1));
-            obj->Name = uniqueName(parentSp, "TriangularPrism");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("Sphere") && m_history) {
-            auto obj = std::make_shared<Sphere>(spawnPos(), Vector3(1, 1, 1));
-            obj->Name = uniqueName(parentSp, "Sphere");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
+        auto spawnPos = computeSpawnPos(m_user, workspace);
+        
+        tryInsertInstance<Cube>(m_history, "Cube", parentSp, spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
+        tryInsertInstance<Cylinder>(m_history, "Cylinder", parentSp, spawnPos, Vector3(1, 1, 1));
+        tryInsertInstance<TriangularPrism>(m_history, "TriangularPrism", parentSp, spawnPos, Vector3(1, 1, 1));
+        tryInsertInstance<Sphere>(m_history, "Sphere", parentSp, spawnPos, Vector3(1, 1, 1));
+        
         ImGui::EndMenu();
     }
 
@@ -328,89 +303,41 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
             obj->Name = uniqueName(parentSp, "Sound");
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
-        if (AudioService::instance == nullptr)
+        if (AudioService::instance == nullptr) {
             ImGui::SetItemTooltip("AudioService が利用できません");
-        if (ImGui::MenuItem("Decal") && m_history) {
-            auto obj = std::make_shared<Decal>(0, Face::Front);
-            obj->Name = uniqueName(parentSp, "Decal");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
-        if (ImGui::MenuItem("Texture") && m_history) {
-            auto obj = std::make_shared<Texture>(0, Face::Front);
-            obj->Name = uniqueName(parentSp, "Texture");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
+        tryInsertInstance<Decal>(m_history, "Decal", parentSp, 0, Face::Front);
+        tryInsertInstance<Texture>(m_history, "Texture", parentSp, 0, Face::Front);
+        
         ImGui::EndMenu();
     }
 
     // ---- その他 ----
     if (ImGui::BeginMenu("その他")) {
+        // Scriptはダイアログを開く特殊な挙動なのでそのまま
         if (ImGui::MenuItem("Script")) {
             m_pendingScriptParent = parentSp;
             m_openScriptDialog    = true;
         }
-        if (ImGui::MenuItem("Folder") && m_history) {
-            auto obj = std::make_shared<Folder>();
-            obj->Name = uniqueName(parentSp, "Folder");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("Model") && m_history) {
-            auto obj = std::make_shared<Model>(Vector3(0,0,0), Vector3(1,1,1));
-            obj->Name = uniqueName(parentSp, "Model");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("Workspace") && m_history) {
-            auto obj = std::make_shared<Workspace>();
-            obj->Name = uniqueName(parentSp, "Workspace");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("Lighting") && m_history) {
-            auto obj = std::make_shared<Lighting>();
-            obj->Name = uniqueName(parentSp, "Lighting");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("AppImage") && m_history) {
-            auto obj = std::make_shared<AppImage>();
-            obj->Name = uniqueName(parentSp, "AppImage");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("CharacterSetting") && m_history) {
-            auto obj = std::make_shared<CharacterSetting>();
-            obj->Name = uniqueName(parentSp, "CharacterSetting");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
+        
+        tryInsertInstance<Folder>(m_history, "Folder", parentSp);
+        tryInsertInstance<Model>(m_history, "Model", parentSp, Vector3(0, 0, 0), Vector3(1, 1, 1));
+        tryInsertInstance<Workspace>(m_history, "Workspace", parentSp);
+        tryInsertInstance<Lighting>(m_history, "Lighting", parentSp);
+        tryInsertInstance<AppImage>(m_history, "AppImage", parentSp);
+        tryInsertInstance<CharacterSetting>(m_history, "CharacterSetting", parentSp);
+        
         ImGui::EndMenu();
     }
 
     // ---- GUI ----
     if (ImGui::BeginMenu("GUI")) {
-        if (ImGui::MenuItem("TextLabel") && m_history) {
-            auto obj = std::make_shared<TextLabel>();
-            obj->Name = uniqueName(parentSp, "TextLabel");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("TextButton") && m_history) {
-            auto obj = std::make_shared<TextButton>();
-            obj->Name = uniqueName(parentSp, "TextButton");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("SurfaceGui") && m_history) {
-            auto obj = std::make_shared<SurfaceGui>();
-            printf("\033[46m pointer: %p\033[0m\n", obj.get());
-            obj->Name = uniqueName(parentSp, "SurfaceGui");
-            printf("\033[46m %p is a SurfaceGui\033[0m\n", obj.get());
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("BillboardGui") && m_history) {
-            auto obj = std::make_shared<BillboardGui>();
-                        obj->Name = uniqueName(parentSp, "BillboardGui");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("ProximityPrompt") && m_history) {
-            auto obj = std::make_shared<ProximityPrompt>();
-            obj->Name = uniqueName(parentSp, "ProximityPrompt");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
+        tryInsertInstance<TextLabel>(m_history, "TextLabel", parentSp);
+        tryInsertInstance<TextButton>(m_history, "TextButton", parentSp);
+        tryInsertInstance<SurfaceGui>(m_history, "SurfaceGui", parentSp);
+        tryInsertInstance<BillboardGui>(m_history, "BillboardGui", parentSp);
+        tryInsertInstance<ProximityPrompt>(m_history, "ProximityPrompt", parentSp);
+        
         ImGui::EndMenu();
     }
 
@@ -418,26 +345,12 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
     if (ImGui::BeginMenu("物理制約")) {
         ImGui::TextDisabled("2つのCube名をPropertiesで設定");
         ImGui::Separator();
-        if (ImGui::MenuItem("Weld") && m_history) {
-            auto obj = std::make_shared<Weld>();
-            obj->Name = uniqueName(parentSp, "Weld");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("Motor") && m_history) {
-            auto obj = std::make_shared<Motor>();
-            obj->Name = uniqueName(parentSp, "Motor");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("Rod") && m_history) {
-            auto obj = std::make_shared<Rod>();
-            obj->Name = uniqueName(parentSp, "Rod");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("Rope") && m_history) {
-            auto obj = std::make_shared<Rope>();
-            obj->Name = uniqueName(parentSp, "Rope");
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
+        
+        tryInsertInstance<Weld>(m_history, "Weld", parentSp);
+        tryInsertInstance<Motor>(m_history, "Motor", parentSp);
+        tryInsertInstance<Rod>(m_history, "Rod", parentSp);
+        tryInsertInstance<Rope>(m_history, "Rope", parentSp);
+        
         ImGui::EndMenu();
     }
 }

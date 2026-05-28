@@ -164,7 +164,7 @@ void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
         physx::PxDefaultMemoryOutputStream buf;
         physx::PxConvexMeshCookingResult::Enum result;
         if (!PxCookConvexMesh(cookParams, desc, buf, &result)) {
-            RCBN_WARN("ConvexMesh cooking failed for: " << cube->Name);
+            // RCBN_WARN("ConvexMesh cooking failed for: " << cube->Name);
             actor->release();
             return;
         }
@@ -434,7 +434,7 @@ void Physics::update(Workspace& workspace, float dt) {
                 it->actor->release();
                 it->actor = nullptr;
             }
-            RCBN_LOG("Cleaned up removed cube from Physics: " << (cube ? cube->Name : "Unknown"));
+            // RCBN_LOG("Cleaned up removed cube from Physics: " << (cube ? cube->Name : "Unknown"));
             it = cubes.erase(it);
         } else {
             ++it;
@@ -520,18 +520,18 @@ void Physics::createRope(const std::shared_ptr<Rope>& rope) {
 
     rope->m_joint = joint;
     m_constraints.push_back({ std::weak_ptr<Instance>(rope), joint });
-    RCBN_LOG("Rope \"" << rope->Name << "\" created, maxDistance=" << dist);
+    // // RCBN_LOG("Rope \"" << rope->Name << "\" created, maxDistance=" << dist);
 }
 
 void Physics::createRod(const std::shared_ptr<Rod>& rod) {
     auto c0 = rod->m_cube0.lock();
     auto c1 = rod->m_cube1.lock();
     if (!c0 || !c1) {
-        RCBN_WARN("Rod \"" << rod->Name << "\": cube refs unresolved (c0=" << (c0?"ok":"null") << ", c1=" << (c1?"ok":"null") << ")");
+        // RCBN_WARN("Rod \"" << rod->Name << "\": cube refs unresolved (c0=" << (c0?"ok":"null") << ", c1=" << (c1?"ok":"null") << ")");
         return;
     }
     if (!c0->actor || !c1->actor) {
-        RCBN_WARN("Rod \"" << rod->Name << "\": actors not ready");
+        // RCBN_WARN("Rod \"" << rod->Name << "\": actors not ready");
         return;
     }
 
@@ -581,7 +581,7 @@ static void attachShapeToCompound(
         break;
     }
     case PhysicsShape::ConvexMesh:
-        RCBN_WARN("Weld: ConvexMesh shape in compound not supported yet, skipping");
+        // RCBN_WARN("Weld: ConvexMesh shape in compound not supported yet, skipping");
         break;
     }
 }
@@ -721,11 +721,11 @@ void Physics::createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace
     auto c0 = weld->m_cube0.lock();
     auto c1 = weld->m_cube1.lock();
     if (!c0 || !c1) {
-        RCBN_WARN("Weld \"" << weld->Name << "\": cube refs unresolved");
+        // RCBN_WARN("Weld \"" << weld->Name << "\": cube refs unresolved");
         return;
     }
     if (!c0->actor || !c1->actor) {
-        RCBN_WARN("Weld \"" << weld->Name << "\": actors not ready");
+        // RCBN_WARN("Weld \"" << weld->Name << "\": actors not ready");
         return;
     }
 
@@ -745,7 +745,7 @@ void Physics::createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace
     if (!alreadyRegistered) {
         m_constraints.push_back({ std::weak_ptr<Instance>(weld), nullptr });
     }
-    RCBN_LOG("Weld \"" << weld->Name << "\" created (group size: " << assembly.size() << ")");
+    // RCBN_LOG("Weld \"" << weld->Name << "\" created (group size: " << assembly.size() << ")");
 }
 
 // (1,0,0) を to ベクトルに回転させる最短回転クォータニオンを計算
