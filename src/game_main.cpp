@@ -178,7 +178,7 @@ int main() {
         luauEngine->update(deltaTime);
         luauEngine->executeWorkspaceScripts(*workspace);
 
-        if (workspace->getPhysicsEngine()) user->processInput(*workspace->getPhysicsEngine());
+        user->processInput(workspace->getPhysicsEngine());
         if (user->wannaExit) break;
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

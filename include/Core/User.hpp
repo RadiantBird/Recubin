@@ -68,7 +68,7 @@ public:
     ~User();
 
     void updateVectors();
-    void processInput(class Physics& physics);
+    void processInput(class Physics* physics);
     void spawnCharacter(class CharacterSetting* cs = nullptr);
     void despawnCharacter();
     static User* getInstance() { return s_instance; }

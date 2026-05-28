@@ -458,6 +458,11 @@ void EditorManager::renderToolbar() {
             else {
                 RCBN_LOG("[???] User instance is null.");
             }
+            
+            if (viewportPanel) {
+                ViewportFocusManager::getInstance().onFocusViewport(viewportPanel.get());
+                ImGui::SetWindowFocus(viewportPanel->title.c_str());
+            }
         }
         ImGui::PopStyleColor();
     }

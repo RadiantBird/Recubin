@@ -113,6 +113,7 @@ bool checkExit(EditorManager* ed, GLFWwindow& window) {
     return false;
 }
 
+
 // ===================================================
 //  main
 // ===================================================
@@ -132,7 +133,7 @@ int main(int argc, char* argv[]) {
     auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
     auto user         = std::make_unique<User>(window);
-    user->controlMode = User::ControlMode::Free;
+    user->controlMode = User::ControlMode::Free; // エディターではフリーモードから開始(パッケージされたゲームランタイムはCharacterモードから開始)
 
     renderer->init(window);
 
@@ -176,13 +177,6 @@ int main(int argc, char* argv[]) {
 
     applyAppIcon(window, system.get());
 
-    unsigned int floppa   = renderer->loadTexture("assets/image/floppa2048.jpg");
-    unsigned int thecat   = renderer->loadTexture("assets/image/the-cat.png");
-    unsigned int saladcat = renderer->loadTexture("assets/image/salad-cat.jpg");
-    unsigned int smile    = renderer->loadTexture("assets/image/smile.png");
-    unsigned int bliss    = renderer->loadTexture("assets/image/bliss.jpg");
-    unsigned int limabis  = renderer->loadTexture("assets/image/Limabis_logo.png");
-    unsigned int hehe     = renderer->loadTexture("assets/image/hehe.png");
     luauEngine->setGlobalInstance(workspace->Name, workspace);
     luauEngine->setGlobalInstance("workspace", workspace);
     luauEngine->setGlobalInstance("System", system);
@@ -219,10 +213,24 @@ int main(int argc, char* argv[]) {
     bool snapshotDirty = false;
     const std::string snapshotPath = "assets/scenes/_snapshot.yaml";
 
-    // RCBN_LOG("For debbuging, stopping here...");
-    // int garbage = 0; // anti optimize
-    // std::cin >> garbage;
-    // RCBN_LOG(garbage);
+    auto initNewScene = [&](const std::string& path, bool isDirty) {
+        auto freshWs = std::make_shared<Workspace>();
+        SceneLoader::registerSingleton("System",    system);
+        SceneLoader::registerSingleton("Workspace", freshWs);
+        SceneLoader::registerSingleton("Lighting",  lighting);
+        SceneLoader::loadScene(path);
+        SceneLoader::clearSingletons();
+        workspace = freshWs;
+
+        system->addChild(workspace);
+        luauEngine->setGlobalInstance(workspace->Name, workspace);
+        luauEngine->setGlobalInstance("workspace", workspace);
+        luauEngine->setWorkspace(workspace);
+        ed->setWorkspace(workspace.get());
+        if (isDirty) ed->markDirty();
+        
+        workspace->initPhysics();
+    };
 
     while (true) { // this loop is broken
         if (glfwWindowShouldClose(window)) {
@@ -275,19 +283,7 @@ int main(int argc, char* argv[]) {
             }
             system->removeChild(workspace->Name);
 
-            auto freshWs = std::make_shared<Workspace>();
-            SceneLoader::registerSingleton("Workspace", freshWs);
-            SceneLoader::registerSingleton("Lighting",  lighting);
-            SceneLoader::loadScene(snapshotPath);
-            SceneLoader::clearSingletons();
-            workspace = freshWs;
-
-            system->addChild(workspace);
-            luauEngine->setGlobalInstance(workspace->Name, workspace);
-            luauEngine->setGlobalInstance("workspace", workspace);
-            luauEngine->setWorkspace(workspace);
-            ed->setWorkspace(workspace.get());
-            if (snapshotDirty) ed->markDirty();
+            initNewScene(snapshotPath, snapshotDirty);
         }
         wasPlaying = isPlaying;
 
@@ -304,19 +300,7 @@ int main(int argc, char* argv[]) {
             }
             system->removeChild(workspace->Name);
 
-            auto freshWs = std::make_shared<Workspace>();
-            SceneLoader::registerSingleton("System",    system);
-            SceneLoader::registerSingleton("Workspace", freshWs);
-            SceneLoader::registerSingleton("Lighting",  lighting);
-            SceneLoader::loadScene(loadPath);
-            SceneLoader::clearSingletons();
-            workspace = freshWs;
-
-            system->addChild(workspace);
-            luauEngine->setGlobalInstance(workspace->Name, workspace);
-            luauEngine->setGlobalInstance("workspace", workspace);
-            luauEngine->setWorkspace(workspace);
-            ed->setWorkspace(workspace.get());
+            initNewScene(loadPath, false);
             ed->scenePath = loadPath;
             applyAppIcon(window, system.get());
         }
@@ -338,8 +322,7 @@ int main(int argc, char* argv[]) {
         ViewportPanel* vp = ed ? ed->viewportPanel.get() : nullptr;
         state.viewportFocused    = vp && IsViewportFocused(vp);
         state.viewportZoomEnabled = vp && (IsViewportFocused(vp) || vp->isHoveringViewport);
-        if (workspace->getPhysicsEngine())
-            user->processInput(*workspace->getPhysicsEngine());
+        user->processInput(workspace->getPhysicsEngine());
         if (user->wannaExit) {
             user->wannaExit = false;
             if (checkExit(ed, *window)) {
