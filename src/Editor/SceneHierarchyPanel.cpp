@@ -364,7 +364,7 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
         if (ImGui::MenuItem("このworkspaceに切り替える") && onSwitchWorkspace) {
             onSwitchWorkspace(ws);
         }
-        if (ImGui::MenuItem("新しいビューポートで開く") && onOpenSecondaryViewport) {
+        if (ImGui::MenuItem("新しいビューポートで開く(非推奨、バグあり)") && onOpenSecondaryViewport) {
             onOpenSecondaryViewport(ws);
         }
         ImGui::Separator();

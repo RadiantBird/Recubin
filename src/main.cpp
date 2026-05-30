@@ -81,6 +81,39 @@ static CharacterSetting* findCharacterSetting(Instance* inst) {
     return nullptr;
 }
 
+static std::vector<std::shared_ptr<Workspace>> collectWorkspaces(const std::shared_ptr<System>& system) {
+    std::vector<std::shared_ptr<Workspace>> result;
+    if (!system) return result;
+
+    for (auto& [name, child] : system->getChildren()) {
+        if (child && child->IsA("Workspace")) {
+            result.push_back(std::static_pointer_cast<Workspace>(child));
+        }
+    }
+    return result;
+}
+
+static void clearWorkspacePhysics(const std::vector<std::shared_ptr<Workspace>>& workspaces) {
+    for (auto& ws : workspaces) {
+        if (ws && ws->getPhysicsEngine()) {
+            ws->getPhysicsEngine()->clearCubes();
+        }
+    }
+}
+
+static void removeWorkspacesFromSystem(
+    const std::shared_ptr<System>& system,
+    const std::vector<std::shared_ptr<Workspace>>& workspaces)
+{
+    if (!system) return;
+
+    for (auto& ws : workspaces) {
+        if (ws) {
+            system->removeChild(ws->Name);
+        }
+    }
+}
+
 // AppImage インスタンスを Root から探してウィンドウアイコンを設定する
 void applyAppIcon(GLFWwindow* window, Instance* root) {
     if (!window || !root) return;
@@ -147,28 +180,37 @@ int main(int argc, char* argv[]) {
         luauEngine->onCollision(a, b);
     };
 
-    // シングルトンを先に構築して System に接続
-    auto workspace = std::make_shared<Workspace>();
-    auto lighting  = std::make_shared<Lighting>();
-    lighting->Name = "Lighting";
-    system->addChild(workspace);
-    workspace->addChild(lighting);
-    workspace->initPhysics();
+    std::vector<std::shared_ptr<Workspace>> workspaces;
+    std::shared_ptr<Workspace> workspace;
 
-    // YAML が System/Workspace を重複生成しないようシングルトン登録してロード
-    SceneLoader::registerSingleton("System",    system);
-    SceneLoader::registerSingleton("Workspace", workspace);
+    // Register only System so YAML can keep multiple Workspace nodes.
+    SceneLoader::registerSingleton("System", system);
 
     SceneLoader::loadScene("assets/scenes/test_scene.yaml");
     SceneLoader::clearSingletons();
+
+    workspaces = collectWorkspaces(system);
+    if (workspaces.empty()) {
+        workspace = std::make_shared<Workspace>();
+        auto lighting = std::make_shared<Lighting>();
+        lighting->Name = "Lighting";
+        system->addChild(workspace);
+        workspace->addChild(lighting);
+        workspaces = collectWorkspaces(system);
+    }
+    workspace = workspaces.front();
+    workspace->initPhysics();
 
     // 古い形式のYAML対応: System直下のLightingを見つけたら、WorkspaceのLightingにプロパティを移して削除
     for (auto it = system->children.begin(); it != system->children.end(); ) {
         if (it->second->IsA("Lighting")) {
             auto oldLighting = std::static_pointer_cast<Lighting>(it->second);
+            auto lighting = std::make_shared<Lighting>();
+            lighting->Name = oldLighting->Name;
             lighting->lightDir = oldLighting->lightDir;
             lighting->brightness = oldLighting->brightness;
             it = system->children.erase(it);
+            workspace->addChild(lighting);
             break;
         } else {
             ++it;
@@ -197,6 +239,7 @@ int main(int argc, char* argv[]) {
     // Workspace 切り替えコールバックを設定
     ed->hierarchyPanel->onSwitchWorkspace = [&](Workspace* ws) {
         auto wsSp = std::static_pointer_cast<Workspace>(ws->shared_from_this());
+        workspaces = collectWorkspaces(system);
         workspace = wsSp;
         luauEngine->setGlobalInstance("workspace", workspace);
         luauEngine->setWorkspace(workspace);
@@ -214,15 +257,17 @@ int main(int argc, char* argv[]) {
     const std::string snapshotPath = "assets/scenes/_snapshot.yaml";
 
     auto initNewScene = [&](const std::string& path, bool isDirty) {
-        auto freshWs = std::make_shared<Workspace>();
-        SceneLoader::registerSingleton("System",    system);
-        SceneLoader::registerSingleton("Workspace", freshWs);
-        SceneLoader::registerSingleton("Lighting",  lighting);
+        SceneLoader::registerSingleton("System", system);
         SceneLoader::loadScene(path);
         SceneLoader::clearSingletons();
-        workspace = freshWs;
 
-        system->addChild(workspace);
+        workspaces = collectWorkspaces(system);
+        if (workspaces.empty()) {
+            workspace = std::make_shared<Workspace>();
+            system->addChild(workspace);
+            workspaces = collectWorkspaces(system);
+        }
+        workspace = workspaces.front();
         luauEngine->setGlobalInstance(workspace->Name, workspace);
         luauEngine->setGlobalInstance("workspace", workspace);
         luauEngine->setWorkspace(workspace);
@@ -275,13 +320,9 @@ int main(int argc, char* argv[]) {
             audioService->stopAllSounds();
             user->despawnCharacter();
             // 全Workspaceのクリア（ownedPhysics デストラクタで自動解放）
-            for (auto& [name, child] : system->getChildren()) {
-                if (child->IsA("Workspace")) {
-                    auto* ws = static_cast<Workspace*>(child.get());
-                    if (ws->getPhysicsEngine()) ws->getPhysicsEngine()->clearCubes();
-                }
-            }
-            system->removeChild(workspace->Name);
+            workspaces = collectWorkspaces(system);
+            clearWorkspacePhysics(workspaces);
+            removeWorkspacesFromSystem(system, workspaces);
 
             initNewScene(snapshotPath, snapshotDirty);
         }
@@ -292,13 +333,9 @@ int main(int argc, char* argv[]) {
             std::string loadPath = ed->pendingLoadPath;
             ed->pendingLoadPath.clear();
 
-            for (auto& [name, child] : system->getChildren()) {
-                if (child->IsA("Workspace")) {
-                    auto* ws = static_cast<Workspace*>(child.get());
-                    if (ws->getPhysicsEngine()) ws->getPhysicsEngine()->clearCubes();
-                }
-            }
-            system->removeChild(workspace->Name);
+            workspaces = collectWorkspaces(system);
+            clearWorkspacePhysics(workspaces);
+            removeWorkspacesFromSystem(system, workspaces);
 
             initNewScene(loadPath, false);
             ed->scenePath = loadPath;
@@ -334,21 +371,21 @@ int main(int argc, char* argv[]) {
         if (user->wantsSwitchWorkspace && isPlaying) {
             user->wantsSwitchWorkspace = false;
             // System直下のWorkspaceリストを収集
-            std::vector<Workspace*> workspaces;
-            for (auto& [name, child] : system->getChildren()) {
-                if (child->IsA("Workspace"))
-                    workspaces.push_back(static_cast<Workspace*>(child.get()));
+            std::vector<Workspace*> workspacePtrs;
+            workspaces = collectWorkspaces(system);
+            for (auto& ws : workspaces) {
+                if (ws) workspacePtrs.push_back(ws.get());
             }
-            if (workspaces.size() > 1) {
-                auto it = std::find(workspaces.begin(), workspaces.end(), workspace.get());
-                Workspace* next = (it != workspaces.end() && std::next(it) != workspaces.end())
-                    ? *std::next(it) : workspaces.front();
+            if (workspacePtrs.size() > 1) {
+                auto it = std::find(workspacePtrs.begin(), workspacePtrs.end(), workspace.get());
+                Workspace* next = (it != workspacePtrs.end() && std::next(it) != workspacePtrs.end())
+                    ? *std::next(it) : workspacePtrs.front();
                 if (next != workspace.get()) {
                     // キャラクターを新Workspaceに移動（ワールド座標維持）
                     if (user->character) {
                         Vector3 worldPos = user->character->getWorldPosition();
                         auto charSp = std::static_pointer_cast<Instance>(user->character);
-                        workspace->children.erase(user->character->Name);
+                        workspace->removeChild(user->character->Name);
                         next->addChild(charSp);
                         user->character->Position = worldPos;
                     }
@@ -383,14 +420,16 @@ int main(int argc, char* argv[]) {
         ed->clearClipboard();
     }
     // 全WorkspaceのPhysicsをクリア（m_ownedPhysics デストラクタで PxScene 解放）
-    for (auto& [name, child] : system->getChildren()) {
-        if (child->IsA("Workspace")) {
-            auto* ws = static_cast<Workspace*>(child.get());
-            if (ws->getPhysicsEngine()) ws->getPhysicsEngine()->clearCubes();
+    workspaces = collectWorkspaces(system);
+    for (auto& ws : workspaces) {
+        if (ws && ws->getPhysicsEngine()) {
+            ws->getPhysicsEngine()->clearCubes();
             ws->setPhysicsEngine(nullptr);
         }
     }
+    removeWorkspacesFromSystem(system, workspaces);
     workspace.reset();
+    workspaces.clear();
     system.reset();
 
     glfwTerminate();

@@ -10,4 +10,5 @@ class System : public Instance {
         System(string name = "System");
         string GetClassName() override;
         bool IsA(std::string className) override;
+        void addChild(std::shared_ptr<Instance> child) override;
 };
