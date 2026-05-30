@@ -8,6 +8,16 @@ Root:
           Properties:
             Direction: [1, -1, -1]
             Brightness: 1
+        - ClassName: Rope
+          Name: Rope
+          Properties:
+            Cube0: Branch
+            Cube1: Saw
+            MaxDistance: 3
+            Stiffness: 100
+            Damping: 10
+            Color: [0.3, 0.9, 1, 1]
+            LineWidth: 2.5
         - ClassName: Cube
           Name: Cube111
           Properties:
@@ -30,16 +40,6 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
-        - ClassName: Rope
-          Name: Rope
-          Properties:
-            Cube0: Branch
-            Cube1: Saw
-            MaxDistance: 3
-            Stiffness: 100
-            Damping: 10
-            Color: [0.3, 0.9, 1, 1]
-            LineWidth: 2.5
         - ClassName: Cube
           Name: Baseplate
           Properties:
@@ -61,6 +61,17 @@ Root:
                 StudsPerTileV: 1
                 Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\Grass_Texture.png
         - ClassName: Cube
+          Name: Cube1
+          Properties:
+            Position: [8.118143, -6.9850116, 35.223503]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
           Name: Cube12
           Properties:
             Position: [8.118143, -8.859938, 35.223503]
@@ -74,7 +85,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [0, -2, 5]
+            Position: [-23.207306, 2.4033613, 114.279274]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -93,21 +104,6 @@ Root:
           Name: HiGeorge
           Properties:
             ContentPath: C:\Users\Ryarta\Documents\TestLuau\HiGeorge.luau
-        - ClassName: Cube
-          Name: Cube1
-          Properties:
-            Position: [8.118143, -6.9850116, 35.223503]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Script
-          Name: 2006
-          Properties:
-            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\2006.luau
         - ClassName: TriangularPrism
           Name: TriangularPrism
           Properties:
@@ -119,6 +115,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+        - ClassName: Script
+          Name: 2006
+          Properties:
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\2006.luau
         - ClassName: Cube
           Name: Floppa1
           Properties:
@@ -132,30 +132,30 @@ Root:
             Unlit: false
           Children:
             - ClassName: Decal
-              Name: Decal_Left
+              Name: Decal_Front
               Properties:
-                Face: 5
-                Texture: assets/image/Limabis_logo.png
+                Face: 0
+                Texture: assets/image/floppa2048.jpg
             - ClassName: Decal
               Name: Decal_Top
               Properties:
                 Face: 2
                 Texture: assets/image/salad-cat.jpg
             - ClassName: Decal
-              Name: Decal_Front
+              Name: Decal_Left
               Properties:
-                Face: 0
-                Texture: assets/image/floppa2048.jpg
-            - ClassName: Decal
-              Name: Decal_Bottom
-              Properties:
-                Face: 3
-                Texture: assets/image/smile.png
+                Face: 5
+                Texture: assets/image/Limabis_logo.png
             - ClassName: Decal
               Name: Decal_Back
               Properties:
                 Face: 1
                 Texture: assets/image/the-cat.png
+            - ClassName: Decal
+              Name: Decal_Bottom
+              Properties:
+                Face: 3
+                Texture: assets/image/smile.png
             - ClassName: Decal
               Name: Decal_Right
               Properties:
@@ -292,3 +292,26 @@ Root:
         RightLegColor: [0, 0.14117648, 0.31764707, 1]
         JumpPower: 7
         MoveSpeed: 5
+    - ClassName: Workspace
+      Name: Workspace1
+      Children:
+        - ClassName: Cube
+          Name: Baseplate
+          Properties:
+            Position: [0, -10, 0]
+            Size: [128, 1, 128]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.29230767, 1, 0.9804022, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Texture
+              Name: Texture_Top
+              Properties:
+                Face: 2
+                Color: [1, 1, 1, 1]
+                StudsPerTileU: 1
+                StudsPerTileV: 1
+                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\Grass_Texture.png

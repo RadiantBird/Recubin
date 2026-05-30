@@ -2,3 +2,6 @@ external
 build/
 sound/
 temp_build/
+
+imgui.ini
+_snapshot.yaml
