@@ -45,6 +45,8 @@ class Workspace : public Instance {
 
         bool IsA(std::string className) override;
 
+        void setProperty(const std::string& name, const YAML::Node& value) override;
+
         // Physics エンジンをセット（外部から渡す場合）
         void setPhysicsEngine(Physics* engine) { physicsEngine = engine; }
 

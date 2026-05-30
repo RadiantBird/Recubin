@@ -31,6 +31,15 @@
 #include <shobjidl.h>
 #include <shellapi.h>
 
+static bool hierarchyContainsInstance(Instance* root, Instance* target) {
+    if (!root || !target) return false;
+    if (root == target) return true;
+    for (auto& [name, child] : root->children) {
+        if (hierarchyContainsInstance(child.get(), target)) return true;
+    }
+    return false;
+}
+
 static std::string pickFile() {
     std::string result;
     IFileOpenDialog* pfd = nullptr;
@@ -106,7 +115,15 @@ void SceneHierarchyPanel::onRender() {
         return;
     }
 
-    drawNode(systemRoot ? systemRoot : static_cast<Instance*>(workspace));
+    Instance* root = systemRoot ? systemRoot : static_cast<Instance*>(workspace);
+    selectedInstances.erase(std::remove_if(selectedInstances.begin(), selectedInstances.end(),
+        [root](Instance* inst) { return !hierarchyContainsInstance(root, inst); }),
+        selectedInstances.end());
+    if (!hierarchyContainsInstance(root, selectedInstance)) {
+        selectedInstance = selectedInstances.empty() ? nullptr : selectedInstances.back();
+    }
+
+    drawNode(root);
 
     // 選択中インスタンスへの右クリックメニュー（ウィンドウ内の空白エリアでも表示）
     if (selectedInstance &&
@@ -177,12 +194,15 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
                 auto p = check->Parent.lock();
                 check = p ? p.get() : nullptr;
             }
-            if (!isSelfOrDescendant && dragged->Parent.lock() && m_history) {
+            if (!isSelfOrDescendant && dragged && dragged->Parent.lock() && m_history) {
                 auto oldParent = dragged->Parent.lock();
                 auto newParent = inst->shared_from_this();
-                auto child     = oldParent->children.at(dragged->Name);
-                m_history->execute(std::make_unique<MoveInstanceCommand>(oldParent, newParent, child));
-                selectedInstance = dragged;
+                auto it = oldParent->children.find(dragged->Name);
+                if (it != oldParent->children.end()) {
+                    auto child = it->second;
+                    m_history->execute(std::make_unique<MoveInstanceCommand>(oldParent, newParent, child));
+                    selectedInstance = dragged;
+                }
             }
         }
         ImGui::EndDragDropTarget();
@@ -382,13 +402,16 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
     if (ImGui::MenuItem("Delete", "BackSpace") && m_history) {
         auto parent = inst->Parent.lock();
         if (parent) {
-            auto childPtr = parent->children.at(inst->Name);
-            m_history->execute(std::make_unique<RemoveInstanceCommand>(parent, inst->Name, childPtr));
-            selectedInstances.erase(
-                std::remove(selectedInstances.begin(), selectedInstances.end(), inst),
-                selectedInstances.end());
-            if (selectedInstance == inst)
-                selectedInstance = selectedInstances.empty() ? nullptr : selectedInstances.back();
+            auto it = parent->children.find(inst->Name);
+            if (it != parent->children.end()) {
+                auto childPtr = it->second;
+                m_history->execute(std::make_unique<RemoveInstanceCommand>(parent, inst->Name, childPtr));
+                selectedInstances.erase(
+                    std::remove(selectedInstances.begin(), selectedInstances.end(), inst),
+                    selectedInstances.end());
+                if (selectedInstance == inst)
+                    selectedInstance = selectedInstances.empty() ? nullptr : selectedInstances.back();
+            }
         }
     }
 

@@ -376,7 +376,8 @@ bool LuauEngine::execute(Script& script) {
             static LuarCompiler s_luarCompiler;
             compiledSource = s_luarCompiler.compile(script.Source);
             if (compiledSource.empty()) { script.Aborted = true; return false; }
-            std::cerr << "[LuarCompiler] Output:\n" << compiledSource << "\n---\n";
+            RCBN_LOG("\033[32m Compiling Luar Source has succeeded!\033[0m");
+            // std::cerr << "[LuarCompiler] Output:\n" << compiledSource << "\n---\n";
             sourcePtr = &compiledSource;
         }
 

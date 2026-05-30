@@ -43,6 +43,20 @@ bool Workspace::IsA(std::string className) {
     return Instance::IsA(className);
 }
 
+void Workspace::setProperty(const std::string& name, const YAML::Node& value) {
+    if (name == "Gravity") {
+        if (value.IsSequence() && value.size() == 3) {
+            Gravity.x = value[0].as<float>();
+            Gravity.y = value[1].as<float>();
+            Gravity.z = value[2].as<float>();
+        }
+    } else if (name == "PhysicsEnabled") {
+        PhysicsEnabled = value.as<bool>();
+    } else {
+        Instance::setProperty(name, value);
+    }
+}
+
 void Workspace::initPhysics() {
     if (m_ownedPhysics) return; // 既に初期化済み
     m_ownedPhysics = std::make_unique<Physics>();

@@ -19,6 +19,15 @@
 #include <algorithm>
 #include <Util/Logger.hpp>
 
+static bool treeContainsInstance(Instance* root, Instance* target) {
+    if (!root || !target) return false;
+    if (root == target) return true;
+    for (auto& [name, child] : root->children) {
+        if (treeContainsInstance(child.get(), target)) return true;
+    }
+    return false;
+}
+
 // ===================================================
 //  EditorManager 実装
 // ===================================================
@@ -60,6 +69,7 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
 void EditorManager::render(GLFWwindow* window) {
     // Edit モード中は L キーによるモード切替をブロック
     if (m_user) m_user->allowControlModeSwitch = !isEditMode();
+    cleanupOrphanedSelection();
 
     // ---- エディターショートカット処理 ----
     if (isEditMode()) handleEditorShortcuts();
@@ -183,13 +193,19 @@ void EditorManager::handleEditorShortcuts() {
             if (sel) {
                 auto parent = sel->Parent.lock();
                 if (parent) {
-                    auto childPtr = parent->children.at(sel->Name);
-                    m_history.execute(std::make_unique<RemoveInstanceCommand>(
-                        parent, sel->Name, childPtr));
-                    auto& si = hierarchyPanel->selectedInstances;
-                    si.erase(std::remove(si.begin(), si.end(), sel), si.end());
-                    hierarchyPanel->selectedInstance = si.empty() ? nullptr : si.back();
-                    m_isDirty = true;
+                    auto it = parent->children.find(sel->Name);
+                    if (it != parent->children.end()) {
+                        auto childPtr = it->second;
+                        m_history.execute(std::make_unique<RemoveInstanceCommand>(
+                            parent, sel->Name, childPtr));
+                        auto& si = hierarchyPanel->selectedInstances;
+                        si.erase(std::remove(si.begin(), si.end(), sel), si.end());
+                        hierarchyPanel->selectedInstance = si.empty() ? nullptr : si.back();
+                        m_isDirty = true;
+                    } else {
+                        hierarchyPanel->selectedInstance = nullptr;
+                        hierarchyPanel->selectedInstances.clear();
+                    }
                 }
             }
         }
@@ -586,11 +602,11 @@ void EditorManager::renderToolbar() {
 }
 
 void EditorManager::cleanupOrphanedSelection() {
+    Instance* root = m_system ? m_system : static_cast<Instance*>(m_workspace);
     auto& si = hierarchyPanel->selectedInstances;
     si.erase(std::remove_if(si.begin(), si.end(),
-        [](Instance* i){ return !i || i->Parent.expired(); }), si.end());
-    if (hierarchyPanel->selectedInstance &&
-        hierarchyPanel->selectedInstance->Parent.expired()) {
+        [root](Instance* i){ return !treeContainsInstance(root, i); }), si.end());
+    if (!treeContainsInstance(root, hierarchyPanel->selectedInstance)) {
         hierarchyPanel->selectedInstance = si.empty() ? nullptr : si.back();
     }
 }

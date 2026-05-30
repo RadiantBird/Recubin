@@ -24,6 +24,7 @@
 #include <Instances/SurfaceGui.hpp>
 #include <Instances/BillboardGui.hpp>
 #include <Instances/ProximityPrompt.hpp>
+#include <Instances/Folder.hpp>
 #include <Core/AudioService.hpp>
 #include <Util/Logger.hpp>
 #include <iostream>
@@ -212,6 +213,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "SurfaceGui")   return std::make_shared<SurfaceGui>();
     if (className == "BillboardGui") return std::make_shared<BillboardGui>();
     if (className == "ProximityPrompt") return std::make_shared<ProximityPrompt>();
+    if (className == "Folder")   return std::make_shared<Folder>();
 
     return nullptr;
 }
@@ -283,7 +285,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->IsA("Rope") || inst->IsA("Rod")
                  || inst->IsA("Weld") || inst->IsA("Motor")
                  || inst->IsA("ScreenGuiObject")
-                 || inst->GetClassName() == "ProximityPrompt";
+                 || inst->GetClassName() == "ProximityPrompt"
+                 || inst->IsA("Workspace"); // NOTE: プロパティを最近追加した
+
     if (hasProps) {
         out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
 
@@ -456,6 +460,14 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "ObjectText" << YAML::Value << pp->ObjectText;
             out << YAML::Key << "Size" << YAML::Value
                 << YAML::Flow << YAML::BeginSeq << pp->Size.x << pp->Size.y << YAML::EndSeq;
+        }
+        if (inst->IsA("Workspace")) {
+            const Workspace* ws = static_cast<const Workspace*>(inst);
+            out << YAML::Key << "Gravity" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << ws->Gravity.x << ws->Gravity.y << ws->Gravity.z
+                << YAML::EndSeq;
+            out << YAML::Key << "PhysicsEnabled" << YAML::Value << ws->PhysicsEnabled;
         }
 
         out << YAML::EndMap;

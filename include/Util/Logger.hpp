@@ -40,8 +40,16 @@ inline std::function<void(const std::string&)> g_luauLogHook;
             std::cerr << "[RCBN_ERROR]" << _ss.str() << std::endl; \
             if (g_logHook) g_logHook("[ERROR]" + _ss.str()); \
         } while(0)
+
+    #define RCBN_TRACE(msg) \
+        do { \
+            std::ostringstream _ss; _ss << "[" << ::Util::getFileName(__FILE__) << ":" << __LINE__ << "] " << msg; \
+            std::cout << "\033[36m[RCBN_TRACE]" << _ss.str() << "\033[0m" << std::endl; \
+            if (g_logHook) g_logHook("[TRACE]" + _ss.str()); \
+        } while(0)
 #else
     #define RCBN_LOG(msg)   ((void)0)
     #define RCBN_WARN(msg)  ((void)0)
     #define RCBN_ERROR(msg) ((void)0)
+    #define RCBN_TRACE(msg) ((void)0)
 #endif
