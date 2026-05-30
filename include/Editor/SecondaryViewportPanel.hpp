@@ -5,11 +5,17 @@
 #include <windows.h>
 #include <include/GL/glew.h>
 #include <include/imgui/imgui.h>
+#include <include/imgui/ImGuizmo.h>
 #include <Instances/Workspace.hpp>
+#include <Instances/Instance.hpp>
 #include <Math/Vector3.hpp>
 #include <Math/Quaternion.hpp>
+#include <Editor/CommandHistory.hpp>
 #include <memory>
 #include <string>
+#include <vector>
+
+class User;
 
 // ===================================================
 //  SecondaryViewportPanel  — フローティングビューポート
@@ -34,6 +40,20 @@ public:
     float   m_pitch  = -10.0f;
     float   m_speed  = 10.0f;
 
+    // ---- 編集機能: メインViewportPanelと共有するポインタ ----
+    Instance**              selectedInstance  = nullptr;
+    std::vector<Instance*>* selectedInstances = nullptr;
+    User*                   user              = nullptr;
+    CommandHistory*         m_history         = nullptr;
+
+    // ギズモ操作モード（ViewportPanelの値を参照する）
+    ImGuizmo::OPERATION* gizmoOp     = nullptr;
+    bool*  selectOnly                = nullptr;
+    bool*  snapTranslate             = nullptr;
+    float* snapTranslateVal          = nullptr;
+    bool*  snapRotate                = nullptr;
+    float* snapRotateVal             = nullptr;
+
     explicit SecondaryViewportPanel(std::weak_ptr<Workspace> ws, const std::string& title);
     ~SecondaryViewportPanel();
 
@@ -44,4 +64,8 @@ private:
     void resizeFBO(int w, int h);
     void destroyFBO();
     Quaternion getCamRot() const;
+
+    // ギズモ undo 用状態
+    bool m_wasUsingGizmo = false;
+    std::vector<MultiGizmoCommand::Entry> m_gizmoEntries;
 };

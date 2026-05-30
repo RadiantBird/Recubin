@@ -156,7 +156,23 @@ void EditorManager::openSecondaryViewport(Workspace* ws) {
     if (!ws) return;
     auto wsSp = std::static_pointer_cast<Workspace>(ws->shared_from_this());
     std::string title = "Viewport: " + ws->Name;
-    secondaryViewports.push_back(std::make_unique<SecondaryViewportPanel>(wsSp, title));
+    auto sv = std::make_unique<SecondaryViewportPanel>(wsSp, title);
+
+    // メインViewportPanelの編集状態を共有する
+    if (viewportPanel) {
+        sv->selectedInstance  = viewportPanel->selectedInstance;
+        sv->selectedInstances = viewportPanel->selectedInstances;
+        sv->gizmoOp           = &viewportPanel->gizmoOp;
+        sv->selectOnly        = &viewportPanel->selectOnly;
+        sv->snapTranslate     = &viewportPanel->snapTranslate;
+        sv->snapTranslateVal  = &viewportPanel->snapTranslateVal;
+        sv->snapRotate        = &viewportPanel->snapRotate;
+        sv->snapRotateVal     = &viewportPanel->snapRotateVal;
+    }
+    sv->user      = m_user;
+    sv->m_history = &m_history;
+
+    secondaryViewports.push_back(std::move(sv));
 }
 
 void EditorManager::handleEditorShortcuts() {
@@ -206,59 +222,6 @@ void EditorManager::handleEditorShortcuts() {
                         hierarchyPanel->selectedInstance = nullptr;
                         hierarchyPanel->selectedInstances.clear();
                     }
-                }
-            }
-        }
-
-        // Ctrl+C: コピー
-        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_C)) {
-            Instance* sel = hierarchyPanel->selectedInstance;
-            if (sel) m_clipboard = sel->clone();
-        }
-
-        // Ctrl+V: ペースト（兄弟として）
-        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_V) && m_clipboard) {
-            std::shared_ptr<Instance> parent;
-            Instance* sel = hierarchyPanel->selectedInstance;
-            if (sel)
-                parent = sel->Parent.lock();
-            else if (m_workspace)
-                parent = m_workspace->shared_from_this();
-
-            if (parent) {
-                auto cloned = m_clipboard->clone();
-                // 名前衝突を回避
-                std::string baseName = cloned->Name;
-                int n = 1;
-                while (parent->children.count(cloned->Name) > 0)
-                    cloned->Name = baseName + std::to_string(n++);
-                m_history.execute(std::make_unique<AddInstanceCommand>(parent, cloned));
-                m_isDirty = true;
-            }
-        }
-
-        // Ctrl+Shift+V: 選択インスタンスの子としてペースト
-        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_V) && m_clipboard) {
-            Instance* sel = hierarchyPanel->selectedInstance;
-            if (sel) {
-                auto selSp = sel->shared_from_this();
-                auto cloned = m_clipboard->clone();
-                std::string baseName = cloned->Name;
-                int n = 1;
-                while (selSp->children.count(cloned->Name) > 0)
-                    cloned->Name = baseName + std::to_string(n++);
-                m_history.execute(std::make_unique<AddInstanceCommand>(selSp, cloned));
-                m_isDirty = true;
-            }
-        }
-    }
-}
-
-void EditorManager::saveCurrentScene() {
-    if (!m_system && !m_workspace) return;
-    // System とその全ての子（Workspace, Lighting など）を保存
-    Instance* saveRoot = m_system ? m_system : static_cast<Instance*>(m_workspace);
-    SceneLoader::saveScene(saveRoot, scenePath);
     m_isDirty = false;
 }
 
