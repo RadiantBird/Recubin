@@ -52,6 +52,8 @@ void ViewportPanel::initFBO(int w, int h) {
                               GL_RENDERBUFFER, depthRenderbuffer);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    printf("\033[36m[FBO CHECK] fb=%u, tex=%u, status=0x%X (Complete=0x8CD5)\033[0m\n", framebuffer, colorTexture, status);
 }
 
 void ViewportPanel::resizeFBO(int w, int h) {
@@ -77,6 +79,7 @@ void ViewportPanel::endRenderAndDisplay() {
 }
 
 void ViewportPanel::onRender() {
+    // printf("\033[36m[CHECK] workspace=%p, user=%p, hovered=%d\033[0m\n", workspace, user, isHoveringViewport);
     // パディングを削除してゲームビューをパネルに密着させる
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
@@ -95,6 +98,24 @@ void ViewportPanel::onRender() {
     if (w < 1) w = 1;
     if (h < 1) h = 1;
     resizeFBO(w, h);
+
+    if (workspace && user && Renderer::instance) {
+        ViewportRenderDesc desc;
+        desc.workspace         = workspace;          // 有効なワークスペース
+        desc.fbo               = framebuffer;       // ログでCompleteだったこのパネルのFBOテクスチャ
+        desc.width             = w;
+        desc.height            = h;
+        desc.cameraPosition    = user->cpos;         // 有効なユーザーカメラ位置
+        desc.cameraForward     = user->forward;
+        desc.cameraUp          = user->up;
+        desc.renderShadows     = true;
+        desc.renderConstraints = true;
+        desc.renderHighlights  = true;              // サブ側は一旦ハイライトなし
+        desc.isFocused         = isViewportFocused;
+
+        // レンダラーにこのサブテクスチャへ描き込ませる！
+        Renderer::instance->renderViewport(desc);
+    }
 
     // コンテンツ領域の画面座標原点（タイトルバー分を除いた正確な左上）
     ImVec2 contentOrigin;

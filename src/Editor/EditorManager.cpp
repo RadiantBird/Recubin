@@ -63,6 +63,9 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     propertiesPanel->m_picker = &m_picker;
     viewportPanel->m_picker   = &m_picker;
 
+    // メインビューポートをデフォルトでフォーカス状態に設定
+    ViewportFocusManager::getInstance().onFocusViewport(viewportPanel.get());
+
     applyTheme();
 }
 
@@ -146,7 +149,12 @@ void EditorManager::render(GLFWwindow* window) {
     // 閉じられたものを削除
     secondaryViewports.erase(
         std::remove_if(secondaryViewports.begin(), secondaryViewports.end(),
-                       [](const std::unique_ptr<SecondaryViewportPanel>& sv) { return !sv->m_open; }),
+                       [](const std::unique_ptr<ViewportPanel>& sv) {
+                           if (!sv->isOpen && IsViewportFocused(sv.get())) {
+                               ClearViewportFocus();
+                           }
+                           return !sv->isOpen;
+                       }),
         secondaryViewports.end());
 
     renderPackageDialog();
@@ -155,8 +163,27 @@ void EditorManager::render(GLFWwindow* window) {
 void EditorManager::openSecondaryViewport(Workspace* ws) {
     if (!ws) return;
     auto wsSp = std::static_pointer_cast<Workspace>(ws->shared_from_this());
-    std::string title = "Viewport: " + ws->Name;
-    secondaryViewports.push_back(std::make_unique<SecondaryViewportPanel>(wsSp, title));
+    auto panel = std::make_unique<ViewportPanel>();
+    panel->workspace = ws;
+    panel->user = m_user;
+    panel->selectedInstance = &hierarchyPanel->selectedInstance;
+    panel->selectedInstances = &hierarchyPanel->selectedInstances;
+    panel->m_history = &m_history;
+    panel->m_picker = &m_picker;
+    panel->title = "Viewport: " + ws->Name + "###SecVP_" + std::to_string(reinterpret_cast<std::uintptr_t>(panel.get()));
+    secondaryViewports.push_back(std::move(panel));
+}
+
+bool EditorManager::isAnyViewportHovered() const {
+    if (viewportPanel && viewportPanel->isHoveringViewport) {
+        return true;
+    }
+    for (auto const& sv : secondaryViewports) {
+        if (sv && sv->isHoveringViewport) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void EditorManager::handleEditorShortcuts() {
@@ -188,7 +215,7 @@ void EditorManager::handleEditorShortcuts() {
         }
 
         // BackSpace: 選択インスタンス削除
-        if (ImGui::IsKeyPressed(ImGuiKey_Backspace) && !IsViewportFocused(viewportPanel.get())) {
+        if (ImGui::IsKeyPressed(ImGuiKey_Backspace) && !GetFocusedViewport()) {
             Instance* sel = hierarchyPanel->selectedInstance;
             if (sel) {
                 auto parent = sel->Parent.lock();
@@ -445,6 +472,9 @@ void EditorManager::renderToolbar() {
     ImGui::Begin("Toolbar", nullptr, tbFlags);
     ImGui::PopStyleVar();
 
+    ViewportPanel* activeViewport = GetFocusedViewport();
+    if (!activeViewport) activeViewport = viewportPanel.get();
+
     const ImVec4 colActive   = ImVec4(0.30f, 0.50f, 0.85f, 1.0f);
     const ImVec4 colInactive = ImVec4(0.22f, 0.40f, 0.70f, 0.60f);
     const ImVec2 btnSz       = ImVec2(70.0f, 38.0f);
@@ -488,35 +518,35 @@ void EditorManager::renderToolbar() {
     ImGui::SameLine();
 
     // ---- Select / Move / Resize / Rotate ----
-    if (viewportPanel) {
-        ImGui::PushStyleColor(ImGuiCol_Button, viewportPanel->isSelectMode() ? colActive : colInactive);
-        if (ImGui::Button("Select", btnSz)) { viewportPanel->selectOnly = true; }
+    if (activeViewport) {
+        ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isSelectMode() ? colActive : colInactive);
+        if (ImGui::Button("Select", btnSz)) { activeViewport->selectOnly = true; }
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
 
-        ImGui::PushStyleColor(ImGuiCol_Button, viewportPanel->isMoveMode() ? colActive : colInactive);
+        ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isMoveMode() ? colActive : colInactive);
         if (ImGui::Button("Move", btnSz)) {
-            viewportPanel->selectOnly = false;
-            viewportPanel->gizmoOp   = ImGuizmo::TRANSLATE;
+            activeViewport->selectOnly = false;
+            activeViewport->gizmoOp   = ImGuizmo::TRANSLATE;
         }
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
 
-        ImGui::PushStyleColor(ImGuiCol_Button, viewportPanel->isResizeMode() ? colActive : colInactive);
+        ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isResizeMode() ? colActive : colInactive);
         if (ImGui::Button("Resize", btnSz)) {
-            viewportPanel->selectOnly = false;
-            viewportPanel->gizmoOp   = ImGuizmo::SCALE;
+            activeViewport->selectOnly = false;
+            activeViewport->gizmoOp   = ImGuizmo::SCALE;
         }
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
 
-        ImGui::PushStyleColor(ImGuiCol_Button, viewportPanel->isRotateMode() ? colActive : colInactive);
+        ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isRotateMode() ? colActive : colInactive);
         if (ImGui::Button("Rotate", btnSz)) {
-            viewportPanel->selectOnly = false;
-            viewportPanel->gizmoOp   = ImGuizmo::ROTATE;
+            activeViewport->selectOnly = false;
+            activeViewport->gizmoOp   = ImGuizmo::ROTATE;
         }
         ImGui::PopStyleColor();
     }
@@ -526,26 +556,26 @@ void EditorManager::renderToolbar() {
     ImGui::SameLine();
 
     // ---- スナップ / 衝突フィット ----
-    if (viewportPanel) {
-        ImGui::Checkbox("移動スナップ##snapT", &viewportPanel->snapTranslate);
+    if (activeViewport) {
+        ImGui::Checkbox("移動スナップ##snapT", &activeViewport->snapTranslate);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f);
-        ImGui::DragFloat("studs##snapTVal", &viewportPanel->snapTranslateVal, 0.1f, 0.1f, 100.0f, "%.1f");
+        ImGui::DragFloat("studs##snapTVal", &activeViewport->snapTranslateVal, 0.1f, 0.1f, 100.0f, "%.1f");
         ImGui::SameLine();
 
-        ImGui::Checkbox("回転スナップ##snapR", &viewportPanel->snapRotate);
+        ImGui::Checkbox("回転スナップ##snapR", &activeViewport->snapRotate);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f);
-        ImGui::DragFloat("\xc2\xb0##snapRVal", &viewportPanel->snapRotateVal, 1.0f, 1.0f, 180.0f, "%.0f");
+        ImGui::DragFloat("\xc2\xb0##snapRVal", &activeViewport->snapRotateVal, 1.0f, 1.0f, 180.0f, "%.0f");
         ImGui::SameLine();
 
-        ImGui::Checkbox("リサイズスナップ##snapS", &viewportPanel->snapScale);
+        ImGui::Checkbox("リサイズスナップ##snapS", &activeViewport->snapScale);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f);
-        ImGui::DragFloat("studs##snapSVal", &viewportPanel->snapScaleVal, 0.1f, 0.1f, 100.0f, "%.1f");
+        ImGui::DragFloat("studs##snapSVal", &activeViewport->snapScaleVal, 0.1f, 0.1f, 100.0f, "%.1f");
         ImGui::SameLine();
 
-        ImGui::Checkbox("衝突フィット##cf", &viewportPanel->collisionFit);
+        ImGui::Checkbox("衝突フィット##cf", &activeViewport->collisionFit);
         ImGui::SameLine();
     }
 
@@ -639,7 +669,7 @@ unsigned int EditorManager::getViewportFBO() {
 }
 
 bool EditorManager::isViewportFocused() {
-    return IsViewportFocused(viewportPanel.get());
+    return GetFocusedViewport() != nullptr;
 }
 
 Instance* EditorManager::getSelectedInstance() {

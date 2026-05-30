@@ -356,9 +356,9 @@ int main(int argc, char* argv[]) {
         }
 
         // ---- 入力処理（エディターモードではカメラ操作のみ許可）----
-        ViewportPanel* vp = ed ? ed->viewportPanel.get() : nullptr;
-        state.viewportFocused    = vp && IsViewportFocused(vp);
-        state.viewportZoomEnabled = vp && (IsViewportFocused(vp) || vp->isHoveringViewport);
+        ViewportPanel* focusedVP = ed ? GetFocusedViewport() : nullptr;
+        state.viewportFocused    = focusedVP != nullptr;
+        state.viewportZoomEnabled = focusedVP != nullptr || (ed ? ed->isAnyViewportHovered() : false);
         user->processInput(workspace->getPhysicsEngine());
         if (user->wannaExit) {
             user->wannaExit = false;
