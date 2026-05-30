@@ -1,7 +1,17 @@
+export type Connection = {
+    Disconnect: (Connection) -> ()
+}
+
+export type Signal = {
+    Connect: (Signal, (...any) -> ()) -> Connection,
+    Once: (Signal, (...any) -> ()) -> Connection,
+    Wait: (Signal) -> (...any),
+}
+
 export type Instance = {
     Name: string,
-    Parent: Instance?,
-    FindChild: <T>(Instance, string) -> T?,
+    Parent: any,
+    FindChild: (Instance, string) -> any,
     GetChildren: (Instance) -> { Instance },
     IsA: (Instance, string) -> boolean,
     Destroy: (Instance) -> (),
@@ -14,6 +24,7 @@ export type BaseCube = Instance & {
     Anchored: boolean,
     CanCollide: boolean,
     Velocity: Vector3, -- read only
+    Touched: Signal,
 }
 
 export type Cube = BaseCube & {}
@@ -94,6 +105,7 @@ export type RaycastResult = {
 
 export type Workspace = Instance & {
     Gravity: Vector3,
+    PhysicsEnabled: boolean,
     Raycast: (Workspace, Vector3, Vector3) -> RaycastResult?,
 }
 
@@ -113,6 +125,74 @@ export type Color4 = {
     b: number,
     a: number,
     new: (number, number, number, number?) -> Color4,
+}
+
+export type Vector2 = {
+    x: number,
+    y: number,
+    zero: Vector2,
+    new: (number, number) -> Vector2,
+}
+
+export type System = Instance & {
+    Heartbeat: Signal,
+}
+
+export type Event = Instance & {
+    Fire: (Event, ...any) -> (),
+}
+
+export type ScreenGuiObject = Instance & {
+    Active: boolean,
+    Visible: boolean,
+    ZIndex: number,
+    Position: Vector2,
+    Size: Vector2,
+    BackgroundColor: Color4,
+    Transparency: number,
+    Norm: string,
+}
+
+export type GuiButton = ScreenGuiObject & {
+    Activated: Signal,
+}
+
+export type TextLabel = ScreenGuiObject & {
+    Text: string,
+    TextColor: Color4,
+}
+
+export type TextButton = GuiButton & {
+    Text: string,
+    TextColor: Color4,
+}
+
+export type WorldGuiObject = Instance & {
+    Active: boolean,
+    Visible: boolean,
+    ZIndex: number,
+    Size: Vector2,
+    BackgroundColor: Color4,
+    Transparency: number,
+    Norm: string,
+}
+
+export type SurfaceGui = WorldGuiObject & {
+    Face: string,
+}
+
+export type BillboardGui = WorldGuiObject & {
+    Mode: string,
+}
+
+export type ProximityPrompt = Instance & {
+    KeyboardKeyCode: string,
+    HoldDuration: number,
+    MaxActivationDistance: number,
+    Enabled: boolean,
+    ActionText: string,
+    ObjectText: string,
+    Triggered: Signal,
 }
 
 declare workspace: Workspace

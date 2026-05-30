@@ -363,7 +363,8 @@ void User::spawnCharacter(CharacterSetting* cs) {
         despawnCharacter();
     }
 
-    character = std::make_shared<Model>(Vector3(5.0f, 10.0f, 5.0f), Vector3(1, 1, 1));
+    character = std::make_shared<Model>(Vector3(0.0f, 25.0f, 0.0f), Vector3(1, 1, 1));
+    character->Name = "PlayerCharacter"; // NOTE: この名称は今後変更しないこと(ユーザーのスクリプトとの互換性を保つため)
     Vector3 basePos = character->Position;
 
     // パーツ生成
@@ -403,7 +404,7 @@ void User::spawnCharacter(CharacterSetting* cs) {
     
     root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
 
-    root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // physics root は非表示 (alpha=0)
+    root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // NOTE: physics root は非表示 (alpha=0)
     if (cs) {
         jumpPower        = cs->jumpPower;
         walkPower        = cs->moveSpeed;
