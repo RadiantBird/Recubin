@@ -37,6 +37,11 @@ private:
     static Script* currentScript;  // 現在実行中のスクリプト
     std::string m_lastTraceback;   // debugprotectederror で取得したスタックトレース
 
+    static constexpr const char* ERIK = "erik";
+
+    static constexpr const int NIL = 0;
+
+public:
     static constexpr const char* RCBN_INST_METATABLE       = "RCBN_Instance";
     static constexpr const char* RCBN_OWNED_INST_METATABLE = "RCBN_OwnedInstance";
     static constexpr const char* RCBN_VEC3_METATABLE       = "RCBN_Vector3";
@@ -45,11 +50,6 @@ private:
     static constexpr const char* RCBN_CONNECTION_METATABLE = "RCBN_Connection";
     static constexpr const char* RCBN_VEC2_METATABLE       = "RCBN_Vector2";
 
-    static constexpr const char* ERIK = "erik";
-
-    static constexpr const int NIL = 0;
-
-public:
     using GetterFunc = std::function<int(lua_State*, Instance*)>;
     using SetterFunc = std::function<int(lua_State*, Instance*)>;
 
