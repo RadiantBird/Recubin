@@ -24,6 +24,26 @@ Script* LuauEngine::currentScript = nullptr;
 // Instance.new で生成したインスタンスの所有権を保持するストレージ
 static std::vector<std::shared_ptr<Instance>> s_ownedInstances;
 
+static std::shared_ptr<Workspace> getScriptWorkspace(Script& script) {
+    Instance* ws = script.findFirstAncestorWorkspace();
+    if (!ws) return nullptr;
+    return std::static_pointer_cast<Workspace>(ws->shared_from_this());
+}
+
+static void setWorkspaceGlobal(lua_State* state, const std::shared_ptr<Workspace>& ws) {
+    if (!ws) {
+        lua_pushnil(state);
+        lua_setglobal(state, "workspace");
+        return;
+    }
+
+    auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(state, sizeof(std::weak_ptr<Instance>));
+    new (ud) std::weak_ptr<Instance>(ws);
+    luaL_getmetatable(state, LuauEngine::RCBN_INST_METATABLE);
+    lua_setmetatable(state, -2);
+    lua_setglobal(state, "workspace");
+}
+
 struct FPUState {
     fenv_t env;
     unsigned int mxcsr;
@@ -339,6 +359,7 @@ bool LuauEngine::execute(Script& script) {
     }
     
     lua_State* co = script.Coroutine;
+    setWorkspaceGlobal(co, getScriptWorkspace(script));
     
     // 初回実行の場合、スクリプトをロード
     // lua_status(): 0=OK, LUA_YIELD=suspended, LUA_ERRERR=error, etc.
@@ -788,6 +809,25 @@ void LuauEngine::onCollision(BaseCube* a, BaseCube* b) {
 }
 
 void LuauEngine::update(float deltaTime) {
+    if (m_system) {
+        for (auto& [name, child] : m_system->getChildren()) {
+            if (!child || !child->IsA("Workspace")) continue;
+            auto* ws = static_cast<Workspace*>(child.get());
+            auto scripts = ws->scripts;
+            for (auto& inst : scripts) {
+                auto script = std::dynamic_pointer_cast<Script>(inst);
+                if (script && script->Sleeping && script->Coroutine != nullptr) {
+                    script->SleepRemaining -= deltaTime;
+                    if (script->SleepRemaining <= 0.0f) {
+                        script->Sleeping = false;
+                        execute(*script);
+                    }
+                }
+            }
+        }
+        return;
+    }
+
     auto ws = workspace.lock();
     if (!ws) return;
     

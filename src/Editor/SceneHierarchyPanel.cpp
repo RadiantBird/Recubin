@@ -324,6 +324,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Model>(m_history, "Model", parentSp, Vector3(0, 0, 0), Vector3(1, 1, 1));
         tryInsertInstance<Workspace>(m_history, "Workspace", parentSp);
         tryInsertInstance<Lighting>(m_history, "Lighting", parentSp);
+        tryInsertInstance<Skybox>(m_history, "Skybox", parentSp);
         tryInsertInstance<AppImage>(m_history, "AppImage", parentSp);
         tryInsertInstance<CharacterSetting>(m_history, "CharacterSetting", parentSp);
         
