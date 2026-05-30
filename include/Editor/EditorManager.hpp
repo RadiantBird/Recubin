@@ -7,7 +7,6 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/ContentBrowserPanel.hpp>
 #include <Editor/ViewportPanel.hpp>
-#include <Editor/SecondaryViewportPanel.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
@@ -45,8 +44,10 @@ public:
     std::unique_ptr<ViewportPanel>       viewportPanel;
 
     // セカンダリビューポート（複数可）
-    std::vector<std::unique_ptr<SecondaryViewportPanel>> secondaryViewports;
+    std::vector<std::unique_ptr<ViewportPanel>> secondaryViewports;
     void openSecondaryViewport(Workspace* ws);
+
+    bool isAnyViewportHovered() const;
 
     std::string scenePath      = "assets/scenes/test_scene.yaml";
     std::string pendingLoadPath;  // 非空のとき main.cpp がリロードを実行する
