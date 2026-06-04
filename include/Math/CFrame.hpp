@@ -44,4 +44,9 @@ struct CFrame {
     Vector3 pointToWorld(const Vector3& localPoint) const {
         return Position + Rotation.rotate(localPoint);
     }
+
+    CFrame inverse() const {
+        Quaternion invRot = Rotation.conjugate();
+        return CFrame(invRot.rotate(-Position), invRot);
+    }
 };

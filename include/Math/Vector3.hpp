@@ -9,6 +9,7 @@ struct Vector3 {
 
     Vector3 operator+(const Vector3& v) const { return {x + v.x, y + v.y, z + v.z}; }
     Vector3 operator-(const Vector3& v) const { return {x - v.x, y - v.y, z - v.z}; }
+    Vector3 operator-() const { return {-x, -y, -z}; }
     Vector3 operator*(float s) const { return {x * s, y * s, z * s}; }
 
     // ベクトルの長さ（距離）を計算

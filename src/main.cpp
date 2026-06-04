@@ -152,7 +152,7 @@ bool checkExit(EditorManager* ed, GLFWwindow& window) {
 // ===================================================
 int main(int argc, char* argv[]) {
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.985\n";
+              << "Recubin Studio v0.989\n";
     std::string engineExePath = (argc > 0 && argv[0]) ? argv[0] : "";
 
     GLFWwindow* window = setupWindow();
@@ -165,8 +165,9 @@ int main(int argc, char* argv[]) {
     auto audioService = std::make_unique<AudioService>();
     auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
-    auto user         = std::make_unique<User>(window);
+    auto user         = std::make_shared<User>(window);
     user->controlMode = User::ControlMode::Free; // エディターではフリーモードから開始(パッケージされたゲームランタイムはCharacterモードから開始)
+    user->initializeInventory();  // Inventory を初期化
 
     renderer->init(window);
 
@@ -195,10 +196,18 @@ int main(int argc, char* argv[]) {
         auto lighting = std::make_shared<Lighting>();
         lighting->Name = "Lighting";
         system->addChild(workspace);
+        system->addChild(user);
         workspace->addChild(lighting);
         workspaces = collectWorkspaces(system);
     }
     workspace = workspaces.front();
+    
+    // ユーザーがシステムに含まれていない場合は追加
+    auto it = system->children.find("User");
+    if (it == system->children.end()) {
+        system->addChild(user);
+    }
+    
     workspace->initPhysics();
 
     // 古い形式のYAML対応: System直下のLightingを見つけたら、WorkspaceのLightingにプロパティを移して削除
@@ -277,7 +286,7 @@ int main(int argc, char* argv[]) {
         workspace->initPhysics();
     };
 
-    while (true) { // this loop is broken
+    while (true) {
         if (glfwWindowShouldClose(window)) {
             if (checkExit(ed, *window)) {
                 break;

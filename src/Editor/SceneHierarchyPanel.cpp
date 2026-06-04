@@ -100,7 +100,7 @@ static std::string pickFolder() {
 // ===================================================
 
 SceneHierarchyPanel::SceneHierarchyPanel()
-    : EditorPanel("Scene Hierarchy") {}
+    : EditorPanel("Explorer") {} // "Scene Hierarchy" を "Explorer" に改名
 
 void SceneHierarchyPanel::onRender() {
     ImGui::SetNextWindowSize(ImVec2(250, 400), ImGuiCond_FirstUseEver);

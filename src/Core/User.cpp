@@ -3,7 +3,7 @@
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
 #include <Instances/CharacterSetting.hpp>
-
+#include <include/Util/Logger.hpp>
 
 User* User::s_instance = nullptr;
 
@@ -17,7 +17,8 @@ void User::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
 }
 
 User::User(GLFWwindow* win) 
-    : window(win), 
+    : Instance("User"),
+      window(win), 
       cam(current_camera), 
       cpos(current_camera.Position),
       forward(0, 0, -1), 
@@ -28,6 +29,17 @@ User::User(GLFWwindow* win)
 {
     s_instance = this;
     updateVectors();
+}
+
+void User::initializeInventory() {
+    // Inventory を User の子として追加（コンストラクタ後に呼ぶ）
+    if (Inventory) {
+        Inventory->Name = "Inventory";
+        // すでに Parent が設定されていなければ addChild
+        if (!Inventory->Parent.lock()) {
+            this->addChild(Inventory);
+        }
+    }
 }
 
 User::~User() {
@@ -221,36 +233,108 @@ void User::processCharacterMovement(Physics* physics) {
     cpos = root->getWorldPosition() + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
 }
  
-// ボディアニメーションの適用（CFrame 計算）
+// ============================================================
+// Animation: Pose計算
+// ============================================================
+
+User::Pose User::computePose() {
+    const float PI = 3.14159265f;
+    float rad   = walkCycle * 2.0f * PI;
+    float swing = std::sin(rad) * 35.0f;
+
+    Pose p;
+
+    p.leftArm = isGrounded ? swing : 180.0f;
+
+    if (currentTool && currentTool->Equipped) {
+        p.rightArm = 90.0f;
+    } else {
+        p.rightArm = isGrounded ? -swing : 180.0f;
+    }
+
+    p.leftLeg  = -swing;
+    p.rightLeg =  swing;
+
+    return p;
+}
+
+
+// ============================================================
+// Animation: Limb組み立て（共通）
+// ============================================================
+
+static CFrame makeArm(
+    const CFrame& root,
+    const Vector3& jointPos,
+    float angleDeg
+) {
+    const Vector3 pivotOffset = Vector3(0, -0.5f, 0); // 回転中心調整
+    const Vector3 meshOffset  = Vector3(0, -1.0f, 0); // モデル補正
+
+    return root *
+           CFrame(jointPos.x, jointPos.y, jointPos.z) *
+           CFrame(pivotOffset.x, pivotOffset.y, pivotOffset.z) *
+           CFrame::fromAxisAngle(Vector3(1,0,0), angleDeg) *
+           CFrame(-pivotOffset.x, -pivotOffset.y, -pivotOffset.z) *
+           CFrame(meshOffset.x, meshOffset.y, meshOffset.z);
+}
+
+
+static CFrame makeLeg(
+    const CFrame& root,
+    const Vector3& jointPos,
+    float angleDeg
+) {
+    // 脚は今のところpivot補正なし
+    const Vector3 meshOffset = Vector3(0, -1.0f, 0);
+
+    return root *
+           CFrame(jointPos.x, jointPos.y, jointPos.z) *
+           CFrame::fromAxisAngle(Vector3(1,0,0), angleDeg) *
+           CFrame(meshOffset.x, meshOffset.y, meshOffset.z);
+}
+
+// ============================================================
+// Animation: 適用本体（差し替え対象）
+// ============================================================
 void User::applyBodyAnimation() {
     if (!root) return;
- 
-    const float PI = 3.14159265f;
-    float rad        = walkCycle * 2.0f * PI;
-    float swingAngle = std::sin(rad) * 35.0f;
- 
-    if (torso) torso->cframe = root->cframe * CFrame(0, 1.0f, 0);
-    if (head)  head->cframe  = root->cframe * CFrame(0, 2.5f, 0);
- 
-    float L_armAngle = isGrounded ?  swingAngle : 180.0f;
-    float R_armAngle = isGrounded ? -swingAngle : 180.0f;
-    float shoulderY  = isGrounded ? 2.0f : 1.0f;
- 
+
+    Pose pose = computePose();
+
+    // --- リグ定義（全部ここに固定） ---
+    const Vector3 torsoOffset      = Vector3(0, 1.0f, 0);
+    const Vector3 headOffset       = Vector3(0, 2.5f, 0);
+
+    const Vector3 leftShoulderPos  = Vector3(-1.5f, 2.0f, 0);
+    const Vector3 rightShoulderPos = Vector3( 1.5f, 2.0f, 0);
+
+    const Vector3 leftHipPos       = Vector3(-0.5f, 0.0f, 0);
+    const Vector3 rightHipPos      = Vector3( 0.5f, 0.0f, 0);
+
+    // --- torso / head ---
+    if (torso) torso->cframe = root->cframe * CFrame(torsoOffset.x, torsoOffset.y, torsoOffset.z);
+    if (head)  head->cframe  = root->cframe * CFrame(headOffset.x,  headOffset.y,  headOffset.z);
+
+    // --- arms ---
     if (leftArm) {
-        CFrame jointCF = root->cframe * CFrame(-1.5f, shoulderY, 0);
-        leftArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), L_armAngle) * CFrame(0, -1.0f, 0);
+        leftArm->cframe = makeArm(root->cframe, leftShoulderPos, pose.leftArm);
     }
+
     if (rightArm) {
-        CFrame jointCF = root->cframe * CFrame(1.5f, shoulderY, 0);
-        rightArm->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), R_armAngle) * CFrame(0, -1.0f, 0);
+        rightArm->cframe = makeArm(root->cframe, rightShoulderPos, pose.rightArm);
+        if (currentTool && currentTool->Equipped && currentTool->Handle) {
+            // FIXME: どうやらcframeをそのまま代入しても位置がおかしいので、なんとかする
+            currentTool->Handle->cframe = rightArm->cframe * CFrame(0, 0, 0); // 手の位置にツールを配置
+        }
     }
+
     if (leftLeg) {
-        CFrame jointCF = root->cframe * CFrame(-0.5f, 0.0f, 0);
-        leftLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), -swingAngle) * CFrame(0, -1.0f, 0);
+        leftLeg->cframe = makeLeg(root->cframe, leftHipPos, pose.leftLeg);
     }
+
     if (rightLeg) {
-        CFrame jointCF = root->cframe * CFrame(0.5f, 0.0f, 0);
-        rightLeg->cframe = jointCF * CFrame::fromAxisAngle(Vector3(1,0,0), swingAngle) * CFrame(0, -1.0f, 0);
+        rightLeg->cframe = makeLeg(root->cframe, rightHipPos, pose.rightLeg);
     }
 }
  
@@ -293,7 +377,57 @@ void User::processHotkeys() {
     }
     lastSpacePressed = spacePressed;
 }
- 
+
+void User::processToolkeys() {
+    static const int keys[] = {
+        GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5,
+        GLFW_KEY_6, GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9, GLFW_KEY_0
+    };
+
+    for (int i = 0; i < 10; i++) {
+        const bool pressed = (glfwGetKey(window, keys[i]) == GLFW_PRESS);
+
+        if (pressed && !lastToolKeyPressed[i]) {
+            RCBN_TRACE("Tool key pressed: " + std::to_string(i + 1));
+
+            // 現在装備中のツールを外す
+            if (currentTool) {
+                currentTool->Equipped = false;
+                // character から削除して Inventory に戻す
+                character->removeChild(currentTool->Name);
+                Inventory->addChild(std::static_pointer_cast<Instance>(currentTool));
+                RCBN_TRACE("Unequipped tool from slot " + std::to_string(currentSlotIndex + 1));
+                currentTool = nullptr;
+            }
+
+            // 同じスロットを再度押した場合は解除のみ
+            if (i == currentSlotIndex) {
+                currentSlotIndex = -1;
+            } else if (Slots[i]) {
+                // 新しいスロットを装備
+                currentTool           = Slots[i];
+                currentTool->Equipped = true;
+                // Inventory から削除して character に追加
+                Inventory->removeChild(currentTool->Name);
+                character->addChild(std::static_pointer_cast<Instance>(currentTool));
+                currentSlotIndex      = i;
+                RCBN_TRACE("Equipped tool from slot " + std::to_string(i + 1));
+            }
+        }
+
+        lastToolKeyPressed[i] = pressed;
+    }
+}
+
+void User::processMouse() {
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+        if (currentTool && currentTool->Equipped && SystemState::get().isPlaying) {
+           currentTool->Activated->fire();
+           RCBN_TRACE("Activated tool: " + currentTool->Name);
+        }
+    }
+}
+
 // ============================================================
 // processInput（呼び出し口）
 // ============================================================
@@ -319,6 +453,8 @@ void User::processInput(Physics* physics) {
     applyBodyAnimation();
     if (rotated) updateVectors();
     processHotkeys();
+    processToolkeys();
+    processMouse();
 }
 
 
@@ -342,6 +478,24 @@ void User::spawnCharacter(CharacterSetting* cs) {
     if (character) {
         despawnCharacter();
     }
+
+    // HACK: ただのテスト配列
+    auto tool1 = std::make_shared<Tool>("TestTool1");
+    auto tool2 = std::make_shared<Tool>("TestTool2");
+    std::shared_ptr<Cube> testHandle = std::make_shared<Cube>(Vector3(0,0,0), Vector3(5.0f, 5.0f, 5.0f), 0);
+    testHandle->Name = "Handle";
+    testHandle->Anchored = true;
+    testHandle->Color = Color4::FromRGB(255, 0, 0);
+    testHandle->CanCollide = false;
+    
+    tool1->addChild(testHandle);
+    tool1->Handle = testHandle;
+
+    Slots[0] = tool1;
+    Slots[1] = tool2;
+    Inventory->addChild(tool1);
+    Inventory->addChild(tool2);
+    // end of HACK
 
     character = std::make_shared<Model>(Vector3(0.0f, 25.0f, 0.0f), Vector3(1, 1, 1));
     character->Name = "PlayerCharacter"; // NOTE: この名称は今後変更しないこと(ユーザーのスクリプトとの互換性を保つため)
@@ -415,4 +569,25 @@ void User::spawnCharacter(CharacterSetting* cs) {
     character->addChild(rightLeg);
 
     RCBN_LOG("Spawning character...");
+}
+
+std::string User::GetClassName() {
+    return "User";
+}
+
+bool User::IsA(std::string className) {
+    if (className == "User") return true;
+    return Instance::IsA(className);
+}
+
+void User::setProperty(const std::string& name, const YAML::Node& value) {
+    // User specific properties can be handled here if needed
+    Instance::setProperty(name, value);
+}
+
+std::shared_ptr<Instance> User::clone() const {
+    // User is not cloneable due to its dependency on GLFWwindow*
+    // Return nullptr or throw an error
+    RCBN_LOG("[WARNING] User::clone() is not supported");
+    return nullptr;
 }

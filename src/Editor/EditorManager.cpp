@@ -116,7 +116,7 @@ void EditorManager::render(GLFWwindow* window) {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem("Scene Hierarchy", nullptr, &hierarchyPanel->isOpen);
+            ImGui::MenuItem("Explorer", nullptr, &hierarchyPanel->isOpen); // Scene Hierarchy を Explorer に改名
             ImGui::MenuItem("Properties",      nullptr, &propertiesPanel->isOpen);
             ImGui::MenuItem("Viewport",        nullptr, &viewportPanel->isOpen);
             ImGui::MenuItem("Content Browser", nullptr, &contentBrowserPanel->isOpen);

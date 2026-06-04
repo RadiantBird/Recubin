@@ -2,6 +2,7 @@
 
 #include <include/Math/Matrix4.hpp>
 #include <include/Math/Quaternion.hpp>
+#include <Instances/Instance.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Instances/Folder.hpp>
@@ -10,6 +11,7 @@
 #include <Instances/Sphere.hpp>
 #include <include/GL/glew.h>
 #include <include/GLFW/glfw3.h>
+#include <Instances/Tool.hpp>
 
 #include <cmath>
 #include <array>
@@ -19,7 +21,7 @@ struct camera {
     Vector3 Position = Vector3(0, -2, 5); // ただのダミーデータ
 };
 
-class User {
+class User : public Instance {
 public:
     GLFWwindow* window;
 
@@ -49,17 +51,29 @@ public:
     std::shared_ptr<Cube> leftLeg = nullptr;
     std::shared_ptr<Cube> rightLeg = nullptr;
 
+    struct Pose {
+        float leftArm;
+        float rightArm;
+        float leftLeg;
+        float rightLeg;
+    };
+
     bool processCameraRotation(bool viewportFocused);
     void processZoom(bool viewportZoomEnabled);
     void processMovement(bool viewportFocused, Physics* physics);
     void processCharacterMovement(Physics* physics);
+    Pose computePose();
     void applyBodyAnimation();
     void processHotkeys();
-    
-    // ユーザー(デベロッパー)がToolでないものを入れる可能性もあるので、Instanceで定義する
-    Folder Inventory; // ユーザーのインベントリ（アイテムを入れるためのフォルダ）
-    std::array<Instance*, 10> Slots = {};
-    Instance* currentTool = nullptr; // 現在手に持っているアイテム（スロットから参照）
+    void processToolkeys();
+    void processMouse();
+
+    // TODO: インベントリにToolじゃないものがあったら無視するようにする
+    std::shared_ptr<Folder> Inventory = std::make_shared<Folder>(); // ユーザーのインベントリ（アイテムを入れるためのフォルダ）
+    std::array<std::shared_ptr<Tool>, 10> Slots = {};
+    std::array<bool, 10> lastToolKeyPressed = {};
+    std::shared_ptr<Tool> currentTool = nullptr; // 現在手に持っているアイテム（スロットから参照）
+    int currentSlotIndex = -1; // 現在選択されているスロットのインデックス（0-9、-1は未選択）
 
     enum class ControlMode {
         Free,
@@ -82,7 +96,13 @@ public:
     User(GLFWwindow* window);
     ~User();
 
+    std::string GetClassName() override;
+    bool IsA(std::string className) override;
+    void setProperty(const std::string& name, const YAML::Node& value) override;
+    std::shared_ptr<Instance> clone() const override;
+
     void updateVectors();
+    void initializeInventory();  // Inventory を User の子として追加（コンストラクタ後に呼ぶ）
     void processInput(class Physics* physics);
     void spawnCharacter(class CharacterSetting* cs = nullptr);
     void despawnCharacter();

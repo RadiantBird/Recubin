@@ -1,6 +1,7 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Core/Physics.hpp>
+#include <Core/User.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Instances/Spatial.hpp>
@@ -12,6 +13,7 @@
 #include <Instances/Skybox.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
+#include <Instances/Tool.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
 #include <Instances/AppImage.hpp>
@@ -549,6 +551,67 @@ void PropertiesPanel::onRender() {
                     m_history->record(std::make_unique<SetTextureTextureCommand>(
                         txSp, oldPath, oldID, tx->texturePath, tx->TextureID));
             }
+        }
+    }
+
+    // ---- User ----
+    if (inst->GetClassName() == "User") {
+        User* usr = static_cast<User*>(inst);
+        auto usrSp = std::static_pointer_cast<User>(inst->shared_from_this());
+        ImGui::SeparatorText("User");
+
+        // ControlMode (combo)
+        {
+            static const char* controlModes[] = { "Free", "Character" };
+            int modeIdx = (usr->controlMode == User::ControlMode::Free) ? 0 : 1;
+            if (ImGui::Combo("ControlMode", &modeIdx, controlModes, 2)) {
+                usr->controlMode = (modeIdx == 0) ? User::ControlMode::Free : User::ControlMode::Character;
+            }
+        }
+
+        // Character mode parameters
+        ImGui::DragFloat("Speed", &usr->speed, 0.01f, 0.0f, 10.0f, "%.3f");
+        ImGui::DragFloat("WalkPower", &usr->walkPower, 0.1f, 0.0f, 100.0f, "%.2f");
+        ImGui::DragFloat("JumpPower", &usr->jumpPower, 0.1f, 0.0f, 100.0f, "%.2f");
+        ImGui::DragFloat("CameraDistance", &usr->cameraDistance, 0.1f, 1.0f, 50.0f, "%.2f");
+        ImGui::DragFloat("ZoomSpeed", &usr->zoomSpeed, 0.01f, 0.0f, 1.0f, "%.3f");
+        ImGui::DragFloat("MouseZoomSpeed", &usr->mouseZoomSpeed, 0.1f, 0.0f, 10.0f, "%.2f");
+
+        // Current slot index (read-only)
+        ImGui::LabelText("CurrentSlotIndex", "%d", usr->currentSlotIndex);
+
+        // Inventory (reference)
+        if (usr->Inventory) {
+            ImGui::LabelText("Inventory", "%s", usr->Inventory->Name.c_str());
+        }
+
+        // Tool slots (read-only)
+        ImGui::SeparatorText("Tool Slots");
+        for (int i = 0; i < 10; i++) {
+            std::string slotLabel = "Slot " + std::to_string(i);
+            ImGui::LabelText(slotLabel.c_str(), "%s", usr->Slots[i] ? usr->Slots[i]->Name.c_str() : "(empty)");
+        }
+    }
+
+    // ---- Tool ----
+    if (inst->GetClassName() == "Tool") {
+        Tool* tool = static_cast<Tool*>(inst);
+        auto toolSp = std::static_pointer_cast<Tool>(inst->shared_from_this());
+        ImGui::SeparatorText("Tool");
+
+        // Equipped flag
+        {
+            bool equipped = tool->Equipped;
+            if (ImGui::Checkbox("Equipped", &equipped)) {
+                tool->Equipped = equipped;
+            }
+        }
+
+        // Handle reference (read-only)
+        if (tool->Handle) {
+            ImGui::LabelText("Handle", "%s", tool->Handle->Name.c_str());
+        } else {
+            ImGui::TextDisabled("Handle: (none)");
         }
     }
 
