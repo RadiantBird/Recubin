@@ -5,9 +5,10 @@
 #include <vector>
 
 #ifdef _WIN32
-    #include <windows.h>
     #undef GetClassName // Windowsの勝手な置換をここで無効化する
 #endif
+
+// TODO: 無駄な処理を最適化する
 
 void Instance::onAncestorChanged() {
     for (auto const& [_, child] : this->children) {
@@ -34,7 +35,6 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
         currentParent->children.erase(this->Name);
     }
 
-    // 新しい親をセット
     this->Parent = newParent;
 
     // 新しい親のリストに自分を追加

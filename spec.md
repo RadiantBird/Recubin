@@ -5,7 +5,7 @@
 - **Workspace**: 将来的に複数インスタンスを持つ予定。Insert Objectリストに登録する。
 
 ## 単位系
-- Roblox stud(0.28 meterに等しい)
+- **Roblox erik_stud(0.05 meterに等しい)**
 - エンジン内部ではstudを使用する
 - 物理エンジンや3Dモデルとの連携ではmに変換
 
