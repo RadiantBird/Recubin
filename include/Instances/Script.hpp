@@ -22,7 +22,7 @@ class Script : public Instance {
         
         lua_State* Coroutine = nullptr;  // このスクリプト用のコルーチン
         
-        virtual string GetClassName() override;
+        virtual string getClassName() override;
         virtual bool IsA(std::string className) override;
         virtual void setProperty(const std::string& name, const YAML::Node& value) override;
         void onAncestorChanged() override;

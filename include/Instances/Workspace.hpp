@@ -41,7 +41,7 @@ class Workspace : public Instance {
         Workspace();
         virtual ~Workspace();
 
-        virtual std::string GetClassName() override;
+        virtual std::string getClassName() override;
 
         bool IsA(std::string className) override;
 

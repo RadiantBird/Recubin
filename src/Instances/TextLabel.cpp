@@ -2,7 +2,7 @@
 
 TextLabel::TextLabel() : ScreenGuiObject("TextLabel") {}
 
-std::string TextLabel::GetClassName() { return "TextLabel"; }
+std::string TextLabel::getClassName() { return "TextLabel"; }
 
 bool TextLabel::IsA(std::string name) {
     if (name == "TextLabel") return true;

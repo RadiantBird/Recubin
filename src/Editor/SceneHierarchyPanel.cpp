@@ -157,7 +157,7 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     }
 
     bool open = ImGui::TreeNodeEx(inst, flags, "%s  [%s]",
-                                  inst->Name.c_str(), inst->GetClassName().c_str());
+                                  inst->Name.c_str(), inst->getClassName().c_str());
     if (ImGui::IsItemClicked()) {
         if (ImGui::GetIO().KeyCtrl) {
             auto it = std::find(selectedInstances.begin(), selectedInstances.end(), inst);

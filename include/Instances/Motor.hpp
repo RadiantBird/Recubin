@@ -32,7 +32,7 @@ public:
     void setDriveVelocity(float v);
     void setMaxForce(float v);
 
-    virtual std::string GetClassName() override;
+    virtual std::string getClassName() override;
     virtual bool IsA(std::string className) override;
     void onAncestorChanged() override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;

@@ -336,7 +336,7 @@ void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, fl
     for (auto& [name, inst] : ws.getChildren()) {
         if (!inst->IsA("BaseCube")) continue;
         for (auto& [gname, ginst] : inst->getChildren()) {
-            if (ginst->GetClassName() == "SurfaceGui")
+            if (ginst->getClassName() == "SurfaceGui")
                 bakeSurfaceGui(static_cast<SurfaceGui*>(ginst.get()));
         }
     }
@@ -351,7 +351,7 @@ void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, fl
             if (!guiInst->IsA("WorldGuiObject")) continue;
             auto* wgo = static_cast<WorldGuiObject*>(guiInst.get());
             if (!wgo->Visible) continue;
-            if (wgo->GetClassName() == "SurfaceGui") continue; // 3D フェイス描画に移行
+            if (wgo->getClassName() == "SurfaceGui") continue; // 3D フェイス描画に移行
 
             float wx = cube->Position.x;
             float wy = cube->Position.y;
@@ -373,7 +373,7 @@ void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, fl
                 }
             }
 
-            bool isProximityPrompt = (wgo->GetClassName() == "ProximityPrompt");
+            bool isProximityPrompt = (wgo->getClassName() == "ProximityPrompt");
             ProximityPrompt* pp = isProximityPrompt ? static_cast<ProximityPrompt*>(wgo) : nullptr;
 
             if (pp) {

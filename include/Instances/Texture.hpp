@@ -15,7 +15,7 @@ public:
     Texture(unsigned int textureID = 0, Face targetFace = Face::Front);
     virtual ~Texture();
 
-    virtual std::string GetClassName() override;
+    virtual std::string getClassName() override;
     virtual bool IsA(std::string className) override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
     virtual std::shared_ptr<Instance> clone() const override;

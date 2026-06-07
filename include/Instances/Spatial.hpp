@@ -17,7 +17,7 @@ public:
     Spatial(Vector3 Pos, Vector3 Sz, std::string name) 
         : Instance(name), cframe(Pos), Size(Sz), 
           Position(cframe.Position), Rotation(cframe.Rotation) {}
-    std::string GetClassName() override { return "Spatial"; }
+    std::string getClassName() override { return "Spatial"; }
     virtual bool IsA(std::string name) override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
 

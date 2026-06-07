@@ -30,7 +30,7 @@ class Cube : public BaseCube {
         // メソッドの宣言
         void draw(int modelLoc, int shaderProgram);
 
-        virtual string GetClassName() override;
+        virtual string getClassName() override;
         virtual bool IsA(std::string name) override;
         std::shared_ptr<Instance> clone() const override;
 };

@@ -22,7 +22,6 @@ struct RaycastHit {
 
 class Physics {
 private:
-    // --- 全インスタンス共有（static）---
     static physx::PxFoundation*            s_foundation;
     static physx::PxPhysics*               s_pxPhysics;
     static physx::PxDefaultCpuDispatcher*  s_dispatcher;
@@ -30,7 +29,6 @@ private:
     static physx::PxDefaultErrorCallback   s_errorCallback;
     static int                             s_refCount;
 
-    // --- インスタンス固有 ---
     physx::PxScene* scene = nullptr;
     std::unordered_map<MaterialType, physx::PxMaterial*> materialCache;
     float m_accumulator = 0.0f;
@@ -39,24 +37,23 @@ private:
         std::weak_ptr<BaseCube> cube;
         physx::PxRigidActor* actor = nullptr;
     };
-    std::vector<CubeEntry> cubes; // 物理シミュレーション対象のキューブを管理
+    std::vector<CubeEntry> cubes;
     physx::PxMaterial* getOrCreateMaterial(const Material& m);
 
     struct PendingOp {
         enum class Type { Resize, SetRotation };
         Type      type;
         std::weak_ptr<BaseCube> cube;
-        Quaternion rotation; // SetRotation 時のみ使用
+        Quaternion rotation;
     };
     std::vector<PendingOp> m_pendingOps;
 
     struct ConstraintEntry {
         std::weak_ptr<Instance> constraint;
-        physx::PxJoint* joint = nullptr; // Weld は nullptr（compound 管理）
+        physx::PxJoint* joint = nullptr;
     };
     std::vector<ConstraintEntry> m_constraints;
 
-    // Weld グループを 1 つの compound として再構築する内部ヘルパー
     void rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembly);
 
     physx::PxSimulationEventCallback* m_contactCallback = nullptr;
@@ -86,4 +83,9 @@ public:
 
     void setGravity(const Vector3& g);
     Vector3 getGravity() const;
+
+    // ---- Terrain 用アクセサ ----
+    // buildChunkPhysics() から呼ばれる。
+    physx::PxScene*   getScene()   const { return scene; }
+    static physx::PxPhysics* GetPhysics() { return s_pxPhysics; }
 };

@@ -16,7 +16,7 @@ public:
 
     void draw(int modelLoc, int shaderProgram);
 
-    virtual std::string GetClassName() override;
+    virtual std::string getClassName() override;
     virtual bool IsA(std::string name) override;
     std::shared_ptr<Instance> clone() const override;
 

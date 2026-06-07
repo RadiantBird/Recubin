@@ -8,7 +8,7 @@ SurfaceGui::~SurfaceGui() {
     if (m_texID) glDeleteTextures(1, &m_texID);
 }
 
-std::string SurfaceGui::GetClassName() { return "SurfaceGui"; }
+std::string SurfaceGui::getClassName() { return "SurfaceGui"; }
 
 bool SurfaceGui::IsA(std::string name) {
     if (name == "SurfaceGui") return true;

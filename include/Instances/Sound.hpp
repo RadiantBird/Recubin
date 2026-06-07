@@ -19,7 +19,7 @@ public:
     void update3D(const Vector3& listenerPos, const Vector3& listenerRight);
 
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
-    virtual std::string GetClassName() override { return "Sound"; }
+    virtual std::string getClassName() override { return "Sound"; }
     virtual bool IsA(std::string name) override;
     virtual void onAncestorChanged() override;
 

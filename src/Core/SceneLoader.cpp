@@ -272,20 +272,20 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
 
 void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     out << YAML::BeginMap;
-    out << YAML::Key << "ClassName" << YAML::Value << inst->GetClassName();
+    out << YAML::Key << "ClassName" << YAML::Value << inst->getClassName();
     out << YAML::Key << "Name"      << YAML::Value << inst->Name;
 
     // プロパティ
-    bool hasProps = inst->IsA("Spatial") || inst->GetClassName() == "Script"
-                 || inst->GetClassName() == "Sound" || inst->GetClassName() == "Decal"
-                 || inst->GetClassName() == "Texture"
-                 || inst->GetClassName() == "Lighting" || inst->GetClassName() == "Skybox"
-                 || inst->GetClassName() == "AppImage"
-                 || inst->GetClassName() == "CharacterSetting"
+    bool hasProps = inst->IsA("Spatial") || inst->getClassName() == "Script"
+                 || inst->getClassName() == "Sound" || inst->getClassName() == "Decal"
+                 || inst->getClassName() == "Texture"
+                 || inst->getClassName() == "Lighting" || inst->getClassName() == "Skybox"
+                 || inst->getClassName() == "AppImage"
+                 || inst->getClassName() == "CharacterSetting"
                  || inst->IsA("Rope") || inst->IsA("Rod")
                  || inst->IsA("Weld") || inst->IsA("Motor")
                  || inst->IsA("ScreenGuiObject")
-                 || inst->GetClassName() == "ProximityPrompt"
+                 || inst->getClassName() == "ProximityPrompt"
                  || inst->IsA("Workspace"); // NOTE: プロパティを最近追加した
 
     if (hasProps) {
@@ -318,17 +318,17 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "CastShadow" << YAML::Value << bc->CastShadow;
             out << YAML::Key << "Unlit"      << YAML::Value << bc->Unlit;
         }
-        if (inst->GetClassName() == "Script") {
+        if (inst->getClassName() == "Script") {
             const Script* sc = static_cast<const Script*>(inst);
             out << YAML::Key << "ContentPath" << YAML::Value << sc->Path;
         }
-        if (inst->GetClassName() == "Decal") {
+        if (inst->getClassName() == "Decal") {
             const Decal* d = static_cast<const Decal*>(inst);
             out << YAML::Key << "Face"    << YAML::Value << static_cast<int>(d->face);
             if (!d->texturePath.empty())
                 out << YAML::Key << "Texture" << YAML::Value << d->texturePath;
         }
-        if (inst->GetClassName() == "Texture") {
+        if (inst->getClassName() == "Texture") {
             const Texture* tx = static_cast<const Texture*>(inst);
             out << YAML::Key << "Face" << YAML::Value << static_cast<int>(tx->face);
             out << YAML::Key << "Color" << YAML::Value
@@ -340,12 +340,12 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             if (!tx->texturePath.empty())
                 out << YAML::Key << "Texture" << YAML::Value << tx->texturePath;
         }
-        if (inst->GetClassName() == "AppImage") {
+        if (inst->getClassName() == "AppImage") {
             const AppImage* ai = static_cast<const AppImage*>(inst);
             if (!ai->iconPath.empty())
                 out << YAML::Key << "IconPath" << YAML::Value << ai->iconPath;
         }
-        if (inst->GetClassName() == "CharacterSetting") {
+        if (inst->getClassName() == "CharacterSetting") {
             const CharacterSetting* cs = static_cast<const CharacterSetting*>(inst);
             auto emitColor = [&](const char* key, const Color4& c) {
                 out << YAML::Key << key << YAML::Value
@@ -361,7 +361,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "JumpPower" << YAML::Value << cs->jumpPower;
             out << YAML::Key << "MoveSpeed" << YAML::Value << cs->moveSpeed;
         }
-        if (inst->GetClassName() == "Lighting") {
+        if (inst->getClassName() == "Lighting") {
             const Lighting* lt = static_cast<const Lighting*>(inst);
             out << YAML::Key << "Direction" << YAML::Value
                 << YAML::Flow << YAML::BeginSeq
@@ -369,7 +369,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << YAML::EndSeq;
             out << YAML::Key << "Brightness" << YAML::Value << lt->brightness;
         }
-        if (inst->GetClassName() == "Skybox") {
+        if (inst->getClassName() == "Skybox") {
             const Skybox* sb = static_cast<const Skybox*>(inst);
             out << YAML::Key << "SkyboxPaths" << YAML::Value
                 << YAML::Flow << YAML::BeginSeq
@@ -377,7 +377,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << sb->skyboxPaths[3] << sb->skyboxPaths[4] << sb->skyboxPaths[5]
                 << YAML::EndSeq;
         }
-        if (inst->GetClassName() == "Sound") {
+        if (inst->getClassName() == "Sound") {
             const Sound* snd = static_cast<const Sound*>(inst);
             out << YAML::Key << "ContentPath" << YAML::Value << snd->getContentPath();
             out << YAML::Key << "Looped"      << YAML::Value << snd->isLooping();
@@ -434,7 +434,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << sgo->BackgroundColor.b << sgo->BackgroundColor.a
                 << YAML::EndSeq;
         }
-        if (inst->GetClassName() == "TextLabel") {
+        if (inst->getClassName() == "TextLabel") {
             const TextLabel* lbl = static_cast<const TextLabel*>(inst);
             out << YAML::Key << "Text" << YAML::Value << lbl->Text;
             out << YAML::Key << "TextColor" << YAML::Value
@@ -442,7 +442,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << lbl->TextColor.r << lbl->TextColor.g << lbl->TextColor.b << lbl->TextColor.a
                 << YAML::EndSeq;
         }
-        if (inst->GetClassName() == "TextButton") {
+        if (inst->getClassName() == "TextButton") {
             const TextButton* btn = static_cast<const TextButton*>(inst);
             out << YAML::Key << "Text" << YAML::Value << btn->Text;
             out << YAML::Key << "TextColor" << YAML::Value
@@ -450,7 +450,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << btn->TextColor.r << btn->TextColor.g << btn->TextColor.b << btn->TextColor.a
                 << YAML::EndSeq;
         }
-        if (inst->GetClassName() == "ProximityPrompt") {
+        if (inst->getClassName() == "ProximityPrompt") {
             const ProximityPrompt* pp = static_cast<const ProximityPrompt*>(inst);
             out << YAML::Key << "KeyboardKeyCode" << YAML::Value << pp->KeyboardKeyCode;
             out << YAML::Key << "HoldDuration" << YAML::Value << pp->HoldDuration;

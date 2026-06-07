@@ -32,7 +32,7 @@ Workspace::~Workspace() {
     this->children.clear();
 }
 
-std::string Workspace::GetClassName() {
+std::string Workspace::getClassName() {
     return "Workspace";
 }
 

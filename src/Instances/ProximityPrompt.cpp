@@ -6,7 +6,7 @@ ProximityPrompt::ProximityPrompt() : BillboardGui() {
     BackgroundColor = { 0.08f, 0.08f, 0.08f, 0.85f };
 }
 
-std::string ProximityPrompt::GetClassName() { return "ProximityPrompt"; }
+std::string ProximityPrompt::getClassName() { return "ProximityPrompt"; }
 
 bool ProximityPrompt::IsA(std::string name) {
     if (name == "ProximityPrompt") return true;

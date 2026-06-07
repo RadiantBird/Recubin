@@ -8,7 +8,7 @@ Decal::Decal(unsigned int textureID, Face targetFace)
 
 Decal::~Decal() {}
 
-std::string Decal::GetClassName() {
+std::string Decal::getClassName() {
     return "Decal";
 }
 

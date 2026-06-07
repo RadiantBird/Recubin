@@ -5,7 +5,7 @@ class Folder : public Instance {
 public:
     Folder() : Instance("Folder") {}
 
-    std::string GetClassName() override { return "Folder"; }
+    std::string getClassName() override { return "Folder"; }
 
     bool IsA(std::string name) override {
         if (name == "Folder") return true;

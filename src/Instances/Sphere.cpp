@@ -94,7 +94,7 @@ Sphere::Sphere(Vector3 Pos, Vector3 Sz)
     initGeometry();
 }
 
-std::string Sphere::GetClassName() {
+std::string Sphere::getClassName() {
     return "Sphere";
 }
 

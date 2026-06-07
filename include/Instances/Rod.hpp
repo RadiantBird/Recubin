@@ -28,7 +28,7 @@ public:
 
     void setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1);
 
-    virtual std::string GetClassName() override;
+    virtual std::string getClassName() override;
     virtual bool IsA(std::string className) override;
     void onAncestorChanged() override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;

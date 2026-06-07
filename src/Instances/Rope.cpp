@@ -38,7 +38,7 @@ void Rope::setDamping(float v) {
     if (m_joint) m_joint->setDamping(v);
 }
 
-std::string Rope::GetClassName() { return "Rope"; }
+std::string Rope::getClassName() { return "Rope"; }
 
 bool Rope::IsA(std::string className) {
     if (className == "Rope") return true;

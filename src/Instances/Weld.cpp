@@ -21,7 +21,7 @@ void Weld::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> c
     m_cube1 = cube1;
 }
 
-std::string Weld::GetClassName() { return "Weld"; }
+std::string Weld::getClassName() { return "Weld"; }
 
 bool Weld::IsA(std::string className) {
     if (className == "Weld") return true;

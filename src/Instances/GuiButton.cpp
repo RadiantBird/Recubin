@@ -5,7 +5,7 @@ GuiButton::GuiButton(std::string className)
     , Activated(std::make_shared<RCBNScriptSignal>())
 {}
 
-std::string GuiButton::GetClassName() { return "GuiButton"; }
+std::string GuiButton::getClassName() { return "GuiButton"; }
 
 bool GuiButton::IsA(std::string name) {
     if (name == "GuiButton") return true;

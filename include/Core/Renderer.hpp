@@ -11,6 +11,7 @@
 #include <include/Math/Quaternion.hpp>
 
 #include <include/Core/User.hpp>
+#include <include/Core/Terrain.hpp>
 #include <include/Instances/Cube.hpp>
 #include <include/Instances/Workspace.hpp>
 
@@ -75,7 +76,7 @@ class Renderer {
 
         // Editor 管理
         std::unique_ptr<IEditorManager> editor;
-        GLFWwindow* m_window = nullptr; // init() で保持。renderScene の fallback 解像度に使用
+        GLFWwindow* m_window = nullptr;
 
         void init(GLFWwindow* window);
         virtual ~Renderer();
@@ -105,4 +106,13 @@ class Renderer {
         void renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH);
         void renderWorldGui (Workspace& ws, float vpX, float vpY, float vpW, float vpH);
         void bakeSurfaceGui (SurfaceGui* sg);
+
+        // ---- Terrain ----
+        // 所有はしない。Chunk のライフタイムは呼び出し元が管理する。
+        void registerTerrainChunk(Chunk* chunk);
+        void unregisterTerrainChunk(Chunk* chunk);
+
+    private:
+        std::vector<Chunk*> m_terrainChunks;
+        void renderTerrain(const Matrix4& view, const Matrix4& projection);
 };

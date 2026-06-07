@@ -30,7 +30,7 @@ void Motor::setMaxForce(float v) {
     if (m_joint) m_joint->setDriveForceLimit(v);
 }
 
-std::string Motor::GetClassName() { return "Motor"; }
+std::string Motor::getClassName() { return "Motor"; }
 
 bool Motor::IsA(std::string className) {
     if (className == "Motor") return true;

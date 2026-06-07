@@ -20,7 +20,7 @@ void Rod::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cu
     m_cube1 = cube1;
 }
 
-std::string Rod::GetClassName() { return "Rod"; }
+std::string Rod::getClassName() { return "Rod"; }
 
 bool Rod::IsA(std::string className) {
     if (className == "Rod") return true;

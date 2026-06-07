@@ -2,7 +2,7 @@
 
 TextButton::TextButton() : GuiButton("TextButton") {}
 
-std::string TextButton::GetClassName() { return "TextButton"; }
+std::string TextButton::getClassName() { return "TextButton"; }
 
 bool TextButton::IsA(std::string name) {
     if (name == "TextButton") return true;

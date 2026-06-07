@@ -2,7 +2,7 @@
 
 ScreenGuiObject::ScreenGuiObject(std::string className) : Instance(className) {}
 
-std::string ScreenGuiObject::GetClassName() { return "ScreenGuiObject"; }
+std::string ScreenGuiObject::getClassName() { return "ScreenGuiObject"; }
 
 bool ScreenGuiObject::IsA(std::string name) {
     if (name == "ScreenGuiObject") return true;

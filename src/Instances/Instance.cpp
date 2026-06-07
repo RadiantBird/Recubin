@@ -5,7 +5,7 @@
 #include <vector>
 
 #ifdef _WIN32
-    #undef GetClassName // Windowsの勝手な置換をここで無効化する
+    #undef getClassName // Windowsの勝手な置換をここで無効化する
 #endif
 
 // TODO: 無駄な処理を最適化する
@@ -63,7 +63,7 @@ Instance::Instance(string name) {
     this->Name = name;
 }
 
-std::string Instance::GetClassName() {
+std::string Instance::getClassName() {
     return "Instance";
 }
 
@@ -71,7 +71,7 @@ bool Instance::IsA(std::string className) {
     if (className == "Instance") {
         return true;
     }
-    return className == GetClassName();
+    return className == getClassName();
 }
 
 Instance* Instance::getChild(string child_name) {

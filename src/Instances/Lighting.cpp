@@ -4,7 +4,7 @@
 
 Lighting::Lighting() : Instance("Lighting") {}
 
-std::string Lighting::GetClassName() { return "Lighting"; }
+std::string Lighting::getClassName() { return "Lighting"; }
 
 bool Lighting::IsA(std::string className) {
     if (className == "Lighting") return true;

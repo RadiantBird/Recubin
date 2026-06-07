@@ -8,6 +8,9 @@
 #include <Instances/Lighting.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
+#include <include/Core/Terrain.hpp>
+#include <algorithm>
+
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_WINDOWS_UTF8
@@ -331,7 +334,7 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
     auto scan = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
 
-        if (inst->GetClassName() == "Rope") {
+        if (inst->getClassName() == "Rope") {
             Rope* rope = static_cast<Rope*>(inst);
             auto c0 = rope->m_cube0.lock();
             auto c1 = rope->m_cube1.lock();
@@ -355,7 +358,7 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
                 glUniform4f(colorLoc, rope->Color.r, rope->Color.g, rope->Color.b, rope->Color.a);
                 uploadAndDraw(verts);
             }
-        } else if (inst->GetClassName() == "Rod") {
+        } else if (inst->getClassName() == "Rod") {
             Rod* rod = static_cast<Rod*>(inst);
             auto c0 = rod->m_cube0.lock();
             auto c1 = rod->m_cube1.lock();
@@ -702,3 +705,66 @@ unsigned int Renderer::loadTexture(const char* path) {
     textureCache[pathStr] = textureID;
     return textureID;
 }
+
+// ---------------------------------------------------
+//  registerTerrainChunk / unregisterTerrainChunk
+// ---------------------------------------------------
+void Renderer::registerTerrainChunk(Chunk* chunk)
+{
+    if (!chunk) return;
+    // 重複登録を防ぐ
+    if (std::find(m_terrainChunks.begin(), m_terrainChunks.end(), chunk) == m_terrainChunks.end())
+        m_terrainChunks.push_back(chunk);
+}
+ 
+void Renderer::unregisterTerrainChunk(Chunk* chunk)
+{
+    m_terrainChunks.erase(
+        std::remove(m_terrainChunks.begin(), m_terrainChunks.end(), chunk),
+        m_terrainChunks.end());
+}
+ 
+// ---------------------------------------------------
+//  renderTerrain  （renderViewport の Main Pass 末尾から呼ぶ）
+// ---------------------------------------------------
+void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection)
+{
+    if (m_terrainChunks.empty()) return;
+ 
+    // dirty なチャンクのメッシュを再生成
+    for (Chunk* chunk : m_terrainChunks) {
+        if (chunk->mesh.dirty)
+            buildChunkMesh(*chunk);
+    }
+ 
+    // 既存の shaderProgram を流用
+    // モデル行列は単位行列（Terrain 頂点はすでにワールド座標で出力済み）
+    glUseProgram(shaderProgram);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),       1, GL_FALSE, view.m);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, projection.m);
+ 
+    // model = Identity
+    Matrix4 identity;
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, identity.m);
+ 
+    // Terrain は頂点カラーを使うため unlit=1、triplanar=0 に固定
+    int unlitLoc     = glGetUniformLocation(shaderProgram, "unlit");
+    int triplanarLoc = glGetUniformLocation(shaderProgram, "useTriplanar");
+    int texScaleLoc  = glGetUniformLocation(shaderProgram, "u_textureScale");
+    if (unlitLoc     != -1) glUniform1f(unlitLoc,     0.0f); // ライティングあり
+    if (triplanarLoc != -1) glUniform1f(triplanarLoc, 0.0f);
+    if (texScaleLoc  != -1) glUniform1f(texScaleLoc,  1.0f);
+ 
+    // ホワイトテクスチャをバインド（カラーは頂点から取得）
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, whiteTexture);
+ 
+    for (Chunk* chunk : m_terrainChunks) {
+        if (chunk->mesh.indexCount == 0) continue;
+        glBindVertexArray(chunk->mesh.VAO);
+        glDrawElements(GL_TRIANGLES, (GLsizei)chunk->mesh.indexCount, GL_UNSIGNED_INT, nullptr);
+    }
+ 
+    glBindVertexArray(0);
+}
+ 

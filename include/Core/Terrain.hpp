@@ -68,15 +68,26 @@ struct Chunk {
     TerrainMesh mesh;
     physx::PxRigidStatic* physicsActor = nullptr;
 
+    // CPU 側の物理メッシュキャッシュ
+    // buildChunkMesh() が描画頂点と同時に埋め、buildChunkPhysics() が参照する。
+    std::vector<physx::PxVec3> physVerts;
+    std::vector<uint32_t>      physIndices;
+
     int32_t worldOriginX() const { return cx * CHUNK_SIZE; }
     int32_t worldOriginY() const { return cy * CHUNK_SIZE; }
     int32_t worldOriginZ() const { return cz * CHUNK_SIZE; }
 };
 
 // ------------------------------------------------------------------ //
-//  Mesh builder
+//  前方宣言
 // ------------------------------------------------------------------ //
+class Physics;
 
-// チャンクのメッシュを（再）生成して VAO/VBO/EBO をアップロードする。
+// チャンクの描画メッシュを（再）生成して VAO/VBO/EBO をアップロードする。
+// 同時に physVerts / physIndices を埋める。
 // OpenGL コンテキストが有効なスレッドから呼ぶこと。
 void buildChunkMesh(Chunk& chunk);
+
+// チャンクの物理 actor を（再）生成して PhysX シーンに追加する。
+// buildChunkMesh() の後に呼ぶこと（physVerts/physIndices を参照するため）。
+void buildChunkPhysics(Chunk& chunk, Physics& physics);

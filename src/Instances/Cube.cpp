@@ -64,7 +64,7 @@ Cube::Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex)
     // faceTextures は廃止
 }
 
-std::string Cube::GetClassName() {
+std::string Cube::getClassName() {
     return "Cube";
 }
 
@@ -110,7 +110,7 @@ void Cube::draw(int modelLoc, int shaderProgram) {
                 if (!activeDecals[idx])
                     activeTextures[idx] = tex->TextureID;
             }
-        } else if (child->GetClassName() == "SurfaceGui") {
+        } else if (child->getClassName() == "SurfaceGui") {
             auto* sg = static_cast<SurfaceGui*>(child.get());
             int idx = static_cast<int>(sg->face);
             if (idx >= 0 && idx < 6 && sg->m_texID != 0 && !activeDecals[idx]) {

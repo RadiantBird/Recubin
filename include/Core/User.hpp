@@ -96,7 +96,7 @@ public:
     User(GLFWwindow* window);
     ~User();
 
-    std::string GetClassName() override;
+    std::string getClassName() override;
     bool IsA(std::string className) override;
     void setProperty(const std::string& name, const YAML::Node& value) override;
     std::shared_ptr<Instance> clone() const override;

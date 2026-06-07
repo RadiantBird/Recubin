@@ -16,7 +16,7 @@ public:
     void  setTransparency(float t)   { BackgroundColor.a = 1.f - t; }
 
     explicit WorldGuiObject(std::string className);
-    virtual std::string GetClassName() override;
+    virtual std::string getClassName() override;
     virtual bool IsA(std::string name) override;
     virtual void setProperty(const std::string& name, const YAML::Node& val) override;
 };

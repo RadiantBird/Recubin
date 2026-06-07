@@ -57,7 +57,7 @@ static GameConfig loadStartup() {
 // ===================================================
 static CharacterSetting* findCharacterSetting(Instance* inst) {
     if (!inst) return nullptr;
-    if (inst->GetClassName() == "CharacterSetting") return static_cast<CharacterSetting*>(inst);
+    if (inst->getClassName() == "CharacterSetting") return static_cast<CharacterSetting*>(inst);
     for (auto& [name, child] : inst->children) {
         if (auto* found = findCharacterSetting(child.get())) return found;
     }
@@ -67,7 +67,7 @@ static CharacterSetting* findCharacterSetting(Instance* inst) {
 static void applyAppIcon(GLFWwindow* window, Instance* root) {
     if (!window || !root) return;
     for (auto& [name, child] : root->children) {
-        if (child->GetClassName() == "AppImage") {
+        if (child->getClassName() == "AppImage") {
             auto* ai = static_cast<AppImage*>(child.get());
             if (ai->iconPath.empty()) return;
             int w, h, ch;

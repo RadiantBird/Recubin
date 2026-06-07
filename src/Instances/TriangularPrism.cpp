@@ -119,7 +119,7 @@ TriangularPrism::TriangularPrism(Vector3 Pos, Vector3 Sz)
     initGeometry();
 }
 
-std::string TriangularPrism::GetClassName() {
+std::string TriangularPrism::getClassName() {
     return "TriangularPrism";
 }
 

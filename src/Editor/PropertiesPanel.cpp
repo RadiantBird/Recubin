@@ -250,7 +250,7 @@ void PropertiesPanel::onRender() {
 
     // ---- 基本情報 ----
     ImGui::SeparatorText("Instance");
-    ImGui::LabelText("ClassName", "%s", inst->GetClassName().c_str());
+    ImGui::LabelText("ClassName", "%s", inst->getClassName().c_str());
     ImGui::LabelText("Path",      "%s", inst->getFullPath().c_str());
 
     static std::string s_nameBefore;
@@ -374,7 +374,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Sound ----
-    if (inst->GetClassName() == "Sound") {
+    if (inst->getClassName() == "Sound") {
         Sound* snd = static_cast<Sound*>(inst);
         auto sndSp = std::static_pointer_cast<Sound>(inst->shared_from_this());
         ImGui::SeparatorText("Sound");
@@ -411,7 +411,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Script ----
-    if (inst->GetClassName() == "Script") {
+    if (inst->getClassName() == "Script") {
         Script* sc = static_cast<Script*>(inst);
         ImGui::SeparatorText("Script");
         ImGui::LabelText("Source", "%s", sc->Path.c_str());
@@ -430,7 +430,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Decal ----
-    if (inst->GetClassName() == "Decal") {
+    if (inst->getClassName() == "Decal") {
         Decal* dcl = static_cast<Decal*>(inst);
         auto dclSp = std::static_pointer_cast<Decal>(inst->shared_from_this());
         ImGui::SeparatorText("Decal");
@@ -481,7 +481,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Texture ----
-    if (inst->GetClassName() == "Texture") {
+    if (inst->getClassName() == "Texture") {
         Texture* tx = static_cast<Texture*>(inst);
         auto txSp = std::static_pointer_cast<Texture>(inst->shared_from_this());
         ImGui::SeparatorText("Texture");
@@ -555,7 +555,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- User ----
-    if (inst->GetClassName() == "User") {
+    if (inst->getClassName() == "User") {
         User* usr = static_cast<User*>(inst);
         auto usrSp = std::static_pointer_cast<User>(inst->shared_from_this());
         ImGui::SeparatorText("User");
@@ -594,7 +594,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Tool ----
-    if (inst->GetClassName() == "Tool") {
+    if (inst->getClassName() == "Tool") {
         Tool* tool = static_cast<Tool*>(inst);
         auto toolSp = std::static_pointer_cast<Tool>(inst->shared_from_this());
         ImGui::SeparatorText("Tool");
@@ -616,7 +616,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Lighting ----
-    if (inst->GetClassName() == "Lighting") {
+    if (inst->getClassName() == "Lighting") {
         Lighting* lt = static_cast<Lighting*>(inst);
         auto ltSp = std::static_pointer_cast<Lighting>(inst->shared_from_this());
         ImGui::SeparatorText("Lighting");
@@ -647,7 +647,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Skybox ----
-    if (inst->GetClassName() == "Skybox") {
+    if (inst->getClassName() == "Skybox") {
         Skybox* sb = static_cast<Skybox*>(inst);
         auto sbSp = std::static_pointer_cast<Skybox>(inst->shared_from_this());
 
@@ -672,7 +672,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Rope ----
-    if (inst->GetClassName() == "Rope") {
+    if (inst->getClassName() == "Rope") {
         Rope* rope = static_cast<Rope*>(inst);
         auto ropeSp = std::static_pointer_cast<Rope>(inst->shared_from_this());
         ImGui::SeparatorText("Rope");
@@ -710,7 +710,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Rod ----
-    if (inst->GetClassName() == "Rod") {
+    if (inst->getClassName() == "Rod") {
         Rod* rod = static_cast<Rod*>(inst);
         auto rodSp = std::static_pointer_cast<Rod>(inst->shared_from_this());
         ImGui::SeparatorText("Rod");
@@ -730,7 +730,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Weld ----
-    if (inst->GetClassName() == "Weld") {
+    if (inst->getClassName() == "Weld") {
         Weld* weld = static_cast<Weld*>(inst);
         auto weldSp = std::static_pointer_cast<Weld>(inst->shared_from_this());
         ImGui::SeparatorText("Weld");
@@ -739,7 +739,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Motor ----
-    if (inst->GetClassName() == "Motor") {
+    if (inst->getClassName() == "Motor") {
         Motor* motor = static_cast<Motor*>(inst);
         auto motorSp = std::static_pointer_cast<Motor>(inst->shared_from_this());
         ImGui::SeparatorText("Motor");
@@ -769,7 +769,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- AppImage ----
-    if (inst->GetClassName() == "AppImage") {
+    if (inst->getClassName() == "AppImage") {
         AppImage* ai = static_cast<AppImage*>(inst);
         ImGui::SeparatorText("AppImage");
         ImGui::LabelText("IconPath", "%s", ai->iconPath.empty() ? "(none)" : ai->iconPath.c_str());
@@ -783,7 +783,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- CharacterSetting ----
-    if (inst->GetClassName() == "CharacterSetting") {
+    if (inst->getClassName() == "CharacterSetting") {
         CharacterSetting* cs = static_cast<CharacterSetting*>(inst);
         ImGui::SeparatorText("CharacterSetting");
 
@@ -849,7 +849,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- TextLabel ----
-    if (inst->GetClassName() == "TextLabel") {
+    if (inst->getClassName() == "TextLabel") {
         TextLabel* lbl = static_cast<TextLabel*>(inst);
         ImGui::SeparatorText("TextLabel");
 
@@ -864,7 +864,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- TextButton ----
-    if (inst->GetClassName() == "TextButton") {
+    if (inst->getClassName() == "TextButton") {
         TextButton* btn = static_cast<TextButton*>(inst);
         ImGui::SeparatorText("TextButton");
 
@@ -902,7 +902,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- SurfaceGui ----
-    if (inst->GetClassName() == "SurfaceGui") {
+    if (inst->getClassName() == "SurfaceGui") {
         SurfaceGui* sg = static_cast<SurfaceGui*>(inst);
         ImGui::SeparatorText("SurfaceGui");
 
@@ -913,7 +913,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- BillboardGui ----
-    if (inst->GetClassName() == "BillboardGui") {
+    if (inst->getClassName() == "BillboardGui") {
         BillboardGui* bg = static_cast<BillboardGui*>(inst);
         ImGui::SeparatorText("BillboardGui");
 
@@ -924,7 +924,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- ProximityPrompt ----
-    if (inst->GetClassName() == "ProximityPrompt") {
+    if (inst->getClassName() == "ProximityPrompt") {
         ProximityPrompt* pp = static_cast<ProximityPrompt*>(inst);
         ImGui::SeparatorText("ProximityPrompt");
 

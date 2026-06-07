@@ -2,7 +2,7 @@
 
 BillboardGui::BillboardGui() : WorldGuiObject("BillboardGui") {}
 
-std::string BillboardGui::GetClassName() { return "BillboardGui"; }
+std::string BillboardGui::getClassName() { return "BillboardGui"; }
 
 bool BillboardGui::IsA(std::string name) {
     if (name == "BillboardGui") return true;

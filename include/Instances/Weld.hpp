@@ -29,7 +29,7 @@ public:
     static std::vector<std::shared_ptr<BaseCube>>
         collectAssembly(const std::shared_ptr<BaseCube>& start, const Workspace& ws);
 
-    virtual std::string GetClassName() override;
+    virtual std::string getClassName() override;
     virtual bool IsA(std::string className) override;
     void onAncestorChanged() override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;

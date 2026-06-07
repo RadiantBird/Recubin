@@ -23,6 +23,7 @@
 #include <Core/SceneLoader.hpp>
 #include <Core/FileLoader.hpp>
 #include <Core/AudioService.hpp>
+#include <Core/TerrainStreamer.hpp>
 
 #include <Editor/EditorManager.hpp>
 #include <Editor/ViewportFocusManager.hpp>
@@ -74,7 +75,7 @@ GLFWwindow* setupWindow() {
 
 static CharacterSetting* findCharacterSetting(Instance* inst) {
     if (!inst) return nullptr;
-    if (inst->GetClassName() == "CharacterSetting") return static_cast<CharacterSetting*>(inst);
+    if (inst->getClassName() == "CharacterSetting") return static_cast<CharacterSetting*>(inst);
     for (auto& [name, child] : inst->children) {
         if (auto* found = findCharacterSetting(child.get())) return found;
     }
@@ -118,7 +119,7 @@ static void removeWorkspacesFromSystem(
 void applyAppIcon(GLFWwindow* window, Instance* root) {
     if (!window || !root) return;
     for (auto& [name, child] : root->children) {
-        if (child->GetClassName() == "AppImage") {
+        if (child->getClassName() == "AppImage") {
             auto* ai = static_cast<AppImage*>(child.get());
             if (ai->iconPath.empty()) return;
             int w, h, ch;
@@ -201,6 +202,7 @@ int main(int argc, char* argv[]) {
         workspaces = collectWorkspaces(system);
     }
     workspace = workspaces.front();
+    auto terrainStreamer = std::make_unique<TerrainStreamer>(renderer.get(), workspace.get());
     
     // ユーザーがシステムに含まれていない場合は追加
     auto it = system->children.find("User");
@@ -253,7 +255,9 @@ int main(int argc, char* argv[]) {
         luauEngine->setGlobalInstance("workspace", workspace);
         luauEngine->setWorkspace(workspace);
         ed->setWorkspace(workspace.get());
+        terrainStreamer->setWorkspace(workspace.get());
     };
+
     ed->hierarchyPanel->onOpenSecondaryViewport = [&](Workspace* ws) {
         ed->openSecondaryViewport(ws);
     };
@@ -284,6 +288,7 @@ int main(int argc, char* argv[]) {
         if (isDirty) ed->markDirty();
         
         workspace->initPhysics();
+        terrainStreamer->setWorkspace(workspace.get());
     };
 
     while (true) {
@@ -408,6 +413,7 @@ int main(int argc, char* argv[]) {
         }
         user->wantsSwitchWorkspace = false;
 
+        terrainStreamer->update(user->cpos);
         // ---- 描画 ----
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderer->render(*user, window, *workspace.get());

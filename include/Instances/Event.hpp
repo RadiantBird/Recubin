@@ -13,6 +13,6 @@ public:
     void fire();
     void addUntilConnection(std::shared_ptr<RCBNScriptConnection> conn);
 
-    std::string GetClassName() override;
+    std::string getClassName() override;
     bool IsA(std::string name) override;
 };

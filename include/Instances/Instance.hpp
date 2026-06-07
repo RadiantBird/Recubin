@@ -9,7 +9,7 @@
 #include <yaml-cpp/yaml.h>
 
 #ifdef _WIN32
-    #undef GetClassName // これでInstance::GetClassNameがAに化けるのを防ぐ
+    #undef getClassName // これでInstance::getClassNameがAに化けるのを防ぐ
 #endif
 
 class Instance : public std::enable_shared_from_this<Instance> {
@@ -28,7 +28,7 @@ class Instance : public std::enable_shared_from_this<Instance> {
 
         Instance(string name);
 
-        virtual string GetClassName();
+        virtual string getClassName();
         virtual bool IsA(std::string className);
 
         // YAMLなどからプロパティを設定するためのインターフェース

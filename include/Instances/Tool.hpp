@@ -7,7 +7,7 @@ class Tool : public Instance {
     public:
         Tool(std::string name);
 
-        virtual std::string GetClassName() override {
+        virtual std::string getClassName() override {
             return "Tool";
         }
 

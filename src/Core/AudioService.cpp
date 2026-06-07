@@ -5,7 +5,7 @@
 
 #ifdef _WIN32
     #include <windows.h>
-    #undef GetClassName
+    #undef getClassName
 #endif
 
 AudioService* AudioService::instance = nullptr;

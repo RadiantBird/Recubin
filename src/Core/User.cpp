@@ -571,7 +571,7 @@ void User::spawnCharacter(CharacterSetting* cs) {
     RCBN_LOG("Spawning character...");
 }
 
-std::string User::GetClassName() {
+std::string User::getClassName() {
     return "User";
 }
 

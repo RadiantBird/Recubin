@@ -8,7 +8,7 @@ class System : public Instance {
         std::shared_ptr<RCBNScriptSignal> Heartbeat;
 
         System(string name = "System");
-        string GetClassName() override;
+        string getClassName() override;
         bool IsA(std::string className) override;
         void addChild(std::shared_ptr<Instance> child) override;
 };

@@ -44,7 +44,7 @@ void Script::setProperty(const std::string& name, const YAML::Node& value) {
     }
 }
 
-std::string Script::GetClassName() {
+std::string Script::getClassName() {
     return "Script";
 }
 

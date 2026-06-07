@@ -107,7 +107,7 @@ Cylinder::Cylinder(Vector3 Pos, Vector3 Sz)
     initGeometry();
 }
 
-std::string Cylinder::GetClassName() {
+std::string Cylinder::getClassName() {
     return "Cylinder";
 }
 

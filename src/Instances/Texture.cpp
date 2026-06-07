@@ -8,7 +8,7 @@ Texture::Texture(unsigned int textureID, Face targetFace)
 
 Texture::~Texture() {}
 
-std::string Texture::GetClassName() { return "Texture"; }
+std::string Texture::getClassName() { return "Texture"; }
 
 bool Texture::IsA(std::string className) {
     if (className == "Texture") return true;

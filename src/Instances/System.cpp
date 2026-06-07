@@ -5,7 +5,7 @@
 System::System(std::string name) : Instance(name) {
     Heartbeat = std::make_shared<RCBNScriptSignal>();
 }
-std::string System::GetClassName() {
+std::string System::getClassName() {
     return "System";
 }
 bool System::IsA(std::string className) {

@@ -18,7 +18,7 @@ inline Vector3 computeSpawnPos(User* user, Instance* workspace) {
 
     auto visit = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
-        if (inst->GetClassName() == "Skybox") return;
+        if (inst->getClassName() == "Skybox") return;
         if (inst->IsA("BaseCube")) {
             Spatial* sp = static_cast<Spatial*>(inst);
             CFrame wCF = sp->getWorldCFrame();

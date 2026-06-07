@@ -13,7 +13,7 @@ Skybox::Skybox() : Cube(Vector3(0,0,0), Vector3(5000.0f, 5000.0f, 5000.0f), 0) {
 
 }
 
-std::string Skybox::GetClassName() {
+std::string Skybox::getClassName() {
     return "Skybox";
 }
 
