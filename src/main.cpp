@@ -188,7 +188,7 @@ int main(int argc, char* argv[]) {
     // Register only System so YAML can keep multiple Workspace nodes.
     SceneLoader::registerSingleton("System", system);
 
-    SceneLoader::loadScene("assets/scenes/test_scene.yaml");
+    SceneLoader::loadScene("assets/scenes/terrain_test.yaml");
     SceneLoader::clearSingletons();
 
     workspaces = collectWorkspaces(system);
@@ -334,6 +334,7 @@ int main(int argc, char* argv[]) {
             audioService->stopAllSounds();
             user->despawnCharacter();
             // 全Workspaceのクリア（ownedPhysics デストラクタで自動解放）
+            terrainStreamer->clear();
             workspaces = collectWorkspaces(system);
             clearWorkspacePhysics(workspaces);
             removeWorkspacesFromSystem(system, workspaces);
@@ -347,6 +348,7 @@ int main(int argc, char* argv[]) {
             std::string loadPath = ed->pendingLoadPath;
             ed->pendingLoadPath.clear();
 
+            terrainStreamer->clear();
             workspaces = collectWorkspaces(system);
             clearWorkspacePhysics(workspaces);
             removeWorkspacesFromSystem(system, workspaces);
@@ -408,6 +410,8 @@ int main(int argc, char* argv[]) {
                     luauEngine->setGlobalInstance("workspace", workspace);
                     luauEngine->setWorkspace(workspace);
                     ed->setWorkspace(workspace.get());
+                    terrainStreamer->clear();
+                    terrainStreamer->setWorkspace(workspace.get());
                 }
             }
         }
@@ -434,6 +438,7 @@ int main(int argc, char* argv[]) {
         ed->m_history.clear();
         ed->clearClipboard();
     }
+    terrainStreamer.reset();
     // 全WorkspaceのPhysicsをクリア（m_ownedPhysics デストラクタで PxScene 解放）
     workspaces = collectWorkspaces(system);
     for (auto& ws : workspaces) {

@@ -588,6 +588,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         renderConstraints(*desc.workspace, view, projection);
     }
 
+    // ---- Terrain の描画 ----
+    renderTerrain(view, projection);
+
     glBindVertexArray(0);
     glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
     glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
@@ -747,13 +750,17 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection)
     Matrix4 identity;
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, identity.m);
  
-    // Terrain は頂点カラーを使うため unlit=1、triplanar=0 に固定
-    int unlitLoc     = glGetUniformLocation(shaderProgram, "unlit");
-    int triplanarLoc = glGetUniformLocation(shaderProgram, "useTriplanar");
-    int texScaleLoc  = glGetUniformLocation(shaderProgram, "u_textureScale");
-    if (unlitLoc     != -1) glUniform1f(unlitLoc,     0.0f); // ライティングあり
-    if (triplanarLoc != -1) glUniform1f(triplanarLoc, 0.0f);
-    if (texScaleLoc  != -1) glUniform1f(texScaleLoc,  1.0f);
+    // Terrain は頂点カラーを使うため useVertexColor=1、triplanar=0 に固定
+    int unlitLoc        = glGetUniformLocation(shaderProgram, "unlit");
+    int triplanarLoc    = glGetUniformLocation(shaderProgram, "useTriplanar");
+    int texScaleLoc     = glGetUniformLocation(shaderProgram, "u_textureScale");
+    int useVertexColLoc = glGetUniformLocation(shaderProgram, "useVertexColor");
+    int ourColorLoc     = glGetUniformLocation(shaderProgram, "ourColor");
+    if (unlitLoc        != -1) glUniform1f(unlitLoc,        0.0f); // ライティングあり
+    if (triplanarLoc    != -1) glUniform1f(triplanarLoc,    0.0f);
+    if (texScaleLoc     != -1) glUniform1f(texScaleLoc,     1.0f);
+    if (useVertexColLoc != -1) glUniform1f(useVertexColLoc, 1.0f);
+    if (ourColorLoc     != -1) glUniform4f(ourColorLoc,     1.0f, 1.0f, 1.0f, 1.0f);
  
     // ホワイトテクスチャをバインド（カラーは頂点から取得）
     glActiveTexture(GL_TEXTURE0);
@@ -766,5 +773,8 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection)
     }
  
     glBindVertexArray(0);
+
+    // useVertexColor をリセット（通常描画への影響を防ぐ）
+    if (useVertexColLoc != -1) glUniform1f(useVertexColLoc, 0.0f);
 }
  

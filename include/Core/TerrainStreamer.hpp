@@ -36,6 +36,9 @@ public:
     // Workspace が切り替わったとき（ed->hierarchyPanel->onSwitchWorkspace など）に呼ぶ
     void setWorkspace(Workspace* workspace);
 
+    // 全チャンクを解放する
+    void clear();
+
     // 毎フレーム呼ぶ。playerPos はワールド座標（ブロック単位）。
     void update(const Vector3& playerPos);
 

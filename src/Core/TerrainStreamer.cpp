@@ -99,6 +99,12 @@ void TerrainStreamer::setWorkspace(Workspace* workspace) {
     m_workspace = workspace;
 }
 
+void TerrainStreamer::clear() {
+    std::vector<ChunkKey> keys;
+    for (auto& [k, _] : m_chunks) keys.push_back(k);
+    for (auto& k : keys) unloadChunk(k.cx, k.cy, k.cz);
+}
+
 Physics* TerrainStreamer::getPhysics() const {
     if (!m_workspace) return nullptr;
     return m_workspace->getPhysicsEngine();

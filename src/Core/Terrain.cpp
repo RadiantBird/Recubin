@@ -275,9 +275,12 @@ void buildChunkMesh(Chunk& chunk)
         const float fg = blk.g / 255.0f;
         const float fb = blk.b / 255.0f;
 
-        const float ox = (float)(chunk.worldOriginX() + x);
-        const float oy = (float)(chunk.worldOriginY() + y);
-        const float oz = (float)(chunk.worldOriginZ() + z);
+        static constexpr float BS  = 4.0f;  // 1ブロックのサイズ (studs)
+        static constexpr float BHS = BS * 0.5f; // ブロック半サイズ
+
+        const float ox = (float)(chunk.worldOriginX() + x) * BS;
+        const float oy = (float)(chunk.worldOriginY() + y) * BS;
+        const float oz = (float)(chunk.worldOriginZ() + z) * BS;
 
         const uint8_t shapeIdx = static_cast<uint8_t>(blk.shape);
 
@@ -294,9 +297,9 @@ void buildChunkMesh(Chunk& chunk)
                 for (int vi = 0; vi < 4; vi++)
                 {
                     const float* lv = BASE_VERTS[fd.vi[vi]];
-                    float wx = ox + lv[0]*0.5f;
-                    float wy = oy + lv[1]*0.5f;
-                    float wz = oz + lv[2]*0.5f;
+                    float wx = ox + lv[0]*BHS;
+                    float wy = oy + lv[1]*BHS;
+                    float wz = oz + lv[2]*BHS;
                     pushVertex(verts, wx, wy, wz,
                         fd.nx, fd.ny, fd.nz,
                         (vi==0||vi==3)?0.0f:1.0f,
@@ -307,9 +310,9 @@ void buildChunkMesh(Chunk& chunk)
                 // 描画用
                 indices.push_back(base+0); indices.push_back(base+1); indices.push_back(base+2);
                 indices.push_back(base+0); indices.push_back(base+2); indices.push_back(base+3);
-                // 物理用
-                physIndices.push_back(physBase+0); physIndices.push_back(physBase+1); physIndices.push_back(physBase+2);
-                physIndices.push_back(physBase+0); physIndices.push_back(physBase+2); physIndices.push_back(physBase+3);
+                // 物理用（ワインディング反転 → 法線を外向きに修正）
+                physIndices.push_back(physBase+2); physIndices.push_back(physBase+1); physIndices.push_back(physBase+0);
+                physIndices.push_back(physBase+3); physIndices.push_back(physBase+2); physIndices.push_back(physBase+0);
             }
         }
         else if (shapeIdx < (uint8_t)(sizeof(SHAPE_TRIS)/sizeof(SHAPE_TRIS[0])))
@@ -324,9 +327,9 @@ void buildChunkMesh(Chunk& chunk)
                 const float* vb = BASE_VERTS[tris[ti+1]];
                 const float* vc = BASE_VERTS[tris[ti+2]];
 
-                float wa[3] = { ox+va[0]*0.5f, oy+va[1]*0.5f, oz+va[2]*0.5f };
-                float wb[3] = { ox+vb[0]*0.5f, oy+vb[1]*0.5f, oz+vb[2]*0.5f };
-                float wc[3] = { ox+vc[0]*0.5f, oy+vc[1]*0.5f, oz+vc[2]*0.5f };
+                float wa[3] = { ox+va[0]*BHS, oy+va[1]*BHS, oz+va[2]*BHS };
+                float wb[3] = { ox+vb[0]*BHS, oy+vb[1]*BHS, oz+vb[2]*BHS };
+                float wc[3] = { ox+vc[0]*BHS, oy+vc[1]*BHS, oz+vc[2]*BHS };
 
                 float nx, ny, nz;
                 calcNormal(wa, wb, wc, nx, ny, nz);
@@ -427,9 +430,11 @@ void buildChunkPhysics(Chunk& chunk, Physics& physics)
     physx::PxRigidStatic* actor = Physics::GetPhysics()->createRigidStatic(
         physx::PxTransform(physx::PxIdentity)
     );
+    physx::PxTriangleMeshGeometry geom(triMesh);
+    geom.meshFlags = physx::PxMeshGeometryFlag::eDOUBLE_SIDED;
     physx::PxRigidActorExt::createExclusiveShape(
         *actor,
-        physx::PxTriangleMeshGeometry(triMesh),
+        geom,
         *mat
     );
     physics.getScene()->addActor(*actor);
