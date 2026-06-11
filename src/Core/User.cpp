@@ -588,6 +588,6 @@ void User::setProperty(const std::string& name, const YAML::Node& value) {
 std::shared_ptr<Instance> User::clone() const {
     // User is not cloneable due to its dependency on GLFWwindow*
     // Return nullptr or throw an error
-    RCBN_LOG("[WARNING] User::clone() is not supported");
+    RCBN_ERROR("User::clone() is not supported");
     return nullptr;
 }

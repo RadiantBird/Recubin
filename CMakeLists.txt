@@ -55,6 +55,7 @@ target_include_directories(Recubin PRIVATE ${COMMON_INCLUDES})
 target_link_options(Recubin PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>
     $<$<CXX_COMPILER_ID:MSVC>:/DEBUG>
+    $<$<CXX_COMPILER_ID:MSVC>:/ignore:4099>
 )
 target_link_libraries(Recubin PRIVATE ${COMMON_LIBS})
 
@@ -64,5 +65,6 @@ target_include_directories(RecubinEngine PRIVATE ${COMMON_INCLUDES})
 target_link_options(RecubinEngine PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>
     $<$<CXX_COMPILER_ID:MSVC>:/DEBUG>
+    $<$<CXX_COMPILER_ID:MSVC>:/ignore:4099>
 )
 target_link_libraries(RecubinEngine PRIVATE ${COMMON_LIBS})

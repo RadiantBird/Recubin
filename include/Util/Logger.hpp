@@ -37,7 +37,7 @@ inline std::function<void(const std::string&)> g_luauLogHook;
     #define RCBN_ERROR(msg) \
         do { \
             std::ostringstream _ss; _ss << "[" << ::Util::getFileName(__FILE__) << ":" << __LINE__ << "] " << msg; \
-            std::cerr << "[RCBN_ERROR]" << _ss.str() << std::endl; \
+            std::cerr << "\033[31m[RCBN_ERROR]" << _ss.str() << "\033[0m" << std::endl; \
             if (g_logHook) g_logHook("[ERROR]" + _ss.str()); \
         } while(0)
 
