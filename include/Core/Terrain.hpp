@@ -91,3 +91,21 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer = nullptr);
 // チャンクの物理 actor を（再）生成して PhysX シーンに追加する。
 // buildChunkMesh() の後に呼ぶこと（physVerts/physIndices を参照するため）。
 void buildChunkPhysics(Chunk& chunk, Physics& physics);
+
+#include <Instances/Instance.hpp>
+#include <memory>
+
+class Terrain : public Instance {
+public:
+    bool Enabled = true;
+    std::unique_ptr<TerrainStreamer> streamer;
+
+    Terrain();
+    virtual ~Terrain();
+
+    std::string getClassName() override;
+    bool IsA(std::string className) override;
+    void setProperty(const std::string& name, const YAML::Node& value) override;
+
+    void update(const Vector3& centerPos);
+};

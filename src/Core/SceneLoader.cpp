@@ -15,6 +15,7 @@
 #include <Instances/AppImage.hpp>
 #include <Instances/CharacterSetting.hpp>
 #include <Instances/Skybox.hpp>
+#include <include/Core/Terrain.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/Weld.hpp>
@@ -203,6 +204,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Lighting")  return std::make_shared<Lighting>();
     if (className == "AppImage")         return std::make_shared<AppImage>();
     if (className == "CharacterSetting") return std::make_shared<CharacterSetting>();
+    if (className == "Terrain") return std::make_shared<Terrain>();
     if (className == "Instance") return std::make_shared<Instance>("Instance");
     if (className == "Rope")  return std::make_shared<Rope>();
     if (className == "Rod")   return std::make_shared<Rod>();

@@ -1,6 +1,5 @@
 #pragma once
 #include <include/Core/Terrain.hpp>
-#include <include/Core/Renderer.hpp>
 #include <include/Instances/Workspace.hpp>
 #include <Math/PerlinNoise.hpp>
 #include <include/Math/Vector3.hpp>
@@ -29,7 +28,7 @@ public:
 
     std::string terrainDir = "terrain";
 
-    TerrainStreamer(Renderer* renderer, Workspace* workspace);
+    TerrainStreamer(Workspace* workspace);
 
     ~TerrainStreamer();
 
@@ -54,8 +53,10 @@ public:
     // キャッシュされたリージョンデータをファイルに書き出す
     void flushRegions();
 
+    // ロード済みチャンク一覧（Renderer描画用）
+    const std::unordered_map<ChunkKey, ChunkEntry, ChunkKeyHash>& getChunks() const { return m_chunks; }
+
 private:
-    Renderer*  m_renderer;
     Workspace* m_workspace; // 所有しない、ライフタイムは呼び出し元が管理
     PerlinNoise m_noise;
 

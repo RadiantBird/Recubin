@@ -82,8 +82,8 @@ void rleDecode(const std::vector<RleEntry>& rle, Chunk& chunk) {
 // ================================================================== //
 //  コンストラクタ / デストラクタ
 // ================================================================== //
-TerrainStreamer::TerrainStreamer(Renderer* renderer, Workspace* workspace)
-    : m_renderer(renderer), m_workspace(workspace), m_noise(12345u)
+TerrainStreamer::TerrainStreamer(Workspace* workspace)
+    : m_workspace(workspace), m_noise(12345u)
 {
     ensureDir(terrainDir);
 }
@@ -157,8 +157,6 @@ void TerrainStreamer::loadChunk(int32_t cx, int32_t cy, int32_t cz)
     entry.modified   = false;
 
     readChunkFromRegion(chunk);
-
-    if (m_renderer) m_renderer->registerTerrainChunk(&chunk);
 }
 
 void TerrainStreamer::unloadChunk(int32_t cx, int32_t cy, int32_t cz)
@@ -184,7 +182,6 @@ void TerrainStreamer::unloadChunk(int32_t cx, int32_t cy, int32_t cz)
     if (chunk.mesh.VBO) { glDeleteBuffers(1, &chunk.mesh.VBO);      chunk.mesh.VBO = 0; }
     if (chunk.mesh.EBO) { glDeleteBuffers(1, &chunk.mesh.EBO);      chunk.mesh.EBO = 0; }
 
-    if (m_renderer) m_renderer->unregisterTerrainChunk(&chunk);
     m_chunks.erase(it);
 }
 

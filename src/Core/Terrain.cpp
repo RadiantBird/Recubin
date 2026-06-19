@@ -1,5 +1,6 @@
 #include <include/Core/Terrain.hpp>
 #include <include/Core/TerrainStreamer.hpp>
+#include <Instances/Workspace.hpp>
 #include <vector>
 #include <cstring>
 #include <cmath>
@@ -453,4 +454,44 @@ void buildChunkPhysics(Chunk& chunk, Physics& physics)
     mat->release();
 
     chunk.physicsActor = actor;
+}
+
+// ================================================================== //
+//  Terrain Instance
+// ================================================================== //
+
+Terrain::Terrain() : Instance("Terrain") {}
+Terrain::~Terrain() {}
+
+std::string Terrain::getClassName() { return "Terrain"; }
+
+bool Terrain::IsA(std::string className) {
+    if (className == "Terrain") return true;
+    return Instance::IsA(className);
+}
+
+void Terrain::setProperty(const std::string& name, const YAML::Node& value) {
+    if (name == "Enabled") {
+        Enabled = value.as<bool>();
+    } else {
+        Instance::setProperty(name, value);
+    }
+}
+
+void Terrain::update(const Vector3& centerPos) {
+    if (!Enabled) {
+        if (streamer) {
+            streamer->clear();
+            streamer.reset();
+        }
+        return;
+    }
+
+    if (!streamer) {
+        Workspace* ws = static_cast<Workspace*>(findFirstAncestorWorkspace());
+        if (!ws) return;
+        streamer = std::make_unique<TerrainStreamer>(ws);
+    }
+
+    streamer->update(centerPos);
 }

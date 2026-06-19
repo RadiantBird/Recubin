@@ -107,12 +107,6 @@ class Renderer {
         void renderWorldGui (Workspace& ws, float vpX, float vpY, float vpW, float vpH);
         void bakeSurfaceGui (SurfaceGui* sg);
 
-        // ---- Terrain ----
-        // 所有はしない。Chunk のライフタイムは呼び出し元が管理する。
-        void registerTerrainChunk(Chunk* chunk);
-        void unregisterTerrainChunk(Chunk* chunk);
-
     private:
-        std::vector<Chunk*> m_terrainChunks;
-        void renderTerrain(const Matrix4& view, const Matrix4& projection);
+        void renderTerrain(const Matrix4& view, const Matrix4& projection, class Workspace* workspace);
 };

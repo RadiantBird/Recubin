@@ -23,7 +23,7 @@
 #include <Core/SceneLoader.hpp>
 #include <Core/FileLoader.hpp>
 #include <Core/AudioService.hpp>
-#include <Core/TerrainStreamer.hpp>
+#include <include/Core/Terrain.hpp>
 
 #include <Editor/EditorManager.hpp>
 #include <Editor/ViewportFocusManager.hpp>
@@ -209,7 +209,18 @@ int main(int argc, char* argv[]) {
         workspaces = collectWorkspaces(system);
     }
     workspace = workspaces.front();
-    beta(auto terrainStreamer = std::make_unique<TerrainStreamer>(renderer.get(), workspace.get()));
+    // Terrainインスタンスがなければデフォルトで追加
+    beta({
+        bool hasTerrain = false;
+        for (auto& [name, child] : workspace->getChildren()) {
+            if (child->IsA("Terrain")) { hasTerrain = true; break; }
+        }
+        if (!hasTerrain) {
+            auto terrain = std::make_shared<Terrain>();
+            terrain->Name = "Terrain";
+            workspace->addChild(terrain);
+        }
+    });
     
     // ユーザーがシステムに含まれていない場合は追加
     auto it = system->children.find("User");
@@ -262,7 +273,7 @@ int main(int argc, char* argv[]) {
         luauEngine->setGlobalInstance("workspace", workspace);
         luauEngine->setWorkspace(workspace);
         ed->setWorkspace(workspace.get());
-        beta(terrainStreamer->setWorkspace(workspace.get()));
+        // Terrainを新Workspaceにリセット（次のupdate()で再初期化される）
     };
 
     ed->hierarchyPanel->onOpenSecondaryViewport = [&](Workspace* ws) {
@@ -295,7 +306,7 @@ int main(int argc, char* argv[]) {
         if (isDirty) ed->markDirty();
         
         workspace->initPhysics();
-        beta(terrainStreamer->setWorkspace(workspace.get()));
+        // Terrainを新Workspaceにリセット（次のupdate()で再初期化される）
     };
 
     while (true) {
@@ -341,7 +352,7 @@ int main(int argc, char* argv[]) {
             audioService->stopAllSounds();
             user->despawnCharacter();
             // 全Workspaceのクリア（ownedPhysics デストラクタで自動解放）
-            beta(terrainStreamer->clear());
+            // Terrainは次回のload時に再構築される
             workspaces = collectWorkspaces(system);
             clearWorkspacePhysics(workspaces);
             removeWorkspacesFromSystem(system, workspaces);
@@ -355,7 +366,7 @@ int main(int argc, char* argv[]) {
             std::string loadPath = ed->pendingLoadPath;
             ed->pendingLoadPath.clear();
 
-            beta(terrainStreamer->clear());
+            // Terrainは次回のload時に再構築される
             workspaces = collectWorkspaces(system);
             clearWorkspacePhysics(workspaces);
             removeWorkspacesFromSystem(system, workspaces);
@@ -417,18 +428,35 @@ int main(int argc, char* argv[]) {
                     luauEngine->setGlobalInstance("workspace", workspace);
                     luauEngine->setWorkspace(workspace);
                     ed->setWorkspace(workspace.get());
-                    beta(terrainStreamer->clear());
-                    beta(terrainStreamer->setWorkspace(workspace.get()));
+                    // ワークスペース切り替え時は新Workspaceにもデフォルトでの追加チェック
+                    beta({
+                        bool hasTerrain = false;
+                        for (auto& [name, child] : workspace->getChildren()) {
+                            if (child->IsA("Terrain")) { hasTerrain = true; break; }
+                        }
+                        if (!hasTerrain) {
+                            auto terrain = std::make_shared<Terrain>();
+                            terrain->Name = "Terrain";
+                            workspace->addChild(terrain);
+                        }
+                    });
                 }
             }
         }
         user->wantsSwitchWorkspace = false;
 
-        Vector3 centerPos = user->cpos;
-        if (user->root) {
-            centerPos = user->root->getWorldCFrame().Position;
-        }
-        beta(terrainStreamer->update(centerPos));
+        beta({
+            Vector3 centerPos = user->cpos;
+            if (user->root) {
+                centerPos = user->root->getWorldCFrame().Position;
+            }
+            for (auto& [name, child] : workspace->getChildren()) {
+                if (child->IsA("Terrain")) {
+                    static_cast<Terrain*>(child.get())->update(centerPos);
+                    break;
+                }
+            }
+        });
         // ---- 描画 ----
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderer->render(*user, window, *workspace.get());
@@ -449,7 +477,7 @@ int main(int argc, char* argv[]) {
         ed->m_history.clear();
         ed->clearClipboard();
     }
-    beta(terrainStreamer.reset());
+    // Terrainは各Workspaceの子インスタンスとして受け渡されるため、systemデストラクタで自動解放される
     // 全WorkspaceのPhysicsをクリア（m_ownedPhysics デストラクタで PxScene 解放）
     workspaces = collectWorkspaces(system);
     for (auto& ws : workspaces) {
