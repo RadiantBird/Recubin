@@ -324,8 +324,11 @@ void User::applyBodyAnimation() {
     if (rightArm) {
         rightArm->cframe = makeArm(root->cframe, rightShoulderPos, pose.rightArm);
         if (currentTool && currentTool->Equipped && currentTool->Handle) {
-            // FIXME: どうやらcframeをそのまま代入しても位置がおかしいので、なんとかする
-            currentTool->Handle->cframe = rightArm->cframe * CFrame(0, 0, 0); // 手の位置にツールを配置
+            CFrame armCFrame = rightArm->getWorldCFrame();
+            Vector3 charForward = root->Rotation.getForward();
+            const float TOOL_FORWARD_OFFSET = 1.0f;
+            armCFrame.Position = armCFrame.Position + charForward * TOOL_FORWARD_OFFSET;
+            currentTool->Handle->cframe = armCFrame; // 手の位置にツールを配置
         }
     }
 
@@ -421,10 +424,14 @@ void User::processToolkeys() {
 
 void User::processMouse() {
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-        if (currentTool && currentTool->Equipped && SystemState::get().isPlaying) {
+        if (!toolActivated && currentTool && currentTool->Equipped && SystemState::get().isPlaying) {
            currentTool->Activated->fire();
            RCBN_TRACE("Activated tool: " + currentTool->Name);
+           toolActivated = true;
         }
+    }
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE) {
+        toolActivated = false;
     }
 }
 
@@ -482,7 +489,7 @@ void User::spawnCharacter(CharacterSetting* cs) {
     // HACK: ただのテスト配列
     auto tool1 = std::make_shared<Tool>("TestTool1");
     auto tool2 = std::make_shared<Tool>("TestTool2");
-    std::shared_ptr<Cube> testHandle = std::make_shared<Cube>(Vector3(0,0,0), Vector3(5.0f, 5.0f, 5.0f), 0);
+    std::shared_ptr<Cube> testHandle = std::make_shared<Cube>(Vector3(0,0,0), Vector3(0.5f, 0.5f, 5.0f), 0);
     testHandle->Name = "Handle";
     testHandle->Anchored = true;
     testHandle->Color = Color4::FromRGB(255, 0, 0);

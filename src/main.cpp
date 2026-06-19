@@ -44,6 +44,13 @@
 #include <PhysX/PxPhysicsAPI.h>
 #include <memory>
 
+#define ENABLE_BETA 1 // enable beta features(such as terrain)
+#ifdef ENABLE_BETA
+    #define beta(...) __VA_ARGS__
+#else
+    #define beta(...)
+#endif
+
 // ===================================================
 //  ウィンドウセットアップ
 // ===================================================
@@ -188,7 +195,7 @@ int main(int argc, char* argv[]) {
     // Register only System so YAML can keep multiple Workspace nodes.
     SceneLoader::registerSingleton("System", system);
 
-    SceneLoader::loadScene("assets/scenes/terrain_test.yaml");
+    SceneLoader::loadScene("assets/scenes/test_scene.yaml");//("assets/scenes/terrain_test.yaml");
     SceneLoader::clearSingletons();
 
     workspaces = collectWorkspaces(system);
@@ -202,7 +209,7 @@ int main(int argc, char* argv[]) {
         workspaces = collectWorkspaces(system);
     }
     workspace = workspaces.front();
-    auto terrainStreamer = std::make_unique<TerrainStreamer>(renderer.get(), workspace.get());
+    beta(auto terrainStreamer = std::make_unique<TerrainStreamer>(renderer.get(), workspace.get()));
     
     // ユーザーがシステムに含まれていない場合は追加
     auto it = system->children.find("User");
@@ -255,7 +262,7 @@ int main(int argc, char* argv[]) {
         luauEngine->setGlobalInstance("workspace", workspace);
         luauEngine->setWorkspace(workspace);
         ed->setWorkspace(workspace.get());
-        terrainStreamer->setWorkspace(workspace.get());
+        beta(terrainStreamer->setWorkspace(workspace.get()));
     };
 
     ed->hierarchyPanel->onOpenSecondaryViewport = [&](Workspace* ws) {
@@ -288,7 +295,7 @@ int main(int argc, char* argv[]) {
         if (isDirty) ed->markDirty();
         
         workspace->initPhysics();
-        terrainStreamer->setWorkspace(workspace.get());
+        beta(terrainStreamer->setWorkspace(workspace.get()));
     };
 
     while (true) {
@@ -334,7 +341,7 @@ int main(int argc, char* argv[]) {
             audioService->stopAllSounds();
             user->despawnCharacter();
             // 全Workspaceのクリア（ownedPhysics デストラクタで自動解放）
-            terrainStreamer->clear();
+            beta(terrainStreamer->clear());
             workspaces = collectWorkspaces(system);
             clearWorkspacePhysics(workspaces);
             removeWorkspacesFromSystem(system, workspaces);
@@ -348,7 +355,7 @@ int main(int argc, char* argv[]) {
             std::string loadPath = ed->pendingLoadPath;
             ed->pendingLoadPath.clear();
 
-            terrainStreamer->clear();
+            beta(terrainStreamer->clear());
             workspaces = collectWorkspaces(system);
             clearWorkspacePhysics(workspaces);
             removeWorkspacesFromSystem(system, workspaces);
@@ -410,14 +417,18 @@ int main(int argc, char* argv[]) {
                     luauEngine->setGlobalInstance("workspace", workspace);
                     luauEngine->setWorkspace(workspace);
                     ed->setWorkspace(workspace.get());
-                    terrainStreamer->clear();
-                    terrainStreamer->setWorkspace(workspace.get());
+                    beta(terrainStreamer->clear());
+                    beta(terrainStreamer->setWorkspace(workspace.get()));
                 }
             }
         }
         user->wantsSwitchWorkspace = false;
 
-        terrainStreamer->update(user->cpos);
+        Vector3 centerPos = user->cpos;
+        if (user->root) {
+            centerPos = user->root->getWorldCFrame().Position;
+        }
+        beta(terrainStreamer->update(centerPos));
         // ---- 描画 ----
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderer->render(*user, window, *workspace.get());
@@ -438,7 +449,7 @@ int main(int argc, char* argv[]) {
         ed->m_history.clear();
         ed->clearClipboard();
     }
-    terrainStreamer.reset();
+    beta(terrainStreamer.reset());
     // 全WorkspaceのPhysicsをクリア（m_ownedPhysics デストラクタで PxScene 解放）
     workspaces = collectWorkspaces(system);
     for (auto& ws : workspaces) {

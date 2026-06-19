@@ -43,9 +43,8 @@ struct Block {
 struct TerrainVertex {
     float x, y, z;    // 位置
     float nx, ny, nz; // 法線
-    float u, v;        // UV
-    float r, g, b;    // 頂点カラー
-    // 計 36 byte/頂点
+    float u, v;       // UV
+    uint8_t r, g, b, a; // 頂点カラー (計 36 byte)
 };
 
 struct TerrainMesh {
@@ -82,11 +81,12 @@ struct Chunk {
 //  前方宣言
 // ------------------------------------------------------------------ //
 class Physics;
+class TerrainStreamer;
 
 // チャンクの描画メッシュを（再）生成して VAO/VBO/EBO をアップロードする。
 // 同時に physVerts / physIndices を埋める。
 // OpenGL コンテキストが有効なスレッドから呼ぶこと。
-void buildChunkMesh(Chunk& chunk);
+void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer = nullptr);
 
 // チャンクの物理 actor を（再）生成して PhysX シーンに追加する。
 // buildChunkMesh() の後に呼ぶこと（physVerts/physIndices を参照するため）。

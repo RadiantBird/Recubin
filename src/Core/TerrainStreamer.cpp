@@ -93,6 +93,7 @@ TerrainStreamer::~TerrainStreamer() {
     keys.reserve(m_chunks.size());
     for (auto& [k, _] : m_chunks) keys.push_back(k);
     for (auto& k : keys) unloadChunk(k.cx, k.cy, k.cz);
+    flushRegions();
 }
 
 void TerrainStreamer::setWorkspace(Workspace* workspace) {
@@ -103,6 +104,8 @@ void TerrainStreamer::clear() {
     std::vector<ChunkKey> keys;
     for (auto& [k, _] : m_chunks) keys.push_back(k);
     for (auto& k : keys) unloadChunk(k.cx, k.cy, k.cz);
+    flushRegions();
+    m_regions.clear();
 }
 
 Physics* TerrainStreamer::getPhysics() const {
@@ -121,9 +124,9 @@ void TerrainStreamer::update(const Vector3& playerPos)
 
     // 範囲内チャンクをロード
     for (int dx = -STREAM_RADIUS; dx <= STREAM_RADIUS; dx++)
-    for (int dy = -STREAM_RADIUS; dy <= STREAM_RADIUS; dy++)
+    for (int cy = 0; cy < 8; cy++) // Y軸は 0～7 を常にロード
     for (int dz = -STREAM_RADIUS; dz <= STREAM_RADIUS; dz++) {
-        ChunkKey key{ pcx+dx, pcy+dy, pcz+dz };
+        ChunkKey key{ pcx+dx, cy, pcz+dz };
         if (m_chunks.find(key) == m_chunks.end())
             loadChunk(key.cx, key.cy, key.cz);
     }
@@ -132,8 +135,8 @@ void TerrainStreamer::update(const Vector3& playerPos)
     std::vector<ChunkKey> toUnload;
     for (auto& [key, _] : m_chunks) {
         if (std::abs(key.cx-pcx) > STREAM_RADIUS ||
-            std::abs(key.cy-pcy) > STREAM_RADIUS ||
-            std::abs(key.cz-pcz) > STREAM_RADIUS)
+            std::abs(key.cz-pcz) > STREAM_RADIUS ||
+            key.cy < 0 || key.cy >= 8)
             toUnload.push_back(key);
     }
     for (auto& key : toUnload) unloadChunk(key.cx, key.cy, key.cz);
@@ -188,7 +191,7 @@ void TerrainStreamer::unloadChunk(int32_t cx, int32_t cy, int32_t cz)
 void TerrainStreamer::rebuildIfDirty(ChunkEntry& entry)
 {
     if (!entry.chunk.mesh.dirty) return;
-    buildChunkMesh(entry.chunk);
+    buildChunkMesh(entry.chunk, this);
     Physics* phys = getPhysics();
     if (phys) buildChunkPhysics(entry.chunk, *phys);
 }
@@ -200,18 +203,46 @@ std::string TerrainStreamer::regionPath(const std::string& dir, int32_t rx, int3
     return dir + "/r_" + std::to_string(rx) + "_" + std::to_string(rz) + ".yaml";
 }
 
+TerrainStreamer::RegionCache& TerrainStreamer::getRegionCache(int32_t rx, int32_t rz) {
+    auto& cache = m_regions[{rx, rz}];
+    if (!cache.loaded) {
+        std::string path = regionPath(terrainDir, rx, rz);
+        std::string content = FileLoader::readText(path);
+        if (!content.empty()) {
+            try { cache.root = YAML::Load(content); } catch (...) {}
+        }
+        if (!cache.root["chunks"] || !cache.root["chunks"].IsSequence()) {
+            cache.root["chunks"] = YAML::Node(YAML::NodeType::Sequence);
+        }
+        cache.loaded = true;
+        cache.modified = false;
+    }
+    return cache;
+}
+
+void TerrainStreamer::flushRegions() {
+    ensureDir(terrainDir);
+    for (auto& [k, cache] : m_regions) {
+        if (cache.loaded && cache.modified) {
+            std::string path = regionPath(terrainDir, k.rx, k.rz);
+            YAML::Emitter out;
+            out << cache.root;
+            std::ofstream ofs(path);
+            if (ofs.is_open()) ofs << out.c_str();
+            else std::cerr << "[TerrainStreamer] Failed to write: " << path << std::endl;
+            cache.modified = false;
+        }
+    }
+}
+
 void TerrainStreamer::readChunkFromRegion(Chunk& chunk)
 {
     int32_t rx = chunkToRegion(chunk.cx);
     int32_t rz = chunkToRegion(chunk.cz);
-    std::string content = FileLoader::readText(regionPath(terrainDir, rx, rz));
-    if (content.empty()) { generateChunk(chunk); return; }
+    RegionCache& cache = getRegionCache(rx, rz);
 
     try {
-        YAML::Node root   = YAML::Load(content);
-        YAML::Node chunks = root["chunks"];
-        if (!chunks || !chunks.IsSequence()) { generateChunk(chunk); return; }
-
+        YAML::Node chunks = cache.root["chunks"];
         for (const auto& node : chunks) {
             if (node["cx"].as<int32_t>() != chunk.cx) continue;
             if (node["cy"].as<int32_t>() != chunk.cy) continue;
@@ -235,15 +266,9 @@ void TerrainStreamer::writeChunkToRegion(const Chunk& chunk)
 {
     int32_t rx = chunkToRegion(chunk.cx);
     int32_t rz = chunkToRegion(chunk.cz);
-    std::string path = regionPath(terrainDir, rx, rz);
+    RegionCache& cache = getRegionCache(rx, rz);
 
-    YAML::Node root;
-    std::string content = FileLoader::readText(path);
-    if (!content.empty()) {
-        try { root = YAML::Load(content); } catch (...) {}
-    }
-    if (!root["chunks"] || !root["chunks"].IsSequence())
-        root["chunks"] = YAML::Node(YAML::NodeType::Sequence);
+    YAML::Node& root = cache.root;
 
     // 既存エントリを除いた新シーケンスを構築
     YAML::Node newChunks(YAML::NodeType::Sequence);
@@ -270,12 +295,7 @@ void TerrainStreamer::writeChunkToRegion(const Chunk& chunk)
     newChunks.push_back(chunkNode);
     root["chunks"] = newChunks;
 
-    ensureDir(terrainDir);
-    YAML::Emitter out;
-    out << root;
-    std::ofstream ofs(path);
-    if (ofs.is_open()) ofs << out.c_str();
-    else std::cerr << "[TerrainStreamer] Failed to write: " << path << std::endl;
+    cache.modified = true;
 }
 
 // ================================================================== //
@@ -350,6 +370,19 @@ void TerrainStreamer::generateChunk(Chunk& chunk)
 Chunk* TerrainStreamer::getChunk(int32_t cx, int32_t cy, int32_t cz) {
     auto it = m_chunks.find({cx, cy, cz});
     return (it != m_chunks.end()) ? &it->second.chunk : nullptr;
+}
+
+const Block* TerrainStreamer::getBlockGlobal(int32_t wx, int32_t wy, int32_t wz) const {
+    int32_t cx = (wx >= 0) ? (wx / CHUNK_SIZE) : ((wx - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    int32_t cy = (wy >= 0) ? (wy / CHUNK_SIZE) : ((wy - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    int32_t cz = (wz >= 0) ? (wz / CHUNK_SIZE) : ((wz - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    auto it = m_chunks.find({cx, cy, cz});
+    if (it == m_chunks.end()) return nullptr;
+
+    int bx = wx - cx * CHUNK_SIZE;
+    int by = wy - cy * CHUNK_SIZE;
+    int bz = wz - cz * CHUNK_SIZE;
+    return &it->second.chunk.blocks[bx][by][bz];
 }
 
 void TerrainStreamer::markDirty(int32_t cx, int32_t cy, int32_t cz) {

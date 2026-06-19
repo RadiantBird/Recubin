@@ -45,8 +45,14 @@ public:
     // チャンクを直接取得（デバッグ・ブラシ用）
     Chunk* getChunk(int32_t cx, int32_t cy, int32_t cz);
 
+    // ワールド座標からブロックを取得（カリング等で使用）
+    const Block* getBlockGlobal(int32_t wx, int32_t wy, int32_t wz) const;
+
     // チャンクを dirty にして次フレームで再メッシュ・再物理させる
     void markDirty(int32_t cx, int32_t cy, int32_t cz);
+
+    // キャッシュされたリージョンデータをファイルに書き出す
+    void flushRegions();
 
 private:
     Renderer*  m_renderer;
@@ -75,11 +81,31 @@ private:
 
     std::unordered_map<ChunkKey, ChunkEntry, ChunkKeyHash> m_chunks;
 
+    struct RegionKey {
+        int32_t rx, rz;
+        bool operator==(const RegionKey& o) const { return rx==o.rx && rz==o.rz; }
+    };
+    struct RegionKeyHash {
+        size_t operator()(const RegionKey& k) const {
+            size_t h = 2166136261u;
+            auto mix = [&](int32_t v) { h ^= (size_t)v; h *= 16777619u; };
+            mix(k.rx); mix(k.rz);
+            return h;
+        }
+    };
+    struct RegionCache {
+        YAML::Node root;
+        bool loaded = false;
+        bool modified = false;
+    };
+    std::unordered_map<RegionKey, RegionCache, RegionKeyHash> m_regions;
+
     void loadChunk  (int32_t cx, int32_t cy, int32_t cz);
     void unloadChunk(int32_t cx, int32_t cy, int32_t cz);
     void rebuildIfDirty(ChunkEntry& entry);
 
     static std::string regionPath(const std::string& dir, int32_t rx, int32_t rz);
+    RegionCache& getRegionCache(int32_t rx, int32_t rz);
     void readChunkFromRegion (Chunk& chunk);
     void writeChunkToRegion  (const Chunk& chunk);
     void generateChunk       (Chunk& chunk);

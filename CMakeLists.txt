@@ -72,23 +72,23 @@ target_link_libraries(RecubinEngine PRIVATE ${COMMON_LIBS})
 # ==============================================================================
 # --- 5. DLLの自動コピー設定 (Visual Studio対応) ---
 # ==============================================================================
-if(WIN32)
-    # コピー元となるDLLフォルダのパス
-    set(DLL_SOURCE_DIR "${CMAKE_SOURCE_DIR}/dlls")
+# if(WIN32)
+#     # コピー元となるDLLフォルダのパス
+#     set(DLL_SOURCE_DIR "${CMAKE_SOURCE_DIR}/dlls")
 
-    # Recubin (エディター付き) の出力先へコピー
-    add_custom_command(TARGET Recubin POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${DLL_SOURCE_DIR}"
-        "$<TARGET_FILE_DIR:Recubin>"
-        COMMENT "[CMake] Copying DLLs to Recubin output directory..."
-    )
+#     # Recubin (エディター付き) の出力先へコピー
+#     add_custom_command(TARGET Recubin POST_BUILD
+#         COMMAND ${CMAKE_COMMAND} -E copy_directory
+#         "${DLL_SOURCE_DIR}"
+#         "$<TARGET_FILE_DIR:Recubin>"
+#         COMMENT "[CMake] Copying DLLs to Recubin output directory..."
+#     )
 
-    # RecubinEngine (ゲームランタイム) の出力先へコピー
-    add_custom_command(TARGET RecubinEngine POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${DLL_SOURCE_DIR}"
-        "$<TARGET_FILE_DIR:RecubinEngine>"
-        COMMENT "[CMake] Copying DLLs to RecubinEngine output directory..."
-    )
-endif()
+#     # RecubinEngine (ゲームランタイム) の出力先へコピー
+#     add_custom_command(TARGET RecubinEngine POST_BUILD
+#         COMMAND ${CMAKE_COMMAND} -E copy_directory
+#         "${DLL_SOURCE_DIR}"
+#         "$<TARGET_FILE_DIR:RecubinEngine>"
+#         COMMENT "[CMake] Copying DLLs to RecubinEngine output directory..."
+#     )
+# endif()

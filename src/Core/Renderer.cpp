@@ -475,6 +475,17 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             shadowRender(shadowRender, child.get());
         }
 
+        // ---- Terrain Shadow ----
+        Matrix4 identity;
+        glUniformMatrix4fv(modelDepthLoc, 1, GL_FALSE, identity.m);
+        for (Chunk* chunk : m_terrainChunks) {
+            if (chunk->mesh.indexCount > 0) {
+                glBindVertexArray(chunk->mesh.VAO);
+                glDrawElements(GL_TRIANGLES, (GLsizei)chunk->mesh.indexCount, GL_UNSIGNED_INT, nullptr);
+            }
+        }
+        glBindVertexArray(0);
+
         shadowReady = true;
         // メインFBOに戻す
         glBindFramebuffer(GL_FRAMEBUFFER, desc.fbo);

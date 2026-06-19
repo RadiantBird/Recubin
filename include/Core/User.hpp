@@ -69,6 +69,7 @@ public:
     void processMouse();
 
     // TODO: インベントリにToolじゃないものがあったら無視するようにする
+    // 多分このあたりprivateにしたほうが安全だよね。Tool追加/Tool取り除き、って感じ。
     std::shared_ptr<Folder> Inventory = std::make_shared<Folder>(); // ユーザーのインベントリ（アイテムを入れるためのフォルダ）
     std::array<std::shared_ptr<Tool>, 10> Slots = {};
     std::array<bool, 10> lastToolKeyPressed = {};
@@ -84,6 +85,7 @@ public:
     Vector3 right;
     Vector3 up;
 
+    bool toolActivated = false; // Toolを持った状態で左クリックを押し続けている状態
     bool wannaExit = false;
     bool wantsSwitchWorkspace = false;
     bool isRightMouseRotating = false;

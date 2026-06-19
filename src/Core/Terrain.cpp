@@ -1,4 +1,5 @@
 #include <include/Core/Terrain.hpp>
+#include <include/Core/TerrainStreamer.hpp>
 #include <vector>
 #include <cstring>
 #include <cmath>
@@ -207,7 +208,7 @@ static const int SHAPE_TRI_COUNTS[] = {
     (int)(sizeof(TRI_TETRA_BotSW)/sizeof(int)),
 };
 
-static bool shouldSkipFace(const Chunk& chunk, int x, int y, int z, int face)
+static bool shouldSkipFace(const Chunk& chunk, const TerrainStreamer* streamer, int x, int y, int z, int face)
 {
     int nx = x, ny = y, nz = z;
     switch (face) {
@@ -218,11 +219,20 @@ static bool shouldSkipFace(const Chunk& chunk, int x, int y, int z, int face)
         case FACE_EAST:   nx++; break;
         case FACE_WEST:   nx--; break;
     }
-    if (nx < 0 || nx >= CHUNK_SIZE ||
-        ny < 0 || ny >= CHUNK_SIZE ||
-        nz < 0 || nz >= CHUNK_SIZE)
-        return false;
-    return chunk.blocks[nx][ny][nz].shape == BlockShape::Cube;
+    if (nx >= 0 && nx < CHUNK_SIZE && ny >= 0 && ny < CHUNK_SIZE && nz >= 0 && nz < CHUNK_SIZE) {
+        return chunk.blocks[nx][ny][nz].shape == BlockShape::Cube;
+    }
+
+    if (streamer) {
+        int32_t wx = chunk.worldOriginX() + nx;
+        int32_t wy = chunk.worldOriginY() + ny;
+        int32_t wz = chunk.worldOriginZ() + nz;
+        const Block* nb = streamer->getBlockGlobal(wx, wy, wz);
+        if (nb) {
+            return nb->shape == BlockShape::Cube;
+        }
+    }
+    return false;
 }
 
 static void calcNormal(const float* a, const float* b, const float* c,
@@ -241,9 +251,9 @@ static void pushVertex(std::vector<TerrainVertex>& verts,
                        float wx, float wy, float wz,
                        float nx, float ny, float nz,
                        float u,  float v,
-                       float r,  float g,  float b)
+                       uint8_t r, uint8_t g, uint8_t b)
 {
-    verts.push_back({wx,wy,wz, nx,ny,nz, u,v, r,g,b});
+    verts.push_back({wx,wy,wz, nx,ny,nz, u,v, r,g,b,255});
 }
 
 } // namespace
@@ -252,7 +262,7 @@ static void pushVertex(std::vector<TerrainVertex>& verts,
 //  buildChunkMesh
 //  描画用 VAO/VBO/EBO を生成し、同時に physVerts / physIndices を埋める。
 // ================================================================== //
-void buildChunkMesh(Chunk& chunk)
+void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
 {
     std::vector<TerrainVertex>    verts;
     std::vector<uint32_t>         indices;
@@ -271,9 +281,9 @@ void buildChunkMesh(Chunk& chunk)
         const Block& blk = chunk.blocks[x][y][z];
         if (blk.isEmpty()) continue;
 
-        const float fr = blk.r / 255.0f;
-        const float fg = blk.g / 255.0f;
-        const float fb = blk.b / 255.0f;
+        const uint8_t fr = blk.r;
+        const uint8_t fg = blk.g;
+        const uint8_t fb = blk.b;
 
         static constexpr float BS  = 4.0f;  // 1ブロックのサイズ (studs)
         static constexpr float BHS = BS * 0.5f; // ブロック半サイズ
@@ -288,7 +298,7 @@ void buildChunkMesh(Chunk& chunk)
         {
             for (int f = 0; f < 6; f++)
             {
-                if (shouldSkipFace(chunk, x, y, z, f)) continue;
+                if (shouldSkipFace(chunk, streamer, x, y, z, f)) continue;
 
                 const FaceDef& fd = CUBE_FACES[f];
                 const uint32_t base     = (uint32_t)verts.size();
@@ -379,7 +389,7 @@ void buildChunkMesh(Chunk& chunk)
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(TerrainVertex),
                           (void*)offsetof(TerrainVertex, u));
     glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(TerrainVertex),
+    glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(TerrainVertex),
                           (void*)offsetof(TerrainVertex, r));
 
     glBindVertexArray(0);
