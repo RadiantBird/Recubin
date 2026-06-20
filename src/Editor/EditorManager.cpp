@@ -63,6 +63,9 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     propertiesPanel->m_picker = &m_picker;
     viewportPanel->m_picker   = &m_picker;
 
+    propertiesPanel->m_terrainBrush = &m_terrainBrush;
+    viewportPanel->m_terrainBrush   = &m_terrainBrush;
+
     // メインビューポートをデフォルトでフォーカス状態に設定
     ViewportFocusManager::getInstance().onFocusViewport(viewportPanel.get());
 
@@ -170,6 +173,7 @@ void EditorManager::openSecondaryViewport(Workspace* ws) {
     panel->selectedInstances = &hierarchyPanel->selectedInstances;
     panel->m_history = &m_history;
     panel->m_picker = &m_picker;
+    panel->m_terrainBrush = &m_terrainBrush;
     panel->title = "Viewport: " + ws->Name + "###SecVP_" + std::to_string(reinterpret_cast<std::uintptr_t>(panel.get()));
     secondaryViewports.push_back(std::move(panel));
 }

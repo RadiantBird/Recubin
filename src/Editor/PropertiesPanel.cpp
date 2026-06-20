@@ -652,6 +652,20 @@ void PropertiesPanel::onRender() {
         Terrain* terrain = static_cast<Terrain*>(inst);
         ImGui::SeparatorText("Terrain");
         ImGui::Checkbox("Enabled##terrain", &terrain->Enabled);
+
+        if (m_terrainBrush) {
+            ImGui::Separator();
+            ImGui::Checkbox("ブラシで編集", &m_terrainBrush->active);
+            if (m_terrainBrush->active) {
+                ImGui::SliderFloat("半径", &m_terrainBrush->radius, 1.0f, 64.0f, "%.1f studs");
+                static const char* modeItems[] = { "Lower（削る）", "Smooth（滑らかに）", "Raise（盛る）" };
+                int modeIdx = m_terrainBrush->mode + 1; // -1,0,+1 -> 0,1,2
+                if (ImGui::Combo("モード", &modeIdx, modeItems, 3)) {
+                    m_terrainBrush->mode = modeIdx - 1;
+                }
+                ImGui::TextDisabled("ビューポート上で左クリック長押しで適用");
+            }
+        }
     }
 
     // ---- Skybox ----

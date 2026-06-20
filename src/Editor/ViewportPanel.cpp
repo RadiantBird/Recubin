@@ -9,6 +9,9 @@
 #include <Instances/Spatial.hpp>
 #include <Core/SystemState.hpp>
 #include <Core/Renderer.hpp>
+#include <Core/Physics.hpp>
+#include <Core/Terrain.hpp>
+#include <Core/TerrainStreamer.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -312,10 +315,36 @@ void ViewportPanel::onRender() {
         return pos;
     };
 
+    // ===================================================
+    //  Terrainブラシ適用（有効時はクリックでの選択・ドラッグより優先する）
+    // ===================================================
+    bool terrainBrushActive = m_terrainBrush && m_terrainBrush->active;
+    static constexpr double kTerrainBrushInterval = 0.15; // 1段ずつ盛れるように適用間隔を間引く
+    double now = ImGui::GetTime();
+    if (terrainBrushActive && isHoveringViewport && ImGui::IsMouseDown(0) && user && workspace &&
+        (m_lastTerrainBrushTime < 0.0 || now - m_lastTerrainBrushTime >= kTerrainBrushInterval)) {
+        ImVec2 mousePos = ImGui::GetMousePos();
+        Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
+        Vector3 rayOri = user->cpos;
+
+        Physics* physics = workspace->getPhysicsEngine();
+        RaycastHit hit;
+        if (physics && physics->raycast(rayOri, rayDir, 10000.0f, hit)) {
+            Terrain* terrain = nullptr;
+            for (auto& [name, child] : workspace->getChildren()) {
+                if (child->IsA("Terrain")) { terrain = static_cast<Terrain*>(child.get()); break; }
+            }
+            if (terrain && terrain->Enabled && terrain->streamer) {
+                terrain->streamer->applyBrush(hit.position, m_terrainBrush->radius, m_terrainBrush->mode);
+                m_lastTerrainBrushTime = now;
+            }
+        }
+    }
+
     // ---- クリック処理: 選択 & ドラッグ開始（全モード共通） ----
     // Selectモードでも非Selectモードでもレイキャストでオブジェクトを選択できる。
     // 非Selectモードでは現在の選択物をクリックしたときのみドラッグ開始する。
-    if (isHoveringViewport && ImGui::IsMouseClicked(0) && !ImGuizmo::IsUsing() && user && workspace) {
+    if (!terrainBrushActive && isHoveringViewport && ImGui::IsMouseClicked(0) && !ImGuizmo::IsUsing() && user && workspace) {
         ImVec2 mousePos = ImGui::GetMousePos();
         Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
         Vector3 rayOri = user->cpos;

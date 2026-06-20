@@ -1,6 +1,7 @@
 #pragma once
 #include <Editor/EditorPanel.hpp>
-struct PickerState;  // PropertiesPanel.hpp で定義
+struct PickerState;        // PropertiesPanel.hpp で定義
+struct TerrainBrushState;  // PropertiesPanel.hpp で定義
 class CommandHistory;
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -50,6 +51,8 @@ public:
 
     CommandHistory* m_history = nullptr;
     PickerState*    m_picker  = nullptr;
+    TerrainBrushState* m_terrainBrush = nullptr;
+    double m_lastTerrainBrushTime = -1.0; // ブラシの連続適用を間引くための前回適用時刻
 
     // ギズモ / フリードラッグ undo 用状態
     bool m_wasUsingGizmo = false;

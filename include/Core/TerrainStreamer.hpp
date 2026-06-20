@@ -23,8 +23,9 @@
 
 class TerrainStreamer {
 public:
-    static constexpr int STREAM_RADIUS = 4;
-    static constexpr int REGION_SIZE   = 32;
+    static constexpr int   STREAM_RADIUS    = 4;
+    static constexpr int   REGION_SIZE      = 32;
+    static constexpr float BLOCK_STUD_SIZE  = 4.0f; // 1ブロックのワールドサイズ（studs）
 
     std::string terrainDir = "terrain";
 
@@ -52,6 +53,17 @@ public:
 
     // キャッシュされたリージョンデータをファイルに書き出す
     void flushRegions();
+
+    // 指定列(wx,wz)の表層Y座標を求める。チャンクが未ロードならノイズから推定する。
+    int32_t findSurfaceY(int32_t wx, int32_t wz) const;
+
+    // 指定列の表層ブロックの形状を、斜め近傍列の高さに応じて Cube / Wedge_Top* に分類し直す。
+    // 呼び出し元が対象チャンクを markDirty する必要がある。
+    void reclassifyColumnShape(int32_t wx, int32_t wz);
+
+    // ブラシ編集。mode: +1=Raise（1段積む）, -1=Lower（1段削る）, 0=Smooth（周囲8列の平均に1段近づける）。
+    // worldPos を中心に半径 radius（studs）内のXZ列を処理し、影響範囲を再分類・再構築する。
+    void applyBrush(const Vector3& worldPos, float radius, int mode);
 
 private:
     Workspace* m_workspace; // 所有しない、ライフタイムは呼び出し元が管理
@@ -112,6 +124,13 @@ private:
     void readChunkFromRegion (Chunk& chunk);
     void writeChunkToRegion  (const Chunk& chunk);
     void generateChunk       (Chunk& chunk);
+
+    // ノイズから列(wx,wz)の地表Y座標を直接計算する（ブロック未生成時のフォールバック用）
+    int32_t surfaceHeightFromNoise(int32_t wx, int32_t wz) const;
+
+    // 列(wx,wz)の表層を1段積む／削る（ブラシ・スムージング共通の下位処理）
+    void raiseColumn(int32_t wx, int32_t wz);
+    void lowerColumn(int32_t wx, int32_t wz);
 
     // Physics を安全に取得（nullptr の場合は物理生成をスキップ）
     Physics* getPhysics() const;

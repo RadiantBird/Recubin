@@ -7,6 +7,8 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+#include <utility>
+#include <vector>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -306,27 +308,32 @@ static constexpr float  TERRAIN_HEIGHT_MAX = 64.0f;  // 最大地形高さ（ブ
 static constexpr float  TERRAIN_HEIGHT_MID = 8.0f;   // 海面相当のY座標（ブロック）
 static constexpr int    DIRT_DEPTH         = 3;       // 草の下に何ブロック Dirt を置くか
 
+int32_t TerrainStreamer::surfaceHeightFromNoise(int32_t wx, int32_t wz) const
+{
+    float n = m_noise.fbm2(
+        static_cast<float>(wx) * TERRAIN_SCALE,
+        static_cast<float>(wz) * TERRAIN_SCALE,
+        TERRAIN_OCTAVES,
+        TERRAIN_PERSIST,
+        TERRAIN_LACUNARITY);
+    // n は [-1, 1] → ワールドY高さに変換
+    return static_cast<int32_t>(TERRAIN_HEIGHT_MID + n * TERRAIN_HEIGHT_MAX);
+}
+
 void TerrainStreamer::generateChunk(Chunk& chunk)
 {
     const int worldX0 = chunk.worldOriginX();
     const int worldY0 = chunk.worldOriginY();
     const int worldZ0 = chunk.worldOriginZ();
- 
+
     for (int x = 0; x < CHUNK_SIZE; x++)
     for (int z = 0; z < CHUNK_SIZE; z++)
     {
         // このXZ列の地表高さを fBm で決定
-        float wx = static_cast<float>(worldX0 + x);
-        float wz = static_cast<float>(worldZ0 + z);
- 
-        float n = m_noise.fbm2(wx * TERRAIN_SCALE,
-                               wz * TERRAIN_SCALE,
-                               TERRAIN_OCTAVES,
-                               TERRAIN_PERSIST,
-                               TERRAIN_LACUNARITY);
-        // n は [-1, 1] → ワールドY高さに変換
-        int surfaceY = static_cast<int>(TERRAIN_HEIGHT_MID + n * TERRAIN_HEIGHT_MAX);
- 
+        int wx = worldX0 + x;
+        int wz = worldZ0 + z;
+        int surfaceY = surfaceHeightFromNoise(wx, wz);
+
         for (int y = 0; y < CHUNK_SIZE; y++)
         {
             int wy = worldY0 + y;
@@ -358,6 +365,12 @@ void TerrainStreamer::generateChunk(Chunk& chunk)
                 b.r = shade; b.g = shade; b.b = shade;
             }
         }
+
+        // 表層がこのチャンクの y 範囲内にある場合のみ、コーナーの面取り分類を行う
+        // （隣接チャンク未ロード時は findSurfaceY がノイズへフォールバックする）
+        if (surfaceY >= worldY0 && surfaceY < worldY0 + CHUNK_SIZE) {
+            reclassifyColumnShape(wx, wz);
+        }
     }
 }
 
@@ -387,4 +400,161 @@ void TerrainStreamer::markDirty(int32_t cx, int32_t cy, int32_t cz) {
     if (it == m_chunks.end()) return;
     it->second.chunk.mesh.dirty = true;
     it->second.modified = true;
+}
+
+// ================================================================== //
+//  コーナースムージング / ブラシ
+// ================================================================== //
+
+// ロード済みワールドYの上限（cy は 0..7 が常にロードされる前提。TerrainStreamer::update参照）
+static constexpr int32_t LOADED_WORLD_Y_TOP = CHUNK_SIZE * 8 - 1;
+
+int32_t TerrainStreamer::findSurfaceY(int32_t wx, int32_t wz) const {
+    // チャンク単位でポインタを取得してから内部を走査する（getBlockGlobalをY1段ごとに
+    // 呼ぶとハッシュ検索が大量に発生するため、チャンクの取得は cy ごとに1回だけにする）
+    int32_t cx = (wx >= 0) ? (wx / CHUNK_SIZE) : ((wx - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    int32_t cz = (wz >= 0) ? (wz / CHUNK_SIZE) : ((wz - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    int32_t bx = wx - cx * CHUNK_SIZE;
+    int32_t bz = wz - cz * CHUNK_SIZE;
+
+    for (int32_t cy = LOADED_WORLD_Y_TOP / CHUNK_SIZE; cy >= 0; cy--) {
+        Chunk* chunk = const_cast<TerrainStreamer*>(this)->getChunk(cx, cy, cz);
+        if (!chunk) return surfaceHeightFromNoise(wx, wz); // 未ロード範囲はノイズにフォールバック
+        for (int32_t by = CHUNK_SIZE - 1; by >= 0; by--) {
+            if (!chunk->blocks[bx][by][bz].isEmpty()) return cy * CHUNK_SIZE + by;
+        }
+    }
+    return -1; // この列に地表が無い
+}
+
+void TerrainStreamer::reclassifyColumnShape(int32_t wx, int32_t wz) {
+    int32_t y = findSurfaceY(wx, wz);
+    if (y < 0) return;
+
+    int32_t cx = (wx >= 0) ? (wx / CHUNK_SIZE) : ((wx - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    int32_t cy = (y  >= 0) ? (y  / CHUNK_SIZE) : ((y  - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    int32_t cz = (wz >= 0) ? (wz / CHUNK_SIZE) : ((wz - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    Chunk* chunk = getChunk(cx, cy, cz);
+    if (!chunk) return;
+
+    Block& b = chunk->blocks[wx - cx * CHUNK_SIZE][y - cy * CHUNK_SIZE][wz - cz * CHUNK_SIZE];
+    if (b.isEmpty()) return;
+
+    const int32_t hN  = findSurfaceY(wx,     wz - 1);
+    const int32_t hS  = findSurfaceY(wx,     wz + 1);
+    const int32_t hE  = findSurfaceY(wx + 1, wz);
+    const int32_t hW  = findSurfaceY(wx - 1, wz);
+    const int32_t hNE = findSurfaceY(wx + 1, wz - 1);
+    const int32_t hNW = findSurfaceY(wx - 1, wz - 1);
+    const int32_t hSE = findSurfaceY(wx + 1, wz + 1);
+    const int32_t hSW = findSurfaceY(wx - 1, wz + 1);
+
+    // 凸コーナーの面取り: あるコーナーで接する2辺の隣接列（直交方向）が両方とも
+    // ちょうど1段低い場合、そのコーナーの頂点を削って斜面にする。
+    // （斜め対角の高さは「角がきれいな段差か」の確認にだけ使う）
+    const bool cutNE = (hN == y - 1 && hE == y - 1 && hNE <= y - 1);
+    const bool cutNW = (hN == y - 1 && hW == y - 1 && hNW <= y - 1);
+    const bool cutSE = (hS == y - 1 && hE == y - 1 && hSE <= y - 1);
+    const bool cutSW = (hS == y - 1 && hW == y - 1 && hSW <= y - 1);
+    const int cutCount = (cutNE?1:0) + (cutNW?1:0) + (cutSE?1:0) + (cutSW?1:0);
+
+    // 注意: TRI_WEDGE_Top* のメッシュ定義は NE/SE のジオメトリが名前と入れ替わっている
+    // （NW/SWは名前通り）。既存のメッシュテーブルは変更せず、ここで対応を補正する。
+    BlockShape newShape = BlockShape::Cube;
+    if (cutCount == 1) {
+        if (cutNE) newShape = BlockShape::Wedge_TopSE;
+        else if (cutSE) newShape = BlockShape::Wedge_TopNE;
+        else if (cutNW) newShape = BlockShape::Wedge_TopNW;
+        else newShape = BlockShape::Wedge_TopSW;
+    }
+
+    if (b.shape != newShape) {
+        b.shape = newShape;
+        chunk->mesh.dirty = true;
+    }
+}
+
+void TerrainStreamer::raiseColumn(int32_t wx, int32_t wz) {
+    int32_t y = findSurfaceY(wx, wz);
+    if (y < 0 || y + 1 > LOADED_WORLD_Y_TOP) return;
+    const Block* src = getBlockGlobal(wx, y, wz);
+    if (!src) return;
+    Block copy = *src;
+    copy.shape = BlockShape::Cube;
+
+    int32_t newY = y + 1;
+    int32_t cx = (wx >= 0) ? (wx / CHUNK_SIZE) : ((wx - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    int32_t cz = (wz >= 0) ? (wz / CHUNK_SIZE) : ((wz - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    int32_t cy = newY / CHUNK_SIZE;
+    Chunk* chunk = getChunk(cx, cy, cz);
+    if (!chunk) return;
+    chunk->blocks[wx - cx*CHUNK_SIZE][newY - cy*CHUNK_SIZE][wz - cz*CHUNK_SIZE] = copy;
+    chunk->mesh.dirty = true;
+}
+
+void TerrainStreamer::lowerColumn(int32_t wx, int32_t wz) {
+    int32_t y = findSurfaceY(wx, wz);
+    if (y < 0) return;
+
+    int32_t cx = (wx >= 0) ? (wx / CHUNK_SIZE) : ((wx - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    int32_t cz = (wz >= 0) ? (wz / CHUNK_SIZE) : ((wz - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    int32_t cy = (y >= 0) ? (y / CHUNK_SIZE) : ((y - CHUNK_SIZE + 1) / CHUNK_SIZE);
+    Chunk* chunk = getChunk(cx, cy, cz);
+    if (!chunk) return;
+    chunk->blocks[wx - cx*CHUNK_SIZE][y - cy*CHUNK_SIZE][wz - cz*CHUNK_SIZE].shape = BlockShape::Empty;
+    chunk->mesh.dirty = true;
+}
+
+void TerrainStreamer::applyBrush(const Vector3& worldPos, float radius, int mode) {
+    const int32_t centerWx = static_cast<int32_t>(std::floor(worldPos.x / BLOCK_STUD_SIZE));
+    const int32_t centerWz = static_cast<int32_t>(std::floor(worldPos.z / BLOCK_STUD_SIZE));
+    const int32_t blockRadius = (std::max)(1, static_cast<int32_t>(std::ceil(radius / BLOCK_STUD_SIZE)));
+    const float   radiusSq = radius * radius;
+
+    std::vector<std::pair<int32_t,int32_t>> touchedColumns;
+    touchedColumns.reserve((size_t)(blockRadius*2+1) * (size_t)(blockRadius*2+1));
+
+    for (int32_t dx = -blockRadius; dx <= blockRadius; dx++)
+    for (int32_t dz = -blockRadius; dz <= blockRadius; dz++) {
+        float wsx = (float)(centerWx + dx) * BLOCK_STUD_SIZE - worldPos.x;
+        float wsz = (float)(centerWz + dz) * BLOCK_STUD_SIZE - worldPos.z;
+        if (wsx*wsx + wsz*wsz > radiusSq) continue;
+
+        int32_t wx = centerWx + dx;
+        int32_t wz = centerWz + dz;
+
+        if (mode > 0) {
+            raiseColumn(wx, wz);
+        } else if (mode < 0) {
+            lowerColumn(wx, wz);
+        } else {
+            // Smooth: 周囲8列の平均高さに1段だけ近づける
+            int32_t y = findSurfaceY(wx, wz);
+            if (y < 0) continue;
+            int32_t sum = 0, count = 0;
+            for (int32_t ndx = -1; ndx <= 1; ndx++)
+            for (int32_t ndz = -1; ndz <= 1; ndz++) {
+                if (ndx == 0 && ndz == 0) continue;
+                int32_t ny = findSurfaceY(wx + ndx, wz + ndz);
+                if (ny < 0) continue;
+                sum += ny; count++;
+            }
+            if (count == 0) continue;
+            int32_t avgY = (int32_t)std::lround((double)sum / (double)count);
+            if (avgY > y) raiseColumn(wx, wz);
+            else if (avgY < y) lowerColumn(wx, wz);
+        }
+
+        touchedColumns.emplace_back(wx, wz);
+    }
+
+    // 影響を受けた列とその斜め近傍列を再分類し、関係する全チャンクを再構築対象にする
+    static constexpr int32_t kOffsets[9][2] = {
+        {0,0}, {1,0}, {-1,0}, {0,1}, {0,-1}, {1,1}, {1,-1}, {-1,1}, {-1,-1}
+    };
+    for (auto& [wx, wz] : touchedColumns) {
+        for (auto& off : kOffsets) {
+            reclassifyColumnShape(wx + off[0], wz + off[1]);
+        }
+    }
 }

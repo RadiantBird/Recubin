@@ -17,6 +17,13 @@ struct PickerState {
     std::function<void(std::shared_ptr<BaseCube>)> onPick;
 };
 
+// Terrainブラシの共有状態（EditorManager / PropertiesPanel / ViewportPanel で共有）
+struct TerrainBrushState {
+    bool  active = false;
+    float radius = 8.0f;   // studs
+    int   mode   = +1;     // +1=Raise, -1=Lower, 0=Smooth
+};
+
 // ===================================================
 //  PropertiesPanel  — 選択中インスタンスのプロパティ編集
 // ===================================================
@@ -25,6 +32,7 @@ public:
     Instance**     selectedInstance = nullptr;
     CommandHistory* m_history       = nullptr;
     PickerState*    m_picker        = nullptr;
+    TerrainBrushState* m_terrainBrush = nullptr;
 
     PropertiesPanel();
     void onRender() override;

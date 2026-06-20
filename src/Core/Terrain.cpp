@@ -286,7 +286,7 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
         const uint8_t fg = blk.g;
         const uint8_t fb = blk.b;
 
-        static constexpr float BS  = 4.0f;  // 1ブロックのサイズ (studs)
+        static constexpr float BS  = TerrainStreamer::BLOCK_STUD_SIZE; // 1ブロックのサイズ (studs)
         static constexpr float BHS = BS * 0.5f; // ブロック半サイズ
 
         const float ox = (float)(chunk.worldOriginX() + x) * BS;
