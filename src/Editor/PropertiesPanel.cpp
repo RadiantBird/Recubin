@@ -10,6 +10,7 @@
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/Lighting.hpp>
+#include <Core/Terrain.hpp>
 #include <Instances/Skybox.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
@@ -644,6 +645,13 @@ void PropertiesPanel::onRender() {
             }
         }
 
+    }
+
+    // ---- Terrain ----
+    if (inst->getClassName() == "Terrain") {
+        Terrain* terrain = static_cast<Terrain*>(inst);
+        ImGui::SeparatorText("Terrain");
+        ImGui::Checkbox("Enabled##terrain", &terrain->Enabled);
     }
 
     // ---- Skybox ----

@@ -53,9 +53,6 @@ public:
     // キャッシュされたリージョンデータをファイルに書き出す
     void flushRegions();
 
-    // ロード済みチャンク一覧（Renderer描画用）
-    const std::unordered_map<ChunkKey, ChunkEntry, ChunkKeyHash>& getChunks() const { return m_chunks; }
-
 private:
     Workspace* m_workspace; // 所有しない、ライフタイムは呼び出し元が管理
     PerlinNoise m_noise;
@@ -82,6 +79,11 @@ private:
 
     std::unordered_map<ChunkKey, ChunkEntry, ChunkKeyHash> m_chunks;
 
+public:
+    // ロード済みチャンク一覧（Renderer描画用）
+    const std::unordered_map<ChunkKey, ChunkEntry, ChunkKeyHash>& getChunks() const { return m_chunks; }
+
+private:
     struct RegionKey {
         int32_t rx, rz;
         bool operator==(const RegionKey& o) const { return rx==o.rx && rz==o.rz; }

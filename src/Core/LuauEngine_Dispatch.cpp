@@ -22,6 +22,7 @@
 #include "include/Instances/SurfaceGui.hpp"
 #include "include/Instances/BillboardGui.hpp"
 #include "include/Instances/ProximityPrompt.hpp"
+#include "include/Core/Terrain.hpp"
 
 // ─── Binding helper factories (anonymous, internal to this TU) ────────────────
 //
@@ -541,6 +542,9 @@ void LuauEngine::InitDispatchTable_GUI() {
     DispatchTable["ProximityPrompt"]["ActionText"]            = getter_string<ProximityPrompt, &ProximityPrompt::ActionText>();
     DispatchTable["ProximityPrompt"]["ObjectText"]            = getter_string<ProximityPrompt, &ProximityPrompt::ObjectText>();
     DispatchTable["ProximityPrompt"]["Triggered"]             = getter_signal<ProximityPrompt, &ProximityPrompt::Triggered>();
+
+    // --- Terrain ---
+    DispatchTable["Terrain"]["Enabled"] = getter_bool<Terrain, &Terrain::Enabled>();
 }
 
 // ==================== Setter: GUI ====================
@@ -599,4 +603,7 @@ void LuauEngine::InitSetterTable_GUI() {
     SetterTable["ProximityPrompt"]["Enabled"]               = setter_bool  <ProximityPrompt, &ProximityPrompt::Enabled>();
     SetterTable["ProximityPrompt"]["ActionText"]            = setter_string<ProximityPrompt, &ProximityPrompt::ActionText>();
     SetterTable["ProximityPrompt"]["ObjectText"]            = setter_string<ProximityPrompt, &ProximityPrompt::ObjectText>();
+
+    // --- Terrain ---
+    SetterTable["Terrain"]["Enabled"] = setter_bool<Terrain, &Terrain::Enabled>();
 }

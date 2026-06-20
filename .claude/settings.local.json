@@ -10,7 +10,8 @@
       "PowerShell(ForEach-Object .*)",
       "PowerShell(head -30)",
       "Bash(Get-ChildItem .*)",
-      "Bash(Select-Object .*)"
+      "Bash(Select-Object .*)",
+      "Bash(tasklist)"
     ]
   }
 }
