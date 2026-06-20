@@ -490,7 +490,7 @@ void Terrain::update(const Vector3& centerPos) {
     if (!streamer) {
         Workspace* ws = static_cast<Workspace*>(findFirstAncestorWorkspace());
         if (!ws) return;
-        streamer = std::make_unique<TerrainStreamer>(ws);
+        streamer = std::make_unique<TerrainStreamer>(ws, this);
     }
 
     streamer->update(centerPos);

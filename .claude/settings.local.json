@@ -11,7 +11,9 @@
       "PowerShell(head -30)",
       "Bash(Get-ChildItem .*)",
       "Bash(Select-Object .*)",
-      "Bash(tasklist)"
+      "Bash(tasklist)",
+      "Bash(taskkill //F //IM Recubin.exe //T)",
+      "Bash(taskkill //F //IM RecubinEngine.exe //T)"
     ]
   }
 }

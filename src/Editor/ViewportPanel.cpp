@@ -319,24 +319,45 @@ void ViewportPanel::onRender() {
     //  Terrainブラシ適用（有効時はクリックでの選択・ドラッグより優先する）
     // ===================================================
     bool terrainBrushActive = m_terrainBrush && m_terrainBrush->active;
-    static constexpr double kTerrainBrushInterval = 0.15; // 1段ずつ盛れるように適用間隔を間引く
+    static constexpr double kTerrainBrushInterval = 0.15;  // 1段ずつ盛れるように適用間隔を間引く
+    static constexpr float  kTerrainBrushMaxDist  = 400.0f; // グレージング角で遠方を誤編集しないよう距離制限
     double now = ImGui::GetTime();
-    if (terrainBrushActive && isHoveringViewport && ImGui::IsMouseDown(0) && user && workspace &&
-        (m_lastTerrainBrushTime < 0.0 || now - m_lastTerrainBrushTime >= kTerrainBrushInterval)) {
-        ImVec2 mousePos = ImGui::GetMousePos();
-        Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
-        Vector3 rayOri = user->cpos;
+    if (terrainBrushActive && isHoveringViewport && user && workspace) {
+        // Workspace 直下から Terrain を探す
+        Terrain* terrain = nullptr;
+        for (auto const& [name, child] : workspace->getChildren()) {
+            if (child->IsA("Terrain")) { terrain = static_cast<Terrain*>(child.get()); break; }
+        }
+        if (terrain && terrain->Enabled && terrain->streamer) {
+            ImVec2 mousePos = ImGui::GetMousePos();
+            Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
+            Vector3 rayOri = user->cpos;
 
-        Physics* physics = workspace->getPhysicsEngine();
-        RaycastHit hit;
-        if (physics && physics->raycast(rayOri, rayDir, 10000.0f, hit)) {
-            Terrain* terrain = nullptr;
-            for (auto& [name, child] : workspace->getChildren()) {
-                if (child->IsA("Terrain")) { terrain = static_cast<Terrain*>(child.get()); break; }
-            }
-            if (terrain && terrain->Enabled && terrain->streamer) {
-                terrain->streamer->applyBrush(hit.position, m_terrainBrush->radius, m_terrainBrush->mode);
-                m_lastTerrainBrushTime = now;
+            // 物理シーンではなくブロックデータへ直接レイキャストする。常に最新の地形を
+            // 参照するため、編集直後でも貫通（地中ワープ）が発生しない。
+            Vector3 hitPos;
+            if (terrain->streamer->raycastVoxel(rayOri, rayDir, kTerrainBrushMaxDist, hitPos)) {
+                // ヒット位置にブラシ範囲のガイドリングを描画（シーン描画済みFBOへ追記）。
+                // クリック前でも「どこに当たるか」が見えるようマウス押下に関係なく毎フレーム描く。
+                if (Renderer::instance && framebuffer) {
+                    float   aspect = (h > 0) ? (float)w / (float)h : 1.0f;
+                    Matrix4 proj   = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
+                    Matrix4 view   = Matrix4::LookAt(user->cpos, user->cpos + user->forward, user->up);
+                    GLint prevFBO = 0; GLint prevVp[4] = {};
+                    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
+                    glGetIntegerv(GL_VIEWPORT, prevVp);
+                    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+                    glViewport(0, 0, fbWidth, fbHeight);
+                    Renderer::instance->renderBrushMarker(view, proj, hitPos, m_terrainBrush->radius);
+                    glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
+                    glViewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3]);
+                }
+                // 左ボタン押下中のみ実際に編集する（適用間隔で間引く）
+                if (ImGui::IsMouseDown(0) &&
+                    (m_lastTerrainBrushTime < 0.0 || now - m_lastTerrainBrushTime >= kTerrainBrushInterval)) {
+                    terrain->streamer->applyBrush(hitPos, m_terrainBrush->radius, m_terrainBrush->mode);
+                    m_lastTerrainBrushTime = now;
+                }
             }
         }
     }

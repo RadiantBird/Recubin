@@ -29,7 +29,9 @@ public:
 
     std::string terrainDir = "terrain";
 
-    TerrainStreamer(Workspace* workspace);
+    // owner: このストリーマーを所有する Terrain インスタンス。
+    // チャンクの物理アクターの userData に設定し、レイキャストで地形だと識別できるようにする。
+    TerrainStreamer(Workspace* workspace, Instance* owner = nullptr);
 
     ~TerrainStreamer();
 
@@ -65,8 +67,14 @@ public:
     // worldPos を中心に半径 radius（studs）内のXZ列を処理し、影響範囲を再分類・再構築する。
     void applyBrush(const Vector3& worldPos, float radius, int mode);
 
+    // ブロックデータに対して直接レイキャストする（ボクセルDDA）。物理シーンを介さないため
+    // 編集直後でも常に最新の地形を参照でき、PhysXのSQ未更新による貫通が起きない。
+    // ヒット時は outHit にブロック表面の交点（ワールド座標）を入れて true を返す。
+    bool raycastVoxel(const Vector3& origin, const Vector3& dir, float maxDist, Vector3& outHit) const;
+
 private:
     Workspace* m_workspace; // 所有しない、ライフタイムは呼び出し元が管理
+    Instance*  m_owner;     // 所有しない。物理アクターの userData に設定する Terrain インスタンス
     PerlinNoise m_noise;
 
     struct ChunkKey {

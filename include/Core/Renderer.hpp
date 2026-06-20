@@ -98,6 +98,9 @@ class Renderer {
         void initLineRenderer();
         void renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection);
 
+        // 地形ブラシのヒット位置ガイド（水平リング）。呼び出し側でFBOバインド・ビューポート設定済みであること。
+        void renderBrushMarker(const Matrix4& view, const Matrix4& projection, const Vector3& center, float radius);
+
         // GUI 描画
         Matrix4  m_lastView;
         Matrix4  m_lastProj;

@@ -391,6 +391,39 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
 }
 
 // ===================================================
+//  地形ブラシのヒット位置ガイド（水平リング）
+// ===================================================
+void Renderer::renderBrushMarker(const Matrix4& view, const Matrix4& projection,
+                                 const Vector3& center, float radius) {
+    if (!m_lineShader || radius <= 0.0f) return;
+
+    glUseProgram(m_lineShader);
+    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"),       1, GL_FALSE, view.m);
+    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
+    glUniform4f(glGetUniformLocation(m_lineShader, "lineColor"), 1.0f, 0.85f, 0.2f, 1.0f);
+
+    constexpr int SEG = 48;
+    std::vector<float> verts;
+    verts.reserve((SEG + 1) * 3);
+    for (int i = 0; i <= SEG; i++) {
+        float a = (float)i / (float)SEG * 6.28318530718f;
+        verts.push_back(center.x + std::cos(a) * radius);
+        verts.push_back(center.y + 0.15f); // 地表とのZファイト回避に少し浮かせる
+        verts.push_back(center.z + std::sin(a) * radius);
+    }
+
+    glBindVertexArray(m_lineVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizei)(verts.size() * sizeof(float)), verts.data(), GL_DYNAMIC_DRAW);
+    glEnable(GL_DEPTH_TEST);
+    glLineWidth(2.0f);
+    glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)(verts.size() / 3));
+    glLineWidth(1.0f);
+    glBindVertexArray(0);
+    glUseProgram(shaderProgram);
+}
+
+// ===================================================
 //  統合されたビューポート描画
 // ===================================================
 void Renderer::renderViewport(const ViewportRenderDesc& desc) {

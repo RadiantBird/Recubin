@@ -194,8 +194,9 @@ int main(int argc, char* argv[]) {
 
     // Register only System so YAML can keep multiple Workspace nodes.
     SceneLoader::registerSingleton("System", system);
-
-    SceneLoader::loadScene("assets/scenes/test_scene.yaml");//("assets/scenes/terrain_test.yaml");
+    
+    // "assets/scenes/test_scene.yaml"
+    SceneLoader::loadScene("assets/scenes/terrain_test.yaml");
     SceneLoader::clearSingletons();
 
     workspaces = collectWorkspaces(system);

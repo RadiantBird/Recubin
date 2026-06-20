@@ -35,8 +35,10 @@ inline int32_t chunkToRegion(int32_t c) {
                     : ((c - TerrainStreamer::REGION_SIZE + 1) / TerrainStreamer::REGION_SIZE);
 }
 
-inline int32_t worldToChunk(float w) {
-    int32_t b = static_cast<int32_t>(std::floor(w));
+// ワールド座標（studs）→チャンク座標。
+// 1ブロック = BLOCK_STUD_SIZE studs なので、まずブロック座標に変換してからチャンク化する。
+inline int32_t worldToChunk(float studs) {
+    int32_t b = static_cast<int32_t>(std::floor(studs / TerrainStreamer::BLOCK_STUD_SIZE));
     return (b >= 0) ? (b / CHUNK_SIZE) : ((b - CHUNK_SIZE + 1) / CHUNK_SIZE);
 }
 
@@ -84,8 +86,8 @@ void rleDecode(const std::vector<RleEntry>& rle, Chunk& chunk) {
 // ================================================================== //
 //  コンストラクタ / デストラクタ
 // ================================================================== //
-TerrainStreamer::TerrainStreamer(Workspace* workspace)
-    : m_workspace(workspace), m_noise(12345u)
+TerrainStreamer::TerrainStreamer(Workspace* workspace, Instance* owner)
+    : m_workspace(workspace), m_owner(owner), m_noise(12345u)
 {
     ensureDir(terrainDir);
 }
@@ -192,7 +194,11 @@ void TerrainStreamer::rebuildIfDirty(ChunkEntry& entry)
     if (!entry.chunk.mesh.dirty) return;
     buildChunkMesh(entry.chunk, this);
     Physics* phys = getPhysics();
-    if (phys) buildChunkPhysics(entry.chunk, *phys);
+    if (phys) {
+        buildChunkPhysics(entry.chunk, *phys);
+        // レイキャストで地形だと識別できるよう、アクターに Terrain インスタンスを紐づける
+        if (entry.chunk.physicsActor) entry.chunk.physicsActor->userData = m_owner;
+    }
 }
 
 // ================================================================== //
@@ -506,8 +512,10 @@ void TerrainStreamer::lowerColumn(int32_t wx, int32_t wz) {
 }
 
 void TerrainStreamer::applyBrush(const Vector3& worldPos, float radius, int mode) {
-    const int32_t centerWx = static_cast<int32_t>(std::floor(worldPos.x / BLOCK_STUD_SIZE));
-    const int32_t centerWz = static_cast<int32_t>(std::floor(worldPos.z / BLOCK_STUD_SIZE));
+    // ブロック中心は (ブロック番号 * BLOCK_STUD_SIZE) にあるため、最近傍へ丸める
+    // （floor だとブロックの下半分で1ブロックずれる）
+    const int32_t centerWx = static_cast<int32_t>(std::lround(worldPos.x / BLOCK_STUD_SIZE));
+    const int32_t centerWz = static_cast<int32_t>(std::lround(worldPos.z / BLOCK_STUD_SIZE));
     const int32_t blockRadius = (std::max)(1, static_cast<int32_t>(std::ceil(radius / BLOCK_STUD_SIZE)));
     const float   radiusSq = radius * radius;
 
@@ -557,4 +565,49 @@ void TerrainStreamer::applyBrush(const Vector3& worldPos, float radius, int mode
             reclassifyColumnShape(wx + off[0], wz + off[1]);
         }
     }
+}
+
+bool TerrainStreamer::raycastVoxel(const Vector3& origin, const Vector3& dir, float maxDist, Vector3& outHit) const {
+    const float bs = BLOCK_STUD_SIZE;
+
+    // ブロック中心は index*bs にあり、ブロックは [(index-0.5)*bs, (index+0.5)*bs] を占める。
+    int32_t bx = (int32_t)std::floor(origin.x / bs + 0.5f);
+    int32_t by = (int32_t)std::floor(origin.y / bs + 0.5f);
+    int32_t bz = (int32_t)std::floor(origin.z / bs + 0.5f);
+
+    const int32_t stepX = (dir.x > 0.0f) ? 1 : ((dir.x < 0.0f) ? -1 : 0);
+    const int32_t stepY = (dir.y > 0.0f) ? 1 : ((dir.y < 0.0f) ? -1 : 0);
+    const int32_t stepZ = (dir.z > 0.0f) ? 1 : ((dir.z < 0.0f) ? -1 : 0);
+
+    constexpr float INF = 1e30f;
+    // 各軸: 次のブロック境界までの t と、1ブロック進むのに要する t
+    auto setup = [&](int32_t b, float o, float d, int32_t step, float& tMax, float& tDelta) {
+        if (step == 0) { tMax = INF; tDelta = INF; return; }
+        float boundary = ((float)b + 0.5f * (float)step) * bs; // 進行方向側の境界
+        tMax   = (boundary - o) / d;
+        tDelta = bs / std::abs(d);
+    };
+    float tMaxX, tMaxY, tMaxZ, tDeltaX, tDeltaY, tDeltaZ;
+    setup(bx, origin.x, dir.x, stepX, tMaxX, tDeltaX);
+    setup(by, origin.y, dir.y, stepY, tMaxY, tDeltaY);
+    setup(bz, origin.z, dir.z, stepZ, tMaxZ, tDeltaZ);
+
+    float t = 0.0f; // 現在ブロックに入った時点の t（= ブロック表面の交点）
+    for (int guard = 0; guard < 8192; ++guard) {
+        const Block* blk = getBlockGlobal(bx, by, bz);
+        if (blk && !blk->isEmpty()) {
+            outHit = origin + dir * t;
+            return true;
+        }
+        // 最も近い境界の軸へ1ブロック進む
+        if (tMaxX <= tMaxY && tMaxX <= tMaxZ) {
+            bx += stepX; t = tMaxX; tMaxX += tDeltaX;
+        } else if (tMaxY <= tMaxZ) {
+            by += stepY; t = tMaxY; tMaxY += tDeltaY;
+        } else {
+            bz += stepZ; t = tMaxZ; tMaxZ += tDeltaZ;
+        }
+        if (t > maxDist) return false;
+    }
+    return false;
 }
