@@ -12,6 +12,8 @@
 #include <Instances/Lighting.hpp>
 #include <Instances/PostEffect.hpp>
 #include <Core/Terrain.hpp>
+#include <Core/TerrainStreamer.hpp>
+#include <random>
 #include <Instances/Skybox.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
@@ -46,6 +48,30 @@ static std::string browseFile(const wchar_t* filterName, const wchar_t* filterSp
                                    CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
         COMDLG_FILTERSPEC filter = { filterName, filterSpec };
         pfd->SetFileTypes(1, &filter);
+        if (SUCCEEDED(pfd->Show(nullptr))) {
+            IShellItem* item = nullptr;
+            if (SUCCEEDED(pfd->GetResult(&item))) {
+                PWSTR wpath = nullptr;
+                item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
+                int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
+                if (len > 1) { result.resize(len - 1); WideCharToMultiByte(CP_UTF8, 0, wpath, -1, result.data(), len, nullptr, nullptr); }
+                CoTaskMemFree(wpath);
+                item->Release();
+            }
+        }
+        pfd->Release();
+    }
+    return result;
+}
+
+// フォルダ選択ダイアログ（FOS_PICKFOLDERS）。Terrain の DataPath 等に使用。
+static std::string browseFolder() {
+    std::string result;
+    IFileOpenDialog* pfd = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                   CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
+        DWORD opts = 0; pfd->GetOptions(&opts);
+        pfd->SetOptions(opts | FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
         if (SUCCEEDED(pfd->Show(nullptr))) {
             IShellItem* item = nullptr;
             if (SUCCEEDED(pfd->GetResult(&item))) {
@@ -737,6 +763,46 @@ void PropertiesPanel::onRender() {
         Terrain* terrain = static_cast<Terrain*>(inst);
         ImGui::SeparatorText("Terrain");
         ImGui::Checkbox("Enabled##terrain", &terrain->Enabled);
+
+        // データ保存先ディレクトリ（リージョンファイルの置き場所）— フォルダ参照
+        ImGui::LabelText("DataPath", "%s", terrain->DataPath.c_str());
+        if (ImGui::Button("参照...##terraindp")) {
+            std::string folder = browseFolder();
+            if (!folder.empty()) {
+                YAML::Node node; node = folder;
+                terrain->setProperty("DataPath", node);
+            }
+        }
+
+        // 生成設定（Seed / Flat）
+        ImGui::Separator();
+        ImGui::InputInt("Seed##terrain", &terrain->Seed);
+        ImGui::SameLine();
+        if (ImGui::Button("乱数化##terrainseed")) {
+            std::random_device rd;
+            terrain->Seed = static_cast<int>(rd());
+        }
+        ImGui::Checkbox("Flat（平坦生成）##terrain", &terrain->Flat);
+
+        if (ImGui::Button("再生成##terrainregen")) {
+            ImGui::OpenPopup("Terrain再生成の確認");
+        }
+        if (ImGui::BeginPopupModal("Terrain再生成の確認", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("DataPath の地形（ブラシ編集を含む）を破棄して、");
+            ImGui::Text("現在の Seed / Flat 設定で作り直します。よろしいですか？");
+            ImGui::Separator();
+            if (ImGui::Button("再生成する", ImVec2(120, 0))) {
+                if (terrain->streamer) {
+                    terrain->streamer->regenerate(static_cast<uint32_t>(terrain->Seed), terrain->Flat);
+                }
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("キャンセル", ImVec2(120, 0))) {
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
 
         if (m_terrainBrush) {
             ImGui::Separator();

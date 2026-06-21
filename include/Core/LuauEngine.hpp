@@ -88,6 +88,13 @@ private:
     static int sound_play_closure(lua_State* L);
     static int sound_stop_closure(lua_State* L);
 
+    // Terrain methods（部分編集 API）
+    static int terrain_set_block_closure(lua_State* L);
+    static int terrain_remove_block_closure(lua_State* L);
+    static int terrain_get_block_closure(lua_State* L);
+    static int terrain_raycast_closure(lua_State* L);
+    static int terrain_apply_brush_closure(lua_State* L);
+
     // Vector3 methods
     static int vec3_index(lua_State* L);
     static int vec3_newindex(lua_State* L);

@@ -20,6 +20,8 @@ enum class BlockShape : uint8_t {
     Tetra_TopNE, Tetra_TopNW, Tetra_TopSE, Tetra_TopSW,
     // Tetra（下辺の3頂点を削る）4種
     Tetra_BotNE, Tetra_BotNW, Tetra_BotSE, Tetra_BotSW,
+    // 三角柱（エッジランプ）: 1辺が1段低いときの斜面。N/S/E/W は斜面が下る方向（低い側）。
+    Ramp_N, Ramp_S, Ramp_E, Ramp_W,
 };
 
 enum class BlockMaterial : uint8_t {
@@ -99,6 +101,10 @@ void buildChunkPhysics(Chunk& chunk, Physics& physics);
 class Terrain : public Instance {
 public:
     bool Enabled = true;
+    // 地形データ（リージョンファイル）の保存先ディレクトリ。シーンごとに切り替えられる。
+    std::string DataPath = "terrain";
+    int  Seed = 12345; // ノイズ生成のシード
+    bool Flat = false; // true なら平坦地形を生成
     std::unique_ptr<TerrainStreamer> streamer;
 
     Terrain();
@@ -109,4 +115,8 @@ public:
     void setProperty(const std::string& name, const YAML::Node& value) override;
 
     void update(const Vector3& centerPos);
+
+private:
+    // 直近 streamer に適用した DataPath。変更検出に使う。
+    std::string m_appliedDataPath;
 };

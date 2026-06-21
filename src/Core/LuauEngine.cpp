@@ -11,7 +11,11 @@
 #include "include/Instances/SurfaceGui.hpp"
 #include "include/Instances/BillboardGui.hpp"
 #include "include/Instances/ProximityPrompt.hpp"
+#include "include/Core/TerrainStreamer.hpp"
+#include "include/Util/Color4.hpp"
 #include "include/Util/Logger.hpp"
+#include <cmath>
+#include <algorithm>
 #include <float.h>
 #include <fenv.h>
 #include <xmmintrin.h>
@@ -499,6 +503,121 @@ int LuauEngine::workspace_raycast_closure(lua_State* L) {
     }
 
     return 1;
+}
+
+// ==================== Terrain methods ====================
+// 共通: upvalue1 の Terrain を取り出し、streamer が有効なら返す。無効なら nullptr。
+static TerrainStreamer* getTerrainStreamerFromUpvalue(lua_State* L) {
+    auto* ptr = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    if (!ptr) return nullptr;
+    auto shared = ptr->lock();
+    if (!shared || !shared->IsA("Terrain")) return nullptr;
+    Terrain* terrain = static_cast<Terrain*>(shared.get());
+    if (!terrain->Enabled || !terrain->streamer) return nullptr;
+    return terrain->streamer.get();
+}
+
+// ワールド座標(studs) → ブロックインデックス。ブロック中心は index*BS にある。
+static inline int32_t studToBlock(float v) {
+    return (int32_t)std::floor(v / TerrainStreamer::BLOCK_STUD_SIZE + 0.5f);
+}
+
+static inline uint8_t colorChannelToByte(float c) {
+    int v = (int)std::lround(c * 255.0f);
+    return (uint8_t)std::clamp(v, 0, 255);
+}
+
+int LuauEngine::terrain_set_block_closure(lua_State* L) {
+    TerrainStreamer* streamer = getTerrainStreamerFromUpvalue(L);
+    if (!streamer) { lua_pushboolean(L, false); return 1; }
+
+    // L[1]=self, L[2]=position(Vector3), L[3]=color(Color4, 省略可), L[4]=shape(number, 省略可)
+    Vector3* pos = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+
+    uint8_t r = 200, g = 200, b = 200; // デフォルト色（明るいグレー）
+    if (!lua_isnoneornil(L, 3)) {
+        Color4* col = (Color4*)luaL_checkudata(L, 3, RCBN_COLOR4_METATABLE);
+        r = colorChannelToByte(col->r);
+        g = colorChannelToByte(col->g);
+        b = colorChannelToByte(col->b);
+    }
+
+    BlockShape shape = BlockShape::Cube;
+    if (!lua_isnoneornil(L, 4)) {
+        int s = (int)luaL_checkinteger(L, 4);
+        if (s >= 0 && s <= (int)BlockShape::Ramp_W) shape = (BlockShape)s;
+    }
+
+    bool ok = streamer->setBlock(studToBlock(pos->x), studToBlock(pos->y), studToBlock(pos->z),
+                                 shape, r, g, b);
+    lua_pushboolean(L, ok);
+    return 1;
+}
+
+int LuauEngine::terrain_remove_block_closure(lua_State* L) {
+    TerrainStreamer* streamer = getTerrainStreamerFromUpvalue(L);
+    if (!streamer) { lua_pushboolean(L, false); return 1; }
+
+    Vector3* pos = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+    bool ok = streamer->removeBlock(studToBlock(pos->x), studToBlock(pos->y), studToBlock(pos->z));
+    lua_pushboolean(L, ok);
+    return 1;
+}
+
+int LuauEngine::terrain_get_block_closure(lua_State* L) {
+    TerrainStreamer* streamer = getTerrainStreamerFromUpvalue(L);
+    if (!streamer) { lua_pushnil(L); return 1; }
+
+    Vector3* pos = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+    const Block* blk = streamer->getBlockGlobal(studToBlock(pos->x), studToBlock(pos->y), studToBlock(pos->z));
+    if (!blk || blk->isEmpty()) { lua_pushnil(L); return 1; }
+
+    lua_newtable(L);
+    lua_pushinteger(L, (int)blk->shape);
+    lua_setfield(L, -2, "Shape");
+
+    Color4* col = (Color4*)lua_newuserdata(L, sizeof(Color4));
+    *col = Color4(blk->r / 255.0f, blk->g / 255.0f, blk->b / 255.0f, 1.0f);
+    luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
+    lua_setmetatable(L, -2);
+    lua_setfield(L, -2, "Color");
+    return 1;
+}
+
+int LuauEngine::terrain_raycast_closure(lua_State* L) {
+    TerrainStreamer* streamer = getTerrainStreamerFromUpvalue(L);
+    if (!streamer) { lua_pushnil(L); return 1; }
+
+    // L[1]=self, L[2]=origin, L[3]=direction, L[4]=maxDist(省略可)
+    Vector3* origin = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+    Vector3* dir    = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
+    float maxDist = lua_isnoneornil(L, 4) ? 1000.0f : (float)luaL_checknumber(L, 4);
+
+    Vector3 hitPos;
+    if (!streamer->raycastVoxel(*origin, dir->normalize(), maxDist, hitPos)) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_newtable(L);
+    Vector3* p = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+    *p = hitPos;
+    luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+    lua_setmetatable(L, -2);
+    lua_setfield(L, -2, "Position");
+    return 1;
+}
+
+int LuauEngine::terrain_apply_brush_closure(lua_State* L) {
+    TerrainStreamer* streamer = getTerrainStreamerFromUpvalue(L);
+    if (!streamer) return 0;
+
+    // L[1]=self, L[2]=position, L[3]=radius, L[4]=mode(+1/-1/0)
+    Vector3* pos = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+    float radius = (float)luaL_checknumber(L, 3);
+    int   mode   = (int)luaL_checkinteger(L, 4);
+    streamer->applyBrush(*pos, radius, mode);
+    return 0;
 }
 
 // ==================== Global Functions ====================

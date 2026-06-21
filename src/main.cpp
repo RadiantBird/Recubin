@@ -1,7 +1,14 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <windows.h>
+
+#ifdef _WIN32
+    #include <windows.h>
+    #define windows(...) __VA_ARGS__ // Use for windows 
+#else
+    #define windows(...)
+#endif
+
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
@@ -24,6 +31,7 @@
 #include <Core/FileLoader.hpp>
 #include <Core/AudioService.hpp>
 #include <include/Core/Terrain.hpp>
+#include <include/Core/TerrainStreamer.hpp>
 
 #include <Editor/EditorManager.hpp>
 #include <Editor/ViewportFocusManager.hpp>
@@ -45,7 +53,7 @@
 #include <memory>
 
 #define ENABLE_BETA 1 // enable beta features(such as terrain)
-#ifdef ENABLE_BETA
+#if ENABLE_BETA
     #define beta(...) __VA_ARGS__
 #else
     #define beta(...)
@@ -118,6 +126,22 @@ static void removeWorkspacesFromSystem(
     for (auto& ws : workspaces) {
         if (ws) {
             system->removeChild(ws->Name);
+        }
+    }
+}
+
+// シーン破棄の前に Terrain の streamer を明示的に解放する。
+// Workspace のメンバ(m_ownedPhysics)は基底の children(Terrain) より先に破棄されるため、
+// Workspace 破棄に任せると ~TerrainStreamer が解放済み Physics を参照してクラッシュする。
+// ここで物理が生きているうちに reset し、ワーカー停止・GL/PhysX 解放・"terrain"フラッシュを完了させる。
+static void resetTerrainStreamers(const std::vector<std::shared_ptr<Workspace>>& workspaces)
+{
+    for (auto& ws : workspaces) {
+        if (!ws) continue;
+        for (auto& [name, child] : ws->getChildren()) {
+            if (child->IsA("Terrain")) {
+                static_cast<Terrain*>(child.get())->streamer.reset();
+            }
         }
     }
 }
@@ -210,19 +234,7 @@ int main(int argc, char* argv[]) {
         workspaces = collectWorkspaces(system);
     }
     workspace = workspaces.front();
-    // Terrainインスタンスがなければデフォルトで追加
-    beta({
-        bool hasTerrain = false;
-        for (auto& [name, child] : workspace->getChildren()) {
-            if (child->IsA("Terrain")) { hasTerrain = true; break; }
-        }
-        if (!hasTerrain) {
-            auto terrain = std::make_shared<Terrain>();
-            terrain->Name = "Terrain";
-            workspace->addChild(terrain);
-        }
-    });
-    
+
     // ユーザーがシステムに含まれていない場合は追加
     auto it = system->children.find("User");
     if (it == system->children.end()) {
@@ -356,6 +368,7 @@ int main(int argc, char* argv[]) {
             // 全Workspaceのクリア（ownedPhysics デストラクタで自動解放）
             // Terrainは次回のload時に再構築される
             workspaces = collectWorkspaces(system);
+            resetTerrainStreamers(workspaces); // 物理が生きているうちにTerrainを解放
             clearWorkspacePhysics(workspaces);
             removeWorkspacesFromSystem(system, workspaces);
 
@@ -370,6 +383,7 @@ int main(int argc, char* argv[]) {
 
             // Terrainは次回のload時に再構築される
             workspaces = collectWorkspaces(system);
+            resetTerrainStreamers(workspaces); // 物理が生きているうちにTerrainを解放
             clearWorkspacePhysics(workspaces);
             removeWorkspacesFromSystem(system, workspaces);
 
@@ -430,18 +444,6 @@ int main(int argc, char* argv[]) {
                     luauEngine->setGlobalInstance("workspace", workspace);
                     luauEngine->setWorkspace(workspace);
                     ed->setWorkspace(workspace.get());
-                    // ワークスペース切り替え時は新Workspaceにもデフォルトでの追加チェック
-                    beta({
-                        bool hasTerrain = false;
-                        for (auto& [name, child] : workspace->getChildren()) {
-                            if (child->IsA("Terrain")) { hasTerrain = true; break; }
-                        }
-                        if (!hasTerrain) {
-                            auto terrain = std::make_shared<Terrain>();
-                            terrain->Name = "Terrain";
-                            workspace->addChild(terrain);
-                        }
-                    });
                 }
             }
         }
@@ -469,6 +471,17 @@ int main(int argc, char* argv[]) {
     std::cout << "[DEBUG] Main loop ended.\n";
     RCBN_LOG("Shutting down...");
 
+    windows(
+        std::thread t([]() {
+            MessageBoxW(
+                NULL,
+                L"アプリケーションを終了しています...",
+                L"Info",
+                MB_OK | MB_ICONINFORMATION
+            );
+        });
+        t.detach();
+    )
     // ---- 明示的クリーンアップ（デストラクタの逆順に依存しない安全な終了）----
     // EditorManager の Undo スタックや Clipboard が BaseCube の shared_ptr を
     // 保持している可能性がある。これらが renderer の破棄時（physics 破棄後）に

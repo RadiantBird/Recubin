@@ -335,6 +335,7 @@ void LuauEngine::InitDispatchTable_World() {
     DispatchTable["Decal"]["Face"]      = getter_number<Decal, &Decal::face>();
 
     DispatchTable["Lighting"]["Brightness"] = getter_number<Lighting, &Lighting::brightness>();
+    DispatchTable["Lighting"]["Direction"]  = getter_vec3<Lighting, &Lighting::lightDir>();
 
     DispatchTable["System"]["Heartbeat"] = getter_signal<System, &System::Heartbeat>();
 
@@ -443,6 +444,7 @@ void LuauEngine::InitSetterTable_World() {
     SetterTable["Decal"]["Face"]      = setter_number<Decal, &Decal::face>();
 
     SetterTable["Lighting"]["Brightness"] = setter_number<Lighting, &Lighting::brightness>();
+    SetterTable["Lighting"]["Direction"]  = setter_vec3<Lighting, &Lighting::lightDir>();
 }
 
 // ==================== Setter: Rope, Rod, Motor ====================
@@ -544,7 +546,15 @@ void LuauEngine::InitDispatchTable_GUI() {
     DispatchTable["ProximityPrompt"]["Triggered"]             = getter_signal<ProximityPrompt, &ProximityPrompt::Triggered>();
 
     // --- Terrain ---
-    DispatchTable["Terrain"]["Enabled"] = getter_bool<Terrain, &Terrain::Enabled>();
+    DispatchTable["Terrain"]["Enabled"]    = getter_bool<Terrain, &Terrain::Enabled>();
+    DispatchTable["Terrain"]["DataPath"]   = getter_string<Terrain, &Terrain::DataPath>();
+    DispatchTable["Terrain"]["Seed"]       = getter_number<Terrain, &Terrain::Seed>();
+    DispatchTable["Terrain"]["Flat"]       = getter_bool<Terrain, &Terrain::Flat>();
+    DispatchTable["Terrain"]["SetBlock"]    = getter_closure(terrain_set_block_closure,    "SetBlock");
+    DispatchTable["Terrain"]["RemoveBlock"] = getter_closure(terrain_remove_block_closure, "RemoveBlock");
+    DispatchTable["Terrain"]["GetBlock"]    = getter_closure(terrain_get_block_closure,    "GetBlock");
+    DispatchTable["Terrain"]["Raycast"]     = getter_closure(terrain_raycast_closure,      "Raycast");
+    DispatchTable["Terrain"]["ApplyBrush"]  = getter_closure(terrain_apply_brush_closure,  "ApplyBrush");
 }
 
 // ==================== Setter: GUI ====================
@@ -605,5 +615,8 @@ void LuauEngine::InitSetterTable_GUI() {
     SetterTable["ProximityPrompt"]["ObjectText"]            = setter_string<ProximityPrompt, &ProximityPrompt::ObjectText>();
 
     // --- Terrain ---
-    SetterTable["Terrain"]["Enabled"] = setter_bool<Terrain, &Terrain::Enabled>();
+    SetterTable["Terrain"]["Enabled"]  = setter_bool<Terrain, &Terrain::Enabled>();
+    SetterTable["Terrain"]["DataPath"] = setter_string<Terrain, &Terrain::DataPath>();
+    SetterTable["Terrain"]["Seed"]     = setter_number<Terrain, &Terrain::Seed>();
+    SetterTable["Terrain"]["Flat"]     = setter_bool<Terrain, &Terrain::Flat>();
 }

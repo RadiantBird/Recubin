@@ -2,7 +2,7 @@
 ---
 ## 特殊なインスタンス
 - **System**: シングルトン。常に1つのみ存在。Insert Objectリストには登録しない。
-- **Workspace**: 将来的に複数インスタンスを持つ予定。Insert Objectリストに登録する。
+- **Workspace**: 複数インスタンスを持つ。切り替え可能。
 
 ## 単位系
 - **Roblox erik_stud(0.05 meterに等しい)**

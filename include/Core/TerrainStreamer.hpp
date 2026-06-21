@@ -5,6 +5,12 @@
 #include <include/Math/Vector3.hpp>
 #include <unordered_map>
 #include <string>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <deque>
+#include <atomic>
+#include <memory>
 
 // ================================================================== //
 //  TerrainStreamer
@@ -27,16 +33,25 @@ public:
     static constexpr int   REGION_SIZE      = 32;
     static constexpr float BLOCK_STUD_SIZE  = 4.0f; // 1ブロックのワールドサイズ（studs）
 
+    // 地形データの保存先。コンストラクタ or setDataPath() 経由でのみ変更すること
+    // （ワーカースレッドが読むため、外から直接書き換えないこと）。
     std::string terrainDir = "terrain";
 
     // owner: このストリーマーを所有する Terrain インスタンス。
     // チャンクの物理アクターの userData に設定し、レイキャストで地形だと識別できるようにする。
-    TerrainStreamer(Workspace* workspace, Instance* owner = nullptr);
+    TerrainStreamer(Workspace* workspace, Instance* owner = nullptr, const std::string& dataDir = "terrain",
+                    uint32_t seed = 12345u, bool flat = false);
 
     ~TerrainStreamer();
 
     // Workspace が切り替わったとき（ed->hierarchyPanel->onSwitchWorkspace など）に呼ぶ
     void setWorkspace(Workspace* workspace);
+
+    // データ保存先ディレクトリを切り替える（旧データを保存してから新ディレクトリを再ロード）。
+    void setDataPath(const std::string& dir);
+
+    // 地形を作り直す。DataPath の保存済み地形（編集含む）を破棄し、新シード/モードで再生成する。
+    void regenerate(uint32_t seed, bool flat);
 
     // 全チャンクを解放する
     void clear();
@@ -59,9 +74,10 @@ public:
     // 指定列(wx,wz)の表層Y座標を求める。チャンクが未ロードならノイズから推定する。
     int32_t findSurfaceY(int32_t wx, int32_t wz) const;
 
-    // 指定列の表層ブロックの形状を、斜め近傍列の高さに応じて Cube / Wedge_Top* に分類し直す。
-    // 呼び出し元が対象チャンクを markDirty する必要がある。
-    void reclassifyColumnShape(int32_t wx, int32_t wz);
+    // 指定列の表層ブロックの形状を、近傍列の高さに応じて Cube / Wedge / Ramp に分類し直す。
+    // persist=true（ブラシ/API編集）なら永続化対象(modified)にする。
+    // persist=false（生成時）は形状がノイズから再導出可能なので dirty のみ（保存しない）。
+    void reclassifyColumnShape(int32_t wx, int32_t wz, bool persist);
 
     // ブラシ編集。mode: +1=Raise（1段積む）, -1=Lower（1段削る）, 0=Smooth（周囲8列の平均に1段近づける）。
     // worldPos を中心に半径 radius（studs）内のXZ列を処理し、影響範囲を再分類・再構築する。
@@ -72,10 +88,16 @@ public:
     // ヒット時は outHit にブロック表面の交点（ワールド座標）を入れて true を返す。
     bool raycastVoxel(const Vector3& origin, const Vector3& dir, float maxDist, Vector3& outHit) const;
 
+    // ワールド「ブロック座標」で1ブロックを書き換える／削除する（部分編集API）。
+    // 対象チャンクが未ロードなら false。編集チャンクは永続化対象としてマークされる。
+    bool setBlock(int32_t wx, int32_t wy, int32_t wz, BlockShape shape, uint8_t r, uint8_t g, uint8_t b);
+    bool removeBlock(int32_t wx, int32_t wy, int32_t wz);
+
 private:
     Workspace* m_workspace; // 所有しない、ライフタイムは呼び出し元が管理
     Instance*  m_owner;     // 所有しない。物理アクターの userData に設定する Terrain インスタンス
     PerlinNoise m_noise;
+    bool        m_flat = false; // true なら平坦地形を生成
 
     struct ChunkKey {
         int32_t cx, cy, cz;
@@ -92,12 +114,21 @@ private:
         }
     };
 
+    // 非同期ロード中(Loading)はメッシュ未生成・データ未到着のため描画/参照対象外とする。
+    enum class ChunkState { Loading, Ready };
+
     struct ChunkEntry {
-        Chunk chunk;
-        bool  modified = false;
+        Chunk      chunk;
+        bool       modified = false;
+        ChunkState state    = ChunkState::Loading;
     };
 
     std::unordered_map<ChunkKey, ChunkEntry, ChunkKeyHash> m_chunks;
+
+    // ワーカー↔メイン間で受け渡すブロックデータ（Chunk.blocks と同レイアウト）。
+    struct BlockGrid {
+        Block data[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
+    };
 
 public:
     // ロード済みチャンク一覧（Renderer描画用）
@@ -121,24 +152,55 @@ private:
         bool loaded = false;
         bool modified = false;
     };
+    // ==== リージョンキャッシュ・ディスクI/O（ワーカースレッド専用。メインから触らない）====
     std::unordered_map<RegionKey, RegionCache, RegionKeyHash> m_regions;
 
-    void loadChunk  (int32_t cx, int32_t cy, int32_t cz);
-    void unloadChunk(int32_t cx, int32_t cy, int32_t cz);
-    void rebuildIfDirty(ChunkEntry& entry);
-
     static std::string regionPath(const std::string& dir, int32_t rx, int32_t rz);
-    RegionCache& getRegionCache(int32_t rx, int32_t rz);
-    void readChunkFromRegion (Chunk& chunk);
-    void writeChunkToRegion  (const Chunk& chunk);
-    void generateChunk       (Chunk& chunk);
+    RegionCache& getRegionCache(int32_t rx, int32_t rz);                 // worker
+    bool decodeChunkFromRegion(int32_t cx, int32_t cy, int32_t cz, BlockGrid& grid); // worker: 既存データを復元、無ければfalse
+    void encodeChunkToRegion  (int32_t cx, int32_t cy, int32_t cz, const BlockGrid& grid); // worker
+    void flushRegionsToDisk();                                          // worker
+    void generateRawGrid(int32_t cx, int32_t cy, int32_t cz, BlockGrid& grid); // worker: ノイズの生フィルのみ
 
-    // ノイズから列(wx,wz)の地表Y座標を直接計算する（ブロック未生成時のフォールバック用）
+    // ==== ワーカースレッド基盤 ====
+    enum class JobType { Load, Save, Flush, SetDir, Regenerate, Stop };
+    struct Job {
+        JobType type;
+        int32_t cx = 0, cy = 0, cz = 0;
+        std::unique_ptr<BlockGrid> grid; // Save 用
+        std::string dir;                 // SetDir 用
+        uint32_t seed = 0;               // Regenerate 用
+        bool     flat = false;           // Regenerate 用
+    };
+    struct LoadResult {
+        int32_t cx, cy, cz;
+        std::unique_ptr<BlockGrid> grid;
+        bool generated; // ノイズ生成なら true（メインで reclassify が必要）
+    };
+
+    std::thread             m_worker;
+    std::mutex              m_jobMutex;
+    std::condition_variable m_jobCv;
+    std::deque<Job>         m_jobQueue;
+    std::mutex             m_resultMutex;
+    std::deque<LoadResult> m_resultQueue;
+
+    void workerLoop();
+    void enqueueJob(Job&& job);
+
+    // ==== メインスレッド側 ====
+    void releaseChunkResources(Chunk& chunk); // GL/PhysX を解放（メイン）
+    void rebuildIfDirty(ChunkEntry& entry);   // mesh/physics をビルド（メイン）
+
+    // ノイズから列(wx,wz)の地表Y座標を直接計算する（ブロック未生成時のフォールバック用。const読取りでスレッド安全）
     int32_t surfaceHeightFromNoise(int32_t wx, int32_t wz) const;
 
     // 列(wx,wz)の表層を1段積む／削る（ブラシ・スムージング共通の下位処理）
     void raiseColumn(int32_t wx, int32_t wz);
     void lowerColumn(int32_t wx, int32_t wz);
+
+    // 編集したチャンクを再構築対象(mesh.dirty)かつ永続化対象(entry.modified)としてマークする。
+    void markChunkEdited(int32_t cx, int32_t cy, int32_t cz);
 
     // Physics を安全に取得（nullptr の場合は物理生成をスキップ）
     Physics* getPhysics() const;

@@ -291,6 +291,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->IsA("Weld") || inst->IsA("Motor")
                  || inst->IsA("ScreenGuiObject")
                  || inst->getClassName() == "ProximityPrompt"
+                 || inst->getClassName() == "Terrain"
                  || inst->IsA("Workspace"); // NOTE: プロパティを最近追加した
 
     if (hasProps) {
@@ -349,6 +350,13 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             const AppImage* ai = static_cast<const AppImage*>(inst);
             if (!ai->iconPath.empty())
                 out << YAML::Key << "IconPath" << YAML::Value << ai->iconPath;
+        }
+        if (inst->getClassName() == "Terrain") {
+            const Terrain* tr = static_cast<const Terrain*>(inst);
+            out << YAML::Key << "Enabled"  << YAML::Value << tr->Enabled;
+            out << YAML::Key << "DataPath" << YAML::Value << tr->DataPath;
+            out << YAML::Key << "Seed"     << YAML::Value << tr->Seed;
+            out << YAML::Key << "Flat"     << YAML::Value << tr->Flat;
         }
         if (inst->getClassName() == "CharacterSetting") {
             const CharacterSetting* cs = static_cast<const CharacterSetting*>(inst);

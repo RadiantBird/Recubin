@@ -53,6 +53,7 @@ static physx::PxFilterFlags rcbnFilterShader(
 {
     pairFlags = physx::PxPairFlag::eSOLVE_CONTACT
               | physx::PxPairFlag::eDETECT_DISCRETE_CONTACT
+              | physx::PxPairFlag::eDETECT_CCD_CONTACT
               | physx::PxPairFlag::eNOTIFY_TOUCH_FOUND;
     return physx::PxFilterFlag::eDEFAULT;
 }

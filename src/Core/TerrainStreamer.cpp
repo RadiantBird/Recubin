@@ -4,7 +4,9 @@
 #include <Core/Physics.hpp>
 #include <yaml-cpp/yaml.h>
 #include <fstream>
+#include <filesystem>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 #include <algorithm>
 #include <utility>
@@ -42,16 +44,23 @@ inline int32_t worldToChunk(float studs) {
     return (b >= 0) ? (b / CHUNK_SIZE) : ((b - CHUNK_SIZE + 1) / CHUNK_SIZE);
 }
 
+// ワールド「ブロック座標」→チャンク座標（負数で正しく floor 方向へ丸める）。
+inline int32_t blockToChunk(int32_t b) {
+    return (b >= 0) ? (b / CHUNK_SIZE) : ((b - CHUNK_SIZE + 1) / CHUNK_SIZE);
+}
+
 struct RleEntry { int count; uint8_t shape, material, r, g, b; };
 
-std::vector<RleEntry> rleEncode(const Chunk& chunk) {
+using BlockArray = Block[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
+
+std::vector<RleEntry> rleEncode(const BlockArray& blocks) {
     std::vector<RleEntry> out;
     RleEntry cur{}; cur.count = 0;
     auto flush = [&]() { if (cur.count > 0) out.push_back(cur); };
     for (int x = 0; x < CHUNK_SIZE; x++)
     for (int z = 0; z < CHUNK_SIZE; z++)
     for (int y = 0; y < CHUNK_SIZE; y++) {
-        const Block& b = chunk.blocks[x][y][z];
+        const Block& b = blocks[x][y][z];
         uint8_t s = (uint8_t)b.shape, m = (uint8_t)b.material;
         if (cur.count > 0 && cur.shape==s && cur.material==m &&
             cur.r==b.r && cur.g==b.g && cur.b==b.b) {
@@ -65,7 +74,7 @@ std::vector<RleEntry> rleEncode(const Chunk& chunk) {
     return out;
 }
 
-void rleDecode(const std::vector<RleEntry>& rle, Chunk& chunk) {
+void rleDecode(const std::vector<RleEntry>& rle, BlockArray& blocks) {
     int idx = 0;
     for (const auto& e : rle) {
         for (int n = 0; n < e.count; n++, idx++) {
@@ -73,7 +82,7 @@ void rleDecode(const std::vector<RleEntry>& rle, Chunk& chunk) {
             int z = (idx % (CHUNK_SIZE * CHUNK_SIZE)) / CHUNK_SIZE;
             int y = idx % CHUNK_SIZE;
             if (x >= CHUNK_SIZE) break;
-            Block& b = chunk.blocks[x][y][z];
+            Block& b = blocks[x][y][z];
             b.shape    = (BlockShape)e.shape;
             b.material = (BlockMaterial)e.material;
             b.r = e.r; b.g = e.g; b.b = e.b;
@@ -86,30 +95,93 @@ void rleDecode(const std::vector<RleEntry>& rle, Chunk& chunk) {
 // ================================================================== //
 //  コンストラクタ / デストラクタ
 // ================================================================== //
-TerrainStreamer::TerrainStreamer(Workspace* workspace, Instance* owner)
-    : m_workspace(workspace), m_owner(owner), m_noise(12345u)
+TerrainStreamer::TerrainStreamer(Workspace* workspace, Instance* owner, const std::string& dataDir,
+                                 uint32_t seed, bool flat)
+    : m_workspace(workspace), m_owner(owner), m_noise(seed), m_flat(flat)
 {
+    terrainDir = dataDir;
     ensureDir(terrainDir);
+    // ワーカースレッド起動（terrainDir 設定後・m_chunks 未使用の時点で開始）
+    m_worker = std::thread([this]{ workerLoop(); });
 }
 
 TerrainStreamer::~TerrainStreamer() {
-    std::vector<ChunkKey> keys;
-    keys.reserve(m_chunks.size());
-    for (auto& [k, _] : m_chunks) keys.push_back(k);
-    for (auto& k : keys) unloadChunk(k.cx, k.cy, k.cz);
-    flushRegions();
+    // 未処理の Load ジョブは破棄して join を高速化（シーン切替時のフリーズ防止）。
+    // Save ジョブは編集の永続化に必要なので残す。
+    {
+        std::lock_guard<std::mutex> lk(m_jobMutex);
+        std::deque<Job> keep;
+        for (auto& j : m_jobQueue) if (j.type != JobType::Load) keep.push_back(std::move(j));
+        m_jobQueue.swap(keep);
+    }
+    // 変更済みチャンクを保存ジョブとして投入してから停止する
+    for (auto& [k, entry] : m_chunks) {
+        if (entry.state == ChunkState::Ready && entry.modified) {
+            Job job; job.type = JobType::Save;
+            job.cx = k.cx; job.cy = k.cy; job.cz = k.cz;
+            job.grid = std::make_unique<BlockGrid>();
+            std::memcpy(job.grid->data, entry.chunk.blocks, sizeof(BlockGrid));
+            enqueueJob(std::move(job));
+        }
+    }
+    { Job job; job.type = JobType::Stop; enqueueJob(std::move(job)); } // Stop 内で最終フラッシュ
+    if (m_worker.joinable()) m_worker.join();
+
+    // GL/PhysX リソースを解放（メインスレッド）
+    for (auto& [k, entry] : m_chunks) releaseChunkResources(entry.chunk);
+    m_chunks.clear();
 }
 
 void TerrainStreamer::setWorkspace(Workspace* workspace) {
     m_workspace = workspace;
 }
 
+void TerrainStreamer::setDataPath(const std::string& dir) {
+    // 変更済みを保存投入 → メイン側リソース解放 → SetDir（worker が旧フラッシュ+regionクリア+dir更新）
+    for (auto& [k, entry] : m_chunks) {
+        if (entry.state == ChunkState::Ready && entry.modified) {
+            Job job; job.type = JobType::Save;
+            job.cx = k.cx; job.cy = k.cy; job.cz = k.cz;
+            job.grid = std::make_unique<BlockGrid>();
+            std::memcpy(job.grid->data, entry.chunk.blocks, sizeof(BlockGrid));
+            enqueueJob(std::move(job));
+        }
+        releaseChunkResources(entry.chunk);
+    }
+    m_chunks.clear();
+    { Job job; job.type = JobType::SetDir; job.dir = dir; enqueueJob(std::move(job)); }
+    // 結果キューに残る旧チャンクの結果はキー不在で破棄される
+}
+
+void TerrainStreamer::regenerate(uint32_t seed, bool flat) {
+    // 保存済み地形（編集含む）を破棄して新シード/モードで作り直す。
+    // メイン: GL/PhysX を解放し m_chunks をクリア。未処理 Load を破棄（旧シード生成を防ぐ）。
+    {
+        std::lock_guard<std::mutex> lk(m_jobMutex);
+        std::deque<Job> keep;
+        for (auto& j : m_jobQueue) if (j.type != JobType::Load) keep.push_back(std::move(j));
+        m_jobQueue.swap(keep);
+    }
+    for (auto& [k, entry] : m_chunks) releaseChunkResources(entry.chunk);
+    m_chunks.clear();
+    // ワーカーで reseed + region クリア + DataPath 削除（単一ワーカーなので m_noise 競合なし）
+    Job job; job.type = JobType::Regenerate; job.seed = seed; job.flat = flat;
+    enqueueJob(std::move(job));
+}
+
 void TerrainStreamer::clear() {
-    std::vector<ChunkKey> keys;
-    for (auto& [k, _] : m_chunks) keys.push_back(k);
-    for (auto& k : keys) unloadChunk(k.cx, k.cy, k.cz);
-    flushRegions();
-    m_regions.clear();
+    for (auto& [k, entry] : m_chunks) {
+        if (entry.state == ChunkState::Ready && entry.modified) {
+            Job job; job.type = JobType::Save;
+            job.cx = k.cx; job.cy = k.cy; job.cz = k.cz;
+            job.grid = std::make_unique<BlockGrid>();
+            std::memcpy(job.grid->data, entry.chunk.blocks, sizeof(BlockGrid));
+            enqueueJob(std::move(job));
+        }
+        releaseChunkResources(entry.chunk);
+    }
+    m_chunks.clear();
+    { Job job; job.type = JobType::Flush; enqueueJob(std::move(job)); }
 }
 
 Physics* TerrainStreamer::getPhysics() const {
@@ -117,76 +189,118 @@ Physics* TerrainStreamer::getPhysics() const {
     return m_workspace->getPhysicsEngine();
 }
 
+void TerrainStreamer::enqueueJob(Job&& job) {
+    {
+        std::lock_guard<std::mutex> lk(m_jobMutex);
+        m_jobQueue.push_back(std::move(job));
+    }
+    m_jobCv.notify_one();
+}
+
+void TerrainStreamer::releaseChunkResources(Chunk& chunk) {
+    if (chunk.physicsActor) {
+        Physics* phys = getPhysics();
+        if (phys && phys->getScene()) phys->getScene()->removeActor(*chunk.physicsActor);
+        chunk.physicsActor->release();
+        chunk.physicsActor = nullptr;
+    }
+    if (chunk.mesh.VAO) { glDeleteVertexArrays(1, &chunk.mesh.VAO); chunk.mesh.VAO = 0; }
+    if (chunk.mesh.VBO) { glDeleteBuffers(1, &chunk.mesh.VBO);      chunk.mesh.VBO = 0; }
+    if (chunk.mesh.EBO) { glDeleteBuffers(1, &chunk.mesh.EBO);      chunk.mesh.EBO = 0; }
+    chunk.mesh.indexCount = 0;
+}
+
 // ================================================================== //
-//  update
+//  update（メインスレッド）
 // ================================================================== //
+// 1フレームあたりの上限（バースト hitch 防止）
+static constexpr int kMaxResultsPerFrame = 6;  // ロード結果の取り込み数
+static constexpr int kMaxBuildsPerFrame  = 4;  // mesh/physics 構築数
+
 void TerrainStreamer::update(const Vector3& playerPos)
 {
     const int32_t pcx = worldToChunk(playerPos.x);
-    const int32_t pcy = worldToChunk(playerPos.y);
     const int32_t pcz = worldToChunk(playerPos.z);
 
-    // 範囲内チャンクをロード
+    auto inRange = [&](int32_t cx, int32_t cy, int32_t cz) {
+        return std::abs(cx - pcx) <= STREAM_RADIUS &&
+               std::abs(cz - pcz) <= STREAM_RADIUS &&
+               cy >= 0 && cy < 8;
+    };
+
+    // --- 範囲内の未登録チャンクをロード要求（プレースホルダを Loading で挿入）---
     for (int dx = -STREAM_RADIUS; dx <= STREAM_RADIUS; dx++)
     for (int cy = 0; cy < 8; cy++) // Y軸は 0～7 を常にロード
     for (int dz = -STREAM_RADIUS; dz <= STREAM_RADIUS; dz++) {
         ChunkKey key{ pcx+dx, cy, pcz+dz };
-        if (m_chunks.find(key) == m_chunks.end())
-            loadChunk(key.cx, key.cy, key.cz);
+        if (m_chunks.find(key) != m_chunks.end()) continue;
+        ChunkEntry& entry = m_chunks[key];
+        entry.chunk.cx = key.cx; entry.chunk.cy = key.cy; entry.chunk.cz = key.cz;
+        entry.state    = ChunkState::Loading;
+        entry.modified = false;
+        Job job; job.type = JobType::Load;
+        job.cx = key.cx; job.cy = key.cy; job.cz = key.cz;
+        enqueueJob(std::move(job));
     }
 
-    // 範囲外チャンクをアンロード
+    // --- ワーカーからのロード結果を取り込む（上限あり）---
+    for (int n = 0; n < kMaxResultsPerFrame; ++n) {
+        LoadResult res;
+        {
+            std::lock_guard<std::mutex> lk(m_resultMutex);
+            if (m_resultQueue.empty()) break;
+            res = std::move(m_resultQueue.front());
+            m_resultQueue.pop_front();
+        }
+        auto it = m_chunks.find({res.cx, res.cy, res.cz});
+        if (it == m_chunks.end() || it->second.state != ChunkState::Loading) continue; // 既に不要
+        Chunk& chunk = it->second.chunk;
+        std::memcpy(chunk.blocks, res.grid->data, sizeof(BlockGrid));
+        it->second.state = ChunkState::Ready;
+        chunk.mesh.dirty = true;
+        // ノイズ生成チャンクはコーナー面取りをメインで分類（既存ファイル由来は形状確定済み）
+        if (res.generated) {
+            const int worldY0 = chunk.worldOriginY();
+            for (int x = 0; x < CHUNK_SIZE; x++)
+            for (int z = 0; z < CHUNK_SIZE; z++) {
+                int wx = chunk.worldOriginX() + x;
+                int wz = chunk.worldOriginZ() + z;
+                int surfaceY = surfaceHeightFromNoise(wx, wz);
+                if (surfaceY >= worldY0 && surfaceY < worldY0 + CHUNK_SIZE)
+                    reclassifyColumnShape(wx, wz, /*persist=*/false); // 生成由来は保存しない
+            }
+        }
+    }
+
+    // --- 範囲外チャンクをアンロード ---
     std::vector<ChunkKey> toUnload;
     for (auto& [key, _] : m_chunks) {
-        if (std::abs(key.cx-pcx) > STREAM_RADIUS ||
-            std::abs(key.cz-pcz) > STREAM_RADIUS ||
-            key.cy < 0 || key.cy >= 8)
-            toUnload.push_back(key);
+        if (!inRange(key.cx, key.cy, key.cz)) toUnload.push_back(key);
     }
-    for (auto& key : toUnload) unloadChunk(key.cx, key.cy, key.cz);
-
-    // dirty チャンクの再生成
-    for (auto& [_, entry] : m_chunks) rebuildIfDirty(entry);
-}
-
-// ================================================================== //
-//  ロード / アンロード
-// ================================================================== //
-void TerrainStreamer::loadChunk(int32_t cx, int32_t cy, int32_t cz)
-{
-    auto& entry  = m_chunks[{cx, cy, cz}];
-    Chunk& chunk = entry.chunk;
-    chunk.cx = cx; chunk.cy = cy; chunk.cz = cz;
-    chunk.mesh.dirty = true;
-    entry.modified   = false;
-
-    readChunkFromRegion(chunk);
-}
-
-void TerrainStreamer::unloadChunk(int32_t cx, int32_t cy, int32_t cz)
-{
-    auto it = m_chunks.find({cx, cy, cz});
-    if (it == m_chunks.end()) return;
-    Chunk& chunk = it->second.chunk;
-
-    if (it->second.modified) writeChunkToRegion(chunk);
-
-    // 物理アクターを解放
-    if (chunk.physicsActor) {
-        Physics* phys = getPhysics();
-        if (phys && phys->getScene()) {
-            phys->getScene()->removeActor(*chunk.physicsActor);
+    for (auto& key : toUnload) {
+        auto it = m_chunks.find(key);
+        if (it == m_chunks.end()) continue;
+        if (it->second.state == ChunkState::Ready) {
+            if (it->second.modified) {
+                Job job; job.type = JobType::Save;
+                job.cx = key.cx; job.cy = key.cy; job.cz = key.cz;
+                job.grid = std::make_unique<BlockGrid>();
+                std::memcpy(job.grid->data, it->second.chunk.blocks, sizeof(BlockGrid));
+                enqueueJob(std::move(job));
+            }
+            releaseChunkResources(it->second.chunk);
         }
-        chunk.physicsActor->release();
-        chunk.physicsActor = nullptr;
+        // Loading のものはプレースホルダを消すだけ（後続の結果はキー不在で破棄される）
+        m_chunks.erase(it);
     }
 
-    // GPU バッファを解放
-    if (chunk.mesh.VAO) { glDeleteVertexArrays(1, &chunk.mesh.VAO); chunk.mesh.VAO = 0; }
-    if (chunk.mesh.VBO) { glDeleteBuffers(1, &chunk.mesh.VBO);      chunk.mesh.VBO = 0; }
-    if (chunk.mesh.EBO) { glDeleteBuffers(1, &chunk.mesh.EBO);      chunk.mesh.EBO = 0; }
-
-    m_chunks.erase(it);
+    // --- dirty な Ready チャンクを再構築（上限あり）---
+    int builds = 0;
+    for (auto& [_, entry] : m_chunks) {
+        if (entry.state != ChunkState::Ready || !entry.chunk.mesh.dirty) continue;
+        rebuildIfDirty(entry);
+        if (++builds >= kMaxBuildsPerFrame) break;
+    }
 }
 
 void TerrainStreamer::rebuildIfDirty(ChunkEntry& entry)
@@ -225,7 +339,14 @@ TerrainStreamer::RegionCache& TerrainStreamer::getRegionCache(int32_t rx, int32_
     return cache;
 }
 
+// 公開API: フラッシュをワーカーへ依頼する（同期書込はしない）
 void TerrainStreamer::flushRegions() {
+    Job job; job.type = JobType::Flush;
+    enqueueJob(std::move(job));
+}
+
+// ワーカー専用: modified リージョンをディスクへ書き出す
+void TerrainStreamer::flushRegionsToDisk() {
     ensureDir(terrainDir);
     for (auto& [k, cache] : m_regions) {
         if (cache.loaded && cache.modified) {
@@ -240,37 +361,37 @@ void TerrainStreamer::flushRegions() {
     }
 }
 
-void TerrainStreamer::readChunkFromRegion(Chunk& chunk)
+// ワーカー専用: 既存リージョンから該当チャンクを復元。データが無ければ false。
+bool TerrainStreamer::decodeChunkFromRegion(int32_t cx, int32_t cy, int32_t cz, BlockGrid& grid)
 {
-    int32_t rx = chunkToRegion(chunk.cx);
-    int32_t rz = chunkToRegion(chunk.cz);
+    int32_t rx = chunkToRegion(cx);
+    int32_t rz = chunkToRegion(cz);
     RegionCache& cache = getRegionCache(rx, rz);
 
     try {
         YAML::Node chunks = cache.root["chunks"];
         for (const auto& node : chunks) {
-            if (node["cx"].as<int32_t>() != chunk.cx) continue;
-            if (node["cy"].as<int32_t>() != chunk.cy) continue;
-            if (node["cz"].as<int32_t>() != chunk.cz) continue;
+            if (node["cx"].as<int32_t>() != cx) continue;
+            if (node["cy"].as<int32_t>() != cy) continue;
+            if (node["cz"].as<int32_t>() != cz) continue;
             std::vector<RleEntry> rle;
             for (const auto& e : node["blocks"])
                 rle.push_back({ e[0].as<int>(), e[1].as<uint8_t>(), e[2].as<uint8_t>(),
                                  e[3].as<uint8_t>(), e[4].as<uint8_t>(), e[5].as<uint8_t>() });
-            rleDecode(rle, chunk);
-            return;
+            rleDecode(rle, grid.data);
+            return true;
         }
-        generateChunk(chunk); // このチャンクのデータなし
-
     } catch (const std::exception& e) {
         std::cerr << "[TerrainStreamer] YAML parse error: " << e.what() << std::endl;
-        generateChunk(chunk);
     }
+    return false;
 }
 
-void TerrainStreamer::writeChunkToRegion(const Chunk& chunk)
+// ワーカー専用: グリッドをリージョンキャッシュへエンコードして格納（modified マーク）
+void TerrainStreamer::encodeChunkToRegion(int32_t cx, int32_t cy, int32_t cz, const BlockGrid& grid)
 {
-    int32_t rx = chunkToRegion(chunk.cx);
-    int32_t rz = chunkToRegion(chunk.cz);
+    int32_t rx = chunkToRegion(cx);
+    int32_t rz = chunkToRegion(cz);
     RegionCache& cache = getRegionCache(rx, rz);
 
     YAML::Node& root = cache.root;
@@ -278,18 +399,18 @@ void TerrainStreamer::writeChunkToRegion(const Chunk& chunk)
     // 既存エントリを除いた新シーケンスを構築
     YAML::Node newChunks(YAML::NodeType::Sequence);
     for (const auto& node : root["chunks"]) {
-        bool match = node["cx"].as<int32_t>()==chunk.cx &&
-                     node["cy"].as<int32_t>()==chunk.cy &&
-                     node["cz"].as<int32_t>()==chunk.cz;
+        bool match = node["cx"].as<int32_t>()==cx &&
+                     node["cy"].as<int32_t>()==cy &&
+                     node["cz"].as<int32_t>()==cz;
         if (!match) newChunks.push_back(node);
     }
 
     YAML::Node chunkNode;
-    chunkNode["cx"] = chunk.cx;
-    chunkNode["cy"] = chunk.cy;
-    chunkNode["cz"] = chunk.cz;
+    chunkNode["cx"] = cx;
+    chunkNode["cy"] = cy;
+    chunkNode["cz"] = cz;
     YAML::Node blocksNode(YAML::NodeType::Sequence);
-    for (const auto& e : rleEncode(chunk)) {
+    for (const auto& e : rleEncode(grid.data)) {
         YAML::Node row(YAML::NodeType::Sequence);
         row.push_back(e.count); row.push_back((int)e.shape);
         row.push_back((int)e.material);
@@ -301,6 +422,61 @@ void TerrainStreamer::writeChunkToRegion(const Chunk& chunk)
     root["chunks"] = newChunks;
 
     cache.modified = true;
+}
+
+// ================================================================== //
+//  ワーカースレッド本体
+// ================================================================== //
+void TerrainStreamer::workerLoop()
+{
+    for (;;) {
+        Job job;
+        {
+            std::unique_lock<std::mutex> lk(m_jobMutex);
+            m_jobCv.wait(lk, [&]{ return !m_jobQueue.empty(); });
+            job = std::move(m_jobQueue.front());
+            m_jobQueue.pop_front();
+        }
+
+        switch (job.type) {
+        case JobType::Load: {
+            auto grid = std::make_unique<BlockGrid>();
+            bool found = decodeChunkFromRegion(job.cx, job.cy, job.cz, *grid);
+            if (!found) generateRawGrid(job.cx, job.cy, job.cz, *grid);
+            LoadResult res{ job.cx, job.cy, job.cz, std::move(grid), !found };
+            {
+                std::lock_guard<std::mutex> lk(m_resultMutex);
+                m_resultQueue.push_back(std::move(res));
+            }
+            break;
+        }
+        case JobType::Save:
+            if (job.grid) encodeChunkToRegion(job.cx, job.cy, job.cz, *job.grid);
+            break;
+        case JobType::Flush:
+            flushRegionsToDisk();
+            break;
+        case JobType::SetDir:
+            flushRegionsToDisk();
+            m_regions.clear();
+            terrainDir = job.dir;
+            ensureDir(terrainDir);
+            break;
+        case JobType::Regenerate: {
+            // 保存済み地形を破棄して新シード/モードへ。フラッシュはしない（破棄が目的）。
+            m_noise.reseed(job.seed);
+            m_flat = job.flat;
+            m_regions.clear();
+            std::error_code ec;
+            std::filesystem::remove_all(terrainDir, ec); // DataPath を丸ごと削除
+            ensureDir(terrainDir);
+            break;
+        }
+        case JobType::Stop:
+            flushRegionsToDisk();
+            return;
+        }
+    }
 }
 
 // ================================================================== //
@@ -316,6 +492,7 @@ static constexpr int    DIRT_DEPTH         = 3;       // 草の下に何ブロ�
 
 int32_t TerrainStreamer::surfaceHeightFromNoise(int32_t wx, int32_t wz) const
 {
+    if (m_flat) return static_cast<int32_t>(TERRAIN_HEIGHT_MID); // 平坦地形
     float n = m_noise.fbm2(
         static_cast<float>(wx) * TERRAIN_SCALE,
         static_cast<float>(wz) * TERRAIN_SCALE,
@@ -326,16 +503,17 @@ int32_t TerrainStreamer::surfaceHeightFromNoise(int32_t wx, int32_t wz) const
     return static_cast<int32_t>(TERRAIN_HEIGHT_MID + n * TERRAIN_HEIGHT_MAX);
 }
 
-void TerrainStreamer::generateChunk(Chunk& chunk)
+// ワーカー専用: ノイズからブロックを生フィルする（reclassify はしない＝m_chunks に触れない）。
+// コーナー面取りはメインスレッドが結果取り込み後に reclassifyColumnShape で行う。
+void TerrainStreamer::generateRawGrid(int32_t cx, int32_t cy, int32_t cz, BlockGrid& grid)
 {
-    const int worldX0 = chunk.worldOriginX();
-    const int worldY0 = chunk.worldOriginY();
-    const int worldZ0 = chunk.worldOriginZ();
+    const int worldX0 = cx * CHUNK_SIZE;
+    const int worldY0 = cy * CHUNK_SIZE;
+    const int worldZ0 = cz * CHUNK_SIZE;
 
     for (int x = 0; x < CHUNK_SIZE; x++)
     for (int z = 0; z < CHUNK_SIZE; z++)
     {
-        // このXZ列の地表高さを fBm で決定
         int wx = worldX0 + x;
         int wz = worldZ0 + z;
         int surfaceY = surfaceHeightFromNoise(wx, wz);
@@ -343,26 +521,19 @@ void TerrainStreamer::generateChunk(Chunk& chunk)
         for (int y = 0; y < CHUNK_SIZE; y++)
         {
             int wy = worldY0 + y;
-            Block& b = chunk.blocks[x][y][z];
- 
+            Block& b = grid.data[x][y][z];
+
             if (wy > surfaceY) {
-                // 地表より上: Empty
                 b.shape = BlockShape::Empty;
- 
             } else if (wy == surfaceY) {
-                // 地表: Grass
                 b.shape    = BlockShape::Cube;
                 b.material = BlockMaterial::Grass;
                 b.r = 60; b.g = 140; b.b = 40;
- 
             } else if (wy >= surfaceY - DIRT_DEPTH) {
-                // 地表直下: Dirt
                 b.shape    = BlockShape::Cube;
                 b.material = BlockMaterial::Dirt;
                 b.r = 139; b.g = 90; b.b = 43;
- 
             } else {
-                // 深部: Stone（深さに応じて少し暗くする）
                 b.shape    = BlockShape::Cube;
                 b.material = BlockMaterial::Stone;
                 int depth  = surfaceY - wy;
@@ -371,21 +542,17 @@ void TerrainStreamer::generateChunk(Chunk& chunk)
                 b.r = shade; b.g = shade; b.b = shade;
             }
         }
-
-        // 表層がこのチャンクの y 範囲内にある場合のみ、コーナーの面取り分類を行う
-        // （隣接チャンク未ロード時は findSurfaceY がノイズへフォールバックする）
-        if (surfaceY >= worldY0 && surfaceY < worldY0 + CHUNK_SIZE) {
-            reclassifyColumnShape(wx, wz);
-        }
     }
 }
 
 // ================================================================== //
 //  ユーティリティ
 // ================================================================== //
+// Loading 状態（データ未到着）のチャンクは「未ロード扱い」で返す。
 Chunk* TerrainStreamer::getChunk(int32_t cx, int32_t cy, int32_t cz) {
     auto it = m_chunks.find({cx, cy, cz});
-    return (it != m_chunks.end()) ? &it->second.chunk : nullptr;
+    if (it == m_chunks.end() || it->second.state != ChunkState::Ready) return nullptr;
+    return &it->second.chunk;
 }
 
 const Block* TerrainStreamer::getBlockGlobal(int32_t wx, int32_t wy, int32_t wz) const {
@@ -393,7 +560,7 @@ const Block* TerrainStreamer::getBlockGlobal(int32_t wx, int32_t wy, int32_t wz)
     int32_t cy = (wy >= 0) ? (wy / CHUNK_SIZE) : ((wy - CHUNK_SIZE + 1) / CHUNK_SIZE);
     int32_t cz = (wz >= 0) ? (wz / CHUNK_SIZE) : ((wz - CHUNK_SIZE + 1) / CHUNK_SIZE);
     auto it = m_chunks.find({cx, cy, cz});
-    if (it == m_chunks.end()) return nullptr;
+    if (it == m_chunks.end() || it->second.state != ChunkState::Ready) return nullptr;
 
     int bx = wx - cx * CHUNK_SIZE;
     int by = wy - cy * CHUNK_SIZE;
@@ -433,7 +600,7 @@ int32_t TerrainStreamer::findSurfaceY(int32_t wx, int32_t wz) const {
     return -1; // この列に地表が無い
 }
 
-void TerrainStreamer::reclassifyColumnShape(int32_t wx, int32_t wz) {
+void TerrainStreamer::reclassifyColumnShape(int32_t wx, int32_t wz, bool persist) {
     int32_t y = findSurfaceY(wx, wz);
     if (y < 0) return;
 
@@ -455,19 +622,32 @@ void TerrainStreamer::reclassifyColumnShape(int32_t wx, int32_t wz) {
     const int32_t hSE = findSurfaceY(wx + 1, wz + 1);
     const int32_t hSW = findSurfaceY(wx - 1, wz + 1);
 
+    // 直交隣接列が「ちょうど1段低い」か
+    const bool nLow = (hN == y - 1);
+    const bool sLow = (hS == y - 1);
+    const bool eLow = (hE == y - 1);
+    const bool wLow = (hW == y - 1);
+    const int  orthoLow = (nLow?1:0) + (sLow?1:0) + (eLow?1:0) + (wLow?1:0);
+
     // 凸コーナーの面取り: あるコーナーで接する2辺の隣接列（直交方向）が両方とも
     // ちょうど1段低い場合、そのコーナーの頂点を削って斜面にする。
     // （斜め対角の高さは「角がきれいな段差か」の確認にだけ使う）
-    const bool cutNE = (hN == y - 1 && hE == y - 1 && hNE <= y - 1);
-    const bool cutNW = (hN == y - 1 && hW == y - 1 && hNW <= y - 1);
-    const bool cutSE = (hS == y - 1 && hE == y - 1 && hSE <= y - 1);
-    const bool cutSW = (hS == y - 1 && hW == y - 1 && hSW <= y - 1);
+    const bool cutNE = (nLow && eLow && hNE <= y - 1);
+    const bool cutNW = (nLow && wLow && hNW <= y - 1);
+    const bool cutSE = (sLow && eLow && hSE <= y - 1);
+    const bool cutSW = (sLow && wLow && hSW <= y - 1);
     const int cutCount = (cutNE?1:0) + (cutNW?1:0) + (cutSE?1:0) + (cutSW?1:0);
 
     // 注意: TRI_WEDGE_Top* のメッシュ定義は NE/SE のジオメトリが名前と入れ替わっている
     // （NW/SWは名前通り）。既存のメッシュテーブルは変更せず、ここで対応を補正する。
     BlockShape newShape = BlockShape::Cube;
-    if (cutCount == 1) {
+    if (orthoLow == 1) {
+        // まっすぐな1段の崖 → 三角柱ランプ（低い側へ斜面が下る）
+        if (nLow)      newShape = BlockShape::Ramp_N;
+        else if (sLow) newShape = BlockShape::Ramp_S;
+        else if (eLow) newShape = BlockShape::Ramp_E;
+        else           newShape = BlockShape::Ramp_W;
+    } else if (cutCount == 1) {
         if (cutNE) newShape = BlockShape::Wedge_TopSE;
         else if (cutSE) newShape = BlockShape::Wedge_TopNE;
         else if (cutNW) newShape = BlockShape::Wedge_TopNW;
@@ -476,8 +656,20 @@ void TerrainStreamer::reclassifyColumnShape(int32_t wx, int32_t wz) {
 
     if (b.shape != newShape) {
         b.shape = newShape;
-        chunk->mesh.dirty = true;
+        if (persist) {
+            markChunkEdited(cx, cy, cz); // 編集由来 → 保存対象
+        } else if (Chunk* c = getChunk(cx, cy, cz)) {
+            c->mesh.dirty = true;        // 生成由来 → 再描画のみ（ノイズから再導出可能なので保存しない）
+        }
     }
+}
+
+// 編集したチャンクを再構築対象かつ永続化対象としてマークする。
+void TerrainStreamer::markChunkEdited(int32_t cx, int32_t cy, int32_t cz) {
+    auto it = m_chunks.find({cx, cy, cz});
+    if (it == m_chunks.end()) return;
+    it->second.chunk.mesh.dirty = true;
+    it->second.modified         = true;
 }
 
 void TerrainStreamer::raiseColumn(int32_t wx, int32_t wz) {
@@ -495,7 +687,7 @@ void TerrainStreamer::raiseColumn(int32_t wx, int32_t wz) {
     Chunk* chunk = getChunk(cx, cy, cz);
     if (!chunk) return;
     chunk->blocks[wx - cx*CHUNK_SIZE][newY - cy*CHUNK_SIZE][wz - cz*CHUNK_SIZE] = copy;
-    chunk->mesh.dirty = true;
+    markChunkEdited(cx, cy, cz);
 }
 
 void TerrainStreamer::lowerColumn(int32_t wx, int32_t wz) {
@@ -508,7 +700,7 @@ void TerrainStreamer::lowerColumn(int32_t wx, int32_t wz) {
     Chunk* chunk = getChunk(cx, cy, cz);
     if (!chunk) return;
     chunk->blocks[wx - cx*CHUNK_SIZE][y - cy*CHUNK_SIZE][wz - cz*CHUNK_SIZE].shape = BlockShape::Empty;
-    chunk->mesh.dirty = true;
+    markChunkEdited(cx, cy, cz);
 }
 
 void TerrainStreamer::applyBrush(const Vector3& worldPos, float radius, int mode) {
@@ -562,7 +754,7 @@ void TerrainStreamer::applyBrush(const Vector3& worldPos, float radius, int mode
     };
     for (auto& [wx, wz] : touchedColumns) {
         for (auto& off : kOffsets) {
-            reclassifyColumnShape(wx + off[0], wz + off[1]);
+            reclassifyColumnShape(wx + off[0], wz + off[1], /*persist=*/true); // 編集由来は保存
         }
     }
 }
@@ -610,4 +802,36 @@ bool TerrainStreamer::raycastVoxel(const Vector3& origin, const Vector3& dir, fl
         if (t > maxDist) return false;
     }
     return false;
+}
+
+bool TerrainStreamer::setBlock(int32_t wx, int32_t wy, int32_t wz,
+                               BlockShape shape, uint8_t r, uint8_t g, uint8_t b) {
+    const int32_t cx = blockToChunk(wx);
+    const int32_t cy = blockToChunk(wy);
+    const int32_t cz = blockToChunk(wz);
+    Chunk* chunk = getChunk(cx, cy, cz);
+    if (!chunk) return false; // 未ロードのチャンクは編集しない
+
+    Block& blk = chunk->blocks[wx - cx*CHUNK_SIZE][wy - cy*CHUNK_SIZE][wz - cz*CHUNK_SIZE];
+    blk.shape = shape;
+    blk.r = r; blk.g = g; blk.b = b;
+    markChunkEdited(cx, cy, cz);
+
+    // チャンク境界に接する場合は、隣接チャンクの面カリング再構築のため dirty にする
+    // （隣接チャンクのデータ自体は変わらないので modified は立てない）。
+    auto markNeighborMesh = [&](int32_t ncx, int32_t ncy, int32_t ncz) {
+        if (ncx == cx && ncy == cy && ncz == cz) return;
+        if (Chunk* nb = getChunk(ncx, ncy, ncz)) nb->mesh.dirty = true;
+    };
+    markNeighborMesh(blockToChunk(wx-1), cy, cz);
+    markNeighborMesh(blockToChunk(wx+1), cy, cz);
+    markNeighborMesh(cx, blockToChunk(wy-1), cz);
+    markNeighborMesh(cx, blockToChunk(wy+1), cz);
+    markNeighborMesh(cx, cy, blockToChunk(wz-1));
+    markNeighborMesh(cx, cy, blockToChunk(wz+1));
+    return true;
+}
+
+bool TerrainStreamer::removeBlock(int32_t wx, int32_t wy, int32_t wz) {
+    return setBlock(wx, wy, wz, BlockShape::Empty, 0, 0, 0);
 }

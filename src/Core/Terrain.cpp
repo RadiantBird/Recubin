@@ -65,22 +65,21 @@ static const int TRI_CUBE[] = {
 static const int TRI_WEDGE_TopNE[] = {
     0,3,1, 0,2,3,
     4,5,6,
-    5,3,6, 3,2,6,
+    2,6,3,
+    1,3,5,
     0,1,5, 0,5,4,
     0,4,6, 0,6,2,
-    1,3,5,
-    2,6,3,
+    3,6,5,
 };
 static const int TRI_WEDGE_TopNW[] = {
-    0,3,1, 0,2,3,
-    5,7,6,
-    0,6,4,
-    0,5,1,
-    0,6,5,
-    0,1,5,
-    1,3,7, 1,7,5,
-    2,7,3, 2,6,7,
-    0,6,2,
+    // 頂点4(上面NW)を除去する楔。TopSE をX軸ミラー（0↔1,2↔3,4↔5,6↔7＋巻き反転）して生成。
+    0,2,1, 2,3,1,    // 底面
+    7,6,5,           // 上面（頂点4を除く三角形）
+    5,0,1,           // 北面(-Z) 三角形
+    6,2,0,           // 西面(-X) 三角形（フル面ではなく頂点4を欠いた三角形）
+    5,6,0,           // 斜面（カット面）
+    2,6,3, 6,7,3,    // 南面(+Z) 四角形
+    7,5,1, 3,7,1,    // 東面(+X) 四角形
 };
 static const int TRI_WEDGE_TopSE[] = {
     0,3,1, 0,2,3,
@@ -91,12 +90,14 @@ static const int TRI_WEDGE_TopSE[] = {
     0,4,6, 0,6,2,
 };
 static const int TRI_WEDGE_TopSW[] = {
-    0,3,1, 0,2,3,
-    4,5,7,
-    0,1,5, 0,5,4,
-    1,3,7, 1,7,5,
-    2,7,3,
-    0,4,2,
+    // 頂点6(上面SW)を除去する楔。TopSE をY軸まわり180°回転（0↔3,1↔2,4↔7,5↔6）して生成。
+    // 旧定義は斜面(頂点4,7,2)が欠落しており、カット部分が穴になって内部が透けていた。
+    3,0,2, 3,1,0,    // 底面
+    7,4,5,           // 上面（頂点6を除く三角形）
+    3,2,7,           // 南面(+Z) 三角形
+    2,0,4, 2,4,7,    // 西面(-X) 三角形 + 斜面（カット面）
+    1,4,0, 1,5,4,    // 北面(-Z) 四角形
+    3,7,5, 3,5,1,    // 東面(+X) 四角形
 };
 static const int TRI_WEDGE_BotNE[] = {
     4,5,7, 4,7,6,
@@ -236,6 +237,89 @@ static bool shouldSkipFace(const Chunk& chunk, const TerrainStreamer* streamer, 
     return false;
 }
 
+// 隣接ブロックが非空（=何かしらの形状で埋まっている）か。ランプの側面三角カリング用。
+static bool neighborNonEmpty(const Chunk& chunk, const TerrainStreamer* streamer, int x, int y, int z, int face)
+{
+    int nx = x, ny = y, nz = z;
+    switch (face) {
+        case FACE_TOP:    ny++; break;
+        case FACE_BOTTOM: ny--; break;
+        case FACE_SOUTH:  nz++; break;
+        case FACE_NORTH:  nz--; break;
+        case FACE_EAST:   nx++; break;
+        case FACE_WEST:   nx--; break;
+    }
+    if (nx >= 0 && nx < CHUNK_SIZE && ny >= 0 && ny < CHUNK_SIZE && nz >= 0 && nz < CHUNK_SIZE) {
+        return chunk.blocks[nx][ny][nz].shape != BlockShape::Empty;
+    }
+    if (streamer) {
+        const Block* nb = streamer->getBlockGlobal(chunk.worldOriginX() + nx,
+                                                   chunk.worldOriginY() + ny,
+                                                   chunk.worldOriginZ() + nz);
+        if (nb) return nb->shape != BlockShape::Empty;
+    }
+    return false;
+}
+
+// 三角柱（エッジランプ）の面構成。slope=斜面(常時描画), highFace=高い側のフル面(Cube隣接でカリング),
+// sideA/sideB=側面の三角(非空隣接でカリング)。底面は共通 RAMP_BOTTOM(Cube隣接でカリング)。
+// 巻きは外向き法線（slope は +Y 成分あり=上向き）になるよう手計算済み。
+struct RampGeom {
+    int slope[6];
+    int highFace[6]; int highCull;
+    int sideA[3];    int sideACull;
+    int sideB[3];    int sideBCull;
+};
+static const RampGeom RAMP_GEOM[4] = {
+    // Ramp_N（低=North, 高=South）
+    { {0,7,1, 0,6,7}, {2,7,6, 2,3,7}, FACE_SOUTH, {1,7,3}, FACE_EAST,  {0,2,6}, FACE_WEST  },
+    // Ramp_S（低=South, 高=North）
+    { {2,3,5, 2,5,4}, {0,5,1, 0,4,5}, FACE_NORTH, {1,5,3}, FACE_EAST,  {0,2,4}, FACE_WEST  },
+    // Ramp_E（低=East,  高=West）
+    { {1,6,3, 1,4,6}, {0,6,4, 0,2,6}, FACE_WEST,  {0,4,1}, FACE_NORTH, {2,3,6}, FACE_SOUTH },
+    // Ramp_W（低=West,  高=East）
+    { {0,2,7, 0,7,5}, {1,7,3, 1,5,7}, FACE_EAST,  {0,5,1}, FACE_NORTH, {2,3,7}, FACE_SOUTH },
+};
+static const int RAMP_BOTTOM[6] = { 0,3,1, 0,2,3 };
+
+static bool isRampShape(BlockShape shape)
+{
+    return shape >= BlockShape::Ramp_N && shape <= BlockShape::Ramp_W;
+}
+
+static bool getRampConvexVertexIndices(BlockShape shape, int out[6])
+{
+    static const int RAMP_VERTS[4][6] = {
+        {0, 1, 2, 3, 6, 7},
+        {0, 1, 2, 3, 4, 5},
+        {0, 1, 2, 3, 4, 6},
+        {0, 1, 2, 3, 5, 7},
+    };
+    if (!isRampShape(shape)) return false;
+    const int rampIndex = (int)shape - (int)BlockShape::Ramp_N;
+    for (int i = 0; i < 6; i++) out[i] = RAMP_VERTS[rampIndex][i];
+    return true;
+}
+
+static bool isTopWedgeShape(BlockShape shape)
+{
+    return shape >= BlockShape::Wedge_TopNE && shape <= BlockShape::Wedge_TopSW;
+}
+
+static bool getTopWedgeConvexVertexIndices(BlockShape shape, int out[7])
+{
+    static const int WEDGE_VERTS[4][7] = {
+        {0, 1, 2, 3, 4, 5, 6},
+        {0, 1, 2, 3, 5, 6, 7},
+        {0, 1, 2, 3, 4, 6, 7},
+        {0, 1, 2, 3, 4, 5, 7},
+    };
+    if (!isTopWedgeShape(shape)) return false;
+    const int wedgeIndex = (int)shape - (int)BlockShape::Wedge_TopNE;
+    for (int i = 0; i < 7; i++) out[i] = WEDGE_VERTS[wedgeIndex][i];
+    return true;
+}
+
 static void calcNormal(const float* a, const float* b, const float* c,
                        float& onx, float& ony, float& onz)
 {
@@ -331,6 +415,7 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
             const int*  tris  = SHAPE_TRIS[shapeIdx];
             const int   count = SHAPE_TRI_COUNTS[shapeIdx];
             if (!tris || count == 0) continue;
+            const bool useConvexPhysics = isTopWedgeShape(blk.shape);
 
             for (int ti = 0; ti + 2 < count; ti += 3)
             {
@@ -352,13 +437,53 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
                 pushVertex(verts, wb[0],wb[1],wb[2], nx,ny,nz, 1.0f,0.0f, fr,fg,fb);
                 pushVertex(verts, wc[0],wc[1],wc[2], nx,ny,nz, 0.5f,1.0f, fr,fg,fb);
 
-                physVerts.push_back({wa[0], wa[1], wa[2]});
-                physVerts.push_back({wb[0], wb[1], wb[2]});
-                physVerts.push_back({wc[0], wc[1], wc[2]});
+                if (!useConvexPhysics) {
+                    physVerts.push_back({wa[0], wa[1], wa[2]});
+                    physVerts.push_back({wb[0], wb[1], wb[2]});
+                    physVerts.push_back({wc[0], wc[1], wc[2]});
+                    physIndices.push_back(physBase+0); physIndices.push_back(physBase+1); physIndices.push_back(physBase+2);
+                }
 
                 indices.push_back(base+0); indices.push_back(base+1); indices.push_back(base+2);
-                physIndices.push_back(physBase+0); physIndices.push_back(physBase+1); physIndices.push_back(physBase+2);
             }
+        }
+        else if (isRampShape(blk.shape))
+        {
+            // 三角柱（エッジランプ）: 面ごとにカリングして連続ランプの重なり/Zファイトを防ぐ。
+            auto emitTri = [&](int ia, int ib, int ic, bool visual = true) {
+                if (!visual) return;
+                const float* va = BASE_VERTS[ia];
+                const float* vb = BASE_VERTS[ib];
+                const float* vc = BASE_VERTS[ic];
+                float wa[3] = { ox+va[0]*BHS, oy+va[1]*BHS, oz+va[2]*BHS };
+                float wb[3] = { ox+vb[0]*BHS, oy+vb[1]*BHS, oz+vb[2]*BHS };
+                float wc[3] = { ox+vc[0]*BHS, oy+vc[1]*BHS, oz+vc[2]*BHS };
+                float nx, ny, nz;
+                calcNormal(wa, wb, wc, nx, ny, nz);
+                const uint32_t base = (uint32_t)verts.size();
+                pushVertex(verts, wa[0],wa[1],wa[2], nx,ny,nz, 0.0f,0.0f, fr,fg,fb);
+                pushVertex(verts, wb[0],wb[1],wb[2], nx,ny,nz, 1.0f,0.0f, fr,fg,fb);
+                pushVertex(verts, wc[0],wc[1],wc[2], nx,ny,nz, 0.5f,1.0f, fr,fg,fb);
+                indices.push_back(base+0); indices.push_back(base+1); indices.push_back(base+2);
+            };
+
+            const RampGeom& rg = RAMP_GEOM[(int)blk.shape - (int)BlockShape::Ramp_N];
+            // 斜面（常時）
+            emitTri(rg.slope[0], rg.slope[1], rg.slope[2]);
+            emitTri(rg.slope[3], rg.slope[4], rg.slope[5]);
+            // 底面（下が Cube なら省略）
+            const bool drawBottom = !shouldSkipFace(chunk, streamer, x, y, z, FACE_BOTTOM);
+            emitTri(RAMP_BOTTOM[0], RAMP_BOTTOM[1], RAMP_BOTTOM[2], drawBottom);
+            emitTri(RAMP_BOTTOM[3], RAMP_BOTTOM[4], RAMP_BOTTOM[5], drawBottom);
+            // 高い側のフル面（隣が Cube なら省略）
+            const bool drawHigh = !shouldSkipFace(chunk, streamer, x, y, z, rg.highCull);
+            emitTri(rg.highFace[0], rg.highFace[1], rg.highFace[2], drawHigh);
+            emitTri(rg.highFace[3], rg.highFace[4], rg.highFace[5], drawHigh);
+            // 側面の三角（隣が非空なら省略＝連続ランプの重なりを排除）
+            emitTri(rg.sideA[0], rg.sideA[1], rg.sideA[2],
+                    !neighborNonEmpty(chunk, streamer, x, y, z, rg.sideACull));
+            emitTri(rg.sideB[0], rg.sideB[1], rg.sideB[2],
+                    !neighborNonEmpty(chunk, streamer, x, y, z, rg.sideBCull));
         }
     }
 
@@ -473,6 +598,12 @@ bool Terrain::IsA(std::string className) {
 void Terrain::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Enabled") {
         Enabled = value.as<bool>();
+    } else if (name == "DataPath") {
+        DataPath = value.as<std::string>();
+    } else if (name == "Seed") {
+        Seed = value.as<int>();
+    } else if (name == "Flat") {
+        Flat = value.as<bool>();
     } else {
         Instance::setProperty(name, value);
     }
@@ -490,7 +621,15 @@ void Terrain::update(const Vector3& centerPos) {
     if (!streamer) {
         Workspace* ws = static_cast<Workspace*>(findFirstAncestorWorkspace());
         if (!ws) return;
-        streamer = std::make_unique<TerrainStreamer>(ws, this);
+        streamer = std::make_unique<TerrainStreamer>(ws, this, DataPath,
+                                                     static_cast<uint32_t>(Seed), Flat);
+        m_appliedDataPath = DataPath;
+    }
+
+    // DataPath が変更されたら、旧パスへ保存してから新パスへ切り替えて再ロードさせる
+    if (DataPath != m_appliedDataPath) {
+        streamer->setDataPath(DataPath);
+        m_appliedDataPath = DataPath;
     }
 
     streamer->update(centerPos);
