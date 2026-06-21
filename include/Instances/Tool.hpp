@@ -15,7 +15,10 @@ class Tool : public Instance {
             return className == "Tool" || Instance::IsA(className);
         }
 
+        enum class ToolHand { Right, Left, Both };
+
         bool Equipped = false;
+        ToolHand Hand = ToolHand::Right;
         std::shared_ptr<RCBNScriptSignal> Activated;
         std::shared_ptr<BaseCube> Handle;
 

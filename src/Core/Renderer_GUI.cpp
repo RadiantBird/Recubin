@@ -342,6 +342,7 @@ void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, fl
     }
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
+    bool anyPromptHeld = false;
 
     for (auto& [cubeNameStr, cubeInst] : ws.getChildren()) {
         if (!cubeInst->IsA("BaseCube")) continue;
@@ -422,6 +423,7 @@ void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, fl
 
                 if (isKeyPressed) {
                     pp->m_isHolding = true;
+                    anyPromptHeld = true;
                     if (!pp->m_hasTriggered) {
                         pp->m_elapsedTime += dt;
                         if (pp->HoldDuration <= 0.0f) {
@@ -491,5 +493,53 @@ void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, fl
 
             drawWorldGuiChildren(dl, wgo, panelX, panelY, pw, ph, m_onButtonActivated);
         }
+    }
+
+    if (SystemState::get().isPlaying) {
+        SystemState::get().inputState = anyPromptHeld
+            ? InputState::ProximityPrompt
+            : InputState::Gameplay;
+    }
+}
+
+// ===================================================
+//  renderToolHotbar
+// ===================================================
+void Renderer::renderToolHotbar(User& user, float vpX, float vpY, float vpW, float vpH) {
+    if (!user.currentTool) return;
+
+    struct SlotEntry { int index; Tool* tool; };
+    std::vector<SlotEntry> visible;
+    for (int i = 0; i < 10; i++) {
+        if (user.Slots[i]) visible.push_back({ i, user.Slots[i].get() });
+    }
+    if (visible.empty()) return;
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    const float boxW = 56.0f, boxH = 56.0f, spacing = 8.0f, bottomMargin = 20.0f;
+    float totalW = visible.size() * boxW + (visible.size() - 1) * spacing;
+    float startX = vpX + (vpW - totalW) * 0.5f;
+    float boxY   = vpY + vpH - boxH - bottomMargin;
+
+    for (size_t n = 0; n < visible.size(); n++) {
+        const SlotEntry& entry = visible[n];
+        float boxX = startX + n * (boxW + spacing);
+        bool isEquipped = (entry.index == user.currentSlotIndex);
+
+        ImU32 bgCol = isEquipped ? IM_COL32(60, 60, 30, 220) : IM_COL32(20, 20, 20, 180);
+        dl->AddRectFilled(ImVec2(boxX, boxY), ImVec2(boxX + boxW, boxY + boxH), bgCol, 6.0f);
+
+        ImU32 borderCol = isEquipped ? IM_COL32(255, 220, 80, 255) : IM_COL32(255, 255, 255, 80);
+        float borderThickness = isEquipped ? 2.5f : 1.5f;
+        dl->AddRect(ImVec2(boxX, boxY), ImVec2(boxX + boxW, boxY + boxH), borderCol, 6.0f, 0, borderThickness);
+
+        std::string keyLabel = (entry.index == 9) ? "0" : std::to_string(entry.index + 1);
+        ImVec2 keySize = ImGui::CalcTextSize(keyLabel.c_str());
+        dl->AddText(ImVec2(boxX + (boxW - keySize.x) * 0.5f, boxY + 4.0f), IM_COL32(200, 200, 200, 255), keyLabel.c_str());
+
+        const std::string& nameLabel = entry.tool->Name;
+        ImVec2 nameSize = ImGui::CalcTextSize(nameLabel.c_str());
+        dl->AddText(ImVec2(boxX + (boxW - nameSize.x) * 0.5f, boxY + boxH - nameSize.y - 4.0f), IM_COL32(255, 255, 255, 255), nameLabel.c_str());
     }
 }

@@ -600,11 +600,15 @@ void PropertiesPanel::onRender() {
         auto toolSp = std::static_pointer_cast<Tool>(inst->shared_from_this());
         ImGui::SeparatorText("Tool");
 
-        // Equipped flag
+        // Equipped flag (ReadOnly: ゲームプレイ中にUser側で制御されるため編集不可)
+        ImGui::LabelText("Equipped", "%s", tool->Equipped ? "true" : "false");
+
+        // Hand (combo)
         {
-            bool equipped = tool->Equipped;
-            if (ImGui::Checkbox("Equipped", &equipped)) {
-                tool->Equipped = equipped;
+            static const char* handModes[] = { "Right", "Left", "Both" };
+            int handIdx = static_cast<int>(tool->Hand);
+            if (ImGui::Combo("Hand", &handIdx, handModes, 3)) {
+                tool->Hand = static_cast<Tool::ToolHand>(handIdx);
             }
         }
 

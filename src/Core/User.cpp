@@ -4,6 +4,7 @@
 #include <include/Core/Physics.hpp>
 #include <Instances/CharacterSetting.hpp>
 #include <include/Util/Logger.hpp>
+#include <include/imgui/imgui.h>
 
 User* User::s_instance = nullptr;
 
@@ -244,13 +245,12 @@ User::Pose User::computePose() {
 
     Pose p;
 
-    p.leftArm = isGrounded ? swing : 180.0f;
+    bool toolEquipped = currentTool && currentTool->Equipped;
+    bool usesLeft  = toolEquipped && (currentTool->Hand == Tool::ToolHand::Left  || currentTool->Hand == Tool::ToolHand::Both);
+    bool usesRight = toolEquipped && (currentTool->Hand == Tool::ToolHand::Right || currentTool->Hand == Tool::ToolHand::Both);
 
-    if (currentTool && currentTool->Equipped) {
-        p.rightArm = 90.0f;
-    } else {
-        p.rightArm = isGrounded ? -swing : 180.0f;
-    }
+    p.leftArm  = usesLeft  ? 90.0f : (isGrounded ? swing  : 180.0f);
+    p.rightArm = usesRight ? 90.0f : (isGrounded ? -swing : 180.0f);
 
     p.leftLeg  = -swing;
     p.rightLeg =  swing;
@@ -294,6 +294,19 @@ static CFrame makeLeg(
            CFrame(meshOffset.x, meshOffset.y, meshOffset.z);
 }
 
+static void attachToolHandle(
+    const std::shared_ptr<Cube>& arm,
+    const std::shared_ptr<Tool>& tool,
+    const Quaternion& rootRotation
+) {
+    if (!arm || !tool || !tool->Handle) return;
+    CFrame armCFrame = arm->getWorldCFrame();
+    Vector3 charForward = rootRotation.getForward();
+    const float TOOL_FORWARD_OFFSET = 1.0f;
+    armCFrame.Position = armCFrame.Position + charForward * TOOL_FORWARD_OFFSET;
+    tool->Handle->cframe = armCFrame; // 手の位置にツールを配置
+}
+
 // ============================================================
 // Animation: 適用本体（差し替え対象）
 // ============================================================
@@ -319,16 +332,15 @@ void User::applyBodyAnimation() {
     // --- arms ---
     if (leftArm) {
         leftArm->cframe = makeArm(root->cframe, leftShoulderPos, pose.leftArm);
+        if (currentTool && currentTool->Equipped && currentTool->Hand == Tool::ToolHand::Left) {
+            attachToolHandle(leftArm, currentTool, root->Rotation);
+        }
     }
 
     if (rightArm) {
         rightArm->cframe = makeArm(root->cframe, rightShoulderPos, pose.rightArm);
-        if (currentTool && currentTool->Equipped && currentTool->Handle) {
-            CFrame armCFrame = rightArm->getWorldCFrame();
-            Vector3 charForward = root->Rotation.getForward();
-            const float TOOL_FORWARD_OFFSET = 1.0f;
-            armCFrame.Position = armCFrame.Position + charForward * TOOL_FORWARD_OFFSET;
-            currentTool->Handle->cframe = armCFrame; // 手の位置にツールを配置
+        if (currentTool && currentTool->Equipped && currentTool->Hand != Tool::ToolHand::Left) {
+            attachToolHandle(rightArm, currentTool, root->Rotation);
         }
     }
 
@@ -382,6 +394,11 @@ void User::processHotkeys() {
 }
 
 void User::processToolkeys() {
+    if (SystemState::get().inputState != InputState::Gameplay) return;
+    if (!character) return;
+    if (!SystemState::get().viewportFocused || controlMode != ControlMode::Character) return;
+    if (ImGui::GetIO().WantTextInput) return; // テキストボックス入力中はツール切り替えキーを無視
+
     static const int keys[] = {
         GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5,
         GLFW_KEY_6, GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9, GLFW_KEY_0
@@ -424,7 +441,7 @@ void User::processToolkeys() {
 
 void User::processMouse() {
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-        if (!toolActivated && currentTool && currentTool->Equipped && SystemState::get().isPlaying) {
+        if (!toolActivated && currentTool && currentTool->Equipped && SystemState::get().inputState == InputState::Gameplay) {
            currentTool->Activated->fire();
            RCBN_TRACE("Activated tool: " + currentTool->Name);
            toolActivated = true;
@@ -496,6 +513,7 @@ void User::spawnCharacter(CharacterSetting* cs) {
     testHandle->CanCollide = false;
     
     tool1->addChild(testHandle);
+    tool1->Hand = Tool::ToolHand::Left;
     tool1->Handle = testHandle;
 
     Slots[0] = tool1;

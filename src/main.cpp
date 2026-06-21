@@ -321,8 +321,9 @@ int main(int argc, char* argv[]) {
         lastFrame          = currentFrame;
 
         SystemState& state = SystemState::get();
-        state.isPlaying = ed && !ed->isEditMode();
-        state.isPaused  = ed &&  ed->isPauseMode();
+        state.isPlaying  = ed && !ed->isEditMode();
+        state.isPaused   = ed &&  ed->isPauseMode();
+        state.inputState = state.isPlaying ? InputState::Gameplay : InputState::Editor;
 
         const bool isPlaying = state.isPlaying;
         const bool isPaused  = state.isPaused;

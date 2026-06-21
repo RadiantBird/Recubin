@@ -137,6 +137,9 @@ void ViewportPanel::onRender() {
     if (workspace && Renderer::instance) {
         Renderer::instance->renderScreenGui(*workspace, contentOrigin.x, contentOrigin.y, avail.x, avail.y);
         Renderer::instance->renderWorldGui (*workspace, contentOrigin.x, contentOrigin.y, avail.x, avail.y);
+        if (user) {
+            Renderer::instance->renderToolHotbar(*user, contentOrigin.x, contentOrigin.y, avail.x, avail.y);
+        }
     }
 
     // ===================================================
