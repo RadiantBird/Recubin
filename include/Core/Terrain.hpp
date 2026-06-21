@@ -64,6 +64,12 @@ struct TerrainMesh {
 
 static constexpr int CHUNK_SIZE = 16;
 
+// ramp/top-wedge ブロックは凸包(convex)で当たり判定を作る。shape と中心ワールド座標を保持。
+struct ConvexBlock {
+    uint8_t shape;
+    float   cx, cy, cz;
+};
+
 struct Chunk {
     Block   blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE]; // [x][y][z]  約20KB
     int32_t cx = 0, cy = 0, cz = 0;
@@ -74,6 +80,7 @@ struct Chunk {
     // buildChunkMesh() が描画頂点と同時に埋め、buildChunkPhysics() が参照する。
     std::vector<physx::PxVec3> physVerts;
     std::vector<uint32_t>      physIndices;
+    std::vector<ConvexBlock>   physConvexBlocks; // ramp/wedge の凸包配置
 
     int32_t worldOriginX() const { return cx * CHUNK_SIZE; }
     int32_t worldOriginY() const { return cy * CHUNK_SIZE; }

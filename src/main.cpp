@@ -471,17 +471,18 @@ int main(int argc, char* argv[]) {
     std::cout << "[DEBUG] Main loop ended.\n";
     RCBN_LOG("Shutting down...");
 
-    windows(
-        std::thread t([]() {
-            MessageBoxW(
-                NULL,
-                L"アプリケーションを終了しています...",
-                L"Info",
-                MB_OK | MB_ICONINFORMATION
-            );
-        });
-        t.detach();
-    )
+    // windows(
+    //     std::thread t([]() {
+    //         MessageBoxW(
+    //             NULL,
+    //             L"アプリケーションを終了しています...",
+    //             L"Info",
+    //             MB_OK | MB_ICONINFORMATION
+    //         );
+    //     });
+    //     t.detach();
+    // )
+    
     // ---- 明示的クリーンアップ（デストラクタの逆順に依存しない安全な終了）----
     // EditorManager の Undo スタックや Clipboard が BaseCube の shared_ptr を
     // 保持している可能性がある。これらが renderer の破棄時（physics 破棄後）に

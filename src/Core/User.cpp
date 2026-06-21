@@ -522,7 +522,7 @@ void User::spawnCharacter(CharacterSetting* cs) {
     Inventory->addChild(tool2);
     // end of HACK
 
-    character = std::make_shared<Model>(Vector3(0.0f, 25.0f, 0.0f), Vector3(1, 1, 1));
+    character = std::make_shared<Model>(Vector3(0.0f, 100.0f, 0.0f), Vector3(1, 1, 1));
     character->Name = "PlayerCharacter"; // NOTE: この名称は今後変更しないこと(ユーザーのスクリプトとの互換性を保つため)
     Vector3 basePos = character->Position;
 

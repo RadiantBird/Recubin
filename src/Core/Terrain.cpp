@@ -353,6 +353,7 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
     std::vector<uint32_t>         indices;
     std::vector<physx::PxVec3>    physVerts;
     std::vector<uint32_t>         physIndices;
+    std::vector<ConvexBlock>      physConvexBlocks; // ramp/top-wedge の凸包
 
     verts.reserve(4096);
     indices.reserve(8192);
@@ -416,6 +417,9 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
             const int   count = SHAPE_TRI_COUNTS[shapeIdx];
             if (!tris || count == 0) continue;
             const bool useConvexPhysics = isTopWedgeShape(blk.shape);
+            if (useConvexPhysics) {
+                physConvexBlocks.push_back({ shapeIdx, ox, oy, oz });
+            }
 
             for (int ti = 0; ti + 2 < count; ti += 3)
             {
@@ -466,6 +470,9 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
                 pushVertex(verts, wc[0],wc[1],wc[2], nx,ny,nz, 0.5f,1.0f, fr,fg,fb);
                 indices.push_back(base+0); indices.push_back(base+1); indices.push_back(base+2);
             };
+
+            // 当たり判定は凸包で作る（三角形物理は出さない）
+            physConvexBlocks.push_back({ shapeIdx, ox, oy, oz });
 
             const RampGeom& rg = RAMP_GEOM[(int)blk.shape - (int)BlockShape::Ramp_N];
             // 斜面（常時）
@@ -524,8 +531,9 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
     m.dirty      = false;
 
     // ---- CPU 物理キャッシュを保存 ----
-    chunk.physVerts   = std::move(physVerts);
-    chunk.physIndices = std::move(physIndices);
+    chunk.physVerts        = std::move(physVerts);
+    chunk.physIndices      = std::move(physIndices);
+    chunk.physConvexBlocks = std::move(physConvexBlocks);
 }
 
 // ================================================================== //
@@ -533,6 +541,42 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
 // ================================================================== //
 #include <include/Core/Physics.hpp>
 #include <include/PhysX/cooking/PxCooking.h>
+#include <unordered_map>
+
+// 形状ごとの「単位 convex」をブロックローカル空間で1回だけ cook してキャッシュする。
+// （メインスレッド専用＝buildChunkPhysics からのみ呼ばれる）
+static physx::PxConvexMesh* getUnitConvexMesh(BlockShape shape)
+{
+    static std::unordered_map<int, physx::PxConvexMesh*> s_cache;
+    const int key = (int)shape;
+    auto it = s_cache.find(key);
+    if (it != s_cache.end()) return it->second;
+
+    static constexpr float BHS = TerrainStreamer::BLOCK_STUD_SIZE * 0.5f;
+    int idx[7];
+    int count = 0;
+    if (getTopWedgeConvexVertexIndices(shape, idx))      count = 7;
+    else if (getRampConvexVertexIndices(shape, idx))     count = 6;
+    else { s_cache[key] = nullptr; return nullptr; }
+
+    std::vector<physx::PxVec3> pts;
+    pts.reserve(count);
+    for (int i = 0; i < count; i++) {
+        const float* lv = BASE_VERTS[idx[i]];
+        pts.push_back({ lv[0]*BHS, lv[1]*BHS, lv[2]*BHS });
+    }
+
+    physx::PxConvexMeshDesc desc;
+    desc.points.count  = (physx::PxU32)pts.size();
+    desc.points.stride = sizeof(physx::PxVec3);
+    desc.points.data   = pts.data();
+    desc.flags         = physx::PxConvexFlag::eCOMPUTE_CONVEX;
+
+    physx::PxCookingParams cookParams(Physics::GetPhysics()->getTolerancesScale());
+    physx::PxConvexMesh* cm = PxCreateConvexMesh(cookParams, desc);
+    s_cache[key] = cm;
+    return cm;
+}
 
 void buildChunkPhysics(Chunk& chunk, Physics& physics)
 {
@@ -543,39 +587,49 @@ void buildChunkPhysics(Chunk& chunk, Physics& physics)
         chunk.physicsActor = nullptr;
     }
 
-    if (chunk.physVerts.empty() || chunk.physIndices.empty()) return;
+    const bool hasTriMesh = !chunk.physVerts.empty() && !chunk.physIndices.empty();
+    const bool hasConvex  = !chunk.physConvexBlocks.empty();
+    if (!hasTriMesh && !hasConvex) return;
 
     physx::PxCookingParams cookParams(Physics::GetPhysics()->getTolerancesScale());
-
-    physx::PxTriangleMeshDesc desc;
-    desc.points.data     = chunk.physVerts.data();
-    desc.points.count    = static_cast<physx::PxU32>(chunk.physVerts.size());
-    desc.points.stride   = sizeof(physx::PxVec3);
-    desc.triangles.data  = chunk.physIndices.data();
-    desc.triangles.count = static_cast<physx::PxU32>(chunk.physIndices.size() / 3);
-    desc.triangles.stride = sizeof(uint32_t) * 3;
-
-    physx::PxDefaultMemoryOutputStream buf;
-    if (!PxCookTriangleMesh(cookParams, desc, buf)) return;
-
-    physx::PxDefaultMemoryInputData input(buf.getData(), buf.getSize());
-    physx::PxTriangleMesh* triMesh = Physics::GetPhysics()->createTriangleMesh(input);
-    if (!triMesh) return;
-
     physx::PxMaterial* mat = Physics::GetPhysics()->createMaterial(0.5f, 0.5f, 0.2f);
     physx::PxRigidStatic* actor = Physics::GetPhysics()->createRigidStatic(
         physx::PxTransform(physx::PxIdentity)
     );
-    physx::PxTriangleMeshGeometry geom(triMesh);
-    geom.meshFlags = physx::PxMeshGeometryFlag::eDOUBLE_SIDED;
-    physx::PxRigidActorExt::createExclusiveShape(
-        *actor,
-        geom,
-        *mat
-    );
-    physics.getScene()->addActor(*actor);
 
-    triMesh->release();
+    // --- Cube 由来の三角形メッシュ ---
+    if (hasTriMesh) {
+        physx::PxTriangleMeshDesc desc;
+        desc.points.data     = chunk.physVerts.data();
+        desc.points.count    = static_cast<physx::PxU32>(chunk.physVerts.size());
+        desc.points.stride   = sizeof(physx::PxVec3);
+        desc.triangles.data  = chunk.physIndices.data();
+        desc.triangles.count = static_cast<physx::PxU32>(chunk.physIndices.size() / 3);
+        desc.triangles.stride = sizeof(uint32_t) * 3;
+
+        physx::PxDefaultMemoryOutputStream buf;
+        if (PxCookTriangleMesh(cookParams, desc, buf)) {
+            physx::PxDefaultMemoryInputData input(buf.getData(), buf.getSize());
+            physx::PxTriangleMesh* triMesh = Physics::GetPhysics()->createTriangleMesh(input);
+            if (triMesh) {
+                physx::PxTriangleMeshGeometry geom(triMesh);
+                geom.meshFlags = physx::PxMeshGeometryFlag::eDOUBLE_SIDED;
+                physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *mat);
+                triMesh->release();
+            }
+        }
+    }
+
+    // --- ramp/top-wedge 由来の convex（キャッシュした単位 convex をブロック中心へ配置）---
+    for (const ConvexBlock& cb : chunk.physConvexBlocks) {
+        physx::PxConvexMesh* cm = getUnitConvexMesh((BlockShape)cb.shape);
+        if (!cm) continue;
+        physx::PxConvexMeshGeometry geom(cm);
+        physx::PxShape* shape = physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *mat);
+        if (shape) shape->setLocalPose(physx::PxTransform(physx::PxVec3(cb.cx, cb.cy, cb.cz)));
+    }
+
+    physics.getScene()->addActor(*actor);
     mat->release();
 
     chunk.physicsActor = actor;
