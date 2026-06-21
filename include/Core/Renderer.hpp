@@ -45,6 +45,7 @@ struct ViewportRenderDesc {
     bool renderShadows = true;
     bool renderHighlights = false;
     bool renderConstraints = true;
+    bool renderPostEffects = true;
     bool isFocused = false;
 };
 
@@ -110,6 +111,17 @@ class Renderer {
         void renderWorldGui (Workspace& ws, float vpX, float vpY, float vpW, float vpH);
         void renderToolHotbar(User& user, float vpX, float vpY, float vpW, float vpH);
         void bakeSurfaceGui (SurfaceGui* sg);
+
+        // ポストエフェクト（PostEffect インスタンスの ZIndex 順チェーン適用）
+        GLuint m_postVAO = 0, m_postVBO = 0;
+        GLuint m_postShader = 0;
+        GLuint m_postFboA = 0, m_postTexA = 0;
+        GLuint m_postFboB = 0, m_postTexB = 0;
+        int    m_postFboWidth = 0, m_postFboHeight = 0;
+
+        void initPostEffectRenderer();
+        void ensurePostEffectFBOs(int width, int height);
+        void renderPostEffects(Workspace& workspace, GLuint targetFbo, int width, int height);
 
     private:
         void renderTerrain(const Matrix4& view, const Matrix4& projection, class Workspace* workspace);

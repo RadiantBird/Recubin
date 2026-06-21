@@ -6,6 +6,7 @@
 #include <Instances/Texture.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/PostEffect.hpp>
 #include <Instances/Skybox.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
@@ -373,6 +374,80 @@ struct SetLightBrightnessCommand : Command {
 
     void execute() override { if (m_target) m_target->brightness = m_after; }
     void undo()    override { if (m_target) m_target->brightness = m_before; }
+};
+
+// --- PostEffect bool プロパティ変更（Enabled） ---
+struct SetPostEffectBoolCommand : Command {
+    std::shared_ptr<PostEffect> m_target;
+    std::string m_prop;
+    bool m_before, m_after;
+
+    SetPostEffectBoolCommand(std::shared_ptr<PostEffect> target, std::string prop, bool before, bool after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(bool v) {
+        if (!m_target) return;
+        if (m_prop == "Enabled") m_target->Enabled = v;
+    }
+};
+
+// --- PostEffect int プロパティ変更（ZIndex） ---
+struct SetPostEffectIntCommand : Command {
+    std::shared_ptr<PostEffect> m_target;
+    std::string m_prop;
+    int m_before, m_after;
+
+    SetPostEffectIntCommand(std::shared_ptr<PostEffect> target, std::string prop, int before, int after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(int v) {
+        if (!m_target) return;
+        if (m_prop == "ZIndex") m_target->ZIndex = v;
+    }
+};
+
+// --- PostEffect Type 変更 ---
+struct SetPostEffectTypeCommand : Command {
+    std::shared_ptr<PostEffect> m_target;
+    PostEffectKind m_before, m_after;
+
+    SetPostEffectTypeCommand(std::shared_ptr<PostEffect> target, PostEffectKind before, PostEffectKind after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->Type = m_after; }
+    void undo()    override { if (m_target) m_target->Type = m_before; }
+};
+
+// --- PostEffect float プロパティ変更（Intensity / Param1 / Param2） ---
+struct SetPostEffectFloatCommand : Command {
+    std::shared_ptr<PostEffect> m_target;
+    std::string m_prop;
+    float m_before, m_after;
+
+    SetPostEffectFloatCommand(std::shared_ptr<PostEffect> target, std::string prop, float before, float after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(float v) {
+        if (!m_target) return;
+        if      (m_prop == "Intensity") m_target->Intensity = v;
+        else if (m_prop == "Param1")    m_target->Param1    = v;
+        else if (m_prop == "Param2")    m_target->Param2    = v;
+    }
 };
 
 // --- Skybox 1面のパス変更 ---

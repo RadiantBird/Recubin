@@ -10,6 +10,7 @@
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/PostEffect.hpp>
 #include <Core/Terrain.hpp>
 #include <Instances/Skybox.hpp>
 #include <Instances/Rope.hpp>
@@ -649,6 +650,86 @@ void PropertiesPanel::onRender() {
             }
         }
 
+    }
+
+    // ---- PostEffect ----
+    if (inst->getClassName() == "PostEffect") {
+        PostEffect* pe = static_cast<PostEffect*>(inst);
+        auto peSp = std::static_pointer_cast<PostEffect>(inst->shared_from_this());
+        ImGui::SeparatorText("PostEffect");
+
+        // Enabled
+        {
+            bool before = pe->Enabled;
+            bool value  = pe->Enabled;
+            if (ImGui::Checkbox("Enabled##posteffect", &value)) {
+                pe->Enabled = value;
+                if (m_history) m_history->record(std::make_unique<SetPostEffectBoolCommand>(peSp, "Enabled", before, value));
+            }
+        }
+
+        // Type (combo)
+        static const char* peTypes[] = { "None", "CRT", "Posterization", "Pixelize" };
+        {
+            int typeIdx = static_cast<int>(pe->Type);
+            int beforeIdx = typeIdx;
+            if (ImGui::Combo("Type", &typeIdx, peTypes, 4)) {
+                PostEffectKind before = pe->Type;
+                pe->Type = static_cast<PostEffectKind>(typeIdx);
+                if (m_history) m_history->record(std::make_unique<SetPostEffectTypeCommand>(peSp, before, pe->Type));
+            }
+            (void)beforeIdx;
+        }
+
+        // ZIndex with undo
+        {
+            static int s_zBefore;
+            int zIndex = pe->ZIndex;
+            bool changed = ImGui::DragInt("ZIndex", &zIndex);
+            if (ImGui::IsItemActivated()) s_zBefore = pe->ZIndex;
+            if (changed) pe->ZIndex = zIndex;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                m_history->record(std::make_unique<SetPostEffectIntCommand>(peSp, "ZIndex", s_zBefore, pe->ZIndex));
+            }
+        }
+
+        // Intensity with undo
+        {
+            static float s_intensityBefore;
+            bool changed = ImGui::DragFloat("Intensity", &pe->Intensity, 0.01f, 0.0f, 1.0f, "%.2f");
+            if (ImGui::IsItemActivated()) s_intensityBefore = pe->Intensity;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                m_history->record(std::make_unique<SetPostEffectFloatCommand>(peSp, "Intensity", s_intensityBefore, pe->Intensity));
+            }
+        }
+
+        // Param1 / Param2: Type に応じてラベルを切替
+        const char* param1Label = "Param1";
+        const char* param2Label = nullptr;
+        switch (pe->Type) {
+            case PostEffectKind::CRT:           param1Label = "ScanlineCount"; param2Label = "CurveAmount"; break;
+            case PostEffectKind::Posterization: param1Label = "Levels";        break;
+            case PostEffectKind::Pixelize:      param1Label = "PixelSize";     break;
+            default: break;
+        }
+
+        {
+            static float s_param1Before;
+            bool changed = ImGui::DragFloat(param1Label, &pe->Param1, 0.1f, 1.0f, 256.0f, "%.1f");
+            if (ImGui::IsItemActivated()) s_param1Before = pe->Param1;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                m_history->record(std::make_unique<SetPostEffectFloatCommand>(peSp, "Param1", s_param1Before, pe->Param1));
+            }
+        }
+
+        if (param2Label) {
+            static float s_param2Before;
+            bool changed = ImGui::DragFloat(param2Label, &pe->Param2, 0.01f, -1.0f, 1.0f, "%.2f");
+            if (ImGui::IsItemActivated()) s_param2Before = pe->Param2;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                m_history->record(std::make_unique<SetPostEffectFloatCommand>(peSp, "Param2", s_param2Before, pe->Param2));
+            }
+        }
     }
 
     // ---- Terrain ----

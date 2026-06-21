@@ -12,6 +12,7 @@
 #include <Instances/Texture.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/PostEffect.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/CharacterSetting.hpp>
 #include <Instances/Skybox.hpp>
@@ -202,6 +203,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
         return nullptr;
     }
     if (className == "Lighting")  return std::make_shared<Lighting>();
+    if (className == "PostEffect") return std::make_shared<PostEffect>();
     if (className == "AppImage")         return std::make_shared<AppImage>();
     if (className == "CharacterSetting") return std::make_shared<CharacterSetting>();
     if (className == "Terrain") return std::make_shared<Terrain>();
@@ -282,6 +284,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->getClassName() == "Sound" || inst->getClassName() == "Decal"
                  || inst->getClassName() == "Texture"
                  || inst->getClassName() == "Lighting" || inst->getClassName() == "Skybox"
+                 || inst->getClassName() == "PostEffect"
                  || inst->getClassName() == "AppImage"
                  || inst->getClassName() == "CharacterSetting"
                  || inst->IsA("Rope") || inst->IsA("Rod")
@@ -370,6 +373,15 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << lt->lightDir.x << lt->lightDir.y << lt->lightDir.z
                 << YAML::EndSeq;
             out << YAML::Key << "Brightness" << YAML::Value << lt->brightness;
+        }
+        if (inst->getClassName() == "PostEffect") {
+            const PostEffect* pe = static_cast<const PostEffect*>(inst);
+            out << YAML::Key << "Enabled"   << YAML::Value << pe->Enabled;
+            out << YAML::Key << "Type"      << YAML::Value << static_cast<int>(pe->Type);
+            out << YAML::Key << "ZIndex"    << YAML::Value << pe->ZIndex;
+            out << YAML::Key << "Intensity" << YAML::Value << pe->Intensity;
+            out << YAML::Key << "Param1"    << YAML::Value << pe->Param1;
+            out << YAML::Key << "Param2"    << YAML::Value << pe->Param2;
         }
         if (inst->getClassName() == "Skybox") {
             const Skybox* sb = static_cast<const Skybox*>(inst);

@@ -10,6 +10,7 @@
 #include <Instances/Rod.hpp>
 #include <include/Core/Terrain.hpp>
 #include <include/Core/TerrainStreamer.hpp>
+#include <include/Instances/PostEffect.hpp>
 #include <algorithm>
 
 
@@ -241,6 +242,7 @@ void Renderer::init(GLFWwindow* window) {
     glClearColor(0.08f, 0.09f, 0.11f, 1.0f);
 
     initLineRenderer();
+    initPostEffectRenderer();
 }
 
 // ===================================================
@@ -269,6 +271,14 @@ Renderer::~Renderer() {
     if (m_lineVBO)    glDeleteBuffers(1, &m_lineVBO);
     if (m_lineVAO)    glDeleteVertexArrays(1, &m_lineVAO);
     if (m_lineShader) glDeleteProgram(m_lineShader);
+
+    if (m_postVBO)    glDeleteBuffers(1, &m_postVBO);
+    if (m_postVAO)    glDeleteVertexArrays(1, &m_postVAO);
+    if (m_postShader) glDeleteProgram(m_postShader);
+    if (m_postFboA)   glDeleteFramebuffers(1, &m_postFboA);
+    if (m_postTexA)   glDeleteTextures(1, &m_postTexA);
+    if (m_postFboB)   glDeleteFramebuffers(1, &m_postFboB);
+    if (m_postTexB)   glDeleteTextures(1, &m_postTexB);
 }
 
 // ===================================================
@@ -421,6 +431,163 @@ void Renderer::renderBrushMarker(const Matrix4& view, const Matrix4& projection,
     glLineWidth(1.0f);
     glBindVertexArray(0);
     glUseProgram(shaderProgram);
+}
+
+// ===================================================
+//  ポストエフェクト（PostEffect インスタンスの ZIndex 順チェーン適用）
+// ===================================================
+void Renderer::initPostEffectRenderer() {
+    std::string vStr = FileLoader::readText("src/postprocess_vertex.glsl");
+    std::string fStr = FileLoader::readText("src/postprocess_fragment.glsl");
+    const char* vSrc = vStr.c_str();
+    const char* fSrc = fStr.c_str();
+
+    unsigned int v = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(v, 1, &vSrc, NULL);
+    glCompileShader(v);
+    int ok; char log[512];
+    glGetShaderiv(v, GL_COMPILE_STATUS, &ok);
+    if (!ok) { glGetShaderInfoLog(v, 512, NULL, log); std::cout << "POSTFX_VERT: " << log << std::endl; }
+
+    unsigned int f = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(f, 1, &fSrc, NULL);
+    glCompileShader(f);
+    glGetShaderiv(f, GL_COMPILE_STATUS, &ok);
+    if (!ok) { glGetShaderInfoLog(f, 512, NULL, log); std::cout << "POSTFX_FRAG: " << log << std::endl; }
+
+    m_postShader = glCreateProgram();
+    glAttachShader(m_postShader, v);
+    glAttachShader(m_postShader, f);
+    glLinkProgram(m_postShader);
+    glDeleteShader(v);
+    glDeleteShader(f);
+
+    // NDC -1..1 を覆うフルスクリーンクアッド（位置 vec2 + UV vec2）
+    float quadVerts[] = {
+        -1.0f,  1.0f,  0.0f, 1.0f,
+        -1.0f, -1.0f,  0.0f, 0.0f,
+         1.0f, -1.0f,  1.0f, 0.0f,
+
+        -1.0f,  1.0f,  0.0f, 1.0f,
+         1.0f, -1.0f,  1.0f, 0.0f,
+         1.0f,  1.0f,  1.0f, 1.0f,
+    };
+
+    glGenVertexArrays(1, &m_postVAO);
+    glGenBuffers(1, &m_postVBO);
+    glBindVertexArray(m_postVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_postVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVerts), quadVerts, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glBindVertexArray(0);
+}
+
+void Renderer::ensurePostEffectFBOs(int width, int height) {
+    if (width == m_postFboWidth && height == m_postFboHeight && m_postFboA && m_postFboB) return;
+
+    if (m_postFboA) glDeleteFramebuffers(1, &m_postFboA);
+    if (m_postTexA) glDeleteTextures(1, &m_postTexA);
+    if (m_postFboB) glDeleteFramebuffers(1, &m_postFboB);
+    if (m_postTexB) glDeleteTextures(1, &m_postTexB);
+
+    auto makeFbo = [&](GLuint& fbo, GLuint& tex) {
+        glGenTextures(1, &tex);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        glGenFramebuffers(1, &fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+    };
+    makeFbo(m_postFboA, m_postTexA);
+    makeFbo(m_postFboB, m_postTexB);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    m_postFboWidth  = width;
+    m_postFboHeight = height;
+}
+
+void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int width, int height) {
+    if (!m_postShader || width <= 0 || height <= 0) return;
+
+    std::vector<PostEffect*> effects;
+    auto collect = [&](auto& self, Instance* inst) -> void {
+        if (!inst) return;
+        if (inst->IsA("PostEffect")) {
+            auto* pe = static_cast<PostEffect*>(inst);
+            if (pe->Enabled) effects.push_back(pe);
+        }
+        for (auto const& [name, child] : inst->getChildren()) {
+            self(self, child.get());
+        }
+    };
+    for (auto const& [name, child] : workspace.getChildren()) {
+        collect(collect, child.get());
+    }
+    if (effects.empty()) return;
+
+    std::sort(effects.begin(), effects.end(), [](PostEffect* a, PostEffect* b) {
+        return a->ZIndex < b->ZIndex;
+    });
+
+    ensurePostEffectFBOs(width, height);
+
+    GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+    GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+
+    // targetFbo の色情報を最初のスクラッチテクスチャへコピー
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, targetFbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_postFboA);
+    glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+    glUseProgram(m_postShader);
+    glBindVertexArray(m_postVAO);
+    glUniform1i(glGetUniformLocation(m_postShader, "screenTexture"), 0);
+    glUniform2f(glGetUniformLocation(m_postShader, "u_resolution"), (float)width, (float)height);
+    int typeLoc      = glGetUniformLocation(m_postShader, "u_effectType");
+    int intensityLoc = glGetUniformLocation(m_postShader, "u_intensity");
+    int param1Loc    = glGetUniformLocation(m_postShader, "u_param1");
+    int param2Loc    = glGetUniformLocation(m_postShader, "u_param2");
+    glActiveTexture(GL_TEXTURE0);
+
+    GLuint srcTex = m_postTexA;
+    GLuint pingFbo = m_postFboB; // 次の書き込み先（ping-pong）
+    GLuint pingTex = m_postTexB;
+
+    for (size_t i = 0; i < effects.size(); i++) {
+        PostEffect* effect = effects[i];
+        bool isLast = (i == effects.size() - 1);
+        GLuint destFbo = isLast ? targetFbo : pingFbo;
+
+        glBindFramebuffer(GL_FRAMEBUFFER, destFbo);
+        glViewport(0, 0, width, height);
+        glBindTexture(GL_TEXTURE_2D, srcTex);
+        glUniform1i(typeLoc, static_cast<int>(effect->Type));
+        glUniform1f(intensityLoc, effect->Intensity);
+        glUniform1f(param1Loc, effect->Param1);
+        glUniform1f(param2Loc, effect->Param2);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        if (!isLast) {
+            srcTex = pingTex;
+            pingFbo = (pingFbo == m_postFboB) ? m_postFboA : m_postFboB;
+            pingTex = (pingTex == m_postTexB) ? m_postTexA : m_postTexB;
+        }
+    }
+
+    glBindVertexArray(0);
+    glUseProgram(shaderProgram);
+    if (depthWasEnabled) glEnable(GL_DEPTH_TEST);
+    if (blendWasEnabled) glEnable(GL_BLEND);
 }
 
 // ===================================================
@@ -642,6 +809,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     // ---- Terrain の描画 ----
     // ---- Terrain の描画 ----
     renderTerrain(view, projection, desc.workspace);
+
+    // ---- ポストエフェクト（PostEffect の ZIndex 順チェーン適用） ----
+    if (desc.renderPostEffects) {
+        renderPostEffects(*desc.workspace, desc.fbo, desc.width, desc.height);
+    }
 
     glBindVertexArray(0);
     glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
