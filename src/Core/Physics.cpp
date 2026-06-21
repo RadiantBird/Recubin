@@ -23,8 +23,18 @@ std::function<void(BaseCube*, BaseCube*)> Physics::s_contactCallback;
 struct RCBNContactCallback : physx::PxSimulationEventCallback {
     void onContact(const physx::PxContactPairHeader& header,
                    const physx::PxContactPair*, physx::PxU32) override {
-        auto* a = static_cast<BaseCube*>(header.actors[0]->userData);
-        auto* b = static_cast<BaseCube*>(header.actors[1]->userData);
+        // 削除済みアクターに対する最後のcontactイベントの可能性があるため、userDataを読む前に弾く
+        if (header.flags & (physx::PxContactPairHeaderFlag::eREMOVED_ACTOR_0 |
+                             physx::PxContactPairHeaderFlag::eREMOVED_ACTOR_1))
+            return;
+        // userData は BaseCube だけでなく Terrain 等も格納されるため(TerrainStreamer.cpp参照)、
+        // Instance 経由で IsA チェックしてからでないと BaseCube* として安全に解釈できない
+        auto* instA = static_cast<Instance*>(header.actors[0]->userData);
+        auto* instB = static_cast<Instance*>(header.actors[1]->userData);
+        if (!instA || !instB || !instA->IsA("BaseCube") || !instB->IsA("BaseCube"))
+            return;
+        auto* a = static_cast<BaseCube*>(instA);
+        auto* b = static_cast<BaseCube*>(instB);
         if (a && b && Physics::s_contactCallback)
             Physics::s_contactCallback(a, b);
     }
@@ -264,6 +274,15 @@ void Physics::recreateActor(const std::shared_ptr<BaseCube>& cube) {
         cube->actor = nullptr;
     }
     createActor(cube);
+
+    // cubes 配列内の古いエントリを新アクターに同期（同期しないと cleanup ループが
+    // 解放済みの古いポインタに対して二重に removeActor/release してしまう）
+    for (auto& entry : cubes) {
+        if (entry.cube.lock() == cube) {
+            entry.actor = cube->actor;
+            break;
+        }
+    }
 
     // このcubeを参照する制約のジョイントを再構築（古いアクターへのダングリング防止）
     std::vector<std::shared_ptr<Instance>> toRebuild;
