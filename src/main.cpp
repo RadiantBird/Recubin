@@ -32,6 +32,7 @@
 #include <Editor/EditorManager.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <Core/SystemState.hpp>
+#include <include/imgui/imgui.h>
 
 #include <Util/Logger.hpp>
 
@@ -408,17 +409,18 @@ int main(int argc, char* argv[]) {
         ViewportPanel* focusedVP = ed ? GetFocusedViewport() : nullptr;
         state.viewportFocused    = focusedVP != nullptr;
         state.viewportZoomEnabled = focusedVP != nullptr || (ed ? ed->isAnyViewportHovered() : false);
-        user->processInput(workspace->getPhysicsEngine());
-        if (user->wannaExit) {
-            user->wannaExit = false;
+        user->processInput(workspace->getPhysicsEngine(),
+                            state.viewportFocused, state.viewportZoomEnabled,
+                            state.inputState == InputState::Gameplay,
+                            ImGui::GetIO().WantTextInput);
+        if (user->consumeExitRequest()) {
             if (checkExit(ed, *window)) {
                 break;
             }
         }
 
         // ---- Pキー: Workspace 切り替え ----
-        if (user->wantsSwitchWorkspace && isPlaying) {
-            user->wantsSwitchWorkspace = false;
+        if (user->consumeWorkspaceSwitchRequest() && isPlaying) {
             // System直下のWorkspaceリストを収集
             std::vector<Workspace*> workspacePtrs;
             workspaces = collectWorkspaces(system);
@@ -446,7 +448,6 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-        user->wantsSwitchWorkspace = false;
 
         beta({
             Vector3 centerPos = user->cpos;

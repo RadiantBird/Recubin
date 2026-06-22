@@ -1,10 +1,8 @@
 #include <Core/User.hpp>
-#include <Core/SystemState.hpp>
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
 #include <Instances/CharacterSetting.hpp>
 #include <include/Util/Logger.hpp>
-#include <include/imgui/imgui.h>
 
 User* User::s_instance = nullptr;
 
@@ -462,11 +460,23 @@ void User::processHotkeys() {
     lastCtrlLockFKeyPressed = ctrlLockFKeyPressed;
 }
 
-void User::processToolkeys() {
-    if (SystemState::get().inputState != InputState::Gameplay) return;
+bool User::consumeExitRequest() {
+    bool v = wannaExit;
+    wannaExit = false;
+    return v;
+}
+
+bool User::consumeWorkspaceSwitchRequest() {
+    bool v = wantsSwitchWorkspace;
+    wantsSwitchWorkspace = false;
+    return v;
+}
+
+void User::processToolkeys(bool viewportFocused, bool isGameplayInput, bool wantsTextInput) {
+    if (!isGameplayInput) return;
     if (!character) return;
-    if (!SystemState::get().viewportFocused || controlMode != ControlMode::Character) return;
-    if (ImGui::GetIO().WantTextInput) return; // テキストボックス入力中はツール切り替えキーを無視
+    if (!viewportFocused || controlMode != ControlMode::Character) return;
+    if (wantsTextInput) return; // テキストボックス入力中はツール切り替えキーを無視
 
     static const int keys[] = {
         GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5,
@@ -508,9 +518,9 @@ void User::processToolkeys() {
     }
 }
 
-void User::processMouse() {
+void User::processMouse(bool isGameplayInput) {
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-        if (!toolActivated && currentTool && currentTool->Equipped && SystemState::get().inputState == InputState::Gameplay) {
+        if (!toolActivated && currentTool && currentTool->Equipped && isGameplayInput) {
            currentTool->Activated->fire();
            RCBN_TRACE("Activated tool: " + currentTool->Name);
            toolActivated = true;
@@ -525,21 +535,14 @@ void User::processMouse() {
 // processInput（呼び出し口）
 // ============================================================
  
-void User::processInput(Physics* physics) {
-#ifdef EDITOR_DISABLED
-    const bool viewportFocused     = true;
-    const bool viewportZoomEnabled = true;
-#else
-    const bool viewportFocused     = SystemState::get().viewportFocused;
-    const bool viewportZoomEnabled = SystemState::get().viewportZoomEnabled;
-#endif
+void User::processInput(Physics* physics, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput) {
     if (!window) return;
- 
+
     if (!isScrollCallbackInstalled) {
         previousScrollCallback = glfwSetScrollCallback(window, User::scrollCallback);
         isScrollCallbackInstalled = true;
     }
- 
+
     bool rotated = processCameraRotation(viewportFocused);
     processZoom(viewportZoomEnabled);
     updateFirstPersonState();
@@ -547,8 +550,8 @@ void User::processInput(Physics* physics) {
     applyBodyAnimation();
     if (rotated) updateVectors();
     processHotkeys();
-    processToolkeys();
-    processMouse();
+    processToolkeys(viewportFocused, isGameplayInput, wantsTextInput);
+    processMouse(isGameplayInput);
 }
 
 
@@ -678,7 +681,15 @@ bool User::IsA(std::string className) {
 }
 
 void User::setProperty(const std::string& name, const YAML::Node& value) {
-    // User specific properties can be handled here if needed
+    if (name == "ControlMode") {
+        std::string s = value.as<std::string>();
+        controlMode = (s == "Free") ? ControlMode::Free : ControlMode::Character;
+        return;
+    }
+    if (name == "Speed")          { speed          = value.as<float>(); return; }
+    if (name == "CameraDistance") { cameraDistance  = value.as<float>(); return; }
+    if (name == "ZoomSpeed")      { zoomSpeed       = value.as<float>(); return; }
+    if (name == "MouseZoomSpeed") { mouseZoomSpeed  = value.as<float>(); return; }
     Instance::setProperty(name, value);
 }
 

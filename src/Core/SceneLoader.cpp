@@ -27,6 +27,8 @@
 #include <Instances/BillboardGui.hpp>
 #include <Instances/ProximityPrompt.hpp>
 #include <Instances/Folder.hpp>
+#include <Instances/Tool.hpp>
+#include <Core/User.hpp>
 #include <Core/AudioService.hpp>
 #include <Util/Logger.hpp>
 #include <iostream>
@@ -218,6 +220,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "BillboardGui") return std::make_shared<BillboardGui>();
     if (className == "ProximityPrompt") return std::make_shared<ProximityPrompt>();
     if (className == "Folder")   return std::make_shared<Folder>();
+    if (className == "Tool")     return std::make_shared<Tool>("Tool");
 
     return nullptr;
 }
@@ -290,8 +293,11 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->IsA("Rope") || inst->IsA("Rod")
                  || inst->IsA("Weld") || inst->IsA("Motor")
                  || inst->IsA("ScreenGuiObject")
+                 || inst->IsA("WorldGuiObject")
                  || inst->getClassName() == "ProximityPrompt"
                  || inst->getClassName() == "Terrain"
+                 || inst->getClassName() == "User"
+                 || inst->getClassName() == "Tool"
                  || inst->IsA("Workspace"); // NOTE: プロパティを最近追加した
 
     if (hasProps) {
@@ -490,6 +496,43 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << ws->Gravity.x << ws->Gravity.y << ws->Gravity.z
                 << YAML::EndSeq;
             out << YAML::Key << "PhysicsEnabled" << YAML::Value << ws->PhysicsEnabled;
+        }
+        if (inst->IsA("WorldGuiObject")) {
+            const WorldGuiObject* wgo = static_cast<const WorldGuiObject*>(inst);
+            out << YAML::Key << "Size" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq << wgo->Size.x << wgo->Size.y << YAML::EndSeq;
+            out << YAML::Key << "Norm" << YAML::Value << (wgo->NormType == Norm::Scale ? "Scale" : "Pixel");
+            out << YAML::Key << "Active"  << YAML::Value << wgo->Active;
+            out << YAML::Key << "Visible" << YAML::Value << wgo->Visible;
+            out << YAML::Key << "BackgroundColor" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << wgo->BackgroundColor.r << wgo->BackgroundColor.g
+                << wgo->BackgroundColor.b << wgo->BackgroundColor.a
+                << YAML::EndSeq;
+            out << YAML::Key << "ZIndex" << YAML::Value << wgo->ZIndex;
+        }
+        if (inst->getClassName() == "SurfaceGui") {
+            const SurfaceGui* sg = static_cast<const SurfaceGui*>(inst);
+            static const char* faceNames[] = { "Front", "Back", "Top", "Bottom", "Right", "Left" };
+            out << YAML::Key << "Face" << YAML::Value << faceNames[static_cast<int>(sg->face)];
+        }
+        if (inst->getClassName() == "BillboardGui") {
+            const BillboardGui* bg = static_cast<const BillboardGui*>(inst);
+            out << YAML::Key << "Mode" << YAML::Value << (bg->Mode == BillboardMode::Focus ? "Focus" : "Parallel");
+        }
+        if (inst->getClassName() == "User") {
+            const User* usr = static_cast<const User*>(inst);
+            out << YAML::Key << "ControlMode" << YAML::Value
+                << (usr->controlMode == User::ControlMode::Free ? "Free" : "Character");
+            out << YAML::Key << "Speed"          << YAML::Value << usr->speed;
+            out << YAML::Key << "CameraDistance" << YAML::Value << usr->cameraDistance;
+            out << YAML::Key << "ZoomSpeed"      << YAML::Value << usr->zoomSpeed;
+            out << YAML::Key << "MouseZoomSpeed" << YAML::Value << usr->mouseZoomSpeed;
+        }
+        if (inst->getClassName() == "Tool") {
+            const Tool* tool = static_cast<const Tool*>(inst);
+            static const char* handNames[] = { "Right", "Left", "Both" };
+            out << YAML::Key << "Hand" << YAML::Value << handNames[static_cast<int>(tool->Hand)];
         }
 
         out << YAML::EndMap;

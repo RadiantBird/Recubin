@@ -15,6 +15,7 @@
 #include <Core/SceneLoader.hpp>
 #include <Core/AudioService.hpp>
 #include <Editor/NullEditorManager.hpp>
+#include <include/imgui/imgui.h>
 
 #include <Util/Logger.hpp>
 #include <yaml-cpp/yaml.h>
@@ -175,8 +176,12 @@ int main() {
         luauEngine->update(deltaTime);
         luauEngine->executeWorkspaceScripts(*workspace);
 
-        user->processInput(workspace->getPhysicsEngine());
-        if (user->wannaExit) break;
+        // エディタが存在しないため、常にゲームプレイ入力として扱う
+        user->processInput(workspace->getPhysicsEngine(),
+                            /*viewportFocused=*/true, /*viewportZoomEnabled=*/true,
+                            /*isGameplayInput=*/true,
+                            ImGui::GetIO().WantTextInput);
+        if (user->consumeExitRequest()) break;
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderer->render(*user, window, *workspace);

@@ -22,6 +22,8 @@ class Tool : public Instance {
         std::shared_ptr<RCBNScriptSignal> Activated;
         std::shared_ptr<BaseCube> Handle;
 
+        virtual void setProperty(const std::string& name, const YAML::Node& value) override;
+
     private:
         // Tool固有のプロパティやメソッドをここに追加
 

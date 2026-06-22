@@ -32,35 +32,16 @@ public:
     float cameraDistance = 10.0f;
     float zoomSpeed = 0.1f;
     float mouseZoomSpeed = 1.0f; // キーボードより早めに
-    float walkCycle = 0.0f; // 歩行アニメーション用
-    Vector3 currentMoveDir; // 滑らかな移動・回転用
-    bool lastFKeyPressed = false; // トグル判定用
     bool allowControlModeSwitch = true; // false のとき L キーをブロック
-    bool lastSpacePressed = false; // ジャンプ用
-    bool isGrounded = true;
     camera current_camera;
 
     // 一人称視点
     float firstPersonThreshold = 1.5f; // この値以下のcameraDistanceで一人称視点に入る
     float minCameraDistance = 0.5f;    // processZoomの最小クランプ値（既存の2.0fから変更）
-    bool isFirstPerson = false;
-
-    // 体パーツの色保存（一人称で非表示にする際の復元用）
-    Color4 savedTorsoColor;
-    Color4 savedHeadColor;
-    Color4 savedLeftArmColor;
-    Color4 savedRightArmColor;
-    Color4 savedLeftLegColor;
-    Color4 savedRightLegColor;
-    bool bodyColorsSaved = false;
 
     // CtrlLock(Roblox ShiftLock相当)
-    bool ctrlLockEnabled = false;
-    bool lastCtrlKeyPressed = false;
-    bool ctrlLockOffsetRight = true;      // true=右, false=左（Fキーで切替）
-    bool lastCtrlLockFKeyPressed = false; // Fキートグル判定（lastFKeyPressedとは別物）
     float ctrlLockOffsetDistance = 2.0f;
-    
+
     camera &cam;
     Vector3 &cpos;
     std::shared_ptr<Model> character = nullptr;
@@ -87,14 +68,13 @@ public:
     Pose computePose();
     void applyBodyAnimation();
     void processHotkeys();
-    void processToolkeys();
-    void processMouse();
+    void processToolkeys(bool viewportFocused, bool isGameplayInput, bool wantsTextInput);
+    void processMouse(bool isGameplayInput);
 
     // TODO: インベントリにToolじゃないものがあったら無視するようにする
     // 多分このあたりprivateにしたほうが安全だよね。Tool追加/Tool取り除き、って感じ。
     std::shared_ptr<Folder> Inventory = std::make_shared<Folder>(); // ユーザーのインベントリ（アイテムを入れるためのフォルダ）
     std::array<std::shared_ptr<Tool>, 10> Slots = {};
-    std::array<bool, 10> lastToolKeyPressed = {};
     std::shared_ptr<Tool> currentTool = nullptr; // 現在手に持っているアイテム（スロットから参照）
     int currentSlotIndex = -1; // 現在選択されているスロットのインデックス（0-9、-1は未選択）
 
@@ -107,16 +87,6 @@ public:
     Vector3 right;
     Vector3 up;
 
-    bool toolActivated = false; // Toolを持った状態で左クリックを押し続けている状態
-    bool wannaExit = false;
-    bool wantsSwitchWorkspace = false;
-    bool isRightMouseRotating = false;
-    double lastMouseX = 0.0;
-    double lastMouseY = 0.0;
-    double pendingScrollY = 0.0;
-    bool isScrollCallbackInstalled = false;
-    GLFWscrollfun previousScrollCallback = nullptr;
-
     User(GLFWwindow* window);
     ~User();
 
@@ -127,12 +97,50 @@ public:
 
     void updateVectors();
     void initializeInventory();  // Inventory を User の子として追加（コンストラクタ後に呼ぶ）
-    void processInput(class Physics* physics);
+    void processInput(class Physics* physics, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput);
     void spawnCharacter(class CharacterSetting* cs = nullptr);
     void despawnCharacter();
     static User* getInstance() { return s_instance; }
 
+    // イベントを"消費"するアクセサ（読み取りと同時に内部フラグをリセットする）
+    bool consumeExitRequest();
+    bool consumeWorkspaceSwitchRequest();
+
 private:
     static User* s_instance;
     static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+
+    // 外部からは参照されない内部状態（フレーム間のトグル判定・アニメーション・一時状態）
+    float walkCycle = 0.0f; // 歩行アニメーション用
+    Vector3 currentMoveDir; // 滑らかな移動・回転用
+    bool lastFKeyPressed = false; // トグル判定用
+    bool lastSpacePressed = false; // ジャンプ用
+    bool isGrounded = true;
+    bool isFirstPerson = false;
+
+    // 体パーツの色保存（一人称で非表示にする際の復元用）
+    Color4 savedTorsoColor;
+    Color4 savedHeadColor;
+    Color4 savedLeftArmColor;
+    Color4 savedRightArmColor;
+    Color4 savedLeftLegColor;
+    Color4 savedRightLegColor;
+    bool bodyColorsSaved = false;
+
+    // CtrlLock(Roblox ShiftLock相当)
+    bool ctrlLockEnabled = false;
+    bool lastCtrlKeyPressed = false;
+    bool ctrlLockOffsetRight = true;      // true=右, false=左（Fキーで切替）
+    bool lastCtrlLockFKeyPressed = false; // Fキートグル判定（lastFKeyPressedとは別物）
+
+    std::array<bool, 10> lastToolKeyPressed = {};
+    bool toolActivated = false; // Toolを持った状態で左クリックを押し続けている状態
+    bool wannaExit = false;
+    bool wantsSwitchWorkspace = false;
+    bool isRightMouseRotating = false;
+    double lastMouseX = 0.0;
+    double lastMouseY = 0.0;
+    double pendingScrollY = 0.0;
+    bool isScrollCallbackInstalled = false;
+    GLFWscrollfun previousScrollCallback = nullptr;
 };
