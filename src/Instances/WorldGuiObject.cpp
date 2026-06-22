@@ -2,8 +2,6 @@
 
 WorldGuiObject::WorldGuiObject(std::string className) : Instance(className) {}
 
-std::string WorldGuiObject::getClassName() { return "WorldGuiObject"; }
-
 bool WorldGuiObject::IsA(std::string name) {
     if (name == "WorldGuiObject") return true;
     return Instance::IsA(name);

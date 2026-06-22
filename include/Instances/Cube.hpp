@@ -3,6 +3,7 @@
 #include <include/Math/Matrix4.hpp>
 #include <include/Instances/BaseCube.hpp>
 #include <include/Instances/Decal.hpp>
+#include <include/Instances/Named.hpp>
 #include <include/Instances/Texture.hpp>
 #include <vector>
 
@@ -18,8 +19,10 @@ struct Vertex {
 // 頂点生成関数の宣言
 std::vector<Vertex> createCubeVertices(float size);
 
-class Cube : public BaseCube {
+class Cube : public Named<Cube, BaseCube> {
     public:
+        static constexpr const char* ClassName = "Cube";
+
         static unsigned int defaultTextureID;
         static unsigned int s_VAO;
         static unsigned int s_EBO;
@@ -30,7 +33,6 @@ class Cube : public BaseCube {
         // メソッドの宣言
         void draw(int modelLoc, int shaderProgram);
 
-        virtual string getClassName() override;
         virtual bool IsA(std::string name) override;
         std::shared_ptr<Instance> clone() const override;
 };

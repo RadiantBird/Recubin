@@ -1,12 +1,10 @@
 #include <Instances/ProximityPrompt.hpp>
 
-ProximityPrompt::ProximityPrompt() : BillboardGui() {
+ProximityPrompt::ProximityPrompt() : Named<ProximityPrompt, BillboardGui>() {
     Name = "ProximityPrompt";
     Triggered = std::make_shared<RCBNScriptSignal>();
     BackgroundColor = { 0.08f, 0.08f, 0.08f, 0.85f };
 }
-
-std::string ProximityPrompt::getClassName() { return "ProximityPrompt"; }
 
 bool ProximityPrompt::IsA(std::string name) {
     if (name == "ProximityPrompt") return true;

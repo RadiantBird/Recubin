@@ -1,8 +1,6 @@
 #include <Instances/TextLabel.hpp>
 
-TextLabel::TextLabel() : ScreenGuiObject("TextLabel") {}
-
-std::string TextLabel::getClassName() { return "TextLabel"; }
+TextLabel::TextLabel() : Named<TextLabel, ScreenGuiObject>("TextLabel") {}
 
 bool TextLabel::IsA(std::string name) {
     if (name == "TextLabel") return true;

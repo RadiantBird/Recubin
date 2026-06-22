@@ -58,14 +58,10 @@ std::vector<Vertex> createCubeVertices(float size) {
 }
 
 // Cubeコンストラクタの実装
-Cube::Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex) 
-    : BaseCube(Pos, Sz) 
+Cube::Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex)
+    : Named<Cube, BaseCube>(Pos, Sz)
 {
     // faceTextures は廃止
-}
-
-std::string Cube::getClassName() {
-    return "Cube";
 }
 
 bool Cube::IsA(std::string className) {

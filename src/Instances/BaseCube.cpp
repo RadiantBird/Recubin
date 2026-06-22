@@ -8,10 +8,6 @@ BaseCube::BaseCube(Vector3 Pos, Vector3 Sz)
     Touched = std::make_shared<RCBNScriptSignal>();
 }
 
-std::string BaseCube::getClassName() {
-    return "BaseCube";
-}
-
 bool BaseCube::IsA(std::string className) {
     if (className == "BaseCube") {
         return true;

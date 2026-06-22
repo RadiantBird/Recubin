@@ -1,8 +1,6 @@
 #include <Instances/TextButton.hpp>
 
-TextButton::TextButton() : GuiButton("TextButton") {}
-
-std::string TextButton::getClassName() { return "TextButton"; }
+TextButton::TextButton() : Named<TextButton, GuiButton>("TextButton") {}
 
 bool TextButton::IsA(std::string name) {
     if (name == "TextButton") return true;

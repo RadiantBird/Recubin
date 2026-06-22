@@ -44,7 +44,6 @@ public:
     // 該当するデカールがなければ fallback を返す
     unsigned int getDecalTexture(Face face, unsigned int fallback) const;
     
-    virtual string getClassName() override;
     virtual bool IsA(std::string name) override;
     void syncPhysics();
     void teleportTo(Vector3 pos);

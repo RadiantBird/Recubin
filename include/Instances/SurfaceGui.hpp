@@ -1,9 +1,12 @@
 #pragma once
 #include <Instances/WorldGuiObject.hpp>
+#include <Instances/Named.hpp>
 #include <Instances/Decal.hpp>
 
-class SurfaceGui : public WorldGuiObject {
+class SurfaceGui : public Named<SurfaceGui, WorldGuiObject> {
 public:
+    static constexpr const char* ClassName = "SurfaceGui";
+
     Face face = Face::Front;
 
     // FBO ベイク用リソース（Renderer が管理）
@@ -14,7 +17,6 @@ public:
 
     SurfaceGui();
     ~SurfaceGui();
-    std::string getClassName() override;
     bool IsA(std::string name) override;
     void setProperty(const std::string& name, const YAML::Node& val) override;
     std::shared_ptr<Instance> clone() const override;

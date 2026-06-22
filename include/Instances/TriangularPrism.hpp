@@ -1,10 +1,13 @@
 #pragma once
 
 #include <include/Instances/BaseCube.hpp>
+#include <include/Instances/Named.hpp>
 #include <vector>
 
-class TriangularPrism : public BaseCube {
+class TriangularPrism : public Named<TriangularPrism, BaseCube> {
 public:
+    static constexpr const char* ClassName = "TriangularPrism";
+
     static unsigned int defaultTextureID;
     static unsigned int s_VAO;
     static unsigned int s_VBO;
@@ -15,7 +18,6 @@ public:
 
     void draw(int modelLoc, int shaderProgram);
 
-    virtual std::string getClassName() override;
     virtual bool IsA(std::string name) override;
     std::shared_ptr<Instance> clone() const override;
 

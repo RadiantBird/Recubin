@@ -1,8 +1,6 @@
 #include <Instances/BillboardGui.hpp>
 
-BillboardGui::BillboardGui() : WorldGuiObject("BillboardGui") {}
-
-std::string BillboardGui::getClassName() { return "BillboardGui"; }
+BillboardGui::BillboardGui() : Named<BillboardGui, WorldGuiObject>("BillboardGui") {}
 
 bool BillboardGui::IsA(std::string name) {
     if (name == "BillboardGui") return true;

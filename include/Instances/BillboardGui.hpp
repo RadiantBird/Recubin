@@ -1,14 +1,16 @@
 #pragma once
 #include <Instances/WorldGuiObject.hpp>
+#include <Instances/Named.hpp>
 
 enum class BillboardMode { Parallel, Focus };
 
-class BillboardGui : public WorldGuiObject {
+class BillboardGui : public Named<BillboardGui, WorldGuiObject> {
 public:
+    static constexpr const char* ClassName = "BillboardGui";
+
     BillboardMode Mode = BillboardMode::Parallel;
 
     BillboardGui();
-    std::string getClassName() override;
     bool IsA(std::string name) override;
     void setProperty(const std::string& name, const YAML::Node& val) override;
     std::shared_ptr<Instance> clone() const override;

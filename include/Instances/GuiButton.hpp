@@ -1,14 +1,16 @@
 #pragma once
 #include <Instances/ScreenGuiObject.hpp>
+#include <Instances/Named.hpp>
 #include <Core/RCBNScriptSignal.hpp>
 
-class GuiButton : public ScreenGuiObject {
+class GuiButton : public Named<GuiButton, ScreenGuiObject> {
 public:
+    static constexpr const char* ClassName = "GuiButton";
+
     std::shared_ptr<RCBNScriptSignal> Activated;
     bool m_wasClickedThisFrame = false;
 
     explicit GuiButton(std::string className);
-    std::string getClassName() override;
     bool IsA(std::string name) override;
     void setProperty(const std::string& name, const YAML::Node& val) override;
 };

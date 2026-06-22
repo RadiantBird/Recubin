@@ -102,13 +102,9 @@ void Cylinder::initGeometry() {
 }
 
 Cylinder::Cylinder(Vector3 Pos, Vector3 Sz)
-    : BaseCube(Pos, Sz)
+    : Named<Cylinder, BaseCube>(Pos, Sz)
 {
     initGeometry();
-}
-
-std::string Cylinder::getClassName() {
-    return "Cylinder";
 }
 
 bool Cylinder::IsA(std::string className) {

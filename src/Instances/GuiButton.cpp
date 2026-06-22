@@ -1,11 +1,9 @@
 #include <Instances/GuiButton.hpp>
 
 GuiButton::GuiButton(std::string className)
-    : ScreenGuiObject(className)
+    : Named<GuiButton, ScreenGuiObject>(className)
     , Activated(std::make_shared<RCBNScriptSignal>())
 {}
-
-std::string GuiButton::getClassName() { return "GuiButton"; }
 
 bool GuiButton::IsA(std::string name) {
     if (name == "GuiButton") return true;

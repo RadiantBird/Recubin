@@ -114,13 +114,9 @@ void TriangularPrism::initGeometry() {
 }
 
 TriangularPrism::TriangularPrism(Vector3 Pos, Vector3 Sz)
-    : BaseCube(Pos, Sz)
+    : Named<TriangularPrism, BaseCube>(Pos, Sz)
 {
     initGeometry();
-}
-
-std::string TriangularPrism::getClassName() {
-    return "TriangularPrism";
 }
 
 bool TriangularPrism::IsA(std::string className) {

@@ -2,7 +2,7 @@
 #include <include/Instances/Decal.hpp>
 #include <include/Core/Renderer.hpp>
 
-Skybox::Skybox() : Cube(Vector3(0,0,0), Vector3(5000.0f, 5000.0f, 5000.0f), 0) {
+Skybox::Skybox() : Named<Skybox, Cube>(Vector3(0,0,0), Vector3(5000.0f, 5000.0f, 5000.0f), 0) {
     Name = "Skybox";
     Anchored = true;
     CanCollide = false;
@@ -11,10 +11,6 @@ Skybox::Skybox() : Cube(Vector3(0,0,0), Vector3(5000.0f, 5000.0f, 5000.0f), 0) {
     Color = Color4(1, 1, 1, 1);
 
 
-}
-
-std::string Skybox::getClassName() {
-    return "Skybox";
 }
 
 bool Skybox::IsA(std::string className) {

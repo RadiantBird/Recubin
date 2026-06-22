@@ -1,9 +1,12 @@
 #pragma once
 #include <Instances/BillboardGui.hpp>
+#include <Instances/Named.hpp>
 #include <Core/RCBNScriptSignal.hpp>
 
-class ProximityPrompt : public BillboardGui {
+class ProximityPrompt : public Named<ProximityPrompt, BillboardGui> {
 public:
+    static constexpr const char* ClassName = "ProximityPrompt";
+
     std::string KeyboardKeyCode = "E";
     float HoldDuration = 0.0f;
     float MaxActivationDistance = 10.0f;
@@ -20,7 +23,6 @@ public:
     double m_lastUpdateTime = 0.0;
 
     ProximityPrompt();
-    std::string getClassName() override;
     bool IsA(std::string name) override;
     void setProperty(const std::string& name, const YAML::Node& val) override;
     std::shared_ptr<Instance> clone() const override;

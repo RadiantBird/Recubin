@@ -89,13 +89,9 @@ void Sphere::initGeometry() {
 }
 
 Sphere::Sphere(Vector3 Pos, Vector3 Sz)
-    : BaseCube(Pos, Sz)
+    : Named<Sphere, BaseCube>(Pos, Sz)
 {
     initGeometry();
-}
-
-std::string Sphere::getClassName() {
-    return "Sphere";
 }
 
 bool Sphere::IsA(std::string className) {
