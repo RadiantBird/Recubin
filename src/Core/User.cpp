@@ -123,11 +123,11 @@ void User::processZoom(bool viewportZoomEnabled) {
             pendingScrollY = 0.0;
         }
     } else {
-        if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) { cameraDistance -= zoomSpeed; if (cameraDistance < 2.0f) cameraDistance = 2.0f; }
+        if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) { cameraDistance -= zoomSpeed; if (cameraDistance < minCameraDistance) cameraDistance = minCameraDistance; }
         if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) cameraDistance += zoomSpeed;
         if (pendingScrollY != 0.0) {
             cameraDistance -= static_cast<float>(pendingScrollY) * mouseZoomSpeed;
-            if (cameraDistance < 2.0f) cameraDistance = 2.0f;
+            if (cameraDistance < minCameraDistance) cameraDistance = minCameraDistance;
             pendingScrollY = 0.0;
         }
     }
@@ -149,6 +149,44 @@ void User::processMovement(bool viewportFocused, Physics* physics) {
     }
 }
  
+// 一人称視点の切替（cameraDistanceに応じて体パーツの表示/非表示を制御）
+void User::updateFirstPersonState() {
+    if (!root || !torso || !head || !leftArm || !rightArm || !leftLeg || !rightLeg) return;
+
+    bool shouldBeFirstPerson = (cameraDistance <= firstPersonThreshold);
+
+    if (shouldBeFirstPerson && !isFirstPerson) {
+        if (!bodyColorsSaved) {
+            savedTorsoColor    = torso->Color;
+            savedHeadColor     = head->Color;
+            savedLeftArmColor  = leftArm->Color;
+            savedRightArmColor = rightArm->Color;
+            savedLeftLegColor  = leftLeg->Color;
+            savedRightLegColor = rightLeg->Color;
+            bodyColorsSaved = true;
+        }
+        Color4 hidden = Color4(1.0f, 1.0f, 1.0f, 0.0f);
+        torso->Color    = hidden;
+        head->Color     = hidden;
+        leftArm->Color  = hidden;
+        rightArm->Color = hidden;
+        leftLeg->Color  = hidden;
+        rightLeg->Color = hidden;
+        isFirstPerson = true;
+    } else if (!shouldBeFirstPerson && isFirstPerson) {
+        if (bodyColorsSaved) {
+            torso->Color    = savedTorsoColor;
+            head->Color     = savedHeadColor;
+            leftArm->Color  = savedLeftArmColor;
+            rightArm->Color = savedRightArmColor;
+            leftLeg->Color  = savedLeftLegColor;
+            rightLeg->Color = savedRightLegColor;
+            bodyColorsSaved = false;
+        }
+        isFirstPerson = false;
+    }
+}
+
 // キャラクター移動・物理・アニメーションサイクル・地面判定・カメラ追従
 void User::processCharacterMovement(Physics* physics) {
     if (!root || !root->actor) return;
@@ -175,7 +213,12 @@ void User::processCharacterMovement(Physics* physics) {
  
     // --- 向き(Rotation)の更新 ---
     Quaternion targetRot = root->Rotation;
-    if (isPressingMove) targetRot = Quaternion::LookRotation(targetMoveDir, Vector3(0, 1, 0));
+    if (ctrlLockEnabled) {
+        // CtrlLock中は常にカメラの正面方向を向く（Roblox ShiftLock方式）
+        targetRot = Quaternion::LookRotation(flatForward, Vector3(0, 1, 0));
+    } else if (isPressingMove) {
+        targetRot = Quaternion::LookRotation(targetMoveDir, Vector3(0, 1, 0));
+    }
     root->Rotation = Quaternion::Slerp(root->Rotation, targetRot, 0.15f);
  
     physx::PxTransform pose = dynamicActor->getGlobalPose();
@@ -231,7 +274,17 @@ void User::processCharacterMovement(Physics* physics) {
     isGrounded = physics ? physics->raycast(root->getWorldPosition(), Vector3(0, -1, 0), maxDist, hit, root->actor) : false;
  
     // --- カメラ追従 ---
-    cpos = root->getWorldPosition() + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
+    const Vector3 headOffset = Vector3(0, 2.5f, 0); // applyBodyAnimation()のheadOffsetと一致させる
+    if (isFirstPerson) {
+        cpos = root->getWorldPosition() + headOffset;
+    } else {
+        Vector3 basePos = root->getWorldPosition() + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
+        if (ctrlLockEnabled) {
+            float offsetSign = ctrlLockOffsetRight ? 1.0f : -1.0f;
+            basePos = basePos + right * (ctrlLockOffsetDistance * offsetSign);
+        }
+        cpos = basePos;
+    }
 }
  
 // ============================================================
@@ -391,6 +444,22 @@ void User::processHotkeys() {
         }
     }
     lastSpacePressed = spacePressed;
+
+    // 左Ctrlキー: CtrlLock ON/OFFトグル
+    bool ctrlKeyPressed = (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS);
+    if (ctrlKeyPressed && !lastCtrlKeyPressed && controlMode == ControlMode::Character) {
+        ctrlLockEnabled = !ctrlLockEnabled;
+        RCBN_LOG(ctrlLockEnabled ? "CtrlLock: ON" : "CtrlLock: OFF");
+    }
+    lastCtrlKeyPressed = ctrlKeyPressed;
+
+    // Fキー: CtrlLockのオフセット方向（左右）切り替え（CtrlLockのON/OFFに関わらず状態は保持される）
+    bool ctrlLockFKeyPressed = (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS);
+    if (ctrlLockFKeyPressed && !lastCtrlLockFKeyPressed) {
+        ctrlLockOffsetRight = !ctrlLockOffsetRight;
+        RCBN_LOG(ctrlLockOffsetRight ? "CtrlLock offset: Right" : "CtrlLock offset: Left");
+    }
+    lastCtrlLockFKeyPressed = ctrlLockFKeyPressed;
 }
 
 void User::processToolkeys() {
@@ -473,6 +542,7 @@ void User::processInput(Physics* physics) {
  
     bool rotated = processCameraRotation(viewportFocused);
     processZoom(viewportZoomEnabled);
+    updateFirstPersonState();
     processMovement(viewportFocused, physics);
     applyBodyAnimation();
     if (rotated) updateVectors();
@@ -496,6 +566,8 @@ void User::despawnCharacter() {
     rightArm  = nullptr;
     leftLeg   = nullptr;
     rightLeg  = nullptr;
+    isFirstPerson = false;
+    bodyColorsSaved = false;
 }
 
 void User::spawnCharacter(CharacterSetting* cs) {

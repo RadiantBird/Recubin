@@ -39,6 +39,27 @@ public:
     bool lastSpacePressed = false; // ジャンプ用
     bool isGrounded = true;
     camera current_camera;
+
+    // 一人称視点
+    float firstPersonThreshold = 1.5f; // この値以下のcameraDistanceで一人称視点に入る
+    float minCameraDistance = 0.5f;    // processZoomの最小クランプ値（既存の2.0fから変更）
+    bool isFirstPerson = false;
+
+    // 体パーツの色保存（一人称で非表示にする際の復元用）
+    Color4 savedTorsoColor;
+    Color4 savedHeadColor;
+    Color4 savedLeftArmColor;
+    Color4 savedRightArmColor;
+    Color4 savedLeftLegColor;
+    Color4 savedRightLegColor;
+    bool bodyColorsSaved = false;
+
+    // CtrlLock(Roblox ShiftLock相当)
+    bool ctrlLockEnabled = false;
+    bool lastCtrlKeyPressed = false;
+    bool ctrlLockOffsetRight = true;      // true=右, false=左（Fキーで切替）
+    bool lastCtrlLockFKeyPressed = false; // Fキートグル判定（lastFKeyPressedとは別物）
+    float ctrlLockOffsetDistance = 2.0f;
     
     camera &cam;
     Vector3 &cpos;
@@ -62,6 +83,7 @@ public:
     void processZoom(bool viewportZoomEnabled);
     void processMovement(bool viewportFocused, Physics* physics);
     void processCharacterMovement(Physics* physics);
+    void updateFirstPersonState();
     Pose computePose();
     void applyBodyAnimation();
     void processHotkeys();
