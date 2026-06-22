@@ -6,7 +6,6 @@
 #include <Instances/Workspace.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/AppImage.hpp>
-#include <Instances/CharacterSetting.hpp>
 #include <Instances/Decal.hpp>
 
 #include <Core/Physics.hpp>
@@ -50,17 +49,6 @@ static GameConfig loadStartup() {
     return cfg;
 }
 
-// ===================================================
-//  ヘルパー
-// ===================================================
-static CharacterSetting* findCharacterSetting(Instance* inst) {
-    if (!inst) return nullptr;
-    if (inst->getClassName() == "CharacterSetting") return static_cast<CharacterSetting*>(inst);
-    for (auto& [name, child] : inst->children) {
-        if (auto* found = findCharacterSetting(child.get())) return found;
-    }
-    return nullptr;
-}
 
 static void applyAppIcon(GLFWwindow* window, Instance* root) {
     if (!window || !root) return;
@@ -153,13 +141,7 @@ int main() {
     };
 
     // ---- ゲーム開始 ----
-    CharacterSetting* cs = findCharacterSetting(system.get());
-    user->spawnCharacter(cs);
-    if (cs && !cs->facePath.empty()) {
-        unsigned int faceTexID = renderer->loadTexture(cs->facePath.c_str());
-        if (faceTexID && user->head)
-            user->head->addChild(std::make_shared<Decal>(faceTexID, Face::Front));
-    }
+    user->spawnCharacter(system.get());
     audioService->playAutoPlaySounds();
     if (user->character) workspace->addChild(user->character);
 

@@ -3,6 +3,11 @@
 ## 特殊なインスタンス
 - **System**: シングルトン。常に1つのみ存在。Insert Objectリストには登録しない。
 - **Workspace**: 複数インスタンスを持つ。切り替え可能。
+- **StarterCharacter**: System直下に置く、キャラクターのテンプレートを保持するだけのコンテナ。
+  中にHumanoid・Root(Cube)・その他のCube/Sphereを通常のInsert Object操作で組み立てる。
+  Play開始時、この子要素が新規Model(`"PlayerCharacter"`、スクリプト互換のため名称固定)に
+  cloneされてWorkspaceに追加される。StarterCharacterが存在しない場合は、既定のリグ(旧来
+  ハードコードされていたもの)を持つStarterCharacterが自動的にSystem直下に生成される。
 
 ## 単位系
 - **Roblox erik_stud(0.05 meterに等しい)**
@@ -23,12 +28,20 @@
 - エディターの「Insert Object」リストに登録される(一部の抽象クラスは除外)
 
 ## ユーザー(Userクラス)
-- Characterを持つ
+- clone後のキャラクター本体(`character`, Model)を持つ。個別の身体パーツへの参照は持たず、
+  移動・ジャンプ・接地判定・歩行アニメーションは`character`内のHumanoidに委譲する
 - Cameraを持つ
 - 入力を管理する
 - ControlMode
     - エディターではデフォルトでFree
     - ゲームランタイムではデフォルトでCharacter
+
+## キャラクター(Humanoidクラス)
+- StarterCharacter内のテンプレート、またはそのclone後にRoot/Torso/Head/LeftArm/RightArm/
+  LeftLeg/RightLegという名前の兄弟Cube/Sphereを探して保持し、移動・ジャンプ・接地判定・
+  歩行アニメーション・一人称時の身体非表示を行う
+- `WalkSpeed`/`JumpPower`を持つ(旧CharacterSettingの`moveSpeed`/`jumpPower`の統合先)
+- GLFWwindow/SystemStateには依存しない。Userが入力をベクトル/boolに変換して渡す
 
 ## レイキャスト
 PhysXに実装されているもののこと。

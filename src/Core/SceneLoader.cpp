@@ -14,7 +14,8 @@
 #include <Instances/Lighting.hpp>
 #include <Instances/PostEffect.hpp>
 #include <Instances/AppImage.hpp>
-#include <Instances/CharacterSetting.hpp>
+#include <Instances/Humanoid.hpp>
+#include <Instances/StarterCharacter.hpp>
 #include <Instances/Skybox.hpp>
 #include <include/Core/Terrain.hpp>
 #include <Instances/Rope.hpp>
@@ -207,7 +208,8 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Lighting")  return std::make_shared<Lighting>();
     if (className == "PostEffect") return std::make_shared<PostEffect>();
     if (className == "AppImage")         return std::make_shared<AppImage>();
-    if (className == "CharacterSetting") return std::make_shared<CharacterSetting>();
+    if (className == "Humanoid")          return std::make_shared<Humanoid>();
+    if (className == "StarterCharacter")  return std::make_shared<StarterCharacter>();
     if (className == "Terrain") return std::make_shared<Terrain>();
     if (className == "Instance") return std::make_shared<Instance>("Instance");
     if (className == "Rope")  return std::make_shared<Rope>();
@@ -289,7 +291,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->getClassName() == "Lighting" || inst->getClassName() == "Skybox"
                  || inst->getClassName() == "PostEffect"
                  || inst->getClassName() == "AppImage"
-                 || inst->getClassName() == "CharacterSetting"
+                 || inst->getClassName() == "Humanoid"
                  || inst->IsA("Rope") || inst->IsA("Rod")
                  || inst->IsA("Weld") || inst->IsA("Motor")
                  || inst->IsA("ScreenGuiObject")
@@ -364,21 +366,10 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "Seed"     << YAML::Value << tr->Seed;
             out << YAML::Key << "Flat"     << YAML::Value << tr->Flat;
         }
-        if (inst->getClassName() == "CharacterSetting") {
-            const CharacterSetting* cs = static_cast<const CharacterSetting*>(inst);
-            auto emitColor = [&](const char* key, const Color4& c) {
-                out << YAML::Key << key << YAML::Value
-                    << YAML::Flow << YAML::BeginSeq << c.r << c.g << c.b << c.a << YAML::EndSeq;
-            };
-            if (!cs->facePath.empty()) out << YAML::Key << "FacePath" << YAML::Value << cs->facePath;
-            emitColor("HeadColor",     cs->headColor);
-            emitColor("TorsoColor",    cs->torsoColor);
-            emitColor("LeftArmColor",  cs->leftArmColor);
-            emitColor("RightArmColor", cs->rightArmColor);
-            emitColor("LeftLegColor",  cs->leftLegColor);
-            emitColor("RightLegColor", cs->rightLegColor);
-            out << YAML::Key << "JumpPower" << YAML::Value << cs->jumpPower;
-            out << YAML::Key << "MoveSpeed" << YAML::Value << cs->moveSpeed;
+        if (inst->getClassName() == "Humanoid") {
+            const Humanoid* hum = static_cast<const Humanoid*>(inst);
+            out << YAML::Key << "WalkSpeed" << YAML::Value << hum->WalkSpeed;
+            out << YAML::Key << "JumpPower" << YAML::Value << hum->JumpPower;
         }
         if (inst->getClassName() == "Lighting") {
             const Lighting* lt = static_cast<const Lighting*>(inst);

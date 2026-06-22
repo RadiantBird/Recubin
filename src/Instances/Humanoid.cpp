@@ -1,0 +1,254 @@
+#include <Instances/Humanoid.hpp>
+#include <include/Core/Physics.hpp>
+#include <Math/Quaternion.hpp>
+#include <Math/CFrame.hpp>
+#include <cmath>
+
+Humanoid::Humanoid() : Instance("Humanoid") {}
+
+bool Humanoid::IsA(std::string className) {
+    if (className == "Humanoid") return true;
+    return Instance::IsA(className);
+}
+
+void Humanoid::setProperty(const std::string& name, const YAML::Node& value) {
+    if (name == "WalkSpeed") { WalkSpeed = value.as<float>(); return; }
+    if (name == "JumpPower") { JumpPower = value.as<float>(); return; }
+    Instance::setProperty(name, value);
+}
+
+std::shared_ptr<Instance> Humanoid::clone() const {
+    auto copy = std::make_shared<Humanoid>();
+    copy->Name      = Name;
+    copy->WalkSpeed = WalkSpeed;
+    copy->JumpPower = JumpPower;
+    for (auto const& [n, child] : children)
+        copy->addChild(child->clone());
+    return copy;
+}
+
+void Humanoid::resolveParts(Instance* characterModel) {
+    if (!characterModel) return;
+    const auto& kids = characterModel->getChildren();
+
+    auto find = [&kids](const char* name) -> std::shared_ptr<Instance> {
+        auto it = kids.find(name);
+        return (it != kids.end()) ? it->second : nullptr;
+    };
+
+    Root      = std::dynamic_pointer_cast<Cube>(find("Root"));
+    Torso     = std::dynamic_pointer_cast<Cube>(find("Torso"));
+    Head      = std::dynamic_pointer_cast<Sphere>(find("Head"));
+    LeftArm   = std::dynamic_pointer_cast<Cube>(find("LeftArm"));
+    RightArm  = std::dynamic_pointer_cast<Cube>(find("RightArm"));
+    LeftLeg   = std::dynamic_pointer_cast<Cube>(find("LeftLeg"));
+    RightLeg  = std::dynamic_pointer_cast<Cube>(find("RightLeg"));
+
+    // RootはX/Z軸の回転をロックし、転倒しないようにする（Y軸回転=向き変えのみ許可）。
+    // ユーザーがStarterCharacter内に独自のCubeを"Root"として置いた場合も同じ挙動にするため、
+    // 物理アクター生成前のここで毎回設定する
+    if (Root) {
+        Root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+    }
+}
+
+void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool isPressingMove,
+                     const Vector3& targetMoveDir, bool ctrlLockEnabled, Physics* physics,
+                     bool leftArmRaised, bool rightArmRaised) {
+    if (!Root || !Root->actor) return;
+
+    physx::PxRigidDynamic* dynamicActor = Root->actor->is<physx::PxRigidDynamic>();
+    if (!dynamicActor) return;
+
+    // --- 移動ベクトルの補間 ---
+    currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * 0.15f;
+
+    // --- 向き(Rotation)の更新 ---
+    Quaternion targetRot = Root->Rotation;
+    if (ctrlLockEnabled) {
+        // CtrlLock中は常にカメラの正面方向を向く（Roblox ShiftLock方式）
+        targetRot = Quaternion::LookRotation(flatForward, Vector3(0, 1, 0));
+    } else if (isPressingMove) {
+        targetRot = Quaternion::LookRotation(targetMoveDir, Vector3(0, 1, 0));
+    }
+    Root->Rotation = Quaternion::Slerp(Root->Rotation, targetRot, 0.15f);
+
+    physx::PxTransform pose = dynamicActor->getGlobalPose();
+    pose.q = physx::PxQuat(Root->Rotation.x, Root->Rotation.y, Root->Rotation.z, Root->Rotation.w);
+    dynamicActor->setGlobalPose(pose);
+
+    // --- 物理速度の適用 ---
+    if (currentMoveDir.length() > 0.01f) {
+        Vector3 velocity = currentMoveDir * WalkSpeed;
+
+        RaycastHit wallHit;
+        float checkDist = Root->Size.x / 2.0f + 0.15f;
+        if (physics && physics->raycast(Root->getWorldPosition(), currentMoveDir, checkDist, wallHit, Root->actor)) {
+            Vector3 n(wallHit.normal.x, 0.0f, wallHit.normal.z);
+            float nLen = n.length();
+            if (nLen > 0.001f) {
+                n = n * (1.0f / nLen);
+                float dot = velocity.x * n.x + velocity.z * n.z;
+                if (dot < 0.0f) {
+                    velocity.x -= dot * n.x;
+                    velocity.z -= dot * n.z;
+                }
+            }
+        }
+
+        physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
+        dynamicActor->setLinearVelocity(physx::PxVec3(velocity.x, currentVel.y, velocity.z));
+    } else {
+        physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
+        dynamicActor->setLinearVelocity(physx::PxVec3(0, currentVel.y, 0));
+    }
+
+    // --- アニメーションサイクル（0.0 ~ 1.0）の更新 ---
+    const float animationSpeed = 0.025f;
+    if (isPressingMove) {
+        walkCycle += animationSpeed;
+        if (walkCycle > 1.0f) walkCycle -= 1.0f;
+    } else if (walkCycle > 0.0f) {
+        if (walkCycle > 0.5f) {
+            walkCycle += animationSpeed;
+            if (walkCycle >= 1.0f) walkCycle = 0.0f;
+        } else {
+            walkCycle -= animationSpeed;
+            if (walkCycle < 0.0f) walkCycle = 0.0f;
+        }
+    }
+
+    // --- 地面判定 ---
+    RaycastHit hit;
+    float maxDist = (Root->Size.y / 2.0f) + 0.2f;
+    isGrounded = physics ? physics->raycast(Root->getWorldPosition(), Vector3(0, -1, 0), maxDist, hit, Root->actor) : false;
+
+    applyBodyAnimation(leftArmRaised, rightArmRaised);
+}
+
+void Humanoid::jump() {
+    if (!Root || !Root->actor || !isGrounded) return;
+    physx::PxRigidDynamic* dynamicActor = Root->actor->is<physx::PxRigidDynamic>();
+    if (!dynamicActor) return;
+    physx::PxVec3 vel = dynamicActor->getLinearVelocity();
+    vel.y = JumpPower;
+    dynamicActor->setLinearVelocity(vel);
+}
+
+void Humanoid::updateFirstPersonState(bool wantsFirstPerson) {
+    if (!Root || !Torso || !Head || !LeftArm || !RightArm || !LeftLeg || !RightLeg) return;
+
+    if (wantsFirstPerson && !isFirstPerson) {
+        if (!bodyColorsSaved) {
+            savedTorsoColor    = Torso->Color;
+            savedHeadColor     = Head->Color;
+            savedLeftArmColor  = LeftArm->Color;
+            savedRightArmColor = RightArm->Color;
+            savedLeftLegColor  = LeftLeg->Color;
+            savedRightLegColor = RightLeg->Color;
+            bodyColorsSaved = true;
+        }
+        Color4 hidden = Color4(1.0f, 1.0f, 1.0f, 0.0f);
+        Torso->Color    = hidden;
+        Head->Color     = hidden;
+        LeftArm->Color  = hidden;
+        RightArm->Color = hidden;
+        LeftLeg->Color  = hidden;
+        RightLeg->Color = hidden;
+        isFirstPerson = true;
+    } else if (!wantsFirstPerson && isFirstPerson) {
+        if (bodyColorsSaved) {
+            Torso->Color    = savedTorsoColor;
+            Head->Color     = savedHeadColor;
+            LeftArm->Color  = savedLeftArmColor;
+            RightArm->Color = savedRightArmColor;
+            LeftLeg->Color  = savedLeftLegColor;
+            RightLeg->Color = savedRightLegColor;
+            bodyColorsSaved = false;
+        }
+        isFirstPerson = false;
+    }
+}
+
+Vector3 Humanoid::getRootWorldPosition() const {
+    return Root ? Root->getWorldPosition() : Vector3(0, 0, 0);
+}
+
+Vector3 Humanoid::getHeadWorldPosition() const {
+    return Head ? Head->getWorldPosition() : getRootWorldPosition();
+}
+
+// ============================================================
+// Animation: Pose計算
+// ============================================================
+
+Humanoid::Pose Humanoid::computePose(bool leftArmRaised, bool rightArmRaised) const {
+    const float PI = 3.14159265f;
+    float rad   = walkCycle * 2.0f * PI;
+    float swing = std::sin(rad) * 35.0f;
+
+    Pose p;
+    p.leftArm  = leftArmRaised  ? 90.0f : (isGrounded ? swing  : 180.0f);
+    p.rightArm = rightArmRaised ? 90.0f : (isGrounded ? -swing : 180.0f);
+    p.leftLeg  = -swing;
+    p.rightLeg =  swing;
+    return p;
+}
+
+// ============================================================
+// Animation: Limb組み立て（共通）
+// ============================================================
+
+static CFrame makeArm(
+    const CFrame& root,
+    const Vector3& jointPos,
+    float angleDeg
+) {
+    const Vector3 pivotOffset = Vector3(0, -0.5f, 0); // 回転中心調整
+    const Vector3 meshOffset  = Vector3(0, -1.0f, 0); // モデル補正
+
+    return root *
+           CFrame(jointPos.x, jointPos.y, jointPos.z) *
+           CFrame(pivotOffset.x, pivotOffset.y, pivotOffset.z) *
+           CFrame::fromAxisAngle(Vector3(1,0,0), angleDeg) *
+           CFrame(-pivotOffset.x, -pivotOffset.y, -pivotOffset.z) *
+           CFrame(meshOffset.x, meshOffset.y, meshOffset.z);
+}
+
+static CFrame makeLeg(
+    const CFrame& root,
+    const Vector3& jointPos,
+    float angleDeg
+) {
+    // 脚は今のところpivot補正なし
+    const Vector3 meshOffset = Vector3(0, -1.0f, 0);
+
+    return root *
+           CFrame(jointPos.x, jointPos.y, jointPos.z) *
+           CFrame::fromAxisAngle(Vector3(1,0,0), angleDeg) *
+           CFrame(meshOffset.x, meshOffset.y, meshOffset.z);
+}
+
+void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
+    if (!Root) return;
+
+    Pose pose = computePose(leftArmRaised, rightArmRaised);
+
+    // --- リグ定義（全部ここに固定） ---
+    const Vector3 torsoOffset      = Vector3(0, 1.0f, 0);
+    const Vector3 headOffset       = Vector3(0, 2.5f, 0);
+
+    const Vector3 leftShoulderPos  = Vector3(-1.5f, 2.0f, 0);
+    const Vector3 rightShoulderPos = Vector3( 1.5f, 2.0f, 0);
+
+    const Vector3 leftHipPos       = Vector3(-0.5f, 0.0f, 0);
+    const Vector3 rightHipPos      = Vector3( 0.5f, 0.0f, 0);
+
+    if (Torso) Torso->cframe = Root->cframe * CFrame(torsoOffset.x, torsoOffset.y, torsoOffset.z);
+    if (Head)  Head->cframe  = Root->cframe * CFrame(headOffset.x,  headOffset.y,  headOffset.z);
+
+    if (LeftArm)  LeftArm->cframe  = makeArm(Root->cframe, leftShoulderPos,  pose.leftArm);
+    if (RightArm) RightArm->cframe = makeArm(Root->cframe, rightShoulderPos, pose.rightArm);
+    if (LeftLeg)  LeftLeg->cframe  = makeLeg(Root->cframe, leftHipPos,  pose.leftLeg);
+    if (RightLeg) RightLeg->cframe = makeLeg(Root->cframe, rightHipPos, pose.rightLeg);
+}

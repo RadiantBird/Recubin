@@ -383,9 +383,9 @@ void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, fl
 
                 // 距離チェック
                 User* user = User::getInstance();
-                if (!user || !user->root) continue;
+                if (!user || !user->humanoid || !user->humanoid->Root) continue;
 
-                Vector3 playerPos = user->root->getWorldPosition();
+                Vector3 playerPos = user->humanoid->getRootWorldPosition();
                 Vector3 cubePos(wx, wy, wz);
                 float dist = (playerPos - cubePos).length();
                 if (dist > pp->MaxActivationDistance) {

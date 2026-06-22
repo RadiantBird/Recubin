@@ -21,7 +21,7 @@
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
 #include <Instances/AppImage.hpp>
-#include <Instances/CharacterSetting.hpp>
+#include <Instances/Humanoid.hpp>
 #include <Instances/ScreenGuiObject.hpp>
 #include <Instances/TextLabel.hpp>
 #include <Instances/TextButton.hpp>
@@ -599,8 +599,6 @@ void PropertiesPanel::onRender() {
 
         // Character mode parameters
         ImGui::DragFloat("Speed", &usr->speed, 0.01f, 0.0f, 10.0f, "%.3f");
-        ImGui::DragFloat("WalkPower", &usr->walkPower, 0.1f, 0.0f, 100.0f, "%.2f");
-        ImGui::DragFloat("JumpPower", &usr->jumpPower, 0.1f, 0.0f, 100.0f, "%.2f");
         ImGui::DragFloat("CameraDistance", &usr->cameraDistance, 0.1f, 1.0f, 50.0f, "%.2f");
         ImGui::DragFloat("ZoomSpeed", &usr->zoomSpeed, 0.01f, 0.0f, 1.0f, "%.3f");
         ImGui::DragFloat("MouseZoomSpeed", &usr->mouseZoomSpeed, 0.1f, 0.0f, 10.0f, "%.2f");
@@ -955,41 +953,13 @@ void PropertiesPanel::onRender() {
         }
     }
 
-    // ---- CharacterSetting ----
-    if (inst->getClassName() == "CharacterSetting") {
-        CharacterSetting* cs = static_cast<CharacterSetting*>(inst);
-        ImGui::SeparatorText("CharacterSetting");
+    // ---- Humanoid ----
+    if (inst->getClassName() == "Humanoid") {
+        Humanoid* hum = static_cast<Humanoid*>(inst);
+        ImGui::SeparatorText("Humanoid");
 
-        // FacePath
-        ImGui::LabelText("FacePath", "%s", cs->facePath.empty() ? "(none)" : cs->facePath.c_str());
-        if (ImGui::Button("参照...##csface")) {
-            std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.tga)", L"*.png;*.jpg;*.bmp;*.tga");
-            if (!path.empty()) {
-                YAML::Node node; node = path;
-                cs->setProperty("FacePath", node);
-            }
-        }
-
-        ImGui::Separator();
-
-        // Colors
-        auto colorEdit = [](const char* label, Color4& c) {
-            float col[4] = { c.r, c.g, c.b, c.a };
-            if (ImGui::ColorEdit4(label, col))
-                c = Color4(col[0], col[1], col[2], col[3]);
-        };
-        colorEdit("HeadColor",     cs->headColor);
-        colorEdit("TorsoColor",    cs->torsoColor);
-        colorEdit("LeftArmColor",  cs->leftArmColor);
-        colorEdit("RightArmColor", cs->rightArmColor);
-        colorEdit("LeftLegColor",  cs->leftLegColor);
-        colorEdit("RightLegColor", cs->rightLegColor);
-
-        ImGui::Separator();
-
-        // JumpPower / MoveSpeed
-        ImGui::DragFloat("JumpPower", &cs->jumpPower, 0.1f, 0.0f, 100.0f, "%.2f");
-        ImGui::DragFloat("MoveSpeed", &cs->moveSpeed, 0.1f, 0.0f, 100.0f, "%.2f");
+        ImGui::DragFloat("WalkSpeed", &hum->WalkSpeed, 0.1f, 0.0f, 100.0f, "%.2f");
+        ImGui::DragFloat("JumpPower", &hum->JumpPower, 0.1f, 0.0f, 100.0f, "%.2f");
     }
 
     // ---- ScreenGuiObject ----

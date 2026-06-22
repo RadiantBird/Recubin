@@ -9,7 +9,7 @@
 #include "include/Instances/Rope.hpp"
 #include "include/Instances/Rod.hpp"
 #include "include/Instances/Weld.hpp"
-#include "include/Instances/CharacterSetting.hpp"
+#include "include/Instances/Humanoid.hpp"
 #include "include/Instances/AppImage.hpp"
 #include "include/Instances/Script.hpp"
 #include "include/Instances/System.hpp"
@@ -360,7 +360,7 @@ void LuauEngine::InitDispatchTable_Physics() {
     DispatchTable["Motor"]["MaxForce"]      = getter_number<Motor, &Motor::MaxForce>();
 }
 
-// ==================== Getter: Sound, CharacterSetting, AppImage, Script ====================
+// ==================== Getter: Sound, Humanoid, AppImage, Script ====================
 void LuauEngine::InitDispatchTable_Misc() {
     // Sound — properties backed by getter methods
     DispatchTable["Sound"]["IsPlaying"] = getter_method_bool  <Sound, &Sound::isPlaying>();
@@ -369,16 +369,9 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Sound"]["Play"]      = getter_closure(sound_play_closure, "Play");
     DispatchTable["Sound"]["Stop"]      = getter_closure(sound_stop_closure, "Stop");
 
-    // CharacterSetting
-    DispatchTable["CharacterSetting"]["JumpPower"]    = getter_number <CharacterSetting, &CharacterSetting::jumpPower>();
-    DispatchTable["CharacterSetting"]["MoveSpeed"]    = getter_number <CharacterSetting, &CharacterSetting::moveSpeed>();
-    DispatchTable["CharacterSetting"]["FacePath"]     = getter_string <CharacterSetting, &CharacterSetting::facePath>();
-    DispatchTable["CharacterSetting"]["HeadColor"]    = getter_color4 <CharacterSetting, &CharacterSetting::headColor>();
-    DispatchTable["CharacterSetting"]["TorsoColor"]   = getter_color4 <CharacterSetting, &CharacterSetting::torsoColor>();
-    DispatchTable["CharacterSetting"]["LeftArmColor"]  = getter_color4<CharacterSetting, &CharacterSetting::leftArmColor>();
-    DispatchTable["CharacterSetting"]["RightArmColor"] = getter_color4<CharacterSetting, &CharacterSetting::rightArmColor>();
-    DispatchTable["CharacterSetting"]["LeftLegColor"]  = getter_color4<CharacterSetting, &CharacterSetting::leftLegColor>();
-    DispatchTable["CharacterSetting"]["RightLegColor"] = getter_color4<CharacterSetting, &CharacterSetting::rightLegColor>();
+    // Humanoid
+    DispatchTable["Humanoid"]["WalkSpeed"] = getter_number<Humanoid, &Humanoid::WalkSpeed>();
+    DispatchTable["Humanoid"]["JumpPower"] = getter_number<Humanoid, &Humanoid::JumpPower>();
 
     DispatchTable["AppImage"]["IconPath"] = getter_string<AppImage, &AppImage::iconPath>();
 
@@ -462,20 +455,13 @@ void LuauEngine::InitSetterTable_Physics() {
     SetterTable["Motor"]["MaxForce"]      = setter_method_float<Motor, &Motor::setMaxForce>();
 }
 
-// ==================== Setter: Sound, CharacterSetting, AppImage, Script ====================
+// ==================== Setter: Sound, Humanoid, AppImage, Script ====================
 void LuauEngine::InitSetterTable_Misc() {
     SetterTable["Sound"]["Looped"] = setter_method_bool <Sound, &Sound::setLooping>();
     SetterTable["Sound"]["Volume"] = setter_method_float<Sound, &Sound::setVolume>();
 
-    SetterTable["CharacterSetting"]["JumpPower"]    = setter_number <CharacterSetting, &CharacterSetting::jumpPower>();
-    SetterTable["CharacterSetting"]["MoveSpeed"]    = setter_number <CharacterSetting, &CharacterSetting::moveSpeed>();
-    SetterTable["CharacterSetting"]["FacePath"]     = setter_string <CharacterSetting, &CharacterSetting::facePath>();
-    SetterTable["CharacterSetting"]["HeadColor"]    = setter_color4 <CharacterSetting, &CharacterSetting::headColor>();
-    SetterTable["CharacterSetting"]["TorsoColor"]   = setter_color4 <CharacterSetting, &CharacterSetting::torsoColor>();
-    SetterTable["CharacterSetting"]["LeftArmColor"]  = setter_color4<CharacterSetting, &CharacterSetting::leftArmColor>();
-    SetterTable["CharacterSetting"]["RightArmColor"] = setter_color4<CharacterSetting, &CharacterSetting::rightArmColor>();
-    SetterTable["CharacterSetting"]["LeftLegColor"]  = setter_color4<CharacterSetting, &CharacterSetting::leftLegColor>();
-    SetterTable["CharacterSetting"]["RightLegColor"] = setter_color4<CharacterSetting, &CharacterSetting::rightLegColor>();
+    SetterTable["Humanoid"]["WalkSpeed"] = setter_number<Humanoid, &Humanoid::WalkSpeed>();
+    SetterTable["Humanoid"]["JumpPower"] = setter_number<Humanoid, &Humanoid::JumpPower>();
 
     SetterTable["AppImage"]["IconPath"] = setter_string<AppImage, &AppImage::iconPath>();
 

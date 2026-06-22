@@ -9,6 +9,7 @@
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/Sphere.hpp>
+#include <Instances/Humanoid.hpp>
 #include <include/GL/glew.h>
 #include <include/GLFW/glfw3.h>
 #include <Instances/Tool.hpp>
@@ -26,8 +27,6 @@ public:
     GLFWwindow* window;
 
     float speed = 0.25f;
-    float walkPower = 5.0f;
-    float jumpPower = 7.0f;
     float rotationSpeed = 1.0f;
     float cameraDistance = 10.0f;
     float zoomSpeed = 0.1f;
@@ -44,29 +43,12 @@ public:
 
     camera &cam;
     Vector3 &cpos;
-    std::shared_ptr<Model> character = nullptr;
-    std::shared_ptr<Cube> root = nullptr; // キャラクターのルート（全体をまとめる）
-    std::shared_ptr<Cube> torso = nullptr;
-    std::shared_ptr<Sphere> head = nullptr;
-    std::shared_ptr<Cube> leftArm = nullptr;
-    std::shared_ptr<Cube> rightArm = nullptr;
-    std::shared_ptr<Cube> leftLeg = nullptr;
-    std::shared_ptr<Cube> rightLeg = nullptr;
-
-    struct Pose {
-        float leftArm;
-        float rightArm;
-        float leftLeg;
-        float rightLeg;
-    };
+    std::shared_ptr<Model> character = nullptr;     // clone後のキャラクター本体(PlayerCharacter)
+    std::shared_ptr<Humanoid> humanoid = nullptr;   // character内から名前解決される
 
     bool processCameraRotation(bool viewportFocused);
     void processZoom(bool viewportZoomEnabled);
     void processMovement(bool viewportFocused, Physics* physics);
-    void processCharacterMovement(Physics* physics);
-    void updateFirstPersonState();
-    Pose computePose();
-    void applyBodyAnimation();
     void processHotkeys();
     void processToolkeys(bool viewportFocused, bool isGameplayInput, bool wantsTextInput);
     void processMouse(bool isGameplayInput);
@@ -98,7 +80,10 @@ public:
     void updateVectors();
     void initializeInventory();  // Inventory を User の子として追加（コンストラクタ後に呼ぶ）
     void processInput(class Physics* physics, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput);
-    void spawnCharacter(class CharacterSetting* cs = nullptr);
+    // searchRoot: StarterCharacterを探す起点(通常はSystem)。Userは自身のParentに必ずしも
+    // システムが居るとは限らない(パッケージ済みランタイムではUserがツリーに属さない)ため、
+    // 呼び出し元(main.cpp/game_main.cpp)から明示的に渡す
+    void spawnCharacter(Instance* searchRoot);
     void despawnCharacter();
     static User* getInstance() { return s_instance; }
 
@@ -110,22 +95,12 @@ private:
     static User* s_instance;
     static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 
-    // 外部からは参照されない内部状態（フレーム間のトグル判定・アニメーション・一時状態）
-    float walkCycle = 0.0f; // 歩行アニメーション用
-    Vector3 currentMoveDir; // 滑らかな移動・回転用
+    // キャラクターの移動・カメラ追従(Humanoidに入力を渡し、結果を読んでカメラ位置を更新する)
+    void processCharacterMovement(Physics* physics);
+
+    // 外部からは参照されない内部状態（フレーム間のトグル判定）
     bool lastFKeyPressed = false; // トグル判定用
     bool lastSpacePressed = false; // ジャンプ用
-    bool isGrounded = true;
-    bool isFirstPerson = false;
-
-    // 体パーツの色保存（一人称で非表示にする際の復元用）
-    Color4 savedTorsoColor;
-    Color4 savedHeadColor;
-    Color4 savedLeftArmColor;
-    Color4 savedRightArmColor;
-    Color4 savedLeftLegColor;
-    Color4 savedRightLegColor;
-    bool bodyColorsSaved = false;
 
     // CtrlLock(Roblox ShiftLock相当)
     bool ctrlLockEnabled = false;

@@ -1,25 +1,130 @@
 Root:
   Children:
+    - ClassName: User
+      Name: User
+      Properties:
+        ControlMode: Free
+        Speed: 0.25
+        CameraDistance: 10
+        ZoomSpeed: 0.1
+        MouseZoomSpeed: 1
+      Children:
+        - ClassName: Folder
+          Name: Inventory
+          Children:
+            - ClassName: Tool
+              Name: TestTool1
+              Properties:
+                Hand: Right
+              Children:
+                - ClassName: Cube
+                  Name: Handle
+                  Properties:
+                    Position: [0, 0, 0]
+                    Size: [0.5, 0.5, 5]
+                    Rotation: [0, 0, 0, 1]
+                    Color: [1, 0, 0, 1]
+                    Anchored: true
+                    CanCollide: false
+                    CastShadow: true
+                    Unlit: false
+            - ClassName: Tool
+              Name: TestTool2
+              Properties:
+                Hand: Right
+    - ClassName: StarterCharacter
+      Name: StarterCharacter
+      Children:
+        - ClassName: Humanoid
+          Name: Humanoid
+          Properties:
+            WalkSpeed: 16
+            JumpPower: 42
+        - ClassName: Cube
+          Name: LeftArm
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Root
+          Properties:
+            Position: [0, 100, 0]
+            Size: [2, 4, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.5, 0.5, 0]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: RightArm
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Sphere
+          Name: Head
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1.25, 1.25, 1.25]
+            Rotation: [0, 0.70710677, 0, 0.70710677]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Torso
+          Properties:
+            Position: [0, 0, 0]
+            Size: [2, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39215687, 0.047058824, 0.1254902, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: LeftLeg
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.14117648, 0.31764707, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: RightLeg
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.14117648, 0.31764707, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
     - ClassName: AppImage
       Name: AppImage
       Properties:
         IconPath: C:\Users\Ryarta\Documents\Recubin\assets\image\the-cat.png
-    - ClassName: CharacterSetting
-      Name: CharacterSetting
-      Properties:
-        FacePath: C:\Users\Ryarta\Documents\Recubin\assets\image\hehe.png
-        HeadColor: [1, 1, 1, 1]
-        TorsoColor: [0.39215687, 0.047058824, 0.1254902, 1]
-        LeftArmColor: [1, 1, 1, 1]
-        RightArmColor: [1, 1, 1, 1]
-        LeftLegColor: [0, 0.14117648, 0.31764707, 1]
-        RightLegColor: [0, 0.14117648, 0.31764707, 1]
-        JumpPower: 16
-        MoveSpeed: 5
     - ClassName: Workspace
       Name: Workspace
       Properties:
-        Gravity: [0, -30, 0]
+        Gravity: [0, -196.2, 0]
         PhysicsEnabled: true
       Children:
         - ClassName: Rope
@@ -79,6 +184,14 @@ Root:
           Children:
             - ClassName: SurfaceGui
               Name: SurfaceGui
+              Properties:
+                Size: [200, 100]
+                Norm: Pixel
+                Active: true
+                Visible: true
+                BackgroundColor: [1, 1, 1, 1]
+                ZIndex: 0
+                Face: Front
               Children:
                 - ClassName: TextLabel
                   Name: TextLabel
@@ -126,7 +239,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [-3.389624, 0.10851622, -14.446202]
+            Position: [-23.783043, 10.072394, 12.855907]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -242,7 +355,7 @@ Root:
                 Position: [0, 0, 0]
                 Size: [1, 1, 1]
                 Rotation: [0, 0, 0, 1]
-                ContentPath: assets/sound/Newalks.mp3
+                ContentPath: ""
                 Looped: true
                 SoundGroup: SFX
                 AutoPlay: false

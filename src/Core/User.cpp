@@ -1,7 +1,7 @@
 #include <Core/User.hpp>
+#include <Instances/StarterCharacter.hpp>
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
-#include <Instances/CharacterSetting.hpp>
 #include <include/Util/Logger.hpp>
 
 User* User::s_instance = nullptr;
@@ -15,15 +15,14 @@ void User::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
     }
 }
 
-User::User(GLFWwindow* win) 
+User::User(GLFWwindow* win)
     : Instance("User"),
-      window(win), 
-      cam(current_camera), 
+      window(win),
+      cam(current_camera),
       cpos(current_camera.Position),
-      forward(0, 0, -1), 
-      right(1, 0, 0), 
+      forward(0, 0, -1),
+      right(1, 0, 0),
       up(0, 1, 0),
-      currentMoveDir(0, 0, 0),
       lastFKeyPressed(false)
 {
     s_instance = this;
@@ -45,13 +44,7 @@ User::~User() {
     s_instance = nullptr;
     // shared_ptr なので参照カウントが 0 になれば自動解放される
     character = nullptr;
-    root = nullptr;
-    torso = nullptr;
-    head = nullptr;
-    leftArm = nullptr;
-    rightArm = nullptr;
-    leftLeg = nullptr;
-    rightLeg = nullptr;
+    humanoid  = nullptr;
 }
 
 void User::updateVectors() {
@@ -66,12 +59,12 @@ bool User::processCameraRotation(bool viewportFocused) {
     bool rotated = false;
     const float rotationSpeed = 1.5f;
     const double mouseRotationSpeed = 0.15;
- 
+
     if (viewportFocused) {
         const bool rightMousePressed = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
         double currentMouseX = 0.0, currentMouseY = 0.0;
         glfwGetCursorPos(window, &currentMouseX, &currentMouseY);
- 
+
         if (rightMousePressed) {
             if (!isRightMouseRotating) {
                 isRightMouseRotating = true;
@@ -97,22 +90,22 @@ bool User::processCameraRotation(bool viewportFocused) {
     } else {
         isRightMouseRotating = false;
     }
- 
+
     if (viewportFocused) {
         if (glfwGetKey(window, GLFW_KEY_LEFT)  == GLFW_PRESS) { cam.Orientation = Quaternion::fromAxisAngle(Vector3(0,1,0),  rotationSpeed) * cam.Orientation; rotated = true; }
         if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) { cam.Orientation = Quaternion::fromAxisAngle(Vector3(0,1,0), -rotationSpeed) * cam.Orientation; rotated = true; }
         if (glfwGetKey(window, GLFW_KEY_UP)    == GLFW_PRESS) { cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1,0,0),  rotationSpeed); rotated = true; }
         if (glfwGetKey(window, GLFW_KEY_DOWN)  == GLFW_PRESS) { cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1,0,0), -rotationSpeed); rotated = true; }
     }
- 
+
     if (rotated) updateVectors();
     return rotated;
 }
- 
+
 // ズーム（I/Oキー・スクロール）
 void User::processZoom(bool viewportZoomEnabled) {
     if (!viewportZoomEnabled) return;
- 
+
     if (controlMode == ControlMode::Free) {
         if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) cpos = cpos + forward * zoomSpeed;
         if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) cpos = cpos - forward * zoomSpeed;
@@ -130,11 +123,11 @@ void User::processZoom(bool viewportZoomEnabled) {
         }
     }
 }
- 
+
 // 移動ディスパッチ（Free / Character を振り分け）
 void User::processMovement(bool viewportFocused, Physics* physics) {
     if (!viewportFocused) return;
- 
+
     if (controlMode == ControlMode::Free) {
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cpos = cpos + forward * speed;
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cpos = cpos - forward * speed;
@@ -142,207 +135,9 @@ void User::processMovement(bool viewportFocused, Physics* physics) {
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cpos = cpos + right   * speed;
         if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) cpos = cpos - up      * speed;
         if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) cpos = cpos + up      * speed;
-    } else if (controlMode == ControlMode::Character && character && root) {
+    } else if (controlMode == ControlMode::Character && character && humanoid) {
         processCharacterMovement(physics);
     }
-}
- 
-// 一人称視点の切替（cameraDistanceに応じて体パーツの表示/非表示を制御）
-void User::updateFirstPersonState() {
-    if (!root || !torso || !head || !leftArm || !rightArm || !leftLeg || !rightLeg) return;
-
-    bool shouldBeFirstPerson = (cameraDistance <= firstPersonThreshold);
-
-    if (shouldBeFirstPerson && !isFirstPerson) {
-        if (!bodyColorsSaved) {
-            savedTorsoColor    = torso->Color;
-            savedHeadColor     = head->Color;
-            savedLeftArmColor  = leftArm->Color;
-            savedRightArmColor = rightArm->Color;
-            savedLeftLegColor  = leftLeg->Color;
-            savedRightLegColor = rightLeg->Color;
-            bodyColorsSaved = true;
-        }
-        Color4 hidden = Color4(1.0f, 1.0f, 1.0f, 0.0f);
-        torso->Color    = hidden;
-        head->Color     = hidden;
-        leftArm->Color  = hidden;
-        rightArm->Color = hidden;
-        leftLeg->Color  = hidden;
-        rightLeg->Color = hidden;
-        isFirstPerson = true;
-    } else if (!shouldBeFirstPerson && isFirstPerson) {
-        if (bodyColorsSaved) {
-            torso->Color    = savedTorsoColor;
-            head->Color     = savedHeadColor;
-            leftArm->Color  = savedLeftArmColor;
-            rightArm->Color = savedRightArmColor;
-            leftLeg->Color  = savedLeftLegColor;
-            rightLeg->Color = savedRightLegColor;
-            bodyColorsSaved = false;
-        }
-        isFirstPerson = false;
-    }
-}
-
-// キャラクター移動・物理・アニメーションサイクル・地面判定・カメラ追従
-void User::processCharacterMovement(Physics* physics) {
-    if (!root || !root->actor) return;
- 
-    physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
-    if (!dynamicActor) return;
- 
-    // --- 入力方向の収集 ---
-    Vector3 targetMoveDir(0, 0, 0);
-    bool isPressingMove = false;
- 
-    Vector3 flatForward = Vector3(forward.x, 0, forward.z).normalize();
-    Vector3 flatRight   = Vector3(right.x,   0, right.z  ).normalize();
- 
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) { targetMoveDir = targetMoveDir + flatForward; isPressingMove = true; }
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) { targetMoveDir = targetMoveDir - flatForward; isPressingMove = true; }
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) { targetMoveDir = targetMoveDir - flatRight;   isPressingMove = true; }
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) { targetMoveDir = targetMoveDir + flatRight;   isPressingMove = true; }
- 
-    if (isPressingMove) targetMoveDir = targetMoveDir.normalize();
- 
-    // --- 移動ベクトルの補間 ---
-    currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * 0.15f;
- 
-    // --- 向き(Rotation)の更新 ---
-    Quaternion targetRot = root->Rotation;
-    if (ctrlLockEnabled) {
-        // CtrlLock中は常にカメラの正面方向を向く（Roblox ShiftLock方式）
-        targetRot = Quaternion::LookRotation(flatForward, Vector3(0, 1, 0));
-    } else if (isPressingMove) {
-        targetRot = Quaternion::LookRotation(targetMoveDir, Vector3(0, 1, 0));
-    }
-    root->Rotation = Quaternion::Slerp(root->Rotation, targetRot, 0.15f);
- 
-    physx::PxTransform pose = dynamicActor->getGlobalPose();
-    pose.q = physx::PxQuat(root->Rotation.x, root->Rotation.y, root->Rotation.z, root->Rotation.w);
-    dynamicActor->setGlobalPose(pose);
- 
-    // --- 物理速度の適用 ---
-    if (currentMoveDir.length() > 0.01f) {
-        Vector3 velocity = currentMoveDir * walkPower;
- 
-        RaycastHit wallHit;
-        float checkDist = root->Size.x / 2.0f + 0.15f;
-        if (physics && physics->raycast(root->getWorldPosition(), currentMoveDir, checkDist, wallHit, root->actor)) {
-            Vector3 n(wallHit.normal.x, 0.0f, wallHit.normal.z);
-            float nLen = n.length();
-            if (nLen > 0.001f) {
-                n = n * (1.0f / nLen);
-                float dot = velocity.x * n.x + velocity.z * n.z;
-                if (dot < 0.0f) {
-                    velocity.x -= dot * n.x;
-                    velocity.z -= dot * n.z;
-                }
-            }
-        }
- 
-        physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
-        dynamicActor->setLinearVelocity(physx::PxVec3(velocity.x, currentVel.y, velocity.z));
-    } else {
-        physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
-        dynamicActor->setLinearVelocity(physx::PxVec3(0, currentVel.y, 0));
-    }
- 
-    // --- アニメーションサイクル（0.0 ~ 1.0）の更新 ---
-    const float animationSpeed = 0.025f;
-    if (isPressingMove) {
-        walkCycle += animationSpeed;
-        if (walkCycle > 1.0f) walkCycle -= 1.0f;
-    } else {
-        if (walkCycle > 0.0f) {
-            if (walkCycle > 0.5f) {
-                walkCycle += animationSpeed;
-                if (walkCycle >= 1.0f) walkCycle = 0.0f;
-            } else {
-                walkCycle -= animationSpeed;
-                if (walkCycle < 0.0f) walkCycle = 0.0f;
-            }
-        }
-    }
- 
-    // --- 地面判定 ---
-    RaycastHit hit;
-    float maxDist = (root->Size.y / 2.0f) + 0.2f;
-    isGrounded = physics ? physics->raycast(root->getWorldPosition(), Vector3(0, -1, 0), maxDist, hit, root->actor) : false;
- 
-    // --- カメラ追従 ---
-    const Vector3 headOffset = Vector3(0, 2.5f, 0); // applyBodyAnimation()のheadOffsetと一致させる
-    if (isFirstPerson) {
-        cpos = root->getWorldPosition() + headOffset;
-    } else {
-        Vector3 basePos = root->getWorldPosition() + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
-        if (ctrlLockEnabled) {
-            float offsetSign = ctrlLockOffsetRight ? 1.0f : -1.0f;
-            basePos = basePos + right * (ctrlLockOffsetDistance * offsetSign);
-        }
-        cpos = basePos;
-    }
-}
- 
-// ============================================================
-// Animation: Pose計算
-// ============================================================
-
-User::Pose User::computePose() {
-    const float PI = 3.14159265f;
-    float rad   = walkCycle * 2.0f * PI;
-    float swing = std::sin(rad) * 35.0f;
-
-    Pose p;
-
-    bool toolEquipped = currentTool && currentTool->Equipped;
-    bool usesLeft  = toolEquipped && (currentTool->Hand == Tool::ToolHand::Left  || currentTool->Hand == Tool::ToolHand::Both);
-    bool usesRight = toolEquipped && (currentTool->Hand == Tool::ToolHand::Right || currentTool->Hand == Tool::ToolHand::Both);
-
-    p.leftArm  = usesLeft  ? 90.0f : (isGrounded ? swing  : 180.0f);
-    p.rightArm = usesRight ? 90.0f : (isGrounded ? -swing : 180.0f);
-
-    p.leftLeg  = -swing;
-    p.rightLeg =  swing;
-
-    return p;
-}
-
-
-// ============================================================
-// Animation: Limb組み立て（共通）
-// ============================================================
-
-static CFrame makeArm(
-    const CFrame& root,
-    const Vector3& jointPos,
-    float angleDeg
-) {
-    const Vector3 pivotOffset = Vector3(0, -0.5f, 0); // 回転中心調整
-    const Vector3 meshOffset  = Vector3(0, -1.0f, 0); // モデル補正
-
-    return root *
-           CFrame(jointPos.x, jointPos.y, jointPos.z) *
-           CFrame(pivotOffset.x, pivotOffset.y, pivotOffset.z) *
-           CFrame::fromAxisAngle(Vector3(1,0,0), angleDeg) *
-           CFrame(-pivotOffset.x, -pivotOffset.y, -pivotOffset.z) *
-           CFrame(meshOffset.x, meshOffset.y, meshOffset.z);
-}
-
-
-static CFrame makeLeg(
-    const CFrame& root,
-    const Vector3& jointPos,
-    float angleDeg
-) {
-    // 脚は今のところpivot補正なし
-    const Vector3 meshOffset = Vector3(0, -1.0f, 0);
-
-    return root *
-           CFrame(jointPos.x, jointPos.y, jointPos.z) *
-           CFrame::fromAxisAngle(Vector3(1,0,0), angleDeg) *
-           CFrame(meshOffset.x, meshOffset.y, meshOffset.z);
 }
 
 static void attachToolHandle(
@@ -358,58 +153,60 @@ static void attachToolHandle(
     tool->Handle->cframe = armCFrame; // 手の位置にツールを配置
 }
 
-// ============================================================
-// Animation: 適用本体（差し替え対象）
-// ============================================================
-void User::applyBodyAnimation() {
-    if (!root) return;
+// キャラクターの移動・カメラ追従（移動・回転・歩行アニメ・接地判定そのものはHumanoidが行う）
+void User::processCharacterMovement(Physics* physics) {
+    if (!humanoid || !humanoid->Root) return;
 
-    Pose pose = computePose();
+    // --- 入力方向の収集 ---
+    Vector3 targetMoveDir(0, 0, 0);
+    bool isPressingMove = false;
 
-    // --- リグ定義（全部ここに固定） ---
-    const Vector3 torsoOffset      = Vector3(0, 1.0f, 0);
-    const Vector3 headOffset       = Vector3(0, 2.5f, 0);
+    Vector3 flatForward = Vector3(forward.x, 0, forward.z).normalize();
+    Vector3 flatRight   = Vector3(right.x,   0, right.z  ).normalize();
 
-    const Vector3 leftShoulderPos  = Vector3(-1.5f, 2.0f, 0);
-    const Vector3 rightShoulderPos = Vector3( 1.5f, 2.0f, 0);
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) { targetMoveDir = targetMoveDir + flatForward; isPressingMove = true; }
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) { targetMoveDir = targetMoveDir - flatForward; isPressingMove = true; }
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) { targetMoveDir = targetMoveDir - flatRight;   isPressingMove = true; }
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) { targetMoveDir = targetMoveDir + flatRight;   isPressingMove = true; }
 
-    const Vector3 leftHipPos       = Vector3(-0.5f, 0.0f, 0);
-    const Vector3 rightHipPos      = Vector3( 0.5f, 0.0f, 0);
+    if (isPressingMove) targetMoveDir = targetMoveDir.normalize();
 
-    // --- torso / head ---
-    if (torso) torso->cframe = root->cframe * CFrame(torsoOffset.x, torsoOffset.y, torsoOffset.z);
-    if (head)  head->cframe  = root->cframe * CFrame(headOffset.x,  headOffset.y,  headOffset.z);
+    bool toolEquipped   = currentTool && currentTool->Equipped;
+    bool leftArmRaised  = toolEquipped && (currentTool->Hand == Tool::ToolHand::Left  || currentTool->Hand == Tool::ToolHand::Both);
+    bool rightArmRaised = toolEquipped && (currentTool->Hand == Tool::ToolHand::Right || currentTool->Hand == Tool::ToolHand::Both);
 
-    // --- arms ---
-    if (leftArm) {
-        leftArm->cframe = makeArm(root->cframe, leftShoulderPos, pose.leftArm);
-        if (currentTool && currentTool->Equipped && currentTool->Hand == Tool::ToolHand::Left) {
-            attachToolHandle(leftArm, currentTool, root->Rotation);
+    humanoid->move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, physics, leftArmRaised, rightArmRaised);
+
+    // --- 装備中のツールを手の位置に追従させる ---
+    if (toolEquipped) {
+        if (currentTool->Hand == Tool::ToolHand::Left) {
+            attachToolHandle(humanoid->LeftArm, currentTool, humanoid->Root->Rotation);
+        }
+        if (currentTool->Hand != Tool::ToolHand::Left) {
+            attachToolHandle(humanoid->RightArm, currentTool, humanoid->Root->Rotation);
         }
     }
 
-    if (rightArm) {
-        rightArm->cframe = makeArm(root->cframe, rightShoulderPos, pose.rightArm);
-        if (currentTool && currentTool->Equipped && currentTool->Hand != Tool::ToolHand::Left) {
-            attachToolHandle(rightArm, currentTool, root->Rotation);
+    // --- カメラ追従 ---
+    const Vector3 headOffset = Vector3(0, 2.5f, 0); // Humanoid::applyBodyAnimation()のheadOffsetと一致させる
+    if (humanoid->isInFirstPerson()) {
+        cpos = humanoid->getRootWorldPosition() + headOffset;
+    } else {
+        Vector3 basePos = humanoid->getRootWorldPosition() + Vector3(0, 2.0f, 0) - (forward * cameraDistance);
+        if (ctrlLockEnabled) {
+            float offsetSign = ctrlLockOffsetRight ? 1.0f : -1.0f;
+            basePos = basePos + right * (ctrlLockOffsetDistance * offsetSign);
         }
-    }
-
-    if (leftLeg) {
-        leftLeg->cframe = makeLeg(root->cframe, leftHipPos, pose.leftLeg);
-    }
-
-    if (rightLeg) {
-        rightLeg->cframe = makeLeg(root->cframe, rightHipPos, pose.rightLeg);
+        cpos = basePos;
     }
 }
- 
+
 // ホットキー（ESC / L / P / Space）
 void User::processHotkeys() {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         wannaExit = true;
     }
- 
+
     // Lキー: Free/Character モード切り替え
     bool fPressed = (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS);
     if (fPressed && !lastFKeyPressed && allowControlModeSwitch) {
@@ -422,24 +219,17 @@ void User::processHotkeys() {
         }
     }
     lastFKeyPressed = fPressed;
- 
+
     // Pキー: ワークスペース切り替え
     static bool lastPPressed = false;
     bool pPressed = (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS);
     if (pPressed && !lastPPressed) wantsSwitchWorkspace = true;
     lastPPressed = pPressed;
- 
-    // Space: ジャンプ（接地時のみ）
+
+    // Space: ジャンプ（接地時のみ、判定はHumanoid内部）
     bool spacePressed = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
-    if (spacePressed && !lastSpacePressed && controlMode == ControlMode::Character && root && root->actor) {
-        if (isGrounded) {
-            physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
-            if (dynamicActor) {
-                physx::PxVec3 vel = dynamicActor->getLinearVelocity();
-                vel.y = jumpPower;
-                dynamicActor->setLinearVelocity(vel);
-            }
-        }
+    if (spacePressed && !lastSpacePressed && controlMode == ControlMode::Character && humanoid) {
+        humanoid->jump();
     }
     lastSpacePressed = spacePressed;
 
@@ -534,7 +324,7 @@ void User::processMouse(bool isGameplayInput) {
 // ============================================================
 // processInput（呼び出し口）
 // ============================================================
- 
+
 void User::processInput(Physics* physics, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput) {
     if (!window) return;
 
@@ -545,9 +335,8 @@ void User::processInput(Physics* physics, bool viewportFocused, bool viewportZoo
 
     bool rotated = processCameraRotation(viewportFocused);
     processZoom(viewportZoomEnabled);
-    updateFirstPersonState();
+    if (humanoid) humanoid->updateFirstPersonState(cameraDistance <= firstPersonThreshold);
     processMovement(viewportFocused, physics);
-    applyBodyAnimation();
     if (rotated) updateVectors();
     processHotkeys();
     processToolkeys(viewportFocused, isGameplayInput, wantsTextInput);
@@ -562,18 +351,77 @@ void User::despawnCharacter() {
         parent->removeChild(character->Name);
     }
     character = nullptr;
-    root      = nullptr;
-    torso     = nullptr;
-    head      = nullptr;
-    leftArm   = nullptr;
-    rightArm  = nullptr;
-    leftLeg   = nullptr;
-    rightLeg  = nullptr;
-    isFirstPerson = false;
-    bodyColorsSaved = false;
+    humanoid  = nullptr;
 }
 
-void User::spawnCharacter(CharacterSetting* cs) {
+// System配下を再帰探索してStarterCharacterを見つける
+static Instance* findStarterCharacter(Instance* inst) {
+    if (!inst) return nullptr;
+    if (inst->getClassName() == "StarterCharacter") return inst;
+    for (auto& [name, child] : inst->children) {
+        if (auto* found = findStarterCharacter(child.get())) return found;
+    }
+    return nullptr;
+}
+
+// StarterCharacterが一つも無いプロジェクトのためのフォールバック。
+// 以前ハードコードされていた既定のリグ(Humanoid+Root+Torso+Head+両腕+両脚)を
+// そのままStarterCharacterとして生成する(初回のみ。以後はsearchRootの子として見つかる)。
+static std::shared_ptr<StarterCharacter> createDefaultStarterCharacter() {
+    auto starter = std::make_shared<StarterCharacter>();
+    starter->Name = "StarterCharacter";
+
+    auto humanoid = std::make_shared<Humanoid>();
+    humanoid->Name = "Humanoid";
+
+    Vector3 basePos(0.0f, 0.0f, 0.0f);
+    auto root     = std::make_shared<Cube>(basePos, Vector3(2.0f, 4.0f, 1.0f), 0);
+    auto head     = std::make_shared<Sphere>(basePos, Vector3(1.25f, 1.25f, 1.25f));
+    auto torso    = std::make_shared<Cube>(basePos, Vector3(2.0f, 2.0f, 1.0f), 0);
+    auto leftArm  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    auto rightArm = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    auto leftLeg  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+    auto rightLeg = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
+
+    // headを90度回転させて顔が前を向くようにする
+    head->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f));
+
+    root->Name     = "Root";
+    head->Name     = "Head";
+    torso->Name    = "Torso";
+    leftArm->Name  = "LeftArm";
+    rightArm->Name = "RightArm";
+    leftLeg->Name  = "LeftLeg";
+    rightLeg->Name = "RightLeg";
+
+    head->Anchored = torso->Anchored = leftArm->Anchored = rightArm->Anchored = leftLeg->Anchored = rightLeg->Anchored = true;
+    head->CanCollide = torso->CanCollide = leftArm->CanCollide = rightArm->CanCollide = leftLeg->CanCollide = rightLeg->CanCollide = false;
+
+    root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+    root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // NOTE: physics root は非表示 (alpha=0)
+
+    torso->Color    = Color4::FromRGB(100, 12, 32);
+    Color4 skin     = Color4(1.0f, 1.0f, 1.0f, 1.0f);
+    head->Color     = skin;
+    leftArm->Color  = skin;
+    rightArm->Color = skin;
+    Color4 pants    = Color4::FromRGB(0, 36, 81);
+    leftLeg->Color  = pants;
+    rightLeg->Color = pants;
+
+    starter->addChild(humanoid);
+    starter->addChild(root);
+    starter->addChild(head);
+    starter->addChild(torso);
+    starter->addChild(leftArm);
+    starter->addChild(rightArm);
+    starter->addChild(leftLeg);
+    starter->addChild(rightLeg);
+
+    return starter;
+}
+
+void User::spawnCharacter(Instance* searchRoot) {
     if (character) {
         despawnCharacter();
     }
@@ -586,7 +434,7 @@ void User::spawnCharacter(CharacterSetting* cs) {
     testHandle->Anchored = true;
     testHandle->Color = Color4::FromRGB(255, 0, 0);
     testHandle->CanCollide = false;
-    
+
     tool1->addChild(testHandle);
     tool1->Hand = Tool::ToolHand::Left;
     tool1->Handle = testHandle;
@@ -597,76 +445,28 @@ void User::spawnCharacter(CharacterSetting* cs) {
     Inventory->addChild(tool2);
     // end of HACK
 
-    character = std::make_shared<Model>(Vector3(0.0f, 100.0f, 0.0f), Vector3(1, 1, 1));
-    character->Name = "PlayerCharacter"; // NOTE: この名称は今後変更しないこと(ユーザーのスクリプトとの互換性を保つため)
-    Vector3 basePos = character->Position;
-
-    // パーツ生成
-    root      = std::make_shared<Cube>(basePos, Vector3(2.0f, 4.0f, 1.0f), 0);
-    head      = std::make_shared<Sphere>(basePos, Vector3(1.25f, 1.25f, 1.25f));
-    torso     = std::make_shared<Cube>(basePos, Vector3(2.0f, 2.0f, 1.0f), 0);
-    leftArm   = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
-    rightArm  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
-    leftLeg   = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
-    rightLeg  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
-
-    // headを90度回転させて顔が前を向くようにする
-    head->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f));
-    // 1. 名前を最初に設定（重要：addChildの前に設定して重複キーを避ける）
-    root->Name     = "Root";
-    head->Name     = "Head";
-    torso->Name    = "Torso";
-    leftArm->Name  = "LeftArm";
-    rightArm->Name = "RightArm";
-    leftLeg->Name  = "LeftLeg";
-    rightLeg->Name = "RightLeg";
-
-    // 2. 物理・アンカーの設定
-    head->Anchored     = true;
-    torso->Anchored    = true;
-    leftArm->Anchored  = true;
-    rightArm->Anchored = true;
-    leftLeg->Anchored  = true;
-    rightLeg->Anchored = true;
-
-    head->CanCollide     = false;
-    torso->CanCollide    = false;
-    leftArm->CanCollide  = false;
-    rightArm->CanCollide = false;
-    leftLeg->CanCollide  = false;
-    rightLeg->CanCollide = false;
-    
-    root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
-
-    root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // NOTE: physics root は非表示 (alpha=0)
-    if (cs) {
-        jumpPower        = cs->jumpPower;
-        walkPower        = cs->moveSpeed;
-        head->Color      = cs->headColor;
-        torso->Color     = cs->torsoColor;
-        leftArm->Color   = cs->leftArmColor;
-        rightArm->Color  = cs->rightArmColor;
-        leftLeg->Color   = cs->leftLegColor;
-        rightLeg->Color  = cs->rightLegColor;
-    } else {
-        torso->Color   = Color4::FromRGB(100, 12, 32);
-        Color4 skin    = Color4(1.0f, 1.0f, 1.0f, 1.0f);
-        head->Color    = skin;
-        leftArm->Color = skin;
-        rightArm->Color= skin;
-        Color4 pants   = Color4::FromRGB(0, 36, 81);
-        leftLeg->Color = pants;
-        rightLeg->Color= pants;
+    Instance* starter = findStarterCharacter(searchRoot);
+    if (!starter && searchRoot) {
+        auto defaultStarter = createDefaultStarterCharacter();
+        searchRoot->addChild(defaultStarter);
+        starter = defaultStarter.get();
+        RCBN_LOG("StarterCharacter が見つからなかったため、既定のキャラクターを生成しました");
+    }
+    if (!starter) {
+        RCBN_WARN("User::spawnCharacter: StarterCharacter を生成できないため、キャラクターは生成されません");
+        return;
     }
 
-    // 3. 親に追加（名前確定後にaddChildすることで衝突を防ぐ）
-    character->addChild(root);
-    character->addChild(head);
-    character->addChild(torso);
-    character->addChild(leftArm);
-    character->addChild(rightArm);
-    character->addChild(leftLeg);
-    character->addChild(rightLeg);
+    character = std::make_shared<Model>(Vector3(0.0f, 0.0f, 0.0f), Vector3(1, 1, 1));
+    character->Name = "PlayerCharacter"; // NOTE: この名称は今後変更しないこと(ユーザーのスクリプトとの互換性を保つため)
+
+    for (auto const& [name, child] : starter->children) {
+        character->addChild(child->clone());
+    }
+
+    auto it = character->getChildren().find("Humanoid");
+    humanoid = (it != character->getChildren().end()) ? std::dynamic_pointer_cast<Humanoid>(it->second) : nullptr;
+    if (humanoid) humanoid->resolveParts(character.get());
 
     RCBN_LOG("Spawning character...");
 }

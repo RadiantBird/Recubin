@@ -61,7 +61,7 @@ private:
     void InitDispatchTable_Base();     // Instance, BaseCube
     void InitDispatchTable_World();    // Workspace, Decal, Lighting
     void InitDispatchTable_Physics();  // Rope, Rod, Weld, Motor
-    void InitDispatchTable_Misc();     // Sound, CharacterSetting, AppImage, Script
+    void InitDispatchTable_Misc();     // Sound, Humanoid, AppImage, Script
     void InitDispatchTable_GUI();      // ScreenGuiObject, TextLabel, GuiButton, TextButton, WorldGuiObject, SurfaceGui, BillboardGui
 
     void InitSetterTable();

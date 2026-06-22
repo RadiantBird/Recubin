@@ -20,7 +20,8 @@
 #include <Instances/Model.hpp>
 #include <Instances/Folder.hpp>
 #include <Instances/AppImage.hpp>
-#include <Instances/CharacterSetting.hpp>
+#include <Instances/Humanoid.hpp>
+#include <Instances/StarterCharacter.hpp>
 #include <Instances/TextLabel.hpp>
 #include <Instances/TextButton.hpp>
 #include <Instances/SurfaceGui.hpp>
@@ -350,8 +351,9 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Terrain>(m_history, "Terrain", parentSp);
         tryInsertInstance<Skybox>(m_history, "Skybox", parentSp);
         tryInsertInstance<AppImage>(m_history, "AppImage", parentSp);
-        tryInsertInstance<CharacterSetting>(m_history, "CharacterSetting", parentSp);
-        
+        tryInsertInstance<StarterCharacter>(m_history, "StarterCharacter", parentSp);
+        tryInsertInstance<Humanoid>(m_history, "Humanoid", parentSp);
+
         ImGui::EndMenu();
     }
 
