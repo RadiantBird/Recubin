@@ -6,8 +6,11 @@
 
 ## 単位系
 - **Roblox erik_stud(0.05 meterに等しい)**
-- エンジン内部ではstudを使用する
-- 物理エンジンや3Dモデルとの連携ではmに変換
+- エンジン内部・PhysXともにstud値をそのまま使用する（座標/サイズ/速度の変換はしない）
+- PhysXのPxTolerancesScaleをstud基準(length=20, speed=length*9.81)に設定し、
+  1m=20studの比率をPhysX側に伝えることで内部の許容誤差・閾値を適切にスケールする
+- 重力など、現実のSI単位の物理定数だけは個別にstud相当へ変換する
+  (例: 9.81 m/s² -> 196.2 stud/s²、`include/Math/Units.hpp`参照)
 
 ## インスタンス(Instanceクラスを継承したクラス)
 - 基本的に親(Parent)を持つ

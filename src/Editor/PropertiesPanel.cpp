@@ -1130,7 +1130,7 @@ void PropertiesPanel::onRender() {
         ImGui::SeparatorText("Workspace");
         ImGui::Checkbox("PhysicsEnabled", &ws->PhysicsEnabled);
         float grav[3] = { ws->Gravity.x, ws->Gravity.y, ws->Gravity.z };
-        if (ImGui::DragFloat3("Gravity", grav, 0.1f, -100.0f, 100.0f)) {
+        if (ImGui::DragFloat3("Gravity", grav, 0.1f, -300.0f, 300.0f)) {
             ws->Gravity = Vector3(grav[0], grav[1], grav[2]);
             if (ws->getPhysicsEngine()) ws->getPhysicsEngine()->setGravity(ws->Gravity);
         }

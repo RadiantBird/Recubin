@@ -1,6 +1,7 @@
 #pragma once
 
 #include <include/Math/Vector3.hpp>
+#include <include/Math/Units.hpp>
 
 #include <include/Instances/Instance.hpp>
 #include <memory>
@@ -31,7 +32,7 @@ class Workspace : public Instance {
         // }
 
     public:
-        Vector3 Gravity = {0.0f, -9.81f, 0.0f};
+        Vector3 Gravity = {0.0f, -METER_TO_STUD * EARTH_GRAVITY_MPS2, 0.0f};
         bool PhysicsEnabled = true;
 
         std::vector<std::shared_ptr<Instance>> pendingInstances;

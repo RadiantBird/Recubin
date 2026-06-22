@@ -2,6 +2,7 @@
 #include "include/Util/Logger.hpp"
 #include <include/Instances/Spatial.hpp>
 #include <include/PhysX/cooking/PxCooking.h>
+#include <include/Math/Units.hpp>
 #include <unordered_set>
 #include <algorithm>
 #include <queue>
@@ -63,7 +64,7 @@ void Physics::setGravity(const Vector3& g) {
 }
 
 Vector3 Physics::getGravity() const {
-    if (!scene) return Vector3(0.0f, -9.81f, 0.0f);
+    if (!scene) return Vector3(0.0f, -METER_TO_STUD * EARTH_GRAVITY_MPS2, 0.0f);
     physx::PxVec3 g = scene->getGravity();
     return Vector3(g.x, g.y, g.z);
 }
@@ -72,14 +73,16 @@ void Physics::init() {
     // 最初のインスタンスのみ共有リソースを構築
     if (s_refCount == 0) {
         s_foundation = PxCreateFoundation(PX_PHYSICS_VERSION, s_allocator, s_errorCallback);
-        s_pxPhysics  = PxCreatePhysics(PX_PHYSICS_VERSION, *s_foundation, physx::PxTolerancesScale());
+        // stud基準のスケール（1m=20stud）。PhysX公式の「cm単位ならlength=100」と同じ理屈
+        physx::PxTolerancesScale scale(METER_TO_STUD, METER_TO_STUD * EARTH_GRAVITY_MPS2);
+        s_pxPhysics  = PxCreatePhysics(PX_PHYSICS_VERSION, *s_foundation, scale);
         s_dispatcher = physx::PxDefaultCpuDispatcherCreate(1);
         PxInitExtensions(*s_pxPhysics, nullptr);
     }
     ++s_refCount;
 
     physx::PxSceneDesc sceneDesc(s_pxPhysics->getTolerancesScale());
-    sceneDesc.gravity               = physx::PxVec3(0.0f, -9.81f, 0.0f);
+    sceneDesc.gravity               = physx::PxVec3(0.0f, -METER_TO_STUD * EARTH_GRAVITY_MPS2, 0.0f);
     sceneDesc.cpuDispatcher         = s_dispatcher;
     sceneDesc.filterShader          = rcbnFilterShader;
     m_contactCallback               = new RCBNContactCallback();

@@ -214,9 +214,9 @@ int main(int argc, char* argv[]) {
 
     // Register only System so YAML can keep multiple Workspace nodes.
     SceneLoader::registerSingleton("System", system);
-    
-    // "assets/scenes/test_scene.yaml"
-    SceneLoader::loadScene("assets/scenes/terrain_test.yaml");
+    SceneLoader::registerSingleton("User", user);
+
+    SceneLoader::loadScene(EditorManager::kDefaultScenePath);
     SceneLoader::clearSingletons();
 
     workspaces = collectWorkspaces(system);
@@ -273,6 +273,8 @@ int main(int argc, char* argv[]) {
     auto editorOwned = std::make_unique<EditorManager>(workspace.get(), user.get(), system.get());
     EditorManager* ed = editorOwned.get();
     ed->engineExePath = engineExePath;
+    // scenePath はデフォルト値として EditorManager::kDefaultScenePath が入っており、
+    // 上の起動時ロードと同じ定数を参照しているため、ここでの再代入は不要
 
     // Workspace 切り替えコールバックを設定
     ed->hierarchyPanel->onSwitchWorkspace = [&](Workspace* ws) {
@@ -298,6 +300,7 @@ int main(int argc, char* argv[]) {
 
     auto initNewScene = [&](const std::string& path, bool isDirty) {
         SceneLoader::registerSingleton("System", system);
+        SceneLoader::registerSingleton("User", user);
         SceneLoader::loadScene(path);
         SceneLoader::clearSingletons();
 
