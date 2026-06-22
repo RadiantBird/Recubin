@@ -34,7 +34,7 @@
 #include <memory>
 
 #ifdef _WIN32
-#include <windows.h>
+#include <windows26.h>
 #endif
 
 std::unordered_map<std::string, std::shared_ptr<Instance>> SceneLoader::s_singletons;

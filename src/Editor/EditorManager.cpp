@@ -677,6 +677,7 @@ bool EditorManager::isViewportFocused() {
 }
 
 Instance* EditorManager::getSelectedInstance() {
+    cleanupOrphanedSelection();
     return hierarchyPanel->selectedInstance;
 }
 

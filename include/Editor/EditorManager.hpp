@@ -10,10 +10,7 @@
 #include <Editor/ViewportFocusManager.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
+#include <windows26.h>
 #include <include/GLFW/glfw3.h>
 #include <memory>
 #include <string>

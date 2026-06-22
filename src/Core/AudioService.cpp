@@ -4,7 +4,7 @@
 #include <algorithm>
 
 #ifdef _WIN32
-    #include <windows.h>
+    #include <windows26.h>
     #undef getClassName
 #endif
 

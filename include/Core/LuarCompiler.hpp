@@ -1,6 +1,6 @@
 #pragma once
 #include <string>
-#include <windows.h>
+#include <windows26.h>
 
 // Luar→Luauトランスパイラ DLLのラッパー
 // DLL: luar_compiler.dll (Rust製, luar-rsクレート)

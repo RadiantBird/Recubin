@@ -12,22 +12,41 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 # --- 2. グローバル設定 ---
 add_compile_options(
     "$<$<CXX_COMPILER_ID:MSVC>:/utf-8>"
-    "$<$<CXX_COMPILER_ID:MSVC>:/Zi>"
+    "$<$<CXX_COMPILER_ID:MSVC>:/Z7>"
     "$<$<CXX_COMPILER_ID:MSVC>:/MP>"
     "$<$<CXX_COMPILER_ID:MSVC>:/permissive->"
 )
 
 # --- 3. ソース収集 ---
-file(GLOB_RECURSE SOURCES "src/*.cpp")
-list(FILTER SOURCES EXCLUDE REGEX ".*/game_main\\.cpp$")
+# Recubin / RecubinEngine の二重コンパイルを避けるため、両ターゲットで共有できる
+# ソース（エントリポイントと EDITOR_DISABLED で分岐する User.cpp/Renderer.cpp を除く全て）を
+# RecubinCore という OBJECT ライブラリとして1回だけコンパイルし、各ターゲットはそれをリンクする。
+file(GLOB_RECURSE ALL_SOURCES "src/*.cpp")
+set(PER_TARGET_SOURCES
+    "${CMAKE_SOURCE_DIR}/src/main.cpp"
+    "${CMAKE_SOURCE_DIR}/src/game_main.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
+)
+set(CORE_SOURCES ${ALL_SOURCES})
+list(REMOVE_ITEM CORE_SOURCES ${PER_TARGET_SOURCES})
 
-add_executable(Recubin ${SOURCES})
+add_library(RecubinCore OBJECT ${CORE_SOURCES})
+
+add_executable(Recubin
+    "${CMAKE_SOURCE_DIR}/src/main.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
+    $<TARGET_OBJECTS:RecubinCore>
+)
 
 # ---- RecubinEngine (ゲームランタイム専用) ----
-file(GLOB_RECURSE GAME_SOURCES "src/*.cpp")
-list(FILTER GAME_SOURCES EXCLUDE REGEX ".*/main\\.cpp$")
-list(APPEND GAME_SOURCES "${CMAKE_SOURCE_DIR}/src/game_main.cpp")
-add_executable(RecubinEngine ${GAME_SOURCES})
+add_executable(RecubinEngine
+    "${CMAKE_SOURCE_DIR}/src/game_main.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
+    $<TARGET_OBJECTS:RecubinCore>
+)
 
 # --- 4. 静的リンクの強制定義 (重要) ---
 set(LIB_DIR "${CMAKE_SOURCE_DIR}/include/libs")
@@ -48,6 +67,10 @@ set(COMMON_LIBS
     "${LIB_DIR}/Luau.Common.lib"
     "${LIB_DIR}/yaml-cpp.lib"
 )
+
+# ---- RecubinCore (共有オブジェクトライブラリ) ----
+target_compile_definitions(RecubinCore PRIVATE ${COMMON_DEFS})
+target_include_directories(RecubinCore PRIVATE ${COMMON_INCLUDES})
 
 # ---- Recubin (エディター付き) ----
 target_compile_definitions(Recubin PRIVATE ${COMMON_DEFS})

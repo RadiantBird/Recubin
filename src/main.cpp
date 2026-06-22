@@ -1,10 +1,6 @@
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-
 #ifdef _WIN32
-    #include <windows.h>
-    #define windows(...) __VA_ARGS__ // Use for windows 
+    #include <windows26.h>
+    #define windows(...) __VA_ARGS__ // Use for windows
 #else
     #define windows(...)
 #endif

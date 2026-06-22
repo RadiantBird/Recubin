@@ -13,7 +13,7 @@
 #include <vector>
 
 #ifdef _WIN32
-#include <windows.h>
+#include <windows26.h>
 #include <direct.h>
 #else
 #include <sys/stat.h>

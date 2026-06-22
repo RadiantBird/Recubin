@@ -1,5 +1,27 @@
 Root:
   Children:
+    - ClassName: User
+      Name: User
+      Children:
+        - ClassName: Folder
+          Name: Inventory
+          Children:
+            - ClassName: Tool
+              Name: TestTool1
+              Children:
+                - ClassName: Cube
+                  Name: Handle
+                  Properties:
+                    Position: [0, 0, 0]
+                    Size: [0.5, 0.5, 5]
+                    Rotation: [0, 0, 0, 1]
+                    Color: [1, 0, 0, 1]
+                    Anchored: true
+                    CanCollide: false
+                    CastShadow: true
+                    Unlit: false
+            - ClassName: Tool
+              Name: TestTool2
     - ClassName: Workspace
       Name: Workspace
       Properties:
@@ -18,8 +40,18 @@ Root:
             DataPath: terrain
             Seed: 12345
             Flat: false
-    - ClassName: User
-      Name: User
-      Children:
-        - ClassName: Folder
-          Name: Inventory
+        - ClassName: Script
+          Name: NewScript
+          Properties:
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\NewScript.luau
+        - ClassName: Cube
+          Name: Cube
+          Properties:
+            Position: [10.81928, 49.60321, 113.939125]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false

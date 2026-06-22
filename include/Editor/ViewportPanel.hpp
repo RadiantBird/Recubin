@@ -3,10 +3,7 @@
 struct PickerState;        // PropertiesPanel.hpp で定義
 struct TerrainBrushState;  // PropertiesPanel.hpp で定義
 class CommandHistory;
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
+#include <windows26.h>
 #include <include/GL/glew.h>
 #include <include/GLFW/glfw3.h>
 #include <include/imgui/imgui.h>
