@@ -1,5 +1,100 @@
 Root:
   Children:
+    - ClassName: StarterCharacter
+      Name: StarterCharacter
+      Children:
+        - ClassName: Cube
+          Name: LeftArm
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Humanoid
+          Name: Humanoid
+          Properties:
+            WalkSpeed: 16
+            JumpPower: 50
+        - ClassName: Cube
+          Name: RightArm
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Root
+          Properties:
+            Position: [0, 100, 0]
+            Size: [2, 4, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.5, 0.5, 0]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Sphere
+          Name: Head
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1.25, 1.25, 1.25]
+            Rotation: [0, 0.70710677, 0, 0.70710677]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Decal
+              Name: Decal_Front
+              Properties:
+                Face: 0
+                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\hehe.png
+        - ClassName: Cube
+          Name: LeftLeg
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.14117648, 0.31764707, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Torso
+          Properties:
+            Position: [0, 0, 0]
+            Size: [2, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39215687, 0.047058824, 0.1254902, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: RightLeg
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.14117648, 0.31764707, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+    - ClassName: AppImage
+      Name: AppImage
+      Properties:
+        IconPath: C:\Users\Ryarta\Documents\Recubin\assets\image\the-cat.png
     - ClassName: User
       Name: User
       Properties:
@@ -32,101 +127,34 @@ Root:
               Name: TestTool2
               Properties:
                 Hand: Right
-    - ClassName: StarterCharacter
-      Name: StarterCharacter
-      Children:
-        - ClassName: Humanoid
-          Name: Humanoid
-          Properties:
-            WalkSpeed: 16
-            JumpPower: 42
-        - ClassName: Cube
-          Name: LeftArm
-          Properties:
-            Position: [0, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Root
-          Properties:
-            Position: [0, 100, 0]
-            Size: [2, 4, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.5, 0.5, 0]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: RightArm
-          Properties:
-            Position: [0, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-        - ClassName: Sphere
-          Name: Head
-          Properties:
-            Position: [0, 0, 0]
-            Size: [1.25, 1.25, 1.25]
-            Rotation: [0, 0.70710677, 0, 0.70710677]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Torso
-          Properties:
-            Position: [0, 0, 0]
-            Size: [2, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.39215687, 0.047058824, 0.1254902, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: LeftLeg
-          Properties:
-            Position: [0, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0.14117648, 0.31764707, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: RightLeg
-          Properties:
-            Position: [0, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0.14117648, 0.31764707, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-    - ClassName: AppImage
-      Name: AppImage
-      Properties:
-        IconPath: C:\Users\Ryarta\Documents\Recubin\assets\image\the-cat.png
     - ClassName: Workspace
       Name: Workspace
       Properties:
         Gravity: [0, -196.2, 0]
         PhysicsEnabled: true
       Children:
+        - ClassName: Cube
+          Name: Cube111
+          Properties:
+            Position: [4.4310784, -7, 11.834326]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Branch
+          Properties:
+            Position: [2.4310784, -4, 11.834326]
+            Size: [5, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
         - ClassName: Rope
           Name: Rope
           Properties:
@@ -149,24 +177,33 @@ Root:
             CastShadow: true
             Unlit: false
         - ClassName: Cube
-          Name: Cube111
+          Name: Baseplate
           Properties:
-            Position: [4.4310784, -7, 11.834326]
-            Size: [1, 5, 1]
+            Position: [0, -10, 0]
+            Size: [128, 1, 128]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
+            Color: [0, 1, 0.5, 1]
             Anchored: true
             CanCollide: true
             CastShadow: true
             Unlit: false
+          Children:
+            - ClassName: Texture
+              Name: Texture_Top
+              Properties:
+                Face: 2
+                Color: [1, 1, 1, 1]
+                StudsPerTileU: 1
+                StudsPerTileV: 1
+                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\Grass_Texture.png
         - ClassName: Cube
-          Name: Branch
+          Name: Green
           Properties:
-            Position: [2.4310784, -4, 11.834326]
-            Size: [5, 1, 1]
+            Position: [-2, 0, -4]
+            Size: [2, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
+            Color: [0, 1, 0, 1]
+            Anchored: false
             CanCollide: true
             CastShadow: true
             Unlit: false
@@ -206,40 +243,35 @@ Root:
                     Text: Hello world!
                     TextColor: [0, 0, 0, 1]
         - ClassName: Cube
-          Name: Green
+          Name: Cube12
           Properties:
-            Position: [-2, 0, -4]
-            Size: [2, 1, 1]
+            Position: [8.118143, -8.859938, 35.223503]
+            Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0, 1]
+            Color: [1, 1, 1, 1]
             Anchored: false
             CanCollide: true
             CastShadow: true
             Unlit: false
         - ClassName: Cube
-          Name: Baseplate
+          Name: Cube1
           Properties:
-            Position: [0, -10, 0]
-            Size: [128, 1, 128]
+            Position: [8.118143, -6.9850116, 35.223503]
+            Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0.5, 1]
-            Anchored: true
+            Color: [0, 1, 1, 1]
+            Anchored: false
             CanCollide: true
             CastShadow: true
             Unlit: false
-          Children:
-            - ClassName: Texture
-              Name: Texture_Top
-              Properties:
-                Face: 2
-                Color: [1, 1, 1, 1]
-                StudsPerTileU: 1
-                StudsPerTileV: 1
-                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\Grass_Texture.png
+        - ClassName: Script
+          Name: HiGeorge
+          Properties:
+            ContentPath: C:\Users\Ryarta\Documents\TestLuau\HiGeorge.luau
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [-23.783043, 10.072394, 12.855907]
+            Position: [21.124615, 8.415937, -17.426765]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -255,31 +287,9 @@ Root:
                 Face: 4
                 Texture: C:\Users\Ryarta\Pictures\libimage.png
         - ClassName: Script
-          Name: HiGeorge
+          Name: 2006
           Properties:
-            ContentPath: C:\Users\Ryarta\Documents\TestLuau\HiGeorge.luau
-        - ClassName: Cube
-          Name: Cube1
-          Properties:
-            Position: [8.118143, -6.9850116, 35.223503]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-        - ClassName: Cube
-          Name: Cube12
-          Properties:
-            Position: [8.118143, -8.859938, 35.223503]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\2006.luau
         - ClassName: TriangularPrism
           Name: TriangularPrism
           Properties:
@@ -291,10 +301,6 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
-        - ClassName: Script
-          Name: 2006
-          Properties:
-            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\2006.luau
         - ClassName: Cube
           Name: Floppa1
           Properties:
@@ -308,30 +314,30 @@ Root:
             Unlit: false
           Children:
             - ClassName: Decal
-              Name: Decal_Front
+              Name: Decal_Left
               Properties:
-                Face: 0
-                Texture: assets/image/floppa2048.jpg
+                Face: 5
+                Texture: assets/image/Limabis_logo.png
             - ClassName: Decal
               Name: Decal_Top
               Properties:
                 Face: 2
                 Texture: assets/image/salad-cat.jpg
             - ClassName: Decal
-              Name: Decal_Left
+              Name: Decal_Front
               Properties:
-                Face: 5
-                Texture: assets/image/Limabis_logo.png
-            - ClassName: Decal
-              Name: Decal_Back
-              Properties:
-                Face: 1
-                Texture: assets/image/the-cat.png
+                Face: 0
+                Texture: assets/image/floppa2048.jpg
             - ClassName: Decal
               Name: Decal_Bottom
               Properties:
                 Face: 3
                 Texture: assets/image/smile.png
+            - ClassName: Decal
+              Name: Decal_Back
+              Properties:
+                Face: 1
+                Texture: assets/image/the-cat.png
             - ClassName: Decal
               Name: Decal_Right
               Properties:
@@ -457,3 +463,33 @@ Root:
           Properties:
             Direction: [1, -1, -1]
             Brightness: 1
+        - ClassName: Folder
+          Name: _Effects
+          Children:
+            - ClassName: PostEffect
+              Name: CRT
+              Properties:
+                Enabled: true
+                Type: 1
+                ZIndex: 1
+                Intensity: 1
+                Param1: 16
+                Param2: 0.15
+            - ClassName: PostEffect
+              Name: Poster
+              Properties:
+                Enabled: true
+                Type: 2
+                ZIndex: 0
+                Intensity: 1
+                Param1: 4
+                Param2: 0.15
+            - ClassName: PostEffect
+              Name: Pixel
+              Properties:
+                Enabled: true
+                Type: 3
+                ZIndex: 2
+                Intensity: 1
+                Param1: 3
+                Param2: 0.15

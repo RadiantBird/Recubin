@@ -6,3 +6,4 @@ temp_build/
 imgui.ini
 _snapshot.yaml
 terrain/
+editor_settings.yaml

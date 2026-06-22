@@ -34,15 +34,18 @@
 #include <include/imgui/imgui.h>
 
 #include <Util/Logger.hpp>
+#include <Util/FileDialog.hpp>
 
 #include <iostream>
 #include <algorithm>
 #include <fstream>
+#include <filesystem>
 #include <sstream>
 #include <string>
 #include <vector>
 #include <cmath>
 #include <cstddef>
+#include <yaml-cpp/yaml.h>
 #include "include/stb_image.h"
 
 #include <PhysX/PxPhysicsAPI.h>
@@ -154,6 +157,40 @@ void applyAppIcon(GLFWwindow* window, Instance* root) {
     }
 }
 
+// エディター設定（前回開いていたシーンパスなど）の保存先
+static const std::string kEditorSettingsPath = "editor_settings.yaml";
+
+// 前回開いていたシーンパスを読み込む。記録が無い/壊れている場合は空文字列を返す
+static std::string loadLastScenePath() {
+    try {
+        YAML::Node root = YAML::LoadFile(kEditorSettingsPath);
+        if (root["LastScenePath"]) {
+            return root["LastScenePath"].as<std::string>();
+        }
+    } catch (...) {
+        // 設定ファイルが無い場合は何もしない
+    }
+    return "";
+}
+
+// 次回起動時に自動で開けるよう、現在のシーンパスを記録する
+static void saveLastScenePath(const std::string& path) {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "LastScenePath" << YAML::Value << path;
+    out << YAML::EndMap;
+
+    std::ofstream file(kEditorSettingsPath);
+    if (file) file << out.c_str();
+}
+
+// ウィンドウタイトルに現在開いているシーンのファイル名を付加する
+static void updateWindowTitle(GLFWwindow* window, const std::string& scenePath) {
+    std::string fileName = std::filesystem::path(scenePath).filename().string();
+    std::string title = fileName.empty() ? "Recubin Studio" : ("Recubin Studio - " + fileName);
+    glfwSetWindowTitle(window, title.c_str());
+}
+
 // 安全な終了処理関数
 bool checkExit(EditorManager* ed, GLFWwindow& window) {
     if (ed && ed->isDirty()) {
@@ -171,7 +208,7 @@ bool checkExit(EditorManager* ed, GLFWwindow& window) {
 // ===================================================
 int main(int argc, char* argv[]) {
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.989\n";
+              << "Recubin Studio v0.990\n";
     std::string engineExePath = (argc > 0 && argv[0]) ? argv[0] : "";
 
     GLFWwindow* window = setupWindow();
@@ -207,7 +244,21 @@ int main(int argc, char* argv[]) {
     SceneLoader::registerSingleton("System", system);
     SceneLoader::registerSingleton("User", user);
 
-    SceneLoader::loadScene(EditorManager::kDefaultScenePath);
+    // 前回開いていたシーンを記憶しておき、次回起動時に自動で開く。
+    // 記録が無い/ファイルが見つからない場合はダイアログで選択させる(キャンセルなら正常終了)
+    std::string scenePath = loadLastScenePath();
+    if (scenePath.empty() || !std::filesystem::exists(scenePath)) {
+        scenePath = browseFile(L"Scene (*.yaml;*.yml)", L"*.yaml;*.yml");
+        if (scenePath.empty()) {
+            std::cout << "[INFO] シーンが選択されなかったため終了します。\n";
+            glfwTerminate();
+            return 0;
+        }
+    }
+    saveLastScenePath(scenePath);
+    updateWindowTitle(window, scenePath);
+
+    SceneLoader::loadScene(scenePath);
     SceneLoader::clearSingletons();
 
     workspaces = collectWorkspaces(system);
@@ -264,8 +315,7 @@ int main(int argc, char* argv[]) {
     auto editorOwned = std::make_unique<EditorManager>(workspace.get(), user.get(), system.get());
     EditorManager* ed = editorOwned.get();
     ed->engineExePath = engineExePath;
-    // scenePath はデフォルト値として EditorManager::kDefaultScenePath が入っており、
-    // 上の起動時ロードと同じ定数を参照しているため、ここでの再代入は不要
+    ed->scenePath     = scenePath; // 起動時に決定したシーンパスを反映
 
     // Workspace 切り替えコールバックを設定
     ed->hierarchyPanel->onSwitchWorkspace = [&](Workspace* ws) {
@@ -373,6 +423,8 @@ int main(int argc, char* argv[]) {
 
             initNewScene(loadPath, false);
             ed->scenePath = loadPath;
+            saveLastScenePath(loadPath);
+            updateWindowTitle(window, loadPath);
             applyAppIcon(window, system.get());
         }
 

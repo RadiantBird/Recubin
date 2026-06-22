@@ -46,12 +46,9 @@ public:
 
     bool isAnyViewportHovered() const;
 
-    // 起動時にmain.cppが実際にロードするシーンと食い違うとSaveが別ファイルに
-    // 書き込まれてしまうため、唯一のソースとしてここで定義し main.cpp 側もこれを参照する
-    static constexpr const char* kDefaultScenePath = "assets/scenes/terrain_test.yaml";
-    static_assert(kDefaultScenePath[0] != '\0', "kDefaultScenePath must not be empty");
-
-    std::string scenePath      = kDefaultScenePath;
+    // 起動時にmain.cppが決定したシーンパスが入る(前回開いていたシーン、または
+    // ユーザーがダイアログで選択したシーン)。construct直後にmain.cppが設定する
+    std::string scenePath;
     std::string pendingLoadPath;  // 非空のとき main.cpp がリロードを実行する
 
     EditorManager(Workspace* workspace, User* user, Instance* system = nullptr);
