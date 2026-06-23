@@ -73,6 +73,61 @@ int LuauEngine::vec3_tostring(lua_State* L) {
     return 1;
 }
 
+int LuauEngine::vec3_add(lua_State* L) {
+    Vector3* a = (Vector3*)luaL_checkudata(L, 1, RCBN_VEC3_METATABLE);
+    Vector3* b = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+    pushVector3(L, *a + *b);
+    return 1;
+}
+
+int LuauEngine::vec3_sub(lua_State* L) {
+    Vector3* a = (Vector3*)luaL_checkudata(L, 1, RCBN_VEC3_METATABLE);
+    Vector3* b = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+    pushVector3(L, *a - *b);
+    return 1;
+}
+
+int LuauEngine::vec3_unm(lua_State* L) {
+    Vector3* a = (Vector3*)luaL_checkudata(L, 1, RCBN_VEC3_METATABLE);
+    pushVector3(L, -(*a));
+    return 1;
+}
+
+int LuauEngine::vec3_mul(lua_State* L) {
+    if (lua_isnumber(L, 1)) {
+        float s = (float)lua_tonumber(L, 1);
+        Vector3* b = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+        pushVector3(L, *b * s);
+    } else {
+        Vector3* a = (Vector3*)luaL_checkudata(L, 1, RCBN_VEC3_METATABLE);
+        if (lua_isnumber(L, 2)) {
+            pushVector3(L, *a * (float)lua_tonumber(L, 2));
+        } else {
+            Vector3* b = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+            pushVector3(L, *a * *b);
+        }
+    }
+    return 1;
+}
+
+int LuauEngine::vec3_div(lua_State* L) {
+    Vector3* a = (Vector3*)luaL_checkudata(L, 1, RCBN_VEC3_METATABLE);
+    if (lua_isnumber(L, 2)) {
+        pushVector3(L, *a / (float)lua_tonumber(L, 2));
+    } else {
+        Vector3* b = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+        pushVector3(L, *a / *b);
+    }
+    return 1;
+}
+
+int LuauEngine::vec3_eq(lua_State* L) {
+    Vector3* a = (Vector3*)luaL_checkudata(L, 1, RCBN_VEC3_METATABLE);
+    Vector3* b = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+    lua_pushboolean(L, *a == *b);
+    return 1;
+}
+
 // ==================== Color4 Methods ====================
 int LuauEngine::color4_constructor(lua_State* L) {
     float r = (float)luaL_checknumber(L, 1);
@@ -135,6 +190,57 @@ int LuauEngine::color4_tostring(lua_State* L) {
     return 1;
 }
 
+int LuauEngine::color4_add(lua_State* L) {
+    Color4* a = (Color4*)luaL_checkudata(L, 1, RCBN_COLOR4_METATABLE);
+    Color4* b = (Color4*)luaL_checkudata(L, 2, RCBN_COLOR4_METATABLE);
+    pushColor4(L, *a + *b);
+    return 1;
+}
+
+int LuauEngine::color4_sub(lua_State* L) {
+    Color4* a = (Color4*)luaL_checkudata(L, 1, RCBN_COLOR4_METATABLE);
+    Color4* b = (Color4*)luaL_checkudata(L, 2, RCBN_COLOR4_METATABLE);
+    pushColor4(L, *a - *b);
+    return 1;
+}
+
+int LuauEngine::color4_unm(lua_State* L) {
+    Color4* a = (Color4*)luaL_checkudata(L, 1, RCBN_COLOR4_METATABLE);
+    pushColor4(L, -(*a));
+    return 1;
+}
+
+int LuauEngine::color4_mul(lua_State* L) {
+    if (lua_isnumber(L, 1)) {
+        float s = (float)lua_tonumber(L, 1);
+        Color4* b = (Color4*)luaL_checkudata(L, 2, RCBN_COLOR4_METATABLE);
+        pushColor4(L, *b * s);
+    } else {
+        Color4* a = (Color4*)luaL_checkudata(L, 1, RCBN_COLOR4_METATABLE);
+        if (lua_isnumber(L, 2)) {
+            pushColor4(L, *a * (float)lua_tonumber(L, 2));
+        } else {
+            Color4* b = (Color4*)luaL_checkudata(L, 2, RCBN_COLOR4_METATABLE);
+            pushColor4(L, *a * *b);
+        }
+    }
+    return 1;
+}
+
+int LuauEngine::color4_div(lua_State* L) {
+    Color4* a = (Color4*)luaL_checkudata(L, 1, RCBN_COLOR4_METATABLE);
+    float s = (float)luaL_checknumber(L, 2);
+    pushColor4(L, *a / s);
+    return 1;
+}
+
+int LuauEngine::color4_eq(lua_State* L) {
+    Color4* a = (Color4*)luaL_checkudata(L, 1, RCBN_COLOR4_METATABLE);
+    Color4* b = (Color4*)luaL_checkudata(L, 2, RCBN_COLOR4_METATABLE);
+    lua_pushboolean(L, *a == *b);
+    return 1;
+}
+
 // ==================== Vector2 Methods ====================
 int LuauEngine::vec2_constructor(lua_State* L) {
     float x = (float)luaL_checknumber(L, 1);
@@ -179,5 +285,60 @@ int LuauEngine::vec2_tostring(lua_State* L) {
     Vector2* vec = (Vector2*)luaL_checkudata(L, 1, RCBN_VEC2_METATABLE);
     std::string str = "Vector2(" + vec->toString() + ")";
     lua_pushstring(L, str.c_str());
+    return 1;
+}
+
+int LuauEngine::vec2_add(lua_State* L) {
+    Vector2* a = (Vector2*)luaL_checkudata(L, 1, RCBN_VEC2_METATABLE);
+    Vector2* b = (Vector2*)luaL_checkudata(L, 2, RCBN_VEC2_METATABLE);
+    pushVector2(L, *a + *b);
+    return 1;
+}
+
+int LuauEngine::vec2_sub(lua_State* L) {
+    Vector2* a = (Vector2*)luaL_checkudata(L, 1, RCBN_VEC2_METATABLE);
+    Vector2* b = (Vector2*)luaL_checkudata(L, 2, RCBN_VEC2_METATABLE);
+    pushVector2(L, *a - *b);
+    return 1;
+}
+
+int LuauEngine::vec2_unm(lua_State* L) {
+    Vector2* a = (Vector2*)luaL_checkudata(L, 1, RCBN_VEC2_METATABLE);
+    pushVector2(L, -(*a));
+    return 1;
+}
+
+int LuauEngine::vec2_mul(lua_State* L) {
+    if (lua_isnumber(L, 1)) {
+        float s = (float)lua_tonumber(L, 1);
+        Vector2* b = (Vector2*)luaL_checkudata(L, 2, RCBN_VEC2_METATABLE);
+        pushVector2(L, *b * s);
+    } else {
+        Vector2* a = (Vector2*)luaL_checkudata(L, 1, RCBN_VEC2_METATABLE);
+        if (lua_isnumber(L, 2)) {
+            pushVector2(L, *a * (float)lua_tonumber(L, 2));
+        } else {
+            Vector2* b = (Vector2*)luaL_checkudata(L, 2, RCBN_VEC2_METATABLE);
+            pushVector2(L, *a * *b);
+        }
+    }
+    return 1;
+}
+
+int LuauEngine::vec2_div(lua_State* L) {
+    Vector2* a = (Vector2*)luaL_checkudata(L, 1, RCBN_VEC2_METATABLE);
+    if (lua_isnumber(L, 2)) {
+        pushVector2(L, *a / (float)lua_tonumber(L, 2));
+    } else {
+        Vector2* b = (Vector2*)luaL_checkudata(L, 2, RCBN_VEC2_METATABLE);
+        pushVector2(L, *a / *b);
+    }
+    return 1;
+}
+
+int LuauEngine::vec2_eq(lua_State* L) {
+    Vector2* a = (Vector2*)luaL_checkudata(L, 1, RCBN_VEC2_METATABLE);
+    Vector2* b = (Vector2*)luaL_checkudata(L, 2, RCBN_VEC2_METATABLE);
+    lua_pushboolean(L, *a == *b);
     return 1;
 }

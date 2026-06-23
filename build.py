@@ -74,6 +74,19 @@ def run_binary(config: str) -> int:
     return subprocess.call([str(exe_path)], cwd=ROOT_DIR)
 
 
+def run_test(config: str, scene_path: str | None) -> int:
+    exe_path = BUILD_DIR / config / "RecubinTest.exe"
+    if not exe_path.exists():
+        print(f"[ERROR] Executable not found: {exe_path}")
+        return 1
+
+    copy_dlls(config)
+    args = [str(exe_path)]
+    if scene_path:
+        args.append(scene_path)
+    return subprocess.call(args, cwd=ROOT_DIR)
+
+
 def run_watchsnake(exit_code: int) -> int:
     watchsnake_path = ROOT_DIR / "watchSnake.py"
     if not watchsnake_path.exists():
@@ -121,7 +134,7 @@ def build_launcher(config: str) -> int:
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("Usage: <python> build.py <build|run|brun|launcher> [Debug|Release]")
+        print("Usage: <python> build.py <build|run|brun|test|launcher> [Debug|Release]")
         return 1
 
     action = sys.argv[1].lower()
@@ -145,6 +158,10 @@ def main() -> int:
             return result
         exit_code = run_binary(config)
         return run_watchsnake(exit_code)
+
+    if action == "test":
+        scene_path = sys.argv[3] if len(sys.argv) >= 4 else None
+        return run_test(config, scene_path)
 
     if action == "launcher":
         return build_launcher(config)

@@ -106,6 +106,18 @@ void LuauEngine::InitMetatables() {
     lua_setfield(L, -2, "__newindex");
     lua_pushcfunction(L, vec3_tostring, "vec3_tostring");
     lua_setfield(L, -2, "__tostring");
+    lua_pushcfunction(L, vec3_add, "vec3_add");
+    lua_setfield(L, -2, "__add");
+    lua_pushcfunction(L, vec3_sub, "vec3_sub");
+    lua_setfield(L, -2, "__sub");
+    lua_pushcfunction(L, vec3_unm, "vec3_unm");
+    lua_setfield(L, -2, "__unm");
+    lua_pushcfunction(L, vec3_mul, "vec3_mul");
+    lua_setfield(L, -2, "__mul");
+    lua_pushcfunction(L, vec3_div, "vec3_div");
+    lua_setfield(L, -2, "__div");
+    lua_pushcfunction(L, vec3_eq, "vec3_eq");
+    lua_setfield(L, -2, "__eq");
     lua_pop(L, 1);
 
     // Color4 metatable
@@ -116,6 +128,19 @@ void LuauEngine::InitMetatables() {
     lua_setfield(L, -2, "__newindex");
     lua_pushcfunction(L, color4_tostring, "color4_tostring");
     lua_setfield(L, -2, "__tostring");
+    lua_pushcfunction(L, color4_add, "color4_add");
+    lua_setfield(L, -2, "__add");
+    lua_pushcfunction(L, color4_sub, "color4_sub");
+    lua_setfield(L, -2, "__sub");
+    lua_pushcfunction(L, color4_unm, "color4_unm");
+    lua_setfield(L, -2, "__unm");
+    lua_pushcfunction(L, color4_mul, "color4_mul");
+    lua_setfield(L, -2, "__mul");
+    lua_pushcfunction(L, color4_div, "color4_div");
+    lua_setfield(L, -2, "__div");
+    lua_pushcfunction(L, color4_eq, "color4_eq");
+    lua_setfield(L, -2, "__eq");
+    lua_pop(L, 1);
 
     // The legend who built something nice
     luaL_newmetatable(L, ERIK);
@@ -154,6 +179,12 @@ void LuauEngine::InitMetatables() {
     lua_pushcfunction(L, vec2_index,    "vec2_index");    lua_setfield(L, -2, "__index");
     lua_pushcfunction(L, vec2_newindex, "vec2_newindex"); lua_setfield(L, -2, "__newindex");
     lua_pushcfunction(L, vec2_tostring, "vec2_tostring"); lua_setfield(L, -2, "__tostring");
+    lua_pushcfunction(L, vec2_add, "vec2_add"); lua_setfield(L, -2, "__add");
+    lua_pushcfunction(L, vec2_sub, "vec2_sub"); lua_setfield(L, -2, "__sub");
+    lua_pushcfunction(L, vec2_unm, "vec2_unm"); lua_setfield(L, -2, "__unm");
+    lua_pushcfunction(L, vec2_mul, "vec2_mul"); lua_setfield(L, -2, "__mul");
+    lua_pushcfunction(L, vec2_div, "vec2_div"); lua_setfield(L, -2, "__div");
+    lua_pushcfunction(L, vec2_eq,  "vec2_eq");  lua_setfield(L, -2, "__eq");
     lua_pop(L, 1);
 
     // グローバル関数を登録
@@ -772,6 +803,20 @@ void LuauEngine::pushVector2(lua_State* L, Vector2 v) {
     auto* ud = (Vector2*)lua_newuserdata(L, sizeof(Vector2));
     *ud = v;
     luaL_getmetatable(L, RCBN_VEC2_METATABLE);
+    lua_setmetatable(L, -2);
+}
+
+void LuauEngine::pushVector3(lua_State* L, Vector3 v) {
+    auto* ud = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+    *ud = v;
+    luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+    lua_setmetatable(L, -2);
+}
+
+void LuauEngine::pushColor4(lua_State* L, Color4 c) {
+    auto* ud = (Color4*)lua_newuserdata(L, sizeof(Color4));
+    *ud = c;
+    luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
     lua_setmetatable(L, -2);
 }
 

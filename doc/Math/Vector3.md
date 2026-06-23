@@ -16,7 +16,9 @@
 
 | メソッド | 説明 |
 |---|---|
-| `operator+` / `operator-` / `operator*` | 加減算・スカラー乗算 |
+| `operator+` / `operator-` / 単項`operator-` | 加減算・反転 |
+| `operator*` / `operator/` | スカラー倍・コンポーネント単位の乗除算 |
+| `operator==` | 等価比較 |
 | `length()` | ベクトルの長さ |
 | `normalize()` | 正規化したコピーを返す |
 | `static Dot(a, b)` | 内積 |

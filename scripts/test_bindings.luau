@@ -15,6 +15,40 @@ check("script != nil",    script ~= nil)
 check("workspace.Name == 'Workspace'", workspace.Name == "Workspace")
 check("script.Name == 'TestBindings'", script.Name == "TestBindings")
 
+-- ===== Vector3 / Vector2 / Color4 演算子 =====
+print("--- Vector3 Arithmetic ---")
+local v3a = Vector3.new(0, 1, 2)
+local v3b = Vector3.new(1, 2, 3)
+check("Vector3 __add", tostring(v3a + v3b) == tostring(Vector3.new(1, 3, 5)))
+check("Vector3 __sub", tostring(v3a - v3b) == tostring(Vector3.new(-1, -1, -1)))
+local negV3a = -v3a
+check("Vector3 __unm", negV3a.x == 0 and negV3a.y == -1 and negV3a.z == -2)
+check("Vector3 __mul (scalar, vec*n)", tostring(v3a * 2) == tostring(Vector3.new(0, 2, 4)))
+check("Vector3 __mul (scalar, n*vec)", tostring(2 * v3a) == tostring(Vector3.new(0, 2, 4)))
+check("Vector3 __mul (componentwise)", tostring(v3a * v3b) == tostring(Vector3.new(0, 2, 6)))
+check("Vector3 __div (scalar)", tostring(v3b / 2) == tostring(Vector3.new(0.5, 1, 1.5)))
+check("Vector3 __eq", Vector3.new(0, 1, 2) == v3a)
+
+print("--- Vector2 Arithmetic ---")
+local v2a = Vector2.new(1, 2)
+local v2b = Vector2.new(3, 4)
+check("Vector2 __add", tostring(v2a + v2b) == tostring(Vector2.new(4, 6)))
+check("Vector2 __sub", tostring(v2a - v2b) == tostring(Vector2.new(-2, -2)))
+check("Vector2 __unm", tostring(-v2a) == tostring(Vector2.new(-1, -2)))
+check("Vector2 __mul (scalar)", tostring(v2a * 2) == tostring(Vector2.new(2, 4)))
+check("Vector2 __mul (componentwise)", tostring(v2a * v2b) == tostring(Vector2.new(3, 8)))
+check("Vector2 __div (scalar)", tostring(v2b / 2) == tostring(Vector2.new(1.5, 2)))
+check("Vector2 __eq", Vector2.new(1, 2) == v2a)
+
+print("--- Color4 Arithmetic ---")
+local c4a = Color4.new(0.2, 0.2, 0.2, 1)
+local c4b = Color4.new(0.1, 0.1, 0.1, 0)
+check("Color4 __add", tostring(c4a + c4b) == tostring(Color4.new(0.3, 0.3, 0.3, 1)))
+check("Color4 __sub", tostring(c4a - c4b) == tostring(Color4.new(0.1, 0.1, 0.1, 1)))
+check("Color4 __mul (scalar)", tostring(c4a * 2) == tostring(Color4.new(0.4, 0.4, 0.4, 2)))
+check("Color4 __div (scalar)", tostring(c4a / 2) == tostring(Color4.new(0.1, 0.1, 0.1, 0.5)))
+check("Color4 __eq", Color4.new(0.2, 0.2, 0.2, 1) == c4a)
+
 -- ===== Instance メソッド =====
 print("--- Instance ---")
 local cube = workspace:FindChild("TestCube")
@@ -122,11 +156,7 @@ end
 
 -- ===== Lighting =====
 print("--- Lighting ---")
-local lighting = nil
-local root = workspace.Parent
-if root ~= nil then
-    lighting = root:FindChild("Lighting")
-end
+local lighting = workspace:FindChild("Lighting")
 check("FindChild Lighting", lighting ~= nil)
 if lighting ~= nil then
     check("Brightness getter is number", type(lighting.Brightness) == "number")

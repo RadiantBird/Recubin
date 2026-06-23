@@ -25,6 +25,7 @@ file(GLOB_RECURSE ALL_SOURCES "src/*.cpp")
 set(PER_TARGET_SOURCES
     "${CMAKE_SOURCE_DIR}/src/main.cpp"
     "${CMAKE_SOURCE_DIR}/src/game_main.cpp"
+    "${CMAKE_SOURCE_DIR}/src/test_main.cpp"
     "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
     "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
 )
@@ -43,6 +44,14 @@ add_executable(Recubin
 # ---- RecubinEngine (ゲームランタイム専用) ----
 add_executable(RecubinEngine
     "${CMAKE_SOURCE_DIR}/src/game_main.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
+    $<TARGET_OBJECTS:RecubinCore>
+)
+
+# ---- RecubinTest (ヘッドレスLuauテストランナー) ----
+add_executable(RecubinTest
+    "${CMAKE_SOURCE_DIR}/src/test_main.cpp"
     "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
     "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
     $<TARGET_OBJECTS:RecubinCore>
@@ -91,6 +100,16 @@ target_link_options(RecubinEngine PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/ignore:4099>
 )
 target_link_libraries(RecubinEngine PRIVATE ${COMMON_LIBS})
+
+# ---- RecubinTest (ヘッドレスLuauテストランナー) ----
+target_compile_definitions(RecubinTest PRIVATE ${COMMON_DEFS} EDITOR_DISABLED)
+target_include_directories(RecubinTest PRIVATE ${COMMON_INCLUDES})
+target_link_options(RecubinTest PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>
+    $<$<CXX_COMPILER_ID:MSVC>:/DEBUG>
+    $<$<CXX_COMPILER_ID:MSVC>:/ignore:4099>
+)
+target_link_libraries(RecubinTest PRIVATE ${COMMON_LIBS})
 
 # ==============================================================================
 # --- 5. DLLの自動コピー設定 (Visual Studio対応) ---

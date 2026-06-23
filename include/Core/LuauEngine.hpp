@@ -101,18 +101,39 @@ private:
     static int vec3_tostring(lua_State* L);
     static int vec3_constructor(lua_State* L);
     // static int vec3_zeroconstructor(lua_State* L);
+    static int vec3_add(lua_State* L);
+    static int vec3_sub(lua_State* L);
+    static int vec3_unm(lua_State* L);
+    static int vec3_mul(lua_State* L);
+    static int vec3_div(lua_State* L);
+    static int vec3_eq(lua_State* L);
 
     // Color4 methods
     static int color4_index(lua_State* L);
     static int color4_newindex(lua_State* L);
     static int color4_tostring(lua_State* L);
     static int color4_constructor(lua_State* L);
+    static int color4_add(lua_State* L);
+    static int color4_sub(lua_State* L);
+    static int color4_unm(lua_State* L);
+    static int color4_mul(lua_State* L);
+    static int color4_div(lua_State* L);
+    static int color4_eq(lua_State* L);
 
     // Vector2 methods
     static int vec2_constructor(lua_State* L);
     static int vec2_index(lua_State* L);
     static int vec2_newindex(lua_State* L);
     static int vec2_tostring(lua_State* L);
+    static int vec2_add(lua_State* L);
+    static int vec2_sub(lua_State* L);
+    static int vec2_unm(lua_State* L);
+    static int vec2_mul(lua_State* L);
+    static int vec2_div(lua_State* L);
+    static int vec2_eq(lua_State* L);
+
+    static void pushVector3(lua_State* L, Vector3 v);
+    static void pushColor4(lua_State* L, Color4 c);
 
     // Global functions
     static int global_add(lua_State* L);
