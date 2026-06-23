@@ -33,6 +33,11 @@ public:
     physx::PxRigidDynamicLockFlags LockFlags = (physx::PxRigidDynamicLockFlags)0;
     physx::PxRigidActor* actor = nullptr;
     physx::PxTransform m_compoundLocalOffset = physx::PxTransform(physx::PxIdentity);
+    // このキューブがアンカーを含むWeldのキネマティックcompoundのメンバーであるか。
+    // true のときは syncPhysics() でキネマティック駆動を setKinematicTarget ではなく
+    // setGlobalPose(即時) で行い、アニメ駆動部(Head等)への追従ラグを無くす。
+    // 単独のキネマティック(動くプラットフォーム等)は false のままで通常通り setKinematicTarget を使う。
+    bool m_weldKinematic = false;
 
     BaseCube(Vector3 Pos, Vector3 Sz);
     virtual ~BaseCube();

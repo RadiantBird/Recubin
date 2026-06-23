@@ -64,6 +64,10 @@ public:
     void init();
     virtual ~Physics();
     void update(Workspace& workspace, float dt);
+    // アンカー駆動のキネマティックWeld(帽子等)を、アニメ更新後に即時同期する。
+    // フレームループ内で processInput(Humanoidのパーツ配置)の後・描画の前に呼ぶことで、
+    // 帽子がHead等のアニメ駆動部にラグ無く追従する。
+    void syncWeldKinematics();
     void createActor(const std::shared_ptr<BaseCube>& cube);
     void recreateActor(const std::shared_ptr<BaseCube>& cube);
     void removeCube(const std::shared_ptr<BaseCube>& cube);

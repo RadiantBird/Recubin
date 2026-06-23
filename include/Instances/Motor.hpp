@@ -16,6 +16,9 @@ class Motor : public Instance {
     friend class Physics;
     friend class SceneLoader;
     friend class Weld;
+
+    // 両方のCubeが解決済みなら制約をWorkspaceに登録する（setProperty/setCube0/setCube1から共通利用）
+    void registerIfReady();
 public:
     Vector3 Axis          = {1.0f, 0.0f, 0.0f}; // 回転軸（ワールド方向）
     float DriveVelocity   = 1.0f;  // rad/s
@@ -29,6 +32,8 @@ public:
     virtual ~Motor();
 
     void setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1);
+    void setCube0(std::shared_ptr<BaseCube> cube);
+    void setCube1(std::shared_ptr<BaseCube> cube);
     void setDriveVelocity(float v);
     void setMaxForce(float v);
 

@@ -243,6 +243,18 @@ auto setter_method_bool() {
     };
 }
 
+// ── Setter: BaseCube reference setter method (e.g. Weld/Rope/Rod/Motor の Cube0/Cube1) ──
+template<typename T, void (T::*Setter)(std::shared_ptr<BaseCube>)>
+auto setter_cube_ref() {
+    return [](lua_State* L, Instance* obj) -> int {
+        auto* ud = (std::weak_ptr<Instance>*)luaL_checkudata(L, 3, LuauEngine::RCBN_INST_METATABLE);
+        auto inst = ud->lock();
+        if (inst && inst->IsA("BaseCube"))
+            (static_cast<T*>(obj)->*Setter)(std::static_pointer_cast<BaseCube>(inst));
+        return 0;
+    };
+}
+
 // ── GUI string-conversion helpers (Norm / Face / BillboardMode) ──────────────
 static const char* normToStr(Norm n) { return n == Norm::Scale ? "Scale" : "Pixel"; }
 static Norm        strToNorm(const char* s) {
@@ -440,17 +452,26 @@ void LuauEngine::InitSetterTable_World() {
     SetterTable["Lighting"]["Direction"]  = setter_vec3<Lighting, &Lighting::lightDir>();
 }
 
-// ==================== Setter: Rope, Rod, Motor ====================
+// ==================== Setter: Weld, Rope, Rod, Motor ====================
 void LuauEngine::InitSetterTable_Physics() {
+    SetterTable["Weld"]["Cube0"] = setter_cube_ref<Weld, &Weld::setCube0>();
+    SetterTable["Weld"]["Cube1"] = setter_cube_ref<Weld, &Weld::setCube1>();
+
+    SetterTable["Rope"]["Cube0"]       = setter_cube_ref     <Rope, &Rope::setCube0>();
+    SetterTable["Rope"]["Cube1"]       = setter_cube_ref     <Rope, &Rope::setCube1>();
     SetterTable["Rope"]["MaxDistance"] = setter_method_float<Rope, &Rope::setMaxDistance>();
     SetterTable["Rope"]["Stiffness"]   = setter_method_float<Rope, &Rope::setStiffness>();
     SetterTable["Rope"]["Damping"]     = setter_method_float<Rope, &Rope::setDamping>();
     SetterTable["Rope"]["LineWidth"]   = setter_number      <Rope, &Rope::LineWidth>();
     SetterTable["Rope"]["Color"]       = setter_color4      <Rope, &Rope::Color>();
 
+    SetterTable["Rod"]["Cube0"]     = setter_cube_ref<Rod, &Rod::setCube0>();
+    SetterTable["Rod"]["Cube1"]     = setter_cube_ref<Rod, &Rod::setCube1>();
     SetterTable["Rod"]["LineWidth"] = setter_number<Rod, &Rod::LineWidth>();
     SetterTable["Rod"]["Color"]     = setter_color4<Rod, &Rod::Color>();
 
+    SetterTable["Motor"]["Cube0"]         = setter_cube_ref<Motor, &Motor::setCube0>();
+    SetterTable["Motor"]["Cube1"]         = setter_cube_ref<Motor, &Motor::setCube1>();
     SetterTable["Motor"]["DriveVelocity"] = setter_method_float<Motor, &Motor::setDriveVelocity>();
     SetterTable["Motor"]["MaxForce"]      = setter_method_float<Motor, &Motor::setMaxForce>();
 }

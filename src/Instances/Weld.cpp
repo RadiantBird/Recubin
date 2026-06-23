@@ -21,6 +21,39 @@ void Weld::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> c
     m_cube1 = cube1;
 }
 
+void Weld::setCube0(std::shared_ptr<BaseCube> cube) {
+    m_cube0 = cube;
+    m_cube0Name = cube ? cube->Name : "";
+    registerIfReady();
+}
+
+void Weld::setCube1(std::shared_ptr<BaseCube> cube) {
+    m_cube1 = cube;
+    m_cube1Name = cube ? cube->Name : "";
+    registerIfReady();
+}
+
+void Weld::registerIfReady() {
+    auto* ws_raw = findFirstAncestorWorkspace();
+    if (!ws_raw) return;
+    Workspace* ws = static_cast<Workspace*>(ws_raw);
+    // 片方だけ名前で指定され未解決のCube(例: ロード時にCube1が空で、実行時にsetCube1された
+    // ケース。SceneLoaderの解決パスは両Cubeが揃ったときだけ解決するため、もう片方は未設定の
+    // まま残る)を、保存済みの名前から遅延解決する
+    if (!m_cube0.lock() && !m_cube0Name.empty()) {
+        auto* child = ws->getChildByPath(m_cube0Name);
+        if (child && child->IsA("BaseCube"))
+            m_cube0 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
+    }
+    if (!m_cube1.lock() && !m_cube1Name.empty()) {
+        auto* child = ws->getChildByPath(m_cube1Name);
+        if (child && child->IsA("BaseCube"))
+            m_cube1 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
+    }
+    if (m_cube0.lock() && m_cube1.lock())
+        ws->registerConstraint(shared_from_this());
+}
+
 std::string Weld::getClassName() { return "Weld"; }
 
 bool Weld::IsA(std::string className) {
@@ -46,10 +79,7 @@ void Weld::setProperty(const std::string& name, const YAML::Node& value) {
     } else {
         Instance::setProperty(name, value);
     }
-    if (m_cube0.lock() && m_cube1.lock()) {
-        if (auto* ws_raw = findFirstAncestorWorkspace())
-            static_cast<Workspace*>(ws_raw)->registerConstraint(shared_from_this());
-    }
+    registerIfReady();
 }
 
 void Weld::onAncestorChanged() {

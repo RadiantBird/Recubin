@@ -132,6 +132,7 @@ Physics::~Physics() {
 }
 
 void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
+    cube->m_weldKinematic = false; // 単独アクター生成時はWeldメンバーではない
     if (!cube->CanCollide) return; // 衝突無効 → actor 不要
     if (cube->actor) return; // 二重登録防止
 
@@ -449,8 +450,11 @@ void Physics::update(Workspace& workspace, float dt) {
     auto it = cubes.begin();
     while (it != cubes.end()) {
         auto cube = it->cube.lock();
-        // オブジェクトが消滅しているか、actor が nullptr か、Workspace の子孫でなくなった場合は削除
-        if (!cube || !it->actor || cube->Parent.expired()) {
+        // オブジェクトが消滅したか、Workspace の子孫でなくなった場合のみ削除。
+        // actor が nullptr でも削除しない: CanCollide==false のキューブ(例: HumanoidのHead)は
+        // 元々 actor を持たないが、Weld で compound に組み込まれると駆動対象(syncPhysics)になる。
+        // ここで除外すると syncPhysics が呼ばれなくなり、キネマティック追従が止まってしまう
+        if (!cube || cube->Parent.expired()) {
             if (cube) cube->actor = nullptr;
             if (it->actor) {
                 scene->removeActor(*it->actor);
@@ -503,6 +507,20 @@ void Physics::update(Workspace& workspace, float dt) {
         if (auto cube = entry.cube.lock()) {
             cube->syncPhysics();
         }
+    }
+}
+
+void Physics::syncWeldKinematics() {
+    // アンカー駆動部(Head等)を先に即時 setGlobalPose で動かし(syncPhysics内でm_weldKinematic
+    // のためsetGlobalPoseになる)、その後で非アンカーのメンバー(帽子のCube)のcframeを
+    // compoundから読み戻す。2パスに分けるのは、駆動部を動かしてからメンバーを読む必要があるため。
+    for (auto& entry : cubes) {
+        auto cube = entry.cube.lock();
+        if (cube && cube->m_weldKinematic && cube->Anchored) cube->syncPhysics();
+    }
+    for (auto& entry : cubes) {
+        auto cube = entry.cube.lock();
+        if (cube && cube->m_weldKinematic && !cube->Anchored) cube->syncPhysics();
     }
 }
 
@@ -586,6 +604,8 @@ static void attachShapeToCompound(
     const physx::PxTransform& localOffset,
     physx::PxMaterial* mat)
 {
+    if (!cube->CanCollide) return; // 衝突無効パーツは形状を持たない（位置追従のみ。createActor()と同じ規約）
+
     switch (cube->getPhysicsShape()) {
     case PhysicsShape::Box: {
         physx::PxBoxGeometry geom(cube->Size.x / 2, cube->Size.y / 2, cube->Size.z / 2);
@@ -603,9 +623,32 @@ static void attachShapeToCompound(
         shape->release();
         break;
     }
-    case PhysicsShape::ConvexMesh:
-        // RCBN_WARN("Weld: ConvexMesh shape in compound not supported yet, skipping");
+    case PhysicsShape::ConvexMesh: {
+        auto verts = cube->getConvexVertices();
+        if (verts.empty()) break;
+        physx::PxCookingParams cookParams(px->getTolerancesScale());
+        physx::PxConvexMeshDesc desc;
+        desc.points.count  = static_cast<physx::PxU32>(verts.size());
+        desc.points.stride = sizeof(physx::PxVec3);
+        desc.points.data   = verts.data();
+        desc.flags         = physx::PxConvexFlag::eCOMPUTE_CONVEX;
+        physx::PxDefaultMemoryOutputStream buf;
+        physx::PxConvexMeshCookingResult::Enum result;
+        if (!PxCookConvexMesh(cookParams, desc, buf, &result)) {
+            // RCBN_WARN("Weld: ConvexMesh cooking failed for: " << cube->Name);
+            break;
+        }
+        physx::PxDefaultMemoryInputData input(buf.getData(), buf.getSize());
+        physx::PxConvexMesh* mesh = px->createConvexMesh(input);
+        physx::PxMeshScale scale(physx::PxVec3(cube->Size.x, cube->Size.y, cube->Size.z));
+        physx::PxConvexMeshGeometry geom(mesh, scale);
+        physx::PxShape* shape = px->createShape(geom, *mat);
+        shape->setLocalPose(localOffset);
+        compound->attachShape(*shape);
+        shape->release();
+        mesh->release();
         break;
+    }
     }
 }
 
@@ -652,7 +695,6 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
     // 4. compound 生成（assembly[0] を原点）
     physx::PxTransform originPose = savedPoses[assembly[0].get()];
     physx::PxRigidDynamic* compound = s_pxPhysics->createRigidDynamic(originPose);
-    compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eENABLE_CCD, true);
     compound->setSolverIterationCounts(8, 2);
 
     for (size_t i = 0; i < assembly.size(); i++) {
@@ -674,7 +716,16 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
         if (cube->Anchored) { anyAnchored = true; break; }
     }
     if (anyAnchored) {
+        // キネマティックボディはCCD非対応のため、CCDは有効化しない（PhysX警告回避）
         compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
+    } else {
+        compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eENABLE_CCD, true);
+    }
+
+    // メンバーに「アンカー駆動のキネマティックWeldか」を記録する。
+    // (syncPhysics()/syncWeldKinematics() が setGlobalPose で即時追従させるための判定用)
+    for (auto& cube : assembly) {
+        cube->m_weldKinematic = anyAnchored;
     }
 
     scene->addActor(*compound);
@@ -747,10 +798,9 @@ void Physics::createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace
         // RCBN_WARN("Weld \"" << weld->Name << "\": cube refs unresolved");
         return;
     }
-    if (!c0->actor || !c1->actor) {
-        // RCBN_WARN("Weld \"" << weld->Name << "\": actors not ready");
-        return;
-    }
+    // NOTE: CanCollide==false のキューブ(例: HumanoidのHead)はactorを持たないため、
+    // ここでactor存在を要求すると永久にWeldできない。rebuildGroup()はactor未生成の
+    // キューブもgetWorldPosition()ベースで救済できるので、actorの有無は問わない。
 
     // collectAssembly でこの Weld を含む全連結キューブを収集
     // （この Weld は workspace.children に既に存在するので BFS に含まれる）

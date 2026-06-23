@@ -461,6 +461,12 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、
+        // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす
+        if (isPlaying && !isPaused && workspace->getPhysicsEngine()) {
+            workspace->getPhysicsEngine()->syncWeldKinematics();
+        }
+
         // ---- Pキー: Workspace 切り替え ----
         if (user->consumeWorkspaceSwitchRequest() && isPlaying) {
             // System直下のWorkspaceリストを収集

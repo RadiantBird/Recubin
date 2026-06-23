@@ -171,6 +171,10 @@ int main() {
                             ImGui::GetIO().WantTextInput);
         if (user->consumeExitRequest()) break;
 
+        // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、
+        // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす
+        if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->syncWeldKinematics();
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderer->render(*user, window, *workspace);
 

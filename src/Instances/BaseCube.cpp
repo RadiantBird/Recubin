@@ -91,7 +91,12 @@ void BaseCube::syncPhysics() {
             );
             // compound の原点姿勢を逆オフセットで計算
             physx::PxTransform compoundTarget = cubeWorldPose.transform(m_compoundLocalOffset.getInverse());
-            kin->setKinematicTarget(compoundTarget);
+            if (m_weldKinematic) {
+                // アニメ駆動部(Head等)に即時追従させる(setKinematicTargetは1フレーム遅延するため)
+                kin->setGlobalPose(compoundTarget);
+            } else {
+                kin->setKinematicTarget(compoundTarget);
+            }
         }
         return;
     }

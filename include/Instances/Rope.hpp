@@ -16,6 +16,9 @@ class Rope : public Instance {
     friend class Physics;
     friend class SceneLoader;
     friend class Renderer;
+
+    // 両方のCubeが解決済みなら制約をWorkspaceに登録する（setProperty/setCube0/setCube1から共通利用）
+    void registerIfReady();
 public:
     float MaxDistance = 0.0f; // 0 = 生成時の距離を自動使用
     float Stiffness   = 100.0f;
@@ -31,6 +34,8 @@ public:
     virtual ~Rope();
 
     void setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1);
+    void setCube0(std::shared_ptr<BaseCube> cube);
+    void setCube1(std::shared_ptr<BaseCube> cube);
     void setMaxDistance(float v);
     void setStiffness(float v);
     void setDamping(float v);

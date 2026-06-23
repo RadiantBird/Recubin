@@ -15,6 +15,9 @@ class Weld : public Instance {
 
     friend class Physics;
     friend class SceneLoader;
+
+    // 両方のCubeが解決済みなら制約をWorkspaceに登録する（setProperty/setCube0/setCube1から共通利用）
+    void registerIfReady();
 public:
     std::string m_cube0Name;
     std::string m_cube1Name;
@@ -24,6 +27,8 @@ public:
     virtual ~Weld();
 
     void setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1);
+    void setCube0(std::shared_ptr<BaseCube> cube);
+    void setCube1(std::shared_ptr<BaseCube> cube);
 
     // 指定キューブに Weld で連鎖接続された全 BaseCube を収集する（BFS）
     static std::vector<std::shared_ptr<BaseCube>>
