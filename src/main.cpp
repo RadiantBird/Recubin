@@ -207,6 +207,12 @@ bool checkExit(EditorManager* ed, GLFWwindow& window) {
 //  main
 // ===================================================
 int main(int argc, char* argv[]) {
+    // コンソールの出力/入力コードページをUTF-8にする
+    // (Windows日本語版等では既定のANSIコードページのままだと、UTF-8で書かれた
+    //  ログやLuauのprint出力が文字化けする)
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
     std::cout << "Hello world!\n"
               << "Recubin Studio v0.990\n";
     std::string engineExePath = (argc > 0 && argv[0]) ? argv[0] : "";
