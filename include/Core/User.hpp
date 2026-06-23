@@ -100,7 +100,6 @@ private:
 
     // 外部からは参照されない内部状態（フレーム間のトグル判定）
     bool lastFKeyPressed = false; // トグル判定用
-    bool lastSpacePressed = false; // ジャンプ用
 
     // CtrlLock(Roblox ShiftLock相当)
     bool ctrlLockEnabled = false;

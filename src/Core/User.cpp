@@ -226,12 +226,12 @@ void User::processHotkeys() {
     if (pPressed && !lastPPressed) wantsSwitchWorkspace = true;
     lastPPressed = pPressed;
 
-    // Space: ジャンプ（接地時のみ、判定はHumanoid内部）
+    // Space: ジャンプ（押し続けている間は接地するたびに連続でジャンプする。
+    // 接地判定自体はHumanoid内部で行うため、ここでは押下中であれば毎フレーム要求するだけでよい）
     bool spacePressed = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
-    if (spacePressed && !lastSpacePressed && controlMode == ControlMode::Character && humanoid) {
+    if (spacePressed && controlMode == ControlMode::Character && humanoid) {
         humanoid->jump();
     }
-    lastSpacePressed = spacePressed;
 
     // 左Ctrlキー: CtrlLock ON/OFFトグル
     bool ctrlKeyPressed = (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS);
