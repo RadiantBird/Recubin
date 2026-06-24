@@ -6,6 +6,7 @@
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Sphere.hpp>
+#include <Instances/MeshCube.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Decal.hpp>
@@ -315,7 +316,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Cylinder>(m_history, "Cylinder", parentSp, spawnPos, Vector3(1, 1, 1));
         tryInsertInstance<TriangularPrism>(m_history, "TriangularPrism", parentSp, spawnPos, Vector3(1, 1, 1));
         tryInsertInstance<Sphere>(m_history, "Sphere", parentSp, spawnPos, Vector3(1, 1, 1));
-        
+        tryInsertInstance<MeshCube>(m_history, "MeshCube", parentSp, spawnPos, Vector3(1, 1, 1));
+
         ImGui::EndMenu();
     }
 
@@ -331,6 +333,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         }
         tryInsertInstance<Decal>(m_history, "Decal", parentSp, 0, Face::Front);
         tryInsertInstance<Texture>(m_history, "Texture", parentSp, 0, Face::Front);
+        tryInsertInstance<PostEffect>(m_history, "PostEffect", parentSp);
         
         ImGui::EndMenu();
     }
@@ -347,7 +350,6 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Model>(m_history, "Model", parentSp, Vector3(0, 0, 0), Vector3(1, 1, 1));
         tryInsertInstance<Workspace>(m_history, "Workspace", parentSp);
         tryInsertInstance<Lighting>(m_history, "Lighting", parentSp);
-        tryInsertInstance<PostEffect>(m_history, "PostEffect", parentSp);
         tryInsertInstance<Terrain>(m_history, "Terrain", parentSp);
         tryInsertInstance<Skybox>(m_history, "Skybox", parentSp);
         tryInsertInstance<AppImage>(m_history, "AppImage", parentSp);

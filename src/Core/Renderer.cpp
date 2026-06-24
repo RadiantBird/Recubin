@@ -4,6 +4,7 @@
 #include <Editor/IEditorManager.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
+#include <Instances/MeshCube.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/Rope.hpp>
@@ -133,6 +134,7 @@ void Renderer::init(GLFWwindow* window) {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glVertexAttrib1f(4, 1.0f); // MeshCube以外がattrib4を使わない場合のデフォルトMatAlpha=1
 
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
@@ -662,6 +664,12 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     } else if (inst->IsA("Sphere")) {
                         glBindVertexArray(Sphere::s_VAO);
                         glDrawElements(GL_TRIANGLES, Sphere::s_IndexCount, GL_UNSIGNED_INT, nullptr);
+                    } else if (inst->IsA("MeshCube")) {
+                        MeshCube* mc = static_cast<MeshCube*>(inst);
+                        if (mc->hasGeometry()) {
+                            glBindVertexArray(mc->getVAO());
+                            glDrawElements(GL_TRIANGLES, mc->getIndexCount(), GL_UNSIGNED_INT, nullptr);
+                        }
                     } else {
                         glBindVertexArray(Cube::s_VAO);
                         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
@@ -758,6 +766,13 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
                 sp->draw(modelLoc, shaderProgram);
             }
+        } else if (inst->IsA("MeshCube")) {
+            MeshCube* mc = static_cast<MeshCube*>(inst);
+            if (mc->Color.a > 0.001f) {
+                Matrix4 m = mc->getWorldCFrame().toMatrix4() * Matrix4::Scale(mc->Size.x, mc->Size.y, mc->Size.z);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                mc->draw(modelLoc, shaderProgram);
+            }
         }
         for (auto const& [name, child] : inst->getChildren()) {
             self(self, child.get());
@@ -791,6 +806,12 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 } else if (sel->IsA("Sphere")) {
                     glBindVertexArray(Sphere::s_VAO);
                     glDrawElements(GL_TRIANGLES, Sphere::s_IndexCount, GL_UNSIGNED_INT, nullptr);
+                } else if (sel->IsA("MeshCube")) {
+                    MeshCube* mc = static_cast<MeshCube*>(sel);
+                    if (mc->hasGeometry()) {
+                        glBindVertexArray(mc->getVAO());
+                        glDrawElements(GL_TRIANGLES, mc->getIndexCount(), GL_UNSIGNED_INT, nullptr);
+                    }
                 } else {
                     glBindVertexArray(Cube::s_VAO);
                     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
@@ -930,6 +951,33 @@ unsigned int Renderer::loadTexture(const char* path) {
     stbi_image_free(data);
 
     textureCache[pathStr] = textureID;
+    return textureID;
+}
+
+// GLB等のメモリ上のバイト列からテクスチャを読み込む(パスキーが無いためキャッシュはしない)
+unsigned int Renderer::loadTextureFromMemory(const unsigned char* data, size_t size) {
+    int width, height, nrChannels;
+    unsigned char* pixels = stbi_load_from_memory(data, static_cast<int>(size), &width, &height, &nrChannels, 4);
+
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    if (!pixels) {
+        RCBN_WARN("Failed to load texture from memory");
+        return 0;
+    }
+
+    unsigned int textureID = 0;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    stbi_image_free(pixels);
     return textureID;
 }
 

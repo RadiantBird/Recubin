@@ -6,6 +6,7 @@
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Sphere.hpp>
+#include <Instances/MeshCube.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/Decal.hpp>
@@ -194,6 +195,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Cylinder")       return std::make_shared<Cylinder>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "TriangularPrism") return std::make_shared<TriangularPrism>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "Sphere")         return std::make_shared<Sphere>(Vector3(0,0,0), Vector3(1,1,1));
+    if (className == "MeshCube")       return std::make_shared<MeshCube>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "Skybox")         return std::make_shared<Skybox>();
     if (className == "Script")    return std::make_shared<Script>("");
     if (className == "Model")     return std::make_shared<Model>();
@@ -358,6 +360,11 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             const AppImage* ai = static_cast<const AppImage*>(inst);
             if (!ai->iconPath.empty())
                 out << YAML::Key << "IconPath" << YAML::Value << ai->iconPath;
+        }
+        if (inst->getClassName() == "MeshCube") {
+            const MeshCube* mc = static_cast<const MeshCube*>(inst);
+            if (!mc->MeshFile.empty())
+                out << YAML::Key << "MeshFile" << YAML::Value << mc->MeshFile;
         }
         if (inst->getClassName() == "Terrain") {
             const Terrain* tr = static_cast<const Terrain*>(inst);

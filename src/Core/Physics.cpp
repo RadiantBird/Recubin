@@ -175,7 +175,7 @@ void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
         desc.points.count  = static_cast<physx::PxU32>(verts.size());
         desc.points.stride = sizeof(physx::PxVec3);
         desc.points.data   = verts.data();
-        desc.flags         = physx::PxConvexFlag::eCOMPUTE_CONVEX;
+        desc.flags         = physx::PxConvexFlag::eCOMPUTE_CONVEX | physx::PxConvexFlag::eQUANTIZE_INPUT;
         physx::PxDefaultMemoryOutputStream buf;
         physx::PxConvexMeshCookingResult::Enum result;
         if (!PxCookConvexMesh(cookParams, desc, buf, &result)) {
@@ -631,7 +631,7 @@ static void attachShapeToCompound(
         desc.points.count  = static_cast<physx::PxU32>(verts.size());
         desc.points.stride = sizeof(physx::PxVec3);
         desc.points.data   = verts.data();
-        desc.flags         = physx::PxConvexFlag::eCOMPUTE_CONVEX;
+        desc.flags         = physx::PxConvexFlag::eCOMPUTE_CONVEX | physx::PxConvexFlag::eQUANTIZE_INPUT;
         physx::PxDefaultMemoryOutputStream buf;
         physx::PxConvexMeshCookingResult::Enum result;
         if (!PxCookConvexMesh(cookParams, desc, buf, &result)) {

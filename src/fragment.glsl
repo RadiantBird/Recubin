@@ -6,6 +6,7 @@ in vec3 FragPos;
 in vec2 TexCoord;
 in vec4 FragPosLightSpace;
 in vec3 VertexColor;
+in float MatAlpha;
 
 uniform sampler2D ourTexture;
 uniform sampler2D shadowMap;
@@ -69,7 +70,7 @@ void main() {
     }
 
     if (unlit > 0.5) {
-        FragColor = vec4(baseColor, ourColor.a);
+        FragColor = vec4(baseColor, texColor.a * ourColor.a * MatAlpha);
         return;
     }
 
@@ -86,5 +87,5 @@ void main() {
     vec3 lighting = ambient + (1.0 - shadow) * diffuse;
     vec3 result = lighting * baseColor;
 
-    FragColor = vec4(result, ourColor.a);
+    FragColor = vec4(result, texColor.a * ourColor.a * MatAlpha);
 }

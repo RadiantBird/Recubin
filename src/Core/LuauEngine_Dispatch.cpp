@@ -11,6 +11,7 @@
 #include "include/Instances/Weld.hpp"
 #include "include/Instances/Humanoid.hpp"
 #include "include/Instances/AppImage.hpp"
+#include "include/Instances/MeshCube.hpp"
 #include "include/Instances/Script.hpp"
 #include "include/Instances/System.hpp"
 #include "include/Instances/Event.hpp"
@@ -386,6 +387,8 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Humanoid"]["JumpPower"] = getter_number<Humanoid, &Humanoid::JumpPower>();
 
     DispatchTable["AppImage"]["IconPath"] = getter_string<AppImage, &AppImage::iconPath>();
+
+    DispatchTable["MeshCube"]["MeshFile"] = getter_string<MeshCube, &MeshCube::MeshFile>();
 
     DispatchTable["Script"]["Enabled"] = getter_bool  <Script, &Script::Enabled>();
     DispatchTable["Script"]["Path"]    = getter_string<Script, &Script::Path>();

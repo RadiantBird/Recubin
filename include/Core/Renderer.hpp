@@ -88,6 +88,7 @@ class Renderer {
         void renderImGui(User &user, GLFWwindow* window, Workspace &workspace);
 
         unsigned int loadTexture(const char* path);
+        unsigned int loadTextureFromMemory(const unsigned char* data, size_t size);
 
         // 制約ビジュアライザ（Rope/Rod）
         GLuint m_lineVAO    = 0;

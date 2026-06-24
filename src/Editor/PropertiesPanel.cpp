@@ -4,6 +4,7 @@
 #include <Core/User.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/BaseCube.hpp>
+#include <Instances/MeshCube.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
@@ -376,6 +377,20 @@ void PropertiesPanel::onRender() {
         if (ImGui::Checkbox("Unlit", &bc->Unlit) && m_history && prevUnlit != bc->Unlit) {
             m_history->record(std::make_unique<SetBoolCommand>(
                 bcSp, "Unlit", prevUnlit, bc->Unlit));
+        }
+    }
+
+    // ---- MeshCube ----
+    if (inst->getClassName() == "MeshCube") {
+        MeshCube* mc = static_cast<MeshCube*>(inst);
+        ImGui::SeparatorText("MeshCube");
+        ImGui::LabelText("MeshFile", "%s", mc->MeshFile.empty() ? "(none)" : mc->MeshFile.c_str());
+        if (ImGui::Button("参照...##meshcube")) {
+            std::string path = browseFile(L"GLB (*.glb)", L"*.glb");
+            if (!path.empty()) {
+                YAML::Node node; node = path;
+                mc->setProperty("MeshFile", node);
+            }
         }
     }
 
