@@ -35,6 +35,10 @@ export type Cylinder = BaseCube & {}
 
 export type TriangularPrism = BaseCube & {}
 
+export type MeshCube = BaseCube & {
+    MeshFile: string, -- read only
+}
+
 export type Decal = Instance & {
     TextureID: number,
     Face: number,
@@ -50,9 +54,12 @@ export type Sound = Instance & {
 
 export type Lighting = Instance & {
     Brightness: number,
+    Direction: Vector3,
 }
 
 export type Rope = Instance & {
+    Cube0: string,
+    Cube1: string,
     MaxDistance: number,
     Stiffness: number,
     Damping: number,
@@ -61,40 +68,54 @@ export type Rope = Instance & {
 }
 
 export type Rod = Instance & {
+    Cube0: string,
+    Cube1: string,
     LineWidth: number,
     Color: Color4,
 }
 
 export type Weld = Instance & {
-    Cube0: string, -- read only
-    Cube1: string, -- read only
+    Cube0: string,
+    Cube1: string,
 }
 
 export type Motor = Instance & {
+    Cube0: string,
+    Cube1: string,
     DriveVelocity: number,
     MaxForce: number,
-}
-
-export type CharacterSetting = Instance & {
-    JumpPower: number,
-    MoveSpeed: number,
-    FacePath: string,
-    HeadColor: Color4,
-    TorsoColor: Color4,
-    LeftArmColor: Color4,
-    RightArmColor: Color4,
-    LeftLegColor: Color4,
-    RightLegColor: Color4,
 }
 
 export type AppImage = Instance & {
     IconPath: string,
 }
 
+export type Animation = Instance & {}
+
+export type Humanoid = Instance & {
+    WalkSpeed: number,
+    JumpPower: number,
+    PlayAnimation: (Humanoid, Animation) -> (),
+    PauseAnimation: (Humanoid) -> (),
+    StopAnimation: (Humanoid) -> (),
+}
+
 export type Script = Instance & {
     Enabled: boolean,
     Path: string,
     Source: string, -- read only
+}
+
+export type Terrain = Instance & {
+    Enabled: boolean,
+    DataPath: string,
+    Seed: number,
+    Flat: boolean,
+    SetBlock: (Terrain, Vector3, Color4?, number?) -> boolean,
+    RemoveBlock: (Terrain, Vector3) -> boolean,
+    GetBlock: (Terrain, Vector3) -> { Shape: number, Color: Color4 }?,
+    Raycast: (Terrain, Vector3, Vector3, number?) -> { Position: Vector3 }?,
+    ApplyBrush: (Terrain, Vector3, number, number) -> (),
 }
 
 export type RaycastResult = {
@@ -130,7 +151,6 @@ export type Color4 = {
 export type Vector2 = {
     x: number,
     y: number,
-    zero: Vector2,
     new: (number, number) -> Vector2,
 }
 
@@ -197,7 +217,11 @@ export type ProximityPrompt = Instance & {
 
 declare workspace: Workspace
 declare script: Script
+declare System: System
+declare system: System
 declare Vector3: Vector3
 declare Color4: Color4
+declare Vector2: Vector2
+declare Instance: { new: (className: string) -> any }
 declare wait: (seconds: number) -> ()
 declare print: (...any) -> ()
