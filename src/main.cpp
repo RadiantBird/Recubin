@@ -25,6 +25,7 @@
 #include <Core/SceneLoader.hpp>
 #include <Core/FileLoader.hpp>
 #include <Core/AudioService.hpp>
+#include <Core/GLFWInputBackend.hpp>
 #include <include/Core/Terrain.hpp>
 #include <include/Core/TerrainStreamer.hpp>
 
@@ -227,7 +228,7 @@ int main(int argc, char* argv[]) {
     auto audioService = std::make_unique<AudioService>();
     auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
-    auto user         = std::make_shared<User>(window);
+    auto user         = std::make_shared<User>(std::make_unique<GLFWInputBackend>(window));
     user->controlMode = User::ControlMode::Free; // エディターではフリーモードから開始(パッケージされたゲームランタイムはCharacterモードから開始)
     user->initializeInventory();  // Inventory を初期化
 

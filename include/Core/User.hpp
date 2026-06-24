@@ -10,12 +10,12 @@
 #include <Instances/Cylinder.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/Humanoid.hpp>
-#include <include/GL/glew.h>
-#include <include/GLFW/glfw3.h>
+#include <Core/IInputBackend.hpp>
 #include <Instances/Tool.hpp>
 
 #include <cmath>
 #include <array>
+#include <memory>
 
 struct camera {
     Quaternion Orientation;
@@ -24,8 +24,6 @@ struct camera {
 
 class User : public Instance {
 public:
-    GLFWwindow* window;
-
     float speed = 0.25f;
     float rotationSpeed = 1.0f;
     float cameraDistance = 10.0f;
@@ -69,7 +67,7 @@ public:
     Vector3 right;
     Vector3 up;
 
-    User(GLFWwindow* window);
+    explicit User(std::unique_ptr<IInputBackend> input);
     ~User();
 
     std::string getClassName() override;
@@ -93,7 +91,9 @@ public:
 
 private:
     static User* s_instance;
-    static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+
+    // 入力供給源（GLFW 等の具体実装を抽象化）
+    std::unique_ptr<IInputBackend> m_input;
 
     // キャラクターの移動・カメラ追従(Humanoidに入力を渡し、結果を読んでカメラ位置を更新する)
     void processCharacterMovement(Physics* physics);
@@ -114,7 +114,4 @@ private:
     bool isRightMouseRotating = false;
     double lastMouseX = 0.0;
     double lastMouseY = 0.0;
-    double pendingScrollY = 0.0;
-    bool isScrollCallbackInstalled = false;
-    GLFWscrollfun previousScrollCallback = nullptr;
 };

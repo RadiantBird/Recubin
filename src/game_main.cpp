@@ -13,6 +13,7 @@
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
 #include <Core/AudioService.hpp>
+#include <Core/GLFWInputBackend.hpp>
 #include <Editor/NullEditorManager.hpp>
 #include <include/imgui/imgui.h>
 
@@ -95,7 +96,7 @@ int main() {
     auto audioService = std::make_unique<AudioService>();
     auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
-    auto user         = std::make_unique<User>(window);
+    auto user         = std::make_unique<User>(std::make_unique<GLFWInputBackend>(window));
     user->controlMode = User::ControlMode::Character;
 
     renderer->init(window);

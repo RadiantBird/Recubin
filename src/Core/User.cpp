@@ -6,18 +6,9 @@
 
 User* User::s_instance = nullptr;
 
-void User::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
-    if (s_instance && s_instance->window == window) {
-        s_instance->pendingScrollY += yoffset;
-        if (s_instance->previousScrollCallback) {
-            s_instance->previousScrollCallback(window, xoffset, yoffset);
-        }
-    }
-}
-
-User::User(GLFWwindow* win)
+User::User(std::unique_ptr<IInputBackend> input)
     : Instance("User"),
-      window(win),
+      m_input(std::move(input)),
       cam(current_camera),
       cpos(current_camera.Position),
       forward(0, 0, -1),
@@ -60,42 +51,46 @@ bool User::processCameraRotation(bool viewportFocused) {
     const float rotationSpeed = 1.5f;
     const double mouseRotationSpeed = 0.15;
 
-    if (viewportFocused) {
-        const bool rightMousePressed = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
-        double currentMouseX = 0.0, currentMouseY = 0.0;
-        glfwGetCursorPos(window, &currentMouseX, &currentMouseY);
+    const bool rightMousePressed = viewportFocused && m_input->isMouseButtonDown(MouseButton::Right);
 
-        if (rightMousePressed) {
-            if (!isRightMouseRotating) {
-                isRightMouseRotating = true;
-                lastMouseX = currentMouseX;
-                lastMouseY = currentMouseY;
-            } else {
-                const double deltaX = currentMouseX - lastMouseX;
-                const double deltaY = currentMouseY - lastMouseY;
-                if (deltaX != 0.0 || deltaY != 0.0) {
-                    cam.Orientation =
-                        Quaternion::fromAxisAngle(Vector3(0, 1, 0), static_cast<float>(-deltaX * mouseRotationSpeed)) *
-                        cam.Orientation;
-                    cam.Orientation =
-                        cam.Orientation *
-                        Quaternion::fromAxisAngle(Vector3(1, 0, 0), static_cast<float>(-deltaY * mouseRotationSpeed));
-                    rotated = true;
-                }
-                glfwSetCursorPos(window, lastMouseX, lastMouseY);
-            }
+    if (rightMousePressed) {
+        if (!isRightMouseRotating) {
+            // ドラッグ開始: カーソルをロック(非表示)し、アンカー位置を取得する
+            isRightMouseRotating = true;
+            m_input->setMouseCaptured(true);
+            m_input->getCursorPos(lastMouseX, lastMouseY);
         } else {
-            isRightMouseRotating = false;
+            // ロック中(DISABLED+raw)なので画面端クランプ・加速が無く滑らかな差分が得られる。
+            // アンカーからの差分で回転したのち、仮想カーソルをアンカーへ戻す。
+            // これにより ImGui へは固定位置を見せ、他エディター要素の誤反応を防ぐ。
+            double currentMouseX = 0.0, currentMouseY = 0.0;
+            m_input->getCursorPos(currentMouseX, currentMouseY);
+            const double deltaX = currentMouseX - lastMouseX;
+            const double deltaY = currentMouseY - lastMouseY;
+            if (deltaX != 0.0 || deltaY != 0.0) {
+                cam.Orientation =
+                    Quaternion::fromAxisAngle(Vector3(0, 1, 0), static_cast<float>(-deltaX * mouseRotationSpeed)) *
+                    cam.Orientation;
+                cam.Orientation =
+                    cam.Orientation *
+                    Quaternion::fromAxisAngle(Vector3(1, 0, 0), static_cast<float>(-deltaY * mouseRotationSpeed));
+                rotated = true;
+            }
+            m_input->setCursorPos(lastMouseX, lastMouseY);
         }
     } else {
-        isRightMouseRotating = false;
+        // ドラッグ終了(ボタン解除 or フォーカス喪失): カーソルロックを解放する
+        if (isRightMouseRotating) {
+            m_input->setMouseCaptured(false);
+            isRightMouseRotating = false;
+        }
     }
 
     if (viewportFocused) {
-        if (glfwGetKey(window, GLFW_KEY_LEFT)  == GLFW_PRESS) { cam.Orientation = Quaternion::fromAxisAngle(Vector3(0,1,0),  rotationSpeed) * cam.Orientation; rotated = true; }
-        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) { cam.Orientation = Quaternion::fromAxisAngle(Vector3(0,1,0), -rotationSpeed) * cam.Orientation; rotated = true; }
-        if (glfwGetKey(window, GLFW_KEY_UP)    == GLFW_PRESS) { cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1,0,0),  rotationSpeed); rotated = true; }
-        if (glfwGetKey(window, GLFW_KEY_DOWN)  == GLFW_PRESS) { cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1,0,0), -rotationSpeed); rotated = true; }
+        if (m_input->isKeyDown(KeyCode::Left))  { cam.Orientation = Quaternion::fromAxisAngle(Vector3(0,1,0),  rotationSpeed) * cam.Orientation; rotated = true; }
+        if (m_input->isKeyDown(KeyCode::Right)) { cam.Orientation = Quaternion::fromAxisAngle(Vector3(0,1,0), -rotationSpeed) * cam.Orientation; rotated = true; }
+        if (m_input->isKeyDown(KeyCode::Up))    { cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1,0,0),  rotationSpeed); rotated = true; }
+        if (m_input->isKeyDown(KeyCode::Down))  { cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1,0,0), -rotationSpeed); rotated = true; }
     }
 
     if (rotated) updateVectors();
@@ -106,20 +101,20 @@ bool User::processCameraRotation(bool viewportFocused) {
 void User::processZoom(bool viewportZoomEnabled) {
     if (!viewportZoomEnabled) return;
 
+    const double scrollDelta = m_input->consumeScrollDelta();
+
     if (controlMode == ControlMode::Free) {
-        if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) cpos = cpos + forward * zoomSpeed;
-        if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) cpos = cpos - forward * zoomSpeed;
-        if (pendingScrollY != 0.0) {
-            cpos = cpos + forward * (static_cast<float>(pendingScrollY) * mouseZoomSpeed);
-            pendingScrollY = 0.0;
+        if (m_input->isKeyDown(KeyCode::I)) cpos = cpos + forward * zoomSpeed;
+        if (m_input->isKeyDown(KeyCode::O)) cpos = cpos - forward * zoomSpeed;
+        if (scrollDelta != 0.0) {
+            cpos = cpos + forward * (static_cast<float>(scrollDelta) * mouseZoomSpeed);
         }
     } else {
-        if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS) { cameraDistance -= zoomSpeed; if (cameraDistance < minCameraDistance) cameraDistance = minCameraDistance; }
-        if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) cameraDistance += zoomSpeed;
-        if (pendingScrollY != 0.0) {
-            cameraDistance -= static_cast<float>(pendingScrollY) * mouseZoomSpeed;
+        if (m_input->isKeyDown(KeyCode::I)) { cameraDistance -= zoomSpeed; if (cameraDistance < minCameraDistance) cameraDistance = minCameraDistance; }
+        if (m_input->isKeyDown(KeyCode::O)) cameraDistance += zoomSpeed;
+        if (scrollDelta != 0.0) {
+            cameraDistance -= static_cast<float>(scrollDelta) * mouseZoomSpeed;
             if (cameraDistance < minCameraDistance) cameraDistance = minCameraDistance;
-            pendingScrollY = 0.0;
         }
     }
 }
@@ -129,12 +124,12 @@ void User::processMovement(bool viewportFocused, Physics* physics) {
     if (!viewportFocused) return;
 
     if (controlMode == ControlMode::Free) {
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) cpos = cpos + forward * speed;
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) cpos = cpos - forward * speed;
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) cpos = cpos - right   * speed;
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) cpos = cpos + right   * speed;
-        if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) cpos = cpos - up      * speed;
-        if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) cpos = cpos + up      * speed;
+        if (m_input->isKeyDown(KeyCode::W)) cpos = cpos + forward * speed;
+        if (m_input->isKeyDown(KeyCode::S)) cpos = cpos - forward * speed;
+        if (m_input->isKeyDown(KeyCode::A)) cpos = cpos - right   * speed;
+        if (m_input->isKeyDown(KeyCode::D)) cpos = cpos + right   * speed;
+        if (m_input->isKeyDown(KeyCode::Q)) cpos = cpos - up      * speed;
+        if (m_input->isKeyDown(KeyCode::E)) cpos = cpos + up      * speed;
     } else if (controlMode == ControlMode::Character && character && humanoid) {
         processCharacterMovement(physics);
     }
@@ -164,10 +159,10 @@ void User::processCharacterMovement(Physics* physics) {
     Vector3 flatForward = Vector3(forward.x, 0, forward.z).normalize();
     Vector3 flatRight   = Vector3(right.x,   0, right.z  ).normalize();
 
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) { targetMoveDir = targetMoveDir + flatForward; isPressingMove = true; }
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) { targetMoveDir = targetMoveDir - flatForward; isPressingMove = true; }
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) { targetMoveDir = targetMoveDir - flatRight;   isPressingMove = true; }
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) { targetMoveDir = targetMoveDir + flatRight;   isPressingMove = true; }
+    if (m_input->isKeyDown(KeyCode::W)) { targetMoveDir = targetMoveDir + flatForward; isPressingMove = true; }
+    if (m_input->isKeyDown(KeyCode::S)) { targetMoveDir = targetMoveDir - flatForward; isPressingMove = true; }
+    if (m_input->isKeyDown(KeyCode::A)) { targetMoveDir = targetMoveDir - flatRight;   isPressingMove = true; }
+    if (m_input->isKeyDown(KeyCode::D)) { targetMoveDir = targetMoveDir + flatRight;   isPressingMove = true; }
 
     if (isPressingMove) targetMoveDir = targetMoveDir.normalize();
 
@@ -203,12 +198,12 @@ void User::processCharacterMovement(Physics* physics) {
 
 // ホットキー（ESC / L / P / Space）
 void User::processHotkeys() {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+    if (m_input->isKeyDown(KeyCode::Escape)) {
         wannaExit = true;
     }
 
     // Lキー: Free/Character モード切り替え
-    bool fPressed = (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS);
+    bool fPressed = m_input->isKeyDown(KeyCode::L);
     if (fPressed && !lastFKeyPressed && allowControlModeSwitch) {
         if (controlMode == ControlMode::Free) {
             controlMode = ControlMode::Character;
@@ -222,19 +217,19 @@ void User::processHotkeys() {
 
     // Pキー: ワークスペース切り替え
     static bool lastPPressed = false;
-    bool pPressed = (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS);
+    bool pPressed = m_input->isKeyDown(KeyCode::P);
     if (pPressed && !lastPPressed) wantsSwitchWorkspace = true;
     lastPPressed = pPressed;
 
     // Space: ジャンプ（押し続けている間は接地するたびに連続でジャンプする。
     // 接地判定自体はHumanoid内部で行うため、ここでは押下中であれば毎フレーム要求するだけでよい）
-    bool spacePressed = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
+    bool spacePressed = m_input->isKeyDown(KeyCode::Space);
     if (spacePressed && controlMode == ControlMode::Character && humanoid) {
         humanoid->jump();
     }
 
     // 左Ctrlキー: CtrlLock ON/OFFトグル
-    bool ctrlKeyPressed = (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS);
+    bool ctrlKeyPressed = m_input->isKeyDown(KeyCode::LeftControl);
     if (ctrlKeyPressed && !lastCtrlKeyPressed && controlMode == ControlMode::Character) {
         ctrlLockEnabled = !ctrlLockEnabled;
         RCBN_LOG(ctrlLockEnabled ? "CtrlLock: ON" : "CtrlLock: OFF");
@@ -242,7 +237,7 @@ void User::processHotkeys() {
     lastCtrlKeyPressed = ctrlKeyPressed;
 
     // Fキー: CtrlLockのオフセット方向（左右）切り替え（CtrlLockのON/OFFに関わらず状態は保持される）
-    bool ctrlLockFKeyPressed = (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS);
+    bool ctrlLockFKeyPressed = m_input->isKeyDown(KeyCode::F);
     if (ctrlLockFKeyPressed && !lastCtrlLockFKeyPressed) {
         ctrlLockOffsetRight = !ctrlLockOffsetRight;
         RCBN_LOG(ctrlLockOffsetRight ? "CtrlLock offset: Right" : "CtrlLock offset: Left");
@@ -268,13 +263,13 @@ void User::processToolkeys(bool viewportFocused, bool isGameplayInput, bool want
     if (!viewportFocused || controlMode != ControlMode::Character) return;
     if (wantsTextInput) return; // テキストボックス入力中はツール切り替えキーを無視
 
-    static const int keys[] = {
-        GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5,
-        GLFW_KEY_6, GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9, GLFW_KEY_0
+    static const KeyCode keys[] = {
+        KeyCode::Num1, KeyCode::Num2, KeyCode::Num3, KeyCode::Num4, KeyCode::Num5,
+        KeyCode::Num6, KeyCode::Num7, KeyCode::Num8, KeyCode::Num9, KeyCode::Num0
     };
 
     for (int i = 0; i < 10; i++) {
-        const bool pressed = (glfwGetKey(window, keys[i]) == GLFW_PRESS);
+        const bool pressed = m_input->isKeyDown(keys[i]);
 
         if (pressed && !lastToolKeyPressed[i]) {
             RCBN_TRACE("Tool key pressed: " + std::to_string(i + 1));
@@ -309,14 +304,13 @@ void User::processToolkeys(bool viewportFocused, bool isGameplayInput, bool want
 }
 
 void User::processMouse(bool isGameplayInput) {
-    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+    if (m_input->isMouseButtonDown(MouseButton::Left)) {
         if (!toolActivated && currentTool && currentTool->Equipped && isGameplayInput) {
            currentTool->Activated->fire();
            RCBN_TRACE("Activated tool: " + currentTool->Name);
            toolActivated = true;
         }
-    }
-    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE) {
+    } else {
         toolActivated = false;
     }
 }
@@ -326,12 +320,7 @@ void User::processMouse(bool isGameplayInput) {
 // ============================================================
 
 void User::processInput(Physics* physics, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput) {
-    if (!window) return;
-
-    if (!isScrollCallbackInstalled) {
-        previousScrollCallback = glfwSetScrollCallback(window, User::scrollCallback);
-        isScrollCallbackInstalled = true;
-    }
+    if (!m_input) return;
 
     bool rotated = processCameraRotation(viewportFocused);
     processZoom(viewportZoomEnabled);
@@ -494,7 +483,7 @@ void User::setProperty(const std::string& name, const YAML::Node& value) {
 }
 
 std::shared_ptr<Instance> User::clone() const {
-    // User is not cloneable due to its dependency on GLFWwindow*
+    // User is not cloneable due to its ownership of an IInputBackend (input source)
     // Return nullptr or throw an error
     RCBN_ERROR("User::clone() is not supported");
     return nullptr;
