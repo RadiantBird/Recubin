@@ -78,6 +78,14 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
             dl->AddText(ImVec2(px + 4, py + (sh - ImGui::GetTextLineHeight()) * 0.5f),
                         textCol, lbl->Text.c_str());
     }
+
+    // ホバー判定（TextLabel/TextButton 共通）: 入った瞬間に Hovered を発火
+    if (SystemState::get().isPlaying) {
+        bool hovered = ImGui::IsMouseHoveringRect(tl, br);
+        if (hovered && !sgo->m_wasHovered && sgo->Hovered)
+            sgo->Hovered->fire();
+        sgo->m_wasHovered = hovered;
+    }
 }
 
 // ===================================================

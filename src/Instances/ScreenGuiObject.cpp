@@ -1,6 +1,9 @@
 #include <Instances/ScreenGuiObject.hpp>
 
-ScreenGuiObject::ScreenGuiObject(std::string className) : Instance(className) {}
+ScreenGuiObject::ScreenGuiObject(std::string className)
+    : Instance(className)
+    , Hovered(std::make_shared<RCBNScriptSignal>())
+{}
 
 bool ScreenGuiObject::IsA(std::string name) {
     if (name == "ScreenGuiObject") return true;

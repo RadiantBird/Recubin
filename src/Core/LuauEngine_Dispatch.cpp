@@ -512,6 +512,7 @@ void LuauEngine::InitDispatchTable_GUI() {
         lua_pushstring(L, normToStr(static_cast<ScreenGuiObject*>(obj)->NormType));
         return 1;
     };
+    DispatchTable["ScreenGuiObject"]["Hovered"] = getter_signal<ScreenGuiObject, &ScreenGuiObject::Hovered>();
 
     // --- GuiButton ---
     DispatchTable["GuiButton"]["Activated"] = getter_signal<GuiButton, &GuiButton::Activated>();
