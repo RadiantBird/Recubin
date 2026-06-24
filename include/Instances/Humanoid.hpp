@@ -5,7 +5,8 @@
 #include <Instances/Sphere.hpp>
 #include <Util/Color4.hpp>
 
-class Physics; // Forward declaration
+class Physics;   // Forward declaration
+class Animation; // Forward declaration
 
 // ==================================================================
 //  Humanoid
@@ -49,6 +50,17 @@ public:
     // 接地中のみJumpPowerで上方向の速度をセットする
     void jump();
 
+    // --- アニメーション再生 ---
+    // Animationインスタンスを再生する（先頭から）
+    void playAnimation(std::shared_ptr<Animation> animation);
+    void pauseAnimation();
+    void stopAnimation();
+    void setAnimationSpeed(float speed);
+    bool isAnimationPlaying() const { return m_animPlaying; }
+
+    // 毎フレーム呼び出し、再生中Animationのトラックを評価して対象Cubeのcframeを更新する
+    void updateAnimation(float dt);
+
     // 一人称視点かどうかをUser側から渡し、身体パーツの透明化/復元を行う
     void updateFirstPersonState(bool wantsFirstPerson);
 
@@ -67,6 +79,11 @@ private:
     float walkCycle = 0.0f;
     Vector3 currentMoveDir;
     bool isGrounded = true;
+
+    std::shared_ptr<Animation> m_currentAnim;
+    float m_animTime = 0.0f;
+    bool  m_animPlaying = false;
+
     bool isFirstPerson = false;
     bool bodyColorsSaved = false;
     Color4 savedTorsoColor;

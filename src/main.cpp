@@ -461,6 +461,12 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // 再生中のAnimationを評価し、対象Cubeのcframeを上書きする
+        // (processInput内のapplyBodyAnimationより後に行うことでアニメーションを優先させる)
+        if (isPlaying && !isPaused && user->humanoid) {
+            user->humanoid->updateAnimation(deltaTime);
+        }
+
         // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、
         // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす
         if (isPlaying && !isPaused && workspace->getPhysicsEngine()) {

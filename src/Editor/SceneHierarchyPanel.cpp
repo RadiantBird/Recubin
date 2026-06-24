@@ -22,6 +22,7 @@
 #include <Instances/Folder.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/Humanoid.hpp>
+#include <Instances/Animation.hpp>
 #include <Instances/StarterCharacter.hpp>
 #include <Instances/TextLabel.hpp>
 #include <Instances/TextButton.hpp>
@@ -355,6 +356,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<AppImage>(m_history, "AppImage", parentSp);
         tryInsertInstance<StarterCharacter>(m_history, "StarterCharacter", parentSp);
         tryInsertInstance<Humanoid>(m_history, "Humanoid", parentSp);
+        tryInsertInstance<Animation>(m_history, "Animation", parentSp);
 
         ImGui::EndMenu();
     }

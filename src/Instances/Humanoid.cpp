@@ -1,4 +1,6 @@
 #include <Instances/Humanoid.hpp>
+#include <Instances/Animation.hpp>
+#include <Instances/Spatial.hpp>
 #include <include/Core/Physics.hpp>
 #include <Math/Quaternion.hpp>
 #include <Math/CFrame.hpp>
@@ -133,6 +135,53 @@ void Humanoid::jump() {
     physx::PxVec3 vel = dynamicActor->getLinearVelocity();
     vel.y = JumpPower;
     dynamicActor->setLinearVelocity(vel);
+}
+
+// ============================================================
+// Animation: 再生
+// ============================================================
+
+void Humanoid::playAnimation(std::shared_ptr<Animation> animation) {
+    m_currentAnim = std::move(animation);
+    m_animTime = 0.0f;
+    m_animPlaying = (m_currentAnim != nullptr);
+}
+
+void Humanoid::pauseAnimation() {
+    m_animPlaying = false;
+}
+
+void Humanoid::stopAnimation() {
+    m_animPlaying = false;
+    m_animTime = 0.0f;
+}
+
+void Humanoid::setAnimationSpeed(float speed) {
+    if (m_currentAnim) m_currentAnim->Speed = speed;
+}
+
+void Humanoid::updateAnimation(float dt) {
+    if (!m_animPlaying || !m_currentAnim) return;
+
+    // 対象パーツの解決先となるModel(=このHumanoidの親)
+    Instance* model = Parent.lock().get();
+    if (!model) return;
+
+    m_animTime += dt * m_currentAnim->Speed;
+    if (m_currentAnim->Length > 1e-6f) {
+        while (m_animTime > m_currentAnim->Length)
+            m_animTime -= m_currentAnim->Length; // ループ再生
+    }
+
+    // キーフレームはRoot相対で保持されているため、現在のRoot CFrameに合成して
+    // キャラクターの移動・回転に追従させる（歩行アニメと同じ基準）
+    CFrame rootCF = Root ? Root->cframe : CFrame();
+    for (const AnimTrack& track : m_currentAnim->getTracks()) {
+        Instance* child = model->getChild(track.partName);
+        Spatial* part = dynamic_cast<Spatial*>(child);
+        if (!part || part == Root.get()) continue; // Rootは物理駆動なので動かさない
+        part->cframe = rootCF * m_currentAnim->evaluateTrack(track, m_animTime);
+    }
 }
 
 void Humanoid::updateFirstPersonState(bool wantsFirstPerson) {

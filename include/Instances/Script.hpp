@@ -26,6 +26,7 @@ class Script : public Instance {
         virtual bool IsA(std::string className) override;
         virtual void setProperty(const std::string& name, const YAML::Node& value) override;
         void onAncestorChanged() override;
+        std::shared_ptr<Instance> clone() const override;
 
         Script(string path = "");
 };

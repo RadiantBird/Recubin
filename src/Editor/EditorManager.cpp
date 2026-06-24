@@ -42,6 +42,8 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     propertiesPanel     = std::make_unique<PropertiesPanel>();
     contentBrowserPanel = std::make_unique<ContentBrowserPanel>();
     viewportPanel       = std::make_unique<ViewportPanel>();
+    animationPanel      = std::make_unique<AnimationEditorPanel>();
+    animationPanel->isOpen = false; // 既定では非表示
 
     hierarchyPanel->workspace   = workspace;
     hierarchyPanel->systemRoot  = system;
@@ -53,6 +55,8 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     propertiesPanel->selectedInstance  = &hierarchyPanel->selectedInstance;
     viewportPanel->selectedInstance    = &hierarchyPanel->selectedInstance;
     viewportPanel->selectedInstances   = &hierarchyPanel->selectedInstances;
+    animationPanel->selectedInstance   = &hierarchyPanel->selectedInstance;
+    animationPanel->m_history          = &m_history;
 
     // CommandHistory と clipboard を各パネルに渡す
     hierarchyPanel->m_history   = &m_history;
@@ -124,6 +128,7 @@ void EditorManager::render(GLFWwindow* window) {
             ImGui::MenuItem("Viewport",        nullptr, &viewportPanel->isOpen);
             ImGui::MenuItem("Content Browser", nullptr, &contentBrowserPanel->isOpen);
             ImGui::MenuItem("Console",         nullptr, &consolePanel->isOpen);
+            ImGui::MenuItem("Animation",       nullptr, &animationPanel->isOpen);
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
@@ -144,6 +149,7 @@ void EditorManager::render(GLFWwindow* window) {
     if (viewportPanel->isOpen)       viewportPanel->onRender();
     if (contentBrowserPanel->isOpen) contentBrowserPanel->onRender();
     if (consolePanel->isOpen)        consolePanel->onRender();
+    if (animationPanel->isOpen)      animationPanel->onRender();
 
     // ---- セカンダリビューポート ----
     for (auto& sv : secondaryViewports) {

@@ -16,6 +16,7 @@
 #include <Instances/PostEffect.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/Humanoid.hpp>
+#include <Instances/Animation.hpp>
 #include <Instances/StarterCharacter.hpp>
 #include <Instances/Skybox.hpp>
 #include <include/Core/Terrain.hpp>
@@ -211,6 +212,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "PostEffect") return std::make_shared<PostEffect>();
     if (className == "AppImage")         return std::make_shared<AppImage>();
     if (className == "Humanoid")          return std::make_shared<Humanoid>();
+    if (className == "Animation")         return std::make_shared<Animation>();
     if (className == "StarterCharacter")  return std::make_shared<StarterCharacter>();
     if (className == "Terrain") return std::make_shared<Terrain>();
     if (className == "Instance") return std::make_shared<Instance>("Instance");
@@ -294,6 +296,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->getClassName() == "PostEffect"
                  || inst->getClassName() == "AppImage"
                  || inst->getClassName() == "Humanoid"
+                 || inst->getClassName() == "Animation"
                  || inst->IsA("Rope") || inst->IsA("Rod")
                  || inst->IsA("Weld") || inst->IsA("Motor")
                  || inst->IsA("ScreenGuiObject")
@@ -377,6 +380,35 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             const Humanoid* hum = static_cast<const Humanoid*>(inst);
             out << YAML::Key << "WalkSpeed" << YAML::Value << hum->WalkSpeed;
             out << YAML::Key << "JumpPower" << YAML::Value << hum->JumpPower;
+        }
+        if (inst->getClassName() == "Animation") {
+            const Animation* anim = static_cast<const Animation*>(inst);
+            out << YAML::Key << "Length" << YAML::Value << anim->Length;
+            out << YAML::Key << "Speed"  << YAML::Value << anim->Speed;
+            out << YAML::Key << "Tracks" << YAML::Value << YAML::BeginSeq;
+            for (const AnimTrack& tr : anim->getTracks()) {
+                out << YAML::BeginMap;
+                out << YAML::Key << "PartName" << YAML::Value << tr.partName;
+                out << YAML::Key << "Keyframes" << YAML::Value << YAML::BeginSeq;
+                for (const Keyframe& kf : tr.keyframes) {
+                    out << YAML::BeginMap;
+                    out << YAML::Key << "Time" << YAML::Value << kf.time;
+                    out << YAML::Key << "Position" << YAML::Value
+                        << YAML::Flow << YAML::BeginSeq
+                        << kf.cframe.Position.x << kf.cframe.Position.y << kf.cframe.Position.z
+                        << YAML::EndSeq;
+                    out << YAML::Key << "Rotation" << YAML::Value
+                        << YAML::Flow << YAML::BeginSeq
+                        << kf.cframe.Rotation.x << kf.cframe.Rotation.y
+                        << kf.cframe.Rotation.z << kf.cframe.Rotation.w
+                        << YAML::EndSeq;
+                    out << YAML::Key << "Easing" << YAML::Value << static_cast<int>(kf.easing);
+                    out << YAML::EndMap;
+                }
+                out << YAML::EndSeq;
+                out << YAML::EndMap;
+            }
+            out << YAML::EndSeq;
         }
         if (inst->getClassName() == "Lighting") {
             const Lighting* lt = static_cast<const Lighting*>(inst);

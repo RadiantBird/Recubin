@@ -7,6 +7,7 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/ContentBrowserPanel.hpp>
 #include <Editor/ViewportPanel.hpp>
+#include <Editor/AnimationEditorPanel.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
@@ -39,6 +40,7 @@ public:
     std::unique_ptr<PropertiesPanel>     propertiesPanel;
     std::unique_ptr<ContentBrowserPanel> contentBrowserPanel;
     std::unique_ptr<ViewportPanel>       viewportPanel;
+    std::unique_ptr<AnimationEditorPanel> animationPanel;
 
     // セカンダリビューポート（複数可）
     std::vector<std::unique_ptr<ViewportPanel>> secondaryViewports;

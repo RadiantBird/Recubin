@@ -88,6 +88,11 @@ private:
     static int sound_play_closure(lua_State* L);
     static int sound_stop_closure(lua_State* L);
 
+    // Humanoid methods（アニメーション再生）
+    static int humanoid_play_animation_closure(lua_State* L);
+    static int humanoid_pause_animation_closure(lua_State* L);
+    static int humanoid_stop_animation_closure(lua_State* L);
+
     // Terrain methods（部分編集 API）
     static int terrain_set_block_closure(lua_State* L);
     static int terrain_remove_block_closure(lua_State* L);

@@ -4,6 +4,8 @@
 #include "include/Core/RCBNScriptSignal.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/Sound.hpp"
+#include "include/Instances/Humanoid.hpp"
+#include "include/Instances/Animation.hpp"
 #include "include/Instances/System.hpp"
 #include "include/Instances/Event.hpp"
 #include "include/Instances/TextLabel.hpp"
@@ -779,6 +781,32 @@ int LuauEngine::sound_stop_closure(lua_State* L) {
     auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
     auto obj = ud->lock();
     if (obj) static_cast<Sound*>(obj.get())->stop();
+    return 0;
+}
+
+int LuauEngine::humanoid_play_animation_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self) return 0;
+
+    // L[1] = self, L[2] = Animation インスタンス
+    auto* animUd = (std::weak_ptr<Instance>*)luaL_checkudata(L, 2, RCBN_INST_METATABLE);
+    auto anim = std::dynamic_pointer_cast<Animation>(animUd->lock());
+    if (anim) static_cast<Humanoid*>(self.get())->playAnimation(anim);
+    return 0;
+}
+
+int LuauEngine::humanoid_pause_animation_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (self) static_cast<Humanoid*>(self.get())->pauseAnimation();
+    return 0;
+}
+
+int LuauEngine::humanoid_stop_animation_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (self) static_cast<Humanoid*>(self.get())->stopAnimation();
     return 0;
 }
 

@@ -1,0 +1,14 @@
+Animation:
+  Length: 1
+  Speed: 1
+  Tracks:
+    - PartName: LeftArm
+      Keyframes:
+        - Time: 0.5
+          Position: [-2.1806605, 0.4638362, 0]
+          Rotation: [0, 0, -0.7039092, 0.71028996]
+          Easing: 0
+        - Time: 0.81
+          Position: [-1.724615, 0.4638362, -1.3374248]
+          Rotation: [0.41155475, -0.41528553, -0.57106256, 0.57623655]
+          Easing: 0

@@ -385,6 +385,9 @@ void LuauEngine::InitDispatchTable_Misc() {
     // Humanoid
     DispatchTable["Humanoid"]["WalkSpeed"] = getter_number<Humanoid, &Humanoid::WalkSpeed>();
     DispatchTable["Humanoid"]["JumpPower"] = getter_number<Humanoid, &Humanoid::JumpPower>();
+    DispatchTable["Humanoid"]["PlayAnimation"]  = getter_closure(humanoid_play_animation_closure,  "PlayAnimation");
+    DispatchTable["Humanoid"]["PauseAnimation"] = getter_closure(humanoid_pause_animation_closure, "PauseAnimation");
+    DispatchTable["Humanoid"]["StopAnimation"]  = getter_closure(humanoid_stop_animation_closure,  "StopAnimation");
 
     DispatchTable["AppImage"]["IconPath"] = getter_string<AppImage, &AppImage::iconPath>();
 

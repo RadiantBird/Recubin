@@ -44,6 +44,19 @@ void Script::setProperty(const std::string& name, const YAML::Node& value) {
     }
 }
 
+std::shared_ptr<Instance> Script::clone() const {
+    auto copy = std::make_shared<Script>();
+    copy->Name          = Name;
+    copy->Source        = Source;
+    copy->Path          = Path;
+    copy->Enabled       = Enabled;
+    copy->isPrecompiled = isPrecompiled;
+    // 実行時状態(Coroutine/Sleeping/Completed/lastWorkspace等)は複製せず新規のまま
+    for (auto const& [n, child] : children)
+        copy->addChild(child->clone());
+    return copy;
+}
+
 std::string Script::getClassName() {
     return "Script";
 }

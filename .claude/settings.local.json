@@ -13,7 +13,8 @@
       "Bash(Select-Object .*)",
       "Bash(tasklist)",
       "Bash(taskkill //F //IM Recubin.exe //T)",
-      "Bash(taskkill //F //IM RecubinEngine.exe //T)"
+      "Bash(taskkill //F //IM RecubinEngine.exe //T)",
+      "PowerShell(python build.py build)"
     ]
   }
 }
