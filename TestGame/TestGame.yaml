@@ -1,0 +1,463 @@
+Root:
+  Children:
+    # ============================================================
+    #  プレイヤーの素体。ランタイムが PlayerCharacter として複製・スポーンする
+    # ============================================================
+    - ClassName: StarterCharacter
+      Name: StarterCharacter
+      Children:
+        - ClassName: Humanoid
+          Name: Humanoid
+          Properties:
+            WalkSpeed: 16
+            JumpPower: 50
+            MaxHealth: 100
+            RespawnTime: 5
+            Health: 100
+        - ClassName: Cube
+          Name: Root
+          Properties:
+            Position: [0, 0, 0]
+            Size: [2, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.3, 0.3, 0.3, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: Torso
+          Properties:
+            Position: [0, 0, 0]
+            Size: [2, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39, 0.05, 0.13, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Sphere
+          Name: Head
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1.25, 1.25, 1.25]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.9, 0.7, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Decal
+              Name: Face
+              Properties:
+                Face: 0
+                Texture: assets/image/hehe.png
+        - ClassName: Cube
+          Name: LeftArm
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.9, 0.7, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: RightArm
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.9, 0.7, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: LeftLeg
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.14, 0.32, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: RightLeg
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.14, 0.32, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+
+    # ウィンドウアイコン（※パッケージャーは IconPath を収集しない＝検証ポイント）
+    - ClassName: AppImage
+      Name: AppImage
+      Properties:
+        IconPath: assets/image/the-cat.png
+
+    # ============================================================
+    #  ゲーム本体
+    # ============================================================
+    - ClassName: Workspace
+      Name: Workspace
+      Properties:
+        Gravity: [0, -196.2, 0]
+        PhysicsEnabled: true
+      Children:
+        - ClassName: Lighting
+          Name: Lighting
+          Properties:
+            Direction: [1, -1, -1]
+            Brightness: 1
+
+        - ClassName: Skybox
+          Name: Skybox
+          Properties:
+            Position: [0, 0, 0]
+            Size: [7500, 5000, 10000]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.5, 0.7, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: false
+            Unlit: true
+            SkyboxPaths: [assets/image/bliss.jpg, "", "", "", "", ""]
+
+        # 地面（上面に草テクスチャをタイル貼り）
+        - ClassName: Cube
+          Name: Baseplate
+          Properties:
+            Position: [0, -10, 0]
+            Size: [128, 1, 128]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.4, 0.7, 0.4, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: Texture
+              Name: GrassTop
+              Properties:
+                Face: 2
+                Color: [1, 1, 1, 1]
+                StudsPerTileU: 8
+                StudsPerTileV: 8
+                Texture: assets/image/Grass_Texture.png
+
+        # 高台とスロープ（TriangularPrism）
+        - ClassName: Cube
+          Name: Platform
+          Properties:
+            Position: [12, -8.5, 8]
+            Size: [6, 1, 6]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.6, 0.6, 0.7, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: TriangularPrism
+          Name: Ramp
+          Properties:
+            Position: [12, -9, 3]
+            Size: [6, 1.5, 4]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.7, 0.5, 0.3, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        # 収集コイン（フォルダにまとめる。GameController が一括で連結）
+        - ClassName: Folder
+          Name: Coins
+          Children:
+            - ClassName: Sphere
+              Name: Coin1
+              Properties:
+                Position: [-6, -9, -5]
+                Size: [1, 1, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 0.85, 0.1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+            - ClassName: Sphere
+              Name: Coin2
+              Properties:
+                Position: [-2, -9, -7]
+                Size: [1, 1, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 0.85, 0.1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+            - ClassName: Sphere
+              Name: Coin3
+              Properties:
+                Position: [2, -9, -7]
+                Size: [1, 1, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 0.85, 0.1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+            - ClassName: Sphere
+              Name: Coin4
+              Properties:
+                Position: [6, -9, -5]
+                Size: [1, 1, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 0.85, 0.1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+
+        # 回転ハザード（Motor）。Blade に触れるとダメージ
+        - ClassName: Cube
+          Name: BladeHub
+          Properties:
+            Position: [0, -8, -12]
+            Size: [1.5, 1.5, 1.5]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.4, 0.4, 0.4, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: BillboardGui
+              Name: DangerLabel
+              Properties:
+                Size: [120, 32]
+                Norm: Pixel
+                Active: true
+                Visible: true
+                ZIndex: 0
+                BackgroundColor: [0, 0, 0, 0.4]
+                Mode: Parallel
+              Children:
+                - ClassName: TextLabel
+                  Name: Text
+                  Properties:
+                    Position: [0, 0]
+                    Size: [120, 32]
+                    Norm: Pixel
+                    Active: true
+                    Visible: true
+                    ZIndex: 0
+                    BackgroundColor: [0, 0, 0, 0]
+                    Text: "DANGER"
+                    TextColor: [1, 0.4, 0.2, 1]
+        - ClassName: Cube
+          Name: Blade
+          Properties:
+            Position: [3, -8, -12]
+            Size: [4, 0.4, 0.6]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.2, 0.1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Motor
+          Name: BladeMotor
+          Properties:
+            Cube0: BladeHub
+            Cube1: Blade
+            Axis: [0, 1, 0]
+            DriveVelocity: 2.5
+            MaxForce: 8000
+
+        # 振り子（Rope）
+        - ClassName: Cube
+          Name: PendulumAnchor
+          Properties:
+            Position: [-12, -2, -8]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.8, 0.5, 0.2, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: PendulumBob
+          Properties:
+            Position: [-12, -6, -8]
+            Size: [1.2, 1.2, 1.2]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.2, 0.5, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Rope
+          Name: Pendulum
+          Properties:
+            Cube0: PendulumAnchor
+            Cube1: PendulumBob
+            Stiffness: 200
+            Damping: 20
+            Color: [0.9, 0.9, 0.9, 1]
+            LineWidth: 2
+
+        # 溶接された2体（Weld）
+        - ClassName: Cube
+          Name: CrateA
+          Properties:
+            Position: [12, -7, -8]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.3, 0.3, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Cube
+          Name: CrateB
+          Properties:
+            Position: [13, -7, -8]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.3, 0.3, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+        - ClassName: Weld
+          Name: CrateWeld
+          Properties:
+            Cube0: CrateA
+            Cube1: CrateB
+
+        # ドア（ProximityPrompt で開く。BillboardGui でラベル表示）
+        - ClassName: Cube
+          Name: Door
+          Properties:
+            Position: [0, -7, -18]
+            Size: [6, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.5, 0.35, 0.2, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: ProximityPrompt
+              Name: Prompt
+              Properties:
+                KeyboardKeyCode: E
+                HoldDuration: 0
+                MaxActivationDistance: 10
+                Enabled: true
+                ActionText: Open
+                ObjectText: Door
+
+        # 看板（SurfaceGui のテキスト + Greeter スクリプト）
+        - ClassName: Cube
+          Name: Sign
+          Properties:
+            Position: [-8, -8, -2]
+            Size: [4, 3, 0.3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.2, 0.2, 0.25, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+          Children:
+            - ClassName: SurfaceGui
+              Name: SignGui
+              Properties:
+                Size: [200, 100]
+                Norm: Pixel
+                Active: true
+                Visible: true
+                BackgroundColor: [0.1, 0.1, 0.15, 1]
+                ZIndex: 0
+                Face: Front
+              Children:
+                - ClassName: TextLabel
+                  Name: Text
+                  Properties:
+                    Position: [10, 30]
+                    Size: [180, 40]
+                    Norm: Pixel
+                    Active: true
+                    Visible: true
+                    ZIndex: 0
+                    BackgroundColor: [0, 0, 0, 0]
+                    Text: "Welcome!"
+                    TextColor: [1, 0.9, 0.3, 1]
+            - ClassName: Script
+              Name: Greeter
+              Properties:
+                ContentPath: TestGame/scripts/Greeter.luau
+
+        # 画面 HUD（ScreenGuiObject はフォルダ内でも収集される）
+        - ClassName: Folder
+          Name: HUD
+          Children:
+            - ClassName: TextLabel
+              Name: ScoreLabel
+              Properties:
+                Position: [20, 20]
+                Size: [340, 48]
+                Norm: Pixel
+                Active: true
+                Visible: true
+                ZIndex: 10
+                BackgroundColor: [0, 0, 0, 0.5]
+                Text: "Score: 0 / 4"
+                TextColor: [1, 1, 1, 1]
+            - ClassName: TextButton
+              Name: ResetButton
+              Properties:
+                Position: [20, 80]
+                Size: [160, 44]
+                Norm: Pixel
+                Active: true
+                Visible: true
+                ZIndex: 10
+                BackgroundColor: [0.2, 0.2, 0.28, 0.9]
+                Text: "Reset"
+                TextColor: [1, 1, 1, 1]
+
+        # ゲームロジック（Workspace 直下に置くとスクリプトが登録・実行される）
+        - ClassName: Script
+          Name: GameController
+          Properties:
+            ContentPath: TestGame/scripts/GameController.luau
+        - ClassName: Script
+          Name: DayNight
+          Properties:
+            ContentPath: TestGame/scripts/DayNight.luau
+
+        # ポストエフェクト（CRT）
+        - ClassName: Folder
+          Name: _Effects
+          Children:
+            - ClassName: PostEffect
+              Name: CRT
+              Properties:
+                Enabled: true
+                Type: 1
+                ZIndex: 1
+                Intensity: 1
+                Param1: 16
+                Param2: 0.15

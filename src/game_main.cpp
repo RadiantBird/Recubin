@@ -14,6 +14,7 @@
 #include <Core/SceneLoader.hpp>
 #include <Core/AudioService.hpp>
 #include <Core/GLFWInputBackend.hpp>
+#include <Core/SystemState.hpp>
 #include <Editor/NullEditorManager.hpp>
 #include <include/imgui/imgui.h>
 
@@ -152,6 +153,12 @@ int main() {
     user->spawnCharacter(system.get());
     audioService->playAutoPlaySounds();
     if (user->character) workspace->addChild(user->character);
+
+    // ランタイムは常にプレイ状態。エディターと違いフラグを設定する箇所が無いため明示する
+    // （ProximityPrompt 表示・キー判定・GUIボタンのクリック・物理の enqueue 経路に必要）
+    SystemState::get().isPlaying       = true;
+    SystemState::get().viewportFocused = true;
+    SystemState::get().inputState      = InputState::Gameplay;
 
     float lastFrame = static_cast<float>(glfwGetTime());
 

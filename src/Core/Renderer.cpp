@@ -13,6 +13,7 @@
 #include <include/Core/TerrainStreamer.hpp>
 #include <include/Instances/PostEffect.hpp>
 #include <algorithm>
+#include <filesystem>
 
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -51,19 +52,25 @@ void Renderer::init(GLFWwindow* window) {
     instance  = this;
     m_window  = window;
 
-#ifndef EDITOR_DISABLED
-    // ImGui 初期化
+    // ImGui 初期化（エディター/ランタイム両方でゲーム GUI 描画に必要）
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+#ifndef EDITOR_DISABLED
+    // ドッキング/マルチビューポートはエディター専用
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+#endif
 
     ImGui::StyleColorsDark();
 
-    io.Fonts->AddFontFromFileTTF("assets/fonts/DotGothic16-Regular.ttf", 22.0f, nullptr,
-                                  io.Fonts->GetGlyphRangesJapanese());
+    // 日本語フォントが存在すれば使う。無ければ ImGui 既定フォントにフォールバック
+    // （パッケージ版には assets/fonts/ が同梱されない場合があるため）
+    if (std::filesystem::exists("assets/fonts/DotGothic16-Regular.ttf")) {
+        io.Fonts->AddFontFromFileTTF("assets/fonts/DotGothic16-Regular.ttf", 22.0f, nullptr,
+                                      io.Fonts->GetGlyphRangesJapanese());
+    }
 
     ImGuiStyle& style = ImGui::GetStyle();
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
@@ -73,7 +80,6 @@ void Renderer::init(GLFWwindow* window) {
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
-#endif
 
     // OpenGL バッファ
     glGenBuffers(1, &EBO);
@@ -253,13 +259,12 @@ void Renderer::init(GLFWwindow* window) {
 Renderer::~Renderer() {
     if (instance == this) instance = nullptr;
 
-#ifndef EDITOR_DISABLED
     editor.reset(); // EditorManager を先に破棄（FBO が ImGui より先に解放される）
 
+    // ImGui は init で両ビルド共に生成するため、破棄も両ビルドで行う
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-#endif
 
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &EBO);
