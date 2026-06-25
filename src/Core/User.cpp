@@ -56,11 +56,21 @@ bool User::processCameraRotation(bool viewportFocused) {
     const float rotationSpeed = 1.5f;
     const double mouseRotationSpeed = 0.15;
 
-    const bool rightMousePressed = viewportFocused && m_input->isMouseButtonDown(MouseButton::Right);
+    // Alt トグル: ビューポートにフォーカスがあるとき、Alt 押下の立ち上がりで
+    // フリールック(マウスを動かすだけでカメラが回る)を ON/OFF する
+    const bool altDown = viewportFocused &&
+        (m_input->isKeyDown(KeyCode::LeftAlt) || m_input->isKeyDown(KeyCode::RightAlt));
+    if (altDown && !m_altKeyWasDown) m_altLookActive = !m_altLookActive;
+    m_altKeyWasDown = altDown;
+    // フォーカスを失ったらフリールックは解除（カーソルが隠れたままになるのを防ぐ）
+    if (!viewportFocused) m_altLookActive = false;
 
-    if (rightMousePressed) {
+    const bool rightMousePressed = viewportFocused && m_input->isMouseButtonDown(MouseButton::Right);
+    const bool looking = rightMousePressed || m_altLookActive;
+
+    if (looking) {
         if (!isRightMouseRotating) {
-            // ドラッグ開始: カーソルをロック(非表示)し、アンカー位置を取得する
+            // 開始: カーソルをロック(非表示)し、アンカー位置を取得する
             isRightMouseRotating = true;
             m_input->setMouseCaptured(true);
             m_input->getCursorPos(lastMouseX, lastMouseY);

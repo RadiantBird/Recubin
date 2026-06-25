@@ -120,6 +120,8 @@ private:
     bool isRightMouseRotating = false;
     double lastMouseX = 0.0;
     double lastMouseY = 0.0;
+    bool m_altLookActive = false;  // Alt トグルによるフリールック中か
+    bool m_altKeyWasDown = false;  // Alt 押下の立ち上がり検出用
 
     // 死亡 → respawn 管理
     bool      m_deathHandled  = false;
