@@ -1,10 +1,12 @@
 #include "include/Core/LuauEngine.hpp"
 #include "include/Core/LuarCompiler.hpp"
+#include "include/Core/FileLoader.hpp"
 #include "include/Core/Physics.hpp"
 #include "include/Core/RCBNScriptSignal.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/Sound.hpp"
 #include "include/Instances/Humanoid.hpp"
+#include "include/Instances/UserInput.hpp"
 #include "include/Instances/Animation.hpp"
 #include "include/Instances/System.hpp"
 #include "include/Instances/Event.hpp"
@@ -267,6 +269,17 @@ int LuauEngine::instance_index(lua_State* L) {
         }
     }
 
+    // プロパティが無ければ同名の子インスタンスを返す（Roblox のドットチェーン相当）
+    // 例: workspace.PlayerCharacter.Humanoid
+    const auto& kids = obj->getChildren();
+    if (auto it = kids.find(std::string(key)); it != kids.end() && it->second) {
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(it->second);
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    }
+
     return NIL;
 }
 
@@ -401,6 +414,13 @@ bool LuauEngine::execute(Script& script) {
     // 初回実行の場合、スクリプトをロード
     // lua_status(): 0=OK, LUA_YIELD=suspended, LUA_ERRERR=error, etc.
     if (lua_status(co) == 0 && lua_gettop(co) == 0) {  // スタックが空なら初回実行
+        // ファイルが真実の源: 実行直前に最新ソースを再読込する
+        // (外部エディタ編集・新規作成直後の内容を反映。空読込時は既存を保持)
+        if (!script.isPrecompiled && !script.Path.empty()) {
+            std::string latest = FileLoader::readText(script.Path);
+            if (!latest.empty()) script.Source = latest;
+        }
+
         std::string compiledSource;
         const std::string* sourcePtr = &script.Source;
 
@@ -808,6 +828,28 @@ int LuauEngine::humanoid_stop_animation_closure(lua_State* L) {
     auto self = ud->lock();
     if (self) static_cast<Humanoid*>(self.get())->stopAnimation();
     return 0;
+}
+
+int LuauEngine::humanoid_take_damage_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self) return 0;
+    // L[1] = self, L[2] = ダメージ量
+    float n = static_cast<float>(luaL_checknumber(L, 2));
+    static_cast<Humanoid*>(self.get())->takeDamage(n);
+    return 0;
+}
+
+int LuauEngine::userinput_ispressed_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self) { lua_pushboolean(L, 0); return 1; }
+
+    // L[1] = self, L[2] = キー名(string)
+    const char* key = luaL_checkstring(L, 2);
+    bool pressed = static_cast<UserInput*>(self.get())->isPressed(key ? key : "");
+    lua_pushboolean(L, pressed ? 1 : 0);
+    return 1;
 }
 
 // ===================================================

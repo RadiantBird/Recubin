@@ -4,6 +4,7 @@
 #include <Instances/Cube.hpp>
 #include <Instances/Sphere.hpp>
 #include <Util/Color4.hpp>
+#include <Core/RCBNScriptSignal.hpp>
 
 class Physics;   // Forward declaration
 class Animation; // Forward declaration
@@ -20,6 +21,12 @@ class Humanoid : public Instance {
 public:
     float WalkSpeed = 5.0f;
     float JumpPower = 7.0f;
+
+    // --- ヘルス ---
+    float Health      = 100.0f;
+    float MaxHealth   = 100.0f;
+    float RespawnTime = 5.0f;   // 死亡後この秒数で再生成される
+    std::shared_ptr<RCBNScriptSignal> Died; // Health<=0 で1度だけ発火
 
     // 兄弟パーツへの参照（resolveParts()で解決する）
     std::shared_ptr<Cube>   Root;
@@ -50,6 +57,13 @@ public:
     // 接地中のみJumpPowerで上方向の速度をセットする
     void jump();
 
+    // --- ヘルス / 死亡 ---
+    void setHealth(float v);          // クランプして設定。0以下への遷移で Died を発火
+    void takeDamage(float n);         // setHealth(Health - n)
+    bool isDead() const { return m_dead; }
+    // 死亡演出: 各ボディパーツを動的アクター化してランダムに吹き飛ばす（ラグドール）
+    void enterRagdoll(Physics* physics);
+
     // --- アニメーション再生 ---
     // Animationインスタンスを再生する（先頭から）
     void playAnimation(std::shared_ptr<Animation> animation);
@@ -79,6 +93,7 @@ private:
     float walkCycle = 0.0f;
     Vector3 currentMoveDir;
     bool isGrounded = true;
+    bool m_dead = false;
 
     std::shared_ptr<Animation> m_currentAnim;
     float m_animTime = 0.0f;

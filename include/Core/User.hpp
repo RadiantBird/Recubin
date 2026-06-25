@@ -10,6 +10,7 @@
 #include <Instances/Cylinder.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/Humanoid.hpp>
+#include <Instances/UserInput.hpp>
 #include <Core/IInputBackend.hpp>
 #include <Instances/Tool.hpp>
 
@@ -44,6 +45,9 @@ public:
     std::shared_ptr<Model> character = nullptr;     // clone後のキャラクター本体(PlayerCharacter)
     std::shared_ptr<Humanoid> humanoid = nullptr;   // character内から名前解決される
 
+    // User.Input (Roblox UserInputService 相当)。入力供給源を借用してポーリングする
+    std::shared_ptr<UserInput> Input;
+
     bool processCameraRotation(bool viewportFocused);
     void processZoom(bool viewportZoomEnabled);
     void processMovement(bool viewportFocused, Physics* physics);
@@ -77,12 +81,14 @@ public:
 
     void updateVectors();
     void initializeInventory();  // Inventory を User の子として追加（コンストラクタ後に呼ぶ）
-    void processInput(class Physics* physics, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput);
+    void processInput(class Physics* physics, float deltaTime, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput);
     // searchRoot: StarterCharacterを探す起点(通常はSystem)。Userは自身のParentに必ずしも
     // システムが居るとは限らない(パッケージ済みランタイムではUserがツリーに属さない)ため、
     // 呼び出し元(main.cpp/game_main.cpp)から明示的に渡す
     void spawnCharacter(Instance* searchRoot);
     void despawnCharacter();
+    // 死亡後の再生成: 元の親(Workspace)を保持してキャラクターを作り直す
+    void respawnCharacter();
     static User* getInstance() { return s_instance; }
 
     // イベントを"消費"するアクセサ（読み取りと同時に内部フラグをリセットする）
@@ -114,4 +120,9 @@ private:
     bool isRightMouseRotating = false;
     double lastMouseX = 0.0;
     double lastMouseY = 0.0;
+
+    // 死亡 → respawn 管理
+    bool      m_deathHandled  = false;
+    float     m_respawnTimer  = 0.0f;
+    Instance* m_lastSearchRoot = nullptr; // spawnCharacter の検索起点を保持（respawn 用）
 };

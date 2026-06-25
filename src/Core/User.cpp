@@ -18,6 +18,11 @@ User::User(std::unique_ptr<IInputBackend> input)
 {
     s_instance = this;
     updateVectors();
+
+    // User.Input を生成し、入力供給源を借用させる
+    Input = std::make_shared<UserInput>();
+    Input->Name = "Input";
+    Input->setBackend(m_input.get());
 }
 
 void User::initializeInventory() {
@@ -319,13 +324,30 @@ void User::processMouse(bool isGameplayInput) {
 // processInput（呼び出し口）
 // ============================================================
 
-void User::processInput(Physics* physics, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput) {
+void User::processInput(Physics* physics, float deltaTime, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput) {
     if (!m_input) return;
+
+    // User.Input: 前フレームとの差分で Pressed/Released を発火する
+    if (Input) Input->poll();
+
+    // 死亡 → respawn 処理
+    if (humanoid) {
+        if (!m_deathHandled && humanoid->isDead()) {
+            m_deathHandled = true;
+            m_respawnTimer = humanoid->RespawnTime;
+            humanoid->enterRagdoll(physics); // パージ=ばらして吹き飛ばし
+        }
+        if (m_deathHandled) {
+            m_respawnTimer -= deltaTime;
+            if (m_respawnTimer <= 0.0f) respawnCharacter();
+        }
+    }
 
     bool rotated = processCameraRotation(viewportFocused);
     processZoom(viewportZoomEnabled);
     if (humanoid) humanoid->updateFirstPersonState(cameraDistance <= firstPersonThreshold);
-    processMovement(viewportFocused, physics);
+    // 死亡中はキャラクター移動を駆動しない（ばらしたパーツを上書きしないため）
+    if (!m_deathHandled) processMovement(viewportFocused, physics);
     if (rotated) updateVectors();
     processHotkeys();
     processToolkeys(viewportFocused, isGameplayInput, wantsTextInput);
@@ -341,6 +363,16 @@ void User::despawnCharacter() {
     }
     character = nullptr;
     humanoid  = nullptr;
+}
+
+void User::respawnCharacter() {
+    // 死亡したキャラクターが属していた親(Workspace)を保持してから作り直す
+    std::shared_ptr<Instance> parent = character ? character->Parent.lock() : nullptr;
+    despawnCharacter();
+    spawnCharacter(m_lastSearchRoot); // m_deathHandled もここで false に戻る
+    if (parent && character) {
+        parent->addChild(character);
+    }
 }
 
 // System配下を再帰探索してStarterCharacterを見つける
@@ -411,6 +443,8 @@ static std::shared_ptr<StarterCharacter> createDefaultStarterCharacter() {
 }
 
 void User::spawnCharacter(Instance* searchRoot) {
+    m_lastSearchRoot = searchRoot; // respawn 用に保持
+    m_deathHandled = false;
     if (character) {
         despawnCharacter();
     }

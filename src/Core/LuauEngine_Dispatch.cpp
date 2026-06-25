@@ -10,6 +10,8 @@
 #include "include/Instances/Rod.hpp"
 #include "include/Instances/Weld.hpp"
 #include "include/Instances/Humanoid.hpp"
+#include "include/Core/User.hpp"
+#include "include/Instances/UserInput.hpp"
 #include "include/Instances/AppImage.hpp"
 #include "include/Instances/MeshCube.hpp"
 #include "include/Instances/Script.hpp"
@@ -388,6 +390,25 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Humanoid"]["PlayAnimation"]  = getter_closure(humanoid_play_animation_closure,  "PlayAnimation");
     DispatchTable["Humanoid"]["PauseAnimation"] = getter_closure(humanoid_pause_animation_closure, "PauseAnimation");
     DispatchTable["Humanoid"]["StopAnimation"]  = getter_closure(humanoid_stop_animation_closure,  "StopAnimation");
+    DispatchTable["Humanoid"]["Health"]      = getter_number<Humanoid, &Humanoid::Health>();
+    DispatchTable["Humanoid"]["MaxHealth"]   = getter_number<Humanoid, &Humanoid::MaxHealth>();
+    DispatchTable["Humanoid"]["RespawnTime"] = getter_number<Humanoid, &Humanoid::RespawnTime>();
+    DispatchTable["Humanoid"]["Died"]        = getter_signal<Humanoid, &Humanoid::Died>();
+    DispatchTable["Humanoid"]["TakeDamage"]  = getter_closure(humanoid_take_damage_closure, "TakeDamage");
+
+    // User.Input (UserInputService 相当のインスタンスを返す)
+    DispatchTable["User"]["Input"] = [](lua_State* L, Instance* obj) -> int {
+        auto* u = static_cast<User*>(obj);
+        if (!u->Input) { lua_pushnil(L); return 1; }
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(u->Input);
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+    DispatchTable["UserInput"]["Pressed"]   = getter_signal<UserInput, &UserInput::Pressed>();
+    DispatchTable["UserInput"]["Released"]  = getter_signal<UserInput, &UserInput::Released>();
+    DispatchTable["UserInput"]["IsPressed"] = getter_closure(userinput_ispressed_closure, "IsPressed");
 
     DispatchTable["AppImage"]["IconPath"] = getter_string<AppImage, &AppImage::iconPath>();
 
@@ -487,8 +508,11 @@ void LuauEngine::InitSetterTable_Misc() {
     SetterTable["Sound"]["Looped"] = setter_method_bool <Sound, &Sound::setLooping>();
     SetterTable["Sound"]["Volume"] = setter_method_float<Sound, &Sound::setVolume>();
 
-    SetterTable["Humanoid"]["WalkSpeed"] = setter_number<Humanoid, &Humanoid::WalkSpeed>();
-    SetterTable["Humanoid"]["JumpPower"] = setter_number<Humanoid, &Humanoid::JumpPower>();
+    SetterTable["Humanoid"]["WalkSpeed"]   = setter_number<Humanoid, &Humanoid::WalkSpeed>();
+    SetterTable["Humanoid"]["JumpPower"]   = setter_number<Humanoid, &Humanoid::JumpPower>();
+    SetterTable["Humanoid"]["Health"]      = setter_method_float<Humanoid, &Humanoid::setHealth>(); // 死亡判定を通す
+    SetterTable["Humanoid"]["MaxHealth"]   = setter_number<Humanoid, &Humanoid::MaxHealth>();
+    SetterTable["Humanoid"]["RespawnTime"] = setter_number<Humanoid, &Humanoid::RespawnTime>();
 
     SetterTable["AppImage"]["IconPath"] = setter_string<AppImage, &AppImage::iconPath>();
 

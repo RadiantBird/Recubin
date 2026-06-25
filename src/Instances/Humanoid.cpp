@@ -5,8 +5,9 @@
 #include <Math/Quaternion.hpp>
 #include <Math/CFrame.hpp>
 #include <cmath>
+#include <cstdlib>
 
-Humanoid::Humanoid() : Instance("Humanoid") {}
+Humanoid::Humanoid() : Instance("Humanoid"), Died(std::make_shared<RCBNScriptSignal>()) {}
 
 bool Humanoid::IsA(std::string className) {
     if (className == "Humanoid") return true;
@@ -14,19 +15,79 @@ bool Humanoid::IsA(std::string className) {
 }
 
 void Humanoid::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "WalkSpeed") { WalkSpeed = value.as<float>(); return; }
-    if (name == "JumpPower") { JumpPower = value.as<float>(); return; }
+    if (name == "WalkSpeed")   { WalkSpeed   = value.as<float>(); return; }
+    if (name == "JumpPower")   { JumpPower   = value.as<float>(); return; }
+    if (name == "Health")      { Health      = value.as<float>(); return; }
+    if (name == "MaxHealth")   { MaxHealth   = value.as<float>(); return; }
+    if (name == "RespawnTime") { RespawnTime = value.as<float>(); return; }
     Instance::setProperty(name, value);
 }
 
 std::shared_ptr<Instance> Humanoid::clone() const {
     auto copy = std::make_shared<Humanoid>();
-    copy->Name      = Name;
-    copy->WalkSpeed = WalkSpeed;
-    copy->JumpPower = JumpPower;
+    copy->Name        = Name;
+    copy->WalkSpeed   = WalkSpeed;
+    copy->JumpPower   = JumpPower;
+    copy->Health      = Health;
+    copy->MaxHealth   = MaxHealth;
+    copy->RespawnTime = RespawnTime;
+    // m_dead / Died は複製せず新規（=生存状態・新しいシグナル）
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());
     return copy;
+}
+
+void Humanoid::setHealth(float v) {
+    if (v > MaxHealth) v = MaxHealth;
+    bool wasAlive = (Health > 0.0f) && !m_dead;
+    Health = v;
+    if (Health <= 0.0f && wasAlive) {
+        Health = 0.0f;
+        m_dead = true;
+        if (Died) Died->fire(); // connect 済みなら m_mainL 経由で Lua へ通知
+    }
+}
+
+void Humanoid::takeDamage(float n) {
+    setHealth(Health - n);
+}
+
+void Humanoid::enterRagdoll(Physics* physics) {
+    stopAnimation();
+
+    // -1..1 の乱数
+    auto frand = []() { return (static_cast<float>(std::rand()) / RAND_MAX) * 2.0f - 1.0f; };
+
+    // Root は不可視の物理ボディ。散乱に干渉しないよう衝突を無効化してアクターを外す
+    if (Root) {
+        Root->CanCollide = false;
+        if (physics) physics->recreateActor(std::static_pointer_cast<BaseCube>(Root));
+    }
+
+    // 各ボディパーツを動的アクター化してランダムに吹き飛ばす
+    std::shared_ptr<BaseCube> parts[] = {
+        std::static_pointer_cast<BaseCube>(Torso),
+        std::static_pointer_cast<BaseCube>(Head),
+        std::static_pointer_cast<BaseCube>(LeftArm),
+        std::static_pointer_cast<BaseCube>(RightArm),
+        std::static_pointer_cast<BaseCube>(LeftLeg),
+        std::static_pointer_cast<BaseCube>(RightLeg),
+    };
+    for (auto& part : parts) {
+        if (!part) continue;
+        part->CanCollide = true;
+        part->Anchored   = false;
+        part->LockFlags  = (physx::PxRigidDynamicLockFlags)0; // 自由に回転させる
+        if (!physics) continue;
+        physics->recreateActor(part);
+        if (!part->actor) continue;
+        auto* dyn = part->actor->is<physx::PxRigidDynamic>();
+        if (!dyn) continue;
+        float speed = 8.0f + (static_cast<float>(std::rand()) / RAND_MAX) * 7.0f; // 8..15
+        physx::PxVec3 vel(frand() * speed, 6.0f + frand() * 4.0f, frand() * speed);
+        dyn->setLinearVelocity(vel);
+        dyn->setAngularVelocity(physx::PxVec3(frand() * 10.0f, frand() * 10.0f, frand() * 10.0f));
+    }
 }
 
 void Humanoid::resolveParts(Instance* characterModel) {

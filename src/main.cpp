@@ -310,6 +310,7 @@ int main(int argc, char* argv[]) {
     luauEngine->setGlobalInstance("workspace", workspace);
     luauEngine->setGlobalInstance("System", system);
     luauEngine->setGlobalInstance("system", system);
+    luauEngine->setGlobalInstance("User", user);
     luauEngine->setWorkspace(workspace);
     luauEngine->setSystem(system.get());
     renderer->m_onButtonActivated = [&](GuiButton* btn) {
@@ -452,7 +453,7 @@ int main(int argc, char* argv[]) {
         ViewportPanel* focusedVP = ed ? GetFocusedViewport() : nullptr;
         state.viewportFocused    = focusedVP != nullptr;
         state.viewportZoomEnabled = focusedVP != nullptr || (ed ? ed->isAnyViewportHovered() : false);
-        user->processInput(workspace->getPhysicsEngine(),
+        user->processInput(workspace->getPhysicsEngine(), deltaTime,
                             state.viewportFocused, state.viewportZoomEnabled,
                             state.inputState == InputState::Gameplay,
                             ImGui::GetIO().WantTextInput);

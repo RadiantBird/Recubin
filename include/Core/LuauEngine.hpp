@@ -92,6 +92,10 @@ private:
     static int humanoid_play_animation_closure(lua_State* L);
     static int humanoid_pause_animation_closure(lua_State* L);
     static int humanoid_stop_animation_closure(lua_State* L);
+    static int humanoid_take_damage_closure(lua_State* L);
+
+    // UserInput methods
+    static int userinput_ispressed_closure(lua_State* L);
 
     // Terrain methods（部分編集 API）
     static int terrain_set_block_closure(lua_State* L);

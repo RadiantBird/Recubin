@@ -96,7 +96,7 @@ int main() {
     auto audioService = std::make_unique<AudioService>();
     auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
-    auto user         = std::make_unique<User>(std::make_unique<GLFWInputBackend>(window));
+    auto user         = std::make_shared<User>(std::make_unique<GLFWInputBackend>(window));
     user->controlMode = User::ControlMode::Character;
 
     renderer->init(window);
@@ -138,6 +138,7 @@ int main() {
     luauEngine->setGlobalInstance(workspace->Name, workspace);
     luauEngine->setGlobalInstance("workspace", workspace);
     luauEngine->setGlobalInstance("System", system);
+    luauEngine->setGlobalInstance("User", user);
     luauEngine->setWorkspace(workspace);
     luauEngine->setSystem(system.get());
     Physics::s_contactCallback = [&](BaseCube* a, BaseCube* b) {
@@ -166,7 +167,7 @@ int main() {
         luauEngine->executeWorkspaceScripts(*workspace);
 
         // エディタが存在しないため、常にゲームプレイ入力として扱う
-        user->processInput(workspace->getPhysicsEngine(),
+        user->processInput(workspace->getPhysicsEngine(), deltaTime,
                             /*viewportFocused=*/true, /*viewportZoomEnabled=*/true,
                             /*isGameplayInput=*/true,
                             ImGui::GetIO().WantTextInput);
