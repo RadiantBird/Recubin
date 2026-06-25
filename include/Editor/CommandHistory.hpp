@@ -11,6 +11,7 @@
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/Motor.hpp>
+#include <Core/PropertyRegistry.hpp>
 #include <yaml-cpp/yaml.h>
 #include <memory>
 #include <string>
@@ -51,6 +52,23 @@ public:
 // ===================================================
 //  Command サブクラス
 // ===================================================
+
+// --- 汎用プロパティ変更（PropertyRegistry スキーマ駆動） ---
+//  スキーマ移行済みクラスの任意プロパティ編集に使える。将来的に個別の
+//  Set*Command 群をこれ1つへ集約できる（現状は共存）。
+struct SetPropertyCommand : Command {
+    std::shared_ptr<Instance> m_target;
+    const PropertyDesc*       m_desc;
+    PropValue                 m_before, m_after;
+
+    SetPropertyCommand(std::shared_ptr<Instance> target, const PropertyDesc* desc,
+                       PropValue before, PropValue after)
+        : m_target(std::move(target)), m_desc(desc),
+          m_before(std::move(before)), m_after(std::move(after)) {}
+
+    void execute() override { if (m_target && m_desc) PropertyRegistry::writeValue(m_target.get(), *m_desc, m_after); }
+    void undo()    override { if (m_target && m_desc) PropertyRegistry::writeValue(m_target.get(), *m_desc, m_before); }
+};
 
 // --- インスタンス追加 ---
 struct AddInstanceCommand : Command {

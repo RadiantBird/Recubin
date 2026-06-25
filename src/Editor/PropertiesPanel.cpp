@@ -35,6 +35,8 @@
 #include <include/imgui/imgui.h>
 #include <unordered_map>
 #include <string>
+#include <cstdint>
+#include <cstdio>
 #include <windows26.h>
 #include <shellapi.h>
 #include <shobjidl.h>
@@ -65,6 +67,61 @@ static std::string browseFolder() {
         pfd->Release();
     }
     return result;
+}
+
+// ===================================================
+//  スキーマ駆動インスペクタ
+//  PropertyRegistry に登録済みのクラスは、ここが表を辿って自動でウィジェットを
+//  描画し、編集を汎用 SetPropertyCommand として記録する（Undo / dirty 対応）。
+//  → スキーマに1行足すだけでインスペクタに反映され、エディター取り残しを防ぐ。
+// ===================================================
+static void renderSchemaInspector(Instance* inst, const char* className, CommandHistory* history) {
+    static PropValue s_before;  // 編集開始時の値（同時編集は1つなので単一でよい）
+    for (const auto& d : PropertyRegistry::schemaFor(className)) {
+        if (d.kind != PropKind::Field || !d.ptr) continue;
+        void* p = d.ptr(inst);
+        std::string label(d.name);
+        ImGui::PushID(static_cast<int>(reinterpret_cast<std::uintptr_t>(&d)));
+
+        switch (d.type) {
+            case PropType::Float:
+                ImGui::DragFloat(label.c_str(), static_cast<float*>(p), d.step, d.lo, d.hi, "%.2f");
+                break;
+            case PropType::Int:
+                ImGui::DragInt(label.c_str(), static_cast<int*>(p), 1.0f,
+                               static_cast<int>(d.lo), static_cast<int>(d.hi));
+                break;
+            case PropType::Bool:
+                ImGui::Checkbox(label.c_str(), static_cast<bool*>(p));
+                break;
+            case PropType::String: {
+                char buf[256];
+                std::string* s = static_cast<std::string*>(p);
+                std::snprintf(buf, sizeof(buf), "%s", s->c_str());
+                if (ImGui::InputText(label.c_str(), buf, sizeof(buf))) *s = buf;
+                break;
+            }
+            case PropType::Vec3:
+                ImGui::DragFloat3(label.c_str(), &static_cast<Vector3*>(p)->x, d.step, d.lo, d.hi, "%.2f");
+                break;
+            case PropType::Vec2:
+                ImGui::DragFloat2(label.c_str(), &static_cast<Vector2*>(p)->x, d.step, d.lo, d.hi, "%.2f");
+                break;
+            case PropType::Color4:
+                ImGui::ColorEdit4(label.c_str(), &static_cast<Color4*>(p)->r);
+                break;
+        }
+
+        // 編集の開始/確定を捉えて Undo 1ステップとして記録する
+        if (ImGui::IsItemActivated())
+            s_before = PropertyRegistry::readValue(inst, d);
+        if (ImGui::IsItemDeactivatedAfterEdit() && history) {
+            PropValue after = PropertyRegistry::readValue(inst, d);
+            history->record(std::make_unique<SetPropertyCommand>(
+                inst->shared_from_this(), &d, s_before, after));
+        }
+        ImGui::PopID();
+    }
 }
 
 PropertiesPanel::PropertiesPanel()
@@ -946,13 +1003,10 @@ void PropertiesPanel::onRender() {
         }
     }
 
-    // ---- Humanoid ----
+    // ---- Humanoid（スキーマ駆動。プロパティ追加はスキーマに1行足すだけ） ----
     if (inst->getClassName() == "Humanoid") {
-        Humanoid* hum = static_cast<Humanoid*>(inst);
         ImGui::SeparatorText("Humanoid");
-
-        ImGui::DragFloat("WalkSpeed", &hum->WalkSpeed, 0.1f, 0.0f, 100.0f, "%.2f");
-        ImGui::DragFloat("JumpPower", &hum->JumpPower, 0.1f, 0.0f, 100.0f, "%.2f");
+        renderSchemaInspector(inst, "Humanoid", m_history);
     }
 
     // ---- ScreenGuiObject ----

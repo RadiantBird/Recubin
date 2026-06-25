@@ -14,12 +14,12 @@
 static const bool s_humanoidRegistered = []{
     using namespace PropertyRegistry;
     registerClass("Humanoid", {
-        field   <Humanoid, &Humanoid::WalkSpeed>("WalkSpeed"),
-        field   <Humanoid, &Humanoid::JumpPower>("JumpPower"),
-        field   <Humanoid, &Humanoid::MaxHealth>("MaxHealth"),
-        field   <Humanoid, &Humanoid::RespawnTime>("RespawnTime"),
-        fieldVia<Humanoid, &Humanoid::Health, &Humanoid::setHealth>("Health"),
-        signal  <Humanoid, &Humanoid::Died>("Died"),
+        field   <&Humanoid::WalkSpeed>  ("WalkSpeed",   0, 100),
+        field   <&Humanoid::JumpPower>  ("JumpPower",   0, 100),
+        field   <&Humanoid::MaxHealth>  ("MaxHealth",   0, 10000),
+        field   <&Humanoid::RespawnTime>("RespawnTime", 0, 600),
+        fieldVia<&Humanoid::Health, &Humanoid::setHealth>("Health", 0, 100),
+        sig     <&Humanoid::Died>("Died"),
     });
     return true;
 }();
@@ -39,7 +39,7 @@ void Humanoid::setProperty(const std::string& name, const YAML::Node& value) {
 std::shared_ptr<Instance> Humanoid::clone() const {
     auto copy = std::make_shared<Humanoid>();
     copy->Name = Name;
-    PropertyRegistry::cloneProperties(this, copy.get(), "Humanoid");
+    PropertyRegistry::cloneFields(this, copy.get(), "Humanoid");
     // m_dead / Died は複製せず新規（=生存状態・新しいシグナル）
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());

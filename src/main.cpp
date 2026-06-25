@@ -161,28 +161,66 @@ void applyAppIcon(GLFWwindow* window, Instance* root) {
 // エディター設定（前回開いていたシーンパスなど）の保存先
 static const std::string kEditorSettingsPath = "editor_settings.yaml";
 
+// editor_settings.yaml 全体を読み込む（無ければ空ノード）
+static YAML::Node loadEditorSettings() {
+    try {
+        return YAML::LoadFile(kEditorSettingsPath);
+    } catch (...) {
+        return YAML::Node();
+    }
+}
+
+// editor_settings.yaml 全体を書き出す（既存キーを保持してマージ保存するために使う）
+static void writeEditorSettings(const YAML::Node& root) {
+    YAML::Emitter out;
+    out << root;
+    std::ofstream file(kEditorSettingsPath);
+    if (file) file << out.c_str();
+}
+
 // 前回開いていたシーンパスを読み込む。記録が無い/壊れている場合は空文字列を返す
 static std::string loadLastScenePath() {
-    try {
-        YAML::Node root = YAML::LoadFile(kEditorSettingsPath);
-        if (root["LastScenePath"]) {
-            return root["LastScenePath"].as<std::string>();
-        }
-    } catch (...) {
-        // 設定ファイルが無い場合は何もしない
-    }
+    YAML::Node root = loadEditorSettings();
+    if (root && root["LastScenePath"]) return root["LastScenePath"].as<std::string>();
     return "";
 }
 
-// 次回起動時に自動で開けるよう、現在のシーンパスを記録する
+// 次回起動時に自動で開けるよう、現在のシーンパスを記録する（他キーは保持）
 static void saveLastScenePath(const std::string& path) {
-    YAML::Emitter out;
-    out << YAML::BeginMap;
-    out << YAML::Key << "LastScenePath" << YAML::Value << path;
-    out << YAML::EndMap;
+    YAML::Node root = loadEditorSettings();
+    root["LastScenePath"] = path;
+    writeEditorSettings(root);
+}
 
-    std::ofstream file(kEditorSettingsPath);
-    if (file) file << out.c_str();
+// 各パネルの開閉状態を editor_settings.yaml から復元する。
+// 記録が無い場合は既定（Animation のみ非表示、他は表示）を使う。
+static void loadPanelVisibility(EditorManager* ed) {
+    if (!ed) return;
+    YAML::Node p = loadEditorSettings()["Panels"];
+    auto get = [&](const char* key, bool def) -> bool {
+        return (p && p[key]) ? p[key].as<bool>() : def;
+    };
+    ed->hierarchyPanel->isOpen      = get("Explorer",       true);
+    ed->propertiesPanel->isOpen     = get("Properties",     true);
+    ed->viewportPanel->isOpen       = get("Viewport",       true);
+    ed->contentBrowserPanel->isOpen = get("ContentBrowser", true);
+    ed->consolePanel->isOpen        = get("Console",        true);
+    ed->animationPanel->isOpen      = get("Animation",      false);
+}
+
+// 各パネルの開閉状態を editor_settings.yaml へ保存する（他キーは保持）
+static void savePanelVisibility(EditorManager* ed) {
+    if (!ed) return;
+    YAML::Node root = loadEditorSettings();
+    YAML::Node p;
+    p["Explorer"]       = ed->hierarchyPanel->isOpen;
+    p["Properties"]     = ed->propertiesPanel->isOpen;
+    p["Viewport"]       = ed->viewportPanel->isOpen;
+    p["ContentBrowser"] = ed->contentBrowserPanel->isOpen;
+    p["Console"]        = ed->consolePanel->isOpen;
+    p["Animation"]      = ed->animationPanel->isOpen;
+    root["Panels"] = p;
+    writeEditorSettings(root);
 }
 
 // ウィンドウタイトルに現在開いているシーンのファイル名を付加する
@@ -325,6 +363,7 @@ int main(int argc, char* argv[]) {
     EditorManager* ed = editorOwned.get();
     ed->engineExePath = engineExePath;
     ed->scenePath     = scenePath; // 起動時に決定したシーンパスを反映
+    loadPanelVisibility(ed);       // 前回のパネル開閉状態を復元
 
     // Workspace 切り替えコールバックを設定
     ed->hierarchyPanel->onSwitchWorkspace = [&](Workspace* ws) {
@@ -537,6 +576,8 @@ int main(int argc, char* argv[]) {
 
     std::cout << "[DEBUG] Main loop ended.\n";
     RCBN_LOG("Shutting down...");
+
+    savePanelVisibility(ed); // 次回起動時に復元できるようパネル開閉状態を保存
 
     // windows(
     //     std::thread t([]() {
