@@ -37,6 +37,8 @@
 #include <string>
 #include <cstdint>
 #include <cstdio>
+#include <cmath>
+#include <algorithm>
 #include <windows26.h>
 #include <shellapi.h>
 #include <shobjidl.h>
@@ -175,7 +177,7 @@ static void drawVec3Field(const char* id,
         char buf[128];
         snprintf(buf, sizeof(buf), "%.3f, %.3f, %.3f", val.x, val.y, val.z);
 
-        float w = ImGui::GetContentRegionAvail().x - 34.0f;
+        float w = ImGui::GetContentRegionAvail().x - 56.0f;  // [+/-] と [丸] の2ボタン分を確保
         if (w < 60.0f) w = 60.0f;
         ImGui::SetNextItemWidth(w);
 
@@ -200,6 +202,26 @@ static void drawVec3Field(const char* id,
         ImGui::SameLine();
         std::string btnId = std::string(expanded ? "-##col_" : "+##exp_") + id;
         if (ImGui::SmallButton(btnId.c_str())) expanded = !expanded;
+
+        // 整数に丸めるボタン: 各成分を最近傍整数に丸めて適用（Undo 連携）
+        ImGui::SameLine();
+        std::string roundId = std::string("丸##round_") + id;
+        if (ImGui::SmallButton(roundId.c_str())) {
+            Vector3 newVal(
+                std::clamp(std::round(val.x), minVal, maxVal),
+                std::clamp(std::round(val.y), minVal, maxVal),
+                std::clamp(std::round(val.z), minVal, maxVal));
+            if (history && bc) {
+                history->execute(std::make_unique<SetVec3Command>(bc, prop, val, newVal));
+            } else if (bc && prop == "Position") {
+                bc->teleportTo(newVal);
+            } else if (bc && prop == "Size") {
+                bc->setSize(newVal);
+            } else {
+                val = newVal;
+            }
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("整数に丸める");
     }
 
     // 展開: DragFloat3
