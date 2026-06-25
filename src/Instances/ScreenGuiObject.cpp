@@ -1,4 +1,22 @@
 #include <Instances/ScreenGuiObject.hpp>
+#include <include/Core/PropertyRegistry.hpp>
+
+static const bool s_screenGuiRegistered = []{
+    using namespace PropertyRegistry;
+    registerClass("ScreenGuiObject", {
+        field   <&ScreenGuiObject::Position>("Position", 0, 0, 1),
+        field   <&ScreenGuiObject::Size>    ("Size",     0, 10000, 1),
+        enumProp<&ScreenGuiObject::NormType>("Norm", {{"Pixel",0},{"Scale",1}}, /*yamlAsString*/true),
+        field   <&ScreenGuiObject::Visible> ("Visible"),
+        field   <&ScreenGuiObject::Active>  ("Active"),
+        field   <&ScreenGuiObject::ZIndex>  ("ZIndex"),
+        field   <&ScreenGuiObject::BackgroundColor>("BackgroundColor"),
+        method_prop<&ScreenGuiObject::getTransparency, &ScreenGuiObject::setTransparency>("Transparency")
+            .noYaml().noClone().noEditor(),
+        sig     <&ScreenGuiObject::Hovered>("Hovered"),
+    });
+    return true;
+}();
 
 ScreenGuiObject::ScreenGuiObject(std::string className)
     : Instance(className)
@@ -11,25 +29,6 @@ bool ScreenGuiObject::IsA(std::string name) {
 }
 
 void ScreenGuiObject::setProperty(const std::string& name, const YAML::Node& val) {
-    if (name == "Active") {
-        Active = val.as<bool>();
-    } else if (name == "Position") {
-        Position = { val[0].as<float>(), val[1].as<float>() };
-    } else if (name == "Size") {
-        Size = { val[0].as<float>(), val[1].as<float>() };
-    } else if (name == "Norm") {
-        std::string s = val.as<std::string>();
-        NormType = (s == "Scale") ? Norm::Scale : Norm::Pixel;
-    } else if (name == "Visible") {
-        Visible = val.as<bool>();
-    } else if (name == "BackgroundColor") {
-        BackgroundColor = { val[0].as<float>(), val[1].as<float>(),
-                            val[2].as<float>(), val[3].as<float>() };
-    } else if (name == "Transparency") {
-        setTransparency(val.as<float>());
-    } else if (name == "ZIndex") {
-        ZIndex = val.as<int>();
-    } else {
-        Instance::setProperty(name, val);
-    }
+    if (PropertyRegistry::loadProperty(this, "ScreenGuiObject", name, val)) return;
+    Instance::setProperty(name, val);
 }

@@ -77,39 +77,65 @@ static std::string browseFolder() {
 // ===================================================
 static void renderSchemaInspector(Instance* inst, const char* className, CommandHistory* history) {
     static PropValue s_before;  // 編集開始時の値（同時編集は1つなので単一でよい）
+    // own-only（既存の per-level エディターブロック構造を保つ。基底は各 IsA ブロックで描画）
     for (const auto& d : PropertyRegistry::schemaFor(className)) {
-        if (d.kind != PropKind::Field || !d.ptr) continue;
-        void* p = d.ptr(inst);
+        const PropertyDesc* dp = &d;
+        if (d.kind != PropKind::Field || !d.editable || !d.get) continue;
+        const bool readOnly = !d.set;
         std::string label(d.name);
-        ImGui::PushID(static_cast<int>(reinterpret_cast<std::uintptr_t>(&d)));
+        ImGui::PushID(static_cast<int>(reinterpret_cast<std::uintptr_t>(dp)));
+        if (readOnly) ImGui::BeginDisabled();
 
+        PropValue cur = d.get(inst);
         switch (d.type) {
-            case PropType::Float:
-                ImGui::DragFloat(label.c_str(), static_cast<float*>(p), d.step, d.lo, d.hi, "%.2f");
-                break;
-            case PropType::Int:
-                ImGui::DragInt(label.c_str(), static_cast<int*>(p), 1.0f,
-                               static_cast<int>(d.lo), static_cast<int>(d.hi));
-                break;
-            case PropType::Bool:
-                ImGui::Checkbox(label.c_str(), static_cast<bool*>(p));
-                break;
-            case PropType::String: {
-                char buf[256];
-                std::string* s = static_cast<std::string*>(p);
-                std::snprintf(buf, sizeof(buf), "%s", s->c_str());
-                if (ImGui::InputText(label.c_str(), buf, sizeof(buf))) *s = buf;
+            case PropType::Float: {
+                float v = std::get<float>(cur);
+                if (ImGui::DragFloat(label.c_str(), &v, d.step, d.lo, d.hi, "%.2f")) d.set(inst, PropValue(v));
                 break;
             }
-            case PropType::Vec3:
-                ImGui::DragFloat3(label.c_str(), &static_cast<Vector3*>(p)->x, d.step, d.lo, d.hi, "%.2f");
+            case PropType::Int: {
+                int v = std::get<int>(cur);
+                if (ImGui::DragInt(label.c_str(), &v, 1.0f, (int)d.lo, (int)d.hi)) d.set(inst, PropValue(v));
                 break;
-            case PropType::Vec2:
-                ImGui::DragFloat2(label.c_str(), &static_cast<Vector2*>(p)->x, d.step, d.lo, d.hi, "%.2f");
+            }
+            case PropType::Bool: {
+                bool v = std::get<bool>(cur);
+                if (ImGui::Checkbox(label.c_str(), &v)) d.set(inst, PropValue(v));
                 break;
-            case PropType::Color4:
-                ImGui::ColorEdit4(label.c_str(), &static_cast<Color4*>(p)->r);
+            }
+            case PropType::String: {
+                char buf[256];
+                std::snprintf(buf, sizeof(buf), "%s", std::get<std::string>(cur).c_str());
+                if (ImGui::InputText(label.c_str(), buf, sizeof(buf))) d.set(inst, PropValue(std::string(buf)));
                 break;
+            }
+            case PropType::Vec3: {
+                Vector3 v = std::get<Vector3>(cur);
+                if (ImGui::DragFloat3(label.c_str(), &v.x, d.step, d.lo, d.hi, "%.2f")) d.set(inst, PropValue(v));
+                break;
+            }
+            case PropType::Vec2: {
+                Vector2 v = std::get<Vector2>(cur);
+                if (ImGui::DragFloat2(label.c_str(), &v.x, d.step, d.lo, d.hi, "%.2f")) d.set(inst, PropValue(v));
+                break;
+            }
+            case PropType::Color4: {
+                Color4 v = std::get<Color4>(cur);
+                if (ImGui::ColorEdit4(label.c_str(), &v.r)) d.set(inst, PropValue(v));
+                break;
+            }
+            case PropType::Enum: {
+                int iv = std::get<int>(cur);
+                int idx = 0;
+                std::vector<const char*> items;
+                for (size_t i = 0; i < d.enumNames.size(); ++i) {
+                    items.push_back(d.enumNames[i].first.data());
+                    if (d.enumNames[i].second == iv) idx = (int)i;
+                }
+                if (ImGui::Combo(label.c_str(), &idx, items.data(), (int)items.size()))
+                    d.set(inst, PropValue(d.enumNames[idx].second));
+                break;
+            }
         }
 
         // 編集の開始/確定を捉えて Undo 1ステップとして記録する
@@ -118,8 +144,9 @@ static void renderSchemaInspector(Instance* inst, const char* className, Command
         if (ImGui::IsItemDeactivatedAfterEdit() && history) {
             PropValue after = PropertyRegistry::readValue(inst, d);
             history->record(std::make_unique<SetPropertyCommand>(
-                inst->shared_from_this(), &d, s_before, after));
+                inst->shared_from_this(), dp, s_before, after));
         }
+        if (readOnly) ImGui::EndDisabled();
         ImGui::PopID();
     }
 }
@@ -695,35 +722,10 @@ void PropertiesPanel::onRender() {
         }
     }
 
-    // ---- Lighting ----
+    // ---- Lighting（スキーマ駆動） ----
     if (inst->getClassName() == "Lighting") {
-        Lighting* lt = static_cast<Lighting*>(inst);
-        auto ltSp = std::static_pointer_cast<Lighting>(inst->shared_from_this());
         ImGui::SeparatorText("Lighting");
-
-        // Light Direction with undo
-        {
-            static Vector3 s_dirBefore;
-            float dir[3] = { lt->lightDir.x, lt->lightDir.y, lt->lightDir.z };
-            bool changed = ImGui::DragFloat3("Direction", dir, 0.01f, -1.0f, 1.0f, "%.3f");
-            if (ImGui::IsItemActivated()) s_dirBefore = lt->lightDir;
-            if (changed) lt->lightDir = Vector3(dir[0], dir[1], dir[2]);
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                Vector3 after(dir[0], dir[1], dir[2]);
-                m_history->record(std::make_unique<SetLightDirCommand>(ltSp, s_dirBefore, after));
-            }
-        }
-
-        // Brightness with undo
-        {
-            static float s_brightBefore;
-            bool changed = ImGui::DragFloat("Brightness", &lt->brightness, 0.01f, 0.0f, 5.0f, "%.2f");
-            if (ImGui::IsItemActivated()) s_brightBefore = lt->brightness;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                m_history->record(std::make_unique<SetLightBrightnessCommand>(ltSp, s_brightBefore, lt->brightness));
-            }
-        }
-
+        renderSchemaInspector(inst, "Lighting", m_history);
     }
 
     // ---- PostEffect ----
@@ -1010,135 +1012,34 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- ScreenGuiObject ----
+    // ---- GUI 一族（スキーマ駆動。基底は IsA ブロック、葉は getClassName ブロックで描画） ----
     if (inst->IsA("ScreenGuiObject")) {
-        ScreenGuiObject* sgo = static_cast<ScreenGuiObject*>(inst);
         ImGui::SeparatorText("ScreenGuiObject");
-
-        float pos[2] = { sgo->Position.x, sgo->Position.y };
-        if (ImGui::DragFloat2("Position##sgo", pos, 1.0f))
-            { sgo->Position.x = pos[0]; sgo->Position.y = pos[1]; }
-
-        float sz[2] = { sgo->Size.x, sgo->Size.y };
-        if (ImGui::DragFloat2("Size##sgo", sz, 1.0f, 0.0f, 10000.0f))
-            { sgo->Size.x = sz[0]; sgo->Size.y = sz[1]; }
-
-        static const char* sgoNormItems[] = { "Pixel", "Scale" };
-        int normIdx = (sgo->NormType == Norm::Scale) ? 1 : 0;
-        if (ImGui::Combo("NormType##sgo", &normIdx, sgoNormItems, 2))
-            sgo->NormType = (normIdx == 1) ? Norm::Scale : Norm::Pixel;
-
-        ImGui::Checkbox("Visible##sgo", &sgo->Visible);
-        ImGui::Checkbox("Active##sgo",  &sgo->Active);
-
-        float col[4] = { sgo->BackgroundColor.r, sgo->BackgroundColor.g,
-                         sgo->BackgroundColor.b, sgo->BackgroundColor.a };
-        if (ImGui::ColorEdit4("BackgroundColor##sgo", col))
-            sgo->BackgroundColor = Color4(col[0], col[1], col[2], col[3]);
-
-        ImGui::InputInt("ZIndex", &sgo->ZIndex);
+        renderSchemaInspector(inst, "ScreenGuiObject", m_history);
     }
-
-    // ---- TextLabel ----
     if (inst->getClassName() == "TextLabel") {
-        TextLabel* lbl = static_cast<TextLabel*>(inst);
         ImGui::SeparatorText("TextLabel");
-
-        char textBuf[512] = {};
-        strncpy_s(textBuf, lbl->Text.c_str(), sizeof(textBuf) - 1);
-        if (ImGui::InputText("Text##lbl", textBuf, sizeof(textBuf)))
-            lbl->Text = std::string(textBuf);
-
-        float tc[4] = { lbl->TextColor.r, lbl->TextColor.g, lbl->TextColor.b, lbl->TextColor.a };
-        if (ImGui::ColorEdit4("TextColor##lbl", tc))
-            lbl->TextColor = Color4(tc[0], tc[1], tc[2], tc[3]);
+        renderSchemaInspector(inst, "TextLabel", m_history);
     }
-
-    // ---- TextButton ----
     if (inst->getClassName() == "TextButton") {
-        TextButton* btn = static_cast<TextButton*>(inst);
         ImGui::SeparatorText("TextButton");
-
-        char textBuf[512] = {};
-        strncpy_s(textBuf, btn->Text.c_str(), sizeof(textBuf) - 1);
-        if (ImGui::InputText("Text##tbtn", textBuf, sizeof(textBuf)))
-            btn->Text = std::string(textBuf);
-
-        float tc[4] = { btn->TextColor.r, btn->TextColor.g, btn->TextColor.b, btn->TextColor.a };
-        if (ImGui::ColorEdit4("TextColor##tbtn", tc))
-            btn->TextColor = Color4(tc[0], tc[1], tc[2], tc[3]);
+        renderSchemaInspector(inst, "TextButton", m_history);
     }
-
-    // ---- WorldGuiObject ----
     if (inst->IsA("WorldGuiObject")) {
-        WorldGuiObject* wgo = static_cast<WorldGuiObject*>(inst);
         ImGui::SeparatorText("WorldGuiObject");
-
-        float sz[2] = { wgo->Size.x, wgo->Size.y };
-        if (ImGui::DragFloat2("Size##wgo", sz, 1.0f, 0.0f, 10000.0f))
-            { wgo->Size.x = sz[0]; wgo->Size.y = sz[1]; }
-
-        static const char* wgoNormItems[] = { "Pixel", "Scale" };
-        int normIdx = (wgo->NormType == Norm::Scale) ? 1 : 0;
-        if (ImGui::Combo("NormType##wgo", &normIdx, wgoNormItems, 2))
-            wgo->NormType = (normIdx == 1) ? Norm::Scale : Norm::Pixel;
-
-        ImGui::Checkbox("Visible##wgo", &wgo->Visible);
-        ImGui::Checkbox("Active##wgo",  &wgo->Active);
-
-        float col[4] = { wgo->BackgroundColor.r, wgo->BackgroundColor.g,
-                         wgo->BackgroundColor.b, wgo->BackgroundColor.a };
-        if (ImGui::ColorEdit4("BackgroundColor##wgo", col))
-            wgo->BackgroundColor = Color4(col[0], col[1], col[2], col[3]);
+        renderSchemaInspector(inst, "WorldGuiObject", m_history);
     }
-
-    // ---- SurfaceGui ----
     if (inst->getClassName() == "SurfaceGui") {
-        SurfaceGui* sg = static_cast<SurfaceGui*>(inst);
         ImGui::SeparatorText("SurfaceGui");
-
-        static const char* faceItems[] = { "Front", "Back", "Top", "Bottom", "Right", "Left" };
-        int faceIdx = static_cast<int>(sg->face);
-        if (ImGui::Combo("Face##sg", &faceIdx, faceItems, 6))
-            sg->face = static_cast<Face>(faceIdx);
+        renderSchemaInspector(inst, "SurfaceGui", m_history);
     }
-
-    // ---- BillboardGui ----
     if (inst->getClassName() == "BillboardGui") {
-        BillboardGui* bg = static_cast<BillboardGui*>(inst);
         ImGui::SeparatorText("BillboardGui");
-
-        static const char* modeItems[] = { "Parallel", "Focus" };
-        int modeIdx = (bg->Mode == BillboardMode::Focus) ? 1 : 0;
-        if (ImGui::Combo("Mode##bg", &modeIdx, modeItems, 2))
-            bg->Mode = (modeIdx == 1) ? BillboardMode::Focus : BillboardMode::Parallel;
+        renderSchemaInspector(inst, "BillboardGui", m_history);
     }
-
-    // ---- ProximityPrompt ----
     if (inst->getClassName() == "ProximityPrompt") {
-        ProximityPrompt* pp = static_cast<ProximityPrompt*>(inst);
         ImGui::SeparatorText("ProximityPrompt");
-
-        char keyBuf[128] = {};
-        strncpy_s(keyBuf, pp->KeyboardKeyCode.c_str(), sizeof(keyBuf) - 1);
-        if (ImGui::InputText("KeyboardKeyCode", keyBuf, sizeof(keyBuf))) {
-            pp->KeyboardKeyCode = std::string(keyBuf);
-        }
-
-        ImGui::DragFloat("HoldDuration", &pp->HoldDuration, 0.05f, 0.0f, 60.0f, "%.2fs");
-        ImGui::DragFloat("MaxActivationDistance", &pp->MaxActivationDistance, 0.1f, 0.0f, 1000.0f, "%.1f");
-        ImGui::Checkbox("Enabled##pp", &pp->Enabled);
-
-        char actBuf[256] = {};
-        strncpy_s(actBuf, pp->ActionText.c_str(), sizeof(actBuf) - 1);
-        if (ImGui::InputText("ActionText", actBuf, sizeof(actBuf))) {
-            pp->ActionText = std::string(actBuf);
-        }
-
-        char objBuf[256] = {};
-        strncpy_s(objBuf, pp->ObjectText.c_str(), sizeof(objBuf) - 1);
-        if (ImGui::InputText("ObjectText", objBuf, sizeof(objBuf))) {
-            pp->ObjectText = std::string(objBuf);
-        }
+        renderSchemaInspector(inst, "ProximityPrompt", m_history);
     }
 
     // ---- Workspace ----

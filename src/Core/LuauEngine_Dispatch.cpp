@@ -350,8 +350,7 @@ void LuauEngine::InitDispatchTable_World() {
     DispatchTable["Decal"]["TextureID"] = getter_number<Decal, &Decal::TextureID>();
     DispatchTable["Decal"]["Face"]      = getter_number<Decal, &Decal::face>();
 
-    DispatchTable["Lighting"]["Brightness"] = getter_number<Lighting, &Lighting::brightness>();
-    DispatchTable["Lighting"]["Direction"]  = getter_vec3<Lighting, &Lighting::lightDir>();
+    PropertyRegistry::applyToDispatch("Lighting", DispatchTable, SetterTable);
 
     DispatchTable["System"]["Heartbeat"] = getter_signal<System, &System::Heartbeat>();
 
@@ -407,7 +406,7 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["UserInput"]["Released"]  = getter_signal<UserInput, &UserInput::Released>();
     DispatchTable["UserInput"]["IsPressed"] = getter_closure(userinput_ispressed_closure, "IsPressed");
 
-    DispatchTable["AppImage"]["IconPath"] = getter_string<AppImage, &AppImage::iconPath>();
+    PropertyRegistry::applyToDispatch("AppImage", DispatchTable, SetterTable);
 
     DispatchTable["MeshCube"]["MeshFile"] = getter_string<MeshCube, &MeshCube::MeshFile>();
 
@@ -472,8 +471,7 @@ void LuauEngine::InitSetterTable_World() {
     SetterTable["Decal"]["TextureID"] = setter_number<Decal, &Decal::TextureID>();
     SetterTable["Decal"]["Face"]      = setter_number<Decal, &Decal::face>();
 
-    SetterTable["Lighting"]["Brightness"] = setter_number<Lighting, &Lighting::brightness>();
-    SetterTable["Lighting"]["Direction"]  = setter_vec3<Lighting, &Lighting::lightDir>();
+    // Lighting の setter は applyToDispatch（InitDispatchTable_World）で登録済み
 }
 
 // ==================== Setter: Weld, Rope, Rod, Motor ====================
@@ -507,7 +505,7 @@ void LuauEngine::InitSetterTable_Misc() {
 
     // Humanoid のフィールド setter は PropertyRegistry::applyToDispatch（InitDispatchTable_Misc）で登録済み
 
-    SetterTable["AppImage"]["IconPath"] = setter_string<AppImage, &AppImage::iconPath>();
+    // AppImage の setter は applyToDispatch（InitDispatchTable_Misc）で登録済み
 
     SetterTable["Script"]["Enabled"] = setter_bool  <Script, &Script::Enabled>();
     SetterTable["Script"]["Path"]    = setter_string<Script, &Script::Path>();
@@ -516,65 +514,15 @@ void LuauEngine::InitSetterTable_Misc() {
 
 // ==================== Getter: GUI ====================
 void LuauEngine::InitDispatchTable_GUI() {
-    // --- ScreenGuiObject ---
-    DispatchTable["ScreenGuiObject"]["Active"]          = getter_bool          <ScreenGuiObject, &ScreenGuiObject::Active>();
-    DispatchTable["ScreenGuiObject"]["Visible"]         = getter_bool          <ScreenGuiObject, &ScreenGuiObject::Visible>();
-    DispatchTable["ScreenGuiObject"]["ZIndex"]          = getter_int           <ScreenGuiObject, &ScreenGuiObject::ZIndex>();
-    DispatchTable["ScreenGuiObject"]["Position"]        = getter_vec2          <ScreenGuiObject, &ScreenGuiObject::Position>();
-    DispatchTable["ScreenGuiObject"]["Size"]            = getter_vec2          <ScreenGuiObject, &ScreenGuiObject::Size>();
-    DispatchTable["ScreenGuiObject"]["BackgroundColor"] = getter_color4        <ScreenGuiObject, &ScreenGuiObject::BackgroundColor>();
-    DispatchTable["ScreenGuiObject"]["Transparency"]    = getter_method_number <ScreenGuiObject, &ScreenGuiObject::getTransparency>();
-    // Norm uses string conversion — custom lambda
-    DispatchTable["ScreenGuiObject"]["Norm"] = [](lua_State* L, Instance* obj) {
-        lua_pushstring(L, normToStr(static_cast<ScreenGuiObject*>(obj)->NormType));
-        return 1;
-    };
-    DispatchTable["ScreenGuiObject"]["Hovered"] = getter_signal<ScreenGuiObject, &ScreenGuiObject::Hovered>();
-
-    // --- GuiButton ---
-    DispatchTable["GuiButton"]["Activated"] = getter_signal<GuiButton, &GuiButton::Activated>();
-
-    // --- TextLabel ---
-    DispatchTable["TextLabel"]["Text"]      = getter_string<TextLabel, &TextLabel::Text>();
-    DispatchTable["TextLabel"]["TextColor"] = getter_color4<TextLabel, &TextLabel::TextColor>();
-
-    // --- TextButton ---
-    DispatchTable["TextButton"]["Text"]      = getter_string<TextButton, &TextButton::Text>();
-    DispatchTable["TextButton"]["TextColor"] = getter_color4<TextButton, &TextButton::TextColor>();
-
-    // --- WorldGuiObject ---
-    DispatchTable["WorldGuiObject"]["Active"]          = getter_bool          <WorldGuiObject, &WorldGuiObject::Active>();
-    DispatchTable["WorldGuiObject"]["Visible"]         = getter_bool          <WorldGuiObject, &WorldGuiObject::Visible>();
-    DispatchTable["WorldGuiObject"]["ZIndex"]          = getter_int           <WorldGuiObject, &WorldGuiObject::ZIndex>();
-    DispatchTable["WorldGuiObject"]["Size"]            = getter_vec2          <WorldGuiObject, &WorldGuiObject::Size>();
-    DispatchTable["WorldGuiObject"]["BackgroundColor"] = getter_color4        <WorldGuiObject, &WorldGuiObject::BackgroundColor>();
-    DispatchTable["WorldGuiObject"]["Transparency"]    = getter_method_number <WorldGuiObject, &WorldGuiObject::getTransparency>();
-    DispatchTable["WorldGuiObject"]["Norm"] = [](lua_State* L, Instance* obj) {
-        lua_pushstring(L, normToStr(static_cast<WorldGuiObject*>(obj)->NormType));
-        return 1;
-    };
-
-    // --- SurfaceGui ---
-    DispatchTable["SurfaceGui"]["Face"] = [](lua_State* L, Instance* obj) {
-        lua_pushstring(L, faceToStr(static_cast<SurfaceGui*>(obj)->face));
-        return 1;
-    };
-
-    // --- BillboardGui ---
-    DispatchTable["BillboardGui"]["Mode"] = [](lua_State* L, Instance* obj) {
-        auto m = static_cast<BillboardGui*>(obj)->Mode;
-        lua_pushstring(L, m == BillboardMode::Focus ? "Focus" : "Parallel");
-        return 1;
-    };
-
-    // --- ProximityPrompt ---
-    DispatchTable["ProximityPrompt"]["KeyboardKeyCode"]       = getter_string<ProximityPrompt, &ProximityPrompt::KeyboardKeyCode>();
-    DispatchTable["ProximityPrompt"]["HoldDuration"]          = getter_number<ProximityPrompt, &ProximityPrompt::HoldDuration>();
-    DispatchTable["ProximityPrompt"]["MaxActivationDistance"] = getter_number<ProximityPrompt, &ProximityPrompt::MaxActivationDistance>();
-    DispatchTable["ProximityPrompt"]["Enabled"]               = getter_bool  <ProximityPrompt, &ProximityPrompt::Enabled>();
-    DispatchTable["ProximityPrompt"]["ActionText"]            = getter_string<ProximityPrompt, &ProximityPrompt::ActionText>();
-    DispatchTable["ProximityPrompt"]["ObjectText"]            = getter_string<ProximityPrompt, &ProximityPrompt::ObjectText>();
-    DispatchTable["ProximityPrompt"]["Triggered"]             = getter_signal<ProximityPrompt, &ProximityPrompt::Triggered>();
+    // GUI 一族はスキーマ表から get/set を流し込む（Norm/Face/Mode は enum 文字列）
+    PropertyRegistry::applyToDispatch("ScreenGuiObject", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("GuiButton",       DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("TextLabel",       DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("TextButton",      DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("WorldGuiObject",  DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("SurfaceGui",      DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("BillboardGui",    DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("ProximityPrompt", DispatchTable, SetterTable);
 
     // --- Terrain ---
     DispatchTable["Terrain"]["Enabled"]    = getter_bool<Terrain, &Terrain::Enabled>();
@@ -590,60 +538,7 @@ void LuauEngine::InitDispatchTable_GUI() {
 
 // ==================== Setter: GUI ====================
 void LuauEngine::InitSetterTable_GUI() {
-    // --- ScreenGuiObject ---
-    SetterTable["ScreenGuiObject"]["Active"]          = setter_bool        <ScreenGuiObject, &ScreenGuiObject::Active>();
-    SetterTable["ScreenGuiObject"]["Visible"]         = setter_bool        <ScreenGuiObject, &ScreenGuiObject::Visible>();
-    SetterTable["ScreenGuiObject"]["ZIndex"]          = setter_int         <ScreenGuiObject, &ScreenGuiObject::ZIndex>();
-    SetterTable["ScreenGuiObject"]["Position"]        = setter_vec2        <ScreenGuiObject, &ScreenGuiObject::Position>();
-    SetterTable["ScreenGuiObject"]["Size"]            = setter_vec2        <ScreenGuiObject, &ScreenGuiObject::Size>();
-    SetterTable["ScreenGuiObject"]["BackgroundColor"] = setter_color4      <ScreenGuiObject, &ScreenGuiObject::BackgroundColor>();
-    SetterTable["ScreenGuiObject"]["Transparency"]    = setter_method_float<ScreenGuiObject, &ScreenGuiObject::setTransparency>();
-    SetterTable["ScreenGuiObject"]["Norm"] = [](lua_State* L, Instance* obj) {
-        static_cast<ScreenGuiObject*>(obj)->NormType = strToNorm(luaL_checkstring(L, 3));
-        return 0;
-    };
-
-    // --- TextLabel ---
-    SetterTable["TextLabel"]["Text"]      = setter_string<TextLabel, &TextLabel::Text>();
-    SetterTable["TextLabel"]["TextColor"] = setter_color4<TextLabel, &TextLabel::TextColor>();
-
-    // --- TextButton ---
-    SetterTable["TextButton"]["Text"]      = setter_string<TextButton, &TextButton::Text>();
-    SetterTable["TextButton"]["TextColor"] = setter_color4<TextButton, &TextButton::TextColor>();
-
-    // --- WorldGuiObject ---
-    SetterTable["WorldGuiObject"]["Active"]          = setter_bool        <WorldGuiObject, &WorldGuiObject::Active>();
-    SetterTable["WorldGuiObject"]["Visible"]         = setter_bool        <WorldGuiObject, &WorldGuiObject::Visible>();
-    SetterTable["WorldGuiObject"]["ZIndex"]          = setter_int         <WorldGuiObject, &WorldGuiObject::ZIndex>();
-    SetterTable["WorldGuiObject"]["Size"]            = setter_vec2        <WorldGuiObject, &WorldGuiObject::Size>();
-    SetterTable["WorldGuiObject"]["BackgroundColor"] = setter_color4      <WorldGuiObject, &WorldGuiObject::BackgroundColor>();
-    SetterTable["WorldGuiObject"]["Transparency"]    = setter_method_float<WorldGuiObject, &WorldGuiObject::setTransparency>();
-    SetterTable["WorldGuiObject"]["Norm"] = [](lua_State* L, Instance* obj) {
-        static_cast<WorldGuiObject*>(obj)->NormType = strToNorm(luaL_checkstring(L, 3));
-        return 0;
-    };
-
-    // --- SurfaceGui ---
-    SetterTable["SurfaceGui"]["Face"] = [](lua_State* L, Instance* obj) {
-        static_cast<SurfaceGui*>(obj)->face = strToFace(luaL_checkstring(L, 3));
-        return 0;
-    };
-
-    // --- BillboardGui ---
-    SetterTable["BillboardGui"]["Mode"] = [](lua_State* L, Instance* obj) {
-        std::string_view v = luaL_checkstring(L, 3);
-        static_cast<BillboardGui*>(obj)->Mode =
-            (v == "Focus") ? BillboardMode::Focus : BillboardMode::Parallel;
-        return 0;
-    };
-
-    // --- ProximityPrompt ---
-    SetterTable["ProximityPrompt"]["KeyboardKeyCode"]       = setter_string<ProximityPrompt, &ProximityPrompt::KeyboardKeyCode>();
-    SetterTable["ProximityPrompt"]["HoldDuration"]          = setter_number<ProximityPrompt, &ProximityPrompt::HoldDuration>();
-    SetterTable["ProximityPrompt"]["MaxActivationDistance"] = setter_number<ProximityPrompt, &ProximityPrompt::MaxActivationDistance>();
-    SetterTable["ProximityPrompt"]["Enabled"]               = setter_bool  <ProximityPrompt, &ProximityPrompt::Enabled>();
-    SetterTable["ProximityPrompt"]["ActionText"]            = setter_string<ProximityPrompt, &ProximityPrompt::ActionText>();
-    SetterTable["ProximityPrompt"]["ObjectText"]            = setter_string<ProximityPrompt, &ProximityPrompt::ObjectText>();
+    // GUI 一族の setter は applyToDispatch（InitDispatchTable_GUI）で登録済み
 
     // --- Terrain ---
     SetterTable["Terrain"]["Enabled"]  = setter_bool<Terrain, &Terrain::Enabled>();

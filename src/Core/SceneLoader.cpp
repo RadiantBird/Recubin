@@ -361,9 +361,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 out << YAML::Key << "Texture" << YAML::Value << tx->texturePath;
         }
         if (inst->getClassName() == "AppImage") {
-            const AppImage* ai = static_cast<const AppImage*>(inst);
-            if (!ai->iconPath.empty())
-                out << YAML::Key << "IconPath" << YAML::Value << ai->iconPath;
+            PropertyRegistry::saveProperties(out, inst, "AppImage");
         }
         if (inst->getClassName() == "MeshCube") {
             const MeshCube* mc = static_cast<const MeshCube*>(inst);
@@ -412,12 +410,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::EndSeq;
         }
         if (inst->getClassName() == "Lighting") {
-            const Lighting* lt = static_cast<const Lighting*>(inst);
-            out << YAML::Key << "Direction" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << lt->lightDir.x << lt->lightDir.y << lt->lightDir.z
-                << YAML::EndSeq;
-            out << YAML::Key << "Brightness" << YAML::Value << lt->brightness;
+            PropertyRegistry::saveProperties(out, inst, "Lighting");
         }
         if (inst->getClassName() == "PostEffect") {
             const PostEffect* pe = static_cast<const PostEffect*>(inst);
@@ -478,47 +471,16 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         }
 
         if (inst->IsA("ScreenGuiObject")) {
-            const ScreenGuiObject* sgo = static_cast<const ScreenGuiObject*>(inst);
-            out << YAML::Key << "Position" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq << sgo->Position.x << sgo->Position.y << YAML::EndSeq;
-            out << YAML::Key << "Size" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq << sgo->Size.x << sgo->Size.y << YAML::EndSeq;
-            out << YAML::Key << "Norm"    << YAML::Value << (sgo->NormType == Norm::Scale ? "Scale" : "Pixel");
-            out << YAML::Key << "Visible" << YAML::Value << sgo->Visible;
-            out << YAML::Key << "Active"  << YAML::Value << sgo->Active;
-            out << YAML::Key << "ZIndex"  << YAML::Value << sgo->ZIndex;
-            out << YAML::Key << "BackgroundColor" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << sgo->BackgroundColor.r << sgo->BackgroundColor.g
-                << sgo->BackgroundColor.b << sgo->BackgroundColor.a
-                << YAML::EndSeq;
+            PropertyRegistry::saveProperties(out, inst, "ScreenGuiObject");
         }
         if (inst->getClassName() == "TextLabel") {
-            const TextLabel* lbl = static_cast<const TextLabel*>(inst);
-            out << YAML::Key << "Text" << YAML::Value << lbl->Text;
-            out << YAML::Key << "TextColor" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << lbl->TextColor.r << lbl->TextColor.g << lbl->TextColor.b << lbl->TextColor.a
-                << YAML::EndSeq;
+            PropertyRegistry::saveProperties(out, inst, "TextLabel");
         }
         if (inst->getClassName() == "TextButton") {
-            const TextButton* btn = static_cast<const TextButton*>(inst);
-            out << YAML::Key << "Text" << YAML::Value << btn->Text;
-            out << YAML::Key << "TextColor" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << btn->TextColor.r << btn->TextColor.g << btn->TextColor.b << btn->TextColor.a
-                << YAML::EndSeq;
+            PropertyRegistry::saveProperties(out, inst, "TextButton");
         }
         if (inst->getClassName() == "ProximityPrompt") {
-            const ProximityPrompt* pp = static_cast<const ProximityPrompt*>(inst);
-            out << YAML::Key << "KeyboardKeyCode" << YAML::Value << pp->KeyboardKeyCode;
-            out << YAML::Key << "HoldDuration" << YAML::Value << pp->HoldDuration;
-            out << YAML::Key << "MaxActivationDistance" << YAML::Value << pp->MaxActivationDistance;
-            out << YAML::Key << "Enabled" << YAML::Value << pp->Enabled;
-            out << YAML::Key << "ActionText" << YAML::Value << pp->ActionText;
-            out << YAML::Key << "ObjectText" << YAML::Value << pp->ObjectText;
-            out << YAML::Key << "Size" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq << pp->Size.x << pp->Size.y << YAML::EndSeq;
+            PropertyRegistry::saveProperties(out, inst, "ProximityPrompt");
         }
         if (inst->IsA("Workspace")) {
             const Workspace* ws = static_cast<const Workspace*>(inst);
@@ -529,27 +491,13 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "PhysicsEnabled" << YAML::Value << ws->PhysicsEnabled;
         }
         if (inst->IsA("WorldGuiObject")) {
-            const WorldGuiObject* wgo = static_cast<const WorldGuiObject*>(inst);
-            out << YAML::Key << "Size" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq << wgo->Size.x << wgo->Size.y << YAML::EndSeq;
-            out << YAML::Key << "Norm" << YAML::Value << (wgo->NormType == Norm::Scale ? "Scale" : "Pixel");
-            out << YAML::Key << "Active"  << YAML::Value << wgo->Active;
-            out << YAML::Key << "Visible" << YAML::Value << wgo->Visible;
-            out << YAML::Key << "BackgroundColor" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << wgo->BackgroundColor.r << wgo->BackgroundColor.g
-                << wgo->BackgroundColor.b << wgo->BackgroundColor.a
-                << YAML::EndSeq;
-            out << YAML::Key << "ZIndex" << YAML::Value << wgo->ZIndex;
+            PropertyRegistry::saveProperties(out, inst, "WorldGuiObject");
         }
         if (inst->getClassName() == "SurfaceGui") {
-            const SurfaceGui* sg = static_cast<const SurfaceGui*>(inst);
-            static const char* faceNames[] = { "Front", "Back", "Top", "Bottom", "Right", "Left" };
-            out << YAML::Key << "Face" << YAML::Value << faceNames[static_cast<int>(sg->face)];
+            PropertyRegistry::saveProperties(out, inst, "SurfaceGui");
         }
         if (inst->getClassName() == "BillboardGui") {
-            const BillboardGui* bg = static_cast<const BillboardGui*>(inst);
-            out << YAML::Key << "Mode" << YAML::Value << (bg->Mode == BillboardMode::Focus ? "Focus" : "Parallel");
+            PropertyRegistry::saveProperties(out, inst, "BillboardGui");
         }
         if (inst->getClassName() == "User") {
             const User* usr = static_cast<const User*>(inst);

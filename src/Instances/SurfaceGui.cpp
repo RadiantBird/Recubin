@@ -1,5 +1,16 @@
 #include <Instances/SurfaceGui.hpp>
+#include <include/Core/PropertyRegistry.hpp>
 #include <GL/glew.h>
+
+static const bool s_surfaceGuiRegistered = []{
+    using namespace PropertyRegistry;
+    registerClass("SurfaceGui", "WorldGuiObject", {
+        enumProp<&SurfaceGui::face>("Face",
+            {{"Front",0},{"Back",1},{"Top",2},{"Bottom",3},{"Right",4},{"Left",5}},
+            /*yamlAsString*/true),
+    });
+    return true;
+}();
 
 SurfaceGui::SurfaceGui() : Named<SurfaceGui, WorldGuiObject>("SurfaceGui") {}
 
@@ -13,33 +24,15 @@ bool SurfaceGui::IsA(std::string name) {
     return WorldGuiObject::IsA(name);
 }
 
-static Face faceFromString(const std::string& s) {
-    if (s == "Back")   return Face::Back;
-    if (s == "Top")    return Face::Top;
-    if (s == "Bottom") return Face::Bottom;
-    if (s == "Right")  return Face::Right;
-    if (s == "Left")   return Face::Left;
-    return Face::Front;
-}
-
 void SurfaceGui::setProperty(const std::string& name, const YAML::Node& val) {
-    if (name == "Face") {
-        face = faceFromString(val.as<std::string>());
-    } else {
-        WorldGuiObject::setProperty(name, val);
-    }
+    if (PropertyRegistry::loadProperty(this, "SurfaceGui", name, val)) return;
+    WorldGuiObject::setProperty(name, val);
 }
 
 std::shared_ptr<Instance> SurfaceGui::clone() const {
     auto copy = std::make_shared<SurfaceGui>();
-    copy->Name            = Name;
-    copy->Size            = Size;
-    copy->NormType        = NormType;
-    copy->Active          = Active;
-    copy->Visible         = Visible;
-    copy->BackgroundColor = BackgroundColor;
-    copy->ZIndex          = ZIndex;
-    copy->face            = face;
+    copy->Name = Name;
+    PropertyRegistry::cloneFields(this, copy.get(), "SurfaceGui");
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());
     return copy;

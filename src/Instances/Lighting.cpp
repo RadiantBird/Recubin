@@ -1,6 +1,15 @@
 #include <include/Instances/Lighting.hpp>
+#include <include/Core/PropertyRegistry.hpp>
 
-
+// プロパティ・スキーマ（単一の正）。Luau/YAML/clone/エディターを一括駆動。
+static const bool s_lightingRegistered = []{
+    using namespace PropertyRegistry;
+    registerClass("Lighting", {
+        field<&Lighting::lightDir>  ("Direction",  -1.0f, 1.0f, 0.01f),
+        field<&Lighting::brightness>("Brightness",  0.0f, 5.0f, 0.01f),
+    });
+    return true;
+}();
 
 Lighting::Lighting() : Instance("Lighting") {}
 
@@ -13,19 +22,11 @@ bool Lighting::IsA(std::string className) {
 
 std::shared_ptr<Instance> Lighting::clone() const {
     auto copy = std::make_shared<Lighting>();
-    copy->lightDir   = lightDir;
-    copy->brightness = brightness;
+    PropertyRegistry::cloneFields(this, copy.get(), "Lighting");
     return copy;
 }
 
 void Lighting::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "Direction") {
-        lightDir.x = value[0].as<float>();
-        lightDir.y = value[1].as<float>();
-        lightDir.z = value[2].as<float>();
-    } else if (name == "Brightness") {
-        brightness = value.as<float>();
-    } else {
-        Instance::setProperty(name, value);
-    }
+    if (PropertyRegistry::loadProperty(this, "Lighting", name, value)) return;
+    Instance::setProperty(name, value);
 }

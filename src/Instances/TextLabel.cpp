@@ -1,4 +1,14 @@
 #include <Instances/TextLabel.hpp>
+#include <include/Core/PropertyRegistry.hpp>
+
+static const bool s_textLabelRegistered = []{
+    using namespace PropertyRegistry;
+    registerClass("TextLabel", "ScreenGuiObject", {
+        field<&TextLabel::Text>     ("Text"),
+        field<&TextLabel::TextColor>("TextColor"),
+    });
+    return true;
+}();
 
 TextLabel::TextLabel() : Named<TextLabel, ScreenGuiObject>("TextLabel") {}
 
@@ -8,28 +18,14 @@ bool TextLabel::IsA(std::string name) {
 }
 
 void TextLabel::setProperty(const std::string& name, const YAML::Node& val) {
-    if (name == "Text") {
-        Text = val.as<std::string>();
-    } else if (name == "TextColor") {
-        TextColor = { val[0].as<float>(), val[1].as<float>(),
-                      val[2].as<float>(), val[3].as<float>() };
-    } else {
-        ScreenGuiObject::setProperty(name, val);
-    }
+    if (PropertyRegistry::loadProperty(this, "TextLabel", name, val)) return;
+    ScreenGuiObject::setProperty(name, val);
 }
 
 std::shared_ptr<Instance> TextLabel::clone() const {
     auto copy = std::make_shared<TextLabel>();
-    copy->Name            = Name;
-    copy->Active          = Active;
-    copy->Position        = Position;
-    copy->Size            = Size;
-    copy->NormType        = NormType;
-    copy->Visible         = Visible;
-    copy->BackgroundColor = BackgroundColor;
-    copy->ZIndex          = ZIndex;
-    copy->Text            = Text;
-    copy->TextColor       = TextColor;
+    copy->Name = Name;
+    PropertyRegistry::cloneFields(this, copy.get(), "TextLabel");  // 基底 ScreenGuiObject 分も集約
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());
     return copy;
