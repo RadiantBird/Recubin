@@ -2,10 +2,27 @@
 #include <Instances/Animation.hpp>
 #include <Instances/Spatial.hpp>
 #include <include/Core/Physics.hpp>
+#include <include/Core/PropertyRegistry.hpp>
 #include <Math/Quaternion.hpp>
 #include <Math/CFrame.hpp>
 #include <cmath>
 #include <cstdlib>
+
+// プロパティ・メタデータ表（単一の正）。ここから Luau getter/setter・YAML 読込/保存・
+// clone が一括生成される。アニメーション系メソッドと TakeDamage は LuauEngine の
+// private クロージャなので従来どおり LuauEngine_Dispatch.cpp 側で登録する。
+static const bool s_humanoidRegistered = []{
+    using namespace PropertyRegistry;
+    registerClass("Humanoid", {
+        field   <Humanoid, &Humanoid::WalkSpeed>("WalkSpeed"),
+        field   <Humanoid, &Humanoid::JumpPower>("JumpPower"),
+        field   <Humanoid, &Humanoid::MaxHealth>("MaxHealth"),
+        field   <Humanoid, &Humanoid::RespawnTime>("RespawnTime"),
+        fieldVia<Humanoid, &Humanoid::Health, &Humanoid::setHealth>("Health"),
+        signal  <Humanoid, &Humanoid::Died>("Died"),
+    });
+    return true;
+}();
 
 Humanoid::Humanoid() : Instance("Humanoid"), Died(std::make_shared<RCBNScriptSignal>()) {}
 
@@ -15,22 +32,14 @@ bool Humanoid::IsA(std::string className) {
 }
 
 void Humanoid::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "WalkSpeed")   { WalkSpeed   = value.as<float>(); return; }
-    if (name == "JumpPower")   { JumpPower   = value.as<float>(); return; }
-    if (name == "Health")      { Health      = value.as<float>(); return; }
-    if (name == "MaxHealth")   { MaxHealth   = value.as<float>(); return; }
-    if (name == "RespawnTime") { RespawnTime = value.as<float>(); return; }
+    if (PropertyRegistry::loadProperty(this, "Humanoid", name, value)) return;
     Instance::setProperty(name, value);
 }
 
 std::shared_ptr<Instance> Humanoid::clone() const {
     auto copy = std::make_shared<Humanoid>();
-    copy->Name        = Name;
-    copy->WalkSpeed   = WalkSpeed;
-    copy->JumpPower   = JumpPower;
-    copy->Health      = Health;
-    copy->MaxHealth   = MaxHealth;
-    copy->RespawnTime = RespawnTime;
+    copy->Name = Name;
+    PropertyRegistry::cloneProperties(this, copy.get(), "Humanoid");
     // m_dead / Died は複製せず新規（=生存状態・新しいシグナル）
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());

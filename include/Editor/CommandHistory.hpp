@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <functional>
 
 // ===================================================
 //  Command インターフェース
@@ -31,7 +32,11 @@ struct Command {
 class CommandHistory {
     std::vector<std::unique_ptr<Command>> m_undoStack;
     std::vector<std::unique_ptr<Command>> m_redoStack;
+    std::function<void()> m_onChange;  // 変更が起きるたびに呼ばれる（未保存マーク用）
 public:
+    // 履歴に変更が加わった時（execute/record/undo/redo）に呼ばれるコールバックを設定する
+    void setOnChange(std::function<void()> cb) { m_onChange = std::move(cb); }
+
     // execute: コマンドを適用してUndoスタックに積む（redo クリア）
     void execute(std::unique_ptr<Command> cmd);
     // record: すでに適用済みの変更をUndoスタックに記録する（インタラクティブ編集用）

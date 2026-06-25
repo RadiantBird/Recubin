@@ -58,6 +58,10 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     animationPanel->selectedInstance   = &hierarchyPanel->selectedInstance;
     animationPanel->m_history          = &m_history;
 
+    // 履歴に変更が入ったら未保存(dirty)にする。これで全パネル（挿入/貼付/削除/
+    // D&D/リネーム/プロパティ編集）が CommandHistory 経由で自動的に dirty 化される
+    m_history.setOnChange([this]{ m_isDirty = true; });
+
     // CommandHistory と clipboard を各パネルに渡す
     hierarchyPanel->m_history   = &m_history;
     hierarchyPanel->m_clipboard = &m_clipboard;

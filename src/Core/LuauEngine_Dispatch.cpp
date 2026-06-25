@@ -1,4 +1,5 @@
 #include "include/Core/LuauEngine.hpp"
+#include "include/Core/PropertyRegistry.hpp"
 #include "include/Core/Physics.hpp"
 #include "include/Core/RCBNScriptSignal.hpp"
 #include "include/Instances/Workspace.hpp"
@@ -384,16 +385,12 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Sound"]["Play"]      = getter_closure(sound_play_closure, "Play");
     DispatchTable["Sound"]["Stop"]      = getter_closure(sound_stop_closure, "Stop");
 
-    // Humanoid
-    DispatchTable["Humanoid"]["WalkSpeed"] = getter_number<Humanoid, &Humanoid::WalkSpeed>();
-    DispatchTable["Humanoid"]["JumpPower"] = getter_number<Humanoid, &Humanoid::JumpPower>();
+    // Humanoid — フィールド/シグナルの getter/setter は PropertyRegistry の表から流し込む
+    // （WalkSpeed/JumpPower/MaxHealth/RespawnTime/Health/Died）。下記メソッド系のみ手書き。
+    PropertyRegistry::applyToDispatch("Humanoid", DispatchTable, SetterTable);
     DispatchTable["Humanoid"]["PlayAnimation"]  = getter_closure(humanoid_play_animation_closure,  "PlayAnimation");
     DispatchTable["Humanoid"]["PauseAnimation"] = getter_closure(humanoid_pause_animation_closure, "PauseAnimation");
     DispatchTable["Humanoid"]["StopAnimation"]  = getter_closure(humanoid_stop_animation_closure,  "StopAnimation");
-    DispatchTable["Humanoid"]["Health"]      = getter_number<Humanoid, &Humanoid::Health>();
-    DispatchTable["Humanoid"]["MaxHealth"]   = getter_number<Humanoid, &Humanoid::MaxHealth>();
-    DispatchTable["Humanoid"]["RespawnTime"] = getter_number<Humanoid, &Humanoid::RespawnTime>();
-    DispatchTable["Humanoid"]["Died"]        = getter_signal<Humanoid, &Humanoid::Died>();
     DispatchTable["Humanoid"]["TakeDamage"]  = getter_closure(humanoid_take_damage_closure, "TakeDamage");
 
     // User.Input (UserInputService 相当のインスタンスを返す)
@@ -508,11 +505,7 @@ void LuauEngine::InitSetterTable_Misc() {
     SetterTable["Sound"]["Looped"] = setter_method_bool <Sound, &Sound::setLooping>();
     SetterTable["Sound"]["Volume"] = setter_method_float<Sound, &Sound::setVolume>();
 
-    SetterTable["Humanoid"]["WalkSpeed"]   = setter_number<Humanoid, &Humanoid::WalkSpeed>();
-    SetterTable["Humanoid"]["JumpPower"]   = setter_number<Humanoid, &Humanoid::JumpPower>();
-    SetterTable["Humanoid"]["Health"]      = setter_method_float<Humanoid, &Humanoid::setHealth>(); // 死亡判定を通す
-    SetterTable["Humanoid"]["MaxHealth"]   = setter_number<Humanoid, &Humanoid::MaxHealth>();
-    SetterTable["Humanoid"]["RespawnTime"] = setter_number<Humanoid, &Humanoid::RespawnTime>();
+    // Humanoid のフィールド setter は PropertyRegistry::applyToDispatch（InitDispatchTable_Misc）で登録済み
 
     SetterTable["AppImage"]["IconPath"] = setter_string<AppImage, &AppImage::iconPath>();
 

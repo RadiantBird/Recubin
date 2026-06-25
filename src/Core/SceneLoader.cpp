@@ -16,6 +16,7 @@
 #include <Instances/PostEffect.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/Humanoid.hpp>
+#include <Core/PropertyRegistry.hpp>
 #include <Instances/Animation.hpp>
 #include <Instances/StarterCharacter.hpp>
 #include <Instances/Skybox.hpp>
@@ -377,9 +378,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "Flat"     << YAML::Value << tr->Flat;
         }
         if (inst->getClassName() == "Humanoid") {
-            const Humanoid* hum = static_cast<const Humanoid*>(inst);
-            out << YAML::Key << "WalkSpeed" << YAML::Value << hum->WalkSpeed;
-            out << YAML::Key << "JumpPower" << YAML::Value << hum->JumpPower;
+            // プロパティは PropertyRegistry の表から出力（WalkSpeed/JumpPower/
+            // MaxHealth/RespawnTime/Health をまとめて保存）
+            PropertyRegistry::saveProperties(out, inst, "Humanoid");
         }
         if (inst->getClassName() == "Animation") {
             const Animation* anim = static_cast<const Animation*>(inst);

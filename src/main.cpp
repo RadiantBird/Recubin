@@ -186,9 +186,10 @@ static void saveLastScenePath(const std::string& path) {
 }
 
 // ウィンドウタイトルに現在開いているシーンのファイル名を付加する
-static void updateWindowTitle(GLFWwindow* window, const std::string& scenePath) {
+static void updateWindowTitle(GLFWwindow* window, const std::string& scenePath, bool dirty = false) {
     std::string fileName = std::filesystem::path(scenePath).filename().string();
     std::string title = fileName.empty() ? "Recubin Studio" : ("Recubin Studio - " + fileName);
+    if (dirty) title = "*" + title;  // 未保存マーク
     glfwSetWindowTitle(window, title.c_str());
 }
 
@@ -432,8 +433,18 @@ int main(int argc, char* argv[]) {
             initNewScene(loadPath, false);
             ed->scenePath = loadPath;
             saveLastScenePath(loadPath);
-            updateWindowTitle(window, loadPath);
+            updateWindowTitle(window, loadPath, ed->isDirty());
             applyAppIcon(window, system.get());
+        }
+
+        // ---- 未保存状態が変化したらタイトルバーの "*" を更新する ----
+        {
+            static bool s_lastDirty = false;
+            bool dirty = ed && ed->isDirty();
+            if (dirty != s_lastDirty) {
+                updateWindowTitle(window, ed ? ed->scenePath : scenePath, dirty);
+                s_lastDirty = dirty;
+            }
         }
 
         // ---- エディターモード中は物理・スクリプトを止める ----
