@@ -13,6 +13,7 @@ public:
     bool    Visible         = true;
     Color4  BackgroundColor = {1.f, 1.f, 1.f, 1.f};
     int     ZIndex          = 0;
+    float   FontSize        = 0.f;   // 0 = 既定サイズ。文字を持つ GUI(TextLabel/TextButton)のみ使用
 
     // マウスカーソルが要素内に入った瞬間に発火する（Roblox の MouseEnter 相当）
     std::shared_ptr<RCBNScriptSignal> Hovered;

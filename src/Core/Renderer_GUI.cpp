@@ -33,6 +33,13 @@ static void collectScreenGui(Instance* node, std::vector<ScreenGuiObject*>& out)
 // ===================================================
 //  ScreenGui 1 要素の描画
 // ===================================================
+// テキストを縦中央に描画。FontSize>0 なら指定サイズ、0 なら既定サイズを使う
+static void drawGuiText(ImDrawList* dl, ScreenGuiObject* sgo,
+                        float px, float py, float sh, ImU32 col, const char* text) {
+    float size = (sgo->FontSize > 0.f) ? sgo->FontSize : ImGui::GetFontSize();
+    dl->AddText(ImGui::GetFont(), size, ImVec2(px + 4.f, py + (sh - size) * 0.5f), col, text);
+}
+
 static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
                                   float vpX, float vpY, float vpW, float vpH,
                                   std::function<void(GuiButton*)>& onActivated) {
@@ -58,8 +65,7 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
         const Color4& tc = btn->TextColor;
         ImU32 textCol = IM_COL32((int)(tc.r*255),(int)(tc.g*255),(int)(tc.b*255),(int)(tc.a*255));
         if (!btn->Text.empty())
-            dl->AddText(ImVec2(px + 4, py + (sh - ImGui::GetTextLineHeight()) * 0.5f),
-                        textCol, btn->Text.c_str());
+            drawGuiText(dl, sgo, px, py, sh, textCol, btn->Text.c_str());
 
         // ヒットテスト用 InvisibleButton
         if (sgo->Active) {
@@ -75,8 +81,7 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
         const Color4& tc = lbl->TextColor;
         ImU32 textCol = IM_COL32((int)(tc.r*255),(int)(tc.g*255),(int)(tc.b*255),(int)(tc.a*255));
         if (!lbl->Text.empty())
-            dl->AddText(ImVec2(px + 4, py + (sh - ImGui::GetTextLineHeight()) * 0.5f),
-                        textCol, lbl->Text.c_str());
+            drawGuiText(dl, sgo, px, py, sh, textCol, lbl->Text.c_str());
     }
 
     // ホバー判定（TextLabel/TextButton 共通）: 入った瞬間に Hovered を発火
@@ -163,7 +168,6 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     dl->PushClipRect(ImVec2(0.f, 0.f), ImVec2((float)w, (float)h), false);
     dl->PushTextureID(ImGui::GetIO().Fonts->TexID);
 
-    float lineH = ImGui::GetTextLineHeight();
     for (auto& [name, child] : sg->getChildren()) {
         if (!child->IsA("ScreenGuiObject")) continue;
         auto* sgo = static_cast<ScreenGuiObject*>(child.get());
@@ -194,7 +198,7 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
             if (!btn->Text.empty()) { text = btn->Text.c_str(); tc = &btn->TextColor; }
         }
         if (text && tc)
-            dl->AddText(ImVec2(px + 4.f, py + (sh - lineH) * 0.5f),
+            drawGuiText(dl, sgo, px, py, sh,
                 IM_COL32((int)(tc->r*255),(int)(tc->g*255),(int)(tc->b*255),(int)(tc->a*255)),
                 text);
     }
@@ -319,13 +323,13 @@ static void drawWorldGuiChildren(ImDrawList* dl, WorldGuiObject* wgo,
             const Color4& tc = lbl->TextColor;
             ImU32 textCol = IM_COL32((int)(tc.r*255),(int)(tc.g*255),(int)(tc.b*255),(int)(tc.a*255));
             if (!lbl->Text.empty())
-                dl->AddText(ImVec2(px+4, py+(sh-ImGui::GetTextLineHeight())*0.5f), textCol, lbl->Text.c_str());
+                drawGuiText(dl, sgo, px, py, sh, textCol, lbl->Text.c_str());
         } else if (sgo->IsA("TextButton")) {
             auto* btn = static_cast<TextButton*>(sgo);
             const Color4& tc = btn->TextColor;
             ImU32 textCol = IM_COL32((int)(tc.r*255),(int)(tc.g*255),(int)(tc.b*255),(int)(tc.a*255));
             if (!btn->Text.empty())
-                dl->AddText(ImVec2(px+4, py+(sh-ImGui::GetTextLineHeight())*0.5f), textCol, btn->Text.c_str());
+                drawGuiText(dl, sgo, px, py, sh, textCol, btn->Text.c_str());
             if (sgo->Active) {
                 ImGui::SetCursorScreenPos(tl);
                 std::string btnId = "##wbtn_" + sgo->Name;

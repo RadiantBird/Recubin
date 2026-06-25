@@ -6,6 +6,7 @@ static const bool s_textLabelRegistered = []{
     registerClass("TextLabel", "ScreenGuiObject", {
         field<&TextLabel::Text>     ("Text"),
         field<&TextLabel::TextColor>("TextColor"),
+        field<&ScreenGuiObject::FontSize>("FontSize", 0, 200, 1),  // 0 = 既定サイズ
     });
     return true;
 }();

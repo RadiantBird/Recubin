@@ -180,11 +180,13 @@ export type GuiButton = ScreenGuiObject & {
 export type TextLabel = ScreenGuiObject & {
     Text: string,
     TextColor: Color4,
+    FontSize: number, -- 0 = 既定サイズ
 }
 
 export type TextButton = GuiButton & {
     Text: string,
     TextColor: Color4,
+    FontSize: number, -- 0 = 既定サイズ
 }
 
 export type WorldGuiObject = Instance & {
