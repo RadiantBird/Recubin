@@ -17,6 +17,7 @@
 #include <include/imgui/ImGuizmo.h>
 #include <string>
 #include <algorithm>
+#include <unordered_set>
 #include <Util/Logger.hpp>
 
 static bool treeContainsInstance(Instance* root, Instance* target) {
@@ -251,46 +252,61 @@ void EditorManager::handleEditorShortcuts() {
             }
         }
 
-        // Ctrl+C: コピー
+        // 祖先がセットに含まれるか（複数コピーで子孫の二重処理を防ぐ）
+        auto ancestorInSet = [](Instance* x, const std::vector<Instance*>& set) {
+            for (auto p = x->Parent.lock(); p; p = p->Parent.lock())
+                if (std::find(set.begin(), set.end(), p.get()) != set.end()) return true;
+            return false;
+        };
+
+        // Ctrl+C: コピー（選択中すべて。祖先が選択済みの子孫は除外）
         if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_C)) {
-            Instance* sel = hierarchyPanel->selectedInstance;
-            if (sel) m_clipboard = sel->clone();
+            auto& sel = hierarchyPanel->selectedInstances;
+            if (!sel.empty()) {
+                m_clipboard.clear();
+                for (Instance* s : sel)
+                    if (s && !ancestorInSet(s, sel)) m_clipboard.push_back(s->cloneTree());
+            }
         }
 
-        // Ctrl+V: ペースト（兄弟として）
-        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_V) && m_clipboard) {
-            std::shared_ptr<Instance> parent;
-            Instance* sel = hierarchyPanel->selectedInstance;
-            if (sel)
-                parent = sel->Parent.lock();
-            else if (m_workspace)
-                parent = m_workspace->shared_from_this();
-
-            if (parent) {
-                auto cloned = m_clipboard->clone();
-                // 名前衝突を回避
-                std::string baseName = cloned->Name;
+        // 複数ペースト: clipboard 全要素を parent 配下へ追加する複合コマンドを実行（1 Undo）
+        auto pasteInto = [&](std::shared_ptr<Instance> parent) {
+            if (!parent) return;
+            auto group = std::make_unique<CompositeCommand>();
+            std::unordered_set<std::string> taken;
+            std::vector<Instance*> pasted;
+            for (auto& item : m_clipboard) {
+                auto cloned = item->cloneTree();
+                std::string base = cloned->Name, name = base;
                 int n = 1;
-                while (parent->children.count(cloned->Name) > 0)
-                    cloned->Name = baseName + std::to_string(n++);
-                m_history.execute(std::make_unique<AddInstanceCommand>(parent, cloned));
+                while (parent->children.count(name) > 0 || taken.count(name) > 0)
+                    name = base + std::to_string(n++);
+                cloned->Name = name;
+                taken.insert(name);
+                pasted.push_back(cloned.get());
+                group->add(std::make_unique<AddInstanceCommand>(parent, cloned));
+            }
+            if (!group->empty()) {
+                m_history.execute(std::move(group));
+                hierarchyPanel->selectedInstances = pasted;
+                hierarchyPanel->selectedInstance  = pasted.empty() ? nullptr : pasted.back();
                 m_isDirty = true;
             }
+        };
+
+        // Ctrl+V: ペースト（primary の兄弟として / なければ Workspace 直下）
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_V) && !m_clipboard.empty()) {
+            Instance* sel = hierarchyPanel->selectedInstance;
+            std::shared_ptr<Instance> parent;
+            if (sel) parent = sel->Parent.lock();
+            else if (m_workspace) parent = m_workspace->shared_from_this();
+            pasteInto(parent);
         }
 
         // Ctrl+Shift+V: 選択インスタンスの子としてペースト
-        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_V) && m_clipboard) {
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_V) && !m_clipboard.empty()) {
             Instance* sel = hierarchyPanel->selectedInstance;
-            if (sel) {
-                auto selSp = sel->shared_from_this();
-                auto cloned = m_clipboard->clone();
-                std::string baseName = cloned->Name;
-                int n = 1;
-                while (selSp->children.count(cloned->Name) > 0)
-                    cloned->Name = baseName + std::to_string(n++);
-                m_history.execute(std::make_unique<AddInstanceCommand>(selSp, cloned));
-                m_isDirty = true;
-            }
+            if (sel) pasteInto(sel->shared_from_this());
         }
     }
 }
@@ -351,7 +367,7 @@ void EditorManager::renderSaveDialog() {
             hierarchyPanel->selectedInstance = nullptr;
             hierarchyPanel->selectedInstances.clear();
             m_history.clear();
-            m_clipboard.reset();
+            m_clipboard.clear();
             if (m_dialogWindow) glfwSetWindowShouldClose(m_dialogWindow, GLFW_TRUE);
             ImGui::CloseCurrentPopup();
         }
@@ -361,7 +377,7 @@ void EditorManager::renderSaveDialog() {
             hierarchyPanel->selectedInstance = nullptr;
             hierarchyPanel->selectedInstances.clear();
             m_history.clear();
-            m_clipboard.reset();
+            m_clipboard.clear();
             if (m_dialogWindow) glfwSetWindowShouldClose(m_dialogWindow, GLFW_TRUE);
             ImGui::CloseCurrentPopup();
         }

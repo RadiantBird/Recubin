@@ -31,11 +31,14 @@ public:
     void setCube1(std::shared_ptr<BaseCube> cube);
 
     // 指定キューブに Weld で連鎖接続された全 BaseCube を収集する（BFS）
+    // root: 溶接ツリーを走査する起点（Workspace でも StarterCharacter/System でも可）
     static std::vector<std::shared_ptr<BaseCube>>
-        collectAssembly(const std::shared_ptr<BaseCube>& start, const Workspace& ws);
+        collectAssembly(const std::shared_ptr<BaseCube>& start, const Instance& root);
 
     virtual std::string getClassName() override;
     virtual bool IsA(std::string className) override;
     void onAncestorChanged() override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
+    std::shared_ptr<Instance> clone() const override;
+    void remapClonedCubes(const CubeRemap& map) override;
 };

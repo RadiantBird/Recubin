@@ -496,6 +496,9 @@ void User::spawnCharacter(Instance* searchRoot) {
     for (auto const& [name, child] : starter->children) {
         character->addChild(child->clone());
     }
+    // 制約（Weld/Rope 等）の Cube 参照をクローン側（PlayerCharacter 内）へ張り替える。
+    // 髪の Weld は兄弟 Head を参照するため、キャラ全体で一括して張り替える必要がある。
+    Instance::rebindClonedConstraints(*starter, *character);
 
     auto it = character->getChildren().find("Humanoid");
     humanoid = (it != character->getChildren().end()) ? std::dynamic_pointer_cast<Humanoid>(it->second) : nullptr;

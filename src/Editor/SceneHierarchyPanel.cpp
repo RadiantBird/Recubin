@@ -2,6 +2,7 @@
 #include <Editor/SpawnUtil.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <algorithm>
+#include <unordered_set>
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
@@ -174,7 +175,23 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
                 selectedInstances.push_back(inst);
                 selectedInstance = inst;
             }
+        } else if (!inSelection) {
+            selectedInstance = inst;
+            selectedInstances = { inst };
         } else {
+            // 既に複数選択に含まれる項目のプレーンクリックでは集合を潰さない
+            // （まとめてドラッグできるように）。単一化はドラッグせず離したときに行う。
+            selectedInstance = inst;
+        }
+    }
+
+    // プレーンクリック（ドラッグせず離した）で複数選択を単一へ畳む
+    if (inSelection && selectedInstances.size() > 1
+        && ImGui::IsItemHovered()
+        && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
+        && !ImGui::GetIO().KeyCtrl) {
+        ImVec2 dd = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+        if (dd.x * dd.x + dd.y * dd.y < 25.0f) {  // ほぼ動いていない＝クリック（ドラッグでない）
             selectedInstance = inst;
             selectedInstances = { inst };
         }
@@ -191,21 +208,44 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     if (ImGui::BeginDragDropTarget()) {
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("INSTANCE_PTR")) {
             Instance* dragged = *static_cast<Instance* const*>(payload->Data);
-            // 自分自身・子孫へのドロップは禁止
-            bool isSelfOrDescendant = false;
-            Instance* check = inst;
-            while (check) {
-                if (check == dragged) { isSelfOrDescendant = true; break; }
-                auto p = check->Parent.lock();
-                check = p ? p.get() : nullptr;
-            }
-            if (!isSelfOrDescendant && dragged && dragged->Parent.lock() && m_history) {
-                auto oldParent = dragged->Parent.lock();
-                auto newParent = inst->shared_from_this();
-                auto it = oldParent->children.find(dragged->Name);
-                if (it != oldParent->children.end()) {
-                    auto child = it->second;
-                    m_history->execute(std::make_unique<MoveInstanceCommand>(oldParent, newParent, child));
+            auto newParent = inst->shared_from_this();
+
+            // 移動対象: dragged が複数選択に含まれるなら選択全体、そうでなければ dragged のみ
+            std::vector<Instance*> movers;
+            bool draggedInSel = std::find(selectedInstances.begin(), selectedInstances.end(), dragged)
+                                != selectedInstances.end();
+            if (draggedInSel && selectedInstances.size() > 1) movers = selectedInstances;
+            else                                              movers.push_back(dragged);
+
+            // target が x 自身か x の子孫か（自分/子孫へのドロップ禁止）
+            auto isSelfOrDescendantOf = [](Instance* target, Instance* x) {
+                for (Instance* c = target; c; ) {
+                    if (c == x) return true;
+                    auto p = c->Parent.lock(); c = p ? p.get() : nullptr;
+                }
+                return false;
+            };
+            // 祖先も movers に含まれる子孫は除外（親と一緒に動くため二重移動しない）
+            auto ancestorInMovers = [&](Instance* x) {
+                for (auto p = x->Parent.lock(); p; p = p->Parent.lock())
+                    if (std::find(movers.begin(), movers.end(), p.get()) != movers.end()) return true;
+                return false;
+            };
+
+            if (m_history) {
+                auto group = std::make_unique<CompositeCommand>();
+                for (Instance* d : movers) {
+                    if (!d) continue;
+                    if (isSelfOrDescendantOf(inst, d)) continue;             // 自分/子孫へは不可
+                    if (movers.size() > 1 && ancestorInMovers(d)) continue;  // 親が一緒に動くものは除外
+                    auto oldParent = d->Parent.lock();
+                    if (!oldParent || oldParent == newParent) continue;      // 既に同じ親なら不要
+                    auto it = oldParent->children.find(d->Name);
+                    if (it == oldParent->children.end()) continue;
+                    group->add(std::make_unique<MoveInstanceCommand>(oldParent, newParent, it->second));
+                }
+                if (!group->empty()) {
+                    m_history->execute(std::move(group));
                     selectedInstance = dragged;
                 }
             }
@@ -427,29 +467,49 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
 
     ImGui::Separator();
 
-    // --- Copy ---
+    // --- Copy（選択中すべて。祖先が選択済みの子孫は除外） ---
     if (ImGui::MenuItem("Copy", "Ctrl+C") && m_clipboard) {
-        *m_clipboard = inst->clone();
+        m_clipboard->clear();
+        if (!selectedInstances.empty()) {
+            auto ancestorSel = [&](Instance* x) {
+                for (auto p = x->Parent.lock(); p; p = p->Parent.lock())
+                    if (std::find(selectedInstances.begin(), selectedInstances.end(), p.get())
+                        != selectedInstances.end()) return true;
+                return false;
+            };
+            for (Instance* s : selectedInstances)
+                if (s && !ancestorSel(s)) m_clipboard->push_back(s->cloneTree());
+        } else {
+            m_clipboard->push_back(inst->cloneTree());
+        }
     }
 
-    // --- Paste (sibling) ---
-    bool canPaste = m_clipboard && *m_clipboard;
-    if (ImGui::MenuItem("Paste", "Ctrl+V", false, canPaste) && m_history) {
-        auto parent = inst->Parent.lock();
-        if (parent) {
-            auto cloned = (*m_clipboard)->clone();
-            std::string base = cloned->Name;
-            cloned->Name = uniqueName(parent, base);
-            m_history->execute(std::make_unique<AddInstanceCommand>(parent, cloned));
+    // clipboard 全要素を parent 配下へ追加する複合コマンドを実行（1 Undo）
+    auto pasteAll = [&](std::shared_ptr<Instance> parent) {
+        if (!parent || !m_history) return;
+        auto group = std::make_unique<CompositeCommand>();
+        std::unordered_set<std::string> taken;
+        for (auto& item : *m_clipboard) {
+            auto cloned = item->cloneTree();
+            std::string base = cloned->Name, name = base;
+            int n = 1;
+            while (parent->children.count(name) > 0 || taken.count(name) > 0)
+                name = base + std::to_string(n++);
+            cloned->Name = name;
+            taken.insert(name);
+            group->add(std::make_unique<AddInstanceCommand>(parent, cloned));
         }
+        if (!group->empty()) m_history->execute(std::move(group));
+    };
+
+    bool canPaste = m_clipboard && !m_clipboard->empty();
+    // --- Paste (sibling) ---
+    if (ImGui::MenuItem("Paste", "Ctrl+V", false, canPaste) && m_history) {
+        if (auto parent = inst->Parent.lock()) pasteAll(parent);
     }
 
     // --- Paste as Child ---
     if (ImGui::MenuItem("Paste as Child", "Ctrl+Shift+V", false, canPaste) && m_history) {
-        auto parentSp = inst->shared_from_this();
-        auto cloned = (*m_clipboard)->clone();
-        std::string base = cloned->Name;
-        cloned->Name = uniqueName(parentSp, base);
-        m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, cloned));
+        pasteAll(inst->shared_from_this());
     }
 }

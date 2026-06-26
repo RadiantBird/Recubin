@@ -51,6 +51,24 @@ void Rod::registerIfReady() {
         ws->registerConstraint(shared_from_this());
 }
 
+std::shared_ptr<Instance> Rod::clone() const {
+    auto c = std::make_shared<Rod>();
+    c->Name        = Name;
+    c->m_cube0Name = m_cube0Name;
+    c->m_cube1Name = m_cube1Name;
+    c->Color       = Color;
+    c->LineWidth   = LineWidth;
+    c->m_cube0     = m_cube0;
+    c->m_cube1     = m_cube1;
+    for (auto const& [n, ch] : children) c->addChild(ch->clone());
+    return c;
+}
+
+void Rod::remapClonedCubes(const CubeRemap& map) {
+    if (auto c0 = m_cube0.lock()) { auto it = map.find(c0.get()); if (it != map.end()) m_cube0 = it->second; }
+    if (auto c1 = m_cube1.lock()) { auto it = map.find(c1.get()); if (it != map.end()) m_cube1 = it->second; }
+}
+
 std::string Rod::getClassName() { return "Rod"; }
 
 bool Rod::IsA(std::string className) {

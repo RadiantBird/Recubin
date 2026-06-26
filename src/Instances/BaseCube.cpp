@@ -2,6 +2,8 @@
 #include "include/Core/Physics.hpp"
 #include "include/Core/SystemState.hpp"
 #include "include/Util/Logger.hpp"
+#include "include/Instances/Weld.hpp"
+#include "include/Instances/Workspace.hpp"
 
 BaseCube::BaseCube(Vector3 Pos, Vector3 Sz)
     : Spatial(Pos, Sz, "BaseCube"), Color(1, 1, 1, 1) {
@@ -119,12 +121,43 @@ void BaseCube::syncPhysics() {
 
 // localPos: 親 Spatial からの相対座標
 void BaseCube::teleportTo(Vector3 localPos) {
+    Vector3 oldWorld = getWorldCFrame().Position;
     cframe.Position = localPos;
+    Vector3 newWorld = getWorldCFrame().Position;
+    Vector3 delta(newWorld.x - oldWorld.x, newWorld.y - oldWorld.y, newWorld.z - oldWorld.z);
+
     if (actor) {
-        Vector3 worldPos = getWorldCFrame().Position;
         physx::PxTransform pose = actor->getGlobalPose();
-        pose.p = physx::PxVec3(worldPos.x, worldPos.y, worldPos.z);
+        // delta 平行移動。単独アクターでは従来と同結果。溶接コンパウンドの非リーダー部でも
+        // ローカルオフセットを保ったままグループ全体が正しく動く
+        pose.p += physx::PxVec3(delta.x, delta.y, delta.z);
         actor->setGlobalPose(pose);
+    }
+
+    // エディタ(非Play)では溶接アセンブリ全体を同じ平行移動で追従させる。
+    // collectAssembly は物理に依存しない（溶接ツリーの BFS）ため、コリジョン無効パーツも
+    // 含めて位置関係を保つ。Play 中はコンパウンド物理が追従を担うので不要。
+    if (!SystemState::get().isPlaying
+        && (delta.x != 0.f || delta.y != 0.f || delta.z != 0.f)) {
+        // 溶接ツリーは Workspace 外（StarterCharacter 等）にもあり得るため、最上位の祖先を
+        // 起点にアセンブリを収集する
+        Instance* root = this;
+        for (auto p = Parent.lock(); p; p = p->Parent.lock()) root = p.get();
+        auto self = std::static_pointer_cast<BaseCube>(shared_from_this());
+        auto assembly = Weld::collectAssembly(self, *root);
+        if (assembly.size() > 1) {
+            for (auto& m : assembly) {
+                if (!m || m.get() == this) continue;
+                Vector3 mw = m->getWorldCFrame().Position;
+                Vector3 mNew(mw.x + delta.x, mw.y + delta.y, mw.z + delta.z);
+                if (auto par = m->Parent.lock(); par && par->IsA("Spatial")) {
+                    CFrame pw = static_cast<Spatial*>(par.get())->getWorldCFrame();
+                    m->cframe.Position = pw.Rotation.conjugate().rotate(mNew - pw.Position);
+                } else {
+                    m->cframe.Position = mNew;
+                }
+            }
+        }
     }
 }
 

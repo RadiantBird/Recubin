@@ -56,7 +56,7 @@ void Renderer::init(GLFWwindow* window) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    // NavEnableKeyboard は意図的に無効。Alt でメニュー層がフォーカスされる前時代的な挙動を避ける
 #ifndef EDITOR_DISABLED
     // ドッキング/マルチビューポートはエディター専用
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;

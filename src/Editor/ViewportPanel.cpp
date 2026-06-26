@@ -680,13 +680,23 @@ void ViewportPanel::onRender() {
                     // Roblox スタイル: size デルタの半分だけ position をオフセット
                     // 負方向ハンドルのときは符号を反転して逆面を固定する
                     Vector3 deltaSize = newSize - m_scaleBeforeSize;
-                    float sx = ImGuizmo::IsScaleNegative(0) ? -1.0f : 1.0f;
-                    float sy = ImGuizmo::IsScaleNegative(1) ? -1.0f : 1.0f;
-                    float sz = ImGuizmo::IsScaleNegative(2) ? -1.0f : 1.0f;
-                    Vector3 newWorldPos = m_scaleBeforeWorldPos + Vector3(
-                        deltaSize.x * sx,
-                        deltaSize.y * sy,
-                        deltaSize.z * sz) * 0.5f;
+                    // 固定面の符号は「掴み点が軸のどちら側か」のワールド幾何で決める（カメラ非依存）。
+                    // 背面に回っても反転しない。単一軸以外は従来の IsScaleNegative にフォールバック。
+                    auto grabSign = [](int ax) -> float {
+                        float g = ImGuizmo::GetScaleGrabSign(ax);
+                        return g != 0.0f ? g : (ImGuizmo::IsScaleNegative(ax) ? -1.0f : 1.0f);
+                    };
+                    float sx = grabSign(0);
+                    float sy = grabSign(1);
+                    float sz = grabSign(2);
+                    // オフセットはオブジェクトのローカル軸に沿って行う。回転していても反対面が
+                    // 正しく固定される（未回転ならワールド軸と一致＝従来と同等）
+                    Quaternion wr = s->getWorldCFrame().Rotation;
+                    Vector3 offset =
+                        wr.rotate(Vector3(1, 0, 0)) * (deltaSize.x * sx) +
+                        wr.rotate(Vector3(0, 1, 0)) * (deltaSize.y * sy) +
+                        wr.rotate(Vector3(0, 0, 1)) * (deltaSize.z * sz);
+                    Vector3 newWorldPos = m_scaleBeforeWorldPos + offset * 0.5f;
                     Vector3 localPos = worldToLocal(newWorldPos, s);
                     if (inst->IsA("BaseCube")) {
                         BaseCube* bc = static_cast<BaseCube*>(inst);

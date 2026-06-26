@@ -126,6 +126,21 @@ struct MoveInstanceCommand : Command {
     }
 };
 
+// --- 複合コマンド（複数操作を1つの Undo 単位に束ねる。複数ペースト/複数親変更用） ---
+struct CompositeCommand : Command {
+    std::vector<std::unique_ptr<Command>> m_cmds;
+
+    void add(std::unique_ptr<Command> c) { if (c) m_cmds.push_back(std::move(c)); }
+    bool empty() const { return m_cmds.empty(); }
+
+    void execute() override {
+        for (auto& c : m_cmds) c->execute();
+    }
+    void undo() override {
+        for (auto it = m_cmds.rbegin(); it != m_cmds.rend(); ++it) (*it)->undo();
+    }
+};
+
 // --- Vector3プロパティ変更（Position / Size） ---
 struct SetVec3Command : Command {
     std::shared_ptr<BaseCube> m_target;

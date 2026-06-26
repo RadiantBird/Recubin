@@ -61,6 +61,25 @@ void Motor::setMaxForce(float v) {
     if (m_joint) m_joint->setDriveForceLimit(v);
 }
 
+std::shared_ptr<Instance> Motor::clone() const {
+    auto c = std::make_shared<Motor>();
+    c->Name          = Name;
+    c->m_cube0Name   = m_cube0Name;
+    c->m_cube1Name   = m_cube1Name;
+    c->Axis          = Axis;
+    c->DriveVelocity = DriveVelocity;
+    c->MaxForce      = MaxForce;
+    c->m_cube0       = m_cube0;
+    c->m_cube1       = m_cube1;
+    for (auto const& [n, ch] : children) c->addChild(ch->clone());
+    return c;
+}
+
+void Motor::remapClonedCubes(const CubeRemap& map) {
+    if (auto c0 = m_cube0.lock()) { auto it = map.find(c0.get()); if (it != map.end()) m_cube0 = it->second; }
+    if (auto c1 = m_cube1.lock()) { auto it = map.find(c1.get()); if (it != map.end()) m_cube1 = it->second; }
+}
+
 std::string Motor::getClassName() { return "Motor"; }
 
 bool Motor::IsA(std::string className) {

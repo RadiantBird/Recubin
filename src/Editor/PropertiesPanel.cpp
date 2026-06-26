@@ -252,16 +252,23 @@ static void drawVec3Field(const char* id,
     }
 }
 
-// キューブのワークスペース相対パスを返す（例: "FolderA\CubeName" or "CubeName"）
+// キューブの相対パスを返す。Workspace 配下なら Workspace 相対（例: "FolderA\CubeName"）、
+// Workspace 外（StarterCharacter 等）なら最上位祖先(System)相対（例: "StarterCharacter\Head"）。
+// resolveConstraintRefs / Weld::setProperty 側の解決規約と一致させる。
 static std::string cubeRelativePath(Instance* cube) {
-    Instance* ws = cube->findFirstAncestorWorkspace();
-    if (!ws) return cube->Name;
+    Instance* stopAt = cube->findFirstAncestorWorkspace();
+    if (!stopAt) {
+        // Workspace 外: 最上位の祖先（System 等）を起点にする
+        Instance* top = cube;
+        for (auto p = cube->Parent.lock(); p; p = p->Parent.lock()) top = p.get();
+        stopAt = top;
+    }
     std::vector<std::string> parts;
     Instance* cur = cube;
     while (cur) {
         auto par = cur->Parent.lock();
         parts.push_back(cur->Name);
-        if (!par || par.get() == ws) break;
+        if (!par || par.get() == stopAt) break;
         cur = par.get();
     }
     std::reverse(parts.begin(), parts.end());

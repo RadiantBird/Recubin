@@ -1017,6 +1017,17 @@ namespace IMGUIZMO_NAMESPACE
       return gContext.mScaleNegative[axisIndex];
    }
 
+   float GetScaleGrabSign(int axisIndex)
+   {
+      if (axisIndex < 0 || axisIndex > 2) return 0.f;
+      // 単一軸スケールのドラッグ中のみ、その軸について判定する（均一スケール等は対象外）
+      if (!gContext.mbUsing || gContext.mCurrentOperation != MT_SCALE_X + axisIndex) return 0.f;
+      // 掴み点が軸の +/- どちら側かを Dot の符号で判定する（スクリーン投影に依存しない）。
+      const vec_t& axisValue = *(vec_t*)&gContext.mModelLocal.m[axisIndex];
+      vec_t baseVector = gContext.mTranslationPlanOrigin - gContext.mModelLocal.v.position;
+      return Dot(axisValue, baseVector) >= 0.f ? 1.f : -1.f;
+   }
+
    bool IsUsingViewManipulate()
    {
       return gContext.mbUsingViewManipulate;

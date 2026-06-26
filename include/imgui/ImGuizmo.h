@@ -138,6 +138,9 @@ namespace IMGUIZMO_NAMESPACE
    // return true if mouse IsOver or if the gizmo is in moving state
    IMGUI_API bool IsUsing();
    IMGUI_API bool IsScaleNegative(int axisIndex);
+   // SCALE ドラッグ中、掴んだ点が各ローカル軸の +/- どちら側かを返す（カメラ非依存）。
+   // +1: 正方向側 / -1: 負方向側 / 0: SCALE ドラッグ中でない。反対面固定リサイズの符号に使う。
+   IMGUI_API float GetScaleGrabSign(int axisIndex);
 
    // return true if the view gizmo is in moving state
    IMGUI_API bool IsUsingViewManipulate();

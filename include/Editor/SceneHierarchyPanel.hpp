@@ -23,7 +23,7 @@ public:
     std::vector<Instance*> selectedInstances;  // 複数選択セット（常にselectedInstanceを含む）
 
     CommandHistory*              m_history   = nullptr;
-    std::shared_ptr<Instance>*   m_clipboard = nullptr;  // EditorManager::m_clipboard へのポインタ
+    std::vector<std::shared_ptr<Instance>>* m_clipboard = nullptr;  // EditorManager::m_clipboard へのポインタ（複数対応）
     User*                        m_user      = nullptr;
 
     // Workspace 操作コールバック（main.cpp が設定）

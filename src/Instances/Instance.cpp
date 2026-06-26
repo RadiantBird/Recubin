@@ -1,7 +1,9 @@
 #include "include/Instances/Instance.hpp"
+#include "include/Instances/BaseCube.hpp"
 #include "include/Util/Logger.hpp"
 #include <algorithm>
 #include <cassert>
+#include <functional>
 #include <vector>
 
 #ifdef _WIN32
@@ -159,6 +161,38 @@ std::shared_ptr<Instance> Instance::clone() const {
         copy->addChild(child->clone());
     }
     return copy;
+}
+
+// orig と clone を子名で並行走査して BaseCube の対応表を作り（パス1）、
+// clone ツリーの各ノードに remapClonedCubes を呼んで制約参照を張り替える（パス2）。
+void Instance::rebindClonedConstraints(const Instance& orig, Instance& clone) {
+    CubeRemap map;
+
+    std::function<void(const Instance&, Instance&)> buildMap =
+        [&](const Instance& o, Instance& c) {
+            for (auto const& [name, oc] : o.children) {
+                auto it = c.children.find(name);
+                if (it == c.children.end() || !it->second || !oc) continue;
+                if (oc->IsA("BaseCube"))
+                    map[static_cast<BaseCube*>(oc.get())] =
+                        std::static_pointer_cast<BaseCube>(it->second);
+                buildMap(*oc, *it->second);
+            }
+        };
+    buildMap(orig, clone);
+
+    std::function<void(Instance&)> applyRemap = [&](Instance& c) {
+        c.remapClonedCubes(map);
+        for (auto const& [name, ch] : c.children)
+            if (ch) applyRemap(*ch);
+    };
+    applyRemap(clone);
+}
+
+std::shared_ptr<Instance> Instance::cloneTree() const {
+    auto c = clone();
+    if (c) rebindClonedConstraints(*this, *c);
+    return c;
 }
 
 Instance::~Instance() {

@@ -100,10 +100,10 @@ private:
     Instance*  m_system    = nullptr;
     User*      m_user      = nullptr;
     bool       m_isDirty   = false;
-    std::shared_ptr<Instance> m_clipboard;
+    std::vector<std::shared_ptr<Instance>> m_clipboard;  // 複数コピー対応
 
 public:
-    void clearClipboard() { m_clipboard.reset(); }
+    void clearClipboard() { m_clipboard.clear(); }
 
 private:
 

@@ -69,6 +69,27 @@ void Rope::setDamping(float v) {
     if (m_joint) m_joint->setDamping(v);
 }
 
+std::shared_ptr<Instance> Rope::clone() const {
+    auto c = std::make_shared<Rope>();
+    c->Name        = Name;
+    c->m_cube0Name = m_cube0Name;
+    c->m_cube1Name = m_cube1Name;
+    c->MaxDistance = MaxDistance;
+    c->Stiffness   = Stiffness;
+    c->Damping     = Damping;
+    c->Color       = Color;
+    c->LineWidth   = LineWidth;
+    c->m_cube0     = m_cube0;
+    c->m_cube1     = m_cube1;
+    for (auto const& [n, ch] : children) c->addChild(ch->clone());
+    return c;
+}
+
+void Rope::remapClonedCubes(const CubeRemap& map) {
+    if (auto c0 = m_cube0.lock()) { auto it = map.find(c0.get()); if (it != map.end()) m_cube0 = it->second; }
+    if (auto c1 = m_cube1.lock()) { auto it = map.find(c1.get()); if (it != map.end()) m_cube1 = it->second; }
+}
+
 std::string Rope::getClassName() { return "Rope"; }
 
 bool Rope::IsA(std::string className) {
