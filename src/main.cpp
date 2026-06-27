@@ -52,7 +52,7 @@
 #include <PhysX/PxPhysicsAPI.h>
 #include <memory>
 
-#define ENABLE_BETA 1 // enable beta features(such as terrain)
+#define ENABLE_BETA 1 // enable beta features
 #if ENABLE_BETA
     #define beta(...) __VA_ARGS__
 #else
@@ -254,7 +254,7 @@ int main(int argc, char* argv[]) {
     SetConsoleCP(CP_UTF8);
 
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.990\n";
+              << "Recubin Studio v0.995\n";
     std::string engineExePath = (argc > 0 && argv[0]) ? argv[0] : "";
 
     GLFWwindow* window = setupWindow();

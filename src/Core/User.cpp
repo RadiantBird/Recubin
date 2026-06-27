@@ -377,9 +377,10 @@ void User::processToolkeys(bool viewportFocused, bool isGameplayInput, bool want
 void User::processMouse(bool isGameplayInput) {
     if (m_input->isMouseButtonDown(MouseButton::Left)) {
         if (!toolActivated && currentTool && currentTool->Equipped && isGameplayInput) {
-           currentTool->Activated->fire();
-           RCBN_TRACE("Activated tool: " + currentTool->Name);
-           toolActivated = true;
+            RCBN_TRACE("Activated tool: " + currentTool->Name);
+            currentTool->Activated->fire();
+            // NOTE: currentTool will be nullptr if Luau removed the tool
+            toolActivated = true;
         }
     } else {
         toolActivated = false;

@@ -403,6 +403,8 @@ void LuauEngine::InitDispatchTable_Misc() {
         lua_setmetatable(L, -2);
         return 1;
     };
+    DispatchTable["Tool"]["Activated"]  = getter_signal<Tool, &Tool::Activated>();
+
     DispatchTable["User"]["AddTool"]    = getter_closure(user_add_tool_closure,    "AddTool");
     DispatchTable["User"]["RemoveTool"] = getter_closure(user_remove_tool_closure, "RemoveTool");
     DispatchTable["User"]["GetTool"]    = getter_closure(user_get_tool_closure,    "GetTool");
