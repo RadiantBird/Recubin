@@ -55,6 +55,7 @@ public:
     void setSize(Vector3 newSize);
     void setRotation(Quaternion rot);
     void setAnchored(bool anchored);
+    void setMaterial(const Material& m);
 
     // 自律的な登録・解除ロジック
     void onAncestorChanged() override;

@@ -6,6 +6,7 @@
 #include <unordered_set>
 #include <algorithm>
 #include <queue>
+#include <cmath>
 
 // ===================================================
 //  static メンバ定義
@@ -254,12 +255,13 @@ bool Physics::raycast(const Vector3& origin, const Vector3& direction, float max
 }
 
 physx::PxMaterial* Physics::getOrCreateMaterial(const Material& m) {
-    if (materialCache.count(m.type)) {
-        return materialCache[m.type];
-    }
+    auto q = [](float v){ return (int)std::lround(v * 1000.0f); };
+    MatKey key{ q(m.staticFriction), q(m.dynamicFriction), q(m.restitution) };
+    auto it = materialCache.find(key);
+    if (it != materialCache.end()) return it->second;
 
     physx::PxMaterial* pxMat = s_pxPhysics->createMaterial(m.staticFriction, m.dynamicFriction, m.restitution);
-    materialCache[m.type] = pxMat;
+    materialCache[key] = pxMat;
     return pxMat;
 }
 

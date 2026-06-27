@@ -176,6 +176,18 @@ struct SetColorCommand : Command {
     void undo()    override { if (m_target) m_target->Color = m_before; }
 };
 
+// --- Material変更（type + friction/restitution） ---
+struct SetMaterialCommand : Command {
+    std::shared_ptr<BaseCube> m_target;
+    Material m_before, m_after;
+
+    SetMaterialCommand(std::shared_ptr<BaseCube> target, Material before, Material after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->setMaterial(m_after); }
+    void undo()    override { if (m_target) m_target->setMaterial(m_before); }
+};
+
 // --- bool プロパティ変更（Anchored / CanCollide） ---
 struct SetBoolCommand : Command {
     std::shared_ptr<BaseCube> m_target;

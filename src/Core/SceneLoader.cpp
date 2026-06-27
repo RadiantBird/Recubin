@@ -27,6 +27,8 @@
 #include <Instances/Motor.hpp>
 #include <Instances/TextLabel.hpp>
 #include <Instances/TextButton.hpp>
+#include <Instances/ImageLabel.hpp>
+#include <Instances/ImageButton.hpp>
 #include <Instances/SurfaceGui.hpp>
 #include <Instances/BillboardGui.hpp>
 #include <Instances/ProximityPrompt.hpp>
@@ -223,6 +225,8 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Motor")        return std::make_shared<Motor>();
     if (className == "TextLabel")    return std::make_shared<TextLabel>();
     if (className == "TextButton")   return std::make_shared<TextButton>();
+    if (className == "ImageLabel")   return std::make_shared<ImageLabel>();
+    if (className == "ImageButton")  return std::make_shared<ImageButton>();
     if (className == "SurfaceGui")   return std::make_shared<SurfaceGui>();
     if (className == "BillboardGui") return std::make_shared<BillboardGui>();
     if (className == "ProximityPrompt") return std::make_shared<ProximityPrompt>();
@@ -337,6 +341,10 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "CanCollide" << YAML::Value << bc->CanCollide;
             out << YAML::Key << "CastShadow" << YAML::Value << bc->CastShadow;
             out << YAML::Key << "Unlit"      << YAML::Value << bc->Unlit;
+            out << YAML::Key << "MaterialType"    << YAML::Value << static_cast<int>(bc->material.type);
+            out << YAML::Key << "StaticFriction"  << YAML::Value << bc->material.staticFriction;
+            out << YAML::Key << "DynamicFriction" << YAML::Value << bc->material.dynamicFriction;
+            out << YAML::Key << "Restitution"     << YAML::Value << bc->material.restitution;
         }
         if (inst->getClassName() == "Script") {
             const Script* sc = static_cast<const Script*>(inst);
@@ -478,6 +486,12 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         }
         if (inst->getClassName() == "TextButton") {
             PropertyRegistry::saveProperties(out, inst, "TextButton");
+        }
+        if (inst->getClassName() == "ImageLabel") {
+            PropertyRegistry::saveProperties(out, inst, "ImageLabel");
+        }
+        if (inst->getClassName() == "ImageButton") {
+            PropertyRegistry::saveProperties(out, inst, "ImageButton");
         }
         if (inst->getClassName() == "ProximityPrompt") {
             PropertyRegistry::saveProperties(out, inst, "ProximityPrompt");

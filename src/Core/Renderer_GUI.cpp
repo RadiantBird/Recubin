@@ -5,6 +5,8 @@
 #include "include/Instances/TextLabel.hpp"
 #include "include/Instances/GuiButton.hpp"
 #include "include/Instances/TextButton.hpp"
+#include "include/Instances/ImageLabel.hpp"
+#include "include/Instances/ImageButton.hpp"
 #include "include/Instances/WorldGuiObject.hpp"
 #include "include/Instances/SurfaceGui.hpp"
 #include "include/Instances/BillboardGui.hpp"
@@ -82,6 +84,22 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
         ImU32 textCol = IM_COL32((int)(tc.r*255),(int)(tc.g*255),(int)(tc.b*255),(int)(tc.a*255));
         if (!lbl->Text.empty())
             drawGuiText(dl, sgo, px, py, sh, textCol, lbl->Text.c_str());
+    } else if (sgo->IsA("ImageButton")) {
+        auto* btn = static_cast<ImageButton*>(sgo);
+        if (btn->m_textureID != 0)
+            dl->AddImage((ImTextureID)(uintptr_t)btn->m_textureID, tl, br,
+                         ImVec2(0, 1), ImVec2(1, 0));  // 上下反転（テクスチャ原点補正）
+        if (sgo->Active) {
+            ImGui::SetCursorScreenPos(tl);
+            ImGui::InvisibleButton(("##btn_" + sgo->Name).c_str(), ImVec2(sw, sh));
+            if (ImGui::IsItemClicked() && onActivated)
+                onActivated(btn);
+        }
+    } else if (sgo->IsA("ImageLabel")) {
+        auto* img = static_cast<ImageLabel*>(sgo);
+        if (img->m_textureID != 0)
+            dl->AddImage((ImTextureID)(uintptr_t)img->m_textureID, tl, br,
+                         ImVec2(0, 1), ImVec2(1, 0));  // 上下反転（テクスチャ原点補正）
     }
 
     // ホバー判定（TextLabel/TextButton 共通）: 入った瞬間に Hovered を発火

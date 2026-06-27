@@ -491,6 +491,36 @@ void PropertiesPanel::onRender() {
             m_history->record(std::make_unique<SetBoolCommand>(
                 bcSp, "Unlit", prevUnlit, bc->Unlit));
         }
+
+        // ---- Material（プリセット + 数値微調整） ----
+        ImGui::SeparatorText("Material");
+
+        // MaterialType プリセット: 選択で3値を既定値に上書き
+        static const char* matItems[] = { "Plastic", "Wood", "Metal", "Stone" };
+        int matIdx = static_cast<int>(bc->material.type);
+        if (ImGui::Combo("MaterialType", &matIdx, matItems, 4)) {
+            Material before = bc->material;
+            Material after  = Material::GetDefault(static_cast<MaterialType>(matIdx));
+            bc->setMaterial(after);
+            if (m_history)
+                m_history->record(std::make_unique<SetMaterialCommand>(bcSp, before, after));
+        }
+
+        // friction/restitution の個別微調整。ドラッグ中は値だけ更新し、
+        // 確定時に actor 再生成 + undo 記録（毎フレームの actor 再生成を回避）。
+        static Material s_matBefore;
+        auto matDrag = [&](const char* label, float* field) {
+            ImGui::DragFloat(label, field, 0.01f, 0.0f, 2.0f, "%.2f");
+            if (ImGui::IsItemActivated()) s_matBefore = bc->material;
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                bc->setMaterial(bc->material);  // actor を再生成して物理に反映
+                if (m_history)
+                    m_history->record(std::make_unique<SetMaterialCommand>(bcSp, s_matBefore, bc->material));
+            }
+        };
+        matDrag("StaticFriction",  &bc->material.staticFriction);
+        matDrag("DynamicFriction", &bc->material.dynamicFriction);
+        matDrag("Restitution",     &bc->material.restitution);
     }
 
     // ---- MeshCube ----
@@ -1070,6 +1100,28 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "ProximityPrompt") {
         ImGui::SeparatorText("ProximityPrompt");
         renderSchemaInspector(inst, "ProximityPrompt", m_history);
+    }
+    if (inst->getClassName() == "ImageLabel" || inst->getClassName() == "ImageButton") {
+        const std::string cn = inst->getClassName();
+        ImGui::SeparatorText(cn.c_str());
+
+        // Image: パス表示 + 参照ボタン（Decal/AppImage と同方式）
+        const PropertyDesc* imgDesc = nullptr;
+        for (const auto& d : PropertyRegistry::schemaFor(cn)) {
+            if (d.name == "Image") { imgDesc = &d; break; }
+        }
+        std::string cur = imgDesc ? std::get<std::string>(imgDesc->get(inst)) : std::string();
+        ImGui::LabelText("Image", "%s", cur.empty() ? "(none)" : cur.c_str());
+        if (ImGui::Button("参照...##image") && imgDesc) {
+            std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.tga)", L"*.png;*.jpg;*.bmp;*.tga");
+            if (!path.empty()) {
+                PropValue before = imgDesc->get(inst);
+                PropertyRegistry::writeValue(inst, *imgDesc, PropValue(path));
+                if (m_history)
+                    m_history->record(std::make_unique<SetPropertyCommand>(
+                        inst->shared_from_this(), imgDesc, before, PropValue(path)));
+            }
+        }
     }
 
     // ---- Workspace ----

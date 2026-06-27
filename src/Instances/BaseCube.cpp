@@ -78,6 +78,13 @@ void BaseCube::setAnchored(bool anchored) {
     }
 }
 
+void BaseCube::setMaterial(const Material& m) {
+    material = m;
+    if (lastWorkspace && lastWorkspace->physicsEngine) {
+        lastWorkspace->physicsEngine->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
+    }
+}
+
 void BaseCube::syncPhysics() {
     if (!actor) return;
     if (Anchored) {
@@ -175,6 +182,14 @@ void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
         this->UseTriplanar = value.as<bool>();
     } else if (name == "TextureScale") {
         this->TextureScale = value.as<float>();
+    } else if (name == "MaterialType") {
+        material.type = static_cast<MaterialType>(value.as<int>());
+    } else if (name == "StaticFriction") {
+        material.staticFriction = value.as<float>();
+    } else if (name == "DynamicFriction") {
+        material.dynamicFriction = value.as<float>();
+    } else if (name == "Restitution") {
+        material.restitution = value.as<float>();
     } else {
         Spatial::setProperty(name, value);
     }

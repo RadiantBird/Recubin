@@ -34,6 +34,8 @@
 #include <Instances/SurfaceGui.hpp>
 #include <Instances/BillboardGui.hpp>
 #include <Instances/ProximityPrompt.hpp>
+#include <Instances/ImageLabel.hpp>
+#include <Instances/ImageButton.hpp>
 #include <Core/AudioService.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
@@ -177,7 +179,8 @@ static const char* getClassIcon(const std::string& cn) {
     if (cn == "Sound")                                                       return ICON_SOUND;
     if (cn == "Humanoid")                                                    return ICON_HUMANOID;
     if (cn == "User")                                                        return ICON_USER;
-    if (cn == "Decal" || cn == "Texture")                                   return ICON_DECAL;
+    if (cn == "Decal" || cn == "Texture" ||
+        cn == "ImageLabel" || cn == "ImageButton")                           return ICON_DECAL;
     if (cn == "Sphere")                                                      return ICON_SPHERE;
     if (cn == "Cube"   || cn == "Cylinder" ||
         cn == "TriangularPrism" || cn == "MeshCube")                        return ICON_CUBE;
@@ -461,7 +464,9 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<SurfaceGui>(m_history, "SurfaceGui", parentSp);
         tryInsertInstance<BillboardGui>(m_history, "BillboardGui", parentSp);
         tryInsertInstance<ProximityPrompt>(m_history, "ProximityPrompt", parentSp);
-        
+        tryInsertInstance<ImageLabel>(m_history, "ImageLabel", parentSp);
+        tryInsertInstance<ImageButton>(m_history, "ImageButton", parentSp);
+
         ImGui::EndMenu();
     }
 

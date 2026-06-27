@@ -30,7 +30,21 @@ private:
     static int                             s_refCount;
 
     physx::PxScene* scene = nullptr;
-    std::unordered_map<MaterialType, physx::PxMaterial*> materialCache;
+    // MaterialType ではなく実際の係数でキャッシュ（キューブごと固有値に対応）。
+    // 量子化済み int で同値判定し、浮動小数誤差での重複生成を防ぐ。
+    struct MatKey {
+        int sf, df, rs;
+        bool operator==(const MatKey& o) const { return sf==o.sf && df==o.df && rs==o.rs; }
+    };
+    struct MatKeyHash {
+        size_t operator()(const MatKey& k) const {
+            size_t h = (size_t)k.sf;
+            h = h*131 + (size_t)k.df;
+            h = h*131 + (size_t)k.rs;
+            return h;
+        }
+    };
+    std::unordered_map<MatKey, physx::PxMaterial*, MatKeyHash> materialCache;
     float m_accumulator = 0.0f;
 
     struct CubeEntry {
