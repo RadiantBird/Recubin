@@ -1,4 +1,7 @@
 # Recubin -Powering imagination again-
+[![C++](https://img.shields.io/badge/C%2B%2B-23-blue?logo=cplusplus)](https://isocpp.org/)
+[![Luau](https://img.shields.io/badge/Luau-Language-007ACC?logo=lua)](https://luau-lang.org/)
+[![OpenGL](https://img.shields.io/badge/OpenGL-4.1-E65226?logo=opengl)](https://www.opengl.org/)
 
 ![logo](Recubin.png)
 
@@ -25,10 +28,12 @@ Windowsで動作します。後々、Mac対応予定。
   - 太陽の反対側に月
   - スカイボックスの内側(だいたい4000stud)あたりを公転する
 
-- [] 物理マテリアルを追加
+- [x] 物理マテリアルを追加
    & BaseCubeに書き換えられるようにエディター実装
   - デフォルトはプラスチック 
   - プルダウンで選択できるようにする
+
+- [] 位置の変更などが正しくコマンド履歴に保存されていないことによる、破滅的操作(間違えた->意図しない巻き戻し->混乱)の修正
 
 - [] LiquidCubeを追加
   - BaseCubeを継承

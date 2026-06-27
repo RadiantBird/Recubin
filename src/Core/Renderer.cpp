@@ -7,6 +7,9 @@
 #include <Instances/MeshCube.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/LightSource.hpp>
+#include <Instances/SpotLight.hpp>
+#include <Instances/Spatial.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
 #include <include/Core/Terrain.hpp>
@@ -44,6 +47,14 @@ static Lighting* findLightingInTree(Instance* inst) {
         if (found) return found;
     }
     return nullptr;
+}
+
+// Point/Spot ライトを再帰収集（複数光源シェーディング用）
+static void collectLights(Instance* inst, std::vector<LightSource*>& out) {
+    if (!inst) return;
+    if (inst->IsA("LightSource")) out.push_back(static_cast<LightSource*>(inst));
+    for (auto& [name, child] : inst->getChildren())
+        collectLights(child.get(), out);
 }
 
 // ===================================================
@@ -735,7 +746,45 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         if (brightnessLoc != -1) glUniform1f(brightnessLoc, 1.0f);
         if (lightColorLoc != -1) glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
     }
-    
+
+    // ---- 追加 Point/Spot 光源を uniform 配列へ ----
+    {
+        constexpr int MAX_LIGHTS = 8;
+        std::vector<LightSource*> lights;
+        collectLights(static_cast<Instance*>(desc.workspace), lights);
+        int count = 0;
+        for (LightSource* ls : lights) {
+            if (count >= MAX_LIGHTS) break;
+            // 位置（と Spot の向き）は親 Spatial のワールド CFrame から
+            Vector3 pos(0.0f, 0.0f, 0.0f);
+            Vector3 dir(0.0f, -1.0f, 0.0f);
+            if (auto par = ls->Parent.lock()) {
+                if (par->IsA("Spatial")) {
+                    CFrame cf = static_cast<Spatial*>(par.get())->getWorldCFrame();
+                    pos = cf.Position;
+                    dir = cf.Rotation.rotate(Vector3(0.0f, -1.0f, 0.0f));  // 親の下向き
+                }
+            }
+            bool isSpot = ls->IsA("SpotLight");
+            float cosCutoff = 1.0f;
+            if (isSpot) {
+                float ang = static_cast<SpotLight*>(ls)->Angle;
+                cosCutoff = std::cos(ang * 3.14159265f / 180.0f);
+            }
+            std::string b = "uLights[" + std::to_string(count) + "].";
+            glUniform1i(glGetUniformLocation(shaderProgram, (b + "type").c_str()), isSpot ? 1 : 0);
+            glUniform3f(glGetUniformLocation(shaderProgram, (b + "position").c_str()),  pos.x, pos.y, pos.z);
+            glUniform3f(glGetUniformLocation(shaderProgram, (b + "direction").c_str()), dir.x, dir.y, dir.z);
+            glUniform3f(glGetUniformLocation(shaderProgram, (b + "color").c_str()),
+                        ls->lightColor.r, ls->lightColor.g, ls->lightColor.b);
+            glUniform1f(glGetUniformLocation(shaderProgram, (b + "brightness").c_str()), ls->brightness);
+            glUniform1f(glGetUniformLocation(shaderProgram, (b + "range").c_str()),      ls->range);
+            glUniform1f(glGetUniformLocation(shaderProgram, (b + "cosCutoff").c_str()),  cosCutoff);
+            count++;
+        }
+        glUniform1i(glGetUniformLocation(shaderProgram, "uLightCount"), count);
+    }
+
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, shadowReady ? shadowMapTex : 0);
     glActiveTexture(GL_TEXTURE0);

@@ -11,6 +11,8 @@
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/LightSource.hpp>
+#include <Instances/SpotLight.hpp>
 #include <Instances/PostEffect.hpp>
 #include <Core/Terrain.hpp>
 #include <Core/TerrainStreamer.hpp>
@@ -786,6 +788,16 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "Lighting") {
         ImGui::SeparatorText("Lighting");
         renderSchemaInspector(inst, "Lighting", m_history);
+    }
+
+    // ---- LightSource（PointLight / SpotLight、スキーマ駆動） ----
+    if (inst->IsA("LightSource")) {
+        ImGui::SeparatorText("Light");
+        renderSchemaInspector(inst, "LightSource", m_history);
+    }
+    if (inst->getClassName() == "SpotLight") {
+        ImGui::SeparatorText("SpotLight");
+        renderSchemaInspector(inst, "SpotLight", m_history);
     }
 
     // ---- PostEffect ----

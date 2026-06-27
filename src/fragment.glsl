@@ -23,6 +23,20 @@ uniform vec2 uvScale;
 uniform float isSurfaceGui;
 uniform float useVertexColor;
 
+// ---- 追加光源（Point/Spot）。方向光 lightDir は別扱い ----
+#define MAX_LIGHTS 8
+struct Light {
+    int   type;        // 0=point, 1=spot
+    vec3  position;
+    vec3  direction;   // spot のコーン向き（正規化）
+    vec3  color;
+    float brightness;
+    float range;
+    float cosCutoff;   // spot: コーン外縁の cos（point では無視）
+};
+uniform Light uLights[MAX_LIGHTS];
+uniform int   uLightCount;
+
 float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
@@ -85,6 +99,23 @@ void main() {
     float shadow = hasShadows * shadowCalc(FragPosLightSpace, norm, lightDirNorm);
 
     vec3 lighting = ambient + (1.0 - shadow) * diffuse;
+
+    // ---- 追加 Point/Spot 光源を加算 ----
+    for (int i = 0; i < uLightCount; ++i) {
+        vec3  toL  = uLights[i].position - FragPos;
+        float dist = length(toL);
+        vec3  Ldir = toL / max(dist, 1e-4);
+        float atten = clamp(1.0 - dist / max(uLights[i].range, 1e-4), 0.0, 1.0);
+        atten *= atten;
+        float d = max(dot(norm, Ldir), 0.0);
+        float cone = 1.0;
+        if (uLights[i].type == 1) {
+            float theta = dot(normalize(-Ldir), uLights[i].direction);
+            cone = step(uLights[i].cosCutoff, theta);  // 簡易ハードエッジ
+        }
+        lighting += d * atten * cone * uLights[i].color * uLights[i].brightness;
+    }
+
     vec3 result = lighting * baseColor;
 
     FragColor = vec4(result, texColor.a * ourColor.a * MatAlpha);

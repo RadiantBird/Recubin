@@ -16,6 +16,8 @@
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/PointLight.hpp>
+#include <Instances/SpotLight.hpp>
 #include <Instances/PostEffect.hpp>
 #include <Core/Terrain.hpp>
 #include <Instances/Weld.hpp>
@@ -170,7 +172,7 @@ void SceneHierarchyPanel::onRender() {
 static const char* getClassIcon(const std::string& cn) {
     if (cn == "Workspace")                                                   return ICON_WORKSPACE;
     if (cn == "Terrain")                                                     return ICON_TERRAIN;
-    if (cn == "Lighting")                                                    return ICON_LIGHT;
+    if (cn == "Lighting" || cn == "PointLight" || cn == "SpotLight")         return ICON_LIGHT;
     if (cn == "Skybox")                                                      return ICON_SKYBOX;
     if (cn == "Model")                                                       return ICON_MODEL;
     if (cn == "Folder")                                                      return ICON_FOLDER;
@@ -447,6 +449,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Tool>(m_history, "Tool", parentSp, std::string("Tool"));
         tryInsertInstance<Workspace>(m_history, "Workspace", parentSp);
         tryInsertInstance<Lighting>(m_history, "Lighting", parentSp);
+        tryInsertInstance<PointLight>(m_history, "PointLight", parentSp);
+        tryInsertInstance<SpotLight>(m_history, "SpotLight", parentSp);
         tryInsertInstance<Terrain>(m_history, "Terrain", parentSp);
         tryInsertInstance<Skybox>(m_history, "Skybox", parentSp);
         tryInsertInstance<AppImage>(m_history, "AppImage", parentSp);

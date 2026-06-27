@@ -13,6 +13,8 @@
 #include <Instances/Texture.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/PointLight.hpp>
+#include <Instances/SpotLight.hpp>
 #include <Instances/PostEffect.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/Humanoid.hpp>
@@ -212,6 +214,8 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
         return nullptr;
     }
     if (className == "Lighting")  return std::make_shared<Lighting>();
+    if (className == "PointLight") return std::make_shared<PointLight>();
+    if (className == "SpotLight")  return std::make_shared<SpotLight>();
     if (className == "PostEffect") return std::make_shared<PostEffect>();
     if (className == "AppImage")         return std::make_shared<AppImage>();
     if (className == "Humanoid")          return std::make_shared<Humanoid>();
@@ -298,6 +302,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->getClassName() == "Sound" || inst->getClassName() == "Decal"
                  || inst->getClassName() == "Texture"
                  || inst->getClassName() == "Lighting" || inst->getClassName() == "Skybox"
+                 || inst->IsA("LightSource")
                  || inst->getClassName() == "PostEffect"
                  || inst->getClassName() == "AppImage"
                  || inst->getClassName() == "Humanoid"
@@ -419,6 +424,12 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         }
         if (inst->getClassName() == "Lighting") {
             PropertyRegistry::saveProperties(out, inst, "Lighting");
+        }
+        if (inst->IsA("LightSource")) {
+            PropertyRegistry::saveProperties(out, inst, "LightSource");  // 基底: Color/Brightness/Range
+        }
+        if (inst->getClassName() == "SpotLight") {
+            PropertyRegistry::saveProperties(out, inst, "SpotLight");    // 葉: Angle
         }
         if (inst->getClassName() == "PostEffect") {
             const PostEffect* pe = static_cast<const PostEffect*>(inst);

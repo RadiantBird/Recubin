@@ -352,6 +352,9 @@ void LuauEngine::InitDispatchTable_World() {
     DispatchTable["Decal"]["Face"]      = getter_number<Decal, &Decal::face>();
 
     PropertyRegistry::applyToDispatch("Lighting", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("LightSource", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("PointLight", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("SpotLight", DispatchTable, SetterTable);
 
     DispatchTable["System"]["Heartbeat"] = getter_signal<System, &System::Heartbeat>();
 
