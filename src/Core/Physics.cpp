@@ -708,8 +708,6 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
         cube->m_compoundLocalOffset = localOffset;
     }
 
-    physx::PxRigidBodyExt::updateMassAndInertia(*compound, 1.0f);
-
     // アンカー付きキューブが含まれる場合は compound をキネマティックに設定
     bool anyAnchored = false;
     for (auto& cube : assembly) {
@@ -720,6 +718,17 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
         compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
     } else {
         compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eENABLE_CCD, true);
+    }
+
+    // 質量計算はシェイプが1つ以上ある場合のみ行う。CanCollide==false のキューブだけで
+    // 構成されたアセンブリ(例: 装飾用 MeshCube を Head に Weld した髪)はシェイプを持たず、
+    // ゼロシェイプの body に対して updateMassAndInertia を呼ぶと不正なメモリアクセス
+    // (0x0 実行)でクラッシュするため、固定質量・慣性で代替する（位置追従のみで十分）。
+    if (compound->getNbShapes() > 0) {
+        physx::PxRigidBodyExt::updateMassAndInertia(*compound, 1.0f);
+    } else {
+        compound->setMass(1.0f);
+        compound->setMassSpaceInertiaTensor(physx::PxVec3(1.0f, 1.0f, 1.0f));
     }
 
     // メンバーに「アンカー駆動のキネマティックWeldか」を記録する。
@@ -796,6 +805,12 @@ void Physics::createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace
     auto c1 = weld->m_cube1.lock();
     if (!c0 || !c1) {
         // RCBN_WARN("Weld \"" << weld->Name << "\": cube refs unresolved");
+        return;
+    }
+    // 自己溶接（同一キューブを両端に指定）は退化構成。compound 構築が破綻し
+    // クラッシュするため無視する（ユーザーの設定ミス時の保険）。
+    if (c0 == c1) {
+        RCBN_WARN("Weld \"" << weld->Name << "\": Cube0 と Cube1 が同一のため無視します");
         return;
     }
     // NOTE: CanCollide==false のキューブ(例: HumanoidのHead)はactorを持たないため、
@@ -895,9 +910,16 @@ void Physics::removeConstraint(const std::shared_ptr<Instance>& c) {
 
     if (c->IsA("Weld")) {
         auto weld = std::static_pointer_cast<Weld>(c);
+
+        // weld->m_compound はキャッシュした生ポインタであり、別経路(他Weldの削除に伴う
+        // 再構築や Workspace 破棄)で既に release 済み = dangling になっている場合がある。
+        // dangling ポインタは nullptr ではないので nullptr チェックでは弾けない。
+        // 唯一信頼できる「生存判定」は cubes テーブル: compound が解放されるとき必ず
+        // 対応する cube->actor / entry.actor は nullptr へ更新されるため、いずれかの
+        // 生存 cube が今も m_compound を指しているかどうかで判定する。
         physx::PxRigidDynamic* oldCompound = weld->m_compound;
 
-        // 1. 旧 compound を共有していた全キューブを収集
+        // 1. 旧 compound を共有していた全キューブを収集（＝生存判定も兼ねる）
         std::vector<std::shared_ptr<BaseCube>> oldGroupCubes;
         if (oldCompound) {
             for (auto& entry : cubes) {
@@ -905,7 +927,25 @@ void Physics::removeConstraint(const std::shared_ptr<Instance>& c) {
                 if (cube && cube->actor == oldCompound)
                     oldGroupCubes.push_back(cube);
             }
-            // 旧 compound を破棄
+        }
+
+        // どの生存 cube も指していない → compound は既に解放済み(dangling) または未構築。
+        // この場合 actor には一切触れず、参照をクリアして Weld を除去するだけにする。
+        if (oldGroupCubes.empty()) {
+            for (auto& cEntry : m_constraints) {
+                auto inst = cEntry.constraint.lock();
+                if (inst && inst->IsA("Weld")) {
+                    auto ew = std::static_pointer_cast<Weld>(inst);
+                    if (oldCompound && ew->m_compound == oldCompound) ew->m_compound = nullptr;
+                }
+            }
+            weld->m_compound = nullptr;
+            m_constraints.erase(it);
+            return;
+        }
+
+        {
+            // 旧 compound を破棄（ここに来た時点で生存が確認できている）
             scene->removeActor(*oldCompound);
             oldCompound->release();
 
