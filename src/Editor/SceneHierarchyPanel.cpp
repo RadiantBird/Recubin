@@ -1,6 +1,8 @@
 #include <Editor/SceneHierarchyPanel.hpp>
 #include <Editor/SpawnUtil.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/PropertiesPanel.hpp>  // PickerState の定義
+#include <Instances/BaseCube.hpp>
 #include <algorithm>
 #include <unordered_set>
 #include <Instances/Cube.hpp>
@@ -21,6 +23,7 @@
 #include <Instances/Rope.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/Folder.hpp>
+#include <Instances/Tool.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/Animation.hpp>
@@ -131,6 +134,23 @@ void SceneHierarchyPanel::onRender() {
 
     drawNode(root);
 
+    // ドラッグ＆ドロップで積まれた親変更を、走査完了後にまとめて実行する
+    // （走査中の children マップ変更による iterator 無効化＝表示崩れを回避）
+    if (!m_pendingReparents.empty() && m_history) {
+        auto group = std::make_unique<CompositeCommand>();
+        for (auto& pr : m_pendingReparents) {
+            if (pr.oldParent && pr.newParent && pr.child &&
+                pr.oldParent->children.find(pr.child->Name) != pr.oldParent->children.end())
+                group->add(std::make_unique<MoveInstanceCommand>(pr.oldParent, pr.newParent, pr.child));
+        }
+        if (!group->empty()) {
+            m_history->execute(std::move(group));
+            if (m_pendingSelect) selectedInstance = m_pendingSelect;
+        }
+    }
+    m_pendingReparents.clear();
+    m_pendingSelect = nullptr;
+
     // 選択中インスタンスへの右クリックメニュー（ウィンドウ内の空白エリアでも表示）
     if (selectedInstance &&
         ImGui::BeginPopupContextWindow("##hier_wnd_ctx",
@@ -165,6 +185,12 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     bool open = ImGui::TreeNodeEx(inst, flags, "%s  [%s]",
                                   inst->Name.c_str(), inst->getClassName().c_str());
     if (ImGui::IsItemClicked()) {
+        // ---- ピッカーモード: Pick 中はクリックを Cube 参照指定に横取り（選択は変更しない） ----
+        if (m_picker && m_picker->active) {
+            if (inst->IsA("BaseCube") && inst != m_picker->constraint && m_picker->onPick)
+                m_picker->onPick(std::static_pointer_cast<BaseCube>(inst->shared_from_this()));
+            m_picker->active = false;
+        } else
         if (ImGui::GetIO().KeyCtrl) {
             auto it = std::find(selectedInstances.begin(), selectedInstances.end(), inst);
             if (it != selectedInstances.end()) {
@@ -233,7 +259,9 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
             };
 
             if (m_history) {
-                auto group = std::make_unique<CompositeCommand>();
+                // 走査中に children マップを変更しないよう、移動はここでは積むだけにして
+                // drawNode 完了後（onRender）にまとめて実行する。
+                bool queuedAny = false;
                 for (Instance* d : movers) {
                     if (!d) continue;
                     if (isSelfOrDescendantOf(inst, d)) continue;             // 自分/子孫へは不可
@@ -242,12 +270,10 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
                     if (!oldParent || oldParent == newParent) continue;      // 既に同じ親なら不要
                     auto it = oldParent->children.find(d->Name);
                     if (it == oldParent->children.end()) continue;
-                    group->add(std::make_unique<MoveInstanceCommand>(oldParent, newParent, it->second));
+                    m_pendingReparents.push_back({ oldParent, newParent, it->second });
+                    queuedAny = true;
                 }
-                if (!group->empty()) {
-                    m_history->execute(std::move(group));
-                    selectedInstance = dragged;
-                }
+                if (queuedAny) m_pendingSelect = dragged;
             }
         }
         ImGui::EndDragDropTarget();
@@ -389,6 +415,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         
         tryInsertInstance<Folder>(m_history, "Folder", parentSp);
         tryInsertInstance<Model>(m_history, "Model", parentSp, Vector3(0, 0, 0), Vector3(1, 1, 1));
+        tryInsertInstance<Tool>(m_history, "Tool", parentSp, std::string("Tool"));
         tryInsertInstance<Workspace>(m_history, "Workspace", parentSp);
         tryInsertInstance<Lighting>(m_history, "Lighting", parentSp);
         tryInsertInstance<Terrain>(m_history, "Terrain", parentSp);

@@ -81,6 +81,15 @@ public:
 
     void updateVectors();
     void initializeInventory();  // Inventory を User の子として追加（コンストラクタ後に呼ぶ）
+    // Tool をインベントリに入れ、ホットバーのスロットに登録する。
+    // slotIndex<0 のとき先頭の空きスロットを使う。使用したスロット(0-9)を返す。空き無し/無効時は -1。
+    int addToolToSlot(std::shared_ptr<Tool> tool, int slotIndex = -1);
+    // 名前でスロットを線形探索する。見つからなければ -1。
+    int findSlotByName(const std::string& name) const;
+    // スロットの Tool を参照する（除去しない）。範囲外/空なら nullptr。
+    std::shared_ptr<Tool> getToolInSlot(int slotIndex) const;
+    // スロットから Tool を外し、ツリーからもデタッチして返す。装備中なら解除する。範囲外/空なら nullptr。
+    std::shared_ptr<Tool> removeToolFromSlot(int slotIndex);
     void processInput(class Physics* physics, float deltaTime, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput);
     // searchRoot: StarterCharacterを探す起点(通常はSystem)。Userは自身のParentに必ずしも
     // システムが居るとは限らない(パッケージ済みランタイムではUserがツリーに属さない)ため、

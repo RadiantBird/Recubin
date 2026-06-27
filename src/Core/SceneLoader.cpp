@@ -512,6 +512,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             const Tool* tool = static_cast<const Tool*>(inst);
             static const char* handNames[] = { "Right", "Left", "Both" };
             out << YAML::Key << "Hand" << YAML::Value << handNames[static_cast<int>(tool->Hand)];
+            if (!tool->m_handleName.empty())
+                out << YAML::Key << "Handle" << YAML::Value << tool->m_handleName;
         }
 
         out << YAML::EndMap;

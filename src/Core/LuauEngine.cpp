@@ -7,6 +7,8 @@
 #include "include/Instances/Sound.hpp"
 #include "include/Instances/Humanoid.hpp"
 #include "include/Instances/UserInput.hpp"
+#include "include/Core/User.hpp"
+#include "include/Instances/Tool.hpp"
 #include "include/Instances/Animation.hpp"
 #include "include/Instances/System.hpp"
 #include "include/Instances/Event.hpp"
@@ -746,7 +748,8 @@ void LuauEngine::executeWorkspaceScripts(Workspace& ws) {
 
     for (auto& inst : ws.scripts) {
         auto script = std::dynamic_pointer_cast<Script>(inst);
-        if (script && script->Enabled && !script->Sleeping && !script->Completed && !script->Aborted) {
+        if (script && script->Enabled && !script->Sleeping && !script->WaitingForChild
+            && !script->Completed && !script->Aborted) {
             execute(*script);
         }
     }
@@ -766,6 +769,104 @@ int LuauEngine::instance_get_children_closure(lua_State* L) {
         lua_rawseti(L, -2, idx++);
     }
     return 1;
+}
+
+int LuauEngine::instance_wait_child_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto obj = ud->lock();
+    if (!obj) { lua_pushnil(L); return 1; }
+
+    // L[1] = self, L[2] = 子名, L[3] = 任意 timeout(秒)
+    const char* name = luaL_checkstring(L, 2);
+
+    // 既に存在すれば yield せず即返す
+    Instance* child = obj->getChild(name ? name : "");
+    if (child) {
+        auto* cud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (cud) std::weak_ptr<Instance>(child->shared_from_this());
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    }
+
+    // スクリプト文脈が無い（コルーチン外）なら待機できないので nil を返す
+    if (currentScript == nullptr) { lua_pushnil(L); return 1; }
+
+    float timeout = -1.0f;
+    if (lua_gettop(L) >= 3 && lua_isnumber(L, 3)) timeout = (float)lua_tonumber(L, 3);
+
+    currentScript->WaitingForChild = true;
+    currentScript->WaitTarget      = obj;
+    currentScript->WaitChildName   = name ? name : "";
+    currentScript->WaitTimeout     = timeout;
+    currentScript->WaitElapsed     = 0.0f;
+
+    // 子が出現するまで（または timeout まで）コルーチンを停止。
+    // 再開は update() → resumeWaitChild() が値を1つ渡して行う。
+    return lua_yield(L, 0);
+}
+
+void LuauEngine::pollWaitChild(Script& script, float deltaTime) {
+    script.WaitElapsed += deltaTime;
+    auto target = script.WaitTarget.lock();
+    if (!target) { resumeWaitChild(script, nullptr); return; } // 対象が消滅 → nil で打ち切り
+
+    Instance* child = target->getChild(script.WaitChildName);
+    if (child) {
+        resumeWaitChild(script, child);
+    } else if (script.WaitTimeout >= 0.0f && script.WaitElapsed >= script.WaitTimeout) {
+        resumeWaitChild(script, nullptr); // タイムアウト → nil
+    }
+}
+
+void LuauEngine::resumeWaitChild(Script& script, Instance* childOrNull) {
+    lua_State* co = script.Coroutine;
+    script.WaitingForChild = false;
+    if (!co) return;
+
+    setWorkspaceGlobal(co, getScriptWorkspace(script));
+    currentScript = &script;
+
+    // yield の戻り値として、見つかった子（無ければ nil）を1つ積んでから再開する
+    if (childOrNull) {
+        auto* cud = (std::weak_ptr<Instance>*)lua_newuserdata(co, sizeof(std::weak_ptr<Instance>));
+        new (cud) std::weak_ptr<Instance>(childOrNull->shared_from_this());
+        luaL_getmetatable(co, RCBN_INST_METATABLE);
+        lua_setmetatable(co, -2);
+    } else {
+        lua_pushnil(co);
+    }
+
+    FPUState fpuState = saveFPU();
+    int result = lua_resume(co, L, 1);
+    restoreFPU(fpuState);
+
+    if (result == LUA_YIELD) {
+        currentScript = nullptr;
+        return;
+    } else if (result == 0) {
+        script.Sleeping  = false;
+        script.Completed = true;
+        script.Coroutine = nullptr;
+        currentScript    = nullptr;
+        return;
+    } else {
+        script.Aborted = true;
+        std::cerr << "Luau Run Error caught. Status: " << result << "\n";
+        lua_State* errState = (lua_gettop(co) > 0) ? co : L;
+        std::string errMsg = "unknown error";
+        if (lua_gettop(errState) > 0) {
+            const char* raw = luaL_tolstring(errState, -1, nullptr);
+            if (raw) errMsg = raw;
+            lua_pop(errState, 2);
+        }
+        const std::string output = m_lastTraceback.empty() ? errMsg : m_lastTraceback;
+        m_lastTraceback.clear();
+        std::cerr << "Luau Run Error: " << output << "\n";
+        if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
+        currentScript = nullptr;
+        return;
+    }
 }
 
 int LuauEngine::instance_is_a_closure(lua_State* L) {
@@ -838,6 +939,98 @@ int LuauEngine::humanoid_take_damage_closure(lua_State* L) {
     float n = static_cast<float>(luaL_checknumber(L, 2));
     static_cast<Humanoid*>(self.get())->takeDamage(n);
     return 0;
+}
+
+// L[argIdx] が数値(1始まりスロット) か 文字列(Tool名) を 0始まりスロット index に解決する。無効なら -1。
+static int resolveUserSlotArg(lua_State* L, User* user, int argIdx) {
+    if (lua_isnumber(L, argIdx)) {
+        return (int)lua_tointeger(L, argIdx) - 1; // 1始まり → 0始まり
+    }
+    if (lua_isstring(L, argIdx)) {
+        return user->findSlotByName(lua_tostring(L, argIdx));
+    }
+    return -1;
+}
+
+// Tool（Instance）を weak_ptr userdata として L に積む
+static void pushInstanceUserdata(lua_State* L, const std::shared_ptr<Instance>& inst) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+    new (ud) std::weak_ptr<Instance>(inst);
+    luaL_getmetatable(L, LuauEngine::RCBN_INST_METATABLE);
+    lua_setmetatable(L, -2);
+}
+
+int LuauEngine::user_add_tool_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self) { lua_pushnil(L); return 1; }
+    User* user = static_cast<User*>(self.get());
+
+    // L[1] = self(User), L[2] = Tool, L[3] = 任意スロット番号(1始まり)
+    auto* tud = (std::weak_ptr<Instance>*)luaL_checkudata(L, 2, RCBN_INST_METATABLE);
+    auto toolInst = tud->lock();
+    if (!toolInst || !toolInst->IsA("Tool")) {
+        luaL_error(L, "AddTool: argument #1 must be a Tool");
+        return 0; // 到達しない（luaL_error は longjmp する）
+    }
+    auto tool = std::static_pointer_cast<Tool>(toolInst);
+
+    int slot = -1; // 省略時は空きスロット
+    if (lua_gettop(L) >= 3 && lua_isnumber(L, 3)) {
+        slot = (int)lua_tointeger(L, 3) - 1; // 1始まり → 0始まり
+    }
+
+    int used = user->addToolToSlot(tool, slot);
+    if (used < 0) lua_pushnil(L);
+    else          lua_pushinteger(L, used + 1); // 1始まりで返す
+    return 1;
+}
+
+int LuauEngine::user_remove_tool_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self) { lua_pushnil(L); return 1; }
+    User* user = static_cast<User*>(self.get());
+
+    // L[2] = スロット番号(1始まり) または Tool 名(string)
+    int slot = resolveUserSlotArg(L, user, 2);
+    auto tool = user->removeToolFromSlot(slot);
+    if (!tool) { lua_pushnil(L); return 1; }
+
+    // ツリーからデタッチ済み。Luau が参照を保持できるよう所有権を retain してから返す
+    s_ownedInstances.push_back(std::static_pointer_cast<Instance>(tool));
+    pushInstanceUserdata(L, std::static_pointer_cast<Instance>(tool));
+    return 1;
+}
+
+int LuauEngine::user_get_tool_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self) { lua_pushnil(L); return 1; }
+    User* user = static_cast<User*>(self.get());
+
+    // L[2] = スロット番号(1始まり) または Tool 名(string)
+    int slot = resolveUserSlotArg(L, user, 2);
+    auto tool = user->getToolInSlot(slot);
+    if (!tool) { lua_pushnil(L); return 1; }
+    pushInstanceUserdata(L, std::static_pointer_cast<Instance>(tool));
+    return 1;
+}
+
+int LuauEngine::user_get_tools_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    lua_newtable(L);
+    if (!self) return 1;
+    User* user = static_cast<User*>(self.get());
+
+    int idx = 1;
+    for (auto& tool : user->Slots) {
+        if (!tool) continue; // 空きスロットは詰めて連番にする（ipairs 用）
+        pushInstanceUserdata(L, std::static_pointer_cast<Instance>(tool));
+        lua_rawseti(L, -2, idx++);
+    }
+    return 1;
 }
 
 int LuauEngine::userinput_ispressed_closure(lua_State* L) {
@@ -1057,6 +1250,8 @@ void LuauEngine::update(float deltaTime) {
                         script->Sleeping = false;
                         execute(*script);
                     }
+                } else if (script && script->WaitingForChild && script->Coroutine != nullptr) {
+                    pollWaitChild(*script, deltaTime);
                 }
             }
         }
@@ -1071,12 +1266,14 @@ void LuauEngine::update(float deltaTime) {
         auto script = std::dynamic_pointer_cast<Script>(inst);
         if (script && script->Sleeping && script->Coroutine != nullptr) {
             script->SleepRemaining -= deltaTime;
-            
+
             // タイムアウト時にコルーチンを再開
             if (script->SleepRemaining <= 0.0f) {
                 script->Sleeping = false;
                 execute(*script);
             }
+        } else if (script && script->WaitingForChild && script->Coroutine != nullptr) {
+            pollWaitChild(*script, deltaTime);
         }
     }
 }

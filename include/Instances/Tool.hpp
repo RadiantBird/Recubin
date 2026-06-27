@@ -21,10 +21,13 @@ class Tool : public Instance {
         ToolHand Hand = ToolHand::Right;
         std::shared_ptr<RCBNScriptSignal> Activated;
         std::shared_ptr<BaseCube> Handle;
+        std::string m_handleName;  // Handle 参照名（制約の m_cube0Name と同じ規約で保存・解決）
 
         virtual void setProperty(const std::string& name, const YAML::Node& value) override;
+        void onAncestorChanged() override;
 
     private:
         // Tool固有のプロパティやメソッドをここに追加
+        void resolveHandle();  // m_handleName から Handle を遅延解決する
 
 };

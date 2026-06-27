@@ -78,8 +78,15 @@ private:
     static int instance_tostring(lua_State* L);
     static int instance_find_child_closure(lua_State* L);
     static int instance_get_children_closure(lua_State* L);
+    static int instance_wait_child_closure(lua_State* L);
     static int instance_is_a_closure(lua_State* L);
     static int instance_destroy_closure(lua_State* L);
+
+    // User methods
+    static int user_add_tool_closure(lua_State* L);
+    static int user_remove_tool_closure(lua_State* L);
+    static int user_get_tool_closure(lua_State* L);
+    static int user_get_tools_closure(lua_State* L);
 
     // Workspace methods
     static int workspace_raycast_closure(lua_State* L);
@@ -171,6 +178,10 @@ public:
     void setGlobalInstance(const std::string& name, const std::shared_ptr<Instance>& instance);
 
     bool execute(Script& script);
+    // WaitChild で yield 中のスクリプトを、見つかった子（無ければ nullptr）を結果に渡して再開する
+    void resumeWaitChild(Script& script, Instance* childOrNull);
+    // WaitChild 待機中のスクリプトを毎フレーム評価し、子の出現/タイムアウトで再開する
+    void pollWaitChild(Script& script, float deltaTime);
 
     void setWorkspace(const std::shared_ptr<Workspace>& ws);
     void setSystem(System* s);

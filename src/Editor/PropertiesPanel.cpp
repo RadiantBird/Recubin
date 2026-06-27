@@ -363,7 +363,7 @@ void PropertiesPanel::onRender() {
 
     if (m_picker && m_picker->active) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.1f, 1.0f));
-        ImGui::TextUnformatted("Viewport でキューブをクリックして指定");
+        ImGui::TextUnformatted("Viewport またはヒエラルキーでキューブをクリックして指定");
         ImGui::PopStyleColor();
         ImGui::Separator();
     }
@@ -743,11 +743,12 @@ void PropertiesPanel::onRender() {
             }
         }
 
-        // Handle reference (read-only)
+        // Handle reference（制約と同じ Pick 機構で指定。Viewport / ヒエラルキーから選択可）
+        drawConstraintCubeRef("Handle", tool->m_handleName, "Handle", toolSp);
         if (tool->Handle) {
-            ImGui::LabelText("Handle", "%s", tool->Handle->Name.c_str());
-        } else {
-            ImGui::TextDisabled("Handle: (none)");
+            ImGui::TextDisabled("→ %s", tool->Handle->Name.c_str());
+        } else if (!tool->m_handleName.empty()) {
+            ImGui::TextDisabled("→ (未解決)");
         }
     }
 

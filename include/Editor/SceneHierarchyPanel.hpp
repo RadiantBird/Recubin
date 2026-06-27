@@ -11,6 +11,7 @@
 #include <vector>
 
 class CommandHistory;
+struct PickerState;  // PropertiesPanel.hpp で定義
 
 // ===================================================
 //  SceneHierarchyPanel  — ワークスペースのインスタンスツリーを表示
@@ -25,6 +26,7 @@ public:
     CommandHistory*              m_history   = nullptr;
     std::vector<std::shared_ptr<Instance>>* m_clipboard = nullptr;  // EditorManager::m_clipboard へのポインタ（複数対応）
     User*                        m_user      = nullptr;
+    PickerState*                 m_picker    = nullptr;  // Cube 参照ピック中はクリックを横取りする
 
     // Workspace 操作コールバック（main.cpp が設定）
     std::function<void(Workspace*)> onSwitchWorkspace;
@@ -61,6 +63,16 @@ private:
     // Script追加ダイアログ用
     std::shared_ptr<Instance> m_pendingScriptParent;
     bool                      m_openScriptDialog = false;
+
+    // ドラッグ＆ドロップの親変更は走査完了後にまとめて実行する
+    // （drawNode が children マップを走査中に move すると iterator 無効化で表示が壊れるため）
+    struct PendingReparent {
+        std::shared_ptr<Instance> oldParent;
+        std::shared_ptr<Instance> newParent;
+        std::shared_ptr<Instance> child;
+    };
+    std::vector<PendingReparent> m_pendingReparents;
+    Instance*                    m_pendingSelect = nullptr;
 
     // フォルダ/ファイル選択待ち（ピッカーはポップアップ外で実行）
     bool                      m_doPick      = false;

@@ -15,6 +15,7 @@ export type Instance = {
     GetChildren: (Instance) -> { Instance },
     IsA: (Instance, string) -> boolean,
     Destroy: (Instance) -> (),
+    [string]: any
 }
 
 export type BaseCube = Instance & {
@@ -215,6 +216,15 @@ export type ProximityPrompt = Instance & {
     ActionText: string,
     ObjectText: string,
     Triggered: Signal,
+}
+
+export type Tool = Instance & {
+
+}
+
+export type User = Instance & {
+    AddTool: (number?) -> number,
+    RemoveTool: (number|string) -> Tool?
 }
 
 declare workspace: Workspace

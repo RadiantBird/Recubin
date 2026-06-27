@@ -308,6 +308,7 @@ void LuauEngine::InitDispatchTable_Base() {
     };
     DispatchTable["Instance"]["FindChild"]   = getter_closure(instance_find_child_closure,   "FindChild");
     DispatchTable["Instance"]["GetChildren"] = getter_closure(instance_get_children_closure, "GetChildren");
+    DispatchTable["Instance"]["WaitChild"]   = getter_closure(instance_wait_child_closure,   "WaitChild");
     DispatchTable["Instance"]["IsA"]         = getter_closure(instance_is_a_closure,         "IsA");
     DispatchTable["Instance"]["Destroy"]     = getter_closure(instance_destroy_closure,      "Destroy");
 
@@ -402,6 +403,10 @@ void LuauEngine::InitDispatchTable_Misc() {
         lua_setmetatable(L, -2);
         return 1;
     };
+    DispatchTable["User"]["AddTool"]    = getter_closure(user_add_tool_closure,    "AddTool");
+    DispatchTable["User"]["RemoveTool"] = getter_closure(user_remove_tool_closure, "RemoveTool");
+    DispatchTable["User"]["GetTool"]    = getter_closure(user_get_tool_closure,    "GetTool");
+    DispatchTable["User"]["GetTools"]   = getter_closure(user_get_tools_closure,   "GetTools");
     DispatchTable["UserInput"]["Pressed"]   = getter_signal<UserInput, &UserInput::Pressed>();
     DispatchTable["UserInput"]["Released"]  = getter_signal<UserInput, &UserInput::Released>();
     DispatchTable["UserInput"]["IsPressed"] = getter_closure(userinput_ispressed_closure, "IsPressed");

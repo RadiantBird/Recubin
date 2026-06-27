@@ -71,6 +71,7 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
 
     propertiesPanel->m_picker = &m_picker;
     viewportPanel->m_picker   = &m_picker;
+    hierarchyPanel->m_picker  = &m_picker;
 
     propertiesPanel->m_terrainBrush = &m_terrainBrush;
     viewportPanel->m_terrainBrush   = &m_terrainBrush;

@@ -36,6 +36,62 @@ void User::initializeInventory() {
     }
 }
 
+int User::addToolToSlot(std::shared_ptr<Tool> tool, int slotIndex) {
+    if (!tool) return -1;
+
+    // スロット番号の決定（負なら先頭の空きを探す）
+    if (slotIndex < 0) {
+        slotIndex = -1;
+        for (int i = 0; i < static_cast<int>(Slots.size()); ++i) {
+            if (!Slots[i]) { slotIndex = i; break; }
+        }
+        if (slotIndex < 0) return -1; // 空きなし
+    } else if (slotIndex >= static_cast<int>(Slots.size())) {
+        return -1; // 範囲外
+    }
+
+    // まだ Inventory 配下でなければ Inventory に入れる（装備ロジックと整合）
+    if (Inventory && tool->Parent.lock().get() != Inventory.get()) {
+        Inventory->addChild(std::static_pointer_cast<Instance>(tool));
+    }
+
+    Slots[slotIndex] = tool;
+    return slotIndex;
+}
+
+int User::findSlotByName(const std::string& name) const {
+    for (int i = 0; i < static_cast<int>(Slots.size()); ++i) {
+        if (Slots[i] && Slots[i]->Name == name) return i;
+    }
+    return -1;
+}
+
+std::shared_ptr<Tool> User::getToolInSlot(int slotIndex) const {
+    if (slotIndex < 0 || slotIndex >= static_cast<int>(Slots.size())) return nullptr;
+    return Slots[slotIndex];
+}
+
+std::shared_ptr<Tool> User::removeToolFromSlot(int slotIndex) {
+    if (slotIndex < 0 || slotIndex >= static_cast<int>(Slots.size())) return nullptr;
+    auto tool = Slots[slotIndex];
+    if (!tool) return nullptr;
+
+    // 装備中なら解除する（character から外れる前に状態を整える）
+    if (currentTool == tool) {
+        currentTool->Equipped = false;
+        currentTool = nullptr;
+        currentSlotIndex = -1;
+    }
+
+    // ツリー（Inventory もしくは character）からデタッチする
+    if (auto parent = tool->Parent.lock()) {
+        parent->removeChild(tool->Name);
+    }
+
+    Slots[slotIndex] = nullptr;
+    return tool;
+}
+
 User::~User() {
     s_instance = nullptr;
     // shared_ptr なので参照カウントが 0 になれば自動解放される
@@ -460,22 +516,22 @@ void User::spawnCharacter(Instance* searchRoot) {
     }
 
     // HACK: ただのテスト配列
-    auto tool1 = std::make_shared<Tool>("TestTool1");
-    auto tool2 = std::make_shared<Tool>("TestTool2");
-    std::shared_ptr<Cube> testHandle = std::make_shared<Cube>(Vector3(0,0,0), Vector3(0.5f, 0.5f, 5.0f), 0);
-    testHandle->Name = "Handle";
-    testHandle->Anchored = true;
-    testHandle->Color = Color4::FromRGB(255, 0, 0);
-    testHandle->CanCollide = false;
+    // auto tool1 = std::make_shared<Tool>("TestTool1");
+    // auto tool2 = std::make_shared<Tool>("TestTool2");
+    // std::shared_ptr<Cube> testHandle = std::make_shared<Cube>(Vector3(0,0,0), Vector3(0.5f, 0.5f, 5.0f), 0);
+    // testHandle->Name = "Handle";
+    // testHandle->Anchored = true;
+    // testHandle->Color = Color4::FromRGB(255, 0, 0);
+    // testHandle->CanCollide = false;
 
-    tool1->addChild(testHandle);
-    tool1->Hand = Tool::ToolHand::Left;
-    tool1->Handle = testHandle;
+    // tool1->addChild(testHandle);
+    // tool1->Hand = Tool::ToolHand::Left;
+    // tool1->Handle = testHandle;
 
-    Slots[0] = tool1;
-    Slots[1] = tool2;
-    Inventory->addChild(tool1);
-    Inventory->addChild(tool2);
+    // Slots[0] = tool1;
+    // Slots[1] = tool2;
+    // Inventory->addChild(tool1);
+    // Inventory->addChild(tool2);
     // end of HACK
 
     Instance* starter = findStarterCharacter(searchRoot);
