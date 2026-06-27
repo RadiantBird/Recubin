@@ -9,6 +9,8 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 uniform mat4 lightSpaceMatrix;
+uniform float uTime;      // 経過秒（波アニメ用）
+uniform float uIsLiquid;  // LiquidCube 描画時 1.0
 
 out vec3 Normal;
 out vec3 FragPos;
@@ -18,7 +20,12 @@ out vec3 VertexColor;
 out float MatAlpha;
 
 void main() {
-    FragPos = vec3(model * vec4(aPos, 1.0));
+    // LiquidCube は上面のみ時間ベースの sin 波で揺らす（ローカル空間）
+    vec3 p = aPos;
+    if (uIsLiquid > 0.5 && aPos.y > 0.0) {
+        p.y += sin(uTime * 1.5 + aPos.x * 4.0 + aPos.z * 4.0) * 0.06;
+    }
+    FragPos = vec3(model * vec4(p, 1.0));
     Normal = mat3(transpose(inverse(model))) * aNormal;
     TexCoord = aTexCoord;
     VertexColor = aVertexColor;

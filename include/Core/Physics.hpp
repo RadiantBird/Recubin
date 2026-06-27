@@ -70,6 +70,9 @@ private:
 
     void rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembly);
 
+    // LiquidCube に侵入した動的キューブへ浮力を加える（simulate 前に呼ぶ）
+    void applyBuoyancy();
+
     physx::PxSimulationEventCallback* m_contactCallback = nullptr;
 
 public:

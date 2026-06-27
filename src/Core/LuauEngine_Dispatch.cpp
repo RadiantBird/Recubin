@@ -340,6 +340,8 @@ void LuauEngine::InitDispatchTable_Base() {
         lua_setmetatable(L, -2);
         return 1;
     };
+
+    PropertyRegistry::applyToDispatch("LiquidCube", DispatchTable, SetterTable);
 }
 
 // ==================== Getter: Workspace, Decal, Lighting, System, Event ====================

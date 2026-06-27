@@ -5,6 +5,7 @@
 #include <Instances/Workspace.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Instances/MeshCube.hpp>
+#include <Instances/LiquidCube.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
@@ -537,6 +538,12 @@ void PropertiesPanel::onRender() {
                 mc->setProperty("MeshFile", node);
             }
         }
+    }
+
+    // ---- LiquidCube（Density、スキーマ駆動） ----
+    if (inst->getClassName() == "LiquidCube") {
+        ImGui::SeparatorText("LiquidCube");
+        renderSchemaInspector(inst, "LiquidCube", m_history);
     }
 
     // ---- Sound ----

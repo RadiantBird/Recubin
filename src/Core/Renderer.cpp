@@ -10,6 +10,7 @@
 #include <Instances/LightSource.hpp>
 #include <Instances/SpotLight.hpp>
 #include <Instances/Spatial.hpp>
+#include <Instances/LiquidCube.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
 #include <include/Core/Terrain.hpp>
@@ -797,6 +798,10 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     int texScaleLoc     = glGetUniformLocation(shaderProgram, "u_textureScale");
     glBindVertexArray(VAO);
 
+    // 波アニメ用の時間と液体フラグ（既定 0）
+    glUniform1f(glGetUniformLocation(shaderProgram, "uTime"),     (float)glfwGetTime());
+    glUniform1f(glGetUniformLocation(shaderProgram, "uIsLiquid"), 0.0f);
+
     auto renderInst = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
         if (inst->IsA("BaseCube")) {
@@ -839,6 +844,15 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 Matrix4 m = mc->getWorldCFrame().toMatrix4() * Matrix4::Scale(mc->Size.x, mc->Size.y, mc->Size.z);
                 glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
                 mc->draw(modelLoc, shaderProgram);
+            }
+        } else if (inst->IsA("LiquidCube")) {
+            LiquidCube* lc = static_cast<LiquidCube*>(inst);
+            if (lc->Color.a > 0.001f) {
+                glUniform1f(glGetUniformLocation(shaderProgram, "uIsLiquid"), 1.0f);
+                Matrix4 m = lc->getWorldCFrame().toMatrix4() * Matrix4::Scale(lc->Size.x, lc->Size.y, lc->Size.z);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                lc->draw(modelLoc, shaderProgram);
+                glUniform1f(glGetUniformLocation(shaderProgram, "uIsLiquid"), 0.0f);
             }
         }
         for (auto const& [name, child] : inst->getChildren()) {

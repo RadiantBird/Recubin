@@ -7,6 +7,7 @@
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/MeshCube.hpp>
+#include <Instances/LiquidCube.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/Decal.hpp>
@@ -202,6 +203,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "TriangularPrism") return std::make_shared<TriangularPrism>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "Sphere")         return std::make_shared<Sphere>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "MeshCube")       return std::make_shared<MeshCube>(Vector3(0,0,0), Vector3(1,1,1));
+    if (className == "LiquidCube")      return std::make_shared<LiquidCube>(Vector3(0,0,0), Vector3(4,2,4));
     if (className == "Skybox")         return std::make_shared<Skybox>();
     if (className == "Script")    return std::make_shared<Script>("");
     if (className == "Model")     return std::make_shared<Model>();
@@ -350,6 +352,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "StaticFriction"  << YAML::Value << bc->material.staticFriction;
             out << YAML::Key << "DynamicFriction" << YAML::Value << bc->material.dynamicFriction;
             out << YAML::Key << "Restitution"     << YAML::Value << bc->material.restitution;
+        }
+        if (inst->getClassName() == "LiquidCube") {
+            PropertyRegistry::saveProperties(out, inst, "LiquidCube");  // Density
         }
         if (inst->getClassName() == "Script") {
             const Script* sc = static_cast<const Script*>(inst);

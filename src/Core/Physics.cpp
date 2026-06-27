@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <queue>
 #include <cmath>
+#include <include/Instances/LiquidCube.hpp>
 
 // ===================================================
 //  static メンバ定義
@@ -407,6 +408,59 @@ void Physics::removeCube(const std::shared_ptr<BaseCube>& cube) {
     }
 }
 
+// 水中での減衰係数（大きいほど早く落ち着く。空中では 0 に戻す）
+static constexpr float LIQUID_LINEAR_DAMPING  = 3.0f;
+static constexpr float LIQUID_ANGULAR_DAMPING = 2.0f;
+
+void Physics::applyBuoyancy() {
+    if (!scene) return;
+    physx::PxVec3 g = scene->getGravity();
+    Vector3 gVec(g.x, g.y, g.z);
+
+    // 液体を収集
+    std::vector<BaseCube*> liquids;
+    for (auto& e : cubes)
+        if (auto c = e.cube.lock())
+            if (c->IsA("LiquidCube")) liquids.push_back(c.get());
+    if (liquids.empty()) return;
+
+    for (auto& e : cubes) {
+        auto cube = e.cube.lock();
+        if (!cube || !cube->actor) continue;
+        auto* dyn = cube->actor->is<physx::PxRigidDynamic>();
+        if (!dyn || (dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) continue;
+        if (cube->IsA("LiquidCube")) continue;
+
+        // 各液体との AABB 侵入体積（回転は無視＝「大体」）を、生体積と Density 重みで合算
+        Vector3 cp = cube->getWorldPosition(), cs = cube->Size;
+        Vector3 cmin = cp - cs * 0.5f, cmax = cp + cs * 0.5f;
+        float rawV = 0.0f, weightedV = 0.0f;
+        for (BaseCube* lq : liquids) {
+            Vector3 lp = lq->getWorldPosition(), ls = lq->Size;
+            Vector3 lmin = lp - ls * 0.5f, lmax = lp + ls * 0.5f;
+            float ox = std::max(0.0f, std::min(cmax.x, lmax.x) - std::max(cmin.x, lmin.x));
+            float oy = std::max(0.0f, std::min(cmax.y, lmax.y) - std::max(cmin.y, lmin.y));
+            float oz = std::max(0.0f, std::min(cmax.z, lmax.z) - std::max(cmin.z, lmin.z));
+            float v = ox * oy * oz;
+            rawV      += v;
+            weightedV += v * static_cast<LiquidCube*>(lq)->Density;
+        }
+
+        // 水没割合に比例した PhysX ダンピング（指数減衰で安定して素早く収束）。
+        // 水の外（frac==0）では 0 に戻すので、飛び出した瞬間も含めて全フレームで設定する。
+        float cubeVol = std::max(cs.x * cs.y * cs.z, 1e-4f);
+        float frac = std::min(rawV / cubeVol, 1.0f);
+        dyn->setLinearDamping (LIQUID_LINEAR_DAMPING  * frac);
+        dyn->setAngularDamping(LIQUID_ANGULAR_DAMPING * frac);
+
+        if (weightedV <= 0.0f) continue;
+
+        // 浮力（重力の反対方向） F = -(Density*V) * gVec
+        dyn->addForce(physx::PxVec3(-gVec.x * weightedV, -gVec.y * weightedV, -gVec.z * weightedV),
+                      physx::PxForceMode::eFORCE);
+    }
+}
+
 void Physics::update(Workspace& workspace, float dt) {
     if (!workspace.PhysicsEnabled) return;
     setGravity(workspace.Gravity);
@@ -417,6 +471,8 @@ void Physics::update(Workspace& workspace, float dt) {
     if (dt > 0.25f) dt = 0.25f;
 
     m_accumulator += dt;
+
+    applyBuoyancy();  // 浮力を addForce（次の simulate で消費される）
 
     int steps = 0;
     while (m_accumulator >= fixedStep) {

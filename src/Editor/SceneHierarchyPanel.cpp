@@ -11,6 +11,7 @@
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/MeshCube.hpp>
+#include <Instances/LiquidCube.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Decal.hpp>
@@ -184,7 +185,7 @@ static const char* getClassIcon(const std::string& cn) {
     if (cn == "Decal" || cn == "Texture" ||
         cn == "ImageLabel" || cn == "ImageButton")                           return ICON_DECAL;
     if (cn == "Sphere")                                                      return ICON_SPHERE;
-    if (cn == "Cube"   || cn == "Cylinder" ||
+    if (cn == "Cube"   || cn == "Cylinder" || cn == "LiquidCube" ||
         cn == "TriangularPrism" || cn == "MeshCube")                        return ICON_CUBE;
     if (cn == "TextLabel"  || cn == "TextButton" || cn == "GuiButton" ||
         cn == "ScreenGui"  || cn == "SurfaceGui" || cn == "BillboardGui" ||
@@ -415,6 +416,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<TriangularPrism>(m_history, "TriangularPrism", parentSp, spawnPos, Vector3(1, 1, 1));
         tryInsertInstance<Sphere>(m_history, "Sphere", parentSp, spawnPos, Vector3(1, 1, 1));
         tryInsertInstance<MeshCube>(m_history, "MeshCube", parentSp, spawnPos, Vector3(1, 1, 1));
+        tryInsertInstance<LiquidCube>(m_history, "LiquidCube", parentSp, spawnPos, Vector3(4, 2, 4));
 
         ImGui::EndMenu();
     }
