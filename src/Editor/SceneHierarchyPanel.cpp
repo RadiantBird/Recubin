@@ -1,4 +1,5 @@
 #include <Editor/SceneHierarchyPanel.hpp>
+#include "include/Editor/IconsDef.hpp"
 #include <Editor/SpawnUtil.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Editor/PropertiesPanel.hpp>  // PickerState の定義
@@ -164,6 +165,30 @@ void SceneHierarchyPanel::onRender() {
     ImGui::End();
 }
 
+static const char* getClassIcon(const std::string& cn) {
+    if (cn == "Workspace")                                                   return ICON_WORKSPACE;
+    if (cn == "Terrain")                                                     return ICON_TERRAIN;
+    if (cn == "Lighting")                                                    return ICON_LIGHT;
+    if (cn == "Skybox")                                                      return ICON_SKYBOX;
+    if (cn == "Model")                                                       return ICON_MODEL;
+    if (cn == "Folder")                                                      return ICON_FOLDER;
+    if (cn == "Tool")                                                        return ICON_TOOL;
+    if (cn == "Script")                                                      return ICON_SCRIPT;
+    if (cn == "Sound")                                                       return ICON_SOUND;
+    if (cn == "Humanoid")                                                    return ICON_HUMANOID;
+    if (cn == "User")                                                        return ICON_USER;
+    if (cn == "Decal" || cn == "Texture")                                   return ICON_DECAL;
+    if (cn == "Sphere")                                                      return ICON_SPHERE;
+    if (cn == "Cube"   || cn == "Cylinder" ||
+        cn == "TriangularPrism" || cn == "MeshCube")                        return ICON_CUBE;
+    if (cn == "TextLabel"  || cn == "TextButton" || cn == "GuiButton" ||
+        cn == "ScreenGui"  || cn == "SurfaceGui" || cn == "BillboardGui" ||
+        cn == "WorldGuiObject")                                              return ICON_GUI;
+    if (cn == "Rope" || cn == "Rod" || cn == "Weld" || cn == "Motor")      return ICON_CONSTRAINT;
+    if (cn == "System") return ICON_SYSTEM;
+    return ICON_INSTANCE;
+}
+
 void SceneHierarchyPanel::drawNode(Instance* inst) {
     if (!inst) return;
 
@@ -182,8 +207,9 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
         flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
     }
 
-    bool open = ImGui::TreeNodeEx(inst, flags, "%s  [%s]",
-                                  inst->Name.c_str(), inst->getClassName().c_str());
+    bool open = ImGui::TreeNodeEx(inst, flags, "%s %s",
+                                  getClassIcon(inst->getClassName()),
+                                  inst->Name.c_str());
     if (ImGui::IsItemClicked()) {
         // ---- ピッカーモード: Pick 中はクリックを Cube 参照指定に横取り（選択は変更しない） ----
         if (m_picker && m_picker->active) {

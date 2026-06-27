@@ -57,6 +57,7 @@ class Renderer {
 
         int          lightDirLoc    = -1;
         int          brightnessLoc  = -1;
+        int          lightColorLoc  = -1;
 
         unsigned int shadowFBO     = 0;
         unsigned int shadowMapTex  = 0;

@@ -19,6 +19,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_WINDOWS_UTF8
 #include "include/stb_image.h"
+#include "include/Editor/IconsDef.hpp"
 
 // ===================================================
 //  ユーティリティ
@@ -70,6 +71,13 @@ void Renderer::init(GLFWwindow* window) {
     if (std::filesystem::exists("assets/fonts/DotGothic16-Regular.ttf")) {
         io.Fonts->AddFontFromFileTTF("assets/fonts/DotGothic16-Regular.ttf", 22.0f, nullptr,
                                       io.Fonts->GetGlyphRangesJapanese());
+    }
+    if (std::filesystem::exists("assets/fonts/fa-solid-900.ttf")) {
+        ImFontConfig cfg;
+        cfg.MergeMode  = true;
+        cfg.PixelSnapH = true;
+        static const ImWchar iconRanges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+        io.Fonts->AddFontFromFileTTF("assets/fonts/fa-solid-900.ttf", 18.0f, &cfg, iconRanges);
     }
 
     ImGuiStyle& style = ImGui::GetStyle();
@@ -168,7 +176,7 @@ void Renderer::init(GLFWwindow* window) {
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-    int lightColorLoc = glGetUniformLocation(shaderProgram, "lightColor");
+    lightColorLoc = glGetUniformLocation(shaderProgram, "lightColor");
     glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
     lightDirLoc   = glGetUniformLocation(shaderProgram, "lightDir");
     brightnessLoc = glGetUniformLocation(shaderProgram, "brightness");
@@ -721,6 +729,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     if (lighting) {
         if (lightDirLoc   != -1) glUniform3f(lightDirLoc,   lighting->lightDir.x,  lighting->lightDir.y,  lighting->lightDir.z);
         if (brightnessLoc != -1) glUniform1f(brightnessLoc, lighting->brightness);
+        if (lightColorLoc != -1) glUniform3f(lightColorLoc, lighting->lightColor.r, lighting->lightColor.g, lighting->lightColor.b);
+    } else {
+        if (lightDirLoc   != -1) glUniform3f(lightDirLoc,   1.0f, -1.0f, -1.0f);
+        if (brightnessLoc != -1) glUniform1f(brightnessLoc, 1.0f);
+        if (lightColorLoc != -1) glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
     }
     
     glActiveTexture(GL_TEXTURE1);

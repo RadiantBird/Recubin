@@ -29,13 +29,13 @@ public:
     std::shared_ptr<RCBNScriptSignal> Died; // Health<=0 で1度だけ発火
 
     // 兄弟パーツへの参照（resolveParts()で解決する）
-    std::shared_ptr<Cube>   Root;
-    std::shared_ptr<Cube>   Torso;
-    std::shared_ptr<Sphere> Head;
-    std::shared_ptr<Cube>   LeftArm;
-    std::shared_ptr<Cube>   RightArm;
-    std::shared_ptr<Cube>   LeftLeg;
-    std::shared_ptr<Cube>   RightLeg;
+    std::shared_ptr<BaseCube>   Root;
+    std::shared_ptr<BaseCube>   Torso;
+    std::shared_ptr<BaseCube> Head;
+    std::shared_ptr<BaseCube>   LeftArm;
+    std::shared_ptr<BaseCube>   RightArm;
+    std::shared_ptr<BaseCube>   LeftLeg;
+    std::shared_ptr<BaseCube>   RightLeg;
 
     Humanoid();
 

@@ -7,6 +7,7 @@ static const bool s_lightingRegistered = []{
     registerClass("Lighting", {
         field<&Lighting::lightDir>  ("Direction",  -1.0f, 1.0f, 0.01f),
         field<&Lighting::brightness>("Brightness",  0.0f, 5.0f, 0.01f),
+        field<&Lighting::lightColor>("Color"),
     });
     return true;
 }();

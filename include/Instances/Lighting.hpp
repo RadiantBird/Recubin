@@ -1,12 +1,14 @@
 #pragma once
 #include <include/Instances/Instance.hpp>
 #include <include/Math/Vector3.hpp>
+#include <include/Util/Color4.hpp>
 #include <string>
 
 class Lighting : public Instance {
 public:
     Vector3      lightDir   = Vector3(1.0f, -1.0f, -1.0f);
     float        brightness = 1.0f;
+    Color4       lightColor = Color4(1.0f, 1.0f, 1.0f, 1.0f);
 
     Lighting();
     virtual ~Lighting() = default;

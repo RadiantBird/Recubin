@@ -108,13 +108,13 @@ void Humanoid::resolveParts(Instance* characterModel) {
         return (it != kids.end()) ? it->second : nullptr;
     };
 
-    Root      = std::dynamic_pointer_cast<Cube>(find("Root"));
-    Torso     = std::dynamic_pointer_cast<Cube>(find("Torso"));
-    Head      = std::dynamic_pointer_cast<Sphere>(find("Head"));
-    LeftArm   = std::dynamic_pointer_cast<Cube>(find("LeftArm"));
-    RightArm  = std::dynamic_pointer_cast<Cube>(find("RightArm"));
-    LeftLeg   = std::dynamic_pointer_cast<Cube>(find("LeftLeg"));
-    RightLeg  = std::dynamic_pointer_cast<Cube>(find("RightLeg"));
+    Root      = std::dynamic_pointer_cast<BaseCube>(find("Root"));
+    Torso     = std::dynamic_pointer_cast<BaseCube>(find("Torso"));
+    Head      = std::dynamic_pointer_cast<BaseCube>(find("Head"));
+    LeftArm   = std::dynamic_pointer_cast<BaseCube>(find("LeftArm"));
+    RightArm  = std::dynamic_pointer_cast<BaseCube>(find("RightArm"));
+    LeftLeg   = std::dynamic_pointer_cast<BaseCube>(find("LeftLeg"));
+    RightLeg  = std::dynamic_pointer_cast<BaseCube>(find("RightLeg"));
 
     // RootはX/Z軸の回転をロックし、転倒しないようにする（Y軸回転=向き変えのみ許可）。
     // ユーザーがStarterCharacter内に独自のCubeを"Root"として置いた場合も同じ挙動にするため、

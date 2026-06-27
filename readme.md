@@ -78,6 +78,7 @@ Windowsで動作します。後々、Mac対応予定。
 - PhysX
 - Windows bat
 - Python
+- font-awesome
 
 ## 使用予定の技術
 - DirectX(Windows最適化)

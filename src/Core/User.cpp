@@ -207,7 +207,7 @@ void User::processMovement(bool viewportFocused, Physics* physics) {
 }
 
 static void attachToolHandle(
-    const std::shared_ptr<Cube>& arm,
+    const std::shared_ptr<BaseCube>& arm,
     const std::shared_ptr<Tool>& tool,
     const Quaternion& rootRotation
 ) {
