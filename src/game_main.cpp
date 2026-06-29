@@ -22,6 +22,7 @@
 #include <yaml-cpp/yaml.h>
 #include "include/stb_image.h"
 
+#include <algorithm>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -108,25 +109,50 @@ int main() {
         return -1;
     }
 
-    // ---- シングルトン構築 ----
-    auto workspace = std::make_shared<Workspace>();
-    auto lighting  = std::make_shared<Lighting>();
-    lighting->Name = "Lighting";
-    system->addChild(workspace);
-    workspace->addChild(lighting);
-    workspace->initPhysics();
-
-    SceneLoader::registerSingleton("System",    system);
-    SceneLoader::registerSingleton("Workspace", workspace);
+    // ---- シーンのロード（Workspaceはシングルトン登録しない = 複数ワークスペース対応） ----
+    SceneLoader::registerSingleton("System", system);
     SceneLoader::loadScene(cfg.startScene);
     SceneLoader::clearSingletons();
+
+    // System直下のWorkspaceを収集するローカルヘルパ
+    auto collectWorkspaces = [](const std::shared_ptr<System>& sys) {
+        std::vector<std::shared_ptr<Workspace>> result;
+        for (auto& [name, child] : sys->children) {
+            if (child && child->IsA("Workspace"))
+                result.push_back(std::static_pointer_cast<Workspace>(child));
+        }
+        return result;
+    };
+    std::vector<std::shared_ptr<Workspace>> workspaces = collectWorkspaces(system);
+
+    // シーンにWorkspaceが無ければデフォルト生成
+    if (workspaces.empty()) {
+        auto ws = std::make_shared<Workspace>();
+        auto li = std::make_shared<Lighting>();
+        li->Name = "Lighting";
+        system->addChild(ws);
+        ws->addChild(li);
+        workspaces = collectWorkspaces(system);
+    }
+    std::shared_ptr<Workspace> workspace = workspaces.front();
+
+    // 全Workspaceの物理初期化
+    for (auto& ws : workspaces) {
+        if (!ws->getPhysicsEngine()) ws->initPhysics();
+    }
 
     // 古い形式のYAML対応: System直下のLightingを見つけたら、WorkspaceのLightingにプロパティを移して削除
     for (auto it = system->children.begin(); it != system->children.end(); ) {
         if (it->second->IsA("Lighting")) {
             auto oldLighting = std::static_pointer_cast<Lighting>(it->second);
-            lighting->lightDir = oldLighting->lightDir;
-            lighting->brightness = oldLighting->brightness;
+            for (auto& [n, child] : workspace->children) {
+                if (child->IsA("Lighting")) {
+                    auto wsLighting = std::static_pointer_cast<Lighting>(child);
+                    wsLighting->lightDir   = oldLighting->lightDir;
+                    wsLighting->brightness = oldLighting->brightness;
+                    break;
+                }
+            }
             it = system->children.erase(it);
             break;
         } else {
@@ -180,6 +206,31 @@ int main() {
                             ImGui::GetIO().WantTextInput);
         if (user->consumeExitRequest()) break;
 
+        // ---- Pキー: Workspace切り替え ----
+        if (user->consumeWorkspaceSwitchRequest()) {
+            workspaces = collectWorkspaces(system);
+            std::vector<Workspace*> ptrs;
+            for (auto& ws : workspaces) ptrs.push_back(ws.get());
+            if (ptrs.size() > 1) {
+                auto it = std::find(ptrs.begin(), ptrs.end(), workspace.get());
+                Workspace* next = (it != ptrs.end() && std::next(it) != ptrs.end())
+                    ? *std::next(it) : ptrs.front();
+                if (next != workspace.get()) {
+                    if (user->character) {
+                        Vector3 worldPos = user->character->getWorldPosition();
+                        auto charSp = std::static_pointer_cast<Instance>(user->character);
+                        workspace->removeChild(user->character->Name);
+                        next->addChild(charSp);
+                        user->character->Position = worldPos;
+                    }
+                    workspace = std::static_pointer_cast<Workspace>(next->shared_from_this());
+                    if (!workspace->getPhysicsEngine()) workspace->initPhysics();
+                    luauEngine->setGlobalInstance("workspace", workspace);
+                    luauEngine->setWorkspace(workspace);
+                }
+            }
+        }
+
         // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、
         // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす
         if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->syncWeldKinematics();
@@ -191,10 +242,14 @@ int main() {
     }
 
     // ---- クリーンアップ ----
-    if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->clearCubes();
-    workspace->setPhysicsEngine(nullptr);
-    system->removeChild(workspace->Name);
+    for (auto& ws : workspaces) {
+        if (ws && ws->getPhysicsEngine()) {
+            ws->getPhysicsEngine()->clearCubes();
+            ws->setPhysicsEngine(nullptr);
+        }
+    }
     workspace.reset();
+    workspaces.clear();
     system.reset();
 
     glfwTerminate();

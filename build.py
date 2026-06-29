@@ -60,6 +60,15 @@ def build(config: str) -> int:
         return result
 
     copy_dlls(config)
+
+    # ランチャーも自動ビルド（失敗してもメインビルドは成功扱い）
+    try:
+        launcher_result = build_launcher(config)
+        if launcher_result != 0:
+            print("[WARNING] launcher.exe build failed — packaging will skip it.")
+    except FileNotFoundError:
+        print("[WARNING] cl.exe not found - skipping launcher build. Run from Developer Command Prompt to build it.")
+
     print("[SUCCESS] Build process completed.")
     return 0
 

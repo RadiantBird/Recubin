@@ -1,5 +1,5 @@
 -- FallingSafe
-local user = system.User
+-- local user = system.User
 local char = workspace:WaitChild("PlayerCharacter")
 local root = char:FindChild("Root")
 
