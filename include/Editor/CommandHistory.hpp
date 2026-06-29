@@ -407,6 +407,28 @@ private:
         if (!m_target) return;
         if (m_prop == "AutoPlay")  m_target->autoPlay = v;
         else if (m_prop == "Looped") m_target->setLooping(v);
+        else if (m_prop == "PreservePitch") m_target->setPreservePitch(v);
+    }
+};
+
+// --- Sound float プロパティ変更 ---
+struct SetSoundFloatCommand : Command {
+    std::shared_ptr<Sound> m_target;
+    std::string m_prop;
+    float m_before, m_after;
+
+    SetSoundFloatCommand(std::shared_ptr<Sound> target, std::string prop, float before, float after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(float v) {
+        if (!m_target) return;
+        if (m_prop == "Volume")     m_target->setVolume(v);
+        else if (m_prop == "Speed") m_target->setSpeed(v);
     }
 };
 

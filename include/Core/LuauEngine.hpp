@@ -94,6 +94,8 @@ private:
     // Sound methods
     static int sound_play_closure(lua_State* L);
     static int sound_stop_closure(lua_State* L);
+    static int sound_reset_closure(lua_State* L);
+    static int sound_seek_closure(lua_State* L);
 
     // Humanoid methods（アニメーション再生）
     static int humanoid_play_animation_closure(lua_State* L);

@@ -905,6 +905,23 @@ int LuauEngine::sound_stop_closure(lua_State* L) {
     return 0;
 }
 
+int LuauEngine::sound_reset_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto obj = ud->lock();
+    if (obj) static_cast<Sound*>(obj.get())->reset();
+    return 0;
+}
+
+int LuauEngine::sound_seek_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto obj = ud->lock();
+    if (!obj) return 0;
+    // L[1] = self, L[2] = シーク秒
+    float sec = static_cast<float>(luaL_checknumber(L, 2));
+    static_cast<Sound*>(obj.get())->seekSeconds(sec);
+    return 0;
+}
+
 int LuauEngine::humanoid_play_animation_closure(lua_State* L) {
     auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
     auto self = ud->lock();

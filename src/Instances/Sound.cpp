@@ -27,8 +27,40 @@ void Sound::setVolume(float v) { m_volume = v; if (loaded) ma_sound_set_volume(&
 float Sound::getVolume() const { return m_volume; }
 void Sound::setLooping(bool loop) {
     this->looping = loop;
-    if (loaded) ma_sound_set_looping(&sound, loop); 
+    if (loaded) ma_sound_set_looping(&sound, loop);
 }
+
+void Sound::reset() {
+    if (loaded) ma_sound_seek_to_pcm_frame(&sound, 0);
+}
+void Sound::seekSeconds(float sec) {
+    if (!loaded) return;
+    if (sec < 0.0f) sec = 0.0f;
+    float len = getLength();
+    if (len > 0.0f && sec > len) sec = len;
+    ma_sound_seek_to_second(&sound, sec);
+}
+float Sound::getPlaybackTime() const {
+    if (!loaded) return 0.0f;
+    float cur = 0.0f;
+    if (ma_sound_get_cursor_in_seconds(const_cast<ma_sound*>(&sound), &cur) != MA_SUCCESS) return 0.0f;
+    return cur;
+}
+float Sound::getLength() const {
+    if (!loaded) return 0.0f;
+    float len = 0.0f;
+    if (ma_sound_get_length_in_seconds(const_cast<ma_sound*>(&sound), &len) != MA_SUCCESS) return 0.0f;
+    return len;
+}
+void Sound::setSpeed(float s) {
+    m_speed = s;
+    // TODO: PreservePitch=ON 時のタイムストレッチは未対応（miniaudio制約）。
+    //       当面は ON/OFF とも速度とピッチが連動する。
+    if (loaded) ma_sound_set_pitch(&sound, s);
+}
+float Sound::getSpeed() const { return m_speed; }
+void Sound::setPreservePitch(bool b) { m_preservePitch = b; }
+bool Sound::getPreservePitch() const { return m_preservePitch; }
 
 void Sound::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "ContentPath") {
@@ -67,6 +99,12 @@ void Sound::setProperty(const std::string& name, const YAML::Node& value) {
         }
     } else if (name == "AutoPlay") {
         autoPlay = value.as<bool>();
+    } else if (name == "Volume") {
+        setVolume(value.as<float>());
+    } else if (name == "Speed") {
+        setSpeed(value.as<float>());
+    } else if (name == "PreservePitch") {
+        setPreservePitch(value.as<bool>());
     } else if (name == "Playing") {
         if (value.as<bool>()) {
             play();

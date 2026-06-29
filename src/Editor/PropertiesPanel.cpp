@@ -578,9 +578,56 @@ void PropertiesPanel::onRender() {
             }
         }
 
+        // Volume with undo（編集開始時の値を記録し、確定時にコマンド化）
+        {
+            static float volBefore = 0.0f;
+            float vol = snd->getVolume();
+            ImGui::SliderFloat("Volume", &vol, 0.0f, 1.0f);
+            if (ImGui::IsItemActivated()) volBefore = snd->getVolume();
+            snd->setVolume(vol);
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history && vol != volBefore)
+                m_history->record(std::make_unique<SetSoundFloatCommand>(sndSp, "Volume", volBefore, vol));
+        }
+
+        // Speed with undo
+        {
+            static float spdBefore = 1.0f;
+            float spd = snd->getSpeed();
+            ImGui::SliderFloat("Speed", &spd, 0.25f, 4.0f);
+            if (ImGui::IsItemActivated()) spdBefore = snd->getSpeed();
+            snd->setSpeed(spd);
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history && spd != spdBefore)
+                m_history->record(std::make_unique<SetSoundFloatCommand>(sndSp, "Speed", spdBefore, spd));
+        }
+
+        // PreservePitch with undo
+        {
+            bool pp = snd->getPreservePitch();
+            bool prev = pp;
+            if (ImGui::Checkbox("PreservePitch", &pp)) {
+                snd->setPreservePitch(pp);
+                if (m_history)
+                    m_history->record(std::make_unique<SetSoundBoolCommand>(sndSp, "PreservePitch", prev, pp));
+            }
+        }
+
+        // 再生時間スクラバ（ライブ値のため Undo 対象外）
+        {
+            float len = snd->getLength();
+            if (len > 0.0f) {
+                float cur = snd->getPlaybackTime();
+                if (ImGui::SliderFloat("Time", &cur, 0.0f, len, "%.2f s"))
+                    snd->seekSeconds(cur);
+                ImGui::Text("%d:%02d / %d:%02d",
+                    (int)cur / 60, (int)cur % 60, (int)len / 60, (int)len % 60);
+            }
+        }
+
         if (ImGui::Button("Play"))  snd->play();
         ImGui::SameLine();
         if (ImGui::Button("Stop"))  snd->stop();
+        ImGui::SameLine();
+        if (ImGui::Button("Reset")) snd->reset();
     }
 
     // ---- Script ----

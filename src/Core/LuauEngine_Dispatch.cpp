@@ -386,11 +386,17 @@ void LuauEngine::InitDispatchTable_Physics() {
 // ==================== Getter: Sound, Humanoid, AppImage, Script ====================
 void LuauEngine::InitDispatchTable_Misc() {
     // Sound — properties backed by getter methods
-    DispatchTable["Sound"]["IsPlaying"] = getter_method_bool  <Sound, &Sound::isPlaying>();
-    DispatchTable["Sound"]["Looped"]    = getter_method_bool  <Sound, &Sound::isLooping>();
-    DispatchTable["Sound"]["Volume"]    = getter_method_number<Sound, &Sound::getVolume>();
-    DispatchTable["Sound"]["Play"]      = getter_closure(sound_play_closure, "Play");
-    DispatchTable["Sound"]["Stop"]      = getter_closure(sound_stop_closure, "Stop");
+    DispatchTable["Sound"]["IsPlaying"]     = getter_method_bool  <Sound, &Sound::isPlaying>();
+    DispatchTable["Sound"]["Looped"]        = getter_method_bool  <Sound, &Sound::isLooping>();
+    DispatchTable["Sound"]["Volume"]        = getter_method_number<Sound, &Sound::getVolume>();
+    DispatchTable["Sound"]["Speed"]         = getter_method_number<Sound, &Sound::getSpeed>();
+    DispatchTable["Sound"]["PreservePitch"] = getter_method_bool  <Sound, &Sound::getPreservePitch>();
+    DispatchTable["Sound"]["TimePosition"]  = getter_method_number<Sound, &Sound::getPlaybackTime>();
+    DispatchTable["Sound"]["Length"]        = getter_method_number<Sound, &Sound::getLength>();
+    DispatchTable["Sound"]["Play"]          = getter_closure(sound_play_closure,  "Play");
+    DispatchTable["Sound"]["Stop"]          = getter_closure(sound_stop_closure,  "Stop");
+    DispatchTable["Sound"]["Reset"]         = getter_closure(sound_reset_closure, "Reset");
+    DispatchTable["Sound"]["Seek"]          = getter_closure(sound_seek_closure,  "Seek");
 
     // Humanoid — フィールド/シグナルの getter/setter は PropertyRegistry の表から流し込む
     // （WalkSpeed/JumpPower/MaxHealth/RespawnTime/Health/Died）。下記メソッド系のみ手書き。
@@ -514,8 +520,11 @@ void LuauEngine::InitSetterTable_Physics() {
 
 // ==================== Setter: Sound, Humanoid, AppImage, Script ====================
 void LuauEngine::InitSetterTable_Misc() {
-    SetterTable["Sound"]["Looped"] = setter_method_bool <Sound, &Sound::setLooping>();
-    SetterTable["Sound"]["Volume"] = setter_method_float<Sound, &Sound::setVolume>();
+    SetterTable["Sound"]["Looped"]        = setter_method_bool <Sound, &Sound::setLooping>();
+    SetterTable["Sound"]["Volume"]        = setter_method_float<Sound, &Sound::setVolume>();
+    SetterTable["Sound"]["Speed"]         = setter_method_float<Sound, &Sound::setSpeed>();
+    SetterTable["Sound"]["PreservePitch"] = setter_method_bool <Sound, &Sound::setPreservePitch>();
+    SetterTable["Sound"]["TimePosition"]  = setter_method_float<Sound, &Sound::seekSeconds>();
 
     // Humanoid のフィールド setter は PropertyRegistry::applyToDispatch（InitDispatchTable_Misc）で登録済み
 

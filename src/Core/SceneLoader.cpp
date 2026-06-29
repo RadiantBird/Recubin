@@ -462,10 +462,13 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         }
         if (inst->getClassName() == "Sound") {
             const Sound* snd = static_cast<const Sound*>(inst);
-            out << YAML::Key << "ContentPath" << YAML::Value << snd->getContentPath();
-            out << YAML::Key << "Looped"      << YAML::Value << snd->isLooping();
-            out << YAML::Key << "SoundGroup"  << YAML::Value << snd->getSoundGroup();
-            out << YAML::Key << "AutoPlay"    << YAML::Value << snd->getAutoPlay();
+            out << YAML::Key << "ContentPath"   << YAML::Value << snd->getContentPath();
+            out << YAML::Key << "Looped"        << YAML::Value << snd->isLooping();
+            out << YAML::Key << "SoundGroup"    << YAML::Value << snd->getSoundGroup();
+            out << YAML::Key << "AutoPlay"      << YAML::Value << snd->getAutoPlay();
+            out << YAML::Key << "Volume"        << YAML::Value << snd->getVolume();
+            out << YAML::Key << "Speed"         << YAML::Value << snd->getSpeed();
+            out << YAML::Key << "PreservePitch" << YAML::Value << snd->getPreservePitch();
         }
         if (inst->IsA("Rope")) {
             const Rope* r = static_cast<const Rope*>(inst);
