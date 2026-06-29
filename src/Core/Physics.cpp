@@ -530,6 +530,10 @@ void Physics::update(Workspace& workspace, float dt) {
     for (auto& inst : workspace.pendingInstances) {
         if (inst->IsA("BaseCube")) {
             auto cube = std::static_pointer_cast<BaseCube>(inst);
+            // 削除済み/別Workspaceへ移動済みのキューブはアクターを作らない。
+            // pendingInstances には残留しうる(removeCubeはここを掃除しない)ため、
+            // ここで弾かないと死んだキューブにアクターが生成され二重releaseでクラッシュする。
+            if (cube->findFirstAncestorWorkspace() != static_cast<Instance*>(&workspace)) continue;
             createActor(cube);
             cubes.push_back({ std::weak_ptr<BaseCube>(cube), cube->actor });
         }
