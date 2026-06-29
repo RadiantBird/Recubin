@@ -217,6 +217,10 @@ int main() {
                     ? *std::next(it) : ptrs.front();
                 if (next != workspace.get()) {
                     if (user->character) {
+                        // 旧Workspaceで Weld を一旦同期し、アンカー(Head)と非アンカー(帽子等)の
+                        // ワールド姿勢を同一瞬間で揃えてから移す。これをしないと移動先の rebuildGroup が
+                        // 1フレームずれた姿勢からオフセットを再計算し、Weldメンバーが毎スイッチ離れていく。
+                        if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->syncWeldKinematics();
                         Vector3 worldPos = user->character->getWorldPosition();
                         auto charSp = std::static_pointer_cast<Instance>(user->character);
                         workspace->removeChild(user->character->Name);
