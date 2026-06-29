@@ -82,6 +82,9 @@ public:
     Vector3 getRootWorldPosition() const;
     Vector3 getHeadWorldPosition() const;
 
+    // ボディパーツを Root の相対位置へ配置する（Free モードの追従でも使用）
+    void applyBodyAnimation(bool leftArmRaised, bool rightArmRaised);
+
 private:
     struct Pose {
         float leftArm;
@@ -109,5 +112,4 @@ private:
     Color4 savedRightLegColor;
 
     Pose computePose(bool leftArmRaised, bool rightArmRaised) const;
-    void applyBodyAnimation(bool leftArmRaised, bool rightArmRaised);
 };

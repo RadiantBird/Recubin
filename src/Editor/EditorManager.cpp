@@ -230,26 +230,29 @@ void EditorManager::handleEditorShortcuts() {
             cleanupOrphanedSelection();
         }
 
-        // BackSpace: 選択インスタンス削除
+        // BackSpace: 選択インスタンスをすべて削除（複数選択対応・1 Undo 単位）
         if (ImGui::IsKeyPressed(ImGuiKey_Backspace) && !GetFocusedViewport()) {
-            Instance* sel = hierarchyPanel->selectedInstance;
-            if (sel) {
-                auto parent = sel->Parent.lock();
-                if (parent) {
-                    auto it = parent->children.find(sel->Name);
-                    if (it != parent->children.end()) {
-                        auto childPtr = it->second;
-                        m_history.execute(std::make_unique<RemoveInstanceCommand>(
-                            parent, sel->Name, childPtr));
-                        auto& si = hierarchyPanel->selectedInstances;
-                        si.erase(std::remove(si.begin(), si.end(), sel), si.end());
-                        hierarchyPanel->selectedInstance = si.empty() ? nullptr : si.back();
-                        m_isDirty = true;
-                    } else {
-                        hierarchyPanel->selectedInstance = nullptr;
-                        hierarchyPanel->selectedInstances.clear();
-                    }
-                }
+            auto& si = hierarchyPanel->selectedInstances;
+            // 祖先が選択集合に含まれる子孫は除外（親を消すと子も消えるため二重削除を防ぐ）
+            auto ancestorSelected = [&si](Instance* x) {
+                for (auto p = x->Parent.lock(); p; p = p->Parent.lock())
+                    if (std::find(si.begin(), si.end(), p.get()) != si.end()) return true;
+                return false;
+            };
+            auto group = std::make_unique<CompositeCommand>();
+            for (Instance* target : si) {
+                if (!target || ancestorSelected(target)) continue;
+                auto parent = target->Parent.lock();
+                if (!parent) continue;
+                auto it = parent->children.find(target->Name);
+                if (it == parent->children.end()) continue;
+                group->add(std::make_unique<RemoveInstanceCommand>(parent, target->Name, it->second));
+            }
+            if (!group->empty()) {
+                m_history.execute(std::move(group));
+                si.clear();
+                hierarchyPanel->selectedInstance = nullptr;
+                m_isDirty = true;
             }
         }
 

@@ -29,6 +29,8 @@
 #include <Instances/Folder.hpp>
 #include <Instances/Tool.hpp>
 #include <Instances/AppImage.hpp>
+#include <Instances/Sun.hpp>
+#include <Instances/Moon.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/Animation.hpp>
 #include <Instances/StarterCharacter.hpp>
@@ -455,6 +457,34 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<SpotLight>(m_history, "SpotLight", parentSp);
         tryInsertInstance<Terrain>(m_history, "Terrain", parentSp);
         tryInsertInstance<Skybox>(m_history, "Skybox", parentSp);
+
+        // Sun / Moon は追加した瞬間にカメラ基準の空座標を計算する
+        // （Renderer のフォーカス時追従に頼ると、追加直後は原点に出てバグに見えるため）
+        if (ImGui::MenuItem("Sun") && m_history) {
+            auto obj = std::make_shared<Sun>();
+            obj->Name = uniqueName(parentSp, "Sun");
+            if (m_user) {
+                float rad = obj->Angle * (3.14159265f / 180.0f);
+                Vector3 dir(0.0f, std::sin(rad), std::cos(rad));
+                obj->cframe.Position = m_user->cpos + dir * 1000.0f;
+            }
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
+        if (ImGui::MenuItem("Moon") && m_history) {
+            auto obj = std::make_shared<Moon>();
+            obj->Name = uniqueName(parentSp, "Moon");
+            if (m_user) {
+                // 既存の Sun があればその反対側、無ければ既定角の反対側に置く
+                float angle = 45.0f;
+                for (auto const& [n, c] : parentSp->children) {
+                    if (c->IsA("Sun")) { angle = static_cast<Sun*>(c.get())->Angle; break; }
+                }
+                float rad = angle * (3.14159265f / 180.0f);
+                Vector3 dir(0.0f, std::sin(rad), std::cos(rad));
+                obj->cframe.Position = m_user->cpos - dir * 1000.0f;
+            }
+            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+        }
         tryInsertInstance<AppImage>(m_history, "AppImage", parentSp);
         tryInsertInstance<StarterCharacter>(m_history, "StarterCharacter", parentSp);
         tryInsertInstance<Humanoid>(m_history, "Humanoid", parentSp);
@@ -512,20 +542,32 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
 
     ImGui::Separator();
 
-    // --- Delete ---
+    // --- Delete ---（右クリック対象が複数選択に含まれていれば選択中すべてを削除）
     if (ImGui::MenuItem("Delete", "BackSpace") && m_history) {
-        auto parent = inst->Parent.lock();
-        if (parent) {
-            auto it = parent->children.find(inst->Name);
-            if (it != parent->children.end()) {
-                auto childPtr = it->second;
-                m_history->execute(std::make_unique<RemoveInstanceCommand>(parent, inst->Name, childPtr));
-                selectedInstances.erase(
-                    std::remove(selectedInstances.begin(), selectedInstances.end(), inst),
-                    selectedInstances.end());
-                if (selectedInstance == inst)
-                    selectedInstance = selectedInstances.empty() ? nullptr : selectedInstances.back();
-            }
+        bool inSelection = std::find(selectedInstances.begin(), selectedInstances.end(), inst)
+                           != selectedInstances.end();
+        std::vector<Instance*> targets =
+            (inSelection && selectedInstances.size() > 1) ? selectedInstances
+                                                          : std::vector<Instance*>{ inst };
+        // 祖先が削除集合に含まれる子孫は除外（二重削除防止）
+        auto ancestorInTargets = [&targets](Instance* x) {
+            for (auto p = x->Parent.lock(); p; p = p->Parent.lock())
+                if (std::find(targets.begin(), targets.end(), p.get()) != targets.end()) return true;
+            return false;
+        };
+        auto group = std::make_unique<CompositeCommand>();
+        for (Instance* target : targets) {
+            if (!target || ancestorInTargets(target)) continue;
+            auto parent = target->Parent.lock();
+            if (!parent) continue;
+            auto it = parent->children.find(target->Name);
+            if (it == parent->children.end()) continue;
+            group->add(std::make_unique<RemoveInstanceCommand>(parent, target->Name, it->second));
+        }
+        if (!group->empty()) {
+            m_history->execute(std::move(group));
+            selectedInstances.clear();
+            selectedInstance = nullptr;
         }
     }
 

@@ -201,6 +201,9 @@ void User::processMovement(bool viewportFocused, Physics* physics) {
         if (m_input->isKeyDown(KeyCode::D)) cpos = cpos + right   * speed;
         if (m_input->isKeyDown(KeyCode::Q)) cpos = cpos - up      * speed;
         if (m_input->isKeyDown(KeyCode::E)) cpos = cpos + up      * speed;
+        // Free モードでもボディパーツを Root に追従させる
+        // （Character モードでは humanoid->move() 内で呼ばれる）
+        if (humanoid) humanoid->applyBodyAnimation(false, false);
     } else if (controlMode == ControlMode::Character && character && humanoid) {
         processCharacterMovement(physics);
     }

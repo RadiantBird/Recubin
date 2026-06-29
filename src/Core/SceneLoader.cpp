@@ -23,6 +23,8 @@
 #include <Instances/Animation.hpp>
 #include <Instances/StarterCharacter.hpp>
 #include <Instances/Skybox.hpp>
+#include <Instances/Sun.hpp>
+#include <Instances/Moon.hpp>
 #include <include/Core/Terrain.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
@@ -205,6 +207,8 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "MeshCube")       return std::make_shared<MeshCube>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "LiquidCube")      return std::make_shared<LiquidCube>(Vector3(0,0,0), Vector3(4,2,4));
     if (className == "Skybox")         return std::make_shared<Skybox>();
+    if (className == "Sun")            return std::make_shared<Sun>();
+    if (className == "Moon")           return std::make_shared<Moon>();
     if (className == "Script")    return std::make_shared<Script>("");
     if (className == "Model")     return std::make_shared<Model>();
     if (className == "Decal")     return std::make_shared<Decal>(0, Face::Front);
@@ -355,6 +359,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         }
         if (inst->getClassName() == "LiquidCube") {
             PropertyRegistry::saveProperties(out, inst, "LiquidCube");  // Density
+        }
+        if (inst->getClassName() == "Sun") {
+            PropertyRegistry::saveProperties(out, inst, "Sun");  // Angle
         }
         if (inst->getClassName() == "Script") {
             const Script* sc = static_cast<const Script*>(inst);

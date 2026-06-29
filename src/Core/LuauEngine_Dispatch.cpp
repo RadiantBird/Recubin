@@ -342,6 +342,8 @@ void LuauEngine::InitDispatchTable_Base() {
     };
 
     PropertyRegistry::applyToDispatch("LiquidCube", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Sun",  DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Moon", DispatchTable, SetterTable);
 }
 
 // ==================== Getter: Workspace, Decal, Lighting, System, Event ====================

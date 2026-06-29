@@ -167,7 +167,7 @@ PropertiesPanel::PropertiesPanel()
 static void drawVec3Field(const char* id,
                           Vector3& val,
                           float speed, float minVal, float maxVal,
-                          std::shared_ptr<BaseCube> bc,
+                          std::shared_ptr<Spatial> sp,
                           const std::string& prop,
                           CommandHistory* history)
 {
@@ -191,12 +191,8 @@ static void drawVec3Field(const char* id,
             if (sscanf(buf, "%f , %f , %f", &x, &y, &z) == 3 ||
                 sscanf(buf, "%f,%f,%f",     &x, &y, &z) == 3) {
                 Vector3 newVal(x, y, z);
-                if (history && bc) {
-                    history->execute(std::make_unique<SetVec3Command>(bc, prop, val, newVal));
-                } else if (bc && prop == "Position") {
-                    bc->teleportTo(newVal);
-                } else if (bc && prop == "Size") {
-                    bc->setSize(newVal);
+                if (history && sp) {
+                    history->execute(std::make_unique<SetVec3Command>(sp, prop, val, newVal));
                 } else {
                     val = newVal;
                 }
@@ -214,12 +210,8 @@ static void drawVec3Field(const char* id,
                 std::clamp(std::round(val.x), minVal, maxVal),
                 std::clamp(std::round(val.y), minVal, maxVal),
                 std::clamp(std::round(val.z), minVal, maxVal));
-            if (history && bc) {
-                history->execute(std::make_unique<SetVec3Command>(bc, prop, val, newVal));
-            } else if (bc && prop == "Position") {
-                bc->teleportTo(newVal);
-            } else if (bc && prop == "Size") {
-                bc->setSize(newVal);
+            if (history && sp) {
+                history->execute(std::make_unique<SetVec3Command>(sp, prop, val, newVal));
             } else {
                 val = newVal;
             }
@@ -240,14 +232,18 @@ static void drawVec3Field(const char* id,
 
         if (changed) {
             Vector3 newVal(arr[0], arr[1], arr[2]);
-            if (bc && prop == "Position") bc->teleportTo(newVal);
-            else if (bc && prop == "Size") bc->setSize(newVal);
-            else val = newVal;
+            if (sp && sp->IsA("BaseCube")) {
+                BaseCube* bc = static_cast<BaseCube*>(sp.get());
+                if (prop == "Position") bc->teleportTo(newVal);
+                else if (prop == "Size") bc->setSize(newVal);
+            } else {
+                val = newVal;  // 非 BaseCube の Spatial（cframe.Position / Size を直接更新）
+            }
         }
 
-        if (ImGui::IsItemDeactivatedAfterEdit() && history && bc) {
+        if (ImGui::IsItemDeactivatedAfterEdit() && history && sp) {
             Vector3 after(arr[0], arr[1], arr[2]);
-            history->record(std::make_unique<SetVec3Command>(bc, prop, s_before[key], after));
+            history->record(std::make_unique<SetVec3Command>(sp, prop, s_before[key], after));
         }
 
         ImGui::PopID();
@@ -394,26 +390,24 @@ void PropertiesPanel::onRender() {
     // ---- Spatial (Position / Size) ----
     if (inst->IsA("Spatial")) {
         Spatial* s = static_cast<Spatial*>(inst);
-        std::shared_ptr<BaseCube> bcSp;
-        if (inst->IsA("BaseCube")) {
-            bcSp = std::static_pointer_cast<BaseCube>(inst->shared_from_this());
-        }
+        auto spSp = std::static_pointer_cast<Spatial>(inst->shared_from_this());
 
         ImGui::SeparatorText("Transform");
 
         ImGui::Text("Position");
         ImGui::SameLine(80.0f);
-        drawVec3Field("Position", s->Position, 0.05f, -1e9f, 1e9f, bcSp, "Position", m_history);
+        drawVec3Field("Position", s->Position, 0.05f, -1e9f, 1e9f, spSp, "Position", m_history);
 
         ImGui::Text("Size");
         ImGui::SameLine(80.0f);
-        drawVec3Field("Size", s->Size, 0.05f, 0.01f, 1000.0f, bcSp, "Size", m_history);
+        drawVec3Field("Size", s->Size, 0.05f, 0.01f, 1000.0f, spSp, "Size", m_history);
 
         // Rotation (Euler 角, 度数)
         ImGui::Text("Rotation");
         ImGui::SameLine(80.0f);
         {
-            static std::unordered_map<std::string, Vector3> s_rotBefore;
+            // before は実 Quaternion を保存（Euler 往復変換のロスを避ける）
+            static std::unordered_map<std::string, Quaternion> s_rotBefore;
             Vector3 euler = s->cframe.Rotation.toEuler();
             float rot[3] = { euler.x, euler.y, euler.z };
             float rotW = ImGui::GetContentRegionAvail().x;
@@ -421,11 +415,11 @@ void PropertiesPanel::onRender() {
             ImGui::SetNextItemWidth(rotW);
             ImGui::PushID("Rotation");
             bool rotChanged = ImGui::DragFloat3("##rot", rot, 1.0f, -360.0f, 360.0f, "%.1f");
-            if (ImGui::IsItemActivated()) s_rotBefore["rot"] = euler;
+            if (ImGui::IsItemActivated()) s_rotBefore["rot"] = s->cframe.Rotation;
             if (rotChanged) s->cframe.Rotation = Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2]));
             if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                Quaternion qBefore = Quaternion::fromEuler(s_rotBefore["rot"]);
-                Quaternion qAfter  = Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2]));
+                Quaternion qBefore = s_rotBefore["rot"];
+                Quaternion qAfter  = s->cframe.Rotation;  // 適用済みの実値
                 auto sSp = std::static_pointer_cast<Spatial>(inst->shared_from_this());
                 m_history->record(std::make_unique<SetRotationCommand>(sSp, qBefore, qAfter));
             }
@@ -544,6 +538,12 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "LiquidCube") {
         ImGui::SeparatorText("LiquidCube");
         renderSchemaInspector(inst, "LiquidCube", m_history);
+    }
+
+    // ---- Sun（Angle、スキーマ駆動） ----
+    if (inst->getClassName() == "Sun") {
+        ImGui::SeparatorText("Sun");
+        renderSchemaInspector(inst, "Sun", m_history);
     }
 
     // ---- Sound ----

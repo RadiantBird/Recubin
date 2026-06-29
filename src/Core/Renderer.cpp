@@ -6,6 +6,8 @@
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/Sphere.hpp>
+#include <Instances/Sun.hpp>
+#include <Instances/Moon.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/LightSource.hpp>
 #include <Instances/SpotLight.hpp>
@@ -639,6 +641,24 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     // Workspace 内から Lighting を取得
     Lighting* lighting = findLightingInTree(static_cast<Instance*>(desc.workspace));
+
+    // Sun・Moon の位置を毎フレーム Angle から再計算（フォーカス外でも Angle 変更を即反映するため）
+    {
+        Sun*  sunInst  = nullptr;
+        Moon* moonInst = nullptr;
+        for (auto const& [name, child] : desc.workspace->getChildren()) {
+            if (child->IsA("Sun"))       sunInst  = static_cast<Sun*>(child.get());
+            else if (child->IsA("Moon")) moonInst = static_cast<Moon*>(child.get());
+        }
+        if (sunInst) {
+            float rad = sunInst->Angle * (3.14159265f / 180.0f);
+            Vector3 sunDir(0.0f, std::sin(rad), std::cos(rad));
+            sunInst->teleportTo(desc.cameraPosition + sunDir * 1000.0f);
+            if (moonInst) {
+                moonInst->teleportTo(desc.cameraPosition - sunDir * 1000.0f);
+            }
+        }
+    }
 
     // Skybox の位置をカメラに同期 (フォーカス中のみ)
     if (desc.isFocused) {

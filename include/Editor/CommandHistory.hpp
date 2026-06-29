@@ -142,12 +142,14 @@ struct CompositeCommand : Command {
 };
 
 // --- Vector3プロパティ変更（Position / Size） ---
+// Spatial 全般を対象にする（Model 等の非 BaseCube も履歴に残す）。
+// BaseCube のときは物理同期付きの teleportTo/setSize、それ以外は cframe/Size を直接更新。
 struct SetVec3Command : Command {
-    std::shared_ptr<BaseCube> m_target;
+    std::shared_ptr<Spatial> m_target;
     std::string m_prop;
     Vector3 m_before, m_after;
 
-    SetVec3Command(std::shared_ptr<BaseCube> target,
+    SetVec3Command(std::shared_ptr<Spatial> target,
                    std::string prop,
                    Vector3 before, Vector3 after)
         : m_target(std::move(target)), m_prop(std::move(prop)),
@@ -159,8 +161,14 @@ struct SetVec3Command : Command {
 private:
     void apply(const Vector3& v) {
         if (!m_target) return;
-        if (m_prop == "Position") m_target->teleportTo(v);
-        else if (m_prop == "Size") m_target->setSize(v);
+        if (m_target->IsA("BaseCube")) {
+            BaseCube* bc = static_cast<BaseCube*>(m_target.get());
+            if (m_prop == "Position") bc->teleportTo(v);
+            else if (m_prop == "Size") bc->setSize(v);
+        } else {
+            if (m_prop == "Position") m_target->cframe.Position = v;
+            else if (m_prop == "Size") m_target->Size = v;
+        }
     }
 };
 
