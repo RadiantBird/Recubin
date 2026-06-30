@@ -163,5 +163,8 @@ void Sound::onAncestorChanged() {
     if (AudioService::instance && findFirstAncestorWorkspace()) {
         AudioService::instance->addSound(std::static_pointer_cast<Sound>(shared_from_this()));
     }
+    else {
+        stop(); // 削除されたのと同じなので、再生を停止する
+    }
     Spatial::onAncestorChanged();
-}
+}

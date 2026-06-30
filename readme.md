@@ -1,6 +1,6 @@
 # Recubin -Powering imagination again-
 [![C++](https://img.shields.io/badge/C%2B%2B-23-blue?logo=cplusplus)](https://isocpp.org/)
-[![Luau](https://img.shields.io/badge/Luau-Language-007ACC?logo=lua)](https://luau-lang.org/)
+[![Luau](https://img.shields.io/badge/Luau-Language-007ACC?logo=luau)](https://luau-lang.org/)
 [![OpenGL](https://img.shields.io/badge/OpenGL-4.1-E65226?logo=opengl)](https://www.opengl.org/)
 
 ![logo](Recubin.png)
@@ -18,9 +18,6 @@ Windowsで動作します。後々、Mac対応予定。
 
 ## Todoリスト
 (!: 中止|?: 不明|x: 達成済み)
-
-- [] サウンドを再生中にインスタンスを削除すると音がダングリングする問題の修正
-(音が再生中のまま放置される)
 
 - [] Mac対応を開始する
   - **Metalは今のところ使用しない**(難易度が高い)
