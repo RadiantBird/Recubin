@@ -1,4 +1,5 @@
 #include "include/Core/PropertyRegistry.hpp"
+#include <algorithm>
 
 namespace PropertyRegistry {
 
@@ -115,6 +116,13 @@ void registerClass(std::string_view className, std::string_view baseClassName,
     registry()[className] = ClassSchema{ baseClassName, std::move(props) };
 }
 
+std::vector<std::string_view> registeredClassNames() {
+    std::vector<std::string_view> out;
+    out.reserve(registry().size());
+    for (const auto& [name, schema] : registry()) out.push_back(name);
+    return out;
+}
+
 const std::vector<PropertyDesc>& schemaFor(std::string_view className) {
     static const std::vector<PropertyDesc> empty;
     auto it = registry().find(className);
@@ -176,6 +184,12 @@ void applyToDispatch(std::string_view className, GetterMap& getters, SetterMap& 
         if (d.set || d.luaSet) {
             setters[className][d.name] = [dp](lua_State* L, Instance* o) {
                 PropValue v = valueFromLua(L, 3, *dp);
+                if (dp->clampOnLuaWrite && dp->lo < dp->hi) {  // 不正値が困る数値をクランプ
+                    if (dp->type == PropType::Float)
+                        v = std::clamp(std::get<float>(v), dp->lo, dp->hi);
+                    else if (dp->type == PropType::Int)
+                        v = std::clamp(std::get<int>(v), static_cast<int>(dp->lo), static_cast<int>(dp->hi));
+                }
                 if (dp->luaSet) dp->luaSet(o, v);
                 else if (dp->set) dp->set(o, v);
                 return 0;

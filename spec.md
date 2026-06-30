@@ -58,3 +58,34 @@ PhysXに実装されているもののこと。
 ## スクリプト
 - スクリプトは自身の最初の先祖のworkspaceをグローバル変数として参照する
 - スクリプトのソースコードは**エンジンによってアプリ実行中に動的に変更されることはない**
+
+## Luau バインディング
+### プロパティ解決の優先順位
+- `instance.Key` のアクセスは、まずクラスのプロパティ（DispatchTable）を解決し、
+  **プロパティが見つからない場合のみ**同名の子インスタンスを返す（Roblox 互換のドットチェーン）。
+  → プロパティと同名の子がある場合、常にプロパティが優先される。
+- プロパティ表は最派生クラス名をキーにキャッシュされる。基底クラスと派生クラスで
+  **同名プロパティを定義しない**こと（衝突時の優先順位は未規定）。
+
+### 値型（Luau グローバル）
+- `Vector3.new(x,y,z)` / `Vector2.new(x,y)` / `Color4.new(r,g,b,a)`
+- `Quaternion.new(w,x,y,z)`（引数なしで単位回転）/ `Quaternion.fromEuler(Vector3)` /
+  `Quaternion.fromAxisAngle(axis, angleDeg)` / `Quaternion.Slerp(a,b,t)`。
+  フィールド `.w/.x/.y/.z`、`:toEuler()`。`q * q`（合成）、`q * Vector3`（回転）。
+- `CFrame.new()` / `(x,y,z)` / `(Vector3 pos)` / `(Vector3 pos, Quaternion rot)` /
+  `CFrame.fromAxisAngle(axis, angleDeg)`。フィールド `.Position`(Vector3)/`.Rotation`(Quaternion)、
+  `:inverse()`。`cf * cf`（合成）、`cf * Vector3`（ワールド点）。
+
+### Spatial 系トランスフォーム（BaseCube/Model/Sound 等）
+- `Position`(Vector3) / `Size`(Vector3) / `Rotation`(Quaternion) / `CFrame`(CFrame) を Read/Write。
+  読み取り専用の `WorldPosition`(Vector3) / `WorldCFrame`(CFrame)。
+- BaseCube 系では Write 時に PhysX 姿勢へ親チェーン合成込みで同期する。
+
+### Instance 共通
+- `Parent` は Read/Write（書込で reparent。`nil` 代入で親なし化）。
+- `instance:Clone()` … サブツリーを複製し（制約参照も張り替え）、**親なし**で返す。
+  返り値の `.Parent` を設定するまでツリーには入らない。
+
+### 数値プロパティのクランプ
+- 不正値が困る一部の数値（Humanoid.WalkSpeed/JumpPower/MaxHealth、各種ライトの
+  Brightness/Range/Angle 等）は Luau 書込時に定義レンジ `[lo, hi]` へクランプされる。

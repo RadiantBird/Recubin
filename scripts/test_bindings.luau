@@ -105,7 +105,7 @@ check("Gravity.y < 0 (default)", grav.y < 0)
 print("  Gravity: " .. tostring(grav))
 workspace.Gravity = Vector3.new(0, -20, 0)
 check("Gravity setter (y == -20)", workspace.Gravity.y == -20)
-workspace.Gravity = Vector3.new(0, -9.81, 0)
+workspace.Gravity = Vector3.new(0, -196.2, 0)
 
 -- ===== Motor (値の読み書きのみ、物理パラメータは変えない) =====
 print("--- Motor ---")
@@ -174,6 +174,74 @@ if dummy ~= nil then
     dummy:Destroy()
     local gone = workspace:FindChild("Dummy")
     check("Destroy: Dummy removed", gone == nil)
+end
+
+-- ===== Quaternion / CFrame 値型 =====
+print("--- Quaternion / CFrame ---")
+local qid = Quaternion.new()
+check("Quaternion.new() is identity (w==1)", qid.w == 1 and qid.x == 0)
+local qe = Quaternion.fromEuler(Vector3.new(0, 90, 0))
+check("Quaternion.fromEuler is not nil", qe ~= nil)
+check("Quaternion fields are numbers", type(qe.w) == "number" and type(qe.y) == "number")
+local euler = qe:toEuler()
+check("Quaternion:toEuler returns Vector3", type(euler.y) == "number")
+local qax = Quaternion.fromAxisAngle(Vector3.new(0, 1, 0), 90)
+check("Quaternion.fromAxisAngle is not nil", qax ~= nil)
+
+local cf = CFrame.new(Vector3.new(1, 2, 3), qe)
+check("CFrame.Position.x == 1", cf.Position.x == 1)
+check("CFrame.Rotation is not nil", cf.Rotation ~= nil)
+local cfWorld = cf * Vector3.new(0, 0, 0)
+check("CFrame * Vector3 returns Vector3", type(cfWorld.x) == "number")
+
+-- ===== Spatial 透過トランスフォーム（Rotation / CFrame on BaseCube） =====
+print("--- Spatial transform ---")
+local origRot = cube.Rotation
+check("BaseCube.Rotation getter is not nil", origRot ~= nil)
+cube.Rotation = Quaternion.fromAxisAngle(Vector3.new(0, 1, 0), 45)
+check("BaseCube.Rotation setter applied", math.abs(cube.Rotation.y) > 0.0001)
+cube.Rotation = origRot
+
+local origCF = cube.CFrame
+check("BaseCube.CFrame getter is not nil", origCF ~= nil)
+check("WorldPosition getter is not nil", cube.WorldPosition ~= nil)
+
+-- ===== BaseCube 追加プロパティ（純レンダリングフラグ） =====
+print("--- BaseCube render flags ---")
+check("CastShadow getter is bool", type(cube.CastShadow) == "boolean")
+cube.CastShadow = false
+check("CastShadow setter = false", cube.CastShadow == false)
+cube.CastShadow = true
+check("Unlit getter is bool", type(cube.Unlit) == "boolean")
+check("TextureScale getter is number", type(cube.TextureScale) == "number")
+
+-- ===== Motor.Axis =====
+if motor ~= nil then
+    print("--- Motor.Axis ---")
+    check("Axis getter is not nil", motor.Axis ~= nil)
+    local origAxis = motor.Axis
+    motor.Axis = Vector3.new(0, 1, 0)
+    check("Axis setter (y == 1)", motor.Axis.y == 1)
+    motor.Axis = origAxis
+end
+
+-- ===== Instance:Clone() / Parent setter =====
+print("--- Clone / reparent ---")
+local clone = cube:Clone()
+check("Clone returns instance", clone ~= nil)
+check("Clone has no parent yet", clone.Parent == nil)
+clone.Name = "TestCubeClone"
+clone.Parent = workspace
+check("Clone parented to workspace", workspace:FindChild("TestCubeClone") ~= nil)
+clone:Destroy()
+
+-- ===== M-3 クランプ（不正値が丸められる） =====
+if lighting ~= nil then
+    print("--- clamp ---")
+    local origB = lighting.Brightness
+    lighting.Brightness = -5
+    check("Brightness clamped to >= 0", lighting.Brightness >= 0)
+    lighting.Brightness = origB
 end
 
 print("--- テスト完了 ---")

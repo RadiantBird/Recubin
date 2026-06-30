@@ -14,10 +14,10 @@
 static const bool s_humanoidRegistered = []{
     using namespace PropertyRegistry;
     registerClass("Humanoid", {
-        field   <&Humanoid::WalkSpeed>  ("WalkSpeed",   0, 100),
-        field   <&Humanoid::JumpPower>  ("JumpPower",   0, 100),
-        field   <&Humanoid::MaxHealth>  ("MaxHealth",   0, 10000),
-        field   <&Humanoid::RespawnTime>("RespawnTime", 0, 600),
+        field   <&Humanoid::WalkSpeed>  ("WalkSpeed",   0, 100).clampLua(),
+        field   <&Humanoid::JumpPower>  ("JumpPower",   0, 100).clampLua(),
+        field   <&Humanoid::MaxHealth>  ("MaxHealth",   0, 10000).clampLua(),
+        field   <&Humanoid::RespawnTime>("RespawnTime", 0, 600).clampLua(),
         fieldVia<&Humanoid::Health, &Humanoid::setHealth>("Health", 0, 100),
         sig     <&Humanoid::Died>("Died"),
     });

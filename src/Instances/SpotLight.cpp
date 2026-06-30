@@ -4,7 +4,7 @@
 static const bool s_spotLightRegistered = []{
     using namespace PropertyRegistry;
     registerClass("SpotLight", "LightSource", {
-        field<&SpotLight::Angle>("Angle", 1.0f, 89.0f, 0.5f),
+        field<&SpotLight::Angle>("Angle", 1.0f, 89.0f, 0.5f).clampLua(),
     });
     return true;
 }();

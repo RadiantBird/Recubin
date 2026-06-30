@@ -16,6 +16,8 @@
 #include "include/Instances/Script.hpp"
 #include "include/Math/Vector3.hpp"
 #include "include/Math/Vector2.hpp"
+#include "include/Math/Quaternion.hpp"
+#include "include/Math/CFrame.hpp"
 #include "include/Util/Color4.hpp"
 #include "include/Core/RCBNScriptSignal.hpp"
 
@@ -49,6 +51,8 @@ public:
     static constexpr const char* RCBN_SIGNAL_METATABLE     = "RCBN_Signal";
     static constexpr const char* RCBN_CONNECTION_METATABLE = "RCBN_Connection";
     static constexpr const char* RCBN_VEC2_METATABLE       = "RCBN_Vector2";
+    static constexpr const char* RCBN_QUATERNION_METATABLE = "RCBN_Quaternion";
+    static constexpr const char* RCBN_CFRAME_METATABLE     = "RCBN_CFrame";
 
     using GetterFunc = std::function<int(lua_State*, Instance*)>;
     using SetterFunc = std::function<int(lua_State*, Instance*)>;
@@ -81,6 +85,7 @@ private:
     static int instance_wait_child_closure(lua_State* L);
     static int instance_is_a_closure(lua_State* L);
     static int instance_destroy_closure(lua_State* L);
+    static int instance_clone_closure(lua_State* L);
 
     // User methods
     static int user_add_tool_closure(lua_State* L);
@@ -152,6 +157,28 @@ private:
 
     static void pushVector3(lua_State* L, Vector3 v);
     static void pushColor4(lua_State* L, Color4 c);
+    static void pushQuaternion(lua_State* L, Quaternion q);
+    static void pushCFrame(lua_State* L, CFrame cf);
+
+    // Quaternion methods
+    static int quat_constructor(lua_State* L);
+    static int quat_from_euler(lua_State* L);
+    static int quat_from_axis_angle(lua_State* L);
+    static int quat_slerp(lua_State* L);
+    static int quat_index(lua_State* L);
+    static int quat_newindex(lua_State* L);
+    static int quat_tostring(lua_State* L);
+    static int quat_mul(lua_State* L);
+    static int quat_eq(lua_State* L);
+
+    // CFrame methods
+    static int cframe_constructor(lua_State* L);
+    static int cframe_from_axis_angle(lua_State* L);
+    static int cframe_index(lua_State* L);
+    static int cframe_newindex(lua_State* L);
+    static int cframe_tostring(lua_State* L);
+    static int cframe_mul(lua_State* L);
+    static int cframe_eq(lua_State* L);
 
     // Global functions
     static int global_add(lua_State* L);

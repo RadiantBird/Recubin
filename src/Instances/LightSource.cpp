@@ -6,8 +6,8 @@ static const bool s_lightSourceRegistered = []{
     using namespace PropertyRegistry;
     registerClass("LightSource", {
         field<&LightSource::lightColor>("Color"),
-        field<&LightSource::brightness>("Brightness", 0.0f, 10.0f,  0.01f),
-        field<&LightSource::range>     ("Range",      0.0f, 200.0f, 0.1f),
+        field<&LightSource::brightness>("Brightness", 0.0f, 10.0f,  0.01f).clampLua(),
+        field<&LightSource::range>     ("Range",      0.0f, 200.0f, 0.1f).clampLua(),
     });
     return true;
 }();

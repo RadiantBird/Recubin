@@ -49,6 +49,7 @@ struct PropertyDesc {
     std::string_view yamlKey;        // 空でなければ YAML のキー名に使う（Lua/エディター名と別名にできる）
     bool serialize = true, cloneable = true, editable = true;    // 各概念への参加
     bool omitEmptyString = false;    // 空文字の string は YAML へ出力しない
+    bool clampOnLuaWrite = false;    // Lua 書込時に lo/hi へクランプする（数値プロパティのみ）
     float lo = 0.0f, hi = 0.0f, step = 0.1f;                     // エディター用レンジ
 
     std::string_view effYamlKey() const { return yamlKey.empty() ? name : yamlKey; }
@@ -60,6 +61,8 @@ struct PropertyDesc {
     PropertyDesc& noEditor()  { editable = false; return *this; }
     PropertyDesc& omitEmpty() { omitEmptyString = true; return *this; }
     PropertyDesc& yaml(std::string_view key) { yamlKey = key; return *this; }
+    // 不正値が困る数値は Lua 書込時に lo/hi へクランプ（lo<hi のときのみ有効）
+    PropertyDesc& clampLua()  { clampOnLuaWrite = true; return *this; }
 };
 
 namespace PropertyRegistry {
@@ -199,6 +202,9 @@ using SetterMap = std::unordered_map<std::string_view,
 void registerClass(std::string_view className, std::vector<PropertyDesc> props);
 void registerClass(std::string_view className, std::string_view baseClassName,
                    std::vector<PropertyDesc> props);
+
+// registerClass 済みの全クラス名（H-2: applyToDispatch 配線漏れ検出用）
+std::vector<std::string_view> registeredClassNames();
 
 // 自クラスのみ（Lua dispatch 登録用。基底解決は instance_index が担う）
 const std::vector<PropertyDesc>& schemaFor(std::string_view className);

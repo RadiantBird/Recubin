@@ -1,4 +1,5 @@
 #include "include/Core/LuauEngine.hpp"
+#include "include/Core/PropertyRegistry.hpp"
 #include "include/Core/LuarCompiler.hpp"
 #include "include/Core/FileLoader.hpp"
 #include "include/Core/Physics.hpp"
@@ -85,6 +86,15 @@ void LuauEngine::InitSetterTable() {
     InitSetterTable_Physics();
     InitSetterTable_Misc();
     InitSetterTable_GUI();
+
+    // H-2: registerClass 済みだが applyToDispatch されず Luau から不可視のクラスを検出して警告。
+    // 自動公開はしない（配線忘れをサイレントにせず、開発時に気付けるようにするのが目的）。
+    for (std::string_view cls : PropertyRegistry::registeredClassNames()) {
+        if (DispatchTable.find(cls) == DispatchTable.end())
+            RCBN_WARN("PropertyRegistry class '" << std::string(cls)
+                << "' は registerClass 済みですが applyToDispatch されていません（Luau から不可視）。"
+                   "InitDispatchTable_* に applyToDispatch を追加してください。");
+    }
 }
 
 void LuauEngine::InitMetatables() {
@@ -193,6 +203,24 @@ void LuauEngine::InitMetatables() {
     lua_pushcfunction(L, vec2_eq,  "vec2_eq");  lua_setfield(L, -2, "__eq");
     lua_pop(L, 1);
 
+    // Quaternion metatable
+    luaL_newmetatable(L, RCBN_QUATERNION_METATABLE);
+    lua_pushcfunction(L, quat_index,    "quat_index");    lua_setfield(L, -2, "__index");
+    lua_pushcfunction(L, quat_newindex, "quat_newindex"); lua_setfield(L, -2, "__newindex");
+    lua_pushcfunction(L, quat_tostring, "quat_tostring"); lua_setfield(L, -2, "__tostring");
+    lua_pushcfunction(L, quat_mul, "quat_mul"); lua_setfield(L, -2, "__mul");
+    lua_pushcfunction(L, quat_eq,  "quat_eq");  lua_setfield(L, -2, "__eq");
+    lua_pop(L, 1);
+
+    // CFrame metatable
+    luaL_newmetatable(L, RCBN_CFRAME_METATABLE);
+    lua_pushcfunction(L, cframe_index,    "cframe_index");    lua_setfield(L, -2, "__index");
+    lua_pushcfunction(L, cframe_newindex, "cframe_newindex"); lua_setfield(L, -2, "__newindex");
+    lua_pushcfunction(L, cframe_tostring, "cframe_tostring"); lua_setfield(L, -2, "__tostring");
+    lua_pushcfunction(L, cframe_mul, "cframe_mul"); lua_setfield(L, -2, "__mul");
+    lua_pushcfunction(L, cframe_eq,  "cframe_eq");  lua_setfield(L, -2, "__eq");
+    lua_pop(L, 1);
+
     // グローバル関数を登録
     RegisterGlobalFunctions(L);
 }
@@ -220,6 +248,20 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     lua_pushcfunction(L, vec2_constructor, "new");
     lua_setfield(L, -2, "new");
     lua_setglobal(L, "Vector2");
+
+    // Register Quaternion with new / fromEuler / fromAxisAngle / Slerp
+    lua_newtable(L);
+    lua_pushcfunction(L, quat_constructor,    "new");          lua_setfield(L, -2, "new");
+    lua_pushcfunction(L, quat_from_euler,     "fromEuler");    lua_setfield(L, -2, "fromEuler");
+    lua_pushcfunction(L, quat_from_axis_angle,"fromAxisAngle");lua_setfield(L, -2, "fromAxisAngle");
+    lua_pushcfunction(L, quat_slerp,          "Slerp");        lua_setfield(L, -2, "Slerp");
+    lua_setglobal(L, "Quaternion");
+
+    // Register CFrame with new / fromAxisAngle
+    lua_newtable(L);
+    lua_pushcfunction(L, cframe_constructor,     "new");          lua_setfield(L, -2, "new");
+    lua_pushcfunction(L, cframe_from_axis_angle, "fromAxisAngle");lua_setfield(L, -2, "fromAxisAngle");
+    lua_setglobal(L, "CFrame");
 
     lua_newtable(L);
     luaL_getmetatable(L, ERIK);
@@ -262,14 +304,24 @@ int LuauEngine::instance_index(lua_State* L) {
     Instance* obj = obj_shared.get();
     std::string_view key = luaL_checkstring(L, 2);
 
-    for (const auto& [className, classProps] : DispatchTable) {
-        if (obj->IsA(std::string(className))) {
-            if (auto it = classProps.find(key); it != classProps.end()) {
-                auto& [name, resolveProperty] = *it;
-                return resolveProperty(L, obj);
-            }
-        }
+    // M-1: 最派生クラス名をキーに、継承チェーン上の全プロパティをマージした表をキャッシュ。
+    // 初回のみ IsA ループを実行し、以降は O(1) ルックアップ（毎回の全クラス走査を排除）。
+    // 不変条件: 基底と派生で同名プロパティを定義しないこと（衝突時の優先順位は未規定）。
+    // 値は関数を「コピー」で保持する（DispatchTable 再構築で参照が無効化されないように）。
+    static std::unordered_map<std::string,
+        std::unordered_map<std::string_view, GetterFunc>> s_cache;
+    const std::string& cls = obj->getClassName();
+    auto cit = s_cache.find(cls);
+    if (cit == s_cache.end()) {
+        std::unordered_map<std::string_view, GetterFunc> merged;
+        for (const auto& [className, classProps] : DispatchTable)
+            if (obj->IsA(std::string(className)))
+                for (const auto& [pname, fn] : classProps)
+                    merged.emplace(pname, fn);
+        cit = s_cache.emplace(cls, std::move(merged)).first;
     }
+    if (auto it = cit->second.find(key); it != cit->second.end())
+        return it->second(L, obj);
 
     // プロパティが無ければ同名の子インスタンスを返す（Roblox のドットチェーン相当）
     // 例: workspace.PlayerCharacter.Humanoid
@@ -341,14 +393,22 @@ int LuauEngine::instance_newindex(lua_State* L) {
     Instance* obj = obj_shared.get();
     std::string_view key = luaL_checkstring(L, 2);
 
-    for (const auto& [className, classProps] : SetterTable) {
-        if (obj->IsA(std::string(className))) {
-            if (auto it = classProps.find(key); it != classProps.end()) {
-                auto& [name, setProperty] = *it;
-                return setProperty(L, obj);
-            }
-        }
+    // M-1: setter も同様にクラス名キーでキャッシュ（instance_index と対）。
+    // 値は関数をコピーで保持（SetterTable 再構築で無効化されないように）。
+    static std::unordered_map<std::string,
+        std::unordered_map<std::string_view, SetterFunc>> s_cache;
+    const std::string& cls = obj->getClassName();
+    auto cit = s_cache.find(cls);
+    if (cit == s_cache.end()) {
+        std::unordered_map<std::string_view, SetterFunc> merged;
+        for (const auto& [className, classProps] : SetterTable)
+            if (obj->IsA(std::string(className)))
+                for (const auto& [pname, fn] : classProps)
+                    merged.emplace(pname, fn);
+        cit = s_cache.emplace(cls, std::move(merged)).first;
     }
+    if (auto it = cit->second.find(key); it != cit->second.end())
+        return it->second(L, obj);
 
     return 0;
 }
@@ -373,8 +433,6 @@ int LuauEngine::instance_find_child_closure(lua_State* L) {
     Instance* obj = obj_shared.get();
     // L[1] is 'self' from the colon call, L[2] is the actual parameter
     const char* childName = luaL_checkstring(L, 2);
-    
-    std::cout << "FindChild called with: " << childName << std::endl;
     Instance* child = obj->getChild(childName);
     
     if (child) {
@@ -1100,6 +1158,20 @@ void LuauEngine::pushColor4(lua_State* L, Color4 c) {
     lua_setmetatable(L, -2);
 }
 
+void LuauEngine::pushQuaternion(lua_State* L, Quaternion q) {
+    auto* ud = (Quaternion*)lua_newuserdata(L, sizeof(Quaternion));
+    *ud = q;
+    luaL_getmetatable(L, RCBN_QUATERNION_METATABLE);
+    lua_setmetatable(L, -2);
+}
+
+void LuauEngine::pushCFrame(lua_State* L, CFrame cf) {
+    auto* ud = (CFrame*)lua_newuserdata(L, sizeof(CFrame));
+    *ud = cf;
+    luaL_getmetatable(L, RCBN_CFRAME_METATABLE);
+    lua_setmetatable(L, -2);
+}
+
 void LuauEngine::onGuiButtonActivated(GuiButton* btn) {
     if (!btn || !btn->Activated) return;
     btn->Activated->fire(L, nullptr);
@@ -1208,6 +1280,25 @@ int LuauEngine::instance_new_closure(lua_State* L) {
     s_ownedInstances.push_back(inst);
     auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
     new (ud) std::weak_ptr<Instance>(inst);
+    luaL_getmetatable(L, RCBN_INST_METATABLE);
+    lua_setmetatable(L, -2);
+    return 1;
+}
+
+// instance:Clone() — サブツリーを複製し（制約参照も張り替え）、親なしで返す。
+// Roblox 同様、戻り値の .Parent を設定するまではツリーに入らない。
+// s_ownedInstances が shared_ptr を保持し、Lua の weak_ptr だけでも GC されないようにする。
+int LuauEngine::instance_clone_closure(lua_State* L) {
+    auto* userdata = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto obj_shared = userdata->lock();
+    if (!obj_shared) { lua_pushnil(L); return 1; }
+
+    auto copy = obj_shared->cloneTree();
+    if (!copy) { lua_pushnil(L); return 1; }
+
+    s_ownedInstances.push_back(copy);
+    auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+    new (ud) std::weak_ptr<Instance>(copy);
     luaL_getmetatable(L, RCBN_INST_METATABLE);
     lua_setmetatable(L, -2);
     return 1;
