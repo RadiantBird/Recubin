@@ -9,6 +9,7 @@
 #include <Instances/Spatial.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
+#include <Instances/FileRef.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/Lighting.hpp>
@@ -547,6 +548,16 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Sound ----
+    if (inst->getClassName() == "FileRef") {
+        FileRef* fr = static_cast<FileRef*>(inst);
+        ImGui::SeparatorText("FileRef");
+        ImGui::LabelText("Path", "%s", fr->Path.c_str());
+        if (ImGui::Button("参照...##fileref")) {
+            std::string path = browseFile(L"All files (*.*)", L"*.*");
+            if (!path.empty()) fr->Path = path;
+        }
+    }
+
     if (inst->getClassName() == "Sound") {
         Sound* snd = static_cast<Sound*>(inst);
         auto sndSp = std::static_pointer_cast<Sound>(inst->shared_from_this());

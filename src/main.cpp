@@ -23,6 +23,7 @@
 #include <Core/Renderer.hpp>
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
+#include <Core/SceneRuntime.hpp>
 #include <Core/FileLoader.hpp>
 #include <Core/AudioService.hpp>
 #include <Core/GLFWInputBackend.hpp>
@@ -88,17 +89,6 @@ GLFWwindow* setupWindow() {
     return window;
 }
 
-static std::vector<std::shared_ptr<Workspace>> collectWorkspaces(const std::shared_ptr<System>& system) {
-    std::vector<std::shared_ptr<Workspace>> result;
-    if (!system) return result;
-
-    for (auto& [name, child] : system->getChildren()) {
-        if (child && child->IsA("Workspace")) {
-            result.push_back(std::static_pointer_cast<Workspace>(child));
-        }
-    }
-    return result;
-}
 
 static void clearWorkspacePhysics(const std::vector<std::shared_ptr<Workspace>>& workspaces) {
     for (auto& ws : workspaces) {
@@ -137,26 +127,6 @@ static void resetTerrainStreamers(const std::vector<std::shared_ptr<Workspace>>&
     }
 }
 
-// AppImage インスタンスを Root から探してウィンドウアイコンを設定する
-void applyAppIcon(GLFWwindow* window, Instance* root) {
-    if (!window || !root) return;
-    for (auto& [name, child] : root->children) {
-        if (child->getClassName() == "AppImage") {
-            auto* ai = static_cast<AppImage*>(child.get());
-            if (ai->iconPath.empty()) return;
-            int w, h, ch;
-            stbi_set_flip_vertically_on_load(0);
-            unsigned char* px = stbi_load(ai->iconPath.c_str(), &w, &h, &ch, 4);
-            stbi_set_flip_vertically_on_load(1);
-            if (px) {
-                GLFWimage img{ w, h, px };
-                glfwSetWindowIcon(window, 1, &img);
-                stbi_image_free(px);
-            }
-            return;
-        }
-    }
-}
 
 // エディター設定（前回開いていたシーンパスなど）の保存先
 static const std::string kEditorSettingsPath = "editor_settings.yaml";
@@ -286,10 +256,6 @@ int main(int argc, char* argv[]) {
     std::vector<std::shared_ptr<Workspace>> workspaces;
     std::shared_ptr<Workspace> workspace;
 
-    // Register only System so YAML can keep multiple Workspace nodes.
-    SceneLoader::registerSingleton("System", system);
-    SceneLoader::registerSingleton("User", user);
-
     // 前回開いていたシーンを記憶しておき、次回起動時に自動で開く。
     // 記録が無い/ファイルが見つからない場合はダイアログで選択させる(キャンセルなら正常終了)
     std::string scenePath = loadLastScenePath();
@@ -304,27 +270,11 @@ int main(int argc, char* argv[]) {
     saveLastScenePath(scenePath);
     updateWindowTitle(window, scenePath);
 
-    SceneLoader::loadScene(scenePath);
-    SceneLoader::clearSingletons();
-
-    workspaces = collectWorkspaces(system);
-    if (workspaces.empty()) {
-        workspace = std::make_shared<Workspace>();
-        auto lighting = std::make_shared<Lighting>();
-        lighting->Name = "Lighting";
-        system->addChild(workspace);
-        system->addChild(user);
-        workspace->addChild(lighting);
-        workspaces = collectWorkspaces(system);
+    {
+        auto bound = SceneRuntime::loadAndBind(scenePath, system, user, *luauEngine, window);
+        workspace  = bound.workspace;
+        workspaces = bound.workspaces;
     }
-    workspace = workspaces.front();
-
-    // ユーザーがシステムに含まれていない場合は追加
-    auto it = system->children.find("User");
-    if (it == system->children.end()) {
-        system->addChild(user);
-    }
-    
     workspace->initPhysics();
 
     // 古い形式のYAML対応: System直下のLightingを見つけたら、WorkspaceのLightingにプロパティを移して削除
@@ -342,16 +292,6 @@ int main(int argc, char* argv[]) {
             ++it;
         }
     }
-
-    applyAppIcon(window, system.get());
-
-    luauEngine->setGlobalInstance(workspace->Name, workspace);
-    luauEngine->setGlobalInstance("workspace", workspace);
-    luauEngine->setGlobalInstance("System", system);
-    luauEngine->setGlobalInstance("system", system);
-    luauEngine->setGlobalInstance("User", user);
-    luauEngine->setWorkspace(workspace);
-    luauEngine->setSystem(system.get());
     renderer->m_onButtonActivated = [&](GuiButton* btn) {
         luauEngine->onGuiButtonActivated(btn);
     };
@@ -368,7 +308,7 @@ int main(int argc, char* argv[]) {
     // Workspace 切り替えコールバックを設定
     ed->hierarchyPanel->onSwitchWorkspace = [&](Workspace* ws) {
         auto wsSp = std::static_pointer_cast<Workspace>(ws->shared_from_this());
-        workspaces = collectWorkspaces(system);
+        workspaces = SceneRuntime::collectWorkspaces(system);
         workspace = wsSp;
         luauEngine->setGlobalInstance("workspace", workspace);
         luauEngine->setWorkspace(workspace);
@@ -388,26 +328,12 @@ int main(int argc, char* argv[]) {
     const std::string snapshotPath = "assets/scenes/_snapshot.yaml";
 
     auto initNewScene = [&](const std::string& path, bool isDirty) {
-        SceneLoader::registerSingleton("System", system);
-        SceneLoader::registerSingleton("User", user);
-        SceneLoader::loadScene(path);
-        SceneLoader::clearSingletons();
-
-        workspaces = collectWorkspaces(system);
-        if (workspaces.empty()) {
-            workspace = std::make_shared<Workspace>();
-            system->addChild(workspace);
-            workspaces = collectWorkspaces(system);
-        }
-        workspace = workspaces.front();
-        luauEngine->setGlobalInstance(workspace->Name, workspace);
-        luauEngine->setGlobalInstance("workspace", workspace);
-        luauEngine->setWorkspace(workspace);
+        auto bound = SceneRuntime::loadAndBind(path, system, user, *luauEngine, window);
+        workspace  = bound.workspace;
+        workspaces = bound.workspaces;
         ed->setWorkspace(workspace.get());
         if (isDirty) ed->markDirty();
-        
         workspace->initPhysics();
-        // Terrainを新Workspaceにリセット（次のupdate()で再初期化される）
     };
 
     while (true) {
@@ -449,7 +375,7 @@ int main(int argc, char* argv[]) {
             user->despawnCharacter();
             // 全Workspaceのクリア（ownedPhysics デストラクタで自動解放）
             // Terrainは次回のload時に再構築される
-            workspaces = collectWorkspaces(system);
+            workspaces = SceneRuntime::collectWorkspaces(system);
             resetTerrainStreamers(workspaces); // 物理が生きているうちにTerrainを解放
             clearWorkspacePhysics(workspaces);
             removeWorkspacesFromSystem(system, workspaces);
@@ -464,7 +390,7 @@ int main(int argc, char* argv[]) {
             ed->pendingLoadPath.clear();
 
             // Terrainは次回のload時に再構築される
-            workspaces = collectWorkspaces(system);
+            workspaces = SceneRuntime::collectWorkspaces(system);
             resetTerrainStreamers(workspaces); // 物理が生きているうちにTerrainを解放
             clearWorkspacePhysics(workspaces);
             removeWorkspacesFromSystem(system, workspaces);
@@ -473,7 +399,7 @@ int main(int argc, char* argv[]) {
             ed->scenePath = loadPath;
             saveLastScenePath(loadPath);
             updateWindowTitle(window, loadPath, ed->isDirty());
-            applyAppIcon(window, system.get());
+            SceneRuntime::applyAppIcon(window, system.get());
         }
 
         // ---- 未保存状態が変化したらタイトルバーの "*" を更新する ----
@@ -529,7 +455,7 @@ int main(int argc, char* argv[]) {
         if (user->consumeWorkspaceSwitchRequest() && isPlaying) {
             // System直下のWorkspaceリストを収集
             std::vector<Workspace*> workspacePtrs;
-            workspaces = collectWorkspaces(system);
+            workspaces = SceneRuntime::collectWorkspaces(system);
             for (auto& ws : workspaces) {
                 if (ws) workspacePtrs.push_back(ws.get());
             }
@@ -603,7 +529,7 @@ int main(int argc, char* argv[]) {
     }
     // Terrainは各Workspaceの子インスタンスとして受け渡されるため、systemデストラクタで自動解放される
     // 全WorkspaceのPhysicsをクリア（m_ownedPhysics デストラクタで PxScene 解放）
-    workspaces = collectWorkspaces(system);
+    workspaces = SceneRuntime::collectWorkspaces(system);
     for (auto& ws : workspaces) {
         if (ws && ws->getPhysicsEngine()) {
             ws->getPhysicsEngine()->clearCubes();

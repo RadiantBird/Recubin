@@ -90,7 +90,9 @@ void LuauEngine::InitSetterTable() {
     // H-2: registerClass 済みだが applyToDispatch されず Luau から不可視のクラスを検出して警告。
     // 自動公開はしない（配線忘れをサイレントにせず、開発時に気付けるようにするのが目的）。
     for (std::string_view cls : PropertyRegistry::registeredClassNames()) {
-        if (DispatchTable.find(cls) == DispatchTable.end())
+        // 独自プロパティを持つクラスのみ対象（空スキーマ=継承のみの Moon/PointLight 等は
+        // DispatchTable に独自エントリが無くて正常なので誤検出しない）。
+        if (!PropertyRegistry::schemaFor(cls).empty() && DispatchTable.find(cls) == DispatchTable.end())
             RCBN_WARN("PropertyRegistry class '" << std::string(cls)
                 << "' は registerClass 済みですが applyToDispatch されていません（Luau から不可視）。"
                    "InitDispatchTable_* に applyToDispatch を追加してください。");

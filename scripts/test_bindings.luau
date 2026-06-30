@@ -244,4 +244,32 @@ if lighting ~= nil then
     lighting.Brightness = origB
 end
 
+-- ===== FileRef（アセット参照） =====
+print("--- FileRef ---")
+local audioRef = workspace:FindChild("BGMFileRef")   -- エディタで音声を指定した FileRef
+local imageRef = workspace:FindChild("ImageFileRef")  -- エディタで画像を指定した FileRef
+if audioRef ~= nil then
+    check("FileRef.Path is string", type(audioRef.Path) == "string")
+    print("  audioRef.Path: " .. audioRef.Path)
+    -- Path は読取専用（書込は無視される）
+    local before = audioRef.Path
+    audioRef.Path = "hack.mp3"
+    check("FileRef.Path is read-only", audioRef.Path == before)
+    -- 消費: Sound に FileRef を代入して再生
+    if snd ~= nil then
+        snd.Source = audioRef
+        snd:Play()
+        wait(0.5)
+        check("Sound.Source = FileRef → playing", snd.IsPlaying == true)
+        snd:Stop()
+    end
+end
+if imageRef ~= nil and cube ~= nil then
+    local decal = cube:FindChild("Decal_Front")
+    if decal ~= nil then
+        decal.Source = imageRef
+        check("Decal.Source = FileRef applied", true)  -- ロード失敗時はログに出る
+    end
+end
+
 print("--- テスト完了 ---")

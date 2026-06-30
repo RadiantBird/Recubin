@@ -109,6 +109,7 @@ class Renderer {
         void renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH);
         void renderWorldGui (Workspace& ws, float vpX, float vpY, float vpW, float vpH);
         void renderToolHotbar(User& user, float vpX, float vpY, float vpW, float vpH);
+        void renderGameGui(Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH);
         void bakeSurfaceGui (SurfaceGui* sg);
 
         // ポストエフェクト（PostEffect インスタンスの ZIndex 順チェーン適用）

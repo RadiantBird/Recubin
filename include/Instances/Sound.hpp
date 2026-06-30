@@ -15,6 +15,8 @@ private:
 
 public:
     Sound(AudioService& service, const std::string& path = "");
+    // パスから音声を読み込む（FileRef.Source 経由でも使用）
+    void loadFromFile(const std::string& path);
     void play();
     void stop();
     void setLooping(bool loop);

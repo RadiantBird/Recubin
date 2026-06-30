@@ -18,6 +18,7 @@
 #include <Instances/SpotLight.hpp>
 #include <Instances/PostEffect.hpp>
 #include <Instances/AppImage.hpp>
+#include <Instances/FileRef.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Core/PropertyRegistry.hpp>
 #include <Instances/Animation.hpp>
@@ -170,10 +171,6 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
             }
             return nullptr;
         }
-        // 名前はシングルトン以外のみ上書き
-        if (node["Name"]) {
-            instance->Name = node["Name"].as<std::string>();
-        }
     }
 
     // プロパティの設定
@@ -182,6 +179,13 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
         for (auto it = props.begin(); it != props.end(); ++it) {
             instance->setProperty(it->first.as<std::string>(), it->second);
         }
+    }
+
+    // 名前はシングルトン以外のみ、かつ「プロパティ適用の後」に上書きする。
+    // Decal/Texture の setFace() 等は setProperty 内で Name を書き換える（既定名へ）ため、
+    // ここで保存名を最終的に当て直さないとユーザー指定名が潰れ、名前参照が壊れる。
+    if (sit == s_singletons.end() && node["Name"]) {
+        instance->Name = node["Name"].as<std::string>();
     }
 
     // 子要素の解析
@@ -224,6 +228,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "SpotLight")  return std::make_shared<SpotLight>();
     if (className == "PostEffect") return std::make_shared<PostEffect>();
     if (className == "AppImage")         return std::make_shared<AppImage>();
+    if (className == "FileRef")          return std::make_shared<FileRef>();
     if (className == "Humanoid")          return std::make_shared<Humanoid>();
     if (className == "Animation")         return std::make_shared<Animation>();
     if (className == "StarterCharacter")  return std::make_shared<StarterCharacter>();
@@ -311,6 +316,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->IsA("LightSource")
                  || inst->getClassName() == "PostEffect"
                  || inst->getClassName() == "AppImage"
+                 || inst->getClassName() == "FileRef"
                  || inst->getClassName() == "Humanoid"
                  || inst->getClassName() == "Animation"
                  || inst->IsA("Rope") || inst->IsA("Rod")
@@ -387,6 +393,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         }
         if (inst->getClassName() == "AppImage") {
             PropertyRegistry::saveProperties(out, inst, "AppImage");
+        }
+        if (inst->getClassName() == "FileRef") {
+            PropertyRegistry::saveProperties(out, inst, "FileRef");  // ContentPath（空なら省略）
         }
         if (inst->getClassName() == "MeshCube") {
             const MeshCube* mc = static_cast<const MeshCube*>(inst);

@@ -26,6 +26,10 @@
 #include "include/Instances/SurfaceGui.hpp"
 #include "include/Instances/BillboardGui.hpp"
 #include "include/Instances/ProximityPrompt.hpp"
+#include "include/Instances/FileRef.hpp"
+#include "include/Instances/Texture.hpp"
+#include "include/Instances/ImageLabel.hpp"
+#include "include/Instances/ImageButton.hpp"
 #include "include/Core/Terrain.hpp"
 
 // ─── Binding helper factories (anonymous, internal to this TU) ────────────────
@@ -259,6 +263,18 @@ auto setter_cube_ref() {
     };
 }
 
+// ── FileRef.Source 用: arg3 が FileRef インスタンスならその Path を out へ取り出す ──
+//  生パス文字列ではなく「シーンに存在し YAML/Packager に追跡された FileRef」だけを受ける。
+static bool getFileRefPath(lua_State* L, int idx, std::string& out) {
+    auto* ud = (std::weak_ptr<Instance>*)luaL_checkudata(L, idx, LuauEngine::RCBN_INST_METATABLE);
+    auto inst = ud->lock();
+    if (inst && inst->IsA("FileRef")) {
+        out = static_cast<FileRef*>(inst.get())->Path;
+        return true;
+    }
+    return false;  // FileRef でなければ何もしない
+}
+
 // ── GUI string-conversion helpers (Norm / Face / BillboardMode) ──────────────
 static const char* normToStr(Norm n) { return n == Norm::Scale ? "Scale" : "Pixel"; }
 static Norm        strToNorm(const char* s) {
@@ -460,6 +476,7 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["UserInput"]["IsPressed"] = getter_closure(userinput_ispressed_closure, "IsPressed");
 
     PropertyRegistry::applyToDispatch("AppImage", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("FileRef",  DispatchTable, SetterTable);  // Path（読取専用）
 
     DispatchTable["MeshCube"]["MeshFile"] = getter_string<MeshCube, &MeshCube::MeshFile>();
 
@@ -545,6 +562,15 @@ void LuauEngine::InitSetterTable_World() {
     SetterTable["Decal"]["TextureID"] = setter_number<Decal, &Decal::TextureID>();
     SetterTable["Decal"]["Face"]      = setter_number<Decal, &Decal::face>();
     SetterTable["Decal"]["Color"]     = setter_color4<Decal, &Decal::Color>();
+    // FileRef.Source: 画像 FileRef を代入してテクスチャを適用
+    SetterTable["Decal"]["Source"] = [](lua_State* L, Instance* o) {
+        std::string p; if (getFileRefPath(L, 3, p)) static_cast<Decal*>(o)->setTexturePath(p);
+        return 0;
+    };
+    SetterTable["Texture"]["Source"] = [](lua_State* L, Instance* o) {
+        std::string p; if (getFileRefPath(L, 3, p)) static_cast<Texture*>(o)->setTexturePath(p);
+        return 0;
+    };
 
     // Lighting の setter は applyToDispatch（InitDispatchTable_World）で登録済み
 }
@@ -585,6 +611,24 @@ void LuauEngine::InitSetterTable_Misc() {
     SetterTable["Sound"]["AutoPlay"]      = setter_bool        <Sound, &Sound::autoPlay>();
 
     SetterTable["Tool"]["Hand"]           = setter_number<Tool, &Tool::Hand>();
+
+    // FileRef.Source: FileRef インスタンスを代入して消費者にロードさせる（生パスは扱わない）
+    SetterTable["Sound"]["Source"] = [](lua_State* L, Instance* o) {
+        std::string p; if (getFileRefPath(L, 3, p)) static_cast<Sound*>(o)->loadFromFile(p);
+        return 0;
+    };
+    SetterTable["MeshCube"]["Source"] = [](lua_State* L, Instance* o) {
+        std::string p; if (getFileRefPath(L, 3, p)) static_cast<MeshCube*>(o)->loadFromGLB(p);
+        return 0;
+    };
+    SetterTable["ImageLabel"]["Source"] = [](lua_State* L, Instance* o) {
+        std::string p; if (getFileRefPath(L, 3, p)) static_cast<ImageLabel*>(o)->setImage(p);
+        return 0;
+    };
+    SetterTable["ImageButton"]["Source"] = [](lua_State* L, Instance* o) {
+        std::string p; if (getFileRefPath(L, 3, p)) static_cast<ImageButton*>(o)->setImage(p);
+        return 0;
+    };
 
     // Humanoid のフィールド setter は PropertyRegistry::applyToDispatch（InitDispatchTable_Misc）で登録済み
 

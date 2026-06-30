@@ -50,6 +50,7 @@ struct PropertyDesc {
     bool serialize = true, cloneable = true, editable = true;    // 各概念への参加
     bool omitEmptyString = false;    // 空文字の string は YAML へ出力しない
     bool clampOnLuaWrite = false;    // Lua 書込時に lo/hi へクランプする（数値プロパティのみ）
+    bool noLuaWrite = false;         // Lua からは読取専用（YAML/clone は読み書き可のまま）
     float lo = 0.0f, hi = 0.0f, step = 0.1f;                     // エディター用レンジ
 
     std::string_view effYamlKey() const { return yamlKey.empty() ? name : yamlKey; }
@@ -63,6 +64,8 @@ struct PropertyDesc {
     PropertyDesc& yaml(std::string_view key) { yamlKey = key; return *this; }
     // 不正値が困る数値は Lua 書込時に lo/hi へクランプ（lo<hi のときのみ有効）
     PropertyDesc& clampLua()  { clampOnLuaWrite = true; return *this; }
+    // Lua からは読取専用にする（YAML 読込/保存・clone は通常通り）
+    PropertyDesc& luaReadOnly() { noLuaWrite = true; return *this; }
 };
 
 namespace PropertyRegistry {

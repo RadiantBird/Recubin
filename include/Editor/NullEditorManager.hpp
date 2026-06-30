@@ -25,7 +25,7 @@ public:
     void clearForImGui(GLFWwindow*) override {}
 
 
-    void renderUI(User&, GLFWwindow* window, Workspace& ws) override {
+    void renderUI(User& user, GLFWwindow* window, Workspace& ws) override {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -44,8 +44,7 @@ public:
             ImGuiWindowFlags_NoBringToFrontOnFocus);
 
         if (Renderer::instance) {
-            Renderer::instance->renderScreenGui(ws, 0.f, 0.f, fw, fh);
-            Renderer::instance->renderWorldGui (ws, 0.f, 0.f, fw, fh);
+            Renderer::instance->renderGameGui(ws, &user, 0.f, 0.f, fw, fh);
         }
 
         ImGui::End();

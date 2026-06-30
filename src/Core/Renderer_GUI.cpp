@@ -573,3 +573,12 @@ void Renderer::renderToolHotbar(User& user, float vpX, float vpY, float vpW, flo
         dl->AddText(ImVec2(boxX + (boxW - nameSize.x) * 0.5f, boxY + boxH - nameSize.y - 4.0f), IM_COL32(255, 255, 255, 255), nameLabel.c_str());
     }
 }
+
+// ===================================================
+//  renderGameGui — ScreenGui + WorldGui + ToolHotbar の統合描画
+// ===================================================
+void Renderer::renderGameGui(Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH) {
+    renderScreenGui(ws, vpX, vpY, vpW, vpH);
+    renderWorldGui (ws, vpX, vpY, vpW, vpH);
+    if (user) renderToolHotbar(*user, vpX, vpY, vpW, vpH);
+}

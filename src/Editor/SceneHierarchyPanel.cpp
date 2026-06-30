@@ -27,6 +27,7 @@
 #include <Instances/Rope.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/Folder.hpp>
+#include <Instances/FileRef.hpp>
 #include <Instances/Tool.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/Sun.hpp>
@@ -186,6 +187,7 @@ static const char* getClassIcon(const std::string& cn) {
     if (cn == "User")                                                        return ICON_USER;
     if (cn == "Decal" || cn == "Texture" ||
         cn == "ImageLabel" || cn == "ImageButton")                           return ICON_DECAL;
+    if (cn == "FileRef")                                                     return ICON_FILE;
     if (cn == "Sphere")                                                      return ICON_SPHERE;
     if (cn == "Cube"   || cn == "Cylinder" || cn == "LiquidCube" ||
         cn == "TriangularPrism" || cn == "MeshCube")                        return ICON_CUBE;
@@ -449,6 +451,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         }
         
         tryInsertInstance<Folder>(m_history, "Folder", parentSp);
+        tryInsertInstance<FileRef>(m_history, "FileRef", parentSp);
         tryInsertInstance<Model>(m_history, "Model", parentSp, Vector3(0, 0, 0), Vector3(1, 1, 1));
         tryInsertInstance<Tool>(m_history, "Tool", parentSp, std::string("Tool"));
         tryInsertInstance<Workspace>(m_history, "Workspace", parentSp);

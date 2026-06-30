@@ -18,6 +18,7 @@
 #define ICON_GUI          "\xef\x8b\x90"  // f2d0 fa-window-maximize
 #define ICON_DECAL        "\xef\x80\xbe"  // f03e fa-image
 #define ICON_INSTANCE     "\xef\x91\xa6"  // f466 fa-box
+#define ICON_FILE         "\xef\x85\x9b"  // f15b fa-file
 #define ICON_SKYBOX       "\xef\x84\x99"  // f119 fa-face-frown (sky dome placeholder)
 #define ICON_CONSTRAINT   "\xef\x81\xa1"  // f061 fa-arrow-right (link)
 #define ICON_USER         "\xef\x80\x87"  // f007 fa-user

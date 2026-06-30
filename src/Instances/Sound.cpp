@@ -62,24 +62,25 @@ float Sound::getSpeed() const { return m_speed; }
 void Sound::setPreservePitch(bool b) { m_preservePitch = b; }
 bool Sound::getPreservePitch() const { return m_preservePitch; }
 
+void Sound::loadFromFile(const std::string& path) {
+    if (loaded) {
+        ma_sound_uninit(&sound);
+        loaded = false;
+    }
+    if (AudioService::instance) {
+        ma_uint32 flags = MA_SOUND_FLAG_DECODE;
+        ma_sound_group* targetGroup = (soundGroup == "BGM") ? &AudioService::instance->groupBGM : &AudioService::instance->groupSFX;
+        if (ma_sound_init_from_file(&AudioService::instance->engine, path.c_str(), flags, targetGroup, NULL, &sound) == MA_SUCCESS) {
+            loaded = true;
+            m_currentPath = path;
+            if (looping) ma_sound_set_looping(&sound, true);
+        }
+    }
+}
+
 void Sound::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "ContentPath") {
-        std::string path = value.as<std::string>();
-        if (loaded) {
-            ma_sound_uninit(&sound);
-            loaded = false;
-        }
-        
-        if (AudioService::instance) {
-            ma_uint32 flags = MA_SOUND_FLAG_DECODE;
-            ma_sound_group* targetGroup = (soundGroup == "BGM") ? &AudioService::instance->groupBGM : &AudioService::instance->groupSFX;
-            if (ma_sound_init_from_file(&AudioService::instance->engine, path.c_str(), flags, targetGroup, NULL, &sound) == MA_SUCCESS) {
-                loaded = true;
-                m_currentPath = path;
-                if (looping) ma_sound_set_looping(&sound, true);
-                std::cout << "[DEBUG] Audio loaded via setProperty: " << path << std::endl;
-            }
-        }
+        loadFromFile(value.as<std::string>());
     } else if (name == "Looped") {
         setLooping(value.as<bool>());
     } else if (name == "SoundGroup") {

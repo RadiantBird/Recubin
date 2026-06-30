@@ -181,7 +181,7 @@ void applyToDispatch(std::string_view className, GetterMap& getters, SetterMap& 
                 return valueToLua(L, *dp, dp->get(o));
             };
         }
-        if (d.set || d.luaSet) {
+        if ((d.set || d.luaSet) && !d.noLuaWrite) {  // noLuaWrite: Lua からは読取専用
             setters[className][d.name] = [dp](lua_State* L, Instance* o) {
                 PropValue v = valueFromLua(L, 3, *dp);
                 if (dp->clampOnLuaWrite && dp->lo < dp->hi) {  // 不正値が困る数値をクランプ

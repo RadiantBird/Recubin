@@ -12,6 +12,7 @@
 #include <Core/Renderer.hpp>
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
+#include <Core/SceneRuntime.hpp>
 #include <Core/AudioService.hpp>
 #include <Core/GLFWInputBackend.hpp>
 #include <Core/SystemState.hpp>
@@ -53,26 +54,6 @@ static GameConfig loadStartup() {
 }
 
 
-static void applyAppIcon(GLFWwindow* window, Instance* root) {
-    if (!window || !root) return;
-    for (auto& [name, child] : root->children) {
-        if (child->getClassName() == "AppImage") {
-            auto* ai = static_cast<AppImage*>(child.get());
-            if (ai->iconPath.empty()) return;
-            int w, h, ch;
-            // GLFW/Windows アイコンは左上原点なので flip 不要
-            stbi_set_flip_vertically_on_load(0);
-            unsigned char* px = stbi_load(ai->iconPath.c_str(), &w, &h, &ch, 4);
-            stbi_set_flip_vertically_on_load(1);
-            if (px) {
-                GLFWimage img{ w, h, px };
-                glfwSetWindowIcon(window, 1, &img);
-                stbi_image_free(px);
-            }
-            return;
-        }
-    }
-}
 
 // ===================================================
 //  main
@@ -109,32 +90,14 @@ int main() {
         return -1;
     }
 
-    // ---- シーンのロード（Workspaceはシングルトン登録しない = 複数ワークスペース対応） ----
-    SceneLoader::registerSingleton("System", system);
-    SceneLoader::loadScene(cfg.startScene);
-    SceneLoader::clearSingletons();
+    // ---- シーンのロード（共通初期化） ----
+    auto bound     = SceneRuntime::loadAndBind(cfg.startScene, system, user, *luauEngine, window);
+    auto workspaces = bound.workspaces;
+    auto workspace  = bound.workspace;
 
-    // System直下のWorkspaceを収集するローカルヘルパ
-    auto collectWorkspaces = [](const std::shared_ptr<System>& sys) {
-        std::vector<std::shared_ptr<Workspace>> result;
-        for (auto& [name, child] : sys->children) {
-            if (child && child->IsA("Workspace"))
-                result.push_back(std::static_pointer_cast<Workspace>(child));
-        }
-        return result;
-    };
-    std::vector<std::shared_ptr<Workspace>> workspaces = collectWorkspaces(system);
-
-    // シーンにWorkspaceが無ければデフォルト生成
-    if (workspaces.empty()) {
-        auto ws = std::make_shared<Workspace>();
-        auto li = std::make_shared<Lighting>();
-        li->Name = "Lighting";
-        system->addChild(ws);
-        ws->addChild(li);
-        workspaces = collectWorkspaces(system);
-    }
-    std::shared_ptr<Workspace> workspace = workspaces.front();
+    // シーンの User ノード（ControlMode: Free 等）がマージで上書きするため、
+    // ランタイムは常にキャラクター操作へ再強制する。
+    user->controlMode = User::ControlMode::Character;
 
     // 全Workspaceの物理初期化
     for (auto& ws : workspaces) {
@@ -159,15 +122,6 @@ int main() {
             ++it;
         }
     }
-
-    applyAppIcon(window, system.get());
-
-    luauEngine->setGlobalInstance(workspace->Name, workspace);
-    luauEngine->setGlobalInstance("workspace", workspace);
-    luauEngine->setGlobalInstance("System", system);
-    luauEngine->setGlobalInstance("User", user);
-    luauEngine->setWorkspace(workspace);
-    luauEngine->setSystem(system.get());
     Physics::s_contactCallback = [&](BaseCube* a, BaseCube* b) {
         luauEngine->onCollision(a, b);
     };
@@ -208,7 +162,7 @@ int main() {
 
         // ---- Pキー: Workspace切り替え ----
         if (user->consumeWorkspaceSwitchRequest()) {
-            workspaces = collectWorkspaces(system);
+            workspaces = SceneRuntime::collectWorkspaces(system);
             std::vector<Workspace*> ptrs;
             for (auto& ws : workspaces) ptrs.push_back(ws.get());
             if (ptrs.size() > 1) {

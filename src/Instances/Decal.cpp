@@ -30,12 +30,16 @@ void Decal::setFace(Face f) {
     Name = "Decal_" + std::string(faceNames[(int)f]);
 }
 
+void Decal::setTexturePath(const std::string& path) {
+    this->texturePath = path;
+    if (Renderer::instance) {
+        this->TextureID = Renderer::instance->loadTexture(this->texturePath.c_str());
+    }
+}
+
 void Decal::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Texture") {
-        this->texturePath = value.as<std::string>();
-        if (Renderer::instance) {
-            this->TextureID = Renderer::instance->loadTexture(this->texturePath.c_str());
-        }
+        setTexturePath(value.as<std::string>());
     } else if (name == "Face") {
         setFace(static_cast<Face>(value.as<int>()));
     } else if (name == "Color") {

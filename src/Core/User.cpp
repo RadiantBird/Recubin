@@ -349,18 +349,20 @@ void User::processToolkeys(bool viewportFocused, bool isGameplayInput, bool want
             RCBN_TRACE("Tool key pressed: " + std::to_string(i + 1));
 
             // 現在装備中のツールを外す
+            int prevSlotIndex = currentSlotIndex;
             if (currentTool) {
                 currentTool->Equipped = false;
                 // character から削除して Inventory に戻す
                 character->removeChild(currentTool->Name);
                 Inventory->addChild(std::static_pointer_cast<Instance>(currentTool));
                 RCBN_TRACE("Unequipped tool from slot " + std::to_string(currentSlotIndex + 1));
-                currentTool = nullptr;
+                currentTool      = nullptr;
+                currentSlotIndex = -1;
             }
 
-            // 同じスロットを再度押した場合は解除のみ
-            if (i == currentSlotIndex) {
-                currentSlotIndex = -1;
+            // 同じスロットを再度押した場合は解除のみ（unequip前の番号で判定）
+            if (i == prevSlotIndex) {
+                // currentSlotIndex は既に -1 → 解除のみで完了
             } else if (Slots[i]) {
                 // 新しいスロットを装備
                 currentTool           = Slots[i];
