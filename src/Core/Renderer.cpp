@@ -582,6 +582,7 @@ void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int wid
     glBindVertexArray(m_postVAO);
     glUniform1i(glGetUniformLocation(m_postShader, "screenTexture"), 0);
     glUniform2f(glGetUniformLocation(m_postShader, "u_resolution"), (float)width, (float)height);
+    glUniform1f(glGetUniformLocation(m_postShader, "u_time"), (float)glfwGetTime());
     int typeLoc      = glGetUniformLocation(m_postShader, "u_effectType");
     int intensityLoc = glGetUniformLocation(m_postShader, "u_intensity");
     int param1Loc    = glGetUniformLocation(m_postShader, "u_param1");

@@ -7,21 +7,6 @@ Root:
     - ClassName: StarterCharacter
       Name: StarterCharacter
       Children:
-        - ClassName: Cube
-          Name: LeftArm
-          Properties:
-            Position: [-1.5, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
         - ClassName: Humanoid
           Name: Humanoid
           Properties:
@@ -31,9 +16,9 @@ Root:
             RespawnTime: 5
             Health: 100
         - ClassName: Cube
-          Name: RightArm
+          Name: LeftArm
           Properties:
-            Position: [1.5, 0, 0]
+            Position: [-1.5, 0, 0]
             Size: [1, 2, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -54,6 +39,21 @@ Root:
             Color: [0.13333334, 0.52156866, 0.6509804, 0]
             Anchored: false
             CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: RightArm
+          Properties:
+            Position: [1.5, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
             CastShadow: true
             Unlit: false
             MaterialType: 0
@@ -196,6 +196,15 @@ Root:
             Direction: [1, -1, -1]
             Brightness: 1
             Color: [1, 1, 1, 1]
+        - ClassName: PostEffect
+          Name: PostEffect1
+          Properties:
+            Enabled: true
+            Type: 6
+            ZIndex: 0
+            Intensity: 1
+            Param1: 1.5
+            Param2: 0.1
         - ClassName: Cube
           Name: Field
           Properties:
@@ -205,21 +214,6 @@ Root:
             Color: [0.06662227, 0.2246154, 0.020042606, 1]
             Anchored: true
             CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Goal
-          Properties:
-            Position: [6.561512, -24, 0.69903994]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0.80784315, 0.5019608]
-            Anchored: true
-            CanCollide: false
             CastShadow: true
             Unlit: false
             MaterialType: 0
@@ -266,3 +260,36 @@ Root:
                 MaxHealth: 100
                 RespawnTime: 5
                 Health: 100
+        - ClassName: Cube
+          Name: Goal
+          Properties:
+            Position: [6.561512, -24, 0.69903994]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 1, 0.80784315, 0.5019608]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: PostEffect
+          Name: PostEffect
+          Properties:
+            Enabled: true
+            Type: 5
+            ZIndex: 0
+            Intensity: 1
+            Param1: 0.2
+            Param2: 0.1
+        - ClassName: PostEffect
+          Name: PostEffect2
+          Properties:
+            Enabled: true
+            Type: 1
+            ZIndex: 0
+            Intensity: 1
+            Param1: 16
+            Param2: 0.1

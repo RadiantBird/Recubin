@@ -6,7 +6,10 @@ enum class PostEffectKind {
     None = 0,
     CRT = 1,
     Posterization = 2,
-    Pixelize = 3
+    Pixelize = 3,
+    Saturation = 4,
+    VHS = 5,
+    ChromaticAberration = 6
 };
 
 class PostEffect : public Instance {
@@ -15,7 +18,7 @@ public:
     PostEffectKind Type      = PostEffectKind::CRT;
     int            ZIndex    = 0;
     float          Intensity = 1.0f;  // 元画像とのブレンド比率 (0..1)
-    float          Param1    = 8.0f;  // ScanlineCount(CRT) / Levels(Posterization) / PixelSize(Pixelize)
+    float          Param1    = 8.0f;  // ScanlineCount(CRT) / Levels(Posterization) / PixelSize(Pixelize) / SaturationAmount(Saturation) / NoiseAmount(VHS) / Offset(ChromaticAberration)
     float          Param2    = 0.15f; // CurveAmount(CRT)。他タイプでは未使用
 
     PostEffect();

@@ -882,11 +882,11 @@ void PropertiesPanel::onRender() {
         }
 
         // Type (combo)
-        static const char* peTypes[] = { "None", "CRT", "Posterization", "Pixelize" };
+        static const char* peTypes[] = { "None", "CRT", "Posterization", "Pixelize", "Saturation", "VHS", "ChromaticAberration" };
         {
             int typeIdx = static_cast<int>(pe->Type);
             int beforeIdx = typeIdx;
-            if (ImGui::Combo("Type", &typeIdx, peTypes, 4)) {
+            if (ImGui::Combo("Type", &typeIdx, peTypes, 7)) {
                 PostEffectKind before = pe->Type;
                 pe->Type = static_cast<PostEffectKind>(typeIdx);
                 if (m_history) m_history->record(std::make_unique<SetPostEffectTypeCommand>(peSp, before, pe->Type));
@@ -916,19 +916,23 @@ void PropertiesPanel::onRender() {
             }
         }
 
-        // Param1 / Param2: Type に応じてラベルを切替
+        // Param1 / Param2: Type に応じてラベルと範囲を切替
         const char* param1Label = "Param1";
         const char* param2Label = nullptr;
+        float param1Min = 1.0f, param1Max = 256.0f, param1Speed = 0.1f;
         switch (pe->Type) {
-            case PostEffectKind::CRT:           param1Label = "ScanlineCount"; param2Label = "CurveAmount"; break;
-            case PostEffectKind::Posterization: param1Label = "Levels";        break;
-            case PostEffectKind::Pixelize:      param1Label = "PixelSize";     break;
+            case PostEffectKind::CRT:                param1Label = "ScanlineCount"; param2Label = "CurveAmount"; break;
+            case PostEffectKind::Posterization:      param1Label = "Levels";        break;
+            case PostEffectKind::Pixelize:            param1Label = "PixelSize";     break;
+            case PostEffectKind::Saturation:          param1Label = "Saturation";    param1Min = -1.0f; param1Max = 2.0f; param1Speed = 0.01f; break;
+            case PostEffectKind::VHS:                 param1Label = "NoiseAmount";   param1Min = 0.0f;  param1Max = 1.0f; param1Speed = 0.01f; break;
+            case PostEffectKind::ChromaticAberration: param1Label = "Offset";        param1Min = 0.0f;  param1Max = 1.0f; param1Speed = 0.01f; break;
             default: break;
         }
 
         {
             static float s_param1Before;
-            bool changed = ImGui::DragFloat(param1Label, &pe->Param1, 0.1f, 1.0f, 256.0f, "%.1f");
+            bool changed = ImGui::DragFloat(param1Label, &pe->Param1, param1Speed, param1Min, param1Max, "%.2f");
             if (ImGui::IsItemActivated()) s_param1Before = pe->Param1;
             if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
                 m_history->record(std::make_unique<SetPostEffectFloatCommand>(peSp, "Param1", s_param1Before, pe->Param1));
