@@ -5,11 +5,6 @@
 --
 -- goalOffset はテストシーンの地形に合わせて調整してください
 -- （ジャンプが必要な隙間・段差を跨ぐ位置にすると挙動を確認しやすい）。
-function assert(condition, message)
-    if not condition then
-        print(`Assertion failed: {message}`)
-    end
-end
 
 local character = script.Parent--workspace:WaitChild("PlayerCharacter")
 local humanoid   = character:FindChild("Humanoid")

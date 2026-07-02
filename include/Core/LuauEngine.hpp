@@ -187,6 +187,7 @@ private:
 
     // Global functions
     static int global_add(lua_State* L);
+    static int luafn_assert(lua_State* L);
     static int global_print_message(lua_State* L);
     static int wait(lua_State* L);
 

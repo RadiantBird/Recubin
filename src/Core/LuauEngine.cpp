@@ -281,6 +281,9 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     lua_pushcfunction(L, global_add, "add");
     lua_setglobal(L, "add");
 
+    lua_pushcfunction(L, luafn_assert, "assert");
+    lua_setglobal(L, "assert");
+
     lua_pushcfunction(L, global_print_message, "print");
     lua_setglobal(L, "print");
     
@@ -784,6 +787,20 @@ int LuauEngine::global_add(lua_State* L) {
     return 1;
 }
 
+int LuauEngine::luafn_assert(lua_State* L) {
+    bool cond = (bool)luaL_checkboolean(L, 1);
+    std::string message = luaL_checkstring(L, 2);
+
+    if (!cond) {
+        std::string s = "[Luau] Assertion failed: " + message;
+        std::cout << s << std::endl;
+        luaL_error(L, "%s", s.c_str());
+    }
+
+    lua_pushboolean(L, cond);
+    return 1;
+}
+
 int LuauEngine::wait(lua_State* L) {
     float s = (float)luaL_checknumber(L, 1);
     
@@ -820,7 +837,7 @@ int LuauEngine::erik_tostring(lua_State* L) {
 int LuauEngine::erik_index(lua_State* L) {
     // L, 1 is table (maybe self)
     std::string_view key = luaL_checkstring(L, 2);
-    RCBN_LOG(key);
+    // RCBN_LOG(key);
     if (key == "cassel") {
         lua_pushstring(L, "Who you share it with.");
         return 1;
