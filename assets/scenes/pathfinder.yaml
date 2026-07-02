@@ -1,4 +1,8 @@
 Root:
+  Properties:
+    MaxClonesPerFrame: 1000
+    MaxRestartsPerFrame: 100
+    ScriptLoopTimeoutSeconds: 10
   Children:
     - ClassName: AppImage
       Name: AppImage
@@ -224,6 +228,7 @@ Root:
           Name: CameraProgramTest
           Properties:
             ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\CameraProgramTest.luau
+            Enabled: true
         - ClassName: Cube
           Name: Goal
           Properties:
@@ -271,6 +276,7 @@ Root:
               Name: PathfindingTest
               Properties:
                 ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\PathfindingTest.luau
+                Enabled: true
             - ClassName: Humanoid
               Name: Humanoid
               Properties:
@@ -301,3 +307,4 @@ Root:
           Name: Safety First
           Properties:
             ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\Safety First.luau
+            Enabled: false

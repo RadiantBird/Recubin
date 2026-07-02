@@ -125,6 +125,12 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
         // ClassName のない Root は子リストを直接処理する（フラット形式）
         if (!root["ClassName"] && root["Children"]) {
             auto bag = getOrphanParent();
+            if (root["Properties"]) {
+                YAML::Node props = root["Properties"];
+                for (auto it = props.begin(); it != props.end(); ++it) {
+                    bag->setProperty(it->first.as<std::string>(), it->second);
+                }
+            }
             for (const auto& childNode : root["Children"]) {
                 std::string cn = childNode["ClassName"] ? childNode["ClassName"].as<std::string>() : "";
                 auto inst = parseInstance(childNode);
@@ -375,6 +381,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         if (inst->getClassName() == "Script") {
             const Script* sc = static_cast<const Script*>(inst);
             out << YAML::Key << "ContentPath" << YAML::Value << sc->Path;
+            out << YAML::Key << "Enabled"     << YAML::Value << sc->Enabled;
         }
         if (inst->getClassName() == "Decal") {
             const Decal* d = static_cast<const Decal*>(inst);
@@ -595,7 +602,18 @@ void SceneLoader::saveScene(Instance* root, const std::string& filePath) {
     YAML::Emitter out;
     out << YAML::BeginMap;
     out << YAML::Key << "Root" << YAML::Value << YAML::BeginMap;
-    
+
+    // Root(System)自身はChildrenの一部として保存されない仮想的な親のため、
+    // そのプロパティはここで別途保存する
+    if (root->getClassName() == "System") {
+        const System* sys = static_cast<const System*>(root);
+        out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
+        out << YAML::Key << "MaxClonesPerFrame"        << YAML::Value << sys->MaxClonesPerFrame;
+        out << YAML::Key << "MaxRestartsPerFrame"      << YAML::Value << sys->MaxRestartsPerFrame;
+        out << YAML::Key << "ScriptLoopTimeoutSeconds" << YAML::Value << sys->ScriptLoopTimeoutSeconds;
+        out << YAML::EndMap;
+    }
+
     // Root は仮想的な親。その全ての子を Children として保存
     if (!root->children.empty()) {
         out << YAML::Key << "Children" << YAML::Value << YAML::BeginSeq;
