@@ -474,6 +474,21 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["User"]["RemoveTool"] = getter_closure(user_remove_tool_closure, "RemoveTool");
     DispatchTable["User"]["GetTool"]    = getter_closure(user_get_tool_closure,    "GetTool");
     DispatchTable["User"]["GetTools"]   = getter_closure(user_get_tools_closure,   "GetTools");
+
+    // User.ControlMode ("Free"/"Character"/"Program")
+    DispatchTable["User"]["ControlMode"] = [](lua_State* L, Instance* obj) {
+        auto* u = static_cast<User*>(obj);
+        const char* s = u->controlMode == User::ControlMode::Free      ? "Free"
+                       : u->controlMode == User::ControlMode::Program  ? "Program"
+                                                                        : "Character";
+        lua_pushstring(L, s);
+        return 1;
+    };
+    // User.CameraCFrame — ControlMode::Program 中にLuauからカメラを直接制御する
+    DispatchTable["User"]["CameraCFrame"] = [](lua_State* L, Instance* obj) {
+        pushCFrame(L, static_cast<User*>(obj)->getCameraCFrame());
+        return 1;
+    };
     DispatchTable["UserInput"]["Pressed"]   = getter_signal<UserInput, &UserInput::Pressed>();
     DispatchTable["UserInput"]["Released"]  = getter_signal<UserInput, &UserInput::Released>();
     DispatchTable["UserInput"]["IsPressed"] = getter_closure(userinput_ispressed_closure, "IsPressed");
@@ -639,6 +654,22 @@ void LuauEngine::InitSetterTable_Misc() {
 
     SetterTable["Script"]["Enabled"] = setter_bool  <Script, &Script::Enabled>();
     SetterTable["Script"]["Path"]    = setter_string<Script, &Script::Path>();
+
+    // User.ControlMode ("Free"/"Character"/"Program")
+    SetterTable["User"]["ControlMode"] = [](lua_State* L, Instance* obj) {
+        std::string s = luaL_checkstring(L, 3);
+        auto* u = static_cast<User*>(obj);
+        if (s == "Free")         u->controlMode = User::ControlMode::Free;
+        else if (s == "Program") u->controlMode = User::ControlMode::Program;
+        else                     u->controlMode = User::ControlMode::Character;
+        return 0;
+    };
+    // User.CameraCFrame — ControlMode::Program 中にLuauからカメラを直接制御する
+    SetterTable["User"]["CameraCFrame"] = [](lua_State* L, Instance* obj) {
+        CFrame* cf = (CFrame*)luaL_checkudata(L, 3, LuauEngine::RCBN_CFRAME_METATABLE);
+        static_cast<User*>(obj)->setCameraCFrame(*cf);
+        return 0;
+    };
 }
 
 

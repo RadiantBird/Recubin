@@ -2,6 +2,7 @@
 
 #include <include/Math/Matrix4.hpp>
 #include <include/Math/Quaternion.hpp>
+#include <include/Math/CFrame.hpp>
 #include <Instances/Instance.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/BaseCube.hpp>
@@ -50,7 +51,7 @@ public:
 
     bool processCameraRotation(bool viewportFocused);
     void processZoom(bool viewportZoomEnabled);
-    void processMovement(bool viewportFocused, Physics* physics);
+    void processMovement(Physics* physics);
     void processHotkeys();
     void processToolkeys(bool viewportFocused, bool isGameplayInput, bool wantsTextInput);
     void processMouse(bool isGameplayInput);
@@ -64,7 +65,8 @@ public:
 
     enum class ControlMode {
         Free,
-        Character
+        Character,
+        Program // Luauがカメラを直接制御する(CameraCFrameプロパティ経由)
     } controlMode = ControlMode::Character;
 
     Vector3 forward;
@@ -80,6 +82,9 @@ public:
     std::shared_ptr<Instance> clone() const override;
 
     void updateVectors();
+    // ControlMode::Program 用: Luauからカメラを直接設定する
+    void setCameraCFrame(const CFrame& cf);
+    CFrame getCameraCFrame() const;
     void initializeInventory();  // Inventory を User の子として追加（コンストラクタ後に呼ぶ）
     // Tool をインベントリに入れ、ホットバーのスロットに登録する。
     // slotIndex<0 のとき先頭の空きスロットを使う。使用したスロット(0-9)を返す。空き無し/無効時は -1。

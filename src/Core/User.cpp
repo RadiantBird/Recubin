@@ -106,8 +106,21 @@ void User::updateVectors() {
     up      = cam.Orientation.getUp();
 }
 
+// ControlMode::Program 用: Luauからカメラを直接設定する
+void User::setCameraCFrame(const CFrame& cf) {
+    cpos            = cf.Position;
+    cam.Orientation = cf.Rotation;
+    updateVectors();
+}
+
+CFrame User::getCameraCFrame() const {
+    return CFrame(cpos, cam.Orientation);
+}
+
 // カメラ回転（マウス右ドラッグ＋矢印キー）
 bool User::processCameraRotation(bool viewportFocused) {
+    if (controlMode == ControlMode::Program) return false; // Luauがカメラを直接制御するため入力は無視する
+
     bool rotated = false;
     const float rotationSpeed = 1.5f;
     const double mouseRotationSpeed = 0.15;
@@ -171,6 +184,7 @@ bool User::processCameraRotation(bool viewportFocused) {
 // ズーム（I/Oキー・スクロール）
 void User::processZoom(bool viewportZoomEnabled) {
     if (!viewportZoomEnabled) return;
+    if (controlMode == ControlMode::Program) return; // Luauがカメラを直接制御するため入力は無視する
 
     const double scrollDelta = m_input->consumeScrollDelta();
 
@@ -191,9 +205,7 @@ void User::processZoom(bool viewportZoomEnabled) {
 }
 
 // 移動ディスパッチ（Free / Character を振り分け）
-void User::processMovement(bool viewportFocused, Physics* physics) {
-    if (!viewportFocused) return;
-
+void User::processMovement(Physics* physics) {
     if (controlMode == ControlMode::Free) {
         if (m_input->isKeyDown(KeyCode::W)) cpos = cpos + forward * speed;
         if (m_input->isKeyDown(KeyCode::S)) cpos = cpos - forward * speed;
@@ -206,6 +218,10 @@ void User::processMovement(bool viewportFocused, Physics* physics) {
         if (humanoid) humanoid->applyBodyAnimation(false, false);
     } else if (controlMode == ControlMode::Character && character && humanoid) {
         processCharacterMovement(physics);
+    } else if (controlMode == ControlMode::Program) {
+        // Program モードでもボディパーツを Root に追従させる
+        // （カメラはLuauが制御するが、キャラクター自体の同期は他モードと同様に必要）
+        if (humanoid) humanoid->applyBodyAnimation(false, false);
     }
 }
 
@@ -419,7 +435,7 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     processZoom(viewportZoomEnabled);
     if (humanoid) humanoid->updateFirstPersonState(cameraDistance <= firstPersonThreshold);
     // 死亡中はキャラクター移動を駆動しない（ばらしたパーツを上書きしないため）
-    if (!m_deathHandled) processMovement(viewportFocused, physics);
+    if (!m_deathHandled) processMovement(physics);
     if (rotated) updateVectors();
     processHotkeys();
     processToolkeys(viewportFocused, isGameplayInput, wantsTextInput);
@@ -581,7 +597,9 @@ bool User::IsA(std::string className) {
 void User::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "ControlMode") {
         std::string s = value.as<std::string>();
-        controlMode = (s == "Free") ? ControlMode::Free : ControlMode::Character;
+        if (s == "Free")         controlMode = ControlMode::Free;
+        else if (s == "Program") controlMode = ControlMode::Program;
+        else                     controlMode = ControlMode::Character;
         return;
     }
     if (name == "Speed")          { speed          = value.as<float>(); return; }

@@ -793,10 +793,13 @@ void PropertiesPanel::onRender() {
 
         // ControlMode (combo)
         {
-            static const char* controlModes[] = { "Free", "Character" };
-            int modeIdx = (usr->controlMode == User::ControlMode::Free) ? 0 : 1;
-            if (ImGui::Combo("ControlMode", &modeIdx, controlModes, 2)) {
-                usr->controlMode = (modeIdx == 0) ? User::ControlMode::Free : User::ControlMode::Character;
+            static const char* controlModes[] = { "Free", "Character", "Program" };
+            int modeIdx = (usr->controlMode == User::ControlMode::Free) ? 0
+                        : (usr->controlMode == User::ControlMode::Character) ? 1 : 2;
+            if (ImGui::Combo("ControlMode", &modeIdx, controlModes, 3)) {
+                usr->controlMode = (modeIdx == 0) ? User::ControlMode::Free
+                                  : (modeIdx == 1) ? User::ControlMode::Character
+                                                    : User::ControlMode::Program;
             }
         }
 
