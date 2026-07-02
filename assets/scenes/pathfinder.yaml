@@ -11,33 +11,19 @@ Root:
     - ClassName: StarterCharacter
       Name: StarterCharacter
       Children:
-        - ClassName: Cube
-          Name: LeftArm
-          Properties:
-            Position: [-1.5, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
         - ClassName: Humanoid
           Name: Humanoid
           Properties:
             WalkSpeed: 16
             JumpPower: 50
+            JumpHeight: 6.3710494
             MaxHealth: 100
             RespawnTime: 5
             Health: 100
         - ClassName: Cube
-          Name: RightArm
+          Name: LeftArm
           Properties:
-            Position: [1.5, 0, 0]
+            Position: [-1.5, 0, 0]
             Size: [1, 2, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -58,6 +44,21 @@ Root:
             Color: [0.13333334, 0.52156866, 0.6509804, 0]
             Anchored: false
             CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: RightArm
+          Properties:
+            Position: [1.5, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
             CastShadow: true
             Unlit: false
             MaterialType: 0
@@ -194,17 +195,17 @@ Root:
         Gravity: [0, -196.20001, 0]
         PhysicsEnabled: true
       Children:
-        - ClassName: Script
-          Name: Safety First
-          Properties:
-            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\Safety First.luau
-            Enabled: false
         - ClassName: Lighting
           Name: Lighting
           Properties:
             Direction: [1, -1, -1]
             Brightness: 1
             Color: [1, 1, 1, 1]
+        - ClassName: Script
+          Name: Safety First
+          Properties:
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\Safety First.luau
+            Enabled: false
         - ClassName: Cube
           Name: Field
           Properties:
@@ -214,26 +215,6 @@ Root:
             Color: [0.06662227, 0.2246154, 0.020042606, 1]
             Anchored: true
             CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Script
-          Name: CameraProgramTest
-          Properties:
-            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\CameraProgramTest.luau
-            Enabled: false
-        - ClassName: Cube
-          Name: Goal
-          Properties:
-            Position: [6.561512, -24, 0.69903994]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0.80784315, 0.5019608]
-            Anchored: true
-            CanCollide: false
             CastShadow: true
             Unlit: false
             MaterialType: 0
@@ -276,8 +257,44 @@ Root:
             - ClassName: Humanoid
               Name: Humanoid
               Properties:
-                WalkSpeed: 5
-                JumpPower: 7
+                WalkSpeed: 16
+                JumpPower: 39.61818
+                JumpHeight: 4
                 MaxHealth: 100
                 RespawnTime: 5
                 Health: 100
+        - ClassName: Cube
+          Name: Goal
+          Properties:
+            Position: [6.561512, -22, -2.98181]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 1, 0.80784315, 0.5019608]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Script
+          Name: CameraProgramTest
+          Properties:
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\CameraProgramTest.luau
+            Enabled: false
+        - ClassName: Cube
+          Name: Cube
+          Properties:
+            Position: [6.491954, -23.5, -3.034143]
+            Size: [16, 2, 16]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.6272569, 0.6492308, 0, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1

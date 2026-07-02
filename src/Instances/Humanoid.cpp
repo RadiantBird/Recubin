@@ -5,6 +5,7 @@
 #include <include/Core/PropertyRegistry.hpp>
 #include <Math/Quaternion.hpp>
 #include <Math/CFrame.hpp>
+#include <Math/Units.hpp>
 #include <cmath>
 #include <cstdlib>
 
@@ -16,6 +17,7 @@ static const bool s_humanoidRegistered = []{
     registerClass("Humanoid", {
         field   <&Humanoid::WalkSpeed>  ("WalkSpeed",   0, 100).clampLua(),
         field   <&Humanoid::JumpPower>  ("JumpPower",   0, 100).clampLua(),
+        method_prop<&Humanoid::getJumpHeight, &Humanoid::setJumpHeight>("JumpHeight", 0, 50, 0.1f),
         field   <&Humanoid::MaxHealth>  ("MaxHealth",   0, 10000).clampLua(),
         field   <&Humanoid::RespawnTime>("RespawnTime", 0, 600).clampLua(),
         fieldVia<&Humanoid::Health, &Humanoid::setHealth>("Health", 0, 100),
@@ -213,6 +215,16 @@ bool Humanoid::moveToward(const Vector3& target, Physics* physics, float arrival
     Vector3 dir = toTarget.normalize();
     move(dir, Vector3::Cross(Vector3(0, 1, 0), dir), true, dir, false, physics);
     return false;
+}
+
+float Humanoid::getJumpHeight() const {
+    float g = METER_TO_STUD * EARTH_GRAVITY_MPS2;
+    return (JumpPower * JumpPower) / (2.0f * g);
+}
+
+void Humanoid::setJumpHeight(float height) {
+    float g = METER_TO_STUD * EARTH_GRAVITY_MPS2;
+    JumpPower = std::sqrt(2.0f * g * std::max(height, 0.0f));
 }
 
 void Humanoid::jump() {

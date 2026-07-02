@@ -22,6 +22,10 @@ public:
     float WalkSpeed = 5.0f;
     float JumpPower = 7.0f;
 
+    // JumpPowerから逆算した跳躍到達高さ(stud)。設定するとJumpPowerが自動計算される
+    float getJumpHeight() const;
+    void  setJumpHeight(float height);
+
     // --- ヘルス ---
     float Health      = 100.0f;
     float MaxHealth   = 100.0f;

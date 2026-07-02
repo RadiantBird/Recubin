@@ -25,15 +25,20 @@ Windowsで動作します。後々、Mac対応予定。
   - Humanoidから動かしてテストしてみる
   - ジャンプも考慮したパスを算出する
 
-- [] Humanoid改修
+- [x] パスファインディングのエージェント設定をPathfindingServiceでカスタマイズ可能にする(テーブルを送る形式)、要確認
+
+- [x] エージェントがジャンプして目的地にたどり着けるか手動テスト
+  - スクリプトを改良(scripts\PathfindingTest.luau)
+
+- [x] Humanoid改修
   - JumpHeight(stud)を実装(自動でJumpPowerも計算される)
 
 - [x] viewportFocusedじゃなくてもキャラクターの見た目の位置が更新されるようにする
 
 - [] 透明な画像をDecalとして貼るとそのCube自体が透ける問題の修正
 
-- [] ScriptがEnabledでなくてもキャッシュされていることによる誤実行の修正
-- [] System/Scriptのプロパティをエディターで書き換えてもDirty判定されない問題の修正
+- [x] ScriptがEnabledでなくてもキャッシュされていることによる誤実行の修正
+- [x] System/Scriptのプロパティをエディターで書き換えてもDirty判定されない問題の修正
 
 - [x] Scriptにメソッド/プロパティをバインディング
   - Enabled

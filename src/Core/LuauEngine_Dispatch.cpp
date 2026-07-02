@@ -703,6 +703,7 @@ void LuauEngine::InitDispatchTable_GUI() {
     // PropertyRegistry の表から流し込む。FindPath のみ手書き。
     PropertyRegistry::applyToDispatch("PathfindingService", DispatchTable, SetterTable);
     DispatchTable["PathfindingService"]["FindPath"] = getter_closure(pathfinding_find_path_closure, "FindPath");
+    DispatchTable["PathfindingService"]["Configure"] = getter_closure(pathfinding_configure_closure, "Configure");
 }
 
 // ==================== Setter: GUI ====================

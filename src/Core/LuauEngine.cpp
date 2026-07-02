@@ -845,6 +845,35 @@ int LuauEngine::pathfinding_find_path_closure(lua_State* L) {
     return 1;
 }
 
+int LuauEngine::pathfinding_configure_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self) return 0;
+
+    // L[1]=self, L[2]=config table（AgentRadius/AgentHeight/AgentMaxClimb/
+    // AgentMaxSlope/MaxJumpDistance/MaxJumpHeightを部分指定可。省略キーは現状維持）
+    // 注: このLuauビルドはヘッダのlua_Type列挙値とランタイムの実際の型タグがずれているため
+    // （lua_type()の生値とLUA_TTABLE等のヘッダ定数が一致しない）、lua_istable/luaL_checktype
+    // 等のマクロ・関数は使わず、lua_typename()の文字列名で型判定する
+    if (std::string_view(lua_typename(L, lua_type(L, 2))) != "table") {
+        luaL_error(L, "Configure: table argument expected");
+        return 0;
+    }
+
+    for (const auto& d : PropertyRegistry::schemaFor("PathfindingService")) {
+        if (d.kind != PropKind::Field || !d.set) continue;
+        std::string key(d.name);
+        lua_getfield(L, 2, key.c_str());
+        if (lua_isnumber(L, -1)) {
+            float v = (float)lua_tonumber(L, -1);
+            if (d.clampOnLuaWrite && d.lo < d.hi) v = std::clamp(v, d.lo, d.hi);
+            d.set(self.get(), PropValue(v));
+        }
+        lua_pop(L, 1);
+    }
+    return 0;
+}
+
 // ==================== Global Functions ====================
 int LuauEngine::global_add(lua_State* L) {
     // 2つの数値を取得

@@ -21,6 +21,14 @@ if not pathfindingService then
     print("[FAIL] PathfindingServiceが見つかりません")
     return
 end
+pathfindingService:Configure({
+    AgentRadius     = 2.0,  -- エージェント半径(stud)。範囲 0.1〜10.0
+    AgentHeight     = 2.0,  -- エージェント高さ(stud)。範囲 0.5〜20.0
+    AgentMaxClimb   = 0.6,  -- 登れる段差の高さ(stud)。範囲 0〜10.0
+    AgentMaxSlope   = 50.0, -- 歩行可能な最大斜度(度)。範囲 0〜89.0
+    MaxJumpDistance = 6.0,  -- ジャンプで飛び越えられる最大水平距離(stud)。範囲 0〜50.0
+    MaxJumpHeight   = 4.0,  -- ジャンプで飛び越えられる最大高低差(stud)。範囲 0〜50.0
+})
 
 local startPos = root.WorldPosition
 local goalPos  = workspace.Goal.WorldPosition
@@ -39,7 +47,6 @@ for i, wp in ipairs(waypoints) do
 end
 
 local index = 1
-local jumpedThisWaypoint = false
 
 local conn
 conn = System.Heartbeat:Connect(function(dt)
@@ -50,15 +57,15 @@ conn = System.Heartbeat:Connect(function(dt)
     end
 
     local wp = waypoints[index]
-
-    if wp.Action == "Jump" and not jumpedThisWaypoint then
-        humanoid:Jump()
-        jumpedThisWaypoint = true
-    end
-
     local arrived = humanoid:MoveToward(wp.Position)
+
     if arrived then
+        -- wp.Action=="Jump" は「このウェイポイントに到達した時点で跳ぶ」の意味
+        -- （次のウェイポイントが跳んだ先の着地点）。到達前にJump()を呼ぶと
+        -- 踏切位置よりずっと手前で跳んでしまい、着地位置に届かなくなる。
+        if wp.Action == "Jump" then
+            humanoid:Jump()
+        end
         index = index + 1
-        jumpedThisWaypoint = false
     end
 end)

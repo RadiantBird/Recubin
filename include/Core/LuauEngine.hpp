@@ -138,6 +138,7 @@ private:
 
     // PathfindingService methods
     static int pathfinding_find_path_closure(lua_State* L);
+    static int pathfinding_configure_closure(lua_State* L);
 
     // Vector3 methods
     static int vec3_index(lua_State* L);
