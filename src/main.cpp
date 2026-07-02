@@ -414,6 +414,7 @@ int main(int argc, char* argv[]) {
 
         // ---- エディターモード中は物理・スクリプトを止める ----
         if (isPlaying && !isPaused) {
+            luauEngine->resetFrameSafetyCounters();
             for (auto& [name, child] : system->getChildren()) {
                 if (!child->IsA("Workspace")) continue;
                 auto* ws = static_cast<Workspace*>(child.get());
@@ -423,6 +424,13 @@ int main(int argc, char* argv[]) {
             }
             luauEngine->fireHeartbeat(deltaTime);
             luauEngine->update(deltaTime);
+
+            if (luauEngine->consumeSafetyHaltRequest()) {
+                // Stopボタン(EditorManager.cpp)と同じ状態遷移
+                ed->mode = EditorMode::Edit;
+                if (user) user->controlMode = User::ControlMode::Free;
+                RCBN_LOG("[INFO] Stopped due to safety limit breach. Switched to Free Camera mode.");
+            }
         }
 
         // ---- 入力処理（エディターモードではカメラ操作のみ許可）----

@@ -501,6 +501,8 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Script"]["Enabled"] = getter_bool  <Script, &Script::Enabled>();
     DispatchTable["Script"]["Path"]    = getter_string<Script, &Script::Path>();
     DispatchTable["Script"]["Source"]  = getter_string<Script, &Script::Source>();
+    DispatchTable["Script"]["Aborted"] = getter_bool  <Script, &Script::Aborted>();  // read-only（安全対策のタイムアウト等で自動的にセットされる）
+    DispatchTable["Script"]["Restart"] = getter_closure(script_restart_closure, "Restart");
 }
 
 

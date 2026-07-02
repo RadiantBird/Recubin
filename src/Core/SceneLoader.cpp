@@ -329,6 +329,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->getClassName() == "Terrain"
                  || inst->getClassName() == "User"
                  || inst->getClassName() == "Tool"
+                 || inst->getClassName() == "System"
                  || inst->IsA("Workspace"); // NOTE: プロパティを最近追加した
 
     if (hasProps) {
@@ -560,6 +561,12 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "CameraDistance" << YAML::Value << usr->cameraDistance;
             out << YAML::Key << "ZoomSpeed"      << YAML::Value << usr->zoomSpeed;
             out << YAML::Key << "MouseZoomSpeed" << YAML::Value << usr->mouseZoomSpeed;
+        }
+        if (inst->getClassName() == "System") {
+            const System* sys = static_cast<const System*>(inst);
+            out << YAML::Key << "MaxClonesPerFrame"        << YAML::Value << sys->MaxClonesPerFrame;
+            out << YAML::Key << "MaxRestartsPerFrame"      << YAML::Value << sys->MaxRestartsPerFrame;
+            out << YAML::Key << "ScriptLoopTimeoutSeconds" << YAML::Value << sys->ScriptLoopTimeoutSeconds;
         }
         if (inst->getClassName() == "Tool") {
             const Tool* tool = static_cast<const Tool*>(inst);

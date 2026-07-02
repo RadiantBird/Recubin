@@ -25,6 +25,21 @@ Windowsで動作します。後々、Mac対応予定。
   - Humanoidから動かしてテストしてみる
   - ジャンプも考慮したパスを算出する
 
+- [] Humanoid改修
+  - JumpHeight(stud)を実装(自動でJumpPowerも計算される)
+
+- [x] Scriptにメソッド/プロパティをバインディング
+  - Enabled
+  - Aborted(readOnly)
+  - Source(readOnly)
+  - Restart(スクリプトを再起動する->特殊再起パターンやウォッチドッグに活用できる)
+
+- [x] 安全対策の組み込み
+  - 1フレームでCloneしすぎたらランタイムを強制停止させ、Cloneを呼び出していたスクリプトの種類で大きい順にソートしてエラー出力(Infinite cloning possible)
+  - Restartしすぎも同様(Infinity recursion possible)
+  - その他、スクリプトがループ処理で時間がかかりすぎたらタイムアウトさせる
+  - これらの安全マージン変数はSystemクラスに埋め込み、エディターで編集可能にする(Luauバインドは意図的に行わない)
+
 - [x] カメラをプログラマブルに
   - LuauからUserを通して使えるようにする
   - ControlMode::Programを追加

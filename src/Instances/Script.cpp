@@ -44,6 +44,23 @@ void Script::setProperty(const std::string& name, const YAML::Node& value) {
     }
 }
 
+// 実行中のコルーチンを切り離す。次のexecute()呼び出しがCoroutine==nullptrを
+// 見て新規コルーチンを生成し、Sourceから最初から再実行する。古いコルーチンは
+// 通常の完了パスと同様GC任せ(MaxRestartsPerFrameが1フレームあたりの増加量を制限する)。
+void Script::restart() {
+    Coroutine = nullptr;
+    CoroutineRef = -1;  // 呼び出し元がlua_unref済みであることを前提とする
+    Completed = false;
+    Aborted = false;
+    Sleeping = false;
+    SleepRemaining = 0.0f;
+    WaitingForChild = false;
+    WaitTarget.reset();
+    WaitChildName.clear();
+    WaitTimeout = -1.0f;
+    WaitElapsed = 0.0f;
+}
+
 std::shared_ptr<Instance> Script::clone() const {
     auto copy = std::make_shared<Script>();
     copy->Name          = Name;

@@ -2,6 +2,7 @@
 #include <Editor/CommandHistory.hpp>
 #include <Core/Physics.hpp>
 #include <Core/User.hpp>
+#include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Instances/MeshCube.hpp>
@@ -350,7 +351,8 @@ void PropertiesPanel::onRender() {
 
     Instance* inst = selectedInstance ? *selectedInstance : nullptr;
     // ツリーから除去済み（Parent expired）なインスタンスは選択解除
-    if (inst && inst->Parent.expired()) {
+    // System はツリーのルートで元々親を持たない（Parent が常に expired）ため対象外にする
+    if (inst && inst->Parent.expired() && !inst->IsA("System")) {
         *selectedInstance = nullptr;
         inst = nullptr;
     }
@@ -658,6 +660,17 @@ void PropertiesPanel::onRender() {
             std::wstring wp(sc->Path.begin(), sc->Path.end());
             ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOW);
         }
+
+        ImGui::Checkbox("Enabled", &sc->Enabled);
+
+        ImGui::BeginDisabled();
+        bool aborted = sc->Aborted;
+        ImGui::Checkbox("Aborted", &aborted);
+        ImGui::EndDisabled();
+
+        if (ImGui::Button("Restart")) {
+            sc->restart();
+        }
     }
 
     // ---- Decal ----
@@ -783,6 +796,17 @@ void PropertiesPanel::onRender() {
                         txSp, oldPath, oldID, tx->texturePath, tx->TextureID));
             }
         }
+    }
+
+    // ---- System ----
+    if (inst->getClassName() == "System") {
+        System* sys = static_cast<System*>(inst);
+        ImGui::SeparatorText("System (Safety Limits)");
+        ImGui::DragInt("MaxClonesPerFrame", &sys->MaxClonesPerFrame, 1.0f, 0, 1000000);
+        ImGui::DragInt("MaxRestartsPerFrame", &sys->MaxRestartsPerFrame, 1.0f, 0, 1000000);
+        ImGui::DragFloat("ScriptLoopTimeoutSeconds", &sys->ScriptLoopTimeoutSeconds, 0.05f, 0.0f, 60.0f, "%.2f");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("0 or below disables the loop timeout check");
     }
 
     // ---- User ----

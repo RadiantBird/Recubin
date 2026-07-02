@@ -297,3 +297,7 @@ Root:
             Intensity: 1
             Param1: 16
             Param2: 0.1
+        - ClassName: Script
+          Name: Safety First
+          Properties:
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\Safety First.luau

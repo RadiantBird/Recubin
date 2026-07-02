@@ -28,7 +28,11 @@ class Script : public Instance {
         float WaitElapsed = 0.0f;             // 経過時間
         
         lua_State* Coroutine = nullptr;  // このスクリプト用のコルーチン
-        
+        int CoroutineRef = -1;  // Coroutineをluaのレジストリに保持する参照(LUA_NOREF(-1)相当)。
+                                 // GCから保護するためのもので、Lのスタックには積みっぱなしにしない。
+
+        void restart();  // 実行状態をリセットし、次のexecute()で最初から再実行させる
+
         virtual string getClassName() override;
         virtual bool IsA(std::string className) override;
         virtual void setProperty(const std::string& name, const YAML::Node& value) override;

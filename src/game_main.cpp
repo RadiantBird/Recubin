@@ -149,9 +149,11 @@ int main() {
         lastFrame       = now;
 
         if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->update(*workspace, deltaTime);
+        luauEngine->resetFrameSafetyCounters();
         luauEngine->fireHeartbeat(deltaTime);
         luauEngine->update(deltaTime);
         luauEngine->executeWorkspaceScripts(*workspace);
+        if (luauEngine->consumeSafetyHaltRequest()) break; // 既存のconsumeExitRequestと同じglfwTerminate()クリーンアップ経路に合流
 
         // エディタが存在しないため、常にゲームプレイ入力として扱う
         user->processInput(workspace->getPhysicsEngine(), deltaTime,

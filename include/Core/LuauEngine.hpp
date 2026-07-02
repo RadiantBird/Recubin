@@ -6,6 +6,7 @@
 #include <string_view>
 #include <functional>
 #include <memory>
+#include <chrono>
 
 #include "include/luau/lua.h"
 #include "include/luau/lualib.h"
@@ -38,6 +39,18 @@ private:
     System*    m_system = nullptr;
     static Script* currentScript;  // 現在実行中のスクリプト
     std::string m_lastTraceback;   // debugprotectederror で取得したスタックトレース
+
+    // ---- 安全対策(1フレームあたりのClone/Restart上限、ループタイムアウト) ----
+    std::unordered_map<std::string, int> m_cloneCallCounts;
+    std::unordered_map<std::string, int> m_restartCallCounts;
+    int  m_totalClonesThisFrame   = 0;
+    int  m_totalRestartsThisFrame = 0;
+    bool m_haltRequested          = false;
+    // ループタイムアウト検出用: 直近のlua_resume開始時刻(コルーチンは同時に1つしか
+    // 実行されないため、エンジン単位のタイムスタンプ1つで足りる)
+    std::chrono::steady_clock::time_point m_scriptResumeStart;
+
+    void reportSafetyBreach(const std::string& reason, const std::unordered_map<std::string, int>& counts);
 
     static constexpr const char* ERIK = "erik";
 
@@ -86,6 +99,9 @@ private:
     static int instance_is_a_closure(lua_State* L);
     static int instance_destroy_closure(lua_State* L);
     static int instance_clone_closure(lua_State* L);
+
+    // Script methods
+    static int script_restart_closure(lua_State* L);
 
     // User methods
     static int user_add_tool_closure(lua_State* L);
@@ -226,6 +242,13 @@ public:
 
     void fireHeartbeat(float dt);
     void onCollision(BaseCube* a, BaseCube* b);
+
+    // 1フレームのClone/Restart上限を超えた時にtrueを返す(1回だけ)。
+    // ホスト(main.cpp / game_main.cpp)が毎フレーム呼び、消費する。
+    bool consumeSafetyHaltRequest();
+    // このフレーム分のClone/Restartカウンタをリセットする。ホストがそのフレームの
+    // スクリプト/Heartbeat処理を始める直前に必ず1回呼ぶこと。
+    void resetFrameSafetyCounters();
 
     static void pushSignal(lua_State* L, std::shared_ptr<RCBNScriptSignal> sig);
     static void pushConnection(lua_State* L, std::shared_ptr<RCBNScriptConnection> conn);

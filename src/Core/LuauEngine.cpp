@@ -22,6 +22,34 @@
 #include "include/Core/TerrainStreamer.hpp"
 #include "include/Util/Color4.hpp"
 #include "include/Util/Logger.hpp"
+#include "include/Instances/Cube.hpp"
+#include "include/Instances/Cylinder.hpp"
+#include "include/Instances/TriangularPrism.hpp"
+#include "include/Instances/Sphere.hpp"
+#include "include/Instances/MeshCube.hpp"
+#include "include/Instances/LiquidCube.hpp"
+#include "include/Instances/Skybox.hpp"
+#include "include/Instances/Sun.hpp"
+#include "include/Instances/Moon.hpp"
+#include "include/Instances/Model.hpp"
+#include "include/Instances/Decal.hpp"
+#include "include/Instances/Texture.hpp"
+#include "include/Instances/Lighting.hpp"
+#include "include/Instances/PointLight.hpp"
+#include "include/Instances/SpotLight.hpp"
+#include "include/Instances/PostEffect.hpp"
+#include "include/Instances/AppImage.hpp"
+#include "include/Instances/FileRef.hpp"
+#include "include/Instances/StarterCharacter.hpp"
+#include "include/Core/Terrain.hpp"
+#include "include/Instances/Rope.hpp"
+#include "include/Instances/Rod.hpp"
+#include "include/Instances/Weld.hpp"
+#include "include/Instances/Motor.hpp"
+#include "include/Instances/ImageLabel.hpp"
+#include "include/Instances/ImageButton.hpp"
+#include "include/Instances/Folder.hpp"
+#include "include/Core/AudioService.hpp"
 #include <cmath>
 #include <algorithm>
 #include <float.h>
@@ -71,6 +99,13 @@ FPUState saveFPU() {
 void restoreFPU(const FPUState& s) {
     fesetenv(&s.env);
     _mm_setcsr(s.mxcsr);
+}
+
+// Clone/Restart呼び出し元のScriptを識別するラベル。Heartbeat経由の呼び出しは
+// currentScriptが設定されないため専用ラベルにまとめる。
+static std::string scriptSafetyLabel(Script* s) {
+    if (!s) return "Unknown/Heartbeat";
+    return s->Name.empty() ? "(unnamed Script)" : s->Name;
 }
 
 void LuauEngine::InitDispatchTable() {
@@ -370,6 +405,22 @@ LuauEngine::LuauEngine() {
         if (g_luauLogHook) g_luauLogHook("[ERROR] [PANIC] " + msg);
     };
 
+    // ループタイムアウト検出。lua_Callbacksは全コルーチンで共有されるためLに一度だけ設定すれば
+    // 全てのScriptコルーチンに適用される。currentScriptがnullの間(Heartbeat経由の直接pcall等)は
+    // 対象スクリプトが特定できないためチェックをスキップする。
+    lua_callbacks(L)->interrupt = [](lua_State* Lco, int gc) {
+        if (gc >= 0 || !currentScript) return; // GC由来の割り込み、及びスクリプト外の呼び出しは対象外
+        auto* engine = static_cast<LuauEngine*>(lua_callbacks(Lco)->userdata);
+        if (!engine || !engine->m_system) return;
+        float limit = engine->m_system->ScriptLoopTimeoutSeconds;
+        if (limit <= 0.0f) return; // 0以下でチェック無効
+        float elapsed = std::chrono::duration<float>(
+            std::chrono::steady_clock::now() - engine->m_scriptResumeStart).count();
+        if (elapsed >= limit) {
+            luaL_error(Lco, "Script loop timeout exceeded (%.2fs) - possible infinite loop", limit);
+        }
+    };
+
     InitMetatables();
     InitDispatchTable();
     InitSetterTable();
@@ -454,122 +505,142 @@ int LuauEngine::instance_find_child_closure(lua_State* L) {
 }
 
 bool LuauEngine::execute(Script& script) {
-    // 既にコルーチンがある場合は再開、なければ新規作成
-    if (script.Coroutine == nullptr) {
-        script.Coroutine = lua_newthread(L);
+    // 自分自身へのRestart()はここでループして即座に再実行する(再帰しない)。
+    // これによりC++呼び出しスタックを伸ばさずに「同一フレームで即再実行」を実現する。
+    for (;;) {
+        // 既にコルーチンがある場合は再開、なければ新規作成
+        if (script.Coroutine == nullptr) {
+            script.Coroutine = lua_newthread(L);
+            // レジストリ参照でGCから保護する。Lのスタックには積みっぱなしにしない
+            // (積みっぱなしだと再起動のたびにLのスタックが無制限に伸びてGCが壊れる)
+            script.CoroutineRef = lua_ref(L, -1);
+            lua_pop(L, 1);
 
-        // コルーチンにもデバッグコールバックを伝播させる
-        lua_callbacks(script.Coroutine)->userdata = lua_callbacks(L)->userdata;
-        lua_callbacks(script.Coroutine)->debugprotectederror = [](lua_State* Lco) {
-            const char* trace = lua_debugtrace(Lco);
-            auto* engine = static_cast<LuauEngine*>(lua_callbacks(Lco)->userdata);
-            if (engine) engine->m_lastTraceback = trace ? trace : "";
-        };
+            // コルーチンにもデバッグコールバックを伝播させる
+            lua_callbacks(script.Coroutine)->userdata = lua_callbacks(L)->userdata;
+            lua_callbacks(script.Coroutine)->debugprotectederror = [](lua_State* Lco) {
+                const char* trace = lua_debugtrace(Lco);
+                auto* engine = static_cast<LuauEngine*>(lua_callbacks(Lco)->userdata);
+                if (engine) engine->m_lastTraceback = trace ? trace : "";
+            };
 
-        RegisterGlobalFunctions(script.Coroutine);
-        auto* sud = (std::weak_ptr<Instance>*)lua_newuserdata(script.Coroutine, sizeof(std::weak_ptr<Instance>));
-        new (sud) std::weak_ptr<Instance>(script.shared_from_this());
-        luaL_getmetatable(script.Coroutine, RCBN_INST_METATABLE);
-        lua_setmetatable(script.Coroutine, -2);
-        lua_setglobal(script.Coroutine, "script");
-    }
-    
-    lua_State* co = script.Coroutine;
-    setWorkspaceGlobal(co, getScriptWorkspace(script));
-    
-    // 初回実行の場合、スクリプトをロード
-    // lua_status(): 0=OK, LUA_YIELD=suspended, LUA_ERRERR=error, etc.
-    if (lua_status(co) == 0 && lua_gettop(co) == 0) {  // スタックが空なら初回実行
-        // ファイルが真実の源: 実行直前に最新ソースを再読込する
-        // (外部エディタ編集・新規作成直後の内容を反映。空読込時は既存を保持)
-        if (!script.isPrecompiled && !script.Path.empty()) {
-            std::string latest = FileLoader::readText(script.Path);
-            if (!latest.empty()) script.Source = latest;
+            RegisterGlobalFunctions(script.Coroutine);
+            auto* sud = (std::weak_ptr<Instance>*)lua_newuserdata(script.Coroutine, sizeof(std::weak_ptr<Instance>));
+            new (sud) std::weak_ptr<Instance>(script.shared_from_this());
+            luaL_getmetatable(script.Coroutine, RCBN_INST_METATABLE);
+            lua_setmetatable(script.Coroutine, -2);
+            lua_setglobal(script.Coroutine, "script");
         }
 
-        std::string compiledSource;
-        const std::string* sourcePtr = &script.Source;
+        lua_State* co = script.Coroutine;
+        setWorkspaceGlobal(co, getScriptWorkspace(script));
 
-        // .luarファイルはRust製LuarコンパイラでLuauに変換する
-        auto endsWithLuar = [](const std::string& s) {
-            return s.size() >= 5 && s.substr(s.size() - 5) == ".luar";
-        };
-        bool isLuar = endsWithLuar(script.Name) || endsWithLuar(script.Path);
-        if (isLuar) {
-            static LuarCompiler s_luarCompiler;
-            compiledSource = s_luarCompiler.compile(script.Source);
-            if (compiledSource.empty()) { script.Aborted = true; return false; }
-            RCBN_LOG("\033[32m Compiling Luar Source has succeeded!\033[0m");
-            // std::cerr << "[LuarCompiler] Output:\n" << compiledSource << "\n---\n";
-            sourcePtr = &compiledSource;
+        // 初回実行の場合、スクリプトをロード
+        // lua_status(): 0=OK, LUA_YIELD=suspended, LUA_ERRERR=error, etc.
+        if (lua_status(co) == 0 && lua_gettop(co) == 0) {  // スタックが空なら初回実行
+            // ファイルが真実の源: 実行直前に最新ソースを再読込する
+            // (外部エディタ編集・新規作成直後の内容を反映。空読込時は既存を保持)
+            if (!script.isPrecompiled && !script.Path.empty()) {
+                std::string latest = FileLoader::readText(script.Path);
+                if (!latest.empty()) script.Source = latest;
+            }
+
+            std::string compiledSource;
+            const std::string* sourcePtr = &script.Source;
+
+            // .luarファイルはRust製LuarコンパイラでLuauに変換する
+            auto endsWithLuar = [](const std::string& s) {
+                return s.size() >= 5 && s.substr(s.size() - 5) == ".luar";
+            };
+            bool isLuar = endsWithLuar(script.Name) || endsWithLuar(script.Path);
+            if (isLuar) {
+                static LuarCompiler s_luarCompiler;
+                compiledSource = s_luarCompiler.compile(script.Source);
+                if (compiledSource.empty()) { script.Aborted = true; return false; }
+                RCBN_LOG("\033[32m Compiling Luar Source has succeeded!\033[0m");
+                // std::cerr << "[LuarCompiler] Output:\n" << compiledSource << "\n---\n";
+                sourcePtr = &compiledSource;
+            }
+
+            const std::string& source = *sourcePtr;
+            int status;
+            if (script.isPrecompiled) {
+                // .luauc: source already contains raw bytecode, pass directly
+                status = luau_load(co, ("@" + script.Name).c_str(),
+                                   source.data(), source.size(), 0);
+            } else {
+                size_t bytecodeSize = 0;
+                char* bytecode = luau_compile(source.c_str(), source.length(), nullptr, &bytecodeSize);
+                if (!bytecode) return false;
+                status = luau_load(co, ("@" + script.Name).c_str(), bytecode, bytecodeSize, 0);
+                free(bytecode);
+            }
+
+            if (status != 0) {
+                script.Aborted = true; // DO NOT loop on errored script compile!
+                const char* raw = (lua_gettop(co) > 0) ? lua_tostring(co, -1) : nullptr;
+                const std::string errMsg = raw ? raw : "compile error";
+                std::cerr << "Luau Load Error: " << errMsg << "\n";
+                if (g_luauLogHook) g_luauLogHook("[ERROR] " + errMsg);
+                if (lua_gettop(co) > 0) lua_pop(co, 1);
+                return false;
+            }
         }
 
-        const std::string& source = *sourcePtr;
-        int status;
-        if (script.isPrecompiled) {
-            // .luauc: source already contains raw bytecode, pass directly
-            status = luau_load(co, ("@" + script.Name).c_str(),
-                               source.data(), source.size(), 0);
+        // currentScript を設定
+        currentScript = &script;
+
+        // コルーチンを再開
+        int nargs = 0;
+        FPUState fpuState = saveFPU();
+        m_scriptResumeStart = std::chrono::steady_clock::now();
+        int result = lua_resume(co, L, nargs);
+        restoreFPU(fpuState);
+
+        // 結果を確認
+        if (result == LUA_YIELD) {
+            // wait() で停止した - Script の Sleeping フラグは wait() 内で設定済み
+            currentScript = nullptr;
+            return true;
+        } else if (script.Coroutine != co) {
+            // 実行中に自分自身へRestart()が呼ばれ、Coroutineが差し替え済み。
+            // このcoの完了/エラー結果でrestart()後の新しい状態を上書きせず、
+            // ループして新しいコルーチンを同一フレーム内で即座に実行する。
+            currentScript = nullptr;
+            continue;
+        } else if (result == 0) {
+            // 完了
+            script.Sleeping = false;
+            script.Completed = true;  // 完了フラグをセット
+            lua_unref(L, script.CoroutineRef);
+            script.CoroutineRef = -1;
+            script.Coroutine = nullptr;  // コルーチンをクリア
+            currentScript = nullptr;
+            return true;
         } else {
-            size_t bytecodeSize = 0;
-            char* bytecode = luau_compile(source.c_str(), source.length(), nullptr, &bytecodeSize);
-            if (!bytecode) return false;
-            status = luau_load(co, ("@" + script.Name).c_str(), bytecode, bytecodeSize, 0);
-            free(bytecode);
-        }
+            // エラー
+            script.Aborted = true; // DO NOT loop on errored script!
+            std::cerr << "Luau Run Error caught. Status: " << result << "\n";
+            // Luauはエラーメッセージをcoではなく親スレッドLに積む場合がある
+            lua_State* errState = (lua_gettop(co) > 0) ? co : L;
+            std::string errMsg = "unknown error";
+            if (lua_gettop(errState) > 0) {
+                const char* raw = luaL_tolstring(errState, -1, nullptr);
+                if (raw) errMsg = raw;
+                lua_pop(errState, 2); // luaL_tolstring が文字列を積むので2つポップ
+            }
 
-        if (status != 0) {
-            script.Aborted = true; // DO NOT loop on errored script compile!
-            const char* raw = (lua_gettop(co) > 0) ? lua_tostring(co, -1) : nullptr;
-            const std::string errMsg = raw ? raw : "compile error";
-            std::cerr << "Luau Load Error: " << errMsg << "\n";
-            if (g_luauLogHook) g_luauLogHook("[ERROR] " + errMsg);
-            if (lua_gettop(co) > 0) lua_pop(co, 1);
+            // debugprotectederror で取得したスタックトレースを使う
+            const std::string output = m_lastTraceback.empty() ? errMsg : m_lastTraceback;
+            m_lastTraceback.clear();
+            std::cerr << "Luau Run Error: " << output << "\n";
+            if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
+            lua_unref(L, script.CoroutineRef);
+            script.CoroutineRef = -1;
+            script.Coroutine = nullptr;
+            currentScript = nullptr;
             return false;
         }
-    }
-    
-    // currentScript を設定
-    currentScript = &script;
-    
-    // コルーチンを再開
-    int nargs = 0;
-    FPUState fpuState = saveFPU();
-    int result = lua_resume(co, L, nargs);
-    restoreFPU(fpuState);
-
-    // 結果を確認
-    if (result == LUA_YIELD) {
-        // wait() で停止した - Script の Sleeping フラグは wait() 内で設定済み
-        currentScript = nullptr;
-        return true;
-    } else if (result == 0) {
-        // 完了
-        script.Sleeping = false;
-        script.Completed = true;  // 完了フラグをセット
-        script.Coroutine = nullptr;  // コルーチンをクリア
-        currentScript = nullptr;
-        return true;
-    } else {
-        // エラー
-        script.Aborted = true; // DO NOT loop on errored script!
-        std::cerr << "Luau Run Error caught. Status: " << result << "\n";
-        // Luauはエラーメッセージをcoではなく親スレッドLに積む場合がある
-        lua_State* errState = (lua_gettop(co) > 0) ? co : L;
-        std::string errMsg = "unknown error";
-        if (lua_gettop(errState) > 0) {
-            const char* raw = luaL_tolstring(errState, -1, nullptr);
-            if (raw) errMsg = raw;
-            lua_pop(errState, 2); // luaL_tolstring が文字列を積むので2つポップ
-        }
-
-        // debugprotectederror で取得したスタックトレースを使う
-        const std::string output = m_lastTraceback.empty() ? errMsg : m_lastTraceback;
-        m_lastTraceback.clear();
-        std::cerr << "Luau Run Error: " << output << "\n";
-        if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
-        currentScript = nullptr;
-        return false;
     }
 }
 
@@ -851,6 +922,8 @@ void LuauEngine::setWorkspace(const std::shared_ptr<Workspace>& ws) {
 }
 
 void LuauEngine::executeWorkspaceScripts(Workspace& ws) {
+    if (m_haltRequested) return; // 安全対策による強制停止済み
+
     // このWorkspaceのスクリプトが実行される前に workspace グローバルを切り替える
     auto wsSp = std::static_pointer_cast<Workspace>(ws.shared_from_this());
     auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
@@ -951,15 +1024,25 @@ void LuauEngine::resumeWaitChild(Script& script, Instance* childOrNull) {
     }
 
     FPUState fpuState = saveFPU();
+    m_scriptResumeStart = std::chrono::steady_clock::now();
     int result = lua_resume(co, L, 1);
     restoreFPU(fpuState);
 
     if (result == LUA_YIELD) {
         currentScript = nullptr;
         return;
+    } else if (script.Coroutine != co) {
+        // 実行中に自分自身へRestart()が呼ばれ、Coroutineが差し替え済み。
+        // このcoの完了/エラー結果でrestart()後の新しい状態を上書きせず、
+        // execute()のループへ委ねて同一フレーム内で即座に新しい実行を続ける。
+        currentScript = nullptr;
+        execute(script);
+        return;
     } else if (result == 0) {
         script.Sleeping  = false;
         script.Completed = true;
+        lua_unref(L, script.CoroutineRef);
+        script.CoroutineRef = -1;
         script.Coroutine = nullptr;
         currentScript    = nullptr;
         return;
@@ -977,6 +1060,9 @@ void LuauEngine::resumeWaitChild(Script& script, Instance* childOrNull) {
         m_lastTraceback.clear();
         std::cerr << "Luau Run Error: " << output << "\n";
         if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
+        lua_unref(L, script.CoroutineRef);
+        script.CoroutineRef = -1;
+        script.Coroutine = nullptr;
         currentScript = nullptr;
         return;
     }
@@ -1342,16 +1428,63 @@ int LuauEngine::connection_disconnect_closure(lua_State* L) {
 // ===================================================
 //  Instance.new
 // ===================================================
+// クラス名 -> ファクトリ関数の対応表。新しいクラスを追加する場合はここに1行足すだけでよい。
+// System はルートの唯一無二インスタンスのため、複製生成を避ける目的で意図的に対象外にしている。
+static const std::unordered_map<std::string, std::function<std::shared_ptr<Instance>()>>& instanceFactories() {
+    static const std::unordered_map<std::string, std::function<std::shared_ptr<Instance>()>> table = {
+        { "Instance",         [] { return std::make_shared<Instance>("Instance"); } },
+        { "Folder",           [] { return std::make_shared<Folder>(); } },
+        { "Workspace",        [] { return std::make_shared<Workspace>(); } },
+        { "PathfindingService", [] { return std::make_shared<PathfindingService>(); } },
+        { "Cube",             [] { return std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); } },
+        { "Cylinder",         [] { return std::make_shared<Cylinder>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
+        { "TriangularPrism",  [] { return std::make_shared<TriangularPrism>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
+        { "Sphere",           [] { return std::make_shared<Sphere>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
+        { "MeshCube",         [] { return std::make_shared<MeshCube>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
+        { "LiquidCube",       [] { return std::make_shared<LiquidCube>(Vector3(0, 0, 0), Vector3(4, 2, 4)); } },
+        { "Skybox",           [] { return std::make_shared<Skybox>(); } },
+        { "Sun",              [] { return std::make_shared<Sun>(); } },
+        { "Moon",             [] { return std::make_shared<Moon>(); } },
+        { "Script",           [] { return std::make_shared<Script>(""); } },
+        { "Model",            [] { return std::make_shared<Model>(); } },
+        { "Decal",            [] { return std::make_shared<Decal>(0, Face::Front); } },
+        { "Texture",          [] { return std::make_shared<Texture>(0, Face::Front); } },
+        { "Sound",            [] () -> std::shared_ptr<Instance> {
+              return AudioService::instance ? std::make_shared<Sound>(*AudioService::instance) : nullptr;
+          } },
+        { "Lighting",         [] { return std::make_shared<Lighting>(); } },
+        { "PointLight",       [] { return std::make_shared<PointLight>(); } },
+        { "SpotLight",        [] { return std::make_shared<SpotLight>(); } },
+        { "PostEffect",       [] { return std::make_shared<PostEffect>(); } },
+        { "AppImage",         [] { return std::make_shared<AppImage>(); } },
+        { "FileRef",          [] { return std::make_shared<FileRef>(); } },
+        { "Humanoid",         [] { return std::make_shared<Humanoid>(); } },
+        { "Animation",        [] { return std::make_shared<Animation>(); } },
+        { "StarterCharacter", [] { return std::make_shared<StarterCharacter>(); } },
+        { "Terrain",          [] { return std::make_shared<Terrain>(); } },
+        { "Rope",             [] { return std::make_shared<Rope>(); } },
+        { "Rod",              [] { return std::make_shared<Rod>(); } },
+        { "Weld",             [] { return std::make_shared<Weld>(); } },
+        { "Motor",            [] { return std::make_shared<Motor>(); } },
+        { "TextLabel",        [] { return std::make_shared<TextLabel>(); } },
+        { "TextButton",       [] { return std::make_shared<TextButton>(); } },
+        { "ImageLabel",       [] { return std::make_shared<ImageLabel>(); } },
+        { "ImageButton",      [] { return std::make_shared<ImageButton>(); } },
+        { "SurfaceGui",       [] { return std::make_shared<SurfaceGui>(); } },
+        { "BillboardGui",     [] { return std::make_shared<BillboardGui>(); } },
+        { "ProximityPrompt",  [] { return std::make_shared<ProximityPrompt>(); } },
+        { "Tool",             [] { return std::make_shared<Tool>("Tool"); } },
+        { "Event",            [] { return std::make_shared<Event>(); } },
+    };
+    return table;
+}
+
 int LuauEngine::instance_new_closure(lua_State* L) {
     const char* className = luaL_checkstring(L, 1);
 
     std::shared_ptr<Instance> inst;
-    if      (strcmp(className, "Event")        == 0) inst = std::make_shared<Event>();
-    else if (strcmp(className, "TextLabel")    == 0) inst = std::make_shared<TextLabel>();
-    else if (strcmp(className, "TextButton")   == 0) inst = std::make_shared<TextButton>();
-    else if (strcmp(className, "SurfaceGui")   == 0) inst = std::make_shared<SurfaceGui>();
-    else if (strcmp(className, "BillboardGui") == 0) inst = std::make_shared<BillboardGui>();
-    else if (strcmp(className, "ProximityPrompt") == 0) inst = std::make_shared<ProximityPrompt>();
+    auto it = instanceFactories().find(className);
+    if (it != instanceFactories().end()) inst = it->second();
 
     if (!inst) { lua_pushnil(L); return 1; }
 
@@ -1379,7 +1512,64 @@ int LuauEngine::instance_clone_closure(lua_State* L) {
     new (ud) std::weak_ptr<Instance>(copy);
     luaL_getmetatable(L, RCBN_INST_METATABLE);
     lua_setmetatable(L, -2);
+
+    auto* engine = static_cast<LuauEngine*>(lua_callbacks(L)->userdata);
+    if (engine && engine->m_system) {
+        std::string label = scriptSafetyLabel(currentScript);
+        int total = ++engine->m_totalClonesThisFrame;
+        engine->m_cloneCallCounts[label]++;
+        if (total > engine->m_system->MaxClonesPerFrame) {
+            engine->reportSafetyBreach("Infinite cloning possible", engine->m_cloneCallCounts);
+            luaL_error(L, "Safety limit exceeded: too many Instance:Clone() calls this frame (max %d)",
+                       engine->m_system->MaxClonesPerFrame);
+        }
+    }
     return 1;
+}
+
+// ===================================================
+//  Script:Restart クロージャー
+// ===================================================
+int LuauEngine::script_restart_closure(lua_State* L) {
+    auto* userdata = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto obj_shared = userdata->lock();
+    if (!obj_shared) return 0;
+    auto* script = static_cast<Script*>(obj_shared.get());
+
+    auto* engine = static_cast<LuauEngine*>(lua_callbacks(L)->userdata);
+    if (engine && engine->m_system) {
+        std::string label = scriptSafetyLabel(currentScript);
+        int total = ++engine->m_totalRestartsThisFrame;
+        engine->m_restartCallCounts[label]++;
+        if (total > engine->m_system->MaxRestartsPerFrame) {
+            engine->reportSafetyBreach("Infinity recursion possible", engine->m_restartCallCounts);
+            luaL_error(L, "Safety limit exceeded: too many Script:Restart() calls this frame (max %d)",
+                       engine->m_system->MaxRestartsPerFrame);
+            return 0; // 到達しない（luaL_errorはlongjmp）
+        }
+    }
+
+    bool isSelfRestart = (script == currentScript);
+
+    if (isSelfRestart) {
+        // 自分自身の再起動: ここではexecute()を再帰呼びしない。
+        // Coroutineを差し替えてluaL_errorで古い実行を打ち切れば、その巻き戻し先である
+        // execute()自身のループ(script.Coroutine != co の分岐)が同一フレーム内で
+        // 即座に新しいコルーチンを実行してくれる（C++スタックを伸ばさない）。
+        if (script->CoroutineRef != -1) lua_unref(L, script->CoroutineRef);
+        script->restart();
+        luaL_error(L, "Script restarted"); // Coroutine差し替え済みなのでAbortedへは誤変換されない
+        return 0; // 到達しない
+    }
+
+    // 他スクリプトの再起動: 対象は別コルーチンなので同期的に再帰実行してから
+    // 呼び出し元の続きを実行する（対象自身の自己Restart()連鎖はexecute()内のループで吸収される）。
+    Script* savedCurrent = currentScript;
+    if (script->CoroutineRef != -1) lua_unref(L, script->CoroutineRef);
+    script->restart();
+    if (engine) engine->execute(*script);
+    currentScript = savedCurrent; // 再帰実行でnullptrに戻された呼び出し元の文脈を復元
+    return 0;
 }
 
 // ===================================================
@@ -1417,12 +1607,45 @@ void LuauEngine::fireHeartbeat(float dt) {
     });
 }
 
+bool LuauEngine::consumeSafetyHaltRequest() {
+    bool v = m_haltRequested;
+    m_haltRequested = false;
+    return v;
+}
+
+void LuauEngine::resetFrameSafetyCounters() {
+    m_cloneCallCounts.clear();
+    m_restartCallCounts.clear();
+    m_totalClonesThisFrame   = 0;
+    m_totalRestartsThisFrame = 0;
+}
+
+void LuauEngine::reportSafetyBreach(const std::string& reason,
+                                     const std::unordered_map<std::string, int>& counts) {
+    std::vector<std::pair<std::string, int>> sorted(counts.begin(), counts.end());
+    std::sort(sorted.begin(), sorted.end(), [](auto& a, auto& b) {
+        if (a.second != b.second) return a.second > b.second;
+        return a.first < b.first;
+    });
+
+    std::string output = "[SAFETY] " + reason + " - halting.\n";
+    for (auto& [label, count] : sorted)
+        output += "  " + label + ": " + std::to_string(count) + "\n";
+
+    std::cerr << output;
+    if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
+
+    m_haltRequested = true;
+}
+
 void LuauEngine::onCollision(BaseCube* a, BaseCube* b) {
     if (a && a->Touched) a->Touched->fire(L);
     if (b && b->Touched) b->Touched->fire(L);
 }
 
 void LuauEngine::update(float deltaTime) {
+    if (m_haltRequested) return; // 安全対策による強制停止済み
+
     if (m_system) {
         for (auto& [name, child] : m_system->getChildren()) {
             if (!child || !child->IsA("Workspace")) continue;

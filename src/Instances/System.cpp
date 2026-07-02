@@ -24,3 +24,10 @@ void System::addChild(std::shared_ptr<Instance> child) {
     }
     Instance::addChild(std::move(child));
 }
+
+void System::setProperty(const std::string& name, const YAML::Node& value) {
+    if (name == "MaxClonesPerFrame")        { MaxClonesPerFrame        = value.as<int>();   return; }
+    if (name == "MaxRestartsPerFrame")      { MaxRestartsPerFrame      = value.as<int>();   return; }
+    if (name == "ScriptLoopTimeoutSeconds") { ScriptLoopTimeoutSeconds = value.as<float>(); return; }
+    Instance::setProperty(name, value);
+}
