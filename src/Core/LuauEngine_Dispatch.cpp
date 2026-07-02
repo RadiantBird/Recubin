@@ -712,7 +712,7 @@ void LuauEngine::InitSetterTable_GUI() {
 
     // --- Terrain ---
     SetterTable["Terrain"]["Enabled"]  = setter_bool<Terrain, &Terrain::Enabled>();
-    SetterTable["Terrain"]["DataPath"] = setter_string<Terrain, &Terrain::DataPath>();
+    // DataPath は Lua から書込不可（任意ディレクトリへの地形YAML書出しを防ぐ）。読取は getter で可能。
     SetterTable["Terrain"]["Seed"]     = setter_number<Terrain, &Terrain::Seed>();
     SetterTable["Terrain"]["Flat"]     = setter_bool<Terrain, &Terrain::Flat>();
 }

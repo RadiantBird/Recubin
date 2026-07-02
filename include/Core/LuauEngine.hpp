@@ -241,6 +241,9 @@ public:
     void executeWorkspaceScripts(Workspace& ws);
     void update(float deltaTime);
 
+    // Instance.new/Clone が保持する強参照のうち、ツリー所有済み/破棄済みのものを解放する。
+    static void sweepOwnedInstances();
+
     void fireHeartbeat(float dt);
     void onCollision(BaseCube* a, BaseCube* b);
 

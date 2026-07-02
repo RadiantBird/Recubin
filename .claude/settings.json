@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python build.py test Release assets/scenes/security_fix_test.yaml)"
+    ]
+  }
+}

@@ -5,6 +5,7 @@
 #include <Core/Renderer.hpp>
 #include <Core/Physics.hpp>
 #include <Util/Logger.hpp>
+#include <Util/AssetGuard.hpp>
 #include <GL/glew.h>
 #include <algorithm>
 
@@ -110,6 +111,7 @@ bool MeshCube::loadFromGLB(const std::string& path) {
         RCBN_WARN("MeshCube: GLB以外のファイルは未対応です: " << path);
         return false;
     }
+    if (!AssetGuard::allow(path)) return false;
 
     cgltf_options options = {};
     cgltf_data* data = nullptr;

@@ -1,6 +1,7 @@
 #include <Core/Renderer.hpp>
 #include <Core/FileLoader.hpp>
 #include <Util/Logger.hpp>
+#include <Util/AssetGuard.hpp>
 #include <Editor/IEditorManager.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
@@ -1027,6 +1028,7 @@ unsigned int Renderer::loadTexture(const char* path) {
     if (textureCache.find(pathStr) != textureCache.end()) {
         return textureCache[pathStr];
     }
+    if (!AssetGuard::allow(pathStr)) return 0;
 
     int width, height, nrChannels;
     unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 4);

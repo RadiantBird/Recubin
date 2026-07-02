@@ -1,10 +1,11 @@
 #include "Instances/Sound.hpp"
 #include <Util/Logger.hpp>
+#include <Util/AssetGuard.hpp>
 
 Sound::Sound(AudioService& service, const std::string& path) 
     : Spatial(Vector3(0,0,0), Vector3(1,1,1), "Sound") {
-    if (!path.empty()) {
-        ma_uint32 flags = MA_SOUND_FLAG_DECODE; 
+    if (!path.empty() && AssetGuard::allow(path)) {
+        ma_uint32 flags = MA_SOUND_FLAG_DECODE;
         ma_sound_group* targetGroup = (soundGroup == "BGM") ? &service.groupBGM : &service.groupSFX;
 
         if (ma_sound_init_from_file(&service.engine, path.c_str(), flags, targetGroup, NULL, &sound) == MA_SUCCESS) {
@@ -63,6 +64,7 @@ void Sound::setPreservePitch(bool b) { m_preservePitch = b; }
 bool Sound::getPreservePitch() const { return m_preservePitch; }
 
 void Sound::loadFromFile(const std::string& path) {
+    if (!AssetGuard::allow(path)) return;
     if (loaded) {
         ma_sound_uninit(&sound);
         loaded = false;

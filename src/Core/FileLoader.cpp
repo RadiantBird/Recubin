@@ -3,6 +3,11 @@
 #include <sstream>
 #include <iostream>
 
+// 読み込み対象（シェーダ/シーンYAML/地形リージョンYAML/スクリプト/バイトコード）は
+// 十分小さいため、これを超えるファイルは破損/攻撃とみなして拒否し OOM を防ぐ。
+// メッシュ(GLB)は cgltf が直接読むため本ローダを通らず、この上限の対象外。
+static constexpr std::streamsize MAX_FILE_BYTES = 128 * 1024 * 1024; // 128MB
+
 #ifdef _WIN32
 #include <windows26.h>
 static std::wstring utf8_to_wstring(const std::string& str) {
@@ -16,15 +21,23 @@ static std::wstring utf8_to_wstring(const std::string& str) {
 
 std::string FileLoader::readText(const std::string& filePath) {
 #ifdef _WIN32
-    std::ifstream fileStream(utf8_to_wstring(filePath), std::ios::in);
+    std::ifstream fileStream(utf8_to_wstring(filePath), std::ios::in | std::ios::ate);
 #else
-    std::ifstream fileStream(filePath, std::ios::in);
+    std::ifstream fileStream(filePath, std::ios::in | std::ios::ate);
 #endif
 
     if (!fileStream.is_open()) {
         std::cerr << "[FileLoader] Error: Could not open text file: " << filePath << std::endl;
         return "";
     }
+
+    std::streamsize size = fileStream.tellg();
+    if (size > MAX_FILE_BYTES) {
+        std::cerr << "[FileLoader] Error: File exceeds size limit ("
+                  << size << " > " << MAX_FILE_BYTES << " bytes): " << filePath << std::endl;
+        return "";
+    }
+    fileStream.seekg(0, std::ios::beg);
 
     std::stringstream sstr;
     sstr << fileStream.rdbuf();
@@ -45,6 +58,11 @@ std::vector<char> FileLoader::readBinary(const std::string& filePath) {
 
     std::streamsize size = fileStream.tellg();
     if (size < 0) return {};
+    if (size > MAX_FILE_BYTES) {
+        std::cerr << "[FileLoader] Error: File exceeds size limit ("
+                  << size << " > " << MAX_FILE_BYTES << " bytes): " << filePath << std::endl;
+        return {};
+    }
 
     fileStream.seekg(0, std::ios::beg);
 

@@ -61,8 +61,18 @@ std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEn
 std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEngine::SetterFunc>> LuauEngine::SetterTable;
 Script* LuauEngine::currentScript = nullptr;
 
-// Instance.new で生成したインスタンスの所有権を保持するストレージ
+// Instance.new で生成したインスタンスの所有権を保持するストレージ。
+// Lua に渡す userdata は weak_ptr なので、親付け前(=ツリー未接続)の期間だけここで強参照を保持し、
+// 即時 GC を防ぐ。親付け後はツリー(親の children)が所有するため、sweepOwnedInstances が手放す。
 static std::vector<std::shared_ptr<Instance>> s_ownedInstances;
+
+void LuauEngine::sweepOwnedInstances() {
+    auto& v = s_ownedInstances;
+    v.erase(std::remove_if(v.begin(), v.end(), [](const std::shared_ptr<Instance>& sp) {
+        // 破棄済み or 親付け済み(ツリーが所有)なら強参照を手放す。未親付けは保持し続ける。
+        return !sp || !sp->Parent.expired();
+    }), v.end());
+}
 
 static std::shared_ptr<Workspace> getScriptWorkspace(Script& script) {
     Instance* ws = script.findFirstAncestorWorkspace();
@@ -1116,6 +1126,9 @@ int LuauEngine::instance_destroy_closure(lua_State* L) {
         obj->Parent.reset();
         obj->onAncestorChanged();
     }
+    // s_ownedInstances が保持していた強参照も手放す（未親付けのまま Destroy されたケースの解放）
+    auto& v = s_ownedInstances;
+    v.erase(std::remove(v.begin(), v.end(), obj), v.end());
     return 0;
 }
 
@@ -1673,6 +1686,7 @@ void LuauEngine::onCollision(BaseCube* a, BaseCube* b) {
 }
 
 void LuauEngine::update(float deltaTime) {
+    sweepOwnedInstances(); // 毎フレーム、ツリーが所有済み/破棄済みの強参照を手放す
     if (m_haltRequested) return; // 安全対策による強制停止済み
 
     if (m_system) {

@@ -9,6 +9,7 @@
 #include <Instances/PathfindingService.hpp>
 #include <include/GLFW/glfw3.h>
 #include "include/stb_image.h"
+#include <Util/AssetGuard.hpp>
 
 namespace SceneRuntime {
 
@@ -28,6 +29,7 @@ void applyAppIcon(GLFWwindow* window, Instance* root) {
         if (child->getClassName() == "AppImage") {
             auto* ai = static_cast<AppImage*>(child.get());
             if (ai->iconPath.empty()) return;
+            if (!AssetGuard::allow(ai->iconPath)) return;
             int w, h, ch;
             stbi_set_flip_vertically_on_load(0);
             unsigned char* px = stbi_load(ai->iconPath.c_str(), &w, &h, &ch, 4);

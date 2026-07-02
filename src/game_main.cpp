@@ -20,6 +20,7 @@
 #include <include/imgui/imgui.h>
 
 #include <Util/Logger.hpp>
+#include <Util/AssetGuard.hpp>
 #include <yaml-cpp/yaml.h>
 #include "include/stb_image.h"
 
@@ -27,6 +28,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <filesystem>
 
 // ===================================================
 //  startup.yaml からゲーム設定を読み込む
@@ -66,6 +68,10 @@ int main() {
     SetConsoleCP(CP_UTF8);
 
     GameConfig cfg = loadStartup();
+
+    // ランタイムはゲームフォルダ(cwd)外のアセット読み込みを禁止する（配布ゲームのサンドボックス）。
+    // エディター(Recubin.exe)はこれを呼ばないため従来通り任意パスを扱える。
+    AssetGuard::enableSandbox(std::filesystem::current_path());
 
     // ---- ウィンドウ作成 ----
     if (!glfwInit()) return -1;
