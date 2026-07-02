@@ -194,15 +194,11 @@ Root:
         Gravity: [0, -196.20001, 0]
         PhysicsEnabled: true
       Children:
-        - ClassName: PostEffect
-          Name: PostEffect1
+        - ClassName: Script
+          Name: Safety First
           Properties:
-            Enabled: true
-            Type: 6
-            ZIndex: 0
-            Intensity: 1
-            Param1: 1.5
-            Param2: 0.1
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\Safety First.luau
+            Enabled: false
         - ClassName: Lighting
           Name: Lighting
           Properties:
@@ -228,7 +224,7 @@ Root:
           Name: CameraProgramTest
           Properties:
             ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\CameraProgramTest.luau
-            Enabled: true
+            Enabled: false
         - ClassName: Cube
           Name: Goal
           Properties:
@@ -285,26 +281,3 @@ Root:
                 MaxHealth: 100
                 RespawnTime: 5
                 Health: 100
-        - ClassName: PostEffect
-          Name: PostEffect
-          Properties:
-            Enabled: true
-            Type: 5
-            ZIndex: 0
-            Intensity: 1
-            Param1: 0.2
-            Param2: 0.1
-        - ClassName: PostEffect
-          Name: PostEffect2
-          Properties:
-            Enabled: false
-            Type: 1
-            ZIndex: 0
-            Intensity: 1
-            Param1: 16
-            Param2: 0.1
-        - ClassName: Script
-          Name: Safety First
-          Properties:
-            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\Safety First.luau
-            Enabled: false

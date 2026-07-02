@@ -11,6 +11,9 @@
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/Motor.hpp>
+#include <Instances/Script.hpp>
+#include <Instances/System.hpp>
+#include <Core/Terrain.hpp>
 #include <Core/PropertyRegistry.hpp>
 #include <yaml-cpp/yaml.h>
 #include <memory>
@@ -658,4 +661,126 @@ struct SetMotorAxisCommand : Command {
 
     void execute() override { if (m_target) m_target->Axis = m_after; }
     void undo()    override { if (m_target) m_target->Axis = m_before; }
+};
+
+// --- Script bool プロパティ変更（Enabled） ---
+struct SetScriptBoolCommand : Command {
+    std::shared_ptr<Script> m_target;
+    std::string m_prop;
+    bool m_before, m_after;
+
+    SetScriptBoolCommand(std::shared_ptr<Script> target, std::string prop, bool before, bool after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(bool v) {
+        if (!m_target) return;
+        if (m_prop == "Enabled") m_target->Enabled = v;
+    }
+};
+
+// --- System int プロパティ変更（MaxClonesPerFrame / MaxRestartsPerFrame） ---
+struct SetSystemIntCommand : Command {
+    std::shared_ptr<System> m_target;
+    std::string m_prop;
+    int m_before, m_after;
+
+    SetSystemIntCommand(std::shared_ptr<System> target, std::string prop, int before, int after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(int v) {
+        if (!m_target) return;
+        if      (m_prop == "MaxClonesPerFrame")   m_target->MaxClonesPerFrame   = v;
+        else if (m_prop == "MaxRestartsPerFrame") m_target->MaxRestartsPerFrame = v;
+    }
+};
+
+// --- System float プロパティ変更（ScriptLoopTimeoutSeconds） ---
+struct SetSystemFloatCommand : Command {
+    std::shared_ptr<System> m_target;
+    std::string m_prop;
+    float m_before, m_after;
+
+    SetSystemFloatCommand(std::shared_ptr<System> target, std::string prop, float before, float after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(float v) {
+        if (!m_target) return;
+        if (m_prop == "ScriptLoopTimeoutSeconds") m_target->ScriptLoopTimeoutSeconds = v;
+    }
+};
+
+// --- Terrain bool プロパティ変更（Enabled / Flat） ---
+struct SetTerrainBoolCommand : Command {
+    std::shared_ptr<Terrain> m_target;
+    std::string m_prop;
+    bool m_before, m_after;
+
+    SetTerrainBoolCommand(std::shared_ptr<Terrain> target, std::string prop, bool before, bool after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(bool v) {
+        if (!m_target) return;
+        if      (m_prop == "Enabled") m_target->Enabled = v;
+        else if (m_prop == "Flat")    m_target->Flat    = v;
+    }
+};
+
+// --- Terrain int プロパティ変更（Seed） ---
+struct SetTerrainIntCommand : Command {
+    std::shared_ptr<Terrain> m_target;
+    std::string m_prop;
+    int m_before, m_after;
+
+    SetTerrainIntCommand(std::shared_ptr<Terrain> target, std::string prop, int before, int after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(int v) {
+        if (!m_target) return;
+        if (m_prop == "Seed") m_target->Seed = v;
+    }
+};
+
+// --- Terrain string プロパティ変更（DataPath） ---
+struct SetTerrainStringCommand : Command {
+    std::shared_ptr<Terrain> m_target;
+    std::string m_prop;
+    std::string m_before, m_after;
+
+    SetTerrainStringCommand(std::shared_ptr<Terrain> target, std::string prop, std::string before, std::string after)
+        : m_target(std::move(target)), m_prop(std::move(prop)),
+          m_before(std::move(before)), m_after(std::move(after)) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(const std::string& v) {
+        if (!m_target) return;
+        if (m_prop == "DataPath") { YAML::Node n; n = v; m_target->setProperty("DataPath", n); }
+    }
 };

@@ -373,6 +373,14 @@ int main(int argc, char* argv[]) {
         if (!isPlaying && wasPlaying) {
             audioService->stopAllSounds();
             user->despawnCharacter();
+            // System/UserはPlay/Stopをまたいで同一インスタンスが使い回されるため、
+            // ScriptがConnect()したコールバックをここで明示的に切断しないと、
+            // 次回Play時に古いコールバックが残ったまま発火し続けてしまう
+            if (system->Heartbeat) system->Heartbeat->disconnectAll();
+            if (user->Input) {
+                if (user->Input->Pressed)  user->Input->Pressed->disconnectAll();
+                if (user->Input->Released) user->Input->Released->disconnectAll();
+            }
             // 全Workspaceのクリア（ownedPhysics デストラクタで自動解放）
             // Terrainは次回のload時に再構築される
             workspaces = SceneRuntime::collectWorkspaces(system);

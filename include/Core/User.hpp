@@ -51,7 +51,7 @@ public:
 
     bool processCameraRotation(bool viewportFocused);
     void processZoom(bool viewportZoomEnabled);
-    void processMovement(Physics* physics);
+    void processMovement(bool viewportZoomEnabled, Physics* physics);
     void processHotkeys();
     void processToolkeys(bool viewportFocused, bool isGameplayInput, bool wantsTextInput);
     void processMouse(bool isGameplayInput);

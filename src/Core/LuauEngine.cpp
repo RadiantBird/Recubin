@@ -1653,13 +1653,13 @@ void LuauEngine::update(float deltaTime) {
             auto scripts = ws->scripts;
             for (auto& inst : scripts) {
                 auto script = std::dynamic_pointer_cast<Script>(inst);
-                if (script && script->Sleeping && script->Coroutine != nullptr) {
+                if (script && script->Enabled && script->Sleeping && script->Coroutine != nullptr) {
                     script->SleepRemaining -= deltaTime;
                     if (script->SleepRemaining <= 0.0f) {
                         script->Sleeping = false;
                         execute(*script);
                     }
-                } else if (script && script->WaitingForChild && script->Coroutine != nullptr) {
+                } else if (script && script->Enabled && script->WaitingForChild && script->Coroutine != nullptr) {
                     pollWaitChild(*script, deltaTime);
                 }
             }
@@ -1673,7 +1673,7 @@ void LuauEngine::update(float deltaTime) {
     // 待機中のスクリプトのタイマーを減算
     for (auto& inst : ws->scripts) {
         auto script = std::dynamic_pointer_cast<Script>(inst);
-        if (script && script->Sleeping && script->Coroutine != nullptr) {
+        if (script && script->Enabled && script->Sleeping && script->Coroutine != nullptr) {
             script->SleepRemaining -= deltaTime;
 
             // タイムアウト時にコルーチンを再開
@@ -1681,7 +1681,7 @@ void LuauEngine::update(float deltaTime) {
                 script->Sleeping = false;
                 execute(*script);
             }
-        } else if (script && script->WaitingForChild && script->Coroutine != nullptr) {
+        } else if (script && script->Enabled && script->WaitingForChild && script->Coroutine != nullptr) {
             pollWaitChild(*script, deltaTime);
         }
     }

@@ -646,6 +646,7 @@ void PropertiesPanel::onRender() {
     // ---- Script ----
     if (inst->getClassName() == "Script") {
         Script* sc = static_cast<Script*>(inst);
+        auto scSp = std::static_pointer_cast<Script>(inst->shared_from_this());
         ImGui::SeparatorText("Script");
         ImGui::LabelText("Source", "%s", sc->Path.c_str());
         if (ImGui::Button("参照...##script")) {
@@ -661,7 +662,14 @@ void PropertiesPanel::onRender() {
             ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOW);
         }
 
-        ImGui::Checkbox("Enabled", &sc->Enabled);
+        {
+            bool before = sc->Enabled;
+            bool value  = sc->Enabled;
+            if (ImGui::Checkbox("Enabled", &value)) {
+                sc->Enabled = value;
+                if (m_history) m_history->record(std::make_unique<SetScriptBoolCommand>(scSp, "Enabled", before, value));
+            }
+        }
 
         ImGui::BeginDisabled();
         bool aborted = sc->Aborted;
@@ -801,10 +809,30 @@ void PropertiesPanel::onRender() {
     // ---- System ----
     if (inst->getClassName() == "System") {
         System* sys = static_cast<System*>(inst);
+        auto sysSp = std::static_pointer_cast<System>(inst->shared_from_this());
         ImGui::SeparatorText("System (Safety Limits)");
-        ImGui::DragInt("MaxClonesPerFrame", &sys->MaxClonesPerFrame, 1.0f, 0, 1000000);
-        ImGui::DragInt("MaxRestartsPerFrame", &sys->MaxRestartsPerFrame, 1.0f, 0, 1000000);
-        ImGui::DragFloat("ScriptLoopTimeoutSeconds", &sys->ScriptLoopTimeoutSeconds, 0.05f, 0.0f, 60.0f, "%.2f");
+
+        {
+            static int s_before;
+            ImGui::DragInt("MaxClonesPerFrame", &sys->MaxClonesPerFrame, 1.0f, 0, 1000000);
+            if (ImGui::IsItemActivated()) s_before = sys->MaxClonesPerFrame;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
+                m_history->record(std::make_unique<SetSystemIntCommand>(sysSp, "MaxClonesPerFrame", s_before, sys->MaxClonesPerFrame));
+        }
+        {
+            static int s_before;
+            ImGui::DragInt("MaxRestartsPerFrame", &sys->MaxRestartsPerFrame, 1.0f, 0, 1000000);
+            if (ImGui::IsItemActivated()) s_before = sys->MaxRestartsPerFrame;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
+                m_history->record(std::make_unique<SetSystemIntCommand>(sysSp, "MaxRestartsPerFrame", s_before, sys->MaxRestartsPerFrame));
+        }
+        {
+            static float s_before;
+            ImGui::DragFloat("ScriptLoopTimeoutSeconds", &sys->ScriptLoopTimeoutSeconds, 0.05f, 0.0f, 60.0f, "%.2f");
+            if (ImGui::IsItemActivated()) s_before = sys->ScriptLoopTimeoutSeconds;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
+                m_history->record(std::make_unique<SetSystemFloatCommand>(sysSp, "ScriptLoopTimeoutSeconds", s_before, sys->ScriptLoopTimeoutSeconds));
+        }
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("0 or below disables the loop timeout check");
     }
@@ -979,28 +1007,54 @@ void PropertiesPanel::onRender() {
     // ---- Terrain ----
     if (inst->getClassName() == "Terrain") {
         Terrain* terrain = static_cast<Terrain*>(inst);
+        auto terrSp = std::static_pointer_cast<Terrain>(inst->shared_from_this());
         ImGui::SeparatorText("Terrain");
-        ImGui::Checkbox("Enabled##terrain", &terrain->Enabled);
+
+        {
+            bool before = terrain->Enabled;
+            bool value  = terrain->Enabled;
+            if (ImGui::Checkbox("Enabled##terrain", &value)) {
+                terrain->Enabled = value;
+                if (m_history) m_history->record(std::make_unique<SetTerrainBoolCommand>(terrSp, "Enabled", before, value));
+            }
+        }
 
         // データ保存先ディレクトリ（リージョンファイルの置き場所）— フォルダ参照
         ImGui::LabelText("DataPath", "%s", terrain->DataPath.c_str());
         if (ImGui::Button("参照...##terraindp")) {
             std::string folder = browseFolder();
             if (!folder.empty()) {
+                std::string before = terrain->DataPath;
                 YAML::Node node; node = folder;
                 terrain->setProperty("DataPath", node);
+                if (m_history) m_history->record(std::make_unique<SetTerrainStringCommand>(terrSp, "DataPath", before, terrain->DataPath));
             }
         }
 
         // 生成設定（Seed / Flat）
         ImGui::Separator();
-        ImGui::InputInt("Seed##terrain", &terrain->Seed);
+        {
+            static int s_before;
+            ImGui::InputInt("Seed##terrain", &terrain->Seed);
+            if (ImGui::IsItemActivated()) s_before = terrain->Seed;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
+                m_history->record(std::make_unique<SetTerrainIntCommand>(terrSp, "Seed", s_before, terrain->Seed));
+        }
         ImGui::SameLine();
         if (ImGui::Button("乱数化##terrainseed")) {
+            int before = terrain->Seed;
             std::random_device rd;
             terrain->Seed = static_cast<int>(rd());
+            if (m_history) m_history->record(std::make_unique<SetTerrainIntCommand>(terrSp, "Seed", before, terrain->Seed));
         }
-        ImGui::Checkbox("Flat（平坦生成）##terrain", &terrain->Flat);
+        {
+            bool before = terrain->Flat;
+            bool value  = terrain->Flat;
+            if (ImGui::Checkbox("Flat（平坦生成）##terrain", &value)) {
+                terrain->Flat = value;
+                if (m_history) m_history->record(std::make_unique<SetTerrainBoolCommand>(terrSp, "Flat", before, value));
+            }
+        }
 
         if (ImGui::Button("再生成##terrainregen")) {
             ImGui::OpenPopup("Terrain再生成の確認");

@@ -28,6 +28,13 @@ Windowsで動作します。後々、Mac対応予定。
 - [] Humanoid改修
   - JumpHeight(stud)を実装(自動でJumpPowerも計算される)
 
+- [x] viewportFocusedじゃなくてもキャラクターの見た目の位置が更新されるようにする
+
+- [] 透明な画像をDecalとして貼るとそのCube自体が透ける問題の修正
+
+- [] ScriptがEnabledでなくてもキャッシュされていることによる誤実行の修正
+- [] System/Scriptのプロパティをエディターで書き換えてもDirty判定されない問題の修正
+
 - [x] Scriptにメソッド/プロパティをバインディング
   - Enabled
   - Aborted(readOnly)
@@ -82,6 +89,8 @@ Windowsで動作します。後々、Mac対応予定。
 - Windows bat
 - Python
 - font-awesome
+- recastnavigation
+
 
 ## 使用予定の技術
 - DirectX(Windows最適化)

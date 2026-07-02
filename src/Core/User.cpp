@@ -205,22 +205,28 @@ void User::processZoom(bool viewportZoomEnabled) {
 }
 
 // 移動ディスパッチ（Free / Character を振り分け）
-void User::processMovement(Physics* physics) {
-    if (controlMode == ControlMode::Free) {
-        if (m_input->isKeyDown(KeyCode::W)) cpos = cpos + forward * speed;
-        if (m_input->isKeyDown(KeyCode::S)) cpos = cpos - forward * speed;
-        if (m_input->isKeyDown(KeyCode::A)) cpos = cpos - right   * speed;
-        if (m_input->isKeyDown(KeyCode::D)) cpos = cpos + right   * speed;
-        if (m_input->isKeyDown(KeyCode::Q)) cpos = cpos - up      * speed;
-        if (m_input->isKeyDown(KeyCode::E)) cpos = cpos + up      * speed;
-        // Free モードでもボディパーツを Root に追従させる
-        // （Character モードでは humanoid->move() 内で呼ばれる）
-        if (humanoid) humanoid->applyBodyAnimation(false, false);
-    } else if (controlMode == ControlMode::Character && character && humanoid) {
-        processCharacterMovement(physics);
-    } else if (controlMode == ControlMode::Program) {
-        // Program モードでもボディパーツを Root に追従させる
-        // （カメラはLuauが制御するが、キャラクター自体の同期は他モードと同様に必要）
+void User::processMovement(bool viewportZoomEnabled, Physics* physics) {
+    if (viewportZoomEnabled) {
+        if (controlMode == ControlMode::Free) {
+            if (m_input->isKeyDown(KeyCode::W)) cpos = cpos + forward * speed;
+            if (m_input->isKeyDown(KeyCode::S)) cpos = cpos - forward * speed;
+            if (m_input->isKeyDown(KeyCode::A)) cpos = cpos - right   * speed;
+            if (m_input->isKeyDown(KeyCode::D)) cpos = cpos + right   * speed;
+            if (m_input->isKeyDown(KeyCode::Q)) cpos = cpos - up      * speed;
+            if (m_input->isKeyDown(KeyCode::E)) cpos = cpos + up      * speed;
+            // Free モードでもボディパーツを Root に追従させる
+            // （Character モードでは humanoid->move() 内で呼ばれる）
+            if (humanoid) humanoid->applyBodyAnimation(false, false);
+        } else if (controlMode == ControlMode::Character && character && humanoid) {
+            processCharacterMovement(physics);
+        } else if (controlMode == ControlMode::Program) {
+            // Program モードでもボディパーツを Root に追従させる
+            // （カメラはLuauが制御するが、キャラクター自体の同期は他モードと同様に必要）
+            if (humanoid) humanoid->applyBodyAnimation(false, false);
+        }
+    }
+    else {
+        // Focusがどうであれ、ボディパーツはRootに追従させるべきであるため
         if (humanoid) humanoid->applyBodyAnimation(false, false);
     }
 }
@@ -435,7 +441,7 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     processZoom(viewportZoomEnabled);
     if (humanoid) humanoid->updateFirstPersonState(cameraDistance <= firstPersonThreshold);
     // 死亡中はキャラクター移動を駆動しない（ばらしたパーツを上書きしないため）
-    if (!m_deathHandled) processMovement(physics);
+    if (!m_deathHandled) processMovement(viewportFocused, physics);
     if (rotated) updateVectors();
     processHotkeys();
     processToolkeys(viewportFocused, isGameplayInput, wantsTextInput);

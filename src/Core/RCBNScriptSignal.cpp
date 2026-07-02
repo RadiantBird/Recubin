@@ -27,6 +27,16 @@ void RCBNScriptSignal::disconnect(int id) {
     }
 }
 
+void RCBNScriptSignal::disconnectAll() {
+    if (m_mainL) {
+        for (auto& l : m_listeners) {
+            if (l.luaRef != LUA_NOREF)
+                lua_unref(m_mainL, l.luaRef);
+        }
+    }
+    m_listeners.clear();
+}
+
 void RCBNScriptSignal::fire(lua_State* L, std::function<int(lua_State*)> pushArgs) {
     // コピーしてイテレート（コールバック内で disconnect されても安全）
     auto copy = m_listeners;
