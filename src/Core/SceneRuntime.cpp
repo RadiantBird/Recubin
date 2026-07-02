@@ -6,6 +6,7 @@
 #include <Instances/Workspace.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/AppImage.hpp>
+#include <Instances/PathfindingService.hpp>
 #include <include/GLFW/glfw3.h>
 #include "include/stb_image.h"
 
@@ -80,6 +81,12 @@ Bound loadAndBind(const std::string& scenePath,
         workspaces = collectWorkspaces(system);
     }
     auto workspace = workspaces.front();
+
+    // PathfindingService も Workspace 同様、System直下に無ければ自動生成する
+    if (system->children.find("PathfindingService") == system->children.end()) {
+        auto pathfinding = std::make_shared<PathfindingService>();
+        system->addChild(pathfinding);
+    }
 
     applyAppIcon(window, system.get());
     bindStandardGlobals(engine, workspace, system, user);

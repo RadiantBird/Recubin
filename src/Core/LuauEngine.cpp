@@ -7,6 +7,7 @@
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/Sound.hpp"
 #include "include/Instances/Humanoid.hpp"
+#include "include/Instances/PathfindingService.hpp"
 #include "include/Instances/UserInput.hpp"
 #include "include/Core/User.hpp"
 #include "include/Instances/Tool.hpp"
@@ -735,6 +736,41 @@ int LuauEngine::terrain_apply_brush_closure(lua_State* L) {
     return 0;
 }
 
+int LuauEngine::pathfinding_find_path_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    lua_newtable(L);
+    if (!self) return 1;
+
+    // L[1]=self, L[2]=workspace, L[3]=start, L[4]=goal
+    auto* wsUd = (std::weak_ptr<Instance>*)luaL_checkudata(L, 2, RCBN_INST_METATABLE);
+    auto wsInst = wsUd->lock();
+    Workspace* workspace = wsInst ? dynamic_cast<Workspace*>(wsInst.get()) : nullptr;
+    if (!workspace) return 1;
+
+    Vector3* start = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
+    Vector3* goal  = (Vector3*)luaL_checkudata(L, 4, RCBN_VEC3_METATABLE);
+
+    auto waypoints = static_cast<PathfindingService*>(self.get())->FindPath(workspace, *start, *goal);
+
+    int idx = 1;
+    for (const auto& wp : waypoints) {
+        lua_newtable(L);
+
+        Vector3* p = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+        *p = wp.Position;
+        luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+        lua_setmetatable(L, -2);
+        lua_setfield(L, -2, "Position");
+
+        lua_pushstring(L, wp.Action == Pathfinding::WaypointAction::Jump ? "Jump" : "Walk");
+        lua_setfield(L, -2, "Action");
+
+        lua_rawseti(L, -2, idx++);
+    }
+    return 1;
+}
+
 // ==================== Global Functions ====================
 int LuauEngine::global_add(lua_State* L) {
     // 2つの数値を取得
@@ -1015,6 +1051,29 @@ int LuauEngine::humanoid_take_damage_closure(lua_State* L) {
     // L[1] = self, L[2] = ダメージ量
     float n = static_cast<float>(luaL_checknumber(L, 2));
     static_cast<Humanoid*>(self.get())->takeDamage(n);
+    return 0;
+}
+
+int LuauEngine::humanoid_move_toward_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self) { lua_pushboolean(L, 0); return 1; }
+
+    // L[1] = self, L[2] = 目標地点(ワールド座標)
+    Vector3* target = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+
+    Instance* wsInst = self->findFirstAncestorWorkspace();
+    Physics* physics = wsInst ? static_cast<Workspace*>(wsInst)->getPhysicsEngine() : nullptr;
+
+    bool arrived = static_cast<Humanoid*>(self.get())->moveToward(*target, physics);
+    lua_pushboolean(L, arrived ? 1 : 0);
+    return 1;
+}
+
+int LuauEngine::humanoid_jump_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (self) static_cast<Humanoid*>(self.get())->jump();
     return 0;
 }
 

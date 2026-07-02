@@ -17,6 +17,12 @@ add_compile_options(
     "$<$<CXX_COMPILER_ID:MSVC>:/permissive->"
 )
 
+# --- 2.5. Recast/Detour (パスファインディング用ナビメッシュライブラリ) ---
+set(RECASTNAVIGATION_DEMO OFF CACHE BOOL "" FORCE)
+set(RECASTNAVIGATION_TESTS OFF CACHE BOOL "" FORCE)
+set(RECASTNAVIGATION_EXAMPLES OFF CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation)
+
 # --- 3. ソース収集 ---
 # Recubin / RecubinEngine の二重コンパイルを避けるため、両ターゲットで共有できる
 # ソース（エントリポイントと EDITOR_DISABLED で分岐する User.cpp/Renderer.cpp を除く全て）を
@@ -60,7 +66,10 @@ add_executable(RecubinTest
 # --- 4. 静的リンクの強制定義 (重要) ---
 set(LIB_DIR "${CMAKE_SOURCE_DIR}/include/libs")
 set(COMMON_DEFS YAML_CPP_STATIC_LIBRARIES GLEW_STATIC $<$<CONFIG:Debug>:NDEBUG>)
-set(COMMON_INCLUDES ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/include/imgui .)
+set(COMMON_INCLUDES ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/include/imgui
+    ${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation/Recast/Include
+    ${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation/Detour/Include
+    .)
 set(COMMON_LIBS
     "${LIB_DIR}/glfw3.lib"
     "${LIB_DIR}/glew32s.lib"
@@ -75,6 +84,8 @@ set(COMMON_LIBS
     "${LIB_DIR}/Luau.VM.lib"
     "${LIB_DIR}/Luau.Common.lib"
     "${LIB_DIR}/yaml-cpp.lib"
+    Recast
+    Detour
 )
 
 # ---- RecubinCore (共有オブジェクトライブラリ) ----

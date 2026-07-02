@@ -190,12 +190,14 @@ static const char* getClassIcon(const std::string& cn) {
     if (cn == "FileRef")                                                     return ICON_FILE;
     if (cn == "Sphere")                                                      return ICON_SPHERE;
     if (cn == "Cube"   || cn == "Cylinder" || cn == "LiquidCube" ||
-        cn == "TriangularPrism" || cn == "MeshCube")                        return ICON_CUBE;
+        cn == "TriangularPrism")                                             return ICON_CUBE;
+    if (cn == "MeshCube") return ICON_MESHCUBE;
     if (cn == "TextLabel"  || cn == "TextButton" || cn == "GuiButton" ||
         cn == "ScreenGui"  || cn == "SurfaceGui" || cn == "BillboardGui" ||
         cn == "WorldGuiObject")                                              return ICON_GUI;
-    if (cn == "Rope" || cn == "Rod" || cn == "Weld" || cn == "Motor")      return ICON_CONSTRAINT;
+    if (cn == "Rope" || cn == "Rod" || cn == "Weld" || cn == "Motor")        return ICON_CONSTRAINT;
     if (cn == "System") return ICON_SYSTEM;
+    if (cn == "PostEffect") return ICON_POSTEFFECT;
     return ICON_INSTANCE;
 }
 

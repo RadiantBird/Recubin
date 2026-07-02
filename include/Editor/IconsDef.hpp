@@ -3,10 +3,12 @@
 #define ICON_MIN_FA  0xf000
 #define ICON_MAX_FA  0xf8ff
 
-#define ICON_CUBE         "\xef\x86\xb3"  // f1b3 fa-cube
+#define ICON_CUBE         "" // single cube
+#define ICON_MESHCUBE     "" // triangle
 #define ICON_SPHERE       "\xef\x84\x91"  // f111 fa-circle
 #define ICON_FOLDER       "\xef\x81\xbb"  // f07b fa-folder
 #define ICON_SCRIPT       ""  // U+F1C9
+#define ICON_POSTEFFECT   "" // a man jumping the frame(?)
 #define ICON_LIGHT        "\xef\x83\xab"  // f0eb fa-lightbulb
 #define ICON_TOOL         "\xef\x82\xad"  // f0ad fa-wrench
 #define ICON_MODEL        "\xef\x97\xbd"  // f5fd fa-layer-group
@@ -19,7 +21,7 @@
 #define ICON_DECAL        "\xef\x80\xbe"  // f03e fa-image
 #define ICON_INSTANCE     "\xef\x91\xa6"  // f466 fa-box
 #define ICON_FILE         "\xef\x85\x9b"  // f15b fa-file
-#define ICON_SKYBOX       "\xef\x84\x99"  // f119 fa-face-frown (sky dome placeholder)
+#define ICON_SKYBOX       ""  // map?
 #define ICON_CONSTRAINT   "\xef\x81\xa1"  // f061 fa-arrow-right (link)
 #define ICON_USER         "\xef\x80\x87"  // f007 fa-user
 #define ICON_SYSTEM       "⚛"

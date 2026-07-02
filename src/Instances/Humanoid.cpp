@@ -198,7 +198,25 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     applyBodyAnimation(leftArmRaised, rightArmRaised);
 }
 
+bool Humanoid::moveToward(const Vector3& target, Physics* physics, float arrivalRadius) {
+    if (!Root) resolveParts(Parent.lock().get());
+    if (!Root) return false;
+
+    Vector3 toTarget = target - Root->getWorldPosition();
+    toTarget.y = 0.0f;
+    float dist = toTarget.length();
+    if (dist <= arrivalRadius) {
+        move(Vector3(0, 0, -1), Vector3(1, 0, 0), false, Vector3(0, 0, 0), false, physics);
+        return true;
+    }
+
+    Vector3 dir = toTarget.normalize();
+    move(dir, Vector3::Cross(Vector3(0, 1, 0), dir), true, dir, false, physics);
+    return false;
+}
+
 void Humanoid::jump() {
+    if (!Root) resolveParts(Parent.lock().get());
     if (!Root || !Root->actor || !isGrounded) return;
     physx::PxRigidDynamic* dynamicActor = Root->actor->is<physx::PxRigidDynamic>();
     if (!dynamicActor) return;

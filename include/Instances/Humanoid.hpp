@@ -57,6 +57,10 @@ public:
     // 接地中のみJumpPowerで上方向の速度をセットする
     void jump();
 
+    // パス追従用: targetへ向けて1フレーム分移動する（move()のXZ方向移動ロジックを流用）。
+    // arrivalRadius以内に到達していれば何もせず true を返す。
+    bool moveToward(const Vector3& target, Physics* physics, float arrivalRadius = 1.0f);
+
     // --- ヘルス / 死亡 ---
     void setHealth(float v);          // クランプして設定。0以下への遷移で Died を発火
     void takeDamage(float n);         // setHealth(Health - n)

@@ -20,6 +20,7 @@
 #include <Instances/AppImage.hpp>
 #include <Instances/FileRef.hpp>
 #include <Instances/Humanoid.hpp>
+#include <Instances/PathfindingService.hpp>
 #include <Core/PropertyRegistry.hpp>
 #include <Instances/Animation.hpp>
 #include <Instances/StarterCharacter.hpp>
@@ -204,6 +205,7 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
 std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& className) {
     if (className == "System")    return std::make_shared<System>();
     if (className == "Workspace") return std::make_shared<Workspace>();
+    if (className == "PathfindingService") return std::make_shared<PathfindingService>();
     if (className == "Cube")           return std::make_shared<Cube>(Vector3(0,0,0), Vector3(1,1,1), 0);
     if (className == "Cylinder")       return std::make_shared<Cylinder>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "TriangularPrism") return std::make_shared<TriangularPrism>(Vector3(0,0,0), Vector3(1,1,1));

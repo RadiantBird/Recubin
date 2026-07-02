@@ -165,7 +165,10 @@ std::shared_ptr<Instance> Instance::clone() const {
 
 // orig と clone を子名で並行走査して BaseCube の対応表を作り（パス1）、
 // clone ツリーの各ノードに remapClonedCubes を呼んで制約参照を張り替える（パス2）。
+// いや、なんでInstanceの実装にBaseCubeがあるの？
+
 void Instance::rebindClonedConstraints(const Instance& orig, Instance& clone) {
+    // static_assert(true == false, "FIX THIS OR DIE!"); // アンチパターン実装を検出したため
     CubeRemap map;
 
     std::function<void(const Instance&, Instance&)> buildMap =

@@ -2,6 +2,7 @@
 #include <include/Core/Terrain.hpp>
 #include <include/Core/FileLoader.hpp>
 #include <Core/Physics.hpp>
+#include <include/Instances/PathfindingService.hpp>
 #include <yaml-cpp/yaml.h>
 #include <fstream>
 #include <filesystem>
@@ -757,6 +758,9 @@ void TerrainStreamer::applyBrush(const Vector3& worldPos, float radius, int mode
             reclassifyColumnShape(wx + off[0], wz + off[1], /*persist=*/true); // 編集由来は保存
         }
     }
+
+    // 地形を編集したのでナビメッシュキャッシュは無効化し、次回FindPathで再構築させる
+    PathfindingService::InvalidateActive(m_workspace);
 }
 
 bool TerrainStreamer::raycastVoxel(const Vector3& origin, const Vector3& dir, float maxDist, Vector3& outHit) const {

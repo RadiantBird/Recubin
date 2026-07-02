@@ -31,6 +31,7 @@
 #include "include/Instances/ImageLabel.hpp"
 #include "include/Instances/ImageButton.hpp"
 #include "include/Core/Terrain.hpp"
+#include "include/Instances/PathfindingService.hpp"
 
 // ─── Binding helper factories (anonymous, internal to this TU) ────────────────
 //
@@ -452,6 +453,8 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Humanoid"]["PauseAnimation"] = getter_closure(humanoid_pause_animation_closure, "PauseAnimation");
     DispatchTable["Humanoid"]["StopAnimation"]  = getter_closure(humanoid_stop_animation_closure,  "StopAnimation");
     DispatchTable["Humanoid"]["TakeDamage"]  = getter_closure(humanoid_take_damage_closure, "TakeDamage");
+    DispatchTable["Humanoid"]["MoveToward"]  = getter_closure(humanoid_move_toward_closure, "MoveToward");
+    DispatchTable["Humanoid"]["Jump"]        = getter_closure(humanoid_jump_closure,        "Jump");
 
     // User.Input (UserInputService 相当のインスタンスを返す)
     DispatchTable["User"]["Input"] = [](lua_State* L, Instance* obj) -> int {
@@ -661,6 +664,12 @@ void LuauEngine::InitDispatchTable_GUI() {
     DispatchTable["Terrain"]["GetBlock"]    = getter_closure(terrain_get_block_closure,    "GetBlock");
     DispatchTable["Terrain"]["Raycast"]     = getter_closure(terrain_raycast_closure,      "Raycast");
     DispatchTable["Terrain"]["ApplyBrush"]  = getter_closure(terrain_apply_brush_closure,  "ApplyBrush");
+
+    // --- PathfindingService ---
+    // AgentRadius/AgentHeight/AgentMaxClimb/AgentMaxSlope/MaxJumpDistance/MaxJumpHeight は
+    // PropertyRegistry の表から流し込む。FindPath のみ手書き。
+    PropertyRegistry::applyToDispatch("PathfindingService", DispatchTable, SetterTable);
+    DispatchTable["PathfindingService"]["FindPath"] = getter_closure(pathfinding_find_path_closure, "FindPath");
 }
 
 // ==================== Setter: GUI ====================

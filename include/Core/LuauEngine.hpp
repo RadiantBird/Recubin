@@ -107,6 +107,8 @@ private:
     static int humanoid_pause_animation_closure(lua_State* L);
     static int humanoid_stop_animation_closure(lua_State* L);
     static int humanoid_take_damage_closure(lua_State* L);
+    static int humanoid_move_toward_closure(lua_State* L);
+    static int humanoid_jump_closure(lua_State* L);
 
     // UserInput methods
     static int userinput_ispressed_closure(lua_State* L);
@@ -117,6 +119,9 @@ private:
     static int terrain_get_block_closure(lua_State* L);
     static int terrain_raycast_closure(lua_State* L);
     static int terrain_apply_brush_closure(lua_State* L);
+
+    // PathfindingService methods
+    static int pathfinding_find_path_closure(lua_State* L);
 
     // Vector3 methods
     static int vec3_index(lua_State* L);
