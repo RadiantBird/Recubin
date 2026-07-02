@@ -64,9 +64,9 @@ std::shared_ptr<Instance> Rod::clone() const {
     return c;
 }
 
-void Rod::remapClonedCubes(const CubeRemap& map) {
-    if (auto c0 = m_cube0.lock()) { auto it = map.find(c0.get()); if (it != map.end()) m_cube0 = it->second; }
-    if (auto c1 = m_cube1.lock()) { auto it = map.find(c1.get()); if (it != map.end()) m_cube1 = it->second; }
+void Rod::remapClonedInstances(const CloneRemap& map) {
+    if (auto c0 = m_cube0.lock()) { auto it = map.find(c0.get()); if (it != map.end()) m_cube0 = std::static_pointer_cast<BaseCube>(it->second); }
+    if (auto c1 = m_cube1.lock()) { auto it = map.find(c1.get()); if (it != map.end()) m_cube1 = std::static_pointer_cast<BaseCube>(it->second); }
 }
 
 std::string Rod::getClassName() { return "Rod"; }

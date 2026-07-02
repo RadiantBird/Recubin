@@ -34,7 +34,7 @@ Windowsで動作します。後々、Mac対応予定。
   - VHS(デルタタイムでノイズを発生させるだけ)
   - ChromaticAberration(CA) (0~1でチャンネルのずれ方を変える)
 
-- [] アンチパターン修正
+- [x] アンチパターン修正
   - Instance.cppの例のあのstatic_assert
     - 物理制約が適用されるのはBaseCubeからのはずなので、そっちに実装を移す
 

@@ -12,8 +12,6 @@
     #undef getClassName // これでInstance::getClassNameがAに化けるのを防ぐ
 #endif
 
-class BaseCube;
-
 class Instance : public std::enable_shared_from_this<Instance> {
     protected:
         using string = std::string;
@@ -47,11 +45,11 @@ class Instance : public std::enable_shared_from_this<Instance> {
 
         virtual std::shared_ptr<Instance> clone() const;
 
-        // 制約（Weld/Rope/Rod/Motor）のキューブ参照をクローン先へ張り替えるための仕組み。
-        // orig BaseCube* -> clone shared_ptr<BaseCube> の対応表。
-        using CubeRemap = std::unordered_map<BaseCube*, std::shared_ptr<BaseCube>>;
-        // 既定 no-op。制約クラスが自分の m_cube0/m_cube1 を map で引いて差し替える。
-        virtual void remapClonedCubes(const CubeRemap&) {}
+        // 制約（Weld/Rope/Rod/Motor）等がクローン先の参照へ張り替えるための仕組み。
+        // orig Instance* -> clone shared_ptr<Instance> の対応表（型は問わず全ノードを含む）。
+        using CloneRemap = std::unordered_map<Instance*, std::shared_ptr<Instance>>;
+        // 既定 no-op。参照を持つ派生クラスが自分のメンバを map で引いて差し替える。
+        virtual void remapClonedInstances(const CloneRemap&) {}
 
         // orig と clone を子名でペアリングして並行走査し、clone 内の制約参照を
         // clone 側のキューブへ張り替える（アセンブリ剛体がクローンで壊れないように）。

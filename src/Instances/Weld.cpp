@@ -101,9 +101,9 @@ std::shared_ptr<Instance> Weld::clone() const {
     return c;
 }
 
-void Weld::remapClonedCubes(const CubeRemap& map) {
-    if (auto c0 = m_cube0.lock()) { auto it = map.find(c0.get()); if (it != map.end()) m_cube0 = it->second; }
-    if (auto c1 = m_cube1.lock()) { auto it = map.find(c1.get()); if (it != map.end()) m_cube1 = it->second; }
+void Weld::remapClonedInstances(const CloneRemap& map) {
+    if (auto c0 = m_cube0.lock()) { auto it = map.find(c0.get()); if (it != map.end()) m_cube0 = std::static_pointer_cast<BaseCube>(it->second); }
+    if (auto c1 = m_cube1.lock()) { auto it = map.find(c1.get()); if (it != map.end()) m_cube1 = std::static_pointer_cast<BaseCube>(it->second); }
 }
 
 void Weld::onAncestorChanged() {
