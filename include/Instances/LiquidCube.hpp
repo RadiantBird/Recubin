@@ -7,7 +7,8 @@ class LiquidCube : public Named<LiquidCube, BaseCube> {
 public:
     static constexpr const char* ClassName = "LiquidCube";
 
-    float Density = 4.0f;   // 流体密度（浮力係数）
+    float Density = 1.0f;   // 流体密度（浮力係数）。物体側の暗黙密度は1.0基準
+                             // (Physics::createActor)。Density<1で沈み、>1で浮く目安。
 
     LiquidCube(Vector3 Pos, Vector3 Sz);
 

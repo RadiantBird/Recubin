@@ -367,6 +367,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "CanCollide" << YAML::Value << bc->CanCollide;
             out << YAML::Key << "CastShadow" << YAML::Value << bc->CastShadow;
             out << YAML::Key << "Unlit"      << YAML::Value << bc->Unlit;
+            out << YAML::Key << "MassDensity" << YAML::Value << bc->MassDensity;
             out << YAML::Key << "MaterialType"    << YAML::Value << static_cast<int>(bc->material.type);
             out << YAML::Key << "StaticFriction"  << YAML::Value << bc->material.staticFriction;
             out << YAML::Key << "DynamicFriction" << YAML::Value << bc->material.dynamicFriction;

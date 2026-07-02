@@ -26,6 +26,7 @@ public:
 
     Color4 Color;
     Material material = Material::GetDefault(MaterialType::Plastic);
+    float MassDensity = 1.0f;   // 質量計算用の密度（Physics::createActorのupdateMassAndInertia基準）
 
     // キャッシュ：自分がどの Workspace に登録されているか
     Workspace* lastWorkspace = nullptr;
@@ -56,6 +57,7 @@ public:
     void setRotation(Quaternion rot);
     void setAnchored(bool anchored);
     void setMaterial(const Material& m);
+    void setMassDensity(float d);
 
     // 自律的な登録・解除ロジック
     void onAncestorChanged() override;

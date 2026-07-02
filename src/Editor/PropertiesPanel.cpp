@@ -492,6 +492,16 @@ void PropertiesPanel::onRender() {
                 bcSp, "Unlit", prevUnlit, bc->Unlit));
         }
 
+        // MassDensity with undo（ドラッグ中は値だけ更新し、確定時に actor 再生成 + undo 記録）
+        static float s_massDensityBefore;
+        ImGui::DragFloat("MassDensity", &bc->MassDensity, 0.01f, 0.01f, 50.0f, "%.2f");
+        if (ImGui::IsItemActivated()) s_massDensityBefore = bc->MassDensity;
+        if (ImGui::IsItemDeactivatedAfterEdit()) {
+            bc->setMassDensity(bc->MassDensity);  // actor を再生成して物理に反映
+            if (m_history)
+                m_history->record(std::make_unique<SetMassDensityCommand>(bcSp, s_massDensityBefore, bc->MassDensity));
+        }
+
         // ---- Material（プリセット + 数値微調整） ----
         ImGui::SeparatorText("Material");
 

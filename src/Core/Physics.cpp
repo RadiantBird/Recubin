@@ -195,6 +195,19 @@ void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
     }
     }
 
+    if (!cube->Anchored) {
+        // Weld compound (rebuildGroup) と同様に質量を体積比例にする。
+        // これが無いと浮力(体積比例)に対して質量が定数のままになり、大きい物体ほど
+        // 浮力/質量比が発散して吹き飛ぶ(applyBuoyancy参照)。cube->MassDensity はユーザーが
+        // Properties パネルで調整できる密度（BaseCube::MassDensity）。0以下はPhysXがrejectするため下限を設ける。
+        auto* dyn = static_cast<physx::PxRigidDynamic*>(actor);
+        if (!physx::PxRigidBodyExt::updateMassAndInertia(*dyn, std::max(cube->MassDensity, 0.01f))) {
+            // 失敗時（縮退ジオメトリ等）は質量ゼロ/不正な慣性のアクターをシーンに残さないよう固定値で保険をかける
+            RCBN_WARN("updateMassAndInertia failed for: " << cube->Name << " — falling back to mass=1.0");
+            dyn->setMass(1.0f);
+            dyn->setMassSpaceInertiaTensor(physx::PxVec3(1.0f, 1.0f, 1.0f));
+        }
+    }
     scene->addActor(*actor);
     actor->userData = cube.get(); // レイキャスト等で逆引きできるようにポインタを保持
     cube->actor = actor; // BaseCube側に参照を戻す
@@ -658,15 +671,17 @@ void Physics::createRod(const std::shared_ptr<Rod>& rod) {
     RCBN_LOG("Rod \"" << rod->Name << "\" created, distance=" << dist);
 }
 
-// Weld 用シェイプ追加ヘルパー
-static void attachShapeToCompound(
+// Weld 用シェイプ追加ヘルパー。シェイプを実際に追加できた場合のみ true を返す
+// （CanCollide==false や ConvexMesh cooking 失敗時は追加されない。呼び出し側で
+// shapeDensities 配列の要素数を実際の shape 数と一致させるために使う）
+static bool attachShapeToCompound(
     physx::PxPhysics* px,
     const std::shared_ptr<BaseCube>& cube,
     physx::PxRigidDynamic* compound,
     const physx::PxTransform& localOffset,
     physx::PxMaterial* mat)
 {
-    if (!cube->CanCollide) return; // 衝突無効パーツは形状を持たない（位置追従のみ。createActor()と同じ規約）
+    if (!cube->CanCollide) return false; // 衝突無効パーツは形状を持たない（位置追従のみ。createActor()と同じ規約）
 
     switch (cube->getPhysicsShape()) {
     case PhysicsShape::Box: {
@@ -675,7 +690,7 @@ static void attachShapeToCompound(
         shape->setLocalPose(localOffset);
         compound->attachShape(*shape);
         shape->release();
-        break;
+        return true;
     }
     case PhysicsShape::Sphere: {
         physx::PxSphereGeometry geom(cube->Size.x / 2.0f);
@@ -683,11 +698,11 @@ static void attachShapeToCompound(
         shape->setLocalPose(localOffset);
         compound->attachShape(*shape);
         shape->release();
-        break;
+        return true;
     }
     case PhysicsShape::ConvexMesh: {
         auto verts = cube->getConvexVertices();
-        if (verts.empty()) break;
+        if (verts.empty()) return false;
         physx::PxCookingParams cookParams(px->getTolerancesScale());
         physx::PxConvexMeshDesc desc;
         desc.points.count  = static_cast<physx::PxU32>(verts.size());
@@ -698,7 +713,7 @@ static void attachShapeToCompound(
         physx::PxConvexMeshCookingResult::Enum result;
         if (!PxCookConvexMesh(cookParams, desc, buf, &result)) {
             // RCBN_WARN("Weld: ConvexMesh cooking failed for: " << cube->Name);
-            break;
+            return false;
         }
         physx::PxDefaultMemoryInputData input(buf.getData(), buf.getSize());
         physx::PxConvexMesh* mesh = px->createConvexMesh(input);
@@ -709,9 +724,10 @@ static void attachShapeToCompound(
         compound->attachShape(*shape);
         shape->release();
         mesh->release();
-        break;
+        return true;
     }
     }
+    return false;
 }
 
 void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembly) {
@@ -759,13 +775,18 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
     physx::PxRigidDynamic* compound = s_pxPhysics->createRigidDynamic(originPose);
     compound->setSolverIterationCounts(8, 2);
 
+    // シェイプが実際に追加された順に密度を記録し、updateMassAndInertia の
+    // per-shape density 配列（getShapes() の並び = attachShape した順）に対応させる
+    std::vector<physx::PxReal> shapeDensities;
     for (size_t i = 0; i < assembly.size(); i++) {
         auto& cube = assembly[i];
         physx::PxTransform localOffset = (i == 0)
             ? physx::PxTransform(physx::PxIdentity)
             : originPose.getInverse().transform(savedPoses[cube.get()]);
         physx::PxMaterial* mat = getOrCreateMaterial(cube->material);
-        attachShapeToCompound(s_pxPhysics, cube, compound, localOffset, mat);
+        if (attachShapeToCompound(s_pxPhysics, cube, compound, localOffset, mat)) {
+            shapeDensities.push_back(std::max(cube->MassDensity, 0.01f));
+        }
         cube->actor = compound;
         cube->m_compoundLocalOffset = localOffset;
     }
@@ -786,8 +807,17 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
     // 構成されたアセンブリ(例: 装飾用 MeshCube を Head に Weld した髪)はシェイプを持たず、
     // ゼロシェイプの body に対して updateMassAndInertia を呼ぶと不正なメモリアクセス
     // (0x0 実行)でクラッシュするため、固定質量・慣性で代替する（位置追従のみで十分）。
+    // 各パーツの BaseCube::MassDensity を per-shape density として渡すことで、
+    // 単独アクター(createActor)と同じ基準でパーツごとの密度を質量に反映する。
     if (compound->getNbShapes() > 0) {
-        physx::PxRigidBodyExt::updateMassAndInertia(*compound, 1.0f);
+        bool ok = physx::PxRigidBodyExt::updateMassAndInertia(
+            *compound, shapeDensities.data(), static_cast<physx::PxU32>(shapeDensities.size()));
+        if (!ok) {
+            // 失敗時（縮退ジオメトリ等）は質量ゼロ/不正な慣性のcompoundをシーンに残さないよう固定値で保険をかける
+            RCBN_WARN("updateMassAndInertia (per-shape) failed for compound — falling back to mass=1.0");
+            compound->setMass(1.0f);
+            compound->setMassSpaceInertiaTensor(physx::PxVec3(1.0f, 1.0f, 1.0f));
+        }
     } else {
         compound->setMass(1.0f);
         compound->setMassSpaceInertiaTensor(physx::PxVec3(1.0f, 1.0f, 1.0f));

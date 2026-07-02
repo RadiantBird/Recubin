@@ -199,6 +199,18 @@ struct SetMaterialCommand : Command {
     void undo()    override { if (m_target) m_target->setMaterial(m_before); }
 };
 
+// --- MassDensity変更 ---
+struct SetMassDensityCommand : Command {
+    std::shared_ptr<BaseCube> m_target;
+    float m_before, m_after;
+
+    SetMassDensityCommand(std::shared_ptr<BaseCube> target, float before, float after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->setMassDensity(m_after); }
+    void undo()    override { if (m_target) m_target->setMassDensity(m_before); }
+};
+
 // --- bool プロパティ変更（Anchored / CanCollide） ---
 struct SetBoolCommand : Command {
     std::shared_ptr<BaseCube> m_target;

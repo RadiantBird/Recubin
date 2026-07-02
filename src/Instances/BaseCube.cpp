@@ -85,6 +85,13 @@ void BaseCube::setMaterial(const Material& m) {
     }
 }
 
+void BaseCube::setMassDensity(float d) {
+    MassDensity = d;
+    if (lastWorkspace && lastWorkspace->physicsEngine) {
+        lastWorkspace->physicsEngine->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
+    }
+}
+
 void BaseCube::syncPhysics() {
     if (!actor) return;
     if (Anchored) {
@@ -190,6 +197,8 @@ void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
         material.dynamicFriction = value.as<float>();
     } else if (name == "Restitution") {
         material.restitution = value.as<float>();
+    } else if (name == "MassDensity") {
+        setMassDensity(value.as<float>());
     } else {
         Spatial::setProperty(name, value);
     }
