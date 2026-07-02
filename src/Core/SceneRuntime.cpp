@@ -87,6 +87,10 @@ Bound loadAndBind(const std::string& scenePath,
         auto pathfinding = std::make_shared<PathfindingService>();
         system->addChild(pathfinding);
     }
+    // NavMeshディスクキャッシュのパス算出に使うため、シーン読み込みのたびに更新する
+    if (auto it = system->children.find("PathfindingService"); it != system->children.end()) {
+        static_cast<PathfindingService*>(it->second.get())->ScenePath = scenePath;
+    }
 
     applyAppIcon(window, system.get());
     bindStandardGlobals(engine, workspace, system, user);

@@ -1,6 +1,18 @@
 #include <include/Instances/PathfindingService.hpp>
 #include <include/Instances/Workspace.hpp>
 #include <include/Core/PropertyRegistry.hpp>
+#include <filesystem>
+
+namespace {
+// シーンファイルと同じディレクトリの .navcache/ 以下にWorkspaceごとのキャッシュファイルを置く
+// 例: assets/scenes/pathfinder.yaml -> assets/scenes/.navcache/pathfinder_Workspace.navcache
+std::string cacheFilePathFor(const std::string& scenePath, const std::string& workspaceName) {
+    if (scenePath.empty()) return "";
+    std::filesystem::path p(scenePath);
+    std::string stem = p.stem().string();
+    return (p.parent_path() / ".navcache" / (stem + "_" + workspaceName + ".navcache")).string();
+}
+} // namespace
 
 // プロパティ・スキーマ（単一の正）。Luau/YAML/clone/エディターを一括駆動。
 static const bool s_pathfindingServiceRegistered = []{
@@ -39,7 +51,7 @@ void PathfindingService::setProperty(const std::string& name, const YAML::Node& 
 std::vector<Pathfinding::PathWaypoint> PathfindingService::FindPath(Workspace* workspace, const Vector3& start, const Vector3& goal) {
     if (!workspace) return {};
 
-    auto it = m_cache.find(workspace);
+    auto it = m_cache.find(workspace->Name);
     if (it == m_cache.end()) {
         Pathfinding::BuildSettings settings;
         settings.agentRadius     = AgentRadius;
@@ -48,7 +60,8 @@ std::vector<Pathfinding::PathWaypoint> PathfindingService::FindPath(Workspace* w
         settings.agentMaxSlope   = AgentMaxSlope;
         settings.maxJumpDistance = MaxJumpDistance;
         settings.maxJumpHeight   = MaxJumpHeight;
-        it = m_cache.emplace(workspace, Pathfinding::NavMesh::Build(workspace, settings)).first;
+        std::string cachePath = cacheFilePathFor(ScenePath, workspace->Name);
+        it = m_cache.emplace(workspace->Name, Pathfinding::NavMesh::Build(workspace, settings, cachePath)).first;
     }
 
     if (!it->second) return {};
@@ -56,7 +69,8 @@ std::vector<Pathfinding::PathWaypoint> PathfindingService::FindPath(Workspace* w
 }
 
 void PathfindingService::Invalidate(Workspace* workspace) {
-    m_cache.erase(workspace);
+    if (!workspace) return;
+    m_cache.erase(workspace->Name);
 }
 
 void PathfindingService::InvalidateActive(Workspace* workspace) {

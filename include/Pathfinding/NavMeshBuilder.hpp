@@ -3,6 +3,7 @@
 #include <include/Math/Vector3.hpp>
 #include <memory>
 #include <vector>
+#include <string>
 
 class Workspace;
 class dtNavMesh;
@@ -27,7 +28,10 @@ public:
     ~NavMesh();
 
     // 構築に失敗した場合（歩行可能なジオメトリが無い等）は nullptr を返す。
-    static std::unique_ptr<NavMesh> Build(Workspace* workspace, const BuildSettings& settings);
+    // cachePath が非空なら、ジオメトリ+設定のハッシュが一致するキャッシュがあれば
+    // Recastの再構築をスキップして読み込み、無ければフルビルド後にそこへ保存する。
+    static std::unique_ptr<NavMesh> Build(Workspace* workspace, const BuildSettings& settings,
+                                           const std::string& cachePath = "");
 
     // start/goal に最も近い歩行可能地点間の経路をウェイポイント配列で返す。
     // 経路が見つからない場合は空配列を返す。

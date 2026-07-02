@@ -13,7 +13,10 @@
 
 #include <cmath>
 #include <cstring>
+#include <cstdint>
 #include <algorithm>
+#include <fstream>
+#include <filesystem>
 
 namespace Pathfinding {
 
@@ -178,6 +181,71 @@ void buildJumpLinks(const std::vector<BoundaryEdge>& edges, const BuildSettings&
     }
 }
 
+// --- ディスクキャッシュ ---
+constexpr uint32_t NAVCACHE_MAGIC   = 0x434D4E52; // "RNMC"
+constexpr uint32_t NAVCACHE_VERSION = 1;
+
+uint64_t fnv1aHash(const void* data, size_t size, uint64_t hash = 14695981039346656037ULL) {
+    const unsigned char* bytes = static_cast<const unsigned char*>(data);
+    for (size_t i = 0; i < size; ++i) {
+        hash ^= bytes[i];
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
+
+uint64_t computeGeometryHash(const std::vector<float>& verts, const std::vector<int>& tris,
+                              const BuildSettings& settings) {
+    uint64_t h = fnv1aHash(verts.data(), verts.size() * sizeof(float));
+    h = fnv1aHash(tris.data(), tris.size() * sizeof(int), h);
+    h = fnv1aHash(&settings, sizeof(settings), h);
+    return h;
+}
+
+// キャッシュファイルからnavDataを読み込む。ヘッダのmagic/version/hashが一致しない、
+// またはファイルが無ければfalseを返す。成功時のoutDataはdtAllocで確保されており、
+// 呼び出し側はdtNavMesh::init(..., DT_TILE_FREE_DATA)に譲渡するかdtFreeで解放する。
+bool loadNavCache(const std::string& path, uint64_t expectedHash, unsigned char*& outData, int& outSize) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) return false;
+
+    uint32_t magic = 0, version = 0;
+    uint64_t hash = 0;
+    int32_t size = 0;
+    file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
+    file.read(reinterpret_cast<char*>(&version), sizeof(version));
+    file.read(reinterpret_cast<char*>(&hash), sizeof(hash));
+    file.read(reinterpret_cast<char*>(&size), sizeof(size));
+    if (!file || magic != NAVCACHE_MAGIC || version != NAVCACHE_VERSION || hash != expectedHash || size <= 0)
+        return false;
+
+    unsigned char* buf = static_cast<unsigned char*>(dtAlloc(static_cast<size_t>(size), DT_ALLOC_PERM));
+    if (!buf) return false;
+    file.read(reinterpret_cast<char*>(buf), size);
+    if (!file) { dtFree(buf); return false; }
+
+    outData = buf;
+    outSize = size;
+    return true;
+}
+
+void saveNavCache(const std::string& path, uint64_t hash, const unsigned char* data, int size) {
+    std::filesystem::path p(path);
+    std::error_code ec;
+    std::filesystem::create_directories(p.parent_path(), ec);
+
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file) return;
+
+    uint32_t magic = NAVCACHE_MAGIC, version = NAVCACHE_VERSION;
+    int32_t sz = size;
+    file.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
+    file.write(reinterpret_cast<const char*>(&version), sizeof(version));
+    file.write(reinterpret_cast<const char*>(&hash), sizeof(hash));
+    file.write(reinterpret_cast<const char*>(&sz), sizeof(sz));
+    file.write(reinterpret_cast<const char*>(data), size);
+}
+
 } // namespace
 
 NavMesh::~NavMesh() {
@@ -185,7 +253,8 @@ NavMesh::~NavMesh() {
     if (m_navMesh)  dtFreeNavMesh(m_navMesh);
 }
 
-std::unique_ptr<NavMesh> NavMesh::Build(Workspace* workspace, const BuildSettings& settings) {
+std::unique_ptr<NavMesh> NavMesh::Build(Workspace* workspace, const BuildSettings& settings,
+                                         const std::string& cachePath) {
     if (!workspace) return nullptr;
 
     std::vector<float> verts;
@@ -195,6 +264,13 @@ std::unique_ptr<NavMesh> NavMesh::Build(Workspace* workspace, const BuildSetting
     const int nverts = (int)(verts.size() / 3);
     const int ntris  = (int)(tris.size() / 3);
     if (nverts == 0 || ntris == 0) return nullptr;
+
+    const uint64_t geomHash = computeGeometryHash(verts, tris, settings);
+
+    unsigned char* navData = nullptr;
+    int navDataSize = 0;
+
+    if (cachePath.empty() || !loadNavCache(cachePath, geomHash, navData, navDataSize)) {
 
     rcConfig cfg;
     std::memset(&cfg, 0, sizeof(cfg));
@@ -339,14 +415,16 @@ std::unique_ptr<NavMesh> NavMesh::Build(Workspace* workspace, const BuildSetting
     params.ch = cfg.ch;
     params.buildBvTree = true;
 
-    unsigned char* navData = nullptr;
-    int navDataSize = 0;
     const bool created = dtCreateNavMeshData(&params, &navData, &navDataSize);
 
     rcFreePolyMesh(pmesh);
     rcFreePolyMeshDetail(dmesh);
 
     if (!created) return nullptr;
+
+    if (!cachePath.empty()) saveNavCache(cachePath, geomHash, navData, navDataSize);
+
+    } // if (cachePath.empty() || !loadNavCache(...))
 
     dtNavMesh* navMesh = dtAllocNavMesh();
     if (!navMesh || dtStatusFailed(navMesh->init(navData, navDataSize, DT_TILE_FREE_DATA))) {

@@ -25,6 +25,10 @@ public:
     float MaxJumpDistance = 6.0f;
     float MaxJumpHeight   = 4.0f;
 
+    // シーンファイルのパス。SceneRuntime::loadAndBind がシーン読み込みのたびに設定する。
+    // ディスクキャッシュファイルのパス算出に使う（未設定ならディスクキャッシュしない）。
+    std::string ScenePath;
+
     PathfindingService();
     ~PathfindingService() override;
 
@@ -44,7 +48,10 @@ public:
     static void InvalidateActive(Workspace* workspace);
 
 private:
-    std::unordered_map<Workspace*, std::unique_ptr<Pathfinding::NavMesh>> m_cache;
+    // Workspace* ではなく Workspace 名でキーイングする。Workspace は Play/Stop の
+    // たびに破棄・再生成されるため、ポインタキーだと毎回キャッシュミスする上、
+    // アドレス再利用時に別Workspaceへ誤ヒットする恐れがある。
+    std::unordered_map<std::string, std::unique_ptr<Pathfinding::NavMesh>> m_cache;
 
     static PathfindingService* s_active;
 };
