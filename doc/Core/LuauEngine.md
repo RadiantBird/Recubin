@@ -68,7 +68,18 @@ wait(2.0) 呼び出し
   → 0 以下なら lua_resume() でコルーチン再開
 ```
 
+## 実装ファイルの分割
+
+`LuauEngine` クラス自体は `src/Core/LuauEngine.cpp` に加え、以下の翻訳単位に実装が分割されている（別クラスではない）。
+
+| ファイル | 内容 |
+|---|---|
+| `src/Core/LuauEngine_Dispatch.cpp` | `InitDispatchTable_Base/World/Physics/Misc/GUI` / `InitSetterTable_*` の実装。`DispatchTable`/`SetterTable` へクラス別プロパティ getter/setter を登録する |
+| `src/Core/LuauEngine_Math.cpp` | `Vector3` / `Vector2` / `Color4` / `Quaternion` / `CFrame` の Luau メタメソッド（`__index`, `__add`, `__mul` 等）とコンストラクタ実装 |
+
 ## 依存関係
 
 - Luau SDK
-- `Instance`, `BaseCube`, `Script`, `Workspace`, `Vector3`, `Color4`, `Logger`
+- `Instance`, `BaseCube`, `Script`, `Workspace`, `Vector3`, `Vector2`, `Quaternion`, `CFrame`, `Color4`, `Logger`
+- `PropertyRegistry`（`applyToDispatch()` 経由で PropertyRegistry 管理クラスの getter/setter が `DispatchTable`/`SetterTable` に配線される）
+- `RCBNScriptSignal`（Signal/Connection バインディング）

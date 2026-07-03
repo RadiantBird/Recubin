@@ -28,8 +28,14 @@ OpenGL レンダリングパイプライン全体を管理するシングルト�
 | `renderScene(user, workspace)` | 3D シーンのみを描画（FBO へ書き込む） |
 | `renderImGui(user, window, workspace)` | ImGui パネルを描画 |
 | `loadTexture(path)` | 画像ファイルを GPU にアップロードして ID を返す |
+| `loadTextureFromMemory(data, size)` | メモリ上の画像データから GPU テクスチャを生成 |
 | `createWhiteTexture()` | 1×1 白テクスチャを生成 |
 | `loadShaderSource(filePath)` | GLSL ソースをファイルから読み込む |
+| `renderViewport(desc)` | `ViewportRenderDesc` を受け取る統合ビューポート描画（シャドウ/ハイライト/コンストレイント/ポストエフェクトの各フラグを見て描画） |
+| `initLineRenderer()` / `renderConstraints(ws, view, proj)` | Rope/Rod 制約の可視化用ラインレンダラーの初期化・描画 |
+| `renderBrushMarker(view, proj, center, radius)` | 地形ブラシのヒット位置を示す水平リングを描画（呼び出し側が FBO バインド済みであること） |
+| `initPostEffectRenderer()` / `ensurePostEffectFBOs(w, h)` / `renderPostEffects(ws, targetFbo, w, h)` | `PostEffect` インスタンスを ZIndex 順に適用するポストエフェクトチェーン |
+| `renderTerrain(view, proj, workspace)`（private） | `Workspace` 内の `Terrain`（`TerrainStreamer::getChunks()`）を描画 |
 
 ## レンダーフロー
 
@@ -44,10 +50,24 @@ render()
        └─ editor->render()           ← 全パネルを描画
 ```
 
+## GUI 描画（src/Core/Renderer_GUI.cpp）
+
+`Renderer` クラス自体の実装で、`src/Core/Renderer_GUI.cpp` に分割されている（別クラスではない）。ScreenGui/WorldGui/ツールホットバー/ゲーム内GUI・SurfaceGui のベイクを担当する。
+
+| メソッド | 説明 |
+|---|---|
+| `renderScreenGui(ws, vpX, vpY, vpW, vpH)` | `ScreenGuiObject` 系（画面固定UI）をビューポート座標系で描画 |
+| `renderWorldGui(ws, vpX, vpY, vpW, vpH)` | `WorldGuiObject`（3D空間内に配置されるGUI、BillboardGui等）を描画 |
+| `renderToolHotbar(user, vpX, vpY, vpW, vpH)` | `User` が所持するツールのホットバーUIを描画 |
+| `renderGameGui(ws, user, vpX, vpY, vpW, vpH)` | Play モード時のゲーム内 GUI をまとめて描画 |
+| `bakeSurfaceGui(sg)` | `SurfaceGui` の内容をテクスチャへベイクし、対象キューブ面に貼り付けられるようにする |
+
 ## 依存関係
 
-- GLEW, GLFW, ImGui
+- GLEW, GLFW, ImGui, PhysX（コンストレイント可視化）
 - `EditorManager`, `User`, `Workspace`, `FileLoader`, `Matrix4`
+- `Terrain`, `TerrainStreamer`（地形描画）
+- `GuiButton`, `SurfaceGui`（GUI 描画）
 
 ## 使われる場所
 

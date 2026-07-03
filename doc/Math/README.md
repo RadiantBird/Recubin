@@ -8,3 +8,4 @@
 | [Quaternion](Quaternion.md) | `include/Math/Quaternion.hpp` | クォータニオン回転表現 |
 | [CFrame](CFrame.md) | `include/Math/CFrame.hpp` | 位置 + 回転の座標フレーム |
 | [Matrix4](Matrix4.md) | `include/Math/Matrix4.hpp` | 4×4 変換行列（OpenGL 用） |
+| [Easing](Easing.md) | `include/Math/Easing.hpp` | キーフレーム補間カーブ（Linear/Quadratic/Cosine/Sine/Exponential） |
