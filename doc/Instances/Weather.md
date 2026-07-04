@@ -21,7 +21,7 @@ Workspaceの直接の子として配置する想定（Sun/Moon/Skyboxと同じ�
 | `CloudHeight` | `float` | カメラ基準の雲層の高さ(stud) |
 | `WindDirection` | `Vector3` | 風向き+速さ。`Workspace::Wind`へ毎フレーム反映される |
 | `LightningEnabled` | `bool` | 雷の個別無効化スイッチ |
-| `LightningChance` | `float` | 1秒あたりの落雷発生確率係数 |
+| `LightningInterval` | `float` | 平均落雷間隔（秒）。既定15秒、範囲1〜120秒。小さいほど頻繁に発生する |
 | `ClearAmbientPath`/`RainAmbientPath`/`SnowAmbientPath` | `string` | 天候ごとの環境音ファイルパス（差し替え可能） |
 | `AmbientVolume` | `float` | 環境音の音量 [0,1] |
 
@@ -62,7 +62,9 @@ Workspaceの直接の子として配置する想定（Sun/Moon/Skyboxと同じ�
 
 ## 雷の仕組み
 
-`CurrentWeather==Rain`かつ`LightningEnabled`のときのみ、`LightningChance*dt`の確率で`attemptStrike()`を試みる。
+`CurrentWeather==Rain`かつ`LightningEnabled`のときのみ、`LightningInterval`（平均発生間隔・秒）から
+求めたポアソン過程の確率 `1 - exp(-dt / LightningInterval)` で毎フレーム`attemptStrike()`を試みる
+（期待値として平均`LightningInterval`秒に1回発生する）。
 ワークスペース内の`MaterialType::Metal`な`BaseCube`派生を再帰収集し、`(高さ+1)^2`で重み付けした乱数選択で
 対象を決定、`Physics::raycast`で空が開けているか（間に遮蔽物がないか）確認してから発火する。ダメージ・延焼は
 実装しない（視覚効果のみ）。

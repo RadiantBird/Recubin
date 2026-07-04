@@ -5,9 +5,11 @@
 #include <Instances/Workspace.hpp>
 #include <Instances/Instance.hpp>
 #include <Core/User.hpp>
+#include <cctype>
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 class CommandHistory;
@@ -23,6 +25,10 @@ public:
     Instance*   selectedInstance  = nullptr;  // PropertiesPanel と共有（Primary）
     std::vector<Instance*> selectedInstances;  // 複数選択セット（常にselectedInstanceを含む）
 
+    // F2 インラインリネーム用状態（EditorManager::handleEditorShortcuts が設定する）
+    Instance*   renamingInstance    = nullptr;
+    bool        renameFocusPending  = false;
+
     CommandHistory*              m_history   = nullptr;
     std::vector<std::shared_ptr<Instance>>* m_clipboard = nullptr;  // EditorManager::m_clipboard へのポインタ（複数対応）
     User*                        m_user      = nullptr;
@@ -36,11 +42,20 @@ public:
     void onRender() override;
 
     // ヘルパー: インスタンス名の重複を避けて連番を付ける
-    static std::string uniqueName(const std::shared_ptr<Instance>& parent, const std::string& base) {
-        std::string name = base;
-        int n = 1;
-        while (parent->children.count(name) > 0)
-            name = base + std::to_string(n++);
+    // base の末尾が数字なら切り離してその数値からインクリメントする（"Cube1" -> "Cube2"）
+    // taken: 同一バッチ内でまだ children に登録されていない予約済み名前の集合（複数ペースト用）
+    static std::string uniqueName(const std::shared_ptr<Instance>& parent, const std::string& base,
+                                   const std::unordered_set<std::string>* taken = nullptr) {
+        auto exists = [&](const std::string& n) {
+            return parent->children.count(n) > 0 || (taken && taken->count(n) > 0);
+        };
+        if (!exists(base)) return base;
+        size_t i = base.size();
+        while (i > 0 && std::isdigit((unsigned char)base[i - 1])) --i;
+        std::string root = base.substr(0, i);
+        int n = (i < base.size()) ? std::stoi(base.substr(i)) : 0;
+        std::string name;
+        do { name = root + std::to_string(++n); } while (exists(name));
         return name;
     }
 
@@ -79,6 +94,9 @@ private:
     bool                      m_pickExisting = false; // true=既存ファイル選択
     std::string               m_pickName;
     std::shared_ptr<Instance> m_pickParent;
+
+    // F2 インラインリネーム用の編集バッファ（drawNode が再帰するためメンバで持つ）
+    char m_renameBuf[256] = {};
 
     void drawNode(Instance* inst);
     void renderInsertMenu(Instance* inst);

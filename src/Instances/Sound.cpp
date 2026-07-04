@@ -1,14 +1,40 @@
 #include "Instances/Sound.hpp"
 #include <Util/Logger.hpp>
 #include <Util/AssetGuard.hpp>
+#ifdef _WIN32
+#include <windows26.h>
+#endif
 
-Sound::Sound(AudioService& service, const std::string& path) 
+namespace {
+    // pathはUTF-8前提（browseFile()等の返り値）。ma_sound_init_from_file()はナローパスを
+    // ANSIコードページとして扱うため、日本語等の非ASCIIパスが化ける（FileLoader.cppの
+    // utf8_to_wstring()と同じ変換をここでも行い、_wファミリーに渡す）。
+#ifdef _WIN32
+    std::wstring utf8ToWide(const std::string& str) {
+        if (str.empty()) return std::wstring();
+        int sizeNeeded = MultiByteToWideChar(CP_UTF8, 0, str.data(), (int)str.size(), NULL, 0);
+        std::wstring wstr(sizeNeeded, 0);
+        MultiByteToWideChar(CP_UTF8, 0, str.data(), (int)str.size(), &wstr[0], sizeNeeded);
+        return wstr;
+    }
+#endif
+    ma_result initSoundFromFile(ma_engine* engine, const std::string& path, ma_uint32 flags,
+                                 ma_sound_group* group, ma_sound* sound) {
+#ifdef _WIN32
+        return ma_sound_init_from_file_w(engine, utf8ToWide(path).c_str(), flags, group, NULL, sound);
+#else
+        return ma_sound_init_from_file(engine, path.c_str(), flags, group, NULL, sound);
+#endif
+    }
+}
+
+Sound::Sound(AudioService& service, const std::string& path)
     : Spatial(Vector3(0,0,0), Vector3(1,1,1), "Sound") {
     if (!path.empty() && AssetGuard::allow(path)) {
         ma_uint32 flags = MA_SOUND_FLAG_DECODE;
         ma_sound_group* targetGroup = (soundGroup == "BGM") ? &service.groupBGM : &service.groupSFX;
 
-        if (ma_sound_init_from_file(&service.engine, path.c_str(), flags, targetGroup, NULL, &sound) == MA_SUCCESS) {
+        if (initSoundFromFile(&service.engine, path, flags, targetGroup, &sound) == MA_SUCCESS) {
             loaded = true;
             std::cout << "[DEBUG] Audio loaded: " << path << std::endl;
         } else {
@@ -72,10 +98,12 @@ void Sound::loadFromFile(const std::string& path) {
     if (AudioService::instance) {
         ma_uint32 flags = MA_SOUND_FLAG_DECODE;
         ma_sound_group* targetGroup = (soundGroup == "BGM") ? &AudioService::instance->groupBGM : &AudioService::instance->groupSFX;
-        if (ma_sound_init_from_file(&AudioService::instance->engine, path.c_str(), flags, targetGroup, NULL, &sound) == MA_SUCCESS) {
+        if (initSoundFromFile(&AudioService::instance->engine, path, flags, targetGroup, &sound) == MA_SUCCESS) {
             loaded = true;
             m_currentPath = path;
             if (looping) ma_sound_set_looping(&sound, true);
+        } else {
+            RCBN_WARN("Failed to load audio: " << path);
         }
     }
 }
@@ -94,8 +122,8 @@ void Sound::setProperty(const std::string& name, const YAML::Node& value) {
             ma_sound_group* targetGroup = (soundGroup == "BGM")
                 ? &AudioService::instance->groupBGM
                 : &AudioService::instance->groupSFX;
-            if (ma_sound_init_from_file(&AudioService::instance->engine,
-                    m_currentPath.c_str(), flags, targetGroup, NULL, &sound) == MA_SUCCESS) {
+            if (initSoundFromFile(&AudioService::instance->engine,
+                    m_currentPath, flags, targetGroup, &sound) == MA_SUCCESS) {
                 loaded = true;
                 if (looping) ma_sound_set_looping(&sound, true);
             }

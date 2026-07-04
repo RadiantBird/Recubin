@@ -32,7 +32,7 @@ static const bool s_weatherRegistered = []{
         field<&Weather::CloudHeight>     ("CloudHeight",      50.0f, 2000.0f, 5.0f).clampLua(),
         field<&Weather::WindDirection>   ("WindDirection"),
         field<&Weather::LightningEnabled>("LightningEnabled"),
-        field<&Weather::LightningChance> ("LightningChance",  0.0f, 1.0f,    0.01f).clampLua(),
+        field<&Weather::LightningInterval>("LightningInterval", 1.0f, 120.0f, 1.0f).clampLua(),
         field<&Weather::ClearAmbientPath>("ClearAmbientPath").omitEmpty(),
         field<&Weather::RainAmbientPath> ("RainAmbientPath").omitEmpty(),
         field<&Weather::SnowAmbientPath> ("SnowAmbientPath").omitEmpty(),
@@ -161,17 +161,16 @@ void Weather::ensureChildren() {
 
 void Weather::updateAmbientAudio() {
     if (!m_ambientSound) return;
-    int cur = static_cast<int>(CurrentWeather);
-    if (cur == m_prevWeather) return;
-    m_prevWeather = cur;
-
-    m_ambientSound->stop();
     std::string path;
     switch (CurrentWeather) {
         case WeatherType::Clear: path = ClearAmbientPath; break;
         case WeatherType::Rain:  path = RainAmbientPath;  break;
         case WeatherType::Snow:  path = SnowAmbientPath;  break;
     }
+    if (path == m_lastAmbientPath) return;
+    m_lastAmbientPath = path;
+
+    m_ambientSound->stop();
     if (!path.empty()) {
         m_ambientSound->loadFromFile(path);
         m_ambientSound->setLooping(true);
@@ -254,7 +253,9 @@ void Weather::update(float dt, const Vector3& cameraPosition) {
 
     if (CurrentWeather == WeatherType::Rain && LightningEnabled) {
         auto frand01 = []() { return static_cast<float>(std::rand()) / RAND_MAX; };
-        if (frand01() < LightningChance * dt) attemptStrike();
+        float rate = 1.0f / std::max(LightningInterval, 0.01f); // 平均発生回数/秒
+        float prob = 1.0f - std::exp(-rate * dt);
+        if (frand01() < prob) attemptStrike();
     }
 
     if (m_lightningTimer > 0.0f && m_lightningLight) {

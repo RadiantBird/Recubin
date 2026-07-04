@@ -83,8 +83,12 @@ void main() {
             : mix(ourColor.rgb, texColor.rgb * ourColor.rgb, texColor.a);
     }
 
+    // texColor.a はどちらの分岐でも baseColor 側の mix() 済みなので、
+    // 出力アルファに二重で掛けない（掛けるとテクスチャ/GUIの透明部分でキューブ自体が透けてしまう）
+    float outAlpha = ourColor.a * MatAlpha;
+
     if (unlit > 0.5) {
-        FragColor = vec4(baseColor, texColor.a * ourColor.a * MatAlpha);
+        FragColor = vec4(baseColor, outAlpha);
         return;
     }
 
@@ -118,5 +122,5 @@ void main() {
 
     vec3 result = lighting * baseColor;
 
-    FragColor = vec4(result, texColor.a * ourColor.a * MatAlpha);
+    FragColor = vec4(result, outAlpha);
 }

@@ -31,7 +31,7 @@ public:
     float       CloudHeight      = 300.0f;
     Vector3     WindDirection    = Vector3(0.0f, 0.0f, 0.0f);
     bool        LightningEnabled = true;
-    float       LightningChance  = 0.05f;
+    float       LightningInterval = 15.0f;
     std::string ClearAmbientPath;
     std::string RainAmbientPath;
     std::string SnowAmbientPath;
@@ -62,7 +62,7 @@ private:
     std::shared_ptr<ParticleEmitter> m_lightningSparks;
     std::shared_ptr<Sound>           m_ambientSound;
 
-    int     m_prevWeather = -1;
+    std::string m_lastAmbientPath;
     float   m_lightningTimer = 0.0f;
     Vector2 m_cloudScrollOffset = Vector2(0.0f, 0.0f);
 

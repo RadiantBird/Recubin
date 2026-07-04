@@ -70,9 +70,10 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
             drawGuiText(dl, sgo, px, py, sh, textCol, btn->Text.c_str());
 
         // ヒットテスト用 InvisibleButton
+        // ID はインスタンスポインタ由来にする（同名インスタンスが複数あるとID衝突するため）
         if (sgo->Active) {
             ImGui::SetCursorScreenPos(tl);
-            std::string btnId = "##btn_" + sgo->Name;
+            std::string btnId = "##btn_" + std::to_string(reinterpret_cast<uintptr_t>(sgo));
             ImGui::InvisibleButton(btnId.c_str(), ImVec2(sw, sh));
             if (ImGui::IsItemClicked() && onActivated) {
                 onActivated(btn);
@@ -91,7 +92,8 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
                          ImVec2(0, 1), ImVec2(1, 0));  // 上下反転（テクスチャ原点補正）
         if (sgo->Active) {
             ImGui::SetCursorScreenPos(tl);
-            ImGui::InvisibleButton(("##btn_" + sgo->Name).c_str(), ImVec2(sw, sh));
+            std::string btnId = "##btn_" + std::to_string(reinterpret_cast<uintptr_t>(sgo));
+            ImGui::InvisibleButton(btnId.c_str(), ImVec2(sw, sh));
             if (ImGui::IsItemClicked() && onActivated)
                 onActivated(btn);
         }
@@ -112,15 +114,21 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
 }
 
 // ===================================================
-//  SurfaceGui → FBO テクスチャへのベイク
-//  ImGui フレーム内（NewFrame〜EndFrame）で呼ぶこと
+//  SurfaceGui のキャンバス→FBO ピクセル座標レイアウト計算
+//  ベイク処理(bakeSurfaceGui)とクリックヒットテストの両方で使う共通計算
 // ===================================================
-void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
-    float cW = sg->Size.x, cH = sg->Size.y;
-    if (cW <= 0 || cH <= 0) return;
+struct SurfaceGuiLayout {
+    float cW = 0.f, cH = 0.f;         // キャンバスサイズ (SurfaceGui->Size)
+    int   w = 0, h = 0;               // FBO ピクセルサイズ
+    float scale = 1.f, offX = 0.f, offY = 0.f; // キャンバス→FBOのレターボックス変換
+};
+
+static bool computeSurfaceGuiLayout(SurfaceGui* sg, SurfaceGuiLayout& out) {
+    out.cW = sg->Size.x; out.cH = sg->Size.y;
+    if (out.cW <= 0 || out.cH <= 0) return false;
 
     // 親 BaseCube からフェイスの物理サイズ（スタッド）を取得
-    float faceU = cW, faceV = cH;
+    float faceU = out.cW, faceV = out.cH;
     if (auto par = sg->Parent.lock()) {
         if (par->IsA("BaseCube")) {
             auto* cube = static_cast<BaseCube*>(par.get());
@@ -134,18 +142,31 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
             }
         }
     }
-    if (faceU <= 0) faceU = cW;
-    if (faceV <= 0) faceV = cH;
+    if (faceU <= 0) faceU = out.cW;
+    if (faceV <= 0) faceV = out.cH;
 
     // FBO サイズ = フェイスのアスペクト比に合わせる（幅は cW を基準）
-    int w = (int)cW;
-    int h = (int)(cW * faceV / faceU);
-    if (w <= 0 || h <= 0) return;
+    out.w = (int)out.cW;
+    out.h = (int)(out.cW * faceV / faceU);
+    if (out.w <= 0 || out.h <= 0) return false;
 
     // キャンバスを FBO に収めるための均一スケールとオフセット（レターボックス）
-    float scale = (std::min)((float)w / cW, (float)h / cH);
-    float offX  = ((float)w - cW * scale) * 0.5f;
-    float offY  = ((float)h - cH * scale) * 0.5f;
+    out.scale = (std::min)((float)out.w / out.cW, (float)out.h / out.cH);
+    out.offX  = ((float)out.w - out.cW * out.scale) * 0.5f;
+    out.offY  = ((float)out.h - out.cH * out.scale) * 0.5f;
+    return true;
+}
+
+// ===================================================
+//  SurfaceGui → FBO テクスチャへのベイク
+//  ImGui フレーム内（NewFrame〜EndFrame）で呼ぶこと
+// ===================================================
+void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
+    SurfaceGuiLayout L;
+    if (!computeSurfaceGuiLayout(sg, L)) return;
+    float cW = L.cW, cH = L.cH;
+    int   w  = L.w,  h  = L.h;
+    float scale = L.scale, offX = L.offX, offY = L.offY;
 
     // FBO / テクスチャの作成・リサイズ
     if (sg->m_texID == 0 || sg->m_texW != w || sg->m_texH != h) {
@@ -214,6 +235,16 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
         } else if (sgo->IsA("TextButton")) {
             auto* btn = static_cast<TextButton*>(sgo);
             if (!btn->Text.empty()) { text = btn->Text.c_str(); tc = &btn->TextColor; }
+        } else if (sgo->IsA("ImageButton")) {
+            auto* btn = static_cast<ImageButton*>(sgo);
+            if (btn->m_textureID != 0)
+                dl->AddImage((ImTextureID)(uintptr_t)btn->m_textureID, ImVec2(px, py), ImVec2(px + sw, py + sh),
+                             ImVec2(0, 1), ImVec2(1, 0));
+        } else if (sgo->IsA("ImageLabel")) {
+            auto* img = static_cast<ImageLabel*>(sgo);
+            if (img->m_textureID != 0)
+                dl->AddImage((ImTextureID)(uintptr_t)img->m_textureID, ImVec2(px, py), ImVec2(px + sw, py + sh),
+                             ImVec2(0, 1), ImVec2(1, 0));
         }
         if (text && tc)
             drawGuiText(dl, sgo, px, py, sh,
@@ -350,18 +381,115 @@ static void drawWorldGuiChildren(ImDrawList* dl, WorldGuiObject* wgo,
                 drawGuiText(dl, sgo, px, py, sh, textCol, btn->Text.c_str());
             if (sgo->Active) {
                 ImGui::SetCursorScreenPos(tl);
-                std::string btnId = "##wbtn_" + sgo->Name;
+                std::string btnId = "##wbtn_" + std::to_string(reinterpret_cast<uintptr_t>(sgo));
                 ImGui::InvisibleButton(btnId.c_str(), ImVec2(sw, sh));
                 if (ImGui::IsItemClicked() && onActivated) onActivated(btn);
             }
+        } else if (sgo->IsA("ImageButton")) {
+            auto* btn = static_cast<ImageButton*>(sgo);
+            if (btn->m_textureID != 0)
+                dl->AddImage((ImTextureID)(uintptr_t)btn->m_textureID, tl, br, ImVec2(0, 1), ImVec2(1, 0));
+            if (sgo->Active) {
+                ImGui::SetCursorScreenPos(tl);
+                std::string btnId = "##wimgbtn_" + std::to_string(reinterpret_cast<uintptr_t>(sgo));
+                ImGui::InvisibleButton(btnId.c_str(), ImVec2(sw, sh));
+                if (ImGui::IsItemClicked() && onActivated) onActivated(btn);
+            }
+        } else if (sgo->IsA("ImageLabel")) {
+            auto* img = static_cast<ImageLabel*>(sgo);
+            if (img->m_textureID != 0)
+                dl->AddImage((ImTextureID)(uintptr_t)img->m_textureID, tl, br, ImVec2(0, 1), ImVec2(1, 0));
         }
     }
 }
 
 // ===================================================
+//  SurfaceGui クリックヒットテスト用のマウスレイ生成
+//  ViewportPanel.cpp の makeRay と同じ数式（45°FOV固定、forward/right/up基底）
+// ===================================================
+static Vector3 makeGuiRay(User* user, float mx, float my, float vpW, float vpH) {
+    float ndcX  = (vpW > 0.f) ? (mx / vpW) * 2.0f - 1.0f : 0.0f;
+    float ndcY  = (vpH > 0.f) ? 1.0f - (my / vpH) * 2.0f : 0.0f;
+    float aspect = (vpW > 0.f && vpH > 0.f) ? vpW / vpH : 1.0f;
+    float tanH  = std::tan(45.0f * (3.14159265f / 180.0f) * 0.5f);
+    return (user->forward
+          + user->right * (ndcX * aspect * tanH)
+          + user->up    * (ndcY * tanH)).normalize();
+}
+
+// ===================================================
+//  レイ vs SurfaceGui 面プレーンの交差判定 → キャンバス座標へ変換して子を当たり判定
+//  cube の回転は考慮しない（renderWorldGui の既存の面ワールド座標計算と同じ前提）
+// ===================================================
+static bool hitTestSurfaceGui(SurfaceGui* sg, BaseCube* cube, const Vector3& rayOri, const Vector3& rayDir,
+                               float& outT, ScreenGuiObject*& outChild) {
+    float hx = cube->Size.x * 0.5f, hy = cube->Size.y * 0.5f, hz = cube->Size.z * 0.5f;
+    Vector3 planePoint = cube->Position;
+    Vector3 normal;
+    switch (sg->face) {
+        case Face::Front:  planePoint.z += hz; normal = Vector3(0, 0, 1);  break;
+        case Face::Back:   planePoint.z -= hz; normal = Vector3(0, 0, -1); break;
+        case Face::Top:    planePoint.y += hy; normal = Vector3(0, 1, 0);  break;
+        case Face::Bottom: planePoint.y -= hy; normal = Vector3(0, -1, 0); break;
+        case Face::Right:  planePoint.x += hx; normal = Vector3(1, 0, 0);  break;
+        case Face::Left:   planePoint.x -= hx; normal = Vector3(-1, 0, 0); break;
+    }
+
+    float denom = Vector3::Dot(rayDir, normal);
+    if (std::abs(denom) < 1e-6f) return false;
+    float t = Vector3::Dot(planePoint - rayOri, normal) / denom;
+    if (t < 0.0f) return false;
+
+    Vector3 hitWorld = rayOri + rayDir * t;
+    if (cube->Size.x == 0.f || cube->Size.y == 0.f || cube->Size.z == 0.f) return false;
+    Vector3 localUnit = (hitWorld - cube->Position) / cube->Size;
+
+    Vector3 uAxis, vAxis;
+    switch (sg->face) {
+        case Face::Top:    uAxis = Vector3(1, 0, 0);  vAxis = Vector3(0, 0, 1);  break;
+        case Face::Bottom: uAxis = Vector3(1, 0, 0);  vAxis = Vector3(0, 0, -1); break;
+        case Face::Front:  uAxis = Vector3(1, 0, 0);  vAxis = Vector3(0, 1, 0);  break;
+        case Face::Back:   uAxis = Vector3(-1, 0, 0); vAxis = Vector3(0, 1, 0);  break;
+        case Face::Right:  uAxis = Vector3(0, 0, 1);  vAxis = Vector3(0, 1, 0);  break;
+        case Face::Left:   uAxis = Vector3(0, 0, -1); vAxis = Vector3(0, 1, 0);  break;
+    }
+    float texU = Vector3::Dot(localUnit, uAxis) + 0.5f;
+    float texV = Vector3::Dot(localUnit, vAxis) + 0.5f;
+    if (texU < 0.0f || texU > 1.0f || texV < 0.0f || texV > 1.0f) return false;
+
+    SurfaceGuiLayout L;
+    if (!computeSurfaceGuiLayout(sg, L)) return false;
+
+    // bakeSurfaceGui が焼き込みテクスチャを左右反転しているため、X はミラーして戻す
+    float fboX = (1.0f - texU) * (float)L.w;
+    float fboY = texV * (float)L.h;
+    float canvasX = (fboX - L.offX) / L.scale;
+    float canvasY = (fboY - L.offY) / L.scale;
+
+    for (auto& [name, child] : sg->getChildren()) {
+        if (!child->IsA("ScreenGuiObject")) continue;
+        auto* sgo = static_cast<ScreenGuiObject*>(child.get());
+        if (!sgo->Visible || !sgo->Active) continue;
+        if (!sgo->IsA("GuiButton")) continue;
+
+        float cx  = (sgo->NormType == Norm::Scale) ? sgo->Position.x * L.cW : sgo->Position.x;
+        float cy  = (sgo->NormType == Norm::Scale) ? sgo->Position.y * L.cH : sgo->Position.y;
+        float csw = (sgo->NormType == Norm::Scale) ? sgo->Size.x * L.cW : sgo->Size.x;
+        float csh = (sgo->NormType == Norm::Scale) ? sgo->Size.y * L.cH : sgo->Size.y;
+
+        if (canvasX >= cx && canvasX <= cx + csw && canvasY >= cy && canvasY <= cy + csh) {
+            outT = t;
+            outChild = sgo;
+            return true;
+        }
+    }
+    return false;
+}
+
+// ===================================================
 //  renderWorldGui
 // ===================================================
-void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH) {
+void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH) {
     // SurfaceGui を FBO テクスチャにベイク（次フレームの 3D 描画で使用）
     for (auto& [name, inst] : ws.getChildren()) {
         if (!inst->IsA("BaseCube")) continue;
@@ -369,6 +497,32 @@ void Renderer::renderWorldGui(Workspace& ws, float vpX, float vpY, float vpW, fl
             if (ginst->getClassName() == "SurfaceGui")
                 bakeSurfaceGui(static_cast<SurfaceGui*>(ginst.get()));
         }
+    }
+
+    // SurfaceGui クリック判定: 全キューブの全 SurfaceGui からレイと最も近く交差したボタンを探して発火する
+    if (user && ImGui::IsMouseClicked(0)) {
+        ImVec2 mousePos = ImGui::GetMousePos();
+        Vector3 rayOri = user->cpos;
+        Vector3 rayDir = makeGuiRay(user, mousePos.x - vpX, mousePos.y - vpY, vpW, vpH);
+
+        float bestT = 1e30f;
+        GuiButton* bestBtn = nullptr;
+        for (auto& [name, inst] : ws.getChildren()) {
+            if (!inst->IsA("BaseCube")) continue;
+            auto* cube = static_cast<BaseCube*>(inst.get());
+            for (auto& [gname, ginst] : inst->getChildren()) {
+                if (ginst->getClassName() != "SurfaceGui") continue;
+                auto* sg = static_cast<SurfaceGui*>(ginst.get());
+                if (!sg->Visible) continue;
+
+                float t; ScreenGuiObject* hitChild = nullptr;
+                if (hitTestSurfaceGui(sg, cube, rayOri, rayDir, t, hitChild) && t < bestT) {
+                    bestT   = t;
+                    bestBtn = static_cast<GuiButton*>(hitChild);
+                }
+            }
+        }
+        if (bestBtn && m_onButtonActivated) m_onButtonActivated(bestBtn);
     }
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -579,6 +733,6 @@ void Renderer::renderToolHotbar(User& user, float vpX, float vpY, float vpW, flo
 // ===================================================
 void Renderer::renderGameGui(Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH) {
     renderScreenGui(ws, vpX, vpY, vpW, vpH);
-    renderWorldGui (ws, vpX, vpY, vpW, vpH);
+    renderWorldGui (ws, user, vpX, vpY, vpW, vpH);
     if (user) renderToolHotbar(*user, vpX, vpY, vpW, vpH);
 }

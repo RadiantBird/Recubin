@@ -230,6 +230,12 @@ void EditorManager::handleEditorShortcuts() {
             cleanupOrphanedSelection();
         }
 
+        // F2: 選択中インスタンスをアウトライナー上でインラインリネーム開始
+        if (ImGui::IsKeyPressed(ImGuiKey_F2) && !GetFocusedViewport() && hierarchyPanel->selectedInstance) {
+            hierarchyPanel->renamingInstance   = hierarchyPanel->selectedInstance;
+            hierarchyPanel->renameFocusPending = true;
+        }
+
         // BackSpace: 選択インスタンスをすべて削除（複数選択対応・1 Undo 単位）
         if (ImGui::IsKeyPressed(ImGuiKey_Backspace) && !GetFocusedViewport()) {
             auto& si = hierarchyPanel->selectedInstances;
@@ -281,10 +287,7 @@ void EditorManager::handleEditorShortcuts() {
             std::vector<Instance*> pasted;
             for (auto& item : m_clipboard) {
                 auto cloned = item->cloneTree();
-                std::string base = cloned->Name, name = base;
-                int n = 1;
-                while (parent->children.count(name) > 0 || taken.count(name) > 0)
-                    name = base + std::to_string(n++);
+                std::string name = SceneHierarchyPanel::uniqueName(parent, cloned->Name, &taken);
                 cloned->Name = name;
                 taken.insert(name);
                 pasted.push_back(cloned.get());

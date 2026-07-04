@@ -221,10 +221,37 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
         flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
     }
 
-    bool open = ImGui::TreeNodeEx(inst, flags, "%s %s",
-                                  getClassIcon(inst->getClassName()),
-                                  inst->Name.c_str());
-    if (ImGui::IsItemClicked()) {
+    bool renaming = (inst == renamingInstance);
+    bool open = renaming
+        ? ImGui::TreeNodeEx(inst, flags, "%s", getClassIcon(inst->getClassName()))
+        : ImGui::TreeNodeEx(inst, flags, "%s %s", getClassIcon(inst->getClassName()), inst->Name.c_str());
+
+    if (renaming) {
+        ImGui::SameLine();
+        if (renameFocusPending) {
+            strncpy_s(m_renameBuf, inst->Name.c_str(), sizeof(m_renameBuf) - 1);
+            ImGui::SetKeyboardFocusHere();
+            renameFocusPending = false;
+        }
+        bool commit = ImGui::InputText("##rename", m_renameBuf, sizeof(m_renameBuf),
+                                        ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
+        bool cancel = ImGui::IsKeyPressed(ImGuiKey_Escape);
+        if (!cancel && (commit || ImGui::IsItemDeactivated())) {
+            std::string before = inst->Name;
+            std::string after  = m_renameBuf;
+            if (!after.empty() && after != before) {
+                inst->Name = after;
+                if (m_history)
+                    m_history->record(std::make_unique<RenameInstanceCommand>(
+                        inst->shared_from_this(), before, after));
+            }
+        }
+        if (cancel || commit || ImGui::IsItemDeactivated()) {
+            renamingInstance = nullptr;
+        }
+    }
+
+    if (!renaming && ImGui::IsItemClicked()) {
         // ---- ピッカーモード: Pick 中はクリックを Cube 参照指定に横取り（選択は変更しない） ----
         if (m_picker && m_picker->active) {
             if (inst->IsA("BaseCube") && inst != m_picker->constraint && m_picker->onPick)
@@ -252,7 +279,7 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     }
 
     // プレーンクリック（ドラッグせず離した）で複数選択を単一へ畳む
-    if (inSelection && selectedInstances.size() > 1
+    if (!renaming && inSelection && selectedInstances.size() > 1
         && ImGui::IsItemHovered()
         && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
         && !ImGui::GetIO().KeyCtrl) {
@@ -606,10 +633,7 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
         std::unordered_set<std::string> taken;
         for (auto& item : *m_clipboard) {
             auto cloned = item->cloneTree();
-            std::string base = cloned->Name, name = base;
-            int n = 1;
-            while (parent->children.count(name) > 0 || taken.count(name) > 0)
-                name = base + std::to_string(n++);
+            std::string name = SceneHierarchyPanel::uniqueName(parent, cloned->Name, &taken);
             cloned->Name = name;
             taken.insert(name);
             group->add(std::make_unique<AddInstanceCommand>(parent, cloned));

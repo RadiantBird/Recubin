@@ -495,9 +495,20 @@ void main() {
         for (int x = 0; x < CLOUD_TEX_SIZE; x++) {
             float u = (float)x / (float)CLOUD_TEX_SIZE;
             float w = (float)y / (float)CLOUD_TEX_SIZE;
-            float n = cloudNoise.fbm2(u * CLOUD_SCALE, w * CLOUD_SCALE, 6, 0.5f, 2.0f);
-            float n01 = n * 0.5f + 0.5f;
-            pixels[y * CLOUD_TEX_SIZE + x] = static_cast<unsigned char>(std::clamp(n01, 0.0f, 1.0f) * 255.0f);
+            float fu = u * CLOUD_SCALE, fw = w * CLOUD_SCALE;
+
+            // 四隅ブレンドでシームレスタイル化（GL_REPEATでのラップ点の不連続を消す）
+            float n00 = cloudNoise.fbm2(fu,               fw,               6, 0.5f, 2.0f);
+            float n10 = cloudNoise.fbm2(fu - CLOUD_SCALE,  fw,               6, 0.5f, 2.0f);
+            float n01 = cloudNoise.fbm2(fu,                fw - CLOUD_SCALE, 6, 0.5f, 2.0f);
+            float n11 = cloudNoise.fbm2(fu - CLOUD_SCALE,  fw - CLOUD_SCALE, 6, 0.5f, 2.0f);
+            float n = n00 * (1.0f - u) * (1.0f - w)
+                    + n10 * u          * (1.0f - w)
+                    + n01 * (1.0f - u) * w
+                    + n11 * u          * w;
+
+            float n01c = n * 0.5f + 0.5f;
+            pixels[y * CLOUD_TEX_SIZE + x] = static_cast<unsigned char>(std::clamp(n01c, 0.0f, 1.0f) * 255.0f);
         }
     }
     glGenTextures(1, &m_cloudNoiseTex);
