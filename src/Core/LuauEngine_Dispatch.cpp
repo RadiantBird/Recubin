@@ -400,6 +400,9 @@ void LuauEngine::InitDispatchTable_World() {
     PropertyRegistry::applyToDispatch("PointLight", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("SpotLight", DispatchTable, SetterTable);
 
+    PropertyRegistry::applyToDispatch("ParticleEmitter", DispatchTable, SetterTable);
+    DispatchTable["ParticleEmitter"]["Emit"] = getter_closure(particle_emitter_emit_closure, "Emit");
+
     DispatchTable["System"]["Heartbeat"] = getter_signal<System, &System::Heartbeat>();
 
     DispatchTable["Event"]["Fire"] = getter_closure(LuauEngine::event_fire_closure, "Fire");

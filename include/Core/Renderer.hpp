@@ -101,6 +101,17 @@ class Renderer {
         // 地形ブラシのヒット位置ガイド（水平リング）。呼び出し側でFBOバインド・ビューポート設定済みであること。
         void renderBrushMarker(const Matrix4& view, const Matrix4& projection, const Vector3& center, float radius);
 
+        // パーティクル（ParticleEmitter）。カメラ常時正面のビルボードをCPU側で頂点展開し、
+        // テクスチャなし・単色頂点の専用シェーダーで描画する。シミュレーション自体はここでは
+        // 行わない（ParticleEmitter::updateAllがメインループから毎フレーム1回呼ぶ。renderViewportは
+        // ビューポートの数だけ複数回呼ばれるため、ここで状態を進めると多重更新になる）。
+        GLuint m_particleVAO    = 0;
+        GLuint m_particleVBO    = 0;
+        GLuint m_particleShader = 0;
+        void initParticleRenderer();
+        void renderParticles(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
+                              const Vector3& cameraRight, const Vector3& cameraUp);
+
         // GUI 描画
         Matrix4  m_lastView;
         Matrix4  m_lastProj;

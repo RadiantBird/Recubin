@@ -18,6 +18,7 @@
 #include <Instances/Lighting.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/ParticleEmitter.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
@@ -509,6 +510,10 @@ int main(int argc, char* argv[]) {
                 }
             }
         });
+
+        // ---- パーティクル更新（Edit/Play問わず常時。Terrainと同じくアクティブworkspaceのみ） ----
+        ParticleEmitter::updateAll(workspace.get(), deltaTime);
+
         // ---- 描画 ----
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderer->render(*user, window, *workspace.get());

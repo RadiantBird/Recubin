@@ -49,6 +49,7 @@
 #include "include/Instances/ImageLabel.hpp"
 #include "include/Instances/ImageButton.hpp"
 #include "include/Instances/Folder.hpp"
+#include "include/Instances/ParticleEmitter.hpp"
 #include "include/Core/AudioService.hpp"
 #include <cmath>
 #include <algorithm>
@@ -1160,6 +1161,16 @@ int LuauEngine::sound_seek_closure(lua_State* L) {
     // L[1] = self, L[2] = シーク秒
     float sec = static_cast<float>(luaL_checknumber(L, 2));
     static_cast<Sound*>(obj.get())->seekSeconds(sec);
+    return 0;
+}
+
+int LuauEngine::particle_emitter_emit_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto obj = ud->lock();
+    if (!obj) return 0;
+    // L[1] = self, L[2] = 発生数（省略時1）
+    int count = static_cast<int>(luaL_optinteger(L, 2, 1));
+    static_cast<ParticleEmitter*>(obj.get())->emit(count);
     return 0;
 }
 

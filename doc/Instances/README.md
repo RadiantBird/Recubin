@@ -25,6 +25,7 @@ Instance
   ├─ LightSource              ← Point/Spot ライト共通基底
   │    ├─ PointLight         ← 全方位点光源
   │    └─ SpotLight          ← コーン状指向性光源
+  ├─ ParticleEmitter          ← 汎用パーティクル発生源（火・煙・水しぶき・スクエア等）
   ├─ Lighting                ← シーン全体の平行光源設定
   ├─ Workspace               ← シーンルート
   ├─ ScreenGuiObject         ← 画面空間 GUI 基底
@@ -77,6 +78,7 @@ Instance
 | [LightSource](LightSource.md) | `include/Instances/LightSource.hpp` | Point/Spot ライト共通基底 |
 | [PointLight](PointLight.md) | `include/Instances/PointLight.hpp` | 全方位点光源 |
 | [SpotLight](SpotLight.md) | `include/Instances/SpotLight.hpp` | コーン状指向性光源 |
+| [ParticleEmitter](ParticleEmitter.md) | `include/Instances/ParticleEmitter.hpp` | 汎用パーティクル発生源 |
 | [Lighting](Lighting.md) | `include/Instances/Lighting.hpp` | シーン全体の平行光源設定 |
 | [Model](Model.md) | `include/Instances/Model.hpp` | オブジェクトグループ |
 | [ScreenGuiObject](ScreenGuiObject.md) | `include/Instances/ScreenGuiObject.hpp` | 画面空間 GUI 基底 |

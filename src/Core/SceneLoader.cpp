@@ -41,6 +41,7 @@
 #include <Instances/ProximityPrompt.hpp>
 #include <Instances/Folder.hpp>
 #include <Instances/Tool.hpp>
+#include <Instances/ParticleEmitter.hpp>
 #include <Core/User.hpp>
 #include <Core/AudioService.hpp>
 #include <Util/Logger.hpp>
@@ -255,6 +256,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "ProximityPrompt") return std::make_shared<ProximityPrompt>();
     if (className == "Folder")   return std::make_shared<Folder>();
     if (className == "Tool")     return std::make_shared<Tool>("Tool");
+    if (className == "ParticleEmitter") return std::make_shared<ParticleEmitter>();
 
     return nullptr;
 }
@@ -336,6 +338,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->getClassName() == "User"
                  || inst->getClassName() == "Tool"
                  || inst->getClassName() == "System"
+                 || inst->getClassName() == "ParticleEmitter"
                  || inst->IsA("Workspace"); // NOTE: プロパティを最近追加した
 
     if (hasProps) {
@@ -462,6 +465,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         }
         if (inst->getClassName() == "SpotLight") {
             PropertyRegistry::saveProperties(out, inst, "SpotLight");    // 葉: Angle
+        }
+        if (inst->getClassName() == "ParticleEmitter") {
+            PropertyRegistry::saveProperties(out, inst, "ParticleEmitter");
         }
         if (inst->getClassName() == "PostEffect") {
             const PostEffect* pe = static_cast<const PostEffect*>(inst);

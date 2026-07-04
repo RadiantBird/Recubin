@@ -7,6 +7,7 @@
 #include <Instances/Lighting.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/ParticleEmitter.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
@@ -200,6 +201,8 @@ int main() {
         // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、
         // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす
         if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->syncWeldKinematics();
+
+        ParticleEmitter::updateAll(workspace.get(), deltaTime);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderer->render(*user, window, *workspace);

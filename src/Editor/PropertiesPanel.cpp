@@ -930,6 +930,12 @@ void PropertiesPanel::onRender() {
         renderSchemaInspector(inst, "SpotLight", m_history);
     }
 
+    // ---- ParticleEmitter（スキーマ駆動） ----
+    if (inst->getClassName() == "ParticleEmitter") {
+        ImGui::SeparatorText("ParticleEmitter");
+        renderSchemaInspector(inst, "ParticleEmitter", m_history);
+    }
+
     // ---- PostEffect ----
     if (inst->getClassName() == "PostEffect") {
         PostEffect* pe = static_cast<PostEffect*>(inst);

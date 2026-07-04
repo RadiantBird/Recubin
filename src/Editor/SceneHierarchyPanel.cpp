@@ -42,6 +42,7 @@
 #include <Instances/ProximityPrompt.hpp>
 #include <Instances/ImageLabel.hpp>
 #include <Instances/ImageButton.hpp>
+#include <Instances/ParticleEmitter.hpp>
 #include <Core/AudioService.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
@@ -440,6 +441,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Decal>(m_history, "Decal", parentSp, 0, Face::Front);
         tryInsertInstance<Texture>(m_history, "Texture", parentSp, 0, Face::Front);
         tryInsertInstance<PostEffect>(m_history, "PostEffect", parentSp);
+        tryInsertInstance<ParticleEmitter>(m_history, "ParticleEmitter", parentSp);
         
         ImGui::EndMenu();
     }

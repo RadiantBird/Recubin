@@ -118,6 +118,9 @@ private:
     static int sound_reset_closure(lua_State* L);
     static int sound_seek_closure(lua_State* L);
 
+    // ParticleEmitter methods
+    static int particle_emitter_emit_closure(lua_State* L);
+
     // Humanoid methods（アニメーション再生）
     static int humanoid_play_animation_closure(lua_State* L);
     static int humanoid_pause_animation_closure(lua_State* L);

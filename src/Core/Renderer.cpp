@@ -14,6 +14,7 @@
 #include <Instances/SpotLight.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/LiquidCube.hpp>
+#include <Instances/ParticleEmitter.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
 #include <include/Core/Terrain.hpp>
@@ -59,6 +60,14 @@ static void collectLights(Instance* inst, std::vector<LightSource*>& out) {
     if (inst->IsA("LightSource")) out.push_back(static_cast<LightSource*>(inst));
     for (auto& [name, child] : inst->getChildren())
         collectLights(child.get(), out);
+}
+
+// ParticleEmitter を再帰収集（描画専用。シミュレーションはここでは行わない）
+static void collectParticleEmitters(Instance* inst, std::vector<ParticleEmitter*>& out) {
+    if (!inst) return;
+    if (inst->IsA("ParticleEmitter")) out.push_back(static_cast<ParticleEmitter*>(inst));
+    for (auto& [name, child] : inst->getChildren())
+        collectParticleEmitters(child.get(), out);
 }
 
 // ===================================================
@@ -274,6 +283,7 @@ void Renderer::init(GLFWwindow* window) {
 
     initLineRenderer();
     initPostEffectRenderer();
+    initParticleRenderer();
 }
 
 // ===================================================
@@ -301,6 +311,10 @@ Renderer::~Renderer() {
     if (m_lineVBO)    glDeleteBuffers(1, &m_lineVBO);
     if (m_lineVAO)    glDeleteVertexArrays(1, &m_lineVAO);
     if (m_lineShader) glDeleteProgram(m_lineShader);
+
+    if (m_particleVBO)    glDeleteBuffers(1, &m_particleVBO);
+    if (m_particleVAO)    glDeleteVertexArrays(1, &m_particleVAO);
+    if (m_particleShader) glDeleteProgram(m_particleShader);
 
     if (m_postVBO)    glDeleteBuffers(1, &m_postVBO);
     if (m_postVAO)    glDeleteVertexArrays(1, &m_postVAO);
@@ -353,6 +367,57 @@ void main() {
     glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
     glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+}
+
+// ===================================================
+//  パーティクル（ビルボード・テクスチャなし単色頂点）
+// ===================================================
+void Renderer::initParticleRenderer() {
+    const char* vs = R"(
+#version 330 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec4 aColor;
+uniform mat4 view;
+uniform mat4 projection;
+out vec4 vColor;
+void main() {
+    vColor = aColor;
+    gl_Position = projection * view * vec4(aPos, 1.0);
+}
+)";
+    const char* fs = R"(
+#version 330 core
+in vec4 vColor;
+out vec4 FragColor;
+void main() {
+    FragColor = vColor;
+}
+)";
+    auto compile = [](const char* src, GLenum type) -> GLuint {
+        GLuint sh = glCreateShader(type);
+        glShaderSource(sh, 1, &src, nullptr);
+        glCompileShader(sh);
+        return sh;
+    };
+    GLuint v = compile(vs, GL_VERTEX_SHADER);
+    GLuint f = compile(fs, GL_FRAGMENT_SHADER);
+    m_particleShader = glCreateProgram();
+    glAttachShader(m_particleShader, v);
+    glAttachShader(m_particleShader, f);
+    glLinkProgram(m_particleShader);
+    glDeleteShader(v);
+    glDeleteShader(f);
+
+    glGenVertexArrays(1, &m_particleVAO);
+    glGenBuffers(1, &m_particleVBO);
+    glBindVertexArray(m_particleVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_particleVBO);
+    GLsizei stride = 7 * sizeof(float); // aPos(3) + aColor(4)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
     glBindVertexArray(0);
 }
 
@@ -426,6 +491,70 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
     }
 
     glLineWidth(1.0f);
+    glBindVertexArray(0);
+    glUseProgram(shaderProgram);
+}
+
+// ===================================================
+//  パーティクル描画
+// ===================================================
+void Renderer::renderParticles(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
+                                const Vector3& cameraRight, const Vector3& cameraUp) {
+    if (!m_particleShader) return;
+
+    std::vector<ParticleEmitter*> emitters;
+    collectParticleEmitters(static_cast<Instance*>(&workspace), emitters);
+    if (emitters.empty()) return;
+
+    Vector3 billR = cameraRight;
+    Vector3 billU = cameraUp;
+
+    std::vector<float> verts; // aPos(3) + aColor(4) 頂点ごと。三角形2枚=6頂点/粒子
+    for (ParticleEmitter* emitter : emitters) {
+        const Color4& startColor = emitter->StartColor;
+        const Color4& endColor   = emitter->EndColor;
+        float startSize = emitter->StartSize;
+        float endSize   = emitter->EndSize;
+
+        for (const auto& p : emitter->getParticles()) {
+            float t = (p.lifetime > 0.0001f) ? (p.age / p.lifetime) : 1.0f;
+            if (t < 0.0f) t = 0.0f; else if (t > 1.0f) t = 1.0f;
+
+            Color4 color = startColor + (endColor - startColor) * t;
+            float  half  = (startSize + (endSize - startSize) * t) * 0.5f;
+
+            float cs = std::cos(p.spinAngle);
+            float sn = std::sin(p.spinAngle);
+            Vector3 rotR = billR * cs + billU * sn;
+            Vector3 rotU = billU * cs - billR * sn;
+
+            Vector3 corners[4] = {
+                p.position + (rotR * -half) + (rotU * -half),
+                p.position + (rotR *  half) + (rotU * -half),
+                p.position + (rotR *  half) + (rotU *  half),
+                p.position + (rotR * -half) + (rotU *  half),
+            };
+            int order[6] = {0, 1, 2, 2, 3, 0};
+            for (int idx : order) {
+                const Vector3& c = corners[idx];
+                verts.insert(verts.end(), {c.x, c.y, c.z, color.r, color.g, color.b, color.a});
+            }
+        }
+    }
+    if (verts.empty()) return;
+
+    glUseProgram(m_particleShader);
+    glUniformMatrix4fv(glGetUniformLocation(m_particleShader, "view"),       1, GL_FALSE, view.m);
+    glUniformMatrix4fv(glGetUniformLocation(m_particleShader, "projection"), 1, GL_FALSE, projection.m);
+
+    glBindVertexArray(m_particleVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_particleVBO);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizei)(verts.size() * sizeof(float)), verts.data(), GL_DYNAMIC_DRAW);
+
+    glDepthMask(GL_FALSE);
+    glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(verts.size() / 7));
+    glDepthMask(GL_TRUE);
+
     glBindVertexArray(0);
     glUseProgram(shaderProgram);
 }
@@ -933,6 +1062,13 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     // ---- Terrain の描画 ----
     // ---- Terrain の描画 ----
     renderTerrain(view, projection, desc.workspace);
+
+    // ---- パーティクル描画（シミュレーションはメインループ側で毎フレーム1回のみ実行済み） ----
+    {
+        Vector3 pRight = Vector3::Cross(desc.cameraForward, desc.cameraUp).normalize();
+        Vector3 pUp    = Vector3::Cross(pRight, desc.cameraForward).normalize();
+        renderParticles(*desc.workspace, view, projection, pRight, pUp);
+    }
 
     // ---- ポストエフェクト（PostEffect の ZIndex 順チェーン適用） ----
     if (desc.renderPostEffects) {
