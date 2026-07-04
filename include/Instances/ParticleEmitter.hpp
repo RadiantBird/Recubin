@@ -33,6 +33,9 @@ public:
     float   Rotation         = 0.0f;
     float   RotationVariance = 0.0f;
     bool    Enabled          = true;
+    float   WindScale        = 1.0f;   // Workspace::Windへの乗数（Gravityと同型）
+    float   SpawnRadius      = 0.0f;   // >0で発生位置を水平円盤内にランダム分散（雨/雪の面積発生用）
+    bool    CollisionCutoff  = false;  // 発生時に1回だけ下方向レイキャストし、命中高度で消滅させる
 
     // 描画側が読む1粒子分のランタイム状態（PropertyRegistry非登録・非シリアライズ）
     struct Particle {
@@ -42,6 +45,7 @@ public:
         float   lifetime  = 1.0f;
         float   spinAngle = 0.0f;
         float   spinSpeed = 0.0f;
+        float   killHeight = -1e8f;  // CollisionCutoff用。この高度以下になったら消滅（-1e8fは無効）
     };
 
     ParticleEmitter();
@@ -66,5 +70,6 @@ private:
 
     CFrame  resolveOriginCFrame() const;
     Vector3 resolveGravity();
+    Vector3 resolveWind();
     void    spawnOne(const CFrame& originCFrame, const Vector3& gravity);
 };

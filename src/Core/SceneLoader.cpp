@@ -42,6 +42,7 @@
 #include <Instances/Folder.hpp>
 #include <Instances/Tool.hpp>
 #include <Instances/ParticleEmitter.hpp>
+#include <Instances/Weather.hpp>
 #include <Core/User.hpp>
 #include <Core/AudioService.hpp>
 #include <Util/Logger.hpp>
@@ -257,6 +258,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Folder")   return std::make_shared<Folder>();
     if (className == "Tool")     return std::make_shared<Tool>("Tool");
     if (className == "ParticleEmitter") return std::make_shared<ParticleEmitter>();
+    if (className == "Weather") return std::make_shared<Weather>();
 
     return nullptr;
 }
@@ -339,6 +341,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->getClassName() == "Tool"
                  || inst->getClassName() == "System"
                  || inst->getClassName() == "ParticleEmitter"
+                 || inst->getClassName() == "Weather"
                  || inst->IsA("Workspace"); // NOTE: プロパティを最近追加した
 
     if (hasProps) {
@@ -469,6 +472,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         if (inst->getClassName() == "ParticleEmitter") {
             PropertyRegistry::saveProperties(out, inst, "ParticleEmitter");
         }
+        if (inst->getClassName() == "Weather") {
+            PropertyRegistry::saveProperties(out, inst, "Weather");
+        }
         if (inst->getClassName() == "PostEffect") {
             const PostEffect* pe = static_cast<const PostEffect*>(inst);
             out << YAML::Key << "Enabled"   << YAML::Value << pe->Enabled;
@@ -554,6 +560,10 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << YAML::Flow << YAML::BeginSeq
                 << ws->Gravity.x << ws->Gravity.y << ws->Gravity.z
                 << YAML::EndSeq;
+            out << YAML::Key << "Wind" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << ws->Wind.x << ws->Wind.y << ws->Wind.z
+                << YAML::EndSeq;
             out << YAML::Key << "PhysicsEnabled" << YAML::Value << ws->PhysicsEnabled;
         }
         if (inst->IsA("WorldGuiObject")) {
@@ -593,8 +603,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         out << YAML::EndMap;
     }
 
-    // 子要素
-    if (!inst->children.empty()) {
+    // 子要素（Weatherは自身のupdate()で毎回同じ構成を遅延生成するため、シリアライズしない
+    // ・シリアライズすると再読込時に子が重複/孤立するため意図的に除外する）
+    if (!inst->children.empty() && inst->getClassName() != "Weather") {
         out << YAML::Key << "Children" << YAML::Value << YAML::BeginSeq;
         for (auto const& [name, child] : inst->children) {
             saveNode(out, child.get());

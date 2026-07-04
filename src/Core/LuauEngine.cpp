@@ -50,6 +50,7 @@
 #include "include/Instances/ImageButton.hpp"
 #include "include/Instances/Folder.hpp"
 #include "include/Instances/ParticleEmitter.hpp"
+#include "include/Instances/Weather.hpp"
 #include "include/Core/AudioService.hpp"
 #include <cmath>
 #include <algorithm>
@@ -1528,6 +1529,8 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "ProximityPrompt",  [] { return std::make_shared<ProximityPrompt>(); } },
         { "Tool",             [] { return std::make_shared<Tool>("Tool"); } },
         { "Event",            [] { return std::make_shared<Event>(); } },
+        { "ParticleEmitter",  [] { return std::make_shared<ParticleEmitter>(); } },
+        { "Weather",          [] { return std::make_shared<Weather>(); } },
     };
     return table;
 }

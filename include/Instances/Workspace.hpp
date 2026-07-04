@@ -33,6 +33,7 @@ class Workspace : public Instance {
 
     public:
         Vector3 Gravity = {0.0f, -METER_TO_STUD * EARTH_GRAVITY_MPS2, 0.0f};
+        Vector3 Wind = {0.0f, 0.0f, 0.0f};  // Weatherが毎フレーム書き込む。ParticleEmitter::resolveWind()が読む
         bool PhysicsEnabled = true;
 
         std::vector<std::shared_ptr<Instance>> pendingInstances;

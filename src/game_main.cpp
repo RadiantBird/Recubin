@@ -8,6 +8,7 @@
 #include <Instances/AppImage.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/ParticleEmitter.hpp>
+#include <Instances/Weather.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
@@ -202,6 +203,7 @@ int main() {
         // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす
         if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->syncWeldKinematics();
 
+        Weather::updateAll(workspace.get(), deltaTime, user->cpos);
         ParticleEmitter::updateAll(workspace.get(), deltaTime);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

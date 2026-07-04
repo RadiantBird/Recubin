@@ -112,6 +112,17 @@ class Renderer {
         void renderParticles(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                               const Vector3& cameraRight, const Vector3& cameraUp);
 
+        // 雲（Weather）。カメラ追従の巨大水平クアッドに、起動時1回だけ焼いたグレースケール
+        // ノイズテクスチャをWindDirectionでスクロールしながらサンプルする。ノイズ計算自体は
+        // 焼き込み時にCPU側で完結しており、シェーダーはサンプル+しきい値のみの単純な構成。
+        GLuint m_cloudVAO      = 0;
+        GLuint m_cloudVBO      = 0;
+        GLuint m_cloudShader   = 0;
+        GLuint m_cloudNoiseTex = 0;
+        void initCloudRenderer();
+        void renderClouds(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
+                           const Vector3& cameraPosition);
+
         // GUI 描画
         Matrix4  m_lastView;
         Matrix4  m_lastProj;

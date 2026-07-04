@@ -15,8 +15,10 @@
 #include <Instances/Spatial.hpp>
 #include <Instances/LiquidCube.hpp>
 #include <Instances/ParticleEmitter.hpp>
+#include <Instances/Weather.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
+#include <include/Math/PerlinNoise.hpp>
 #include <include/Core/Terrain.hpp>
 #include <include/Core/TerrainStreamer.hpp>
 #include <include/Instances/PostEffect.hpp>
@@ -284,6 +286,7 @@ void Renderer::init(GLFWwindow* window) {
     initLineRenderer();
     initPostEffectRenderer();
     initParticleRenderer();
+    initCloudRenderer();
 }
 
 // ===================================================
@@ -315,6 +318,11 @@ Renderer::~Renderer() {
     if (m_particleVBO)    glDeleteBuffers(1, &m_particleVBO);
     if (m_particleVAO)    glDeleteVertexArrays(1, &m_particleVAO);
     if (m_particleShader) glDeleteProgram(m_particleShader);
+
+    if (m_cloudVBO)      glDeleteBuffers(1, &m_cloudVBO);
+    if (m_cloudVAO)      glDeleteVertexArrays(1, &m_cloudVAO);
+    if (m_cloudShader)   glDeleteProgram(m_cloudShader);
+    if (m_cloudNoiseTex) glDeleteTextures(1, &m_cloudNoiseTex);
 
     if (m_postVBO)    glDeleteBuffers(1, &m_postVBO);
     if (m_postVAO)    glDeleteVertexArrays(1, &m_postVAO);
@@ -419,6 +427,138 @@ void main() {
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
     glBindVertexArray(0);
+}
+
+// ===================================================
+//  雲（Weather）
+// ===================================================
+void Renderer::initCloudRenderer() {
+    const char* vs = R"(
+#version 330 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec2 aUV;
+uniform mat4 view;
+uniform mat4 projection;
+out vec2 vUV;
+void main() {
+    vUV = aUV;
+    gl_Position = projection * view * vec4(aPos, 1.0);
+}
+)";
+    const char* fs = R"(
+#version 330 core
+in vec2 vUV;
+out vec4 FragColor;
+uniform sampler2D cloudTex;
+uniform vec2  windOffset;
+uniform float cloudCover;
+uniform float cloudDensity;
+void main() {
+    float n = texture(cloudTex, vUV + windOffset).r;
+    float alpha = smoothstep(1.0 - cloudCover, 1.0, n) * cloudDensity;
+    FragColor = vec4(0.92, 0.93, 0.95, alpha);
+}
+)";
+    auto compile = [](const char* src, GLenum type) -> GLuint {
+        GLuint sh = glCreateShader(type);
+        glShaderSource(sh, 1, &src, nullptr);
+        glCompileShader(sh);
+        return sh;
+    };
+    GLuint v = compile(vs, GL_VERTEX_SHADER);
+    GLuint f = compile(fs, GL_FRAGMENT_SHADER);
+    m_cloudShader = glCreateProgram();
+    glAttachShader(m_cloudShader, v);
+    glAttachShader(m_cloudShader, f);
+    glLinkProgram(m_cloudShader);
+    glDeleteShader(v);
+    glDeleteShader(f);
+
+    glGenVertexArrays(1, &m_cloudVAO);
+    glGenBuffers(1, &m_cloudVBO);
+    glBindVertexArray(m_cloudVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_cloudVBO);
+    GLsizei stride = 5 * sizeof(float); // aPos(3) + aUV(2)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glBindVertexArray(0);
+
+    // 固定シードのfbm2を512x512に焼き込む。シーン/Weatherに依存しない固定テクスチャで、
+    // 実行時の再焼き込みは行わない（Terrainのノイズ生成と同じCPU計算+単純サンプルの流儀）。
+    constexpr int   CLOUD_TEX_SIZE = 512;
+    constexpr float CLOUD_SCALE    = 3.0f;
+    PerlinNoise cloudNoise(1337u);
+    std::vector<unsigned char> pixels(CLOUD_TEX_SIZE * CLOUD_TEX_SIZE);
+    for (int y = 0; y < CLOUD_TEX_SIZE; y++) {
+        for (int x = 0; x < CLOUD_TEX_SIZE; x++) {
+            float u = (float)x / (float)CLOUD_TEX_SIZE;
+            float w = (float)y / (float)CLOUD_TEX_SIZE;
+            float n = cloudNoise.fbm2(u * CLOUD_SCALE, w * CLOUD_SCALE, 6, 0.5f, 2.0f);
+            float n01 = n * 0.5f + 0.5f;
+            pixels[y * CLOUD_TEX_SIZE + x] = static_cast<unsigned char>(std::clamp(n01, 0.0f, 1.0f) * 255.0f);
+        }
+    }
+    glGenTextures(1, &m_cloudNoiseTex);
+    glBindTexture(GL_TEXTURE_2D, m_cloudNoiseTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, CLOUD_TEX_SIZE, CLOUD_TEX_SIZE, 0, GL_RED, GL_UNSIGNED_BYTE, pixels.data());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void Renderer::renderClouds(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
+                             const Vector3& cameraPosition) {
+    if (!m_cloudShader || !m_cloudNoiseTex) return;
+
+    Weather* weather = nullptr;
+    for (auto const& [name, child] : workspace.getChildren()) {
+        if (child->IsA("Weather")) { weather = static_cast<Weather*>(child.get()); break; }
+    }
+    if (!weather || !weather->Enabled) return;
+
+    float halfSize = 2000.0f;
+    float y = cameraPosition.y + weather->CloudHeight;
+    float cx = cameraPosition.x;
+    float cz = cameraPosition.z;
+    // UVは大きめのタイル数でスクロールを滑らかに見せる
+    constexpr float UV_TILES = 8.0f;
+    float verts[30] = {
+        cx - halfSize, y, cz - halfSize,  0.0f,     0.0f,
+        cx + halfSize, y, cz - halfSize,  UV_TILES, 0.0f,
+        cx + halfSize, y, cz + halfSize,  UV_TILES, UV_TILES,
+
+        cx + halfSize, y, cz + halfSize,  UV_TILES, UV_TILES,
+        cx - halfSize, y, cz + halfSize,  0.0f,     UV_TILES,
+        cx - halfSize, y, cz - halfSize,  0.0f,     0.0f,
+    };
+
+    Vector2 scroll = weather->getCloudScrollOffset();
+
+    glUseProgram(m_cloudShader);
+    glUniformMatrix4fv(glGetUniformLocation(m_cloudShader, "view"),       1, GL_FALSE, view.m);
+    glUniformMatrix4fv(glGetUniformLocation(m_cloudShader, "projection"), 1, GL_FALSE, projection.m);
+    glUniform2f(glGetUniformLocation(m_cloudShader, "windOffset"), scroll.x, scroll.y);
+    glUniform1f(glGetUniformLocation(m_cloudShader, "cloudCover"), weather->CloudCover);
+    glUniform1f(glGetUniformLocation(m_cloudShader, "cloudDensity"), weather->CloudDensity);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_cloudNoiseTex);
+    glUniform1i(glGetUniformLocation(m_cloudShader, "cloudTex"), 0);
+
+    glBindVertexArray(m_cloudVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_cloudVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW);
+
+    glDepthMask(GL_FALSE);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDepthMask(GL_TRUE);
+
+    glBindVertexArray(0);
+    glUseProgram(shaderProgram);
 }
 
 void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection) {
@@ -1062,6 +1202,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     // ---- Terrain の描画 ----
     // ---- Terrain の描画 ----
     renderTerrain(view, projection, desc.workspace);
+
+    // ---- 雲の描画（Weather。状態更新はメインループ側で毎フレーム1回のみ実行済み） ----
+    renderClouds(*desc.workspace, view, projection, desc.cameraPosition);
 
     // ---- パーティクル描画（シミュレーションはメインループ側で毎フレーム1回のみ実行済み） ----
     {

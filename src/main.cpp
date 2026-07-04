@@ -19,6 +19,7 @@
 #include <Instances/AppImage.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/ParticleEmitter.hpp>
+#include <Instances/Weather.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
@@ -510,6 +511,9 @@ int main(int argc, char* argv[]) {
                 }
             }
         });
+
+        // ---- 天気更新（Edit/Play問わず常時。ParticleEmitter更新より前に風/発生源位置を反映） ----
+        Weather::updateAll(workspace.get(), deltaTime, user->cpos);
 
         // ---- パーティクル更新（Edit/Play問わず常時。Terrainと同じくアクティブworkspaceのみ） ----
         ParticleEmitter::updateAll(workspace.get(), deltaTime);

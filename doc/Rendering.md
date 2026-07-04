@@ -58,8 +58,9 @@ main.cpp ループ
    - 102% スケールでワイヤーフレーム（`glPolygonMode(GL_LINE)`）の黄色アウトラインを上書き描画
 9. **制約ビジュアライズ**（`desc.renderConstraints`）: `renderConstraints()` で Rope（二次ベジェ近似の垂れ下がり線）/ Rod（直線）を `m_lineShader` で描画
 10. **Terrain 描画**: `renderTerrain()` で `TerrainStreamer::getChunks()` の全チャンクメッシュを描画（頂点カラー使用、ライティングはメインシェーダーと共通）
-11. **パーティクル描画**: `renderParticles()` で `ParticleEmitter` をツリーから収集し、粒子ごとにカメラ基底(`cameraRight`/`cameraUp`)でビルボード展開した頂点（`aPos`(vec3)+`aColor`(vec4)、テクスチャなし単色頂点シェーダー `m_particleShader`）を1つの頂点バッファへまとめ、`glDepthMask(GL_FALSE)`で自己遮蔽を避けつつ1回の`glDrawArrays(GL_TRIANGLES)`で描画する。粒子の状態更新（位置・寿命・発生）はここでは行わず、メインループから毎フレーム1回だけ呼ばれる`ParticleEmitter::updateAll()`が担う（`renderViewport`はビューポートの数だけ複数回呼ばれるため、状態更新をここに置くと多重更新になる）
-11. 退避していた FBO・ビューポートに復帰。`desc.renderHighlights` が立っている呼び出し（Primary Viewport）の view/proj を `m_lastView`/`m_lastProj` に保存（GUI のワールド→スクリーン投影に使用）
+11. **雲パス**: `renderClouds()` で Workspace 直下から `Weather` を探し（`Enabled` かつ見つかった場合のみ）、カメラ直上に毎フレーム再配置する巨大水平クアッド（`aPos`(vec3)+`aUV`(vec2)）に、起動時に一度だけ `PerlinNoise::fbm2` で焼いた 512×512 グレースケールテクスチャ（`m_cloudNoiseTex`、実行時の再焼き込みはしない）を `Weather::WindDirection` 由来の UV オフセットでスクロールサンプルし、`CloudCover`/`CloudDensity` でしきい値・不透明度を計算する専用シェーダー `m_cloudShader` で描画する。`glDepthMask(GL_FALSE)` で自己遮蔽を避けつつ深度テストは有効のまま（地形などには正しく隠れる）
+12. **パーティクル描画**: `renderParticles()` で `ParticleEmitter` をツリーから収集し、粒子ごとにカメラ基底(`cameraRight`/`cameraUp`)でビルボード展開した頂点（`aPos`(vec3)+`aColor`(vec4)、テクスチャなし単色頂点シェーダー `m_particleShader`）を1つの頂点バッファへまとめ、`glDepthMask(GL_FALSE)`で自己遮蔽を避けつつ1回の`glDrawArrays(GL_TRIANGLES)`で描画する。粒子の状態更新（位置・寿命・発生）はここでは行わず、メインループから毎フレーム1回だけ呼ばれる`ParticleEmitter::updateAll()`が担う（`renderViewport`はビューポートの数だけ複数回呼ばれるため、状態更新をここに置くと多重更新になる）。`Weather`の雨/雪も内部で`ParticleEmitter`を使っているため、この既存パスがそのまま描画する
+13. 退避していた FBO・ビューポートに復帰。`desc.renderHighlights` が立っている呼び出し（Primary Viewport）の view/proj を `m_lastView`/`m_lastProj` に保存（GUI のワールド→スクリーン投影に使用）
 
 ## シェーダー仕様
 
@@ -86,6 +87,7 @@ main.cpp ループ
 | `Terrain` チャンク | `TerrainStreamer::getChunks()` から `Chunk::mesh.VAO` を直接 `glDrawElements`。専用 VAO/VBO で頂点カラー付き |
 | `Rope`/`Rod` | `m_lineShader` による `GL_LINE_STRIP`／`GL_LINES`。物理オブジェクトとは別の補助描画パス |
 | `ParticleEmitter` | `m_particleShader` によるビルボード`GL_TRIANGLES`。全発生源の全粒子を1つの頂点バッファに集約し1ドローコールで描画 |
+| `Weather`（雲層） | `m_cloudShader` によるカメラ追従の巨大水平クアッド。ノイズは起動時に一度だけ焼いたテクスチャをスクロールサンプル |
 | `ScreenGuiObject`（TextLabel/TextButton 等） | 3D パスとは独立。ImGui の `WindowDrawList` に直接矩形・テキストを描画（`renderScreenGui`） |
 | `WorldGuiObject`（BillboardGui/ProximityPrompt 等） | `m_lastView`/`m_lastProj` でワールド座標をスクリーン座標へ射影し、ImGui で描画（`renderWorldGui`） |
 | `SurfaceGui` | 専用 FBO にベイクして `Cube` のフェイステクスチャとして 3D 内に合成（`bakeSurfaceGui`） |

@@ -1,6 +1,7 @@
 #include <include/Instances/ParticleEmitter.hpp>
 #include <include/Instances/Spatial.hpp>
 #include <include/Instances/Workspace.hpp>
+#include <include/Core/Physics.hpp>
 #include <include/Core/PropertyRegistry.hpp>
 #include <cstdlib>
 #include <cmath>
@@ -26,6 +27,9 @@ static const bool s_particleEmitterRegistered = []{
         field<&ParticleEmitter::Rotation>         ("Rotation",          0.0f, 360.0f, 1.0f).clampLua(),
         field<&ParticleEmitter::RotationVariance> ("RotationVariance",  0.0f, 180.0f, 1.0f).clampLua(),
         field<&ParticleEmitter::Enabled>          ("Enabled"),
+        field<&ParticleEmitter::WindScale>        ("WindScale",        -5.0f, 5.0f,   0.05f).clampLua(),
+        field<&ParticleEmitter::SpawnRadius>      ("SpawnRadius",       0.0f, 500.0f, 0.5f).clampLua(),
+        field<&ParticleEmitter::CollisionCutoff>  ("CollisionCutoff"),
     });
     return true;
 }();
@@ -66,6 +70,13 @@ Vector3 ParticleEmitter::resolveGravity() {
     return Vector3(0.0f, -METER_TO_STUD * EARTH_GRAVITY_MPS2, 0.0f);
 }
 
+Vector3 ParticleEmitter::resolveWind() {
+    if (Instance* wsInst = findFirstAncestorWorkspace()) {
+        return static_cast<Workspace*>(wsInst)->Wind;
+    }
+    return Vector3(0.0f, 0.0f, 0.0f);
+}
+
 void ParticleEmitter::spawnOne(const CFrame& originCFrame, const Vector3& gravity) {
     (void)gravity; // 初速のみここで決める。重力はupdate()側の積分で毎フレーム適用する
     auto frand01 = []() { return static_cast<float>(std::rand()) / RAND_MAX; };
@@ -91,21 +102,40 @@ void ParticleEmitter::spawnOne(const CFrame& originCFrame, const Vector3& gravit
     p.lifetime  = std::max(0.01f, Lifetime + frandPM() * LifetimeVariance);
     p.spinAngle = (Rotation  + frandPM() * RotationVariance)  * pi / 180.0f;
     p.spinSpeed = (SpinSpeed + frandPM() * SpinSpeedVariance) * pi / 180.0f;
+
+    if (SpawnRadius > 0.0001f) {
+        float theta = frand01() * 2.0f * pi;
+        float r     = std::sqrt(frand01()) * SpawnRadius; // sqrtで面積一様分布に
+        p.position  = p.position + Vector3(std::cos(theta) * r, 0.0f, std::sin(theta) * r);
+    }
+
+    p.killHeight = -1e8f;
+    if (CollisionCutoff) {
+        if (Instance* wsInst = findFirstAncestorWorkspace()) {
+            if (Physics* physics = static_cast<Workspace*>(wsInst)->getPhysicsEngine()) {
+                RaycastHit hit;
+                if (physics->raycast(p.position, Vector3(0.0f, -1.0f, 0.0f), 2000.0f, hit, nullptr) && hit.hit)
+                    p.killHeight = hit.position.y + 0.05f;
+            }
+        }
+    }
+
     particles.push_back(p);
 }
 
 void ParticleEmitter::update(float dt) {
     Vector3 gravity = resolveGravity();
+    Vector3 wind    = resolveWind();
 
     for (int i = static_cast<int>(particles.size()) - 1; i >= 0; --i) {
         Particle& p = particles[static_cast<size_t>(i)];
         p.age += dt;
-        if (p.age >= p.lifetime) {
+        if (p.age >= p.lifetime || (p.killHeight > -1e7f && p.position.y <= p.killHeight)) {
             particles[static_cast<size_t>(i)] = particles.back();
             particles.pop_back();
             continue;
         }
-        p.velocity  = p.velocity + gravity * (GravityScale * dt);
+        p.velocity  = p.velocity + gravity * (GravityScale * dt) + wind * (WindScale * dt);
         p.position  = p.position + p.velocity * dt;
         p.spinAngle += p.spinSpeed * dt;
     }

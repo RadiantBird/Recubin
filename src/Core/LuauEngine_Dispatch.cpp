@@ -386,6 +386,7 @@ void LuauEngine::InitDispatchTable_Base() {
 // ==================== Getter: Workspace, Decal, Lighting, System, Event ====================
 void LuauEngine::InitDispatchTable_World() {
     DispatchTable["Workspace"]["Gravity"]        = getter_vec3<Workspace, &Workspace::Gravity>();
+    DispatchTable["Workspace"]["Wind"]           = getter_vec3<Workspace, &Workspace::Wind>();
     DispatchTable["Workspace"]["PhysicsEnabled"] = getter_bool<Workspace, &Workspace::PhysicsEnabled>();
     DispatchTable["Workspace"]["Raycast"]        = getter_closure(workspace_raycast_closure, "Raycast");
 
@@ -402,6 +403,8 @@ void LuauEngine::InitDispatchTable_World() {
 
     PropertyRegistry::applyToDispatch("ParticleEmitter", DispatchTable, SetterTable);
     DispatchTable["ParticleEmitter"]["Emit"] = getter_closure(particle_emitter_emit_closure, "Emit");
+
+    PropertyRegistry::applyToDispatch("Weather", DispatchTable, SetterTable);
 
     DispatchTable["System"]["Heartbeat"] = getter_signal<System, &System::Heartbeat>();
 
@@ -573,6 +576,8 @@ void LuauEngine::InitSetterTable_Base() {
 // ==================== Setter: Workspace, Decal, Lighting ====================
 void LuauEngine::InitSetterTable_World() {
     // Gravity: must also propagate to the physics engine
+    SetterTable["Workspace"]["Wind"] = setter_vec3<Workspace, &Workspace::Wind>();
+
     SetterTable["Workspace"]["Gravity"] = [](lua_State* L, Instance* obj) {
         auto* ws = static_cast<Workspace*>(obj);
         Vector3* v = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);

@@ -50,6 +50,12 @@ void Workspace::setProperty(const std::string& name, const YAML::Node& value) {
             Gravity.y = value[1].as<float>();
             Gravity.z = value[2].as<float>();
         }
+    } else if (name == "Wind") {
+        if (value.IsSequence() && value.size() == 3) {
+            Wind.x = value[0].as<float>();
+            Wind.y = value[1].as<float>();
+            Wind.z = value[2].as<float>();
+        }
     } else if (name == "PhysicsEnabled") {
         PhysicsEnabled = value.as<bool>();
     } else {

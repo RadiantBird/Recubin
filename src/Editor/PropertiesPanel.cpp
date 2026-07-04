@@ -936,6 +936,27 @@ void PropertiesPanel::onRender() {
         renderSchemaInspector(inst, "ParticleEmitter", m_history);
     }
 
+    // ---- Weather（スキーマ駆動。文字列プロパティ(ClearAmbientPath等)は上のInputTextで直接編集可能だが、
+    //      音声ファイル選択の利便性のため参照ボタンも添える） ----
+    if (inst->getClassName() == "Weather") {
+        ImGui::SeparatorText("Weather");
+        renderSchemaInspector(inst, "Weather", m_history);
+
+        auto browseAmbient = [&](const char* propName, const char* idSuffix) {
+            std::string btnLabel = std::string(propName) + " 参照...##" + idSuffix;
+            if (ImGui::Button(btnLabel.c_str())) {
+                std::string path = browseFile(L"Audio (*.mp3;*.wav;*.ogg)", L"*.mp3;*.wav;*.ogg");
+                if (!path.empty()) {
+                    YAML::Node node; node = path;
+                    inst->setProperty(propName, node);
+                }
+            }
+        };
+        browseAmbient("ClearAmbientPath", "weatherclear");
+        browseAmbient("RainAmbientPath",  "weatherrain");
+        browseAmbient("SnowAmbientPath",  "weathersnow");
+    }
+
     // ---- PostEffect ----
     if (inst->getClassName() == "PostEffect") {
         PostEffect* pe = static_cast<PostEffect*>(inst);

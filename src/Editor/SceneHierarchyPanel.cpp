@@ -43,6 +43,7 @@
 #include <Instances/ImageLabel.hpp>
 #include <Instances/ImageButton.hpp>
 #include <Instances/ParticleEmitter.hpp>
+#include <Instances/Weather.hpp>
 #include <Core/AudioService.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
@@ -462,6 +463,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Lighting>(m_history, "Lighting", parentSp);
         tryInsertInstance<PointLight>(m_history, "PointLight", parentSp);
         tryInsertInstance<SpotLight>(m_history, "SpotLight", parentSp);
+        tryInsertInstance<Weather>(m_history, "Weather", parentSp);
         tryInsertInstance<Terrain>(m_history, "Terrain", parentSp);
         tryInsertInstance<Skybox>(m_history, "Skybox", parentSp);
 
