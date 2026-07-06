@@ -463,6 +463,9 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Humanoid"]["MoveToward"]  = getter_closure(humanoid_move_toward_closure, "MoveToward");
     DispatchTable["Humanoid"]["Jump"]        = getter_closure(humanoid_jump_closure,        "Jump");
 
+    // Seat — Steer/ThrottleはPropertyRegistry経由でLua読取専用として公開(エンジンが着席中に書き込む)
+    PropertyRegistry::applyToDispatch("Seat", DispatchTable, SetterTable);
+
     // User.Input (UserInputService 相当のインスタンスを返す)
     DispatchTable["User"]["Input"] = [](lua_State* L, Instance* obj) -> int {
         auto* u = static_cast<User*>(obj);

@@ -25,6 +25,8 @@
 #include "include/Instances/Cube.hpp"
 #include "include/Instances/Cylinder.hpp"
 #include "include/Instances/TriangularPrism.hpp"
+#include "include/Instances/Truss.hpp"
+#include "include/Instances/Seat.hpp"
 #include "include/Instances/Sphere.hpp"
 #include "include/Instances/MeshCube.hpp"
 #include "include/Instances/LiquidCube.hpp"
@@ -1230,7 +1232,11 @@ int LuauEngine::humanoid_move_toward_closure(lua_State* L) {
 int LuauEngine::humanoid_jump_closure(lua_State* L) {
     auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
     auto self = ud->lock();
-    if (self) static_cast<Humanoid*>(self.get())->jump();
+    if (self) {
+        Instance* wsInst = self->findFirstAncestorWorkspace();
+        Physics* physics = wsInst ? static_cast<Workspace*>(wsInst)->getPhysicsEngine() : nullptr;
+        static_cast<Humanoid*>(self.get())->jump(physics);
+    }
     return 0;
 }
 
@@ -1493,6 +1499,8 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "Cube",             [] { return std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); } },
         { "Cylinder",         [] { return std::make_shared<Cylinder>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
         { "TriangularPrism",  [] { return std::make_shared<TriangularPrism>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
+        { "Truss",            [] { return std::make_shared<Truss>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); } },
+        { "Seat",             [] { return std::make_shared<Seat>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); } },
         { "Sphere",           [] { return std::make_shared<Sphere>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
         { "MeshCube",         [] { return std::make_shared<MeshCube>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
         { "LiquidCube",       [] { return std::make_shared<LiquidCube>(Vector3(0, 0, 0), Vector3(4, 2, 4)); } },

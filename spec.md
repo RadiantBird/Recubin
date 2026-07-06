@@ -40,8 +40,12 @@
 - StarterCharacter内のテンプレート、またはそのclone後にRoot/Torso/Head/LeftArm/RightArm/
   LeftLeg/RightLegという名前の兄弟Cube/Sphereを探して保持し、移動・ジャンプ・接地判定・
   歩行アニメーション・一人称時の身体非表示を行う
-- `WalkSpeed`/`JumpPower`を持つ(旧CharacterSettingの`moveSpeed`/`jumpPower`の統合先)
+- `WalkSpeed`/`JumpPower`/`ClimbSpeed`を持つ(旧CharacterSettingの`moveSpeed`/`jumpPower`の統合先)
 - GLFWwindow/SystemStateには依存しない。Userが入力をベクトル/boolに変換して渡す
+- `jump()`は接地中に加え、`LiquidCube`に水没中も許可される(水中でもジャンプ/浮上できる)
+- `Truss`に接触中は、W/Sで垂直移動、A/Dで水平ストレイフする(通常の歩行の代わり)
+- `Seat`に接触すると自動着席し、Rootを`Weld`でSeatに固定する。着席中はジャンプキーで離脱し、
+  WASDの入力はSeat.Steer/Seat.Throttleの更新にのみ使われる(通常の移動はしない)
 
 ## レイキャスト
 PhysXに実装されているもののこと。

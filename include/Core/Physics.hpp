@@ -73,6 +73,9 @@ private:
     // LiquidCube に侵入した動的キューブへ浮力を加える（simulate 前に呼ぶ）
     void applyBuoyancy();
 
+    // 2つのAABB(回転無視)の重なり体積を返す(重ならなければ0)。applyBuoyancy/findOverlappingで共用
+    static float aabbOverlapVolume(const Vector3& posA, const Vector3& sizeA, const Vector3& posB, const Vector3& sizeB);
+
     physx::PxSimulationEventCallback* m_contactCallback = nullptr;
 
 public:
@@ -101,6 +104,10 @@ public:
     void removeConstraint(const std::shared_ptr<Instance>& c);
 
     bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, physx::PxRigidActor* ignoreActor = nullptr);
+
+    // cube と AABB が重なっている、className の BaseCube 系インスタンスを1つ探す(cube自身は除外)。
+    // 水没判定(LiquidCube)・Truss接触・Seat接触で共用する近似的な「接触」判定
+    BaseCube* findOverlapping(const BaseCube& cube, const std::string& className) const;
 
     void setGravity(const Vector3& g);
     Vector3 getGravity() const;

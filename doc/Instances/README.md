@@ -9,7 +9,9 @@ Instance
   ├─ Spatial
   │    ├─ BaseCube
   │    │    ├─ Cube          ← 描画可能なキューブ（最も頻繁に使用）
-  │    │    │    └─ Skybox   ← 空を表す巨大キューブ
+  │    │    │    ├─ Skybox   ← 空を表す巨大キューブ
+  │    │    │    ├─ Truss    ← はしご(登坂可能)
+  │    │    │    └─ Seat     ← 座席(接触で着席・Steer/Throttle)
   │    │    ├─ Cylinder      ← 円柱プリミティブ
   │    │    ├─ Sphere        ← 球プリミティブ
   │    │    │    ├─ Sun      ← 太陽
@@ -64,6 +66,8 @@ Instance
 | [BaseCube](BaseCube.md) | `include/Instances/BaseCube.hpp` | 物理対応キューブ基底 |
 | [Cube](Cube.md) | `include/Instances/Cube.hpp` | 描画可能なキューブ |
 | [Skybox](Skybox.md) | `include/Instances/Skybox.hpp` | 空を表す巨大キューブ |
+| [Truss](Truss.md) | `include/Instances/Truss.hpp` | はしご(登坂可能) |
+| [Seat](Seat.md) | `include/Instances/Seat.hpp` | 座席(接触で着席・Steer/Throttle) |
 | [Cylinder](Cylinder.md) | `include/Instances/Cylinder.hpp` | 円柱プリミティブ |
 | [Sphere](Sphere.md) | `include/Instances/Sphere.hpp` | 球プリミティブ |
 | [Sun](Sun.md) | `include/Instances/Sun.hpp` | 太陽 |

@@ -5,6 +5,8 @@
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
+#include <Instances/Truss.hpp>
+#include <Instances/Seat.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/LiquidCube.hpp>
@@ -217,6 +219,8 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Cube")           return std::make_shared<Cube>(Vector3(0,0,0), Vector3(1,1,1), 0);
     if (className == "Cylinder")       return std::make_shared<Cylinder>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "TriangularPrism") return std::make_shared<TriangularPrism>(Vector3(0,0,0), Vector3(1,1,1));
+    if (className == "Truss")          return std::make_shared<Truss>(Vector3(0,0,0), Vector3(1,1,1), 0);
+    if (className == "Seat")           return std::make_shared<Seat>(Vector3(0,0,0), Vector3(1,1,1), 0);
     if (className == "Sphere")         return std::make_shared<Sphere>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "MeshCube")       return std::make_shared<MeshCube>(Vector3(0,0,0), Vector3(1,1,1));
     if (className == "LiquidCube")      return std::make_shared<LiquidCube>(Vector3(0,0,0), Vector3(4,2,4));

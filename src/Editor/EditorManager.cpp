@@ -9,6 +9,8 @@
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
+#include <Instances/Truss.hpp>
+#include <Instances/Seat.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/Skybox.hpp>
 #include <Core/SceneLoader.hpp>
@@ -629,6 +631,8 @@ void EditorManager::renderToolbar() {
         tryAddObject<Cube>("New Cube", "Cube", Cube::defaultTextureID);
         tryAddObject<Cylinder>("New Cylinder", "Cylinder");
         tryAddObject<TriangularPrism>("New Prism", "TriangularPrism");
+        tryAddObject<Truss>("New Truss", "Truss", Cube::defaultTextureID);
+        tryAddObject<Seat>("New Seat", "Seat", Cube::defaultTextureID);
         tryAddObject<Sphere>("New Sphere", "Sphere");
 
         ImGui::EndPopup();

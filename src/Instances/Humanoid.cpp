@@ -1,6 +1,9 @@
 #include <Instances/Humanoid.hpp>
 #include <Instances/Animation.hpp>
 #include <Instances/Spatial.hpp>
+#include <Instances/Seat.hpp>
+#include <Instances/Weld.hpp>
+#include <Instances/Workspace.hpp>
 #include <include/Core/Physics.hpp>
 #include <include/Core/PropertyRegistry.hpp>
 #include <Math/Quaternion.hpp>
@@ -17,6 +20,7 @@ static const bool s_humanoidRegistered = []{
     registerClass("Humanoid", {
         field   <&Humanoid::WalkSpeed>  ("WalkSpeed",   0, 100).clampLua(),
         field   <&Humanoid::JumpPower>  ("JumpPower",   0, 100).clampLua(),
+        field   <&Humanoid::ClimbSpeed> ("ClimbSpeed",  0, 100).clampLua(),
         method_prop<&Humanoid::getJumpHeight, &Humanoid::setJumpHeight>("JumpHeight", 0, 50, 0.1f),
         field   <&Humanoid::MaxHealth>  ("MaxHealth",   0, 10000).clampLua(),
         field   <&Humanoid::RespawnTime>("RespawnTime", 0, 600).clampLua(),
@@ -128,31 +132,61 @@ void Humanoid::resolveParts(Instance* characterModel) {
 
 void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool isPressingMove,
                      const Vector3& targetMoveDir, bool ctrlLockEnabled, Physics* physics,
-                     bool leftArmRaised, bool rightArmRaised) {
+                     bool leftArmRaised, bool rightArmRaised,
+                     float forwardAxis, float rightAxis) {
     if (!Root || !Root->actor) return;
 
     physx::PxRigidDynamic* dynamicActor = Root->actor->is<physx::PxRigidDynamic>();
     if (!dynamicActor) return;
 
+    // --- Seat: 未着席なら接触判定、着席中ならSteer/Throttle更新のみ行って抜ける ---
+    if (!m_seated && physics) {
+        if (BaseCube* seatCube = physics->findOverlapping(*Root, "Seat")) {
+            auto seat = std::static_pointer_cast<Seat>(seatCube->shared_from_this());
+            if (!seat->isOccupied())
+                sitOn(seat, physics);
+        }
+    }
+    if (m_seated) {
+        if (auto seat = m_seat.lock()) {
+            seat->Throttle = forwardAxis;
+            seat->Steer    = rightAxis;
+        }
+        applyBodyAnimation(leftArmRaised, rightArmRaised);
+        return;
+    }
+
     // --- 移動ベクトルの補間 ---
     currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * 0.15f;
 
-    // --- 向き(Rotation)の更新 ---
-    Quaternion targetRot = Root->Rotation;
-    if (ctrlLockEnabled) {
-        // CtrlLock中は常にカメラの正面方向を向く（Roblox ShiftLock方式）
-        targetRot = Quaternion::LookRotation(flatForward, Vector3(0, 1, 0));
-    } else if (isPressingMove) {
-        targetRot = Quaternion::LookRotation(targetMoveDir, Vector3(0, 1, 0));
-    }
-    Root->Rotation = Quaternion::Slerp(Root->Rotation, targetRot, 0.15f);
+    // --- Truss(はしご)接触判定。登坂中は重力を切り、静止していても留まれるようにする ---
+    BaseCube* trussCube = physics ? physics->findOverlapping(*Root, "Truss") : nullptr;
+    dynamicActor->setActorFlag(physx::PxActorFlag::eDISABLE_GRAVITY, trussCube != nullptr);
 
-    physx::PxTransform pose = dynamicActor->getGlobalPose();
-    pose.q = physx::PxQuat(Root->Rotation.x, Root->Rotation.y, Root->Rotation.z, Root->Rotation.w);
-    dynamicActor->setGlobalPose(pose);
+    // --- 向き(Rotation)の更新 ---
+    // Truss接触中は向きを固定する(自動回転させると登坂中に姿勢が崩れて落下してしまうため)
+    if (!trussCube) {
+        Quaternion targetRot = Root->Rotation;
+        if (ctrlLockEnabled) {
+            // CtrlLock中は常にカメラの正面方向を向く（Roblox ShiftLock方式）
+            targetRot = Quaternion::LookRotation(flatForward, Vector3(0, 1, 0));
+        } else if (isPressingMove) {
+            targetRot = Quaternion::LookRotation(targetMoveDir, Vector3(0, 1, 0));
+        }
+        Root->Rotation = Quaternion::Slerp(Root->Rotation, targetRot, 0.15f);
+
+        physx::PxTransform pose = dynamicActor->getGlobalPose();
+        pose.q = physx::PxQuat(Root->Rotation.x, Root->Rotation.y, Root->Rotation.z, Root->Rotation.w);
+        dynamicActor->setGlobalPose(pose);
+    }
 
     // --- 物理速度の適用 ---
-    if (currentMoveDir.length() > 0.01f) {
+    if (trussCube) {
+        // Truss(はしご)接触中: W/Sで垂直方向、A/Dで水平ストレイフ
+        Vector3 climbVel = flatRight * (rightAxis * WalkSpeed);
+        climbVel.y = forwardAxis * ClimbSpeed;
+        dynamicActor->setLinearVelocity(physx::PxVec3(climbVel.x, climbVel.y, climbVel.z));
+    } else if (currentMoveDir.length() > 0.01f) {
         Vector3 velocity = currentMoveDir * WalkSpeed;
 
         RaycastHit wallHit;
@@ -227,14 +261,73 @@ void Humanoid::setJumpHeight(float height) {
     JumpPower = std::sqrt(2.0f * g * std::max(height, 0.0f));
 }
 
-void Humanoid::jump() {
+void Humanoid::jump(Physics* physics) {
     if (!Root) resolveParts(Parent.lock().get());
-    if (!Root || !Root->actor || !isGrounded) return;
+    if (!Root || !Root->actor) return;
+    bool submerged = physics && physics->findOverlapping(*Root, "LiquidCube") != nullptr;
+    if (!isGrounded && !submerged) return;
     physx::PxRigidDynamic* dynamicActor = Root->actor->is<physx::PxRigidDynamic>();
     if (!dynamicActor) return;
     physx::PxVec3 vel = dynamicActor->getLinearVelocity();
     vel.y = JumpPower;
     dynamicActor->setLinearVelocity(vel);
+}
+
+void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
+    if (!Root || !Root->actor || !seat) return;
+    physx::PxRigidDynamic* dynamicActor = Root->actor->is<physx::PxRigidDynamic>();
+    if (!dynamicActor) return;
+
+    seat->setOccupant(std::static_pointer_cast<Humanoid>(shared_from_this()));
+
+    // RootをSeatの向きのまま直上へスナップ(向きはSeatと同じ)し、速度をゼロクリアしてからWeldで固定する
+    CFrame target = seat->getWorldCFrame() * CFrame(0, seat->Size.y * 0.001f + Root->Size.y * 0.25f, 0);
+    physx::PxTransform pose(
+        physx::PxVec3(target.Position.x, target.Position.y, target.Position.z),
+        physx::PxQuat(target.Rotation.x, target.Rotation.y, target.Rotation.z, target.Rotation.w)
+    );
+    dynamicActor->setGlobalPose(pose);
+    dynamicActor->setLinearVelocity(physx::PxVec3(0, 0, 0));
+    dynamicActor->setAngularVelocity(physx::PxVec3(0, 0, 0));
+    Root->syncPhysics();
+
+    Instance* wsRaw = seat->findFirstAncestorWorkspace();
+    if (wsRaw && physics) {
+        m_seatWeld = std::make_shared<Weld>();
+        m_seatWeld->Name = "SeatWeld";
+        static_cast<Workspace*>(wsRaw)->addChild(m_seatWeld);
+        m_seatWeld->setCube0(Root);
+        m_seatWeld->setCube1(seat);
+    }
+
+    m_seated = true;
+    m_seat   = seat;
+}
+
+void Humanoid::standUp(Physics* physics) {
+    if (!m_seated) return;
+
+    if (m_seatWeld) {
+        if (auto parent = m_seatWeld->Parent.lock()) parent->removeChild(m_seatWeld->Name);
+        m_seatWeld.reset();
+    }
+
+    // 降りるホップ + シートから離れて再着席ループを防ぐ
+    if (Root && Root->actor) {
+        if (auto* dynamicActor = Root->actor->is<physx::PxRigidDynamic>()) {
+            physx::PxVec3 vel = dynamicActor->getLinearVelocity();
+            vel.y = JumpPower;
+            dynamicActor->setLinearVelocity(vel);
+            physx::PxTransform pose = dynamicActor->getGlobalPose();
+            pose.p.y += Root->Size.y;
+            dynamicActor->setGlobalPose(pose);
+            Root->syncPhysics();
+        }
+    }
+
+    if (auto seat = m_seat.lock()) seat->clearOccupant();
+    m_seat.reset();
+    m_seated = false;
 }
 
 // ============================================================
@@ -337,10 +430,28 @@ Humanoid::Pose Humanoid::computePose(bool leftArmRaised, bool rightArmRaised) co
     float swing = std::sin(rad) * 35.0f;
 
     Pose p;
-    p.leftArm  = leftArmRaised  ? 90.0f : (isGrounded ? swing  : 180.0f);
-    p.rightArm = rightArmRaised ? 90.0f : (isGrounded ? -swing : 180.0f);
-    p.leftLeg  = -swing;
-    p.rightLeg =  swing;
+    if (m_seated) {
+        // 着席時のハードコードされたポーズ: 脚は座面に合わせて前方へ折り曲げ、腕は自然に下ろす
+        p.leftArm  = 10.0f;
+        p.rightArm = 10.0f;
+        p.leftLeg  = 90.0f;
+        p.rightLeg = 90.0f;
+    } else if (leftArmRaised || rightArmRaised) {
+        p.leftArm  = leftArmRaised  ? 90.0f : 180.0f;
+        p.rightArm = rightArmRaised ? 90.0f : 180.0f;
+        p.leftLeg  = -swing;
+        p.rightLeg =  swing;
+    } else if (isGrounded) {
+        p.leftArm  = swing;
+        p.rightArm = -swing;
+        p.leftLeg  = -swing;
+        p.rightLeg =  swing;
+    } else {
+        p.leftArm  = 180.0f;
+        p.rightArm = 180.0f;
+        p.leftLeg  = -swing;
+        p.rightLeg =  swing;
+    }
     return p;
 }
 

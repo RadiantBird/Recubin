@@ -10,7 +10,12 @@ RCBNScriptSignal::~RCBNScriptSignal() {
 }
 
 int RCBNScriptSignal::connect(lua_State* L, int luaRef, bool once) {
-    if (!m_mainL) m_mainL = L;
+    // Lが個々のScriptのコルーチンスレッドの場合、そのScriptの実行終了とともにLuau側で
+    // 解放/GCされうる(ループを持たない単発スクリプトで顕著)。m_mainLはSignal自身の寿命
+    // (Systemと同程度に長い)だけ生存する必要があるため、常にVMのメインスレッドを指すよう
+    // lua_mainthread()で解決してからキャッシュする(そうしないと、そのコルーチンが破棄された後の
+    // disconnect/fireでdangling lua_State*を使ってlua_unref等がクラッシュする)
+    if (!m_mainL) m_mainL = lua_mainthread(L);
     int id = m_nextId++;
     m_listeners.push_back({ luaRef, once, id });
     return id;

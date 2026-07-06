@@ -1272,6 +1272,12 @@ void PropertiesPanel::onRender() {
         renderSchemaInspector(inst, "Humanoid", m_history);
     }
 
+    // ---- Seat（Steer/Throttleは着席中エンジンが書き込むLua読取専用値。確認用に表示） ----
+    if (inst->getClassName() == "Seat") {
+        ImGui::SeparatorText("Seat");
+        renderSchemaInspector(inst, "Seat", m_history);
+    }
+
     // ---- ScreenGuiObject ----
     // ---- GUI 一族（スキーマ駆動。基底は IsA ブロック、葉は getClassName ブロックで描画） ----
     if (inst->IsA("ScreenGuiObject")) {

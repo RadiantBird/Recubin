@@ -9,6 +9,8 @@
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
+#include <Instances/Truss.hpp>
+#include <Instances/Seat.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/LiquidCube.hpp>
@@ -192,7 +194,7 @@ static const char* getClassIcon(const std::string& cn) {
     if (cn == "FileRef")                                                     return ICON_FILE;
     if (cn == "Sphere")                                                      return ICON_SPHERE;
     if (cn == "Cube"   || cn == "Cylinder" || cn == "LiquidCube" ||
-        cn == "TriangularPrism")                                             return ICON_CUBE;
+        cn == "TriangularPrism" || cn == "Truss" || cn == "Seat")            return ICON_CUBE;
     if (cn == "MeshCube") return ICON_MESHCUBE;
     if (cn == "TextLabel"  || cn == "TextButton" || cn == "GuiButton" ||
         cn == "ScreenGui"  || cn == "SurfaceGui" || cn == "BillboardGui" ||
@@ -453,6 +455,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Cube>(m_history, "Cube", parentSp, spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
         tryInsertInstance<Cylinder>(m_history, "Cylinder", parentSp, spawnPos, Vector3(1, 1, 1));
         tryInsertInstance<TriangularPrism>(m_history, "TriangularPrism", parentSp, spawnPos, Vector3(1, 1, 1));
+        tryInsertInstance<Truss>(m_history, "Truss", parentSp, spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
+        tryInsertInstance<Seat>(m_history, "Seat", parentSp, spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
         tryInsertInstance<Sphere>(m_history, "Sphere", parentSp, spawnPos, Vector3(1, 1, 1));
         tryInsertInstance<MeshCube>(m_history, "MeshCube", parentSp, spawnPos, Vector3(1, 1, 1));
         tryInsertInstance<LiquidCube>(m_history, "LiquidCube", parentSp, spawnPos, Vector3(4, 2, 4));

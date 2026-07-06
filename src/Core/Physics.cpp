@@ -425,6 +425,27 @@ void Physics::removeCube(const std::shared_ptr<BaseCube>& cube) {
 static constexpr float LIQUID_LINEAR_DAMPING  = 3.0f;
 static constexpr float LIQUID_ANGULAR_DAMPING = 2.0f;
 
+float Physics::aabbOverlapVolume(const Vector3& posA, const Vector3& sizeA, const Vector3& posB, const Vector3& sizeB) {
+    Vector3 aMin = posA - sizeA * 0.5f, aMax = posA + sizeA * 0.5f;
+    Vector3 bMin = posB - sizeB * 0.5f, bMax = posB + sizeB * 0.5f;
+    float ox = std::max(0.0f, std::min(aMax.x, bMax.x) - std::max(aMin.x, bMin.x));
+    float oy = std::max(0.0f, std::min(aMax.y, bMax.y) - std::max(aMin.y, bMin.y));
+    float oz = std::max(0.0f, std::min(aMax.z, bMax.z) - std::max(aMin.z, bMin.z));
+    return ox * oy * oz;
+}
+
+BaseCube* Physics::findOverlapping(const BaseCube& cube, const std::string& className) const {
+    Vector3 cp = cube.getWorldPosition(), cs = cube.Size;
+    for (auto& e : cubes) {
+        auto other = e.cube.lock();
+        if (!other || other.get() == &cube) continue;
+        if (!other->IsA(className)) continue;
+        if (aabbOverlapVolume(cp, cs, other->getWorldPosition(), other->Size) > 0.0f)
+            return other.get();
+    }
+    return nullptr;
+}
+
 void Physics::applyBuoyancy() {
     if (!scene) return;
     physx::PxVec3 g = scene->getGravity();
@@ -446,15 +467,9 @@ void Physics::applyBuoyancy() {
 
         // 各液体との AABB 侵入体積（回転は無視＝「大体」）を、生体積と Density 重みで合算
         Vector3 cp = cube->getWorldPosition(), cs = cube->Size;
-        Vector3 cmin = cp - cs * 0.5f, cmax = cp + cs * 0.5f;
         float rawV = 0.0f, weightedV = 0.0f;
         for (BaseCube* lq : liquids) {
-            Vector3 lp = lq->getWorldPosition(), ls = lq->Size;
-            Vector3 lmin = lp - ls * 0.5f, lmax = lp + ls * 0.5f;
-            float ox = std::max(0.0f, std::min(cmax.x, lmax.x) - std::max(cmin.x, lmin.x));
-            float oy = std::max(0.0f, std::min(cmax.y, lmax.y) - std::max(cmin.y, lmin.y));
-            float oz = std::max(0.0f, std::min(cmax.z, lmax.z) - std::max(cmin.z, lmin.z));
-            float v = ox * oy * oz;
+            float v = aabbOverlapVolume(cp, cs, lq->getWorldPosition(), lq->Size);
             rawV      += v;
             weightedV += v * static_cast<LiquidCube*>(lq)->Density;
         }
@@ -801,6 +816,12 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
         compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
     } else {
         compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eENABLE_CCD, true);
+        // createActor()と同様にLockFlagsを反映する(OR合成)。これをしないと、Humanoid.Rootのように
+        // 角度ロックを持つキューブがWeld等でcompound化されるたびにロックが失われ、
+        // 着席/離脱の繰り返しなどでキャラクターが転倒しやすくなる
+        physx::PxRigidDynamicLockFlags combinedLockFlags = (physx::PxRigidDynamicLockFlags)0;
+        for (auto& cube : assembly) combinedLockFlags |= cube->LockFlags;
+        compound->setRigidDynamicLockFlags(combinedLockFlags);
     }
 
     // 質量計算はシェイプが1つ以上ある場合のみ行う。CanCollide==false のキューブだけで

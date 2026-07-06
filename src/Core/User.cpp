@@ -256,18 +256,28 @@ void User::processCharacterMovement(Physics* physics) {
     Vector3 flatForward = Vector3(forward.x, 0, forward.z).normalize();
     Vector3 flatRight   = Vector3(right.x,   0, right.z  ).normalize();
 
-    if (m_input->isKeyDown(KeyCode::W)) { targetMoveDir = targetMoveDir + flatForward; isPressingMove = true; }
-    if (m_input->isKeyDown(KeyCode::S)) { targetMoveDir = targetMoveDir - flatForward; isPressingMove = true; }
-    if (m_input->isKeyDown(KeyCode::A)) { targetMoveDir = targetMoveDir - flatRight;   isPressingMove = true; }
-    if (m_input->isKeyDown(KeyCode::D)) { targetMoveDir = targetMoveDir + flatRight;   isPressingMove = true; }
+    bool wDown = m_input->isKeyDown(KeyCode::W);
+    bool sDown = m_input->isKeyDown(KeyCode::S);
+    bool aDown = m_input->isKeyDown(KeyCode::A);
+    bool dDown = m_input->isKeyDown(KeyCode::D);
+
+    if (wDown) { targetMoveDir = targetMoveDir + flatForward; isPressingMove = true; }
+    if (sDown) { targetMoveDir = targetMoveDir - flatForward; isPressingMove = true; }
+    if (aDown) { targetMoveDir = targetMoveDir - flatRight;   isPressingMove = true; }
+    if (dDown) { targetMoveDir = targetMoveDir + flatRight;   isPressingMove = true; }
 
     if (isPressingMove) targetMoveDir = targetMoveDir.normalize();
+
+    // Truss登坂・Seat操作用の独立した2軸(-1..1)。斜め入力でも減衰しない生の値
+    float forwardAxis = (wDown ? 1.0f : 0.0f) - (sDown ? 1.0f : 0.0f);
+    float rightAxis   = (dDown ? 1.0f : 0.0f) - (aDown ? 1.0f : 0.0f);
 
     bool toolEquipped   = currentTool && currentTool->Equipped;
     bool leftArmRaised  = toolEquipped && (currentTool->Hand == Tool::ToolHand::Left  || currentTool->Hand == Tool::ToolHand::Both);
     bool rightArmRaised = toolEquipped && (currentTool->Hand == Tool::ToolHand::Right || currentTool->Hand == Tool::ToolHand::Both);
 
-    humanoid->move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, physics, leftArmRaised, rightArmRaised);
+    humanoid->move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, physics,
+                   leftArmRaised, rightArmRaised, forwardAxis, rightAxis);
 
     // --- 装備中のツールを手の位置に追従させる ---
     if (toolEquipped) {
@@ -294,7 +304,7 @@ void User::processCharacterMovement(Physics* physics) {
 }
 
 // ホットキー（ESC / L / P / Space）
-void User::processHotkeys() {
+void User::processHotkeys(Physics* physics) {
     if (m_input->isKeyDown(KeyCode::Escape)) {
         wannaExit = true;
     }
@@ -322,7 +332,8 @@ void User::processHotkeys() {
     // 接地判定自体はHumanoid内部で行うため、ここでは押下中であれば毎フレーム要求するだけでよい）
     bool spacePressed = m_input->isKeyDown(KeyCode::Space);
     if (spacePressed && controlMode == ControlMode::Character && humanoid) {
-        humanoid->jump();
+        if (humanoid->isSeated()) humanoid->standUp(physics);
+        else humanoid->jump(physics);
     }
 
     // 左Ctrlキー: CtrlLock ON/OFFトグル
@@ -444,7 +455,7 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     // 死亡中はキャラクター移動を駆動しない（ばらしたパーツを上書きしないため）
     if (!m_deathHandled) processMovement(viewportFocused, physics);
     if (rotated) updateVectors();
-    processHotkeys();
+    processHotkeys(physics);
     processToolkeys(viewportFocused, isGameplayInput, wantsTextInput);
     processMouse(isGameplayInput);
 }
