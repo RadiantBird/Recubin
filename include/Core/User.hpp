@@ -109,6 +109,12 @@ public:
     bool consumeExitRequest();
     bool consumeWorkspaceSwitchRequest();
 
+    // カメラ回転ドラッグ中か（右ドラッグ／Altフリールックいずれか）。
+    // OSカーソルは非表示のままだが、擬似カーソルの描画位置決定のために公開する
+    bool isRotatingCamera() const { return isRightMouseRotating; }
+    // カメラ回転ドラッグ中のアンカー位置（ウィンドウクライアント座標）
+    void getRotationAnchor(double& x, double& y) const { x = lastMouseX; y = lastMouseY; }
+
 private:
     static User* s_instance;
 

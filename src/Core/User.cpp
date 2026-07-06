@@ -183,10 +183,11 @@ bool User::processCameraRotation(bool viewportFocused) {
 
 // ズーム（I/Oキー・スクロール）
 void User::processZoom(bool viewportZoomEnabled) {
+    // 無効時も毎フレーム破棄しておかないと、ビューポート外でのスクロールが
+    // 消費されずに溜まり、後でhoverしただけの瞬間にまとめて適用されてしまう
+    const double scrollDelta = m_input->consumeScrollDelta();
     if (!viewportZoomEnabled) return;
     if (controlMode == ControlMode::Program) return; // Luauがカメラを直接制御するため入力は無視する
-
-    const double scrollDelta = m_input->consumeScrollDelta();
 
     if (controlMode == ControlMode::Free) {
         if (m_input->isKeyDown(KeyCode::I)) cpos = cpos + forward * zoomSpeed;

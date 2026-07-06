@@ -139,6 +139,9 @@ class Renderer {
         void renderGameGui(Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH);
         void bakeSurfaceGui (SurfaceGui* sg);
 
+        // カメラ回転ドラッグ中、非表示のOSカーソルの代わりにアンカー位置へ固定表示する擬似カーソル
+        void drawCameraRotationCursor(User& user, GLFWwindow* window);
+
         // ポストエフェクト（PostEffect インスタンスの ZIndex 順チェーン適用）
         GLuint m_postVAO = 0, m_postVBO = 0;
         GLuint m_postShader = 0;

@@ -48,6 +48,9 @@ public:
         }
 
         ImGui::End();
+
+        if (Renderer::instance) Renderer::instance->drawCameraRotationCursor(user, window);
+
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }

@@ -1,5 +1,6 @@
 #include <Editor/EditorManager.hpp>
 
+#include <Core/Renderer.hpp>
 #include <Core/Packager.hpp>
 #include <Editor/SpawnUtil.hpp>
 #include <Editor/ViewportFocusManager.hpp>
@@ -722,13 +723,15 @@ void EditorManager::clearForImGui(GLFWwindow* window) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void EditorManager::renderUI(User&, GLFWwindow* window, Workspace&) {
+void EditorManager::renderUI(User& user, GLFWwindow* window, Workspace&) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     ImGuizmo::BeginFrame();
 
     render(window);
+
+    if (Renderer::instance) Renderer::instance->drawCameraRotationCursor(user, window);
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

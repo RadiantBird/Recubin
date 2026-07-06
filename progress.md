@@ -77,3 +77,55 @@ readme.md のTodoリストのうち、以下5項目の修正を依頼された:
 - **SurfaceGuiの実際のベイク解像度はSurfaceGui自身のSize比率ではなく、親BaseCubeのそのフェイスの物理サイズ比率に合わせて決まる**（`bakeSurfaceGui`の`faceU`/`faceV`計算）。例えば200x100のSurfaceGuiを1x1x1の正方形キューブに貼ると、実際のFBOは200x200になりレターボックスされる。UIデザイン時に「SurfaceGuiのSizeがそのままアスペクト比になる」と誤解しやすい。
 - **`bakeSurfaceGui`は焼き込み後のテクスチャを手動で左右反転している**（列方向のみ、行方向はOpenGLの暗黙の反転任せ）。この非対称な反転処理（片方は明示的なCPU処理、もう片方はGPU/API規約による暗黙の反転）は、3D面へのマッピングを扱うコードを新規に書く際に必ず両方向を意識する必要がある落とし穴。
 - **GUIのInvisibleButton系のIDは、この修正前は全て`sgo->Name`（インスタンス名）ベースだった**。同名インスタンスが複数存在する構成（コピペ量産、テンプレート的な使い方）でImGuiのID衝突を起こす設計だったため、ポインタベースに変更済み。今後同種のGUIウィジェットを追加する際はNameでなくポインタ/インスタンスIDでImGui IDを生成すること。
+
+---
+
+## 2026-07-06 スクロールズームバグ修正 + カメラ回転ドラッグ中の擬似カーソル表示
+
+### 指示内容
+readme.mdのTodo「viewportFocusedでないのにマウスをスクロールするとカメラがズームしたりするのを修正」への対応を依頼された。その後、雑談的な流れから「ドラッグ移動してもマウスが動かないようになれば、マウスカーソルを非表示にする必要はないと思う」という追加要望が出て、実現方法の検討・実装まで行った。
+
+### 何をしたか
+
+**1. スクロールズームバグ修正**
+- `src/Core/User.cpp` の `User::processZoom()`: `viewportZoomEnabled`が`false`のとき早期returnしていたため、その間に溜まったスクロール量(`GLFWInputBackend`側で蓄積される`m_pendingScrollY`)が`consumeScrollDelta()`で消費されずに残り続け、後でビューポートにマウスをhoverした瞬間にまとめて適用されてズームしてしまう、という不具合だった。`consumeScrollDelta()`の呼び出し位置を早期returnより前に移動し、`viewportZoomEnabled`が`false`の間も毎フレーム破棄するように修正。
+
+**2. カメラ回転ドラッグ中の擬似カーソル表示（新規機能）**
+- `include/Core/User.hpp`: 既存のprivate状態を読むだけのconst getterを追加（ロジック変更なし）。
+  - `isRotatingCamera()` → `isRightMouseRotating`を返す（右ドラッグ／Altフリールックいずれでもtrue）
+  - `getRotationAnchor(x, y)` → `lastMouseX`/`lastMouseY`（ウィンドウクライアント座標のアンカー）を返す
+- `include/Core/Renderer.hpp` / `src/Core/Renderer_GUI.cpp`: `drawCameraRotationCursor(User&, GLFWwindow*)`を新設。ユーザーが`assets/image/cursor.svg`を追加してくれたので、そのSVGパス2つ（矢印本体の三角形＋右下の小さな尾の四角形）をホットスポット（矢印の先端）基準のローカル座標に手計算で変換し、`ImGui::GetForegroundDrawList()`の`AddConvexPolyFilled`/`AddPolyline`で白塗り+黒アウトラインとして直接描画（テクスチャ読み込み不要）。
+- `src/Editor/EditorManager.cpp::renderUI()` と `include/Editor/NullEditorManager.hpp::renderUI()` の両方で、ImGuiパネル描画後・`ImGui::Render()`前に`drawCameraRotationCursor()`を呼び出すよう追加（エディター/ランタイム両方に適用）。
+- `EditorManager::renderUI`の`User&`引数がそれまで無名だったため、名前(`user`)を付けた（シグネチャの型・個数は変更していない）。`EditorManager.cpp`に`Core/Renderer.hpp`のincludeを追加。
+- `GLFWInputBackend.cpp`の`setMouseCaptured`/Raw Mouse Motion周りは一切変更していない。
+
+### なぜそうしたか（判断の経緯）
+
+- **「表示カーソル+毎フレームリセット」方式は不採用**: ユーザーの当初の要望は「本物のOSカーソルを表示したまま毎フレーム位置を戻す」方式だったが、調査の結果 (a) Raw Mouse Motionは`GLFW_CURSOR_DISABLED`時にしか有効化できない（GLFWの仕様）、(b) 表示カーソルは画面/ウィンドウ端でクランプされる、という2点が判明。表示に切り替えると高速ドラッグ時に感度が環境依存になったり移動量を取りこぼす懸念があるため、この方式を採る前にユーザーに一度トレードオフを提示し判断を仰いだ。
+- **最終的に「OSカーソルは非表示のまま＋固定位置にImGuiで擬似カーソルを重ね描き」方式を採用**: ユーザー自身が「クローンを毎フレーム描画して、裏で無限大のスクロールができるようにする」という逆転の発想を提案。これなら本物のカーソルのRaw Motion/無制限移動の性質を一切変えずに、見た目上は動かないカーソルを表示できるため採用。
+- **cursor.svgをテクスチャ化せず、ImGuiの図形描画で直接クローンした**: プロジェクトにはSVGラスタライズ機能も既存のカーソル画像アセットも無く、PNG化＋テクスチャ読み込みの経路を新設すると依存関係・スコープが増える。SVGのパスデータ自体は単純な2ポリゴン（三角形＋四角形）だったため、座標を手計算でホットスポット基準に変換しベクター描画するだけで済んだ。ビルドシステムには一切触れていない。
+- **描画フックの位置**: `EditorManager::renderUI`と`NullEditorManager::renderUI`の両方に同じ呼び出しを追加した。カメラ回転ドラッグ（`User::processCameraRotation`）はEditorのFreeカメラだけでなくRuntimeのゲームプレイカメラ操作でも共通して使われるロジックのため、両方に描画がないと体験が非対称になると判断。
+
+### どういう経緯か
+
+1. スクロールズームバグはUser.cppを読んだ直後にすぐ原因（`GLFWInputBackend`のスクロール蓄積とprocessZoomの早期return順序）を特定し、単発修正として即完了。
+2. その後Plan modeで「ドラッグ中カーソル非表示は本当に必要か」という設計相談を受け、Explore agentを2回起動して(1)`IInputBackend`/`GLFWInputBackend`のマウスキャプチャ実装とProcessCameraRotationの詳細、(2)ImGuiのマルチビューポート設定・renderUIのフック位置・GUI描画の既存パターンを調査。
+3. 表示カーソル案のトレードオフをユーザーに提示 → ユーザーが「表示カーソル+毎フレームリセット」を試すか、現状維持かをいったん選ばせた後、実際には「OSカーソル非表示のままImGuiで擬似カーソルを重ねる」という第三の案を思いつき、そちらを採用。
+4. cursor.svgの見た目にするか簡単な図形にするかをAskUserQuestionで確認 → ユーザーが`cursor.svg`を追加して「試してみて」と回答。SVGのpath dataを手動でデコード（相対座標→絶対座標→ホットスポット基準）し、ImGuiのポリゴン描画コードに落とし込んだ。
+5. 実装後ビルド成功を確認。
+6. 直後の自律ループ(autonomous loop)ティックで、実機起動によるスモークテスト（PowerShellでRecubin.exeを起動しスクリーンショットを撮る）を試みたが、(a) working directoryの違いで`assets/`が見つからない警告が出たり、(b) 最初の全画面スクリーンショットが最前面のVSCodeウィンドウを写してしまい対象ウィンドウを捉えられなかったりと、環境起因のノイズが多かった。`user32.dll`のP/Invoke（`SetForegroundWindow`/`GetWindowRect`）でウィンドウを特定して撮り直し、最終的には3Dビューポート・メニュー・Content Browserパネルが描画されていることを確認できたが、ユーザーから「GUIアプリで自動テストすると意味がないのでやめよう」と明示的に指摘を受け、このアプローチ自体を今後は使わないことにした（メモリに保存済み: `feedback_no_gui_smoketest.md`）。
+
+### 試して失敗した/やめた方法
+
+- **表示カーソル＋毎フレームreset方式**: ユーザーの最初の要望どおりの実装は行わず、GLFWの仕様上のトレードオフ（Raw Motion非対応・エッジクランプ）を理由に採用を見送った。実装前にユーザーへ選択肢として提示し、判断を仰いでから別案（擬似カーソル）に切り替えたので手戻りは無かった。
+- **Recubin.exeの自動起動＋スクリーンショットによるスモークテスト**: 一度は動作確認に成功したが、環境依存のノイズ（対象ウィンドウの取り違え、working directory起因の警告）が多く、ユーザーからも「意味がない」と明言されたため今後は行わない。→ **教訓**: ネイティブGUIアプリ（GLFW/OpenGLなど）に対しては、Webアプリのようなスクリーンショット主体の自動検証は基本的に不向き。ビルドが通ることの確認までに留め、実際の見た目・操作感の確認はユーザーに委ねること。
+
+### 未解決・保留
+
+- 擬似カーソルの実際の見た目（アンカー位置に矢印アイコンが正しく固定表示されるか、ドラッグ終了時に消えるか、マルチビューポート時にズレないか）はユーザーによる実機確認待ち。
+- `drawCameraRotationCursor`内のポリゴン座標はcursor.svgのpathデータを手計算で変換した値をハードコードしているため、今後cursor.svgのデザインを変更する場合はこの関数側の座標も手動で再計算・同期する必要がある（自動追従しない）。
+
+### 暗黙仕様の発見（spec.mdに無い挙動）
+
+- **`User::processCameraRotation`のカーソルキャプチャは、Editorのフリーカメラ操作とRuntimeのゲームプレイカメラ操作の両方で共有されている**。`controlMode`（Free/Character/Program）に関わらず、右ドラッグ・Altフリールックによる回転ロジックとカーソルキャプチャは同一コードパスを通るため、この付近を触る変更は必ずEditor/Runtime両方への影響を考慮する必要がある。
+- **ImGuiの`ImGuiConfigFlags_ViewportsEnable`はEditorビルドでのみ有効**（`Renderer::init`が`#ifndef EDITOR_DISABLED`で分岐）。これが有効だと`ImGui::GetForegroundDrawList()`等のスクリーン座標は「デスクトップ絶対座標」になり、GLFWの`glfwGetCursorPos`（ウィンドウクライアント座標）とは座標系が異なる。この2つの座標系を跨ぐ描画を書く際は、`io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable`で分岐し`glfwGetWindowPos`を加算するかどうかを切り替える必要がある（`Renderer::init`内に既存の同種分岐パターンあり）。

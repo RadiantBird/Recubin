@@ -738,3 +738,51 @@ void Renderer::renderGameGui(Workspace& ws, User* user, float vpX, float vpY, fl
     renderWorldGui (ws, user, vpX, vpY, vpW, vpH);
     if (user) renderToolHotbar(*user, vpX, vpY, vpW, vpH);
 }
+
+// ===================================================
+//  カメラ回転ドラッグ中の擬似カーソル
+//
+//  OSカーソルはRaw Mouse Motionのために非表示のままにする(setMouseCaptured/
+//  GLFW_CURSOR_DISABLEDは変更しない)。代わりにアンカー位置(ドラッグ開始位置)へ
+//  assets/image/cursor.svg の矢印形状をImGuiの図形描画でクローンして毎フレーム
+//  固定表示することで、見た目上カーソルが消えたままにならないようにする。
+// ===================================================
+void Renderer::drawCameraRotationCursor(User& user, GLFWwindow* window) {
+    if (!user.isRotatingCamera()) return;
+
+    double ax = 0.0, ay = 0.0;
+    user.getRotationAnchor(ax, ay);
+
+    // getRotationAnchorはウィンドウクライアント座標。マルチビューポート有効時、
+    // ImGuiのスクリーン座標はデスクトップ絶対座標になるためウィンドウ位置を加算する
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+        int wx = 0, wy = 0;
+        glfwGetWindowPos(window, &wx, &wy);
+        ax += wx;
+        ay += wy;
+    }
+
+    // cursor.svg (矢印の先端をホットスポット(0,0)としたローカル座標に変換済み) の
+    // 2つのパス: 本体の三角形と、右下の小さな尾の四角形
+    const ImVec2 body[3] = {
+        ImVec2(static_cast<float>(ax) + 0.0f,     static_cast<float>(ay) + 0.0f),
+        ImVec2(static_cast<float>(ax) + 0.0f,     static_cast<float>(ay) + 17.108f),
+        ImVec2(static_cast<float>(ax) + 11.762f,  static_cast<float>(ay) + 12.000f),
+    };
+    const ImVec2 tail[4] = {
+        ImVec2(static_cast<float>(ax) + 4.039f,   static_cast<float>(ay) + 14.257f),
+        ImVec2(static_cast<float>(ax) + 7.247f,   static_cast<float>(ay) + 13.188f),
+        ImVec2(static_cast<float>(ax) + 10.455f,  static_cast<float>(ay) + 19.603f),
+        ImVec2(static_cast<float>(ax) + 7.247f,   static_cast<float>(ay) + 21.029f),
+    };
+
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    const ImU32 fillColor   = IM_COL32(255, 255, 255, 255);
+    const ImU32 strokeColor = IM_COL32(0, 0, 0, 255);
+
+    dl->AddConvexPolyFilled(body, 3, fillColor);
+    dl->AddConvexPolyFilled(tail, 4, fillColor);
+    dl->AddPolyline(body, 3, strokeColor, ImDrawFlags_Closed, 2.0f);
+    dl->AddPolyline(tail, 4, strokeColor, ImDrawFlags_Closed, 2.0f);
+}
