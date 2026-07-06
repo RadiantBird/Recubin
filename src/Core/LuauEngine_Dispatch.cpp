@@ -407,6 +407,7 @@ void LuauEngine::InitDispatchTable_World() {
     PropertyRegistry::applyToDispatch("Weather", DispatchTable, SetterTable);
 
     DispatchTable["System"]["Heartbeat"] = getter_signal<System, &System::Heartbeat>();
+    PropertyRegistry::applyToDispatch("System", DispatchTable, SetterTable);
 
     DispatchTable["Event"]["Fire"] = getter_closure(LuauEngine::event_fire_closure, "Fire");
 }

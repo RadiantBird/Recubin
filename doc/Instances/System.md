@@ -15,8 +15,11 @@
 | `MaxClonesPerFrame` | `int` | 1フレームで許容するClone回数の上限（既定1000） |
 | `MaxRestartsPerFrame` | `int` | 1フレームで許容するScript Restart回数の上限（既定100） |
 | `ScriptLoopTimeoutSeconds` | `float` | スクリプトループのタイムアウト秒数。0以下で無効（既定2.0） |
+| `BaseResolution` | `Vector2` | `ScreenGuiObject`(`Norm::Pixel`)の自動スケーリング基準解像度（既定 1920x1080）。Luauからは読み取り専用 |
 
 `MaxClonesPerFrame`/`MaxRestartsPerFrame`/`ScriptLoopTimeoutSeconds` は意図的にLuauへバインドしない（DispatchTable/SetterTableに非登録）。エディターからのみ編集可能。
+
+`BaseResolution` は `PropertyRegistry` 経由で登録され、YAML保存/エディター編集/Luau読み取りに対応する（`.luaReadOnly()` によりLuauからの書込のみ不可）。`Renderer::renderScreenGui` が現在のビューポート解像度との比率を計算し、`Norm::Pixel` の `Position`/`Size` にX,Y別々に乗算する（`doc/Core/Renderer.md` 参照）。
 
 ## メソッド
 

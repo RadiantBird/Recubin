@@ -157,6 +157,7 @@
 | **Tool** | **Equipped / Hand / Handle** | ❌ | 3メンバ未公開 |
 | **Model** | Position / Size | ❌ | Spatial 基底未バインド |
 | System | Heartbeat | ✅ | |
+| System | BaseResolution | ⚠️ get のみ | PR経由・`.luaReadOnly()`で意図的にset不可（ScreenGui基準解像度） |
 | Event | Fire | ✅ | |
 | UserInput | Pressed / Released / IsPressed | ✅ | |
 | User | Input / AddTool / RemoveTool / GetTool / GetTools | ✅ | |

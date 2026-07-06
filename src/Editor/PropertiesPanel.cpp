@@ -822,6 +822,8 @@ void PropertiesPanel::onRender() {
         auto sysSp = std::static_pointer_cast<System>(inst->shared_from_this());
         ImGui::SeparatorText("System (Safety Limits)");
 
+        renderSchemaInspector(inst, "System", m_history);
+
         {
             static int s_before;
             ImGui::DragInt("MaxClonesPerFrame", &sys->MaxClonesPerFrame, 1.0f, 0, 1000000);

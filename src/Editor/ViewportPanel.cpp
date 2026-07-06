@@ -7,6 +7,7 @@
 #include <include/imgui/ImGuizmo.h>
 #include <Instances/BaseCube.hpp>
 #include <Instances/Spatial.hpp>
+#include <Instances/System.hpp>
 #include <Core/SystemState.hpp>
 #include <Core/Renderer.hpp>
 #include <Core/Physics.hpp>
@@ -94,10 +95,24 @@ void ViewportPanel::onRender() {
         return;
     }
 
-    // パネルサイズに合わせて FBO をリサイズ
+    // パネルの利用可能サイズ
     ImVec2 avail = ImGui::GetContentRegionAvail();
-    int w = (int)avail.x;
-    int h = (int)avail.y;
+    if (avail.x < 1.0f) avail.x = 1.0f;
+    if (avail.y < 1.0f) avail.y = 1.0f;
+
+    // System.BaseResolution のアスペクト比を維持したレターボックスサイズを計算
+    // (System が見つからない/不正な場合は既定 1920x1080 のアスペクトにフォールバック)
+    float baseW = 1920.f, baseH = 1080.f;
+    if (workspace) {
+        if (auto parent = workspace->Parent.lock(); parent && parent->IsA("System")) {
+            auto* sys = static_cast<System*>(parent.get());
+            if (sys->BaseResolution.x > 0.f) baseW = sys->BaseResolution.x;
+            if (sys->BaseResolution.y > 0.f) baseH = sys->BaseResolution.y;
+        }
+    }
+    float letterboxScale = (std::min)(avail.x / baseW, avail.y / baseH);
+    int w = (int)(baseW * letterboxScale);
+    int h = (int)(baseH * letterboxScale);
     if (w < 1) w = 1;
     if (h < 1) h = 1;
     resizeFBO(w, h);
@@ -120,22 +135,47 @@ void ViewportPanel::onRender() {
         Renderer::instance->renderViewport(desc);
     }
 
-    // コンテンツ領域の画面座標原点（タイトルバー分を除いた正確な左上）
-    ImVec2 contentOrigin;
+    // パネルの画面座標原点（タイトルバー分を除いた正確な左上）
+    ImVec2 panelOrigin;
     {
         ImVec2 wp = ImGui::GetWindowPos();
         ImVec2 cm = ImGui::GetWindowContentRegionMin();
-        contentOrigin = ImVec2(wp.x + cm.x, wp.y + cm.y);
+        panelOrigin = ImVec2(wp.x + cm.x, wp.y + cm.y);
     }
+
+    // レターボックス（黒帯）: パネル全体を黒で塗りつぶしてから中央にFBO画像を配置する
+    ImGui::GetWindowDrawList()->AddRectFilled(
+        panelOrigin, ImVec2(panelOrigin.x + avail.x, panelOrigin.y + avail.y), IM_COL32(0, 0, 0, 255));
+
+    // FBO画像の実際の画面原点（レターボックス分オフセット）。以降のレイキャスト・ギズモも
+    // この contentOrigin と w/h（レターボックス後のFBOサイズ）を使うため自動的に追従する
+    ImVec2 contentOrigin(
+        panelOrigin.x + (avail.x - (float)w) * 0.5f,
+        panelOrigin.y + (avail.y - (float)h) * 0.5f);
 
     // FBO のカラーテクスチャを表示
     // ImTextureRef で GLuint を包む（v1.92 以降の API）
+    ImGui::SetCursorScreenPos(contentOrigin);
     ImTextureRef texRef((ImTextureID)(uintptr_t)colorTexture);
-    ImGui::Image(texRef, avail, ImVec2(0, 1), ImVec2(1, 0)); // Y 反転
+    ImGui::Image(texRef, ImVec2((float)w, (float)h), ImVec2(0, 1), ImVec2(1, 0)); // Y 反転
 
     // ゲーム内 GUI をビューポート上に重ねて描画
     if (workspace && Renderer::instance) {
-        Renderer::instance->renderGameGui(*workspace, user, contentOrigin.x, contentOrigin.y, avail.x, avail.y);
+        Renderer::instance->renderGameGui(*workspace, user, contentOrigin.x, contentOrigin.y, (float)w, (float)h);
+    }
+
+    // レターボックス外側の黒帯を最前面に重ね描きする（BillboardGui等の3D投影GUIは
+    // レターボックス矩形外へはみ出して描画されうるため、最後に上書きして必ず隠す）
+    {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        float panelL = panelOrigin.x,          panelT = panelOrigin.y;
+        float panelR = panelOrigin.x + avail.x, panelB = panelOrigin.y + avail.y;
+        float imgL = contentOrigin.x,           imgT = contentOrigin.y;
+        float imgR = contentOrigin.x + (float)w, imgB = contentOrigin.y + (float)h;
+        if (imgL > panelL) dl->AddRectFilled(ImVec2(panelL, panelT), ImVec2(imgL, panelB), IM_COL32(0, 0, 0, 255));
+        if (imgR < panelR) dl->AddRectFilled(ImVec2(imgR, panelT), ImVec2(panelR, panelB), IM_COL32(0, 0, 0, 255));
+        if (imgT > panelT) dl->AddRectFilled(ImVec2(panelL, panelT), ImVec2(panelR, imgT), IM_COL32(0, 0, 0, 255));
+        if (imgB < panelB) dl->AddRectFilled(ImVec2(panelL, imgB), ImVec2(panelR, panelB), IM_COL32(0, 0, 0, 255));
     }
 
     // ===================================================

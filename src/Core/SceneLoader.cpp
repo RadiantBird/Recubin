@@ -591,6 +591,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "MaxClonesPerFrame"        << YAML::Value << sys->MaxClonesPerFrame;
             out << YAML::Key << "MaxRestartsPerFrame"      << YAML::Value << sys->MaxRestartsPerFrame;
             out << YAML::Key << "ScriptLoopTimeoutSeconds" << YAML::Value << sys->ScriptLoopTimeoutSeconds;
+            PropertyRegistry::saveProperties(out, sys, "System");  // BaseResolution
         }
         if (inst->getClassName() == "Tool") {
             const Tool* tool = static_cast<const Tool*>(inst);
@@ -629,6 +630,7 @@ void SceneLoader::saveScene(Instance* root, const std::string& filePath) {
         out << YAML::Key << "MaxClonesPerFrame"        << YAML::Value << sys->MaxClonesPerFrame;
         out << YAML::Key << "MaxRestartsPerFrame"      << YAML::Value << sys->MaxRestartsPerFrame;
         out << YAML::Key << "ScriptLoopTimeoutSeconds" << YAML::Value << sys->ScriptLoopTimeoutSeconds;
+        PropertyRegistry::saveProperties(out, sys, "System");  // BaseResolution
         out << YAML::EndMap;
     }
 

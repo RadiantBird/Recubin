@@ -12,6 +12,7 @@
 #include "include/Instances/BillboardGui.hpp"
 #include "include/Instances/ProximityPrompt.hpp"
 #include "include/Instances/BaseCube.hpp"
+#include "include/Instances/System.hpp"
 #include "include/imgui/imgui.h"
 #include "include/imgui/imgui_impl_opengl3.h"
 
@@ -44,13 +45,14 @@ static void drawGuiText(ImDrawList* dl, ScreenGuiObject* sgo,
 
 static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
                                   float vpX, float vpY, float vpW, float vpH,
+                                  float scaleX, float scaleY,
                                   std::function<void(GuiButton*)>& onActivated) {
     if (!sgo->Visible) return;
 
-    float px = (sgo->NormType == Norm::Scale) ? sgo->Position.x * vpW + vpX : sgo->Position.x + vpX;
-    float py = (sgo->NormType == Norm::Scale) ? sgo->Position.y * vpH + vpY : sgo->Position.y + vpY;
-    float sw = (sgo->NormType == Norm::Scale) ? sgo->Size.x * vpW : sgo->Size.x;
-    float sh = (sgo->NormType == Norm::Scale) ? sgo->Size.y * vpH : sgo->Size.y;
+    float px = (sgo->NormType == Norm::Scale) ? sgo->Position.x * vpW + vpX : sgo->Position.x * scaleX + vpX;
+    float py = (sgo->NormType == Norm::Scale) ? sgo->Position.y * vpH + vpY : sgo->Position.y * scaleY + vpY;
+    float sw = (sgo->NormType == Norm::Scale) ? sgo->Size.x * vpW : sgo->Size.x * scaleX;
+    float sh = (sgo->NormType == Norm::Scale) ? sgo->Size.y * vpH : sgo->Size.y * scaleY;
 
     ImVec2 tl(px, py);
     ImVec2 br(px + sw, py + sh);
@@ -303,6 +305,15 @@ void Renderer::renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, f
     collectScreenGui(&ws, elements);
     if (elements.empty()) return;
 
+    // Norm::Pixel 要素のスケール係数: System.BaseResolution に対する現在のビューポート比率
+    // System が見つからない/BaseResolutionが不正な場合は 1.0（従来どおりピクセル等倍）にフォールバック
+    float scaleX = 1.f, scaleY = 1.f;
+    if (auto parent = ws.Parent.lock(); parent && parent->IsA("System")) {
+        auto* sys = static_cast<System*>(parent.get());
+        if (sys->BaseResolution.x > 0.f) scaleX = vpW / sys->BaseResolution.x;
+        if (sys->BaseResolution.y > 0.f) scaleY = vpH / sys->BaseResolution.y;
+    }
+
     // ZIndex 昇順（小 = 背面）
     std::sort(elements.begin(), elements.end(), [](ScreenGuiObject* a, ScreenGuiObject* b) {
         return a->ZIndex < b->ZIndex;
@@ -310,7 +321,7 @@ void Renderer::renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, f
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     for (auto* sgo : elements) {
-        drawScreenGuiElement(dl, sgo, vpX, vpY, vpW, vpH, m_onButtonActivated);
+        drawScreenGuiElement(dl, sgo, vpX, vpY, vpW, vpH, scaleX, scaleY, m_onButtonActivated);
     }
 }
 
