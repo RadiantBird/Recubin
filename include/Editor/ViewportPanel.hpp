@@ -3,7 +3,6 @@
 struct PickerState;        // PropertiesPanel.hpp で定義
 struct TerrainBrushState;  // PropertiesPanel.hpp で定義
 class CommandHistory;
-#include <windows26.h>
 #include <include/GL/glew.h>
 #include <include/GLFW/glfw3.h>
 #include <include/imgui/imgui.h>

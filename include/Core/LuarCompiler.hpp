@@ -1,6 +1,5 @@
 #pragma once
 #include <string>
-#include <windows26.h>
 
 // Luar→Luauトランスパイラ DLLのラッパー
 // DLL: luar_compiler.dll (Rust製, luar-rsクレート)
@@ -16,7 +15,7 @@ public:
     bool isLoaded() const { return m_dll != nullptr; }
 
 private:
-    HMODULE m_dll = nullptr;
+    void* m_dll = nullptr;
 
     using FnCompile   = int(*)(const char* src, char* out_buf, size_t out_len);
     using FnGetErrors = int(*)(char* buf, size_t buf_len);

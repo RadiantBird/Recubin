@@ -6,7 +6,7 @@
 #endif
 
 namespace {
-    // pathはUTF-8前提（browseFile()等の返り値）。ma_sound_init_from_file()はナローパスを
+    // pathはUTF-8前提（getPlatform().openFileDialog()等の返り値）。ma_sound_init_from_file()はナローパスを
     // ANSIコードページとして扱うため、日本語等の非ASCIIパスが化ける（FileLoader.cppの
     // utf8_to_wstring()と同じ変換をここでも行い、_wファミリーに渡す）。
 #ifdef _WIN32

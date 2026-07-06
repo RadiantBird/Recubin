@@ -38,7 +38,8 @@
 #include <include/imgui/imgui.h>
 
 #include <Util/Logger.hpp>
-#include <Util/FileDialog.hpp>
+#include <Util/Platform.hpp>
+#include <Util/IPlatform.hpp>
 
 #include <iostream>
 #include <algorithm>
@@ -222,8 +223,7 @@ int main(int argc, char* argv[]) {
     // コンソールの出力/入力コードページをUTF-8にする
     // (Windows日本語版等では既定のANSIコードページのままだと、UTF-8で書かれた
     //  ログやLuauのprint出力が文字化けする)
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
+    getPlatform().setupConsoleUtf8();
 
     std::cout << "Hello world!\n"
               << "Recubin Studio v0.995\n";
@@ -262,7 +262,7 @@ int main(int argc, char* argv[]) {
     // 記録が無い/ファイルが見つからない場合はダイアログで選択させる(キャンセルなら正常終了)
     std::string scenePath = loadLastScenePath();
     if (scenePath.empty() || !std::filesystem::exists(scenePath)) {
-        scenePath = browseFile(L"Scene (*.yaml;*.yml)", L"*.yaml;*.yml");
+        scenePath = getPlatform().openFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}});
         if (scenePath.empty()) {
             std::cout << "[INFO] シーンが選択されなかったため終了します。\n";
             glfwTerminate();

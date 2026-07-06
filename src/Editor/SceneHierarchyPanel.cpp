@@ -47,11 +47,10 @@
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Weather.hpp>
 #include <Core/AudioService.hpp>
+#include <Util/Platform.hpp>
+#include <Util/IPlatform.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
-#include <windows26.h>
-#include <shobjidl.h>
-#include <shellapi.h>
 
 static bool hierarchyContainsInstance(Instance* root, Instance* target) {
     if (!root || !target) return false;
@@ -63,58 +62,14 @@ static bool hierarchyContainsInstance(Instance* root, Instance* target) {
 }
 
 static std::string pickFile() {
-    std::string result;
-    IFileOpenDialog* pfd = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
-                                   CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
-        COMDLG_FILTERSPEC filters[] = {
-            { L"Luau Script (*.luau)", L"*.luau" },
-            { L"Luar Script (*.luar)", L"*.luar" },
-        };
-        pfd->SetFileTypes(2, filters);
-        if (SUCCEEDED(pfd->Show(nullptr))) {
-            IShellItem* item = nullptr;
-            if (SUCCEEDED(pfd->GetResult(&item))) {
-                PWSTR wpath = nullptr;
-                item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
-                int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
-                if (len > 1) {
-                    result.resize(len - 1);
-                    WideCharToMultiByte(CP_UTF8, 0, wpath, -1, result.data(), len, nullptr, nullptr);
-                }
-                CoTaskMemFree(wpath);
-                item->Release();
-            }
-        }
-        pfd->Release();
-    }
-    return result;
+    return getPlatform().openFileDialog({
+        {"Luau Script (*.luau)", "*.luau"},
+        {"Luar Script (*.luar)", "*.luar"},
+    });
 }
 
 static std::string pickFolder() {
-    std::string result;
-    IFileOpenDialog* pfd = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
-                                   CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
-        DWORD opts; pfd->GetOptions(&opts);
-        pfd->SetOptions(opts | FOS_PICKFOLDERS);
-        if (SUCCEEDED(pfd->Show(nullptr))) {
-            IShellItem* item = nullptr;
-            if (SUCCEEDED(pfd->GetResult(&item))) {
-                PWSTR wpath = nullptr;
-                item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
-                int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
-                if (len > 1) {
-                    result.resize(len - 1);
-                    WideCharToMultiByte(CP_UTF8, 0, wpath, -1, result.data(), len, nullptr, nullptr);
-                }
-                CoTaskMemFree(wpath);
-                item->Release();
-            }
-        }
-        pfd->Release();
-    }
-    return result;
+    return getPlatform().openFolderDialog();
 }
 
 // ===================================================
@@ -425,8 +380,7 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
         }
 
         if (!filePath.empty() && m_pickParent && m_history) {
-            std::wstring wp(filePath.begin(), filePath.end());
-            ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOW);
+            getPlatform().revealInFileManager(filePath);
 
             // 既存選択時はファイル名をスクリプト名にする
             if (m_pickExisting) {

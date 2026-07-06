@@ -1,26 +1,28 @@
 #include "include/Core/LuarCompiler.hpp"
+#include <Util/Platform.hpp>
+#include <Util/IPlatform.hpp>
 #include <iostream>
 #include <vector>
 
 static constexpr size_t OUT_BUF_SIZE = 1024 * 1024; // 1 MB
 
 LuarCompiler::LuarCompiler() {
-    m_dll = LoadLibraryA("luar_compiler.dll");
+    m_dll = getPlatform().loadDynamicLibrary("luar_compiler.dll");
     if (!m_dll) {
-        std::cerr << "[LuarCompiler] Failed to load luar_compiler.dll (error " << GetLastError() << ")\n";
+        std::cerr << "[LuarCompiler] Failed to load luar_compiler.dll\n";
         return;
     }
-    m_fnCompile   = reinterpret_cast<FnCompile>  (GetProcAddress(m_dll, "luar_compile"));
-    m_fnGetErrors = reinterpret_cast<FnGetErrors>(GetProcAddress(m_dll, "luar_get_errors"));
+    m_fnCompile   = reinterpret_cast<FnCompile>  (getPlatform().getSymbol(m_dll, "luar_compile"));
+    m_fnGetErrors = reinterpret_cast<FnGetErrors>(getPlatform().getSymbol(m_dll, "luar_get_errors"));
     if (!m_fnCompile || !m_fnGetErrors) {
         std::cerr << "[LuarCompiler] Missing exports in luar_compiler.dll\n";
-        FreeLibrary(m_dll);
+        getPlatform().freeDynamicLibrary(m_dll);
         m_dll = nullptr;
     }
 }
 
 LuarCompiler::~LuarCompiler() {
-    if (m_dll) FreeLibrary(m_dll);
+    if (m_dll) getPlatform().freeDynamicLibrary(m_dll);
 }
 
 std::string LuarCompiler::compile(const std::string& luarSource) {

@@ -2,44 +2,16 @@
 #include <Editor/CommandHistory.hpp>
 #include <Instances/Spatial.hpp>
 #include <include/imgui/imgui.h>
-#include <shobjidl.h>
-#include <windows.h>
+#include <Util/Platform.hpp>
+#include <Util/IPlatform.hpp>
 #include <string>
 
 namespace {
 
-// COMファイルダイアログでパスを取得するヘルパー。キャンセル/失敗時は空文字を返す。
-std::string wideToUtf8(PWSTR w) {
-    if (!w) return {};
-    int len = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0, nullptr, nullptr);
-    if (len <= 1) return {};
-    std::string s(static_cast<size_t>(len - 1), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, w, -1, s.data(), len, nullptr, nullptr);
-    return s;
-}
-
 std::string openAnimDialog(bool save) {
-    std::string result;
-    const CLSID& clsid = save ? CLSID_FileSaveDialog : CLSID_FileOpenDialog;
-    IFileDialog* pfd = nullptr;
-    if (SUCCEEDED(CoCreateInstance(clsid, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
-        COMDLG_FILTERSPEC filter = { L"Animation (*.yaml)", L"*.yaml" };
-        pfd->SetFileTypes(1, &filter);
-        if (save) pfd->SetDefaultExtension(L"yaml");
-        if (SUCCEEDED(pfd->Show(nullptr))) {
-            IShellItem* item = nullptr;
-            if (SUCCEEDED(pfd->GetResult(&item))) {
-                PWSTR wpath = nullptr;
-                if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &wpath))) {
-                    result = wideToUtf8(wpath);
-                    CoTaskMemFree(wpath);
-                }
-                item->Release();
-            }
-        }
-        pfd->Release();
-    }
-    return result;
+    static const std::vector<FileFilter> filters = {{"Animation (*.yaml)", "*.yaml"}};
+    return save ? getPlatform().saveFileDialog(filters, "yaml")
+                : getPlatform().openFileDialog(filters);
 }
 
 } // namespace

@@ -1,5 +1,3 @@
-#include <windows26.h>
-
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Lighting.hpp>
@@ -9,6 +7,8 @@
 #include <Core/SceneLoader.hpp>
 #include <Core/AudioService.hpp>
 #include <Util/Logger.hpp>
+#include <Util/Platform.hpp>
+#include <Util/IPlatform.hpp>
 
 #include <chrono>
 #include <thread>
@@ -21,8 +21,7 @@
 //  print()の [PASS]/[FAIL]/[ERROR] 件数から終了コードを決める。
 // ===================================================
 int main(int argc, char* argv[]) {
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
+    getPlatform().setupConsoleUtf8();
 
     std::string scenePath = (argc > 1) ? argv[1] : "assets/scenes/test_bindings.yaml";
 

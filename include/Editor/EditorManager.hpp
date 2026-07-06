@@ -11,7 +11,6 @@
 #include <Editor/ViewportFocusManager.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
-#include <windows26.h>
 #include <include/GLFW/glfw3.h>
 #include <memory>
 #include <string>

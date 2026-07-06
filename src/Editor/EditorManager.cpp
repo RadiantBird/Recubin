@@ -4,7 +4,6 @@
 #include <Core/Packager.hpp>
 #include <Editor/SpawnUtil.hpp>
 #include <Editor/ViewportFocusManager.hpp>
-#include <shobjidl.h>
 #include <Editor/CommandHistory.hpp>
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
@@ -19,9 +18,12 @@
 #include <include/imgui/imgui_impl_opengl3.h>
 #include <include/imgui/ImGuizmo.h>
 #include <string>
+#include <cstdio>
 #include <algorithm>
 #include <unordered_set>
 #include <Util/Logger.hpp>
+#include <Util/Platform.hpp>
+#include <Util/IPlatform.hpp>
 
 static bool treeContainsInstance(Instance* root, Instance* target) {
     if (!root || !target) return false;
@@ -330,27 +332,7 @@ void EditorManager::saveCurrentScene() {
 }
 
 void EditorManager::openSceneDialog() {
-    IFileOpenDialog* pfd = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
-                                   CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
-        COMDLG_FILTERSPEC filter = { L"Scene (*.yaml;*.yml)", L"*.yaml;*.yml" };
-        pfd->SetFileTypes(1, &filter);
-        if (SUCCEEDED(pfd->Show(nullptr))) {
-            IShellItem* item = nullptr;
-            if (SUCCEEDED(pfd->GetResult(&item))) {
-                PWSTR wpath = nullptr;
-                item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
-                int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
-                if (len > 1) {
-                    pendingLoadPath.resize(len - 1);
-                    WideCharToMultiByte(CP_UTF8, 0, wpath, -1, pendingLoadPath.data(), len, nullptr, nullptr);
-                }
-                CoTaskMemFree(wpath);
-                item->Release();
-            }
-        }
-        pfd->Release();
-    }
+    pendingLoadPath = getPlatform().openFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}});
 }
 
 void EditorManager::requestSaveDialog(GLFWwindow* window) {
@@ -416,26 +398,9 @@ void EditorManager::renderPackageDialog() {
         ImGui::InputText("##pkgoutdir", m_pkgOutDir, sizeof(m_pkgOutDir));
         ImGui::SameLine();
         if (ImGui::Button("参照...")) {
-            IFileOpenDialog* pfd = nullptr;
-            if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
-                                           CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
-                DWORD opts = 0;
-                pfd->GetOptions(&opts);
-                pfd->SetOptions(opts | FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
-                if (SUCCEEDED(pfd->Show(nullptr))) {
-                    IShellItem* item = nullptr;
-                    if (SUCCEEDED(pfd->GetResult(&item))) {
-                        PWSTR wpath = nullptr;
-                        item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
-                        int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
-                        if (len > 1 && len <= (int)sizeof(m_pkgOutDir)) {
-                            WideCharToMultiByte(CP_UTF8, 0, wpath, -1, m_pkgOutDir, sizeof(m_pkgOutDir), nullptr, nullptr);
-                        }
-                        CoTaskMemFree(wpath);
-                        item->Release();
-                    }
-                }
-                pfd->Release();
+            std::string folder = getPlatform().openFolderDialog();
+            if (!folder.empty() && folder.size() < sizeof(m_pkgOutDir)) {
+                std::snprintf(m_pkgOutDir, sizeof(m_pkgOutDir), "%s", folder.c_str());
             }
         }
 
@@ -647,27 +612,7 @@ void EditorManager::renderToolbar() {
     }
     ImGui::SameLine();
     if (ImGui::Button("Load", btnSz)) {
-        IFileOpenDialog* pfd = nullptr;
-        if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
-                                       CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
-            COMDLG_FILTERSPEC filter = { L"Scene (*.yaml;*.yml)", L"*.yaml;*.yml" };
-            pfd->SetFileTypes(1, &filter);
-            if (SUCCEEDED(pfd->Show(nullptr))) {
-                IShellItem* item = nullptr;
-                if (SUCCEEDED(pfd->GetResult(&item))) {
-                    PWSTR wpath = nullptr;
-                    item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
-                    int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
-                    if (len > 1) {
-                        pendingLoadPath.resize(len - 1);
-                        WideCharToMultiByte(CP_UTF8, 0, wpath, -1, pendingLoadPath.data(), len, nullptr, nullptr);
-                    }
-                    CoTaskMemFree(wpath);
-                    item->Release();
-                }
-            }
-            pfd->Release();
-        }
+        pendingLoadPath = getPlatform().openFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}});
     }
 
     ImGui::End();

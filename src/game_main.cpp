@@ -1,4 +1,3 @@
-#include <windows26.h>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
@@ -23,6 +22,8 @@
 
 #include <Util/Logger.hpp>
 #include <Util/AssetGuard.hpp>
+#include <Util/Platform.hpp>
+#include <Util/IPlatform.hpp>
 #include <yaml-cpp/yaml.h>
 #include "include/stb_image.h"
 
@@ -66,8 +67,7 @@ int main() {
     // コンソールの出力/入力コードページをUTF-8にする
     // (Windows日本語版等では既定のANSIコードページのままだと、UTF-8で書かれた
     //  ログやLuauのprint出力が文字化けする)
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
+    getPlatform().setupConsoleUtf8();
 
     GameConfig cfg = loadStartup();
 

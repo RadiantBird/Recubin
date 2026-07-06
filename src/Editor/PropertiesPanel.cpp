@@ -36,7 +36,8 @@
 #include <Instances/BillboardGui.hpp>
 #include <Instances/ProximityPrompt.hpp>
 #include <Util/Color4.hpp>
-#include <Util/FileDialog.hpp>
+#include <Util/Platform.hpp>
+#include <Util/IPlatform.hpp>
 #include <include/imgui/imgui.h>
 #include <unordered_map>
 #include <string>
@@ -44,37 +45,10 @@
 #include <cstdio>
 #include <cmath>
 #include <algorithm>
-#include <windows26.h>
-#include <shellapi.h>
-#include <shobjidl.h>
 
 // ===================================================
 //  PropertiesPanel 実装
 // ===================================================
-
-// フォルダ選択ダイアログ（FOS_PICKFOLDERS）。Terrain の DataPath 等に使用。
-static std::string browseFolder() {
-    std::string result;
-    IFileOpenDialog* pfd = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr,
-                                   CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd)))) {
-        DWORD opts = 0; pfd->GetOptions(&opts);
-        pfd->SetOptions(opts | FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
-        if (SUCCEEDED(pfd->Show(nullptr))) {
-            IShellItem* item = nullptr;
-            if (SUCCEEDED(pfd->GetResult(&item))) {
-                PWSTR wpath = nullptr;
-                item->GetDisplayName(SIGDN_FILESYSPATH, &wpath);
-                int len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
-                if (len > 1) { result.resize(len - 1); WideCharToMultiByte(CP_UTF8, 0, wpath, -1, result.data(), len, nullptr, nullptr); }
-                CoTaskMemFree(wpath);
-                item->Release();
-            }
-        }
-        pfd->Release();
-    }
-    return result;
-}
 
 // ===================================================
 //  スキーマ駆動インスペクタ
@@ -539,7 +513,7 @@ void PropertiesPanel::onRender() {
         ImGui::SeparatorText("MeshCube");
         ImGui::LabelText("MeshFile", "%s", mc->MeshFile.empty() ? "(none)" : mc->MeshFile.c_str());
         if (ImGui::Button("参照...##meshcube")) {
-            std::string path = browseFile(L"GLB (*.glb)", L"*.glb");
+            std::string path = getPlatform().openFileDialog({{"GLB (*.glb)", "*.glb"}});
             if (!path.empty()) {
                 YAML::Node node; node = path;
                 mc->setProperty("MeshFile", node);
@@ -565,7 +539,7 @@ void PropertiesPanel::onRender() {
         ImGui::SeparatorText("FileRef");
         ImGui::LabelText("Path", "%s", fr->Path.c_str());
         if (ImGui::Button("参照...##fileref")) {
-            std::string path = browseFile(L"All files (*.*)", L"*.*");
+            std::string path = getPlatform().openFileDialog({{"All files (*.*)", "*.*"}});
             if (!path.empty()) fr->Path = path;
         }
     }
@@ -576,7 +550,7 @@ void PropertiesPanel::onRender() {
         ImGui::SeparatorText("Sound");
         ImGui::LabelText("ContentPath", "%s", snd->getContentPath().c_str());
         if (ImGui::Button("参照...##sound")) {
-            std::string path = browseFile(L"Audio (*.mp3;*.wav;*.ogg)", L"*.mp3;*.wav;*.ogg");
+            std::string path = getPlatform().openFileDialog({{"Audio (*.mp3;*.wav;*.ogg)", "*.mp3;*.wav;*.ogg"}});
             if (!path.empty()) {
                 YAML::Node node; node = path;
                 snd->setProperty("ContentPath", node);
@@ -660,7 +634,7 @@ void PropertiesPanel::onRender() {
         ImGui::SeparatorText("Script");
         ImGui::LabelText("Source", "%s", sc->Path.c_str());
         if (ImGui::Button("参照...##script")) {
-            std::string path = browseFile(L"Luau Script (*.luau;*.lua)", L"*.luau;*.lua");
+            std::string path = getPlatform().openFileDialog({{"Luau Script (*.luau;*.lua)", "*.luau;*.lua"}});
             if (!path.empty()) {
                 YAML::Node node; node = path;
                 sc->setProperty("Path", node);
@@ -668,8 +642,7 @@ void PropertiesPanel::onRender() {
         }
         ImGui::SameLine();
         if (ImGui::Button("外部エディタで開く") && !sc->Path.empty()) {
-            std::wstring wp(sc->Path.begin(), sc->Path.end());
-            ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOW);
+            getPlatform().revealInFileManager(sc->Path);
         }
 
         {
@@ -729,7 +702,7 @@ void PropertiesPanel::onRender() {
         // Texture with undo
         ImGui::LabelText("Texture", "%s", dcl->texturePath.c_str());
         if (ImGui::Button("参照...##decal")) {
-            std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.tga)", L"*.png;*.jpg;*.bmp;*.tga");
+            std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
             if (!path.empty()) {
                 std::string oldPath = dcl->texturePath;
                 unsigned int oldID  = dcl->TextureID;
@@ -803,7 +776,7 @@ void PropertiesPanel::onRender() {
         // Texture path with undo
         ImGui::LabelText("Texture##texpath", "%s", tx->texturePath.c_str());
         if (ImGui::Button("参照...##tex")) {
-            std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.tga)", L"*.png;*.jpg;*.bmp;*.tga");
+            std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
             if (!path.empty()) {
                 std::string oldPath = tx->texturePath;
                 unsigned int oldID  = tx->TextureID;
@@ -947,7 +920,7 @@ void PropertiesPanel::onRender() {
         auto browseAmbient = [&](const char* propName, const char* idSuffix) {
             std::string btnLabel = std::string(propName) + " 参照...##" + idSuffix;
             if (ImGui::Button(btnLabel.c_str())) {
-                std::string path = browseFile(L"Audio (*.mp3;*.wav;*.ogg)", L"*.mp3;*.wav;*.ogg");
+                std::string path = getPlatform().openFileDialog({{"Audio (*.mp3;*.wav;*.ogg)", "*.mp3;*.wav;*.ogg"}});
                 if (!path.empty()) {
                     YAML::Node node; node = path;
                     inst->setProperty(propName, node);
@@ -1061,7 +1034,7 @@ void PropertiesPanel::onRender() {
         // データ保存先ディレクトリ（リージョンファイルの置き場所）— フォルダ参照
         ImGui::LabelText("DataPath", "%s", terrain->DataPath.c_str());
         if (ImGui::Button("参照...##terraindp")) {
-            std::string folder = browseFolder();
+            std::string folder = getPlatform().openFolderDialog();
             if (!folder.empty()) {
                 std::string before = terrain->DataPath;
                 YAML::Node node; node = folder;
@@ -1144,7 +1117,7 @@ void PropertiesPanel::onRender() {
                 sb->skyboxPaths[i].empty() ? "(none)" : sb->skyboxPaths[i].c_str());
             std::string btnId = std::string("参照...##skybox") + std::to_string(i);
             if (ImGui::Button(btnId.c_str())) {
-                std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.tga)", L"*.png;*.jpg;*.bmp;*.tga");
+                std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
                 if (!path.empty()) {
                     std::string oldPath = sb->skyboxPaths[i];
                     sb->setSkyboxPath(i, path);
@@ -1258,7 +1231,7 @@ void PropertiesPanel::onRender() {
         ImGui::SeparatorText("AppImage");
         ImGui::LabelText("IconPath", "%s", ai->iconPath.empty() ? "(none)" : ai->iconPath.c_str());
         if (ImGui::Button("参照...##appimage")) {
-            std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.ico)", L"*.png;*.jpg;*.bmp;*.ico");
+            std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.ico)", "*.png;*.jpg;*.bmp;*.ico"}});
             if (!path.empty()) {
                 YAML::Node node; node = path;
                 ai->setProperty("IconPath", node);
@@ -1320,7 +1293,7 @@ void PropertiesPanel::onRender() {
         std::string cur = imgDesc ? std::get<std::string>(imgDesc->get(inst)) : std::string();
         ImGui::LabelText("Image", "%s", cur.empty() ? "(none)" : cur.c_str());
         if (ImGui::Button("参照...##image") && imgDesc) {
-            std::string path = browseFile(L"Image (*.png;*.jpg;*.bmp;*.tga)", L"*.png;*.jpg;*.bmp;*.tga");
+            std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
             if (!path.empty()) {
                 PropValue before = imgDesc->get(inst);
                 PropertyRegistry::writeValue(inst, *imgDesc, PropValue(path));
