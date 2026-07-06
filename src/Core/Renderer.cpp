@@ -23,6 +23,7 @@
 #include <include/Core/TerrainStreamer.hpp>
 #include <include/Instances/PostEffect.hpp>
 #include <algorithm>
+#include <array>
 #include <filesystem>
 
 
@@ -70,6 +71,39 @@ static void collectParticleEmitters(Instance* inst, std::vector<ParticleEmitter*
     if (inst->IsA("ParticleEmitter")) out.push_back(static_cast<ParticleEmitter*>(inst));
     for (auto& [name, child] : inst->getChildren())
         collectParticleEmitters(child.get(), out);
+}
+
+// ---- メインカメラパス用フラスタムカリング ----
+// view*projection合成行列からGribb-Hartmann法で6平面(左右下上近遠)を抽出する。
+// Matrix4はOpenGL準拠の列優先(column-major)なのでm[col*4+row]でアクセスする。
+struct FrustumPlanes { float p[6][4]; };
+
+static FrustumPlanes extractFrustumPlanes(const Matrix4& vp) {
+    FrustumPlanes f;
+    auto row = [&](int r) { return std::array<float,4>{ vp.m[0*4+r], vp.m[1*4+r], vp.m[2*4+r], vp.m[3*4+r] }; };
+    auto r0 = row(0), r1 = row(1), r2 = row(2), r3 = row(3);
+    auto setPlane = [&](int idx, float a, float b, float c, float d) {
+        float len = std::sqrt(a*a + b*b + c*c);
+        if (len < 1e-6f) len = 1.0f;
+        f.p[idx][0] = a / len; f.p[idx][1] = b / len; f.p[idx][2] = c / len; f.p[idx][3] = d / len;
+    };
+    setPlane(0, r3[0]+r0[0], r3[1]+r0[1], r3[2]+r0[2], r3[3]+r0[3]); // left
+    setPlane(1, r3[0]-r0[0], r3[1]-r0[1], r3[2]-r0[2], r3[3]-r0[3]); // right
+    setPlane(2, r3[0]+r1[0], r3[1]+r1[1], r3[2]+r1[2], r3[3]+r1[3]); // bottom
+    setPlane(3, r3[0]-r1[0], r3[1]-r1[1], r3[2]-r1[2], r3[3]-r1[3]); // top
+    setPlane(4, r3[0]+r2[0], r3[1]+r2[1], r3[2]+r2[2], r3[3]+r2[3]); // near
+    setPlane(5, r3[0]-r2[0], r3[1]-r2[1], r3[2]-r2[2], r3[3]-r2[3]); // far
+    return f;
+}
+
+// バウンディングスフィア(中心+半径)が視錐台と交差するか。回転しうるBaseCube系は
+// 軸並行AABBだと不正確なため、対角線の半分を半径とする保守的な球で判定する。
+static bool sphereInFrustum(const FrustumPlanes& f, const Vector3& center, float radius) {
+    for (int i = 0; i < 6; i++) {
+        float dist = f.p[i][0]*center.x + f.p[i][1]*center.y + f.p[i][2]*center.z + f.p[i][3];
+        if (dist < -radius) return false;
+    }
+    return true;
 }
 
 // ===================================================
@@ -209,11 +243,35 @@ void Renderer::init(GLFWwindow* window) {
     glUniform3f(lightDirLoc, 1.0f, -1.0f, -1.0f);
     glUniform1f(brightnessLoc, 1.0f);
 
-
+    // --- 毎フレーム参照するuniform locationを一括キャッシュ（renderViewport/renderTerrainで再利用） ---
+    viewLoc             = glGetUniformLocation(shaderProgram, "view");
+    projectionLoc       = glGetUniformLocation(shaderProgram, "projection");
+    viewPosLoc          = glGetUniformLocation(shaderProgram, "viewPos");
+    hasShadowsLoc       = glGetUniformLocation(shaderProgram, "hasShadows");
+    lightSpaceMatrixLoc = glGetUniformLocation(shaderProgram, "lightSpaceMatrix");
+    modelLoc            = glGetUniformLocation(shaderProgram, "model");
+    unlitLoc            = glGetUniformLocation(shaderProgram, "unlit");
+    triplanarLoc        = glGetUniformLocation(shaderProgram, "useTriplanar");
+    texScaleLoc         = glGetUniformLocation(shaderProgram, "u_textureScale");
+    uTimeLoc            = glGetUniformLocation(shaderProgram, "uTime");
+    uIsLiquidLoc        = glGetUniformLocation(shaderProgram, "uIsLiquid");
+    useVertexColorLoc   = glGetUniformLocation(shaderProgram, "useVertexColor");
+    ourColorLoc         = glGetUniformLocation(shaderProgram, "ourColor");
+    uLightCountLoc      = glGetUniformLocation(shaderProgram, "uLightCount");
+    for (int i = 0; i < MAX_LIGHTS; i++) {
+        std::string b = "uLights[" + std::to_string(i) + "].";
+        lightLocs[i].type       = glGetUniformLocation(shaderProgram, (b + "type").c_str());
+        lightLocs[i].position   = glGetUniformLocation(shaderProgram, (b + "position").c_str());
+        lightLocs[i].direction  = glGetUniformLocation(shaderProgram, (b + "direction").c_str());
+        lightLocs[i].color      = glGetUniformLocation(shaderProgram, (b + "color").c_str());
+        lightLocs[i].brightness = glGetUniformLocation(shaderProgram, (b + "brightness").c_str());
+        lightLocs[i].range      = glGetUniformLocation(shaderProgram, (b + "range").c_str());
+        lightLocs[i].cosCutoff  = glGetUniformLocation(shaderProgram, (b + "cosCutoff").c_str());
+    }
 
     // --- Shadow map テクスチャユニットのバインド設定 ---
     glUniform1i(glGetUniformLocation(shaderProgram, "shadowMap"), 1);
-    glUniform1f(glGetUniformLocation(shaderProgram, "hasShadows"), 0.0f);
+    glUniform1f(hasShadowsLoc, 0.0f);
 
     // --- Depth シェーダーのコンパイル（Shadow Pass 用）---
     {
@@ -953,6 +1011,10 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
     Matrix4 view       = Matrix4::LookAt(desc.cameraPosition, desc.cameraPosition + desc.cameraForward, desc.cameraUp);
 
+    // メインカメラパスのフラスタムカリング用（BaseCube系の描画ループでのみ使用。
+    // Shadow Pass/Terrainは対象外）
+    FrustumPlanes camFrustum = extractFrustumPlanes(projection * view);
+
     // Workspace 内から Lighting を取得
     Lighting* lighting = findLightingInTree(static_cast<Instance*>(desc.workspace));
 
@@ -1068,10 +1130,10 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     // ---- Main Pass ----
     glUseProgram(shaderProgram);
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),       1, GL_FALSE, view.m);
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, projection.m);
-    glUniform3f(glGetUniformLocation(shaderProgram, "viewPos"), desc.cameraPosition.x, desc.cameraPosition.y, desc.cameraPosition.z);
-    
+    glUniformMatrix4fv(viewLoc,       1, GL_FALSE, view.m);
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, projection.m);
+    glUniform3f(viewPosLoc, desc.cameraPosition.x, desc.cameraPosition.y, desc.cameraPosition.z);
+
     if (lighting) {
         if (lightDirLoc   != -1) glUniform3f(lightDirLoc,   lighting->lightDir.x,  lighting->lightDir.y,  lighting->lightDir.z);
         if (brightnessLoc != -1) glUniform1f(brightnessLoc, lighting->brightness);
@@ -1084,7 +1146,6 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     // ---- 追加 Point/Spot 光源を uniform 配列へ ----
     {
-        constexpr int MAX_LIGHTS = 8;
         std::vector<LightSource*> lights;
         collectLights(static_cast<Instance*>(desc.workspace), lights);
         int count = 0;
@@ -1106,35 +1167,42 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 float ang = static_cast<SpotLight*>(ls)->Angle;
                 cosCutoff = std::cos(ang * 3.14159265f / 180.0f);
             }
-            std::string b = "uLights[" + std::to_string(count) + "].";
-            glUniform1i(glGetUniformLocation(shaderProgram, (b + "type").c_str()), isSpot ? 1 : 0);
-            glUniform3f(glGetUniformLocation(shaderProgram, (b + "position").c_str()),  pos.x, pos.y, pos.z);
-            glUniform3f(glGetUniformLocation(shaderProgram, (b + "direction").c_str()), dir.x, dir.y, dir.z);
-            glUniform3f(glGetUniformLocation(shaderProgram, (b + "color").c_str()),
-                        ls->lightColor.r, ls->lightColor.g, ls->lightColor.b);
-            glUniform1f(glGetUniformLocation(shaderProgram, (b + "brightness").c_str()), ls->brightness);
-            glUniform1f(glGetUniformLocation(shaderProgram, (b + "range").c_str()),      ls->range);
-            glUniform1f(glGetUniformLocation(shaderProgram, (b + "cosCutoff").c_str()),  cosCutoff);
+            const LightUniformLocs& loc = lightLocs[count];
+            glUniform1i(loc.type, isSpot ? 1 : 0);
+            glUniform3f(loc.position,  pos.x, pos.y, pos.z);
+            glUniform3f(loc.direction, dir.x, dir.y, dir.z);
+            glUniform3f(loc.color, ls->lightColor.r, ls->lightColor.g, ls->lightColor.b);
+            glUniform1f(loc.brightness, ls->brightness);
+            glUniform1f(loc.range,      ls->range);
+            glUniform1f(loc.cosCutoff,  cosCutoff);
             count++;
         }
-        glUniform1i(glGetUniformLocation(shaderProgram, "uLightCount"), count);
+        glUniform1i(uLightCountLoc, count);
     }
 
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, shadowReady ? shadowMapTex : 0);
     glActiveTexture(GL_TEXTURE0);
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "lightSpaceMatrix"), 1, GL_FALSE, lightSpaceMatrix.m);
-    glUniform1f(glGetUniformLocation(shaderProgram, "hasShadows"), shadowReady ? 1.0f : 0.0f);
+    glUniformMatrix4fv(lightSpaceMatrixLoc, 1, GL_FALSE, lightSpaceMatrix.m);
+    glUniform1f(hasShadowsLoc, shadowReady ? 1.0f : 0.0f);
 
-    int modelLoc        = glGetUniformLocation(shaderProgram, "model");
-    int unlitLoc        = glGetUniformLocation(shaderProgram, "unlit");
-    int triplanarLoc    = glGetUniformLocation(shaderProgram, "useTriplanar");
-    int texScaleLoc     = glGetUniformLocation(shaderProgram, "u_textureScale");
     glBindVertexArray(VAO);
 
     // 波アニメ用の時間と液体フラグ（既定 0）
-    glUniform1f(glGetUniformLocation(shaderProgram, "uTime"),     (float)glfwGetTime());
-    glUniform1f(glGetUniformLocation(shaderProgram, "uIsLiquid"), 0.0f);
+    glUniform1f(uTimeLoc,     (float)glfwGetTime());
+    glUniform1f(uIsLiquidLoc, 0.0f);
+
+    // 完全不透明(Color.a>=1)のオブジェクトはGL_BLENDを無効化して描画コスト削減。
+    // init()でglEnable(GL_BLEND)済みのためtrueスタート。ループを抜けた後はこの関数の
+    // 後段(renderClouds/renderParticles等)がGL_BLEND常時有効を前提にしているため復元する。
+    bool blendEnabled = true;
+    auto setBlendForAlpha = [&](float alpha) {
+        bool want = alpha < 0.999f;
+        if (want != blendEnabled) {
+            if (want) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+            blendEnabled = want;
+        }
+    };
 
     auto renderInst = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
@@ -1147,46 +1215,70 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         if (inst->IsA("Cube")) {
             Cube* cube = static_cast<Cube*>(inst);
             if (cube->Color.a > 0.001f) {
-                Matrix4 m = cube->getWorldCFrame().toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
-                cube->draw(modelLoc, shaderProgram);
+                CFrame wcf = cube->getWorldCFrame();
+                if (sphereInFrustum(camFrustum, wcf.Position, cube->Size.length() * 0.5f)) {
+                    Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
+                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                    setBlendForAlpha(cube->Color.a);
+                    cube->draw(modelLoc, shaderProgram);
+                }
             }
         } else if (inst->IsA("Cylinder")) {
             Cylinder* c = static_cast<Cylinder*>(inst);
             if (c->Color.a > 0.001f) {
-                Matrix4 m = c->getWorldCFrame().toMatrix4() * Matrix4::Scale(c->Size.x, c->Size.y, c->Size.z);
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
-                c->draw(modelLoc, shaderProgram);
+                CFrame wcf = c->getWorldCFrame();
+                if (sphereInFrustum(camFrustum, wcf.Position, c->Size.length() * 0.5f)) {
+                    Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(c->Size.x, c->Size.y, c->Size.z);
+                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                    setBlendForAlpha(c->Color.a);
+                    c->draw(modelLoc, shaderProgram);
+                }
             }
         } else if (inst->IsA("TriangularPrism")) {
             TriangularPrism* tp = static_cast<TriangularPrism*>(inst);
             if (tp->Color.a > 0.001f) {
-                Matrix4 m = tp->getWorldCFrame().toMatrix4() * Matrix4::Scale(tp->Size.x, tp->Size.y, tp->Size.z);
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
-                tp->draw(modelLoc, shaderProgram);
+                CFrame wcf = tp->getWorldCFrame();
+                if (sphereInFrustum(camFrustum, wcf.Position, tp->Size.length() * 0.5f)) {
+                    Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(tp->Size.x, tp->Size.y, tp->Size.z);
+                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                    setBlendForAlpha(tp->Color.a);
+                    tp->draw(modelLoc, shaderProgram);
+                }
             }
         } else if (inst->IsA("Sphere")) {
             Sphere* sp = static_cast<Sphere*>(inst);
             if (sp->Color.a > 0.001f) {
-                Matrix4 m = sp->getWorldCFrame().toMatrix4() * Matrix4::Scale(sp->Size.x, sp->Size.y, sp->Size.z);
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
-                sp->draw(modelLoc, shaderProgram);
+                CFrame wcf = sp->getWorldCFrame();
+                if (sphereInFrustum(camFrustum, wcf.Position, sp->Size.length() * 0.5f)) {
+                    Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(sp->Size.x, sp->Size.y, sp->Size.z);
+                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                    setBlendForAlpha(sp->Color.a);
+                    sp->draw(modelLoc, shaderProgram);
+                }
             }
         } else if (inst->IsA("MeshCube")) {
             MeshCube* mc = static_cast<MeshCube*>(inst);
             if (mc->Color.a > 0.001f) {
-                Matrix4 m = mc->getWorldCFrame().toMatrix4() * Matrix4::Scale(mc->Size.x, mc->Size.y, mc->Size.z);
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
-                mc->draw(modelLoc, shaderProgram);
+                CFrame wcf = mc->getWorldCFrame();
+                if (sphereInFrustum(camFrustum, wcf.Position, mc->Size.length() * 0.5f)) {
+                    Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(mc->Size.x, mc->Size.y, mc->Size.z);
+                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                    setBlendForAlpha(mc->Color.a);
+                    mc->draw(modelLoc, shaderProgram);
+                }
             }
         } else if (inst->IsA("LiquidCube")) {
             LiquidCube* lc = static_cast<LiquidCube*>(inst);
             if (lc->Color.a > 0.001f) {
-                glUniform1f(glGetUniformLocation(shaderProgram, "uIsLiquid"), 1.0f);
-                Matrix4 m = lc->getWorldCFrame().toMatrix4() * Matrix4::Scale(lc->Size.x, lc->Size.y, lc->Size.z);
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
-                lc->draw(modelLoc, shaderProgram);
-                glUniform1f(glGetUniformLocation(shaderProgram, "uIsLiquid"), 0.0f);
+                CFrame wcf = lc->getWorldCFrame();
+                if (sphereInFrustum(camFrustum, wcf.Position, lc->Size.length() * 0.5f)) {
+                    glUniform1f(uIsLiquidLoc, 1.0f);
+                    Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(lc->Size.x, lc->Size.y, lc->Size.z);
+                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                    setBlendForAlpha(lc->Color.a);
+                    lc->draw(modelLoc, shaderProgram);
+                    glUniform1f(uIsLiquidLoc, 0.0f);
+                }
             }
         }
         for (auto const& [name, child] : inst->getChildren()) {
@@ -1198,6 +1290,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         renderInst(renderInst, child.get());
     }
 
+    // renderClouds/renderParticles等はGL_BLENDが常時有効という前提のため復元する
+    if (!blendEnabled) { glEnable(GL_BLEND); blendEnabled = true; }
+
     // ---- 選択インスタンスの黄色ワイヤーフレームハイライト ----
     if (desc.renderHighlights && editor) {
         if (Instance* sel = editor->getSelectedInstance()) {
@@ -1206,8 +1301,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
                                    Matrix4::Scale(bc->Size.x * 1.02f, bc->Size.y * 1.02f, bc->Size.z * 1.02f);
                 glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
-                int colorLocHl = glGetUniformLocation(shaderProgram, "ourColor");
-                if (colorLocHl != -1) glUniform4f(colorLocHl, 1.0f, 1.0f, 0.0f, 1.0f);
+                if (ourColorLoc != -1) glUniform4f(ourColorLoc, 1.0f, 1.0f, 0.0f, 1.0f);
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, whiteTexture);
                 glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -1428,22 +1522,17 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection, Wor
     if (!terrain || !terrain->Enabled || !terrain->streamer) return;
 
     glUseProgram(shaderProgram);
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"),       1, GL_FALSE, view.m);
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, projection.m);
+    glUniformMatrix4fv(viewLoc,       1, GL_FALSE, view.m);
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, projection.m);
 
     Matrix4 identity;
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, identity.m);
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, identity.m);
 
-    int unlitLoc        = glGetUniformLocation(shaderProgram, "unlit");
-    int triplanarLoc    = glGetUniformLocation(shaderProgram, "useTriplanar");
-    int texScaleLoc     = glGetUniformLocation(shaderProgram, "u_textureScale");
-    int useVertexColLoc = glGetUniformLocation(shaderProgram, "useVertexColor");
-    int ourColorLoc     = glGetUniformLocation(shaderProgram, "ourColor");
-    if (unlitLoc        != -1) glUniform1f(unlitLoc,        0.0f);
-    if (triplanarLoc    != -1) glUniform1f(triplanarLoc,    0.0f);
-    if (texScaleLoc     != -1) glUniform1f(texScaleLoc,     1.0f);
-    if (useVertexColLoc != -1) glUniform1f(useVertexColLoc, 1.0f);
-    if (ourColorLoc     != -1) glUniform4f(ourColorLoc,     1.0f, 1.0f, 1.0f, 1.0f);
+    if (unlitLoc          != -1) glUniform1f(unlitLoc,          0.0f);
+    if (triplanarLoc      != -1) glUniform1f(triplanarLoc,      0.0f);
+    if (texScaleLoc       != -1) glUniform1f(texScaleLoc,       1.0f);
+    if (useVertexColorLoc != -1) glUniform1f(useVertexColorLoc, 1.0f);
+    if (ourColorLoc       != -1) glUniform4f(ourColorLoc,       1.0f, 1.0f, 1.0f, 1.0f);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, whiteTexture);
@@ -1456,5 +1545,5 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection, Wor
     }
 
     glBindVertexArray(0);
-    if (useVertexColLoc != -1) glUniform1f(useVertexColLoc, 0.0f);
+    if (useVertexColorLoc != -1) glUniform1f(useVertexColorLoc, 0.0f);
 }

@@ -59,6 +59,31 @@ class Renderer {
         int          brightnessLoc  = -1;
         int          lightColorLoc  = -1;
 
+        // メインシェーダー(shaderProgram)のuniform locationキャッシュ。
+        // 毎フレーム/毎インスタンスのglGetUniformLocation(文字列検索)を避けるため、
+        // init()でリンク直後に一度だけ取得する。
+        int          viewLoc             = -1;
+        int          projectionLoc       = -1;
+        int          viewPosLoc          = -1;
+        int          hasShadowsLoc       = -1;
+        int          lightSpaceMatrixLoc = -1;
+        int          modelLoc            = -1;
+        int          unlitLoc            = -1;
+        int          triplanarLoc        = -1;
+        int          texScaleLoc         = -1;
+        int          uTimeLoc            = -1;
+        int          uIsLiquidLoc        = -1;
+        int          useVertexColorLoc   = -1;
+        int          ourColorLoc         = -1;
+
+        struct LightUniformLocs {
+            int type = -1, position = -1, direction = -1, color = -1;
+            int brightness = -1, range = -1, cosCutoff = -1;
+        };
+        static const int MAX_LIGHTS = 8; // src/fragment.glslの#define MAX_LIGHTSと一致させること
+        LightUniformLocs lightLocs[MAX_LIGHTS];
+        int          uLightCountLoc = -1;
+
         unsigned int shadowFBO     = 0;
         unsigned int shadowMapTex  = 0;
         unsigned int depthShader   = 0;

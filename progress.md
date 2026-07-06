@@ -186,3 +186,88 @@ readme.mdのTodo「簡単なScreenGuiフォーマット機能」の実装をPlan
 - **`ViewportPanel.cpp`のマウスレイキャスト・ImGuizmo・地形ブラシ・ボックス選択は全て`contentOrigin`/`w`/`h`という3変数のみに依存しており、パネルの実際の描画矩形さえ正しく再定義すれば他のインタラクションコードは一切変更不要**という設計になっている。今後ビューポート表示方式を変える際はこの3変数の定義箇所（`onRender()`冒頭）だけを見ればよい。
 - **`Renderer::render()`は`editor`が`nullptr`かどうかで分岐しているが、ランタイムビルドでも実際には`NullEditorManager`が`editor`にセットされるため`nullptr`分岐は事実上通らず、`editor->getViewportSize()`（内部で`glfwGetFramebufferSize`）経由でフルウィンドウサイズを取得している**。ランタイムの3DシーンはFBOを介さず直接ウィンドウ（fbo=0）へ描画される。将来ランタイムのレターボックス対応をする場合はこの経路（`desc.fbo`/`desc.width`/`desc.height`の決定箇所）を触る必要がある。
 - **雲のUV座標系はワールドX/Zと同じ符号で増加するよう頂点が組まれている**（`renderClouds`の頂点配列）ため、テクスチャスクロールを「風下方向」に見せるには`vUV - offset`（オフセット蓄積が風向きに比例して単調増加する設計の場合）が正しい。加算/減算どちらが正しいかは頂点UVの符号に依存するため、同種のスクロールテクスチャを今後実装する際は頂点UVの向きとシェーダー側の加減算を必ずセットで確認すること。
+
+---
+
+## 2026-07-07 キャラクターQoL改善（水中ジャンプ・Truss登坂）+ Seatクラス追加 + 派生バグ4件修正
+
+### 指示内容
+readme.mdのTodoリストのうち以下2項目をPlan modeで依頼された:
+1. キャラクターQoL改善: 水中でもジャンプできる／はしご(Truss)クラスを追加して垂直に登れるようにする
+2. Seatクラスの追加: 接触で着席(Root溶接)、ジャンプで離脱、着席中はSteer(A:-1,D:1,Null:0)/Throttle(W:1,S:-1,Null:0)を更新し続ける。ポージング角度のフラグが増えるので三項演算ではなくif-else推奨
+
+事前調査（Explore不使用、CLAUDE.mdの指示によりGrep/Readで自分で調査）で、既存の`Weld`（剛体結合）・`Physics::applyBuoyancy`（LiquidCubeとのAABB重なり判定）・`Humanoid::jump/move`・`Renderer.cpp`の`IsA("Cube")`描画分岐などの既存パターンを確認した上で設計し、AskUserQuestionで3点（Truss操作方式、水中ジャンプの挙動、Steer/ThrottleのOwnership）を確認してから実装した。
+
+### 何をしたか
+
+**1. 新規クラス Truss / Seat**
+- `include/Instances/Truss.hpp` / `src/Instances/Truss.cpp`（新規）: `Named<Truss, Cube>`（`BaseCube`直接ではなく`Cube`を継承）。専用ジオメトリなし、`IsA`/`clone`のみ追加。
+- `include/Instances/Seat.hpp` / `src/Instances/Seat.cpp`（新規）: 同じく`Named<Seat, Cube>`継承。`float Steer/Throttle`（`PropertyRegistry`に`luaReadOnly().noYaml()`で登録）、`private weak_ptr<Humanoid> m_occupant`（Lua非公開の同時着席ガード）。
+
+**2. Physics: 汎用オーバーラップ判定**
+- `include/Core/Physics.hpp` / `src/Core/Physics.cpp`: `applyBuoyancy()`内のAABB重なり体積計算を`static float aabbOverlapVolume(posA,sizeA,posB,sizeB)`に抽出し、新規`BaseCube* findOverlapping(const BaseCube&, className)`を追加。水没判定・Truss接触・Seat接触の3用途で共用。
+
+**3. Humanoid（`include/Instances/Humanoid.hpp` / `src/Instances/Humanoid.cpp`）**
+- `float ClimbSpeed`追加（`PropertyRegistry`登録）。
+- `jump()` → `jump(Physics*)`にシグネチャ変更。`isGrounded || 水没中`で許可するよう条件変更。
+- `move()`に`float forwardAxis, rightAxis`（W:+1/S:-1, A:-1/D:+1の独立2軸）を追加。
+- `move()`冒頭でSeat接触検知→`sitOn()`、着席中は`Steer/Throttle`更新のみして早期return。
+- Truss接触中は`dynamicActor->setActorFlag(PxActorFlag::eDISABLE_GRAVITY, true)`で重力そのものを無効化し、向き(Rotation)の自動更新ブロックを丸ごとスキップ。速度は`climbVel.y = forwardAxis*ClimbSpeed`、水平は`flatRight*rightAxis*WalkSpeed`。
+- `sitOn(seat, physics)`: Rootを`seat->getWorldCFrame() * CFrame(0, seat->Size.y*0.5f + Root->Size.y*0.25f, 0)`にスナップ（Seatと同じ向き、向き反転なし）、`Weld`を動的生成して`workspace->addChild`後に`setCube0(Root)/setCube1(seat)`。
+- `standUp(physics)`: Weldを`parent->removeChild`で外して`m_seatWeld.reset()`、`JumpPower`相当の上向き速度+`Root->Size.y`分の上方テレポートで離脱、`seat->clearOccupant()`。
+- `computePose()`を三項演算からif-elseに書き換え、`m_seated`最優先分岐を追加（着席ポーズの脚/腕角度）。
+
+**4. User（`include/Core/User.hpp` / `src/Core/User.cpp`）**
+- `processHotkeys()` → `processHotkeys(Physics*)`にシグネチャ変更。Space押下時、着席中は`standUp()`、それ以外は`jump(physics)`。
+- `processCharacterMovement`でW/A/S/Dの生の押下状態から`forwardAxis`/`rightAxis`を算出し`humanoid->move()`に渡す。
+
+**5. 配線（Luau/SceneLoader/Editor）**
+- `src/Core/LuauEngine.cpp`: `Instance.new`ファクトリに`Truss`/`Seat`追加、`humanoid_jump_closure`が`moveToward_closure`と同じパターンで`Physics*`を解決して`jump(physics)`を呼ぶよう修正。
+- `src/Core/LuauEngine_Dispatch.cpp`: `PropertyRegistry::applyToDispatch("Seat", ...)`追加。
+- `src/Core/SceneLoader.cpp`: `createInstance`に`"Truss"`/`"Seat"`ケース追加。
+- `src/Editor/EditorManager.cpp` / `src/Editor/SceneHierarchyPanel.cpp` / `src/Editor/PropertiesPanel.cpp`: Insert Object・アイコン(`ICON_CUBE`共用)・`renderSchemaInspector(inst,"Seat",...)`を追加。
+- `doc/Instances/Truss.md` / `doc/Instances/Seat.md`（新規）、`doc/Instances/README.md`・`spec.md`のHumanoid章に暗黙仕様を追記。
+
+**6. ユーザーの実機テストで発覚した4件のバグ修正**
+- **着席ポーズの向きが逆**: 当初「Rootの向きをSeatから180度反転」で対処したが、ユーザーから「体の向きが反転する、アニメーション側を直すべき」と指摘を受け撤回。真因は`Humanoid.cpp`の`makeArm`/`makeLeg`の回転軸の符号で、着席ポーズの脚/腕角度を`-90/-10`から`+90/+10`に反転して解決（Root自体の向きはSeatと同じに戻した）。
+- **溶接位置が高すぎる**: `sitOn()`の高さオフセットを`Root->Size.y*0.5f`から`*0.25f`に縮小。
+- **Trussでアイドル時にずり落ちる**: 毎フレームY速度を0上書きするだけでは物理サブステップ内で重力が一瞬働いた分の位置ドリフトが蓄積していたため、`setActorFlag(eDISABLE_GRAVITY, true)`で重力自体を止める方式に変更。
+- **Truss中にSで自由落下**: 登坂中も「移動方向を向く」既存の回転更新ロジックが働き、後退入力で180度回転→当たり判定とズレて落下していた。Truss接触中は回転更新ブロック自体をスキップするよう修正。
+- **Weld合成で角度ロックが失われ転倒しやすくなる**: `Physics::rebuildGroup()`（Weldのcompound生成部）が`createActor()`と違い`LockFlags`を一切適用していなかったのが原因。着席→離脱を繰り返すたびにRootの角度ロック（X/Z軸、`resolveParts`で設定）が消えていた。`rebuildGroup()`内でcompound生成時にassembly全キューブの`LockFlags`をOR合成して適用するよう修正。
+- **`system.Heartbeat`のようなグローバルシグナルで、自己Disconnectする単発スクリプトを使うと`lua_unref`がアクセス違反でクラッシュ**: Seat機能自体とは無関係の既存バグと判明（クラッシュスタックにSeat/Weld/Physics/Humanoidのコードが一切現れないことから切り分け）。`RCBNScriptSignal::connect()`が`m_mainL`を「最初に`Connect`を呼んだその時のL」でキャッシュしており、ループを持たない単発スクリプトのコルーチンスレッドがLuau側でGC/破棄された後にdisconnect/fireで参照するとdangling `lua_State*`になっていた。`lua_mainthread(L)`でVMの永続的なメインスレッドに解決してからキャッシュするよう`RCBNScriptSignal.cpp`を1行修正。
+
+### なぜそうしたか
+
+- **Truss/SeatをCube継承にした理由**: `Renderer.cpp`の描画ディスパッチが`IsA("Cube")`分岐で`Cube*`にstatic_castして`draw()`を呼ぶだけの設計だったため、`Cube`を継承すればDecal/Texture対応込みの描画コードがそのまま乗り、Renderer.cppを一切変更せずに済む。`BaseCube`直接継承だと専用描画コードの新規実装かRenderer.cpp改修が必要になっていた。
+- **「接触」判定をAABB重なりにした理由**: 既存の`applyBuoyancy`が同じ精度（回転無視）でLiquidCube判定をしており、PhysXのシーンクエリ（オーバーラップ）を新規に増やすより既存パターンの横展開の方が一貫性があり実装コストも低いと判断。
+- **Steer/Throttleを独立した`forwardAxis`/`rightAxis`引数にした理由**: 既存の`targetMoveDir`は複数キー同時押下時に正規化されるため斜め入力で0.707倍に減衰する。Seatのステアリング/スロットルや車のペダルはそれぞれ独立した±1であるべきなので、生の合算値（Nullで自動的に0になる）を新しい2引数として渡す設計にした。
+- **着席ポーズの向き問題を「Root回転」ではなく「ポーズ角度」で直した理由**: ユーザー実機確認で「Root回転を反転すると体全体の向きが反対になる」と判明したため。当初はどちらが原因か切り分けできておらず両方触ってしまったが、ユーザーの一言で真因（`makeLeg`/`makeArm`の回転計算で負角度が後方(+Z)、正角度が前方(-Z)に曲がる仕様）にたどり着けた。
+- **Truss重力対策を「毎フレーム速度0上書き」から「ActorFlag::eDISABLE_GRAVITY」に変えた理由**: 前者は「観測できる状態(速度)」だけをリセットしていて、PhysXの物理サブステップ内で重力が積分される「その間」の位置ドリフトまでは防げていなかった。後者は根本原因（重力そのもの）を止めるため副作用なく解決する。
+- **LockFlags紛失の修正範囲をrebuildGroup内OR合成にした理由**: assembly（Weldで繋がるキューブ群）は複数キューブが1つのcompound PxRigidDynamicに統合されるため、どのキューブのLockFlagsを採用するかが曖昧になる。安全側に倒し、assembly内の誰か1つでもロックを要求していれば尊重されるようOR合成を選んだ（Rootだけでなく将来同様の要件を持つ別クラスにも自然に対応できる）。
+
+### どういう経緯か
+
+1. Plan modeでreadme.mdの2項目を確認。Explore/PlanエージェントはCLAUDE.mdの明示指示により使わず、Grep/Readで自分でBaseCube/Weld/Humanoid/User/Physics/Rendererの既存パターンを調査。
+2. AskUserQuestionで3点（Truss操作、水中ジャンプの挙動、Steer/ThrottleのOwnership）を確認 → 全て提示した推奨案が採用された。
+3. Physics(findOverlapping) → Truss/Seatクラス → Humanoid → User → Luau/SceneLoader/Editor → ドキュメント の順で実装し、ビルド成功。
+4. ユーザーが実機+Luauスクリプト（`system.Heartbeat`でSeat.Steer/Throttleの4方向を検証するテストスクリプト）でテストし「概ね問題ないが3点」と報告: 着席ポーズの向き、Trussでのずり落ち、Trussの後退時の自由落下。3点とも原因を特定して修正・再ビルド。
+5. さらにユーザーから「着席ポーズは反転ではなくアニメーション側が逆」という訂正が入り、Root回転の180度反転を撤回してポーズ角度側を反転する形に直した。同時に「溶接位置が高い」との指摘で高さオフセットも調整。
+6. 続けて「ジャンプしながらSeatに接触して溶接/切断を繰り返すとRootの回転ロックが外れて転倒しやすい」という4件目のバグ報告。`Physics::rebuildGroup`の調査でLockFlags未適用を発見し修正。
+7. さらに「Seatを離れるときにクラッシュした」という報告（`lua_unref`でアクセス違反）。スタックトレースにSeat関連コードが一切現れないことから切り分けを行い、`RCBNScriptSignal`の`m_mainL`キャッシュがコルーチンスレッド起因でdanglingになる既存バグだと特定して修正。
+
+### 未解決・保留
+
+- 4件のバグ修正（着席ポーズ向き/溶接高さ/Truss重力/Truss回転、およびLockFlags・RCBNScriptSignalの2件）はビルド確認のみで、ユーザーによる実機再確認は本サマリー作成時点で未回答。
+- `sitOn()`の高さオフセット（`Root->Size.y*0.25f`）は目安の調整値。実際に見てまだ高い/低い場合は再調整が必要。
+- 着席ポーズの脚/腕角度（`90.0f`/`10.0f`）も暫定値。他のポーズ（ツール装備時の腕上げ等）との組み合わせ時の見た目は未検証。
+- `RCBNScriptSignal`の`lua_mainthread()`修正は今回発覚した経路（Heartbeat + 自己Disconnect）のみ確認・修正した。同じ`m_mainL`キャッシュパターンを使う他のシグナル（`Touched`等）で同種の問題が理論上は起こり得るが、`lua_mainthread()`化により根本原因ごと塞がっているはずなので追加対応は不要と判断（未検証）。
+- Truss接触判定はAABB重なりのみ（回転無視）。斜めに設置されたTrussや、狭い隙間での接触判定の精度は未検証。
+- Seatの`m_occupant`（同時着席ガード）は複数キャラクターが同時にテストする状況（マルチプレイ相当）では未検証。
+
+### 暗黙仕様の発見（spec.mdに無い挙動）
+
+- **`Physics::rebuildGroup()`（Weldのcompound生成）は`createActor()`と違いLockFlagsを適用しない設計だった**（今回修正するまで）。Weld/Motorで複数キューブをcompound化する既存機能（帽子・ラグドール等）を触る際は、個々のキューブが持つ`BaseCube::LockFlags`がcompound化のたびに失われないか常に確認すること。
+- **`makeLeg`/`makeArm`（Humanoid.cppの匿名名前空間関数）の回転角度は、正の角度でキャラクターの前方(-Z)、負の角度で後方(+Z)に足/腕が曲がる**。`Quaternion::LookRotation`がローカル-Zを前方とする設計（`Cube`のFront面=法線(0,0,-1)と一致）と整合している。今後この関数を使って新しいポーズ（しゃがむ、寝る等）を追加する際はこの符号を踏まえること。
+- **`RCBNScriptSignal::m_mainL`は「最初にConnectを呼んだ時のlua_State*」をキャッシュする設計だったが、Luauのコルーチンスレッドはそのスクリプトの実行終了とともに破棄されうる**。ループを持たない単発スクリプト（セットアップだけして終了する典型的な初期化スクリプト）から`Connect`されたシグナルは特に危険で、後から`disconnect`/`fire`（`once`経由や外部からの明示的Disconnect含む）を呼ぶとdanglingな`lua_State*`を使うことになる。`lua_mainthread(L)`で解決してからキャッシュすることで回避した。同様にlua_State*をメンバに保持するコードを新規に書く際はこのパターンを踏襲すること。
+- **`Humanoid::move()`は`physics`引数がnullptrでも呼び出せる設計になっており（`moveToward()`など）、Seat/Truss判定(`physics->findOverlapping`)もnullガードが必須**。Seat/Truss機能を拡張する際、`physics`のnullチェックを忘れると当該呼び出し元でクラッシュする。
+
