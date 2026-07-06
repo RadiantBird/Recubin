@@ -17,7 +17,7 @@ Windowsで動作します。後々、Mac対応予定。
 - 物理で遊べるようにする。
 
 ## Todoリスト
-(!: 中止|?: 不明|x: 達成済み)
+(!: 中止|?: 不明|~: 保留中|x: 達成済み)
 
 - [x] パーティクルを実装
   - 火
@@ -46,14 +46,13 @@ Windowsで動作します。後々、Mac対応予定。
   - 反射率プロパティを新しく追加
   - レイトレーシングはしない
 
-- [] 透明な画像をDecal/Textureとして貼るとそのCube自体が透ける問題の修正
+- [x] 透明な画像をDecal/Textureとして貼るとそのCube自体が透ける問題の修正
 
-- [] ImageLabel/ImageButtonがSurfaceGui/BillboardGuiに未対応な問題の修正
-  - [] そもそも、SurfaceGui/BillboardGui下にあるButtonクラスはそもそも反応しない
-  - [] IsAだと不自然なのでHasAにリファクタ
+- [x] ImageLabel/ImageButtonがSurfaceGui/BillboardGuiに未対応な問題の修正
+  - [~] IsAだと不自然なのでHasAにリファクタ
 
-- [] コピペしたときにCube1->Cube11みたいにナンバリングがおかしくなる問題の修正
-- [] 選択中にF2ですぐにインスタンスの名前を変更できるようにする
+- [x] コピペしたときにCube1->Cube11みたいにナンバリングがおかしくなる問題の修正
+- [x] 選択中にF2ですぐにインスタンスの名前を変更できるようにする
 
 - [] OpenGLパイプラインを最適化(必要かは検討の余地あり)
 
@@ -73,7 +72,8 @@ Windowsで動作します。後々、Mac対応予定。
 - [] Seatクラスの追加
   - 接触するとハードコードの座った状態のポーズに移行し、RootをSeatと溶接
   - ジャンプで溶接を解除
-  - Seatと接続中、Steer(A:-1, D:1, Null:0)とThrottle(W:1,S:-1,Null:0)情報を更新し続ける
+  - Seatと接続中、Steer(A:-1, D:1, Null:0)とThrottle(W:1,S:-1,Null:0)情報を更新し続ける(入力状況が更新されたとき)
+  - ポージング角度の状態を決めるフラグが多くなってきたので三項演算ではなくif else推奨
 
 - [] 簡単なScreenGuiフォーマット機能
   - Systemに基準解像度を定義(1920x1080)など
