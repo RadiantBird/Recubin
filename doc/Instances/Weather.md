@@ -69,6 +69,13 @@ Workspaceの直接の子として配置する想定（Sun/Moon/Skyboxと同じ�
 対象を決定、`Physics::raycast`で空が開けているか（間に遮蔽物がないか）確認してから発火する。ダメージ・延焼は
 実装しない（視覚効果のみ）。
 
+発火時、対象頭上`kBoltHeight`(80stud)の高さから対象頭上までを中点変位法（`kBoltIterations`回反復、
+振幅`kBoltJitter`は反復ごとに半減）でジグザグに折れ曲がる頂点列に分割し`m_lightningBoltPoints`へ保持する。
+以後`m_lightningTimer`の減衰と同期して`m_lightningBoltAlpha`（線形減衰）も0まで下がる。この頂点列と
+アルファは`getLightningBolt()`/`getLightningBoltAlpha()`で公開され、`Renderer::renderLightning()`が
+既存の`m_lineShader`（Rope/Rod/地形ブラシガイドと同じ線描画基盤）で`GL_LINE_STRIP`描画する
+（新規GLリソースは追加しない）。
+
 ## 既知の制約
 
 - 子（雨/雪/雷/環境音インスタンス）はシリアライズされない。手動で調整した色・速度等は保存/複製で失われ、

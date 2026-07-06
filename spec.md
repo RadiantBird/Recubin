@@ -89,3 +89,20 @@ PhysXに実装されているもののこと。
 ### 数値プロパティのクランプ
 - 不正値が困る一部の数値（Humanoid.WalkSpeed/JumpPower/MaxHealth、各種ライトの
   Brightness/Range/Angle 等）は Luau 書込時に定義レンジ `[lo, hi]` へクランプされる。
+
+## GUI（ScreenGui/SurfaceGui/BillboardGui）
+- **SurfaceGuiの実際のベイク解像度は、SurfaceGui自身の`Size`比率ではなく、親BaseCubeの
+  対象フェイスの物理サイズ比率に合わせて決まる**（`Renderer_GUI.cpp`の`computeSurfaceGuiLayout`）。
+  例えば`Size=[200,100]`のSurfaceGuiを1x1x1の立方体に貼ると、実際のFBOは200x200になり、
+  本来の200x100キャンバスはその中でレターボックス（上下に余白）されて焼き込まれる。
+  UIをデザインする際は「SurfaceGuiのSizeがそのままアスペクト比になる」わけではないことに注意。
+- **`bakeSurfaceGui`はベイク後のテクスチャを手動で左右反転している**（列方向のみ）。
+  上下方向はOpenGLのFBO読み書き規約（`glGetTexImage`/テクスチャサンプリングは「行0=下端」）
+  により暗黙に反転される。3D面へのUIテクスチャマッピングを新たに実装する際は、
+  X軸（コード側の明示的な反転）とY軸（API側の暗黙の反転）を別々に検証すること。
+  片方だけ検証して安心すると、もう片方で座標がズレるバグを埋め込みやすい。
+- **GUIの`InvisibleButton`系のImGui IDはインスタンスポインタ由来で生成すること**
+  （`Renderer_GUI.cpp`の`drawScreenGuiElement`/`drawWorldGuiChildren`）。
+  インスタンス名（`Name`）をIDに使うと、同名インスタンスが複数存在する構成
+  （コピペ量産、テンプレート的な使い方）でImGuiのID衝突（"conflicting ID"警告、
+  クリック判定の誤動作）を起こす。
