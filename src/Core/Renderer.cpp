@@ -454,7 +454,7 @@ uniform vec2  windOffset;
 uniform float cloudCover;
 uniform float cloudDensity;
 void main() {
-    float n = texture(cloudTex, vUV + windOffset).r;
+    float n = texture(cloudTex, vUV - windOffset).r;
     float alpha = smoothstep(1.0 - cloudCover, 1.0, n) * cloudDensity;
     FragColor = vec4(0.92, 0.93, 0.95, alpha);
 }

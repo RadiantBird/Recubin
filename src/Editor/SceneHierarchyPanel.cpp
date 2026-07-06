@@ -199,6 +199,10 @@ static const char* getClassIcon(const std::string& cn) {
         cn == "WorldGuiObject")                                              return ICON_GUI;
     if (cn == "Rope" || cn == "Rod" || cn == "Weld" || cn == "Motor")        return ICON_CONSTRAINT;
     if (cn == "System") return ICON_SYSTEM;
+    if (cn == "Weather") return ICON_WEATHER;
+    if (cn == "StarterCharacter") return ICON_STARTERCHARACTER;
+    if (cn == "AppImage") return ICON_APPIMAGE;
+    if (cn == "PathfindingService") return ICON_PATHFINDINGSERVICE;
     if (cn == "PostEffect") return ICON_POSTEFFECT;
     return ICON_INSTANCE;
 }

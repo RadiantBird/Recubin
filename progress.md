@@ -129,3 +129,60 @@ readme.mdのTodo「viewportFocusedでないのにマウスをスクロールす�
 
 - **`User::processCameraRotation`のカーソルキャプチャは、Editorのフリーカメラ操作とRuntimeのゲームプレイカメラ操作の両方で共有されている**。`controlMode`（Free/Character/Program）に関わらず、右ドラッグ・Altフリールックによる回転ロジックとカーソルキャプチャは同一コードパスを通るため、この付近を触る変更は必ずEditor/Runtime両方への影響を考慮する必要がある。
 - **ImGuiの`ImGuiConfigFlags_ViewportsEnable`はEditorビルドでのみ有効**（`Renderer::init`が`#ifndef EDITOR_DISABLED`で分岐）。これが有効だと`ImGui::GetForegroundDrawList()`等のスクリーン座標は「デスクトップ絶対座標」になり、GLFWの`glfwGetCursorPos`（ウィンドウクライアント座標）とは座標系が異なる。この2つの座標系を跨ぐ描画を書く際は、`io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable`で分岐し`glfwGetWindowPos`を加算するかどうかを切り替える必要がある（`Renderer::init`内に既存の同種分岐パターンあり）。
+
+---
+
+## 2026-07-06 ScreenGui基準解像度スケーリング + ビューポートレターボックス + 雲スクロール方向バグ修正
+
+### 指示内容
+readme.mdのTodo「簡単なScreenGuiフォーマット機能」の実装をPlan modeで依頼された。実装後、「ビューポートサイズが可変で手触りが悪い」というフィードバックからレターボックス対応に発展し、さらに別のTodo「風の向きと雲のスクロール方向が逆な問題を修正」も追加で依頼された。
+
+### 何をしたか
+
+**1. ScreenGui基準解像度スケーリング機能**
+- `include/Instances/System.hpp` / `src/Instances/System.cpp`: `Vector2 BaseResolution`（既定1920x1080）を追加。`PropertyRegistry::registerClass("System", {field<&System::BaseResolution>("BaseResolution").luaReadOnly()})` で登録し、YAML保存・エディター編集・Luau読み取り専用公開に対応（既存の`MaxClonesPerFrame`等の完全手書きプロパティとは別経路として共存させた）。
+- `src/Core/SceneLoader.cpp`: 既存の2箇所のSystem手書き保存ブロックに`PropertyRegistry::saveProperties(out, sys, "System")`を追加し、BaseResolutionもYAML出力されるようにした。
+- `src/Core/LuauEngine_Dispatch.cpp`: `PropertyRegistry::applyToDispatch("System", ...)`を追加し、Luauから`System.BaseResolution`を読み取り可能にした（書込は`.luaReadOnly()`でブロック）。
+- `src/Editor/PropertiesPanel.cpp`: System欄に`renderSchemaInspector(inst, "System", m_history)`を1行追加するだけで、ウィジェット描画・Undo記録は既存の汎用スキーマ駆動インスペクタに任せた（新規Commandクラスは不要だった）。
+- `src/Core/Renderer_GUI.cpp`: `drawScreenGuiElement`に`scaleX/scaleY`引数を追加し、`Norm::Pixel`のPosition/Sizeに乗算するよう変更。`Renderer::renderScreenGui`が`ws.Parent.lock()`からSystemを取得し`vpW/BaseResolution.x`、`vpH/BaseResolution.y`を計算する（System不在時は1.0にフォールバックし既存挙動を保持）。
+
+**2. ビューポートのレターボックス対応**
+- `src/Editor/ViewportPanel.cpp::onRender()`: FBOサイズを`avail`そのままではなく`min(avail.x/baseW, avail.y/baseH)`で計算した、BaseResolutionとアスペクト比が一致するサイズにリサイズするよう変更。パネル全体を黒で塗ってから中央にFBO画像を配置し、`contentOrigin`/`w`/`h`を画像の実際の表示矩形に更新した。
+- 追加修正: BillboardGuiなど`renderWorldGui`が投影するパネルがレターボックス矩形の外にはみ出して黒帯を上書きする不具合が実機確認で発覚。`renderGameGui`呼び出しの後に黒帯4本（上下左右）を再度最前面に重ね描きする処理を追加して解決。
+
+**3. 雲のスクロール方向バグ修正**
+- `src/Core/Renderer.cpp::initCloudRenderer()`の雲フラグメントシェーダー内、`texture(cloudTex, vUV + windOffset)` を `texture(cloudTex, vUV - windOffset)` に1行修正。
+
+### なぜそうしたか
+
+- **BaseResolutionのLuau公開方式**: 「完全非公開（既存の安全設定と同じ）」か「読み取り専用でLuau公開」かをユーザーに確認。ユーザーが後者を選択したため`PropertyRegistry`に`.luaReadOnly()`付きで登録する方式を採用した（`.readOnly()`だとYAML/clone用の`set`まで消えて使えなくなる点に注意。両者の違いを把握した上で使い分けた）。
+- **スケーリング適用範囲**: ScreenGui直下（`renderScreenGui`）のみにするか、WorldGui配下のPixel要素にも広げるかを確認。ユーザーは前者（ScreenGui限定）を選択。`drawWorldGuiChildren`のPixelは「パネル内相対座標」という別の意味を持つため、混同すると設計が濁ると判断したため。
+- **レターボックスの適用範囲**: エディターのViewportPanelのみか、ランタイム（Recubin.exe/RecubinEngine.exe）の実ウィンドウも含めるかを確認。ランタイムは3DシーンをFBOなしで直接ウィンドウへ描画しており（`Renderer::render()`）、対応するには`glViewport`呼び出しなど中核パイプラインまで踏み込む必要がありリスクが高いため、ユーザーはエディターのみを選択。ランタイムは今回スコープ外とした。
+- **ViewportPanel.cppの改修方針**: 既存のマウスレイキャスト（`makeRay`）・ImGuizmo::SetRect・地形ブラシ・ボックス選択がすべて`contentOrigin`/`w`/`h`という3変数経由で一貫して実装されていることを事前のコード調査（Grep）で確認できたため、この3変数の定義だけを書き換えれば他のロジックは無改修で正しく追従すると判断した（実際その通りだった）。
+- **雲スクロール方向のバグ原因の切り分け**: UV座標のU/VはワールドX/Zと同じ符号で増加するよう頂点を組んでいる（`renderClouds`の頂点UV割当）。`m_cloudScrollOffset`が`WindDirection`に比例して単調増加するWeather.cpp側の蓄積式自体は自然な設計のため、そちらではなくシェーダーのサンプリング側（`vUV + windOffset` → `vUV - windOffset`）を直す方を選んだ。「風下方向にサンプル点を追従させるには符号反転が必要」であることを手計算で確認してから修正した。
+
+### どういう経緯か
+
+1. readme.mdの「簡単なScreenGuiフォーマット機能」をPlan modeで着手。CLAUDE.mdの明示指示（計画をサブエージェントに外注しない）に従い、Explore作業も自分でGrep/Readして直接調査した。
+2. 設計上の分岐点（Luau公開範囲、適用スコープ）をAskUserQuestionで確認してから実装・ビルド成功。
+3. ユーザーから「ビューポートサイズが可変で手触りが悪い、アスペクト比を維持して外側を黒くしたい」とフィードバック。適用範囲（エディターのみ/ランタイムも）を再度確認してからViewportPanel.cppを改修。
+4. 実機確認でBillboardGuiが黒帯の上に描画される不具合が見つかり、黒帯の再最前面描画で対応。
+5. 別Todo「風の向きと雲のスクロール方向が逆」の修正を依頼され、Weather.hpp/cpp・Renderer.cppの雲関連コードを読み込んで、シェーダー内サンプリング座標の符号を1行修正。
+
+### 未解決・保留
+
+- ScreenGui基準解像度スケーリング機能（Propertiesパネルでの`BaseResolution`編集・Undo・シーン保存復元・Luauからの読み取り/書込ブロック）は、ビルド確認のみでユーザーによる実機確認は未実施。
+- ビューポートのレターボックス表示（黒帯の位置・GUIとのズレ・パネルリサイズ時の追従）も実機確認待ち。
+- 雲のスクロール方向修正も、実際にWindDirectionを設定して見た目の流れる向きが一致するかは未確認。
+- ランタイム（Recubin.exe/RecubinEngine.exe）側のレターボックス対応は明示的にスコープ外としたため未着手。将来対応する場合は`src/Core/Renderer.cpp`の`render()`と`renderViewport`内の`glViewport`呼び出しの改修が必要になる。
+
+### 試して失敗した/やめた方法
+
+- 大きな手戻りは発生しなかった（設計分岐点を都度AskUserQuestionで確認してから実装したため）。ただしレターボックス黒帯は「パネル全体を黒で1回塗る→画像→GUI」の順で実装した初版では、GUI（BillboardGuiのパネル投影）がレターボックス矩形の外にはみ出して黒帯を上書きしてしまう不具合が実機確認で発覚した。原因は描画順序のみだったため、設計をやり直さずGUI描画後に黒帯を再度重ね描きする1手順を追加するだけで解決した。
+
+### 暗黙仕様の発見（spec.mdに無い挙動）
+
+- **`System`クラスは意図的にPropertyRegistry未登録で完全手書きの安全設定（`MaxClonesPerFrame`等）を持つ**が、今回`BaseResolution`だけは`PropertyRegistry`に登録する形で混在させた。1クラス内で「手書きプロパティ」と「PropertyRegistry登録プロパティ」が共存できることを確認した（`setProperty`で`PropertyRegistry::loadProperty`を先に試し、失敗したら手書き分岐にフォールバックする形）。
+- **`ViewportPanel.cpp`のマウスレイキャスト・ImGuizmo・地形ブラシ・ボックス選択は全て`contentOrigin`/`w`/`h`という3変数のみに依存しており、パネルの実際の描画矩形さえ正しく再定義すれば他のインタラクションコードは一切変更不要**という設計になっている。今後ビューポート表示方式を変える際はこの3変数の定義箇所（`onRender()`冒頭）だけを見ればよい。
+- **`Renderer::render()`は`editor`が`nullptr`かどうかで分岐しているが、ランタイムビルドでも実際には`NullEditorManager`が`editor`にセットされるため`nullptr`分岐は事実上通らず、`editor->getViewportSize()`（内部で`glfwGetFramebufferSize`）経由でフルウィンドウサイズを取得している**。ランタイムの3DシーンはFBOを介さず直接ウィンドウ（fbo=0）へ描画される。将来ランタイムのレターボックス対応をする場合はこの経路（`desc.fbo`/`desc.width`/`desc.height`の決定箇所）を触る必要がある。
+- **雲のUV座標系はワールドX/Zと同じ符号で増加するよう頂点が組まれている**（`renderClouds`の頂点配列）ため、テクスチャスクロールを「風下方向」に見せるには`vUV - offset`（オフセット蓄積が風向きに比例して単調増加する設計の場合）が正しい。加算/減算どちらが正しいかは頂点UVの符号に依存するため、同種のスクロールテクスチャを今後実装する際は頂点UVの向きとシェーダー側の加減算を必ずセットで確認すること。

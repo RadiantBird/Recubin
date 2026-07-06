@@ -24,4 +24,8 @@
 #define ICON_SKYBOX       ""  // map?
 #define ICON_CONSTRAINT   "\xef\x81\xa1"  // f061 fa-arrow-right (link)
 #define ICON_USER         "\xef\x80\x87"  // f007 fa-user
-#define ICON_SYSTEM       "⚛"
+#define ICON_WEATHER      "" // cloud and thunder
+#define ICON_STARTERCHARACTER "" // person with gear
+#define ICON_PATHFINDINGSERVICE "" // map with pin
+#define ICON_APPIMAGE     "" // image file
+#define ICON_SYSTEM       "⚛" // atom
