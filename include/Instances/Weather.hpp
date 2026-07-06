@@ -5,6 +5,7 @@
 #include <include/Math/Vector3.hpp>
 #include <memory>
 #include <string>
+#include <vector>
 
 class Cube;
 class ParticleEmitter;
@@ -49,6 +50,10 @@ public:
     // Rendererが読む雲UVスクロールオフセット（読み取り専用）
     Vector2 getCloudScrollOffset() const { return m_cloudScrollOffset; }
 
+    // Rendererが読む雷柱のジグザグ頂点列とフラッシュ連動アルファ（読み取り専用）
+    const std::vector<Vector3>& getLightningBolt() const { return m_lightningBoltPoints; }
+    float getLightningBoltAlpha() const { return m_lightningBoltAlpha; }
+
     // Workspace直下からWeatherを探してupdate()する（Sun/Moonと同じ直接の子スキャン）
     static void updateAll(Instance* workspaceRoot, float dt, const Vector3& cameraPosition);
 
@@ -65,6 +70,8 @@ private:
     std::string m_lastAmbientPath;
     float   m_lightningTimer = 0.0f;
     Vector2 m_cloudScrollOffset = Vector2(0.0f, 0.0f);
+    std::vector<Vector3> m_lightningBoltPoints;
+    float   m_lightningBoltAlpha = 0.0f;
 
     void ensureChildren();
     void updateAmbientAudio();

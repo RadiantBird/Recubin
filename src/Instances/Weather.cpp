@@ -19,6 +19,33 @@ namespace {
     constexpr float kLightningBrightness    = 10.0f;
     constexpr float kSkyAnchorHeight        = 150.0f;
     constexpr float kWindToUVScale          = 0.0002f;
+    constexpr float kBoltHeight             = 80.0f;  // 落雷対象頭上から雷柱を伸ばす高さ
+    constexpr int   kBoltIterations         = 5;       // 中点変位法の反復回数（頂点数は2^n+1）
+    constexpr float kBoltJitter             = 6.0f;    // 初期の水平ジッター振幅（反復ごとに半減）
+
+    // 中点変位法で開始点→終了点の間をジグザグに折れ曲がる頂点列にする
+    std::vector<Vector3> generateBoltPoints(const Vector3& start, const Vector3& end) {
+        auto frand11 = []() { return (static_cast<float>(std::rand()) / RAND_MAX) * 2.0f - 1.0f; };
+        std::vector<Vector3> points{ start, end };
+        float jitter = kBoltJitter;
+        for (int iter = 0; iter < kBoltIterations; ++iter) {
+            std::vector<Vector3> next;
+            next.reserve(points.size() * 2);
+            next.push_back(points.front());
+            for (size_t i = 0; i + 1 < points.size(); ++i) {
+                Vector3 a = points[i];
+                Vector3 b = points[i + 1];
+                Vector3 mid = (a + b) * 0.5f;
+                mid.x += frand11() * jitter;
+                mid.z += frand11() * jitter;
+                next.push_back(mid);
+                next.push_back(b);
+            }
+            points = std::move(next);
+            jitter *= 0.5f;
+        }
+        return points;
+    }
 }
 
 static const bool s_weatherRegistered = []{
@@ -230,6 +257,7 @@ void Weather::attemptStrike() {
     if (m_lightningAnchor) m_lightningAnchor->teleportTo(top);
     if (m_lightningLight)  m_lightningLight->brightness = kLightningBrightness;
     m_lightningTimer = kLightningFlashDuration;
+    m_lightningBoltPoints = generateBoltPoints(top + Vector3(0.0f, kBoltHeight, 0.0f), top);
     if (m_lightningSparks) m_lightningSparks->emit(40);
 }
 
@@ -262,9 +290,11 @@ void Weather::update(float dt, const Vector3& cameraPosition) {
         m_lightningTimer -= dt;
         float t = std::max(0.0f, m_lightningTimer / kLightningFlashDuration);
         m_lightningLight->brightness = t * t * kLightningBrightness;
+        m_lightningBoltAlpha = t;
         if (m_lightningTimer <= 0.0f) {
             m_lightningTimer = 0.0f;
             m_lightningLight->brightness = 0.0f;
+            m_lightningBoltAlpha = 0.0f;
         }
     }
 }

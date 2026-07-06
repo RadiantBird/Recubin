@@ -123,6 +123,11 @@ class Renderer {
         void renderClouds(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                            const Vector3& cameraPosition);
 
+        // 雷柱（Weatherが落雷時に中点変位法で生成したジグザグ頂点列を描画するだけ。
+        // ジオメトリ生成自体はWeather::attemptStrike()側で行う）。既存のm_lineShaderを流用し
+        // 新規GLリソースは追加しない。
+        void renderLightning(Workspace& workspace, const Matrix4& view, const Matrix4& projection);
+
         // GUI 描画
         Matrix4  m_lastView;
         Matrix4  m_lastProj;

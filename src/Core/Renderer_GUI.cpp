@@ -462,7 +462,9 @@ static bool hitTestSurfaceGui(SurfaceGui* sg, BaseCube* cube, const Vector3& ray
 
     // bakeSurfaceGui が焼き込みテクスチャを左右反転しているため、X はミラーして戻す
     float fboX = (1.0f - texU) * (float)L.w;
-    float fboY = texV * (float)L.h;
+    // OpenGL の FBO 読み書き(glGetTexImage/テクスチャサンプリング)は行が下から0番になる規約のため、
+    // ImGuiの上原点(canvasY=0が上端)の座標系に戻すには Y もミラーする必要がある
+    float fboY = (1.0f - texV) * (float)L.h;
     float canvasX = (fboX - L.offX) / L.scale;
     float canvasY = (fboY - L.offY) / L.scale;
 

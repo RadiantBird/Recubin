@@ -572,6 +572,38 @@ void Renderer::renderClouds(Workspace& workspace, const Matrix4& view, const Mat
     glUseProgram(shaderProgram);
 }
 
+void Renderer::renderLightning(Workspace& workspace, const Matrix4& view, const Matrix4& projection) {
+    if (!m_lineShader) return;
+
+    Weather* weather = nullptr;
+    for (auto const& [name, child] : workspace.getChildren()) {
+        if (child->IsA("Weather")) { weather = static_cast<Weather*>(child.get()); break; }
+    }
+    if (!weather || !weather->Enabled) return;
+
+    float alpha = weather->getLightningBoltAlpha();
+    const std::vector<Vector3>& bolt = weather->getLightningBolt();
+    if (alpha <= 0.0f || bolt.size() < 2) return;
+
+    std::vector<float> verts;
+    verts.reserve(bolt.size() * 3);
+    for (const Vector3& p : bolt) { verts.push_back(p.x); verts.push_back(p.y); verts.push_back(p.z); }
+
+    glUseProgram(m_lineShader);
+    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"),       1, GL_FALSE, view.m);
+    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
+    glUniform4f(glGetUniformLocation(m_lineShader, "lineColor"), 0.9f, 0.95f, 1.0f, alpha);
+
+    glBindVertexArray(m_lineVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizei)(verts.size() * sizeof(float)), verts.data(), GL_DYNAMIC_DRAW);
+    glLineWidth(3.0f);
+    glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)(verts.size() / 3));
+    glLineWidth(1.0f);
+    glBindVertexArray(0);
+    glUseProgram(shaderProgram);
+}
+
 void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection) {
     if (!m_lineShader) return;
 
@@ -1216,6 +1248,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     // ---- 雲の描画（Weather。状態更新はメインループ側で毎フレーム1回のみ実行済み） ----
     renderClouds(*desc.workspace, view, projection, desc.cameraPosition);
+
+    // ---- 雷柱の描画（Weather。ジオメトリはWeather::attemptStrike()側で生成済み） ----
+    renderLightning(*desc.workspace, view, projection);
 
     // ---- パーティクル描画（シミュレーションはメインループ側で毎フレーム1回のみ実行済み） ----
     {
