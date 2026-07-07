@@ -26,8 +26,13 @@ std::shared_ptr<Instance> Decal::clone() const {
 }
 
 void Decal::setFace(Face f) {
+    // 名前がまだ既定名(Decal_<Face>)のままの場合のみ追従させる。
+    // ユーザーが改名済みなら、Face変更で勝手に上書きしない。
+    std::string defaultName = "Decal_" + std::string(faceNames[(int)face]);
+    if (Name == defaultName) {
+        Name = "Decal_" + std::string(faceNames[(int)f]);
+    }
     face = f;
-    Name = "Decal_" + std::string(faceNames[(int)f]);
 }
 
 void Decal::setTexturePath(const std::string& path) {

@@ -271,26 +271,6 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
         ImGui_ImplOpenGL3_RenderDrawData(&dd);
     }
 
-    // テクスチャを全ピクセル左右反転
-    {
-        std::vector<unsigned char> pixels(w * h * 4);
-        glBindTexture(GL_TEXTURE_2D, sg->m_texID);
-        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-        for (int row = 0; row < h; ++row) {
-            unsigned char* rowPtr = pixels.data() + row * w * 4;
-            for (int col = 0; col < w / 2; ++col) {
-                int li = col * 4;
-                int ri = (w - 1 - col) * 4;
-                std::swap(rowPtr[li+0], rowPtr[ri+0]);
-                std::swap(rowPtr[li+1], rowPtr[ri+1]);
-                std::swap(rowPtr[li+2], rowPtr[ri+2]);
-                std::swap(rowPtr[li+3], rowPtr[ri+3]);
-            }
-        }
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
     // GL 状態を復元
     glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
     glViewport(vp[0], vp[1], vp[2], vp[3]);
@@ -457,12 +437,12 @@ static bool hitTestSurfaceGui(SurfaceGui* sg, BaseCube* cube, const Vector3& ray
 
     Vector3 uAxis, vAxis;
     switch (sg->face) {
-        case Face::Top:    uAxis = Vector3(1, 0, 0);  vAxis = Vector3(0, 0, 1);  break;
-        case Face::Bottom: uAxis = Vector3(1, 0, 0);  vAxis = Vector3(0, 0, -1); break;
-        case Face::Front:  uAxis = Vector3(1, 0, 0);  vAxis = Vector3(0, 1, 0);  break;
-        case Face::Back:   uAxis = Vector3(-1, 0, 0); vAxis = Vector3(0, 1, 0);  break;
-        case Face::Right:  uAxis = Vector3(0, 0, 1);  vAxis = Vector3(0, 1, 0);  break;
-        case Face::Left:   uAxis = Vector3(0, 0, -1); vAxis = Vector3(0, 1, 0);  break;
+        case Face::Top:    uAxis = Vector3(-1, 0, 0); vAxis = Vector3(0, 0, 1);  break;
+        case Face::Bottom: uAxis = Vector3(-1, 0, 0); vAxis = Vector3(0, 0, -1); break;
+        case Face::Front:  uAxis = Vector3(-1, 0, 0); vAxis = Vector3(0, 1, 0);  break;
+        case Face::Back:   uAxis = Vector3(1, 0, 0);  vAxis = Vector3(0, 1, 0);  break;
+        case Face::Right:  uAxis = Vector3(0, 0, -1); vAxis = Vector3(0, 1, 0);  break;
+        case Face::Left:   uAxis = Vector3(0, 0, 1);  vAxis = Vector3(0, 1, 0);  break;
     }
     float texU = Vector3::Dot(localUnit, uAxis) + 0.5f;
     float texV = Vector3::Dot(localUnit, vAxis) + 0.5f;
@@ -471,8 +451,7 @@ static bool hitTestSurfaceGui(SurfaceGui* sg, BaseCube* cube, const Vector3& ray
     SurfaceGuiLayout L;
     if (!computeSurfaceGuiLayout(sg, L)) return false;
 
-    // bakeSurfaceGui が焼き込みテクスチャを左右反転しているため、X はミラーして戻す
-    float fboX = (1.0f - texU) * (float)L.w;
+    float fboX = texU * (float)L.w;
     // OpenGL の FBO 読み書き(glGetTexImage/テクスチャサンプリング)は行が下から0番になる規約のため、
     // ImGuiの上原点(canvasY=0が上端)の座標系に戻すには Y もミラーする必要がある
     float fboY = (1.0f - texV) * (float)L.h;

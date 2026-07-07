@@ -26,8 +26,13 @@ std::shared_ptr<Instance> Texture::clone() const {
 }
 
 void Texture::setFace(Face f) {
+    // 名前がまだ既定名(Texture_<Face>)のままの場合のみ追従させる。
+    // ユーザーが改名済みなら、Face変更で勝手に上書きしない。
+    std::string defaultName = "Texture_" + std::string(faceNames[(int)face]);
+    if (Name == defaultName) {
+        Name = "Texture_" + std::string(faceNames[(int)f]);
+    }
     face = f;
-    Name = "Texture_" + std::string(faceNames[(int)f]);
 }
 
 void Texture::setTexturePath(const std::string& path) {

@@ -25,14 +25,15 @@ std::vector<Vertex> createCubeVertices(float size) {
         // 【修正】各面におけるテクスチャの「右方向(u)」と「上方向(v)」を厳密に定義
         Vector3 u, vv;
         if (ny > 0) { // Top
-            u = Vector3(1, 0, 0); vv = Vector3(0, 0, 1);
+            // 垂直4面と同じ手法(cross(u,vv)=法線)に合わせて右方向を定義
+            u = Vector3(-1, 0, 0); vv = Vector3(0, 0, 1);
         } else if (ny < 0) { // Bottom
-            u = Vector3(1, 0, 0); vv = Vector3(0, 0, -1);
+            u = Vector3(-1, 0, 0); vv = Vector3(0, 0, -1);
         } else { // 垂直な4面 (Front, Back, Right, Left)
-            // 法線に対する右方向を計算
-            u = Vector3(-nz, 0, nx); 
+            // 法線に対する右方向を計算（面を正面から見たカメラの右方向と一致させる）
+            u = Vector3(nz, 0, -nx);
             // 上方向は常に Y+
-            vv = Vector3(0, 1, 0); 
+            vv = Vector3(0, 1, 0);
         }
 
         float p[4][2] = {{1.0f,1.0f}, {1.0f,-1.0f}, {-1.0f,-1.0f}, {-1.0f,1.0f}};

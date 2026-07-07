@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python build.py test Release assets/scenes/security_fix_test.yaml)"
+      "Bash(python build.py test Release assets/scenes/security_fix_test.yaml)",
+      "Skill(summary)",
+      "Skill(summary:*)"
     ]
   }
 }
