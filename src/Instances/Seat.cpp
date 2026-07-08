@@ -24,6 +24,12 @@ std::shared_ptr<Instance> Seat::clone() const {
     copy->Anchored   = this->Anchored;
     copy->CanCollide = this->CanCollide;
     copy->cframe     = this->cframe;
+    copy->material     = this->material;
+    copy->MassDensity  = this->MassDensity;
+    copy->CastShadow   = this->CastShadow;
+    copy->Unlit        = this->Unlit;
+    copy->UseTriplanar = this->UseTriplanar;
+    copy->TextureScale = this->TextureScale;
     // m_occupantは複製しない(新規シートは空席から始まる)
     for (auto const& [name, child] : children) {
         copy->addChild(child->clone());

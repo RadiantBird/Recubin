@@ -254,6 +254,12 @@ std::shared_ptr<Instance> MeshCube::clone() const {
     copy->Anchored   = this->Anchored;
     copy->CanCollide = this->CanCollide;
     copy->cframe     = this->cframe;
+    copy->material     = this->material;
+    copy->MassDensity  = this->MassDensity;
+    copy->CastShadow   = this->CastShadow;
+    copy->Unlit        = this->Unlit;
+    copy->UseTriplanar = this->UseTriplanar;
+    copy->TextureScale = this->TextureScale;
     if (!this->MeshFile.empty() && copy->loadFromGLB(this->MeshFile)) {
         copy->MeshFile = this->MeshFile;
     }

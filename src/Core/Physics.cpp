@@ -289,6 +289,24 @@ void Physics::enqueueSetRotation(const std::shared_ptr<BaseCube>& cube, Quaterni
 
 void Physics::recreateActor(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
+
+    // Weld 等で他キューブと compound(共有アクター)を組んでいる場合、単純に
+    // remove/release/createActor すると compound 全体を破棄してしまい、他メンバーの
+    // cube->actor が解放済みのダングリングポインタとして残ってしまう(暗黙的な溶接解除+UAFの原因)。
+    // 共有中と判定できたら rebuildGroup() でグループ全体を再構築する。
+    if (cube->actor) {
+        std::vector<std::shared_ptr<BaseCube>> sharedGroup;
+        for (auto& entry : cubes) {
+            if (entry.actor == cube->actor) {
+                if (auto c = entry.cube.lock()) sharedGroup.push_back(c);
+            }
+        }
+        if (sharedGroup.size() > 1) {
+            rebuildGroup(sharedGroup); // cubes/m_constraints(Weld/Rope/Rod/Motor)の同期も内部で完結
+            return;
+        }
+    }
+
     if (cube->actor) {
         scene->removeActor(*cube->actor);
         cube->actor->release();
@@ -425,6 +443,9 @@ void Physics::removeCube(const std::shared_ptr<BaseCube>& cube) {
 static constexpr float LIQUID_LINEAR_DAMPING  = 3.0f;
 static constexpr float LIQUID_ANGULAR_DAMPING = 2.0f;
 
+// 浮力を面(体積)に分散させるためのグリッドサンプリング解像度（1軸あたりの点数）
+static constexpr int BUOYANCY_SAMPLE_RES = 3;
+
 float Physics::aabbOverlapVolume(const Vector3& posA, const Vector3& sizeA, const Vector3& posB, const Vector3& sizeB) {
     Vector3 aMin = posA - sizeA * 0.5f, aMax = posA + sizeA * 0.5f;
     Vector3 bMin = posB - sizeB * 0.5f, bMax = posB + sizeB * 0.5f;
@@ -483,9 +504,53 @@ void Physics::applyBuoyancy() {
 
         if (weightedV <= 0.0f) continue;
 
-        // 浮力（重力の反対方向） F = -(Density*V) * gVec
-        dyn->addForce(physx::PxVec3(-gVec.x * weightedV, -gVec.y * weightedV, -gVec.z * weightedV),
-                      physx::PxForceMode::eFORCE);
+        // 浮力（重力の反対方向）の合計力は既存どおり weightedV*(-g) で固定し、
+        // 適用点だけをキューブ内のグリッドサンプル点群に分散する。重心一点への
+        // addForce だとトルクが発生せず船が転覆しやすいため、水没しているサンプル点に
+        // 応じて力を配分することで、水没箇所に偏った自然な復元トルクを発生させる。
+        constexpr int GRID = BUOYANCY_SAMPLE_RES;
+        constexpr int SAMPLE_COUNT = GRID * GRID * GRID;
+        Vector3 samplePos[SAMPLE_COUNT];
+        float   sampleWeight[SAMPLE_COUNT];
+        float   totalWeight = 0.0f;
+        Vector3 cMin = cp - cs * 0.5f;
+
+        int idx = 0;
+        for (int ix = 0; ix < GRID; ix++) {
+            for (int iy = 0; iy < GRID; iy++) {
+                for (int iz = 0; iz < GRID; iz++) {
+                    Vector3 t(
+                        (ix + 0.5f) / GRID,
+                        (iy + 0.5f) / GRID,
+                        (iz + 0.5f) / GRID
+                    );
+                    Vector3 pos = cMin + cs * t;
+                    float w = 0.0f;
+                    for (BaseCube* lq : liquids) {
+                        Vector3 lMin = lq->getWorldPosition() - lq->Size * 0.5f;
+                        Vector3 lMax = lq->getWorldPosition() + lq->Size * 0.5f;
+                        if (pos.x >= lMin.x && pos.x <= lMax.x &&
+                            pos.y >= lMin.y && pos.y <= lMax.y &&
+                            pos.z >= lMin.z && pos.z <= lMax.z) {
+                            w += static_cast<LiquidCube*>(lq)->Density;
+                        }
+                    }
+                    samplePos[idx] = pos;
+                    sampleWeight[idx] = w;
+                    totalWeight += w;
+                    idx++;
+                }
+            }
+        }
+        if (totalWeight <= 0.0f) continue; // AABBは重なるがサンプル点は水没していない場合の保険
+
+        for (int i = 0; i < SAMPLE_COUNT; i++) {
+            if (sampleWeight[i] <= 0.0f) continue;
+            float frac = sampleWeight[i] / totalWeight;
+            physx::PxVec3 f(-gVec.x * weightedV * frac, -gVec.y * weightedV * frac, -gVec.z * weightedV * frac);
+            physx::PxVec3 pos(samplePos[i].x, samplePos[i].y, samplePos[i].z);
+            physx::PxRigidBodyExt::addForceAtPos(*dyn, f, pos, physx::PxForceMode::eFORCE);
+        }
     }
 }
 
