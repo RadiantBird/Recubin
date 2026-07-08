@@ -27,6 +27,8 @@
 #include <Instances/Motor.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/Rope.hpp>
+#include <Instances/Attachment.hpp>
+#include <Instances/Force.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/Folder.hpp>
 #include <Instances/FileRef.hpp>
@@ -154,7 +156,8 @@ static const char* getClassIcon(const std::string& cn) {
     if (cn == "TextLabel"  || cn == "TextButton" || cn == "GuiButton" ||
         cn == "ScreenGui"  || cn == "SurfaceGui" || cn == "BillboardGui" ||
         cn == "WorldGuiObject")                                              return ICON_GUI;
-    if (cn == "Rope" || cn == "Rod" || cn == "Weld" || cn == "Motor")        return ICON_CONSTRAINT;
+    if (cn == "Rope" || cn == "Rod" || cn == "Weld" || cn == "Motor" ||
+        cn == "Attachment" || cn == "Force")                                 return ICON_CONSTRAINT;
     if (cn == "System") return ICON_SYSTEM;
     if (cn == "Weather") return ICON_WEATHER;
     if (cn == "StarterCharacter") return ICON_STARTERCHARACTER;
@@ -213,10 +216,12 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     }
 
     if (!renaming && ImGui::IsItemClicked()) {
-        // ---- ピッカーモード: Pick 中はクリックを Cube 参照指定に横取り（選択は変更しない） ----
+        // ---- ピッカーモード: Pick 中はクリックを Cube/Attachment 参照指定に横取り（選択は変更しない） ----
         if (m_picker && m_picker->active) {
-            if (inst->IsA("BaseCube") && inst != m_picker->constraint && m_picker->onPick)
-                m_picker->onPick(std::static_pointer_cast<BaseCube>(inst->shared_from_this()));
+            const bool matches = m_picker->pickAttachment ? inst->IsA("Attachment")
+                                                          : inst->IsA("BaseCube");
+            if (matches && inst != m_picker->constraint && m_picker->onPick)
+                m_picker->onPick(inst->shared_from_this());
             m_picker->active = false;
         } else
         if (ImGui::GetIO().KeyCtrl) {
@@ -513,6 +518,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Motor>(m_history, "Motor", parentSp);
         tryInsertInstance<Rod>(m_history, "Rod", parentSp);
         tryInsertInstance<Rope>(m_history, "Rope", parentSp);
+        tryInsertInstance<Attachment>(m_history, "Attachment", parentSp);
+        tryInsertInstance<Force>(m_history, "Force", parentSp);
         
         ImGui::EndMenu();
     }

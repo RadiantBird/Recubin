@@ -6,10 +6,13 @@
 #include <memory>
 
 class SceneLoader;
+class Attachment;
 
 class Rope : public Instance {
     std::weak_ptr<BaseCube> m_cube0;
     std::weak_ptr<BaseCube> m_cube1;
+    std::weak_ptr<Attachment> m_attachment0; // 任意。設定時はこの位置にアンカーする
+    std::weak_ptr<Attachment> m_attachment1;
     physx::PxDistanceJoint* m_joint = nullptr;
     Workspace* m_lastWorkspace = nullptr;
 
@@ -19,6 +22,8 @@ class Rope : public Instance {
 
     // 両方のCubeが解決済みなら制約をWorkspaceに登録する（setProperty/setCube0/setCube1から共通利用）
     void registerIfReady();
+    // 名前が設定済みで未解決のAttachment参照を対応Cube配下から遅延解決する
+    void resolveAttachments();
 public:
     float MaxDistance = 0.0f; // 0 = 生成時の距離を自動使用
     float Stiffness   = 100.0f;
@@ -26,6 +31,8 @@ public:
 
     std::string m_cube0Name;
     std::string m_cube1Name;
+    std::string m_attachment0Name; // Cube0配下の子孫パス（空=未使用）
+    std::string m_attachment1Name; // Cube1配下の子孫パス（空=未使用）
     Color4 Color     = {0.3f, 0.9f, 1.0f, 1.0f};
     float  LineWidth = 2.5f;
 

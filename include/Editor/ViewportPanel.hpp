@@ -39,6 +39,7 @@ public:
     // フォーカス状態管理フラグ
     bool isViewportFocused   = false;  // このViewportが現在フォーカスされているか
     bool isHoveringViewport  = false;  // マウスがViewport上にあるか
+    bool showPhysicsDebug    = false;  // 物理制約デバッグビジュアライザー（Viewメニューで切替）
     bool m_isDraggingSelected = false; // 選択キューブ上でドラッグ開始したか
 
     // ボックス選択ステート

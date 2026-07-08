@@ -35,9 +35,11 @@
 #include <Instances/SurfaceGui.hpp>
 #include <Instances/BillboardGui.hpp>
 #include <Instances/ProximityPrompt.hpp>
+#include <Instances/Attachment.hpp>
 #include <Util/Color4.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
+#include <Util/Logger.hpp>
 #include <include/imgui/imgui.h>
 #include <unordered_map>
 #include <string>
@@ -227,6 +229,22 @@ static void drawVec3Field(const char* id,
     }
 }
 
+// node から stopAt(除外)までの "\\" 区切り相対パスを作る（getChildByPath と対になる形式）
+static std::string relativePathUpTo(Instance* node, Instance* stopAt) {
+    std::vector<std::string> parts;
+    Instance* cur = node;
+    while (cur) {
+        auto par = cur->Parent.lock();
+        parts.push_back(cur->Name);
+        if (!par || par.get() == stopAt) break;
+        cur = par.get();
+    }
+    std::reverse(parts.begin(), parts.end());
+    std::string result = parts[0];
+    for (size_t i = 1; i < parts.size(); i++) result += "\\" + parts[i];
+    return result;
+}
+
 // キューブの相対パスを返す。Workspace 配下なら Workspace 相対（例: "FolderA\CubeName"）、
 // Workspace 外（StarterCharacter 等）なら最上位祖先(System)相対（例: "StarterCharacter\Head"）。
 // resolveConstraintRefs / Weld::setProperty 側の解決規約と一致させる。
@@ -238,18 +256,7 @@ static std::string cubeRelativePath(Instance* cube) {
         for (auto p = cube->Parent.lock(); p; p = p->Parent.lock()) top = p.get();
         stopAt = top;
     }
-    std::vector<std::string> parts;
-    Instance* cur = cube;
-    while (cur) {
-        auto par = cur->Parent.lock();
-        parts.push_back(cur->Name);
-        if (!par || par.get() == stopAt) break;
-        cur = par.get();
-    }
-    std::reverse(parts.begin(), parts.end());
-    std::string result = parts[0];
-    for (size_t i = 1; i < parts.size(); i++) result += "\\" + parts[i];
-    return result;
+    return relativePathUpTo(cube, stopAt);
 }
 
 void PropertiesPanel::drawConstraintCubeRef(const char* label, std::string& nameRef,
@@ -297,14 +304,98 @@ void PropertiesPanel::drawConstraintCubeRef(const char* label, std::string& name
     } else {
         if (anyPicking) ImGui::BeginDisabled();
         if (ImGui::Button(("Pick##" + key).c_str(), ImVec2(btnW, 0))) {
-            m_picker->active     = true;
-            m_picker->prop       = prop;
-            m_picker->constraint = inst.get();
+            m_picker->active         = true;
+            m_picker->pickAttachment = false;
+            m_picker->prop           = prop;
+            m_picker->constraint     = inst.get();
             m_picker->onPick = [inst, propStr = std::string(prop),
                                  nameRefPtr = &nameRef, hist = m_history]
-                               (std::shared_ptr<BaseCube> cube) {
+                               (std::shared_ptr<Instance> cube) {
                 std::string before = *nameRefPtr;
                 std::string after  = cubeRelativePath(cube.get());
+                YAML::Node n; n = after;
+                inst->setProperty(propStr, n);
+                if (hist && before != after)
+                    hist->record(std::make_unique<SetConstraintCubeNameCommand>(
+                        inst, propStr, before, after));
+            };
+        }
+        if (anyPicking) ImGui::EndDisabled();
+    }
+}
+
+void PropertiesPanel::drawConstraintAttachmentRef(const char* label, std::string& nameRef,
+                                                   const char* prop, const std::string& cubeName,
+                                                   const std::shared_ptr<Instance>& inst)
+{
+    static std::unordered_map<std::string, std::string> s_before;
+    std::string key = std::string(prop) + "_" + inst->Name;
+
+    bool isPickingThis = m_picker && m_picker->active
+                      && m_picker->constraint == inst.get()
+                      && m_picker->prop == prop;
+    bool anyPicking    = m_picker && m_picker->active;
+
+    ImGui::TextUnformatted(label);
+    ImGui::SameLine();
+
+    float btnW  = 46.0f;
+    float space = ImGui::GetStyle().ItemSpacing.x;
+    float fieldW = ImGui::GetContentRegionAvail().x - btnW - space;
+    if (fieldW < 60.0f) fieldW = 60.0f;
+    ImGui::SetNextItemWidth(fieldW);
+
+    char buf[512] = {};
+    strncpy_s(buf, nameRef.c_str(), sizeof(buf) - 1);
+    std::string inputId = "##attref_" + key;
+    ImGui::InputText(inputId.c_str(), buf, sizeof(buf));
+    if (ImGui::IsItemActivated()) s_before[key] = nameRef;
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        std::string after(buf);
+        std::string before = s_before[key];
+        // setProperty 経由で weak_ptr のリセットと registerIfReady() の再解決を走らせる
+        YAML::Node n; n = after;
+        inst->setProperty(prop, n);
+        if (before != after && m_history)
+            m_history->record(std::make_unique<SetConstraintCubeNameCommand>(
+                inst, prop, before, after));
+    }
+
+    ImGui::SameLine();
+
+    if (isPickingThis) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9f, 0.4f, 0.1f, 1.0f));
+        if (ImGui::Button(("Cancel##pick_" + key).c_str(), ImVec2(btnW, 0)))
+            m_picker->active = false;
+        ImGui::PopStyleColor();
+    } else {
+        if (anyPicking) ImGui::BeginDisabled();
+        if (ImGui::Button(("Pick##" + key).c_str(), ImVec2(btnW, 0))) {
+            m_picker->active         = true;
+            m_picker->pickAttachment = true;
+            m_picker->prop           = prop;
+            m_picker->constraint     = inst.get();
+            m_picker->onPick = [inst, propStr = std::string(prop), cubeName,
+                                 nameRefPtr = &nameRef, hist = m_history]
+                               (std::shared_ptr<Instance> att) {
+                // Attachment のパスは「最寄りの BaseCube 祖先」相対で保存する
+                //（解決側 Attachment::findUnder(cubeX, path) と対になる形式）
+                Instance* anchorCube = nullptr;
+                for (auto p = att->Parent.lock(); p; p = p->Parent.lock())
+                    if (p->IsA("BaseCube")) { anchorCube = p.get(); break; }
+                if (!anchorCube) {
+                    RCBN_WARN(propStr << ": Attachment \"" << att->Name
+                              << "\" は BaseCube の配下に無いため指定できません");
+                    return;
+                }
+                // 対応する Cube0/Cube1 と違うキューブ配下なら解決できないので知らせる（設定自体は行う）
+                if (!cubeName.empty() && cubeName != cubeRelativePath(anchorCube)) {
+                    RCBN_WARN(propStr << ": Attachment \"" << att->Name << "\" は \""
+                              << cubeName << "\" ではなく \"" << cubeRelativePath(anchorCube)
+                              << "\" の配下にあります。対応する Cube 参照も合わせてください");
+                }
+                std::string before = *nameRefPtr;
+                std::string after  = relativePathUpTo(att.get(), anchorCube);
                 YAML::Node n; n = after;
                 inst->setProperty(propStr, n);
                 if (hist && before != after)
@@ -339,7 +430,9 @@ void PropertiesPanel::onRender() {
 
     if (m_picker && m_picker->active) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.1f, 1.0f));
-        ImGui::TextUnformatted("Viewport またはヒエラルキーでキューブをクリックして指定");
+        ImGui::TextUnformatted(m_picker->pickAttachment
+            ? "Viewport またはヒエラルキーで Attachment をクリックして指定"
+            : "Viewport またはヒエラルキーでキューブをクリックして指定");
         ImGui::PopStyleColor();
         ImGui::Separator();
     }
@@ -1136,6 +1229,8 @@ void PropertiesPanel::onRender() {
 
         drawConstraintCubeRef("Cube0", rope->m_cube0Name, "Cube0", ropeSp);
         drawConstraintCubeRef("Cube1", rope->m_cube1Name, "Cube1", ropeSp);
+        drawConstraintAttachmentRef("Attachment0", rope->m_attachment0Name, "Attachment0", rope->m_cube0Name, ropeSp);
+        drawConstraintAttachmentRef("Attachment1", rope->m_attachment1Name, "Attachment1", rope->m_cube1Name, ropeSp);
 
         static float s_rf;
         { ImGui::DragFloat("MaxDistance", &rope->MaxDistance, 0.1f, 0.0f, 1e6f);
@@ -1173,6 +1268,8 @@ void PropertiesPanel::onRender() {
         ImGui::SeparatorText("Rod");
         drawConstraintCubeRef("Cube0", rod->m_cube0Name, "Cube0", rodSp);
         drawConstraintCubeRef("Cube1", rod->m_cube1Name, "Cube1", rodSp);
+        drawConstraintAttachmentRef("Attachment0", rod->m_attachment0Name, "Attachment0", rod->m_cube0Name, rodSp);
+        drawConstraintAttachmentRef("Attachment1", rod->m_attachment1Name, "Attachment1", rod->m_cube1Name, rodSp);
         { static Color4 s_rdc;
           float col[4] = { rod->Color.r, rod->Color.g, rod->Color.b, rod->Color.a };
           if (ImGui::ColorEdit4("Color", col)) { rod->Color = {col[0], col[1], col[2], col[3]}; }
@@ -1203,6 +1300,8 @@ void PropertiesPanel::onRender() {
 
         drawConstraintCubeRef("Cube0", motor->m_cube0Name, "Cube0", motorSp);
         drawConstraintCubeRef("Cube1", motor->m_cube1Name, "Cube1", motorSp);
+        drawConstraintAttachmentRef("Attachment0", motor->m_attachment0Name, "Attachment0", motor->m_cube0Name, motorSp);
+        drawConstraintAttachmentRef("Attachment1", motor->m_attachment1Name, "Attachment1", motor->m_cube1Name, motorSp);
 
         { static Vector3 s_axisBefore;
           float ax[3] = { motor->Axis.x, motor->Axis.y, motor->Axis.z };
@@ -1237,6 +1336,12 @@ void PropertiesPanel::onRender() {
                 ai->setProperty("IconPath", node);
             }
         }
+    }
+
+    // ---- Force（スキーマ駆動） ----
+    if (inst->getClassName() == "Force") {
+        ImGui::SeparatorText("Force");
+        renderSchemaInspector(inst, "Force", m_history);
     }
 
     // ---- Humanoid（スキーマ駆動。プロパティ追加はスキーマに1行足すだけ） ----

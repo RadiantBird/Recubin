@@ -42,6 +42,7 @@ struct ViewportRenderDesc {
     bool renderHighlights = false;
     bool renderConstraints = true;
     bool renderPostEffects = true;
+    bool renderPhysicsDebug = false; // 物理制約のデバッグビジュアライザー（エディターのViewメニューで切替）
     bool isFocused = false;
 };
 
@@ -121,6 +122,9 @@ class Renderer {
         GLuint m_lineShader = 0;
         void initLineRenderer();
         void renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection);
+
+        // 物理制約デバッグビジュアライザー（Weld/Motor/Attachment/Force。デフォルトOFF）
+        void renderPhysicsDebug(Workspace& workspace, const Matrix4& view, const Matrix4& projection);
 
         // 地形ブラシのヒット位置ガイド（水平リング）。呼び出し側でFBOバインド・ビューポート設定済みであること。
         void renderBrushMarker(const Matrix4& view, const Matrix4& projection, const Vector3& center, float radius);

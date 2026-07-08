@@ -18,6 +18,10 @@
 #include <Instances/Weather.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
+#include <Instances/Attachment.hpp>
+#include <Instances/Weld.hpp>
+#include <Instances/Motor.hpp>
+#include <Instances/Force.hpp>
 #include <include/Math/PerlinNoise.hpp>
 #include <include/Core/Terrain.hpp>
 #include <include/Core/TerrainStreamer.hpp>
@@ -686,8 +690,10 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
             auto c0 = rope->m_cube0.lock();
             auto c1 = rope->m_cube1.lock();
             if (c0 && c1) {
-                Vector3 p0 = c0->getWorldCFrame().Position;
-                Vector3 p1 = c1->getWorldCFrame().Position;
+                auto a0 = rope->m_attachment0.lock();
+                auto a1 = rope->m_attachment1.lock();
+                Vector3 p0 = (a0 ? a0->getWorldCFrame() : c0->getWorldCFrame()).Position;
+                Vector3 p1 = (a1 ? a1->getWorldCFrame() : c1->getWorldCFrame()).Position;
                 float dist = (p1 - p0).length();
                 float sag  = (rope->MaxDistance > dist) ? (rope->MaxDistance - dist) * 0.4f : 0.0f;
                 // 二次ベジェによるカテナリー近似（制御点を重力方向にsagだけ下げる）
@@ -710,8 +716,10 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
             auto c0 = rod->m_cube0.lock();
             auto c1 = rod->m_cube1.lock();
             if (c0 && c1) {
-                Vector3 p0 = c0->getWorldCFrame().Position;
-                Vector3 p1 = c1->getWorldCFrame().Position;
+                auto a0 = rod->m_attachment0.lock();
+                auto a1 = rod->m_attachment1.lock();
+                Vector3 p0 = (a0 ? a0->getWorldCFrame() : c0->getWorldCFrame()).Position;
+                Vector3 p1 = (a1 ? a1->getWorldCFrame() : c1->getWorldCFrame()).Position;
                 std::vector<float> verts = {
                     p0.x, p0.y, p0.z,
                     p1.x, p1.y, p1.z
@@ -730,6 +738,177 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
     for (auto const& [name, child] : workspace.getChildren()) {
         scan(scan, child.get());
     }
+
+    glLineWidth(1.0f);
+    glBindVertexArray(0);
+    glUseProgram(shaderProgram);
+}
+
+// ===================================================
+//  物理制約デバッグビジュアライザー（Viewメニュー「Physics Debug」で切替）
+//  Weld: 接続線＋中点クロス / Motor: ピボット・軸・回転方向の円弧矢印
+//  Attachment: ワイヤ球＋向きの軸線 / Force: 力の矢印またはトルクの円弧矢印
+// ===================================================
+void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, const Matrix4& projection) {
+    if (!m_lineShader) return;
+
+    glUseProgram(m_lineShader);
+    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"),       1, GL_FALSE, view.m);
+    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
+    glBindVertexArray(m_lineVAO);
+
+    int colorLoc = glGetUniformLocation(m_lineShader, "lineColor");
+
+    const Color4 WELD_COLOR   {0.25f, 1.0f,  0.4f,  1.0f};
+    const Color4 MOTOR_COLOR  {1.0f,  0.85f, 0.2f,  1.0f};
+    const Color4 ATTACH_COLOR {1.0f,  0.55f, 0.15f, 1.0f};
+    const Color4 FORCE_COLOR  {1.0f,  0.3f,  0.25f, 1.0f};
+
+    auto uploadAndDraw = [&](const std::vector<float>& verts) {
+        glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
+        glBufferData(GL_ARRAY_BUFFER, (GLsizei)(verts.size() * sizeof(float)), verts.data(), GL_DYNAMIC_DRAW);
+        glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)(verts.size() / 3));
+    };
+    auto setColor = [&](const Color4& c) { glUniform4f(colorLoc, c.r, c.g, c.b, c.a); };
+    auto drawSegment = [&](const Vector3& a, const Vector3& b) {
+        uploadAndDraw({a.x, a.y, a.z, b.x, b.y, b.z});
+    };
+    // axis に垂直な正規直交基底 (u, v) を作る
+    auto basisFor = [](const Vector3& axis, Vector3& u, Vector3& v) {
+        Vector3 n = axis.normalize();
+        Vector3 helper = (std::fabs(n.y) < 0.9f) ? Vector3(0, 1, 0) : Vector3(1, 0, 0);
+        u = Vector3::Cross(n, helper).normalize();
+        v = Vector3::Cross(n, u); // n,u が正規直交なので正規化済み
+    };
+    // center を通る axis 周りの円（全周）
+    auto drawCircle = [&](const Vector3& center, const Vector3& axis, float radius) {
+        Vector3 u, v; basisFor(axis, u, v);
+        constexpr int SEG = 24;
+        std::vector<float> verts;
+        verts.reserve((SEG + 1) * 3);
+        for (int i = 0; i <= SEG; i++) {
+            float t = (float)i / SEG * 2.0f * 3.14159265f;
+            Vector3 p = center + (u * std::cos(t) + v * std::sin(t)) * radius;
+            verts.push_back(p.x); verts.push_back(p.y); verts.push_back(p.z);
+        }
+        uploadAndDraw(verts);
+    };
+    // 3/4 円弧＋終端の矢印ヘッド（回転方向の表示。sign<0 で逆回り）
+    auto drawRotationArc = [&](const Vector3& center, const Vector3& axis, float radius, float sign) {
+        Vector3 u, v; basisFor(axis, u, v);
+        constexpr int SEG = 18;
+        const float SWEEP = 1.5f * 3.14159265f; // 3/4周
+        std::vector<float> verts;
+        verts.reserve((SEG + 1) * 3);
+        Vector3 end, tangent;
+        for (int i = 0; i <= SEG; i++) {
+            float t = (float)i / SEG * SWEEP * (sign < 0.0f ? -1.0f : 1.0f);
+            Vector3 p = center + (u * std::cos(t) + v * std::sin(t)) * radius;
+            verts.push_back(p.x); verts.push_back(p.y); verts.push_back(p.z);
+            if (i == SEG) {
+                end     = p;
+                tangent = (u * -std::sin(t) + v * std::cos(t)) * (sign < 0.0f ? -1.0f : 1.0f);
+            }
+        }
+        uploadAndDraw(verts);
+        // 矢印ヘッド: 終端から進行方向の逆へ、半径方向±に開く2本
+        Vector3 radial = (end - center).normalize();
+        Vector3 back   = end - tangent * (radius * 0.35f);
+        drawSegment(end, back + radial * (radius * 0.18f));
+        drawSegment(end, back - radial * (radius * 0.18f));
+    };
+    // 点マーカー: 3軸の小さなクロス
+    auto drawCross = [&](const Vector3& p, float r) {
+        drawSegment(p - Vector3(r, 0, 0), p + Vector3(r, 0, 0));
+        drawSegment(p - Vector3(0, r, 0), p + Vector3(0, r, 0));
+        drawSegment(p - Vector3(0, 0, r), p + Vector3(0, 0, r));
+    };
+    // 矢印（力の可視化）
+    auto drawArrow = [&](const Vector3& from, const Vector3& dir, float length) {
+        Vector3 n   = dir.normalize();
+        Vector3 tip = from + n * length;
+        drawSegment(from, tip);
+        Vector3 u, v; basisFor(n, u, v);
+        float h = length * 0.15f;
+        drawSegment(tip, tip - n * h + u * (h * 0.6f));
+        drawSegment(tip, tip - n * h - u * (h * 0.6f));
+        drawSegment(tip, tip - n * h + v * (h * 0.6f));
+        drawSegment(tip, tip - n * h - v * (h * 0.6f));
+    };
+
+    glLineWidth(2.0f);
+
+    auto scan = [&](auto& self, Instance* inst) -> void {
+        if (!inst) return;
+        const std::string cn = inst->getClassName();
+
+        if (cn == "Weld") {
+            Weld* weld = static_cast<Weld*>(inst);
+            auto c0 = weld->m_cube0.lock();
+            auto c1 = weld->m_cube1.lock();
+            if (c0 && c1) {
+                setColor(WELD_COLOR);
+                Vector3 p0 = c0->getWorldCFrame().Position;
+                Vector3 p1 = c1->getWorldCFrame().Position;
+                drawSegment(p0, p1);
+                drawCross((p0 + p1) * 0.5f, 0.2f);
+            }
+        } else if (cn == "Motor") {
+            Motor* motor = static_cast<Motor*>(inst);
+            auto c0 = motor->m_cube0.lock();
+            auto c1 = motor->m_cube1.lock();
+            if (c0 && c1) {
+                // ピボット位置は createMotor と同じ規則（Attachment優先、無ければ中点）
+                auto a0 = motor->m_attachment0.lock();
+                auto a1 = motor->m_attachment1.lock();
+                Vector3 pivot;
+                if (a0 && a1) pivot = (a0->getWorldCFrame().Position + a1->getWorldCFrame().Position) * 0.5f;
+                else if (a0)  pivot = a0->getWorldCFrame().Position;
+                else if (a1)  pivot = a1->getWorldCFrame().Position;
+                else          pivot = (c0->getWorldCFrame().Position + c1->getWorldCFrame().Position) * 0.5f;
+
+                setColor(MOTOR_COLOR);
+                Vector3 axis = motor->Axis.normalize();
+                drawSegment(pivot - axis * 1.5f, pivot + axis * 1.5f); // 回転軸
+                drawCross(pivot, 0.12f);                               // ピボット
+                if (motor->DriveVelocity != 0.0f)
+                    drawRotationArc(pivot, axis, 0.75f, motor->DriveVelocity); // 回転方向
+            }
+        } else if (cn == "Attachment") {
+            Attachment* att = static_cast<Attachment*>(inst);
+            setColor(ATTACH_COLOR);
+            CFrame wcf = att->getWorldCFrame();
+            constexpr float R = 0.18f;
+            // 「丸っぽい」マーカー: 直交3円のワイヤ球
+            drawCircle(wcf.Position, wcf.Rotation.getRight(),   R);
+            drawCircle(wcf.Position, wcf.Rotation.getUp(),      R);
+            drawCircle(wcf.Position, wcf.Rotation.getForward(), R);
+            // 向きが分かる軸線（ローカルX方向）
+            drawSegment(wcf.Position, wcf.Position + wcf.Rotation.getRight() * (R * 2.5f));
+        } else if (cn == "Force") {
+            Force* force = static_cast<Force*>(inst);
+            auto parent = inst->Parent.lock();
+            if (force->Enabled && parent && parent->IsA("BaseCube") && force->Value.length() > 0.0001f) {
+                setColor(FORCE_COLOR);
+                Vector3 origin = static_cast<Spatial*>(parent.get())->getWorldCFrame().Position;
+                if (force->Torque) {
+                    // 角力: Value 軸線と、その周りの回転方向の円弧矢印
+                    Vector3 axis = force->Value.normalize();
+                    drawSegment(origin - axis * 1.2f, origin + axis * 1.2f);
+                    drawRotationArc(origin, axis, 1.0f, 1.0f);
+                } else {
+                    // ベクトル力: 大きさに応じた長さの矢印（1〜4studにクランプ）
+                    float len = std::min(std::max(force->Value.length() * 0.01f, 1.0f), 4.0f);
+                    drawArrow(origin, force->Value, len);
+                }
+            }
+        }
+
+        for (auto const& [name, child] : inst->getChildren())
+            self(self, child.get());
+    };
+    for (auto const& [name, child] : workspace.getChildren())
+        scan(scan, child.get());
 
     glLineWidth(1.0f);
     glBindVertexArray(0);
@@ -1334,6 +1513,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     // ---- 制約ビジュアライズ（Rope/Rod） ----
     if (desc.renderConstraints) {
         renderConstraints(*desc.workspace, view, projection);
+    }
+
+    // ---- 物理制約デバッグビジュアライザー（Weld/Motor/Attachment/Force。デフォルトOFF） ----
+    if (desc.renderPhysicsDebug) {
+        renderPhysicsDebug(*desc.workspace, view, projection);
     }
 
     // ---- Terrain の描画 ----

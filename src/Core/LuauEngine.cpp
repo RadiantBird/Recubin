@@ -48,6 +48,8 @@
 #include "include/Instances/Rod.hpp"
 #include "include/Instances/Weld.hpp"
 #include "include/Instances/Motor.hpp"
+#include "include/Instances/Attachment.hpp"
+#include "include/Instances/Force.hpp"
 #include "include/Instances/ImageLabel.hpp"
 #include "include/Instances/ImageButton.hpp"
 #include "include/Instances/Folder.hpp"
@@ -1528,6 +1530,8 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "Rod",              [] { return std::make_shared<Rod>(); } },
         { "Weld",             [] { return std::make_shared<Weld>(); } },
         { "Motor",            [] { return std::make_shared<Motor>(); } },
+        { "Attachment",       [] { return std::make_shared<Attachment>(); } },
+        { "Force",            [] { return std::make_shared<Force>(); } },
         { "TextLabel",        [] { return std::make_shared<TextLabel>(); } },
         { "TextButton",       [] { return std::make_shared<TextButton>(); } },
         { "ImageLabel",       [] { return std::make_shared<ImageLabel>(); } },

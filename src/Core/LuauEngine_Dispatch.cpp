@@ -264,6 +264,17 @@ auto setter_cube_ref() {
     };
 }
 
+// ── Setter: setProperty(name, string) 経由 ───────────────────────────────────
+//  Motor/Rope/Rod の Attachment0/Attachment1 のように、文字列の設定に加えて
+//  weak_ptr のリセットと registerIfReady() の再解決という副作用が必要なプロパティ用。
+auto setter_property_string(const char* propName) {
+    return [propName](lua_State* L, Instance* obj) -> int {
+        YAML::Node n; n = std::string(luaL_checkstring(L, 3));
+        obj->setProperty(propName, n);
+        return 0;
+    };
+}
+
 // ── FileRef.Source 用: arg3 が FileRef インスタンスならその Path を out へ取り出す ──
 //  生パス文字列ではなく「シーンに存在し YAML/Packager に追跡された FileRef」だけを受ける。
 static bool getFileRefPath(lua_State* L, int idx, std::string& out) {
@@ -379,6 +390,7 @@ void LuauEngine::InitDispatchTable_Base() {
     };
 
     PropertyRegistry::applyToDispatch("LiquidCube", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Force", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Sun",  DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Moon", DispatchTable, SetterTable);
 }
@@ -414,18 +426,24 @@ void LuauEngine::InitDispatchTable_World() {
 
 // ==================== Getter: Rope, Rod, Weld, Motor ====================
 void LuauEngine::InitDispatchTable_Physics() {
+    DispatchTable["Rope"]["Attachment0"] = getter_string<Rope, &Rope::m_attachment0Name>();
+    DispatchTable["Rope"]["Attachment1"] = getter_string<Rope, &Rope::m_attachment1Name>();
     DispatchTable["Rope"]["MaxDistance"] = getter_number <Rope, &Rope::MaxDistance>();
     DispatchTable["Rope"]["Stiffness"]   = getter_number <Rope, &Rope::Stiffness>();
     DispatchTable["Rope"]["Damping"]     = getter_number <Rope, &Rope::Damping>();
     DispatchTable["Rope"]["LineWidth"]   = getter_number <Rope, &Rope::LineWidth>();
     DispatchTable["Rope"]["Color"]       = getter_color4 <Rope, &Rope::Color>();
 
+    DispatchTable["Rod"]["Attachment0"] = getter_string<Rod, &Rod::m_attachment0Name>();
+    DispatchTable["Rod"]["Attachment1"] = getter_string<Rod, &Rod::m_attachment1Name>();
     DispatchTable["Rod"]["LineWidth"] = getter_number <Rod, &Rod::LineWidth>();
     DispatchTable["Rod"]["Color"]     = getter_color4 <Rod, &Rod::Color>();
 
     DispatchTable["Weld"]["Cube0"] = getter_string<Weld, &Weld::m_cube0Name>();
     DispatchTable["Weld"]["Cube1"] = getter_string<Weld, &Weld::m_cube1Name>();
 
+    DispatchTable["Motor"]["Attachment0"]   = getter_string<Motor, &Motor::m_attachment0Name>();
+    DispatchTable["Motor"]["Attachment1"]   = getter_string<Motor, &Motor::m_attachment1Name>();
     DispatchTable["Motor"]["DriveVelocity"] = getter_number<Motor, &Motor::DriveVelocity>();
     DispatchTable["Motor"]["MaxForce"]      = getter_number<Motor, &Motor::MaxForce>();
     DispatchTable["Motor"]["Axis"]          = getter_vec3  <Motor, &Motor::Axis>();
@@ -614,6 +632,8 @@ void LuauEngine::InitSetterTable_Physics() {
 
     SetterTable["Rope"]["Cube0"]       = setter_cube_ref     <Rope, &Rope::setCube0>();
     SetterTable["Rope"]["Cube1"]       = setter_cube_ref     <Rope, &Rope::setCube1>();
+    SetterTable["Rope"]["Attachment0"] = setter_property_string("Attachment0");
+    SetterTable["Rope"]["Attachment1"] = setter_property_string("Attachment1");
     SetterTable["Rope"]["MaxDistance"] = setter_method_float<Rope, &Rope::setMaxDistance>();
     SetterTable["Rope"]["Stiffness"]   = setter_method_float<Rope, &Rope::setStiffness>();
     SetterTable["Rope"]["Damping"]     = setter_method_float<Rope, &Rope::setDamping>();
@@ -622,11 +642,15 @@ void LuauEngine::InitSetterTable_Physics() {
 
     SetterTable["Rod"]["Cube0"]     = setter_cube_ref<Rod, &Rod::setCube0>();
     SetterTable["Rod"]["Cube1"]     = setter_cube_ref<Rod, &Rod::setCube1>();
+    SetterTable["Rod"]["Attachment0"] = setter_property_string("Attachment0");
+    SetterTable["Rod"]["Attachment1"] = setter_property_string("Attachment1");
     SetterTable["Rod"]["LineWidth"] = setter_number<Rod, &Rod::LineWidth>();
     SetterTable["Rod"]["Color"]     = setter_color4<Rod, &Rod::Color>();
 
     SetterTable["Motor"]["Cube0"]         = setter_cube_ref<Motor, &Motor::setCube0>();
     SetterTable["Motor"]["Cube1"]         = setter_cube_ref<Motor, &Motor::setCube1>();
+    SetterTable["Motor"]["Attachment0"]   = setter_property_string("Attachment0");
+    SetterTable["Motor"]["Attachment1"]   = setter_property_string("Attachment1");
     SetterTable["Motor"]["DriveVelocity"] = setter_method_float<Motor, &Motor::setDriveVelocity>();
     SetterTable["Motor"]["MaxForce"]      = setter_method_float<Motor, &Motor::setMaxForce>();
     // Axis は既存ジョイントへの即時再適用はされない（生成時に参照される）。

@@ -129,6 +129,7 @@ void ViewportPanel::onRender() {
         desc.renderShadows     = true;
         desc.renderConstraints = true;
         desc.renderHighlights  = true;              // サブ側は一旦ハイライトなし
+        desc.renderPhysicsDebug = showPhysicsDebug;
         desc.isFocused         = isViewportFocused;
 
         // レンダラーにこのサブテクスチャへ描き込ませる！
@@ -437,22 +438,26 @@ void ViewportPanel::onRender() {
             return (tmin >= 0.0f) ? tmin : tmax;
         };
 
-        // ---- ピッカーモード: Pick ボタン押下中はクリックをキューブ指定に横取り ----
+        // ---- ピッカーモード: Pick ボタン押下中はクリックをキューブ/Attachment指定に横取り ----
         if (m_picker && m_picker->active) {
             Instance* nearest = nullptr;
             float nearestT = 1e30f;
+            const bool pickAtt = m_picker->pickAttachment;
             auto pickerCast = [&](auto& self, Instance* node) -> void {
                 if (!node) return;
-                if (node->IsA("BaseCube")) {
+                if (pickAtt ? node->IsA("Attachment") : node->IsA("BaseCube")) {
                     auto* s = static_cast<Spatial*>(node);
-                    float t = obbHit(rayOri, rayDir, s->getWorldCFrame(), s->Size);
+                    // Attachment はサイズを持たないので、デバッグ描画のワイヤ球より
+                    // 少し大きい固定サイズの当たり判定でクリックできるようにする
+                    Vector3 hitSize = pickAtt ? Vector3(0.5f, 0.5f, 0.5f) : s->Size;
+                    float t = obbHit(rayOri, rayDir, s->getWorldCFrame(), hitSize);
                     if (t >= 0.0f && t < nearestT) { nearestT = t; nearest = node; }
                 }
                 for (auto& [_, c] : node->getChildren()) self(self, c.get());
             };
             pickerCast(pickerCast, workspace);
             if (nearest && nearest != m_picker->constraint)
-                m_picker->onPick(std::static_pointer_cast<BaseCube>(nearest->shared_from_this()));
+                m_picker->onPick(nearest->shared_from_this());
             m_picker->active     = false;
             m_isDraggingSelected = false;
             m_isBoxSelectArmed   = false;

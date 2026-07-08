@@ -34,6 +34,8 @@
 #include <Instances/Rod.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
+#include <Instances/Attachment.hpp>
+#include <Instances/Force.hpp>
 #include <Instances/TextLabel.hpp>
 #include <Instances/TextButton.hpp>
 #include <Instances/ImageLabel.hpp>
@@ -122,7 +124,9 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
                 }
             }
             resolveConstraintRefs(bag.get());
-            for (auto& [n, sing] : s_singletons) resolveConstraintRefs(sing.get());
+            // bag が System シングルトン自身の場合、同じツリーを二重解決して警告も二重に出るためスキップ
+            for (auto& [n, sing] : s_singletons)
+                if (sing != bag) resolveConstraintRefs(sing.get());
             return bag;
         }
 
@@ -144,13 +148,16 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
                 }
             }
             resolveConstraintRefs(bag.get());
-            for (auto& [n, sing] : s_singletons) resolveConstraintRefs(sing.get());
+            // bag が System シングルトン自身の場合、同じツリーを二重解決して警告も二重に出るためスキップ
+            for (auto& [n, sing] : s_singletons)
+                if (sing != bag) resolveConstraintRefs(sing.get());
             return bag;
         }
 
         auto result = parseInstance(root);
         resolveConstraintRefs(result.get());
-        for (auto& [n, sing] : s_singletons) resolveConstraintRefs(sing.get());
+        for (auto& [n, sing] : s_singletons)
+            if (sing != result) resolveConstraintRefs(sing.get());
         return result;
     } catch (const std::exception& e) {
         std::cerr << "[SceneLoader] Exception: " << e.what() << std::endl;
@@ -252,6 +259,8 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Rod")   return std::make_shared<Rod>();
     if (className == "Weld")  return std::make_shared<Weld>();
     if (className == "Motor")        return std::make_shared<Motor>();
+    if (className == "Attachment")   return std::make_shared<Attachment>();
+    if (className == "Force")        return std::make_shared<Force>();
     if (className == "TextLabel")    return std::make_shared<TextLabel>();
     if (className == "TextButton")   return std::make_shared<TextButton>();
     if (className == "ImageLabel")   return std::make_shared<ImageLabel>();
@@ -285,33 +294,50 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
         return nullptr;
     };
 
+    // 名前が空の参照は「未設定」（エディターで挿入直後など）の正当な状態なので解決も警告もしない。
+    // 名前が設定されているのに解決できなかった場合のみ、どの参照が失敗したかをフルパス付きで警告する。
+    auto warnUnresolved = [](Instance* constraint, const char* cls,
+                             bool miss0, const std::string& n0,
+                             bool miss1, const std::string& n1) {
+        std::cerr << "[SceneLoader] " << cls << " \"" << constraint->getFullPath()
+                  << "\": cube not found (";
+        if (miss0)          std::cerr << "Cube0=\"" << n0 << "\"";
+        if (miss0 && miss1) std::cerr << ", ";
+        if (miss1)          std::cerr << "Cube1=\"" << n1 << "\"";
+        std::cerr << ")\n";
+    };
+
+    // 各制約クラス共通の解決処理（cube0Name/cube1Name → resolveFor → setCubes/警告）
+    auto resolvePair = [&](Instance* c, const char* cls,
+                           const std::string& n0, const std::string& n1,
+                           auto&& applyCubes) {
+        bool cfg0 = !n0.empty(), cfg1 = !n1.empty();
+        auto c0 = cfg0 ? resolveFor(c, n0) : nullptr;
+        auto c1 = cfg1 ? resolveFor(c, n1) : nullptr;
+        if (c0 && c1) applyCubes(c0, c1);
+        bool miss0 = cfg0 && !c0, miss1 = cfg1 && !c1;
+        if (miss0 || miss1) warnUnresolved(c, cls, miss0, n0, miss1, n1);
+    };
+
     auto walk = [&](auto& self, Instance* inst) -> void {
         for (auto& [name, child] : inst->children) {
             Instance* c = child.get();
             if (child->IsA("Rope")) {
                 auto rope = std::static_pointer_cast<Rope>(child);
-                auto c0 = resolveFor(c, rope->m_cube0Name);
-                auto c1 = resolveFor(c, rope->m_cube1Name);
-                if (c0 && c1) rope->setCubes(c0, c1);
-                else std::cerr << "[SceneLoader] Rope \"" << rope->Name << "\": cube not found\n";
+                resolvePair(c, "Rope", rope->m_cube0Name, rope->m_cube1Name,
+                            [&](auto c0, auto c1) { rope->setCubes(c0, c1); rope->resolveAttachments(); });
             } else if (child->IsA("Rod")) {
                 auto rod = std::static_pointer_cast<Rod>(child);
-                auto c0 = resolveFor(c, rod->m_cube0Name);
-                auto c1 = resolveFor(c, rod->m_cube1Name);
-                if (c0 && c1) rod->setCubes(c0, c1);
-                else std::cerr << "[SceneLoader] Rod \"" << rod->Name << "\": cube not found\n";
+                resolvePair(c, "Rod", rod->m_cube0Name, rod->m_cube1Name,
+                            [&](auto c0, auto c1) { rod->setCubes(c0, c1); rod->resolveAttachments(); });
             } else if (child->IsA("Weld")) {
                 auto weld = std::static_pointer_cast<Weld>(child);
-                auto c0 = resolveFor(c, weld->m_cube0Name);
-                auto c1 = resolveFor(c, weld->m_cube1Name);
-                if (c0 && c1) weld->setCubes(c0, c1);
-                else std::cerr << "[SceneLoader] Weld \"" << weld->Name << "\": cube not found\n";
+                resolvePair(c, "Weld", weld->m_cube0Name, weld->m_cube1Name,
+                            [&](auto c0, auto c1) { weld->setCubes(c0, c1); });
             } else if (child->IsA("Motor")) {
                 auto motor = std::static_pointer_cast<Motor>(child);
-                auto c0 = resolveFor(c, motor->m_cube0Name);
-                auto c1 = resolveFor(c, motor->m_cube1Name);
-                if (c0 && c1) motor->setCubes(c0, c1);
-                else std::cerr << "[SceneLoader] Motor \"" << motor->Name << "\": cube not found\n";
+                resolvePair(c, "Motor", motor->m_cube0Name, motor->m_cube1Name,
+                            [&](auto c0, auto c1) { motor->setCubes(c0, c1); motor->resolveAttachments(); });
             }
             self(self, c);
         }
@@ -337,6 +363,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->getClassName() == "Animation"
                  || inst->IsA("Rope") || inst->IsA("Rod")
                  || inst->IsA("Weld") || inst->IsA("Motor")
+                 || inst->getClassName() == "Force"
                  || inst->IsA("ScreenGuiObject")
                  || inst->IsA("WorldGuiObject")
                  || inst->getClassName() == "ProximityPrompt"
@@ -510,6 +537,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             const Rope* r = static_cast<const Rope*>(inst);
             out << YAML::Key << "Cube0"       << YAML::Value << r->m_cube0Name;
             out << YAML::Key << "Cube1"       << YAML::Value << r->m_cube1Name;
+            if (!r->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << r->m_attachment0Name;
+            if (!r->m_attachment1Name.empty()) out << YAML::Key << "Attachment1" << YAML::Value << r->m_attachment1Name;
             out << YAML::Key << "MaxDistance" << YAML::Value << r->MaxDistance;
             out << YAML::Key << "Stiffness"   << YAML::Value << r->Stiffness;
             out << YAML::Key << "Damping"     << YAML::Value << r->Damping;
@@ -520,6 +549,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             const Rod* r = static_cast<const Rod*>(inst);
             out << YAML::Key << "Cube0" << YAML::Value << r->m_cube0Name;
             out << YAML::Key << "Cube1" << YAML::Value << r->m_cube1Name;
+            if (!r->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << r->m_attachment0Name;
+            if (!r->m_attachment1Name.empty()) out << YAML::Key << "Attachment1" << YAML::Value << r->m_attachment1Name;
             out << YAML::Key << "Color"     << YAML::Value << YAML::Flow << YAML::BeginSeq << r->Color.r << r->Color.g << r->Color.b << r->Color.a << YAML::EndSeq;
             out << YAML::Key << "LineWidth" << YAML::Value << r->LineWidth;
         }
@@ -532,12 +563,18 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             const Motor* m = static_cast<const Motor*>(inst);
             out << YAML::Key << "Cube0" << YAML::Value << m->m_cube0Name;
             out << YAML::Key << "Cube1" << YAML::Value << m->m_cube1Name;
+            if (!m->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << m->m_attachment0Name;
+            if (!m->m_attachment1Name.empty()) out << YAML::Key << "Attachment1" << YAML::Value << m->m_attachment1Name;
             out << YAML::Key << "Axis"  << YAML::Value
                 << YAML::Flow << YAML::BeginSeq
                 << m->Axis.x << m->Axis.y << m->Axis.z
                 << YAML::EndSeq;
             out << YAML::Key << "DriveVelocity" << YAML::Value << m->DriveVelocity;
             out << YAML::Key << "MaxForce"      << YAML::Value << m->MaxForce;
+        }
+
+        if (inst->getClassName() == "Force") {
+            PropertyRegistry::saveProperties(out, inst, "Force");
         }
 
         if (inst->IsA("ScreenGuiObject")) {

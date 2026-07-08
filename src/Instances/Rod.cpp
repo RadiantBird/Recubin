@@ -1,5 +1,6 @@
 #include <include/Instances/Rod.hpp>
 #include <include/Instances/Workspace.hpp>
+#include <include/Instances/Attachment.hpp>
 #include <include/Core/Physics.hpp>
 
 Rod::Rod()
@@ -47,8 +48,18 @@ void Rod::registerIfReady() {
         if (child && child->IsA("BaseCube"))
             m_cube1 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
     }
+    resolveAttachments();
     if (m_cube0.lock() && m_cube1.lock())
         ws->registerConstraint(shared_from_this());
+}
+
+void Rod::resolveAttachments() {
+    if (!m_attachment0.lock() && !m_attachment0Name.empty())
+        if (auto c0 = m_cube0.lock())
+            m_attachment0 = Attachment::findUnder(c0.get(), m_attachment0Name);
+    if (!m_attachment1.lock() && !m_attachment1Name.empty())
+        if (auto c1 = m_cube1.lock())
+            m_attachment1 = Attachment::findUnder(c1.get(), m_attachment1Name);
 }
 
 std::shared_ptr<Instance> Rod::clone() const {
@@ -56,10 +67,14 @@ std::shared_ptr<Instance> Rod::clone() const {
     c->Name        = Name;
     c->m_cube0Name = m_cube0Name;
     c->m_cube1Name = m_cube1Name;
+    c->m_attachment0Name = m_attachment0Name;
+    c->m_attachment1Name = m_attachment1Name;
     c->Color       = Color;
     c->LineWidth   = LineWidth;
     c->m_cube0     = m_cube0;
     c->m_cube1     = m_cube1;
+    c->m_attachment0 = m_attachment0;
+    c->m_attachment1 = m_attachment1;
     for (auto const& [n, ch] : children) c->addChild(ch->clone());
     return c;
 }
@@ -67,6 +82,8 @@ std::shared_ptr<Instance> Rod::clone() const {
 void Rod::remapClonedInstances(const CloneRemap& map) {
     if (auto c0 = m_cube0.lock()) { auto it = map.find(c0.get()); if (it != map.end()) m_cube0 = std::static_pointer_cast<BaseCube>(it->second); }
     if (auto c1 = m_cube1.lock()) { auto it = map.find(c1.get()); if (it != map.end()) m_cube1 = std::static_pointer_cast<BaseCube>(it->second); }
+    if (auto a0 = m_attachment0.lock()) { auto it = map.find(a0.get()); if (it != map.end()) m_attachment0 = std::static_pointer_cast<Attachment>(it->second); }
+    if (auto a1 = m_attachment1.lock()) { auto it = map.find(a1.get()); if (it != map.end()) m_attachment1 = std::static_pointer_cast<Attachment>(it->second); }
 }
 
 std::string Rod::getClassName() { return "Rod"; }
@@ -91,6 +108,12 @@ void Rod::setProperty(const std::string& name, const YAML::Node& value) {
             if (child && child->IsA("BaseCube"))
                 m_cube1 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
         }
+    } else if (name == "Attachment0") {
+        m_attachment0Name = value.as<std::string>();
+        m_attachment0.reset(); // 名前変更後に registerIfReady() 経由で再解決させる
+    } else if (name == "Attachment1") {
+        m_attachment1Name = value.as<std::string>();
+        m_attachment1.reset();
     } else if (name == "Color") {
         Color.r = value[0].as<float>();
         Color.g = value[1].as<float>();

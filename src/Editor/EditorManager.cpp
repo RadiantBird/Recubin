@@ -142,6 +142,8 @@ void EditorManager::render(GLFWwindow* window) {
             ImGui::MenuItem("Content Browser", nullptr, &contentBrowserPanel->isOpen);
             ImGui::MenuItem("Console",         nullptr, &consolePanel->isOpen);
             ImGui::MenuItem("Animation",       nullptr, &animationPanel->isOpen);
+            ImGui::Separator();
+            ImGui::MenuItem("Physics Debug",   nullptr, &viewportPanel->showPhysicsDebug);
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();

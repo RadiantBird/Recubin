@@ -8,6 +8,8 @@
 #include <queue>
 #include <cmath>
 #include <include/Instances/LiquidCube.hpp>
+#include <include/Instances/Attachment.hpp>
+#include <include/Instances/Force.hpp>
 
 // ===================================================
 //  static メンバ定義
@@ -554,6 +556,32 @@ void Physics::applyBuoyancy() {
     }
 }
 
+void Physics::applyForces() {
+    for (auto& entry : cubes) {
+        auto cube = entry.cube.lock();
+        if (!cube || !cube->actor) continue;
+        auto* dyn = cube->actor->is<physx::PxRigidDynamic>();
+        if (!dyn || (dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) continue;
+
+        for (auto const& [name, child] : cube->children) {
+            if (!child || !child->IsA("Force")) continue;
+            auto* force = static_cast<Force*>(child.get());
+            if (!force->Enabled) continue;
+
+            physx::PxVec3 v(force->Value.x, force->Value.y, force->Value.z);
+            if (force->MaintainVelocity) {
+                // 維持モード: 目標速度(線速度/角速度)を毎フレーム設定して保つ
+                if (force->Torque) dyn->setAngularVelocity(v);
+                else               dyn->setLinearVelocity(v);
+            } else {
+                // 加算モード: 力/トルクとして加える（重力・浮力など他の力と合成される）
+                if (force->Torque) dyn->addTorque(v, physx::PxForceMode::eFORCE);
+                else               dyn->addForce(v, physx::PxForceMode::eFORCE);
+            }
+        }
+    }
+}
+
 void Physics::update(Workspace& workspace, float dt) {
     if (!workspace.PhysicsEnabled) return;
     setGravity(workspace.Gravity);
@@ -566,6 +594,7 @@ void Physics::update(Workspace& workspace, float dt) {
     m_accumulator += dt;
 
     applyBuoyancy();  // 浮力を addForce（次の simulate で消費される）
+    applyForces();    // Forceインスタンスの力/トルク/速度維持（同上）
 
     int steps = 0;
     while (m_accumulator >= fixedStep) {
@@ -679,6 +708,21 @@ void Physics::syncWeldKinematics() {
     }
 }
 
+// Attachment 設定時、アクターローカルのジョイントフレームに Attachment の
+// キューブ相対 CFrame を合成する（未設定なら base のまま = 従来のキューブ中心）
+static physx::PxTransform composeAttachmentFrame(
+    const physx::PxTransform& base,
+    const std::weak_ptr<Attachment>& attRef,
+    const BaseCube* cube)
+{
+    auto att = attRef.lock();
+    if (!att) return base;
+    CFrame rel = att->relativeToAncestor(cube);
+    return base * physx::PxTransform(
+        physx::PxVec3(rel.Position.x, rel.Position.y, rel.Position.z),
+        physx::PxQuat(rel.Rotation.x, rel.Rotation.y, rel.Rotation.z, rel.Rotation.w));
+}
+
 void Physics::createRope(const std::shared_ptr<Rope>& rope) {
     auto c0 = rope->m_cube0.lock();
     auto c1 = rope->m_cube1.lock();
@@ -691,8 +735,8 @@ void Physics::createRope(const std::shared_ptr<Rope>& rope) {
         return;
     }
 
-    physx::PxTransform frame0 = c0->m_compoundLocalOffset;
-    physx::PxTransform frame1 = c1->m_compoundLocalOffset;
+    physx::PxTransform frame0 = composeAttachmentFrame(c0->m_compoundLocalOffset, rope->m_attachment0, c0.get());
+    physx::PxTransform frame1 = composeAttachmentFrame(c1->m_compoundLocalOffset, rope->m_attachment1, c1.get());
     float dist = rope->MaxDistance;
     if (dist <= 0.0f) {
         auto p0 = c0->actor->getGlobalPose().transform(frame0).p;
@@ -731,8 +775,8 @@ void Physics::createRod(const std::shared_ptr<Rod>& rod) {
         return;
     }
 
-    physx::PxTransform frame0 = c0->m_compoundLocalOffset;
-    physx::PxTransform frame1 = c1->m_compoundLocalOffset;
+    physx::PxTransform frame0 = composeAttachmentFrame(c0->m_compoundLocalOffset, rod->m_attachment0, c0.get());
+    physx::PxTransform frame1 = composeAttachmentFrame(c1->m_compoundLocalOffset, rod->m_attachment1, c1.get());
     auto p0 = c0->actor->getGlobalPose().transform(frame0).p;
     auto p1 = c1->actor->getGlobalPose().transform(frame1).p;
     float dist = (p1 - p0).magnitude();
@@ -1043,6 +1087,10 @@ void Physics::createMotor(const std::shared_ptr<Motor>& motor) {
 
     // ピボット: 各キューブ自身の CFrame から midpoint を使う
     // (Weld コンパウンドに取り込まれた場合でも actor pose ではなく個別座標が正しい)
+    // Attachment0/Attachment1 が設定されていればその位置をピボットに使う:
+    //   両方設定 → 各キューブ側のピボットをそれぞれの Attachment 位置に
+    //   片方のみ → その Attachment 位置を共有ピボットに
+    //   未設定   → 従来通り 2 キューブの中点
     physx::PxTransform pose0 = c0->actor->getGlobalPose();
     physx::PxTransform pose1 = c1->actor->getGlobalPose();
     auto* sp0 = static_cast<Spatial*>(c0.get());
@@ -1055,13 +1103,32 @@ void Physics::createMotor(const std::shared_ptr<Motor>& motor) {
                         sp1->getWorldCFrame().Position.z };
     physx::PxVec3 pivotWorld = (p0 + p1) * 0.5f;
 
+    auto att0 = motor->m_attachment0.lock();
+    auto att1 = motor->m_attachment1.lock();
+    physx::PxVec3 pivot0World = pivotWorld;
+    physx::PxVec3 pivot1World = pivotWorld;
+    if (att0 || att1) {
+        auto worldOf = [](const std::shared_ptr<Attachment>& a) {
+            Vector3 wp = a->getWorldCFrame().Position;
+            return physx::PxVec3(wp.x, wp.y, wp.z);
+        };
+        if (att0 && att1) {
+            pivot0World = worldOf(att0);
+            pivot1World = worldOf(att1);
+        } else {
+            physx::PxVec3 shared = att0 ? worldOf(att0) : worldOf(att1);
+            pivot0World = shared;
+            pivot1World = shared;
+        }
+    }
+
     // 回転軸を cube0 ローカルの X 軸として表現するフレームを構築
     physx::PxVec3 axisW(motor->Axis.x, motor->Axis.y, motor->Axis.z);
     axisW.normalize();
     physx::PxQuat axisRot = computeShortestRotationFromX(axisW);
 
-    physx::PxTransform frame0 = pose0.transformInv(physx::PxTransform(pivotWorld, axisRot));
-    physx::PxTransform frame1 = pose1.transformInv(physx::PxTransform(pivotWorld, axisRot));
+    physx::PxTransform frame0 = pose0.transformInv(physx::PxTransform(pivot0World, axisRot));
+    physx::PxTransform frame1 = pose1.transformInv(physx::PxTransform(pivot1World, axisRot));
 
     physx::PxRevoluteJoint* joint = PxRevoluteJointCreate(
         *s_pxPhysics, c0->actor, frame0, c1->actor, frame1
