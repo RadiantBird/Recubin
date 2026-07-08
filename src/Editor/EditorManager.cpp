@@ -568,17 +568,30 @@ void EditorManager::renderToolbar() {
     ImGui::SameLine();
 
     // ---- Select / Move / Resize / Rotate ----
+    // アクティブなボタンをもう一度押すと無操作(toolNone)に切り替わるトグル動作
     if (activeViewport) {
         ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isSelectMode() ? colActive : colInactive);
-        if (ImGui::Button("Select", btnSz)) { activeViewport->selectOnly = true; }
+        if (ImGui::Button("Select", btnSz)) {
+            if (activeViewport->isSelectMode()) {
+                activeViewport->toolNone = true;
+            } else {
+                activeViewport->toolNone   = false;
+                activeViewport->selectOnly = true;
+            }
+        }
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isMoveMode() ? colActive : colInactive);
         if (ImGui::Button("Move", btnSz)) {
-            activeViewport->selectOnly = false;
-            activeViewport->gizmoOp   = ImGuizmo::TRANSLATE;
+            if (activeViewport->isMoveMode()) {
+                activeViewport->toolNone = true;
+            } else {
+                activeViewport->toolNone   = false;
+                activeViewport->selectOnly = false;
+                activeViewport->gizmoOp    = ImGuizmo::TRANSLATE;
+            }
         }
         ImGui::PopStyleColor();
 
@@ -586,8 +599,13 @@ void EditorManager::renderToolbar() {
 
         ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isResizeMode() ? colActive : colInactive);
         if (ImGui::Button("Resize", btnSz)) {
-            activeViewport->selectOnly = false;
-            activeViewport->gizmoOp   = ImGuizmo::SCALE;
+            if (activeViewport->isResizeMode()) {
+                activeViewport->toolNone = true;
+            } else {
+                activeViewport->toolNone   = false;
+                activeViewport->selectOnly = false;
+                activeViewport->gizmoOp    = ImGuizmo::SCALE;
+            }
         }
         ImGui::PopStyleColor();
 
@@ -595,8 +613,13 @@ void EditorManager::renderToolbar() {
 
         ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isRotateMode() ? colActive : colInactive);
         if (ImGui::Button("Rotate", btnSz)) {
-            activeViewport->selectOnly = false;
-            activeViewport->gizmoOp   = ImGuizmo::ROTATE;
+            if (activeViewport->isRotateMode()) {
+                activeViewport->toolNone = true;
+            } else {
+                activeViewport->toolNone   = false;
+                activeViewport->selectOnly = false;
+                activeViewport->gizmoOp    = ImGuizmo::ROTATE;
+            }
         }
         ImGui::PopStyleColor();
     }

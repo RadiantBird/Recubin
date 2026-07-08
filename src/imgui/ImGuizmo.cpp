@@ -2158,7 +2158,8 @@ namespace IMGUIZMO_NAMESPACE
       int type = MT_NONE;
 
       // screen
-      if (io.MousePos.x >= gContext.mScreenSquareMin.x && io.MousePos.x <= gContext.mScreenSquareMax.x &&
+      if (gContext.mStyle.CenterCircleSize > 0.0f &&
+         io.MousePos.x >= gContext.mScreenSquareMin.x && io.MousePos.x <= gContext.mScreenSquareMax.x &&
          io.MousePos.y >= gContext.mScreenSquareMin.y && io.MousePos.y <= gContext.mScreenSquareMax.y &&
          Contains(op, TRANSLATE))
       {

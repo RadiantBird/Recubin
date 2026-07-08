@@ -404,7 +404,7 @@ void ViewportPanel::onRender() {
     // ---- クリック処理: 選択 & ドラッグ開始（全モード共通） ----
     // Selectモードでも非Selectモードでもレイキャストでオブジェクトを選択できる。
     // 非Selectモードでは現在の選択物をクリックしたときのみドラッグ開始する。
-    if (!terrainBrushActive && isHoveringViewport && ImGui::IsMouseClicked(0) && !ImGuizmo::IsUsing() && user && workspace) {
+    if (!terrainBrushActive && !isNoToolMode() && isHoveringViewport && ImGui::IsMouseClicked(0) && !ImGuizmo::IsUsing() && user && workspace) {
         ImVec2 mousePos = ImGui::GetMousePos();
         Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
         Vector3 rayOri = user->cpos;
@@ -576,7 +576,7 @@ void ViewportPanel::onRender() {
     }
 
     // ---- ギズモのオーバーレイ ----
-    if (!isSelectMode() && selectedInstance && *selectedInstance && user) {
+    if (isGizmoMode() && selectedInstance && *selectedInstance && user) {
         Instance* inst = *selectedInstance;
         if (inst->IsA("Spatial")) {
             Spatial* s = static_cast<Spatial*>(inst);
@@ -881,6 +881,15 @@ void ViewportPanel::onRender() {
                 for (int i = 0; i < 3; ++i) {
                     newPosArr[i] = (i == hitAxis) ? fixedCoord
                                                   : oriArr[i] + dirArr[i] * t;
+                }
+
+                // hitAxis 以外の2軸は、乗っているサーフェスの端からはみ出さないようクランプする
+                for (int i = 0; i < 3; ++i) {
+                    if (i == hitAxis) continue;
+                    float lo = surfPos[i] - surfHalf[i] + movHalf[i];
+                    float hi = surfPos[i] + surfHalf[i] - movHalf[i];
+                    if (lo > hi) { lo = hi = surfPos[i]; } // サーフェスより移動物が大きい場合は中央に固定
+                    newPosArr[i] = std::clamp(newPosArr[i], lo, hi);
                 }
                 Vector3 newPos(newPosArr[0], newPosArr[1], newPosArr[2]);
 

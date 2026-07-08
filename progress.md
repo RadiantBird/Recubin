@@ -194,6 +194,68 @@ readme.mdに新規追加されたTodo「間違えてPositionを変更してし�
 
 ---
 
+## 2026-07-08 ドラッガー実装（移動範囲クランプ）+ ImGuizmo移動モード「白い球」バグ修正
+
+### 指示内容
+readme.mdに新規追加された3項目をまとめて対応：
+1. 「ドラッガーの実装」（Cubeサイズ＋軸制限で移動範囲を計算する／ドラッグ軸ごとに不要軸を除去する処理／xz・xy・yzドラッグ時に該当軸を無効化）
+2. 「制限ボックス外に出ないようにクランプ処理を実装」
+3. 「ImGuizmoの移動モードの白い球が動いてしまうバグを修正する」
+
+### 何をしたか
+**A. ドラッガー拡張（`src/Editor/ViewportPanel.cpp`）**
+- 既存の「Moveモード自由移動」（選択キューブを直接クリック&ドラッグしてサーフェスに追従させる機能。`castRaySurface()`でヒットした面の法線軸`hitAxis`を固定し、残り2軸をレイと平面の交点で自由に動かす）を調査した結果、「hitAxis固定＝不要軸の除去」自体は既に実装済みだったが、自由な2軸に移動範囲の制限が一切なく、サーフェスの端を越えてどこまでもドラッグできる状態だったと判明。
+- `newPos`計算直後・`teleportTo`呼び出し前に、hitAxis以外の2軸について `surfPos[i] ± surfHalf[i] ∓ movHalf[i]`（サーフェスの端から移動物の半サイズ分内側）を範囲としてクランプする処理を追加。サーフェスより移動物が大きく範囲が反転する場合はサーフェス中央に固定するフォールバックも追加。
+- 既存の`collisionFit`（他オブジェクトとの任意衝突回避）は、このクランプの後段に従来通り適用されるよう順序を維持（サーフェス端の制約と、他物体との衝突回避を分離）。
+
+**B. ImGuizmo「白い球」バグ修正（`src/imgui/ImGuizmo.cpp`）**
+- `src/Editor/EditorManager.cpp:803`の`ImGuizmo::GetStyle().CenterCircleSize = 0.0f;`（TRANSLATEモード中心ハンドルを非表示にする設定）を発見。
+- `src/imgui/ImGuizmo.cpp`の`GetMoveType()`内、screen判定（`MT_MOVE_SCREEN`、中心の2軸同時移動ハンドルの当たり判定）が`CenterCircleSize`とは無関係な固定±10pxの`mScreenSquareMin/Max`のみで判定しており、描画は消えているのに当たり判定だけ生き残っていたと特定。
+- `GetMoveType()`のscreen判定に`gContext.mStyle.CenterCircleSize > 0.0f`の条件を追加し、非表示状態なら当たり判定も無効化されるようにした。
+
+### なぜそうしたか
+- ユーザーヒアリングで「ドラッガー」は既存の自由移動ドラッグの拡張であること、移動範囲は「乗っているサーフェスのサイズ・端」を基準にすることを確認済みだったため、新規の別ドラッグ手段を作らず既存ブロックへのクランプ追加に留めた。
+- `src/imgui/ImGuizmo.cpp`は`temp_libs/ImGuizmo/ImGuizmo.cpp`とのdiffで、SCALE/TRANSLATE負方向ハンドル追加など既にプロジェクト側で独自パッチが入っているベンダーコピーだと確認できたため、今回のGetMoveType()修正もこの前例に倣った。
+- 同じ`CenterCircleSize`はSCALE中心ハンドル・ROTATE_SCREENリングの見た目にも使われており理論上同種の問題がありうるが、ユーザーの指示は「移動モード」限定だったためTRANSLATE(`GetMoveType()`)のみを修正し、他は対象外とした。
+
+### どういう経緯か
+1. readme.mdの3項目について、AskUserQuestionで「既存自由移動ドラッグの拡張か新規ドラッグ手段か」「移動範囲の基準は何か」を確認し、「既存拡張・サーフェス基準」と回答を得た。
+2. 「白い球」バグについても、当初は「毎フレーム変化する行列をImGuizmoに渡すことでSCALE同様の内部参照ずれが起きているのでは」という仮説を立てたが、確証がなかったためAskUserQuestionで症状を確認したところ「過去に非表示にしたはずが実際はまだ動作している」という全く別の原因（描画と当たり判定の不整合）と判明。
+3. `grep`で`CenterCircleSize`を検索し、`EditorManager.cpp:803`での0.0f設定と、`ImGuizmo.cpp`の`GetMoveType()`のscreen当たり判定コードを突き合わせて根本原因を特定した。
+4. Plan modeで両修正をまとめて計画・承認を得てから実装、ビルド成功を確認。
+
+### 未解決・保留
+- 実機での動作確認（サーフェス上でキューブを端までドラッグして止まること、ImGuizmo中心の見えないハンドルが反応しなくなること）はユーザーに委ねる（GUI自動スモークテスト禁止のため）。
+- `CenterCircleSize`を使うSCALE中心ハンドル・ROTATE_SCREENリングにも同種の「描画は消えているが当たり判定は生きている」問題が理論上ありうるが、今回はスコープ外（ユーザー指示が「移動モード」限定だったため）。
+
+### 暗黙仕様の発見（spec.mdに無い挙動）
+- **`src/imgui/ImGuizmo.cpp`はベンダー配布そのままではなく、プロジェクト側で既に独自パッチ（SCALE/TRANSLATE負方向ハンドル追加等）が入ったコピー**（`temp_libs/ImGuizmo/ImGuizmo.cpp`という素のベンダーコピーが別途残っており、diffで差分を確認できる）。このため今回のようにImGuizmo自体の挙動を直す必要がある場合、`src/imgui/ImGuizmo.cpp`を直接編集するのがこのプロジェクトの前例に沿ったやり方になる。
+- **ImGuizmoの`Style::CenterCircleSize`は「描画の見た目」のみを制御し、`GetMoveType()`のscreenハンドル当たり判定（`mScreenSquareMin/Max`、固定±10px）とは独立している**。見た目を0にして非表示にしても当たり判定は生きたままになるため、ImGuizmoの視覚要素を「隠す」場合は当たり判定側も併せて確認する必要がある。同じ罠がSCALE中心ハンドル・ROTATE_SCREENリングにも当てはまる可能性がある。
+
+---
+
+## 2026-07-08 Select/Move/Resize/Rotateボタンのトグル化（無操作モード追加）
+
+### 指示内容
+エディターツールバーのSelect/Move/Resize/Rotateボタンについて、アクティブなボタンをもう一度押したら「無操作」（クリックしても選択すら変わらない、カメラ操作のみ）になるようにしてほしいという追加依頼。
+
+### 何をしたか（`include/Editor/ViewportPanel.hpp` / `src/Editor/ViewportPanel.cpp` / `src/Editor/EditorManager.cpp`のみ変更）
+- `ViewportPanel`に新規メンバ`bool toolNone`を追加。既存の`selectOnly`/`gizmoOp`による4状態（Select/Move/Resize/Rotate、常にどれか1つがアクティブ）に対し、5つ目の状態として追加。
+- `isSelectMode()`/`isMoveMode()`/`isResizeMode()`/`isRotateMode()`全てに`!toolNone`の条件を追加し、`toolNone`が真の間はどれも偽になるようにした。新規`isNoToolMode()`（toolNoneそのもの）と`isGizmoMode()`（Move/Resize/Rotateのいずれか）のクエリも追加。
+- クリック処理の入り口（`ViewportPanel::onRender()`内、「クリック処理: 選択 & ドラッグ開始」ブロックの条件）に`!isNoToolMode()`を追加し、無操作中はクリックしても選択もドラッグ開始も一切発生しないようにした。ボックス選択（`isSelectMode()`をチェック済み）や自由移動ドラッグ（`isMoveMode()`をチェック済み）は、上記の`is*Mode()`変更により自動的に無操作中は無効化される。
+- ギズモのオーバーレイ描画条件を`!isSelectMode()`から`isGizmoMode()`（Move/Resize/Rotateのいずれか）に変更。旧条件のままだと`toolNone`中に`isSelectMode()`が偽になりギズモが誤って表示されてしまうため。
+- `EditorManager::renderToolbar()`の4ボタンを、「既にアクティブなモードのボタンを押したら`toolNone = true`、そうでなければ従来通りそのモードに切り替えて`toolNone = false`」というトグル処理に書き換えた。
+
+### なぜそうしたか
+- ユーザーヒアリングで「無操作」は本当に何もしない（クリックしても選択すら変わらない、カメラ操作のみ）状態であることと、メイン・セカンダリ両方のビューポートに適用することを確認済み。
+- `renderToolbar()`は`GetFocusedViewport()`で取得した`activeViewport`（メインまたはセカンダリ）に対して同じボタンコードを使う構造だったため、`ViewportPanel`側にトグル状態を持たせるだけで自然にメイン・セカンダリ両方に適用される。
+- 状態表現を丸ごとenumに置き換える大きな書き換えは避け、既存の`selectOnly`/`gizmoOp`を残したまま`toolNone`を追加する最小変更にした（CLAUDE.mdのスコープ厳守方針）。
+
+### 未解決・保留
+- 実機での動作確認（同じボタンをもう一度押すと無操作になり、クリックしても選択が変わらないこと）はユーザーに委ねる（GUI自動スモークテスト禁止のため）。
+
+---
+
 ## 2026-07-08 Weldグループ壊れ修正 + BaseCubeクローン漏れ修正 + 浮力の面分散化
 
 ### 指示内容

@@ -29,6 +29,7 @@ public:
     // ギズモ操作モード
     ImGuizmo::OPERATION gizmoOp = ImGuizmo::TRANSLATE;
     bool selectOnly = false;  // true のとき ImGuizmo を描画しない
+    bool toolNone   = false;  // true のとき無操作（選択変更もドラッグもしない、カメラ操作のみ）
 
     Instance** selectedInstance  = nullptr;  // SceneHierarchyPanel と共有（Primary）
     std::vector<Instance*>* selectedInstances = nullptr;  // 複数選択セット
@@ -70,10 +71,12 @@ public:
     bool  collisionFit     = true;
 
     // ---- ツールモード状態クエリ ----
-    bool isSelectMode()      const { return selectOnly; }
-    bool isMoveMode()        const { return !selectOnly && gizmoOp == ImGuizmo::TRANSLATE; }
-    bool isResizeMode()      const { return !selectOnly && gizmoOp == ImGuizmo::SCALE; }
-    bool isRotateMode()      const { return !selectOnly && gizmoOp == ImGuizmo::ROTATE; }
+    bool isNoToolMode()      const { return toolNone; }
+    bool isSelectMode()      const { return !toolNone && selectOnly; }
+    bool isMoveMode()        const { return !toolNone && !selectOnly && gizmoOp == ImGuizmo::TRANSLATE; }
+    bool isResizeMode()      const { return !toolNone && !selectOnly && gizmoOp == ImGuizmo::SCALE; }
+    bool isRotateMode()      const { return !toolNone && !selectOnly && gizmoOp == ImGuizmo::ROTATE; }
+    bool isGizmoMode()       const { return isMoveMode() || isResizeMode() || isRotateMode(); }
     bool hasMultiSelection() const { return selectedInstances && selectedInstances->size() > 1; }
 
     ViewportPanel();
