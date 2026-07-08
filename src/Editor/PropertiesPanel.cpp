@@ -446,7 +446,7 @@ void PropertiesPanel::onRender() {
     char nameBuf[256] = {};
     strncpy_s(nameBuf, inst->Name.c_str(), sizeof(nameBuf) - 1);
     if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf))) {
-        inst->Name = std::string(nameBuf);
+        inst->renameTo(std::string(nameBuf));
     }
     if (ImGui::IsItemActivated()) s_nameBefore = inst->Name;
     if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
