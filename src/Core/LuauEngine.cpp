@@ -1707,8 +1707,20 @@ void LuauEngine::reportSafetyBreach(const std::string& reason,
 }
 
 void LuauEngine::onCollision(BaseCube* a, BaseCube* b) {
-    if (a && a->Touched) a->Touched->fire(L);
-    if (b && b->Touched) b->Touched->fire(L);
+    if (a && a->Touched) {
+        a->Touched->fire(L, [b](lua_State* Lx) -> int {
+            if (!b) { lua_pushnil(Lx); return 1; }
+            pushInstanceUserdata(Lx, std::static_pointer_cast<Instance>(b->shared_from_this()));
+            return 1;
+        });
+    }
+    if (b && b->Touched) {
+        b->Touched->fire(L, [a](lua_State* Lx) -> int {
+            if (!a) { lua_pushnil(Lx); return 1; }
+            pushInstanceUserdata(Lx, std::static_pointer_cast<Instance>(a->shared_from_this()));
+            return 1;
+        });
+    }
 }
 
 void LuauEngine::update(float deltaTime) {

@@ -396,6 +396,30 @@ Root:
                 Position: [0, -0.5, 0]
                 Size: [0, 0, 0]
                 Rotation: [0, 0, -0.70710677, 0.70710677]
+        - ClassName: Cube
+          Name: DamagePart
+          Properties:
+            Position: [25.527336, 0.625, 6.813034]
+            Size: [4, 0.25, 4]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0, 0, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: Folder
+              Name: Folder
+            - ClassName: Script
+              Name: DamageScript
+              Properties:
+                ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\DamageScript.luau
+                Enabled: true
     - ClassName: Folder
       Name: bin
       Children:
