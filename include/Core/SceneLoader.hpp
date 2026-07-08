@@ -24,6 +24,11 @@ public:
     static void registerSingleton(const std::string& className, std::shared_ptr<Instance> instance);
     static void clearSingletons();
 
+    /**
+     * @brief ClassName文字列から適切なInstance派生クラスを生成する
+     */
+    static std::shared_ptr<Instance> createInstance(const std::string& className);
+
 private:
     static std::unordered_map<std::string, std::shared_ptr<Instance>> s_singletons;
     /**
@@ -31,9 +36,5 @@ private:
      */
     static std::shared_ptr<Instance> parseInstance(const YAML::Node& node);
 
-    /**
-     * @brief ClassName文字列から適切なInstance派生クラスを生成する
-     */
-    static std::shared_ptr<Instance> createInstance(const std::string& className);
     static void saveNode(YAML::Emitter& out, Instance* inst);
 };

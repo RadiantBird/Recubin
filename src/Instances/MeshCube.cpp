@@ -227,7 +227,7 @@ bool MeshCube::loadFromGLB(const std::string& path) {
     m_cpuVertices = std::move(vertices);
     m_cpuIndices  = std::move(indices);
     m_textureID   = loadedTexture;
-    uploadToGPU();
+    if (Renderer::instance) uploadToGPU();
 
     return true;
 }

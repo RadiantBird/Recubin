@@ -1,4 +1,5 @@
 #include <Instances/Cylinder.hpp>
+#include <Core/Renderer.hpp>
 #include <GL/glew.h>
 #include <cmath>
 
@@ -104,7 +105,7 @@ void Cylinder::initGeometry() {
 Cylinder::Cylinder(Vector3 Pos, Vector3 Sz)
     : Named<Cylinder, BaseCube>(Pos, Sz)
 {
-    initGeometry();
+    if (Renderer::instance) initGeometry();
 }
 
 bool Cylinder::IsA(std::string className) {

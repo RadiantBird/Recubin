@@ -1,4 +1,5 @@
 #include <Instances/Sphere.hpp>
+#include <Core/Renderer.hpp>
 #include <GL/glew.h>
 #include <cmath>
 
@@ -91,7 +92,7 @@ void Sphere::initGeometry() {
 Sphere::Sphere(Vector3 Pos, Vector3 Sz)
     : Named<Sphere, BaseCube>(Pos, Sz)
 {
-    initGeometry();
+    if (Renderer::instance) initGeometry();
 }
 
 bool Sphere::IsA(std::string className) {

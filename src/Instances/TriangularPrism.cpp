@@ -1,4 +1,5 @@
 #include <Instances/TriangularPrism.hpp>
+#include <Core/Renderer.hpp>
 #include <GL/glew.h>
 
 unsigned int TriangularPrism::defaultTextureID = 0;
@@ -116,7 +117,7 @@ void TriangularPrism::initGeometry() {
 TriangularPrism::TriangularPrism(Vector3 Pos, Vector3 Sz)
     : Named<TriangularPrism, BaseCube>(Pos, Sz)
 {
-    initGeometry();
+    if (Renderer::instance) initGeometry();
 }
 
 bool TriangularPrism::IsA(std::string className) {

@@ -215,11 +215,83 @@ bool checkExit(EditorManager* ed, GLFWwindow& window) {
     return false;
 }
 
+// ===================================================
+//  --gen-test-scene: ヘッドレスシーン生成
+//  GLFW/Renderer/PhysXを一切構築せず、SceneLoader::createInstance()が対応する
+//  全クラスをWorkspace配下に生成してYAMLへ保存する。RecubinTest.exeでの
+//  網羅的なリグレッション確認用（run_regression.pyから呼ばれる想定）。
+// ===================================================
+static int runGenTestScene(const std::string& outputPath) {
+    getPlatform().setupConsoleUtf8();
+
+    auto audioService = std::make_unique<AudioService>();
+    audioService->initialize();
+
+    auto system    = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    system->addChild(workspace);
+
+    // SceneLoader::createInstance() が対応する全クラス（System/Workspace/
+    // PathfindingService/Script は特殊なため除外。Script は末尾で検証用に個別追加する）。
+    // createInstance() に新しいクラスを追加した場合はここにも追加すること。
+    static const char* kClassNames[] = {
+        "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere", "MeshCube", "LiquidCube",
+        "Skybox", "Sun", "Moon", "Model", "Sound",
+        "Lighting", "PointLight", "SpotLight", "PostEffect",
+        "AppImage", "FileRef", "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance",
+        "Rope", "Rod", "Weld", "Motor", "Attachment", "Force",
+        "TextLabel", "TextButton", "ImageLabel", "ImageButton", "SurfaceGui", "BillboardGui",
+        "ProximityPrompt", "Folder", "Tool", "ParticleEmitter", "Weather",
+    };
+
+    int generated = 0;
+    for (const char* className : kClassNames) {
+        auto inst = SceneLoader::createInstance(className);
+        if (!inst) {
+            std::cout << "[gen-test-scene] WARNING: failed to create " << className << "\n";
+            continue;
+        }
+        inst->Name = className;
+        workspace->addChild(inst);
+        ++generated;
+    }
+
+    // Decal/Texture はBaseCubeの子としてのみ意味を持つため、専用の親Cubeを作って生成する
+    auto decalHost = SceneLoader::createInstance("Cube");
+    decalHost->Name = "DecalHost";
+    workspace->addChild(decalHost);
+    for (const char* className : { "Decal", "Texture" }) {
+        auto inst = SceneLoader::createInstance(className);
+        if (!inst) continue;
+        inst->Name = className;
+        decalHost->addChild(inst);
+    }
+
+    // 検証用スクリプト: 代表的なインスタンスが揃っているかを確認する
+    // (scripts/gen_test_scene_check.luau)。ContentPath参照にしているのは、
+    // SceneLoader::saveNode がScriptのSourceを直接保存せずContentPathのみ
+    // 書き出すため（インラインSourceは保存→再ロードで消えてしまう）。
+    auto script = std::make_shared<Script>("scripts/gen_test_scene_check.luau");
+    script->Name = "GenTestSceneCheck";
+    workspace->addChild(script);
+
+    SceneLoader::saveScene(system.get(), outputPath);
+    std::cout << "[gen-test-scene] Wrote " << generated << " instances (+DecalHost, +check script) to "
+              << outputPath << "\n";
+    return 0;
+}
 
 // ===================================================
 //  main
 // ===================================================
 int main(int argc, char* argv[]) {
+    // ヘッドレスシーン生成モード: GUI/GLFW/Rendererを一切構築せず即終了する
+    for (int i = 1; i < argc; ++i) {
+        if (std::string(argv[i]) == "--gen-test-scene" && i + 1 < argc) {
+            return runGenTestScene(argv[i + 1]);
+        }
+    }
+
     // コンソールの出力/入力コードページをUTF-8にする
     // (Windows日本語版等では既定のANSIコードページのままだと、UTF-8で書かれた
     //  ログやLuauのprint出力が文字化けする)
