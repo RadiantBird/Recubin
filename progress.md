@@ -326,3 +326,101 @@ Plan modeで、CLAUDE.mdの指示によりExplore/PlanエージェントもTask�
 - **全BaseCube派生クラスのclone()実装は、`Name`/`Color`/`Anchored`/`CanCollide`/`cframe`のみを個別にコピーする手書きスタイルで統一されており、BaseCubeに新しいプロパティを追加した際にclone()側への反映を強制する仕組みが無い**。今回`material`/`MassDensity`/`CastShadow`/`Unlit`/`UseTriplanar`/`TextureScale`の6項目が7クラス全てで漏れていたのはこのため。今後BaseCubeに新規プロパティを追加する場合、この8ファイルのclone()全てに手動で反映を追加する必要があることを意識する必要がある（BaseCubeは意図的に手書き維持されているクラスのため、PropertyRegistryへの移行対象外であり、この手作業は今後も続く）。
 - **`Physics::applyBuoyancy()`は`cubes`配列を「BaseCubeエントリー単位」でループしており、Weld compoundのメンバーは自分のactor（共有compound）に対して個別に力を加える構造になっている**。この構造のおかげで、今回の浮力分散化はアセンブリ（Weld）に対しても特別な分岐を追加せずに自然に対応できた。今後、浮力以外の「キューブごとの外力」を追加する場合も、同じくcubesエントリー単位でループする限りアセンブリ対応が自動的に得られる設計になっている。
 
+---
+
+## 2026-07-09 setParentキーコリジョン警告の修正 + Name変更経路の一本化
+
+### 指示内容
+readme.mdの3件のTodo（IDE選択範囲で提示）:
+1. `[RCBN_WARN][Instance.cpp:45] setParent: Key collision for '...' in System. Overwriting existing child.` の修正
+2. キーコリジョンによるバグ/メモリリーク防止（エラーではなく警告+ずらす）。ユーザー入力にバリデーションが無い
+3. System配下がリセットされないことによるインスタンスの意図しない残存コピーの修正
+
+Plan modeで、CLAUDE.mdの指示によりExplore/PlanエージェントもTaskツールも使わずGrep/Readで自分で調査してから実装した。
+
+### 何をしたか
+
+**1. `include/Instances/Instance.hpp` / `src/Instances/Instance.cpp`**
+- 新規 `Instance::renameTo(const std::string& newName)` を追加。同名ならno-op、親が無ければNameを書き換えるだけ、親がいれば兄弟と衝突するかを確認し、衝突するなら`uniqueChildName()`（新設のファイルローカルstatic関数、`System::addChild()`のWorkspace用ロジックと同じ`base`+連番の命名規則）で一意名を作ってから`children`マップを更新し、`RCBN_WARN`で警告（衝突しても処理は継続、エラーにはしない）。
+- `Instance::setProperty("Name", ...)`の中身を`renameTo()`呼び出しに置き換え。
+- `Instance::setParent()`の衝突分岐を変更。以前は衝突した既存の子の`Parent`を外してから上書きしていたが、代わりに**新しく追加する側**（`this->Name`）を`uniqueChildName()`で一意化してから挿入する方式に変更。既存の子には一切触れない。
+
+**2. `src/Core/LuauEngine_Dispatch.cpp`**
+- `SetterTable["Instance"]["Name"]`（親のchildrenマップを整合させる体裁はあったが衝突チェックが無かった）を`obj->renameTo(...)`呼び出しに置き換え。
+
+**3. `src/Editor/SceneHierarchyPanel.cpp`**
+- F2リネーム確定処理（`inst->Name = after;`、親のchildrenマップを一切更新していなかった）を`inst->renameTo(after);`に変更。Undo記録用の`after`は呼び出し後の`inst->Name`を使うよう修正（衝突でずらされた場合に備えて）。
+
+**4. `src/Editor/PropertiesPanel.cpp`**
+- PropertiesパネルのNameフィールド（`ImGui::InputText`が変化するたび、つまり1キー入力ごとに`inst->Name = ...`していた。同じく親のchildrenマップ未更新）を`inst->renameTo(...)`に変更。Undo記録用の`after`は既存コードがdeactivation時に`inst->Name`を再取得する実装だったため変更不要（自然に反映される）。
+
+**5. `include/Editor/CommandHistory.hpp`**
+- `RenameInstanceCommand::execute()/undo()`（`m_target->Name = ...`の直接代入、childrenマップ未更新）を`m_target->renameTo(...)`に変更。
+
+**6. `src/main.cpp`**
+- 新規static関数`resetSystemForReload(system, user)`を追加（既存の`removeWorkspacesFromSystem`のすぐ後ろ）。`system->getChildren()`をスナップショットし、`user`以外の全ての子を`system->removeChild()`で除去する。
+- Play→Stop復元処理（`!isPlaying && wasPlaying`ブロック）とLoadボタンによるリロード処理（`ed->pendingLoadPath`ブロック）の2箇所で、`removeWorkspacesFromSystem(system, workspaces)`の呼び出しを`resetSystemForReload(system, user)`に置き換え。`resetTerrainStreamers`/`clearWorkspacePhysics`（Workspace個別の物理後始末）はそのまま維持し、順序も変更していない。
+- 上記2箇所それぞれで、`resetSystemForReload`呼び出しの直前に`ed->hierarchyPanel->selectedInstance = nullptr;`を追加（アプリ最終終了処理で既にある同じパターンを踏襲）。
+- 最終アプリ終了処理（`system.reset()`直前）の既存`removeWorkspacesFromSystem`呼び出しは変更していない（今回のバグと無関係な単純な後片付けのため）。
+
+ビルド確認: `python build.py build`で成功（Recubin.exe/RecubinEngine.exe/RecubinTest.exe全て生成）。
+
+### なぜそうしたか
+
+- **根本原因の特定経緯**: 警告メッセージが常に「in System」であることから、`System`直下で何かが再読込のたびに重複していると推測。`src/main.cpp`の`removeWorkspacesFromSystem()`を読んだところ、**Workspaceだけ**をSystemから除去しており、`PathfindingService`（spec.mdでSystem直下に自動生成される）や`StarterCharacter`（spec.mdで「System直下に置く」と明記）は除去対象外だったと判明。`SceneLoader::saveScene()`はSystemの全子要素（Workspace以外も）を保存するため、再読込時にこれらのクラスの新規インスタンスが`parseInstance()`で生成され、除去されずに残っていた旧インスタンスと名前が衝突していた。
+- **`resetSystemForReload`を「クラス名で個別に除去」ではなく「user以外を全部除去」にした理由**: 当初は`PathfindingService`/`StarterCharacter`を名指しで除去する案も考えたが、`SceneLoader::saveScene()`がSystemの子を無差別に全部シリアライズする以上、将来新しいクラスがSystem直下に追加された場合も同じバグが再発する。「再読込のたびにYAMLから作り直されるものは全部消してよい」という一般則（`user`だけが例外でSystem/User自体はシーンをまたいで使い回す設計）の方が頑健と判断し、AskUserQuestionを使わず自分の判断で採用した（`PathfindingService`のデストラクタ・`StarterCharacter`の実装を確認し、バックグラウンドスレッドやキャッシュ等の特別な後始末が不要なことを事前に確認済み）。
+- **`setParent()`衝突時の挙動を「上書き」から「新規側をずらす」に変更した理由**: AskUserQuestionでユーザーに確認し、「既存の子を上書きする」現行方式ではなく「新しく追加する側の名前を自動でずらす」方式を選択された。理由は、既存の子（他から参照が残っている可能性がある「本物」）を壊さない方が安全で、`System::addChild()`のWorkspace用ロジックと同じ考え方に統一できるため。
+- **Name変更経路を5箇所とも共通ヘルパー(`renameTo()`)に統一した理由**: AskUserQuestionでユーザーに確認済み。調査の過程で、`Instance::setProperty`とLuauのNameセッターは「親のchildrenマップを更新する体裁はあるが衝突チェックが無い」バグ、SceneHierarchyPanel/PropertiesPanel/RenameInstanceCommandの3箇所は「そもそも親のchildrenマップを一切更新しない（マップのキーとNameが食い違う）」というさらに深刻な別バグを抱えていることが分かった。5箇所に同じ非自明な修正（衝突チェック+一意化+マップ整合）を重複実装するより、共有メソッドに一本化する方が正しいと判断（CLAUDE.mdの「最適化・リファクタは指示された場合のみ」とは緊張関係にあるが、単純な重複実装ではなく「同一バグの重複修正を避ける」ための最小限の共通化として許容範囲と判断し、事前にユーザーに確認した）。
+- **PropertiesPanelのName入力を1キー入力ごとに`renameTo()`を呼ぶ形のまま残した理由**: 元々のコードも1キー入力ごとに`inst->Name`を直接書き換えていたため、確定時（deactivation）のみ適用する方式に変更すると既存の「入力中も他パネルにライブ反映される」挙動を変えてしまう。挙動変更は指示されていないため、今回はタイミングを変えず「同じタイミングで呼ぶ関数を安全なものに差し替える」だけに留めた。ただし衝突する中間文字列を打った場合、確定前に警告ログが出たり一時的に連番が付与されたりする可能性があり、必要ならF2リネーム同様「確定時のみ適用」に変更する余地がある（未解決・保留に記載）。
+
+### どういう経緯か
+
+1. IDE選択範囲（readme.mdの3件のTodo）を提示され、Plan modeで原因調査と修正計画の作成を依頼される。
+2. progress.md（前回セッションの最新分）を読み、直前まで物理エンジン関係の修正が続いていたことを確認。
+3. `Instance.hpp`/`Instance.cpp`を読み、`setParent()`の衝突ログが出る箇所とその挙動（上書き）を確認。
+4. 警告が常に「in System」である点から、`System`直下での重複が原因と仮説を立て、`System.hpp`/`System.cpp`/`doc/Instances/System.md`を読み、`System::addChild()`がWorkspaceのみ衝突回避していることを確認。
+5. `src/Core/SceneLoader.cpp`を読み、シングルトン（System/Workspace/User）だけがマージされ、他のクラスは再読込のたびに新規生成される仕組みを確認。
+6. `src/Core/SceneRuntime.cpp`（`loadAndBind()`）と`src/main.cpp`（Play/Stop復元処理・Loadボタン処理・`removeWorkspacesFromSystem()`）を読み、Workspaceだけがリロード前に除去されている実装を発見し、根本原因を特定。
+7. `PathfindingService.hpp/cpp`・`StarterCharacter.hpp`を読み、除去してもバックグラウンド処理等の特別な後始末が不要なことを確認。
+8. Name変更経路を横断的に調査するため`SceneHierarchyPanel.cpp`/`PropertiesPanel.cpp`/`CommandHistory.hpp`/`LuauEngine_Dispatch.cpp`をgrep/readし、5箇所全てに何らかの不備（衝突チェック無し、またはマップ未更新）があることを発見。
+9. AskUserQuestionで2点（Name変更5箇所を共通ヘルパーで一本化するか、setParent衝突時の挙動を「新規側リネーム」に統一するか）を確認し、どちらも推奨案（一本化する／新規側をリネームする）が選ばれた。
+10. プランファイルを作成しExitPlanModeでユーザー承認を得てから実装開始。
+11. 実装順序: `Instance.hpp/cpp`（`renameTo()`新設+`setParent()`修正）→`LuauEngine_Dispatch.cpp`→`SceneHierarchyPanel.cpp`→`PropertiesPanel.cpp`→`CommandHistory.hpp`→`main.cpp`（`resetSystemForReload()`新設+2箇所差し替え）→`python build.py build`でビルド確認。ビルド成功。
+12. readme.mdの該当3行をチェック済みに変更。
+
+### 試して失敗した/検討したが採らなかった方法
+
+- **`resetSystemForReload`で`PathfindingService`/`StarterCharacter`をクラス名で個別に除去する案**: 動作はするが、将来System直下に追加される新しいクラスに対して同じ抜け漏れが再発しうる。「user以外は全部消す」という一般則の方が頑健と判断し、こちらを採らなかった（実装はしていない、検討段階で却下）。
+- **PropertiesPanelのName入力を「確定時のみ`renameTo()`を呼ぶ」方式に変更する案**: F2リネームと統一感は出るが、元々の「入力中も他パネルにライブ反映される」挙動を変えてしまうため、今回は指示されていない挙動変更として見送った。
+
+### 未解決・保留
+
+- 実機での動作確認（Playモードの開始/終了を繰り返しても警告が出ないこと、Loadボタンでのシーン再読込、F2リネーム・PropertiesパネルのName編集で衝突時に自動で名前がずれ警告が出ること、リネームのUndo/Redoが正しく動くこと）は、GUI自動スモークテスト禁止方針のため、ビルド成功の確認までに留めた。次回セッション冒頭で確認が必要。
+- PropertiesパネルのName入力は1キー入力ごとに`renameTo()`が呼ばれる実装のまま残したため、衝突する中間文字列を経由して入力すると、確定前に警告ログや一時的な連番付与が発生しうる（実害は無いはずだが未検証）。気になる場合はF2リネームと同様「確定時のみ適用」に変更する余地がある。
+- `doc/Instances/Instance.md`は今回変更した`setParent()`/`renameTo()`の挙動を反映しておらず、そもそも`children`の型（`Instance*`と記載、実際は`shared_ptr`）など既存の記述も古い。今回のTodoに明記が無かったため更新していない。
+- `resetSystemForReload()`は「user以外の全てのSystem直下の子を無条件で除去」するため、もしユーザーが将来Systemに手動で何か恒久的に保持したい子を追加した場合（現状のクラス構成では想定されていない）、リロードのたびに消えてシーンYAMLの内容だけが復元される点に注意が必要。
+
+### 暗黙仕様の発見（spec.mdに無い挙動）
+
+- **`SceneLoader::saveScene()`はSystemの子を無差別に全部シリアライズするが、再読込側（`main.cpp`の`removeWorkspacesFromSystem()`）はWorkspaceしか除去していなかった**。この非対称性（保存は全部・復元前クリアはWorkspaceのみ）が、`PathfindingService`/`StarterCharacter`のような「Workspace以外だがSystem直下に自動生成される」クラスで再読込のたびにキー衝突と残存コピーを生む原因だった。今後System直下に新しいクラス（シングルトンではないもの）を追加する場合、`resetSystemForReload()`が「user以外は無条件除去」という一般則でカバーするため個別対応は不要なはずだが、もし新クラスがuser同様「シーンをまたいで使い回すべき」性質を持つ場合は、この関数の例外リストに明示的に追加する必要がある。
+- **`Instance::setProperty("Name",...)`とLuauの`SetterTable["Instance"]["Name"]`は、親の`children`マップを更新する体裁を取っていたが、実際には衝突チェックが皆無で、衝突時は既存の兄弟の`Parent`を外さないまま黙って上書きしていた**。この状態で兄弟インスタンスが後で（他から参照が無くなり）デストラクトされると、`Instance::~Instance()`の`assert(Parent.expired())`に引っかかる潜在的なクラッシュ経路だった（今回のクラッシュ自体は未発生・未確認だが、コードレビューで発見）。
+- **エディターUIのリネーム経路（`SceneHierarchyPanel.cpp`のF2リネーム、`PropertiesPanel.cpp`のNameフィールド、`CommandHistory.hpp`の`RenameInstanceCommand`）は、いずれも`inst->Name`を直接代入するだけで、親の`children`マップを一切更新していなかった**。つまりリネーム後は「マップのキー（旧名）」と「実際の`Name`（新名）」が食い違っており、`getChild(新名)`は失敗し`getChild(旧名)`だけが（本来もう存在しないはずの名前で）ヒットするという不整合状態になっていた。今後同種のリネームUIを追加する場合は、必ず`Instance::renameTo()`を経由させる必要がある。
+
+### 追記（同日）: 上記修正がUser.Inventoryの無限増殖を顕在化させた問題の追加修正
+
+上記の`setParent()`修正（上書き→リネームに変更）をビルド後、ユーザーから「Userのインベントリだけが無限増殖する」と報告（`[RCBN_WARN][Instance.cpp:59] setParent: Key collision for 'Inventory' in User. Renamed new child to 'Inventory2' ...`）。
+
+**原因**: `User::Inventory`（`include/Core/User.hpp`のメンバ、コンストラクタで`std::make_shared<Folder>()`済み）は`SceneLoader`のシングルトン機構（System/User/Workspaceのみ対応）に登録されていない。そのため、`main.cpp`起動時に`user->initializeInventory()`を呼んで**先に**空のInventoryをUserの子として付けてから`SceneRuntime::loadAndBind()`でシーンYAMLを読み込むと、YAML内のUser直下のFolder("Inventory")（Inventoryは中身のTool込みで毎回シーンに保存されるため、保存済みシーンには必ず含まれる）が新規インスタンスとして生成され、既存の「Inventory」と名前が衝突していた。
+旧コード（今回のセッション最初の修正前）ではこの衝突時に**既存の子を上書き**していたため、木構造上は読み込んだInventoryに正しく差し替わる一方、`user->Inventory`（ゲームロジックが参照する側のポインタ）は差し替わらず、孤立した空Folderを指したままになる**という別の潜在バグ**（`addToolToSlot()`等がツリー上の実体と食い違ったオブジェクトを操作する）を抱えていた。今回の修正で「上書き」を「新規側リネーム」に変えたことで、この隠れていた衝突が毎回の再読み込みで可視化され、かつ`user->Inventory`ポインタは相変わらず更新されないため、リロードのたびに「Inventory」「Inventory2」「Inventory3」…と際限なく増え続ける形で表面化した。
+
+**修正内容**:
+- `src/Core/SceneRuntime.cpp`の`loadAndBind()`: `SceneLoader::loadScene()`実行後、`user->children`に"Inventory"（Folder型）が見つかればそれを`user->Inventory`として採用（tree上の実体とポインタを同期）、見つからなければ従来通り`user->initializeInventory()`で空Folderを付ける、という処理を追加。
+- `src/main.cpp`: 起動時の先読み`user->initializeInventory()`呼び出しを削除（`loadAndBind()`側に一本化。先に空Inventoryを付けてしまうと初回ロードでも衝突が起きるため）。
+- `src/main.cpp`の`resetSystemForReload()`: Systemの子だけでなく、**userの子（Inventory）もリロード前にクリア**するよう拡張。これが無いと、2回目以降のPlay/Stop・Loadのたびに前回セッションのInventoryと新規ロード分がまたキー衝突してしまう。
+
+ビルド確認: `python build.py build`で成功。
+
+**未解決・保留（追加分）**:
+- Load機能で「Userセクションが無い、またはInventoryが未保存の旧シーン」を読み込んだ場合、`resetSystemForReload()`でuserの子をクリアした後に`initializeInventory()`が呼ばれ、**クリア直前まで使っていた（前セッションの）Inventoryオブジェクトがそのまま再アタッチされる**（真っ新な空Folderにはならない）。意図的にそう設計したが、実機で「Load後にInventoryの中身が意図せず残る」という体感が出た場合は、`resetSystemForReload()`内で`user->Inventory`ごと新しい空Folderに差し替える対応が必要になる可能性がある。
+- 実機確認（Play/Stop・Load・シーン間の切り替えを繰り返してもInventoryが増殖しないこと、装備中のTool追跡が壊れないこと）はユーザーに委ねる。
+

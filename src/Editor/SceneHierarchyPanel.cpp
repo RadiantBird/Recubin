@@ -204,10 +204,10 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
             std::string before = inst->Name;
             std::string after  = m_renameBuf;
             if (!after.empty() && after != before) {
-                inst->Name = after;
+                inst->renameTo(after);
                 if (m_history)
                     m_history->record(std::make_unique<RenameInstanceCommand>(
-                        inst->shared_from_this(), before, after));
+                        inst->shared_from_this(), before, inst->Name));
             }
         }
         if (cancel || commit || ImGui::IsItemDeactivated()) {
@@ -411,6 +411,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
     if (ImGui::BeginMenu("Cube系")) {
         auto spawnPos = computeSpawnPos(m_user, workspace);
         
+        ImGui::TextDisabled("Workspace内で描画される基本的なクラス。");
+        ImGui::Separator();
         tryInsertInstance<Cube>(m_history, "Cube", parentSp, spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
         tryInsertInstance<Cylinder>(m_history, "Cylinder", parentSp, spawnPos, Vector3(1, 1, 1));
         tryInsertInstance<TriangularPrism>(m_history, "TriangularPrism", parentSp, spawnPos, Vector3(1, 1, 1));
@@ -425,6 +427,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
 
     // ---- 効果 ----
     if (ImGui::BeginMenu("効果")) {
+        ImGui::TextDisabled("世界を彩りましょう。");
+        ImGui::Separator();
         if (ImGui::MenuItem("Sound", nullptr, false, AudioService::instance != nullptr) && m_history) {
             auto obj = std::make_shared<Sound>(*AudioService::instance);
             obj->Name = uniqueName(parentSp, "Sound");
@@ -441,25 +445,18 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         ImGui::EndMenu();
     }
 
-    // ---- その他 ----
-    if (ImGui::BeginMenu("その他")) {
-        // Scriptはダイアログを開く特殊な挙動なのでそのまま
-        if (ImGui::MenuItem("Script")) {
-            m_pendingScriptParent = parentSp;
-            m_openScriptDialog    = true;
-        }
-        
-        tryInsertInstance<Folder>(m_history, "Folder", parentSp);
-        tryInsertInstance<FileRef>(m_history, "FileRef", parentSp);
-        tryInsertInstance<Model>(m_history, "Model", parentSp, Vector3(0, 0, 0), Vector3(1, 1, 1));
-        tryInsertInstance<Tool>(m_history, "Tool", parentSp, std::string("Tool"));
+    if (ImGui::BeginMenu("環境")) {
+        ImGui::TextDisabled("7日で宇宙を創るように。");
+        ImGui::Separator();
+
         tryInsertInstance<Workspace>(m_history, "Workspace", parentSp);
-        tryInsertInstance<Lighting>(m_history, "Lighting", parentSp);
-        tryInsertInstance<PointLight>(m_history, "PointLight", parentSp);
-        tryInsertInstance<SpotLight>(m_history, "SpotLight", parentSp);
         tryInsertInstance<Weather>(m_history, "Weather", parentSp);
         tryInsertInstance<Terrain>(m_history, "Terrain", parentSp);
         tryInsertInstance<Skybox>(m_history, "Skybox", parentSp);
+
+        tryInsertInstance<Lighting>(m_history, "Lighting", parentSp);
+        tryInsertInstance<PointLight>(m_history, "PointLight", parentSp);
+        tryInsertInstance<SpotLight>(m_history, "SpotLight", parentSp);
 
         // Sun / Moon は追加した瞬間にカメラ基準の空座標を計算する
         // （Renderer のフォーカス時追従に頼ると、追加直後は原点に出てバグに見えるため）
@@ -488,6 +485,28 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
             }
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
+        
+        ImGui::EndMenu();
+    }
+
+    // ---- その他 ----
+    if (ImGui::BeginMenu("その他")) {
+        ImGui::TextDisabled("分類するには少ない...でも重要。");
+        ImGui::Separator();
+
+        // Scriptはダイアログを開く特殊な挙動なのでそのまま
+        if (ImGui::MenuItem("Script")) {
+            m_pendingScriptParent = parentSp;
+            m_openScriptDialog    = true;
+        }
+        
+        tryInsertInstance<Folder>(m_history, "Folder", parentSp);
+        tryInsertInstance<FileRef>(m_history, "FileRef", parentSp);
+        tryInsertInstance<Model>(m_history, "Model", parentSp, Vector3(0, 0, 0), Vector3(1, 1, 1));
+        tryInsertInstance<Tool>(m_history, "Tool", parentSp, std::string("Tool"));
+
+
+
         tryInsertInstance<AppImage>(m_history, "AppImage", parentSp);
         tryInsertInstance<StarterCharacter>(m_history, "StarterCharacter", parentSp);
         tryInsertInstance<Humanoid>(m_history, "Humanoid", parentSp);
@@ -498,6 +517,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
 
     // ---- GUI ----
     if (ImGui::BeginMenu("GUI")) {
+        ImGui::TextDisabled("画面にテキストや画像を表示します。");
+        ImGui::Separator();
         tryInsertInstance<TextLabel>(m_history, "TextLabel", parentSp);
         tryInsertInstance<TextButton>(m_history, "TextButton", parentSp);
         tryInsertInstance<SurfaceGui>(m_history, "SurfaceGui", parentSp);
@@ -511,7 +532,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
 
     // ---- 物理制約 ----
     if (ImGui::BeginMenu("物理制約")) {
-        ImGui::TextDisabled("2つのCube名をPropertiesで設定");
+        ImGui::TextDisabled("物理挙動に影響を与えます。");
         ImGui::Separator();
         
         tryInsertInstance<Weld>(m_history, "Weld", parentSp);

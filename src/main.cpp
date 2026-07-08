@@ -114,6 +114,38 @@ static void removeWorkspacesFromSystem(
     }
 }
 
+// シーンの再読込前に System 配下を全てリセットする（user のみ例外）。
+// Workspace 以外にも PathfindingService/StarterCharacter 等が System 直下に
+// 残り続けると、再読込で同名の新規インスタンスが追加された際にInstance::setParent
+// のキー衝突（残存コピー・警告連発の原因）を招くため、user 以外は無条件で除去する。
+// user 自身は使い回すが、その子（Inventory等）もシーンYAMLから毎回作り直されるため、
+// 同じ理由で user の子も合わせてクリアする（残すとInventoryが同様にキー衝突→増殖する）。
+static void resetSystemForReload(
+    const std::shared_ptr<System>& system,
+    const std::shared_ptr<User>& user)
+{
+    if (!system) return;
+
+    std::vector<std::string> namesToRemove;
+    for (auto& [name, child] : system->getChildren()) {
+        if (child.get() == user.get()) continue;
+        namesToRemove.push_back(name);
+    }
+    for (auto& name : namesToRemove) {
+        system->removeChild(name);
+    }
+
+    if (user) {
+        std::vector<std::string> userChildNames;
+        for (auto& [name, child] : user->getChildren()) {
+            userChildNames.push_back(name);
+        }
+        for (auto& name : userChildNames) {
+            user->removeChild(name);
+        }
+    }
+}
+
 // シーン破棄の前に Terrain の streamer を明示的に解放する。
 // Workspace のメンバ(m_ownedPhysics)は基底の children(Terrain) より先に破棄されるため、
 // Workspace 破棄に任せると ~TerrainStreamer が解放済み Physics を参照してクラッシュする。
@@ -313,7 +345,8 @@ int main(int argc, char* argv[]) {
     auto luauEngine   = std::make_unique<LuauEngine>();
     auto user         = std::make_shared<User>(std::make_unique<GLFWInputBackend>(window));
     user->controlMode = User::ControlMode::Free; // エディターではフリーモードから開始(パッケージされたゲームランタイムはCharacterモードから開始)
-    user->initializeInventory();  // Inventory を初期化
+    // Inventory の初期化は SceneRuntime::loadAndBind() 側で行う
+    // (シーンYAMLに保存済みのInventoryがあればそちらを優先採用するため、先読みで空Folderを付けない)
 
     renderer->init(window);
 
@@ -460,7 +493,8 @@ int main(int argc, char* argv[]) {
             workspaces = SceneRuntime::collectWorkspaces(system);
             resetTerrainStreamers(workspaces); // 物理が生きているうちにTerrainを解放
             clearWorkspacePhysics(workspaces);
-            removeWorkspacesFromSystem(system, workspaces);
+            if (ed) ed->hierarchyPanel->selectedInstance = nullptr;
+            resetSystemForReload(system, user);
 
             initNewScene(snapshotPath, snapshotDirty);
         }
@@ -475,7 +509,8 @@ int main(int argc, char* argv[]) {
             workspaces = SceneRuntime::collectWorkspaces(system);
             resetTerrainStreamers(workspaces); // 物理が生きているうちにTerrainを解放
             clearWorkspacePhysics(workspaces);
-            removeWorkspacesFromSystem(system, workspaces);
+            ed->hierarchyPanel->selectedInstance = nullptr;
+            resetSystemForReload(system, user);
 
             initNewScene(loadPath, false);
             ed->scenePath = loadPath;

@@ -240,8 +240,8 @@ struct RenameInstanceCommand : Command {
     RenameInstanceCommand(std::shared_ptr<Instance> target, std::string before, std::string after)
         : m_target(std::move(target)), m_before(std::move(before)), m_after(std::move(after)) {}
 
-    void execute() override { if (m_target) m_target->Name = m_after; }
-    void undo()    override { if (m_target) m_target->Name = m_before; }
+    void execute() override { if (m_target) m_target->renameTo(m_after); }
+    void undo()    override { if (m_target) m_target->renameTo(m_before); }
 };
 
 // --- Rotation 変更 ---

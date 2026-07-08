@@ -536,18 +536,9 @@ void LuauEngine::InitDispatchTable_Misc() {
 
 // ==================== Setter: Instance, BaseCube ====================
 void LuauEngine::InitSetterTable_Base() {
-    // Name: must keep parent's children map consistent
+    // Name: renameTo() が親の children マップとの整合・衝突時の自動リネームを行う
     SetterTable["Instance"]["Name"] = [](lua_State* L, Instance* obj) {
-        std::string newName = luaL_checkstring(L, 3);
-        if (obj->Name == newName) return 0;
-        auto parent = obj->Parent.lock();
-        if (parent) {
-            parent->children.erase(obj->Name);
-            obj->Name = newName;
-            parent->children[newName] = obj->shared_from_this();
-        } else {
-            obj->Name = newName;
-        }
+        obj->renameTo(luaL_checkstring(L, 3));
         return 0;
     };
 

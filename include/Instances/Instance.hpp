@@ -24,6 +24,10 @@ class Instance : public std::enable_shared_from_this<Instance> {
         virtual void onAncestorChanged();
         virtual void setParent(std::shared_ptr<Instance> newParent);
 
+        // Name を変更する唯一の正しい経路。親の children マップとの整合を保つ。
+        // 兄弟と名前が衝突する場合は上書きせず、一意な名前へずらして警告する。
+        void renameTo(const std::string& newName);
+
         Instance* findFirstAncestorWorkspace();
 
         Instance(string name);

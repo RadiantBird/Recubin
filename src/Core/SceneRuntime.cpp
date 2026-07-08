@@ -7,6 +7,7 @@
 #include <Instances/Lighting.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/PathfindingService.hpp>
+#include <Instances/Folder.hpp>
 #include <include/GLFW/glfw3.h>
 #include "include/stb_image.h"
 #include <Util/AssetGuard.hpp>
@@ -71,6 +72,19 @@ Bound loadAndBind(const std::string& scenePath,
     // User が YAML に存在しなくてもシステム直下に確保する
     if (system->children.find("User") == system->children.end()) {
         system->addChild(user);
+    }
+
+    // Inventory: シーンYAMLにUser直下のFolder("Inventory")が保存されていれば、それを
+    // user->Inventory として採用する（tree上の実体とuser->Inventoryメンバが乖離すると、
+    // 装備中Toolの追跡等がずれるため）。保存されていなければ、user->Inventory（コンストラクタ
+    // で生成済みの空Folder）をUserの子として追加する。呼び出し側でreload前にuser->children
+    // をクリアしておくこと（さもないと前回分のInventoryと名前が衝突する）。
+    if (auto it = user->children.find("Inventory"); it != user->children.end()) {
+        if (auto folder = std::dynamic_pointer_cast<Folder>(it->second)) {
+            user->Inventory = folder;
+        }
+    } else {
+        user->initializeInventory();
     }
 
     auto workspaces = collectWorkspaces(system);

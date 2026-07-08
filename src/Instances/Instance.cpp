@@ -11,6 +11,17 @@
 
 // TODO: 無駄な処理を最適化する
 
+// base と衝突しない名前を parent->children の中から探す（base, base1, base2, ...）。
+// System::addChild() の Workspace 用ロジックと同じ命名規則。
+static std::string uniqueChildName(const Instance& parent, const std::string& base) {
+    std::string candidate = base;
+    int suffix = 1;
+    while (parent.children.count(candidate) > 0) {
+        candidate = base + std::to_string(suffix++);
+    }
+    return candidate;
+}
+
 void Instance::onAncestorChanged() {
     for (auto const& [_, child] : this->children) {
         child->onAncestorChanged();
@@ -41,9 +52,11 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
     // 新しい親のリストに自分を追加
     if (newParent) {
         auto existingIt = newParent->children.find(this->Name);
-        if (existingIt != newParent->children.end()) {
-            RCBN_WARN("setParent: Key collision for '" << this->Name << "' in " << newParent->Name << ". Overwriting existing child.");
-            existingIt->second->Parent = {};
+        if (existingIt != newParent->children.end() && existingIt->second.get() != this) {
+            std::string original = this->Name;
+            this->Name = uniqueChildName(*newParent, original);
+            RCBN_WARN("setParent: Key collision for '" << original << "' in " << newParent->Name
+                      << ". Renamed new child to '" << this->Name << "' to avoid overwriting existing instance.");
         }
         newParent->children[this->Name] = shared_from_this();
     }
@@ -140,18 +153,30 @@ std::string Instance::getFullPath() {
 
 void Instance::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Name") {
-        string newName = value.as<std::string>();
-        if (this->Name == newName) return;
-
-        auto parent = this->Parent.lock();
-        if (parent) {
-            parent->children.erase(this->Name);
-            this->Name = newName;
-            parent->children[this->Name] = shared_from_this();
-        } else {
-            this->Name = newName;
-        }
+        renameTo(value.as<std::string>());
     }
+}
+
+void Instance::renameTo(const std::string& newName) {
+    if (this->Name == newName) return;
+
+    auto parent = this->Parent.lock();
+    if (!parent) {
+        this->Name = newName;
+        return;
+    }
+
+    std::string finalName = newName;
+    auto existingIt = parent->children.find(newName);
+    if (existingIt != parent->children.end() && existingIt->second.get() != this) {
+        finalName = uniqueChildName(*parent, newName);
+        RCBN_WARN("renameTo: Key collision for '" << newName << "' in " << parent->Name
+                  << ". Renamed to '" << finalName << "' to avoid overwriting existing instance.");
+    }
+
+    parent->children.erase(this->Name);
+    this->Name = finalName;
+    parent->children[finalName] = shared_from_this();
 }
 
 std::shared_ptr<Instance> Instance::clone() const {
