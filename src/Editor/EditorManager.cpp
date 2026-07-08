@@ -97,6 +97,8 @@ void EditorManager::render(GLFWwindow* window) {
 
     // ---- 未保存ダイアログ ----
     renderSaveDialog();
+    // ---- テストプレイ中のシーン読み込み確認ダイアログ ----
+    renderPlayLoadConfirmDialog();
 
     // ---- 全画面 DockSpace ----
     ImGuiViewport* vp = ImGui::GetMainViewport();
@@ -120,7 +122,7 @@ void EditorManager::render(GLFWwindow* window) {
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Save Scene", "Ctrl+S") && isEditMode()) saveCurrentScene();
-            if (ImGui::MenuItem("Open Scene", "Ctrl+O") && isEditMode()) openSceneDialog();
+            if (ImGui::MenuItem("Open Scene", "Ctrl+O")) openSceneDialog();
             ImGui::Separator();
             if (ImGui::MenuItem("Package Game...") && isEditMode()) {
                 m_pkgLog.clear();
@@ -332,7 +334,50 @@ void EditorManager::saveCurrentScene() {
 }
 
 void EditorManager::openSceneDialog() {
-    pendingLoadPath = getPlatform().openFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}});
+    requestSceneLoad(getPlatform().openFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}}));
+}
+
+void EditorManager::requestSceneLoad(const std::string& path) {
+    if (path.empty()) return;
+
+    if (isEditMode()) {
+        pendingLoadPath = path;
+        return;
+    }
+
+    // テストプレイ中は即座にロードせず、終了確認ポップアップを挟む
+    m_pendingPlayLoadPath = path;
+    m_showPlayLoadConfirm = true;
+}
+
+void EditorManager::renderPlayLoadConfirmDialog() {
+    if (m_showPlayLoadConfirm) {
+        ImGui::OpenPopup("Load Scene During Play");
+        m_showPlayLoadConfirm = false;
+    }
+
+    if (ImGui::BeginPopupModal("Load Scene During Play", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("テストプレイ中です。");
+        ImGui::Text("終了してこのシーンを読み込みますか？");
+        ImGui::Separator();
+
+        if (ImGui::Button("終了して読み込む", ImVec2(150, 0))) {
+            mode = EditorMode::Edit;
+            if (m_user) {
+                m_user->controlMode = User::ControlMode::Free;
+                RCBN_LOG("[INFO] Stopped due to scene load request. Switched to Free Camera mode.");
+            }
+            pendingLoadPath = m_pendingPlayLoadPath;
+            m_pendingPlayLoadPath.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("キャンセル", ImVec2(90, 0))) {
+            m_pendingPlayLoadPath.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
 }
 
 void EditorManager::requestSaveDialog(GLFWwindow* window) {
@@ -612,7 +657,7 @@ void EditorManager::renderToolbar() {
     }
     ImGui::SameLine();
     if (ImGui::Button("Load", btnSz)) {
-        pendingLoadPath = getPlatform().openFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}});
+        requestSceneLoad(getPlatform().openFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}}));
     }
 
     ImGui::End();

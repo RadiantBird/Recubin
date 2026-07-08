@@ -52,6 +52,7 @@ public:
 
     // ギズモ / フリードラッグ undo 用状態
     bool m_wasUsingGizmo = false;
+    bool m_wasDraggingSelected = false; // 前フレームの m_isDraggingSelected（同一フレーム内更新の影響を受けない値）
     std::vector<MultiGizmoCommand::Entry> m_gizmoEntries;
     std::vector<MultiGizmoCommand::Entry> m_freeDragEntries;
 

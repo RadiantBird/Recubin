@@ -801,7 +801,7 @@ void ViewportPanel::onRender() {
     }
 
     // ---- 自由移動ドラッグ開始/終了検出 ----
-    bool wasDragging = m_isDraggingSelected;
+    bool wasDragging = m_wasDraggingSelected;
 
     // ボタンを離したらリセット
     if (!ImGui::IsMouseDown(0)) m_isDraggingSelected = false;
@@ -838,6 +838,9 @@ void ViewportPanel::onRender() {
             }
         }
     }
+
+    // 次フレームの比較用に今フレームの最終状態を保存する
+    m_wasDraggingSelected = m_isDraggingSelected;
 
     // ---- Move モード自由移動: 選択キューブ上からのドラッグでサーフェスに追従 ----
     if (isMoveMode() && m_isDraggingSelected && !ImGuizmo::IsUsing()

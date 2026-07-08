@@ -141,3 +141,126 @@ readme.mdのTodoリストのうち以下2項目の修正を依頼された:
 - **`bakeSurfaceGui()`にあった「テクスチャの手動左右反転」処理は、実際にはUV基底の不整合を打ち消すための辻褄合わせだった**。根本原因（`createCubeVertices`のUV基底）を直す際は、この種の「対症療法として後から追加された補正コード」を一緒に取り除かないと二重反転で再び壊れる。同様のパターン（片方の修正が別の補正コードと組み合わさって「たまたま正しく見えていた」）が今後も見つかる可能性がある。
 - **面の法線が視線方向と平行になりうる面（Top/Bottom、あるいはSkyboxの上下面など）では、「特定視点でのカメラ右方向」を基準にした左右判定が原理的に使えない**（yawによって画面上の見え方が回転するため）。この種の面のUV向きを検証する際は、`cross(u,vv)`と法線の符号一致という視点非依存の不変量を使うと判定できる。
 
+---
+
+## 2026-07-07 テストプレイ中のシーン読み込み確認ポップアップ
+
+### 指示内容
+readme.mdのTodo「シーンファイルをテストプレイ中に読み込もうとしたら、ポップアップありで終了するか確認とってからすぐシーンを切り替えられるようにする」を実装。
+
+### 何をしたか（`include/Editor/EditorManager.hpp` / `src/Editor/EditorManager.cpp`のみ変更）
+- 既存の挙動を調査した結果、ツールバーの「Load」ボタンは元々モードガード無しで`pendingLoadPath`に直接代入していたが、`main.cpp`側のリロード処理（`ed->isEditMode()`必須）がテストプレイ中は素通りするため、確認もなく「Stopを手動で押すまで無反応に見える」状態だった。「Open Scene」メニュー項目・Ctrl+Oは`isEditMode()`ガードで完全にブロックされていた。
+- `EditorManager::requestSceneLoad(const std::string& path)`を新設し、Open Sceneメニュー・Ctrl+O（`openSceneDialog()`経由）・ツールバーLoadボタンの3箇所を統一。Editモード中は従来通り即`pendingLoadPath`に代入、Play/Pauseモード中は確認ポップアップ（`m_showPlayLoadConfirm`/`m_pendingPlayLoadPath`）を開くだけに変更。
+- `renderPlayLoadConfirmDialog()`を新設（`renderSaveDialog()`と同じImGuiモーダルパターン）。「終了して読み込む」を押すと`mode = EditorMode::Edit`にした上で`pendingLoadPath`をセット。`main.cpp`側は`mode`変更を次フレームで検知し、既存のPlay→Edit遷移処理（スナップショット復元）に続けて同フレーム内で`pendingLoadPath`処理が走るため、`main.cpp`は一切変更せずに「終了確認→即シーン切り替え」を実現できた。
+- 「Open Scene」メニュー項目の`isEditMode()`ガードも撤去（AskUserQuestionでユーザーに確認し「解放する」を選択）。Ctrl+Oは`handleEditorShortcuts()`自体が`isEditMode()`のときしか呼ばれない既存の仕組みのため、今回はスコープ外として据え置き。
+
+### なぜそうしたか
+- `main.cpp`のPlay→Edit遷移＋pendingLoadPath処理の順序（同フレーム内で連続実行）を確認した上で、`mode`を`Edit`に変えてから`pendingLoadPath`を設定するだけで「即切り替え」が成立すると判断し、`main.cpp`側への変更を避けた（CLAUDE.mdのスコープ厳守原則）。
+- Stopボタンの完全な後処理（ビューポートフォーカス切り替え等）は再現せず、`ed->mode = EditorMode::Edit`＋`controlMode = Free`のみに留めた。これは`main.cpp`内の安全装置（`consumeSafetyHaltRequest()`）が同じ最小パターンをすでに使っており、それに倣った。
+
+### 未解決・保留
+- Ctrl+Oショートカットは引き続きEditモード中のみ有効（`handleEditorShortcuts()`自体がEditモード限定で呼ばれる既存構造のため）。
+- 実機でのポップアップ表示・シーン切り替えの確認はユーザーに委ねる（GUI自動スモークテスト禁止のためビルド成功の確認までに留めた）。
+
+---
+
+## 2026-07-08 3Dビューポート直接ドラッグ移動がUndo履歴に積まれないバグ修正
+
+### 指示内容
+readme.mdに新規追加されたTodo「間違えてPositionを変更してしまった場合にCtrl+Zを押しても、dirty判定にはなっているものの何も反映されない問題の修正」を調査・修正。
+
+### 何をしたか（`include/Editor/ViewportPanel.hpp` / `src/Editor/ViewportPanel.cpp`のみ変更）
+- ユーザーへのヒアリングで「3Dビューポートでキューブを直接クリック&ドラッグして移動（Gizmoハンドルではない自由移動ドラッグ）」が再現操作で、「Ctrl+Zを押すと移動が戻らず、直前の追加コマンドの取り消し（削除）が実行されるように見える」という具体的な症状を確認。
+- `ViewportPanel::onRender()`を調査した結果、自由移動ドラッグのUndo記録ロジック（`wasDragging`/`m_isDraggingSelected`の比較でドラッグ開始/終了を検出し`m_freeDragEntries`をキャプチャ→`MultiGizmoCommand`として記録）に同一フレーム内順序のバグを発見。クリック検出ブロック（`ImGui::IsMouseClicked(0)`時）が`m_isDraggingSelected`をtrueにした**その同じフレーム内で後から**`wasDragging = m_isDraggingSelected`を読んでいたため、「前フレームの値」のつもりが「今フレームで既に更新済みの値」になってしまい、ドラッグ開始時の`false→true`遷移を一度も検出できずbeforeキャプチャが空のままになっていた。結果、ドラッグ終了時も`m_freeDragEntries.empty()`のためコマンドが記録されず、自由移動ドラッグは見た目上位置を変えるだけでUndoスタックに一切積まれていなかった。
+- 同ファイル内のGizmoハンドル操作（`m_wasUsingGizmo`）は同種の判定を、ブロック終端で明示的に`m_wasUsingGizmo = isUsingGizmo;`と更新する永続メンバ経由で正しく実装しており、これを参考にした。
+- `ViewportPanel.hpp`に新規メンバ`bool m_wasDraggingSelected`を追加し、`ViewportPanel.cpp`側で`wasDragging`の参照元を`m_isDraggingSelected`から`m_wasDraggingSelected`に変更、ブロック終端（自由移動ドラッグ検出の直後、「Moveモード自由移動」セクションの手前）で`m_wasDraggingSelected = m_isDraggingSelected;`を追加して次フレーム用に保存するようにした。
+
+### なぜそうしたか
+- 既存の`m_wasUsingGizmo`パターン（同一ファイル内で既に正しく機能している同種のドラッグ開始/終了検出）と全く同じ手法を踏襲することで、最小限の変更で根本原因（同一フレーム内での前フレーム値の汚染）を解消できると判断した。`m_freeDragEntries`のキャプチャ/記録ロジック自体や、Gizmoハンドル側の処理には一切触れていない。
+
+### どういう経緯か
+1. readme.mdのTodo文言だけでは再現操作が特定できなかったため、AskUserQuestionで「編集方法」「Ctrl+Z後の数値の挙動」「再現条件」の3点をユーザーに確認。
+2. 「3Dビューポートで直接クリック&ドラッグ」「新規作成キューブでも再現」「コマンド履歴が壊れて追加の取り消し(削除)が実行される」という回答を得て、自由移動ドラッグのUndo記録コードに絞って調査。
+3. `CommandHistory`/`SetVec3Command`/Propertiesパネルの各Position編集経路（テキスト入力・DragFloat3スライダー）は全て問題なくコマンドを記録しており、自由移動ドラッグ経路のみに絞り込めた。
+4. `ViewportPanel.cpp`の該当ブロックを行単位で追い、`wasDragging`の読み取りタイミングが同一フレーム内での`m_isDraggingSelected`書き込みより後になっている点を特定し、Plan modeで原因と修正方針をまとめてユーザー承認を得てから実装。
+5. ビルド成功を確認。
+
+### 未解決・保留
+- 実機での動作確認（新規キューブ作成→直接ドラッグ移動→Ctrl+Zで位置が戻ることの確認）はユーザーに委ねる（GUI自動スモークテスト禁止のため）。
+- readme.mdの当該Todoに「ほかにもある可能性あり」との注記があったが、今回はGizmoハンドル操作・Propertiesパネル編集経路は問題なしと確認済み。他のプロパティ（Rotation/Sizeの自由ドラッグ等）で同種の記録漏れがないかは今回のスコープ外（自由移動ドラッグはPositionのみ変更する経路のため対象外）。
+
+### 暗黙仕様の発見（spec.mdに無い挙動）
+- **`m_isDraggingSelected`は「クリックした瞬間のフレーム」に即座にtrueへ更新される設計**（`ImGui::IsMouseClicked(0)`時の当該フレーム内で完結）。同一フレーム内でこの値を「前フレームの状態」として読もうとすると、更新後の値を読んでしまう順序依存のバグになりやすい。前フレームの値が必要な場合は`m_wasUsingGizmo`のように専用の永続メンバをブロック終端で明示的に更新するパターンを使う必要がある。この教訓は今後同種の「開始/終了エッジ検出」コードを書く際に注意が必要。
+
+---
+
+## 2026-07-08 Weldグループ壊れ修正 + BaseCubeクローン漏れ修正 + 浮力の面分散化
+
+### 指示内容
+readme.mdの「物理エンジン関係」Todo3件を対応するよう依頼された:
+1. マテリアルが違うと溶接できない問題の修正(水上でテストした結果)
+2. マテリアルがBaseCube系でクローン時に保存されていない(他もある可能性あり)
+3. 浮力の改善(一点集中→面に分散、アセンブリ剛体も対応)
+
+Plan modeで、CLAUDE.mdの指示によりExplore/PlanエージェントもTaskツールも使わず、Grep/Readで自分で調査してから実装した。
+
+### 何をしたか
+
+**1. Weldグループ壊れ問題（`src/Core/Physics.cpp`のみ変更）**
+- `Physics::recreateActor()`冒頭に、対象キューブの`actor`が他の`cubes`エントリーと共有されているか（＝Weld compoundのメンバーか）を判定するロジックを追加。共有されていれば（`sharedGroup.size() > 1`）、個別のremove/release/createActorではなく`rebuildGroup()`にグループ全体の再構築を委譲して`return`。共有されていない場合は既存の単独アクター処理のまま変更なし。
+
+**2. BaseCube系クローン漏れ修正（8ファイル: `Cube.cpp`/`Truss.cpp`/`Seat.cpp`/`MeshCube.cpp`/`Sphere.cpp`/`Cylinder.cpp`/`TriangularPrism.cpp`/`LiquidCube.cpp`）**
+- 各`clone()`の`CanCollide`コピー行の直後に、`material`/`MassDensity`/`CastShadow`/`Unlit`/`UseTriplanar`/`TextureScale`のコピーを追加（6項目×8ファイル）。`LockFlags`はスクリプト/UIから設定されない内部専用フィールド（Humanoid初期化のみが設定）のため対象外とした。
+
+**3. 浮力の面分散化（`src/Core/Physics.cpp`の`applyBuoyancy()`のみ変更）**
+- `BUOYANCY_SAMPLE_RES = 3`（3×3×3＝27点）のグリッドサンプリング定数を追加。
+- 合計浮力（`weightedV` = Σ液体重なり体積×Density）は既存のAABB重なり体積計算のまま変更せず、力の適用点だけをキューブのAABB内27点のグリッドサンプル点に分散。各サンプル点がどの液体AABB内にあるかを判定し、重み比率で`weightedV`を配分して`physx::PxRigidBodyExt::addForceAtPos()`で各点に加える（既存の重心一点`addForce`を置き換え）。ダンピング計算（`frac`）は既存のAABB重なり体積ベースのまま変更なし。
+
+ビルド確認: `python build.py build`で成功（Recubin.exe/RecubinEngine.exe/RecubinTest.exe全て生成）。
+
+### なぜそうしたか
+
+- **Weldバグの原因特定の経緯**: readme.mdの文言「マテリアルが違うと溶接できない」を字面通り受け取ると、Weld作成時にマテリアルの違いで拒否される分岐を探すことになるが、Physics.cpp/Weld.cpp/rebuildGroupを調査してもそのような分岐は一切見つからなかった（PxMaterialは形状ごとに独立して割り当てられ、Weld自体はマテリアルを一切参照しない）。AskUserQuestionでユーザーに実際の症状を確認したところ、「新規Weldの作成自体は成立するが、既に溶接済みのキューブのマテリアルを変更すると暗黙的に解除される」という、readmeの文言よりも正確な症状が判明した。
+- **根本原因**: `BaseCube::setAnchored()`/`setMaterial()`/`setMassDensity()`が共通で呼ぶ`Physics::recreateActor()`が、`cube->actor`を常に「このキューブ専用の単独アクター」と仮定していた。Weldで結合されたキューブは`cube->actor`がcompound（複数キューブ共有のPxRigidDynamic）を指すため、素朴なremove/release/createActorはcompound全体を破棄し、変更対象のキューブだけ新しい単独アクターを作り直す（＝グループから抜ける）。さらに他メンバーの`cube->actor`（BaseCube自身が持つ生ポインタ）は誰も更新しないため、解放済みcompoundを指すダングリングポインタとして残る潜在的UAFバグも同時に発見した。この不具合はsetMaterialに限らずsetAnchored/setMassDensity/setSize（リサイズ）にも共通する経路であることも確認した。
+- **修正方式の選択**: 新規にグラフ探索やWeld専用の特別処理を書くのではなく、既存の`rebuildGroup()`（Weld作成時に使われているグループ再構築処理）にそのまま委譲する方式を選んだ。`rebuildGroup()`は各メンバーの`material`/`MassDensity`/`Anchored`/`LockFlags`を都度読み直してcompoundを作り直し、`cubes`/`m_constraints`（Weldの`m_compound`、Rope/Rod/Motorの再生成）の同期まで内部で完結するため、追加コード量が最小で済み、既存のテスト済みロジックを再利用できる。
+- **クローン漏れの調査**: LiquidCube::clone()でmaterialが未コピーであることに気づいた後、他の全BaseCube派生クラスのclone()を確認したところ、7クラス全てで同一パターン（Name/Color/Anchored/CanCollide/cframeのみコピー）が繰り返されていることが判明。readmeの「他もあるかもしれない」はこれを指しており、材質だけでなくMassDensity/CastShadow/Unlit/UseTriplanar/TextureScaleも全クラスで漏れていた。
+- **修正スタイルの選択**: 8ファイルに同じ6行を追加する方式（重複コードの反復）を採用し、BaseCubeに共有ヘルパーメソッドを新設する案は取らなかった。CLAUDE.mdの「最適化・リファクタは明示的に指示された場合のみ行う」「より良い設計に勝手に置き換えない」という原則と、既存コード自体が「各クラスで同じ5行を個別にコピーする」スタイルを既に採用していたことに合わせた判断。
+- **浮力の分散方式の選択**: グリッドサンプリング方式（3×3×3点）と、水没体積重心への単一点適用方式の2案をAskUserQuestionでユーザーに提示。単一点でも重心からずれた位置に適用点を置けば理論上はトルクが発生し転覆問題自体は解消するが、readmeの「面に分散させ」という文言に字義通り忠実ではない。ユーザーはグリッドサンプリング方式を選択した。
+- **合計力の計算方法**: グリッドサンプリングによる離散化誤差が浮力の総量（Archimedesの原理との一致）に影響しないよう、合計力自体は既存の連続的なAABB重なり体積計算（`weightedV`）をそのまま使い、グリッドは「どこに配分するか」の比率計算のみに使う設計にした。これにより総浮力の正確性を保ったまま、水没箇所に応じた偏り（トルク）だけを新たに発生させられる。
+- **アセンブリ対応への追加コード不要と判断した理由**: `applyBuoyancy()`は元々`cubes`内の各BaseCubeエントリー単位でループしており、Weld compoundのメンバーであっても各キューブが自分自身の位置情報を使って独立に浮力計算・力印加を行う構造だった。したがってaddForceAtPos化により各メンバーが自分の位置でグリッドサンプリングして力を加えるだけで、アセンブリ全体としても自然に分散が成立するため、特別な分岐追加は不要と判断した。
+
+### どういう経緯か
+
+1. readme.mdの物理エンジン関係Todo3件の計画を依頼される。IDE選択範囲（readme.mdの浮力改善Todoの詳細説明部分）も併せて提示された。
+2. Plan mode開始。CLAUDE.mdの指示（計画はセッション自身が行う、サブエージェントに外注しない）に従い、Explore/PlanエージェントもTaskツールも使わずGrep/Readで自分で調査。
+3. まずreadme.md/progress.mdを読んで前提を確認。次にPhysics.cpp/BaseCube.cpp/Weld.cpp/LiquidCube.cpp/Material.hppを読み込み、3件それぞれの現状コードを把握。
+4. Weldバグ（1番目）について、Weld.cpp/rebuildGroup/attachShapeToCompound/getOrCreateMaterial/SceneHierarchyPanel.cpp/PropertiesPanel.cpp/Humanoid.cpp/LuauEngine.cpp/SceneLoader.cppを広く調査したが、マテリアルの違いでWeldを拒否・失敗させる分岐はコード上に一切見つからなかった。
+5. これ以上の憶測での実装はリスクが高いと判断し、AskUserQuestionでユーザーに実際の症状を確認。ユーザーから「新規Weld作成は成立するが、既に溶接済みの状態でマテリアルを変更すると暗黙的に解除される」という、より正確な症状とデバッグログが提供された。
+6. この情報を元に`BaseCube::setMaterial()`→`Physics::recreateActor()`の経路を再確認し、compound共有を考慮していない実装バグだと特定。
+7. 同時にAskUserQuestionで浮力分散方式（グリッドサンプリング vs 単一点）についても確認し、グリッドサンプリング方式が選ばれた。
+8. clone()漏れについては、LiquidCube.cppを読んだ時点でmaterial未コピーに気づき、他の全BaseCube派生クラスのclone()実装（Cube/Truss/Seat/MeshCube/Sphere/Cylinder/TriangularPrism）を横断的に確認して同一パターンの漏れを確認。
+9. PxRigidBodyExt.hに`addForceAtPos`が既に存在することを確認し、Vector3.hppの演算子（componentwise `operator*`含む）が浮力分散の実装に必要な演算をサポートしていることも確認した上でプランを作成。
+10. プランファイルを作成しExitPlanModeでユーザー承認を得てから実装開始。
+11. 実装順序: `Physics::recreateActor()`修正→8ファイルのclone()修正→`applyBuoyancy()`のグリッドサンプリング化→`python build.py build`でビルド確認。ビルド成功。
+
+### 未解決・保留
+
+- 実機確認（Weldグループの安定性、クローンでのプロパティ保持、船の転覆耐性）は、GUI自動スモークテスト禁止方針のため、ビルド成功の確認までに留めた。次回セッション冒頭で以下をユーザーに確認する必要がある:
+  - 2キューブをWeldで結合→Cube側のMaterialType/Anchored/MassDensityを変更→グループが分離せずクラッシュ/警告も出ないか
+  - MaterialType変更済みのBaseCube系を複製し、複製後もMaterial/MassDensity/CastShadow等が保持されているか
+  - 複数キューブのWeldアセンブリ（船）をLiquidCubeに傾けて浮かべ、以前より転覆しにくく傾きから復元するか
+- 浮力のグリッド解像度`BUOYANCY_SAMPLE_RES = 3`（27点）は固定値で実装した。実機確認の結果、精度不足（トルクが弱すぎる）や逆に重すぎる（パフォーマンス懸念）と判断された場合は調整が必要。
+- 調査中に気づいた別事象: Playモードの開始・停止を繰り返すと`[SceneLoader] Weld "Weld": cube not found`という警告が毎回コンソールに出力される。今回のTodo3件とは無関係と判断し対応しなかったが、原因は未調査。将来readme.mdに追加Todoとして起票する候補。
+- `setSize()`（リサイズ）経路も`recreateActor()`を通るため今回の修正の恩恵を受けるはずだが、リサイズ動作自体の実機確認は行っていない。
+
+### 試して失敗した/やめた方法
+
+- **Weldバグの原因を「マテリアルの違いによるWeld拒否ロジック」だと決め打ちして実装を始める案**: readme.mdの文言を字面通り解釈すると自然にこの仮説に至るが、Weld.cpp/Physics.cpp/rebuildGroup等を実際に読んでもそのような分岐はコード上に存在しなかった。もしここで憶測のまま「material一致チェックを追加する」といった見当違いの実装をしていたら、本当の原因（recreateActorのcompound非対応）を見逃していた。CLAUDE.mdの「迷ったら実装せず質問する」方針に従いユーザーに確認したことで、正しい原因に到達できた。
+- **浮力を水没体積の重心1点に単一のaddForceAtPosで適用する案**: 転覆問題自体は解決できる（理論上は正しいトルクが発生する）が、readmeの「力を面に分散させ」という要求に字義通りではないため、より計算コストの高いグリッドサンプリング案と両方提示してユーザーに選んでもらった。
+
+### 暗黙仕様の発見（spec.mdに無い挙動）
+
+- **`Physics::recreateActor()`は`cube->actor`を常に「このキューブ専用の単独アクター」と暗黙的に仮定しており、Weld compoundの共有アクターケースを考慮していなかった**。`BaseCube::setAnchored()`/`setMaterial()`/`setMassDensity()`は全てこの関数を経由するため、Weldグループのメンバーに対してこれらのプロパティを変更すると、暗黙的にそのキューブがグループから外れ、かつ他メンバーの`actor`ポインタがダングリングになるという副作用があった。今後`recreateActor()`を呼ぶ新しいプロパティセッターを追加する際は、この関数が既にcompound共有を考慮済み（`rebuildGroup`に委譲する分岐がある）という前提で問題ないが、直接`scene->removeActor`/`release`を呼ぶような新規コードを書く場合は、同じ「共有アクターかどうか」の判定が必要になる。
+- **全BaseCube派生クラスのclone()実装は、`Name`/`Color`/`Anchored`/`CanCollide`/`cframe`のみを個別にコピーする手書きスタイルで統一されており、BaseCubeに新しいプロパティを追加した際にclone()側への反映を強制する仕組みが無い**。今回`material`/`MassDensity`/`CastShadow`/`Unlit`/`UseTriplanar`/`TextureScale`の6項目が7クラス全てで漏れていたのはこのため。今後BaseCubeに新規プロパティを追加する場合、この8ファイルのclone()全てに手動で反映を追加する必要があることを意識する必要がある（BaseCubeは意図的に手書き維持されているクラスのため、PropertyRegistryへの移行対象外であり、この手作業は今後も続く）。
+- **`Physics::applyBuoyancy()`は`cubes`配列を「BaseCubeエントリー単位」でループしており、Weld compoundのメンバーは自分のactor（共有compound）に対して個別に力を加える構造になっている**。この構造のおかげで、今回の浮力分散化はアセンブリ（Weld）に対しても特別な分岐を追加せずに自然に対応できた。今後、浮力以外の「キューブごとの外力」を追加する場合も、同じくcubesエントリー単位でループする限りアセンブリ対応が自動的に得られる設計になっている。
+

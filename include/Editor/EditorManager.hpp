@@ -87,6 +87,10 @@ public:
     // 未保存確認ダイアログを ImGui モーダルで表示する（毎フレーム render() 内で処理する）
     void requestSaveDialog(GLFWwindow* window);
 
+    // シーンファイルの読み込み要求（Open Scene / Load ボタン共通の入口）
+    // Edit モード中は即座に pendingLoadPath へ反映。Play/Pause 中は終了確認ポップアップを挟む
+    void requestSceneLoad(const std::string& path);
+
     CommandHistory m_history;
     PickerState    m_picker;          // PickerState は PropertiesPanel.hpp で定義
     TerrainBrushState m_terrainBrush; // TerrainBrushState は PropertiesPanel.hpp で定義
@@ -110,6 +114,10 @@ private:
     bool        m_showSaveDialog = false;
     GLFWwindow* m_dialogWindow   = nullptr;
 
+    // テストプレイ中のシーン読み込み確認ダイアログ関連
+    bool        m_showPlayLoadConfirm = false;
+    std::string m_pendingPlayLoadPath;
+
     // パッケージダイアログ関連
     bool        m_showPackageDialog = false;
     char        m_pkgName[256]      = {};
@@ -125,6 +133,7 @@ private:
     void applyTheme();
     void handleEditorShortcuts();
     void renderSaveDialog();
+    void renderPlayLoadConfirmDialog();
     void renderPackageDialog();
     void saveCurrentScene();
     void openSceneDialog();
