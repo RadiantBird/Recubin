@@ -73,6 +73,12 @@ GLFWwindow* setupWindow() {
         return nullptr;
     }
 
+    // Mac対応: OpenGL 4.1 Core Profileを明示指定（macOSは未指定だとレガシー2.1しか得られない）
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+
     std::cout << "creating window...\n";
     GLFWwindow* window = glfwCreateWindow(1600, 900, "Recubin Studio", nullptr, nullptr);
     if (!window) {
@@ -85,6 +91,7 @@ GLFWwindow* setupWindow() {
     glfwMakeContextCurrent(window);
 
     std::cout << "initing GLEW...\n";
+    glewExperimental = GL_TRUE; // Core Profileで必要
     if (glewInit() != GLEW_OK) {
         std::cout << "GLEW init failed\n";
         return nullptr;

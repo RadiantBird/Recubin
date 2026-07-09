@@ -65,28 +65,93 @@ add_executable(RecubinTest
 
 # --- 4. 静的リンクの強制定義 (重要) ---
 set(LIB_DIR "${CMAKE_SOURCE_DIR}/include/libs")
-set(COMMON_DEFS YAML_CPP_STATIC_LIBRARIES GLEW_STATIC $<$<CONFIG:Debug>:NDEBUG>)
 set(COMMON_INCLUDES ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/include/imgui
     ${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation/Recast/Include
     ${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation/Detour/Include
     .)
-set(COMMON_LIBS
-    "${LIB_DIR}/glfw3.lib"
-    "${LIB_DIR}/glew32s.lib"
-    opengl32 user32 gdi32 shell32
-    "${LIB_DIR}/PhysX_64.lib"
-    "${LIB_DIR}/PhysXCommon_64.lib"
-    "${LIB_DIR}/PhysXFoundation_64.lib"
-    "${LIB_DIR}/PhysXExtensions_static_64.lib"
-    "${LIB_DIR}/PhysXCooking_64.lib"
-    "${LIB_DIR}/Luau.Ast.lib"
-    "${LIB_DIR}/Luau.Compiler.lib"
-    "${LIB_DIR}/Luau.VM.lib"
-    "${LIB_DIR}/Luau.Common.lib"
-    "${LIB_DIR}/yaml-cpp.lib"
-    Recast
-    Detour
-)
+
+if(WIN32)
+    set(COMMON_DEFS YAML_CPP_STATIC_LIBRARIES GLEW_STATIC $<$<CONFIG:Debug>:NDEBUG>)
+    set(COMMON_LIBS
+        "${LIB_DIR}/glfw3.lib"
+        "${LIB_DIR}/glew32s.lib"
+        opengl32 user32 gdi32 shell32
+        "${LIB_DIR}/PhysX_64.lib"
+        "${LIB_DIR}/PhysXCommon_64.lib"
+        "${LIB_DIR}/PhysXFoundation_64.lib"
+        "${LIB_DIR}/PhysXExtensions_static_64.lib"
+        "${LIB_DIR}/PhysXCooking_64.lib"
+        "${LIB_DIR}/Luau.Ast.lib"
+        "${LIB_DIR}/Luau.Compiler.lib"
+        "${LIB_DIR}/Luau.VM.lib"
+        "${LIB_DIR}/Luau.Common.lib"
+        "${LIB_DIR}/yaml-cpp.lib"
+        Recast
+        Detour
+    )
+else()
+    # --- Mac対応 ---
+    # GLFW / yaml-cpp / GLEW は Windows用.libのプリビルドが無いため、
+    # Homebrew等でインストールされたものを find_package で解決する想定。
+    #   brew install glfw yaml-cpp glew
+    set(COMMON_DEFS YAML_CPP_STATIC_LIBRARIES $<$<CONFIG:Debug>:NDEBUG>)
+
+    find_package(glfw3 REQUIRED)
+    find_package(yaml-cpp REQUIRED)
+    find_package(GLEW REQUIRED)
+    find_package(OpenGL REQUIRED)
+
+    # Luau: リポジトリ内にビルド元のバージョン記録が無いため、
+    # 既定でmasterを取得する。RECUBIN_LUAU_GIT_TAGで固定バージョンに上書き可能。
+    set(RECUBIN_LUAU_GIT_TAG "master" CACHE STRING "Luauの取得元git tag/コミット")
+    include(FetchContent)
+    FetchContent_Declare(
+        Luau
+        GIT_REPOSITORY https://github.com/luau-lang/luau.git
+        GIT_TAG ${RECUBIN_LUAU_GIT_TAG}
+    )
+    FetchContent_MakeAvailable(Luau)
+
+    # PhysX: NVIDIA公式に事前ビルド済みバイナリのMac配布は無いため、
+    # ユーザーが手元のMac環境でmacOS向けプリセットからビルドした.aを指す。
+    set(RECUBIN_PHYSX_MAC_DIR "" CACHE PATH "MacでビルドしたPhysX 5.6静的ライブラリ(.a)が置かれたディレクトリ")
+    if(RECUBIN_PHYSX_MAC_DIR STREQUAL "")
+        message(FATAL_ERROR
+            "Mac向けビルドには RECUBIN_PHYSX_MAC_DIR の指定が必要です。"
+            "NVIDIA PhysX 5.6 のmacOS向けプリセットでビルドした.a群のディレクトリを"
+            "-DRECUBIN_PHYSX_MAC_DIR=... で指定してください。")
+    endif()
+
+    set(PHYSX_MAC_COMPONENTS
+        PhysX_static_64
+        PhysXCommon_static_64
+        PhysXFoundation_static_64
+        PhysXExtensions_static_64
+        PhysXCooking_static_64
+    )
+    set(PHYSX_MAC_LIBS "")
+    foreach(component ${PHYSX_MAC_COMPONENTS})
+        find_library(PHYSX_MAC_LIB_${component} NAMES ${component} PATHS ${RECUBIN_PHYSX_MAC_DIR} REQUIRED)
+        list(APPEND PHYSX_MAC_LIBS ${PHYSX_MAC_LIB_${component}})
+    endforeach()
+
+    set(COMMON_LIBS
+        glfw
+        yaml-cpp
+        GLEW::GLEW
+        OpenGL::GL
+        "-framework Cocoa"
+        "-framework IOKit"
+        "-framework CoreVideo"
+        ${PHYSX_MAC_LIBS}
+        Luau.Ast
+        Luau.Compiler
+        Luau.VM
+        Luau.Common
+        Recast
+        Detour
+    )
+endif()
 
 # ---- RecubinCore (共有オブジェクトライブラリ) ----
 target_compile_definitions(RecubinCore PRIVATE ${COMMON_DEFS})

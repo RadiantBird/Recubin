@@ -1,3 +1,4 @@
+import platform
 import shutil
 import subprocess
 import sys
@@ -47,8 +48,13 @@ def copy_dlls(config: str) -> None:
 def build(config: str) -> int:
     BUILD_DIR.mkdir(exist_ok=True)
 
+    is_windows = platform.system() == "Windows"
+
     print(f"[INFO] Configuring {config} build...")
-    result = run_command(["cmake", "-S", ".", "-B", "build", "-A", "x64", "-D", "GLEW_STATIC=ON"])
+    configure_args = ["cmake", "-S", ".", "-B", "build"]
+    if is_windows:
+        configure_args += ["-A", "x64", "-D", "GLEW_STATIC=ON"]
+    result = run_command(configure_args)
     if result != 0:
         print("[ERROR] CMake configuration failed.")
         return result
@@ -59,15 +65,18 @@ def build(config: str) -> int:
         print("[ERROR] Build execution failed.")
         return result
 
-    copy_dlls(config)
+    if is_windows:
+        copy_dlls(config)
 
-    # ランチャーも自動ビルド（失敗してもメインビルドは成功扱い）
-    try:
-        launcher_result = build_launcher(config)
-        if launcher_result != 0:
-            print("[WARNING] launcher.exe build failed — packaging will skip it.")
-    except FileNotFoundError:
-        print("[WARNING] cl.exe not found - skipping launcher build. Run from Developer Command Prompt to build it.")
+        # ランチャーも自動ビルド（失敗してもメインビルドは成功扱い）
+        try:
+            launcher_result = build_launcher(config)
+            if launcher_result != 0:
+                print("[WARNING] launcher.exe build failed — packaging will skip it.")
+        except FileNotFoundError:
+            print("[WARNING] cl.exe not found - skipping launcher build. Run from Developer Command Prompt to build it.")
+    else:
+        print("[INFO] Non-Windows platform detected - skipping DLL copy and launcher build (Mac版ランチャーは未対応).")
 
     print("[SUCCESS] Build process completed.")
     return 0
