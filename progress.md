@@ -170,3 +170,51 @@ AskUserQuestionで実装範囲を確認: (1) 実装範囲は「基盤のみ実�
 - **`enet_host_broadcast`は未接続Peerを自動的にスキップし、誰にも送れなかった場合はpacket自体を内部で安全に破棄する**が、`enet_peer_send`を個別Peerに対して直接呼ぶ経路（Client視点でHostへ送る場合など、Peerが1つしかない場合の最適化）は送信失敗時にpacketを破棄せず単に`-1`を返すだけ、という非対称なAPI設計になっている（ENet 1.3.18の`host.c`/`peer.c`で確認）。ENetを使うコードは、`enet_host_broadcast`を使わない単一Peer送信経路では必ず戻り値をチェックしてpacketを破棄する必要がある。
 
 ---
+
+## 2026-07-10 Users無限増殖バグ・着席時のAttachment/Motorずれバグ修正
+
+### 指示内容
+readme.mdのTodoにある2件の未修正バグの修正を依頼された。(1)「無限増殖バグ」: `System/Users`がPlay/Stop・Loadのたびに`Users`→`Users1`→`Users11`…とキー衝突リネームが連鎖し増殖する。(2)「Attachmentは、アセンブリ剛体によって座標がずれ、不安定になる」: 車両（複数Cubeのweldアセンブリ）にキャラクターが着席すると、Attachment/Motor（車輪等）の座標がずれる。Plan modeでExploreエージェント2体（並列）に読み取り専用調査をさせ、計画は自分で行った。
+
+### 何をしたか
+1. **Users無限増殖の修正**（`src/Core/SceneRuntime.cpp`の`loadAndBind`のみ）: `loadScene()`を呼ぶ前に`system->children`から既存の`Users`コンテナを探し、見つかれば`System`/`User`と同様に`SceneLoader::registerSingleton("Users", usersContainer)`で事前登録するようにした。
+2. **着席時のSeat/Attachmentずれ（1回目・不十分だった修正）**: `Humanoid::sitOn()`/`standUp()`（`src/Instances/Humanoid.cpp`）で、着席中はRootの転倒防止用`LockFlags`(`eLOCK_ANGULAR_X|Z`)を解除し、`standUp()`のWeld除去前に復帰させるようにした。
+3. **Motor::Axisのセマンティクス変更**: `include/Instances/Motor.hpp`の`Axis`コメントを「ワールド方向」→「Cube0基準のローカル方向」に変更し、`src/Core/Physics.cpp`の`createMotor()`で`motor->Axis`を`sp0->getWorldCFrame().Rotation.rotate(motor->Axis)`でCube0の現在の回転を通してからワールド軸を作るよう変更。
+4. **真の原因への対処（座標ずれの本体）**: `Humanoid::sitOn()`で、`m_seatWeld->setCube1(seat)`の直後に`physics->createWeld(m_seatWeld, workspace)`を同フレーム内で同期的に呼び出すよう変更。Rootをスナップした瞬間の姿勢でcompoundを確定させ、次フレームの`Physics::update()`まで処理が遅延することで生じる「Rootだけ独立した自由な剛体のまま物理シミュレーションが1ステップ以上進んでしまう空白窓」を無くした。
+5. **二重処理の除去**: 上記4の同期呼び出し後、`setCube1()`内部の`registerIfReady()`が既に`workspace.pendingConstraints`へ積んでいた同じWeldを`std::remove`+`erase`で取り除き、次フレームの`Physics::update()`が同じWeldに対し`createWeld`を再度呼んで車輪Motorまで無駄に二重再構築してしまうのを防いだ。
+
+### なぜそうしたか
+- **Users修正を`SceneRuntime.cpp`のみに絞った理由**: `main.cpp`の`resetSystemForReload()`は既にPlay/Stop時に既存の`Users`コンテナ（と`user`）を意図的に温存する設計だった。温存されているのに`loadScene()`側がそれを知らず`SceneLoader::createInstance("Users")`で新規生成・`addChild`してしまうのが衝突の原因だったため、`System`/`User`と同じ「事前シングルトン登録でマージさせる」パターンに揃えるだけで、他ファイルを触らずに解決できた。
+- **LockFlags解除だけでは足りなかった理由**: ユーザーからの実機フィードバックで「回転ロックが原因ではなかった」と判明。ロック自体は「車両が傾いた状態でのcompound全体ロック」という別の実在する問題ではあったが、今回の座標ずれの主因ではなかった。この経験から、以降は静的なコードリーディングによる仮説だけで確定せず、実機ログでの検証を挟む方針に切り替えた。
+- **Motor::Axisをローカル方向に変えた理由**: ユーザーに「Axisの意味をCube0基準のローカル方向に変える」か「リビルド時に直前のワールド軸を維持する」かをAskUserQuestionで確認し、前者（意味変更）を選択された。既存シーンでワールド軸を前提にAxis値を手動調整していた場合は挙動が変わりうるトレードオフだが、根本的に自然な挙動になる利点を優先。
+- **診断ログを一時的に仕込んだ理由**: 2回連続で立てた仮説（回転ロック起因、Motor::Axisのワールド固定起因）が外れた・部分的にしか当たらなかったため、これ以上の推測は避け`Humanoid::sitOn()`と`Physics::rebuildGroup()`に一時ログ（`[SIT-DEBUG]`/`[REBUILD-DEBUG]`）を仕込みユーザーに実機再現→ログ提供してもらった。ログから「スナップ直後のRoot座標」と「実際にcompoundを組む瞬間のRoot座標」が一致していない（1フレーム分ズレて動いている）ことが直接判明し、これが決め手になった。
+- **`Physics::createWeld`を同期呼びにした理由**: `Physics::update()`の内部順序が「①`scene->simulate`/`fetchResults`で物理を1ステップ以上進める→②`workspace.pendingConstraints`を処理してWeld/Motorを生成」（`Physics.cpp`の`update()`本体）であることをコードで確認。`sitOn()`はメインループの`processInput`（`physicsEngine->update()`より後）から呼ばれるため、`sitOn()`内でWeldを登録するだけだと、次フレームの①が完了した後の②でようやくcompound化される。その間Rootは独立した自由な動的剛体のままで、①によって動いてしまった分がそのままアセンブリの原点として焼き付く。`Physics::createWeld`が`public`メソッドで`sitOn()`から直接呼べたため、既存の非同期キュー処理に手を入れず、呼び出し側で「今すぐ確定させる」という最小限の変更で空白窓を消せた。
+- **pendingConstraintsから明示的に除去した理由**: 同期呼び出し後もキューに残った同じWeldが次フレームに再度`createWeld`されると、`rebuildGroup`末尾の「assembly内のcubeを参照しているMotorを再構築」処理（`Physics.cpp`）が車輪Motor全部を無駄にもう一度作り直す。座標のズレという意味では二重処理後も理論上は自己無矛盾（Motor::Axis修正済みのため）だが、ユーザーが「細かい再構築の順番ずれ」を懸念した通り不要な処理であり、キューから取り除いて二重実行自体を無くす方が素直で安全と判断した。
+
+### どういう経緯か
+1. Plan modeでExploreエージェント2体（アタッチメント/Weld/Physics関連の調査、Users増殖バグのInstance/SceneLoader関連の調査）を並列起動し、原因箇所を特定した計画を`C:\Users\Ryarta\.claude\plans\snug-fluttering-peacock.md`に記述。当初「Weldを別アクター+PxJointにしてcompound分離する」案も検討したが、ユーザーから「回転ロックがあると車両がどうやっても転倒しなくなるのでは」と指摘され、joint方式・compound方式どちらでも同じ問題が残ることに気づき、「着席中だけRootのLockFlagsを外す」案に修正して承認を得た。
+2. Users修正（`SceneRuntime.cpp`）とLockFlags解除修正（`Humanoid.cpp`）を実装、ビルド成功、ユーザーに実機確認を依頼。
+3. ユーザーから「アタッチメントのずれは回転ロックが原因ではなかった」と否定的フィードバック。`Spatial::getWorldCFrame`/`BaseCube::syncPhysics`/`CFrame::operator*`/`Quaternion`の数式を全て読み直したが理論上のバグは見つからず、AskUserQuestionで症状を絞り込み（着席した瞬間から発生／車輪側がずれ、モーターの回転軸が変わる感じ）。
+4. `Weld::collectAssembly`→`Physics::rebuildGroup`のMotor再構築処理を精読し、`Motor::Axis`が「ワールド方向」固定である点を発見。Weldリビルド（着席で巻き添えになる）のたびに車体の傾きを無視した軸で再生成される、という仮説を立て、AskUserQuestionで修正方針（Axisの意味変更 vs リビルド時の軸継承）を確認して前者を実装。
+5. ユーザーから実際のシーン（`assets/scenes/physics_test.yaml`）と、着席済み状態のスクリーンショット2枚が提供され、「無人時は揃っているが、着席した溶接後にずれる。座席から遠い状態で溶接されるとずれが大きくなる」という追加情報を得た。物理挙動自体に影響するかをAskUserQuestionで確認し「実際の物理もおかしい」と判明。
+6. 「距離に比例してずれる」という手がかりから、原点の回転誤差が遠方ほど増幅される、という仮説を立てたが確証が持てず、`Humanoid::sitOn()`と`Physics::rebuildGroup()`に一時診断ログを追加してビルド、ユーザーに実機再現とログ提供を依頼。
+7. 提供された`output.txt`（UTF-16のため一部文字化けして見えるが内容は読み取れた）から、`[SIT-DEBUG]`のRoot座標と`[REBUILD-DEBUG] origin=Root`のRoot座標が別フレームで一致しないことを確認し、「①物理シミュレーション→②Weld生成」という`Physics::update()`内の順序が原因と特定。`sitOn()`内で`physics->createWeld()`を同期的に呼ぶ修正を実装、診断ログは削除、ビルド成功。ユーザーが実機確認し「座席ずれは直った」が「まだバグがある」「細かい再構築の順番ずれでは」とのフィードバック。
+8. 同期呼び出し後も`pendingConstraints`に同じWeldが残存し次フレームで二重にMotorまで再構築されている点に気づき、`std::remove`+`erase`で明示的にキューから除去する修正を追加、ビルド成功。ユーザーが実機確認し「直りました」と確認を得た。
+
+### 試して失敗した/計画から変更した点
+- **1回目の修正（LockFlags解除）は的外れではなかったが不十分だった**: 車両が傾いた状態でのcompound全体ロックという実在の問題ではあるものの、ユーザーが報告した座標ずれの主因ではなかった。むしろLockFlagsを解除したことで、後に発見した「1フレームの空白窓」の間Rootが完全に無拘束になり、症状を悪化させていた可能性がある（空白窓自体を無くす4番目の修正で解消済み）。
+- **RootとSeatを別アクター+`PxJoint`（Motorと同じ仕組み）でcompound分離する案は不採用**: ユーザー指摘の通り、Rootに角度ロックがある限りjoint経由でも車両全体の転倒を妨げる副作用が残ると判断し、計画段階で「着席中だけLockFlagsを外す」案に切り替えた。
+- **「AttachmentのworldCFrame計算式自体にバグがある」という仮説は数式検証の結果否定**: `Spatial::getWorldCFrame`/`BaseCube::syncPhysics`/`CFrame::operator*`/`Quaternion::rotate`/`conjugate`を全て手計算で検算し、数式レベルでは矛盾がないことを確認した。この「静的読解だけでは埒が明かない」経験から、診断ログ+実機再現に切り替える判断につながった。
+- **診断ログの追加は`RCBN_LOG`の重い文字列結合処理をホットパス（`rebuildGroup`のループ内）に一時的に入れたため、フレームレートが低下し「1フレームの空白窓」で車両が移動する距離が普段より誇大化していた可能性がある**（ログ自体は削除済みだが、次回同様の診断をする際はこの副作用に留意）。
+
+### 未解決・保留
+- 今回発見した「compound全体LockFlagsのOR合成（`Physics::rebuildGroup`）」自体の設計（`Physics.cpp`のコメントにある通り、Weld合成のたびに角度ロックを失わないための意図的な仕様）は変更していない。着席中はRootのLockFlagsを`0`にすることで実質的にこの合成対象から外しているが、将来「傾いた車両」以外の別のロック持ちCube（Humanoid以外）がアセンブリに加わるケースで同種の振動が再発する可能性は残る。
+- Users増殖バグは今回のセッション開始前から`assets/scenes/physics_test.yaml`に既に`Users`/`Users1`/`Users11`/`Users111`という壊れたデータが残存している（本セッション中にユーザーが貼ったYAML内容で確認済み）。今回の修正は「今後新たに増殖しない」ようにするものであり、既存の壊れたシーンファイル自体のクリーンアップ（重複`Users`ノードの手動除去）は未対応のまま。
+- `Physics::createWeld`を`sitOn()`から同期的に呼ぶパターンは、他の「ランタイム中に動的にWeldを追加する」既存コード（あれば）でも同じ1フレーム空白窓の問題を抱えている可能性がある。今回はSeatWeldのみ対応し、他の動的Weld生成箇所の横展開調査はしていない。
+
+### 暗黙仕様の発見（spec.mdに無い挙動）
+- **`Physics::update()`内の処理順序は「物理シミュレーションが先、新規Weld/Motor/Rope/Rodの生成処理が後」**（`Physics.cpp`の`update()`本体、`scene->simulate`/`fetchResults`のループが先頭、`workspace.pendingConstraints`処理がその後）。そのため、あるフレームで`Workspace::registerConstraint`経由で新しいWeldを登録しても、それが実際にcompound化されるのは早くて「次の`Physics::update()`呼び出しの、そのフレームの物理シミュレーション完了後」になる。ランタイム中に動的生成したCubeを即座に他のCubeと剛体一体化させたい場合、この非同期キューに任せると最低1フレーム分「まだ独立した自由な剛体」の状態で物理シミュレーションを受けてしまう。即座に一体化させたい場合は`Physics::createWeld()`（`public`）を直接同期呼びする必要がある（今回`Humanoid::sitOn()`で採用したパターン）。
+- **`Physics::createWeld`/`createMotor`は同じWeld/Motorに対して複数回呼んでも安全（べき等ではないが破壊的ではない）**: `createWeld`内の`alreadyRegistered`チェックにより`m_constraints`への二重登録は防がれ、`rebuildGroup`は毎回一貫した現在位置から再構築するため、二重に呼んでも座標が壊れることはない（ただし車輪Motor等の巻き添え再構築が無駄に倍増するため、パフォーマンス・ログノイズの観点では避けるべき）。
+- **`Weld::collectAssembly`が発見する`allWelds`/`allMotors`は、開始Cubeの所属Workspaceを`root`引数として渡した際、そのWorkspace配下の子孫すべてを毎回スキャンして集める**（`Weld.cpp`の`collect`ラムダによる全走査）ため、Workspace内のWeld/Motor総数に比例したコストがかかる。頻繁に動的Weldを生成・破棄するようなユースケース（今回のSeatWeldのように着席のたびに生成される場合）では、Workspace内のWeld/Motor数が多いシーンほど`sitOn()`のコストが増える可能性がある。
+
+---

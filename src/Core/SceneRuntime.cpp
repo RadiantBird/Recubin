@@ -67,16 +67,27 @@ Bound loadAndBind(const std::string& scenePath,
                   GLFWwindow* window) {
     SceneLoader::registerSingleton("System", system);
     SceneLoader::registerSingleton("User", user);
-    SceneLoader::loadScene(scenePath);
-    SceneLoader::clearSingletons();
 
-    // Users コンテナ(System/Users)が無ければ自動生成する(Workspace/PathfindingServiceと同様のパターン)
+    // Users コンテナが reload をまたいで温存されている場合(resetSystemForReload参照)、
+    // System/User と同様に事前登録してマージ対象にする。登録しないと loadScene() が
+    // YAML中のUsersノードを新規生成してしまい、温存済みコンテナとキー衝突して増殖する。
     std::shared_ptr<Instance> usersContainer;
     if (auto it = system->children.find("Users"); it != system->children.end()) {
         usersContainer = it->second;
-    } else {
-        usersContainer = std::make_shared<Users>();
-        system->addChild(usersContainer);
+        SceneLoader::registerSingleton("Users", usersContainer);
+    }
+
+    SceneLoader::loadScene(scenePath);
+    SceneLoader::clearSingletons();
+
+    // Users コンテナが無ければ自動生成する(Workspace/PathfindingServiceと同様のパターン)
+    if (!usersContainer) {
+        if (auto it = system->children.find("Users"); it != system->children.end()) {
+            usersContainer = it->second;
+        } else {
+            usersContainer = std::make_shared<Users>();
+            system->addChild(usersContainer);
+        }
     }
 
     // User が YAML に存在しなくてもSystem/Users直下に確保する

@@ -9,6 +9,7 @@
 #include <Math/Quaternion.hpp>
 #include <Math/CFrame.hpp>
 #include <Math/Units.hpp>
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 
@@ -283,7 +284,7 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
     // RootをSeatの向きのまま直上へスナップし、速度をゼロクリアしてからWeldで固定する。
     // Decal.FrontはCubeローカル+Z面(Renderer_GUI.cpp参照)だが、Humanoidの正面(getForward)は-Z基準のため、
     // Seatの回転をそのまま使うとFrontとは逆の-Z方向を向いてしまう。180度反転して整合させる
-    CFrame target = seat->getWorldCFrame() * CFrame(0, seat->Size.y * 0.001f + Root->Size.y * 0.25f, 0)
+    CFrame target = seat->getWorldCFrame() * CFrame(0, seat->Size.y * 0.001f - Root->Size.y * 0.01f, 0)
                   * CFrame::fromAxisAngle(Vector3(0, 1, 0), 0.0f); // やっぱり必要なさそうなので0.0にした
     physx::PxTransform pose(
         physx::PxVec3(target.Position.x, target.Position.y, target.Position.z),
@@ -294,6 +295,11 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
     dynamicActor->setAngularVelocity(physx::PxVec3(0, 0, 0));
     Root->syncPhysics();
 
+    // 着席中はRootの姿勢をSeatWeldが保持するため、徒歩用の転倒防止ロックは不要かつ有害。
+    // 外さないと Weld によるcompound化(rebuildGroup)でこのロックが車両アセンブリ全体に
+    // OR合成され、車両が傾いた際にロックと重力/接触トルクが衝突して振動・座席位置ずれを起こす
+    Root->LockFlags = (physx::PxRigidDynamicLockFlags)0;
+
     Instance* wsRaw = seat->findFirstAncestorWorkspace();
     if (wsRaw && physics) {
         m_seatWeld = std::make_shared<Weld>();
@@ -301,6 +307,22 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
         static_cast<Workspace*>(wsRaw)->addChild(m_seatWeld);
         m_seatWeld->setCube0(Root);
         m_seatWeld->setCube1(seat);
+
+        // Weldの実際のcompound化(Physics::createWeld)は本来次フレームのPhysics::update()
+        // 冒頭まで遅延される。その間にも物理シミュレーションが1ステップ以上進んでしまい、
+        // まだ独立した自由な剛体のRootが重力等でスナップ直後の姿勢から動いてしまうと、
+        // そのズレた姿勢がそのまま車両アセンブリの原点として焼き付き、Seat/Chassis/車輪
+        // すべてが恒久的にずれる。スナップした直後のこのフレームのうちに同期的にWeldを
+        // 確定させることで、その空白窓を無くす
+        Workspace* ws = static_cast<Workspace*>(wsRaw);
+        physics->createWeld(m_seatWeld, *ws);
+
+        // setCube1()のregisterIfReady()がすでにこのWeldをpendingConstraintsへ積んでいる。
+        // 消さずに残すと次フレームのPhysics::update()冒頭で同じWeldに対しcreateWeldが
+        // 二重に走り、車輪Motor(assembly内のcubeを参照しているため巻き添えで再構築される)
+        // まで無駄にもう一度作り直されてしまう。二重処理を避けるためここで取り除く
+        auto& pending = ws->pendingConstraints;
+        pending.erase(std::remove(pending.begin(), pending.end(), m_seatWeld), pending.end());
     }
 
     m_seated = true;
@@ -309,6 +331,12 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
 
 void Humanoid::standUp(Physics* physics) {
     if (!m_seated) return;
+
+    // SeatWeld除去(compound分割)前に転倒防止ロックを復帰させる。分割後にRootが
+    // 独立アクターとして再生成される際(createActor)、このLockFlagsが反映されるため
+    if (Root) {
+        Root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+    }
 
     if (m_seatWeld) {
         if (auto parent = m_seatWeld->Parent.lock()) parent->removeChild(m_seatWeld->Name);

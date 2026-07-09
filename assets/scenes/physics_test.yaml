@@ -175,32 +175,6 @@ Root:
           Children:
             - ClassName: Folder
               Name: Inventory
-    - ClassName: Folder
-      Name: bin
-      Children:
-        - ClassName: MeshCube
-          Name: MeshCube
-          Properties:
-            Position: [-5.0838127, -0.8963641, -13.81212]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            MeshFile: C:\Users\Ryarta\Documents\Recubin\assets\models\newHead.glb
-          Children:
-            - ClassName: Decal
-              Name: Decal_Front
-              Properties:
-                Face: 0
-                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\hooo.png
     - ClassName: Workspace
       Name: Workspace
       Properties:
@@ -459,7 +433,7 @@ Root:
             Position: [-0.7968526, 7.5, 39.5]
             Size: [4, 1, 4]
             Rotation: [0.70710677, 0, 0, 0.70710677]
-            Color: [0.35076922, 0.35076922, 0.35076922, 1]
+            Color: [0.34901962, 0.34901962, 0.34901962, 0]
             Anchored: false
             CanCollide: true
             CastShadow: true
@@ -551,7 +525,7 @@ Root:
             Position: [7, 8, 33]
             Size: [20, 2, 10]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
+            Color: [0, 0, 1, 1]
             Anchored: false
             CanCollide: true
             CastShadow: true
@@ -652,17 +626,25 @@ Root:
               Name: Decal
               Properties:
                 Face: 0
-    - ClassName: Users
-      Name: Users1
+        - ClassName: Cube
+          Name: Jumper
+          Properties:
+            Position: [-213.93259, 8.508381, 29.32892]
+            Size: [200, 1, 40]
+            Rotation: [0, 0, -0.04428276, 0.999019]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
     - ClassName: AppImage
       Name: AppImage
       Properties:
         IconPath: assets/image/the-cat.png
-    - ClassName: Users
-      Name: Users11
     - ClassName: PathfindingService
       Name: PathfindingService
-    - ClassName: FileRef
-      Name: FileRef
-      Properties:
-        ContentPath: C:\Users\Ryarta\Pictures\Resistance tux.png

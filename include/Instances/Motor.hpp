@@ -26,7 +26,7 @@ class Motor : public Instance {
     // 名前が設定済みで未解決のAttachment参照を対応Cube配下から遅延解決する
     void resolveAttachments();
 public:
-    Vector3 Axis          = {1.0f, 0.0f, 0.0f}; // 回転軸（ワールド方向）
+    Vector3 Axis          = {1.0f, 0.0f, 0.0f}; // 回転軸（Cube0基準のローカル方向）
     float DriveVelocity   = 1.0f;  // rad/s
     float MaxForce        = 1000.0f;
 

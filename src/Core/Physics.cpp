@@ -1133,8 +1133,12 @@ void Physics::createMotor(const std::shared_ptr<Motor>& motor) {
         }
     }
 
-    // 回転軸を cube0 ローカルの X 軸として表現するフレームを構築
-    physx::PxVec3 axisW(motor->Axis.x, motor->Axis.y, motor->Axis.z);
+    // motor->Axis は Cube0 基準のローカル方向として解釈し、Cube0 の現在のワールド回転で
+    // ワールド方向へ変換する。以前はAxisをワールド固定ベクトルとして扱っていたため、
+    // Weldリビルド等(着席時のSeatWeld生成など、本来Motorと無関係な操作)でこのMotorの
+    // ジョイントが作り直されるたびに、車体の傾きを無視した軸へ巻き戻ってしまっていた
+    Vector3 axisWorldVec = sp0->getWorldCFrame().Rotation.rotate(motor->Axis);
+    physx::PxVec3 axisW(axisWorldVec.x, axisWorldVec.y, axisWorldVec.z);
     axisW.normalize();
     physx::PxQuat axisRot = computeShortestRotationFromX(axisW);
 
