@@ -1,4 +1,5 @@
 #include <Editor/ContentBrowserPanel.hpp>
+#include <Editor/Localization.hpp>
 #include <include/imgui/imgui.h>
 #include <filesystem>
 #include <string>
@@ -25,7 +26,7 @@ void ContentBrowserPanel::onRender() {
     ImGui::TextDisabled("%s", currentPath.string().c_str());
     if (currentPath != fs::path("assets")) {
         ImGui::SameLine();
-        if (ImGui::SmallButton("<- Back")) {
+        if (ImGui::SmallButton(Loc::t(Loc::LocKey::BackButton))) {
             currentPath = currentPath.parent_path();
         }
     }
@@ -40,7 +41,7 @@ void ContentBrowserPanel::onRender() {
 void ContentBrowserPanel::drawDirectory(const fs::path& path) {
     std::error_code ec;
     if (!fs::exists(path, ec)) {
-        ImGui::TextDisabled("(assets/ folder not found)");
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::AssetsFolderNotFound));
         return;
     }
 

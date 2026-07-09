@@ -1,4 +1,5 @@
 #include <Editor/ConsolePanel.hpp>
+#include <Editor/Localization.hpp>
 #include <Util/Logger.hpp>
 #include <include/imgui/imgui.h>
 
@@ -46,11 +47,12 @@ void ConsolePanel::onRender() {
     if (ImGui::BeginTabBar("ConsoleTabs")) {
 
         // ---- System タブ ----
-        if (ImGui::BeginTabItem("System")) {
-            if (ImGui::SmallButton("Clear")) { clear(); }
+        if (ImGui::BeginTabItem(Loc::t(Loc::LocKey::TabSystem))) {
+            if (ImGui::SmallButton(Loc::t(Loc::LocKey::ClearButton))) { clear(); }
             ImGui::SameLine();
             ImGui::SetNextItemWidth(200.0f);
-            ImGui::InputText("Filter##sys", filterBuf, sizeof(filterBuf));
+            std::string filterLabel = std::string(Loc::t(Loc::LocKey::FilterLabel)) + "##sys";
+            ImGui::InputText(filterLabel.c_str(), filterBuf, sizeof(filterBuf));
             ImGui::Separator();
 
             ImGui::BeginChild("SysScroll", ImVec2(0, 0), ImGuiChildFlags_None,
@@ -71,11 +73,13 @@ void ConsolePanel::onRender() {
         }
 
         // ---- Luau タブ ----
-        if (ImGui::BeginTabItem("Luau")) {
-            if (ImGui::SmallButton("Clear##luau")) { luauLogs.clear(); }
+        if (ImGui::BeginTabItem(Loc::t(Loc::LocKey::TabLuau))) {
+            std::string clearLabel = std::string(Loc::t(Loc::LocKey::ClearButton)) + "##luau";
+            if (ImGui::SmallButton(clearLabel.c_str())) { luauLogs.clear(); }
             ImGui::SameLine();
             ImGui::SetNextItemWidth(200.0f);
-            ImGui::InputText("Filter##luau", luauFilterBuf, sizeof(luauFilterBuf));
+            std::string filterLabel = std::string(Loc::t(Loc::LocKey::FilterLabel)) + "##luau";
+            ImGui::InputText(filterLabel.c_str(), luauFilterBuf, sizeof(luauFilterBuf));
             ImGui::Separator();
 
             ImGui::BeginChild("LuauScroll", ImVec2(0, 0), ImGuiChildFlags_None,

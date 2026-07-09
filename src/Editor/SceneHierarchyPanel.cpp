@@ -3,6 +3,7 @@
 #include <Editor/SpawnUtil.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Editor/PropertiesPanel.hpp>  // PickerState の定義
+#include <Editor/Localization.hpp>
 #include <Instances/BaseCube.hpp>
 #include <algorithm>
 #include <unordered_set>
@@ -89,7 +90,7 @@ void SceneHierarchyPanel::onRender() {
     }
 
     if (!workspace) {
-        ImGui::TextDisabled("(No workspace)");
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::NoWorkspace));
         ImGui::End();
         return;
     }
@@ -329,27 +330,28 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
 
 void SceneHierarchyPanel::renderNewScriptDialog() {
     if (m_openScriptDialog) {
-        ImGui::OpenPopup("New Script");
+        ImGui::OpenPopup("###NewScript");
         m_openScriptDialog = false;
     }
 
-    if (ImGui::BeginPopupModal("New Script", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    std::string popupTitle = std::string(Loc::t(Loc::LocKey::NewScriptTitle)) + "###NewScript";
+    if (ImGui::BeginPopupModal(popupTitle.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         static char s_name[128] = "NewScript";
         static int  s_mode = 0; // 0=新規作成, 1=既存ファイル
 
-        ImGui::RadioButton("新規作成",         &s_mode, 0); ImGui::SameLine();
-        ImGui::RadioButton("既存ファイルを選択", &s_mode, 1);
+        ImGui::RadioButton(Loc::t(Loc::LocKey::ScriptModeNew),      &s_mode, 0); ImGui::SameLine();
+        ImGui::RadioButton(Loc::t(Loc::LocKey::ScriptModeExisting), &s_mode, 1);
         ImGui::Separator();
 
         if (s_mode == 0) {
-            ImGui::Text("Script name:");
+            ImGui::Text("%s", Loc::t(Loc::LocKey::ScriptNameLabel));
             ImGui::SetNextItemWidth(220.0f);
             ImGui::InputText("##sname", s_name, sizeof(s_name));
         } else {
-            ImGui::TextDisabled("ファイルピッカーで .luau/.luar を選択します");
+            ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::ScriptPickHint));
         }
 
-        if (ImGui::Button("OK", ImVec2(100, 0))) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::OK), ImVec2(100, 0))) {
             m_pickName     = std::string(s_name);
             m_pickParent   = m_pendingScriptParent;
             m_pickExisting = (s_mode == 1);
@@ -358,7 +360,7 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancel", ImVec2(100, 0))) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::Cancel), ImVec2(100, 0))) {
             m_pendingScriptParent.reset();
             ImGui::CloseCurrentPopup();
         }
@@ -408,10 +410,10 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
     auto parentSp = inst->shared_from_this();
 
     // ---- Cube系 ----
-    if (ImGui::BeginMenu("Cube系")) {
+    if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryCubes))) {
         auto spawnPos = computeSpawnPos(m_user, workspace);
-        
-        ImGui::TextDisabled("Workspace内で描画される基本的なクラス。");
+
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::CategoryCubesDesc));
         ImGui::Separator();
         tryInsertInstance<Cube>(m_history, "Cube", parentSp, spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
         tryInsertInstance<Cylinder>(m_history, "Cylinder", parentSp, spawnPos, Vector3(1, 1, 1));
@@ -426,8 +428,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
     }
 
     // ---- 効果 ----
-    if (ImGui::BeginMenu("効果")) {
-        ImGui::TextDisabled("世界を彩りましょう。");
+    if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryEffects))) {
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::CategoryEffectsDesc));
         ImGui::Separator();
         if (ImGui::MenuItem("Sound", nullptr, false, AudioService::instance != nullptr) && m_history) {
             auto obj = std::make_shared<Sound>(*AudioService::instance);
@@ -435,7 +437,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
         if (AudioService::instance == nullptr) {
-            ImGui::SetItemTooltip("AudioService が利用できません");
+            ImGui::SetItemTooltip("%s", Loc::t(Loc::LocKey::AudioServiceUnavailable));
         }
         tryInsertInstance<Decal>(m_history, "Decal", parentSp, 0, Face::Front);
         tryInsertInstance<Texture>(m_history, "Texture", parentSp, 0, Face::Front);
@@ -445,8 +447,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("環境")) {
-        ImGui::TextDisabled("7日で宇宙を創るように。");
+    if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryEnvironment))) {
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::CategoryEnvironmentDesc));
         ImGui::Separator();
 
         tryInsertInstance<Workspace>(m_history, "Workspace", parentSp);
@@ -490,8 +492,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
     }
 
     // ---- その他 ----
-    if (ImGui::BeginMenu("その他")) {
-        ImGui::TextDisabled("分類するには少ない...でも重要。");
+    if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryOther))) {
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::CategoryOtherDesc));
         ImGui::Separator();
 
         // Scriptはダイアログを開く特殊な挙動なのでそのまま
@@ -516,8 +518,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
     }
 
     // ---- GUI ----
-    if (ImGui::BeginMenu("GUI")) {
-        ImGui::TextDisabled("画面にテキストや画像を表示します。");
+    if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryGui))) {
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::CategoryGuiDesc));
         ImGui::Separator();
         tryInsertInstance<TextLabel>(m_history, "TextLabel", parentSp);
         tryInsertInstance<TextButton>(m_history, "TextButton", parentSp);
@@ -531,8 +533,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
     }
 
     // ---- 物理制約 ----
-    if (ImGui::BeginMenu("物理制約")) {
-        ImGui::TextDisabled("物理挙動に影響を与えます。");
+    if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryPhysicsConstraints))) {
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::CategoryPhysicsConstraintsDesc));
         ImGui::Separator();
         
         tryInsertInstance<Weld>(m_history, "Weld", parentSp);
@@ -552,16 +554,16 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
     // ---- Workspace 専用ボタン ----
     if (inst->IsA("Workspace")) {
         auto* ws = static_cast<Workspace*>(inst);
-        if (ImGui::MenuItem("このworkspaceに切り替える") && onSwitchWorkspace) {
+        if (ImGui::MenuItem(Loc::t(Loc::LocKey::SwitchToWorkspace)) && onSwitchWorkspace) {
             onSwitchWorkspace(ws);
         }
-        if (ImGui::MenuItem("新しいビューポートで開く(非推奨、バグあり)") && onOpenSecondaryViewport) {
+        if (ImGui::MenuItem(Loc::t(Loc::LocKey::OpenInNewViewport)) && onOpenSecondaryViewport) {
             onOpenSecondaryViewport(ws);
         }
         ImGui::Separator();
     }
 
-    if (ImGui::BeginMenu("Insert Object")) {
+    if (ImGui::BeginMenu(Loc::t(Loc::LocKey::InsertObjectMenu))) {
         renderInsertMenu(inst);
         ImGui::EndMenu();
     }
@@ -569,7 +571,7 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
     ImGui::Separator();
 
     // --- Delete ---（右クリック対象が複数選択に含まれていれば選択中すべてを削除）
-    if (ImGui::MenuItem("Delete", "BackSpace") && m_history) {
+    if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuDelete), "BackSpace") && m_history) {
         bool inSelection = std::find(selectedInstances.begin(), selectedInstances.end(), inst)
                            != selectedInstances.end();
         std::vector<Instance*> targets =
@@ -600,7 +602,7 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
     ImGui::Separator();
 
     // --- Copy（選択中すべて。祖先が選択済みの子孫は除外） ---
-    if (ImGui::MenuItem("Copy", "Ctrl+C") && m_clipboard) {
+    if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuCopy), "Ctrl+C") && m_clipboard) {
         m_clipboard->clear();
         if (!selectedInstances.empty()) {
             auto ancestorSel = [&](Instance* x) {
@@ -633,12 +635,12 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
 
     bool canPaste = m_clipboard && !m_clipboard->empty();
     // --- Paste (sibling) ---
-    if (ImGui::MenuItem("Paste", "Ctrl+V", false, canPaste) && m_history) {
+    if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuPaste), "Ctrl+V", false, canPaste) && m_history) {
         if (auto parent = inst->Parent.lock()) pasteAll(parent);
     }
 
     // --- Paste as Child ---
-    if (ImGui::MenuItem("Paste as Child", "Ctrl+Shift+V", false, canPaste) && m_history) {
+    if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuPasteAsChild), "Ctrl+Shift+V", false, canPaste) && m_history) {
         pasteAll(inst->shared_from_this());
     }
 }

@@ -1,5 +1,6 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/Localization.hpp>
 #include <Core/Physics.hpp>
 #include <Core/User.hpp>
 #include <Instances/System.hpp>
@@ -58,6 +59,11 @@
 //  描画し、編集を汎用 SetPropertyCommand として記録する（Undo / dirty 対応）。
 //  → スキーマに1行足すだけでインスペクタに反映され、エディター取り残しを防ぐ。
 // ===================================================
+// ローカライズ済みラベル + ImGui ID サフィックス（"##foo"）を連結するヘルパー
+static std::string locId(Loc::LocKey key, const char* idSuffix) {
+    return std::string(Loc::t(key)) + idSuffix;
+}
+
 static void renderSchemaInspector(Instance* inst, const char* className, CommandHistory* history) {
     static PropValue s_before;  // 編集開始時の値（同時編集は1つなので単一でよい）
     // own-only（既存の per-level エディターブロック構造を保つ。基底は各 IsA ブロックで描画）
@@ -158,7 +164,15 @@ static void drawVec3Field(const char* id,
         char buf[128];
         snprintf(buf, sizeof(buf), "%.3f, %.3f, %.3f", val.x, val.y, val.z);
 
-        float w = ImGui::GetContentRegionAvail().x - 56.0f;  // [+/-] と [丸] の2ボタン分を確保
+        // [+/-] と [丸] の2ボタン分の幅は言語によって変わる（例: "丸" vs "Round"）ため、
+        // 固定マジックナンバーではなく実際のラベル幅から動的に算出する。
+        const ImGuiStyle& style = ImGui::GetStyle();
+        const char* expLabel = expanded ? "-" : "+";
+        float expBtnW   = ImGui::CalcTextSize(expLabel).x + style.FramePadding.x * 2.0f;
+        float roundBtnW = ImGui::CalcTextSize(Loc::t(Loc::LocKey::RoundButton)).x + style.FramePadding.x * 2.0f;
+        float reserved  = expBtnW + roundBtnW + style.ItemSpacing.x * 2.0f;
+
+        float w = ImGui::GetContentRegionAvail().x - reserved;
         if (w < 60.0f) w = 60.0f;
         ImGui::SetNextItemWidth(w);
 
@@ -182,7 +196,7 @@ static void drawVec3Field(const char* id,
 
         // 整数に丸めるボタン: 各成分を最近傍整数に丸めて適用（Undo 連携）
         ImGui::SameLine();
-        std::string roundId = std::string("丸##round_") + id;
+        std::string roundId = std::string(Loc::t(Loc::LocKey::RoundButton)) + "##round_" + id;
         if (ImGui::SmallButton(roundId.c_str())) {
             Vector3 newVal(
                 std::clamp(std::round(val.x), minVal, maxVal),
@@ -194,7 +208,7 @@ static void drawVec3Field(const char* id,
                 val = newVal;
             }
         }
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("整数に丸める");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", Loc::t(Loc::LocKey::RoundTooltip));
     }
 
     // 展開: DragFloat3
@@ -423,7 +437,7 @@ void PropertiesPanel::onRender() {
     }
 
     if (!inst) {
-        ImGui::TextDisabled("Nothing selected");
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::NothingSelected));
         ImGui::End();
         return;
     }
@@ -431,8 +445,8 @@ void PropertiesPanel::onRender() {
     if (m_picker && m_picker->active) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.1f, 1.0f));
         ImGui::TextUnformatted(m_picker->pickAttachment
-            ? "Viewport またはヒエラルキーで Attachment をクリックして指定"
-            : "Viewport またはヒエラルキーでキューブをクリックして指定");
+            ? Loc::t(Loc::LocKey::PickerPromptAttachment)
+            : Loc::t(Loc::LocKey::PickerPromptCube));
         ImGui::PopStyleColor();
         ImGui::Separator();
     }
@@ -605,7 +619,7 @@ void PropertiesPanel::onRender() {
         MeshCube* mc = static_cast<MeshCube*>(inst);
         ImGui::SeparatorText("MeshCube");
         ImGui::LabelText("MeshFile", "%s", mc->MeshFile.empty() ? "(none)" : mc->MeshFile.c_str());
-        if (ImGui::Button("参照...##meshcube")) {
+        if (ImGui::Button(locId(Loc::LocKey::Browse, "##meshcube").c_str())) {
             std::string path = getPlatform().openFileDialog({{"GLB (*.glb)", "*.glb"}});
             if (!path.empty()) {
                 YAML::Node node; node = path;
@@ -631,7 +645,7 @@ void PropertiesPanel::onRender() {
         FileRef* fr = static_cast<FileRef*>(inst);
         ImGui::SeparatorText("FileRef");
         ImGui::LabelText("Path", "%s", fr->Path.c_str());
-        if (ImGui::Button("参照...##fileref")) {
+        if (ImGui::Button(locId(Loc::LocKey::Browse, "##fileref").c_str())) {
             std::string path = getPlatform().openFileDialog({{"All files (*.*)", "*.*"}});
             if (!path.empty()) fr->Path = path;
         }
@@ -642,7 +656,7 @@ void PropertiesPanel::onRender() {
         auto sndSp = std::static_pointer_cast<Sound>(inst->shared_from_this());
         ImGui::SeparatorText("Sound");
         ImGui::LabelText("ContentPath", "%s", snd->getContentPath().c_str());
-        if (ImGui::Button("参照...##sound")) {
+        if (ImGui::Button(locId(Loc::LocKey::Browse, "##sound").c_str())) {
             std::string path = getPlatform().openFileDialog({{"Audio (*.mp3;*.wav;*.ogg)", "*.mp3;*.wav;*.ogg"}});
             if (!path.empty()) {
                 YAML::Node node; node = path;
@@ -713,11 +727,11 @@ void PropertiesPanel::onRender() {
             }
         }
 
-        if (ImGui::Button("Play"))  snd->play();
+        if (ImGui::Button(Loc::t(Loc::LocKey::PlayButton)))  snd->play();
         ImGui::SameLine();
-        if (ImGui::Button("Stop"))  snd->stop();
+        if (ImGui::Button(Loc::t(Loc::LocKey::StopButton)))  snd->stop();
         ImGui::SameLine();
-        if (ImGui::Button("Reset")) snd->reset();
+        if (ImGui::Button(Loc::t(Loc::LocKey::ResetButton))) snd->reset();
     }
 
     // ---- Script ----
@@ -726,7 +740,7 @@ void PropertiesPanel::onRender() {
         auto scSp = std::static_pointer_cast<Script>(inst->shared_from_this());
         ImGui::SeparatorText("Script");
         ImGui::LabelText("Source", "%s", sc->Path.c_str());
-        if (ImGui::Button("参照...##script")) {
+        if (ImGui::Button(locId(Loc::LocKey::Browse, "##script").c_str())) {
             std::string path = getPlatform().openFileDialog({{"Luau Script (*.luau;*.lua)", "*.luau;*.lua"}});
             if (!path.empty()) {
                 YAML::Node node; node = path;
@@ -734,7 +748,7 @@ void PropertiesPanel::onRender() {
             }
         }
         ImGui::SameLine();
-        if (ImGui::Button("外部エディタで開く") && !sc->Path.empty()) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::OpenExternalEditor)) && !sc->Path.empty()) {
             getPlatform().revealInFileManager(sc->Path);
         }
 
@@ -794,7 +808,7 @@ void PropertiesPanel::onRender() {
 
         // Texture with undo
         ImGui::LabelText("Texture", "%s", dcl->texturePath.c_str());
-        if (ImGui::Button("参照...##decal")) {
+        if (ImGui::Button(locId(Loc::LocKey::Browse, "##decal").c_str())) {
             std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
             if (!path.empty()) {
                 std::string oldPath = dcl->texturePath;
@@ -868,7 +882,7 @@ void PropertiesPanel::onRender() {
 
         // Texture path with undo
         ImGui::LabelText("Texture##texpath", "%s", tx->texturePath.c_str());
-        if (ImGui::Button("参照...##tex")) {
+        if (ImGui::Button(locId(Loc::LocKey::Browse, "##tex").c_str())) {
             std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
             if (!path.empty()) {
                 std::string oldPath = tx->texturePath;
@@ -886,9 +900,12 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "System") {
         System* sys = static_cast<System*>(inst);
         auto sysSp = std::static_pointer_cast<System>(inst->shared_from_this());
-        ImGui::SeparatorText("System (Safety Limits)");
 
+        // BaseResolutionは安全マージンではないため、Safety Limits欄の外（上）に表示する。
+        ImGui::SeparatorText("System");
         renderSchemaInspector(inst, "System", m_history);
+
+        ImGui::SeparatorText("System (Safety Limits)");
 
         {
             static int s_before;
@@ -976,9 +993,9 @@ void PropertiesPanel::onRender() {
         // Handle reference（制約と同じ Pick 機構で指定。Viewport / ヒエラルキーから選択可）
         drawConstraintCubeRef("Handle", tool->m_handleName, "Handle", toolSp);
         if (tool->Handle) {
-            ImGui::TextDisabled("→ %s", tool->Handle->Name.c_str());
+            ImGui::TextDisabled("\xe2\x86\x92 %s", tool->Handle->Name.c_str());
         } else if (!tool->m_handleName.empty()) {
-            ImGui::TextDisabled("→ (未解決)");
+            ImGui::TextDisabled("\xe2\x86\x92 %s", Loc::t(Loc::LocKey::ToolUnresolved));
         }
     }
 
@@ -1011,7 +1028,7 @@ void PropertiesPanel::onRender() {
         renderSchemaInspector(inst, "Weather", m_history);
 
         auto browseAmbient = [&](const char* propName, const char* idSuffix) {
-            std::string btnLabel = std::string(propName) + " 参照...##" + idSuffix;
+            std::string btnLabel = std::string(propName) + " " + Loc::t(Loc::LocKey::Browse) + "##" + idSuffix;
             if (ImGui::Button(btnLabel.c_str())) {
                 std::string path = getPlatform().openFileDialog({{"Audio (*.mp3;*.wav;*.ogg)", "*.mp3;*.wav;*.ogg"}});
                 if (!path.empty()) {
@@ -1126,7 +1143,7 @@ void PropertiesPanel::onRender() {
 
         // データ保存先ディレクトリ（リージョンファイルの置き場所）— フォルダ参照
         ImGui::LabelText("DataPath", "%s", terrain->DataPath.c_str());
-        if (ImGui::Button("参照...##terraindp")) {
+        if (ImGui::Button(locId(Loc::LocKey::Browse, "##terraindp").c_str())) {
             std::string folder = getPlatform().openFolderDialog();
             if (!folder.empty()) {
                 std::string before = terrain->DataPath;
@@ -1146,7 +1163,7 @@ void PropertiesPanel::onRender() {
                 m_history->record(std::make_unique<SetTerrainIntCommand>(terrSp, "Seed", s_before, terrain->Seed));
         }
         ImGui::SameLine();
-        if (ImGui::Button("乱数化##terrainseed")) {
+        if (ImGui::Button(locId(Loc::LocKey::TerrainRandomize, "##terrainseed").c_str())) {
             int before = terrain->Seed;
             std::random_device rd;
             terrain->Seed = static_cast<int>(rd());
@@ -1155,27 +1172,28 @@ void PropertiesPanel::onRender() {
         {
             bool before = terrain->Flat;
             bool value  = terrain->Flat;
-            if (ImGui::Checkbox("Flat（平坦生成）##terrain", &value)) {
+            if (ImGui::Checkbox(locId(Loc::LocKey::TerrainFlatCheckbox, "##terrain").c_str(), &value)) {
                 terrain->Flat = value;
                 if (m_history) m_history->record(std::make_unique<SetTerrainBoolCommand>(terrSp, "Flat", before, value));
             }
         }
 
-        if (ImGui::Button("再生成##terrainregen")) {
-            ImGui::OpenPopup("Terrain再生成の確認");
+        if (ImGui::Button(locId(Loc::LocKey::TerrainRegenerateButton, "##terrainregen").c_str())) {
+            ImGui::OpenPopup("###TerrainRegenConfirm");
         }
-        if (ImGui::BeginPopupModal("Terrain再生成の確認", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("DataPath の地形（ブラシ編集を含む）を破棄して、");
-            ImGui::Text("現在の Seed / Flat 設定で作り直します。よろしいですか？");
+        std::string terrainPopupTitle = locId(Loc::LocKey::TerrainRegenConfirmTitle, "###TerrainRegenConfirm");
+        if (ImGui::BeginPopupModal(terrainPopupTitle.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("%s", Loc::t(Loc::LocKey::TerrainRegenConfirmLine1));
+            ImGui::Text("%s", Loc::t(Loc::LocKey::TerrainRegenConfirmLine2));
             ImGui::Separator();
-            if (ImGui::Button("再生成する", ImVec2(120, 0))) {
+            if (ImGui::Button(Loc::t(Loc::LocKey::RegenerateConfirmButton), ImVec2(120, 0))) {
                 if (terrain->streamer) {
                     terrain->streamer->regenerate(static_cast<uint32_t>(terrain->Seed), terrain->Flat);
                 }
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button("キャンセル", ImVec2(120, 0))) {
+            if (ImGui::Button(Loc::t(Loc::LocKey::Cancel), ImVec2(120, 0))) {
                 ImGui::CloseCurrentPopup();
             }
             ImGui::EndPopup();
@@ -1183,15 +1201,19 @@ void PropertiesPanel::onRender() {
 
         if (m_terrainBrush) {
             ImGui::Separator();
-            ImGui::Checkbox("ブラシで編集", &m_terrainBrush->active);
+            ImGui::Checkbox(Loc::t(Loc::LocKey::TerrainBrushEdit), &m_terrainBrush->active);
             if (m_terrainBrush->active) {
-                ImGui::SliderFloat("半径", &m_terrainBrush->radius, 1.0f, 64.0f, "%.1f studs");
-                static const char* modeItems[] = { "Lower（削る）", "Smooth（滑らかに）", "Raise（盛る）" };
+                ImGui::SliderFloat(Loc::t(Loc::LocKey::TerrainBrushRadius), &m_terrainBrush->radius, 1.0f, 64.0f, "%.1f studs");
+                const char* modeItems[] = {
+                    Loc::t(Loc::LocKey::TerrainBrushModeLower),
+                    Loc::t(Loc::LocKey::TerrainBrushModeSmooth),
+                    Loc::t(Loc::LocKey::TerrainBrushModeRaise)
+                };
                 int modeIdx = m_terrainBrush->mode + 1; // -1,0,+1 -> 0,1,2
-                if (ImGui::Combo("モード", &modeIdx, modeItems, 3)) {
+                if (ImGui::Combo(Loc::t(Loc::LocKey::TerrainBrushMode), &modeIdx, modeItems, 3)) {
                     m_terrainBrush->mode = modeIdx - 1;
                 }
-                ImGui::TextDisabled("ビューポート上で左クリック長押しで適用");
+                ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::TerrainBrushHint));
             }
         }
     }
@@ -1208,7 +1230,7 @@ void PropertiesPanel::onRender() {
         for (int i = 0; i < 6; i++) {
             ImGui::LabelText(s_skyboxLabels[i], "%s",
                 sb->skyboxPaths[i].empty() ? "(none)" : sb->skyboxPaths[i].c_str());
-            std::string btnId = std::string("参照...##skybox") + std::to_string(i);
+            std::string btnId = locId(Loc::LocKey::Browse, "##skybox") + std::to_string(i);
             if (ImGui::Button(btnId.c_str())) {
                 std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
                 if (!path.empty()) {
@@ -1329,7 +1351,7 @@ void PropertiesPanel::onRender() {
         AppImage* ai = static_cast<AppImage*>(inst);
         ImGui::SeparatorText("AppImage");
         ImGui::LabelText("IconPath", "%s", ai->iconPath.empty() ? "(none)" : ai->iconPath.c_str());
-        if (ImGui::Button("参照...##appimage")) {
+        if (ImGui::Button(locId(Loc::LocKey::Browse, "##appimage").c_str())) {
             std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.ico)", "*.png;*.jpg;*.bmp;*.ico"}});
             if (!path.empty()) {
                 YAML::Node node; node = path;
@@ -1397,7 +1419,7 @@ void PropertiesPanel::onRender() {
         }
         std::string cur = imgDesc ? std::get<std::string>(imgDesc->get(inst)) : std::string();
         ImGui::LabelText("Image", "%s", cur.empty() ? "(none)" : cur.c_str());
-        if (ImGui::Button("参照...##image") && imgDesc) {
+        if (ImGui::Button(locId(Loc::LocKey::Browse, "##image").c_str()) && imgDesc) {
             std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
             if (!path.empty()) {
                 PropValue before = imgDesc->get(inst);

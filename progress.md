@@ -424,3 +424,67 @@ Plan modeで、CLAUDE.mdの指示によりExplore/PlanエージェントもTask�
 - Load機能で「Userセクションが無い、またはInventoryが未保存の旧シーン」を読み込んだ場合、`resetSystemForReload()`でuserの子をクリアした後に`initializeInventory()`が呼ばれ、**クリア直前まで使っていた（前セッションの）Inventoryオブジェクトがそのまま再アタッチされる**（真っ新な空Folderにはならない）。意図的にそう設計したが、実機で「Load後にInventoryの中身が意図せず残る」という体感が出た場合は、`resetSystemForReload()`内で`user->Inventory`ごと新しい空Folderに差し替える対応が必要になる可能性がある。
 - 実機確認（Play/Stop・Load・シーン間の切り替えを繰り返してもInventoryが増殖しないこと、装備中のTool追跡が壊れないこと）はユーザーに委ねる。
 
+---
+
+## 2026-07-09 ローカライズ基盤導入 + BaseResolutionのカテゴリ修正
+
+### 指示内容
+readme.mdのTodo2件（IDE選択範囲で提示）:
+1. 「英語/日本語混ざりをやめ、ローカライズテーブルを作成し、文字列を外部化する」（プロパティ欄とクラス名は翻訳除外、ホバーテキスト等は翻訳対象）
+2. 「BaseResolutionは安全マージンでないのでそのカテゴリの線の上に出す」
+
+Plan modeで、CLAUDE.mdの指示によりExplore/PlanエージェントもTaskツールも使わず自分でGrep/Readして調査してから実装した。
+
+### 何をしたか
+
+**1. BaseResolutionのカテゴリ修正**（`src/Editor/PropertiesPanel.cpp`）
+- `System`クラスは`PropertyRegistry`に`BaseResolution`のみ登録されており、`renderSchemaInspector(inst, "System", ...)`の呼び出しが`SeparatorText("System (Safety Limits)")`の**内側**にあったため、BaseResolutionがSafety Limits扱いになっていた。`SeparatorText("System")`を新設し、その下で`renderSchemaInspector`を呼んでから`SeparatorText("System (Safety Limits)")`（MaxClonesPerFrame/MaxRestartsPerFrame/ScriptLoopTimeoutSecondsのみ）を続ける2段構成に変更。
+
+**2. ローカライズ基盤新設**
+- 新規 `include/Editor/Localization.hpp` / `src/Editor/Localization.cpp`。`Loc::Lang{JA,EN}`、`Loc::LocKey`（111個のキー、宣言順とテーブル順を1対1対応させる設計）、`Loc::t(key)`/`Loc::setLanguage()`/`Loc::getLanguage()`を実装。テーブルは`std::array<Entry, LocKey::Count>`をenum宣言順と同じ順で初期化する方式（インデックス直参照でO(1)、hashmapより高速・シンプル）。CMakeの`file(GLOB_RECURSE ALL_SOURCES "src/*.cpp")`で自動的にビルド対象に入るため、ビルドシステムは触っていない。
+
+**3. 対象6ファイルの文字列外部化**
+- `src/Editor/PropertiesPanel.cpp`: 「参照...」ボタン群（`locId()`という小ヘルパーを追加して`Loc::t(key) + "##suffix"`を毎回書かずに済むようにした）、Terrain再生成の確認ポップアップ一式、ブラシ編集UI（半径/モード/Lower・Smooth・Raiseの選択肢等）、Sound再生ボタン、ピッカーの案内文言などを`Loc::t()`化。**除外**: `renderSchemaInspector`のスキーマ駆動ラベルと、手書きの`Position`/`Anchored`/`Color`等プロパティ名と一致するラベル、および`SeparatorText`のカテゴリヘッダー（元々すべて英語で一貫していたため対象外）。
+- `src/Editor/SceneHierarchyPanel.cpp`: Insertメニューのカテゴリ名6種+説明文、New Scriptダイアログ、コンテキストメニュー（Delete/Copy/Paste/Paste as Child、workspace切替系）を`Loc::t()`化。`tryInsertInstance<T>(..., "ClassName", ...)`のクラス名文字列自体は変更していない（クラス名は翻訳除外というルールのため）。
+- `src/Editor/EditorManager.cpp`: メニューバー（File/View各項目）、3つのポップアップダイアログ（Play中シーン読込確認/未保存変更確認/Package Game）、ツールバー全般（Play/Pause/Stop、Select/Move/Resize/Rotate、スナップ系チェックボックス、Add Object/Save/Load）を`Loc::t()`化。**新規**: 「Settings」メニューを追加し、日本語/Englishのラジオ的MenuItemで`Loc::setLanguage()`を呼べるようにした。パネルタイトル6つ（Explorer/Properties/Viewport/Content Browser/Console/Animation Editor）は、EditorManager::onRender()内でパネルの`onRender()`を呼ぶ直前に毎フレーム`panel->title = Loc::t(...) + "###固定ID"`で組み立て直す方式に統一（後述の理由により各パネル.cppには手を入れていない）。
+- `src/Editor/AnimationEditorPanel.cpp` / `src/Editor/ConsolePanel.cpp` / `src/Editor/ContentBrowserPanel.cpp`: 残りのボタン・タブ名・ヒント文言を`Loc::t()`化。
+
+ビルド確認: `python build.py build`で成功（Recubin.exe/RecubinEngine.exe/RecubinTest.exe全て生成、warningなし）。
+
+### なぜそうしたか
+
+- **除外ルールの境界**（AskUserQuestionで確認）: 「プロパティ欄」の除外対象を「スキーマ駆動のプロパティラベルのみ」ではなく、実際には「ImGuiウィジェットのラベルが実プロパティ名と完全一致する箇所全て」（手書きの`Position`/`Anchored`/`Color`等も含む）という運用ルールに拡張した。理由: readme.mdの意図は「プロパティ欄はスクリプトAPI/シリアライズ名と一致させ続けたい」ことにあり、schema駆動かどうかは実装上の偶然に過ぎないため。`SeparatorText`のカテゴリヘッダーも同じ理由で除外（元々100%英語で一貫しており、混在問題自体が無かった）。
+- **ウィンドウタイトルを各パネルの`onRender()`ではなくEditorManager.cppで一括設定した理由**: `ViewportPanel`クラスはメインビューポートとセカンダリビューポート（`EditorManager::openSecondaryViewport`が生成、ワークスペース名込みの動的タイトル+`###SecVP_<id>`を独自に持つ）で**同一クラスを共有**している。もし`ViewportPanel::onRender()`内で毎フレーム`title = Loc::t(PanelViewport) + "###Viewport"`と無条件上書きすると、セカンダリビューポートの動的タイトルを毎フレーム破壊してしまう。EditorManager側は「どれが主ビューポートか」を知っているため、そこでのみ上書きする方式にした。副作用として他5パネル（Explorer等）の`.cpp`ファイル自体は一切変更不要になった。
+- **`###固定ID`パターンを採用した理由**: `EditorPanel::title`はそのまま`ImGui::Begin()`のID文字列としても使われており、`imgui.ini`のドッキングレイアウトはこの文字列をキーに保存される。単純に表示文言を差し替えるとID自体が変わり、言語切替のたびにドッキングレイアウトがリセットされてしまう。ImGuiの`###`はID計算時に`###`以降の部分文字列のみをハッシュ対象にする仕様のため、`###`の後ろを**変更前の英語タイトルそのまま**にすることで、新旧のID hashを完全一致させ、既存の`imgui.ini`との互換性を保った。この設計は`SecondaryViewportPanel`関連コードで既に使われていた`"表示文###固定ID"`パターン（`EditorManager::openSecondaryViewport`）を踏襲したもの。同じ理由で、3つのポップアップダイアログ（Unsaved Changes等）・Terrain再生成確認・New Scriptダイアログも`OpenPopup`/`BeginPopupModal`双方を`###固定ID`付きの文字列に統一した。
+- **RCBN_WARN等のログメッセージ（Instance.cpp周りの日本語警告文等）は対象外とした**: readme.mdの指示は「エディターUIの英語/日本語混在」がテーマであり、開発者向けログ/警告文（ストリーム結合で動的内容を含む）はUIコピーとは性質が異なると判断。スコープを絞るため意図的に触れていない（今回の変更ファイルリストにも含めていない）。
+- **PostEffectのType/Handモード等、複数箇所にある「Combo選択肢の配列」を翻訳対象外とした**: これらは"None"/"CRT"/"Right"/"Left"のように**既に100%英語で一貫**しており、混在問題が無い固定語彙（クラス名に近い性質）と判断し、除外ルールを拡張適用した。一方でTerrainブラシの`modeItems`（`"Lower（削る）"`等）は英語+日本語の混在そのものだったため、これは全体を1つの翻訳キーとして扱った。
+- **「New Cube」等のAdd Objectドロップダウン項目を翻訳対象外とした**: これらは実質的に「クラス名を挿入する」メニュー項目であり、SceneHierarchyPanelのInsert Objectメニューにおけるクラス名除外ルールと同じ考え方を適用し、一貫性を優先した。
+
+### どういう経緯か
+
+1. IDE選択範囲（readme.mdの2件）を提示され、Plan modeで調査を依頼される。CLAUDE.mdの指示によりExplore/Planエージェントは使わず、Grep/Readで自分で調査。
+2. `PropertiesPanel.cpp`の`System`欄を読み、`BaseResolution`原因を特定（`System.cpp`の`PropertyRegistry::registerClass("System", {...})`にBaseResolutionのみ登録されている点も確認）。
+3. Editor全体で実際にUI文字列に日本語が混在している箇所をUnicode範囲の正規表現でgrep調査し、`PropertiesPanel.cpp`/`SceneHierarchyPanel.cpp`/`EditorManager.cpp`/`AnimationEditorPanel.cpp`の4ファイルに絞られることを確認（他パネルは日本語がコメントのみ）。
+4. AskUserQuestionで4点確認: (a) テーブル形式=C++内蔵テーブル、(b) 言語切替=設定メニューUIも実装、(c) 対象範囲=全Editorパネルの文字列も含める（4ファイルのみでなく英語オンリーのパネルも）、(d) プロパティ欄の除外境界=スキーマ駆動ラベルのみ→実装時に「実プロパティ名と一致するラベル全て」に運用上拡張。
+5. 全6ファイル（ConsolePanel.cpp/ContentBrowserPanel.cpp含む）のImGui呼び出しを洗い出し、111個の`LocKey`を設計してPlanファイルに記載、ExitPlanModeでユーザー承認を得た。
+6. 実装順序: `Localization.hpp/cpp`新設→`EditorManager.cpp`（Settingsメニュー・パネルタイトル一括設定・メニューバー/ダイアログ/ツールバー）→`PropertiesPanel.cpp`（BaseResolution移動→文字列外部化）→`SceneHierarchyPanel.cpp`→`AnimationEditorPanel.cpp`→`ConsolePanel.cpp`→`ContentBrowserPanel.cpp`→`python build.py build`でビルド確認。ビルド成功（warningなし）。
+7. `readme.md`の該当2行をチェック済みに変更。
+
+### 試して失敗した/計画から変更した点
+
+- **`ViewportPanel::onRender()`内で毎フレームタイトルを直接上書きする案**: 最初はこの方式を検討したが、`ViewportPanel`がメイン/セカンダリ両方で共有されるクラスだと気づき（`EditorManager::openSecondaryViewport`が同じ`ViewportPanel`型を`make_unique`している）、セカンダリの動的タイトルを破壊するため断念。EditorManager側の描画ループでメインパネルのみ上書きする方式に変更した。
+- **Tool欄の`"→ %s"`（矢印記号）をASCIIの`"->"`に置き換えてしまった誤修正**: 「(未解決)」を訳す際に誤って矢印記号ごと書き換えてしまい、直後に気づいて`"\xe2\x86\x92 %s"`（元の`→`のUTF-8バイト列、EditorManager.cppの`\xc2\xb0`度記号と同じ書式）に戻した。ローカライズ対象でない記号まで巻き込まないよう、置換範囲を最小限にする必要があるという教訓。
+
+### 未解決・保留
+
+- 実機での動作確認（Settingsメニューから日本語⇔Englishを切り替えてボタン・ツールチップ・ポップアップ・パネルタイトルが正しく切り替わること、プロパティ欄とクラス名が言語に関わらず変化しないこと、BaseResolutionがSafety Limits欄の外に表示されること、既存の`imgui.ini`があるプロファイルでドッキングレイアウトが壊れないこと）は、GUI自動スモークテスト禁止方針のためビルド成功の確認までに留めた。次回セッション冒頭で確認が必要。
+- 言語設定（`Loc::g_lang`）はプロセス内メモリのみに保持しており、永続化（次回起動時に前回選んだ言語を復元する）は未実装。今回のTodoにも明記が無かったためスコープ外としたが、将来「毎回Englishに戻ってしまう」という不満が出た場合は設定ファイル（現状エディター設定の永続化機構自体が存在しない）を新設する必要がある。
+- `RCBN_WARN`等の日本語ログ/警告メッセージ（Instance.cpp、Attachment関連のコンソール警告等）は意図的に未対応のまま。将来「ログも含めて英語/日本語を統一したい」という話が出た場合は別タスクとして扱う必要がある。
+- `Loc::LocKey`テーブルは111キューを手作業で1対1対応させる設計（enum宣言順とcppテーブル初期化順が一致している前提でO(1)アクセス）。将来キーを追加・並べ替える際、宣言順とテーブル順がずれると**コンパイルエラーにならずに誤った文言が表示される**静かなバグになりうる。今回はセクションごとの個数をPythonスクリプトで突き合わせて検証したが、今後保守する開発者もこの制約を意識する必要がある。
+
+### 暗黙仕様の発見（spec.mdに無い挙動）
+
+- **`EditorPanel::title`は表示文言とImGuiウィンドウID（`imgui.ini`のドッキングレイアウトのキー）を兼ねている**。ImGuiの`###`区切りは「###以降のみをID計算に使う」という仕様のため、表示文言だけを変えたい場合は`###`より前を自由に変更し、`###`より後ろ（旧タイトルそのもの）を固定することで、既存のドッキング状態を壊さずに表示だけ切り替えられる。この考え方は既に`EditorManager::openSecondaryViewport`で先例があったが、他のパネルには使われていなかった。今後動的にパネルタイトルを変更する新機能を追加する場合、同じ`"表示###固定ID"`パターンを踏襲する必要がある。
+- **`ViewportPanel`クラスはメインビューポートとセカンダリビューポート（Insert→workspace右クリック→「新しいビューポートで開く」）の両方で同一クラスが使い回されている**（`SecondaryViewportPanel`という別クラスも存在するが、実際の「新しいビューポートで開く」機能からは呼ばれておらず、コード上未使用の可能性が高い）。ここを触る場合は「今操作しているのが主ビューポートかどうか」を呼び出し側（EditorManager）で判別する必要があり、`ViewportPanel`自身は区別する手段を持たない。
+- **`System`クラスは`PropertyRegistry`に`BaseResolution`一つしか登録されておらず、`MaxClonesPerFrame`/`MaxRestartsPerFrame`/`ScriptLoopTimeoutSeconds`はスキーマ非経由の手書きプロパティ**（`System::setProperty`内で個別に分岐している）。「Safety Limits」という命名のカテゴリ見出しは、たまたま`renderSchemaInspector`呼び出しがその見出しの中にネストされていたために生まれた表示上のバグであり、`System.cpp`側のプロパティ定義自体には「どのカテゴリに属するか」という情報は存在しない。将来Systemに新しいプロパティを追加する際は、`PropertiesPanel.cpp`側でどちらのカテゴリに表示すべきかを毎回明示的に判断する必要がある。
+

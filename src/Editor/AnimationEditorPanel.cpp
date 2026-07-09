@@ -1,5 +1,6 @@
 #include <Editor/AnimationEditorPanel.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/Localization.hpp>
 #include <Instances/Spatial.hpp>
 #include <include/imgui/imgui.h>
 #include <Util/Platform.hpp>
@@ -98,17 +99,17 @@ void AnimationEditorPanel::onRender() {
 
     // --- 対象が無い場合の案内 ---
     if (!model) {
-        ImGui::TextWrapped("HierarchyでキャラクターのModelまたはその子Cubeを選択してください。");
+        ImGui::TextWrapped("%s", Loc::t(Loc::LocKey::SelectModelHint));
         ImGui::End();
         return;
     }
 
-    ImGui::Text("Target Model: %s", model->Name.c_str());
+    ImGui::Text(Loc::t(Loc::LocKey::TargetModelLabel), model->Name.c_str());
 
     // --- Animationが無ければ作成ボタン ---
     if (!anim) {
         ImGui::Spacing();
-        if (ImGui::Button("Create Animation") && m_history) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::CreateAnimationButton)) && m_history) {
             auto animSp = std::make_shared<Animation>();
             animSp->Name = "Animation";
             m_history->execute(std::make_unique<AddInstanceCommand>(
@@ -122,16 +123,16 @@ void AnimationEditorPanel::onRender() {
     const ImVec2 btnSz = ImVec2(70.0f, 30.0f);
     if (m_playing) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.55f, 0.0f, 1.0f));
-        if (ImGui::Button("Pause", btnSz)) m_playing = false;
+        if (ImGui::Button(Loc::t(Loc::LocKey::PauseButton), btnSz)) m_playing = false;
         ImGui::PopStyleColor();
     } else {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.65f, 0.18f, 1.0f));
-        if (ImGui::Button("Play", btnSz)) m_playing = true;
+        if (ImGui::Button(Loc::t(Loc::LocKey::PlayButton), btnSz)) m_playing = true;
         ImGui::PopStyleColor();
     }
     ImGui::SameLine();
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.18f, 0.18f, 1.0f));
-    if (ImGui::Button("Stop", btnSz)) {
+    if (ImGui::Button(Loc::t(Loc::LocKey::StopButton), btnSz)) {
         m_playing = false;
         m_time = 0.0f;
         applyPreview(anim, model, m_time);
@@ -143,12 +144,12 @@ void AnimationEditorPanel::onRender() {
     ImGui::DragFloat("Speed", &anim->Speed, 0.05f, 0.05f, 10.0f, "%.2fx");
 
     // --- 専用ファイルへのエクスポート/インポート ---
-    if (ImGui::Button("Export...")) {
+    if (ImGui::Button(Loc::t(Loc::LocKey::ExportButton))) {
         std::string path = openAnimDialog(true);
         if (!path.empty()) anim->exportToFile(path);
     }
     ImGui::SameLine();
-    if (ImGui::Button("Import...")) {
+    if (ImGui::Button(Loc::t(Loc::LocKey::ImportButton))) {
         std::string path = openAnimDialog(false);
         if (!path.empty()) anim->importFromFile(path);
     }
@@ -172,7 +173,7 @@ void AnimationEditorPanel::onRender() {
     ImGui::Combo("Easing", &m_easingChoice, easingNames, IM_ARRAYSIZE(easingNames));
     ImGui::SameLine();
     if (keyPart) {
-        if (ImGui::Button("Add Key")) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::AddKeyButton))) {
             // Cubeの現在ローカルCFrameをRoot相対に変換して記録する
             Spatial* root = dynamic_cast<Spatial*>(model->getChild("Root"));
             CFrame rel = keyPart->cframe;
@@ -183,9 +184,9 @@ void AnimationEditorPanel::onRender() {
             if (m_time > anim->Length) anim->Length = m_time;
         }
         ImGui::SameLine();
-        ImGui::TextDisabled("part: %s", keyPart->Name.c_str());
+        ImGui::TextDisabled(Loc::t(Loc::LocKey::PartLabel), keyPart->Name.c_str());
     } else {
-        ImGui::TextDisabled("Cube(Model直下)を選択するとキーを追加できます");
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::SelectCubeHint));
     }
 
     // --- トラック一覧 ---

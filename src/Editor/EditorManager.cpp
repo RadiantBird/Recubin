@@ -5,6 +5,7 @@
 #include <Editor/SpawnUtil.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/Localization.hpp>
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
@@ -120,30 +121,39 @@ void EditorManager::render(GLFWwindow* window) {
 
     // ---- メニューバー ----
     if (ImGui::BeginMenuBar()) {
-        if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("Save Scene", "Ctrl+S") && isEditMode()) saveCurrentScene();
-            if (ImGui::MenuItem("Open Scene", "Ctrl+O")) openSceneDialog();
+        if (ImGui::BeginMenu(Loc::t(Loc::LocKey::MenuFile))) {
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuSaveScene), "Ctrl+S") && isEditMode()) saveCurrentScene();
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuOpenScene), "Ctrl+O")) openSceneDialog();
             ImGui::Separator();
-            if (ImGui::MenuItem("Package Game...") && isEditMode()) {
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuPackageGame)) && isEditMode()) {
                 m_pkgLog.clear();
                 m_showPackageDialog = true;
             }
             ImGui::Separator();
-            if (ImGui::MenuItem("Quit", "Alt+F4")) {
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuQuit), "Alt+F4")) {
                 if (m_isDirty) requestSaveDialog(window);
                 else if (window) glfwSetWindowShouldClose(window, GLFW_TRUE);
             }
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem("Explorer", nullptr, &hierarchyPanel->isOpen); // Scene Hierarchy を Explorer に改名
-            ImGui::MenuItem("Properties",      nullptr, &propertiesPanel->isOpen);
-            ImGui::MenuItem("Viewport",        nullptr, &viewportPanel->isOpen);
-            ImGui::MenuItem("Content Browser", nullptr, &contentBrowserPanel->isOpen);
-            ImGui::MenuItem("Console",         nullptr, &consolePanel->isOpen);
-            ImGui::MenuItem("Animation",       nullptr, &animationPanel->isOpen);
+        if (ImGui::BeginMenu(Loc::t(Loc::LocKey::MenuView))) {
+            ImGui::MenuItem(Loc::t(Loc::LocKey::PanelExplorer), nullptr, &hierarchyPanel->isOpen); // Scene Hierarchy を Explorer に改名
+            ImGui::MenuItem(Loc::t(Loc::LocKey::PanelProperties),     nullptr, &propertiesPanel->isOpen);
+            ImGui::MenuItem(Loc::t(Loc::LocKey::PanelViewport),       nullptr, &viewportPanel->isOpen);
+            ImGui::MenuItem(Loc::t(Loc::LocKey::PanelContentBrowser), nullptr, &contentBrowserPanel->isOpen);
+            ImGui::MenuItem(Loc::t(Loc::LocKey::PanelConsole),        nullptr, &consolePanel->isOpen);
+            ImGui::MenuItem(Loc::t(Loc::LocKey::PanelAnimation),      nullptr, &animationPanel->isOpen);
             ImGui::Separator();
-            ImGui::MenuItem("Physics Debug",   nullptr, &viewportPanel->showPhysicsDebug);
+            ImGui::MenuItem(Loc::t(Loc::LocKey::MenuPhysicsDebug),    nullptr, &viewportPanel->showPhysicsDebug);
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu(Loc::t(Loc::LocKey::MenuSettings))) {
+            bool isJa = Loc::getLanguage() == Loc::Lang::JA;
+            bool isEn = !isJa;
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::LanguageJapanese), nullptr, isJa))
+                Loc::setLanguage(Loc::Lang::JA);
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::LanguageEnglish), nullptr, isEn))
+                Loc::setLanguage(Loc::Lang::EN);
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
@@ -159,6 +169,16 @@ void EditorManager::render(GLFWwindow* window) {
     renderToolbar();
 
     // ---- 各パネル ----
+    // パネルタイトルは毎フレーム現在の言語で更新する（###以降のIDは固定のまま、表示のみ切替）。
+    // viewportPanel はセカンダリビューポートと同じ ViewportPanel クラスを共有しているため、
+    // タイトルの動的組み立て（ワークスペース名付き等）と衝突しないようここ（メイン側のみ）で設定する。
+    hierarchyPanel->title      = std::string(Loc::t(Loc::LocKey::PanelExplorer)) + "###Explorer";
+    propertiesPanel->title     = std::string(Loc::t(Loc::LocKey::PanelProperties)) + "###Properties";
+    viewportPanel->title       = std::string(Loc::t(Loc::LocKey::PanelViewport)) + "###Viewport";
+    contentBrowserPanel->title = std::string(Loc::t(Loc::LocKey::PanelContentBrowser)) + "###Content Browser";
+    consolePanel->title        = std::string(Loc::t(Loc::LocKey::PanelConsole)) + "###Console";
+    animationPanel->title      = std::string(Loc::t(Loc::LocKey::AnimationEditorWindowTitle)) + "###Animation Editor";
+
     if (hierarchyPanel->isOpen)      hierarchyPanel->onRender();
     if (propertiesPanel->isOpen)     propertiesPanel->onRender();
     if (viewportPanel->isOpen)       viewportPanel->onRender();
@@ -195,7 +215,7 @@ void EditorManager::openSecondaryViewport(Workspace* ws) {
     panel->m_history = &m_history;
     panel->m_picker = &m_picker;
     panel->m_terrainBrush = &m_terrainBrush;
-    panel->title = "Viewport: " + ws->Name + "###SecVP_" + std::to_string(reinterpret_cast<std::uintptr_t>(panel.get()));
+    panel->title = std::string(Loc::t(Loc::LocKey::PanelViewport)) + ": " + ws->Name + "###SecVP_" + std::to_string(reinterpret_cast<std::uintptr_t>(panel.get()));
     secondaryViewports.push_back(std::move(panel));
 }
 
@@ -354,16 +374,17 @@ void EditorManager::requestSceneLoad(const std::string& path) {
 
 void EditorManager::renderPlayLoadConfirmDialog() {
     if (m_showPlayLoadConfirm) {
-        ImGui::OpenPopup("Load Scene During Play");
+        ImGui::OpenPopup("###PlayLoadConfirm");
         m_showPlayLoadConfirm = false;
     }
 
-    if (ImGui::BeginPopupModal("Load Scene During Play", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("テストプレイ中です。");
-        ImGui::Text("終了してこのシーンを読み込みますか？");
+    std::string popupTitle = std::string(Loc::t(Loc::LocKey::PlayLoadTitle)) + "###PlayLoadConfirm";
+    if (ImGui::BeginPopupModal(popupTitle.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("%s", Loc::t(Loc::LocKey::PlayLoadLine1));
+        ImGui::Text("%s", Loc::t(Loc::LocKey::PlayLoadLine2));
         ImGui::Separator();
 
-        if (ImGui::Button("終了して読み込む", ImVec2(150, 0))) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::PlayLoadConfirm), ImVec2(150, 0))) {
             mode = EditorMode::Edit;
             if (m_user) {
                 m_user->controlMode = User::ControlMode::Free;
@@ -374,7 +395,7 @@ void EditorManager::renderPlayLoadConfirmDialog() {
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("キャンセル", ImVec2(90, 0))) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::Cancel), ImVec2(90, 0))) {
             m_pendingPlayLoadPath.clear();
             ImGui::CloseCurrentPopup();
         }
@@ -389,16 +410,17 @@ void EditorManager::requestSaveDialog(GLFWwindow* window) {
 
 void EditorManager::renderSaveDialog() {
     if (m_showSaveDialog) {
-        ImGui::OpenPopup("Unsaved Changes");
+        ImGui::OpenPopup("###UnsavedChanges");
         m_showSaveDialog = false;
     }
 
-    if (ImGui::BeginPopupModal("Unsaved Changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("シーンに未保存の変更があります。");
-        ImGui::Text("終了する前に保存しますか？");
+    std::string popupTitle = std::string(Loc::t(Loc::LocKey::UnsavedTitle)) + "###UnsavedChanges";
+    if (ImGui::BeginPopupModal(popupTitle.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("%s", Loc::t(Loc::LocKey::UnsavedLine1));
+        ImGui::Text("%s", Loc::t(Loc::LocKey::UnsavedLine2));
         ImGui::Separator();
 
-        if (ImGui::Button("保存「して」終了", ImVec2(130, 0))) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::SaveAndQuit), ImVec2(130, 0))) {
             saveCurrentScene();
             // GL コンテキストが生きている今のうちに GPU リソースを持つ
             // インスタンスの shared_ptr を解放する（コンテキスト破棄後の
@@ -411,7 +433,7 @@ void EditorManager::renderSaveDialog() {
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("保存「せず」終了", ImVec2(130, 0))) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::QuitWithoutSaving), ImVec2(130, 0))) {
             m_isDirty = false;
             hierarchyPanel->selectedInstance = nullptr;
             hierarchyPanel->selectedInstances.clear();
@@ -421,7 +443,7 @@ void EditorManager::renderSaveDialog() {
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("キャンセル", ImVec2(90, 0))) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::Cancel), ImVec2(90, 0))) {
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
@@ -430,21 +452,22 @@ void EditorManager::renderSaveDialog() {
 
 void EditorManager::renderPackageDialog() {
     if (m_showPackageDialog) {
-        ImGui::OpenPopup("Package Game");
+        ImGui::OpenPopup("###PackageGame");
         m_showPackageDialog = false;
     }
 
     ImGui::SetNextWindowSize(ImVec2(520, 400), ImGuiCond_Appearing);
-    if (ImGui::BeginPopupModal("Package Game", nullptr, ImGuiWindowFlags_NoResize)) {
-        ImGui::Text("Game Name:");
+    std::string popupTitle = std::string(Loc::t(Loc::LocKey::PackageGameTitle)) + "###PackageGame";
+    if (ImGui::BeginPopupModal(popupTitle.c_str(), nullptr, ImGuiWindowFlags_NoResize)) {
+        ImGui::Text("%s", Loc::t(Loc::LocKey::GameNameLabel));
         ImGui::SetNextItemWidth(-1);
         ImGui::InputText("##pkgname", m_pkgName, sizeof(m_pkgName));
 
-        ImGui::Text("Output Directory:");
+        ImGui::Text("%s", Loc::t(Loc::LocKey::OutputDirLabel));
         ImGui::SetNextItemWidth(-60);
         ImGui::InputText("##pkgoutdir", m_pkgOutDir, sizeof(m_pkgOutDir));
         ImGui::SameLine();
-        if (ImGui::Button("参照...")) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::Browse))) {
             std::string folder = getPlatform().openFolderDialog();
             if (!folder.empty() && folder.size() < sizeof(m_pkgOutDir)) {
                 std::snprintf(m_pkgOutDir, sizeof(m_pkgOutDir), "%s", folder.c_str());
@@ -453,7 +476,7 @@ void EditorManager::renderPackageDialog() {
 
         ImGui::Spacing();
         ImGui::BeginDisabled(m_isPackaging || m_pkgName[0] == '\0' || m_pkgOutDir[0] == '\0');
-        if (ImGui::Button("Package", ImVec2(120, 0))) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::PackageButton), ImVec2(120, 0))) {
             m_pkgLog.clear();
             m_isPackaging = true;
 
@@ -470,13 +493,13 @@ void EditorManager::renderPackageDialog() {
         ImGui::EndDisabled();
 
         ImGui::SameLine();
-        if (ImGui::Button("Close", ImVec2(80, 0))) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::CloseButton), ImVec2(80, 0))) {
             ImGui::CloseCurrentPopup();
         }
 
         if (m_isPackaging) {
             ImGui::SameLine();
-            ImGui::Text("Processing...");
+            ImGui::Text("%s", Loc::t(Loc::LocKey::ProcessingText));
         }
 
         ImGui::Separator();
@@ -534,20 +557,20 @@ void EditorManager::renderToolbar() {
     // ---- Play / Pause / Stop ----
     if (mode == EditorMode::Edit) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.65f, 0.18f, 1.0f));
-        if (ImGui::Button("  Play  ", btnSz)) mode = EditorMode::Play;
+        if (ImGui::Button(Loc::t(Loc::LocKey::PlayButton), btnSz)) mode = EditorMode::Play;
         ImGui::PopStyleColor();
     } else {
         ImGui::PushStyleColor(ImGuiCol_Button,
             mode == EditorMode::Pause ? ImVec4(0.7f, 0.55f, 0.0f, 1.0f)
                                       : ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
-        if (ImGui::Button(" Pause ", btnSz))
+        if (ImGui::Button(Loc::t(Loc::LocKey::PauseButton), btnSz))
             mode = (mode == EditorMode::Pause) ? EditorMode::Play : EditorMode::Pause;
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.18f, 0.18f, 1.0f));
-        if (ImGui::Button("  Stop  ", btnSz)) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::StopButton), btnSz)) {
             mode = EditorMode::Edit;
             if (m_user) {
                 m_user->controlMode = User::ControlMode::Free;
@@ -573,7 +596,7 @@ void EditorManager::renderToolbar() {
     // アクティブなボタンをもう一度押すと無操作(toolNone)に切り替わるトグル動作
     if (activeViewport) {
         ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isSelectMode() ? colActive : colInactive);
-        if (ImGui::Button("Select", btnSz)) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::SelectTool), btnSz)) {
             if (activeViewport->isSelectMode()) {
                 activeViewport->toolNone = true;
             } else {
@@ -586,7 +609,7 @@ void EditorManager::renderToolbar() {
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isMoveMode() ? colActive : colInactive);
-        if (ImGui::Button("Move", btnSz)) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::MoveTool), btnSz)) {
             if (activeViewport->isMoveMode()) {
                 activeViewport->toolNone = true;
             } else {
@@ -600,7 +623,7 @@ void EditorManager::renderToolbar() {
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isResizeMode() ? colActive : colInactive);
-        if (ImGui::Button("Resize", btnSz)) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::ResizeTool), btnSz)) {
             if (activeViewport->isResizeMode()) {
                 activeViewport->toolNone = true;
             } else {
@@ -614,7 +637,7 @@ void EditorManager::renderToolbar() {
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isRotateMode() ? colActive : colInactive);
-        if (ImGui::Button("Rotate", btnSz)) {
+        if (ImGui::Button(Loc::t(Loc::LocKey::RotateTool), btnSz)) {
             if (activeViewport->isRotateMode()) {
                 activeViewport->toolNone = true;
             } else {
@@ -632,25 +655,29 @@ void EditorManager::renderToolbar() {
 
     // ---- スナップ / 衝突フィット ----
     if (activeViewport) {
-        ImGui::Checkbox("移動スナップ##snapT", &activeViewport->snapTranslate);
+        std::string snapTLabel = std::string(Loc::t(Loc::LocKey::SnapTranslate)) + "##snapT";
+        ImGui::Checkbox(snapTLabel.c_str(), &activeViewport->snapTranslate);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f);
         ImGui::DragFloat("studs##snapTVal", &activeViewport->snapTranslateVal, 0.1f, 0.1f, 100.0f, "%.1f");
         ImGui::SameLine();
 
-        ImGui::Checkbox("回転スナップ##snapR", &activeViewport->snapRotate);
+        std::string snapRLabel = std::string(Loc::t(Loc::LocKey::SnapRotate)) + "##snapR";
+        ImGui::Checkbox(snapRLabel.c_str(), &activeViewport->snapRotate);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f);
         ImGui::DragFloat("\xc2\xb0##snapRVal", &activeViewport->snapRotateVal, 1.0f, 1.0f, 180.0f, "%.0f");
         ImGui::SameLine();
 
-        ImGui::Checkbox("リサイズスナップ##snapS", &activeViewport->snapScale);
+        std::string snapSLabel = std::string(Loc::t(Loc::LocKey::SnapScale)) + "##snapS";
+        ImGui::Checkbox(snapSLabel.c_str(), &activeViewport->snapScale);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f);
         ImGui::DragFloat("studs##snapSVal", &activeViewport->snapScaleVal, 0.1f, 0.1f, 100.0f, "%.1f");
         ImGui::SameLine();
 
-        ImGui::Checkbox("衝突フィット##cf", &activeViewport->collisionFit);
+        std::string cfLabel = std::string(Loc::t(Loc::LocKey::CollisionFit)) + "##cf";
+        ImGui::Checkbox(cfLabel.c_str(), &activeViewport->collisionFit);
         ImGui::SameLine();
     }
 
@@ -658,8 +685,14 @@ void EditorManager::renderToolbar() {
     ImGui::SameLine();
 
     // ---- Add Object ドロップダウン ----
-    if (ImGui::Button("Add Object v", ImVec2(100.0f, 38.0f)))
-        ImGui::OpenPopup("AddObjectPopup");
+    // ボタン幅は言語によって表示テキストの長さが変わるため、ラベル幅から動的に算出する。
+    {
+        const char* addObjLabel = Loc::t(Loc::LocKey::AddObjectDropdown);
+        float addObjW = ImGui::CalcTextSize(addObjLabel).x + ImGui::GetStyle().FramePadding.x * 2.0f + 20.0f;
+        if (addObjW < 100.0f) addObjW = 100.0f;
+        if (ImGui::Button(addObjLabel, ImVec2(addObjW, 38.0f)))
+            ImGui::OpenPopup("AddObjectPopup");
+    }
 
     if (ImGui::BeginPopup("AddObjectPopup")) {
 
@@ -677,11 +710,11 @@ void EditorManager::renderToolbar() {
     float saveLoadW = btnSz.x * 2 + ImGui::GetStyle().ItemSpacing.x;
     ImGui::SameLine(ImGui::GetWindowWidth() - saveLoadW - 8.0f);
 
-    if (ImGui::Button("Save", btnSz)) {
+    if (ImGui::Button(Loc::t(Loc::LocKey::SaveButton), btnSz)) {
         saveCurrentScene();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Load", btnSz)) {
+    if (ImGui::Button(Loc::t(Loc::LocKey::LoadButton), btnSz)) {
         requestSceneLoad(getPlatform().openFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}}));
     }
 
