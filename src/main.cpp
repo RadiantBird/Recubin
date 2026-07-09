@@ -121,25 +121,43 @@ static void removeWorkspacesFromSystem(
     }
 }
 
-// シーンの再読込前に System 配下を全てリセットする（user のみ例外）。
+// シーンの再読込前に System 配下を全てリセットする（Users コンテナと、その中の user のみ例外）。
 // Workspace 以外にも PathfindingService/StarterCharacter 等が System 直下に
 // 残り続けると、再読込で同名の新規インスタンスが追加された際にInstance::setParent
-// のキー衝突（残存コピー・警告連発の原因）を招くため、user 以外は無条件で除去する。
-// user 自身は使い回すが、その子（Inventory等）もシーンYAMLから毎回作り直されるため、
-// 同じ理由で user の子も合わせてクリアする（残すとInventoryが同様にキー衝突→増殖する）。
+// のキー衝突（残存コピー・警告連発の原因）を招くため、Users(user)以外は無条件で除去する。
+// user 自身は System/Users 配下で使い回すが、その子（Inventory等）もシーンYAMLから毎回
+// 作り直されるため、同じ理由で user の子も合わせてクリアする（残すとInventoryが同様に
+// キー衝突→増殖する）。Users コンテナ自体も user 同様使い回す（毎回作り直すと
+// user->Parent の張替えが不要に発生するため）。
 static void resetSystemForReload(
     const std::shared_ptr<System>& system,
     const std::shared_ptr<User>& user)
 {
     if (!system) return;
 
+    std::shared_ptr<Instance> usersContainer;
+    for (auto& [name, child] : system->getChildren()) {
+        if (child && child->IsA("Users")) { usersContainer = child; break; }
+    }
+
     std::vector<std::string> namesToRemove;
     for (auto& [name, child] : system->getChildren()) {
-        if (child.get() == user.get()) continue;
+        if (child.get() == usersContainer.get()) continue;
         namesToRemove.push_back(name);
     }
     for (auto& name : namesToRemove) {
         system->removeChild(name);
+    }
+
+    if (usersContainer) {
+        std::vector<std::string> usersChildNames;
+        for (auto& [name, child] : usersContainer->getChildren()) {
+            if (child.get() == user.get()) continue;
+            usersChildNames.push_back(name);
+        }
+        for (auto& name : usersChildNames) {
+            usersContainer->removeChild(name);
+        }
     }
 
     if (user) {

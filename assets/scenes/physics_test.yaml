@@ -4,14 +4,41 @@ Root:
     MaxRestartsPerFrame: 100
     ScriptLoopTimeoutSeconds: 10
     BaseResolution: [1024, 768]
+    UseNetwork: false
   Children:
-    - ClassName: AppImage
-      Name: AppImage
-      Properties:
-        IconPath: assets/image/the-cat.png
+    - ClassName: Users
+      Name: Users
+      Children:
+        - ClassName: User
+          Name: User
+          Properties:
+            ControlMode: Free
+            Speed: 0.25
+            CameraDistance: 10
+            ZoomSpeed: 0.1
+            MouseZoomSpeed: 1
+          Children:
+            - ClassName: Folder
+              Name: Inventory
     - ClassName: StarterCharacter
       Name: StarterCharacter
       Children:
+        - ClassName: Cube
+          Name: LeftArm
+          Properties:
+            Position: [-1.5, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
         - ClassName: Humanoid
           Name: Humanoid
           Properties:
@@ -23,9 +50,9 @@ Root:
             RespawnTime: 5
             Health: 100
         - ClassName: Cube
-          Name: LeftArm
+          Name: RightArm
           Properties:
-            Position: [-1.5, 0, 0]
+            Position: [1.5, 0, 0]
             Size: [1, 2, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -47,22 +74,6 @@ Root:
             Color: [0.13333334, 0.52156866, 0.6509804, 0]
             Anchored: false
             CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: RightArm
-          Properties:
-            Position: [1.5, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
             CastShadow: true
             Unlit: false
             MassDensity: 1
@@ -164,19 +175,12 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
             MeshFile: C:\Users\Ryarta\Documents\Recubin\assets\models\GirlTorso.glb
-    - ClassName: User
-      Name: User
+    - ClassName: Users
+      Name: Users1
+    - ClassName: AppImage
+      Name: AppImage
       Properties:
-        ControlMode: Free
-        Speed: 0.25
-        CameraDistance: 10
-        ZoomSpeed: 0.1
-        MouseZoomSpeed: 1
-      Children:
-        - ClassName: Folder
-          Name: Inventory
-    - ClassName: PathfindingService
-      Name: PathfindingService
+        IconPath: assets/image/the-cat.png
     - ClassName: Workspace
       Name: Workspace
       Properties:
@@ -190,22 +194,6 @@ Root:
             Direction: [1, -1, -1]
             Brightness: 1
             Color: [1, 1, 1, 1]
-        - ClassName: Cube
-          Name: Cube2
-          Properties:
-            Position: [2.6748984, 1, 1.7505639]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
         - ClassName: Cube
           Name: Spinner
           Properties:
@@ -231,6 +219,22 @@ Root:
                 MaintainVelocity: true
                 Value: [0, 25, 0]
         - ClassName: Cube
+          Name: Cube2
+          Properties:
+            Position: [2.6748984, 1, 1.7505639]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
           Name: Baseplate
           Properties:
             Position: [0, 0, 0]
@@ -246,6 +250,15 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
+          Children:
+            - ClassName: Texture
+              Name: Texture
+              Properties:
+                Face: 2
+                Color: [1, 0.60923076, 0, 1]
+                StudsPerTileU: 1
+                StudsPerTileV: 1
+                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\Grass_Texture.png
         - ClassName: Cube
           Name: Cube1
           Properties:
@@ -292,22 +305,6 @@ Root:
                 Torque: false
                 MaintainVelocity: true
                 Value: [0, 10, 0]
-        - ClassName: Truss
-          Name: Truss
-          Properties:
-            Position: [-3.6178303, 12.633546, 5.11372]
-            Size: [1, 24.267092, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.4276923, 0.4276923, 0.4276923, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
         - ClassName: Cube
           Name: Cube
           Properties:
@@ -316,6 +313,22 @@ Root:
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
             Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Truss
+          Name: Truss
+          Properties:
+            Position: [-3.6178303, 12.633546, 5.11372]
+            Size: [1, 24.267092, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.4276923, 0.4276923, 0.4276923, 1]
+            Anchored: true
             CanCollide: true
             CastShadow: true
             Unlit: false
@@ -420,6 +433,205 @@ Root:
               Properties:
                 ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\DamageScript.luau
                 Enabled: true
+        - ClassName: Cylinder
+          Name: Wheel
+          Properties:
+            Position: [-0.7968526, 7.5, 39.5]
+            Size: [4, 1, 4]
+            Rotation: [0.70710677, 0, 0, 0.70710677]
+            Color: [0.35076922, 0.35076922, 0.35076922, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: Attachment
+              Name: Attachment
+              Properties:
+                Position: [0, -0.49999997, -2.9802322e-08]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+        - ClassName: Cylinder
+          Name: Wheel1
+          Properties:
+            Position: [15.203148, 7.5, 39.5]
+            Size: [4, 1, 4]
+            Rotation: [0.70710677, 0, 0, 0.70710677]
+            Color: [0.35076922, 0.35076922, 0.35076922, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: Attachment
+              Name: Attachment
+              Properties:
+                Position: [0, -0.49999997, -2.9802322e-08]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+        - ClassName: Cylinder
+          Name: Wheel2
+          Properties:
+            Position: [-0.7968526, 7.5, 25.5]
+            Size: [4, 1, 4]
+            Rotation: [0.70710677, 0, 0, 0.70710677]
+            Color: [0.35076922, 0.35076922, 0.35076922, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: Attachment
+              Name: Attachment
+              Properties:
+                Position: [0, 0.49999997, 2.9802322e-08]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+        - ClassName: Cylinder
+          Name: Wheel3
+          Properties:
+            Position: [15.203148, 7.5, 25.5]
+            Size: [4, 1, 4]
+            Rotation: [0.70710677, 0, 0, 0.70710677]
+            Color: [0.35076922, 0.35076922, 0.35076922, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: Attachment
+              Name: Attachment
+              Properties:
+                Position: [0, 0.49999997, 2.9802322e-08]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+        - ClassName: Cube
+          Name: Chassis
+          Properties:
+            Position: [7, 8, 33]
+            Size: [20, 2, 10]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: Motor
+              Name: Motor
+              Properties:
+                Cube0: Chassis
+                Cube1: Wheel
+                Attachment0: Attachment
+                Attachment1: Attachment
+                Axis: [0, 0, 1]
+                DriveVelocity: 5
+                MaxForce: 1000
+            - ClassName: Motor
+              Name: Motor2
+              Properties:
+                Cube0: Chassis
+                Cube1: Wheel1
+                Attachment0: Attachment3
+                Attachment1: Attachment
+                Axis: [0, 0, 1]
+                DriveVelocity: 5
+                MaxForce: 1000
+            - ClassName: Attachment
+              Name: Attachment
+              Properties:
+                Position: [-7.75, -0.5, 5]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+            - ClassName: Motor
+              Name: Motor3
+              Properties:
+                Cube0: Chassis
+                Cube1: Wheel3
+                Attachment0: Attachment2
+                Attachment1: Attachment
+                Axis: [0, 0, 1]
+                DriveVelocity: 5
+                MaxForce: 1000
+            - ClassName: Attachment
+              Name: Attachment1
+              Properties:
+                Position: [-7.75, -0.5, -5]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+            - ClassName: Attachment
+              Name: Attachment3
+              Properties:
+                Position: [8.25, -0.5, 5]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+            - ClassName: Motor
+              Name: Motor1
+              Properties:
+                Cube0: Chassis
+                Cube1: Wheel2
+                Attachment0: Attachment1
+                Attachment1: Attachment
+                Axis: [0, 0, 1]
+                DriveVelocity: 5
+                MaxForce: 1000
+            - ClassName: Attachment
+              Name: Attachment2
+              Properties:
+                Position: [8.25, -0.5, -5]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+        - ClassName: Seat
+          Name: Seat
+          Properties:
+            Position: [6.103081, 9.5, 33.11529]
+            Size: [4, 1, 2]
+            Rotation: [0, 0.70710677, 0, 0.70710677]
+            Color: [0.2523077, 0.2523077, 0.2523077, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: Weld
+              Name: Weld
+              Properties:
+                Cube0: Seat
+                Cube1: Chassis
+            - ClassName: Decal
+              Name: Decal
+              Properties:
+                Face: 0
     - ClassName: Folder
       Name: bin
       Children:
@@ -446,6 +658,10 @@ Root:
               Properties:
                 Face: 0
                 Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\hooo.png
+    - ClassName: Users
+      Name: Users11
+    - ClassName: PathfindingService
+      Name: PathfindingService
     - ClassName: FileRef
       Name: FileRef
       Properties:

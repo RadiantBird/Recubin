@@ -17,6 +17,10 @@ class System : public Instance {
         // ScreenGui(Norm::Pixel)の自動スケーリング基準解像度。Luauへは読み取り専用で公開。
         Vector2 BaseResolution = {1920.f, 1080.f};
 
+        // trueの場合、LocalScript/Scriptが区別されて動作する(Client側ではLocalScriptのみ実行)。
+        // falseの場合、区別されず、ネットワーク通信も一切行わない。
+        bool UseNetwork = false;
+
         System(string name = "System");
         string getClassName() override;
         bool IsA(std::string className) override;

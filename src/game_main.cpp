@@ -18,6 +18,7 @@
 #include <Core/GLFWInputBackend.hpp>
 #include <Core/SystemState.hpp>
 #include <Editor/NullEditorManager.hpp>
+#include <Network/NetworkManager.hpp>
 #include <include/imgui/imgui.h>
 
 #include <Util/Logger.hpp>
@@ -43,6 +44,42 @@ struct GameConfig {
     // todo: debugLogの書き込み処理を追加しておく
 };
 
+// ===================================================
+//  v2.0 ネットワーク基盤(基盤tierのモック): --host [port] / --connect <address> [port]
+//  でHost/Client役を切り替える。引数なしなら従来通りNetworkRole::Offlineのまま動作する。
+// ===================================================
+static constexpr uint16_t kDefaultNetworkPort = 7777;
+
+struct NetworkLaunchArgs {
+    bool asHost = false;
+    bool asClient = false;
+    std::string address;
+    uint16_t port = kDefaultNetworkPort;
+};
+
+static NetworkLaunchArgs parseNetworkArgs(int argc, char* argv[]) {
+    NetworkLaunchArgs args;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--host") {
+            args.asHost = true;
+            if (i + 1 < argc) {
+                try { args.port = static_cast<uint16_t>(std::stoi(argv[i + 1])); ++i; } catch (...) {}
+            }
+        } else if (arg == "--connect") {
+            args.asClient = true;
+            if (i + 1 < argc) { args.address = argv[i + 1]; ++i; }
+            if (i + 1 < argc) {
+                std::string maybePort = argv[i + 1];
+                if (!maybePort.empty() && maybePort[0] != '-') {
+                    try { args.port = static_cast<uint16_t>(std::stoi(maybePort)); ++i; } catch (...) {}
+                }
+            }
+        }
+    }
+    return args;
+}
+
 static GameConfig loadStartup() {
     GameConfig cfg;
     try {
@@ -63,13 +100,21 @@ static GameConfig loadStartup() {
 // ===================================================
 //  main
 // ===================================================
-int main() {
+int main(int argc, char* argv[]) {
     // コンソールの出力/入力コードページをUTF-8にする
     // (Windows日本語版等では既定のANSIコードページのままだと、UTF-8で書かれた
     //  ログやLuauのprint出力が文字化けする)
     getPlatform().setupConsoleUtf8();
 
     GameConfig cfg = loadStartup();
+
+    // ---- v2.0 ネットワーク基盤(モック): CLI引数でHost/Client役を起動する ----
+    NetworkLaunchArgs netArgs = parseNetworkArgs(argc, argv);
+    if (netArgs.asHost) {
+        NetworkManager::get().startHost(netArgs.port);
+    } else if (netArgs.asClient) {
+        NetworkManager::get().connect(netArgs.address, netArgs.port);
+    }
 
     // ランタイムはゲームフォルダ(cwd)外のアセット読み込みを禁止する（配布ゲームのサンドボックス）。
     // エディター(Recubin.exe)はこれを呼ばないため従来通り任意パスを扱える。
@@ -156,11 +201,37 @@ int main() {
 
     float lastFrame = static_cast<float>(glfwGetTime());
 
+    // ---- v2.0 ネットワーク基盤(モック)デモ用の状態 ----
+    bool  netWasConnected  = false;
+    float netDummyPosTimer = 0.0f;
+    float netDummyPosValue = 0.0f;
+
     // ---- メインループ（常にプレイ状態） ----
     while (!glfwWindowShouldClose(window)) {
         float now       = static_cast<float>(glfwGetTime());
         float deltaTime = now - lastFrame;
         lastFrame       = now;
+
+        // ---- ネットワークポーリング（物理更新より前＝受信内容を反映してからシミュレートする） ----
+        NetworkManager::get().poll();
+        if (NetworkManager::get().isActive()) {
+            bool nowConnected = NetworkManager::get().hasPeers();
+            if (nowConnected && !netWasConnected) {
+                std::string who = (NetworkManager::get().getRole() == NetworkRole::Host) ? "Host" : "Client";
+                NetworkManager::get().sendChatMessage("Hello from " + who);
+            }
+            netWasConnected = nowConnected;
+
+            // Hostのみダミー座標をUNRELIABLEで周期送信する(チャンネル分離のモックデモ)
+            if (NetworkManager::get().getRole() == NetworkRole::Host && nowConnected) {
+                netDummyPosTimer += deltaTime;
+                if (netDummyPosTimer >= 0.1f) {
+                    netDummyPosTimer = 0.0f;
+                    netDummyPosValue += 1.0f;
+                    NetworkManager::get().sendDummyPosition(Vector3(netDummyPosValue, 0.0f, 0.0f));
+                }
+            }
+        }
 
         if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->update(*workspace, deltaTime);
         luauEngine->resetFrameSafetyCounters();
@@ -219,6 +290,7 @@ int main() {
     }
 
     // ---- クリーンアップ ----
+    NetworkManager::get().shutdown();
     for (auto& ws : workspaces) {
         if (ws && ws->getPhysicsEngine()) {
             ws->getPhysicsEngine()->clearCubes();

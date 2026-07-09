@@ -7,6 +7,7 @@ static const bool s_systemRegistered = []{
     using namespace PropertyRegistry;
     registerClass("System", {
         field<&System::BaseResolution>("BaseResolution", 1.f, 16384.f, 1.f).luaReadOnly(),
+        field<&System::UseNetwork>("UseNetwork"),
     });
     return true;
 }();

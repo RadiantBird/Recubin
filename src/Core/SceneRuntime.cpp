@@ -8,6 +8,7 @@
 #include <Instances/AppImage.hpp>
 #include <Instances/PathfindingService.hpp>
 #include <Instances/Folder.hpp>
+#include <Instances/Users.hpp>
 #include <include/GLFW/glfw3.h>
 #include "include/stb_image.h"
 #include <Util/AssetGuard.hpp>
@@ -69,9 +70,18 @@ Bound loadAndBind(const std::string& scenePath,
     SceneLoader::loadScene(scenePath);
     SceneLoader::clearSingletons();
 
-    // User が YAML に存在しなくてもシステム直下に確保する
-    if (system->children.find("User") == system->children.end()) {
-        system->addChild(user);
+    // Users コンテナ(System/Users)が無ければ自動生成する(Workspace/PathfindingServiceと同様のパターン)
+    std::shared_ptr<Instance> usersContainer;
+    if (auto it = system->children.find("Users"); it != system->children.end()) {
+        usersContainer = it->second;
+    } else {
+        usersContainer = std::make_shared<Users>();
+        system->addChild(usersContainer);
+    }
+
+    // User が YAML に存在しなくてもSystem/Users直下に確保する
+    if (usersContainer->children.find("User") == usersContainer->children.end()) {
+        usersContainer->addChild(user);
     }
 
     // Inventory: シーンYAMLにUser直下のFolder("Inventory")が保存されていれば、それを

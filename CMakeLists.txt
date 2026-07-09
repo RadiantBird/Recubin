@@ -27,7 +27,9 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation)
 # Recubin / RecubinEngine の二重コンパイルを避けるため、両ターゲットで共有できる
 # ソース（エントリポイントと EDITOR_DISABLED で分岐する User.cpp/Renderer.cpp を除く全て）を
 # RecubinCore という OBJECT ライブラリとして1回だけコンパイルし、各ターゲットはそれをリンクする。
-file(GLOB_RECURSE ALL_SOURCES "src/*.cpp")
+file(GLOB_RECURSE ALL_SOURCES_CPP "src/*.cpp")
+file(GLOB_RECURSE ALL_SOURCES_C "src/*.c")
+set(ALL_SOURCES ${ALL_SOURCES_CPP} ${ALL_SOURCES_C})
 set(PER_TARGET_SOURCES
     "${CMAKE_SOURCE_DIR}/src/main.cpp"
     "${CMAKE_SOURCE_DIR}/src/game_main.cpp"
@@ -89,6 +91,8 @@ if(WIN32)
         "${LIB_DIR}/yaml-cpp.lib"
         Recast
         Detour
+        ws2_32
+        winmm
     )
 else()
     # --- Mac対応 ---

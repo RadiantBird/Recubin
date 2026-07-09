@@ -110,3 +110,63 @@ Mac環境（Apple Silicon, macOS, arm64）に切り替わったユーザーか�
 - **PhysXのバイナリシリアライズ形式にはプラットフォームタグ埋め込みがある**（`SnSerialUtils.cpp`の`sBinaryPlatformTags`）。異なるプラットフォームタグでシリアライズされたPhysXデータを読み込むと非互換エラーになる可能性があるため、将来Mac版でシリアライズ済み物理データを扱う場合はこのタグの扱いに注意が必要（今回追加した`macaarch64`タグは他プラットフォームとの互換性は無い、新規のMac専用タグ）。
 
 ---
+
+## 2026-07-09 v2.0ネットワーク基盤 設計+モック実装（ENet統合・UseNetwork・Users・LocalScript）
+
+### 指示内容
+readme.md「ネットワーク関係」セクション（UseNetwork/Usersクラス/ENetベース動的ホストマイグレーション型サーバー・クライアント通信基盤）について、v2.0に向けた設計とモック実装を依頼された。Plan modeで、CLAUDE.mdの指示によりPlanエージェントは使わず設計は自分で行い、Exploreエージェント3体（Instance/System/Script階層、既存ネットワークコード・ビルド設定、Luauバインディング・シリアライズパターン）を並列調査した上で計画を立てた。
+
+AskUserQuestionで実装範囲を確認: (1) 実装範囲は「基盤のみ実装、応用（リソーススコアによるホスト自動選出・動的ロール切替の実処理）は設計止まり」を選択。(2) LocalScriptは「最小限のクラスを新規作成」を選択（UseNetwork=trueでのScript/LocalScript使い分けに必要なため）。(3) モックデモ内容は「ダミー座標+チャット文字列」の最小構成。(4) 起動方法は「コマンドライン引数」（`--host [port]` / `--connect <address> [port]`）。(5) Usersコンテナは「Insert Objectから除外」（System同様、エンジン自動管理の特殊コンテナ）。(6) LocalScript実行フィルタは「ClientではLocalScriptのみ実行（Scriptは実行しない）」を選択。
+
+### 何をしたか
+- **ENetのベンダリング**: `lsalzman/enet`公式リポジトリ(1.3.18)からヘッダ一式を`include/enet/`、ソース(.c)一式を`src/Network/Vendor/enet/`にそのまま取得配置（改変なし）。
+- **`CMakeLists.txt`**: `file(GLOB_RECURSE ALL_SOURCES "src/*.cpp")`を`.cpp`+`.c`両方収集するよう拡張（`ALL_SOURCES_CPP`+`ALL_SOURCES_C`→`ALL_SOURCES`）。Windows`COMMON_LIBS`に`ws2_32`/`winmm`を追加（ENetが要求するWinsock/タイマーAPI）。`include/enet`を`COMMON_INCLUDES`に追加しようとしたが、`enet.h`が`#include "enet/win32.h"`という`include/`ルート相対のパスで自分自身を参照する構造だったため、既存の`include`（親ディレクトリ）だけで十分と判断し撤回した。
+- **`include/Network/NetworkTypes.hpp`（新規）**: `NetworkRole`(Offline/Host/Client)、`NetworkChannel`(Reliable=0/Unreliable=1)、`MessageType`(Chat/DummyPosition)、将来のホスト自動選出用`PeerResourceInfo`構造体（未使用、TODO予約のみ）。
+- **`include/Network/NetworkManager.hpp` / `src/Network/NetworkManager.cpp`（新規）**: `SystemState::get()`と同型のMeyer's singleton。`startHost(port)`/`connect(address,port)`/`shutdown()`/`poll()`（`enet_host_service`をノンブロッキングで回す）/`sendChatMessage()`(RELIABLE)/`sendDummyPosition()`(UNRELIABLE)。ENetHostの所有はPhysXの`s_foundation`/`s_pxPhysics`と同じ「生ポインタ+明示的destroy」パターンを踏襲（CLAUDE.mdのunique_ptr原則の例外＝C API所有オブジェクトに該当すると判断）。
+- **`include/Instances/System.hpp` / `src/Instances/System.cpp`**: `bool UseNetwork = false;`を追加し、`PropertyRegistry::field<&System::UseNetwork>("UseNetwork")`を既存の`BaseResolution`と同じ`s_systemRegistered`ブロックに追加。
+- **`include/Instances/Users.hpp`（新規、ヘッダオンリー）**: `Folder`と同型の最小`Instance`派生コンテナ。Insert Objectメニュー（`SceneHierarchyPanel.cpp::renderInsertMenu`）は動的なクラス列挙ではなく明示的な`tryInsertInstance<T>`の羅列だったため、単に追加しないだけで自然にInsert Object非表示になった（`System`と同じ理由）。
+- **`src/Core/SceneRuntime.cpp`（`loadAndBind`）**: `Workspace`/`PathfindingService`と同じ「無ければ自動生成」パターンで`Users`コンテナを`System`直下に確保し、`User`を`System`直下ではなく`System/Users`直下に配置するよう変更。
+- **`include/Instances/LocalScript.hpp` / `src/Instances/LocalScript.cpp`（新規）**: `Script`派生の最小クラス。`clone()`をオーバーライドして`LocalScript`型で複製されるようにした（オーバーライドしないと`Script::clone()`が常に素の`Script`を生成してしまうため）。
+- **`src/Core/LuauEngine.cpp`（`executeWorkspaceScripts`）**: `m_system->UseNetwork && NetworkManager::get().getRole()==Client`の場合、`LocalScript`以外（＝`Script`）の実行をスキップするフィルタを追加。
+- **`src/game_main.cpp`**: `int main()`を`int main(int argc, char* argv[])`に変更し、`--host [port]`/`--connect <address> [port]`をパースして起動時に`NetworkManager::get().startHost()/connect()`を呼ぶ`parseNetworkArgs()`を追加。メインループ先頭（物理更新より前）に`NetworkManager::get().poll()`を挿入し、接続確立を検出したら`sendChatMessage()`を1回、Host側は0.1秒毎に単調増加するダミー座標を`sendDummyPosition()`で送るモックデモを追加。ループ終了時に`NetworkManager::get().shutdown()`を追加。
+- **`readme.md`**: UseNetwork/Usersクラスを`[x]`に、動的ホストマイグレーション項目全体を`[~]`（ENet統合+チャンネル分離のみ`[x]`、リソース計測/自動選出/動的ロール切替は`[ ]`のまま）に、LocalScript実装を`[~]`に更新。
+
+### なぜそうしたか
+- **PlanエージェントもExploreエージェントも計画は自分で行った**: CLAUDE.mdの明示的指示（「計画・設計はこのセッションのモデル自身が行うこと」）に従った。前回Mac対応セッションと同じ方針。
+- **実装範囲を「基盤のみ」に絞った理由**: readme.mdのネットワーク項目（リソーススコア計測・ホスト自動選出ハンドシェイク・動的ロール切替）は実装量・検証量ともに1セッションで扱うには過大と判断し、AskUserQuestionでユーザーに確認した上で基盤tierに限定した。ホスト自動選出等は「Roleが切り替われば`executeWorkspaceScripts`が次フレームから自動的に新しい実行セットに従う」という設計だけ先に整えておき、実際のトリガー（選出アルゴリズム）は`NetworkManager`のTODOコメントとして予約するに留めた。
+- **ENetHostを生ポインタで持つ判断**: CLAUDE.mdは「原則`unique_ptr`使用」だが「C API (OpenGL, PhysX等) への引数」は生ポインタ許容としている。`include/Core/Physics.hpp`の`s_foundation`/`s_pxPhysics`（PhysXオブジェクト）が同じ理由で生ポインタ+`release()`パターンを採っていたため、ENetHostも同じ分類（外部Cライブラリの自前ライフサイクルAPIを持つオブジェクト）と判断し、既存パターンに倣った。
+- **RecubinEngine(`game_main.cpp`)のみにCLI統合し、`main.cpp`（エディター）には統合しなかった理由**: readmeのネットワーク機能は配布ゲームランタイムの文脈で説明されており、エディターのPlay/Stop状態機械（`main.cpp`の`isPlaying && !wasPlaying`等）は既に複雑で、そこにHost/Client切替を混ぜると影響範囲が大きくなりすぎると判断し、AskUserQuestionで確認の上スコープ外にした。
+- **Insert ObjectからUsers/Systemが除外される仕組みを利用した理由**: `renderInsertMenu`はクラスレジストリの動的列挙ではなく手書きのメニュー項目列挙だと分かったため、「除外する」という要件は「メニューに追加しない」だけで自動的に満たされ、追加の除外ロジック実装が不要だった。
+
+### どういう経緯か
+1. Plan modeで、Instance/System/Script階層・既存ネットワークコード有無・ビルド設定・Luauバインディングパターンを調査するExploreエージェント3体を並列起動。
+2. 調査結果を踏まえ、AskUserQuestionで実装範囲・LocalScriptの扱い・モックデモ内容・起動方法・Users可視性・LocalScript実行フィルタの6点を確認。
+3. `PropertyRegistry`/`Instance`/`System`/`Script`/`User`/`SceneRuntime.cpp`/`CMakeLists.txt`の実物を読み、正確なファイルパス・行番号を伴う計画を`C:\Users\Ryarta\.claude\plans\v2-0-cached-stallman.md`に記述してExitPlanMode、承認を得た。
+4. 実装順序通り、ENetベンダリング→CMakeLists.txt統合→NetworkManager→System.UseNetwork→Usersクラス→LocalScript+実行フィルタ→game_main.cpp統合、の順で実装。
+5. **`Users`クラス追加中に、承認済みプラン外の`main.cpp`への波及に気づいた**: `resetSystemForReload()`（Play/Stop切替・シーンリロード時に「`user`以外の`System`直下の子を全削除する」関数）が`child.get() == user.get()`という直接比較をしており、`User`が`System`直下から`System/Users`直下へ1階層深くなると、`Users`コンテナごと（中の`user`もろとも）毎回誤削除される regression になることを発見。プランのファイル一覧に無かったため、実装を止めてAskUserQuestionでユーザーに確認し、「main.cppを最小限修正する」を選んで対応（`Users`コンテナ自体を`user`と同様に例外扱いする形にロジックを変更）。
+6. 実装完了後、`python build.py build`でビルド成功（ENetの`.c`ファイル群も`RecubinCore`に正しく取り込まれてコンパイルされることを確認。警告のみでエラーなし）。
+7. 実機検証: `startup.yaml`を一時的にプロジェクトルートに作成し（`StartScene: assets/scenes/void.yaml`）、`RecubinEngine.exe --host 7777`と`RecubinEngine.exe --connect 127.0.0.1 7777`を実際に2プロセスlocalhostで起動。1回目の検証で「Clientが送るはずのチャットメッセージをHostが一切受信しない」という不具合を発見。
+8. **バグ調査**: `enet_peer_send()`のENet実装（`peer.c:114`）を直接読み、`peer->state != ENET_PEER_STATE_CONNECTED`の場合は`-1`を返すだけでパケットを送信もキューイングも破棄もしないことを確認。自分の`NetworkManager::connect()`実装が`enet_host_connect()`直後（実際のハンドシェイク完了前）に同期的に`m_peers.push_back(peer)`していたため、`hasPeers()`が本当の接続確立より早く`true`を返し、その最初のフレームで送った`sendChatMessage()`が`enet_peer_send`の状態チェックに弾かれて黙って失敗（かつ`ENetPacket`がリークする）というバグだったと特定。
+9. 修正: `m_peers`への追加を`connect()`内の即時pushから、`handleEvent()`の`ENET_EVENT_TYPE_CONNECT`受信時（Host/Client共通）に一本化。あわせて`broadcastPacket()`のClient経路（`enet_peer_send`直呼び）が失敗した場合に`enet_packet_destroy()`で明示的に破棄するようにした（`enet_host_broadcast`はHost経路で内部的に未送信時の破棄を保証済みと`host.c:286`で確認済みだったため、Client経路だけの片手落ちだった）。
+10. 再ビルド→再検証で、双方向のRELIABLEチャット送受信・Host→ClientのUNRELIABLE位置同期（連番ログ）を確認。さらにHost側プロセスを先に強制終了し、Client側がクラッシュせず`peer disconnected`ログを出して安全に継続動作することを確認。
+11. 検証用の一時`startup.yaml`を削除し、readme.mdのチェックボックスを更新。progress.md記録（本エントリ）。
+
+### 試して失敗した/計画から変更した点
+- **`COMMON_INCLUDES`に`include/enet`を追加しようとして撤回**: ENet公式ヘッダの内部includeが`#include "enet/win32.h"`という`include/`ルートからの相対パスを前提にしていたため、`include/enet`自体を追加インクルードパスにすると意味がない（むしろヘッダ名衝突のリスクがあるだけ）と判明し、既存の`include`ルートのみで動作することを確認した上で撤回した。
+- **`NetworkManager::connect()`で接続確立前に`m_peers`へpushしていた設計ミス**: 「`enet_host_connect()`が返すENetPeer*は接続要求開始時点で有効なポインタだから、返り値をもらった時点で`m_peers`に入れておけば良い」という誤った直感で最初に実装し、ビルド・1回目の起動テストまで気づかなかった。実際に2プロセスを動かして「Host側にチャットが届かない」という現象で初めて発覚し、ENet公式ソース（`peer.c`）を直接読んで原因を特定した。「ハンドシェイク完了（`ENET_EVENT_TYPE_CONNECT`イベント）を見てから接続済みとして扱う」という当たり前の非同期API取り扱いを、最初は省略してしまっていた。
+- **Insert Objectメニューへの`LocalScript`追加は見送り**: 承認済みプランのファイル一覧に`SceneHierarchyPanel.cpp`が含まれていなかったため、スコープ外として触らなかった。エディターUIから`LocalScript`を挿入する手段は現状無い（YAML直書きかLuau経由でのみ生成可能）。
+
+### 未解決・保留
+- **リソーススコア計測・ホスト自動選出・動的ロール切替の実処理は完全に未実装**（`NetworkManager.hpp`にTODOコメントで設計方針のみ記載）。次回実装するなら、`PeerResourceInfo`をRELIABLEチャンネルで定期送信する仕組み→Host側での集計→切断検知時の再選出→新Hostへの`ENetHost`再構築（Client用host→Host用hostへの実体差し替えが必要になるはずで、現在の`NetworkManager`はHost/Clientで別々の`enet_host_create`呼び出しをしている前提なので、この切替ロジックは追加設計が必要）という順で検討することになりそう。
+- **複数Peer分の`User`表現は完全に未実装**。現状`Users`コンテナは「1プロセス=1ローカル`User`」を格納するだけの入れ物で、リモートPeerに対応する`User`相当インスタンス（カメラ・入力を持たない軽量な複製）を接続時に生成/切断時に破棄する仕組みは今回のスコープ外のまま。
+- **エディター（`Recubin.exe`/`main.cpp`）からのHost/Client起動には未対応**。CLI引数はランタイム（`RecubinEngine.exe`/`game_main.cpp`)のみ。
+- **`LocalScript`はInsert Objectメニュー未対応**（上記参照）。ModuleScript実装・taskモジュール（delay/spawn/wait）も引き続き未着手（readme既存Todo）。
+- **`APIENTRY`マクロ再定義警告**（`game_main.cpp`ビルド時、`glfw3.h`の定義と`minwindef.h`の定義が競合）が今回のビルドで新たに出るようになった。ENetの`win32.h`が`winsock2.h`/`windows.h`を`glfw3.h`より後に間接includeしていることが原因と推測されるが、警告のみでビルド・実行には影響しないため未対応のまま。気になる場合は次回`include`順序の調整を検討。
+- **`enet_initialize()`/`enet_deinitialize()`のプロセス全体での呼び出し回数バランス**は`NetworkManager`内で`m_enetInitialized`フラグにより1回のみ初期化する設計にしたが、`enet_deinitialize()`自体は一度も呼んでいない（プロセス終了時のOS回収に任せている）。将来複数回のstartHost/connect/shutdownサイクルを1プロセス内で繰り返すユースケースが出た場合、この非対称性で問題が起きないか要確認。
+
+### 暗黙仕様の発見（spec.mdに無い挙動）
+- **`SceneLoader`のシングルトン解決（`registerSingleton`）はツリー上の深さに依存せず、YAMLノードの`ClassName`一致のみで判定される**（`SceneLoader.cpp`の`s_singletons`は`unordered_map<string(className), shared_ptr<Instance>>`で、木構造上のパスは見ていない）。そのため今回`User`を`System`直下から`System/Users`直下へ1階層深くしても、既存のシーンYAML読み込みロジックには一切変更が不要だった。逆に言えば、将来同じクラス名のシングルトンをツリー上の複数箇所に置きたくなった場合、このマップは名前だけで一意に解決するため対応できない。
+- **`renderInsertMenu`（`SceneHierarchyPanel.cpp`）はクラスレジストリの動的列挙ではなく、`tryInsertInstance<T>(...)`のハードコードされた羅列である**。`PropertyRegistry::registerClass`で登録したクラスが自動的にInsert Objectメニューに現れるわけではない。新クラスをエディターから挿入可能にするには、このメニュー関数に明示的に1行追加する必要がある（spec.mdの「新規クラスは自動的にエディターに公開される」という記述は、プロパティパネルでの表示自動化を指しており、Insert Objectメニューへの掲載は別の仕組みだと分かった）。
+- **`enet_host_broadcast`は未接続Peerを自動的にスキップし、誰にも送れなかった場合はpacket自体を内部で安全に破棄する**が、`enet_peer_send`を個別Peerに対して直接呼ぶ経路（Client視点でHostへ送る場合など、Peerが1つしかない場合の最適化）は送信失敗時にpacketを破棄せず単に`-1`を返すだけ、という非対称なAPI設計になっている（ENet 1.3.18の`host.c`/`peer.c`で確認）。ENetを使うコードは、`enet_host_broadcast`を使わない単一Peer送信経路では必ず戻り値をチェックしてpacketを破棄する必要がある。
+
+---

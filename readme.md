@@ -32,6 +32,12 @@ Windowsで動作します。後々、Mac対応予定。
   - exeコピー
   - imgui.iniコピー
 
+- [~] LocalScript実装(v2.0ネットワーク基盤の一部として最小実装。詳細はprogress.md参照)
+      - [x] Script派生の最小クラスを追加。UseNetworkがfalseならScriptと同じ扱い
+      - [x] UseNetwork=true時、Client側ではLocalScriptのみ実行(Scriptは実行しない)
+      - [ ] エディターのInsert Objectメニューへの追加は未対応
+      - `User`グローバル変数は実行中のユーザーを指す
+
 - [ ] ModuleScript実装
       - 返したテーブルをロードする
       - `require(file:ModuleScript)`で取得
@@ -47,43 +53,43 @@ Windowsで動作します。後々、Mac対応予定。
 - [ ] Terrainに上下左右前後のブラシを実装する(現状上からしかできないため)
 
 ### 物理エンジン関係
-- [ ] ...
+- [ ] アタッチメントの位置移動などがコマンド履歴に保存されていない問題の修正
+- [ ] Seatが勝手に回転して、-Z方向を向く問題の修正
 
 ### レンダリング関連
-
-- [x] Mac対応を開始する
-  - **Metalは今のところ使用しない**(難易度が高い)
-  - [x] OpenGL4.1に準拠した実装を行う(GLFWにCore Profile 4.1のコンテキストを明示指定)
-  - [x] ファイル操作のインターフェイス化
-  - [x] CMakeLists.txt/build.pyにMac向け分岐を追加(GLFW/GLEWはHomebrew、Luau/yaml-cppはFetchContentでソースビルド)
-  - [x] Mac実機(Apple Silicon)でRecubinの起動・描画・Luau動作を確認
-  - [x] PhysX 5.6.1をMac実機向けに自前ビルド(`TARGET_BUILD_PLATFORM=linux`として騙し、Apple Clang対応・ARM SIMDフォールバック等を局所パッチ。詳細は`progress.md`参照)し、Play modeでの物理動作を実機確認
 
 - [~] BaseCubeマテリアルに基づくPBRレンダリング(保留)
   - 反射率プロパティを新しく追加
   - レイトレーシングはしない
 
 ### ネットワーク関係
-- [ ] Systemにboolチェックボックスで、UseNetwork(alpha)を追加
+- [x] Systemにboolチェックボックスで、UseNetwork(alpha)を追加
   - trueの場合:  LocalScript/Scriptが区別されて動作する
   - falseの場合: 区別されず、　一切のネットワーク通信を行わない
 
-- [ ] Usersクラスを追加
+- [x] Usersクラスを追加
   - Userはここに配置される
   - UseNetworkがfalseの場合、Userの名前は"User"のままとする
+  - パスは`System/Users`
+  - (複数Peer分のUser生成/破棄はv2.0応用tierとして未実装。今回は1プロセス=1ローカルUserのまま)
 
-- [ ] Windows（ホスト）とMac（ゲスト）間のP2P通信基盤の作成
-  - ENetのソースコード（enet.h / .c）をプロジェクトに直接取り込んでビルドできるように構成
-  - 信頼性のあるデータ（チャット・イベント等：RELIABLE）と高速なデータ（位置同期等：UNRELIABLE）のチャンネル分離
-  - [ ] 起動時に「ホストとして待機」か「指定IPへ直接接続」を選択できるデバッグ用CUI/GUIの実装
-  - [ ] WindowsとMac間で、構造体をそのまま送っても大丈夫なようにバイトオーダー（エンディアン）の吸収処理を実装
-  - [ ] 接続が確立した際に、お互いのLuauのスクリプト環境でピアID（Client/Serverの識別）を共有できるインターフェイスの用意
+- [~] 動的ホスト移行（Host Migration）型サーバー・クライアント通信基盤の作成(基盤tierのみ完了。詳細はprogress.md参照)
+  - [x] ENetのソースコード（enet.h / .c）をプロジェクトに直接取り込んでビルドできるように構成
+  - [x] 信頼性のあるデータ（チャット・イベント、ホスト移行シグナル等：RELIABLE）と高速なデータ（位置同期等：UNRELIABLE）のチャンネル分離
+  - [ ] 各ノードの計算資源（CPUスコア・レイテンシ等）を定期的に計測し、現在のホストへ通知・集計する仕組みの実装
+  - [ ] 現ホストの離脱（ログアウト）検知時、集計データから「一番計算資源の多いゲスト」を自動選出し、世界の統治権限（Serverステート）をシームレスに引き継ぐハンドシェイク処理の実装
+  - [ ] ホストの動的交代（ロール変更）が発生した際に、各自のLuauスクリプト環境（Script / LocalScriptの有効・無効化）やピアIDの識別状態を破綻なくリアルタイムに変革・共有できるインターフェイスの用意
 
 ## あるかもしれない質問
 
 - Q. なんでUserのキャラクターはPlayerなの？
 - A. Userはあなたのことです。一方、Playerは道化(アバター)に過ぎません。
 つまり…あなたとアバターは異なる分身として表現されます。
+
+## Macについて
+  Metalだけでも困難ですが、PhysXのサポートも薄く、
+  将来的なVulkan移行、Mac対応ライブラリ痩せを考慮すると、
+  Mac対応は今後しないことを決めました。
 
 ## 現在の問題
 - None

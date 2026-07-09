@@ -13,6 +13,7 @@
 #include "include/Instances/Tool.hpp"
 #include "include/Instances/Animation.hpp"
 #include "include/Instances/System.hpp"
+#include "include/Network/NetworkManager.hpp"
 #include "include/Instances/Event.hpp"
 #include "include/Instances/TextLabel.hpp"
 #include "include/Instances/TextButton.hpp"
@@ -986,8 +987,14 @@ void LuauEngine::executeWorkspaceScripts(Workspace& ws) {
     lua_setmetatable(L, -2);
     lua_setglobal(L, "workspace");
 
+    // UseNetwork=true かつ Client の場合、Script(非LocalScript)はHost側でのみ実行する
+    // (Hostは同時にプレイヤーでもあるため、Script/LocalScript両方を実行する)
+    bool skipNonLocalScripts = m_system && m_system->UseNetwork
+        && NetworkManager::get().getRole() == NetworkRole::Client;
+
     for (auto& inst : ws.scripts) {
         auto script = std::dynamic_pointer_cast<Script>(inst);
+        if (skipNonLocalScripts && script && !script->IsA("LocalScript")) continue;
         if (script && script->Enabled && !script->Sleeping && !script->WaitingForChild
             && !script->Completed && !script->Aborted) {
             execute(*script);

@@ -45,6 +45,8 @@
 #include <Instances/ProximityPrompt.hpp>
 #include <Instances/Folder.hpp>
 #include <Instances/Tool.hpp>
+#include <Instances/Users.hpp>
+#include <Instances/LocalScript.hpp>
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Weather.hpp>
 #include <Core/User.hpp>
@@ -269,6 +271,8 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "BillboardGui") return std::make_shared<BillboardGui>();
     if (className == "ProximityPrompt") return std::make_shared<ProximityPrompt>();
     if (className == "Folder")   return std::make_shared<Folder>();
+    if (className == "Users")    return std::make_shared<Users>();
+    if (className == "LocalScript") return std::make_shared<LocalScript>("");
     if (className == "Tool")     return std::make_shared<Tool>("Tool");
     if (className == "ParticleEmitter") return std::make_shared<ParticleEmitter>();
     if (className == "Weather") return std::make_shared<Weather>();
