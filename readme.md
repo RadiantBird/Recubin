@@ -51,12 +51,13 @@ Windowsで動作します。後々、Mac対応予定。
 
 ### レンダリング関連
 
-- [] Mac対応を開始する
+- [x] Mac対応を開始する
   - **Metalは今のところ使用しない**(難易度が高い)
   - [x] OpenGL4.1に準拠した実装を行う(GLFWにCore Profile 4.1のコンテキストを明示指定)
   - [x] ファイル操作のインターフェイス化
-  - [x] CMakeLists.txt/build.pyにMac向け分岐を追加(GLFW/yaml-cpp/GLEWはHomebrew、LuauはFetchContent、PhysXはユーザーがMac環境でビルドした.aを`RECUBIN_PHYSX_MAC_DIR`で指定する前提)
-  - [ ] あとでMacで確認するので今回はビルド確認はWindows版が起動するかだけチェック
+  - [x] CMakeLists.txt/build.pyにMac向け分岐を追加(GLFW/GLEWはHomebrew、Luau/yaml-cppはFetchContentでソースビルド)
+  - [x] Mac実機(Apple Silicon)でRecubinの起動・描画・Luau動作を確認
+  - [x] PhysX 5.6.1をMac実機向けに自前ビルド(`TARGET_BUILD_PLATFORM=linux`として騙し、Apple Clang対応・ARM SIMDフォールバック等を局所パッチ。詳細は`progress.md`参照)し、Play modeでの物理動作を実機確認
 
 - [~] BaseCubeマテリアルに基づくPBRレンダリング(保留)
   - 反射率プロパティを新しく追加

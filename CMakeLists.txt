@@ -126,22 +126,24 @@ else()
     )
     FetchContent_MakeAvailable(yaml-cpp)
 
-    # PhysX: NVIDIA公式に事前ビルド済みバイナリのMac配布は無いため、
-    # ユーザーが手元のMac環境でmacOS向けプリセットからビルドした.aを指す。
-    set(RECUBIN_PHYSX_MAC_DIR "" CACHE PATH "MacでビルドしたPhysX 5.6静的ライブラリ(.a)が置かれたディレクトリ")
+    # PhysX: NVIDIA公式リポジトリにはmacOS向けビルドプリセットが存在しないため、
+    # TARGET_BUILD_PLATFORM=linuxとして騙し、Apple Clang対応・SIMDフォールバック等を
+    # 局所的にパッチしたPhysXソース(タグ107.3-physx-5.6.1)を自前ビルドしたものを指す。
+    # 出力ライブラリ名にWindows版のような"_64"サフィックスは付かない。
+    set(RECUBIN_PHYSX_MAC_DIR "" CACHE PATH "MacでビルドしたPhysX 5.6.1静的ライブラリ(.a)が置かれたディレクトリ")
     if(RECUBIN_PHYSX_MAC_DIR STREQUAL "")
         message(FATAL_ERROR
             "Mac向けビルドには RECUBIN_PHYSX_MAC_DIR の指定が必要です。"
-            "NVIDIA PhysX 5.6 のmacOS向けプリセットでビルドした.a群のディレクトリを"
+            "TARGET_BUILD_PLATFORM=linuxとしてMac上で自前ビルドしたPhysX 5.6.1の.a群のディレクトリを"
             "-DRECUBIN_PHYSX_MAC_DIR=... で指定してください。")
     endif()
 
     set(PHYSX_MAC_COMPONENTS
-        PhysX_static_64
-        PhysXCommon_static_64
-        PhysXFoundation_static_64
-        PhysXExtensions_static_64
-        PhysXCooking_static_64
+        PhysX_static
+        PhysXCommon_static
+        PhysXFoundation_static
+        PhysXExtensions_static
+        PhysXCooking_static
     )
     set(PHYSX_MAC_LIBS "")
     foreach(component ${PHYSX_MAC_COMPONENTS})
