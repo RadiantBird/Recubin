@@ -280,8 +280,11 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
 
     seat->setOccupant(std::static_pointer_cast<Humanoid>(shared_from_this()));
 
-    // RootをSeatの向きのまま直上へスナップ(向きはSeatと同じ)し、速度をゼロクリアしてからWeldで固定する
-    CFrame target = seat->getWorldCFrame() * CFrame(0, seat->Size.y * 0.001f + Root->Size.y * 0.25f, 0);
+    // RootをSeatの向きのまま直上へスナップし、速度をゼロクリアしてからWeldで固定する。
+    // Decal.FrontはCubeローカル+Z面(Renderer_GUI.cpp参照)だが、Humanoidの正面(getForward)は-Z基準のため、
+    // Seatの回転をそのまま使うとFrontとは逆の-Z方向を向いてしまう。180度反転して整合させる
+    CFrame target = seat->getWorldCFrame() * CFrame(0, seat->Size.y * 0.001f + Root->Size.y * 0.25f, 0)
+                  * CFrame::fromAxisAngle(Vector3(0, 1, 0), 0.0f); // やっぱり必要なさそうなので0.0にした
     physx::PxTransform pose(
         physx::PxVec3(target.Position.x, target.Position.y, target.Position.z),
         physx::PxQuat(target.Rotation.x, target.Rotation.y, target.Rotation.z, target.Rotation.w)

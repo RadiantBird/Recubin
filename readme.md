@@ -32,6 +32,8 @@ Windowsで動作します。後々、Mac対応予定。
   - exeコピー
   - imgui.iniコピー
 
+- [ ] アタッチメントの位置移動などがコマンド履歴に保存されていない問題の修正
+
 - [~] LocalScript実装(v2.0ネットワーク基盤の一部として最小実装。詳細はprogress.md参照)
       - [x] Script派生の最小クラスを追加。UseNetworkがfalseならScriptと同じ扱い
       - [x] UseNetwork=true時、Client側ではLocalScriptのみ実行(Scriptは実行しない)
@@ -52,8 +54,15 @@ Windowsで動作します。後々、Mac対応予定。
 
 - [ ] Terrainに上下左右前後のブラシを実装する(現状上からしかできないため)
 
+- [ ] 無限増殖バグの修正
+    - ```
+      [RCBN_WARN][Instance.cpp:59] setParent: Key collision for 'Users' in System. Renamed new child to 'Users1' to avoid overwriting existing instance.
+      [RCBN_WARN][Instance.cpp:59] setParent: Key collision for 'Users1' in System. Renamed new child to 'Users11' to avoid overwriting existing instance.
+      [RCBN_WARN][Instance.cpp:59] setParent: Key collision for 'Users11' in System. Renamed new child to 'Users111' to avoid overwriting existing instance.
+      [RCBN_WARN][Instance.cpp:59] setParent: Key collision for 'Users111' in System. Renamed new child to 'Users1111' to avoid overwriting existing instance.
+      ```
 ### 物理エンジン関係
-- [ ] アタッチメントの位置移動などがコマンド履歴に保存されていない問題の修正
+
 - [ ] Seatが勝手に回転して、-Z方向を向く問題の修正
 
 ### レンダリング関連
