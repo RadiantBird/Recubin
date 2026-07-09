@@ -66,6 +66,7 @@ add_executable(RecubinTest
 # --- 4. 静的リンクの強制定義 (重要) ---
 set(LIB_DIR "${CMAKE_SOURCE_DIR}/include/libs")
 set(COMMON_INCLUDES ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/include/imgui
+    ${CMAKE_SOURCE_DIR}/include/PhysX
     ${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation/Recast/Include
     ${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation/Detour/Include
     .)
@@ -91,26 +92,39 @@ if(WIN32)
     )
 else()
     # --- Mac対応 ---
-    # GLFW / yaml-cpp / GLEW は Windows用.libのプリビルドが無いため、
+    # GLFW / GLEW は Windows用.libのプリビルドが無いため、
     # Homebrew等でインストールされたものを find_package で解決する想定。
-    #   brew install glfw yaml-cpp glew
+    #   brew install glfw glew
     set(COMMON_DEFS YAML_CPP_STATIC_LIBRARIES $<$<CONFIG:Debug>:NDEBUG>)
 
     find_package(glfw3 REQUIRED)
-    find_package(yaml-cpp REQUIRED)
     find_package(GLEW REQUIRED)
     find_package(OpenGL REQUIRED)
 
+    include(FetchContent)
+
     # Luau: リポジトリ内にビルド元のバージョン記録が無いため、
     # 既定でmasterを取得する。RECUBIN_LUAU_GIT_TAGで固定バージョンに上書き可能。
-    set(RECUBIN_LUAU_GIT_TAG "master" CACHE STRING "Luauの取得元git tag/コミット")
-    include(FetchContent)
+    set(RECUBIN_LUAU_GIT_TAG "0.695" CACHE STRING "Luauの取得元git tag/コミット")
     FetchContent_Declare(
         Luau
         GIT_REPOSITORY https://github.com/luau-lang/luau.git
         GIT_TAG ${RECUBIN_LUAU_GIT_TAG}
     )
     FetchContent_MakeAvailable(Luau)
+
+    # yaml-cpp: Homebrew版(0.9.0リリースタグ)には`include/yaml-cpp`に同梱されている
+    # patched header(GetShowTrailingZero/insert_map_pairのforce引数等、jbeder/yaml-cpp
+    # masterブランチには存在するがリリースタグ0.9.0には未リリースのAPI)が無く、
+    # リンク時にシンボル不足で失敗する。ヘッダと一致するmasterブランチをソースから取得する。
+    set(RECUBIN_YAMLCPP_GIT_TAG "master" CACHE STRING "yaml-cppの取得元git tag/コミット")
+    set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        yaml-cpp
+        GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+        GIT_TAG ${RECUBIN_YAMLCPP_GIT_TAG}
+    )
+    FetchContent_MakeAvailable(yaml-cpp)
 
     # PhysX: NVIDIA公式に事前ビルド済みバイナリのMac配布は無いため、
     # ユーザーが手元のMac環境でmacOS向けプリセットからビルドした.aを指す。

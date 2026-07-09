@@ -60,7 +60,10 @@
 #include <algorithm>
 #include <float.h>
 #include <fenv.h>
+#if defined(__i386__) || defined(__x86_64__)
 #include <xmmintrin.h>
+#define RCBN_HAS_MXCSR 1
+#endif
 
 // DispatchTableの定義
 std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEngine::GetterFunc>> LuauEngine::DispatchTable;
@@ -102,19 +105,25 @@ static void setWorkspaceGlobal(lua_State* state, const std::shared_ptr<Workspace
 
 struct FPUState {
     fenv_t env;
+#ifdef RCBN_HAS_MXCSR
     unsigned int mxcsr;
+#endif
 };
 
 FPUState saveFPU() {
     FPUState s;
     fegetenv(&s.env);
+#ifdef RCBN_HAS_MXCSR
     s.mxcsr = _mm_getcsr();
+#endif
     return s;
 }
 
 void restoreFPU(const FPUState& s) {
     fesetenv(&s.env);
+#ifdef RCBN_HAS_MXCSR
     _mm_setcsr(s.mxcsr);
+#endif
 }
 
 // Clone/Restart呼び出し元のScriptを識別するラベル。Heartbeat経由の呼び出しは

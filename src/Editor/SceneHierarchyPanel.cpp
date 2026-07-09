@@ -194,7 +194,7 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     if (renaming) {
         ImGui::SameLine();
         if (renameFocusPending) {
-            strncpy_s(m_renameBuf, inst->Name.c_str(), sizeof(m_renameBuf) - 1);
+            strncpy(m_renameBuf, inst->Name.c_str(), sizeof(m_renameBuf) - 1);
             ImGui::SetKeyboardFocusHere();
             renameFocusPending = false;
         }

@@ -1,3 +1,5 @@
+#ifdef _WIN32
+
 #include <Util/WindowsPlatform.hpp>
 #include <windows26.h>
 #include <shobjidl.h>
@@ -109,3 +111,5 @@ void* WindowsPlatform::getSymbol(void* handle, const std::string& symbolName) {
 void WindowsPlatform::freeDynamicLibrary(void* handle) {
     if (handle) FreeLibrary(reinterpret_cast<HMODULE>(handle));
 }
+
+#endif // _WIN32

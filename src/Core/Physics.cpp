@@ -77,13 +77,24 @@ void Physics::init() {
     // 最初のインスタンスのみ共有リソースを構築
     if (s_refCount == 0) {
         s_foundation = PxCreateFoundation(PX_PHYSICS_VERSION, s_allocator, s_errorCallback);
-        // stud基準のスケール（1m=20stud）。PhysX公式の「cm単位ならlength=100」と同じ理屈
-        physx::PxTolerancesScale scale(METER_TO_STUD, METER_TO_STUD * EARTH_GRAVITY_MPS2);
-        s_pxPhysics  = PxCreatePhysics(PX_PHYSICS_VERSION, *s_foundation, scale);
-        s_dispatcher = physx::PxDefaultCpuDispatcherCreate(1);
-        PxInitExtensions(*s_pxPhysics, nullptr);
+        if (!s_foundation) {
+            RCBN_LOG("[WARN] PxCreateFoundation failed. Physics disabled on this platform.");
+        } else {
+            // stud基準のスケール（1m=20stud）。PhysX公式の「cm単位ならlength=100」と同じ理屈
+            physx::PxTolerancesScale scale(METER_TO_STUD, METER_TO_STUD * EARTH_GRAVITY_MPS2);
+            s_pxPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *s_foundation, scale);
+            if (!s_pxPhysics) {
+                RCBN_LOG("[WARN] PxCreatePhysics failed. Physics disabled on this platform.");
+            } else {
+                s_dispatcher = physx::PxDefaultCpuDispatcherCreate(1);
+                PxInitExtensions(*s_pxPhysics, nullptr);
+            }
+        }
     }
     ++s_refCount;
+
+    // PhysXが利用できない環境(Mac向けスタブビルド等)ではsceneを作らず物理無効のまま抜ける
+    if (!s_pxPhysics) return;
 
     physx::PxSceneDesc sceneDesc(s_pxPhysics->getTolerancesScale());
     sceneDesc.gravity               = physx::PxVec3(0.0f, -METER_TO_STUD * EARTH_GRAVITY_MPS2, 0.0f);

@@ -296,7 +296,7 @@ void PropertiesPanel::drawConstraintCubeRef(const char* label, std::string& name
     ImGui::SetNextItemWidth(fieldW);
 
     char buf[512] = {};
-    strncpy_s(buf, nameRef.c_str(), sizeof(buf) - 1);
+    strncpy(buf, nameRef.c_str(), sizeof(buf) - 1);
     std::string inputId = "##cuberef_" + key;
     ImGui::InputText(inputId.c_str(), buf, sizeof(buf));
     if (ImGui::IsItemActivated()) s_before[key] = nameRef;
@@ -360,7 +360,7 @@ void PropertiesPanel::drawConstraintAttachmentRef(const char* label, std::string
     ImGui::SetNextItemWidth(fieldW);
 
     char buf[512] = {};
-    strncpy_s(buf, nameRef.c_str(), sizeof(buf) - 1);
+    strncpy(buf, nameRef.c_str(), sizeof(buf) - 1);
     std::string inputId = "##attref_" + key;
     ImGui::InputText(inputId.c_str(), buf, sizeof(buf));
     if (ImGui::IsItemActivated()) s_before[key] = nameRef;
@@ -458,7 +458,7 @@ void PropertiesPanel::onRender() {
 
     static std::string s_nameBefore;
     char nameBuf[256] = {};
-    strncpy_s(nameBuf, inst->Name.c_str(), sizeof(nameBuf) - 1);
+    strncpy(nameBuf, inst->Name.c_str(), sizeof(nameBuf) - 1);
     if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf))) {
         inst->renameTo(std::string(nameBuf));
     }
