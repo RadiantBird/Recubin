@@ -40,11 +40,28 @@ private:
     static Script* currentScript;  // 現在実行中のスクリプト
     std::string m_lastTraceback;   // debugprotectederror で取得したスタックトレース
 
-    // ---- 安全対策(1フレームあたりのClone/Restart上限、ループタイムアウト) ----
+    // エンジン管理タスク(task.spawn/task.delay)。Scriptインスタンスに属さない
+    // コルーチンの遅延起動・wait()睡眠を管理する
+    struct EngineTask {
+        lua_State* co        = nullptr;
+        int   coRef          = -1;    // GC保護用レジストリ参照
+        float delayRemaining = 0.0f;  // 初回resumeまでの残り秒(task.delay)
+        int   pendingArgs    = 0;     // 初回resumeで渡す引数の個数(coのスタックに積み済み)
+        bool  started        = false; // 初回resume済みか
+        bool  sleeping       = false; // task.wait()による睡眠中か
+        float sleepRemaining = 0.0f;
+        bool  finished       = false; // 掃除待ち(完了/エラー/放置yield)
+    };
+    std::vector<std::unique_ptr<EngineTask>> m_tasks;
+    static EngineTask* currentTask;  // 現在実行中のエンジンタスク(currentScriptと排他)
+
+    // ---- 安全対策(1フレームあたりのClone/Restart/Task上限、ループタイムアウト) ----
     std::unordered_map<std::string, int> m_cloneCallCounts;
     std::unordered_map<std::string, int> m_restartCallCounts;
+    std::unordered_map<std::string, int> m_taskCallCounts;
     int  m_totalClonesThisFrame   = 0;
     int  m_totalRestartsThisFrame = 0;
+    int  m_totalTasksThisFrame    = 0;
     bool m_haltRequested          = false;
     // ループタイムアウト検出用: 直近のlua_resume開始時刻(コルーチンは同時に1つしか
     // 実行されないため、エンジン単位のタイムスタンプ1つで足りる)
@@ -80,6 +97,15 @@ private:
     void InitDispatchTable_Physics();  // Rope, Rod, Weld, Motor
     void InitDispatchTable_Misc();     // Sound, Humanoid, AppImage, Script
     void InitDispatchTable_GUI();      // ScreenGuiObject, TextLabel, GuiButton, TextButton, WorldGuiObject, SurfaceGui, BillboardGui
+
+    // Scriptが参照すべきworkspace(祖先Workspace、無ければアクティブWorkspace)を返す
+    std::shared_ptr<Workspace> resolveScriptWorkspace(Script& script);
+    // Sourceのチャンクをco上にロードする(ファイル再読込/.luar/.luauc対応)。
+    // 成功時はコンパイル済み関数をcoのスタックに積んでtrueを返す。
+    // 失敗時はscript.Abortedを立て、エラーログを出してfalseを返す。
+    bool loadScriptChunk(lua_State* co, Script& script);
+    // Sleeping/WaitChild状態のスクリプトを1フレーム分進める(update()の共通処理)
+    void tickWaitingScript(const std::shared_ptr<Instance>& inst, float deltaTime);
 
     void InitSetterTable();
     void InitSetterTable_Base();
@@ -210,6 +236,18 @@ private:
     static int luafn_assert(lua_State* L);
     static int global_print_message(lua_State* L);
     static int wait(lua_State* L);
+    static int luafn_require(lua_State* L);  // require(moduleScript)
+
+    // taskモジュール
+    static int task_spawn(lua_State* L);  // task.spawn(fn, ...): 即時に並行実行
+    static int task_delay(lua_State* L);  // task.delay(sec, fn, ...): sec秒後に実行
+    // task.spawn/task.delay共通のタスク生成(fn+可変引数をcoへ移動して登録)。
+    // fnIdx はfnのスタック位置。生成したタスクを返す(安全上限超過時はluaL_error)。
+    static EngineTask* createEngineTask(lua_State* L, int fnIdx, float delaySec);
+    // タスクのコルーチンをresumeし、完了/エラーを処理する
+    void resumeEngineTask(EngineTask& task, int nargs);
+    // delay消化・睡眠再開・完了タスクの掃除(update()から毎フレーム呼ぶ)
+    void updateEngineTasks(float deltaTime);
 
     static int erik_index(lua_State* L);
     static int erik_tostring(lua_State* L);
@@ -242,6 +280,16 @@ public:
     void setSystem(System* s);
 
     void executeWorkspaceScripts(Workspace& ws);
+    // Workspace外(System配下)に登録されたスクリプトを実行する
+    void executeSystemScripts();
+    // requireのモジュールキャッシュを破棄する(シーンロードのたびに呼ぶ)
+    void clearModuleCache();
+    // 未完了のエンジンタスクを全て破棄する(シーンロードのたびに呼ぶ。
+    // 旧シーン向けのtask.delayコールバックが次のシーンで発火するのを防ぐ)
+    void cancelAllTasks();
+    // System配下(Workspace外)スクリプトの実行状態をリセットする。
+    // これらはPlay/Stopで破棄されないため、Play開始時にホストが呼ぶこと。
+    void resetSystemScripts();
     void update(float deltaTime);
 
     // Instance.new/Clone が保持する強参照のうち、ツリー所有済み/破棄済みのものを解放する。

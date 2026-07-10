@@ -713,6 +713,7 @@ private:
         if (!m_target) return;
         if      (m_prop == "MaxClonesPerFrame")   m_target->MaxClonesPerFrame   = v;
         else if (m_prop == "MaxRestartsPerFrame") m_target->MaxRestartsPerFrame = v;
+        else if (m_prop == "MaxTasksPerFrame")    m_target->MaxTasksPerFrame    = v;
     }
 };
 

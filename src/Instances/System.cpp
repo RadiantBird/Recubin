@@ -2,6 +2,7 @@
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/PropertyRegistry.hpp>
+#include <algorithm>
 
 static const bool s_systemRegistered = []{
     using namespace PropertyRegistry;
@@ -14,6 +15,14 @@ static const bool s_systemRegistered = []{
 
 System::System(std::string name) : Instance(name) {
     Heartbeat = std::make_shared<RCBNScriptSignal>();
+}
+
+void System::registerScript(const std::shared_ptr<Instance>& s) {
+    scripts.push_back(s);
+}
+
+void System::unregisterScript(const std::shared_ptr<Instance>& s) {
+    scripts.erase(std::remove(scripts.begin(), scripts.end(), s), scripts.end());
 }
 std::string System::getClassName() {
     return "System";
@@ -39,6 +48,7 @@ void System::setProperty(const std::string& name, const YAML::Node& value) {
     if (PropertyRegistry::loadProperty(this, "System", name, value)) return;
     if (name == "MaxClonesPerFrame")        { MaxClonesPerFrame        = value.as<int>();   return; }
     if (name == "MaxRestartsPerFrame")      { MaxRestartsPerFrame      = value.as<int>();   return; }
+    if (name == "MaxTasksPerFrame")         { MaxTasksPerFrame         = value.as<int>();   return; }
     if (name == "ScriptLoopTimeoutSeconds") { ScriptLoopTimeoutSeconds = value.as<float>(); return; }
     Instance::setProperty(name, value);
 }

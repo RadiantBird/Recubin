@@ -238,6 +238,7 @@ int main(int argc, char* argv[]) {
         luauEngine->fireHeartbeat(deltaTime);
         luauEngine->update(deltaTime);
         luauEngine->executeWorkspaceScripts(*workspace);
+        luauEngine->executeSystemScripts();
         if (luauEngine->consumeSafetyHaltRequest()) break; // 既存のconsumeExitRequestと同じglfwTerminate()クリーンアップ経路に合流
 
         // エディタが存在しないため、常にゲームプレイ入力として扱う

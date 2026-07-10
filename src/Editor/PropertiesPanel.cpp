@@ -922,6 +922,13 @@ void PropertiesPanel::onRender() {
                 m_history->record(std::make_unique<SetSystemIntCommand>(sysSp, "MaxRestartsPerFrame", s_before, sys->MaxRestartsPerFrame));
         }
         {
+            static int s_before;
+            ImGui::DragInt("MaxTasksPerFrame", &sys->MaxTasksPerFrame, 1.0f, 0, 1000000);
+            if (ImGui::IsItemActivated()) s_before = sys->MaxTasksPerFrame;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
+                m_history->record(std::make_unique<SetSystemIntCommand>(sysSp, "MaxTasksPerFrame", s_before, sys->MaxTasksPerFrame));
+        }
+        {
             static float s_before;
             ImGui::DragFloat("ScriptLoopTimeoutSeconds", &sys->ScriptLoopTimeoutSeconds, 0.05f, 0.0f, 60.0f, "%.2f");
             if (ImGui::IsItemActivated()) s_before = sys->ScriptLoopTimeoutSeconds;

@@ -16,6 +16,8 @@
 #include <Instances/MeshCube.hpp>
 #include <Instances/LiquidCube.hpp>
 #include <Instances/Script.hpp>
+#include <Instances/LocalScript.hpp>
+#include <Instances/ModuleScript.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
@@ -143,7 +145,7 @@ static const char* getClassIcon(const std::string& cn) {
     if (cn == "Model")                                                       return ICON_MODEL;
     if (cn == "Folder")                                                      return ICON_FOLDER;
     if (cn == "Tool")                                                        return ICON_TOOL;
-    if (cn == "Script")                                                      return ICON_SCRIPT;
+    if (cn == "Script" || cn == "LocalScript" || cn == "ModuleScript")       return ICON_SCRIPT;
     if (cn == "Sound")                                                       return ICON_SOUND;
     if (cn == "Humanoid")                                                    return ICON_HUMANOID;
     if (cn == "User")                                                        return ICON_USER;
@@ -381,7 +383,14 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
                 filePath = folder + "\\" + m_pickName + ".luau";
                 {
                     std::ofstream f(filePath);
-                    if (f) f << "-- " << m_pickName << "\n";
+                    if (f) {
+                        if (m_pendingScriptClass == ScriptInsertClass::ModuleScript) {
+                            // requireは返り値を要求するため、モジュールの雛形を書いておく
+                            f << "-- " << m_pickName << "\nlocal M = {}\n\nreturn M\n";
+                        } else {
+                            f << "-- " << m_pickName << "\n";
+                        }
+                    }
                 }
             }
         }
@@ -398,7 +407,12 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
                 m_pickName = (dot == std::string::npos || isLuar) ? fname : fname.substr(0, dot);
             }
 
-            auto script = std::make_shared<Script>(filePath);
+            std::shared_ptr<Script> script;
+            switch (m_pendingScriptClass) {
+                case ScriptInsertClass::LocalScript:  script = std::make_shared<LocalScript>(filePath);  break;
+                case ScriptInsertClass::ModuleScript: script = std::make_shared<ModuleScript>(filePath); break;
+                default:                              script = std::make_shared<Script>(filePath);       break;
+            }
             script->Name = m_pickName;
             m_history->execute(std::make_unique<AddInstanceCommand>(m_pickParent, script));
         }
@@ -496,10 +510,21 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::CategoryOtherDesc));
         ImGui::Separator();
 
-        // Scriptはダイアログを開く特殊な挙動なのでそのまま
+        // Script系はダイアログを開く特殊な挙動なのでそのまま
         if (ImGui::MenuItem("Script")) {
             m_pendingScriptParent = parentSp;
             m_openScriptDialog    = true;
+            m_pendingScriptClass  = ScriptInsertClass::Script;
+        }
+        if (ImGui::MenuItem("LocalScript")) {
+            m_pendingScriptParent = parentSp;
+            m_openScriptDialog    = true;
+            m_pendingScriptClass  = ScriptInsertClass::LocalScript;
+        }
+        if (ImGui::MenuItem("ModuleScript")) {
+            m_pendingScriptParent = parentSp;
+            m_openScriptDialog    = true;
+            m_pendingScriptClass  = ScriptInsertClass::ModuleScript;
         }
         
         tryInsertInstance<Folder>(m_history, "Folder", parentSp);

@@ -58,6 +58,10 @@ void bindStandardGlobals(LuauEngine& engine,
     engine.setGlobalInstance("User", user);
     engine.setWorkspace(workspace);
     engine.setSystem(system.get());
+    // シーンをまたいで旧インスタンスキーのモジュール返り値が残らないように破棄する
+    engine.clearModuleCache();
+    // 旧シーン向けのtask.delayコールバックが新シーンで発火しないように破棄する
+    engine.cancelAllTasks();
 }
 
 Bound loadAndBind(const std::string& scenePath,

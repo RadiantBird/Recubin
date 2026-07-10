@@ -73,20 +73,23 @@ int main(int argc, char* argv[]) {
     luauEngine->setSystem(system.get());
 
     luauEngine->executeWorkspaceScripts(*workspace);
+    luauEngine->executeSystemScripts(); // Workspace外(System配下)のスクリプトも実行対象
 
     // wait() で休止しているスクリプトの完了をタイムアウト付きで待つ
     const auto timeoutDuration = std::chrono::seconds(10);
     auto startTime = std::chrono::steady_clock::now();
     auto lastTime  = startTime;
-    while (true) {
-        bool anyPending = false;
-        for (auto& inst : workspace->scripts) {
+    auto hasPending = [](const std::vector<std::shared_ptr<Instance>>& scripts) {
+        for (auto& inst : scripts) {
             auto script = std::dynamic_pointer_cast<Script>(inst);
             if (script && script->Enabled && !script->Completed && !script->Aborted) {
-                anyPending = true;
-                break;
+                return true;
             }
         }
+        return false;
+    };
+    while (true) {
+        bool anyPending = hasPending(workspace->scripts) || hasPending(system->scripts);
         if (!anyPending) break;
 
         if (std::chrono::steady_clock::now() - startTime > timeoutDuration) {

@@ -23,6 +23,8 @@
 #include "include/Core/TerrainStreamer.hpp"
 #include "include/Util/Color4.hpp"
 #include "include/Util/Logger.hpp"
+#include "include/Instances/LocalScript.hpp"
+#include "include/Instances/ModuleScript.hpp"
 #include "include/Instances/Cube.hpp"
 #include "include/Instances/Cylinder.hpp"
 #include "include/Instances/TriangularPrism.hpp"
@@ -70,6 +72,7 @@
 std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEngine::GetterFunc>> LuauEngine::DispatchTable;
 std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEngine::SetterFunc>> LuauEngine::SetterTable;
 Script* LuauEngine::currentScript = nullptr;
+LuauEngine::EngineTask* LuauEngine::currentTask = nullptr;
 
 // Instance.new で生成したインスタンスの所有権を保持するストレージ。
 // Lua に渡す userdata は weak_ptr なので、親付け前(=ツリー未接続)の期間だけここで強参照を保持し、
@@ -84,10 +87,11 @@ void LuauEngine::sweepOwnedInstances() {
     }), v.end());
 }
 
-static std::shared_ptr<Workspace> getScriptWorkspace(Script& script) {
+std::shared_ptr<Workspace> LuauEngine::resolveScriptWorkspace(Script& script) {
     Instance* ws = script.findFirstAncestorWorkspace();
-    if (!ws) return nullptr;
-    return std::static_pointer_cast<Workspace>(ws->shared_from_this());
+    if (ws) return std::static_pointer_cast<Workspace>(ws->shared_from_this());
+    // Workspace外(System配下)のスクリプトはアクティブWorkspaceを参照する
+    return workspace.lock();
 }
 
 static void setWorkspaceGlobal(lua_State* state, const std::shared_ptr<Workspace>& ws) {
@@ -351,6 +355,16 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     lua_pushcfunction(L, wait, "wait");
     lua_setglobal(L, "wait");
 
+    lua_pushcfunction(L, luafn_require, "require");
+    lua_setglobal(L, "require");
+
+    // task モジュール(task.wait は wait のエイリアス)
+    lua_newtable(L);
+    lua_pushcfunction(L, task_spawn, "spawn"); lua_setfield(L, -2, "spawn");
+    lua_pushcfunction(L, task_delay, "delay"); lua_setfield(L, -2, "delay");
+    lua_pushcfunction(L, wait,       "wait");  lua_setfield(L, -2, "wait");
+    lua_setglobal(L, "task");
+
     auto ws = workspace.lock();
     if (ws) {
         auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
@@ -432,10 +446,10 @@ LuauEngine::LuauEngine() {
     };
 
     // ループタイムアウト検出。lua_Callbacksは全コルーチンで共有されるためLに一度だけ設定すれば
-    // 全てのScriptコルーチンに適用される。currentScriptがnullの間(Heartbeat経由の直接pcall等)は
-    // 対象スクリプトが特定できないためチェックをスキップする。
+    // 全てのScriptコルーチンに適用される。currentScript/currentTaskが共にnullの間
+    // (Heartbeat経由の直接pcall等)は対象が特定できないためチェックをスキップする。
     lua_callbacks(L)->interrupt = [](lua_State* Lco, int gc) {
-        if (gc >= 0 || !currentScript) return; // GC由来の割り込み、及びスクリプト外の呼び出しは対象外
+        if (gc >= 0 || (!currentScript && !currentTask)) return; // GC由来の割り込み、及びスクリプト/タスク外の呼び出しは対象外
         auto* engine = static_cast<LuauEngine*>(lua_callbacks(Lco)->userdata);
         if (!engine || !engine->m_system) return;
         float limit = engine->m_system->ScriptLoopTimeoutSeconds;
@@ -530,6 +544,57 @@ int LuauEngine::instance_find_child_closure(lua_State* L) {
     }
 }
 
+bool LuauEngine::loadScriptChunk(lua_State* co, Script& script) {
+    // ファイルが真実の源: 実行直前に最新ソースを再読込する
+    // (外部エディタ編集・新規作成直後の内容を反映。空読込時は既存を保持)
+    if (!script.isPrecompiled && !script.Path.empty()) {
+        std::string latest = FileLoader::readText(script.Path);
+        if (!latest.empty()) script.Source = latest;
+    }
+
+    std::string compiledSource;
+    const std::string* sourcePtr = &script.Source;
+
+    // .luarファイルはRust製LuarコンパイラでLuauに変換する
+    auto endsWithLuar = [](const std::string& s) {
+        return s.size() >= 5 && s.substr(s.size() - 5) == ".luar";
+    };
+    bool isLuar = endsWithLuar(script.Name) || endsWithLuar(script.Path);
+    if (isLuar) {
+        static LuarCompiler s_luarCompiler;
+        compiledSource = s_luarCompiler.compile(script.Source);
+        if (compiledSource.empty()) { script.Aborted = true; return false; }
+        RCBN_LOG("\033[32m Compiling Luar Source has succeeded!\033[0m");
+        // std::cerr << "[LuarCompiler] Output:\n" << compiledSource << "\n---\n";
+        sourcePtr = &compiledSource;
+    }
+
+    const std::string& source = *sourcePtr;
+    int status;
+    if (script.isPrecompiled) {
+        // .luauc: source already contains raw bytecode, pass directly
+        status = luau_load(co, ("@" + script.Name).c_str(),
+                           source.data(), source.size(), 0);
+    } else {
+        size_t bytecodeSize = 0;
+        char* bytecode = luau_compile(source.c_str(), source.length(), nullptr, &bytecodeSize);
+        if (!bytecode) return false;
+        status = luau_load(co, ("@" + script.Name).c_str(), bytecode, bytecodeSize, 0);
+        free(bytecode);
+    }
+
+    if (status != 0) {
+        script.Aborted = true; // DO NOT loop on errored script compile!
+        const char* raw = (lua_gettop(co) > 0) ? lua_tostring(co, -1) : nullptr;
+        const std::string errMsg = raw ? raw : "compile error";
+        std::cerr << "Luau Load Error: " << errMsg << "\n";
+        if (g_luauLogHook) g_luauLogHook("[ERROR] " + errMsg);
+        if (lua_gettop(co) > 0) lua_pop(co, 1);
+        return false;
+    }
+    return true;
+}
+
 bool LuauEngine::execute(Script& script) {
     // 自分自身へのRestart()はここでループして即座に再実行する(再帰しない)。
     // これによりC++呼び出しスタックを伸ばさずに「同一フレームで即再実行」を実現する。
@@ -559,58 +624,12 @@ bool LuauEngine::execute(Script& script) {
         }
 
         lua_State* co = script.Coroutine;
-        setWorkspaceGlobal(co, getScriptWorkspace(script));
+        setWorkspaceGlobal(co, resolveScriptWorkspace(script));
 
         // 初回実行の場合、スクリプトをロード
         // lua_status(): 0=OK, LUA_YIELD=suspended, LUA_ERRERR=error, etc.
         if (lua_status(co) == 0 && lua_gettop(co) == 0) {  // スタックが空なら初回実行
-            // ファイルが真実の源: 実行直前に最新ソースを再読込する
-            // (外部エディタ編集・新規作成直後の内容を反映。空読込時は既存を保持)
-            if (!script.isPrecompiled && !script.Path.empty()) {
-                std::string latest = FileLoader::readText(script.Path);
-                if (!latest.empty()) script.Source = latest;
-            }
-
-            std::string compiledSource;
-            const std::string* sourcePtr = &script.Source;
-
-            // .luarファイルはRust製LuarコンパイラでLuauに変換する
-            auto endsWithLuar = [](const std::string& s) {
-                return s.size() >= 5 && s.substr(s.size() - 5) == ".luar";
-            };
-            bool isLuar = endsWithLuar(script.Name) || endsWithLuar(script.Path);
-            if (isLuar) {
-                static LuarCompiler s_luarCompiler;
-                compiledSource = s_luarCompiler.compile(script.Source);
-                if (compiledSource.empty()) { script.Aborted = true; return false; }
-                RCBN_LOG("\033[32m Compiling Luar Source has succeeded!\033[0m");
-                // std::cerr << "[LuarCompiler] Output:\n" << compiledSource << "\n---\n";
-                sourcePtr = &compiledSource;
-            }
-
-            const std::string& source = *sourcePtr;
-            int status;
-            if (script.isPrecompiled) {
-                // .luauc: source already contains raw bytecode, pass directly
-                status = luau_load(co, ("@" + script.Name).c_str(),
-                                   source.data(), source.size(), 0);
-            } else {
-                size_t bytecodeSize = 0;
-                char* bytecode = luau_compile(source.c_str(), source.length(), nullptr, &bytecodeSize);
-                if (!bytecode) return false;
-                status = luau_load(co, ("@" + script.Name).c_str(), bytecode, bytecodeSize, 0);
-                free(bytecode);
-            }
-
-            if (status != 0) {
-                script.Aborted = true; // DO NOT loop on errored script compile!
-                const char* raw = (lua_gettop(co) > 0) ? lua_tostring(co, -1) : nullptr;
-                const std::string errMsg = raw ? raw : "compile error";
-                std::cerr << "Luau Load Error: " << errMsg << "\n";
-                if (g_luauLogHook) g_luauLogHook("[ERROR] " + errMsg);
-                if (lua_gettop(co) > 0) lua_pop(co, 1);
-                return false;
-            }
+            if (!loadScriptChunk(co, script)) return false;
         }
 
         // currentScript を設定
@@ -928,17 +947,254 @@ int LuauEngine::luafn_assert(lua_State* L) {
 }
 
 int LuauEngine::wait(lua_State* L) {
-    float s = (float)luaL_checknumber(L, 1);
-    
+    // 引数省略時は0秒(次フレーム再開)。task.wait()の書き心地を優先
+    float s = (float)luaL_optnumber(L, 1, 0.0);
+
     // 現在実行中のスクリプトに待機情報を記録
     if (currentScript != nullptr) {
         currentScript->Sleeping = true;
         currentScript->SleepTime = s;
         currentScript->SleepRemaining = s;
+    } else if (currentTask != nullptr) {
+        // task.spawn/task.delayで起動したエンジンタスク内のwait()
+        currentTask->sleeping = true;
+        currentTask->sleepRemaining = s;
     }
-    
+
     // スクリプト実行を一時停止
     return lua_yield(L, 0);
+}
+
+// ===================================================
+//  task モジュール (spawn / delay / wait)
+// ===================================================
+// このLuauビルドはlua_Type列挙値とランタイムの型タグがずれているため、
+// lua_isfunction等のマクロではなくlua_typename()の文字列で型判定する
+// (pathfinding_configure_closureの注記参照)
+static bool isLuaFunctionAt(lua_State* L, int idx) {
+    return std::string_view(lua_typename(L, lua_type(L, idx))) == "function";
+}
+
+LuauEngine::EngineTask* LuauEngine::createEngineTask(lua_State* L, int fnIdx, float delaySec) {
+    if (!isLuaFunctionAt(L, fnIdx)) {
+        luaL_error(L, "task: function argument expected");
+        return nullptr; // 到達しない
+    }
+
+    auto* engine = static_cast<LuauEngine*>(lua_callbacks(L)->userdata);
+    if (!engine) {
+        luaL_error(L, "task: engine unavailable");
+        return nullptr; // 到達しない
+    }
+
+    // 安全対策: 1フレームあたりのタスク生成上限(無限spawn再帰の抑止)
+    if (engine->m_system) {
+        std::string label = scriptSafetyLabel(currentScript);
+        int total = ++engine->m_totalTasksThisFrame;
+        engine->m_taskCallCounts[label]++;
+        if (total > engine->m_system->MaxTasksPerFrame) {
+            engine->reportSafetyBreach("Infinite task spawning possible", engine->m_taskCallCounts);
+            luaL_error(L, "Safety limit exceeded: too many task.spawn/delay calls this frame (max %d)",
+                       engine->m_system->MaxTasksPerFrame);
+            return nullptr; // 到達しない
+        }
+    }
+
+    int nargs = lua_gettop(L) - fnIdx; // fnより後ろの可変引数の個数
+
+    auto task = std::make_unique<EngineTask>();
+    task->co = lua_newthread(L);
+    task->coRef = lua_ref(L, -1); // レジストリ参照でGCから保護
+    lua_pop(L, 1);
+    task->delayRemaining = delaySec;
+    task->pendingArgs    = nargs;
+
+    // コルーチンにもデバッグコールバックを伝播させる(execute()と同じパターン)
+    lua_callbacks(task->co)->userdata = lua_callbacks(L)->userdata;
+
+    // fn+可変引数(スタック末尾のnargs+1個)をタスクのコルーチンへ移す
+    lua_xmove(L, task->co, nargs + 1);
+
+    engine->m_tasks.push_back(std::move(task));
+    return engine->m_tasks.back().get();
+}
+
+int LuauEngine::task_spawn(lua_State* L) {
+    // L[1]=fn, L[2..]=引数。即時に1回resumeする(Roblox task.spawn相当)
+    EngineTask* task = createEngineTask(L, 1, 0.0f);
+    auto* engine = static_cast<LuauEngine*>(lua_callbacks(L)->userdata);
+    engine->resumeEngineTask(*task, task->pendingArgs);
+    return 0;
+}
+
+int LuauEngine::task_delay(lua_State* L) {
+    // L[1]=秒, L[2]=fn, L[3..]=引数。初回resumeはupdate()でdelay経過後
+    float sec = (float)luaL_checknumber(L, 1);
+    createEngineTask(L, 2, sec);
+    return 0;
+}
+
+void LuauEngine::resumeEngineTask(EngineTask& task, int nargs) {
+    if (!task.co || task.finished) return;
+
+    // タスク内のwait()がcurrentScriptに誤って記録されないよう、実行文脈を切り替える
+    Script*     savedScript = currentScript;
+    EngineTask* savedTask   = currentTask;
+    currentScript = nullptr;
+    currentTask   = &task;
+    task.started  = true;
+
+    FPUState fpuState = saveFPU();
+    m_scriptResumeStart = std::chrono::steady_clock::now();
+    int result = lua_resume(task.co, L, nargs);
+    restoreFPU(fpuState);
+
+    currentTask   = savedTask;
+    currentScript = savedScript;
+
+    if (result == LUA_YIELD) {
+        // wait()由来ならupdateEngineTasksが再開する。それ以外のyield(素の
+        // coroutine.yield等)は再開手段が無いため完了扱いで破棄する
+        if (!task.sleeping) task.finished = true;
+        return;
+    }
+
+    // 完了またはエラー
+    task.finished = true;
+    if (result != 0) {
+        std::cerr << "Luau Task Error caught. Status: " << result << "\n";
+        lua_State* errState = (lua_gettop(task.co) > 0) ? task.co : L;
+        std::string errMsg = "unknown error";
+        if (lua_gettop(errState) > 0) {
+            const char* raw = luaL_tolstring(errState, -1, nullptr);
+            if (raw) errMsg = raw;
+            lua_pop(errState, 2); // luaL_tolstring が文字列を積むので2つポップ
+        }
+        const std::string output = m_lastTraceback.empty() ? errMsg : m_lastTraceback;
+        m_lastTraceback.clear();
+        std::cerr << "Luau Task Error: " << output << "\n";
+        if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
+    }
+}
+
+void LuauEngine::updateEngineTasks(float deltaTime) {
+    // このフレーム中にresume内から追加されたタスクは次フレームから処理する
+    size_t count = m_tasks.size();
+    for (size_t i = 0; i < count; ++i) {
+        EngineTask* t = m_tasks[i].get();
+        if (t->finished) continue;
+        if (!t->started) {
+            t->delayRemaining -= deltaTime;
+            if (t->delayRemaining <= 0.0f) {
+                resumeEngineTask(*t, t->pendingArgs);
+            }
+        } else if (t->sleeping) {
+            t->sleepRemaining -= deltaTime;
+            if (t->sleepRemaining <= 0.0f) {
+                t->sleeping = false;
+                resumeEngineTask(*t, 0);
+            }
+        }
+    }
+
+    // 完了タスクの掃除(レジストリ参照を解放してGCに任せる)
+    m_tasks.erase(std::remove_if(m_tasks.begin(), m_tasks.end(),
+        [this](const std::unique_ptr<EngineTask>& t) {
+            if (!t->finished) return false;
+            if (t->coRef != -1) lua_unref(L, t->coRef);
+            return true;
+        }), m_tasks.end());
+}
+
+void LuauEngine::cancelAllTasks() {
+    for (auto& t : m_tasks) {
+        if (t->coRef != -1) lua_unref(L, t->coRef);
+    }
+    m_tasks.clear();
+}
+
+// requireのモジュールキャッシュ(Luaレジストリのテーブル名)と、
+// 読み込み中を示すsentinel(このstatic変数のアドレスをlightuserdataとして使う)
+static constexpr const char* RCBN_MODULE_CACHE_KEY = "RCBN_ModuleCache";
+static const char s_moduleLoadingSentinel = 0;
+
+// require(moduleScript) — ModuleScriptを同期実行し、返した値をキャッシュして返す。
+// 2回目以降は同一の値を返す。モジュール本体でのyield(wait等)は不可。
+int LuauEngine::luafn_require(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
+    auto inst = ud->lock();
+    if (!inst || !inst->IsA("ModuleScript")) {
+        luaL_error(L, "require: argument must be a ModuleScript");
+        return 0; // 到達しない（luaL_errorはlongjmp）
+    }
+    auto* module = static_cast<Script*>(inst.get());
+
+    auto* engine = static_cast<LuauEngine*>(lua_callbacks(L)->userdata);
+    if (!engine) { lua_pushnil(L); return 1; }
+
+    // キャッシュテーブルを取得（無ければ作成）。レジストリは全コルーチンで共有される
+    lua_getfield(L, LUA_REGISTRYINDEX, RCBN_MODULE_CACHE_KEY);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        lua_newtable(L);
+        lua_pushvalue(L, -1);
+        lua_setfield(L, LUA_REGISTRYINDEX, RCBN_MODULE_CACHE_KEY);
+    }
+
+    // キャッシュヒット判定（key: Instance*のlightuserdata）
+    lua_pushlightuserdata(L, inst.get());
+    lua_rawget(L, -2); // [cache, value]
+    if (!lua_isnil(L, -1)) {
+        if (lua_touserdata(L, -1) == (void*)&s_moduleLoadingSentinel) {
+            luaL_error(L, "require: cyclic require detected for '%s'", module->Name.c_str());
+        }
+        lua_remove(L, -2); // [value]
+        return 1;
+    }
+    lua_pop(L, 1); // [cache]
+
+    // 読み込み開始をマークして循環requireを検出可能にする
+    lua_pushlightuserdata(L, inst.get());
+    lua_pushlightuserdata(L, (void*)&s_moduleLoadingSentinel);
+    lua_rawset(L, -3); // [cache]
+
+    // sentinelをキャッシュから取り除く（エラー経路の共通処理）
+    auto clearSentinel = [&](int cacheIdx) {
+        lua_pushlightuserdata(L, inst.get());
+        lua_pushnil(L);
+        lua_rawset(L, cacheIdx - 2); // push 2つ分だけcacheが深くなる
+    };
+
+    if (!engine->loadScriptChunk(L, *module)) { // 成功時 [cache, chunk]
+        clearSentinel(-1); // 失敗時は何も積まれていない [cache]
+        luaL_error(L, "require: failed to load module '%s'", module->Name.c_str());
+    }
+
+    // 呼び出し元スレッド上で同期実行（1個の返り値を要求）
+    if (lua_pcall(L, 0, 1, 0) != 0) { // [cache, err]
+        const char* raw = lua_tostring(L, -1);
+        const std::string errMsg = raw ? raw : "unknown error";
+        clearSentinel(-2);
+        luaL_error(L, "require: error in module '%s': %s", module->Name.c_str(), errMsg.c_str());
+    }
+
+    // [cache, result]
+    if (lua_isnil(L, -1)) {
+        clearSentinel(-2);
+        luaL_error(L, "require: module '%s' must return a value", module->Name.c_str());
+    }
+
+    // キャッシュに保存して結果だけ残す
+    lua_pushlightuserdata(L, inst.get()); // [cache, result, key]
+    lua_pushvalue(L, -2);                 // [cache, result, key, result]
+    lua_rawset(L, -4);                    // [cache, result]
+    lua_remove(L, -2);                    // [result]
+    return 1;
+}
+
+void LuauEngine::clearModuleCache() {
+    lua_pushnil(L);
+    lua_setfield(L, LUA_REGISTRYINDEX, RCBN_MODULE_CACHE_KEY);
 }
 
 int LuauEngine::global_print_message(lua_State* L) {
@@ -999,6 +1255,36 @@ void LuauEngine::executeWorkspaceScripts(Workspace& ws) {
             && !script->Completed && !script->Aborted) {
             execute(*script);
         }
+    }
+}
+
+void LuauEngine::executeSystemScripts() {
+    if (m_haltRequested || !m_system) return;
+
+    // executeWorkspaceScriptsと同じネットワークフィルタを適用する
+    bool skipNonLocalScripts = m_system->UseNetwork
+        && NetworkManager::get().getRole() == NetworkRole::Client;
+
+    // 実行中のスクリプトが親付け替え等で登録リストを変更しても安全なようコピーして回す
+    auto scripts = m_system->scripts;
+    for (auto& inst : scripts) {
+        auto script = std::dynamic_pointer_cast<Script>(inst);
+        if (skipNonLocalScripts && script && !script->IsA("LocalScript")) continue;
+        if (script && script->Enabled && !script->Sleeping && !script->WaitingForChild
+            && !script->Completed && !script->Aborted) {
+            execute(*script);
+        }
+    }
+}
+
+void LuauEngine::resetSystemScripts() {
+    if (!m_system) return;
+    for (auto& inst : m_system->scripts) {
+        auto script = std::dynamic_pointer_cast<Script>(inst);
+        if (!script) continue;
+        // restart()はCoroutineRefのunref済みを前提とする(Script.cppのコメント参照)
+        if (script->CoroutineRef != -1) lua_unref(L, script->CoroutineRef);
+        script->restart();
     }
 }
 
@@ -1071,7 +1357,7 @@ void LuauEngine::resumeWaitChild(Script& script, Instance* childOrNull) {
     script.WaitingForChild = false;
     if (!co) return;
 
-    setWorkspaceGlobal(co, getScriptWorkspace(script));
+    setWorkspaceGlobal(co, resolveScriptWorkspace(script));
     currentScript = &script;
 
     // yield の戻り値として、見つかった子（無ければ nil）を1つ積んでから再開する
@@ -1298,8 +1584,13 @@ int LuauEngine::user_add_tool_closure(lua_State* L) {
     }
 
     int used = user->addToolToSlot(tool, slot);
-    if (used < 0) lua_pushnil(L);
-    else          lua_pushinteger(L, used + 1); // 1始まりで返す
+    if (used < 0) {
+        // サイレント失敗を防ぐ: スロット満杯/範囲外はnilを返しつつ警告を出す
+        RCBN_WARN("AddTool: no free slot for tool '" << tool->Name << "' (slots full or invalid index)");
+        lua_pushnil(L);
+    } else {
+        lua_pushinteger(L, used + 1); // 1始まりで返す
+    }
     return 1;
 }
 
@@ -1526,6 +1817,8 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "Sun",              [] { return std::make_shared<Sun>(); } },
         { "Moon",             [] { return std::make_shared<Moon>(); } },
         { "Script",           [] { return std::make_shared<Script>(""); } },
+        { "LocalScript",      [] { return std::make_shared<LocalScript>(""); } },
+        { "ModuleScript",     [] { return std::make_shared<ModuleScript>(""); } },
         { "Model",            [] { return std::make_shared<Model>(); } },
         { "Decal",            [] { return std::make_shared<Decal>(0, Face::Front); } },
         { "Texture",          [] { return std::make_shared<Texture>(0, Face::Front); } },
@@ -1700,8 +1993,10 @@ bool LuauEngine::consumeSafetyHaltRequest() {
 void LuauEngine::resetFrameSafetyCounters() {
     m_cloneCallCounts.clear();
     m_restartCallCounts.clear();
+    m_taskCallCounts.clear();
     m_totalClonesThisFrame   = 0;
     m_totalRestartsThisFrame = 0;
+    m_totalTasksThisFrame    = 0;
 }
 
 void LuauEngine::reportSafetyBreach(const std::string& reason,
@@ -1739,9 +2034,27 @@ void LuauEngine::onCollision(BaseCube* a, BaseCube* b) {
     }
 }
 
+void LuauEngine::tickWaitingScript(const std::shared_ptr<Instance>& inst, float deltaTime) {
+    auto script = std::dynamic_pointer_cast<Script>(inst);
+    if (script && script->Enabled && script->Sleeping && script->Coroutine != nullptr) {
+        script->SleepRemaining -= deltaTime;
+
+        // タイムアウト時にコルーチンを再開
+        if (script->SleepRemaining <= 0.0f) {
+            script->Sleeping = false;
+            execute(*script);
+        }
+    } else if (script && script->Enabled && script->WaitingForChild && script->Coroutine != nullptr) {
+        pollWaitChild(*script, deltaTime);
+    }
+}
+
 void LuauEngine::update(float deltaTime) {
     sweepOwnedInstances(); // 毎フレーム、ツリーが所有済み/破棄済みの強参照を手放す
     if (m_haltRequested) return; // 安全対策による強制停止済み
+
+    // task.delay/task.spawnのタスクを進める(m_system分岐は早期returnするため先に行う)
+    updateEngineTasks(deltaTime);
 
     if (m_system) {
         for (auto& [name, child] : m_system->getChildren()) {
@@ -1749,37 +2062,22 @@ void LuauEngine::update(float deltaTime) {
             auto* ws = static_cast<Workspace*>(child.get());
             auto scripts = ws->scripts;
             for (auto& inst : scripts) {
-                auto script = std::dynamic_pointer_cast<Script>(inst);
-                if (script && script->Enabled && script->Sleeping && script->Coroutine != nullptr) {
-                    script->SleepRemaining -= deltaTime;
-                    if (script->SleepRemaining <= 0.0f) {
-                        script->Sleeping = false;
-                        execute(*script);
-                    }
-                } else if (script && script->Enabled && script->WaitingForChild && script->Coroutine != nullptr) {
-                    pollWaitChild(*script, deltaTime);
-                }
+                tickWaitingScript(inst, deltaTime);
             }
+        }
+        // Workspace外(System配下)のスクリプトも待機を進める
+        auto sysScripts = m_system->scripts;
+        for (auto& inst : sysScripts) {
+            tickWaitingScript(inst, deltaTime);
         }
         return;
     }
 
     auto ws = workspace.lock();
     if (!ws) return;
-    
+
     // 待機中のスクリプトのタイマーを減算
     for (auto& inst : ws->scripts) {
-        auto script = std::dynamic_pointer_cast<Script>(inst);
-        if (script && script->Enabled && script->Sleeping && script->Coroutine != nullptr) {
-            script->SleepRemaining -= deltaTime;
-
-            // タイムアウト時にコルーチンを再開
-            if (script->SleepRemaining <= 0.0f) {
-                script->Sleeping = false;
-                execute(*script);
-            }
-        } else if (script && script->Enabled && script->WaitingForChild && script->Coroutine != nullptr) {
-            pollWaitChild(*script, deltaTime);
-        }
+        tickWaitingScript(inst, deltaTime);
     }
 }

@@ -4,6 +4,7 @@
 
 // Forward declaration
 struct lua_State;
+class System;
 
 class Script : public Instance {
     public:
@@ -11,6 +12,7 @@ class Script : public Instance {
         string Path = "";
 
         Workspace* lastWorkspace = nullptr;
+        System*    lastSystem    = nullptr;  // Workspace外(System配下)で登録中の場合のみ非null
 
         bool Enabled        = true;
         bool isPrecompiled  = false; // true when Source holds raw .luauc bytecode

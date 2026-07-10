@@ -107,6 +107,14 @@ export type Script = Instance & {
     Source: string, -- read only
 }
 
+export type LocalScript = Script & {
+
+}
+
+export type ModluleScript = Script & {
+
+}
+
 export type Terrain = Instance & {
     Enabled: boolean,
     DataPath: string,
@@ -227,13 +235,27 @@ export type User = Instance & {
     RemoveTool: (number|string) -> Tool?
 }
 
+export type task = {
+    spawn: (fn: (...any) -> (...any), ...any) -> (),
+    delay: (seconds: number, fn: (...any) -> (...any)) -> (),
+    wait:  (seconds: number?) -> ()
+}
+
 declare workspace: Workspace
-declare script: Script
-declare System: System
-declare system: System
-declare Vector3: Vector3
-declare Color4: Color4
-declare Vector2: Vector2
+declare script:    Script
+
+declare task:      task
+
+declare User:      User
+declare System:    System
+declare system:    System
+declare Vector3:   Vector3
+declare Color4:    Color4
+declare Vector2:   Vector2
 declare Instance: { new: (className: string) -> any }
-declare wait: (seconds: number) -> ()
+declare require: (moduleScript: ModluleScript) -> {[any]: any}
+
+--- Sleep the script for seconds.
+--- if seconds is nil, start in next frame. 
+declare wait: (seconds: number?) -> ()
 declare print: (...any) -> ()

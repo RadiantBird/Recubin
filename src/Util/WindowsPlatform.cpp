@@ -4,6 +4,7 @@
 #include <windows26.h>
 #include <shobjidl.h>
 #include <shellapi.h>
+#include <filesystem>
 #include <vector>
 
 namespace {
@@ -90,7 +91,13 @@ std::string WindowsPlatform::openFolderDialog() {
 }
 
 void WindowsPlatform::revealInFileManager(const std::string& path) {
+    // 相対パスのままShellExecuteWに渡すと、関連付け先アプリが自分自身のカレント
+    // ディレクトリ基準で解決しようとして見つからない場合がある(呼び出し元プロセスの
+    // CWD基準では解決されない)。事前に絶対パスへ変換して渡すことでこれを防ぐ。
     std::wstring wp = utf8ToWide(path);
+    std::error_code ec;
+    std::filesystem::path abs = std::filesystem::absolute(std::filesystem::path(wp), ec);
+    if (!ec) wp = abs.wstring();
     ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOW);
 }
 

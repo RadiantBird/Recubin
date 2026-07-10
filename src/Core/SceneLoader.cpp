@@ -47,6 +47,7 @@
 #include <Instances/Tool.hpp>
 #include <Instances/Users.hpp>
 #include <Instances/LocalScript.hpp>
+#include <Instances/ModuleScript.hpp>
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Weather.hpp>
 #include <Core/User.hpp>
@@ -273,6 +274,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Folder")   return std::make_shared<Folder>();
     if (className == "Users")    return std::make_shared<Users>();
     if (className == "LocalScript") return std::make_shared<LocalScript>("");
+    if (className == "ModuleScript") return std::make_shared<ModuleScript>("");
     if (className == "Tool")     return std::make_shared<Tool>("Tool");
     if (className == "ParticleEmitter") return std::make_shared<ParticleEmitter>();
     if (className == "Weather") return std::make_shared<Weather>();
@@ -635,6 +637,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             const System* sys = static_cast<const System*>(inst);
             out << YAML::Key << "MaxClonesPerFrame"        << YAML::Value << sys->MaxClonesPerFrame;
             out << YAML::Key << "MaxRestartsPerFrame"      << YAML::Value << sys->MaxRestartsPerFrame;
+            out << YAML::Key << "MaxTasksPerFrame"         << YAML::Value << sys->MaxTasksPerFrame;
             out << YAML::Key << "ScriptLoopTimeoutSeconds" << YAML::Value << sys->ScriptLoopTimeoutSeconds;
             PropertyRegistry::saveProperties(out, sys, "System");  // BaseResolution
         }

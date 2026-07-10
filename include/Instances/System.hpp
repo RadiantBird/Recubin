@@ -5,13 +5,25 @@
 #include <memory>
 
 class System : public Instance {
+    private:
+        // Workspace::registerScriptと同じ方式(信頼できるクラスのみに操作を許可)
+        friend class Script;
+
+        void registerScript(const std::shared_ptr<Instance>& s);
+        void unregisterScript(const std::shared_ptr<Instance>& s);
+
     public:
         std::shared_ptr<RCBNScriptSignal> Heartbeat;
+
+        // Workspace外(System配下)に置かれたスクリプトの実行リスト。
+        // Workspace::scriptsと相互排他(Workspace配下に入ったらそちらへ移る)。
+        std::vector<std::shared_ptr<Instance>> scripts;
 
         // 安全対策の許容値。意図的にLuauへバインドしない
         // (DispatchTable/SetterTableに登録しないこと)
         int   MaxClonesPerFrame        = 1000;
         int   MaxRestartsPerFrame      = 100;
+        int   MaxTasksPerFrame         = 1000; // task.spawn/delayの1フレームあたりの生成上限
         float ScriptLoopTimeoutSeconds = 2.0f; // 0以下でループタイムアウト無効
 
         // ScreenGui(Norm::Pixel)の自動スケーリング基準解像度。Luauへは読み取り専用で公開。

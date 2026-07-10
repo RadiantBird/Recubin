@@ -1,4 +1,5 @@
 #include <Instances/Script.hpp>
+#include <Instances/System.hpp>
 #include <Core/FileLoader.hpp>
 #include <Util/Logger.hpp>
 
@@ -90,7 +91,7 @@ bool Script::IsA(std::string className) {
 void Script::onAncestorChanged() {
     // Workspace を探す (O(h))
     Instance* ws_raw = findFirstAncestorWorkspace();
-    
+
     if (ws_raw) {
         Workspace* ws = static_cast<Workspace*>(ws_raw);
         if (lastWorkspace != ws) {
@@ -100,12 +101,36 @@ void Script::onAncestorChanged() {
             ws->registerScript(std::static_pointer_cast<Script>(shared_from_this()));
         }
         lastWorkspace = ws;
+
+        // Workspace配下に入ったらSystem側の管理からは抜ける（相互排他）
+        if (lastSystem) {
+            lastSystem->unregisterScript(std::static_pointer_cast<Script>(shared_from_this()));
+            lastSystem = nullptr;
+        }
     } else {
         // Workspace 外に放り出されたらリストから抜ける
         if (lastWorkspace) {
             lastWorkspace->unregisterScript(std::static_pointer_cast<Script>(shared_from_this()));
         }
         lastWorkspace = nullptr;
+
+        // Workspace外でもSystem配下（System直下・Users/User配下など）なら実行対象にする
+        Instance* sys_raw = findFirstAncestorSystem();
+        if (sys_raw) {
+            System* sys = static_cast<System*>(sys_raw);
+            if (lastSystem != sys) {
+                if (lastSystem) {
+                    lastSystem->unregisterScript(std::static_pointer_cast<Script>(shared_from_this()));
+                }
+                sys->registerScript(std::static_pointer_cast<Script>(shared_from_this()));
+            }
+            lastSystem = sys;
+        } else {
+            if (lastSystem) {
+                lastSystem->unregisterScript(std::static_pointer_cast<Script>(shared_from_this()));
+            }
+            lastSystem = nullptr;
+        }
     }
 
     // 子がいれば通知を継続（Scriptの中にScriptを入れる変態構成にも対応）

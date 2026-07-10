@@ -73,6 +73,15 @@ Instance* Instance::findFirstAncestorWorkspace() {
     return nullptr;
 }
 
+Instance* Instance::findFirstAncestorSystem() {
+    auto current = this->Parent.lock();
+    while (current) {
+        if (current->IsA("System")) return current.get();
+        current = current->Parent.lock();
+    }
+    return nullptr;
+}
+
 Instance::Instance(string name) {
     this->Name = name;
 }

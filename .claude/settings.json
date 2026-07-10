@@ -4,7 +4,8 @@
       "Bash(python build.py test Release assets/scenes/security_fix_test.yaml)",
       "Skill(summary)",
       "Skill(summary:*)",
-      "PowerShell(cd \"c:\\\\Users\\\\Ryarta\\\\Documents\\\\Recubin\"; $sp = \"C:\\\\Users\\\\Ryarta\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Ryarta-Documents-Recubin\\\\eaabdbaa-aa02-438f-a4ea-d43ece7231eb\\\\scratchpad\"; .\\\\build\\\\Release\\\\RecubinTest.exe \"$sp\\\\dream_sanitized.yaml\"; \"exit=$LASTEXITCODE\")"
+      "PowerShell(cd \"c:\\\\Users\\\\Ryarta\\\\Documents\\\\Recubin\"; $sp = \"C:\\\\Users\\\\Ryarta\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Ryarta-Documents-Recubin\\\\eaabdbaa-aa02-438f-a4ea-d43ece7231eb\\\\scratchpad\"; .\\\\build\\\\Release\\\\RecubinTest.exe \"$sp\\\\dream_sanitized.yaml\"; \"exit=$LASTEXITCODE\")",
+      "Bash(python run_regression.py)"
     ]
   }
 }

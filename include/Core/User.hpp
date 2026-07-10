@@ -86,6 +86,11 @@ public:
     void setCameraCFrame(const CFrame& cf);
     CFrame getCameraCFrame() const;
     void initializeInventory();  // Inventory を User の子として追加（コンストラクタ後に呼ぶ）
+    // ホットバー(Slots/currentTool)を全クリアする。シーン再読込の前に呼ぶこと。
+    // Userはreloadをまたいで使い回されるため、これを呼ばないと前回シーンの
+    // Toolへの参照がスロットに残留し、次のPlayでAddToolが幽霊スロットの後ろに
+    // 追加され続ける(Tool増殖・サイレント失敗の原因)。
+    void resetToolState();
     // Tool をインベントリに入れ、ホットバーのスロットに登録する。
     // slotIndex<0 のとき先頭の空きスロットを使う。使用したスロット(0-9)を返す。空き無し/無効時は -1。
     int addToolToSlot(std::shared_ptr<Tool> tool, int slotIndex = -1);

@@ -36,6 +36,12 @@ void User::initializeInventory() {
     }
 }
 
+void User::resetToolState() {
+    for (auto& slot : Slots) slot = nullptr;
+    currentTool      = nullptr;
+    currentSlotIndex = -1;
+}
+
 int User::addToolToSlot(std::shared_ptr<Tool> tool, int slotIndex) {
     if (!tool) return -1;
 

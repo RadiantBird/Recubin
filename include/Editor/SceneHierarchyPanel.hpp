@@ -75,9 +75,11 @@ public:
     }
 
 private:
-    // Script追加ダイアログ用
+    // Script追加ダイアログ用(Script/LocalScript/ModuleScriptでダイアログを共用する)
+    enum class ScriptInsertClass { Script, LocalScript, ModuleScript };
     std::shared_ptr<Instance> m_pendingScriptParent;
     bool                      m_openScriptDialog = false;
+    ScriptInsertClass         m_pendingScriptClass = ScriptInsertClass::Script;
 
     // ドラッグ＆ドロップの親変更は走査完了後にまとめて実行する
     // （drawNode が children マップを走査中に move すると iterator 無効化で表示が壊れるため）

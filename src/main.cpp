@@ -168,6 +168,9 @@ static void resetSystemForReload(
         for (auto& name : userChildNames) {
             user->removeChild(name);
         }
+        // Inventoryと同じ理由でホットバーも残留させない（前回シーンのToolが
+        // Slotsに残ると、次のPlayでAddToolが幽霊スロットの後ろに積まれて増殖する）
+        user->resetToolState();
     }
 }
 
@@ -488,6 +491,9 @@ int main(int argc, char* argv[]) {
 
         // ---- Play/Stop 遷移処理 ----
         if (isPlaying && !wasPlaying) {
+            // System配下(Workspace外)のスクリプトはPlay/Stopで破棄されないため、
+            // 前回Playの実行状態(Completed等)をリセットして毎回最初から実行させる
+            luauEngine->resetSystemScripts();
             snapshotDirty = ed && ed->isDirty();
             SceneLoader::saveScene(system.get(), snapshotPath);
             SceneLoader::resolveConstraintRefs(system.get());
@@ -564,6 +570,7 @@ int main(int argc, char* argv[]) {
                 luauEngine->executeWorkspaceScripts(*ws);
                 ws->getPhysicsEngine()->update(*ws, deltaTime);
             }
+            luauEngine->executeSystemScripts();
             luauEngine->fireHeartbeat(deltaTime);
             luauEngine->update(deltaTime);
 

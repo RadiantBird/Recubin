@@ -1,0 +1,33 @@
+Root:
+  Children:
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction: [1, -1, -1]
+        Brightness: 1
+    - ClassName: Workspace
+      Name: Workspace
+      Children:
+        - ClassName: Script
+          Name: TestScriptFeatures
+          Properties:
+            ContentPath: scripts/test_script_features.luau
+            Enabled: true
+          Children:
+            - ClassName: ModuleScript
+              Name: MathModule
+              Properties:
+                ContentPath: scripts/test_math_module.luau
+            - ClassName: ModuleScript
+              Name: CyclicModule
+              Properties:
+                ContentPath: scripts/test_cyclic_module.luau
+            - ClassName: ModuleScript
+              Name: NoReturnModule
+              Properties:
+                ContentPath: scripts/test_noreturn_module.luau
+    - ClassName: Script
+      Name: TestSystemScript
+      Properties:
+        ContentPath: scripts/test_system_script.luau
+        Enabled: true
