@@ -135,6 +135,20 @@ static void resetSystemForReload(
 {
     if (!system) return;
 
+    // System/UserはPlay/Stop・シーンLoadを跨いで同一インスタンスが使い回されるため、
+    // ScriptがConnect()したコールバックをここで明示的に切断しないと、次回Play/Load時に
+    // 古いコールバックが残ったまま発火し続けてしまう(LuaState自体もPlay/Stopで
+    // 再生成されないため、disconnectしない限りLuaレジストリ参照が永遠に残る)。
+    // 呼び出し元(Stop遷移・Loadボタン)の両方がこの関数を経由するため、ここに集約する。
+    if (system->Heartbeat) system->Heartbeat->disconnectAll();
+    if (user) {
+        if (user->CharacterAdded) user->CharacterAdded->disconnectAll();
+        if (user->Input) {
+            if (user->Input->Pressed)  user->Input->Pressed->disconnectAll();
+            if (user->Input->Released) user->Input->Released->disconnectAll();
+        }
+    }
+
     std::shared_ptr<Instance> usersContainer;
     for (auto& [name, child] : system->getChildren()) {
         if (child && child->IsA("Users")) { usersContainer = child; break; }
@@ -511,14 +525,6 @@ int main(int argc, char* argv[]) {
         if (!isPlaying && wasPlaying) {
             audioService->stopAllSounds();
             user->despawnCharacter();
-            // System/UserはPlay/Stopをまたいで同一インスタンスが使い回されるため、
-            // ScriptがConnect()したコールバックをここで明示的に切断しないと、
-            // 次回Play時に古いコールバックが残ったまま発火し続けてしまう
-            if (system->Heartbeat) system->Heartbeat->disconnectAll();
-            if (user->Input) {
-                if (user->Input->Pressed)  user->Input->Pressed->disconnectAll();
-                if (user->Input->Released) user->Input->Released->disconnectAll();
-            }
             // 全Workspaceのクリア（ownedPhysics デストラクタで自動解放）
             // Terrainは次回のload時に再構築される
             workspaces = SceneRuntime::collectWorkspaces(system);

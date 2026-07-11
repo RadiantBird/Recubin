@@ -9,6 +9,22 @@ Root:
     - ClassName: StarterCharacter
       Name: StarterCharacter
       Children:
+        - ClassName: Cube
+          Name: LeftArm
+          Properties:
+            Position: [-1.5, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
         - ClassName: Humanoid
           Name: Humanoid
           Properties:
@@ -20,9 +36,9 @@ Root:
             RespawnTime: 5
             Health: 100
         - ClassName: Cube
-          Name: LeftArm
+          Name: RightArm
           Properties:
-            Position: [-1.5, 0, 0]
+            Position: [1.5, 0, 0]
             Size: [1, 2, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -44,22 +60,6 @@ Root:
             Color: [0.13333334, 0.52156866, 0.6509804, 0]
             Anchored: false
             CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: RightArm
-          Properties:
-            Position: [1.5, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
             CastShadow: true
             Unlit: false
             MassDensity: 1
@@ -105,6 +105,8 @@ Root:
               Properties:
                 Face: 0
                 Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\hooo.png
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
         - ClassName: Cube
           Name: RightLeg
           Properties:
@@ -161,6 +163,14 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
             MeshFile: C:\Users\Ryarta\Documents\Recubin\assets\models\GirlTorso.glb
+          Children:
+            - ClassName: Decal
+              Name: Decal
+              Properties:
+                Face: 0
+                Texture: C:\Users\Ryarta\Pictures\Resistance tux.png
+                UVCenter: [0.2, 0.7]
+                UVRadius: 0.4
     - ClassName: Users
       Name: Users
       Children:
@@ -189,22 +199,6 @@ Root:
             Brightness: 1
             Color: [1, 1, 1, 1]
         - ClassName: Cube
-          Name: Cube2
-          Properties:
-            Position: [2.6748984, 1, 1.7505639]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
           Name: Spinner
           Properties:
             Position: [-2.791353, 1, -3.5121393]
@@ -229,9 +223,25 @@ Root:
                 MaintainVelocity: true
                 Value: [0, 25, 0]
         - ClassName: Cube
+          Name: Cube2
+          Properties:
+            Position: [2.6748984, 1, 1.7505639]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
           Name: Baseplate
           Properties:
-            Position: [0, 0, 0]
+            Position: [0, -50, 0]
             Size: [2048, 1, 2048]
             Rotation: [0, 0, 0, 1]
             Color: [0.41230768, 0.40342718, 0, 1]
@@ -299,22 +309,6 @@ Root:
                 Torque: false
                 MaintainVelocity: true
                 Value: [0, 10, 0]
-        - ClassName: Truss
-          Name: Truss
-          Properties:
-            Position: [-3.6178303, 12.633546, 5.11372]
-            Size: [1, 24.267092, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.4276923, 0.4276923, 0.4276923, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
         - ClassName: Cube
           Name: Cube
           Properties:
@@ -323,6 +317,22 @@ Root:
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
             Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Truss
+          Name: Truss
+          Properties:
+            Position: [-3.6178303, 12.633546, 5.11372]
+            Size: [1, 24.267092, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.4276923, 0.4276923, 0.4276923, 1]
+            Anchored: true
             CanCollide: true
             CastShadow: true
             Unlit: false
@@ -433,7 +443,7 @@ Root:
             Position: [-0.7968526, 7.5, 39.5]
             Size: [4, 1, 4]
             Rotation: [0.70710677, 0, 0, 0.70710677]
-            Color: [0.34901962, 0.34901962, 0.34901962, 0]
+            Color: [0.34901962, 0.34901962, 0.34901962, 0.98039216]
             Anchored: false
             CanCollide: true
             CastShadow: true
@@ -546,12 +556,6 @@ Root:
                 Axis: [0, 0, 1]
                 DriveVelocity: 5
                 MaxForce: 1000
-            - ClassName: Attachment
-              Name: Attachment
-              Properties:
-                Position: [-7.75, -0.5, 5]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0, 1]
             - ClassName: Motor
               Name: Motor2
               Properties:
@@ -563,9 +567,9 @@ Root:
                 DriveVelocity: 5
                 MaxForce: 1000
             - ClassName: Attachment
-              Name: Attachment1
+              Name: Attachment
               Properties:
-                Position: [-7.75, -0.5, -5]
+                Position: [-7.75, -0.5, 5]
                 Size: [0, 0, 0]
                 Rotation: [0, 0, 0, 1]
             - ClassName: Motor
@@ -578,6 +582,18 @@ Root:
                 Axis: [0, 0, 1]
                 DriveVelocity: 5
                 MaxForce: 1000
+            - ClassName: Attachment
+              Name: Attachment1
+              Properties:
+                Position: [-7.75, -0.5, -5]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+            - ClassName: Attachment
+              Name: Attachment3
+              Properties:
+                Position: [8.25, -0.5, 5]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
             - ClassName: Motor
               Name: Motor1
               Properties:
@@ -588,12 +604,6 @@ Root:
                 Axis: [0, 0, 1]
                 DriveVelocity: 5
                 MaxForce: 1000
-            - ClassName: Attachment
-              Name: Attachment3
-              Properties:
-                Position: [8.25, -0.5, 5]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0, 1]
             - ClassName: Attachment
               Name: Attachment2
               Properties:
@@ -626,6 +636,8 @@ Root:
               Name: Decal
               Properties:
                 Face: 0
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
         - ClassName: Cube
           Name: Jumper
           Properties:
@@ -642,6 +654,50 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
+        - ClassName: Cube
+          Name: Cube6
+          Properties:
+            Position: [8.170935, 2.0406718, -20.80815]
+            Size: [1, 3.0813432, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Animation
+          Name: Animation
+          Properties:
+            Length: 1
+            Speed: 0.5
+            Tracks:
+              - PartName: Cube6
+                Keyframes:
+                  - Time: 0
+                    Position: [8.170935, 2.0406718, -20.80815]
+                    Rotation: [0, 0, 0, 1]
+                    Easing: 0
+                  - Time: 0.17
+                    Position: [8.170935, 2.0406718, -20.80815]
+                    Rotation: [0.025090951, 0.04601596, -0.3416759, 0.93835527]
+                    Easing: 4
+                  - Time: 0.48
+                    Position: [8.170935, 2.0406718, -20.80815]
+                    Rotation: [0.00049867056, 0.00091475225, -0.0067918263, 0.9999764]
+                    Easing: 4
+                  - Time: 0.84
+                    Position: [8.170935, 2.0406718, -20.80815]
+                    Rotation: [-0.5937714, -0.0032998528, -0.0060063847, 0.8046046]
+                    Easing: 2
+                  - Time: 1
+                    Position: [8.170935, 2.0406718, -20.80815]
+                    Rotation: [0, 0, 0, 1]
+                    Easing: 1
     - ClassName: AppImage
       Name: AppImage
       Properties:

@@ -140,6 +140,12 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     // ---- ContentBrowserPanel ----
     { "<- 戻る",             "<- Back" },
     { "(assetsフォルダが見つかりません)", "(assets/ folder not found)" },
+
+    // ---- PropertiesPanel: MeshCube UV再生成 ----
+    { "UV再生成",            "Regenerate UV" },
+    { "UV再生成の確認",       "Confirm UV Regeneration" },
+    { "現在のUVを破棄して、", "This discards the current UV," },
+    { "xatlasで自動生成し直します。よろしいですか？", "and regenerates it automatically with xatlas. Continue?" },
 } };
 
 Lang g_lang = Lang::JA;

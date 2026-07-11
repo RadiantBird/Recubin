@@ -432,6 +432,11 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "Face"    << YAML::Value << static_cast<int>(d->face);
             if (!d->texturePath.empty())
                 out << YAML::Key << "Texture" << YAML::Value << d->texturePath;
+            out << YAML::Key << "UVCenter" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << d->UVCenter.x << d->UVCenter.y
+                << YAML::EndSeq;
+            out << YAML::Key << "UVRadius" << YAML::Value << d->UVRadius;
         }
         if (inst->getClassName() == "Texture") {
             const Texture* tx = static_cast<const Texture*>(inst);

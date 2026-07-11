@@ -8,6 +8,8 @@
 #include <Instances/BaseCube.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/System.hpp>
+#include <Instances/MeshCube.hpp>
+#include <Instances/Decal.hpp>
 #include <Core/SystemState.hpp>
 #include <Core/Renderer.hpp>
 #include <Core/Physics.hpp>
@@ -461,6 +463,32 @@ void ViewportPanel::onRender() {
             m_picker->active     = false;
             m_isDraggingSelected = false;
             m_isBoxSelectArmed   = false;
+        } else if (m_decalPlace && m_decalPlace->active && selectedInstance && *selectedInstance &&
+                   (*selectedInstance)->IsA("MeshCube")) {
+            // ---- Decal配置モード: MeshCube表面をクリックしたUV座標にDecalを自動配置 ----
+            MeshCube* mc  = static_cast<MeshCube*>(*selectedInstance);
+            CFrame    wcf = mc->getWorldCFrame();
+            Quaternion invRot = wcf.Rotation.conjugate();
+
+            Vector3 localOri = invRot.rotate(rayOri - wcf.Position) / mc->Size;
+            Vector3 localDir = invRot.rotate(rayDir) / mc->Size;
+
+            MeshHitResult hitResult = mc->raycastLocal(localOri, localDir);
+            if (hitResult.hit && m_history) {
+                auto mcSp = std::static_pointer_cast<Instance>(mc->shared_from_this());
+                auto decal = std::make_shared<Decal>(0, Face::Front);
+                decal->UVCenter = hitResult.uv;
+
+                std::string name = "Decal";
+                int n = 1;
+                while (mc->children.count(name) > 0) name = "Decal" + std::to_string(n++);
+                decal->Name = name;
+
+                m_history->execute(std::make_unique<AddInstanceCommand>(mcSp, decal));
+            }
+            m_decalPlace->active  = false;
+            m_isDraggingSelected  = false;
+            m_isBoxSelectArmed    = false;
         } else {
         // Step 1: 現在の選択物のOBBにヒットしたか判定（非Selectモードのドラッグ用）
         bool hitSelected = false;

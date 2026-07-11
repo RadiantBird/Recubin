@@ -346,6 +346,23 @@ struct SetDecalTextureCommand : Command {
     void undo()    override { if (m_target) { m_target->texturePath = m_beforePath; m_target->TextureID = m_beforeID; } }
 };
 
+// --- Decal UVCenter/UVRadius 変更 (MeshCube配下のUV空間配置) ---
+struct SetDecalUVCommand : Command {
+    std::shared_ptr<Decal> m_target;
+    Vector2 m_beforeCenter, m_afterCenter;
+    float   m_beforeRadius, m_afterRadius;
+
+    SetDecalUVCommand(std::shared_ptr<Decal> target,
+                       Vector2 beforeCenter, float beforeRadius,
+                       Vector2 afterCenter,  float afterRadius)
+        : m_target(std::move(target)),
+          m_beforeCenter(beforeCenter), m_afterCenter(afterCenter),
+          m_beforeRadius(beforeRadius), m_afterRadius(afterRadius) {}
+
+    void execute() override { if (m_target) { m_target->UVCenter = m_afterCenter;  m_target->UVRadius = m_afterRadius;  } }
+    void undo()    override { if (m_target) { m_target->UVCenter = m_beforeCenter; m_target->UVRadius = m_beforeRadius; } }
+};
+
 // --- Texture Face 変更 ---
 struct SetTextureFaceCommand : Command {
     std::shared_ptr<Texture> m_target;

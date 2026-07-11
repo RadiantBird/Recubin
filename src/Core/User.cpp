@@ -2,6 +2,7 @@
 #include <Instances/StarterCharacter.hpp>
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
+#include <include/Core/LuauEngine.hpp>
 #include <include/Util/Logger.hpp>
 
 User* User::s_instance = nullptr;
@@ -23,6 +24,8 @@ User::User(std::unique_ptr<IInputBackend> input)
     Input = std::make_shared<UserInput>();
     Input->Name = "Input";
     Input->setBackend(m_input.get());
+
+    CharacterAdded = std::make_shared<RCBNScriptSignal>();
 }
 
 void User::initializeInventory() {
@@ -605,6 +608,17 @@ void User::spawnCharacter(Instance* searchRoot) {
     auto it = character->getChildren().find("Humanoid");
     humanoid = (it != character->getChildren().end()) ? std::dynamic_pointer_cast<Humanoid>(it->second) : nullptr;
     if (humanoid) humanoid->resolveParts(character.get());
+
+    // NOTE: この時点ではcharacterはまだWorkspaceに追加されていない(addChildは呼び出し元が行う)。
+    // それでもRoot等のパーツ解決は完了しているため、Luau側はcharacterを直接受け取れば
+    // workspace:WaitChild()に頼らずrespawn後の新しいキャラクターを取得できる
+    if (CharacterAdded) {
+        auto self = character;
+        CharacterAdded->fire([self](lua_State* L) -> int {
+            LuauEngine::pushInstance(L, std::static_pointer_cast<Instance>(self));
+            return 1;
+        });
+    }
 
     RCBN_LOG("Spawning character...");
 }

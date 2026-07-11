@@ -13,6 +13,7 @@
 #include <Instances/Humanoid.hpp>
 #include <Instances/UserInput.hpp>
 #include <Core/IInputBackend.hpp>
+#include <Core/RCBNScriptSignal.hpp>
 #include <Instances/Tool.hpp>
 
 #include <cmath>
@@ -48,6 +49,11 @@ public:
 
     // User.Input (Roblox UserInputService 相当)。入力供給源を借用してポーリングする
     std::shared_ptr<UserInput> Input;
+
+    // 新しいキャラクター(PlayerCharacter)がspawnされるたび発火する(初回spawn + 全respawn)。
+    // Luau側にはキャラクター本体(character, Model)が引数として渡される。
+    // respawnを跨いで古いRoot等への参照を握り続けてしまうスクリプト向けに、都度取り直す手段として使う
+    std::shared_ptr<RCBNScriptSignal> CharacterAdded;
 
     bool processCameraRotation(bool viewportFocused);
     void processZoom(bool viewportZoomEnabled);

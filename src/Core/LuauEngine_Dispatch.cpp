@@ -498,6 +498,9 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Tool"]["Equipped"]   = getter_bool  <Tool, &Tool::Equipped>();  // read-only（装着ロジックは別経路）
     DispatchTable["Tool"]["Hand"]       = getter_number<Tool, &Tool::Hand>();
 
+    // User.CharacterAdded: 新しいキャラクター(PlayerCharacter)がspawnされるたび発火(初回spawn+全respawn)。
+    // Luau側にcharacter(Model)を引数で渡す
+    DispatchTable["User"]["CharacterAdded"] = getter_signal<User, &User::CharacterAdded>();
     DispatchTable["User"]["AddTool"]    = getter_closure(user_add_tool_closure,    "AddTool");
     DispatchTable["User"]["RemoveTool"] = getter_closure(user_remove_tool_closure, "RemoveTool");
     DispatchTable["User"]["GetTool"]    = getter_closure(user_get_tool_closure,    "GetTool");

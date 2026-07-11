@@ -37,6 +37,14 @@ struct Light {
 uniform Light uLights[MAX_LIGHTS];
 uniform int   uLightCount;
 
+// ---- MeshCube用UV空間Decal合成。uDecalCountはMeshCube描画時のみ>0で、他クラス描画時は常に0のためループがno-op ----
+#define MAX_DECALS 8
+uniform sampler2D uDecalTex[MAX_DECALS];
+uniform vec2      uDecalCenter[MAX_DECALS];
+uniform float     uDecalRadius[MAX_DECALS];
+uniform vec4      uDecalColor[MAX_DECALS];
+uniform int       uDecalCount;
+
 float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
@@ -81,6 +89,20 @@ void main() {
         baseColor = (isSurfaceGui > 0.5)
             ? mix(ourColor.rgb, texColor.rgb, texColor.a)
             : mix(ourColor.rgb, texColor.rgb * ourColor.rgb, texColor.a);
+    }
+
+    // ---- UV空間Decal合成(MeshCube専用。他クラスはuDecalCount==0でno-op) ----
+    for (int i = 0; i < uDecalCount; ++i) {
+        vec2  d    = TexCoord - uDecalCenter[i];
+        float dist = length(d);
+        float edge = max(uDecalRadius[i], 1e-4);
+        float mask = 1.0 - smoothstep(edge * 0.85, edge, dist);
+        if (mask > 0.0) {
+            vec2 localUV = d / edge * 0.5 + 0.5;
+            vec4 dcol = texture(uDecalTex[i], localUV);
+            float a = dcol.a * uDecalColor[i].a * mask;
+            baseColor = mix(baseColor, dcol.rgb * uDecalColor[i].rgb, a);
+        }
     }
 
     // texColor.a はどちらの分岐でも baseColor 側の mix() 済みなので、

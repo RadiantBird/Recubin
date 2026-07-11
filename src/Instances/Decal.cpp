@@ -22,6 +22,8 @@ std::shared_ptr<Instance> Decal::clone() const {
     copy->Name        = this->Name;
     copy->texturePath = this->texturePath;
     copy->Color       = this->Color;
+    copy->UVCenter    = this->UVCenter;
+    copy->UVRadius    = this->UVRadius;
     return copy;
 }
 
@@ -54,6 +56,13 @@ void Decal::setProperty(const std::string& name, const YAML::Node& value) {
         c.b = value[2].as<float>();
         c.a = value[3].as<float>();
         this->Color = c;
+    } else if (name == "UVCenter") {
+        Vector2 v;
+        v.x = value[0].as<float>();
+        v.y = value[1].as<float>();
+        this->UVCenter = v;
+    } else if (name == "UVRadius") {
+        this->UVRadius = value.as<float>();
     } else {
         Instance::setProperty(name, value);
     }

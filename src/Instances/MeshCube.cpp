@@ -2,11 +2,13 @@
 #include <cgltf.h>
 
 #include <Instances/MeshCube.hpp>
+#include <Instances/Decal.hpp>
 #include <Core/Renderer.hpp>
 #include <Core/Physics.hpp>
 #include <Util/Logger.hpp>
 #include <Util/AssetGuard.hpp>
 #include <GL/glew.h>
+#include <xatlas.h>
 #include <algorithm>
 
 MeshCube::MeshCube(Vector3 Pos, Vector3 Sz)
@@ -21,12 +23,16 @@ bool MeshCube::IsA(std::string className) {
     return BaseCube::IsA(className);
 }
 
-void MeshCube::releaseGPU() {
+void MeshCube::releaseMeshBuffers() {
     if (m_EBO) { glDeleteBuffers(1, &m_EBO); m_EBO = 0; }
     if (m_VBO) { glDeleteBuffers(1, &m_VBO); m_VBO = 0; }
     if (m_VAO) { glDeleteVertexArrays(1, &m_VAO); m_VAO = 0; }
-    if (m_textureID) { glDeleteTextures(1, &m_textureID); m_textureID = 0; }
     m_indexCount = 0;
+}
+
+void MeshCube::releaseGPU() {
+    releaseMeshBuffers();
+    if (m_textureID) { glDeleteTextures(1, &m_textureID); m_textureID = 0; }
 }
 
 void MeshCube::uploadToGPU() {
@@ -64,6 +70,62 @@ void MeshCube::uploadToGPU() {
     m_indexCount = static_cast<unsigned int>(m_cpuIndices.size());
 }
 
+std::vector<UVDecalDesc> MeshCube::collectUVDecals(int maxCount) const {
+    std::vector<UVDecalDesc> out;
+    for (auto const& [name, child] : children) {
+        if (static_cast<int>(out.size()) >= maxCount) break;
+        if (!child->IsA("Decal")) continue;
+        Decal* d = static_cast<Decal*>(child.get());
+        if (d->TextureID == 0) continue;
+        UVDecalDesc desc;
+        desc.textureID = d->TextureID;
+        desc.center    = d->UVCenter;
+        desc.radius    = d->UVRadius;
+        desc.color     = d->Color;
+        out.push_back(desc);
+    }
+    return out;
+}
+
+MeshHitResult MeshCube::raycastLocal(const Vector3& localOri, const Vector3& localDir) const {
+    MeshHitResult result;
+    const float kEpsilon = 1e-7f;
+
+    for (size_t i = 0; i + 2 < m_cpuIndices.size(); i += 3) {
+        const MeshVertex& v0 = m_cpuVertices[m_cpuIndices[i]];
+        const MeshVertex& v1 = m_cpuVertices[m_cpuIndices[i + 1]];
+        const MeshVertex& v2 = m_cpuVertices[m_cpuIndices[i + 2]];
+
+        Vector3 edge1 = v1.Position - v0.Position;
+        Vector3 edge2 = v2.Position - v0.Position;
+        Vector3 pvec  = Vector3::Cross(localDir, edge2);
+        float   det   = Vector3::Dot(edge1, pvec);
+        if (std::abs(det) < kEpsilon) continue; // レイと三角形が平行
+
+        float invDet = 1.0f / det;
+        Vector3 tvec = localOri - v0.Position;
+        float   u    = Vector3::Dot(tvec, pvec) * invDet;
+        if (u < 0.0f || u > 1.0f) continue;
+
+        Vector3 qvec = Vector3::Cross(tvec, edge1);
+        float   v    = Vector3::Dot(localDir, qvec) * invDet;
+        if (v < 0.0f || u + v > 1.0f) continue;
+
+        float t = Vector3::Dot(edge2, qvec) * invDet;
+        if (t < 0.0f) continue; // レイの後方はヒットとしない
+
+        if (!result.hit || t < result.t) {
+            result.hit = true;
+            result.t   = t;
+            float w    = 1.0f - u - v;
+            result.uv  = Vector2(v0.U * w + v1.U * u + v2.U * v,
+                                  v0.V * w + v1.V * u + v2.V * v);
+        }
+    }
+
+    return result;
+}
+
 void MeshCube::draw(int modelLoc, int shaderProgram) {
     if (m_VAO == 0) return;
     glBindVertexArray(m_VAO);
@@ -77,7 +139,29 @@ void MeshCube::draw(int modelLoc, int shaderProgram) {
     unsigned int tex = (m_textureID != 0) ? m_textureID : (Renderer::instance ? Renderer::instance->whiteTexture : 0);
     glBindTexture(GL_TEXTURE_2D, tex);
 
+    std::vector<UVDecalDesc> uvDecals = collectUVDecals(8);
+    for (size_t i = 0; i < uvDecals.size(); ++i) {
+        const UVDecalDesc& d = uvDecals[i];
+        glActiveTexture(GL_TEXTURE2 + static_cast<GLenum>(i));
+        glBindTexture(GL_TEXTURE_2D, d.textureID);
+
+        std::string idx = std::to_string(i);
+        int texLoc    = glGetUniformLocation(shaderProgram, ("uDecalTex[" + idx + "]").c_str());
+        int centerLoc = glGetUniformLocation(shaderProgram, ("uDecalCenter[" + idx + "]").c_str());
+        int radiusLoc = glGetUniformLocation(shaderProgram, ("uDecalRadius[" + idx + "]").c_str());
+        int colorLocD = glGetUniformLocation(shaderProgram, ("uDecalColor[" + idx + "]").c_str());
+        if (texLoc    != -1) glUniform1i(texLoc, 2 + static_cast<int>(i));
+        if (centerLoc != -1) glUniform2f(centerLoc, d.center.x, d.center.y);
+        if (radiusLoc != -1) glUniform1f(radiusLoc, d.radius);
+        if (colorLocD != -1) glUniform4f(colorLocD, d.color.r, d.color.g, d.color.b, d.color.a);
+    }
+    int countLoc = glGetUniformLocation(shaderProgram, "uDecalCount");
+    if (countLoc != -1) glUniform1i(countLoc, static_cast<int>(uvDecals.size()));
+
     glDrawElements(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, nullptr);
+
+    if (countLoc != -1) glUniform1i(countLoc, 0);
+    glActiveTexture(GL_TEXTURE0);
 }
 
 std::vector<physx::PxVec3> MeshCube::getConvexVertices() const {
@@ -87,6 +171,93 @@ std::vector<physx::PxVec3> MeshCube::getConvexVertices() const {
         out.push_back(physx::PxVec3(v.Position.x, v.Position.y, v.Position.z));
     }
     return out;
+}
+
+bool MeshCube::hasValidUV() const {
+    if (m_cpuVertices.empty()) return false;
+
+    float minU = m_cpuVertices[0].U, maxU = minU;
+    float minV = m_cpuVertices[0].V, maxV = minV;
+    for (auto const& v : m_cpuVertices) {
+        minU = std::min(minU, v.U); maxU = std::max(maxU, v.U);
+        minV = std::min(minV, v.V); maxV = std::max(maxV, v.V);
+    }
+
+    const float kDegenerateThreshold = 1e-4f;
+    if ((maxU - minU) < kDegenerateThreshold) return false;
+    if ((maxV - minV) < kDegenerateThreshold) return false;
+    return true;
+}
+
+bool MeshCube::regenerateUV() {
+    if (m_cpuVertices.empty() || m_cpuIndices.empty()) return false;
+
+    xatlas::Atlas* atlas = xatlas::Create();
+    if (!atlas) {
+        RCBN_WARN("MeshCube: xatlas::Create に失敗しました");
+        return false;
+    }
+
+    xatlas::MeshDecl meshDecl;
+    meshDecl.vertexCount          = static_cast<uint32_t>(m_cpuVertices.size());
+    meshDecl.vertexPositionData   = &m_cpuVertices[0].Position;
+    meshDecl.vertexPositionStride = sizeof(MeshVertex);
+    meshDecl.vertexNormalData     = &m_cpuVertices[0].Normal;
+    meshDecl.vertexNormalStride   = sizeof(MeshVertex);
+    meshDecl.indexCount           = static_cast<uint32_t>(m_cpuIndices.size());
+    meshDecl.indexData            = m_cpuIndices.data();
+    meshDecl.indexFormat          = xatlas::IndexFormat::UInt32;
+
+    xatlas::AddMeshError addErr = xatlas::AddMesh(atlas, meshDecl, 1);
+    if (addErr != xatlas::AddMeshError::Success) {
+        RCBN_WARN("MeshCube: xatlas::AddMesh に失敗しました: " << xatlas::StringForEnum(addErr));
+        xatlas::Destroy(atlas);
+        return false;
+    }
+
+    xatlas::Generate(atlas);
+
+    if (atlas->meshCount == 0 || atlas->width == 0 || atlas->height == 0) {
+        RCBN_WARN("MeshCube: xatlas の生成結果が不正です");
+        xatlas::Destroy(atlas);
+        return false;
+    }
+
+    const xatlas::Mesh& outMesh = atlas->meshes[0];
+    if (outMesh.vertexCount == 0 || outMesh.indexCount == 0) {
+        RCBN_WARN("MeshCube: xatlas の出力メッシュが空です");
+        xatlas::Destroy(atlas);
+        return false;
+    }
+
+    std::vector<MeshVertex> newVertices;
+    newVertices.reserve(outMesh.vertexCount);
+    for (uint32_t i = 0; i < outMesh.vertexCount; ++i) {
+        const xatlas::Vertex& xv = outMesh.vertexArray[i];
+        const MeshVertex& src = m_cpuVertices[xv.xref];
+
+        MeshVertex v;
+        v.Position = src.Position;
+        v.Normal   = src.Normal;
+        v.MatAlpha = src.MatAlpha;
+        // xatlasのuvはアトラス幅高さのテクセル単位(正規化されていない)。
+        // 既存のGLBロード時と同様にV軸を反転してOpenGLのテクスチャ座標系に合わせる。
+        v.U = xv.uv[0] / static_cast<float>(atlas->width);
+        v.V = 1.0f - (xv.uv[1] / static_cast<float>(atlas->height));
+        newVertices.push_back(v);
+    }
+
+    std::vector<unsigned int> newIndices;
+    newIndices.reserve(outMesh.indexCount);
+    for (uint32_t i = 0; i < outMesh.indexCount; ++i) {
+        newIndices.push_back(outMesh.indexArray[i]);
+    }
+
+    xatlas::Destroy(atlas);
+
+    m_cpuVertices = std::move(newVertices);
+    m_cpuIndices  = std::move(newIndices);
+    return true;
 }
 
 static Vector3 glbTransformPoint(const float m[16], const Vector3& p) {
@@ -227,6 +398,11 @@ bool MeshCube::loadFromGLB(const std::string& path) {
     m_cpuVertices = std::move(vertices);
     m_cpuIndices  = std::move(indices);
     m_textureID   = loadedTexture;
+
+    if (!hasValidUV()) {
+        regenerateUV();
+    }
+
     if (Renderer::instance) uploadToGPU();
 
     return true;

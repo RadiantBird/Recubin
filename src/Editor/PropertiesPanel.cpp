@@ -626,6 +626,33 @@ void PropertiesPanel::onRender() {
                 mc->setProperty("MeshFile", node);
             }
         }
+
+        if (ImGui::Button(locId(Loc::LocKey::RegenerateUVButton, "##meshcubeuvregen").c_str())) {
+            ImGui::OpenPopup("###MeshCubeUVRegenConfirm");
+        }
+        std::string uvRegenPopupTitle = locId(Loc::LocKey::RegenerateUVConfirmTitle, "###MeshCubeUVRegenConfirm");
+        if (ImGui::BeginPopupModal(uvRegenPopupTitle.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("%s", Loc::t(Loc::LocKey::RegenerateUVConfirmLine1));
+            ImGui::Text("%s", Loc::t(Loc::LocKey::RegenerateUVConfirmLine2));
+            ImGui::Separator();
+            if (ImGui::Button(Loc::t(Loc::LocKey::RegenerateConfirmButton), ImVec2(120, 0))) {
+                if (mc->regenerateUV()) {
+                    mc->uploadToGPU();
+                } else {
+                    RCBN_WARN("MeshCube: UV再生成に失敗しました: " << mc->MeshFile);
+                }
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(Loc::t(Loc::LocKey::Cancel), ImVec2(120, 0))) {
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+
+        if (m_decalPlace) {
+            ImGui::Checkbox("Decal配置モード", &m_decalPlace->active);
+        }
     }
 
     // ---- LiquidCube（Density、スキーマ駆動） ----
@@ -777,8 +804,37 @@ void PropertiesPanel::onRender() {
         auto dclSp = std::static_pointer_cast<Decal>(inst->shared_from_this());
         ImGui::SeparatorText("Decal");
 
-        // Face combo with undo
+        // 親がMeshCubeかどうかでFace ComboとUVCenter/UVRadiusを切り替える
+        bool parentIsMeshCube = false;
         {
+            auto par = dcl->Parent.lock();
+            if (par && par->IsA("MeshCube")) parentIsMeshCube = true;
+        }
+
+        if (parentIsMeshCube) {
+            // UVCenter/UVRadius with undo (MeshCube配下専用)
+            static Vector2 s_dclUVCenterBefore;
+            static float   s_dclUVRadiusBefore;
+
+            float center[2] = { dcl->UVCenter.x, dcl->UVCenter.y };
+            bool centerChanged = ImGui::DragFloat2("UVCenter", center, 0.01f, 0.0f, 1.0f, "%.3f");
+            if (ImGui::IsItemActivated()) { s_dclUVCenterBefore = dcl->UVCenter; s_dclUVRadiusBefore = dcl->UVRadius; }
+            if (centerChanged) dcl->UVCenter = Vector2(center[0], center[1]);
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                m_history->record(std::make_unique<SetDecalUVCommand>(
+                    dclSp, s_dclUVCenterBefore, s_dclUVRadiusBefore, dcl->UVCenter, dcl->UVRadius));
+            }
+
+            float radius = dcl->UVRadius;
+            bool radiusChanged = ImGui::DragFloat("UVRadius", &radius, 0.005f, 0.01f, 1.0f, "%.3f");
+            if (ImGui::IsItemActivated()) { s_dclUVCenterBefore = dcl->UVCenter; s_dclUVRadiusBefore = dcl->UVRadius; }
+            if (radiusChanged) dcl->UVRadius = radius;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                m_history->record(std::make_unique<SetDecalUVCommand>(
+                    dclSp, s_dclUVCenterBefore, s_dclUVRadiusBefore, dcl->UVCenter, dcl->UVRadius));
+            }
+        } else {
+            // Face combo with undo
             static const char* faceItems[] = { "Front", "Back", "Top", "Bottom", "Right", "Left" };
             int faceIdx = static_cast<int>(dcl->face);
             if (ImGui::Combo("Face", &faceIdx, faceItems, 6)) {

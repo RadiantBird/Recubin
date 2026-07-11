@@ -25,6 +25,11 @@ struct TerrainBrushState {
     int   mode   = +1;     // +1=Raise, -1=Lower, 0=Smooth
 };
 
+// Decal配置モードの共有状態（EditorManager / PropertiesPanel / ViewportPanel で共有）
+struct DecalPlaceState {
+    bool active = false;
+};
+
 // ===================================================
 //  PropertiesPanel  — 選択中インスタンスのプロパティ編集
 // ===================================================
@@ -34,6 +39,7 @@ public:
     CommandHistory* m_history       = nullptr;
     PickerState*    m_picker        = nullptr;
     TerrainBrushState* m_terrainBrush = nullptr;
+    DecalPlaceState*   m_decalPlace   = nullptr;
 
     PropertiesPanel();
     void onRender() override;

@@ -1,6 +1,7 @@
 #pragma once
 #include <include/Instances/Instance.hpp>
 #include <Util/Color4.hpp>
+#include <Math/Vector2.hpp>
 #include <string>
 
 enum class Face {
@@ -18,6 +19,9 @@ public:
     Face         face      = Face::Front;
     std::string  texturePath;
     Color4       Color;
+    // MeshCube配下でのみ意味を持つUV空間配置(Face配置のプリミティブでは無視される)
+    Vector2      UVCenter = Vector2(0.5f, 0.5f);
+    float        UVRadius = 0.15f;
 
     Decal(unsigned int textureID = 0, Face targetFace = Face::Front);
     virtual ~Decal();

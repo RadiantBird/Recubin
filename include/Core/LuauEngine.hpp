@@ -308,6 +308,9 @@ public:
     static void pushSignal(lua_State* L, std::shared_ptr<RCBNScriptSignal> sig);
     static void pushConnection(lua_State* L, std::shared_ptr<RCBNScriptConnection> conn);
     static void pushVector2(lua_State* L, Vector2 v);
+    // Instance参照をLuauのRCBN_INST_METATABLE userdata(weak_ptr<Instance>)として積む。
+    // LuauEngine.cpp外(例: User::spawnCharacter)からシグナル引数を組み立てる際に使う
+    static void pushInstance(lua_State* L, const std::shared_ptr<Instance>& inst);
 
     void onGuiButtonActivated(GuiButton* btn);
 };

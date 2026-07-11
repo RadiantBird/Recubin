@@ -94,6 +94,7 @@ public:
     CommandHistory m_history;
     PickerState    m_picker;          // PickerState は PropertiesPanel.hpp で定義
     TerrainBrushState m_terrainBrush; // TerrainBrushState は PropertiesPanel.hpp で定義
+    DecalPlaceState   m_decalPlace;   // DecalPlaceState は PropertiesPanel.hpp で定義
 
     template <typename T, typename... Args>
     void tryAddObject(const std::string& menuLabel, const std::string& defaultName, Args&&... args);

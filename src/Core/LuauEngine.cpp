@@ -1563,6 +1563,10 @@ static void pushInstanceUserdata(lua_State* L, const std::shared_ptr<Instance>& 
     lua_setmetatable(L, -2);
 }
 
+void LuauEngine::pushInstance(lua_State* L, const std::shared_ptr<Instance>& inst) {
+    pushInstanceUserdata(L, inst);
+}
+
 int LuauEngine::user_add_tool_closure(lua_State* L) {
     auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
     auto self = ud->lock();

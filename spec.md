@@ -35,6 +35,11 @@
 - ControlMode
     - エディターではデフォルトでFree
     - ゲームランタイムではデフォルトでCharacter
+- `CharacterAdded`(Signal): 新しい`PlayerCharacter`がspawnされるたび発火する(初回spawn +
+  死亡respawn全て)。Luau側にはspawn直後のcharacter(Model)が引数として渡される
+  (この時点ではまだWorkspaceに未追加。Root等のパーツ参照はresolveParts済みで取得可能)。
+  respawnを跨いで参照を使い続けたいスクリプトは、起動時の`WaitChild`/`FindChild`で一度だけ
+  参照を取るのではなく、この signal で都度取り直すこと。
 
 ## キャラクター(Humanoidクラス)
 - StarterCharacter内のテンプレート、またはそのclone後にRoot/Torso/Head/LeftArm/RightArm/
@@ -89,6 +94,12 @@ PhysXに実装されているもののこと。
 - `Parent` は Read/Write（書込で reparent。`nil` 代入で親なし化）。
 - `instance:Clone()` … サブツリーを複製し（制約参照も張り替え）、**親なし**で返す。
   返り値の `.Parent` を設定するまでツリーには入らない。
+- Luau 側が保持する Instance 参照は `weak_ptr` であり、対象が破棄されると以後
+  `instance.AnyProperty` は常に `nil` を返す（クラッシュはしない）。**死亡→respawn で
+  `PlayerCharacter`/`Root` 等は都度新規インスタンスとして作り直されるため、スクリプト起動時に
+  一度だけ `WaitChild`/`FindChild` で取得した参照は respawn を跨いで無効になる。**
+  respawn を跨いで参照を使い続けたいスクリプトは、Heartbeat 等の中で毎回
+  `workspace:FindChild("PlayerCharacter")` のように再取得すること。
 
 ### 数値プロパティのクランプ
 - 不正値が困る一部の数値（Humanoid.WalkSpeed/JumpPower/MaxHealth、各種ライトの

@@ -2,6 +2,7 @@
 #include <Editor/EditorPanel.hpp>
 struct PickerState;        // PropertiesPanel.hpp で定義
 struct TerrainBrushState;  // PropertiesPanel.hpp で定義
+struct DecalPlaceState;    // PropertiesPanel.hpp で定義
 class CommandHistory;
 #include <include/GL/glew.h>
 #include <include/GLFW/glfw3.h>
@@ -50,6 +51,7 @@ public:
     CommandHistory* m_history = nullptr;
     PickerState*    m_picker  = nullptr;
     TerrainBrushState* m_terrainBrush = nullptr;
+    DecalPlaceState*   m_decalPlace   = nullptr;
     double m_lastTerrainBrushTime = -1.0; // ブラシの連続適用を間引くための前回適用時刻
 
     // ギズモ / フリードラッグ undo 用状態

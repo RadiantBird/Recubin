@@ -971,6 +971,10 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
     }
 
     scene->addActor(*compound);
+    // createActor()と同様にuserDataを設定する。これが無いとRCBNContactCallback::onContact
+    // (Touched通知)やレイキャストがcompound化されたキューブ(Weld/Motor等)を解決できず、
+    // 素通りしてしまう。代表としてassembly[0](compoundの原点キューブ)を指す
+    compound->userData = assembly[0].get();
 
     // 5. cubes エントリーを更新
     for (auto& entry : cubes) {
@@ -1236,6 +1240,17 @@ void Physics::removeConstraint(const std::shared_ptr<Instance>& c) {
 
         // 3. 旧グループを残存 Weld で連結成分に分割し、各成分を再構築
         if (!oldGroupCubes.empty()) {
+            // Workspace から既に除去されたキューブ(cubes に未登録)は BFS でグループへ
+            // 引き戻さない。削除カスケード中に removeCube 済みのキューブへここで actor を
+            // 再代入してしまうと、cubes にエントリが無いため後続の removeCube の共有判定
+            // から漏れて compound が release され、そのキューブのデストラクタが
+            // 解放済み actor に対して release() を呼びアクセス違反になる
+            auto isRegistered = [this](const std::shared_ptr<BaseCube>& c) -> bool {
+                for (auto& e : cubes) {
+                    if (e.cube.lock() == c) return true;
+                }
+                return false;
+            };
             std::unordered_set<BaseCube*> processed;
             for (auto& startCube : oldGroupCubes) {
                 if (processed.count(startCube.get())) continue;
@@ -1258,7 +1273,7 @@ void Physics::removeConstraint(const std::shared_ptr<Instance>& c) {
                         std::shared_ptr<BaseCube> nb;
                         if      (ec0 == current && ec1 && !processed.count(ec1.get())) nb = ec1;
                         else if (ec1 == current && ec0 && !processed.count(ec0.get())) nb = ec0;
-                        if (nb) { processed.insert(nb.get()); bfsQ.push(nb); }
+                        if (nb && isRegistered(nb)) { processed.insert(nb.get()); bfsQ.push(nb); }
                     }
                 }
 

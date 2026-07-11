@@ -1374,12 +1374,21 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     // 完全不透明(Color.a>=1)のオブジェクトはGL_BLENDを無効化して描画コスト削減。
     // init()でglEnable(GL_BLEND)済みのためtrueスタート。ループを抜けた後はこの関数の
     // 後段(renderClouds/renderParticles等)がGL_BLEND常時有効を前提にしているため復元する。
+    // また半透明時はglDepthMask(GL_FALSE)でdepth writeも無効化し、深度バッファに
+    // 半透明オブジェクトの深度値が書き込まれて後続オブジェクトが深度テストで
+    // 弾かれてしまう不具合を防ぐ。
     bool blendEnabled = true;
+    bool depthMaskEnabled = true;
     auto setBlendForAlpha = [&](float alpha) {
         bool want = alpha < 0.999f;
         if (want != blendEnabled) {
             if (want) glEnable(GL_BLEND); else glDisable(GL_BLEND);
             blendEnabled = want;
+        }
+        bool wantDepthWrite = !want;
+        if (wantDepthWrite != depthMaskEnabled) {
+            glDepthMask(wantDepthWrite ? GL_TRUE : GL_FALSE);
+            depthMaskEnabled = wantDepthWrite;
         }
     };
 
@@ -1471,6 +1480,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     // renderClouds/renderParticles等はGL_BLENDが常時有効という前提のため復元する
     if (!blendEnabled) { glEnable(GL_BLEND); blendEnabled = true; }
+    if (!depthMaskEnabled) { glDepthMask(GL_TRUE); depthMaskEnabled = true; }
 
     // ---- 選択インスタンスの黄色ワイヤーフレームハイライト ----
     if (desc.renderHighlights && editor) {

@@ -69,6 +69,10 @@ enum class LocKey {
     // ---- ContentBrowserPanel ----
     BackButton, AssetsFolderNotFound,
 
+    // ---- PropertiesPanel: MeshCube UV再生成 ----
+    RegenerateUVButton, RegenerateUVConfirmTitle,
+    RegenerateUVConfirmLine1, RegenerateUVConfirmLine2,
+
     Count
 };
 

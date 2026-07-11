@@ -5,22 +5,27 @@ export type Connection = {
 export type Signal = {
     Connect: (Signal, (...any) -> ()) -> Connection,
     Once: (Signal, (...any) -> ()) -> Connection,
+    -- Until:
     Wait: (Signal) -> (...any),
 }
 
 export type Instance = {
     Name: string,
-    Parent: any,
-    FindChild: (Instance, string) -> any,
+    Parent: Instance?,
+    FindChild: (Instance, string) -> Instance?,
+    WaitChild: (Instance, string) -> Instance,
     GetChildren: (Instance) -> { Instance },
     IsA: (Instance, string) -> boolean,
     Destroy: (Instance) -> (),
-    [string]: any
+    -- [string]: Instance? -- too annoying error type checking, so disabled
 }
 
-export type BaseCube = Instance & {
+export type Spatial = Instance & {
     Position: Vector3,
     Size: Vector3,
+}
+
+export type BaseCube = Spatial & {
     Color: Color4,
     Anchored: boolean,
     CanCollide: boolean,
@@ -35,6 +40,8 @@ export type Sphere = BaseCube & {}
 export type Cylinder = BaseCube & {}
 
 export type TriangularPrism = BaseCube & {}
+
+export type Model = Spatial & {}
 
 export type MeshCube = BaseCube & {
     MeshFile: string, -- read only
@@ -96,9 +103,13 @@ export type Animation = Instance & {}
 export type Humanoid = Instance & {
     WalkSpeed: number,
     JumpPower: number,
+    Health: number,
+
     PlayAnimation: (Humanoid, Animation) -> (),
     PauseAnimation: (Humanoid) -> (),
     StopAnimation: (Humanoid) -> (),
+
+    Died: Signal
 }
 
 export type Script = Instance & {
@@ -232,7 +243,8 @@ export type Tool = Instance & {
 
 export type User = Instance & {
     AddTool: (number?) -> number,
-    RemoveTool: (number|string) -> Tool?
+    RemoveTool: (number|string) -> Tool?,
+    CharacterAdded: Signal
 }
 
 export type task = {
