@@ -494,6 +494,16 @@ void LuauEngine::InitDispatchTable_Misc() {
         lua_setmetatable(L, -2);
         return 1;
     };
+    // User.Character (読取専用): clone後のキャラクター本体(PlayerCharacter)。spawn前/despawn後はnil
+    DispatchTable["User"]["Character"] = [](lua_State* L, Instance* obj) -> int {
+        auto* u = static_cast<User*>(obj);
+        if (!u->character) { lua_pushnil(L); return 1; }
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(u->character);
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
     DispatchTable["Tool"]["Activated"]  = getter_signal<Tool, &Tool::Activated>();
     DispatchTable["Tool"]["Equipped"]   = getter_bool  <Tool, &Tool::Equipped>();  // read-only（装着ロジックは別経路）
     DispatchTable["Tool"]["Hand"]       = getter_number<Tool, &Tool::Hand>();
@@ -505,6 +515,7 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["User"]["RemoveTool"] = getter_closure(user_remove_tool_closure, "RemoveTool");
     DispatchTable["User"]["GetTool"]    = getter_closure(user_get_tool_closure,    "GetTool");
     DispatchTable["User"]["GetTools"]   = getter_closure(user_get_tools_closure,   "GetTools");
+    DispatchTable["User"]["GetMouseRay"] = getter_closure(user_get_mouse_ray_closure, "GetMouseRay");
 
     // User.ControlMode ("Free"/"Character"/"Program")
     DispatchTable["User"]["ControlMode"] = [](lua_State* L, Instance* obj) {
@@ -716,6 +727,13 @@ void LuauEngine::InitDispatchTable_GUI() {
     PropertyRegistry::applyToDispatch("SurfaceGui",      DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("BillboardGui",    DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("ProximityPrompt", DispatchTable, SetterTable);
+
+    // --- Canvas ---
+    PropertyRegistry::applyToDispatch("Canvas", DispatchTable, SetterTable);
+    DispatchTable["Canvas"]["SetPixel"]  = getter_closure(canvas_set_pixel_closure,   "SetPixel");
+    DispatchTable["Canvas"]["GetPixel"]  = getter_closure(canvas_get_pixel_closure,   "GetPixel");
+    DispatchTable["Canvas"]["Clear"]     = getter_closure(canvas_clear_closure,       "Clear");
+    DispatchTable["Canvas"]["WorldToUV"] = getter_closure(canvas_world_to_uv_closure, "WorldToUV");
 
     // --- Terrain ---
     DispatchTable["Terrain"]["Enabled"]    = getter_bool<Terrain, &Terrain::Enabled>();

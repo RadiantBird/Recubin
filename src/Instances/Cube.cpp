@@ -1,5 +1,6 @@
 #include <Instances/Cube.hpp>
 #include <Instances/SurfaceGui.hpp>
+#include <Instances/Canvas.hpp>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
@@ -113,6 +114,14 @@ void Cube::draw(int modelLoc, int shaderProgram) {
             if (idx >= 0 && idx < 6 && sg->m_texID != 0 && !activeDecals[idx]) {
                 activeTextures[idx]   = sg->m_texID;
                 activeSurfaceGui[idx] = true;
+            }
+        } else if (child->getClassName() == "Canvas") {
+            auto* cv = static_cast<Canvas*>(child.get());
+            cv->ensureGPU();
+            int idx = static_cast<int>(cv->face);
+            if (idx >= 0 && idx < 6 && cv->m_texID != 0 && !activeDecals[idx]) {
+                activeTextures[idx]   = cv->m_texID;
+                activeSurfaceGui[idx] = true;  // 同じ isSurfaceGui=1 ブレンド経路を再利用
             }
         }
     }

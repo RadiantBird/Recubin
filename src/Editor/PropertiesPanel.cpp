@@ -14,6 +14,7 @@
 #include <Instances/FileRef.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
+#include <Instances/Canvas.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/LightSource.hpp>
 #include <Instances/SpotLight.hpp>
@@ -1462,6 +1463,10 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "SurfaceGui") {
         ImGui::SeparatorText("SurfaceGui");
         renderSchemaInspector(inst, "SurfaceGui", m_history);
+    }
+    if (inst->getClassName() == "Canvas") {
+        ImGui::SeparatorText("Canvas");
+        renderSchemaInspector(inst, "Canvas", m_history);
     }
     if (inst->getClassName() == "BillboardGui") {
         ImGui::SeparatorText("BillboardGui");

@@ -43,6 +43,8 @@
 #include "include/Instances/PointLight.hpp"
 #include "include/Instances/SpotLight.hpp"
 #include "include/Instances/PostEffect.hpp"
+#include "include/Instances/Canvas.hpp"
+#include "include/imgui/imgui.h"
 #include "include/Instances/AppImage.hpp"
 #include "include/Instances/FileRef.hpp"
 #include "include/Instances/StarterCharacter.hpp"
@@ -689,6 +691,17 @@ bool LuauEngine::execute(Script& script) {
     }
 }
 
+// Luau には luaL_testudata が無いため、メタテーブル比較で型を判定する（一致しなければ nullptr、エラーは投げない）
+static std::weak_ptr<Instance>* testInstanceUserdata(lua_State* L, int idx) {
+    void* p = lua_touserdata(L, idx);
+    if (!p) return nullptr;
+    if (!lua_getmetatable(L, idx)) return nullptr;
+    luaL_getmetatable(L, LuauEngine::RCBN_INST_METATABLE);
+    bool same = lua_rawequal(L, -1, -2) != 0;
+    lua_pop(L, 2);
+    return same ? (std::weak_ptr<Instance>*)p : nullptr;
+}
+
 // ==================== Workspace Methods ====================
 int LuauEngine::workspace_raycast_closure(lua_State* L) {
     auto* ptr = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
@@ -706,9 +719,20 @@ int LuauEngine::workspace_raycast_closure(lua_State* L) {
         return 1;
     }
 
+    // L[4]: 除外Instance（省略可）。BaseCube系ならそのPhysXアクターをraycastの除外対象にする
+    physx::PxRigidActor* ignoreActor = nullptr;
+    if (!lua_isnoneornil(L, 4)) {
+        auto* iud = testInstanceUserdata(L, 4);
+        if (iud) {
+            auto ignoreInst = iud->lock();
+            if (ignoreInst && ignoreInst->IsA("BaseCube"))
+                ignoreActor = static_cast<BaseCube*>(ignoreInst.get())->actor;
+        }
+    }
+
     RaycastHit hit;
     // NOTE: 最大距離が1000ユニットなので拡大は要検討
-    bool didHit = physics->raycast(*origin, *direction, 1000.0f, hit);
+    bool didHit = physics->raycast(*origin, *direction, 1000.0f, hit, ignoreActor);
 
     if (!didHit || !hit.hit) {
         lua_pushnil(L);
@@ -853,6 +877,72 @@ int LuauEngine::terrain_apply_brush_closure(lua_State* L) {
     int   mode   = (int)luaL_checkinteger(L, 4);
     streamer->applyBrush(*pos, radius, mode);
     return 0;
+}
+
+// ==================== Canvas methods ====================
+int LuauEngine::canvas_set_pixel_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self || !self->IsA("Canvas")) { lua_pushboolean(L, 0); return 1; }
+
+    // L[1]=self, L[2]=x, L[3]=y, L[4]=color
+    int x = (int)luaL_checkinteger(L, 2);
+    int y = (int)luaL_checkinteger(L, 3);
+    Color4* col = (Color4*)luaL_checkudata(L, 4, RCBN_COLOR4_METATABLE);
+
+    bool ok = static_cast<Canvas*>(self.get())->setPixel(x, y, *col);
+    lua_pushboolean(L, ok);
+    return 1;
+}
+
+int LuauEngine::canvas_get_pixel_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self || !self->IsA("Canvas")) { lua_pushnil(L); return 1; }
+
+    // L[1]=self, L[2]=x, L[3]=y
+    int x = (int)luaL_checkinteger(L, 2);
+    int y = (int)luaL_checkinteger(L, 3);
+
+    Color4 out;
+    if (!static_cast<Canvas*>(self.get())->getPixel(x, y, out)) { lua_pushnil(L); return 1; }
+
+    Color4* col = (Color4*)lua_newuserdata(L, sizeof(Color4));
+    *col = out;
+    luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
+    lua_setmetatable(L, -2);
+    return 1;
+}
+
+int LuauEngine::canvas_clear_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self || !self->IsA("Canvas")) return 0;
+    Canvas* canvas = static_cast<Canvas*>(self.get());
+
+    // L[1]=self, L[2]=color（省略可。省略時はBackgroundColor）
+    Color4 c = canvas->BackgroundColor;
+    if (!lua_isnoneornil(L, 2)) {
+        Color4* col = (Color4*)luaL_checkudata(L, 2, RCBN_COLOR4_METATABLE);
+        c = *col;
+    }
+    canvas->clear(c);
+    return 0;
+}
+
+int LuauEngine::canvas_world_to_uv_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self || !self->IsA("Canvas")) { lua_pushnil(L); return 1; }
+
+    // L[1]=self, L[2]=position(Vector3)
+    Vector3* pos = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+
+    Vector2 uv;
+    if (!static_cast<Canvas*>(self.get())->worldToUV(*pos, uv)) { lua_pushnil(L); return 1; }
+
+    pushVector2(L, uv);
+    return 1;
 }
 
 int LuauEngine::pathfinding_find_path_closure(lua_State* L) {
@@ -1645,6 +1735,65 @@ int LuauEngine::user_get_tools_closure(lua_State* L) {
     return 1;
 }
 
+int LuauEngine::user_get_mouse_ray_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self) { lua_pushnil(L); return 1; }
+    User* user = static_cast<User*>(self.get());
+
+    // ビューポート未記録
+    if (user->m_gameVpW <= 0.f || user->m_gameVpH <= 0.f) { lua_pushnil(L); return 1; }
+
+    float screenX, screenY;
+    if (user->isRotatingCamera()) {
+        // ドラッグ中はOSカーソルが毎フレームアンカーへ戻される(User::processCameraRotation)ため、
+        // ImGui::GetMousePos()ではなくアンカー位置(=見た目上固定表示される仮想マウス位置)を使う
+        double ax, ay;
+        user->getRotationAnchor(ax, ay);
+        // getRotationAnchorはウィンドウクライアント座標。マルチビューポート有効時、m_gameVpX/Yは
+        // デスクトップ絶対座標になるため、drawCameraRotationCursor(Renderer_GUI.cpp)と同様に
+        // メインビューポート位置を加算する
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+            ImVec2 mainPos = ImGui::GetMainViewport()->Pos;
+            ax += mainPos.x;
+            ay += mainPos.y;
+        }
+        screenX = static_cast<float>(ax);
+        screenY = static_cast<float>(ay);
+    } else {
+        ImVec2 mousePos = ImGui::GetMousePos();
+        screenX = mousePos.x;
+        screenY = mousePos.y;
+    }
+    float mx = screenX - user->m_gameVpX, my = screenY - user->m_gameVpY;
+    if (mx < 0.f || my < 0.f || mx > user->m_gameVpW || my > user->m_gameVpH) { lua_pushnil(L); return 1; }
+
+    float ndcX = (mx / user->m_gameVpW) * 2.0f - 1.0f;
+    float ndcY = 1.0f - (my / user->m_gameVpH) * 2.0f;
+    float aspect = user->m_gameVpW / user->m_gameVpH;
+    float tanH = std::tan(45.0f * (3.14159265f / 180.0f) * 0.5f);
+    Vector3 dir = (user->forward
+                 + user->right * (ndcX * aspect * tanH)
+                 + user->up    * (ndcY * tanH)).normalize();
+
+    lua_newtable(L);
+
+    Vector3* origin = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+    *origin = user->cpos;
+    luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+    lua_setmetatable(L, -2);
+    lua_setfield(L, -2, "Origin");
+
+    Vector3* dirUd = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+    *dirUd = dir;
+    luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+    lua_setmetatable(L, -2);
+    lua_setfield(L, -2, "Direction");
+
+    return 1;
+}
+
 int LuauEngine::userinput_ispressed_closure(lua_State* L) {
     auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
     auto self = ud->lock();
@@ -1826,6 +1975,7 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "Model",            [] { return std::make_shared<Model>(); } },
         { "Decal",            [] { return std::make_shared<Decal>(0, Face::Front); } },
         { "Texture",          [] { return std::make_shared<Texture>(0, Face::Front); } },
+        { "Canvas",           [] { return std::make_shared<Canvas>(); } },
         { "Sound",            [] () -> std::shared_ptr<Instance> {
               return AudioService::instance ? std::make_shared<Sound>(*AudioService::instance) : nullptr;
           } },

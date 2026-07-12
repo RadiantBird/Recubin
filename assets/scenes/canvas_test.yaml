@@ -1,0 +1,229 @@
+Root:
+  Properties:
+    MaxClonesPerFrame: 1000
+    MaxRestartsPerFrame: 100
+    ScriptLoopTimeoutSeconds: 2
+    BaseResolution: [1920, 1080]
+    UseNetwork: false
+  Children:
+    - ClassName: Users
+      Name: Users
+      Children:
+        - ClassName: User
+          Name: User
+          Properties:
+            ControlMode: Free
+            Speed: 0.25
+            CameraDistance: 10
+            ZoomSpeed: 0.1
+            MouseZoomSpeed: 1
+          Children:
+            - ClassName: Folder
+              Name: Inventory
+    - ClassName: StarterCharacter
+      Name: StarterCharacter
+      Children:
+        - ClassName: Humanoid
+          Name: Humanoid
+          Properties:
+            WalkSpeed: 16
+            JumpPower: 50
+            ClimbSpeed: 5
+            JumpHeight: 6.3710494
+            MaxHealth: 100
+            RespawnTime: 5
+            Health: 100
+        - ClassName: Cube
+          Name: LeftArm
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: Root
+          Properties:
+            Position: [0, 3, 0]
+            Size: [2, 4, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.5, 0.5, 0]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: RightArm
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Sphere
+          Name: Head
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1.25, 1.25, 1.25]
+            Rotation: [0, 0.70710677, 0, 0.70710677]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: Torso
+          Properties:
+            Position: [0, 0, 0]
+            Size: [2, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39215687, 0.047058824, 0.1254902, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: LeftLeg
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.14117648, 0.31764707, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: RightLeg
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.14117648, 0.31764707, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+    - ClassName: Workspace
+      Name: Workspace
+      Properties:
+        Gravity: [0, -196.2, 0]
+        Wind: [0, 0, 0]
+        PhysicsEnabled: true
+      Children:
+        - ClassName: Lighting
+          Name: Lighting
+          Properties:
+            Direction: [1, -1, 1]
+            Brightness: 1
+            Color: [1, 1, 1, 1]
+        - ClassName: Tool
+          Name: PaintBrush
+          Properties:
+            Hand: Right
+            Handle: PaintBrush\Handle
+          Children:
+            - ClassName: Cube
+              Name: Handle
+              Properties:
+                Position: [0, 0, 0]
+                Size: [0.3, 0.3, 1.5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0.6, 0.6, 0.6, 1]
+                Anchored: false
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+        - ClassName: Cube
+          Name: Baseplate
+          Properties:
+            Position: [0, -1, 0]
+            Size: [40, 2, 40]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.3, 0.7, 0.3, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: PaintWall
+          Properties:
+            Position: [0, 1.5, 10]
+            Size: [4, 3, 0.5]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.6, 0.6, 0.6, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: Canvas
+              Name: Canvas
+              Properties:
+                Face: Front
+                Width: 64
+                Height: 64
+                BackgroundColor: [0, 0.053282928, 0.61846155, 1]
+        - ClassName: Script
+          Name: CanvasPaint
+          Properties:
+            ContentPath: scripts/CanvasPaint.luau
+            Enabled: true
+    - ClassName: PathfindingService
+      Name: PathfindingService

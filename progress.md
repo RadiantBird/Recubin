@@ -218,3 +218,77 @@ readme.mdのTodoにある2件の未修正バグの修正を依頼された。(1)
 - **`Weld::collectAssembly`が発見する`allWelds`/`allMotors`は、開始Cubeの所属Workspaceを`root`引数として渡した際、そのWorkspace配下の子孫すべてを毎回スキャンして集める**（`Weld.cpp`の`collect`ラムダによる全走査）ため、Workspace内のWeld/Motor総数に比例したコストがかかる。頻繁に動的Weldを生成・破棄するようなユースケース（今回のSeatWeldのように着席のたびに生成される場合）では、Workspace内のWeld/Motor数が多いシーンほど`sitOn()`のコストが増える可能性がある。
 
 ---
+
+## 2026-07-11 カスタムメッシュUV自動生成 + UV空間Decal配置（xatlas統合）
+
+### 指示内容
+readme.mdのTodo「カスタムメッシュにUVを自動生成したい。これが実現すればどこでもデカールやテクスチャーが貼れるようになる」について、まず技術的feasibilityを検討し、可能なら計画するよう依頼された。Plan modeでExploreエージェントを複数ラウンド（メッシュ/UV構造、Decal/テクスチャ投影の仕組み、spec.md確認、Decal配置・レイキャスト機構、PropertyRegistry/シリアライズ）並列調査した上で、AskUserQuestionを3ラウンド実施:
+1. スコープ（UV自動生成+全体テクスチャのみ vs クリックした特定箇所へのDecal個別配置まで含む）→**Decal個別配置まで含める**を選択。
+2. xatlas（MIT、UV自動展開ライブラリ）新規導入の可否（ビルドシステム変更を伴う前提で確認）→**導入許可**。
+3. UV生成タイミング（GLBインポート時に自動判定 vs エディタの手動ボタンのみ）→**インポート時自動判定**。
+4. Decalサイズ単位（UV空間0-1で直接指定 vs ワールド単位からの近似変換）→**UV空間で直接指定**。
+5. 同時表示Decal数上限（4/8/16）→**8個**。
+6. 「UV再生成」手動ボタンのUndo要否 →**Undoなし、確認ポップアップのみ**。
+7. 「Decal配置モード」でクリック後の挙動（1個で自動OFF vs 手動OFFまで連続配置可）→**1個で自動OFF**。
+
+最終的に、詳細実装設計をPlanエージェントに1回委譲して精査した上で計画ファイル(`C:\Users\Ryarta\.claude\plans\refactored-wishing-kahan.md`)を確定し、承認を得てPhase 1〜3を`implementer`サブエージェントに順に委譲した（CLAUDE.mdの「計画はメインセッション、実装はimplementerに委譲」の役割分担に従った）。
+
+### 何をしたか
+**Phase 1（xatlas統合+UV自動生成）**
+- xatlas公式リポジトリ(jpcy/xatlas)から`xatlas.h`/`xatlas.cpp`をcurlで直接取得し`include/xatlas.h`/`src/ThirdParty/xatlas.cpp`として配置（改変なし）。`CMakeLists.txt`の`file(GLOB_RECURSE "src/*.cpp")`が自動的に拾うため、**CMakeLists.txt/build.pyは無改修**で済んだ。
+- `MeshCube::releaseGPU()`（`src/Instances/MeshCube.cpp`）を、VAO/VBO/EBOのみ解放する`releaseMeshBuffers()`とテクスチャ解放を分離。
+- `MeshCube::hasValidUV()`（全頂点のU/V min/maxが閾値未満なら縮退と判定）と`MeshCube::regenerateUV()`（xatlasの`AddMesh`→`Generate`→出力頂点の`xref`で元のPosition/Normal/MatAlphaを複製しつつ新規UVを設定）を追加。
+- `MeshCube::loadFromGLB()`でパース直後に`hasValidUV()`が偽なら`regenerateUV()`を自動フォールバック実行。
+- `src/Editor/PropertiesPanel.cpp`のMeshCubeブロックに、Terrain Regenerateパターン踏襲の確認ポップアップ付き「UV再生成」手動ボタンを追加（Undoなし）。
+- `include/Editor/Localization.hpp`/`src/Editor/Localization.cpp`に新規`LocKey`4件を`Count`直前に追記。
+
+**Phase 2（MeshCube用UV空間Decal合成描画）**
+- `Decal`（`include/Instances/Decal.hpp`/`src/Instances/Decal.cpp`）に`UVCenter`(Vector2)/`UVRadius`(float)を追加し、`clone()`/`setProperty()`/`src/Core/SceneLoader.cpp`のYAML保存に反映。
+- `include/Editor/CommandHistory.hpp`に`SetDecalUVCommand`（UVCenter+UVRadiusをまとめた1Undo単位）を追加。
+- `MeshCube::collectUVDecals(maxCount=8)`を実装。子の`Decal`をFace無視で先着順に最大8個収集。
+- `src/fragment.glsl`に`MAX_DECALS 8`のuniform配列とUV距離ベースのブレンドループを追加（`uDecalCount`が0の他クラス描画には影響しない設計）。
+- `MeshCube::draw()`内でuniform配線を完結（`GL_TEXTURE2`〜`9`使用、描画後`uDecalCount`を0にリセットしてテクスチャユニットも`GL_TEXTURE0`に戻す）。**Renderer.cpp/Renderer.hppは一切変更していない**。
+- `PropertiesPanel.cpp`のDecalブロックで、親が`MeshCube`かどうかにより既存の`Face`Comboと新規`UVCenter`/`UVRadius`DragFloatを出し分け。
+
+**Phase 3（クリックしてDecal配置）**
+- `MeshCube::raycastLocal()`をMöller–Trumbore法で実装。CPU側の`m_cpuVertices`/`m_cpuIndices`に対して直接レイ-三角形交差判定を行い、ヒットした三角形のUVをバリセントリック補間して返す（**PhysX/Physics.cppには一切触れていない**）。
+- `DecalPlaceState`（`include/Editor/PropertiesPanel.hpp`）を新設し、`EditorManager`経由で`PropertiesPanel`/`ViewportPanel`（セカンダリビューポート含む）へ配線。
+- `PropertiesPanel.cpp`のMeshCubeブロックに「Decal配置モード」チェックボックスを追加。
+- `ViewportPanel.cpp`のクリック処理に、既存の`m_picker`分岐と並列する新分岐を追加。選択中インスタンスが`MeshCube`かつDecal配置モードONの場合、クリックのワールドレイをMeshCubeのローカル空間へ変換（逆回転+`Size`で除算）して`raycastLocal()`を呼び、ヒットしたUVで`Decal`を生成し`AddInstanceCommand`経由でUndo対応追加。配置後は自動でモードOFF。
+
+各Phaseはimplementerサブエージェントに実装させ、都度`git diff`で設計との照合レビューを実施。最終的に`python build.py build`で全体ビルド成功を確認した。
+
+### なぜそうしたか
+- **xatlas導入方式を「ヘッダ+cppを直接配置」にした理由**: Plan agentの調査で、`cgltf.h`/`stb_image.h`等の既存サードパーティライブラリが同じパターン（`include/`直下にヘッダ、実装は対応する`.cpp`内で`_IMPLEMENTATION`マクロ）で導入されており、かつ`CMakeLists.txt`の`file(GLOB_RECURSE "src/*.cpp")`が`src/`配下を再帰的に拾う（`src/imgui/imgui.cpp`等が実例）と分かったため。xatlasはヘッダ+cppの2ファイルのみのMITライブラリなので、この方式なら**ユーザーが事前承認していたビルドシステム変更すら不要**という、より低リスクな着地点を選べた。
+- **uniform配線をMeshCube::draw()内で完結させ、Renderer.cppを変更しない設計にした理由**: 既存の`Cube::draw()`が`colorLoc`/`uvScaleLoc`/`isSurfaceGuiLoc`等を自分自身で`glGetUniformLocation`して設定しており、Renderer.cppは一切関与していないという既存パターンをPlan agentの調査で確認。全描画クラスが単一の共有`shaderProgram`を使う設計（`Renderer.cpp:199`付近）のため、MeshCube固有のDecal情報もMeshCube自身が描画中に完結させるのが最も一貫性が高いと判断した。LiquidCubeの`uIsLiquid`だけがRenderer.cpp外側管理という例外だが、これは頂点シェーダーの波アニメが他クラスの描画にまたがって維持されるべきではないという特殊事情のためで、今回のケースには当てはまらないと判断。
+- **Decal配置のUV取得をPhysX/Physics.cppに触れずCPU側で自前実装した理由**: 調査の結果、MeshCubeの物理形状はConvex Hullのみで三角形トポロジを保持しないため、PhysX側からは原理的にUV/三角形情報を取得できないと判明。ビューポートのクリック選択自体も自前のOBBスラブ法でPhysXを使っていなかった。MeshCubeがレンダリング用にCPU側の頂点/インデックス配列(`m_cpuVertices`/`m_cpuIndices`)をそのまま保持していたため、これに対する自前レイ-三角形判定が最もスコープが小さく、PhysXの改修（Triangle Mesh cooking等の大掛かりな変更）を避けられる選択だった。
+- **Decalサイズ単位をUV空間で直接指定にした理由（ユーザー選択）**: xatlasのアトラスはchartごとにテクセル密度が異なるため「UV空間の単位で正確なワールド空間サイズ」は原理的に保証できない、というトレードオフを提示した上でユーザーが実装のシンプルさを優先して選択した。小さなロゴ・弾痕デカール程度の用途なら実用上問題ないという判断。
+
+### どういう経緯か
+1. Plan modeでExploreエージェントを複数ラウンド並列起動: (a)メッシュ/UV構造とプリミティブのUV生成パターン、(b)Decal/テクスチャ投影の仕組み、(c)spec.mdの該当記述確認（→該当なしと判明）。
+2. 現状の制約（MeshCubeはUV無しGLBで全頂点U=V=0になる、DecalはFaceベースでMeshCubeには概念自体が無い）を把握した上で、AskUserQuestionでスコープ（Decal個別配置まで含む）とxatlas導入可否を確認。
+3. 追加でExploreエージェント2体を並列起動: (a)エディターのDecal配置フロー・レイキャスト機構（→クリックでFace判定する仕組みは存在せず、ビューポート選択は自前OBB判定でPhysXを使っていない、MeshCubeの物理はConvex Hullのみと判明）、(b)PropertyRegistry・Decal/MeshCubeのシリアライズパターン（→両クラスとも未移行=手書き維持と判明）。
+4. Decalサイズ単位・同時表示数上限をAskUserQuestionで確認した上で、収集した調査結果全てをPlanエージェントに渡して詳細実装設計を依頼。Plan agentが「releaseGPU()のテクスチャ/バッファ解放責務分離が必要」「シェーダーuniform配線はRenderer.cppでなくMeshCube::draw()内で完結すべき」「テクスチャユニットの衝突回避(GL_TEXTURE0/1が既存用途で専有済み)」等、8点の設計判断ポイントと未解決事項を報告。
+5. 未解決事項のうち影響が大きい2点（UV再生成ボタンのUndo要否、Decal配置モードの継続挙動）を追加AskUserQuestionで確認し、他の軽微な判断（xatlas導入方式、regenerateUV()の責務分割、UVCenterのシリアライズキー形式等）はメインセッション側で妥当な既定値を決定。
+6. 最終計画を`refactored-wishing-kahan.md`に記述しExitPlanMode、承認を得た。
+7. Phase 1〜3を順にimplementerサブエージェントへ委譲。各Phase完了後`git diff`で設計との照合レビューを実施し、Phase 2で発見した軽微な冗長コード（後述）はメインセッション側で直接修正。全Phase完了後`python build.py build`で最終ビルド成功を確認。
+
+### 試して失敗した/計画から変更した点
+- **xatlas導入はユーザーが「ビルドシステム変更を伴う」前提で承認していたが、実際にはCMakeLists.txt/build.pyの変更が一切不要だった**。既存の`file(GLOB_RECURSE "src/*.cpp")`が新規配置した`.cpp`を自動的に拾う設計になっていたため。承認内容より安全側に倒せる発見だったので、そのまま無改修の方式を採用した（ユーザーへの再確認は「より低リスクな選択」のため省略）。
+- **Phase 2実装で、implementerが`ImGui::IsItemActivated()`をウィジェット呼び出しの前後両方に置く冗長なコードを書いていた**（前方の呼び出しは無関係な直前のアイテムを見てしまうdead code）。実害はない（後方の正しい呼び出しが実際のUndo記録を担っていた）が、レビューで発見しメインセッション側で該当4行を削除して整理した。CLAUDE.mdの役割分担（「メインセッションが自分でEdit/Writeしてよいのは実装成果物の微修正のみ」）の範囲内の対応。
+
+### 未解決・保留
+- **xatlas出力のV軸反転（`v.V = 1.0f - uv[1]/height`）は既存GLBロード時の慣習に合わせて実装したが、実機での市松模様テクスチャ等を使った目視検証は未実施**。プロジェクトの方針（`Recubin.exe`の自動起動によるスクリーンショット検証は禁止、[[feedback_no_gui_smoketest]]）によりビルド確認までに留めているため、次回起動確認時にUVの向きが正しいか要確認。
+- **UVアトラスのchart間でのDecalサイズの歪み**は既知のトレードオフとしてユーザー合意済みだが、実際にどの程度歪んで見えるかは実機未検証。
+- **`regenerateUV()`によるUVアトラスのseam分割で頂点が複製された場合の`MeshCube::getConvexVertices()`（Convex Hull物理形状生成）への影響は理論検証のみで実機未検証**。複製頂点は同じPosition値の重複点として渡るだけで、Convex Hullアルゴリズム自体は内部で自然に重複除去するはずだが、性能・安定性への実質的な影響は未確認。
+- **Decal配置モードは「事前に選択中のMeshCube」に対してのみ機能し、シーン内の任意のMeshCubeを都度自動判定してヒットさせる汎用ピッキングツールではない**（選択→モードON→対象メッシュ表面をクリック、という手順が必要）。この挙動は計画・実装指示の前提として扱ったが、UXとして直感的か（例えば「選択せずクリックしたら自動でその下のMeshCubeに配置」を期待するユーザーがいないか）は未確認。
+- 8個を超えるDecalが1つのMeshCubeに追加された場合、9個目以降は`collectUVDecals(8)`で静かに無視される（警告UIなし、ユーザー選択による仕様）。エディター上で「上限に達している」ことに気づく手段が無い点は将来的な改善余地として残っている。
+
+### 暗黙仕様の発見（spec.mdに無い挙動）
+- **全描画クラス（Cube/MeshCube/Terrain/LiquidCube等）は単一の共有`shaderProgram`（`Renderer.cpp`内で一度だけ`glUseProgram`）を使っており、クラス固有のuniform設定は各クラスの`draw()`メソッド自身が`glGetUniformLocation`で解決して行う**のが基本パターン（`Cube::draw()`の`colorLoc`/`isSurfaceGuiLoc`等が先例）。Renderer.cpp側から外部管理されるのはLiquidCubeの`uIsLiquid`のみの例外で、これは頂点シェーダーの波アニメというクラスを跨いだ特殊事情による。新しくクラス固有のシェーダー機能を追加する場合、Renderer.cppを触らずそのクラスの`draw()`内で完結させるのが既存規約に沿う。
+- **テクスチャユニットは`GL_TEXTURE0`=各描画の`ourTexture`（毎描画で切替）、`GL_TEXTURE1`=`shadowMap`（メインループ先頭で固定）と既に専有されている**。新規に複数テクスチャを扱う機能（今回のDecal等）は`GL_TEXTURE2`以降を使い、描画後は`GL_TEXTURE0`に戻す後始末をしないと、次に描画される他オブジェクトのテクスチャバインドを壊す可能性がある。
+- **`Decal`と`MeshCube`はどちらも`PropertyRegistry`に未移行で、`setProperty()`/`clone()`/YAML保存が全て手書き**（[[property-schema-registry]]で触れた「意図的に手書き維持するクラス」の実例が2つ増えた形）。新規プロパティ追加時は自動生成の恩恵を受けられず、3箇所（フィールド宣言・`setProperty`・シリアライズ）を手動で同期させる必要がある。
+- **`MeshCube`の物理形状はConvex Hullのみで、コードベース全体で`PxTriangleMesh`関連APIの使用が一切無い**。そのためMeshCube表面の三角形単位の情報（UV、法線の面単位の違いなど）が必要な機能は、PhysXクエリでは原理的に取得不可能で、レンダリング用に保持しているCPU側の頂点/インデックス配列に対して自前実装するしかない。
+- **`src/Editor/SceneHierarchyPanel.cpp`の`renderInsertMenu`/`tryInsertInstance`は動的なクラスレジストリ列挙ではなく、クラスごとに手書きされたメニュー項目の羅列**（v2.0ネットワーク基盤セッションで発見した内容の再確認）。この設計により「Decalは右クリックメニューから追加すると常にFace::Front固定で生成される」という制約があり、UV空間配置（Face無関係）を実現するには、メニュー経由ではなく今回実装したような別の生成経路（ビューポートクリック）が必要だった。
+
+---

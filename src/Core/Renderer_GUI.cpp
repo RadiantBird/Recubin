@@ -724,6 +724,7 @@ void Renderer::renderToolHotbar(User& user, float vpX, float vpY, float vpW, flo
 //  renderGameGui — ScreenGui + WorldGui + ToolHotbar の統合描画
 // ===================================================
 void Renderer::renderGameGui(Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH) {
+    if (user) user->setGameViewport(vpX, vpY, vpW, vpH);
     renderScreenGui(ws, vpX, vpY, vpW, vpH);
     renderWorldGui (ws, user, vpX, vpY, vpW, vpH);
     if (user) renderToolHotbar(*user, vpX, vpY, vpW, vpH);

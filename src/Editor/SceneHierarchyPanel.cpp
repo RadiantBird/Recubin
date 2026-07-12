@@ -21,6 +21,7 @@
 #include <Instances/Sound.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
+#include <Instances/Canvas.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/PointLight.hpp>
 #include <Instances/SpotLight.hpp>
@@ -149,7 +150,7 @@ static const char* getClassIcon(const std::string& cn) {
     if (cn == "Sound")                                                       return ICON_SOUND;
     if (cn == "Humanoid")                                                    return ICON_HUMANOID;
     if (cn == "User")                                                        return ICON_USER;
-    if (cn == "Decal" || cn == "Texture" ||
+    if (cn == "Decal" || cn == "Texture" || cn == "Canvas" ||
         cn == "ImageLabel" || cn == "ImageButton")                           return ICON_DECAL;
     if (cn == "FileRef")                                                     return ICON_FILE;
     if (cn == "Sphere")                                                      return ICON_SPHERE;
@@ -549,6 +550,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<TextLabel>(m_history, "TextLabel", parentSp);
         tryInsertInstance<TextButton>(m_history, "TextButton", parentSp);
         tryInsertInstance<SurfaceGui>(m_history, "SurfaceGui", parentSp);
+        tryInsertInstance<Canvas>(m_history, "Canvas", parentSp);
         tryInsertInstance<BillboardGui>(m_history, "BillboardGui", parentSp);
         tryInsertInstance<ProximityPrompt>(m_history, "ProximityPrompt", parentSp);
         tryInsertInstance<ImageLabel>(m_history, "ImageLabel", parentSp);

@@ -126,6 +126,11 @@ public:
     // カメラ回転ドラッグ中のアンカー位置（ウィンドウクライアント座標）
     void getRotationAnchor(double& x, double& y) const { x = lastMouseX; y = lastMouseY; }
 
+    // ゲームプレイビューポート矩形（スクリーン座標）。renderGameGuiが毎フレーム記録し、
+    // GetMouseRay（Luau）のマウス座標→ワールドレイ変換に使う。W/H<=0は未記録を意味する
+    float m_gameVpX = 0.f, m_gameVpY = 0.f, m_gameVpW = 0.f, m_gameVpH = 0.f;
+    void setGameViewport(float x, float y, float w, float h) { m_gameVpX = x; m_gameVpY = y; m_gameVpW = w; m_gameVpH = h; }
+
 private:
     static User* s_instance;
 

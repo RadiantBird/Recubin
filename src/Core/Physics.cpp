@@ -236,7 +236,7 @@ bool Physics::raycast(const Vector3& origin, const Vector3& direction, float max
     pxDir.normalize();
 
     // 複数のヒットを想定（自分自身を突き抜けるため）
-    const physx::PxU32 maxHits = 4;
+    const physx::PxU32 maxHits = 16;
     physx::PxRaycastHit hitBuffer[maxHits];
     physx::PxRaycastBuffer buf(hitBuffer, maxHits);
 
@@ -245,21 +245,20 @@ bool Physics::raycast(const Vector3& origin, const Vector3& direction, float max
     if (status) {
         // ヒットしたアクターを走査し、無視対象以外を見つける
         physx::PxRaycastHit* bestHit = nullptr;
-        
+
         // 通常のブロッキングヒットを確認
         if (buf.hasBlock) {
             if (buf.block.actor != ignoreActor) {
                 bestHit = &buf.block;
             }
         }
-        
-        // ブロッキングヒットが無視対象だった場合、次の候補を探す
-        if (!bestHit) {
-            for (physx::PxU32 i = 0; i < buf.nbTouches; i++) {
-                if (buf.touches[i].actor != ignoreActor) {
-                    bestHit = &buf.touches[i];
-                    break;
-                }
+
+        // touchesはBVH走査順で距離順ではない（フィルタコールバック無しだと全ヒットが
+        // touchesに入りhasBlockは立たない）ため、全走査して最近接を選ぶ
+        for (physx::PxU32 i = 0; i < buf.nbTouches; i++) {
+            if (buf.touches[i].actor == ignoreActor) continue;
+            if (!bestHit || buf.touches[i].distance < bestHit->distance) {
+                bestHit = &buf.touches[i];
             }
         }
 

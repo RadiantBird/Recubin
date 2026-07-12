@@ -134,6 +134,7 @@ private:
     static int user_remove_tool_closure(lua_State* L);
     static int user_get_tool_closure(lua_State* L);
     static int user_get_tools_closure(lua_State* L);
+    static int user_get_mouse_ray_closure(lua_State* L);
 
     // Workspace methods
     static int workspace_raycast_closure(lua_State* L);
@@ -164,6 +165,12 @@ private:
     static int terrain_get_block_closure(lua_State* L);
     static int terrain_raycast_closure(lua_State* L);
     static int terrain_apply_brush_closure(lua_State* L);
+
+    // Canvas methods
+    static int canvas_set_pixel_closure(lua_State* L);
+    static int canvas_get_pixel_closure(lua_State* L);
+    static int canvas_clear_closure(lua_State* L);
+    static int canvas_world_to_uv_closure(lua_State* L);
 
     // PathfindingService methods
     static int pathfinding_find_path_closure(lua_State* L);
