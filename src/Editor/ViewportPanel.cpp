@@ -623,11 +623,11 @@ void ViewportPanel::onRender() {
                 std::vector<Instance*> targets = hasMultiSelection()
                     ? *selectedInstances : std::vector<Instance*>{ inst };
                 for (Instance* tgt : targets) {
-                    if (tgt && !tgt->Parent.expired() && tgt->IsA("BaseCube")) {
-                        BaseCube* bc = static_cast<BaseCube*>(tgt);
+                    if (tgt && !tgt->Parent.expired() && tgt->IsA("Spatial")) {
+                        Spatial* sp = static_cast<Spatial*>(tgt);
                         m_gizmoEntries.push_back({
-                            std::static_pointer_cast<BaseCube>(tgt->shared_from_this()),
-                            { bc->Position, bc->Size, bc->Rotation }, {}
+                            std::static_pointer_cast<Spatial>(tgt->shared_from_this()),
+                            { sp->Position, sp->Size, sp->Rotation }, {}
                         });
                     }
                 }
@@ -862,11 +862,11 @@ void ViewportPanel::onRender() {
         std::vector<Instance*> targets = hasMultiSelection()
             ? *selectedInstances : std::vector<Instance*>{ *selectedInstance };
         for (Instance* tgt : targets) {
-            if (tgt && !tgt->Parent.expired() && tgt->IsA("BaseCube")) {
-                BaseCube* bc = static_cast<BaseCube*>(tgt);
+            if (tgt && !tgt->Parent.expired() && tgt->IsA("Spatial")) {
+                Spatial* sp = static_cast<Spatial*>(tgt);
                 m_freeDragEntries.push_back({
-                    std::static_pointer_cast<BaseCube>(tgt->shared_from_this()),
-                    { bc->Position, bc->Size, bc->Rotation }, {}
+                    std::static_pointer_cast<Spatial>(tgt->shared_from_this()),
+                    { sp->Position, sp->Size, sp->Rotation }, {}
                 });
             }
         }

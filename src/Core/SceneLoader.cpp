@@ -669,13 +669,19 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         out << YAML::EndMap;
     }
 
-    // 子要素（Weatherは自身のupdate()で毎回同じ構成を遅延生成するため、シリアライズしない
-    // ・シリアライズすると再読込時に子が重複/孤立するため意図的に除外する）
-    if (!inst->children.empty() && inst->getClassName() != "Weather") {
+    // 子要素（Weatherの自動生成アンカー(WeatherSkyAnchor/WeatherLightningAnchor/WeatherAmbient)は
+    // 自身のupdate()で毎回同じ構成を遅延生成するため、シリアライズすると再読込時に重複/孤立する。
+    // これらの名前の子だけを除外し、ユーザーがWeather直下に追加した子は通常通り保存する。
+    std::vector<Instance*> childrenToSave;
+    for (auto const& [name, child] : inst->children) {
+        if (inst->getClassName() == "Weather" &&
+            (name == "WeatherSkyAnchor" || name == "WeatherLightningAnchor" || name == "WeatherAmbient"))
+            continue;
+        childrenToSave.push_back(child.get());
+    }
+    if (!childrenToSave.empty()) {
         out << YAML::Key << "Children" << YAML::Value << YAML::BeginSeq;
-        for (auto const& [name, child] : inst->children) {
-            saveNode(out, child.get());
-        }
+        for (Instance* child : childrenToSave) saveNode(out, child);
         out << YAML::EndSeq;
     }
 

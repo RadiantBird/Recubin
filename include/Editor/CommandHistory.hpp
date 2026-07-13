@@ -285,7 +285,7 @@ private:
 // --- 複数オブジェクトのGizmo操作（位置/サイズ/回転をまとめてundoできる） ---
 struct MultiGizmoCommand : Command {
     struct Entry {
-        std::shared_ptr<BaseCube> target;
+        std::shared_ptr<Spatial> target;
         GizmoState before, after;
     };
     std::vector<Entry> m_entries;
@@ -297,11 +297,18 @@ struct MultiGizmoCommand : Command {
     void undo()    override { for (auto& e : m_entries) applyState(e.target, e.before); }
 
 private:
-    static void applyState(const std::shared_ptr<BaseCube>& bc, const GizmoState& s) {
-        if (!bc || bc->Parent.expired()) return;
-        bc->teleportTo(s.position);
-        bc->setSize(s.size);
-        bc->setRotation(s.rotation);
+    static void applyState(const std::shared_ptr<Spatial>& sp, const GizmoState& s) {
+        if (!sp || sp->Parent.expired()) return;
+        if (sp->IsA("BaseCube")) {
+            BaseCube* bc = static_cast<BaseCube*>(sp.get());
+            bc->teleportTo(s.position);
+            bc->setSize(s.size);
+            bc->setRotation(s.rotation);
+        } else {
+            sp->Position = s.position;
+            sp->Size = s.size;
+            sp->Rotation = s.rotation;
+        }
     }
 };
 

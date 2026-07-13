@@ -241,7 +241,7 @@ Root:
         - ClassName: Cube
           Name: Baseplate
           Properties:
-            Position: [0, -50, 0]
+            Position: [0, 0, 0]
             Size: [2048, 1, 2048]
             Rotation: [0, 0, 0, 1]
             Color: [0.41230768, 0.40342718, 0, 1]
