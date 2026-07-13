@@ -555,8 +555,9 @@ void EditorManager::tryAddObjectButton(const char* icon, const std::string& labe
                                         const std::shared_ptr<Instance>& parent,
                                         const ImVec2& btnSize, Args&&... args)
 {
-    if (!parent) return;
-    if (drawIconButton(icon, label.c_str(), btnSize)) {
+    // parentがnullでも(disabled状態のボタン等)レイアウト位置を安定させるため、描画は必ず行う。
+    // 実際にインスタンスを追加するのはparentがある場合のみ。
+    if (drawIconButton(icon, label.c_str(), btnSize) && parent) {
         auto obj = std::make_shared<T>(std::forward<Args>(args)...);
         obj->Name = SceneHierarchyPanel::uniqueName(parent, defaultName);
         m_history.execute(std::make_unique<AddInstanceCommand>(parent, obj));
