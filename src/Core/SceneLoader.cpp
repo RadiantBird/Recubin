@@ -443,6 +443,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << d->UVCenter.x << d->UVCenter.y
                 << YAML::EndSeq;
             out << YAML::Key << "UVRadius" << YAML::Value << d->UVRadius;
+            out << YAML::Key << "Mode" << YAML::Value << static_cast<int>(d->Mode);
         }
         if (inst->getClassName() == "Texture") {
             const Texture* tx = static_cast<const Texture*>(inst);

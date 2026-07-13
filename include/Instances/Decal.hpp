@@ -13,6 +13,13 @@ enum class Face {
     Left = 5
 };
 
+// Decalの貼り付けモード。MeshCube配下でのみ意味を持つ
+// (Cube等のプリミティブは常にFace貼りで、このモードは無視される)
+enum class DecalMode {
+    UV = 0,   // UVCenter/UVRadiusによる円形ブレンド
+    Face = 1  // 指定Faceのローカル空間ボックス射影で面全体に長方形貼り
+};
+
 class Decal : public Instance {
 public:
     unsigned int TextureID = 0;
@@ -22,6 +29,8 @@ public:
     // MeshCube配下でのみ意味を持つUV空間配置(Face配置のプリミティブでは無視される)
     Vector2      UVCenter = Vector2(0.5f, 0.5f);
     float        UVRadius = 0.15f;
+    // MeshCube配下でのみ意味を持つ貼り付けモード(Face配置のプリミティブでは無視される)
+    DecalMode    Mode = DecalMode::UV;
 
     Decal(unsigned int textureID = 0, Face targetFace = Face::Front);
     virtual ~Decal();

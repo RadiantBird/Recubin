@@ -813,26 +813,53 @@ void PropertiesPanel::onRender() {
         }
 
         if (parentIsMeshCube) {
-            // UVCenter/UVRadius with undo (MeshCube配下専用)
-            static Vector2 s_dclUVCenterBefore;
-            static float   s_dclUVRadiusBefore;
-
-            float center[2] = { dcl->UVCenter.x, dcl->UVCenter.y };
-            bool centerChanged = ImGui::DragFloat2("UVCenter", center, 0.01f, 0.0f, 1.0f, "%.3f");
-            if (ImGui::IsItemActivated()) { s_dclUVCenterBefore = dcl->UVCenter; s_dclUVRadiusBefore = dcl->UVRadius; }
-            if (centerChanged) dcl->UVCenter = Vector2(center[0], center[1]);
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                m_history->record(std::make_unique<SetDecalUVCommand>(
-                    dclSp, s_dclUVCenterBefore, s_dclUVRadiusBefore, dcl->UVCenter, dcl->UVRadius));
+            static const char* modeItems[] = { "UV (Free)", "Face (Full)" };
+            int modeIdx = static_cast<int>(dcl->Mode);
+            if (ImGui::Combo("Mode", &modeIdx, modeItems, 2)) {
+                DecalMode newMode = static_cast<DecalMode>(modeIdx);
+                if (newMode != dcl->Mode) {
+                    DecalMode oldMode = dcl->Mode;
+                    dcl->Mode = newMode;
+                    if (m_history)
+                        m_history->record(std::make_unique<SetDecalModeCommand>(dclSp, oldMode, newMode));
+                }
             }
 
-            float radius = dcl->UVRadius;
-            bool radiusChanged = ImGui::DragFloat("UVRadius", &radius, 0.005f, 0.01f, 1.0f, "%.3f");
-            if (ImGui::IsItemActivated()) { s_dclUVCenterBefore = dcl->UVCenter; s_dclUVRadiusBefore = dcl->UVRadius; }
-            if (radiusChanged) dcl->UVRadius = radius;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                m_history->record(std::make_unique<SetDecalUVCommand>(
-                    dclSp, s_dclUVCenterBefore, s_dclUVRadiusBefore, dcl->UVCenter, dcl->UVRadius));
+            if (dcl->Mode == DecalMode::UV) {
+                // UVCenter/UVRadius with undo (MeshCube配下専用)
+                static Vector2 s_dclUVCenterBefore;
+                static float   s_dclUVRadiusBefore;
+
+                float center[2] = { dcl->UVCenter.x, dcl->UVCenter.y };
+                bool centerChanged = ImGui::DragFloat2("UVCenter", center, 0.01f, 0.0f, 1.0f, "%.3f");
+                if (ImGui::IsItemActivated()) { s_dclUVCenterBefore = dcl->UVCenter; s_dclUVRadiusBefore = dcl->UVRadius; }
+                if (centerChanged) dcl->UVCenter = Vector2(center[0], center[1]);
+                if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                    m_history->record(std::make_unique<SetDecalUVCommand>(
+                        dclSp, s_dclUVCenterBefore, s_dclUVRadiusBefore, dcl->UVCenter, dcl->UVRadius));
+                }
+
+                float radius = dcl->UVRadius;
+                bool radiusChanged = ImGui::DragFloat("UVRadius", &radius, 0.005f, 0.01f, 1.0f, "%.3f");
+                if (ImGui::IsItemActivated()) { s_dclUVCenterBefore = dcl->UVCenter; s_dclUVRadiusBefore = dcl->UVRadius; }
+                if (radiusChanged) dcl->UVRadius = radius;
+                if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                    m_history->record(std::make_unique<SetDecalUVCommand>(
+                        dclSp, s_dclUVCenterBefore, s_dclUVRadiusBefore, dcl->UVCenter, dcl->UVRadius));
+                }
+            } else {
+                // Face combo with undo
+                static const char* faceItems[] = { "Front", "Back", "Top", "Bottom", "Right", "Left" };
+                int faceIdx = static_cast<int>(dcl->face);
+                if (ImGui::Combo("Face", &faceIdx, faceItems, 6)) {
+                    Face newFace = static_cast<Face>(faceIdx);
+                    if (newFace != dcl->face) {
+                        Face oldFace = dcl->face;
+                        dcl->setFace(newFace);
+                        if (m_history)
+                            m_history->record(std::make_unique<SetDecalFaceCommand>(dclSp, oldFace, newFace));
+                    }
+                }
             }
         } else {
             // Face combo with undo

@@ -406,6 +406,7 @@ void LuauEngine::InitDispatchTable_World() {
 
     DispatchTable["Decal"]["TextureID"]   = getter_number<Decal, &Decal::TextureID>();
     DispatchTable["Decal"]["Face"]        = getter_number<Decal, &Decal::face>();
+    DispatchTable["Decal"]["Mode"]        = getter_number<Decal, &Decal::Mode>();
     DispatchTable["Decal"]["Color"]       = getter_color4<Decal, &Decal::Color>();
     // TexturePath は読み取りのみ（書込はテクスチャ再読込が必要で、パス問題と同様に未対応）
     DispatchTable["Decal"]["TexturePath"] = getter_string<Decal, &Decal::texturePath>();
@@ -625,6 +626,7 @@ void LuauEngine::InitSetterTable_World() {
 
     SetterTable["Decal"]["TextureID"] = setter_number<Decal, &Decal::TextureID>();
     SetterTable["Decal"]["Face"]      = setter_number<Decal, &Decal::face>();
+    SetterTable["Decal"]["Mode"]      = setter_number<Decal, &Decal::Mode>();
     SetterTable["Decal"]["Color"]     = setter_color4<Decal, &Decal::Color>();
     // FileRef.Source: 画像 FileRef を代入してテクスチャを適用
     SetterTable["Decal"]["Source"] = [](lua_State* L, Instance* o) {

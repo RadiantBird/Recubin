@@ -37,6 +37,18 @@ void MeshCube::releaseGPU() {
 }
 
 void MeshCube::uploadToGPU() {
+    // Face貼りDecalの射影範囲用にローカル空間AABBを算出する(空なら(0,0,0)のまま)
+    if (!m_cpuVertices.empty()) {
+        Vector3 minP = m_cpuVertices[0].Position, maxP = m_cpuVertices[0].Position;
+        for (auto const& v : m_cpuVertices) {
+            minP.x = std::min(minP.x, v.Position.x); maxP.x = std::max(maxP.x, v.Position.x);
+            minP.y = std::min(minP.y, v.Position.y); maxP.y = std::max(maxP.y, v.Position.y);
+            minP.z = std::min(minP.z, v.Position.z); maxP.z = std::max(maxP.z, v.Position.z);
+        }
+        m_localBoundsMin = minP;
+        m_localBoundsMax = maxP;
+    }
+
     std::vector<float> vbo;
     vbo.reserve(m_cpuVertices.size() * 9);
     for (auto const& v : m_cpuVertices) {
@@ -85,6 +97,8 @@ std::vector<UVDecalDesc> MeshCube::collectUVDecals(int maxCount) const {
         desc.center    = d->UVCenter;
         desc.radius    = d->UVRadius;
         desc.color     = d->Color;
+        desc.mode      = static_cast<int>(d->Mode);
+        desc.face      = static_cast<int>(d->face);
         out.push_back(desc);
     }
     return out;
@@ -153,13 +167,22 @@ void MeshCube::draw(int modelLoc, int shaderProgram) {
         int centerLoc = glGetUniformLocation(shaderProgram, ("uDecalCenter[" + idx + "]").c_str());
         int radiusLoc = glGetUniformLocation(shaderProgram, ("uDecalRadius[" + idx + "]").c_str());
         int colorLocD = glGetUniformLocation(shaderProgram, ("uDecalColor[" + idx + "]").c_str());
+        int modeLoc   = glGetUniformLocation(shaderProgram, ("uDecalMode[" + idx + "]").c_str());
+        int faceLoc   = glGetUniformLocation(shaderProgram, ("uDecalFace[" + idx + "]").c_str());
         if (texLoc    != -1) glUniform1i(texLoc, 2 + static_cast<int>(i));
         if (centerLoc != -1) glUniform2f(centerLoc, d.center.x, d.center.y);
         if (radiusLoc != -1) glUniform1f(radiusLoc, d.radius);
         if (colorLocD != -1) glUniform4f(colorLocD, d.color.r, d.color.g, d.color.b, d.color.a);
+        if (modeLoc   != -1) glUniform1i(modeLoc, d.mode);
+        if (faceLoc   != -1) glUniform1i(faceLoc, d.face);
     }
     int countLoc = glGetUniformLocation(shaderProgram, "uDecalCount");
     if (countLoc != -1) glUniform1i(countLoc, static_cast<int>(uvDecals.size()));
+
+    int boundsMinLoc = glGetUniformLocation(shaderProgram, "uLocalBoundsMin");
+    int boundsMaxLoc = glGetUniformLocation(shaderProgram, "uLocalBoundsMax");
+    if (boundsMinLoc != -1) glUniform3f(boundsMinLoc, m_localBoundsMin.x, m_localBoundsMin.y, m_localBoundsMin.z);
+    if (boundsMaxLoc != -1) glUniform3f(boundsMaxLoc, m_localBoundsMax.x, m_localBoundsMax.y, m_localBoundsMax.z);
 
     glDrawElements(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, nullptr);
 
@@ -301,7 +324,9 @@ bool MeshCube::loadFromGLB(const std::string& path) {
 
     std::vector<MeshVertex>   vertices;
     std::vector<unsigned int> indices;
+    std::vector<char>         normalMissing; // vertices と同期。NORMAL属性が無く算出が必要な頂点はtrue
     unsigned int loadedTexture = 0;
+    bool needNormals = false; // NORMAL属性の無い頂点が1つでもあればtrue
 
     for (cgltf_size ni = 0; ni < data->nodes_count; ++ni) {
         const cgltf_node* node = &data->nodes[ni];
@@ -330,7 +355,9 @@ bool MeshCube::loadFromGLB(const std::string& path) {
                     cgltf_accessor_read_float(normAcc, vi, n, 3);
                     v.Normal = glbTransformNormal(worldMat, Vector3(n[0], n[1], n[2]));
                 } else {
-                    v.Normal = Vector3(0.0f, 1.0f, 0.0f);
+                    // 法線未定義の印。後段でジオメトリ(三角形)から算出する
+                    v.Normal = Vector3(0.0f, 0.0f, 0.0f);
+                    needNormals = true;
                 }
 
                 if (uvAcc) {
@@ -347,6 +374,7 @@ bool MeshCube::loadFromGLB(const std::string& path) {
                 }
 
                 vertices.push_back(v);
+                normalMissing.push_back(normAcc ? 0 : 1);
             }
 
             if (prim.indices) {
@@ -379,6 +407,31 @@ bool MeshCube::loadFromGLB(const std::string& path) {
         RCBN_WARN("MeshCube: GLBに有効なメッシュがありません: " << path);
         if (loadedTexture) glDeleteTextures(1, &loadedTexture);
         return false;
+    }
+
+    // NORMAL属性の無いprimitiveの頂点に、三角形から面法線を算出して与える
+    // (面積重み付きで累積するため、頂点共有メッシュでは滑らか、三角形スープではフラットになる)
+    if (needNormals) {
+        for (size_t i = 0; i + 2 < indices.size(); i += 3) {
+            unsigned int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
+            MeshVertex& v0 = vertices[i0];
+            MeshVertex& v1 = vertices[i1];
+            MeshVertex& v2 = vertices[i2];
+            Vector3 fn = Vector3::Cross(v1.Position - v0.Position, v2.Position - v0.Position);
+            if (normalMissing[i0]) v0.Normal = v0.Normal + fn;
+            if (normalMissing[i1]) v1.Normal = v1.Normal + fn;
+            if (normalMissing[i2]) v2.Normal = v2.Normal + fn;
+        }
+        for (size_t i = 0; i < vertices.size(); ++i) {
+            if (!normalMissing[i]) continue;
+            Vector3& n = vertices[i].Normal;
+            float len = std::sqrt(n.x * n.x + n.y * n.y + n.z * n.z);
+            if (len > 1e-6f) {
+                n.x /= len; n.y /= len; n.z /= len;
+            } else {
+                n = Vector3(0.0f, 1.0f, 0.0f);
+            }
+        }
     }
 
     // バウンディングボックスを計算し、最大軸が1.0になるよう正規化・中心化する

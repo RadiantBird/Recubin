@@ -337,6 +337,18 @@ struct SetDecalFaceCommand : Command {
     void undo()    override { if (m_target) m_target->setFace(m_before); }
 };
 
+// --- Decal Mode 変更 ---
+struct SetDecalModeCommand : Command {
+    std::shared_ptr<Decal> m_target;
+    DecalMode m_before, m_after;
+
+    SetDecalModeCommand(std::shared_ptr<Decal> target, DecalMode before, DecalMode after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->Mode = m_after; }
+    void undo()    override { if (m_target) m_target->Mode = m_before; }
+};
+
 // --- Decal Texture 変更 ---
 struct SetDecalTextureCommand : Command {
     std::shared_ptr<Decal> m_target;

@@ -24,6 +24,7 @@ std::shared_ptr<Instance> Decal::clone() const {
     copy->Color       = this->Color;
     copy->UVCenter    = this->UVCenter;
     copy->UVRadius    = this->UVRadius;
+    copy->Mode        = this->Mode;
     return copy;
 }
 
@@ -63,6 +64,8 @@ void Decal::setProperty(const std::string& name, const YAML::Node& value) {
         this->UVCenter = v;
     } else if (name == "UVRadius") {
         this->UVRadius = value.as<float>();
+    } else if (name == "Mode") {
+        this->Mode = static_cast<DecalMode>(value.as<int>());
     } else {
         Instance::setProperty(name, value);
     }

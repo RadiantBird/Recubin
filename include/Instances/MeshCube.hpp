@@ -14,6 +14,8 @@ struct UVDecalDesc {
     Vector2      center;
     float        radius;
     Color4       color;
+    int          mode = 0; // 0=UV円形, 1=Face面貼り
+    int          face = 0; // Face番号(mode==1のときのみ意味を持つ)
 };
 
 // MeshCube::raycastLocal() の結果。ヒットした三角形のUVをバリセントリック補間した値を持つ
@@ -95,6 +97,10 @@ private:
     std::vector<MeshVertex>   m_cpuVertices;
     std::vector<unsigned int> m_cpuIndices;
     std::vector<float>        m_highlightEdgeVerts;
+
+    // ローカル空間AABB(uploadToGPUで算出)。Face貼りDecalの射影範囲に使用する
+    Vector3 m_localBoundsMin;
+    Vector3 m_localBoundsMax;
 
     void releaseMeshBuffers();
     void releaseGPU();

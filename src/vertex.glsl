@@ -18,6 +18,8 @@ out vec2 TexCoord;
 out vec4 FragPosLightSpace;
 out vec3 VertexColor;
 out float MatAlpha;
+out vec3 LocalPos;
+out vec3 LocalNormal;
 
 void main() {
     // LiquidCube は上面のみ時間ベースの sin 波で揺らす（ローカル空間）
@@ -30,6 +32,8 @@ void main() {
     TexCoord = aTexCoord;
     VertexColor = aVertexColor;
     MatAlpha = aMatAlpha;
+    LocalPos = p;
+    LocalNormal = aNormal;
     FragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0);
     gl_Position = projection * view * vec4(FragPos, 1.0);
 }
