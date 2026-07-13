@@ -191,21 +191,6 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     } else if (currentMoveDir.length() > 0.01f) {
         Vector3 velocity = currentMoveDir * WalkSpeed;
 
-        RaycastHit wallHit;
-        float checkDist = Root->Size.x / 2.0f + 0.15f;
-        if (physics && physics->raycast(Root->getWorldPosition(), currentMoveDir, checkDist, wallHit, Root->actor)) {
-            Vector3 n(wallHit.normal.x, 0.0f, wallHit.normal.z);
-            float nLen = n.length();
-            if (nLen > 0.001f) {
-                n = n * (1.0f / nLen);
-                float dot = velocity.x * n.x + velocity.z * n.z;
-                if (dot < 0.0f) {
-                    velocity.x -= dot * n.x;
-                    velocity.z -= dot * n.z;
-                }
-            }
-        }
-
         physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
         dynamicActor->setLinearVelocity(physx::PxVec3(velocity.x, currentVel.y, velocity.z));
     } else {
