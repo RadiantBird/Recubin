@@ -13,6 +13,7 @@ public:
     static unsigned int s_VBO;
     static unsigned int s_EBO;
     static int s_IndexCount;
+    static std::vector<float> s_HighlightEdgeVerts;
 
     Cylinder(Vector3 Pos, Vector3 Sz);
 
@@ -23,6 +24,10 @@ public:
 
     PhysicsShape getPhysicsShape() const override { return PhysicsShape::ConvexMesh; }
     std::vector<physx::PxVec3> getConvexVertices() const override;
+
+    unsigned int getHighlightVAO() const override { return s_VAO; }
+    unsigned int getHighlightIndexCount() const override { return (unsigned int)s_IndexCount; }
+    const std::vector<float>& getHighlightEdgeVerts() const override { return s_HighlightEdgeVerts; }
 
 private:
     static void initGeometry();

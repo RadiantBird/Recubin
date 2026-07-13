@@ -14,6 +14,7 @@ public:
     static unsigned int s_EBO;
     static int s_IndexCount;
     static int s_FaceIndexCount;
+    static std::vector<float> s_HighlightEdgeVerts;
 
     Sphere(Vector3 Pos, Vector3 Sz);
 
@@ -23,6 +24,10 @@ public:
     std::shared_ptr<Instance> clone() const override;
 
     PhysicsShape getPhysicsShape() const override { return PhysicsShape::Sphere; }
+
+    unsigned int getHighlightVAO() const override { return s_VAO; }
+    unsigned int getHighlightIndexCount() const override { return (unsigned int)s_IndexCount; }
+    const std::vector<float>& getHighlightEdgeVerts() const override { return s_HighlightEdgeVerts; }
 
 private:
     static void initGeometry();

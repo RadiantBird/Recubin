@@ -1262,24 +1262,6 @@ void PropertiesPanel::onRender() {
             }
             ImGui::EndPopup();
         }
-
-        if (m_terrainBrush) {
-            ImGui::Separator();
-            ImGui::Checkbox(Loc::t(Loc::LocKey::TerrainBrushEdit), &m_terrainBrush->active);
-            if (m_terrainBrush->active) {
-                ImGui::SliderFloat(Loc::t(Loc::LocKey::TerrainBrushRadius), &m_terrainBrush->radius, 1.0f, 64.0f, "%.1f studs");
-                const char* modeItems[] = {
-                    Loc::t(Loc::LocKey::TerrainBrushModeLower),
-                    Loc::t(Loc::LocKey::TerrainBrushModeSmooth),
-                    Loc::t(Loc::LocKey::TerrainBrushModeRaise)
-                };
-                int modeIdx = m_terrainBrush->mode + 1; // -1,0,+1 -> 0,1,2
-                if (ImGui::Combo(Loc::t(Loc::LocKey::TerrainBrushMode), &modeIdx, modeItems, 3)) {
-                    m_terrainBrush->mode = modeIdx - 1;
-                }
-                ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::TerrainBrushHint));
-            }
-        }
     }
 
     // ---- Skybox ----
@@ -1467,6 +1449,10 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "Canvas") {
         ImGui::SeparatorText("Canvas");
         renderSchemaInspector(inst, "Canvas", m_history);
+    }
+    if (inst->getClassName() == "Highlight") {
+        ImGui::SeparatorText("Highlight");
+        renderSchemaInspector(inst, "Highlight", m_history);
     }
     if (inst->getClassName() == "BillboardGui") {
         ImGui::SeparatorText("BillboardGui");

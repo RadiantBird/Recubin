@@ -15,6 +15,7 @@
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/Canvas.hpp>
+#include <Instances/Highlight.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/PointLight.hpp>
@@ -243,6 +244,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Decal")     return std::make_shared<Decal>(0, Face::Front);
     if (className == "Texture")   return std::make_shared<Texture>(0, Face::Front);
     if (className == "Canvas")    return std::make_shared<Canvas>();
+    if (className == "Highlight") return std::make_shared<Highlight>();
     if (className == "Sound") {
         if (AudioService::instance) {
             return std::make_shared<Sound>(*AudioService::instance);
@@ -382,6 +384,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->getClassName() == "ParticleEmitter"
                  || inst->getClassName() == "Weather"
                  || inst->getClassName() == "Canvas"
+                 || inst->getClassName() == "Highlight"
                  || inst->IsA("Workspace"); // NOTE: プロパティを最近追加した
 
     if (hasProps) {
@@ -629,6 +632,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         }
         if (inst->getClassName() == "Canvas") {
             PropertyRegistry::saveProperties(out, inst, "Canvas");
+        }
+        if (inst->getClassName() == "Highlight") {
+            PropertyRegistry::saveProperties(out, inst, "Highlight");
         }
         if (inst->getClassName() == "BillboardGui") {
             PropertyRegistry::saveProperties(out, inst, "BillboardGui");

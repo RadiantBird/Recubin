@@ -59,7 +59,7 @@ void ViewportPanel::initFBO(int w, int h) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    printf("\033[36m[FBO CHECK] fb=%u, tex=%u, status=0x%X (Complete=0x8CD5)\033[0m\n", framebuffer, colorTexture, status);
+    // printf("\033[36m[FBO CHECK] fb=%u, tex=%u, status=0x%X (Complete=0x8CD5)\033[0m\n", framebuffer, colorTexture, status);
 }
 
 void ViewportPanel::resizeFBO(int w, int h) {
@@ -390,7 +390,7 @@ void ViewportPanel::onRender() {
                     glGetIntegerv(GL_VIEWPORT, prevVp);
                     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
                     glViewport(0, 0, fbWidth, fbHeight);
-                    Renderer::instance->renderBrushMarker(view, proj, hitPos, m_terrainBrush->radius);
+                    Renderer::instance->renderBrushMarker(view, proj, hitPos, m_terrainBrush->radius, user->cpos);
                     glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
                     glViewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3]);
                 }

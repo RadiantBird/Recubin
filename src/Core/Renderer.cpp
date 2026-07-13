@@ -2,6 +2,7 @@
 #include <Core/FileLoader.hpp>
 #include <Util/Logger.hpp>
 #include <Util/AssetGuard.hpp>
+#include <Util/MeshEdges.hpp>
 #include <Editor/IEditorManager.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
@@ -15,6 +16,8 @@
 #include <Instances/Spatial.hpp>
 #include <Instances/LiquidCube.hpp>
 #include <Instances/ParticleEmitter.hpp>
+#include <Instances/Highlight.hpp>
+#include <Instances/Model.hpp>
 #include <Instances/Weather.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
@@ -75,6 +78,112 @@ static void collectParticleEmitters(Instance* inst, std::vector<ParticleEmitter*
     if (inst->IsA("ParticleEmitter")) out.push_back(static_cast<ParticleEmitter*>(inst));
     for (auto& [name, child] : inst->getChildren())
         collectParticleEmitters(child.get(), out);
+}
+
+// BaseCube派生の描画用VAO/インデックス数を、BaseCube::getHighlightVAO/getHighlightIndexCountから取得してバインドする。
+// 戻り値: 描画可能なジオメトリがあれば true（VAOバインド済み・outIndexCountセット済み）
+static bool bindHighlightGeometry(BaseCube* target, GLsizei& outIndexCount) {
+    if (!target) return false;
+    unsigned int vao = target->getHighlightVAO();
+    unsigned int idx = target->getHighlightIndexCount();
+    if (vao == 0 || idx == 0) return false;
+    glBindVertexArray(vao);
+    outIndexCount = (GLsizei)idx;
+    return true;
+}
+
+// 独立した(連結ポリラインでない)線分群を、画面上で常に一定ピクセル幅に見えるリボンに変換する。
+// segmentEndpoints: ワールド空間、セグメントごとに(x0,y0,z0,x1,y1,z1)のフラット配列。
+// fovYDegrees/viewportHeightPxはMatrix4::Perspective()と同じ規約(垂直視野角・ピクセル高さ)。
+static void buildSegmentRibbons(const std::vector<float>& segmentEndpoints,
+                                 const Vector3& cameraPosition, float fovYDegrees,
+                                 int viewportHeightPx, float pixelWidth,
+                                 std::vector<float>& outVerts) {
+    outVerts.clear();
+    if (viewportHeightPx <= 0 || pixelWidth <= 0.001f) return;
+    const float tanHalfFov = std::tan(fovYDegrees * 3.14159265f / 360.0f);
+    for (size_t i = 0; i + 5 < segmentEndpoints.size(); i += 6) {
+        Vector3 p0(segmentEndpoints[i],   segmentEndpoints[i+1], segmentEndpoints[i+2]);
+        Vector3 p1(segmentEndpoints[i+3], segmentEndpoints[i+4], segmentEndpoints[i+5]);
+        Vector3 segVec = p1 - p0;
+        float len = segVec.length();
+        if (len < 1e-6f) continue;
+        Vector3 segDir = segVec / len;
+        Vector3 mid = (p0 + p1) * 0.5f;
+        Vector3 toCam = cameraPosition - mid;
+        Vector3 viewDir = (toCam.length() > 1e-6f) ? toCam.normalize() : Vector3(0,1,0);
+        Vector3 right = Vector3::Cross(segDir, viewDir);
+        if (right.length() < 1e-5f) right = Vector3::Cross(segDir, Vector3(0,1,0));
+        if (right.length() < 1e-5f) right = Vector3::Cross(segDir, Vector3(1,0,0));
+        if (right.length() < 1e-5f) right = Vector3::Cross(segDir, Vector3(0,0,1));
+        right = right.normalize();
+        float d0 = (cameraPosition - p0).length();
+        float d1 = (cameraPosition - p1).length();
+        float half0 = pixelWidth * d0 * tanHalfFov / (float)viewportHeightPx;
+        float half1 = pixelWidth * d1 * tanHalfFov / (float)viewportHeightPx;
+        Vector3 a0 = p0 + right * half0, a1 = p0 - right * half0;
+        Vector3 b0 = p1 + right * half1, b1 = p1 - right * half1;
+        auto push = [&](const Vector3& v){ outVerts.push_back(v.x); outVerts.push_back(v.y); outVerts.push_back(v.z); };
+        push(a0); push(a1); push(b1);
+        push(a0); push(b1); push(b0);
+    }
+}
+
+// 連結ポリライン(フラットな(x,y,z)*N配列)を、カメラ向きのリボン三角形(GL_TRIANGLES用フラット頂点配列)に
+// 変換する。ワールド空間の全幅(width)を使う。各頂点で前後セグメント方向を平均した接線を使うため、
+// ジョイント部に隙間ができない。m_lineShaderのaPosレイアウト(position-only vec3)にそのまま渡せる。
+static void buildRibbonStrip(const std::vector<float>& points, float width,
+                              const Vector3& cameraPos, std::vector<float>& outVerts) {
+    size_t n = points.size() / 3;
+    if (n < 2 || width <= 0.0f) return;
+    float halfW = width * 0.5f;
+    std::vector<Vector3> pts(n), left(n), right(n);
+    for (size_t i = 0; i < n; ++i) pts[i] = Vector3(points[i*3], points[i*3+1], points[i*3+2]);
+    for (size_t i = 0; i < n; ++i) {
+        Vector3 dirPrev = (i > 0)     ? (pts[i] - pts[i-1]).normalize() : (pts[i+1] - pts[i]).normalize();
+        Vector3 dirNext = (i+1 < n)   ? (pts[i+1] - pts[i]).normalize() : dirPrev;
+        Vector3 tangent = (dirPrev + dirNext).normalize();
+        Vector3 viewDir = (cameraPos - pts[i]).normalize();
+        Vector3 side = Vector3::Cross(tangent, viewDir);
+        float len = side.length();
+        side = (len > 1e-5f) ? (side / len) * halfW : Vector3(halfW, 0, 0); // 縮退時のフォールバック
+        left[i] = pts[i] + side; right[i] = pts[i] - side;
+    }
+    outVerts.reserve(outVerts.size() + (n - 1) * 18);
+    auto push = [&](const Vector3& v){ outVerts.push_back(v.x); outVerts.push_back(v.y); outVerts.push_back(v.z); };
+    for (size_t i = 0; i + 1 < n; ++i) {
+        push(left[i]);  push(right[i]);   push(left[i+1]);
+        push(right[i]); push(right[i+1]); push(left[i+1]);
+    }
+}
+
+// inst以下の全子孫からBaseCubeをすべて再帰収集する（Model境界・BaseCube境界のどちらでも止まらない）
+static void collectBaseCubesRecursive(Instance* inst, std::vector<BaseCube*>& out) {
+    if (!inst) return;
+    if (inst->IsA("BaseCube")) out.push_back(static_cast<BaseCube*>(inst));
+    for (auto const& [name, child] : inst->getChildren())
+        collectBaseCubesRecursive(child.get(), out);
+}
+
+// ハイライト対象の親（BaseCube単体 or Model）から、実際にハイライトすべきBaseCube群を収集する。
+// - parent が BaseCube そのもの: そのBaseCube 1個のみ（子孫へは再帰しない）
+// - parent が Model: 全子孫を再帰的に辿り、見つかったBaseCubeをすべて対象にする（入れ子Model含む）
+static void collectHighlightTargets(Instance* parent, std::vector<BaseCube*>& out) {
+    if (!parent) return;
+    if (parent->IsA("Model")) {
+        for (auto const& [name, child] : parent->getChildren())
+            collectBaseCubesRecursive(child.get(), out);
+    } else if (parent->IsA("BaseCube")) {
+        out.push_back(static_cast<BaseCube*>(parent));
+    }
+}
+
+// Highlight インスタンスを再帰収集（collectParticleEmittersと同じ形）
+static void collectHighlightInstances(Instance* inst, std::vector<Highlight*>& out) {
+    if (!inst) return;
+    if (inst->IsA("Highlight")) out.push_back(static_cast<Highlight*>(inst));
+    for (auto const& [name, child] : inst->getChildren())
+        collectHighlightInstances(child.get(), out);
 }
 
 // ---- メインカメラパス用フラスタムカリング ----
@@ -229,6 +338,10 @@ void Renderer::init(GLFWwindow* window) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                  indices.size() * sizeof(unsigned int),
                  indices.data(), GL_STATIC_DRAW);
+
+    Cube::s_HighlightEdgeVerts = MeshEdges::extractHardEdges(
+        reinterpret_cast<const float*>(standardVertices.data()), standardVertices.size(),
+        8, 0, indices.data(), indices.size(), 20.0f);
 
     GLsizei stride = sizeof(Vertex);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(Vertex, Position));
@@ -634,7 +747,8 @@ void Renderer::renderClouds(Workspace& workspace, const Matrix4& view, const Mat
     glUseProgram(shaderProgram);
 }
 
-void Renderer::renderLightning(Workspace& workspace, const Matrix4& view, const Matrix4& projection) {
+void Renderer::renderLightning(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
+                                const Vector3& cameraPosition) {
     if (!m_lineShader) return;
 
     Weather* weather = nullptr;
@@ -651,6 +765,11 @@ void Renderer::renderLightning(Workspace& workspace, const Matrix4& view, const 
     verts.reserve(bolt.size() * 3);
     for (const Vector3& p : bolt) { verts.push_back(p.x); verts.push_back(p.y); verts.push_back(p.z); }
 
+    constexpr float kLightningWidth = 0.15f; // ワールド空間幅
+    std::vector<float> ribbon;
+    buildRibbonStrip(verts, kLightningWidth, cameraPosition, ribbon);
+    if (ribbon.empty()) return;
+
     glUseProgram(m_lineShader);
     glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"),       1, GL_FALSE, view.m);
     glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
@@ -658,15 +777,14 @@ void Renderer::renderLightning(Workspace& workspace, const Matrix4& view, const 
 
     glBindVertexArray(m_lineVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizei)(verts.size() * sizeof(float)), verts.data(), GL_DYNAMIC_DRAW);
-    glLineWidth(3.0f);
-    glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)(verts.size() / 3));
-    glLineWidth(1.0f);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizei)(ribbon.size() * sizeof(float)), ribbon.data(), GL_DYNAMIC_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(ribbon.size() / 3));
     glBindVertexArray(0);
     glUseProgram(shaderProgram);
 }
 
-void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection) {
+void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
+                                  const Vector3& cameraPosition) {
     if (!m_lineShader) return;
 
     glUseProgram(m_lineShader);
@@ -676,10 +794,13 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
 
     int colorLoc = glGetUniformLocation(m_lineShader, "lineColor");
 
-    auto uploadAndDraw = [&](const std::vector<float>& verts) {
+    auto uploadAndDraw = [&](const std::vector<float>& verts, float width) {
+        std::vector<float> ribbon;
+        buildRibbonStrip(verts, width, cameraPosition, ribbon);
+        if (ribbon.empty()) return;
         glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
-        glBufferData(GL_ARRAY_BUFFER, (GLsizei)(verts.size() * sizeof(float)), verts.data(), GL_DYNAMIC_DRAW);
-        glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)(verts.size() / 3));
+        glBufferData(GL_ARRAY_BUFFER, (GLsizei)(ribbon.size() * sizeof(float)), ribbon.data(), GL_DYNAMIC_DRAW);
+        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(ribbon.size() / 3));
     };
 
     auto scan = [&](auto& self, Instance* inst) -> void {
@@ -707,9 +828,8 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
                     Vector3 p = p0 * (mt * mt) + ctrl * (2.0f * mt * t) + p1 * (t * t);
                     verts.push_back(p.x); verts.push_back(p.y); verts.push_back(p.z);
                 }
-                glLineWidth(rope->LineWidth);
                 glUniform4f(colorLoc, rope->Color.r, rope->Color.g, rope->Color.b, rope->Color.a);
-                uploadAndDraw(verts);
+                uploadAndDraw(verts, rope->LineWidth);
             }
         } else if (inst->getClassName() == "Rod") {
             Rod* rod = static_cast<Rod*>(inst);
@@ -724,9 +844,8 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
                     p0.x, p0.y, p0.z,
                     p1.x, p1.y, p1.z
                 };
-                glLineWidth(rod->LineWidth);
                 glUniform4f(colorLoc, rod->Color.r, rod->Color.g, rod->Color.b, rod->Color.a);
-                uploadAndDraw(verts);
+                uploadAndDraw(verts, rod->LineWidth);
             }
         }
 
@@ -739,7 +858,6 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
         scan(scan, child.get());
     }
 
-    glLineWidth(1.0f);
     glBindVertexArray(0);
     glUseProgram(shaderProgram);
 }
@@ -749,7 +867,8 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
 //  Weld: 接続線＋中点クロス / Motor: ピボット・軸・回転方向の円弧矢印
 //  Attachment: ワイヤ球＋向きの軸線 / Force: 力の矢印またはトルクの円弧矢印
 // ===================================================
-void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, const Matrix4& projection) {
+void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
+                                   const Vector3& cameraPosition) {
     if (!m_lineShader) return;
 
     glUseProgram(m_lineShader);
@@ -764,10 +883,14 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
     const Color4 ATTACH_COLOR {1.0f,  0.55f, 0.15f, 1.0f};
     const Color4 FORCE_COLOR  {1.0f,  0.3f,  0.25f, 1.0f};
 
+    constexpr float kPhysicsDebugWidth = 0.05f; // ワールド空間幅（旧glLineWidth(2.0f)相当）
     auto uploadAndDraw = [&](const std::vector<float>& verts) {
+        std::vector<float> ribbon;
+        buildRibbonStrip(verts, kPhysicsDebugWidth, cameraPosition, ribbon);
+        if (ribbon.empty()) return;
         glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
-        glBufferData(GL_ARRAY_BUFFER, (GLsizei)(verts.size() * sizeof(float)), verts.data(), GL_DYNAMIC_DRAW);
-        glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)(verts.size() / 3));
+        glBufferData(GL_ARRAY_BUFFER, (GLsizei)(ribbon.size() * sizeof(float)), ribbon.data(), GL_DYNAMIC_DRAW);
+        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(ribbon.size() / 3));
     };
     auto setColor = [&](const Color4& c) { glUniform4f(colorLoc, c.r, c.g, c.b, c.a); };
     auto drawSegment = [&](const Vector3& a, const Vector3& b) {
@@ -835,8 +958,6 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
         drawSegment(tip, tip - n * h + v * (h * 0.6f));
         drawSegment(tip, tip - n * h - v * (h * 0.6f));
     };
-
-    glLineWidth(2.0f);
 
     auto scan = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
@@ -910,7 +1031,6 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
     for (auto const& [name, child] : workspace.getChildren())
         scan(scan, child.get());
 
-    glLineWidth(1.0f);
     glBindVertexArray(0);
     glUseProgram(shaderProgram);
 }
@@ -983,7 +1103,8 @@ void Renderer::renderParticles(Workspace& workspace, const Matrix4& view, const 
 //  地形ブラシのヒット位置ガイド（水平リング）
 // ===================================================
 void Renderer::renderBrushMarker(const Matrix4& view, const Matrix4& projection,
-                                 const Vector3& center, float radius) {
+                                 const Vector3& center, float radius,
+                                 const Vector3& cameraPosition) {
     if (!m_lineShader || radius <= 0.0f) return;
 
     glUseProgram(m_lineShader);
@@ -1001,13 +1122,16 @@ void Renderer::renderBrushMarker(const Matrix4& view, const Matrix4& projection,
         verts.push_back(center.z + std::sin(a) * radius);
     }
 
+    constexpr float kBrushMarkerWidth = 0.1f; // ワールド空間幅
+    std::vector<float> ribbon;
+    buildRibbonStrip(verts, kBrushMarkerWidth, cameraPosition, ribbon);
+    if (ribbon.empty()) { glUseProgram(shaderProgram); return; }
+
     glBindVertexArray(m_lineVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizei)(verts.size() * sizeof(float)), verts.data(), GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizei)(ribbon.size() * sizeof(float)), ribbon.data(), GL_DYNAMIC_DRAW);
     glEnable(GL_DEPTH_TEST);
-    glLineWidth(2.0f);
-    glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)(verts.size() / 3));
-    glLineWidth(1.0f);
+    glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(ribbon.size() / 3));
     glBindVertexArray(0);
     glUseProgram(shaderProgram);
 }
@@ -1170,6 +1294,84 @@ void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int wid
     if (blendWasEnabled) glEnable(GL_BLEND);
 }
 
+void Renderer::drawBaseCubeHighlight(BaseCube* target, const Color4& fillColor,
+                                      const Color4& outlineColor, float outlineThickness,
+                                      const Matrix4& view, const Matrix4& projection,
+                                      const Vector3& cameraPosition, float fovYDegrees,
+                                      int viewportHeightPx) {
+    if (!target) return;
+
+    GLsizei indexCount = 0;
+    if (!bindHighlightGeometry(target, indexCount)) return;
+
+    glDisable(GL_DEPTH_TEST);                       // 深度無効化：壁越しに見せる
+    if (unlitLoc != -1) glUniform1f(unlitLoc, 1.0f); // フラット単色描画を保証（メインパスの残り値に依存しない）
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, whiteTexture);
+
+    // ---- 単色塗り ----
+    if (fillColor.a > 0.001f) {
+        Matrix4 fillMat = target->getWorldCFrame().toMatrix4() *
+                          Matrix4::Scale(target->Size.x, target->Size.y, target->Size.z);
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, fillMat.m);
+        if (ourColorLoc != -1) glUniform4f(ourColorLoc, fillColor.r, fillColor.g, fillColor.b, fillColor.a);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
+    }
+
+    // ---- 外側の縁取り（硬いエッジを画面空間幅リボン化） ----
+    if (outlineColor.a > 0.001f && outlineThickness > 0.001f && m_lineShader) {
+        const std::vector<float>& localEdges = target->getHighlightEdgeVerts();
+        if (!localEdges.empty()) {
+            CFrame wcf = target->getWorldCFrame();
+            Vector3 size = target->Size;
+            std::vector<float> worldSegs(localEdges.size());
+            for (size_t i = 0; i + 2 < localEdges.size(); i += 3) {
+                Vector3 local(localEdges[i] * size.x, localEdges[i+1] * size.y, localEdges[i+2] * size.z);
+                Vector3 world = wcf.Position + wcf.Rotation.rotate(local);
+                worldSegs[i] = world.x; worldSegs[i+1] = world.y; worldSegs[i+2] = world.z;
+            }
+
+            std::vector<float> ribbonVerts;
+            buildSegmentRibbons(worldSegs, cameraPosition, fovYDegrees, viewportHeightPx, outlineThickness, ribbonVerts);
+
+            if (!ribbonVerts.empty()) {
+                glUseProgram(m_lineShader);
+                glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"),       1, GL_FALSE, view.m);
+                glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
+                glUniform4f(glGetUniformLocation(m_lineShader, "lineColor"), outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a);
+                glBindVertexArray(m_lineVAO);
+                glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
+                glBufferData(GL_ARRAY_BUFFER, (GLsizei)(ribbonVerts.size() * sizeof(float)), ribbonVerts.data(), GL_DYNAMIC_DRAW);
+                glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(ribbonVerts.size() / 3));
+                glBindVertexArray(0);
+                glUseProgram(shaderProgram); // 塗りパス等が前提とするメインシェーダーに戻す
+            }
+        }
+    }
+
+    if (unlitLoc != -1) glUniform1f(unlitLoc, 0.0f);
+    glEnable(GL_DEPTH_TEST);
+}
+
+void Renderer::renderInstanceHighlights(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
+                                         const Vector3& cameraPosition, float fovYDegrees, int viewportHeightPx) {
+    std::vector<Highlight*> highlights;
+    for (auto const& [name, child] : workspace.getChildren())
+        collectHighlightInstances(child.get(), highlights);
+
+    for (Highlight* hl : highlights) {
+        if (!hl->Enabled) continue;
+        auto parentSp = hl->Parent.lock();
+        if (!parentSp) continue;
+        std::vector<BaseCube*> targets;
+        collectHighlightTargets(parentSp.get(), targets);
+        for (BaseCube* bc : targets)
+            drawBaseCubeHighlight(bc, hl->FillColor, hl->OutlineColor, hl->OutlineThickness,
+                                  view, projection, cameraPosition, fovYDegrees, viewportHeightPx);
+    }
+}
+
 // ===================================================
 //  統合されたビューポート描画
 // ===================================================
@@ -1187,7 +1389,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     float aspect = (float)desc.width / (float)desc.height;
-    Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
+    const float fovYDegrees = 45.0f;
+    Matrix4 projection = Matrix4::Perspective(fovYDegrees, aspect, 0.1f, 10000.0f);
     Matrix4 view       = Matrix4::LookAt(desc.cameraPosition, desc.cameraPosition + desc.cameraForward, desc.cameraUp);
 
     // メインカメラパスのフラスタムカリング用（BaseCube系の描画ループでのみ使用。
@@ -1482,52 +1685,37 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     if (!blendEnabled) { glEnable(GL_BLEND); blendEnabled = true; }
     if (!depthMaskEnabled) { glDepthMask(GL_TRUE); depthMaskEnabled = true; }
 
-    // ---- 選択インスタンスの黄色ワイヤーフレームハイライト ----
+    // ---- 選択インスタンスのハイライト（黄色系。Highlightインスタンスと同じ共有描画ロジックを使用） ----
     if (desc.renderHighlights && editor) {
         if (Instance* sel = editor->getSelectedInstance()) {
-            if (!sel->Parent.expired() && sel->IsA("BaseCube")) {
-                BaseCube* bc = static_cast<BaseCube*>(sel);
-                Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
-                                   Matrix4::Scale(bc->Size.x * 1.02f, bc->Size.y * 1.02f, bc->Size.z * 1.02f);
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, modelMat.m);
-                if (ourColorLoc != -1) glUniform4f(ourColorLoc, 1.0f, 1.0f, 0.0f, 1.0f);
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, whiteTexture);
-                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-                glLineWidth(2.0f);
-                if (sel->IsA("Cylinder")) {
-                    glBindVertexArray(Cylinder::s_VAO);
-                    glDrawElements(GL_TRIANGLES, Cylinder::s_IndexCount, GL_UNSIGNED_INT, nullptr);
-                } else if (sel->IsA("TriangularPrism")) {
-                    glBindVertexArray(TriangularPrism::s_VAO);
-                    glDrawElements(GL_TRIANGLES, TriangularPrism::s_IndexCount, GL_UNSIGNED_INT, nullptr);
-                } else if (sel->IsA("Sphere")) {
-                    glBindVertexArray(Sphere::s_VAO);
-                    glDrawElements(GL_TRIANGLES, Sphere::s_IndexCount, GL_UNSIGNED_INT, nullptr);
-                } else if (sel->IsA("MeshCube")) {
-                    MeshCube* mc = static_cast<MeshCube*>(sel);
-                    if (mc->hasGeometry()) {
-                        glBindVertexArray(mc->getVAO());
-                        glDrawElements(GL_TRIANGLES, mc->getIndexCount(), GL_UNSIGNED_INT, nullptr);
-                    }
-                } else {
-                    glBindVertexArray(Cube::s_VAO);
-                    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+            if (!sel->Parent.expired() && (sel->IsA("BaseCube") || sel->IsA("Model"))) {
+                static const Color4 kSelectionFillColor(1.0f, 1.0f, 0.0f, 0.15f);   // 半透明の黄色塗り
+                static const Color4 kSelectionOutlineColor(1.0f, 1.0f, 0.0f, 1.0f); // 既存の黄色
+                const float kSelectionOutlineThickness = 2.0f;                     // 既存のglLineWidth(2.0f)と同じ
+
+                std::vector<BaseCube*> targets;
+                collectHighlightTargets(sel, targets);
+                for (BaseCube* bc : targets) {
+                    drawBaseCubeHighlight(bc, kSelectionFillColor, kSelectionOutlineColor, kSelectionOutlineThickness,
+                                          view, projection, desc.cameraPosition, fovYDegrees, desc.height);
                 }
-                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-                glLineWidth(1.0f);
             }
         }
     }
 
+    // ---- Highlightインスタンス（ゲームプレイ機能。エディタ有無に関わらず描画） ----
+    if (desc.renderInstanceHighlights) {
+        renderInstanceHighlights(*desc.workspace, view, projection, desc.cameraPosition, fovYDegrees, desc.height);
+    }
+
     // ---- 制約ビジュアライズ（Rope/Rod） ----
     if (desc.renderConstraints) {
-        renderConstraints(*desc.workspace, view, projection);
+        renderConstraints(*desc.workspace, view, projection, desc.cameraPosition);
     }
 
     // ---- 物理制約デバッグビジュアライザー（Weld/Motor/Attachment/Force。デフォルトOFF） ----
     if (desc.renderPhysicsDebug) {
-        renderPhysicsDebug(*desc.workspace, view, projection);
+        renderPhysicsDebug(*desc.workspace, view, projection, desc.cameraPosition);
     }
 
     // ---- Terrain の描画 ----
@@ -1538,7 +1726,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     renderClouds(*desc.workspace, view, projection, desc.cameraPosition);
 
     // ---- 雷柱の描画（Weather。ジオメトリはWeather::attemptStrike()側で生成済み） ----
-    renderLightning(*desc.workspace, view, projection);
+    renderLightning(*desc.workspace, view, projection, desc.cameraPosition);
 
     // ---- パーティクル描画（シミュレーションはメインループ側で毎フレーム1回のみ実行済み） ----
     {

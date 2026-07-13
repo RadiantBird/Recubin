@@ -146,6 +146,16 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "UV再生成の確認",       "Confirm UV Regeneration" },
     { "現在のUVを破棄して、", "This discards the current UV," },
     { "xatlasで自動生成し直します。よろしいですか？", "and regenerates it automatically with xatlas. Continue?" },
+
+    // ---- EditorManager: ツールバー2段化(Cubes/Physics/Characterタブ) ----
+    { "ベーシック",   "Basic" },
+    { "キューブ",     "Cubes" },
+    { "地形",         "Terrain" },
+    { "物理",         "Physics" },
+    { "キャラクター", "Character" },
+    { "新規スクリプト", "New Script" },
+    { "Humanoid追加", "Add Humanoid" },
+    { "リグビルダー", "Rig Builder" },
 } };
 
 Lang g_lang = Lang::JA;

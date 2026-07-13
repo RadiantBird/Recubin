@@ -26,6 +26,7 @@ class Cube : public Named<Cube, BaseCube> {
         static unsigned int defaultTextureID;
         static unsigned int s_VAO;
         static unsigned int s_EBO;
+        static std::vector<float> s_HighlightEdgeVerts;
 
         // コンストラクタ
         Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex);
@@ -35,4 +36,8 @@ class Cube : public Named<Cube, BaseCube> {
 
         virtual bool IsA(std::string name) override;
         std::shared_ptr<Instance> clone() const override;
+
+        unsigned int getHighlightVAO() const override { return s_VAO; }
+        unsigned int getHighlightIndexCount() const override { return 36; }
+        const std::vector<float>& getHighlightEdgeVerts() const override { return s_HighlightEdgeVerts; }
 };

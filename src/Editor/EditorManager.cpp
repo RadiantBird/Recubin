@@ -13,6 +13,18 @@
 #include <Instances/Seat.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/Skybox.hpp>
+#include <Editor/IconsDef.hpp>
+#include <Instances/MeshCube.hpp>
+#include <Instances/LiquidCube.hpp>
+#include <Instances/Weld.hpp>
+#include <Instances/Motor.hpp>
+#include <Instances/Rod.hpp>
+#include <Instances/Rope.hpp>
+#include <Instances/Attachment.hpp>
+#include <Instances/Force.hpp>
+#include <Instances/Humanoid.hpp>
+#include <Instances/Model.hpp>
+#include <Core/CharacterRig.hpp>
 #include <Core/SceneLoader.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
@@ -518,23 +530,36 @@ void EditorManager::renderPackageDialog() {
     }
 }
 
+bool EditorManager::drawIconButton(const char* icon, const char* label, const ImVec2& btnSize) {
+    std::string combined = icon ? (std::string(icon) + "\n" + label) : std::string(label);
+
+    ImGui::SetWindowFontScale(1.0f);
+    ImVec2 textSize = ImGui::CalcTextSize(combined.c_str());
+    float availW = btnSize.x - ImGui::GetStyle().FramePadding.x * 2.0f;
+    float availH = btnSize.y - ImGui::GetStyle().FramePadding.y * 2.0f;
+
+    float scale = 1.0f;
+    if (textSize.x > availW && textSize.x > 0.0f) scale = (std::min)(scale, availW / textSize.x);
+    if (textSize.y > availH && textSize.y > 0.0f) scale = (std::min)(scale, availH / textSize.y);
+    scale = (std::max)(scale, 0.55f); // 可読性下限、これ以上は縮小しない
+
+    ImGui::SetWindowFontScale(scale);
+    bool clicked = ImGui::Button(combined.c_str(), btnSize);
+    ImGui::SetWindowFontScale(1.0f);
+    return clicked;
+}
+
 template <typename T, typename... Args>
-void EditorManager::tryAddObject(const std::string& menuLabel, const std::string& defaultName, Args&&... args)
+void EditorManager::tryAddObjectButton(const char* icon, const std::string& label,
+                                        const std::string& defaultName,
+                                        const std::shared_ptr<Instance>& parent,
+                                        const ImVec2& btnSize, Args&&... args)
 {
-    if (ImGui::MenuItem(menuLabel.c_str()) && m_workspace) {
-        Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
-        
-        auto obj = std::make_shared<T>(spawnPos, Vector3(1, 1, 1), std::forward<Args>(args)...);
-        
-        std::string name = defaultName;
-        int n = 1;
-        while (m_workspace->children.count(name) > 0) {
-            name = defaultName + std::to_string(n++);
-        }
-        obj->Name = name;
-        
-        m_history.execute(std::make_unique<AddInstanceCommand>(
-            m_workspace->shared_from_this(), obj));
+    if (!parent) return;
+    if (drawIconButton(icon, label.c_str(), btnSize)) {
+        auto obj = std::make_shared<T>(std::forward<Args>(args)...);
+        obj->Name = SceneHierarchyPanel::uniqueName(parent, defaultName);
+        m_history.execute(std::make_unique<AddInstanceCommand>(parent, obj));
         m_isDirty = true;
     }
 }
@@ -542,7 +567,7 @@ void EditorManager::tryAddObject(const std::string& menuLabel, const std::string
 void EditorManager::renderToolbar() {
     ImGuiViewport* vp = ImGui::GetMainViewport();
 
-    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, 60.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, 110.0f), ImGuiCond_FirstUseEver);
 
     ImGuiWindowFlags tbFlags =
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse;
@@ -551,30 +576,65 @@ void EditorManager::renderToolbar() {
     ImGui::Begin("Toolbar", nullptr, tbFlags);
     ImGui::PopStyleVar();
 
+    renderToolbarTabs();
+
+    switch (m_toolbarCategory) {
+        case ToolbarCategory::Basic:     renderToolbarBasic();     break;
+        case ToolbarCategory::Cubes:     renderToolbarCubes();     break;
+        case ToolbarCategory::Terrain:   renderToolbarTerrain();   break;
+        case ToolbarCategory::Physics:   renderToolbarPhysics();   break;
+        case ToolbarCategory::Character: renderToolbarCharacter(); break;
+    }
+
+    ImGui::End();
+}
+
+void EditorManager::renderToolbarTabs() {
+    const ImVec4 colActive   = ImVec4(0.30f, 0.50f, 0.85f, 1.0f);
+    const ImVec4 colInactive = ImVec4(0.22f, 0.40f, 0.70f, 0.60f);
+    const ImVec2 tabBtnSz    = ImVec2(110.0f, 30.0f);
+
+    auto tabButton = [&](Loc::LocKey key, ToolbarCategory cat) {
+        ImGui::PushStyleColor(ImGuiCol_Button, (m_toolbarCategory == cat) ? colActive : colInactive);
+        if (drawIconButton(nullptr, Loc::t(key), tabBtnSz)) m_toolbarCategory = cat;
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+    };
+
+    tabButton(Loc::LocKey::ToolbarTabBasic,     ToolbarCategory::Basic);
+    tabButton(Loc::LocKey::ToolbarTabCubes,     ToolbarCategory::Cubes);
+    tabButton(Loc::LocKey::ToolbarTabTerrain,   ToolbarCategory::Terrain);
+    tabButton(Loc::LocKey::ToolbarTabPhysics,   ToolbarCategory::Physics);
+    tabButton(Loc::LocKey::ToolbarTabCharacter, ToolbarCategory::Character);
+
+    ImGui::NewLine();
+}
+
+void EditorManager::renderToolbarBasic() {
     ViewportPanel* activeViewport = GetFocusedViewport();
     if (!activeViewport) activeViewport = viewportPanel.get();
 
     const ImVec4 colActive   = ImVec4(0.30f, 0.50f, 0.85f, 1.0f);
     const ImVec4 colInactive = ImVec4(0.22f, 0.40f, 0.70f, 0.60f);
-    const ImVec2 btnSz       = ImVec2(70.0f, 38.0f);
+    const ImVec2 iconBtnSz   = ImVec2(78.0f, 58.0f);
 
     // ---- Play / Pause / Stop ----
     if (mode == EditorMode::Edit) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.65f, 0.18f, 1.0f));
-        if (ImGui::Button(Loc::t(Loc::LocKey::PlayButton), btnSz)) mode = EditorMode::Play;
+        if (drawIconButton(ICON_PLAY, Loc::t(Loc::LocKey::PlayButton), iconBtnSz)) mode = EditorMode::Play;
         ImGui::PopStyleColor();
     } else {
         ImGui::PushStyleColor(ImGuiCol_Button,
             mode == EditorMode::Pause ? ImVec4(0.7f, 0.55f, 0.0f, 1.0f)
                                       : ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
-        if (ImGui::Button(Loc::t(Loc::LocKey::PauseButton), btnSz))
+        if (drawIconButton(ICON_PAUSE, Loc::t(Loc::LocKey::PauseButton), iconBtnSz))
             mode = (mode == EditorMode::Pause) ? EditorMode::Play : EditorMode::Pause;
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.18f, 0.18f, 1.0f));
-        if (ImGui::Button(Loc::t(Loc::LocKey::StopButton), btnSz)) {
+        if (drawIconButton(ICON_STOP, Loc::t(Loc::LocKey::StopButton), iconBtnSz)) {
             mode = EditorMode::Edit;
             if (m_user) {
                 m_user->controlMode = User::ControlMode::Free;
@@ -583,7 +643,7 @@ void EditorManager::renderToolbar() {
             else {
                 RCBN_LOG("[???] User instance is null.");
             }
-            
+
             if (viewportPanel) {
                 ViewportFocusManager::getInstance().onFocusViewport(viewportPanel.get());
                 ImGui::SetWindowFocus(viewportPanel->title.c_str());
@@ -597,10 +657,9 @@ void EditorManager::renderToolbar() {
     ImGui::SameLine();
 
     // ---- Select / Move / Resize / Rotate ----
-    // アクティブなボタンをもう一度押すと無操作(toolNone)に切り替わるトグル動作
     if (activeViewport) {
         ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isSelectMode() ? colActive : colInactive);
-        if (ImGui::Button(Loc::t(Loc::LocKey::SelectTool), btnSz)) {
+        if (drawIconButton(ICON_SELECT, Loc::t(Loc::LocKey::SelectTool), iconBtnSz)) {
             if (activeViewport->isSelectMode()) {
                 activeViewport->toolNone = true;
             } else {
@@ -613,7 +672,7 @@ void EditorManager::renderToolbar() {
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isMoveMode() ? colActive : colInactive);
-        if (ImGui::Button(Loc::t(Loc::LocKey::MoveTool), btnSz)) {
+        if (drawIconButton(ICON_MOVE, Loc::t(Loc::LocKey::MoveTool), iconBtnSz)) {
             if (activeViewport->isMoveMode()) {
                 activeViewport->toolNone = true;
             } else {
@@ -627,7 +686,7 @@ void EditorManager::renderToolbar() {
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isResizeMode() ? colActive : colInactive);
-        if (ImGui::Button(Loc::t(Loc::LocKey::ResizeTool), btnSz)) {
+        if (drawIconButton(ICON_RESIZE, Loc::t(Loc::LocKey::ResizeTool), iconBtnSz)) {
             if (activeViewport->isResizeMode()) {
                 activeViewport->toolNone = true;
             } else {
@@ -641,7 +700,7 @@ void EditorManager::renderToolbar() {
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button, activeViewport->isRotateMode() ? colActive : colInactive);
-        if (ImGui::Button(Loc::t(Loc::LocKey::RotateTool), btnSz)) {
+        if (drawIconButton(ICON_ROTATE, Loc::t(Loc::LocKey::RotateTool), iconBtnSz)) {
             if (activeViewport->isRotateMode()) {
                 activeViewport->toolNone = true;
             } else {
@@ -688,41 +747,131 @@ void EditorManager::renderToolbar() {
     ImGui::Text("|");
     ImGui::SameLine();
 
-    // ---- Add Object ドロップダウン ----
-    // ボタン幅は言語によって表示テキストの長さが変わるため、ラベル幅から動的に算出する。
-    {
-        const char* addObjLabel = Loc::t(Loc::LocKey::AddObjectDropdown);
-        float addObjW = ImGui::CalcTextSize(addObjLabel).x + ImGui::GetStyle().FramePadding.x * 2.0f + 20.0f;
-        if (addObjW < 100.0f) addObjW = 100.0f;
-        if (ImGui::Button(addObjLabel, ImVec2(addObjW, 38.0f)))
-            ImGui::OpenPopup("AddObjectPopup");
+    // ---- New Cube / New Script クイックボタン ----
+    if (m_workspace) {
+        auto ws = m_workspace->shared_from_this();
+        Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+        tryAddObjectButton<Cube>(ICON_CUBE, "New Cube", "Cube", ws, iconBtnSz,
+            spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
     }
-
-    if (ImGui::BeginPopup("AddObjectPopup")) {
-
-        tryAddObject<Cube>("New Cube", "Cube", Cube::defaultTextureID);
-        tryAddObject<Cylinder>("New Cylinder", "Cylinder");
-        tryAddObject<TriangularPrism>("New Prism", "TriangularPrism");
-        tryAddObject<Truss>("New Truss", "Truss", Cube::defaultTextureID);
-        tryAddObject<Seat>("New Seat", "Seat", Cube::defaultTextureID);
-        tryAddObject<Sphere>("New Sphere", "Sphere");
-
-        ImGui::EndPopup();
+    ImGui::SameLine();
+    if (drawIconButton(ICON_SCRIPT, Loc::t(Loc::LocKey::NewScriptButton), iconBtnSz) && m_workspace && hierarchyPanel) {
+        hierarchyPanel->requestNewScript(m_workspace->shared_from_this());
     }
 
     // ---- Save / Load（右端）----
-    float saveLoadW = btnSz.x * 2 + ImGui::GetStyle().ItemSpacing.x;
+    float saveLoadW = iconBtnSz.x * 2 + ImGui::GetStyle().ItemSpacing.x;
     ImGui::SameLine(ImGui::GetWindowWidth() - saveLoadW - 8.0f);
 
-    if (ImGui::Button(Loc::t(Loc::LocKey::SaveButton), btnSz)) {
+    if (drawIconButton(ICON_SAVE, Loc::t(Loc::LocKey::SaveButton), iconBtnSz)) {
         saveCurrentScene();
     }
     ImGui::SameLine();
-    if (ImGui::Button(Loc::t(Loc::LocKey::LoadButton), btnSz)) {
+    if (drawIconButton(ICON_LOAD, Loc::t(Loc::LocKey::LoadButton), iconBtnSz)) {
         requestSceneLoad(getPlatform().openFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}}));
     }
+}
 
-    ImGui::End();
+void EditorManager::renderToolbarCubes() {
+    if (!m_workspace) return;
+    auto ws = m_workspace->shared_from_this();
+    Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+    const ImVec2 btnSz(78.0f, 58.0f);
+
+    tryAddObjectButton<Cube>(ICON_CUBE, "Cube", "Cube", ws, btnSz,
+        spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
+    ImGui::SameLine();
+    tryAddObjectButton<Cylinder>(ICON_CYLINDER, "Cylinder", "Cylinder", ws, btnSz,
+        spawnPos, Vector3(1, 1, 1));
+    ImGui::SameLine();
+    tryAddObjectButton<TriangularPrism>(ICON_TRIANGULARPRISM, "TriangularPrism", "TriangularPrism", ws, btnSz,
+        spawnPos, Vector3(1, 1, 1));
+    ImGui::SameLine();
+    tryAddObjectButton<Truss>(ICON_TRUSS, "Truss", "Truss", ws, btnSz,
+        spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
+    ImGui::SameLine();
+    tryAddObjectButton<Seat>(ICON_SEAT, "Seat", "Seat", ws, btnSz,
+        spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
+    ImGui::SameLine();
+    tryAddObjectButton<Sphere>(ICON_SPHERE, "Sphere", "Sphere", ws, btnSz,
+        spawnPos, Vector3(1, 1, 1));
+    ImGui::SameLine();
+    tryAddObjectButton<MeshCube>(ICON_MESHCUBE, "MeshCube", "MeshCube", ws, btnSz,
+        spawnPos, Vector3(1, 1, 1));
+    ImGui::SameLine();
+    tryAddObjectButton<LiquidCube>(ICON_LIQUIDCUBE, "LiquidCube", "LiquidCube", ws, btnSz,
+        spawnPos, Vector3(4, 2, 4));
+}
+
+void EditorManager::renderToolbarTerrain() {
+    const ImVec2 btnSz(78.0f, 58.0f);
+    const ImVec4 colActive   = ImVec4(0.30f, 0.50f, 0.85f, 1.0f);
+    const ImVec4 colInactive = ImVec4(0.22f, 0.40f, 0.70f, 0.60f);
+
+    ImGui::PushStyleColor(ImGuiCol_Button, m_terrainBrush.active ? colActive : colInactive);
+    if (drawIconButton(ICON_TERRAINBRUSH_TOGGLE, Loc::t(Loc::LocKey::TerrainBrushEdit), btnSz))
+        m_terrainBrush.active = !m_terrainBrush.active;
+    ImGui::PopStyleColor();
+
+    if (!m_terrainBrush.active) return;
+
+    ImGui::SameLine();
+
+    auto modeButton = [&](const char* icon, Loc::LocKey key, int modeValue) {
+        bool active = (m_terrainBrush.mode == modeValue);
+        ImGui::PushStyleColor(ImGuiCol_Button, active ? colActive : colInactive);
+        if (drawIconButton(icon, Loc::t(key), btnSz)) m_terrainBrush.mode = modeValue;
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+    };
+    modeButton(ICON_TERRAIN_LOWER,  Loc::LocKey::TerrainBrushModeLower,  -1);
+    modeButton(ICON_TERRAIN_SMOOTH, Loc::LocKey::TerrainBrushModeSmooth,  0);
+    modeButton(ICON_TERRAIN_RAISE,  Loc::LocKey::TerrainBrushModeRaise,  +1);
+
+    ImGui::SetNextItemWidth(160.0f);
+    ImGui::SliderFloat(Loc::t(Loc::LocKey::TerrainBrushRadius), &m_terrainBrush.radius, 1.0f, 64.0f, "%.1f studs");
+    ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::TerrainBrushHint));
+}
+
+void EditorManager::renderToolbarPhysics() {
+    Instance* sel = getSelectedInstance();
+    std::shared_ptr<Instance> parent = sel ? sel->shared_from_this()
+                                            : (m_workspace ? m_workspace->shared_from_this() : nullptr);
+    const ImVec2 btnSz(78.0f, 58.0f);
+
+    tryAddObjectButton<Weld>(ICON_WELD, "Weld", "Weld", parent, btnSz);
+    ImGui::SameLine();
+    tryAddObjectButton<Motor>(ICON_MOTOR, "Motor", "Motor", parent, btnSz);
+    ImGui::SameLine();
+    tryAddObjectButton<Rod>(ICON_ROD, "Rod", "Rod", parent, btnSz);
+    ImGui::SameLine();
+    tryAddObjectButton<Rope>(ICON_ROPE, "Rope", "Rope", parent, btnSz);
+    ImGui::SameLine();
+    tryAddObjectButton<Attachment>(ICON_ATTACHMENT, "Attachment", "Attachment", parent, btnSz, Vector3(0, 0, 0));
+    ImGui::SameLine();
+    tryAddObjectButton<Force>(ICON_FORCE, "Force", "Force", parent, btnSz);
+}
+
+void EditorManager::renderToolbarCharacter() {
+    const ImVec2 btnSz(78.0f, 58.0f);
+    Instance* sel = getSelectedInstance();
+
+    ImGui::BeginDisabled(sel == nullptr);
+    tryAddObjectButton<Humanoid>(ICON_HUMANOID, Loc::t(Loc::LocKey::AddHumanoidButton), "Humanoid",
+        sel ? sel->shared_from_this() : nullptr, btnSz);
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+
+    if (drawIconButton(ICON_STARTERCHARACTER, Loc::t(Loc::LocKey::RigBuilderButton), btnSz) && m_workspace) {
+        Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+        auto ws = m_workspace->shared_from_this();
+        auto model = std::make_shared<Model>(spawnPos, Vector3(1, 1, 1));
+        model->Name = SceneHierarchyPanel::uniqueName(ws, "Model");
+        CharacterRig::buildDefaultRigParts(model);
+        m_history.execute(std::make_unique<AddInstanceCommand>(ws, model));
+        m_isDirty = true;
+    }
 }
 
 void EditorManager::cleanupOrphanedSelection() {

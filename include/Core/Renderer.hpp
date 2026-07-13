@@ -40,6 +40,7 @@ struct ViewportRenderDesc {
     Workspace* workspace = nullptr;
     bool renderShadows = true;
     bool renderHighlights = false;
+    bool renderInstanceHighlights = true;  // Highlightインスタンス自体の描画。エディタ選択ハイライト(renderHighlights)とは独立。ランタイム単体でも常にtrue
     bool renderConstraints = true;
     bool renderPostEffects = true;
     bool renderPhysicsDebug = false; // 物理制約のデバッグビジュアライザー（エディターのViewメニューで切替）
@@ -121,13 +122,13 @@ class Renderer {
         GLuint m_lineVBO    = 0;
         GLuint m_lineShader = 0;
         void initLineRenderer();
-        void renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection);
+        void renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection, const Vector3& cameraPosition);
 
         // 物理制約デバッグビジュアライザー（Weld/Motor/Attachment/Force。デフォルトOFF）
-        void renderPhysicsDebug(Workspace& workspace, const Matrix4& view, const Matrix4& projection);
+        void renderPhysicsDebug(Workspace& workspace, const Matrix4& view, const Matrix4& projection, const Vector3& cameraPosition);
 
         // 地形ブラシのヒット位置ガイド（水平リング）。呼び出し側でFBOバインド・ビューポート設定済みであること。
-        void renderBrushMarker(const Matrix4& view, const Matrix4& projection, const Vector3& center, float radius);
+        void renderBrushMarker(const Matrix4& view, const Matrix4& projection, const Vector3& center, float radius, const Vector3& cameraPosition);
 
         // パーティクル（ParticleEmitter）。カメラ常時正面のビルボードをCPU側で頂点展開し、
         // テクスチャなし・単色頂点の専用シェーダーで描画する。シミュレーション自体はここでは
@@ -154,7 +155,7 @@ class Renderer {
         // 雷柱（Weatherが落雷時に中点変位法で生成したジグザグ頂点列を描画するだけ。
         // ジオメトリ生成自体はWeather::attemptStrike()側で行う）。既存のm_lineShaderを流用し
         // 新規GLリソースは追加しない。
-        void renderLightning(Workspace& workspace, const Matrix4& view, const Matrix4& projection);
+        void renderLightning(Workspace& workspace, const Matrix4& view, const Matrix4& projection, const Vector3& cameraPosition);
 
         // GUI 描画
         Matrix4  m_lastView;
@@ -183,4 +184,16 @@ class Renderer {
 
     private:
         void renderTerrain(const Matrix4& view, const Matrix4& projection, class Workspace* workspace);
+
+        // 塗り+輪郭のハイライト描画（深度テスト無効）。1つのBaseCubeターゲットに対して呼ぶ。
+        // Highlightインスタンス描画・エディタ選択ハイライトの両方から共有される
+        void drawBaseCubeHighlight(BaseCube* target, const Color4& fillColor,
+                                    const Color4& outlineColor, float outlineThickness,
+                                    const Matrix4& view, const Matrix4& projection,
+                                    const Vector3& cameraPosition, float fovYDegrees,
+                                    int viewportHeightPx);
+
+        // ワークスペース全体からHighlightインスタンスを収集し、それぞれ有効なら描画する
+        void renderInstanceHighlights(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
+                                       const Vector3& cameraPosition, float fovYDegrees, int viewportHeightPx);
 };

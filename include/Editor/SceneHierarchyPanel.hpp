@@ -41,6 +41,9 @@ public:
     SceneHierarchyPanel();
     void onRender() override;
 
+    // ツールバーの「New Script」ボタンから呼ばれる。Script(通常スクリプト)固定でダイアログを開く。
+    void requestNewScript(const std::shared_ptr<Instance>& parent);
+
     // ヘルパー: インスタンス名の重複を避けて連番を付ける
     // base の末尾が数字なら切り離してその数値からインクリメントする（"Cube1" -> "Cube2"）
     // taken: 同一バッチ内でまだ children に登録されていない予約済み名前の集合（複数ペースト用）

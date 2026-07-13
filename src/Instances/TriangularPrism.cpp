@@ -1,5 +1,6 @@
 #include <Instances/TriangularPrism.hpp>
 #include <Core/Renderer.hpp>
+#include <Util/MeshEdges.hpp>
 #include <GL/glew.h>
 
 unsigned int TriangularPrism::defaultTextureID = 0;
@@ -7,6 +8,7 @@ unsigned int TriangularPrism::s_VAO = 0;
 unsigned int TriangularPrism::s_VBO = 0;
 unsigned int TriangularPrism::s_EBO = 0;
 int TriangularPrism::s_IndexCount = 0;
+std::vector<float> TriangularPrism::s_HighlightEdgeVerts;
 
 // 正三角形を半径0.5の円に内接 (角度: 90°, 210°, 330°)
 // A=(0.5, y, 0), B=(-0.25, y, 0.4330), C=(-0.25, y, -0.4330)
@@ -92,6 +94,8 @@ void TriangularPrism::initGeometry() {
     }
 
     s_IndexCount = (int)ebo.size();
+
+    s_HighlightEdgeVerts = MeshEdges::extractHardEdges(vbo.data(), vbo.size() / 8, 8, 0, ebo.data(), ebo.size(), 20.0f);
 
     glGenVertexArrays(1, &s_VAO);
     glGenBuffers(1, &s_VBO);

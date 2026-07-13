@@ -1,5 +1,6 @@
 #include <Instances/Cylinder.hpp>
 #include <Core/Renderer.hpp>
+#include <Util/MeshEdges.hpp>
 #include <GL/glew.h>
 #include <cmath>
 
@@ -8,6 +9,7 @@ unsigned int Cylinder::s_VAO = 0;
 unsigned int Cylinder::s_VBO = 0;
 unsigned int Cylinder::s_EBO = 0;
 int Cylinder::s_IndexCount = 0;
+std::vector<float> Cylinder::s_HighlightEdgeVerts;
 
 static const int CYL_SEG = 32;
 static const float CYL_PI = 3.14159265358979323846f;
@@ -80,6 +82,8 @@ void Cylinder::initGeometry() {
 
 
     s_IndexCount = (int)ebo.size();
+
+    s_HighlightEdgeVerts = MeshEdges::extractHardEdges(vbo.data(), vbo.size() / 8, 8, 0, ebo.data(), ebo.size(), 20.0f);
 
     glGenVertexArrays(1, &s_VAO);
     glGenBuffers(1, &s_VBO);

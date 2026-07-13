@@ -46,6 +46,18 @@ public:
     virtual PhysicsShape getPhysicsShape() const { return PhysicsShape::Box; }
     virtual std::vector<physx::PxVec3> getConvexVertices() const { return {}; }
 
+    // ハイライト描画(塗り+輪郭)用にジオメトリのVAO/インデックス数を返す。
+    // 描画可能なジオメトリがなければ0を返す(MeshCube未ロード時など)
+    virtual unsigned int getHighlightVAO() const { return 0; }
+    virtual unsigned int getHighlightIndexCount() const { return 0; }
+
+    // ハイライト輪郭線(リボン描画)用の、ローカル空間の「硬いエッジ」端点列。
+    // N本のエッジ → N*6 floats (x0,y0,z0,x1,y1,z1の繰り返し)。空なら輪郭なし。
+    virtual const std::vector<float>& getHighlightEdgeVerts() const {
+        static const std::vector<float> empty;
+        return empty;
+    }
+
     // 子デカールから指定方向のテクスチャIDを取得するヘルパー
     // 該当するデカールがなければ fallback を返す
     unsigned int getDecalTexture(Face face, unsigned int fallback) const;

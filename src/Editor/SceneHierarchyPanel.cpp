@@ -22,6 +22,7 @@
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/Canvas.hpp>
+#include <Instances/Highlight.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/PointLight.hpp>
 #include <Instances/SpotLight.hpp>
@@ -331,6 +332,13 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     }
 }
 
+void SceneHierarchyPanel::requestNewScript(const std::shared_ptr<Instance>& parent) {
+    if (!parent) return;
+    m_pendingScriptParent = parent;
+    m_openScriptDialog     = true;
+    m_pendingScriptClass   = ScriptInsertClass::Script;
+}
+
 void SceneHierarchyPanel::renderNewScriptDialog() {
     if (m_openScriptDialog) {
         ImGui::OpenPopup("###NewScript");
@@ -458,7 +466,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Texture>(m_history, "Texture", parentSp, 0, Face::Front);
         tryInsertInstance<PostEffect>(m_history, "PostEffect", parentSp);
         tryInsertInstance<ParticleEmitter>(m_history, "ParticleEmitter", parentSp);
-        
+        tryInsertInstance<Highlight>(m_history, "Highlight", parentSp);
+
         ImGui::EndMenu();
     }
 

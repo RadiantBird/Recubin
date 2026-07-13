@@ -3,11 +3,11 @@
 #define ICON_MIN_FA  0xf000
 #define ICON_MAX_FA  0xf8ff
 
-#define ICON_CUBE         "" // single cube
-#define ICON_MESHCUBE     "" // triangle
+#define ICON_CUBE         "\xef\x86\xb2" // f1b2 fa-cube
+#define ICON_MESHCUBE     "\xef\x97\xae" // f5ee fa-draw-polygon
 #define ICON_SPHERE       "\xef\x84\x91"  // f111 fa-circle
 #define ICON_FOLDER       "\xef\x81\xbb"  // f07b fa-folder
-#define ICON_SCRIPT       ""  // U+F1C9
+#define ICON_SCRIPT       "\xef\x87\x89"  // U+F1C9 fa-file-code
 #define ICON_POSTEFFECT   "" // a man jumping the frame(?)
 #define ICON_LIGHT        "\xef\x83\xab"  // f0eb fa-lightbulb
 #define ICON_TOOL         "\xef\x82\xad"  // f0ad fa-wrench
@@ -29,3 +29,29 @@
 #define ICON_PATHFINDINGSERVICE "" // map with pin
 #define ICON_APPIMAGE     "" // image file
 #define ICON_SYSTEM       "⚛" // atom
+
+// ---- ツールバー再設計で追加 ----
+#define ICON_PLAY               "\xef\x81\x8b"  // f04b fa-play
+#define ICON_PAUSE              "\xef\x81\x8c"  // f04c fa-pause
+#define ICON_STOP               "\xef\x81\x8d"  // f04d fa-stop
+#define ICON_SELECT             "\xef\x89\x85"  // f245 fa-mouse-pointer
+#define ICON_MOVE                "\xef\x81\x87"  // f047 fa-arrows
+#define ICON_RESIZE              "\xef\x8c\x9e"  // f31e fa-expand-arrows-alt
+#define ICON_ROTATE               "\xef\x8b\xb1"  // f2f1 fa-sync-alt
+#define ICON_SAVE                "\xef\x83\x87"  // f0c7 fa-save
+#define ICON_LOAD                "\xef\x81\xbc"  // f07c fa-folder-open
+#define ICON_CYLINDER            "\xef\x87\x80"  // f1c0 fa-database (代替: 円柱固有グリフ無し)
+#define ICON_TRIANGULARPRISM     "\xef\x98\x9f"  // f61f fa-shapes (代替)
+#define ICON_TRUSS               "\xef\x9e\xa5"  // f7a5 fa-grip-lines-vertical (代替)
+#define ICON_SEAT                "\xef\x9b\x80"  // f6c0 fa-chair
+#define ICON_LIQUIDCUBE          "\xef\x81\x83"  // f043 fa-tint
+#define ICON_WELD                "\xef\x83\x81"  // f0c1 fa-link
+#define ICON_MOTOR               "\xef\x80\x93"  // f013 fa-cog
+#define ICON_ROD                 "\xef\x9e\xa4"  // f7a4 fa-grip-lines (代替)
+#define ICON_ROPE                "\xef\xa0\xbe"  // f83e fa-wave-square (代替)
+#define ICON_ATTACHMENT          "\xef\x82\x8d"  // f08d fa-thumbtack
+#define ICON_FORCE               "\xef\x83\xa7"  // f0e7 fa-bolt
+#define ICON_TERRAIN_RAISE       "\xef\x81\xa2"  // f062 fa-arrow-up
+#define ICON_TERRAIN_LOWER       "\xef\x81\xa3"  // f063 fa-arrow-down
+#define ICON_TERRAIN_SMOOTH      "\xef\x94\x9a"  // f51a fa-broom
+#define ICON_TERRAINBRUSH_TOGGLE "\xef\x87\xbc"  // f1fc fa-paint-brush

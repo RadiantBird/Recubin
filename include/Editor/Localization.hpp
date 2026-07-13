@@ -73,6 +73,10 @@ enum class LocKey {
     RegenerateUVButton, RegenerateUVConfirmTitle,
     RegenerateUVConfirmLine1, RegenerateUVConfirmLine2,
 
+    // ---- EditorManager: ツールバー2段化(Cubes/Physics/Characterタブ) ----
+    ToolbarTabBasic, ToolbarTabCubes, ToolbarTabTerrain, ToolbarTabPhysics, ToolbarTabCharacter,
+    NewScriptButton, AddHumanoidButton, RigBuilderButton,
+
     Count
 };
 

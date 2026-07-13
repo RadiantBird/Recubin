@@ -49,6 +49,13 @@ public:
     PhysicsShape getPhysicsShape() const override { return PhysicsShape::ConvexMesh; }
     std::vector<physx::PxVec3> getConvexVertices() const override;
 
+    unsigned int getHighlightVAO() const override { return hasGeometry() ? m_VAO : 0; }
+    unsigned int getHighlightIndexCount() const override { return hasGeometry() ? m_indexCount : 0; }
+    const std::vector<float>& getHighlightEdgeVerts() const override {
+        static const std::vector<float> empty;
+        return hasGeometry() ? m_highlightEdgeVerts : empty;
+    }
+
     // GLBファイルをロードしてメッシュ・テクスチャ・GPUバッファを再構築する。
     // 失敗時は false を返し、既存のジオメトリ・MeshFile は変更しない。
     bool loadFromGLB(const std::string& path);
@@ -87,6 +94,7 @@ private:
 
     std::vector<MeshVertex>   m_cpuVertices;
     std::vector<unsigned int> m_cpuIndices;
+    std::vector<float>        m_highlightEdgeVerts;
 
     void releaseMeshBuffers();
     void releaseGPU();

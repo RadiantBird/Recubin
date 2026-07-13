@@ -9,6 +9,7 @@ unsigned int Sphere::s_VBO = 0;
 unsigned int Sphere::s_EBO = 0;
 int Sphere::s_IndexCount = 0;
 int Sphere::s_FaceIndexCount = 0;
+std::vector<float> Sphere::s_HighlightEdgeVerts;
 
 static const int SPH_RES = 16;
 
@@ -87,6 +88,25 @@ void Sphere::initGeometry() {
     glEnableVertexAttribArray(2);
 
     glBindVertexArray(0);
+
+    // ハイライト輪郭線用: 3方向の直交する大円(半径0.5)を解析的に生成
+    {
+        constexpr int SEG = 48;
+        constexpr float PI2 = 6.28318530718f;
+        auto addCircle = [&](auto point) {
+            for (int i = 0; i < SEG; ++i) {
+                float a0 = PI2 * i / SEG;
+                float a1 = PI2 * (i + 1) / SEG;
+                Vector3 p0 = point(a0);
+                Vector3 p1 = point(a1);
+                s_HighlightEdgeVerts.push_back(p0.x); s_HighlightEdgeVerts.push_back(p0.y); s_HighlightEdgeVerts.push_back(p0.z);
+                s_HighlightEdgeVerts.push_back(p1.x); s_HighlightEdgeVerts.push_back(p1.y); s_HighlightEdgeVerts.push_back(p1.z);
+            }
+        };
+        addCircle([](float a) { return Vector3(std::cos(a) * 0.5f, 0.0f, std::sin(a) * 0.5f); }); // XZ平面
+        addCircle([](float a) { return Vector3(std::cos(a) * 0.5f, std::sin(a) * 0.5f, 0.0f); }); // XY平面
+        addCircle([](float a) { return Vector3(0.0f, std::cos(a) * 0.5f, std::sin(a) * 0.5f); }); // YZ平面
+    }
 }
 
 Sphere::Sphere(Vector3 Pos, Vector3 Sz)

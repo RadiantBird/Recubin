@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <include/imgui/imgui.h>
 
 // ===================================================
 //  エディターの実行モード
@@ -23,6 +24,17 @@ enum class EditorMode {
     Edit,   // 物理/スクリプト 停止
     Play,   // 実行中
     Pause   // ポーズ中
+};
+
+// ===================================================
+//  ツールバーのカテゴリタブ
+// ===================================================
+enum class ToolbarCategory {
+    Basic,
+    Cubes,
+    Terrain,
+    Physics,
+    Character
 };
 
 // ===================================================
@@ -97,7 +109,8 @@ public:
     DecalPlaceState   m_decalPlace;   // DecalPlaceState は PropertiesPanel.hpp で定義
 
     template <typename T, typename... Args>
-    void tryAddObject(const std::string& menuLabel, const std::string& defaultName, Args&&... args);
+    void tryAddObjectButton(const char* icon, const std::string& label, const std::string& defaultName,
+                             const std::shared_ptr<Instance>& parent, const ImVec2& btnSize, Args&&... args);
 
 private:
     Workspace* m_workspace = nullptr;
@@ -130,7 +143,19 @@ public:
     std::string engineExePath;
 
 private:
+    ToolbarCategory m_toolbarCategory = ToolbarCategory::Basic;
+
+    // icon(nullptr可)+labelを1つのボタンに描画する。ボタン幅/高さに収まらない場合は
+    // ImGui::SetWindowFontScaleで自動的にフォントを縮小する(下限0.55倍)。クリックされたらtrue。
+    bool drawIconButton(const char* icon, const char* label, const ImVec2& btnSize);
+
     void renderToolbar();
+    void renderToolbarTabs();
+    void renderToolbarBasic();
+    void renderToolbarCubes();
+    void renderToolbarTerrain();
+    void renderToolbarPhysics();
+    void renderToolbarCharacter();
     void applyTheme();
     void handleEditorShortcuts();
     void renderSaveDialog();

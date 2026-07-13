@@ -7,6 +7,7 @@
 unsigned int Cube::defaultTextureID = 0;
 unsigned int Cube::s_VAO = 0;
 unsigned int Cube::s_EBO = 0;
+std::vector<float> Cube::s_HighlightEdgeVerts;
 
 // 頂点生成関数の実装
 std::vector<Vertex> createCubeVertices(float size) {

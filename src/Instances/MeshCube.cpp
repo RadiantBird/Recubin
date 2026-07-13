@@ -7,6 +7,7 @@
 #include <Core/Physics.hpp>
 #include <Util/Logger.hpp>
 #include <Util/AssetGuard.hpp>
+#include <Util/MeshEdges.hpp>
 #include <GL/glew.h>
 #include <xatlas.h>
 #include <algorithm>
@@ -68,6 +69,8 @@ void MeshCube::uploadToGPU() {
     glBindVertexArray(0);
 
     m_indexCount = static_cast<unsigned int>(m_cpuIndices.size());
+
+    m_highlightEdgeVerts = MeshEdges::extractHardEdges(vbo.data(), vbo.size() / 9, 9, 0, m_cpuIndices.data(), m_cpuIndices.size(), 20.0f);
 }
 
 std::vector<UVDecalDesc> MeshCube::collectUVDecals(int maxCount) const {
