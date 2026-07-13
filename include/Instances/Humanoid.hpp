@@ -34,6 +34,7 @@ public:
     float MaxHealth   = 100.0f;
     float RespawnTime = 5.0f;   // 死亡後この秒数で再生成される
     std::shared_ptr<RCBNScriptSignal> Died; // Health<=0 で1度だけ発火
+    std::shared_ptr<RCBNScriptSignal> KeyframeReached; // (partName: string, time: number) で発火
 
     // 兄弟パーツへの参照（resolveParts()で解決する）
     std::shared_ptr<BaseCube>   Root;

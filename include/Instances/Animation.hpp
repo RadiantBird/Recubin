@@ -29,6 +29,7 @@ class Animation : public Instance {
 public:
     float Length = 1.0f;   // 全長（秒）
     float Speed  = 1.0f;   // 再生速度倍率
+    bool  Looped = false;  // trueでループ再生
 
     Animation();
 

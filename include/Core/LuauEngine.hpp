@@ -268,6 +268,7 @@ private:
     static int connection_disconnect_closure(lua_State* L);
     static int instance_new_closure(lua_State* L);
     static int event_fire_closure(lua_State* L);
+    static int signalevent_fire_closure(lua_State* L);
 
 public:
     LuauEngine();

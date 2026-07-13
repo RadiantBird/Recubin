@@ -98,7 +98,7 @@ export type AppImage = Instance & {
     IconPath: string,
 }
 
-export type Animation = Instance & {}
+export type Animation = Instance & { Looped: boolean }
 
 export type Humanoid = Instance & {
     WalkSpeed: number,
@@ -109,7 +109,8 @@ export type Humanoid = Instance & {
     PauseAnimation: (Humanoid) -> (),
     StopAnimation: (Humanoid) -> (),
 
-    Died: Signal
+    Died: Signal,
+    KeyframeReached: Signal
 }
 
 export type Script = Instance & {
@@ -195,6 +196,11 @@ export type ScreenGuiObject = Instance & {
 
 export type GuiButton = ScreenGuiObject & {
     Activated: Signal,
+}
+
+export type SignalEvent = Instance & {
+    Fired: Signal,
+    Fire: (SignalEvent, ...any) -> (),
 }
 
 export type TextLabel = ScreenGuiObject & {

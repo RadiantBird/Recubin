@@ -16,6 +16,7 @@
 | `Health` / `MaxHealth` | `float` | 現在/最大ヘルス |
 | `RespawnTime` | `float` | 死亡後の再生成までの秒数 |
 | `Died` | `shared_ptr<RCBNScriptSignal>` | Health<=0で1度だけ発火 |
+| `KeyframeReached` | `shared_ptr<RCBNScriptSignal>` | 再生位置が既存キーフレームの時刻を通過した瞬間に発火。引数は`(partName: string, time: number)` |
 | `Root`/`Torso`/`Head`/`LeftArm`/`RightArm`/`LeftLeg`/`RightLeg` | `shared_ptr<BaseCube>` | `resolveParts()` で解決される兄弟パーツ参照 |
 | `m_dead` | `bool` | 死亡フラグ |
 | `walkCycle` | `float` | 歩行アニメーションの位相（0..1） |

@@ -15,6 +15,7 @@
 #include "include/Instances/System.hpp"
 #include "include/Network/NetworkManager.hpp"
 #include "include/Instances/Event.hpp"
+#include "include/Instances/SignalEvent.hpp"
 #include "include/Instances/TextLabel.hpp"
 #include "include/Instances/TextButton.hpp"
 #include "include/Instances/SurfaceGui.hpp"
@@ -2004,6 +2005,7 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "ProximityPrompt",  [] { return std::make_shared<ProximityPrompt>(); } },
         { "Tool",             [] { return std::make_shared<Tool>("Tool"); } },
         { "Event",            [] { return std::make_shared<Event>(); } },
+        { "SignalEvent",       [] { return std::make_shared<SignalEvent>(); } },
         { "ParticleEmitter",  [] { return std::make_shared<ParticleEmitter>(); } },
         { "Weather",          [] { return std::make_shared<Weather>(); } },
     };
@@ -2120,6 +2122,27 @@ int LuauEngine::event_fire_closure(lua_State* L) {
     if (raw->IsA("Event")) {
         static_cast<Event*>(raw)->fire();
     }
+    return 0;
+}
+
+// ===================================================
+//  SignalEvent:Fire クロージャー
+// ===================================================
+int LuauEngine::signalevent_fire_closure(lua_State* L) {
+    // upvalue 1 = SignalEvent の weak_ptr userdata
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    if (!ud) return 0;
+    auto self = ud->lock();
+    if (!self) return 0;
+    if (!self->IsA("SignalEvent")) return 0;
+    auto* se = static_cast<SignalEvent*>(self.get());
+    if (!se->Fired) return 0;
+
+    int top = lua_gettop(L); // L[1]=self, L[2..top]=可変引数
+    se->Fired->fire(L, [top](lua_State* Lx) -> int {
+        for (int i = 2; i <= top; ++i) lua_pushvalue(Lx, i);
+        return top - 1;
+    });
     return 0;
 }
 

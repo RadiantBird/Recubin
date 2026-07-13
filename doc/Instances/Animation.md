@@ -13,6 +13,7 @@
 |---|---|---|
 | `Length` | `float` | 全長（秒、既定1.0） |
 | `Speed` | `float` | 再生速度倍率（既定1.0） |
+| `Looped` | `bool` | ループ再生するか（既定false。trueで末尾到達後に先頭へ戻って再生を続ける） |
 | `m_tracks` | `vector<AnimTrack>`（private） | トラック一覧 |
 
 `Keyframe`: `time`(秒) / `cframe`(対象Cubeのローカル(親=Model基準)CFrame) / `easing`(`EasingType`、次キーへの補間方法)。

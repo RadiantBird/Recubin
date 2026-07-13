@@ -483,6 +483,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             const Animation* anim = static_cast<const Animation*>(inst);
             out << YAML::Key << "Length" << YAML::Value << anim->Length;
             out << YAML::Key << "Speed"  << YAML::Value << anim->Speed;
+            out << YAML::Key << "Looped" << YAML::Value << anim->Looped;
             out << YAML::Key << "Tracks" << YAML::Value << YAML::BeginSeq;
             for (const AnimTrack& tr : anim->getTracks()) {
                 out << YAML::BeginMap;

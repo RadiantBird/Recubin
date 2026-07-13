@@ -11,6 +11,7 @@
 #include "include/Instances/Rod.hpp"
 #include "include/Instances/Weld.hpp"
 #include "include/Instances/Humanoid.hpp"
+#include "include/Instances/Animation.hpp"
 #include "include/Core/User.hpp"
 #include "include/Instances/UserInput.hpp"
 #include "include/Instances/AppImage.hpp"
@@ -18,6 +19,7 @@
 #include "include/Instances/Script.hpp"
 #include "include/Instances/System.hpp"
 #include "include/Instances/Event.hpp"
+#include "include/Instances/SignalEvent.hpp"
 #include "include/Instances/ScreenGuiObject.hpp"
 #include "include/Instances/GuiButton.hpp"
 #include "include/Instances/TextLabel.hpp"
@@ -422,6 +424,9 @@ void LuauEngine::InitDispatchTable_World() {
     PropertyRegistry::applyToDispatch("System", DispatchTable, SetterTable);
 
     DispatchTable["Event"]["Fire"] = getter_closure(LuauEngine::event_fire_closure, "Fire");
+
+    PropertyRegistry::applyToDispatch("SignalEvent", DispatchTable, SetterTable);
+    DispatchTable["SignalEvent"]["Fire"] = getter_closure(signalevent_fire_closure, "Fire");
 }
 
 // ==================== Getter: Rope, Rod, Weld, Motor ====================
@@ -480,6 +485,10 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Humanoid"]["TakeDamage"]  = getter_closure(humanoid_take_damage_closure, "TakeDamage");
     DispatchTable["Humanoid"]["MoveToward"]  = getter_closure(humanoid_move_toward_closure, "MoveToward");
     DispatchTable["Humanoid"]["Jump"]        = getter_closure(humanoid_jump_closure,        "Jump");
+    DispatchTable["Humanoid"]["KeyframeReached"] = getter_signal<Humanoid, &Humanoid::KeyframeReached>();
+
+    DispatchTable["Animation"]["Looped"] = getter_bool<Animation, &Animation::Looped>();
+    SetterTable["Animation"]["Looped"]   = setter_bool<Animation, &Animation::Looped>();
 
     // Seat — Steer/ThrottleはPropertyRegistry経由でLua読取専用として公開(エンジンが着席中に書き込む)
     PropertyRegistry::applyToDispatch("Seat", DispatchTable, SetterTable);

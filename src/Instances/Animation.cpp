@@ -15,6 +15,7 @@ bool Animation::IsA(std::string className) {
 void Animation::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Length") { Length = value.as<float>(); return; }
     if (name == "Speed")  { Speed  = value.as<float>(); return; }
+    if (name == "Looped") { Looped = value.as<bool>();  return; }
     if (name == "Tracks") {
         m_tracks.clear();
         for (const auto& trackNode : value) {
@@ -51,6 +52,7 @@ std::shared_ptr<Instance> Animation::clone() const {
     copy->Name    = Name;
     copy->Length  = Length;
     copy->Speed   = Speed;
+    copy->Looped  = Looped;
     copy->m_tracks = m_tracks;
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());
@@ -116,6 +118,7 @@ bool Animation::exportToFile(const std::string& path) const {
     out << YAML::Key << "Animation" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "Length" << YAML::Value << Length;
     out << YAML::Key << "Speed"  << YAML::Value << Speed;
+    out << YAML::Key << "Looped" << YAML::Value << Looped;
     out << YAML::Key << "Tracks" << YAML::Value << YAML::BeginSeq;
     for (const AnimTrack& tr : m_tracks) {
         out << YAML::BeginMap;
@@ -161,6 +164,7 @@ bool Animation::importFromFile(const std::string& path) {
     // 既存のsetPropertyのパース処理を再利用する
     if (a["Length"]) setProperty("Length", a["Length"]);
     if (a["Speed"])  setProperty("Speed",  a["Speed"]);
+    if (a["Looped"]) setProperty("Looped", a["Looped"]);
     if (a["Tracks"]) setProperty("Tracks", a["Tracks"]);
     return true;
 }

@@ -31,7 +31,8 @@ static const bool s_humanoidRegistered = []{
     return true;
 }();
 
-Humanoid::Humanoid() : Instance("Humanoid"), Died(std::make_shared<RCBNScriptSignal>()) {}
+Humanoid::Humanoid() : Instance("Humanoid"), Died(std::make_shared<RCBNScriptSignal>()),
+    KeyframeReached(std::make_shared<RCBNScriptSignal>()) {}
 
 bool Humanoid::IsA(std::string className) {
     if (className == "Humanoid") return true;
@@ -47,7 +48,7 @@ std::shared_ptr<Instance> Humanoid::clone() const {
     auto copy = std::make_shared<Humanoid>();
     copy->Name = Name;
     PropertyRegistry::cloneFields(this, copy.get(), "Humanoid");
-    // m_dead / Died は複製せず新規（=生存状態・新しいシグナル）
+    // m_dead / Died / KeyframeReached は複製せず新規（=生存状態・新しいシグナル）
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());
     return copy;
@@ -391,10 +392,41 @@ void Humanoid::updateAnimation(float dt) {
     Instance* model = Parent.lock().get();
     if (!model) return;
 
+    float prevTime = m_animTime;
     m_animTime += dt * m_currentAnim->Speed;
+    bool wrapped = false;
     if (m_currentAnim->Length > 1e-6f) {
-        while (m_animTime > m_currentAnim->Length)
-            m_animTime -= m_currentAnim->Length; // ループ再生
+        if (m_currentAnim->Looped) {
+            while (m_animTime > m_currentAnim->Length) {
+                m_animTime -= m_currentAnim->Length;
+                wrapped = true;
+            }
+        } else if (m_animTime >= m_currentAnim->Length) {
+            m_animTime = m_currentAnim->Length;
+            m_animPlaying = false;
+        }
+    }
+
+    // キーフレーム通過検知: 通過区間(ラップ無し: (prevTime, m_animTime]、ラップ有り:
+    // (prevTime, Length] ∪ [0, m_animTime])に含まれるキーフレーム時刻を持つトラックについて
+    // KeyframeReachedを発火する（パーツ名と時刻を引数に渡す）
+    if (KeyframeReached) {
+        float length = m_currentAnim->Length;
+        for (const AnimTrack& track : m_currentAnim->getTracks()) {
+            for (const Keyframe& kf : track.keyframes) {
+                bool passed = wrapped
+                    ? ((kf.time > prevTime && kf.time <= length) || (kf.time >= 0.0f && kf.time <= m_animTime))
+                    : (kf.time > prevTime && kf.time <= m_animTime);
+                if (!passed) continue;
+                std::string partName = track.partName;
+                float kfTime = kf.time;
+                KeyframeReached->fire([partName, kfTime](lua_State* Lx) -> int {
+                    lua_pushstring(Lx, partName.c_str());
+                    lua_pushnumber(Lx, kfTime);
+                    return 2;
+                });
+            }
+        }
     }
 
     // キーフレームはRoot相対で保持されているため、現在のRoot CFrameに合成して

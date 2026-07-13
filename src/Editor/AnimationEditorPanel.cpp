@@ -142,6 +142,8 @@ void AnimationEditorPanel::onRender() {
     ImGui::SameLine();
     ImGui::SetNextItemWidth(90.0f);
     ImGui::DragFloat("Speed", &anim->Speed, 0.05f, 0.05f, 10.0f, "%.2fx");
+    ImGui::SameLine();
+    ImGui::Checkbox("Looped", &anim->Looped);
 
     // --- 専用ファイルへのエクスポート/インポート ---
     if (ImGui::Button(Loc::t(Loc::LocKey::ExportButton))) {
@@ -228,7 +230,12 @@ void AnimationEditorPanel::onRender() {
     if (m_playing) {
         m_time += ImGui::GetIO().DeltaTime * anim->Speed;
         if (anim->Length > 1e-6f) {
-            while (m_time > anim->Length) m_time -= anim->Length;
+            if (anim->Looped) {
+                while (m_time > anim->Length) m_time -= anim->Length;
+            } else if (m_time >= anim->Length) {
+                m_time = anim->Length;
+                m_playing = false;
+            }
         }
         applyPreview(anim, model, m_time);
     } else if (timeChanged) {
