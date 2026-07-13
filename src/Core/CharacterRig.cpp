@@ -8,13 +8,12 @@
 
 namespace CharacterRig {
 
-void buildDefaultRigParts(const std::shared_ptr<Instance>& parent) {
+void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3& basePos) {
     if (!parent) return;
 
     auto humanoid = std::make_shared<Humanoid>();
     humanoid->Name = "Humanoid";
 
-    Vector3 basePos(0.0f, 0.0f, 0.0f);
     auto root     = std::make_shared<Cube>(basePos, Vector3(2.0f, 4.0f, 1.0f), 0);
     auto head     = std::make_shared<Sphere>(basePos, Vector3(1.25f, 1.25f, 1.25f));
     auto torso    = std::make_shared<Cube>(basePos, Vector3(2.0f, 2.0f, 1.0f), 0);
@@ -57,6 +56,9 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent) {
     parent->addChild(rightArm);
     parent->addChild(leftLeg);
     parent->addChild(rightLeg);
+
+    humanoid->resolveParts(parent.get());
+    humanoid->applyBodyAnimation(false, false);
 }
 
 } // namespace CharacterRig
