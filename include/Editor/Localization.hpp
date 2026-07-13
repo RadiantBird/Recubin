@@ -56,6 +56,7 @@ enum class LocKey {
     TerrainBrushEdit, TerrainBrushRadius, TerrainBrushMode,
     TerrainBrushModeLower, TerrainBrushModeSmooth, TerrainBrushModeRaise,
     TerrainBrushHint,
+    TerrainBrushSculptTab, TerrainBrushPaintTab, TerrainBrushPaintColor,
     PickerPromptAttachment, PickerPromptCube,
     ToolUnresolved, NothingSelected,
 

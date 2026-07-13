@@ -20,9 +20,11 @@ struct PickerState {
 
 // Terrainブラシの共有状態（EditorManager / PropertiesPanel / ViewportPanel で共有）
 struct TerrainBrushState {
-    bool  active = false;
-    float radius = 8.0f;   // studs
-    int   mode   = +1;     // +1=Raise, -1=Lower, 0=Smooth
+    bool  active    = false;
+    float radius    = 8.0f;   // studs
+    int   mode      = +1;     // Sculpt時のみ: +1=Raise, -1=Lower, 0=Smooth
+    bool  paintMode = false;  // false=Sculpt, true=Paint
+    float paintColor[3] = { 0.78f, 0.78f, 0.78f }; // ImGui::ColorEdit3用（0.0-1.0）
 };
 
 // Decal配置モードの共有状態（EditorManager / PropertiesPanel / ViewportPanel で共有）

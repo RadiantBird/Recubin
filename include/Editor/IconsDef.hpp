@@ -55,3 +55,4 @@
 #define ICON_TERRAIN_LOWER       "\xef\x81\xa3"  // f063 fa-arrow-down
 #define ICON_TERRAIN_SMOOTH      "\xef\x94\x9a"  // f51a fa-broom
 #define ICON_TERRAINBRUSH_TOGGLE "\xef\x87\xbc"  // f1fc fa-paint-brush
+#define ICON_TERRAIN_PAINT       "\xef\x95\xb5"  // f575 fa-fill-drip

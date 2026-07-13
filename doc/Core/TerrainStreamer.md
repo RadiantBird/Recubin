@@ -45,6 +45,10 @@
 | `reclassifyColumnShape(wx, wz, persist)` | 表層ブロック形状を近傍高さから Cube/Wedge/Ramp に再分類。`persist=true` で永続化対象化 |
 | `applyBrush(worldPos, radius, mode)` | ブラシ編集。`mode`: +1=Raise, -1=Lower, 0=Smooth |
 | `raycastVoxel(origin, dir, maxDist, outHit)` | ブロックデータへのボクセル DDA レイキャスト。物理シーンを介さないため編集直後でも最新地形を参照でき、PhysX の SQ 未更新による貫通を回避する |
+| `raycastVoxelFace(origin, dir, maxDist, ...)` | ヒットしたブロック座標と面の軸/符号(法線)を返すレイキャスト。エディターブラシの方向判定に使う |
+| `applyDirectionalBrush(worldPos, axis, sign, radius, mode)` | axis/sign(面法線)で指定した方向へ掘る/盛る6方向対応ブラシ。上方向(axis==1,sign==+1)のみ既存`applyBrush`のRamp/Wedge自動スロープを維持し、それ以外の5方向はCube単位 |
+| `applyColorBrush(worldPos, axis, sign, radius, r, g, b)` | 形状を変えずに表層ブロックの色だけ書き換えるPaintブラシ |
+| `beginDiffCapture()` / `endDiffCapture()` | ブラシストローク中の変更を`VoxelDiffEntry`として記録し、`TerrainBrushStrokeCommand`（`CommandHistory.hpp`）でUndo/Redoできるようにする仕組み |
 | `setBlock` / `removeBlock` | ワールドブロック座標で1ブロックを書換え/削除する部分編集API |
 | `getChunks()` | ロード済みチャンク一覧（`const&`、Renderer 描画用） |
 

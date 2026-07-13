@@ -371,14 +371,24 @@ void ViewportPanel::onRender() {
             if (child->IsA("Terrain")) { terrain = static_cast<Terrain*>(child.get()); break; }
         }
         if (terrain && terrain->Enabled && terrain->streamer) {
+            // クリックでストローク開始。現在のUndo用差分バッファをこのTerrainに紐付けて記録開始する。
+            if (ImGui::IsMouseClicked(0)) {
+                m_terrainBrushDiff.clear();
+                terrain->streamer->beginDiffCapture(&m_terrainBrushDiff);
+                m_terrainBrushStrokeTarget = std::static_pointer_cast<Terrain>(terrain->shared_from_this());
+            }
+
             ImVec2 mousePos = ImGui::GetMousePos();
             Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
             Vector3 rayOri = user->cpos;
 
             // 物理シーンではなくブロックデータへ直接レイキャストする。常に最新の地形を
             // 参照するため、編集直後でも貫通（地中ワープ）が発生しない。
+            // 面法線つきレイキャストで、ヒットした面の軸(axis)/符号(sign)を取得する。
             Vector3 hitPos;
-            if (terrain->streamer->raycastVoxel(rayOri, rayDir, kTerrainBrushMaxDist, hitPos)) {
+            int32_t hitBx = 0, hitBy = 0, hitBz = 0, hitAxis = 1, hitSign = 1;
+            if (terrain->streamer->raycastVoxelFace(rayOri, rayDir, kTerrainBrushMaxDist,
+                                                     hitPos, hitBx, hitBy, hitBz, hitAxis, hitSign)) {
                 // ヒット位置にブラシ範囲のガイドリングを描画（シーン描画済みFBOへ追記）。
                 // クリック前でも「どこに当たるか」が見えるようマウス押下に関係なく毎フレーム描く。
                 if (Renderer::instance && framebuffer) {
@@ -388,20 +398,45 @@ void ViewportPanel::onRender() {
                     GLint prevFBO = 0; GLint prevVp[4] = {};
                     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
                     glGetIntegerv(GL_VIEWPORT, prevVp);
+                    Vector3 brushNormal(0.0f, 0.0f, 0.0f);
+                    if (hitAxis == 0) brushNormal.x = (float)hitSign;
+                    else if (hitAxis == 1) brushNormal.y = (float)hitSign;
+                    else brushNormal.z = (float)hitSign;
+
                     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
                     glViewport(0, 0, fbWidth, fbHeight);
-                    Renderer::instance->renderBrushMarker(view, proj, hitPos, m_terrainBrush->radius, user->cpos);
+                    Renderer::instance->renderBrushMarker(view, proj, hitPos, m_terrainBrush->radius, user->cpos, brushNormal);
                     glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
                     glViewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3]);
                 }
                 // 左ボタン押下中のみ実際に編集する（適用間隔で間引く）
                 if (ImGui::IsMouseDown(0) &&
                     (m_lastTerrainBrushTime < 0.0 || now - m_lastTerrainBrushTime >= kTerrainBrushInterval)) {
-                    terrain->streamer->applyBrush(hitPos, m_terrainBrush->radius, m_terrainBrush->mode);
+                    if (m_terrainBrush->paintMode) {
+                        terrain->streamer->applyColorBrush(hitPos, hitAxis, hitSign, m_terrainBrush->radius,
+                            (uint8_t)(m_terrainBrush->paintColor[0] * 255.0f),
+                            (uint8_t)(m_terrainBrush->paintColor[1] * 255.0f),
+                            (uint8_t)(m_terrainBrush->paintColor[2] * 255.0f));
+                    } else {
+                        terrain->streamer->applyDirectionalBrush(hitPos, hitAxis, hitSign,
+                            m_terrainBrush->radius, m_terrainBrush->mode);
+                    }
                     m_lastTerrainBrushTime = now;
                 }
             }
         }
+    }
+
+    // ストローク終了検知: ブラシがオフになっていてもマウスを離したら確実に確定させる。
+    // isHoveringViewport 等に依存させず、ストローク中かどうかだけで判定する。
+    if (ImGui::IsMouseReleased(0) && m_terrainBrushStrokeTarget) {
+        if (m_terrainBrushStrokeTarget->streamer) m_terrainBrushStrokeTarget->streamer->endDiffCapture();
+        if (!m_terrainBrushDiff.empty() && m_history) {
+            m_history->record(std::make_unique<TerrainBrushStrokeCommand>(
+                m_terrainBrushStrokeTarget, std::move(m_terrainBrushDiff)));
+        }
+        m_terrainBrushDiff.clear();
+        m_terrainBrushStrokeTarget.reset();
     }
 
     // ---- クリック処理: 選択 & ドラッグ開始（全モード共通） ----

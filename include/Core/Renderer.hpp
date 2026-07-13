@@ -127,8 +127,8 @@ class Renderer {
         // 物理制約デバッグビジュアライザー（Weld/Motor/Attachment/Force。デフォルトOFF）
         void renderPhysicsDebug(Workspace& workspace, const Matrix4& view, const Matrix4& projection, const Vector3& cameraPosition);
 
-        // 地形ブラシのヒット位置ガイド（水平リング）。呼び出し側でFBOバインド・ビューポート設定済みであること。
-        void renderBrushMarker(const Matrix4& view, const Matrix4& projection, const Vector3& center, float radius, const Vector3& cameraPosition);
+        // 地形ブラシのヒット位置ガイド（ヒット面法線に直交するリング）。呼び出し側でFBOバインド・ビューポート設定済みであること。
+        void renderBrushMarker(const Matrix4& view, const Matrix4& projection, const Vector3& center, float radius, const Vector3& cameraPosition, const Vector3& normal);
 
         // パーティクル（ParticleEmitter）。カメラ常時正面のビルボードをCPU側で頂点展開し、
         // テクスチャなし・単色頂点の専用シェーダーで描画する。シミュレーション自体はここでは

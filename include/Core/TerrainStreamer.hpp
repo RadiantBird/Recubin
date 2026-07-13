@@ -93,6 +93,31 @@ public:
     bool setBlock(int32_t wx, int32_t wy, int32_t wz, BlockShape shape, uint8_t r, uint8_t g, uint8_t b);
     bool removeBlock(int32_t wx, int32_t wy, int32_t wz);
 
+    // ブラシ編集1回分の差分（Undo/Redo用）。CommandHistory から参照される。
+    struct VoxelDiffEntry {
+        int32_t wx, wy, wz;
+        Block   before, after;
+    };
+
+    // 以降の writeBlock 呼び出しの差分を sink に記録する。end まで有効。
+    void beginDiffCapture(std::vector<VoxelDiffEntry>* sink);
+    void endDiffCapture();
+
+    // 面法線つきボクセルレイキャスト。ヒットしたブロック座標(outBx/By/Bz)と、
+    // ヒットした面の軸(outAxis: 0=X,1=Y,2=Z)・外向き符号(outSign: ±1)を返す。
+    bool raycastVoxelFace(const Vector3& origin, const Vector3& dir, float maxDist,
+                          Vector3& outHit, int32_t& outBx, int32_t& outBy, int32_t& outBz,
+                          int32_t& outAxis, int32_t& outSign) const;
+
+    // 6方向対応Sculptブラシ。axis(0=X,1=Y,2=Z)/sign(±1)で示す方向へRaise/Lowerする。
+    // axis==1,sign==+1（上から）は既存 applyBrush と完全に同じ挙動（Ramp/Wedge自動スロープ含む）。
+    void applyDirectionalBrush(const Vector3& worldPos, int32_t axis, int32_t sign,
+                                float radius, int mode);
+
+    // Paintブラシ。指定方向から見える表層ブロックの色だけを書き換える（形状は不変）。
+    void applyColorBrush(const Vector3& worldPos, int32_t axis, int32_t sign,
+                          float radius, uint8_t r, uint8_t g, uint8_t b);
+
 private:
     Workspace* m_workspace; // 所有しない、ライフタイムは呼び出し元が管理
     Instance*  m_owner;     // 所有しない。物理アクターの userData に設定する Terrain インスタンス
@@ -204,4 +229,19 @@ private:
 
     // Physics を安全に取得（nullptr の場合は物理生成をスキップ）
     Physics* getPhysics() const;
+
+    // ==== Diffキャプチャ / ブロック書き込みの一元化 ====
+    // beginDiffCapture() 〜 endDiffCapture() の間に writeBlock() で書き換えられた
+    // ブロックは m_diffSink に (wx,wy,wz,before,after) として記録される。
+    std::vector<VoxelDiffEntry>*         m_diffSink = nullptr;
+    std::unordered_map<uint64_t, size_t> m_diffIndex; // (wx,wy,wz)パック→m_diffSink内index
+
+    // 1ブロックを書き換える下位処理。setBlock/raiseColumn/lowerColumn/reclassifyColumnShape の
+    // 共通実装。チャンク境界に接する隣接チャンクの mesh.dirty 化もここで行う。
+    void writeBlock(int32_t wx, int32_t wy, int32_t wz, const Block& value);
+
+    // axis(0=X,1=Y,2=Z)/sign(±1)方向へ、(a,b)を残り2軸の座標として表層ブロックのaxis座標を探す。
+    // findSurfaceY の汎用版（フォールバック無し、未ロードチャンクはスキップ）。
+    bool findSurfaceAlongAxis(int32_t axis, int32_t sign, int32_t a, int32_t b,
+                               int32_t searchOrigin, int32_t searchRange, int32_t& outCoord) const;
 };

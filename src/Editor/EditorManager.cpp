@@ -818,16 +818,34 @@ void EditorManager::renderToolbarTerrain() {
 
     ImGui::SameLine();
 
-    auto modeButton = [&](const char* icon, Loc::LocKey key, int modeValue) {
-        bool active = (m_terrainBrush.mode == modeValue);
-        ImGui::PushStyleColor(ImGuiCol_Button, active ? colActive : colInactive);
-        if (drawIconButton(icon, Loc::t(key), btnSz)) m_terrainBrush.mode = modeValue;
+    // Sculpt/Paint 切り替え
+    {
+        ImGui::PushStyleColor(ImGuiCol_Button, !m_terrainBrush.paintMode ? colActive : colInactive);
+        if (drawIconButton(ICON_TERRAINBRUSH_TOGGLE, Loc::t(Loc::LocKey::TerrainBrushSculptTab), btnSz)) m_terrainBrush.paintMode = false;
         ImGui::PopStyleColor();
         ImGui::SameLine();
-    };
-    modeButton(ICON_TERRAIN_LOWER,  Loc::LocKey::TerrainBrushModeLower,  -1);
-    modeButton(ICON_TERRAIN_SMOOTH, Loc::LocKey::TerrainBrushModeSmooth,  0);
-    modeButton(ICON_TERRAIN_RAISE,  Loc::LocKey::TerrainBrushModeRaise,  +1);
+
+        ImGui::PushStyleColor(ImGuiCol_Button, m_terrainBrush.paintMode ? colActive : colInactive);
+        if (drawIconButton(ICON_TERRAIN_PAINT, Loc::t(Loc::LocKey::TerrainBrushPaintTab), btnSz)) m_terrainBrush.paintMode = true;
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+    }
+
+    if (!m_terrainBrush.paintMode) {
+        auto modeButton = [&](const char* icon, Loc::LocKey key, int modeValue) {
+            bool active = (m_terrainBrush.mode == modeValue);
+            ImGui::PushStyleColor(ImGuiCol_Button, active ? colActive : colInactive);
+            if (drawIconButton(icon, Loc::t(key), btnSz)) m_terrainBrush.mode = modeValue;
+            ImGui::PopStyleColor();
+            ImGui::SameLine();
+        };
+        modeButton(ICON_TERRAIN_LOWER,  Loc::LocKey::TerrainBrushModeLower,  -1);
+        modeButton(ICON_TERRAIN_SMOOTH, Loc::LocKey::TerrainBrushModeSmooth,  0);
+        modeButton(ICON_TERRAIN_RAISE,  Loc::LocKey::TerrainBrushModeRaise,  +1);
+    } else {
+        ImGui::ColorEdit3(Loc::t(Loc::LocKey::TerrainBrushPaintColor), m_terrainBrush.paintColor);
+        ImGui::SameLine();
+    }
 
     ImGui::SetNextItemWidth(160.0f);
     ImGui::SliderFloat(Loc::t(Loc::LocKey::TerrainBrushRadius), &m_terrainBrush.radius, 1.0f, 64.0f, "%.1f studs");

@@ -1100,11 +1100,11 @@ void Renderer::renderParticles(Workspace& workspace, const Matrix4& view, const 
 }
 
 // ===================================================
-//  地形ブラシのヒット位置ガイド（水平リング）
+//  地形ブラシのヒット位置ガイド（ヒット面法線に直交するリング）
 // ===================================================
 void Renderer::renderBrushMarker(const Matrix4& view, const Matrix4& projection,
                                  const Vector3& center, float radius,
-                                 const Vector3& cameraPosition) {
+                                 const Vector3& cameraPosition, const Vector3& normal) {
     if (!m_lineShader || radius <= 0.0f) return;
 
     glUseProgram(m_lineShader);
@@ -1112,14 +1112,30 @@ void Renderer::renderBrushMarker(const Matrix4& view, const Matrix4& projection,
     glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
     glUniform4f(glGetUniformLocation(m_lineShader, "lineColor"), 1.0f, 0.85f, 0.2f, 1.0f);
 
+    // 法線を正規化（ゼロベクトル対策としてワールドUpにフォールバック）
+    Vector3 n = normal.normalize();
+    if (n.length() < 0.5f) n = Vector3(0.0f, 1.0f, 0.0f);
+
+    // 法線に直交する接線ベクトルを求める。法線がワールドUpに近い場合は
+    // 外積がゼロベクトルになるのを避けるためワールドForwardを基準にする。
+    const Vector3 worldUp(0.0f, 1.0f, 0.0f);
+    const Vector3 worldForward(0.0f, 0.0f, 1.0f);
+    Vector3 refUp = (std::abs(Vector3::Dot(n, worldUp)) > 0.99f) ? worldForward : worldUp;
+    Vector3 tangentU = Vector3::Cross(refUp, n).normalize();
+    Vector3 tangentV = Vector3::Cross(n, tangentU);
+
+    // 地表とのZファイト回避に法線方向へ少し浮かせる
+    Vector3 normalOffset = n * 0.05f;
+
     constexpr int SEG = 48;
     std::vector<float> verts;
     verts.reserve((SEG + 1) * 3);
     for (int i = 0; i <= SEG; i++) {
         float a = (float)i / (float)SEG * 6.28318530718f;
-        verts.push_back(center.x + std::cos(a) * radius);
-        verts.push_back(center.y + 0.15f); // 地表とのZファイト回避に少し浮かせる
-        verts.push_back(center.z + std::sin(a) * radius);
+        Vector3 p = center + normalOffset + tangentU * (std::cos(a) * radius) + tangentV * (std::sin(a) * radius);
+        verts.push_back(p.x);
+        verts.push_back(p.y);
+        verts.push_back(p.z);
     }
 
     constexpr float kBrushMarkerWidth = 0.1f; // ワールド空間幅

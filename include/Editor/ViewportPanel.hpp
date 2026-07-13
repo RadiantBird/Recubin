@@ -12,6 +12,8 @@ class CommandHistory;
 #include <Instances/Workspace.hpp>
 #include <Math/Matrix4.hpp>
 #include <Core/User.hpp>
+#include <Core/Terrain.hpp>
+#include <Core/TerrainStreamer.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <vector>
 
@@ -53,6 +55,8 @@ public:
     TerrainBrushState* m_terrainBrush = nullptr;
     DecalPlaceState*   m_decalPlace   = nullptr;
     double m_lastTerrainBrushTime = -1.0; // ブラシの連続適用を間引くための前回適用時刻
+    std::vector<TerrainStreamer::VoxelDiffEntry> m_terrainBrushDiff;   // 現在のストロークで変更されたブロックの差分
+    std::shared_ptr<Terrain> m_terrainBrushStrokeTarget;               // ストローク中のTerrainインスタンス（Undo用に保持）
 
     // ギズモ / フリードラッグ undo 用状態
     bool m_wasUsingGizmo = false;

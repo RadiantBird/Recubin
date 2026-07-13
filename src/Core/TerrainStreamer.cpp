@@ -50,6 +50,25 @@ inline int32_t blockToChunk(int32_t b) {
     return (b >= 0) ? (b / CHUNK_SIZE) : ((b - CHUNK_SIZE + 1) / CHUNK_SIZE);
 }
 
+// (wx,wy,wz) を1つのキーへパックする（Diffキャプチャの重複検出用）。
+inline uint64_t packVoxelKey(int32_t wx, int32_t wy, int32_t wz) {
+    return (uint64_t)(uint32_t)wx << 42 | (uint64_t)(uint32_t)wy << 21 | (uint64_t)(uint32_t)wz;
+}
+
+// axis(0=X,1=Y,2=Z) / 残り2軸の座標(a,b) / axis座標(coord) からワールドブロック座標へ変換する。
+// axis==0: (wx=coord,wy=a,wz=b) / axis==1: (wx=a,wy=coord,wz=b) / axis==2: (wx=a,wy=b,wz=coord)
+inline void axisToWorld(int32_t axis, int32_t a, int32_t b, int32_t coord,
+                         int32_t& wx, int32_t& wy, int32_t& wz) {
+    if (axis == 0)      { wx = coord; wy = a; wz = b; }
+    else if (axis == 1) { wx = a; wy = coord; wz = b; }
+    else                { wx = a; wy = b; wz = coord; }
+}
+
+// Vector3の指定軸成分を取り出す。
+inline float axisComponent(const Vector3& v, int32_t axis) {
+    return axis == 0 ? v.x : (axis == 1 ? v.y : v.z);
+}
+
 struct RleEntry { int count; uint8_t shape, material, r, g, b; };
 
 using BlockArray = Block[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
@@ -656,11 +675,17 @@ void TerrainStreamer::reclassifyColumnShape(int32_t wx, int32_t wz, bool persist
     }
 
     if (b.shape != newShape) {
-        b.shape = newShape;
         if (persist) {
-            markChunkEdited(cx, cy, cz); // 編集由来 → 保存対象
-        } else if (Chunk* c = getChunk(cx, cy, cz)) {
-            c->mesh.dirty = true;        // 生成由来 → 再描画のみ（ノイズから再導出可能なので保存しない）
+            // 編集由来 → 保存対象。writeBlock経由でDiffキャプチャにも反映する。
+            Block copy = b;
+            copy.shape = newShape;
+            writeBlock(wx, y, wz, copy);
+        } else {
+            // 生成由来 → 再描画のみ（ノイズから再導出可能なので保存しない、modifiedは立てない）
+            b.shape = newShape;
+            if (Chunk* c = getChunk(cx, cy, cz)) {
+                c->mesh.dirty = true;
+            }
         }
     }
 }
@@ -673,6 +698,63 @@ void TerrainStreamer::markChunkEdited(int32_t cx, int32_t cy, int32_t cz) {
     it->second.modified         = true;
 }
 
+// ==== Diffキャプチャ / ブロック書き込みの一元化 ====
+
+void TerrainStreamer::beginDiffCapture(std::vector<VoxelDiffEntry>* sink) {
+    m_diffSink = sink;
+    m_diffIndex.clear();
+}
+
+void TerrainStreamer::endDiffCapture() {
+    m_diffSink = nullptr;
+    m_diffIndex.clear();
+}
+
+// 1ブロックを書き換える下位処理。setBlock/raiseColumn/lowerColumn/reclassifyColumnShape の
+// 共通実装。チャンク境界に接する隣接チャンクの mesh.dirty 化もここで行う（旧 setBlock の
+// markNeighborMesh ロジックを踏襲）。
+void TerrainStreamer::writeBlock(int32_t wx, int32_t wy, int32_t wz, const Block& value) {
+    const int32_t cx = blockToChunk(wx);
+    const int32_t cy = blockToChunk(wy);
+    const int32_t cz = blockToChunk(wz);
+    Chunk* chunk = getChunk(cx, cy, cz);
+    if (!chunk) return; // 未ロードのチャンクは編集しない
+
+    Block& blk = chunk->blocks[wx - cx*CHUNK_SIZE][wy - cy*CHUNK_SIZE][wz - cz*CHUNK_SIZE];
+    Block before = blk;
+    if (before.shape == value.shape && before.material == value.material &&
+        before.r == value.r && before.g == value.g && before.b == value.b) {
+        return; // 値が同じなら書き込み不要
+    }
+
+    if (m_diffSink) {
+        uint64_t key = packVoxelKey(wx, wy, wz);
+        auto it = m_diffIndex.find(key);
+        if (it != m_diffIndex.end()) {
+            (*m_diffSink)[it->second].after = value;
+        } else {
+            m_diffIndex.emplace(key, m_diffSink->size());
+            m_diffSink->push_back(VoxelDiffEntry{wx, wy, wz, before, value});
+        }
+    }
+
+    blk = value;
+    markChunkEdited(cx, cy, cz);
+
+    // チャンク境界に接する場合は、隣接チャンクの面カリング再構築のため dirty にする
+    // （隣接チャンクのデータ自体は変わらないので modified は立てない）。
+    auto markNeighborMesh = [&](int32_t ncx, int32_t ncy, int32_t ncz) {
+        if (ncx == cx && ncy == cy && ncz == cz) return;
+        if (Chunk* nb = getChunk(ncx, ncy, ncz)) nb->mesh.dirty = true;
+    };
+    markNeighborMesh(blockToChunk(wx-1), cy, cz);
+    markNeighborMesh(blockToChunk(wx+1), cy, cz);
+    markNeighborMesh(cx, blockToChunk(wy-1), cz);
+    markNeighborMesh(cx, blockToChunk(wy+1), cz);
+    markNeighborMesh(cx, cy, blockToChunk(wz-1));
+    markNeighborMesh(cx, cy, blockToChunk(wz+1));
+}
+
 void TerrainStreamer::raiseColumn(int32_t wx, int32_t wz) {
     int32_t y = findSurfaceY(wx, wz);
     if (y < 0 || y + 1 > LOADED_WORLD_Y_TOP) return;
@@ -682,26 +764,18 @@ void TerrainStreamer::raiseColumn(int32_t wx, int32_t wz) {
     copy.shape = BlockShape::Cube;
 
     int32_t newY = y + 1;
-    int32_t cx = (wx >= 0) ? (wx / CHUNK_SIZE) : ((wx - CHUNK_SIZE + 1) / CHUNK_SIZE);
-    int32_t cz = (wz >= 0) ? (wz / CHUNK_SIZE) : ((wz - CHUNK_SIZE + 1) / CHUNK_SIZE);
-    int32_t cy = newY / CHUNK_SIZE;
-    Chunk* chunk = getChunk(cx, cy, cz);
-    if (!chunk) return;
-    chunk->blocks[wx - cx*CHUNK_SIZE][newY - cy*CHUNK_SIZE][wz - cz*CHUNK_SIZE] = copy;
-    markChunkEdited(cx, cy, cz);
+    writeBlock(wx, newY, wz, copy);
 }
 
 void TerrainStreamer::lowerColumn(int32_t wx, int32_t wz) {
     int32_t y = findSurfaceY(wx, wz);
     if (y < 0) return;
 
-    int32_t cx = (wx >= 0) ? (wx / CHUNK_SIZE) : ((wx - CHUNK_SIZE + 1) / CHUNK_SIZE);
-    int32_t cz = (wz >= 0) ? (wz / CHUNK_SIZE) : ((wz - CHUNK_SIZE + 1) / CHUNK_SIZE);
-    int32_t cy = (y >= 0) ? (y / CHUNK_SIZE) : ((y - CHUNK_SIZE + 1) / CHUNK_SIZE);
-    Chunk* chunk = getChunk(cx, cy, cz);
-    if (!chunk) return;
-    chunk->blocks[wx - cx*CHUNK_SIZE][y - cy*CHUNK_SIZE][wz - cz*CHUNK_SIZE].shape = BlockShape::Empty;
-    markChunkEdited(cx, cy, cz);
+    const Block* src = getBlockGlobal(wx, y, wz);
+    if (!src) return;
+    Block copy = *src;
+    copy.shape = BlockShape::Empty;
+    writeBlock(wx, y, wz, copy);
 }
 
 void TerrainStreamer::applyBrush(const Vector3& worldPos, float radius, int mode) {
@@ -763,7 +837,150 @@ void TerrainStreamer::applyBrush(const Vector3& worldPos, float radius, int mode
     PathfindingService::InvalidateActive(m_workspace);
 }
 
+bool TerrainStreamer::findSurfaceAlongAxis(int32_t axis, int32_t sign, int32_t a, int32_t b,
+                                           int32_t searchOrigin, int32_t searchRange, int32_t& outCoord) const {
+    // searchOrigin（レイが実際に当たった座標）を起点に局所的に実体/空洞の境界を探す。
+    // 探索ウィンドウ全体を端からスキャンすると、空洞内など複数の実体/空洞層がある場合に
+    // 無関係な遠方の地形を表層として誤検出してしまうため、起点からの局所探索に限定する。
+    auto isSolid = [&](int32_t c) -> bool {
+        if (axis == 1 && (c < 0 || c > LOADED_WORLD_Y_TOP)) return false;
+        int32_t wx, wy, wz;
+        axisToWorld(axis, a, b, c, wx, wy, wz);
+        const Block* blk = getBlockGlobal(wx, wy, wz);
+        return blk && !blk->isEmpty();
+    };
+
+    if (isSolid(searchOrigin)) {
+        // 起点が実体: sign方向へ実体が続く限り進む（局所的な出っ張りに対応）
+        int32_t c = searchOrigin;
+        int32_t steps = 0;
+        while (steps < searchRange && isSolid(c + sign)) { c += sign; steps++; }
+        outCoord = c;
+        return true;
+    } else {
+        // 起点が空洞: -sign方向（実体があるはずの側）へ実体が見つかるまで進む（局所的な凹みに対応）
+        int32_t c = searchOrigin;
+        for (int32_t steps = 0; steps < searchRange; steps++) {
+            c -= sign;
+            if (isSolid(c)) { outCoord = c; return true; }
+        }
+        return false;
+    }
+}
+
+void TerrainStreamer::applyDirectionalBrush(const Vector3& worldPos, int32_t axis, int32_t sign,
+                                            float radius, int mode) {
+    // 従来の「上から」ケースは既存 applyBrush をそのまま使う（Ramp/Wedge自動スロープを維持）。
+    if (axis == 1 && sign > 0) {
+        applyBrush(worldPos, radius, mode);
+        return;
+    }
+    if (mode == 0) return; // Smoothは横方向未対応
+
+    // axisでない残り2軸(tanA, tanB)を決める（axisToWorldの規約と揃える）
+    int32_t tanA, tanB;
+    if (axis == 0)      { tanA = 1; tanB = 2; }
+    else if (axis == 1) { tanA = 0; tanB = 2; }
+    else                { tanA = 0; tanB = 1; }
+
+    static constexpr int32_t kSearchRange = 64;
+
+    const float posA = axisComponent(worldPos, tanA);
+    const float posB = axisComponent(worldPos, tanB);
+    const int32_t centerA = static_cast<int32_t>(std::lround(posA / BLOCK_STUD_SIZE));
+    const int32_t centerB = static_cast<int32_t>(std::lround(posB / BLOCK_STUD_SIZE));
+    const int32_t searchOrigin = static_cast<int32_t>(std::lround(axisComponent(worldPos, axis) / BLOCK_STUD_SIZE));
+    const int32_t blockRadius = (std::max)(1, static_cast<int32_t>(std::ceil(radius / BLOCK_STUD_SIZE)));
+    const float   radiusSq = radius * radius;
+
+    bool touchedAny = false;
+    for (int32_t da = -blockRadius; da <= blockRadius; da++)
+    for (int32_t db = -blockRadius; db <= blockRadius; db++) {
+        float wsa = (float)(centerA + da) * BLOCK_STUD_SIZE - posA;
+        float wsb = (float)(centerB + db) * BLOCK_STUD_SIZE - posB;
+        if (wsa*wsa + wsb*wsb > radiusSq) continue;
+
+        int32_t a = centerA + da;
+        int32_t b = centerB + db;
+        int32_t surfCoord;
+        if (!findSurfaceAlongAxis(axis, sign, a, b, searchOrigin, kSearchRange, surfCoord)) continue;
+
+        int32_t swx, swy, swz;
+        axisToWorld(axis, a, b, surfCoord, swx, swy, swz);
+
+        if (mode > 0) {
+            const Block* src = getBlockGlobal(swx, swy, swz);
+            if (!src) continue;
+            Block copy = *src;
+            copy.shape = BlockShape::Cube;
+
+            int32_t targetCoord = surfCoord + sign;
+            if (axis == 1 && targetCoord > LOADED_WORLD_Y_TOP) continue;
+
+            int32_t twx, twy, twz;
+            axisToWorld(axis, a, b, targetCoord, twx, twy, twz);
+            writeBlock(twx, twy, twz, copy);
+        } else {
+            Block empty;
+            empty.shape = BlockShape::Empty;
+            empty.r = empty.g = empty.b = 0;
+            writeBlock(swx, swy, swz, empty);
+        }
+        touchedAny = true;
+    }
+
+    if (touchedAny) {
+        PathfindingService::InvalidateActive(m_workspace);
+    }
+}
+
+void TerrainStreamer::applyColorBrush(const Vector3& worldPos, int32_t axis, int32_t sign,
+                                      float radius, uint8_t r, uint8_t g, uint8_t b) {
+    int32_t tanA, tanB;
+    if (axis == 0)      { tanA = 1; tanB = 2; }
+    else if (axis == 1) { tanA = 0; tanB = 2; }
+    else                { tanA = 0; tanB = 1; }
+
+    static constexpr int32_t kSearchRange = 64;
+
+    const float posA = axisComponent(worldPos, tanA);
+    const float posB = axisComponent(worldPos, tanB);
+    const int32_t centerA = static_cast<int32_t>(std::lround(posA / BLOCK_STUD_SIZE));
+    const int32_t centerB = static_cast<int32_t>(std::lround(posB / BLOCK_STUD_SIZE));
+    const int32_t searchOrigin = static_cast<int32_t>(std::lround(axisComponent(worldPos, axis) / BLOCK_STUD_SIZE));
+    const int32_t blockRadius = (std::max)(1, static_cast<int32_t>(std::ceil(radius / BLOCK_STUD_SIZE)));
+    const float   radiusSq = radius * radius;
+
+    for (int32_t da = -blockRadius; da <= blockRadius; da++)
+    for (int32_t db = -blockRadius; db <= blockRadius; db++) {
+        float wsa = (float)(centerA + da) * BLOCK_STUD_SIZE - posA;
+        float wsb = (float)(centerB + db) * BLOCK_STUD_SIZE - posB;
+        if (wsa*wsa + wsb*wsb > radiusSq) continue;
+
+        int32_t a = centerA + da;
+        int32_t b = centerB + db;
+        int32_t surfCoord;
+        if (!findSurfaceAlongAxis(axis, sign, a, b, searchOrigin, kSearchRange, surfCoord)) continue;
+
+        int32_t swx, swy, swz;
+        axisToWorld(axis, a, b, surfCoord, swx, swy, swz);
+
+        const Block* src = getBlockGlobal(swx, swy, swz);
+        if (!src) continue;
+        Block copy = *src;
+        copy.r = r; copy.g = g; copy.b = b;
+        writeBlock(swx, swy, swz, copy);
+    }
+}
+
 bool TerrainStreamer::raycastVoxel(const Vector3& origin, const Vector3& dir, float maxDist, Vector3& outHit) const {
+    int32_t bx, by, bz, axis, sign;
+    return raycastVoxelFace(origin, dir, maxDist, outHit, bx, by, bz, axis, sign);
+}
+
+bool TerrainStreamer::raycastVoxelFace(const Vector3& origin, const Vector3& dir, float maxDist,
+                                       Vector3& outHit, int32_t& outBx, int32_t& outBy, int32_t& outBz,
+                                       int32_t& outAxis, int32_t& outSign) const {
     const float bs = BLOCK_STUD_SIZE;
 
     // ブロック中心は index*bs にあり、ブロックは [(index-0.5)*bs, (index+0.5)*bs] を占める。
@@ -789,19 +1006,24 @@ bool TerrainStreamer::raycastVoxel(const Vector3& origin, const Vector3& dir, fl
     setup(bz, origin.z, dir.z, stepZ, tMaxZ, tDeltaZ);
 
     float t = 0.0f; // 現在ブロックに入った時点の t（= ブロック表面の交点）
+    // 直前に進んだ軸(0=X,1=Y,2=Z)とそのステップ方向。まだ一度も進んでいなければ outAxis=1,outSign=1 にフォールバックする。
+    int32_t lastAxis = 1, lastStep = -1;
     for (int guard = 0; guard < 8192; ++guard) {
         const Block* blk = getBlockGlobal(bx, by, bz);
         if (blk && !blk->isEmpty()) {
             outHit = origin + dir * t;
+            outBx = bx; outBy = by; outBz = bz;
+            outAxis = lastAxis;
+            outSign = -lastStep; // 面の外向き法線 = 直前のステップ方向と逆符号
             return true;
         }
         // 最も近い境界の軸へ1ブロック進む
         if (tMaxX <= tMaxY && tMaxX <= tMaxZ) {
-            bx += stepX; t = tMaxX; tMaxX += tDeltaX;
+            bx += stepX; t = tMaxX; tMaxX += tDeltaX; lastAxis = 0; lastStep = stepX;
         } else if (tMaxY <= tMaxZ) {
-            by += stepY; t = tMaxY; tMaxY += tDeltaY;
+            by += stepY; t = tMaxY; tMaxY += tDeltaY; lastAxis = 1; lastStep = stepY;
         } else {
-            bz += stepZ; t = tMaxZ; tMaxZ += tDeltaZ;
+            bz += stepZ; t = tMaxZ; tMaxZ += tDeltaZ; lastAxis = 2; lastStep = stepZ;
         }
         if (t > maxDist) return false;
     }
@@ -816,23 +1038,12 @@ bool TerrainStreamer::setBlock(int32_t wx, int32_t wy, int32_t wz,
     Chunk* chunk = getChunk(cx, cy, cz);
     if (!chunk) return false; // 未ロードのチャンクは編集しない
 
-    Block& blk = chunk->blocks[wx - cx*CHUNK_SIZE][wy - cy*CHUNK_SIZE][wz - cz*CHUNK_SIZE];
-    blk.shape = shape;
-    blk.r = r; blk.g = g; blk.b = b;
-    markChunkEdited(cx, cy, cz);
-
-    // チャンク境界に接する場合は、隣接チャンクの面カリング再構築のため dirty にする
-    // （隣接チャンクのデータ自体は変わらないので modified は立てない）。
-    auto markNeighborMesh = [&](int32_t ncx, int32_t ncy, int32_t ncz) {
-        if (ncx == cx && ncy == cy && ncz == cz) return;
-        if (Chunk* nb = getChunk(ncx, ncy, ncz)) nb->mesh.dirty = true;
-    };
-    markNeighborMesh(blockToChunk(wx-1), cy, cz);
-    markNeighborMesh(blockToChunk(wx+1), cy, cz);
-    markNeighborMesh(cx, blockToChunk(wy-1), cz);
-    markNeighborMesh(cx, blockToChunk(wy+1), cz);
-    markNeighborMesh(cx, cy, blockToChunk(wz-1));
-    markNeighborMesh(cx, cy, blockToChunk(wz+1));
+    const Block* cur = getBlockGlobal(wx, wy, wz);
+    Block value;
+    value.shape    = shape;
+    value.material = cur ? cur->material : BlockMaterial::Stone;
+    value.r = r; value.g = g; value.b = b;
+    writeBlock(wx, wy, wz, value);
     return true;
 }
 

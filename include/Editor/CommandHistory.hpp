@@ -14,6 +14,7 @@
 #include <Instances/Script.hpp>
 #include <Instances/System.hpp>
 #include <Core/Terrain.hpp>
+#include <Core/TerrainStreamer.hpp>
 #include <Core/PropertyRegistry.hpp>
 #include <yaml-cpp/yaml.h>
 #include <memory>
@@ -819,5 +820,26 @@ private:
     void apply(const std::string& v) {
         if (!m_target) return;
         if (m_prop == "DataPath") { YAML::Node n; n = v; m_target->setProperty("DataPath", n); }
+    }
+};
+
+// --- 地形ブラシの1ストローク分の変更をまとめてUndo/Redoする ---
+struct TerrainBrushStrokeCommand : Command {
+    std::shared_ptr<Terrain> m_target;
+    std::vector<TerrainStreamer::VoxelDiffEntry> m_entries;
+
+    TerrainBrushStrokeCommand(std::shared_ptr<Terrain> target,
+                               std::vector<TerrainStreamer::VoxelDiffEntry> entries)
+        : m_target(std::move(target)), m_entries(std::move(entries)) {}
+
+    void execute() override { apply(true); }
+    void undo()    override { apply(false); }
+private:
+    void apply(bool useAfter) {
+        if (!m_target || !m_target->streamer) return;
+        for (auto& e : m_entries) {
+            const Block& v = useAfter ? e.after : e.before;
+            m_target->streamer->setBlock(e.wx, e.wy, e.wz, v.shape, v.r, v.g, v.b);
+        }
     }
 };
