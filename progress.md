@@ -177,3 +177,56 @@
 
 - **`TerrainBrushState`(radius/mode/active)は`EditorManager`が実体を持ち、`PropertiesPanel`/`ViewportPanel`はポインタとしてのみ共有する設計**（spec.mdに記載なし）。UIの描画元をどのパネルに移しても、ポインタ配線を変える必要がなく、消費側(`ViewportPanel.cpp`のブラシ適用処理)はworkspace走査で自動的にTerrainインスタンスを見つけるため選択状態にも依存しない。同種の「エディター全体で共有したい一時状態」を追加する際は、この`EditorManager`所有+ポインタ配線パターンが既定の流儀になっている。
 - **`SceneHierarchyPanel::tryInsertInstance`と`EditorManager::tryAddObject`(旧)は似て非なる設計だった**: 前者は任意親+perfect forwarding、後者は`m_workspace`固定+`(Pos,Size,...)`固定シグネチャ。両者を統合した汎用ヘルパーは今回まで存在しなかった(`spec.md`に記載なし、コードを読んで初めて判明した設計の非対称性)。
+
+---
+
+## 2026-07-14 Terrain Paintブラシの色バグ調査・修正 + シャドーイング警告の導入
+
+### 何をしたか
+
+**1. Terrain Paintブラシの色バグ修正**
+- `src/Core/TerrainStreamer.cpp`: `TerrainStreamer::applyColorBrush()`内のループローカル変数`int32_t b`（タンジェント方向のワールドブロック座標）を`tb`にリネーム。関数パラメータ`uint8_t b`（塗る色の青成分）とのシャドーイングを解消。
+
+**2. `User`クラスの回転速度ハードコード解消 + エディター露出**
+- `include/Core/User.hpp`: `mouseRotationSpeed`メンバー（デフォルト0.15f）を新規追加。
+- `src/Core/User.cpp`: `User::processCameraRotation()`内でハードコードされていたローカル`const float rotationSpeed = 1.5f;`と`const double mouseRotationSpeed = 0.15;`を削除し、既存メンバー`rotationSpeed`（1.0f）と新規メンバー`mouseRotationSpeed`を直接参照するよう変更。`setProperty()`に`RotationSpeed`/`MouseRotationSpeed`を追加。
+- `src/Core/SceneLoader.cpp`: YAML保存処理に`RotationSpeed`/`MouseRotationSpeed`を追加。
+- `src/Editor/PropertiesPanel.cpp`: Userのプロパティパネルに`RotationSpeed`/`MouseRotationSpeed`のDragFloatを追加。
+
+**3. ビルドシステムにシャドーイング警告を導入**
+- `CMakeLists.txt`: MSVCのデフォルト無効警告`/w14456`（ローカル同士の隠蔽）・`/w14457`（パラメータの隠蔽）・`/w14458`（メンバーの隠蔽）を有効化。ただし`src/Core/LuauEngine.cpp`は`lua_State* L`という引数名がLua/Luau C APIの慣習でメンバー`LuauEngine::L`と意図的に同名（コルーチン等、メンバーとは別のstateを渡す設計）になっており、大量誤検出になるため、この3警告の対象ソースリストから`LuauEngine.cpp`だけを除外する形にした。
+
+### なぜそうしたか
+
+- **`applyColorBrush`のバグ原因はパラメータ名とループ変数名の衝突**: 関数シグネチャは`(..., uint8_t r, uint8_t g, uint8_t b)`、ループ内は`int32_t a = centerA+da; int32_t b = centerB+db;`という命名で、後者が前者を隠していた。`copy.b = b;`が実際には「塗る色の青」ではなく「ワールドブロック座標を`uint8_t`に切り詰めた値」を書き込んでいたため、R/Gは指定色のまま固定でBだけ位置に応じてなだらかに変化し256ブロックごとに折り返す、という「同じ材質なのに色が違う」現象になっていた。ユーザー提供の2枚のスクリーンショットをPythonでピクセル解析し、R=G=174固定・Bだけ滑らかに変化して途中でジャンプするパターンを確認したことで、シャドーイングによる変数取り違えだと断定できた。
+- **User.cppのシャドーイング修正はクラスメンバーを採用する方針にした**: ユーザーから「クラスメンバーのほうを採用してローカル変数を消しましょう」と明示指示。ローカルの`rotationSpeed=1.5f`を削除し、既存メンバー(デフォルト1.0f)に統一。挙動が変わる可能性がある点はユーザーに明示して確認を仰いだ。
+- **`mouseRotationSpeed`も同時にメンバー化**: ユーザーが「このマウス用にハードコードされてる数値もあまりよくないので、今回でクラスメンバーに統合しましょう」と追加指示。既存の`mouseZoomSpeed`（`zoomSpeed`とペアでメンバー化済み）と同じパターンに揃え、`setProperty`/`SceneLoader`保存/`PropertiesPanel`UIの3箇所に一貫して追加した（Speed/CameraDistance/ZoomSpeed/MouseZoomSpeedの既存の追加パターンを踏襲）。
+- **LuauEngine.cppだけシャドーイング警告から除外**: `lua_State* L`引数名はLua/Luau C API全体の慣習で、同ファイル内に約60箇所以上存在し、かつ意図的な設計（コルーチンに登録する際、メンバーの`L`とは別のstateを渡すため）と判明。ユーザーから「意図的なものですし、そのファイルだけ警告無効化して終わりにしましょう」と指示を受け対応。
+
+### どういう経緯か
+
+1. ユーザーが地形エディターのスクリーンショットを提示し、「チャンクをまたぐとデフォルト色の解釈が変わる？」と質問。
+2. まず`Terrain.cpp`/`TerrainStreamer.cpp`の色生成・保存・描画パイプライン（`generateRawGrid`/RLEエンコード・デコード/`buildChunkMesh`/フラグメントシェーダー）を一通り読んだが、コードレベルでチャンク境界依存のロジックは見当たらなかった。
+3. AskUserQuestionで現象を切り分け→「同じ材質なのに色が違う」と判明。
+4. Flatモードで再現するかのスクリーンショットをユーザーが追加提示。最初は「ストリーミング半径の外周が壁になって見えているだけ（仕様通り）」という仮説を立てたが、ユーザーが「チャンクを移動しても最初からずれている」と否定。
+5. 2枚目の追加スクリーンショットで、Pythonで実際にピクセルをサンプリング（`PIL.Image.getpixel`）し、R=G=174固定・Bだけ滑らかに変化して256近辺でジャンプするパターンを確認。この時点で「ペイントブラシで書き込んだ色のBチャンネルだけおかしい」と当たりをつけ、`applyColorBrush`のコードを再読したところ、ローカル変数`b`によるパラメータ`b`のシャドーイングを発見。
+6. 1行の変数リネームで修正し、`python build.py build`でビルド確認。
+7. ユーザーから「ビルドシステムにシャドーイング警告を有効化しよう」との指示を受け、`CMakeLists.txt`に`/w14456 /w14457 /w14458`を追加。ビルドし直したところ、今回のバグとは無関係な既存コード（`src/Core/User.cpp`の`rotationSpeed`、`src/Editor/ViewportPanel.cpp`の`sx/sy/sz`、`src/Core/LuauEngine.cpp`の`L`・`userdata`）で新規に警告が出ることを確認。CLAUDE.mdのスコープ厳守方針に従い、指示されていないものは修正せず報告のみに留めた。
+8. ユーザーが`User.cpp`の`rotationSpeed`シャドーイングについて「クラスメンバーのほうを採用してローカル変数を消しましょう」と指示。修正し、さらに「マウス用のハードコードも今回でメンバーに統合しましょう」との追加指示を受けて`mouseRotationSpeed`をメンバー化・エディター露出まで実施。
+9. ユーザーから残り2件（`ViewportPanel.cpp`の`sz`、`LuauEngine.cpp`の`L`/`userdata`）の警告詳細を聞かれ説明。`ViewportPanel.cpp`のsx/sy/sz`は別ラムダスコープ同士で実害なし、`LuauEngine.cpp`の`userdata`は実害はないが紛らわしいパターン、`L`はLua API慣習と回答。
+10. ユーザーが「Luauだけで大量に警告が出る感じか、意図的なので該当ファイルだけ警告無効化して終わりにしよう」と指示。
+11. 最初`set_source_files_properties(... COMPILE_OPTIONS "/wd4458")`で後から打ち消す方式を試みたが、ビルドしても警告が消えず失敗。`COMPILE_FLAGS`（生文字列）に変えても同様に失敗。
+12. `build/RecubinCore.vcxproj`を直接確認し、CMakeが`/wdNNNN`パターンを自動認識して`DisableSpecificWarnings`という別のMSBuildプロパティに変換していること、かつそれが`AdditionalOptions`（有効化フラグ`/w14458`が入っている、コマンドライン末尾）より先に評価される順序になっていることが原因と特定。
+13. 方針転換: 「有効化してから打ち消す」のではなく「最初からLuauEngine.cpp以外にだけ有効化フラグを適用する」形に変更（`set_source_files_properties`の対象ソースリストからLuauEngine.cppを除外）。これで狙い通りLuauEngine.cppのみ警告なし・他ファイルは検出継続を確認。
+
+### 未解決・保留
+
+- 実機での最終確認待ち: `applyColorBrush`修正後、実際にPaintブラシで塗って色が正しく反映されること（Bチャンネルが指定通りになること）はビルド確認のみでユーザー未検証。
+- 矢印キーでのカメラ回転速度が、旧ハードコード値1.5からメンバーのデフォルト値1.0に変わった。体感速度が変わる可能性があり、実機での違和感確認をユーザーに依頼中（未回答）。
+- `src/Editor/ViewportPanel.cpp`の`sx/sy/sz`シャドーイング（別ラムダスコープ同士、724行目付近）と`src/Core/LuauEngine.cpp`の`userdata`シャドーイング（539行目、実害なしだが紛らわしい）は、今回は指示範囲外として未修正のまま残っている。次回「ついでに直すか」判断が必要。
+
+### 暗黙仕様の発見
+
+- **`TerrainStreamer::applyColorBrush`はSculptブラシ(`applyDirectionalBrush`)と違い`r,g,b`パラメータを取る**（`spec.md`に記載なし）。同じ「ブラシ適用系」関数群でもパラメータ構成が異なり、シャドーイング事故が起きやすいのはこの色付き関数だけ。同様のパラメータ命名（a/b等の短い座標変数とr/g/bの色引数）を今後追加する際は特に注意が必要。
+- **MSVCの`/wdNNNN`系フラグはCMakeの`COMPILE_OPTIONS`/`COMPILE_FLAGS`のどちらで渡しても、CMakeのVisual Studioジェネレータが自動認識して`DisableSpecificWarnings`という構造化MSBuildプロパティに変換してしまう**（`spec.md`は元よりCMake自体のドキュメントにも明記されていない挙動）。この構造化プロパティは、ディレクトリスコープの`add_compile_options`が生成する`AdditionalOptions`（各ソースのコンパイルコマンドラインで常に末尾に置かれる）より先に評価されるため、「有効化してから特定ファイルだけ`/wd`で打ち消す」という直感的なアプローチは機能しない。特定ファイルだけ警告を変えたい場合は、最初からそのファイルを対象外にする（有効化フラグ自体を適用しない）方式にする必要がある。
+- **`User`クラスはPropertyRegistry（`property-schema-registry.md`参照）に移行しておらず、`setProperty`の手書きif分岐 + `SceneLoader.cpp`の手書きYAML出力 + `PropertiesPanel.cpp`の手書きImGuiウィジェットの3箇所を一致させる手動パターンのまま**（`spec.md`に記載なし）。Speed/CameraDistance/ZoomSpeed/MouseZoomSpeedの既存4プロパティがこの手動3点セットで実装されており、今回追加したRotationSpeed/MouseRotationSpeedも同じパターンを踏襲した。
