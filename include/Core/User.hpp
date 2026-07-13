@@ -29,6 +29,7 @@ class User : public Instance {
 public:
     float speed = 0.25f;
     float rotationSpeed = 1.0f;
+    float mouseRotationSpeed = 0.15f;
     float cameraDistance = 10.0f;
     float zoomSpeed = 0.1f;
     float mouseZoomSpeed = 1.0f; // キーボードより早めに

@@ -1016,6 +1016,8 @@ void PropertiesPanel::onRender() {
 
         // Character mode parameters
         ImGui::DragFloat("Speed", &usr->speed, 0.01f, 0.0f, 10.0f, "%.3f");
+        ImGui::DragFloat("RotationSpeed", &usr->rotationSpeed, 0.01f, 0.0f, 10.0f, "%.3f");
+        ImGui::DragFloat("MouseRotationSpeed", &usr->mouseRotationSpeed, 0.01f, 0.0f, 2.0f, "%.3f");
         ImGui::DragFloat("CameraDistance", &usr->cameraDistance, 0.1f, 1.0f, 50.0f, "%.2f");
         ImGui::DragFloat("ZoomSpeed", &usr->zoomSpeed, 0.01f, 0.0f, 1.0f, "%.3f");
         ImGui::DragFloat("MouseZoomSpeed", &usr->mouseZoomSpeed, 0.1f, 0.0f, 10.0f, "%.2f");

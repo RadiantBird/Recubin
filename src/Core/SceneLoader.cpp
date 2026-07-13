@@ -646,10 +646,12 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                                         : usr->controlMode == User::ControlMode::Program   ? "Program"
                                                                                             : "Character";
             out << YAML::Key << "ControlMode" << YAML::Value << controlModeStr;
-            out << YAML::Key << "Speed"          << YAML::Value << usr->speed;
-            out << YAML::Key << "CameraDistance" << YAML::Value << usr->cameraDistance;
-            out << YAML::Key << "ZoomSpeed"      << YAML::Value << usr->zoomSpeed;
-            out << YAML::Key << "MouseZoomSpeed" << YAML::Value << usr->mouseZoomSpeed;
+            out << YAML::Key << "Speed"             << YAML::Value << usr->speed;
+            out << YAML::Key << "RotationSpeed"     << YAML::Value << usr->rotationSpeed;
+            out << YAML::Key << "MouseRotationSpeed" << YAML::Value << usr->mouseRotationSpeed;
+            out << YAML::Key << "CameraDistance"    << YAML::Value << usr->cameraDistance;
+            out << YAML::Key << "ZoomSpeed"         << YAML::Value << usr->zoomSpeed;
+            out << YAML::Key << "MouseZoomSpeed"    << YAML::Value << usr->mouseZoomSpeed;
         }
         if (inst->getClassName() == "System") {
             const System* sys = static_cast<const System*>(inst);

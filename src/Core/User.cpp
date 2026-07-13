@@ -132,8 +132,6 @@ bool User::processCameraRotation(bool viewportFocused) {
     if (controlMode == ControlMode::Program) return false; // Luauがカメラを直接制御するため入力は無視する
 
     bool rotated = false;
-    const float rotationSpeed = 1.5f;
-    const double mouseRotationSpeed = 0.15;
 
     // Alt トグル: ビューポートにフォーカスがあるとき、Alt 押下の立ち上がりで
     // フリールック(マウスを動かすだけでカメラが回る)を ON/OFF する
@@ -594,10 +592,12 @@ void User::setProperty(const std::string& name, const YAML::Node& value) {
         else                     controlMode = ControlMode::Character;
         return;
     }
-    if (name == "Speed")          { speed          = value.as<float>(); return; }
-    if (name == "CameraDistance") { cameraDistance  = value.as<float>(); return; }
-    if (name == "ZoomSpeed")      { zoomSpeed       = value.as<float>(); return; }
-    if (name == "MouseZoomSpeed") { mouseZoomSpeed  = value.as<float>(); return; }
+    if (name == "Speed")             { speed             = value.as<float>(); return; }
+    if (name == "RotationSpeed")     { rotationSpeed      = value.as<float>(); return; }
+    if (name == "MouseRotationSpeed"){ mouseRotationSpeed = value.as<float>(); return; }
+    if (name == "CameraDistance")    { cameraDistance     = value.as<float>(); return; }
+    if (name == "ZoomSpeed")         { zoomSpeed          = value.as<float>(); return; }
+    if (name == "MouseZoomSpeed")    { mouseZoomSpeed     = value.as<float>(); return; }
     Instance::setProperty(name, value);
 }
 

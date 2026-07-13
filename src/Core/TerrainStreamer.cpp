@@ -957,13 +957,13 @@ void TerrainStreamer::applyColorBrush(const Vector3& worldPos, int32_t axis, int
         float wsb = (float)(centerB + db) * BLOCK_STUD_SIZE - posB;
         if (wsa*wsa + wsb*wsb > radiusSq) continue;
 
-        int32_t a = centerA + da;
-        int32_t b = centerB + db;
+        int32_t a  = centerA + da;
+        int32_t tb = centerB + db;
         int32_t surfCoord;
-        if (!findSurfaceAlongAxis(axis, sign, a, b, searchOrigin, kSearchRange, surfCoord)) continue;
+        if (!findSurfaceAlongAxis(axis, sign, a, tb, searchOrigin, kSearchRange, surfCoord)) continue;
 
         int32_t swx, swy, swz;
-        axisToWorld(axis, a, b, surfCoord, swx, swy, swz);
+        axisToWorld(axis, a, tb, surfCoord, swx, swy, swz);
 
         const Block* src = getBlockGlobal(swx, swy, swz);
         if (!src) continue;

@@ -40,6 +40,21 @@ set(PER_TARGET_SOURCES
 set(CORE_SOURCES ${ALL_SOURCES})
 list(REMOVE_ITEM CORE_SOURCES ${PER_TARGET_SOURCES})
 
+# --- シャドーイング検出（デフォルト無効の警告を明示的に有効化） ---
+# /w14456: ローカル変数が外側スコープのローカル変数を隠す
+# /w14457: ローカル変数が関数パラメータを隠す
+# /w14458: ローカル変数がメンバ変数を隠す
+# LuauEngine.cpp は Lua/Luau C API の慣習で `lua_State* L` という引数名を
+# 意図的にメンバー変数 L (メインVM state) と同名にしている（コルーチン等、メンバーとは
+# 別の state を渡すための設計）ため、C4458 が大量に誤検出される。有効化の対象から除外する
+# （AdditionalOptions で後から /wd4458 を足しても DisableSpecificWarnings の評価順の都合で
+#  上書きできないため、最初から適用しない方式にする）。
+set(SHADOW_CHECK_SOURCES ${ALL_SOURCES})
+list(REMOVE_ITEM SHADOW_CHECK_SOURCES "${CMAKE_SOURCE_DIR}/src/Core/LuauEngine.cpp")
+set_source_files_properties(${SHADOW_CHECK_SOURCES} PROPERTIES COMPILE_OPTIONS
+    "$<$<CXX_COMPILER_ID:MSVC>:/w14456>;$<$<CXX_COMPILER_ID:MSVC>:/w14457>;$<$<CXX_COMPILER_ID:MSVC>:/w14458>"
+)
+
 add_library(RecubinCore OBJECT ${CORE_SOURCES})
 
 add_executable(Recubin
