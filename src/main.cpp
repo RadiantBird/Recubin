@@ -38,6 +38,7 @@
 #include <include/imgui/imgui.h>
 
 #include <Util/Logger.hpp>
+#include <Util/FrameProfiler.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
 
@@ -568,17 +569,23 @@ int main(int argc, char* argv[]) {
 
         // ---- エディターモード中は物理・スクリプトを止める ----
         if (isPlaying && !isPaused) {
+            FrameProfiler::get().beginSection("luau");
             luauEngine->resetFrameSafetyCounters();
             for (auto& [name, child] : system->getChildren()) {
                 if (!child->IsA("Workspace")) continue;
                 auto* ws = static_cast<Workspace*>(child.get());
                 if (!ws->getPhysicsEngine()) ws->initPhysics();
                 luauEngine->executeWorkspaceScripts(*ws);
+                FrameProfiler::get().endSection("luau");
+                FrameProfiler::get().beginSection("physics");
                 ws->getPhysicsEngine()->update(*ws, deltaTime);
+                FrameProfiler::get().endSection("physics");
+                FrameProfiler::get().beginSection("luau");
             }
             luauEngine->executeSystemScripts();
             luauEngine->fireHeartbeat(deltaTime);
             luauEngine->update(deltaTime);
+            FrameProfiler::get().endSection("luau");
 
             if (luauEngine->consumeSafetyHaltRequest()) {
                 // Stopボタン(EditorManager.cpp)と同じ状態遷移
@@ -668,6 +675,7 @@ int main(int argc, char* argv[]) {
         renderer->render(*user, window, *workspace.get());
 
         audioService->updateSounds(user->cpos, user->right);
+        FrameProfiler::get().endFrame();
     }
 
     std::cout << "[DEBUG] Main loop ended.\n";

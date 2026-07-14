@@ -230,3 +230,62 @@
 - **`TerrainStreamer::applyColorBrush`はSculptブラシ(`applyDirectionalBrush`)と違い`r,g,b`パラメータを取る**（`spec.md`に記載なし）。同じ「ブラシ適用系」関数群でもパラメータ構成が異なり、シャドーイング事故が起きやすいのはこの色付き関数だけ。同様のパラメータ命名（a/b等の短い座標変数とr/g/bの色引数）を今後追加する際は特に注意が必要。
 - **MSVCの`/wdNNNN`系フラグはCMakeの`COMPILE_OPTIONS`/`COMPILE_FLAGS`のどちらで渡しても、CMakeのVisual Studioジェネレータが自動認識して`DisableSpecificWarnings`という構造化MSBuildプロパティに変換してしまう**（`spec.md`は元よりCMake自体のドキュメントにも明記されていない挙動）。この構造化プロパティは、ディレクトリスコープの`add_compile_options`が生成する`AdditionalOptions`（各ソースのコンパイルコマンドラインで常に末尾に置かれる）より先に評価されるため、「有効化してから特定ファイルだけ`/wd`で打ち消す」という直感的なアプローチは機能しない。特定ファイルだけ警告を変えたい場合は、最初からそのファイルを対象外にする（有効化フラグ自体を適用しない）方式にする必要がある。
 - **`User`クラスはPropertyRegistry（`property-schema-registry.md`参照）に移行しておらず、`setProperty`の手書きif分岐 + `SceneLoader.cpp`の手書きYAML出力 + `PropertiesPanel.cpp`の手書きImGuiウィジェットの3箇所を一致させる手動パターンのまま**（`spec.md`に記載なし）。Speed/CameraDistance/ZoomSpeed/MouseZoomSpeedの既存4プロパティがこの手動3点セットで実装されており、今回追加したRotationSpeed/MouseRotationSpeedも同じパターンを踏襲した。
+
+---
+
+## 2026-07-14 レンダリング性能改善（FrameProfiler計測 → クイックウィン → 全プリミティブのGPUインスタンシング）
+
+### 何をしたか
+
+**1. FrameProfiler計測基盤の新規導入**（ユーザーのストレステスト報告「Cube 2500個で20FPS」への第一手）
+- `include/Util/FrameProfiler.hpp` / `src/Util/FrameProfiler.cpp`（新規）: 区間計測（begin/endSection）+カウンタ（addCount）のシングルトン。1秒ごとに`[PROF] fps=... | physics=... shadow=... main=... ui=... swap=... | cubesDrawn=...`をRCBN_LOGへ1行出力。
+- `src/main.cpp`（エディター）/ `src/game_main.cpp`（ランタイム）: physics/luau区間の計装（main.cpp側はワークスペースループ内でluau区間を一時中断してphysicsを独立計測）。ループ末尾で`endFrame()`。
+- `src/Core/Renderer.cpp`: shadow/main/extras/ui/swap区間とcubesDrawn/cubesCulled/shadowCubesカウンタ。
+- `scripts/StressTest.luau`: `anchored`トグルを追加（物理負荷の切り分け用）。
+
+**2. クイックウィン3点**（計測結果を受けて）
+- **エディターの二重フルシーン描画を削除**: `Renderer::render()`はeditor有時に`renderViewport()`を呼ばず、`renderUI()`内の`ViewportPanel`の描画のみに任せる。
+- **uniformロケーションのキャッシュ**: `include/Util/GLUniformCache.hpp` / `src/Util/GLUniformCache.cpp`（新規、`CachedUniform`+`cachedUniformLocation()`）。Cube/Cylinder/Sphere/TriangularPrism/LiquidCube/MeshCubeの各`draw()`とシャドウパスの毎フレーム`glGetUniformLocation`を置換。MeshCubeのデカール配列uniformは「program変更時のみ全引き直し」方式で毎フレームの文字列連結も解消。
+- **`Cube::draw`の6面→1ドロー短絡**: 面子要素（Decal/Texture/SurfaceGui/Canvas）が無ければuniform1回+`glDrawElements(36)`1回。
+
+**3. GPUインスタンシング（Cube→全プリミティブ4形状）**
+- シェーダー3ファイル（`src/vertex.glsl`/`fragment.glsl`/`depth_vertex.glsl`）: `uniform float uInstanced`分岐と`aInstModel`(location 5-8)/`aInstColor`(location 9)属性、FSは`effColor = uInstanced ? InstColor : ourColor`。プログラムは増やしていない。
+- `include/Core/Renderer.hpp` / `src/Core/Renderer.cpp`: `CubeInstanceData`（mat4+color）、全形状共有の`m_instanceVBO`、4形状分の`m_instBatches[]`。`renderViewport()`冒頭で対象を1回走査して収集し、シャドウ/メイン両パスで`glDrawElementsInstanced`一括描画。既存の`shadowRender`/`renderInst`は収集済み個体をスキップ。
+- 対象判定`instanceableShapeIndex()`: クラス名完全一致(Cube/Cylinder/Sphere/TriangularPrism)・不透明(a>=0.999)・Unlit/Triplanar無し・TextureScale=1・面子要素無し。条件外は従来の個別描画にフォールバック。
+
+### なぜそうしたか
+
+- **「まず計測から」はユーザー決定**: 当初の20FPS報告だけでは描画/物理どちらが支配的か不明だった。計測の結果、ボトルネックは**GPUではなくCPUのドローコール発行**（10000個でmain=36.9ms、swap=0.2ms=GPU暇）と判明し、インスタンシングが正解と確定してから実装した。物理はスリープ後ほぼゼロで、当初の20FPSは落下衝突中の物理負荷+vsync由来と推定。
+- **二重描画の削除は計測での最重要発見**: shadowCubes=2×個体数から発覚。`Renderer::render()`の直接描画と`ViewportPanel::render()`が**同じFBO**（`viewportPanel->framebuffer`）に描いており、1回目は完全な無駄だった。
+- **インスタンシングは「別プログラム」ではなく「既存プログラムにuInstancedフラグ」を採用**: 別プログラム化するとライト配列・シャドウ等のシーンuniformを2プログラム分セットアップする必要があり複雑化するため。無効attribの読み値は(0,0,0,1)で定義済みなのでternary分岐で安全。
+- **形状ごとの専用インスタンスVAO複製ではなく、既存s_VAOへの属性後付けを採用**（Phase 3で方式変更）: Cylinder等はVBO/EBOハンドルを公開しておらず専用VAOが作れないため。後付け方式ならs_VAOだけで済み、Phase 2で作ったCube専用VAO(`m_cubeInstVAO`)も廃止して統一できた。空バッファの範囲外読み対策としてインスタンスVBOにゼロ埋め1個分を常時確保。
+- **対象は「素の個体」に限定**: Cylinderも面デカール描画（`getDecalTexture`で6サブレンジ）を持つと判明したため、面子要素チェックは全形状に適用。半透明はブレンド順の問題があるため除外し、既存パスと同じ挙動を保証。
+
+### どういう経緯か
+
+1. ユーザーがStressTest.luau（Cube2500個生成+FPSカウンタ）で20FPSと報告。計画モードでExplore調査→ボトルネック候補（6ドロー/キューブ、glGetUniformLocation毎フレーム、シャドウカリング無し、2500動的PhysXアクター）を提示。
+2. AskUserQuestionで「まず計測から」「物理は切り分けのみ」と決定→FrameProfiler+anchoredトグルをimplementerに委譲・実装。
+3. ユーザーが実測データを提供（2500/10000/50000個、anchored true/false）。CPU発行ボトルネック・二重描画・物理沈静化を確定。
+4. 再び計画モードで改善案4点を提示→ユーザーが「④インスタンシングまで一気に」を選択。
+5. Phase 1（クイックウィン）→Phase 2（Cubeインスタンシング）をimplementerに委譲、各フェーズでdiff照合レビュー+ビルド確認。Phase 2ではシャドウのインスタンス描画がlightSpaceMatrixアップロード前に挿入されていないか実ファイルで確認（正しい位置だった）。
+6. 回帰テスト実行: 85 passed/3 failed=既知ベースラインと一致、新規回帰なし。
+7. ユーザーが「パフォーマンス改善を確認、他のプリミティブにも」と指示→Phase 3で4形状に一般化（この際にVAO方式を後付けに変更・簡素化）。再度ビルド+回帰テストでベースライン一致を確認。
+
+**試して失敗した方法（教訓）**:
+- 今回は大きな手戻りなし。ただしPhase 2設計時、当初「インスタンス用の別シェーダープログラム」を検討したが、シーンuniform（ライト8個分の構造体配列等）の二重セットアップが必要と気づき、実装前に`uInstanced`フラグ方式へ転換した。**大量のuniformを共有するパスの分岐は、プログラム分割よりuniformフラグ分岐が安い**。
+- 「Cube 2500個で20FPS」という当初報告は、計測してみると**沈静化後は60FPS**で、低下の主因は落下・衝突中の一時的な物理負荷だった。体感報告のFPSは「いつの時点か」で大きく変わるため、恒常負荷と過渡負荷を計測で分離してから設計判断すべき、という好例。
+
+### 未解決・保留
+
+- 実機での最終確認待ち: Cylinder/Sphere/TriangularPrism混在シーンの見た目（色・影・デカール付きフォールバック・半透明）はビルド+回帰テストのみでユーザー未検証。Phase 1-2分（Cube）は改善確認済み。
+- 今回スコープ外として残したもの: 半透明のソート、シャドウパスのライトフラスタムカリング、シーンツリーの1フレーム7-8回走査の削減、PhysXチューニング（スリープ/CCD/ソルバ反復）、MeshCube/LiquidCubeのインスタンシング。
+- FrameProfilerの`[PROF]`ログは常時出力（1行/秒）。邪魔になったらトグル追加を検討。
+- 前セッションからの持ち越し: `scripts/CanvasPaint.luau`の`[PAINT]`診断print削除（Canvas実機確認待ち）、矢印キーカメラ回転速度1.5→1.0の体感確認は今回も未回答のまま。
+
+### 暗黙仕様の発見
+
+- **エディターは今回まで毎フレーム同じシーンを2回フル描画していた**（`Renderer::render()`直接呼び出し+`ViewportPanel::render()`が同一FBOへ）。修正済みだが、`renderViewport()`を新たな場所から呼ぶ変更をする際は描画回数の重複に注意。エディターの`[PROF]`では**シーン描画はui区間（renderUI内）に含まれる**ため、uiの値=ImGui+shadow+main+extras。
+- **メインウィンドウのvsyncはGLFWデフォルト（glfwSwapInterval未呼び出し）**。imgui_impl_glfwがセカンダリビューポートにのみinterval 0を設定している。実測ではfpsが60に張り付き、負荷減少分がswap区間に吸収される挙動を確認（=vsync有効相当）。
+- **Cylinderの`draw()`も面デカール対応**（Top/Bottom/側面4方向の6サブレンジを`getDecalTexture`で個別テクスチャ描画）。「デカールはCubeだけ」ではない。
+- **Cylinder/Sphere/TriangularPrismの`s_VAO`はコンストラクタからの遅延`initGeometry()`で生成される**（Cubeだけ`Renderer::init()`内、既知の非対称性の追加情報）。これらのVAOに依存する初期化はRenderer::init時点では行えず、遅延実行が必要。
+- **BaseCubeに見た目系プロパティを追加する場合、`instanceableShapeIndex()`（Renderer.cpp）に「デフォルト値以外は除外」の条件追加が必須**。忘れるとインスタンス描画された個体だけ新プロパティが無視されるサイレントな見た目バグになる。memory: `primitive-instancing.md`に記録済み。

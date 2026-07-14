@@ -1,6 +1,7 @@
 #include <Instances/Cylinder.hpp>
 #include <Core/Renderer.hpp>
 #include <Util/MeshEdges.hpp>
+#include <Util/GLUniformCache.hpp>
 #include <GL/glew.h>
 #include <cmath>
 
@@ -131,7 +132,8 @@ static const int CYL_SIDE_OFF_3 = CYL_SIDE_OFF_2 + CYL_QUAD_COUNT; // 336 (Front
 void Cylinder::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(s_VAO);
 
-    int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
+    static CachedUniform s_colorLocCache;
+    int colorLoc = cachedUniformLocation(shaderProgram, s_colorLocCache, "ourColor");
     if (colorLoc != -1) {
         glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
     }

@@ -1,5 +1,6 @@
 #include <Instances/Sphere.hpp>
 #include <Core/Renderer.hpp>
+#include <Util/GLUniformCache.hpp>
 #include <GL/glew.h>
 #include <cmath>
 
@@ -123,7 +124,8 @@ bool Sphere::IsA(std::string className) {
 void Sphere::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(s_VAO);
 
-    int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
+    static CachedUniform s_colorLocCache;
+    int colorLoc = cachedUniformLocation(shaderProgram, s_colorLocCache, "ourColor");
     if (colorLoc != -1) {
         glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
     }

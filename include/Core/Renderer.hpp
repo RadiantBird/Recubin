@@ -30,6 +30,12 @@ class IEditorManager;
 class GuiButton;
 class SurfaceGui;
 
+// 素のプリミティブ形状（デカール等なし・不透明）のインスタンス描画用データ
+struct CubeInstanceData {
+    float model[16]; // ワールド行列（Matrix4::m と同レイアウト）
+    float color[4];  // RGBA
+};
+
 struct ViewportRenderDesc {
     GLuint fbo = 0;
     int width = 0;
@@ -76,6 +82,19 @@ class Renderer {
         int          uIsLiquidLoc        = -1;
         int          useVertexColorLoc   = -1;
         int          ourColorLoc         = -1;
+
+        unsigned int m_instanceVBO = 0;  // 毎フレーム上書きするインスタンスバッファ（全形状共有）
+
+        // 素のプリミティブ形状のGPUインスタンシング用バッチ（Cube/Cylinder/Sphere/TriangularPrismの4種）
+        static constexpr int INST_SHAPE_COUNT = 4;
+        struct InstanceBatch {
+            std::vector<CubeInstanceData> main;    // メインパス用（フラスタム内）
+            std::vector<CubeInstanceData> shadow;  // シャドウパス用（CastShadow）
+            bool attribsAttached = false;          // 形状のs_VAOへ属性5-9を付与済みか
+        };
+        InstanceBatch m_instBatches[INST_SHAPE_COUNT];
+        int m_uInstancedLoc = -1;       // メインシェーダーの uInstanced
+        int m_uInstancedDepthLoc = -1;  // depthシェーダーの uInstanced
 
         struct LightUniformLocs {
             int type = -1, position = -1, direction = -1, color = -1;
@@ -184,6 +203,9 @@ class Renderer {
 
     private:
         void renderTerrain(const Matrix4& view, const Matrix4& projection, class Workspace* workspace);
+
+        // 形状の共有VAOにインスタンス属性(5-9, divisor=1)を後付けする
+        void attachInstanceAttribs(unsigned int vao);
 
         // 塗り+輪郭のハイライト描画（深度テスト無効）。1つのBaseCubeターゲットに対して呼ぶ。
         // Highlightインスタンス描画・エディタ選択ハイライトの両方から共有される

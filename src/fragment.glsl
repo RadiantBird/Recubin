@@ -9,6 +9,7 @@ in vec3 VertexColor;
 in float MatAlpha;
 in vec3 LocalPos;
 in vec3 LocalNormal;
+in vec4 InstColor;
 
 uniform sampler2D ourTexture;
 uniform sampler2D shadowMap;
@@ -24,6 +25,7 @@ uniform float useTriplanar;
 uniform vec2 uvScale;
 uniform float isSurfaceGui;
 uniform float useVertexColor;
+uniform float uInstanced;
 
 // ---- 追加光源（Point/Spot）。方向光 lightDir は別扱い ----
 #define MAX_LIGHTS 8
@@ -72,6 +74,7 @@ float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
 }
 
 void main() {
+    vec4 effColor = (uInstanced > 0.5) ? InstColor : ourColor;
     vec4 texColor;
     if (useTriplanar > 0.5) {
         float scale = u_textureScale > 0.0 ? u_textureScale : 1.0;
@@ -93,8 +96,8 @@ void main() {
         baseColor = VertexColor;
     } else {
         baseColor = (isSurfaceGui > 0.5)
-            ? mix(ourColor.rgb, texColor.rgb, texColor.a)
-            : mix(ourColor.rgb, texColor.rgb * ourColor.rgb, texColor.a);
+            ? mix(effColor.rgb, texColor.rgb, texColor.a)
+            : mix(effColor.rgb, texColor.rgb * effColor.rgb, texColor.a);
     }
 
     // ---- UV空間Decal合成(MeshCube専用。他クラスはuDecalCount==0でno-op) ----
@@ -147,7 +150,7 @@ void main() {
 
     // texColor.a はどちらの分岐でも baseColor 側の mix() 済みなので、
     // 出力アルファに二重で掛けない（掛けるとテクスチャ/GUIの透明部分でキューブ自体が透けてしまう）
-    float outAlpha = ourColor.a * MatAlpha;
+    float outAlpha = effColor.a * MatAlpha;
 
     if (unlit > 0.5) {
         FragColor = vec4(baseColor, outAlpha);

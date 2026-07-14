@@ -1,6 +1,7 @@
 #include <Instances/LiquidCube.hpp>
 #include <Instances/Cube.hpp>          // s_VAO / defaultTextureID 流用
 #include <include/Core/PropertyRegistry.hpp>
+#include <Util/GLUniformCache.hpp>
 #include <GL/glew.h>
 
 static const bool s_liquidCubeRegistered = []{
@@ -32,9 +33,12 @@ void LiquidCube::setProperty(const std::string& name, const YAML::Node& value) {
 // 単純な半透明ボックス描画（面デカール処理は不要）
 void LiquidCube::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(Cube::s_VAO);
-    int colorLoc        = glGetUniformLocation(shaderProgram, "ourColor");
-    int uvScaleLoc      = glGetUniformLocation(shaderProgram, "uvScale");
-    int isSurfaceGuiLoc = glGetUniformLocation(shaderProgram, "isSurfaceGui");
+    static CachedUniform s_colorLocCache;
+    static CachedUniform s_uvScaleLocCache;
+    static CachedUniform s_isSurfaceGuiLocCache;
+    int colorLoc        = cachedUniformLocation(shaderProgram, s_colorLocCache,        "ourColor");
+    int uvScaleLoc      = cachedUniformLocation(shaderProgram, s_uvScaleLocCache,      "uvScale");
+    int isSurfaceGuiLoc = cachedUniformLocation(shaderProgram, s_isSurfaceGuiLocCache, "isSurfaceGui");
     if (colorLoc        != -1) glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
     if (uvScaleLoc      != -1) glUniform2f(uvScaleLoc, 1.0f, 1.0f);
     if (isSurfaceGuiLoc != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);

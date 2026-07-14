@@ -1,6 +1,7 @@
 #include <Instances/Cube.hpp>
 #include <Instances/SurfaceGui.hpp>
 #include <Instances/Canvas.hpp>
+#include <Util/GLUniformCache.hpp>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
@@ -77,9 +78,12 @@ bool Cube::IsA(std::string className) {
 // 描画の実装
 void Cube::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(s_VAO);
-    int colorLoc        = glGetUniformLocation(shaderProgram, "ourColor");
-    int uvScaleLoc      = glGetUniformLocation(shaderProgram, "uvScale");
-    int isSurfaceGuiLoc = glGetUniformLocation(shaderProgram, "isSurfaceGui");
+    static CachedUniform s_colorLocCache;
+    static CachedUniform s_uvScaleLocCache;
+    static CachedUniform s_isSurfaceGuiLocCache;
+    int colorLoc        = cachedUniformLocation(shaderProgram, s_colorLocCache,        "ourColor");
+    int uvScaleLoc      = cachedUniformLocation(shaderProgram, s_uvScaleLocCache,      "uvScale");
+    int isSurfaceGuiLoc = cachedUniformLocation(shaderProgram, s_isSurfaceGuiLocCache, "isSurfaceGui");
 
     // フェイスごとのデカール・テクスチャ収集
     unsigned int activeTextures[6];
@@ -93,6 +97,7 @@ void Cube::draw(int modelLoc, int shaderProgram) {
         activeSurfaceGui[i] = false;
     }
 
+    bool anyFaceOverride = false;
     for (auto const& [name, child] : getChildren()) {
         if (child->IsA("Decal")) {
             Decal* decal = static_cast<Decal*>(child.get());
@@ -100,6 +105,7 @@ void Cube::draw(int modelLoc, int shaderProgram) {
             if (idx >= 0 && idx < 6) {
                 activeTextures[idx] = decal->TextureID;
                 activeDecals[idx]   = decal;
+                anyFaceOverride = true;
             }
         } else if (child->IsA("Texture")) {
             Texture* tex = static_cast<Texture*>(child.get());
@@ -108,6 +114,7 @@ void Cube::draw(int modelLoc, int shaderProgram) {
                 activeTexInst[idx] = tex;
                 if (!activeDecals[idx])
                     activeTextures[idx] = tex->TextureID;
+                anyFaceOverride = true;
             }
         } else if (child->getClassName() == "SurfaceGui") {
             auto* sg = static_cast<SurfaceGui*>(child.get());
@@ -115,6 +122,7 @@ void Cube::draw(int modelLoc, int shaderProgram) {
             if (idx >= 0 && idx < 6 && sg->m_texID != 0 && !activeDecals[idx]) {
                 activeTextures[idx]   = sg->m_texID;
                 activeSurfaceGui[idx] = true;
+                anyFaceOverride = true;
             }
         } else if (child->getClassName() == "Canvas") {
             auto* cv = static_cast<Canvas*>(child.get());
@@ -123,8 +131,20 @@ void Cube::draw(int modelLoc, int shaderProgram) {
             if (idx >= 0 && idx < 6 && cv->m_texID != 0 && !activeDecals[idx]) {
                 activeTextures[idx]   = cv->m_texID;
                 activeSurfaceGui[idx] = true;  // 同じ isSurfaceGui=1 ブレンド経路を再利用
+                anyFaceOverride = true;
             }
         }
+    }
+
+    if (!anyFaceOverride) {
+        // 面子要素が1つもない場合: 6面すべて素材同一のため1ドローで短絡
+        if (colorLoc        != -1) glUniform4f(colorLoc,        Color.r, Color.g, Color.b, Color.a);
+        if (uvScaleLoc      != -1) glUniform2f(uvScaleLoc,      1.0f, 1.0f);
+        if (isSurfaceGuiLoc != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, defaultTextureID);
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+        return;
     }
 
     // フェイスごとのサイズ (u軸, v軸) — StudsPerTile の計算に使用

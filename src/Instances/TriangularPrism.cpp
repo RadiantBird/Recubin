@@ -1,6 +1,7 @@
 #include <Instances/TriangularPrism.hpp>
 #include <Core/Renderer.hpp>
 #include <Util/MeshEdges.hpp>
+#include <Util/GLUniformCache.hpp>
 #include <GL/glew.h>
 
 unsigned int TriangularPrism::defaultTextureID = 0;
@@ -144,7 +145,8 @@ static const int TP_CA_OFF   = 18, TP_CA_COUNT   = 6;
 void TriangularPrism::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(s_VAO);
 
-    int colorLoc = glGetUniformLocation(shaderProgram, "ourColor");
+    static CachedUniform s_colorLocCache;
+    int colorLoc = cachedUniformLocation(shaderProgram, s_colorLocCache, "ourColor");
     if (colorLoc != -1) {
         glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
     }

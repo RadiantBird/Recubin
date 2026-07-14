@@ -12,8 +12,8 @@ export type Signal = {
 export type Instance = {
     Name: string,
     Parent: Instance?,
-    FindChild: (Instance, string) -> Instance?,
-    WaitChild: (Instance, string) -> Instance,
+    FindChild: (Instance, string) -> any?,
+    WaitChild: (Instance, string) -> any,
     GetChildren: (Instance) -> { Instance },
     IsA: (Instance, string) -> boolean,
     Destroy: (Instance) -> (),

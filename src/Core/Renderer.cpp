@@ -1,8 +1,10 @@
 #include <Core/Renderer.hpp>
 #include <Core/FileLoader.hpp>
 #include <Util/Logger.hpp>
+#include <Util/FrameProfiler.hpp>
 #include <Util/AssetGuard.hpp>
 #include <Util/MeshEdges.hpp>
+#include <Util/GLUniformCache.hpp>
 #include <Editor/IEditorManager.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
@@ -31,6 +33,7 @@
 #include <include/Instances/PostEffect.hpp>
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <filesystem>
 
 
@@ -219,6 +222,48 @@ static bool sphereInFrustum(const FrustumPlanes& f, const Vector3& center, float
     return true;
 }
 
+// インスタンス描画できる「素のプリミティブ」の形状インデックスを返す。対象外は -1。
+// 0=Cube, 1=Cylinder, 2=Sphere, 3=TriangularPrism（Renderer::m_instBatchesの並びと一致）
+// クラス名完全一致のみ（Seat/Truss等の派生は独自描画の可能性があるため除外）。
+// Cube/Cylinder等は面デカール描画を持つため、面子要素があれば個別描画にフォールバックする。
+static int instanceableShapeIndex(BaseCube* bc) {
+    std::string cn = bc->getClassName();
+    int shapeIdx = -1;
+    if      (cn == "Cube")            shapeIdx = 0;
+    else if (cn == "Cylinder")        shapeIdx = 1;
+    else if (cn == "Sphere")          shapeIdx = 2;
+    else if (cn == "TriangularPrism") shapeIdx = 3;
+    if (shapeIdx < 0) return -1;
+    if (bc->Color.a < 0.999f) return -1;  // 半透明はブレンド順の問題があるため除外
+    if (bc->Unlit || bc->UseTriplanar) return -1;
+    if (bc->TextureScale != 1.0f) return -1;
+    for (auto const& [name, child] : bc->getChildren()) {
+        if (child->IsA("Decal") || child->IsA("Texture") ||
+            child->getClassName() == "SurfaceGui" || child->getClassName() == "Canvas") {
+            return -1;
+        }
+    }
+    return shapeIdx;
+}
+
+// 形状の共有VAOにインスタンス属性(5-9, divisor=1)を後付けする。
+// 非インスタンス描画時は uInstanced=0 でシェーダーが属性5-9を読まないため影響しない。
+void Renderer::attachInstanceAttribs(unsigned int vao) {
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
+    for (int instAttrIdx = 0; instAttrIdx < 4; ++instAttrIdx) {
+        glVertexAttribPointer(5 + instAttrIdx, 4, GL_FLOAT, GL_FALSE, sizeof(CubeInstanceData),
+                              (void*)(sizeof(float) * 4 * instAttrIdx));
+        glEnableVertexAttribArray(5 + instAttrIdx);
+        glVertexAttribDivisor(5 + instAttrIdx, 1);
+    }
+    glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(CubeInstanceData),
+                          (void*)offsetof(CubeInstanceData, color));
+    glEnableVertexAttribArray(9);
+    glVertexAttribDivisor(9, 1);
+    glBindVertexArray(0);
+}
+
 // ===================================================
 //  init
 // ===================================================
@@ -351,6 +396,16 @@ void Renderer::init(GLFWwindow* window) {
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(Vertex, U));
     glEnableVertexAttribArray(2);
 
+    // --- インスタンスVBO生成。空だと属性5-9有効なVAOでの非インスタンス描画が範囲外読みに
+    //     なりうるため、ゼロ埋め1インスタンス分を確保しておく ---
+    glGenBuffers(1, &m_instanceVBO);
+    CubeInstanceData zeroInst = {};
+    glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(CubeInstanceData), &zeroInst, GL_STREAM_DRAW);
+    attachInstanceAttribs(VAO); // Cube::s_VAO(=VAO)はここで確定しているため即付与
+    m_instBatches[0].attribsAttached = true;
+    glBindVertexArray(VAO); // 以降の初期化は既存VAO前提のため戻す
+
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
     lightColorLoc = glGetUniformLocation(shaderProgram, "lightColor");
@@ -375,6 +430,7 @@ void Renderer::init(GLFWwindow* window) {
     useVertexColorLoc   = glGetUniformLocation(shaderProgram, "useVertexColor");
     ourColorLoc         = glGetUniformLocation(shaderProgram, "ourColor");
     uLightCountLoc      = glGetUniformLocation(shaderProgram, "uLightCount");
+    m_uInstancedLoc     = glGetUniformLocation(shaderProgram, "uInstanced");
     for (int i = 0; i < MAX_LIGHTS; i++) {
         std::string b = "uLights[" + std::to_string(i) + "].";
         lightLocs[i].type       = glGetUniformLocation(shaderProgram, (b + "type").c_str());
@@ -416,6 +472,7 @@ void Renderer::init(GLFWwindow* window) {
         glLinkProgram(depthShader);
         glDeleteShader(dv);
         glDeleteShader(df);
+        m_uInstancedDepthLoc = glGetUniformLocation(depthShader, "uInstanced");
     }
 
     // --- Shadow Map FBO + 深度テクスチャ生成 ---
@@ -481,6 +538,8 @@ Renderer::~Renderer() {
     glDeleteBuffers(1, &EBO);
     glDeleteVertexArrays(1, &VAO);
     glDeleteProgram(shaderProgram);
+
+    if (m_instanceVBO) glDeleteBuffers(1, &m_instanceVBO);
 
     if (shadowFBO)    glDeleteFramebuffers(1, &shadowFBO);
     if (shadowMapTex) glDeleteTextures(1, &shadowMapTex);
@@ -1413,6 +1472,21 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     // Shadow Pass/Terrainは対象外）
     FrustumPlanes camFrustum = extractFrustumPlanes(projection * view);
 
+    // ---- インスタンス描画対象4形状の {VAO, インデックス数}。s_VAOは遅延生成なので毎回参照 ----
+    struct InstShapeInfo { unsigned int vao; int indexCount; };
+    const InstShapeInfo instShapes[INST_SHAPE_COUNT] = {
+        { Cube::s_VAO,            36 },
+        { Cylinder::s_VAO,        Cylinder::s_IndexCount },
+        { Sphere::s_VAO,          Sphere::s_IndexCount },
+        { TriangularPrism::s_VAO, TriangularPrism::s_IndexCount },
+    };
+    for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
+        if (!m_instBatches[shapeIdx].attribsAttached && instShapes[shapeIdx].vao != 0) {
+            attachInstanceAttribs(instShapes[shapeIdx].vao);
+            m_instBatches[shapeIdx].attribsAttached = true;
+        }
+    }
+
     // Workspace 内から Lighting を取得
     Lighting* lighting = findLightingInTree(static_cast<Instance*>(desc.workspace));
 
@@ -1443,6 +1517,37 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         }
     }
 
+    // ---- 素のプリミティブ形状を収集してインスタンス描画リストを作る（シャドウ/メイン共用） ----
+    for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
+        m_instBatches[shapeIdx].main.clear();
+        m_instBatches[shapeIdx].shadow.clear();
+    }
+    long long instCulled = 0;
+    auto collectInstCubes = [&](auto& self, Instance* inst) -> void {
+        if (!inst) return;
+        if (inst->IsA("BaseCube")) {
+            BaseCube* bc = static_cast<BaseCube*>(inst);
+            int shapeIdx = instanceableShapeIndex(bc);
+            if (shapeIdx >= 0) {
+                CFrame wcf = bc->getWorldCFrame();
+                Matrix4 mtx = wcf.toMatrix4() * Matrix4::Scale(bc->Size.x, bc->Size.y, bc->Size.z);
+                CubeInstanceData d;
+                std::memcpy(d.model, mtx.m, sizeof(d.model));
+                d.color[0] = bc->Color.r; d.color[1] = bc->Color.g;
+                d.color[2] = bc->Color.b; d.color[3] = bc->Color.a;
+                if (bc->CastShadow) m_instBatches[shapeIdx].shadow.push_back(d);
+                if (sphereInFrustum(camFrustum, wcf.Position, bc->Size.length() * 0.5f)) {
+                    m_instBatches[shapeIdx].main.push_back(d);
+                } else {
+                    instCulled++;
+                }
+            }
+        }
+        for (auto const& [name, child] : inst->getChildren()) self(self, child.get());
+    };
+    for (auto const& [name, child] : desc.workspace->getChildren()) collectInstCubes(collectInstCubes, child.get());
+    if (instCulled > 0) FrameProfiler::get().addCount("cubesCulled", instCulled);
+
     // ---- Shadow Pass ----
     Matrix4 lightSpaceMatrix;
     bool shadowReady = false;
@@ -1456,19 +1561,41 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         Matrix4 lightProj = Matrix4::Ortho(-80.0f, 80.0f, -80.0f, 80.0f, 0.1f, 400.0f);
         lightSpaceMatrix = lightProj * lightView;
 
+        FrameProfiler::get().beginSection("shadow");
         glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
         glViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
         glClearDepth(1.0);
         glClear(GL_DEPTH_BUFFER_BIT);
 
         glUseProgram(depthShader);
-        int lsmDepthLoc  = glGetUniformLocation(depthShader, "lightSpaceMatrix");
-        int modelDepthLoc = glGetUniformLocation(depthShader, "model");
+        static CachedUniform s_lsmDepthLocCache;
+        static CachedUniform s_modelDepthLocCache;
+        int lsmDepthLoc  = cachedUniformLocation(depthShader, s_lsmDepthLocCache,  "lightSpaceMatrix");
+        int modelDepthLoc = cachedUniformLocation(depthShader, s_modelDepthLocCache, "model");
         glUniformMatrix4fv(lsmDepthLoc, 1, GL_FALSE, lightSpaceMatrix.m);
+
+        if (m_uInstancedDepthLoc != -1) {
+            bool anyShadowInst = false;
+            for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
+                const auto& batch = m_instBatches[shapeIdx].shadow;
+                if (batch.empty() || instShapes[shapeIdx].vao == 0) continue;
+                if (!anyShadowInst) { glUniform1f(m_uInstancedDepthLoc, 1.0f); anyShadowInst = true; }
+                glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
+                glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(batch.size() * sizeof(CubeInstanceData)),
+                             batch.data(), GL_STREAM_DRAW);
+                glBindVertexArray(instShapes[shapeIdx].vao);
+                glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
+                                        GL_UNSIGNED_INT, 0, (GLsizei)batch.size());
+                FrameProfiler::get().addCount("shadowCubes", (long long)batch.size());
+            }
+            if (anyShadowInst) { glBindVertexArray(0); glUniform1f(m_uInstancedDepthLoc, 0.0f); }
+        }
 
         auto shadowRender = [&](auto& self, Instance* inst) -> void {
             if (!inst) return;
-            if (inst->IsA("BaseCube")) {
+            if (inst->IsA("BaseCube") && instanceableShapeIndex(static_cast<BaseCube*>(inst)) >= 0) {
+                // 収集済み → インスタンス描画済み
+            } else if (inst->IsA("BaseCube")) {
                 BaseCube* bc = static_cast<BaseCube*>(inst);
                 if (bc->Color.a > 0.001f && bc->CastShadow) {
                     Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
@@ -1493,6 +1620,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                         glBindVertexArray(Cube::s_VAO);
                         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
                     }
+                    FrameProfiler::get().addCount("shadowCubes", 1);
                 }
             }
             for (auto const& [name, child] : inst->getChildren()) {
@@ -1524,9 +1652,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         // メインFBOに戻す
         glBindFramebuffer(GL_FRAMEBUFFER, desc.fbo);
         glViewport(0, 0, desc.width, desc.height);
+        FrameProfiler::get().endSection("shadow");
     }
 
     // ---- Main Pass ----
+    FrameProfiler::get().beginSection("main");
     glUseProgram(shaderProgram);
     glUniformMatrix4fv(viewLoc,       1, GL_FALSE, view.m);
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, projection.m);
@@ -1621,46 +1751,66 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         }
         if (inst->IsA("Cube")) {
             Cube* cube = static_cast<Cube*>(inst);
-            if (cube->Color.a > 0.001f) {
-                CFrame wcf = cube->getWorldCFrame();
-                if (sphereInFrustum(camFrustum, wcf.Position, cube->Size.length() * 0.5f)) {
-                    Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
-                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
-                    setBlendForAlpha(cube->Color.a);
-                    cube->draw(modelLoc, shaderProgram);
+            if (instanceableShapeIndex(cube) < 0) {
+                if (cube->Color.a > 0.001f) {
+                    CFrame wcf = cube->getWorldCFrame();
+                    if (sphereInFrustum(camFrustum, wcf.Position, cube->Size.length() * 0.5f)) {
+                        Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
+                        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                        setBlendForAlpha(cube->Color.a);
+                        cube->draw(modelLoc, shaderProgram);
+                        FrameProfiler::get().addCount("cubesDrawn", 1);
+                    } else {
+                        FrameProfiler::get().addCount("cubesCulled", 1);
+                    }
                 }
             }
         } else if (inst->IsA("Cylinder")) {
             Cylinder* c = static_cast<Cylinder*>(inst);
-            if (c->Color.a > 0.001f) {
-                CFrame wcf = c->getWorldCFrame();
-                if (sphereInFrustum(camFrustum, wcf.Position, c->Size.length() * 0.5f)) {
-                    Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(c->Size.x, c->Size.y, c->Size.z);
-                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
-                    setBlendForAlpha(c->Color.a);
-                    c->draw(modelLoc, shaderProgram);
+            if (instanceableShapeIndex(c) < 0) {
+                if (c->Color.a > 0.001f) {
+                    CFrame wcf = c->getWorldCFrame();
+                    if (sphereInFrustum(camFrustum, wcf.Position, c->Size.length() * 0.5f)) {
+                        Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(c->Size.x, c->Size.y, c->Size.z);
+                        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                        setBlendForAlpha(c->Color.a);
+                        c->draw(modelLoc, shaderProgram);
+                        FrameProfiler::get().addCount("cubesDrawn", 1);
+                    } else {
+                        FrameProfiler::get().addCount("cubesCulled", 1);
+                    }
                 }
             }
         } else if (inst->IsA("TriangularPrism")) {
             TriangularPrism* tp = static_cast<TriangularPrism*>(inst);
-            if (tp->Color.a > 0.001f) {
-                CFrame wcf = tp->getWorldCFrame();
-                if (sphereInFrustum(camFrustum, wcf.Position, tp->Size.length() * 0.5f)) {
-                    Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(tp->Size.x, tp->Size.y, tp->Size.z);
-                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
-                    setBlendForAlpha(tp->Color.a);
-                    tp->draw(modelLoc, shaderProgram);
+            if (instanceableShapeIndex(tp) < 0) {
+                if (tp->Color.a > 0.001f) {
+                    CFrame wcf = tp->getWorldCFrame();
+                    if (sphereInFrustum(camFrustum, wcf.Position, tp->Size.length() * 0.5f)) {
+                        Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(tp->Size.x, tp->Size.y, tp->Size.z);
+                        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                        setBlendForAlpha(tp->Color.a);
+                        tp->draw(modelLoc, shaderProgram);
+                        FrameProfiler::get().addCount("cubesDrawn", 1);
+                    } else {
+                        FrameProfiler::get().addCount("cubesCulled", 1);
+                    }
                 }
             }
         } else if (inst->IsA("Sphere")) {
             Sphere* sp = static_cast<Sphere*>(inst);
-            if (sp->Color.a > 0.001f) {
-                CFrame wcf = sp->getWorldCFrame();
-                if (sphereInFrustum(camFrustum, wcf.Position, sp->Size.length() * 0.5f)) {
-                    Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(sp->Size.x, sp->Size.y, sp->Size.z);
-                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
-                    setBlendForAlpha(sp->Color.a);
-                    sp->draw(modelLoc, shaderProgram);
+            if (instanceableShapeIndex(sp) < 0) {
+                if (sp->Color.a > 0.001f) {
+                    CFrame wcf = sp->getWorldCFrame();
+                    if (sphereInFrustum(camFrustum, wcf.Position, sp->Size.length() * 0.5f)) {
+                        Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(sp->Size.x, sp->Size.y, sp->Size.z);
+                        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                        setBlendForAlpha(sp->Color.a);
+                        sp->draw(modelLoc, shaderProgram);
+                        FrameProfiler::get().addCount("cubesDrawn", 1);
+                    } else {
+                        FrameProfiler::get().addCount("cubesCulled", 1);
+                    }
                 }
             }
         } else if (inst->IsA("MeshCube")) {
@@ -1672,6 +1822,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
                     setBlendForAlpha(mc->Color.a);
                     mc->draw(modelLoc, shaderProgram);
+                    FrameProfiler::get().addCount("cubesDrawn", 1);
+                } else {
+                    FrameProfiler::get().addCount("cubesCulled", 1);
                 }
             }
         } else if (inst->IsA("LiquidCube")) {
@@ -1685,6 +1838,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     setBlendForAlpha(lc->Color.a);
                     lc->draw(modelLoc, shaderProgram);
                     glUniform1f(uIsLiquidLoc, 0.0f);
+                    FrameProfiler::get().addCount("cubesDrawn", 1);
+                } else {
+                    FrameProfiler::get().addCount("cubesCulled", 1);
                 }
             }
         }
@@ -1693,6 +1849,44 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         }
     };
 
+    // ---- 素のプリミティブ形状のインスタンス一括描画（不透明なので最初に描く） ----
+    {
+        bool anyMainInst = false;
+        for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
+            if (!m_instBatches[shapeIdx].main.empty() && instShapes[shapeIdx].vao != 0) { anyMainInst = true; break; }
+        }
+        if (anyMainInst && m_uInstancedLoc != -1) {
+            setBlendForAlpha(1.0f); // blend無効・depth write有効
+            if (unlitLoc          != -1) glUniform1f(unlitLoc,          0.0f);
+            if (triplanarLoc      != -1) glUniform1f(triplanarLoc,      0.0f);
+            if (texScaleLoc       != -1) glUniform1f(texScaleLoc,       1.0f);
+            if (useVertexColorLoc != -1) glUniform1f(useVertexColorLoc, 0.0f);
+            static CachedUniform s_instUvScaleCache;
+            static CachedUniform s_instIsSurfaceGuiCache;
+            int instUvScaleLoc      = cachedUniformLocation(shaderProgram, s_instUvScaleCache,      "uvScale");
+            int instIsSurfaceGuiLoc = cachedUniformLocation(shaderProgram, s_instIsSurfaceGuiCache, "isSurfaceGui");
+            if (instUvScaleLoc      != -1) glUniform2f(instUvScaleLoc, 1.0f, 1.0f);
+            if (instIsSurfaceGuiLoc != -1) glUniform1f(instIsSurfaceGuiLoc, 0.0f);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, Cube::defaultTextureID);
+            glUniform1f(m_uInstancedLoc, 1.0f);
+            for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
+                const auto& batch = m_instBatches[shapeIdx].main;
+                if (batch.empty() || instShapes[shapeIdx].vao == 0) continue;
+                glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
+                glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(batch.size() * sizeof(CubeInstanceData)),
+                             batch.data(), GL_STREAM_DRAW);
+                glBindVertexArray(instShapes[shapeIdx].vao);
+                glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
+                                        GL_UNSIGNED_INT, 0, (GLsizei)batch.size());
+                FrameProfiler::get().addCount("cubesDrawn", (long long)batch.size());
+                FrameProfiler::get().addCount("instanced",  (long long)batch.size());
+            }
+            glUniform1f(m_uInstancedLoc, 0.0f);
+            glBindVertexArray(VAO); // 以降の個別描画は既存VAO前提
+        }
+    }
+
     for (auto const& [name, child] : desc.workspace->getChildren()) {
         renderInst(renderInst, child.get());
     }
@@ -1700,7 +1894,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     // renderClouds/renderParticles等はGL_BLENDが常時有効という前提のため復元する
     if (!blendEnabled) { glEnable(GL_BLEND); blendEnabled = true; }
     if (!depthMaskEnabled) { glDepthMask(GL_TRUE); depthMaskEnabled = true; }
+    FrameProfiler::get().endSection("main");
 
+    FrameProfiler::get().beginSection("extras");
     // ---- 選択インスタンスのハイライト（黄色系。Highlightインスタンスと同じ共有描画ロジックを使用） ----
     if (desc.renderHighlights && editor) {
         if (Instance* sel = editor->getSelectedInstance()) {
@@ -1755,6 +1951,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     if (desc.renderPostEffects) {
         renderPostEffects(*desc.workspace, desc.fbo, desc.width, desc.height);
     }
+    FrameProfiler::get().endSection("extras");
 
     glBindVertexArray(0);
     glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
@@ -1772,42 +1969,43 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 // ===================================================
 void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
     // Primary Viewport用の描画（スタンドアロンまたはエディターのメインビュー）
-    ViewportRenderDesc desc;
-    desc.workspace = &workspace;
-    desc.cameraPosition = user.cpos;
-    desc.cameraForward  = user.forward;
-    desc.cameraUp       = user.up;
-    desc.renderShadows = true;
-    desc.renderConstraints = true;
+    // editor が存在する場合、同じシーンは editor->renderUI() 内の ViewportPanel が
+    // 描き直すため、ここでの renderViewport は完全に無駄な二重描画になる。
+    // そのためエディター有無で分岐し、エディター無し（ランタイム）の場合のみここで描画する。
+    if (!editor) {
+        ViewportRenderDesc desc;
+        desc.workspace = &workspace;
+        desc.cameraPosition = user.cpos;
+        desc.cameraForward  = user.forward;
+        desc.cameraUp       = user.up;
+        desc.renderShadows = true;
+        desc.renderConstraints = true;
 
-    int width, height;
-    if (editor) {
-        editor->getViewportSize(window, width, height);
-        desc.fbo = editor->getViewportFBO();
-        desc.renderHighlights = true;
-        desc.isFocused = editor->isViewportFocused();
-    } else {
+        int width, height;
         glfwGetFramebufferSize(window, &width, &height);
         desc.fbo = 0;
         desc.renderHighlights = false;
         desc.isFocused = true; // スタンドアロンの場合は常にフォーカスされているとみなす
-    }
-    
-    desc.width = width;
-    desc.height = height > 0 ? height : 1;
 
-    // Viewport描画を実行
-    // EditorManagerがFBOをバインドしている場合は、renderViewport内で正しく上書き・復元される
-    renderViewport(desc);
+        desc.width = width;
+        desc.height = height > 0 ? height : 1;
+
+        // Viewport描画を実行
+        renderViewport(desc);
+    }
 
     if (editor) {
         // 既定のフレームバッファをクリア（ImGui 用）
         editor->clearForImGui(window);
         // ImGui フレーム描画
+        FrameProfiler::get().beginSection("ui");
         editor->renderUI(user, window, workspace);
+        FrameProfiler::get().endSection("ui");
     }
 
+    FrameProfiler::get().beginSection("swap");
     glfwSwapBuffers(window);
+    FrameProfiler::get().endSection("swap");
     glfwPollEvents();
 }
 

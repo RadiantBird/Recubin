@@ -22,6 +22,7 @@
 #include <include/imgui/imgui.h>
 
 #include <Util/Logger.hpp>
+#include <Util/FrameProfiler.hpp>
 #include <Util/AssetGuard.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
@@ -233,12 +234,16 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        FrameProfiler::get().beginSection("physics");
         if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->update(*workspace, deltaTime);
+        FrameProfiler::get().endSection("physics");
+        FrameProfiler::get().beginSection("luau");
         luauEngine->resetFrameSafetyCounters();
         luauEngine->fireHeartbeat(deltaTime);
         luauEngine->update(deltaTime);
         luauEngine->executeWorkspaceScripts(*workspace);
         luauEngine->executeSystemScripts();
+        FrameProfiler::get().endSection("luau");
         if (luauEngine->consumeSafetyHaltRequest()) break; // 既存のconsumeExitRequestと同じglfwTerminate()クリーンアップ経路に合流
 
         // エディタが存在しないため、常にゲームプレイ入力として扱う
@@ -288,6 +293,7 @@ int main(int argc, char* argv[]) {
         renderer->render(*user, window, *workspace);
 
         audioService->updateSounds(user->cpos, user->right);
+        FrameProfiler::get().endFrame();
     }
 
     // ---- クリーンアップ ----
