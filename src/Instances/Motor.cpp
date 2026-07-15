@@ -23,14 +23,27 @@ void Motor::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> 
 
 void Motor::setCube0(std::shared_ptr<BaseCube> cube) {
     m_cube0 = cube;
-    m_cube0Name = cube ? cube->Name : "";
+    m_cube0Name = cube ? cube->getWorkspaceRelativePath() : "";
     registerIfReady();
 }
 
 void Motor::setCube1(std::shared_ptr<BaseCube> cube) {
     m_cube1 = cube;
-    m_cube1Name = cube ? cube->Name : "";
+    m_cube1Name = cube ? cube->getWorkspaceRelativePath() : "";
     registerIfReady();
+}
+
+void Motor::refreshRefNames() {
+    if (auto c0 = m_cube0.lock(); c0 && !m_cube0Name.empty())
+        m_cube0Name = c0->getWorkspaceRelativePath();
+    if (auto c1 = m_cube1.lock(); c1 && !m_cube1Name.empty())
+        m_cube1Name = c1->getWorkspaceRelativePath();
+    if (auto a0 = m_attachment0.lock(); a0 && !m_attachment0Name.empty())
+        if (auto c0 = m_cube0.lock())
+            m_attachment0Name = a0->getPathUpTo(c0.get());
+    if (auto a1 = m_attachment1.lock(); a1 && !m_attachment1Name.empty())
+        if (auto c1 = m_cube1.lock())
+            m_attachment1Name = a1->getPathUpTo(c1.get());
 }
 
 void Motor::registerIfReady() {

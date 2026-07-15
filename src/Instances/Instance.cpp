@@ -82,6 +82,36 @@ Instance* Instance::findFirstAncestorSystem() {
     return nullptr;
 }
 
+// stopAt(除外)までの "\\" 区切り相対パスを作る（getChildByPath と対になる形式）
+std::string Instance::getPathUpTo(Instance* stopAt) {
+    std::vector<std::string> parts;
+    Instance* cur = this;
+    while (cur) {
+        auto par = cur->Parent.lock();
+        parts.push_back(cur->Name);
+        if (!par || par.get() == stopAt) break;
+        cur = par.get();
+    }
+    std::reverse(parts.begin(), parts.end());
+    std::string result = parts[0];
+    for (size_t i = 1; i < parts.size(); i++) result += "\\" + parts[i];
+    return result;
+}
+
+// 相対パスを返す。Workspace 配下なら Workspace 相対（例: "FolderA\CubeName"）、
+// Workspace 外（StarterCharacter 等）なら最上位祖先(System 等)相対（例: "StarterCharacter\Head"）。
+// resolveConstraintRefs / Weld::setProperty 側の解決規約と一致させる。
+std::string Instance::getWorkspaceRelativePath() {
+    Instance* stopAt = findFirstAncestorWorkspace();
+    if (!stopAt) {
+        // Workspace 外: 最上位の祖先（System 等）を起点にする
+        Instance* top = this;
+        for (auto p = Parent.lock(); p; p = p->Parent.lock()) top = p.get();
+        stopAt = top;
+    }
+    return getPathUpTo(stopAt);
+}
+
 Instance::Instance(string name) {
     this->Name = name;
 }

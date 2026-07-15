@@ -2,6 +2,75 @@
 #include "include/Core/Physics.hpp"
 #include "include/Core/SystemState.hpp"
 #include "include/Util/Logger.hpp"
+#include "include/Core/PropertyRegistry.hpp"
+
+// ─── エディターUI専用のプロパティスキーマ登録 ───
+// BaseCube の YAML 保存(SceneLoader)と Luau ディスパッチ(LuauEngine_Dispatch)は
+// それぞれ手書きの実装が既に存在するため、この登録は PropertiesPanel のインスペクタ
+// 描画だけを駆動する。saveProperties("BaseCube") / applyToDispatch("BaseCube", ...) は
+// どこからも呼ばないこと（呼ぶと手書き実装と二重化・衝突する）。誤って呼ばれても実害が
+// 出ないよう、各プロパティは noYaml() で YAML 対象外にしてある。
+static const bool s_baseCubeRegistered = []{
+    using namespace PropertyRegistry;
+
+    // Anchored: フィールド直読み + setAnchored() 経由の副作用書込（physicsEngine の actor 再生成）
+    PropertyDesc anchored = custom("Anchored", PropType::Bool,
+        [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->Anchored); },
+        [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setAnchored(std::get<bool>(v)); });
+    anchored.group("Physics");
+    anchored.noYaml();
+
+    // MassDensity: ドラッグ中はフィールド書込のみ、確定時に setMassDensity() で actor 再生成
+    PropertyDesc massDensity = custom("MassDensity", PropType::Float,
+        [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->MassDensity); },
+        [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setMassDensity(std::get<float>(v)); });
+    massDensity.lo = 0.01f; massDensity.hi = 50.0f; massDensity.step = 0.01f;
+    massDensity.liveSet = [](void* o, const PropValue& v) {
+        static_cast<BaseCube*>(o)->MassDensity = std::get<float>(v);
+    };
+    massDensity.noYaml();
+
+    // MaterialType: プリセット選択で material 一式を上書きする
+    PropertyDesc materialType = custom("MaterialType", PropType::Enum,
+        [](Instance* o) { return PropValue(static_cast<int>(static_cast<BaseCube*>(o)->material.type)); },
+        [](Instance* o, const PropValue& v) {
+            static_cast<BaseCube*>(o)->setMaterial(Material::GetDefault(static_cast<MaterialType>(std::get<int>(v))));
+        });
+    materialType.enumNames = { {"Plastic", 0}, {"Wood", 1}, {"Metal", 2}, {"Stone", 3} };
+    materialType.group("Material");
+    materialType.noYaml();
+
+    // friction/restitution: ドラッグ中はフィールド書込のみ、確定時に setMaterial() で actor 再生成
+    auto frictionProp = [](std::string_view propName, float Material::* field) {
+        PropertyDesc d = custom(propName, PropType::Float,
+            [field](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->material.*field); },
+            [field](Instance* o, const PropValue& v) {
+                BaseCube* bc = static_cast<BaseCube*>(o);
+                bc->material.*field = std::get<float>(v);
+                bc->setMaterial(bc->material);
+            });
+        d.liveSet = [field](void* o, const PropValue& v) {
+            static_cast<BaseCube*>(o)->material.*field = std::get<float>(v);
+        };
+        d.lo = 0.0f; d.hi = 2.0f; d.step = 0.01f;
+        d.noYaml();
+        return d;
+    };
+
+    registerClass("BaseCube", {
+        field<&BaseCube::Color>("Color").group("Appearance").noYaml(),
+        anchored,
+        field<&BaseCube::CanCollide>("CanCollide").noYaml(),
+        field<&BaseCube::CastShadow>("CastShadow").noYaml(),
+        field<&BaseCube::Unlit>("Unlit").noYaml(),
+        massDensity,
+        materialType,
+        frictionProp("StaticFriction", &Material::staticFriction),
+        frictionProp("DynamicFriction", &Material::dynamicFriction),
+        frictionProp("Restitution", &Material::restitution),
+    });
+    return true;
+}();
 
 BaseCube::BaseCube(Vector3 Pos, Vector3 Sz)
     : Spatial(Pos, Sz, "BaseCube"), Color(1, 1, 1, 1) {

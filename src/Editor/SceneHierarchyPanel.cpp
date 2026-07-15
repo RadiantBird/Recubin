@@ -173,6 +173,10 @@ static const char* getClassIcon(const std::string& cn) {
     return ICON_INSTANCE;
 }
 
+void SceneHierarchyPanel::requestReveal(Instance* inst) {
+    m_revealRequest = inst;
+}
+
 void SceneHierarchyPanel::drawNode(Instance* inst) {
     if (!inst) return;
 
@@ -191,10 +195,22 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
         flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
     }
 
+    // Ctrl+F リビール: 対象の祖先ノードを自動展開する
+    if (m_revealRequest && m_revealRequest != inst) {
+        for (auto p = m_revealRequest->Parent.lock(); p; p = p->Parent.lock()) {
+            if (p.get() == inst) { ImGui::SetNextItemOpen(true); break; }
+        }
+    }
+
     bool renaming = (inst == renamingInstance);
     bool open = renaming
         ? ImGui::TreeNodeEx(inst, flags, "%s", getClassIcon(inst->getClassName()))
         : ImGui::TreeNodeEx(inst, flags, "%s %s", getClassIcon(inst->getClassName()), inst->Name.c_str());
+
+    if (inst == m_revealRequest) {
+        ImGui::SetScrollHereY(0.5f);
+        m_revealRequest = nullptr;
+    }
 
     if (renaming) {
         ImGui::SameLine();

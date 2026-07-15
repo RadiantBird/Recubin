@@ -1,5 +1,6 @@
 #include <Editor/EditorManager.hpp>
 
+#include <Editor/UiHelpers.hpp>
 #include <Core/Renderer.hpp>
 #include <Core/Packager.hpp>
 #include <Editor/SpawnUtil.hpp>
@@ -72,6 +73,7 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
 
     // selectedInstance ポインタを共有（SceneHierarchy が書き、Properties/Viewport が読む）
     propertiesPanel->selectedInstance  = &hierarchyPanel->selectedInstance;
+    propertiesPanel->selectedInstances = &hierarchyPanel->selectedInstances;
     viewportPanel->selectedInstance    = &hierarchyPanel->selectedInstance;
     viewportPanel->selectedInstances   = &hierarchyPanel->selectedInstances;
     animationPanel->selectedInstance   = &hierarchyPanel->selectedInstance;
@@ -275,6 +277,18 @@ void EditorManager::handleEditorShortcuts() {
             cleanupOrphanedSelection();
         }
 
+        // Ctrl+L: ギズモのワールド/ローカル軸をトグル
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_L) && viewportPanel) {
+            viewportPanel->gizmoMode = (viewportPanel->gizmoMode == ImGuizmo::WORLD)
+                ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+        }
+
+        // Ctrl+F: 選択中インスタンスをエクスプローラーで自動展開・スクロール
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_F)) {
+            if (hierarchyPanel->selectedInstance)
+                hierarchyPanel->requestReveal(hierarchyPanel->selectedInstance);
+        }
+
         // F2: 選択中インスタンスをアウトライナー上でインラインリネーム開始
         if (ImGui::IsKeyPressed(ImGuiKey_F2) && !GetFocusedViewport() && hierarchyPanel->selectedInstance) {
             hierarchyPanel->renamingInstance   = hierarchyPanel->selectedInstance;
@@ -422,6 +436,7 @@ void EditorManager::renderPlayLoadConfirmDialog() {
 void EditorManager::requestSaveDialog(GLFWwindow* window) {
     m_showSaveDialog = true;
     m_dialogWindow   = window;
+    m_saveDialogOpenedAt = ImGui::GetTime();
 }
 
 void EditorManager::renderSaveDialog() {
@@ -436,7 +451,7 @@ void EditorManager::renderSaveDialog() {
         ImGui::Text("%s", Loc::t(Loc::LocKey::UnsavedLine2));
         ImGui::Separator();
 
-        if (ImGui::Button(Loc::t(Loc::LocKey::SaveAndQuit), ImVec2(130, 0))) {
+        if (EditorUi::dangerButton(Loc::t(Loc::LocKey::SaveAndQuit), m_saveDialogOpenedAt)) {
             saveCurrentScene();
             // GL コンテキストが生きている今のうちに GPU リソースを持つ
             // インスタンスの shared_ptr を解放する（コンテキスト破棄後の
@@ -449,7 +464,7 @@ void EditorManager::renderSaveDialog() {
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button(Loc::t(Loc::LocKey::QuitWithoutSaving), ImVec2(130, 0))) {
+        if (EditorUi::dangerButton(Loc::t(Loc::LocKey::QuitWithoutSaving), m_saveDialogOpenedAt)) {
             m_isDirty = false;
             hierarchyPanel->selectedInstance = nullptr;
             hierarchyPanel->selectedInstances.clear();
@@ -459,7 +474,7 @@ void EditorManager::renderSaveDialog() {
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button(Loc::t(Loc::LocKey::Cancel), ImVec2(90, 0))) {
+        if (EditorUi::safeButton(Loc::t(Loc::LocKey::Cancel))) {
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
@@ -711,6 +726,17 @@ void EditorManager::renderToolbarBasic() {
             }
         }
         ImGui::PopStyleColor();
+
+        ImGui::SameLine();
+
+        // ---- ギズモ軸モード (ワールド/ローカル) トグル (Ctrl+L) ----
+        bool isLocalMode = (activeViewport->gizmoMode == ImGuizmo::LOCAL);
+        if (drawIconButton(nullptr, isLocalMode ? Loc::t(Loc::LocKey::GizmoLocal) : Loc::t(Loc::LocKey::GizmoWorld), iconBtnSz)) {
+            activeViewport->gizmoMode = isLocalMode ? ImGuizmo::WORLD : ImGuizmo::LOCAL;
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", Loc::t(Loc::LocKey::GizmoModeTooltip));
+        }
     }
 
     ImGui::SameLine();

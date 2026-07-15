@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 class CommandHistory;
 
@@ -38,6 +39,7 @@ struct DecalPlaceState {
 class PropertiesPanel : public EditorPanel {
 public:
     Instance**     selectedInstance = nullptr;
+    std::vector<Instance*>* selectedInstances = nullptr;
     CommandHistory* m_history       = nullptr;
     PickerState*    m_picker        = nullptr;
     TerrainBrushState* m_terrainBrush = nullptr;
@@ -55,4 +57,6 @@ private:
     void drawConstraintAttachmentRef(const char* label, std::string& nameRef,
                                      const char* prop, const std::string& cubeName,
                                      const std::shared_ptr<Instance>& inst);
+
+    double m_terrainRegenOpenedAt = 0.0;
 };

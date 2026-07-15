@@ -41,6 +41,9 @@ struct PropertyDesc {
     std::function<PropValue(Instance*)>              get;        // 値取得
     std::function<void(Instance*, const PropValue&)> set;        // 既定の値設定（YAML/clone/editor/Lua）
     std::function<void(Instance*, const PropValue&)> luaSet;     // null以外: Lua書込のみ別経路（副作用setter）
+    std::function<void(void*, const PropValue&)>     liveSet;    // 空なら set を使う。ドラッグ中の毎フレーム反映用の軽量セッター
+                                                                   // （MassDensity/摩擦系のように「確定時のみ actor 再生成」したい
+                                                                   //   プロパティで、ドラッグ中はフィールド書き込みだけ行うために使う）
     std::function<int(lua_State*, Instance*)>        signalGet;  // kind==Signal
 
     std::vector<std::pair<std::string_view, int>>    enumNames;  // type==Enum の文字列↔値
@@ -52,6 +55,7 @@ struct PropertyDesc {
     bool clampOnLuaWrite = false;    // Lua 書込時に lo/hi へクランプする（数値プロパティのみ）
     bool noLuaWrite = false;         // Lua からは読取専用（YAML/clone は読み書き可のまま）
     float lo = 0.0f, hi = 0.0f, step = 0.1f;                     // エディター用レンジ
+    std::string_view separator{};     // 空でなければ、このプロパティの直前に ImGui::SeparatorText を描画する（"Appearance"等）
 
     std::string_view effYamlKey() const { return yamlKey.empty() ? name : yamlKey; }
 
@@ -66,6 +70,10 @@ struct PropertyDesc {
     PropertyDesc& clampLua()  { clampOnLuaWrite = true; return *this; }
     // Lua からは読取専用にする（YAML 読込/保存・clone は通常通り）
     PropertyDesc& luaReadOnly() { noLuaWrite = true; return *this; }
+    // ドラッグ中の毎フレーム反映用セッターを別途指定する（確定時は set が呼ばれる）
+    PropertyDesc& live(std::function<void(void*, const PropValue&)> fn) { liveSet = std::move(fn); return *this; }
+    // エディターでこのプロパティの直前にセクション見出しを描画する
+    PropertyDesc& group(std::string_view groupName) { separator = groupName; return *this; }
 };
 
 namespace PropertyRegistry {

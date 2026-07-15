@@ -23,14 +23,21 @@ void Weld::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> c
 
 void Weld::setCube0(std::shared_ptr<BaseCube> cube) {
     m_cube0 = cube;
-    m_cube0Name = cube ? cube->Name : "";
+    m_cube0Name = cube ? cube->getWorkspaceRelativePath() : "";
     registerIfReady();
 }
 
 void Weld::setCube1(std::shared_ptr<BaseCube> cube) {
     m_cube1 = cube;
-    m_cube1Name = cube ? cube->Name : "";
+    m_cube1Name = cube ? cube->getWorkspaceRelativePath() : "";
     registerIfReady();
+}
+
+void Weld::refreshRefNames() {
+    if (auto c0 = m_cube0.lock(); c0 && !m_cube0Name.empty())
+        m_cube0Name = c0->getWorkspaceRelativePath();
+    if (auto c1 = m_cube1.lock(); c1 && !m_cube1Name.empty())
+        m_cube1Name = c1->getWorkspaceRelativePath();
 }
 
 void Weld::registerIfReady() {

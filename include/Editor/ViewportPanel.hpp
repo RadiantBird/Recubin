@@ -31,6 +31,7 @@ public:
 
     // ギズモ操作モード
     ImGuizmo::OPERATION gizmoOp = ImGuizmo::TRANSLATE;
+    ImGuizmo::MODE gizmoMode = ImGuizmo::WORLD;  // Ctrl+L でワールド/ローカルをトグル
     bool selectOnly = false;  // true のとき ImGuizmo を描画しない
     bool toolNone   = false;  // true のとき無操作（選択変更もドラッグもしない、カメラ操作のみ）
 
@@ -67,6 +68,12 @@ public:
     // Roblox スタイルリサイズ: SCALE ドラッグ開始時の状態
     Vector3 m_scaleBeforeSize;
     Vector3 m_scaleBeforeWorldPos;
+
+    // Tab キー長押し中のみ有効な移動ピボット（ギズモをマウス位置へ持ってくる。離すと解除）
+    bool m_pivotActive = false;
+    Vector3 m_pivotWorld;
+    Instance* m_pivotOwner = nullptr;
+    int m_pivotOp = 0;
 
     // スナップ・衝突フィット設定（ツールバーから操作）
     bool  snapTranslate    = false;

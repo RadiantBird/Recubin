@@ -44,6 +44,9 @@ public:
     // ツールバーの「New Script」ボタンから呼ばれる。Script(通常スクリプト)固定でダイアログを開く。
     void requestNewScript(const std::shared_ptr<Instance>& parent);
 
+    // Ctrl+F: 選択インスタンスをツリー上で自動展開してスクロールする
+    void requestReveal(Instance* inst);
+
     // ヘルパー: インスタンス名の重複を避けて連番を付ける
     // base の末尾が数字なら切り離してその数値からインクリメントする（"Cube1" -> "Cube2"）
     // taken: 同一バッチ内でまだ children に登録されていない予約済み名前の集合（複数ペースト用）
@@ -102,6 +105,9 @@ private:
 
     // F2 インラインリネーム用の編集バッファ（drawNode が再帰するためメンバで持つ）
     char m_renameBuf[256] = {};
+
+    // Ctrl+F でリクエストされた自動展開・スクロール対象（requestReveal で設定）
+    Instance* m_revealRequest = nullptr;
 
     void drawNode(Instance* inst);
     void renderInsertMenu(Instance* inst);

@@ -1,5 +1,6 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/UiHelpers.hpp>
 #include <Editor/Localization.hpp>
 #include <Core/Physics.hpp>
 #include <Core/User.hpp>
@@ -73,6 +74,11 @@ static void renderSchemaInspector(Instance* inst, const char* className, Command
         if (d.kind != PropKind::Field || !d.editable || !d.get) continue;
         const bool readOnly = !d.set;
         std::string label(d.name);
+        // liveSet があればドラッグ中はそちらを使う（軽量反映）。無ければ set をそのまま使う
+        auto applyLive = [&d](Instance* o, const PropValue& v) {
+            if (d.liveSet) d.liveSet(o, v); else d.set(o, v);
+        };
+        if (!d.separator.empty()) ImGui::SeparatorText(d.separator.data());
         ImGui::PushID(static_cast<int>(reinterpret_cast<std::uintptr_t>(dp)));
         if (readOnly) ImGui::BeginDisabled();
 
@@ -80,38 +86,38 @@ static void renderSchemaInspector(Instance* inst, const char* className, Command
         switch (d.type) {
             case PropType::Float: {
                 float v = std::get<float>(cur);
-                if (ImGui::DragFloat(label.c_str(), &v, d.step, d.lo, d.hi, "%.2f")) d.set(inst, PropValue(v));
+                if (ImGui::DragFloat(label.c_str(), &v, d.step, d.lo, d.hi, "%.2f")) applyLive(inst, PropValue(v));
                 break;
             }
             case PropType::Int: {
                 int v = std::get<int>(cur);
-                if (ImGui::DragInt(label.c_str(), &v, 1.0f, (int)d.lo, (int)d.hi)) d.set(inst, PropValue(v));
+                if (ImGui::DragInt(label.c_str(), &v, 1.0f, (int)d.lo, (int)d.hi)) applyLive(inst, PropValue(v));
                 break;
             }
             case PropType::Bool: {
                 bool v = std::get<bool>(cur);
-                if (ImGui::Checkbox(label.c_str(), &v)) d.set(inst, PropValue(v));
+                if (ImGui::Checkbox(label.c_str(), &v)) applyLive(inst, PropValue(v));
                 break;
             }
             case PropType::String: {
                 char buf[256];
                 std::snprintf(buf, sizeof(buf), "%s", std::get<std::string>(cur).c_str());
-                if (ImGui::InputText(label.c_str(), buf, sizeof(buf))) d.set(inst, PropValue(std::string(buf)));
+                if (ImGui::InputText(label.c_str(), buf, sizeof(buf))) applyLive(inst, PropValue(std::string(buf)));
                 break;
             }
             case PropType::Vec3: {
                 Vector3 v = std::get<Vector3>(cur);
-                if (ImGui::DragFloat3(label.c_str(), &v.x, d.step, d.lo, d.hi, "%.2f")) d.set(inst, PropValue(v));
+                if (ImGui::DragFloat3(label.c_str(), &v.x, d.step, d.lo, d.hi, "%.2f")) applyLive(inst, PropValue(v));
                 break;
             }
             case PropType::Vec2: {
                 Vector2 v = std::get<Vector2>(cur);
-                if (ImGui::DragFloat2(label.c_str(), &v.x, d.step, d.lo, d.hi, "%.2f")) d.set(inst, PropValue(v));
+                if (ImGui::DragFloat2(label.c_str(), &v.x, d.step, d.lo, d.hi, "%.2f")) applyLive(inst, PropValue(v));
                 break;
             }
             case PropType::Color4: {
                 Color4 v = std::get<Color4>(cur);
-                if (ImGui::ColorEdit4(label.c_str(), &v.r)) d.set(inst, PropValue(v));
+                if (ImGui::ColorEdit4(label.c_str(), &v.r)) applyLive(inst, PropValue(v));
                 break;
             }
             case PropType::Enum: {
@@ -123,7 +129,7 @@ static void renderSchemaInspector(Instance* inst, const char* className, Command
                     if (d.enumNames[i].second == iv) idx = (int)i;
                 }
                 if (ImGui::Combo(label.c_str(), &idx, items.data(), (int)items.size()))
-                    d.set(inst, PropValue(d.enumNames[idx].second));
+                    applyLive(inst, PropValue(d.enumNames[idx].second));
                 break;
             }
         }
@@ -133,10 +139,212 @@ static void renderSchemaInspector(Instance* inst, const char* className, Command
             s_before = PropertyRegistry::readValue(inst, d);
         if (ImGui::IsItemDeactivatedAfterEdit() && history) {
             PropValue after = PropertyRegistry::readValue(inst, d);
+            if (d.liveSet) d.set(inst, after);  // liveSet運用のプロパティのみ、確定時に本来の set（actor再生成等）を適用
             history->record(std::make_unique<SetPropertyCommand>(
                 inst->shared_from_this(), dp, s_before, after));
         }
         if (readOnly) ImGui::EndDisabled();
+        ImGui::PopID();
+    }
+}
+
+// ===================================================
+//  複数選択時の共通プロパティ一括編集インスペクタ
+//  全選択インスタンスに共通するスキーマ駆動プロパティ（Field/editable/get&&set）
+//  だけを積集合として取り出し、値が食い違う（mixed）場合は各ウィジェットで
+//  それを示しつつ、編集は選択中の全インスタンスへ同時適用する。
+//  Undo は CompositeCommand に SetPropertyCommand を束ねて1操作として記録する。
+// ===================================================
+static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHistory* history) {
+    static std::vector<PropValue> s_multiBefore;
+
+    std::vector<Instance*> valid;
+    for (Instance* inst : sel) {
+        if (!inst) continue;
+        if (inst->Parent.expired() && !inst->IsA("System")) continue;
+        valid.push_back(inst);
+    }
+
+    ImGui::Text(Loc::t(Loc::LocKey::MultiSelectedCount), (int)valid.size());
+    if (valid.size() < 2) return;
+
+    // 各インスタンスのスキーマ集合（自クラス優先、BaseCube配下なら共通プロパティを補完）
+    auto buildSchema = [](Instance* inst) {
+        std::vector<const PropertyDesc*> result;
+        std::unordered_map<std::string_view, bool> seen;
+        for (const auto* d : PropertyRegistry::collectSchema(inst->getClassName())) {
+            if (!seen.count(d->name)) { result.push_back(d); seen[d->name] = true; }
+        }
+        if (inst->IsA("BaseCube")) {
+            for (const auto* d : PropertyRegistry::collectSchema("BaseCube")) {
+                if (!seen.count(d->name)) { result.push_back(d); seen[d->name] = true; }
+            }
+        }
+        return result;
+    };
+
+    std::vector<std::vector<const PropertyDesc*>> perInstSchema;
+    std::vector<std::unordered_map<std::string_view, const PropertyDesc*>> perInstMap;
+    perInstSchema.reserve(valid.size());
+    perInstMap.reserve(valid.size());
+    for (Instance* inst : valid) {
+        auto s = buildSchema(inst);
+        std::unordered_map<std::string_view, const PropertyDesc*> m;
+        for (const auto* d : s) m[d->name] = d;
+        perInstMap.push_back(std::move(m));
+        perInstSchema.push_back(std::move(s));
+    }
+
+    // 共通プロパティの積集合を、先頭インスタンスのスキーマ順に走査する
+    for (const PropertyDesc* d0 : perInstSchema[0]) {
+        if (d0->kind != PropKind::Field || !d0->editable || !d0->get || !d0->set) continue;
+
+        std::vector<std::pair<Instance*, const PropertyDesc*>> rows;
+        rows.emplace_back(valid[0], d0);
+        bool commonAcrossAll = true;
+        for (size_t i = 1; i < valid.size(); ++i) {
+            auto it = perInstMap[i].find(d0->name);
+            if (it == perInstMap[i].end()) { commonAcrossAll = false; break; }
+            const PropertyDesc* di = it->second;
+            if (di->type != d0->type || di->kind != PropKind::Field || !di->editable || !di->get || !di->set) {
+                commonAcrossAll = false; break;
+            }
+            rows.emplace_back(valid[i], di);
+        }
+        if (!commonAcrossAll) continue;
+
+        std::string name(d0->name);
+
+        if (!d0->separator.empty()) ImGui::SeparatorText(d0->separator.data());
+        ImGui::PushID(name.c_str());
+
+        // liveSet があればドラッグ中はそちらを使う（軽量反映）。無ければ set をそのまま使う
+        auto applyLiveAll = [&rows](const PropValue& v) {
+            for (auto& [inst, d] : rows) {
+                if (d->liveSet) d->liveSet(inst, v); else d->set(inst, v);
+            }
+        };
+
+        // 全員の現在値を読み、一致しているかどうかを判定する（mixed 表示用）
+        std::vector<PropValue> curVals;
+        curVals.reserve(rows.size());
+        for (auto& [inst, d] : rows) curVals.push_back(d->get(inst));
+        bool mixed = false;
+        for (size_t i = 1; i < curVals.size(); ++i) {
+            if (!(curVals[i] == curVals[0])) { mixed = true; break; }
+        }
+        PropValue cur = curVals[0];
+
+        switch (d0->type) {
+            case PropType::Float: {
+                float v = std::get<float>(cur);
+                const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.2f";
+                if (ImGui::DragFloat(name.c_str(), &v, d0->step, d0->lo, d0->hi, fmt)) applyLiveAll(PropValue(v));
+                break;
+            }
+            case PropType::Int: {
+                int v = std::get<int>(cur);
+                const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%d";
+                if (ImGui::DragInt(name.c_str(), &v, 1.0f, (int)d0->lo, (int)d0->hi, fmt)) applyLiveAll(PropValue(v));
+                break;
+            }
+            case PropType::Bool: {
+                bool v = std::get<bool>(cur);
+                bool changed = ImGui::Checkbox(name.c_str(), &v);
+                if (mixed) { ImGui::SameLine(); ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::MixedValue)); }
+                if (changed) applyLiveAll(PropValue(v));
+                break;
+            }
+            case PropType::String: {
+                char buf[256];
+                if (mixed) {
+                    buf[0] = '\0';
+                    if (ImGui::InputTextWithHint(name.c_str(), Loc::t(Loc::LocKey::MixedValue), buf, sizeof(buf)))
+                        applyLiveAll(PropValue(std::string(buf)));
+                } else {
+                    std::snprintf(buf, sizeof(buf), "%s", std::get<std::string>(cur).c_str());
+                    if (ImGui::InputText(name.c_str(), buf, sizeof(buf)))
+                        applyLiveAll(PropValue(std::string(buf)));
+                }
+                break;
+            }
+            case PropType::Vec3: {
+                Vector3 v = std::get<Vector3>(cur);
+                const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.2f";
+                if (ImGui::DragFloat3(name.c_str(), &v.x, d0->step, d0->lo, d0->hi, fmt)) applyLiveAll(PropValue(v));
+                break;
+            }
+            case PropType::Vec2: {
+                Vector2 v = std::get<Vector2>(cur);
+                const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.2f";
+                if (ImGui::DragFloat2(name.c_str(), &v.x, d0->step, d0->lo, d0->hi, fmt)) applyLiveAll(PropValue(v));
+                break;
+            }
+            case PropType::Color4: {
+                Color4 v = std::get<Color4>(cur);
+                bool changed = ImGui::ColorEdit4(name.c_str(), &v.r);
+                if (mixed) { ImGui::SameLine(); ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::MixedValue)); }
+                if (changed) applyLiveAll(PropValue(v));
+                break;
+            }
+            case PropType::Enum: {
+                if (mixed) {
+                    if (ImGui::BeginCombo(name.c_str(), Loc::t(Loc::LocKey::MixedValue))) {
+                        for (const auto& enumEntry : d0->enumNames) {
+                            std::string enumLabel(enumEntry.first);
+                            if (ImGui::Selectable(enumLabel.c_str())) {
+                                // Selectable は Combo 本体を「編集済み」にしないため、下の
+                                // IsItemDeactivatedAfterEdit では拾えない。この場で Undo を記録する
+                                applyLiveAll(PropValue(enumEntry.second));
+                                if (history) {
+                                    auto composite = std::make_unique<CompositeCommand>();
+                                    for (size_t i = 0; i < rows.size(); ++i) {
+                                        Instance* rInst = rows[i].first;
+                                        const PropertyDesc* rd = rows[i].second;
+                                        composite->add(std::make_unique<SetPropertyCommand>(
+                                            rInst->shared_from_this(), rd, curVals[i], rd->get(rInst)));
+                                    }
+                                    if (!composite->empty()) history->record(std::move(composite));
+                                }
+                            }
+                        }
+                        ImGui::EndCombo();
+                    }
+                } else {
+                    int iv = std::get<int>(cur);
+                    int idx = 0;
+                    std::vector<const char*> items;
+                    for (size_t i = 0; i < d0->enumNames.size(); ++i) {
+                        items.push_back(d0->enumNames[i].first.data());
+                        if (d0->enumNames[i].second == iv) idx = (int)i;
+                    }
+                    if (ImGui::Combo(name.c_str(), &idx, items.data(), (int)items.size()))
+                        applyLiveAll(PropValue(d0->enumNames[idx].second));
+                }
+                break;
+            }
+        }
+
+        // 編集の開始/確定を捉えて、全員分の SetPropertyCommand を1つの CompositeCommand として記録する
+        if (ImGui::IsItemActivated()) {
+            s_multiBefore.clear();
+            for (auto& [inst, d] : rows) s_multiBefore.push_back(d->get(inst));
+        }
+        if (ImGui::IsItemDeactivatedAfterEdit() && history) {
+            auto composite = std::make_unique<CompositeCommand>();
+            for (size_t i = 0; i < rows.size(); ++i) {
+                Instance* inst = rows[i].first;
+                const PropertyDesc* d = rows[i].second;
+                PropValue after = d->get(inst);
+                if (d->liveSet) d->set(inst, after);  // liveSet運用のプロパティのみ、確定時に本来の set（actor再生成等）を適用
+                PropValue before = (i < s_multiBefore.size()) ? s_multiBefore[i] : after;
+                composite->add(std::make_unique<SetPropertyCommand>(
+                    inst->shared_from_this(), d, before, after));
+            }
+            if (!composite->empty())
+                history->record(std::move(composite));
+        }
+
         ImGui::PopID();
     }
 }
@@ -244,36 +452,6 @@ static void drawVec3Field(const char* id,
     }
 }
 
-// node から stopAt(除外)までの "\\" 区切り相対パスを作る（getChildByPath と対になる形式）
-static std::string relativePathUpTo(Instance* node, Instance* stopAt) {
-    std::vector<std::string> parts;
-    Instance* cur = node;
-    while (cur) {
-        auto par = cur->Parent.lock();
-        parts.push_back(cur->Name);
-        if (!par || par.get() == stopAt) break;
-        cur = par.get();
-    }
-    std::reverse(parts.begin(), parts.end());
-    std::string result = parts[0];
-    for (size_t i = 1; i < parts.size(); i++) result += "\\" + parts[i];
-    return result;
-}
-
-// キューブの相対パスを返す。Workspace 配下なら Workspace 相対（例: "FolderA\CubeName"）、
-// Workspace 外（StarterCharacter 等）なら最上位祖先(System)相対（例: "StarterCharacter\Head"）。
-// resolveConstraintRefs / Weld::setProperty 側の解決規約と一致させる。
-static std::string cubeRelativePath(Instance* cube) {
-    Instance* stopAt = cube->findFirstAncestorWorkspace();
-    if (!stopAt) {
-        // Workspace 外: 最上位の祖先（System 等）を起点にする
-        Instance* top = cube;
-        for (auto p = cube->Parent.lock(); p; p = p->Parent.lock()) top = p.get();
-        stopAt = top;
-    }
-    return relativePathUpTo(cube, stopAt);
-}
-
 void PropertiesPanel::drawConstraintCubeRef(const char* label, std::string& nameRef,
                                              const char* prop,
                                              const std::shared_ptr<Instance>& inst)
@@ -327,7 +505,7 @@ void PropertiesPanel::drawConstraintCubeRef(const char* label, std::string& name
                                  nameRefPtr = &nameRef, hist = m_history]
                                (std::shared_ptr<Instance> cube) {
                 std::string before = *nameRefPtr;
-                std::string after  = cubeRelativePath(cube.get());
+                std::string after  = cube->getWorkspaceRelativePath();
                 YAML::Node n; n = after;
                 inst->setProperty(propStr, n);
                 if (hist && before != after)
@@ -404,13 +582,13 @@ void PropertiesPanel::drawConstraintAttachmentRef(const char* label, std::string
                     return;
                 }
                 // 対応する Cube0/Cube1 と違うキューブ配下なら解決できないので知らせる（設定自体は行う）
-                if (!cubeName.empty() && cubeName != cubeRelativePath(anchorCube)) {
+                if (!cubeName.empty() && cubeName != anchorCube->getWorkspaceRelativePath()) {
                     RCBN_WARN(propStr << ": Attachment \"" << att->Name << "\" は \""
-                              << cubeName << "\" ではなく \"" << cubeRelativePath(anchorCube)
+                              << cubeName << "\" ではなく \"" << anchorCube->getWorkspaceRelativePath()
                               << "\" の配下にあります。対応する Cube 参照も合わせてください");
                 }
                 std::string before = *nameRefPtr;
-                std::string after  = relativePathUpTo(att.get(), anchorCube);
+                std::string after  = att->getPathUpTo(anchorCube);
                 YAML::Node n; n = after;
                 inst->setProperty(propStr, n);
                 if (hist && before != after)
@@ -430,6 +608,11 @@ void PropertiesPanel::onRender() {
     }
 
     Instance* inst = selectedInstance ? *selectedInstance : nullptr;
+    if (selectedInstances && selectedInstances->size() > 1) {
+        renderMultiInspector(*selectedInstances, m_history);
+        ImGui::End();
+        return;
+    }
     // ツリーから除去済み（Parent expired）なインスタンスは選択解除
     // System はツリーのルートで元々親を持たない（Parent が常に expired）ため対象外にする
     if (inst && inst->Parent.expired() && !inst->IsA("System")) {
@@ -522,97 +705,9 @@ void PropertiesPanel::onRender() {
         }
     }
 
-    // ---- BaseCube (Color / Anchored / CanCollide) ----
+    // ---- BaseCube (Color / Anchored / CanCollide / Material、スキーマ駆動) ----
     if (inst->IsA("BaseCube")) {
-        BaseCube* bc = static_cast<BaseCube*>(inst);
-        auto bcSp = std::static_pointer_cast<BaseCube>(inst->shared_from_this());
-
-        ImGui::SeparatorText("Appearance");
-
-        // Color with undo
-        static Color4 s_colorBefore;
-        float col[4] = { bc->Color.r, bc->Color.g, bc->Color.b, bc->Color.a };
-        if (ImGui::IsItemActivated()) s_colorBefore = bc->Color;
-        bool colorChanged = ImGui::ColorEdit4("Color", col);
-        if (ImGui::IsItemActivated()) s_colorBefore = bc->Color;
-        if (colorChanged) bc->Color = Color4(col[0], col[1], col[2], col[3]);
-        if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-            Color4 after(col[0], col[1], col[2], col[3]);
-            m_history->record(std::make_unique<SetColorCommand>(bcSp, s_colorBefore, after));
-        }
-
-        ImGui::SeparatorText("Physics");
-
-        // Anchored with undo
-        bool prevAnchored = bc->Anchored;
-        bool anchored = bc->Anchored;
-        if (ImGui::Checkbox("Anchored", &anchored)) {
-            bc->setAnchored(anchored);
-            if (m_history)
-                m_history->record(std::make_unique<SetBoolCommand>(
-                    bcSp, "Anchored", prevAnchored, anchored));
-        }
-
-        // CanCollide with undo
-        bool prevCanCollide = bc->CanCollide;
-        if (ImGui::Checkbox("CanCollide", &bc->CanCollide) && m_history && prevCanCollide != bc->CanCollide) {
-            m_history->record(std::make_unique<SetBoolCommand>(
-                bcSp, "CanCollide", prevCanCollide, bc->CanCollide));
-        }
-
-        // CastShadow with undo
-        bool prevCastShadow = bc->CastShadow;
-        if (ImGui::Checkbox("CastShadow", &bc->CastShadow) && m_history && prevCastShadow != bc->CastShadow) {
-            m_history->record(std::make_unique<SetBoolCommand>(
-                bcSp, "CastShadow", prevCastShadow, bc->CastShadow));
-        }
-
-        // Unlit with undo
-        bool prevUnlit = bc->Unlit;
-        if (ImGui::Checkbox("Unlit", &bc->Unlit) && m_history && prevUnlit != bc->Unlit) {
-            m_history->record(std::make_unique<SetBoolCommand>(
-                bcSp, "Unlit", prevUnlit, bc->Unlit));
-        }
-
-        // MassDensity with undo（ドラッグ中は値だけ更新し、確定時に actor 再生成 + undo 記録）
-        static float s_massDensityBefore;
-        ImGui::DragFloat("MassDensity", &bc->MassDensity, 0.01f, 0.01f, 50.0f, "%.2f");
-        if (ImGui::IsItemActivated()) s_massDensityBefore = bc->MassDensity;
-        if (ImGui::IsItemDeactivatedAfterEdit()) {
-            bc->setMassDensity(bc->MassDensity);  // actor を再生成して物理に反映
-            if (m_history)
-                m_history->record(std::make_unique<SetMassDensityCommand>(bcSp, s_massDensityBefore, bc->MassDensity));
-        }
-
-        // ---- Material（プリセット + 数値微調整） ----
-        ImGui::SeparatorText("Material");
-
-        // MaterialType プリセット: 選択で3値を既定値に上書き
-        static const char* matItems[] = { "Plastic", "Wood", "Metal", "Stone" };
-        int matIdx = static_cast<int>(bc->material.type);
-        if (ImGui::Combo("MaterialType", &matIdx, matItems, 4)) {
-            Material before = bc->material;
-            Material after  = Material::GetDefault(static_cast<MaterialType>(matIdx));
-            bc->setMaterial(after);
-            if (m_history)
-                m_history->record(std::make_unique<SetMaterialCommand>(bcSp, before, after));
-        }
-
-        // friction/restitution の個別微調整。ドラッグ中は値だけ更新し、
-        // 確定時に actor 再生成 + undo 記録（毎フレームの actor 再生成を回避）。
-        static Material s_matBefore;
-        auto matDrag = [&](const char* label, float* field) {
-            ImGui::DragFloat(label, field, 0.01f, 0.0f, 2.0f, "%.2f");
-            if (ImGui::IsItemActivated()) s_matBefore = bc->material;
-            if (ImGui::IsItemDeactivatedAfterEdit()) {
-                bc->setMaterial(bc->material);  // actor を再生成して物理に反映
-                if (m_history)
-                    m_history->record(std::make_unique<SetMaterialCommand>(bcSp, s_matBefore, bc->material));
-            }
-        };
-        matDrag("StaticFriction",  &bc->material.staticFriction);
-        matDrag("DynamicFriction", &bc->material.dynamicFriction);
-        matDrag("Restitution",     &bc->material.restitution);
+        renderSchemaInspector(inst, "BaseCube", m_history);
     }
 
     // ---- MeshCube ----
@@ -1273,20 +1368,21 @@ void PropertiesPanel::onRender() {
 
         if (ImGui::Button(locId(Loc::LocKey::TerrainRegenerateButton, "##terrainregen").c_str())) {
             ImGui::OpenPopup("###TerrainRegenConfirm");
+            m_terrainRegenOpenedAt = ImGui::GetTime();
         }
         std::string terrainPopupTitle = locId(Loc::LocKey::TerrainRegenConfirmTitle, "###TerrainRegenConfirm");
         if (ImGui::BeginPopupModal(terrainPopupTitle.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("%s", Loc::t(Loc::LocKey::TerrainRegenConfirmLine1));
             ImGui::Text("%s", Loc::t(Loc::LocKey::TerrainRegenConfirmLine2));
             ImGui::Separator();
-            if (ImGui::Button(Loc::t(Loc::LocKey::RegenerateConfirmButton), ImVec2(120, 0))) {
+            if (EditorUi::dangerButton(Loc::t(Loc::LocKey::RegenerateConfirmButton), m_terrainRegenOpenedAt)) {
                 if (terrain->streamer) {
                     terrain->streamer->regenerate(static_cast<uint32_t>(terrain->Seed), terrain->Flat);
                 }
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button(Loc::t(Loc::LocKey::Cancel), ImVec2(120, 0))) {
+            if (EditorUi::safeButton(Loc::t(Loc::LocKey::Cancel))) {
                 ImGui::CloseCurrentPopup();
             }
             ImGui::EndPopup();

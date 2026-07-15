@@ -42,6 +42,10 @@ public:
     void setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1);
     void setCube0(std::shared_ptr<BaseCube> cube);
     void setCube1(std::shared_ptr<BaseCube> cube);
+    // セーブ直前に呼ばれ、生きている参照から現在の正しいパスを再生成する
+    // （Cube のリパレント/リネームでパス文字列が古くなるため）。
+    // 名前が空 = 「未設定」の正当な状態なので復活させない
+    void refreshRefNames();
     void setDriveVelocity(float v);
     void setMaxForce(float v);
 

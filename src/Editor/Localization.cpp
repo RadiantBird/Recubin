@@ -162,6 +162,15 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "新規スクリプト", "New Script" },
     { "Humanoid追加", "Add Humanoid" },
     { "リグビルダー", "Rig Builder" },
+
+    // ---- ViewportPanel: ギズモ軸モード切替 ----
+    { "ワールド",            "World" },
+    { "ローカル",            "Local" },
+    { "ギズモの軸: ワールド/ローカル切替 (Ctrl+L)", "Gizmo axis: toggle World/Local (Ctrl+L)" },
+
+    // ---- PropertiesPanel: 複数選択時の一括編集 ----
+    { "(不明)",              "(Unknown)" },
+    { "%d 個を選択中",         "%d items selected" },
 } };
 
 Lang g_lang = Lang::JA;

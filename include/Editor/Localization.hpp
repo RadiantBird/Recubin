@@ -79,6 +79,12 @@ enum class LocKey {
     ToolbarTabBasic, ToolbarTabCubes, ToolbarTabTerrain, ToolbarTabPhysics, ToolbarTabCharacter,
     NewScriptButton, AddHumanoidButton, RigBuilderButton,
 
+    // ---- ViewportPanel: ギズモ軸モード切替 ----
+    GizmoWorld, GizmoLocal, GizmoModeTooltip,
+
+    // ---- PropertiesPanel: 複数選択時の一括編集 ----
+    MixedValue, MultiSelectedCount,
+
     Count
 };
 

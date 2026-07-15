@@ -149,9 +149,9 @@ Root:
         - ClassName: Cube
           Name: Cube
           Properties:
-            Position: [-7.619335, 1, 4.029866]
+            Position: [6.614261, 34.455994, 0.1996634]
             Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
+            Rotation: [0.14565179, 0.44363645, 0.846377, 0.25616044]
             Color: [1, 1, 1, 1]
             Anchored: false
             CanCollide: true
@@ -274,75 +274,6 @@ Root:
               Properties:
                 ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\DamageScript.luau
                 Enabled: true
-        - ClassName: Cylinder
-          Name: Wheel
-          Properties:
-            Position: [-0.7968526, 7.5, 39.5]
-            Size: [4, 1, 4]
-            Rotation: [0.70710677, 0, 0, 0.70710677]
-            Color: [0.34901962, 0.34901962, 0.34901962, 0.98039216]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Attachment
-              Name: Attachment
-              Properties:
-                Position: [0, -0.49999997, -2.9802322e-08]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0, 1]
-        - ClassName: Cylinder
-          Name: Wheel1
-          Properties:
-            Position: [15.203148, 7.5, 39.5]
-            Size: [4, 1, 4]
-            Rotation: [0.70710677, 0, 0, 0.70710677]
-            Color: [0.35076922, 0.35076922, 0.35076922, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Attachment
-              Name: Attachment
-              Properties:
-                Position: [0, -0.49999997, -2.9802322e-08]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0, 1]
-        - ClassName: Cylinder
-          Name: Wheel2
-          Properties:
-            Position: [-0.7968526, 7.5, 25.5]
-            Size: [4, 1, 4]
-            Rotation: [0.70710677, 0, 0, 0.70710677]
-            Color: [0.35076922, 0.35076922, 0.35076922, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Attachment
-              Name: Attachment
-              Properties:
-                Position: [0, 0.49999997, 2.9802322e-08]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0, 1]
         - ClassName: Cube
           Name: Jumper1
           Properties:
@@ -359,139 +290,6 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-        - ClassName: Cylinder
-          Name: Wheel3
-          Properties:
-            Position: [15.203148, 7.5, 25.5]
-            Size: [4, 1, 4]
-            Rotation: [0.70710677, 0, 0, 0.70710677]
-            Color: [0.35076922, 0.35076922, 0.35076922, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Attachment
-              Name: Attachment
-              Properties:
-                Position: [0, 0.49999997, 2.9802322e-08]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0, 1]
-        - ClassName: Cube
-          Name: Chassis
-          Properties:
-            Position: [7, 8, 33]
-            Size: [20, 2, 10]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Motor
-              Name: Motor
-              Properties:
-                Cube0: Chassis
-                Cube1: Wheel
-                Attachment0: Attachment
-                Attachment1: Attachment
-                Axis: [0, 0, 1]
-                DriveVelocity: 5
-                MaxForce: 1000
-            - ClassName: Motor
-              Name: Motor2
-              Properties:
-                Cube0: Chassis
-                Cube1: Wheel1
-                Attachment0: Attachment3
-                Attachment1: Attachment
-                Axis: [0, 0, 1]
-                DriveVelocity: 5
-                MaxForce: 1000
-            - ClassName: Attachment
-              Name: Attachment
-              Properties:
-                Position: [-7.75, -0.5, 5]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0, 1]
-            - ClassName: Motor
-              Name: Motor3
-              Properties:
-                Cube0: Chassis
-                Cube1: Wheel3
-                Attachment0: Attachment2
-                Attachment1: Attachment
-                Axis: [0, 0, 1]
-                DriveVelocity: 5
-                MaxForce: 1000
-            - ClassName: Attachment
-              Name: Attachment1
-              Properties:
-                Position: [-7.75, -0.5, -5]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0, 1]
-            - ClassName: Attachment
-              Name: Attachment3
-              Properties:
-                Position: [8.25, -0.5, 5]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0, 1]
-            - ClassName: Motor
-              Name: Motor1
-              Properties:
-                Cube0: Chassis
-                Cube1: Wheel2
-                Attachment0: Attachment1
-                Attachment1: Attachment
-                Axis: [0, 0, 1]
-                DriveVelocity: 5
-                MaxForce: 1000
-            - ClassName: Attachment
-              Name: Attachment2
-              Properties:
-                Position: [8.25, -0.5, -5]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0, 1]
-        - ClassName: Seat
-          Name: Seat
-          Properties:
-            Position: [6.103081, 9.5, 33.11529]
-            Size: [4, 1, 2]
-            Rotation: [0, 0.70710677, 0, 0.70710677]
-            Color: [0.2523077, 0.2523077, 0.2523077, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Weld
-              Name: Weld
-              Properties:
-                Cube0: Seat
-                Cube1: Chassis
-            - ClassName: Decal
-              Name: Decal
-              Properties:
-                Face: 0
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
         - ClassName: Cube
           Name: Jumper
           Properties:
@@ -758,6 +556,215 @@ Root:
                         Position: [0, 2.5, 0]
                         Rotation: [0, 0, 0, 1]
                         Easing: 3
+        - ClassName: Model
+          Name: Car
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+          Children:
+            - ClassName: Cube
+              Name: Chassis
+              Properties:
+                Position: [7, 8, 33]
+                Size: [20, 2, 10]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0, 1, 1]
+                Anchored: false
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Motor
+                  Name: Motor
+                  Properties:
+                    Cube0: Car\Chassis
+                    Cube1: Car\Wheel
+                    Attachment0: Attachment
+                    Attachment1: Attachment
+                    Axis: [0, 0, 1]
+                    DriveVelocity: 5
+                    MaxForce: 1000
+                - ClassName: Motor
+                  Name: Motor2
+                  Properties:
+                    Cube0: Car\Chassis
+                    Cube1: Car\Wheel1
+                    Attachment0: Attachment3
+                    Attachment1: Attachment
+                    Axis: [0, 0, 1]
+                    DriveVelocity: 5
+                    MaxForce: 1000
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [-7.75, -0.5, 5]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+                - ClassName: Motor
+                  Name: Motor3
+                  Properties:
+                    Cube0: Car\Chassis
+                    Cube1: Car\Wheel3
+                    Attachment0: Attachment2
+                    Attachment1: Attachment
+                    Axis: [0, 0, 1]
+                    DriveVelocity: 5
+                    MaxForce: 1000
+                - ClassName: Attachment
+                  Name: Attachment1
+                  Properties:
+                    Position: [-7.75, -0.5, -5]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+                - ClassName: Attachment
+                  Name: Attachment3
+                  Properties:
+                    Position: [8.25, -0.5, 5]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+                - ClassName: Motor
+                  Name: Motor1
+                  Properties:
+                    Cube0: Car\Chassis
+                    Cube1: Car\Wheel2
+                    Attachment0: Attachment1
+                    Attachment1: Attachment
+                    Axis: [0, 0, 1]
+                    DriveVelocity: 5
+                    MaxForce: 1000
+                - ClassName: Attachment
+                  Name: Attachment2
+                  Properties:
+                    Position: [8.25, -0.5, -5]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+            - ClassName: Cylinder
+              Name: Wheel1
+              Properties:
+                Position: [15.203148, 7.5, 39.5]
+                Size: [4, 1, 4]
+                Rotation: [0.70710677, 0, 0, 0.70710677]
+                Color: [0.35076922, 0.35076922, 0.35076922, 1]
+                Anchored: false
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [0, -0.49999997, -2.9802322e-08]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+            - ClassName: Cylinder
+              Name: Wheel
+              Properties:
+                Position: [-0.7968526, 7.5, 39.5]
+                Size: [4, 1, 4]
+                Rotation: [0.70710677, 0, 0, 0.70710677]
+                Color: [0.34901962, 0.34901962, 0.34901962, 0.98039216]
+                Anchored: false
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [0, -0.49999997, -2.9802322e-08]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+            - ClassName: Seat
+              Name: Seat
+              Properties:
+                Position: [6.103081, 9.5, 33.11529]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710677, 0, 0.70710677]
+                Color: [0.2523077, 0.2523077, 0.2523077, 1]
+                Anchored: false
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Weld
+                  Name: Weld
+                  Properties:
+                    Cube0: Car\Seat
+                    Cube1: Car\Chassis
+                - ClassName: Decal
+                  Name: Decal
+                  Properties:
+                    Face: 0
+                    UVCenter: [0.5, 0.5]
+                    UVRadius: 0.15
+                    Mode: 0
+            - ClassName: Cylinder
+              Name: Wheel3
+              Properties:
+                Position: [15.203148, 7.5, 25.5]
+                Size: [4, 1, 4]
+                Rotation: [0.70710677, 0, 0, 0.70710677]
+                Color: [0.35076922, 0.35076922, 0.35076922, 1]
+                Anchored: false
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [0, 0.49999997, 2.9802322e-08]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+            - ClassName: Cylinder
+              Name: Wheel2
+              Properties:
+                Position: [-0.7968526, 7.5, 25.5]
+                Size: [4, 1, 4]
+                Rotation: [0.70710677, 0, 0, 0.70710677]
+                Color: [0.35076922, 0.35076922, 0.35076922, 1]
+                Anchored: false
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [0, 0.49999997, 2.9802322e-08]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
     - ClassName: AppImage
       Name: AppImage
       Properties:

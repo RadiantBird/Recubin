@@ -555,7 +555,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "PreservePitch" << YAML::Value << snd->getPreservePitch();
         }
         if (inst->IsA("Rope")) {
-            const Rope* r = static_cast<const Rope*>(inst);
+            Rope* r = static_cast<Rope*>(inst);
+            r->refreshRefNames();
             out << YAML::Key << "Cube0"       << YAML::Value << r->m_cube0Name;
             out << YAML::Key << "Cube1"       << YAML::Value << r->m_cube1Name;
             if (!r->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << r->m_attachment0Name;
@@ -567,7 +568,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "LineWidth" << YAML::Value << r->LineWidth;
         }
         if (inst->IsA("Rod")) {
-            const Rod* r = static_cast<const Rod*>(inst);
+            Rod* r = static_cast<Rod*>(inst);
+            r->refreshRefNames();
             out << YAML::Key << "Cube0" << YAML::Value << r->m_cube0Name;
             out << YAML::Key << "Cube1" << YAML::Value << r->m_cube1Name;
             if (!r->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << r->m_attachment0Name;
@@ -576,12 +578,14 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "LineWidth" << YAML::Value << r->LineWidth;
         }
         if (inst->IsA("Weld")) {
-            const Weld* w = static_cast<const Weld*>(inst);
+            Weld* w = static_cast<Weld*>(inst);
+            w->refreshRefNames();
             out << YAML::Key << "Cube0" << YAML::Value << w->m_cube0Name;
             out << YAML::Key << "Cube1" << YAML::Value << w->m_cube1Name;
         }
         if (inst->IsA("Motor")) {
-            const Motor* m = static_cast<const Motor*>(inst);
+            Motor* m = static_cast<Motor*>(inst);
+            m->refreshRefNames();
             out << YAML::Key << "Cube0" << YAML::Value << m->m_cube0Name;
             out << YAML::Key << "Cube1" << YAML::Value << m->m_cube1Name;
             if (!m->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << m->m_attachment0Name;

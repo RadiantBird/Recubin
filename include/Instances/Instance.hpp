@@ -31,6 +31,11 @@ class Instance : public std::enable_shared_from_this<Instance> {
         Instance* findFirstAncestorWorkspace();
         Instance* findFirstAncestorSystem();
 
+        // stopAt(除外) までの "\\" 区切り相対パス。getChildByPath と対になる形式
+        std::string getPathUpTo(Instance* stopAt);
+        // Workspace 配下なら Workspace 相対、外なら最上位祖先相対
+        std::string getWorkspaceRelativePath();
+
         Instance(string name);
 
         virtual string getClassName();

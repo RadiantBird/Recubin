@@ -17,8 +17,41 @@
 #include <Core/TerrainStreamer.hpp>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 
 // NOTE: ImGuizmoは乗算でスケール処理を行っている
+
+// 対象SpatialのOBB8頂点をワールド空間で求め、AABBに集約する（複数選択中心・ModelのAABB計算で共用）
+static void accumulateWorldAABB(Spatial* sp, Vector3& mn, Vector3& mx) {
+    CFrame wf = sp->getWorldCFrame();
+    float hx = sp->Size.x * 0.5f, hy = sp->Size.y * 0.5f, hz = sp->Size.z * 0.5f;
+    for (int ci = 0; ci < 8; ++ci) {
+        float lx = (ci & 1) ? hx : -hx;
+        float ly = (ci & 2) ? hy : -hy;
+        float lz = (ci & 4) ? hz : -hz;
+        Vector3 wc = wf.Position + wf.Rotation.rotate(Vector3(lx, ly, lz));
+        mn.x = (std::min)(mn.x, wc.x); mx.x = (std::max)(mx.x, wc.x);
+        mn.y = (std::min)(mn.y, wc.y); mx.y = (std::max)(mx.y, wc.y);
+        mn.z = (std::min)(mn.z, wc.z); mx.z = (std::max)(mx.z, wc.z);
+    }
+}
+
+// rootの子孫を再帰し、BaseCubeのワールドOBBをAABBに集約する。1つも見つからなければfalse
+static bool computeDescendantWorldAABB(Instance* root, Vector3& outMin, Vector3& outMax) {
+    bool found = false;
+    Vector3 mn(1e30f, 1e30f, 1e30f), mx(-1e30f, -1e30f, -1e30f);
+    std::function<void(Instance*)> visit = [&](Instance* inst) {
+        if (!inst) return;
+        if (inst->IsA("BaseCube")) {
+            accumulateWorldAABB(static_cast<Spatial*>(inst), mn, mx);
+            found = true;
+        }
+        for (auto const& [_, child] : inst->getChildren()) visit(child.get());
+    };
+    for (auto const& [_, child] : root->getChildren()) visit(child.get());
+    if (found) { outMin = mn; outMax = mx; }
+    return found;
+}
 
 // ===================================================
 //  ViewportPanel 実装
@@ -236,6 +269,34 @@ void ViewportPanel::onRender() {
               + user->up    * (ndcY * tanH)).normalize();
     };
 
+    // OBB スラブ法: レイをオブジェクトのローカル空間に変換して AABB テストする
+    // → 回転したオブジェクトでも正確に判定できる（クリック選択・Tabピボットで共用）
+    auto obbHit = [](const Vector3& ori, const Vector3& dir,
+                     const CFrame& worldCF, const Vector3& size) -> float {
+        // レイをオブジェクトローカル空間へ変換
+        Quaternion invRot = worldCF.Rotation.conjugate();
+        Vector3 lo = invRot.rotate(ori - worldCF.Position);
+        Vector3 ld = invRot.rotate(dir);
+        float ld3[3] = { ld.x, ld.y, ld.z };
+        float lo3[3] = { lo.x, lo.y, lo.z };
+        float hs[3]  = { size.x * 0.5f, size.y * 0.5f, size.z * 0.5f };
+        float tmin = -1e30f, tmax = 1e30f;
+        for (int i = 0; i < 3; ++i) {
+            if (std::abs(ld3[i]) < 1e-8f) {
+                if (lo3[i] < -hs[i] || lo3[i] > hs[i]) return -1.0f;
+            } else {
+                float t1 = (-hs[i] - lo3[i]) / ld3[i];
+                float t2 = ( hs[i] - lo3[i]) / ld3[i];
+                if (t1 > t2) std::swap(t1, t2);
+                tmin = (std::max)(tmin, t1);
+                tmax = (std::min)(tmax, t2);
+                if (tmax < tmin) return -1.0f;
+            }
+        }
+        if (tmax < 0.0f) return -1.0f;
+        return (tmin >= 0.0f) ? tmin : tmax;
+    };
+
     // AABB スラブ法レイキャスト
     // 最近傍の Spatial* を返し、衝突軸(0-2)と法線符号(+1/-1)を出力する
     auto castRaySurface = [&](const Vector3& ori, const Vector3& dir,
@@ -447,34 +508,6 @@ void ViewportPanel::onRender() {
         Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
         Vector3 rayOri = user->cpos;
 
-        // OBB スラブ法: レイをオブジェクトのローカル空間に変換して AABB テストする
-        // → 回転したオブジェクトでも正確に判定できる
-        auto obbHit = [](const Vector3& ori, const Vector3& dir,
-                         const CFrame& worldCF, const Vector3& size) -> float {
-            // レイをオブジェクトローカル空間へ変換
-            Quaternion invRot = worldCF.Rotation.conjugate();
-            Vector3 lo = invRot.rotate(ori - worldCF.Position);
-            Vector3 ld = invRot.rotate(dir);
-            float ld3[3] = { ld.x, ld.y, ld.z };
-            float lo3[3] = { lo.x, lo.y, lo.z };
-            float hs[3]  = { size.x * 0.5f, size.y * 0.5f, size.z * 0.5f };
-            float tmin = -1e30f, tmax = 1e30f;
-            for (int i = 0; i < 3; ++i) {
-                if (std::abs(ld3[i]) < 1e-8f) {
-                    if (lo3[i] < -hs[i] || lo3[i] > hs[i]) return -1.0f;
-                } else {
-                    float t1 = (-hs[i] - lo3[i]) / ld3[i];
-                    float t2 = ( hs[i] - lo3[i]) / ld3[i];
-                    if (t1 > t2) std::swap(t1, t2);
-                    tmin = (std::max)(tmin, t1);
-                    tmax = (std::min)(tmax, t2);
-                    if (tmax < tmin) return -1.0f;
-                }
-            }
-            if (tmax < 0.0f) return -1.0f;
-            return (tmin >= 0.0f) ? tmin : tmax;
-        };
-
         // ---- ピッカーモード: Pick ボタン押下中はクリックをキューブ/Attachment指定に横取り ----
         if (m_picker && m_picker->active) {
             Instance* nearest = nullptr;
@@ -553,10 +586,26 @@ void ViewportPanel::onRender() {
                     self(self, child.get());
             };
             castRay(castRay, workspace);
-            *selectedInstance = nearest;
-            if (selectedInstances) {
-                selectedInstances->clear();
-                if (nearest) selectedInstances->push_back(nearest);
+            if (ImGui::GetIO().KeyCtrl && selectedInstances) {
+                // Ctrl+クリック: 複数選択のトグル（ヒエラルキー側と同じセマンティクス）
+                if (nearest) {
+                    auto it = std::find(selectedInstances->begin(), selectedInstances->end(), nearest);
+                    if (it != selectedInstances->end()) {
+                        selectedInstances->erase(it);
+                        if (*selectedInstance == nearest)
+                            *selectedInstance = selectedInstances->empty() ? nullptr : selectedInstances->back();
+                    } else {
+                        selectedInstances->push_back(nearest);
+                        *selectedInstance = nearest;
+                    }
+                }
+                // ヒットなしの場合は選択を維持（何もしない）
+            } else {
+                *selectedInstance = nearest;
+                if (selectedInstances) {
+                    selectedInstances->clear();
+                    if (nearest) selectedInstances->push_back(nearest);
+                }
             }
             clickFoundSomething = (nearest != nullptr);
         }
@@ -646,9 +695,22 @@ void ViewportPanel::onRender() {
     // ---- ギズモのオーバーレイ ----
     if (isGizmoMode() && selectedInstance && *selectedInstance && user) {
         Instance* inst = *selectedInstance;
+
+        // ピボット自動解除: 対象・操作モードが変わったら Tab ピボットを無効化する
+        if (m_pivotActive && (m_pivotOwner != inst || m_pivotOp != (int)gizmoOp))
+            m_pivotActive = false;
+        // ホールド式: Tab を離したらピボット解除。ただしドラッグ中はギズモ行列が
+        // 途中で切り替わると delta 計算が破綻するため、ドラッグ終了まで維持する
+        if (m_pivotActive && !ImGui::IsKeyDown(ImGuiKey_Tab) && !ImGuizmo::IsUsing())
+            m_pivotActive = false;
+
         if (inst->IsA("Spatial")) {
             Spatial* s = static_cast<Spatial*>(inst);
+            bool isModelTarget = inst->IsA("Model");
+            // Model の SCALE はギズモを描画しない（子孫のBaseCubeを直接スケールする概念がないため）
+            bool skipGizmoForModelScale = (isModelTarget && gizmoOp == ImGuizmo::SCALE);
 
+            if (!skipGizmoForModelScale) {
             // Gizmo Undo: ドラッグ開始/終了を検知して MultiGizmoCommand を記録
             bool isUsingGizmo = ImGuizmo::IsUsing();
 
@@ -690,11 +752,48 @@ void ViewportPanel::onRender() {
                 m_scaleBeforeWorldPos = s->getWorldPosition();
             }
 
+            // Model のバウンディングボックス中心（TRANSLATE/ROTATE のピボットに使う）
+            Vector3 modelAabbMin(0.0f, 0.0f, 0.0f), modelAabbMax(0.0f, 0.0f, 0.0f);
+            bool haveModelAABB = false;
+            Vector3 modelPivotCenter;
+            if (isModelTarget) {
+                haveModelAABB   = computeDescendantWorldAABB(inst, modelAabbMin, modelAabbMax);
+                modelPivotCenter = haveModelAABB ? (modelAabbMin + modelAabbMax) * 0.5f : s->getWorldPosition();
+            }
+            // ROTATE で使う Model の直前ワールド状態（Manipulate 呼び出し前に保存）
+            Vector3    modelOldWorldPos = isModelTarget ? s->getWorldPosition()          : Vector3();
+            Quaternion modelOldWorldRot = isModelTarget ? s->getWorldCFrame().Rotation   : Quaternion();
+
+            // 複数選択の集合中心（TRANSLATE のみ、Model 以外）
+            Vector3 multiCenter;
+            bool haveMultiCenter = false;
+            if (!isModelTarget && gizmoOp == ImGuizmo::TRANSLATE && hasMultiSelection()) {
+                Vector3 mn(1e30f, 1e30f, 1e30f), mx(-1e30f, -1e30f, -1e30f);
+                bool any = false;
+                for (Instance* o : *selectedInstances) {
+                    if (o && !o->Parent.expired() && o->IsA("BaseCube")) {
+                        accumulateWorldAABB(static_cast<Spatial*>(o), mn, mx);
+                        any = true;
+                    }
+                }
+                multiCenter     = any ? (mn + mx) * 0.5f : s->getWorldPosition();
+                haveMultiCenter = true;
+            }
+
             // SCALE ドラッグ中は開始時の不変行列を ImGuizmo に渡す
             // 毎フレーム変化する行列を渡すと ImGuizmo の内部参照がずれて特異点が生まれるため
             // FIX: それぞれの軸が干渉している
             Matrix4 model;
-            if (isUsingGizmo && gizmoOp == ImGuizmo::SCALE) {
+            if (isModelTarget) {
+                // Model: 位置・回転のみ（Sizeベースのスケールはかけない）
+                model = CFrame(modelPivotCenter, s->getWorldCFrame().Rotation).toMatrix4();
+            } else if (m_pivotActive && gizmoOp == ImGuizmo::TRANSLATE) {
+                // Tab ピボット: 位置=ピボット点、回転=Primaryのワールド回転、スケール=1
+                model = CFrame(m_pivotWorld, s->getWorldCFrame().Rotation).toMatrix4();
+            } else if (gizmoOp == ImGuizmo::TRANSLATE && haveMultiCenter) {
+                // 複数選択: 位置=集合中心、回転=単位、スケール=1
+                model = CFrame(multiCenter).toMatrix4();
+            } else if (isUsingGizmo && gizmoOp == ImGuizmo::SCALE) {
                 CFrame stableCF = s->getWorldCFrame();
                 stableCF.Position = m_scaleBeforeWorldPos;
                 model = stableCF.toMatrix4() *
@@ -717,7 +816,8 @@ void ViewportPanel::onRender() {
             // SCALE snap は newSize 抽出後に絶対値で適用するため ImGuizmo には渡さない
 
             if (ImGuizmo::Manipulate(view.m, proj.m, gizmoOp,
-                                     ImGuizmo::WORLD, model.m, nullptr, snap)) {
+                                     (gizmoOp == ImGuizmo::SCALE) ? ImGuizmo::WORLD : gizmoMode,
+                                     model.m, nullptr, snap)) {
                 // モデル行列から TRS を分解
                 float sx = std::sqrt(model.m[0]*model.m[0] + model.m[1]*model.m[1] + model.m[2]*model.m[2]);
                 float sy = std::sqrt(model.m[4]*model.m[4] + model.m[5]*model.m[5] + model.m[6]*model.m[6]);
@@ -733,7 +833,46 @@ void ViewportPanel::onRender() {
                 rotM[15] = 1.0f;
                 Quaternion newRot = Quaternion::FromRotationMatrix(rotM);
 
-                if (gizmoOp == ImGuizmo::TRANSLATE && workspace) {
+                if (isModelTarget && gizmoOp == ImGuizmo::TRANSLATE) {
+                    // Model: AABB中心（無ければ自身のワールド位置）からの delta を Position に加算
+                    Vector3 centerBefore = haveModelAABB ? modelPivotCenter : s->getWorldPosition();
+                    Vector3 delta        = newPos - centerBefore;
+                    Vector3 newWorldPos  = s->getWorldPosition() + delta;
+                    s->Position = worldToLocal(newWorldPos, s);
+                } else if (isModelTarget && gizmoOp == ImGuizmo::ROTATE) {
+                    // Model: AABB中心（無ければ自身のワールド位置）を軸に回転を適用
+                    Quaternion rotDelta   = newRot * modelOldWorldRot.conjugate();
+                    Vector3    pivotCenter = haveModelAABB ? modelPivotCenter : modelOldWorldPos;
+                    Vector3    newWorldPos = pivotCenter + rotDelta.rotate(modelOldWorldPos - pivotCenter);
+                    Quaternion newWorldRot = rotDelta * modelOldWorldRot;
+                    s->Position         = worldToLocal(newWorldPos, s);
+                    s->cframe.Rotation  = worldToLocalRot(newWorldRot, s);
+                } else if (m_pivotActive && gizmoOp == ImGuizmo::TRANSLATE) {
+                    // Tab ピボット経路: delta を全選択対象に適用（collisionFit は使わない）
+                    Vector3 delta = newPos - m_pivotWorld;
+                    std::vector<Instance*> targets = hasMultiSelection()
+                        ? *selectedInstances : std::vector<Instance*>{ inst };
+                    for (Instance* tgt : targets) {
+                        if (!tgt || tgt->Parent.expired() || !tgt->IsA("Spatial")) continue;
+                        Spatial* tsp = static_cast<Spatial*>(tgt);
+                        Vector3 newWorld = tsp->getWorldPosition() + delta;
+                        Vector3 localP   = worldToLocal(newWorld, tsp);
+                        if (tgt->IsA("BaseCube"))
+                            static_cast<BaseCube*>(tgt)->teleportTo(localP);
+                        else
+                            tsp->Position = localP;
+                    }
+                    m_pivotWorld = m_pivotWorld + delta;
+                } else if (gizmoOp == ImGuizmo::TRANSLATE && haveMultiCenter) {
+                    // 複数選択中心経路: 集合中心からの delta を全選択対象に適用（collisionFit は使わない）
+                    Vector3 delta = newPos - multiCenter;
+                    for (Instance* other : *selectedInstances) {
+                        if (!other || other->Parent.expired() || !other->IsA("BaseCube")) continue;
+                        BaseCube* bc = static_cast<BaseCube*>(other);
+                        Vector3 nw = bc->getWorldPosition() + delta;
+                        bc->teleportTo(worldToLocal(nw, bc));
+                    }
+                } else if (gizmoOp == ImGuizmo::TRANSLATE && workspace) {
                     // teleportTo 前のワールド座標を保存（複数選択の delta 計算用）
                     Vector3 prevPrimaryWorld = s->getWorldPosition();
 
@@ -820,6 +959,7 @@ void ViewportPanel::onRender() {
                     }
                 }
             }
+            } // end if (!skipGizmoForModelScale)
         }
     }
 
@@ -865,6 +1005,49 @@ void ViewportPanel::onRender() {
                 : IM_COL32(255, 150,  30, 180);  // 橙: secondary
             dl->AddRect(ImVec2(sxMin - 2.0f, syMin - 2.0f),
                         ImVec2(sxMax + 2.0f, syMax + 2.0f), col, 0.0f, 0, 2.0f);
+        }
+    }
+
+    // ---- Model ハイライト: 選択中が Model のとき、子孫 BaseCube の集合 AABB の12辺を描画 ----
+    if (user && selectedInstance && *selectedInstance && (*selectedInstance)->IsA("Model")) {
+        Vector3 aabbMin, aabbMax;
+        if (computeDescendantWorldAABB(*selectedInstance, aabbMin, aabbMax)) {
+            float aspect = (h > 0) ? (float)w / (float)h : 1.0f;
+            Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
+            Matrix4 view = Matrix4::LookAt(user->cpos, user->cpos + user->forward, user->up);
+            Matrix4 vp   = proj * view;
+            const float* mv = vp.m;
+            auto* dl = ImGui::GetWindowDrawList();
+
+            Vector3 corners[8];
+            for (int ci = 0; ci < 8; ++ci) {
+                corners[ci] = Vector3(
+                    (ci & 1) ? aabbMax.x : aabbMin.x,
+                    (ci & 2) ? aabbMax.y : aabbMin.y,
+                    (ci & 4) ? aabbMax.z : aabbMin.z
+                );
+            }
+            auto project = [&](const Vector3& wc, bool& visible) -> ImVec2 {
+                float cx = mv[0]*wc.x + mv[4]*wc.y + mv[8]*wc.z  + mv[12];
+                float cy = mv[1]*wc.x + mv[5]*wc.y + mv[9]*wc.z  + mv[13];
+                float cw = mv[3]*wc.x + mv[7]*wc.y + mv[11]*wc.z + mv[15];
+                visible = (cw > 0.0f);
+                if (!visible) return ImVec2(0, 0);
+                float sx = contentOrigin.x + (cx/cw + 1.0f) * 0.5f * (float)w;
+                float sy = contentOrigin.y + (1.0f - cy/cw) * 0.5f * (float)h;
+                return ImVec2(sx, sy);
+            };
+            static const int kEdges[12][2] = {
+                {0,1},{0,2},{0,4},{1,3},{1,5},{2,3},
+                {2,6},{3,7},{4,5},{4,6},{5,7},{6,7}
+            };
+            ImU32 col = IM_COL32(255, 240, 80, 220); // primary色に合わせる
+            for (auto& e : kEdges) {
+                bool v0, v1;
+                ImVec2 p0 = project(corners[e[0]], v0);
+                ImVec2 p1 = project(corners[e[1]], v1);
+                if (v0 && v1) dl->AddLine(p0, p1, col, 2.0f);
+            }
         }
     }
 
@@ -981,6 +1164,42 @@ void ViewportPanel::onRender() {
                 }
             }();
         }
+    }
+
+    // ---- Tab キー: ギズモをマウス位置へ移動するピボットを設定 ----
+    if (isViewportFocused && ImGui::IsKeyPressed(ImGuiKey_Tab, false) && !ImGui::GetIO().WantTextInput
+            && !ImGuizmo::IsUsing() && selectedInstance && *selectedInstance
+            && (*selectedInstance)->IsA("Spatial") && user && workspace) {
+        Instance* inst = *selectedInstance;
+        Spatial*  s    = static_cast<Spatial*>(inst);
+
+        ImVec2  mp  = ImGui::GetMousePos();
+        Vector3 dir = makeRay(mp.x - contentOrigin.x, mp.y - contentOrigin.y);
+        Vector3 ori = user->cpos;
+
+        float nearestT = 1e30f;
+        bool  hitAny   = false;
+        auto pivotCast = [&](auto& self, Instance* node) -> void {
+            if (!node) return;
+            if (node->getClassName() == "Skybox") return;
+            if (node->IsA("BaseCube")) {
+                Spatial* sp = static_cast<Spatial*>(node);
+                float t = obbHit(ori, dir, sp->getWorldCFrame(), sp->Size);
+                if (t >= 0.0f && t < nearestT) { nearestT = t; hitAny = true; }
+            }
+            for (auto const& [_, child] : node->getChildren()) self(self, child.get());
+        };
+        pivotCast(pivotCast, workspace);
+
+        if (hitAny) {
+            m_pivotWorld = ori + dir * nearestT;
+        } else {
+            float dist = (s->getWorldPosition() - ori).length();
+            m_pivotWorld = ori + dir * dist;
+        }
+        m_pivotActive = true;
+        m_pivotOwner  = inst;
+        m_pivotOp     = (int)gizmoOp;
     }
 
     // ---- F キー: 選択オブジェクトにカメラをフォーカス ----

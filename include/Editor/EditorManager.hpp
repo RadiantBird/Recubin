@@ -125,8 +125,9 @@ public:
 private:
 
     // 未保存ダイアログ関連
-    bool        m_showSaveDialog = false;
-    GLFWwindow* m_dialogWindow   = nullptr;
+    bool        m_showSaveDialog   = false;
+    GLFWwindow* m_dialogWindow     = nullptr;
+    double      m_saveDialogOpenedAt = 0.0;
 
     // テストプレイ中のシーン読み込み確認ダイアログ関連
     bool        m_showPlayLoadConfirm = false;
