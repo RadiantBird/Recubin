@@ -76,7 +76,7 @@ void FrameProfiler::endFrame() {
             ss << m_counters[i].name << "=" << avg;
         }
 
-        RCBN_LOG("[PROF] " << ss.str());
+        // RCBN_LOG("[PROF] " << ss.str());
 
         for (auto& s : m_sections) s.accumMs = 0.0;
         for (auto& c : m_counters) c.accum = 0;

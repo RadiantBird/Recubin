@@ -38,7 +38,7 @@ end
 function main()
     runFPSchecker()
     for i = 1, amount do
-        local cube = Instance.new("TriangularPrism")
+        local cube = Instance.new("Cube")
         cube.Color = Color4.new(rn(), rn(), rn(), 1);
         cube.Anchored = anchored
         cube.Position = center + genRainPos()

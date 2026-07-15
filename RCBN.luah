@@ -1,3 +1,5 @@
+-- TODO: Define arithmetic table on Vector3, CFrame, etc...
+
 export type Connection = {
     Disconnect: (Connection) -> ()
 }
