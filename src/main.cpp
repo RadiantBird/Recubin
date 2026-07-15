@@ -20,6 +20,7 @@
 #include <Instances/Decal.hpp>
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Weather.hpp>
+#include <Instances/Humanoid.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
@@ -510,6 +511,9 @@ int main(int argc, char* argv[]) {
             // 前回Playの実行状態(Completed等)をリセットして毎回最初から実行させる
             luauEngine->resetSystemScripts();
             snapshotDirty = ed && ed->isDirty();
+            // Animation Editorの編集セッションが開いたままだと、リグ/プレビュー姿勢が
+            // スナップショットに焼き込まれ、Stop後のシーンが静かに汚染される。保存前に必ず復元する
+            if (ed && ed->animationPanel) ed->animationPanel->endEditSession();
             SceneLoader::saveScene(system.get(), snapshotPath);
             SceneLoader::resolveConstraintRefs(system.get());
             // 全WorkspaceのPhysicsを初期化
@@ -526,12 +530,23 @@ int main(int argc, char* argv[]) {
         if (!isPlaying && wasPlaying) {
             audioService->stopAllSounds();
             user->despawnCharacter();
+            // ---- Undo履歴/Clipboardのクリア（旧Workspace/Physics破棄より前に行う） ----
+            // EditorManager の Undo スタックや Clipboard が BaseCube 等の shared_ptr を
+            // 保持していると、resetSystemForReload() での実デストラクタ実行が
+            // Workspace/Physics 破棄後まで遅延され、lastWorkspace がダングリングポインタ化
+            // してクラッシュしうる（main.cpp末尾の明示的クリーンアップと同じ理由）。
+            // Physics がまだ生きている今のうちにクリアする。
+            if (ed) {
+                ed->hierarchyPanel->selectedInstance = nullptr;
+                ed->m_history.clear();
+                ed->clearClipboard();
+                ed->animationPanel->endEditSession();
+            }
             // 全Workspaceのクリア（ownedPhysics デストラクタで自動解放）
             // Terrainは次回のload時に再構築される
             workspaces = SceneRuntime::collectWorkspaces(system);
             resetTerrainStreamers(workspaces); // 物理が生きているうちにTerrainを解放
             clearWorkspacePhysics(workspaces);
-            if (ed) ed->hierarchyPanel->selectedInstance = nullptr;
             resetSystemForReload(system, user);
 
             initNewScene(snapshotPath, snapshotDirty);
@@ -543,11 +558,16 @@ int main(int argc, char* argv[]) {
             std::string loadPath = ed->pendingLoadPath;
             ed->pendingLoadPath.clear();
 
+            // ---- Undo履歴/Clipboardのクリア（Play→Stop遷移と同じ理由） ----
+            ed->hierarchyPanel->selectedInstance = nullptr;
+            ed->m_history.clear();
+            ed->clearClipboard();
+            ed->animationPanel->endEditSession();
+
             // Terrainは次回のload時に再構築される
             workspaces = SceneRuntime::collectWorkspaces(system);
             resetTerrainStreamers(workspaces); // 物理が生きているうちにTerrainを解放
             clearWorkspacePhysics(workspaces);
-            ed->hierarchyPanel->selectedInstance = nullptr;
             resetSystemForReload(system, user);
 
             initNewScene(loadPath, false);
@@ -611,8 +631,9 @@ int main(int argc, char* argv[]) {
 
         // 再生中のAnimationを評価し、対象Cubeのcframeを上書きする
         // (processInput内のapplyBodyAnimationより後に行うことでアニメーションを優先させる)
-        if (isPlaying && !isPaused && user->humanoid) {
-            user->humanoid->updateAnimation(deltaTime);
+        // workspace内の全Humanoid(NPC含む)が対象(旧: user->humanoidのみに限定されていた)
+        if (isPlaying && !isPaused) {
+            Humanoid::updateAll(workspace.get(), deltaTime);
         }
 
         // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、

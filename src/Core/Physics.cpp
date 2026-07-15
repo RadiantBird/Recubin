@@ -975,10 +975,18 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
     // 素通りしてしまう。代表としてassembly[0](compoundの原点キューブ)を指す
     compound->userData = assembly[0].get();
 
-    // 5. cubes エントリーを更新
-    for (auto& entry : cubes) {
-        auto cube = entry.cube.lock();
-        if (cube && assemblyPtrs.count(cube.get())) entry.actor = compound;
+    // 5. cubes エントリーを更新（既存エントリのみ更新し、未登録のcubeは新規追加する。
+    // 未登録のまま残すと、このcubeのactorはcompound解放後も誰にもnullされず、
+    // BaseCubeの実デストラクタでdangling actorへアクセスしてクラッシュする）
+    for (auto& cube : assembly) {
+        bool found = false;
+        for (auto& entry : cubes) {
+            auto c = entry.cube.lock();
+            if (c && c.get() == cube.get()) { entry.actor = compound; found = true; break; }
+        }
+        if (!found) {
+            cubes.push_back({ std::weak_ptr<BaseCube>(cube), compound });
+        }
     }
 
     // 6. m_constraints の Weld で、両端が assembly 内にある Weld の m_compound を更新

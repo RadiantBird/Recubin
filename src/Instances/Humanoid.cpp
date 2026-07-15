@@ -371,11 +371,22 @@ void Humanoid::setAnimationSpeed(float speed) {
 }
 
 void Humanoid::updateAnimation(float dt) {
+    // このフレームでapplyBodyAnimation()が呼ばれたかを読み取り、即座に消費する。
+    // Animation非再生中(早期return)のフレームをまたいでも古い値が残らないよう、
+    // 早期return分岐より前で無条件に行う
+    bool bodyPoseUpdated = m_bodyPoseUpdatedThisFrame;
+    m_bodyPoseUpdatedThisFrame = false;
+
     if (!m_animPlaying || !m_currentAnim) return;
 
     // 対象パーツの解決先となるModel(=このHumanoidの親)
     Instance* model = Parent.lock().get();
     if (!model) return;
+
+    // move()/moveToward()/jump()が一度も呼ばれないHumanoid(例: StarterCharacterテンプレートに
+    // PlayAnimationだけを呼ぶスクリプトを置いた場合)はRootが永久に未解決のままになる。
+    // moveToward()/jump()と同じ遅延解決パターンをここでも踏襲する
+    if (!Root) resolveParts(model);
 
     float prevTime = m_animTime;
     m_animTime += dt * m_currentAnim->Speed;
@@ -413,6 +424,13 @@ void Humanoid::updateAnimation(float dt) {
             }
         }
     }
+
+    // このフレーム中に(move()等から)applyBodyAnimation()が実際の引数で呼ばれていなければ、
+    // トラック未指定パーツ(例: Headだけのカスタムアニメーション時のTorso/Arms/Legs)が
+    // シーンYAML読み込み時の生の絶対座標に凍りついたまま分解して見えないよう、
+    // アイドルポーズへフォールバックする。move()が毎フレーム呼ばれている間はこちらは発火せず、
+    // 既存の歩行/アイドルポーズがそのまま優先される(トラックで上書きされる分は下のループで再上書きされる)
+    if (!bodyPoseUpdated) applyBodyAnimation(false, false);
 
     // キーフレームはRoot相対で保持されているため、現在のRoot CFrameに合成して
     // キャラクターの移動・回転に追従させる（歩行アニメと同じ基準）
@@ -538,6 +556,10 @@ static CFrame makeLeg(
 }
 
 void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
+    m_bodyPoseUpdatedThisFrame = true; // 呼ばれた事実を記録(Root未解決で以降no-opでも「試行済み」として扱う)
+    if (!Root) {
+        if (Instance* model = Parent.lock().get()) resolveParts(model);
+    }
     if (!Root) return;
 
     Pose pose = computePose(leftArmRaised, rightArmRaised);
@@ -559,4 +581,11 @@ void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
     if (RightArm) RightArm->cframe = makeArm(Root->cframe, rightShoulderPos, pose.rightArm);
     if (LeftLeg)  LeftLeg->cframe  = makeLeg(Root->cframe, leftHipPos,  pose.leftLeg);
     if (RightLeg) RightLeg->cframe = makeLeg(Root->cframe, rightHipPos, pose.rightLeg);
+}
+
+void Humanoid::updateAll(Instance* root, float dt) {
+    if (!root) return;
+    if (root->IsA("Humanoid")) static_cast<Humanoid*>(root)->updateAnimation(dt);
+    for (auto const& [name, child] : root->getChildren())
+        updateAll(child.get(), dt);
 }

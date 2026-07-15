@@ -31,6 +31,10 @@ Root:
             CastShadow: true
             Unlit: false
 
+        # SignalEventインスタンス生成テスト(SceneLoader::createInstance経由)
+        - ClassName: SignalEvent
+          Name: TestSignalEvent
+
         # テストスクリプト
         - ClassName: Script
           Name: SignalTest

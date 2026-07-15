@@ -289,3 +289,113 @@
 - **Cylinderの`draw()`も面デカール対応**（Top/Bottom/側面4方向の6サブレンジを`getDecalTexture`で個別テクスチャ描画）。「デカールはCubeだけ」ではない。
 - **Cylinder/Sphere/TriangularPrismの`s_VAO`はコンストラクタからの遅延`initGeometry()`で生成される**（Cubeだけ`Renderer::init()`内、既知の非対称性の追加情報）。これらのVAOに依存する初期化はRenderer::init時点では行えず、遅延実行が必要。
 - **BaseCubeに見た目系プロパティを追加する場合、`instanceableShapeIndex()`（Renderer.cpp）に「デフォルト値以外は除外」の条件追加が必須**。忘れるとインスタンス描画された個体だけ新プロパティが無視されるサイレントな見た目バグになる。memory: `primitive-instancing.md`に記録済み。
+
+---
+
+## 2026-07-14 SignalEventのエディター生成対応 + Humanoidアニメーション更新のランタイム欠落修正
+
+### 何をしたか
+
+**1. SignalEventインスタンスをエディター/シーンファイルから生成可能にした**
+- `src/Core/SceneLoader.cpp`: `#include <Instances/SignalEvent.hpp>`追加、`createInstance()`に`if (className == "SignalEvent") return std::make_shared<SignalEvent>();`を追加（`Highlight`の直後）。`Fired`はPropertyRegistryの`sig<>`（Luau読み取り専用）でYAML保存対象ではないため、`hasProps`リストへの追加は行っていない。
+- `src/Editor/SceneHierarchyPanel.cpp`: `#include <Instances/SignalEvent.hpp>`追加、Insert Objectメニューの「Other」カテゴリに`tryInsertInstance<SignalEvent>(m_history, "SignalEvent", parentSp)`を追加（`Animation`の直後）。
+
+**2. `Humanoid::updateAll`静的メソッドを新設し、Animation再生をworkspace全体のHumanoidに拡張**
+- `include/Instances/Humanoid.hpp` / `src/Instances/Humanoid.cpp`: `static void updateAll(Instance* root, float dt)`を新規追加。`ParticleEmitter::updateAll`と全く同じ「ツリー再帰走査+IsA判定」パターンで、見つけた全Humanoidの`updateAnimation(dt)`を呼ぶ。
+- `src/main.cpp`: 従来`if (isPlaying && !isPaused && user->humanoid) { user->humanoid->updateAnimation(deltaTime); }`だった箇所を`if (isPlaying && !isPaused) { Humanoid::updateAll(workspace.get(), deltaTime); }`に置換。対象がローカルユーザーの自キャラだけだったのを、workspace内の全Humanoid（NPC含む）に拡張。
+- `src/game_main.cpp`: `#include <Instances/Humanoid.hpp>`を追加し、既存の`syncWeldKinematics()`呼び出しの直前に`Humanoid::updateAll(workspace.get(), deltaTime)`を新規追加（従来はHumanoidアニメーション更新の呼び出しが**一切存在しなかった**）。
+
+**3. SignalEventのPASS/FAIL自動テストを追加**
+- `assets/scenes/signal_test.yaml`: `SignalEvent`インスタンス（`TestSignalEvent`）を新規追加し、`SceneLoader::createInstance`経由のYAML復元もテスト対象にした。
+- `scripts/signal_test.luau`: Test 5として`Instance.new("SignalEvent")`でのFire/Connect（引数付き）と、シーンからロードした`TestSignalEvent`のFire/Connectの両方を`[PASS]`/`[FAIL]`形式で検証するコードを追加。
+
+**4. readme.mdのチェックリスト更新**
+- 「本当に実装できているか、Luauスクリプトとシーンファイルでテストする」「キーフレームに到達した、というシグナルイベントを追加」「SignalEventインスタンスを追加」「エディターでインスタンスとして生成する方法がないので、対応する」の4項目を`[x]`に変更。
+
+### なぜそうしたか
+
+- **ユーザーが選択中だったreadme.mdの一節（「本当に実装できているか、テストする」TODO）を起点に調査した結果、当初の想定より大きい問題が見つかった**: `SignalEvent`クラス自体はFire/Connect/Luauバインディングまで完成していたが、`SceneLoader::createInstance()`とエディターのInsert Objectメニューへの登録漏れがあり、「エディターでインスタンスとして生成する方法がない」というユーザーの手元確認と一致した。まずこの明確なバグから着手する方針とした。
+- **KeyframeReachedシグナルは「設計」ではなく「配線漏れの発見」だった**: readme.mdでは`[?]`（未確認）マークだったため、当初ユーザーには「別途設計が必要な未実装機能」として提示し、一度は「一緒に設計する」との回答を得た。しかし実際にコードを読むと`Humanoid::KeyframeReached`シグナル・`Humanoid::updateAnimation()`での発火ロジック・Luauバインディング・ドキュメント（`doc/Instances/Humanoid.md`）まですべて実装済みだった。設計をやり直す必要はなく、「なぜ動いていないように見えるのか」を追った結果、**呼び出し元(`updateAnimation`を毎フレーム呼ぶ場所)が`src/main.cpp`内の`user->humanoid`だけに限定されており、`src/game_main.cpp`（実際のゲームランタイム）には呼び出し自体が存在しない**という配線漏れに行き着いた。「たぶん未実装だろう」で新規設計を始めず、まず既存コードを読みきったことで、実装済みの機能への的外れな重複実装を避けられた。
+- **`user->humanoid`限定ではなく`Humanoid::updateAll`でworkspace全体を対象にする方式を採用**: 当初の問題提起はgame_main.cppの欠落のみだったが、同じ`updateAnimation`欠落パターンはmain.cpp側にもある（NPCのHumanoidはPlayモードでもアニメーションしない）。修正の一貫性を保つため、`ParticleEmitter::updateAll`/`Weather::updateAll`という既存の「ツリー全体を走査して対象クラスを更新する」確立済みパターンを踏襲し、main.cpp/game_main.cpp両方を同じ`Humanoid::updateAll`経由に統一した。ユーザーには事前にこの方針（game_main.cppの修正に合わせてmain.cppも一貫させる）を確認済み。
+- **KeyframeReachedの自動テストは追加せず、SignalEventのみPASS/FAIL化した**: ヘッドレステスト`RecubinTest`（`test_main.cpp`）は`fireHeartbeat`を一度も呼ばず、スクリプトの同期実行と`wait()`タイマー消化だけを行う設計だと判明した（実機で`signal_test.yaml`を実行してHeartbeatが1回も発火しないことを確認済み）。そのため`Humanoid::updateAnimation`のようなフレーム駆動の処理は自動テストのしようがない。一方`SignalEvent:Fire()`は完全に同期的（Connect登録→Fire即座にコールバック実行）なので、これだけは自動PASS/FAIL化できると判断した。KeyframeReachedの動作確認は実機でのPlayモード/ゲーム実行に委ねることをユーザーに事前合意済み。
+
+### どういう経緯か
+
+1. ユーザーが選択中のIDE範囲（readme.md「本当に実装できているか、Luauスクリプトとシーンファイルでテストする」TODO）を対象に「確認、修正、テストを回してください」と指示。
+2. `SignalEvent`関連ファイルを調査し、クラス自体は実装済みだが`SceneLoader::createInstance`とエディターのInsert Objectメニューに未登録と判明。
+3. AskUserQuestionで「KeyframeReached（キーフレーム到達シグナル）も今回一緒に設計するか」を確認→ユーザーは「設計する」を選択。
+4. `Humanoid.hpp`/`Humanoid.cpp`/`LuauEngine_Dispatch.cpp`/`doc/Instances/Humanoid.md`を読んだ結果、KeyframeReachedは**既に完全実装済み**と判明（設計は不要）。代わりに`updateAnimation`の呼び出し元を追跡し、`game_main.cpp`に呼び出しが一切ないという別の実装漏れを発見。
+5. この発見をユーザーに報告し、AskUserQuestionで「game_main.cppの修正も今回一緒に行うか」を確認→ユーザーは「今回一緒に修正。ヘッドレステストはできるものだけで大丈夫。作業後、手動確認が必要なものを教えてほしい」と回答。
+6. `ParticleEmitter::updateAll`/`Weather::updateAll`の既存パターンを参考に`Humanoid::updateAll`の設計を確定し、変更対象ファイル・箇所を具体的に列挙した上でimplementerサブエージェントに実装を委譲。
+7. implementer完了後、`git diff`で指示範囲外の変更がないことを確認（`RCBN.luah`/`readme.md`/`scripts/StressTest.luau`/`src/Util/FrameProfiler.cpp`はセッション開始前からの別件の未コミット変更で、implementerも触れていないことを確認）。
+8. `RecubinTest.exe assets/scenes/signal_test.yaml`を単体実行し、新規追加した2件の`[PASS]`を確認。
+9. `python run_regression.py Release`で全体回帰テストを実行し、`87 passed, 3 failed`（既知ベースライン85 passed/3 failedに対し、新規SignalEventテスト2件のPASSが純増、失敗3件は既知のvoid.yaml 1件+IsPlaying 2件のまま）と確認。新規リグレッションなし。
+10. readme.mdの該当4チェック項目を`[x]`に更新。
+
+**試して失敗した方法（教訓）**:
+- readme.mdの`[?]`マークを見て「未設計の新機能」と早合点しかけたが、AskUserQuestionで一度「設計する」方向に進みかけた後、実装を読んで初めて「既に実装済みで、駆動側の配線が漏れているだけ」と判明した。`[?]`は「未確認」であって「未実装」ではないケースがあると学んだ。**readme.mdのチェックマークだけで実装状況を判断せず、着手前に必ず実装コードを読んで裏を取る**（今回はたまたま被害はなかったが、一歩間違えば既存のKeyframeReachedと重複する別実装を作りかねなかった）。
+
+### 未解決・保留
+
+- 実機での最終確認待ち: `Humanoid::updateAll`によるアニメーション更新（特にNPCのHumanoidや`game_main.cpp`側のビルド済みゲームでのAnimation再生・KeyframeReached発火）は、ヘッドレステストでは検証不能な仕組み（`RecubinTest`はHeartbeatを発火しないため）。ビルド成功+回帰テストのみ確認済みで、実際にAnimationを再生してKeyframeReachedが期待通り発火するかはユーザーの実機確認が必要。
+- 同じ理由で、既存の`scripts/signal_test.luau`のTest 1〜4（Heartbeat:Connect/Once/Until、Touched:Once/Connect）も従来からヘッドレステストでは実質検証されていない（print診断のみ、PASS/FAIL化されていない）。今回はスコープ外としたが、フレーム駆動機能の自動テストをどう充実させるかは別途検討の余地がある。
+- 前セッションからの持ち越し: `scripts/CanvasPaint.luau`の`[PAINT]`診断print削除（Canvas実機確認待ち）、矢印キーカメラ回転速度1.5→1.0の体感確認は今回も未回答のまま。
+
+### 暗黙仕様の発見
+
+- **`RecubinTest`（`test_main.cpp`、ヘッドレステストハーネス）は`fireHeartbeat`を一度も呼ばない**（`spec.md`に記載なし）。ループは「待機中スクリプトのタイマーを`tickWaitingScript`で減算するだけ」で、Heartbeat/Humanoidアニメーション/Weather/ParticleEmitter等のフレーム駆動処理は一切動かない。`System.Heartbeat:Connect`等を使うテストスクリプトはヘッドレス環境では登録した瞬間の1回も発火せず、PASS/FAIL判定ではなくprint診断にしかならない。今後フレーム駆動の機能を自動テストしたい場合は、`test_main.cpp`のループ自体に`fireHeartbeat`等の呼び出しを追加する設計変更が必要になる。
+- **`Humanoid::updateAnimation()`（Animation再生・KeyframeReached発火）は今回の修正まで`src/game_main.cpp`から一切呼ばれていなかった**（`spec.md`に記載なし）。つまり配布用ビルド(`RecubinEngine.exe`相当のゲームランタイム)ではAnimationが再生されない状態だった可能性が高い。`Humanoid::updateAll`経由に統一したことで解消したが、今後Humanoid関連の新機能を追加する際は、`main.cpp`（エディター）だけでなく`game_main.cpp`（ランタイム）側の呼び出し漏れがないか両方を確認する必要がある。
+- **`PropertyRegistry`の`sig<>`（`include/Core/PropertyRegistry.hpp`）で登録するシグナル型プロパティはLuau読み取り専用でYAML保存対象にならない**（`spec.md`に記載なし）。`SceneLoader.cpp`の`hasProps`判定に追加する必要があるのは「実際にYAMLへ保存すべきフィールド」を持つクラスのみで、シグナルだけを持つクラス（`SignalEvent`等）は`hasProps`に入れなくてよい。
+
+---
+
+## 2026-07-15 Humanoidアニメーション崩壊バグの根本解決 + Animation Editorの編集セッション方式への再設計
+
+### 何をしたか
+
+**1. BaseCube二重解放クラッシュの修正（前半、2026-07-14夜）**
+- `src/main.cpp`: Play→StopブロックとLoadボタンブロックに、アプリ終了時（既存）と同じ`ed->m_history.clear()`/`ed->clearClipboard()`を追加。ギズモ操作でUndo履歴に積まれたBaseCubeへの強参照(`GizmoCommand`/`MultiGizmoCommand`)が、シーン破棄後まで生き残ってデストラクタ遅延→`lastWorkspace`へのUse-After-Freeを起こしていた。
+- `src/Core/Physics.cpp`: `rebuildGroup()`の「5. cubesエントリーを更新」で、`Physics::cubes`に未登録のcubeを新規`push_back`するよう修正。Weld/compound経由のactorが追跡から漏れると`clearCubes()`で`BaseCube::actor`がnullptrにされず、dangling actorへのアクセスでクラッシュしていた。
+- `include/Instances/Humanoid.hpp`: Humanoidだけが兄弟BaseCubeをshared_ptr(強参照)で持つ規約違反についてTODOコメントを追記（weak_ptr化は将来課題）。
+
+**2. 「頭が埋まる/バラバラになる」アニメーションバグの根本原因特定と修正**
+- 根本原因: `Humanoid::applyBodyAnimation()`は`if (!Root) return;`で始まるが、`Root`はPlay中の`move()`等でしか解決されない。**一度もPlayしていないEditorセッションではRootが常にnullptrで、`saveBindPose()`から呼んだ`applyBodyAnimation()`は毎回no-op**だった。結果、Add Keyで記録されるキーフレームはリグ補正のかからない生の絶対座標基準（Root相対で約-3.8、正しくは+2.5）のまま。「Animationを消して打ち直しても直らない」のはこのため。
+- `src/Instances/Humanoid.cpp`: `applyBodyAnimation()`冒頭に`updateAnimation()`と同じ`if (!Root) { Parent.lock()経由でresolveParts(); }`の遅延解決を追加（3行）。
+
+**3. Animation Editor Panelを「明示的な編集セッション」方式に再設計（後半、本命）**
+- 上記2の修正後、今度は「編集中にもリグがついてくる」との報告。フォーカス連動設計の構造欠陥が表面化した: ギズモ編集は必ずビューポートクリック（=フォーカスOUT→`restoreBindPose()`で編集巻き戻し）とパネルクリック（=フォーカスIN→`saveBindPose()`再発火＋リグ適用でドラッグ結果を上書き）を往復するため、**ユーザーの編集がキー記録前に必ず破壊される**。
+- `include/Editor/AnimationEditorPanel.hpp` / `src/Editor/AnimationEditorPanel.cpp`: フォーカス判定(`m_wasFocused`)を全廃。「編集開始」(緑)/「編集終了」(黄)トグルボタンを新設し、開始時に1回だけ`saveBindPose()`+`applyBodyAnimation()`でリグ組み立て、終了時に`endEditSession()`(公開メソッド)で復元。セッション外では再生コントロール・Timeスライダー・Add Key・Goを`ImGui::BeginDisabled`で無効化（キー削除X/Easing/Export/Import/Speed/Looped/Lengthはcframeを触らないので常時有効）。別Model切り替えで自動終了、選択解除(model==nullptr)では維持。
+- `include/Editor/Localization.hpp` / `src/Editor/Localization.cpp`: `StartEditButton`/`EndEditButton`/`StartEditHint`の日英文言を追加。
+- `src/main.cpp`: 3箇所に`ed->animationPanel->endEditSession()`を追加。(a)Play開始時のスナップショット保存**直前**（プレビュー姿勢が`_snapshot.yaml`に焼き込まれてStop後のシーンが静かに汚染されるのを防ぐ）、(b)Play→Stop時、(c)Loadボタン時（Play中に開始されたセッションが破棄済みツリーへのdanglingポインタを持ち越すのを防ぐ）。
+
+### なぜそうしたか
+
+- **「記録が間違っているのか、プログラムが間違っているのか」の切り分けを最優先した**: physics_test.yamlのHeadキーフレーム値（Root相対-3.8）が「Root位置5.411と生のHead位置1.6の差分」と正確に一致することから、「applyBodyAnimationが一度も効いていない状態で記録された」と数値的に立証できた。これでデータ再作成では直らないこと（プログラム側のバグ）が確定した。
+- **フォーカス連動の小手先修正ではなく方式ごと置き換えた**: フォーカスIN/OUTはギズモ編集フローと本質的に両立しない（編集には必ずフォーカス往復が必要）。ユーザーに「編集フローのみ修正 vs リグの決め打ち自体を廃止する大改修」「明示ボタン vs 自動セッション」をAskUserQuestionで確認し、両方とも推奨案（編集フローのみ・明示ボタン）で合意した。
+- **固定リグ(Head=Root+2.5等のハードコード)は維持**: ランタイムの姿勢基準がこのリグである以上、エディター側をリグ基準に合わせるのが最小修正。リグをシーン配置由来にする案は歩行アニメの関節位置導出やテンプレートデータ整合まで波及する大改修のためスコープ外とした（ユーザー合意済み）。
+- **Playスナップショットへの焼き込み防止を必須要件にした**: Play開始時の`saveScene(snapshotPath)`は現在のcframeをそのまま保存するため、プレビュー姿勢が入ったままPlayするとStop後のシーンが汚染される。「作り直しても直らない」ように見えた一因はこれの可能性が高い。
+
+### どういう経緯か
+
+1. KeyframeReachedのテスト中、「アニメーションが絶対座標を引き継いだまま相対移動して頭が埋まる」との報告。
+2. Root未解決問題と非トラックパーツの凍結問題を修正（`updateAnimation`のアイドルポーズフォールバック+`m_bodyPoseUpdatedThisFrame`フラグ）。「固定アニメーションを完全上書きしたくない」というユーザー要件に合わせ、move()由来のポーズを優先する設計にした。
+3. それでも直らず、さらに`BaseCube::~BaseCube()`でのアクセス違反クラッシュが発生。3体のExplore並列調査でUndo履歴の強参照とWeld/compoundの登録漏れという2つの独立バグを特定し修正。
+4. クラッシュ解消後も「顔が低いまま」が残存。再調査で`saveBindPose()`→`applyBodyAnimation()`がRoot未解決でno-opだったと確定し、遅延解決を追加。
+5. すると「編集中にリグがついてくる」が発生（リグ適用が実際に動くようになったことでフォーカス連動設計の欠陥が表面化）。編集セッション方式への再設計を計画・実装し、ユーザーの実機確認で「直った」と確認。
+
+**試して失敗した方法（教訓）**:
+- 「Stopを押してもRootの位置は戻らない」と一度ユーザーに説明したが、これは誤りだった（Play開始時にスナップショット保存→Stopで復元される）。コードを読まずに挙動を推測して説明した箇所が後で矛盾した。
+- 対症療法の連鎖になった: Root遅延解決(手順4)は単体では正しい修正だが、フォーカス連動という上位設計の欠陥を直さないまま入れたため新しい症状(手順5)を生んだ。「表面化した症状を1つずつ潰す」のではなく、編集フロー全体を先に俯瞰すべきだった。
+
+### 未解決・保留
+
+- `physics_test.yaml`のHeadキーフレームはユーザーが打ち直し済み（「直った」確認済み）。ただしWorkspace直下の`Animation`(Cube6用)など他の既存Animationデータに同種の壊れた値が残っている可能性は未確認。
+- `AnimationEditorPanel::m_savedModel`は生ポインタのまま。セッション中にModel自体をHierarchyから削除するとdangling（Play/Stop/Loadの主要経路は今回のフックで塞いだが、削除経路は未対応の既存リスク）。
+- Humanoidの兄弟パーツshared_ptr参照のweak_ptr化（Humanoid.hppのTODO）。
+- 回帰テストの既知失敗3件（void.yaml + Sound.IsPlaying x2）は継続。ベースラインは87 passed / 3 failed。
+
+### 暗黙仕様の発見
+
+- **ランタイムのキャラクター姿勢基準は`applyBodyAnimation()`内のハードコードリグ**（Torso=Root+1, Head=Root+2.5, 肩±1.5/+2, 腰±0.5/0。spec.md未記載）。シーンYAMLに保存された各パーツのPosition/Rotationは再生時には使われない。キーフレームはこのリグ基準のRoot相対で記録しないと再生時に必ずズレる。
+- **Play開始時のスナップショット(`_snapshot.yaml`)は「その瞬間のcframe」をそのまま保存する**（spec.md未記載）。エディター上でパーツのcframeを一時改変する機能（プレビュー等）は、Play開始前に必ず復元しないとStop後のシーンを静かに汚染する。今後同種の一時改変機能を作る際は`endEditSession`相当のフックをmain.cppのPlay開始ブロックに必ず追加すること。
+- **`Spatial::Position`/`Rotation`は`cframe`への参照エイリアス**であり、独立フィールドや毎フレームのプロパティ→cframe同期は存在しない。エディター中に`cframe`へ直接書いた値は誰にも上書きされず保持される。

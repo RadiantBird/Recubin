@@ -43,6 +43,7 @@
 #include <Instances/Moon.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/Animation.hpp>
+#include <Instances/SignalEvent.hpp>
 #include <Instances/StarterCharacter.hpp>
 #include <Instances/TextLabel.hpp>
 #include <Instances/TextButton.hpp>
@@ -548,6 +549,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<StarterCharacter>(m_history, "StarterCharacter", parentSp);
         tryInsertInstance<Humanoid>(m_history, "Humanoid", parentSp);
         tryInsertInstance<Animation>(m_history, "Animation", parentSp);
+        tryInsertInstance<SignalEvent>(m_history, "SignalEvent", parentSp);
 
         ImGui::EndMenu();
     }

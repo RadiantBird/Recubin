@@ -133,6 +133,9 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "キーを追加",          "Add Key" },
     { "Cube(Model直下)を選択するとキーを追加できます", "Select a Cube directly under the Model to add a key" },
     { "パーツ: %s",          "part: %s" },
+    { "編集開始",            "Start Editing" },
+    { "編集終了",            "End Editing" },
+    { "編集開始を押すとポーズ編集・プレビューができます", "Press Start Editing to pose parts and preview" },
 
     // ---- ConsolePanel ----
     { "システム",            "System" },

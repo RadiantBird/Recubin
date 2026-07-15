@@ -6,173 +6,6 @@ Root:
     BaseResolution: [1024, 768]
     UseNetwork: false
   Children:
-    - ClassName: StarterCharacter
-      Name: StarterCharacter
-      Children:
-        - ClassName: Cube
-          Name: LeftArm
-          Properties:
-            Position: [-1.5, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Humanoid
-          Name: Humanoid
-          Properties:
-            WalkSpeed: 24
-            JumpPower: 50
-            ClimbSpeed: 5
-            JumpHeight: 6.3710494
-            MaxHealth: 100
-            RespawnTime: 5
-            Health: 100
-        - ClassName: Cube
-          Name: RightArm
-          Properties:
-            Position: [1.5, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Root
-          Properties:
-            Position: [0, 5.411, 0]
-            Size: [2, 4, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.13333334, 0.52156866, 0.6509804, 0]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: LeftLeg
-          Properties:
-            Position: [-0.5, -2, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0.14, 0.32, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Sphere
-          Name: Head
-          Properties:
-            Position: [0, 1.625, 0]
-            Size: [1.25, 1.25, 1.25]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Decal
-              Name: Decal_Front
-              Properties:
-                Face: 0
-                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\hooo.png
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
-        - ClassName: Cube
-          Name: RightLeg
-          Properties:
-            Position: [0.5, -2, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0.14, 0.32, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: MeshCube
-          Name: Hair
-          Properties:
-            Position: [0, 0.509, 0.151]
-            Size: [4, 4, 4]
-            Rotation: [-9.099629e-07, 1, -9.099629e-07, -4.371056e-08]
-            Color: [0.3569231, 0.3569231, 0.3569231, 1]
-            Anchored: false
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            MeshFile: C:\Users\Ryarta\Documents\Recubin\assets\models\hair-Curuata.glb
-          Children:
-            - ClassName: Weld
-              Name: Weld
-              Properties:
-                Cube0: StarterCharacter\Hair
-                Cube1: StarterCharacter\Head
-        - ClassName: MeshCube
-          Name: Torso
-          Properties:
-            Position: [0, 0, 0]
-            Size: [2, 1.985, 2]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.14509805, 0.4862745, 0.47058824, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            MeshFile: C:\Users\Ryarta\Documents\Recubin\assets\models\GirlTorso.glb
-          Children:
-            - ClassName: Decal
-              Name: Decal
-              Properties:
-                Face: 0
-                Texture: C:\Users\Ryarta\Pictures\Tux.svg.png
-                UVCenter: [0.2, 0.7]
-                UVRadius: 0.4
-                Mode: 1
     - ClassName: Users
       Name: Users
       Children:
@@ -720,6 +553,211 @@ Root:
                     Position: [8.170935, 2.0406718, -20.80815]
                     Rotation: [0, 0, 0, 1]
                     Easing: 1
+        - ClassName: StarterCharacter
+          Name: StarterCharacter
+          Children:
+            - ClassName: Cube
+              Name: LeftArm
+              Properties:
+                Position: [-1.5, 0, 0]
+                Size: [1, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+            - ClassName: Humanoid
+              Name: Humanoid
+              Properties:
+                WalkSpeed: 24
+                JumpPower: 50
+                ClimbSpeed: 5
+                JumpHeight: 6.3710494
+                MaxHealth: 100
+                RespawnTime: 5
+                Health: 100
+            - ClassName: Cube
+              Name: RightArm
+              Properties:
+                Position: [1.5, 0, 0]
+                Size: [1, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+            - ClassName: Cube
+              Name: Root
+              Properties:
+                Position: [0, 5.411, 0]
+                Size: [2, 4, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0.13333334, 0.52156866, 0.6509804, 0]
+                Anchored: false
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+            - ClassName: Cube
+              Name: LeftLeg
+              Properties:
+                Position: [-0.5, -2, 0]
+                Size: [1, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.14, 0.32, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+            - ClassName: Sphere
+              Name: Head
+              Properties:
+                Position: [0, 1.5415881, 0]
+                Size: [1.25, 1.25, 1.25]
+                Rotation: [0.003965542, 1.7881531e-08, 9.582263e-07, 0.99999213]
+                Color: [1, 1, 1, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Decal
+                  Name: Decal_Front
+                  Properties:
+                    Face: 0
+                    Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\hooo.png
+                    UVCenter: [0.5, 0.5]
+                    UVRadius: 0.15
+                    Mode: 0
+            - ClassName: Cube
+              Name: RightLeg
+              Properties:
+                Position: [0.5, -2, 0]
+                Size: [1, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.14, 0.32, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+            - ClassName: MeshCube
+              Name: Hair
+              Properties:
+                Position: [0, 0.509, 0.151]
+                Size: [4, 4, 4]
+                Rotation: [-9.099629e-07, 1, -9.099629e-07, -4.371056e-08]
+                Color: [0.3569231, 0.3569231, 0.3569231, 1]
+                Anchored: false
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                MeshFile: C:\Users\Ryarta\Documents\Recubin\assets\models\hair-Curuata.glb
+              Children:
+                - ClassName: Weld
+                  Name: Weld
+                  Properties:
+                    Cube0: StarterCharacter\Hair
+                    Cube1: StarterCharacter\Head
+            - ClassName: MeshCube
+              Name: Torso
+              Properties:
+                Position: [0, 0, 0]
+                Size: [2, 1.985, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [0.14509805, 0.4862745, 0.47058824, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                MeshFile: C:\Users\Ryarta\Documents\Recubin\assets\models\GirlTorso.glb
+              Children:
+                - ClassName: Decal
+                  Name: Decal
+                  Properties:
+                    Face: 0
+                    Texture: C:\Users\Ryarta\Pictures\Tux.svg.png
+                    UVCenter: [0.2, 0.7]
+                    UVRadius: 0.4
+                    Mode: 1
+            - ClassName: Script
+              Name: KeyframeCheck
+              Properties:
+                ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\KeyframeCheck.luau
+                Enabled: true
+            - ClassName: Animation
+              Name: Animation
+              Properties:
+                Length: 1.66
+                Speed: 1
+                Looped: true
+                Tracks:
+                  - PartName: Head
+                    Keyframes:
+                      - Time: 0
+                        Position: [0, 2.5, 0]
+                        Rotation: [0, 0, 0, 1]
+                        Easing: 0
+                      - Time: 0.33
+                        Position: [1.5, 2.5, 0]
+                        Rotation: [0, 0, 0, 1]
+                        Easing: 3
+                      - Time: 0.66
+                        Position: [0, 2.5, 0]
+                        Rotation: [0, 0, 0, 1]
+                        Easing: 2
+                      - Time: 1
+                        Position: [0, 2.5, 0]
+                        Rotation: [0, 0, 0, 1]
+                        Easing: 3
+                      - Time: 1.33
+                        Position: [-1.5, 2.5, 0]
+                        Rotation: [0, 0, 0, 1]
+                        Easing: 2
+                      - Time: 1.66
+                        Position: [0, 2.5, 0]
+                        Rotation: [0, 0, 0, 1]
+                        Easing: 3
     - ClassName: AppImage
       Name: AppImage
       Properties:

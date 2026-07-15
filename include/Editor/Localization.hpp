@@ -63,6 +63,7 @@ enum class LocKey {
     // ---- AnimationEditorPanel ----
     SelectModelHint, TargetModelLabel, CreateAnimationButton,
     ExportButton, ImportButton, AddKeyButton, SelectCubeHint, PartLabel,
+    StartEditButton, EndEditButton, StartEditHint,
 
     // ---- ConsolePanel ----
     TabSystem, TabLuau, ClearButton, FilterLabel,

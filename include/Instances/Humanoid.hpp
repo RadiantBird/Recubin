@@ -37,6 +37,9 @@ public:
     std::shared_ptr<RCBNScriptSignal> KeyframeReached; // (partName: string, time: number) で発火
 
     // 兄弟パーツへの参照（resolveParts()で解決する）
+    // TODO: Weld/Motor/Rope/Rodは兄弟BaseCubeをweak_ptrで参照する規約だが、Humanoidだけ
+    // shared_ptr(強参照)。Play中も残り続けるテンプレートキャラクター等で通常の破棄経路を
+    // 通らない場合、actorの解放漏れと組み合わさると危険。将来的にweak_ptr化を検討。
     std::shared_ptr<BaseCube>   Root;
     std::shared_ptr<BaseCube>   Torso;
     std::shared_ptr<BaseCube> Head;
@@ -94,6 +97,10 @@ public:
     // 毎フレーム呼び出し、再生中Animationのトラックを評価して対象Cubeのcframeを更新する
     void updateAnimation(float dt);
 
+    // メインループから毎フレーム1回だけ呼ぶ。ツリーを再帰的に辿り、見つけた全Humanoidの
+    // updateAnimation(dt)を呼ぶ(ParticleEmitter::updateAllと同じ木構造走査パターン)
+    static void updateAll(Instance* root, float dt);
+
     // 一人称視点かどうかをUser側から渡し、身体パーツの透明化/復元を行う
     void updateFirstPersonState(bool wantsFirstPerson);
 
@@ -127,6 +134,8 @@ private:
     std::shared_ptr<Animation> m_currentAnim;
     float m_animTime = 0.0f;
     bool  m_animPlaying = false;
+    bool  m_bodyPoseUpdatedThisFrame = false; // このフレームでapplyBodyAnimation()が(呼び出し元を問わず)実行されたか。
+                                               // updateAnimation()冒頭で毎フレーム消費し、falseならアイドルポーズへフォールバックする
 
     bool isFirstPerson = false;
     bool bodyColorsSaved = false;

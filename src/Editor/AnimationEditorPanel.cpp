@@ -37,6 +37,15 @@ Animation* AnimationEditorPanel::findAnimation(Instance* model) const {
     return nullptr;
 }
 
+Humanoid* AnimationEditorPanel::findHumanoid(Instance* model) const {
+    if (!model) return nullptr;
+    for (auto const& [name, child] : model->getChildren()) {
+        if (child->getClassName() == "Humanoid")
+            return static_cast<Humanoid*>(child.get());
+    }
+    return nullptr;
+}
+
 void AnimationEditorPanel::saveBindPose(Instance* model) {
     m_bindPose.clear();
     if (model) {
@@ -61,6 +70,12 @@ void AnimationEditorPanel::restoreBindPose() {
     m_savedModel = nullptr;
 }
 
+void AnimationEditorPanel::endEditSession() {
+    restoreBindPose();
+    m_playing = false;
+    m_editing = false;
+}
+
 void AnimationEditorPanel::applyPreview(Animation* anim, Instance* model, float t) {
     if (!anim || !model) return;
     // キーフレームはRoot相対なので、現在のRoot CFrameに合成して適用する
@@ -83,19 +98,10 @@ void AnimationEditorPanel::onRender() {
     Instance* model = resolveModel();
     Animation* anim = model ? findAnimation(model) : nullptr;
 
-    // --- フォーカス遷移によるバインドポーズの退避/復元 ---
-    bool focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-    if (focused && model && m_poseSaved && m_savedModel != model) {
-        restoreBindPose();          // 対象Modelが変わったら旧Modelを復元
-    }
-    if (focused && !m_poseSaved && model) {
-        saveBindPose(model);
-    }
-    if (!focused && m_wasFocused) {
-        restoreBindPose();
-        m_playing = false;
-    }
-    m_wasFocused = focused;
+    // 編集セッション中に別のModelへ切り替わったら、旧Modelを復元してセッションを終了する。
+    // 選択解除(model==nullptr)ではセッションを維持する(パーツ選択の付け替え中に巻き戻さないため)
+    if (m_editing && model && model != m_savedModel)
+        endEditSession();
 
     // --- 対象が無い場合の案内 ---
     if (!model) {
@@ -119,8 +125,26 @@ void AnimationEditorPanel::onRender() {
         return;
     }
 
-    // --- 再生コントロール ---
+    // --- 編集セッションのトグル ---
     const ImVec2 btnSz = ImVec2(70.0f, 30.0f);
+    if (m_editing) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.55f, 0.0f, 1.0f));
+        if (ImGui::Button(Loc::t(Loc::LocKey::EndEditButton), btnSz)) endEditSession();
+        ImGui::PopStyleColor();
+    } else {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.65f, 0.18f, 1.0f));
+        if (ImGui::Button(Loc::t(Loc::LocKey::StartEditButton), btnSz)) {
+            saveBindPose(model);
+            if (Humanoid* humanoid = findHumanoid(model))
+                humanoid->applyBodyAnimation(false, false);
+            m_editing = true;
+        }
+        ImGui::PopStyleColor();
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::StartEditHint));
+    }
+
+    // --- 再生コントロール ---
+    ImGui::BeginDisabled(!m_editing);
     if (m_playing) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.55f, 0.0f, 1.0f));
         if (ImGui::Button(Loc::t(Loc::LocKey::PauseButton), btnSz)) m_playing = false;
@@ -138,6 +162,7 @@ void AnimationEditorPanel::onRender() {
         applyPreview(anim, model, m_time);
     }
     ImGui::PopStyleColor();
+    ImGui::EndDisabled();
 
     ImGui::SameLine();
     ImGui::SetNextItemWidth(90.0f);
@@ -161,7 +186,9 @@ void AnimationEditorPanel::onRender() {
     ImGui::DragFloat("Length", &anim->Length, 0.05f, 0.1f, 600.0f, "%.2f s");
     if (m_time > anim->Length) m_time = anim->Length;
 
+    ImGui::BeginDisabled(!m_editing);
     bool timeChanged = ImGui::SliderFloat("Time", &m_time, 0.0f, anim->Length, "%.2f s");
+    ImGui::EndDisabled();
 
     // --- キー記録（対象Cubeが選択されているとき）---
     Instance* sel = selectedInstance ? *selectedInstance : nullptr;
@@ -175,6 +202,7 @@ void AnimationEditorPanel::onRender() {
     ImGui::Combo("Easing", &m_easingChoice, easingNames, IM_ARRAYSIZE(easingNames));
     ImGui::SameLine();
     if (keyPart) {
+        ImGui::BeginDisabled(!m_editing);
         if (ImGui::Button(Loc::t(Loc::LocKey::AddKeyButton))) {
             // Cubeの現在ローカルCFrameをRoot相対に変換して記録する
             Spatial* root = dynamic_cast<Spatial*>(model->getChild("Root"));
@@ -185,6 +213,7 @@ void AnimationEditorPanel::onRender() {
                                   static_cast<EasingType>(m_easingChoice));
             if (m_time > anim->Length) anim->Length = m_time;
         }
+        ImGui::EndDisabled();
         ImGui::SameLine();
         ImGui::TextDisabled(Loc::t(Loc::LocKey::PartLabel), keyPart->Name.c_str());
     } else {
@@ -208,10 +237,12 @@ void AnimationEditorPanel::onRender() {
                     if (ImGui::Combo("##e", &e, easingNames, IM_ARRAYSIZE(easingNames)))
                         kf.easing = static_cast<EasingType>(e);
                     ImGui::SameLine();
+                    ImGui::BeginDisabled(!m_editing);
                     if (ImGui::SmallButton("Go")) {
                         m_time = kf.time;
                         applyPreview(anim, model, m_time);
                     }
+                    ImGui::EndDisabled();
                     ImGui::SameLine();
                     if (ImGui::SmallButton("X")) {
                         anim->removeKey(track.partName, kf.time);
@@ -227,19 +258,21 @@ void AnimationEditorPanel::onRender() {
     ImGui::EndChild();
 
     // --- プレビュー適用（再生中、または再生バーをドラッグしたフレームのみ）---
-    if (m_playing) {
-        m_time += ImGui::GetIO().DeltaTime * anim->Speed;
-        if (anim->Length > 1e-6f) {
-            if (anim->Looped) {
-                while (m_time > anim->Length) m_time -= anim->Length;
-            } else if (m_time >= anim->Length) {
-                m_time = anim->Length;
-                m_playing = false;
+    if (m_editing) {
+        if (m_playing) {
+            m_time += ImGui::GetIO().DeltaTime * anim->Speed;
+            if (anim->Length > 1e-6f) {
+                if (anim->Looped) {
+                    while (m_time > anim->Length) m_time -= anim->Length;
+                } else if (m_time >= anim->Length) {
+                    m_time = anim->Length;
+                    m_playing = false;
+                }
             }
+            applyPreview(anim, model, m_time);
+        } else if (timeChanged) {
+            applyPreview(anim, model, m_time);
         }
-        applyPreview(anim, model, m_time);
-    } else if (timeChanged) {
-        applyPreview(anim, model, m_time);
     }
 
     ImGui::End();

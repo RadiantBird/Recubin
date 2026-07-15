@@ -23,6 +23,7 @@
 #include <Instances/PostEffect.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/FileRef.hpp>
+#include <Instances/SignalEvent.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/PathfindingService.hpp>
 #include <Core/PropertyRegistry.hpp>
@@ -245,6 +246,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Texture")   return std::make_shared<Texture>(0, Face::Front);
     if (className == "Canvas")    return std::make_shared<Canvas>();
     if (className == "Highlight") return std::make_shared<Highlight>();
+    if (className == "SignalEvent") return std::make_shared<SignalEvent>();
     if (className == "Sound") {
         if (AudioService::instance) {
             return std::make_shared<Sound>(*AudioService::instance);

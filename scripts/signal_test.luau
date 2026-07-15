@@ -53,4 +53,30 @@ else
     print("[WARN] 'Dropper' not found – Touched test skipped")
 end
 
+-- ---- Test 5: SignalEvent (Instance.new + シーンYAMLロード両方) ----
+local sig = Instance.new("SignalEvent")
+local received = nil
+sig.Fired:Connect(function(a, b)
+    received = {a, b}
+end)
+sig:Fire("hello", 42)
+if received and received[1] == "hello" and received[2] == 42 then
+    print("[PASS] SignalEvent Instance.new + Fire/Connect with args")
+else
+    print("[FAIL] SignalEvent Instance.new + Fire/Connect with args")
+end
+
+local sceneSignal = workspace:FindChild("TestSignalEvent")
+if sceneSignal then
+    local sceneFired = false
+    sceneSignal.Fired:Connect(function()
+        sceneFired = true
+    end)
+    sceneSignal:Fire()
+    print(sceneFired and "[PASS] Scene-loaded SignalEvent Fire/Connect"
+                       or "[FAIL] Scene-loaded SignalEvent Fire/Connect")
+else
+    print("[FAIL] SignalEvent instance not found in scene (createInstance registration missing?)")
+end
+
 print("=== Listeners registered, waiting for events... ===")

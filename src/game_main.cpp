@@ -8,6 +8,7 @@
 #include <Instances/Decal.hpp>
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Weather.hpp>
+#include <Instances/Humanoid.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
@@ -281,6 +282,10 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
+
+        // 再生中のAnimationを評価し、対象Cubeのcframeを上書きする(main.cppの対応処理と同じ)
+        // workspace内の全Humanoid(NPC含む)が対象
+        Humanoid::updateAll(workspace.get(), deltaTime);
 
         // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、
         // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす
