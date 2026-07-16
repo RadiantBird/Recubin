@@ -619,6 +619,65 @@ private:
     }
 };
 
+// --- NumberValue.Value 変更 ---
+struct SetNumberValueCommand : Command {
+    std::shared_ptr<Instance> m_target;
+    double m_before, m_after;
+
+    SetNumberValueCommand(std::shared_ptr<Instance> target, double before, double after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+private:
+    void apply(double v) {
+        if (!m_target) return;
+        YAML::Node n; n = v;
+        m_target->setProperty("Value", n);
+    }
+};
+
+// --- QuaternionValue.Value 変更 ---
+struct SetQuaternionValueCommand : Command {
+    std::shared_ptr<Instance> m_target;
+    Quaternion m_before, m_after;
+
+    SetQuaternionValueCommand(std::shared_ptr<Instance> target, Quaternion before, Quaternion after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+private:
+    void apply(const Quaternion& v) {
+        if (!m_target) return;
+        YAML::Node n;
+        n.push_back(v.x); n.push_back(v.y); n.push_back(v.z); n.push_back(v.w);
+        m_target->setProperty("Value", n);
+    }
+};
+
+// --- CFrameValue.Value 変更 ---
+struct SetCFrameValueCommand : Command {
+    std::shared_ptr<Instance> m_target;
+    CFrame m_before, m_after;
+
+    SetCFrameValueCommand(std::shared_ptr<Instance> target, CFrame before, CFrame after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+private:
+    void apply(const CFrame& v) {
+        if (!m_target) return;
+        YAML::Node n;
+        YAML::Node pos; pos.push_back(v.Position.x); pos.push_back(v.Position.y); pos.push_back(v.Position.z);
+        YAML::Node rot; rot.push_back(v.Rotation.x); rot.push_back(v.Rotation.y); rot.push_back(v.Rotation.z); rot.push_back(v.Rotation.w);
+        n["Position"] = pos;
+        n["Rotation"] = rot;
+        m_target->setProperty("Value", n);
+    }
+};
+
 // --- Rope の float プロパティ変更（MaxDistance / Stiffness / Damping） ---
 struct SetRopeFloatCommand : Command {
     std::shared_ptr<Rope> m_target;

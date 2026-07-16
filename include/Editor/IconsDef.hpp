@@ -23,6 +23,7 @@
 #define ICON_FILE         "\xef\x85\x9b"  // f15b fa-file
 #define ICON_SKYBOX       ""  // map?
 #define ICON_CONSTRAINT   "\xef\x81\xa1"  // f061 fa-arrow-right (link)
+#define ICON_VALUE        "\xef\x8a\x92"  // f292 fa-hashtag
 #define ICON_USER         "\xef\x80\x87"  // f007 fa-user
 #define ICON_WEATHER      "" // cloud and thunder
 #define ICON_STARTERCHARACTER "" // person with gear

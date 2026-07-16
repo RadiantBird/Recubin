@@ -22,6 +22,7 @@ FIXED_SCENES = [
     "assets/scenes/terrain_test.yaml",
     "assets/scenes/test_scene.yaml",
     "assets/scenes/signal_test.yaml",
+    "assets/scenes/value_test.yaml",
     "assets/scenes/test_bindings.yaml",
 ]
 

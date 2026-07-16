@@ -9,6 +9,8 @@
 #include "include/Instances/Lighting.hpp"
 #include "include/Instances/Rope.hpp"
 #include "include/Instances/Rod.hpp"
+#include "include/Instances/BallSocket.hpp"
+#include "include/Instances/NoCollision.hpp"
 #include "include/Instances/Weld.hpp"
 #include "include/Instances/Humanoid.hpp"
 #include "include/Instances/Animation.hpp"
@@ -34,6 +36,10 @@
 #include "include/Instances/ImageButton.hpp"
 #include "include/Core/Terrain.hpp"
 #include "include/Instances/PathfindingService.hpp"
+#include "include/Instances/NumberValue.hpp"
+#include "include/Instances/QuaternionValue.hpp"
+#include "include/Instances/CFrameValue.hpp"
+#include "include/Instances/ObjectValue.hpp"
 
 // ─── Binding helper factories (anonymous, internal to this TU) ────────────────
 //
@@ -445,8 +451,14 @@ void LuauEngine::InitDispatchTable_Physics() {
     DispatchTable["Rod"]["LineWidth"] = getter_number <Rod, &Rod::LineWidth>();
     DispatchTable["Rod"]["Color"]     = getter_color4 <Rod, &Rod::Color>();
 
+    DispatchTable["BallSocket"]["Attachment0"] = getter_string<BallSocket, &BallSocket::m_attachment0Name>();
+    DispatchTable["BallSocket"]["Attachment1"] = getter_string<BallSocket, &BallSocket::m_attachment1Name>();
+
     DispatchTable["Weld"]["Cube0"] = getter_string<Weld, &Weld::m_cube0Name>();
     DispatchTable["Weld"]["Cube1"] = getter_string<Weld, &Weld::m_cube1Name>();
+
+    DispatchTable["NoCollision"]["Cube0"] = getter_string<NoCollision, &NoCollision::m_cube0Name>();
+    DispatchTable["NoCollision"]["Cube1"] = getter_string<NoCollision, &NoCollision::m_cube1Name>();
 
     DispatchTable["Motor"]["Attachment0"]   = getter_string<Motor, &Motor::m_attachment0Name>();
     DispatchTable["Motor"]["Attachment1"]   = getter_string<Motor, &Motor::m_attachment1Name>();
@@ -555,6 +567,32 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Script"]["Source"]  = getter_string<Script, &Script::Source>();
     DispatchTable["Script"]["Aborted"] = getter_bool  <Script, &Script::Aborted>();  // read-only（安全対策のタイムアウト等で自動的にセットされる）
     DispatchTable["Script"]["Restart"] = getter_closure(script_restart_closure, "Restart");
+
+    // ── Value系インスタンス ──
+    PropertyRegistry::applyToDispatch("ValueBase",     DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("IntValue",      DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("BoolValue",     DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Vector3Value",  DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Color4Value",   DispatchTable, SetterTable);
+
+    DispatchTable["NumberValue"]["Value"] = getter_number<NumberValue, &NumberValue::Value>();
+
+    DispatchTable["QuaternionValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
+        pushQuaternion(L, static_cast<QuaternionValue*>(obj)->Value);
+        return 1;
+    };
+
+    DispatchTable["CFrameValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
+        pushCFrame(L, static_cast<CFrameValue*>(obj)->Value);
+        return 1;
+    };
+
+    DispatchTable["ObjectValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
+        auto target = static_cast<ObjectValue*>(obj)->getTarget();
+        if (target) pushInstance(L, target);
+        else        lua_pushnil(L);
+        return 1;
+    };
 }
 
 
@@ -646,6 +684,9 @@ void LuauEngine::InitSetterTable_Physics() {
     SetterTable["Weld"]["Cube0"] = setter_cube_ref<Weld, &Weld::setCube0>();
     SetterTable["Weld"]["Cube1"] = setter_cube_ref<Weld, &Weld::setCube1>();
 
+    SetterTable["NoCollision"]["Cube0"] = setter_cube_ref<NoCollision, &NoCollision::setCube0>();
+    SetterTable["NoCollision"]["Cube1"] = setter_cube_ref<NoCollision, &NoCollision::setCube1>();
+
     SetterTable["Rope"]["Cube0"]       = setter_cube_ref     <Rope, &Rope::setCube0>();
     SetterTable["Rope"]["Cube1"]       = setter_cube_ref     <Rope, &Rope::setCube1>();
     SetterTable["Rope"]["Attachment0"] = setter_property_string("Attachment0");
@@ -662,6 +703,11 @@ void LuauEngine::InitSetterTable_Physics() {
     SetterTable["Rod"]["Attachment1"] = setter_property_string("Attachment1");
     SetterTable["Rod"]["LineWidth"] = setter_number<Rod, &Rod::LineWidth>();
     SetterTable["Rod"]["Color"]     = setter_color4<Rod, &Rod::Color>();
+
+    SetterTable["BallSocket"]["Cube0"]     = setter_cube_ref<BallSocket, &BallSocket::setCube0>();
+    SetterTable["BallSocket"]["Cube1"]     = setter_cube_ref<BallSocket, &BallSocket::setCube1>();
+    SetterTable["BallSocket"]["Attachment0"] = setter_property_string("Attachment0");
+    SetterTable["BallSocket"]["Attachment1"] = setter_property_string("Attachment1");
 
     SetterTable["Motor"]["Cube0"]         = setter_cube_ref<Motor, &Motor::setCube0>();
     SetterTable["Motor"]["Cube1"]         = setter_cube_ref<Motor, &Motor::setCube1>();
@@ -722,6 +768,50 @@ void LuauEngine::InitSetterTable_Misc() {
     SetterTable["User"]["CameraCFrame"] = [](lua_State* L, Instance* obj) {
         CFrame* cf = (CFrame*)luaL_checkudata(L, 3, LuauEngine::RCBN_CFRAME_METATABLE);
         static_cast<User*>(obj)->setCameraCFrame(*cf);
+        return 0;
+    };
+
+    // ── Value系インスタンス ──
+    SetterTable["NumberValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
+        auto* self = static_cast<NumberValue*>(obj);
+        self->Value = static_cast<double>(luaL_checknumber(L, 3));
+        if (self->Changed) self->Changed->fire([self](lua_State* L2) {
+            lua_pushnumber(L2, static_cast<lua_Number>(self->Value));
+            return 1;
+        });
+        return 0;
+    };
+
+    SetterTable["QuaternionValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
+        Quaternion* q = (Quaternion*)luaL_checkudata(L, 3, LuauEngine::RCBN_QUATERNION_METATABLE);
+        auto* self = static_cast<QuaternionValue*>(obj);
+        self->Value = *q;
+        if (self->Changed) self->Changed->fire([self](lua_State* L2) {
+            pushQuaternion(L2, self->Value);
+            return 1;
+        });
+        return 0;
+    };
+
+    SetterTable["CFrameValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
+        CFrame* cf = (CFrame*)luaL_checkudata(L, 3, LuauEngine::RCBN_CFRAME_METATABLE);
+        auto* self = static_cast<CFrameValue*>(obj);
+        self->Value = *cf;
+        if (self->Changed) self->Changed->fire([self](lua_State* L2) {
+            pushCFrame(L2, self->Value);
+            return 1;
+        });
+        return 0;
+    };
+
+    SetterTable["ObjectValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
+        auto* self = static_cast<ObjectValue*>(obj);
+        if (lua_isnil(L, 3)) {
+            self->setTarget(nullptr);
+        } else {
+            auto* ud = (std::weak_ptr<Instance>*)luaL_checkudata(L, 3, RCBN_INST_METATABLE);
+            self->setTarget(ud->lock());
+        }
         return 0;
     };
 }

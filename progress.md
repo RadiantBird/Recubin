@@ -399,3 +399,145 @@
 - **ランタイムのキャラクター姿勢基準は`applyBodyAnimation()`内のハードコードリグ**（Torso=Root+1, Head=Root+2.5, 肩±1.5/+2, 腰±0.5/0。spec.md未記載）。シーンYAMLに保存された各パーツのPosition/Rotationは再生時には使われない。キーフレームはこのリグ基準のRoot相対で記録しないと再生時に必ずズレる。
 - **Play開始時のスナップショット(`_snapshot.yaml`)は「その瞬間のcframe」をそのまま保存する**（spec.md未記載）。エディター上でパーツのcframeを一時改変する機能（プレビュー等）は、Play開始前に必ず復元しないとStop後のシーンを静かに汚染する。今後同種の一時改変機能を作る際は`endEditSession`相当のフックをmain.cppのPlay開始ブロックに必ず追加すること。
 - **`Spatial::Position`/`Rotation`は`cframe`への参照エイリアス**であり、独立フィールドや毎フレームのプロパティ→cframe同期は存在しない。エディター中に`cframe`へ直接書いた値は誰にも上書きされず保持される。
+
+---
+
+## 2026-07-16 BallSocket / NoCollision インスタンス新規実装 + 衝突フィルタリング基盤
+
+### 何をしたか
+
+**1. BallSocket インスタンス新規実装**（readme.md TODO消化）
+- `include/Instances/BallSocket.hpp` / `src/Instances/BallSocket.cpp`（新規）: Rod を雛形にした球面ジョイント拘束。`PxSphericalJoint`、リミット未設定（360度自由回転・距離固定）、Attachment0/1 対応。Rod と違い Color/LineWidth・ビューポート描画は持たない（ユーザー決定: デバッグ表示だけでOK）。
+- `src/Core/Physics.cpp` / `Physics.hpp`: `createBallSocket()`（`createRod()` 雛形、`composeAttachmentFrame()` 流用、`eCOLLISION_ENABLED=false`）。`update()` の pendingConstraints dispatch / `recreateActor()` / `rebuildGroup()` の再生成分岐に追加。
+- 配線: `SceneLoader.cpp`（ファクトリ/resolveConstraintRefs/hasProps/saveNode）、`LuauEngine.cpp`（Instance.new）、`LuauEngine_Dispatch.cpp`（Getter は Rod と同じく Attachment0/1 のみ、Setter は Cube0/1+Attachment0/1）、`PropertiesPanel.cpp`（`drawConstraintCubeRef`×2 + `drawConstraintAttachmentRef`×2）、`SceneHierarchyPanel.cpp`（ICON_CONSTRAINT 流用+挿入メニュー）、`Workspace.hpp`（friend 追加）。
+
+**2. NoCollision インスタンス新規実装 + 衝突フィルタリング基盤**（readme.md TODO消化）
+- 既存エンジンには「ペア単位で衝突だけ無効化する」機構が皆無だった（唯一の無効化手段はジョイントの `eCOLLISION_ENABLED` フラグで、拘束が前提）。以下を新設:
+  - 全シェイプ生成箇所（`createActor()` 3箇所 + `attachShapeToCompound()` 3箇所）で `shape->userData = cube.get()` を設定。Weld compound 内でも「シェイプ→所属Cube」の逆引きが可能に。
+  - `rcbnFilterShader` 拡張: `PxFilterData::word0` の候補ビット（`FILTER_WORD0_NOCOLLISION_CANDIDATE`）が**両方**のシェイプに立つペアのみ `eCALLBACK` を返す。それ以外は従来どおり `eDEFAULT`（既存衝突挙動への影響ゼロ）。
+  - `RCBNFilterCallback`（`PxSimulationFilterCallback` 実装）: `shape->userData` の正規化ポインタペアを `Physics::m_noCollisionPairs`（std::set）と照合し、該当なら `eSUPPRESS`。ポインタ比較のみで deref しないため破棄済みCubeでも安全。simulate 中はペア集合不変なのでロック不要。
+  - ライフサイクル: `createNoCollision()`（エントリ追加→ペア集合再構築→`applyNoCollisionFilterBit()` でビット付与+`resetFiltering`+wakeUp）、`removeConstraint()` の NoCollision 分岐（ジョイント経路に入らず早期return）、`update()` の expired sweep、`createActor()`/`rebuildGroup()` でのシェイプ再生成時のビット再付与。
+- `include/Instances/NoCollision.hpp` / `src/Instances/NoCollision.cpp`（新規）: Weld を雛形（Cube0/Cube1 のみ、Attachment なし、compound 収集なし）。`registerIfReady()` → `registerConstraint()` の統一フローに乗せた。
+- 配線は BallSocket と同じ6ファイル。
+
+**3. 前セッション保留事項の消化**
+- `scripts/CanvasPaint.luau` の `[PAINT]` 診断 print を全削除（ロジック無変更）。ユーザーから削除OKの明示確認を取った上で実施。
+
+**4. memory 更新**: 回帰テストのベースラインを 85→87 passed に更新（テストが2件増えていた。failed 3件の内訳は不変）。
+
+### なぜそうしたか
+
+- **NoCollision はフィルターシェーダー拡張方式を採用**: 「全軸フリーの PxD6Joint + eCOLLISION_ENABLED=false を張る」トリック（既存 ConstraintEntry 経路に乗り Physics 変更最小）と迷い、AskUserQuestion で提示→ユーザーが正攻法のフィルター方式を選択。将来のグループ単位衝突制御にも拡張できる基盤になった。
+- **コールバック照合は shape->userData のポインタペア**: filterData の 32bit word にグループID を割り当てる方式だとペア数・ID管理に上限や複雑さが出る。`pairFound()` は PxShape* を直接受け取れるので、シェイプに Cube ポインタを持たせて set 照合するのが最も単純で無制限。
+- **シェーダーは「両方に候補ビット」の時だけ eCALLBACK**: NoCollision に関与しないペア（地形・キャラ含む）はコールバック自体に到達させず、既存挙動を bit 単位で保存するため。
+- **BallSocket は PropertyRegistry ではなく手書き配線**: 既存拘束4種（Rope/Rod/Weld/Motor）がすべて手書きで、拘束系は PropertyRegistry 未対応のため既存規約に従った。
+
+### どういう経緯か
+
+1. readme.md の TODO（BallSocket/NoCollision）を計画モードで設計。Explore で既存拘束の全配線箇所（ファクトリ×2、SceneLoader、Dispatch、Panel×2、Physics のライフサイクル4箇所）を洗い出し。
+2. NoCollision の方式・BallSocket の描画有無・[PAINT] print 削除可否の3点をユーザーに質問→方針確定→プラン承認。
+3. BallSocket → NoCollision の順で implementer に委譲、各フェーズ後にメインセッションが git diff で設計と照合レビュー。
+4. レビューで1件の穴を検出し微修正: `update()` の expired sweep が「NoCollision インスタンスだけ消えて Cube が生存」のケースでビットを解除せず、**eSUPPRESS されたペアは resetFiltering されるまで再評価されない**ため衝突が永久に復活しない問題。sweep で除去エントリの生存 Cube に `applyNoCollisionFilterBit()` を再適用する形に修正（通常の削除経路はデストラクタ/onAncestorChanged→removeConstraint が処理するので、これは防御的経路の修正）。
+5. 最終ビルド成功、回帰テスト 87 passed / 3 failed（既知3件のみ、回帰なし）。
+
+### 未解決・保留
+
+- **実機確認待ち**: BallSocket の回転挙動、NoCollision のすり抜け、既存拘束（Rope/Rod/Weld/Motor）の非破壊。ビルド+回帰テストのみ確認済み。
+- 実機確認が取れたら readme.md の TODO 2項目（75-83行付近）の消し込みが残っている。
+- NoCollision と Weld を同じペアに張った場合、compound 内シェイプ同士はそもそも衝突しないため実質 no-op（仕様として問題ないが未検証）。
+- EditorManager のツールバーには BallSocket/NoCollision を追加していない（専用アイコンが必要なため意図的にスキップ。挿入メニューからは追加可能）。
+
+### 暗黙仕様の発見
+
+- **PhysX の `eSUPPRESS` ペアは filterData 変更か `resetFiltering()` があるまで再評価されない**（spec.md未記載）。ペア集合から除くだけでは衝突は復活しない。NoCollision 関連の状態変更は必ず `applyNoCollisionFilterBit()`（filterData 更新+resetFiltering+wakeUp）を経由すること。
+- **シェイプの userData は今セッションまで未使用だった**。今後は「全シェイプの userData = 所属 BaseCube*」が新しい不変条件。シェイプを生成する新コードは必ずこれを設定すること（設定漏れは NoCollision のサイレントな不発になる。actor->userData は compound では assembly[0] しか指せないので代用不可）。
+- **拘束系インスタンスの Luau Getter は Cube0/Cube1 を公開していない**（Rod/Rope/Motor は Attachment0/1 のみ、Weld/NoCollision は Cube0/1 のみ）。BallSocket もこの非対称な既存規約に合わせた。
+
+---
+
+## 2026-07-16 値系インスタンス（ValueBaseファミリー）新規実装
+
+### 何をしたか
+
+**1. `ValueBase` 基底 + 8 派生クラスの新規実装**（readme.md TODO消化、`IntValue`/`BoolValue`/`NumberValue`/`Vector3Value`/`Color4Value`/`CFrameValue`/`QuaternionValue`/`ObjectValue`）
+- `include/Instances/ValueBase.hpp` / `src/Instances/ValueBase.cpp`（新規）: `LightSource`と同型の中間基底（`Named<>`は使わない）。`std::shared_ptr<RCBNScriptSignal> Changed`（`SignalEvent::Fired`と同型）、`registerClass("ValueBase", {sig<&ValueBase::Changed>("Changed")})`。
+- `IntValue`/`BoolValue`/`Vector3Value`/`Color4Value`（各`.hpp`+`.cpp`、新規）: `Named<XValue, ValueBase>`。`PropertyRegistry::custom(name, type, get, set)`ビルダー（本タスクが初適用）で`Value`を登録、setラムダ内で値代入と`Changed->fire(...)`の両方を行う設計。
+- `NumberValue`(double)/`CFrameValue`/`QuaternionValue`/`ObjectValue`（各`.hpp`+`.cpp`、新規）: `PropValue`（`variant<float,int,bool,string,Vector3,Vector2,Color4>`）がCFrame・Quaternion・double・Instance参照を表現できないため、`Value`はPropertyRegistry非経由・`setProperty()`手書き（`Weld`/`Spatial`のcframe扱いを踏襲）。
+- `ObjectValue`: `weak_ptr<Instance> m_target` + `std::string m_targetPathName`（NoCollisionの`m_cube0Name`踏襲）。`resolveTarget()`（SceneLoader専用・名前更新なし）と`setTarget()`（Lua/UI駆動・パス再計算+Changed発火）を分離、`remapClonedInstances`をoverride。Luau側では実際のInstance型として公開（`LuauEngine::pushInstance`/`RCBN_INST_METATABLE`、`Parent`プロパティと同じ変換機構を流用）。
+
+**2. 全体配線**
+- `src/Core/LuauEngine_Dispatch.cpp`: `applyToDispatch("ValueBase", ...)`を独立して呼ぶことで`Changed`を8クラス共通で公開（`LightSource`が`PointLight`/`SpotLight`とは別に単独で`applyToDispatch`されている実例と同じパターン）。`NumberValue`/`CFrameValue`/`QuaternionValue`/`ObjectValue`の`Value`ゲッター/セッターは手書き。
+- `src/Core/LuauEngine.cpp`: `instanceFactories()`に8クラス追加（`ValueBase`自体は中間基底のため対象外）。
+- `src/Core/SceneLoader.cpp`: `createInstance()`に8行、`hasProps`判定に`|| inst->IsA("ValueBase")`1行（8クラスまとめてカバー）、YAML保存（PropertyRegistry駆動4クラスは`saveProperties`1行、手書き4クラスは個別実装）、`resolveConstraintRefs`の`walk`ラムダに`ObjectValue`分岐（`sceneRoot->getChildByPath(...)`で解決）を追加。
+- `include/Editor/CommandHistory.hpp`: `SetNumberValueCommand`/`SetCFrameValueCommand`/`SetQuaternionValueCommand`を新規追加（既存`SetVec3Command`/`SetRotationCommand`は`shared_ptr<Spatial>`直結で転用不可のため）。`ObjectValue.Value`は既存の`SetConstraintCubeNameCommand`（`Instance`汎用、`setProperty`経由）をそのまま再利用。
+- `src/Editor/PropertiesPanel.cpp`/`.hpp`: PropertyRegistry駆動4クラスは`renderSchemaInspector`、手書き4クラスは個別UI（`NumberValue`=`InputDouble`、`CFrameValue`/`QuaternionValue`=Euler変換DragFloat3、`ObjectValue`=新規`drawObjectValueRef()`＝テキストパス入力欄のみ、ビューポートPickボタンは無し）。
+- `src/Editor/SceneHierarchyPanel.cpp`: Insert Objectメニューに新規「Value」カテゴリを追加、8クラスの`tryInsertInstance<T>`。`getClassIcon()`に新規`ICON_VALUE`（`#`/fa-hashtag、`include/Editor/IconsDef.hpp`に追加）を割り当て。
+- `include/Editor/Localization.hpp` / `src/Editor/Localization.cpp`: `CategoryValue`/`CategoryValueDesc`を追加（`enum LocKey`の宣言順と`kTable`初期化順の1対1対応を崩さないよう、既存`CategoryPhysicsConstraintsDesc`の直後という同一位置に両方挿入）。
+
+**3. 自動テスト新規追加**
+- `assets/scenes/value_test.yaml` / `scripts/value_test.luau`（新規、`signal_test.yaml`/`test_bindings.luau`の`check(label,cond)`+`[PASS]`/`[FAIL]`方式を踏襲）: 8クラス全てについて、シーンロード値の検証・`Instance.new`での動的生成・`.Value`書込読取・`.Changed:Connect`発火を検証。39件全て`[PASS]`。
+- `run_regression.py`の`FIXED_SCENES`に1行追加。
+
+### なぜそうしたか
+
+- **テンプレート一括生成ではなく古典的OOP継承を採用**: readme.mdには「テンプレートで生成(可能なら)」との記載があったが、コードベース全体を調査した結果C++テンプレートによるクラス定義の一括生成は前例なし、かつCLAUDE.mdの「古典的OOP（継承・ポリモーフィズム）を基本とする、過度な抽象化より実用性を優先する」という明記された方針とも整合しないため、AskUserQuestionでユーザーに確認の上、`PointLight`/`SpotLight`と同じ古典的OOP継承を採用した。どのみちCFrame/Quaternion/double/Instance参照はPropertyRegistryで表現不能なため、完全な一括テンプレート化は不可能だったという技術的制約も後押しした。
+- **PropertyRegistry駆動4クラスと手書き4クラスへの分割**: `include/Core/PropertyRegistry.hpp`の`PropValue`が`variant<float,int,bool,string,Vector3,Vector2,Color4>`のみに限定されており、CFrame・Quaternion・doubleは表現不能、Instance参照という概念自体も存在しない。既存コードにも一部型だけPropertyRegistry化し残りは手書きという前例（`Spatial`のcframeが手書き）があり、それに倣った。
+- **`Changed`シグナルだけは8クラス共通でPropertyRegistry経由に統一**: `sig<>`は型知識を持たない（シグナルの中身は関知しない）ため、CFrame/Quaternion/double/Instance参照を持つクラスでも問題なく使える。`ValueBase`を`registerClass`し、8クラスが`registerClass(name, "ValueBase", {...})`で継承する形にすることで、`Changed`の実装重複を避けつつLuau公開の一貫性を確保した。
+- **`ObjectValue.Value`をLuauの実際のInstance型として公開**: Roblox本家のObjectValue.Valueと同じ挙動にする方がスクリプトの使い勝手が良いとユーザーが判断（AskUserQuestionで確認）。既存の拘束系（Weld/Rod等のCube0/Cube1）は文字列パスとして公開されているが、ObjectValueは「値」を主目的とするクラスなので実際の値型らしさを優先した。
+- **ObjectValueのエディターUIはビューポートPickボタン無し**: 既存の`drawConstraintCubeRef`のPick機構はBaseCube限定・ビューポートクリック前提で、ObjectValueが指せる任意Instance（Script/Sound/Folder等の非空間インスタンス含む）には対応できないため、テキストパス入力のみに絞った（ユーザーに事前確認済み）。
+- **`custom()`ビルダーの set 内で毎回 `Changed->fire()` を呼ぶ設計**: YAMLロード時・clone時にも発火するが、その時点では誰も`Connect`していないため実害はなく、経路ごとに発火を止める作りは複雑化を招くだけと判断してあえて分けなかった。
+
+### どういう経緯か
+
+1. ユーザーが選択していたreadme.mdのTODO「値系インスタンスを追加」を計画モードで設計。Explore 3エージェント（PropertyRegistryとInstance参照パターン、既存インスタンスの全体配線チェックリスト、任意Instance参照解決の既存仕組み）を並列起動して調査。
+2. AskUserQuestionで4点確認: (1)実装方式=古典的OOP継承、(2)ObjectValue.Value=Instance型として公開、(3)対象クラス確定（readme.mdの`BoolValue`重複・`QuartanionValue`誤記を修正、ユーザー指示で`NumberValue`(double)を追加し最終8クラスに）、(4)Insert Objectメニューに新規「Value」カテゴリを作成。
+3. Plan agentに詳細設計を委託（`applyToDispatch`/`instance_index`のクラス階層フォールバック機構の実コード確認、ObjectValueの全ツリー参照解決パスの設計）。結果を検証（`CommandHistory.hpp`の`custom()`初適用可否・`SetVec3Command`のSpatial限定を実ファイルで裏取り）した上で最終計画を`dapper-booping-crab.md`として作成、ExitPlanModeで承認を得た。
+4. 実装を8フェーズ（ValueBase基底+8クラス→LuauEngine_Dispatch→LuauEngine.cpp→SceneLoader→CommandHistory→PropertiesPanel→SceneHierarchyPanel/Localization/IconsDef→自動テスト）に分割し、各フェーズをimplementerサブエージェントに委譲。各フェーズ後にメインセッションが`git diff`で設計と照合レビューし、ビルド確認。
+5. Phase1完了時のレビューで、`ObjectValue::setTarget`/`refreshRefName`が`getFullPath()`（ルート自身の名前を含む絶対パス）を使っていたが、対になる`getChildByPath()`はルート自身を起点に呼ぶ前提（ルート名を含まない）だったため、保存→再解決が失敗する不整合を発見。`Instance::getPathUpTo(top)`（`top`=Parentを辿った最上位祖先、`NoCollision`の`getWorkspaceRelativePath()`と同じ考え方）を使うようメインセッションが直接1〜2メソッドの微修正で対処してからPhase4に進んだ。
+6. Phase2実装中、implementerが`LuauEngine::pushVector3`/`pushColor4`/`pushQuaternion`/`pushCFrame`が`LuauEngine.hpp`内`private`静的メンバであることに気づき、「LuauEngine.hppを変更してよいか」と実装を止めて確認を求めてきた。調査の結果、これらの関数が内部で使うメタテーブル名定数（`RCBN_VEC3_METATABLE`等）は全てpublicで、`PropertyRegistry.cpp`の`valueToLua`が既に同じ手法（`lua_newuserdata`+`luaL_getmetatable`+`lua_setmetatable`を直接呼ぶ）でVec3/Color4を扱っていることを確認。SendMessageでエージェントを再開し、LuauEngine.hpp自体は変更せず、同じuserdata+メタテーブル直接構築パターンを新規ファイル側で再現する方針で続行させた。
+7. 全フェーズ完了後、`python build.py build`と`python run_regression.py Release`で最終確認。回帰テストは既知ベースライン（87 passed/3 failed）と完全一致、新規リグレッションなしを確認。
+8. 計画の「検証方法」項目に明記していた自動PASS/FAILテストがまだ無かったため、Phase8として`value_test.yaml`/`value_test.luau`を追加実装。implementerが`ObjectValue`の`==`比較テストで`[FAIL]`に遭遇し原因調査した結果、`RCBN_INST_METATABLE`に`__eq`メタメソッドが登録されておらず`pushInstance`が毎回新規userdataを生成する（キャッシュ無し）ため、同一インスタンスでも別々に取得したuserdata同士の`==`は常に`false`になるという**既存コードベース全体の制約**（今回実装した8クラスのバグではない）を発見。スコープ外として手を触れず、テスト側を「`.Name`一致+改名で相互に見えることの確認」という機能的検証に置き換えて対処した。
+9. 最終的に39件全て`[PASS]`、回帰テスト126 passed/3 failed（新規39 passed加算、既知3件failedのみで新規リグレッションなし）を確認して完了。
+
+**試して失敗した方法（教訓）**:
+- Phase1で`ObjectValue`の参照パスに`getFullPath()`をそのまま使おうとした（実装した後にメインセッションのレビューで発覚）。`getFullPath()`はRoblox的な「絶対パス表示」としては直感的だが、このエンジンの`getChildByPath()`は「呼び出したインスタンス自身を起点とする相対パス」を期待する設計であり、両者を素朴に組み合わせると「ルート自身の名前」が二重に扱われて解決に失敗する。**パスを生成する側と解決する側で「起点をどこに置くか」の規約を必ず一致させる**必要があり、既存の`getWorkspaceRelativePath()`（`getPathUpTo(stopAt)`でstopAt自身の名前を含めない）が正しい前例だった。
+- Phase2で`LuauEngine.hpp`のprivateな`pushVector3`等をそのまま新規ファイルから呼ぼうとして行き詰まった。「private関数を呼べないなら既存ヘッダをpublicに変える」という安易な方向に進まず、「その関数が内部で使っている低レベルAPI（メタテーブル名定数）は既にpublicで、同じロジックを別の場所で再現できないか」という既存コード（`PropertyRegistry.cpp`）の前例を先に確認したことで、既存ファイルへの変更を一切せずに済んだ。
+
+### 未解決・保留
+
+- **実機での最終確認待ち**: エディターのInsert Objectメニューで「Value」カテゴリから8クラスが挿入できること、PropertiesPanelでの編集（特にCFrameValue/QuaternionValueのEulerドラッグ、ObjectValueのパス入力）、シーン保存→再読込でのYAMLラウンドトリップ、クローン時のObjectValue参照張り替えは、ビルド+ヘッドレステストのみ確認済みでユーザー未検証。
+- `NumberValue`/`CFrameValue`/`QuaternionValue`のPropertiesPanel UIは、値変更の都度（ドラッグ中の毎フレーム）`setProperty`経由で`Changed`を発火する設計にした。Luauスクリプト側で`Changed`に重い処理を繋いでいる場合、ドラッグ中に大量発火する可能性がある（実害があるか未検証、既存の`Spatial`のPosition/RotationドラッグにはUndo以外の副作用が無いため今回まで問題になっていなかったパターン）。
+- 前セッションからの持ち越し: BallSocket/NoCollisionの実機確認、readme.md TODO 2項目の消し込みは今回も未対応のまま。
+
+### 暗黙仕様の発見
+
+- **`RCBN_INST_METATABLE`のInstance userdataには`__eq`メタメソッドが登録されておらず、`LuauEngine::pushInstance`は毎回新規userdataを生成する（インスタンスポインタでのキャッシュ無し）**（spec.md未記載）。そのため同一Instanceを指していても、Luau側で別々に取得した参照同士を`==`比較すると常に`false`になる。今後Instance型を返すAPIを設計する際は、この制約（`==`による同一性比較ができない）を前提にするか、`__eq`メタメソッド自体の追加を別タスクとして検討する必要がある。
+- **`PropertyRegistry::applyToDispatch`はクラス自身に直接登録されたプロパティのみを`DispatchTable[className]`に書き込む（基底クラス分は書き込まない）が、Luau側の`instance_index`/`instance_newindex`が`DispatchTable`の全キーを`obj->IsA(className)`で横断マージする**ため、結果的に基底クラス（`ValueBase`や`LightSource`）に登録したプロパティも派生クラスから自動的に見える（`spec.md`未記載、`src/Core/LuauEngine.cpp`の`instance_index`実装で確認）。ただし基底クラス自身の`applyToDispatch`呼び出しを忘れると（`Highlight`で実際に起きていた既知の不具合と同型）その基底プロパティ自体がLuauから一切見えなくなるサイレントバグになるため、中間基底を導入する際は基底分・派生分の両方で`applyToDispatch`を呼ぶことを忘れないこと。
+- **`PropertyRegistry::custom()`ビルダー（get/set完全手書き）は本タスクまで一度も実際に使われていなかった**（`field<M>`/`method_prop<>`等は多用されているが`custom()`は未使用だった）。setラムダ内で値代入以外の副作用（今回は`Changed`シグナル発火）を行いたい場合の正規の拡張点として機能することを確認した。
+
+### 追記: ObjectValueにヒエラルキーPickボタンを追加
+
+初回実装完了後、ユーザーから「ObjectValueに参照ボタンを付けましょう」と追加依頼。
+
+**何をしたか**
+- `include/Editor/PropertiesPanel.hpp`: 全パネル共有の`PickerState`構造体に`bool pickAnyInstance`を追加。
+- `src/Editor/SceneHierarchyPanel.cpp`: `drawNode()`内のピッカー横取り判定（ノードクリック時に`m_picker`が有効なら選択ではなく参照指定として横取りする既存の仕組み）に`pickAnyInstance`を最優先の分岐として追加。trueなら型チェック無しで任意のノードにマッチする。
+- `src/Editor/PropertiesPanel.cpp`: `drawObjectValueRef`を、既存の`drawConstraintCubeRef`と同じ「テキスト入力欄+Pick/Cancelボタン」レイアウトに書き換え。Pickボタン押下で`m_picker->pickAnyInstance = true`をセットし、`onPick`コールバックは`ObjectValue::setTarget()`（既存メソッド、パス計算+Changed発火を内包）を呼ぶだけ。既存の`drawConstraintCubeRef`/`drawConstraintAttachmentRef`のPickボタン側にも`pickAnyInstance = false`を明示追加（`PickerState`は使い回しの共有状態のため、前回ObjectValueをPickした際の`pickAnyInstance=true`が残留してBaseCube/Attachment用Pickの型制限を無効化してしまうのを防ぐ）。
+
+**なぜそうしたか**
+- ユーザーに参照ボタンの方式をAskUserQuestionで確認: (a)ヒエラルキーでクリックして選ぶ、(b)「選択中を使用」ボタン、(c)既存のビューポートPick機構（BaseCube限定）をそのまま流用、の3択を提示し、(a)ヒエラルキークリック方式が選ばれた。
+- (c)を採用しなかった理由: 既存の`m_picker`のビューポートPickは`ViewportPanel.cpp`内でワールド空間レイキャストにより`BaseCube`/`Attachment`のみを対象にしており、`ObjectValue`が本来指せるはずの非空間インスタンス（Script/Sound/他のValue系等）を原理的に選べないため、ObjectValueの本来の用途と不整合になる。
+- 調査の結果、`SceneHierarchyPanel::drawNode()`には**既にBaseCube/Attachment用のピッカー横取り機構が実装済み**だったため、型チェックを外すだけの小さな拡張（`pickAnyInstance`フラグ追加）で済み、新規の状態管理やクリックハンドラを作らずに済んだ。
+
+**どういう経緯か**
+1. 既存の`m_picker`/`PickerState`の実装（`PropertiesPanel.hpp`/`ViewportPanel.cpp`）を調査し、ビューポートクリック経由でBaseCube/Attachmentのみ選択可能という制約を確認。
+2. `SceneHierarchyPanel.cpp`の`drawNode()`を調査したところ、ノードクリック時のピッカー横取りロジックが既に存在しており（Cube/Attachment参照用に前セッションまでに実装済み）、型チェック部分を汎用化するだけで任意Instance対応できると判明。
+3. AskUserQuestionでUX方式を確認後、3ファイルへの変更として設計しimplementerに一括委譲（今回は1フェーズで完結する規模と判断）。
+4. 完了後`git diff`で照合レビュー、ビルド+回帰テスト（126 passed/3 failed、既知3件のみ）を確認。
+
+**未解決・保留**
+- 前回セッションの未解決事項（エディター実機確認、BallSocket/NoCollisionの実機確認、readme.md TODO消し込み）は今回も引き続き未対応。
+- Pickボタンで选択した参照が、ヒエラルキー上で折りたたまれた（非表示の）ノード配下にある場合にクリックできるか（ツリーの自動展開等）は未検証。
+
+**暗黙仕様の発見**
+- **`SceneHierarchyPanel::drawNode()`のノードクリックハンドラは、`PropertiesPanel`/`ViewportPanel`と共有する`PickerState`を経由して「選択」と「参照指定」の2つの意味を持つ**（spec.md未記載）。`m_picker->active`が真の間はクリックが通常の選択処理をバイパスして参照指定に転用される。今後同種の「クリックで何かを指定する」UIを追加する際は、`PickerState`に新しいフラグを1つ足すだけでヒエラルキー経由のPickに対応できる（ビューポート経由が必要な場合は別途`ViewportPanel.cpp`側の対応が要る）という拡張パターンが確立した。

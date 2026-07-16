@@ -12,8 +12,9 @@ class CommandHistory;
 
 // キューブ/Attachment指定ピッカーの共有状態（EditorManager / PropertiesPanel / ViewportPanel で共有）
 struct PickerState {
-    bool        active         = false;
-    bool        pickAttachment = false;                            // true のとき BaseCube ではなく Attachment を対象にする
+    bool        active          = false;
+    bool        pickAttachment  = false;                           // true のとき BaseCube ではなく Attachment を対象にする
+    bool        pickAnyInstance = false;                           // true のとき型制限なしで任意のInstanceを対象にする（ObjectValue用）
     std::string prop;                                              // "Cube0"/"Cube1"/"Attachment0"/"Attachment1"
     Instance*   constraint = nullptr;
     std::function<void(std::shared_ptr<Instance>)> onPick;         // pickAttachment に応じた型のインスタンスが渡される
@@ -57,6 +58,9 @@ private:
     void drawConstraintAttachmentRef(const char* label, std::string& nameRef,
                                      const char* prop, const std::string& cubeName,
                                      const std::shared_ptr<Instance>& inst);
+
+    // ObjectValue.Value 用: テキストのパス入力欄のみ(ビューポートPickボタンは無し)
+    void drawObjectValueRef(const char* label, const std::shared_ptr<Instance>& inst);
 
     double m_terrainRegenOpenedAt = 0.0;
 };

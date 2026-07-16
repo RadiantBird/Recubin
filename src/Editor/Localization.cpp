@@ -89,6 +89,8 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "画面にテキストや画像を表示します。", "Displays text or images on screen." },
     { "物理制約",            "Physics Constraints" },
     { "物理挙動に影響を与えます。", "Affects physical behavior." },
+    { "値",                  "Value" },
+    { "単一の値を保持する軽量なインスタンス群です。", "Lightweight instances that each hold a single value." },
     { "このworkspaceに切り替える", "Switch to this Workspace" },
     { "新しいビューポートで開く(非推奨、バグあり)", "Open in New Viewport (deprecated, buggy)" },
     { "オブジェクトを挿入",    "Insert Object" },
@@ -121,6 +123,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "塗る色",              "Paint Color" },
     { "Viewport またはヒエラルキーで Attachment をクリックして指定", "Click an Attachment in the Viewport or Hierarchy to assign" },
     { "Viewport またはヒエラルキーでキューブをクリックして指定", "Click a cube in the Viewport or Hierarchy to assign" },
+    { "ビューポートまたはエクスプローラーからインスタンスを選択", "Select an instance from the Viewport or Explorer" },
     { "(未解決)",            "(unresolved)" },
     { "選択されていません",   "Nothing selected" },
 

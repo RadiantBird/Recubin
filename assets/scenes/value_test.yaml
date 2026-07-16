@@ -1,0 +1,67 @@
+Root:
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Properties:
+        Gravity: [0, -9.81, 0]
+      Children:
+        # ObjectValueの参照先として使うCube
+        - ClassName: Cube
+          Name: Target
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.5, 0.5, 0.5, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+
+        - ClassName: IntValue
+          Name: TestIntValue
+          Properties:
+            Value: 7
+
+        - ClassName: BoolValue
+          Name: TestBoolValue
+          Properties:
+            Value: true
+
+        - ClassName: NumberValue
+          Name: TestNumberValue
+          Properties:
+            Value: 3.14159
+
+        - ClassName: Vector3Value
+          Name: TestVector3Value
+          Properties:
+            Value: [1, 2, 3]
+
+        - ClassName: Color4Value
+          Name: TestColor4Value
+          Properties:
+            Value: [1, 0, 0, 1]
+
+        - ClassName: CFrameValue
+          Name: TestCFrameValue
+          Properties:
+            Value:
+              Position: [1, 2, 3]
+              Rotation: [0, 0, 0, 1]
+
+        - ClassName: QuaternionValue
+          Name: TestQuaternionValue
+          Properties:
+            Value: [0, 0, 0, 1]
+
+        - ClassName: ObjectValue
+          Name: TestObjectValue
+          Properties:
+            Value: Workspace\Target
+
+        # テストスクリプト
+        - ClassName: Script
+          Name: ValueTest
+          Properties:
+            ContentPath: scripts/value_test.luau

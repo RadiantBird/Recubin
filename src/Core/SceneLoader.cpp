@@ -37,6 +37,17 @@
 #include <Instances/Rod.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
+#include <Instances/BallSocket.hpp>
+#include <Instances/NoCollision.hpp>
+#include <Instances/ValueBase.hpp>
+#include <Instances/IntValue.hpp>
+#include <Instances/BoolValue.hpp>
+#include <Instances/NumberValue.hpp>
+#include <Instances/Vector3Value.hpp>
+#include <Instances/Color4Value.hpp>
+#include <Instances/CFrameValue.hpp>
+#include <Instances/QuaternionValue.hpp>
+#include <Instances/ObjectValue.hpp>
 #include <Instances/Attachment.hpp>
 #include <Instances/Force.hpp>
 #include <Instances/TextLabel.hpp>
@@ -266,6 +277,16 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Instance") return std::make_shared<Instance>("Instance");
     if (className == "Rope")  return std::make_shared<Rope>();
     if (className == "Rod")   return std::make_shared<Rod>();
+    if (className == "BallSocket") return std::make_shared<BallSocket>();
+    if (className == "NoCollision") return std::make_shared<NoCollision>();
+    if (className == "IntValue")        return std::make_shared<IntValue>();
+    if (className == "BoolValue")       return std::make_shared<BoolValue>();
+    if (className == "NumberValue")     return std::make_shared<NumberValue>();
+    if (className == "Vector3Value")    return std::make_shared<Vector3Value>();
+    if (className == "Color4Value")     return std::make_shared<Color4Value>();
+    if (className == "CFrameValue")     return std::make_shared<CFrameValue>();
+    if (className == "QuaternionValue") return std::make_shared<QuaternionValue>();
+    if (className == "ObjectValue")     return std::make_shared<ObjectValue>();
     if (className == "Weld")  return std::make_shared<Weld>();
     if (className == "Motor")        return std::make_shared<Motor>();
     if (className == "Attachment")   return std::make_shared<Attachment>();
@@ -342,6 +363,14 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
                 auto rod = std::static_pointer_cast<Rod>(child);
                 resolvePair(c, "Rod", rod->m_cube0Name, rod->m_cube1Name,
                             [&](auto c0, auto c1) { rod->setCubes(c0, c1); rod->resolveAttachments(); });
+            } else if (child->IsA("BallSocket")) {
+                auto bs = std::static_pointer_cast<BallSocket>(child);
+                resolvePair(c, "BallSocket", bs->m_cube0Name, bs->m_cube1Name,
+                            [&](auto c0, auto c1) { bs->setCubes(c0, c1); bs->resolveAttachments(); });
+            } else if (child->IsA("NoCollision")) {
+                auto nc = std::static_pointer_cast<NoCollision>(child);
+                resolvePair(c, "NoCollision", nc->m_cube0Name, nc->m_cube1Name,
+                            [&](auto c0, auto c1) { nc->setCubes(c0, c1); });
             } else if (child->IsA("Weld")) {
                 auto weld = std::static_pointer_cast<Weld>(child);
                 resolvePair(c, "Weld", weld->m_cube0Name, weld->m_cube1Name,
@@ -350,6 +379,15 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
                 auto motor = std::static_pointer_cast<Motor>(child);
                 resolvePair(c, "Motor", motor->m_cube0Name, motor->m_cube1Name,
                             [&](auto c0, auto c1) { motor->setCubes(c0, c1); motor->resolveAttachments(); });
+            } else if (child->IsA("ObjectValue")) {
+                auto ov = std::static_pointer_cast<ObjectValue>(child);
+                if (!ov->m_targetPathName.empty()) {
+                    if (Instance* found = sceneRoot->getChildByPath(ov->m_targetPathName))
+                        ov->resolveTarget(found->shared_from_this());
+                    else
+                        std::cerr << "[SceneLoader] ObjectValue \"" << ov->getFullPath()
+                                  << "\": target not found (Value=\"" << ov->m_targetPathName << "\")\n";
+                }
             }
             self(self, c);
         }
@@ -373,7 +411,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->getClassName() == "FileRef"
                  || inst->getClassName() == "Humanoid"
                  || inst->getClassName() == "Animation"
-                 || inst->IsA("Rope") || inst->IsA("Rod")
+                 || inst->IsA("Rope") || inst->IsA("Rod") || inst->IsA("BallSocket")
+                 || inst->IsA("NoCollision")
                  || inst->IsA("Weld") || inst->IsA("Motor")
                  || inst->getClassName() == "Force"
                  || inst->IsA("ScreenGuiObject")
@@ -387,6 +426,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->getClassName() == "Weather"
                  || inst->getClassName() == "Canvas"
                  || inst->getClassName() == "Highlight"
+                 || inst->IsA("ValueBase")
                  || inst->IsA("Workspace"); // NOTE: プロパティを最近追加した
 
     if (hasProps) {
@@ -577,6 +617,20 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "Color"     << YAML::Value << YAML::Flow << YAML::BeginSeq << r->Color.r << r->Color.g << r->Color.b << r->Color.a << YAML::EndSeq;
             out << YAML::Key << "LineWidth" << YAML::Value << r->LineWidth;
         }
+        if (inst->IsA("BallSocket")) {
+            BallSocket* bs = static_cast<BallSocket*>(inst);
+            bs->refreshRefNames();
+            out << YAML::Key << "Cube0" << YAML::Value << bs->m_cube0Name;
+            out << YAML::Key << "Cube1" << YAML::Value << bs->m_cube1Name;
+            if (!bs->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << bs->m_attachment0Name;
+            if (!bs->m_attachment1Name.empty()) out << YAML::Key << "Attachment1" << YAML::Value << bs->m_attachment1Name;
+        }
+        if (inst->IsA("NoCollision")) {
+            NoCollision* nc = static_cast<NoCollision*>(inst);
+            nc->refreshRefNames();
+            out << YAML::Key << "Cube0" << YAML::Value << nc->m_cube0Name;
+            out << YAML::Key << "Cube1" << YAML::Value << nc->m_cube1Name;
+        }
         if (inst->IsA("Weld")) {
             Weld* w = static_cast<Weld*>(inst);
             w->refreshRefNames();
@@ -674,6 +728,39 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "Hand" << YAML::Value << handNames[static_cast<int>(tool->Hand)];
             if (!tool->m_handleName.empty())
                 out << YAML::Key << "Handle" << YAML::Value << tool->m_handleName;
+        }
+        if (inst->getClassName() == "IntValue")     PropertyRegistry::saveProperties(out, inst, "IntValue");
+        if (inst->getClassName() == "BoolValue")     PropertyRegistry::saveProperties(out, inst, "BoolValue");
+        if (inst->getClassName() == "Vector3Value")  PropertyRegistry::saveProperties(out, inst, "Vector3Value");
+        if (inst->getClassName() == "Color4Value")   PropertyRegistry::saveProperties(out, inst, "Color4Value");
+        if (inst->getClassName() == "NumberValue") {
+            NumberValue* nv = static_cast<NumberValue*>(inst);
+            out << YAML::Key << "Value" << YAML::Value << nv->Value;
+        }
+        if (inst->getClassName() == "QuaternionValue") {
+            QuaternionValue* qv = static_cast<QuaternionValue*>(inst);
+            out << YAML::Key << "Value" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << qv->Value.x << qv->Value.y << qv->Value.z << qv->Value.w
+                << YAML::EndSeq;
+        }
+        if (inst->getClassName() == "CFrameValue") {
+            CFrameValue* cv = static_cast<CFrameValue*>(inst);
+            out << YAML::Key << "Value" << YAML::Value << YAML::BeginMap;
+            out << YAML::Key << "Position" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << cv->Value.Position.x << cv->Value.Position.y << cv->Value.Position.z
+                << YAML::EndSeq;
+            out << YAML::Key << "Rotation" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << cv->Value.Rotation.x << cv->Value.Rotation.y << cv->Value.Rotation.z << cv->Value.Rotation.w
+                << YAML::EndSeq;
+            out << YAML::EndMap;
+        }
+        if (inst->getClassName() == "ObjectValue") {
+            ObjectValue* ov = static_cast<ObjectValue*>(inst);
+            ov->refreshRefName();
+            out << YAML::Key << "Value" << YAML::Value << ov->m_targetPathName;
         }
 
         out << YAML::EndMap;

@@ -54,6 +54,17 @@
 #include "include/Instances/Rod.hpp"
 #include "include/Instances/Weld.hpp"
 #include "include/Instances/Motor.hpp"
+#include "include/Instances/BallSocket.hpp"
+#include "include/Instances/NoCollision.hpp"
+#include "include/Instances/ValueBase.hpp"
+#include "include/Instances/IntValue.hpp"
+#include "include/Instances/BoolValue.hpp"
+#include "include/Instances/NumberValue.hpp"
+#include "include/Instances/Vector3Value.hpp"
+#include "include/Instances/Color4Value.hpp"
+#include "include/Instances/CFrameValue.hpp"
+#include "include/Instances/QuaternionValue.hpp"
+#include "include/Instances/ObjectValue.hpp"
 #include "include/Instances/Attachment.hpp"
 #include "include/Instances/Force.hpp"
 #include "include/Instances/ImageLabel.hpp"
@@ -1992,6 +2003,16 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "Terrain",          [] { return std::make_shared<Terrain>(); } },
         { "Rope",             [] { return std::make_shared<Rope>(); } },
         { "Rod",              [] { return std::make_shared<Rod>(); } },
+        { "BallSocket",       [] { return std::make_shared<BallSocket>(); } },
+        { "NoCollision",      [] { return std::make_shared<NoCollision>(); } },
+        { "IntValue",         [] { return std::make_shared<IntValue>(); } },
+        { "BoolValue",        [] { return std::make_shared<BoolValue>(); } },
+        { "NumberValue",      [] { return std::make_shared<NumberValue>(); } },
+        { "Vector3Value",     [] { return std::make_shared<Vector3Value>(); } },
+        { "Color4Value",      [] { return std::make_shared<Color4Value>(); } },
+        { "CFrameValue",      [] { return std::make_shared<CFrameValue>(); } },
+        { "QuaternionValue",  [] { return std::make_shared<QuaternionValue>(); } },
+        { "ObjectValue",      [] { return std::make_shared<ObjectValue>(); } },
         { "Weld",             [] { return std::make_shared<Weld>(); } },
         { "Motor",            [] { return std::make_shared<Motor>(); } },
         { "Attachment",       [] { return std::make_shared<Attachment>(); } },

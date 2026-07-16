@@ -45,6 +45,7 @@ enum class LocKey {
     CategoryOther, CategoryOtherDesc,
     CategoryGui, CategoryGuiDesc,
     CategoryPhysicsConstraints, CategoryPhysicsConstraintsDesc,
+    CategoryValue, CategoryValueDesc,
     SwitchToWorkspace, OpenInNewViewport, InsertObjectMenu,
     MenuDelete, MenuCopy, MenuPaste, MenuPasteAsChild,
 
@@ -57,7 +58,7 @@ enum class LocKey {
     TerrainBrushModeLower, TerrainBrushModeSmooth, TerrainBrushModeRaise,
     TerrainBrushHint,
     TerrainBrushSculptTab, TerrainBrushPaintTab, TerrainBrushPaintColor,
-    PickerPromptAttachment, PickerPromptCube,
+    PickerPromptAttachment, PickerPromptCube, PickerPromptAny,
     ToolUnresolved, NothingSelected,
 
     // ---- AnimationEditorPanel ----

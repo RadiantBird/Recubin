@@ -7,10 +7,15 @@
 #include <include/Instances/Rod.hpp>
 #include <include/Instances/Weld.hpp>
 #include <include/Instances/Motor.hpp>
+#include <include/Instances/BallSocket.hpp>
+#include <include/Instances/NoCollision.hpp>
 #include <include/Util/Material.hpp>
 #include <include/Math/Quaternion.hpp>
 #include <vector>
 #include <unordered_map>
+#include <set>
+
+class RCBNFilterCallback;
 
 struct RaycastHit {
     bool hit = false;
@@ -68,6 +73,21 @@ private:
     };
     std::vector<ConstraintEntry> m_constraints;
 
+    struct NoCollisionEntry {
+        std::weak_ptr<Instance> inst;   // NoCollision インスタンス
+        std::weak_ptr<BaseCube> c0, c1;
+    };
+    std::vector<NoCollisionEntry> m_noCollisionEntries;
+    // フィルターコールバック照合用の正規化済みペア集合（simulate 中は不変のためロック不要）
+    std::set<std::pair<const void*, const void*>> m_noCollisionPairs;
+
+    // m_noCollisionEntries から m_noCollisionPairs を作り直す（両cubeがlockできるエントリのみ）
+    void rebuildNoCollisionPairSet();
+    // cube がいずれかの生きた NoCollision エントリに含まれるか
+    bool isInNoCollisionPair(const BaseCube* cube) const;
+    // cube の全シェイプの filterData word0 候補ビットを isInNoCollisionPair の結果に応じて更新する
+    void applyNoCollisionFilterBit(const std::shared_ptr<BaseCube>& cube);
+
     void rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembly);
 
     // LiquidCube に侵入した動的キューブへ浮力を加える（simulate 前に呼ぶ）
@@ -80,6 +100,7 @@ private:
     static float aabbOverlapVolume(const Vector3& posA, const Vector3& sizeA, const Vector3& posB, const Vector3& sizeB);
 
     physx::PxSimulationEventCallback* m_contactCallback = nullptr;
+    RCBNFilterCallback* m_filterCallback = nullptr;
 
 public:
     static std::function<void(BaseCube*, BaseCube*)> s_contactCallback;
@@ -104,6 +125,8 @@ public:
     void createRod(const std::shared_ptr<Rod>& rod);
     void createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace);
     void createMotor(const std::shared_ptr<Motor>& motor);
+    void createBallSocket(const std::shared_ptr<BallSocket>& bs);
+    void createNoCollision(const std::shared_ptr<NoCollision>& nc);
     void removeConstraint(const std::shared_ptr<Instance>& c);
 
     bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, physx::PxRigidActor* ignoreActor = nullptr);

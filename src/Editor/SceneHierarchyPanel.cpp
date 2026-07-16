@@ -31,6 +31,8 @@
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
 #include <Instances/Rod.hpp>
+#include <Instances/BallSocket.hpp>
+#include <Instances/NoCollision.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Attachment.hpp>
 #include <Instances/Force.hpp>
@@ -54,6 +56,14 @@
 #include <Instances/ImageButton.hpp>
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Weather.hpp>
+#include <Instances/IntValue.hpp>
+#include <Instances/BoolValue.hpp>
+#include <Instances/NumberValue.hpp>
+#include <Instances/Vector3Value.hpp>
+#include <Instances/Color4Value.hpp>
+#include <Instances/CFrameValue.hpp>
+#include <Instances/QuaternionValue.hpp>
+#include <Instances/ObjectValue.hpp>
 #include <Core/AudioService.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
@@ -162,7 +172,7 @@ static const char* getClassIcon(const std::string& cn) {
     if (cn == "TextLabel"  || cn == "TextButton" || cn == "GuiButton" ||
         cn == "ScreenGui"  || cn == "SurfaceGui" || cn == "BillboardGui" ||
         cn == "WorldGuiObject")                                              return ICON_GUI;
-    if (cn == "Rope" || cn == "Rod" || cn == "Weld" || cn == "Motor" ||
+    if (cn == "Rope" || cn == "Rod" || cn == "BallSocket" || cn == "NoCollision" || cn == "Weld" || cn == "Motor" ||
         cn == "Attachment" || cn == "Force")                                 return ICON_CONSTRAINT;
     if (cn == "System") return ICON_SYSTEM;
     if (cn == "Weather") return ICON_WEATHER;
@@ -170,6 +180,9 @@ static const char* getClassIcon(const std::string& cn) {
     if (cn == "AppImage") return ICON_APPIMAGE;
     if (cn == "PathfindingService") return ICON_PATHFINDINGSERVICE;
     if (cn == "PostEffect") return ICON_POSTEFFECT;
+    if (cn == "IntValue" || cn == "BoolValue" || cn == "NumberValue" || cn == "Vector3Value" ||
+        cn == "Color4Value" || cn == "CFrameValue" || cn == "QuaternionValue" || cn == "ObjectValue")
+                                                                              return ICON_VALUE;
     return ICON_INSTANCE;
 }
 
@@ -240,8 +253,9 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     if (!renaming && ImGui::IsItemClicked()) {
         // ---- ピッカーモード: Pick 中はクリックを Cube/Attachment 参照指定に横取り（選択は変更しない） ----
         if (m_picker && m_picker->active) {
-            const bool matches = m_picker->pickAttachment ? inst->IsA("Attachment")
-                                                          : inst->IsA("BaseCube");
+            const bool matches = m_picker->pickAnyInstance ? true
+                                : m_picker->pickAttachment  ? inst->IsA("Attachment")
+                                                             : inst->IsA("BaseCube");
             if (matches && inst != m_picker->constraint && m_picker->onPick)
                 m_picker->onPick(inst->shared_from_this());
             m_picker->active = false;
@@ -594,10 +608,29 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Weld>(m_history, "Weld", parentSp);
         tryInsertInstance<Motor>(m_history, "Motor", parentSp);
         tryInsertInstance<Rod>(m_history, "Rod", parentSp);
+        tryInsertInstance<BallSocket>(m_history, "BallSocket", parentSp);
+        tryInsertInstance<NoCollision>(m_history, "NoCollision", parentSp);
         tryInsertInstance<Rope>(m_history, "Rope", parentSp);
         tryInsertInstance<Attachment>(m_history, "Attachment", parentSp);
         tryInsertInstance<Force>(m_history, "Force", parentSp);
-        
+
+        ImGui::EndMenu();
+    }
+
+    // ---- 値系インスタンス ----
+    if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryValue))) {
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::CategoryValueDesc));
+        ImGui::Separator();
+
+        tryInsertInstance<IntValue>(m_history, "IntValue", parentSp);
+        tryInsertInstance<BoolValue>(m_history, "BoolValue", parentSp);
+        tryInsertInstance<NumberValue>(m_history, "NumberValue", parentSp);
+        tryInsertInstance<Vector3Value>(m_history, "Vector3Value", parentSp);
+        tryInsertInstance<Color4Value>(m_history, "Color4Value", parentSp);
+        tryInsertInstance<CFrameValue>(m_history, "CFrameValue", parentSp);
+        tryInsertInstance<QuaternionValue>(m_history, "QuaternionValue", parentSp);
+        tryInsertInstance<ObjectValue>(m_history, "ObjectValue", parentSp);
+
         ImGui::EndMenu();
     }
 }

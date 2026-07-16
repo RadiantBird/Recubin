@@ -10,6 +10,8 @@
 #include <include/Instances/LiquidCube.hpp>
 #include <include/Instances/Attachment.hpp>
 #include <include/Instances/Force.hpp>
+#include <include/Instances/BallSocket.hpp>
+#include <include/Instances/NoCollision.hpp>
 
 // ===================================================
 //  static メンバ定義
@@ -50,18 +52,62 @@ struct RCBNContactCallback : physx::PxSimulationEventCallback {
     void onAdvance(const physx::PxRigidBody* const*, const physx::PxTransform*, physx::PxU32) override {}
 };
 
+// NoCollision の対象候補ビット。両シェイプに立っている場合のみフィルターコールバックに回す
+static constexpr physx::PxU32 FILTER_WORD0_NOCOLLISION_CANDIDATE = 1u;
+
 // Touched 通知を有効にするカスタムフィルターシェーダー
 static physx::PxFilterFlags rcbnFilterShader(
-    physx::PxFilterObjectAttributes, physx::PxFilterData,
-    physx::PxFilterObjectAttributes, physx::PxFilterData,
+    physx::PxFilterObjectAttributes, physx::PxFilterData filterData0,
+    physx::PxFilterObjectAttributes, physx::PxFilterData filterData1,
     physx::PxPairFlags& pairFlags, const void*, physx::PxU32)
 {
     pairFlags = physx::PxPairFlag::eSOLVE_CONTACT
               | physx::PxPairFlag::eDETECT_DISCRETE_CONTACT
               | physx::PxPairFlag::eDETECT_CCD_CONTACT
               | physx::PxPairFlag::eNOTIFY_TOUCH_FOUND;
+
+    if ((filterData0.word0 & FILTER_WORD0_NOCOLLISION_CANDIDATE) &&
+        (filterData1.word0 & FILTER_WORD0_NOCOLLISION_CANDIDATE))
+        return physx::PxFilterFlag::eCALLBACK;
+
     return physx::PxFilterFlag::eDEFAULT;
 }
+
+// NoCollision ペアの衝突可否をランタイムに判定するフィルターコールバック。
+// rcbnFilterShader が eCALLBACK を返したペアのみここに回ってくる。
+class RCBNFilterCallback : public physx::PxSimulationFilterCallback {
+public:
+    // Physics が所有する正規化済みペア集合への参照。simulate 中は変更されないためロック不要
+    const std::set<std::pair<const void*, const void*>>* pairs = nullptr;
+
+    physx::PxFilterFlags pairFound(
+        physx::PxU64, physx::PxFilterObjectAttributes, physx::PxFilterData, const physx::PxActor*, const physx::PxShape* s0,
+        physx::PxFilterObjectAttributes, physx::PxFilterData, const physx::PxActor*, const physx::PxShape* s1,
+        physx::PxPairFlags& pairFlags) override
+    {
+        const void* u0 = s0 ? s0->userData : nullptr;
+        const void* u1 = s1 ? s1->userData : nullptr;
+
+        if (pairs && u0 && u1) {
+            auto normalized = (u0 < u1) ? std::make_pair(u0, u1) : std::make_pair(u1, u0);
+            if (pairs->count(normalized))
+                return physx::PxFilterFlag::eSUPPRESS; // 衝突ペアを生成しない（resetFiltering で再評価される）
+        }
+
+        pairFlags = physx::PxPairFlag::eSOLVE_CONTACT
+                  | physx::PxPairFlag::eDETECT_DISCRETE_CONTACT
+                  | physx::PxPairFlag::eDETECT_CCD_CONTACT
+                  | physx::PxPairFlag::eNOTIFY_TOUCH_FOUND;
+        return physx::PxFilterFlag::eDEFAULT;
+    }
+
+    void pairLost(physx::PxU64, physx::PxFilterObjectAttributes, physx::PxFilterData,
+                  physx::PxFilterObjectAttributes, physx::PxFilterData, bool) override {}
+
+    bool statusChange(physx::PxU64&, physx::PxPairFlags&, physx::PxFilterFlags&) override {
+        return false;
+    }
+};
 
 void Physics::setGravity(const Vector3& g) {
     if (scene) scene->setGravity(physx::PxVec3(g.x, g.y, g.z));
@@ -102,6 +148,9 @@ void Physics::init() {
     sceneDesc.filterShader          = rcbnFilterShader;
     m_contactCallback               = new RCBNContactCallback();
     sceneDesc.simulationEventCallback = m_contactCallback;
+    m_filterCallback                = new RCBNFilterCallback();
+    m_filterCallback->pairs         = &m_noCollisionPairs;
+    sceneDesc.filterCallback        = m_filterCallback;
     sceneDesc.flags |= physx::PxSceneFlag::eENABLE_CCD;
     scene = s_pxPhysics->createScene(sceneDesc);
 }
@@ -135,6 +184,8 @@ Physics::~Physics() {
     }
     delete m_contactCallback;
     m_contactCallback = nullptr;
+    delete m_filterCallback;
+    m_filterCallback = nullptr;
 
     // 最後のインスタンスが共有リソースを解放
     --s_refCount;
@@ -175,12 +226,14 @@ void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
     switch (cube->getPhysicsShape()) {
     case PhysicsShape::Box: {
         physx::PxBoxGeometry geom(cube->Size.x/2, cube->Size.y/2, cube->Size.z/2);
-        physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *pxMat);
+        physx::PxShape* shape = physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *pxMat);
+        if (shape) shape->userData = cube.get();
         break;
     }
     case PhysicsShape::Sphere: {
         physx::PxSphereGeometry geom(cube->Size.x / 2.f);
-        physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *pxMat);
+        physx::PxShape* shape = physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *pxMat);
+        if (shape) shape->userData = cube.get();
         break;
     }
     case PhysicsShape::ConvexMesh: {
@@ -202,10 +255,23 @@ void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
         physx::PxConvexMesh* mesh = s_pxPhysics->createConvexMesh(input);
         physx::PxMeshScale scale(physx::PxVec3(cube->Size.x, cube->Size.y, cube->Size.z));
         physx::PxConvexMeshGeometry geom(mesh, scale);
-        physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *pxMat);
+        physx::PxShape* shape = physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *pxMat);
+        if (shape) shape->userData = cube.get();
         mesh->release();
         break;
     }
+    }
+
+    // NoCollision の対象なら新規シェイプに候補ビットを立てる（新規actorのためresetFiltering不要）
+    if (isInNoCollisionPair(cube.get())) {
+        for (physx::PxU32 i = 0; i < actor->getNbShapes(); i++) {
+            physx::PxShape* shape = nullptr;
+            actor->getShapes(&shape, 1, i);
+            if (!shape || shape->userData != cube.get()) continue;
+            physx::PxFilterData fd = shape->getSimulationFilterData();
+            fd.word0 |= FILTER_WORD0_NOCOLLISION_CANDIDATE;
+            shape->setSimulationFilterData(fd);
+        }
     }
 
     if (!cube->Anchored) {
@@ -350,6 +416,9 @@ void Physics::recreateActor(const std::shared_ptr<BaseCube>& cube) {
         } else if (inst->IsA("Motor")) {
             auto m = std::static_pointer_cast<Motor>(inst);
             involves = (m->m_cube0.lock() == cube || m->m_cube1.lock() == cube);
+        } else if (inst->IsA("BallSocket")) {
+            auto b = std::static_pointer_cast<BallSocket>(inst);
+            involves = (b->m_cube0.lock() == cube || b->m_cube1.lock() == cube);
         }
         if (involves) {
             if (entry.joint) {
@@ -381,6 +450,10 @@ void Physics::recreateActor(const std::shared_ptr<BaseCube>& cube) {
             auto m = std::static_pointer_cast<Motor>(inst);
             m->m_joint = nullptr;
             createMotor(m);
+        } else if (inst->IsA("BallSocket")) {
+            auto b = std::static_pointer_cast<BallSocket>(inst);
+            b->m_joint = nullptr;
+            createBallSocket(b);
         }
     }
 }
@@ -686,6 +759,27 @@ void Physics::update(Workspace& workspace, float dt) {
         }
     }
 
+    // 2b. NoCollision エントリークリーンアップ（inst/c0/c1 いずれかが expired なら除去）。
+    // 生き残った Cube はビットを解除しないと eSUPPRESS されたペアが再評価されず
+    // 衝突が復活しないため、除去後に applyNoCollisionFilterBit で再適用する
+    {
+        std::vector<std::shared_ptr<BaseCube>> survivors;
+        size_t beforeSize = m_noCollisionEntries.size();
+        m_noCollisionEntries.erase(
+            std::remove_if(m_noCollisionEntries.begin(), m_noCollisionEntries.end(),
+                [&](const NoCollisionEntry& e) {
+                    if (!e.inst.expired() && !e.c0.expired() && !e.c1.expired()) return false;
+                    if (auto c0 = e.c0.lock()) survivors.push_back(c0);
+                    if (auto c1 = e.c1.lock()) survivors.push_back(c1);
+                    return true;
+                }),
+            m_noCollisionEntries.end());
+        if (m_noCollisionEntries.size() != beforeSize) {
+            rebuildNoCollisionPairSet();
+            for (auto& c : survivors) applyNoCollisionFilterBit(c);
+        }
+    }
+
     // 3. 制約の新規登録（Weld を先に処理して compound を確定させてから Rope/Rod/Motor を生成）
     for (auto& c : workspace.pendingConstraints) {
         if (c->IsA("Weld")) createWeld(std::static_pointer_cast<Weld>(c), workspace);
@@ -694,6 +788,8 @@ void Physics::update(Workspace& workspace, float dt) {
         if      (c->IsA("Rope"))  createRope(std::static_pointer_cast<Rope>(c));
         else if (c->IsA("Rod"))   createRod(std::static_pointer_cast<Rod>(c));
         else if (c->IsA("Motor")) createMotor(std::static_pointer_cast<Motor>(c));
+        else if (c->IsA("BallSocket")) createBallSocket(std::static_pointer_cast<BallSocket>(c));
+        else if (c->IsA("NoCollision")) createNoCollision(std::static_pointer_cast<NoCollision>(c));
     }
     workspace.pendingConstraints.clear();
 
@@ -805,6 +901,105 @@ void Physics::createRod(const std::shared_ptr<Rod>& rod) {
     RCBN_LOG("Rod \"" << rod->Name << "\" created, distance=" << dist);
 }
 
+void Physics::createBallSocket(const std::shared_ptr<BallSocket>& bs) {
+    auto c0 = bs->m_cube0.lock();
+    auto c1 = bs->m_cube1.lock();
+    if (!c0 || !c1) {
+        // RCBN_WARN("BallSocket \"" << bs->Name << "\": cube refs unresolved (c0=" << (c0?"ok":"null") << ", c1=" << (c1?"ok":"null") << ")");
+        return;
+    }
+    if (!c0->actor || !c1->actor) {
+        // RCBN_WARN("BallSocket \"" << bs->Name << "\": actors not ready");
+        return;
+    }
+
+    physx::PxTransform frame0 = composeAttachmentFrame(c0->m_compoundLocalOffset, bs->m_attachment0, c0.get());
+    physx::PxTransform frame1 = composeAttachmentFrame(c1->m_compoundLocalOffset, bs->m_attachment1, c1.get());
+
+    physx::PxSphericalJoint* joint = PxSphericalJointCreate(
+        *s_pxPhysics, c0->actor, frame0, c1->actor, frame1
+    );
+    joint->setConstraintFlag(physx::PxConstraintFlag::eCOLLISION_ENABLED, false);
+
+    bs->m_joint = joint;
+    m_constraints.push_back({ std::weak_ptr<Instance>(bs), joint });
+    RCBN_LOG("BallSocket \"" << bs->Name << "\" created");
+}
+
+void Physics::rebuildNoCollisionPairSet() {
+    m_noCollisionPairs.clear();
+    for (auto& entry : m_noCollisionEntries) {
+        auto c0 = entry.c0.lock();
+        auto c1 = entry.c1.lock();
+        if (!c0 || !c1) continue;
+        const void* p0 = c0.get();
+        const void* p1 = c1.get();
+        auto normalized = (p0 < p1) ? std::make_pair(p0, p1) : std::make_pair(p1, p0);
+        m_noCollisionPairs.insert(normalized);
+    }
+}
+
+bool Physics::isInNoCollisionPair(const BaseCube* cube) const {
+    if (!cube) return false;
+    for (auto& entry : m_noCollisionEntries) {
+        auto c0 = entry.c0.lock();
+        auto c1 = entry.c1.lock();
+        if (!c0 || !c1) continue;
+        if (c0.get() == cube || c1.get() == cube) return true;
+    }
+    return false;
+}
+
+void Physics::applyNoCollisionFilterBit(const std::shared_ptr<BaseCube>& cube) {
+    if (!cube || !cube->actor) return;
+
+    bool shouldHaveBit = isInNoCollisionPair(cube.get());
+    bool changed = false;
+
+    for (physx::PxU32 i = 0; i < cube->actor->getNbShapes(); i++) {
+        physx::PxShape* shape = nullptr;
+        cube->actor->getShapes(&shape, 1, i);
+        if (!shape || shape->userData != cube.get()) continue;
+
+        physx::PxFilterData fd = shape->getSimulationFilterData();
+        bool hasBit = (fd.word0 & FILTER_WORD0_NOCOLLISION_CANDIDATE) != 0;
+        if (hasBit == shouldHaveBit) continue;
+
+        if (shouldHaveBit) fd.word0 |= FILTER_WORD0_NOCOLLISION_CANDIDATE;
+        else                fd.word0 &= ~FILTER_WORD0_NOCOLLISION_CANDIDATE;
+        shape->setSimulationFilterData(fd);
+        changed = true;
+    }
+
+    if (changed) {
+        scene->resetFiltering(*cube->actor);
+        auto* dyn = cube->actor->is<physx::PxRigidDynamic>();
+        if (dyn && !(dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) {
+            dyn->wakeUp();
+        }
+    }
+}
+
+void Physics::createNoCollision(const std::shared_ptr<NoCollision>& nc) {
+    auto c0 = nc->m_cube0.lock();
+    auto c1 = nc->m_cube1.lock();
+    if (!c0 || !c1) {
+        // RCBN_WARN("NoCollision \"" << nc->Name << "\": cube refs unresolved (c0=" << (c0?"ok":"null") << ", c1=" << (c1?"ok":"null") << ")");
+        return;
+    }
+
+    bool alreadyRegistered = std::any_of(m_noCollisionEntries.begin(), m_noCollisionEntries.end(),
+        [&](const NoCollisionEntry& e) { return e.inst.lock() == nc; });
+    if (!alreadyRegistered) {
+        m_noCollisionEntries.push_back({ std::weak_ptr<Instance>(nc), std::weak_ptr<BaseCube>(c0), std::weak_ptr<BaseCube>(c1) });
+    }
+
+    rebuildNoCollisionPairSet();
+    applyNoCollisionFilterBit(c0);
+    applyNoCollisionFilterBit(c1);
+    RCBN_LOG("NoCollision \"" << nc->Name << "\" created");
+}
+
 // Weld 用シェイプ追加ヘルパー。シェイプを実際に追加できた場合のみ true を返す
 // （CanCollide==false や ConvexMesh cooking 失敗時は追加されない。呼び出し側で
 // shapeDensities 配列の要素数を実際の shape 数と一致させるために使う）
@@ -822,6 +1017,7 @@ static bool attachShapeToCompound(
         physx::PxBoxGeometry geom(cube->Size.x / 2, cube->Size.y / 2, cube->Size.z / 2);
         physx::PxShape* shape = px->createShape(geom, *mat);
         shape->setLocalPose(localOffset);
+        shape->userData = cube.get();
         compound->attachShape(*shape);
         shape->release();
         return true;
@@ -830,6 +1026,7 @@ static bool attachShapeToCompound(
         physx::PxSphereGeometry geom(cube->Size.x / 2.0f);
         physx::PxShape* shape = px->createShape(geom, *mat);
         shape->setLocalPose(localOffset);
+        shape->userData = cube.get();
         compound->attachShape(*shape);
         shape->release();
         return true;
@@ -855,6 +1052,7 @@ static bool attachShapeToCompound(
         physx::PxConvexMeshGeometry geom(mesh, scale);
         physx::PxShape* shape = px->createShape(geom, *mat);
         shape->setLocalPose(localOffset);
+        shape->userData = cube.get();
         compound->attachShape(*shape);
         shape->release();
         mesh->release();
@@ -975,6 +1173,18 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
     // 素通りしてしまう。代表としてassembly[0](compoundの原点キューブ)を指す
     compound->userData = assembly[0].get();
 
+    // NoCollision の対象キューブが含まれていれば、対応するシェイプに候補ビットを立てる
+    for (physx::PxU32 i = 0; i < compound->getNbShapes(); i++) {
+        physx::PxShape* shape = nullptr;
+        compound->getShapes(&shape, 1, i);
+        if (!shape || !shape->userData) continue;
+        auto* shapeCube = static_cast<BaseCube*>(shape->userData);
+        if (!isInNoCollisionPair(shapeCube)) continue;
+        physx::PxFilterData fd = shape->getSimulationFilterData();
+        fd.word0 |= FILTER_WORD0_NOCOLLISION_CANDIDATE;
+        shape->setSimulationFilterData(fd);
+    }
+
     // 5. cubes エントリーを更新（既存エントリのみ更新し、未登録のcubeは新規追加する。
     // 未登録のまま残すと、このcubeのactorはcompound解放後も誰にもnullされず、
     // BaseCubeの実デストラクタでdangling actorへアクセスしてクラッシュする）
@@ -1016,6 +1226,9 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
         } else if (inst->IsA("Motor")) {
             auto m = std::static_pointer_cast<Motor>(inst);
             ec0 = m->m_cube0.lock(); ec1 = m->m_cube1.lock();
+        } else if (inst->IsA("BallSocket")) {
+            auto b = std::static_pointer_cast<BallSocket>(inst);
+            ec0 = b->m_cube0.lock(); ec1 = b->m_cube1.lock();
         }
         bool touched = (ec0 && assemblyPtrs.count(ec0.get())) ||
                        (ec1 && assemblyPtrs.count(ec1.get()));
@@ -1040,6 +1253,9 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
         } else if (inst->IsA("Motor")) {
             auto m = std::static_pointer_cast<Motor>(inst);
             m->m_joint = nullptr; createMotor(m);
+        } else if (inst->IsA("BallSocket")) {
+            auto b = std::static_pointer_cast<BallSocket>(inst);
+            b->m_joint = nullptr; createBallSocket(b);
         }
     }
 }
@@ -1175,6 +1391,20 @@ void Physics::createMotor(const std::shared_ptr<Motor>& motor) {
 }
 
 void Physics::removeConstraint(const std::shared_ptr<Instance>& c) {
+    if (c->IsA("NoCollision")) {
+        auto ncIt = std::find_if(m_noCollisionEntries.begin(), m_noCollisionEntries.end(),
+            [&](const NoCollisionEntry& e) { return e.inst.lock() == c; });
+        if (ncIt == m_noCollisionEntries.end()) return;
+
+        auto oldC0 = ncIt->c0.lock();
+        auto oldC1 = ncIt->c1.lock();
+        m_noCollisionEntries.erase(ncIt);
+        rebuildNoCollisionPairSet();
+        if (oldC0) applyNoCollisionFilterBit(oldC0);
+        if (oldC1) applyNoCollisionFilterBit(oldC1);
+        return;
+    }
+
     auto it = std::find_if(m_constraints.begin(), m_constraints.end(),
         [&](const ConstraintEntry& e) { return e.constraint.lock() == c; });
     if (it == m_constraints.end()) return;

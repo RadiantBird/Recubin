@@ -26,6 +26,8 @@
 #include <Instances/Skybox.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
+#include <Instances/BallSocket.hpp>
+#include <Instances/NoCollision.hpp>
 #include <Instances/Tool.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
@@ -39,6 +41,10 @@
 #include <Instances/BillboardGui.hpp>
 #include <Instances/ProximityPrompt.hpp>
 #include <Instances/Attachment.hpp>
+#include <Instances/NumberValue.hpp>
+#include <Instances/CFrameValue.hpp>
+#include <Instances/QuaternionValue.hpp>
+#include <Instances/ObjectValue.hpp>
 #include <Util/Color4.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
@@ -497,10 +503,11 @@ void PropertiesPanel::drawConstraintCubeRef(const char* label, std::string& name
     } else {
         if (anyPicking) ImGui::BeginDisabled();
         if (ImGui::Button(("Pick##" + key).c_str(), ImVec2(btnW, 0))) {
-            m_picker->active         = true;
-            m_picker->pickAttachment = false;
-            m_picker->prop           = prop;
-            m_picker->constraint     = inst.get();
+            m_picker->active          = true;
+            m_picker->pickAttachment  = false;
+            m_picker->pickAnyInstance = false;
+            m_picker->prop            = prop;
+            m_picker->constraint      = inst.get();
             m_picker->onPick = [inst, propStr = std::string(prop),
                                  nameRefPtr = &nameRef, hist = m_history]
                                (std::shared_ptr<Instance> cube) {
@@ -511,6 +518,66 @@ void PropertiesPanel::drawConstraintCubeRef(const char* label, std::string& name
                 if (hist && before != after)
                     hist->record(std::make_unique<SetConstraintCubeNameCommand>(
                         inst, propStr, before, after));
+            };
+        }
+        if (anyPicking) ImGui::EndDisabled();
+    }
+}
+
+void PropertiesPanel::drawObjectValueRef(const char* label, const std::shared_ptr<Instance>& inst)
+{
+    auto* ov = static_cast<ObjectValue*>(inst.get());
+    static std::unordered_map<std::string, std::string> s_before;
+    std::string key = "objval_" + inst->Name;
+
+    bool isPickingThis = m_picker && m_picker->active && m_picker->constraint == inst.get();
+    bool anyPicking     = m_picker && m_picker->active;
+
+    ImGui::TextUnformatted(label);
+    ImGui::SameLine();
+
+    float btnW  = 46.0f;
+    float space = ImGui::GetStyle().ItemSpacing.x;
+    float fieldW = ImGui::GetContentRegionAvail().x - btnW - space;
+    if (fieldW < 60.0f) fieldW = 60.0f;
+    ImGui::SetNextItemWidth(fieldW);
+
+    char buf[512] = {};
+    strncpy(buf, ov->m_targetPathName.c_str(), sizeof(buf) - 1);
+    std::string inputId = "##" + key;
+    ImGui::InputText(inputId.c_str(), buf, sizeof(buf));
+    if (ImGui::IsItemActivated()) s_before[key] = ov->m_targetPathName;
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        std::string before = s_before[key];
+        std::string after(buf);
+        YAML::Node n; n = after;
+        inst->setProperty("Value", n);
+        if (before != after && m_history)
+            m_history->record(std::make_unique<SetConstraintCubeNameCommand>(inst, "Value", before, after));
+    }
+
+    ImGui::SameLine();
+
+    if (isPickingThis) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9f, 0.4f, 0.1f, 1.0f));
+        if (ImGui::Button(("Cancel##pick_" + key).c_str(), ImVec2(btnW, 0)))
+            m_picker->active = false;
+        ImGui::PopStyleColor();
+    } else {
+        if (anyPicking) ImGui::BeginDisabled();
+        if (ImGui::Button(("Pick##" + key).c_str(), ImVec2(btnW, 0)) && m_picker) {
+            m_picker->active          = true;
+            m_picker->pickAttachment  = false;
+            m_picker->pickAnyInstance = true;
+            m_picker->prop            = "Value";
+            m_picker->constraint      = inst.get();
+            m_picker->onPick = [inst, hist = m_history](std::shared_ptr<Instance> picked) {
+                auto* ovp = static_cast<ObjectValue*>(inst.get());
+                std::string before = ovp->m_targetPathName;
+                ovp->setTarget(picked);
+                std::string after = ovp->m_targetPathName;
+                if (hist && before != after)
+                    hist->record(std::make_unique<SetConstraintCubeNameCommand>(inst, "Value", before, after));
             };
         }
         if (anyPicking) ImGui::EndDisabled();
@@ -564,10 +631,11 @@ void PropertiesPanel::drawConstraintAttachmentRef(const char* label, std::string
     } else {
         if (anyPicking) ImGui::BeginDisabled();
         if (ImGui::Button(("Pick##" + key).c_str(), ImVec2(btnW, 0))) {
-            m_picker->active         = true;
-            m_picker->pickAttachment = true;
-            m_picker->prop           = prop;
-            m_picker->constraint     = inst.get();
+            m_picker->active          = true;
+            m_picker->pickAttachment  = true;
+            m_picker->pickAnyInstance = false;
+            m_picker->prop            = prop;
+            m_picker->constraint      = inst.get();
             m_picker->onPick = [inst, propStr = std::string(prop), cubeName,
                                  nameRefPtr = &nameRef, hist = m_history]
                                (std::shared_ptr<Instance> att) {
@@ -628,9 +696,11 @@ void PropertiesPanel::onRender() {
 
     if (m_picker && m_picker->active) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.1f, 1.0f));
-        ImGui::TextUnformatted(m_picker->pickAttachment
-            ? Loc::t(Loc::LocKey::PickerPromptAttachment)
-            : Loc::t(Loc::LocKey::PickerPromptCube));
+        ImGui::TextUnformatted(m_picker->pickAnyInstance
+            ? Loc::t(Loc::LocKey::PickerPromptAny)
+            : m_picker->pickAttachment
+                ? Loc::t(Loc::LocKey::PickerPromptAttachment)
+                : Loc::t(Loc::LocKey::PickerPromptCube));
         ImGui::PopStyleColor();
         ImGui::Separator();
     }
@@ -1476,6 +1546,26 @@ void PropertiesPanel::onRender() {
               m_history->record(std::make_unique<SetRodLineWidthCommand>(rodSp, s_rdlw, rod->LineWidth)); }
     }
 
+    // ---- BallSocket ----
+    if (inst->getClassName() == "BallSocket") {
+        BallSocket* bs = static_cast<BallSocket*>(inst);
+        auto bsSp = std::static_pointer_cast<BallSocket>(inst->shared_from_this());
+        ImGui::SeparatorText("BallSocket");
+        drawConstraintCubeRef("Cube0", bs->m_cube0Name, "Cube0", bsSp);
+        drawConstraintCubeRef("Cube1", bs->m_cube1Name, "Cube1", bsSp);
+        drawConstraintAttachmentRef("Attachment0", bs->m_attachment0Name, "Attachment0", bs->m_cube0Name, bsSp);
+        drawConstraintAttachmentRef("Attachment1", bs->m_attachment1Name, "Attachment1", bs->m_cube1Name, bsSp);
+    }
+
+    // ---- NoCollision ----
+    if (inst->getClassName() == "NoCollision") {
+        NoCollision* nc = static_cast<NoCollision*>(inst);
+        auto ncSp = std::static_pointer_cast<NoCollision>(inst->shared_from_this());
+        ImGui::SeparatorText("NoCollision");
+        drawConstraintCubeRef("Cube0", nc->m_cube0Name, "Cube0", ncSp);
+        drawConstraintCubeRef("Cube1", nc->m_cube1Name, "Cube1", ncSp);
+    }
+
     // ---- Weld ----
     if (inst->getClassName() == "Weld") {
         Weld* weld = static_cast<Weld*>(inst);
@@ -1586,6 +1676,110 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "ProximityPrompt") {
         ImGui::SeparatorText("ProximityPrompt");
         renderSchemaInspector(inst, "ProximityPrompt", m_history);
+    }
+    if (inst->getClassName() == "IntValue") {
+        ImGui::SeparatorText("IntValue");
+        renderSchemaInspector(inst, "IntValue", m_history);
+    }
+    if (inst->getClassName() == "BoolValue") {
+        ImGui::SeparatorText("BoolValue");
+        renderSchemaInspector(inst, "BoolValue", m_history);
+    }
+    if (inst->getClassName() == "Vector3Value") {
+        ImGui::SeparatorText("Vector3Value");
+        renderSchemaInspector(inst, "Vector3Value", m_history);
+    }
+    if (inst->getClassName() == "Color4Value") {
+        ImGui::SeparatorText("Color4Value");
+        renderSchemaInspector(inst, "Color4Value", m_history);
+    }
+    if (inst->getClassName() == "NumberValue") {
+        ImGui::SeparatorText("NumberValue");
+        auto* nv = static_cast<NumberValue*>(inst);
+        static std::unordered_map<std::string, double> s_numBefore;
+        std::string key = "numval_" + inst->Name;
+
+        double v = nv->Value;
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+        if (ImGui::InputDouble("##NumberValue", &v)) {
+            YAML::Node n; n = v;
+            inst->setProperty("Value", n);
+        }
+        if (ImGui::IsItemActivated()) s_numBefore[key] = nv->Value;
+        if (ImGui::IsItemDeactivatedAfterEdit() && m_history && s_numBefore[key] != nv->Value) {
+            m_history->record(std::make_unique<SetNumberValueCommand>(
+                inst->shared_from_this(), s_numBefore[key], nv->Value));
+        }
+    }
+    if (inst->getClassName() == "CFrameValue") {
+        ImGui::SeparatorText("CFrameValue");
+        auto* cv = static_cast<CFrameValue*>(inst);
+        static std::unordered_map<std::string, CFrame> s_cfBefore;
+        std::string key = "cfval_" + inst->Name;
+
+        auto applyCFrame = [&](const CFrame& v) {
+            YAML::Node n;
+            YAML::Node pos; pos.push_back(v.Position.x); pos.push_back(v.Position.y); pos.push_back(v.Position.z);
+            YAML::Node rot; rot.push_back(v.Rotation.x); rot.push_back(v.Rotation.y); rot.push_back(v.Rotation.z); rot.push_back(v.Rotation.w);
+            n["Position"] = pos; n["Rotation"] = rot;
+            inst->setProperty("Value", n);
+        };
+
+        ImGui::Text("Position");
+        ImGui::SameLine(80.0f);
+        {
+            float pos[3] = { cv->Value.Position.x, cv->Value.Position.y, cv->Value.Position.z };
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            bool changed = ImGui::DragFloat3("##cfpos", pos, 0.05f);
+            if (ImGui::IsItemActivated()) s_cfBefore[key + "_pos"] = cv->Value;
+            if (changed) { CFrame v = cv->Value; v.Position = Vector3(pos[0], pos[1], pos[2]); applyCFrame(v); }
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                m_history->record(std::make_unique<SetCFrameValueCommand>(
+                    inst->shared_from_this(), s_cfBefore[key + "_pos"], cv->Value));
+            }
+        }
+
+        ImGui::Text("Rotation");
+        ImGui::SameLine(80.0f);
+        {
+            Vector3 euler = cv->Value.Rotation.toEuler();
+            float rot[3] = { euler.x, euler.y, euler.z };
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            bool changed = ImGui::DragFloat3("##cfrot", rot, 1.0f, -360.0f, 360.0f, "%.1f");
+            if (ImGui::IsItemActivated()) s_cfBefore[key + "_rot"] = cv->Value;
+            if (changed) { CFrame v = cv->Value; v.Rotation = Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2])); applyCFrame(v); }
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                m_history->record(std::make_unique<SetCFrameValueCommand>(
+                    inst->shared_from_this(), s_cfBefore[key + "_rot"], cv->Value));
+            }
+        }
+    }
+    if (inst->getClassName() == "QuaternionValue") {
+        ImGui::SeparatorText("QuaternionValue");
+        auto* qv = static_cast<QuaternionValue*>(inst);
+        static std::unordered_map<std::string, Quaternion> s_qBefore;
+        std::string key = "qval_" + inst->Name;
+
+        ImGui::Text("Value");
+        ImGui::SameLine(80.0f);
+        Vector3 euler = qv->Value.toEuler();
+        float rot[3] = { euler.x, euler.y, euler.z };
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+        bool changed = ImGui::DragFloat3("##qrot", rot, 1.0f, -360.0f, 360.0f, "%.1f");
+        if (ImGui::IsItemActivated()) s_qBefore[key] = qv->Value;
+        if (changed) {
+            Quaternion v = Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2]));
+            YAML::Node n; n.push_back(v.x); n.push_back(v.y); n.push_back(v.z); n.push_back(v.w);
+            inst->setProperty("Value", n);
+        }
+        if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+            m_history->record(std::make_unique<SetQuaternionValueCommand>(
+                inst->shared_from_this(), s_qBefore[key], qv->Value));
+        }
+    }
+    if (inst->getClassName() == "ObjectValue") {
+        ImGui::SeparatorText("ObjectValue");
+        drawObjectValueRef("Value", std::static_pointer_cast<Instance>(inst->shared_from_this()));
     }
     if (inst->getClassName() == "ImageLabel" || inst->getClassName() == "ImageButton") {
         const std::string cn = inst->getClassName();
