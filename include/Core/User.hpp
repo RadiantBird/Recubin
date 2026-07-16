@@ -123,9 +123,15 @@ public:
 
     // カメラ回転ドラッグ中か（右ドラッグ／Altフリールックいずれか）。
     // OSカーソルは非表示のままだが、擬似カーソルの描画位置決定のために公開する
-    bool isRotatingCamera() const { return isRightMouseRotating; }
+    bool isRotatingCamera() const { return isRightMouseRotating || m_externalDragActive; }
     // カメラ回転ドラッグ中のアンカー位置（ウィンドウクライアント座標）
     void getRotationAnchor(double& x, double& y) const { x = lastMouseX; y = lastMouseY; }
+
+    // セカンダリビューポート等、User外部のカメラがカーソルロック付き右ドラッグを行うためのAPI。
+    // アンカー状態を共用するため drawCameraRotationCursor の擬似カーソル表示もそのまま機能する
+    void beginExternalCameraDrag();
+    void sampleExternalCameraDrag(double& dx, double& dy);
+    void endExternalCameraDrag();
 
     // ゲームプレイビューポート矩形（スクリーン座標）。renderGameGuiが毎フレーム記録し、
     // GetMouseRay（Luau）のマウス座標→ワールドレイ変換に使う。W/H<=0は未記録を意味する
@@ -159,6 +165,7 @@ private:
     double lastMouseY = 0.0;
     bool m_altLookActive = false;  // Alt トグルによるフリールック中か
     bool m_altKeyWasDown = false;  // Alt 押下の立ち上がり検出用
+    bool m_externalDragActive = false;  // セカンダリビューポートの独立カメラがカーソルロック中か
 
     // 死亡 → respawn 管理
     bool      m_deathHandled  = false;

@@ -23,6 +23,8 @@
 #include <Instances/Rope.hpp>
 #include <Instances/Attachment.hpp>
 #include <Instances/Force.hpp>
+#include <Instances/BallSocket.hpp>
+#include <Instances/NoCollision.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/Model.hpp>
 #include <Core/CharacterRig.hpp>
@@ -204,19 +206,19 @@ void EditorManager::render(GLFWwindow* window) {
     if (animationPanel->isOpen)      animationPanel->onRender();
 
     // ---- セカンダリビューポート ----
-    for (auto& sv : secondaryViewports) {
-        sv->onRender();
-    }
     // 閉じられたものを削除
     secondaryViewports.erase(
         std::remove_if(secondaryViewports.begin(), secondaryViewports.end(),
                        [](const std::unique_ptr<ViewportPanel>& sv) {
-                           if (!sv->isOpen && IsViewportFocused(sv.get())) {
-                               ClearViewportFocus();
+                           if (!sv->isOpen) {
+                               ViewportFocusManager::getInstance().onViewportDestroyed(sv.get());
                            }
                            return !sv->isOpen;
                        }),
         secondaryViewports.end());
+    for (auto& sv : secondaryViewports) {
+        sv->onRender();
+    }
 
     renderPackageDialog();
 }
@@ -234,6 +236,8 @@ void EditorManager::openSecondaryViewport(Workspace* ws) {
     panel->m_terrainBrush = &m_terrainBrush;
     panel->m_decalPlace = &m_decalPlace;
     panel->title = std::string(Loc::t(Loc::LocKey::PanelViewport)) + ": " + ws->Name + "###SecVP_" + std::to_string(reinterpret_cast<std::uintptr_t>(panel.get()));
+    panel->m_useOwnCamera = true;
+    panel->initOwnCameraFrom(*m_user);
     secondaryViewports.push_back(std::move(panel));
 }
 
@@ -278,9 +282,14 @@ void EditorManager::handleEditorShortcuts() {
         }
 
         // Ctrl+L: ギズモのワールド/ローカル軸をトグル
-        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_L) && viewportPanel) {
-            viewportPanel->gizmoMode = (viewportPanel->gizmoMode == ImGuizmo::WORLD)
-                ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+        if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_L)) {
+            ViewportPanel* targetViewport = GetFocusedViewport();
+            if (!targetViewport) targetViewport = GetLastFocusedViewport();
+            if (!targetViewport) targetViewport = viewportPanel.get();
+            if (targetViewport) {
+                targetViewport->gizmoMode = (targetViewport->gizmoMode == ImGuizmo::WORLD)
+                    ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+            }
         }
 
         // Ctrl+F: 選択中インスタンスをエクスプローラーで自動展開・スクロール
@@ -517,7 +526,7 @@ void EditorManager::renderPackageDialog() {
             cfg.scenePath     = scenePath;
             cfg.engineExePath = engineExePath;
 
-            auto logFn = [this](const std::string& msg) { m_pkgLog.push_back(msg); };
+            auto logFn = [this](const std::string& msg) { m_pkgLog.push_back(msg); m_pkgLogScrollToBottom = true; };
             Packager::package(cfg, logFn);
             m_isPackaging = false;
         }
@@ -534,11 +543,20 @@ void EditorManager::renderPackageDialog() {
         }
 
         ImGui::Separator();
+        std::string pkgCopyLabel = std::string(Loc::t(Loc::LocKey::MenuCopy)) + "##pkgcopy";
+        if (ImGui::SmallButton(pkgCopyLabel.c_str())) {
+            std::string joined;
+            for (const auto& line : m_pkgLog) {
+                joined += line;
+                joined += '\n';
+            }
+            ImGui::SetClipboardText(joined.c_str());
+        }
         ImGui::BeginChild("##pkglog", ImVec2(0, 0), true);
         for (const auto& line : m_pkgLog) {
             ImGui::TextUnformatted(line.c_str());
         }
-        if (!m_pkgLog.empty()) ImGui::SetScrollHereY(1.0f);
+        if (m_pkgLogScrollToBottom) { ImGui::SetScrollHereY(1.0f); m_pkgLogScrollToBottom = false; }
         ImGui::EndChild();
 
         ImGui::EndPopup();
@@ -628,6 +646,7 @@ void EditorManager::renderToolbarTabs() {
 
 void EditorManager::renderToolbarBasic() {
     ViewportPanel* activeViewport = GetFocusedViewport();
+    if (!activeViewport) activeViewport = GetLastFocusedViewport();
     if (!activeViewport) activeViewport = viewportPanel.get();
 
     const ImVec4 colActive   = ImVec4(0.30f, 0.50f, 0.85f, 1.0f);
@@ -749,21 +768,21 @@ void EditorManager::renderToolbarBasic() {
         ImGui::Checkbox(snapTLabel.c_str(), &activeViewport->snapTranslate);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f);
-        ImGui::DragFloat("studs##snapTVal", &activeViewport->snapTranslateVal, 0.1f, 0.1f, 100.0f, "%.1f");
+        ImGui::DragFloat("studs##snapTVal", &activeViewport->snapTranslateVal, 0.005f, 0.001f, 100.0f, "%.3f");
         ImGui::SameLine();
 
         std::string snapRLabel = std::string(Loc::t(Loc::LocKey::SnapRotate)) + "##snapR";
         ImGui::Checkbox(snapRLabel.c_str(), &activeViewport->snapRotate);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f);
-        ImGui::DragFloat("\xc2\xb0##snapRVal", &activeViewport->snapRotateVal, 1.0f, 1.0f, 180.0f, "%.0f");
+        ImGui::DragFloat("\xc2\xb0##snapRVal", &activeViewport->snapRotateVal, 0.05f, 0.001f, 180.0f, "%.3f");
         ImGui::SameLine();
 
         std::string snapSLabel = std::string(Loc::t(Loc::LocKey::SnapScale)) + "##snapS";
         ImGui::Checkbox(snapSLabel.c_str(), &activeViewport->snapScale);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f);
-        ImGui::DragFloat("studs##snapSVal", &activeViewport->snapScaleVal, 0.1f, 0.1f, 100.0f, "%.1f");
+        ImGui::DragFloat("studs##snapSVal", &activeViewport->snapScaleVal, 0.005f, 0.001f, 100.0f, "%.3f");
         ImGui::SameLine();
 
         std::string cfLabel = std::string(Loc::t(Loc::LocKey::CollisionFit)) + "##cf";
@@ -895,6 +914,10 @@ void EditorManager::renderToolbarPhysics() {
     tryAddObjectButton<Attachment>(ICON_ATTACHMENT, "Attachment", "Attachment", parent, btnSz, Vector3(0, 0, 0));
     ImGui::SameLine();
     tryAddObjectButton<Force>(ICON_FORCE, "Force", "Force", parent, btnSz);
+    ImGui::SameLine();
+    tryAddObjectButton<BallSocket>(ICON_BALLSOCKET, "BallSocket", "BallSocket", parent, btnSz);
+    ImGui::SameLine();
+    tryAddObjectButton<NoCollision>(ICON_NOCOLLISION, "NoCollision", "NoCollision", parent, btnSz);
 }
 
 void EditorManager::renderToolbarCharacter() {

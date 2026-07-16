@@ -189,6 +189,27 @@ bool User::processCameraRotation(bool viewportFocused) {
     return rotated;
 }
 
+void User::beginExternalCameraDrag() {
+    if (m_externalDragActive) return;
+    m_externalDragActive = true;
+    m_input->setMouseCaptured(true);
+    m_input->getCursorPos(lastMouseX, lastMouseY);
+}
+void User::sampleExternalCameraDrag(double& dx, double& dy) {
+    dx = 0.0; dy = 0.0;
+    if (!m_externalDragActive) return;
+    double curX = 0.0, curY = 0.0;
+    m_input->getCursorPos(curX, curY);
+    dx = curX - lastMouseX;
+    dy = curY - lastMouseY;
+    m_input->setCursorPos(lastMouseX, lastMouseY);
+}
+void User::endExternalCameraDrag() {
+    if (!m_externalDragActive) return;
+    m_externalDragActive = false;
+    m_input->setMouseCaptured(false);
+}
+
 // ズーム（I/Oキー・スクロール）
 void User::processZoom(bool viewportZoomEnabled) {
     // 無効時も毎フレーム破棄しておかないと、ビューポート外でのスクロールが

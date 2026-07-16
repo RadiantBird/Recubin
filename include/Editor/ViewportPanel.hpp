@@ -11,6 +11,7 @@ class CommandHistory;
 #include <Instances/Instance.hpp>
 #include <Instances/Workspace.hpp>
 #include <Math/Matrix4.hpp>
+#include <Math/Quaternion.hpp>
 #include <Core/User.hpp>
 #include <Core/Terrain.hpp>
 #include <Core/TerrainStreamer.hpp>
@@ -83,6 +84,21 @@ public:
     bool  snapScale        = false;
     float snapScaleVal     = 1.0f;
     bool  collisionFit     = true;
+
+    // 独立カメラ（セカンダリビューポート用。プライマリは user カメラを使う）
+    bool    m_useOwnCamera = false;
+    Vector3 m_camPos;
+    float   m_camYaw   = 0.0f;   // 度
+    float   m_camPitch = 0.0f;   // 度
+    bool    m_ownCamDragging = false;  // 右ドラッグでカーソルロック中か
+
+    void initOwnCameraFrom(const User& u);  // userカメラの位置/向きから初期化
+    Quaternion ownCamRot() const;           // yaw/pitchから回転を合成
+    // カメラアクセサ（own/userカメラを切替）
+    Vector3 camPos() const;
+    Vector3 camForward() const;
+    Vector3 camRight() const;
+    Vector3 camUp() const;
 
     // ---- ツールモード状態クエリ ----
     bool isNoToolMode()      const { return toolNone; }

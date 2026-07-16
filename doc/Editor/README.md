@@ -15,9 +15,6 @@ EditorManager
   ├─ AnimationEditorPanel
   │    └─ selectedInstance ──→ (ポインタ共有、Hierarchyと同じ)
   └─ ContentBrowserPanel
-
-SecondaryViewportPanel（EditorManager非所属・独立ウィンドウ）
-  └─ Workspace(weak_ptr) ──→ Renderer::renderViewport()
 ```
 
 ## クラス一覧
@@ -34,4 +31,3 @@ SecondaryViewportPanel（EditorManager非所属・独立ウィンドウ）
 | [ContentBrowserPanel](ContentBrowserPanel.md) | `include/Editor/ContentBrowserPanel.hpp` | アセットファイルブラウザ |
 | [ViewportFocusManager](ViewportFocusManager.md) | `include/Editor/ViewportFocusManager.hpp` | ビューポートフォーカス排他制御 |
 | [AnimationEditorPanel](AnimationEditorPanel.md) | `include/Editor/AnimationEditorPanel.hpp` | Model の Animation キーフレーム編集パネル |
-| [SecondaryViewportPanel](SecondaryViewportPanel.md) | `include/Editor/SecondaryViewportPanel.hpp` | 別Workspaceを表示するフローティングビューポート |

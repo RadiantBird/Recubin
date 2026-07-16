@@ -35,6 +35,7 @@
 
 #include <Editor/EditorManager.hpp>
 #include <Editor/ViewportFocusManager.hpp>
+#include <Editor/Localization.hpp>
 #include <Core/SystemState.hpp>
 #include <include/imgui/imgui.h>
 
@@ -272,6 +273,101 @@ static void savePanelVisibility(EditorManager* ed) {
     writeEditorSettings(root);
 }
 
+// エディター環境設定（物理デバッグ表示・言語・カメラ・スナップ/フィット・ギズモモード）を
+// editor_settings.yaml から復元する。記録が無い/壊れている場合は既定値のまま変更しない。
+static void loadEditorPreferences(EditorManager* ed, User* user) {
+    if (!ed || !user) return;
+    YAML::Node p = loadEditorSettings()["Preferences"];
+    if (!p) return;
+
+    if (p["PhysicsDebug"]) ed->viewportPanel->showPhysicsDebug = p["PhysicsDebug"].as<bool>();
+
+    if (p["Language"]) {
+        std::string lang = p["Language"].as<std::string>();
+        if (lang == "JA") Loc::setLanguage(Loc::Lang::JA);
+        else if (lang == "EN") Loc::setLanguage(Loc::Lang::EN);
+    }
+
+    if (p["Camera"]) {
+        YAML::Node c = p["Camera"];
+        if (c["Pos"] && c["Pos"].IsSequence() && c["Pos"].size() == 3 &&
+            c["Rot"] && c["Rot"].IsSequence() && c["Rot"].size() == 4) {
+            Vector3 pos(c["Pos"][0].as<float>(), c["Pos"][1].as<float>(), c["Pos"][2].as<float>());
+            Quaternion rot(
+                c["Rot"][3].as<float>(), // w
+                c["Rot"][0].as<float>(), // x
+                c["Rot"][1].as<float>(), // y
+                c["Rot"][2].as<float>()  // z
+            );
+            user->setCameraCFrame(CFrame(pos, rot));
+        }
+    }
+
+    if (p["SnapTranslate"])    ed->viewportPanel->snapTranslate    = p["SnapTranslate"].as<bool>();
+    if (p["SnapTranslateVal"]) ed->viewportPanel->snapTranslateVal = p["SnapTranslateVal"].as<float>();
+    if (p["SnapRotate"])       ed->viewportPanel->snapRotate       = p["SnapRotate"].as<bool>();
+    if (p["SnapRotateVal"])    ed->viewportPanel->snapRotateVal    = p["SnapRotateVal"].as<float>();
+    if (p["SnapScale"])        ed->viewportPanel->snapScale        = p["SnapScale"].as<bool>();
+    if (p["SnapScaleVal"])     ed->viewportPanel->snapScaleVal     = p["SnapScaleVal"].as<float>();
+    if (p["CollisionFit"])     ed->viewportPanel->collisionFit     = p["CollisionFit"].as<bool>();
+
+    if (p["GizmoOp"]) {
+        int op = p["GizmoOp"].as<int>();
+        if (op == ImGuizmo::TRANSLATE || op == ImGuizmo::ROTATE || op == ImGuizmo::SCALE) {
+            ed->viewportPanel->gizmoOp = static_cast<ImGuizmo::OPERATION>(op);
+        }
+    }
+    if (p["GizmoMode"]) {
+        int mode = p["GizmoMode"].as<int>();
+        if (mode == ImGuizmo::WORLD || mode == ImGuizmo::LOCAL) {
+            ed->viewportPanel->gizmoMode = static_cast<ImGuizmo::MODE>(mode);
+        }
+    }
+    if (p["SelectOnly"]) ed->viewportPanel->selectOnly = p["SelectOnly"].as<bool>();
+    if (p["ToolNone"])   ed->viewportPanel->toolNone   = p["ToolNone"].as<bool>();
+}
+
+// エディター環境設定を editor_settings.yaml へ保存する（他キーは保持）
+static void saveEditorPreferences(EditorManager* ed, User* user) {
+    if (!ed || !user) return;
+    YAML::Node root = loadEditorSettings();
+    YAML::Node p;
+
+    p["PhysicsDebug"] = ed->viewportPanel->showPhysicsDebug;
+    p["Language"] = (Loc::getLanguage() == Loc::Lang::JA) ? std::string("JA") : std::string("EN");
+
+    CFrame camCf = user->getCameraCFrame();
+    YAML::Node c;
+    YAML::Node posNode;
+    posNode.push_back(camCf.Position.x);
+    posNode.push_back(camCf.Position.y);
+    posNode.push_back(camCf.Position.z);
+    c["Pos"] = posNode;
+    YAML::Node rotNode;
+    rotNode.push_back(camCf.Rotation.x);
+    rotNode.push_back(camCf.Rotation.y);
+    rotNode.push_back(camCf.Rotation.z);
+    rotNode.push_back(camCf.Rotation.w);
+    c["Rot"] = rotNode;
+    p["Camera"] = c;
+
+    p["SnapTranslate"]    = ed->viewportPanel->snapTranslate;
+    p["SnapTranslateVal"] = ed->viewportPanel->snapTranslateVal;
+    p["SnapRotate"]       = ed->viewportPanel->snapRotate;
+    p["SnapRotateVal"]    = ed->viewportPanel->snapRotateVal;
+    p["SnapScale"]        = ed->viewportPanel->snapScale;
+    p["SnapScaleVal"]     = ed->viewportPanel->snapScaleVal;
+    p["CollisionFit"]     = ed->viewportPanel->collisionFit;
+
+    p["GizmoOp"]     = static_cast<int>(ed->viewportPanel->gizmoOp);
+    p["GizmoMode"]   = static_cast<int>(ed->viewportPanel->gizmoMode);
+    p["SelectOnly"]  = ed->viewportPanel->selectOnly;
+    p["ToolNone"]    = ed->viewportPanel->toolNone;
+
+    root["Preferences"] = p;
+    writeEditorSettings(root);
+}
+
 // ウィンドウタイトルに現在開いているシーンのファイル名を付加する
 static void updateWindowTitle(GLFWwindow* window, const std::string& scenePath, bool dirty = false) {
     std::string fileName = std::filesystem::path(scenePath).filename().string();
@@ -455,6 +551,7 @@ int main(int argc, char* argv[]) {
     ed->engineExePath = engineExePath;
     ed->scenePath     = scenePath; // 起動時に決定したシーンパスを反映
     loadPanelVisibility(ed);       // 前回のパネル開閉状態を復元
+    loadEditorPreferences(ed, user.get()); // 前回のエディター環境設定を復元
 
     // Workspace 切り替えコールバックを設定
     ed->hierarchyPanel->onSwitchWorkspace = [&](Workspace* ws) {
@@ -617,8 +714,9 @@ int main(int argc, char* argv[]) {
 
         // ---- 入力処理（エディターモードではカメラ操作のみ許可）----
         ViewportPanel* focusedVP = ed ? GetFocusedViewport() : nullptr;
-        state.viewportFocused    = focusedVP != nullptr;
-        state.viewportZoomEnabled = focusedVP != nullptr || (ed ? ed->isAnyViewportHovered() : false);
+        bool primaryFocused = focusedVP != nullptr && ed && focusedVP == ed->viewportPanel.get();
+        state.viewportFocused    = primaryFocused;
+        state.viewportZoomEnabled = primaryFocused || (ed && ed->viewportPanel && ed->viewportPanel->isHoveringViewport);
         user->processInput(workspace->getPhysicsEngine(), deltaTime,
                             state.viewportFocused, state.viewportZoomEnabled,
                             state.inputState == InputState::Gameplay,
@@ -703,6 +801,7 @@ int main(int argc, char* argv[]) {
     RCBN_LOG("Shutting down...");
 
     savePanelVisibility(ed); // 次回起動時に復元できるようパネル開閉状態を保存
+    saveEditorPreferences(ed, user.get()); // 次回起動時に復元できるようエディター環境設定を保存
 
     // windows(
     //     std::thread t([]() {

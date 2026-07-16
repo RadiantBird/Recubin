@@ -139,6 +139,7 @@ private:
     char        m_pkgOutDir[512]    = {};
     bool        m_isPackaging       = false;
     std::vector<std::string> m_pkgLog;
+    bool m_pkgLogScrollToBottom = false;
 
 public:
     std::string engineExePath;

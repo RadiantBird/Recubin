@@ -52,6 +52,8 @@
 #define ICON_ROPE                "\xef\xa0\xbe"  // f83e fa-wave-square (代替)
 #define ICON_ATTACHMENT          "\xef\x82\x8d"  // f08d fa-thumbtack
 #define ICON_FORCE               "\xef\x83\xa7"  // f0e7 fa-bolt
+#define ICON_BALLSOCKET          "\xef\x85\x80"  // f140 fa-bullseye
+#define ICON_NOCOLLISION         "\xef\x81\x9e"  // f05e fa-ban
 #define ICON_TERRAIN_RAISE       "\xef\x81\xa2"  // f062 fa-arrow-up
 #define ICON_TERRAIN_LOWER       "\xef\x81\xa3"  // f063 fa-arrow-down
 #define ICON_TERRAIN_SMOOTH      "\xef\x94\x9a"  // f51a fa-broom

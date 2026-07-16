@@ -27,6 +27,8 @@
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
 #include <Instances/Force.hpp>
+#include <Instances/BallSocket.hpp>
+#include <Instances/NoCollision.hpp>
 #include <include/Math/PerlinNoise.hpp>
 #include <include/Core/Terrain.hpp>
 #include <include/Core/TerrainStreamer.hpp>
@@ -941,6 +943,8 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
     const Color4 MOTOR_COLOR  {1.0f,  0.85f, 0.2f,  1.0f};
     const Color4 ATTACH_COLOR {1.0f,  0.55f, 0.15f, 1.0f};
     const Color4 FORCE_COLOR  {1.0f,  0.3f,  0.25f, 1.0f};
+    const Color4 BALLSOCKET_COLOR {0.45f, 0.6f,  1.0f,  1.0f};
+    const Color4 NOCOLL_COLOR     {1.0f,  0.35f, 0.35f, 1.0f};
 
     constexpr float kPhysicsDebugWidth = 0.05f; // ワールド空間幅（旧glLineWidth(2.0f)相当）
     auto uploadAndDraw = [&](const std::vector<float>& verts) {
@@ -1081,6 +1085,49 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
                     float len = std::min(std::max(force->Value.length() * 0.01f, 1.0f), 4.0f);
                     drawArrow(origin, force->Value, len);
                 }
+            }
+        } else if (cn == "BallSocket") {
+            BallSocket* bs = static_cast<BallSocket*>(inst);
+            auto c0 = bs->m_cube0.lock();
+            auto c1 = bs->m_cube1.lock();
+            if (c0 && c1) {
+                // ピボット位置は Motor と同じ規則（Attachment優先、無ければ中点）
+                auto a0 = bs->m_attachment0.lock();
+                auto a1 = bs->m_attachment1.lock();
+                Vector3 pivot;
+                if (a0 && a1) pivot = (a0->getWorldCFrame().Position + a1->getWorldCFrame().Position) * 0.5f;
+                else if (a0)  pivot = a0->getWorldCFrame().Position;
+                else if (a1)  pivot = a1->getWorldCFrame().Position;
+                else          pivot = (c0->getWorldCFrame().Position + c1->getWorldCFrame().Position) * 0.5f;
+
+                setColor(BALLSOCKET_COLOR);
+                // ボール部: ピボットのワイヤ球（直交3円）
+                constexpr float R = 0.3f;
+                drawCircle(pivot, Vector3(1, 0, 0), R);
+                drawCircle(pivot, Vector3(0, 1, 0), R);
+                drawCircle(pivot, Vector3(0, 0, 1), R);
+                // ソケット部: 両Cube中心からピボットへの接続線
+                drawSegment(c0->getWorldCFrame().Position, pivot);
+                drawSegment(c1->getWorldCFrame().Position, pivot);
+            }
+        } else if (cn == "NoCollision") {
+            NoCollision* nc = static_cast<NoCollision*>(inst);
+            auto c0 = nc->m_cube0.lock();
+            auto c1 = nc->m_cube1.lock();
+            if (c0 && c1) {
+                setColor(NOCOLL_COLOR);
+                Vector3 p0 = c0->getWorldCFrame().Position;
+                Vector3 p1 = c1->getWorldCFrame().Position;
+                drawSegment(p0, p1);
+                // 中点にカメラ向きの「禁止」マーク（円＋斜線）
+                Vector3 mid = (p0 + p1) * 0.5f;
+                Vector3 toCam = cameraPosition - mid;
+                Vector3 axis = (toCam.length() > 0.0001f) ? toCam.normalize() : Vector3(0, 1, 0);
+                constexpr float R = 0.35f;
+                drawCircle(mid, axis, R);
+                Vector3 u, v; basisFor(axis, u, v);
+                Vector3 diag = (u + v).normalize() * R;
+                drawSegment(mid - diag, mid + diag);
             }
         }
 

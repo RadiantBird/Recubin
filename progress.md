@@ -541,3 +541,72 @@
 
 **暗黙仕様の発見**
 - **`SceneHierarchyPanel::drawNode()`のノードクリックハンドラは、`PropertiesPanel`/`ViewportPanel`と共有する`PickerState`を経由して「選択」と「参照指定」の2つの意味を持つ**（spec.md未記載）。`m_picker->active`が真の間はクリックが通常の選択処理をバイパスして参照指定に転用される。今後同種の「クリックで何かを指定する」UIを追加する際は、`PickerState`に新しいフラグを1つ足すだけでヒエラルキー経由のPickに対応できる（ビューポート経由が必要な場合は別途`ViewportPanel.cpp`側の対応が要る）という拡張パターンが確立した。
+
+---
+
+## 2026-07-16 エディター修正4項目＋セカンダリビューポート全面リハビリ
+
+### 何をしたか
+
+**1. エディター設定の永続化**（`src/main.cpp` のみ）
+- 既存の `editor_settings.yaml` 機構（`loadEditorSettings`/`writeEditorSettings`、マージ保存）を拡張し、`loadEditorPreferences`/`saveEditorPreferences` を `savePanelVisibility` と同型で新設。`Preferences` キー配下に物理デバッグ表示・言語(JA/EN)・カメラ位置/向き(Pos+Rot[x,y,z,w])・スナップ/フィット7項目・ギズモモード4項目(GizmoOp/GizmoMode/SelectOnly/ToolNone)を保存。起動時ロードは `loadPanelVisibility` 直後、終了時セーブは `savePanelVisibility` 直後。
+- ギズモモードはユーザーからの追加指示（ExitPlanMode初回却下時に「ギズモのモードも保存」と要望）。int保存し、復元時はTRANSLATE/ROTATE/SCALE・WORLD/LOCALと一致する場合のみ反映。
+
+**2. パッケージャーログ修正＋Copyボタン3箇所**（`EditorManager.hpp/.cpp`、`ConsolePanel.cpp`）
+- スクロール不能の原因は `renderPackageDialog` で `SetScrollHereY(1.0f)` を毎フレーム無条件実行していたこと。`ConsolePanel` と同じ `scrollToBottom` フラグ方式（`m_pkgLogScrollToBottom`、push時にセット）に統一。
+- パッケージャー/System/Luauコンソールに `SmallButton` のCopyボタン（`Loc::LocKey::MenuCopy` 再利用、フィルタ適用後の表示行を`\n`連結して `SetClipboardText`）。
+
+**3. スナップ値の小数第三位対応**（`EditorManager.cpp` 3箇所）: DragFloatを `"%.3f"`/min 0.001/speed 0.005(回転0.05) に。丸めロジック(ViewportPanel.cpp:912-920)は不変。
+
+**4. 物理タブに BallSocket/NoCollision ボタン**（`EditorManager.cpp`、`IconsDef.hpp`）: `tryAddObjectButton<T>` 2行＋`ICON_BALLSOCKET`(f140 fa-bullseye)/`ICON_NOCOLLISION`(f05e fa-ban) 追加。前セッションの保留事項（専用アイコンが無くスキップ）を解消。
+
+**5. セカンダリビューポート全面リハビリ**（readme.md TODO「なぜ非推奨でバグありか調べる」→調査の結果4問題を特定し全て修正）
+- **(a) 「常に移動モード」の主因＝フォーカス喪失**: ビューポート外クリック（ツールバー含む）で `clearFocus()` が走り、`renderToolbarBasic` の操作対象がプライマリ（既定TRANSLATE）にフォールバックしていた。`ViewportFocusManager` に `lastFocusedViewport` を追加（`onFocusViewport`で常時更新、`getLastFocusedViewport`/`GetLastFocusedViewport`/`onViewportDestroyed`新設）し、ツールバーとCtrl+Lの対象解決を「focused→last→プライマリ」の3段に変更。`clearFocus`の条件変更は不採用（main.cppのカメラ入力ゲートが`GetFocusedViewport()!=nullptr`に依存しており、WASD誤爆の回帰が出るため）。
+- **(b) ImGuizmoグローバル状態の未分離**: `ViewportPanel::onRender` 全体を `ImGuizmo::PushID(this)`/`PopID()` で囲んだ（メインセッションが直接実装した唯一の変更）。vendorヘッダで `PushID(const void*)` の存在と、`IsUsing()` がIDスコープ判定であることを確認済み。`ViewportPanel.cpp:785` の「FIX: それぞれの軸が干渉している」の原因はこれ。
+- **(c) 独立カメラ**: セカンダリはプライマリと同じ `user->cpos/forward` を共有していた。`ViewportPanel` に `m_useOwnCamera`/`m_camPos`/`m_camYaw`/`m_camPitch`＋アクセサ `camPos()/camForward()/camRight()/camUp()`（own/user切替）を追加し、onRender内の `user->` 読み取り箇所を機械的置換。プライマリは`m_useOwnCamera=false`で従来と完全等価。`openSecondaryViewport` で own カメラを user カメラ位置から初期化。main.cpp の入力ゲートを「プライマリがフォーカスされているときのみ user カメラ入力許可」に変更（セカンダリ操作中にプライマリカメラが動く/二重ドリーの防止）。
+- **(d) 未使用クラス削除**: `SecondaryViewportPanel`(.hpp/.cpp/doc) を削除（コード参照ゼロ、CMakeはGLOB_RECURSEなのでビルド変更不要）。ただしフリーカメラ実装は(c)に流用してから削除。
+
+**6. 追加修正3件（ユーザーの実機確認フィードバック起点）**
+- **セカンダリの感度違い**: 独立カメラ入力がマジックナンバー直書き（回転0.3/移動10*dt/ホイール2.0）だった。`user->mouseRotationSpeed`/`user->speed`（DeltaTime乗算なし＝プライマリと同じ毎フレーム加算）/`user->mouseZoomSpeed` 参照に変更、E/Qもワールド Y から `camUp()` 基準に。`m_camSpeed` メンバは削除。
+- **セカンダリのマウスロック無し**: プライマリのカーソルロック機構（`setMouseCaptured`+アンカー方式）を `User` の公開API `beginExternalCameraDrag`/`sampleExternalCameraDrag`/`endExternalCameraDrag`（`m_externalDragActive`、既存`isRightMouseRotating`とは別フラグ）として切り出し、セカンダリの右ドラッグが使用。`isRotatingCamera()` を両フラグのORにしたので `drawCameraRotationCursor` の擬似カーソルもそのまま機能。ViewportPanelデストラクタでドラッグ中破棄時の解放も追加。
+- **セカンダリを閉じた瞬間の1フレーム画面乱れ**: X押下フレームでウィンドウのテクスチャが ImGui 描画リストへ提出済みなのに、同フレーム内の erase がデストラクタ(`destroyFBO`)でGLテクスチャを削除→フレーム末尾の描画が削除済みテクスチャを参照していた。erase ブロックをセカンダリ描画ループの**前**に移動して解消。
+
+**7. BallSocket/NoCollision の物理デバッグ描画**（ユーザー追加依頼。`BallSocket.hpp`/`NoCollision.hpp`/`Renderer.cpp`）
+- `Renderer::renderPhysicsDebug` の scan 分岐に追加。privateメンバアクセスは Weld と同じ `friend class Renderer;` 方式。
+- BallSocket（青系）: ピボットに直交3円のワイヤ球＋両Cube中心からの接続線。ピボット規則は Motor のデバッグ描画と同一（Attachment優先、無ければ中点）。
+- NoCollision（赤系）: Cube間の線＋中点にカメラ向きの「禁止」マーク（円＋斜線）。
+
+### なぜそうしたか
+
+- **B-a で lastFocused記憶方式を採用（clearFocus温存）**: clearFocusを弱める案は main.cpp:619 の入力ゲートと User.cpp:143 のAltフリールック解除がフォーカスクリアに依存しており回帰リスクが高い。「操作対象の記憶」と「入力ゲート」を分離する方が安全。
+- **B-b で PushID/PopID 方式**: vendor の ImGuizmo に `SetID` があるが deprecated で、`PushID(const void*)`/`PopID` が正式API。onRender内の途中returnが1箇所（Begin失敗時）しかないことをgrepで確認してから採用。
+- **B-c でプライマリを触らない設計**: アクセサ切替方式にすることで `m_useOwnCamera=false` の経路は既存と完全等価になり、プライマリの回帰リスクをゼロにした。
+- **感度修正で DeltaTime を掛けない**: プライマリの WASD 移動（User.cpp:220-225）が毎フレーム定数加算（フレームレート依存）なので、感度を一致させるにはあえて同じ方式にする必要があった。
+- **マウスロックを User のAPIとして切り出し**: ViewportPanel から `m_input`（private）を直接触る案や friend 追加案より、アンカー状態を共用できる公開APIの方が擬似カーソル描画(`drawCameraRotationCursor`)を無改修で流用できる。別フラグ `m_externalDragActive` にしたのは、`User::processCameraRotation` が毎フレーム「`looking=false` なら `isRightMouseRotating` を解除」するため、同じフラグを共用するとセカンダリのロックが即座に解除されてしまうから。
+
+### どういう経緯か
+
+1. readme.md の TODO（43-56行）を対象に計画モードで開始。Explore 3並列（設定永続化の既存機構／ログUI・スナップ・物理タブ／セカンダリビューポート調査）→ AskUserQuestion でセカンダリの改善範囲（a+b+c+d全面リハビリを選択）とコピーUI方式（Copyボタン全文コピー）を確認 → Plan agent に詳細設計を委託 → ImGuizmo API・ViewportFocusManager・main.cpp ゲートをメインセッションで裏取り → 計画承認（初回却下でギズモモード保存を追加）。
+2. 5フェーズに分割し implementer に委譲（Phase4 の PushID/PopID 2行のみメイン直接）。各フェーズ後に git diff レビュー＋ビルド。全体後に回帰テスト。
+3. ユーザー実機確認で「感度が違う」「マウスロックが効かない」「閉じた時に画面が乱れる」の3件のフィードバックを受け、それぞれ原因調査→implementer委譲（感度はPhase5のエージェントをSendMessageで再開）で修正。
+4. 最後に「BallSocket/NoCollisionのデバッグ描画」を追加依頼され実装。
+5. 回帰テストは全チェックポイントで 126 passed / 3 failed（既知ベースライン）を維持。
+
+**試して失敗した方法（教訓）**:
+- 当初セカンダリの右ドラッグを `io.MouseDelta` 直読みで実装したが、カーソルロックが無く画面端で回転が止まる・感度もプライマリと不一致だった。**カメラドラッグ系は最初から User の既存機構（キャプチャ＋アンカー＋擬似カーソル）に乗せるべき**。ImGuiのMouseDeltaはOSカーソル依存でraw motionの恩恵を受けられない。
+- ImGuiウィンドウ内に GL テクスチャを表示するパネルを「同フレーム内で描画後に破棄」すると、フレーム末尾のImGui描画が削除済みテクスチャを参照して1フレーム乱れる。**FBO/テクスチャを持つパネルの破棄はフレーム先頭（そのフレームで何も提出する前）に行う**こと。
+
+### 未解決・保留
+
+- セカンダリビューポートの「非推奨」表記の解除（挿入メニュー等にそういう文言があれば）は未確認・未対応。ユーザーの実機確認は通ったので、必要なら次セッションで文言を探して更新。
+- ドラッグ中のスナップ値DragFloat（min 0.001）は0にできない仕様のまま（スナップ自体のON/OFFはチェックボックスがあるため問題ないと判断）。
+- `assets/scenes/physics_test.yaml` にユーザーの実機確認由来と思われる差分（ツリー再構成）が入った状態でコミット。回帰テストはベースライン維持を確認済み。
+- 前セッションからの持ち越し（BallSocket/NoCollision実機確認は今回のデバッグ描画確認と合わせてユーザーが実施済みの模様。readme.md TODOのチェックはユーザー自身が消し込み済み）。
+
+### 暗黙仕様の発見
+
+- **ImGuizmoのグローバル状態はPushID/PopIDで分離しないと複数ビューポートで干渉する**（spec.md未記載）。`IsUsing()`もIDスコープ判定（`GetCurrentID()==mEditingID`）なので、Manipulateだけでなく状態クエリも含めて `PushID(パネルポインタ)` で囲む必要がある。`BeginFrame()` はフレーム1回のままでよい。
+- **`ViewportFocusManager` のフォーカスは「カメラ入力ゲート」と「ツールバー操作対象」の2役を兼ねていた**。前者はクリアが必要（誤入力防止）、後者はクリアされると困る（ツールバークリックで対象消失）ため、`lastFocusedViewport` として役割分離した。今後フォーカス依存の機能を足すときはどちらの意味かを意識すること。
+- **`User::processCameraRotation` は毎フレーム「looking でなければキャプチャ解除」する**ため、User外部から `setMouseCaptured` を借りる場合は専用フラグ（`m_externalDragActive`）で状態を分けないと即解除される。
+- **ImGuiパネルに表示中のGLテクスチャは、そのフレームの ImGui::Render が終わるまで削除してはいけない**（描画リストがテクスチャIDを保持している）。パネル破棄はフレーム先頭で行うのが安全。
+- **プライマリカメラのWASD移動は DeltaTime を掛けないフレームレート依存の毎フレーム定数加算**（User.cpp:220-225、`speed=0.25`）。カメラ感度を合わせる実装をする際はこの仕様に合わせる必要がある。

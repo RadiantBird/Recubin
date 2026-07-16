@@ -17,6 +17,7 @@ class BallSocket : public Instance {
 
     friend class Physics;
     friend class SceneLoader;
+    friend class Renderer;
 
     // 両方のCubeが解決済みなら制約をWorkspaceに登録する（setProperty/setCube0/setCube1から共通利用）
     void registerIfReady();

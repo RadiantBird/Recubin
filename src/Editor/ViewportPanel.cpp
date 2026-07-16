@@ -63,6 +63,7 @@ ViewportPanel::ViewportPanel()
 }
 
 ViewportPanel::~ViewportPanel() {
+    if (m_ownCamDragging && user) user->endExternalCameraDrag();
     destroyFBO();
 }
 
@@ -93,6 +94,27 @@ void ViewportPanel::initFBO(int w, int h) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     // printf("\033[36m[FBO CHECK] fb=%u, tex=%u, status=0x%X (Complete=0x8CD5)\033[0m\n", framebuffer, colorTexture, status);
+}
+
+// 独立カメラ: yaw/pitchから回転を合成（yaw→pitch、-Z前方）
+Quaternion ViewportPanel::ownCamRot() const {
+    Quaternion qYaw   = Quaternion::fromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), m_camYaw);
+    Quaternion qPitch = Quaternion::fromAxisAngle(Vector3(1.0f, 0.0f, 0.0f), m_camPitch);
+    return qYaw * qPitch;
+}
+
+Vector3 ViewportPanel::camPos() const     { return m_useOwnCamera ? m_camPos : user->cpos; }
+Vector3 ViewportPanel::camForward() const { return m_useOwnCamera ? ownCamRot().getForward() : user->forward; }
+Vector3 ViewportPanel::camRight() const   { return m_useOwnCamera ? ownCamRot().getRight()   : user->right; }
+Vector3 ViewportPanel::camUp() const      { return m_useOwnCamera ? ownCamRot().getUp()      : user->up; }
+
+// userカメラの位置/向きから独立カメラを初期化（yaw/pitchをforwardから復元）
+void ViewportPanel::initOwnCameraFrom(const User& u) {
+    m_camPos = u.cpos;
+    Vector3 f = u.forward;
+    float fy = std::clamp(f.y, -1.0f, 1.0f);
+    m_camPitch = std::asin(fy) * 180.0f / 3.14159265f;
+    m_camYaw   = std::atan2(-f.x, -f.z) * 180.0f / 3.14159265f;
 }
 
 void ViewportPanel::resizeFBO(int w, int h) {
@@ -130,6 +152,10 @@ void ViewportPanel::onRender() {
         return;
     }
 
+    // ImGuizmoのグローバル状態(gContext)をビューポート毎に分離する
+    // (複数ビューポートが同一フレームでManipulate/IsUsingを呼んでも干渉しないように)
+    ImGuizmo::PushID(this);
+
     // パネルの利用可能サイズ
     ImVec2 avail = ImGui::GetContentRegionAvail();
     if (avail.x < 1.0f) avail.x = 1.0f;
@@ -158,9 +184,9 @@ void ViewportPanel::onRender() {
         desc.fbo               = framebuffer;       // ログでCompleteだったこのパネルのFBOテクスチャ
         desc.width             = w;
         desc.height            = h;
-        desc.cameraPosition    = user->cpos;         // 有効なユーザーカメラ位置
-        desc.cameraForward     = user->forward;
-        desc.cameraUp          = user->up;
+        desc.cameraPosition    = camPos();           // 有効なユーザーカメラ位置
+        desc.cameraForward     = camForward();
+        desc.cameraUp          = camUp();
         desc.renderShadows     = true;
         desc.renderConstraints = true;
         desc.renderHighlights  = true;              // サブ側は一旦ハイライトなし
@@ -235,6 +261,46 @@ void ViewportPanel::onRender() {
     }
 
     // ===================================================
+    //  独立カメラの入力処理（セカンダリビューポートのみ）
+    // ===================================================
+    if (m_useOwnCamera) {
+        ImGuiIO& io = ImGui::GetIO();
+        // 右ドラッグで視点回転（プライマリと同じカーソルロック+アンカー方式）
+        bool rightDown = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+        if (!m_ownCamDragging) {
+            if (isHoveringViewport && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+                user->beginExternalCameraDrag();
+                m_ownCamDragging = true;
+            }
+        } else if (rightDown) {
+            double dx = 0.0, dy = 0.0;
+            user->sampleExternalCameraDrag(dx, dy);
+            m_camYaw   -= static_cast<float>(dx) * user->mouseRotationSpeed;
+            m_camPitch -= static_cast<float>(dy) * user->mouseRotationSpeed;
+            if (m_camPitch >  89.0f) m_camPitch =  89.0f;
+            if (m_camPitch < -89.0f) m_camPitch = -89.0f;
+        } else {
+            user->endExternalCameraDrag();
+            m_ownCamDragging = false;
+        }
+        // フォーカス中はWASD+E/Qで移動
+        if (isViewportFocused && !io.WantTextInput) {
+            float spd = user->speed;
+            Vector3 fwd = camForward(), right = camRight(), up = camUp();
+            if (ImGui::IsKeyDown(ImGuiKey_W)) m_camPos = m_camPos + fwd   *  spd;
+            if (ImGui::IsKeyDown(ImGuiKey_S)) m_camPos = m_camPos + fwd   * -spd;
+            if (ImGui::IsKeyDown(ImGuiKey_D)) m_camPos = m_camPos + right *  spd;
+            if (ImGui::IsKeyDown(ImGuiKey_A)) m_camPos = m_camPos + right * -spd;
+            if (ImGui::IsKeyDown(ImGuiKey_E)) m_camPos = m_camPos + up    *  spd;
+            if (ImGui::IsKeyDown(ImGuiKey_Q)) m_camPos = m_camPos + up    * -spd;
+        }
+        // ホバー中ホイールで前後ドリー
+        if (isHoveringViewport && io.MouseWheel != 0.0f) {
+            m_camPos = m_camPos + camForward() * (io.MouseWheel * user->mouseZoomSpeed);
+        }
+    }
+
+    // ===================================================
     //  共用ヘルパーラムダ
     // ===================================================
 
@@ -264,9 +330,9 @@ void ViewportPanel::onRender() {
         float ndcY  = 1.0f - (my / (float)h) * 2.0f;
         float aspect = (w > 0 && h > 0) ? (float)w / (float)h : 1.0f;
         float tanH  = std::tan(45.0f * (3.14159265f / 180.0f) * 0.5f);
-        return (user->forward
-              + user->right * (ndcX * aspect * tanH)
-              + user->up    * (ndcY * tanH)).normalize();
+        return (camForward()
+              + camRight() * (ndcX * aspect * tanH)
+              + camUp()    * (ndcY * tanH)).normalize();
     };
 
     // OBB スラブ法: レイをオブジェクトのローカル空間に変換して AABB テストする
@@ -441,7 +507,7 @@ void ViewportPanel::onRender() {
 
             ImVec2 mousePos = ImGui::GetMousePos();
             Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
-            Vector3 rayOri = user->cpos;
+            Vector3 rayOri = camPos();
 
             // 物理シーンではなくブロックデータへ直接レイキャストする。常に最新の地形を
             // 参照するため、編集直後でも貫通（地中ワープ）が発生しない。
@@ -455,7 +521,7 @@ void ViewportPanel::onRender() {
                 if (Renderer::instance && framebuffer) {
                     float   aspect = (h > 0) ? (float)w / (float)h : 1.0f;
                     Matrix4 proj   = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
-                    Matrix4 view   = Matrix4::LookAt(user->cpos, user->cpos + user->forward, user->up);
+                    Matrix4 view   = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
                     GLint prevFBO = 0; GLint prevVp[4] = {};
                     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
                     glGetIntegerv(GL_VIEWPORT, prevVp);
@@ -466,7 +532,7 @@ void ViewportPanel::onRender() {
 
                     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
                     glViewport(0, 0, fbWidth, fbHeight);
-                    Renderer::instance->renderBrushMarker(view, proj, hitPos, m_terrainBrush->radius, user->cpos, brushNormal);
+                    Renderer::instance->renderBrushMarker(view, proj, hitPos, m_terrainBrush->radius, camPos(), brushNormal);
                     glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
                     glViewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3]);
                 }
@@ -506,7 +572,7 @@ void ViewportPanel::onRender() {
     if (!terrainBrushActive && !isNoToolMode() && isHoveringViewport && ImGui::IsMouseClicked(0) && !ImGuizmo::IsUsing() && user && workspace) {
         ImVec2 mousePos = ImGui::GetMousePos();
         Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
-        Vector3 rayOri = user->cpos;
+        Vector3 rayOri = camPos();
 
         // ---- ピッカーモード: Pick ボタン押下中はクリックをキューブ/Attachment指定に横取り ----
         if (m_picker && m_picker->active) {
@@ -640,8 +706,8 @@ void ViewportPanel::onRender() {
         if (m_isBoxSelecting && user && workspace && selectedInstance && selectedInstances) {
             float aspect = (h > 0) ? (float)w / (float)h : 1.0f;
             Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
-            Vector3 camTarget = user->cpos + user->forward;
-            Matrix4 view = Matrix4::LookAt(user->cpos, camTarget, user->up);
+            Vector3 camTarget = camPos() + camForward();
+            Matrix4 view = Matrix4::LookAt(camPos(), camTarget, camUp());
             Matrix4 vp   = proj * view;
             const float* mv = vp.m;
 
@@ -741,8 +807,8 @@ void ViewportPanel::onRender() {
 
             float aspect = (h > 0) ? (float)w / (float)h : 1.0f;
             Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
-            Vector3 target = user->cpos + user->forward;
-            Matrix4 view   = Matrix4::LookAt(user->cpos, target, user->up);
+            Vector3 target = camPos() + camForward();
+            Matrix4 view   = Matrix4::LookAt(camPos(), target, camUp());
 
             // Roblox スタイルリサイズ用: ドラッグ中でない間は常に最新状態を保持
             // IsUsing() は Manipulate() 呼び出し前の状態を返すため、
@@ -967,7 +1033,7 @@ void ViewportPanel::onRender() {
     if (user && selectedInstances && !selectedInstances->empty()) {
         float aspect = (h > 0) ? (float)w / (float)h : 1.0f;
         Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
-        Matrix4 view = Matrix4::LookAt(user->cpos, user->cpos + user->forward, user->up);
+        Matrix4 view = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
         Matrix4 vp   = proj * view;
         const float* mv = vp.m;
         auto* dl = ImGui::GetWindowDrawList();
@@ -1014,7 +1080,7 @@ void ViewportPanel::onRender() {
         if (computeDescendantWorldAABB(*selectedInstance, aabbMin, aabbMax)) {
             float aspect = (h > 0) ? (float)w / (float)h : 1.0f;
             Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
-            Matrix4 view = Matrix4::LookAt(user->cpos, user->cpos + user->forward, user->up);
+            Matrix4 view = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
             Matrix4 vp   = proj * view;
             const float* mv = vp.m;
             auto* dl = ImGui::GetWindowDrawList();
@@ -1101,7 +1167,7 @@ void ViewportPanel::onRender() {
             Spatial* s = static_cast<Spatial*>(inst);
             ImVec2 mp = ImGui::GetMousePos();
             Vector3 dir = makeRay(mp.x - contentOrigin.x, mp.y - contentOrigin.y);
-            Vector3 ori = user->cpos;
+            Vector3 ori = camPos();
 
             [&]() {
                 // レイキャストなしは移動しない
@@ -1175,7 +1241,7 @@ void ViewportPanel::onRender() {
 
         ImVec2  mp  = ImGui::GetMousePos();
         Vector3 dir = makeRay(mp.x - contentOrigin.x, mp.y - contentOrigin.y);
-        Vector3 ori = user->cpos;
+        Vector3 ori = camPos();
 
         float nearestT = 1e30f;
         bool  hitAny   = false;
@@ -1211,11 +1277,16 @@ void ViewportPanel::onRender() {
             Vector3 objPos = s->Position;
             float maxSize = (std::max)(s->Size.x, (std::max)(s->Size.y, s->Size.z));
             float dist = (std::max)(maxSize * 3.0f, 5.0f);
-            user->cpos = objPos - user->forward * dist;
-            user->updateVectors();
+            if (m_useOwnCamera) {
+                m_camPos = objPos - camForward() * dist;
+            } else {
+                user->cpos = objPos - user->forward * dist;
+                user->updateVectors();
+            }
         }
     }
 
+    ImGuizmo::PopID();
     ImGui::PopStyleVar();
     ImGui::End();
 }

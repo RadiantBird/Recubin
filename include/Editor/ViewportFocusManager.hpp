@@ -43,12 +43,20 @@ public:
             
             focusGeneration.fetch_add(1, std::memory_order_release);
         }
+
+        lastFocusedViewport = viewport;
     }
 
     // 現在のフォーカスされたViewportを取得
     ViewportPanel* getFocusedViewport() const {
         std::lock_guard<std::mutex> lock(focusMutex);
         return currentFocusedViewport;
+    }
+
+    // 最後にフォーカスされたViewportを取得
+    ViewportPanel* getLastFocusedViewport() const {
+        std::lock_guard<std::mutex> lock(focusMutex);
+        return lastFocusedViewport;
     }
 
     // 指定したViewportが現在フォーカスされているか
@@ -60,12 +68,26 @@ public:
     // フォーカスを解除（全Viewportのフォーカスを外す）
     void clearFocus() {
         std::lock_guard<std::mutex> lock(focusMutex);
-        
+
         if (currentFocusedViewport) {
             currentFocusedViewport->isViewportFocused = false;
         }
         currentFocusedViewport = nullptr;
         focusGeneration.fetch_add(1, std::memory_order_release);
+    }
+
+    // Viewportが破棄されるときに呼び出す（ダングリングポインタ防止）
+    void onViewportDestroyed(ViewportPanel* vp) {
+        std::lock_guard<std::mutex> lock(focusMutex);
+
+        if (currentFocusedViewport == vp) {
+            currentFocusedViewport->isViewportFocused = false;
+            currentFocusedViewport = nullptr;
+            focusGeneration.fetch_add(1, std::memory_order_release);
+        }
+        if (lastFocusedViewport == vp) {
+            lastFocusedViewport = nullptr;
+        }
     }
 
     // 現在のフォーカス世代番号を取得（デバッグ用）
@@ -94,6 +116,7 @@ private:
 
     mutable std::mutex focusMutex;              // スレッドセーフのためのミューテックス
     ViewportPanel* currentFocusedViewport = nullptr;  // 現在フォーカスされているViewport
+    ViewportPanel* lastFocusedViewport = nullptr;     // 最後にフォーカスされていたViewport（フォーカス解除後も保持）
     std::atomic<unsigned int> focusGeneration{0};     // フォーカス変更の世代番号（デバッグ用）
 };
 
@@ -109,6 +132,11 @@ inline void SetViewportFocus(ViewportPanel* viewport) {
 // 現在のフォーカスViewportを取得
 inline ViewportPanel* GetFocusedViewport() {
     return ViewportFocusManager::getInstance().getFocusedViewport();
+}
+
+// 最後にフォーカスされたViewportを取得
+inline ViewportPanel* GetLastFocusedViewport() {
+    return ViewportFocusManager::getInstance().getLastFocusedViewport();
 }
 
 // フォーカスをクリア

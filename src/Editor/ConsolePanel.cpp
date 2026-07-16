@@ -53,6 +53,17 @@ void ConsolePanel::onRender() {
             ImGui::SetNextItemWidth(200.0f);
             std::string filterLabel = std::string(Loc::t(Loc::LocKey::FilterLabel)) + "##sys";
             ImGui::InputText(filterLabel.c_str(), filterBuf, sizeof(filterBuf));
+            ImGui::SameLine();
+            std::string sysCopyLabel = std::string(Loc::t(Loc::LocKey::MenuCopy)) + "##syscopy";
+            if (ImGui::SmallButton(sysCopyLabel.c_str())) {
+                std::string joined;
+                for (const auto& line : logs) {
+                    if (filterBuf[0] != '\0' && line.find(filterBuf) == std::string::npos) continue;
+                    joined += line;
+                    joined += '\n';
+                }
+                ImGui::SetClipboardText(joined.c_str());
+            }
             ImGui::Separator();
 
             ImGui::BeginChild("SysScroll", ImVec2(0, 0), ImGuiChildFlags_None,
@@ -80,6 +91,17 @@ void ConsolePanel::onRender() {
             ImGui::SetNextItemWidth(200.0f);
             std::string filterLabel = std::string(Loc::t(Loc::LocKey::FilterLabel)) + "##luau";
             ImGui::InputText(filterLabel.c_str(), luauFilterBuf, sizeof(luauFilterBuf));
+            ImGui::SameLine();
+            std::string luauCopyLabel = std::string(Loc::t(Loc::LocKey::MenuCopy)) + "##luaucopy";
+            if (ImGui::SmallButton(luauCopyLabel.c_str())) {
+                std::string joined;
+                for (const auto& line : luauLogs) {
+                    if (luauFilterBuf[0] != '\0' && line.find(luauFilterBuf) == std::string::npos) continue;
+                    joined += line;
+                    joined += '\n';
+                }
+                ImGui::SetClipboardText(joined.c_str());
+            }
             ImGui::Separator();
 
             ImGui::BeginChild("LuauScroll", ImVec2(0, 0), ImGuiChildFlags_None,
