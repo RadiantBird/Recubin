@@ -80,6 +80,8 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     viewportPanel->selectedInstances   = &hierarchyPanel->selectedInstances;
     animationPanel->selectedInstance   = &hierarchyPanel->selectedInstance;
     animationPanel->m_history          = &m_history;
+    contentBrowserPanel->selectedInstance = &hierarchyPanel->selectedInstance;
+    contentBrowserPanel->workspace        = &hierarchyPanel->workspace;
 
     // 履歴に変更が入ったら未保存(dirty)にする。これで全パネル（挿入/貼付/削除/
     // D&D/リネーム/プロパティ編集）が CommandHistory 経由で自動的に dirty 化される
@@ -90,6 +92,7 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     hierarchyPanel->m_clipboard = &m_clipboard;
     propertiesPanel->m_history  = &m_history;
     viewportPanel->m_history    = &m_history;
+    contentBrowserPanel->m_history = &m_history;
 
     propertiesPanel->m_picker = &m_picker;
     viewportPanel->m_picker   = &m_picker;

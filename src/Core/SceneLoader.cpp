@@ -556,10 +556,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             PropertyRegistry::saveProperties(out, inst, "Lighting");
         }
         if (inst->IsA("LightSource")) {
-            PropertyRegistry::saveProperties(out, inst, "LightSource");  // 基底: Color/Brightness/Range
-        }
-        if (inst->getClassName() == "SpotLight") {
-            PropertyRegistry::saveProperties(out, inst, "SpotLight");    // 葉: Angle
+            // 基底走査 save: LightSource(Color/Brightness/Range) + 派生分(SpotLight.Angle等)を最派生名で一括出力
+            PropertyRegistry::saveProperties(out, inst, inst->getClassName());
         }
         if (inst->getClassName() == "ParticleEmitter") {
             PropertyRegistry::saveProperties(out, inst, "ParticleEmitter");
@@ -657,22 +655,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         }
 
         if (inst->IsA("ScreenGuiObject")) {
-            PropertyRegistry::saveProperties(out, inst, "ScreenGuiObject");
-        }
-        if (inst->getClassName() == "TextLabel") {
-            PropertyRegistry::saveProperties(out, inst, "TextLabel");
-        }
-        if (inst->getClassName() == "TextButton") {
-            PropertyRegistry::saveProperties(out, inst, "TextButton");
-        }
-        if (inst->getClassName() == "ImageLabel") {
-            PropertyRegistry::saveProperties(out, inst, "ImageLabel");
-        }
-        if (inst->getClassName() == "ImageButton") {
-            PropertyRegistry::saveProperties(out, inst, "ImageButton");
-        }
-        if (inst->getClassName() == "ProximityPrompt") {
-            PropertyRegistry::saveProperties(out, inst, "ProximityPrompt");
+            PropertyRegistry::saveProperties(out, inst, inst->getClassName());
         }
         if (inst->IsA("Workspace")) {
             const Workspace* ws = static_cast<const Workspace*>(inst);
@@ -687,19 +670,13 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "PhysicsEnabled" << YAML::Value << ws->PhysicsEnabled;
         }
         if (inst->IsA("WorldGuiObject")) {
-            PropertyRegistry::saveProperties(out, inst, "WorldGuiObject");
-        }
-        if (inst->getClassName() == "SurfaceGui") {
-            PropertyRegistry::saveProperties(out, inst, "SurfaceGui");
+            PropertyRegistry::saveProperties(out, inst, inst->getClassName());
         }
         if (inst->getClassName() == "Canvas") {
             PropertyRegistry::saveProperties(out, inst, "Canvas");
         }
         if (inst->getClassName() == "Highlight") {
             PropertyRegistry::saveProperties(out, inst, "Highlight");
-        }
-        if (inst->getClassName() == "BillboardGui") {
-            PropertyRegistry::saveProperties(out, inst, "BillboardGui");
         }
         if (inst->getClassName() == "User") {
             const User* usr = static_cast<const User*>(inst);

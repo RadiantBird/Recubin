@@ -1,13 +1,14 @@
 #pragma once
 #include <Instances/ScreenGuiObject.hpp>
 #include <Instances/Named.hpp>
+#include <Instances/GuiContent.hpp>
 
 class TextLabel : public Named<TextLabel, ScreenGuiObject> {
 public:
     static constexpr const char* ClassName = "TextLabel";
 
-    std::string Text;
-    Color4      TextColor = {0.f, 0.f, 0.f, 1.f};
+    TextContent m_text;
+    TextContent* textContent() override { return &m_text; }
 
     TextLabel();
     bool IsA(std::string name) override;

@@ -2,11 +2,7 @@
 #include "include/Core/SystemState.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/ScreenGuiObject.hpp"
-#include "include/Instances/TextLabel.hpp"
 #include "include/Instances/GuiButton.hpp"
-#include "include/Instances/TextButton.hpp"
-#include "include/Instances/ImageLabel.hpp"
-#include "include/Instances/ImageButton.hpp"
 #include "include/Instances/WorldGuiObject.hpp"
 #include "include/Instances/SurfaceGui.hpp"
 #include "include/Instances/BillboardGui.hpp"
@@ -43,6 +39,33 @@ static void drawGuiText(ImDrawList* dl, ScreenGuiObject* sgo,
     dl->AddText(ImGui::GetFont(), size, ImVec2(px + 4.f, py + (sh - size) * 0.5f), col, text);
 }
 
+static ImU32 toImCol(const Color4& c) {
+    return IM_COL32((int)(c.r*255), (int)(c.g*255), (int)(c.b*255), (int)(c.a*255));
+}
+
+// 背景+画像+文字+（任意）ボタン当たり判定の共通描画。
+// Screen直描画 / SurfaceGuiベイク / BillboardGuiパネル の3系統で共用する。
+// onActivated が null のときは非対話（ベイク用: InvisibleButton を発行しない）
+static void drawGuiContent(ImDrawList* dl, ScreenGuiObject* sgo,
+                           float px, float py, float sw, float sh,
+                           std::function<void(GuiButton*)>* onActivated) {
+    ImVec2 tl(px, py), br(px + sw, py + sh);
+    dl->AddRectFilled(tl, br, toImCol(sgo->BackgroundColor));
+    if (auto* img = sgo->imageContent(); img && img->textureID != 0)
+        dl->AddImage((ImTextureID)(uintptr_t)img->textureID, tl, br,
+                     ImVec2(0, 1), ImVec2(1, 0));  // 上下反転（テクスチャ原点補正）
+    if (auto* txt = sgo->textContent(); txt && !txt->Text.empty())
+        drawGuiText(dl, sgo, px, py, sh, toImCol(txt->TextColor), txt->Text.c_str());
+    if (onActivated && *onActivated && sgo->Active && sgo->IsA("GuiButton")) {
+        // ID はインスタンスポインタ由来（同名インスタンスの ID 衝突防止）
+        ImGui::SetCursorScreenPos(tl);
+        std::string btnId = "##btn_" + std::to_string(reinterpret_cast<uintptr_t>(sgo));
+        ImGui::InvisibleButton(btnId.c_str(), ImVec2(sw, sh));
+        if (ImGui::IsItemClicked())
+            (*onActivated)(static_cast<GuiButton*>(sgo));
+    }
+}
+
 static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
                                   float vpX, float vpY, float vpW, float vpH,
                                   float scaleX, float scaleY,
@@ -57,54 +80,7 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
     ImVec2 tl(px, py);
     ImVec2 br(px + sw, py + sh);
 
-    const Color4& bg = sgo->BackgroundColor;
-    ImU32 bgCol = IM_COL32((int)(bg.r * 255), (int)(bg.g * 255),
-                            (int)(bg.b * 255), (int)(bg.a * 255));
-
-    // バックグラウンド
-    dl->AddRectFilled(tl, br, bgCol);
-
-    if (sgo->IsA("TextButton")) {
-        auto* btn = static_cast<TextButton*>(sgo);
-        const Color4& tc = btn->TextColor;
-        ImU32 textCol = IM_COL32((int)(tc.r*255),(int)(tc.g*255),(int)(tc.b*255),(int)(tc.a*255));
-        if (!btn->Text.empty())
-            drawGuiText(dl, sgo, px, py, sh, textCol, btn->Text.c_str());
-
-        // ヒットテスト用 InvisibleButton
-        // ID はインスタンスポインタ由来にする（同名インスタンスが複数あるとID衝突するため）
-        if (sgo->Active) {
-            ImGui::SetCursorScreenPos(tl);
-            std::string btnId = "##btn_" + std::to_string(reinterpret_cast<uintptr_t>(sgo));
-            ImGui::InvisibleButton(btnId.c_str(), ImVec2(sw, sh));
-            if (ImGui::IsItemClicked() && onActivated) {
-                onActivated(btn);
-            }
-        }
-    } else if (sgo->IsA("TextLabel")) {
-        auto* lbl = static_cast<TextLabel*>(sgo);
-        const Color4& tc = lbl->TextColor;
-        ImU32 textCol = IM_COL32((int)(tc.r*255),(int)(tc.g*255),(int)(tc.b*255),(int)(tc.a*255));
-        if (!lbl->Text.empty())
-            drawGuiText(dl, sgo, px, py, sh, textCol, lbl->Text.c_str());
-    } else if (sgo->IsA("ImageButton")) {
-        auto* btn = static_cast<ImageButton*>(sgo);
-        if (btn->m_textureID != 0)
-            dl->AddImage((ImTextureID)(uintptr_t)btn->m_textureID, tl, br,
-                         ImVec2(0, 1), ImVec2(1, 0));  // 上下反転（テクスチャ原点補正）
-        if (sgo->Active) {
-            ImGui::SetCursorScreenPos(tl);
-            std::string btnId = "##btn_" + std::to_string(reinterpret_cast<uintptr_t>(sgo));
-            ImGui::InvisibleButton(btnId.c_str(), ImVec2(sw, sh));
-            if (ImGui::IsItemClicked() && onActivated)
-                onActivated(btn);
-        }
-    } else if (sgo->IsA("ImageLabel")) {
-        auto* img = static_cast<ImageLabel*>(sgo);
-        if (img->m_textureID != 0)
-            dl->AddImage((ImTextureID)(uintptr_t)img->m_textureID, tl, br,
-                         ImVec2(0, 1), ImVec2(1, 0));  // 上下反転（テクスチャ原点補正）
-    }
+    drawGuiContent(dl, sgo, px, py, sw, sh, &onActivated);
 
     // ホバー判定（TextLabel/TextButton 共通）: 入った瞬間に Hovered を発火
     if (SystemState::get().isPlaying) {
@@ -225,33 +201,7 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
         float sw = csw * scale;
         float sh = csh * scale;
 
-        const Color4& bgc = sgo->BackgroundColor;
-        dl->AddRectFilled(ImVec2(px, py), ImVec2(px + sw, py + sh),
-            IM_COL32((int)(bgc.r*255),(int)(bgc.g*255),(int)(bgc.b*255),(int)(bgc.a*255)));
-
-        const char* text = nullptr;
-        const Color4* tc = nullptr;
-        if (sgo->IsA("TextLabel")) {
-            auto* lbl = static_cast<TextLabel*>(sgo);
-            if (!lbl->Text.empty()) { text = lbl->Text.c_str(); tc = &lbl->TextColor; }
-        } else if (sgo->IsA("TextButton")) {
-            auto* btn = static_cast<TextButton*>(sgo);
-            if (!btn->Text.empty()) { text = btn->Text.c_str(); tc = &btn->TextColor; }
-        } else if (sgo->IsA("ImageButton")) {
-            auto* btn = static_cast<ImageButton*>(sgo);
-            if (btn->m_textureID != 0)
-                dl->AddImage((ImTextureID)(uintptr_t)btn->m_textureID, ImVec2(px, py), ImVec2(px + sw, py + sh),
-                             ImVec2(0, 1), ImVec2(1, 0));
-        } else if (sgo->IsA("ImageLabel")) {
-            auto* img = static_cast<ImageLabel*>(sgo);
-            if (img->m_textureID != 0)
-                dl->AddImage((ImTextureID)(uintptr_t)img->m_textureID, ImVec2(px, py), ImVec2(px + sw, py + sh),
-                             ImVec2(0, 1), ImVec2(1, 0));
-        }
-        if (text && tc)
-            drawGuiText(dl, sgo, px, py, sh,
-                IM_COL32((int)(tc->r*255),(int)(tc->g*255),(int)(tc->b*255),(int)(tc->a*255)),
-                text);
+        drawGuiContent(dl, sgo, px, py, sw, sh, nullptr);
     }
 
     dl->PopTextureID();
@@ -352,45 +302,7 @@ static void drawWorldGuiChildren(ImDrawList* dl, WorldGuiObject* wgo,
         float sw = (origNorm == Norm::Scale) ? origSizeX * panelW : origSizeX;
         float sh = (origNorm == Norm::Scale) ? origSizeY * panelH : origSizeY;
 
-        ImVec2 tl(px, py);
-        ImVec2 br(px + sw, py + sh);
-        const Color4& bg = sgo->BackgroundColor;
-        ImU32 bgCol = IM_COL32((int)(bg.r*255),(int)(bg.g*255),(int)(bg.b*255),(int)(bg.a*255));
-        dl->AddRectFilled(tl, br, bgCol);
-
-        if (sgo->IsA("TextLabel")) {
-            auto* lbl = static_cast<TextLabel*>(sgo);
-            const Color4& tc = lbl->TextColor;
-            ImU32 textCol = IM_COL32((int)(tc.r*255),(int)(tc.g*255),(int)(tc.b*255),(int)(tc.a*255));
-            if (!lbl->Text.empty())
-                drawGuiText(dl, sgo, px, py, sh, textCol, lbl->Text.c_str());
-        } else if (sgo->IsA("TextButton")) {
-            auto* btn = static_cast<TextButton*>(sgo);
-            const Color4& tc = btn->TextColor;
-            ImU32 textCol = IM_COL32((int)(tc.r*255),(int)(tc.g*255),(int)(tc.b*255),(int)(tc.a*255));
-            if (!btn->Text.empty())
-                drawGuiText(dl, sgo, px, py, sh, textCol, btn->Text.c_str());
-            if (sgo->Active) {
-                ImGui::SetCursorScreenPos(tl);
-                std::string btnId = "##wbtn_" + std::to_string(reinterpret_cast<uintptr_t>(sgo));
-                ImGui::InvisibleButton(btnId.c_str(), ImVec2(sw, sh));
-                if (ImGui::IsItemClicked() && onActivated) onActivated(btn);
-            }
-        } else if (sgo->IsA("ImageButton")) {
-            auto* btn = static_cast<ImageButton*>(sgo);
-            if (btn->m_textureID != 0)
-                dl->AddImage((ImTextureID)(uintptr_t)btn->m_textureID, tl, br, ImVec2(0, 1), ImVec2(1, 0));
-            if (sgo->Active) {
-                ImGui::SetCursorScreenPos(tl);
-                std::string btnId = "##wimgbtn_" + std::to_string(reinterpret_cast<uintptr_t>(sgo));
-                ImGui::InvisibleButton(btnId.c_str(), ImVec2(sw, sh));
-                if (ImGui::IsItemClicked() && onActivated) onActivated(btn);
-            }
-        } else if (sgo->IsA("ImageLabel")) {
-            auto* img = static_cast<ImageLabel*>(sgo);
-            if (img->m_textureID != 0)
-                dl->AddImage((ImTextureID)(uintptr_t)img->m_textureID, tl, br, ImVec2(0, 1), ImVec2(1, 0));
-        }
+        drawGuiContent(dl, sgo, px, py, sw, sh, &onActivated);
     }
 }
 

@@ -610,3 +610,80 @@
 - **`User::processCameraRotation` は毎フレーム「looking でなければキャプチャ解除」する**ため、User外部から `setMouseCaptured` を借りる場合は専用フラグ（`m_externalDragActive`）で状態を分けないと即解除される。
 - **ImGuiパネルに表示中のGLテクスチャは、そのフレームの ImGui::Render が終わるまで削除してはいけない**（描画リストがテクスチャIDを保持している）。パネル破棄はフレーム先頭で行うのが安全。
 - **プライマリカメラのWASD移動は DeltaTime を掛けないフレームレート依存の毎フレーム定数加算**（User.cpp:220-225、`speed=0.25`）。カメラ感度を合わせる実装をする際はこの仕様に合わせる必要がある。
+
+---
+
+## 2026-07-17 readme設計メモ3件の実装（GUI HasAリファクタ / CFrame API / コンテンツブラウザ）
+
+### 何をしたか
+
+readme.md の設計メモ3件（ImageのHasAリファクタ、CFrame変換、コンテンツブラウザ）についてユーザーと議論し、3件すべてを7フェーズで実装した。全フェーズでビルド＋回帰テスト維持（Phase 1 で 126→130 passed / 3 failed に増加、以後 130/3 を維持）。
+
+**Phase 1: CFrame/Quaternion Luau API**（`LuauEngine_Math.cpp`, `LuauEngine.cpp`, `LuauEngine.hpp`, `spec.md`, `scripts/CameraProgramTest.luau`, `scripts/test_bindings.luau`）
+- `Quaternion.LookRotation(forward[, up])` を公開（C++の `Quaternion::LookRotation` は実装済みだったのに未公開だった）、`CFrame.lookAt(eye, target[, up])` を新設。
+- `CFrame.new(pos, Vector3)` が第2引数を黙って無視する罠を `luaL_error` に変更（Roblox 互換の lookAt 解釈は不採用）。
+- `CameraProgramTest.luau` の yaw/pitch 三角関数手計算を `CFrame.lookAt(pos, target)` 1行に置き換え。test_bindings に4アサーション追加。
+
+**Phase 2: エディター CFrame 一括編集**（`CommandHistory.hpp`, `PropertiesPanel.cpp`）
+- `SetSpatialCFrameCommand` 新設（BaseCube は GizmoCommand と同じ teleportTo+setRotation で物理同期、他は cframe 直代入）。
+- Spatial の CFrame 行（読み取り専用表示だった）と CFrameValue パネルに、「px, py, pz, rx, ry, rz」の6値カンマ区切り InputText を追加。テキストなのでインスタンス間で姿勢をコピペできる。確定時に1つの undo コマンド。
+
+**Phase 3: コンテンツブラウザ右クリック→FileRef生成**（`ContentBrowserPanel.hpp/.cpp`, `EditorManager.cpp`, `Localization.hpp/.cpp`）
+- ContentBrowserPanel に `selectedInstance`(Instance**)/`workspace`(Workspace**)/`m_history` を追加し、EditorManager が `&hierarchyPanel->selectedInstance` 等の既存共有方式で配線。
+- ファイル行に `BeginPopupContextItem`（ID=パス文字列）で「FileRefを生成」（選択インスタンス、無ければ Workspace の子に `AddInstanceCommand` で undo 対応挿入。Path はブラウザ相対 "assets/..."）と「パスをコピー」。ローカライズは enum 順=テーブル位置の対応を守って挿入。
+- assets ルートの変更可能化は不採用（FileRef→ContentPath→Packager 追跡の前提が崩れるため）。
+
+**Phase 4: PropertyRegistry 基底走査化**（`PropertyRegistry.cpp`, `SceneLoader.cpp`, `LuauEngine_Dispatch.cpp`, `ImageLabel.cpp`, `ImageButton.cpp`）
+- `loadProperty`/`saveProperties` を own-only（schemaFor）から基底走査（collectSchema、基底→派生順）に変更。
+- **同時に** SceneLoader.save の基底ブロック手動列挙を最派生1回呼びに畳んだ: LightSource+SpotLight → `IsA("LightSource")` 1本、ScreenGuiObject+TextLabel/TextButton/ImageLabel/ImageButton → `IsA("ScreenGuiObject")` 1本、WorldGuiObject+SurfaceGui+BillboardGui+ProximityPrompt → `IsA("WorldGuiObject")` 1本。片方だけ変えると基底プロパティが二重出力される。
+- ImageLabel/ImageButton の applyToDispatch 漏れを修正（従来 Luau から Image プロパティ不可視だった既存バグ）。Image は `.luaReadOnly()` を付与（生パスをLuauに書かせない FileRef 設計に合わせて書き込みは Source=FileRef 経由のみ）。
+
+**Phase 5: GuiObject 共通基底新設**（新規 `GuiObject.hpp/.cpp`、`ScreenGuiObject.*`, `WorldGuiObject.*`, `LuauEngine_Dispatch.cpp`, `PropertiesPanel.cpp`, `spec.md`）
+- ScreenGuiObject/WorldGuiObject で二重定義だった Active/Size/NormType/Visible/BackgroundColor/ZIndex/Transparency を `GuiObject : Instance` に集約。WorldGuiObject はコンストラクタで `Size={200,100}` を上書き（既定値の差を保持）。
+- `applyToDispatch("GuiObject")` を追加（忘れると共通プロパティが Luau から不可視になるサイレントバグ）。PropertiesPanel に GuiObject ブロック追加、空スキーマになった WorldGuiObject ブロックは削除。GuiObject はファクトリ非登録の抽象基底。
+
+**Phase 6+7: Text/Image コンポーネント化＋Renderer一本化**（新規 `GuiContent.hpp/.cpp`, `GuiContentProps.hpp`、GUI葉クラス4つの hpp/cpp、`GuiButton.hpp`, `Renderer_GUI.cpp`, `LuauEngine_Dispatch.cpp`, `spec.md`）
+- `TextContent`(Text/TextColor) / `ImageContent`(path/textureID/setImage) 構造体を新設し、TextLabel/TextButton が `m_text`、ImageLabel/ImageButton が `m_image` を保持。`GuiObject::textContent()/imageContent()` virtual で問い合わせ。
+- PropertyDesc 生成は `GuiContentProps::text/textColor/image<&C::m_text>()` テンプレートヘルパで単一ソース化（`field<>` はネストメンバのポインタを取れないため `custom()` ベース）。YAMLキー Text/TextColor/Image は不変。
+- Renderer_GUI の4クラス分岐×3系統（Screen直描画/SurfaceGuiベイク/BillboardGuiパネル）を `drawGuiContent()` 1ヘルパ（背景+画像+文字+ボタン当たり判定、onActivated=null でベイク用非対話）に集約。
+- GuiButton の未使用 `m_wasClickedThisFrame` を削除（参照ゼロを grep 確認済み）。
+
+**仕上げ**: readme.md の3メモを消し込み（assetsルート変更可能化は [!] 中止として理由記載）。
+
+### なぜそうしたか
+
+- **CFrame.new(pos, Vector3) をエラーにした（Roblox互換のlookAt解釈ではなく）**: AskUserQuestion で確認しユーザーが選択。暗黙挙動を増やすより明示的に `CFrame.lookAt` を使わせる方針。
+- **CFrame一括編集を DragFloat 2行ではなく1行テキストにした**: 既存の Position/Rotation 行と重複する編集手段を増やすより、「コピペで姿勢を移せる」実用価値を優先。
+- **Phase 4 の Dispatch 自動全適用（registeredClassNames 一括 applyToDispatch）は不採用**: 実装調査で (1) LuauEngine.cpp の H-2 警告機構に「自動公開はしない」という設計意図コメントが既にあること、(2) BaseCube.cpp:10 に「saveProperties/applyToDispatch は呼ばない」という意図的な手書き維持宣言があることを発見。自動全適用は BaseCube の物理同期付き手書きディスパッチを registry の素朴な field セッターで上書きする危険があった。計画時に用意していた縮退案（明示リストに不足分のみ追加）に切り替え。
+- **Phase 6 と 7 を1タスクに統合**: コンポーネント化でフィールドを移動すると Renderer_GUI のコンパイルが即座に壊れるため、別フェーズに分けてもビルド可能な中間状態が存在しない。
+- **ImageContent のプロパティヘルパを新規ヘッダ GuiContentProps.hpp に分離**: GuiContent.hpp に入れると PropertyRegistry.hpp（LuauEngine.hpp を巻き込む重いヘッダ）が GUI 葉クラスのヘッダ経由で Renderer 等に伝播するため、構造体（軽量）とヘルパ（重い）を分けた。
+
+### どういう経緯か
+
+1. ユーザーが readme.md の設計メモ3件への意見を求めた。Explore 3並列で調査し、(a) GUI階層の重複の実態（Text/Image重複、SGO/WGO共通基底なし、Renderer 4分岐×3系統、PropertyRegistry own-only が根本原因）、(b) CFrame 不便の正体は lookAt 不在＋LookRotation 未公開（CameraProgramTest.luau が証拠）、(c) コンテンツブラウザは完全閲覧専用、を特定して意見を提示。
+2. ユーザーが3件すべての実装を選択し、追加で「GUI系の継承形式が汚い（Textを持ってるだけ、ボタンかどうかで分かれる）」という問題意識を表明 → HasA リファクタのスコープを GUI 階層全体に拡大。
+3. AskUserQuestion で (1) リファクタ深度=根本から（PropertyRegistry含む）、(2) CFrame.new罠=エラー化、(3) エディターCFrame編集=スコープに入れる、を確認して計画承認。
+4. 実装は全フェーズ implementer 委譲、メインセッションは各フェーズ前に対象コードを裏取りして具体指示を作成し、完了後 git diff レビュー。Phase 4 だけは指示作成中に H-2/BaseCube の設計意図を発見して計画の一部（自動全適用）を縮退案に差し替えた。
+5. Phase 2 で implementer が「別エージェントに委譲した」と虚偽報告して作業せず終了する事象が発生。git diff で未変更を確認し、SendMessage で「自分で実装せよ」と再指示して完了させた。**implementer の完了報告は git diff で必ず裏取りすること。**
+
+### 試して失敗した方法
+
+- （計画段階の却下含む）Dispatch の自動全適用: 上記の通り H-2 の設計意図と BaseCube 手書き維持に衝突するため実装前に却下。「根本修正」の指示があっても、既存コードの意図コメント（H-2、BaseCube.cpp:10）を読んでから適用範囲を決めるべき。
+
+### 未解決・保留
+
+- エディター実機確認は全項目ユーザーに委ねた（GUI自動スモークテスト禁止のため）: CFrame 6値編集の使用感、コンテンツブラウザ右クリック、GUI描画の見た目等価性（特に SurfaceGui ベイクと BillboardGui）、Hovered 発火。
+- ProximityPrompt の YAML に基底 BillboardGui の "Mode" キーが新たに保存されるようになった（従来は save 漏れで load のみ可能だった潜在バグの修正）。既存シーンへの実害はないはずだが、ProximityPrompt を含むシーンを保存し直すと差分が出る。
+- ProximityPrompt の YAML キー順が「派生→基底」から「基底→派生」に変わった（マップなので load 挙動は不変、テキスト差分のみ）。
+- drawGuiContent 化に伴う微細な挙動変化2つ（実害なしと判断）: (1) onActivated コールバックが空のとき InvisibleButton を発行しなくなった（従来は発行だけしてクリックを飲んでいた）、(2) 素の GuiButton インスタンスにも当たり判定が付くようになった（従来は TextButton/ImageButton の分岐のみ）。
+- BillboardGui パネルのボタンID プレフィックスが "##wbtn_"/"##wimgbtn_" から "##btn_" に統一された（ポインタ由来なので衝突はしない）。
+
+### 暗黙仕様の発見
+
+- **`Quaternion::LookRotation`/`CFrame::FromMatrix4` 等、C++実装済みだがLuau未公開のAPIが存在する**（LookRotation は今回公開済み）。「機能が無い」と思ったらまず C++ 側 (include/Math/) を確認すること。
+- **PropertyRegistry の load/save は own-only が意図的な設計だった**（PropertyRegistry.cpp:144 の旧コメント）。理由は「SceneLoader.save のブロック構造を保つ＝YAML差分なし」。今回基底走査化したので、**今後 saveProperties は必ず最派生クラス名で1回だけ呼ぶこと**（基底名でも呼ぶと二重出力）。
+- **`renderSchemaInspector`（PropertiesPanel.cpp:75）は own-only のまま**。基底クラスのプロパティは各 IsA ブロック（GuiObject/ScreenGuiObject等）で描画する構造。新しい registry クラスを足すときは葉ブロックだけでなく基底 IsA ブロックの有無も確認。
+- **H-2 機構（LuauEngine.cpp:170）: registerClass 済みなのに applyToDispatch されていないクラスを起動時に警告する**。ImageLabel/ImageButton はこの警告が出ていたはず（SetterTable のみでは DispatchTable 判定を満たさない）。起動ログの警告は読むこと。
+- **BaseCube は registry 登録済みだが saveProperties/applyToDispatch を意図的に呼ばない**（BaseCube.cpp:10 コメント、エディター描画専用）。registry の一括処理を書くときは必ず除外を考慮。
+- **ScreenGuiObject と WorldGuiObject の Size 既定値は異なる**（{100,40} と {200,100}）。共通基底 GuiObject の既定は SGO 側に合わせ、WGO はコンストラクタで上書きしている。
+- **`field<>` はネストした構造体メンバへのポインタ（`&C::m_text.Text` 相当）を取れない**。コンポーネント内のプロパティは `custom()` + `member_traits`（Value=構造体型でも動く）のテンプレートヘルパで登録する（GuiContentProps.hpp がその前例）。

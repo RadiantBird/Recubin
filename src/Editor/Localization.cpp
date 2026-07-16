@@ -149,6 +149,8 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     // ---- ContentBrowserPanel ----
     { "<- 戻る",             "<- Back" },
     { "(assetsフォルダが見つかりません)", "(assets/ folder not found)" },
+    { "FileRefを生成",      "Create FileRef" },
+    { "パスをコピー",        "Copy Path" },
 
     // ---- PropertiesPanel: MeshCube UV再生成 ----
     { "UV再生成",            "Regenerate UV" },

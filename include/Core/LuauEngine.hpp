@@ -223,6 +223,7 @@ private:
     static int quat_from_euler(lua_State* L);
     static int quat_from_axis_angle(lua_State* L);
     static int quat_slerp(lua_State* L);
+    static int quat_look_rotation(lua_State* L);
     static int quat_index(lua_State* L);
     static int quat_newindex(lua_State* L);
     static int quat_tostring(lua_State* L);
@@ -232,6 +233,7 @@ private:
     // CFrame methods
     static int cframe_constructor(lua_State* L);
     static int cframe_from_axis_angle(lua_State* L);
+    static int cframe_look_at(lua_State* L);
     static int cframe_index(lua_State* L);
     static int cframe_newindex(lua_State* L);
     static int cframe_tostring(lua_State* L);

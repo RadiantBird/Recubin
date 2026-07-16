@@ -194,6 +194,15 @@ check("CFrame.Rotation is not nil", cf.Rotation ~= nil)
 local cfWorld = cf * Vector3.new(0, 0, 0)
 check("CFrame * Vector3 returns Vector3", type(cfWorld.x) == "number")
 
+local lrId = Quaternion.LookRotation(Vector3.new(0, 0, -1))
+check("LookRotation(-Z) is identity", math.abs(lrId.w - 1) < 0.001)
+local lcf = CFrame.lookAt(Vector3.new(0, 0, 0), Vector3.new(5, 0, 0))
+check("lookAt Position is eye", lcf.Position.x == 0)
+local fwd = lcf.Rotation * Vector3.new(0, 0, -1)
+check("lookAt faces target (+X)", math.abs(fwd.x - 1) < 0.001 and math.abs(fwd.y) < 0.001 and math.abs(fwd.z) < 0.001)
+local ok = pcall(function() return CFrame.new(Vector3.new(0, 0, 0), Vector3.new(1, 2, 3)) end)
+check("CFrame.new(pos, Vector3) errors", ok == false)
+
 -- ===== Spatial 透過トランスフォーム（Rotation / CFrame on BaseCube） =====
 print("--- Spatial transform ---")
 local origRot = cube.Rotation

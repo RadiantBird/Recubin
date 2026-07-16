@@ -764,14 +764,34 @@ void PropertiesPanel::onRender() {
             ImGui::PopID();
         }
 
-        // CFrame (読み取り専用)
+        // CFrame (pos + rot(Euler度) の6値一括編集。テキストなのでコピペで姿勢を移せる)
         ImGui::Text("CFrame");
         ImGui::SameLine(80.0f);
         {
-            Vector3 euler = s->cframe.Rotation.toEuler();
-            ImGui::TextDisabled("pos(%.2f, %.2f, %.2f)  rot(%.1f, %.1f, %.1f)",
-                s->Position.x, s->Position.y, s->Position.z,
-                euler.x, euler.y, euler.z);
+            static char s_cfBuf[160] = {};
+            static bool s_cfEditing = false;
+            if (!s_cfEditing) {
+                Vector3 euler = s->cframe.Rotation.toEuler();
+                snprintf(s_cfBuf, sizeof(s_cfBuf), "%.3f, %.3f, %.3f, %.2f, %.2f, %.2f",
+                         s->Position.x, s->Position.y, s->Position.z,
+                         euler.x, euler.y, euler.z);
+            }
+            static CFrame s_cfBefore;
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            ImGui::InputText("##cframe6", s_cfBuf, sizeof(s_cfBuf));
+            if (ImGui::IsItemActivated()) { s_cfEditing = true; s_cfBefore = s->cframe; }
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                float v[6];
+                if (sscanf(s_cfBuf, "%f , %f , %f , %f , %f , %f",
+                           &v[0], &v[1], &v[2], &v[3], &v[4], &v[5]) == 6) {
+                    CFrame after(Vector3(v[0], v[1], v[2]),
+                                 Quaternion::fromEuler(Vector3(v[3], v[4], v[5])));
+                    if (m_history) {
+                        m_history->execute(std::make_unique<SetSpatialCFrameCommand>(spSp, s_cfBefore, after));
+                    }
+                }
+            }
+            if (ImGui::IsItemDeactivated()) s_cfEditing = false;
         }
     }
 
@@ -1641,6 +1661,10 @@ void PropertiesPanel::onRender() {
 
     // ---- ScreenGuiObject ----
     // ---- GUI 一族（スキーマ駆動。基底は IsA ブロック、葉は getClassName ブロックで描画） ----
+    if (inst->IsA("GuiObject")) {
+        ImGui::SeparatorText("GuiObject");
+        renderSchemaInspector(inst, "GuiObject", m_history);
+    }
     if (inst->IsA("ScreenGuiObject")) {
         ImGui::SeparatorText("ScreenGuiObject");
         renderSchemaInspector(inst, "ScreenGuiObject", m_history);
@@ -1652,10 +1676,6 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "TextButton") {
         ImGui::SeparatorText("TextButton");
         renderSchemaInspector(inst, "TextButton", m_history);
-    }
-    if (inst->IsA("WorldGuiObject")) {
-        ImGui::SeparatorText("WorldGuiObject");
-        renderSchemaInspector(inst, "WorldGuiObject", m_history);
     }
     if (inst->getClassName() == "SurfaceGui") {
         ImGui::SeparatorText("SurfaceGui");
@@ -1752,6 +1772,37 @@ void PropertiesPanel::onRender() {
                 m_history->record(std::make_unique<SetCFrameValueCommand>(
                     inst->shared_from_this(), s_cfBefore[key + "_rot"], cv->Value));
             }
+        }
+
+        // 6値一括編集（pos + rot Euler度。コピペ用）
+        ImGui::Text("CFrame");
+        ImGui::SameLine(80.0f);
+        {
+            static char s_cvBuf[160] = {};
+            static bool s_cvEditing = false;
+            if (!s_cvEditing) {
+                Vector3 euler = cv->Value.Rotation.toEuler();
+                snprintf(s_cvBuf, sizeof(s_cvBuf), "%.3f, %.3f, %.3f, %.2f, %.2f, %.2f",
+                         cv->Value.Position.x, cv->Value.Position.y, cv->Value.Position.z,
+                         euler.x, euler.y, euler.z);
+            }
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            ImGui::InputText("##cfval6", s_cvBuf, sizeof(s_cvBuf));
+            if (ImGui::IsItemActivated()) { s_cvEditing = true; s_cfBefore[key + "_all"] = cv->Value; }
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                float v[6];
+                if (sscanf(s_cvBuf, "%f , %f , %f , %f , %f , %f",
+                           &v[0], &v[1], &v[2], &v[3], &v[4], &v[5]) == 6) {
+                    CFrame after(Vector3(v[0], v[1], v[2]),
+                                 Quaternion::fromEuler(Vector3(v[3], v[4], v[5])));
+                    applyCFrame(after);
+                    if (m_history) {
+                        m_history->record(std::make_unique<SetCFrameValueCommand>(
+                            inst->shared_from_this(), s_cfBefore[key + "_all"], cv->Value));
+                    }
+                }
+            }
+            if (ImGui::IsItemDeactivated()) s_cvEditing = false;
         }
     }
     if (inst->getClassName() == "QuaternionValue") {

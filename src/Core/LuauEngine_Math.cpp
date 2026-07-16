@@ -394,6 +394,15 @@ int LuauEngine::quat_slerp(lua_State* L) {
     return 1;
 }
 
+// Quaternion.LookRotation(Vector3 forward [, Vector3 up = (0,1,0)])
+int LuauEngine::quat_look_rotation(lua_State* L) {
+    Vector3* fwd = (Vector3*)luaL_checkudata(L, 1, RCBN_VEC3_METATABLE);
+    Vector3 up(0, 1, 0);
+    if (void* ud = rcbn_testudata(L, 2, RCBN_VEC3_METATABLE)) up = *(Vector3*)ud;
+    pushQuaternion(L, Quaternion::LookRotation(*fwd, up));
+    return 1;
+}
+
 int LuauEngine::quat_index(lua_State* L) {
     Quaternion* q = (Quaternion*)luaL_checkudata(L, 1, RCBN_QUATERNION_METATABLE);
     std::string_view key = luaL_checkstring(L, 2);
@@ -453,7 +462,7 @@ int LuauEngine::quat_eq(lua_State* L) {
 }
 
 // ==================== CFrame Methods ====================
-// CFrame.new() / (x,y,z) / (Vector3 pos) / (Vector3 pos, Quaternion rot)
+// CFrame.new() / (x,y,z) / (Vector3 pos) / (Vector3 pos, Quaternion rot)。第2引数がQuaternion以外はエラー
 int LuauEngine::cframe_constructor(lua_State* L) {
     CFrame cf;
     if (lua_isnumber(L, 1)) {
@@ -465,8 +474,10 @@ int LuauEngine::cframe_constructor(lua_State* L) {
         Vector3 pos = *(Vector3*)pd;
         if (void* rd = rcbn_testudata(L, 2, RCBN_QUATERNION_METATABLE)) {
             cf = CFrame(pos, *(Quaternion*)rd);
-        } else {
+        } else if (lua_isnoneornil(L, 2)) {
             cf = CFrame(pos);
+        } else {
+            luaL_error(L, "CFrame.new: second argument must be a Quaternion (use CFrame.lookAt(eye, target) for a look-at point)");
         }
     }
     pushCFrame(L, cf);
@@ -478,6 +489,16 @@ int LuauEngine::cframe_from_axis_angle(lua_State* L) {
     Vector3* axis = (Vector3*)luaL_checkudata(L, 1, RCBN_VEC3_METATABLE);
     float angle = (float)luaL_checknumber(L, 2);
     pushCFrame(L, CFrame::fromAxisAngle(*axis, angle));
+    return 1;
+}
+
+// CFrame.lookAt(Vector3 eye, Vector3 target [, Vector3 up = (0,1,0)])
+int LuauEngine::cframe_look_at(lua_State* L) {
+    Vector3* eye    = (Vector3*)luaL_checkudata(L, 1, RCBN_VEC3_METATABLE);
+    Vector3* target = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
+    Vector3 up(0, 1, 0);
+    if (void* ud = rcbn_testudata(L, 3, RCBN_VEC3_METATABLE)) up = *(Vector3*)ud;
+    pushCFrame(L, CFrame(*eye, Quaternion::LookRotation(*target - *eye, up)));
     return 1;
 }
 

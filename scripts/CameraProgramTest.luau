@@ -11,9 +11,6 @@ local angularSpeed = 0.5 -- rad/s
 
 User.ControlMode = "Program"
 
--- radius/height は周回中一定なので、見下ろす角度(pitch)も一定。
--- radius は常に正なので atan(-height/radius) だけで象限を気にせず求まる。
-local pitchDeg = math.deg(math.atan(-height / radius))
 local t = 0
 
 System.Heartbeat:Connect(function(dt)
@@ -26,11 +23,5 @@ System.Heartbeat:Connect(function(dt)
         target.z + math.sin(theta) * radius
     )
 
-    -- 周回位置から原点方向を向くyaw。 forward=(-sin(yaw),0,-cos(yaw)) と
-    -- pos=(cos(theta),*,sin(theta))*radius の関係から yaw = pi/2 - theta。
-    local yawDeg = math.deg(math.pi / 2 - theta)
-    local rot = Quaternion.fromAxisAngle(Vector3.new(0, 1, 0), yawDeg)
-              * Quaternion.fromAxisAngle(Vector3.new(1, 0, 0), pitchDeg)
-
-    User.CameraCFrame = CFrame.new(pos, rot)
+    User.CameraCFrame = CFrame.lookAt(pos, target)
 end)

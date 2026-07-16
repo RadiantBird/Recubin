@@ -257,6 +257,31 @@ struct SetRotationCommand : Command {
     void undo()    override { if (m_target) m_target->cframe.Rotation = m_before; }
 };
 
+// --- CFrame 一括変更（Position + Rotation をまとめて undo できる） ---
+struct SetSpatialCFrameCommand : Command {
+    std::shared_ptr<Spatial> m_target;
+    CFrame m_before, m_after;
+
+    SetSpatialCFrameCommand(std::shared_ptr<Spatial> target, CFrame before, CFrame after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo()    override { apply(m_before); }
+
+private:
+    void apply(const CFrame& v) {
+        if (!m_target) return;
+        if (m_target->IsA("BaseCube")) {
+            // GizmoCommand と同じく物理同期付きで適用
+            BaseCube* bc = static_cast<BaseCube*>(m_target.get());
+            bc->teleportTo(v.Position);
+            bc->setRotation(v.Rotation);
+        } else {
+            m_target->cframe = v;
+        }
+    }
+};
+
 // --- Gizmo操作（位置/サイズ/回転をまとめてundoできる） ---
 struct GizmoState {
     Vector3    position;

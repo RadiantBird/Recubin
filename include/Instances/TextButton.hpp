@@ -1,13 +1,14 @@
 #pragma once
 #include <Instances/GuiButton.hpp>
 #include <Instances/Named.hpp>
+#include <Instances/GuiContent.hpp>
 
 class TextButton : public Named<TextButton, GuiButton> {
 public:
     static constexpr const char* ClassName = "TextButton";
 
-    std::string Text;
-    Color4      TextColor = {0.f, 0.f, 0.f, 1.f};
+    TextContent m_text;
+    TextContent* textContent() override { return &m_text; }
 
     TextButton();
     bool IsA(std::string name) override;

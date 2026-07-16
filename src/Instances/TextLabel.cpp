@@ -1,11 +1,12 @@
 #include <Instances/TextLabel.hpp>
 #include <include/Core/PropertyRegistry.hpp>
+#include <Instances/GuiContentProps.hpp>
 
 static const bool s_textLabelRegistered = []{
     using namespace PropertyRegistry;
     registerClass("TextLabel", "ScreenGuiObject", {
-        field<&TextLabel::Text>     ("Text"),
-        field<&TextLabel::TextColor>("TextColor"),
+        GuiContentProps::text     <&TextLabel::m_text>(),
+        GuiContentProps::textColor<&TextLabel::m_text>(),
         field<&ScreenGuiObject::FontSize>("FontSize", 0, 200, 1),  // 0 = 既定サイズ
     });
     return true;

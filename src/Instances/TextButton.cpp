@@ -1,11 +1,12 @@
 #include <Instances/TextButton.hpp>
 #include <include/Core/PropertyRegistry.hpp>
+#include <Instances/GuiContentProps.hpp>
 
 static const bool s_textButtonRegistered = []{
     using namespace PropertyRegistry;
     registerClass("TextButton", "GuiButton", {
-        field<&TextButton::Text>     ("Text"),
-        field<&TextButton::TextColor>("TextColor"),
+        GuiContentProps::text     <&TextButton::m_text>(),
+        GuiContentProps::textColor<&TextButton::m_text>(),
         field<&ScreenGuiObject::FontSize>("FontSize", 0, 200, 1),  // 0 = 既定サイズ
     });
     return true;

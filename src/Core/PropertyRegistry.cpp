@@ -141,12 +141,12 @@ std::vector<const PropertyDesc*> collectSchema(std::string_view className) {
     return out;
 }
 
-// load/save は own-only（各クラスの setProperty 連鎖・saveNode のブロック構造を保つ＝YAML差分なし）
+// load/save は基底走査（collectSchema）。SceneLoader.save は最派生クラス名で1回だけ呼ぶ
 bool loadProperty(Instance* obj, std::string_view className,
                   const std::string& name, const YAML::Node& value) {
-    for (const auto& p : schemaFor(className)) {
-        if (p.kind == PropKind::Field && p.serialize && p.set && p.effYamlKey() == name) {
-            p.set(obj, valueFromYaml(value, p));
+    for (const PropertyDesc* p : collectSchema(className)) {
+        if (p->kind == PropKind::Field && p->serialize && p->set && p->effYamlKey() == name) {
+            p->set(obj, valueFromYaml(value, *p));
             return true;
         }
     }
@@ -154,12 +154,12 @@ bool loadProperty(Instance* obj, std::string_view className,
 }
 
 void saveProperties(YAML::Emitter& out, const Instance* obj, std::string_view className) {
-    for (const auto& p : schemaFor(className)) {
-        if (p.kind != PropKind::Field || !p.serialize || !p.get) continue;
-        PropValue v = p.get(const_cast<Instance*>(obj));
-        if (p.omitEmptyString && p.type == PropType::String && std::get<std::string>(v).empty())
+    for (const PropertyDesc* p : collectSchema(className)) {
+        if (p->kind != PropKind::Field || !p->serialize || !p->get) continue;
+        PropValue v = p->get(const_cast<Instance*>(obj));
+        if (p->omitEmptyString && p->type == PropType::String && std::get<std::string>(v).empty())
             continue;  // 空文字は出力しない（既存挙動の保持）
-        valueToYaml(out, p, v);
+        valueToYaml(out, *p, v);
     }
 }
 

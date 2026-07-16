@@ -740,11 +740,11 @@ void LuauEngine::InitSetterTable_Misc() {
         return 0;
     };
     SetterTable["ImageLabel"]["Source"] = [](lua_State* L, Instance* o) {
-        std::string p; if (getFileRefPath(L, 3, p)) static_cast<ImageLabel*>(o)->setImage(p);
+        std::string p; if (getFileRefPath(L, 3, p)) static_cast<ImageLabel*>(o)->m_image.setImage(p);
         return 0;
     };
     SetterTable["ImageButton"]["Source"] = [](lua_State* L, Instance* o) {
-        std::string p; if (getFileRefPath(L, 3, p)) static_cast<ImageButton*>(o)->setImage(p);
+        std::string p; if (getFileRefPath(L, 3, p)) static_cast<ImageButton*>(o)->m_image.setImage(p);
         return 0;
     };
 
@@ -820,10 +820,13 @@ void LuauEngine::InitSetterTable_Misc() {
 // ==================== Getter: GUI ====================
 void LuauEngine::InitDispatchTable_GUI() {
     // GUI 一族はスキーマ表から get/set を流し込む（Norm/Face/Mode は enum 文字列）
+    PropertyRegistry::applyToDispatch("GuiObject",       DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("ScreenGuiObject", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("GuiButton",       DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("TextLabel",       DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("TextButton",      DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("ImageLabel",      DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("ImageButton",     DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("WorldGuiObject",  DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("SurfaceGui",      DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("BillboardGui",    DispatchTable, SetterTable);

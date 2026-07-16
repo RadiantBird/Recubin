@@ -1,26 +1,16 @@
 #pragma once
-#include <Instances/Instance.hpp>
+#include <Instances/GuiObject.hpp>
 #include <Math/Vector2.hpp>
-#include <Util/Color4.hpp>
 #include <Core/RCBNScriptSignal.hpp>
 
-class ScreenGuiObject : public Instance {
+class ScreenGuiObject : public GuiObject {
 public:
-    bool    Active          = true;
     Vector2 Position;
-    Vector2 Size            = {100.f, 40.f};
-    Norm    NormType        = Norm::Pixel;
-    bool    Visible         = true;
-    Color4  BackgroundColor = {1.f, 1.f, 1.f, 1.f};
-    int     ZIndex          = 0;
     float   FontSize        = 0.f;   // 0 = 既定サイズ。文字を持つ GUI(TextLabel/TextButton)のみ使用
 
     // マウスカーソルが要素内に入った瞬間に発火する（Roblox の MouseEnter 相当）
     std::shared_ptr<RCBNScriptSignal> Hovered;
     bool    m_wasHovered    = false; // エッジ判定用（Luau 非公開）
-
-    float getTransparency() const    { return 1.f - BackgroundColor.a; }
-    void  setTransparency(float t)   { BackgroundColor.a = 1.f - t; }
 
     explicit ScreenGuiObject(std::string className);
     virtual bool IsA(std::string name) override;

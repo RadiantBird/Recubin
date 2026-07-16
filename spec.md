@@ -79,10 +79,13 @@ PhysXに実装されているもののこと。
 ### 値型（Luau グローバル）
 - `Vector3.new(x,y,z)` / `Vector2.new(x,y)` / `Color4.new(r,g,b,a)`
 - `Quaternion.new(w,x,y,z)`（引数なしで単位回転）/ `Quaternion.fromEuler(Vector3)` /
-  `Quaternion.fromAxisAngle(axis, angleDeg)` / `Quaternion.Slerp(a,b,t)`。
+  `Quaternion.fromAxisAngle(axis, angleDeg)` / `Quaternion.Slerp(a,b,t)` /
+  `Quaternion.LookRotation(forward[, up])`（-Zが正面の規約）。
   フィールド `.w/.x/.y/.z`、`:toEuler()`。`q * q`（合成）、`q * Vector3`（回転）。
 - `CFrame.new()` / `(x,y,z)` / `(Vector3 pos)` / `(Vector3 pos, Quaternion rot)` /
-  `CFrame.fromAxisAngle(axis, angleDeg)`。フィールド `.Position`(Vector3)/`.Rotation`(Quaternion)、
+  `CFrame.fromAxisAngle(axis, angleDeg)` / `CFrame.lookAt(eye, target[, up])`。
+  `CFrame.new` の第2引数は Quaternion 以外（Vector3 等）だとエラーになる。
+  フィールド `.Position`(Vector3)/`.Rotation`(Quaternion)、
   `:inverse()`。`cf * cf`（合成）、`cf * Vector3`（ワールド点）。
 
 ### Spatial 系トランスフォーム（BaseCube/Model/Sound 等）
@@ -106,6 +109,14 @@ PhysXに実装されているもののこと。
   Brightness/Range/Angle 等）は Luau 書込時に定義レンジ `[lo, hi]` へクランプされる。
 
 ## GUI（ScreenGui/SurfaceGui/BillboardGui）
+- ScreenGuiObject と WorldGuiObject は共通基底 GuiObject（Active/Size/Norm/Visible/
+  BackgroundColor/ZIndex/Transparency を保持）を持つ。GuiObject はファクトリ非登録の
+  抽象基底で Instance.new 不可。
+- TextLabel/TextButton は `TextContent`（Text/TextColor）、ImageLabel/ImageButton は
+  `ImageContent`（Image）をコンポーネント（HasA）として保持する。描画・エディターは
+  `GuiObject::textContent()`/`imageContent()` で問い合わせて分岐を一本化する
+  （`Renderer_GUI.cpp`の`drawGuiContent`）。ボタン性は GuiButton 基底（Activated シグナル）
+  が担う。クラス名・YAMLキー（Text/TextColor/Image）・Luauプロパティ名は変わらない。
 - **SurfaceGuiの実際のベイク解像度は、SurfaceGui自身の`Size`比率ではなく、親BaseCubeの
   対象フェイスの物理サイズ比率に合わせて決まる**（`Renderer_GUI.cpp`の`computeSurfaceGuiLayout`）。
   例えば`Size=[200,100]`のSurfaceGuiを1x1x1の立方体に貼ると、実際のFBOは200x200になり、

@@ -1,22 +1,16 @@
 #include <Instances/ImageButton.hpp>
 #include <include/Core/PropertyRegistry.hpp>
-#include <include/Core/Renderer.hpp>
+#include <Instances/GuiContentProps.hpp>
 
 static const bool s_imageButtonRegistered = []{
     using namespace PropertyRegistry;
     registerClass("ImageButton", "GuiButton", {
-        method_prop<&ImageButton::getImage, &ImageButton::setImage>("Image"),
+        GuiContentProps::image<&ImageButton::m_image>().luaReadOnly(),
     });
     return true;
 }();
 
 ImageButton::ImageButton() : Named<ImageButton, GuiButton>("ImageButton") {}
-
-void ImageButton::setImage(const std::string& path) {
-    imagePath = path;
-    if (!path.empty() && Renderer::instance)
-        m_textureID = Renderer::instance->loadTexture(path.c_str());
-}
 
 bool ImageButton::IsA(std::string name) {
     if (name == "ImageButton") return true;

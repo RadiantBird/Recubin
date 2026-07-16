@@ -1,5 +1,7 @@
 #include <Editor/ContentBrowserPanel.hpp>
 #include <Editor/Localization.hpp>
+#include <Editor/SceneHierarchyPanel.hpp>
+#include <Instances/FileRef.hpp>
 #include <include/imgui/imgui.h>
 #include <filesystem>
 #include <string>
@@ -71,6 +73,29 @@ void ContentBrowserPanel::drawDirectory(const fs::path& path) {
 
         std::string label = icon + f.path().filename().string();
         ImGui::Selectable(label.c_str(), false);
+
+        // ---- 右クリックコンテキストメニュー ----
+        std::string popupId = "cb_ctx##" + f.path().generic_string();
+        if (ImGui::BeginPopupContextItem(popupId.c_str())) {
+            // FileRefを生成: 選択インスタンス（無ければWorkspace）の子として undo 対応で挿入
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::CreateFileRef))) {
+                std::shared_ptr<Instance> parent;
+                if (selectedInstance && *selectedInstance) parent = (*selectedInstance)->shared_from_this();
+                else if (workspace && *workspace)          parent = (*workspace)->shared_from_this();
+                if (parent && m_history) {
+                    auto fr = std::make_shared<FileRef>();
+                    fr->Path = f.path().generic_string();  // "assets/..." 相対。YAML では ContentPath になり Packager が追跡する
+                    fr->Name = SceneHierarchyPanel::uniqueName(parent, f.path().stem().string());
+                    m_history->execute(std::make_unique<AddInstanceCommand>(parent, fr));
+                }
+            }
+            // パスをコピー
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::CopyPath))) {
+                ImGui::SetClipboardText(f.path().generic_string().c_str());
+            }
+            ImGui::EndPopup();
+        }
+
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip("%s", f.path().string().c_str());
         }

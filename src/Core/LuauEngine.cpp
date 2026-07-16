@@ -337,12 +337,14 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     lua_pushcfunction(L, quat_from_euler,     "fromEuler");    lua_setfield(L, -2, "fromEuler");
     lua_pushcfunction(L, quat_from_axis_angle,"fromAxisAngle");lua_setfield(L, -2, "fromAxisAngle");
     lua_pushcfunction(L, quat_slerp,          "Slerp");        lua_setfield(L, -2, "Slerp");
+    lua_pushcfunction(L, quat_look_rotation,  "LookRotation"); lua_setfield(L, -2, "LookRotation");
     lua_setglobal(L, "Quaternion");
 
     // Register CFrame with new / fromAxisAngle
     lua_newtable(L);
     lua_pushcfunction(L, cframe_constructor,     "new");          lua_setfield(L, -2, "new");
     lua_pushcfunction(L, cframe_from_axis_angle, "fromAxisAngle");lua_setfield(L, -2, "fromAxisAngle");
+    lua_pushcfunction(L, cframe_look_at,         "lookAt");       lua_setfield(L, -2, "lookAt");
     lua_setglobal(L, "CFrame");
 
     lua_newtable(L);

@@ -1,17 +1,15 @@
 #pragma once
 #include <Instances/ScreenGuiObject.hpp>
 #include <Instances/Named.hpp>
+#include <Instances/GuiContent.hpp>
 #include <string>
 
 class ImageLabel : public Named<ImageLabel, ScreenGuiObject> {
 public:
     static constexpr const char* ClassName = "ImageLabel";
 
-    std::string  imagePath;
-    unsigned int m_textureID = 0;
-
-    void        setImage(const std::string& path);
-    std::string getImage() const { return imagePath; }
+    ImageContent m_image;
+    ImageContent* imageContent() override { return &m_image; }
 
     ImageLabel();
     bool IsA(std::string name) override;

@@ -1,22 +1,16 @@
 #include <Instances/ImageLabel.hpp>
 #include <include/Core/PropertyRegistry.hpp>
-#include <include/Core/Renderer.hpp>
+#include <Instances/GuiContentProps.hpp>
 
 static const bool s_imageLabelRegistered = []{
     using namespace PropertyRegistry;
     registerClass("ImageLabel", "ScreenGuiObject", {
-        method_prop<&ImageLabel::getImage, &ImageLabel::setImage>("Image"),
+        GuiContentProps::image<&ImageLabel::m_image>().luaReadOnly(),
     });
     return true;
 }();
 
 ImageLabel::ImageLabel() : Named<ImageLabel, ScreenGuiObject>("ImageLabel") {}
-
-void ImageLabel::setImage(const std::string& path) {
-    imagePath = path;
-    if (!path.empty() && Renderer::instance)
-        m_textureID = Renderer::instance->loadTexture(path.c_str());
-}
 
 bool ImageLabel::IsA(std::string name) {
     if (name == "ImageLabel") return true;
