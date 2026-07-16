@@ -363,8 +363,61 @@ void ViewportPanel::onRender() {
         return (tmin >= 0.0f) ? tmin : tmax;
     };
 
-    // AABB スラブ法レイキャスト
+    // OBBを任意のワールド方向dirへ投影した半径(dirは正規化済み前提)
+    auto obbSupportRadius = [](const Quaternion& rot, const Vector3& size, const Vector3& dir) -> float {
+        Vector3 ex = rot.rotate(Vector3(1.0f, 0.0f, 0.0f));
+        Vector3 ey = rot.rotate(Vector3(0.0f, 1.0f, 0.0f));
+        Vector3 ez = rot.rotate(Vector3(0.0f, 0.0f, 1.0f));
+        return std::abs(Vector3::Dot(dir, ex)) * size.x * 0.5f
+             + std::abs(Vector3::Dot(dir, ey)) * size.y * 0.5f
+             + std::abs(Vector3::Dot(dir, ez)) * size.z * 0.5f;
+    };
+
+    // OBB同士のSAT交差判定。15分離軸(Aの3軸 + Bの3軸 + 外積9軸)。
+    auto obbIntersects = [&](const Vector3& posA, const Quaternion& rotA, const Vector3& sizeA,
+                             const Vector3& posB, const Quaternion& rotB, const Vector3& sizeB) -> bool {
+        Vector3 axesA[3] = {
+            rotA.rotate(Vector3(1.0f, 0.0f, 0.0f)),
+            rotA.rotate(Vector3(0.0f, 1.0f, 0.0f)),
+            rotA.rotate(Vector3(0.0f, 0.0f, 1.0f))
+        };
+        Vector3 axesB[3] = {
+            rotB.rotate(Vector3(1.0f, 0.0f, 0.0f)),
+            rotB.rotate(Vector3(0.0f, 1.0f, 0.0f)),
+            rotB.rotate(Vector3(0.0f, 0.0f, 1.0f))
+        };
+        Vector3 centerDiff = posB - posA;
+
+        // Aの3軸 + Bの3軸
+        for (int i = 0; i < 3; ++i) {
+            if (std::abs(Vector3::Dot(axesA[i], centerDiff)) >=
+                obbSupportRadius(rotA, sizeA, axesA[i]) + obbSupportRadius(rotB, sizeB, axesA[i]))
+                return false;
+        }
+        for (int i = 0; i < 3; ++i) {
+            if (std::abs(Vector3::Dot(axesB[i], centerDiff)) >=
+                obbSupportRadius(rotA, sizeA, axesB[i]) + obbSupportRadius(rotB, sizeB, axesB[i]))
+                return false;
+        }
+
+        // 外積9軸
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                Vector3 axis = Vector3::Cross(axesA[i], axesB[j]);
+                float lenSq = Vector3::Dot(axis, axis);
+                if (lenSq < 1e-6f) continue; // 平行軸ペアはスキップ
+                axis = axis.normalize();
+                if (std::abs(Vector3::Dot(axis, centerDiff)) >=
+                    obbSupportRadius(rotA, sizeA, axis) + obbSupportRadius(rotB, sizeB, axis))
+                    return false;
+            }
+        }
+        return true;
+    };
+
+    // OBB スラブ法レイキャスト
     // 最近傍の Spatial* を返し、衝突軸(0-2)と法線符号(+1/-1)を出力する
+    // → 出力軸/符号はサーフェスのローカル軸インデックスと符号
     auto castRaySurface = [&](const Vector3& ori, const Vector3& dir,
                               Instance* exclude,
                               int& outAxis, float& outSign) -> Spatial* {
@@ -377,15 +430,15 @@ void ViewportPanel::onRender() {
             if (inst->getClassName() == "Skybox") return;
             if (inst->IsA("BaseCube")) {
                 Spatial* sp = static_cast<Spatial*>(inst);
-                Vector3 wp = sp->getWorldPosition();
-                float bmin[3] = { wp.x - sp->Size.x * 0.5f,
-                                   wp.y - sp->Size.y * 0.5f,
-                                   wp.z - sp->Size.z * 0.5f };
-                float bmax[3] = { wp.x + sp->Size.x * 0.5f,
-                                   wp.y + sp->Size.y * 0.5f,
-                                   wp.z + sp->Size.z * 0.5f };
-                float rd[3] = { dir.x, dir.y, dir.z };
-                float ro[3] = { ori.x, ori.y, ori.z };
+                CFrame wf = sp->getWorldCFrame();
+                // レイをサーフェスのローカル空間へ変換してAABBスラブ法で判定する
+                Quaternion invRot = wf.Rotation.conjugate();
+                Vector3 lo = invRot.rotate(ori - wf.Position);
+                Vector3 ld = invRot.rotate(dir);
+                float bmin[3] = { -sp->Size.x * 0.5f, -sp->Size.y * 0.5f, -sp->Size.z * 0.5f };
+                float bmax[3] = {  sp->Size.x * 0.5f,  sp->Size.y * 0.5f,  sp->Size.z * 0.5f };
+                float rd[3] = { ld.x, ld.y, ld.z };
+                float ro[3] = { lo.x, lo.y, lo.z };
                 float tmin = -1e30f, tmax = 1e30f;
                 bool  hit  = true;
                 int   axis = 1;
@@ -429,24 +482,27 @@ void ViewportPanel::onRender() {
     // 指定軸のみで衝突解決する（軸ジャンプ防止用）
     // axis: 0=X, 1=Y, 2=Z。その軸の解決後ワールド座標を返す
     auto fitOnAxis = [&](Vector3 pos, const Vector3& size, Instance* moving, int axis) -> float {
-        float p[3]  = { pos.x,  pos.y,  pos.z  };
-        float sz[3] = { size.x, size.y, size.z };
+        Quaternion movRot = static_cast<Spatial*>(moving)->getWorldCFrame().Rotation;
+        Vector3 eAxis = (axis == 0) ? Vector3(1.0f, 0.0f, 0.0f)
+                      : (axis == 1) ? Vector3(0.0f, 1.0f, 0.0f)
+                                    : Vector3(0.0f, 0.0f, 1.0f);
+        float p[3] = { pos.x, pos.y, pos.z };
         auto visit = [&](auto& self, Instance* inst) -> void {
             if (!inst || inst == moving) return;
             if (inst->getClassName() == "Skybox") return;
             if (inst->IsA("Spatial")) {
                 Spatial* other = static_cast<Spatial*>(inst);
                 Vector3 owp = other->getWorldPosition();
+                Quaternion otherRot = other->getWorldCFrame().Rotation;
                 float op[3] = { owp.x, owp.y, owp.z };
-                float os[3] = { other->Size.x, other->Size.y, other->Size.z };
-                float oa[3] = {
-                    (sz[0] + os[0]) * 0.5f - std::abs(p[0] - op[0]),
-                    (sz[1] + os[1]) * 0.5f - std::abs(p[1] - op[1]),
-                    (sz[2] + os[2]) * 0.5f - std::abs(p[2] - op[2])
-                };
-                if (oa[0] > 0.0f && oa[1] > 0.0f && oa[2] > 0.0f) {
-                    float d = p[axis] - op[axis];
-                    p[axis] += (d >= 0.0f ? oa[axis] : -oa[axis]);
+                if (obbIntersects(Vector3(p[0], p[1], p[2]), movRot, size, owp, otherRot, other->Size)) {
+                    float oa = obbSupportRadius(movRot, size, eAxis)
+                             + obbSupportRadius(otherRot, other->Size, eAxis)
+                             - std::abs(p[axis] - op[axis]);
+                    if (oa > 0.0f) {
+                        float d = p[axis] - op[axis];
+                        p[axis] += (d >= 0.0f ? oa : -oa);
+                    }
                 }
             }
             for (auto const& [_, child] : inst->getChildren()) self(self, child.get());
@@ -455,27 +511,37 @@ void ViewportPanel::onRender() {
         return p[axis];
     };
 
-    // AABB-AABB MTV 衝突フィット（moving と重なるキューブから押し出したワールド位置を返す）
+    // OBB-OBB MTV 衝突フィット（moving と重なるキューブから押し出したワールド位置を返す）
     auto fitCollision = [&](Vector3 pos, const Vector3& size, Instance* moving) -> Vector3 {
+        Quaternion movRot = static_cast<Spatial*>(moving)->getWorldCFrame().Rotation;
         auto visit = [&](auto& self, Instance* inst) -> void {
             if (!inst || inst == moving) return;
             if (inst->getClassName() == "Skybox") return;
             if (inst->IsA("Spatial")) {
                 Spatial* other = static_cast<Spatial*>(inst);
                 Vector3 owp = other->getWorldPosition();
-                float ox = (size.x + other->Size.x) * 0.5f - std::abs(pos.x - owp.x);
-                float oy = (size.y + other->Size.y) * 0.5f - std::abs(pos.y - owp.y);
-                float oz = (size.z + other->Size.z) * 0.5f - std::abs(pos.z - owp.z);
-                if (ox > 0.0f && oy > 0.0f && oz > 0.0f) {
-                    float dx = pos.x - owp.x;
-                    float dy = pos.y - owp.y;
-                    float dz = pos.z - owp.z;
-                    if (ox <= oy && ox <= oz)
-                        pos.x += (dx >= 0.0f ? ox : -ox);
-                    else if (oy <= ox && oy <= oz)
-                        pos.y += (dy >= 0.0f ? oy : -oy);
-                    else
-                        pos.z += (dz >= 0.0f ? oz : -oz);
+                Quaternion otherRot = other->getWorldCFrame().Rotation;
+                if (obbIntersects(pos, movRot, size, owp, otherRot, other->Size)) {
+                    float ox = obbSupportRadius(movRot, size, Vector3(1.0f, 0.0f, 0.0f))
+                             + obbSupportRadius(otherRot, other->Size, Vector3(1.0f, 0.0f, 0.0f))
+                             - std::abs(pos.x - owp.x);
+                    float oy = obbSupportRadius(movRot, size, Vector3(0.0f, 1.0f, 0.0f))
+                             + obbSupportRadius(otherRot, other->Size, Vector3(0.0f, 1.0f, 0.0f))
+                             - std::abs(pos.y - owp.y);
+                    float oz = obbSupportRadius(movRot, size, Vector3(0.0f, 0.0f, 1.0f))
+                             + obbSupportRadius(otherRot, other->Size, Vector3(0.0f, 0.0f, 1.0f))
+                             - std::abs(pos.z - owp.z);
+                    if (ox > 0.0f && oy > 0.0f && oz > 0.0f) {
+                        float dx = pos.x - owp.x;
+                        float dy = pos.y - owp.y;
+                        float dz = pos.z - owp.z;
+                        if (ox <= oy && ox <= oz)
+                            pos.x += (dx >= 0.0f ? ox : -ox);
+                        else if (oy <= ox && oy <= oz)
+                            pos.y += (dy >= 0.0f ? oy : -oy);
+                        else
+                            pos.z += (dz >= 0.0f ? oz : -oz);
+                    }
                 }
             }
             for (auto const& [_, child] : inst->getChildren()) self(self, child.get());
@@ -1178,37 +1244,54 @@ void ViewportPanel::onRender() {
 
                 // 衝突面の法線軸 (hitAxis) に沿ってオブジェクトを隣接配置し、
                 // 残り2軸はレイと軸平面の交点で決定する
-                Vector3 surfWorld = surface->getWorldPosition();
-                float surfPos[3] = { surfWorld.x, surfWorld.y, surfWorld.z };
+                // → サーフェスが回転している場合があるため、サーフェスのローカル空間で計算する
+                CFrame surfCF = surface->getWorldCFrame();
+                Quaternion invSurf = surfCF.Rotation.conjugate();
+                Quaternion movRot  = s->getWorldCFrame().Rotation;
+
+                // レイをサーフェスローカルへ
+                Vector3 lo = invSurf.rotate(ori - surfCF.Position);
+                Vector3 ld = invSurf.rotate(dir);
+
                 float surfHalf[3] = { surface->Size.x * 0.5f, surface->Size.y * 0.5f, surface->Size.z * 0.5f };
-                float movHalf[3]  = { s->Size.x * 0.5f, s->Size.y * 0.5f, s->Size.z * 0.5f };
-                float oriArr[3]   = { ori.x, ori.y, ori.z };
-                float dirArr[3]   = { dir.x, dir.y, dir.z };
 
-                // 衝突面のワールド座標 → オブジェクト中心の固定座標
-                float faceWorld  = surfPos[hitAxis] + hitSign * surfHalf[hitAxis];
-                float fixedCoord = faceWorld + hitSign * movHalf[hitAxis];
+                // 面法線(ワールド): surfCF.Rotation.rotate(e_hitAxis) * hitSign
+                Vector3 eHitAxis = (hitAxis == 0) ? Vector3(1.0f, 0.0f, 0.0f)
+                                 : (hitAxis == 1) ? Vector3(0.0f, 1.0f, 0.0f)
+                                                  : Vector3(0.0f, 0.0f, 1.0f);
+                Vector3 faceNormalWorld = surfCF.Rotation.rotate(eHitAxis) * hitSign;
 
-                // レイと「fixedCoord に平行な軸平面」の交点
-                if (std::abs(dirArr[hitAxis]) < 1e-6f) return; // レイが面に平行
-                float t = (fixedCoord - oriArr[hitAxis]) / dirArr[hitAxis];
+                // 移動物の面法線方向サポート半径(符号なし半径)
+                float movSupportN = obbSupportRadius(movRot, s->Size, faceNormalWorld);
+
+                // 固定ローカル座標
+                float fixedCoord = hitSign * surfHalf[hitAxis] + hitSign * movSupportN;
+
+                float loArr[3] = { lo.x, lo.y, lo.z };
+                float ldArr[3] = { ld.x, ld.y, ld.z };
+
+                // ローカルレイと平面 local[hitAxis] = fixedCoord の交点
+                if (std::abs(ldArr[hitAxis]) < 1e-6f) return; // レイが面に平行
+                float t = (fixedCoord - loArr[hitAxis]) / ldArr[hitAxis];
                 if (t < 0.0f) return; // 平面がカメラ後方
 
-                float newPosArr[3];
-                for (int i = 0; i < 3; ++i) {
-                    newPosArr[i] = (i == hitAxis) ? fixedCoord
-                                                  : oriArr[i] + dirArr[i] * t;
-                }
-
-                // hitAxis 以外の2軸は、乗っているサーフェスの端からはみ出さないようクランプする
+                float localPosArr[3];
+                localPosArr[hitAxis] = fixedCoord;
                 for (int i = 0; i < 3; ++i) {
                     if (i == hitAxis) continue;
-                    float lo = surfPos[i] - surfHalf[i] + movHalf[i];
-                    float hi = surfPos[i] + surfHalf[i] - movHalf[i];
-                    if (lo > hi) { lo = hi = surfPos[i]; } // サーフェスより移動物が大きい場合は中央に固定
-                    newPosArr[i] = std::clamp(newPosArr[i], lo, hi);
+                    Vector3 eI = (i == 0) ? Vector3(1.0f, 0.0f, 0.0f)
+                               : (i == 1) ? Vector3(0.0f, 1.0f, 0.0f)
+                                          : Vector3(0.0f, 0.0f, 1.0f);
+                    float movSupportI = obbSupportRadius(movRot, s->Size, surfCF.Rotation.rotate(eI));
+                    float loLim = -surfHalf[i] + movSupportI;
+                    float hiLim =  surfHalf[i] - movSupportI;
+                    if (loLim > hiLim) { loLim = hiLim = 0.0f; } // サーフェスより移動物が大きい場合は面中央に固定
+                    localPosArr[i] = std::clamp(loArr[i] + ldArr[i] * t, loLim, hiLim);
                 }
-                Vector3 newPos(newPosArr[0], newPosArr[1], newPosArr[2]);
+                Vector3 surfLocalPos(localPosArr[0], localPosArr[1], localPosArr[2]);
+
+                // ワールドへ戻す
+                Vector3 newPos = surfCF.Position + surfCF.Rotation.rotate(surfLocalPos);
 
                 if (collisionFit) newPos = fitCollision(newPos, s->Size, inst);
                 Vector3 prevPrimaryWorld = s->getWorldPosition();
