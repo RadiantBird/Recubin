@@ -21,18 +21,10 @@ Linux対応予定です。
 (!: 中止|?: 不明|~: 保留中|x: 達成済み)
 
 ### 設計関係
-- ImageLabel/ImageButton
-  - [x] IsAだと不自然なのでHasAにリファクタ (TextContent/ImageContentコンポーネント化＋GuiObject共通基底＋PropertyRegistry基底走査化)
-
-- [x] Vector3とQuartanionは、CFrameによって一発で生成(変換)できるようにならないだろうか(エディター、サンプルスクリプトを見て思った)
-  - CFrame.lookAt / Quaternion.LookRotation をLuauに公開。プロパティパネルにCFrame6値一括編集(コピペ可)を追加
-
-- コンテンツブラウザの存在価値がよくわかんないことになってる
-  - [x] 要素を右クリックしてFileRefを生成するとかならいいかも
-  - [!] assetsディレクトリ固定じゃなくて変更可能にしてもいいと思う (FileRefのパスはPackagerの追跡前提のため中止)
+- N/A
 
 ### エディター関係
-- [x] エディター自体のパッケージャー(デプロイ)の作成 (`python build.py package` で dist/RecubinEditor + zip 生成。シェーダーは src/ から shaders/ へ移動済み)
+- N/A
 
 ### 物理エンジン関係
 

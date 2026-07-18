@@ -91,6 +91,14 @@ std::shared_ptr<Instance> Weather::clone() const {
 void Weather::ensureChildren() {
     if (m_childrenBuilt) return;
 
+    // シーンから既にロードされた子は採用し、無いものだけ既定値で生成する（ユーザー編集の永続化）
+    auto adopt = [](Instance* parent, const char* name, const char* className) -> std::shared_ptr<Instance> {
+        auto const& kids = parent->getChildren();
+        auto it = kids.find(name);
+        if (it != kids.end() && it->second->IsA(className)) return it->second;
+        return nullptr;
+    };
+
     auto makeAnchor = [](const char* name) {
         auto cube = std::make_shared<Cube>(Vector3(0.0f, 0.0f, 0.0f), Vector3(0.1f, 0.1f, 0.1f), Cube::defaultTextureID);
         cube->Name = name;
@@ -101,12 +109,23 @@ void Weather::ensureChildren() {
         return cube;
     };
 
-    m_skyAnchor = makeAnchor("WeatherSkyAnchor");
-    addChild(m_skyAnchor);
+    if (auto existing = adopt(this, "WeatherSkyAnchor", "Cube")) {
+        m_skyAnchor = std::static_pointer_cast<Cube>(existing);
+    } else {
+        m_skyAnchor = makeAnchor("WeatherSkyAnchor");
+        addChild(m_skyAnchor);
+    }
 
-    m_lightningAnchor = makeAnchor("WeatherLightningAnchor");
-    addChild(m_lightningAnchor);
+    if (auto existing = adopt(this, "WeatherLightningAnchor", "Cube")) {
+        m_lightningAnchor = std::static_pointer_cast<Cube>(existing);
+    } else {
+        m_lightningAnchor = makeAnchor("WeatherLightningAnchor");
+        addChild(m_lightningAnchor);
+    }
 
+    if (auto existing = adopt(m_skyAnchor.get(), "RainEmitter", "ParticleEmitter")) {
+        m_rainEmitter = std::static_pointer_cast<ParticleEmitter>(existing);
+    } else {
     m_rainEmitter = std::make_shared<ParticleEmitter>();
     m_rainEmitter->Name             = "RainEmitter";
     m_rainEmitter->StartColor       = Color4(0.6f, 0.7f, 0.9f, 0.6f);
@@ -127,7 +146,11 @@ void Weather::ensureChildren() {
     m_rainEmitter->CollisionCutoff  = true;
     m_rainEmitter->Enabled          = false;
     m_skyAnchor->addChild(m_rainEmitter);
+    }
 
+    if (auto existing = adopt(m_skyAnchor.get(), "SnowEmitter", "ParticleEmitter")) {
+        m_snowEmitter = std::static_pointer_cast<ParticleEmitter>(existing);
+    } else {
     m_snowEmitter = std::make_shared<ParticleEmitter>();
     m_snowEmitter->Name              = "SnowEmitter";
     m_snowEmitter->StartColor        = Color4(1.0f, 1.0f, 1.0f, 0.85f);
@@ -150,14 +173,22 @@ void Weather::ensureChildren() {
     m_snowEmitter->SpinSpeedVariance = 20.0f;
     m_snowEmitter->Enabled           = false;
     m_skyAnchor->addChild(m_snowEmitter);
+    }
 
+    if (auto existing = adopt(m_lightningAnchor.get(), "LightningFlash", "PointLight")) {
+        m_lightningLight = std::static_pointer_cast<PointLight>(existing);
+    } else {
     m_lightningLight = std::make_shared<PointLight>();
     m_lightningLight->Name       = "LightningFlash";
     m_lightningLight->brightness = 0.0f;
     m_lightningLight->range      = 200.0f;
     m_lightningLight->lightColor = Color4(0.85f, 0.9f, 1.0f, 1.0f);
     m_lightningAnchor->addChild(m_lightningLight);
+    }
 
+    if (auto existing = adopt(m_lightningAnchor.get(), "LightningSparks", "ParticleEmitter")) {
+        m_lightningSparks = std::static_pointer_cast<ParticleEmitter>(existing);
+    } else {
     m_lightningSparks = std::make_shared<ParticleEmitter>();
     m_lightningSparks->Name         = "LightningSparks";
     m_lightningSparks->StartColor   = Color4(1.0f, 0.95f, 0.6f, 1.0f);
@@ -175,8 +206,12 @@ void Weather::ensureChildren() {
     m_lightningSparks->GravityScale = 1.5f;
     m_lightningSparks->Enabled      = false;
     m_lightningAnchor->addChild(m_lightningSparks);
+    }
 
-    if (AudioService::instance) {
+    if (auto existing = adopt(this, "WeatherAmbient", "Sound")) {
+        m_ambientSound = std::static_pointer_cast<Sound>(existing);
+        m_ambientSound->setLooping(true);
+    } else if (AudioService::instance) {
         m_ambientSound = std::make_shared<Sound>(*AudioService::instance);
         m_ambientSound->Name = "WeatherAmbient";
         m_ambientSound->setLooping(true);

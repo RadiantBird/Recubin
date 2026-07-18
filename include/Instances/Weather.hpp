@@ -17,8 +17,9 @@ class Sound;
 // 自身はSpatialではない（Lighting/Systemと同型）。子オブジェクト（雨/雪の発生源、
 // 落雷用ライト/スパーク、環境音）はコンストラクタではなくupdate()初回呼び出し時に
 // 遅延生成する（コンストラクタ内でのaddChild()はshared_from_this()がbad_weak_ptrで
-// 失敗するため不可）。これらの子は非シリアライズ・clone()非対象で、毎回同じ構成に
-// 再構築される。
+// 失敗するため不可）。これらの子はシリアライズ対象で、ロード済みならensureChildren()が
+// 名前で採用する（ユーザーの編集を保持）。無い場合のみ既定値で再構築する。clone()は
+// 子を複製せず再構築に任せる。
 enum class WeatherType { Clear = 0, Rain = 1, Snow = 2 };
 
 class Weather : public Named<Weather, Instance> {

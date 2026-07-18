@@ -7,6 +7,10 @@
 #include <vector>
 #include <string>
 
+class TerrainStreamer;
+class Physics;
+class BaseCube;
+
 // 汎用パーティクル発生源。火・煙・水しぶき・汎用スクエアなど、プロパティの組み合わせだけで
 // 表現する（タイプ別クラスは作らない）。BaseCube等の子として配置し、発生位置は毎フレーム
 // 親のワールドCFrameから継承する（LightSourceと同じ設計。自身はPositionを持たない）。
@@ -35,7 +39,7 @@ public:
     bool    Enabled          = true;
     float   WindScale        = 1.0f;   // Workspace::Windへの乗数（Gravityと同型）
     float   SpawnRadius      = 0.0f;   // >0で発生位置を水平円盤内にランダム分散（雨/雪の面積発生用）
-    bool    CollisionCutoff  = false;  // 発生時に1回だけ下方向レイキャストし、命中高度で消滅させる
+    bool    CollisionCutoff  = false;  // 発生時と落下中の定期再計算で下方向レイキャストし、命中高度で消滅させる
 
     // 描画側が読む1粒子分のランタイム状態（PropertyRegistry非登録・非シリアライズ）
     struct Particle {
@@ -46,6 +50,7 @@ public:
         float   spinAngle = 0.0f;
         float   spinSpeed = 0.0f;
         float   killHeight = -1e8f;  // CollisionCutoff用。この高度以下になったら消滅（-1e8fは無効）
+        float   cutoffRefresh = 0.0f;  // CollisionCutoff用。killHeight再計算までの残り秒数
     };
 
     ParticleEmitter();
@@ -71,5 +76,14 @@ private:
     CFrame  resolveOriginCFrame() const;
     Vector3 resolveGravity();
     Vector3 resolveWind();
-    void    spawnOne(const CFrame& originCFrame, const Vector3& gravity);
+
+    // CollisionCutoff のレイキャスト先を1回のupdate/emit分キャッシュする（毎粒子のツリー走査を避ける）
+    struct CutoffContext {
+        TerrainStreamer* streamer = nullptr;  // 地形（ボクセルDDA、PhysX非依存）
+        Physics*         physics  = nullptr;  // オブジェクト（Play中のみ存在）
+        std::vector<BaseCube*> cubes;         // physics が無い時のフォールバック（エディタ用）
+    };
+    void    buildCutoffContext(CutoffContext& ctx);
+    float   computeKillHeight(const Vector3& pos, const CutoffContext& ctx);
+    void    spawnOne(const CFrame& originCFrame, const Vector3& gravity, const CutoffContext& ctx);
 };
