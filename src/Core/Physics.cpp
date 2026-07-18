@@ -202,10 +202,11 @@ void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
     if (!cube->CanCollide) return; // 衝突無効 → actor 不要
     if (cube->actor) return; // 二重登録防止
 
-    // 初期姿勢
+    // 初期姿勢（親Model等の変換を含むワールド姿勢。syncPhysics/rebuildGroupと整合させる）
+    CFrame wcf = cube->getWorldCFrame();
     physx::PxTransform transform(
-        physx::PxVec3(cube->cframe.Position.x, cube->cframe.Position.y, cube->cframe.Position.z),
-        physx::PxQuat(cube->cframe.Rotation.x, cube->cframe.Rotation.y, cube->cframe.Rotation.z, cube->cframe.Rotation.w)
+        physx::PxVec3(wcf.Position.x, wcf.Position.y, wcf.Position.z),
+        physx::PxQuat(wcf.Rotation.x, wcf.Rotation.y, wcf.Rotation.z, wcf.Rotation.w)
     );
 
     physx::PxRigidActor* actor = nullptr;

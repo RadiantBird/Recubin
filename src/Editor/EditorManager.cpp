@@ -969,7 +969,7 @@ void EditorManager::renderToolbarCharacter() {
         auto ws = m_workspace->shared_from_this();
         auto model = std::make_shared<Model>(spawnPos, Vector3(1, 1, 1));
         model->Name = SceneHierarchyPanel::uniqueName(ws, "Model");
-        CharacterRig::buildDefaultRigParts(model, spawnPos);
+        CharacterRig::buildDefaultRigParts(model);
         m_history.execute(std::make_unique<AddInstanceCommand>(ws, model));
         m_isDirty = true;
     }

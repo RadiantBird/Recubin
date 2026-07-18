@@ -53,3 +53,48 @@
 - 報告: 同梱の RecubinEngine.exe を開くとエディターの imgui.ini が書き換わりレイアウトが壊れる。
 - 原因: ImGui 初期化は `Renderer::init`（Renderer.cpp）で共有されており、ランタイム（EDITOR_DISABLED）もドッキング無し・NullEditorManager でパネルを持たないのに既定の `imgui.ini`（CWD相対）を読み書きしていた。
 - 修正: Renderer.cpp の EDITOR_DISABLED 分岐に `io.IniFilename = nullptr;` を追加し、ランタイムのレイアウト永続化を無効化。別ファイル名に分ける案もあったが、ランタイムに可動パネルが無く保存する価値が無いこと、パッケージ出力先にゴミ ini を作らないことから「書かない」を選択。RecubinTest も同定義のため同様に無効化される（ヘッドレステストには好都合）。軽微変更のためメインセッションが直接編集。ビルド確認済み。
+
+---
+
+## 2026-07-18 雨の貫通防止 + Weather子（RainEmitter等）の永続化
+
+### 何をしたか
+
+**雨（CollisionCutoff）の貫通防止** — `ParticleEmitter.hpp/cpp`
+- `computeKillHeight()` 新設: 地形は `TerrainStreamer::raycastVoxel`（ボクセルDDA・PhysX非依存）、オブジェクトは Play 中のみ `Physics::raycast`、エディタ編集中は BaseCube への OBB スラブ法レイキャスト（`obbRayHit`、ViewportPanel の選択判定と同ロジックのファイルローカル関数）で判定し、最も高い命中面を killHeight に採用。
+- `CutoffContext` 構造体（streamer / physics / CanCollide な cubes リスト）を update/emit ごとに1回 `buildCutoffContext()` で構築し、毎粒子のツリー走査を回避。PhysX 採用条件は `physics && getScene() && SystemState::get().isPlaying`。
+- `Particle::cutoffRefresh` 追加: 落下中約0.2秒間隔で現在位置から killHeight を再計算（風で流されるズレに追従）。空振り時は0.5秒間隔に緩和。スポーン時に `frand01()*0.2f` で初期位相をばらけさせスパイク防止。
+
+**Weather 子の永続化** — `SceneLoader.cpp` / `Weather.cpp` / `Weather.hpp`（コメント）
+- `SceneLoader::saveNode` の WeatherSkyAnchor/WeatherLightningAnchor/WeatherAmbient 保存除外フィルタを撤廃し、全子を通常保存。
+- `Weather::ensureChildren()` を adopt-or-create 化: ロード済みの子を名前+IsA で採用（プロパティは一切上書きしない）、無いものだけ従来の既定値で生成。これで RainEmitter 等へのユーザー編集がシーン保存で残り、再読込時の重複も起きない。
+- 検証: ビルド成功、回帰テスト 130 passed / 3 failed（既知ベースライン維持）。エディタ/Play 両方での雨の停止はユーザー実機確認済み。
+
+### なぜそうしたか
+
+- **地形をボクセルDDAにした理由**: PhysX シーンに依存しないため、エディタ編集中・物理未登録チャンクでも貫通しない。エディタの地形ブラシが同じ理由で採用済みの実績パターン（ViewportPanel.cpp:578-）。
+- **killHeight 定期再計算（vs スポーン時1回 / 毎フレーム判定）**: AskUserQuestion でユーザー選択。風ズレに追従しつつ、レイキャスト頻度を粒子あたり5回/秒に抑える折衷。
+- **永続化は adopt-or-create（vs Weather プロパティへの昇格）**: ユーザーは RainEmitter に直接書き込んでおり、任意プロパティを保持するには子をそのまま保存するのが自然。SceneLoader は Sound/ParticleEmitter/Cube を全て生成できるためラウンドトリップ可能と確認済み。
+- **Play 判定を `SystemState::get().isPlaying` にした理由**: BaseCube::setSize が同フラグで enqueue/直接実行を分岐しているエンジン内の実績ある判定。ランタイム exe は game_main.cpp:200 で常時 true。
+
+### どういう経緯か
+
+1. 「雨が貫通する」報告 → 調査で既存 CollisionCutoff がスポーン時1回の PhysX レイのみと判明。方針4点（両モード対応/地形+オブジェクト/定期再計算/単に消す）をユーザー確認して implementer で実装。
+2. 「エディタでまだ貫通」+「RainEmitter の編集が消える」報告 → オブジェクト判定が PhysX 頼み（エディタで空振り）と、SceneLoader の Weather 子除外が原因と特定。OBB フォールバックと adopt-or-create を実装。
+3. それでもエディタで貫通 → **失敗1**: `getPhysicsEngine()` 非 null 判定 — エディタでも Physics オブジェクトは存在。**失敗2**: `getScene()` 非 null 判定 — シーンも main.cpp:517 で起動時から存在。**失敗3**: `hasCubeActors()` 判定 — 編集中でも setSize 等の `recreateActor` で部分的にアクターが生成され不安定。→ 最終的に `SystemState::get().isPlaying` で確定し、ユーザー実機確認で解決。
+
+### 試して失敗した方法
+
+- 「PhysX が使えるか」をオブジェクト（Physics/シーン/アクター）の存在で推測する方法は全滅（上記3連敗）。**編集/Play の区別は SystemState::get().isPlaying を使うこと**。存在ベースの推測は編集中の部分的なアクター生成で必ず崩れる。
+
+### 未解決・保留
+
+- 既存シーンは Weather の子が未保存のため、**一度保存し直すまで**は従来どおり既定値生成（保存後から永続化が効く）。
+- `Weather::clone()` は従来どおり子を複製しない → エディタで Weather を複製すると雨の編集は既定値に戻る（必要なら別途対応）。
+- OBB フォールバックは Workspace 内の CanCollide な BaseCube 全走査（update ごと1回 + 粒子あたり5回/秒の全 Cube スラブテスト）。巨大シーンで重い場合は SpawnRadius ベースの XZ 距離フィルタを collect に足す余地あり。
+- 保存 YAML に WeatherSkyAnchor 等（カメラ追従で Position はほぼ無意味な値）が入るようになった。実害は無い想定だが認識しておく。
+
+### 暗黙仕様の発見
+
+- **PhysX の Physics オブジェクトとシーンはエディタ起動時から存在する**（main.cpp:517 → Physics::init が即 createScene）。「Play 押下後のみ存在」は誤り。Play まで登録されないのはキューブアクターで、それも編集中の recreateActor（setSize/setAnchored/setMaterial 等）で部分的に生成される。
+- Weather の子はこれまで名前ベースで保存除外されており（SceneLoader.cpp）、「ユーザーが Weather 直下に追加した子は保存される」が自動生成子の配下（RainEmitter 等）は丸ごと消えていた。

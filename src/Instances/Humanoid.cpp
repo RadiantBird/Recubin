@@ -129,6 +129,14 @@ void Humanoid::resolveParts(Instance* characterModel) {
     // 物理アクター生成前のここで毎回設定する
     if (Root) {
         Root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+        // アクター生成後に呼ばれた場合（保存済みシーンのNPC等、遅延resolveParts）でも
+        // 転倒防止が効くよう、既存アクターへ直接反映する
+        if (Root->actor) {
+            if (auto* dyn = Root->actor->is<physx::PxRigidDynamic>()) {
+                if (!(dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC))
+                    dyn->setRigidDynamicLockFlags(Root->LockFlags);
+            }
+        }
     }
 }
 
