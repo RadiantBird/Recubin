@@ -1,6 +1,7 @@
 #include <Editor/EditorManager.hpp>
 
 #include <Editor/UiHelpers.hpp>
+#include <Editor/WelcomePanel.hpp>
 #include <Core/Renderer.hpp>
 #include <Core/Packager.hpp>
 #include <Editor/SpawnUtil.hpp>
@@ -66,6 +67,8 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     viewportPanel       = std::make_unique<ViewportPanel>();
     animationPanel      = std::make_unique<AnimationEditorPanel>();
     animationPanel->isOpen = false; // 既定では非表示
+    welcomePanel        = std::make_unique<WelcomePanel>();
+    welcomePanel->isOpen = false; // 既定は非表示。起動時に main.cpp が true にする
 
     hierarchyPanel->workspace   = workspace;
     hierarchyPanel->systemRoot  = system;
@@ -107,6 +110,11 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     // メインビューポートをデフォルトでフォーカス状態に設定
     ViewportFocusManager::getInstance().onFocusViewport(viewportPanel.get());
 
+    // ようこそタブのボタン → 既存のシーン操作へ委譲
+    welcomePanel->onNewScene  = [this]{ requestNewScene(); };
+    welcomePanel->onLoadLast  = [this]{ requestSceneLoad(welcomePanel->lastScenePath); };
+    welcomePanel->onOpenScene = [this]{ openSceneDialog(); return !pendingLoadPath.empty(); };
+
     applyTheme();
 }
 
@@ -144,6 +152,7 @@ void EditorManager::render(GLFWwindow* window) {
     // ---- メニューバー ----
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu(Loc::t(Loc::LocKey::MenuFile))) {
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuNewScene), "Ctrl+N") && isEditMode()) requestNewScene();
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuSaveScene), "Ctrl+S") && isEditMode()) saveCurrentScene();
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuOpenScene), "Ctrl+O")) openSceneDialog();
             ImGui::Separator();
@@ -165,6 +174,7 @@ void EditorManager::render(GLFWwindow* window) {
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelContentBrowser), nullptr, &contentBrowserPanel->isOpen);
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelConsole),        nullptr, &consolePanel->isOpen);
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelAnimation),      nullptr, &animationPanel->isOpen);
+            ImGui::MenuItem(Loc::t(Loc::LocKey::PanelWelcome),        nullptr, &welcomePanel->isOpen);
             ImGui::Separator();
             ImGui::MenuItem(Loc::t(Loc::LocKey::MenuPhysicsDebug),    nullptr, &viewportPanel->showPhysicsDebug);
             ImGui::EndMenu();
@@ -183,6 +193,7 @@ void EditorManager::render(GLFWwindow* window) {
 
     // DockSpace 本体
     ImGuiID dockId = ImGui::GetID("MainDockSpace");
+    welcomePanel->dockspaceId = dockId;
     ImGui::DockSpace(dockId, ImVec2(0, 0), ImGuiDockNodeFlags_None);
 
     ImGui::End(); // DockSpaceHost
@@ -200,6 +211,7 @@ void EditorManager::render(GLFWwindow* window) {
     contentBrowserPanel->title = std::string(Loc::t(Loc::LocKey::PanelContentBrowser)) + "###Content Browser";
     consolePanel->title        = std::string(Loc::t(Loc::LocKey::PanelConsole)) + "###Console";
     animationPanel->title      = std::string(Loc::t(Loc::LocKey::AnimationEditorWindowTitle)) + "###Animation Editor";
+    welcomePanel->title        = std::string(Loc::t(Loc::LocKey::PanelWelcome)) + "###Welcome";
 
     if (hierarchyPanel->isOpen)      hierarchyPanel->onRender();
     if (propertiesPanel->isOpen)     propertiesPanel->onRender();
@@ -207,6 +219,7 @@ void EditorManager::render(GLFWwindow* window) {
     if (contentBrowserPanel->isOpen) contentBrowserPanel->onRender();
     if (consolePanel->isOpen)        consolePanel->onRender();
     if (animationPanel->isOpen)      animationPanel->onRender();
+    if (welcomePanel->isOpen)        welcomePanel->onRender();
 
     // ---- セカンダリビューポート ----
     // 閉じられたものを削除
@@ -259,6 +272,12 @@ bool EditorManager::isAnyViewportHovered() const {
 void EditorManager::handleEditorShortcuts() {
     // テキスト入力中はショートカットをスキップ
     bool textActive = ImGui::GetIO().WantTextInput;
+
+    // Ctrl+N: シーンの新規作成
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_N)) {
+        requestNewScene();
+        return;
+    }
 
     // Ctrl+S: 保存
     if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S)) {
@@ -391,6 +410,12 @@ void EditorManager::handleEditorShortcuts() {
 
 void EditorManager::saveCurrentScene() {
     if (!m_system && !m_workspace) return;
+    // 無題シーン: 保存先を決める（キャンセルなら何もしない = dirty維持）
+    if (scenePath.empty()) {
+        std::string path = getPlatform().saveFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}}, "yaml");
+        if (path.empty()) return;
+        scenePath = path;
+    }
     // System とその全ての子（Workspace, Lighting など）を保存
     Instance* saveRoot = m_system ? m_system : static_cast<Instance*>(m_workspace);
     SceneLoader::saveScene(saveRoot, scenePath);
@@ -412,6 +437,11 @@ void EditorManager::requestSceneLoad(const std::string& path) {
     // テストプレイ中は即座にロードせず、終了確認ポップアップを挟む
     m_pendingPlayLoadPath = path;
     m_showPlayLoadConfirm = true;
+}
+
+void EditorManager::requestNewScene() {
+    if (!isEditMode()) return; // Play中は無視（Save/Packageと同じゲート方針）
+    pendingNewScene = true;
 }
 
 void EditorManager::renderPlayLoadConfirmDialog() {

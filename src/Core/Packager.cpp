@@ -152,10 +152,10 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
         fs::create_directories(gameDir / sub, ec);
     }
 
-    // Copy shader files (src/*.glsl) — Renderer looks for them at "src/..." relative to cwd
+    // Copy shader files (shaders/*.glsl) — Renderer looks for them at "shaders/..." relative to cwd
     {
-        fs::path shaderSrcDir("src");
-        fs::path shaderDstDir = gameDir / "src";
+        fs::path shaderSrcDir("shaders");
+        fs::path shaderDstDir = gameDir / "shaders";
         fs::create_directories(shaderDstDir, ec);
         int shaderCount = 0;
         if (fs::exists(shaderSrcDir)) {
@@ -168,7 +168,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
             }
         }
         if (shaderCount > 0) log("[OK] Shaders copied: " + std::to_string(shaderCount) + " file(s)");
-        else log("[WARN] No .glsl files found in src/ — rendering may be broken");
+        else log("[WARN] No .glsl files found in shaders/ — rendering may be broken");
     }
 
     // Load scene YAML

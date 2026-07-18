@@ -282,6 +282,10 @@ void Renderer::init(GLFWwindow* window) {
     // ドッキング/マルチビューポートはエディター専用
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+#else
+    // ランタイムはレイアウトを永続化しない。エディターと同じフォルダで起動すると
+    // 既定の imgui.ini（CWD相対）を共有してエディターのレイアウトを壊すため
+    io.IniFilename = nullptr;
 #endif
 
     ImGui::StyleColorsDark();
@@ -324,8 +328,8 @@ void Renderer::init(GLFWwindow* window) {
         indices.push_back(start + 0); indices.push_back(start + 2); indices.push_back(start + 3);
     }
 
-    std::string vShaderStr = FileLoader::readText("src/vertex.glsl");
-    std::string fShaderStr = FileLoader::readText("src/fragment.glsl");
+    std::string vShaderStr = FileLoader::readText("shaders/vertex.glsl");
+    std::string fShaderStr = FileLoader::readText("shaders/fragment.glsl");
     const char* vertexShaderSource   = vShaderStr.c_str();
     const char* fragmentShaderSource = fShaderStr.c_str();
 
@@ -450,8 +454,8 @@ void Renderer::init(GLFWwindow* window) {
 
     // --- Depth シェーダーのコンパイル（Shadow Pass 用）---
     {
-        std::string dvStr = FileLoader::readText("src/depth_vertex.glsl");
-        std::string dfStr = FileLoader::readText("src/depth_fragment.glsl");
+        std::string dvStr = FileLoader::readText("shaders/depth_vertex.glsl");
+        std::string dfStr = FileLoader::readText("shaders/depth_fragment.glsl");
         const char* dvSrc = dvStr.c_str();
         const char* dfSrc = dfStr.c_str();
 
@@ -1262,8 +1266,8 @@ void Renderer::renderBrushMarker(const Matrix4& view, const Matrix4& projection,
 //  ポストエフェクト（PostEffect インスタンスの ZIndex 順チェーン適用）
 // ===================================================
 void Renderer::initPostEffectRenderer() {
-    std::string vStr = FileLoader::readText("src/postprocess_vertex.glsl");
-    std::string fStr = FileLoader::readText("src/postprocess_fragment.glsl");
+    std::string vStr = FileLoader::readText("shaders/postprocess_vertex.glsl");
+    std::string fStr = FileLoader::readText("shaders/postprocess_fragment.glsl");
     const char* vSrc = vStr.c_str();
     const char* fSrc = fStr.c_str();
 

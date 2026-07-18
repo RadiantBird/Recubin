@@ -24,6 +24,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "ファイル",           "File" },
     { "シーンを保存",        "Save Scene" },
     { "シーンを開く",        "Open Scene" },
+    { "シーンの新規作成", "New Scene" },
     { "ゲームをパッケージ化...", "Package Game..." },
     { "終了",               "Quit" },
     { "表示",               "View" },
@@ -176,6 +177,13 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     // ---- PropertiesPanel: 複数選択時の一括編集 ----
     { "(不明)",              "(Unknown)" },
     { "%d 個を選択中",         "%d items selected" },
+
+    // ---- WelcomePanel ----
+    { "ようこそ", "Welcome" },
+    { "Recubinへようこそ！", "Welcome to Recubin!" },
+    { "シーンを新規作成", "Create New Scene" },
+    { "前回の続きから", "Continue Last Session" },
+    { "シーンを読み込み", "Open a Scene" },
 } };
 
 Lang g_lang = Lang::JA;

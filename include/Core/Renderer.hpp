@@ -100,7 +100,7 @@ class Renderer {
             int type = -1, position = -1, direction = -1, color = -1;
             int brightness = -1, range = -1, cosCutoff = -1;
         };
-        static const int MAX_LIGHTS = 8; // src/fragment.glslの#define MAX_LIGHTSと一致させること
+        static const int MAX_LIGHTS = 8; // shaders/fragment.glslの#define MAX_LIGHTSと一致させること
         LightUniformLocs lightLocs[MAX_LIGHTS];
         int          uLightCountLoc = -1;
 

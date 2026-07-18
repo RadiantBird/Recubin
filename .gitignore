@@ -1,5 +1,6 @@
 external
 build/
+dist/
 sound/
 temp_build/
 

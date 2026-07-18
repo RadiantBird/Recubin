@@ -503,18 +503,10 @@ int main(int argc, char* argv[]) {
     std::vector<std::shared_ptr<Workspace>> workspaces;
     std::shared_ptr<Workspace> workspace;
 
-    // 前回開いていたシーンを記憶しておき、次回起動時に自動で開く。
-    // 記録が無い/ファイルが見つからない場合はダイアログで選択させる(キャンセルなら正常終了)
-    std::string scenePath = loadLastScenePath();
-    if (scenePath.empty() || !std::filesystem::exists(scenePath)) {
-        scenePath = getPlatform().openFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}});
-        if (scenePath.empty()) {
-            std::cout << "[INFO] シーンが選択されなかったため終了します。\n";
-            glfwTerminate();
-            return 0;
-        }
-    }
-    saveLastScenePath(scenePath);
+    // 起動時は無題の空シーンで開始し、ようこそタブから新規作成/前回の続き/読み込みを選ばせる
+    // （旧: LastScenePath の自動ロード。前回パスは「前回の続きから」ボタンの源泉として温存する）
+    std::string lastScenePath = loadLastScenePath();
+    std::string scenePath; // 空 = 無題
     updateWindowTitle(window, scenePath);
 
     {
@@ -552,6 +544,9 @@ int main(int argc, char* argv[]) {
     ed->scenePath     = scenePath; // 起動時に決定したシーンパスを反映
     loadPanelVisibility(ed);       // 前回のパネル開閉状態を復元
     loadEditorPreferences(ed, user.get()); // 前回のエディター環境設定を復元
+
+    ed->welcomePanel->lastScenePath = lastScenePath;
+    ed->welcomePanel->isOpen = true; // ようこそタブは起動時に必ず表示する
 
     // Workspace 切り替えコールバックを設定
     ed->hierarchyPanel->onSwitchWorkspace = [&](Workspace* ws) {
@@ -650,9 +645,11 @@ int main(int argc, char* argv[]) {
         }
         wasPlaying = isPlaying;
 
-        // ---- Load ボタンによるシーンリロード ----
-        if (ed && !ed->pendingLoadPath.empty() && ed->isEditMode()) {
-            std::string loadPath = ed->pendingLoadPath;
+        // ---- シーンのリロード（Loadボタン / 新規作成）----
+        if (ed && (ed->pendingNewScene || !ed->pendingLoadPath.empty()) && ed->isEditMode()) {
+            bool isNewScene = ed->pendingNewScene;
+            std::string loadPath = isNewScene ? std::string() : ed->pendingLoadPath;
+            ed->pendingNewScene = false;
             ed->pendingLoadPath.clear();
 
             // ---- Undo履歴/Clipboardのクリア（Play→Stop遷移と同じ理由） ----
@@ -669,18 +666,20 @@ int main(int argc, char* argv[]) {
 
             initNewScene(loadPath, false);
             ed->scenePath = loadPath;
-            saveLastScenePath(loadPath);
-            updateWindowTitle(window, loadPath, ed->isDirty());
             SceneRuntime::applyAppIcon(window, system.get());
         }
 
-        // ---- 未保存状態が変化したらタイトルバーの "*" を更新する ----
+        // ---- 未保存状態/シーンパスが変化したらタイトルバーとLastScenePathを更新する ----
         {
             static bool s_lastDirty = false;
+            static std::string s_lastTitlePath = ed ? ed->scenePath : scenePath;
             bool dirty = ed && ed->isDirty();
-            if (dirty != s_lastDirty) {
-                updateWindowTitle(window, ed ? ed->scenePath : scenePath, dirty);
+            const std::string& curPath = ed ? ed->scenePath : scenePath;
+            if (dirty != s_lastDirty || curPath != s_lastTitlePath) {
+                updateWindowTitle(window, curPath, dirty);
+                if (curPath != s_lastTitlePath && !curPath.empty()) saveLastScenePath(curPath);
                 s_lastDirty = dirty;
+                s_lastTitlePath = curPath;
             }
         }
 

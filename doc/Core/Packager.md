@@ -26,7 +26,7 @@ struct Config {
 ```
 Packager::package(cfg, log)
   1. 出力先 {outputDir}/{gameName} 以下に assets/{image,sound,scripts,scenes} を作成
-  2. src/*.glsl をコピー（Renderer がシェーダーを相対パスで探すため）
+  2. shaders/*.glsl をコピー（Renderer がシェーダーを相対パスで探すため）
   3. scenePath の YAML をパース
   4. ContentPath / Texture / FacePath / SkyboxPaths を再帰的に収集
   5. 収集したファイルごとに:

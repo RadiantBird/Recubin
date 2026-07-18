@@ -18,7 +18,7 @@ enum class LocKey {
     MenuSettings, LanguageJapanese, LanguageEnglish,
 
     // ---- EditorManager: メニューバー / パネルタイトル ----
-    MenuFile, MenuSaveScene, MenuOpenScene, MenuPackageGame, MenuQuit,
+    MenuFile, MenuSaveScene, MenuOpenScene, MenuNewScene, MenuPackageGame, MenuQuit,
     MenuView,
     PanelExplorer, PanelProperties, PanelViewport, PanelContentBrowser,
     PanelConsole, PanelAnimation, AnimationEditorWindowTitle,
@@ -86,6 +86,9 @@ enum class LocKey {
 
     // ---- PropertiesPanel: 複数選択時の一括編集 ----
     MixedValue, MultiSelectedCount,
+
+    // ---- WelcomePanel ----
+    PanelWelcome, WelcomeMessage, WelcomeBtnNew, WelcomeBtnContinue, WelcomeBtnOpen,
 
     Count
 };

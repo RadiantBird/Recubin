@@ -11,8 +11,8 @@
 | `include/Core/Renderer.hpp` | `Renderer` クラス定義、`ViewportRenderDesc` |
 | `src/Core/Renderer.cpp` | 初期化・シャドウパス・メインパス・地形描画 |
 | `src/Core/Renderer_GUI.cpp` | ScreenGui / WorldGui / SurfaceGui / ホットバーの描画 |
-| `src/vertex.glsl`, `src/fragment.glsl` | メインシェーダー（Phong + シャドウ + トライプラナー） |
-| `src/depth_vertex.glsl`, `src/depth_fragment.glsl` | シャドウマップ用デプスシェーダー |
+| `shaders/vertex.glsl`, `shaders/fragment.glsl` | メインシェーダー（Phong + シャドウ + トライプラナー） |
+| `shaders/depth_vertex.glsl`, `shaders/depth_fragment.glsl` | シャドウマップ用デプスシェーダー |
 | `src/Editor/ViewportPanel.cpp` | エディタの各ビューポートパネルが FBO を持ち `renderViewport` を呼ぶ |
 | `include/Core/TerrainStreamer.hpp` | チャンクメッシュ（`Chunk::mesh`）の供給元 |
 

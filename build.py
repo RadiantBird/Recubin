@@ -1,3 +1,4 @@
+import datetime
 import platform
 import shutil
 import subprocess
@@ -8,6 +9,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = ROOT_DIR / "build"
 DLL_DIR = ROOT_DIR / "dlls"
+DIST_DIR = ROOT_DIR / "dist"
 
 
 def run_command(args: list[str]) -> int:
@@ -150,9 +152,88 @@ def build_launcher(config: str) -> int:
     return result
 
 
+def package_editor(config: str) -> int:
+    result = build(config)
+    if result != 0:
+        return result
+
+    build_dir = BUILD_DIR / config
+    pkg_dir = DIST_DIR / "RecubinEditor"
+    if pkg_dir.exists():
+        shutil.rmtree(pkg_dir)
+    pkg_dir.mkdir(parents=True)
+
+    # exe コピー
+    recubin_exe = build_dir / "Recubin.exe"
+    if not recubin_exe.exists():
+        print(f"[ERROR] Recubin.exe not found: {recubin_exe}")
+        return 1
+    shutil.copy2(recubin_exe, pkg_dir / "Recubin.exe")
+
+    engine_exe = build_dir / "RecubinEngine.exe"
+    if engine_exe.exists():
+        shutil.copy2(engine_exe, pkg_dir / "RecubinEngine.exe")
+    else:
+        print("[WARNING] RecubinEngine.exe not found - in-editor game Packager will not work.")
+
+    launcher_exe = build_dir / "launcher.exe"
+    if launcher_exe.exists():
+        shutil.copy2(launcher_exe, pkg_dir / "launcher.exe")
+    else:
+        print("[WARNING] launcher.exe not found - skipping.")
+
+    # DLL コピー
+    dll_copied = 0
+    for dll_path in DLL_DIR.glob("*.dll"):
+        shutil.copy2(dll_path, pkg_dir / dll_path.name)
+        dll_copied += 1
+    if dll_copied == 0:
+        print("[WARNING] No DLL files found in dlls folder.")
+
+    # シェーダーコピー
+    shaders_src = ROOT_DIR / "shaders"
+    shaders_dst = pkg_dir / "shaders"
+    shaders_dst.mkdir(parents=True, exist_ok=True)
+    shader_copied = 0
+    for shader_path in shaders_src.glob("*.glsl"):
+        shutil.copy2(shader_path, shaders_dst / shader_path.name)
+        shader_copied += 1
+    if shader_copied == 0:
+        print("[ERROR] No shader files found in shaders folder.")
+        return 1
+
+    # フォントコピー
+    fonts_src = ROOT_DIR / "assets" / "fonts"
+    fonts_dst = pkg_dir / "assets" / "fonts"
+    if fonts_src.exists():
+        shutil.copytree(fonts_src, fonts_dst)
+    else:
+        print("[WARNING] assets/fonts folder missing - skipping font copy.")
+
+    # 空ディレクトリ作成
+    for dir_name in ("scenes", "image", "models", "scripts"):
+        (pkg_dir / "assets" / dir_name).mkdir(parents=True, exist_ok=True)
+
+    # imgui.ini コピー
+    imgui_ini = ROOT_DIR / "imgui.ini"
+    if imgui_ini.exists():
+        shutil.copy2(imgui_ini, pkg_dir / "imgui.ini")
+    else:
+        print("[WARNING] imgui.ini not found - skipping.")
+
+    # zip 生成
+    date_str = datetime.date.today().strftime("%Y%m%d")
+    archive_base = DIST_DIR / f"RecubinEditor-{date_str}"
+    zip_path = shutil.make_archive(str(archive_base), "zip", root_dir=DIST_DIR, base_dir="RecubinEditor")
+
+    print(f"[SUCCESS] Packaged editor at {pkg_dir}")
+    print(f"[SUCCESS] Created archive at {zip_path}")
+    return 0
+
+
 def main() -> int:
     if len(sys.argv) < 2:
-        print("Usage: <python> build.py <build|run|brun|test|launcher> [Debug|Release]")
+        print("Usage: <python> build.py <build|run|brun|test|launcher|package> [Debug|Release]")
         return 1
 
     action = sys.argv[1].lower()
@@ -183,6 +264,9 @@ def main() -> int:
 
     if action == "launcher":
         return build_launcher(config)
+
+    if action == "package":
+        return package_editor(config)
 
     print(f"[ERROR] Unknown action: {action}")
     return 1

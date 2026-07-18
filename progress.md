@@ -687,3 +687,104 @@ readme.md の設計メモ3件（ImageのHasAリファクタ、CFrame変換、コ
 - **BaseCube は registry 登録済みだが saveProperties/applyToDispatch を意図的に呼ばない**（BaseCube.cpp:10 コメント、エディター描画専用）。registry の一括処理を書くときは必ず除外を考慮。
 - **ScreenGuiObject と WorldGuiObject の Size 既定値は異なる**（{100,40} と {200,100}）。共通基底 GuiObject の既定は SGO 側に合わせ、WGO はコンストラクタで上書きしている。
 - **`field<>` はネストした構造体メンバへのポインタ（`&C::m_text.Text` 相当）を取れない**。コンポーネント内のプロパティは `custom()` + `member_traits`（Value=構造体型でも動く）のテンプレートヘルパで登録する（GuiContentProps.hpp がその前例）。
+
+## 2026-07-17 エディターデプロイパッケージャー構築（shaders/移動 + build.py package）
+
+### 何をしたか
+
+readme.md TODO「エディター自体のパッケージャー(デプロイ)の作成」を実装した。2フェーズ、両方 implementer 委譲＋git diff 裏取り。
+
+**Phase 1: シェーダーを src/ から shaders/ へ移動**
+- `src/*.glsl` 6本（vertex/fragment/depth_vertex/depth_fragment/postprocess_vertex/postprocess_fragment）を `git mv` でルート直下の `shaders/` へ移動。
+- `Renderer.cpp` のパスリテラル6箇所（327-328/453-454/1265-1266行付近）を `"shaders/..."` に変更。
+- `Packager.cpp:155-172` のゲーム側シェーダーコピー処理を `shaders` → `gameDir/"shaders"` に変更（.glslフィルタは維持）。
+- `Renderer.hpp:103` コメント、`doc/Rendering.md`、`doc/Core/Packager.md` のパス表記を追随。
+- 検証: ビルド成功、回帰テスト 130 passed / 3 failed（既知ベースライン維持）。
+
+**Phase 2: `python build.py package [Release|Debug]` 新設**
+- `build.py` に `DIST_DIR` 定数と `package_editor()` を追加、main() に `package` 分岐。
+- 処理: build() 実行 → `dist/RecubinEditor/` をクリーン再作成 → Recubin.exe(必須)/RecubinEngine.exe/launcher.exe(任意・WARN) → `dlls/*.dll` 7本 → `shaders/*.glsl`(必須) → `assets/fonts/` 全体 → 空ディレクトリ `assets/{scenes,image,models,scripts}` 作成 → ルートの imgui.ini → `dist/RecubinEditor-YYYYMMDD.zip` 生成。
+- `.gitignore` に `dist/` 追加。readme.md の該当 TODO を消し込み。
+- 検証: 実行して dist 構成を確認（exe 3 / DLL 7 / glsl 6 / fonts 3 / imgui.ini / 空assetsサブディレクトリ4、zip 12MB・トップフォルダ `RecubinEditor/` 入り・空ディレクトリも zip 内に保持）。
+
+### なぜそうしたか
+
+- **shaders/ への移動（ルート直下、assets/shaders ではない）**: AskUserQuestion でユーザーが選択。C++ソースと .glsl の混在解消が TODO の「根本的な依存ファイルを整理して移動」の趣旨。assets/ 配下だとコンテンツブラウザにシェーダーが見えてしまう。
+- **同梱は最小構成（fonts のみ、78MBのassets全体は入れない）**: ユーザー選択。空エディターとして起動し、コンテンツはユーザーが持ち込む前提。
+- **RecubinEngine.exe / launcher.exe をエディターパッケージに同梱**: エディター内ゲームPackager（`Packager.cpp:252-283`）が Recubin.exe の隣からランタイム・ランチャー・DLLを収集するため、無いとゲーム出力機能が壊れる。
+- **editor_settings.yaml は同梱しない**: 開発環境の LastScenePath / カメラCFrame を含むため。初回起動で自動生成される。
+- **空の assets/scenes を必ず作る**: プレイモードの `_snapshot.yaml` 書き込み先（main.cpp:576）。ディレクトリが無いと ofstream が黙って失敗する。
+- **zip はトップフォルダ入り**: implementer 実装は `root_dir=pkg_dir`（中身が直接入る）だったが、展開時にファイルが散らばるため `root_dir=DIST_DIR, base_dir="RecubinEditor"` にメインで微修正。
+
+### どういう経緯か
+
+1. ユーザーが readme.md の TODO を選択して「デプロイ環境構築しましょう」と依頼。
+2. Explore で実行時依存を調査: パス解決は全て **CWD相対**（exe相対ではない）、シェーダーは src/*.glsl、フォントは assets/fonts、DLL 7本、imgui.ini は ImGui 既定の CWD相対、launcher.exe は RecubinEngine.exe 専用起動ツール、と判明。
+3. AskUserQuestion で「シェーダー移動先=shaders/」「同梱範囲=最小(fonts)」「コマンド形=build.py に package 追加」を確認して計画承認。
+4. Phase 1 と Phase 2 の implementer を並行実行（Phase 2 は build.py のみで C++ビルドと独立のため）。両方とも git diff で指示どおりを確認。
+
+### 試して失敗した方法
+
+- 特になし。ただし launcher.exe は今回の環境では cl.exe 不在（Developer Command Prompt 外）でビルドされず、**前回ビルドの stale な launcher.exe がパッケージに入った**。launcher を更新した場合は Developer Command Prompt から package を実行する必要がある。
+
+### 未解決・保留
+
+- **デプロイ版 Recubin.exe の実起動確認はユーザーに委ねた**（GUI自動スモークテスト禁止）。確認観点: 起動・日本語フォント表示・新規シーン作成→プレイモード（_snapshot 書き込み）・ゲームPackagerでの出力・imgui.ini レイアウト反映。
+- デプロイ版は「exe と同階層 = CWD」で起動する前提。エクスプローラーからのダブルクリックは CWD=exe階層 になるので問題ないが、ショートカット経由なら作業フォルダーの設定が必要（launcher.exe が作るショートカットは RecubinEngine 用で SetWorkingDirectory 済み。エディター用ショートカット生成は未実装）。
+- パッケージに README.txt 等の説明ファイルは入れていない（ゲーム側Packagerは生成している）。必要なら次回。
+
+### 暗黙仕様の発見
+
+- **エディター内ゲームPackagerの収集元は「エディターexeの隣」**（`cfg.engineExePath` の親ディレクトリ）。エディターの配置構成を変えるとゲーム出力が壊れる。デプロイ構成とゲームPackagerは結合している。
+- **imgui.ini は IniFilename 未設定のため ImGui 既定の CWD相対 `imgui.ini`**。ルートの imgui.ini は .gitignore 済み（=リポジトリには既定レイアウトが無い）。パッケージには実機のものを同梱する方式。
+- **ウィンドウアイコンは固定ファイルではなくシーン内 AppImage インスタンス経由**（SceneRuntime.cpp:28-47）。ルートの Recubin.png は実行時に読まれない。
+
+## 2026-07-18 起動時ようこそタブ + シーン新規作成
+
+### 何をしたか
+
+**Phase A: シーン新規作成の基盤（無題状態と初回保存）**
+- `Localization.hpp/cpp`: `MenuNewScene` を MenuOpenScene の直後に挿入、末尾（Count直前）に WelcomePanel セクション5キー（`PanelWelcome`/`WelcomeMessage`/`WelcomeBtnNew`/`WelcomeBtnContinue`/`WelcomeBtnOpen`）を追加。enum と kTable の同位置挿入を厳守。
+- `EditorManager.hpp/cpp`: `pendingNewScene` メンバと `requestNewScene()`（Editモード時のみ要求を立てる）。ファイルメニュー先頭に「シーンの新規作成」(Ctrl+N)、`handleEditorShortcuts()` に Ctrl+N。`saveCurrentScene()` を無題対応（scenePath 空なら saveFileDialog、キャンセルは何もせず dirty 維持 = 実質「名前をつけて保存」の新設）。
+- `main.cpp`: 「Loadボタンによるシーンリロード」ブロックを新規作成と共用化（`pendingNewScene` 検知 → 空パスで `initNewScene`）。タイトルバー更新ブロックを「dirty か scenePath の変化」監視に拡張し、`updateWindowTitle` と `saveLastScenePath` をここに一元化（ロード/名前をつけて保存/新規作成のすべてで追随）。
+
+**Phase B: WelcomePanel 新設 + 起動フロー変更**
+- 新規 `include/Editor/WelcomePanel.hpp` + `src/Editor/WelcomePanel.cpp`: ConsolePanel の定型に倣った EditorPanel 派生。「Recubinへようこそ！」+ ボタン3つ（新規作成/前回の続きから/読み込み）。`SetNextWindowDockID(dockspaceId, FirstUseEver)` で中央ドックのタブとして初回配置。「前回の続きから」は lastScenePath が無効なら BeginDisabled、有効ならパスをツールチップ表示。読み込みはダイアログキャンセル時にタブを閉じない。
+- `EditorManager.hpp/cpp`: welcomePanel メンバ追加、コールバック配線（onNewScene→requestNewScene / onLoadLast→requestSceneLoad / onOpenScene→openSceneDialog+pendingLoadPath判定）、表示メニューにトグル、タイトル設定 `###Welcome`。
+- `main.cpp` 起動フロー: **LastScenePath 自動ロードと「ダイアログ→キャンセルで終了」を廃止**。無題の空シーン（scenePath=""）で起動し、`loadLastScenePath()` の結果は welcomePanel->lastScenePath に渡すだけ。起動時の `saveLastScenePath` も削除（前回パスを上書きで消さないため）。welcomePanel->isOpen は Panels 永続化に含めず起動時に必ず true。
+- 検証: ビルド成功、回帰テスト 130 passed / 3 failed（既知ベースライン維持）。CMake は src/*.cpp を GLOB_RECURSE するため新規 cpp の登録作業は不要だった。
+
+### なぜそうしたか
+
+- **新規シーン＝「存在しないパスで loadAndBind」**: `SceneRuntime::loadAndBind` はロード失敗/Workspace 無しのとき空 Workspace+Lighting を自動生成する既存挙動があり（SceneRuntime.cpp:115-123）、専用の新規作成ロジックを書かずに済む。リロードは必ず main ループの後始末シーケンス（streamer→physics→resetSystemForReload の順）経由にした。EditorManager 内で直接ロードすると Terrain/Physics 破棄順クラッシュを踏むため。
+- **無題→初回 Ctrl+S で保存ダイアログ**（vs 作成時に即保存先決定）: AskUserQuestion でユーザー選択。一般的なエディター挙動。
+- **ようこそタブ＝中央ドックのタブ**（vs フローティング/モーダル）: ユーザー選択。ConsolePanel 型の通常パネル + SetNextWindowDockID で実現し、ViewportPanel のような特殊処理は不要。
+- **タイトル/LastScenePath 更新の一元化**: ロードブロック内の直接呼び出しのままだと「名前をつけて保存」でタイトルが追随しない。既存の dirty 監視ブロックを scenePath 変化も見るよう拡張する方が、更新経路が1本になり漏れがない。
+
+### どういう経緯か
+
+1. デプロイパッケージ作成後、「デプロイ版は初回起動でダイアログ→キャンセル即終了になる」盲点にユーザーが気づき、ようこそタブ導入を依頼。
+2. Explore 2並列で起動フロー（main.cpp:506-524）とGUI構造（DockSpace+パネル定型、Loc の enum/kTable 同順規約）を調査。「Save As が存在しない」ため新規シーンには初回保存の新設が必須と判明し、AskUserQuestion で上記2点を確認。
+3. Phase A → B の順で implementer に委譲（B は A の LocKey/pendingNewScene に依存）。両方 git diff で指示どおりを確認。途中でセッション切断があったが、Phase A の変更はワーキングツリーに残っており Phase B から再開。
+
+### 試して失敗した方法
+
+- 特になし。
+
+### 未解決・保留
+
+- **実機確認はユーザーに委ねた**。観点: 初回起動（editor_settings.yaml 退避）でようこそタブが中央ドックに出るか / 3ボタンの挙動（前回無しでグレーアウト、読み込みキャンセルでタブ残留）/ 無題 Ctrl+S → ダイアログ → タイトルと LastScenePath 更新 / Ctrl+N・表示メニュー再表示 / JA/EN 切替（ローカライズずれ検知）。
+- **無題状態で Play すると `PathfindingService::ScenePath = ""`**（navcache のパス導出元）。NavMesh ベイクを無題シーンで実行した場合のキャッシュパスが未検証。
+- 既存ユーザーの imgui.ini には ###Welcome の配置記録が無いため初回は FirstUseEver で中央ドックに入るが、一度フローティングに剥がすと以後その位置を記憶する（仕様どおりだが認識しておく）。
+- 無題シーンでは Packager（ゲームパッケージ化）がシーン未保存のまま動くとどうなるか未確認。パッケージ前に保存を促す導線は無い。
+
+### 暗黙仕様の発見
+
+- **updateWindowTitle は空パスで "Recubin Studio"（ファイル名なし）表示になる**既存仕様があり、無題表示はこれをそのまま流用した（「無題」の明示表示はしていない）。
+- **通常の Ctrl+S 保存では LastScenePath は書かれていなかった**（起動時とロード時のみ）。今回の一元化で「名前をつけて保存」時にも書かれるようになった。
+
+### 追記（同セッション）: ランタイムの imgui.ini 共有問題の修正
+
+- 報告: 同梱の RecubinEngine.exe を開くとエディターの imgui.ini が書き換わりレイアウトが壊れる。
+- 原因: ImGui 初期化は `Renderer::init`（Renderer.cpp）で共有されており、ランタイム（EDITOR_DISABLED）もドッキング無し・NullEditorManager でパネルを持たないのに既定の `imgui.ini`（CWD相対）を読み書きしていた。
+- 修正: Renderer.cpp の EDITOR_DISABLED 分岐に `io.IniFilename = nullptr;` を追加し、ランタイムのレイアウト永続化を無効化。別ファイル名に分ける案もあったが、ランタイムに可動パネルが無く保存する価値が無いこと、パッケージ出力先にゴミ ini を作らないことから「書かない」を選択。RecubinTest も同定義のため同様に無効化される（ヘッドレステストには好都合）。軽微変更のためメインセッションが直接編集。ビルド確認済み。

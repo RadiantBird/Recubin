@@ -8,6 +8,7 @@
 #include <Editor/ContentBrowserPanel.hpp>
 #include <Editor/ViewportPanel.hpp>
 #include <Editor/AnimationEditorPanel.hpp>
+#include <Editor/WelcomePanel.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
@@ -52,6 +53,7 @@ public:
     std::unique_ptr<ContentBrowserPanel> contentBrowserPanel;
     std::unique_ptr<ViewportPanel>       viewportPanel;
     std::unique_ptr<AnimationEditorPanel> animationPanel;
+    std::unique_ptr<WelcomePanel>        welcomePanel;
 
     // セカンダリビューポート（複数可）
     std::vector<std::unique_ptr<ViewportPanel>> secondaryViewports;
@@ -63,6 +65,7 @@ public:
     // ユーザーがダイアログで選択したシーン)。construct直後にmain.cppが設定する
     std::string scenePath;
     std::string pendingLoadPath;  // 非空のとき main.cpp がリロードを実行する
+    bool pendingNewScene = false; // 新規シーン作成要求（mainループが処理）
 
     EditorManager(Workspace* workspace, User* user, Instance* system = nullptr);
 
@@ -102,6 +105,7 @@ public:
     // シーンファイルの読み込み要求（Open Scene / Load ボタン共通の入口）
     // Edit モード中は即座に pendingLoadPath へ反映。Play/Pause 中は終了確認ポップアップを挟む
     void requestSceneLoad(const std::string& path);
+    void requestNewScene();
 
     CommandHistory m_history;
     PickerState    m_picker;          // PickerState は PropertiesPanel.hpp で定義
