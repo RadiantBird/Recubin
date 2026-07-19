@@ -21,9 +21,15 @@ class Weld;      // Forward declaration
 // ==================================================================
 class Humanoid : public Instance {
 public:
-    float WalkSpeed  = 5.0f;
-    float JumpPower  = 7.0f;
-    float ClimbSpeed = 5.0f; // Truss(はしご)接触中の垂直移動速度
+    /*
+        @RadiantBird
+        2026/07/19:
+        暗黙的にm基準だったころのデフォルト値で、
+        まともに操作できないのでstud基準での標準値に変更しました。
+    */ 
+    float WalkSpeed  = 16.0f;
+    float JumpPower  = 48.522f; // sqrt(2gh) ... sqrt(2*196.2*6) = 48.522
+    float ClimbSpeed = 10.0f; // Truss(はしご)接触中の垂直移動速度
 
     // JumpPowerから逆算した跳躍到達高さ(stud)。設定するとJumpPowerが自動計算される
     float getJumpHeight() const;
