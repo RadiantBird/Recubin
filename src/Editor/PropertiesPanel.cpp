@@ -56,6 +56,8 @@
 #include <cstdio>
 #include <cmath>
 #include <algorithm>
+#include <filesystem>
+#include <system_error>
 
 // ===================================================
 //  PropertiesPanel 実装
@@ -70,6 +72,18 @@
 // ローカライズ済みラベル + ImGui ID サフィックス（"##foo"）を連結するヘルパー
 static std::string locId(Loc::LocKey key, const char* idSuffix) {
     return std::string(Loc::t(key)) + idSuffix;
+}
+
+// ファイル選択ダイアログはフルパスを返すため、プロジェクト(カレントディレクトリ)内の
+// ファイルなら相対パスへ変換して格納する。プロジェクト外はそのまま絶対パスを返す。
+// (シーンYAMLの可搬性とPackagerの相対パス同梱を助ける)
+static std::string toProjectRelative(const std::string& absPath) {
+    std::error_code ec;
+    std::filesystem::path rel = std::filesystem::relative(absPath, std::filesystem::current_path(), ec);
+    if (ec || rel.empty()) return absPath;
+    std::string s = rel.generic_string();
+    if (s.rfind("..", 0) == 0) return absPath; // プロジェクト外
+    return s;
 }
 
 static void renderSchemaInspector(Instance* inst, const char* className, CommandHistory* history) {
@@ -808,7 +822,7 @@ void PropertiesPanel::onRender() {
         if (ImGui::Button(locId(Loc::LocKey::Browse, "##meshcube").c_str())) {
             std::string path = getPlatform().openFileDialog({{"GLB (*.glb)", "*.glb"}});
             if (!path.empty()) {
-                YAML::Node node; node = path;
+                YAML::Node node; node = toProjectRelative(path);
                 mc->setProperty("MeshFile", node);
             }
         }
@@ -1638,7 +1652,7 @@ void PropertiesPanel::onRender() {
         if (ImGui::Button(locId(Loc::LocKey::Browse, "##appimage").c_str())) {
             std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.ico)", "*.png;*.jpg;*.bmp;*.ico"}});
             if (!path.empty()) {
-                YAML::Node node; node = path;
+                YAML::Node node; node = toProjectRelative(path);
                 ai->setProperty("IconPath", node);
             }
         }

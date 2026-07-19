@@ -28,6 +28,8 @@ static std::string assetSubdir(const std::string& path) {
         return "assets/sound";
     if (ext == ".luau" || ext == ".lua" || ext == ".luauc")
         return "assets/scripts";
+    if (ext == ".glb" || ext == ".gltf")
+        return "assets/models";
     return "assets/image";
 }
 
@@ -80,11 +82,12 @@ static std::string compileLuauInProc(const fs::path& src, const fs::path& dstDir
 
 // Walk YAML tree and collect file-referencing values for given keys.
 // out: vector of (yamlNodeRef-like info isn't trackable, so we collect string paths)
-static void collectPaths(const YAML::Node& node, std::vector<std::string>& paths) {
+// DataPath はディレクトリ参照（Terrainのチャンク保存先）のため、ファイルパスとは別に dirPaths に集める。
+static void collectPaths(const YAML::Node& node, std::vector<std::string>& paths, std::vector<std::string>& dirPaths) {
     if (node.IsMap()) {
         for (auto it = node.begin(); it != node.end(); ++it) {
             std::string key = it->first.as<std::string>();
-            if ((key == "ContentPath" || key == "Texture" || key == "FacePath") && it->second.IsScalar()) {
+            if ((key == "ContentPath" || key == "Texture" || key == "FacePath" || key == "MeshFile" || key == "IconPath") && it->second.IsScalar()) {
                 std::string v = it->second.as<std::string>();
                 if (!v.empty()) paths.push_back(v);
             } else if (key == "SkyboxPaths" && it->second.IsSequence()) {
@@ -94,13 +97,16 @@ static void collectPaths(const YAML::Node& node, std::vector<std::string>& paths
                         if (!v.empty()) paths.push_back(v);
                     }
                 }
+            } else if (key == "DataPath" && it->second.IsScalar()) {
+                std::string v = it->second.as<std::string>();
+                if (!v.empty()) dirPaths.push_back(v);
             } else {
-                collectPaths(it->second, paths);
+                collectPaths(it->second, paths, dirPaths);
             }
         }
     } else if (node.IsSequence()) {
         for (const auto& child : node) {
-            collectPaths(child, paths);
+            collectPaths(child, paths, dirPaths);
         }
     }
 }
@@ -112,7 +118,7 @@ static void rewritePaths(YAML::Node node,
     if (node.IsMap()) {
         for (auto it = node.begin(); it != node.end(); ++it) {
             std::string key = it->first.as<std::string>();
-            if ((key == "ContentPath" || key == "Texture" || key == "FacePath") && it->second.IsScalar()) {
+            if ((key == "ContentPath" || key == "Texture" || key == "FacePath" || key == "MeshFile" || key == "IconPath" || key == "DataPath") && it->second.IsScalar()) {
                 std::string v = it->second.as<std::string>();
                 auto found = pathMap.find(v);
                 if (found != pathMap.end()) it->second = found->second;
@@ -148,7 +154,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     log("Output: " + gameDir.string());
 
     // Create subdirs
-    for (const char* sub : { "assets/image", "assets/sound", "assets/scripts", "assets/scenes" }) {
+    for (const char* sub : { "assets/image", "assets/sound", "assets/scripts", "assets/scenes", "assets/models" }) {
         fs::create_directories(gameDir / sub, ec);
     }
 
@@ -189,11 +195,14 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
 
     // Collect all asset paths referenced in the scene
     std::vector<std::string> rawPaths;
-    collectPaths(sceneNode, rawPaths);
+    std::vector<std::string> rawDirPaths;
+    collectPaths(sceneNode, rawPaths, rawDirPaths);
 
     // Deduplicate
     std::sort(rawPaths.begin(), rawPaths.end());
     rawPaths.erase(std::unique(rawPaths.begin(), rawPaths.end()), rawPaths.end());
+    std::sort(rawDirPaths.begin(), rawDirPaths.end());
+    rawDirPaths.erase(std::unique(rawDirPaths.begin(), rawDirPaths.end()), rawDirPaths.end());
 
     // Process each referenced file
     std::unordered_map<std::string, std::string> pathMap; // old -> new (relative to gameDir)
@@ -234,6 +243,35 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
                 log("[OK] Copied: " + rawPath + " -> " + rel.string());
             }
         }
+    }
+
+    // Terrain の DataPath はチャンク保存先ディレクトリなので、ファイル用の copyFile 経路ではなく
+    // ディレクトリごと再帰コピーする。未編集（ディレクトリ未作成）の地形はシードから自動生成
+    // されるため、存在しない場合は警告のみでスキップする。
+    for (const std::string& rawDir : rawDirPaths) {
+        fs::path src(rawDir);
+        if (!fs::exists(src) || !fs::is_directory(src)) {
+            log("[WARN] Terrain data dir not found, skipping: " + rawDir);
+            continue;
+        }
+        fs::path dst;
+        std::string newRel;
+        if (src.is_relative()) {
+            dst = gameDir / rawDir;   // 相対はそのままの位置に同梱（YAML書き換え不要）
+            newRel = rawDir;
+        } else {
+            dst = gameDir / "terrain" / src.filename();
+            newRel = "terrain/" + src.filename().string();
+        }
+        std::error_code dirEc;
+        fs::create_directories(dst.parent_path(), dirEc);
+        fs::copy(src, dst, fs::copy_options::recursive | fs::copy_options::overwrite_existing, dirEc);
+        if (dirEc) {
+            log("[WARN] Terrain data copy failed: " + rawDir + " : " + dirEc.message());
+            continue;
+        }
+        if (newRel != rawDir) pathMap[rawDir] = newRel;
+        log("[OK] Terrain data: " + rawDir + " -> " + newRel);
     }
 
     // Rewrite paths in YAML and write the scene file

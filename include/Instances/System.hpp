@@ -14,6 +14,8 @@ class System : public Instance {
 
     public:
         std::shared_ptr<RCBNScriptSignal> Heartbeat;
+        // ネットワークロール変更時(ホスト移行等)に (oldRole, newRole) の文字列2引数で発火する
+        std::shared_ptr<RCBNScriptSignal> NetworkRoleChanged;
 
         // Workspace外(System配下)に置かれたスクリプトの実行リスト。
         // Workspace::scriptsと相互排他(Workspace配下に入ったらそちらへ移る)。

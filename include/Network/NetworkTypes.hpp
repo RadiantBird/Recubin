@@ -19,15 +19,34 @@ enum class NetworkChannel : uint8_t {
     Count      = 2
 };
 
-enum class MessageType : uint8_t {
-    Chat          = 0,
-    DummyPosition = 1
+// ピアの識別子。0=無効。初代Hostが1、以降Helloごとに採番。ホスト移行を跨いで不変。
+using PeerId = uint32_t;
+
+// ピアの接続先情報。host は ENetAddress::host と同じ表現。
+// listenPort はそのピアがHost昇格時にListenするポート。
+// 将来のNAT越え(STUN/リレー)対応時はこの構造体を拡張し、接続経路は
+// NetworkManager::connectToEndpoint に一元化する。
+struct PeerEndpoint {
+    uint32_t host       = 0;
+    uint16_t listenPort = 0;
 };
 
-// 将来のホスト自動選出用に予約(このセッションでは未使用・未実装)。
-// TODO: 各ノードのCPUスコア・レイテンシを定期計測してRELIABLEチャンネルでHostへ通知し、
-//       Host離脱検知時にこの情報を集計して次のHostを自動選出する。
-struct PeerResourceInfo {
-    float cpuScore  = 0.0f;
-    float latencyMs = 0.0f;
+struct PeerInfo {
+    PeerId       id        = 0;
+    PeerEndpoint endpoint;
+    float        cpuScore  = 0.0f; // 起動時マイクロベンチマークの結果(大きいほど高性能)
+    float        latencyMs = 0.0f; // Hostが peer->roundTripTime で観測
+    bool         isHost    = false;
 };
+
+enum class MessageType : uint8_t {
+    Chat           = 0,
+    DummyPosition  = 1,
+    Hello          = 2, // Client→Host: listenPort+前回PeerId
+    Welcome        = 3, // Host→Client: 割当PeerId
+    Roster         = 4, // Host→全員: 全PeerInfo+nextPeerId
+    ResourceReport = 5  // Client→Host: cpuScore定期報告
+};
+
+// ホスト移行の進行状態(遷移処理はPhase 2で実装)
+enum class MigrationState { None, Electing, Rehosting, Reconnecting };

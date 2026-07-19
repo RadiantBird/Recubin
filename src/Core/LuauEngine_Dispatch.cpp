@@ -20,6 +20,7 @@
 #include "include/Instances/MeshCube.hpp"
 #include "include/Instances/Script.hpp"
 #include "include/Instances/System.hpp"
+#include "include/Network/NetworkManager.hpp"
 #include "include/Instances/Event.hpp"
 #include "include/Instances/SignalEvent.hpp"
 #include "include/Instances/ScreenGuiObject.hpp"
@@ -428,6 +429,16 @@ void LuauEngine::InitDispatchTable_World() {
     PropertyRegistry::applyToDispatch("Weather", DispatchTable, SetterTable);
 
     DispatchTable["System"]["Heartbeat"] = getter_signal<System, &System::Heartbeat>();
+    DispatchTable["System"]["NetworkRoleChanged"] = getter_signal<System, &System::NetworkRoleChanged>();
+    // 読み取り専用: 現在のネットワークロール("Offline"/"Host"/"Client")とローカルPeerId
+    DispatchTable["System"]["NetworkRole"] = [](lua_State* L, Instance*) {
+        lua_pushstring(L, NetworkManager::roleToString(NetworkManager::get().getRole()));
+        return 1;
+    };
+    DispatchTable["System"]["LocalPeerId"] = [](lua_State* L, Instance*) {
+        lua_pushnumber(L, static_cast<double>(NetworkManager::get().getLocalPeerId()));
+        return 1;
+    };
     PropertyRegistry::applyToDispatch("System", DispatchTable, SetterTable);
 
     DispatchTable["Event"]["Fire"] = getter_closure(LuauEngine::event_fire_closure, "Fire");

@@ -2184,6 +2184,17 @@ void LuauEngine::fireHeartbeat(float dt) {
     });
 }
 
+void LuauEngine::fireNetworkRoleChanged(NetworkRole oldRole, NetworkRole newRole) {
+    if (!m_system || !m_system->NetworkRoleChanged) return;
+    const char* oldStr = NetworkManager::roleToString(oldRole);
+    const char* newStr = NetworkManager::roleToString(newRole);
+    m_system->NetworkRoleChanged->fire(L, [oldStr, newStr](lua_State* Lx) -> int {
+        lua_pushstring(Lx, oldStr);
+        lua_pushstring(Lx, newStr);
+        return 2;
+    });
+}
+
 bool LuauEngine::consumeSafetyHaltRequest() {
     bool v = m_haltRequested;
     m_haltRequested = false;

@@ -15,6 +15,7 @@ static const bool s_systemRegistered = []{
 
 System::System(std::string name) : Instance(name) {
     Heartbeat = std::make_shared<RCBNScriptSignal>();
+    NetworkRoleChanged = std::make_shared<RCBNScriptSignal>();
 }
 
 void System::registerScript(const std::shared_ptr<Instance>& s) {

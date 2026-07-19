@@ -57,6 +57,7 @@ struct NetworkLaunchArgs {
     bool asClient = false;
     std::string address;
     uint16_t port = kDefaultNetworkPort;
+    uint16_t listenPort = 0;
 };
 
 static NetworkLaunchArgs parseNetworkArgs(int argc, char* argv[]) {
@@ -77,8 +78,13 @@ static NetworkLaunchArgs parseNetworkArgs(int argc, char* argv[]) {
                     try { args.port = static_cast<uint16_t>(std::stoi(maybePort)); ++i; } catch (...) {}
                 }
             }
+        } else if (arg == "--listen-port") {
+            if (i + 1 < argc) {
+                try { args.listenPort = static_cast<uint16_t>(std::stoi(argv[i + 1])); ++i; } catch (...) {}
+            }
         }
     }
+    if (args.listenPort == 0) args.listenPort = args.port;
     return args;
 }
 
@@ -115,7 +121,7 @@ int main(int argc, char* argv[]) {
     if (netArgs.asHost) {
         NetworkManager::get().startHost(netArgs.port);
     } else if (netArgs.asClient) {
-        NetworkManager::get().connect(netArgs.address, netArgs.port);
+        NetworkManager::get().connect(netArgs.address, netArgs.port, netArgs.listenPort);
     }
 
     // ランタイムはゲームフォルダ(cwd)外のアセット読み込みを禁止する（配布ゲームのサンドボックス）。
@@ -186,6 +192,11 @@ int main(int argc, char* argv[]) {
     Physics::s_contactCallback = [&](BaseCube* a, BaseCube* b) {
         luauEngine->onCollision(a, b);
     };
+    NetworkManager::get().onRoleChanged = [&](NetworkRole oldRole, NetworkRole newRole) {
+        RCBN_LOG("NetworkManager: role changed " << NetworkManager::roleToString(oldRole)
+                  << " -> " << NetworkManager::roleToString(newRole));
+        luauEngine->fireNetworkRoleChanged(oldRole, newRole);
+    };
     renderer->m_onButtonActivated = [&](GuiButton* btn) {
         luauEngine->onGuiButtonActivated(btn);
     };
@@ -215,7 +226,7 @@ int main(int argc, char* argv[]) {
         lastFrame       = now;
 
         // ---- ネットワークポーリング（物理更新より前＝受信内容を反映してからシミュレートする） ----
-        NetworkManager::get().poll();
+        NetworkManager::get().update(deltaTime);
         if (NetworkManager::get().isActive()) {
             bool nowConnected = NetworkManager::get().hasPeers();
             if (nowConnected && !netWasConnected) {
@@ -303,6 +314,7 @@ int main(int argc, char* argv[]) {
 
     // ---- クリーンアップ ----
     NetworkManager::get().shutdown();
+    NetworkManager::get().onRoleChanged = nullptr;
     for (auto& ws : workspaces) {
         if (ws && ws->getPhysicsEngine()) {
             ws->getPhysicsEngine()->clearCubes();

@@ -4,7 +4,7 @@ Root:
     MaxRestartsPerFrame: 100
     ScriptLoopTimeoutSeconds: 2
     BaseResolution: [1920, 1080]
-    UseNetwork: false
+    UseNetwork: true
   Children:
     - ClassName: StarterCharacter
       Name: StarterCharacter
@@ -555,7 +555,7 @@ Root:
         - ClassName: Cube
           Name: Button
           Properties:
-            Position: [8.198534, 1, -2.0212278]
+            Position: [8.200243, 1, -2.0212278]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -572,18 +572,19 @@ Root:
             - ClassName: ProximityPrompt
               Name: ProximityPrompt
               Properties:
-                KeyboardKeyCode: E
-                HoldDuration: 0
-                MaxActivationDistance: 10
-                Enabled: true
-                ActionText: Interact
-                ObjectText: ""
                 Size: [200, 100]
                 Norm: Pixel
                 Active: true
                 Visible: true
                 BackgroundColor: [0.08, 0.08, 0.08, 0.85]
                 ZIndex: 0
+                Mode: Parallel
+                KeyboardKeyCode: E
+                HoldDuration: 0.1
+                MaxActivationDistance: 10
+                Enabled: true
+                ActionText: Interact
+                ObjectText: This is ProximityPrompt
               Children:
                 - ClassName: Script
                   Name: Prox
@@ -1238,22 +1239,6 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik21111112
-          Properties:
-            Position: [43.620476, 2, 5.628451]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.40923077, 0.40923077, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
           Name: Brik111111
           Properties:
             Position: [-23.397219, 1, 5.628451]
@@ -1270,9 +1255,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik1111112
+          Name: Brik21111112
           Properties:
-            Position: [42.620476, 1, 5.628451]
+            Position: [43.620476, 2, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -1289,6 +1274,22 @@ Root:
           Name: Brik2111111
           Properties:
             Position: [-22.397219, 2, 5.628451]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.40923077, 0.40923077, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: Brik1111112
+          Properties:
+            Position: [42.620476, 1, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]

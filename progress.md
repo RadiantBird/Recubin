@@ -98,3 +98,116 @@
 
 - **PhysX の Physics オブジェクトとシーンはエディタ起動時から存在する**（main.cpp:517 → Physics::init が即 createScene）。「Play 押下後のみ存在」は誤り。Play まで登録されないのはキューブアクターで、それも編集中の recreateActor（setSize/setAnchored/setMaterial 等）で部分的に生成される。
 - Weather の子はこれまで名前ベースで保存除外されており（SceneLoader.cpp）、「ユーザーが Weather 直下に追加した子は保存される」が自動生成子の配下（RainEmitter 等）は丸ごと消えていた。
+
+---
+
+## 2026-07-19 動的ホスト移行（応用tier）完成 — リソース集計・自動選出・ロール切替Luau IF
+
+### 何をしたか
+
+readme.md「ネットワーク関係」の未完了3項目（リソース計測・集計 / ホスト離脱検知・自動選出・引き継ぎ / ロール切替インターフェース）を3フェーズで実装し、localhost 3プロセスでのライブ移行検証まで完了した。
+
+**Phase 1: ピアID基盤＋リソース計測・集計**
+- `NetworkTypes.hpp`: `PeerId`（0=無効、初代Host=1、移行を跨いで不変）/ `PeerEndpoint`（host+listenPort。NAT越えの将来拡張点とコメント明記）/ `PeerInfo`（旧PeerResourceInfoを置換）/ MessageType追加（Hello=2/Welcome=3/Roster=4/ResourceReport=5）/ `MigrationState`。
+- `NetworkManager.hpp/cpp`: `poll()`をprivate化して`update(dt)`新設（poll＋周期送信）。Client→Hostへ0.5秒毎ResourceReport、Hostは`peer->roundTripTime`でレイテンシ観測し「変化時+1秒毎」にRosterをRELIABLE配布。`measureCpuScore()`（起動時1回、xorshift+float演算40M回のマイクロベンチ）。Hello受信でPeerId採番→Welcome返信。無名namespaceに境界チェック付き`ByteWriter/ByteReader`。
+- `game_main.cpp`: `--listen-port`引数追加（省略時は接続先ポート）、`poll()`→`update(deltaTime)`差し替え。
+
+**Phase 2: ホスト離脱検知・決定的自動選出・引き継ぎ**
+- `updateMigration(dt)`状態機械（Electing/Rehosting/Reconnecting、総経過10秒でタイムアウト→shutdown）。
+- Host切断検知はhandleEventのDISCONNECTで**フラグを立てるだけ**にし、実処理はpoll()から戻った後のupdate()で行う（enet_host_serviceループ中のm_host破棄は未定義動作のため。poll条件にも`m_host &&`ガード追加）。
+- 選出は決定的（cpuScore最大→latencyMs最小→PeerId最小）。全Clientが同一Rosterを持つため合意メッセージ不要で同じ勝者に一致する。
+- 勝者=`promoteToHost()`（Client host破棄→自listenPortで再create→Roster引き継ぎ）。敗者=`connectToEndpoint()`（初回0.5秒待ち→1.5秒間隔リトライ。NAT越え対応時はこの関数だけ差し替えるとTODO明記）。identityは既存Helloが`m_localPeerId`を申告する仕組みで自動維持。
+- Hello処理の判定を「ロスターに存在するか」→「**接続中Peerが実際にそのIDを使っているか**(m_peerIds走査)」に修正。新Hostは旧Rosterを引き継ぐため、旧判定だと再接続Clientの前回IDが必ず「使用中」誤判定され再採番されてしまう。あわせて既存エントリ上書き時にcpuScoreを保持。
+
+**Phase 3: ロール切替のLuauインターフェース**
+- `NetworkManager`: `changeRole()`で`m_role`変更を一元化し`onRoleChanged`コールバック発火。`roleToString()`。
+- `System.hpp/cpp`: `NetworkRoleChanged`シグナル（Heartbeatと同型）。
+- `LuauEngine.hpp/cpp`: `fireNetworkRoleChanged(old,new)`（fireHeartbeatと同型、文字列2引数）。
+- `LuauEngine_Dispatch.cpp`: `System.NetworkRoleChanged`（シグナル）/ `System.NetworkRole`（"Offline"/"Host"/"Client"）/ `System.LocalPeerId`（読み取り専用getter）。
+- `game_main.cpp`: onRoleChanged→fireNetworkRoleChanged配線。クリーンアップのshutdown直後に`onRoleChanged = nullptr`（プロセス終了時のsingletonデストラクタが破棄済みluauEngineへ触れない防御）。
+- Script実行系は**追加改修なし**: LuauEngineのフィルタは毎フレーム再評価で、Client時代はScript未実行（Completed=false）のため、Host昇格の次フレームから自然に最初から実行される。
+
+**検証**
+- 各フェーズ後ビルド成功。実装はCLAUDE.mdの役割分担どおり全フェーズimplementerに委譲し、メインセッションがgit diffで設計と照合レビュー。
+- ライブ検証: 一時startup.yaml+void.yaml改変シーン（UseNetwork:true+Script+LocalScript）で`RecubinEngine.exe --host 7777`+Client×2を起動。3者で同一Roster（id/score/latency）共有→Host kill→約30秒でENetタイムアウト検知→両Clientが同じ勝者(id=2)を選出→勝者がClient→Host昇格（LuauのNetworkRoleChanged発火、Scriptが新Host上で実行開始）→他方が再接続し**同じid=3を維持**→チャット疎通・新Roster配布まで全チェーンをログで確認。検証後、一時ファイル（startup.yaml/net_migration_test.yaml/net_migration_test_*.luau）は削除済み。
+- readme.md: 親項目と3サブ項目を[x]化（LAN/localhost前提の注記付き）。
+
+### なぜそうしたか
+
+- **CPUスコア=起動時マイクロベンチ**（vs FPS移動平均/合成）: AskUserQuestionでユーザー選択。安定していて選出結果が揺れない。レイテンシはENetが`peer->roundTripTime`で自動計測するため実装不要。
+- **移行後は新Hostのローカル世界が正**: ユーザー選択。ワールドレプリケーション未実装のため唯一の現実解。真のシームレス化はレプリケーション実装後。
+- **NAT越えは「設計の継ぎ目のみ」**: ユーザーは「考慮したい」を選択。実装はLAN前提のまま、住所を`PeerEndpoint`に一元化し接続経路を`connectToEndpoint()`1関数に集約、TODOコメントで将来のSTUN/リレー差し替え点を明示した。
+- **選出を決定的アルゴリズムにした**（vs 投票/合意プロトコル）: Rosterは常にHostから全員へ同一内容が配布されるため、各自がローカルで同じ計算をすれば必ず同じ勝者になる。ハンドシェイクは「勝者の昇格＋敗者の再接続リトライ」だけで済み、メッセージ種別の追加が不要。
+- **PeerId維持をHello再申告方式にした**: 再接続時のHelloに前回IDを載せ、新Host側が「接続中Peerで実使用中でなければ」そのまま採用。専用の再識別メッセージを増やさず基盤tierの既存フローに乗せた。
+
+### どういう経緯か
+
+1. Plan modeで開始。progress.md/doc/archive.mdの基盤tier記録（2026-07-09）を読み、Exploreエージェント1体でgame_main統合・Scriptライフサイクル・User構造・Luauシグナルパターンを調査。
+2. AskUserQuestionでスコープ（3項目すべて）/CPUスコア計測法/移行後の世界の扱い/NAT越えの4点を確認して計画承認。
+3. Phase 1→2→3の順にimplementerへ委譲。Phase 1レビュー時に「Hello のID使用中判定がホスト移行の再接続と衝突する」問題を発見し、Phase 2の指示に修正を織り込んだ。
+4. 回帰テストで130 passed/**4 failed**となりベースライン(3 failed)超過を検知→切り分けの結果、4件目はコミットa92bb9a（2026-07-19、User character programmable）で追加された`CharacterChanger.luau`が`User.Character`に代入するがヘッドレスRecubinTestには`User`グローバルが無いことによる**既存問題**と特定（ネットワーク変更とは無関係）。メモリのベースライン記録を130/4に更新。
+5. ライブ検証で全チェーン成功を確認し、readme.md更新。
+
+### 試して失敗した方法
+
+- **git stashしてrun_regression再実行によるベースライン比較**: run_regression.pyはビルド済みバイナリを実行するだけでリビルドしないため、ソースをstashしても結果は変わらず比較にならない（すぐ気づいてpopで復旧）。正しくは「stash→リビルド→実行」か、今回のように失敗内容そのものからの切り分け。
+
+### 未解決・保留
+
+- **ENetのHost死亡検知は約30秒かかる**（プロセスkill時はタイムアウト頼み。既定のENET_PEER_TIMEOUT_MAXIMUM=30秒）。体感を縮めたければ`enet_peer_timeout()`で各Peerのタイムアウトを短縮する余地あり（未実装）。検知時刻がピア間で大きくずれると、敗者の10秒タイムアウトが勝者の昇格前に切れるリスクが理論上ある（localhostでは同時検知のため未発生）。
+- **NetworkEvent（Luau向けRemoteEvent相当）は未着手**。`SignalEvent`（Fired+Fireクロージャ、LuauEngine_Dispatch.cpp:435-436）が雛形になることは調査済み。
+- **ワールドレプリケーション・リモートPeerのUser/キャラクター表現は未実装**（User::s_instanceのsingleton前提が障害になる点はExplore調査で判明済み）。
+- **NAT越えは未実装**（PeerEndpoint/connectToEndpointが差し替え点）。
+- レイテンシのRoster配布が26ms⇔27msの揺れで毎秒dirty扱いになりがち（1ms閾値）。実害はないがログが多い。気になるなら閾値を数ms〜に緩める。
+- pathfinder.yamlの`CharacterChanger`回帰失敗（`User`グローバル不在）はユーザーのコミット由来のため未修正のまま。ヘッドレスでも`User`を用意するかテスト側で除外するかは次回判断。
+
+### 暗黙仕様の発見
+
+- **RecubinTest（ヘッドレス）にはLuauの`User`グローバルが存在しない**。`User`に触るスクリプトを含むシーンをFIXED_SCENESに入れると必ず失敗する。
+- **enet_host_serviceのイベントループ中にENetHostを破棄してはならない**（whileループ条件が破棄済みポインタに触れる）。ロール切替のようなhost再構築はイベントハンドラでフラグだけ立てて、ループ脱出後に行うこと。
+- **ClientのRosterはHost切断後もshutdownするまで残る**ため、切断直後の選出に「最後に受信したRoster」をそのまま使える（今回の決定的選出はこの性質に依存している。public connect()はRosterをクリアするが、移行用connectToEndpoint()はクリアしない、という非対称が意図的に存在する）。
+
+---
+
+## 2026-07-19 Packagerのアセット収集漏れ修正（MeshFile/IconPath/Terrain DataPath）＋ダイアログ相対化
+
+### 何をしたか
+
+パッケージ出力したゲームで .glbモデルとAppImageアイコンが開発環境の絶対パス（`C:\Users\Ryarta\Documents\Recubin\assets\...`）のまま参照され、ランタイムのAssetGuardにout-of-rootブロックされるバグを修正した。
+
+- `Packager.cpp`:
+  - `collectPaths`/`rewritePaths` の対象キー（従来 `ContentPath`/`Texture`/`FacePath`/`SkyboxPaths` の4種のみ）に **`MeshFile` と `IconPath` を追加**。これが直接原因（.glbとアイコンが収集もパス書き換えもされていなかった）。
+  - `assetSubdir` に `.glb`/`.gltf` → `assets/models` の振り分けを追加、`package()` のサブディレクトリ作成リストにも `assets/models` を追加。
+  - **Terrain の `DataPath`（チャンク保存先ディレクトリ、既定 "terrain"）の同梱処理を新設**。ファイル用copyFile経路とは別に `fs::copy(recursive)` でディレクトリごとコピー。相対パスはそのままの位置（YAML書き換え不要）、絶対パスは `terrain/<dirname>` へ入れて `DataPath` を書き換え。ディレクトリ未存在（未編集地形）は警告のみでスキップ。
+- `PropertiesPanel.cpp`: `toProjectRelative()` ヘルパーを新設し、**MeshFile / IconPath のファイル選択ダイアログの2箇所**で、選択ファイルがプロジェクト（カレントディレクトリ）内なら相対パスに変換して格納するようにした（再発防止）。他のダイアログ箇所（Texture/Sound/Skybox等）はPackager対応済みキーのため触っていない。
+
+検証: ビルド成功、回帰テスト 130 passed / 4 failed（既知4件のみ、新規回帰なし）。実装はimplementerに委譲し、メインセッションがgit diffで設計と照合。
+
+### なぜそうしたか
+
+- **AssetGuard側は触らない**: サンドボックス（実行フォルダ配下のみ許可）は正しい動作。緩めても他のPCには開発フォルダが存在せず配布物として壊れたままなので、「Packagerがコピーして相対パスへ書き換える」のが本筋。ユーザーから「親ディレクトリ配下にアクセスできれば安全では」という質問があり、この理屈（サンドボックスの問題ではなくパッケージの自己完結性の問題）を説明して合意した。
+- **DataPathを専用経路にした理由**: DataPathはファイルでなくディレクトリ（TerrainStreamerのチャンク保存先）。既存の copyFile 経路は `fs::copy_file` でディレクトリに失敗するため、収集段階から `dirPaths` に分離した。
+- **ダイアログ相対化はMeshFile/IconPathの2箇所に限定**: スコープ厳守。他のパス系ダイアログはPackagerホワイトリスト対応済みで実害がないため今回は見送り（`toProjectRelative` は将来そのまま適用可能）。
+
+### どういう経緯か
+
+1. ユーザーがパッケージ（Desktop\NetworkTest）をテストした際のログで `Blocked out-of-root asset path: ...hair-Curuata.glb / GirlTorso.glb / newHead.glb / the-cat.png` を報告。
+2. Plan modeでExplore調査 → Packagerのキーホワイトリストに `MeshFile`（SceneLoader.cpp が直接出力）と `IconPath`（AppImageのPropertyRegistry登録キー）が無いことを特定。相対パスの `hooo.png`（Texture）や `.luauc`（ContentPath=FileRef経由）が正常な理由もホワイトリストの内外で説明がついた。
+3. 絶対パスの出所はファイル選択ダイアログ（WindowsPlatform.cppの `SIGDN_FILESYSPATH` は常にフルパス）を無加工格納していたことと特定。
+4. AskUserQuestionでスコープ確認。Terrain DataPath同梱は「今回一緒に直す」、ダイアログ相対化も「入れる」をユーザーが選択。
+
+### 試して失敗した方法
+
+- 特になし。
+
+### 未解決・保留
+
+- **実パッケージでの動作確認はユーザーに委ねた**。確認観点: 再パッケージ後の出力YAMLで `MeshFile` が `assets/models/...` 相対になっていること / `assets/models/*.glb` がコピーされていること / 実行時にAssetGuardのBlocked警告が消えること / エディターで.glbを選び直すとYAMLに相対パスが入ること。
+- **絶対パス由来アセットのファイル名衝突**（別ディレクトリの同名ファイルが `assets/xxx/<filename>` へフラット配置されて潰し合う）は既存挙動のまま未対応。
+- 既存シーンYAML内の絶対パス（void.yamlのStarterCharacter等）はそのまま。Packagerが処理するため実害はないが、エディターで選び直せば相対化される。
+
+### 暗黙仕様の発見
+
+- **Packagerのアセット追跡は「YAMLキーのホワイトリスト」方式**（`collectPaths`/`rewritePaths`）。新しいパス保持プロパティ（クラス）を追加したら、このホワイトリストへの追加を忘れるとパッケージで必ず壊れる。FileRef の `ContentPath` に乗せればこの問題を回避できる（FileRef.hppのコメントどおり「Packagerが追跡するキー」）。
+- **Terrain::DataPath はファイルではなくディレクトリ**。パス系プロパティでも一律にファイル扱いできない例。
+- **AssetGuardはランタイム（game_main.cpp）のみ有効でエディターでは無効**。そのため開発中は絶対パス参照でも動いてしまい、パッケージして初めて顕在化する（今回のバグが長く気づかれなかった理由）。

@@ -21,6 +21,7 @@
 #include "include/Math/CFrame.hpp"
 #include "include/Util/Color4.hpp"
 #include "include/Core/RCBNScriptSignal.hpp"
+#include <Network/NetworkTypes.hpp>
 
 // Forward declarations
 class Workspace;
@@ -306,6 +307,7 @@ public:
     static void sweepOwnedInstances();
 
     void fireHeartbeat(float dt);
+    void fireNetworkRoleChanged(NetworkRole oldRole, NetworkRole newRole);
     void onCollision(BaseCube* a, BaseCube* b);
 
     // 1フレームのClone/Restart上限を超えた時にtrueを返す(1回だけ)。
