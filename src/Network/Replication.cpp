@@ -4,8 +4,12 @@
 
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
+#include <Core/Physics.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/BaseCube.hpp>
+#include <Instances/NoCollision.hpp>
+#include <Instances/Humanoid.hpp>
+#include <Instances/Cube.hpp>
 #include <Util/Logger.hpp>
 
 #include <algorithm>
@@ -16,17 +20,39 @@ ReplicationManager::ReplicationManager(std::shared_ptr<Workspace> workspace, std
     : m_workspace(workspace), m_user(user), m_characterSearchRoot(characterSearchRoot) {
 }
 
-void ReplicationManager::update(float dt) {
+void ReplicationManager::update(float dt, Physics* physics) {
     auto& net = NetworkManager::get();
     if (!net.isActive()) return;
 
     reconcileAvatars();
+
+    if (net.getRole() == NetworkRole::Host) {
+        if (m_pendingProxyUpgradeAll) {
+            for (auto& [id, avatar] : m_remoteAvatars) {
+                if (!avatar.isPhysicsProxy) enablePhysicsProxy(avatar, id, physics);
+            }
+            m_pendingProxyUpgradeAll = false;
+        }
+        hostSimulateAvatars(dt, physics);
+    }
+
     sendAvatarUpdates(dt);
     applyAvatarPoses(dt);
 
     if (net.getRole() == NetworkRole::Host) {
         hostUpdateWorld(dt);
     } else if (net.getRole() == NetworkRole::Client) {
+        ensurePredictionScene();
+        if (m_predictionSceneReady) {
+            m_predictionRescanTimer += dt;
+            if (m_predictionRescanTimer >= 2.0f) {
+                m_predictionRescanTimer = 0.0f;
+                rescanPredictionStaticGeometry();
+            }
+            syncPredictionShadowToLocal();
+        }
+        bufferLocalInput(dt);
+        reconcileLocalPose();
         clientApplyWorldSmoothing(dt);
     }
 }
@@ -55,11 +81,19 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
     if (!getLocalRootCFrame(local)) return;
 
     if (net.getRole() == NetworkRole::Client) {
-        if (!net.hasPeers()) return;
+        if (!net.hasPeers() || !m_user || m_inputHistory.empty()) return;
+        const auto& entry = m_inputHistory.back();
+        const auto& in = entry.input;
         ByteWriter w;
         w.writeU8(static_cast<uint8_t>(MessageType::AvatarState));
-        w.writeVector3(local.Position);
-        w.writeQuat(local.Rotation);
+        w.writeVector3(in.flatForward);
+        w.writeVector3(in.flatRight);
+        w.writeVector3(in.targetMoveDir);
+        uint8_t flags = (in.isPressingMove ? 1 : 0) | (in.ctrlLockEnabled ? 2 : 0);
+        w.writeU8(flags);
+        w.writeF32(in.forwardAxis);
+        w.writeF32(in.rightAxis);
+        w.writeU32(in.seq);
         net.sendBytes(w.data, NetworkChannel::Unreliable);
     } else if (net.getRole() == NetworkRole::Host) {
         m_latestPoses[net.getLocalPeerId()] = local;
@@ -83,6 +117,8 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
             w.writeU32(id);
             w.writeVector3(pose.Position);
             w.writeQuat(pose.Rotation);
+            auto seqIt = m_lastProcessedSeq.find(id);
+            w.writeU32(seqIt != m_lastProcessedSeq.end() ? seqIt->second : 0u);
         }
         net.sendBytes(w.data, NetworkChannel::Unreliable);
     }
@@ -91,10 +127,13 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
 void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, size_t len, PeerId senderId) {
     if (type == static_cast<uint8_t>(MessageType::AvatarState)) {
         ByteReader r{payload, len};
-        Vector3 pos;
-        Quaternion rot;
-        if (!r.readVector3(pos) || !r.readQuat(rot)) return;
-        m_latestPoses[senderId] = CFrame(pos, rot);
+        AvatarInputWire in;
+        uint8_t flags = 0;
+        if (!r.readVector3(in.flatForward) || !r.readVector3(in.flatRight) || !r.readVector3(in.targetMoveDir)
+            || !r.readU8(flags) || !r.readF32(in.forwardAxis) || !r.readF32(in.rightAxis) || !r.readU32(in.seq)) return;
+        in.isPressingMove  = (flags & 1) != 0;
+        in.ctrlLockEnabled = (flags & 2) != 0;
+        m_pendingAvatarInput[senderId] = in;
     } else if (type == static_cast<uint8_t>(MessageType::AvatarBatch)) {
         ByteReader r{payload, len};
         uint8_t count = 0;
@@ -107,8 +146,14 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
             uint32_t id = 0;
             Vector3 pos;
             Quaternion rot;
-            if (!r.readU32(id) || !r.readVector3(pos) || !r.readQuat(rot)) return;
-            if (id == localId) continue;
+            uint32_t lastProcessedSeq = 0;
+            if (!r.readU32(id) || !r.readVector3(pos) || !r.readQuat(rot) || !r.readU32(lastProcessedSeq)) return;
+            if (id == localId) {
+                m_hostAuthoritativeSelfPose = CFrame(pos, rot);
+                m_hasHostAuthoritativeSelfPose = true;
+                m_hostAckedSeq = lastProcessedSeq;
+                continue;
+            }
             m_latestPoses[id] = CFrame(pos, rot);
         }
     } else if (type == static_cast<uint8_t>(MessageType::WorldMapping)) {
@@ -164,6 +209,38 @@ static void collectSyncTargets(const std::shared_ptr<Instance>& node, Instance* 
     }
 }
 
+void ReplicationManager::enablePhysicsProxy(RemoteAvatar& avatar, PeerId id, Physics* physics) {
+    if (avatar.isPhysicsProxy || !avatar.humanoid || !avatar.humanoid->Root || !physics) return;
+
+    auto root = avatar.humanoid->Root;
+    root->CanCollide = true;
+    root->Anchored = false;
+    physics->recreateActor(root);
+    avatar.isPhysicsProxy = true;
+
+    // 既に物理参加中の全Root(ローカルUserのRoot + 他の物理プロキシ)との衝突を除外する
+    // (プレイヤー同士のPvP衝突は今回スコープ外のため)
+    std::vector<std::shared_ptr<BaseCube>> otherRoots;
+    if (m_user && m_user->character) {
+        for (auto& [name, child] : m_user->character->getChildren()) {
+            if (name != "Root") continue;
+            if (auto localRoot = std::dynamic_pointer_cast<BaseCube>(child)) otherRoots.push_back(localRoot);
+        }
+    }
+    for (auto& [otherId, otherAvatar] : m_remoteAvatars) {
+        if (otherId == id) continue;
+        if (otherAvatar.isPhysicsProxy && otherAvatar.humanoid && otherAvatar.humanoid->Root) {
+            otherRoots.push_back(otherAvatar.humanoid->Root);
+        }
+    }
+    for (auto& otherRoot : otherRoots) {
+        auto nc = std::make_shared<NoCollision>(root, otherRoot);
+        avatar.model->addChild(nc);
+    }
+
+    RCBN_LOG("Replication: enabled physics proxy for peer " << id);
+}
+
 void ReplicationManager::spawnRemoteAvatar(PeerId id) {
     auto model = User::buildCharacterModel(m_characterSearchRoot, "RemotePlayer_" + std::to_string(id));
     if (!model) {
@@ -171,7 +248,11 @@ void ReplicationManager::spawnRemoteAvatar(PeerId id) {
         return;
     }
 
-    model->removeChild("Humanoid");
+    std::shared_ptr<Humanoid> humanoid;
+    if (auto it = model->getChildren().find("Humanoid"); it != model->getChildren().end()) {
+        humanoid = std::dynamic_pointer_cast<Humanoid>(it->second);
+        if (humanoid) humanoid->resolveParts(model.get());
+    }
 
     std::vector<BaseCube*> cubes;
     for (auto& [name, child] : model->getChildren()) {
@@ -192,12 +273,26 @@ void ReplicationManager::spawnRemoteAvatar(PeerId id) {
 
     RemoteAvatar avatar;
     avatar.model = model;
+    avatar.humanoid = humanoid;
     Quaternion invR = root->cframe.Rotation.conjugate();
     for (BaseCube* cube : cubes) {
         CFrame rel;
         rel.Position = invR.rotate(cube->cframe.Position - root->cframe.Position);
         rel.Rotation = invR * cube->cframe.Rotation;
         avatar.parts.emplace_back(cube, rel);
+    }
+
+    auto identity = User::createRemoteUser(id);
+    identity->character = model;
+
+    if (m_characterSearchRoot) {
+        auto usersIt = m_characterSearchRoot->children.find("Users");
+        if (usersIt != m_characterSearchRoot->children.end()) {
+            usersIt->second->addChild(identity);
+            avatar.identity = identity;
+        } else {
+            RCBN_LOG("Replication: Users container not found, remote User identity not created for peer " << id);
+        }
     }
 
     m_workspace->addChild(model);
@@ -211,6 +306,9 @@ void ReplicationManager::despawnRemoteAvatar(PeerId id) {
     if (it == m_remoteAvatars.end()) return;
 
     m_workspace->removeChild(it->second.model->Name);
+    if (it->second.identity) {
+        if (auto parent = it->second.identity->Parent.lock()) parent->removeChild(it->second.identity->Name);
+    }
     m_latestPoses.erase(id);
     m_remoteAvatars.erase(it);
 
@@ -225,6 +323,7 @@ void ReplicationManager::despawnAllAvatars() {
 
 void ReplicationManager::applyAvatarPoses(float dt) {
     for (auto& [id, avatar] : m_remoteAvatars) {
+        if (avatar.isPhysicsProxy) continue; // Humanoid::move()内のapplyBodyAnimation()が既に全パーツを駆動済み
         auto it = m_latestPoses.find(id);
         if (it == m_latestPoses.end()) continue;
         const CFrame& pose = it->second;
@@ -242,6 +341,115 @@ void ReplicationManager::applyAvatarPoses(float dt) {
         for (auto& [part, rel] : avatar.parts) {
             part->cframe = avatar.current * rel;
         }
+    }
+}
+
+void ReplicationManager::reconcileLocalPose() {
+    if (!m_hasHostAuthoritativeSelfPose) return;
+    m_hasHostAuthoritativeSelfPose = false; // 1回消費
+    uint32_t ackSeq = m_hostAckedSeq;
+
+    // ack済み(Hostが処理済み)の入力履歴は不要なので破棄する
+    while (!m_inputHistory.empty() && m_inputHistory.front().seq <= ackSeq) {
+        m_inputHistory.pop_front();
+    }
+
+    if (!m_user || !m_user->humanoid || !m_user->humanoid->Root) return;
+
+    CFrame local;
+    if (!getLocalRootCFrame(local)) return;
+
+    Vector3 diff = m_hostAuthoritativeSelfPose.Position - local.Position;
+    float distSq = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
+
+    constexpr float kSmallThreshold = 1.5f; // これ未満は通常のラグ由来の誤差、無視する
+    constexpr float kSmallThresholdSq = kSmallThreshold * kSmallThreshold;
+    if (distSq <= kSmallThresholdSq) return;
+
+    constexpr float kHugeThreshold = 8.0f; // これ以上は再接続/テレポート相当、リプレイせず即座にスナップする
+    constexpr float kHugeThresholdSq = kHugeThreshold * kHugeThreshold;
+    if (distSq > kHugeThresholdSq || !m_predictionSceneReady || !m_shadowRoot || !m_predictionHumanoid || m_inputHistory.empty()) {
+        m_user->humanoid->Root->teleportTo(m_hostAuthoritativeSelfPose.Position);
+        RCBN_LOG("Replication: hard snap fallback (drift=" << std::sqrt(distSq) << ")");
+        return;
+    }
+
+    // ---- 入力リプレイ ----
+    // 1. シャドウRootをHost権威姿勢へ巻き戻す
+    if (m_shadowRoot->actor) {
+        physx::PxTransform pose = m_shadowRoot->actor->getGlobalPose();
+        pose.p = physx::PxVec3(m_hostAuthoritativeSelfPose.Position.x, m_hostAuthoritativeSelfPose.Position.y, m_hostAuthoritativeSelfPose.Position.z);
+        pose.q = physx::PxQuat(m_hostAuthoritativeSelfPose.Rotation.x, m_hostAuthoritativeSelfPose.Rotation.y, m_hostAuthoritativeSelfPose.Rotation.z, m_hostAuthoritativeSelfPose.Rotation.w);
+        m_shadowRoot->actor->setGlobalPose(pose);
+        if (auto* dyn = m_shadowRoot->actor->is<physx::PxRigidDynamic>()) {
+            dyn->setLinearVelocity(physx::PxVec3(0, 0, 0));
+            dyn->setAngularVelocity(physx::PxVec3(0, 0, 0));
+        }
+    }
+    m_shadowRoot->cframe = m_hostAuthoritativeSelfPose;
+
+    // 2. Humanoidの内部補間状態を、一番古い未ack入力の「適用前」状態へ復元
+    const auto& firstEntry = m_inputHistory.front();
+    m_predictionHumanoid->setCurrentMoveDir(firstEntry.currentMoveDirBefore);
+    m_predictionHumanoid->setWalkCycle(firstEntry.walkCycleBefore);
+    m_shadowRoot->cframe.Rotation = firstEntry.rotationBefore;
+
+    // 3. 未ack入力を古い順に1件ずつ再生(1エントリ=1回のmove()+stepOnce()を厳守)
+    for (const auto& entry : m_inputHistory) {
+        m_predictionHumanoid->move(entry.input.flatForward, entry.input.flatRight, entry.input.isPressingMove,
+                                    entry.input.targetMoveDir, entry.input.ctrlLockEnabled, m_predictionPhysics.get(),
+                                    false, false, entry.input.forwardAxis, entry.input.rightAxis);
+        m_predictionPhysics->stepOnce(entry.dt);
+        m_predictionPhysics->syncAllCubes();
+    }
+
+    // 4. リプレイ結果を本物のローカルRootへ反映する(この1回だけが画面に見える変化)
+    CFrame result = m_shadowRoot->getWorldCFrame();
+    if (m_user->humanoid->Root->actor) {
+        physx::PxTransform pose = m_user->humanoid->Root->actor->getGlobalPose();
+        pose.p = physx::PxVec3(result.Position.x, result.Position.y, result.Position.z);
+        pose.q = physx::PxQuat(result.Rotation.x, result.Rotation.y, result.Rotation.z, result.Rotation.w);
+        m_user->humanoid->Root->actor->setGlobalPose(pose);
+    }
+    m_user->humanoid->Root->cframe = result;
+
+    RCBN_LOG("Replication: replayed " << m_inputHistory.size() << " buffered frames (drift before=" << std::sqrt(distSq) << ")");
+}
+
+void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
+    if (!physics) return;
+
+    for (auto& [id, avatar] : m_remoteAvatars) {
+        if (!avatar.humanoid || !avatar.humanoid->Root) continue;
+
+        if (!avatar.isPhysicsProxy) {
+            enablePhysicsProxy(avatar, id, physics);
+            if (!avatar.isPhysicsProxy) continue;
+        }
+
+        AvatarInputWire in;
+        if (auto it = m_pendingAvatarInput.find(id); it != m_pendingAvatarInput.end()) {
+            in = it->second;
+        }
+
+        // 妥当性チェック: 破損/悪意ある入力でも歩行速度定数を超えられないようクランプする
+        auto clampUnit = [](Vector3 v) {
+            float len = v.length();
+            return (len > 1.0f) ? (v * (1.0f / len)) : v;
+        };
+        in.targetMoveDir = clampUnit(in.targetMoveDir);
+        in.flatForward   = clampUnit(in.flatForward);
+        in.flatRight     = clampUnit(in.flatRight);
+        if (in.forwardAxis > 1.0f) in.forwardAxis = 1.0f;
+        if (in.forwardAxis < -1.0f) in.forwardAxis = -1.0f;
+        if (in.rightAxis > 1.0f) in.rightAxis = 1.0f;
+        if (in.rightAxis < -1.0f) in.rightAxis = -1.0f;
+
+        avatar.humanoid->move(in.flatForward, in.flatRight, in.isPressingMove, in.targetMoveDir,
+                               in.ctrlLockEnabled, physics, false, false, in.forwardAxis, in.rightAxis);
+
+        m_latestPoses[id] = avatar.humanoid->Root->getWorldCFrame();
+        m_lastProcessedSeq[id] = in.seq;
     }
 }
 
@@ -500,10 +708,136 @@ void ReplicationManager::onNetworkRoleChanged(NetworkRole oldRole, NetworkRole n
         m_hostObjects.clear();
         m_worldMappingDirty = false;
         m_prevRosterSize = 0;
+        m_predictionSceneReady = false;
+        m_predictionStaticMirror.clear();
+        m_predictionRescanTimer = 0.0f;
     } else if (oldRole == NetworkRole::Client && newRole == NetworkRole::Host) {
         // ホスト昇格: クライアントとして凍結(Anchored化)していた物理を解放し、自分の世界を権威として再スキャンさせる
         clientReleaseWorldObjects();
         m_worldMappingDirty = true;
         m_worldRescanTimer = 1.0f; // 次のupdateで即再スキャン
+        m_pendingProxyUpgradeAll = true;
+    }
+}
+
+void ReplicationManager::bufferLocalInput(float dt) {
+    if (!m_user || !m_user->humanoid) return;
+
+    BufferedInput entry;
+    entry.seq = m_nextSeq++;
+    entry.input.flatForward     = m_user->lastMovementInput.flatForward;
+    entry.input.flatRight       = m_user->lastMovementInput.flatRight;
+    entry.input.targetMoveDir   = m_user->lastMovementInput.targetMoveDir;
+    entry.input.isPressingMove  = m_user->lastMovementInput.isPressingMove;
+    entry.input.ctrlLockEnabled = m_user->lastMovementInput.ctrlLockEnabled;
+    entry.input.forwardAxis     = m_user->lastMovementInput.forwardAxis;
+    entry.input.rightAxis       = m_user->lastMovementInput.rightAxis;
+    entry.input.seq             = entry.seq;
+    entry.dt = dt;
+    entry.currentMoveDirBefore = m_user->humanoid->getCurrentMoveDir();
+    entry.walkCycleBefore      = m_user->humanoid->getWalkCycle();
+    entry.rotationBefore       = m_user->humanoid->Root ? m_user->humanoid->Root->Rotation : Quaternion();
+
+    m_inputHistory.push_back(entry);
+
+    // 直近2秒程度(60fps換算で最大240件)を超えたら古いものから破棄する安全弁
+    // (ackが来ずに際限なく溜まり続けることを防ぐ。通常は受信のたびにack済み分が破棄される)
+    while (m_inputHistory.size() > 240) {
+        m_inputHistory.pop_front();
+    }
+}
+
+// ---- クライアント予測用の分離シーン(Step2) ----
+
+void ReplicationManager::ensurePredictionScene() {
+    if (m_predictionSceneReady) return;
+    if (!m_user || !m_user->humanoid || !m_user->humanoid->Root) return;
+
+    m_predictionPhysics = std::make_unique<Physics>();
+    m_predictionPhysics->init();
+    if (m_workspace) m_predictionPhysics->setGravity(m_workspace->Gravity);
+
+    auto realRoot = m_user->humanoid->Root;
+    m_shadowRoot = std::make_shared<Cube>(realRoot->getWorldPosition(), realRoot->Size, 0);
+    m_shadowRoot->Name = "PredictionShadowRoot";
+    m_shadowRoot->Anchored = false;
+    m_shadowRoot->CanCollide = true;
+    m_shadowRoot->cframe = realRoot->getWorldCFrame();
+    m_predictionPhysics->createActor(m_shadowRoot);
+
+    m_predictionHumanoid = std::make_shared<Humanoid>();
+    m_predictionHumanoid->Root = m_shadowRoot;
+
+    m_predictionSceneReady = true;
+    RCBN_LOG("Replication: prediction scene created (shadow root size=" << realRoot->Size.x << "," << realRoot->Size.y << "," << realRoot->Size.z << ")");
+}
+
+void ReplicationManager::syncPredictionShadowToLocal() {
+    if (!m_predictionSceneReady || !m_shadowRoot || !m_shadowRoot->actor) return;
+    if (!m_user || !m_user->humanoid || !m_user->humanoid->Root) return;
+
+    CFrame realCFrame = m_user->humanoid->Root->getWorldCFrame();
+
+    physx::PxTransform pose = m_shadowRoot->actor->getGlobalPose();
+    pose.p = physx::PxVec3(realCFrame.Position.x, realCFrame.Position.y, realCFrame.Position.z);
+    pose.q = physx::PxQuat(realCFrame.Rotation.x, realCFrame.Rotation.y, realCFrame.Rotation.z, realCFrame.Rotation.w);
+    m_shadowRoot->actor->setGlobalPose(pose);
+
+    m_shadowRoot->cframe = realCFrame;
+
+    if (auto* dyn = m_shadowRoot->actor->is<physx::PxRigidDynamic>()) {
+        dyn->setLinearVelocity(physx::PxVec3(0, 0, 0));
+        dyn->setAngularVelocity(physx::PxVec3(0, 0, 0));
+    }
+}
+
+static void collectPredictionStaticGeometry(const std::shared_ptr<Instance>& node,
+                                             std::vector<std::shared_ptr<BaseCube>>& out) {
+    auto cube = std::dynamic_pointer_cast<BaseCube>(node);
+    if (cube && cube->Anchored && cube->CanCollide) out.push_back(cube);
+    for (auto& [name, child] : node->getChildren()) {
+        collectPredictionStaticGeometry(child, out);
+    }
+}
+
+void ReplicationManager::rescanPredictionStaticGeometry() {
+    if (!m_predictionSceneReady || !m_workspace) return;
+
+    std::vector<std::shared_ptr<BaseCube>> targets;
+    for (auto& [name, child] : m_workspace->getChildren()) {
+        collectPredictionStaticGeometry(child, targets);
+    }
+
+    std::unordered_map<std::string, std::shared_ptr<BaseCube>> newMirror;
+    int added = 0;
+    for (auto& target : targets) {
+        std::string path = target->getWorkspaceRelativePath();
+        auto existing = m_predictionStaticMirror.find(path);
+        if (existing != m_predictionStaticMirror.end()) {
+            newMirror[path] = existing->second;
+            continue;
+        }
+        auto mirror = std::make_shared<Cube>(target->getWorldPosition(), target->Size, 0);
+        mirror->Name = "Mirror_" + target->Name;
+        mirror->Anchored = true;
+        mirror->CanCollide = true;
+        mirror->cframe = target->getWorldCFrame();
+        m_predictionPhysics->createActor(mirror);
+        newMirror[path] = mirror;
+        added++;
+    }
+
+    int removed = 0;
+    for (auto& [path, mirror] : m_predictionStaticMirror) {
+        if (newMirror.find(path) == newMirror.end()) {
+            m_predictionPhysics->removeCube(mirror);
+            removed++;
+        }
+    }
+
+    m_predictionStaticMirror = std::move(newMirror);
+    if (added > 0 || removed > 0) {
+        RCBN_LOG("Replication: prediction static mirror rescan +" << added << " -" << removed
+                  << " (total " << m_predictionStaticMirror.size() << ")");
     }
 }

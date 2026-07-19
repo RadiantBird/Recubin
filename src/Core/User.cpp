@@ -1,5 +1,6 @@
 #include <Core/User.hpp>
 #include <Core/CharacterRig.hpp>
+#include <Core/NullInputBackend.hpp>
 #include <Instances/StarterCharacter.hpp>
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
@@ -8,7 +9,7 @@
 
 User* User::s_instance = nullptr;
 
-User::User(std::unique_ptr<IInputBackend> input)
+User::User(std::unique_ptr<IInputBackend> input, bool isRemoteUser)
     : Instance("User"),
       m_input(std::move(input)),
       cam(current_camera),
@@ -16,9 +17,10 @@ User::User(std::unique_ptr<IInputBackend> input)
       forward(0, 0, -1),
       right(1, 0, 0),
       up(0, 1, 0),
-      lastFKeyPressed(false)
+      lastFKeyPressed(false),
+      isRemoteUser(isRemoteUser)
 {
-    s_instance = this;
+    if (!isRemoteUser) s_instance = this;
     updateVectors();
 
     // User.Input を生成し、入力供給源を借用させる
@@ -27,6 +29,14 @@ User::User(std::unique_ptr<IInputBackend> input)
     Input->setBackend(m_input.get());
 
     CharacterAdded = std::make_shared<RCBNScriptSignal>();
+}
+
+std::shared_ptr<User> User::createRemoteUser(uint32_t peerId) {
+    auto user = std::make_shared<User>(std::make_unique<NullInputBackend>(), true);
+    user->Name = "User_" + std::to_string(peerId);
+    user->peerId = peerId;
+    user->initializeInventory();
+    return user;
 }
 
 void User::initializeInventory() {
@@ -103,7 +113,7 @@ std::shared_ptr<Tool> User::removeToolFromSlot(int slotIndex) {
 }
 
 User::~User() {
-    s_instance = nullptr;
+    if (s_instance == this) s_instance = nullptr;
     // shared_ptr なので参照カウントが 0 になれば自動解放される
     character = nullptr;
     humanoid  = nullptr;
@@ -246,22 +256,31 @@ void User::processMovement(bool viewportZoomEnabled, Physics* physics) {
             if (m_input->isKeyDown(KeyCode::E)) cpos = cpos + up      * speed;
             // Free モードでもボディパーツを Root に追従させる
             // （Character モードでは humanoid->move() 内で呼ばれる）
-            
-            // bool hasUserCurrentTool = this->currentTool.get();
-            // TODO: ツールあるかどうかを条件に追加しようと思ったけど、呼び出し箇所が多いから危ないのでやめた。もっといい方法があるかも。
-            if (humanoid) humanoid->applyBodyAnimation(false, false);
+            bool leftArmRaised = false, rightArmRaised = false;
+            getToolArmRaiseState(leftArmRaised, rightArmRaised);
+            if (humanoid) humanoid->applyBodyAnimation(leftArmRaised, rightArmRaised);
         } else if (controlMode == ControlMode::Character && character && humanoid) {
             processCharacterMovement(physics);
         } else if (controlMode == ControlMode::Program) {
             // Program モードでもボディパーツを Root に追従させる
             // （カメラはLuauが制御するが、キャラクター自体の同期は他モードと同様に必要）
-            if (humanoid) humanoid->applyBodyAnimation(false, false);
+            bool leftArmRaised = false, rightArmRaised = false;
+            getToolArmRaiseState(leftArmRaised, rightArmRaised);
+            if (humanoid) humanoid->applyBodyAnimation(leftArmRaised, rightArmRaised);
         }
     }
     else {
         // Focusがどうであれ、ボディパーツはRootに追従させるべきであるため
-        if (humanoid) humanoid->applyBodyAnimation(false, false);
+        bool leftArmRaised = false, rightArmRaised = false;
+        getToolArmRaiseState(leftArmRaised, rightArmRaised);
+        if (humanoid) humanoid->applyBodyAnimation(leftArmRaised, rightArmRaised);
     }
+}
+
+void User::getToolArmRaiseState(bool& leftArmRaised, bool& rightArmRaised) const {
+    bool toolEquipped = currentTool && currentTool->Equipped;
+    leftArmRaised  = toolEquipped && (currentTool->Hand == Tool::ToolHand::Left  || currentTool->Hand == Tool::ToolHand::Both);
+    rightArmRaised = toolEquipped && (currentTool->Hand == Tool::ToolHand::Right || currentTool->Hand == Tool::ToolHand::Both);
 }
 
 static void attachToolHandle(
@@ -305,8 +324,16 @@ void User::processCharacterMovement(Physics* physics) {
     float rightAxis   = (dDown ? 1.0f : 0.0f) - (aDown ? 1.0f : 0.0f);
 
     bool toolEquipped   = currentTool && currentTool->Equipped;
-    bool leftArmRaised  = toolEquipped && (currentTool->Hand == Tool::ToolHand::Left  || currentTool->Hand == Tool::ToolHand::Both);
-    bool rightArmRaised = toolEquipped && (currentTool->Hand == Tool::ToolHand::Right || currentTool->Hand == Tool::ToolHand::Both);
+    bool leftArmRaised = false, rightArmRaised = false;
+    getToolArmRaiseState(leftArmRaised, rightArmRaised);
+
+    lastMovementInput.flatForward     = flatForward;
+    lastMovementInput.flatRight       = flatRight;
+    lastMovementInput.targetMoveDir   = targetMoveDir;
+    lastMovementInput.isPressingMove  = isPressingMove;
+    lastMovementInput.ctrlLockEnabled = ctrlLockEnabled;
+    lastMovementInput.forwardAxis     = forwardAxis;
+    lastMovementInput.rightAxis       = rightAxis;
 
     humanoid->move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, physics,
                    leftArmRaised, rightArmRaised, forwardAxis, rightAxis);

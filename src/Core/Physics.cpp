@@ -666,10 +666,7 @@ void Physics::applyForces() {
     }
 }
 
-void Physics::update(Workspace& workspace, float dt) {
-    if (!workspace.PhysicsEnabled) return;
-    setGravity(workspace.Gravity);
-
+void Physics::stepOnce(float dt) {
     const float fixedStep = 1.0f / 60.0f;
     const int MAX_STEPS = 10;
 
@@ -695,7 +692,7 @@ void Physics::update(Workspace& workspace, float dt) {
             break;
         }
     }
-    
+
     // 遅延キューをフラッシュ（fetchResults 完了後の安全ウインドウ）
     for (auto& op : m_pendingOps) {
         auto cube = op.cube.lock();
@@ -709,6 +706,21 @@ void Physics::update(Workspace& workspace, float dt) {
         }
     }
     m_pendingOps.clear();
+}
+
+void Physics::syncAllCubes() {
+    for (auto& entry : cubes) {
+        if (auto cube = entry.cube.lock()) {
+            cube->syncPhysics();
+        }
+    }
+}
+
+void Physics::update(Workspace& workspace, float dt) {
+    if (!workspace.PhysicsEnabled) return;
+    setGravity(workspace.Gravity);
+
+    stepOnce(dt);
 
     // 0. 削除されたキューブをクリーンアップ（Workspace に存在しなくなったキューブを検出）
     auto it = cubes.begin();
@@ -794,11 +806,7 @@ void Physics::update(Workspace& workspace, float dt) {
     }
     workspace.pendingConstraints.clear();
 
-    for (auto& entry : cubes) {
-        if (auto cube = entry.cube.lock()) {
-            cube->syncPhysics();
-        }
-    }
+    syncAllCubes();
 }
 
 void Physics::syncWeldKinematics() {

@@ -117,6 +117,13 @@ public:
     // ボディパーツを Root の相対位置へ配置する（Free モードの追従でも使用）
     void applyBodyAnimation(bool leftArmRaised, bool rightArmRaised);
 
+    // ネットワーク予測リプレイ専用: 移動アニメーションの内部補間状態を退避/復元する
+    // (通常のゲームプレイでは使わない。move()の呼び出し前後で状態を巻き戻すために必要)
+    float getWalkCycle() const { return walkCycle; }
+    void  setWalkCycle(float v) { walkCycle = v; }
+    Vector3 getCurrentMoveDir() const { return currentMoveDir; }
+    void  setCurrentMoveDir(const Vector3& v) { currentMoveDir = v; }
+
 private:
     struct Pose {
         float leftArm;

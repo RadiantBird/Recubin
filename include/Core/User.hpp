@@ -17,6 +17,7 @@
 #include <Instances/Tool.hpp>
 
 #include <cmath>
+#include <cstdint>
 #include <array>
 #include <memory>
 
@@ -76,11 +77,27 @@ public:
         Program // Luauがカメラを直接制御する(CameraCFrameプロパティ経由)
     } controlMode = ControlMode::Character;
 
+    // ネットワークレプリケーション用: 直近のprocessCharacterMovement()で使われた移動入力
+    // (Clientはこれをそのままホストへ送信し、ホスト側で権威的に再シミュレートする)
+    struct MovementInput {
+        // Vector3はコンストラクタを持たない集合体(float x,y,z;のみ)のため、
+        // 明示的に{}を書かないとゴミ値のまま初期化されてしまう(未送受信時にHumanoid::move()へ
+        // ゴミ方向ベクトルが渡り歩き続けてしまうバグの原因になるため必須)
+        Vector3 flatForward{}, flatRight{}, targetMoveDir{};
+        bool isPressingMove = false;
+        bool ctrlLockEnabled = false;
+        float forwardAxis = 0.0f, rightAxis = 0.0f;
+    };
+    MovementInput lastMovementInput;
+
+    // ネットワークPeerId(0=ローカル/未接続)。リモートUserはcreateRemoteUserで設定される
+    uint32_t peerId = 0;
+
     Vector3 forward;
     Vector3 right;
     Vector3 up;
 
-    explicit User(std::unique_ptr<IInputBackend> input);
+    explicit User(std::unique_ptr<IInputBackend> input, bool isRemoteUser = false);
     ~User();
 
     std::string getClassName() override;
@@ -125,6 +142,10 @@ public:
     void setCharacterFromScript(std::shared_ptr<Model> newCharacter);
     static User* getInstance() { return s_instance; }
 
+    // ネットワークのリモートピア用の軽量Userを構築する(NullInputBackend、s_instanceを書き換えない、
+    // character/humanoidの構築はしない=呼び出し元(ReplicationManager)の責任)
+    static std::shared_ptr<User> createRemoteUser(uint32_t peerId);
+
     // イベントを"消費"するアクセサ（読み取りと同時に内部フラグをリセットする）
     bool consumeExitRequest();
     bool consumeWorkspaceSwitchRequest();
@@ -152,8 +173,14 @@ private:
     // 入力供給源（GLFW 等の具体実装を抽象化）
     std::unique_ptr<IInputBackend> m_input;
 
+    // trueの場合、ネットワークのリモートピア用の軽量identityであることを示す(s_instanceを書き換えない)
+    bool isRemoteUser = false;
+
     // キャラクターの移動・カメラ追従(Humanoidに入力を渡し、結果を読んでカメラ位置を更新する)
     void processCharacterMovement(Physics* physics);
+
+    // currentTool/Handからleft/rightのarm-raised状態を算出する(processMovement各分岐とprocessCharacterMovementで共用)
+    void getToolArmRaiseState(bool& leftArmRaised, bool& rightArmRaised) const;
 
     // 外部からは参照されない内部状態（フレーム間のトグル判定）
     bool lastFKeyPressed = false; // トグル判定用

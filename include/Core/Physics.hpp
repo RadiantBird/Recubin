@@ -108,6 +108,13 @@ public:
     void init();
     virtual ~Physics();
     void update(Workspace& workspace, float dt);
+    // このPhysicsインスタンス自身のシーンを、Workspace非依存に1回分だけ進める
+    // (蓄積dtでの固定ステップsimulate/fetchResults + 浮力/Force適用 + 遅延op処理)。
+    // Workspace構造変化(pendingInstances/pendingConstraints)の取り込みは行わない。
+    // 予測専用シーン(Workspaceを持たない)からも呼べるようにupdate()から切り出した。
+    void stepOnce(float dt);
+    // 現在登録されている全cubeについて、Actorの姿勢をcframeへ同期する(syncPhysics呼び出し)。
+    void syncAllCubes();
     // アンカー駆動のキネマティックWeld(帽子等)を、アニメ更新後に即時同期する。
     // フレームループ内で processInput(Humanoidのパーツ配置)の後・描画の前に呼ぶことで、
     // 帽子がHead等のアニメ駆動部にラグ無く追従する。

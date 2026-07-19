@@ -511,8 +511,8 @@ Humanoid::Pose Humanoid::computePose(bool leftArmRaised, bool rightArmRaised) co
         p.leftLeg  = 90.0f;
         p.rightLeg = 90.0f;
     } else if (leftArmRaised || rightArmRaised) {
-        p.leftArm  = leftArmRaised  ? 90.0f : 180.0f;
-        p.rightArm = rightArmRaised ? 90.0f : 180.0f;
+        p.leftArm  = leftArmRaised  ? 90.0f : swing;
+        p.rightArm = rightArmRaised ? 90.0f : -swing;
         p.leftLeg  = -swing;
         p.rightLeg =  swing;
     } else if (isGrounded) {

@@ -551,6 +551,13 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["User"]["GetTools"]   = getter_closure(user_get_tools_closure,   "GetTools");
     DispatchTable["User"]["GetMouseRay"] = getter_closure(user_get_mouse_ray_closure, "GetMouseRay");
 
+    // User.PeerId (読み取り専用): ネットワークPeerId。0=ローカル/未接続。
+    // リモートUser(System.Users配下のUser_<id>)はReplicationManagerが生成時に設定する
+    DispatchTable["User"]["PeerId"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<double>(static_cast<User*>(obj)->peerId));
+        return 1;
+    };
+
     // User.ControlMode ("Free"/"Character"/"Program")
     DispatchTable["User"]["ControlMode"] = [](lua_State* L, Instance* obj) {
         auto* u = static_cast<User*>(obj);

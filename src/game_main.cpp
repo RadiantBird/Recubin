@@ -232,6 +232,7 @@ int main(int argc, char* argv[]) {
 
         // ---- ネットワークポーリング（物理更新より前＝受信内容を反映してからシミュレートする） ----
         NetworkManager::get().update(deltaTime);
+        user->peerId = NetworkManager::get().isActive() ? NetworkManager::get().getLocalPeerId() : 0;
         if (NetworkManager::get().isActive()) {
             bool nowConnected = NetworkManager::get().hasPeers();
             if (nowConnected && !netWasConnected) {
@@ -242,7 +243,7 @@ int main(int argc, char* argv[]) {
         }
 
         // レプリケーション(受信姿勢の適用と自姿勢の送信)。物理更新より前に行う
-        replication.update(deltaTime);
+        replication.update(deltaTime, workspace->getPhysicsEngine());
 
         FrameProfiler::get().beginSection("physics");
         if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->update(*workspace, deltaTime);
