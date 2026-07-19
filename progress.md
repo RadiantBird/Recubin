@@ -211,3 +211,47 @@ readme.md「ネットワーク関係」の未完了3項目（リソース計測�
 - **Packagerのアセット追跡は「YAMLキーのホワイトリスト」方式**（`collectPaths`/`rewritePaths`）。新しいパス保持プロパティ（クラス）を追加したら、このホワイトリストへの追加を忘れるとパッケージで必ず壊れる。FileRef の `ContentPath` に乗せればこの問題を回避できる（FileRef.hppのコメントどおり「Packagerが追跡するキー」）。
 - **Terrain::DataPath はファイルではなくディレクトリ**。パス系プロパティでも一律にファイル扱いできない例。
 - **AssetGuardはランタイム（game_main.cpp）のみ有効でエディターでは無効**。そのため開発中は絶対パス参照でも動いてしまい、パッケージして初めて顕在化する（今回のバグが長く気づかれなかった理由）。
+
+---
+
+## 2026-07-19 ランタイム黒画面（クリアカラーのみ）修正 — renderViewportのNullEditorManager回帰
+
+### 何をしたか
+
+パッケージ出力したゲーム（RecubinEngine.exe）でウィンドウがクリアカラーのみになり3Dシーンが一切描画されないバグを修正した。
+
+- `IEditorManager.hpp`: 純粋仮想 `ownsSceneRender()` を追加（「renderUI内でシーンを描くか」）。
+- `EditorManager.hpp/cpp`: `ownsSceneRender() → true`（ViewportPanelがシーンを描く）。
+- `NullEditorManager.hpp`: `ownsSceneRender() → false`（GUIしか描かない）。
+- `Renderer.cpp` `render()`: シーン描画ゲートを `if (!editor)` → `if (!editor || !editor->ownsSceneRender())` に変更し、コメントを実態に合わせて更新。
+
+検証: ビルド成功、回帰テスト 130 passed / 4 failed（既知4件のみ）。エディター側はゲート条件が従来と同値（実エディターで引き続きスキップ）のため描画経路に変化なし。実機の見た目確認はユーザーに委ねた。
+
+### なぜそうしたか
+
+- **原因**: コミット d0e6321「Better Rendering Performance!!」が、エディターでの二重描画回避のため renderViewport を `if (!editor)` に閉じ込めた。この「editorが居る=ViewportPanelがシーンを描く」という仮定は、ランタイムが使う NullEditorManager（非nullだがシーンを描かない）に当てはまらず、ランタイムだけシーン描画が丸ごと消えていた。物理・アセット・スポーンのログは正常なのに画面だけ黒、という症状はこれで完全に説明がつく。
+- **仮想メソッド方式にした理由**（vs NullEditorManager::renderUIでrenderViewportを呼ぶ / dynamic_cast判定）: 「シーンを誰が描くか」はEditorManagerの性質なので、インターフェースに意味のあるフラグとして持たせるのが最小かつ明示的。GUIクラスがシーン描画を呼ぶ構造や型判定のハックを避けた。
+- ユーザーの初期仮説（カメラ座標飛び/ネットワーク同期未実装/アセット）はいずれも原因ではないと調査で棄却（renderViewport自体が未到達のため）。前セッションのPackager修正は成功しており、パッケージ内のYAML/アセットは正常だったことも確認済み。
+
+### どういう経緯か
+
+1. ユーザーがパッケージ（Desktop\NetworkTest）を再テストし「ウィンドウがクリアカラーのみ」と報告。readmeにTodo追加（カメラ？同期未実装？アセットエラー無し）。
+2. Plan modeでまずパッケージ実物を読み取り検査 → assets/models/*.glb同梱・YAMLパス書き換え・Lighting/Workspace/User存在をすべて確認し、パッケージ起因を棄却。
+3. Exploreエージェントでランタイム描画経路を調査 → `Renderer::render()` のゲートと NullEditorManager が非null であることの矛盾を特定。`git log -S "if (!editor)"` で回帰コミット d0e6321 を特定。
+4. implementerに委譲して修正、ビルド＋回帰確認。
+
+### 試して失敗した方法
+
+- 特になし（一発特定）。
+
+### 未解決・保留
+
+- **実機確認はユーザーに委ねた**。観点: Desktop\NetworkTest の RecubinEngine.exe を build/Release の新ビルドに差し替え（または再パッケージ）→ シーンが描画されること / ゲームGUI・ProximityPromptが従来どおり重なること / エディターの見た目に変化がないこと。
+- readme.md の「画面が真っ黒」Todoのチェック更新はユーザー確認後。
+- **次タスク（readme Todo後段）: オブジェクト座標のネットワーク同期（レプリケーション）**。現状マルチプレイは接続・ロスター・ホスト移行基盤のみで、ワールド状態は同期されない。
+- ウィンドウリサイズコールバックがランタイムに無い（毎フレームglfwGetFramebufferSizeで追従するため実害は小さいが、調査中に気づいた点）。
+
+### 暗黙仕様の発見
+
+- **ランタイムの editor は nullptr ではなく NullEditorManager 実体**（game_main.cpp:153）。`if (!editor)` による「エディター有無」判定はランタイム検出として機能しない。エディター/ランタイムの挙動分岐は IEditorManager の仮想メソッド（今回の ownsSceneRender のような性質フラグ）で表現すること。
+- **RecubinTest はこの黒画面を検出できない**（ヘッドレスでスクリプト結果のみ検証し、画面ピクセルは見ない）。描画の生死は回帰テストの死角。

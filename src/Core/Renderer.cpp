@@ -2021,10 +2021,10 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 // ===================================================
 void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
     // Primary Viewport用の描画（スタンドアロンまたはエディターのメインビュー）
-    // editor が存在する場合、同じシーンは editor->renderUI() 内の ViewportPanel が
-    // 描き直すため、ここでの renderViewport は完全に無駄な二重描画になる。
-    // そのためエディター有無で分岐し、エディター無し（ランタイム）の場合のみここで描画する。
-    if (!editor) {
+    // シーンを editor 側が描くのは ownsSceneRender()==true の実エディターのみ
+    // (ViewportPanel が描き直すため、ここで描くと無駄な二重描画になる)。
+    // editor が無い場合と、GUIしか描かない NullEditorManager(ランタイム)の場合はここで描画する。
+    if (!editor || !editor->ownsSceneRender()) {
         ViewportRenderDesc desc;
         desc.workspace = &workspace;
         desc.cameraPosition = user.cpos;

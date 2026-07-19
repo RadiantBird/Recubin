@@ -23,6 +23,7 @@ public:
     bool isViewportFocused() override { return true; }
     Instance* getSelectedInstance() override { return nullptr; }
     void clearForImGui(GLFWwindow*) override {}
+    bool ownsSceneRender() override { return false; }
 
 
     void renderUI(User& user, GLFWwindow* window, Workspace& ws) override {

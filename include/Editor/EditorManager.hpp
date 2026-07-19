@@ -89,6 +89,7 @@ public:
     bool isViewportFocused() override;
     Instance* getSelectedInstance() override;
     void clearForImGui(GLFWwindow* window) override;
+    bool ownsSceneRender() override;
     void renderUI(User& user, GLFWwindow* window, Workspace& workspace) override;
 
     // 現在のモード取得

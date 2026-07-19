@@ -1021,6 +1021,10 @@ Instance* EditorManager::getSelectedInstance() {
     return hierarchyPanel->selectedInstance;
 }
 
+bool EditorManager::ownsSceneRender() {
+    return true;
+}
+
 void EditorManager::clearForImGui(GLFWwindow* window) {
     int winW, winH;
     glfwGetFramebufferSize(window, &winW, &winH);

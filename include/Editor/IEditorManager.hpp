@@ -27,4 +27,8 @@ public:
 
     // ImGui フレーム描画（ランタイム: no-op）
     virtual void renderUI(User& user, GLFWwindow* window, Workspace& workspace) = 0;
+
+    // このEditorManagerが renderUI() 内でシーン(3D)を描画するか
+    // (エディター: ViewportPanel が描くため true / ランタイム: GUIのみ描画で false)
+    virtual bool ownsSceneRender() = 0;
 };
