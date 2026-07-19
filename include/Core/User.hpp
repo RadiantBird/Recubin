@@ -115,6 +115,10 @@ public:
     void despawnCharacter();
     // 死亡後の再生成: 元の親(Workspace)を保持してキャラクターを作り直す
     void respawnCharacter();
+    // Luauから User.Character に代入されたときの差し替え処理。
+    // newCharacter が nullptr なら参照をクリアし ControlMode::Free に切り替える。
+    // 旧character自体の破棄・ツリーからの除去は行わない(スクリプト側の責任)
+    void setCharacterFromScript(std::shared_ptr<Model> newCharacter);
     static User* getInstance() { return s_instance; }
 
     // イベントを"消費"するアクセサ（読み取りと同時に内部フラグをリセットする）

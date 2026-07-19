@@ -34,7 +34,8 @@ Renderer::renderScene() (毎フレーム)
 
 Shadow Pass (Lighting が見つかった場合)
   → ld = normalize(lighting->lightDir)
-  → lightEye = -ld * 80, lightView = LookAt(lightEye, origin, up)
+  → shadowCenter = desc.cameraPosition（カメラ位置に追従。原点固定だと原点から離れた位置で影が消えるため）
+  → lightEye = shadowCenter - ld * 80, lightView = LookAt(lightEye, shadowCenter, up)
   → lightProj = Ortho(-80..80, -80..80, 0.1..400)
   → lightSpaceMatrix = lightProj * lightView
   → シャドウマップへ CastShadow な BaseCube/Terrain を描画

@@ -510,6 +510,32 @@ void User::respawnCharacter() {
     }
 }
 
+void User::setCharacterFromScript(std::shared_ptr<Model> newCharacter) {
+    if (!newCharacter) {
+        character = nullptr;
+        humanoid = nullptr;
+        controlMode = ControlMode::Free;
+        return;
+    }
+
+    character = newCharacter;
+    m_deathHandled = false;
+
+    auto it = character->getChildren().find("Humanoid");
+    humanoid = (it != character->getChildren().end()) ? std::dynamic_pointer_cast<Humanoid>(it->second) : nullptr;
+    if (humanoid) humanoid->resolveParts(character.get());
+
+    if (controlMode == ControlMode::Free) controlMode = ControlMode::Character;
+
+    if (CharacterAdded) {
+        auto self = character;
+        CharacterAdded->fire([self](lua_State* L) -> int {
+            LuauEngine::pushInstance(L, std::static_pointer_cast<Instance>(self));
+            return 1;
+        });
+    }
+}
+
 // System配下を再帰探索してStarterCharacterを見つける
 static Instance* findStarterCharacter(Instance* inst) {
     if (!inst) return nullptr;

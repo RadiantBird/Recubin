@@ -516,7 +516,8 @@ void LuauEngine::InitDispatchTable_Misc() {
         lua_setmetatable(L, -2);
         return 1;
     };
-    // User.Character (読取専用): clone後のキャラクター本体(PlayerCharacter)。spawn前/despawn後はnil
+    // User.Character (読み書き可能): clone後のキャラクター本体(PlayerCharacter)。spawn前/despawn後はnil。
+    // Luauから代入すると Humanoid を自動解決し CharacterAdded を発火する。nil代入で ControlMode::Free に切り替わる
     DispatchTable["User"]["Character"] = [](lua_State* L, Instance* obj) -> int {
         auto* u = static_cast<User*>(obj);
         if (!u->character) { lua_pushnil(L); return 1; }
@@ -768,6 +769,22 @@ void LuauEngine::InitSetterTable_Misc() {
     SetterTable["User"]["CameraCFrame"] = [](lua_State* L, Instance* obj) {
         CFrame* cf = (CFrame*)luaL_checkudata(L, 3, LuauEngine::RCBN_CFRAME_METATABLE);
         static_cast<User*>(obj)->setCameraCFrame(*cf);
+        return 0;
+    };
+    // User.Character セッター: setCharacterFromScript() 参照(Humanoid自動解決/CharacterAdded発火/nil→Free切替はUser側に集約)
+    SetterTable["User"]["Character"] = [](lua_State* L, Instance* obj) {
+        auto* u = static_cast<User*>(obj);
+        if (lua_isnil(L, 3)) {
+            u->setCharacterFromScript(nullptr);
+        } else {
+            auto* ud = (std::weak_ptr<Instance>*)luaL_checkudata(L, 3, RCBN_INST_METATABLE);
+            auto model = std::dynamic_pointer_cast<Model>(ud->lock());
+            if (!model) {
+                luaL_error(L, "User.Character には Model インスタンスのみ代入できます");
+                return 0;
+            }
+            u->setCharacterFromScript(model);
+        }
         return 0;
     };
 

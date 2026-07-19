@@ -164,6 +164,11 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
             MeshFile: C:\Users\Ryarta\Documents\Recubin\assets\models\GirlTorso.glb
+        - ClassName: Script
+          Name: CharacterChanger
+          Properties:
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\CharacterChanger.luau
+            Enabled: true
     - ClassName: Users
       Name: Users
       Children:

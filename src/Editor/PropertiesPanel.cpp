@@ -1242,6 +1242,9 @@ void PropertiesPanel::onRender() {
             ImGui::LabelText("Inventory", "%s", usr->Inventory->Name.c_str());
         }
 
+        // Character (reference, read-only): Luau経由での動的差し替えが主目的のため編集UIは提供しない
+        ImGui::LabelText("Character", "%s", usr->character ? usr->character->Name.c_str() : "(none)");
+
         // Tool slots (read-only)
         ImGui::SeparatorText("Tool Slots");
         for (int i = 0; i < 10; i++) {

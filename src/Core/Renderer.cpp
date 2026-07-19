@@ -1606,9 +1606,10 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         Vector3 ld = lighting->lightDir;
         float len = std::sqrt(ld.x*ld.x + ld.y*ld.y + ld.z*ld.z);
         if (len > 0.001f) { ld.x /= len; ld.y /= len; ld.z /= len; }
-        Vector3 lightEye(-ld.x * 80.0f, -ld.y * 80.0f, -ld.z * 80.0f);
+        Vector3 shadowCenter = desc.cameraPosition; // カメラ位置に追従させる(原点固定だと原点から離れると影が消えるため)
+        Vector3 lightEye(shadowCenter.x - ld.x * 80.0f, shadowCenter.y - ld.y * 80.0f, shadowCenter.z - ld.z * 80.0f);
         Vector3 upVec = (std::fabsf(ld.y) < 0.99f) ? Vector3(0.0f, 1.0f, 0.0f) : Vector3(0.0f, 0.0f, 1.0f);
-        Matrix4 lightView = Matrix4::LookAt(lightEye, Vector3(0.0f, 0.0f, 0.0f), upVec);
+        Matrix4 lightView = Matrix4::LookAt(lightEye, shadowCenter, upVec);
         Matrix4 lightProj = Matrix4::Ortho(-80.0f, 80.0f, -80.0f, 80.0f, 0.1f, 400.0f);
         lightSpaceMatrix = lightProj * lightView;
 
