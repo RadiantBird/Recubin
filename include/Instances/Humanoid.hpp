@@ -48,7 +48,7 @@ public:
     // 通らない場合、actorの解放漏れと組み合わさると危険。将来的にweak_ptr化を検討。
     std::shared_ptr<BaseCube>   Root;
     std::shared_ptr<BaseCube>   Torso;
-    std::shared_ptr<BaseCube> Head;
+    std::shared_ptr<BaseCube>   Head;
     std::shared_ptr<BaseCube>   LeftArm;
     std::shared_ptr<BaseCube>   RightArm;
     std::shared_ptr<BaseCube>   LeftLeg;

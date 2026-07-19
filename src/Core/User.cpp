@@ -246,6 +246,9 @@ void User::processMovement(bool viewportZoomEnabled, Physics* physics) {
             if (m_input->isKeyDown(KeyCode::E)) cpos = cpos + up      * speed;
             // Free モードでもボディパーツを Root に追従させる
             // （Character モードでは humanoid->move() 内で呼ばれる）
+            
+            // bool hasUserCurrentTool = this->currentTool.get();
+            // TODO: ツールあるかどうかを条件に追加しようと思ったけど、呼び出し箇所が多いから危ないのでやめた。もっといい方法があるかも。
             if (humanoid) humanoid->applyBodyAnimation(false, false);
         } else if (controlMode == ControlMode::Character && character && humanoid) {
             processCharacterMovement(physics);
@@ -556,6 +559,28 @@ static std::shared_ptr<StarterCharacter> createDefaultStarterCharacter() {
     return starter;
 }
 
+std::shared_ptr<Model> User::buildCharacterModel(Instance* searchRoot, const std::string& name) {
+    Instance* starter = findStarterCharacter(searchRoot);
+    if (!starter && searchRoot) {
+        auto defaultStarter = createDefaultStarterCharacter();
+        searchRoot->addChild(defaultStarter);
+        starter = defaultStarter.get();
+        RCBN_LOG("StarterCharacter が見つからなかったため、既定のキャラクターを生成しました");
+    }
+    if (!starter) return nullptr;
+
+    auto model = std::make_shared<Model>(Vector3(0.0f, 0.0f, 0.0f), Vector3(1, 1, 1));
+    model->Name = name;
+
+    for (auto const& [childName, child] : starter->children) {
+        model->addChild(child->clone());
+    }
+    // 制約（Weld/Rope 等）の Cube 参照をクローン側（PlayerCharacter 内）へ張り替える。
+    // 髪の Weld は兄弟 Head を参照するため、キャラ全体で一括して張り替える必要がある。
+    Instance::rebindClonedConstraints(*starter, *model);
+    return model;
+}
+
 void User::spawnCharacter(Instance* searchRoot) {
     m_lastSearchRoot = searchRoot; // respawn 用に保持
     m_deathHandled = false;
@@ -582,27 +607,11 @@ void User::spawnCharacter(Instance* searchRoot) {
     // Inventory->addChild(tool2);
     // end of HACK
 
-    Instance* starter = findStarterCharacter(searchRoot);
-    if (!starter && searchRoot) {
-        auto defaultStarter = createDefaultStarterCharacter();
-        searchRoot->addChild(defaultStarter);
-        starter = defaultStarter.get();
-        RCBN_LOG("StarterCharacter が見つからなかったため、既定のキャラクターを生成しました");
-    }
-    if (!starter) {
+    character = buildCharacterModel(searchRoot, "PlayerCharacter"); // NOTE: この名称は今後変更しないこと(ユーザーのスクリプトとの互換性を保つため)
+    if (!character) {
         RCBN_WARN("User::spawnCharacter: StarterCharacter を生成できないため、キャラクターは生成されません");
         return;
     }
-
-    character = std::make_shared<Model>(Vector3(0.0f, 0.0f, 0.0f), Vector3(1, 1, 1));
-    character->Name = "PlayerCharacter"; // NOTE: この名称は今後変更しないこと(ユーザーのスクリプトとの互換性を保つため)
-
-    for (auto const& [name, child] : starter->children) {
-        character->addChild(child->clone());
-    }
-    // 制約（Weld/Rope 等）の Cube 参照をクローン側（PlayerCharacter 内）へ張り替える。
-    // 髪の Weld は兄弟 Head を参照するため、キャラ全体で一括して張り替える必要がある。
-    Instance::rebindClonedConstraints(*starter, *character);
 
     auto it = character->getChildren().find("Humanoid");
     humanoid = (it != character->getChildren().end()) ? std::dynamic_pointer_cast<Humanoid>(it->second) : nullptr;
@@ -618,7 +627,6 @@ void User::spawnCharacter(Instance* searchRoot) {
             return 1;
         });
     }
-
     RCBN_LOG("Spawning character...");
 }
 

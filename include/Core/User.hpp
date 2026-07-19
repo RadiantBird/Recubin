@@ -112,6 +112,10 @@ public:
     // システムが居るとは限らない(パッケージ済みランタイムではUserがツリーに属さない)ため、
     // 呼び出し元(main.cpp/game_main.cpp)から明示的に渡す
     void spawnCharacter(Instance* searchRoot);
+    // StarterCharacter(無ければ既定リグを生成)からキャラクターModelを構築して返す。
+    // Workspaceへの追加・Humanoid解決は呼び出し元の責任。失敗時は nullptr。
+    // spawnCharacter とネットワークのリモートアバター生成(ReplicationManager)が共用する。
+    static std::shared_ptr<Model> buildCharacterModel(Instance* searchRoot, const std::string& name);
     void despawnCharacter();
     // 死亡後の再生成: 元の親(Workspace)を保持してキャラクターを作り直す
     void respawnCharacter();

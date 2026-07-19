@@ -47,21 +47,33 @@ Linux対応予定です。
 
 ### ネットワーク関係
 
-- [ ] GLFWなどのエラーで落ちないのに画面が真っ黒、何が起きているか不明
+- [x] GLFWなどのエラーで落ちないのに画面が真っ黒、何が起きているか不明
   - カメラの座標が飛んでいる？
   - ネットワークのオブジェクト同期はまだ実装されていないかもしれない
   - アセットエラーはなし
   - まずはウィンドウを描画し、そのあとにオブジェクトの座標を同期したりする機能を実装する
+  - 解決(2026-07-19): 黒画面の原因はRenderer::render()の`if (!editor)`ゲートがランタイムのNullEditorManager(非null)でシーン描画をスキップする回帰。IEditorManager::ownsSceneRender()で修正・実機確認済み
+
+- [x] オブジェクトの座標同期（ワールドレプリケーション）の実装(2026-07-19、ReplicationManager。詳細はprogress.md)
+  - [x] アバター同期: 各ピアの自キャラ姿勢をHost経由で20Hz配布し、RemotePlayer_<id>として表示(衝突なしの純視覚、User.Characterとは独立)
+  - [x] ワールド同期: Host権威。非AnchoredオブジェクトにnetIdを採番して配布(WorldMapping=RELIABLE / WorldTransforms=UNRELIABLE 20Hz)。クライアント側は対象をAnchored化(キネマティック)して受信cframeを平滑適用
+  - [x] ホスト移行対応: 昇格時にAnchoredを自動復元して自分の世界を権威として再配布(localhost 3ピア+2段移行でログ検証済み)
+  - 未対応(将来): 歩行アニメ同期、クライアントからの物理干渉(入力転送/所有権移譲)、非アクティブWorkspaceの同期
 
 
 - [~] NetworkEvent
 
-- [x] 動的ホスト移行（Host Migration）型サーバー・クライアント通信基盤の作成(応用tierまで完了(2026-07-19)。詳細はprogress.md参照(なかったらdoc/archive.md)。LAN/localhost前提: NAT越えとワールドレプリケーションは未対応)
+- [x] 動的ホスト移行（Host Migration）型サーバー・クライアント通信基盤の作成(応用tierまで完了(2026-07-19)。詳細はprogress.md参照(なかったらdoc/archive.md)。LAN/localhost前提: NAT越えは未対応。ワールドレプリケーションは2026-07-19に実装済み(上記参照))
   - [x] ENetのソースコード（enet.h / .c）をプロジェクトに直接取り込んでビルドできるように構成
   - [x] 信頼性のあるデータ（チャット・イベント、ホスト移行シグナル等：RELIABLE）と高速なデータ（位置同期等：UNRELIABLE）のチャンネル分離
   - [x] 各ノードの計算資源（CPUスコア・レイテンシ等）を定期的に計測し、現在のホストへ通知・集計する仕組みの実装
   - [x] 現ホストの離脱（ログアウト）検知時、集計データから「一番計算資源の多いゲスト」を自動選出し、世界の統治権限（Serverステート）をシームレスに引き継ぐハンドシェイク処理の実装
   - [x] ホストの動的交代（ロール変更）が発生した際に、各自のLuauスクリプト環境（Script / LocalScriptの有効・無効化）やピアIDの識別状態を破綻なくリアルタイムに変革・共有できるインターフェイスの用意（System.NetworkRoleChanged / System.NetworkRole / System.LocalPeerId）
+
+### その他
+
+- [ ] ツールを持っていないほうの手がなぜか上を向く問題の修正
+  - User.cpp 251行目 TODO
 
 ## あるかもしれない質問
 

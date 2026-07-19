@@ -40,12 +40,16 @@ struct PeerInfo {
 };
 
 enum class MessageType : uint8_t {
-    Chat           = 0,
-    DummyPosition  = 1,
-    Hello          = 2, // Client→Host: listenPort+前回PeerId
-    Welcome        = 3, // Host→Client: 割当PeerId
-    Roster         = 4, // Host→全員: 全PeerInfo+nextPeerId
-    ResourceReport = 5  // Client→Host: cpuScore定期報告
+    Chat            = 0,
+    // 1 は旧DummyPosition(モックデモ)。撤去済み、欠番。
+    Hello           = 2, // Client→Host: listenPort+前回PeerId
+    Welcome         = 3, // Host→Client: 割当PeerId
+    Roster          = 4, // Host→全員: 全PeerInfo+nextPeerId
+    ResourceReport  = 5, // Client→Host: cpuScore定期報告
+    AvatarState     = 6, // Client→Host (UNRELIABLE): 自キャラRootのpos+quat
+    AvatarBatch     = 7, // Host→全員 (UNRELIABLE): 全ピアのアバター姿勢
+    WorldMapping    = 8, // Host→全員 (RELIABLE): netId→Workspace相対パス表
+    WorldTransforms = 9  // Host→全員 (UNRELIABLE): netIdごとのpos+quat(分割送信)
 };
 
 // ホスト移行の進行状態(遷移処理はPhase 2で実装)

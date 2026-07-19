@@ -1,67 +1,11 @@
 #include <Network/NetworkManager.hpp>
+#include <Network/ByteStream.hpp>
 #include <Util/Logger.hpp>
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstring>
-
-namespace {
-
-// 手書きバイトパッキング(リトルエンディアン前提、既存のChat/DummyPositionと同じ方式)
-struct ByteWriter {
-    std::vector<uint8_t> data;
-
-    void writeU8(uint8_t v) { data.push_back(v); }
-    void writeU16(uint16_t v) {
-        size_t off = data.size();
-        data.resize(off + sizeof(v));
-        std::memcpy(data.data() + off, &v, sizeof(v));
-    }
-    void writeU32(uint32_t v) {
-        size_t off = data.size();
-        data.resize(off + sizeof(v));
-        std::memcpy(data.data() + off, &v, sizeof(v));
-    }
-    void writeF32(float v) {
-        size_t off = data.size();
-        data.resize(off + sizeof(v));
-        std::memcpy(data.data() + off, &v, sizeof(v));
-    }
-};
-
-// 読み出し。残量不足なら false を返す
-struct ByteReader {
-    const uint8_t* p;
-    size_t remaining;
-
-    bool readU8(uint8_t& out) {
-        if (remaining < sizeof(out)) return false;
-        std::memcpy(&out, p, sizeof(out));
-        p += sizeof(out); remaining -= sizeof(out);
-        return true;
-    }
-    bool readU16(uint16_t& out) {
-        if (remaining < sizeof(out)) return false;
-        std::memcpy(&out, p, sizeof(out));
-        p += sizeof(out); remaining -= sizeof(out);
-        return true;
-    }
-    bool readU32(uint32_t& out) {
-        if (remaining < sizeof(out)) return false;
-        std::memcpy(&out, p, sizeof(out));
-        p += sizeof(out); remaining -= sizeof(out);
-        return true;
-    }
-    bool readF32(float& out) {
-        if (remaining < sizeof(out)) return false;
-        std::memcpy(&out, p, sizeof(out));
-        p += sizeof(out); remaining -= sizeof(out);
-        return true;
-    }
-};
-
-} // namespace
 
 NetworkManager& NetworkManager::get() {
     static NetworkManager instance;
@@ -538,10 +482,6 @@ void NetworkManager::handleEvent(const ENetEvent& event) {
                 if (type == MessageType::Chat) {
                     std::string text(reinterpret_cast<const char*>(payload), payloadLen);
                     RCBN_LOG("NetworkManager: [chat] " << text);
-                } else if (type == MessageType::DummyPosition && payloadLen >= sizeof(float) * 3) {
-                    Vector3 pos;
-                    std::memcpy(&pos.x, payload, sizeof(float) * 3);
-                    RCBN_LOG("NetworkManager: [dummy pos] (" << pos.x << ", " << pos.y << ", " << pos.z << ")");
                 } else if (type == MessageType::Hello && m_role == NetworkRole::Host) {
                     uint16_t listenPort = 0;
                     uint32_t previousPeerId = 0;
@@ -659,6 +599,21 @@ void NetworkManager::handleEvent(const ENetEvent& event) {
                             }
                         }
                     }
+                } else if (type >= MessageType::AvatarState && type <= MessageType::WorldTransforms) {
+                    // レプリケーション系メッセージはゲーム層(ReplicationManager)へ委譲する。
+                    // packet破棄前の同期呼び出しなのでpayloadポインタをそのまま渡してよい。
+                    if (onGameMessage) {
+                        PeerId senderId = 0;
+                        if (m_role == NetworkRole::Host) {
+                            auto it = m_peerIds.find(event.peer);
+                            if (it != m_peerIds.end()) senderId = it->second;
+                        } else {
+                            senderId = 1; // Client視点の相手は常にHost(表示上のID。実IDはメッセージ内で運ぶ)
+                        }
+                        if (senderId != 0 || m_role == NetworkRole::Client) {
+                            onGameMessage(static_cast<uint8_t>(type), payload, payloadLen, senderId);
+                        }
+                    }
                 }
             }
             enet_packet_destroy(event.packet);
@@ -702,11 +657,11 @@ void NetworkManager::sendChatMessage(const std::string& text) {
     broadcastPacket(packet, NetworkChannel::Reliable);
 }
 
-void NetworkManager::sendDummyPosition(const Vector3& pos) {
-    uint8_t data[1 + sizeof(float) * 3];
-    data[0] = static_cast<uint8_t>(MessageType::DummyPosition);
-    std::memcpy(data + 1, &pos.x, sizeof(float) * 3);
-
-    ENetPacket* packet = enet_packet_create(data, sizeof(data), 0 /* unreliable */);
-    broadcastPacket(packet, NetworkChannel::Unreliable);
+bool NetworkManager::sendBytes(const std::vector<uint8_t>& payload, NetworkChannel channel) {
+    if (!m_host || m_peers.empty() || payload.empty()) return false;
+    uint32_t flags = (channel == NetworkChannel::Reliable) ? ENET_PACKET_FLAG_RELIABLE : 0;
+    ENetPacket* packet = enet_packet_create(payload.data(), payload.size(), flags);
+    if (!packet) return false;
+    broadcastPacket(packet, channel);
+    return true;
 }

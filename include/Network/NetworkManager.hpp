@@ -39,15 +39,22 @@ public:
     const std::vector<PeerInfo>& getRoster() const { return m_roster; }
     MigrationState getMigrationState() const { return m_migrationState; }
 
-    // ---- モックデモ用の送信API ----
+    // ---- 送信API ----
     // RELIABLEチャンネルで全Peer(Hostの場合)/Host(Clientの場合)へブロードキャストする。
     void sendChatMessage(const std::string& text);
-    // UNRELIABLEチャンネルでダミー座標を送信する。
-    void sendDummyPosition(const Vector3& pos);
+
+    // 指定チャンネルで接続中の全Peerへ生ペイロードをブロードキャストする。
+    // 先頭1バイトは MessageType であること(ReplicationManager が組み立てる)。
+    // Client視点のPeerはHostのみなので、両ロールとも「相手全員に送る」で成立する。
+    bool sendBytes(const std::vector<uint8_t>& payload, NetworkChannel channel);
 
     // ロール確定時(Offline→Host/Client、Client→Host昇格、shutdown)に呼ばれる。
     // game_main が Luau への通知(System.NetworkRoleChanged)を配線する。
     std::function<void(NetworkRole oldRole, NetworkRole newRole)> onRoleChanged;
+
+    // AvatarState〜WorldTransforms 受信時に呼ばれる(packet破棄前の同期呼び出し)。
+    // senderId: Host視点=送信元ClientのPeerId / Client視点=1(Host)。
+    std::function<void(uint8_t type, const uint8_t* payload, size_t len, PeerId senderId)> onGameMessage;
 
     static const char* roleToString(NetworkRole role); // "Offline" / "Host" / "Client"
 
@@ -55,7 +62,7 @@ public:
     NetworkManager& operator=(const NetworkManager&) = delete;
 
     // 現状: 応用tierの3項目(リソース計測・ホスト自動選出・動的ロール切替)は実装済み。
-    // 残タスク: NetworkEvent(Luau向けRemoteEvent相当)、ワールドレプリケーション、NAT越え。
+    // 残タスク: NetworkEvent(Luau向けRemoteEvent相当)、NAT越え。ワールドレプリケーションはReplication.hppに実装。
 
 private:
     NetworkManager() = default;

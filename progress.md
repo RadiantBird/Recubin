@@ -255,3 +255,58 @@ readme.md「ネットワーク関係」の未完了3項目（リソース計測�
 
 - **ランタイムの editor は nullptr ではなく NullEditorManager 実体**（game_main.cpp:153）。`if (!editor)` による「エディター有無」判定はランタイム検出として機能しない。エディター/ランタイムの挙動分岐は IEditorManager の仮想メソッド（今回の ownsSceneRender のような性質フラグ）で表現すること。
 - **RecubinTest はこの黒画面を検出できない**（ヘッドレスでスクリプト結果のみ検証し、画面ピクセルは見ない）。描画の生死は回帰テストの死角。
+
+## 2026-07-19 ワールドレプリケーション実装（アバター同期＋ワールドオブジェクト同期）
+
+### 何をしたか
+
+readme Todo「オブジェクトの座標を同期したりする機能」を実装。マルチプレイで相互のアバターが見え、ホストの物理結果が全クライアントに反映されるようになった。黒画面修正はユーザー実機確認済み → readmeチェック更新。
+
+- `include/Network/ByteStream.hpp`（新規）: NetworkManager.cpp無名namespaceのByteWriter/ByteReaderをヘッダへ抽出＋writeVector3/writeQuat/readVector3/readQuat追加
+- `include/Network/NetworkTypes.hpp`: MessageType追加（AvatarState=6/AvatarBatch=7/WorldMapping=8/WorldTransforms=9）。DummyPosition=1は撤去（欠番コメント）
+- `include/Network/NetworkManager.hpp` / `src/Network/NetworkManager.cpp`: sendDummyPosition撤去。`sendBytes(payload, channel)`（生ペイロード全ピアbroadcast）と `onGameMessage` コールバック（AvatarState〜WorldTransformsをゲーム層へ委譲。Host視点はm_peerIdsでsenderId解決、Hello前の未登録ピアは無視）を追加
+- `include/Core/User.hpp` / `src/Core/User.cpp`: spawnCharacterのリグ構築部を `static User::buildCharacterModel(searchRoot, name)` に抽出（挙動不変。spawnCharacterとリモートアバター生成が共用）
+- `include/Network/Replication.hpp` / `src/Network/Replication.cpp`（新規）: ReplicationManager本体
+  - アバター同期: 自キャラRootのワールドcframeを20Hz送信（Client→AvatarState→Host、HostがAvatarBatchで全員分配布）。ロスターと突き合わせて RemotePlayer_<peerId> を生成/破棄（buildCharacterModel→Humanoid削除→全パーツCanCollide=false→Workspaceへ。Root相対オフセットで剛体一括追従）
+  - ワールド同期: Hostが1秒ごとにWorkspace走査（!Anchored && CanCollide、自キャラとRemotePlayer_*サブツリー除外）しパス→netId永続採番。変化時/新規接続時にWorldMapping(RELIABLE)配布。cframeは移動検出＋停止後0.5sテール＋5秒ごと全量スナップショットで20Hz・36件/パケット分割のWorldTransforms(UNRELIABLE)。クライアントは対象をsetAnchored(true)でキネマティック化し受信cframeを平滑適用（指数補間 α=1-exp(-15dt)、初回スナップ）。**送受信はローカルcframeそのまま**（階層同一前提、ワールド変換なし）
+  - ホスト昇格時: clientReleaseWorldObjects()で全対象をAnchored=false復元→自世界を権威として再スキャン・再配布。Offline時も復元＋全クリア
+- `src/game_main.cpp`: DummyPositionモックブロック削除。ReplicationManager生成・onGameMessage/onRoleChanged配線・毎フレームupdate（NetworkManager::update後、物理前）・クリーンアップでonGameMessage=nullptr
+- `readme.md`: 黒画面Todo解決記録、レプリケーション達成項目を追加、ホスト移行項の「ワールドレプリケーション未対応」注記を更新
+
+### なぜそうしたか
+
+- **ReplicationManagerを新設しNetworkManagerと分離**: NetworkManagerはトランスポート（バイト列）に徹し、Instance/Workspaceを知る層を隔離。将来のNetworkEventも onGameMessage/sendBytes に載せられる
+- **クライアント側はAnchored化して受信cframe書き込み**（vs ダイナミックのままteleportTo）: syncPhysics()が非Anchoredでは毎フレーム物理結果でcframeを潰す（BaseCube.cpp:187-200）ため上書き同期は競合する。Anchored=trueならcframe→setKinematicTargetの追従で読み戻しが無い。既存機構だけで実現でき、昇格時はsetAnchored(false)に戻すだけで復元できる
+- **オブジェクトIDはパスベース**（getWorkspaceRelativePath）: インスタンスに一意IDが無く、兄弟間の名前一意保証（uniqueChildName）によりパスがツリー内一意。同一シーンをロードする前提ではこれで十分。UNRELIABLE転送はnetId(u32)に圧縮しパスはRELIABLEのマッピング表で一度だけ送る
+- **リモートアバターはCanCollide=false（衝突なし）**: ユーザー決定。アクター自体が作られず純視覚。帰結としてクライアントはホスト権威オブジェクトを押せない（既知の制限）
+- **リモートアバターのHumanoidは削除**: 誰も駆動せず（applyBodyAnimationはUserが自分にのみ呼ぶ）、Rootが動的アクターだと落下するだけ。パーツはRoot相対オフセットの剛体一括追従（歩行アニメはスコープ外）
+- ユーザー決定: スコープ=キャラ＋ワールド同期の両方 / 衝突なし / 新ホストのローカル世界が権威（前回決定踏襲）
+
+### どういう経緯か
+
+1. ユーザーが黒画面修正を実機確認 → 「次はオブジェクト同期まで計画」
+2. Plan mode: Explore 3並行（ネットワーク層/オブジェクト識別・座標制御/キャラ生成）→ CFrame構成・CMake GLOB・getRoster既存をgrepで確定 → 設計を自分で確定しAskUserQuestionでスコープ・衝突を確認 → プラン承認
+3. implementerに4分割で委譲（トランスポート層→リグ抽出→アバター同期→ワールド同期）、各回git diffレビュー
+4. ステップ4で事故: implementerが自分で実装せずバックグラウンドに別エージェントを生んで終了 → SendMessageで再開指示 → 二重エージェントが同一ファイルに重複実装を書き関数二重定義に → 再開側が重複を除去して単一実装に統一（最終ファイルは全文レビューで整合確認）
+5. スナップショットのforceAllフラグがタイマーずれで失われうる点だけメイン側で微修正（m_worldSnapshotPending化）
+6. 検証: ビルド成功、回帰130/4維持。localhostライブ検証（一時startup.yaml+net_repl_test.yaml、Host+Client×2、ログリダイレクト）: マッピング2件配布/適用(unresolved 0)・全ピアでRemotePlayer生成・姿勢受信を確認。Host kill → id=3昇格「released 2 world objects」→再スキャン→新マッピング配布、生存クライアントは再接続して再適用。ウィンドウクローズ起因の2段目移行（id=2昇格）も正常。一時ファイルは削除済み
+
+### 試して失敗した方法
+
+- implementerへの委譲が1回「別エージェント起動して自分は何もしない」で空振り（報告文だけ成功風）。**成果物はgit statusとシンボルgrepで実在確認してから受け入れること**。二重実行時は重複定義ビルドエラーの掃除が必要になった
+
+### 未解決・保留
+
+- **実機の見た目確認はユーザーに依頼**: 2インスタンス起動（--host / --connect 127.0.0.1）で相互アバター表示・落下Cubeの同期・ホスト終了後の引き継ぎを目視確認
+- 歩行アニメーション同期なし（リモートアバターは剛体ポーズで滑る）。次の改善候補
+- クライアントは世界に物理干渉できない（衝突なしの帰結）。入力転送 or オブジェクト所有権移譲が将来テーマ
+- ホストScriptがInstance.new等で動的生成したオブジェクトはクライアント側でパス解決不能（WARNしてスキップ）。生成/削除の複製は未対応
+- リネーム/再parentされた同期対象はパスが変わり remove+add 扱い（クライアント側は解決不能になりうる）
+- 非アクティブWorkspaceは同期対象外。NetworkEvent（Luau公開）は引き続き保留
+- ENetの切断検知は依然タイムアウト約30秒（enet_peer_timeout短縮は未着手）
+
+### 暗黙仕様の発見
+
+- **StarterCharacterのクローンにScript/LocalScriptが含まれるとリモートアバターにも複製される**（今回はHumanoidのみ削除）。StarterCharacterにスクリプトを入れる運用を始める場合は要注意
+- Model子パーツのcframeはローカルで、syncPhysicsはローカル整合を保つ（2026-07-18修正の恩恵）→ ローカルcframeをそのまま送受信すれば階層同一前提で変換不要
+- ByteWriter/ByteReaderはByteStream.hppへ移動済み。今後の新メッセージはこれを使う（NetworkManager.cpp内無名namespaceにはもう無い）

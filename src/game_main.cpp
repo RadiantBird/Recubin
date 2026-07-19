@@ -20,6 +20,7 @@
 #include <Core/SystemState.hpp>
 #include <Editor/NullEditorManager.hpp>
 #include <Network/NetworkManager.hpp>
+#include <Network/Replication.hpp>
 #include <include/imgui/imgui.h>
 
 #include <Util/Logger.hpp>
@@ -189,6 +190,11 @@ int main(int argc, char* argv[]) {
             ++it;
         }
     }
+    ReplicationManager replication(workspace, user, system.get());
+    NetworkManager::get().onGameMessage = [&](uint8_t type, const uint8_t* payload, size_t len, PeerId senderId) {
+        replication.onGameMessage(type, payload, len, senderId);
+    };
+
     Physics::s_contactCallback = [&](BaseCube* a, BaseCube* b) {
         luauEngine->onCollision(a, b);
     };
@@ -196,6 +202,7 @@ int main(int argc, char* argv[]) {
         RCBN_LOG("NetworkManager: role changed " << NetworkManager::roleToString(oldRole)
                   << " -> " << NetworkManager::roleToString(newRole));
         luauEngine->fireNetworkRoleChanged(oldRole, newRole);
+        replication.onNetworkRoleChanged(oldRole, newRole);
     };
     renderer->m_onButtonActivated = [&](GuiButton* btn) {
         luauEngine->onGuiButtonActivated(btn);
@@ -216,8 +223,6 @@ int main(int argc, char* argv[]) {
 
     // ---- v2.0 ネットワーク基盤(モック)デモ用の状態 ----
     bool  netWasConnected  = false;
-    float netDummyPosTimer = 0.0f;
-    float netDummyPosValue = 0.0f;
 
     // ---- メインループ（常にプレイ状態） ----
     while (!glfwWindowShouldClose(window)) {
@@ -234,17 +239,10 @@ int main(int argc, char* argv[]) {
                 NetworkManager::get().sendChatMessage("Hello from " + who);
             }
             netWasConnected = nowConnected;
-
-            // Hostのみダミー座標をUNRELIABLEで周期送信する(チャンネル分離のモックデモ)
-            if (NetworkManager::get().getRole() == NetworkRole::Host && nowConnected) {
-                netDummyPosTimer += deltaTime;
-                if (netDummyPosTimer >= 0.1f) {
-                    netDummyPosTimer = 0.0f;
-                    netDummyPosValue += 1.0f;
-                    NetworkManager::get().sendDummyPosition(Vector3(netDummyPosValue, 0.0f, 0.0f));
-                }
-            }
         }
+
+        // レプリケーション(受信姿勢の適用と自姿勢の送信)。物理更新より前に行う
+        replication.update(deltaTime);
 
         FrameProfiler::get().beginSection("physics");
         if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->update(*workspace, deltaTime);
@@ -315,6 +313,7 @@ int main(int argc, char* argv[]) {
     // ---- クリーンアップ ----
     NetworkManager::get().shutdown();
     NetworkManager::get().onRoleChanged = nullptr;
+    NetworkManager::get().onGameMessage = nullptr;
     for (auto& ws : workspaces) {
         if (ws && ws->getPhysicsEngine()) {
             ws->getPhysicsEngine()->clearCubes();
