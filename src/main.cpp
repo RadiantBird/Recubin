@@ -470,7 +470,7 @@ int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
 
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.996\n";
+              << "Recubin Studio v0.997\n";
     std::string engineExePath = (argc > 0 && argv[0]) ? argv[0] : "";
 
     GLFWwindow* window = setupWindow();

@@ -158,7 +158,7 @@ def package_editor(config: str) -> int:
         return result
 
     build_dir = BUILD_DIR / config
-    pkg_dir = DIST_DIR / "RecubinEditor"
+    pkg_dir = DIST_DIR / "RecubinStudio"
     if pkg_dir.exists():
         shutil.rmtree(pkg_dir)
     pkg_dir.mkdir(parents=True)
@@ -221,12 +221,21 @@ def package_editor(config: str) -> int:
     else:
         print("[WARNING] imgui.ini not found - skipping.")
 
+    with open(pkg_dir / "readme.txt", "w", encoding="utf-8") as f:
+        f.write("""Recubin.exeがエディター(スタジオ)なので、それをクリックすれば始められます。
+RecubinEngine.exeはランタイム用なので触らずにそのままにしておいてください。
+                
+Recubin.exe is the editor (Studio), so you can start by clicking on it.
+RecubinEngine.exe is for the runtime, so please leave it as is and do not touch it.
+""")
+        f.flush()
+
     # zip 生成
     date_str = datetime.date.today().strftime("%Y%m%d")
-    archive_base = DIST_DIR / f"RecubinEditor-{date_str}"
-    zip_path = shutil.make_archive(str(archive_base), "zip", root_dir=DIST_DIR, base_dir="RecubinEditor")
+    archive_base = DIST_DIR / f"RecubinStudio-{date_str}"
+    zip_path = shutil.make_archive(str(archive_base), "zip", root_dir=DIST_DIR, base_dir="RecubinStudio")
 
-    print(f"[SUCCESS] Packaged editor at {pkg_dir}")
+    print(f"[SUCCESS] Packaged studio at {pkg_dir}")
     print(f"[SUCCESS] Created archive at {zip_path}")
     return 0
 

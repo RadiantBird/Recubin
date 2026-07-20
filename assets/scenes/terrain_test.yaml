@@ -9,6 +9,22 @@ Root:
     - ClassName: StarterCharacter
       Name: StarterCharacter
       Children:
+        - ClassName: Cube
+          Name: LeftArm
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
         - ClassName: Humanoid
           Name: Humanoid
           Properties:
@@ -20,7 +36,7 @@ Root:
             RespawnTime: 5
             Health: 100
         - ClassName: Cube
-          Name: LeftArm
+          Name: RightArm
           Properties:
             Position: [0, 0, 0]
             Size: [1, 2, 1]
@@ -44,22 +60,6 @@ Root:
             Color: [1, 0.5, 0.5, 0]
             Anchored: false
             CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: RightArm
-          Properties:
-            Position: [0, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
             CastShadow: true
             Unlit: false
             MassDensity: 1
@@ -91,13 +91,14 @@ Root:
                 Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\hehe.png
                 UVCenter: [0.5, 0.5]
                 UVRadius: 0.15
+                Mode: 0
         - ClassName: Cube
-          Name: Torso
+          Name: LeftLeg
           Properties:
             Position: [0, 0, 0]
-            Size: [2, 2, 1]
+            Size: [1, 2, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0.39215687, 0.047058824, 0.1254902, 1]
+            Color: [0, 0.14117648, 0.31764707, 1]
             Anchored: true
             CanCollide: false
             CastShadow: true
@@ -108,12 +109,12 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: LeftLeg
+          Name: Torso
           Properties:
             Position: [0, 0, 0]
-            Size: [1, 2, 1]
+            Size: [2, 2, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 0.14117648, 0.31764707, 1]
+            Color: [0.39215687, 0.047058824, 0.1254902, 1]
             Anchored: true
             CanCollide: false
             CastShadow: true
@@ -147,6 +148,8 @@ Root:
           Properties:
             ControlMode: Free
             Speed: 2
+            RotationSpeed: 1
+            MouseRotationSpeed: 0.15
             CameraDistance: 10
             ZoomSpeed: 0.1
             MouseZoomSpeed: 1
@@ -203,6 +206,11 @@ Root:
             DataPath: terrain
             Seed: 12345
             Flat: true
+        - ClassName: Script
+          Name: TerrainDoodle
+          Properties:
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\TerrainDoodle.luau
+            Enabled: true
         - ClassName: Cube
           Name: Cube1
           Properties:
@@ -219,11 +227,6 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-        - ClassName: Script
-          Name: TerrainDoodle
-          Properties:
-            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\TerrainDoodle.luau
-            Enabled: true
         - ClassName: Cube
           Name: Cube
           Properties:

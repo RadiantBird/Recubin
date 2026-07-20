@@ -1,0 +1,103 @@
+Root:
+  Properties:
+    MaxClonesPerFrame: 1000
+    MaxRestartsPerFrame: 100
+    ScriptLoopTimeoutSeconds: 2
+    BaseResolution: [1920, 1080]
+    UseNetwork: false
+  Children:
+    - ClassName: Users
+      Name: Users
+      Children:
+        - ClassName: User
+          Name: User
+          Properties:
+            ControlMode: Free
+            Speed: 0.25
+            RotationSpeed: 1
+            MouseRotationSpeed: 0.15
+            CameraDistance: 10
+            ZoomSpeed: 0.1
+            MouseZoomSpeed: 1
+          Children:
+            - ClassName: Folder
+              Name: Inventory
+    - ClassName: Workspace
+      Name: Workspace
+      Properties:
+        Gravity: [0, -196.20001, 0]
+        Wind: [0, 0, 0]
+        PhysicsEnabled: true
+      Children:
+        - ClassName: Cube
+          Name: Cube3
+          Properties:
+            Position: [20.841843, 13.750119, -11.002567]
+            Size: [1, 1, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Lighting
+          Name: Lighting
+          Properties:
+            Direction: [0.5, -2, -1]
+            Brightness: 1
+            Color: [1, 1, 1, 1]
+        - ClassName: Cube
+          Name: Cube
+          Properties:
+            Position: [22.841843, 13.750119, -9.502567]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: Cube1
+          Properties:
+            Position: [24.841843, 14.250119, -8.502567]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0, 0, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: Cube2
+          Properties:
+            Position: [22.841843, 15.750119, -9.502567]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 1, 0, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+    - ClassName: PathfindingService
+      Name: PathfindingService

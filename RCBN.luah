@@ -1,5 +1,5 @@
 -- TODO: Define arithmetic table on Vector3, CFrame, etc...
-
+-- !!!: Do not ask to copilot, they are really goofy XD
 export type Connection = {
     Disconnect: (Connection) -> ()
 }
@@ -161,6 +161,19 @@ export type Vector3 = {
     new: (number, number, number) -> Vector3,
     length: (Vector3) -> number,
     normalize: (Vector3) -> Vector3,
+
+    dot: (self: Vector3, other: Vector3) -> number,
+    cross: (self: Vector3, other: Vector3) -> Vector3,
+
+    __add: (a: Vector3, b: Vector3) -> Vector3,
+    __sub: (a: Vector3, b: Vector3) -> Vector3,
+    __unm: (a: Vector3) -> Vector3,
+    __mul: ((a: Vector3, b: Vector3) -> Vector3) 
+         & ((a: Vector3, b: number) -> Vector3) 
+         & ((a: number, b: Vector3) -> Vector3), -- ベクトル倍と要素倍の交差型
+    __div: ((a: Vector3, b: Vector3) -> Vector3) -- ???
+         & ((a: Vector3, b: number) -> Vector3),
+    __tostring: (a: Vector3) -> string,
 }
 
 export type Color4 = {
