@@ -116,7 +116,7 @@ v2.0では、P2P(?)ネットワーク機能に加えて、
 - font-awesome
 - recastnavigation
 - xatlas
-- ENet
+- enet
 
 ## 使用予定の技術
 - DirectX(Windows最適化)
