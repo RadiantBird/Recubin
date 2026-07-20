@@ -46,8 +46,8 @@ enum class MessageType : uint8_t {
     Welcome         = 3, // Host→Client: 割当PeerId
     Roster          = 4, // Host→全員: 全PeerInfo+nextPeerId
     ResourceReport  = 5, // Client→Host: cpuScore定期報告
-    AvatarState     = 6, // Client→Host (UNRELIABLE): 移動入力スナップショット+seq(flatForward/flatRight/targetMoveDir/flags/forwardAxis/rightAxis/seq)
-    AvatarBatch     = 7, // Host→全員 (UNRELIABLE): 全ピアのアバター姿勢
+    AvatarState     = 6, // Client→Host (UNRELIABLE): 移動入力スナップショット+seq(flatForward/flatRight/targetMoveDir/flags/forwardAxis/rightAxis/seq、flags bit2=jumpRequested)
+    AvatarBatch     = 7, // Host→全員 (UNRELIABLE): 全ピアのアバター姿勢(各エントリ: id/pos/quat/linVel/lastProcessedSeq)
     WorldMapping    = 8, // Host→全員 (RELIABLE): netId→Workspace相対パス表
     WorldTransforms = 9  // Host→全員 (UNRELIABLE): netIdごとのpos+quat(分割送信)
 };

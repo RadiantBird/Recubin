@@ -310,3 +310,159 @@ readme Todo「オブジェクトの座標を同期したりする機能」を実
 - **StarterCharacterのクローンにScript/LocalScriptが含まれるとリモートアバターにも複製される**（今回はHumanoidのみ削除）。StarterCharacterにスクリプトを入れる運用を始める場合は要注意
 - Model子パーツのcframeはローカルで、syncPhysicsはローカル整合を保つ（2026-07-18修正の恩恵）→ ローカルcframeをそのまま送受信すれば階層同一前提で変換不要
 - ByteWriter/ByteReaderはByteStream.hppへ移動済み。今後の新メッセージはこれを使う（NetworkManager.cpp内無名namespaceにはもう無い）
+
+## 2026-07-20 リモートUserのSystem.Users化 ＋ 非利き手が上を向くバグ修正
+
+### 何をしたか
+
+- `src/Instances/Humanoid.cpp` の `Humanoid::computePose()`: 片手ツール装備時、非利き手の腕角度に誤用されていた `180.0f`（本来は非接地時バタつきポーズ用）を `swing`/`-swing`（接地時分岐と同じ歩行スイング）に変更。
+- `include/Core/User.hpp` / `src/Core/User.cpp`: `currentTool`からleft/rightのarm-raised状態を算出するロジックを `getToolArmRaiseState()` に一元化。`processMovement()` のFree/Program/無フォーカス時3箇所（従来 `applyBodyAnimation(false,false)` 決め打ちだった）と `processCharacterMovement()` の重複ロジックをこれに統一。`User.cpp:251` のTODOコメントを解消。
+- `include/Core/NullInputBackend.hpp` / `src/Core/NullInputBackend.cpp`（新規）: 何も入力を供給しない `IInputBackend` 実装。
+- `User`クラス: `peerId`メンバ、`isRemoteUser`フラグ、`createRemoteUser(peerId)` staticファクトリを追加。コンストラクタに `isRemoteUser=false` のデフォルト引数を追加（既存呼び出し元は無修正）。`s_instance`の書き換え（コンストラクタ・デストラクタ両方）を `isRemoteUser`/`s_instance==this` でガードし、複数User生成時にローカルシングルトンが壊れないようにした。
+- `src/Core/LuauEngine_Dispatch.cpp`: `User.PeerId`（読み取り専用）プロパティを追加。
+- `include/Network/Replication.hpp` / `src/Network/Replication.cpp`: `RemoteAvatar`構造体に `identity`（`shared_ptr<User>`）を追加。`spawnRemoteAvatar`でリモートピアごとに`User::createRemoteUser()`を呼び、`character`を既存の`RemotePlayer_<id>` Modelに紐付けたうえで`System.Users`配下に追加。`despawnRemoteAvatar`で対応するUserもツリーから除去。
+- `src/game_main.cpp`: メインループでローカル`user->peerId`をネットワーク接続状態に応じて毎フレーム更新（Host即時1、Client はWelcome受信まで0、切断で0に戻る）。
+
+### なぜそうしたか
+
+- 「非利き手が上を向く」バグは調査の結果、真因が`Humanoid::computePose`（`User.cpp:251`のTODOとは別の場所）にあると判明。両方まとめて直すことで、TODOの「呼び出し箇所が多いから危ない」という懸念を、ロジックをヘルパー関数に一元化することで解消した（呼び出し箇所が多いこと自体は変わらないが、重複コードでなく1箇所の実装を共有するので保守上安全）。
+- リモートUserは「`RemotePlayer_<id>` Modelを丸ごとUser化」ではなく、「既存のModelはそのまま、Userをidentityとして追加で被せる」設計にした。ローカルUser（`System.Users`配下のidentity）とCharacter（`Workspace`配下の見た目/物理）が元々ツリー上別々という既存パターンをそのまま踏襲でき、既存のアバター同期ロジック（CanCollide剥奪・Humanoid除去・パーツ追従）を一切変更せずに済むため。
+- `User`のコンストラクタに`bool isRemoteUser`引数を追加する案を採用（新クラスへの分離はしなかった）。理由: `User::clone()`が明示的に未サポート（`IInputBackend`がコピー不能なため）で複製経路が使えず、かつ`s_instance`シングルトンの書き換えタイミングがリスクの本質だったため、最小限のガード追加で解決できると判断。`LocalPlayerController`的な分離リファクタは今回のスコープ外（過剰設計と判断）。
+- ローカル自分自身の`User.PeerId`も設定するかはユーザーに確認し、「設定する」を選択。role-changedイベント1回のフックだとClient側のPeerId確定（Welcome受信）タイミングを取り違えるため、毎フレーム同期する方式（1行）を採用。
+
+### どういう経緯か
+
+1. ユーザーから「ネットワーク接続してきたピアはUsersの中にUserとして追加されているか」という質問を受け、調査の結果「されていない（RemotePlayer_<id>という別のModelのみ）」と回答。
+2. readme.mdの既存Todo「リモートユーザーを実際にSystem.UsersにUserとして生成...」と、User.cpp:251のTODO（非利き手バグ）の2件をまとめて設計・実装するようユーザーから指示。
+3. Plan Modeで2つのExploreエージェント（バグ調査／Userシングルトン・Usersコンテナ調査）を並列実行し、根本原因とアーキテクチャ制約を洗い出してから計画を作成。
+4. ローカルUserのPeerId設定要否をAskUserQuestionでユーザーに確認（設定する、を選択）。
+5. Humanoid.cpp+User.cpp TODO解消をStep1としてimplementerに委譲・レビュー。続けてリモートUser一式（NullInputBackend新規/User拡張/Dispatch追加/Replication配線/game_main.cpp）をStep2として1つのimplementerに一括委譲・レビュー。両ステップともビルド成功、回帰テスト130 passed/4 failed（既知ベースライン）維持を確認。
+
+### 未解決・保留
+
+- 見た目確認（ツール片手装備時に非利き手が自然に振れる/下がること、`System.Users:GetChildren()`でリモートUserが見える・`.PeerId`が正しいこと）はユーザー側での実機確認待ち。
+- リモートUserの`Inventory`は空Folderのみ生成し、ホットバー/ツール所持状態自体はレプリケートしていない（今回のスコープ外）。将来ツール所持状態も同期したい場合は別途設計が必要。
+- readme.mdの他のネットワーク関連Todo（予測移動+ホスト権威検証、リモートアバターのアニメーション同期、workspace全体の生成/削除監視、チャットGUI化）は未着手のまま。
+
+### 暗黙仕様の発見
+
+- `User`のコンストラクタ/デストラクタは無条件で`s_instance`を書き換えていた（ガードなし）。単一User前提のコードだったため今まで問題化しなかったが、複数User生成時は生成/破棄順序次第でローカルシングルトンが破壊される潜在バグだった。
+- `Humanoid::computePose`の「非接地時バタつきポーズ用の180度」が片手ツール分岐の非利き手にも誤用されていた。`makeArm()`のpivot構造上、180度は「半回転で上を向く」値であり、0度（自然に下垂）とは真逆の意味を持つ。今後同様の角度定数を追加する際はpivotの回転中心（`makeArm`のpivotOffset）を踏まえて意味を確認すること。
+- `User.Character`（Model）は`User`自身の子ではなく`Workspace`側に別途addChildされる設計（`spawnCharacter`内コメントに明記）。`User`（identity）と`Character`（見た目/物理）はツリー上別々というパターンは、ローカル/リモート問わず一貫していた。
+
+## 2026-07-20 クライアント予測移動＋ホスト権威検証（物理干渉の有効化）
+
+### 何をしたか
+
+- `include/Network/NetworkTypes.hpp`: `AvatarState`メッセージ(値6は不変)のコメントを「結果姿勢」から「移動入力スナップショット」に変更(意味の再定義。ワイヤ上の値・チャンネル・頻度は不変)。
+- `include/Core/User.hpp` / `src/Core/User.cpp`: `MovementInput`構造体(`flatForward`/`flatRight`/`targetMoveDir`/`isPressingMove`/`ctrlLockEnabled`/`forwardAxis`/`rightAxis`)と`lastMovementInput`メンバを追加。`processCharacterMovement()`が既存ロジックで計算した値をそのままここに保存するだけ(移動計算自体は無変更)。
+- `include/Network/Replication.hpp` / `src/Network/Replication.cpp`: `ReplicationManager::update()`のシグネチャに`Physics*`を追加(Host側で`Humanoid::move()`を代理実行するために必須)。`RemoteAvatar`に`humanoid`(保持したまま、以前は`removeChild`で破棄していた)と`isPhysicsProxy`フラグを追加。新規`enablePhysicsProxy()`: RootだけCanCollide=true/Anchored=falseにして`Physics::recreateActor()`で実体化し、ローカルUserのRoot＋既存の他プロキシRootとの間に`NoCollision`インスタンス(既存の制約Instance、Weld/Rope同様の仕組み)を生成してPvP衝突を除外。新規`hostSimulateAvatars()`: 各ピアの最新入力(`m_pendingAvatarInput`)を長さ1超過なら正規化・軸値を[-1,1]にクランプしてから`Humanoid::move()`を代理実行し、結果を`m_latestPoses`に反映(既存のAvatarBatch配布へそのまま合流)。`applyAvatarPoses()`は`isPhysicsProxy`なアバターをスキップ(`Humanoid::move()`内の`applyBodyAnimation()`が既に全パーツを正しいFKで駆動済みのため、二重書き込みを避ける)。Client側は新規`reconcileLocalPose()`: Host権威姿勢とローカル予測の差が1.5studを超えたら`BaseCube::teleportTo()`でスナップ補正(回転は対象外、位置のみ)。ホスト移行(Client→Host昇格)時は`m_pendingProxyUpgradeAll`フラグを立て、次の`update()`で既存の全リモートアバターを一括してプロキシ化する。
+- `src/game_main.cpp`: `replication.update(deltaTime, workspace->getPhysicsEngine());`への1行変更のみ。
+
+### なぜそうしたか
+
+- 「クライアントはワールドオブジェクトを押せない」問題の根本原因は、Host権威のワールドオブジェクトがクライアント側で`setAnchored(true)`(キネマティック化)されており、キネマティックはダイナミックActorを押しのけるが逆に押されないというPhysXの仕様だった。解決には「クライアントのキャラクターがHostの物理シミュレーション上で本物のダイナミックActorとして存在する」ことが必須と判断し、Host側に各リモートピア用の物理プロキシ(実体Actor)を持たせる設計にした。
+- 新規クラスを作らず、既存の`RemotePlayer_<id>` Model(見た目用に既にある)にHumanoidを温存し、Rootだけを物理化する方式を選んだ。理由: 既存のアバター同期(パーツ追従・CanCollide=false化・spawnロジック)を大きく作り替えずに済み、`Humanoid::move()`が持つSeat/Truss/接地判定等の既存ロジックをHost側でもそのまま再利用できるため(車輪の再発明を避けた)。
+- プレイヤー同士の衝突除外には新規のグループ/マスク機構を作らず、既存の`NoCollision`Instance(Weld/Rope同様のペア単位制約)をそのまま流用した。既に動作実績があり、Workspace配下に追加するだけで自動登録・自動クリーンアップされるため。
+- 「妥当性チェック」は、個別の異常値検知ロジック(速度上限・テレポート検知等)を新設するのではなく、「Hostが常に自前の物理定数(WalkSpeed等)で入力から結果を計算し、クライアントの自己申告位置を一切信用しない」構造そのものによって速度改鼠・テレポート・すり抜け系のチートを構造的に防ぐ設計にした。入力側は`targetMoveDir`等の長さ1超過を正規化、軸値を[-1,1]にクランプするだけに留めた(過剰な検知ロジックを追加しない、との判断)。
+- ユーザーへの確認: 今回のスコープを「フルスコープ(物理干渉+異常値クランプ)」「プレイヤー同士の衝突は含めない」に決定(AskUserQuestion)。ローカル自分自身の`PeerId`もあわせて設定することを決定(前セッションの続きの機能)。
+
+### どういう経緯か
+
+1. 前タスク(リモートUserのSystem.Users化 + 非利き手バグ)完了後、ユーザーがreadme.mdの次のTodo「クライアントが移動する場合、まず予測移動し、ホストが演算し、妥当性チェック。これにより物理干渉を可能にする」を選択。
+2. Plan Modeで2つのExploreエージェント(物理エンジン/PhysX Anchored・CanCollide挙動とHumanoid::move()の内部実装、ネットワークメッセージプロトコルとRTT計測)を並列実行し、さらに自分でPhysXのCollision Filtering機構(`NoCollision`Instance、`Physics::recreateActor`)を直接コード読解で調査。
+3. AskUserQuestionで「フルスコープか物理干渉のみか」「PvP衝突を含めるか」を確認。
+4. 3ステップに分割してimplementerに委譲: (1)配線土台(型・シグネチャ変更のみ)、(2)Host側物理プロキシ本体、(3)Client側reconciliation。各ステップ後にgit diffを設計と照合してレビュー。
+5. ビルド・回帰テスト(130 passed/4 failed維持)は全ステップで成功したが、**localhost 2プロセスでの実地ログ検証で重大な不具合を発見**: `MovementInput`/`AvatarInputWire`構造体の`Vector3`フィールド(`flatForward`/`flatRight`/`targetMoveDir`)に明示的な初期化子を書いていなかったため、`Vector3`がコンストラクタを持たない集合体(`float x,y,z;`のみ)であることと相まって、入力未受信時にゴミ値(未初期化スタック/ヒープメモリ)のまま`Humanoid::move()`に渡っていた。これによりHost側プロキシが際限なく漂流し、Client側の`reconcileLocalPose()`が1.5〜2.0stud程度のずれを検知し続けて毎フレーム近くスナップ補正を繰り返し、ついには`Physics.cpp`の「Spiral of Death」安全装置(フレーム時間超過時のフォールバック)まで誘発するほどの不安定化を起こしていた。
+6. 該当2箇所(`User.hpp`の`MovementInput`、`Replication.hpp`の`AvatarInputWire`)の`Vector3`メンバに`{}`明示初期化を追加(6行程度の軽微な修正のためメインセッションが直接実施)。再ビルド・再回帰テスト後、localhost検証をやり直し、初期の物理settle起因の一時的な補正バースト(約1秒間に19回程度)の後にreconciliationが完全に収束・停止し、Spiral of Deathも再発しないことを確認。
+
+### 未解決・保留
+
+- Client側からHostが視ている「他ピアの物理プロキシ」の見た目(Torso/Head/Arms/Legs)は、Host machine上でのみ`Humanoid::move()`の正しいFKアニメーションで駆動される。ghost(Client視点でのリモートアバター)は従来通りRoot姿勢のrel-offset一括追従のままで、`applyBodyAnimation`由来の自然な歩行アニメーションは今回もリモート視点には反映されない(readme.mdの別Todo「リモートアバターにもアニメーションを再生する」は引き続き未対応のまま)。
+- ツール所持状態(`leftArmRaised`/`rightArmRaised`)はHost側の代理`move()`呼び出しで`false,false`固定。ツール同期は今回のスコープ外。
+- プレイヤー同士(リモートアバター同士)の衝突は`NoCollision`で意図的に除外したまま(ユーザー確認済みのスコープ判断)。
+- 見た目確認(実際にクライアントがワールドの箱を押せること、通常操作でreconciliationのガタつきが気にならないこと)はユーザーに依頼。今回のログ検証は「接続→スポーン→物理プロキシ化→NoCollision登録→reconciliation収束」の一連の流れがクラッシュ・スパイラルオブデス無く動作することの確認に留まる(実際のWASD入力による押し出しは自動テストでは検証していない)。
+
+### 暗黙仕様の発見
+
+- **`Vector3`はコンストラクタを持たない集合体(`struct Vector3 { float x, y, z; ... };`)であり、明示的な初期化子(`{}`や`= Vector3(0,0,0)`)を書かない限り、クラスメンバとしてのデフォルト構築時にゼロ初期化されない(ゴミ値になりうる)**。他の箇所で`Vector3`をメンバに持つ既存構造体は暗黙的に安全な文脈(スタック上での即代入、あるいは他の初期化経路)で使われていたため今まで顕在化しなかったが、「未受信時のデフォルト値」としてネットワーク越しの構造体に使う場合は要注意。今後同様の構造体を追加する際は必ず全フィールドに明示初期化子を書くこと。
+- `Physics::recreateActor()`は、`CanCollide=false`で一度もActorを持ったことのないCubeに対しても(`Humanoid::enterRagdoll()`の前例通り)安全にActorを新規生成できる。`workspace.pendingInstances`経由の自動登録パスを待たずに、任意のタイミングで明示的にActor化できる汎用APIとして使える。
+- `NoCollision`Instance(Weld/Rope同様の制約)はコード側から`std::make_shared<NoCollision>(cubeA, cubeB)`→`someParent->addChild(nc)`するだけで自動登録・自動クリーンアップされる。Luauスクリプトやシーンエディタ専用の機能ではなく、C++側からの動的な衝突制御にもそのまま使える汎用機構だった。
+
+## 2026-07-20 入力リプレイ方式によるクライアント予測補正の改善
+
+### 何をしたか
+
+- `include/Core/Physics.hpp` / `src/Core/Physics.cpp`: `Physics::update(Workspace&, float dt)`から、Workspace非依存な部分(重力適用を除く、蓄積dtでのsimulate/fetchResultsループ+浮力/Force適用+遅延op処理)を`Physics::stepOnce(float dt)`に、末尾のActor姿勢読み戻しループを`Physics::syncAllCubes()`に切り出した。`update()`はこの2つを呼ぶよう再構成しただけで、処理順序・挙動は完全に不変(回帰テスト130 passed/4 failedで確認)。
+- `include/Instances/Humanoid.hpp`: リプレイ専用の状態退避/復元用アクセサ(`getWalkCycle`/`setWalkCycle`/`getCurrentMoveDir`/`setCurrentMoveDir`)を追加。`move()`自体のロジック・シグネチャは無改修。
+- `include/Network/Replication.hpp` / `src/Network/Replication.cpp`: `ReplicationManager`に「クライアント予測専用の分離PhysXシーン」を追加。
+  - `m_predictionPhysics`(別`Physics`インスタンス、Client役割時のみ遅延生成)、`m_shadowRoot`(ローカルRootの複製、どのInstanceツリーにも属さない)、`m_predictionHumanoid`(Root=シャドウの軽量Humanoid)。
+  - 静的ジオメトリ(`Anchored && CanCollide`)のみを約2秒ごとに差分ミラーリング(`rescanPredictionStaticGeometry`)。Seat/Truss/LiquidCube/Terrainはミラー対象外(スコープ外、既知の近似)。
+  - 毎フレーム、シャドウRootを本物のRootへ強制同期(`syncPredictionShadowToLocal`)。
+  - `AvatarState`メッセージにフレーム通し番号(`seq`)を追加。クライアントは毎フレーム(20Hz送信スロットルとは独立に)入力+Humanoid内部状態(`currentMoveDir`/`walkCycle`/`Rotation`)のスナップショットを`m_inputHistory`(`std::deque`)へ積む(`bufferLocalInput`)。
+  - Host側は入力を消費するたびに`m_lastProcessedSeq[peerId]`を記録し、`AvatarBatch`の各エントリに含めて配布。
+  - `reconcileLocalPose()`を全面書き換え: ズレが小さければ何もしない、極端に大きければ即座にハードスナップ(フォールバック)、それ以外は「シャドウをHost権威姿勢へ巻き戻す→ack以降の未確認入力を1件ずつ`m_predictionHumanoid->move()`+`m_predictionPhysics->stepOnce()`で再生→結果を本物のRootへ1回だけ反映」という入力リプレイを行う。
+
+### なぜそうしたか
+
+- 前回実装した「クライアント予測＋ホスト権威検証」は、ズレたら閾値超過で即座にteleportするだけの単純な補正だった。ユーザーが実機で動かした結果「ロールバック」「追い越し」に見えて気持ち悪いとの指摘を受け、改善方針を検討。滑らかなブレンド補正・簡易キネマティックリプレイ・分離予測シーンによる本格リプレイの3案を提示し、ユーザーは本格実装を選択。
+- このエンジンは全アクターが単一のPhysXシーンに同居する構造のため、シーン全体を巻き戻すと他オブジェクトの物理が二重に進んでしまう。そのため「ローカルプレイヤー専用の複製Root+静的ジオメトリだけをミラーした分離シーン」でリプレイを行う設計にした。
+- `Humanoid::move()`のアニメーション補間(`currentMoveDir`/`walkCycle`)がdtではなく呼び出し回数に固定係数をかける実装だったため、「1フレーム=1回のmove()呼び出し」を厳守してリプレイすれば`move()`自体は無改修で正しく動くと判断した(過去にリプレイの都合で移動ロジック自体を書き換えると、シングルプレイの挙動にも影響するリスクがあったため、move()には一切触れない設計にした)。
+
+### どういう経緯か
+
+1. ユーザーから「補正がロールバック/追い越しに見えて気持ち悪い、改善できるか」と相談を受け、原因(閾値超過での即座teleport)を説明した上で3案を提示。
+2. 「入力リプレイ方式」を選択されたが、調査の結果「1シーン共有のため丸ごと巻き戻せない」という制約が判明したため、いったん立ち止まって「滑らかブレンド/簡易キネマティックリプレイ/本格分離シーン」の3択を再提示。ユーザーは制約を理解した上で「分離予測シーン(本格実装)」を選択。
+3. Plan Modeで2つのExploreエージェント(Physicsシーンの構造・BaseCube/Workspaceの制約、メッセージプロトコルとHumanoid::move()の副作用)を並列実行し、`Physics::createNoCollision`/`Physics::recreateActor`等の既存APIがそのまま使えることや、`Humanoid::move()`の補間が呼び出し回数依存であることを確認してから設計。
+4. 4ステップ(Physics::stepOnce切り出し→予測シーン基盤→入力履歴バッファ+プロトコル拡張→リプレイ本体)に分割してimplementerへ委譲。各ステップ後にgit diffレビュー、ビルド・回帰テストを実施。全ステップとも設計通りに実装され、回帰テスト(130 passed/4 failed)も維持された。
+5. localhost 2プロセスでの実地ログ検証を実施。前回セッションで見つけた「未初期化Vector3によるSpiral of Death」は再発しないことを確認できたが、**新たに「reconciliationが継続的に(20Hzごとに)発火し続け、収束して止まる様子が見られない(drift 1.5〜3.4studの範囲で常に補正が走り続ける)」という挙動を観測した**。前回(input-replay導入前)の単純なteleport版では同じテストシーンで数秒以内に収束・完全停止していたため、リプレイ導入による挙動変化の可能性がある。ただし自動テストでは実際のWASD入力を送っていない(ヘッドレスウィンドウにフォーカスが無い可能性が高い)ため、「本当に静止した状態で収束しない不具合」なのか「たまたまウィンドウにフォーカスが移り実際に歩いていたことによる、latency分の正常な継続補正」なのかをログだけでは切り分けられなかった。クラッシュ・Spiral of Death・ビルドエラー・回帰テスト失敗は無い。
+
+### 未解決・保留
+
+- **上記の「reconciliationが止まらない」現象の原因切り分けがユーザーの実機確認待ち**。実際にWASD移動しながら、(a)静止時にreconciliationログが完全に止まるか、(b)移動中の補正が以前より滑らかに感じられるか、の2点を確認してほしい。もし静止時にも継続的に補正が発生している場合は、`reconcileLocalPose()`のリプレイ回転処理(`m_shadowRoot->cframe.Rotation`への代入がsyncPhysicsの読み戻しで即座に上書きされ実質無効化されている可能性がある箇所、`src/Network/Replication.cpp`の`reconcileLocalPose()`内)を最初に疑うこと。
+- Seat/Truss/LiquidCube/Terrain上でのリプレイは近似(存在しないものとして計算)。大きくズレた場合は閾値(8stud)超過でハードスナップにフォールバックする设计のため機能上は破綻しないが、見た目の滑らかさはそれらの地形上では期待できない。
+- ツール所持状態のリプレイは今回もスコープ外(Host代理move()同様`false,false`固定)。
+
+### 暗黙仕様の発見
+
+- `Spatial`(`BaseCube`の基底)の`Rotation`は`Quaternion& Rotation;`という`cframe.Rotation`への**参照**であり、独立した別ストレージではない(`include/Instances/Spatial.hpp:15`)。`someCube->cframe = x;`と`someCube->Rotation = x.Rotation;`はどちらか一方で十分。
+- `Spatial::getWorldCFrame()`は親が無ければ`cframe`をそのまま返す(`src/Instances/Spatial.cpp:9`)。ツリーに一切addChildしない「シャドウ」オブジェクトでもワールド座標=ローカル座標として安全に扱える。
+- `Physics::createActor()`/`removeCube()`はWorkspace非依存で、任意のBaseCube(ツリーに属さないものも含む)に対して直接呼び出せる。複数の`Physics`インスタンス(=複数PxScene)を同一プロセス内に共存させることも、static参照カウント方式のおかげで技術的に問題なく可能(前例が無かっただけ)。
+- `Humanoid::move()`のアニメーション/回転補間は**dt非依存の固定係数**(呼び出し回数ベース)。ネットワークリプレイ等で「同じ入力を圧縮/間引いて再生する」実装をすると、実際の経過時間と乖離した見た目・軌跡になる。フレーム単位で漏れなく呼び出すことが必須。
+
+## 2026-07-20 ジャンプ同期・補正精度改善・リモートアバター可視性の調査
+
+### 何をしたか
+
+- **ジャンプのネットワーク同期** (`User.hpp/cpp`, `Replication.hpp/cpp`, `NetworkTypes.hpp`):
+  - `User::MovementInput`に`jumpRequested`追加。`processHotkeys()`のjump呼び出し時にセット、`processInput()`冒頭で毎フレームクリア。
+  - AvatarStateのflags bit2で送信。20Hz間引きでタップを取りこぼさないよう`m_pendingJumpLatch`(送信時クリアのORラッチ)を導入。
+  - Host側`hostSimulateAvatars()`は`in.jumpRequested`ならプロキシの`jump(physics)`をmove()直前に実行(jump()自身の接地/水中ガードで妥当性担保)。リプレイ側`reconcileLocalPose()`も同様に各エントリで再生。
+- **補正精度の改善** (`Replication.cpp`):
+  - AvatarBatchエントリに`linVel`(Vector3)を追加(順序: id→pos→quat→vel→lastProcessedSeq)。Hostは自分と各プロキシのRoot actor線速度を`m_latestVels`に記録して配布。
+  - クライアントはリプレイ巻き戻し時、従来の速度ゼロ化をやめ`m_hostAuthoritativeSelfVel`を`setLinearVelocity`で復元(落下/ジャンプ中の補正が正確になった)。
+  - 前セッションで疑っていた回転リストア無効化バグを修正: 巻き戻しの`setGlobalPose`のqをauthoritativeではなく`firstEntry.rotationBefore`にし、actorとcframeの回転を一致させた(従来はsyncAllCubes()の読み戻しでcframe側のリストアが即上書きされていた)。
+- **「クライアントから他ユーザーが見えない」報告の調査**: 一時診断ログ(`[AVDIAG]`、撤去済み)を仕込み、ユーザーの実シーン(Desktop\NetworkTest)をscratchpadへコピーしてlocalhost 2プロセスで再現テストを実施。
+
+### なぜそうしたか
+
+- ジャンプ問題の真因は「ジャンプが`processHotkeys()`から直接`jump()`を呼び、`lastMovementInput`→AvatarStateに含まれない」こと。Hostプロキシは跳ばない→権威姿勢が地上のまま→補正がジャンプを即引き戻す。「ジャンプできない」「補正が強い」の両方の主要因だった。
+- 速度同期を入れたのは、巻き戻しで速度ゼロから再生すると落下中の権威との鉛直速度差で毎回ズレが再発するため。
+
+### どういう経緯か
+
+- ユーザーがTODO.mdに実機テストの感想を記載(ジャンプ不可/補正強すぎ/他ユーザー見えない)。ただしテストに使われたパッケージ(Desktop\NetworkTest)のRecubinEngine.exeは**7/19 23:52ビルド=入力リプレイ実装(7/20 2:48、コミット445b332)より前の中間ビルド**と判明。
+- 可視性の再現テスト結果: **現ビルドではクライアント側のアバター生成・姿勢受信・追従・ツリー在籍・メッシュジオメトリ全て正常**。RemotePlayer_1はホストの実位置を正しく追従していた。ユーザー回答(「キャラが全く存在しない」「ホストからは見える」)を現ビルドで再現する経路は特定できず、旧中間ビルド起因の可能性が高いと判断。新パッケージでの再確認待ち。
+- 併せてリプレイ収束も再検証: 30秒ランで補正発火は初期落下中の4〜5回のみ、静止後は完全停止。ハードスナップ/Spiral of Deathゼロ。前セッションの「収束しない」観測は解消(速度リストアの効果と推定)。
+- ビルド+回帰テストは各ステップで130 passed/4 failed(既知4件)を維持。
+
+### 未解決・保留
+
+- **ユーザーによる再テストが必要**: 旧パッケージは中間ビルドのため、`python build.py build`→再パッケージの上で (1)ジャンプ可否 (2)補正の不快感 (3)相手キャラの可視性 を確認してもらう。
+- **スポーンのすり抜け(シーン起因、エンジン未対応)**: NetworkTestシーンでは全キャラ(ローカル/プロキシ共)が生成直後に上のPlate(Y=0,厚1)をすり抜けて地下のPlate1(Y=-45)に着地する。テンプレートRoot(Y=-0.411,高さ4)がPlateにめり込んでおり、PhysXの重なり解消の最短方向が下向き(2.09stud < 2.91stud)のため。同期自体は一貫しているが、スポーン体験として意図通りか要確認。直すならエンジン側スポーン位置補正かシーン側テンプレート配置修正。
+- 再テストでも「見えない」が再現する場合、次はRenderer側(collectInstCubes/フラスタムカリング)にRemotePlayer限定の診断を入れて切り分ける。
+
+### 暗黙仕様の発見
+
+- FallingSafe.luauc(ユーザーシーンのスクリプト)は`workspace`の`PlayerCharacter`のRoot Y座標をHeartbeat監視して救済する構造(バイトコードの文字列から推定)。**名前が`PlayerCharacter`固定のためRemotePlayer_Nは救済対象外**。この種のシーンスクリプトはリモートアバターに効かない前提で考えること。
+- Luauバイトコード(.luauc)は`python`の正規表現で可読文字列を抽出するだけでも挙動の当たりが付けられる(今回`workspace`/`PlayerCharacter`/`Heartbeat`等を確認)。

@@ -392,7 +392,10 @@ void User::processHotkeys(Physics* physics) {
     bool spacePressed = m_input->isKeyDown(KeyCode::Space);
     if (spacePressed && controlMode == ControlMode::Character && humanoid) {
         if (humanoid->isSeated()) humanoid->standUp(physics);
-        else humanoid->jump(physics);
+        else {
+            humanoid->jump(physics);
+            lastMovementInput.jumpRequested = true;
+        }
     }
 
     // 左Ctrlキー: CtrlLock ON/OFFトグル
@@ -491,6 +494,10 @@ void User::processMouse(bool isGameplayInput) {
 
 void User::processInput(Physics* physics, float deltaTime, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput) {
     if (!m_input) return;
+
+    // ジャンプ要求は毎フレームクリアし、processHotkeys()内でSpace押下時にのみセットする
+    // (ネットワークレプリケーション用: このフレームでジャンプ要求があったかをlastMovementInputに残す)
+    lastMovementInput.jumpRequested = false;
 
     // User.Input: 前フレームとの差分で Pressed/Released を発火する
     if (Input) Input->poll();

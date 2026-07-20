@@ -87,6 +87,7 @@ public:
         bool isPressingMove = false;
         bool ctrlLockEnabled = false;
         float forwardAxis = 0.0f, rightAxis = 0.0f;
+        bool jumpRequested = false;
     };
     MovementInput lastMovementInput;
 

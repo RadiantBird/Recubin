@@ -30,6 +30,7 @@ struct AvatarInputWire {
     Vector3 flatForward{}, flatRight{}, targetMoveDir{};
     bool isPressingMove = false;
     bool ctrlLockEnabled = false;
+    bool jumpRequested = false;
     float forwardAxis = 0.0f, rightAxis = 0.0f;
     uint32_t seq = 0; // このスナップショットの送信元フレーム通し番号(Client→Host)
 };
@@ -86,6 +87,7 @@ private:
     Instance*                  m_characterSearchRoot = nullptr; // StarterCharacter探索用(game_mainのsystem)
 
     std::unordered_map<PeerId, CFrame> m_latestPoses; // 最新受信姿勢(Host: 自分+全Client / Client: Batch由来)
+    std::unordered_map<PeerId, Vector3> m_latestVels; // Host: 各ピアRootの最新線速度(AvatarBatch配布用)
     std::unordered_map<PeerId, RemoteAvatar> m_remoteAvatars;
     float m_avatarSendTimer = 0.0f;
 
@@ -94,6 +96,7 @@ private:
 
     CFrame m_hostAuthoritativeSelfPose;
     bool   m_hasHostAuthoritativeSelfPose = false;
+    Vector3 m_hostAuthoritativeSelfVel{}; // Client: 権威姿勢と同時に受信した自Rootの線速度
 
     // ---- ワールドオブジェクト同期 ----
     // Host: 非Anchoredオブジェクトを列挙してnetIdを採番し、cframeを配布する。
@@ -152,6 +155,7 @@ private:
 
     std::deque<BufferedInput> m_inputHistory;
     uint32_t m_nextSeq = 1;
+    bool m_pendingJumpLatch = false; // Client: 前回AvatarState送信以降にジャンプ要求があったか(20Hz間引きでタップを取りこぼさないためのラッチ)
 
     std::unordered_map<PeerId, uint32_t> m_lastProcessedSeq; // Host: 各ピアの最後に処理したseq(0=未受信)
 

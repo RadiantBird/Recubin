@@ -89,14 +89,25 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
         w.writeVector3(in.flatForward);
         w.writeVector3(in.flatRight);
         w.writeVector3(in.targetMoveDir);
-        uint8_t flags = (in.isPressingMove ? 1 : 0) | (in.ctrlLockEnabled ? 2 : 0);
+        uint8_t flags = (in.isPressingMove ? 1 : 0) | (in.ctrlLockEnabled ? 2 : 0) | (m_pendingJumpLatch ? 4 : 0);
         w.writeU8(flags);
         w.writeF32(in.forwardAxis);
         w.writeF32(in.rightAxis);
         w.writeU32(in.seq);
         net.sendBytes(w.data, NetworkChannel::Unreliable);
+        m_pendingJumpLatch = false;
     } else if (net.getRole() == NetworkRole::Host) {
         m_latestPoses[net.getLocalPeerId()] = local;
+
+        // 自分(ホスト)の速度を記録してからAvatarBatchに載せる
+        Vector3 localVel{};
+        if (m_user && m_user->humanoid && m_user->humanoid->Root && m_user->humanoid->Root->actor) {
+            if (auto* dyn = m_user->humanoid->Root->actor->is<physx::PxRigidDynamic>()) {
+                physx::PxVec3 v = dyn->getLinearVelocity();
+                localVel = Vector3(v.x, v.y, v.z);
+            }
+        }
+        m_latestVels[net.getLocalPeerId()] = localVel;
 
         std::unordered_set<PeerId> rosterIds;
         for (const auto& info : net.getRoster()) rosterIds.insert(info.id);
@@ -114,9 +125,12 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
         w.writeU8(static_cast<uint8_t>(MessageType::AvatarBatch));
         w.writeU8(static_cast<uint8_t>(entries.size()));
         for (const auto& [id, pose] : entries) {
+            auto velIt = m_latestVels.find(id);
+            Vector3 vel = velIt != m_latestVels.end() ? velIt->second : Vector3{};
             w.writeU32(id);
             w.writeVector3(pose.Position);
             w.writeQuat(pose.Rotation);
+            w.writeVector3(vel);
             auto seqIt = m_lastProcessedSeq.find(id);
             w.writeU32(seqIt != m_lastProcessedSeq.end() ? seqIt->second : 0u);
         }
@@ -133,6 +147,7 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
             || !r.readU8(flags) || !r.readF32(in.forwardAxis) || !r.readF32(in.rightAxis) || !r.readU32(in.seq)) return;
         in.isPressingMove  = (flags & 1) != 0;
         in.ctrlLockEnabled = (flags & 2) != 0;
+        in.jumpRequested   = (flags & 4) != 0;
         m_pendingAvatarInput[senderId] = in;
     } else if (type == static_cast<uint8_t>(MessageType::AvatarBatch)) {
         ByteReader r{payload, len};
@@ -146,15 +161,18 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
             uint32_t id = 0;
             Vector3 pos;
             Quaternion rot;
+            Vector3 vel;
             uint32_t lastProcessedSeq = 0;
-            if (!r.readU32(id) || !r.readVector3(pos) || !r.readQuat(rot) || !r.readU32(lastProcessedSeq)) return;
+            if (!r.readU32(id) || !r.readVector3(pos) || !r.readQuat(rot) || !r.readVector3(vel) || !r.readU32(lastProcessedSeq)) return;
             if (id == localId) {
                 m_hostAuthoritativeSelfPose = CFrame(pos, rot);
                 m_hasHostAuthoritativeSelfPose = true;
                 m_hostAckedSeq = lastProcessedSeq;
+                m_hostAuthoritativeSelfVel = vel;
                 continue;
             }
             m_latestPoses[id] = CFrame(pos, rot);
+            // 他ピア分は読み捨て(現行表示は平滑補間のみで速度不要)
         }
     } else if (type == static_cast<uint8_t>(MessageType::WorldMapping)) {
         if (NetworkManager::get().getRole() == NetworkRole::Client) {
@@ -310,6 +328,7 @@ void ReplicationManager::despawnRemoteAvatar(PeerId id) {
         if (auto parent = it->second.identity->Parent.lock()) parent->removeChild(it->second.identity->Name);
     }
     m_latestPoses.erase(id);
+    m_latestVels.erase(id);
     m_remoteAvatars.erase(it);
 
     RCBN_LOG("Replication: despawned RemotePlayer_" << id);
@@ -375,27 +394,32 @@ void ReplicationManager::reconcileLocalPose() {
     }
 
     // ---- 入力リプレイ ----
+    // 一番古い未ack入力の「適用前」状態(巻き戻し先)。以降の巻き戻し・リプレイ準備で使う
+    const auto& firstEntry = m_inputHistory.front();
+
     // 1. シャドウRootをHost権威姿勢へ巻き戻す
+    //    回転はauthoritative姿勢ではなくfirstEntry.rotationBeforeを使う
+    //    (actorとcframeの回転を一致させ、後段のsyncAllCubes()による上書きを正しい値にするため)
     if (m_shadowRoot->actor) {
         physx::PxTransform pose = m_shadowRoot->actor->getGlobalPose();
         pose.p = physx::PxVec3(m_hostAuthoritativeSelfPose.Position.x, m_hostAuthoritativeSelfPose.Position.y, m_hostAuthoritativeSelfPose.Position.z);
-        pose.q = physx::PxQuat(m_hostAuthoritativeSelfPose.Rotation.x, m_hostAuthoritativeSelfPose.Rotation.y, m_hostAuthoritativeSelfPose.Rotation.z, m_hostAuthoritativeSelfPose.Rotation.w);
+        pose.q = physx::PxQuat(firstEntry.rotationBefore.x, firstEntry.rotationBefore.y, firstEntry.rotationBefore.z, firstEntry.rotationBefore.w);
         m_shadowRoot->actor->setGlobalPose(pose);
         if (auto* dyn = m_shadowRoot->actor->is<physx::PxRigidDynamic>()) {
-            dyn->setLinearVelocity(physx::PxVec3(0, 0, 0));
+            dyn->setLinearVelocity(physx::PxVec3(m_hostAuthoritativeSelfVel.x, m_hostAuthoritativeSelfVel.y, m_hostAuthoritativeSelfVel.z));
             dyn->setAngularVelocity(physx::PxVec3(0, 0, 0));
         }
     }
     m_shadowRoot->cframe = m_hostAuthoritativeSelfPose;
+    m_shadowRoot->cframe.Rotation = firstEntry.rotationBefore;
 
     // 2. Humanoidの内部補間状態を、一番古い未ack入力の「適用前」状態へ復元
-    const auto& firstEntry = m_inputHistory.front();
     m_predictionHumanoid->setCurrentMoveDir(firstEntry.currentMoveDirBefore);
     m_predictionHumanoid->setWalkCycle(firstEntry.walkCycleBefore);
-    m_shadowRoot->cframe.Rotation = firstEntry.rotationBefore;
 
     // 3. 未ack入力を古い順に1件ずつ再生(1エントリ=1回のmove()+stepOnce()を厳守)
     for (const auto& entry : m_inputHistory) {
+        if (entry.input.jumpRequested) m_predictionHumanoid->jump(m_predictionPhysics.get());
         m_predictionHumanoid->move(entry.input.flatForward, entry.input.flatRight, entry.input.isPressingMove,
                                     entry.input.targetMoveDir, entry.input.ctrlLockEnabled, m_predictionPhysics.get(),
                                     false, false, entry.input.forwardAxis, entry.input.rightAxis);
@@ -445,10 +469,19 @@ void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
         if (in.rightAxis > 1.0f) in.rightAxis = 1.0f;
         if (in.rightAxis < -1.0f) in.rightAxis = -1.0f;
 
+        if (in.jumpRequested) avatar.humanoid->jump(physics);
         avatar.humanoid->move(in.flatForward, in.flatRight, in.isPressingMove, in.targetMoveDir,
                                in.ctrlLockEnabled, physics, false, false, in.forwardAxis, in.rightAxis);
 
         m_latestPoses[id] = avatar.humanoid->Root->getWorldCFrame();
+        Vector3 vel{};
+        if (avatar.humanoid->Root->actor) {
+            if (auto* dyn = avatar.humanoid->Root->actor->is<physx::PxRigidDynamic>()) {
+                physx::PxVec3 v = dyn->getLinearVelocity();
+                vel = Vector3(v.x, v.y, v.z);
+            }
+        }
+        m_latestVels[id] = vel;
         m_lastProcessedSeq[id] = in.seq;
     }
 }
@@ -703,6 +736,7 @@ void ReplicationManager::onNetworkRoleChanged(NetworkRole oldRole, NetworkRole n
     if (newRole == NetworkRole::Offline) {
         despawnAllAvatars();
         m_latestPoses.clear();
+        m_latestVels.clear();
         clientReleaseWorldObjects();
         m_pathToNetId.clear();
         m_hostObjects.clear();
@@ -732,6 +766,8 @@ void ReplicationManager::bufferLocalInput(float dt) {
     entry.input.ctrlLockEnabled = m_user->lastMovementInput.ctrlLockEnabled;
     entry.input.forwardAxis     = m_user->lastMovementInput.forwardAxis;
     entry.input.rightAxis       = m_user->lastMovementInput.rightAxis;
+    entry.input.jumpRequested   = m_user->lastMovementInput.jumpRequested;
+    if (entry.input.jumpRequested) m_pendingJumpLatch = true;
     entry.input.seq             = entry.seq;
     entry.dt = dt;
     entry.currentMoveDirBefore = m_user->humanoid->getCurrentMoveDir();
