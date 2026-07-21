@@ -527,10 +527,15 @@ void Physics::removeCube(const std::shared_ptr<BaseCube>& cube) {
 
 // 水中での減衰係数（大きいほど早く落ち着く。空中では 0 に戻す）
 static constexpr float LIQUID_LINEAR_DAMPING  = 3.0f;
-static constexpr float LIQUID_ANGULAR_DAMPING = 2.0f;
+static constexpr float LIQUID_ANGULAR_DAMPING = 3.0f;
 
-// 浮力を面(体積)に分散させるためのグリッドサンプリング解像度（1軸あたりの点数）
-static constexpr int BUOYANCY_SAMPLE_RES = 3;
+// サンプル位置にそのまま浮力を掛けると復元トルクが強くなりやすいため、
+// 重心からの距離を縮めてトルクだけを穏やかにする（合計浮力は維持する）。
+static constexpr float BUOYANCY_TORQUE_SCALE = 0.35f;
+
+// 浮力を体積に分散させるためのグリッドサンプリング解像度（1軸あたりの点数）。
+// サンプルは物体ローカル空間に置いてからワールドへ回転変換するため、物体側はOBBになる。
+static constexpr int BUOYANCY_SAMPLE_RES = 5;
 
 float Physics::aabbOverlapVolume(const Vector3& posA, const Vector3& sizeA, const Vector3& posB, const Vector3& sizeB) {
     Vector3 aMin = posA - sizeA * 0.5f, aMax = posA + sizeA * 0.5f;
@@ -573,71 +578,62 @@ void Physics::applyBuoyancy() {
         if (!dyn || (dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) continue;
         if (cube->IsA("LiquidCube")) continue;
 
-        // 各液体との AABB 侵入体積（回転は無視＝「大体」）を、生体積と Density 重みで合算
-        Vector3 cp = cube->getWorldPosition(), cs = cube->Size;
-        float rawV = 0.0f, weightedV = 0.0f;
-        for (BaseCube* lq : liquids) {
-            float v = aabbOverlapVolume(cp, cs, lq->getWorldPosition(), lq->Size);
-            rawV      += v;
-            weightedV += v * static_cast<LiquidCube*>(lq)->Density;
-        }
-
-        // 水没割合に比例した PhysX ダンピング（指数減衰で安定して素早く収束）。
-        // 水の外（frac==0）では 0 に戻すので、飛び出した瞬間も含めて全フレームで設定する。
+        Vector3 cs = cube->Size;
         float cubeVol = std::max(cs.x * cs.y * cs.z, 1e-4f);
-        float frac = std::min(rawV / cubeVol, 1.0f);
-        dyn->setLinearDamping (LIQUID_LINEAR_DAMPING  * frac);
-        dyn->setAngularDamping(LIQUID_ANGULAR_DAMPING * frac);
 
-        if (weightedV <= 0.0f) continue;
-
-        // 浮力（重力の反対方向）の合計力は既存どおり weightedV*(-g) で固定し、
-        // 適用点だけをキューブ内のグリッドサンプル点群に分散する。重心一点への
-        // addForce だとトルクが発生せず船が転覆しやすいため、水没しているサンプル点に
-        // 応じて力を配分することで、水没箇所に偏った自然な復元トルクを発生させる。
+        // サンプル点を物体ローカル空間に均等配置し、物体のワールド回転を適用する。
+        // これにより、液体側は軸平行ボックスのまま、浮力を受ける物体側だけが OBB になる。
+        const CFrame cubeWorld = cube->getWorldCFrame();
         constexpr int GRID = BUOYANCY_SAMPLE_RES;
         constexpr int SAMPLE_COUNT = GRID * GRID * GRID;
-        Vector3 samplePos[SAMPLE_COUNT];
-        float   sampleWeight[SAMPLE_COUNT];
-        float   totalWeight = 0.0f;
-        Vector3 cMin = cp - cs * 0.5f;
+        const float sampleVolume = cubeVol / static_cast<float>(SAMPLE_COUNT);
+        float submergedVolume = 0.0f;
 
-        int idx = 0;
         for (int ix = 0; ix < GRID; ix++) {
             for (int iy = 0; iy < GRID; iy++) {
                 for (int iz = 0; iz < GRID; iz++) {
-                    Vector3 t(
-                        (ix + 0.5f) / GRID,
-                        (iy + 0.5f) / GRID,
-                        (iz + 0.5f) / GRID
+                    Vector3 localPos(
+                        ((ix + 0.5f) / GRID - 0.5f) * cs.x,
+                        ((iy + 0.5f) / GRID - 0.5f) * cs.y,
+                        ((iz + 0.5f) / GRID - 0.5f) * cs.z
                     );
-                    Vector3 pos = cMin + cs * t;
-                    float w = 0.0f;
+                    Vector3 pos = cubeWorld.pointToWorld(localPos);
+                    bool isSubmerged = false;
+                    float sampleDensity = 0.0f;
+
                     for (BaseCube* lq : liquids) {
                         Vector3 lMin = lq->getWorldPosition() - lq->Size * 0.5f;
                         Vector3 lMax = lq->getWorldPosition() + lq->Size * 0.5f;
                         if (pos.x >= lMin.x && pos.x <= lMax.x &&
                             pos.y >= lMin.y && pos.y <= lMax.y &&
                             pos.z >= lMin.z && pos.z <= lMax.z) {
-                            w += static_cast<LiquidCube*>(lq)->Density;
+                            isSubmerged = true;
+                            sampleDensity += std::max(0.0f, static_cast<LiquidCube*>(lq)->Density);
                         }
                     }
-                    samplePos[idx] = pos;
-                    sampleWeight[idx] = w;
-                    totalWeight += w;
-                    idx++;
+
+                    if (isSubmerged) submergedVolume += sampleVolume;
+                    if (sampleDensity <= 0.0f) continue;
+
+                    // 各セルが担当する体積分の浮力を、重心から少し離した位置へ適用する。
+                    // 合計浮力は保ったまま、サンプル位置の偏りによる復元トルクを穏やかにする。
+                    const float buoyantVolume = sampleVolume * sampleDensity;
+                    physx::PxVec3 f(-gVec.x * buoyantVolume,
+                                    -gVec.y * buoyantVolume,
+                                    -gVec.z * buoyantVolume);
+                    const Vector3 torqueReducedPos = cubeWorld.Position +
+                        (pos - cubeWorld.Position) * BUOYANCY_TORQUE_SCALE;
+                    physx::PxVec3 pxPos(torqueReducedPos.x, torqueReducedPos.y, torqueReducedPos.z);
+                    physx::PxRigidBodyExt::addForceAtPos(*dyn, f, pxPos, physx::PxForceMode::eFORCE);
                 }
             }
         }
-        if (totalWeight <= 0.0f) continue; // AABBは重なるがサンプル点は水没していない場合の保険
 
-        for (int i = 0; i < SAMPLE_COUNT; i++) {
-            if (sampleWeight[i] <= 0.0f) continue;
-            float frac = sampleWeight[i] / totalWeight;
-            physx::PxVec3 f(-gVec.x * weightedV * frac, -gVec.y * weightedV * frac, -gVec.z * weightedV * frac);
-            physx::PxVec3 pos(samplePos[i].x, samplePos[i].y, samplePos[i].z);
-            physx::PxRigidBodyExt::addForceAtPos(*dyn, f, pos, physx::PxForceMode::eFORCE);
-        }
+        // 水没割合に比例した PhysX ダンピング（指数減衰で安定して素早く収束）。
+        // 水の外（frac==0）では 0 に戻すので、飛び出した瞬間も含めて全フレームで設定する。
+        const float frac = std::min(submergedVolume / cubeVol, 1.0f);
+        dyn->setLinearDamping (LIQUID_LINEAR_DAMPING  * frac);
+        dyn->setAngularDamping(LIQUID_ANGULAR_DAMPING * frac);
     }
 }
 

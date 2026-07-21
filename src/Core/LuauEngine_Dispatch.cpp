@@ -12,6 +12,7 @@
 #include "include/Instances/BallSocket.hpp"
 #include "include/Instances/NoCollision.hpp"
 #include "include/Instances/Weld.hpp"
+#include "include/Instances/Force.hpp"
 #include "include/Instances/Humanoid.hpp"
 #include "include/Instances/Animation.hpp"
 #include "include/Core/User.hpp"
@@ -400,6 +401,9 @@ void LuauEngine::InitDispatchTable_Base() {
 
     PropertyRegistry::applyToDispatch("LiquidCube", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Force", DispatchTable, SetterTable);
+    // Force.Value を既存のスキーマ名として維持しつつ、Luau では一般的な Force 名でも扱えるようにする。
+    DispatchTable["Force"]["Force"] = getter_vec3<Force, &Force::Value>();
+    SetterTable["Force"]["Force"] = setter_vec3<Force, &Force::Value>();
     PropertyRegistry::applyToDispatch("Sun",  DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Moon", DispatchTable, SetterTable);
 }

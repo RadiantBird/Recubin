@@ -96,7 +96,7 @@ private:
     // Force インスタンス（BaseCube の子）の力/トルク/速度維持を適用する（simulate 前に呼ぶ）
     void applyForces();
 
-    // 2つのAABB(回転無視)の重なり体積を返す(重ならなければ0)。applyBuoyancy/findOverlappingで共用
+    // 2つのAABB(回転無視)の重なり体積を返す(重ならなければ0)。findOverlappingで使用
     static float aabbOverlapVolume(const Vector3& posA, const Vector3& sizeA, const Vector3& posB, const Vector3& sizeB);
 
     physx::PxSimulationEventCallback* m_contactCallback = nullptr;
