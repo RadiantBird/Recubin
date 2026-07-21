@@ -29,6 +29,18 @@ static void collectScreenGui(Instance* node, std::vector<ScreenGuiObject*>& out)
     }
 }
 
+// SurfaceGui/BillboardGui のホストをWorkspace直下に限定しない。
+// Model/Folderなどの下にあるBaseCubeも、ワールドGUIの描画対象に含める。
+static void collectWorldGuiHosts(Instance* node, std::vector<BaseCube*>& out) {
+    if (!node) return;
+    if (node->IsA("BaseCube")) {
+        out.push_back(static_cast<BaseCube*>(node));
+    }
+    for (auto const& [name, child] : node->getChildren()) {
+        collectWorldGuiHosts(child.get(), out);
+    }
+}
+
 // ===================================================
 //  ScreenGui 1 要素の描画
 // ===================================================
@@ -327,25 +339,29 @@ static Vector3 makeGuiRay(User* user, float mx, float my, float vpW, float vpH) 
 static bool hitTestSurfaceGui(SurfaceGui* sg, BaseCube* cube, const Vector3& rayOri, const Vector3& rayDir,
                                float& outT, ScreenGuiObject*& outChild) {
     float hx = cube->Size.x * 0.5f, hy = cube->Size.y * 0.5f, hz = cube->Size.z * 0.5f;
-    Vector3 planePoint = cube->Position;
+    CFrame worldCFrame = cube->getWorldCFrame();
+    Quaternion inverseRotation = worldCFrame.Rotation.conjugate();
+    Vector3 localRayOri = inverseRotation.rotate(rayOri - worldCFrame.Position);
+    Vector3 localRayDir = inverseRotation.rotate(rayDir);
+    Vector3 planePoint;
     Vector3 normal;
     switch (sg->face) {
-        case Face::Front:  planePoint.z += hz; normal = Vector3(0, 0, 1);  break;
-        case Face::Back:   planePoint.z -= hz; normal = Vector3(0, 0, -1); break;
-        case Face::Top:    planePoint.y += hy; normal = Vector3(0, 1, 0);  break;
-        case Face::Bottom: planePoint.y -= hy; normal = Vector3(0, -1, 0); break;
-        case Face::Right:  planePoint.x += hx; normal = Vector3(1, 0, 0);  break;
-        case Face::Left:   planePoint.x -= hx; normal = Vector3(-1, 0, 0); break;
+        case Face::Front:  planePoint = Vector3(0, 0, hz);  normal = Vector3(0, 0, 1);  break;
+        case Face::Back:   planePoint = Vector3(0, 0, -hz); normal = Vector3(0, 0, -1); break;
+        case Face::Top:    planePoint = Vector3(0, hy, 0);  normal = Vector3(0, 1, 0);  break;
+        case Face::Bottom: planePoint = Vector3(0, -hy, 0); normal = Vector3(0, -1, 0); break;
+        case Face::Right:  planePoint = Vector3(hx, 0, 0);  normal = Vector3(1, 0, 0);  break;
+        case Face::Left:   planePoint = Vector3(-hx, 0, 0); normal = Vector3(-1, 0, 0); break;
     }
 
-    float denom = Vector3::Dot(rayDir, normal);
+    float denom = Vector3::Dot(localRayDir, normal);
     if (std::abs(denom) < 1e-6f) return false;
-    float t = Vector3::Dot(planePoint - rayOri, normal) / denom;
+    float t = Vector3::Dot(planePoint - localRayOri, normal) / denom;
     if (t < 0.0f) return false;
 
-    Vector3 hitWorld = rayOri + rayDir * t;
+    Vector3 hitLocal = localRayOri + localRayDir * t;
     if (cube->Size.x == 0.f || cube->Size.y == 0.f || cube->Size.z == 0.f) return false;
-    Vector3 localUnit = (hitWorld - cube->Position) / cube->Size;
+    Vector3 localUnit = hitLocal / cube->Size;
 
     Vector3 uAxis, vAxis;
     switch (sg->face) {
@@ -394,10 +410,12 @@ static bool hitTestSurfaceGui(SurfaceGui* sg, BaseCube* cube, const Vector3& ray
 //  renderWorldGui
 // ===================================================
 void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH) {
+    std::vector<BaseCube*> guiHosts;
+    collectWorldGuiHosts(&ws, guiHosts);
+
     // SurfaceGui を FBO テクスチャにベイク（次フレームの 3D 描画で使用）
-    for (auto& [name, inst] : ws.getChildren()) {
-        if (!inst->IsA("BaseCube")) continue;
-        for (auto& [gname, ginst] : inst->getChildren()) {
+    for (BaseCube* cube : guiHosts) {
+        for (auto& [gname, ginst] : cube->getChildren()) {
             if (ginst->getClassName() == "SurfaceGui")
                 bakeSurfaceGui(static_cast<SurfaceGui*>(ginst.get()));
         }
@@ -411,10 +429,8 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, f
 
         float bestT = 1e30f;
         GuiButton* bestBtn = nullptr;
-        for (auto& [name, inst] : ws.getChildren()) {
-            if (!inst->IsA("BaseCube")) continue;
-            auto* cube = static_cast<BaseCube*>(inst.get());
-            for (auto& [gname, ginst] : inst->getChildren()) {
+        for (BaseCube* cube : guiHosts) {
+            for (auto& [gname, ginst] : cube->getChildren()) {
                 if (ginst->getClassName() != "SurfaceGui") continue;
                 auto* sg = static_cast<SurfaceGui*>(ginst.get());
                 if (!sg->Visible) continue;
@@ -432,19 +448,16 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, f
     ImDrawList* dl = ImGui::GetWindowDrawList();
     bool anyPromptHeld = false;
 
-    for (auto& [cubeNameStr, cubeInst] : ws.getChildren()) {
-        if (!cubeInst->IsA("BaseCube")) continue;
-        auto* cube = static_cast<BaseCube*>(cubeInst.get());
+    for (BaseCube* cube : guiHosts) {
 
-        for (auto& [guiName, guiInst] : cubeInst->getChildren()) {
+        for (auto& [guiName, guiInst] : cube->getChildren()) {
             if (!guiInst->IsA("WorldGuiObject")) continue;
             auto* wgo = static_cast<WorldGuiObject*>(guiInst.get());
             if (!wgo->Visible) continue;
             if (wgo->getClassName() == "SurfaceGui") continue; // 3D フェイス描画に移行
 
-            float wx = cube->Position.x;
-            float wy = cube->Position.y;
-            float wz = cube->Position.z;
+            CFrame cubeWorldCFrame = cube->getWorldCFrame();
+            Vector3 guiCenterOffset(0.0f, 0.0f, 0.0f);
 
             // SurfaceGui: フェイス中心にオフセット
             if (wgo->IsA("SurfaceGui")) {
@@ -453,14 +466,16 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, f
                 float hy = cube->Size.y * 0.5f;
                 float hz = cube->Size.z * 0.5f;
                 switch (sg->face) {
-                    case Face::Front:  wz += hz; break;
-                    case Face::Back:   wz -= hz; break;
-                    case Face::Top:    wy += hy; break;
-                    case Face::Bottom: wy -= hy; break;
-                    case Face::Right:  wx += hx; break;
-                    case Face::Left:   wx -= hx; break;
+                    case Face::Front:  guiCenterOffset.z += hz; break;
+                    case Face::Back:   guiCenterOffset.z -= hz; break;
+                    case Face::Top:    guiCenterOffset.y += hy; break;
+                    case Face::Bottom: guiCenterOffset.y -= hy; break;
+                    case Face::Right:  guiCenterOffset.x += hx; break;
+                    case Face::Left:   guiCenterOffset.x -= hx; break;
                 }
             }
+
+            Vector3 guiCenter = cubeWorldCFrame.pointToWorld(guiCenterOffset);
 
             bool isProximityPrompt = (wgo->getClassName() == "ProximityPrompt");
             ProximityPrompt* pp = isProximityPrompt ? static_cast<ProximityPrompt*>(wgo) : nullptr;
@@ -470,11 +485,11 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, f
                 if (!SystemState::get().isPlaying) continue;
 
                 // 距離チェック
-                User* user = User::getInstance();
-                if (!user || !user->humanoid || !user->humanoid->Root) continue;
+                User* localUser = User::getInstance();
+                if (!localUser || !localUser->humanoid || !localUser->humanoid->Root) continue;
 
-                Vector3 playerPos = user->humanoid->getRootWorldPosition();
-                Vector3 cubePos(wx, wy, wz);
+                Vector3 playerPos = localUser->humanoid->getRootWorldPosition();
+                Vector3 cubePos = guiCenter;
                 float dist = (playerPos - cubePos).length();
                 if (dist > pp->MaxActivationDistance) {
                     pp->m_elapsedTime = 0.0f;
@@ -532,7 +547,7 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, f
             }
 
             float sx, sy;
-            if (!worldToScreen(m_lastView, m_lastProj, wx, wy, wz,
+            if (!worldToScreen(m_lastView, m_lastProj, guiCenter.x, guiCenter.y, guiCenter.z,
                                 vpX, vpY, vpW, vpH, sx, sy)) continue;
 
             // パネル描画: スクリーン座標 (sx,sy) を中心にサイズを配置
