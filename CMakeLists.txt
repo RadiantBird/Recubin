@@ -34,6 +34,7 @@ set(PER_TARGET_SOURCES
     "${CMAKE_SOURCE_DIR}/src/main.cpp"
     "${CMAKE_SOURCE_DIR}/src/game_main.cpp"
     "${CMAKE_SOURCE_DIR}/src/test_main.cpp"
+    "${CMAKE_SOURCE_DIR}/src/watcher.cpp"
     "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
     "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
 )
@@ -56,6 +57,10 @@ set_source_files_properties(${SHADOW_CHECK_SOURCES} PROPERTIES COMPILE_OPTIONS
 )
 
 add_library(RecubinCore OBJECT ${CORE_SOURCES})
+
+add_executable(Watcher
+    "${CMAKE_SOURCE_DIR}/src/watcher.cpp"
+)
 
 add_executable(Recubin
     "${CMAKE_SOURCE_DIR}/src/main.cpp"

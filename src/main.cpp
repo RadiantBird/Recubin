@@ -457,6 +457,25 @@ static int runGenTestScene(const std::string& outputPath) {
 //  main
 // ===================================================
 int main(int argc, char* argv[]) {
+    windows(
+        DWORD myPid = GetCurrentProcessId();
+        std::string cmd = "Watcher.exe " + std::to_string(myPid);
+
+        STARTUPINFOA si = { sizeof(si) };
+        PROCESS_INFORMATION pi = {};
+
+        // 外部監視プロセスを起動（クラッシュ時の再起動用）
+        // ※ 子プロセスのライフサイクルは管理しないためハンドルは即破棄
+        if (CreateProcessA(NULL, &cmd[0], NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        }
+        else {
+            DWORD error = GetLastError();
+            std::cerr << "Failed to start watcher.exe: " << error << '\n';
+        }
+    )
+
     // ヘッドレスシーン生成モード: GUI/GLFW/Rendererを一切構築せず即終了する
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--gen-test-scene" && i + 1 < argc) {
@@ -470,7 +489,7 @@ int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
 
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.997\n";
+              << "Recubin Studio v0.9971\n";
     std::string engineExePath = (argc > 0 && argv[0]) ? argv[0] : "";
 
     GLFWwindow* window = setupWindow();

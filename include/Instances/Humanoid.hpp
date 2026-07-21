@@ -28,7 +28,9 @@ public:
         まともに操作できないのでstud基準での標準値に変更しました。
     */ 
     float WalkSpeed  = 16.0f;
-    float JumpPower  = 48.522f; // sqrt(2gh) ... sqrt(2*196.2*6) = 48.522
+    // 6 stud のジャンプ高さになるように初速を設定
+    // v = sqrt(2gh), g=196.2(stud/s^2), h=6 → v ≈ 48.522
+    float JumpPower  = 48.522f;
     float ClimbSpeed = 10.0f; // Truss(はしご)接触中の垂直移動速度
 
     // JumpPowerから逆算した跳躍到達高さ(stud)。設定するとJumpPowerが自動計算される
