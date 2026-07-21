@@ -508,6 +508,7 @@ int LuauEngine::cframe_index(lua_State* L) {
 
     if (key == "Position") { pushVector3(L, cf->Position); return 1; }
     if (key == "Rotation") { pushQuaternion(L, cf->Rotation); return 1; }
+    if (key == "LookVector") { pushVector3(L, cf->lookVector()); return 1; }
     if (key == "inverse") {
         lua_pushcfunction(L, [](lua_State* L) -> int {
             CFrame* cf = (CFrame*)luaL_checkudata(L, 1, RCBN_CFRAME_METATABLE);

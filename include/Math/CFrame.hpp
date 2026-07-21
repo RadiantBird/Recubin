@@ -45,6 +45,10 @@ struct CFrame {
         return Position + Rotation.rotate(localPoint);
     }
 
+    Vector3 lookVector() const {
+        return Rotation.getForward();
+    }
+
     CFrame inverse() const {
         Quaternion invRot = Rotation.conjugate();
         return CFrame(invRot.rotate(-Position), invRot);
