@@ -64,7 +64,7 @@ float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
     }
     if (projCoords.z > 1.0) return 0.0;
     float currentDepth = projCoords.z;
-    float bias = max(0.003 * (1.0 - dot(norm, lightDirNorm)), 0.0005);
+    float bias = max(0.01 * (1.0 - dot(norm, lightDirNorm)), 0.005);
     float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
     for (int x = -1; x <= 1; ++x)
@@ -78,17 +78,30 @@ float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
 void main() {
     vec4 effColor = (uInstanced > 0.5) ? InstColor : ourColor;
     vec4 texColor;
-    if (useTriplanar > 0.5) {
+if (useTriplanar > 0.5) {
         float scale = u_textureScale > 0.0 ? u_textureScale : 1.0;
-        vec2 uvX = FragPos.zy * scale;
-        vec2 uvY = FragPos.xz * scale;
-        vec2 uvZ = FragPos.xy * scale;
-        vec4 colX = texture(ourTexture, uvX);
-        vec4 colY = texture(ourTexture, uvY);
-        vec4 colZ = texture(ourTexture, uvZ);
-        vec3 blend = abs(normalize(Normal));
-        blend /= (blend.x + blend.y + blend.z);
-        texColor = colX * blend.x + colY * blend.y + colZ * blend.z;
+        
+        // 1. まず、LocalPosから計算したUV（これはそのまま）
+        vec2 uvX = LocalPos.zy * scale;
+        vec2 uvY = LocalPos.xz * scale;
+        vec2 uvZ = LocalPos.xy * scale;
+
+        // 2. 【追加】カメラ距離に依存しない標準的なUV勾配（TexCoord由来）を計算する
+        vec2 d_dx = dFdx(TexCoord * scale);
+        vec2 d_dy = dFdy(TexCoord * scale);
+
+        // 3. 【修正】texture() の代わりに textureGrad() を使い、勾配(d_dx, d_dy)を強制する
+        vec4 colX = textureGrad(ourTexture, uvX, d_dx, d_dy);
+        vec4 colY = textureGrad(ourTexture, uvY, d_dx, d_dy);
+        vec4 colZ = textureGrad(ourTexture, uvZ, d_dx, d_dy);
+        // LocalNormal を使用してブレンドウェイトを計算
+        vec3 blend = abs(LocalNormal);
+        // blend の境界をなめらかにして、スキャンラインアーティファクトを軽減
+        // smoothstep で遷移をなめらかにし、合計が常に 1.0 になるよう正規化
+        vec3 blendSmooth = smoothstep(0.0, 0.3, blend);
+        float blendSum = max(blendSmooth.x + blendSmooth.y + blendSmooth.z, 0.001);
+        blendSmooth /= blendSum;
+        texColor = colX * blendSmooth.x + colY * blendSmooth.y + colZ * blendSmooth.z;
     } else {
         vec2 scale = (uvScale.x > 0.0 && uvScale.y > 0.0) ? uvScale : vec2(1.0, 1.0);
         texColor = texture(ourTexture, TexCoord * scale);

@@ -489,7 +489,7 @@ int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
 
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.9971\n";
+              << "Recubin Studio v0.9972\n";
     std::string engineExePath = (argc > 0 && argv[0]) ? argv[0] : "";
 
     GLFWwindow* window = setupWindow();
@@ -634,6 +634,16 @@ int main(int argc, char* argv[]) {
                     if (!ws->getPhysicsEngine()) ws->initPhysics();
                 }
             }
+            // 先にスクリプトを実行開始する
+            for (auto& [name, child] : system->getChildren()) {
+                if (child->IsA("Workspace")) {
+                    auto* ws = static_cast<Workspace*>(child.get());
+                    luauEngine->executeWorkspaceScripts(*ws);
+                }
+            }
+            luauEngine->executeSystemScripts();
+
+            // その後にキャラクターをスポーンする
             user->spawnCharacter(system.get());
             audioService->playAutoPlaySounds();
             if (user->character) workspace->addChild(user->character);

@@ -170,7 +170,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * 0.15f;
 
     // --- Truss(はしご)接触判定。登坂中は重力を切り、静止していても留まれるようにする ---
-    BaseCube* trussCube = physics ? physics->findOverlapping(*Root, "Truss") : nullptr;
+    BaseCube* trussCube = physics ? physics->findOverlapping(*Root, "Truss", 0.5f) : nullptr;
     dynamicActor->setActorFlag(physx::PxActorFlag::eDISABLE_GRAVITY, trussCube != nullptr);
 
     // --- 向き(Rotation)の更新 ---

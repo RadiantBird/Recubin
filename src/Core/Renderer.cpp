@@ -2121,6 +2121,7 @@ unsigned int Renderer::loadTexture(const char* path) {
     std::cout << "Success: " << path << " (" << nrChannels << "ch)" << std::endl;
     stbi_image_free(data);
 
+    glBindTexture(GL_TEXTURE_2D, 0);  // texture state をクリアして後の描画に影響しないようにする
     textureCache[pathStr] = textureID;
     return textureID;
 }
@@ -2149,6 +2150,7 @@ unsigned int Renderer::loadTextureFromMemory(const unsigned char* data, size_t s
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     stbi_image_free(pixels);
+    glBindTexture(GL_TEXTURE_2D, 0);  // texture state をクリアして後の描画に影響しないようにする
     return textureID;
 }
 

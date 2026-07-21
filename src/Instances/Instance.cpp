@@ -213,9 +213,12 @@ void Instance::renameTo(const std::string& newName) {
                   << ". Renamed to '" << finalName << "' to avoid overwriting existing instance.");
     }
 
+    // shared_ptr を事前に取得して reference count を保つ
+    // erase() で this が唯一の shared_ptr だった場合、デストラクタから保護する
+    auto self = shared_from_this();
     parent->children.erase(this->Name);
     this->Name = finalName;
-    parent->children[finalName] = shared_from_this();
+    parent->children[finalName] = self;
 }
 
 std::shared_ptr<Instance> Instance::clone() const {

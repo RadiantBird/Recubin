@@ -140,7 +140,7 @@ public:
 
     // cube と AABB が重なっている、className の BaseCube 系インスタンスを1つ探す(cube自身は除外)。
     // 水没判定(LiquidCube)・Truss接触・Seat接触で共用する近似的な「接触」判定
-    BaseCube* findOverlapping(const BaseCube& cube, const std::string& className) const;
+    BaseCube* findOverlapping(const BaseCube& cube, const std::string& className, float margin = 0.0f) const;
 
     void setGravity(const Vector3& g);
     Vector3 getGravity() const;

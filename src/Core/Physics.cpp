@@ -541,8 +541,9 @@ float Physics::aabbOverlapVolume(const Vector3& posA, const Vector3& sizeA, cons
     return ox * oy * oz;
 }
 
-BaseCube* Physics::findOverlapping(const BaseCube& cube, const std::string& className) const {
-    Vector3 cp = cube.getWorldPosition(), cs = cube.Size;
+BaseCube* Physics::findOverlapping(const BaseCube& cube, const std::string& className, float margin) const {
+    Vector3 cp = cube.getWorldPosition();
+    Vector3 cs = cube.Size + Vector3(margin * 2.0f, margin * 2.0f, margin * 2.0f);
     for (auto& e : cubes) {
         auto other = e.cube.lock();
         if (!other || other.get() == &cube) continue;

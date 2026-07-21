@@ -209,6 +209,11 @@ int main(int argc, char* argv[]) {
     };
 
     // ---- ゲーム開始 ----
+    // 先にスクリプトを実行開始する
+    luauEngine->executeWorkspaceScripts(*workspace);
+    luauEngine->executeSystemScripts();
+
+    // その後にキャラクターをスポーンする
     user->spawnCharacter(system.get());
     audioService->playAutoPlaySounds();
     if (user->character) workspace->addChild(user->character);

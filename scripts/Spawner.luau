@@ -14,7 +14,7 @@ function teleportChar(character)
     root.Position = Spawn.Position + Vector3.new(0, 6.5, 0)
 end
 
-teleportChar(workspace:WaitChild("PlayerCharacter"))
+-- teleportChar(workspace:WaitChild("PlayerCharacter"))
 
 User.CharacterAdded:Connect(function(character)
     teleportChar(character)
