@@ -176,10 +176,32 @@ void MeshCube::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(m_VAO);
 
     static CachedUniform s_colorLocCache;
+    static CachedUniform s_uvScaleLocCache;
+    static CachedUniform s_isSurfaceGuiLocCache;
+    static CachedUniform s_texTintColorLocCache;
+    static CachedUniform s_useTexTintLocCache;
+    static CachedUniform s_useVertexColorLocCache;
+    static CachedUniform s_instancedLocCache;
     int colorLoc = cachedUniformLocation(shaderProgram, s_colorLocCache, "ourColor");
+    int uvScaleLoc = cachedUniformLocation(shaderProgram, s_uvScaleLocCache, "uvScale");
+    int isSurfaceGuiLoc = cachedUniformLocation(shaderProgram, s_isSurfaceGuiLocCache, "isSurfaceGui");
+    int texTintColorLoc = cachedUniformLocation(shaderProgram, s_texTintColorLocCache, "uTextureTintColor");
+    int useTexTintLoc = cachedUniformLocation(shaderProgram, s_useTexTintLocCache, "uUseTextureTint");
+    int useVertexColorLoc = cachedUniformLocation(shaderProgram, s_useVertexColorLocCache, "useVertexColor");
+    int instancedLoc = cachedUniformLocation(shaderProgram, s_instancedLocCache, "uInstanced");
     if (colorLoc != -1) {
         glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
     }
+
+    // These uniforms are shared by all objects using the main shader.  A
+    // Texture/Canvas on a previously drawn Cube may leave different values
+    // behind, so MeshCube must establish its own sampling state explicitly.
+    if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1.0f, 1.0f);
+    if (isSurfaceGuiLoc != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
+    if (texTintColorLoc != -1) glUniform4f(texTintColorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
+    if (useTexTintLoc != -1) glUniform1f(useTexTintLoc, 0.0f);
+    if (useVertexColorLoc != -1) glUniform1f(useVertexColorLoc, 0.0f);
+    if (instancedLoc != -1) glUniform1f(instancedLoc, 0.0f);
 
     glActiveTexture(GL_TEXTURE0);
     unsigned int tex = (m_textureID != 0) ? m_textureID : (Renderer::instance ? Renderer::instance->whiteTexture : 0);
