@@ -10,4 +10,5 @@ public:
         if (name == "Model") return true;
         return Spatial::IsA(name);
     }
+    std::shared_ptr<Instance> clone() const override;
 };
