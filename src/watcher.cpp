@@ -10,8 +10,7 @@ int main(int argc, char* argv[]) {
 
     HANDLE h = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_INFORMATION, FALSE, pid);
     if (!h) return 0;
-
-    // 親（main）が死ぬまで待つ
+    
     WaitForSingleObject(h, INFINITE);
 
     DWORD exitCode = 0;

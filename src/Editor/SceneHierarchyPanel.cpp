@@ -356,8 +356,13 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     }
 
     if (!isLeaf && open) {
-        for (auto& [name, child] : inst->getChildren()) {
-            drawNode(child.get());
+        std::vector<Instance*> children;
+        children.reserve(inst->getChildren().size());
+        for (auto const& [name, child] : inst->getChildren()) {
+            if (child) children.push_back(child.get());
+        }
+        for (Instance* child : children) {
+            drawNode(child);
         }
         ImGui::TreePop();
     }

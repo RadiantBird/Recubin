@@ -26,6 +26,8 @@ uniform vec2 uvScale;
 uniform float isSurfaceGui;
 uniform float useVertexColor;
 uniform float uInstanced;
+uniform vec4 uTextureTintColor;
+uniform float uUseTextureTint;
 
 // ---- 追加光源（Point/Spot）。方向光 lightDir は別扱い ----
 #define MAX_LIGHTS 8
@@ -95,9 +97,13 @@ void main() {
     if (useVertexColor > 0.5) {
         baseColor = VertexColor;
     } else {
+        vec3 finalTexColor = texColor.rgb;
+        if (uUseTextureTint > 0.5) {
+            finalTexColor *= uTextureTintColor.rgb;
+        }
         baseColor = (isSurfaceGui > 0.5)
             ? mix(effColor.rgb, texColor.rgb, texColor.a)
-            : mix(effColor.rgb, texColor.rgb * effColor.rgb, texColor.a);
+            : mix(effColor.rgb, finalTexColor, texColor.a);
     }
 
     // ---- UV空間Decal合成(MeshCube専用。他クラスはuDecalCount==0でno-op) ----
