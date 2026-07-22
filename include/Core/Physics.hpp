@@ -120,6 +120,9 @@ public:
     // フレームループ内で processInput(Humanoidのパーツ配置)の後・描画の前に呼ぶことで、
     // 帽子がHead等のアニメ駆動部にラグ無く追従する。
     void syncWeldKinematics();
+    // memberを指定ワールド姿勢へ移動する。Weld連結体なら全メンバーを剛体として追従させ、
+    // actor未作成時もCFrameへ同じ変換を反映するため、Toolの装備直後にも使用できる。
+    void moveWeldAssembly(const std::shared_ptr<BaseCube>& member, const CFrame& worldCFrame);
     void createActor(const std::shared_ptr<BaseCube>& cube);
     void recreateActor(const std::shared_ptr<BaseCube>& cube);
     void removeCube(const std::shared_ptr<BaseCube>& cube);

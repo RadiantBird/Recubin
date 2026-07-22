@@ -304,14 +304,19 @@ void User::getToolArmRaiseState(bool& leftArmRaised, bool& rightArmRaised) const
 static void attachToolHandle(
     const std::shared_ptr<BaseCube>& arm,
     const std::shared_ptr<Tool>& tool,
-    const Quaternion& rootRotation
+    const Quaternion& rootRotation,
+    Physics* physics
 ) {
     if (!arm || !tool || !tool->Handle) return;
     CFrame armCFrame = arm->getWorldCFrame();
     Vector3 charForward = rootRotation.getForward();
     const float TOOL_FORWARD_OFFSET = 1.0f;
     armCFrame.Position = armCFrame.Position + charForward * TOOL_FORWARD_OFFSET;
-    tool->Handle->cframe = armCFrame; // 手の位置にツールを配置
+    if (physics) {
+        physics->moveWeldAssembly(tool->Handle, armCFrame);
+    } else {
+        tool->Handle->setWorldCFrame(armCFrame);
+    }
 }
 
 // キャラクターの移動・カメラ追従（移動・回転・歩行アニメ・接地判定そのものはHumanoidが行う）
@@ -359,10 +364,10 @@ void User::processCharacterMovement(Physics* physics) {
     // --- 装備中のツールを手の位置に追従させる ---
     if (toolEquipped) {
         if (currentTool->Hand == Tool::ToolHand::Left) {
-            attachToolHandle(humanoid->LeftArm, currentTool, humanoid->Root->Rotation);
+            attachToolHandle(humanoid->LeftArm, currentTool, humanoid->Root->Rotation, physics);
         }
         if (currentTool->Hand != Tool::ToolHand::Left) {
-            attachToolHandle(humanoid->RightArm, currentTool, humanoid->Root->Rotation);
+            attachToolHandle(humanoid->RightArm, currentTool, humanoid->Root->Rotation, physics);
         }
     }
 

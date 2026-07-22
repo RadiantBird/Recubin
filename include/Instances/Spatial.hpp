@@ -25,4 +25,6 @@ public:
     // Workspace より上は合成しないため、Workspace 直下の Spatial は自身の cframe がワールド値
     CFrame getWorldCFrame() const;
     Vector3 getWorldPosition() const { return getWorldCFrame().Position; }
+    // ワールドCFrameを親SpatialからのローカルCFrameへ変換して設定する。
+    void setWorldCFrame(const CFrame& worldCFrame);
 };

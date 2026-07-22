@@ -4,6 +4,7 @@
 #include <Instances/Script.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Instances/Weld.hpp>
+#include <Instances/Tool.hpp>
 
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
@@ -116,6 +117,97 @@ int runWeldRegression(const std::shared_ptr<Workspace>& workspace) {
     std::cout << "[WeldRegression] PASS\n";
     return 0;
 }
+
+bool near(float a, float b, float epsilon = 0.001f) {
+    return std::abs(a - b) <= epsilon;
+}
+
+bool sameCFrame(const CFrame& a, const CFrame& b) {
+    const float rotationDot = std::abs(
+        a.Rotation.w * b.Rotation.w + a.Rotation.x * b.Rotation.x +
+        a.Rotation.y * b.Rotation.y + a.Rotation.z * b.Rotation.z);
+    return near(a.Position.x, b.Position.x) && near(a.Position.y, b.Position.y) &&
+           near(a.Position.z, b.Position.z) && rotationDot >= 0.9999f;
+}
+
+int runToolWeldRegression() {
+    auto workspace = std::make_shared<Workspace>();
+    auto tool = std::make_shared<Tool>("Tool");
+    auto plainTool = std::make_shared<Tool>("PlainTool");
+    auto handle = std::make_shared<BaseCube>(Vector3(1.0f, 2.0f, 3.0f), Vector3(1, 1, 1));
+    auto blade  = std::make_shared<BaseCube>(Vector3(1.0f, 2.0f, 6.0f), Vector3(1, 4, 1));
+    auto guard  = std::make_shared<BaseCube>(Vector3(-1.0f, 2.0f, 3.0f), Vector3(4, 0.5f, 0.5f));
+    auto plain  = std::make_shared<BaseCube>(Vector3(-4.0f, 1.0f, 0.0f), Vector3(1, 1, 1));
+    handle->Name = "Handle";
+    blade->Name  = "Blade";
+    guard->Name  = "Guard";
+    plain->Name  = "PlainToolPart";
+
+    workspace->addChild(tool);
+    tool->addChild(handle);
+    tool->Handle = handle;
+    workspace->addChild(blade); // Tool外のCubeもHandleのWeld連結体として追従させる。
+    workspace->addChild(guard);
+    workspace->addChild(plainTool);
+    plainTool->addChild(plain);
+    plainTool->Handle = plain;
+
+    auto handleBlade = std::make_shared<Weld>(handle, blade);
+    auto handleGuard = std::make_shared<Weld>(handle, guard);
+    handleBlade->Name = "HandleBladeWeld";
+    handleGuard->Name = "HandleGuardWeld";
+    workspace->addChild(handleBlade);
+    workspace->addChild(handleGuard);
+
+    auto expect = [](bool condition, const char* name, int& failures) {
+        std::cout << "[ToolWeldRegression] " << (condition ? "PASS" : "FAIL") << ": " << name << "\n";
+        if (!condition) ++failures;
+    };
+
+    const CFrame initialHandle = handle->getWorldCFrame();
+    const CFrame initialBlade  = blade->getWorldCFrame();
+    const CFrame initialGuard  = guard->getWorldCFrame();
+    const CFrame firstTarget(Vector3(10.0f, 5.0f, -2.0f),
+                             Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f));
+    const CFrame firstDelta = firstTarget * initialHandle.inverse();
+
+    workspace->initPhysics();
+    auto* physics = workspace->getPhysicsEngine();
+    physics->moveWeldAssembly(handle, firstTarget);
+
+    int failures = 0;
+    expect(sameCFrame(handle->getWorldCFrame(), firstTarget),
+           "actor未作成でもHandleが目標姿勢へ移動する", failures);
+    expect(sameCFrame(blade->getWorldCFrame(), firstDelta * initialBlade),
+           "actor未作成でもTool外のWeld部品が同じ変換で追従する", failures);
+    expect(sameCFrame(guard->getWorldCFrame(), firstDelta * initialGuard),
+           "actor未作成でも複数のWeld部品が同じ変換で追従する", failures);
+
+    physics->update(*workspace, 1.0f / 60.0f);
+    expect(handle->actor && handle->actor == blade->actor && handle->actor == guard->actor,
+           "物理登録後にWeld連結体が1つのcompound actorを共有する", failures);
+
+    const CFrame bladeRelative = handle->getWorldCFrame().inverse() * blade->getWorldCFrame();
+    const CFrame guardRelative = handle->getWorldCFrame().inverse() * guard->getWorldCFrame();
+    const CFrame secondTarget(Vector3(-8.0f, 7.0f, 4.0f),
+                              Quaternion::fromAxisAngle(Vector3(1, 0, 0), 35.0f));
+    physics->moveWeldAssembly(handle, secondTarget);
+
+    expect(sameCFrame(handle->getWorldCFrame(), secondTarget),
+           "compound構築後もHandleが目標姿勢へ移動する", failures);
+    expect(sameCFrame(handle->getWorldCFrame().inverse() * blade->getWorldCFrame(), bladeRelative),
+           "compound構築後もBladeのHandle相対姿勢を維持する", failures);
+    expect(sameCFrame(handle->getWorldCFrame().inverse() * guard->getWorldCFrame(), guardRelative),
+           "compound構築後もGuardのHandle相対姿勢を維持する", failures);
+
+    const CFrame plainTarget(Vector3(3.0f, 4.0f, 5.0f),
+                             Quaternion::fromAxisAngle(Vector3(0, 0, 1), 20.0f));
+    physics->moveWeldAssembly(plain, plainTarget);
+    expect(sameCFrame(plain->getWorldCFrame(), plainTarget),
+           "WeldなしTool部品も単体で追従する", failures);
+
+    return failures == 0 ? 0 : 1;
+}
 }
 
 // ===================================================
@@ -127,6 +219,8 @@ int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
 
     const bool weldRegression = argc > 1 && std::string_view(argv[1]) == "--weld-regression";
+    const bool toolWeldRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-regression";
+    if (toolWeldRegression) return runToolWeldRegression();
     std::string scenePath = weldRegression
         ? ((argc > 2) ? argv[2] : "assets/scenes/_snapshot.yaml")
         : ((argc > 1) ? argv[1] : "assets/scenes/test_bindings.yaml");

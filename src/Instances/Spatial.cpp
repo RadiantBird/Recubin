@@ -9,6 +9,15 @@ CFrame Spatial::getWorldCFrame() const {
     return cframe; // Workspace 直下 or 親なし → ローカル = ワールド
 }
 
+void Spatial::setWorldCFrame(const CFrame& worldCFrame) {
+    auto par = Parent.lock();
+    if (par && par->IsA("Spatial")) {
+        cframe = static_cast<Spatial*>(par.get())->getWorldCFrame().inverse() * worldCFrame;
+    } else {
+        cframe = worldCFrame;
+    }
+}
+
 bool Spatial::IsA(std::string className) {
     if (className == "Spatial") {
         return true;

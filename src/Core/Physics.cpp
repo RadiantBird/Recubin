@@ -912,6 +912,44 @@ void Physics::syncWeldKinematics() {
     }
 }
 
+void Physics::moveWeldAssembly(const std::shared_ptr<BaseCube>& member, const CFrame& worldCFrame) {
+    if (!member) return;
+
+    // ToolのHandleからWeldで到達できる全Cubeを、Tool配下かどうかに関係なく一体として動かす。
+    // Workspace外（Inventory内など）ではWeldを探索できないため、Handle単体を更新する。
+    std::vector<std::shared_ptr<BaseCube>> assembly { member };
+    if (auto* workspace = member->findFirstAncestorWorkspace()) {
+        assembly = Weld::collectAssembly(member, *workspace);
+    }
+
+    // actor未作成の初回装備でも、次のcompound構築に正しい姿勢を渡せるよう、
+    // Handle基準の同一ワールド変換を全メンバーのCFrameへ先に適用する。
+    const CFrame handleBefore = member->getWorldCFrame();
+    const CFrame worldDelta = worldCFrame * handleBefore.inverse();
+    for (const auto& cube : assembly) {
+        if (cube) cube->setWorldCFrame(worldDelta * cube->getWorldCFrame());
+    }
+
+    if (!member->actor) return;
+
+    // Weld compoundではactor原点とHandleの姿勢が異なるため、Handleのlocal offsetを逆に
+    // 適用して共有actorを移動する。これで全シェイプが剛体として手元へ追従する。
+    physx::PxTransform handleTarget(
+        physx::PxVec3(worldCFrame.Position.x, worldCFrame.Position.y, worldCFrame.Position.z),
+        physx::PxQuat(worldCFrame.Rotation.x, worldCFrame.Rotation.y,
+                      worldCFrame.Rotation.z, worldCFrame.Rotation.w));
+    handleTarget = handleTarget.getNormalized();
+    const physx::PxTransform localOffset = member->m_compoundLocalOffset.getNormalized();
+    const physx::PxTransform actorTarget = handleTarget.transform(localOffset.getInverse());
+    member->actor->setGlobalPose(actorTarget);
+
+    // 持っている間は重力・衝突で残った運動量を引き継がない。
+    if (auto* dynamic = member->actor->is<physx::PxRigidDynamic>()) {
+        dynamic->setLinearVelocity(physx::PxVec3(0.0f));
+        dynamic->setAngularVelocity(physx::PxVec3(0.0f));
+    }
+}
+
 // Attachment 設定時、アクターローカルのジョイントフレームに Attachment の
 // キューブ相対 CFrame を合成する（未設定なら base のまま = 従来のキューブ中心）
 static physx::PxTransform composeAttachmentFrame(

@@ -188,16 +188,7 @@ void BaseCube::syncPhysics() {
     Vector3    worldPos(pose.p.x, pose.p.y, pose.p.z);
     Quaternion worldRot(pose.q.w, pose.q.x, pose.q.y, pose.q.z);
 
-    auto par = Parent.lock();
-    if (par && par->IsA("Spatial")) {
-        CFrame pw = static_cast<Spatial*>(par.get())->getWorldCFrame();
-        Quaternion pConj = pw.Rotation.conjugate();
-        cframe.Position = pConj.rotate(worldPos - pw.Position);
-        cframe.Rotation = pConj * worldRot;
-    } else {
-        cframe.Position = worldPos;
-        cframe.Rotation = worldRot;
-    }
+    setWorldCFrame(CFrame(worldPos, worldRot));
 }
 
 // localPos: 親 Spatial からの相対座標
