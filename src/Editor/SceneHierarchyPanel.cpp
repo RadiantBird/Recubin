@@ -697,6 +697,7 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
     if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuCopy), "Ctrl+C") && m_clipboard) {
         m_clipboard->clear();
         if (!selectedInstances.empty()) {
+            std::vector<std::shared_ptr<Instance>> roots;
             auto ancestorSel = [&](Instance* x) {
                 for (auto p = x->Parent.lock(); p; p = p->Parent.lock())
                     if (std::find(selectedInstances.begin(), selectedInstances.end(), p.get())
@@ -704,7 +705,8 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
                 return false;
             };
             for (Instance* s : selectedInstances)
-                if (s && !ancestorSel(s)) m_clipboard->push_back(s->cloneTree());
+                if (s && !ancestorSel(s)) roots.push_back(s->shared_from_this());
+            *m_clipboard = Instance::cloneForest(roots);
         } else {
             m_clipboard->push_back(inst->cloneTree());
         }
@@ -715,8 +717,8 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
         if (!parent || !m_history) return;
         auto group = std::make_unique<CompositeCommand>();
         std::unordered_set<std::string> taken;
-        for (auto& item : *m_clipboard) {
-            auto cloned = item->cloneTree();
+        auto clones = Instance::cloneForest(*m_clipboard);
+        for (auto& cloned : clones) {
             std::string name = SceneHierarchyPanel::uniqueName(parent, cloned->Name, &taken);
             cloned->Name = name;
             taken.insert(name);

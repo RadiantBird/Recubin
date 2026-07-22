@@ -2,6 +2,7 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/SceneHierarchyPanel.hpp>
 #include <Math/Matrix4.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/ImGuizmo.h>
@@ -10,6 +11,7 @@
 #include <Instances/System.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/Weld.hpp>
 #include <Core/SystemState.hpp>
 #include <Core/Renderer.hpp>
 #include <Core/Physics.hpp>
@@ -635,7 +637,64 @@ void ViewportPanel::onRender() {
     // ---- クリック処理: 選択 & ドラッグ開始（全モード共通） ----
     // Selectモードでも非Selectモードでもレイキャストでオブジェクトを選択できる。
     // 非Selectモードでは現在の選択物をクリックしたときのみドラッグ開始する。
-    if (!terrainBrushActive && !isNoToolMode() && isHoveringViewport && ImGui::IsMouseClicked(0) && !ImGuizmo::IsUsing() && user && workspace) {
+    bool weldModeConsumedClick = false;
+    if (m_weldMode && m_weldMode->active && isHoveringViewport && user && workspace) {
+        weldModeConsumedClick = ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsUsing();
+        ImVec2 mousePos = ImGui::GetMousePos();
+        Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
+        Vector3 rayOri = camPos();
+        BaseCube* hoveredCube = nullptr;
+        float nearestT = 1e30f;
+        auto weldCast = [&](auto& self, Instance* inst) -> void {
+            if (!inst) return;
+            if (inst->IsA("BaseCube")) {
+                auto* cube = static_cast<BaseCube*>(inst);
+                float t = obbHit(rayOri, rayDir, cube->getWorldCFrame(), cube->Size);
+                if (t >= 0.0f && t < nearestT) { nearestT = t; hoveredCube = cube; }
+            }
+            for (auto const& [_, child] : inst->getChildren()) self(self, child.get());
+        };
+        weldCast(weldCast, workspace);
+
+        if (hoveredCube && Renderer::instance && framebuffer) {
+            const float aspect = h > 0 ? static_cast<float>(w) / static_cast<float>(h) : 1.0f;
+            const Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
+            const Matrix4 view = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
+            GLint oldFbo = 0, oldViewport[4] = {};
+            glGetIntegerv(GL_FRAMEBUFFER_BINDING, &oldFbo);
+            glGetIntegerv(GL_VIEWPORT, oldViewport);
+            glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+            glViewport(0, 0, fbWidth, fbHeight);
+            Renderer::instance->drawTransientHighlight(
+                hoveredCube, Color4(0.0f, 0.0f, 0.0f, 0.0f), Color4(0.15f, 1.0f, 0.25f, 1.0f), 3.0f,
+                view, projection, camPos(), 45.0f, h);
+            glBindFramebuffer(GL_FRAMEBUFFER, oldFbo);
+            glViewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
+        }
+
+        if (hoveredCube && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsUsing()) {
+            auto cube = std::static_pointer_cast<BaseCube>(hoveredCube->shared_from_this());
+            auto cube0 = m_weldMode->cube0.lock();
+            if (cube0 && cube0->findFirstAncestorWorkspace() != workspace) {
+                cube0.reset();
+                m_weldMode->cube0.reset();
+            }
+            if (!cube0) {
+                m_weldMode->cube0 = cube;
+            } else if (cube0 != cube && m_history) {
+                auto weld = std::make_shared<Weld>();
+                weld->setCube0(cube0);
+                weld->setCube1(cube);
+                weld->Name = SceneHierarchyPanel::uniqueName(cube0, "Weld");
+                m_history->execute(std::make_unique<AddInstanceCommand>(cube0, weld));
+                m_weldMode->cube0.reset();
+            }
+            m_isDraggingSelected = false;
+            m_isBoxSelectArmed = false;
+        }
+    }
+
+    if (!terrainBrushActive && !weldModeConsumedClick && !isNoToolMode() && isHoveringViewport && ImGui::IsMouseClicked(0) && !ImGuizmo::IsUsing() && user && workspace) {
         ImVec2 mousePos = ImGui::GetMousePos();
         Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
         Vector3 rayOri = camPos();

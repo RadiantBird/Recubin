@@ -214,6 +214,15 @@ class Renderer {
         // 形状の共有VAOにインスタンス属性(5-9, divisor=1)を後付けする
         void attachInstanceAttribs(unsigned int vao);
 
+    public:
+        void drawTransientHighlight(BaseCube* target, const Color4& fillColor,
+                                    const Color4& outlineColor, float outlineThickness,
+                                    const Matrix4& view, const Matrix4& projection,
+                                    const Vector3& cameraPosition, float fovYDegrees,
+                                    int viewportHeightPx);
+
+    private:
+
         // 塗り+輪郭のハイライト描画（深度テスト無効）。1つのBaseCubeターゲットに対して呼ぶ。
         // Highlightインスタンス描画・エディタ選択ハイライトの両方から共有される
         void drawBaseCubeHighlight(BaseCube* target, const Color4& fillColor,

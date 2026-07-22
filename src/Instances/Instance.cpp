@@ -288,9 +288,41 @@ void Instance::rebindClonedConstraints(const Instance& orig, Instance& clone) {
 }
 
 std::shared_ptr<Instance> Instance::cloneTree() const {
-    auto c = clone();
-    if (c) rebindClonedConstraints(*this, *c);
-    return c;
+    auto copies = cloneForest({std::const_pointer_cast<Instance>(shared_from_this())});
+    return copies.empty() ? nullptr : copies.front();
+}
+
+std::vector<std::shared_ptr<Instance>> Instance::cloneForest(
+    const std::vector<std::shared_ptr<Instance>>& roots) {
+    std::vector<std::shared_ptr<Instance>> copies;
+    CloneRemap map;
+
+    std::function<void(const Instance&, const std::shared_ptr<Instance>&)> buildMap =
+        [&](const Instance& original, const std::shared_ptr<Instance>& copy) {
+            if (!copy) return;
+            map[const_cast<Instance*>(&original)] = copy;
+            for (auto const& [name, originalChild] : original.children) {
+                auto it = copy->children.find(name);
+                if (originalChild && it != copy->children.end()) buildMap(*originalChild, it->second);
+            }
+        };
+
+    for (const auto& root : roots) {
+        if (!root) continue;
+        auto copy = root->clone();
+        if (!copy) continue;
+        buildMap(*root, copy);
+        copies.push_back(std::move(copy));
+    }
+
+    std::function<void(Instance&)> applyRemap = [&](Instance& copy) {
+        copy.remapClonedInstances(map);
+        for (auto const& [name, child] : copy.children)
+            if (child) applyRemap(*child);
+    };
+    for (const auto& copy : copies)
+        if (copy) applyRemap(*copy);
+    return copies;
 }
 
 Instance::~Instance() {

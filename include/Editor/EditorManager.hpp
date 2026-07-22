@@ -112,6 +112,7 @@ public:
     PickerState    m_picker;          // PickerState は PropertiesPanel.hpp で定義
     TerrainBrushState m_terrainBrush; // TerrainBrushState は PropertiesPanel.hpp で定義
     DecalPlaceState   m_decalPlace;   // DecalPlaceState は PropertiesPanel.hpp で定義
+    WeldModeState     m_weldMode;
 
     template <typename T, typename... Args>
     void tryAddObjectButton(const char* icon, const std::string& label, const std::string& defaultName,

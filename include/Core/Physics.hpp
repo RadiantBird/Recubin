@@ -89,6 +89,7 @@ private:
     void applyNoCollisionFilterBit(const std::shared_ptr<BaseCube>& cube);
 
     void rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembly);
+    void removeInvalidConstraints(Workspace& workspace);
 
     // LiquidCube に侵入した動的キューブへ浮力を加える（simulate 前に呼ぶ）
     void applyBuoyancy();

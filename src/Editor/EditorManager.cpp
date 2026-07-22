@@ -106,6 +106,7 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
 
     propertiesPanel->m_decalPlace = &m_decalPlace;
     viewportPanel->m_decalPlace   = &m_decalPlace;
+    viewportPanel->m_weldMode     = &m_weldMode;
 
     // メインビューポートをデフォルトでフォーカス状態に設定
     ViewportFocusManager::getInstance().onFocusViewport(viewportPanel.get());
@@ -251,6 +252,7 @@ void EditorManager::openSecondaryViewport(Workspace* ws) {
     panel->m_picker = &m_picker;
     panel->m_terrainBrush = &m_terrainBrush;
     panel->m_decalPlace = &m_decalPlace;
+    panel->m_weldMode   = &m_weldMode;
     panel->title = std::string(Loc::t(Loc::LocKey::PanelViewport)) + ": " + ws->Name + "###SecVP_" + std::to_string(reinterpret_cast<std::uintptr_t>(panel.get()));
     panel->m_useOwnCamera = true;
     panel->initOwnCameraFrom(*m_user);
@@ -327,7 +329,7 @@ void EditorManager::handleEditorShortcuts() {
         }
 
         // BackSpace: 選択インスタンスをすべて削除（複数選択対応・1 Undo 単位）
-        if (ImGui::IsKeyPressed(ImGuiKey_Backspace) && !GetFocusedViewport()) {
+        if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
             auto& si = hierarchyPanel->selectedInstances;
             // 祖先が選択集合に含まれる子孫は除外（親を消すと子も消えるため二重削除を防ぐ）
             auto ancestorSelected = [&si](Instance* x) {
@@ -363,9 +365,11 @@ void EditorManager::handleEditorShortcuts() {
         if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_C)) {
             auto& sel = hierarchyPanel->selectedInstances;
             if (!sel.empty()) {
+                std::vector<std::shared_ptr<Instance>> roots;
                 m_clipboard.clear();
                 for (Instance* s : sel)
-                    if (s && !ancestorInSet(s, sel)) m_clipboard.push_back(s->cloneTree());
+                    if (s && !ancestorInSet(s, sel)) roots.push_back(s->shared_from_this());
+                m_clipboard = Instance::cloneForest(roots);
             }
         }
 
@@ -375,8 +379,8 @@ void EditorManager::handleEditorShortcuts() {
             auto group = std::make_unique<CompositeCommand>();
             std::unordered_set<std::string> taken;
             std::vector<Instance*> pasted;
-            for (auto& item : m_clipboard) {
-                auto cloned = item->cloneTree();
+            auto clones = Instance::cloneForest(m_clipboard);
+            for (auto& cloned : clones) {
                 std::string name = SceneHierarchyPanel::uniqueName(parent, cloned->Name, &taken);
                 cloned->Name = name;
                 taken.insert(name);
@@ -935,6 +939,16 @@ void EditorManager::renderToolbarPhysics() {
     std::shared_ptr<Instance> parent = sel ? sel->shared_from_this()
                                             : (m_workspace ? m_workspace->shared_from_this() : nullptr);
     const ImVec2 btnSz(78.0f, 58.0f);
+
+    ImGui::PushStyleColor(ImGuiCol_Button, m_weldMode.active
+        ? ImVec4(0.15f, 0.68f, 0.28f, 1.0f)
+        : ImVec4(0.22f, 0.40f, 0.70f, 0.60f));
+    if (drawIconButton(ICON_WELD, "Weld Mode", btnSz)) {
+        m_weldMode.active = !m_weldMode.active;
+        m_weldMode.cube0.reset();
+    }
+    ImGui::PopStyleColor();
+    ImGui::SameLine();
 
     tryAddObjectButton<Weld>(ICON_WELD, "Weld", "Weld", parent, btnSz);
     ImGui::SameLine();

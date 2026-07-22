@@ -717,6 +717,9 @@ void Physics::update(Workspace& workspace, float dt) {
     if (!workspace.PhysicsEnabled) return;
     setGravity(workspace.Gravity);
 
+    // 削除済み Cube を参照する制約を実行前に回収する。これにより Weld だけでなく、すべての2点制約がシーンツリーと PhysX の両方から残らない。
+    removeInvalidConstraints(workspace);
+
     stepOnce(dt);
 
     // 0. 削除されたキューブをクリーンアップ（Workspace に存在しなくなったキューブを検出）
@@ -804,6 +807,67 @@ void Physics::update(Workspace& workspace, float dt) {
     workspace.pendingConstraints.clear();
 
     syncAllCubes();
+}
+
+void Physics::removeInvalidConstraints(Workspace& workspace) {
+    auto cubeIsInWorkspace = [&workspace](const std::weak_ptr<BaseCube>& cube) {
+        auto locked = cube.lock();
+        return locked && locked->findFirstAncestorWorkspace() == &workspace;
+    };
+    auto isInvalid = [&](const std::shared_ptr<Instance>& constraint) {
+        if (!constraint) return false;
+        if (constraint->IsA("Weld")) {
+            auto c = std::static_pointer_cast<Weld>(constraint);
+            return !cubeIsInWorkspace(c->m_cube0) || !cubeIsInWorkspace(c->m_cube1);
+        }
+        if (constraint->IsA("Rope")) {
+            auto c = std::static_pointer_cast<Rope>(constraint);
+            return !cubeIsInWorkspace(c->m_cube0) || !cubeIsInWorkspace(c->m_cube1);
+        }
+        if (constraint->IsA("Rod")) {
+            auto c = std::static_pointer_cast<Rod>(constraint);
+            return !cubeIsInWorkspace(c->m_cube0) || !cubeIsInWorkspace(c->m_cube1);
+        }
+        if (constraint->IsA("Motor")) {
+            auto c = std::static_pointer_cast<Motor>(constraint);
+            return !cubeIsInWorkspace(c->m_cube0) || !cubeIsInWorkspace(c->m_cube1);
+        }
+        if (constraint->IsA("BallSocket")) {
+            auto c = std::static_pointer_cast<BallSocket>(constraint);
+            return !cubeIsInWorkspace(c->m_cube0) || !cubeIsInWorkspace(c->m_cube1);
+        }
+        if (constraint->IsA("NoCollision")) {
+            auto c = std::static_pointer_cast<NoCollision>(constraint);
+            return !cubeIsInWorkspace(c->m_cube0) || !cubeIsInWorkspace(c->m_cube1);
+        }
+        return false;
+    };
+
+    // removeConstraint()/onAncestorChanged() はコンテナの変更を伴うため、まず別ベクタに固定してから回収する。
+    std::vector<std::shared_ptr<Instance>> stale;
+    for (const auto& entry : m_constraints) {
+        if (auto constraint = entry.constraint.lock(); isInvalid(constraint)) stale.push_back(constraint);
+    }
+    for (const auto& entry : m_noCollisionEntries) {
+        if (auto constraint = entry.inst.lock(); isInvalid(constraint)) stale.push_back(constraint);
+    }
+    for (const auto& constraint : workspace.pendingConstraints) {
+        if (isInvalid(constraint)) stale.push_back(constraint);
+    }
+
+    std::sort(stale.begin(), stale.end());
+    stale.erase(std::unique(stale.begin(), stale.end()), stale.end());
+    for (const auto& constraint : stale) {
+        RCBN_LOG("Removing constraint \"" << constraint->Name << "\" because one of its cubes left the Workspace");
+        removeConstraint(constraint);
+        if (auto parent = constraint->Parent.lock()) parent->removeChild(constraint->Name);
+    }
+    workspace.pendingConstraints.erase(
+        std::remove_if(workspace.pendingConstraints.begin(), workspace.pendingConstraints.end(),
+            [&stale](const std::shared_ptr<Instance>& constraint) {
+                return std::binary_search(stale.begin(), stale.end(), constraint);
+            }),
+        workspace.pendingConstraints.end());
 }
 
 void Physics::syncWeldKinematics() {

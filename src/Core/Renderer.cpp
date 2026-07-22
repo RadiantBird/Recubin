@@ -1480,6 +1480,15 @@ void Renderer::drawBaseCubeHighlight(BaseCube* target, const Color4& fillColor,
     glEnable(GL_DEPTH_TEST);
 }
 
+void Renderer::drawTransientHighlight(BaseCube* target, const Color4& fillColor,
+                                      const Color4& outlineColor, float outlineThickness,
+                                      const Matrix4& view, const Matrix4& projection,
+                                      const Vector3& cameraPosition, float fovYDegrees,
+                                      int viewportHeightPx) {
+    drawBaseCubeHighlight(target, fillColor, outlineColor, outlineThickness,
+                          view, projection, cameraPosition, fovYDegrees, viewportHeightPx);
+}
+
 void Renderer::renderInstanceHighlights(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                                          const Vector3& cameraPosition, float fovYDegrees, int viewportHeightPx) {
     std::vector<Highlight*> highlights;

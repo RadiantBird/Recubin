@@ -71,6 +71,10 @@ class Instance : public std::enable_shared_from_this<Instance> {
         // clone() した上で制約参照をクローン側へ張り替えた完全なサブツリーを返す。
         std::shared_ptr<Instance> cloneTree() const;
 
+        // 複数ルートを一つの複製単位としてクローンする。選択された Cube と Weld のように、別ルート間の参照も複製先へ張り替える。
+        static std::vector<std::shared_ptr<Instance>> cloneForest(
+            const std::vector<std::shared_ptr<Instance>>& roots);
+
         virtual ~Instance();
 
     private:

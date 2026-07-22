@@ -1,9 +1,16 @@
 #pragma once
 #include <Editor/EditorPanel.hpp>
+#include <memory>
 struct PickerState;        // PropertiesPanel.hpp で定義
 struct TerrainBrushState;  // PropertiesPanel.hpp で定義
 struct DecalPlaceState;    // PropertiesPanel.hpp で定義
 class CommandHistory;
+class BaseCube;
+
+struct WeldModeState {
+    bool active = false;
+    std::weak_ptr<BaseCube> cube0;
+};
 #include <include/GL/glew.h>
 #include <include/GLFW/glfw3.h>
 #include <include/imgui/imgui.h>
@@ -56,6 +63,7 @@ public:
     PickerState*    m_picker  = nullptr;
     TerrainBrushState* m_terrainBrush = nullptr;
     DecalPlaceState*   m_decalPlace   = nullptr;
+    WeldModeState*      m_weldMode     = nullptr;
     double m_lastTerrainBrushTime = -1.0; // ブラシの連続適用を間引くための前回適用時刻
     std::vector<TerrainStreamer::VoxelDiffEntry> m_terrainBrushDiff;   // 現在のストロークで変更されたブロックの差分
     std::shared_ptr<Terrain> m_terrainBrushStrokeTarget;               // ストローク中のTerrainインスタンス（Undo用に保持）

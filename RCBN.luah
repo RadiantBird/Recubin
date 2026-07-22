@@ -191,7 +191,7 @@ export type RaycastResult = {
 export type Workspace = Instance & {
     Gravity: Vector3,
     PhysicsEnabled: boolean,
-    Raycast: (Workspace, Vector3, Vector3) -> RaycastResult?,
+    Raycast: (Workspace, Vector3, Vector3, {Instance}?) -> RaycastResult?,
 }
 
 export type Vector3 = {
