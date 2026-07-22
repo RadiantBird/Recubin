@@ -1,7 +1,15 @@
 -- DayCycle
-local Skybox = workspace:FindChild('Skybox')
-local Sun = workspace:FindChild('Sun')
-local Lighting = workspace:FindChild('Lighting')
+local skyboxInstance = workspace:FindChild('Skybox')
+assert(skyboxInstance, 'Workspace.Skybox is required by DayCycle')
+local Skybox = skyboxInstance :: Skybox
+
+local sunInstance = workspace:FindChild('Sun')
+assert(sunInstance, 'Workspace.Sun is required by DayCycle')
+local Sun = sunInstance :: Sun
+
+local lightingInstance = workspace:FindChild('Lighting')
+assert(lightingInstance, 'Workspace.Lighting is required by DayCycle')
+local Lighting = lightingInstance :: Lighting
 
 local cycleSeconds = 180 -- 1周にかかる時間（秒）
 
@@ -15,7 +23,7 @@ local currentTime = 0
 
 -- 線形補完（Lerp）関数
 -- a: 開始値, b: 終了値, t: 割合(0.0 ~ 1.0)
-function lerp(a, b, t)
+function lerp(a:number, b:number, t:number): number
     return a + (b - a) * t
 end
 

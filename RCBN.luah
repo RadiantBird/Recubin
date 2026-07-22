@@ -357,6 +357,14 @@ export type UserInput = Instance & {
     IsPressed: (UserInput, string) -> boolean,
 }
 
+export type Skybox = Cube & {
+
+}
+
+export type Sun = Sphere & {
+    Angle: number,
+}
+
 export type Ray = { Origin: Vector3, Direction: Vector3 }
 
 export type task = {
