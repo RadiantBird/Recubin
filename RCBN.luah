@@ -14,12 +14,13 @@ export type Signal = {
 export type Instance = {
     Name: string,
     Parent: Instance?,
-    FindChild: (Instance, string) -> any?,
-    WaitChild: (Instance, string) -> any,
-    GetChildren: (Instance) -> { Instance },
+    -- The runtime preserves the concrete Instance type.  The generic forms let
+    -- scripts narrow the result without forcing an unsafe `any` cast.
+    FindChild: <T>(Instance, string) -> T?,
+    WaitChild: <T>(Instance, string, number?) -> T?,
+    GetChildren: <T>(Instance) -> { T },
     IsA: (Instance, string) -> boolean,
     Destroy: (Instance) -> (),
-    -- [string]: Instance? -- too annoying error type checking, so disabled
 }
 
 export type Spatial = Instance & {
@@ -33,6 +34,10 @@ export type BaseCube = Spatial & {
     CanCollide: boolean,
     Velocity: Vector3, -- read only
     Touched: Signal,
+    CastShadow: boolean,
+    Unlit: boolean,
+    UseTriplanar: boolean,
+    TextureScale: number,
 }
 
 export type Cube = BaseCube & {}
@@ -44,6 +49,11 @@ export type Cylinder = BaseCube & {}
 export type TriangularPrism = BaseCube & {}
 
 export type Model = Spatial & {}
+
+export type Attachment = Spatial & {
+    WorldPosition: Vector3,
+    WorldCFrame: CFrame,
+}
 
 export type MeshCube = BaseCube & {
     MeshFile: string, -- read only
@@ -60,6 +70,15 @@ export type Sound = Instance & {
     Volume: number,
     Play: (Sound) -> (),
     Stop: (Sound) -> (),
+    Reset: (Sound) -> (),
+    Seek: (Sound, number) -> (),
+    Speed: number,
+    PreservePitch: boolean,
+    TimePosition: number,
+    Length: number,
+    AutoPlay: boolean,
+    ContentPath: string,
+    SoundGroup: Instance?,
 }
 
 export type Lighting = Instance & {
@@ -110,6 +129,9 @@ export type Humanoid = Instance & {
     PlayAnimation: (Humanoid, Animation) -> (),
     PauseAnimation: (Humanoid) -> (),
     StopAnimation: (Humanoid) -> (),
+    TakeDamage: (Humanoid, number) -> (),
+    MoveToward: (Humanoid, Vector3) -> (),
+    Jump: (Humanoid) -> (),
 
     Died: Signal,
     KeyframeReached: Signal
@@ -125,8 +147,27 @@ export type LocalScript = Script & {
 
 }
 
-export type ModluleScript = Script & {
+export type ModuleScript = Script & {
 
+}
+
+export type CFrame = {
+    Position: Vector3,
+    Rotation: Quaternion,
+    new: (Vector3?, Quaternion?) -> CFrame,
+    fromAxisAngle: (Vector3, number) -> CFrame,
+    lookAt: (Vector3, Vector3, Vector3?) -> CFrame,
+    __mul: ((CFrame, CFrame) -> CFrame) & ((CFrame, Vector3) -> Vector3),
+    __eq: (CFrame, CFrame) -> boolean,
+}
+
+export type Quaternion = {
+    x: number, y: number, z: number, w: number,
+    new: (number, number, number, number) -> Quaternion,
+    fromEuler: (number, number, number) -> Quaternion,
+    fromAxisAngle: (Vector3, number) -> Quaternion,
+    Slerp: (Quaternion, Quaternion, number) -> Quaternion,
+    LookRotation: (Vector3, Vector3?) -> Quaternion,
 }
 
 export type Terrain = Instance & {
@@ -181,7 +222,10 @@ export type Color4 = {
     g: number,
     b: number,
     a: number,
+    -- number range is : 0.0 ~ 1.0
     new: (number, number, number, number?) -> Color4,
+    -- number range is : 0 ~ 255
+    fromRGBA: (number, number, number, number) -> Color4
 }
 
 export type Vector2 = {
@@ -192,6 +236,9 @@ export type Vector2 = {
 
 export type System = Instance & {
     Heartbeat: Signal,
+    NetworkRoleChanged: Signal,
+    NetworkRole: string,
+    LocalPeerId: number,
 }
 
 export type ChatService = Instance & {
@@ -213,6 +260,9 @@ export type ScreenGuiObject = Instance & {
     Transparency: number,
     Norm: string,
 }
+
+export type ImageLabel = ScreenGuiObject & { Image: string }
+export type ImageButton = GuiButton & { Image: string }
 
 export type GuiButton = ScreenGuiObject & {
     Activated: Signal,
@@ -268,10 +318,26 @@ export type Tool = Instance & {
 }
 
 export type User = Instance & {
-    AddTool: (number?) -> number,
-    RemoveTool: (number|string) -> Tool?,
+    Input: UserInput,
+    Character: Model?,
+    AddTool: (User, number?) -> number,
+    RemoveTool: (User, number|string) -> Tool?,
+    GetTool: (User, number|string) -> Tool?,
+    GetTools: (User) -> { Tool },
+    GetMouseRay: (User) -> Ray,
+    PeerId: number,
+    ControlMode: string,
+    CameraCFrame: CFrame,
     CharacterAdded: Signal
 }
+
+export type UserInput = Instance & {
+    Pressed: Signal,
+    Released: Signal,
+    IsPressed: (UserInput, string) -> boolean,
+}
+
+export type Ray = { Origin: Vector3, Direction: Vector3 }
 
 export type task = {
     spawn: (fn: (...any) -> (...any), ...any) -> (),
@@ -291,10 +357,15 @@ declare ChatService: ChatService
 declare Vector3:   Vector3
 declare Color4:    Color4
 declare Vector2:   Vector2
-declare Instance: { new: (className: string) -> any }
-declare require: (moduleScript: ModluleScript) -> {[any]: any}
+declare Instance: { new: <T>(className: string) -> T }
+declare require: <T>(moduleScript: ModuleScript) -> T
 
 --- Sleep the script for seconds.
 --- if seconds is nil, start in next frame. 
 declare wait: (seconds: number?) -> ()
 declare print: (...any) -> ()
+
+declare function add(instance: Instance): ()
+declare function assert<T>(value: T, message: string?): T
+declare Quaternion: Quaternion
+declare CFrame: CFrame
