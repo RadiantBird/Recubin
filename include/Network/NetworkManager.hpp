@@ -56,6 +56,10 @@ public:
     // senderId: Host視点=送信元ClientのPeerId / Client視点=1(Host)。
     std::function<void(uint8_t type, const uint8_t* payload, size_t len, PeerId senderId)> onGameMessage;
 
+    // 検証済みのChat受信時に呼ばれる。HostはClient申告値ではなく
+    // Helloで割り当てたm_peerIdsからsenderIdを確定して通知する。
+    std::function<void(PeerId senderId, const std::string& text)> onChatMessage;
+
     static const char* roleToString(NetworkRole role); // "Offline" / "Host" / "Client"
 
     NetworkManager(const NetworkManager&) = delete;

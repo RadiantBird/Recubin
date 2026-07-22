@@ -52,8 +52,9 @@
 
 - [ ] 全workspaceを監視し、オブジェクトの生成/削除を同期する
 
-- [ ] チャット機能
-  - とりあえずターミナル、のちのちGUI化
+- [x] チャット機能
+  - [x] ターミナル版（PeerId表示、Host中継、RELIABLE配信）
+  - [x] GUI化（左上オーバーレイ、ChatService、Luau送受信API）
 
 - [x] GLFWなどのエラーで落ちないのに画面が真っ黒、何が起きているか不明
   - カメラの座標が飛んでいる？
@@ -63,7 +64,8 @@
   - 解決(2026-07-19): 黒画面の原因はRenderer::render()の`if (!editor)`ゲートがランタイムのNullEditorManager(非null)でシーン描画をスキップする回帰。IEditorManager::ownsSceneRender()で修正・実機確認済み
 
 - [x] オブジェクトの座標同期（ワールドレプリケーション）の実装(2026-07-19、ReplicationManager。詳細はprogress.md)
-  - [x] アバター同期: 各ピアの自キャラ姿勢をHost経由で20Hz配布し、RemotePlayer_<id>として表示(衝突なしの純視覚、User.Characterとは独立)
+  - [x] アバター同期: 各ピアの自キャラ姿勢をHost経由で20Hz配布し、PlayerCharacter_<id>として表示。対応するUser_<id>.Characterへ紐付け
+  - [x] Host権威のPeerIdからUser_<id> / PlayerCharacter_<id>を全端末で決定し、実行中の名前変更と同名衝突を拒否
   - [x] ワールド同期: Host権威。非AnchoredオブジェクトにnetIdを採番して配布(WorldMapping=RELIABLE / WorldTransforms=UNRELIABLE 20Hz)。クライアント側は対象をAnchored化(キネマティック)して受信cframeを平滑適用
   - [x] ホスト移行対応: 昇格時にAnchoredを自動復元して自分の世界を権威として再配布(localhost 3ピア+2段移行でログ検証済み)
   - 未対応(将来): 歩行アニメ同期、クライアントからの物理干渉(入力転送/所有権移譲)、非アクティブWorkspaceの同期

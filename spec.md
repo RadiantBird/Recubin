@@ -5,8 +5,9 @@
 - **Workspace**: 複数インスタンスを持つ。切り替え可能。
 - **StarterCharacter**: System直下に置く、キャラクターのテンプレートを保持するだけのコンテナ。
   中にHumanoid・Root(Cube)・その他のCube/Sphereを通常のInsert Object操作で組み立てる。
-  Play開始時、この子要素が新規Model(`"PlayerCharacter"`、スクリプト互換のため名称固定)に
-  cloneされてWorkspaceに追加される。StarterCharacterが存在しない場合は、既定のリグ(旧来
+  Play開始時、この子要素が新規ModelにcloneされてWorkspaceに追加される。Offlineでは
+  `"PlayerCharacter"`、ネットワークHost/ClientではHost割り当てPeerIdに基づく
+  `"PlayerCharacter_<PeerId>"`となる。StarterCharacterが存在しない場合は、既定のリグ(旧来
   ハードコードされていたもの)を持つStarterCharacterが自動的にSystem直下に生成される。
 
 ## 単位系
@@ -42,11 +43,20 @@
 - ControlMode
     - エディターではデフォルトでFree
     - ゲームランタイムではデフォルトでCharacter
-- `CharacterAdded`(Signal): 新しい`PlayerCharacter`がspawnされるたび発火する(初回spawn +
+- `CharacterAdded`(Signal): 新しいローカルCharacterがspawnされるたび発火する(初回spawn +
   死亡respawn全て)。Luau側にはspawn直後のcharacter(Model)が引数として渡される
   (この時点ではまだWorkspaceに未追加。Root等のパーツ参照はresolveParts済みで取得可能)。
   respawnを跨いで参照を使い続けたいスクリプトは、起動時の`WaitChild`/`FindChild`で一度だけ
   参照を取るのではなく、この signal で都度取り直すこと。
+
+### ネットワークIDと正式名
+
+- `System.UseNetwork=true`でHost/Client起動した場合、Hostが割り当てたPeerIdを唯一の命名根拠とする。
+- 全端末でUserは`User_<PeerId>`、Characterは`PlayerCharacter_<PeerId>`として表現する。名前文字列は通信しない。
+- ClientはWelcomeでPeerIdが確定するまでScript、Character生成、物理更新を開始しない。
+- ネットワークUser/CharacterのNameは実行中ロックされ、通常のName変更は警告付きで無視される。
+- 正式名との衝突は自動サフィックスせず、ネットワークゲームを明示的なエラーで停止する。
+- Offline起動では従来の`User` / `PlayerCharacter`を維持する。ネットワーク時の旧パス互換は提供しない。
 
 ## キャラクター(Humanoidクラス)
 - StarterCharacter内のテンプレート、またはそのclone後にRoot/Torso/Head/LeftArm/RightArm/
@@ -76,6 +86,11 @@ PhysXに実装されているもののこと。
 - スクリプトのソースコードは**エンジンによってアプリ実行中に動的に変更されることはない**
 
 ## Luau バインディング
+
+### ChatService
+
+- `ChatService:SendMessage(text)` は最大512 UTF-8 bytesのメッセージをHost経由で全Peerへ送る。
+- `ChatService.MessageReceived` は `(senderPeerId, text)` で発火する。
 ### プロパティ解決の優先順位
 - `instance.Key` のアクセスは、まずクラスのプロパティ（DispatchTable）を解決し、
   **プロパティが見つからない場合のみ**同名の子インスタンスを返す（Roblox 互換のドットチェーン）。

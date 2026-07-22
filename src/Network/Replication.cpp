@@ -1,6 +1,7 @@
 #include <Network/Replication.hpp>
 #include <Network/NetworkManager.hpp>
 #include <Network/ByteStream.hpp>
+#include <Network/NetworkIdentity.hpp>
 
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
@@ -28,9 +29,8 @@ void ReplicationManager::update(float dt, Physics* physics) {
 
     if (net.getRole() == NetworkRole::Host) {
         if (m_pendingProxyUpgradeAll) {
-            for (auto& [id, avatar] : m_remoteAvatars) {
-                if (!avatar.isPhysicsProxy) enablePhysicsProxy(avatar, id, physics);
-            }
+            // hostSimulateAvatars()の通常経路に任せる。ここで即時upgradeすると、
+            // WorkspaceのpendingConstraintsがflushされる前にproxy化・moveされうる。
             m_pendingProxyUpgradeAll = false;
         }
         hostSimulateAvatars(dt, physics);
@@ -259,16 +259,15 @@ static void collectBaseCubes(const std::shared_ptr<Instance>& node, std::vector<
     }
 }
 
-static void collectSyncTargets(const std::shared_ptr<Instance>& node, Instance* excludeCharacter,
+static void collectSyncTargets(const std::shared_ptr<Instance>& node, const std::unordered_set<Instance*>& excludedCharacters,
                                 std::vector<std::shared_ptr<BaseCube>>& out) {
-    if (excludeCharacter && node.get() == excludeCharacter) return;
-    if (node->Name.rfind("RemotePlayer_", 0) == 0) return;
+    if (excludedCharacters.contains(node.get())) return;
 
     auto cube = std::dynamic_pointer_cast<BaseCube>(node);
     if (cube && !cube->Anchored && cube->CanCollide) out.push_back(cube);
 
     for (auto& [name, child] : node->getChildren()) {
-        collectSyncTargets(child, excludeCharacter, out);
+        collectSyncTargets(child, excludedCharacters, out);
     }
 }
 
@@ -304,8 +303,37 @@ void ReplicationManager::enablePhysicsProxy(RemoteAvatar& avatar, PeerId id, Phy
     RCBN_LOG("Replication: enabled physics proxy for peer " << id);
 }
 
+bool ReplicationManager::hasPendingPhysicsRegistration(const RemoteAvatar& avatar) const {
+    if (!avatar.model || !m_workspace) return false;
+    auto belongsToAvatar = [&](const std::shared_ptr<Instance>& pending) {
+        for (auto current = pending; current; current = current->Parent.lock()) {
+            if (current.get() == avatar.model.get()) return true;
+        }
+        return false;
+    };
+    return std::any_of(m_workspace->pendingInstances.begin(), m_workspace->pendingInstances.end(), belongsToAvatar)
+        || std::any_of(m_workspace->pendingConstraints.begin(), m_workspace->pendingConstraints.end(), belongsToAvatar);
+}
+
 void ReplicationManager::spawnRemoteAvatar(PeerId id) {
-    auto model = User::buildCharacterModel(m_characterSearchRoot, "RemotePlayer_" + std::to_string(id));
+    const std::string characterName = NetworkIdentity::characterName(id);
+    const std::string identityName = NetworkIdentity::userName(id);
+    if (m_workspace->children.contains(characterName)) {
+        RCBN_ERROR("Replication: canonical character collision for " << characterName);
+        m_fatalIdentityError = true;
+        return;
+    }
+    std::shared_ptr<Instance> users;
+    if (m_characterSearchRoot) {
+        auto usersIt = m_characterSearchRoot->children.find("Users");
+        if (usersIt != m_characterSearchRoot->children.end()) users = usersIt->second;
+    }
+    if (!users || users->children.contains(identityName)) {
+        RCBN_ERROR("Replication: Users missing or canonical identity collision for " << identityName);
+        m_fatalIdentityError = true;
+        return;
+    }
+    auto model = User::buildCharacterModel(m_characterSearchRoot, characterName);
     if (!model) {
         RCBN_LOG("Replication: failed to build remote avatar model for peer " << id);
         return;
@@ -347,21 +375,13 @@ void ReplicationManager::spawnRemoteAvatar(PeerId id) {
 
     auto identity = User::createRemoteUser(id);
     identity->character = model;
-
-    if (m_characterSearchRoot) {
-        auto usersIt = m_characterSearchRoot->children.find("Users");
-        if (usersIt != m_characterSearchRoot->children.end()) {
-            usersIt->second->addChild(identity);
-            avatar.identity = identity;
-        } else {
-            RCBN_LOG("Replication: Users container not found, remote User identity not created for peer " << id);
-        }
-    }
-
+    model->lockRuntimeName();
+    users->addChild(identity);
+    avatar.identity = identity;
     m_workspace->addChild(model);
     m_remoteAvatars[id] = std::move(avatar);
 
-    RCBN_LOG("Replication: spawned RemotePlayer_" << id);
+    RCBN_LOG("Replication: spawned " << characterName);
 }
 
 void ReplicationManager::despawnRemoteAvatar(PeerId id) {
@@ -376,7 +396,7 @@ void ReplicationManager::despawnRemoteAvatar(PeerId id) {
     m_latestVels.erase(id);
     m_remoteAvatars.erase(it);
 
-    RCBN_LOG("Replication: despawned RemotePlayer_" << id);
+    RCBN_LOG("Replication: despawned " << NetworkIdentity::characterName(id));
 }
 
 void ReplicationManager::despawnAllAvatars() {
@@ -388,6 +408,9 @@ void ReplicationManager::despawnAllAvatars() {
 void ReplicationManager::applyAvatarPoses(float dt) {
     for (auto& [id, avatar] : m_remoteAvatars) {
         if (avatar.isPhysicsProxy) continue; // Humanoid::move()内のapplyBodyAnimation()が既に全パーツを駆動済み
+        // 初期Weldのoffsetはテンプレート姿勢のまま確定させる。受信姿勢や歩行アニメを
+        // pendingConstraintsのflush前に適用すると、Headだけが動いた状態を焼き付けてしまう。
+        if (hasPendingPhysicsRegistration(avatar)) continue;
         auto it = m_latestPoses.find(id);
         if (it == m_latestPoses.end()) continue;
         const CFrame& pose = it->second;
@@ -534,11 +557,11 @@ void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
         if (!avatar.humanoid || !avatar.humanoid->Root) continue;
 
         if (!avatar.isPhysicsProxy) {
+            // Model追加で登録されたCube/WeldをPhysics::update()が初期姿勢のまま
+            // 取り込み終えるまでは、rootの再構築も代理move()も行わない。
+            if (hasPendingPhysicsRegistration(avatar)) continue;
             enablePhysicsProxy(avatar, id, physics);
-            // ModelをWorkspaceへ追加したフレームはWeldがまだpendingConstraintsにある。
-            // ここでmove()するとHeadだけが先にアニメし、ずれたHead–Hair間隔が
-            // その後のrebuildGroup()で正式なWeld offsetとして焼き付く。Physics::update()
-            // に初期姿勢のままWeldを確定させ、代理移動は次フレームから始める。
+            // proxy再構築直後も1フレームは代理移動を保留する。
             continue;
         }
 
@@ -613,11 +636,15 @@ void ReplicationManager::hostUpdateWorld(float dt) {
 }
 
 void ReplicationManager::hostRescanWorld() {
-    Instance* characterPtr = (m_user && m_user->character) ? m_user->character.get() : nullptr;
+    std::unordered_set<Instance*> excludedCharacters;
+    if (m_user && m_user->character) excludedCharacters.insert(m_user->character.get());
+    for (auto& [peerId, avatar] : m_remoteAvatars) {
+        if (avatar.model) excludedCharacters.insert(avatar.model.get());
+    }
 
     std::vector<std::shared_ptr<BaseCube>> targets;
     for (auto& [name, child] : m_workspace->getChildren()) {
-        collectSyncTargets(child, characterPtr, targets);
+        collectSyncTargets(child, excludedCharacters, targets);
     }
 
     std::unordered_set<std::string> currentPaths;

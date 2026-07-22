@@ -8,6 +8,7 @@
 #include "include/Instances/Sound.hpp"
 #include "include/Instances/Humanoid.hpp"
 #include "include/Instances/PathfindingService.hpp"
+#include "include/Instances/ChatService.hpp"
 #include "include/Instances/UserInput.hpp"
 #include "include/Core/User.hpp"
 #include "include/Instances/Tool.hpp"
@@ -1022,6 +1023,16 @@ int LuauEngine::pathfinding_configure_closure(lua_State* L) {
         }
         lua_pop(L, 1);
     }
+    return 0;
+}
+
+int LuauEngine::chat_send_message_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud ? ud->lock() : nullptr;
+    if (!self || !self->IsA("ChatService")) return 0;
+    size_t len = 0;
+    const char* text = luaL_checklstring(L, 2, &len);
+    static_cast<ChatService*>(self.get())->sendMessage(std::string(text, len));
     return 0;
 }
 
@@ -2193,6 +2204,15 @@ void LuauEngine::fireNetworkRoleChanged(NetworkRole oldRole, NetworkRole newRole
     m_system->NetworkRoleChanged->fire(L, [oldStr, newStr](lua_State* Lx) -> int {
         lua_pushstring(Lx, oldStr);
         lua_pushstring(Lx, newStr);
+        return 2;
+    });
+}
+
+void LuauEngine::fireChatMessage(ChatService* service, PeerId senderId, const std::string& text) {
+    if (!service || !service->MessageReceived) return;
+    service->MessageReceived->fire(L, [senderId, text](lua_State* state) -> int {
+        lua_pushnumber(state, static_cast<double>(senderId));
+        lua_pushlstring(state, text.data(), text.size());
         return 2;
     });
 }

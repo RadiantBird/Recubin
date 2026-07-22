@@ -490,3 +490,50 @@ readme Todo「オブジェクトの座標を同期したりする機能」を実
 - 原因: RemoteAvatarをWorkspaceへ追加した初フレームはHair–Head Weldが`pendingConstraints`にあるのに、Hostが同フレーム中に代理`Humanoid::move()`を実行してHeadだけを動かしていた。その後のWeld compound構築がずれた相対位置を正規offsetとして焼き付けていた。
 - 修正: 新規物理プロキシ化に成功したフレームは代理移動をスキップし、先に`Physics::update()`でクローン初期姿勢からWeldを確定。次フレームから代理移動を開始する。
 - Releaseビルド成功。Host + ClientスモークでRemotePlayer生成、物理プロキシ化、初回姿勢受信を確認。Hair位置は最新Engineで目視再確認待ち。
+
+---
+
+## 2026-07-22 ターミナルチャット
+
+- `MessageType::Chat`を`[type][senderPeerId:u32][UTF-8 text]`の正規形式に変更。MessageType値とRELIABLE channelは不変。
+- Client発言はHostがHelloで割り当てたPeerIdに上書きし、Host自身に通知した後、送信元を含む全Clientへ中継。Host発言も同じ表示形式で全Clientへ配信。
+- `NetworkManager::onChatMessage(PeerId, text)`を追加し、将来のGUI/Luau層とトランスポートを分離。現在はランタイムが`[Chat][Peer N] text`で標準出力する。
+- 標準入力はdetached reader threadがshared queueへ行単位で積み、メインループがNetworkManager更新後に送信。blocking `getline`で描画や終了を止めない。
+- 空文、512 UTF-8 bytes超過、ASCII制御文字、未Hello/未接続送信を拒否。Client申告のsenderIdは信用しない。
+- localhost Host + Client 2台でClient/Hostの各発言が全3端末に同一PeerIdでちょうど1回ずつ表示されることを確認。Releaseビルド成功、回帰テスト **131 passed / 4 failed**（既知4失敗）。
+- ターミナル版に加えて、GUIチャットとLuau公開まで完了。
+
+## 2026-07-22 ランタイムチャットUI / ChatService
+
+- `ChatService` をSystem直下へruntime-onlyサービスとして自動生成し、送信要求・確定受信履歴・`MessageReceived` Signalをネットワークと描画から分離した。シーン保存時は除外する。
+- viewport左上にImGuiチャットオーバーレイを追加。Tで入力を開き、Enterで送信、Escapeで閉じる。入力中は移動、ジャンプ、カメラ、ズーム、ツール操作をゲームへ流さない。
+- `ChatService:SendMessage(text)` と `ChatService.MessageReceived(senderPeerId, text)` をLuauへ公開。ターミナル入力も同じChatService送信経路へ統合した。
+- Releaseビルド成功。回帰テストは **131 passed / 4 failed** で既知ベースラインを維持。
+- GUIの配置、フォント、日本語入力、操作感は最新パッケージで目視確認待ち。
+
+## 2026-07-22 F3ランタイムインスペクター
+
+- F3で既存エディター由来のExplorerとPropertiesをランタイムへ表示・非表示できるようにした。
+- 共通パネルへ`readOnly`モードを追加し、ツリーの選択・展開・スクロールだけを許可。名前変更、ドラッグ＆ドロップ、コンテキスト操作、プロパティ変更は無効化した。
+- デバッグUI表示中は移動、ジャンプ、カメラ、ズーム、ホットキー、マウス操作をゲームへ流さない。チャット入力中はF3切替も抑止する。
+- Releaseビルド成功。回帰テストは **131 passed / 4 failed** で既知ベースラインを維持。ランタイムでの配置と操作感は目視確認待ち。
+
+## 2026-07-23 Host権威によるUser／Character命名統一
+
+- `NetworkIdentity`へ正式名生成を集約し、Hostが割り当てたPeerIdから全端末で`User_<id>` / `PlayerCharacter_<id>`を決定するようにした。MessageTypeとRoster形式は変更していない。
+- ClientはWelcome受信までネットワーク更新とGLFWイベント処理だけを続け、接続を無期限に再試行する。PeerId確定前にはScript、Character生成、物理更新を開始しない。
+- ローカル／リモートUserとCharacterを同じ正式名規則で生成し、切断時は対応する両Instanceを削除する。権威PeerIdが変わった場合は同一オブジェクトを専用経路で再命名するため、Luauグローバル`User`の参照は維持される。
+- ネットワークUser／Character名をruntime lockし、通常の`renameTo`（LuauのName代入を含む）は警告付きno-opとした。正式名衝突時はサフィックスを付けずネットワークゲームを停止する。
+- WorldMappingの除外判定を`RemotePlayer_`文字列から、ReplicationManagerが保持するローカル／リモートCharacterの実体参照へ変更した。
+- `UseNetwork=false`またはHost/Client引数なしのOffline起動では従来の`User` / `PlayerCharacter`を維持する。
+- Releaseの`RecubinEngine` / `RecubinTest`ビルド成功。回帰テストは **131 passed / 4 failed** で既知ベースラインを維持。
+- localhost Host + Client 2台の3プロセステストで、Host=`User_1`、Client=`User_2` / `User_3`がWelcome後かつCharacter spawn前に確定し、各端末で他2名の`PlayerCharacter_<id>`生成を確認した。stderrは全端末0 bytes。
+- 接続先なしのClientでは5秒ごとのWelcome timeout再試行が継続し、その間にUser正式名適用・Character spawnが発生しないこと、およびGLFWウィンドウへのWM_CLOSEで正常終了できることを確認した。
+- 同じ3プロセス構成で初代Hostを終了し、`User_3`がClient→Hostへ昇格、`User_2`が新Hostへ再接続してWelcomeでもid=2を再取得したことを確認した。両者とも再命名は発生せず、旧Hostの`PlayerCharacter_1`だけがdespawnされた。
+
+## 2026-07-23 RemoteAvatar Weld確定バリア
+
+- 稀にHost画面のRemote Hair Weld位置がずれる原因として、RemoteAvatar追加直後やHost移行直後に、対象Modelの`pendingInstances` / `pendingConstraints`が残ったまま物理プロキシ化または受信アニメーション適用へ進める経路を特定した。
+- 対象Character配下の物理登録キューが実際に空になるまで、受信姿勢・歩行アニメーション適用、Root再構築、Host代理`move()`を保留するよう変更した。固定フレーム数には依存しない。
+- Host移行時の一括即時プロキシ化を廃止し、通常の待機付きプロキシ化経路へ統一した。Weld compound確定後にRootを再構築し、そのフレームも代理移動を行わない。
+- Releaseビルド成功。localhost Host + Clientで`PlayerCharacter_2`生成、物理プロキシ化、NoCollision生成、stderr 0 bytesを確認。回帰テストは **131 passed / 4 failed** で既知ベースラインを維持。

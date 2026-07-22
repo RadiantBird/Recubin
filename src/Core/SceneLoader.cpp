@@ -747,7 +747,10 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     // ensureChildren() が既存の子を名前で採用（adopt）するため、再読込時に重複しない。
     if (!inst->children.empty()) {
         out << YAML::Key << "Children" << YAML::Value << YAML::BeginSeq;
-        for (auto const& [name, child] : inst->children) saveNode(out, child.get());
+        for (auto const& [name, child] : inst->children) {
+            if (child && child->IsA("ChatService")) continue;
+            saveNode(out, child.get());
+        }
         out << YAML::EndSeq;
     }
 
@@ -775,6 +778,7 @@ void SceneLoader::saveScene(Instance* root, const std::string& filePath) {
     if (!root->children.empty()) {
         out << YAML::Key << "Children" << YAML::Value << YAML::BeginSeq;
         for (auto const& [name, child] : root->children) {
+            if (child && child->IsA("ChatService")) continue;
             saveNode(out, child.get());
         }
         out << YAML::EndSeq;

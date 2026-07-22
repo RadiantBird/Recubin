@@ -21,8 +21,8 @@ class Cube;
 // ワールドレプリケーション層。NetworkManager(トランスポート)の上に載り、
 // Instance/Workspaceを知る側の同期処理をここに隔離する。
 // - アバター同期: 各ピアの自キャラRoot姿勢をHost経由で全員に配布し、
-//   リモートピアのアバター(RemotePlayer_<id>)をローカル世界に表示する。
-// リモートアバターは CanCollide=false の純視覚(アクター無し)。User.Characterには決して代入しない。
+//   リモートピアのアバター(PlayerCharacter_<id>)をローカル世界に表示する。
+// リモートUserのCharacterは対応するアバターモデルを参照する。
 
 // Client→Host間で送受信する入力スナップショット
 struct AvatarInputWire {
@@ -58,6 +58,7 @@ public:
     void onGameMessage(uint8_t type, const uint8_t* payload, size_t len, PeerId senderId);
     // NetworkManager::onRoleChanged から配線される。
     void onNetworkRoleChanged(NetworkRole oldRole, NetworkRole newRole);
+    bool hasFatalIdentityError() const { return m_fatalIdentityError; }
 
 private:
     struct RemoteAvatar {
@@ -84,6 +85,7 @@ private:
     void despawnAllAvatars();
     void hostSimulateAvatars(float dt, Physics* physics); // Host: 各物理プロキシに受信入力を適用して代理move()する
     void enablePhysicsProxy(RemoteAvatar& avatar, PeerId id, Physics* physics); // Root物理化+Humanoid有効化+NoCollision登録
+    bool hasPendingPhysicsRegistration(const RemoteAvatar& avatar) const;
 
     std::shared_ptr<Workspace> m_workspace;
     std::shared_ptr<User>      m_user;
@@ -96,6 +98,7 @@ private:
 
     std::unordered_map<PeerId, AvatarInputWire> m_pendingAvatarInput; // Host: 各ピアの最新受信入力
     bool m_pendingProxyUpgradeAll = false; // Client→Host昇格時にセットされ、次のupdate()で全既存アバターをプロキシ化する
+    bool m_fatalIdentityError = false;
 
     CFrame m_hostAuthoritativeSelfPose;
     bool   m_hasHostAuthoritativeSelfPose = false;

@@ -9,6 +9,7 @@
 #include <Instances/PathfindingService.hpp>
 #include <Instances/Folder.hpp>
 #include <Instances/Users.hpp>
+#include <Instances/ChatService.hpp>
 #include <include/GLFW/glfw3.h>
 #include "include/stb_image.h"
 #include <Util/AssetGuard.hpp>
@@ -133,8 +134,14 @@ Bound loadAndBind(const std::string& scenePath,
         static_cast<PathfindingService*>(it->second.get())->ScenePath = scenePath;
     }
 
+    if (system->children.find("ChatService") == system->children.end()) {
+        system->addChild(std::make_shared<ChatService>());
+    }
+
     applyAppIcon(window, system.get());
     bindStandardGlobals(engine, workspace, system, user);
+    if (auto it = system->children.find("ChatService"); it != system->children.end())
+        engine.setGlobalInstance("ChatService", it->second);
 
     return Bound{ workspace, workspaces };
 }

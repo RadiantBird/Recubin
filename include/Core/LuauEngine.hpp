@@ -27,6 +27,7 @@
 class Workspace;
 class System;
 class GuiButton;
+class ChatService;
 
 #pragma comment(lib, "Luau.VM.lib")
 #pragma comment(lib, "Luau.Compiler.lib")
@@ -176,6 +177,7 @@ private:
     // PathfindingService methods
     static int pathfinding_find_path_closure(lua_State* L);
     static int pathfinding_configure_closure(lua_State* L);
+    static int chat_send_message_closure(lua_State* L);
 
     // Vector3 methods
     static int vec3_index(lua_State* L);
@@ -309,6 +311,7 @@ public:
 
     void fireHeartbeat(float dt);
     void fireNetworkRoleChanged(NetworkRole oldRole, NetworkRole newRole);
+    void fireChatMessage(ChatService* service, PeerId senderId, const std::string& text);
     void onCollision(BaseCube* a, BaseCube* b);
 
     // 1フレームのClone/Restart上限を超えた時にtrueを返す(1回だけ)。

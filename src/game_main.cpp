@@ -9,6 +9,7 @@
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Weather.hpp>
 #include <Instances/Humanoid.hpp>
+#include <Instances/ChatService.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
@@ -20,6 +21,7 @@
 #include <Core/SystemState.hpp>
 #include <Editor/NullEditorManager.hpp>
 #include <Network/NetworkManager.hpp>
+#include <Network/NetworkIdentity.hpp>
 #include <Network/Replication.hpp>
 #include <include/imgui/imgui.h>
 
@@ -32,10 +34,15 @@
 #include "include/stb_image.h"
 
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <filesystem>
+#include <deque>
+#include <memory>
+#include <mutex>
+#include <thread>
 
 // ===================================================
 //  startup.yaml からゲーム設定を読み込む
@@ -59,6 +66,11 @@ struct NetworkLaunchArgs {
     std::string address;
     uint16_t port = kDefaultNetworkPort;
     uint16_t listenPort = 0;
+};
+
+struct ConsoleChatQueue {
+    std::mutex mutex;
+    std::deque<std::string> lines;
 };
 
 static NetworkLaunchArgs parseNetworkArgs(int argc, char* argv[]) {
@@ -119,10 +131,22 @@ int main(int argc, char* argv[]) {
 
     // ---- v2.0 ネットワーク基盤(モック): CLI引数でHost/Client役を起動する ----
     NetworkLaunchArgs netArgs = parseNetworkArgs(argc, argv);
-    if (netArgs.asHost) {
-        NetworkManager::get().startHost(netArgs.port);
-    } else if (netArgs.asClient) {
-        NetworkManager::get().connect(netArgs.address, netArgs.port, netArgs.listenPort);
+    // System.UseNetwork is loaded from the scene, so networking starts after loadAndBind.
+
+    // 標準入力はblockingなので、レンダー/ネットワークスレッドから分離する。
+    // readerはゲーム本体を参照せずshared queueだけを所有するため、getline待ちのまま
+    // ウィンドウを閉じてもjoinで終了を妨げない。
+    std::shared_ptr<ConsoleChatQueue> consoleChat;
+    if (netArgs.asHost || netArgs.asClient) {
+        consoleChat = std::make_shared<ConsoleChatQueue>();
+        std::thread([queue = consoleChat]() {
+            std::string line;
+            while (std::getline(std::cin, line)) {
+                std::lock_guard<std::mutex> lock(queue->mutex);
+                queue->lines.push_back(std::move(line));
+            }
+        }).detach();
+        std::cout << "[Chat] Type a message and press Enter (maximum 512 UTF-8 bytes)." << std::endl;
     }
 
     // ランタイムはゲームフォルダ(cwd)外のアセット読み込みを禁止する（配布ゲームのサンドボックス）。
@@ -151,7 +175,9 @@ int main(int argc, char* argv[]) {
     user->controlMode = User::ControlMode::Character;
 
     renderer->init(window);
-    renderer->editor = std::make_unique<NullEditorManager>();
+    auto runtimeEditor = std::make_unique<NullEditorManager>();
+    NullEditorManager* runtimeEditorPtr = runtimeEditor.get();
+    renderer->editor = std::move(runtimeEditor);
 
     if (!audioService->initialize()) {
         RCBN_LOG("[ERROR] Failed to initialize AudioService.");
@@ -162,6 +188,63 @@ int main(int argc, char* argv[]) {
     auto bound     = SceneRuntime::loadAndBind(cfg.startScene, system, user, *luauEngine, window);
     auto workspaces = bound.workspaces;
     auto workspace  = bound.workspace;
+
+    // Networked games do not start scripts, character spawning, physics, or replication
+    // until the host-authoritative PeerId is known.
+    if (system->UseNetwork && netArgs.asHost) {
+        if (!NetworkManager::get().startHost(netArgs.port)) {
+            glfwTerminate();
+            return -1;
+        }
+    } else if (system->UseNetwork && netArgs.asClient) {
+        NetworkManager::get().connect(netArgs.address, netArgs.port, netArgs.listenPort);
+        double retryAt = glfwGetTime() + 5.0;
+        double lastTick = glfwGetTime();
+        while (!glfwWindowShouldClose(window) && NetworkManager::get().getLocalPeerId() == 0) {
+            const double now = glfwGetTime();
+            NetworkManager::get().update(static_cast<float>(now - lastTick));
+            lastTick = now;
+            glfwPollEvents();
+            if (now >= retryAt && NetworkManager::get().getLocalPeerId() == 0) {
+                RCBN_WARN("NetworkManager: Welcome timeout; retrying initial connection");
+                NetworkManager::get().connect(netArgs.address, netArgs.port, netArgs.listenPort);
+                retryAt = now + 5.0;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        if (glfwWindowShouldClose(window)) {
+            NetworkManager::get().shutdown();
+            glfwTerminate();
+            return 0;
+        }
+    }
+
+    if (system->UseNetwork && (netArgs.asHost || netArgs.asClient)) {
+        const PeerId id = NetworkManager::get().getLocalPeerId();
+        if (id == 0 || !user->applyNetworkIdentity(id)) {
+            RCBN_ERROR("Failed to apply canonical local network identity");
+            NetworkManager::get().shutdown();
+            glfwTerminate();
+            return -1;
+        }
+        const std::string characterName = NetworkIdentity::characterName(id);
+        if (workspace->children.contains(characterName)) {
+            RCBN_ERROR("Canonical local character collision for " << characterName);
+            NetworkManager::get().shutdown();
+            glfwTerminate();
+            return -1;
+        }
+    }
+    std::shared_ptr<ChatService> chatService;
+    if (auto it = system->children.find("ChatService"); it != system->children.end()) {
+        chatService = std::dynamic_pointer_cast<ChatService>(it->second);
+    }
+    if (chatService) {
+        chatService->onSendRequested = [](const std::string& text) {
+            NetworkManager::get().sendChatMessage(text);
+        };
+        renderer->setChatService(chatService);
+    }
 
     // シーンの User ノード（ControlMode: Free 等）がマージで上書きするため、
     // ランタイムは常にキャラクター操作へ再強制する。
@@ -193,6 +276,13 @@ int main(int argc, char* argv[]) {
     ReplicationManager replication(workspace, user, system.get());
     NetworkManager::get().onGameMessage = [&](uint8_t type, const uint8_t* payload, size_t len, PeerId senderId) {
         replication.onGameMessage(type, payload, len, senderId);
+    };
+    NetworkManager::get().onChatMessage = [chatService, &luauEngine](PeerId senderId, const std::string& text) {
+        std::cout << "[Chat][Peer " << senderId << "] " << text << std::endl;
+        if (chatService) {
+            chatService->receiveMessage(senderId, text);
+            luauEngine->fireChatMessage(chatService.get(), senderId, text);
+        }
     };
 
     Physics::s_contactCallback = [&](BaseCube* a, BaseCube* b) {
@@ -226,9 +316,6 @@ int main(int argc, char* argv[]) {
 
     float lastFrame = static_cast<float>(glfwGetTime());
 
-    // ---- v2.0 ネットワーク基盤(モック)デモ用の状態 ----
-    bool  netWasConnected  = false;
-
     // ---- メインループ（常にプレイ状態） ----
     while (!glfwWindowShouldClose(window)) {
         float now       = static_cast<float>(glfwGetTime());
@@ -237,18 +324,32 @@ int main(int argc, char* argv[]) {
 
         // ---- ネットワークポーリング（物理更新より前＝受信内容を反映してからシミュレートする） ----
         NetworkManager::get().update(deltaTime);
-        user->peerId = NetworkManager::get().isActive() ? NetworkManager::get().getLocalPeerId() : 0;
-        if (NetworkManager::get().isActive()) {
-            bool nowConnected = NetworkManager::get().hasPeers();
-            if (nowConnected && !netWasConnected) {
-                std::string who = (NetworkManager::get().getRole() == NetworkRole::Host) ? "Host" : "Client";
-                NetworkManager::get().sendChatMessage("Hello from " + who);
+        const PeerId authoritativeId = NetworkManager::get().isActive()
+            ? NetworkManager::get().getLocalPeerId() : 0;
+        if (authoritativeId != 0 && user->peerId != authoritativeId) {
+            if (!user->applyNetworkIdentity(authoritativeId)) {
+                RCBN_ERROR("Canonical identity rename failed after authority change");
+                break;
             }
-            netWasConnected = nowConnected;
+        }
+        if (consoleChat) {
+            std::deque<std::string> pending;
+            {
+                std::lock_guard<std::mutex> lock(consoleChat->mutex);
+                pending.swap(consoleChat->lines);
+            }
+            for (const auto& line : pending) {
+                if (NetworkManager::get().getLocalPeerId() == 0) {
+                    std::cout << "[Chat] Not connected yet; message was not sent." << std::endl;
+                } else {
+                    if (chatService) chatService->sendMessage(line);
+                }
+            }
         }
 
         // レプリケーション(受信姿勢の適用と自姿勢の送信)。物理更新より前に行う
         replication.update(deltaTime, workspace->getPhysicsEngine());
+        if (replication.hasFatalIdentityError()) break;
 
         FrameProfiler::get().beginSection("physics");
         if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->update(*workspace, deltaTime);
@@ -263,10 +364,14 @@ int main(int argc, char* argv[]) {
         if (luauEngine->consumeSafetyHaltRequest()) break; // 既存のconsumeExitRequestと同じglfwTerminate()クリーンアップ経路に合流
 
         // エディタが存在しないため、常にゲームプレイ入力として扱う
+        const bool debugInput = runtimeEditorPtr && runtimeEditorPtr->isDebugCapturingKeyboard();
+        const bool chatInput = renderer->isChatCapturingKeyboard() || ImGui::GetIO().WantTextInput;
+        const bool uiInput = chatInput || debugInput;
+        SystemState::get().viewportFocused = !uiInput;
         user->processInput(workspace->getPhysicsEngine(), deltaTime,
-                            /*viewportFocused=*/true, /*viewportZoomEnabled=*/true,
-                            /*isGameplayInput=*/true,
-                            ImGui::GetIO().WantTextInput);
+                            /*viewportFocused=*/!uiInput, /*viewportZoomEnabled=*/!uiInput,
+                            /*isGameplayInput=*/!uiInput,
+                            uiInput);
         if (user->consumeExitRequest()) break;
 
         // ---- Pキー: Workspace切り替え ----
@@ -320,6 +425,8 @@ int main(int argc, char* argv[]) {
     NetworkManager::get().shutdown();
     NetworkManager::get().onRoleChanged = nullptr;
     NetworkManager::get().onGameMessage = nullptr;
+    NetworkManager::get().onChatMessage = nullptr;
+    if (chatService) chatService->onSendRequested = nullptr;
     for (auto& ws : workspaces) {
         if (ws && ws->getPhysicsEngine()) {
             ws->getPhysicsEngine()->clearCubes();

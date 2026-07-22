@@ -6,11 +6,25 @@
 #include <include/imgui/imgui_impl_glfw.h>
 #include <include/imgui/imgui_impl_opengl3.h>
 #include <Core/Renderer.hpp>
+#include <Editor/SceneHierarchyPanel.hpp>
+#include <Editor/PropertiesPanel.hpp>
+#include <algorithm>
 
 // ランタイムビルド用の no-op 実装
 // エディターなしで Renderer が常に有効な IEditorManager を持てるようにする
 class NullEditorManager : public IEditorManager {
+    bool m_debugVisible = false;
+    SceneHierarchyPanel m_hierarchy;
+    PropertiesPanel m_properties;
 public:
+    NullEditorManager() {
+        m_hierarchy.readOnly = true;
+        m_properties.readOnly = true;
+        m_properties.selectedInstance = &m_hierarchy.selectedInstance;
+        m_properties.selectedInstances = &m_hierarchy.selectedInstances;
+    }
+
+    bool isDebugCapturingKeyboard() const { return m_debugVisible; }
     void beginViewportRender() override {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
@@ -21,7 +35,9 @@ public:
     }
     unsigned int getViewportFBO() override { return 0; }
     bool isViewportFocused() override { return true; }
-    Instance* getSelectedInstance() override { return nullptr; }
+    Instance* getSelectedInstance() override {
+        return m_debugVisible ? m_hierarchy.selectedInstance : nullptr;
+    }
     void clearForImGui(GLFWwindow*) override {}
     bool ownsSceneRender() override { return false; }
 
@@ -30,6 +46,15 @@ public:
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
+
+        const bool chatCapturing = Renderer::instance && Renderer::instance->isChatCapturingKeyboard();
+        if (!chatCapturing && !ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F3, false)) {
+            m_debugVisible = !m_debugVisible;
+            if (m_debugVisible) {
+                m_hierarchy.isOpen = true;
+                m_properties.isOpen = true;
+            }
+        }
 
         int w, h;
         glfwGetFramebufferSize(window, &w, &h);
@@ -46,9 +71,24 @@ public:
 
         if (Renderer::instance) {
             Renderer::instance->renderGameGui(ws, &user, 0.f, 0.f, fw, fh);
+            Renderer::instance->renderRuntimeChat(0.f, 0.f, fw, fh);
         }
 
         ImGui::End();
+
+        if (m_debugVisible) {
+            m_hierarchy.workspace = &ws;
+            Instance* root = &ws;
+            for (auto parent = root->Parent.lock(); parent; parent = parent->Parent.lock()) {
+                root = parent.get();
+            }
+            m_hierarchy.systemRoot = root;
+
+            ImGui::SetNextWindowPos(ImVec2(std::max(8.f, fw - 600.f), 16.f), ImGuiCond_FirstUseEver);
+            m_hierarchy.onRender();
+            ImGui::SetNextWindowPos(ImVec2(std::max(268.f, fw - 340.f), 16.f), ImGuiCond_FirstUseEver);
+            m_properties.onRender();
+        }
 
         if (Renderer::instance) Renderer::instance->drawCameraRotationCursor(user, window);
 

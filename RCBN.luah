@@ -194,6 +194,11 @@ export type System = Instance & {
     Heartbeat: Signal,
 }
 
+export type ChatService = Instance & {
+    MessageReceived: Signal,
+    SendMessage: (ChatService, string) -> (),
+}
+
 export type Event = Instance & {
     Fire: (Event, ...any) -> (),
 }
@@ -282,6 +287,7 @@ declare task:      task
 declare User:      User
 declare System:    System
 declare system:    System
+declare ChatService: ChatService
 declare Vector3:   Vector3
 declare Color4:    Color4
 declare Vector2:   Vector2

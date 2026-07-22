@@ -688,10 +688,12 @@ void PropertiesPanel::onRender() {
         ImGui::End();
         return;
     }
+    if (readOnly) ImGui::BeginDisabled();
 
     Instance* inst = selectedInstance ? *selectedInstance : nullptr;
     if (selectedInstances && selectedInstances->size() > 1) {
         renderMultiInspector(*selectedInstances, m_history);
+        if (readOnly) ImGui::EndDisabled();
         ImGui::End();
         return;
     }
@@ -704,6 +706,7 @@ void PropertiesPanel::onRender() {
 
     if (!inst) {
         ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::NothingSelected));
+        if (readOnly) ImGui::EndDisabled();
         ImGui::End();
         return;
     }
@@ -1884,5 +1887,6 @@ void PropertiesPanel::onRender() {
         }
     }
 
+    if (readOnly) ImGui::EndDisabled();
     ImGui::End();
 }

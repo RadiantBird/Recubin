@@ -146,6 +146,7 @@ public:
     // ネットワークのリモートピア用の軽量Userを構築する(NullInputBackend、s_instanceを書き換えない、
     // character/humanoidの構築はしない=呼び出し元(ReplicationManager)の責任)
     static std::shared_ptr<User> createRemoteUser(uint32_t peerId);
+    bool applyNetworkIdentity(uint32_t newPeerId);
 
     // イベントを"消費"するアクセサ（読み取りと同時に内部フラグをリセットする）
     bool consumeExitRequest();

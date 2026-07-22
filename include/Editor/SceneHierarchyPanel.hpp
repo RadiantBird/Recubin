@@ -24,6 +24,7 @@ public:
     Instance*   systemRoot       = nullptr;  // System ノード（Workspace の親）
     Instance*   selectedInstance  = nullptr;  // PropertiesPanel と共有（Primary）
     std::vector<Instance*> selectedInstances;  // 複数選択セット（常にselectedInstanceを含む）
+    bool readOnly = false;
 
     // F2 インラインリネーム用状態（EditorManager::handleEditorShortcuts が設定する）
     Instance*   renamingInstance    = nullptr;

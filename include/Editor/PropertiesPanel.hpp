@@ -45,6 +45,7 @@ public:
     PickerState*    m_picker        = nullptr;
     TerrainBrushState* m_terrainBrush = nullptr;
     DecalPlaceState*   m_decalPlace   = nullptr;
+    bool readOnly = false;
 
     PropertiesPanel();
     void onRender() override;

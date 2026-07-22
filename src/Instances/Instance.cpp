@@ -42,6 +42,14 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
         check = check->Parent.lock();
     }
 
+    if (newParent && m_runtimeNameLocked) {
+        auto collision = newParent->children.find(Name);
+        if (collision != newParent->children.end() && collision->second.get() != this) {
+            RCBN_ERROR("setParent failed: canonical runtime name collision for '" << Name << "'");
+            return;
+        }
+    }
+
     // 古い親のリストから自分を削除
     if (currentParent) {
         currentParent->children.erase(this->Name);
@@ -197,6 +205,10 @@ void Instance::setProperty(const std::string& name, const YAML::Node& value) {
 }
 
 void Instance::renameTo(const std::string& newName) {
+    if (m_runtimeNameLocked) {
+        RCBN_WARN("renameTo rejected for runtime-locked instance '" << Name << "'");
+        return;
+    }
     if (this->Name == newName) return;
 
     auto parent = this->Parent.lock();
@@ -219,6 +231,26 @@ void Instance::renameTo(const std::string& newName) {
     parent->children.erase(this->Name);
     this->Name = finalName;
     parent->children[finalName] = self;
+}
+
+bool Instance::renameToAuthoritative(const std::string& newName) {
+    if (newName.empty()) return false;
+    if (Name == newName) return true;
+    auto parent = Parent.lock();
+    if (!parent) {
+        Name = newName;
+        return true;
+    }
+    auto collision = parent->children.find(newName);
+    if (collision != parent->children.end() && collision->second.get() != this) {
+        RCBN_ERROR("authoritative rename failed: canonical name collision for '" << newName << "'");
+        return false;
+    }
+    auto self = shared_from_this();
+    parent->children.erase(Name);
+    Name = newName;
+    parent->children.emplace(Name, std::move(self));
+    return true;
 }
 
 std::shared_ptr<Instance> Instance::clone() const {

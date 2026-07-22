@@ -38,6 +38,7 @@
 #include "include/Instances/ImageButton.hpp"
 #include "include/Core/Terrain.hpp"
 #include "include/Instances/PathfindingService.hpp"
+#include "include/Instances/ChatService.hpp"
 #include "include/Instances/NumberValue.hpp"
 #include "include/Instances/QuaternionValue.hpp"
 #include "include/Instances/CFrameValue.hpp"
@@ -444,6 +445,9 @@ void LuauEngine::InitDispatchTable_World() {
         return 1;
     };
     PropertyRegistry::applyToDispatch("System", DispatchTable, SetterTable);
+
+    DispatchTable["ChatService"]["MessageReceived"] = getter_signal<ChatService, &ChatService::MessageReceived>();
+    DispatchTable["ChatService"]["SendMessage"] = getter_closure(chat_send_message_closure, "SendMessage");
 
     DispatchTable["Event"]["Fire"] = getter_closure(LuauEngine::event_fire_closure, "Fire");
 

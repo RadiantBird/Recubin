@@ -1,6 +1,7 @@
 #include <Core/User.hpp>
 #include <Core/CharacterRig.hpp>
 #include <Core/NullInputBackend.hpp>
+#include <Network/NetworkIdentity.hpp>
 #include <Instances/StarterCharacter.hpp>
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
@@ -33,10 +34,27 @@ User::User(std::unique_ptr<IInputBackend> input, bool isRemoteUser)
 
 std::shared_ptr<User> User::createRemoteUser(uint32_t peerId) {
     auto user = std::make_shared<User>(std::make_unique<NullInputBackend>(), true);
-    user->Name = "User_" + std::to_string(peerId);
+    user->Name = NetworkIdentity::userName(peerId);
     user->peerId = peerId;
+    user->lockRuntimeName();
     user->initializeInventory();
     return user;
+}
+
+bool User::applyNetworkIdentity(uint32_t newPeerId) {
+    if (newPeerId == 0) return false;
+    const std::string oldName = Name;
+    if (!renameToAuthoritative(NetworkIdentity::userName(newPeerId))) return false;
+    if (character && !character->renameToAuthoritative(NetworkIdentity::characterName(newPeerId))) {
+        renameToAuthoritative(oldName);
+        return false;
+    }
+    peerId = newPeerId;
+    lockRuntimeName();
+    if (character) character->lockRuntimeName();
+    RCBN_LOG("User: applied authoritative identity " << Name
+             << (character ? " / " + character->Name : ""));
+    return true;
 }
 
 void User::initializeInventory() {
@@ -515,15 +533,15 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
         }
     }
 
-    bool rotated = processCameraRotation(viewportFocused);
-    processZoom(viewportZoomEnabled);
+    bool rotated = processCameraRotation(viewportFocused && !wantsTextInput);
+    processZoom(viewportZoomEnabled && !wantsTextInput);
     if (humanoid) humanoid->updateFirstPersonState(cameraDistance <= firstPersonThreshold);
     // 死亡中はキャラクター移動を駆動しない（ばらしたパーツを上書きしないため）
-    if (!m_deathHandled) processMovement(viewportFocused, physics);
+    if (!m_deathHandled) processMovement(viewportFocused && !wantsTextInput, physics);
     if (rotated) updateVectors();
-    processHotkeys(physics);
+    if (!wantsTextInput) processHotkeys(physics);
     processToolkeys(viewportFocused, isGameplayInput, wantsTextInput);
-    processMouse(isGameplayInput);
+    processMouse(isGameplayInput && !wantsTextInput);
 }
 
 
@@ -641,11 +659,13 @@ void User::spawnCharacter(Instance* searchRoot) {
     // Inventory->addChild(tool2);
     // end of HACK
 
-    character = buildCharacterModel(searchRoot, "PlayerCharacter"); // NOTE: この名称は今後変更しないこと(ユーザーのスクリプトとの互換性を保つため)
+    const std::string characterName = peerId != 0 ? NetworkIdentity::characterName(peerId) : "PlayerCharacter";
+    character = buildCharacterModel(searchRoot, characterName);
     if (!character) {
         RCBN_WARN("User::spawnCharacter: StarterCharacter を生成できないため、キャラクターは生成されません");
         return;
     }
+    if (peerId != 0) character->lockRuntimeName();
 
     auto it = character->getChildren().find("Humanoid");
     humanoid = (it != character->getChildren().end()) ? std::dynamic_pointer_cast<Humanoid>(it->second) : nullptr;

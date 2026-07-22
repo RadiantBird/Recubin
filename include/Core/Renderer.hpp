@@ -24,9 +24,11 @@
 #include <include/imgui/imgui_impl_glfw.h>
 #include <include/imgui/imgui_impl_opengl3.h>
 #include <include/imgui/ImGuizmo.h>
+#include <Core/RuntimeChatOverlay.hpp>
 
 // 前方宣言（循環インクルード回避）
 class IEditorManager;
+class ChatService;
 class GuiButton;
 class SurfaceGui;
 
@@ -180,11 +182,16 @@ class Renderer {
         Matrix4  m_lastView;
         Matrix4  m_lastProj;
         std::function<void(GuiButton*)> m_onButtonActivated;
+        std::weak_ptr<ChatService> m_chatService;
+        RuntimeChatOverlay m_chatOverlay;
 
         void renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH);
         void renderWorldGui (Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH);
         void renderToolHotbar(User& user, float vpX, float vpY, float vpW, float vpH);
         void renderGameGui(Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH);
+        void renderRuntimeChat(float vpX, float vpY, float vpW, float vpH);
+        void setChatService(const std::shared_ptr<ChatService>& service) { m_chatService = service; }
+        bool isChatCapturingKeyboard() const { return m_chatOverlay.isCapturingKeyboard(); }
         void bakeSurfaceGui (SurfaceGui* sg);
 
         // カメラ回転ドラッグ中、非表示のOSカーソルの代わりにアンカー位置へ固定表示する擬似カーソル

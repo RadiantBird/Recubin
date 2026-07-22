@@ -9,11 +9,16 @@
 #include "include/Instances/ProximityPrompt.hpp"
 #include "include/Instances/BaseCube.hpp"
 #include "include/Instances/System.hpp"
+#include "include/Instances/ChatService.hpp"
 #include "include/imgui/imgui.h"
 #include "include/imgui/imgui_impl_opengl3.h"
 
 #include <algorithm>
 #include <vector>
+
+void Renderer::renderRuntimeChat(float vpX, float vpY, float vpW, float vpH) {
+    if (auto service = m_chatService.lock()) m_chatOverlay.render(*service, vpX, vpY, vpW, vpH);
+}
 
 // ===================================================
 //  ScreenGuiObject の再帰収集

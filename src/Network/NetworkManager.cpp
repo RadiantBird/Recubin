@@ -7,6 +7,29 @@
 #include <cmath>
 #include <cstring>
 
+namespace {
+constexpr size_t kMaxChatBytes = 512;
+
+bool validateChatText(const uint8_t* data, size_t len, std::string& out) {
+    if (!data || len == 0 || len > kMaxChatBytes) return false;
+    out.assign(reinterpret_cast<const char*>(data), len);
+    for (unsigned char c : out) {
+        // UTF-8の非ASCII byteは保持し、端末制御に使えるASCII制御文字だけを拒否する。
+        if (c < 0x20 || c == 0x7f) return false;
+    }
+    return true;
+}
+
+std::vector<uint8_t> makeChatPayload(PeerId senderId, const std::string& text) {
+    ByteWriter w;
+    w.data.reserve(1 + sizeof(uint32_t) + text.size());
+    w.writeU8(static_cast<uint8_t>(MessageType::Chat));
+    w.writeU32(static_cast<uint32_t>(senderId));
+    w.data.insert(w.data.end(), text.begin(), text.end());
+    return std::move(w.data);
+}
+}
+
 NetworkManager& NetworkManager::get() {
     static NetworkManager instance;
     return instance;
@@ -480,8 +503,27 @@ void NetworkManager::handleEvent(const ENetEvent& event) {
                 ByteReader reader{payload, payloadLen};
 
                 if (type == MessageType::Chat) {
-                    std::string text(reinterpret_cast<const char*>(payload), payloadLen);
-                    RCBN_LOG("NetworkManager: [chat] " << text);
+                    uint32_t claimedSender = 0;
+                    if (reader.readU32(claimedSender)) {
+                        std::string text;
+                        if (validateChatText(reader.p, reader.remaining, text)) {
+                            if (m_role == NetworkRole::Host) {
+                                // Clientの申告senderIdは信用せず、Hello完了済みPeerの割当IDを使う。
+                                auto it = m_peerIds.find(event.peer);
+                                if (it != m_peerIds.end()) {
+                                    PeerId senderId = it->second;
+                                    if (onChatMessage) onChatMessage(senderId, text);
+                                    auto canonical = makeChatPayload(senderId, text);
+                                    ENetPacket* chatPacket = enet_packet_create(
+                                        canonical.data(), canonical.size(), ENET_PACKET_FLAG_RELIABLE);
+                                    broadcastPacket(chatPacket, NetworkChannel::Reliable);
+                                }
+                            } else if (m_role == NetworkRole::Client && claimedSender != 0) {
+                                // ClientがChatを受ける相手は常に現Host。payloadはHostが正規化済み。
+                                if (onChatMessage) onChatMessage(static_cast<PeerId>(claimedSender), text);
+                            }
+                        }
+                    }
                 } else if (type == MessageType::Hello && m_role == NetworkRole::Host) {
                     uint16_t listenPort = 0;
                     uint32_t previousPeerId = 0;
@@ -648,10 +690,20 @@ void NetworkManager::broadcastPacket(ENetPacket* packet, NetworkChannel channel)
 }
 
 void NetworkManager::sendChatMessage(const std::string& text) {
-    std::vector<uint8_t> data;
-    data.reserve(1 + text.size());
-    data.push_back(static_cast<uint8_t>(MessageType::Chat));
-    data.insert(data.end(), text.begin(), text.end());
+    std::string validated;
+    if (!validateChatText(reinterpret_cast<const uint8_t*>(text.data()), text.size(), validated)) {
+        RCBN_WARN("NetworkManager: rejected empty, oversized, or control-character chat message");
+        return;
+    }
+    if (!m_host) return;
+
+    // Client申告のIDはHostで上書きされる。Host自身の発言はここでローカル通知する。
+    PeerId senderId = m_localPeerId;
+    if (senderId == 0) return;
+    auto data = makeChatPayload(senderId, validated);
+
+    if (m_role == NetworkRole::Host && onChatMessage) onChatMessage(senderId, validated);
+    if (m_role == NetworkRole::Client && (m_peers.empty() || senderId == 0)) return;
 
     ENetPacket* packet = enet_packet_create(data.data(), data.size(), ENET_PACKET_FLAG_RELIABLE);
     broadcastPacket(packet, NetworkChannel::Reliable);

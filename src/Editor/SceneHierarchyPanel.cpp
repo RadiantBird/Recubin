@@ -122,7 +122,7 @@ void SceneHierarchyPanel::onRender() {
 
     // ドラッグ＆ドロップで積まれた親変更を、走査完了後にまとめて実行する
     // （走査中の children マップ変更による iterator 無効化＝表示崩れを回避）
-    if (!m_pendingReparents.empty() && m_history) {
+    if (!readOnly && !m_pendingReparents.empty() && m_history) {
         auto group = std::make_unique<CompositeCommand>();
         for (auto& pr : m_pendingReparents) {
             if (pr.oldParent && pr.newParent && pr.child &&
@@ -138,14 +138,14 @@ void SceneHierarchyPanel::onRender() {
     m_pendingSelect = nullptr;
 
     // 選択中インスタンスへの右クリックメニュー（ウィンドウ内の空白エリアでも表示）
-    if (selectedInstance &&
+    if (!readOnly && selectedInstance &&
         ImGui::BeginPopupContextWindow("##hier_wnd_ctx",
             ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
         renderContextMenu(selectedInstance);
         ImGui::EndPopup();
     }
 
-    renderNewScriptDialog();
+    if (!readOnly) renderNewScriptDialog();
 
     ImGui::End();
 }
@@ -215,7 +215,7 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
         }
     }
 
-    bool renaming = (inst == renamingInstance);
+    bool renaming = !readOnly && (inst == renamingInstance);
     bool open = renaming
         ? ImGui::TreeNodeEx(inst, flags, "%s", getClassIcon(inst->getClassName()))
         : ImGui::TreeNodeEx(inst, flags, "%s %s", getClassIcon(inst->getClassName()), inst->Name.c_str());
@@ -293,14 +293,14 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     }
 
     // ---- ドラッグソース ----
-    if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
+    if (!readOnly && ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
         ImGui::SetDragDropPayload("INSTANCE_PTR", &inst, sizeof(Instance*));
         ImGui::Text("%s", inst->Name.c_str());
         ImGui::EndDragDropSource();
     }
 
     // ---- ドロップターゲット ----
-    if (ImGui::BeginDragDropTarget()) {
+    if (!readOnly && ImGui::BeginDragDropTarget()) {
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("INSTANCE_PTR")) {
             Instance* dragged = *static_cast<Instance* const*>(payload->Data);
             auto newParent = inst->shared_from_this();
@@ -350,7 +350,7 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
 
     // ---- 右クリックコンテキストメニュー ----
     std::string popupId = "ctx##" + std::to_string(reinterpret_cast<uintptr_t>(inst));
-    if (ImGui::BeginPopupContextItem(popupId.c_str())) {
+    if (!readOnly && ImGui::BeginPopupContextItem(popupId.c_str())) {
         renderContextMenu(inst);
         ImGui::EndPopup();
     }
