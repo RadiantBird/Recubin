@@ -127,12 +127,28 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
         for (const auto& [id, pose] : entries) {
             auto velIt = m_latestVels.find(id);
             Vector3 vel = velIt != m_latestVels.end() ? velIt->second : Vector3{};
+            float walkCycle = 0.0f;
+            bool grounded = true;
+            bool seated = false;
+            if (id == net.getLocalPeerId()) {
+                if (m_user && m_user->humanoid) {
+                    walkCycle = m_user->humanoid->getWalkCycle();
+                    grounded = m_user->humanoid->getIsGrounded();
+                    seated = m_user->humanoid->isSeated();
+                }
+            } else if (auto avatarIt = m_remoteAvatars.find(id); avatarIt != m_remoteAvatars.end() && avatarIt->second.humanoid) {
+                walkCycle = avatarIt->second.humanoid->getWalkCycle();
+                grounded = avatarIt->second.humanoid->getIsGrounded();
+                seated = avatarIt->second.humanoid->isSeated();
+            }
             w.writeU32(id);
             w.writeVector3(pose.Position);
             w.writeQuat(pose.Rotation);
             w.writeVector3(vel);
             auto seqIt = m_lastProcessedSeq.find(id);
             w.writeU32(seqIt != m_lastProcessedSeq.end() ? seqIt->second : 0u);
+            w.writeF32(walkCycle);
+            w.writeU8(static_cast<uint8_t>((grounded ? 1 : 0) | (seated ? 2 : 0)));
         }
         net.sendBytes(w.data, NetworkChannel::Unreliable);
     }
@@ -145,9 +161,30 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
         uint8_t flags = 0;
         if (!r.readVector3(in.flatForward) || !r.readVector3(in.flatRight) || !r.readVector3(in.targetMoveDir)
             || !r.readU8(flags) || !r.readF32(in.forwardAxis) || !r.readF32(in.rightAxis) || !r.readU32(in.seq)) return;
+        auto finiteVector = [](const Vector3& v) {
+            return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
+        };
+        if (!finiteVector(in.flatForward) || !finiteVector(in.flatRight) || !finiteVector(in.targetMoveDir)
+            || !std::isfinite(in.forwardAxis) || !std::isfinite(in.rightAxis)) return;
+        uint32_t newestSeq = 0;
+        if (auto it = m_lastProcessedSeq.find(senderId); it != m_lastProcessedSeq.end()) newestSeq = it->second;
+        if (auto it = m_pendingAvatarInput.find(senderId); it != m_pendingAvatarInput.end()) {
+            if (it->second.seq > newestSeq) newestSeq = it->second.seq;
+        }
+        if (in.seq <= newestSeq) return;
         in.isPressingMove  = (flags & 1) != 0;
         in.ctrlLockEnabled = (flags & 2) != 0;
         in.jumpRequested   = (flags & 4) != 0;
+        auto flattenAndClamp = [](Vector3 v) {
+            v.y = 0.0f;
+            float len = v.length();
+            return (len > 1.0f) ? (v * (1.0f / len)) : v;
+        };
+        in.flatForward = flattenAndClamp(in.flatForward);
+        in.flatRight = flattenAndClamp(in.flatRight);
+        in.targetMoveDir = in.isPressingMove ? flattenAndClamp(in.targetMoveDir) : Vector3{};
+        in.forwardAxis = std::clamp(in.forwardAxis, -1.0f, 1.0f);
+        in.rightAxis = std::clamp(in.rightAxis, -1.0f, 1.0f);
         m_pendingAvatarInput[senderId] = in;
     } else if (type == static_cast<uint8_t>(MessageType::AvatarBatch)) {
         ByteReader r{payload, len};
@@ -163,7 +200,10 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
             Quaternion rot;
             Vector3 vel;
             uint32_t lastProcessedSeq = 0;
-            if (!r.readU32(id) || !r.readVector3(pos) || !r.readQuat(rot) || !r.readVector3(vel) || !r.readU32(lastProcessedSeq)) return;
+            float walkCycle = 0.0f;
+            uint8_t visualFlags = 0;
+            if (!r.readU32(id) || !r.readVector3(pos) || !r.readQuat(rot) || !r.readVector3(vel)
+                || !r.readU32(lastProcessedSeq) || !r.readF32(walkCycle) || !r.readU8(visualFlags)) return;
             if (id == localId) {
                 m_hostAuthoritativeSelfPose = CFrame(pos, rot);
                 m_hasHostAuthoritativeSelfPose = true;
@@ -172,7 +212,12 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
                 continue;
             }
             m_latestPoses[id] = CFrame(pos, rot);
-            // 他ピア分は読み捨て(現行表示は平滑補間のみで速度不要)
+            if (auto avatarIt = m_remoteAvatars.find(id); avatarIt != m_remoteAvatars.end()) {
+                avatarIt->second.walkCycle = walkCycle;
+                avatarIt->second.grounded = (visualFlags & 1) != 0;
+                avatarIt->second.seated = (visualFlags & 2) != 0;
+            }
+            // 他ピア分の速度は読み捨て(表示はRoot姿勢の平滑補間を使う)
         }
     } else if (type == static_cast<uint8_t>(MessageType::WorldMapping)) {
         if (NetworkManager::get().getRole() == NetworkRole::Client) {
@@ -360,6 +405,12 @@ void ReplicationManager::applyAvatarPoses(float dt) {
         for (auto& [part, rel] : avatar.parts) {
             part->cframe = avatar.current * rel;
         }
+        if (avatar.humanoid) {
+            avatar.humanoid->setWalkCycle(avatar.walkCycle);
+            avatar.humanoid->setIsGroundedForReplication(avatar.grounded);
+            avatar.humanoid->setSeatedForReplication(avatar.seated);
+            avatar.humanoid->applyBodyAnimation(false, false);
+        }
     }
 }
 
@@ -380,16 +431,43 @@ void ReplicationManager::reconcileLocalPose() {
 
     Vector3 diff = m_hostAuthoritativeSelfPose.Position - local.Position;
     float distSq = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
+    float preReplayDrift = std::sqrt(distSq);
+    auto finiteVector = [](const Vector3& v) {
+        return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
+    };
+    if (!finiteVector(local.Position) || !finiteVector(m_hostAuthoritativeSelfPose.Position)) return;
 
-    constexpr float kSmallThreshold = 1.5f; // これ未満は通常のラグ由来の誤差、無視する
-    constexpr float kSmallThresholdSq = kSmallThreshold * kSmallThreshold;
-    if (distSq <= kSmallThresholdSq) return;
+    // localhostの実シーンで静止中も3.5〜3.9studの物理差が観測される。
+    // この誤差はClientのローカル表示にしか影響せず、Host/他ピアはHost物理姿勢を使うため受容できる。
+    constexpr float kAcceptedError = 4.5f;
+    constexpr float kHardSnapError = 12.0f;
 
-    constexpr float kHugeThreshold = 8.0f; // これ以上は再接続/テレポート相当、リプレイせず即座にスナップする
-    constexpr float kHugeThresholdSq = kHugeThreshold * kHugeThreshold;
-    if (distSq > kHugeThresholdSq || !m_predictionSceneReady || !m_shadowRoot || !m_predictionHumanoid || m_inputHistory.empty()) {
-        m_user->humanoid->Root->teleportTo(m_hostAuthoritativeSelfPose.Position);
-        RCBN_LOG("Replication: hard snap fallback (drift=" << std::sqrt(distSq) << ")");
+    auto applyCorrectedPose = [&](const CFrame& target, bool hardSnap, float error) {
+        CFrame corrected = target;
+        if (!hardSnap) {
+            Vector3 delta = target.Position - local.Position;
+            float alpha = 0.5f / error;
+            if (alpha > 0.25f) alpha = 0.25f; // 1回の可視補正は最大0.5stud
+            corrected.Position = local.Position + delta * alpha;
+            corrected.Rotation = Quaternion::Slerp(local.Rotation, target.Rotation, 0.25f);
+        }
+        auto root = m_user->humanoid->Root;
+        if (root->actor) {
+            physx::PxTransform pose = root->actor->getGlobalPose();
+            pose.p = physx::PxVec3(corrected.Position.x, corrected.Position.y, corrected.Position.z);
+            pose.q = physx::PxQuat(corrected.Rotation.x, corrected.Rotation.y, corrected.Rotation.z, corrected.Rotation.w);
+            root->actor->setGlobalPose(pose);
+        }
+        root->cframe = corrected;
+    };
+
+    // 予測シーンがまだ使えない初期フレームだけは、Host姿勢を直接目標にする。
+    if (!m_predictionSceneReady || !m_shadowRoot || !m_predictionHumanoid || m_inputHistory.empty()) {
+        if (preReplayDrift <= kAcceptedError) return;
+        bool hardSnap = preReplayDrift > kHardSnapError || !std::isfinite(preReplayDrift);
+        applyCorrectedPose(m_hostAuthoritativeSelfPose, hardSnap, preReplayDrift);
+        RCBN_LOG("Replication: " << (hardSnap ? "hard" : "soft")
+                 << " fallback correction (error=" << preReplayDrift << ")");
         return;
     }
 
@@ -427,17 +505,26 @@ void ReplicationManager::reconcileLocalPose() {
         m_predictionPhysics->syncAllCubes();
     }
 
-    // 4. リプレイ結果を本物のローカルRootへ反映する(この1回だけが画面に見える変化)
+    // 4. リプレイ結果と「同じ時点の現在予測」の差だけを本当の誤差として評価する。
+    //    Hostのack時点姿勢と現在姿勢を直接比較すると、正常な未ack入力分までズレと誤認する。
     CFrame result = m_shadowRoot->getWorldCFrame();
-    if (m_user->humanoid->Root->actor) {
-        physx::PxTransform pose = m_user->humanoid->Root->actor->getGlobalPose();
-        pose.p = physx::PxVec3(result.Position.x, result.Position.y, result.Position.z);
-        pose.q = physx::PxQuat(result.Rotation.x, result.Rotation.y, result.Rotation.z, result.Rotation.w);
-        m_user->humanoid->Root->actor->setGlobalPose(pose);
+    if (!finiteVector(result.Position)) {
+        applyCorrectedPose(m_hostAuthoritativeSelfPose, true, preReplayDrift);
+        RCBN_LOG("Replication: hard correction after non-finite replay result");
+        return;
     }
-    m_user->humanoid->Root->cframe = result;
+    Vector3 residualDelta = result.Position - local.Position;
+    float residual = residualDelta.length();
+    if (!std::isfinite(residual)) {
+        applyCorrectedPose(m_hostAuthoritativeSelfPose, true, preReplayDrift);
+        return;
+    }
+    if (residual <= kAcceptedError) return; // ローカル表示だけに存在する小さな誤差は受容
 
-    RCBN_LOG("Replication: replayed " << m_inputHistory.size() << " buffered frames (drift before=" << std::sqrt(distSq) << ")");
+    bool hardSnap = residual > kHardSnapError;
+    applyCorrectedPose(result, hardSnap, residual);
+    RCBN_LOG("Replication: " << (hardSnap ? "hard" : "soft") << " replay correction, frames="
+             << m_inputHistory.size() << " preDrift=" << preReplayDrift << " residual=" << residual);
 }
 
 void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
@@ -448,7 +535,11 @@ void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
 
         if (!avatar.isPhysicsProxy) {
             enablePhysicsProxy(avatar, id, physics);
-            if (!avatar.isPhysicsProxy) continue;
+            // ModelをWorkspaceへ追加したフレームはWeldがまだpendingConstraintsにある。
+            // ここでmove()するとHeadだけが先にアニメし、ずれたHead–Hair間隔が
+            // その後のrebuildGroup()で正式なWeld offsetとして焼き付く。Physics::update()
+            // に初期姿勢のままWeldを確定させ、代理移動は次フレームから始める。
+            continue;
         }
 
         AvatarInputWire in;

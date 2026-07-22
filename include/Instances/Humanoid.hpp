@@ -125,6 +125,9 @@ public:
     void  setWalkCycle(float v) { walkCycle = v; }
     Vector3 getCurrentMoveDir() const { return currentMoveDir; }
     void  setCurrentMoveDir(const Vector3& v) { currentMoveDir = v; }
+    bool  getIsGrounded() const { return isGrounded; }
+    void  setIsGroundedForReplication(bool v) { isGrounded = v; }
+    void  setSeatedForReplication(bool v) { m_seated = v; }
 
 private:
     struct Pose {

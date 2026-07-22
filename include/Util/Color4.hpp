@@ -21,6 +21,10 @@ struct Color4 {
         return Color4(r / 255.0f, g / 255.0f, b / 255.0f, a);
     }
 
+    static Color4 FromRGBA(int r, int g, int b, int a = 255) {
+        return Color4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
+    }
+
     std::string toString() const {
         return std::to_string(r) + ", " + std::to_string(g) + ", " +
                std::to_string(b) + ", " + std::to_string(a);

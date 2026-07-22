@@ -48,6 +48,8 @@ check("Color4 __sub", tostring(c4a - c4b) == tostring(Color4.new(0.1, 0.1, 0.1, 
 check("Color4 __mul (scalar)", tostring(c4a * 2) == tostring(Color4.new(0.4, 0.4, 0.4, 2)))
 check("Color4 __div (scalar)", tostring(c4a / 2) == tostring(Color4.new(0.1, 0.1, 0.1, 0.5)))
 check("Color4 __eq", Color4.new(0.2, 0.2, 0.2, 1) == c4a)
+local c4c = Color4.fromRGBA(10, 20, 30, 40)
+check("Color4.fromRGBA", tostring(c4c) == tostring(Color4.new(0.0392156878, 0.0784313757, 0.117647059, 0.156862745)))
 
 -- ===== Instance メソッド =====
 print("--- Instance ---")

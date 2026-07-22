@@ -70,6 +70,12 @@ public:
     Vector3 m_scaleBeforeSize;
     Vector3 m_scaleBeforeWorldPos;
 
+    // 複数選択 ROTATE: ドラッグ中の回転中心とギズモ回転状態
+    Vector3 m_multiRotatePivot;
+    Quaternion m_multiRotateGizmoStartRot;
+    Quaternion m_multiRotateGizmoCurRot;
+    bool m_multiRotatePivotActive = false;
+
     // Tab キー長押し中のみ有効な移動ピボット（ギズモをマウス位置へ持ってくる。離すと解除）
     bool m_pivotActive = false;
     Vector3 m_pivotWorld;

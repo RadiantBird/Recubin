@@ -195,6 +195,7 @@ private:
     static int color4_newindex(lua_State* L);
     static int color4_tostring(lua_State* L);
     static int color4_constructor(lua_State* L);
+    static int color4_from_rgba(lua_State* L);
     static int color4_add(lua_State* L);
     static int color4_sub(lua_State* L);
     static int color4_unm(lua_State* L);

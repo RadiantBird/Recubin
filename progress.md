@@ -466,3 +466,27 @@ readme Todo「オブジェクトの座標を同期したりする機能」を実
 
 - FallingSafe.luauc(ユーザーシーンのスクリプト)は`workspace`の`PlayerCharacter`のRoot Y座標をHeartbeat監視して救済する構造(バイトコードの文字列から推定)。**名前が`PlayerCharacter`固定のためRemotePlayer_Nは救済対象外**。この種のシーンスクリプトはリモートアバターに効かない前提で考えること。
 - Luauバイトコード(.luauc)は`python`の正規表現で可読文字列を抽出するだけでも挙動の当たりが付けられる(今回`workspace`/`PlayerCharacter`/`Heartbeat`等を確認)。
+
+---
+
+## 2026-07-22 Client間アバターアニメ同期 + 予測補正マージン
+
+### 何をしたか
+
+- `AvatarBatch`の各エントリに`walkCycle`とgrounded/seated flagsを追加。Hostで動いている代理Humanoidの状態をClientへ中継し、Client側のRemote Humanoidで`applyBodyAnimation()`するようにした。MessageType値は不変。
+- 過剰補正の根本原因を修正。ack時点の過去Host位置と未ack入力込みの現在位置を直接比較せず、Host姿勢から未ack入力をリプレイした結果と現在予測の残差を判定する。
+- 実シーン3プロセスで静止中も3.5〜3.9studの物理差が出たため、**4.5studまではローカル誤差として受容**。4.5〜12studは1回25%かつ最大0.5studのソフト補正、12stud超/非数値のみハード補正。Hostと他ピアは引き続きHost物理姿勢を使う。
+- HostのAvatarState受信でNaN/Inf、古いsequenceを拒否。方向ベクトルのYを0にして長さ1へ正規化、軸を[-1,1]へクランプし、マージンを広げてもHost権威を維持した。
+
+### 検証
+
+- Releaseビルド成功。回帰テスト **131 passed / 4 failed**（既知4失敗のみ）。
+- localhost Host + Client 2台で新AvatarBatchを解析し、各RemotePlayer生成、初回姿勢受信、WorldMapping 153件(`0 unresolved`)を確認。
+- Client間の実アニ表示と補正の体感は最新Engineでユーザー目視再確認待ち。
+
+### 追記: HostのRemoteAvatarでHair Weldがずれる問題
+
+- ユーザー目視でClient間アニ同期と補正の改善を確認。一方、Host画面のみRemote ClientのHairがHeadからずれることを確認した。
+- 原因: RemoteAvatarをWorkspaceへ追加した初フレームはHair–Head Weldが`pendingConstraints`にあるのに、Hostが同フレーム中に代理`Humanoid::move()`を実行してHeadだけを動かしていた。その後のWeld compound構築がずれた相対位置を正規offsetとして焼き付けていた。
+- 修正: 新規物理プロキシ化に成功したフレームは代理移動をスキップし、先に`Physics::update()`でクローン初期姿勢からWeldを確定。次フレームから代理移動を開始する。
+- Releaseビルド成功。Host + ClientスモークでRemotePlayer生成、物理プロキシ化、初回姿勢受信を確認。Hair位置は最新Engineで目視再確認待ち。

@@ -846,6 +846,23 @@ void ViewportPanel::onRender() {
             // Gizmo Undo: ドラッグ開始/終了を検知して MultiGizmoCommand を記録
             bool isUsingGizmo = ImGuizmo::IsUsing();
 
+            // 複数選択の集合中心（TRANSLATE/ROTATE、Model 以外）
+            Vector3 multiCenter;
+            bool haveMultiCenter = false;
+            if (!isModelTarget && (gizmoOp == ImGuizmo::TRANSLATE || gizmoOp == ImGuizmo::ROTATE)
+                && hasMultiSelection()) {
+                Vector3 mn(1e30f, 1e30f, 1e30f), mx(-1e30f, -1e30f, -1e30f);
+                bool any = false;
+                for (Instance* o : *selectedInstances) {
+                    if (o && !o->Parent.expired() && o->IsA("BaseCube")) {
+                        accumulateWorldAABB(static_cast<Spatial*>(o), mn, mx);
+                        any = true;
+                    }
+                }
+                multiCenter     = any ? (mn + mx) * 0.5f : s->getWorldPosition();
+                haveMultiCenter = true;
+            }
+
             if (!m_wasUsingGizmo && isUsingGizmo) {
                 m_gizmoEntries.clear();
                 // 複数選択中は全対象をキャプチャ、単一なら primary のみ
@@ -860,14 +877,25 @@ void ViewportPanel::onRender() {
                         });
                     }
                 }
-            }
-            if (m_wasUsingGizmo && !isUsingGizmo && m_history && !m_gizmoEntries.empty()) {
-                for (auto& e : m_gizmoEntries) {
-                    if (e.target && !e.target->Parent.expired())
-                        e.after = { e.target->Position, e.target->Size, e.target->Rotation };
+                if (gizmoOp == ImGuizmo::ROTATE && haveMultiCenter) {
+                    m_multiRotatePivot = multiCenter;
+                    m_multiRotateGizmoStartRot = (gizmoMode == ImGuizmo::LOCAL)
+                        ? s->getWorldCFrame().Rotation
+                        : Quaternion();
+                    m_multiRotateGizmoCurRot = m_multiRotateGizmoStartRot;
+                    m_multiRotatePivotActive = true;
                 }
-                m_history->record(std::make_unique<MultiGizmoCommand>(std::move(m_gizmoEntries)));
-                m_gizmoEntries.clear();
+            }
+            if (m_wasUsingGizmo && !isUsingGizmo) {
+                m_multiRotatePivotActive = false;
+                if (m_history && !m_gizmoEntries.empty()) {
+                    for (auto& e : m_gizmoEntries) {
+                        if (e.target && !e.target->Parent.expired())
+                            e.after = { e.target->Position, e.target->Size, e.target->Rotation };
+                    }
+                    m_history->record(std::make_unique<MultiGizmoCommand>(std::move(m_gizmoEntries)));
+                    m_gizmoEntries.clear();
+                }
             }
             m_wasUsingGizmo = isUsingGizmo;
 
@@ -896,22 +924,6 @@ void ViewportPanel::onRender() {
             Vector3    modelOldWorldPos = isModelTarget ? s->getWorldPosition()          : Vector3();
             Quaternion modelOldWorldRot = isModelTarget ? s->getWorldCFrame().Rotation   : Quaternion();
 
-            // 複数選択の集合中心（TRANSLATE のみ、Model 以外）
-            Vector3 multiCenter;
-            bool haveMultiCenter = false;
-            if (!isModelTarget && gizmoOp == ImGuizmo::TRANSLATE && hasMultiSelection()) {
-                Vector3 mn(1e30f, 1e30f, 1e30f), mx(-1e30f, -1e30f, -1e30f);
-                bool any = false;
-                for (Instance* o : *selectedInstances) {
-                    if (o && !o->Parent.expired() && o->IsA("BaseCube")) {
-                        accumulateWorldAABB(static_cast<Spatial*>(o), mn, mx);
-                        any = true;
-                    }
-                }
-                multiCenter     = any ? (mn + mx) * 0.5f : s->getWorldPosition();
-                haveMultiCenter = true;
-            }
-
             // SCALE ドラッグ中は開始時の不変行列を ImGuizmo に渡す
             // 毎フレーム変化する行列を渡すと ImGuizmo の内部参照がずれて特異点が生まれるため
             // FIX: それぞれの軸が干渉している
@@ -925,6 +937,13 @@ void ViewportPanel::onRender() {
             } else if (gizmoOp == ImGuizmo::TRANSLATE && haveMultiCenter) {
                 // 複数選択: 位置=集合中心、回転=単位、スケール=1
                 model = CFrame(multiCenter).toMatrix4();
+            } else if (gizmoOp == ImGuizmo::ROTATE && haveMultiCenter) {
+                // 複数選択: 位置=集合中心、回転=ギズモ状態
+                Vector3 pivot = m_multiRotatePivotActive ? m_multiRotatePivot : multiCenter;
+                Quaternion gizmoRot = m_multiRotatePivotActive
+                    ? m_multiRotateGizmoCurRot
+                    : ((gizmoMode == ImGuizmo::LOCAL) ? s->getWorldCFrame().Rotation : Quaternion());
+                model = CFrame(pivot, gizmoRot).toMatrix4();
             } else if (isUsingGizmo && gizmoOp == ImGuizmo::SCALE) {
                 CFrame stableCF = s->getWorldCFrame();
                 stableCF.Position = m_scaleBeforeWorldPos;
@@ -1081,6 +1100,51 @@ void ViewportPanel::onRender() {
                         s->Position = localPos;
                         s->Size = newSize;
                     }
+                } else if (gizmoOp == ImGuizmo::ROTATE && haveMultiCenter) {
+                    // 複数選択中心経路: 集合中心を軸に全選択 Spatial を回転
+                    if (m_gizmoEntries.empty()) {
+                        for (Instance* tgt : *selectedInstances) {
+                            if (tgt && !tgt->Parent.expired() && tgt->IsA("Spatial")) {
+                                Spatial* sp = static_cast<Spatial*>(tgt);
+                                m_gizmoEntries.push_back({
+                                    std::static_pointer_cast<Spatial>(tgt->shared_from_this()),
+                                    { sp->Position, sp->Size, sp->Rotation }, {}
+                                });
+                            }
+                        }
+                        if (!m_multiRotatePivotActive) {
+                            m_multiRotatePivot = multiCenter;
+                            m_multiRotateGizmoStartRot = (gizmoMode == ImGuizmo::LOCAL)
+                                ? s->getWorldCFrame().Rotation
+                                : Quaternion();
+                            m_multiRotateGizmoCurRot = m_multiRotateGizmoStartRot;
+                            m_multiRotatePivotActive = true;
+                        }
+                    }
+                    Quaternion rotDelta = newRot * m_multiRotateGizmoStartRot.conjugate();
+                    Vector3 pivot = m_multiRotatePivotActive ? m_multiRotatePivot : multiCenter;
+                    for (auto& e : m_gizmoEntries) {
+                        if (!e.target || e.target->Parent.expired()) continue;
+                        CFrame localBefore(e.before.position, e.before.rotation);
+                        CFrame worldStart;
+                        auto par = e.target->Parent.lock();
+                        if (par && par->IsA("Spatial")) {
+                            worldStart = static_cast<Spatial*>(par.get())->getWorldCFrame() * localBefore;
+                        } else {
+                            worldStart = localBefore;
+                        }
+                        Vector3 newWorldPos = pivot + rotDelta.rotate(worldStart.Position - pivot);
+                        Quaternion newWorldRot = rotDelta * worldStart.Rotation;
+                        if (e.target->IsA("BaseCube")) {
+                            BaseCube* bc = static_cast<BaseCube*>(e.target.get());
+                            bc->teleportTo(worldToLocal(newWorldPos, bc));
+                            bc->setRotation(worldToLocalRot(newWorldRot, bc));
+                        } else {
+                            e.target->Position = worldToLocal(newWorldPos, e.target.get());
+                            e.target->cframe.Rotation = worldToLocalRot(newWorldRot, e.target.get());
+                        }
+                    }
+                    m_multiRotateGizmoCurRot = newRot;
                 } else if (gizmoOp == ImGuizmo::ROTATE) {
                     // newRot はワールド回転 → ローカルに変換
                     Quaternion localRot = worldToLocalRot(newRot, s);

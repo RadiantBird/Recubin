@@ -155,6 +155,20 @@ int LuauEngine::color4_constructor(lua_State* L) {
     return 1;
 }
 
+int LuauEngine::color4_from_rgba(lua_State* L) {
+    int r = (int)luaL_checkinteger(L, 1);
+    int g = (int)luaL_checkinteger(L, 2);
+    int b = (int)luaL_checkinteger(L, 3);
+    int a = lua_isnumber(L, 4) ? (int)lua_tonumber(L, 4) : 255;
+
+    Color4* color = (Color4*)lua_newuserdata(L, sizeof(Color4));
+    *color = Color4::FromRGBA(r, g, b, a);
+
+    luaL_getmetatable(L, RCBN_COLOR4_METATABLE);
+    lua_setmetatable(L, -2);
+    return 1;
+}
+
 int LuauEngine::color4_index(lua_State* L) {
     Color4* color = (Color4*)luaL_checkudata(L, 1, RCBN_COLOR4_METATABLE);
     std::string_view key = luaL_checkstring(L, 2);

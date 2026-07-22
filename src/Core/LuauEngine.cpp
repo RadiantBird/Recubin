@@ -319,10 +319,12 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     lua_setfield(L, -2, "zero");
     lua_setglobal(L, "Vector3");
 
-    // Register Color4 with new method
+    // Register Color4 with new/fromRGBA methods
     lua_newtable(L);
     lua_pushcfunction(L, color4_constructor, "new");
     lua_setfield(L, -2, "new");
+    lua_pushcfunction(L, color4_from_rgba, "fromRGBA");
+    lua_setfield(L, -2, "fromRGBA");
     lua_setglobal(L, "Color4");
 
     // Register Vector2 with new method

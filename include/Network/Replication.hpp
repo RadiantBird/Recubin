@@ -69,6 +69,9 @@ private:
         bool   hasPose = false; // 初回受信前はfalse(初回はスナップ)
         std::shared_ptr<Humanoid> humanoid; // Host側物理プロキシとして使う場合はHumanoidを保持(Step2で使用)
         bool   isPhysicsProxy = false;      // true = Host権威で物理シミュレート中(Step2で設定)
+        float  walkCycle = 0.0f;            // Hostから受信した歩行アニメ位相
+        bool   grounded = true;             // Host権威の接地状態
+        bool   seated = false;              // Host権威の着席状態
     };
 
     void sendAvatarUpdates(float dt);   // 20Hz: Client=AvatarState送信 / Host=自姿勢記録+AvatarBatch配布
