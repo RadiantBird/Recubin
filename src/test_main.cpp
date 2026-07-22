@@ -14,6 +14,7 @@
 #include <thread>
 #include <iostream>
 #include <string>
+#include <vector>
 
 // ===================================================
 //  RecubinTest: GUI操作不要のヘッドレスLuauテストランナー
@@ -25,13 +26,28 @@ int main(int argc, char* argv[]) {
 
     std::string scenePath = (argc > 1) ? argv[1] : "assets/scenes/test_bindings.yaml";
 
+    std::vector<std::string> expectedErrors;
+    for (int i = 2; i < argc; ++i) {
+        if (std::string_view(argv[i]) == "--expect-error" && i + 1 < argc)
+            expectedErrors.emplace_back(argv[++i]);
+    }
+    std::vector<bool> expectedErrorSeen(expectedErrors.size(), false);
+
     int passCount = 0;
     int failCount = 0;
     g_luauLogHook = [&](const std::string& msg) {
         if (msg.find("[FAIL]") != std::string::npos) {
             failCount++;
         } else if (msg.find("[ERROR]") != std::string::npos) {
-            failCount++;
+            bool expected = false;
+            for (size_t i = 0; i < expectedErrors.size(); ++i) {
+                if (!expectedErrorSeen[i] && msg.find(expectedErrors[i]) != std::string::npos) {
+                    expectedErrorSeen[i] = true;
+                    expected = true;
+                    break;
+                }
+            }
+            if (!expected) failCount++;
         } else if (msg.find("[PASS]") != std::string::npos) {
             passCount++;
         }
@@ -106,6 +122,13 @@ int main(int argc, char* argv[]) {
     }
 
     audioService->stopAllSounds();
+
+    for (size_t i = 0; i < expectedErrors.size(); ++i) {
+        if (!expectedErrorSeen[i]) {
+            std::cout << "[RecubinTest] Expected Luau error was not observed: " << expectedErrors[i] << "\n";
+            failCount++;
+        }
+    }
 
     std::cout << "[RecubinTest] " << passCount << " passed, " << failCount << " failed.\n";
     return failCount > 0 ? 1 : 0;

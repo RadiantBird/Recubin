@@ -53,6 +53,7 @@ private:
         bool  sleeping       = false; // task.wait()による睡眠中か
         float sleepRemaining = 0.0f;
         bool  finished       = false; // 掃除待ち(完了/エラー/放置yield)
+        std::string sourceLabel;
     };
     std::vector<std::unique_ptr<EngineTask>> m_tasks;
     static EngineTask* currentTask;  // 現在実行中のエンジンタスク(currentScriptと排他)
@@ -68,6 +69,7 @@ private:
     // ループタイムアウト検出用: 直近のlua_resume開始時刻(コルーチンは同時に1つしか
     // 実行されないため、エンジン単位のタイムスタンプ1つで足りる)
     std::chrono::steady_clock::time_point m_scriptResumeStart;
+    int m_signalCallbackDepth = 0;
 
     void reportSafetyBreach(const std::string& reason, const std::unordered_map<std::string, int>& counts);
 
@@ -76,6 +78,13 @@ private:
     static constexpr const int NIL = 0;
 
 public:
+    void beginProtectedExecution();
+    std::string consumeProtectedError(lua_State* errorState);
+    void reportProtectedError(lua_State* errorState, const std::string& context);
+    void reportProtectedMessage(const std::string& context, const std::string& message);
+    std::chrono::steady_clock::time_point beginSignalCallback();
+    void endSignalCallback(std::chrono::steady_clock::time_point previousStart);
+
     static constexpr const char* RCBN_INST_METATABLE       = "RCBN_Instance";
     static constexpr const char* RCBN_OWNED_INST_METATABLE = "RCBN_OwnedInstance";
     static constexpr const char* RCBN_VEC3_METATABLE       = "RCBN_Vector3";

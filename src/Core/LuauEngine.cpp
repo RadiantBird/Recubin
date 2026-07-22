@@ -153,6 +153,68 @@ static std::string scriptSafetyLabel(Script* s) {
     return s->Name.empty() ? "(unnamed Script)" : s->Name;
 }
 
+static std::string scriptExecutionLabel(Script* script) {
+    if (!script) return "Unknown signal listener";
+    std::string label = script->Name.empty() ? "(unnamed Script)" : script->Name;
+    if (!script->Path.empty()) label += " (" + script->Path + ")";
+    return label;
+}
+
+void LuauEngine::beginProtectedExecution() {
+    m_lastTraceback.clear();
+}
+
+std::string LuauEngine::consumeProtectedError(lua_State* errorState) {
+    std::string traceback = std::move(m_lastTraceback);
+    m_lastTraceback.clear();
+    if (traceback.empty() && errorState) {
+        const char* directTrace = lua_debugtrace(errorState);
+        if (directTrace) traceback = directTrace;
+    }
+
+    std::string message = "unknown error";
+    if (errorState && lua_gettop(errorState) > 0) {
+        const char* raw = lua_tostring(errorState, -1);
+        if (raw) {
+            message = raw;
+            lua_pop(errorState, 1);
+        } else {
+            const char* typeName = lua_typename(errorState, lua_type(errorState, -1));
+            message = std::string("non-string error object") + (typeName ? " (" + std::string(typeName) + ")" : "");
+            lua_pop(errorState, 1);
+        }
+    }
+
+    if (!traceback.empty() && traceback.find(message) == std::string::npos)
+        return message + "\n" + traceback;
+    return traceback.empty() ? message : traceback;
+}
+
+void LuauEngine::reportProtectedError(lua_State* errorState, const std::string& context) {
+    reportProtectedMessage(context, consumeProtectedError(errorState));
+}
+
+void LuauEngine::reportProtectedMessage(const std::string& context, const std::string& message) {
+    const std::string output = "[" + context + "] " + message;
+    std::cerr << output << "\n";
+    if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
+}
+
+std::chrono::steady_clock::time_point LuauEngine::beginSignalCallback() {
+    const auto previousStart = m_scriptResumeStart;
+    ++m_signalCallbackDepth;
+    m_scriptResumeStart = std::chrono::steady_clock::now();
+    return previousStart;
+}
+
+void LuauEngine::endSignalCallback(std::chrono::steady_clock::time_point previousStart) {
+    const auto callbackElapsed = std::chrono::steady_clock::now() - m_scriptResumeStart;
+    if (m_signalCallbackDepth > 0) --m_signalCallbackDepth;
+    // Do not charge time spent in an isolated listener to an enclosing Script
+    // or Task; otherwise a timed-out listener immediately times out its caller.
+    m_scriptResumeStart = previousStart + callbackElapsed;
+}
+
 void LuauEngine::InitDispatchTable() {
     InitDispatchTable_Base();
     InitDispatchTable_World();
@@ -468,8 +530,8 @@ LuauEngine::LuauEngine() {
     // 全てのScriptコルーチンに適用される。currentScript/currentTaskが共にnullの間
     // (Heartbeat経由の直接pcall等)は対象が特定できないためチェックをスキップする。
     lua_callbacks(L)->interrupt = [](lua_State* Lco, int gc) {
-        if (gc >= 0 || (!currentScript && !currentTask)) return; // GC由来の割り込み、及びスクリプト/タスク外の呼び出しは対象外
         auto* engine = static_cast<LuauEngine*>(lua_callbacks(Lco)->userdata);
+        if (gc >= 0 || (!currentScript && !currentTask && (!engine || engine->m_signalCallbackDepth == 0))) return;
         if (!engine || !engine->m_system) return;
         float limit = engine->m_system->ScriptLoopTimeoutSeconds;
         if (limit <= 0.0f) return; // 0以下でチェック無効
@@ -590,6 +652,7 @@ bool LuauEngine::loadScriptChunk(lua_State* co, Script& script) {
 
     const std::string& source = *sourcePtr;
     int status;
+    beginProtectedExecution();
     if (script.isPrecompiled) {
         // .luauc: source already contains raw bytecode, pass directly
         status = luau_load(co, ("@" + script.Name).c_str(),
@@ -604,11 +667,7 @@ bool LuauEngine::loadScriptChunk(lua_State* co, Script& script) {
 
     if (status != 0) {
         script.Aborted = true; // DO NOT loop on errored script compile!
-        const char* raw = (lua_gettop(co) > 0) ? lua_tostring(co, -1) : nullptr;
-        const std::string errMsg = raw ? raw : "compile error";
-        std::cerr << "Luau Load Error: " << errMsg << "\n";
-        if (g_luauLogHook) g_luauLogHook("[ERROR] " + errMsg);
-        if (lua_gettop(co) > 0) lua_pop(co, 1);
+        reportProtectedError(co, "Script Load | " + scriptExecutionLabel(&script));
         return false;
     }
     return true;
@@ -658,6 +717,7 @@ bool LuauEngine::execute(Script& script) {
         int nargs = 0;
         FPUState fpuState = saveFPU();
         m_scriptResumeStart = std::chrono::steady_clock::now();
+        beginProtectedExecution();
         int result = lua_resume(co, L, nargs);
         restoreFPU(fpuState);
 
@@ -684,21 +744,9 @@ bool LuauEngine::execute(Script& script) {
         } else {
             // エラー
             script.Aborted = true; // DO NOT loop on errored script!
-            std::cerr << "Luau Run Error caught. Status: " << result << "\n";
             // Luauはエラーメッセージをcoではなく親スレッドLに積む場合がある
             lua_State* errState = (lua_gettop(co) > 0) ? co : L;
-            std::string errMsg = "unknown error";
-            if (lua_gettop(errState) > 0) {
-                const char* raw = luaL_tolstring(errState, -1, nullptr);
-                if (raw) errMsg = raw;
-                lua_pop(errState, 2); // luaL_tolstring が文字列を積むので2つポップ
-            }
-
-            // debugprotectederror で取得したスタックトレースを使う
-            const std::string output = m_lastTraceback.empty() ? errMsg : m_lastTraceback;
-            m_lastTraceback.clear();
-            std::cerr << "Luau Run Error: " << output << "\n";
-            if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
+            reportProtectedError(errState, "Script | " + scriptExecutionLabel(&script));
             lua_unref(L, script.CoroutineRef);
             script.CoroutineRef = -1;
             script.Coroutine = nullptr;
@@ -1120,6 +1168,8 @@ LuauEngine::EngineTask* LuauEngine::createEngineTask(lua_State* L, int fnIdx, fl
     int nargs = lua_gettop(L) - fnIdx; // fnより後ろの可変引数の個数
 
     auto task = std::make_unique<EngineTask>();
+    task->sourceLabel = currentScript ? scriptExecutionLabel(currentScript)
+                                      : (currentTask ? currentTask->sourceLabel : "Unknown task source");
     task->co = lua_newthread(L);
     task->coRef = lua_ref(L, -1); // レジストリ参照でGCから保護
     lua_pop(L, 1);
@@ -1163,6 +1213,7 @@ void LuauEngine::resumeEngineTask(EngineTask& task, int nargs) {
 
     FPUState fpuState = saveFPU();
     m_scriptResumeStart = std::chrono::steady_clock::now();
+    beginProtectedExecution();
     int result = lua_resume(task.co, L, nargs);
     restoreFPU(fpuState);
 
@@ -1179,18 +1230,8 @@ void LuauEngine::resumeEngineTask(EngineTask& task, int nargs) {
     // 完了またはエラー
     task.finished = true;
     if (result != 0) {
-        std::cerr << "Luau Task Error caught. Status: " << result << "\n";
         lua_State* errState = (lua_gettop(task.co) > 0) ? task.co : L;
-        std::string errMsg = "unknown error";
-        if (lua_gettop(errState) > 0) {
-            const char* raw = luaL_tolstring(errState, -1, nullptr);
-            if (raw) errMsg = raw;
-            lua_pop(errState, 2); // luaL_tolstring が文字列を積むので2つポップ
-        }
-        const std::string output = m_lastTraceback.empty() ? errMsg : m_lastTraceback;
-        m_lastTraceback.clear();
-        std::cerr << "Luau Task Error: " << output << "\n";
-        if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
+        reportProtectedError(errState, "Task | " + task.sourceLabel);
     }
 }
 
@@ -1288,10 +1329,14 @@ int LuauEngine::luafn_require(lua_State* L) {
     }
 
     // 呼び出し元スレッド上で同期実行（1個の返り値を要求）
+    engine->beginProtectedExecution();
     if (lua_pcall(L, 0, 1, 0) != 0) { // [cache, err]
-        const char* raw = lua_tostring(L, -1);
-        const std::string errMsg = raw ? raw : "unknown error";
-        clearSentinel(-2);
+        std::string errMsg = engine->consumeProtectedError(L); // [cache]
+        // The outer Script/Task protected call adds its own traceback. Keep the
+        // rethrown module error to one line to avoid duplicating caller frames.
+        if (size_t newline = errMsg.find('\n'); newline != std::string::npos)
+            errMsg.resize(newline);
+        clearSentinel(-1);
         luaL_error(L, "require: error in module '%s': %s", module->Name.c_str(), errMsg.c_str());
     }
 
@@ -1489,6 +1534,7 @@ void LuauEngine::resumeWaitChild(Script& script, Instance* childOrNull) {
 
     FPUState fpuState = saveFPU();
     m_scriptResumeStart = std::chrono::steady_clock::now();
+    beginProtectedExecution();
     int result = lua_resume(co, L, 1);
     restoreFPU(fpuState);
 
@@ -1512,18 +1558,8 @@ void LuauEngine::resumeWaitChild(Script& script, Instance* childOrNull) {
         return;
     } else {
         script.Aborted = true;
-        std::cerr << "Luau Run Error caught. Status: " << result << "\n";
         lua_State* errState = (lua_gettop(co) > 0) ? co : L;
-        std::string errMsg = "unknown error";
-        if (lua_gettop(errState) > 0) {
-            const char* raw = luaL_tolstring(errState, -1, nullptr);
-            if (raw) errMsg = raw;
-            lua_pop(errState, 2);
-        }
-        const std::string output = m_lastTraceback.empty() ? errMsg : m_lastTraceback;
-        m_lastTraceback.clear();
-        std::cerr << "Luau Run Error: " << output << "\n";
-        if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
+        reportProtectedError(errState, "Script | " + scriptExecutionLabel(&script));
         lua_unref(L, script.CoroutineRef);
         script.CoroutineRef = -1;
         script.Coroutine = nullptr;
@@ -1922,7 +1958,9 @@ int LuauEngine::signal_connect_closure(lua_State* L) {
     // arg1 = self (signal), arg2 = callback function
     int ref = lua_ref(L, 2);
     auto shared = sig->shared_from_this();
-    int id = sig->connect(L, ref, false);
+    std::string sourceLabel = currentScript ? scriptExecutionLabel(currentScript)
+                                            : (currentTask ? currentTask->sourceLabel : "Unknown signal listener");
+    int id = sig->connect(L, ref, false, std::move(sourceLabel));
     pushConnection(L, std::make_shared<RCBNScriptConnection>(shared, id));
     return 1;
 }
@@ -1932,7 +1970,9 @@ int LuauEngine::signal_once_closure(lua_State* L) {
     // arg1 = self (signal), arg2 = callback function
     int ref = lua_ref(L, 2);
     auto shared = sig->shared_from_this();
-    int id = sig->connect(L, ref, true);
+    std::string sourceLabel = currentScript ? scriptExecutionLabel(currentScript)
+                                            : (currentTask ? currentTask->sourceLabel : "Unknown signal listener");
+    int id = sig->connect(L, ref, true, std::move(sourceLabel));
     pushConnection(L, std::make_shared<RCBNScriptConnection>(shared, id));
     return 1;
 }
@@ -1944,7 +1984,9 @@ int LuauEngine::signal_until_closure(lua_State* L) {
     auto evtInst = evtUd->lock();
     int ref = lua_ref(L, 3);
     auto shared = sig->shared_from_this();
-    int id = sig->connect(L, ref, false);
+    std::string sourceLabel = currentScript ? scriptExecutionLabel(currentScript)
+                                            : (currentTask ? currentTask->sourceLabel : "Unknown signal listener");
+    int id = sig->connect(L, ref, false, std::move(sourceLabel));
     auto conn = std::make_shared<RCBNScriptConnection>(shared, id);
     if (evtInst && evtInst->IsA("Event")) {
         static_cast<Event*>(evtInst.get())->addUntilConnection(conn);
@@ -2175,8 +2217,11 @@ int LuauEngine::signalevent_fire_closure(lua_State* L) {
     if (!se->Fired) return 0;
 
     int top = lua_gettop(L); // L[1]=self, L[2..top]=可変引数
-    se->Fired->fire(L, [top](lua_State* Lx) -> int {
-        for (int i = 2; i <= top; ++i) lua_pushvalue(Lx, i);
+    se->Fired->fire(L, [source = L, top](lua_State* Lx) -> int {
+        for (int i = 2; i <= top; ++i) {
+            lua_pushvalue(source, i);
+            lua_xmove(source, Lx, 1);
+        }
         return top - 1;
     });
     return 0;

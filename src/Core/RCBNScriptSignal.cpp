@@ -1,4 +1,7 @@
 #include <Core/RCBNScriptSignal.hpp>
+#include <Core/LuauEngine.hpp>
+#include <Util/Logger.hpp>
+#include <iostream>
 
 RCBNScriptSignal::~RCBNScriptSignal() {
     if (!m_mainL) return;
@@ -9,7 +12,7 @@ RCBNScriptSignal::~RCBNScriptSignal() {
     m_listeners.clear();
 }
 
-int RCBNScriptSignal::connect(lua_State* L, int luaRef, bool once) {
+int RCBNScriptSignal::connect(lua_State* L, int luaRef, bool once, std::string sourceLabel) {
     // Lが個々のScriptのコルーチンスレッドの場合、そのScriptの実行終了とともにLuau側で
     // 解放/GCされうる(ループを持たない単発スクリプトで顕著)。m_mainLはSignal自身の寿命
     // (Systemと同程度に長い)だけ生存する必要があるため、常にVMのメインスレッドを指すよう
@@ -17,7 +20,8 @@ int RCBNScriptSignal::connect(lua_State* L, int luaRef, bool once) {
     // disconnect/fireでdangling lua_State*を使ってlua_unref等がクラッシュする)
     if (!m_mainL) m_mainL = lua_mainthread(L);
     int id = m_nextId++;
-    m_listeners.push_back({ luaRef, once, id });
+    if (sourceLabel.empty()) sourceLabel = "Unknown signal listener";
+    m_listeners.push_back({ luaRef, once, id, std::move(sourceLabel) });
     return id;
 }
 
@@ -47,13 +51,43 @@ void RCBNScriptSignal::fire(lua_State* L, std::function<int(lua_State*)> pushArg
     auto copy = m_listeners;
     for (auto& l : copy) {
         if (l.luaRef == LUA_NOREF) continue;
-        lua_rawgeti(L, LUA_REGISTRYINDEX, l.luaRef);
-        int nargs = pushArgs ? pushArgs(L) : 0;
-        if (lua_pcall(L, nargs, 0, 0) != 0) {
-            const char* err = lua_tostring(L, -1);
-            if (err) printf("[Signal error] %s\n", err);
-            lua_pop(L, 1);
+        lua_State* mainL = lua_mainthread(L);
+        lua_State* callbackCo = lua_newthread(L);
+        int callbackRef = lua_ref(L, -1);
+        lua_pop(L, 1);
+
+        lua_callbacks(callbackCo)->userdata = lua_callbacks(mainL)->userdata;
+        auto* engine = static_cast<LuauEngine*>(lua_callbacks(callbackCo)->userdata);
+        std::chrono::steady_clock::time_point previousStart{};
+        if (engine) {
+            previousStart = engine->beginSignalCallback();
+            engine->beginProtectedExecution();
         }
+
+        lua_rawgeti(callbackCo, LUA_REGISTRYINDEX, l.luaRef);
+        int nargs = pushArgs ? pushArgs(callbackCo) : 0;
+        int status = lua_resume(callbackCo, L, nargs);
+        const std::string context = "Signal | " + l.sourceLabel;
+        if (status == LUA_YIELD) {
+            if (engine) {
+                engine->reportProtectedMessage(context, "Signal callback yielded; yielding listeners are not supported");
+            } else {
+                const std::string output = "[" + context + "] Signal callback yielded; yielding listeners are not supported";
+                std::cerr << output << "\n";
+                if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
+            }
+        } else if (status != 0) {
+            if (engine) {
+                engine->reportProtectedError(callbackCo, context);
+            } else {
+                const char* raw = lua_tostring(callbackCo, -1);
+                const std::string output = "[" + context + "] " + (raw ? raw : "unknown error");
+                std::cerr << output << "\n";
+                if (g_luauLogHook) g_luauLogHook("[ERROR] " + output);
+            }
+        }
+        if (engine) engine->endSignalCallback(previousStart);
+        lua_unref(mainL, callbackRef);
         if (l.once) disconnect(l.id);
     }
 }

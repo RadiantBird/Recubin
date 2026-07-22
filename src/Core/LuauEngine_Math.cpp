@@ -508,10 +508,23 @@ int LuauEngine::cframe_from_axis_angle(lua_State* L) {
 
 // CFrame.lookAt(Vector3 eye, Vector3 target [, Vector3 up = (0,1,0)])
 int LuauEngine::cframe_look_at(lua_State* L) {
+    // Keep this diagnostic explicit: passing a CFrame here (for example from
+    // CFrame.lookAt(...) into a function expecting a direction Vector3) used
+    // to produce only a generic userdata type error.
+    if (rcbn_testudata(L, 1, RCBN_CFRAME_METATABLE))
+        luaL_argerror(L, 1, "expected Vector3 (got CFrame; use .Position or pass a direction)");
+    if (rcbn_testudata(L, 2, RCBN_CFRAME_METATABLE))
+        luaL_argerror(L, 2, "expected Vector3 (got CFrame; use .Position)");
+
     Vector3* eye    = (Vector3*)luaL_checkudata(L, 1, RCBN_VEC3_METATABLE);
     Vector3* target = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
     Vector3 up(0, 1, 0);
-    if (void* ud = rcbn_testudata(L, 3, RCBN_VEC3_METATABLE)) up = *(Vector3*)ud;
+    if (!lua_isnoneornil(L, 3)) {
+        if (rcbn_testudata(L, 3, RCBN_CFRAME_METATABLE))
+            luaL_argerror(L, 3, "expected Vector3 up direction (got CFrame)");
+        void* ud = luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
+        up = *(Vector3*)ud;
+    }
     pushCFrame(L, CFrame(*eye, Quaternion::LookRotation(*target - *eye, up)));
     return 1;
 }

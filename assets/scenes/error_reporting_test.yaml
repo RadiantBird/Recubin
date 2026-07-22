@@ -1,0 +1,19 @@
+Root:
+  Children:
+    - ClassName: System
+      Name: System
+      Properties:
+        ScriptLoopTimeoutSeconds: 0.05
+      Children:
+        - ClassName: Workspace
+          Name: Workspace
+          Children:
+            - ClassName: Script
+              Name: ErrorReportingTest
+              Properties:
+                ContentPath: scripts/error_reporting_test.luau
+              Children:
+                - ClassName: ModuleScript
+                  Name: BrokenModule
+                  Properties:
+                    ContentPath: scripts/error_reporting_broken_module.luau
