@@ -794,8 +794,36 @@ void Physics::update(Workspace& workspace, float dt) {
     }
 
     // 3. 制約の新規登録（Weld を先に処理して compound を確定させてから Rope/Rod/Motor を生成）
+    // Weld を1本ずつ createWeld() すると、同じ連結体をWeld本数分だけ再構築することになる。
+    // 先に全Weldを登録し、連結成分ごとに現在のワールド姿勢から一度だけcompoundを作る。
+    std::vector<std::shared_ptr<Weld>> pendingWelds;
     for (auto& c : workspace.pendingConstraints) {
-        if (c->IsA("Weld")) createWeld(std::static_pointer_cast<Weld>(c), workspace);
+        if (!c->IsA("Weld")) continue;
+        auto weld = std::static_pointer_cast<Weld>(c);
+        auto cube0 = weld->m_cube0.lock();
+        auto cube1 = weld->m_cube1.lock();
+        if (!cube0 || !cube1 || cube0 == cube1) continue;
+
+        const bool alreadyRegistered = std::any_of(
+            m_constraints.begin(), m_constraints.end(),
+            [&](const ConstraintEntry& entry) { return entry.constraint.lock() == weld; });
+        if (!alreadyRegistered) {
+            m_constraints.push_back({std::weak_ptr<Instance>(weld), nullptr});
+        }
+        pendingWelds.push_back(weld);
+    }
+    {
+        std::unordered_set<BaseCube*> rebuilt;
+        for (const auto& weld : pendingWelds) {
+            auto cube0 = weld->m_cube0.lock();
+            if (!cube0 || rebuilt.contains(cube0.get())) continue;
+            auto assembly = Weld::collectAssembly(cube0, workspace);
+            if (assembly.size() < 2) continue;
+            rebuildGroup(assembly);
+            for (const auto& cube : assembly) {
+                if (cube) rebuilt.insert(cube.get());
+            }
+        }
     }
     for (auto& c : workspace.pendingConstraints) {
         if      (c->IsA("Rope"))  createRope(std::static_pointer_cast<Rope>(c));
@@ -1139,14 +1167,18 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
     std::unordered_map<BaseCube*, physx::PxTransform> savedPoses;
     for (auto& cube : assembly) {
         if (cube->actor) {
-            savedPoses[cube.get()] = cube->actor->getGlobalPose().transform(cube->m_compoundLocalOffset);
+            // PxTransform::getInverse()/transform() は単位Quaternionを前提とする。
+            // compoundの再構築を重ねても丸め誤差が位置の拡大へ変換されないよう、合成前後で正規化する。
+            const physx::PxTransform actorPose = cube->actor->getGlobalPose().getNormalized();
+            const physx::PxTransform localOffset = cube->m_compoundLocalOffset.getNormalized();
+            savedPoses[cube.get()] = actorPose.transform(localOffset).getNormalized();
         } else {
             auto wp = cube->getWorldPosition();
             auto wr = cube->getWorldCFrame().Rotation;
             savedPoses[cube.get()] = physx::PxTransform(
                 physx::PxVec3(wp.x, wp.y, wp.z),
                 physx::PxQuat(wr.x, wr.y, wr.z, wr.w)
-            );
+            ).getNormalized();
         }
     }
 
@@ -1173,7 +1205,7 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
     }
 
     // 4. compound 生成（assembly[0] を原点）
-    physx::PxTransform originPose = savedPoses[assembly[0].get()];
+    physx::PxTransform originPose = savedPoses[assembly[0].get()].getNormalized();
     physx::PxRigidDynamic* compound = s_pxPhysics->createRigidDynamic(originPose);
     compound->setSolverIterationCounts(8, 2);
 
@@ -1184,7 +1216,7 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
         auto& cube = assembly[i];
         physx::PxTransform localOffset = (i == 0)
             ? physx::PxTransform(physx::PxIdentity)
-            : originPose.getInverse().transform(savedPoses[cube.get()]);
+            : originPose.getInverse().transform(savedPoses[cube.get()]).getNormalized();
         physx::PxMaterial* mat = getOrCreateMaterial(cube->material);
         if (attachShapeToCompound(s_pxPhysics, cube, compound, localOffset, mat)) {
             shapeDensities.push_back(std::max(cube->MassDensity, 0.01f));
