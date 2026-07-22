@@ -3,7 +3,7 @@ local Skybox = workspace:FindChild('Skybox')
 local Sun = workspace:FindChild('Sun')
 local Lighting = workspace:FindChild('Lighting')
 
-local cycleSeconds = 30 -- 1周にかかる時間（秒）
+local cycleSeconds = 180 -- 1周にかかる時間（秒）
 
 local maxBrightness = 1.0
 local minBrightness = 0.1

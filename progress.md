@@ -537,3 +537,24 @@ readme Todo「オブジェクトの座標を同期したりする機能」を実
 - 対象Character配下の物理登録キューが実際に空になるまで、受信姿勢・歩行アニメーション適用、Root再構築、Host代理`move()`を保留するよう変更した。固定フレーム数には依存しない。
 - Host移行時の一括即時プロキシ化を廃止し、通常の待機付きプロキシ化経路へ統一した。Weld compound確定後にRootを再構築し、そのフレームも代理移動を行わない。
 - Releaseビルド成功。localhost Host + Clientで`PlayerCharacter_2`生成、物理プロキシ化、NoCollision生成、stderr 0 bytesを確認。回帰テストは **131 passed / 4 failed** で既知ベースラインを維持。
+
+## 2026-07-23 Weld建物のPlay開始時配置崩れ修正
+
+### 症状と原因
+
+- エディター上では正しく組まれているWeld建物が、テストプレイを開始すると床や柱の間隔が大きく広がる問題を調査した。Weldの`Cube0` / `Cube1`参照や保存プロパティは正常だった。
+- `_snapshot.yaml`の建物を使って数値検証した結果、`Base`を起点とする26パーツのWeld連結体が、最初の物理更新だけで最大 **30.6371 stud** 移動していた。
+- `Physics::update()`が初期登録されたWeldを1本ずつ`createWeld()`へ渡し、同じ連結体のcompoundをWeld本数分だけ繰り返し再構築していた。
+- `PxTransform::getInverse()` / `transform()`は単位Quaternionを前提とするが、再構築時のQuaternionを正規化していなかった。微小な丸め誤差が再構築のたびに増幅され、回転だけでなくcompound local offsetの平行移動まで拡大していたことが直接原因だった。
+
+### 修正
+
+- pending中のWeldを先にすべて制約リストへ登録し、Weld連結成分ごとにcompoundを一度だけ構築するバッチ処理へ変更した。
+- `Physics::rebuildGroup()`でactor姿勢、既存local offset、保存姿勢、原点姿勢、新しいlocal offsetのQuaternionを合成前後に正規化した。動的に再構築されるWeldでも誤差を累積させない。
+- `RecubinTest`へ`--weld-regression [scene]`モードを追加した。AnchoredなCubeにつながる全Weld連結体について、物理初期化前後のワールド座標を3フレーム比較し、0.001 studを超える変位を失敗として検出する。
+
+### 検証
+
+- `assets/scenes/_snapshot.yaml`の26パーツで、修正後は3フレームすべて最大変位 **0 stud**、Weld回帰テスト **PASS**。
+- Releaseの`RecubinCore` / `RecubinTest` / `RecubinEngine` / `Recubin.exe`を含むフルビルド成功。
+- 通常の`test_bindings.yaml`は **89 passed / 2 failed**。2件は既知の音声ファイル読み込み失敗に伴う`Sound.IsPlaying`テストで、今回のWeld変更による新規失敗はない。

@@ -18,7 +18,8 @@ namespace {
     constexpr float kLightningFlashDuration = 0.2f;
     constexpr float kLightningBrightness    = 10.0f;
     constexpr float kSkyAnchorHeight        = 150.0f;
-    constexpr float kWindToUVScale          = 0.0002f;
+    // Keep cloud motion visible at the default wind strength (10 studs/sec).
+    constexpr float kWindToUVScale          = 0.002f;
     constexpr float kBoltHeight             = 80.0f;  // 落雷対象頭上から雷柱を伸ばす高さ
     constexpr int   kBoltIterations         = 5;       // 中点変位法の反復回数（頂点数は2^n+1）
     constexpr float kBoltJitter             = 6.0f;    // 初期の水平ジッター振幅（反復ごとに半減）
