@@ -1,5 +1,3 @@
--- TODO: Define arithmetic table on Vector3, CFrame, etc...
--- !!!: Do not ask to copilot, they are really goofy XD
 export type Connection = {
     Disconnect: (Connection) -> ()
 }
@@ -13,7 +11,9 @@ export type Signal = {
 
 export type Instance = {
     Name: string,
-    Parent: Instance?,
+    -- Parent may still be nil at runtime. `any` deliberately permits assignment
+    -- to a concrete type while keeping the dynamically typed hierarchy usable.
+    Parent: any,
     -- The runtime preserves the concrete Instance type.  The generic forms let
     -- scripts narrow the result without forcing an unsafe `any` cast.
     FindChild: <T>(Instance, string) -> T?,
@@ -25,6 +25,8 @@ export type Instance = {
 
 export type Spatial = Instance & {
     Position: Vector3,
+    Rotation: Quaternion,
+    CFrame: CFrame,
     Size: Vector3,
 }
 
@@ -151,24 +153,27 @@ export type ModuleScript = Script & {
 
 }
 
-export type CFrame = {
+type CFrameData = {
     Position: Vector3,
+    LookVector: Vector3,
     Rotation: Quaternion,
-    new: (Vector3?, Quaternion?) -> CFrame,
-    fromAxisAngle: (Vector3, number) -> CFrame,
-    lookAt: (Vector3, Vector3, Vector3?) -> CFrame,
+    inverse: (CFrame) -> CFrame,
+}
+type CFrameMetatable = {
     __mul: ((CFrame, CFrame) -> CFrame) & ((CFrame, Vector3) -> Vector3),
     __eq: (CFrame, CFrame) -> boolean,
 }
+export type CFrame = typeof(setmetatable({} :: CFrameData, {} :: CFrameMetatable))
 
-export type Quaternion = {
+type QuaternionData = {
     x: number, y: number, z: number, w: number,
-    new: (number, number, number, number) -> Quaternion,
-    fromEuler: (number, number, number) -> Quaternion,
-    fromAxisAngle: (Vector3, number) -> Quaternion,
-    Slerp: (Quaternion, Quaternion, number) -> Quaternion,
-    LookRotation: (Vector3, Vector3?) -> Quaternion,
+    toEuler: (Quaternion) -> Vector3,
 }
+type QuaternionMetatable = {
+    __mul: ((Quaternion, Quaternion) -> Quaternion) & ((Quaternion, Vector3) -> Vector3),
+    __eq: (Quaternion, Quaternion) -> boolean,
+}
+export type Quaternion = typeof(setmetatable({} :: QuaternionData, {} :: QuaternionMetatable))
 
 export type Terrain = Instance & {
     Enabled: boolean,
@@ -194,45 +199,60 @@ export type Workspace = Instance & {
     Raycast: (Workspace, Vector3, Vector3, {Instance}?) -> RaycastResult?,
 }
 
-export type Vector3 = {
+type Vector3Data = {
     x: number,
     y: number,
     z: number,
-    zero: Vector3,
-    new: (number, number, number) -> Vector3,
     length: (Vector3) -> number,
     normalize: (Vector3) -> Vector3,
 
-    dot: (self: Vector3, other: Vector3) -> number,
-    cross: (self: Vector3, other: Vector3) -> Vector3,
-
+}
+type Vector3Metatable = {
     __add: (a: Vector3, b: Vector3) -> Vector3,
     __sub: (a: Vector3, b: Vector3) -> Vector3,
     __unm: (a: Vector3) -> Vector3,
-    __mul: ((a: Vector3, b: Vector3) -> Vector3) 
-         & ((a: Vector3, b: number) -> Vector3) 
-         & ((a: number, b: Vector3) -> Vector3), -- ベクトル倍と要素倍の交差型
-    __div: ((a: Vector3, b: Vector3) -> Vector3) -- ???
+    __mul: ((a: Vector3, b: Vector3) -> Vector3)
+         & ((a: Vector3, b: number) -> Vector3)
+         & ((a: number, b: Vector3) -> Vector3),
+    __div: ((a: Vector3, b: Vector3) -> Vector3)
          & ((a: Vector3, b: number) -> Vector3),
-    __tostring: (a: Vector3) -> string,
 }
+export type Vector3 = typeof(setmetatable({} :: Vector3Data, {} :: Vector3Metatable))
 
-export type Color4 = {
+type Color4Data = {
     r: number,
     g: number,
     b: number,
     a: number,
-    -- number range is : 0.0 ~ 1.0
-    new: (number, number, number, number?) -> Color4,
-    -- number range is : 0 ~ 255
-    fromRGBA: (number, number, number, number) -> Color4
 }
+type Color4Metatable = {
+    __add: (Color4, Color4) -> Color4,
+    __sub: (Color4, Color4) -> Color4,
+    __unm: (Color4) -> Color4,
+    __mul: ((Color4, Color4) -> Color4)
+         & ((Color4, number) -> Color4)
+         & ((number, Color4) -> Color4),
+    __div: (Color4, number) -> Color4,
+}
+export type Color4 = typeof(setmetatable({} :: Color4Data, {} :: Color4Metatable))
 
-export type Vector2 = {
+type Vector2Data = {
     x: number,
     y: number,
-    new: (number, number) -> Vector2,
+    X: number,
+    Y: number,
 }
+type Vector2Metatable = {
+    __add: (Vector2, Vector2) -> Vector2,
+    __sub: (Vector2, Vector2) -> Vector2,
+    __unm: (Vector2) -> Vector2,
+    __mul: ((Vector2, Vector2) -> Vector2)
+         & ((Vector2, number) -> Vector2)
+         & ((number, Vector2) -> Vector2),
+    __div: ((Vector2, Vector2) -> Vector2)
+         & ((Vector2, number) -> Vector2),
+}
+export type Vector2 = typeof(setmetatable({} :: Vector2Data, {} :: Vector2Metatable))
 
 export type System = Instance & {
     Heartbeat: Signal,
@@ -314,7 +334,7 @@ export type ProximityPrompt = Instance & {
 }
 
 export type Tool = Instance & {
-
+    Activated: Signal,
 }
 
 export type User = Instance & {
@@ -354,9 +374,19 @@ declare User:      User
 declare System:    System
 declare system:    System
 declare ChatService: ChatService
-declare Vector3:   Vector3
-declare Color4:    Color4
-declare Vector2:   Vector2
+declare Vector3: {
+    new: (number, number, number) -> Vector3,
+    zero: Vector3,
+}
+declare Color4: {
+    -- Component range: 0.0 to 1.0.
+    new: (number, number, number, number?) -> Color4,
+    -- Component range: 0 to 255.
+    fromRGBA: (number, number, number, number?) -> Color4,
+}
+declare Vector2: {
+    new: (number, number) -> Vector2,
+}
 declare Instance: { new: <T>(className: string) -> T }
 declare require: <T>(moduleScript: ModuleScript) -> T
 
@@ -367,5 +397,18 @@ declare print: (...any) -> ()
 
 declare function add(instance: Instance): ()
 declare function assert<T>(value: T, message: string?): T
-declare Quaternion: Quaternion
-declare CFrame: CFrame
+declare Quaternion: {
+    new: (() -> Quaternion) & ((number, number, number, number) -> Quaternion),
+    fromEuler: (Vector3) -> Quaternion,
+    fromAxisAngle: (Vector3, number) -> Quaternion,
+    Slerp: (Quaternion, Quaternion, number) -> Quaternion,
+    LookRotation: (Vector3, Vector3?) -> Quaternion,
+}
+declare CFrame: {
+    new: (() -> CFrame)
+       & ((number, number, number) -> CFrame)
+       & ((Vector3) -> CFrame)
+       & ((Vector3, Quaternion) -> CFrame),
+    fromAxisAngle: (Vector3, number) -> CFrame,
+    lookAt: (Vector3, Vector3, Vector3?) -> CFrame,
+}
