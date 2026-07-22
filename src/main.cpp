@@ -46,6 +46,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <array>
 #include <fstream>
 #include <filesystem>
 #include <sstream>
@@ -589,6 +590,24 @@ int main(int argc, char* argv[]) {
     bool snapshotDirty = false;
     const std::string snapshotPath = "assets/scenes/_snapshot.yaml";
 
+    // The editor does not need a busy loop while it is idle.  Keep the
+    // timeout short enough to remain responsive, while avoiding a full-rate
+    // redraw when there is nothing to update.
+    constexpr double editorIdleTimeoutSeconds = 2.0;
+    constexpr double editorIdleFrameSeconds   = 1.0 / 15.0;
+    double lastEditorInteraction = glfwGetTime();
+    bool energySavingMode = false;
+    std::vector<unsigned char> previousKeyState(GLFW_KEY_LAST + 1, GLFW_RELEASE);
+    std::array<unsigned char, 3> previousMouseState{
+        GLFW_RELEASE, GLFW_RELEASE, GLFW_RELEASE
+    };
+    double previousCursorX = 0.0;
+    double previousCursorY = 0.0;
+    int previousFramebufferWidth = 0;
+    int previousFramebufferHeight = 0;
+    glfwGetCursorPos(window, &previousCursorX, &previousCursorY);
+    glfwGetFramebufferSize(window, &previousFramebufferWidth, &previousFramebufferHeight);
+
     auto initNewScene = [&](const std::string& path, bool isDirty) {
         auto bound = SceneRuntime::loadAndBind(path, system, user, *luauEngine, window);
         workspace  = bound.workspace;
@@ -599,6 +618,15 @@ int main(int argc, char* argv[]) {
     };
 
     while (true) {
+        const bool windowInactive =
+            glfwGetWindowAttrib(window, GLFW_FOCUSED) == GLFW_FALSE ||
+            glfwGetWindowAttrib(window, GLFW_ICONIFIED) == GLFW_TRUE;
+        if (!wasPlaying && (energySavingMode || windowInactive)) {
+            // This wakes on any GLFW event (input, resize, close, etc.) and
+            // otherwise gives us one low-FPS refresh to keep the UI alive.
+            glfwWaitEventsTimeout(editorIdleFrameSeconds);
+        }
+
         if (glfwWindowShouldClose(window)) {
             if (checkExit(ed, *window)) {
                 break;
@@ -823,6 +851,60 @@ int main(int argc, char* argv[]) {
 
         audioService->updateSounds(user->cpos, user->right);
         FrameProfiler::get().endFrame();
+
+        // Detect transitions rather than held keys/buttons, so a held key
+        // does not constantly wake the editor from energy-saving mode.
+        bool editorInteraction = false;
+        if (!windowInactive) {
+            for (int key = 0; key <= GLFW_KEY_LAST; ++key) {
+                const unsigned char keyState =
+                    glfwGetKey(window, key) == GLFW_PRESS ? GLFW_PRESS : GLFW_RELEASE;
+                if (keyState != previousKeyState[key]) editorInteraction = true;
+                previousKeyState[key] = keyState;
+            }
+            for (int button = 0; button < 3; ++button) {
+                const unsigned char buttonState =
+                    glfwGetMouseButton(window, button) == GLFW_PRESS ? GLFW_PRESS : GLFW_RELEASE;
+                if (buttonState != previousMouseState[button]) editorInteraction = true;
+                previousMouseState[button] = buttonState;
+            }
+
+            double cursorX = 0.0;
+            double cursorY = 0.0;
+            glfwGetCursorPos(window, &cursorX, &cursorY);
+            if (cursorX != previousCursorX || cursorY != previousCursorY) editorInteraction = true;
+            previousCursorX = cursorX;
+            previousCursorY = cursorY;
+
+            int framebufferWidth = 0;
+            int framebufferHeight = 0;
+            glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
+            if (framebufferWidth != previousFramebufferWidth ||
+                framebufferHeight != previousFramebufferHeight) {
+                editorInteraction = true;
+            }
+            previousFramebufferWidth = framebufferWidth;
+            previousFramebufferHeight = framebufferHeight;
+        }
+
+        const ImGuiIO& io = ImGui::GetIO();
+        if (!windowInactive) {
+            editorInteraction = editorInteraction || io.MouseDelta.x != 0.0f ||
+                                io.MouseDelta.y != 0.0f || io.MouseWheel != 0.0f ||
+                                io.MouseWheelH != 0.0f || io.InputQueueCharacters.Size > 0;
+        }
+
+        const double interactionTime = glfwGetTime();
+        if (editorInteraction || isPlaying) lastEditorInteraction = interactionTime;
+
+        const bool shouldSaveEnergy = !isPlaying &&
+            (windowInactive || interactionTime - lastEditorInteraction >= editorIdleTimeoutSeconds);
+        if (shouldSaveEnergy != energySavingMode) {
+            energySavingMode = shouldSaveEnergy;
+            RCBN_LOG(energySavingMode ?
+                "[INFO] Editor entered energy-saving mode (15 FPS)." :
+                "[INFO] Editor left energy-saving mode.");
+        }
     }
 
     std::cout << "[DEBUG] Main loop ended.\n";
