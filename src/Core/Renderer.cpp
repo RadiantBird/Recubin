@@ -282,6 +282,10 @@ void Renderer::init(GLFWwindow* window) {
     // ドッキング/マルチビューポートはエディター専用
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+    // GLFW backendが提供するモニターDPIをImGuiへ反映する。
+    // フォントとDockingのプラットフォームウィンドウを、モニター移動時も追従させる。
+    io.ConfigDpiScaleFonts    = true;
+    io.ConfigDpiScaleViewports = true;
 #else
     // ランタイムはレイアウトを永続化しない。エディターと同じフォルダで起動すると
     // 既定の imgui.ini（CWD相対）を共有してエディターのレイアウトを壊すため

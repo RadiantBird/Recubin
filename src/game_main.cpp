@@ -1,6 +1,10 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+#ifdef _WIN32
+    #include <windows26.h>
+#endif
+
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Lighting.hpp>
@@ -154,6 +158,11 @@ int main(int argc, char* argv[]) {
     AssetGuard::enableSandbox(std::filesystem::current_path());
 
     // ---- ウィンドウ作成 ----
+#ifdef _WIN32
+    if (!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) {
+        SetProcessDPIAware();
+    }
+#endif
     if (!glfwInit()) return -1;
     // Mac対応: OpenGL 4.1 Core Profileを明示指定（macOSは未指定だとレガシー2.1しか得られない）
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);

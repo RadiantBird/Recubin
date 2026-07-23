@@ -72,6 +72,16 @@
 // ===================================================
 GLFWwindow* setupWindow() {
     std::cout << "initing GLFW...\n";
+
+#ifdef _WIN32
+    // GLFW/ImGuiがWindowsの論理座標とFramebuffer座標を正しく扱えるよう、
+    // ウィンドウ生成より前にPer-Monitor V2 DPI awarenessを有効にする。
+    // 古いWindows環境で利用できない場合は従来のシステムDPI対応へフォールバックする。
+    if (!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) {
+        SetProcessDPIAware();
+    }
+#endif
+
     if (!glfwInit()) {
         std::cout << "GLFW init failed\n";
         return nullptr;

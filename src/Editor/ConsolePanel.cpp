@@ -66,20 +66,23 @@ void ConsolePanel::onRender() {
             }
             ImGui::Separator();
 
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.045f, 0.060f, 0.105f, 1.0f));
             ImGui::BeginChild("SysScroll", ImVec2(0, 0), ImGuiChildFlags_None,
                                ImGuiWindowFlags_HorizontalScrollbar);
             for (const auto& line : logs) {
                 if (filterBuf[0] != '\0' && line.find(filterBuf) == std::string::npos) continue;
-                ImVec4 col = ImVec4(0.9f, 0.9f, 0.9f, 1.0f);
-                if (line.starts_with("[WARN]"))  col = ImVec4(1.0f, 0.85f, 0.0f, 1.0f);
-                if (line.starts_with("[ERROR]")) col = ImVec4(1.0f, 0.35f, 0.35f, 1.0f);
-                if (line.starts_with("[LOG]"))   col = ImVec4(0.7f, 0.9f, 1.0f, 1.0f);
+                ImVec4 col = ImVec4(0.78f, 0.80f, 0.84f, 1.0f);
+                if (line.starts_with("[WARN]"))   col = ImVec4(0.90f, 0.70f, 0.18f, 1.0f);
+                if (line.starts_with("[ERROR]"))  col = ImVec4(0.90f, 0.30f, 0.32f, 1.0f);
+                if (line.starts_with("[TRACE]"))  col = ImVec4(0.48f, 0.60f, 0.72f, 1.0f);
+                if (line.starts_with("[LOG]"))    col = ImVec4(0.68f, 0.76f, 0.84f, 1.0f);
                 ImGui::PushStyleColor(ImGuiCol_Text, col);
                 ImGui::TextUnformatted(line.c_str());
                 ImGui::PopStyleColor();
             }
             if (scrollToBottom) { ImGui::SetScrollHereY(1.0f); scrollToBottom = false; }
             ImGui::EndChild();
+            ImGui::PopStyleColor();
             ImGui::EndTabItem();
         }
 
@@ -104,19 +107,22 @@ void ConsolePanel::onRender() {
             }
             ImGui::Separator();
 
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.045f, 0.060f, 0.105f, 1.0f));
             ImGui::BeginChild("LuauScroll", ImVec2(0, 0), ImGuiChildFlags_None,
                                ImGuiWindowFlags_HorizontalScrollbar);
             for (const auto& line : luauLogs) {
                 if (luauFilterBuf[0] != '\0' && line.find(luauFilterBuf) == std::string::npos) continue;
-                ImVec4 col = ImVec4(0.9f, 0.9f, 0.9f, 1.0f);
-                if (line.starts_with("[ERROR]")) col = ImVec4(1.0f, 0.35f, 0.35f, 1.0f);
-                if (line.starts_with("[WARN]"))  col = ImVec4(1.0f, 0.85f, 0.0f, 1.0f);
+                ImVec4 col = ImVec4(0.78f, 0.80f, 0.84f, 1.0f);
+                if (line.starts_with("[ERROR]")) col = ImVec4(0.90f, 0.30f, 0.32f, 1.0f);
+                if (line.starts_with("[WARN]"))  col = ImVec4(0.90f, 0.70f, 0.18f, 1.0f);
+                if (line.starts_with("[TRACE]")) col = ImVec4(0.48f, 0.60f, 0.72f, 1.0f);
                 ImGui::PushStyleColor(ImGuiCol_Text, col);
                 ImGui::TextUnformatted(line.c_str());
                 ImGui::PopStyleColor();
             }
             if (luauScrollToBottom) { ImGui::SetScrollHereY(1.0f); luauScrollToBottom = false; }
             ImGui::EndChild();
+            ImGui::PopStyleColor();
             ImGui::EndTabItem();
         }
 

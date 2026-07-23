@@ -152,6 +152,7 @@ public:
 
 private:
     ToolbarCategory m_toolbarCategory = ToolbarCategory::Basic;
+    float m_uiLayoutScale = 1.0f;
 
     // icon(nullptr可)+labelを1つのボタンに描画する。ボタン幅/高さに収まらない場合は
     // ImGui::SetWindowFontScaleで自動的にフォントを縮小する(下限0.55倍)。クリックされたらtrue。
@@ -165,6 +166,7 @@ private:
     void renderToolbarPhysics();
     void renderToolbarCharacter();
     void applyTheme();
+    void updateResponsiveScale();
     void handleEditorShortcuts();
     void renderSaveDialog();
     void renderPlayLoadConfirmDialog();
