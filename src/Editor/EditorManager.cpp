@@ -348,14 +348,20 @@ void EditorManager::handleEditorShortcuts() {
         // BackSpace: 選択インスタンスをすべて削除（複数選択対応・1 Undo 単位）
         if (ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
             auto& si = hierarchyPanel->selectedInstances;
+            std::vector<Instance*> primarySelection;
+            const std::vector<Instance*>* targets = &si;
+            if (si.empty() && hierarchyPanel->selectedInstance) {
+                primarySelection.push_back(hierarchyPanel->selectedInstance);
+                targets = &primarySelection;
+            }
             // 祖先が選択集合に含まれる子孫は除外（親を消すと子も消えるため二重削除を防ぐ）
-            auto ancestorSelected = [&si](Instance* x) {
+            auto ancestorSelected = [targets](Instance* x) {
                 for (auto p = x->Parent.lock(); p; p = p->Parent.lock())
-                    if (std::find(si.begin(), si.end(), p.get()) != si.end()) return true;
+                    if (std::find(targets->begin(), targets->end(), p.get()) != targets->end()) return true;
                 return false;
             };
             auto group = std::make_unique<CompositeCommand>();
-            for (Instance* target : si) {
+            for (Instance* target : *targets) {
                 if (!target || ancestorSelected(target)) continue;
                 auto parent = target->Parent.lock();
                 if (!parent) continue;

@@ -377,6 +377,8 @@ PropertiesPanel::PropertiesPanel()
 //  collapsed: InputText "x, y, z"  [▼]
 //  expanded : DragFloat × 3         [▲]
 // ===================================================
+static std::shared_ptr<Tool> s_toolVec3Target;
+
 static void drawVec3Field(const char* id,
                           Vector3& val,
                           float speed, float minVal, float maxVal,
@@ -414,6 +416,11 @@ static void drawVec3Field(const char* id,
                 Vector3 newVal(x, y, z);
                 if (history && sp) {
                     history->execute(std::make_unique<SetVec3Command>(sp, prop, val, newVal));
+                } else if (history && s_toolVec3Target) {
+                    Vector3 before = val;
+                    val = newVal;
+                    history->record(std::make_unique<SetToolPositionCommand>(
+                        s_toolVec3Target, before, newVal));
                 } else {
                     val = newVal;
                 }
@@ -433,6 +440,11 @@ static void drawVec3Field(const char* id,
                 std::clamp(std::round(val.z), minVal, maxVal));
             if (history && sp) {
                 history->execute(std::make_unique<SetVec3Command>(sp, prop, val, newVal));
+            } else if (history && s_toolVec3Target) {
+                Vector3 before = val;
+                val = newVal;
+                history->record(std::make_unique<SetToolPositionCommand>(
+                    s_toolVec3Target, before, newVal));
             } else {
                 val = newVal;
             }
@@ -447,9 +459,10 @@ static void drawVec3Field(const char* id,
 
         std::string key = std::string(id) + "_before";
         float arr[3] = { val.x, val.y, val.z };
+        Vector3 beforeEdit = val;
         bool changed = ImGui::DragFloat3("##drag", arr, speed, minVal, maxVal);
 
-        if (ImGui::IsItemActivated()) s_before[key] = val;
+        if (ImGui::IsItemActivated()) s_before[key] = s_toolVec3Target ? beforeEdit : val;
 
         if (changed) {
             Vector3 newVal(arr[0], arr[1], arr[2]);
@@ -465,11 +478,26 @@ static void drawVec3Field(const char* id,
         if (ImGui::IsItemDeactivatedAfterEdit() && history && sp) {
             Vector3 after(arr[0], arr[1], arr[2]);
             history->record(std::make_unique<SetVec3Command>(sp, prop, s_before[key], after));
+        } else if (ImGui::IsItemDeactivatedAfterEdit() && history && s_toolVec3Target) {
+            Vector3 after(arr[0], arr[1], arr[2]);
+            history->record(std::make_unique<SetToolPositionCommand>(
+                s_toolVec3Target, s_before[key], after));
         }
 
         ImGui::PopID();
         ImGui::Unindent(12.0f);
     }
+}
+
+static void drawToolVec3Field(const char* id,
+                              Vector3& val,
+                              float speed, float minVal, float maxVal,
+                              const std::shared_ptr<Tool>& tool,
+                              CommandHistory* history)
+{
+    s_toolVec3Target = tool;
+    drawVec3Field(id, val, speed, minVal, maxVal, nullptr, "", history);
+    s_toolVec3Target.reset();
 }
 
 void PropertiesPanel::drawConstraintCubeRef(const char* label, std::string& nameRef,
@@ -965,7 +993,7 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- Script ----
-    if (inst->getClassName() == "Script") {
+    if (inst->IsA("Script")) {
         Script* sc = static_cast<Script*>(inst);
         auto scSp = std::static_pointer_cast<Script>(inst->shared_from_this());
         ImGui::SeparatorText("Script");
@@ -1291,16 +1319,23 @@ void PropertiesPanel::onRender() {
         // Handle reference（制約と同じ Pick 機構で指定。Viewport / ヒエラルキーから選択可）
         ImGui::Text("Position");
         ImGui::SameLine(80.0f);
-        drawVec3Field("ToolPosition", tool->Position, 0.05f, -1e9f, 1e9f, nullptr, "", nullptr);
+        drawToolVec3Field("ToolPosition", tool->Position, 0.05f, -1e9f, 1e9f, toolSp, m_history);
 
         ImGui::Text("Rotation");
         ImGui::SameLine(80.0f);
         {
+            static Quaternion s_before;
             Vector3 euler = tool->Rotation.toEuler();
             float rotation[3] = { euler.x, euler.y, euler.z };
+            Quaternion beforeEdit = tool->Rotation;
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
             if (ImGui::DragFloat3("##ToolRotation", rotation, 1.0f, -360.0f, 360.0f, "%.1f")) {
                 tool->Rotation = Quaternion::fromEuler(Vector3(rotation[0], rotation[1], rotation[2]));
+            }
+            if (ImGui::IsItemActivated()) s_before = beforeEdit;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
+                m_history->record(std::make_unique<SetToolRotationCommand>(
+                    toolSp, s_before, tool->Rotation));
             }
         }
 

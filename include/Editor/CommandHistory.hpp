@@ -12,6 +12,7 @@
 #include <Instances/Rod.hpp>
 #include <Instances/Motor.hpp>
 #include <Instances/Script.hpp>
+#include <Instances/Tool.hpp>
 #include <Instances/System.hpp>
 #include <Core/Terrain.hpp>
 #include <Core/TerrainStreamer.hpp>
@@ -255,6 +256,30 @@ struct SetRotationCommand : Command {
 
     void execute() override { if (m_target) m_target->cframe.Rotation = m_after; }
     void undo()    override { if (m_target) m_target->cframe.Rotation = m_before; }
+};
+
+// --- Tool Position 変更 ---
+struct SetToolPositionCommand : Command {
+    std::shared_ptr<Tool> m_target;
+    Vector3 m_before, m_after;
+
+    SetToolPositionCommand(std::shared_ptr<Tool> target, Vector3 before, Vector3 after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->Position = m_after; }
+    void undo()    override { if (m_target) m_target->Position = m_before; }
+};
+
+// --- Tool Rotation 変更 ---
+struct SetToolRotationCommand : Command {
+    std::shared_ptr<Tool> m_target;
+    Quaternion m_before, m_after;
+
+    SetToolRotationCommand(std::shared_ptr<Tool> target, Quaternion before, Quaternion after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { if (m_target) m_target->Rotation = m_after; }
+    void undo()    override { if (m_target) m_target->Rotation = m_before; }
 };
 
 // --- CFrame 一括変更（Position + Rotation をまとめて undo できる） ---

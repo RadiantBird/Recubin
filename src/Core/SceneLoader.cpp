@@ -401,7 +401,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     out << YAML::Key << "Name"      << YAML::Value << inst->Name;
 
     // プロパティ
-    bool hasProps = inst->IsA("Spatial") || inst->getClassName() == "Script"
+    bool hasProps = inst->IsA("Spatial") || inst->IsA("Script")
                  || inst->getClassName() == "Sound" || inst->getClassName() == "Decal"
                  || inst->getClassName() == "Texture"
                  || inst->getClassName() == "Lighting" || inst->getClassName() == "Skybox"
@@ -470,7 +470,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         if (inst->getClassName() == "Sun") {
             PropertyRegistry::saveProperties(out, inst, "Sun");  // Angle
         }
-        if (inst->getClassName() == "Script") {
+        if (inst->IsA("Script")) {
             const Script* sc = static_cast<const Script*>(inst);
             out << YAML::Key << "ContentPath" << YAML::Value << sc->Path;
             out << YAML::Key << "Enabled"     << YAML::Value << sc->Enabled;

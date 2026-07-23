@@ -186,7 +186,7 @@ void buildJumpLinks(const std::vector<BoundaryEdge>& edges, const BuildSettings&
 
 // --- ディスクキャッシュ ---
 constexpr uint32_t NAVCACHE_MAGIC   = 0x434D4E52; // "RNMC"
-constexpr uint32_t NAVCACHE_VERSION = 2;
+constexpr uint32_t NAVCACHE_VERSION = 3;
 constexpr int TILE_SIZE_CELLS = 256;
 constexpr float CELL_SIZE = 0.5f;
 constexpr float CELL_HEIGHT = 0.25f;
@@ -241,11 +241,52 @@ uint64_t fnv1aHash(const void* data, size_t size, uint64_t hash = 14695981039346
     return hash;
 }
 
+uint32_t normalizedFloatBits(float value) {
+    uint32_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    // +0.0fと-0.0fはジオメトリとして同一なので同じbit列へ正規化する。
+    return (bits & 0x7fffffffU) == 0 ? 0U : bits;
+}
+
+// triangleを座標bit列から個別にhashしてsortすることで、Instance/Terrainの
+// 列挙順と、それに伴って変化する頂点base indexへの依存を除く。
 uint64_t computeGeometryHash(const std::vector<float>& verts, const std::vector<int>& tris,
                               const BuildSettings& settings) {
-    uint64_t h = fnv1aHash(verts.data(), verts.size() * sizeof(float));
-    h = fnv1aHash(tris.data(), tris.size() * sizeof(int), h);
-    h = fnv1aHash(&settings, sizeof(settings), h);
+    const size_t triangleCount = tris.size() / 3;
+    std::vector<uint64_t> triangleHashes;
+    triangleHashes.reserve(triangleCount);
+    for (size_t triangle = 0; triangle < triangleCount; ++triangle) {
+        uint64_t triangleHash = 14695981039346656037ULL;
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const int vertexIndex = tris[triangle * 3 + corner];
+            for (size_t axis = 0; axis < 3; ++axis) {
+                const uint32_t bits =
+                    normalizedFloatBits(verts[static_cast<size_t>(vertexIndex) * 3 + axis]);
+                triangleHash = fnv1aHash(&bits, sizeof(bits), triangleHash);
+            }
+        }
+        triangleHashes.push_back(triangleHash);
+    }
+    std::sort(triangleHashes.begin(), triangleHashes.end());
+
+    const uint64_t triangleCount64 = static_cast<uint64_t>(triangleCount);
+    uint64_t h = fnv1aHash(&triangleCount64, sizeof(triangleCount64));
+    h = fnv1aHash(
+        triangleHashes.data(), triangleHashes.size() * sizeof(uint64_t), h);
+
+    // BuildSettingsのpaddingをhashへ含めず、意味のある値だけを固定順で加える。
+    const float settingValues[] = {
+        settings.agentRadius,
+        settings.agentHeight,
+        settings.agentMaxClimb,
+        settings.agentMaxSlope,
+        settings.maxJumpDistance,
+        settings.maxJumpHeight,
+    };
+    for (float value : settingValues) {
+        const uint32_t bits = normalizedFloatBits(value);
+        h = fnv1aHash(&bits, sizeof(bits), h);
+    }
     return h;
 }
 

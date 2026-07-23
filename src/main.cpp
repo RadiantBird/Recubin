@@ -500,7 +500,7 @@ int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
 
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.9975\n";
+              << "Recubin Studio v0.9980\n";
     std::string engineExePath = (argc > 0 && argv[0]) ? argv[0] : "";
 
     GLFWwindow* window = setupWindow();
@@ -909,15 +909,15 @@ int main(int argc, char* argv[]) {
 
         const bool shouldSaveEnergy = !isPlaying &&
             (windowInactive || interactionTime - lastEditorInteraction >= editorIdleTimeoutSeconds);
-        if (shouldSaveEnergy != energySavingMode) {
-            energySavingMode = shouldSaveEnergy;
-            if (energySavingMode) {
-                RCBN_LOG("[INFO] Editor entered energy-saving mode (15 FPS).");
-            }
-            else {
-                RCBN_LOG("[INFO] Editor left energy-saving mode.");
-            }
-        }
+        // if (shouldSaveEnergy != energySavingMode) {
+        //     energySavingMode = shouldSaveEnergy;
+        //     if (energySavingMode) {
+        //         RCBN_LOG("[INFO] Editor entered energy-saving mode (15 FPS).");
+        //     }
+        //     else {
+        //         RCBN_LOG("[INFO] Editor left energy-saving mode.");
+        //     }
+        // }
     }
 
     std::cout << "[DEBUG] Main loop ended.\n";
