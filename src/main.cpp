@@ -901,9 +901,12 @@ int main(int argc, char* argv[]) {
             (windowInactive || interactionTime - lastEditorInteraction >= editorIdleTimeoutSeconds);
         if (shouldSaveEnergy != energySavingMode) {
             energySavingMode = shouldSaveEnergy;
-            RCBN_LOG(energySavingMode ?
-                "[INFO] Editor entered energy-saving mode (15 FPS)." :
-                "[INFO] Editor left energy-saving mode.");
+            if (energySavingMode) {
+                RCBN_LOG("[INFO] Editor entered energy-saving mode (15 FPS).");
+            }
+            else {
+                RCBN_LOG("[INFO] Editor left energy-saving mode.");
+            }
         }
     }
 

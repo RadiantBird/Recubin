@@ -19,6 +19,10 @@ class Tool : public Instance {
 
         bool Equipped = false;
         ToolHand Hand = ToolHand::Right;
+        // Handle を手へ装着するときに適用する、手基準のローカルオフセット。
+        // Position / Rotation としてエディターおよび Luau に公開する。
+        Vector3 Position;
+        Quaternion Rotation;
         std::shared_ptr<RCBNScriptSignal> Activated;
         std::shared_ptr<BaseCube> Handle;
         std::string m_handleName;  // Handle 参照名（制約の m_cube0Name と同じ規約で保存・解決）

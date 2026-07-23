@@ -703,6 +703,14 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             const Tool* tool = static_cast<const Tool*>(inst);
             static const char* handNames[] = { "Right", "Left", "Both" };
             out << YAML::Key << "Hand" << YAML::Value << handNames[static_cast<int>(tool->Hand)];
+            out << YAML::Key << "Position" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << tool->Position.x << tool->Position.y << tool->Position.z
+                << YAML::EndSeq;
+            out << YAML::Key << "Rotation" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq
+                << tool->Rotation.x << tool->Rotation.y << tool->Rotation.z << tool->Rotation.w
+                << YAML::EndSeq;
             if (!tool->m_handleName.empty())
                 out << YAML::Key << "Handle" << YAML::Value << tool->m_handleName;
         }

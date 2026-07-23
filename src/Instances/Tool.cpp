@@ -6,6 +6,15 @@ Tool::Tool(std::string name) : Instance(name) {
 }
 
 void Tool::setProperty(const std::string& name, const YAML::Node& value) {
+    if (name == "Position" && value.IsSequence() && value.size() == 3) {
+        Position = Vector3(value[0].as<float>(), value[1].as<float>(), value[2].as<float>());
+        return;
+    }
+    if (name == "Rotation" && value.IsSequence() && value.size() == 4) {
+        Rotation = Quaternion(value[3].as<float>(), value[0].as<float>(),
+                              value[1].as<float>(), value[2].as<float>());
+        return;
+    }
     if (name == "Hand") {
         std::string s = value.as<std::string>();
         Hand = (s == "Left") ? ToolHand::Left : (s == "Both") ? ToolHand::Both : ToolHand::Right;

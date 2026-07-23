@@ -113,3 +113,14 @@
   - まずアンチエイリアシング
 - Box3D物理エンジン(決定論的)
 - パラレルLuau
+
+------------------------------------------------------------------------
+## rg検索で確認した未対応項目
+
+- [ ] include/Core/User.hpp:67: Tool以外のインベントリ項目を無視する
+- [ ] include/Instances/Humanoid.hpp:48: 兄弟パーツ参照をshared_ptrからweak_ptrへ整理する
+- [ ] include/Network/NetworkManager.hpp:92: NAT越え対応時の接続経路（STUN/リレー）を実装する
+- [ ] src/Instances/Instance.cpp:12: 不要な処理を最適化する
+- [ ] src/Instances/Sound.cpp:84: PreservePitch=ON時のタイムストレッチを対応する
+- [ ] src/Core/LuauEngine.cpp:799: 最大距離1000ユニットの拡大制限を再検討する
+- [ ] doc/Instances/Workspace.md:27: buildTestSpace()を実装する

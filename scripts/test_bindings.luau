@@ -128,6 +128,16 @@ if motor ~= nil then
     motor.MaxForce = origMF
 end
 
+-- ===== Tool handle offset =====
+print("--- Tool ---")
+local tool = Instance.new("Tool")
+check("Tool.Position getter is Vector3", tool.Position ~= nil and type(tool.Position.x) == "number")
+tool.Position = Vector3.new(1, 2, 3)
+check("Tool.Position setter", tool.Position.x == 1 and tool.Position.y == 2 and tool.Position.z == 3)
+check("Tool.Rotation getter is Quaternion", tool.Rotation ~= nil and type(tool.Rotation.w) == "number")
+tool.Rotation = Quaternion.fromEuler(Vector3.new(10, 20, 30))
+local toolRotation = tool.Rotation:toEuler()
+check("Tool.Rotation setter", math.abs(toolRotation.x - 10) < 0.01 and math.abs(toolRotation.y - 20) < 0.01 and math.abs(toolRotation.z - 30) < 0.01)
 -- ===== Sound =====
 print("--- Sound ---")
 local radio = workspace:FindChild("Radio")

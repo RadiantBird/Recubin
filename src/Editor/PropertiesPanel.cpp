@@ -1289,6 +1289,22 @@ void PropertiesPanel::onRender() {
         }
 
         // Handle reference（制約と同じ Pick 機構で指定。Viewport / ヒエラルキーから選択可）
+        ImGui::Text("Position");
+        ImGui::SameLine(80.0f);
+        drawVec3Field("ToolPosition", tool->Position, 0.05f, -1e9f, 1e9f, nullptr, "", nullptr);
+
+        ImGui::Text("Rotation");
+        ImGui::SameLine(80.0f);
+        {
+            Vector3 euler = tool->Rotation.toEuler();
+            float rotation[3] = { euler.x, euler.y, euler.z };
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            if (ImGui::DragFloat3("##ToolRotation", rotation, 1.0f, -360.0f, 360.0f, "%.1f")) {
+                tool->Rotation = Quaternion::fromEuler(Vector3(rotation[0], rotation[1], rotation[2]));
+            }
+        }
+
+        // Handle reference（制約と同じ Pick 機構で指定。Viewport / ヒエラルキーから選択可）
         drawConstraintCubeRef("Handle", tool->m_handleName, "Handle", toolSp);
         if (tool->Handle) {
             ImGui::TextDisabled("\xe2\x86\x92 %s", tool->Handle->Name.c_str());

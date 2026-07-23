@@ -312,10 +312,11 @@ static void attachToolHandle(
     Vector3 charForward = rootRotation.getForward();
     const float TOOL_FORWARD_OFFSET = 1.0f;
     armCFrame.Position = armCFrame.Position + charForward * TOOL_FORWARD_OFFSET;
+    const CFrame handleCFrame = armCFrame * CFrame(tool->Position, tool->Rotation);
     if (physics) {
-        physics->moveWeldAssembly(tool->Handle, armCFrame);
+        physics->moveWeldAssembly(tool->Handle, handleCFrame);
     } else {
-        tool->Handle->setWorldCFrame(armCFrame);
+        tool->Handle->setWorldCFrame(handleCFrame);
     }
 }
 

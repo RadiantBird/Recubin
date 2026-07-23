@@ -549,6 +549,11 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Tool"]["Activated"]  = getter_signal<Tool, &Tool::Activated>();
     DispatchTable["Tool"]["Equipped"]   = getter_bool  <Tool, &Tool::Equipped>();  // read-only（装着ロジックは別経路）
     DispatchTable["Tool"]["Hand"]       = getter_number<Tool, &Tool::Hand>();
+    DispatchTable["Tool"]["Position"]   = getter_vec3<Tool, &Tool::Position>();
+    DispatchTable["Tool"]["Rotation"] = [](lua_State* L, Instance* obj) {
+        pushQuaternion(L, static_cast<Tool*>(obj)->Rotation);
+        return 1;
+    };
 
     // User.CharacterAdded: 新しいキャラクター(PlayerCharacter)がspawnされるたび発火(初回spawn+全respawn)。
     // Luau側にcharacter(Model)を引数で渡す
@@ -755,7 +760,13 @@ void LuauEngine::InitSetterTable_Misc() {
     SetterTable["Sound"]["TimePosition"]  = setter_method_float<Sound, &Sound::seekSeconds>();
     SetterTable["Sound"]["AutoPlay"]      = setter_bool        <Sound, &Sound::autoPlay>();
 
-    SetterTable["Tool"]["Hand"]           = setter_number<Tool, &Tool::Hand>();
+    SetterTable["Tool"]["Hand"]     = setter_number<Tool, &Tool::Hand>();
+    SetterTable["Tool"]["Position"] = setter_vec3<Tool, &Tool::Position>();
+    SetterTable["Tool"]["Rotation"] = [](lua_State* L, Instance* obj) {
+        Quaternion* q = (Quaternion*)luaL_checkudata(L, 3, LuauEngine::RCBN_QUATERNION_METATABLE);
+        static_cast<Tool*>(obj)->Rotation = *q;
+        return 0;
+    };
 
     // FileRef.Source: FileRef インスタンスを代入して消費者にロードさせる（生パスは扱わない）
     SetterTable["Sound"]["Source"] = [](lua_State* L, Instance* o) {
