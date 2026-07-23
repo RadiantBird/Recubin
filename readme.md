@@ -12,7 +12,7 @@ Windowsで動作します。
 Linux対応予定です。
 (開発休止中…デバッグは可能な限りやります)
 
-[パッケージ](https://github.com/RadiantBird/Recubin/releases/tag/v0.997)はここからダウンロードできます！
+[パッケージ](https://github.com/RadiantBird/Recubin/releases)はここからダウンロードできます！
 
 ## 目標
 - 誰でも簡単にゲームを開発し、ローカルで公開できるように。
