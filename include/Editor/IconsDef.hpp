@@ -30,6 +30,8 @@
 #define ICON_PATHFINDINGSERVICE "" // map with pin
 #define ICON_APPIMAGE     "" // image file
 #define ICON_SYSTEM       "⚛" // atom
+#define ICON_USERS        "" // many people
+#define ICON_CHATSERVICE  "" // 2 talking bubbles
 
 // ---- ツールバー再設計で追加 ----
 #define ICON_PLAY               "\xef\x81\x8b"  // f04b fa-play

@@ -183,6 +183,9 @@ static const char* getClassIcon(const std::string& cn) {
     if (cn == "IntValue" || cn == "BoolValue" || cn == "NumberValue" || cn == "Vector3Value" ||
         cn == "Color4Value" || cn == "CFrameValue" || cn == "QuaternionValue" || cn == "ObjectValue")
                                                                               return ICON_VALUE;
+    if (cn == "Users") return ICON_USERS;
+    if (cn == "ChatService") return ICON_CHATSERVICE;
+
     return ICON_INSTANCE;
 }
 
