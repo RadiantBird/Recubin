@@ -78,6 +78,7 @@
 #include <algorithm>
 #include <float.h>
 #include <fenv.h>
+#include <limits>
 #if defined(__i386__) || defined(__x86_64__)
 #include <xmmintrin.h>
 #define RCBN_HAS_MXCSR 1
@@ -774,9 +775,26 @@ int LuauEngine::workspace_raycast_closure(lua_State* L) {
     if (!ws_shared) return 0;
     Workspace* ws = static_cast<Workspace*>(ws_shared.get());
 
-    // L[1] = self, L[2] = origin, L[3] = direction, L[4] = params (ignored)
+    // L[1] = self, L[2] = origin, L[3] = direction,
+    // L[4] = maxDistance または legacy の除外Instance, L[5] = 除外Instance
     Vector3* origin    = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
     Vector3* direction = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
+
+    float maxDistance = (std::numeric_limits<float>::max)();
+    int ignoreInstanceIndex = 4;
+    if (lua_isnumber(L, 4)) {
+        double suppliedMaxDistance = lua_tonumber(L, 4);
+        if (!std::isfinite(suppliedMaxDistance) || suppliedMaxDistance <= 0.0 ||
+            suppliedMaxDistance > static_cast<double>((std::numeric_limits<float>::max)())) {
+            luaL_argerror(L, 4, "maxDistance must be a finite positive number within the supported range");
+            return 0;
+        }
+        maxDistance = static_cast<float>(suppliedMaxDistance);
+        ignoreInstanceIndex = 5;
+    } else if (lua_isnoneornil(L, 4) && !lua_isnoneornil(L, 5)) {
+        // maxDistance を明示的に nil にした場合は、第5引数の除外Instanceを受け付ける。
+        ignoreInstanceIndex = 5;
+    }
 
     Physics* physics = ws->getPhysicsEngine();
     if (!physics) {
@@ -784,10 +802,10 @@ int LuauEngine::workspace_raycast_closure(lua_State* L) {
         return 1;
     }
 
-    // L[4]: 除外Instance（省略可）。BaseCube系ならそのPhysXアクターをraycastの除外対象にする
+    // 除外Instance（省略可）。BaseCube系ならそのPhysXアクターをraycastの除外対象にする
     physx::PxRigidActor* ignoreActor = nullptr;
-    if (!lua_isnoneornil(L, 4)) {
-        auto* iud = testInstanceUserdata(L, 4);
+    if (!lua_isnoneornil(L, ignoreInstanceIndex)) {
+        auto* iud = testInstanceUserdata(L, ignoreInstanceIndex);
         if (iud) {
             auto ignoreInst = iud->lock();
             if (ignoreInst && ignoreInst->IsA("BaseCube"))
@@ -796,8 +814,7 @@ int LuauEngine::workspace_raycast_closure(lua_State* L) {
     }
 
     RaycastHit hit;
-    // NOTE: 最大距離が1000ユニットなので拡大は要検討
-    bool didHit = physics->raycast(*origin, *direction, 1000.0f, hit, ignoreActor);
+    bool didHit = physics->raycast(*origin, *direction, maxDistance, hit, ignoreActor);
 
     if (!didHit || !hit.hit) {
         lua_pushnil(L);
@@ -1098,16 +1115,18 @@ int LuauEngine::global_add(lua_State* L) {
 }
 
 int LuauEngine::luafn_assert(lua_State* L) {
-    bool cond = (bool)luaL_checkboolean(L, 1);
-    std::string message = luaL_checkstring(L, 2);
+    std::string message = "assertion failed";
+    if (!lua_isnoneornil(L, 2)) {
+        message = luaL_checkstring(L, 2);
+    }
 
-    if (!cond) {
+    if (!lua_toboolean(L, 1)) {
         std::string s = "[Luau] Assertion failed: " + message;
         std::cout << s << std::endl;
         luaL_error(L, "%s", s.c_str());
     }
 
-    lua_pushboolean(L, cond);
+    lua_pushvalue(L, 1);
     return 1;
 }
 
