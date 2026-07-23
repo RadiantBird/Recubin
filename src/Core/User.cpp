@@ -74,6 +74,21 @@ void User::resetToolState() {
     currentSlotIndex = -1;
 }
 
+void User::syncToolsFromInventory() {
+    resetToolState();
+    if (!Inventory) return;
+
+    for (const auto& [name, child] : Inventory->children) {
+        (void)name;
+        auto tool = std::dynamic_pointer_cast<Tool>(child);
+        if (!tool) continue;
+
+        if (addToolToSlot(tool) < 0) {
+            RCBN_WARN("User::syncToolsFromInventory: hotbar is full; ignoring Tool " + tool->Name);
+        }
+    }
+}
+
 int User::addToolToSlot(std::shared_ptr<Tool> tool, int slotIndex) {
     if (!tool) return -1;
 

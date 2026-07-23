@@ -112,6 +112,7 @@ Bound loadAndBind(const std::string& scenePath,
     } else {
         user->initializeInventory();
     }
+    user->syncToolsFromInventory();
 
     auto workspaces = collectWorkspaces(system);
     if (workspaces.empty()) {

@@ -9,7 +9,9 @@
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
 #include <Core/AudioService.hpp>
+#include <Core/NullInputBackend.hpp>
 #include <Core/Physics.hpp>
+#include <Core/User.hpp>
 #include <Util/Logger.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
@@ -208,6 +210,57 @@ int runToolWeldRegression() {
 
     return failures == 0 ? 0 : 1;
 }
+
+int runInventoryToolSyncRegression() {
+    auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    user->initializeInventory();
+
+    auto nonToolFolder = std::make_shared<Folder>();
+    nonToolFolder->Name = "NonToolFolder";
+    auto nonToolCube = std::make_shared<BaseCube>(Vector3{}, Vector3{});
+    nonToolCube->Name = "NonToolCube";
+    user->Inventory->addChild(nonToolFolder);
+    user->Inventory->addChild(nonToolCube);
+
+    std::vector<std::shared_ptr<Tool>> tools;
+    for (int i = 0; i < 12; ++i) {
+        auto tool = std::make_shared<Tool>("InventoryTool" + std::to_string(i));
+        user->Inventory->addChild(tool);
+        tools.push_back(tool);
+    }
+
+    user->syncToolsFromInventory();
+
+    auto expect = [](bool condition, const char* name, int& failures) {
+        std::cout << "[InventoryToolSyncRegression] " << (condition ? "PASS" : "FAIL")
+                  << ": " << name << "\n";
+        if (!condition) ++failures;
+    };
+
+    int failures = 0;
+    std::unordered_set<Tool*> inventoryTools;
+    for (const auto& tool : tools) inventoryTools.insert(tool.get());
+
+    size_t slottedToolCount = 0;
+    bool slotsContainOnlyInventoryTools = true;
+    for (int i = 0; i < 10; ++i) {
+        auto tool = user->getToolInSlot(i);
+        if (tool) ++slottedToolCount;
+        slotsContainOnlyInventoryTools = slotsContainOnlyInventoryTools &&
+                                         tool && inventoryTools.contains(tool.get());
+    }
+    expect(slottedToolCount == 10 && slotsContainOnlyInventoryTools,
+           "Inventory直下のToolだけが最大10個ホットバーへ登録される", failures);
+    expect(user->getToolInSlot(10) == nullptr,
+           "ホットバー範囲外のスロットは取得できない", failures);
+    expect(user->Inventory->children.contains("NonToolFolder") &&
+           user->Inventory->children.contains("NonToolCube"),
+           "非ToolのInventory子は保持される", failures);
+    expect(user->Inventory->children.size() == tools.size() + 2,
+           "11個目以降のToolもInventoryに残る", failures);
+
+    return failures == 0 ? 0 : 1;
+}
 }
 
 // ===================================================
@@ -220,7 +273,9 @@ int main(int argc, char* argv[]) {
 
     const bool weldRegression = argc > 1 && std::string_view(argv[1]) == "--weld-regression";
     const bool toolWeldRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-regression";
+    const bool inventoryToolSyncRegression = argc > 1 && std::string_view(argv[1]) == "--inventory-tool-sync-regression";
     if (toolWeldRegression) return runToolWeldRegression();
+    if (inventoryToolSyncRegression) return runInventoryToolSyncRegression();
     std::string scenePath = weldRegression
         ? ((argc > 2) ? argv[2] : "assets/scenes/_snapshot.yaml")
         : ((argc > 1) ? argv[1] : "assets/scenes/test_bindings.yaml");

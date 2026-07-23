@@ -64,7 +64,6 @@ public:
     void processToolkeys(bool viewportFocused, bool isGameplayInput, bool wantsTextInput);
     void processMouse(bool isGameplayInput);
 
-    // TODO: インベントリにToolじゃないものがあったら無視するようにする
     // 多分このあたりprivateにしたほうが安全だよね。Tool追加/Tool取り除き、って感じ。
     std::shared_ptr<Folder> Inventory = std::make_shared<Folder>(); // ユーザーのインベントリ（アイテムを入れるためのフォルダ）
     std::array<std::shared_ptr<Tool>, 10> Slots = {};
@@ -116,6 +115,8 @@ public:
     // Toolへの参照がスロットに残留し、次のPlayでAddToolが幽霊スロットの後ろに
     // 追加され続ける(Tool増殖・サイレント失敗の原因)。
     void resetToolState();
+    // Inventory直下のToolをホットバーへ同期する。非Toolの子はそのまま保持し、最大10個まで登録する。
+    void syncToolsFromInventory();
     // Tool をインベントリに入れ、ホットバーのスロットに登録する。
     // slotIndex<0 のとき先頭の空きスロットを使う。使用したスロット(0-9)を返す。空き無し/無効時は -1。
     int addToolToSlot(std::shared_ptr<Tool> tool, int slotIndex = -1);
