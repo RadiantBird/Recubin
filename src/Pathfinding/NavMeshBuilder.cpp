@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <fstream>
 #include <filesystem>
+#include <limits>
+#include <utility>
 
 namespace Pathfinding {
 
@@ -116,7 +118,8 @@ void collectBoundaryEdges(const rcPolyMesh& pmesh, std::vector<BoundaryEdge>& ed
         cx /= (float)nv; cy /= (float)nv; cz /= (float)nv;
 
         for (int j = 0; j < nv; ++j) {
-            if (p[nvp + j] != RC_MESH_NULL_IDX) continue; // 隣接ポリあり = 境界でない
+            // 通常の隣接辺に加え、タイル境界のportal辺も崖として扱わない。
+            if (p[nvp + j] != RC_MESH_NULL_IDX) continue;
 
             const int nj = (j + 1) % nv;
             const unsigned short* v0 = &pmesh.verts[p[j] * 3];
@@ -183,7 +186,51 @@ void buildJumpLinks(const std::vector<BoundaryEdge>& edges, const BuildSettings&
 
 // --- ディスクキャッシュ ---
 constexpr uint32_t NAVCACHE_MAGIC   = 0x434D4E52; // "RNMC"
-constexpr uint32_t NAVCACHE_VERSION = 1;
+constexpr uint32_t NAVCACHE_VERSION = 2;
+constexpr int TILE_SIZE_CELLS = 256;
+constexpr float CELL_SIZE = 0.5f;
+constexpr float CELL_HEIGHT = 0.25f;
+constexpr float TILE_WORLD_SIZE = TILE_SIZE_CELLS * CELL_SIZE;
+
+struct OwnedTileData {
+    unsigned char* data = nullptr;
+    int size = 0;
+
+    OwnedTileData() = default;
+    OwnedTileData(unsigned char* tileData, int tileSize) : data(tileData), size(tileSize) {}
+    ~OwnedTileData() { if (data) dtFree(data); }
+
+    OwnedTileData(const OwnedTileData&) = delete;
+    OwnedTileData& operator=(const OwnedTileData&) = delete;
+
+    OwnedTileData(OwnedTileData&& other) noexcept : data(other.data), size(other.size) {
+        other.data = nullptr;
+        other.size = 0;
+    }
+
+    OwnedTileData& operator=(OwnedTileData&& other) noexcept {
+        if (this == &other) return *this;
+        if (data) dtFree(data);
+        data = other.data;
+        size = other.size;
+        other.data = nullptr;
+        other.size = 0;
+        return *this;
+    }
+
+    unsigned char* release() {
+        unsigned char* released = data;
+        data = nullptr;
+        size = 0;
+        return released;
+    }
+};
+
+enum class TileBuildResult {
+    Success,
+    Empty,
+    Failure,
+};
 
 uint64_t fnv1aHash(const void* data, size_t size, uint64_t hash = 14695981039346656037ULL) {
     const unsigned char* bytes = static_cast<const unsigned char*>(data);
@@ -202,48 +249,385 @@ uint64_t computeGeometryHash(const std::vector<float>& verts, const std::vector<
     return h;
 }
 
-// キャッシュファイルからnavDataを読み込む。ヘッダのmagic/version/hashが一致しない、
-// またはファイルが無ければfalseを返す。成功時のoutDataはdtAllocで確保されており、
-// 呼び出し側はdtNavMesh::init(..., DT_TILE_FREE_DATA)に譲渡するかdtFreeで解放する。
-bool loadNavCache(const std::string& path, uint64_t expectedHash, unsigned char*& outData, int& outSize) {
+bool computeNavCapacity(int tileCount, int maxPolyCount, int& maxTiles, int& maxPolys) {
+    if (tileCount <= 0 || maxPolyCount <= 0) return false;
+
+    auto nextPow2 = [](int value, int& result, unsigned int& bits) {
+        uint32_t power = 1;
+        bits = 0;
+        while (power < static_cast<uint32_t>(value)) {
+            if (power > (std::numeric_limits<uint32_t>::max() >> 1)) return false;
+            power <<= 1;
+            ++bits;
+        }
+        if (power > static_cast<uint32_t>(std::numeric_limits<int>::max())) return false;
+        result = static_cast<int>(power);
+        return true;
+    };
+
+    unsigned int tileBits = 0;
+    unsigned int polyBits = 0;
+    if (!nextPow2(tileCount, maxTiles, tileBits) ||
+        !nextPow2(maxPolyCount, maxPolys, polyBits)) {
+        return false;
+    }
+
+    // 32bit poly refではsaltを最低10bit残す。
+    return tileBits + polyBits <= 22;
+}
+
+bool validateNavParams(const dtNavMeshParams& params, int tileCount) {
+    if (!std::isfinite(params.orig[0]) || !std::isfinite(params.orig[1]) ||
+        !std::isfinite(params.orig[2]) || !std::isfinite(params.tileWidth) ||
+        !std::isfinite(params.tileHeight)) {
+        return false;
+    }
+    if (params.tileWidth <= 0.0f || params.tileHeight <= 0.0f ||
+        params.tileWidth != TILE_WORLD_SIZE || params.tileHeight != TILE_WORLD_SIZE ||
+        std::fmod(params.orig[0], TILE_WORLD_SIZE) != 0.0f ||
+        std::fmod(params.orig[2], TILE_WORLD_SIZE) != 0.0f ||
+        params.maxTiles <= 0 || params.maxPolys <= 0 ||
+        tileCount <= 0 || tileCount > params.maxTiles) {
+        return false;
+    }
+
+    int expectedTiles = 0;
+    int expectedPolys = 0;
+    return computeNavCapacity(tileCount, params.maxPolys, expectedTiles, expectedPolys) &&
+           expectedTiles == params.maxTiles && expectedPolys == params.maxPolys;
+}
+
+dtNavMesh* createNavMesh(const dtNavMeshParams& params, std::vector<OwnedTileData>& tiles) {
+    dtNavMesh* navMesh = dtAllocNavMesh();
+    if (!navMesh || dtStatusFailed(navMesh->init(&params))) {
+        if (navMesh) dtFreeNavMesh(navMesh);
+        return nullptr;
+    }
+
+    for (OwnedTileData& tile : tiles) {
+        const int tileSize = tile.size;
+        unsigned char* tileData = tile.release();
+        if (dtStatusFailed(navMesh->addTile(
+                tileData, tileSize, DT_TILE_FREE_DATA, 0, nullptr))) {
+            dtFree(tileData);
+            dtFreeNavMesh(navMesh);
+            return nullptr;
+        }
+    }
+    return navMesh;
+}
+
+template<typename T>
+bool readCacheValue(std::ifstream& file, T& value) {
+    file.read(reinterpret_cast<char*>(&value), sizeof(value));
+    return static_cast<bool>(file);
+}
+
+template<typename T>
+void writeCacheValue(std::ofstream& file, const T& value) {
+    file.write(reinterpret_cast<const char*>(&value), sizeof(value));
+}
+
+// v2キャッシュはtiled navmeshの初期化値と全tile blobを保持する。
+// 破損・旧版・設定不一致は通常のcache missとして扱う。
+dtNavMesh* loadNavCache(const std::string& path, uint64_t expectedHash) {
     std::ifstream file(path, std::ios::binary);
-    if (!file) return false;
+    if (!file) return nullptr;
+
+    file.seekg(0, std::ios::end);
+    const std::streamoff fileSize = file.tellg();
+    file.seekg(0, std::ios::beg);
+    if (fileSize <= 0) return nullptr;
 
     uint32_t magic = 0, version = 0;
     uint64_t hash = 0;
-    int32_t size = 0;
-    file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
-    file.read(reinterpret_cast<char*>(&version), sizeof(version));
-    file.read(reinterpret_cast<char*>(&hash), sizeof(hash));
-    file.read(reinterpret_cast<char*>(&size), sizeof(size));
-    if (!file || magic != NAVCACHE_MAGIC || version != NAVCACHE_VERSION || hash != expectedHash || size <= 0)
-        return false;
+    dtNavMeshParams params{};
+    int32_t maxTiles = 0, maxPolys = 0;
+    uint32_t tileCount = 0;
+    if (!readCacheValue(file, magic) || !readCacheValue(file, version) ||
+        !readCacheValue(file, hash) ||
+        !readCacheValue(file, params.orig[0]) ||
+        !readCacheValue(file, params.orig[1]) ||
+        !readCacheValue(file, params.orig[2]) ||
+        !readCacheValue(file, params.tileWidth) ||
+        !readCacheValue(file, params.tileHeight) ||
+        !readCacheValue(file, maxTiles) ||
+        !readCacheValue(file, maxPolys) ||
+        !readCacheValue(file, tileCount)) {
+        return nullptr;
+    }
+    params.maxTiles = maxTiles;
+    params.maxPolys = maxPolys;
+    if (magic != NAVCACHE_MAGIC || version != NAVCACHE_VERSION ||
+        hash != expectedHash || tileCount > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
+        !validateNavParams(params, static_cast<int>(tileCount))) {
+        return nullptr;
+    }
 
-    unsigned char* buf = static_cast<unsigned char*>(dtAlloc(static_cast<size_t>(size), DT_ALLOC_PERM));
-    if (!buf) return false;
-    file.read(reinterpret_cast<char*>(buf), size);
-    if (!file) { dtFree(buf); return false; }
+    const std::streamoff tileDataStart = file.tellg();
+    const std::streamoff minimumTileBytes =
+        static_cast<std::streamoff>(sizeof(int32_t) + sizeof(dtMeshHeader));
+    if (tileDataStart < 0 ||
+        static_cast<std::streamoff>(tileCount) > (fileSize - tileDataStart) / minimumTileBytes) {
+        return nullptr;
+    }
 
-    outData = buf;
-    outSize = size;
-    return true;
+    std::vector<OwnedTileData> tiles;
+    tiles.reserve(tileCount);
+    int maxPolyCount = 0;
+    for (uint32_t i = 0; i < tileCount; ++i) {
+        int32_t dataSize = 0;
+        if (!readCacheValue(file, dataSize) ||
+            dataSize < static_cast<int32_t>(sizeof(dtMeshHeader))) {
+            return nullptr;
+        }
+
+        const std::streamoff current = file.tellg();
+        if (current < 0 || static_cast<std::streamoff>(dataSize) > fileSize - current) {
+            return nullptr;
+        }
+
+        unsigned char* data = static_cast<unsigned char*>(
+            dtAlloc(static_cast<size_t>(dataSize), DT_ALLOC_PERM));
+        if (!data) return nullptr;
+        file.read(reinterpret_cast<char*>(data), dataSize);
+        if (!file) {
+            dtFree(data);
+            return nullptr;
+        }
+        const dtMeshHeader* header = reinterpret_cast<const dtMeshHeader*>(data);
+        if (header->magic != DT_NAVMESH_MAGIC || header->version != DT_NAVMESH_VERSION ||
+            header->layer != 0 || header->polyCount <= 0 ||
+            header->polyCount > params.maxPolys) {
+            dtFree(data);
+            return nullptr;
+        }
+        maxPolyCount = std::max(maxPolyCount, header->polyCount);
+        tiles.emplace_back(data, dataSize);
+    }
+    if (file.tellg() != fileSize) return nullptr;
+
+    int expectedTiles = 0;
+    int expectedPolys = 0;
+    if (!computeNavCapacity(
+            static_cast<int>(tileCount), maxPolyCount, expectedTiles, expectedPolys) ||
+        expectedTiles != params.maxTiles || expectedPolys != params.maxPolys) {
+        return nullptr;
+    }
+
+    return createNavMesh(params, tiles);
 }
 
-void saveNavCache(const std::string& path, uint64_t hash, const unsigned char* data, int size) {
+void saveNavCache(const std::string& path, uint64_t hash, const dtNavMeshParams& params,
+                  const std::vector<OwnedTileData>& tiles) {
     std::filesystem::path p(path);
     std::error_code ec;
     std::filesystem::create_directories(p.parent_path(), ec);
 
-    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    std::filesystem::path tempPath = p;
+    tempPath += ".tmp";
+    std::ofstream file(tempPath, std::ios::binary | std::ios::trunc);
     if (!file) return;
 
     uint32_t magic = NAVCACHE_MAGIC, version = NAVCACHE_VERSION;
-    int32_t sz = size;
-    file.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
-    file.write(reinterpret_cast<const char*>(&version), sizeof(version));
-    file.write(reinterpret_cast<const char*>(&hash), sizeof(hash));
-    file.write(reinterpret_cast<const char*>(&sz), sizeof(sz));
-    file.write(reinterpret_cast<const char*>(data), size);
+    const int32_t maxTiles = params.maxTiles;
+    const int32_t maxPolys = params.maxPolys;
+    const uint32_t tileCount = static_cast<uint32_t>(tiles.size());
+    writeCacheValue(file, magic);
+    writeCacheValue(file, version);
+    writeCacheValue(file, hash);
+    writeCacheValue(file, params.orig[0]);
+    writeCacheValue(file, params.orig[1]);
+    writeCacheValue(file, params.orig[2]);
+    writeCacheValue(file, params.tileWidth);
+    writeCacheValue(file, params.tileHeight);
+    writeCacheValue(file, maxTiles);
+    writeCacheValue(file, maxPolys);
+    writeCacheValue(file, tileCount);
+    for (const OwnedTileData& tile : tiles) {
+        const int32_t dataSize = tile.size;
+        writeCacheValue(file, dataSize);
+        file.write(reinterpret_cast<const char*>(tile.data), tile.size);
+    }
+    file.close();
+    if (!file) {
+        std::filesystem::remove(tempPath, ec);
+        return;
+    }
+
+    std::filesystem::remove(p, ec);
+    ec.clear();
+    std::filesystem::rename(tempPath, p, ec);
+    if (ec) std::filesystem::remove(tempPath, ec);
+}
+
+TileBuildResult buildTile(const std::vector<float>& verts, const std::vector<int>& tris,
+                          const std::vector<unsigned char>& triAreas,
+                          const BuildSettings& settings, int tileX, int tileY,
+                          const float* tileMin, const float* tileMax,
+                          OwnedTileData& outTile) {
+    const int nverts = static_cast<int>(verts.size() / 3);
+    const int ntris = static_cast<int>(tris.size() / 3);
+
+    rcConfig cfg{};
+    cfg.cs = CELL_SIZE;
+    cfg.ch = CELL_HEIGHT;
+    cfg.walkableSlopeAngle     = settings.agentMaxSlope;
+    cfg.walkableHeight         = static_cast<int>(std::ceil(settings.agentHeight / cfg.ch));
+    cfg.walkableClimb          = static_cast<int>(std::floor(settings.agentMaxClimb / cfg.ch));
+    cfg.walkableRadius         = static_cast<int>(std::ceil(settings.agentRadius / cfg.cs));
+    cfg.maxEdgeLen             = static_cast<int>(12.0f / cfg.cs);
+    cfg.maxSimplificationError = 1.3f;
+    cfg.minRegionArea          = static_cast<int>(4.0f * 4.0f);
+    cfg.mergeRegionArea        = static_cast<int>(10.0f * 10.0f);
+    cfg.maxVertsPerPoly        = 6;
+    cfg.detailSampleDist       = cfg.cs * 6.0f;
+    cfg.detailSampleMaxError   = cfg.ch;
+    cfg.borderSize             = cfg.walkableRadius + 3;
+    cfg.width                  = TILE_SIZE_CELLS + cfg.borderSize * 2;
+    cfg.height                 = TILE_SIZE_CELLS + cfg.borderSize * 2;
+
+    const float borderWorld = cfg.borderSize * cfg.cs;
+    cfg.bmin[0] = tileMin[0] - borderWorld;
+    cfg.bmin[1] = tileMin[1];
+    cfg.bmin[2] = tileMin[2] - borderWorld;
+    cfg.bmax[0] = tileMax[0] + borderWorld;
+    cfg.bmax[1] = tileMax[1];
+    cfg.bmax[2] = tileMax[2] + borderWorld;
+
+    rcContext ctx(false);
+    auto solid = std::unique_ptr<rcHeightfield, decltype(&rcFreeHeightField)>(
+        rcAllocHeightfield(), &rcFreeHeightField);
+    if (!solid || !rcCreateHeightfield(
+            &ctx, *solid, cfg.width, cfg.height, cfg.bmin, cfg.bmax, cfg.cs, cfg.ch)) {
+        return TileBuildResult::Failure;
+    }
+    if (!rcRasterizeTriangles(&ctx, verts.data(), nverts, tris.data(), triAreas.data(),
+            ntris, *solid, cfg.walkableClimb)) {
+        return TileBuildResult::Failure;
+    }
+
+    rcFilterLowHangingWalkableObstacles(&ctx, cfg.walkableClimb, *solid);
+    rcFilterLedgeSpans(&ctx, cfg.walkableHeight, cfg.walkableClimb, *solid);
+    rcFilterWalkableLowHeightSpans(&ctx, cfg.walkableHeight, *solid);
+    if (rcGetHeightFieldSpanCount(&ctx, *solid) == 0) return TileBuildResult::Empty;
+
+    auto chf = std::unique_ptr<rcCompactHeightfield, decltype(&rcFreeCompactHeightfield)>(
+        rcAllocCompactHeightfield(), &rcFreeCompactHeightfield);
+    if (!chf || !rcBuildCompactHeightfield(
+            &ctx, cfg.walkableHeight, cfg.walkableClimb, *solid, *chf)) {
+        return TileBuildResult::Failure;
+    }
+    solid.reset();
+
+    if (!rcErodeWalkableArea(&ctx, cfg.walkableRadius, *chf) ||
+        !rcBuildDistanceField(&ctx, *chf) ||
+        !rcBuildRegions(&ctx, *chf, cfg.borderSize, cfg.minRegionArea, cfg.mergeRegionArea)) {
+        return TileBuildResult::Failure;
+    }
+
+    auto cset = std::unique_ptr<rcContourSet, decltype(&rcFreeContourSet)>(
+        rcAllocContourSet(), &rcFreeContourSet);
+    if (!cset || !rcBuildContours(
+            &ctx, *chf, cfg.maxSimplificationError, cfg.maxEdgeLen, *cset)) {
+        return TileBuildResult::Failure;
+    }
+    if (cset->nconts == 0) return TileBuildResult::Empty;
+
+    auto pmesh = std::unique_ptr<rcPolyMesh, decltype(&rcFreePolyMesh)>(
+        rcAllocPolyMesh(), &rcFreePolyMesh);
+    if (!pmesh || !rcBuildPolyMesh(&ctx, *cset, cfg.maxVertsPerPoly, *pmesh)) {
+        return TileBuildResult::Failure;
+    }
+    if (pmesh->nverts == 0 || pmesh->npolys == 0) return TileBuildResult::Empty;
+
+    auto dmesh = std::unique_ptr<rcPolyMeshDetail, decltype(&rcFreePolyMeshDetail)>(
+        rcAllocPolyMeshDetail(), &rcFreePolyMeshDetail);
+    if (!dmesh || !rcBuildPolyMeshDetail(
+            &ctx, *pmesh, *chf, cfg.detailSampleDist, cfg.detailSampleMaxError, *dmesh)) {
+        return TileBuildResult::Failure;
+    }
+    chf.reset();
+    cset.reset();
+
+    for (int i = 0; i < pmesh->npolys; ++i) {
+        if (pmesh->areas[i] == RC_WALKABLE_AREA) {
+            pmesh->areas[i] = POLYAREA_GROUND;
+            pmesh->flags[i] = POLYFLAGS_WALK;
+        }
+    }
+
+    // portal辺はcollectBoundaryEdgesで除外されるため、隣接tileとの境界に
+    // 重複したジャンプリンクは生成されない。
+    std::vector<BoundaryEdge> boundaryEdges;
+    collectBoundaryEdges(*pmesh, boundaryEdges);
+    std::vector<OffMeshLink> jumpLinks;
+    buildJumpLinks(boundaryEdges, settings, jumpLinks);
+
+    std::vector<float> offMeshVerts;
+    std::vector<float> offMeshRad;
+    std::vector<unsigned short> offMeshFlags;
+    std::vector<unsigned char> offMeshAreas;
+    std::vector<unsigned char> offMeshDir;
+    std::vector<unsigned int> offMeshUserId;
+    offMeshVerts.reserve(jumpLinks.size() * 6);
+    offMeshRad.reserve(jumpLinks.size());
+    offMeshFlags.reserve(jumpLinks.size());
+    offMeshAreas.reserve(jumpLinks.size());
+    offMeshDir.reserve(jumpLinks.size());
+    offMeshUserId.reserve(jumpLinks.size());
+    for (size_t i = 0; i < jumpLinks.size(); ++i) {
+        const OffMeshLink& link = jumpLinks[i];
+        offMeshVerts.insert(offMeshVerts.end(), {
+            link.a[0], link.a[1], link.a[2], link.b[0], link.b[1], link.b[2] });
+        offMeshRad.push_back(settings.agentRadius);
+        offMeshFlags.push_back(POLYFLAGS_JUMP);
+        offMeshAreas.push_back(POLYAREA_JUMP);
+        offMeshDir.push_back(static_cast<unsigned char>(DT_OFFMESH_CON_BIDIR));
+        offMeshUserId.push_back(static_cast<unsigned int>(i + 1));
+    }
+
+    dtNavMeshCreateParams params{};
+    params.verts      = pmesh->verts;
+    params.vertCount  = pmesh->nverts;
+    params.polys      = pmesh->polys;
+    params.polyAreas  = pmesh->areas;
+    params.polyFlags  = pmesh->flags;
+    params.polyCount  = pmesh->npolys;
+    params.nvp        = pmesh->nvp;
+    params.detailMeshes     = dmesh->meshes;
+    params.detailVerts      = dmesh->verts;
+    params.detailVertsCount = dmesh->nverts;
+    params.detailTris       = dmesh->tris;
+    params.detailTriCount   = dmesh->ntris;
+    if (!jumpLinks.empty()) {
+        params.offMeshConVerts   = offMeshVerts.data();
+        params.offMeshConRad     = offMeshRad.data();
+        params.offMeshConFlags   = offMeshFlags.data();
+        params.offMeshConAreas   = offMeshAreas.data();
+        params.offMeshConDir     = offMeshDir.data();
+        params.offMeshConUserID  = offMeshUserId.data();
+        params.offMeshConCount   = static_cast<int>(jumpLinks.size());
+    }
+    params.walkableHeight = settings.agentHeight;
+    params.walkableRadius = settings.agentRadius;
+    params.walkableClimb  = settings.agentMaxClimb;
+    params.tileX = tileX;
+    params.tileY = tileY;
+    params.tileLayer = 0;
+    rcVcopy(params.bmin, pmesh->bmin);
+    rcVcopy(params.bmax, pmesh->bmax);
+    params.cs = cfg.cs;
+    params.ch = cfg.ch;
+    params.buildBvTree = true;
+
+    unsigned char* navData = nullptr;
+    int navDataSize = 0;
+    if (!dtCreateNavMeshData(&params, &navData, &navDataSize)) {
+        return TileBuildResult::Failure;
+    }
+    outTile = OwnedTileData(navData, navDataSize);
+    return TileBuildResult::Success;
 }
 
 } // namespace
@@ -266,171 +650,81 @@ std::unique_ptr<NavMesh> NavMesh::Build(Workspace* workspace, const BuildSetting
     if (nverts == 0 || ntris == 0) return nullptr;
 
     const uint64_t geomHash = computeGeometryHash(verts, tris, settings);
+    dtNavMesh* navMesh = cachePath.empty() ? nullptr : loadNavCache(cachePath, geomHash);
+    if (!navMesh) {
+        float globalMin[3], globalMax[3];
+        rcCalcBounds(verts.data(), nverts, globalMin, globalMax);
 
-    unsigned char* navData = nullptr;
-    int navDataSize = 0;
-
-    if (cachePath.empty() || !loadNavCache(cachePath, geomHash, navData, navDataSize)) {
-
-    rcConfig cfg;
-    std::memset(&cfg, 0, sizeof(cfg));
-    cfg.cs = 0.5f;
-    cfg.ch = 0.25f;
-    cfg.walkableSlopeAngle     = settings.agentMaxSlope;
-    cfg.walkableHeight         = (int)std::ceil(settings.agentHeight / cfg.ch);
-    cfg.walkableClimb          = (int)std::floor(settings.agentMaxClimb / cfg.ch);
-    cfg.walkableRadius         = (int)std::ceil(settings.agentRadius / cfg.cs);
-    cfg.maxEdgeLen             = (int)(12.0f / cfg.cs);
-    cfg.maxSimplificationError = 1.3f;
-    cfg.minRegionArea          = (int)(4.0f * 4.0f);
-    cfg.mergeRegionArea        = (int)(10.0f * 10.0f);
-    cfg.maxVertsPerPoly        = 6;
-    cfg.detailSampleDist       = cfg.cs * 6.0f;
-    cfg.detailSampleMaxError   = cfg.ch * 1.0f;
-
-    rcCalcBounds(verts.data(), nverts, cfg.bmin, cfg.bmax);
-    rcCalcGridSize(cfg.bmin, cfg.bmax, cfg.cs, &cfg.width, &cfg.height);
-
-    rcContext ctx(false);
-
-    rcHeightfield* solid = rcAllocHeightfield();
-    if (!solid || !rcCreateHeightfield(&ctx, *solid, cfg.width, cfg.height, cfg.bmin, cfg.bmax, cfg.cs, cfg.ch)) {
-        rcFreeHeightField(solid);
-        return nullptr;
-    }
-
-    std::vector<unsigned char> triAreas((size_t)ntris, 0);
-    rcMarkWalkableTriangles(&ctx, cfg.walkableSlopeAngle, verts.data(), nverts, tris.data(), ntris, triAreas.data());
-    if (!rcRasterizeTriangles(&ctx, verts.data(), nverts, tris.data(), triAreas.data(), ntris, *solid, cfg.walkableClimb)) {
-        rcFreeHeightField(solid);
-        return nullptr;
-    }
-
-    rcFilterLowHangingWalkableObstacles(&ctx, cfg.walkableClimb, *solid);
-    rcFilterLedgeSpans(&ctx, cfg.walkableHeight, cfg.walkableClimb, *solid);
-    rcFilterWalkableLowHeightSpans(&ctx, cfg.walkableHeight, *solid);
-
-    rcCompactHeightfield* chf = rcAllocCompactHeightfield();
-    if (!chf || !rcBuildCompactHeightfield(&ctx, cfg.walkableHeight, cfg.walkableClimb, *solid, *chf)) {
-        rcFreeHeightField(solid);
-        rcFreeCompactHeightfield(chf);
-        return nullptr;
-    }
-    rcFreeHeightField(solid);
-    solid = nullptr;
-
-    if (!rcErodeWalkableArea(&ctx, cfg.walkableRadius, *chf) ||
-        !rcBuildDistanceField(&ctx, *chf) ||
-        !rcBuildRegions(&ctx, *chf, 0, cfg.minRegionArea, cfg.mergeRegionArea)) {
-        rcFreeCompactHeightfield(chf);
-        return nullptr;
-    }
-
-    rcContourSet* cset = rcAllocContourSet();
-    if (!cset || !rcBuildContours(&ctx, *chf, cfg.maxSimplificationError, cfg.maxEdgeLen, *cset)) {
-        rcFreeCompactHeightfield(chf);
-        rcFreeContourSet(cset);
-        return nullptr;
-    }
-
-    rcPolyMesh* pmesh = rcAllocPolyMesh();
-    if (!pmesh || !rcBuildPolyMesh(&ctx, *cset, cfg.maxVertsPerPoly, *pmesh)) {
-        rcFreeCompactHeightfield(chf);
-        rcFreeContourSet(cset);
-        rcFreePolyMesh(pmesh);
-        return nullptr;
-    }
-
-    rcPolyMeshDetail* dmesh = rcAllocPolyMeshDetail();
-    if (!dmesh || !rcBuildPolyMeshDetail(&ctx, *pmesh, *chf, cfg.detailSampleDist, cfg.detailSampleMaxError, *dmesh)) {
-        rcFreeCompactHeightfield(chf);
-        rcFreeContourSet(cset);
-        rcFreePolyMesh(pmesh);
-        rcFreePolyMeshDetail(dmesh);
-        return nullptr;
-    }
-
-    rcFreeCompactHeightfield(chf); chf = nullptr;
-    rcFreeContourSet(cset); cset = nullptr;
-
-    for (int i = 0; i < pmesh->npolys; ++i) {
-        if (pmesh->areas[i] == RC_WALKABLE_AREA) {
-            pmesh->areas[i] = POLYAREA_GROUND;
-            pmesh->flags[i] = POLYFLAGS_WALK;
+        const float originX = std::floor(globalMin[0] / TILE_WORLD_SIZE) * TILE_WORLD_SIZE;
+        const float originZ = std::floor(globalMin[2] / TILE_WORLD_SIZE) * TILE_WORLD_SIZE;
+        const double tileCountXDouble = std::ceil(
+            (static_cast<double>(globalMax[0]) - originX) / TILE_WORLD_SIZE);
+        const double tileCountYDouble = std::ceil(
+            (static_cast<double>(globalMax[2]) - originZ) / TILE_WORLD_SIZE);
+        if (!std::isfinite(tileCountXDouble) || !std::isfinite(tileCountYDouble) ||
+            tileCountXDouble > std::numeric_limits<int>::max() ||
+            tileCountYDouble > std::numeric_limits<int>::max()) {
+            return nullptr;
         }
-    }
 
-    // --- ジャンプリンク検出（境界エッジ間の簡易ペアリング） ---
-    std::vector<BoundaryEdge> boundaryEdges;
-    collectBoundaryEdges(*pmesh, boundaryEdges);
-    std::vector<OffMeshLink> jumpLinks;
-    buildJumpLinks(boundaryEdges, settings, jumpLinks);
+        const int tileCountX = std::max(1, static_cast<int>(tileCountXDouble));
+        const int tileCountY = std::max(1, static_cast<int>(tileCountYDouble));
+        const int64_t gridTileCount =
+            static_cast<int64_t>(tileCountX) * static_cast<int64_t>(tileCountY);
+        if (gridTileCount <= 0 ||
+            gridTileCount > static_cast<int64_t>(std::numeric_limits<int>::max())) {
+            return nullptr;
+        }
 
-    std::vector<float> offMeshVerts;
-    std::vector<float> offMeshRad;
-    std::vector<unsigned short> offMeshFlags;
-    std::vector<unsigned char> offMeshAreas;
-    std::vector<unsigned char> offMeshDir;
-    std::vector<unsigned int> offMeshUserId;
-    for (size_t i = 0; i < jumpLinks.size(); ++i) {
-        const OffMeshLink& link = jumpLinks[i];
-        offMeshVerts.push_back(link.a[0]); offMeshVerts.push_back(link.a[1]); offMeshVerts.push_back(link.a[2]);
-        offMeshVerts.push_back(link.b[0]); offMeshVerts.push_back(link.b[1]); offMeshVerts.push_back(link.b[2]);
-        offMeshRad.push_back(settings.agentRadius);
-        offMeshFlags.push_back(POLYFLAGS_JUMP);
-        offMeshAreas.push_back(POLYAREA_JUMP);
-        offMeshDir.push_back((unsigned char)DT_OFFMESH_CON_BIDIR);
-        offMeshUserId.push_back((unsigned int)i);
-    }
+        rcContext ctx(false);
+        std::vector<unsigned char> triAreas(static_cast<size_t>(ntris), 0);
+        rcMarkWalkableTriangles(&ctx, settings.agentMaxSlope, verts.data(), nverts,
+            tris.data(), ntris, triAreas.data());
 
-    dtNavMeshCreateParams params;
-    std::memset(&params, 0, sizeof(params));
-    params.verts      = pmesh->verts;
-    params.vertCount  = pmesh->nverts;
-    params.polys      = pmesh->polys;
-    params.polyAreas  = pmesh->areas;
-    params.polyFlags  = pmesh->flags;
-    params.polyCount  = pmesh->npolys;
-    params.nvp        = pmesh->nvp;
-    params.detailMeshes     = dmesh->meshes;
-    params.detailVerts      = dmesh->verts;
-    params.detailVertsCount = dmesh->nverts;
-    params.detailTris       = dmesh->tris;
-    params.detailTriCount   = dmesh->ntris;
-    if (!jumpLinks.empty()) {
-        params.offMeshConVerts   = offMeshVerts.data();
-        params.offMeshConRad     = offMeshRad.data();
-        params.offMeshConFlags   = offMeshFlags.data();
-        params.offMeshConAreas   = offMeshAreas.data();
-        params.offMeshConDir     = offMeshDir.data();
-        params.offMeshConUserID  = offMeshUserId.data();
-        params.offMeshConCount   = (int)jumpLinks.size();
-    }
-    params.walkableHeight = settings.agentHeight;
-    params.walkableRadius = settings.agentRadius;
-    params.walkableClimb  = settings.agentMaxClimb;
-    rcVcopy(params.bmin, pmesh->bmin);
-    rcVcopy(params.bmax, pmesh->bmax);
-    params.cs = cfg.cs;
-    params.ch = cfg.ch;
-    params.buildBvTree = true;
+        std::vector<OwnedTileData> tiles;
+        tiles.reserve(static_cast<size_t>(std::min<int64_t>(gridTileCount, 4096)));
+        int maxPolyCount = 0;
+        for (int tileY = 0; tileY < tileCountY; ++tileY) {
+            for (int tileX = 0; tileX < tileCountX; ++tileX) {
+                const float tileMin[3] = {
+                    originX + tileX * TILE_WORLD_SIZE,
+                    globalMin[1],
+                    originZ + tileY * TILE_WORLD_SIZE,
+                };
+                const float tileMax[3] = {
+                    tileMin[0] + TILE_WORLD_SIZE,
+                    globalMax[1],
+                    tileMin[2] + TILE_WORLD_SIZE,
+                };
 
-    const bool created = dtCreateNavMeshData(&params, &navData, &navDataSize);
+                OwnedTileData tile;
+                const TileBuildResult tileResult = buildTile(
+                    verts, tris, triAreas, settings, tileX, tileY, tileMin, tileMax, tile);
+                if (tileResult == TileBuildResult::Failure) return nullptr;
+                if (tileResult == TileBuildResult::Empty) continue;
 
-    rcFreePolyMesh(pmesh);
-    rcFreePolyMeshDetail(dmesh);
+                const dtMeshHeader* header =
+                    reinterpret_cast<const dtMeshHeader*>(tile.data);
+                maxPolyCount = std::max(maxPolyCount, header->polyCount);
+                tiles.push_back(std::move(tile));
+            }
+        }
+        if (tiles.empty()) return nullptr;
 
-    if (!created) return nullptr;
+        dtNavMeshParams navParams{};
+        navParams.orig[0] = originX;
+        navParams.orig[1] = globalMin[1];
+        navParams.orig[2] = originZ;
+        navParams.tileWidth = TILE_WORLD_SIZE;
+        navParams.tileHeight = TILE_WORLD_SIZE;
+        if (!computeNavCapacity(static_cast<int>(tiles.size()), maxPolyCount,
+                navParams.maxTiles, navParams.maxPolys)) {
+            return nullptr;
+        }
 
-    if (!cachePath.empty()) saveNavCache(cachePath, geomHash, navData, navDataSize);
-
-    } // if (cachePath.empty() || !loadNavCache(...))
-
-    dtNavMesh* navMesh = dtAllocNavMesh();
-    if (!navMesh || dtStatusFailed(navMesh->init(navData, navDataSize, DT_TILE_FREE_DATA))) {
-        dtFree(navData);
-        if (navMesh) dtFreeNavMesh(navMesh);
-        return nullptr;
+        if (!cachePath.empty()) saveNavCache(cachePath, geomHash, navParams, tiles);
+        navMesh = createNavMesh(navParams, tiles);
+        if (!navMesh) return nullptr;
     }
 
     dtNavMeshQuery* navQuery = dtAllocNavMeshQuery();
