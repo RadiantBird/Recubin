@@ -270,6 +270,7 @@ int runInventoryToolSyncRegression() {
 // ===================================================
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
+    getPlatform().setupDllSearchPath();
 
     const bool weldRegression = argc > 1 && std::string_view(argv[1]) == "--weld-regression";
     const bool toolWeldRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-regression";

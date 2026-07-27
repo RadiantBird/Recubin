@@ -10,6 +10,7 @@ public:
     std::string openFolderDialog() override;
     void revealInFileManager(const std::string& path) override;
     void setupConsoleUtf8() override;
+    void setupDllSearchPath() override;
     void* loadDynamicLibrary(const std::string& name) override;
     void* getSymbol(void* handle, const std::string& symbolName) override;
     void  freeDynamicLibrary(void* handle) override;

@@ -15,6 +15,7 @@ public:
     std::string openFolderDialog() override { return {}; }
     void revealInFileManager(const std::string&) override {}
     void setupConsoleUtf8() override {}
+    void setupDllSearchPath() override {}
     void* loadDynamicLibrary(const std::string&) override { return nullptr; }
     void* getSymbol(void*, const std::string&) override { return nullptr; }
     void  freeDynamicLibrary(void*) override {}

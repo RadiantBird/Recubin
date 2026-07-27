@@ -106,6 +106,16 @@ void WindowsPlatform::setupConsoleUtf8() {
     SetConsoleCP(CP_UTF8);
 }
 
+void WindowsPlatform::setupDllSearchPath() {
+    std::vector<wchar_t> executablePath(32768);
+    DWORD length = GetModuleFileNameW(nullptr, executablePath.data(), static_cast<DWORD>(executablePath.size()));
+    if (length == 0 || length >= executablePath.size()) return;
+
+    std::filesystem::path dllDir = std::filesystem::path(std::wstring(executablePath.data(), length)).parent_path() / L"dlls";
+    if (!SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_USER_DIRS)) return;
+    AddDllDirectory(dllDir.c_str());
+}
+
 void* WindowsPlatform::loadDynamicLibrary(const std::string& name) {
     return reinterpret_cast<void*>(LoadLibraryA(name.c_str()));
 }

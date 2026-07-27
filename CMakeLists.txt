@@ -227,6 +227,18 @@ target_link_options(RecubinTest PRIVATE
 )
 target_link_libraries(RecubinTest PRIVATE ${COMMON_LIBS})
 
+if(WIN32)
+    foreach(target IN ITEMS Recubin RecubinEngine RecubinTest)
+        target_link_libraries(${target} PRIVATE delayimp)
+        target_link_options(${target} PRIVATE
+            $<$<CXX_COMPILER_ID:MSVC>:/DELAYLOAD:PhysX_64.dll>
+            $<$<CXX_COMPILER_ID:MSVC>:/DELAYLOAD:PhysXCommon_64.dll>
+            $<$<CXX_COMPILER_ID:MSVC>:/DELAYLOAD:PhysXFoundation_64.dll>
+            $<$<CXX_COMPILER_ID:MSVC>:/DELAYLOAD:PhysXCooking_64.dll>
+        )
+    endforeach()
+endif()
+
 # ==============================================================================
 # --- 5. DLLの自動コピー設定 (Visual Studio対応) ---
 # ==============================================================================

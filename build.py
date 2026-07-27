@@ -33,11 +33,14 @@ def copy_dlls(config: str) -> None:
         print("[WARNING] dlls folder missing.")
         return
 
-    target_dir = BUILD_DIR / config
+    target_dir = BUILD_DIR / config / "dlls"
     target_dir.mkdir(parents=True, exist_ok=True)
 
     copied = 0
     for dll_path in DLL_DIR.glob("*.dll"):
+        legacy_dll_path = BUILD_DIR / config / dll_path.name
+        if legacy_dll_path.exists():
+            legacy_dll_path.unlink()
         shutil.copy2(dll_path, target_dir / dll_path.name)
         copied += 1
 
@@ -163,29 +166,42 @@ def package_editor(config: str) -> int:
         shutil.rmtree(pkg_dir)
     pkg_dir.mkdir(parents=True)
 
+    def copy_executable(src: Path, dst: Path) -> bool:
+        if not src.exists():
+            print(f"[ERROR] Executable not found: {src}")
+            return False
+        shutil.copy2(src, dst)
+        return True
+    
     # exe コピー
     recubin_exe = build_dir / "Recubin.exe"
-    if not recubin_exe.exists():
-        print(f"[ERROR] Recubin.exe not found: {recubin_exe}")
-        return 1
-    shutil.copy2(recubin_exe, pkg_dir / "Recubin.exe")
-
     engine_exe = build_dir / "RecubinEngine.exe"
-    if engine_exe.exists():
-        shutil.copy2(engine_exe, pkg_dir / "RecubinEngine.exe")
-    else:
-        print("[WARNING] RecubinEngine.exe not found - in-editor game Packager will not work.")
-
     launcher_exe = build_dir / "launcher.exe"
-    if launcher_exe.exists():
-        shutil.copy2(launcher_exe, pkg_dir / "launcher.exe")
-    else:
-        print("[WARNING] launcher.exe not found - skipping.")
+    watcher_exe = build_dir / "Watcher.exe"
+
+    if not copy_executable(recubin_exe, pkg_dir / "Recubin.exe"):
+        print("[ERROR] Recubin.exe not found - in-editor game Packager will not work!")
+        return 1
+
+    if not copy_executable(engine_exe, pkg_dir / "RecubinEngine.exe"):
+        print("[ERROR] RecubinEngine.exe not found - in-editor game Packager will not work!")
+        return 1
+
+    if not copy_executable(launcher_exe, pkg_dir / "launcher.exe"):
+        print("[ERROR] launcher.exe not found")
+        return 1
+
+    if not copy_executable(watcher_exe, pkg_dir / "Watcher.exe"):
+        print("[ERROR] Watcher.exe not found")
+        return 1
 
     # DLL コピー
+    dll_dir = pkg_dir / "dlls"
+    dll_dir.mkdir(parents=True, exist_ok=True)
+
     dll_copied = 0
     for dll_path in DLL_DIR.glob("*.dll"):
-        shutil.copy2(dll_path, pkg_dir / dll_path.name)
+        shutil.copy2(dll_path, dll_dir / dll_path.name)
         dll_copied += 1
     if dll_copied == 0:
         print("[WARNING] No DLL files found in dlls folder.")

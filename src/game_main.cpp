@@ -130,6 +130,7 @@ int main(int argc, char* argv[]) {
     // (Windows日本語版等では既定のANSIコードページのままだと、UTF-8で書かれた
     //  ログやLuauのprint出力が文字化けする)
     getPlatform().setupConsoleUtf8();
+    getPlatform().setupDllSearchPath();
 
     GameConfig cfg = loadStartup();
 

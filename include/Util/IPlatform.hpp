@@ -35,6 +35,9 @@ public:
     // 起動時に1回呼ぶ、コンソールの入出力コードページをUTF-8にする処理
     virtual void setupConsoleUtf8() = 0;
 
+    // 起動時に1回呼ぶ、実行ファイルと同階層のdllsをDLL検索パスに追加する処理
+    virtual void setupDllSearchPath() = 0;
+
     // 動的ライブラリのロード(luar_compiler.dll等)。ハンドルはvoid*で抽象化。
     virtual void* loadDynamicLibrary(const std::string& name) = 0;
     virtual void* getSymbol(void* handle, const std::string& symbolName) = 0;

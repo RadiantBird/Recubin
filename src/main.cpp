@@ -468,6 +468,16 @@ static int runGenTestScene(const std::string& outputPath) {
 //  main
 // ===================================================
 int main(int argc, char* argv[]) {
+    // コンソールの出力/入力コードページをUTF-8にする
+    // (Windows日本語版等では既定のANSIコードページのままだと、UTF-8で書かれた
+    //  ログやLuauのprint出力が文字化けする)
+    getPlatform().setupConsoleUtf8();
+    getPlatform().setupDllSearchPath();
+
+    std::cout << "Hello world!\n"
+              << "Recubin Studio v0.9980\n";
+    std::filesystem::path engineExePath = (argc > 0 && argv[0]) ? std::filesystem::path(argv[0]) : std::filesystem::path();
+
     windows(
         DWORD myPid = GetCurrentProcessId();
         std::string cmd = "Watcher.exe " + std::to_string(myPid);
@@ -493,15 +503,6 @@ int main(int argc, char* argv[]) {
             return runGenTestScene(argv[i + 1]);
         }
     }
-
-    // コンソールの出力/入力コードページをUTF-8にする
-    // (Windows日本語版等では既定のANSIコードページのままだと、UTF-8で書かれた
-    //  ログやLuauのprint出力が文字化けする)
-    getPlatform().setupConsoleUtf8();
-
-    std::cout << "Hello world!\n"
-              << "Recubin Studio v0.9980\n";
-    std::string engineExePath = (argc > 0 && argv[0]) ? argv[0] : "";
 
     GLFWwindow* window = setupWindow();
     if (!window) {
@@ -570,7 +571,7 @@ int main(int argc, char* argv[]) {
     // ===================================================
     auto editorOwned = std::make_unique<EditorManager>(workspace.get(), user.get(), system.get());
     EditorManager* ed = editorOwned.get();
-    ed->engineExePath = engineExePath;
+    ed->engineExePath = engineExePath.string();
     ed->scenePath     = scenePath; // 起動時に決定したシーンパスを反映
     loadPanelVisibility(ed);       // 前回のパネル開閉状態を復元
     loadEditorPreferences(ed, user.get()); // 前回のエディター環境設定を復元
