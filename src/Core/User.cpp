@@ -533,6 +533,7 @@ void User::processMouse(bool isGameplayInput) {
 
 void User::processInput(Physics* physics, float deltaTime, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput) {
     if (!m_input) return;
+    (void)deltaTime;
 
     // ジャンプ要求は毎フレームクリアし、processHotkeys()内でSpace押下時にのみセットする
     // (ネットワークレプリケーション用: このフレームでジャンプ要求があったかをlastMovementInputに残す)
@@ -541,24 +542,14 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     // User.Input: 前フレームとの差分で Pressed/Released を発火する
     if (Input) Input->poll();
 
-    // 死亡 → respawn 処理
-    if (humanoid) {
-        if (!m_deathHandled && humanoid->isDead()) {
-            m_deathHandled = true;
-            m_respawnTimer = humanoid->RespawnTime;
-            humanoid->enterRagdoll(physics); // パージ=ばらして吹き飛ばし
-        }
-        if (m_deathHandled) {
-            m_respawnTimer -= deltaTime;
-            if (m_respawnTimer <= 0.0f) respawnCharacter();
-        }
-    }
+    // 死亡後の経過時間はHumanoid側で管理し、再生成だけUserが行う
+    if (humanoid && humanoid->isRespawnReady()) respawnCharacter();
 
     bool rotated = processCameraRotation(viewportFocused && !wantsTextInput);
     processZoom(viewportZoomEnabled && !wantsTextInput);
     if (humanoid) humanoid->updateFirstPersonState(cameraDistance <= firstPersonThreshold);
     // 死亡中はキャラクター移動を駆動しない（ばらしたパーツを上書きしないため）
-    if (!m_deathHandled) processMovement(viewportFocused && !wantsTextInput, physics);
+    if (!humanoid || !humanoid->isDead()) processMovement(viewportFocused && !wantsTextInput, physics);
     if (rotated) updateVectors();
     if (!wantsTextInput) processHotkeys(physics);
     processToolkeys(viewportFocused, isGameplayInput, wantsTextInput);
@@ -580,7 +571,7 @@ void User::respawnCharacter() {
     // 死亡したキャラクターが属していた親(Workspace)を保持してから作り直す
     std::shared_ptr<Instance> parent = character ? character->Parent.lock() : nullptr;
     despawnCharacter();
-    spawnCharacter(m_lastSearchRoot); // m_deathHandled もここで false に戻る
+    spawnCharacter(m_lastSearchRoot);
     if (parent && character) {
         parent->addChild(character);
     }
@@ -595,7 +586,6 @@ void User::setCharacterFromScript(std::shared_ptr<Model> newCharacter) {
     }
 
     character = newCharacter;
-    m_deathHandled = false;
 
     auto it = character->getChildren().find("Humanoid");
     humanoid = (it != character->getChildren().end()) ? std::dynamic_pointer_cast<Humanoid>(it->second) : nullptr;
@@ -656,7 +646,6 @@ std::shared_ptr<Model> User::buildCharacterModel(Instance* searchRoot, const std
 
 void User::spawnCharacter(Instance* searchRoot) {
     m_lastSearchRoot = searchRoot; // respawn 用に保持
-    m_deathHandled = false;
     if (character) {
         despawnCharacter();
     }

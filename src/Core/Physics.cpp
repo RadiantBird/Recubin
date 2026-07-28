@@ -906,6 +906,12 @@ void Physics::removeInvalidConstraints(Workspace& workspace) {
     };
     auto isInvalid = [&](const std::shared_ptr<Instance>& constraint) {
         if (!constraint) return false;
+        // Inventory に戻された Tool の Weld は、制約自身と両端が Workspace 外へ
+        // 一緒に移動しているだけである。ここで削除すると二回目の装備時に Weld の
+        // 連結情報そのものが失われる。これは Weld の再装備処理だけに適用し、他の
+        // 制約は従来どおり endpoint の不整合を回収する。
+        if (constraint->IsA("Weld") &&
+            constraint->findFirstAncestorWorkspace() != &workspace) return false;
         if (constraint->IsA("Weld")) {
             auto c = std::static_pointer_cast<Weld>(constraint);
             return !cubeIsInWorkspace(c->m_cube0) || !cubeIsInWorkspace(c->m_cube1);

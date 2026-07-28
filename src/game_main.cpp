@@ -415,7 +415,7 @@ int main(int argc, char* argv[]) {
 
         // 再生中のAnimationを評価し、対象Cubeのcframeを上書きする(main.cppの対応処理と同じ)
         // workspace内の全Humanoid(NPC含む)が対象
-        Humanoid::updateAll(workspace.get(), deltaTime);
+        Humanoid::updateAll(workspace.get(), deltaTime, workspace->getPhysicsEngine());
 
         // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、
         // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす

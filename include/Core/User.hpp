@@ -205,8 +205,5 @@ private:
     bool m_altKeyWasDown = false;  // Alt 押下の立ち上がり検出用
     bool m_externalDragActive = false;  // セカンダリビューポートの独立カメラがカーソルロック中か
 
-    // 死亡 → respawn 管理
-    bool      m_deathHandled  = false;
-    float     m_respawnTimer  = 0.0f;
     Instance* m_lastSearchRoot = nullptr; // spawnCharacter の検索起点を保持（respawn 用）
 };

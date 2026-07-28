@@ -120,9 +120,21 @@ void Weld::onAncestorChanged() {
         ws->registerConstraint(shared_from_this());
         m_lastWorkspace = ws;
     } else {
-        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_compound) {
+        // Tool の装備解除では、Weld 自身と両端の Cube がまとめて Workspace 外
+        // (Inventory) へ移る。この途中で Weld ごとに removeConstraint() すると、同じ
+        // compound を何度も分割・再構築して二本目以降の部品が独立 actor になる。
+        // 両端も旧 Workspace 外へ移った場合は、再装備時に再利用する制約エントリーを
+        // 残す。Cube 側の onAncestorChanged() が actor を安全に解放し、再装備時の
+        // registerConstraint()/rebuildGroup() が compound を作り直す。
+        auto cube0 = m_cube0.lock();
+        auto cube1 = m_cube1.lock();
+        const bool endpointsAlsoLeft = m_lastWorkspace && cube0 && cube1 &&
+            cube0->findFirstAncestorWorkspace() != m_lastWorkspace &&
+            cube1->findFirstAncestorWorkspace() != m_lastWorkspace;
+        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && !endpointsAlsoLeft) {
             m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
         }
+        m_compound = nullptr;
         m_lastWorkspace = nullptr;
     }
     Instance::onAncestorChanged();

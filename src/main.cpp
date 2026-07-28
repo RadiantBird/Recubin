@@ -475,7 +475,7 @@ int main(int argc, char* argv[]) {
     getPlatform().setupDllSearchPath();
 
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.9980\n";
+              << "Recubin Studio v0.9981\n";
     std::filesystem::path engineExePath = (argc > 0 && argv[0]) ? std::filesystem::path(argv[0]) : std::filesystem::path();
 
     windows(
@@ -798,7 +798,7 @@ int main(int argc, char* argv[]) {
         // (processInput内のapplyBodyAnimationより後に行うことでアニメーションを優先させる)
         // workspace内の全Humanoid(NPC含む)が対象(旧: user->humanoidのみに限定されていた)
         if (isPlaying && !isPaused) {
-            Humanoid::updateAll(workspace.get(), deltaTime);
+            Humanoid::updateAll(workspace.get(), deltaTime, workspace->getPhysicsEngine());
         }
 
         // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、

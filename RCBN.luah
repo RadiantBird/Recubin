@@ -420,3 +420,34 @@ declare CFrame: {
     fromAxisAngle: (Vector3, number) -> CFrame,
     lookAt: (Vector3, Vector3, Vector3?) -> CFrame,
 }
+
+--[[
+NOTE: Key enums(copied from C++ file)
+
+const KeyEntry s_keyTable[] = {
+    { KeyCode::A, "A" }, { KeyCode::B, "B" }, { KeyCode::C, "C" }, { KeyCode::D, "D" },
+    { KeyCode::E, "E" }, { KeyCode::F, "F" }, { KeyCode::G, "G" }, { KeyCode::H, "H" },
+    { KeyCode::I, "I" }, { KeyCode::J, "J" }, { KeyCode::K, "K" }, { KeyCode::L, "L" },
+    { KeyCode::M, "M" }, { KeyCode::N, "N" }, { KeyCode::O, "O" }, { KeyCode::P, "P" },
+    { KeyCode::Q, "Q" }, { KeyCode::R, "R" }, { KeyCode::S, "S" }, { KeyCode::T, "T" },
+    { KeyCode::U, "U" }, { KeyCode::V, "V" }, { KeyCode::W, "W" }, { KeyCode::X, "X" },
+    { KeyCode::Y, "Y" }, { KeyCode::Z, "Z" },
+    { KeyCode::Num0, "0" }, { KeyCode::Num1, "1" }, { KeyCode::Num2, "2" },
+    { KeyCode::Num3, "3" }, { KeyCode::Num4, "4" }, { KeyCode::Num5, "5" },
+    { KeyCode::Num6, "6" }, { KeyCode::Num7, "7" }, { KeyCode::Num8, "8" },
+    { KeyCode::Num9, "9" },
+    { KeyCode::Up, "Up" }, { KeyCode::Down, "Down" }, { KeyCode::Left, "Left" }, { KeyCode::Right, "Right" },
+    { KeyCode::Escape, "Escape" }, { KeyCode::Space, "Space" }, { KeyCode::Enter, "Return" },
+    { KeyCode::Tab, "Tab" }, { KeyCode::Backspace, "Backspace" },
+    { KeyCode::LeftShift, "LeftShift" }, { KeyCode::RightShift, "RightShift" },
+    { KeyCode::LeftControl, "LeftControl" }, { KeyCode::RightControl, "RightControl" },
+    { KeyCode::LeftAlt, "LeftAlt" }, { KeyCode::RightAlt, "RightAlt" },
+};
+
+const MouseEntry s_mouseTable[] = {
+    { MouseButton::Left,   "MouseButton1" },
+    { MouseButton::Right,  "MouseButton2" },
+    { MouseButton::Middle, "MouseButton3" },
+};
+
+]]

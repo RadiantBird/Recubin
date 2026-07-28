@@ -69,7 +69,24 @@ void Humanoid::takeDamage(float n) {
     setHealth(Health - n);
 }
 
+void Humanoid::updateDeath(float dt, Physics* physics) {
+    if (!m_dead) return;
+
+    enterRagdoll(physics);
+    m_deathElapsed += dt;
+}
+
+bool Humanoid::isRespawnReady() const {
+    return m_dead && m_deathElapsed >= RespawnTime;
+}
+
 void Humanoid::enterRagdoll(Physics* physics) {
+    if (!Root) {
+        if (auto parent = Parent.lock()) resolveParts(parent.get());
+    }
+    if (m_ragdollEntered) return;
+    m_ragdollEntered = true;
+
     stopAnimation();
 
     // -1..1 の乱数
@@ -144,6 +161,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
                      const Vector3& targetMoveDir, bool ctrlLockEnabled, Physics* physics,
                      bool leftArmRaised, bool rightArmRaised,
                      float forwardAxis, float rightAxis) {
+    if (m_dead) return;
     if (!Root || !Root->actor) return;
 
     physx::PxRigidDynamic* dynamicActor = Root->actor->is<physx::PxRigidDynamic>();
@@ -230,6 +248,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
 }
 
 bool Humanoid::moveToward(const Vector3& target, Physics* physics, float arrivalRadius) {
+    if (m_dead) return false;
     if (!Root) resolveParts(Parent.lock().get());
     if (!Root) return false;
 
@@ -257,6 +276,7 @@ void Humanoid::setJumpHeight(float height) {
 }
 
 void Humanoid::jump(Physics* physics) {
+    if (m_dead) return;
     if (!Root) resolveParts(Parent.lock().get());
     if (!Root || !Root->actor) return;
     bool submerged = physics && physics->findOverlapping(*Root, "LiquidCube") != nullptr;
@@ -591,9 +611,13 @@ void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
     if (RightLeg) RightLeg->cframe = makeLeg(Root->cframe, rightHipPos, pose.rightLeg);
 }
 
-void Humanoid::updateAll(Instance* root, float dt) {
+void Humanoid::updateAll(Instance* root, float dt, Physics* physics) {
     if (!root) return;
-    if (root->IsA("Humanoid")) static_cast<Humanoid*>(root)->updateAnimation(dt);
+    if (root->IsA("Humanoid")) {
+        auto* humanoid = static_cast<Humanoid*>(root);
+        humanoid->updateDeath(dt, physics);
+        humanoid->updateAnimation(dt);
+    }
     for (auto const& [name, child] : root->getChildren())
-        updateAll(child.get(), dt);
+        updateAll(child.get(), dt, physics);
 }

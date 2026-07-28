@@ -211,6 +211,89 @@ int runToolWeldRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runToolWeldReequipRegression() {
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    auto character = std::make_shared<Model>();
+    character->Name = "Character";
+    auto tool = std::make_shared<Tool>("Tool");
+    auto handle = std::make_shared<BaseCube>(Vector3(0.0f, 8.0f, 0.0f), Vector3(1, 1, 1));
+    auto member1 = std::make_shared<BaseCube>(Vector3(0.0f, 8.0f, 2.0f), Vector3(1, 1, 3));
+    auto member2 = std::make_shared<BaseCube>(Vector3(2.0f, 8.0f, 0.0f), Vector3(3, 1, 1));
+    auto member3 = std::make_shared<BaseCube>(Vector3(-2.0f, 8.0f, 0.0f), Vector3(3, 1, 1));
+    handle->Name = "Handle";
+    member1->Name = "Member1";
+    member2->Name = "Member2";
+    member3->Name = "Member3";
+
+    system->addChild(workspace);
+    system->addChild(user);
+    user->initializeInventory();
+    workspace->addChild(character);
+    user->character = character;
+    user->Inventory->addChild(tool);
+    tool->addChild(handle);
+    tool->addChild(member1);
+    tool->addChild(member2);
+    tool->addChild(member3);
+    tool->Handle = handle;
+
+    for (const auto& member : {member1, member2, member3}) {
+        auto weld = std::make_shared<Weld>(handle, member);
+        weld->Name = "Handle" + member->Name + "Weld";
+        handle->addChild(weld);
+    }
+
+    auto expect = [](bool condition, const char* name, int& failures) {
+        std::cout << "[ToolWeldReequipRegression] " << (condition ? "PASS" : "FAIL")
+                  << ": " << name << "\n";
+        if (!condition) ++failures;
+    };
+    auto updatePhysics = [&] {
+        workspace->getPhysicsEngine()->update(*workspace, 1.0f / 60.0f);
+    };
+    auto allShareActor = [&] {
+        return handle->actor && handle->actor == member1->actor &&
+               handle->actor == member2->actor && handle->actor == member3->actor;
+    };
+
+    workspace->initPhysics();
+    int failures = 0;
+
+    // Inventory is outside Workspace.  Enter it, leave it, then enter it again: this
+    // mirrors the Tool equip lifecycle without relying on input state.
+    user->Inventory->removeChild(tool->Name);
+    character->addChild(tool);
+    updatePhysics();
+    expect(allShareActor(), "初回装備で全Weld部品がcompound actorを共有する", failures);
+
+    character->removeChild(tool->Name);
+    user->Inventory->addChild(tool);
+    updatePhysics();
+    expect(!handle->actor && !member1->actor && !member2->actor && !member3->actor,
+           "解除時にWorkspace外のTool部品のactorを解放する", failures);
+
+    user->Inventory->removeChild(tool->Name);
+    character->addChild(tool);
+    updatePhysics();
+    expect(allShareActor(), "再装備で全Weld部品がcompound actorを再共有する", failures);
+
+    const CFrame member1Relative = handle->getWorldCFrame().inverse() * member1->getWorldCFrame();
+    const CFrame member2Relative = handle->getWorldCFrame().inverse() * member2->getWorldCFrame();
+    const CFrame member3Relative = handle->getWorldCFrame().inverse() * member3->getWorldCFrame();
+    const CFrame target(Vector3(12.0f, 10.0f, -4.0f),
+                        Quaternion::fromAxisAngle(Vector3(0, 1, 0), 45.0f));
+    workspace->getPhysicsEngine()->moveWeldAssembly(handle, target);
+    expect(sameCFrame(handle->getWorldCFrame(), target), "再装備後もHandleを移動できる", failures);
+    expect(sameCFrame(handle->getWorldCFrame().inverse() * member1->getWorldCFrame(), member1Relative) &&
+           sameCFrame(handle->getWorldCFrame().inverse() * member2->getWorldCFrame(), member2Relative) &&
+           sameCFrame(handle->getWorldCFrame().inverse() * member3->getWorldCFrame(), member3Relative),
+           "再装備後も全Weld部品の相対CFrameを維持する", failures);
+
+    return failures == 0 ? 0 : 1;
+}
+
 int runInventoryToolSyncRegression() {
     auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
     user->initializeInventory();
@@ -274,8 +357,10 @@ int main(int argc, char* argv[]) {
 
     const bool weldRegression = argc > 1 && std::string_view(argv[1]) == "--weld-regression";
     const bool toolWeldRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-regression";
+    const bool toolWeldReequipRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-reequip-regression";
     const bool inventoryToolSyncRegression = argc > 1 && std::string_view(argv[1]) == "--inventory-tool-sync-regression";
     if (toolWeldRegression) return runToolWeldRegression();
+    if (toolWeldReequipRegression) return runToolWeldReequipRegression();
     if (inventoryToolSyncRegression) return runInventoryToolSyncRegression();
     std::string scenePath = weldRegression
         ? ((argc > 2) ? argv[2] : "assets/scenes/_snapshot.yaml")

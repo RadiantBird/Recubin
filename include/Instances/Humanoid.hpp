@@ -91,6 +91,9 @@ public:
     void setHealth(float v);          // クランプして設定。0以下への遷移で Died を発火
     void takeDamage(float n);         // setHealth(Health - n)
     bool isDead() const { return m_dead; }
+    // 死亡演出を開始し、死亡後の経過時間を更新する
+    void updateDeath(float dt, Physics* physics);
+    bool isRespawnReady() const;
     // 死亡演出: 各ボディパーツを動的アクター化してランダムに吹き飛ばす（ラグドール）
     void enterRagdoll(Physics* physics);
 
@@ -106,8 +109,8 @@ public:
     void updateAnimation(float dt);
 
     // メインループから毎フレーム1回だけ呼ぶ。ツリーを再帰的に辿り、見つけた全Humanoidの
-    // updateAnimation(dt)を呼ぶ(ParticleEmitter::updateAllと同じ木構造走査パターン)
-    static void updateAll(Instance* root, float dt);
+    // updateDeath(dt, physics)とupdateAnimation(dt)を呼ぶ(ParticleEmitter::updateAllと同じ木構造走査パターン)
+    static void updateAll(Instance* root, float dt, Physics* physics);
 
     // 一人称視点かどうかをUser側から渡し、身体パーツの透明化/復元を行う
     void updateFirstPersonState(bool wantsFirstPerson);
@@ -141,6 +144,8 @@ private:
     Vector3 currentMoveDir;
     bool isGrounded = true;
     bool m_dead = false;
+    bool m_ragdollEntered = false;
+    float m_deathElapsed = 0.0f;
 
     // --- Seat(着席) ---
     bool m_seated = false;
