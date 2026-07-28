@@ -10,6 +10,7 @@ ROOT_DIR = Path(__file__).resolve().parent
 BUILD_DIR = ROOT_DIR / "build"
 DLL_DIR = ROOT_DIR / "dlls"
 DIST_DIR = ROOT_DIR / "dist"
+VC_REDIST_PATH = ROOT_DIR / "redist" / "vc_redist.x64.exe"
 
 
 def run_command(args: list[str]) -> int:
@@ -160,6 +161,11 @@ def package_editor(config: str) -> int:
     if result != 0:
         return result
 
+    if not VC_REDIST_PATH.exists():
+        print(f"[ERROR] Visual C++ Redistributable installer not found: {VC_REDIST_PATH}")
+        print("[ERROR] Download the official vc_redist.x64.exe and place it in redist before packaging.")
+        return 1
+
     build_dir = BUILD_DIR / config
     pkg_dir = DIST_DIR / "RecubinStudio"
     if pkg_dir.exists():
@@ -206,6 +212,10 @@ def package_editor(config: str) -> int:
     if dll_copied == 0:
         print("[WARNING] No DLL files found in dlls folder.")
 
+    redist_dir = pkg_dir / "redist"
+    redist_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(VC_REDIST_PATH, redist_dir / VC_REDIST_PATH.name)
+
     # シェーダーコピー
     shaders_src = ROOT_DIR / "shaders"
     shaders_dst = pkg_dir / "shaders"
@@ -242,7 +252,10 @@ def package_editor(config: str) -> int:
 RecubinEngine.exeはランタイム用なので触らずにそのままにしておいてください。
                 
 Recubin.exe is the editor (Studio), so you can start by clicking on it.
+Recubin.exeが起動しない場合は、先にredist/vc_redist.x64.exeを実行してからRecubin.exeを起動してください。
+
 RecubinEngine.exe is for the runtime, so please leave it as is and do not touch it.
+If Recubin.exe does not start, run redist/vc_redist.x64.exe before launching Recubin.exe.
 """)
         f.flush()
 
