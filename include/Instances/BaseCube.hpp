@@ -68,6 +68,7 @@ public:
     void setSize(Vector3 newSize);
     void setRotation(Quaternion rot);
     void setAnchored(bool anchored);
+    void setCanCollide(bool canCollide);
     void setMaterial(const Material& m);
     void setMassDensity(float d);
 

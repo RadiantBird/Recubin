@@ -673,7 +673,7 @@ void LuauEngine::InitSetterTable_Base() {
     };
     SetterTable["BaseCube"]["Color"]        = setter_color4     <BaseCube, &BaseCube::Color>();
     SetterTable["BaseCube"]["Anchored"]     = setter_method_bool<BaseCube, &BaseCube::setAnchored>();
-    SetterTable["BaseCube"]["CanCollide"]   = setter_bool       <BaseCube, &BaseCube::CanCollide>();
+    SetterTable["BaseCube"]["CanCollide"]   = setter_method_bool<BaseCube, &BaseCube::setCanCollide>();
     SetterTable["BaseCube"]["CastShadow"]   = setter_bool       <BaseCube, &BaseCube::CastShadow>();
     SetterTable["BaseCube"]["Unlit"]        = setter_bool       <BaseCube, &BaseCube::Unlit>();
     SetterTable["BaseCube"]["UseTriplanar"] = setter_bool       <BaseCube, &BaseCube::UseTriplanar>();

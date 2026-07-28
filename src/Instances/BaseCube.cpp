@@ -60,7 +60,9 @@ static const bool s_baseCubeRegistered = []{
     registerClass("BaseCube", {
         field<&BaseCube::Color>("Color").group("Appearance").noYaml(),
         anchored,
-        field<&BaseCube::CanCollide>("CanCollide").noYaml(),
+        custom("CanCollide", PropType::Bool,
+            [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->CanCollide); },
+            [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setCanCollide(std::get<bool>(v)); }).noYaml(),
         field<&BaseCube::CastShadow>("CastShadow").noYaml(),
         field<&BaseCube::Unlit>("Unlit").noYaml(),
         massDensity,
@@ -142,6 +144,13 @@ void BaseCube::setRotation(Quaternion localRot) {
 
 void BaseCube::setAnchored(bool anchored) {
     Anchored = anchored;
+    if (lastWorkspace && lastWorkspace->physicsEngine) {
+        lastWorkspace->physicsEngine->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
+    }
+}
+
+void BaseCube::setCanCollide(bool canCollide) {
+    CanCollide = canCollide;
     if (lastWorkspace && lastWorkspace->physicsEngine) {
         lastWorkspace->physicsEngine->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
     }
@@ -233,7 +242,7 @@ void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Anchored") {
         setAnchored(value.as<bool>());
     } else if (name == "CanCollide") {
-        this->CanCollide = value.as<bool>();
+        setCanCollide(value.as<bool>());
     } else if (name == "Color") {
         Color4 color(0,0,0,0);
         color.r = value[0].as<float>();
