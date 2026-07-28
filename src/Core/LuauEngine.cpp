@@ -90,6 +90,62 @@ std::unordered_map<std::string_view, std::unordered_map<std::string_view, LuauEn
 Script* LuauEngine::currentScript = nullptr;
 LuauEngine::EngineTask* LuauEngine::currentTask = nullptr;
 
+namespace {
+constexpr const char* RCBN_ORIGINAL_TOSTRING_KEY = "RCBN_OriginalTostring";
+
+bool isTableAt(lua_State* L, int index) {
+    return std::string_view(lua_typename(L, lua_type(L, index))) == "table";
+}
+
+std::string callOriginalTostring(lua_State* L, int valueIndex, int originalTostringIndex) {
+    valueIndex = lua_absindex(L, valueIndex);
+    originalTostringIndex = lua_absindex(L, originalTostringIndex);
+    const int stackTop = lua_gettop(L);
+    lua_pushvalue(L, originalTostringIndex);
+    lua_pushvalue(L, valueIndex);
+    lua_call(L, 1, 1);
+
+    size_t length = 0;
+    const char* text = lua_tolstring(L, -1, &length);
+    std::string result = text ? std::string(text, length) : "";
+    lua_settop(L, stackTop);
+    return result;
+}
+
+std::string formatTableValue(lua_State* L, int valueIndex, int originalTostringIndex,
+                             std::vector<const void*>& ancestors);
+
+std::string formatTable(lua_State* L, int tableIndex, int originalTostringIndex,
+                        std::vector<const void*>& ancestors) {
+    tableIndex = lua_absindex(L, tableIndex);
+    const void* tablePointer = lua_topointer(L, tableIndex);
+    if (std::find(ancestors.begin(), ancestors.end(), tablePointer) != ancestors.end())
+        return "<cycle>";
+
+    ancestors.push_back(tablePointer);
+    std::string result = "{";
+    bool first = true;
+    lua_pushnil(L);
+    while (lua_next(L, tableIndex) != 0) {
+        if (!first) result += ", ";
+        first = false;
+        result += "[" + formatTableValue(L, -2, originalTostringIndex, ancestors) + "] = ";
+        result += formatTableValue(L, -1, originalTostringIndex, ancestors);
+        lua_pop(L, 1); // value; keep key for lua_next
+    }
+    result += "}";
+    ancestors.pop_back();
+    return result;
+}
+
+std::string formatTableValue(lua_State* L, int valueIndex, int originalTostringIndex,
+                             std::vector<const void*>& ancestors) {
+    if (!isTableAt(L, valueIndex))
+        return callOriginalTostring(L, valueIndex, originalTostringIndex);
+    return formatTable(L, valueIndex, originalTostringIndex, ancestors);
+}
+} // namespace
+
 // Instance.new で生成したインスタンスの所有権を保持するストレージ。
 // Lua に渡す userdata は weak_ptr なので、親付け前(=ツリー未接続)の期間だけここで強参照を保持し、
 // 即時 GC を防ぐ。親付け後はツリー(親の children)が所有するため、sweepOwnedInstances が手放す。
@@ -431,8 +487,25 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     lua_pushcfunction(L, luafn_assert, "assert");
     lua_setglobal(L, "assert");
 
-    lua_pushcfunction(L, global_print_message, "print");
+    // Retain the standard implementation once per Lua state. Scripts receive
+    // their own globals, so looking up tostring after an override could capture
+    // this formatter instead of the original function.
+    lua_getfield(L, LUA_REGISTRYINDEX, RCBN_ORIGINAL_TOSTRING_KEY);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        lua_getglobal(L, "tostring");
+        lua_pushvalue(L, -1);
+        lua_setfield(L, LUA_REGISTRYINDEX, RCBN_ORIGINAL_TOSTRING_KEY);
+    }
+
+    lua_pushvalue(L, -1);
+    lua_pushcclosure(L, global_tostring, "tostring", 1);
+    lua_setglobal(L, "tostring");
+
+    lua_pushvalue(L, -1);
+    lua_pushcclosure(L, global_print_message, "print", 1);
     lua_setglobal(L, "print");
+    lua_pop(L, 1); // original tostring
     
     lua_pushcfunction(L, wait, "wait");
     lua_setglobal(L, "wait");
@@ -1130,6 +1203,20 @@ int LuauEngine::luafn_assert(lua_State* L) {
     return 1;
 }
 
+int LuauEngine::global_tostring(lua_State* L) {
+    if (!isTableAt(L, 1)) {
+        lua_pushvalue(L, lua_upvalueindex(1));
+        lua_pushvalue(L, 1);
+        lua_call(L, 1, 1);
+        return 1;
+    }
+
+    std::vector<const void*> ancestors;
+    const std::string text = formatTable(L, 1, lua_upvalueindex(1), ancestors);
+    lua_pushlstring(L, text.c_str(), text.size());
+    return 1;
+}
+
 int LuauEngine::wait(lua_State* L) {
     // 引数省略時は0秒(次フレーム再開)。task.wait()の書き心地を優先
     float s = (float)luaL_optnumber(L, 1, 0.0);
@@ -1383,8 +1470,13 @@ int LuauEngine::global_print_message(lua_State* L) {
     std::ostringstream ss;
     for (int i = 1; i <= n; i++) {
         if (i > 1) ss << "\t";
-        ss << luaL_tolstring(L, i, nullptr);
-        lua_pop(L, 1);
+        if (isTableAt(L, i)) {
+            std::vector<const void*> ancestors;
+            ss << formatTable(L, i, lua_upvalueindex(1), ancestors);
+        } else {
+            ss << luaL_tolstring(L, i, nullptr);
+            lua_pop(L, 1);
+        }
     }
     const std::string msg = ss.str();
     std::cout << "[Luau] " << msg << std::endl;

@@ -15,6 +15,21 @@ check("script != nil",    script ~= nil)
 check("workspace.Name == 'Workspace'", workspace.Name == "Workspace")
 check("script.Name == 'TestBindings'", script.Name == "TestBindings")
 
+-- ===== Table tostring =====
+print("--- Table tostring ---")
+local nestedTable = {
+    label = "outer",
+    nested = { count = 2, values = { "first", "second" } },
+}
+local nestedTableText = tostring(nestedTable)
+check("tostring formats nested tables", string.find(nestedTableText, "outer", 1, true) ~= nil
+    and string.find(nestedTableText, "count", 1, true) ~= nil
+    and string.find(nestedTableText, "second", 1, true) ~= nil)
+local cyclicTable = {}
+cyclicTable.self = cyclicTable
+check("tostring detects table cycles", string.find(tostring(cyclicTable), "<cycle>", 1, true) ~= nil)
+check("print accepts tables", pcall(function() print(nestedTable) end))
+
 -- ===== Vector3 / Vector2 / Color4 演算子 =====
 print("--- Vector3 Arithmetic ---")
 local v3a = Vector3.new(0, 1, 2)
