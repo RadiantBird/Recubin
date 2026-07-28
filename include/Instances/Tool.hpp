@@ -3,7 +3,11 @@
 #include <Instances/BaseCube.hpp>
 #include <Core/RCBNScriptSignal.hpp>
 
+class User;
+
 class Tool : public Instance {
+    friend class User;
+
     public:
         Tool(std::string name);
 
@@ -33,5 +37,6 @@ class Tool : public Instance {
     private:
         // Tool固有のプロパティやメソッドをここに追加
         void resolveHandle();  // m_handleName から Handle を遅延解決する
+        std::weak_ptr<User> m_inventoryOwner;
 
 };

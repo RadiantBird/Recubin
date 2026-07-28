@@ -196,9 +196,8 @@ static void resetSystemForReload(
         for (auto& name : userChildNames) {
             user->removeChild(name);
         }
-        // Inventoryと同じ理由でホットバーも残留させない（前回シーンのToolが
-        // Slotsに残ると、次のPlayでAddToolが幽霊スロットの後ろに積まれて増殖する）
-        user->resetToolState();
+        // Inventory本体も再利用せず、前回の子とSlotsの強参照をまとめて破棄する。
+        user->resetInventory();
     }
 }
 
@@ -475,7 +474,7 @@ int main(int argc, char* argv[]) {
     getPlatform().setupDllSearchPath();
 
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.9981\n";
+              << "Recubin Studio v0.9983\n";
     std::filesystem::path engineExePath = (argc > 0 && argv[0]) ? std::filesystem::path(argv[0]) : std::filesystem::path();
 
     windows(
@@ -657,6 +656,9 @@ int main(int argc, char* argv[]) {
 
         // ---- Play/Stop 遷移処理 ----
         if (isPlaying && !wasPlaying) {
+            // SlotsはInventoryから導出される実行時キャッシュ。EditorでToolを移動した
+            // 直後でも前回のshared_ptrを持ち越さないよう、Play開始時に実体から再構築する。
+            user->syncToolsFromInventory();
             // System配下(Workspace外)のスクリプトはPlay/Stopで破棄されないため、
             // 前回Playの実行状態(Completed等)をリセットして毎回最初から実行させる
             luauEngine->resetSystemScripts();

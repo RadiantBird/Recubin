@@ -342,6 +342,45 @@ int runInventoryToolSyncRegression() {
     expect(user->Inventory->children.size() == tools.size() + 2,
            "11個目以降のToolもInventoryに残る", failures);
 
+    auto workspace = std::make_shared<Workspace>();
+    workspace->addChild(tools.front());
+    bool movedToolStillSlotted = false;
+    for (int i = 0; i < 10; ++i) {
+        if (user->getToolInSlot(i) == tools.front()) movedToolStillSlotted = true;
+    }
+    expect(!movedToolStillSlotted,
+           "InventoryからWorkspaceへ移したToolのスロット参照を即座に破棄する", failures);
+
+    auto previousInventory = user->Inventory;
+    user->resetInventory();
+    bool anySlotOccupied = false;
+    for (int i = 0; i < 10; ++i) {
+        if (user->getToolInSlot(i)) anySlotOccupied = true;
+    }
+    expect(user->Inventory != previousInventory &&
+           user->Inventory->children.empty() &&
+           !user->Inventory->Parent.lock() &&
+           !anySlotOccupied,
+           "リロード時にInventory本体と全スロット参照を持ち越さない", failures);
+
+    // SceneLoaderでは、新しいInventoryがUser配下へ接続された後に
+    // user->Inventoryメンバへ採用される。この順序でもToolの所有Userが同期され、
+    // 後からWorkspaceへ移した際にスロット参照が消えることを確認する。
+    auto loadedInventory = std::make_shared<Folder>();
+    loadedInventory->Name = "Inventory";
+    user->addChild(loadedInventory);
+    auto loadedTool = std::make_shared<Tool>("LoadedTool");
+    loadedInventory->addChild(loadedTool);
+    user->Inventory = loadedInventory;
+    user->syncToolsFromInventory();
+    workspace->addChild(loadedTool);
+    bool loadedToolStillSlotted = false;
+    for (int i = 0; i < 10; ++i) {
+        if (user->getToolInSlot(i) == loadedTool) loadedToolStillSlotted = true;
+    }
+    expect(!loadedToolStillSlotted,
+           "SceneLoaderのInventory採用順序でも移動後のスロット参照を破棄する", failures);
+
     return failures == 0 ? 0 : 1;
 }
 }

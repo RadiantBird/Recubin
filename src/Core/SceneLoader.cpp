@@ -314,13 +314,21 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
     Instance* sceneRoot = node;  // ルート相対パス（"StarterCharacter\\Head" 等）の解決基点
 
     // 制約のキューブ名を解決する。まずその制約の最寄り Workspace を基点に（Workspace 相対
-    // パス用）、見つからなければ sceneRoot を基点に解決する（StarterCharacter 等 Workspace 外
-    // に置かれた溶接のルート相対パス用）。
+    // パス用）、見つからなければ制約自身の最上位祖先を基点に解決する。
+    // getWorkspaceRelativePath() も Workspace 外では最上位祖先相対で保存するため、
+    // resolveConstraintRefs(User) のように走査起点が途中のノードでも同じ規約になる。
     auto resolveFor = [&](Instance* constraint, const std::string& cubeName) -> std::shared_ptr<BaseCube> {
         Instance* found = nullptr;
         if (Instance* ws = constraint->findFirstAncestorWorkspace())
             found = ws->getChildByPath(cubeName);
-        if (!(found && found->IsA("BaseCube")))
+        if (!(found && found->IsA("BaseCube"))) {
+            Instance* top = constraint;
+            for (auto p = constraint->Parent.lock(); p; p = p->Parent.lock())
+                top = p.get();
+            found = top->getChildByPath(cubeName);
+        }
+        // 親接続前の部分ツリーや旧形式の相対パス向けフォールバック。
+        if (!(found && found->IsA("BaseCube")) && sceneRoot != constraint)
             found = sceneRoot->getChildByPath(cubeName);
         if (found && found->IsA("BaseCube"))
             return std::static_pointer_cast<BaseCube>(found->shared_from_this());
@@ -382,7 +390,13 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
             } else if (child->IsA("ObjectValue")) {
                 auto ov = std::static_pointer_cast<ObjectValue>(child);
                 if (!ov->m_targetPathName.empty()) {
-                    if (Instance* found = sceneRoot->getChildByPath(ov->m_targetPathName))
+                    Instance* top = ov.get();
+                    for (auto p = ov->Parent.lock(); p; p = p->Parent.lock())
+                        top = p.get();
+                    Instance* found = top->getChildByPath(ov->m_targetPathName);
+                    if (!found && top != sceneRoot)
+                        found = sceneRoot->getChildByPath(ov->m_targetPathName);
+                    if (found)
                         ov->resolveTarget(found->shared_from_this());
                     else
                         std::cerr << "[SceneLoader] ObjectValue \"" << ov->getFullPath()

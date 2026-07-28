@@ -53,5 +53,32 @@ void Tool::onAncestorChanged() {
     } else if (!m_handleName.empty()) {
         resolveHandle();
     }
+
+    // Inventory に直接収納された Tool は、User のホットバーへ自動登録する。
+    // これはシーン読み込み時の syncToolsFromInventory() だけでは拾えない、
+    // Workspace からのドラッグ移動やスクリプトによる addChild を補う。
+    bool isInInventory = false;
+    if (auto inventory = Parent.lock()) {
+        if (auto userInst = inventory->Parent.lock();
+            userInst && userInst->IsA("User")) {
+            auto user = std::static_pointer_cast<User>(userInst);
+            if (user->Inventory.get() == inventory.get()) {
+                isInInventory = true;
+                m_inventoryOwner = user;
+                user->addToolToSlot(std::static_pointer_cast<Tool>(shared_from_this()));
+            }
+        }
+    }
+    if (!isInInventory) {
+        if (auto user = m_inventoryOwner.lock()) {
+            // 装備処理では Inventory -> Character へ移しても同じスロットを維持する。
+            // それ以外（EditorでWorkspaceへ移動等）は即座に強参照を破棄する。
+            if (user->currentTool.get() != this) {
+                user->removeToolReferences(
+                    std::static_pointer_cast<Tool>(shared_from_this()));
+                m_inventoryOwner.reset();
+            }
+        }
+    }
     Instance::onAncestorChanged();
 }

@@ -74,6 +74,18 @@ void User::resetToolState() {
     currentSlotIndex = -1;
 }
 
+void User::resetInventory() {
+    // 先に強参照を切り、旧 Inventory 以下の Tool がスロット経由で生存しないようにする。
+    resetToolState();
+    if (Inventory) {
+        if (auto parent = Inventory->Parent.lock()) {
+            parent->removeChild(Inventory->Name);
+        }
+    }
+    Inventory = std::make_shared<Folder>();
+    Inventory->Name = "Inventory";
+}
+
 void User::syncToolsFromInventory() {
     resetToolState();
     if (!Inventory) return;
@@ -91,6 +103,17 @@ void User::syncToolsFromInventory() {
 
 int User::addToolToSlot(std::shared_ptr<Tool> tool, int slotIndex) {
     if (!tool) return -1;
+
+    // SceneLoader が新Inventoryを user->Inventory に採用する前にToolをツリーへ
+    // 接続する場合があるため、親変更通知だけに依存せず、同期時にも所有Userを記録する。
+    tool->m_inventoryOwner =
+        std::static_pointer_cast<User>(shared_from_this());
+
+    // Inventory への再収納や、スクリプトからの重複追加で同じ Tool が
+    // 複数スロットに入らないよう、既存スロットをそのまま返す。
+    for (int i = 0; i < static_cast<int>(Slots.size()); ++i) {
+        if (Slots[i] == tool) return i;
+    }
 
     // スロット番号の決定（負なら先頭の空きを探す）
     if (slotIndex < 0) {
@@ -110,6 +133,17 @@ int User::addToolToSlot(std::shared_ptr<Tool> tool, int slotIndex) {
 
     Slots[slotIndex] = tool;
     return slotIndex;
+}
+
+void User::removeToolReferences(const std::shared_ptr<Tool>& tool) {
+    if (!tool) return;
+    for (auto& slot : Slots) {
+        if (slot == tool) slot = nullptr;
+    }
+    if (currentTool == tool) {
+        currentTool = nullptr;
+        currentSlotIndex = -1;
+    }
 }
 
 int User::findSlotByName(const std::string& name) const {

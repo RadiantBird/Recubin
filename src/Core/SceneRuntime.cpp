@@ -102,14 +102,15 @@ Bound loadAndBind(const std::string& scenePath,
 
     // Inventory: シーンYAMLにUser直下のFolder("Inventory")が保存されていれば、それを
     // user->Inventory として採用する（tree上の実体とuser->Inventoryメンバが乖離すると、
-    // 装備中Toolの追跡等がずれるため）。保存されていなければ、user->Inventory（コンストラクタ
-    // で生成済みの空Folder）をUserの子として追加する。呼び出し側でreload前にuser->children
-    // をクリアしておくこと（さもないと前回分のInventoryと名前が衝突する）。
+    // 装備中Toolの追跡等がずれるため）。保存されていなければ新しい空Inventoryを生成する。
     if (auto it = user->children.find("Inventory"); it != user->children.end()) {
         if (auto folder = std::dynamic_pointer_cast<Folder>(it->second)) {
             user->Inventory = folder;
         }
     } else {
+        // メンバに残っている旧Inventoryは再利用しない。シーンにInventoryが無い場合も
+        // 毎回新しい空Folderを作り、前回の子やTool参照を持ち越さない。
+        user->resetInventory();
         user->initializeInventory();
     }
     user->syncToolsFromInventory();

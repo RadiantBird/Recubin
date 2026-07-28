@@ -115,11 +115,16 @@ public:
     // Toolへの参照がスロットに残留し、次のPlayでAddToolが幽霊スロットの後ろに
     // 追加され続ける(Tool増殖・サイレント失敗の原因)。
     void resetToolState();
+    // 現在の Inventory を破棄し、未接続の空 Inventory に置き換える。
+    // Play/Stop・シーン再読込を跨いで子や Tool 参照を持ち越さないために使う。
+    void resetInventory();
     // Inventory直下のToolをホットバーへ同期する。非Toolの子はそのまま保持し、最大10個まで登録する。
     void syncToolsFromInventory();
     // Tool をインベントリに入れ、ホットバーのスロットに登録する。
     // slotIndex<0 のとき先頭の空きスロットを使う。使用したスロット(0-9)を返す。空き無し/無効時は -1。
     int addToolToSlot(std::shared_ptr<Tool> tool, int slotIndex = -1);
+    // Tool のツリー上の位置は変更せず、ホットバー内の参照だけをすべて破棄する。
+    void removeToolReferences(const std::shared_ptr<Tool>& tool);
     // 名前でスロットを線形探索する。見つからなければ -1。
     int findSlotByName(const std::string& name) const;
     // スロットの Tool を参照する（除去しない）。範囲外/空なら nullptr。
