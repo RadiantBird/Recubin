@@ -43,7 +43,15 @@ void Tool::resolveHandle() {
 }
 
 void Tool::onAncestorChanged() {
-    // ロード直後など、まだ Handle が見つからない場合に祖先確定後の再解決を試みる
-    if (!Handle && !m_handleName.empty()) resolveHandle();
+    // Tool や Handle が移動したときは、解決済みの参照から最新の
+    // Workspace 相対パスを保存し、移動後のパスで再解決する。
+    // Handle が未解決の場合は、読み込み直後などの遅延解決を従来通り行う。
+    // null のときには既存の m_handleName を消さない。
+    if (Handle) {
+        m_handleName = Handle->getWorkspaceRelativePath();
+        resolveHandle();
+    } else if (!m_handleName.empty()) {
+        resolveHandle();
+    }
     Instance::onAncestorChanged();
 }

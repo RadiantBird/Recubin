@@ -10,7 +10,9 @@ Weld::Weld()
     : Instance("Weld") {}
 
 Weld::Weld(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
-    : Instance("Weld"), m_cube0(cube0), m_cube1(cube1) {}
+    : Instance("Weld"), m_cube0(cube0), m_cube1(cube1),
+      m_cube0Name(cube0 ? cube0->getWorkspaceRelativePath() : ""),
+      m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 Weld::~Weld() {
     m_compound = nullptr;
@@ -19,6 +21,8 @@ Weld::~Weld() {
 void Weld::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
     m_cube0 = cube0;
     m_cube1 = cube1;
+    m_cube0Name = cube0 ? cube0->getWorkspaceRelativePath() : "";
+    m_cube1Name = cube1 ? cube1->getWorkspaceRelativePath() : "";
 }
 
 void Weld::setCube0(std::shared_ptr<BaseCube> cube) {

@@ -7,7 +7,9 @@ BallSocket::BallSocket()
     : Instance("BallSocket") {}
 
 BallSocket::BallSocket(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
-    : Instance("BallSocket"), m_cube0(cube0), m_cube1(cube1) {}
+    : Instance("BallSocket"), m_cube0(cube0), m_cube1(cube1),
+      m_cube0Name(cube0 ? cube0->getWorkspaceRelativePath() : ""),
+      m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 BallSocket::~BallSocket() {
     if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_joint) {
@@ -19,6 +21,8 @@ BallSocket::~BallSocket() {
 void BallSocket::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
     m_cube0 = cube0;
     m_cube1 = cube1;
+    m_cube0Name = cube0 ? cube0->getWorkspaceRelativePath() : "";
+    m_cube1Name = cube1 ? cube1->getWorkspaceRelativePath() : "";
 }
 
 void BallSocket::setCube0(std::shared_ptr<BaseCube> cube) {

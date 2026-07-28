@@ -6,7 +6,9 @@ NoCollision::NoCollision()
     : Instance("NoCollision") {}
 
 NoCollision::NoCollision(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
-    : Instance("NoCollision"), m_cube0(cube0), m_cube1(cube1) {}
+    : Instance("NoCollision"), m_cube0(cube0), m_cube1(cube1),
+      m_cube0Name(cube0 ? cube0->getWorkspaceRelativePath() : ""),
+      m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 NoCollision::~NoCollision() {
     if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine()) {
@@ -17,6 +19,8 @@ NoCollision::~NoCollision() {
 void NoCollision::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
     m_cube0 = cube0;
     m_cube1 = cube1;
+    m_cube0Name = cube0 ? cube0->getWorkspaceRelativePath() : "";
+    m_cube1Name = cube1 ? cube1->getWorkspaceRelativePath() : "";
 }
 
 void NoCollision::setCube0(std::shared_ptr<BaseCube> cube) {

@@ -7,7 +7,9 @@ Rope::Rope()
     : Instance("Rope") {}
 
 Rope::Rope(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
-    : Instance("Rope"), m_cube0(cube0), m_cube1(cube1) {}
+    : Instance("Rope"), m_cube0(cube0), m_cube1(cube1),
+      m_cube0Name(cube0 ? cube0->getWorkspaceRelativePath() : ""),
+      m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 Rope::~Rope() {
     if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_joint) {
@@ -19,6 +21,8 @@ Rope::~Rope() {
 void Rope::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
     m_cube0 = cube0;
     m_cube1 = cube1;
+    m_cube0Name = cube0 ? cube0->getWorkspaceRelativePath() : "";
+    m_cube1Name = cube1 ? cube1->getWorkspaceRelativePath() : "";
 }
 
 void Rope::setCube0(std::shared_ptr<BaseCube> cube) {
