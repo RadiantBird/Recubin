@@ -18,3 +18,14 @@ assets/scenes/.navcache/_snapshot_Workspace.navcache
 assets/scenes/.navcache/pathfinder_Workspace.navcache
 test_security/
 .DS_Store
+
+# TypeScript版はプロトタイプだったのでわざわざgit管理しない
+luar/
+
+# Luar VS Code extension generated artifacts
+Luar Programming Language/luar-vscode/node_modules/
+Luar Programming Language/luar-vscode/out/
+Luar Programming Language/luar-vscode/*.vsix
+
+# Local backup of nested repository metadata after vendoring
+.nested-git-backups/

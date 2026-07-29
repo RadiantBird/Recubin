@@ -346,3 +346,4 @@ declare bar: number
 `ソース-[Luarコンパイラ]->Luaソース-[Luaコンパイラ(インタプリタ?)]->LuaVM実行`
 ### あとがき
 mixinも追加予定(今回は実装しない)
+mixinってなんですか？多分不要では

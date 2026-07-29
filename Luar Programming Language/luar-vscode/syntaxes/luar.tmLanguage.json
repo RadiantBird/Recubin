@@ -1,0 +1,90 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Luar",
+  "scopeName": "source.luar",
+  "patterns": [
+    { "include": "#block-comment" },
+    { "include": "#line-comment" },
+    { "include": "#template-string" },
+    { "include": "#string" },
+    { "include": "#number" },
+    { "include": "#function-decl" },
+    { "include": "#class-decl" },
+    { "include": "#keyword" },
+    { "include": "#constant" }
+  ],
+  "repository": {
+    "block-comment": {
+      "name": "comment.block.luar",
+      "begin": "--\\[\\[",
+      "end": "\\]\\]"
+    },
+    "line-comment": {
+      "name": "comment.line.double-dash.luar",
+      "match": "--.*$"
+    },
+    "template-string": {
+      "name": "string.quoted.other.luar",
+      "begin": "`",
+      "end": "`",
+      "patterns": [
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": { "0": { "name": "punctuation.section.embedded.begin.luar" } },
+          "endCaptures":   { "0": { "name": "punctuation.section.embedded.end.luar" } },
+          "patterns": [ { "include": "$self" } ]
+        },
+        { "name": "constant.character.escape.luar", "match": "\\\\." }
+      ]
+    },
+    "string": {
+      "patterns": [
+        { "name": "string.quoted.double.luar", "match": "\"(?:[^\"\\\\\\n]|\\\\.)*\"" },
+        { "name": "string.quoted.single.luar", "match": "'(?:[^'\\\\\\n]|\\\\.)*'" }
+      ]
+    },
+    "number": {
+      "patterns": [
+        { "name": "constant.numeric.luar", "match": "\\b0[xX][0-9a-fA-F]+\\b" },
+        { "name": "constant.numeric.luar", "match": "\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b" }
+      ]
+    },
+    "function-decl": {
+      "patterns": [
+        {
+          "comment": "function operator<op>",
+          "match": "\\b(function)\\b[ \\t]+(operator)\\b",
+          "captures": {
+            "1": { "name": "keyword.luar" },
+            "2": { "name": "keyword.luar" }
+          }
+        },
+        {
+          "comment": "function [Class.]name",
+          "match": "\\b(function)\\b(?:[ \\t]+(?:[A-Za-z_][A-Za-z0-9_]*\\.)?([A-Za-z_][A-Za-z0-9_]*))?",
+          "captures": {
+            "1": { "name": "keyword.luar" },
+            "2": { "name": "entity.name.function.luar" }
+          }
+        }
+      ]
+    },
+    "class-decl": {
+      "comment": "class Name ...",
+      "match": "\\b(class)\\b(?:[ \\t]+([A-Za-z_][A-Za-z0-9_]*))?",
+      "captures": {
+        "1": { "name": "keyword.luar" },
+        "2": { "name": "entity.name.type.luar" }
+      }
+    },
+    "keyword": {
+      "name": "keyword.luar",
+      "match": "\\b(is|public|private|static|abstract|override|final|super|operator|end|if|then|else|elseif|while|for|do|repeat|until|in|break|continue|return|local|self|and|or|not)\\b"
+    },
+    "constant": {
+      "name": "constant.language.luar",
+      "match": "\\b(true|false|nil)\\b"
+    }
+  }
+}

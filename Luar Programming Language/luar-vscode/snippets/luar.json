@@ -1,0 +1,161 @@
+{
+  "Class": {
+    "prefix": "class",
+    "description": "Basic class definition",
+    "body": [
+      "class ${1:Name} is",
+      "\tpublic is",
+      "\t\tstatic function new(${2})",
+      "\t\t\t$0",
+      "\t\tend",
+      "\tend",
+      "end"
+    ]
+  },
+  "Abstract Class": {
+    "prefix": "classa",
+    "description": "Abstract class definition",
+    "body": [
+      "class ${1:Name} is abstract",
+      "\tpublic is",
+      "\t\tfunction ${2:method}() abstract",
+      "\tend",
+      "end"
+    ]
+  },
+  "Class with Inheritance": {
+    "prefix": "classi",
+    "description": "Class that inherits from a parent",
+    "body": [
+      "class ${1:Name} is ${2:Parent}",
+      "\tpublic is",
+      "\t\t$0",
+      "\tend",
+      "end"
+    ]
+  },
+  "Public/Private Block": {
+    "prefix": "pub",
+    "description": "Public block",
+    "body": [
+      "public is",
+      "\t$0",
+      "end"
+    ]
+  },
+  "Private Block": {
+    "prefix": "priv",
+    "description": "Private block",
+    "body": [
+      "private is",
+      "\t$0",
+      "end"
+    ]
+  },
+  "Function": {
+    "prefix": "fn",
+    "description": "Instance method",
+    "body": [
+      "function ${1:name}(${2})",
+      "\t$0",
+      "end"
+    ]
+  },
+  "Static Function": {
+    "prefix": "sfn",
+    "description": "Static method (constructor style)",
+    "body": [
+      "static function ${1:name}(${2})",
+      "\t$0",
+      "end"
+    ]
+  },
+  "Override Function": {
+    "prefix": "fnov",
+    "description": "Override method",
+    "body": [
+      "function ${1:name}(${2}) override",
+      "\t$0",
+      "end"
+    ]
+  },
+  "Abstract Function": {
+    "prefix": "fnabs",
+    "description": "Abstract method declaration",
+    "body": [
+      "function ${1:name}(${2}) abstract"
+    ]
+  },
+  "Final Function": {
+    "prefix": "fnfin",
+    "description": "Final method (cannot be overridden)",
+    "body": [
+      "function ${1:name}(${2}) final",
+      "\t$0",
+      "end"
+    ]
+  },
+  "Operator Overload": {
+    "prefix": "op",
+    "description": "Operator overload method",
+    "body": [
+      "function operator${1|==,~=,<,<=,+,-,*,/,//,%,^,..|}(other: ${2:Type})",
+      "\t$0",
+      "end"
+    ]
+  },
+  "If Statement": {
+    "prefix": "if",
+    "description": "If statement",
+    "body": [
+      "if ${1:condition} then",
+      "\t$0",
+      "end"
+    ]
+  },
+  "If-Else Statement": {
+    "prefix": "ife",
+    "description": "If-else statement",
+    "body": [
+      "if ${1:condition} then",
+      "\t$0",
+      "else",
+      "\t",
+      "end"
+    ]
+  },
+  "While Loop": {
+    "prefix": "while",
+    "description": "While loop",
+    "body": [
+      "while ${1:condition} do",
+      "\t$0",
+      "end"
+    ]
+  },
+  "For Numeric Loop": {
+    "prefix": "forn",
+    "description": "Numeric for loop",
+    "body": [
+      "for ${1:i} = ${2:1}, ${3:10} do",
+      "\t$0",
+      "end"
+    ]
+  },
+  "For Generic Loop": {
+    "prefix": "forg",
+    "description": "Generic for loop (pairs/ipairs)",
+    "body": [
+      "for ${1:k}, ${2:v} in ${3:pairs}(${4:t}) do",
+      "\t$0",
+      "end"
+    ]
+  },
+  "Local Variable": {
+    "prefix": "loc",
+    "description": "Local variable declaration",
+    "body": [
+      "local ${1:name} = ${0}"
+    ]
+  }
+}

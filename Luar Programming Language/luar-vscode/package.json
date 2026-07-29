@@ -1,0 +1,65 @@
+{
+  "name": "luar-language",
+  "displayName": "Luar Language Support",
+  "description": "Syntax highlighting, snippets, and language server for the Luar programming language",
+  "version": "0.1.0",
+  "publisher": "luar",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "luar",
+    "luau",
+    "lua",
+    "oop"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "luar",
+        "aliases": ["Luar", "luar"],
+        "extensions": [".luar"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "luar",
+        "scopeName": "source.luar",
+        "path": "./syntaxes/luar.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "luar",
+        "path": "./snippets/luar.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[luar]": {
+        "editor.minimap.enabled": false
+      }
+    }
+  },
+  "scripts": {
+    "build": "node build.js",
+    "watch": "node build.js --watch",
+    "vscode:prepublish": "npm run build"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.80.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.0.0"
+  }
+}
