@@ -1,5 +1,6 @@
 external
 build/
+build-mac/
 dist/
 sound/
 temp_build/

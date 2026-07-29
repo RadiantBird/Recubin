@@ -1,4 +1,5 @@
 import datetime
+import os
 import platform
 import shutil
 import subprocess
@@ -7,7 +8,8 @@ from pathlib import Path
 
 
 ROOT_DIR = Path(__file__).resolve().parent
-BUILD_DIR = ROOT_DIR / "build"
+IS_WINDOWS = platform.system() == "Windows"
+BUILD_DIR = ROOT_DIR / ("build" if IS_WINDOWS else "build-mac")
 DLL_DIR = ROOT_DIR / "dlls"
 DIST_DIR = ROOT_DIR / "dist"
 VC_REDIST_PATH = ROOT_DIR / "redist" / "vc_redist.x64.exe"
@@ -30,6 +32,9 @@ def normalize_config(value: str | None) -> str:
 
 
 def copy_dlls(config: str) -> None:
+    if not IS_WINDOWS:
+        return
+
     if not DLL_DIR.exists():
         print("[WARNING] dlls folder missing.")
         return
@@ -54,24 +59,31 @@ def copy_dlls(config: str) -> None:
 def build(config: str) -> int:
     BUILD_DIR.mkdir(exist_ok=True)
 
-    is_windows = platform.system() == "Windows"
-
     print(f"[INFO] Configuring {config} build...")
-    configure_args = ["cmake", "-S", ".", "-B", "build"]
-    if is_windows:
+    configure_args = ["cmake", "-S", ".", "-B", str(BUILD_DIR)]
+    if IS_WINDOWS:
         configure_args += ["-A", "x64", "-D", "GLEW_STATIC=ON"]
+    else:
+        # Unix系は単一構成ジェネレーターのため、Release/Debugを明示する。
+        configure_args += [f"-DCMAKE_BUILD_TYPE={config}"]
+        physx_dir = os.environ.get("RECUBIN_PHYSX_MAC_DIR")
+        if physx_dir:
+            configure_args += [f"-DRECUBIN_PHYSX_MAC_DIR={physx_dir}"]
     result = run_command(configure_args)
     if result != 0:
         print("[ERROR] CMake configuration failed.")
         return result
 
     print(f"[INFO] Building {config}...")
-    result = run_command(["cmake", "--build", "build", "--config", config, "--parallel"])
+    result = run_command([
+        "cmake", "--build", str(BUILD_DIR), "--config", config,
+        "--parallel", "--target", "Recubin", "RecubinEngine", "RecubinTest"
+    ])
     if result != 0:
         print("[ERROR] Build execution failed.")
         return result
 
-    if is_windows:
+    if IS_WINDOWS:
         copy_dlls(config)
 
         # ランチャーも自動ビルド（失敗してもメインビルドは成功扱い）
@@ -89,7 +101,7 @@ def build(config: str) -> int:
 
 
 def run_binary(config: str) -> int:
-    exe_path = BUILD_DIR / config / "Recubin.exe"
+    exe_path = BUILD_DIR / config / "Recubin.exe" if IS_WINDOWS else BUILD_DIR / "Recubin"
     if not exe_path.exists():
         print(f"[ERROR] Executable not found: {exe_path}")
         return 1
@@ -99,7 +111,7 @@ def run_binary(config: str) -> int:
 
 
 def run_test(config: str, scene_path: str | None) -> int:
-    exe_path = BUILD_DIR / config / "RecubinTest.exe"
+    exe_path = BUILD_DIR / config / "RecubinTest.exe" if IS_WINDOWS else BUILD_DIR / "RecubinTest"
     if not exe_path.exists():
         print(f"[ERROR] Executable not found: {exe_path}")
         return 1
@@ -125,6 +137,10 @@ def run_watchsnake(exit_code: int) -> int:
 
 
 def build_launcher(config: str) -> int:
+    if not IS_WINDOWS:
+        print("[WARNING] launcher is only supported on Windows.")
+        return 1
+
     src = ROOT_DIR / "launcher" / "main.cpp"
     if not src.exists():
         print(f"[ERROR] launcher/main.cpp not found.")

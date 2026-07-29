@@ -61,9 +61,11 @@ set_source_files_properties("${CMAKE_SOURCE_DIR}/src/Core/TimeStretchNode.cpp" P
 
 add_library(RecubinCore OBJECT ${CORE_SOURCES})
 
-add_executable(Watcher
-    "${CMAKE_SOURCE_DIR}/src/watcher.cpp"
-)
+if(WIN32)
+    add_executable(Watcher
+        "${CMAKE_SOURCE_DIR}/src/watcher.cpp"
+    )
+endif()
 
 add_executable(Recubin
     "${CMAKE_SOURCE_DIR}/src/main.cpp"
