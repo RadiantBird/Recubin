@@ -55,6 +55,9 @@ list(REMOVE_ITEM SHADOW_CHECK_SOURCES "${CMAKE_SOURCE_DIR}/src/Core/LuauEngine.c
 set_source_files_properties(${SHADOW_CHECK_SOURCES} PROPERTIES COMPILE_OPTIONS
     "$<$<CXX_COMPILER_ID:MSVC>:/w14456>;$<$<CXX_COMPILER_ID:MSVC>:/w14457>;$<$<CXX_COMPILER_ID:MSVC>:/w14458>"
 )
+set_source_files_properties("${CMAKE_SOURCE_DIR}/src/Core/TimeStretchNode.cpp" PROPERTIES COMPILE_OPTIONS
+    "$<$<CXX_COMPILER_ID:MSVC>:/O2>;$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-O3>"
+)
 
 add_library(RecubinCore OBJECT ${CORE_SOURCES})
 
@@ -91,6 +94,7 @@ set(COMMON_INCLUDES ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/include/imgu
     ${CMAKE_SOURCE_DIR}/include/PhysX
     ${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation/Recast/Include
     ${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation/Detour/Include
+    ${CMAKE_SOURCE_DIR}/temp_libs/signalsmith-stretch/include
     .)
 
 if(WIN32)

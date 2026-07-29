@@ -9,8 +9,6 @@
     #undef getClassName // Windowsの勝手な置換をここで無効化する
 #endif
 
-// TODO: 無駄な処理を最適化する
-
 // base と衝突しない名前を parent->children の中から探す（base, base1, base2, ...）。
 // System::addChild() の Workspace 用ロジックと同じ命名規則。
 static std::string uniqueChildName(const Instance& parent, const std::string& base) {

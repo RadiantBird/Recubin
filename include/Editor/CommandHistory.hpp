@@ -42,6 +42,8 @@ class CommandHistory {
 public:
     // 履歴に変更が加わった時（execute/record/undo/redo）に呼ばれるコールバックを設定する
     void setOnChange(std::function<void()> cb) { m_onChange = std::move(cb); }
+    // ライブ編集中の変更通知。Undo履歴は編集確定時にrecord()で1操作だけ積む。
+    void notifyChanged() { if (m_onChange) m_onChange(); }
 
     // execute: コマンドを適用してUndoスタックに積む（redo クリア）
     void execute(std::unique_ptr<Command> cmd);

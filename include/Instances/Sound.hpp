@@ -2,9 +2,13 @@
 #include "Core/AudioService.hpp"
 #include "Instances/Spatial.hpp"
 
+class TimeStretchNode;
+
 class Sound : public Spatial {
 private:
-    ma_sound sound;
+    ma_sound sound{};
+    AudioService* m_audioService = nullptr;
+    std::unique_ptr<TimeStretchNode> m_timeStretchNode;
     bool loaded = false;
     bool looping = false;
     float m_volume = 1.0f;
@@ -12,6 +16,12 @@ private:
     bool m_preservePitch = false;
     std::string soundGroup = "SFX";
     std::string m_currentPath = "";
+
+    ma_sound_group* getTargetGroup() const;
+    void applyLoadedProperties();
+    void updatePlaybackRouting();
+    void destroyTimeStretchNode();
+    void resetTimeStretchProcessing();
 
 public:
     Sound(AudioService& service, const std::string& path = "");

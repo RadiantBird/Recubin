@@ -9,22 +9,6 @@ Root:
     - ClassName: StarterCharacter
       Name: StarterCharacter
       Children:
-        - ClassName: Cube
-          Name: LeftArm
-          Properties:
-            Position: [-1.5, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
         - ClassName: Humanoid
           Name: Humanoid
           Properties:
@@ -36,9 +20,9 @@ Root:
             RespawnTime: 5
             Health: 100
         - ClassName: Cube
-          Name: RightArm
+          Name: LeftArm
           Properties:
-            Position: [1.5, 0, 0]
+            Position: [-1.5, 0, 0]
             Size: [1, 2, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -60,6 +44,22 @@ Root:
             Color: [0.13333334, 0.52156866, 0.6509804, 0]
             Anchored: false
             CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: RightArm
+          Properties:
+            Position: [1.5, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
             CastShadow: true
             Unlit: false
             MassDensity: 1
@@ -185,6 +185,8 @@ Root:
                   Name: Tool
                   Properties:
                     Hand: Right
+                    Position: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
                     Handle: User\Inventory\Tool\Handle
                   Children:
                     - ClassName: Cylinder
@@ -207,35 +209,6 @@ Root:
       Name: AppImage
       Properties:
         IconPath: C:\Users\Ryarta\Documents\Recubin\assets\image\the-cat.png
-    - ClassName: Folder
-      Name: bin
-      Children:
-        - ClassName: MeshCube
-          Name: MeshCube
-          Properties:
-            Position: [-5.0838127, -0.8963641, -13.81212]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            MeshFile: C:\Users\Ryarta\Documents\Recubin\assets\models\newHead.glb
-          Children:
-            - ClassName: Decal
-              Name: Decal_Front
-              Properties:
-                Face: 0
-                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\hooo.png
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
     - ClassName: Workspace
       Name: Workspace
       Properties:
@@ -243,88 +216,6 @@ Root:
         Wind: [0, 0, 0]
         PhysicsEnabled: true
       Children:
-        - ClassName: Cube
-          Name: Wood12
-          Properties:
-            Position: [24.610868, 3, 3.7079067]
-            Size: [1, 5, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.28615385, 0.18327935, 0.022892304, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Sphere
-              Name: Leaves
-              Properties:
-                Position: [-0.059556484, 3.283278, 0.28575706]
-                Size: [5, 5, 5]
-                Rotation: [0, 0, 0, 1]
-                Color: [0, 0.91692305, 1, 1]
-                Anchored: true
-                CanCollide: true
-                CastShadow: true
-                Unlit: false
-                MassDensity: 1
-                MaterialType: 0
-                StaticFriction: 0.5
-                DynamicFriction: 0.5
-                Restitution: 0.1
-        - ClassName: Cube
-          Name: Brik4
-          Properties:
-            Position: [36.620464, 1, 5.628451]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.40923077, 0.40923077, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Wood1
-          Properties:
-            Position: [-2.8061647, 3, 5.930851]
-            Size: [1, 5, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.28615385, 0.18327935, 0.022892304, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Sphere
-              Name: Leaves
-              Properties:
-                Position: [-0.059556484, 3.283278, 0.28575706]
-                Size: [5, 5, 5]
-                Rotation: [0, 0, 0, 1]
-                Color: [0, 0.91692305, 1, 1]
-                Anchored: true
-                CanCollide: true
-                CastShadow: true
-                Unlit: false
-                MassDensity: 1
-                MaterialType: 0
-                StaticFriction: 0.5
-                DynamicFriction: 0.5
-                Restitution: 0.1
         - ClassName: Cube
           Name: Brik31112
           Properties:
@@ -390,6 +281,88 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
+          Name: Brik4
+          Properties:
+            Position: [36.620464, 1, 5.628451]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.40923077, 0.40923077, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: Wood1
+          Properties:
+            Position: [-2.8061647, 3, 5.930851]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.28615385, 0.18327935, 0.022892304, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: Sphere
+              Name: Leaves
+              Properties:
+                Position: [-0.059556484, 3.283278, 0.28575706]
+                Size: [5, 5, 5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.91692305, 1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+        - ClassName: Cube
+          Name: Wood12
+          Properties:
+            Position: [24.610868, 3, 3.7079067]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.28615385, 0.18327935, 0.022892304, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: Sphere
+              Name: Leaves
+              Properties:
+                Position: [-0.059556484, 3.283278, 0.28575706]
+                Size: [5, 5, 5]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.91692305, 1, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                MassDensity: 1
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+        - ClassName: Cube
           Name: Wood
           Properties:
             Position: [7.5740585, 3, 15.886478]
@@ -423,22 +396,6 @@ Root:
                 DynamicFriction: 0.5
                 Restitution: 0.1
         - ClassName: Cube
-          Name: Brik311
-          Properties:
-            Position: [-25.397219, 3.0002193, 5.628451]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.40923077, 0.40923077, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
           Name: Cube
           Properties:
             Position: [-25, 7, -5]
@@ -455,9 +412,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik32
+          Name: Brik311
           Properties:
-            Position: [38.62047, 3.0002193, 5.628451]
+            Position: [-25.397219, 3.0002193, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -503,6 +460,22 @@ Root:
                 StaticFriction: 0.5
                 DynamicFriction: 0.5
                 Restitution: 0.1
+        - ClassName: Cube
+          Name: Brik32
+          Properties:
+            Position: [38.62047, 3.0002193, 5.628451]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.40923077, 0.40923077, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
         - ClassName: Cube
           Name: Wood11
           Properties:
@@ -553,6 +526,22 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
+          Name: Brik31
+          Properties:
+            Position: [-26.397219, 3.0002193, 5.628451]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.40923077, 0.40923077, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
           Name: Button
           Properties:
             Position: [8.200243, 1, -2.0212278]
@@ -592,9 +581,9 @@ Root:
                     ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\Prox.luau
                     Enabled: true
         - ClassName: Cube
-          Name: Brik31
+          Name: Brik31111
           Properties:
-            Position: [-26.397219, 3.0002193, 5.628451]
+            Position: [-23.397219, 3.0002193, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -639,10 +628,23 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-        - ClassName: Cube
-          Name: Brik31111
+        - ClassName: Sound
+          Name: Sound
           Properties:
-            Position: [-23.397219, 3.0002193, 5.628451]
+            Position: [0, 0, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            ContentPath: C:\Users\Ryarta\Music\ROBLOX Music - Stealth Pilot - Happy Day in ROBLOXia (ROBLOX HQ).mp3
+            Looped: false
+            SoundGroup: SFX
+            AutoPlay: false
+            Volume: 1
+            Speed: 1
+            PreservePitch: true
+        - ClassName: Cube
+          Name: Brik1
+          Properties:
+            Position: [-28.397219, 1, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -671,13 +673,13 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-        - ClassName: Cube
-          Name: Brik1
+        - ClassName: Cylinder
+          Name: Cylinder1
           Properties:
-            Position: [-28.397219, 1, 5.628451]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.40923077, 0.40923077, 1]
+            Position: [-29, 6.972437, -8.619832]
+            Size: [2, 1, 2]
+            Rotation: [0, 0, 0.70710677, 0.70710677]
+            Color: [0.019607844, 0.019607844, 0.019607844, 1]
             Anchored: false
             CanCollide: true
             CastShadow: true
@@ -687,26 +689,13 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-        - ClassName: Sound
-          Name: Sound
+        - ClassName: Cube
+          Name: Brik311111
           Properties:
-            Position: [0, 0, 0]
+            Position: [-22.397219, 3.0002193, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
-            ContentPath: C:\Users\Ryarta\Music\ROBLOX Music - Stealth Pilot - Happy Day in ROBLOXia (ROBLOX HQ).mp3
-            Looped: false
-            SoundGroup: SFX
-            AutoPlay: false
-            Volume: 1
-            Speed: 1
-            PreservePitch: false
-        - ClassName: Cylinder
-          Name: Cylinder1
-          Properties:
-            Position: [-29, 6.972437, -8.619832]
-            Size: [2, 1, 2]
-            Rotation: [0, 0, 0.70710677, 0.70710677]
-            Color: [0.019607844, 0.019607844, 0.019607844, 1]
+            Color: [1, 0.40923077, 0.40923077, 1]
             Anchored: false
             CanCollide: true
             CastShadow: true
@@ -733,9 +722,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik311111
+          Name: Brik2
           Properties:
-            Position: [-22.397219, 3.0002193, 5.628451]
+            Position: [-28.397219, 2, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -781,22 +770,6 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik2
-          Properties:
-            Position: [-28.397219, 2, 5.628451]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.40923077, 0.40923077, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
           Name: Brik2114
           Properties:
             Position: [39.620472, 2, 7.628451]
@@ -829,12 +802,12 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik311112
+          Name: Cube112
           Properties:
-            Position: [42.620476, 3.0002193, 5.628451]
+            Position: [-27.5, 6.988118, -1.498049]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 0.40923077, 0.40923077, 1]
+            Color: [0.39215687, 0.39215687, 0.39215687, 1]
             Anchored: false
             CanCollide: true
             CastShadow: true
@@ -845,12 +818,12 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Cube112
+          Name: Brik311112
           Properties:
-            Position: [-27.5, 6.988118, -1.498049]
+            Position: [42.620476, 3.0002193, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0.39215687, 0.39215687, 0.39215687, 1]
+            Color: [1, 0.40923077, 0.40923077, 1]
             Anchored: false
             CanCollide: true
             CastShadow: true
@@ -925,9 +898,9 @@ Root:
             DriveVelocity: 5
             MaxForce: 1000
         - ClassName: Cube
-          Name: Brik6
+          Name: Brik21111
           Properties:
-            Position: [36.620464, 2, 5.628451]
+            Position: [-24.397219, 2, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -962,9 +935,41 @@ Root:
             Cube0: Cube
             Cube1: Cube1
         - ClassName: Cube
-          Name: Brik21111
+          Name: Brik6
           Properties:
-            Position: [-24.397219, 2, 5.628451]
+            Position: [36.620464, 2, 5.628451]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.40923077, 0.40923077, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: Brik3111115
+          Properties:
+            Position: [43.620476, 3.0002193, 4.628451]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.40923077, 0.40923077, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: Brik211111
+          Properties:
+            Position: [-23.397219, 2, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -998,26 +1003,15 @@ Root:
           Properties:
             Cube0: Cube
             Cube1: Cube111
-        - ClassName: Cube
-          Name: Brik3111115
+        - ClassName: Weld
+          Name: Weld2
           Properties:
-            Position: [43.620476, 3.0002193, 4.628451]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.40923077, 0.40923077, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
+            Cube0: Cube
+            Cube1: Cube112
         - ClassName: Cube
-          Name: Brik211111
+          Name: Brik11112
           Properties:
-            Position: [-23.397219, 2, 5.628451]
+            Position: [40.620472, 1, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -1056,27 +1050,6 @@ Root:
           Name: Brik211112
           Properties:
             Position: [41.620476, 2, 5.628451]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.40923077, 0.40923077, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Weld
-          Name: Weld2
-          Properties:
-            Cube0: Cube
-            Cube1: Cube112
-        - ClassName: Cube
-          Name: Brik11112
-          Properties:
-            Position: [40.620472, 1, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -1159,9 +1132,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik11
+          Name: Brik211
           Properties:
-            Position: [-27.397219, 1, 5.628451]
+            Position: [-26.397219, 2, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -1175,9 +1148,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik211
+          Name: Brik11
           Properties:
-            Position: [-26.397219, 2, 5.628451]
+            Position: [-27.397219, 1, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -1207,22 +1180,6 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik111
-          Properties:
-            Position: [-26.397219, 1, 5.628451]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.40923077, 0.40923077, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
           Name: Brik2111
           Properties:
             Position: [-25.397219, 2, 5.628451]
@@ -1239,25 +1196,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik111111
+          Name: Brik111
           Properties:
-            Position: [-23.397219, 1, 5.628451]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.40923077, 0.40923077, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Brik21111112
-          Properties:
-            Position: [43.620476, 2, 5.628451]
+            Position: [-26.397219, 1, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -1303,9 +1244,25 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik2111112
+          Name: Brik21111112
           Properties:
-            Position: [42.620476, 2, 5.628451]
+            Position: [43.620476, 2, 5.628451]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.40923077, 0.40923077, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: Brik111111
+          Properties:
+            Position: [-23.397219, 1, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -1335,9 +1292,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik111112
+          Name: Brik2111112
           Properties:
-            Position: [41.620476, 1, 5.628451]
+            Position: [42.620476, 2, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -1367,9 +1324,46 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
+          Name: Brik111112
+          Properties:
+            Position: [41.620476, 1, 5.628451]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.40923077, 0.40923077, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
           Name: Brik11111111
           Properties:
             Position: [-21.397219, 1, 5.628451]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.40923077, 0.40923077, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Script
+          Name: FallingSafe
+          Properties:
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\FallingSafe.luau
+            Enabled: true
+        - ClassName: Cube
+          Name: Brik3111112
+          Properties:
+            Position: [43.620476, 3.0002193, 5.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -1398,27 +1392,6 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-        - ClassName: Cube
-          Name: Brik3111112
-          Properties:
-            Position: [43.620476, 3.0002193, 5.628451]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.40923077, 0.40923077, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Script
-          Name: FallingSafe
-          Properties:
-            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\FallingSafe.luau
-            Enabled: true
         - ClassName: Cube
           Name: Brik312
           Properties:
@@ -1644,9 +1617,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik211114
+          Name: Brik8
           Properties:
-            Position: [41.620476, 2, 7.628451]
+            Position: [36.620464, 1, 6.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -1660,9 +1633,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik8
+          Name: Brik211114
           Properties:
-            Position: [36.620464, 1, 6.628451]
+            Position: [41.620476, 2, 7.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2028,9 +2001,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik38
+          Name: Brik311114
           Properties:
-            Position: [36.620464, 3.0002193, 3.6284509]
+            Position: [42.620476, 3.0002193, 7.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2044,9 +2017,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik311114
+          Name: Brik38
           Properties:
-            Position: [42.620476, 3.0002193, 7.628451]
+            Position: [36.620464, 3.0002193, 3.6284509]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2124,9 +2097,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik28
+          Name: Brik11114
           Properties:
-            Position: [37.62047, 1, 4.628451]
+            Position: [40.620472, 1, 7.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2140,9 +2113,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik11114
+          Name: Brik28
           Properties:
-            Position: [40.620472, 1, 7.628451]
+            Position: [37.62047, 1, 4.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2412,9 +2385,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik39
+          Name: Brik311115
           Properties:
-            Position: [36.620464, 2, 3.6284509]
+            Position: [42.620476, 3.0002193, 4.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2428,9 +2401,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik311115
+          Name: Brik39
           Properties:
-            Position: [42.620476, 3.0002193, 4.628451]
+            Position: [36.620464, 2, 3.6284509]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2508,9 +2481,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik29
+          Name: Brik11115
           Properties:
-            Position: [37.62047, 3.0002193, 4.628451]
+            Position: [40.620472, 1, 4.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2524,9 +2497,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik11115
+          Name: Brik29
           Properties:
-            Position: [40.620472, 1, 4.628451]
+            Position: [37.62047, 3.0002193, 4.628451]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2588,22 +2561,6 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik21111116
-          Properties:
-            Position: [43.620476, 2, 3.6284509]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.40923077, 0.40923077, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
           Name: Brik111115
           Properties:
             Position: [41.620476, 1, 4.628451]
@@ -2620,9 +2577,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik1111116
+          Name: Brik21111116
           Properties:
-            Position: [42.620476, 1, 3.6284509]
+            Position: [43.620476, 2, 3.6284509]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2652,9 +2609,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik2111116
+          Name: Brik1111116
           Properties:
-            Position: [42.620476, 2, 3.6284509]
+            Position: [42.620476, 1, 3.6284509]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2684,9 +2641,9 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Brik111116
+          Name: Brik2111116
           Properties:
-            Position: [41.620476, 1, 3.6284509]
+            Position: [42.620476, 2, 3.6284509]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2703,6 +2660,22 @@ Root:
           Name: Brik21111115
           Properties:
             Position: [43.620476, 2, 4.628451]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.40923077, 0.40923077, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: Brik111116
+          Properties:
+            Position: [41.620476, 1, 3.6284509]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0.40923077, 0.40923077, 1]
@@ -2987,5 +2960,34 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
+    - ClassName: Folder
+      Name: bin
+      Children:
+        - ClassName: MeshCube
+          Name: MeshCube
+          Properties:
+            Position: [-5.0838127, -0.8963641, -13.81212]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            MeshFile: C:\Users\Ryarta\Documents\Recubin\assets\models\newHead.glb
+          Children:
+            - ClassName: Decal
+              Name: Decal_Front
+              Properties:
+                Face: 0
+                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\hooo.png
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
+                Mode: 0
     - ClassName: PathfindingService
       Name: PathfindingService

@@ -5,15 +5,18 @@
 #include <Instances/BaseCube.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/Model.hpp>
+#include <Instances/Sound.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Tool.hpp>
 
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
 #include <Core/AudioService.hpp>
+#include <Core/TimeStretchNode.hpp>
 #include <Core/NullInputBackend.hpp>
 #include <Core/Physics.hpp>
 #include <Core/User.hpp>
+#include <Editor/CommandHistory.hpp>
 #include <Util/Logger.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
@@ -23,6 +26,7 @@
 #include <cmath>
 #include <thread>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -481,6 +485,113 @@ int runHumanoidPartRefRegression() {
 
     return failures == 0 ? 0 : 1;
 }
+
+float estimateFrequency(const std::vector<float>& samples, std::uint32_t sampleRate) {
+    if (samples.size() < 4) return 0.0f;
+    const std::size_t begin = samples.size() / 4;
+    const std::size_t end = samples.size() * 3 / 4;
+    std::size_t crossings = 0;
+    for (std::size_t i = begin + 1; i < end; ++i) {
+        if (samples[i - 1] <= 0.0f && samples[i] > 0.0f) ++crossings;
+    }
+    const double seconds = static_cast<double>(end - begin) / sampleRate;
+    return seconds > 0.0 ? static_cast<float>(crossings / seconds) : 0.0f;
+}
+
+int runSoundStretchRegression() {
+    constexpr std::uint32_t sampleRate = 48000;
+    constexpr float frequency = 440.0f;
+    constexpr std::size_t inputFrames = sampleRate * 2;
+    constexpr double pi = 3.14159265358979323846;
+
+    std::vector<float> input(inputFrames);
+    for (std::size_t frame = 0; frame < inputFrames; ++frame) {
+        input[frame] = std::sin(
+            static_cast<float>(2.0 * pi * frequency * frame / sampleRate));
+    }
+
+    int failures = 0;
+    auto expect = [&](bool condition, const char* name) {
+        std::cout << "[SoundStretchRegression] "
+                  << (condition ? "PASS" : "FAIL") << ": " << name << "\n";
+        if (!condition) ++failures;
+    };
+    CommandHistory liveEditHistory;
+    bool liveEditNotified = false;
+    liveEditHistory.setOnChange([&liveEditNotified] { liveEditNotified = true; });
+    liveEditHistory.notifyChanged();
+    expect(liveEditNotified && !liveEditHistory.canUndo(),
+           "ライブ編集通知はdirtyを中継してUndo履歴を増やさない");
+
+    for (float speed : {2.0f, 0.5f}) {
+        std::vector<float> output;
+        const bool processed = TimeStretchNode::processOffline(
+            input, 1, sampleRate, speed, output);
+        const std::size_t expectedFrames = static_cast<std::size_t>(
+            std::llround(static_cast<double>(inputFrames) / speed));
+        const bool finite = std::all_of(output.begin(), output.end(),
+                                        [](float value) { return std::isfinite(value); });
+        const float estimated = estimateFrequency(output, sampleRate);
+
+        expect(processed, speed == 2.0f
+            ? "Speed=2.0を処理できる"
+            : "Speed=0.5を処理できる");
+        expect(output.size() == expectedFrames, speed == 2.0f
+            ? "Speed=2.0で出力時間が半分になる"
+            : "Speed=0.5で出力時間が倍になる");
+        expect(finite, speed == 2.0f
+            ? "Speed=2.0の全出力がfinite"
+            : "Speed=0.5の全出力がfinite");
+        expect(std::abs(estimated - frequency) <= 20.0f, speed == 2.0f
+            ? "Speed=2.0で440Hz付近を維持する"
+            : "Speed=0.5で440Hz付近を維持する");
+        std::cout << "[SoundStretchRegression] Speed=" << speed
+                  << " frames=" << output.size()
+                  << " estimatedHz=" << estimated << "\n";
+    }
+
+    double remainder = 0.0;
+    std::uint64_t consumedFrames = 0;
+    constexpr double fractionalSpeed = 1.3;
+    constexpr std::uint32_t blockFrames = 127;
+    constexpr std::uint32_t blockCount = 10000;
+    for (std::uint32_t block = 0; block < blockCount; ++block) {
+        consumedFrames += TimeStretchNode::calculateInputFrameCount(
+            blockFrames, static_cast<float>(fractionalSpeed), remainder);
+    }
+    const double expectedInput =
+        static_cast<double>(blockFrames) * blockCount * fractionalSpeed;
+    expect(std::abs(static_cast<double>(consumedFrames) - expectedInput) <= 1.0,
+           "複数ブロックのフレーム比累積誤差が1フレーム以内");
+    expect(TimeStretchNode::clampSpeed(-1.0f) == 0.25f &&
+           TimeStretchNode::clampSpeed(10.0f) == 4.0f &&
+           TimeStretchNode::clampSpeed(
+               std::numeric_limits<float>::quiet_NaN()) == 1.0f,
+           "Speedを0.25〜4.0へクランプする");
+    static AudioService* uninitializedAudioService = new AudioService();
+    Sound unloadedSound(*uninitializedAudioService);
+    unloadedSound.setSpeed(-1.0f);
+    const bool clampsLow = unloadedSound.getSpeed() == 0.25f;
+    unloadedSound.setSpeed(10.0f);
+    const bool clampsHigh = unloadedSound.getSpeed() == 4.0f;
+    unloadedSound.setSpeed(std::numeric_limits<float>::quiet_NaN());
+    const bool handlesNaN = unloadedSound.getSpeed() == 1.0f;
+    expect(clampsLow && clampsHigh && handlesNaN,
+           "Sound::setSpeed/getSpeed経路でもSpeedをクランプする");
+    unloadedSound.setVolume(-1.0f);
+    expect(unloadedSound.getVolume() == 0.0f,
+           "Sound::setVolume/getVolume経路でVolumeの下限を0にクランプする");
+    unloadedSound.setVolume(10.0f);
+    expect(unloadedSound.getVolume() == 8.0f,
+           "Sound::setVolume/getVolume経路でVolumeの上限を8にクランプする");
+    unloadedSound.setVolume(std::numeric_limits<float>::quiet_NaN());
+    expect(unloadedSound.getVolume() == 1.0f,
+           "Sound::setVolume/getVolume経路で非finite値を1に戻す");
+
+    std::cout << "[SoundStretchRegression] "
+              << (failures == 0 ? "PASS" : "FAIL") << "\n";
+    return failures == 0 ? 0 : 1;
+}
 }
 
 // ===================================================
@@ -497,10 +608,12 @@ int main(int argc, char* argv[]) {
     const bool toolWeldReequipRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-reequip-regression";
     const bool inventoryToolSyncRegression = argc > 1 && std::string_view(argv[1]) == "--inventory-tool-sync-regression";
     const bool humanoidPartRefRegression = argc > 1 && std::string_view(argv[1]) == "--humanoid-part-ref-regression";
+    const bool soundStretchRegression = argc > 1 && std::string_view(argv[1]) == "--sound-stretch-regression";
     if (toolWeldRegression) return runToolWeldRegression();
     if (toolWeldReequipRegression) return runToolWeldReequipRegression();
     if (inventoryToolSyncRegression) return runInventoryToolSyncRegression();
     if (humanoidPartRefRegression) return runHumanoidPartRefRegression();
+    if (soundStretchRegression) return runSoundStretchRegression();
     std::string scenePath = weldRegression
         ? ((argc > 2) ? argv[2] : "assets/scenes/_snapshot.yaml")
         : ((argc > 1) ? argv[1] : "assets/scenes/test_bindings.yaml");

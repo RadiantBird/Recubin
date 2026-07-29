@@ -1,0 +1,10 @@
+Signalsmith Stretch 1.3.2
+Source: https://github.com/Signalsmith-Audio/signalsmith-stretch
+Commit: 57b93f4e9206a089a45387eaa39bdc9f310d3308
+
+Signalsmith Linear
+Source: https://github.com/Signalsmith-Audio/linear
+Commit: 5668673560146a9cfe38c25315071e3fd68c8317
+
+Only the header files required by Recubin and the two MIT license files are
+vendored in this directory.

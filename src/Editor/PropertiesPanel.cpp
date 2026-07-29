@@ -944,9 +944,12 @@ void PropertiesPanel::onRender() {
         {
             static float volBefore = 0.0f;
             float vol = snd->getVolume();
-            ImGui::SliderFloat("Volume", &vol, 0.0f, 1.0f);
+            bool changed = ImGui::DragFloat("Volume", &vol, 0.01f, 0.0f, 8.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             if (ImGui::IsItemActivated()) volBefore = snd->getVolume();
-            snd->setVolume(vol);
+            if (changed) {
+                snd->setVolume(vol);
+                if (m_history) m_history->notifyChanged();
+            }
             if (ImGui::IsItemDeactivatedAfterEdit() && m_history && vol != volBefore)
                 m_history->record(std::make_unique<SetSoundFloatCommand>(sndSp, "Volume", volBefore, vol));
         }
@@ -955,9 +958,12 @@ void PropertiesPanel::onRender() {
         {
             static float spdBefore = 1.0f;
             float spd = snd->getSpeed();
-            ImGui::SliderFloat("Speed", &spd, 0.25f, 4.0f);
+            bool changed = ImGui::DragFloat("Speed", &spd, 0.01f, 0.25f, 4.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
             if (ImGui::IsItemActivated()) spdBefore = snd->getSpeed();
-            snd->setSpeed(spd);
+            if (changed) {
+                snd->setSpeed(spd);
+                if (m_history) m_history->notifyChanged();
+            }
             if (ImGui::IsItemDeactivatedAfterEdit() && m_history && spd != spdBefore)
                 m_history->record(std::make_unique<SetSoundFloatCommand>(sndSp, "Speed", spdBefore, spd));
         }

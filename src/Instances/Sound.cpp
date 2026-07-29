@@ -1,6 +1,9 @@
 #include "Instances/Sound.hpp"
+#include "Core/TimeStretchNode.hpp"
 #include <Util/Logger.hpp>
 #include <Util/AssetGuard.hpp>
+#include <algorithm>
+#include <cmath>
 #ifdef _WIN32
 #include <windows26.h>
 #endif
@@ -29,18 +32,9 @@ namespace {
 }
 
 Sound::Sound(AudioService& service, const std::string& path)
-    : Spatial(Vector3(0,0,0), Vector3(1,1,1), "Sound") {
-    if (!path.empty() && AssetGuard::allow(path)) {
-        ma_uint32 flags = MA_SOUND_FLAG_DECODE;
-        ma_sound_group* targetGroup = (soundGroup == "BGM") ? &service.groupBGM : &service.groupSFX;
-
-        if (initSoundFromFile(&service.engine, path, flags, targetGroup, &sound) == MA_SUCCESS) {
-            loaded = true;
-            std::cout << "[DEBUG] Audio loaded: " << path << std::endl;
-        } else {
-            RCBN_WARN("Failed to load audio: " << path);
-        }
-    }
+    : Spatial(Vector3(0,0,0), Vector3(1,1,1), "Sound"),
+      m_audioService(&service) {
+    if (!path.empty()) loadFromFile(path);
 }
 
 void Sound::play() {
@@ -50,7 +44,10 @@ void Sound::play() {
 }
 void Sound::stop() { if (loaded) { ma_sound_stop(&sound); } }
 bool Sound::isPlaying() const { return loaded && ma_sound_is_playing(const_cast<ma_sound*>(&sound)); }
-void Sound::setVolume(float v) { m_volume = v; if (loaded) ma_sound_set_volume(&sound, v); }
+void Sound::setVolume(float v) {
+    m_volume = std::isfinite(v) ? std::clamp(v, 0.0f, 8.0f) : 1.0f;
+    if (loaded) ma_sound_set_volume(&sound, m_volume);
+}
 float Sound::getVolume() const { return m_volume; }
 void Sound::setLooping(bool loop) {
     this->looping = loop;
@@ -58,14 +55,22 @@ void Sound::setLooping(bool loop) {
 }
 
 void Sound::reset() {
-    if (loaded) ma_sound_seek_to_pcm_frame(&sound, 0);
+    if (loaded) {
+        const bool rebuildTimeStretch = m_timeStretchNode != nullptr;
+        if (rebuildTimeStretch) destroyTimeStretchNode();
+        ma_sound_seek_to_pcm_frame(&sound, 0);
+        if (rebuildTimeStretch) updatePlaybackRouting();
+    }
 }
 void Sound::seekSeconds(float sec) {
     if (!loaded) return;
     if (sec < 0.0f) sec = 0.0f;
     float len = getLength();
     if (len > 0.0f && sec > len) sec = len;
+    const bool rebuildTimeStretch = m_timeStretchNode != nullptr;
+    if (rebuildTimeStretch) destroyTimeStretchNode();
     ma_sound_seek_to_second(&sound, sec);
+    if (rebuildTimeStretch) updatePlaybackRouting();
 }
 float Sound::getPlaybackTime() const {
     if (!loaded) return 0.0f;
@@ -80,28 +85,32 @@ float Sound::getLength() const {
     return len;
 }
 void Sound::setSpeed(float s) {
-    m_speed = s;
-    // TODO: PreservePitch=ON 時のタイムストレッチは未対応（miniaudio制約）。
-    //       当面は ON/OFF とも速度とピッチが連動する。
-    if (loaded) ma_sound_set_pitch(&sound, s);
+    m_speed = TimeStretchNode::clampSpeed(s);
+    updatePlaybackRouting();
 }
 float Sound::getSpeed() const { return m_speed; }
-void Sound::setPreservePitch(bool b) { m_preservePitch = b; }
+void Sound::setPreservePitch(bool b) {
+    if (m_preservePitch == b) return;
+    m_preservePitch = b;
+    updatePlaybackRouting();
+}
 bool Sound::getPreservePitch() const { return m_preservePitch; }
 
 void Sound::loadFromFile(const std::string& path) {
     if (!AssetGuard::allow(path)) return;
     if (loaded) {
+        destroyTimeStretchNode();
         ma_sound_uninit(&sound);
         loaded = false;
     }
-    if (AudioService::instance) {
+    if (m_audioService) {
         ma_uint32 flags = MA_SOUND_FLAG_DECODE;
-        ma_sound_group* targetGroup = (soundGroup == "BGM") ? &AudioService::instance->groupBGM : &AudioService::instance->groupSFX;
-        if (initSoundFromFile(&AudioService::instance->engine, path, flags, targetGroup, &sound) == MA_SUCCESS) {
+        if (initSoundFromFile(&m_audioService->engine, path, flags,
+                              getTargetGroup(), &sound) == MA_SUCCESS) {
             loaded = true;
             m_currentPath = path;
-            if (looping) ma_sound_set_looping(&sound, true);
+            applyLoadedProperties();
+            std::cout << "[DEBUG] Audio loaded: " << path << std::endl;
         } else {
             RCBN_WARN("Failed to load audio: " << path);
         }
@@ -115,18 +124,10 @@ void Sound::setProperty(const std::string& name, const YAML::Node& value) {
         setLooping(value.as<bool>());
     } else if (name == "SoundGroup") {
         this->soundGroup = value.as<std::string>();
-        if (loaded && AudioService::instance && !m_currentPath.empty()) {
-            ma_sound_uninit(&sound);
-            loaded = false;
-            ma_uint32 flags = MA_SOUND_FLAG_DECODE;
-            ma_sound_group* targetGroup = (soundGroup == "BGM")
-                ? &AudioService::instance->groupBGM
-                : &AudioService::instance->groupSFX;
-            if (initSoundFromFile(&AudioService::instance->engine,
-                    m_currentPath, flags, targetGroup, &sound) == MA_SUCCESS) {
-                loaded = true;
-                if (looping) ma_sound_set_looping(&sound, true);
-            }
+        if (m_timeStretchNode) {
+            resetTimeStretchProcessing();
+        } else {
+            updatePlaybackRouting();
         }
     } else if (name == "AutoPlay") {
         autoPlay = value.as<bool>();
@@ -186,7 +187,79 @@ Sound::~Sound() {
     // AudioService の登録解除は weak_ptr の自然な消滅に任せるか、
     // 必要なら明示的に行う（ただし shared_from_this は使えない）。
     // ここでは ma_sound の解放を確実に行う。
-    if (loaded) ma_sound_uninit(&sound);
+    if (loaded) {
+        destroyTimeStretchNode();
+        ma_sound_uninit(&sound);
+    }
+}
+
+ma_sound_group* Sound::getTargetGroup() const {
+    if (!m_audioService) return nullptr;
+    return (soundGroup == "BGM")
+        ? &m_audioService->groupBGM
+        : &m_audioService->groupSFX;
+}
+
+void Sound::applyLoadedProperties() {
+    if (!loaded) return;
+    ma_sound_set_volume(&sound, m_volume);
+    ma_sound_set_looping(&sound, looping);
+    updatePlaybackRouting();
+}
+
+void Sound::updatePlaybackRouting() {
+    if (!loaded) return;
+
+    ma_sound_group* targetGroup = getTargetGroup();
+    if (!targetGroup) return;
+
+    if (!m_preservePitch || m_speed == 1.0f) {
+        destroyTimeStretchNode();
+        ma_node_attach_output_bus(&sound, 0, targetGroup, 0);
+        ma_sound_set_pitch(&sound, m_speed);
+        return;
+    }
+
+    ma_sound_set_pitch(&sound, 1.0f);
+    if (m_timeStretchNode) {
+        m_timeStretchNode->setSpeed(m_speed);
+        ma_node_attach_output_bus(m_timeStretchNode->node(), 0, targetGroup, 0);
+        return;
+    }
+
+    auto timeStretchNode = std::make_unique<TimeStretchNode>();
+    const ma_uint32 channels = ma_node_get_output_channels(&sound, 0);
+    const ma_uint32 sampleRate = ma_engine_get_sample_rate(&m_audioService->engine);
+    if (!timeStretchNode->initialize(
+            ma_engine_get_node_graph(&m_audioService->engine),
+            channels, sampleRate, m_speed) ||
+        ma_node_attach_output_bus(timeStretchNode->node(), 0, targetGroup, 0) != MA_SUCCESS ||
+        ma_node_attach_output_bus(&sound, 0, timeStretchNode->node(), 0) != MA_SUCCESS) {
+        RCBN_WARN("Failed to initialize PreservePitch time stretching; falling back to pitch-linked playback");
+        ma_node_attach_output_bus(&sound, 0, targetGroup, 0);
+        m_preservePitch = false;
+        ma_sound_set_pitch(&sound, m_speed);
+        return;
+    }
+    m_timeStretchNode = std::move(timeStretchNode);
+}
+
+void Sound::destroyTimeStretchNode() {
+    if (!m_timeStretchNode) return;
+    if (loaded) {
+        if (ma_sound_group* targetGroup = getTargetGroup()) {
+            ma_node_attach_output_bus(&sound, 0, targetGroup, 0);
+        } else {
+            ma_node_detach_output_bus(&sound, 0);
+        }
+    }
+    m_timeStretchNode.reset();
+}
+
+void Sound::resetTimeStretchProcessing() {
+    if (!m_timeStretchNode) return;
+    destroyTimeStretchNode();
+    updatePlaybackRouting();
 }
 
 void Sound::onAncestorChanged() {

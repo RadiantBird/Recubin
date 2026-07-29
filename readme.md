@@ -110,6 +110,7 @@ v2.0では、P2P(?)ネットワーク機能に加えて、
 - ImGui & ImGuizmo
 - YAML(yaml-cpp)
 - miniaudio
+- Signalsmith Stretch & Signalsmith Linear
 - PhysX
 - Windows bat
 - Python

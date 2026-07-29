@@ -131,9 +131,12 @@
 ## rg検索で確認した未対応項目
 
 - [x] include/Core/User.hpp:67: Tool以外のインベントリ項目を無視する
-- [ ] include/Instances/Humanoid.hpp:48: 兄弟パーツ参照をshared_ptrからweak_ptrへ整理する
+- [x] include/Instances/Humanoid.hpp:48: 兄弟パーツ参照をshared_ptrからweak_ptrへ整理する
 - [ ] include/Network/NetworkManager.hpp:92: NAT越え対応時の接続経路（STUN/リレー）を実装する
-- [ ] src/Instances/Instance.cpp:12: 不要な処理を最適化する
-- [ ] src/Instances/Sound.cpp:84: PreservePitch=ON時のタイムストレッチを対応する
+- [!] src/Instances/Instance.cpp:12: 不要な処理を最適化する
+    - 対象処理・根拠が特定されておらず、直後の `onAncestorChanged()` の再帰通知は子孫の登録状態更新に必要なため、根拠なく変更しない
+- [x] src/Instances/Sound.cpp:84: PreservePitch=ON時のタイムストレッチを対応する
+    - miniaudioのカスタムノードとSignalsmith Stretch 1.3.2を使い、速度と音程を独立して処理
 - [x] src/Core/LuauEngine.cpp:799: 最大距離1000ユニットの拡大制限を再検討する
-- [ ] doc/Instances/Workspace.md:27: buildTestSpace()を実装する
+- [!] doc/Instances/Workspace.md:27: buildTestSpace()を実装する
+    - 旧デバッグ用の空メソッドで、既に廃止済みのため実装不要

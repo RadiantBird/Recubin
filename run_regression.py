@@ -80,6 +80,22 @@ def main() -> int:
     total_failed = 0
     any_crash = False
 
+    print(f"[INFO] Running headless sound stretch regression ...")
+    sound_proc = subprocess.run(
+        [str(test_exe), "--sound-stretch-regression"],
+        cwd=ROOT_DIR,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    print(sound_proc.stdout, end="")
+    if sound_proc.stderr:
+        print(sound_proc.stderr, end="", file=sys.stderr)
+    if sound_proc.returncode != 0:
+        print(f"[ERROR] Sound stretch regression failed (exit code {sound_proc.returncode}).")
+        return 1
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         generated_scene = str(Path(tmp_dir) / "gen_test_scene.yaml")
 

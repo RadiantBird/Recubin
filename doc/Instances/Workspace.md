@@ -24,7 +24,6 @@
 | `unregisterScript(s)` | Script を実行リストから削除 |
 | `registerCube(c)` | BaseCube を pendingInstances に追加 |
 | `setPhysicsEngine(physics)` | Physics を接続 |
-| `buildTestSpace()` | テストシーン生成（TODO） |
 
 ## フレンドクラス
 
