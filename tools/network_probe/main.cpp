@@ -1,6 +1,7 @@
 #include <Network/NetworkManager.hpp>
 
 #include <charconv>
+#include <cctype>
 #include <chrono>
 #include <csignal>
 #include <cstdint>
@@ -17,10 +18,14 @@ volatile std::sig_atomic_t g_stopRequested = 0;
 struct LaunchOptions {
     bool host = false;
     bool client = false;
+    bool directHost = false;
+    bool directClient = false;
     bool chatEnabled = true;
     std::string roomCode;
+    std::string directAddress;
     std::string stun;
     std::string rendezvous;
+    uint16_t directPort = 0;
     uint16_t listenPort = 0;
     uint32_t durationSeconds = 0;
     uint32_t messageIntervalSeconds = 5;
@@ -89,6 +94,73 @@ bool parseEndpoint(const std::string& value,
     return true;
 }
 
+bool isValidDirectHost(const std::string& host) {
+    if (host.empty() || host.size() > 253 ||
+        host.front() == '.' || host.back() == '.') {
+        return false;
+    }
+    size_t labelStart = 0;
+    while (labelStart < host.size()) {
+        const size_t labelEnd = host.find('.', labelStart);
+        const size_t end = labelEnd == std::string::npos ? host.size() : labelEnd;
+        if (end == labelStart || end - labelStart > 63 ||
+            host[labelStart] == '-' || host[end - 1] == '-') {
+            return false;
+        }
+        for (size_t index = labelStart; index < end; ++index) {
+            const unsigned char c = static_cast<unsigned char>(host[index]);
+            if (!std::isalnum(c) && c != '-') return false;
+        }
+        if (labelEnd == std::string::npos) break;
+        labelStart = labelEnd + 1;
+    }
+
+    bool allNumericOrDots = true;
+    for (const unsigned char c : host) {
+        if (!std::isdigit(c) && c != '.') {
+            allNumericOrDots = false;
+            break;
+        }
+    }
+    if (!allNumericOrDots || host.find('.') == std::string::npos) return true;
+
+    size_t start = 0;
+    int octets = 0;
+    while (start < host.size()) {
+        const size_t dot = host.find('.', start);
+        const size_t end = dot == std::string::npos ? host.size() : dot;
+        uint32_t octet = 0;
+        const std::string_view value(host.data() + start, end - start);
+        const auto result = std::from_chars(value.data(), value.data() + value.size(), octet);
+        if (result.ec != std::errc{} || result.ptr != value.data() + value.size() ||
+            octet > 255 || ++octets > 4) {
+            return false;
+        }
+        if (dot == std::string::npos) break;
+        start = dot + 1;
+    }
+    return octets == 4;
+}
+
+bool parseDirectEndpoint(const std::string& value,
+                         std::string& host,
+                         uint16_t& port) {
+    const size_t separator = value.find(':');
+    if (separator == std::string::npos || separator != value.rfind(':') ||
+        separator == 0 || separator + 1 >= value.size()) {
+        return false;
+    }
+    uint32_t parsedPort = 0;
+    if (!parseUnsigned(std::string_view(value).substr(separator + 1), 65535, parsedPort) ||
+        parsedPort == 0) {
+        return false;
+    }
+    host = value.substr(0, separator);
+    if (!isValidDirectHost(host)) return false;
+    port = static_cast<uint16_t>(parsedPort);
+    return true;
+}
+
 void printUsage(const char* executable) {
     std::cout
         << "Usage:\n"
@@ -96,6 +168,8 @@ void printUsage(const char* executable) {
         << " --host --stun <host[:port]> --rendezvous <host[:port]> [options]\n"
         << "  " << executable
         << " --connect <room-code> --stun <host[:port]> --rendezvous <host[:port]> [options]\n"
+        << "  " << executable << " --direct-host <port> [options]\n"
+        << "  " << executable << " --direct-connect <host:port> [options]\n"
         << "\nOptions:\n"
         << "  --listen-port <port>       Local UDP port; 0 lets the OS choose\n"
         << "  --duration <seconds>       Stop after this duration; 0 waits for Ctrl-C\n"
@@ -122,6 +196,18 @@ bool parseArguments(int argc, char** argv, LaunchOptions& options) {
         } else if (argument == "--connect") {
             options.client = true;
             if (!takeValue(options.roomCode)) return false;
+        } else if (argument == "--direct-host") {
+            options.directHost = true;
+            uint32_t value = 0;
+            if (!takeNumber(65535, value) || value == 0) return false;
+            options.directPort = static_cast<uint16_t>(value);
+        } else if (argument == "--direct-connect") {
+            options.directClient = true;
+            std::string endpoint;
+            if (!takeValue(endpoint) ||
+                !parseDirectEndpoint(endpoint, options.directAddress, options.directPort)) {
+                return false;
+            }
         } else if (argument == "--stun") {
             if (!takeValue(options.stun)) return false;
         } else if (argument == "--rendezvous") {
@@ -147,8 +233,13 @@ bool parseArguments(int argc, char** argv, LaunchOptions& options) {
             return false;
         }
     }
-    return options.host != options.client && !options.stun.empty() &&
-           !options.rendezvous.empty() && (!options.client || options.roomCode.size() == 8);
+    const int modeCount =
+        static_cast<int>(options.host) + static_cast<int>(options.client) +
+        static_cast<int>(options.directHost) + static_cast<int>(options.directClient);
+    if (modeCount != 1) return false;
+    if (options.directHost || options.directClient) return true;
+    return !options.stun.empty() && !options.rendezvous.empty() &&
+           (!options.client || options.roomCode.size() == 8);
 }
 
 std::string candidateAddress(const NetworkCandidate& candidate) {
@@ -203,13 +294,16 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+    const bool directMode = options.directHost || options.directClient;
     NatConfig config;
-    config.listenPort = options.listenPort;
-    if (!parseEndpoint(options.stun, 3478, config.stunHost, config.stunPort) ||
-        !parseEndpoint(options.rendezvous, 3479,
-                       config.rendezvousHost, config.rendezvousPort)) {
-        std::cerr << "[probe] invalid STUN or rendezvous endpoint\n";
-        return 2;
+    if (!directMode) {
+        config.listenPort = options.listenPort;
+        if (!parseEndpoint(options.stun, 3478, config.stunHost, config.stunPort) ||
+            !parseEndpoint(options.rendezvous, 3479,
+                           config.rendezvousHost, config.rendezvousPort)) {
+            std::cerr << "[probe] invalid STUN or rendezvous endpoint\n";
+            return 2;
+        }
     }
 
     std::signal(SIGINT, handleSignal);
@@ -224,9 +318,13 @@ int main(int argc, char** argv) {
         std::cout << "[probe] chat peer=" << sender << " text=" << message << '\n';
     };
 
-    const bool started = options.host
-        ? manager.createRoom(config)
-        : manager.joinRoom(options.roomCode, config);
+    const bool started = options.directHost
+        ? manager.startHost(options.directPort)
+        : options.directClient
+            ? manager.connect(options.directAddress, options.directPort, options.listenPort)
+            : options.host
+                ? manager.createRoom(config)
+                : manager.joinRoom(options.roomCode, config);
     if (!started) {
         const ConnectionError error = manager.getConnectionError();
         std::cerr << "[probe] startup failed: "

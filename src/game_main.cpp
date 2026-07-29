@@ -39,10 +39,13 @@
 #include "include/stb_image.h"
 
 #include <algorithm>
+#include <charconv>
+#include <cctype>
 #include <chrono>
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <filesystem>
 #include <deque>
 #include <memory>
@@ -63,6 +66,7 @@ struct GameConfig {
 
 // ===================================================
 //  --host [listen-port] でルーム作成、--connect <room-code> で参加する。
+//  --direct-host <port> / --direct-connect <host:port> で直接接続する。
 //  引数なしなら従来通りNetworkRole::Offlineのまま動作する。
 // ===================================================
 static constexpr uint16_t kDefaultStunPort = 3478;
@@ -71,7 +75,12 @@ static constexpr uint16_t kDefaultRendezvousPort = 3479;
 struct NetworkLaunchArgs {
     bool asHost = false;
     bool asClient = false;
+    bool asDirectHost = false;
+    bool asDirectClient = false;
+    bool valid = true;
     std::string roomCode;
+    std::string directHost;
+    uint16_t directPort = 0;
     uint16_t listenPort = 0;
     std::string stunServer;
     std::string rendezvousServer;
@@ -82,6 +91,79 @@ struct ConsoleChatQueue {
     std::deque<std::string> lines;
 };
 
+static bool parsePort(std::string_view value, bool allowZero, uint16_t& port) {
+    if (value.empty()) return false;
+    uint32_t parsed = 0;
+    const auto result = std::from_chars(value.data(), value.data() + value.size(), parsed);
+    if (result.ec != std::errc{} || result.ptr != value.data() + value.size() ||
+        parsed > 65535 || (!allowZero && parsed == 0)) {
+        return false;
+    }
+    port = static_cast<uint16_t>(parsed);
+    return true;
+}
+
+static bool isValidDirectHost(const std::string& host) {
+    if (host.empty() || host.size() > 253 ||
+        host.front() == '.' || host.back() == '.') {
+        return false;
+    }
+    size_t labelStart = 0;
+    while (labelStart < host.size()) {
+        const size_t labelEnd = host.find('.', labelStart);
+        const size_t end = labelEnd == std::string::npos ? host.size() : labelEnd;
+        if (end == labelStart || end - labelStart > 63 ||
+            host[labelStart] == '-' || host[end - 1] == '-') {
+            return false;
+        }
+        for (size_t index = labelStart; index < end; ++index) {
+            const unsigned char c = static_cast<unsigned char>(host[index]);
+            if (!std::isalnum(c) && c != '-') return false;
+        }
+        if (labelEnd == std::string::npos) break;
+        labelStart = labelEnd + 1;
+    }
+
+    bool allNumericOrDots = true;
+    for (const unsigned char c : host) {
+        if (!std::isdigit(c) && c != '.') {
+            allNumericOrDots = false;
+            break;
+        }
+    }
+    if (!allNumericOrDots || host.find('.') == std::string::npos) return true;
+
+    size_t start = 0;
+    int octets = 0;
+    while (start < host.size()) {
+        const size_t dot = host.find('.', start);
+        const size_t end = dot == std::string::npos ? host.size() : dot;
+        uint32_t octet = 0;
+        const std::string_view value(host.data() + start, end - start);
+        const auto result = std::from_chars(value.data(), value.data() + value.size(), octet);
+        if (result.ec != std::errc{} || result.ptr != value.data() + value.size() ||
+            octet > 255 || ++octets > 4) {
+            return false;
+        }
+        if (dot == std::string::npos) break;
+        start = dot + 1;
+    }
+    return octets == 4;
+}
+
+static bool parseDirectEndpoint(const std::string& value,
+                                std::string& host,
+                                uint16_t& port) {
+    const size_t colon = value.find(':');
+    if (colon == std::string::npos || colon != value.rfind(':') ||
+        colon == 0 || colon + 1 >= value.size()) {
+        return false;
+    }
+    host = value.substr(0, colon);
+    return isValidDirectHost(host) &&
+           parsePort(std::string_view(value).substr(colon + 1), false, port);
+}
+
 static NetworkLaunchArgs parseNetworkArgs(int argc, char* argv[]) {
     NetworkLaunchArgs args;
     for (int i = 1; i < argc; ++i) {
@@ -91,15 +173,33 @@ static NetworkLaunchArgs parseNetworkArgs(int argc, char* argv[]) {
             if (i + 1 < argc) {
                 std::string maybePort = argv[i + 1];
                 if (!maybePort.empty() && maybePort[0] != '-') {
-                    try { args.listenPort = static_cast<uint16_t>(std::stoi(maybePort)); ++i; } catch (...) {}
+                    if (!parsePort(maybePort, true, args.listenPort)) args.valid = false;
+                    ++i;
                 }
             }
         } else if (arg == "--connect") {
             args.asClient = true;
-            if (i + 1 < argc) { args.roomCode = argv[i + 1]; ++i; }
+            if (i + 1 >= argc || argv[i + 1][0] == '-') {
+                args.valid = false;
+            } else {
+                args.roomCode = argv[++i];
+            }
+        } else if (arg == "--direct-host") {
+            args.asDirectHost = true;
+            if (i + 1 >= argc ||
+                !parsePort(argv[++i], false, args.directPort)) {
+                args.valid = false;
+            }
+        } else if (arg == "--direct-connect") {
+            args.asDirectClient = true;
+            if (i + 1 >= argc ||
+                !parseDirectEndpoint(argv[++i], args.directHost, args.directPort)) {
+                args.valid = false;
+            }
         } else if (arg == "--listen-port") {
-            if (i + 1 < argc) {
-                try { args.listenPort = static_cast<uint16_t>(std::stoi(argv[i + 1])); ++i; } catch (...) {}
+            if (i + 1 >= argc ||
+                !parsePort(argv[++i], true, args.listenPort)) {
+                args.valid = false;
             }
         } else if (arg == "--stun") {
             if (i + 1 < argc) { args.stunServer = argv[i + 1]; ++i; }
@@ -166,13 +266,22 @@ int main(int argc, char* argv[]) {
 
     // ---- ルームコード/STUNネットワーク起動引数 ----
     NetworkLaunchArgs netArgs = parseNetworkArgs(argc, argv);
+    const int networkModeCount =
+        static_cast<int>(netArgs.asHost) + static_cast<int>(netArgs.asClient) +
+        static_cast<int>(netArgs.asDirectHost) + static_cast<int>(netArgs.asDirectClient);
+    if (!netArgs.valid || networkModeCount > 1) {
+        RCBN_ERROR("Invalid network arguments: choose one of --host, --connect, "
+                   "--direct-host, or --direct-connect and use valid ports");
+        return -1;
+    }
+    const bool networkRequested = networkModeCount == 1;
     // System.UseNetwork is loaded from the scene, so networking starts after loadAndBind.
 
     // 標準入力はblockingなので、レンダー/ネットワークスレッドから分離する。
     // readerはゲーム本体を参照せずshared queueだけを所有するため、getline待ちのまま
     // ウィンドウを閉じてもjoinで終了を妨げない。
     std::shared_ptr<ConsoleChatQueue> consoleChat;
-    if (netArgs.asHost || netArgs.asClient) {
+    if (networkRequested) {
         consoleChat = std::make_shared<ConsoleChatQueue>();
         std::thread([queue = consoleChat]() {
             std::string line;
@@ -231,28 +340,33 @@ int main(int argc, char* argv[]) {
 
     // Networked games do not start scripts, character spawning, physics, or replication
     // until the host-authoritative PeerId is known.
-    if (system->UseNetwork && netArgs.asHost && netArgs.asClient) {
-        RCBN_ERROR("Specify either --host or --connect, not both");
-        glfwTerminate();
-        return -1;
-    }
-    if (system->UseNetwork && (netArgs.asHost || netArgs.asClient)) {
-        NatConfig natConfig;
-        natConfig.listenPort = netArgs.listenPort;
-        const std::string stun = netArgs.stunServer.empty() ? cfg.stunServer : netArgs.stunServer;
-        const std::string rendezvous =
-            netArgs.rendezvousServer.empty() ? cfg.rendezvousServer : netArgs.rendezvousServer;
-        const bool configOk =
-            parseServerAddress(stun, kDefaultStunPort, natConfig.stunHost, natConfig.stunPort) &&
-            parseServerAddress(rendezvous, kDefaultRendezvousPort,
-                               natConfig.rendezvousHost, natConfig.rendezvousPort);
+    if (system->UseNetwork && networkRequested) {
+        const bool directMode = netArgs.asDirectHost || netArgs.asDirectClient;
+        bool configOk = true;
         bool started = false;
-        if (configOk) {
-            started = netArgs.asHost
-                ? NetworkManager::get().createRoom(natConfig)
-                : NetworkManager::get().joinRoom(netArgs.roomCode, natConfig);
+        if (directMode) {
+            started = netArgs.asDirectHost
+                ? NetworkManager::get().startHost(netArgs.directPort)
+                : NetworkManager::get().connect(
+                    netArgs.directHost, netArgs.directPort, netArgs.listenPort);
         } else {
-            RCBN_ERROR("NetworkManager: MissingConfig: configure StunServer and RendezvousServer");
+            NatConfig natConfig;
+            natConfig.listenPort = netArgs.listenPort;
+            const std::string stun =
+                netArgs.stunServer.empty() ? cfg.stunServer : netArgs.stunServer;
+            const std::string rendezvous =
+                netArgs.rendezvousServer.empty() ? cfg.rendezvousServer : netArgs.rendezvousServer;
+            configOk =
+                parseServerAddress(stun, kDefaultStunPort, natConfig.stunHost, natConfig.stunPort) &&
+                parseServerAddress(rendezvous, kDefaultRendezvousPort,
+                                   natConfig.rendezvousHost, natConfig.rendezvousPort);
+            if (configOk) {
+                started = netArgs.asHost
+                    ? NetworkManager::get().createRoom(natConfig)
+                    : NetworkManager::get().joinRoom(netArgs.roomCode, natConfig);
+            } else {
+                RCBN_ERROR("NetworkManager: MissingConfig: configure StunServer and RendezvousServer");
+            }
         }
         if (!started) {
             const ConnectionError error = configOk
@@ -291,7 +405,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    if (system->UseNetwork && (netArgs.asHost || netArgs.asClient)) {
+    if (system->UseNetwork && networkRequested) {
         const PeerId id = NetworkManager::get().getLocalPeerId();
         if (id == 0 || !user->applyNetworkIdentity(id)) {
             RCBN_ERROR("Failed to apply canonical local network identity");

@@ -19,6 +19,159 @@ cmake --build build-network-probe --config Release
 
 ## 起動
 
+### Tailscaleで直接接続
+
+VPSを用意しない場合は、WindowsとMacを同じTailscaleネットワーク（tailnet）へ参加させ、
+Tailscale IPv4またはMagicDNSのホスト名で直接接続できる。このモードはSTUN、
+ランデブー、ルームコードを使用しない。
+
+たとえばTailscale IPv4が`100.64.0.10`のWindowsをHostにする。
+
+```powershell
+.\build-network-probe\Release\RecubinNetworkProbe.exe `
+  --direct-host 41001 `
+  --expect-peers 2
+```
+
+MacからWindowsへ参加する。`--listen-port 0`は省略でき、その場合もOSが空きポートを選ぶ。
+ホスト移行を試す場合は、固定ポート（次の例では`41002`）を指定するとログを追いやすい。
+
+```sh
+./build-network-probe/RecubinNetworkProbe \
+  --direct-connect 100.64.0.10:41001 \
+  --listen-port 41002 \
+  --expect-peers 2
+```
+
+RecubinEngineも同じ引数を使用する。
+
+```powershell
+.\RecubinEngine.exe --direct-host 41001
+```
+
+```sh
+./RecubinEngine --direct-connect 100.64.0.10:41001 --listen-port 41002
+```
+
+Windows Defender FirewallとmacOSファイアウォールでは、各端末が使用するUDPポートの
+受信を許可する。最初のHostだけでなく、ホスト移行候補になるClientの
+`--listen-port`も受信可能にする必要がある。ホスト移行へ参加する全端末は同じtailnetに
+所属し、相互通信をTailscale ACLで許可しておく。
+
+直接接続モードはランデブーが発行する参加tokenを使用しないため、指定ポートへ到達できる
+tailnet内の端末を信頼する構成である。参加者を制限する場合はTailscale ACLと端末管理で
+接続範囲を制御する。IPv6形式は受け付けず、`IPv4:port`または`hostname:port`を指定する。
+
+#### 実機テスト手順
+
+次の例ではWindows Hostを`100.64.0.10:41001`、Mac Clientの待受をUDP `41002`、
+3台目をUDP `41003`とする。最初に全端末が同じtailnetへ接続済みであることと、各端末の
+Tailscale IPv4・ホスト名を確認する。MagicDNSが有効ならIPv4の代わりにそのホスト名を
+`--direct-connect`へ指定できる。
+
+```powershell
+tailscale ip -4
+tailscale status
+```
+
+```sh
+tailscale ip -4
+tailscale status
+```
+
+2台テストでは、まずWindowsでHostを起動する。
+
+```powershell
+.\build-network-probe\Release\RecubinNetworkProbe.exe `
+  --direct-host 41001 `
+  --duration 60 `
+  --message-interval 2 `
+  --expect-peers 2
+```
+
+続けて60秒以内にMacから参加する。
+
+```sh
+./build-network-probe/RecubinNetworkProbe \
+  --direct-connect 100.64.0.10:41001 \
+  --listen-port 41002 \
+  --duration 30 \
+  --message-interval 2 \
+  --expect-peers 2
+```
+
+両端末で`state ... -> Connected`、0以外の`peer`、`roster peers=2`、
+相手が送った`chat`を確認する。`--duration`後の終了コードは両方とも0であること。
+直接接続では`room-code`を表示せず、STUN・ランデブー関連ログも成功判定には不要である。
+
+3台でホスト移行を確認する場合は、各端末を別ターミナルで次の順に起動する。
+
+```powershell
+.\build-network-probe\Release\RecubinNetworkProbe.exe `
+  --direct-host 41001 `
+  --duration 0 `
+  --message-interval 2 `
+  --expect-peers 3
+```
+
+```sh
+./build-network-probe/RecubinNetworkProbe \
+  --direct-connect 100.64.0.10:41001 \
+  --listen-port 41002 \
+  --duration 0 \
+  --message-interval 2 \
+  --expect-peers 3
+```
+
+```sh
+./build-network-probe/RecubinNetworkProbe \
+  --direct-connect 100.64.0.10:41001 \
+  --listen-port 41003 \
+  --duration 0 \
+  --message-interval 2 \
+  --expect-peers 3
+```
+
+全端末が`READY expected-peers=3`になった後、Windows Hostを`Ctrl-C`で終了する。
+残存端末で`Connected -> Migrating -> Connected`、いずれかの
+`role Client -> Host`、移行後の`chat`継続を確認する。各端末のPeerIdと
+`listen-port`（`41002`または`41003`）は移行前後で変わらない。
+
+接続できない場合は、Clientから`tailscale ping 100.64.0.10`（またはMagicDNS名）を実行し、
+Tailscale経路を先に確認する。Windowsでは管理者PowerShellから、テスト用にUDP
+`41001`〜`41003`の受信規則を作成できる。
+
+```powershell
+New-NetFirewallRule -DisplayName "Recubin Network Probe" `
+  -Direction Inbound -Protocol UDP -LocalPort 41001-41003 -Action Allow
+```
+
+macOSではファイアウォールの受信確認で`RecubinNetworkProbe`を許可する。さらにTailscale
+ACLが端末間通信を許可していること、接続先がIPv4または`hostname:port`形式であること、
+各Clientの`--listen-port`が端末間で重複していないことを確認する。
+
+ログを保存する場合は次のように実行する（必要な起動引数は上の例と同じように続ける）。
+
+```powershell
+.\build-network-probe\Release\RecubinNetworkProbe.exe --direct-host 41001 `
+  --duration 60 --message-interval 2 --expect-peers 2 2>&1 |
+  Tee-Object -FilePath network-probe-windows.log
+```
+
+```sh
+set -o pipefail
+./build-network-probe/RecubinNetworkProbe --direct-connect 100.64.0.10:41001 \
+  --listen-port 41002 --duration 30 --message-interval 2 --expect-peers 2 \
+  2>&1 | tee network-probe-mac.log
+```
+
+WindowsのVisual Studio構成では実行ファイルは通常
+`build-network-probe\Release\RecubinNetworkProbe.exe`、macOSの単一構成ビルドでは
+`build-network-probe/RecubinNetworkProbe`にある。別のCMake generatorや構成を使った場合は、
+実際の出力先に合わせてこの部分だけ置き換える。
+
+### STUN・ランデブーで接続
+
 公開STUNと公開済みランデブーサービスを指定してHostを起動する。
 
 ```sh
