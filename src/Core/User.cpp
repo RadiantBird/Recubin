@@ -608,11 +608,49 @@ void User::despawnCharacter() {
 void User::respawnCharacter() {
     // 死亡したキャラクターが属していた親(Workspace)を保持してから作り直す
     std::shared_ptr<Instance> parent = character ? character->Parent.lock() : nullptr;
+    auto equippedTool = currentTool;
+    const int equippedSlotIndex = currentSlotIndex;
+    const bool shouldRestoreTool =
+        equippedTool && equippedTool->Equipped && character && Inventory &&
+        equippedSlotIndex >= 0 &&
+        equippedSlotIndex < static_cast<int>(Slots.size()) &&
+        Slots[equippedSlotIndex] == equippedTool &&
+        equippedTool->Parent.lock().get() == character.get();
+
+    // 装備中Toolを旧characterに残したままdespawnすると、Slots/currentToolの
+    // 強参照によって死亡地点の物理状態ごと生存する。先にWorkspace外へ退避し、
+    // actorを解放してから新characterを生成する。
+    if (shouldRestoreTool) {
+        equippedTool->Equipped = false;
+        character->removeChild(equippedTool->Name);
+        Inventory->addChild(std::static_pointer_cast<Instance>(equippedTool));
+    }
+
     despawnCharacter();
     spawnCharacter(m_lastSearchRoot);
     if (parent && character) {
         parent->addChild(character);
     }
+
+    if (!shouldRestoreTool) return;
+
+    if (character) {
+        Inventory->removeChild(equippedTool->Name);
+        character->addChild(std::static_pointer_cast<Instance>(equippedTool));
+        if (equippedTool->Parent.lock().get() == character.get()) {
+            equippedTool->Equipped = true;
+            currentTool = equippedTool;
+            currentSlotIndex = equippedSlotIndex;
+            return;
+        }
+
+        // 名前衝突等で再装備に失敗した場合もToolを失わない。
+        Inventory->addChild(std::static_pointer_cast<Instance>(equippedTool));
+    }
+
+    equippedTool->Equipped = false;
+    currentTool = nullptr;
+    currentSlotIndex = -1;
 }
 
 void User::setCharacterFromScript(std::shared_ptr<Model> newCharacter) {

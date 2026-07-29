@@ -10,7 +10,6 @@ RecubinはC++で作成されたゲームエンジンで、
 ゲーム開発を楽しくしてくれる要素がたくさんです。
 Windowsで動作します。
 Linux対応予定です。
-(開発休止中…デバッグは可能な限りやります)
 
 [パッケージ](https://github.com/RadiantBird/Recubin/releases)はここからダウンロードできます！
 

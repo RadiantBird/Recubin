@@ -300,6 +300,75 @@ int runToolWeldReequipRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runToolRespawnRegression() {
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    system->addChild(workspace);
+    system->addChild(user);
+    user->initializeInventory();
+
+    user->spawnCharacter(system.get());
+    workspace->addChild(user->character);
+    auto oldCharacter = user->character;
+
+    auto tool = std::make_shared<Tool>("RespawnTool");
+    auto handle = std::make_shared<BaseCube>(
+        Vector3(40.0f, 12.0f, -30.0f), Vector3(1, 1, 1));
+    auto member = std::make_shared<BaseCube>(
+        Vector3(40.0f, 12.0f, -27.0f), Vector3(1, 1, 3));
+    handle->Name = "Handle";
+    member->Name = "Member";
+    tool->addChild(handle);
+    tool->addChild(member);
+    tool->Handle = handle;
+    auto weld = std::make_shared<Weld>(handle, member);
+    weld->Name = "HandleMemberWeld";
+    handle->addChild(weld);
+
+    const int slotIndex = user->addToolToSlot(tool, 3);
+    user->currentTool = tool;
+    user->currentSlotIndex = slotIndex;
+    tool->Equipped = true;
+    oldCharacter->addChild(tool);
+
+    workspace->initPhysics();
+    workspace->getPhysicsEngine()->update(*workspace, 1.0f / 60.0f);
+
+    auto expect = [](bool condition, const char* name, int& failures) {
+        std::cout << "[ToolRespawnRegression] " << (condition ? "PASS" : "FAIL")
+                  << ": " << name << "\n";
+        if (!condition) ++failures;
+    };
+
+    int failures = 0;
+    expect(handle->actor && handle->actor == member->actor,
+           "死亡前の装備Toolがcompound actorを持つ", failures);
+
+    user->respawnCharacter();
+    auto newCharacter = user->character;
+
+    expect(newCharacter && newCharacter != oldCharacter,
+           "respawnで新しいcharacterが生成される", failures);
+    expect(tool->Parent.lock() == newCharacter &&
+           newCharacter->children.contains(tool->Name),
+           "装備Toolが新しいcharacterの子へ移る", failures);
+    expect(tool->Equipped && user->currentTool == tool &&
+           user->currentSlotIndex == slotIndex &&
+           user->getToolInSlot(slotIndex) == tool,
+           "装備状態・currentTool・スロット番号を維持する", failures);
+    expect(!user->Inventory->children.contains(tool->Name),
+           "再装備後のToolがInventoryに残らない", failures);
+    expect(!oldCharacter->children.contains(tool->Name),
+           "旧characterにToolが残らない", failures);
+
+    workspace->getPhysicsEngine()->update(*workspace, 1.0f / 60.0f);
+    expect(handle->actor && handle->actor == member->actor,
+           "respawn後の物理更新でToolのcompound actorを再構築する", failures);
+
+    return failures == 0 ? 0 : 1;
+}
+
 int runInventoryToolSyncRegression() {
     auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
     user->initializeInventory();
@@ -606,11 +675,13 @@ int main(int argc, char* argv[]) {
     const bool weldRegression = argc > 1 && std::string_view(argv[1]) == "--weld-regression";
     const bool toolWeldRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-regression";
     const bool toolWeldReequipRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-reequip-regression";
+    const bool toolRespawnRegression = argc > 1 && std::string_view(argv[1]) == "--tool-respawn-regression";
     const bool inventoryToolSyncRegression = argc > 1 && std::string_view(argv[1]) == "--inventory-tool-sync-regression";
     const bool humanoidPartRefRegression = argc > 1 && std::string_view(argv[1]) == "--humanoid-part-ref-regression";
     const bool soundStretchRegression = argc > 1 && std::string_view(argv[1]) == "--sound-stretch-regression";
     if (toolWeldRegression) return runToolWeldRegression();
     if (toolWeldReequipRegression) return runToolWeldReequipRegression();
+    if (toolRespawnRegression) return runToolRespawnRegression();
     if (inventoryToolSyncRegression) return runInventoryToolSyncRegression();
     if (humanoidPartRefRegression) return runHumanoidPartRefRegression();
     if (soundStretchRegression) return runSoundStretchRegression();
