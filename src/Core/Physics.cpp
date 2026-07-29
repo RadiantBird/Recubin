@@ -55,15 +55,23 @@ struct RCBNContactCallback : physx::PxSimulationEventCallback {
 // NoCollision の対象候補ビット。両シェイプに立っている場合のみフィルターコールバックに回す
 static constexpr physx::PxU32 FILTER_WORD0_NOCOLLISION_CANDIDATE = 1u;
 
-// MaintainVelocity が有効な Force を持つ間は、外力を受けず目標速度だけを維持する。
-static bool hasEnabledMaintainVelocityForce(const BaseCube& cube) {
+// MaintainVelocity は線速度と角速度をそれぞれ独立して維持する。
+struct MaintainVelocityState {
+    bool linear = false;
+    bool angular = false;
+};
+
+static MaintainVelocityState getMaintainVelocityState(const BaseCube& cube) {
+    MaintainVelocityState state;
     for (const auto& entry : cube.children) {
         const auto& child = entry.second;
         if (!child || !child->IsA("Force")) continue;
         const auto* force = static_cast<const Force*>(child.get());
-        if (force->Enabled && force->MaintainVelocity) return true;
+        if (!force->Enabled || !force->MaintainVelocity) continue;
+        if (force->Torque) state.angular = true;
+        else               state.linear = true;
     }
-    return false;
+    return state;
 }
 
 // Touched 通知を有効にするカスタムフィルターシェーダー
@@ -615,11 +623,12 @@ void Physics::applyBuoyancy() {
     if (liquids.empty()) {
         for (auto& e : cubes) {
             auto cube = e.cube.lock();
-            if (!cube || !cube->actor || !hasEnabledMaintainVelocityForce(*cube)) continue;
+            if (!cube || !cube->actor) continue;
             auto* dyn = cube->actor->is<physx::PxRigidDynamic>();
             if (!dyn || (dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) continue;
-            dyn->setLinearDamping(0.0f);
-            dyn->setAngularDamping(0.0f);
+            const MaintainVelocityState maintainVelocity = getMaintainVelocityState(*cube);
+            if (maintainVelocity.linear) dyn->setLinearDamping(0.0f);
+            if (maintainVelocity.angular) dyn->setAngularDamping(0.0f);
         }
         return;
     }
@@ -629,12 +638,12 @@ void Physics::applyBuoyancy() {
         if (!cube || !cube->actor) continue;
         auto* dyn = cube->actor->is<physx::PxRigidDynamic>();
         if (!dyn || (dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) continue;
-        if (hasEnabledMaintainVelocityForce(*cube)) {
-            dyn->setLinearDamping(0.0f);
-            dyn->setAngularDamping(0.0f);
+        const MaintainVelocityState maintainVelocity = getMaintainVelocityState(*cube);
+        if (cube->IsA("LiquidCube")) {
+            if (maintainVelocity.linear) dyn->setLinearDamping(0.0f);
+            if (maintainVelocity.angular) dyn->setAngularDamping(0.0f);
             continue;
         }
-        if (cube->IsA("LiquidCube")) continue;
 
         Vector3 cs = cube->Size;
         float cubeVol = std::max(cs.x * cs.y * cs.z, 1e-4f);
@@ -647,9 +656,10 @@ void Physics::applyBuoyancy() {
         const float sampleVolume = cubeVol / static_cast<float>(SAMPLE_COUNT);
         float submergedVolume = 0.0f;
 
-        for (int ix = 0; ix < GRID; ix++) {
-            for (int iy = 0; iy < GRID; iy++) {
-                for (int iz = 0; iz < GRID; iz++) {
+        if (!maintainVelocity.linear) {
+            for (int ix = 0; ix < GRID; ix++) {
+                for (int iy = 0; iy < GRID; iy++) {
+                    for (int iz = 0; iz < GRID; iz++) {
                     Vector3 localPos(
                         ((ix + 0.5f) / GRID - 0.5f) * cs.x,
                         ((iy + 0.5f) / GRID - 0.5f) * cs.y,
@@ -682,7 +692,8 @@ void Physics::applyBuoyancy() {
                     const Vector3 torqueReducedPos = cubeWorld.Position +
                         (pos - cubeWorld.Position) * BUOYANCY_TORQUE_SCALE;
                     physx::PxVec3 pxPos(torqueReducedPos.x, torqueReducedPos.y, torqueReducedPos.z);
-                    physx::PxRigidBodyExt::addForceAtPos(*dyn, f, pxPos, physx::PxForceMode::eFORCE);
+                        physx::PxRigidBodyExt::addForceAtPos(*dyn, f, pxPos, physx::PxForceMode::eFORCE);
+                    }
                 }
             }
         }
@@ -690,8 +701,8 @@ void Physics::applyBuoyancy() {
         // 水没割合に比例した PhysX ダンピング（指数減衰で安定して素早く収束）。
         // 水の外（frac==0）では 0 に戻すので、飛び出した瞬間も含めて全フレームで設定する。
         const float frac = std::min(submergedVolume / cubeVol, 1.0f);
-        dyn->setLinearDamping (LIQUID_LINEAR_DAMPING  * frac);
-        dyn->setAngularDamping(LIQUID_ANGULAR_DAMPING * frac);
+        dyn->setLinearDamping(maintainVelocity.linear ? 0.0f : LIQUID_LINEAR_DAMPING * frac);
+        dyn->setAngularDamping(maintainVelocity.angular ? 0.0f : LIQUID_ANGULAR_DAMPING * frac);
     }
 }
 
@@ -702,14 +713,16 @@ void Physics::applyForces() {
         auto* dyn = cube->actor->is<physx::PxRigidDynamic>();
         if (!dyn || (dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) continue;
 
-        const bool maintainVelocity = hasEnabledMaintainVelocityForce(*cube);
-        dyn->setActorFlag(physx::PxActorFlag::eDISABLE_GRAVITY, maintainVelocity);
+        const MaintainVelocityState maintainVelocity = getMaintainVelocityState(*cube);
+        dyn->setActorFlag(physx::PxActorFlag::eDISABLE_GRAVITY, maintainVelocity.linear);
 
         for (auto const& [name, child] : cube->children) {
             if (!child || !child->IsA("Force")) continue;
             auto* force = static_cast<Force*>(child.get());
             if (!force->Enabled) continue;
-            if (maintainVelocity && !force->MaintainVelocity) continue;
+            if (!force->MaintainVelocity &&
+                ((force->Torque && maintainVelocity.angular) ||
+                 (!force->Torque && maintainVelocity.linear))) continue;
 
             physx::PxVec3 v(force->Value.x, force->Value.y, force->Value.z);
             if (force->MaintainVelocity) {

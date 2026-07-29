@@ -28,6 +28,7 @@
 #include <Instances/NoCollision.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/Model.hpp>
+#include <Instances/PathfindingService.hpp>
 #include <Core/CharacterRig.hpp>
 #include <Core/SceneLoader.hpp>
 #include <include/imgui/imgui.h>
@@ -255,6 +256,7 @@ void EditorManager::render(GLFWwindow* window) {
     }
 
     renderPackageDialog();
+    renderNavMeshBuildOverlay();
 }
 
 void EditorManager::openSecondaryViewport(Workspace* ws) {
@@ -1124,6 +1126,43 @@ void EditorManager::renderUI(User& user, GLFWwindow* window, Workspace&) {
         ImGui::RenderPlatformWindowsDefault();
         glfwMakeContextCurrent(backup);
     }
+}
+
+void IEditorManager::renderNavMeshBuildOverlay() {
+    const bool isActive = PathfindingService::IsBuildActive();
+    const std::string title =
+        std::string(Loc::t(Loc::LocKey::NavMeshBuildTitle)) + "###NavMeshBuildProgress";
+
+    if (isActive) {
+        ImGui::OpenPopup(title.c_str());
+    }
+
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    if (viewport) {
+        ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    }
+    ImGui::SetNextWindowSize(ImVec2(420.0f, 0.0f), ImGuiCond_Always);
+
+    if (!ImGui::BeginPopupModal(
+            title.c_str(), nullptr,
+            ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+        return;
+    }
+
+    if (!isActive) {
+        ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+        return;
+    }
+
+    const float progress = std::clamp(PathfindingService::GetBuildProgress(), 0.0f, 1.0f);
+    ImGui::TextUnformatted(Loc::t(Loc::LocKey::NavMeshBuildMessage));
+    ImGui::Spacing();
+    ImGui::Text("%s: %d%%",
+                Loc::t(Loc::LocKey::NavMeshBuildProgress),
+                static_cast<int>(progress * 100.0f + 0.5f));
+    ImGui::ProgressBar(progress, ImVec2(-1.0f, 0.0f), "");
+    ImGui::EndPopup();
 }
 
 // ===================================================

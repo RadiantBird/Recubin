@@ -29,6 +29,7 @@ enum class LocKey {
     UnsavedTitle, UnsavedLine1, UnsavedLine2, SaveAndQuit, QuitWithoutSaving,
     PackageGameTitle, GameNameLabel, OutputDirLabel, PackageButton,
     CloseButton, ProcessingText,
+    NavMeshBuildTitle, NavMeshBuildMessage, NavMeshBuildProgress,
 
     // ---- EditorManager: ツールバー ----
     PlayButton, PauseButton, StopButton,

@@ -2,7 +2,9 @@
 
 `include/Instances/Humanoid.hpp`
 
-キャラクターコントローラー。StarterCharacter内のテンプレート、またはそのclone後のModelから `Root`/`Torso`/`Head`/`LeftArm`/`RightArm`/`LeftLeg`/`RightLeg` という名前の兄弟 `Cube`/`Sphere` を探して保持し、移動・ジャンプ・接地判定・歩行アニメーション・一人称時の身体非表示・ヘルス管理・死亡演出（ラグドール）・キーフレームアニメーション再生を一括して行う（spec.md「キャラクター」節）。GLFWwindow/SystemStateには依存せず、入力はUser側がベクトル/boolへ変換して渡す。
+キャラクターコントローラー。StarterCharacter内のテンプレート、またはそのclone後のModelから `Root`/`Torso`/`Head`/`LeftArm`/`RightArm`/`LeftLeg`/`RightLeg` という名前の兄弟 `Cube`/`Sphere` を探して参照し、移動・ジャンプ・接地判定・歩行アニメーション・一人称時の身体非表示・ヘルス管理・死亡演出（ラグドール）・キーフレームアニメーション再生を一括して行う（spec.md「キャラクター」節）。GLFWwindow/SystemStateには依存せず、入力はUser側がベクトル/boolへ変換して渡す。
+
+身体パーツの所有者は親Modelの `children` であり、Humanoidはprivateな `weak_ptr` だけを保持する。C++側は各パーツgetterが返す一時的な `shared_ptr` を処理中だけ保持するため、親Modelの破棄後にHumanoidだけが残っても身体パーツの寿命は延長されない。この参照はLuau/YAMLプロパティやシリアライズ形式には公開されない。
 
 ## 継承
 `Instance` → `Humanoid`
@@ -17,7 +19,7 @@
 | `RespawnTime` | `float` | 死亡後の再生成までの秒数 |
 | `Died` | `shared_ptr<RCBNScriptSignal>` | Health<=0で1度だけ発火 |
 | `KeyframeReached` | `shared_ptr<RCBNScriptSignal>` | 再生位置が既存キーフレームの時刻を通過した瞬間に発火。引数は`(partName: string, time: number)` |
-| `Root`/`Torso`/`Head`/`LeftArm`/`RightArm`/`LeftLeg`/`RightLeg` | `shared_ptr<BaseCube>` | `resolveParts()` で解決される兄弟パーツ参照 |
+| `m_root`/`m_torso`/`m_head`/`m_leftArm`/`m_rightArm`/`m_leftLeg`/`m_rightLeg` | `weak_ptr<BaseCube>` | `resolveParts()` で解決されるprivateな非所有の兄弟パーツ参照 |
 | `m_dead` | `bool` | 死亡フラグ |
 | `walkCycle` | `float` | 歩行アニメーションの位相（0..1） |
 | `isGrounded` | `bool` | 接地判定結果 |
@@ -31,6 +33,8 @@
 | メソッド | 説明 |
 |---|---|
 | `resolveParts(characterModel)` | 親Modelの子から名前でパーツ解決。Rootの角度(X/Z軸)をロックし転倒防止 |
+| `getRootPart()`/`getTorsoPart()`/`getHeadPart()`/左右の腕・脚getter | C++処理向けにweak参照を一時的な`shared_ptr`へ昇格。期限切れ時は`nullptr` |
+| `setRootPart(root)` | ネットワーク予測用Rootの非所有参照を設定し、通常Rootと同じ角度ロックを適用。Luau/YAMLには非公開 |
 | `move(...)` | WASD相当の入力から移動・回転・壁ずり・歩行アニメ・接地判定・身体配置を実行 |
 | `moveToward(target, physics, arrivalRadius)` | パス追従用の1フレーム移動（`move()`のロジックを流用） |
 | `jump()` | 接地中のみJumpPowerで上方向速度をセット |

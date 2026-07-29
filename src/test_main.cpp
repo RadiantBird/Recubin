@@ -3,6 +3,8 @@
 #include <Instances/Lighting.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/BaseCube.hpp>
+#include <Instances/Humanoid.hpp>
+#include <Instances/Model.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Tool.hpp>
 
@@ -383,6 +385,102 @@ int runInventoryToolSyncRegression() {
 
     return failures == 0 ? 0 : 1;
 }
+
+int runHumanoidPartRefRegression() {
+    auto expect = [](bool condition, const char* name, int& failures) {
+        std::cout << "[HumanoidPartRefRegression] " << (condition ? "PASS" : "FAIL")
+                  << ": " << name << "\n";
+        if (!condition) ++failures;
+    };
+
+    int failures = 0;
+    auto model = std::make_shared<Model>();
+    auto humanoid = std::make_shared<Humanoid>();
+    auto root = std::make_shared<BaseCube>(Vector3{}, Vector3{2.0f, 2.0f, 1.0f});
+    auto torso = std::make_shared<BaseCube>(Vector3{}, Vector3{2.0f, 2.0f, 1.0f});
+    auto head = std::make_shared<BaseCube>(Vector3{}, Vector3{2.0f, 1.0f, 1.0f});
+    auto leftArm = std::make_shared<BaseCube>(Vector3{}, Vector3{1.0f, 2.0f, 1.0f});
+    auto rightArm = std::make_shared<BaseCube>(Vector3{}, Vector3{1.0f, 2.0f, 1.0f});
+    auto leftLeg = std::make_shared<BaseCube>(Vector3{}, Vector3{1.0f, 2.0f, 1.0f});
+    auto rightLeg = std::make_shared<BaseCube>(Vector3{}, Vector3{1.0f, 2.0f, 1.0f});
+
+    root->Name = "Root";
+    torso->Name = "Torso";
+    head->Name = "Head";
+    leftArm->Name = "LeftArm";
+    rightArm->Name = "RightArm";
+    leftLeg->Name = "LeftLeg";
+    rightLeg->Name = "RightLeg";
+
+    model->addChild(root);
+    model->addChild(torso);
+    model->addChild(head);
+    model->addChild(leftArm);
+    model->addChild(rightArm);
+    model->addChild(leftLeg);
+    model->addChild(rightLeg);
+    model->addChild(humanoid);
+    humanoid->resolveParts(model.get());
+
+    expect(humanoid->getRootPart() == root &&
+           humanoid->getTorsoPart() == torso &&
+           humanoid->getHeadPart() == head &&
+           humanoid->getLeftArmPart() == leftArm &&
+           humanoid->getRightArmPart() == rightArm &&
+           humanoid->getLeftLegPart() == leftLeg &&
+           humanoid->getRightLegPart() == rightLeg,
+           "resolveParts()が全兄弟パーツを正しく解決する", failures);
+
+    std::weak_ptr<BaseCube> weakRoot = root;
+    std::weak_ptr<BaseCube> weakTorso = torso;
+    std::weak_ptr<BaseCube> weakHead = head;
+    std::weak_ptr<BaseCube> weakLeftArm = leftArm;
+    std::weak_ptr<BaseCube> weakRightArm = rightArm;
+    std::weak_ptr<BaseCube> weakLeftLeg = leftLeg;
+    std::weak_ptr<BaseCube> weakRightLeg = rightLeg;
+
+    root.reset();
+    torso.reset();
+    head.reset();
+    leftArm.reset();
+    rightArm.reset();
+    leftLeg.reset();
+    rightLeg.reset();
+    model.reset();
+
+    expect(weakRoot.expired() && weakTorso.expired() && weakHead.expired() &&
+           weakLeftArm.expired() && weakRightArm.expired() &&
+           weakLeftLeg.expired() && weakRightLeg.expired(),
+           "Humanoidだけを保持しても兄弟パーツの寿命を延長しない", failures);
+    expect(!humanoid->getRootPart() &&
+           !humanoid->getTorsoPart() &&
+           !humanoid->getHeadPart() &&
+           !humanoid->getLeftArmPart() &&
+           !humanoid->getRightArmPart() &&
+           !humanoid->getLeftLegPart() &&
+           !humanoid->getRightLegPart(),
+           "親Model破棄後は全getterがnullptrを返す", failures);
+
+    const Vector3 fallbackRoot = humanoid->getRootWorldPosition();
+    const Vector3 fallbackHead = humanoid->getHeadWorldPosition();
+    humanoid->applyBodyAnimation(false, false);
+    humanoid->updateFirstPersonState(true);
+    humanoid->updateFirstPersonState(false);
+    expect(fallbackRoot.x == 0.0f && fallbackRoot.y == 0.0f && fallbackRoot.z == 0.0f &&
+           fallbackHead.x == 0.0f && fallbackHead.y == 0.0f && fallbackHead.z == 0.0f,
+           "期限切れ後の座標取得・身体配置・一人称更新が安全にフォールバックする", failures);
+
+    auto injectedRoot = std::make_shared<BaseCube>(Vector3{}, Vector3{2.0f, 2.0f, 1.0f});
+    std::weak_ptr<BaseCube> weakInjectedRoot = injectedRoot;
+    humanoid->setRootPart(injectedRoot);
+    expect(humanoid->getRootPart() == injectedRoot,
+           "setRootPart()が予測用Rootを参照できるようにする", failures);
+    injectedRoot.reset();
+    expect(weakInjectedRoot.expired() && !humanoid->getRootPart(),
+           "setRootPart()は予測用Rootを所有しない", failures);
+
+    return failures == 0 ? 0 : 1;
+}
 }
 
 // ===================================================
@@ -398,9 +496,11 @@ int main(int argc, char* argv[]) {
     const bool toolWeldRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-regression";
     const bool toolWeldReequipRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-reequip-regression";
     const bool inventoryToolSyncRegression = argc > 1 && std::string_view(argv[1]) == "--inventory-tool-sync-regression";
+    const bool humanoidPartRefRegression = argc > 1 && std::string_view(argv[1]) == "--humanoid-part-ref-regression";
     if (toolWeldRegression) return runToolWeldRegression();
     if (toolWeldReequipRegression) return runToolWeldReequipRegression();
     if (inventoryToolSyncRegression) return runInventoryToolSyncRegression();
+    if (humanoidPartRefRegression) return runHumanoidPartRefRegression();
     std::string scenePath = weldRegression
         ? ((argc > 2) ? argv[2] : "assets/scenes/_snapshot.yaml")
         : ((argc > 1) ? argv[1] : "assets/scenes/test_bindings.yaml");

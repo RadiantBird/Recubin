@@ -53,6 +53,9 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "パッケージ化",                "Package" },
     { "閉じる",                     "Close" },
     { "処理中...",                  "Processing..." },
+    { "ナビメッシュを構築中",         "Building Navigation Mesh" },
+    { "ナビメッシュの計算中です…",     "Calculating the navigation mesh..." },
+    { "進捗",                       "Progress" },
 
     // ---- EditorManager: ツールバー ----
     { "  再生  ",           "  Play  " },

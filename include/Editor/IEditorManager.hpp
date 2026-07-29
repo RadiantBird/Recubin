@@ -31,4 +31,9 @@ public:
     // このEditorManagerが renderUI() 内でシーン(3D)を描画するか
     // (エディター: ViewportPanel が描くため true / ランタイム: GUIのみ描画で false)
     virtual bool ownsSceneRender() = 0;
+
+protected:
+    // エディター／ランタイム共通のナビメッシュ構築待機モーダル。
+    // ImGui::NewFrame() と ImGui::Render() の間で呼ぶ。
+    static void renderNavMeshBuildOverlay();
 };

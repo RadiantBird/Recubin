@@ -54,6 +54,51 @@ std::shared_ptr<Instance> Humanoid::clone() const {
     return copy;
 }
 
+std::shared_ptr<BaseCube> Humanoid::getRootPart() const {
+    return m_root.lock();
+}
+
+std::shared_ptr<BaseCube> Humanoid::getTorsoPart() const {
+    return m_torso.lock();
+}
+
+std::shared_ptr<BaseCube> Humanoid::getHeadPart() const {
+    return m_head.lock();
+}
+
+std::shared_ptr<BaseCube> Humanoid::getLeftArmPart() const {
+    return m_leftArm.lock();
+}
+
+std::shared_ptr<BaseCube> Humanoid::getRightArmPart() const {
+    return m_rightArm.lock();
+}
+
+std::shared_ptr<BaseCube> Humanoid::getLeftLegPart() const {
+    return m_leftLeg.lock();
+}
+
+std::shared_ptr<BaseCube> Humanoid::getRightLegPart() const {
+    return m_rightLeg.lock();
+}
+
+void Humanoid::setRootPart(const std::shared_ptr<BaseCube>& root) {
+    m_root = root;
+    if (!root) return;
+
+    // RootはX/Z軸の回転をロックし、転倒しないようにする（Y軸回転=向き変えのみ許可）。
+    root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X |
+                      physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+    // アクター生成後に呼ばれた場合（保存済みシーンのNPC等、遅延resolveParts）でも
+    // 転倒防止が効くよう、既存アクターへ直接反映する
+    if (root->actor) {
+        if (auto* dyn = root->actor->is<physx::PxRigidDynamic>()) {
+            if (!(dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC))
+                dyn->setRigidDynamicLockFlags(root->LockFlags);
+        }
+    }
+}
+
 void Humanoid::setHealth(float v) {
     if (v > MaxHealth) v = MaxHealth;
     bool wasAlive = (Health > 0.0f) && !m_dead;
@@ -81,8 +126,10 @@ bool Humanoid::isRespawnReady() const {
 }
 
 void Humanoid::enterRagdoll(Physics* physics) {
-    if (!Root) {
+    auto root = getRootPart();
+    if (!root) {
         if (auto parent = Parent.lock()) resolveParts(parent.get());
+        root = getRootPart();
     }
     if (m_ragdollEntered) return;
     m_ragdollEntered = true;
@@ -93,19 +140,19 @@ void Humanoid::enterRagdoll(Physics* physics) {
     auto frand = []() { return (static_cast<float>(std::rand()) / RAND_MAX) * 2.0f - 1.0f; };
 
     // Root は不可視の物理ボディ。散乱に干渉しないよう衝突を無効化してアクターを外す
-    if (Root) {
-        Root->CanCollide = false;
-        if (physics) physics->recreateActor(std::static_pointer_cast<BaseCube>(Root));
+    if (root) {
+        root->CanCollide = false;
+        if (physics) physics->recreateActor(root);
     }
 
     // 各ボディパーツを動的アクター化してランダムに吹き飛ばす
     std::shared_ptr<BaseCube> parts[] = {
-        std::static_pointer_cast<BaseCube>(Torso),
-        std::static_pointer_cast<BaseCube>(Head),
-        std::static_pointer_cast<BaseCube>(LeftArm),
-        std::static_pointer_cast<BaseCube>(RightArm),
-        std::static_pointer_cast<BaseCube>(LeftLeg),
-        std::static_pointer_cast<BaseCube>(RightLeg),
+        getTorsoPart(),
+        getHeadPart(),
+        getLeftArmPart(),
+        getRightArmPart(),
+        getLeftLegPart(),
+        getRightLegPart(),
     };
     for (auto& part : parts) {
         if (!part) continue;
@@ -133,28 +180,17 @@ void Humanoid::resolveParts(Instance* characterModel) {
         return (it != kids.end()) ? it->second : nullptr;
     };
 
-    Root      = std::dynamic_pointer_cast<BaseCube>(find("Root"));
-    Torso     = std::dynamic_pointer_cast<BaseCube>(find("Torso"));
-    Head      = std::dynamic_pointer_cast<BaseCube>(find("Head"));
-    LeftArm   = std::dynamic_pointer_cast<BaseCube>(find("LeftArm"));
-    RightArm  = std::dynamic_pointer_cast<BaseCube>(find("RightArm"));
-    LeftLeg   = std::dynamic_pointer_cast<BaseCube>(find("LeftLeg"));
-    RightLeg  = std::dynamic_pointer_cast<BaseCube>(find("RightLeg"));
+    setRootPart(std::dynamic_pointer_cast<BaseCube>(find("Root")));
+    m_torso    = std::dynamic_pointer_cast<BaseCube>(find("Torso"));
+    m_head     = std::dynamic_pointer_cast<BaseCube>(find("Head"));
+    m_leftArm  = std::dynamic_pointer_cast<BaseCube>(find("LeftArm"));
+    m_rightArm = std::dynamic_pointer_cast<BaseCube>(find("RightArm"));
+    m_leftLeg  = std::dynamic_pointer_cast<BaseCube>(find("LeftLeg"));
+    m_rightLeg = std::dynamic_pointer_cast<BaseCube>(find("RightLeg"));
 
     // RootはX/Z軸の回転をロックし、転倒しないようにする（Y軸回転=向き変えのみ許可）。
     // ユーザーがStarterCharacter内に独自のCubeを"Root"として置いた場合も同じ挙動にするため、
-    // 物理アクター生成前のここで毎回設定する
-    if (Root) {
-        Root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
-        // アクター生成後に呼ばれた場合（保存済みシーンのNPC等、遅延resolveParts）でも
-        // 転倒防止が効くよう、既存アクターへ直接反映する
-        if (Root->actor) {
-            if (auto* dyn = Root->actor->is<physx::PxRigidDynamic>()) {
-                if (!(dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC))
-                    dyn->setRigidDynamicLockFlags(Root->LockFlags);
-            }
-        }
-    }
+    // 物理アクター生成前のここで毎回設定する。実処理はsetRootPart()に集約する
 }
 
 void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool isPressingMove,
@@ -162,14 +198,15 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
                      bool leftArmRaised, bool rightArmRaised,
                      float forwardAxis, float rightAxis) {
     if (m_dead) return;
-    if (!Root || !Root->actor) return;
+    auto root = getRootPart();
+    if (!root || !root->actor) return;
 
-    physx::PxRigidDynamic* dynamicActor = Root->actor->is<physx::PxRigidDynamic>();
+    physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
     if (!dynamicActor) return;
 
     // --- Seat: 未着席なら接触判定、着席中ならSteer/Throttle更新のみ行って抜ける ---
     if (!m_seated && physics) {
-        if (BaseCube* seatCube = physics->findOverlapping(*Root, "Seat")) {
+        if (BaseCube* seatCube = physics->findOverlapping(*root, "Seat")) {
             auto seat = std::static_pointer_cast<Seat>(seatCube->shared_from_this());
             if (!seat->isOccupied())
                 sitOn(seat, physics);
@@ -188,23 +225,23 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * 0.15f;
 
     // --- Truss(はしご)接触判定。登坂中は重力を切り、静止していても留まれるようにする ---
-    BaseCube* trussCube = physics ? physics->findOverlapping(*Root, "Truss", 0.5f) : nullptr;
+    BaseCube* trussCube = physics ? physics->findOverlapping(*root, "Truss", 0.5f) : nullptr;
     dynamicActor->setActorFlag(physx::PxActorFlag::eDISABLE_GRAVITY, trussCube != nullptr);
 
     // --- 向き(Rotation)の更新 ---
     // Truss接触中は向きを固定する(自動回転させると登坂中に姿勢が崩れて落下してしまうため)
     if (!trussCube) {
-        Quaternion targetRot = Root->Rotation;
+        Quaternion targetRot = root->Rotation;
         if (ctrlLockEnabled) {
             // CtrlLock中は常にカメラの正面方向を向く（Roblox ShiftLock方式）
             targetRot = Quaternion::LookRotation(flatForward, Vector3(0, 1, 0));
         } else if (isPressingMove) {
             targetRot = Quaternion::LookRotation(targetMoveDir, Vector3(0, 1, 0));
         }
-        Root->Rotation = Quaternion::Slerp(Root->Rotation, targetRot, 0.15f);
+        root->Rotation = Quaternion::Slerp(root->Rotation, targetRot, 0.15f);
 
         physx::PxTransform pose = dynamicActor->getGlobalPose();
-        pose.q = physx::PxQuat(Root->Rotation.x, Root->Rotation.y, Root->Rotation.z, Root->Rotation.w);
+        pose.q = physx::PxQuat(root->Rotation.x, root->Rotation.y, root->Rotation.z, root->Rotation.w);
         dynamicActor->setGlobalPose(pose);
     }
 
@@ -241,18 +278,22 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
 
     // --- 地面判定 ---
     RaycastHit hit;
-    float maxDist = (Root->Size.y / 2.0f) + 0.2f;
-    isGrounded = physics ? physics->raycast(Root->getWorldPosition(), Vector3(0, -1, 0), maxDist, hit, Root->actor) : false;
+    float maxDist = (root->Size.y / 2.0f) + 0.2f;
+    isGrounded = physics ? physics->raycast(root->getWorldPosition(), Vector3(0, -1, 0), maxDist, hit, root->actor) : false;
 
     applyBodyAnimation(leftArmRaised, rightArmRaised);
 }
 
 bool Humanoid::moveToward(const Vector3& target, Physics* physics, float arrivalRadius) {
     if (m_dead) return false;
-    if (!Root) resolveParts(Parent.lock().get());
-    if (!Root) return false;
+    auto root = getRootPart();
+    if (!root) {
+        resolveParts(Parent.lock().get());
+        root = getRootPart();
+    }
+    if (!root) return false;
 
-    Vector3 toTarget = target - Root->getWorldPosition();
+    Vector3 toTarget = target - root->getWorldPosition();
     toTarget.y = 0.0f;
     float dist = toTarget.length();
     if (dist <= arrivalRadius) {
@@ -277,11 +318,15 @@ void Humanoid::setJumpHeight(float height) {
 
 void Humanoid::jump(Physics* physics) {
     if (m_dead) return;
-    if (!Root) resolveParts(Parent.lock().get());
-    if (!Root || !Root->actor) return;
-    bool submerged = physics && physics->findOverlapping(*Root, "LiquidCube") != nullptr;
+    auto root = getRootPart();
+    if (!root) {
+        resolveParts(Parent.lock().get());
+        root = getRootPart();
+    }
+    if (!root || !root->actor) return;
+    bool submerged = physics && physics->findOverlapping(*root, "LiquidCube") != nullptr;
     if (!isGrounded && !submerged) return;
-    physx::PxRigidDynamic* dynamicActor = Root->actor->is<physx::PxRigidDynamic>();
+    physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
     if (!dynamicActor) return;
     physx::PxVec3 vel = dynamicActor->getLinearVelocity();
     vel.y = JumpPower;
@@ -289,8 +334,9 @@ void Humanoid::jump(Physics* physics) {
 }
 
 void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
-    if (!Root || !Root->actor || !seat) return;
-    physx::PxRigidDynamic* dynamicActor = Root->actor->is<physx::PxRigidDynamic>();
+    auto root = getRootPart();
+    if (!root || !root->actor || !seat) return;
+    physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
     if (!dynamicActor) return;
 
     seat->setOccupant(std::static_pointer_cast<Humanoid>(shared_from_this()));
@@ -298,7 +344,7 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
     // RootをSeatの向きのまま直上へスナップし、速度をゼロクリアしてからWeldで固定する。
     // Decal.FrontはCubeローカル+Z面(Renderer_GUI.cpp参照)だが、Humanoidの正面(getForward)は-Z基準のため、
     // Seatの回転をそのまま使うとFrontとは逆の-Z方向を向いてしまう。180度反転して整合させる
-    CFrame target = seat->getWorldCFrame() * CFrame(0, seat->Size.y * 0.001f - Root->Size.y * 0.01f, 0)
+    CFrame target = seat->getWorldCFrame() * CFrame(0, seat->Size.y * 0.001f - root->Size.y * 0.01f, 0)
                   * CFrame::fromAxisAngle(Vector3(0, 1, 0), 0.0f); // やっぱり必要なさそうなので0.0にした
     physx::PxTransform pose(
         physx::PxVec3(target.Position.x, target.Position.y, target.Position.z),
@@ -307,19 +353,19 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
     dynamicActor->setGlobalPose(pose);
     dynamicActor->setLinearVelocity(physx::PxVec3(0, 0, 0));
     dynamicActor->setAngularVelocity(physx::PxVec3(0, 0, 0));
-    Root->syncPhysics();
+    root->syncPhysics();
 
     // 着席中はRootの姿勢をSeatWeldが保持するため、徒歩用の転倒防止ロックは不要かつ有害。
     // 外さないと Weld によるcompound化(rebuildGroup)でこのロックが車両アセンブリ全体に
     // OR合成され、車両が傾いた際にロックと重力/接触トルクが衝突して振動・座席位置ずれを起こす
-    Root->LockFlags = (physx::PxRigidDynamicLockFlags)0;
+    root->LockFlags = (physx::PxRigidDynamicLockFlags)0;
 
     Instance* wsRaw = seat->findFirstAncestorWorkspace();
     if (wsRaw && physics) {
         m_seatWeld = std::make_shared<Weld>();
         m_seatWeld->Name = "SeatWeld";
         static_cast<Workspace*>(wsRaw)->addChild(m_seatWeld);
-        m_seatWeld->setCube0(Root);
+        m_seatWeld->setCube0(root);
         m_seatWeld->setCube1(seat);
 
         // Weldの実際のcompound化(Physics::createWeld)は本来次フレームのPhysics::update()
@@ -346,10 +392,14 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
 void Humanoid::standUp(Physics* physics) {
     if (!m_seated) return;
 
+    auto root = getRootPart();
+
     // SeatWeld除去(compound分割)前に転倒防止ロックを復帰させる。分割後にRootが
     // 独立アクターとして再生成される際(createActor)、このLockFlagsが反映されるため
-    if (Root) {
-        Root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+    if (root) {
+        // ここではまだSeatのcompound actorを共有しているため、actorへ直接適用しない
+        root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X |
+                          physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
     }
 
     if (m_seatWeld) {
@@ -358,15 +408,15 @@ void Humanoid::standUp(Physics* physics) {
     }
 
     // 降りるホップ + シートから離れて再着席ループを防ぐ
-    if (Root && Root->actor) {
-        if (auto* dynamicActor = Root->actor->is<physx::PxRigidDynamic>()) {
+    if (root && root->actor) {
+        if (auto* dynamicActor = root->actor->is<physx::PxRigidDynamic>()) {
             physx::PxVec3 vel = dynamicActor->getLinearVelocity();
             vel.y = JumpPower;
             dynamicActor->setLinearVelocity(vel);
             physx::PxTransform pose = dynamicActor->getGlobalPose();
-            pose.p.y += Root->Size.y;
+            pose.p.y += root->Size.y;
             dynamicActor->setGlobalPose(pose);
-            Root->syncPhysics();
+            root->syncPhysics();
         }
     }
 
@@ -414,7 +464,11 @@ void Humanoid::updateAnimation(float dt) {
     // move()/moveToward()/jump()が一度も呼ばれないHumanoid(例: StarterCharacterテンプレートに
     // PlayAnimationだけを呼ぶスクリプトを置いた場合)はRootが永久に未解決のままになる。
     // moveToward()/jump()と同じ遅延解決パターンをここでも踏襲する
-    if (!Root) resolveParts(model);
+    auto root = getRootPart();
+    if (!root) {
+        resolveParts(model);
+        root = getRootPart();
+    }
 
     float prevTime = m_animTime;
     m_animTime += dt * m_currentAnim->Speed;
@@ -462,44 +516,51 @@ void Humanoid::updateAnimation(float dt) {
 
     // キーフレームはRoot相対で保持されているため、現在のRoot CFrameに合成して
     // キャラクターの移動・回転に追従させる（歩行アニメと同じ基準）
-    CFrame rootCF = Root ? Root->cframe : CFrame();
+    CFrame rootCF = root ? root->cframe : CFrame();
     for (const AnimTrack& track : m_currentAnim->getTracks()) {
         Instance* child = model->getChild(track.partName);
         Spatial* part = dynamic_cast<Spatial*>(child);
-        if (!part || part == Root.get()) continue; // Rootは物理駆動なので動かさない
+        if (!part || part == root.get()) continue; // Rootは物理駆動なので動かさない
         part->cframe = rootCF * m_currentAnim->evaluateTrack(track, m_animTime);
     }
 }
 
 void Humanoid::updateFirstPersonState(bool wantsFirstPerson) {
-    if (!Root || !Torso || !Head || !LeftArm || !RightArm || !LeftLeg || !RightLeg) return;
+    auto root = getRootPart();
+    auto torso = getTorsoPart();
+    auto head = getHeadPart();
+    auto leftArm = getLeftArmPart();
+    auto rightArm = getRightArmPart();
+    auto leftLeg = getLeftLegPart();
+    auto rightLeg = getRightLegPart();
+    if (!root || !torso || !head || !leftArm || !rightArm || !leftLeg || !rightLeg) return;
 
     if (wantsFirstPerson && !isFirstPerson) {
         if (!bodyColorsSaved) {
-            savedTorsoColor    = Torso->Color;
-            savedHeadColor     = Head->Color;
-            savedLeftArmColor  = LeftArm->Color;
-            savedRightArmColor = RightArm->Color;
-            savedLeftLegColor  = LeftLeg->Color;
-            savedRightLegColor = RightLeg->Color;
+            savedTorsoColor    = torso->Color;
+            savedHeadColor     = head->Color;
+            savedLeftArmColor  = leftArm->Color;
+            savedRightArmColor = rightArm->Color;
+            savedLeftLegColor  = leftLeg->Color;
+            savedRightLegColor = rightLeg->Color;
             bodyColorsSaved = true;
         }
         Color4 hidden = Color4(1.0f, 1.0f, 1.0f, 0.0f);
-        Torso->Color    = hidden;
-        Head->Color     = hidden;
-        LeftArm->Color  = hidden;
-        RightArm->Color = hidden;
-        LeftLeg->Color  = hidden;
-        RightLeg->Color = hidden;
+        torso->Color    = hidden;
+        head->Color     = hidden;
+        leftArm->Color  = hidden;
+        rightArm->Color = hidden;
+        leftLeg->Color  = hidden;
+        rightLeg->Color = hidden;
         isFirstPerson = true;
     } else if (!wantsFirstPerson && isFirstPerson) {
         if (bodyColorsSaved) {
-            Torso->Color    = savedTorsoColor;
-            Head->Color     = savedHeadColor;
-            LeftArm->Color  = savedLeftArmColor;
-            RightArm->Color = savedRightArmColor;
-            LeftLeg->Color  = savedLeftLegColor;
-            RightLeg->Color = savedRightLegColor;
+            torso->Color    = savedTorsoColor;
+            head->Color     = savedHeadColor;
+            leftArm->Color  = savedLeftArmColor;
+            rightArm->Color = savedRightArmColor;
+            leftLeg->Color  = savedLeftLegColor;
+            rightLeg->Color = savedRightLegColor;
             bodyColorsSaved = false;
         }
         isFirstPerson = false;
@@ -507,11 +568,15 @@ void Humanoid::updateFirstPersonState(bool wantsFirstPerson) {
 }
 
 Vector3 Humanoid::getRootWorldPosition() const {
-    return Root ? Root->getWorldPosition() : Vector3(0, 0, 0);
+    auto root = getRootPart();
+    return root ? root->getWorldPosition() : Vector3(0, 0, 0);
 }
 
 Vector3 Humanoid::getHeadWorldPosition() const {
-    return Head ? Head->getWorldPosition() : getRootWorldPosition();
+    auto head = getHeadPart();
+    if (head) return head->getWorldPosition();
+    auto root = getRootPart();
+    return root ? root->getWorldPosition() : Vector3(0, 0, 0);
 }
 
 // ============================================================
@@ -585,10 +650,19 @@ static CFrame makeLeg(
 
 void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
     m_bodyPoseUpdatedThisFrame = true; // 呼ばれた事実を記録(Root未解決で以降no-opでも「試行済み」として扱う)
-    if (!Root) {
+    auto root = getRootPart();
+    if (!root) {
         if (Instance* model = Parent.lock().get()) resolveParts(model);
+        root = getRootPart();
     }
-    if (!Root) return;
+    if (!root) return;
+
+    auto torso = getTorsoPart();
+    auto head = getHeadPart();
+    auto leftArm = getLeftArmPart();
+    auto rightArm = getRightArmPart();
+    auto leftLeg = getLeftLegPart();
+    auto rightLeg = getRightLegPart();
 
     Pose pose = computePose(leftArmRaised, rightArmRaised);
 
@@ -602,13 +676,13 @@ void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
     const Vector3 leftHipPos       = Vector3(-0.5f, 0.0f, 0);
     const Vector3 rightHipPos      = Vector3( 0.5f, 0.0f, 0);
 
-    if (Torso) Torso->cframe = Root->cframe * CFrame(torsoOffset.x, torsoOffset.y, torsoOffset.z);
-    if (Head)  Head->cframe  = Root->cframe * CFrame(headOffset.x,  headOffset.y,  headOffset.z);
+    if (torso) torso->cframe = root->cframe * CFrame(torsoOffset.x, torsoOffset.y, torsoOffset.z);
+    if (head)  head->cframe  = root->cframe * CFrame(headOffset.x,  headOffset.y,  headOffset.z);
 
-    if (LeftArm)  LeftArm->cframe  = makeArm(Root->cframe, leftShoulderPos,  pose.leftArm);
-    if (RightArm) RightArm->cframe = makeArm(Root->cframe, rightShoulderPos, pose.rightArm);
-    if (LeftLeg)  LeftLeg->cframe  = makeLeg(Root->cframe, leftHipPos,  pose.leftLeg);
-    if (RightLeg) RightLeg->cframe = makeLeg(Root->cframe, rightHipPos, pose.rightLeg);
+    if (leftArm)  leftArm->cframe  = makeArm(root->cframe, leftShoulderPos,  pose.leftArm);
+    if (rightArm) rightArm->cframe = makeArm(root->cframe, rightShoulderPos, pose.rightArm);
+    if (leftLeg)  leftLeg->cframe  = makeLeg(root->cframe, leftHipPos,  pose.leftLeg);
+    if (rightLeg) rightLeg->cframe = makeLeg(root->cframe, rightHipPos, pose.rightLeg);
 }
 
 void Humanoid::updateAll(Instance* root, float dt, Physics* physics) {

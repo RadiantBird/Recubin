@@ -491,9 +491,11 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, f
 
                 // 距離チェック
                 User* localUser = User::getInstance();
-                if (!localUser || !localUser->humanoid || !localUser->humanoid->Root) continue;
+                if (!localUser || !localUser->humanoid) continue;
+                auto root = localUser->humanoid->getRootPart();
+                if (!root) continue;
 
-                Vector3 playerPos = localUser->humanoid->getRootWorldPosition();
+                Vector3 playerPos = root->getWorldPosition();
                 Vector3 cubePos = guiCenter;
                 float dist = (playerPos - cubePos).length();
                 if (dist > pp->MaxActivationDistance) {

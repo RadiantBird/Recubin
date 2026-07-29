@@ -101,8 +101,9 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
 
         // 自分(ホスト)の速度を記録してからAvatarBatchに載せる
         Vector3 localVel{};
-        if (m_user && m_user->humanoid && m_user->humanoid->Root && m_user->humanoid->Root->actor) {
-            if (auto* dyn = m_user->humanoid->Root->actor->is<physx::PxRigidDynamic>()) {
+        auto localRoot = (m_user && m_user->humanoid) ? m_user->humanoid->getRootPart() : nullptr;
+        if (localRoot && localRoot->actor) {
+            if (auto* dyn = localRoot->actor->is<physx::PxRigidDynamic>()) {
                 physx::PxVec3 v = dyn->getLinearVelocity();
                 localVel = Vector3(v.x, v.y, v.z);
             }
@@ -272,9 +273,10 @@ static void collectSyncTargets(const std::shared_ptr<Instance>& node, const std:
 }
 
 void ReplicationManager::enablePhysicsProxy(RemoteAvatar& avatar, PeerId id, Physics* physics) {
-    if (avatar.isPhysicsProxy || !avatar.humanoid || !avatar.humanoid->Root || !physics) return;
+    if (avatar.isPhysicsProxy || !avatar.humanoid || !physics) return;
 
-    auto root = avatar.humanoid->Root;
+    auto root = avatar.humanoid->getRootPart();
+    if (!root) return;
     root->CanCollide = true;
     root->Anchored = false;
     physics->recreateActor(root);
@@ -291,8 +293,9 @@ void ReplicationManager::enablePhysicsProxy(RemoteAvatar& avatar, PeerId id, Phy
     }
     for (auto& [otherId, otherAvatar] : m_remoteAvatars) {
         if (otherId == id) continue;
-        if (otherAvatar.isPhysicsProxy && otherAvatar.humanoid && otherAvatar.humanoid->Root) {
-            otherRoots.push_back(otherAvatar.humanoid->Root);
+        if (otherAvatar.isPhysicsProxy && otherAvatar.humanoid) {
+            if (auto otherRoot = otherAvatar.humanoid->getRootPart())
+                otherRoots.push_back(otherRoot);
         }
     }
     for (auto& otherRoot : otherRoots) {
@@ -447,7 +450,9 @@ void ReplicationManager::reconcileLocalPose() {
         m_inputHistory.pop_front();
     }
 
-    if (!m_user || !m_user->humanoid || !m_user->humanoid->Root) return;
+    if (!m_user || !m_user->humanoid) return;
+    auto root = m_user->humanoid->getRootPart();
+    if (!root) return;
 
     CFrame local;
     if (!getLocalRootCFrame(local)) return;
@@ -474,7 +479,6 @@ void ReplicationManager::reconcileLocalPose() {
             corrected.Position = local.Position + delta * alpha;
             corrected.Rotation = Quaternion::Slerp(local.Rotation, target.Rotation, 0.25f);
         }
-        auto root = m_user->humanoid->Root;
         if (root->actor) {
             physx::PxTransform pose = root->actor->getGlobalPose();
             pose.p = physx::PxVec3(corrected.Position.x, corrected.Position.y, corrected.Position.z);
@@ -554,7 +558,9 @@ void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
     if (!physics) return;
 
     for (auto& [id, avatar] : m_remoteAvatars) {
-        if (!avatar.humanoid || !avatar.humanoid->Root) continue;
+        if (!avatar.humanoid) continue;
+        auto root = avatar.humanoid->getRootPart();
+        if (!root) continue;
 
         if (!avatar.isPhysicsProxy) {
             // Model追加で登録されたCube/WeldをPhysics::update()が初期姿勢のまま
@@ -587,10 +593,10 @@ void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
         avatar.humanoid->move(in.flatForward, in.flatRight, in.isPressingMove, in.targetMoveDir,
                                in.ctrlLockEnabled, physics, false, false, in.forwardAxis, in.rightAxis);
 
-        m_latestPoses[id] = avatar.humanoid->Root->getWorldCFrame();
+        m_latestPoses[id] = root->getWorldCFrame();
         Vector3 vel{};
-        if (avatar.humanoid->Root->actor) {
-            if (auto* dyn = avatar.humanoid->Root->actor->is<physx::PxRigidDynamic>()) {
+        if (root->actor) {
+            if (auto* dyn = root->actor->is<physx::PxRigidDynamic>()) {
                 physx::PxVec3 v = dyn->getLinearVelocity();
                 vel = Vector3(v.x, v.y, v.z);
             }
@@ -874,6 +880,7 @@ void ReplicationManager::onNetworkRoleChanged(NetworkRole oldRole, NetworkRole n
 
 void ReplicationManager::bufferLocalInput(float dt) {
     if (!m_user || !m_user->humanoid) return;
+    auto root = m_user->humanoid->getRootPart();
 
     BufferedInput entry;
     entry.seq = m_nextSeq++;
@@ -890,7 +897,7 @@ void ReplicationManager::bufferLocalInput(float dt) {
     entry.dt = dt;
     entry.currentMoveDirBefore = m_user->humanoid->getCurrentMoveDir();
     entry.walkCycleBefore      = m_user->humanoid->getWalkCycle();
-    entry.rotationBefore       = m_user->humanoid->Root ? m_user->humanoid->Root->Rotation : Quaternion();
+    entry.rotationBefore       = root ? root->Rotation : Quaternion();
 
     m_inputHistory.push_back(entry);
 
@@ -905,13 +912,14 @@ void ReplicationManager::bufferLocalInput(float dt) {
 
 void ReplicationManager::ensurePredictionScene() {
     if (m_predictionSceneReady) return;
-    if (!m_user || !m_user->humanoid || !m_user->humanoid->Root) return;
+    if (!m_user || !m_user->humanoid) return;
+    auto realRoot = m_user->humanoid->getRootPart();
+    if (!realRoot) return;
 
     m_predictionPhysics = std::make_unique<Physics>();
     m_predictionPhysics->init();
     if (m_workspace) m_predictionPhysics->setGravity(m_workspace->Gravity);
 
-    auto realRoot = m_user->humanoid->Root;
     m_shadowRoot = std::make_shared<Cube>(realRoot->getWorldPosition(), realRoot->Size, 0);
     m_shadowRoot->Name = "PredictionShadowRoot";
     m_shadowRoot->Anchored = false;
@@ -920,7 +928,7 @@ void ReplicationManager::ensurePredictionScene() {
     m_predictionPhysics->createActor(m_shadowRoot);
 
     m_predictionHumanoid = std::make_shared<Humanoid>();
-    m_predictionHumanoid->Root = m_shadowRoot;
+    m_predictionHumanoid->setRootPart(m_shadowRoot);
 
     m_predictionSceneReady = true;
     RCBN_LOG("Replication: prediction scene created (shadow root size=" << realRoot->Size.x << "," << realRoot->Size.y << "," << realRoot->Size.z << ")");
@@ -928,9 +936,11 @@ void ReplicationManager::ensurePredictionScene() {
 
 void ReplicationManager::syncPredictionShadowToLocal() {
     if (!m_predictionSceneReady || !m_shadowRoot || !m_shadowRoot->actor) return;
-    if (!m_user || !m_user->humanoid || !m_user->humanoid->Root) return;
+    if (!m_user || !m_user->humanoid) return;
+    auto realRoot = m_user->humanoid->getRootPart();
+    if (!realRoot) return;
 
-    CFrame realCFrame = m_user->humanoid->Root->getWorldCFrame();
+    CFrame realCFrame = realRoot->getWorldCFrame();
 
     physx::PxTransform pose = m_shadowRoot->actor->getGlobalPose();
     pose.p = physx::PxVec3(realCFrame.Position.x, realCFrame.Position.y, realCFrame.Position.z);

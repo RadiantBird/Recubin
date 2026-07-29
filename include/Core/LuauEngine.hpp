@@ -21,6 +21,7 @@
 #include "include/Math/CFrame.hpp"
 #include "include/Util/Color4.hpp"
 #include "include/Core/RCBNScriptSignal.hpp"
+#include "include/Pathfinding/PathTypes.hpp"
 #include <Network/NetworkTypes.hpp>
 
 // Forward declarations
@@ -28,6 +29,7 @@ class Workspace;
 class System;
 class GuiButton;
 class ChatService;
+class PathfindingService;
 
 #pragma comment(lib, "Luau.VM.lib")
 #pragma comment(lib, "Luau.Compiler.lib")
@@ -52,11 +54,29 @@ private:
         bool  started        = false; // 初回resume済みか
         bool  sleeping       = false; // task.wait()による睡眠中か
         float sleepRemaining = 0.0f;
+        bool  waitingForPath = false; // PathfindingService::FindPathによる待機
         bool  finished       = false; // 掃除待ち(完了/エラー/放置yield)
         std::string sourceLabel;
     };
     std::vector<std::unique_ptr<EngineTask>> m_tasks;
     static EngineTask* currentTask;  // 現在実行中のエンジンタスク(currentScriptと排他)
+
+    enum class PathCoroutineOwner {
+        Script,
+        EngineTask,
+        Signal
+    };
+    struct PendingPathCoroutine {
+        std::weak_ptr<PathfindingService> service;
+        uint64_t requestId = 0;
+        lua_State* co = nullptr;
+        int coRef = -1;
+        PathCoroutineOwner owner = PathCoroutineOwner::Signal;
+        std::weak_ptr<Script> script;
+        EngineTask* task = nullptr;
+        std::string context;
+    };
+    std::vector<std::unique_ptr<PendingPathCoroutine>> m_pendingPaths;
 
     // ---- 安全対策(1フレームあたりのClone/Restart/Task上限、ループタイムアウト) ----
     std::unordered_map<std::string, int> m_cloneCallCounts;
@@ -271,6 +291,12 @@ private:
     void resumeEngineTask(EngineTask& task, int nargs);
     // delay消化・睡眠再開・完了タスクの掃除(update()から毎フレーム呼ぶ)
     void updateEngineTasks(float deltaTime);
+    void pushPathResult(lua_State* state,
+                        const std::vector<Pathfinding::PathWaypoint>& waypoints);
+    void resumePathScript(PendingPathCoroutine& pending,
+                          const std::vector<Pathfinding::PathWaypoint>& waypoints);
+    void resumePathSignal(PendingPathCoroutine& pending,
+                          const std::vector<Pathfinding::PathWaypoint>& waypoints);
 
     static int erik_index(lua_State* L);
     static int erik_tostring(lua_State* L);
@@ -311,6 +337,11 @@ public:
     // 未完了のエンジンタスクを全て破棄する(シーンロードのたびに呼ぶ。
     // 旧シーン向けのtask.delayコールバックが次のシーンで発火するのを防ぐ)
     void cancelAllTasks();
+    // 非同期ナビメッシュ要求をポーリングし、完了したFindPathコルーチンだけを再開する。
+    // ワールド更新を停止しているフレームからも呼べる。
+    void pollPathfindingRequests();
+    // Signal/taskの通常yieldとFindPath待機を区別するための照会。
+    bool isPathfindingCoroutine(lua_State* co) const;
     // System配下(Workspace外)スクリプトの実行状態をリセットする。
     // これらはPlay/Stopで破棄されないため、Play開始時にホストが呼ぶこと。
     void resetSystemScripts();

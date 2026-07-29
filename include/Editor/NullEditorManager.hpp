@@ -90,6 +90,8 @@ public:
             m_properties.onRender();
         }
 
+        renderNavMeshBuildOverlay();
+
         if (Renderer::instance) Renderer::instance->drawCameraRotationCursor(user, window);
 
         ImGui::Render();

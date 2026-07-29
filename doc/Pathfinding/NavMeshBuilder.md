@@ -2,7 +2,7 @@
 
 `include/Pathfinding/NavMeshBuilder.hpp`
 
-Workspace 内の静的ジオメトリ（Terrain ボクセル + 静的 BaseCube）から recastnavigation (Recast/Detour) を使って構築した Detour ナビメッシュ。`Pathfinding` 名前空間に属し、Workspace ごとにキャッシュして使い回すことを想定する。ジャンプでしか繋がらない境界間は簡易な境界エッジペアリングで OffMeshLink として接続する。
+Workspace 内の静的ジオメトリ（Terrain ボクセル + 静的 BaseCube）から recastnavigation (Recast/Detour) を使って構築した Detour ナビメッシュ。`Pathfinding` 名前空間に属し、Workspace ごとにキャッシュして使い回すことを想定する。Instance ツリーの読み取りと Recast の構築を分離し、読み取り専用スナップショットから各タイルを並列構築する。ジャンプでしか繋がらない境界間は簡易な境界エッジペアリングで OffMeshLink として接続する。
 
 ## BuildSettings 構造体
 
@@ -22,30 +22,52 @@ Workspace 内の静的ジオメトリ（Terrain ボクセル + 静的 BaseCube�
 | `m_navMesh` | `dtNavMesh*` | Detour ナビメッシュ本体 |
 | `m_navQuery` | `dtNavMeshQuery*` | 経路探索クエリオブジェクト |
 
+## 非同期構築用の型
+
+| 型 | 説明 |
+|---|---|
+| `GeometrySnapshot` | メインスレッドで収集した頂点・三角形の読み取り専用入力。取得後のワーカーは Workspace / Instance ツリーへアクセスしない |
+| `BuildStage` | `Idle`、キャッシュ検証、タイル構築、最終化、完了、キャンセル、失敗の各段階 |
+| `BuildControl` | ステージ、完了／総タイル数、0〜1の進捗と協調キャンセルフラグをアトミックに共有する |
+
 ## メソッド
 
 | メソッド | 説明 |
 |---|---|
-| `static Build(workspace, settings, cachePath)` | ナビメッシュを構築。歩行可能ジオメトリが無い等の失敗時は `nullptr`。`cachePath` 指定時はジオメトリ+設定のハッシュが一致すればディスクキャッシュを読み込み Recast 再構築をスキップ |
+| `static CaptureGeometry(workspace)` | Terrain／静的BaseCubeをメインスレッドで走査し、`GeometrySnapshot`を返す |
+| `static BuildSnapshot(snapshot, settings, cachePath, control)` | スナップショットから構築するワーカー向け入口。進捗更新と協調キャンセルに対応 |
+| `static Build(workspace, settings, cachePath)` | 同期互換入口。内部でスナップショットを取得して構築する |
 | `FindPath(start, goal)` | start/goal に最も近い歩行可能地点間の経路を `PathWaypoint` 配列で返す。見つからなければ空配列 |
 
 ## フロー
 
 ```
-NavMesh::Build(workspace, settings, cachePath)
-  1. collectGeometry(workspace)         Terrainチャンクのphys頂点/インデックス + 静止BaseCubeのOBB三角形を収集
-  2. computeGeometryHash(verts,tris,settings)  FNV-1aハッシュ
-  3. cachePath指定 かつ ハッシュ一致キャッシュあり → loadNavCache() でnavDataを読み込みRecast工程をスキップ
-     それ以外:
-       rcCreateHeightfield → rcMarkWalkableTriangles → rcRasterizeTriangles
-       → rcFilterLedgeSpans等のフィルタ
-       → rcBuildCompactHeightfield → rcErodeWalkableArea → rcBuildDistanceField → rcBuildRegions
-       → rcBuildContours → rcBuildPolyMesh → rcBuildPolyMeshDetail
-       → collectBoundaryEdges(pmesh) + buildJumpLinks()  境界エッジペアからOffMeshLink(ジャンプ接続)を生成
-       → dtCreateNavMeshData(params + offMeshCon*)
-       → cachePath指定なら saveNavCache()
-  4. dtNavMesh::init(navData) → dtNavMeshQuery::init()
-  5. NavMesh{m_navMesh, m_navQuery} を返す
+メインスレッド
+  1. CaptureGeometry(workspace)
+       Terrainチャンクのphys頂点/インデックス + 静止BaseCubeのOBB三角形を収集
+
+バックグラウンド
+  2. BuildSnapshot(snapshot, settings, cachePath)
+  3. computeGeometryHash(vertices, triangles, settings)
+  4. cachePath指定 かつ ハッシュ一致キャッシュあり
+       → loadNavCache()で全タイルを読み込み、Recast工程をスキップ
+     キャッシュミス:
+       各三角形を重なるタイルへ事前分類
+       → 原子的な次ジョブ番号でタイルをワーカーへ分配
+       → 各ワーカーが専用rcContextでRecast工程とOffMeshLink生成を実行
+       → 完了タイル数と進捗をBuildControlへ反映
+       → タイル座標順に結果を統合して決定的な出力を維持
+       → cachePath指定ならsaveNavCache()
+  5. dtNavMeshへタイルを追加 → dtNavMeshQuery::init()
+  6. NavMesh{m_navMesh, m_navQuery}を返す
+
+タイルごとのRecast工程
+  rcCreateHeightfield → rcMarkWalkableTriangles → rcRasterizeTriangles
+  → rcFilterLedgeSpans等のフィルタ
+  → rcBuildCompactHeightfield → rcErodeWalkableArea → rcBuildDistanceField → rcBuildRegions
+  → rcBuildContours → rcBuildPolyMesh → rcBuildPolyMeshDetail
+  → collectBoundaryEdges(pmesh) + buildJumpLinks()
+  → dtCreateNavMeshData(params + offMeshCon*)
 
 NavMesh::FindPath(start, goal)
   findNearestPoly(start) / findNearestPoly(goal)
@@ -65,7 +87,7 @@ NavMesh::FindPath(start, goal)
 
 ## ディスクキャッシュ形式
 
-`NAVCACHE_MAGIC ("RNMC") | version(u32) | geometryHash(u64) | size(i32) | navData` のバイナリ。ハッシュはジオメトリ頂点/インデックス + `BuildSettings` から算出し、地形やビルド設定が変わればキャッシュミスして再構築する。
+バージョン3のタイル形式。`NAVCACHE_MAGIC ("RNMC")`、version、geometryHash、`dtNavMeshParams`、タイル数に続けて各タイルのサイズとデータを保存する。ハッシュは三角形順に依存しないジオメトリ内容と `BuildSettings` から算出し、地形やビルド設定が変わればキャッシュミスして再構築する。キャッシュ更新は一時ファイルへ書き込んだ後に置換する。
 
 ## 依存関係
 

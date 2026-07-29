@@ -28,6 +28,10 @@ class Script : public Instance {
         std::string WaitChildName;            // 待っている子の名前
         float WaitTimeout = -1.0f;            // 秒。負なら無期限
         float WaitElapsed = 0.0f;             // 経過時間
+
+        // PathfindingService::FindPath の非同期ナビメッシュ生成待機。
+        // Sleeping/WaitingForChild と同様、通常のフレーム実行から除外するための状態。
+        bool WaitingForPath = false;
         
         lua_State* Coroutine = nullptr;  // このスクリプト用のコルーチン
         int CoroutineRef = -1;  // Coroutineをluaのレジストリに保持する参照(LUA_NOREF(-1)相当)。

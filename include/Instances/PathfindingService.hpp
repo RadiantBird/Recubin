@@ -2,8 +2,10 @@
 #include <include/Instances/Instance.hpp>
 #include <include/Pathfinding/NavMeshBuilder.hpp>
 #include <include/Math/Vector3.hpp>
-#include <unordered_map>
+#include <cstdint>
 #include <memory>
+#include <unordered_map>
+#include <vector>
 
 class Workspace;
 
@@ -18,6 +20,22 @@ class Workspace;
 // ==================================================================
 class PathfindingService : public Instance {
 public:
+    using RequestId = uint64_t;
+
+    enum class RequestStatus {
+        Unknown,
+        Pending,
+        Ready,
+        Failed,
+        Cancelled,
+    };
+
+    struct PathRequestResult {
+        RequestId id = 0;
+        RequestStatus status = RequestStatus::Unknown;
+        std::vector<Pathfinding::PathWaypoint> waypoints;
+    };
+
     float AgentRadius     = 1.0f;
     float AgentHeight     = 5.0f;
     float AgentMaxClimb   = 0.6f;
@@ -40,6 +58,26 @@ public:
     // 現在のAgent系プロパティでナビメッシュを構築してからキャッシュする。
     std::vector<Pathfinding::PathWaypoint> FindPath(Workspace* workspace, const Vector3& start, const Vector3& goal);
 
+    // キャッシュヒット時はReadyと経路を即時返す。キャッシュミス時は同じWorkspaceの
+    // 構築へ集約し、Pendingと要求IDを返す。
+    PathRequestResult RequestFindPath(
+        Workspace* workspace, const Vector3& start, const Vector3& goal);
+
+    // Ready/Failed/Cancelledになった要求は、この呼び出しで結果を返して破棄する。
+    RequestStatus PollRequest(
+        RequestId requestId, std::vector<Pathfinding::PathWaypoint>& outWaypoints);
+
+    // 呼び出し側がyieldできない場合など、結果を待たない要求だけを破棄する。
+    // 同じWorkspaceで共有中のナビメッシュ構築は継続する。
+    void AbandonRequest(RequestId requestId);
+
+    // 全非同期構築を協調キャンセルし、ワーカー終了を待つ。
+    void CancelPending();
+
+    // エディター/ランタイム共通の待機UIから参照するグローバル状態。
+    static bool IsBuildActive();
+    static float GetBuildProgress();
+
     // 指定Workspaceのナビメッシュキャッシュを破棄する（次回FindPathで再構築される）。
     void Invalidate(Workspace* workspace);
 
@@ -48,10 +86,23 @@ public:
     static void InvalidateActive(Workspace* workspace);
 
 private:
+    struct BuildJob;
+    struct RequestRecord;
+
+    Pathfinding::BuildSettings currentSettings() const;
+    void startBuild(
+        Workspace* workspace, const std::string& workspaceKey, uint64_t generation);
+    void finishCompletedBuilds();
+    void cancelBuild(const std::string& workspaceKey);
+
     // Workspace* ではなく Workspace 名でキーイングする。Workspace は Play/Stop の
     // たびに破棄・再生成されるため、ポインタキーだと毎回キャッシュミスする上、
     // アドレス再利用時に別Workspaceへ誤ヒットする恐れがある。
     std::unordered_map<std::string, std::unique_ptr<Pathfinding::NavMesh>> m_cache;
+    std::unordered_map<std::string, std::unique_ptr<BuildJob>> m_builds;
+    std::unordered_map<RequestId, std::unique_ptr<RequestRecord>> m_requests;
+    std::unordered_map<std::string, uint64_t> m_generations;
+    RequestId m_nextRequestId = 1;
 
     static PathfindingService* s_active;
 };

@@ -69,7 +69,11 @@ void RCBNScriptSignal::fire(lua_State* L, std::function<int(lua_State*)> pushArg
         int status = lua_resume(callbackCo, L, nargs);
         const std::string context = "Signal | " + l.sourceLabel;
         if (status == LUA_YIELD) {
-            if (engine) {
+            // PathfindingService::FindPathだけはLuauEngineがコルーチンを保持し、
+            // ナビメッシュ完成時に再開する。それ以外のSignal yieldは従来どおり未対応。
+            if (engine && engine->isPathfindingCoroutine(callbackCo)) {
+                // callbackRefはここで解放してよい。非同期要求側が独立した参照を保持する。
+            } else if (engine) {
                 engine->reportProtectedMessage(context, "Signal callback yielded; yielding listeners are not supported");
             } else {
                 const std::string output = "[" + context + "] Signal callback yielded; yielding listeners are not supported";

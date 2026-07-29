@@ -371,7 +371,9 @@ static void attachToolHandle(
 
 // キャラクターの移動・カメラ追従（移動・回転・歩行アニメ・接地判定そのものはHumanoidが行う）
 void User::processCharacterMovement(Physics* physics) {
-    if (!humanoid || !humanoid->Root) return;
+    if (!humanoid) return;
+    auto root = humanoid->getRootPart();
+    if (!root) return;
 
     // --- 入力方向の収集 ---
     Vector3 targetMoveDir(0, 0, 0);
@@ -414,10 +416,12 @@ void User::processCharacterMovement(Physics* physics) {
     // --- 装備中のツールを手の位置に追従させる ---
     if (toolEquipped) {
         if (currentTool->Hand == Tool::ToolHand::Left) {
-            attachToolHandle(humanoid->LeftArm, currentTool, humanoid->Root->Rotation, physics);
+            auto leftArm = humanoid->getLeftArmPart();
+            attachToolHandle(leftArm, currentTool, root->Rotation, physics);
         }
         if (currentTool->Hand != Tool::ToolHand::Left) {
-            attachToolHandle(humanoid->RightArm, currentTool, humanoid->Root->Rotation, physics);
+            auto rightArm = humanoid->getRightArmPart();
+            attachToolHandle(rightArm, currentTool, root->Rotation, physics);
         }
     }
 

@@ -44,18 +44,6 @@ public:
     std::shared_ptr<RCBNScriptSignal> Died; // Health<=0 で1度だけ発火
     std::shared_ptr<RCBNScriptSignal> KeyframeReached; // (partName: string, time: number) で発火
 
-    // 兄弟パーツへの参照（resolveParts()で解決する）
-    // TODO: Weld/Motor/Rope/Rodは兄弟BaseCubeをweak_ptrで参照する規約だが、Humanoidだけ
-    // shared_ptr(強参照)。Play中も残り続けるテンプレートキャラクター等で通常の破棄経路を
-    // 通らない場合、actorの解放漏れと組み合わさると危険。将来的にweak_ptr化を検討。
-    std::shared_ptr<BaseCube>   Root;
-    std::shared_ptr<BaseCube>   Torso;
-    std::shared_ptr<BaseCube>   Head;
-    std::shared_ptr<BaseCube>   LeftArm;
-    std::shared_ptr<BaseCube>   RightArm;
-    std::shared_ptr<BaseCube>   LeftLeg;
-    std::shared_ptr<BaseCube>   RightLeg;
-
     Humanoid();
 
     std::string getClassName() override { return "Humanoid"; }
@@ -65,6 +53,18 @@ public:
 
     // characterModel(クローン後のModel)の子から名前("Root","Torso",...)でパーツを解決する
     void resolveParts(Instance* characterModel);
+
+    // 兄弟パーツは親Modelが所有する。各getterは処理中の寿命を保証する一時的な強参照を返す
+    std::shared_ptr<BaseCube> getRootPart() const;
+    std::shared_ptr<BaseCube> getTorsoPart() const;
+    std::shared_ptr<BaseCube> getHeadPart() const;
+    std::shared_ptr<BaseCube> getLeftArmPart() const;
+    std::shared_ptr<BaseCube> getRightArmPart() const;
+    std::shared_ptr<BaseCube> getLeftLegPart() const;
+    std::shared_ptr<BaseCube> getRightLegPart() const;
+
+    // ネットワーク予測用。通常の兄弟パーツ解決ではresolveParts()を使う
+    void setRootPart(const std::shared_ptr<BaseCube>& root);
 
     // WASD相当の入力を受けて移動・回転・歩行アニメ・接地判定・身体パーツの再配置を行う
     // flatForward/flatRight: カメラ由来の水平方向ベクトル, targetMoveDir: 押下キーから求めた移動方向(未押下なら長さ0)
@@ -146,6 +146,15 @@ private:
     bool m_dead = false;
     bool m_ragdollEntered = false;
     float m_deathElapsed = 0.0f;
+
+    // 兄弟パーツは親Modelのchildrenが所有し、Humanoidは非所有参照だけを保持する
+    std::weak_ptr<BaseCube> m_root;
+    std::weak_ptr<BaseCube> m_torso;
+    std::weak_ptr<BaseCube> m_head;
+    std::weak_ptr<BaseCube> m_leftArm;
+    std::weak_ptr<BaseCube> m_rightArm;
+    std::weak_ptr<BaseCube> m_leftLeg;
+    std::weak_ptr<BaseCube> m_rightLeg;
 
     // --- Seat(着席) ---
     bool m_seated = false;

@@ -14,6 +14,7 @@
 #include <Instances/Weather.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/ChatService.hpp>
+#include <Instances/PathfindingService.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
@@ -334,6 +335,9 @@ int main(int argc, char* argv[]) {
 
         // ---- ネットワークポーリング（物理更新より前＝受信内容を反映してからシミュレートする） ----
         NetworkManager::get().update(deltaTime);
+        // ナビメッシュ生成中も完了通知と接続維持は進めるが、世界シミュレーションは止める。
+        luauEngine->pollPathfindingRequests();
+        bool navMeshBusy = PathfindingService::IsBuildActive();
         const PeerId authoritativeId = NetworkManager::get().isActive()
             ? NetworkManager::get().getLocalPeerId() : 0;
         if (authoritativeId != 0 && user->peerId != authoritativeId) {
@@ -358,34 +362,50 @@ int main(int argc, char* argv[]) {
         }
 
         // レプリケーション(受信姿勢の適用と自姿勢の送信)。物理更新より前に行う
-        replication.update(deltaTime, workspace->getPhysicsEngine());
+        if (!navMeshBusy)
+            replication.update(deltaTime, workspace->getPhysicsEngine());
         if (replication.hasFatalIdentityError()) break;
 
-        FrameProfiler::get().beginSection("physics");
-        if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->update(*workspace, deltaTime);
-        FrameProfiler::get().endSection("physics");
-        FrameProfiler::get().beginSection("luau");
-        luauEngine->resetFrameSafetyCounters();
-        luauEngine->fireHeartbeat(deltaTime);
-        luauEngine->update(deltaTime);
-        luauEngine->executeWorkspaceScripts(*workspace);
-        luauEngine->executeSystemScripts();
-        FrameProfiler::get().endSection("luau");
+        if (!navMeshBusy) {
+            FrameProfiler::get().beginSection("physics");
+            if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->update(*workspace, deltaTime);
+            FrameProfiler::get().endSection("physics");
+            FrameProfiler::get().beginSection("luau");
+            luauEngine->resetFrameSafetyCounters();
+            luauEngine->fireHeartbeat(deltaTime);
+            navMeshBusy = PathfindingService::IsBuildActive();
+            if (!navMeshBusy) {
+                luauEngine->update(deltaTime);
+                navMeshBusy = PathfindingService::IsBuildActive();
+            }
+            if (!navMeshBusy) {
+                luauEngine->executeWorkspaceScripts(*workspace);
+                navMeshBusy = PathfindingService::IsBuildActive();
+            }
+            if (!navMeshBusy) {
+                luauEngine->executeSystemScripts();
+                navMeshBusy = PathfindingService::IsBuildActive();
+            }
+            FrameProfiler::get().endSection("luau");
+        }
         if (luauEngine->consumeSafetyHaltRequest()) break; // 既存のconsumeExitRequestと同じglfwTerminate()クリーンアップ経路に合流
+        navMeshBusy = PathfindingService::IsBuildActive();
 
         // エディタが存在しないため、常にゲームプレイ入力として扱う
         const bool debugInput = runtimeEditorPtr && runtimeEditorPtr->isDebugCapturingKeyboard();
         const bool chatInput = renderer->isChatCapturingKeyboard() || ImGui::GetIO().WantTextInput;
         const bool uiInput = chatInput || debugInput;
         SystemState::get().viewportFocused = !uiInput;
-        user->processInput(workspace->getPhysicsEngine(), deltaTime,
-                            /*viewportFocused=*/!uiInput, /*viewportZoomEnabled=*/!uiInput,
-                            /*isGameplayInput=*/!uiInput,
-                            uiInput);
+        if (!navMeshBusy) {
+            user->processInput(workspace->getPhysicsEngine(), deltaTime,
+                               /*viewportFocused=*/!uiInput, /*viewportZoomEnabled=*/!uiInput,
+                               /*isGameplayInput=*/!uiInput,
+                               uiInput);
+        }
         if (user->consumeExitRequest()) break;
 
         // ---- Pキー: Workspace切り替え ----
-        if (user->consumeWorkspaceSwitchRequest()) {
+        if (!navMeshBusy && user->consumeWorkspaceSwitchRequest()) {
             workspaces = SceneRuntime::collectWorkspaces(system);
             std::vector<Workspace*> ptrs;
             for (auto& ws : workspaces) ptrs.push_back(ws.get());
@@ -415,14 +435,18 @@ int main(int argc, char* argv[]) {
 
         // 再生中のAnimationを評価し、対象Cubeのcframeを上書きする(main.cppの対応処理と同じ)
         // workspace内の全Humanoid(NPC含む)が対象
-        Humanoid::updateAll(workspace.get(), deltaTime, workspace->getPhysicsEngine());
+        if (!navMeshBusy)
+            Humanoid::updateAll(workspace.get(), deltaTime, workspace->getPhysicsEngine());
 
         // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、
         // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす
-        if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->syncWeldKinematics();
+        if (!navMeshBusy && workspace->getPhysicsEngine())
+            workspace->getPhysicsEngine()->syncWeldKinematics();
 
-        Weather::updateAll(workspace.get(), deltaTime, user->cpos);
-        ParticleEmitter::updateAll(workspace.get(), deltaTime);
+        if (!navMeshBusy) {
+            Weather::updateAll(workspace.get(), deltaTime, user->cpos);
+            ParticleEmitter::updateAll(workspace.get(), deltaTime);
+        }
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderer->render(*user, window, *workspace);
@@ -437,6 +461,7 @@ int main(int argc, char* argv[]) {
     NetworkManager::get().onGameMessage = nullptr;
     NetworkManager::get().onChatMessage = nullptr;
     if (chatService) chatService->onSendRequested = nullptr;
+    luauEngine->cancelAllTasks();
     for (auto& ws : workspaces) {
         if (ws && ws->getPhysicsEngine()) {
             ws->getPhysicsEngine()->clearCubes();

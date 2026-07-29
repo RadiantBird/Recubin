@@ -21,6 +21,7 @@
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Weather.hpp>
 #include <Instances/Humanoid.hpp>
+#include <Instances/PathfindingService.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
@@ -631,7 +632,8 @@ int main(int argc, char* argv[]) {
         const bool windowInactive =
             glfwGetWindowAttrib(window, GLFW_FOCUSED) == GLFW_FALSE ||
             glfwGetWindowAttrib(window, GLFW_ICONIFIED) == GLFW_TRUE;
-        if (!wasPlaying && (energySavingMode || windowInactive)) {
+        if (!wasPlaying && !PathfindingService::IsBuildActive() &&
+            (energySavingMode || windowInactive)) {
             // This wakes on any GLFW event (input, resize, close, etc.) and
             // otherwise gives us one low-FPS refresh to keep the UI alive.
             glfwWaitEventsTimeout(editorIdleFrameSeconds);
@@ -645,6 +647,10 @@ int main(int argc, char* argv[]) {
         float currentFrame = static_cast<float>(glfwGetTime());
         float deltaTime    = currentFrame - lastFrame;
         lastFrame          = currentFrame;
+
+        // ワールド更新が停止中でも、非同期FindPathの完了だけは毎フレーム処理する。
+        luauEngine->pollPathfindingRequests();
+        bool navMeshBusy = PathfindingService::IsBuildActive();
 
         SystemState& state = SystemState::get();
         state.isPlaying  = ed && !ed->isEditMode();
@@ -707,6 +713,7 @@ int main(int argc, char* argv[]) {
             // 全Workspaceのクリア（ownedPhysics デストラクタで自動解放）
             // Terrainは次回のload時に再構築される
             workspaces = SceneRuntime::collectWorkspaces(system);
+            luauEngine->cancelAllTasks();
             resetTerrainStreamers(workspaces); // 物理が生きているうちにTerrainを解放
             clearWorkspacePhysics(workspaces);
             resetSystemForReload(system, user);
@@ -730,6 +737,7 @@ int main(int argc, char* argv[]) {
 
             // Terrainは次回のload時に再構築される
             workspaces = SceneRuntime::collectWorkspaces(system);
+            luauEngine->cancelAllTasks();
             resetTerrainStreamers(workspaces); // 物理が生きているうちにTerrainを解放
             clearWorkspacePhysics(workspaces);
             resetSystemForReload(system, user);
@@ -754,7 +762,7 @@ int main(int argc, char* argv[]) {
         }
 
         // ---- エディターモード中は物理・スクリプトを止める ----
-        if (isPlaying && !isPaused) {
+        if (isPlaying && !isPaused && !navMeshBusy) {
             FrameProfiler::get().beginSection("luau");
             luauEngine->resetFrameSafetyCounters();
             for (auto& [name, child] : system->getChildren()) {
@@ -762,15 +770,25 @@ int main(int argc, char* argv[]) {
                 auto* ws = static_cast<Workspace*>(child.get());
                 if (!ws->getPhysicsEngine()) ws->initPhysics();
                 luauEngine->executeWorkspaceScripts(*ws);
+                if (PathfindingService::IsBuildActive()) {
+                    navMeshBusy = true;
+                    break;
+                }
                 FrameProfiler::get().endSection("luau");
                 FrameProfiler::get().beginSection("physics");
                 ws->getPhysicsEngine()->update(*ws, deltaTime);
                 FrameProfiler::get().endSection("physics");
                 FrameProfiler::get().beginSection("luau");
             }
-            luauEngine->executeSystemScripts();
-            luauEngine->fireHeartbeat(deltaTime);
-            luauEngine->update(deltaTime);
+            if (!navMeshBusy) {
+                luauEngine->executeSystemScripts();
+                if (!PathfindingService::IsBuildActive()) {
+                    luauEngine->fireHeartbeat(deltaTime);
+                    luauEngine->update(deltaTime);
+                } else {
+                    navMeshBusy = true;
+                }
+            }
             FrameProfiler::get().endSection("luau");
 
             if (luauEngine->consumeSafetyHaltRequest()) {
@@ -780,16 +798,20 @@ int main(int argc, char* argv[]) {
                 RCBN_LOG("[INFO] Stopped due to safety limit breach. Switched to Free Camera mode.");
             }
         }
+        // このフレームのScriptがFindPathを開始した場合、以降のゲーム更新を即座に止める。
+        navMeshBusy = PathfindingService::IsBuildActive();
 
         // ---- 入力処理（エディターモードではカメラ操作のみ許可）----
         ViewportPanel* focusedVP = ed ? GetFocusedViewport() : nullptr;
         bool primaryFocused = focusedVP != nullptr && ed && focusedVP == ed->viewportPanel.get();
         state.viewportFocused    = primaryFocused;
         state.viewportZoomEnabled = primaryFocused || (ed && ed->viewportPanel && ed->viewportPanel->isHoveringViewport);
-        user->processInput(workspace->getPhysicsEngine(), deltaTime,
-                            state.viewportFocused, state.viewportZoomEnabled,
-                            state.inputState == InputState::Gameplay,
-                            ImGui::GetIO().WantTextInput);
+        if (!navMeshBusy) {
+            user->processInput(workspace->getPhysicsEngine(), deltaTime,
+                               state.viewportFocused, state.viewportZoomEnabled,
+                               state.inputState == InputState::Gameplay,
+                               ImGui::GetIO().WantTextInput);
+        }
         if (user->consumeExitRequest()) {
             if (checkExit(ed, *window)) {
                 break;
@@ -799,18 +821,18 @@ int main(int argc, char* argv[]) {
         // 再生中のAnimationを評価し、対象Cubeのcframeを上書きする
         // (processInput内のapplyBodyAnimationより後に行うことでアニメーションを優先させる)
         // workspace内の全Humanoid(NPC含む)が対象(旧: user->humanoidのみに限定されていた)
-        if (isPlaying && !isPaused) {
+        if (isPlaying && !isPaused && !navMeshBusy) {
             Humanoid::updateAll(workspace.get(), deltaTime, workspace->getPhysicsEngine());
         }
 
         // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、
         // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす
-        if (isPlaying && !isPaused && workspace->getPhysicsEngine()) {
+        if (isPlaying && !isPaused && !navMeshBusy && workspace->getPhysicsEngine()) {
             workspace->getPhysicsEngine()->syncWeldKinematics();
         }
 
         // ---- Pキー: Workspace 切り替え ----
-        if (user->consumeWorkspaceSwitchRequest() && isPlaying) {
+        if (!navMeshBusy && user->consumeWorkspaceSwitchRequest() && isPlaying) {
             // System直下のWorkspaceリストを収集
             std::vector<Workspace*> workspacePtrs;
             workspaces = SceneRuntime::collectWorkspaces(system);
@@ -839,10 +861,11 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        beta({
+        if (!navMeshBusy) beta({
             Vector3 centerPos = user->cpos;
-            if (user->humanoid && user->humanoid->Root) {
-                centerPos = user->humanoid->Root->getWorldCFrame().Position;
+            if (user->humanoid) {
+                if (auto root = user->humanoid->getRootPart())
+                    centerPos = root->getWorldCFrame().Position;
             }
             for (auto& [name, child] : workspace->getChildren()) {
                 if (child->IsA("Terrain")) {
@@ -853,10 +876,12 @@ int main(int argc, char* argv[]) {
         });
 
         // ---- 天気更新（Edit/Play問わず常時。ParticleEmitter更新より前に風/発生源位置を反映） ----
-        Weather::updateAll(workspace.get(), deltaTime, user->cpos);
+        if (!navMeshBusy)
+            Weather::updateAll(workspace.get(), deltaTime, user->cpos);
 
         // ---- パーティクル更新（Edit/Play問わず常時。Terrainと同じくアクティブworkspaceのみ） ----
-        ParticleEmitter::updateAll(workspace.get(), deltaTime);
+        if (!navMeshBusy)
+            ParticleEmitter::updateAll(workspace.get(), deltaTime);
 
         // ---- 描画 ----
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -908,7 +933,7 @@ int main(int argc, char* argv[]) {
         }
 
         const double interactionTime = glfwGetTime();
-        if (editorInteraction || isPlaying) lastEditorInteraction = interactionTime;
+        if (editorInteraction || isPlaying || navMeshBusy) lastEditorInteraction = interactionTime;
 
         const bool shouldSaveEnergy = !isPlaying &&
             (windowInactive || interactionTime - lastEditorInteraction >= editorIdleTimeoutSeconds);
@@ -951,6 +976,7 @@ int main(int argc, char* argv[]) {
         ed->m_history.clear();
         ed->clearClipboard();
     }
+    luauEngine->cancelAllTasks();
     // Terrainは各Workspaceの子インスタンスとして受け渡されるため、systemデストラクタで自動解放される
     // 全WorkspaceのPhysicsをクリア（m_ownedPhysics デストラクタで PxScene 解放）
     workspaces = SceneRuntime::collectWorkspaces(system);

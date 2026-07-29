@@ -622,7 +622,10 @@ LuauEngine::LuauEngine() {
 }
 
 LuauEngine::~LuauEngine() {
-    if (L) lua_close(L);
+    if (L) {
+        cancelAllTasks();
+        lua_close(L);
+    }
 }
 
 void LuauEngine::setBindings(const std::shared_ptr<Instance>& instance) {
@@ -1103,36 +1106,207 @@ int LuauEngine::canvas_world_to_uv_closure(lua_State* L) {
 int LuauEngine::pathfinding_find_path_closure(lua_State* L) {
     auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
     auto self = ud->lock();
-    lua_newtable(L);
-    if (!self) return 1;
+    auto* engine = static_cast<LuauEngine*>(lua_callbacks(L)->userdata);
+    if (!self || !engine) {
+        lua_newtable(L);
+        return 1;
+    }
 
     // L[1]=self, L[2]=workspace, L[3]=start, L[4]=goal
     auto* wsUd = (std::weak_ptr<Instance>*)luaL_checkudata(L, 2, RCBN_INST_METATABLE);
     auto wsInst = wsUd->lock();
     Workspace* workspace = wsInst ? dynamic_cast<Workspace*>(wsInst.get()) : nullptr;
-    if (!workspace) return 1;
+    if (!workspace) {
+        lua_newtable(L);
+        return 1;
+    }
 
     Vector3* start = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
     Vector3* goal  = (Vector3*)luaL_checkudata(L, 4, RCBN_VEC3_METATABLE);
 
-    auto waypoints = static_cast<PathfindingService*>(self.get())->FindPath(workspace, *start, *goal);
+    auto service = std::dynamic_pointer_cast<PathfindingService>(self);
+    auto request = service->RequestFindPath(workspace, *start, *goal);
+    if (request.status == PathfindingService::RequestStatus::Ready) {
+        engine->pushPathResult(L, request.waypoints);
+        return 1;
+    }
+    if (request.status != PathfindingService::RequestStatus::Pending) {
+        lua_newtable(L);
+        return 1;
+    }
 
+    // require() のモジュール本体など、Luau VMがyieldを許可しない文脈では
+    // バックグラウンド生成だけを継続し、同期ビルドへフォールバックしない。
+    if (!lua_isyieldable(L)) {
+        service->AbandonRequest(request.id);
+        RCBN_WARN("PathfindingService: FindPath cannot wait in a non-yieldable context; returning an empty path");
+        lua_newtable(L);
+        return 1;
+    }
+
+    auto pending = std::make_unique<PendingPathCoroutine>();
+    pending->service = service;
+    pending->requestId = request.id;
+    pending->co = L;
+    lua_pushthread(L);
+    pending->coRef = lua_ref(L, -1);
+    lua_pop(L, 1);
+
+    if (currentTask && currentTask->co == L) {
+        pending->owner = PathCoroutineOwner::EngineTask;
+        pending->task = currentTask;
+        pending->context = "Task | " + currentTask->sourceLabel;
+        currentTask->waitingForPath = true;
+    } else if (currentScript && currentScript->Coroutine == L) {
+        pending->owner = PathCoroutineOwner::Script;
+        pending->script = std::static_pointer_cast<Script>(currentScript->shared_from_this());
+        pending->context = "Script | " + scriptExecutionLabel(currentScript);
+        currentScript->WaitingForPath = true;
+    } else if (engine->m_signalCallbackDepth > 0) {
+        pending->owner = PathCoroutineOwner::Signal;
+        pending->context = "Signal | PathfindingService::FindPath";
+    } else {
+        lua_unref(L, pending->coRef);
+        service->AbandonRequest(request.id);
+        RCBN_WARN("PathfindingService: FindPath has no supported coroutine owner; returning an empty path");
+        lua_newtable(L);
+        return 1;
+    }
+
+    engine->m_pendingPaths.push_back(std::move(pending));
+    return lua_yield(L, 0);
+}
+
+void LuauEngine::pushPathResult(
+    lua_State* state,
+    const std::vector<Pathfinding::PathWaypoint>& waypoints)
+{
+    lua_newtable(state);
     int idx = 1;
     for (const auto& wp : waypoints) {
-        lua_newtable(L);
+        lua_newtable(state);
 
-        Vector3* p = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
+        Vector3* p = (Vector3*)lua_newuserdata(state, sizeof(Vector3));
         *p = wp.Position;
-        luaL_getmetatable(L, RCBN_VEC3_METATABLE);
-        lua_setmetatable(L, -2);
-        lua_setfield(L, -2, "Position");
+        luaL_getmetatable(state, RCBN_VEC3_METATABLE);
+        lua_setmetatable(state, -2);
+        lua_setfield(state, -2, "Position");
 
-        lua_pushstring(L, wp.Action == Pathfinding::WaypointAction::Jump ? "Jump" : "Walk");
-        lua_setfield(L, -2, "Action");
-
-        lua_rawseti(L, -2, idx++);
+        lua_pushstring(state, wp.Action == Pathfinding::WaypointAction::Jump ? "Jump" : "Walk");
+        lua_setfield(state, -2, "Action");
+        lua_rawseti(state, -2, idx++);
     }
-    return 1;
+}
+
+bool LuauEngine::isPathfindingCoroutine(lua_State* co) const {
+    return std::any_of(m_pendingPaths.begin(), m_pendingPaths.end(),
+        [co](const std::unique_ptr<PendingPathCoroutine>& pending) {
+            return pending && pending->co == co;
+        });
+}
+
+void LuauEngine::resumePathScript(
+    PendingPathCoroutine& pending,
+    const std::vector<Pathfinding::PathWaypoint>& waypoints)
+{
+    auto script = pending.script.lock();
+    if (!script || script->Coroutine != pending.co) return;
+
+    script->WaitingForPath = false;
+    setWorkspaceGlobal(pending.co, resolveScriptWorkspace(*script));
+    currentScript = script.get();
+    pushPathResult(pending.co, waypoints);
+
+    FPUState fpuState = saveFPU();
+    m_scriptResumeStart = std::chrono::steady_clock::now();
+    beginProtectedExecution();
+    int result = lua_resume(pending.co, L, 1);
+    restoreFPU(fpuState);
+
+    if (result == LUA_YIELD) {
+        currentScript = nullptr;
+        return;
+    }
+    if (script->Coroutine != pending.co) {
+        currentScript = nullptr;
+        execute(*script);
+        return;
+    }
+    if (result == 0) {
+        script->Sleeping = false;
+        script->Completed = true;
+    } else {
+        script->Aborted = true;
+        lua_State* errState = lua_gettop(pending.co) > 0 ? pending.co : L;
+        reportProtectedError(errState, pending.context);
+    }
+    if (script->CoroutineRef != -1) lua_unref(L, script->CoroutineRef);
+    script->CoroutineRef = -1;
+    script->Coroutine = nullptr;
+    currentScript = nullptr;
+}
+
+void LuauEngine::resumePathSignal(
+    PendingPathCoroutine& pending,
+    const std::vector<Pathfinding::PathWaypoint>& waypoints)
+{
+    if (!pending.co) return;
+    pushPathResult(pending.co, waypoints);
+    const auto previousStart = beginSignalCallback();
+    beginProtectedExecution();
+    int result = lua_resume(pending.co, L, 1);
+    endSignalCallback(previousStart);
+    if (result == LUA_YIELD) {
+        // FindPathから連続して別のFindPathを呼んだ場合だけ待機を継続する。
+        const bool queuedAnotherPath = std::any_of(
+            m_pendingPaths.begin(), m_pendingPaths.end(),
+            [&pending](const std::unique_ptr<PendingPathCoroutine>& candidate) {
+                return candidate && candidate.get() != &pending &&
+                       candidate->co == pending.co;
+            });
+        if (!queuedAnotherPath)
+            reportProtectedMessage(pending.context,
+                                   "Signal callback yielded; yielding listeners are not supported");
+    } else if (result != 0) {
+        reportProtectedError(pending.co, pending.context);
+    }
+}
+
+void LuauEngine::pollPathfindingRequests() {
+    // resume中に別のFindPathが登録されても、追加分は次フレームから処理する。
+    const size_t count = m_pendingPaths.size();
+    for (size_t i = 0; i < count; ++i) {
+        PendingPathCoroutine* queued = m_pendingPaths[i].get();
+        if (!queued || !queued->co) continue;
+        auto service = queued->service.lock();
+        std::vector<Pathfinding::PathWaypoint> waypoints;
+        PathfindingService::RequestStatus status = PathfindingService::RequestStatus::Cancelled;
+        if (service)
+            status = service->PollRequest(queued->requestId, waypoints);
+        if (status == PathfindingService::RequestStatus::Pending) continue;
+
+        // resumeは新しいFindPath要求をvectorへ追加しうるため、先に所有権を外へ移す。
+        auto pendingPtr = std::move(m_pendingPaths[i]);
+        PendingPathCoroutine& pending = *pendingPtr;
+        if (status != PathfindingService::RequestStatus::Ready)
+            RCBN_WARN("PathfindingService: asynchronous FindPath failed or was cancelled");
+
+        if (pending.owner == PathCoroutineOwner::Script) {
+            resumePathScript(pending, waypoints);
+        } else if (pending.owner == PathCoroutineOwner::EngineTask) {
+            if (pending.task && !pending.task->finished && pending.task->co == pending.co) {
+                pending.task->waitingForPath = false;
+                pushPathResult(pending.co, waypoints);
+                resumeEngineTask(*pending.task, 1);
+            }
+        } else {
+            resumePathSignal(pending, waypoints);
+        }
+        if (pending.coRef != -1) lua_unref(L, pending.coRef);
+    }
+    m_pendingPaths.erase(
+        std::remove(m_pendingPaths.begin(), m_pendingPaths.end(), nullptr),
+        m_pendingPaths.end());
 }
 
 int LuauEngine::pathfinding_configure_closure(lua_State* L) {
@@ -1329,7 +1503,7 @@ void LuauEngine::resumeEngineTask(EngineTask& task, int nargs) {
     if (result == LUA_YIELD) {
         // wait()由来ならupdateEngineTasksが再開する。それ以外のyield(素の
         // coroutine.yield等)は再開手段が無いため完了扱いで破棄する
-        if (!task.sleeping) task.finished = true;
+        if (!task.sleeping && !task.waitingForPath) task.finished = true;
         return;
     }
 
@@ -1371,6 +1545,26 @@ void LuauEngine::updateEngineTasks(float deltaTime) {
 }
 
 void LuauEngine::cancelAllTasks() {
+    for (auto& pending : m_pendingPaths) {
+        if (!pending) continue;
+        if (auto service = pending->service.lock())
+            service->AbandonRequest(pending->requestId);
+        if (pending->owner == PathCoroutineOwner::Script) {
+            if (auto script = pending->script.lock()) {
+                script->WaitingForPath = false;
+                if (script->Coroutine == pending->co) {
+                    if (script->CoroutineRef != -1)
+                        lua_unref(L, script->CoroutineRef);
+                    script->CoroutineRef = -1;
+                    script->Coroutine = nullptr;
+                }
+            }
+        } else if (pending->owner == PathCoroutineOwner::EngineTask && pending->task) {
+            pending->task->waitingForPath = false;
+        }
+        if (pending->coRef != -1) lua_unref(L, pending->coRef);
+    }
+    m_pendingPaths.clear();
     for (auto& t : m_tasks) {
         if (t->coRef != -1) lua_unref(L, t->coRef);
     }
@@ -1525,7 +1719,7 @@ void LuauEngine::executeWorkspaceScripts(Workspace& ws) {
         auto script = std::dynamic_pointer_cast<Script>(inst);
         if (skipNonLocalScripts && script && !script->IsA("LocalScript")) continue;
         if (script && script->Enabled && !script->Sleeping && !script->WaitingForChild
-            && !script->Completed && !script->Aborted) {
+            && !script->WaitingForPath && !script->Completed && !script->Aborted) {
             execute(*script);
         }
     }
@@ -1544,7 +1738,7 @@ void LuauEngine::executeSystemScripts() {
         auto script = std::dynamic_pointer_cast<Script>(inst);
         if (skipNonLocalScripts && script && !script->IsA("LocalScript")) continue;
         if (script && script->Enabled && !script->Sleeping && !script->WaitingForChild
-            && !script->Completed && !script->Aborted) {
+            && !script->WaitingForPath && !script->Completed && !script->Aborted) {
             execute(*script);
         }
     }
@@ -2439,6 +2633,8 @@ void LuauEngine::tickWaitingScript(const std::shared_ptr<Instance>& inst, float 
 }
 
 void LuauEngine::update(float deltaTime) {
+    pollPathfindingRequests();
+    if (PathfindingService::IsBuildActive()) return;
     sweepOwnedInstances(); // 毎フレーム、ツリーが所有済み/破棄済みの強参照を手放す
     if (m_haltRequested) return; // 安全対策による強制停止済み
 

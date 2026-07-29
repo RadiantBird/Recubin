@@ -14,13 +14,27 @@
 #include <cmath>
 #include <cstring>
 #include <cstdint>
+#include <atomic>
 #include <algorithm>
 #include <fstream>
 #include <filesystem>
 #include <limits>
+#include <thread>
 #include <utility>
 
 namespace Pathfinding {
+
+bool GeometrySnapshot::empty() const {
+    return vertices.empty() || triangles.empty();
+}
+
+void BuildControl::cancel() {
+    cancelRequested.store(true, std::memory_order_release);
+}
+
+bool BuildControl::isCancellationRequested() const {
+    return cancelRequested.load(std::memory_order_acquire);
+}
 
 namespace {
 
@@ -671,6 +685,26 @@ TileBuildResult buildTile(const std::vector<float>& verts, const std::vector<int
     return TileBuildResult::Success;
 }
 
+void updateBuildControl(
+        BuildControl* control, BuildStage stage, float progress,
+        uint32_t completedTiles = 0, uint32_t totalTiles = 0) {
+    if (!control) return;
+    control->stage.store(stage, std::memory_order_release);
+    control->completedTiles.store(completedTiles, std::memory_order_relaxed);
+    control->totalTiles.store(totalTiles, std::memory_order_relaxed);
+    control->progress.store(std::clamp(progress, 0.0f, 1.0f), std::memory_order_release);
+}
+
+struct TileInput {
+    std::vector<int> triangles;
+    std::vector<unsigned char> areas;
+};
+
+struct TileOutput {
+    TileBuildResult result = TileBuildResult::Empty;
+    OwnedTileData tile;
+};
+
 } // namespace
 
 NavMesh::~NavMesh() {
@@ -678,20 +712,43 @@ NavMesh::~NavMesh() {
     if (m_navMesh)  dtFreeNavMesh(m_navMesh);
 }
 
+GeometrySnapshot NavMesh::CaptureGeometry(Workspace* workspace) {
+    GeometrySnapshot snapshot;
+    if (workspace) {
+        collectGeometry(workspace, snapshot.vertices, snapshot.triangles);
+    }
+    return snapshot;
+}
+
 std::unique_ptr<NavMesh> NavMesh::Build(Workspace* workspace, const BuildSettings& settings,
                                          const std::string& cachePath) {
-    if (!workspace) return nullptr;
+    return BuildSnapshot(CaptureGeometry(workspace), settings, cachePath);
+}
 
-    std::vector<float> verts;
-    std::vector<int> tris;
-    collectGeometry(workspace, verts, tris);
-
+std::unique_ptr<NavMesh> NavMesh::BuildSnapshot(
+        GeometrySnapshot snapshot, const BuildSettings& settings,
+        const std::string& cachePath, BuildControl* control) {
+    std::vector<float>& verts = snapshot.vertices;
+    std::vector<int>& tris = snapshot.triangles;
     const int nverts = (int)(verts.size() / 3);
     const int ntris  = (int)(tris.size() / 3);
-    if (nverts == 0 || ntris == 0) return nullptr;
+    if (nverts == 0 || ntris == 0) {
+        updateBuildControl(control, BuildStage::Failed, 1.0f);
+        return nullptr;
+    }
+    if (control && control->isCancellationRequested()) {
+        updateBuildControl(control, BuildStage::Cancelled, 1.0f);
+        return nullptr;
+    }
 
+    updateBuildControl(control, BuildStage::ValidatingCache, 0.02f);
     const uint64_t geomHash = computeGeometryHash(verts, tris, settings);
     dtNavMesh* navMesh = cachePath.empty() ? nullptr : loadNavCache(cachePath, geomHash);
+    if (control && control->isCancellationRequested()) {
+        if (navMesh) dtFreeNavMesh(navMesh);
+        updateBuildControl(control, BuildStage::Cancelled, 1.0f);
+        return nullptr;
+    }
     if (!navMesh) {
         float globalMin[3], globalMax[3];
         rcCalcBounds(verts.data(), nverts, globalMin, globalMax);
@@ -714,6 +771,7 @@ std::unique_ptr<NavMesh> NavMesh::Build(Workspace* workspace, const BuildSetting
             static_cast<int64_t>(tileCountX) * static_cast<int64_t>(tileCountY);
         if (gridTileCount <= 0 ||
             gridTileCount > static_cast<int64_t>(std::numeric_limits<int>::max())) {
+            updateBuildControl(control, BuildStage::Failed, 1.0f);
             return nullptr;
         }
 
@@ -722,35 +780,163 @@ std::unique_ptr<NavMesh> NavMesh::Build(Workspace* workspace, const BuildSetting
         rcMarkWalkableTriangles(&ctx, settings.agentMaxSlope, verts.data(), nverts,
             tris.data(), ntris, triAreas.data());
 
+        // 各三角形を、Recastのborderを含めて重なるタイルだけへ事前分類する。
+        // 各タイルが全三角形を走査していた従来のO(tile * triangle)処理を避ける。
+        std::vector<TileInput> tileInputs(static_cast<size_t>(gridTileCount));
+        const int borderCells =
+            static_cast<int>(std::ceil(settings.agentRadius / CELL_SIZE)) + 3;
+        const float borderWorld = static_cast<float>(borderCells) * CELL_SIZE;
+        for (int triangle = 0; triangle < ntris; ++triangle) {
+            if ((triangle & 1023) == 0 &&
+                control && control->isCancellationRequested()) {
+                updateBuildControl(control, BuildStage::Cancelled, 1.0f);
+                return nullptr;
+            }
+            const int i0 = tris[static_cast<size_t>(triangle) * 3];
+            const int i1 = tris[static_cast<size_t>(triangle) * 3 + 1];
+            const int i2 = tris[static_cast<size_t>(triangle) * 3 + 2];
+            const float minX = std::min({
+                verts[static_cast<size_t>(i0) * 3],
+                verts[static_cast<size_t>(i1) * 3],
+                verts[static_cast<size_t>(i2) * 3]});
+            const float maxX = std::max({
+                verts[static_cast<size_t>(i0) * 3],
+                verts[static_cast<size_t>(i1) * 3],
+                verts[static_cast<size_t>(i2) * 3]});
+            const float minZ = std::min({
+                verts[static_cast<size_t>(i0) * 3 + 2],
+                verts[static_cast<size_t>(i1) * 3 + 2],
+                verts[static_cast<size_t>(i2) * 3 + 2]});
+            const float maxZ = std::max({
+                verts[static_cast<size_t>(i0) * 3 + 2],
+                verts[static_cast<size_t>(i1) * 3 + 2],
+                verts[static_cast<size_t>(i2) * 3 + 2]});
+
+            const int firstX = std::clamp(
+                static_cast<int>(std::floor(
+                    (static_cast<double>(minX) - borderWorld - originX) /
+                    TILE_WORLD_SIZE)),
+                0, tileCountX - 1);
+            const int lastX = std::clamp(
+                static_cast<int>(std::floor(
+                    (static_cast<double>(maxX) + borderWorld - originX) /
+                    TILE_WORLD_SIZE)),
+                0, tileCountX - 1);
+            const int firstY = std::clamp(
+                static_cast<int>(std::floor(
+                    (static_cast<double>(minZ) - borderWorld - originZ) /
+                    TILE_WORLD_SIZE)),
+                0, tileCountY - 1);
+            const int lastY = std::clamp(
+                static_cast<int>(std::floor(
+                    (static_cast<double>(maxZ) + borderWorld - originZ) /
+                    TILE_WORLD_SIZE)),
+                0, tileCountY - 1);
+
+            for (int tileY = firstY; tileY <= lastY; ++tileY) {
+                for (int tileX = firstX; tileX <= lastX; ++tileX) {
+                    TileInput& input = tileInputs[
+                        static_cast<size_t>(tileY) * tileCountX + tileX];
+                    input.triangles.push_back(i0);
+                    input.triangles.push_back(i1);
+                    input.triangles.push_back(i2);
+                    input.areas.push_back(triAreas[static_cast<size_t>(triangle)]);
+                }
+            }
+        }
+
+        const uint32_t totalTiles = static_cast<uint32_t>(gridTileCount);
+        updateBuildControl(control, BuildStage::BuildingTiles, 0.1f, 0, totalTiles);
+        std::vector<TileOutput> tileOutputs(static_cast<size_t>(gridTileCount));
+        std::atomic<uint32_t> nextTile{0};
+        std::atomic<uint32_t> completedTiles{0};
+        std::atomic<bool> buildFailed{false};
+
+        const unsigned int hardwareThreads = std::thread::hardware_concurrency();
+        const unsigned int availableWorkers =
+            hardwareThreads > 1 ? hardwareThreads - 1 : 1;
+        const unsigned int workerCount = std::max(
+            1U, std::min(totalTiles, availableWorkers));
+        std::vector<std::thread> workers;
+        workers.reserve(workerCount);
+        for (unsigned int worker = 0; worker < workerCount; ++worker) {
+            workers.emplace_back([&, totalTiles] {
+                while (!buildFailed.load(std::memory_order_acquire)) {
+                    if (control && control->isCancellationRequested()) break;
+                    const uint32_t tileIndex =
+                        nextTile.fetch_add(1, std::memory_order_relaxed);
+                    if (tileIndex >= totalTiles) break;
+
+                    const int tileX = static_cast<int>(tileIndex % tileCountX);
+                    const int tileY = static_cast<int>(tileIndex / tileCountX);
+                    TileInput& input = tileInputs[tileIndex];
+                    TileOutput& output = tileOutputs[tileIndex];
+                    if (!input.triangles.empty()) {
+                        const float tileMin[3] = {
+                            originX + tileX * TILE_WORLD_SIZE,
+                            globalMin[1],
+                            originZ + tileY * TILE_WORLD_SIZE,
+                        };
+                        const float tileMax[3] = {
+                            tileMin[0] + TILE_WORLD_SIZE,
+                            globalMax[1],
+                            tileMin[2] + TILE_WORLD_SIZE,
+                        };
+                        output.result = buildTile(
+                            verts, input.triangles, input.areas, settings,
+                            tileX, tileY, tileMin, tileMax, output.tile);
+                        if (output.result == TileBuildResult::Failure) {
+                            buildFailed.store(true, std::memory_order_release);
+                        }
+                    }
+
+                    const uint32_t completed =
+                        completedTiles.fetch_add(1, std::memory_order_acq_rel) + 1;
+                    if (control) {
+                        control->completedTiles.store(completed, std::memory_order_relaxed);
+                        control->progress.store(
+                            0.1f + 0.8f *
+                                (static_cast<float>(completed) /
+                                 static_cast<float>(totalTiles)),
+                            std::memory_order_release);
+                    }
+                }
+            });
+        }
+        for (std::thread& worker : workers) worker.join();
+
+        if (control && control->isCancellationRequested()) {
+            updateBuildControl(
+                control, BuildStage::Cancelled, 1.0f,
+                completedTiles.load(std::memory_order_acquire), totalTiles);
+            return nullptr;
+        }
+        if (buildFailed.load(std::memory_order_acquire)) {
+            updateBuildControl(
+                control, BuildStage::Failed, 1.0f,
+                completedTiles.load(std::memory_order_acquire), totalTiles);
+            return nullptr;
+        }
+
+        // ワーカー完了後に座標順（tileY, tileX）で統合し、スレッドの完了順に
+        // 依存しないDetourタイル順とディスクキャッシュを維持する。
+        updateBuildControl(
+            control, BuildStage::Finalizing, 0.92f, totalTiles, totalTiles);
         std::vector<OwnedTileData> tiles;
         tiles.reserve(static_cast<size_t>(std::min<int64_t>(gridTileCount, 4096)));
         int maxPolyCount = 0;
-        for (int tileY = 0; tileY < tileCountY; ++tileY) {
-            for (int tileX = 0; tileX < tileCountX; ++tileX) {
-                const float tileMin[3] = {
-                    originX + tileX * TILE_WORLD_SIZE,
-                    globalMin[1],
-                    originZ + tileY * TILE_WORLD_SIZE,
-                };
-                const float tileMax[3] = {
-                    tileMin[0] + TILE_WORLD_SIZE,
-                    globalMax[1],
-                    tileMin[2] + TILE_WORLD_SIZE,
-                };
-
-                OwnedTileData tile;
-                const TileBuildResult tileResult = buildTile(
-                    verts, tris, triAreas, settings, tileX, tileY, tileMin, tileMax, tile);
-                if (tileResult == TileBuildResult::Failure) return nullptr;
-                if (tileResult == TileBuildResult::Empty) continue;
-
+        for (TileOutput& output : tileOutputs) {
+            if (output.result == TileBuildResult::Success) {
                 const dtMeshHeader* header =
-                    reinterpret_cast<const dtMeshHeader*>(tile.data);
+                    reinterpret_cast<const dtMeshHeader*>(output.tile.data);
                 maxPolyCount = std::max(maxPolyCount, header->polyCount);
-                tiles.push_back(std::move(tile));
+                tiles.push_back(std::move(output.tile));
             }
         }
-        if (tiles.empty()) return nullptr;
+        if (tiles.empty()) {
+            updateBuildControl(control, BuildStage::Failed, 1.0f, totalTiles, totalTiles);
+            return nullptr;
+        }
 
         dtNavMeshParams navParams{};
         navParams.orig[0] = originX;
@@ -760,24 +946,42 @@ std::unique_ptr<NavMesh> NavMesh::Build(Workspace* workspace, const BuildSetting
         navParams.tileHeight = TILE_WORLD_SIZE;
         if (!computeNavCapacity(static_cast<int>(tiles.size()), maxPolyCount,
                 navParams.maxTiles, navParams.maxPolys)) {
+            updateBuildControl(control, BuildStage::Failed, 1.0f, totalTiles, totalTiles);
             return nullptr;
         }
 
+        if (control && control->isCancellationRequested()) {
+            updateBuildControl(control, BuildStage::Cancelled, 1.0f, totalTiles, totalTiles);
+            return nullptr;
+        }
         if (!cachePath.empty()) saveNavCache(cachePath, geomHash, navParams, tiles);
         navMesh = createNavMesh(navParams, tiles);
-        if (!navMesh) return nullptr;
+        if (!navMesh) {
+            updateBuildControl(control, BuildStage::Failed, 1.0f, totalTiles, totalTiles);
+            return nullptr;
+        }
     }
 
+    const uint32_t completedTiles = control
+        ? control->completedTiles.load(std::memory_order_acquire) : 0;
+    const uint32_t totalTiles = control
+        ? control->totalTiles.load(std::memory_order_acquire) : 0;
+    updateBuildControl(
+        control, BuildStage::Finalizing, 0.96f, completedTiles, totalTiles);
     dtNavMeshQuery* navQuery = dtAllocNavMeshQuery();
     if (!navQuery || dtStatusFailed(navQuery->init(navMesh, 2048))) {
         if (navQuery) dtFreeNavMeshQuery(navQuery);
         dtFreeNavMesh(navMesh);
+        updateBuildControl(
+            control, BuildStage::Failed, 1.0f, completedTiles, totalTiles);
         return nullptr;
     }
 
     std::unique_ptr<NavMesh> result(new NavMesh());
     result->m_navMesh  = navMesh;
     result->m_navQuery = navQuery;
+    updateBuildControl(
+        control, BuildStage::Complete, 1.0f, completedTiles, totalTiles);
     return result;
 }
 

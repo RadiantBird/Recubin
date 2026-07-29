@@ -62,6 +62,7 @@ void Script::restart() {
     WaitChildName.clear();
     WaitTimeout = -1.0f;
     WaitElapsed = 0.0f;
+    WaitingForPath = false;
 }
 
 std::shared_ptr<Instance> Script::clone() const {
