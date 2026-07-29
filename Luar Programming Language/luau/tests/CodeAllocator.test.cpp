@@ -16,7 +16,6 @@
 
 #include <string.h>
 
-LUAU_FASTFLAG(LuauCodegenFreeBlocks)
 LUAU_FASTFLAG(LuauCodegenProtectData)
 
 using namespace Luau::CodeGen;
@@ -25,7 +24,6 @@ TEST_SUITE_BEGIN("CodeAllocation");
 
 TEST_CASE("CodeAllocation")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
     ScopedFastFlag luauCodegenProtectData{FFlag::LuauCodegenProtectData, false};
 
     size_t blockSize = 1024 * 1024;
@@ -56,8 +54,6 @@ TEST_CASE("CodeAllocation")
 
 TEST_CASE("CodeAllocationCallbacks")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
-
     struct AllocationData
     {
         size_t bytesAllocated = 0;
@@ -107,8 +103,6 @@ TEST_CASE("CodeAllocationCallbacks")
 
 TEST_CASE("CodeAllocationFailure")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
-
     size_t blockSize = 3000;
     size_t maxTotalSize = 7000;
     CodeAllocator allocator(blockSize, maxTotalSize);
@@ -135,7 +129,6 @@ TEST_CASE("CodeAllocationFailure")
 
 TEST_CASE("CodeAllocationWithUnwindCallbacks")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
     ScopedFastFlag luauCodegenProtectData{FFlag::LuauCodegenProtectData, false};
 
     struct Info
@@ -196,7 +189,6 @@ TEST_CASE("CodeAllocationWithUnwindCallbacks")
 
 TEST_CASE("CodeAllocationProtectData")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
     ScopedFastFlag luauCodegenProtectData{FFlag::LuauCodegenProtectData, true};
 
     size_t blockSize = 1024 * 1024;
@@ -228,7 +220,6 @@ TEST_CASE("CodeAllocationProtectData")
 
 TEST_CASE("CodeAllocationProtectDataWithUnwindCallbacks")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
     ScopedFastFlag luauCodegenProtectData{FFlag::LuauCodegenProtectData, true};
 
     struct Info
@@ -386,14 +377,12 @@ constexpr X64::RegisterX64 rNonVol4 = X64::r14;
 
 TEST_CASE("GeneratedCodeExecutionX64")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
-
     if (!Luau::CodeGen::isSupported())
         return;
 
     using namespace X64;
 
-    AssemblyBuilderX64 build(/* logText= */ false);
+    AssemblyBuilderX64 build(/* logger= */ nullptr, false, /* features= */ 0);
 
     build.mov(rax, rArg1);
     build.add(rax, rArg2);
@@ -431,14 +420,12 @@ static void nonthrowing(int64_t arg)
 
 TEST_CASE("GeneratedCodeExecutionWithThrowX64")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
-
     if (!Luau::CodeGen::isSupported())
         return;
 
     using namespace X64;
 
-    AssemblyBuilderX64 build(/* logText= */ false);
+    AssemblyBuilderX64 build(/* logger= */ nullptr, false, /* features= */ 0);
 
 #if defined(_WIN32)
     std::unique_ptr<UnwindBuilder> unwind = std::make_unique<UnwindBuilderWin>();
@@ -531,15 +518,13 @@ static void obscureThrowCase(int64_t (*f)(int64_t, void (*)(int64_t)))
 
 TEST_CASE("GeneratedCodeExecutionWithThrowX64Simd")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
-
     // This test requires AVX
     if (!Luau::CodeGen::isSupported())
         return;
 
     using namespace X64;
 
-    AssemblyBuilderX64 build(/* logText= */ false);
+    AssemblyBuilderX64 build(/* logger= */ nullptr, false, /* features= */ 0);
 
 #if defined(_WIN32)
     std::unique_ptr<UnwindBuilder> unwind = std::make_unique<UnwindBuilderWin>();
@@ -634,14 +619,12 @@ TEST_CASE("GeneratedCodeExecutionWithThrowX64Simd")
 
 TEST_CASE("GeneratedCodeExecutionMultipleFunctionsWithThrowX64")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
-
     if (!Luau::CodeGen::isSupported())
         return;
 
     using namespace X64;
 
-    AssemblyBuilderX64 build(/* logText= */ false);
+    AssemblyBuilderX64 build(/* logger= */ nullptr, false, /* features= */ 0);
 
 #if defined(_WIN32)
     std::unique_ptr<UnwindBuilder> unwind = std::make_unique<UnwindBuilderWin>();
@@ -775,14 +758,12 @@ TEST_CASE("GeneratedCodeExecutionMultipleFunctionsWithThrowX64")
 
 TEST_CASE("GeneratedCodeExecutionWithThrowOutsideTheGateX64")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
-
     if (!Luau::CodeGen::isSupported())
         return;
 
     using namespace X64;
 
-    AssemblyBuilderX64 build(/* logText= */ false);
+    AssemblyBuilderX64 build(/* logger= */ nullptr, false, /* features= */ 0);
 
 #if defined(_WIN32)
     std::unique_ptr<UnwindBuilder> unwind = std::make_unique<UnwindBuilderWin>();
@@ -858,7 +839,7 @@ TEST_CASE("GeneratedCodeExecutionWithThrowOutsideTheGateX64")
 
     uint8_t* nativeExit = codeAllocation1.codeStart + returnOffset.location;
 
-    AssemblyBuilderX64 build2(/* logText= */ false);
+    AssemblyBuilderX64 build2(/* logger= */ nullptr, false, /* features= */ 0);
 
     build2.mov(r12, rArg3);
     build2.call(rArg2);
@@ -889,11 +870,9 @@ TEST_CASE("GeneratedCodeExecutionWithThrowOutsideTheGateX64")
 
 TEST_CASE("GeneratedCodeExecutionA64")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
-
     using namespace A64;
 
-    AssemblyBuilderA64 build(/* logText= */ false);
+    AssemblyBuilderA64 build(/* logger= */ nullptr, false, /* features= */ 0);
 
     Label skip;
     build.cbz(x1, skip);
@@ -940,15 +919,13 @@ static void throwing(int64_t arg)
 
 TEST_CASE("GeneratedCodeExecutionWithThrowA64")
 {
-    ScopedFastFlag luauCodegenFreeBlocks{FFlag::LuauCodegenFreeBlocks, true};
-
     // macOS 12 doesn't support JIT frames without pointer authentication
     if (!isUnwindSupported())
         return;
 
     using namespace A64;
 
-    AssemblyBuilderA64 build(/* logText= */ false);
+    AssemblyBuilderA64 build(/* logger= */ nullptr, false, /* features= */ 0);
 
     std::unique_ptr<UnwindBuilder> unwind = std::make_unique<UnwindBuilderDwarf2>();
 

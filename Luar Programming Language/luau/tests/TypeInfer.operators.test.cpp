@@ -1331,7 +1331,7 @@ TEST_CASE_FIXTURE(Fixture, "unrelated_primitives_cannot_be_compared")
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "mm_comparisons_must_return_a_boolean")
 {
-    // CLI-115687
+#if 0 // CLI-115687
     if (true || FFlag::DebugLuauForceOldSolver)
         return;
 
@@ -1362,6 +1362,7 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "mm_comparisons_must_return_a_boolean")
 
     CHECK(toString(result.errors[1]) == "Metamethod '__lt' must return a boolean");
     CHECK(toString(result.errors[3]) == "Metamethod '__lt' must return a boolean");
+#endif
 }
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "reworked_and")
@@ -1463,9 +1464,6 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "luau_polyfill_is_array_simplified")
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "luau_polyfill_is_array")
 {
-    // CLI-116480 Subtyping bug: table should probably be a subtype of {[unknown]: unknown}
-    DOES_NOT_PASS_NEW_SOLVER_GUARD();
-
     CheckResult result = check(R"(
 --!strict
 return function(value: any): boolean
@@ -1682,21 +1680,21 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "overload_concat")
             len:number;
         }
         local metatable = {
-            __concat = function(self:class,str:string):class
+            __concat = function(self:cls,str:string):cls
                 buffer.writestring(self.b,self.len,str)
                 self.len+=#str
                 return self
             end;
         }
 
-        export type class = typeof(setmetatable({}::classData, metatable))
+        export type cls = typeof(setmetatable({}::classData, metatable))
 
         --returns a long string
-        local new = function():class
+        local new = function():cls
             return setmetatable({
                 b = buffer.create(100_000::number);
                 len = 0;
-            }::classData,metatable)::class
+            }::classData,metatable)::cls
         end
         local class = new()
 

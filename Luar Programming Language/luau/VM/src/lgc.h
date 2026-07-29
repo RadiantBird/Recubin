@@ -118,7 +118,7 @@
             luaC_barrierback(L, obj2gco(L), &L->gclist); \
     }
 
-#define luaC_classinstbarrier(L) \
+#define luaC_objectbarrier(L) \
     { \
         if (isblack(obj2gco(L))) \
             luaC_barrierback(L, obj2gco(L), &L->gclist); \
@@ -134,7 +134,6 @@
 LUAI_FUNC void luaC_freeall(lua_State* L);
 LUAI_FUNC size_t luaC_step(lua_State* L, bool assist);
 LUAI_FUNC void luaC_fullgc(lua_State* L);
-LUAI_FUNC void luaC_initobj(lua_State* L, GCObject* o, uint8_t tt);
 LUAI_FUNC void luaC_upvalclosed(lua_State* L, UpVal* uv);
 LUAI_FUNC void luaC_barrierf(lua_State* L, GCObject* o, GCObject* v);
 LUAI_FUNC void luaC_barriertable(lua_State* L, LuaTable* t, GCObject* v);

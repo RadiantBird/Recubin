@@ -12,10 +12,9 @@
 
 LUAU_FASTFLAG(DebugLuauFreezeArena)
 LUAU_FASTFLAG(LuauSolverV2)
-LUAU_FASTFLAG(LuauExplicitTypeInstantiationSupport)
-LUAU_FASTFLAGVARIABLE(LuauCaptureRecursiveCallsForTablesAndGlobals2)
-LUAU_FASTFLAGVARIABLE(LuauVisitCallTypeArgsInDfg)
 LUAU_FASTFLAG(DebugLuauUserDefinedClasses)
+LUAU_FASTFLAGVARIABLE(LuauDoNotOverwriteAstDefs)
+LUAU_FASTFLAGVARIABLE(LuauAvoidTrivialPhis)
 
 namespace Luau
 {
@@ -229,18 +228,47 @@ void DataFlowGraphBuilder::join(DfgScope* p, DfgScope* a, DfgScope* b)
 
 void DataFlowGraphBuilder::joinBindings(DfgScope* p, const DfgScope& a, const DfgScope& b)
 {
-    for (const auto& [sym, def1] : a.bindings)
+    if (FFlag::LuauAvoidTrivialPhis)
     {
-        if (auto def2 = b.bindings.find(sym))
-            p->bindings[sym] = defArena->phi(NotNull{def1}, NotNull{*def2});
-        else if (auto def2 = p->lookup(sym))
-            p->bindings[sym] = defArena->phi(NotNull{def1}, NotNull{*def2});
-    }
+        auto join = [&](auto sym, auto def1, auto def2)
+        {
+            // Refinements are keyed on `DefId`s, meaning that allocating
+            // a trivial phi node like this *breaks* refinements.
+            if (def1 == def2)
+                p->bindings[sym] = def1;
+            else
+                p->bindings[sym] = defArena->phi(NotNull{def1}, NotNull{def2});
+        };
 
-    for (const auto& [sym, def1] : b.bindings)
+        for (const auto& [sym, def1] : a.bindings)
+        {
+            if (auto def2 = b.bindings.find(sym))
+                join(sym, def1, *def2);
+            else if (auto def2 = p->lookup(sym))
+                join(sym, def1, *def2);
+        }
+
+        for (const auto& [sym, def1] : b.bindings)
+        {
+            if (auto def2 = p->lookup(sym))
+                join(sym, def1, *def2);
+        }
+    }
+    else
     {
-        if (auto def2 = p->lookup(sym))
-            p->bindings[sym] = defArena->phi(NotNull{def1}, NotNull{*def2});
+        for (const auto& [sym, def1] : a.bindings)
+        {
+            if (auto def2 = b.bindings.find(sym))
+                p->bindings[sym] = defArena->phi(NotNull{def1}, NotNull{*def2});
+            else if (auto def2 = p->lookup(sym))
+                p->bindings[sym] = defArena->phi(NotNull{def1}, NotNull{*def2});
+        }
+
+        for (const auto& [sym, def1] : b.bindings)
+        {
+            if (auto def2 = p->lookup(sym))
+                p->bindings[sym] = defArena->phi(NotNull{def1}, NotNull{*def2});
+        }
     }
 }
 
@@ -336,8 +364,7 @@ DefId DataFlowGraphBuilder::lookup(DefId def, const std::string& key, Location l
             if (auto it = props->find(key); it != props->end())
                 return NotNull{it->second};
         }
-        else if (auto phi = get<Phi>(def);
-                 phi && phi->operands.empty() && (!FFlag::LuauCaptureRecursiveCallsForTablesAndGlobals2 || current->scopeType == DfgScope::Function))
+        else if (auto phi = get<Phi>(def); phi && phi->operands.empty() && current->scopeType == DfgScope::Function)
         {
             DefId result = defArena->freshCell(def->name, location);
             scope->props[def][key] = result;
@@ -710,63 +737,56 @@ ControlFlow DataFlowGraphBuilder::visit(AstStatFunction* f)
     // but for bug compatibility, we'll assume the same thing here.
     visitLValue(f->name, defArena->freshCell(Symbol{}, f->name->location));
 
-    if (FFlag::LuauCaptureRecursiveCallsForTablesAndGlobals2)
+    // This logic is for supporting:
+    //
+    //  local coolmath = {}
+    //  function coolmath.factorial(n: number)
+    //      if n <= 1 then
+    //          return 1
+    //      else
+    //          return coolmath.factorial(n - 1) * n
+    //      end
+    //  end
+    //
+    // We want to ensure that the `coolmath.factorial` inside the function
+    // statement uses the ungeneralized function type. Without any
+    // intervention we would use the version from the captured `coolmath`
+    // upvalue, which would be the generalized type. That would cause
+    // the above snippet to _always_ force a constraint, as there is a
+    // cycle between the generalization constraint of the function and
+    // the constraints related to resolving the recursive call. We add
+    // a similar case for global functions, as in:
+    //
+    //  function walk(n)
+    //      if n.tag == "leaf" then
+    //          print(n.value)
+    //      else
+    //          walk(n.left)
+    //          print(n.value)
+    //          walk(n.right)
+    //      end
+    //  end
+    //
+    // NOTE: It is not immediately obvious to me, in DataFlowGraph, if this
+    // can be extended to any arbitrary assignment, such as:
+    //
+    //  function foo.bar.baz.bing()
+    //      local _ = foo.bar.baz.bing()
+    //  end
+    //
+    // ... hence us only handling the common case of a single property deep.
+    DfgScope* signatureScope = makeChildScope(DfgScope::Function);
+    PushScope ps{scopeStack, signatureScope};
+    if (auto global = f->name->as<AstExprGlobal>())
     {
-        // This logic is for supporting:
-        //
-        //  local coolmath = {}
-        //  function coolmath.factorial(n: number)
-        //      if n <= 1 then
-        //          return 1
-        //      else
-        //          return coolmath.factorial(n - 1) * n
-        //      end
-        //  end
-        //
-        // We want to ensure that the `coolmath.factorial` inside the function
-        // statement uses the ungeneralized function type. Without any
-        // intervention we would use the version from the captured `coolmath`
-        // upvalue, which would be the generalized type. That would cause
-        // the above snippet to _always_ force a constraint, as there is a
-        // cycle between the generalization constraint of the function and
-        // the constraints related to resolving the recursive call. We add
-        // a similar case for global functions, as in:
-        //
-        //  function walk(n)
-        //      if n.tag == "leaf" then
-        //          print(n.value)
-        //      else
-        //          walk(n.left)
-        //          print(n.value)
-        //          walk(n.right)
-        //      end
-        //  end
-        //
-        // NOTE: It is not immediately obvious to me, in DataFlowGraph, if this
-        // can be extended to any arbitrary assignment, such as:
-        //
-        //  function foo.bar.baz.bing()
-        //      local _ = foo.bar.baz.bing()
-        //  end
-        //
-        // ... hence us only handling the common case of a single property deep.
-        DfgScope* signatureScope = makeChildScope(DfgScope::Function);
-        PushScope ps{scopeStack, signatureScope};
-        if (auto global = f->name->as<AstExprGlobal>())
-        {
-            signatureScope->bindings[global->name] = graph.getDef(f->name);
-        }
-        else if (auto name = f->name->as<AstExprIndexName>(); name && name->expr->is<AstExprLocal>())
-        {
-            auto receiver = name->expr->as<AstExprLocal>()->local;
-            signatureScope->props[lookup(receiver, f->func->location)][name->index.value] = graph.getDef(f->name);
-        }
-        visitFunction(f->func, NotNull{signatureScope});
+        signatureScope->bindings[global->name] = graph.getDef(f->name);
     }
-    else
+    else if (auto name = f->name->as<AstExprIndexName>(); name && name->expr->is<AstExprLocal>())
     {
-        visitExpr(f->func);
+        auto receiver = name->expr->as<AstExprLocal>()->local;
+        signatureScope->props[lookup(receiver, f->func->location)][name->index.value] = graph.getDef(f->name);
     }
+    visitFunction(f->func, NotNull{signatureScope});
 
     if (auto local = f->name->as<AstExprLocal>())
     {
@@ -866,8 +886,8 @@ ControlFlow DataFlowGraphBuilder::visit(AstStatClass* d)
     DefId def = defArena->freshCell(d->name, d->name->location);
 
     graph.localDefs[d->name] = def;
-    currentScope()->bindings[d->name] = def;
-    captures[d->name].allVersions.push_back(def);
+    currentScope()->bindings[d->name->name] = def;
+    captures[d->name->name].allVersions.push_back(def);
 
     for (const auto& member : d->members)
     {
@@ -962,9 +982,24 @@ DataFlowResult DataFlowGraphBuilder::visitExpr(AstExpr* e)
     };
 
     auto [def, key] = go();
-    graph.astDefs[e] = def;
-    if (key)
-        graph.astRefinementKeys[e] = key;
+
+    if (FFlag::LuauDoNotOverwriteAstDefs)
+    {
+        if (!graph.astDefs.contains(e))
+        {
+            graph.astDefs[e] = def;
+            LUAU_ASSERT(!graph.astRefinementKeys.contains(e));
+            if (key)
+                graph.astRefinementKeys[e] = key;
+        }
+    }
+    else
+    {
+        graph.astDefs[e] = def;
+        if (key)
+            graph.astRefinementKeys[e] = key;
+    }
+
     return {def, key};
 }
 
@@ -992,17 +1027,14 @@ DataFlowResult DataFlowGraphBuilder::visitExpr(AstExprCall* c)
 {
     visitExpr(c->func);
 
-    if (FFlag::LuauVisitCallTypeArgsInDfg && FFlag::LuauExplicitTypeInstantiationSupport)
+    for (const AstTypeOrPack& typeOrPack : c->typeArguments)
     {
-        for (const AstTypeOrPack& typeOrPack : c->typeArguments)
+        if (typeOrPack.type)
+            visitType(typeOrPack.type);
+        else
         {
-            if (typeOrPack.type)
-                visitType(typeOrPack.type);
-            else
-            {
-                LUAU_ASSERT(typeOrPack.typePack);
-                visitTypePack(typeOrPack.typePack);
-            }
+            LUAU_ASSERT(typeOrPack.typePack);
+            visitTypePack(typeOrPack.typePack);
         }
     }
 
@@ -1032,9 +1064,23 @@ DataFlowResult DataFlowGraphBuilder::visitExpr(AstExprCall* c)
         scopeStack.push_back(child);
 
         auto [def, key] = *result;
-        graph.astDefs[firstArg] = def;
-        if (key)
-            graph.astRefinementKeys[firstArg] = key;
+
+        if (FFlag::LuauDoNotOverwriteAstDefs)
+        {
+            if (!graph.astDefs.contains(firstArg))
+            {
+                graph.astDefs[firstArg] = def;
+                LUAU_ASSERT(!graph.astRefinementKeys.contains(firstArg));
+                if (key)
+                    graph.astRefinementKeys[firstArg] = key;
+            }
+        }
+        else
+        {
+            graph.astDefs[firstArg] = def;
+            if (key)
+                graph.astRefinementKeys[firstArg] = key;
+        }
 
         visitLValue(firstArg, def);
     }
@@ -1124,53 +1170,7 @@ DataFlowResult DataFlowGraphBuilder::visitExpr(AstExprFunction* f)
     DfgScope* signatureScope = makeChildScope(DfgScope::Function);
     PushScope ps{scopeStack, signatureScope};
 
-    if (FFlag::LuauCaptureRecursiveCallsForTablesAndGlobals2)
-    {
-        return visitFunction(f, NotNull{signatureScope});
-    }
-    else
-    {
-
-        if (AstLocal* self = f->self)
-        {
-            // There's no syntax for `self` to have an annotation if using `function t:m()`
-            LUAU_ASSERT(!self->annotation);
-
-            DefId def = defArena->freshCell(f->debugname, f->location);
-            graph.localDefs[self] = def;
-            signatureScope->bindings[self] = def;
-            captures[self].allVersions.push_back(def);
-        }
-
-        for (AstLocal* param : f->args)
-        {
-            if (param->annotation)
-                visitType(param->annotation);
-
-            DefId def = defArena->freshCell(param, param->location);
-            graph.localDefs[param] = def;
-            signatureScope->bindings[param] = def;
-            captures[param].allVersions.push_back(def);
-        }
-
-        if (f->varargAnnotation)
-            visitTypePack(f->varargAnnotation);
-
-        if (f->returnAnnotation)
-            visitTypePack(f->returnAnnotation);
-
-        // TODO: function body can be re-entrant, as in mutations that occurs at the end of the function can also be
-        // visible to the beginning of the function, so statically speaking, the body of the function has an exit point
-        // that points back to itself, e.g.
-        //
-        // local function f() print(f) f = 5 end
-        // local g = f
-        // g() --> function: address
-        // g() --> 5
-        visit(f->body);
-
-        return {defArena->freshCell(f->debugname, f->location), nullptr};
-    }
+    return visitFunction(f, NotNull{signatureScope});
 }
 
 DataFlowResult DataFlowGraphBuilder::visitExpr(AstExprTable* t)
@@ -1238,19 +1238,16 @@ DataFlowResult DataFlowGraphBuilder::visitExpr(AstExprInterpString* i)
 
 DataFlowResult DataFlowGraphBuilder::visitExpr(AstExprInstantiate* i)
 {
-    if (FFlag::LuauExplicitTypeInstantiationSupport)
+    for (const AstTypeOrPack& typeOrPack : i->typeArguments)
     {
-        for (const AstTypeOrPack& typeOrPack : i->typeArguments)
+        if (typeOrPack.type)
         {
-            if (typeOrPack.type)
-            {
-                visitType(typeOrPack.type);
-            }
-            else
-            {
-                LUAU_ASSERT(typeOrPack.typePack);
-                visitTypePack(typeOrPack.typePack);
-            }
+            visitType(typeOrPack.type);
+        }
+        else
+        {
+            LUAU_ASSERT(typeOrPack.typePack);
+            visitTypePack(typeOrPack.typePack);
         }
     }
 
@@ -1287,7 +1284,15 @@ void DataFlowGraphBuilder::visitLValue(AstExpr* e, DefId incomingDef)
             handle->ice("Unknown AstExpr in DataFlowGraphBuilder::visitLValue");
     };
 
-    graph.astDefs[e] = go();
+    if (FFlag::LuauDoNotOverwriteAstDefs)
+    {
+        if (!graph.astDefs.contains(e))
+            graph.astDefs[e] = go();
+    }
+    else
+    {
+        graph.astDefs[e] = go();
+    }
 }
 
 DefId DataFlowGraphBuilder::visitLValue(AstExprLocal* l, DefId incomingDef)

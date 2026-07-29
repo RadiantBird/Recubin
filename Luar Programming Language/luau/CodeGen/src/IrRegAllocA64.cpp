@@ -2,6 +2,7 @@
 #include "IrRegAllocA64.h"
 
 #include "Luau/AssemblyBuilderA64.h"
+#include "Luau/IrDump.h"
 #include "Luau/IrUtils.h"
 #include "Luau/LoweringStats.h"
 
@@ -11,8 +12,10 @@
 #include <string.h>
 
 LUAU_FASTFLAGVARIABLE(DebugCodegenChaosA64)
-LUAU_FASTFLAG(LuauCodegenNewRegSplit)
-LUAU_FASTFLAG(LuauCodegenVmExitSync)
+LUAU_FASTFLAGVARIABLE(DebugCodegenLimitRegs)
+
+LUAU_FASTFLAG(LuauCodegenNoEcbData)
+LUAU_FASTFLAGVARIABLE(LuauCodegenA64ExitUseCheck)
 
 namespace Luau
 {
@@ -22,51 +25,34 @@ namespace A64
 {
 
 static const int8_t kInvalidSpill = 64;
-static_assert(kSpillSlots + kExtraSpillSlots < 64, "arm64 lowering can only handle 63 spill slots");
+static_assert(kSpillSlots + kExtraSpillSlots_DEPRECATED < 64, "arm64 lowering can only handle 63 spill slots");
 
 static int allocSpill(uint64_t& free, KindA64 kind)
 {
     CODEGEN_ASSERT(kStackSize <= 256); // to support larger stack frames, we need to ensure qN is allocated at 16b boundary to fit in ldr/str encoding
 
-    if (FFlag::LuauCodegenNewRegSplit)
+    uint64_t search = free;
+
+    // qN registers use two consecutive slots
+    if (kind == KindA64::q)
     {
-        uint64_t search = free;
+        // Make sure bit N is set only if bit N+1 is also set
+        search = free & (free >> 1);
 
-        // qN registers use two consecutive slots
-        if (kind == KindA64::q)
-        {
-            // Make sure bit N is set only if bit N+1 is also set
-            search = free & (free >> 1);
-
-            // Prevent qN from allocating at stack/extra spill storage boundary (by reserving last stack slot)
-            search &= ~(1ull << (kSpillSlots - 1));
-        }
-
-        int slot = countrz(search);
-        if (slot == 64)
-            return -1;
-
-        uint64_t mask = (kind == KindA64::q ? 3ull : 1ull) << (unsigned long long)slot;
-
-        CODEGEN_ASSERT((free & mask) == mask);
-        free &= ~mask;
-
-        return slot;
+        // Prevent qN from allocating at stack/extra spill storage boundary (by reserving last stack slot)
+        search &= ~(1ull << (kSpillSlots - 1));
     }
-    else
-    {
-        // qN registers use two consecutive slots
-        int slot = countrz(kind == KindA64::q ? free & (free >> 1) : free);
-        if (slot == 64)
-            return -1;
 
-        uint64_t mask = (kind == KindA64::q ? 3ull : 1ull) << (unsigned long long)slot;
+    int slot = countrz(search);
+    if (slot == 64)
+        return -1;
 
-        CODEGEN_ASSERT((free & mask) == mask);
-        free &= ~mask;
+    uint64_t mask = (kind == KindA64::q ? 3ull : 1ull) << (unsigned long long)slot;
 
-        return slot;
-    }
+    CODEGEN_ASSERT((free & mask) == mask);
+    free &= ~mask;
+
+    return slot;
 }
 
 static void freeSpill(uint64_t& free, KindA64 kind, uint8_t slot)
@@ -121,12 +107,14 @@ static AddressA64 getReloadAddress(ValueRestoreLocation location)
 }
 
 IrRegAllocA64::IrRegAllocA64(
+    LogBuilder* logger,
     AssemblyBuilderA64& build,
     IrFunction& function,
     LoweringStats* stats,
     std::initializer_list<std::pair<RegisterA64, RegisterA64>> regs
 )
-    : build(build)
+    : logger(logger)
+    , build(build)
     , function(function)
     , stats(stats)
 {
@@ -140,20 +128,41 @@ IrRegAllocA64::IrRegAllocA64(
             set.base |= 1u << i;
     }
 
+    if (FFlag::DebugCodegenLimitRegs)
+    {
+        auto setRegisterLimit = [](Set& set, int limit)
+        {
+            uint32_t low = set.base;
+            for (int i = 0; i < limit && low != 0; ++i)
+                low &= low - 1; // Clear the lowest set bit in the mask
+            set.base &= ~low;   // All the registers we cleared are the ones we can use
+        };
+
+        setRegisterLimit(gpr, kLimitedGprRegCount);
+        setRegisterLimit(simd, kLimitedSimdRegCount);
+    }
+
     gpr.free = gpr.base;
     simd.free = simd.base;
 
     memset(gpr.defs, -1, sizeof(gpr.defs));
     memset(simd.defs, -1, sizeof(simd.defs));
 
-    CODEGEN_ASSERT(kSpillSlots + kExtraSpillSlots < 64);
-    freeSpillSlots = (1ull << (kSpillSlots + kExtraSpillSlots)) - 1ull;
+    if (FFlag::LuauCodegenNoEcbData)
+    {
+        CODEGEN_ASSERT(kSpillSlots < 64);
+        freeSpillSlots = (1ull << kSpillSlots) - 1ull;
+    }
+    else
+    {
+        CODEGEN_ASSERT(kSpillSlots + kExtraSpillSlots_DEPRECATED < 64);
+        freeSpillSlots = (1ull << (kSpillSlots + kExtraSpillSlots_DEPRECATED)) - 1ull;
+    }
 }
 
 RegisterA64 IrRegAllocA64::allocReg(KindA64 kind, uint32_t index)
 {
-    if (FFlag::LuauCodegenVmExitSync)
-        allocActionCount++;
+    allocActionCount++;
 
     Set& set = getSet(kind);
 
@@ -185,8 +194,7 @@ RegisterA64 IrRegAllocA64::allocReg(KindA64 kind, uint32_t index)
 
 RegisterA64 IrRegAllocA64::allocTemp(KindA64 kind)
 {
-    if (FFlag::LuauCodegenVmExitSync)
-        allocActionCount++;
+    allocActionCount++;
 
     Set& set = getSet(kind);
 
@@ -536,9 +544,9 @@ void IrRegAllocA64::restore(const IrRegAllocA64::Spill& s, RegisterA64 reg)
 
     if (s.slot >= 0)
     {
-        if (isExtraSpillSlot(s.slot))
+        if (!FFlag::LuauCodegenNoEcbData && isExtraSpillSlot_DEPRECATED(s.slot))
         {
-            int extraOffset = getExtraSpillAddressOffset(s.slot);
+            int extraOffset = getExtraSpillAddressOffset_DEPRECATED(s.slot);
 
             // Need to calculate an address, but everything might be taken
             // If we are restoring an integer register, we can just use it as a temporary
@@ -561,7 +569,16 @@ void IrRegAllocA64::restore(const IrRegAllocA64::Spill& s, RegisterA64 reg)
         }
 
         if (s.slot != kInvalidSpill)
+        {
             freeSpill(freeSpillSlots, reg.kind, s.slot);
+
+            if (logger && logger->options.includeRegSpills)
+            {
+                const char* kindName = getValueKindName(getCmdValueKind(inst.cmd));
+
+                logger->formatAppendWithPrefix("  ; restore %%%u (%s) from slot %u\n", s.inst, kindName, s.slot);
+            }
+        }
     }
     else
     {
@@ -595,6 +612,17 @@ void IrRegAllocA64::restore(const IrRegAllocA64::Spill& s, RegisterA64 reg)
         {
             build.ldr(reg, addr);
         }
+
+        if (logger && logger->options.includeRegSpills)
+        {
+            const char* conv = getConversionCmdSuffix(restoreLocation.conversionCmd);
+            const char* kindName = getValueKindName(restoreLocation.kind);
+
+            if (restoreLocation.op.kind == IrOpKind::VmReg)
+                logger->formatAppendWithPrefix("  ; restore %%%u (%s) from R%d%s\n", s.inst, kindName, vmRegOp(restoreLocation.op), conv);
+            else if (restoreLocation.op.kind == IrOpKind::VmConst)
+                logger->formatAppendWithPrefix("  ; restore %%%u (%s) from K%d%s\n", s.inst, kindName, vmConstOp(restoreLocation.op), conv);
+        }
     }
 
     inst.spilled = false;
@@ -611,12 +639,32 @@ void IrRegAllocA64::spill(Set& set, uint32_t index, uint32_t targetInstIdx)
     CODEGEN_ASSERT(!def.spilled);
     CODEGEN_ASSERT(!def.needsReload);
 
-    if (def.lastUse == index)
+    if (def.lastUse == index && (!FFlag::LuauCodegenA64ExitUseCheck || !isUsedInVmExitSync(function, index, targetInstIdx)))
     {
         // instead of spilling the register to never reload it, we assume the register is not needed anymore
     }
     else if (function.hasRestoreLocation(def, /*limitToCurrentBlock*/ true))
     {
+        ValueRestoreLocation loc = function.findRestoreLocation(def, true);
+
+        // If the value restore location is lazy, we need to materialize it
+        if (loc.lazy)
+        {
+            CODEGEN_ASSERT(loc.op.kind == IrOpKind::VmReg);
+            CODEGEN_ASSERT(loc.conversionCmd == IrCmd::NOP);
+
+            int storeReg = vmRegOp(loc.op);
+            AddressA64 addr = mem(rBase, storeReg * sizeof(TValue) + getReloadOffset(loc.kind));
+
+            build.str(def.regA64, addr);
+
+            // Partial value store should not have an interpretation in VM/GC and is protected by 'nil' tag
+            if (loc.kind != IrValueKind::Tvalue)
+                build.str(wzr, mem(rBase, storeReg * sizeof(TValue) + offsetof(TValue, tt)));
+
+            function.materializeRestoreLocation(targetInstIdx);
+        }
+
         // when checking if value has a restore operation to spill it, we only allow it in the same block
         // instead of spilling the register to stack, we can reload it from VM stack/constants
         // we still need to record the spill for restore(start) to work
@@ -627,6 +675,23 @@ void IrRegAllocA64::spill(Set& set, uint32_t index, uint32_t targetInstIdx)
 
         if (stats)
             stats->spillsToRestore++;
+
+        if (logger && logger->options.includeRegSpills)
+        {
+            const char* kindName = getValueKindName(loc.kind);
+
+            logger->formatAppendWithPrefix("  ; evict %%%u (%s) into ", s.inst, kindName);
+
+            if (loc.op.kind == IrOpKind::VmReg)
+                logger->formatAppend("R%d", vmRegOp(loc.op));
+            else if (loc.op.kind == IrOpKind::VmConst)
+                logger->formatAppend("K%d", vmConstOp(loc.op));
+
+            if (loc.lazy)
+                logger->append(" [lazy]");
+
+            logger->append("\n");
+        }
     }
     else
     {
@@ -637,9 +702,9 @@ void IrRegAllocA64::spill(Set& set, uint32_t index, uint32_t targetInstIdx)
             error = true;
         }
 
-        if (isExtraSpillSlot(slot))
+        if (!FFlag::LuauCodegenNoEcbData && isExtraSpillSlot_DEPRECATED(slot))
         {
-            int extraOffset = getExtraSpillAddressOffset(slot);
+            int extraOffset = getExtraSpillAddressOffset_DEPRECATED(slot);
 
             // Tricky situation, no registers left, but need a register to calculate an address
             // We will try to take x17 unless it's actually the register being spilled
@@ -670,6 +735,13 @@ void IrRegAllocA64::spill(Set& set, uint32_t index, uint32_t targetInstIdx)
             if (slot != kInvalidSpill && unsigned(slot + 1) > stats->maxSpillSlotsUsed)
                 stats->maxSpillSlotsUsed = slot + 1;
         }
+
+        if (logger && logger->options.includeRegSpills)
+        {
+            const char* kindName = getValueKindName(getCmdValueKind(def.cmd));
+
+            logger->formatAppendWithPrefix("  ; spill %%%u (%s) to slot %u\n", s.inst, kindName, s.slot);
+        }
     }
 
     def.regA64 = noreg;
@@ -696,7 +768,7 @@ uint32_t IrRegAllocA64::findInstructionWithFurthestNextUse(Set& set) const
         uint32_t nextUse = getNextInstUse(function, regInstUser, currInstIdx, inVmExitSync);
 
         // Cannot spill value that is about to be used in the current instruction
-        if (nextUse == currInstIdx && (!FFlag::LuauCodegenVmExitSync || !inVmExitSync))
+        if (nextUse == currInstIdx && !inVmExitSync)
             continue;
 
         if (furthestUseTarget == kInvalidInstIdx || nextUse > furthestUseLocation)
@@ -710,14 +782,17 @@ uint32_t IrRegAllocA64::findInstructionWithFurthestNextUse(Set& set) const
 }
 
 
-bool IrRegAllocA64::isExtraSpillSlot(unsigned slot) const
+bool IrRegAllocA64::isExtraSpillSlot_DEPRECATED(unsigned slot) const
 {
+    CODEGEN_ASSERT(!FFlag::LuauCodegenNoEcbData);
+
     return slot >= kSpillSlots;
 }
 
-int IrRegAllocA64::getExtraSpillAddressOffset(unsigned slot) const
+int IrRegAllocA64::getExtraSpillAddressOffset_DEPRECATED(unsigned slot) const
 {
-    CODEGEN_ASSERT(isExtraSpillSlot(slot));
+    CODEGEN_ASSERT(!FFlag::LuauCodegenNoEcbData);
+    CODEGEN_ASSERT(isExtraSpillSlot_DEPRECATED(slot));
 
     return (slot - kSpillSlots) * 8;
 }

@@ -12,13 +12,9 @@
 using namespace Luau;
 
 LUAU_FASTFLAG(DebugLuauForceOldSolver);
-LUAU_FASTFLAG(LuauUnifierRecursionOnRestart);
 
 struct TryUnifyFixture : Fixture
 {
-    // Cannot use `TryUnifyFixture` under DCR.
-    DOES_NOT_PASS_NEW_SOLVER_GUARD();
-
     TypeArena arena;
     ScopePtr globalScope{new Scope{arena.addTypePack({TypeId{}})}};
     InternalErrorReporter iceHandler;
@@ -378,8 +374,6 @@ local l0:(any)&(typeof(_)),l0:(any)|(any) = _,_
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "table_unification_full_restart_recursion")
 {
-    ScopedFastFlag luauUnifierRecursionOnRestart{FFlag::LuauUnifierRecursionOnRestart, true};
-
     CheckResult result = check(R"(
 local A, B, C, D
 

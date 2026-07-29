@@ -14,6 +14,7 @@ namespace Luau
 namespace CodeGen
 {
 
+struct LogBuilder;
 struct LoweringStats;
 
 namespace A64
@@ -37,6 +38,7 @@ using ExitSyncArgsA64 = SmallVector<ExitSyncArgA64, 2>;
 struct IrRegAllocA64
 {
     IrRegAllocA64(
+        LogBuilder* logger,
         AssemblyBuilderA64& build,
         IrFunction& function,
         LoweringStats* stats,
@@ -100,8 +102,8 @@ struct IrRegAllocA64
 
     uint32_t findInstructionWithFurthestNextUse(Set& set) const;
 
-    bool isExtraSpillSlot(unsigned slot) const;
-    int getExtraSpillAddressOffset(unsigned slot) const;
+    bool isExtraSpillSlot_DEPRECATED(unsigned slot) const;
+    int getExtraSpillAddressOffset_DEPRECATED(unsigned slot) const;
 
     Set& getSet(KindA64 kind);
 
@@ -110,6 +112,7 @@ struct IrRegAllocA64
         return allocActionCount;
     }
 
+    LogBuilder* logger = nullptr;
     AssemblyBuilderA64& build;
     IrFunction& function;
     LoweringStats* stats = nullptr;

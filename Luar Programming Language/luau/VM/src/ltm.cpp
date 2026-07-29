@@ -5,6 +5,7 @@
 #include "lfunc.h"
 #include "lstate.h"
 #include "lstring.h"
+#include "lua.h"
 #include "ludata.h"
 #include "ltable.h"
 #include "lgc.h"
@@ -21,7 +22,10 @@ const char* const luaT_typenames[] = {
     "userdata",
     "number",
     "integer",
+
+#if LUA_VECTOR_DOUBLE == 0
     "vector",
+#endif
 
     "string",
 
@@ -30,8 +34,12 @@ const char* const luaT_typenames[] = {
     "userdata",
     "thread",
     "buffer",
-    "classobject",
-    "classinstance",
+    "class",
+    "object",
+
+#if LUA_VECTOR_DOUBLE == 1
+    "vector",
+#endif
 };
 
 const char* const luaT_eventname[] = {
@@ -114,27 +122,16 @@ const TValue* luaT_gettmbyobj(lua_State* L, const TValue* o, TMS event)
     case LUA_TUSERDATA:
         mt = uvalue(o)->metatable;
         break;
-    case LUA_TCLASSOBJ:
+    case LUA_TCLASS:
     {
         // We store a metatable for class objects on the
         // class object itself, use that.
-        mt = cobjvalue(o)->metatable;
+        mt = classvalue(o)->metatable;
         break;
     }
-    case LUA_TCLASSINST:
-    {
-        // TODO: This is pretty ugly, and could be better served if we
-        // added an explicit array of metamethods to class objects.
-        const LuaClassObject* lco = cinstvalue(o)->classobject;
-        const TValue* offset = luaH_getstr(lco->memberstooffset, L->global->tmname[event]);
-        if (ttisnil(offset))
-            return luaO_nilobject;
-        const int offsetnum = int(nvalue(offset));
-        LUAU_ASSERT(offsetnum >= 0 && offsetnum < lco->numberofallmembers);
-        if (offsetnum < lco->numberofinstancemembers)
-            return luaO_nilobject;
-        return &lco->staticmembers[offsetnum - lco->numberofinstancemembers];
-    }
+    case LUA_TOBJECT:
+        mt = objectvalue(o)->lclass->instancemetatable;
+        break;
     default:
         mt = L->global->mt[ttype(o)];
     }

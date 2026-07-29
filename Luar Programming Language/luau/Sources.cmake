@@ -45,10 +45,29 @@ target_sources(Luau.Ast PRIVATE
 # Luau.Bytecode Sources
 target_sources(Luau.Bytecode PRIVATE
     Bytecode/include/Luau/BytecodeBuilder.h
+    Bytecode/include/Luau/BytecodeCallInliner.h
     Bytecode/include/Luau/BytecodeGraph.h
+    Bytecode/include/Luau/BytecodeOps.h
+    Bytecode/include/Luau/BytecodeValidation.h
+    Bytecode/include/Luau/Sccp.h
 
     Bytecode/src/BytecodeBuilder.cpp
     Bytecode/src/BytecodeGraph.cpp
+    Bytecode/src/BytecodeGraphParser.h
+    Bytecode/src/BytecodeGraphSerializer.h
+    Bytecode/src/Sccp.cpp
+)
+
+# Luau.Inliner Sources
+target_sources(Luau.Inliner PRIVATE
+    Inliner/include/Luau/JitInliner.h
+    Inliner/include/luajitinliner.h
+
+    Inliner/src/JitInliner.cpp
+    Inliner/src/TValueVmConstImpl.cpp
+    Inliner/src/TValueVmConstImpl.h
+    Inliner/src/luajitinliner.cpp
+    Inliner/src/RuntimeBytecodeBuilder.h
 )
 
 # Luau.Compiler Sources
@@ -108,6 +127,7 @@ target_sources(Luau.CodeGen PRIVATE
     CodeGen/include/Luau/IrUtils.h
     CodeGen/include/Luau/IrVisitUseDef.h
     CodeGen/include/Luau/Label.h
+    CodeGen/include/Luau/LogBuilder.h
     CodeGen/include/Luau/LoweringStats.h
     CodeGen/include/Luau/NativeProtoExecData.h
     CodeGen/include/Luau/OperandX64.h
@@ -201,6 +221,9 @@ target_sources(Luau.Analysis PRIVATE
     Analysis/include/Luau/NativeStackGuard.h
     Analysis/include/Luau/ConstraintSolver.h
     Analysis/include/Luau/ControlFlow.h
+    Analysis/include/Luau/ControlFlowGraph.h
+    Analysis/include/Luau/DumpCFG.h
+    Analysis/include/Luau/TypeStateMap.h
     Analysis/include/Luau/DataFlowGraph.h
     Analysis/include/Luau/DcrLogger.h
     Analysis/include/Luau/Def.h
@@ -272,6 +295,7 @@ target_sources(Luau.Analysis PRIVATE
     Analysis/include/Luau/VisitType.h
     Analysis/include/Luau/IterativeTypeVisitor.h
     Analysis/include/Luau/IterativeTypeFunctionTypeVisitor.h
+    Analysis/include/Luau/ConstraintGraph.h
 
     Analysis/src/Anyification.cpp
     Analysis/src/ApplyTypeFunction.cpp
@@ -285,7 +309,11 @@ target_sources(Luau.Analysis PRIVATE
     Analysis/src/Clone.cpp
     Analysis/src/Constraint.cpp
     Analysis/src/ConstraintGenerator.cpp
+    Analysis/src/ConstraintGraph.cpp
     Analysis/src/ConstraintSolver.cpp
+    Analysis/src/ControlFlowGraph.cpp
+    Analysis/src/DumpCFG.cpp
+    Analysis/src/TypeStateMap.cpp
     Analysis/src/DataFlowGraph.cpp
     Analysis/src/DcrLogger.cpp
     Analysis/src/Def.cpp
@@ -387,6 +415,8 @@ target_sources(Luau.VM PRIVATE
     VM/src/lintlib.cpp
     VM/src/lvmexecute.cpp
     VM/src/lclass.cpp
+    VM/src/lclasslib.cpp
+    VM/src/lvector.cpp
     VM/src/lvmload.cpp
     VM/src/lvmutils.cpp
 
@@ -408,6 +438,7 @@ target_sources(Luau.VM PRIVATE
     VM/src/ltable.h
     VM/src/ltm.h
     VM/src/ludata.h
+    VM/src/lvector.h
     VM/src/lvm.h
 )
 
@@ -444,12 +475,6 @@ if(TARGET Luau.Repl.CLI)
     )
 endif()
 
-if(TARGET Luau.LuarVM.CLI)
-    target_sources(Luau.LuarVM.CLI PRIVATE
-        CLI/src/LuarVM.cpp
-    )
-endif()
-
 if(TARGET Luau.Analyze.CLI)
     # Luau.Analyze.CLI Sources
     target_sources(Luau.Analyze.CLI PRIVATE
@@ -479,15 +504,15 @@ if(TARGET Luau.UnitTest)
         tests/AstVisitor.test.cpp
         tests/Autocomplete.test.cpp
         tests/BuiltinDefinitions.test.cpp
+        tests/BytecodeCallInliner.test.cpp
         tests/BytecodeCompiler.test.cpp
         tests/ClassFixture.cpp
         tests/ClassFixture.h
         tests/CodeAllocator.test.cpp
         tests/Compiler.test.cpp
         tests/Config.test.cpp
-        tests/ConstraintGeneratorFixture.cpp
-        tests/ConstraintGeneratorFixture.h
         tests/ConstraintSolver.test.cpp
+        tests/ControlFlowGraph.test.cpp
         tests/CostModel.test.cpp
         tests/DataFlowGraph.test.cpp
         tests/DenseHash.test.cpp
@@ -499,6 +524,7 @@ if(TARGET Luau.UnitTest)
         tests/Generalization.test.cpp
         tests/InsertionOrderedMap.test.cpp
         tests/IostreamOptional.h
+        tests/IrAssembly.test.cpp
         tests/IrBuilder.test.cpp
         tests/IrCallWrapperX64.test.cpp
         tests/IrRegAllocX64.test.cpp
@@ -518,6 +544,7 @@ if(TARGET Luau.UnitTest)
         tests/RegisterCallbacks.h
         tests/RequireTracer.test.cpp
         tests/RuntimeLimits.test.cpp
+        tests/Sccp.test.cpp
         tests/ScopedFlags.h
         tests/Simplify.test.cpp
         tests/Set.test.cpp
@@ -535,6 +562,7 @@ if(TARGET Luau.UnitTest)
         tests/TypeInfer.anyerror.test.cpp
         tests/TypeInfer.builtins.test.cpp
         tests/TypeInfer.cfa.test.cpp
+        tests/TypeInfer.classes.test.cpp
         tests/TypeInfer.const.test.cpp
         tests/TypeInfer.definitions.test.cpp
         tests/TypeInfer.typeInstantiations.test.cpp

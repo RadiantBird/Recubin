@@ -40,9 +40,6 @@ enum ReceiverKind {
 pub struct Checker {
     errors: Vec<CheckError>,
     classes: HashMap<String, ClassInfo>,
-    imported_modules: HashSet<String>,
-    // varName → [moduleName...]
-    module_registry: HashMap<String, Vec<String>>,
 }
 
 impl Checker {
@@ -50,20 +47,12 @@ impl Checker {
         Checker {
             errors: Vec::new(),
             classes: HashMap::new(),
-            imported_modules: HashSet::new(),
-            module_registry: HashMap::new(),
         }
     }
 
     pub fn check(&mut self, program: &mut Program) -> Vec<CheckError> {
         self.errors.clear();
         self.classes.clear();
-        self.imported_modules.clear();
-        self.module_registry.clear();
-
-        // Pass 0: collect imports and declares
-        self.collect_imports(program);
-
         // Pass 1: register classes
         for stmt in &program.stmts {
             if let Stmt::ClassDecl(decl) = stmt {
@@ -91,66 +80,6 @@ impl Checker {
         self.check_access_control(program);
 
         std::mem::take(&mut self.errors)
-    }
-
-    // ─── Pass 0 ───────────────────────────────────────────────────────────────
-
-    fn collect_imports(&mut self, program: &mut Program) {
-        // collect imports
-        for stmt in &program.stmts {
-            if let Stmt::ImportDecl { module_name } = stmt {
-                if !self.imported_modules.insert(module_name.clone()) {
-                    self.err(
-                        format!("module '{}' is imported more than once", module_name),
-                        0,
-                    );
-                }
-            }
-        }
-
-        // associate declares with modules and detect ambiguity
-        let mut current_module: Option<String> = None;
-        for stmt in program.stmts.iter_mut() {
-            match stmt {
-                Stmt::ImportDecl { module_name } => {
-                    current_module = Some(module_name.clone());
-                }
-                Stmt::DeclareStmt {
-                    is_global,
-                    name,
-                    module_name,
-                    ..
-                } => {
-                    let mod_name = if *is_global {
-                        None
-                    } else {
-                        current_module.clone()
-                    };
-                    *module_name = mod_name.clone();
-                    if let Some(m) = mod_name {
-                        self.module_registry
-                            .entry(name.clone())
-                            .or_default()
-                            .push(m);
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        // detect ambiguous names
-        let ambiguous: Vec<_> = self
-            .module_registry
-            .iter()
-            .filter(|(_, mods)| mods.len() > 1)
-            .map(|(name, mods)| (name.clone(), mods.clone()))
-            .collect();
-        for (name, mods) in ambiguous {
-            self.err(format!(
-                "ambiguous unqualified name '{}': declared in modules [{}]. Use qualified access (e.g. {}.{})",
-                name, mods.join(", "), mods[0], name
-            ), 0);
-        }
     }
 
     // ─── Pass 1: Registration ─────────────────────────────────────────────────
@@ -511,6 +440,33 @@ impl Checker {
                         env.insert(names[0].clone(), t);
                     }
                 }
+            }
+            Stmt::Const { names, values, .. } => {
+                for v in values {
+                    self.check_expr_access(v, env, current_class, can_use_super, line);
+                }
+                if names.len() == 1 && values.len() == 1 {
+                    if let Some(ReceiverKind::Instance(t)) =
+                        self.infer_receiver(&values[0], env, current_class)
+                    {
+                        env.insert(names[0].clone(), t);
+                    }
+                }
+            }
+            Stmt::FunctionDecl { params, body, .. } => {
+                let mut function_env = env.clone();
+                for param in params {
+                    if let Param::Named {
+                        name,
+                        ty: Some(TypeExpr::Name(type_name)),
+                    } = param
+                    {
+                        if self.classes.contains_key(type_name) {
+                            function_env.insert(name.clone(), type_name.clone());
+                        }
+                    }
+                }
+                self.check_body_access(body, &mut function_env, current_class, can_use_super, line);
             }
             Stmt::Assign { targets, values } => {
                 for e in targets.iter().chain(values.iter()) {

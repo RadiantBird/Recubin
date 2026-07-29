@@ -973,4 +973,81 @@ do
   assert(t.a == 99)
 end
 
+-- table.deepcopy recursively copies tables while preserving graph topology.
+do
+  local nested = {value = 42}
+  local source = {1, name = "Luar", left = nested, right = nested}
+  local copy = table.deepcopy(source)
+
+  assert(copy ~= source)
+  assert(copy[1] == 1 and copy.name == "Luar")
+  assert(copy.left ~= nested and copy.left == copy.right)
+
+  copy.left.value = 99
+  assert(nested.value == 42)
+end
+
+-- Table keys are copied and shared references still point at one copied table.
+do
+  local key = {kind = "key"}
+  local source = {[key] = key}
+  local copy = table.deepcopy(source)
+  local copiedKey, copiedValue = next(copy)
+
+  assert(copiedKey ~= key)
+  assert(copiedKey.kind == "key")
+  assert(copiedValue == copiedKey)
+end
+
+-- Self-cycles and mutual cycles resolve entirely inside the copied graph.
+do
+  local first = {}
+  local second = {}
+  first.self = first
+  first.other = second
+  second.other = first
+
+  local copy = table.deepcopy(first)
+  assert(copy ~= first)
+  assert(copy.self == copy)
+  assert(copy.other ~= second)
+  assert(copy.other.other == copy)
+end
+
+-- Metatables and frozen state are not copied.
+do
+  local metatable = {__index = {fallback = true}}
+  local source = table.freeze(setmetatable({value = 1}, metatable))
+  local copy = table.deepcopy(source)
+
+  assert(getmetatable(copy) == nil)
+  assert(not table.isfrozen(copy))
+  copy.value = 2
+  assert(source.value == 1)
+end
+
+-- Values that are not tables retain their identity.
+do
+  local fn = function() return 1 end
+  local userdata = newproxy(true)
+  local thread = coroutine.create(function() end)
+  local lightuserdata = makelud(123)
+  local copy = table.deepcopy({
+    fn = fn,
+    userdata = userdata,
+    thread = thread,
+    lightuserdata = lightuserdata,
+  })
+
+  assert(copy.fn == fn)
+  assert(copy.userdata == userdata)
+  assert(copy.thread == thread)
+  assert(copy.lightuserdata == lightuserdata)
+end
+
+do
+  assert(not pcall(table.deepcopy))
+  assert(not pcall(table.deepcopy, 42))
+end
+
 return "OK"

@@ -22,13 +22,11 @@ using namespace Luau;
 
 LUAU_FASTINT(LuauParseErrorLimit)
 
-LUAU_FASTFLAG(LuauBetterReverseDependencyTracking)
-LUAU_FASTFLAG(LuauAutocompleteFunctionCallArgTails2)
 LUAU_FASTFLAG(DebugLuauForceOldSolver)
-LUAU_FASTFLAG(LuauReplacerRespectsReboundGenerics)
-LUAU_FASTFLAG(LuauOverloadGetsInstantiated2)
-LUAU_FASTFLAG(LuauAutocompleteStringSingletonIntersection)
 LUAU_FASTFLAG(DebugLuauUserDefinedClasses)
+LUAU_FASTFLAG(LuauAllowGlobalDeclarationToBeCalledClass)
+LUAU_FASTFLAG(LuauAutocompleteMetatableInheritance)
+LUAU_FASTFLAG(LuauAutocompleteSkipErrorTypeInUnion)
 
 static std::optional<AutocompleteEntryMap> nullCallback(std::string tag, std::optional<const ExternType*> ptr, std::optional<std::string> contents)
 {
@@ -331,7 +329,7 @@ struct FragmentAutocompleteBuiltinsFixture : FragmentAutocompleteFixtureImpl<Bui
         Luau::unfreeze(f.globals.globalTypes);
         Luau::unfreeze(f.globalsForAutocomplete.globalTypes);
         const std::string fakeVecDecl = R"(
-declare class FakeVec
+declare extern type FakeVec with
     function dot(self, x: FakeVec) : FakeVec
     zero : FakeVec
 end
@@ -1393,7 +1391,7 @@ abc("bar")
     CHECK_EQ(Position{1, 4}, asString->location.begin);
     CHECK_EQ(Position{1, 9}, asString->location.end);
     CHECK_EQ("foo", std::string{asString->value.data});
-    CHECK_EQ(AstExprConstantString::QuotedSimple, asString->quoteStyle);
+    CHECK_EQ(AstExprConstantString::QuoteStyle::QuotedSimple, asString->quoteStyle);
 }
 
 TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "can_parse_multi_line_fragment_override")
@@ -1436,6 +1434,9 @@ abc("bar")
 
 TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "respects_frontend_options")
 {
+    // NOTE: This does not pass the new solver because it is exercising behavior
+    // that is only meaningful under the old solver (whether the correct
+    // module resolver is used).
     DOES_NOT_PASS_NEW_SOLVER_GUARD();
 
     std::string source = R"(
@@ -1604,6 +1605,34 @@ tbl.
     CHECK_EQ(AutocompleteContext::Property, fragment.result->acResults.context);
 }
 
+TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "autocomplete_props_through_metatable_typed_metatable")
+{
+    ScopedFastFlag sff{FFlag::LuauAutocompleteMetatableInheritance, true};
+
+    const std::string source = R"(
+local Base = { baseProp = 5 }
+local Meta = setmetatable({ __index = Base }, {})
+local obj = setmetatable({}, Meta)
+)";
+    const std::string updated = R"(
+local Base = { baseProp = 5 }
+local Meta = setmetatable({ __index = Base }, {})
+local obj = setmetatable({}, Meta)
+obj. @1
+)";
+
+    autocompleteFragmentInNewSolver(
+        source,
+        updated,
+        '1',
+        [](FragmentAutocompleteStatusResult& fragment)
+        {
+            REQUIRE(fragment.result);
+            CHECK(fragment.result->acResults.entryMap.count("baseProp"));
+        }
+    );
+}
+
 TEST_CASE_FIXTURE(FragmentAutocompleteBuiltinsFixture, "typecheck_fragment_handles_unusable_module")
 {
     const std::string sourceA = "MainModule";
@@ -1704,9 +1733,10 @@ return module)";
         getFrontend().setLuauSolverMode(SolverMode::New);
         checkAndExamine(source, "module", "{  }");
         // [TODO] CLI-140762 Fragment autocomplete still doesn't return correct result when LuauSolverV2 is on
-        return;
+#if 0
         fragmentACAndCheck(updated1, Position{1, 17}, "module", "{  }", "{ a: (%error-id%: unknown) -> () }");
         fragmentACAndCheck(updated2, Position{1, 18}, "module", "{  }", "{ ab: (%error-id%: unknown) -> () }");
+#endif
     }
 }
 
@@ -3050,7 +3080,7 @@ TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "fragment_autocomplete_ensures_me
         LUAU_ASSERT(srcId);
 
         CHECK((*fragId)->owningArena != (*srcId)->owningArena);
-        CHECK(&(frag.result->incrementalModule->internalTypes) == (*fragId)->owningArena);
+        CHECK(frag.result->incrementalModule->internalTypes.get() == (*fragId)->owningArena);
     };
 
     const std::string source = R"(local module = {}
@@ -4776,8 +4806,6 @@ TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "fragment_autocomplete_using_inde
 
 TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "fragment_autocomplete_using_function_call_with_variadic_args")
 {
-    ScopedFastFlag sff{FFlag::LuauAutocompleteFunctionCallArgTails2, true};
-
     std::string source = R"(
         local function foo(...: "Val1" | "Val2") end
     )";
@@ -4802,11 +4830,6 @@ TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "fragment_autocomplete_using_func
 
 TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "fragment_autocomplete_string_singleton_intersection_param")
 {
-    ScopedFastFlag sffs[] = {
-        {FFlag::LuauAutocompleteStringSingletonIntersection, true},
-        {FFlag::LuauAutocompleteFunctionCallArgTails2, true},
-    };
-
     std::string source = R"(
         local function C(_: "Example"&"Example") end
     )";
@@ -4830,8 +4853,6 @@ TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "fragment_autocomplete_string_sin
 
 TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "fragment_autocomplete_string_singleton_intersection_variable_annotation")
 {
-    ScopedFastFlag sff{FFlag::LuauAutocompleteStringSingletonIntersection, true};
-
     std::string source = R"(
         local _: "foo"&"foo"
     )";
@@ -4856,11 +4877,6 @@ TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "fragment_autocomplete_string_sin
 
 TEST_CASE_FIXTURE(FragmentAutocompleteBuiltinsFixture, "fragment_autocomplete_table_insert")
 {
-    ScopedFastFlag sffs[] = {
-        {FFlag::LuauOverloadGetsInstantiated2, true},
-        {FFlag::LuauReplacerRespectsReboundGenerics, true},
-    };
-
     std::string src = R"(
         local function addToTable(t: {{ foobar: number }})
             table.insert(t, {})
@@ -4887,11 +4903,6 @@ TEST_CASE_FIXTURE(FragmentAutocompleteBuiltinsFixture, "fragment_autocomplete_ta
 
 TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "fragment_autocomplete_react_properties")
 {
-    ScopedFastFlag sffs[] = {
-        {FFlag::LuauOverloadGetsInstantiated2, true},
-        {FFlag::LuauReplacerRespectsReboundGenerics, true},
-    };
-
     std::string src = R"(
         type React_Node = any
         type ReactElement<P, T> = any
@@ -4977,11 +4988,6 @@ TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "fragment_autocomplete_react_prop
 
 TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "fragment_autocomplete_react_narrow_fragment")
 {
-    ScopedFastFlag sffs[] = {
-        {FFlag::LuauOverloadGetsInstantiated2, true},
-        {FFlag::LuauReplacerRespectsReboundGenerics, true},
-    };
-
     std::string src = R"(
         type React_Node = any
         type ReactElement<P, T> = any
@@ -5432,6 +5438,91 @@ end
         {
             REQUIRE(frag.result);
             CHECK(frag.result->acResults.entryMap.count("Bar"));
+        }
+    );
+}
+
+TEST_CASE_FIXTURE(FragmentAutocompleteBuiltinsFixture, "isinstance_refines_for_autocomplete")
+{
+    ScopedFastFlag sffs[] = {
+        {FFlag::DebugLuauUserDefinedClasses, true},
+        {FFlag::LuauAllowGlobalDeclarationToBeCalledClass, true},
+    };
+
+    const std::string source = R"(
+class Point
+    public x
+    public y
+end
+
+local function f(v: Point | string)
+    if class.isinstance(v, Point) then
+
+    end
+end
+)";
+
+    const std::string dest = R"(
+class Point
+    public x
+    public y
+end
+
+local function f(v: Point | string)
+    if class.isinstance(v, Point) then
+        v.@1
+    end
+end
+)";
+
+    autocompleteFragmentInNewSolver(
+        source,
+        dest,
+        '1',
+        [](FragmentAutocompleteStatusResult& frag)
+        {
+            REQUIRE(frag.result);
+            CHECK(frag.result->acResults.entryMap.count("x"));
+            CHECK(frag.result->acResults.entryMap.count("y"));
+        }
+    );
+}
+
+TEST_CASE_FIXTURE(FragmentAutocompleteFixture, "fragment_ac_on_nonexistent_table")
+{
+    ScopedFastFlag _{FFlag::LuauAutocompleteSkipErrorTypeInUnion, true};
+
+    const std::string source = R"(
+        local mygame = {}
+
+        local char = (nil :: any) :: {
+            Humanoid: {
+                Animator: number
+            }
+        } & typeof(mygame.interesting)
+    )";
+
+    const std::string updated = R"(
+        local mygame = {}
+
+        local char = (nil :: any) :: {
+            Humanoid: {
+                Animator: number
+            }
+        } & typeof(mygame.interesting)
+
+        char.Humanoid.@1
+    )";
+
+    // In the old solver, we effectively infer `never` for the type of `char`.
+    autocompleteFragmentInNewSolver(
+        source,
+        updated,
+        '1',
+        [](FragmentAutocompleteStatusResult& frag)
+        {
+            REQUIRE(frag.result);
+            CHECK(frag.result->acResults.entryMap.count("Animator"));
         }
     );
 }

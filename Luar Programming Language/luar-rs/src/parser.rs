@@ -64,6 +64,15 @@ impl Parser {
         }
     }
 
+    fn is_contextual(&self, value: &str) -> bool {
+        matches!(self.peek_kind(), TokenKind::Ident) && self.peek().value == value
+    }
+
+    fn starts_const_declaration(&self) -> bool {
+        self.is_contextual("const")
+            && matches!(self.peek_n_kind(1), TokenKind::Function | TokenKind::Ident)
+    }
+
     pub fn parse(&mut self) -> Result<Program, ParseError> {
         let stmts = self.parse_block(&[TokenKind::Eof])?;
         Ok(Program { stmts })
@@ -81,6 +90,9 @@ impl Parser {
     }
 
     fn parse_stmt(&mut self) -> Result<Stmt, ParseError> {
+        if self.starts_const_declaration() {
+            return self.parse_const();
+        }
         match self.peek_kind().clone() {
             TokenKind::Class => self.parse_class_decl(),
             TokenKind::Local => self.parse_local(),
@@ -123,6 +135,57 @@ impl Parser {
             name,
             ty,
             module_name: None,
+        })
+    }
+
+    fn parse_const(&mut self) -> Result<Stmt, ParseError> {
+        let line = self.advance().line;
+        if self.match_tok(&TokenKind::Function) {
+            let name = self.eat_ident()?;
+            self.eat(&TokenKind::LParen)?;
+            let params = self.parse_params()?;
+            self.eat(&TokenKind::RParen)?;
+            let return_type = if self.match_tok(&TokenKind::Colon) {
+                Some(self.parse_type_expr()?)
+            } else {
+                None
+            };
+            let body = self.parse_block(&[TokenKind::End])?;
+            self.eat(&TokenKind::End)?;
+            return Ok(Stmt::FunctionDecl {
+                name,
+                params,
+                return_type,
+                body,
+                is_const: true,
+            });
+        }
+
+        let mut names = vec![self.eat_ident()?];
+        let mut types = vec![self.try_parse_type_annotation()?];
+        while self.match_tok(&TokenKind::Comma) {
+            names.push(self.eat_ident()?);
+            types.push(self.try_parse_type_annotation()?);
+        }
+        if !self.match_tok(&TokenKind::Eq) {
+            return Err(ParseError(format!(
+                "[{line}] const declaration must have an initializer"
+            )));
+        }
+        let values = self.parse_expr_list()?;
+        let final_value_can_expand = matches!(
+            values.last(),
+            Some(Expr::Call { .. } | Expr::MethodCall { .. } | Expr::Vararg)
+        );
+        if values.len() < names.len() && !final_value_can_expand {
+            return Err(ParseError(format!(
+                "[{line}] every const binding must have an initializer"
+            )));
+        }
+        Ok(Stmt::Const {
+            names,
+            types,
+            values,
         })
     }
 

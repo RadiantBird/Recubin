@@ -29,3 +29,6 @@ Luar Programming Language/luar-vscode/*.vsix
 
 # Local backup of nested repository metadata after vendoring
 .nested-git-backups/
+
+# Windows reserved device accidentally created by redirected WSL output
+/NUL

@@ -9,11 +9,10 @@
 #include "doctest.h"
 
 LUAU_FASTFLAG(DebugLuauForceOldSolver)
-LUAU_FASTFLAG(LuauFunctionCallsAreNotNilable)
 LUAU_FASTFLAG(DebugLuauAssertOnForcedConstraint)
-LUAU_FASTFLAG(LuauExternTypesNormalizeWithShapes)
-LUAU_FASTFLAG(LuauUseConstraintSetsToTrackFreeTypes)
-LUAU_FASTFLAG(LuauRefinementTypeVector)
+LUAU_FASTFLAG(LuauRemovePrimitiveTypeConstraintAndSubtypingUnifier)
+LUAU_FASTFLAG(LuauIndexingIntoErrorGivesError);
+LUAU_FASTFLAG(LuauAvoidTrivialPhis)
 
 using namespace Luau;
 
@@ -43,7 +42,7 @@ struct MagicInstanceIsA final : MagicFunction
             return std::nullopt;
 
         ModulePtr module = typeChecker.currentModule;
-        TypePackId booleanPack = module->internalTypes.addTypePack({typeChecker.booleanType});
+        TypePackId booleanPack = module->internalTypes->addTypePack({typeChecker.booleanType});
         return WithPredicate<TypePackId>{booleanPack, {IsAPredicate{std::move(*lvalue), expr.location, tfun->type}}};
     }
 
@@ -782,12 +781,7 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "type_narrow_to_vector")
     LUAU_REQUIRE_NO_ERRORS(result);
 
     if (!FFlag::DebugLuauForceOldSolver)
-    {
-        if (FFlag::LuauRefinementTypeVector)
-            CHECK_EQ("unknown & vector", toString(requireTypeAtPosition({3, 28})));
-        else
-            CHECK_EQ("never", toString(requireTypeAtPosition({3, 28})));
-    }
+        CHECK_EQ("unknown & vector", toString(requireTypeAtPosition({3, 28})));
     else
         CHECK_EQ("*error-type*", toString(requireTypeAtPosition({3, 28})));
 }
@@ -796,7 +790,7 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "nonoptional_type_can_narrow_to_nil_if_sense_
 {
     ScopedFastFlag sffs[] = {
         {FFlag::DebugLuauAssertOnForcedConstraint, true},
-        {FFlag::LuauUseConstraintSetsToTrackFreeTypes, true},
+        {FFlag::LuauRemovePrimitiveTypeConstraintAndSubtypingUnifier, true},
     };
 
     CheckResult result = check(R"(
@@ -821,18 +815,15 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "nonoptional_type_can_narrow_to_nil_if_sense_
     {
         CHECK("nil & string" == toString(requireTypeAtPosition({4, 24})));  // type(v) == "nil"
         CHECK("string & ~nil" == toString(requireTypeAtPosition({6, 24}))); // type(v) ~= "nil"
-
-        CHECK("nil & string" == toString(requireTypeAtPosition({10, 24})));  // equivalent to type(v) == "nil"
-        CHECK("string & ~nil" == toString(requireTypeAtPosition({12, 24}))); // equivalent to type(v) ~= "nil"
     }
     else
     {
         CHECK_EQ("nil", toString(requireTypeAtPosition({4, 24})));    // type(v) == "nil"
         CHECK_EQ("string", toString(requireTypeAtPosition({6, 24}))); // type(v) ~= "nil"
-
-        CHECK_EQ("nil", toString(requireTypeAtPosition({10, 24})));    // equivalent to type(v) == "nil"
-        CHECK_EQ("string", toString(requireTypeAtPosition({12, 24}))); // equivalent to type(v) ~= "nil"
     }
+
+    CHECK_EQ("nil", toString(requireTypeAtPosition({10, 24})));    // equivalent to type(v) == "nil"
+    CHECK_EQ("string", toString(requireTypeAtPosition({12, 24}))); // equivalent to type(v) ~= "nil"
 }
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "typeguard_not_to_be_string")
@@ -1685,7 +1676,7 @@ TEST_CASE_FIXTURE(RefinementExternTypeFixture, "asserting_optional_properties_sh
 
     LUAU_REQUIRE_NO_ERRORS(result);
 
-    if (!FFlag::DebugLuauForceOldSolver && FFlag::LuauExternTypesNormalizeWithShapes)
+    if (!FFlag::DebugLuauForceOldSolver)
         CHECK_EQ("WeldConstraint & { read Part1: ~(false?) }", toString(requireTypeAtPosition({3, 15})));
     else
         CHECK_EQ("WeldConstraint", toString(requireTypeAtPosition({3, 15})));
@@ -1694,6 +1685,8 @@ TEST_CASE_FIXTURE(RefinementExternTypeFixture, "asserting_optional_properties_sh
 
 TEST_CASE_FIXTURE(RefinementExternTypeFixture, "asserting_non_existent_properties_should_not_refine_extern_types_to_never")
 {
+    ScopedFastFlag _{FFlag::LuauIndexingIntoErrorGivesError, true};
+
     CheckResult result = check(R"(
         local weld: WeldConstraint = nil :: any
         assert(weld.Part8)
@@ -1707,10 +1700,7 @@ TEST_CASE_FIXTURE(RefinementExternTypeFixture, "asserting_non_existent_propertie
     CHECK_EQ(toString(result.errors[0]), "Key 'Part8' not found in external type 'WeldConstraint'");
 
     CHECK_EQ("WeldConstraint", toString(requireTypeAtPosition({3, 15})));
-    if (!FFlag::DebugLuauForceOldSolver)
-        CHECK_EQ("any", toString(requireTypeAtPosition({6, 29})));
-    else
-        CHECK_EQ("*error-type*", toString(requireTypeAtPosition({6, 29})));
+    CHECK_EQ("*error-type*", toString(requireTypeAtPosition({6, 29})));
 }
 
 TEST_CASE_FIXTURE(RefinementExternTypeFixture, "x_is_not_instance_or_else_not_part")
@@ -2917,10 +2907,7 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "refinements_from_and_should_not_refine_to_ne
 
     LUAU_REQUIRE_NO_ERRORS(results);
 
-    if (FFlag::LuauExternTypesNormalizeWithShapes)
-        CHECK_EQ("(Config & { read KeyboardEnabled: false? }) | (Config & { read MouseEnabled: false? })", toString(requireTypeAtPosition({6, 24})));
-    else
-        CHECK_EQ("Config", toString(requireTypeAtPosition({6, 24})));
+    CHECK_EQ("(Config & { read KeyboardEnabled: false? }) | (Config & { read MouseEnabled: false? })", toString(requireTypeAtPosition({6, 24})));
 }
 
 TEST_CASE_FIXTURE(Fixture, "force_simplify_constraint_doesnt_drop_blocked_type")
@@ -2934,15 +2921,16 @@ TEST_CASE_FIXTURE(Fixture, "force_simplify_constraint_doesnt_drop_blocked_type")
             if not isBasePart then
                 isCharacter = instance:FindFirstChildOfClass("Humanoid") and instance:FindFirstChild("HumanoidRootPart")
             end
-            -- A verison of `SimplifyConstraint` mucked up the fact that this
-            -- is `boolean | and<unknown, unknown>`, and claimed it was only
-            -- `boolean`.
             return isCharacter
         end
     )");
 
+    // NOTE: This should have *no* errors but due to a constraint cycle
+    // between the `and` type function and the subtype constraint of the
+    // return type, we end up sometimes being unable to reduce this properly.
+
     LUAU_REQUIRE_ERROR_COUNT(1, results);
-    REQUIRE(get<TypeMismatch>(results.errors[0]));
+    CHECK(get<TypeMismatch>(results.errors[0]));
 }
 
 TEST_CASE_FIXTURE(Fixture, "len_operator_in_if_is_just_a_proposition")
@@ -3226,10 +3214,7 @@ TEST_CASE_FIXTURE(Fixture, "cli_184413_refinement_of_union_of_read_types_is_read
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "type_vector_refine")
 {
-    ScopedFastFlag _[] = {
-        {FFlag::DebugLuauForceOldSolver, false},
-        {FFlag::LuauRefinementTypeVector, true}
-    };
+    ScopedFastFlag _[] = {{FFlag::DebugLuauForceOldSolver, false}};
 
     CheckResult result = check(R"(
         function foo(x: unknown)
@@ -3242,6 +3227,48 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "type_vector_refine")
 
     LUAU_REQUIRE_ERROR_COUNT(1, result);
     REQUIRE(get<UnknownProperty>(result.errors[0]));
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "indexing_into_error_gives_error")
+{
+    ScopedFastFlag _{FFlag::LuauIndexingIntoErrorGivesError, true};
+
+    LUAU_REQUIRE_NO_ERRORS(check(R"(
+        local function keyExtractor(item: any, index: number): string
+            if typeof(item) == "table" and item.key ~= nil then
+                return item.key
+            end
+            if typeof(item) == "table" and item.id ~= nil then
+                return item.id
+            end
+            return tostring(index)
+        end
+    )"));
+}
+
+TEST_CASE_FIXTURE(Fixture, "cli_181894_refinement_cancelled_by_for_loop")
+{
+    ScopedFastFlag _{FFlag::LuauAvoidTrivialPhis, true};
+
+    LUAU_REQUIRE_NO_ERRORS(check(R"(
+        --!strict
+        type LightingChanger = { [string]: number, Instances: LightingChanger }
+
+        local lightingChangers: { LightingChanger } = nil :: any
+
+        local closestChanger: LightingChanger?
+        if #lightingChangers == 1 then
+            closestChanger = lightingChangers[1]
+        end
+        if closestChanger == nil then
+            return
+        end
+
+        for _, _ in closestChanger do
+        end
+
+        local _ = closestChanger.Instances
+    )"));
 }
 
 TEST_SUITE_END();

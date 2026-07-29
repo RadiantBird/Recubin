@@ -11,6 +11,9 @@ using namespace Luau;
 
 LUAU_FASTFLAG(DebugLuauForceOldSolver)
 LUAU_FASTFLAG(LuauDisallowRedefiningBuiltinTypes)
+LUAU_FASTFLAG(LuauAvoidCascadingRecursiveConstraintViolationError)
+LUAU_FASTFLAG(LuauFixInfiniteTypeRedundantBind)
+LUAU_FASTFLAG(LuauDoNotEmplaceAnnotatedType)
 
 TEST_SUITE_BEGIN("TypeAliases");
 
@@ -267,7 +270,7 @@ TEST_CASE_FIXTURE(Fixture, "mutually_recursive_types_errors")
     unfreeze(module->interfaceTypes);
     copyErrors(module->errors, module->interfaceTypes, getBuiltins());
     freeze(module->interfaceTypes);
-    module->internalTypes.clear();
+    module->internalTypes->clear();
     module->astTypes.clear();
 
     // Make sure the error strings don't include "VALUELESS"
@@ -401,8 +404,6 @@ TEST_CASE_FIXTURE(Fixture, "corecursive_function_types")
 
 TEST_CASE_FIXTURE(Fixture, "generic_param_remap")
 {
-    DOES_NOT_PASS_NEW_SOLVER_GUARD();
-
     const std::string code = R"(
         -- An example of a forwarded use of a type that has different type arguments than parameters
         type A<T,U> = {t:T, u:U, next:A<U,T>?}
@@ -697,8 +698,7 @@ TEST_CASE_FIXTURE(Fixture, "mutually_recursive_types_restriction_ok")
 
 TEST_CASE_FIXTURE(Fixture, "mutually_recursive_types_restriction_not_ok_1")
 {
-    // CLI-116108
-    DOES_NOT_PASS_NEW_SOLVER_GUARD();
+    ScopedFastFlag _{FFlag::LuauFixInfiniteTypeRedundantBind, true};
 
     CheckResult result = check(R"(
         -- OK because forwarded types are used with their parameters.
@@ -711,8 +711,7 @@ TEST_CASE_FIXTURE(Fixture, "mutually_recursive_types_restriction_not_ok_1")
 
 TEST_CASE_FIXTURE(Fixture, "mutually_recursive_types_restriction_not_ok_2")
 {
-    // CLI-116108
-    DOES_NOT_PASS_NEW_SOLVER_GUARD();
+    ScopedFastFlag _{FFlag::LuauFixInfiniteTypeRedundantBind, true};
 
     CheckResult result = check(R"(
         -- Not OK because forwarded types are used with different types than their parameters.
@@ -735,8 +734,7 @@ TEST_CASE_FIXTURE(Fixture, "mutually_recursive_types_swapsies_ok")
 
 TEST_CASE_FIXTURE(Fixture, "mutually_recursive_types_swapsies_not_ok")
 {
-    // CLI-116108
-    DOES_NOT_PASS_NEW_SOLVER_GUARD();
+    ScopedFastFlag _{FFlag::LuauFixInfiniteTypeRedundantBind, true};
 
     CheckResult result = check(R"(
         type Tree1<T,U> = { data: T, children: {Tree2<U,T>} }
@@ -858,9 +856,6 @@ TEST_CASE_FIXTURE(Fixture, "recursive_types_restriction_ok")
 
 TEST_CASE_FIXTURE(Fixture, "recursive_types_restriction_not_ok")
 {
-    // CLI-116108
-    DOES_NOT_PASS_NEW_SOLVER_GUARD();
-
     CheckResult result = check(R"(
         -- this would be an infinite type if we allowed it
         type Tree<T> = { data: T, children: {Tree<{T}>} }
@@ -1351,5 +1346,74 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "dont_allow_redefining_builtin_types")
     LUAU_CHECK_ERROR(result, DuplicateTypeDefinition);
 }
 
+TEST_CASE_FIXTURE(Fixture, "only_report_single_error_for_missing_generics_1")
+{
+    DOES_NOT_PASS_OLD_SOLVER_GUARD();
+
+    ScopedFastFlag _{FFlag::LuauAvoidCascadingRecursiveConstraintViolationError, true};
+
+    CheckResult results = check(R"(
+        type t0<A> = {[t0]: t0<A>}
+    )");
+
+    LUAU_REQUIRE_ERROR_COUNT(1, results);
+    REQUIRE(get<IncorrectGenericParameterCount>(results.errors[0]));
+}
+
+TEST_CASE_FIXTURE(Fixture, "only_report_single_error_for_missing_generics_2")
+{
+    DOES_NOT_PASS_OLD_SOLVER_GUARD();
+
+    ScopedFastFlag _{FFlag::LuauAvoidCascadingRecursiveConstraintViolationError, true};
+
+    CheckResult results = check(R"(
+        type Tree<A> = { [string]: Tree }
+    )");
+
+    LUAU_REQUIRE_ERROR_COUNT(1, results);
+    REQUIRE(get<IncorrectGenericParameterCount>(results.errors[0]));
+}
+
+TEST_CASE_FIXTURE(Fixture, "cyclic_type_alias_through_generic_does_not_assert")
+{
+    ScopedFastFlag sff[] = {
+        {FFlag::DebugLuauForceOldSolver, false},
+        {FFlag::LuauFixInfiniteTypeRedundantBind, true},
+    };
+
+    // We had an issue where a generic type alias cycle caused the system to
+    // improperly rebind a concrete type.  This was tripping an assertion in
+    // noopt builds.
+    CheckResult result = check(R"(
+        type A = B
+        type B = { x: C<any> }
+        type C<T> = A
+    )");
+
+    // The actual thing we care about is that we not LUAU_ASSERT.  As long as
+    // that doesn't happen, we're okay.
+    LUAU_REQUIRE_ERROR_COUNT(1, result);
+    CHECK(get<RecursiveRestraintViolation>(result.errors.at(0)));
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "unpack_doesnt_emplace_typeof_type")
+{
+    DOES_NOT_PASS_OLD_SOLVER_GUARD();
+
+    ScopedFastFlag _{FFlag::LuauDoNotEmplaceAnnotatedType, true};
+
+    LUAU_REQUIRE_NO_ERRORS(check(R"(
+        local Obj = {}
+        
+        local function g(): number
+            return 42
+        end
+
+        local val: typeof(Obj.Foo.Bar) = g()
+
+        Obj.Foo = {}
+        Obj.Foo.Bar = 42
+    )"));
+}
 
 TEST_SUITE_END();

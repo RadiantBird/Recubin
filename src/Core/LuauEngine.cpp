@@ -720,7 +720,7 @@ bool LuauEngine::loadScriptChunk(lua_State* co, Script& script) {
     bool isLuar = endsWithLuar(script.Name) || endsWithLuar(script.Path);
     if (isLuar) {
         static LuarCompiler s_luarCompiler;
-        compiledSource = s_luarCompiler.compile(script.Source);
+        compiledSource = s_luarCompiler.compile(script.Source, script.Path);
         if (compiledSource.empty()) { script.Aborted = true; return false; }
         RCBN_LOG("\033[32m Compiling Luar Source has succeeded!\033[0m");
         // std::cerr << "[LuarCompiler] Output:\n" << compiledSource << "\n---\n";

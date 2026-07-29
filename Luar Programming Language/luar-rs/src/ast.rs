@@ -70,6 +70,18 @@ pub enum Stmt {
         types: Vec<Option<TypeExpr>>,
         values: Vec<Expr>,
     },
+    Const {
+        names: Vec<String>,
+        types: Vec<Option<TypeExpr>>,
+        values: Vec<Expr>,
+    },
+    FunctionDecl {
+        name: String,
+        params: Vec<Param>,
+        return_type: Option<TypeExpr>,
+        body: Vec<Stmt>,
+        is_const: bool,
+    },
     Assign {
         targets: Vec<Expr>,
         values: Vec<Expr>,

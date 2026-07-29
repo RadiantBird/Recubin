@@ -109,6 +109,7 @@ if(WIN32)
         "${LIB_DIR}/PhysXExtensions_static_64.lib"
         "${LIB_DIR}/PhysXCooking_64.lib"
         "${LIB_DIR}/Luau.Ast.lib"
+        "${LIB_DIR}/Luau.Bytecode.lib"
         "${LIB_DIR}/Luau.Compiler.lib"
         "${LIB_DIR}/Luau.VM.lib"
         "${LIB_DIR}/Luau.Common.lib"
@@ -133,7 +134,7 @@ else()
 
     # Luau: リポジトリ内にビルド元のバージョン記録が無いため、
     # 既定でmasterを取得する。RECUBIN_LUAU_GIT_TAGで固定バージョンに上書き可能。
-    set(RECUBIN_LUAU_GIT_TAG "0.695" CACHE STRING "Luauの取得元git tag/コミット")
+    set(RECUBIN_LUAU_GIT_TAG "0.731" CACHE STRING "Luauの取得元git tag/コミット")
     FetchContent_Declare(
         Luau
         GIT_REPOSITORY https://github.com/luau-lang/luau.git

@@ -8,6 +8,7 @@
 #include "lfunc.h"
 #include "lobject.h"
 #include "lstring.h"
+#include "lvector.h"
 
 #include "lgc.h"
 #include "lmem.h"
@@ -16,8 +17,9 @@
 
 #include <string.h>
 
-LUAU_FASTFLAGVARIABLE(LuauUdataDirectAccess4)
+LUAU_FASTFLAGVARIABLE(LuauUdataDirectAccess6)
 LUAU_FASTFLAG(LuauCallFeedback)
+LUAU_FASTFLAGVARIABLE(LuauCostModel)
 
 template<typename T>
 struct TempBuffer
@@ -370,6 +372,10 @@ static int loadsafe(
 
     for (unsigned int i = 0; i < protoCount; ++i)
     {
+        uint32_t protoSize = 0;
+        if (version >= 12)
+            protoSize = readVarInt(data, size, offset);
+        size_t protoStartOffset = offset;
         Proto* p = luaF_newproto(L);
         p->source = source;
         p->bytecodeid = int(i);
@@ -492,7 +498,18 @@ static int loadsafe(
                 float z = read<float>(data, size, offset);
                 float w = read<float>(data, size, offset);
                 (void)w;
-                setvvalue(&p->k[j], x, y, z, w);
+                setvvalue(L, &p->k[j], x, y, z, w);
+                break;
+            }
+
+            case LBC_CONSTANT_VECTORD:
+            {
+                double x = read<double>(data, size, offset);
+                double y = read<double>(data, size, offset);
+                double z = read<double>(data, size, offset);
+                double w = read<double>(data, size, offset);
+                (void)w;
+                setvvalue(L, &p->k[j], x, y, z, w);
                 break;
             }
 
@@ -600,8 +617,8 @@ static int loadsafe(
 
                 membersToOffset->readonly = true;
 
-                LuaClassObject* lco = luaR_newclassobject(L, tsvalue(classname), membersToOffset, offsetToMember, numProperties, numMethods);
-                setcobjvalue(L, &p->k[j], lco);
+                LuauClass* lco = luaR_newclass(L, tsvalue(classname), membersToOffset, offsetToMember, numProperties, numMethods);
+                setclassvalue(L, &p->k[j], lco);
                 break;
             }
 
@@ -618,7 +635,7 @@ static int loadsafe(
             }
         }
 
-        if (FFlag::LuauUdataDirectAccess4)
+        if (FFlag::LuauUdataDirectAccess6)
         {
             for (Instruction* instruction = p->code; instruction < p->code + p->sizecode;)
             {
@@ -733,7 +750,6 @@ static int loadsafe(
 
         if (version >= 11)
         {
-            LUAU_ASSERT(FFlag::LuauCallFeedback);
             p->feedbackvecsize = readVarInt(data, size, offset);
 
             if (p->feedbackvecsize > 0)
@@ -750,6 +766,18 @@ static int loadsafe(
                 slot.call_target.proto = 0;
                 slot.call_target.hits = 0;
             }
+        }
+
+        if (version >= 12)
+        {
+            if ((p->flags & LPF_INLINABLE) != 0)
+                p->cost = readVarInt64(data, size, offset);
+        }
+
+        if (version >= 12)
+        {
+            // Potantially skipping unknown data at the end of Proto.
+            offset = protoStartOffset + protoSize;
         }
 
         protos[i] = p;

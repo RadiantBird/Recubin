@@ -206,6 +206,8 @@ struct SubtypingEnvironment
     int iterationCount = 0;
 };
 
+struct TypeFunctionRuntime;
+
 struct Subtyping
 {
     NotNull<BuiltinTypes> builtinTypes;
@@ -282,6 +284,7 @@ private:
     template<typename SubTy, typename SuperTy>
     SubtypingResult isInvariantWith(SubtypingEnvironment& env, const TryPair<const SubTy*, const SuperTy*>& pair, NotNull<Scope>);
 
+    SubtypingResult isCovariantWith(SubtypingEnvironment& env, const UnionType* subUnion, const UnionType* superUnion, NotNull<Scope> scope);
     SubtypingResult isCovariantWith(SubtypingEnvironment& env, TypeId subTy, const UnionType* superUnion, NotNull<Scope> scope);
     SubtypingResult isCovariantWith(SubtypingEnvironment& env, const UnionType* subUnion, TypeId superTy, NotNull<Scope> scope);
     SubtypingResult isCovariantWith(SubtypingEnvironment& env, TypeId subTy, const IntersectionType* superIntersection, NotNull<Scope> scope);
@@ -304,14 +307,6 @@ private:
         NotNull<Scope> scope
     );
     SubtypingResult isCovariantWith(
-        SubtypingEnvironment& env,
-        const TableType* subTable,
-        const TableType* superTable,
-        bool forceCovariantTest,
-        NotNull<Scope> scope
-    );
-
-    SubtypingResult isCovariantWith_DEPRECATED(
         SubtypingEnvironment& env,
         const TableType* subTable,
         const TableType* superTable,

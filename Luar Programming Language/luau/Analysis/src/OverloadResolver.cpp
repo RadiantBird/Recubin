@@ -12,6 +12,8 @@
 #include "Luau/TypeUtils.h"
 #include "Luau/Unifier2.h"
 
+LUAU_FASTFLAG(LuauBidirectionalInferenceSimplifyTables)
+
 namespace Luau
 {
 
@@ -492,7 +494,7 @@ void OverloadResolver::testFunction(
         return;
     }
 
-    TypeFunctionContext context{arena, builtinTypes, scope, normalizer, typeFunctionRuntime, ice, limits};
+    TypeFunctionContext context{arena, builtinTypes, scope, normalizer, typeFunctionRuntime, ice, limits, NotNull{&subtyping}};
     FunctionGraphReductionResult reduceResult = reduceTypeFunctions(fnTy, callLoc, NotNull{&context}, /*force=*/true);
     if (!reduceResult.errors.empty())
     {
@@ -502,7 +504,9 @@ void OverloadResolver::testFunction(
 
     TypeId prospectiveFunction = arena->addType(FunctionType{argsPack, builtinTypes->anyTypePack});
 
-    subtyping.uniqueTypes = uniqueTypes;
+    if (!FFlag::LuauBidirectionalInferenceSimplifyTables)
+        subtyping.uniqueTypes = uniqueTypes;
+
     SubtypingResult r = subtyping.isSubtype(fnTy, prospectiveFunction, scope);
 
     // Frustratingly, subtyping does not know about error suppression, so this

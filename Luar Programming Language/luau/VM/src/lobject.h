@@ -50,6 +50,18 @@ typedef struct lua_TValue
     int tt;
 } TValue;
 
+#if LUA_VECTOR_SIZE == 4
+#define condvector4(vec4expr, vec3expr) vec4expr
+#else
+#define condvector4(vec4expr, vec3expr) vec3expr
+#endif
+
+#if LUA_VECTOR_DOUBLE == 1
+#define condvectordouble(vecdoubleexpr, vecfloatexpr) vecdoubleexpr
+#else
+#define condvectordouble(vecdoubleexpr, vecfloatexpr) vecfloatexpr
+#endif
+
 // Macros to test type
 #define ttisnil(o) (ttype(o) == LUA_TNIL)
 #define ttisnumber(o) (ttype(o) == LUA_TNUMBER)
@@ -64,8 +76,8 @@ typedef struct lua_TValue
 #define ttislightuserdata(o) (ttype(o) == LUA_TLIGHTUSERDATA)
 #define ttisvector(o) (ttype(o) == LUA_TVECTOR)
 #define ttisupval(o) (ttype(o) == LUA_TUPVAL)
-#define ttisclassobject(o) (ttype(o) == LUA_TCLASSOBJ)
-#define ttisclassinstance(o) (ttype(o) == LUA_TCLASSINST)
+#define ttisclass(o) (ttype(o) == LUA_TCLASS)
+#define ttisobject(o) (ttype(o) == LUA_TOBJECT)
 
 // Macros to access values
 #define ttype(o) ((o)->tt)
@@ -73,7 +85,7 @@ typedef struct lua_TValue
 #define pvalue(o) check_exp(ttislightuserdata(o), (o)->value.p)
 #define nvalue(o) check_exp(ttisnumber(o), (o)->value.n)
 #define lvalue(o) check_exp(ttisinteger(o), (o)->value.l)
-#define vvalue(o) check_exp(ttisvector(o), (o)->value.v)
+#define vvalue(o) check_exp(ttisvector(o), condvectordouble((o)->value.gc->vec.v, (o)->value.v))
 #define tsvalue(o) check_exp(ttisstring(o), &(o)->value.gc->ts)
 #define uvalue(o) check_exp(ttisuserdata(o), &(o)->value.gc->u)
 #define clvalue(o) check_exp(ttisfunction(o), &(o)->value.gc->cl)
@@ -82,8 +94,8 @@ typedef struct lua_TValue
 #define thvalue(o) check_exp(ttisthread(o), &(o)->value.gc->th)
 #define bufvalue(o) check_exp(ttisbuffer(o), &(o)->value.gc->buf)
 #define upvalue(o) check_exp(ttisupval(o), &(o)->value.gc->uv)
-#define cobjvalue(o) check_exp(ttisclassobject(o), &(o)->value.gc->classobj)
-#define cinstvalue(o) check_exp(ttisclassinstance(o), &(o)->value.gc->classinst)
+#define classvalue(o) check_exp(ttisclass(o), &(o)->value.gc->lclass)
+#define objectvalue(o) check_exp(ttisobject(o), &(o)->value.gc->lobject)
 
 #define l_isfalse(o) (ttisnil(o) || (ttisboolean(o) && bvalue(o) == 0))
 
@@ -116,25 +128,24 @@ typedef struct lua_TValue
         i_o->tt = LUA_TINTEGER; \
     }
 
-#if LUA_VECTOR_SIZE == 4
-#define setvvalue(obj, x, y, z, w) \
+#if LUA_VECTOR_DOUBLE == 1
+#define setvvalue(L, obj, x, y, z, w) \
     { \
         TValue* i_o = (obj); \
-        float* i_v = i_o->value.v; \
-        i_v[0] = (x); \
-        i_v[1] = (y); \
-        i_v[2] = (z); \
-        i_v[3] = (w); \
+        LuauVector* i_vec = luaVec_newvector((L), double(x), double(y), double(z), condvector4(double(w), 0)); \
+        i_o->value.gc = cast_to(GCObject*, i_vec); \
         i_o->tt = LUA_TVECTOR; \
+        checkliveness((L)->global, i_o); \
     }
 #else
-#define setvvalue(obj, x, y, z, w) \
+#define setvvalue(L, obj, x, y, z, w) \
     { \
         TValue* i_o = (obj); \
         float* i_v = i_o->value.v; \
-        i_v[0] = (x); \
-        i_v[1] = (y); \
-        i_v[2] = (z); \
+        i_v[0] = float(x); \
+        i_v[1] = float(y); \
+        i_v[2] = float(z); \
+        condvector4(i_v[3] = float(w), (void)(w)); \
         i_o->tt = LUA_TVECTOR; \
     }
 #endif
@@ -226,20 +237,20 @@ typedef struct lua_TValue
         checkliveness(L->global, o1); \
     }
 
-#define setcobjvalue(L, obj, x) \
+#define setclassvalue(L, obj, x) \
     { \
         TValue* i_o = (obj); \
         i_o->value.gc = cast_to(GCObject*, (x)); \
-        i_o->tt = LUA_TCLASSOBJ; \
+        i_o->tt = LUA_TCLASS; \
         checkliveness(L->global, i_o); \
     }
 
 
-#define setcinstvalue(L, obj, x) \
+#define setobjectvalue(L, obj, x) \
     { \
         TValue* i_o = (obj); \
         i_o->value.gc = cast_to(GCObject*, (x)); \
-        i_o->tt = LUA_TCLASSINST; \
+        i_o->tt = LUA_TOBJECT; \
         checkliveness(L->global, i_o); \
     }
 
@@ -261,6 +272,13 @@ typedef struct lua_TValue
 #define setttype(obj, tt) (ttype(obj) = (tt))
 
 #define iscollectable(o) (ttype(o) >= LUA_TSTRING)
+
+// wrapper for returning userdata properties directly
+struct DirectFieldResult
+{
+    lua_State* L;
+    TValue* slot;
+};
 
 typedef TValue* StkId; // index to stack elements
 
@@ -311,6 +329,14 @@ typedef struct LuauBuffer
 
     alignas(8) char data[1];
 } Buffer;
+
+typedef struct LuauVector
+{
+    CommonHeader;
+    // 1 byte padding
+
+    LUA_VECTOR_TYPE v[LUA_VECTOR_SIZE];
+} LuauVector;
 
 enum FeedbackVectorSlotKind
 {
@@ -383,6 +409,9 @@ typedef struct Proto
     FeedbackVectorSlot* feedbackvec;
     uint32_t feedbackvecsize;
     uint32_t funid;
+    Proto* optimized;
+    Proto* deoptimized;
+    uint64_t cost;
 } Proto;
 // clang-format on
 
@@ -436,7 +465,6 @@ typedef struct Closure
     uint8_t stacksize;
     uint8_t preload;
 
-    uint64_t usage; // only valid for Luau functions
     GCObject* gclist;
     struct LuaTable* env;
 
@@ -526,7 +554,7 @@ typedef struct LuaTable
 } LuaTable;
 // clang-format on
 
-typedef struct LuaClassObject
+typedef struct LuauClass
 {
     CommonHeader;
 
@@ -547,9 +575,13 @@ typedef struct LuaClassObject
     // __call, but we may add more metamethods to class objects in the future.
     LuaTable* metatable;
 
+    // Metatable for instances of this class. NULL until the first metamethod
+    // is added via luaR_addclassmember.
+    LuaTable* instancemetatable;
+
     // Number of instance members that we expect instances of this class object
     // to have.
-    int numberofinstancemembers;
+    uint32_t numberofinstancemembers;
 
     // Total number of members that we expect this class object to have between
     // instance and static members.
@@ -559,33 +591,33 @@ typedef struct LuaClassObject
     // to reference the total number of members (for validating hot paths in
     // the interpreter) and the number of instance members (branching on
     // instance or static members, creating class instances).
-    int numberofallmembers;
+    uint32_t numberofallmembers;
 
-} LuaClassObject;
+} LuauClass;
 
-typedef struct LuaClassInstance
+typedef struct LuauObject
 {
     CommonHeader;
 
     GCObject* gclist;
 
     // The class object that this value is an instance of.
-    LuaClassObject* classobject;
+    LuauClass* lclass;
 
     // The number of members that this instance contains. We need this in order
-    // to free ourselves if we got swept in the same GC cycle as our class 
+    // to free ourselves if we got swept in the same GC cycle as our class
     // pointer.
-    int numberofmembers;
+    uint32_t numberofmembers;
 
     // The fields of this instance.
     TValue* members;
 
-} LuaClassInstance;
+} LuauObject;
 
 /*
 ** `module' operation for hashing (size is always a power of 2)
 */
-#define lmod(s, size) (check_exp((size & (size - 1)) == 0, (cast_to(int, (s) & ((size)-1)))))
+#define lmod(s, size) (check_exp((size & (size - 1)) == 0, (cast_to(int, (s) & ((size) - 1)))))
 
 #define twoto(x) ((int)(1 << (x)))
 #define sizenode(t) (twoto((t)->lsizenode))
@@ -594,7 +626,7 @@ typedef struct LuaClassInstance
 
 LUAI_DATA const TValue luaO_nilobject_;
 
-#define ceillog2(x) (luaO_log2((x)-1) + 1)
+#define ceillog2(x) (luaO_log2((x) - 1) + 1)
 
 LUAI_FUNC int luaO_log2(unsigned int x);
 LUAI_FUNC int luaO_rawequalObj(const TValue* t1, const TValue* t2);

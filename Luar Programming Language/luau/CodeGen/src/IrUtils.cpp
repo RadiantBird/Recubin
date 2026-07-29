@@ -18,10 +18,6 @@
 #include <limits.h>
 #include <math.h>
 
-LUAU_FASTFLAG(LuauCodegenPropagateTagsAcrossChains2)
-LUAU_FASTFLAGVARIABLE(LuauCodegenConsistentHasResult)
-LUAU_FASTFLAG(LuauCodegenVmExitSync)
-
 namespace Luau
 {
 namespace CodeGen
@@ -61,6 +57,7 @@ int getOpLength(LuauOpcode op)
     case LOP_NAMECALLUDATA:
     case LOP_NEWCLASSMEMBER:
     case LOP_CALLFB:
+    case LOP_CMPPROTO:
         return 2;
 
     default:
@@ -92,6 +89,7 @@ bool isJumpD(LuauOpcode op)
     case LOP_JUMPXEQKB:
     case LOP_JUMPXEQKN:
     case LOP_JUMPXEQKS:
+    case LOP_CMPPROTO:
         return true;
 
     default:
@@ -287,6 +285,7 @@ IrValueKind getCmdValueKind(IrCmd cmd)
         return IrValueKind::Int;
     case IrCmd::TRY_CALL_FASTGETTM:
     case IrCmd::NEW_USERDATA:
+    case IrCmd::NEW_VECTOR:
         return IrValueKind::Pointer;
     case IrCmd::INT64_TO_NUM:
     case IrCmd::INT_TO_NUM:
@@ -412,6 +411,8 @@ IrValueKind getCmdValueKind(IrCmd cmd)
         return IrValueKind::Float;
     case IrCmd::BUFFER_READF64:
         return IrValueKind::Double;
+    case IrCmd::JUMP_CMP_PROTOID:
+        return IrValueKind::None;
     }
 
     LUAU_UNREACHABLE();
@@ -1786,18 +1787,9 @@ std::vector<uint32_t> getSortedBlockOrder(IrFunction& function)
             const IrBlock& a = function.blocks[idxA];
             const IrBlock& b = function.blocks[idxB];
 
-            if (FFlag::LuauCodegenVmExitSync)
-            {
-                // Place fallback blocks at the end followed by exit sync blocks
-                if (getBlockKindPriority(a.kind) != getBlockKindPriority(b.kind))
-                    return getBlockKindPriority(a.kind) < getBlockKindPriority(b.kind);
-            }
-            else
-            {
-                // Place fallback blocks at the end
-                if ((a.kind == IrBlockKind::Fallback) != (b.kind == IrBlockKind::Fallback))
-                    return (a.kind == IrBlockKind::Fallback) < (b.kind == IrBlockKind::Fallback);
-            }
+            // Place fallback blocks at the end followed by exit sync blocks
+            if (getBlockKindPriority(a.kind) != getBlockKindPriority(b.kind))
+                return getBlockKindPriority(a.kind) < getBlockKindPriority(b.kind);
 
             // Try to order by instruction order
             if (a.sortkey != b.sortkey)
@@ -1866,8 +1858,6 @@ void propagateTagsFromPredecessors(
     std::function<void(size_t, uint8_t)> setTag
 )
 {
-    CODEGEN_ASSERT(FFlag::LuauCodegenPropagateTagsAcrossChains2);
-
     uint32_t blockIdx = function.getBlockIndex(block);
 
     if (blockIdx >= function.cfg.predecessorsOffsets.size())

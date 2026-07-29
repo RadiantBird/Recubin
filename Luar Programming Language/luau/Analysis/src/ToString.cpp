@@ -19,7 +19,7 @@
 #include <string>
 
 LUAU_FASTFLAG(LuauSolverV2)
-LUAU_FASTFLAG(LuauIntegerType)
+LUAU_FASTFLAG(LuauIntegerType2)
 
 /*
  * Enables increasing levels of verbosity for Luau type names when stringifying.
@@ -611,7 +611,7 @@ struct TypeStringifier
             state.emit("table");
             return;
         case PrimitiveType::Integer:
-            if (FFlag::LuauIntegerType)
+            if (FFlag::LuauIntegerType2)
             {
                 state.emit("integer");
                 return;
@@ -2009,7 +2009,7 @@ std::string toString(const Constraint& constraint, ToStringOptions& opts)
         {
             return "function_check " + tos(c.fn) + " " + tos(c.argsPack);
         }
-        else if constexpr (std::is_same_v<T, PrimitiveTypeConstraint>)
+        else if constexpr (std::is_same_v<T, DEPRECATED_PrimitiveTypeConstraint>)
         {
             if (c.expectedType)
                 return "prim " + tos(c.freeType) + "[expected: " + tos(*c.expectedType) + "] as " + tos(c.primitiveType);

@@ -590,79 +590,67 @@ static int tclone(lua_State* L)
 
     TValue v;
     sethvalue(L, &v, tt);
-    luaA_pushobject(L, &v);
+    luaA_pushvalue(L, &v);
 
     return 1;
 }
 
-// ── table.deepcopy ────────────────────────────────────────────────────────────
-// Spec (LPL.md):
-//   - Tables are deep-copied recursively
-//   - function / userdata / thread stay as references
-//   - Metatables are NOT copied
-//   - Circular references map to the same copy object
+static void deepcopyvalue(lua_State* L, int visited);
 
-static void deepcopy_value(lua_State* L, int vis_abs);
-
-// Called with the source table at the TOP of the stack.
-// Replaces it with a deep copy in-place.
-static void deepcopy_table_top(lua_State* L, int vis_abs)
+// Replaces the table at the top of the stack with its deep copy.
+static void deepcopytable(lua_State* L, int visited)
 {
     luaL_checkstack(L, 4, "table.deepcopy");
-    int src_abs = lua_gettop(L);
+    int source = lua_gettop(L);
 
-    // Return cached copy for circular refs
-    lua_pushvalue(L, src_abs);
-    lua_rawget(L, vis_abs);
+    // Register each copy before walking its contents so cycles and shared
+    // references resolve to the same destination table.
+    lua_pushvalue(L, source);
+    lua_rawget(L, visited);
     if (!lua_isnil(L, -1))
     {
-        lua_remove(L, src_abs); // remove original, cached copy slides to src_abs
+        lua_remove(L, source);
         return;
     }
-    lua_pop(L, 1); // pop nil
+    lua_pop(L, 1);
 
-    // Create new table and register before recursing to handle circular refs
     lua_newtable(L);
-    int copy_abs = lua_gettop(L);
-    lua_pushvalue(L, src_abs);
-    lua_pushvalue(L, copy_abs);
-    lua_rawset(L, vis_abs); // visited[src] = copy
+    int copy = lua_gettop(L);
+    lua_pushvalue(L, source);
+    lua_pushvalue(L, copy);
+    lua_rawset(L, visited);
 
-    // Iterate all key-value pairs; metatables are intentionally skipped
     lua_pushnil(L);
-    while (lua_next(L, src_abs) != 0)
+    while (lua_next(L, source) != 0)
     {
-        // Stack: ..., src, copy, key, value
         lua_pushvalue(L, -2);
-        deepcopy_value(L, vis_abs); // deep copy key
+        deepcopyvalue(L, visited);
         lua_pushvalue(L, -2);
-        deepcopy_value(L, vis_abs); // deep copy value
-        lua_rawset(L, copy_abs);    // copy[key_copy] = value_copy
-        lua_pop(L, 1);              // pop original value, keep key for lua_next
+        deepcopyvalue(L, visited);
+        lua_rawset(L, copy);
+        lua_pop(L, 1);
     }
 
-    lua_replace(L, src_abs); // replace src with copy
+    // Metatables and the frozen state are intentionally not copied.
+    lua_replace(L, source);
 }
 
-static void deepcopy_value(lua_State* L, int vis_abs)
+static void deepcopyvalue(lua_State* L, int visited)
 {
     if (lua_type(L, -1) == LUA_TTABLE)
-        deepcopy_table_top(L, vis_abs);
-    // number/string/boolean: Lua copies by value naturally
-    // function/userdata/thread: kept as references per spec
+        deepcopytable(L, visited);
 }
 
 static int tdeepcopy(lua_State* L)
 {
     luaL_checktype(L, 1, LUA_TTABLE);
 
-    lua_newtable(L);                 // visited cache: maps original tables → copies
-    int vis_abs = lua_gettop(L);     // absolute index of visited table
+    lua_newtable(L);
+    int visited = lua_gettop(L);
+    lua_pushvalue(L, 1);
+    deepcopyvalue(L, visited);
 
-    lua_pushvalue(L, 1);             // push the input table
-    deepcopy_value(L, vis_abs);      // deep copy it in-place
-
-    return 1; // return the deep copy
+    return 1;
 }
 
 static const luaL_Reg tab_funcs[] = {

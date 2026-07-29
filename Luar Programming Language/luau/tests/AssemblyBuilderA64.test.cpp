@@ -7,6 +7,7 @@
 
 #include <string.h>
 
+LUAU_FASTFLAG(LuauCodegenSharedLog)
 
 using namespace Luau::CodeGen;
 using namespace Luau::CodeGen::A64;
@@ -36,7 +37,7 @@ class AssemblyBuilderA64Fixture
 public:
     bool check(void (*f)(AssemblyBuilderA64& build), std::vector<uint32_t> code, std::vector<uint8_t> data = {}, unsigned int features = 0)
     {
-        AssemblyBuilderA64 build(/* logText= */ false, features);
+        AssemblyBuilderA64 build(/* logger= */ nullptr, false, features);
 
         f(build);
 
@@ -591,7 +592,9 @@ TEST_CASE_FIXTURE(AssemblyBuilderA64Fixture, "SIMDMath")
 
 TEST_CASE("LogTest")
 {
-    AssemblyBuilderA64 build(/* logText= */ true);
+    AssemblyOptions options;
+    LogBuilder logger(options);
+    AssemblyBuilderA64 build(/* logger= */ &logger, true, /* features= */ 0);
 
     build.add(sp, sp, uint16_t(4));
     build.add(w0, w1, w2);
@@ -695,7 +698,7 @@ TEST_CASE("LogTest")
  ret
 )";
 
-    CHECK("\n" + build.text == expected);
+    CHECK("\n" + (FFlag::LuauCodegenSharedLog ? logger.text : build.text) == expected);
 }
 
 TEST_CASE_FIXTURE(AssemblyBuilderA64Fixture, "Nop")
@@ -706,7 +709,8 @@ TEST_CASE_FIXTURE(AssemblyBuilderA64Fixture, "Nop")
         {
             build.nop(0);
         },
-        {}));
+        {}
+    ));
 
     // Non-multiple of 4: rounds down to nearest multiple (7 -> 1 NOP = 4 bytes)
     CHECK(check(
@@ -714,7 +718,8 @@ TEST_CASE_FIXTURE(AssemblyBuilderA64Fixture, "Nop")
         {
             build.nop(7);
         },
-        {0xD503201F}));
+        {0xD503201F}
+    ));
 
     // Exact multiples: 4 -> 1 NOP, 8 -> 2 NOPs, 12 -> 3 NOPs
     CHECK(check(
@@ -722,21 +727,24 @@ TEST_CASE_FIXTURE(AssemblyBuilderA64Fixture, "Nop")
         {
             build.nop(4);
         },
-        {0xD503201F}));
+        {0xD503201F}
+    ));
 
     CHECK(check(
         [](AssemblyBuilderA64& build)
         {
             build.nop(8);
         },
-        {0xD503201F, 0xD503201F}));
+        {0xD503201F, 0xD503201F}
+    ));
 
     CHECK(check(
         [](AssemblyBuilderA64& build)
         {
             build.nop(12);
         },
-        {0xD503201F, 0xD503201F, 0xD503201F}));
+        {0xD503201F, 0xD503201F, 0xD503201F}
+    ));
 }
 
 TEST_SUITE_END();

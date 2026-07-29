@@ -423,11 +423,11 @@ std::string toString(AstExprUnary::Op op)
 {
     switch (op)
     {
-    case AstExprUnary::Minus:
+    case AstExprUnary::Op::Minus:
         return "-";
-    case AstExprUnary::Not:
+    case AstExprUnary::Op::Not:
         return "not";
-    case AstExprUnary::Len:
+    case AstExprUnary::Op::Len:
         return "#";
     default:
         LUAU_ASSERT(false);
@@ -864,11 +864,12 @@ void AstStatFunction::visit(AstVisitor* visitor)
     }
 }
 
-AstStatLocalFunction::AstStatLocalFunction(const Location& location, AstLocal* name, AstExprFunction* func, bool isConst)
+AstStatLocalFunction::AstStatLocalFunction(const Location& location, AstLocal* name, AstExprFunction* func, bool isConst, Position constKeywordBegin)
     : AstStat(ClassIndex(), location)
     , name(name)
     , func(func)
     , isConst(isConst)
+    , constKeywordBegin(constKeywordBegin)
 {
 }
 
@@ -978,14 +979,11 @@ AstStatDeclareFunction::AstStatDeclareFunction(
 {
 }
 
-AstStatClass::AstStatClass(
-    const Location& location,
-    AstLocal* name,
-    AstArray<AstClassMember> members
-)
+AstStatClass::AstStatClass(const Location& location, AstLocal* name, AstArray<AstClassMember> members, bool exported)
     : AstStat(ClassIndex(), location)
     , name(name)
     , members(members)
+    , exported(exported)
 {
     LUAU_ASSERT(FFlag::DebugLuauUserDefinedClasses);
 }
@@ -1128,12 +1126,14 @@ AstTypeReference::AstTypeReference(
     std::optional<Location> prefixLocation,
     const Location& nameLocation,
     bool hasParameterList,
-    const AstArray<AstTypeOrPack>& parameters
+    const AstArray<AstTypeOrPack>& parameters,
+    AstLocal* prefixLocal
 )
     : AstType(ClassIndex(), location)
     , hasParameterList(hasParameterList)
     , prefix(prefix)
     , prefixLocation(prefixLocation)
+    , prefixLocal(prefixLocal)
     , name(name)
     , nameLocation(nameLocation)
     , parameters(parameters)

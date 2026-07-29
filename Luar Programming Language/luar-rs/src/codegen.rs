@@ -1,5 +1,5 @@
 use crate::ast::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 const OPERATOR_META: &[(&str, &str)] = &[
     ("==", "__eq"),
@@ -62,59 +62,10 @@ impl Codegen {
         self.type_env = vec![HashMap::new()];
         self.registry = self.build_registry(program);
 
-        self.emit_import_preamble(program);
-
         for stmt in &program.stmts {
             self.emit_stmt(stmt);
         }
         self.out.join("\n")
-    }
-
-    // ─── Import preamble ──────────────────────────────────────────────────────
-
-    fn emit_import_preamble(&mut self, program: &Program) {
-        let mut module_vars: HashMap<String, Vec<String>> = HashMap::new();
-        let mut var_modules: HashMap<String, Vec<String>> = HashMap::new();
-
-        for stmt in &program.stmts {
-            match stmt {
-                Stmt::ImportDecl { module_name } => {
-                    module_vars.entry(module_name.clone()).or_default();
-                }
-                Stmt::DeclareStmt {
-                    is_global: false,
-                    name,
-                    module_name: Some(m),
-                    ..
-                } => {
-                    module_vars.entry(m.clone()).or_default().push(name.clone());
-                    var_modules.entry(name.clone()).or_default().push(m.clone());
-                }
-                _ => {}
-            }
-        }
-
-        let colliding: HashSet<String> = var_modules
-            .iter()
-            .filter(|(_, mods)| mods.len() > 1)
-            .map(|(name, _)| name.clone())
-            .collect();
-
-        if colliding.is_empty() {
-            return;
-        }
-
-        for var_name in &colliding {
-            self.line(&format!("local LUAR__RAW_{var_name} = {var_name}"));
-        }
-        for (mod_name, vars) in &module_vars {
-            let col: Vec<_> = vars.iter().filter(|v| colliding.contains(*v)).collect();
-            if col.is_empty() {
-                continue;
-            }
-            let fields: Vec<_> = col.iter().map(|v| format!("{v} = LUAR__RAW_{v}")).collect();
-            self.line(&format!("local {mod_name} = {{ {} }}", fields.join(", ")));
-        }
     }
 
     // ─── Class registry ───────────────────────────────────────────────────────
@@ -291,6 +242,34 @@ impl Codegen {
         match stmt {
             Stmt::ClassDecl(d) => self.emit_class_decl(d),
             Stmt::Local { names, values, .. } => self.emit_local(names, values),
+            Stmt::Const { names, values, .. } => {
+                let ns = names.join(", ");
+                let vs = values
+                    .iter()
+                    .map(|e| self.emit_expr(e))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                self.line(&format!("const {ns} = {vs}"));
+            }
+            Stmt::FunctionDecl {
+                name,
+                params,
+                body,
+                is_const,
+                ..
+            } => {
+                let prefix = if *is_const { "const " } else { "" };
+                let ps = Self::emit_params_vec(params);
+                self.line(&format!("{prefix}function {name}({ps})"));
+                self.indented(|s| {
+                    s.push_scope();
+                    for st in body {
+                        s.emit_stmt(st);
+                    }
+                    s.pop_scope();
+                });
+                self.line("end");
+            }
             Stmt::Assign { targets, values } => {
                 let ts = targets
                     .iter()
