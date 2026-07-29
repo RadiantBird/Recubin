@@ -2,6 +2,7 @@
 #include <include/Instances/Instance.hpp>
 #include <include/Instances/Spatial.hpp>
 #include <include/Core/RCBNScriptSignal.hpp>
+#include <include/Core/PhysicsTypes.hpp>
 #include <include/Instances/Workspace.hpp>
 #include <include/Math/Vector3.hpp>
 #include <include/Math/Quaternion.hpp>
@@ -31,7 +32,7 @@ public:
     // キャッシュ：自分がどの Workspace に登録されているか
     Workspace* lastWorkspace = nullptr;
 
-    physx::PxRigidDynamicLockFlags LockFlags = (physx::PxRigidDynamicLockFlags)0;
+    PhysicsLockFlags LockFlags = PhysicsLockFlags::None;
     physx::PxRigidActor* actor = nullptr;
     physx::PxTransform m_compoundLocalOffset = physx::PxTransform(physx::PxIdentity);
     // このキューブがアンカーを含むWeldのキネマティックcompoundのメンバーであるか。

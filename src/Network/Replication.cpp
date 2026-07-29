@@ -102,12 +102,8 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
         // 自分(ホスト)の速度を記録してからAvatarBatchに載せる
         Vector3 localVel{};
         auto localRoot = (m_user && m_user->humanoid) ? m_user->humanoid->getRootPart() : nullptr;
-        if (localRoot && localRoot->actor) {
-            if (auto* dyn = localRoot->actor->is<physx::PxRigidDynamic>()) {
-                physx::PxVec3 v = dyn->getLinearVelocity();
-                localVel = Vector3(v.x, v.y, v.z);
-            }
-        }
+        Physics* physics = m_workspace ? m_workspace->getPhysicsEngine() : nullptr;
+        if (localRoot && physics) localVel = physics->getLinearVelocity(*localRoot);
         m_latestVels[net.getLocalPeerId()] = localVel;
 
         std::unordered_set<PeerId> rosterIds;
@@ -479,12 +475,8 @@ void ReplicationManager::reconcileLocalPose() {
             corrected.Position = local.Position + delta * alpha;
             corrected.Rotation = Quaternion::Slerp(local.Rotation, target.Rotation, 0.25f);
         }
-        if (root->actor) {
-            physx::PxTransform pose = root->actor->getGlobalPose();
-            pose.p = physx::PxVec3(corrected.Position.x, corrected.Position.y, corrected.Position.z);
-            pose.q = physx::PxQuat(corrected.Rotation.x, corrected.Rotation.y, corrected.Rotation.z, corrected.Rotation.w);
-            root->actor->setGlobalPose(pose);
-        }
+        Physics* physics = m_workspace ? m_workspace->getPhysicsEngine() : nullptr;
+        if (physics) physics->setBodyWorldCFrame(*root, corrected);
         root->cframe = corrected;
     };
 
@@ -505,15 +497,12 @@ void ReplicationManager::reconcileLocalPose() {
     // 1. シャドウRootをHost権威姿勢へ巻き戻す
     //    回転はauthoritative姿勢ではなくfirstEntry.rotationBeforeを使う
     //    (actorとcframeの回転を一致させ、後段のsyncAllCubes()による上書きを正しい値にするため)
-    if (m_shadowRoot->actor) {
-        physx::PxTransform pose = m_shadowRoot->actor->getGlobalPose();
-        pose.p = physx::PxVec3(m_hostAuthoritativeSelfPose.Position.x, m_hostAuthoritativeSelfPose.Position.y, m_hostAuthoritativeSelfPose.Position.z);
-        pose.q = physx::PxQuat(firstEntry.rotationBefore.x, firstEntry.rotationBefore.y, firstEntry.rotationBefore.z, firstEntry.rotationBefore.w);
-        m_shadowRoot->actor->setGlobalPose(pose);
-        if (auto* dyn = m_shadowRoot->actor->is<physx::PxRigidDynamic>()) {
-            dyn->setLinearVelocity(physx::PxVec3(m_hostAuthoritativeSelfVel.x, m_hostAuthoritativeSelfVel.y, m_hostAuthoritativeSelfVel.z));
-            dyn->setAngularVelocity(physx::PxVec3(0, 0, 0));
-        }
+    if (m_predictionPhysics && m_predictionPhysics->hasBody(*m_shadowRoot)) {
+        CFrame shadowBodyCFrame = m_hostAuthoritativeSelfPose;
+        shadowBodyCFrame.Rotation = firstEntry.rotationBefore;
+        m_predictionPhysics->setBodyWorldCFrame(*m_shadowRoot, shadowBodyCFrame);
+        m_predictionPhysics->setLinearVelocity(*m_shadowRoot, m_hostAuthoritativeSelfVel);
+        m_predictionPhysics->setAngularVelocity(*m_shadowRoot, Vector3());
     }
     m_shadowRoot->cframe = m_hostAuthoritativeSelfPose;
     m_shadowRoot->cframe.Rotation = firstEntry.rotationBefore;
@@ -594,13 +583,7 @@ void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
                                in.ctrlLockEnabled, physics, false, false, in.forwardAxis, in.rightAxis);
 
         m_latestPoses[id] = root->getWorldCFrame();
-        Vector3 vel{};
-        if (root->actor) {
-            if (auto* dyn = root->actor->is<physx::PxRigidDynamic>()) {
-                physx::PxVec3 v = dyn->getLinearVelocity();
-                vel = Vector3(v.x, v.y, v.z);
-            }
-        }
+        Vector3 vel = physics->getLinearVelocity(*root);
         m_latestVels[id] = vel;
         m_lastProcessedSeq[id] = in.seq;
     }
@@ -925,34 +908,29 @@ void ReplicationManager::ensurePredictionScene() {
     m_shadowRoot->Anchored = false;
     m_shadowRoot->CanCollide = true;
     m_shadowRoot->cframe = realRoot->getWorldCFrame();
-    m_predictionPhysics->createActor(m_shadowRoot);
-
     m_predictionHumanoid = std::make_shared<Humanoid>();
     m_predictionHumanoid->setRootPart(m_shadowRoot);
+    m_predictionPhysics->createActor(m_shadowRoot);
 
     m_predictionSceneReady = true;
     RCBN_LOG("Replication: prediction scene created (shadow root size=" << realRoot->Size.x << "," << realRoot->Size.y << "," << realRoot->Size.z << ")");
 }
 
 void ReplicationManager::syncPredictionShadowToLocal() {
-    if (!m_predictionSceneReady || !m_shadowRoot || !m_shadowRoot->actor) return;
+    if (!m_predictionSceneReady || !m_shadowRoot || !m_predictionPhysics ||
+        !m_predictionPhysics->hasBody(*m_shadowRoot)) return;
     if (!m_user || !m_user->humanoid) return;
     auto realRoot = m_user->humanoid->getRootPart();
     if (!realRoot) return;
 
     CFrame realCFrame = realRoot->getWorldCFrame();
 
-    physx::PxTransform pose = m_shadowRoot->actor->getGlobalPose();
-    pose.p = physx::PxVec3(realCFrame.Position.x, realCFrame.Position.y, realCFrame.Position.z);
-    pose.q = physx::PxQuat(realCFrame.Rotation.x, realCFrame.Rotation.y, realCFrame.Rotation.z, realCFrame.Rotation.w);
-    m_shadowRoot->actor->setGlobalPose(pose);
+    m_predictionPhysics->setBodyWorldCFrame(*m_shadowRoot, realCFrame);
 
     m_shadowRoot->cframe = realCFrame;
 
-    if (auto* dyn = m_shadowRoot->actor->is<physx::PxRigidDynamic>()) {
-        dyn->setLinearVelocity(physx::PxVec3(0, 0, 0));
-        dyn->setAngularVelocity(physx::PxVec3(0, 0, 0));
-    }
+    m_predictionPhysics->setLinearVelocity(*m_shadowRoot, Vector3());
+    m_predictionPhysics->setAngularVelocity(*m_shadowRoot, Vector3());
 }
 
 static void collectPredictionStaticGeometry(const std::shared_ptr<Instance>& node,

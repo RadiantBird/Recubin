@@ -105,13 +105,11 @@ int runWeldRegression(const std::shared_ptr<Workspace>& workspace) {
             std::cout << " cube=" << worst->cube->Name
                       << " before=[" << worst->position.x << ',' << worst->position.y << ',' << worst->position.z << ']'
                       << " after=[" << now.x << ',' << now.y << ',' << now.z << ']';
-            if (worst->cube->actor) {
-                const auto actorPose = worst->cube->actor->getGlobalPose();
-                const auto& offset = worst->cube->m_compoundLocalOffset;
-                std::cout << " actor=[" << actorPose.p.x << ',' << actorPose.p.y << ',' << actorPose.p.z << ']'
-                          << " actorQ=[" << actorPose.q.x << ',' << actorPose.q.y << ',' << actorPose.q.z << ',' << actorPose.q.w << ']'
-                          << " offset=[" << offset.p.x << ',' << offset.p.y << ',' << offset.p.z << ']'
-                          << " offsetQ=[" << offset.q.x << ',' << offset.q.y << ',' << offset.q.z << ',' << offset.q.w << ']';
+            if (physics->hasBody(*worst->cube)) {
+                const CFrame bodyPose = physics->getBodyWorldCFrame(*worst->cube);
+                std::cout << " body=[" << bodyPose.Position.x << ',' << bodyPose.Position.y << ',' << bodyPose.Position.z << ']'
+                          << " bodyQ=[" << bodyPose.Rotation.x << ',' << bodyPose.Rotation.y << ','
+                          << bodyPose.Rotation.z << ',' << bodyPose.Rotation.w << ']';
             }
         }
         std::cout << "\n";
@@ -194,7 +192,9 @@ int runToolWeldRegression() {
            "actor未作成でも複数のWeld部品が同じ変換で追従する", failures);
 
     physics->update(*workspace, 1.0f / 60.0f);
-    expect(handle->actor && handle->actor == blade->actor && handle->actor == guard->actor,
+    expect(physics->hasBody(*handle) &&
+           physics->sharesBody(*handle, *blade) &&
+           physics->sharesBody(*handle, *guard),
            "物理登録後にWeld連結体が1つのcompound actorを共有する", failures);
 
     const CFrame bladeRelative = handle->getWorldCFrame().inverse() * blade->getWorldCFrame();
@@ -262,8 +262,11 @@ int runToolWeldReequipRegression() {
         workspace->getPhysicsEngine()->update(*workspace, 1.0f / 60.0f);
     };
     auto allShareActor = [&] {
-        return handle->actor && handle->actor == member1->actor &&
-               handle->actor == member2->actor && handle->actor == member3->actor;
+        Physics* physics = workspace->getPhysicsEngine();
+        return physics->hasBody(*handle) &&
+               physics->sharesBody(*handle, *member1) &&
+               physics->sharesBody(*handle, *member2) &&
+               physics->sharesBody(*handle, *member3);
     };
 
     workspace->initPhysics();
@@ -279,7 +282,10 @@ int runToolWeldReequipRegression() {
     character->removeChild(tool->Name);
     user->Inventory->addChild(tool);
     updatePhysics();
-    expect(!handle->actor && !member1->actor && !member2->actor && !member3->actor,
+    expect(!workspace->getPhysicsEngine()->hasBody(*handle) &&
+           !workspace->getPhysicsEngine()->hasBody(*member1) &&
+           !workspace->getPhysicsEngine()->hasBody(*member2) &&
+           !workspace->getPhysicsEngine()->hasBody(*member3),
            "解除時にWorkspace外のTool部品のactorを解放する", failures);
 
     user->Inventory->removeChild(tool->Name);
@@ -344,7 +350,8 @@ int runToolRespawnRegression() {
     };
 
     int failures = 0;
-    expect(handle->actor && handle->actor == member->actor,
+    expect(workspace->getPhysicsEngine()->hasBody(*handle) &&
+           workspace->getPhysicsEngine()->sharesBody(*handle, *member),
            "死亡前の装備Toolがcompound actorを持つ", failures);
 
     user->respawnCharacter();
@@ -365,7 +372,8 @@ int runToolRespawnRegression() {
            "旧characterにToolが残らない", failures);
 
     workspace->getPhysicsEngine()->update(*workspace, 1.0f / 60.0f);
-    expect(handle->actor && handle->actor == member->actor,
+    expect(workspace->getPhysicsEngine()->hasBody(*handle) &&
+           workspace->getPhysicsEngine()->sharesBody(*handle, *member),
            "respawn後の物理更新でToolのcompound actorを再構築する", failures);
 
     return failures == 0 ? 0 : 1;

@@ -131,14 +131,15 @@ void BaseCube::setSize(Vector3 newSize) {
 // localRot: 親 Spatial からの相対回転
 void BaseCube::setRotation(Quaternion localRot) {
     cframe.Rotation = localRot;
-    if (!actor) return;
+    if (!lastWorkspace || !lastWorkspace->physicsEngine ||
+        !lastWorkspace->physicsEngine->hasBody(*this)) return;
     Quaternion worldRot = getWorldCFrame().Rotation;
-    if (lastWorkspace && lastWorkspace->physicsEngine && SystemState::get().isPlaying) {
+    if (SystemState::get().isPlaying) {
         lastWorkspace->physicsEngine->enqueueSetRotation(std::static_pointer_cast<BaseCube>(shared_from_this()), worldRot);
     } else {
-        physx::PxTransform pose = actor->getGlobalPose();
-        pose.q = physx::PxQuat(worldRot.x, worldRot.y, worldRot.z, worldRot.w);
-        actor->setGlobalPose(pose);
+        CFrame bodyCFrame = lastWorkspace->physicsEngine->getBodyWorldCFrame(*this);
+        bodyCFrame.Rotation = worldRot;
+        lastWorkspace->physicsEngine->setBodyWorldCFrame(*this, bodyCFrame);
     }
 }
 
@@ -171,43 +172,18 @@ void BaseCube::setMassDensity(float d) {
 }
 
 void BaseCube::syncPhysics() {
-    if (!actor) return;
-    if (Anchored) {
-        physx::PxRigidDynamic* kin = actor->is<physx::PxRigidDynamic>();
-        if (kin && (kin->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) {
-            Vector3    wp = getWorldPosition();
-            Quaternion wr = getWorldCFrame().Rotation;
-            physx::PxTransform cubeWorldPose(
-                physx::PxVec3(wp.x, wp.y, wp.z),
-                physx::PxQuat(wr.x, wr.y, wr.z, wr.w)
-            );
-            // compound の原点姿勢を逆オフセットで計算
-            physx::PxTransform compoundTarget = cubeWorldPose.transform(m_compoundLocalOffset.getInverse());
-            if (m_weldKinematic) {
-                // アニメ駆動部(Head等)に即時追従させる(setKinematicTargetは1フレーム遅延するため)
-                kin->setGlobalPose(compoundTarget);
-            } else {
-                kin->setKinematicTarget(compoundTarget);
-            }
-        }
-        return;
-    }
-
-    physx::PxTransform pose = actor->getGlobalPose().transform(m_compoundLocalOffset);
-    Vector3    worldPos(pose.p.x, pose.p.y, pose.p.z);
-    Quaternion worldRot(pose.q.w, pose.q.x, pose.q.y, pose.q.z);
-
-    setWorldCFrame(CFrame(worldPos, worldRot));
+    if (lastWorkspace && lastWorkspace->physicsEngine)
+        lastWorkspace->physicsEngine->syncCube(*this);
 }
 
 // localPos: 親 Spatial からの相対座標
 void BaseCube::teleportTo(Vector3 localPos) {
     cframe.Position = localPos;
-    if (actor) {
-        Vector3 worldPos = getWorldCFrame().Position;
-        physx::PxTransform pose = actor->getGlobalPose();
-        pose.p = physx::PxVec3(worldPos.x, worldPos.y, worldPos.z);
-        actor->setGlobalPose(pose);
+    if (lastWorkspace && lastWorkspace->physicsEngine &&
+        lastWorkspace->physicsEngine->hasBody(*this)) {
+        CFrame bodyCFrame = lastWorkspace->physicsEngine->getBodyWorldCFrame(*this);
+        bodyCFrame.Position = getWorldCFrame().Position;
+        lastWorkspace->physicsEngine->setBodyWorldCFrame(*this, bodyCFrame);
     }
 }
 

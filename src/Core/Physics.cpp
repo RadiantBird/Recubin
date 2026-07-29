@@ -74,6 +74,23 @@ static MaintainVelocityState getMaintainVelocityState(const BaseCube& cube) {
     return state;
 }
 
+static physx::PxRigidDynamicLockFlags toPxLockFlags(PhysicsLockFlags flags) {
+    physx::PxRigidDynamicLockFlags result = (physx::PxRigidDynamicLockFlags)0;
+    if (hasPhysicsLockFlag(flags, PhysicsLockFlags::LinearX))
+        result |= physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_X;
+    if (hasPhysicsLockFlag(flags, PhysicsLockFlags::LinearY))
+        result |= physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_Y;
+    if (hasPhysicsLockFlag(flags, PhysicsLockFlags::LinearZ))
+        result |= physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_Z;
+    if (hasPhysicsLockFlag(flags, PhysicsLockFlags::AngularX))
+        result |= physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X;
+    if (hasPhysicsLockFlag(flags, PhysicsLockFlags::AngularY))
+        result |= physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Y;
+    if (hasPhysicsLockFlag(flags, PhysicsLockFlags::AngularZ))
+        result |= physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+    return result;
+}
+
 // Touched 通知を有効にするカスタムフィルターシェーダー
 static physx::PxFilterFlags rcbnFilterShader(
     physx::PxFilterObjectAttributes, physx::PxFilterData filterData0,
@@ -136,6 +153,88 @@ Vector3 Physics::getGravity() const {
     if (!scene) return Vector3(0.0f, -METER_TO_STUD * EARTH_GRAVITY_MPS2, 0.0f);
     physx::PxVec3 g = scene->getGravity();
     return Vector3(g.x, g.y, g.z);
+}
+
+bool Physics::hasBody(const BaseCube& cube) const {
+    return cube.actor != nullptr;
+}
+
+bool Physics::sharesBody(const BaseCube& first, const BaseCube& second) const {
+    return first.actor && first.actor == second.actor;
+}
+
+CFrame Physics::getBodyWorldCFrame(const BaseCube& cube) const {
+    if (!cube.actor) return CFrame();
+    const physx::PxTransform pose = cube.actor->getGlobalPose();
+    return CFrame(
+        Vector3(pose.p.x, pose.p.y, pose.p.z),
+        Quaternion(pose.q.w, pose.q.x, pose.q.y, pose.q.z));
+}
+
+void Physics::setBodyWorldCFrame(BaseCube& cube, const CFrame& worldCFrame) {
+    if (!cube.actor) return;
+    cube.actor->setGlobalPose(physx::PxTransform(
+        physx::PxVec3(worldCFrame.Position.x, worldCFrame.Position.y, worldCFrame.Position.z),
+        physx::PxQuat(worldCFrame.Rotation.x, worldCFrame.Rotation.y,
+                      worldCFrame.Rotation.z, worldCFrame.Rotation.w)));
+}
+
+Vector3 Physics::getLinearVelocity(const BaseCube& cube) const {
+    auto* dynamic = cube.actor ? cube.actor->is<physx::PxRigidDynamic>() : nullptr;
+    if (!dynamic) return Vector3();
+    const physx::PxVec3 velocity = dynamic->getLinearVelocity();
+    return Vector3(velocity.x, velocity.y, velocity.z);
+}
+
+void Physics::setLinearVelocity(BaseCube& cube, const Vector3& velocity) {
+    auto* dynamic = cube.actor ? cube.actor->is<physx::PxRigidDynamic>() : nullptr;
+    if (!dynamic) return;
+    dynamic->setLinearVelocity(physx::PxVec3(velocity.x, velocity.y, velocity.z));
+}
+
+void Physics::setAngularVelocity(BaseCube& cube, const Vector3& velocity) {
+    auto* dynamic = cube.actor ? cube.actor->is<physx::PxRigidDynamic>() : nullptr;
+    if (!dynamic) return;
+    dynamic->setAngularVelocity(physx::PxVec3(velocity.x, velocity.y, velocity.z));
+}
+
+void Physics::setGravityEnabled(BaseCube& cube, bool enabled) {
+    auto* dynamic = cube.actor ? cube.actor->is<physx::PxRigidDynamic>() : nullptr;
+    if (!dynamic) return;
+    dynamic->setActorFlag(physx::PxActorFlag::eDISABLE_GRAVITY, !enabled);
+}
+
+void Physics::applyLockFlags(BaseCube& cube) {
+    auto* dynamic = cube.actor ? cube.actor->is<physx::PxRigidDynamic>() : nullptr;
+    if (!dynamic || (dynamic->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) return;
+    dynamic->setRigidDynamicLockFlags(toPxLockFlags(cube.LockFlags));
+}
+
+void Physics::syncCube(BaseCube& cube) {
+    if (!cube.actor) return;
+    if (cube.Anchored) {
+        auto* kinematic = cube.actor->is<physx::PxRigidDynamic>();
+        if (kinematic && (kinematic->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) {
+            const CFrame world = cube.getWorldCFrame();
+            const physx::PxTransform cubeWorldPose(
+                physx::PxVec3(world.Position.x, world.Position.y, world.Position.z),
+                physx::PxQuat(world.Rotation.x, world.Rotation.y,
+                              world.Rotation.z, world.Rotation.w));
+            const physx::PxTransform compoundTarget =
+                cubeWorldPose.transform(cube.m_compoundLocalOffset.getInverse());
+            if (cube.m_weldKinematic)
+                kinematic->setGlobalPose(compoundTarget);
+            else
+                kinematic->setKinematicTarget(compoundTarget);
+        }
+        return;
+    }
+
+    const physx::PxTransform pose =
+        cube.actor->getGlobalPose().transform(cube.m_compoundLocalOffset);
+    cube.setWorldCFrame(CFrame(
+        Vector3(pose.p.x, pose.p.y, pose.p.z),
+        Quaternion(pose.q.w, pose.q.x, pose.q.y, pose.q.z)));
 }
 
 void Physics::init() {
@@ -234,7 +333,7 @@ void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
         actor = kin;
     } else {
         physx::PxRigidDynamic* dynamicActor = s_pxPhysics->createRigidDynamic(transform);
-        dynamicActor->setRigidDynamicLockFlags(cube->LockFlags);
+        dynamicActor->setRigidDynamicLockFlags(toPxLockFlags(cube->LockFlags));
         dynamicActor->setRigidBodyFlag(physx::PxRigidBodyFlag::eENABLE_CCD, true);
         dynamicActor->setSolverIterationCounts(8, 2);
         actor = dynamicActor;
@@ -317,8 +416,9 @@ void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
     cube->actor = actor; // BaseCube側に参照を戻す
 }
 
-bool Physics::raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, physx::PxRigidActor* ignoreActor) {
+bool Physics::raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, const BaseCube* ignoreCube) {
     if (!scene) return false;
+    physx::PxRigidActor* ignoreActor = ignoreCube ? ignoreCube->actor : nullptr;
 
     physx::PxVec3 pxOrigin(origin.x, origin.y, origin.z);
     physx::PxVec3 pxDir(direction.x, direction.y, direction.z);
@@ -783,7 +883,7 @@ void Physics::stepOnce(float dt) {
 void Physics::syncAllCubes() {
     for (auto& entry : cubes) {
         if (auto cube = entry.cube.lock()) {
-            cube->syncPhysics();
+            syncCube(*cube);
         }
     }
 }
@@ -985,11 +1085,11 @@ void Physics::syncWeldKinematics() {
     // compoundから読み戻す。2パスに分けるのは、駆動部を動かしてからメンバーを読む必要があるため。
     for (auto& entry : cubes) {
         auto cube = entry.cube.lock();
-        if (cube && cube->m_weldKinematic && cube->Anchored) cube->syncPhysics();
+        if (cube && cube->m_weldKinematic && cube->Anchored) syncCube(*cube);
     }
     for (auto& entry : cubes) {
         auto cube = entry.cube.lock();
-        if (cube && cube->m_weldKinematic && !cube->Anchored) cube->syncPhysics();
+        if (cube && cube->m_weldKinematic && !cube->Anchored) syncCube(*cube);
     }
 }
 
@@ -1369,9 +1469,9 @@ void Physics::rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembl
         // createActor()と同様にLockFlagsを反映する(OR合成)。これをしないと、Humanoid.Rootのように
         // 角度ロックを持つキューブがWeld等でcompound化されるたびにロックが失われ、
         // 着席/離脱の繰り返しなどでキャラクターが転倒しやすくなる
-        physx::PxRigidDynamicLockFlags combinedLockFlags = (physx::PxRigidDynamicLockFlags)0;
+        PhysicsLockFlags combinedLockFlags = PhysicsLockFlags::None;
         for (auto& cube : assembly) combinedLockFlags |= cube->LockFlags;
-        compound->setRigidDynamicLockFlags(combinedLockFlags);
+        compound->setRigidDynamicLockFlags(toPxLockFlags(combinedLockFlags));
     }
 
     // 質量計算はシェイプが1つ以上ある場合のみ行う。CanCollide==false のキューブだけで

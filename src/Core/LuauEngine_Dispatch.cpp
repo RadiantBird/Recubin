@@ -389,12 +389,10 @@ void LuauEngine::InitDispatchTable_Base() {
         auto* cube = static_cast<BaseCube*>(obj);
         Vector3* v = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
         *v = Vector3(0.0f, 0.0f, 0.0f);
-        if (cube->actor) {
-            if (auto* dyn = cube->actor->is<physx::PxRigidDynamic>()) {
-                physx::PxVec3 vel = dyn->getLinearVelocity();
-                *v = Vector3(vel.x, vel.y, vel.z);
-            }
-        }
+        Physics* physics = cube->lastWorkspace
+            ? cube->lastWorkspace->getPhysicsEngine()
+            : nullptr;
+        if (physics) *v = physics->getLinearVelocity(*cube);
         luaL_getmetatable(L, RCBN_VEC3_METATABLE);
         lua_setmetatable(L, -2);
         return 1;

@@ -87,16 +87,11 @@ void Humanoid::setRootPart(const std::shared_ptr<BaseCube>& root) {
     if (!root) return;
 
     // RootはX/Z軸の回転をロックし、転倒しないようにする（Y軸回転=向き変えのみ許可）。
-    root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X |
-                      physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+    root->LockFlags = PhysicsLockFlags::AngularX | PhysicsLockFlags::AngularZ;
     // アクター生成後に呼ばれた場合（保存済みシーンのNPC等、遅延resolveParts）でも
     // 転倒防止が効くよう、既存アクターへ直接反映する
-    if (root->actor) {
-        if (auto* dyn = root->actor->is<physx::PxRigidDynamic>()) {
-            if (!(dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC))
-                dyn->setRigidDynamicLockFlags(root->LockFlags);
-        }
-    }
+    if (root->lastWorkspace && root->lastWorkspace->getPhysicsEngine())
+        root->lastWorkspace->getPhysicsEngine()->applyLockFlags(*root);
 }
 
 void Humanoid::setHealth(float v) {
@@ -158,16 +153,14 @@ void Humanoid::enterRagdoll(Physics* physics) {
         if (!part) continue;
         part->CanCollide = true;
         part->Anchored   = false;
-        part->LockFlags  = (physx::PxRigidDynamicLockFlags)0; // 自由に回転させる
+        part->LockFlags  = PhysicsLockFlags::None; // 自由に回転させる
         if (!physics) continue;
         physics->recreateActor(part);
-        if (!part->actor) continue;
-        auto* dyn = part->actor->is<physx::PxRigidDynamic>();
-        if (!dyn) continue;
         float speed = 8.0f + (static_cast<float>(std::rand()) / RAND_MAX) * 7.0f; // 8..15
-        physx::PxVec3 vel(frand() * speed, 6.0f + frand() * 4.0f, frand() * speed);
-        dyn->setLinearVelocity(vel);
-        dyn->setAngularVelocity(physx::PxVec3(frand() * 10.0f, frand() * 10.0f, frand() * 10.0f));
+        physics->setLinearVelocity(*part,
+            Vector3(frand() * speed, 6.0f + frand() * 4.0f, frand() * speed));
+        physics->setAngularVelocity(*part,
+            Vector3(frand() * 10.0f, frand() * 10.0f, frand() * 10.0f));
     }
 }
 
@@ -199,10 +192,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
                      float forwardAxis, float rightAxis) {
     if (m_dead) return;
     auto root = getRootPart();
-    if (!root || !root->actor) return;
-
-    physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
-    if (!dynamicActor) return;
+    if (!root || !physics || !physics->hasBody(*root)) return;
 
     // --- Seat: 未着席なら接触判定、着席中ならSteer/Throttle更新のみ行って抜ける ---
     if (!m_seated && physics) {
@@ -226,7 +216,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
 
     // --- Truss(はしご)接触判定。登坂中は重力を切り、静止していても留まれるようにする ---
     BaseCube* trussCube = physics ? physics->findOverlapping(*root, "Truss", 0.5f) : nullptr;
-    dynamicActor->setActorFlag(physx::PxActorFlag::eDISABLE_GRAVITY, trussCube != nullptr);
+    physics->setGravityEnabled(*root, trussCube == nullptr);
 
     // --- 向き(Rotation)の更新 ---
     // Truss接触中は向きを固定する(自動回転させると登坂中に姿勢が崩れて落下してしまうため)
@@ -240,9 +230,9 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         }
         root->Rotation = Quaternion::Slerp(root->Rotation, targetRot, 0.15f);
 
-        physx::PxTransform pose = dynamicActor->getGlobalPose();
-        pose.q = physx::PxQuat(root->Rotation.x, root->Rotation.y, root->Rotation.z, root->Rotation.w);
-        dynamicActor->setGlobalPose(pose);
+        CFrame bodyCFrame = physics->getBodyWorldCFrame(*root);
+        bodyCFrame.Rotation = root->Rotation;
+        physics->setBodyWorldCFrame(*root, bodyCFrame);
     }
 
     // --- 物理速度の適用 ---
@@ -250,15 +240,14 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         // Truss(はしご)接触中: W/Sで垂直方向、A/Dで水平ストレイフ
         Vector3 climbVel = flatRight * (rightAxis * WalkSpeed);
         climbVel.y = forwardAxis * ClimbSpeed;
-        dynamicActor->setLinearVelocity(physx::PxVec3(climbVel.x, climbVel.y, climbVel.z));
+        physics->setLinearVelocity(*root, climbVel);
     } else if (currentMoveDir.length() > 0.01f) {
         Vector3 velocity = currentMoveDir * WalkSpeed;
-
-        physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
-        dynamicActor->setLinearVelocity(physx::PxVec3(velocity.x, currentVel.y, velocity.z));
+        Vector3 currentVel = physics->getLinearVelocity(*root);
+        physics->setLinearVelocity(*root, Vector3(velocity.x, currentVel.y, velocity.z));
     } else {
-        physx::PxVec3 currentVel = dynamicActor->getLinearVelocity();
-        dynamicActor->setLinearVelocity(physx::PxVec3(0, currentVel.y, 0));
+        Vector3 currentVel = physics->getLinearVelocity(*root);
+        physics->setLinearVelocity(*root, Vector3(0, currentVel.y, 0));
     }
 
     // --- アニメーションサイクル（0.0 ~ 1.0）の更新 ---
@@ -279,7 +268,8 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     // --- 地面判定 ---
     RaycastHit hit;
     float maxDist = (root->Size.y / 2.0f) + 0.2f;
-    isGrounded = physics ? physics->raycast(root->getWorldPosition(), Vector3(0, -1, 0), maxDist, hit, root->actor) : false;
+    isGrounded = physics->raycast(
+        root->getWorldPosition(), Vector3(0, -1, 0), maxDist, hit, root.get());
 
     applyBodyAnimation(leftArmRaised, rightArmRaised);
 }
@@ -323,21 +313,17 @@ void Humanoid::jump(Physics* physics) {
         resolveParts(Parent.lock().get());
         root = getRootPart();
     }
-    if (!root || !root->actor) return;
+    if (!root || !physics || !physics->hasBody(*root)) return;
     bool submerged = physics && physics->findOverlapping(*root, "LiquidCube") != nullptr;
     if (!isGrounded && !submerged) return;
-    physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
-    if (!dynamicActor) return;
-    physx::PxVec3 vel = dynamicActor->getLinearVelocity();
+    Vector3 vel = physics->getLinearVelocity(*root);
     vel.y = JumpPower;
-    dynamicActor->setLinearVelocity(vel);
+    physics->setLinearVelocity(*root, vel);
 }
 
 void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
     auto root = getRootPart();
-    if (!root || !root->actor || !seat) return;
-    physx::PxRigidDynamic* dynamicActor = root->actor->is<physx::PxRigidDynamic>();
-    if (!dynamicActor) return;
+    if (!root || !physics || !physics->hasBody(*root) || !seat) return;
 
     seat->setOccupant(std::static_pointer_cast<Humanoid>(shared_from_this()));
 
@@ -346,19 +332,15 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
     // Seatの回転をそのまま使うとFrontとは逆の-Z方向を向いてしまう。180度反転して整合させる
     CFrame target = seat->getWorldCFrame() * CFrame(0, seat->Size.y * 0.001f - root->Size.y * 0.01f, 0)
                   * CFrame::fromAxisAngle(Vector3(0, 1, 0), 0.0f); // やっぱり必要なさそうなので0.0にした
-    physx::PxTransform pose(
-        physx::PxVec3(target.Position.x, target.Position.y, target.Position.z),
-        physx::PxQuat(target.Rotation.x, target.Rotation.y, target.Rotation.z, target.Rotation.w)
-    );
-    dynamicActor->setGlobalPose(pose);
-    dynamicActor->setLinearVelocity(physx::PxVec3(0, 0, 0));
-    dynamicActor->setAngularVelocity(physx::PxVec3(0, 0, 0));
-    root->syncPhysics();
+    physics->setBodyWorldCFrame(*root, target);
+    physics->setLinearVelocity(*root, Vector3());
+    physics->setAngularVelocity(*root, Vector3());
+    physics->syncCube(*root);
 
     // 着席中はRootの姿勢をSeatWeldが保持するため、徒歩用の転倒防止ロックは不要かつ有害。
     // 外さないと Weld によるcompound化(rebuildGroup)でこのロックが車両アセンブリ全体に
     // OR合成され、車両が傾いた際にロックと重力/接触トルクが衝突して振動・座席位置ずれを起こす
-    root->LockFlags = (physx::PxRigidDynamicLockFlags)0;
+    root->LockFlags = PhysicsLockFlags::None;
 
     Instance* wsRaw = seat->findFirstAncestorWorkspace();
     if (wsRaw && physics) {
@@ -398,8 +380,7 @@ void Humanoid::standUp(Physics* physics) {
     // 独立アクターとして再生成される際(createActor)、このLockFlagsが反映されるため
     if (root) {
         // ここではまだSeatのcompound actorを共有しているため、actorへ直接適用しない
-        root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X |
-                          physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+        root->LockFlags = PhysicsLockFlags::AngularX | PhysicsLockFlags::AngularZ;
     }
 
     if (m_seatWeld) {
@@ -408,16 +389,14 @@ void Humanoid::standUp(Physics* physics) {
     }
 
     // 降りるホップ + シートから離れて再着席ループを防ぐ
-    if (root && root->actor) {
-        if (auto* dynamicActor = root->actor->is<physx::PxRigidDynamic>()) {
-            physx::PxVec3 vel = dynamicActor->getLinearVelocity();
-            vel.y = JumpPower;
-            dynamicActor->setLinearVelocity(vel);
-            physx::PxTransform pose = dynamicActor->getGlobalPose();
-            pose.p.y += root->Size.y;
-            dynamicActor->setGlobalPose(pose);
-            root->syncPhysics();
-        }
+    if (root && physics && physics->hasBody(*root)) {
+        Vector3 vel = physics->getLinearVelocity(*root);
+        vel.y = JumpPower;
+        physics->setLinearVelocity(*root, vel);
+        CFrame bodyCFrame = physics->getBodyWorldCFrame(*root);
+        bodyCFrame.Position.y += root->Size.y;
+        physics->setBodyWorldCFrame(*root, bodyCFrame);
+        physics->syncCube(*root);
     }
 
     if (auto seat = m_seat.lock()) seat->clearOccupant();

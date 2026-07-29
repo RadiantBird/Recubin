@@ -878,19 +878,19 @@ int LuauEngine::workspace_raycast_closure(lua_State* L) {
         return 1;
     }
 
-    // 除外Instance（省略可）。BaseCube系ならそのPhysXアクターをraycastの除外対象にする
-    physx::PxRigidActor* ignoreActor = nullptr;
+    // 除外Instance（省略可）。BaseCube系ならその物理ボディをraycastの除外対象にする
+    const BaseCube* ignoreCube = nullptr;
     if (!lua_isnoneornil(L, ignoreInstanceIndex)) {
         auto* iud = testInstanceUserdata(L, ignoreInstanceIndex);
         if (iud) {
             auto ignoreInst = iud->lock();
             if (ignoreInst && ignoreInst->IsA("BaseCube"))
-                ignoreActor = static_cast<BaseCube*>(ignoreInst.get())->actor;
+                ignoreCube = static_cast<BaseCube*>(ignoreInst.get());
         }
     }
 
     RaycastHit hit;
-    bool didHit = physics->raycast(*origin, *direction, maxDistance, hit, ignoreActor);
+    bool didHit = physics->raycast(*origin, *direction, maxDistance, hit, ignoreCube);
 
     if (!didHit || !hit.hit) {
         lua_pushnil(L);

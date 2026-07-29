@@ -4,7 +4,6 @@
 #include <Instances/Sphere.hpp>
 #include <Math/Quaternion.hpp>
 #include <Util/Color4.hpp>
-#include <PhysX/PxPhysicsAPI.h>
 
 namespace CharacterRig {
 
@@ -36,7 +35,7 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3
     head->Anchored = torso->Anchored = leftArm->Anchored = rightArm->Anchored = leftLeg->Anchored = rightLeg->Anchored = true;
     head->CanCollide = torso->CanCollide = leftArm->CanCollide = rightArm->CanCollide = leftLeg->CanCollide = rightLeg->CanCollide = false;
 
-    root->LockFlags = physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+    root->LockFlags = PhysicsLockFlags::AngularX | PhysicsLockFlags::AngularZ;
     root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // NOTE: physics root は非表示 (alpha=0)
 
     torso->Color    = Color4::FromRGB(100, 12, 32);

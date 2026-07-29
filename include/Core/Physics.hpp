@@ -129,6 +129,18 @@ public:
 
     void clearCubes();
 
+    bool hasBody(const BaseCube& cube) const;
+    bool sharesBody(const BaseCube& first, const BaseCube& second) const;
+    // compoundメンバー個別の姿勢ではなく、共有するnative body原点のワールド姿勢を扱う。
+    CFrame getBodyWorldCFrame(const BaseCube& cube) const;
+    void setBodyWorldCFrame(BaseCube& cube, const CFrame& worldCFrame);
+    Vector3 getLinearVelocity(const BaseCube& cube) const;
+    void setLinearVelocity(BaseCube& cube, const Vector3& velocity);
+    void setAngularVelocity(BaseCube& cube, const Vector3& velocity);
+    void setGravityEnabled(BaseCube& cube, bool enabled);
+    void applyLockFlags(BaseCube& cube);
+    void syncCube(BaseCube& cube);
+
     void enqueueResize(const std::shared_ptr<BaseCube>& cube);
     void enqueueSetRotation(const std::shared_ptr<BaseCube>& cube, Quaternion rot);
 
@@ -140,7 +152,7 @@ public:
     void createNoCollision(const std::shared_ptr<NoCollision>& nc);
     void removeConstraint(const std::shared_ptr<Instance>& c);
 
-    bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, physx::PxRigidActor* ignoreActor = nullptr);
+    bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, const BaseCube* ignoreCube = nullptr);
 
     // cube と AABB が重なっている、className の BaseCube 系インスタンスを1つ探す(cube自身は除外)。
     // 水没判定(LiquidCube)・Truss接触・Seat接触で共用する近似的な「接触」判定
