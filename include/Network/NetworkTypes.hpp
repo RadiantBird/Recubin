@@ -1,5 +1,8 @@
 #pragma once
+#include <array>
 #include <cstdint>
+#include <string>
+#include <vector>
 
 // v2.0 ネットワーク基盤の型定義。
 // 実際のホスト自動選出・動的ロール切替アルゴリズムは未実装(NetworkManager側にTODO)。
@@ -22,13 +25,62 @@ enum class NetworkChannel : uint8_t {
 // ピアの識別子。0=無効。初代Hostが1、以降Helloごとに採番。ホスト移行を跨いで不変。
 using PeerId = uint32_t;
 
+// NAT越えで交換するIPv4 UDP候補。hostはENetAddress::hostと同じ表現を使う。
+enum class CandidateType : uint8_t {
+    Local         = 0,
+    ServerReflexive = 1,
+    PeerReflexive = 2
+};
+
+struct NetworkCandidate {
+    CandidateType type = CandidateType::Local;
+    uint32_t host = 0;
+    uint16_t port = 0;
+
+    bool operator==(const NetworkCandidate&) const = default;
+};
+
+struct NatConfig {
+    std::string stunHost;
+    uint16_t stunPort = 3478;
+    std::string rendezvousHost;
+    uint16_t rendezvousPort = 3479;
+    uint16_t listenPort = 0;
+};
+
+enum class ConnectionState : uint8_t {
+    Offline,
+    Discovering,
+    CreatingRoom,
+    JoiningRoom,
+    Punching,
+    Connecting,
+    Connected,
+    Migrating,
+    Failed
+};
+
+enum class ConnectionError : uint8_t {
+    None,
+    MissingConfig,
+    StunTimeout,
+    RoomNotFound,
+    RoomFull,
+    RendezvousTimeout,
+    PunchTimeout,
+    AdmissionRejected,
+    EnetTimeout
+};
+
+using AdmissionToken = std::array<uint8_t, 16>;
+
 // ピアの接続先情報。host は ENetAddress::host と同じ表現。
 // listenPort はそのピアがHost昇格時にListenするポート。
-// 将来のNAT越え(STUN/リレー)対応時はこの構造体を拡張し、接続経路は
-// NetworkManager::connectToEndpoint に一元化する。
+// candidatesは優先順(Local→ServerReflexive→PeerReflexive)で保持する。
 struct PeerEndpoint {
     uint32_t host       = 0;
     uint16_t listenPort = 0;
+    std::vector<NetworkCandidate> candidates;
 };
 
 struct PeerInfo {

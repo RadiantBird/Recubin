@@ -17,6 +17,7 @@
 #include <Core/Physics.hpp>
 #include <Core/User.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Network/NatProtocol.hpp>
 #include <Util/Logger.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
@@ -24,6 +25,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <thread>
 #include <iostream>
 #include <limits>
@@ -661,6 +663,125 @@ int runSoundStretchRegression() {
               << (failures == 0 ? "PASS" : "FAIL") << "\n";
     return failures == 0 ? 0 : 1;
 }
+
+int runNatCodecRegression() {
+    using namespace NatProtocol;
+    int failures = 0;
+    auto expect = [&](bool condition, const char* name) {
+        std::cout << "[NatCodecRegression] "
+                  << (condition ? "PASS" : "FAIL") << ": " << name << "\n";
+        if (!condition) ++failures;
+    };
+
+    const StunTransactionId transactionId{
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB
+    };
+    const auto request = encodeStunBindingRequest(transactionId);
+    expect(request.size() == 20 && request[0] == 0x00 && request[1] == 0x01 &&
+               request[4] == 0x21 && request[5] == 0x12 &&
+               std::equal(transactionId.begin(), transactionId.end(), request.begin() + 8),
+           "RFC8489 Binding requestをnetwork byte orderで生成する");
+
+    constexpr uint16_t mappedPort = 54321;
+    constexpr std::array<uint8_t, 4> mappedIp{203, 0, 113, 7};
+    const uint16_t xorPort = mappedPort ^ 0x2112u;
+    std::vector<uint8_t> response{
+        0x01, 0x01, 0x00, 0x14, 0x21, 0x12, 0xA4, 0x42
+    };
+    response.insert(response.end(), transactionId.begin(), transactionId.end());
+    response.insert(response.end(), {0x80, 0x22, 0x00, 0x01, 0x99, 0x00, 0x00, 0x00});
+    response.insert(response.end(), {
+        0x00, 0x20, 0x00, 0x08, 0x00, 0x01,
+        static_cast<uint8_t>(xorPort >> 8), static_cast<uint8_t>(xorPort),
+        static_cast<uint8_t>(mappedIp[0] ^ 0x21u),
+        static_cast<uint8_t>(mappedIp[1] ^ 0x12u),
+        static_cast<uint8_t>(mappedIp[2] ^ 0xA4u),
+        static_cast<uint8_t>(mappedIp[3] ^ 0x42u)
+    });
+
+    NetworkCandidate mapped;
+    const auto stunResult =
+        decodeStunBindingResponse(response.data(), response.size(), transactionId, mapped);
+    std::array<uint8_t, 4> storedIp{};
+    std::memcpy(storedIp.data(), &mapped.host, storedIp.size());
+    expect(stunResult == DecodeResult::Ok && mapped.port == mappedPort &&
+               mapped.type == CandidateType::ServerReflexive && storedIp == mappedIp,
+           "未知属性を読み飛ばしIPv4 XOR-MAPPED-ADDRESSをENet表現へ復号する");
+
+    auto wrongTransaction = transactionId;
+    wrongTransaction[0] ^= 0xFFu;
+    expect(decodeStunBindingResponse(response.data(), response.size(), wrongTransaction, mapped) ==
+               DecodeResult::WrongTransaction,
+           "異なるSTUN transaction IDを拒否する");
+    expect(decodeStunBindingResponse(response.data(), response.size() - 1, transactionId, mapped) ==
+               DecodeResult::InvalidLength,
+           "切り詰められたSTUN応答を拒否する");
+    auto ipv6Response = response;
+    ipv6Response[33] = 0x02;
+    expect(decodeStunBindingResponse(
+               ipv6Response.data(), ipv6Response.size(), transactionId, mapped) ==
+               DecodeResult::UnsupportedAddressFamily,
+           "IPv6 XOR-MAPPED-ADDRESSを明示的に拒否する");
+
+    uint32_t candidateHost = 0;
+    std::memcpy(&candidateHost, mappedIp.data(), mappedIp.size());
+    const std::vector<NetworkCandidate> sourceCandidates{
+        {CandidateType::Local, candidateHost, 40000},
+        {CandidateType::ServerReflexive, candidateHost, mappedPort}
+    };
+    std::vector<uint8_t> candidateBytes;
+    std::vector<NetworkCandidate> decodedCandidates;
+    expect(encodeCandidates(sourceCandidates, candidateBytes) &&
+               decodeCandidates(candidateBytes.data(), candidateBytes.size(), decodedCandidates) ==
+                   DecodeResult::Ok &&
+               decodedCandidates == sourceCandidates,
+           "候補一覧を境界検証付きで往復する");
+    std::vector<NetworkCandidate> excessiveCandidates(MAX_CANDIDATES + 1);
+    expect(!encodeCandidates(excessiveCandidates, candidateBytes),
+           "上限を超える候補一覧を拒否する");
+
+    RendezvousPacket rendezvous;
+    rendezvous.type = RendezvousMessageType::CookieRequest;
+    rendezvous.transactionId = 0x12345678u;
+    rendezvous.payload.assign(16, 0x5Au);
+    std::vector<uint8_t> rendezvousBytes;
+    RendezvousPacket decodedRendezvous;
+    expect(encodeRendezvousPacket(rendezvous, rendezvousBytes) &&
+               decodeRendezvousPacket(
+                   rendezvousBytes.data(), rendezvousBytes.size(), decodedRendezvous) ==
+                   DecodeResult::Ok &&
+               decodedRendezvous.transactionId == rendezvous.transactionId &&
+               decodedRendezvous.payload == rendezvous.payload,
+           "ランデブーフレームをnetwork byte orderで往復する");
+    rendezvousBytes[4] = RENDEZVOUS_VERSION + 1;
+    expect(decodeRendezvousPacket(
+               rendezvousBytes.data(), rendezvousBytes.size(), decodedRendezvous) ==
+               DecodeResult::UnsupportedVersion,
+           "未知のランデブープロトコルversionを拒否する");
+
+    PunchPacket punch;
+    punch.type = PunchMessageType::Probe;
+    punch.nonce = 0x0102030405060708ull;
+    punch.senderPeerId = 42;
+    punch.roomEpoch = 7;
+    for (size_t i = 0; i < punch.token.size(); ++i) {
+        punch.token[i] = static_cast<uint8_t>(i);
+    }
+    std::vector<uint8_t> punchBytes;
+    PunchPacket decodedPunch;
+    expect(encodePunchPacket(punch, punchBytes) &&
+               decodePunchPacket(punchBytes.data(), punchBytes.size(), decodedPunch) ==
+                   DecodeResult::Ok &&
+               decodedPunch.nonce == punch.nonce && decodedPunch.token == punch.token &&
+               decodedPunch.senderPeerId == punch.senderPeerId &&
+               decodedPunch.roomEpoch == punch.roomEpoch,
+           "参加token付きパンチpacketを境界検証付きで往復する");
+    expect(decodePunchPacket(punchBytes.data(), punchBytes.size() - 1, decodedPunch) ==
+               DecodeResult::Truncated,
+           "切り詰められたパンチpacketを拒否する");
+
+    return failures == 0 ? 0 : 1;
+}
 }
 
 // ===================================================
@@ -679,12 +800,14 @@ int main(int argc, char* argv[]) {
     const bool inventoryToolSyncRegression = argc > 1 && std::string_view(argv[1]) == "--inventory-tool-sync-regression";
     const bool humanoidPartRefRegression = argc > 1 && std::string_view(argv[1]) == "--humanoid-part-ref-regression";
     const bool soundStretchRegression = argc > 1 && std::string_view(argv[1]) == "--sound-stretch-regression";
+    const bool natCodecRegression = argc > 1 && std::string_view(argv[1]) == "--nat-codec-regression";
     if (toolWeldRegression) return runToolWeldRegression();
     if (toolWeldReequipRegression) return runToolWeldReequipRegression();
     if (toolRespawnRegression) return runToolRespawnRegression();
     if (inventoryToolSyncRegression) return runInventoryToolSyncRegression();
     if (humanoidPartRefRegression) return runHumanoidPartRefRegression();
     if (soundStretchRegression) return runSoundStretchRegression();
+    if (natCodecRegression) return runNatCodecRegression();
     std::string scenePath = weldRegression
         ? ((argc > 2) ? argv[2] : "assets/scenes/_snapshot.yaml")
         : ((argc > 1) ? argv[1] : "assets/scenes/test_bindings.yaml");

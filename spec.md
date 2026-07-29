@@ -58,6 +58,26 @@
 - 正式名との衝突は自動サフィックスせず、ネットワークゲームを明示的なエラーで停止する。
 - Offline起動では従来の`User` / `PlayerCharacter`を維持する。ネットワーク時の旧パス互換は提供しない。
 
+### IPv4 NAT越えとルーム接続
+
+- `System.UseNetwork=true`のランタイムは、`--host [listen-port]`で8文字のルームを作成し、
+  `--connect <room-code>`で参加する。直接IPアドレスを指定する旧CLIは使用しない。
+- ローカルUDPポートは`--listen-port <port>`でも指定でき、省略時はOSが空きポートを選ぶ。
+- STUNとランデブーの接続先は`startup.yaml`の`StunServer` / `RendezvousServer`、または
+  `--stun <host[:port]>` / `--rendezvous <host[:port]>`で指定する。CLI指定を優先し、
+  既定ポートはそれぞれ3478/3479とする。ホスト名の既定値は持たず、未設定時は起動に失敗する。
+- 同一のIPv4 UDPソケットでSTUN Binding、ランデブー、双方向ホールパンチ、ENet通信を処理する。
+  候補はLocal、ServerReflexive、PeerReflexiveの順に保持し、200ms間隔・最大8秒で直接接続を試す。
+- ランデブーが発行する128-bit admission token、ゲームプロトコルversion、room epochが一致する
+  HelloだけをHostが受理する。候補とtokenはRosterへ含め、ホスト移行後もPeerIdを維持する。
+- ホスト移行では選出されたClientが既存UDPソケットのままHostへ昇格し、ランデブーへPromoteを通知する。
+  残存Clientは更新候補で再パンチし、サービス停止時もキャッシュ済み候補を試す。
+- 接続失敗は`MissingConfig`、`StunTimeout`、`RoomNotFound`、`RoomFull`、
+  `RendezvousTimeout`、`PunchTimeout`、`AdmissionRejected`、`EnetTimeout`に分類する。
+- IPv4直結のみを対象とし、TURN/ゲーム通信リレー、IPv6、通信暗号化、アカウント認証、
+  ランデブーの永続化・高可用化は対象外とする。運用とプロトコルの詳細は
+  `doc/Network/NatTraversal.md`を参照する。
+
 ## キャラクター(Humanoidクラス)
 - StarterCharacter内のテンプレート、またはそのclone後にRoot/Torso/Head/LeftArm/RightArm/
   LeftLeg/RightLegという名前の兄弟Cube/Sphereを探して保持し、移動・ジャンプ・接地判定・

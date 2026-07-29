@@ -87,7 +87,7 @@
 
 - [~] NetworkEvent
 
-- [x] 動的ホスト移行（Host Migration）型サーバー・クライアント通信基盤の作成(応用tierまで完了(2026-07-19)。詳細はprogress.md参照(なかったらdoc/archive.md)。LAN/localhost前提: NAT越えは未対応。ワールドレプリケーションは2026-07-19に実装済み(上記参照))
+- [x] 動的ホスト移行（Host Migration）型サーバー・クライアント通信基盤の作成(応用tierまで完了(2026-07-19)。詳細はprogress.md参照(なかったらdoc/archive.md)。IPv4 NAT越え実装を2026-07-29に追加、外部検証は下段TODOのとおり未完了。ワールドレプリケーションは2026-07-19に実装済み(上記参照))
   - [x] ENetのソースコード（enet.h / .c）をプロジェクトに直接取り込んでビルドできるように構成
   - [x] 信頼性のあるデータ（チャット・イベント、ホスト移行シグナル等：RELIABLE）と高速なデータ（位置同期等：UNRELIABLE）のチャンネル分離
   - [x] 各ノードの計算資源（CPUスコア・レイテンシ等）を定期的に計測し、現在のホストへ通知・集計する仕組みの実装
@@ -132,7 +132,12 @@
 
 - [x] include/Core/User.hpp:67: Tool以外のインベントリ項目を無視する
 - [x] include/Instances/Humanoid.hpp:48: 兄弟パーツ参照をshared_ptrからweak_ptrへ整理する
-- [ ] include/Network/NetworkManager.hpp:92: NAT越え対応時の接続経路（STUN/リレー）を実装する
+- [ ] IPv4 NAT越え（STUN＋ランデブー＋UDPホールパンチ）を完了する
+    - [x] ルームコード作成/参加、候補交換、admission token検証、ENet接続、同一ソケットでのホスト移行を実装
+    - [x] ローカルのC++ NAT codec回帰テストとPythonランデブー統合テストを実装
+    - [ ] 公開配置したSTUN/ランデブーを使い、異なる2回線で接続を実地検証
+    - [ ] NAT越しの3ピアでホスト移行とPeerId維持を実地検証
+    - TURN/リレーとIPv6は今回の対象外。上記2件の外部検証が済むまで完了扱いにしない
 - [!] src/Instances/Instance.cpp:12: 不要な処理を最適化する
     - 対象処理・根拠が特定されておらず、直後の `onAncestorChanged()` の再帰通知は子孫の登録状態更新に必要なため、根拠なく変更しない
 - [x] src/Instances/Sound.cpp:84: PreservePitch=ON時のタイムストレッチを対応する

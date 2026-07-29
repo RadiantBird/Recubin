@@ -56,21 +56,25 @@ struct GameConfig {
     std::string gameName  = "Recubin Game";
     std::string startScene = "assets/scenes/game.yaml";
     bool debugLog = false; // ランタイムのコンソールを表示するかどうか（未実装）
+    std::string stunServer;
+    std::string rendezvousServer;
     // todo: debugLogの書き込み処理を追加しておく
 };
 
 // ===================================================
-//  v2.0 ネットワーク基盤(基盤tierのモック): --host [port] / --connect <address> [port]
-//  でHost/Client役を切り替える。引数なしなら従来通りNetworkRole::Offlineのまま動作する。
+//  --host [listen-port] でルーム作成、--connect <room-code> で参加する。
+//  引数なしなら従来通りNetworkRole::Offlineのまま動作する。
 // ===================================================
-static constexpr uint16_t kDefaultNetworkPort = 7777;
+static constexpr uint16_t kDefaultStunPort = 3478;
+static constexpr uint16_t kDefaultRendezvousPort = 3479;
 
 struct NetworkLaunchArgs {
     bool asHost = false;
     bool asClient = false;
-    std::string address;
-    uint16_t port = kDefaultNetworkPort;
+    std::string roomCode;
     uint16_t listenPort = 0;
+    std::string stunServer;
+    std::string rendezvousServer;
 };
 
 struct ConsoleChatQueue {
@@ -85,25 +89,48 @@ static NetworkLaunchArgs parseNetworkArgs(int argc, char* argv[]) {
         if (arg == "--host") {
             args.asHost = true;
             if (i + 1 < argc) {
-                try { args.port = static_cast<uint16_t>(std::stoi(argv[i + 1])); ++i; } catch (...) {}
+                std::string maybePort = argv[i + 1];
+                if (!maybePort.empty() && maybePort[0] != '-') {
+                    try { args.listenPort = static_cast<uint16_t>(std::stoi(maybePort)); ++i; } catch (...) {}
+                }
             }
         } else if (arg == "--connect") {
             args.asClient = true;
-            if (i + 1 < argc) { args.address = argv[i + 1]; ++i; }
-            if (i + 1 < argc) {
-                std::string maybePort = argv[i + 1];
-                if (!maybePort.empty() && maybePort[0] != '-') {
-                    try { args.port = static_cast<uint16_t>(std::stoi(maybePort)); ++i; } catch (...) {}
-                }
-            }
+            if (i + 1 < argc) { args.roomCode = argv[i + 1]; ++i; }
         } else if (arg == "--listen-port") {
             if (i + 1 < argc) {
                 try { args.listenPort = static_cast<uint16_t>(std::stoi(argv[i + 1])); ++i; } catch (...) {}
             }
+        } else if (arg == "--stun") {
+            if (i + 1 < argc) { args.stunServer = argv[i + 1]; ++i; }
+        } else if (arg == "--rendezvous") {
+            if (i + 1 < argc) { args.rendezvousServer = argv[i + 1]; ++i; }
         }
     }
-    if (args.listenPort == 0) args.listenPort = args.port;
     return args;
+}
+
+static bool parseServerAddress(const std::string& value,
+                               uint16_t defaultPort,
+                               std::string& host,
+                               uint16_t& port) {
+    if (value.empty()) return false;
+    const size_t colon = value.rfind(':');
+    if (colon == std::string::npos) {
+        host = value;
+        port = defaultPort;
+        return true;
+    }
+    if (colon == 0 || colon + 1 >= value.size()) return false;
+    host = value.substr(0, colon);
+    try {
+        const int parsed = std::stoi(value.substr(colon + 1));
+        if (parsed <= 0 || parsed > 65535) return false;
+        port = static_cast<uint16_t>(parsed);
+    } catch (...) {
+        return false;
+    }
+    return true;
 }
 
 static GameConfig loadStartup() {
@@ -117,6 +144,8 @@ static GameConfig loadStartup() {
         if (node["GameName"])   cfg.gameName   = node["GameName"].as<std::string>();
         if (node["StartScene"]) cfg.startScene = node["StartScene"].as<std::string>();
         if (node["DebugLog"])   cfg.debugLog   = node["DebugLog"].as<bool>();
+        if (node["StunServer"]) cfg.stunServer = node["StunServer"].as<std::string>();
+        if (node["RendezvousServer"]) cfg.rendezvousServer = node["RendezvousServer"].as<std::string>();
     } catch (...) {}
     return cfg;
 }
@@ -135,7 +164,7 @@ int main(int argc, char* argv[]) {
 
     GameConfig cfg = loadStartup();
 
-    // ---- v2.0 ネットワーク基盤(モック): CLI引数でHost/Client役を起動する ----
+    // ---- ルームコード/STUNネットワーク起動引数 ----
     NetworkLaunchArgs netArgs = parseNetworkArgs(argc, argv);
     // System.UseNetwork is loaded from the scene, so networking starts after loadAndBind.
 
@@ -202,31 +231,63 @@ int main(int argc, char* argv[]) {
 
     // Networked games do not start scripts, character spawning, physics, or replication
     // until the host-authoritative PeerId is known.
-    if (system->UseNetwork && netArgs.asHost) {
-        if (!NetworkManager::get().startHost(netArgs.port)) {
-            glfwTerminate();
-            return -1;
+    if (system->UseNetwork && netArgs.asHost && netArgs.asClient) {
+        RCBN_ERROR("Specify either --host or --connect, not both");
+        glfwTerminate();
+        return -1;
+    }
+    if (system->UseNetwork && (netArgs.asHost || netArgs.asClient)) {
+        NatConfig natConfig;
+        natConfig.listenPort = netArgs.listenPort;
+        const std::string stun = netArgs.stunServer.empty() ? cfg.stunServer : netArgs.stunServer;
+        const std::string rendezvous =
+            netArgs.rendezvousServer.empty() ? cfg.rendezvousServer : netArgs.rendezvousServer;
+        const bool configOk =
+            parseServerAddress(stun, kDefaultStunPort, natConfig.stunHost, natConfig.stunPort) &&
+            parseServerAddress(rendezvous, kDefaultRendezvousPort,
+                               natConfig.rendezvousHost, natConfig.rendezvousPort);
+        bool started = false;
+        if (configOk) {
+            started = netArgs.asHost
+                ? NetworkManager::get().createRoom(natConfig)
+                : NetworkManager::get().joinRoom(netArgs.roomCode, natConfig);
+        } else {
+            RCBN_ERROR("NetworkManager: MissingConfig: configure StunServer and RendezvousServer");
         }
-    } else if (system->UseNetwork && netArgs.asClient) {
-        NetworkManager::get().connect(netArgs.address, netArgs.port, netArgs.listenPort);
-        double retryAt = glfwGetTime() + 5.0;
+        if (!started) {
+            const ConnectionError error = configOk
+                ? NetworkManager::get().getConnectionError()
+                : ConnectionError::MissingConfig;
+            glfwTerminate();
+            return -(10 + static_cast<int>(error));
+        }
+
         double lastTick = glfwGetTime();
-        while (!glfwWindowShouldClose(window) && NetworkManager::get().getLocalPeerId() == 0) {
+        while (!glfwWindowShouldClose(window)) {
             const double now = glfwGetTime();
             NetworkManager::get().update(static_cast<float>(now - lastTick));
             lastTick = now;
             glfwPollEvents();
-            if (now >= retryAt && NetworkManager::get().getLocalPeerId() == 0) {
-                RCBN_WARN("NetworkManager: Welcome timeout; retrying initial connection");
-                NetworkManager::get().connect(netArgs.address, netArgs.port, netArgs.listenPort);
-                retryAt = now + 5.0;
-            }
+            const ConnectionState state = NetworkManager::get().getConnectionState();
+            if (state == ConnectionState::Connected || state == ConnectionState::Failed) break;
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        if (NetworkManager::get().getConnectionState() == ConnectionState::Failed) {
+            const ConnectionError error = NetworkManager::get().getConnectionError();
+            RCBN_ERROR("Network startup failed: "
+                       << NetworkManager::connectionErrorToString(error));
+            NetworkManager::get().shutdown();
+            glfwTerminate();
+            return -(10 + static_cast<int>(error));
         }
         if (glfwWindowShouldClose(window)) {
             NetworkManager::get().shutdown();
             glfwTerminate();
             return 0;
+        }
+        if (netArgs.asHost) {
+            std::cout << "[Network] Room code: "
+                      << NetworkManager::get().getRoomCode() << std::endl;
         }
     }
 
@@ -326,6 +387,7 @@ int main(int argc, char* argv[]) {
     SystemState::get().inputState      = InputState::Gameplay;
 
     float lastFrame = static_cast<float>(glfwGetTime());
+    int networkExitCode = 0;
 
     // ---- メインループ（常にプレイ状態） ----
     while (!glfwWindowShouldClose(window)) {
@@ -335,6 +397,13 @@ int main(int argc, char* argv[]) {
 
         // ---- ネットワークポーリング（物理更新より前＝受信内容を反映してからシミュレートする） ----
         NetworkManager::get().update(deltaTime);
+        if (NetworkManager::get().getConnectionState() == ConnectionState::Failed) {
+            const ConnectionError error = NetworkManager::get().getConnectionError();
+            RCBN_ERROR("Network connection failed: "
+                       << NetworkManager::connectionErrorToString(error));
+            networkExitCode = -(10 + static_cast<int>(error));
+            break;
+        }
         // ナビメッシュ生成中も完了通知と接続維持は進めるが、世界シミュレーションは止める。
         luauEngine->pollPathfindingRequests();
         bool navMeshBusy = PathfindingService::IsBuildActive();
@@ -473,5 +542,5 @@ int main(int argc, char* argv[]) {
     system.reset();
 
     glfwTerminate();
-    return 0;
+    return networkExitCode;
 }

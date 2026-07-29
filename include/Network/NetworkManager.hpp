@@ -1,10 +1,12 @@
 #pragma once
+#include <Network/NatProtocol.hpp>
 #include <Network/NetworkTypes.hpp>
 #include <Math/Vector3.hpp>
 
 #include <enet/enet.h>
 
 #include <functional>
+#include <array>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -24,6 +26,10 @@ public:
     // address:port の Host へ接続する。Role を Client にする。
     // listenPort = 自分がHost昇格した場合にListenするポート。Helloで申告する。
     bool connect(const std::string& address, uint16_t port, uint16_t listenPort);
+    // STUNで外向き候補を取得し、ランデブーサービス上にルームを作成/参加する。
+    // 完了はupdate()で非同期に進み、getConnectionState()で確認する。
+    bool createRoom(const NatConfig& config);
+    bool joinRoom(const std::string& roomCode, const NatConfig& config);
     // 接続を閉じてRoleをOfflineへ戻す。
     void shutdown();
 
@@ -38,6 +44,10 @@ public:
     PeerId getLocalPeerId() const { return m_localPeerId; }
     const std::vector<PeerInfo>& getRoster() const { return m_roster; }
     MigrationState getMigrationState() const { return m_migrationState; }
+    ConnectionState getConnectionState() const { return m_connectionState; }
+    ConnectionError getConnectionError() const { return m_connectionError; }
+    const std::string& getRoomCode() const { return m_roomCode; }
+    static const char* connectionErrorToString(ConnectionError error);
 
     // ---- 送信API ----
     // RELIABLEチャンネルで全Peer(Hostの場合)/Host(Clientの場合)へブロードキャストする。
@@ -74,10 +84,12 @@ private:
 
     void poll();
     void handleEvent(const ENetEvent& event);
+    static int interceptPacket(ENetHost* host, ENetEvent* event);
+    int handleIntercept(ENetHost* host);
     void broadcastPacket(ENetPacket* packet, NetworkChannel channel);
     void changeRole(NetworkRole newRole);
 
-    void sendHello(); // Client→Host。listenPortと現在のm_localPeerIdを送る
+    void sendHello();
     void broadcastRoster(); // Host専用
     void logRoster() const;
     static float measureCpuScore();
@@ -91,8 +103,30 @@ private:
     // endpoint へClientとして接続する。移行時の再接続経路はこの関数に一元化する。
     // TODO(NAT越え): 将来STUN/リレー対応する場合はこの関数の中だけを差し替える。
     bool connectToEndpoint(const PeerEndpoint& endpoint);
+    bool initializeBoundHost(uint16_t port);
+    bool beginNat(const NatConfig& config, bool creating, const std::string& roomCode);
+    void updateNat(float dt);
+    void failConnection(ConnectionError error, const char* detail);
+    bool resolveAddress(const std::string& host, uint16_t port, ENetAddress& address) const;
+    void gatherLocalCandidates();
+    bool sendRaw(const ENetAddress& address, const std::vector<uint8_t>& bytes);
+    void sendStunRequest();
+    void sendCookieRequest();
+    void sendRoomRequest();
+    void sendRendezvous(NatProtocol::RendezvousMessageType type,
+                        const std::vector<uint8_t>& payload,
+                        bool rememberForRetry);
+    void sendCandidateUpdate();
+    void sendPromoteRequest();
+    void handleRendezvous(const NatProtocol::RendezvousPacket& packet);
+    void handlePunch(const NatProtocol::PunchPacket& packet, const ENetAddress& source);
+    void sendPunchProbes();
+    void startPunching(const PeerEndpoint& endpoint, const AdmissionToken& token, PeerId peerId);
+    bool connectToCandidate(const NetworkCandidate& candidate);
+    void addCandidate(std::vector<NetworkCandidate>& candidates, const NetworkCandidate& candidate);
 
     ENetHost* m_host = nullptr;
+    ENetPeer* m_expectedPeer = nullptr;
     NetworkRole m_role = NetworkRole::Offline;
     std::vector<ENetPeer*> m_peers; // Host視点: 接続中の全Client。Client視点: Hostのみ1件
     bool m_enetInitialized = false;
@@ -101,6 +135,7 @@ private:
     uint32_t m_nextPeerId = 2; // Host専用。1はHost自身
     std::vector<PeerInfo> m_roster;
     std::unordered_map<ENetPeer*, PeerId> m_peerIds; // Host専用: 接続Peer→PeerId
+    std::unordered_map<ENetPeer*, float> m_pendingAdmissions;
     float m_localCpuScore = 0.0f;
     uint16_t m_listenPort = 0;
     float m_resourceReportTimer = 0.0f;
@@ -111,4 +146,37 @@ private:
     PeerEndpoint   m_migrationTarget;       // 選出された新Hostの接続先(自分が勝者の場合は未使用)
     float          m_migrationRetryTimer  = 0.0f; // 次の接続試行までの待ち
     float          m_migrationElapsed     = 0.0f; // 移行開始からの総経過(タイムアウト判定)
+
+    NatConfig m_natConfig;
+    ConnectionState m_connectionState = ConnectionState::Offline;
+    ConnectionError m_connectionError = ConnectionError::None;
+    bool m_natMode = false;
+    bool m_creatingRoom = false;
+    std::string m_roomCode;
+    uint32_t m_roomEpoch = 0;
+    AdmissionToken m_admissionToken{};
+    std::unordered_map<PeerId, AdmissionToken> m_peerTokens;
+    std::vector<NetworkCandidate> m_localCandidates;
+    PeerEndpoint m_punchTarget;
+    AdmissionToken m_punchToken{};
+    PeerId m_punchPeerId = 0;
+    uint64_t m_punchNonce = 0;
+    std::unordered_map<PeerId, PeerEndpoint> m_pendingPunches;
+    float m_pendingPunchTimer = 0.0f;
+    ENetAddress m_stunAddress{};
+    ENetAddress m_rendezvousAddress{};
+    NatProtocol::StunTransactionId m_stunTransaction{};
+    std::array<uint8_t, 16> m_cookie{};
+    bool m_haveCookie = false;
+    bool m_recoveringCookie = false;
+    bool m_promotePending = false;
+    float m_promoteRetryTimer = 0.0f;
+    float m_promoteRetryElapsed = 0.0f;
+    uint32_t m_transactionId = 0;
+    std::vector<uint8_t> m_retryDatagram;
+    float m_stateElapsed = 0.0f;
+    float m_retryTimer = 0.0f;
+    float m_retryDelay = 0.25f;
+    float m_refreshTimer = 0.0f;
+    float m_stunRefreshTimer = 0.0f;
 };
