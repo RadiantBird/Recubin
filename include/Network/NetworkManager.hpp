@@ -47,6 +47,8 @@ public:
     ConnectionState getConnectionState() const { return m_connectionState; }
     ConnectionError getConnectionError() const { return m_connectionError; }
     const std::string& getRoomCode() const { return m_roomCode; }
+    uint16_t getListenPort() const { return m_listenPort; }
+    const std::vector<NetworkCandidate>& getLocalCandidates() const { return m_localCandidates; }
     static const char* connectionErrorToString(ConnectionError error);
 
     // ---- 送信API ----
