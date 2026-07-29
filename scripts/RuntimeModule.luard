@@ -1,0 +1,4 @@
+declare answer: number
+declare add: any
+declare shared: table
+declare global workspace: workspace

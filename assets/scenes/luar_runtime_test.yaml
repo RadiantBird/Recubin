@@ -1,0 +1,15 @@
+Root:
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Children:
+        - ClassName: Script
+          Name: LuarRuntimeTest
+          Properties:
+            ContentPath: scripts/luar_runtime_test.luar
+            Enabled: true
+          Children:
+            - ClassName: ModuleScript
+              Name: RuntimeModule
+              Properties:
+                ContentPath: scripts/luar_runtime_module.luau
