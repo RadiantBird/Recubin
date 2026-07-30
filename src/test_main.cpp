@@ -22,6 +22,8 @@
 #include <Core/TimeStretchNode.hpp>
 #include <Core/NullInputBackend.hpp>
 #include <Core/Physics.hpp>
+#include <Core/Terrain.hpp>
+#include <Core/TerrainStreamer.hpp>
 #include <Core/User.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Network/NatProtocol.hpp>
@@ -657,6 +659,33 @@ PhysicsTerrainDescriptor makeMigrationTerrain(Instance* owner) {
     return descriptor;
 }
 
+void setChunkPhysicsQuad(Chunk& chunk, float localHeight) {
+    const float chunkSizeStuds =
+        static_cast<float>(CHUNK_SIZE) * TerrainStreamer::BLOCK_STUD_SIZE;
+    chunk.physVerts = {
+        {0, localHeight, 0},
+        {chunkSizeStuds, localHeight, 0},
+        {chunkSizeStuds, localHeight, chunkSizeStuds},
+        {0, localHeight, chunkSizeStuds},
+    };
+    chunk.physIndices = {0, 2, 1, 0, 3, 2};
+    chunk.physConvexBlocks.clear();
+}
+
+const char* migrationBlockShapeName(BlockShape shape) {
+    static constexpr const char* names[] = {
+        "Empty",
+        "Cube",
+        "Wedge_TopNE", "Wedge_TopNW", "Wedge_TopSE", "Wedge_TopSW",
+        "Wedge_BotNE", "Wedge_BotNW", "Wedge_BotSE", "Wedge_BotSW",
+        "Tetra_TopNE", "Tetra_TopNW", "Tetra_TopSE", "Tetra_TopSW",
+        "Tetra_BotNE", "Tetra_BotNW", "Tetra_BotSE", "Tetra_BotSW",
+        "Ramp_N", "Ramp_S", "Ramp_E", "Ramp_W",
+    };
+    const size_t index = static_cast<size_t>(shape);
+    return index < std::size(names) ? names[index] : "Unknown";
+}
+
 std::shared_ptr<BaseCube> addMigrationCube(
     const std::shared_ptr<Workspace>& workspace,
     const std::string& name,
@@ -1122,6 +1151,222 @@ int runPhysicsMigrationRegression() {
     expect(filteredPairContacts == 0 && controlPairContacts > 0,
            "NoCollision suppresses specified pair only");
 
+    auto chunkTerrainOwner = std::make_shared<Instance>("ChunkTerrainOwner");
+    Chunk chunk0;
+    chunk0.cx = 3;
+    chunk0.cy = 1;
+    chunk0.cz = 0;
+    setChunkPhysicsQuad(chunk0, 0.0f);
+    buildChunkPhysics(chunk0, *physics, chunkTerrainOwner.get());
+
+    Chunk chunk1;
+    chunk1.cx = 4;
+    chunk1.cy = 1;
+    chunk1.cz = 0;
+    setChunkPhysicsQuad(chunk1, 0.0f);
+    buildChunkPhysics(chunk1, *physics, chunkTerrainOwner.get());
+    expect(chunk0.physicsHandle && chunk1.physicsHandle &&
+               chunk0.physicsHandle != chunk1.physicsHandle,
+           "two adjacent Chunk caches create independent terrain handles");
+
+    RaycastHit chunkLeftSeamHit;
+    RaycastHit chunkRightSeamHit;
+    const bool chunkLeftSeam = physics->raycast(
+        {255.99f, 90.0f, 20.0f}, {0, -1, 0}, 40.0f, chunkLeftSeamHit);
+    const bool chunkRightSeam = physics->raycast(
+        {256.01f, 90.0f, 20.0f}, {0, -1, 0}, 40.0f, chunkRightSeamHit);
+    std::cout << "[PhysicsMigrationRegression] backend=" << backend
+              << " metric=chunk_seam"
+              << " left_y=" << chunkLeftSeamHit.position.y
+              << " right_y=" << chunkRightSeamHit.position.y << "\n";
+    expect(chunkLeftSeam && chunkRightSeam &&
+               chunkLeftSeamHit.instance == chunkTerrainOwner.get() &&
+               chunkRightSeamHit.instance == chunkTerrainOwner.get() &&
+               std::abs(chunkLeftSeamHit.position.y - 64.0f) <= 0.02f &&
+               std::abs(chunkRightSeamHit.position.y - 64.0f) <= 0.02f,
+           "actual adjacent Chunk origin conversion has no raycast seam");
+
+    auto seamBody = addMigrationCube(
+        workspace, "ChunkSeamBody", {256.0f, 72.0f, 20.0f},
+        {0.5f, 0.5f, 0.5f});
+    physics->update(*workspace, 0.0f);
+    float seamBodyMinimumY = seamBody->getWorldPosition().y;
+    for (int frame = 0; frame < 180; ++frame) {
+        physics->update(*workspace, 1.0f / 60.0f);
+        seamBodyMinimumY =
+            std::min(seamBodyMinimumY, seamBody->getWorldPosition().y);
+    }
+    const float seamBodyFinalY = seamBody->getWorldPosition().y;
+    const float seamBodyFinalSpeed =
+        vectorLength(physics->getLinearVelocity(*seamBody));
+    std::cout << "[PhysicsMigrationRegression] backend=" << backend
+              << " metric=chunk_seam_body"
+              << " min_y=" << seamBodyMinimumY
+              << " final_y=" << seamBodyFinalY
+              << " final_speed=" << seamBodyFinalSpeed << "\n";
+    expect(seamBodyMinimumY >= 63.75f &&
+               seamBodyFinalY >= 64.23f &&
+               seamBodyFinalSpeed <= 0.5f,
+           "small dynamic body does not pass through actual Chunk boundary");
+
+    const PhysicsTerrainHandle oldChunk0Handle = chunk0.physicsHandle;
+    setChunkPhysicsQuad(chunk0, 4.0f);
+    buildChunkPhysics(chunk0, *physics, chunkTerrainOwner.get());
+    RaycastHit replacedChunkHit;
+    RaycastHit unchangedNeighborHit;
+    const bool hitReplacedChunk = physics->raycast(
+        {220.0f, 90.0f, 20.0f}, {0, -1, 0}, 40.0f, replacedChunkHit);
+    const bool hitUnchangedNeighbor = physics->raycast(
+        {280.0f, 90.0f, 20.0f}, {0, -1, 0}, 40.0f, unchangedNeighborHit);
+    std::cout << "[PhysicsMigrationRegression] backend=" << backend
+              << " metric=chunk_atomic_replace"
+              << " old_handle=" << oldChunk0Handle.value
+              << " new_handle=" << chunk0.physicsHandle.value
+              << " replaced_y=" << replacedChunkHit.position.y
+              << " neighbor_y=" << unchangedNeighborHit.position.y << "\n";
+    expect(chunk0.physicsHandle &&
+               chunk0.physicsHandle != oldChunk0Handle &&
+               hitReplacedChunk && hitUnchangedNeighbor &&
+               replacedChunkHit.instance == chunkTerrainOwner.get() &&
+               unchangedNeighborHit.instance == chunkTerrainOwner.get() &&
+               std::abs(replacedChunkHit.position.y - 68.0f) <= 0.02f &&
+               std::abs(unchangedNeighborHit.position.y - 64.0f) <= 0.02f,
+           "buildChunkPhysics atomically replaces one Chunk and preserves neighbor");
+
+    auto shapeTerrainOwner = std::make_shared<Instance>("ShapeTerrainOwner");
+    Chunk shapeChunk;
+    shapeChunk.cx = 6;
+    shapeChunk.cy = 1;
+    shapeChunk.cz = 0;
+    // Cube takes the triangle-mesh path. Its isolated top face is centered at
+    // local (6,4,54); every other non-empty BlockShape takes ConvexBlock.
+    shapeChunk.physVerts = {
+        {4, 4, 52}, {8, 4, 52}, {8, 4, 56}, {4, 4, 56},
+    };
+    shapeChunk.physIndices = {0, 2, 1, 0, 3, 2};
+
+    struct ShapeProbe {
+        BlockShape shape;
+        Vector3 localCenter;
+    };
+    std::vector<ShapeProbe> shapeProbes;
+    for (int shapeValue = static_cast<int>(BlockShape::Wedge_TopNE);
+         shapeValue <= static_cast<int>(BlockShape::Ramp_W);
+         ++shapeValue) {
+        const int probeIndex =
+            shapeValue - static_cast<int>(BlockShape::Wedge_TopNE);
+        const Vector3 center(
+            6.0f + static_cast<float>(probeIndex % 5) * 12.0f,
+            6.0f,
+            6.0f + static_cast<float>(probeIndex / 5) * 12.0f);
+        const BlockShape shape = static_cast<BlockShape>(shapeValue);
+        shapeProbes.push_back({shape, center});
+        shapeChunk.physConvexBlocks.push_back({
+            static_cast<uint8_t>(shape), center});
+    }
+    buildChunkPhysics(shapeChunk, *physics, shapeTerrainOwner.get());
+    expect(static_cast<bool>(shapeChunk.physicsHandle),
+           "all BlockShape cache creates terrain handle");
+
+    const Vector3 shapeChunkOrigin(
+        static_cast<float>(shapeChunk.worldOriginX()) *
+            TerrainStreamer::BLOCK_STUD_SIZE,
+        static_cast<float>(shapeChunk.worldOriginY()) *
+            TerrainStreamer::BLOCK_STUD_SIZE,
+        static_cast<float>(shapeChunk.worldOriginZ()) *
+            TerrainStreamer::BLOCK_STUD_SIZE);
+    RaycastHit cubeShapeHit;
+    const bool cubeShapeCollision = physics->raycast(
+        shapeChunkOrigin + Vector3(6, 30, 54),
+        {0, -1, 0}, 40.0f, cubeShapeHit);
+    bool allShapeCollisions =
+        cubeShapeCollision && cubeShapeHit.instance == shapeTerrainOwner.get();
+    std::cout << "[PhysicsMigrationRegression] backend=" << backend
+              << " metric=block_shape"
+              << " shape=Cube enum=" << static_cast<int>(BlockShape::Cube)
+              << " hit=" << (cubeShapeCollision ? "true" : "false")
+              << " hit_y=" << cubeShapeHit.position.y << "\n";
+
+    std::vector<int> failedShapeValues;
+    for (const ShapeProbe& probe : shapeProbes) {
+        RaycastHit shapeHit;
+        const bool hit = physics->raycast(
+            shapeChunkOrigin + probe.localCenter + Vector3(0, 20, 0),
+            {0, -1, 0}, 40.0f, shapeHit);
+        const bool valid =
+            hit && shapeHit.instance == shapeTerrainOwner.get();
+        allShapeCollisions = allShapeCollisions && valid;
+        if (!valid) failedShapeValues.push_back(static_cast<int>(probe.shape));
+        std::cout << "[PhysicsMigrationRegression] backend=" << backend
+                  << " metric=block_shape"
+                  << " shape=" << migrationBlockShapeName(probe.shape)
+                  << " enum=" << static_cast<int>(probe.shape)
+                  << " hit=" << (valid ? "true" : "false")
+                  << " hit_y=" << shapeHit.position.y << "\n";
+    }
+    if (!cubeShapeCollision)
+        failedShapeValues.push_back(static_cast<int>(BlockShape::Cube));
+    std::cout << "[PhysicsMigrationRegression] backend=" << backend
+              << " metric=block_shape_summary"
+              << " tested=" << (shapeProbes.size() + 1)
+              << " failed=" << failedShapeValues.size();
+    for (int value : failedShapeValues) std::cout << " failed_enum=" << value;
+    std::cout << "\n";
+    expect(allShapeCollisions,
+           "Cube/Wedge8/Tetra8/Ramp4 all produce backend collision");
+
+    auto dynamicTarget = addMigrationCube(
+        workspace, "DynamicCCDTarget", {-40, 140, -40}, {4, 4, 4});
+    dynamicTarget->MassDensity = 50.0f;
+    auto dynamicProjectile = addMigrationCube(
+        workspace, "DynamicCCDProjectile", {-80, 140, -40}, {1, 1, 1});
+    dynamicProjectile->CollisionDetection = CCDMode::Bullet;
+    physics->update(*workspace, 0.0f);
+    physics->setGravityEnabled(*dynamicTarget, false);
+    physics->setGravityEnabled(*dynamicProjectile, false);
+
+    int dynamicCcdContacts = 0;
+    Physics::s_contactCallback = [&](BaseCube* first, BaseCube* second) {
+        if ((first == dynamicTarget.get() && second == dynamicProjectile.get()) ||
+            (first == dynamicProjectile.get() && second == dynamicTarget.get()))
+            ++dynamicCcdContacts;
+    };
+    physics->setLinearVelocity(*dynamicProjectile, {400, 0, 0});
+    bool dynamicCcdTunneledBeforeContact = false;
+    for (int frame = 0; frame < 30; ++frame) {
+        physics->update(*workspace, 1.0f / 60.0f);
+        const float separation =
+            dynamicProjectile->getWorldPosition().x -
+            dynamicTarget->getWorldPosition().x;
+        if (dynamicCcdContacts == 0 && separation > 2.5f)
+            dynamicCcdTunneledBeforeContact = true;
+    }
+    Physics::s_contactCallback = {};
+    const float dynamicCcdFinalSeparation =
+        dynamicProjectile->getWorldPosition().x -
+        dynamicTarget->getWorldPosition().x;
+    const bool dynamicCcdCompletelyPassed =
+        dynamicCcdFinalSeparation > 2.5f;
+    std::cout << "[PhysicsMigrationRegression] backend=" << backend
+              << " metric=dynamic_dynamic_ccd"
+              << " contacts=" << dynamicCcdContacts
+              << " tunneled_before_contact="
+              << (dynamicCcdTunneledBeforeContact ? "true" : "false")
+              << " final_separation=" << dynamicCcdFinalSeparation
+              << " completely_passed="
+              << (dynamicCcdCompletelyPassed ? "true" : "false")
+              << "\n";
+    expect(dynamicCcdContacts > 0 &&
+               !dynamicCcdTunneledBeforeContact &&
+               !dynamicCcdCompletelyPassed,
+           "Bullet 400 studs/s dynamic-dynamic CCD hits dynamic target");
+
+    physics->destroyTerrain(shapeChunk.physicsHandle);
+    shapeChunk.physicsHandle = {};
+    physics->destroyTerrain(chunk0.physicsHandle);
+    chunk0.physicsHandle = {};
+    physics->destroyTerrain(chunk1.physicsHandle);
+    chunk1.physicsHandle = {};
     physics->destroyTerrain(terrain);
     std::cout << "[PhysicsMigrationRegression] backend=" << backend
               << " failures=" << failures
