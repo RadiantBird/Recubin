@@ -3,6 +3,7 @@
 #include <include/Core/IPhysicsBackend.hpp>
 #include <functional>
 #include <memory>
+#include <cstdint>
 
 class Physics {
 private:
@@ -11,6 +12,11 @@ private:
     std::unique_ptr<IPhysicsBackend> m_backend;
     PhysicsBackendType m_backendType = PhysicsBackendType::PhysX;
     bool m_available = false;
+    double m_wavePhaseOffsetTicks = 0.0;
+    double m_wavePhaseTargetOffsetTicks = 0.0;
+    bool m_hasWavePhaseTarget = false;
+
+    void advanceWavePhaseCorrection(std::uint64_t simulatedSteps);
 
 public:
     static std::function<void(BaseCube*, BaseCube*)> s_contactCallback;
@@ -23,6 +29,16 @@ public:
     void init();
     bool isAvailable() const;
     PhysicsBackendType getBackendType() const;
+    std::uint64_t getSimulationTick() const;
+    float getAccumulatorAlpha() const;
+    float getWaveTime() const;
+    double getWavePhaseTicks() const;
+    void getSynchronizedSimulationClock(
+        std::uint32_t& tick, float& alpha) const;
+    void synchronizeSimulationClock(
+        std::uint32_t authoritativeTick, float authoritativeAlpha);
+    void resetSimulationClockSynchronization();
+    void makeSimulationClockAuthoritative();
 
     void update(Workspace& workspace, float dt);
     void stepOnce(float dt);

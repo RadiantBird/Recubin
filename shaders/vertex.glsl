@@ -30,7 +30,12 @@ void main() {
     // LiquidCube は上面のみ時間ベースの sin 波で揺らす（ローカル空間）
     vec3 p = aPos;
     if (uIsLiquid > 0.5 && aPos.y > 0.0) {
-        p.y += sin(uTime * 1.5 + aPos.x * 4.0 + aPos.z * 4.0) * 0.06;
+        const float WAVE_ANGULAR_SPEED = 1.5;
+        const float WAVE_SPATIAL_FREQUENCY = 4.0;
+        const float WAVE_AMPLITUDE = 0.06;
+        p.y += sin(uTime * WAVE_ANGULAR_SPEED +
+                   aPos.x * WAVE_SPATIAL_FREQUENCY +
+                   aPos.z * WAVE_SPATIAL_FREQUENCY) * WAVE_AMPLITUDE;
     }
     FragPos = vec3(m * vec4(p, 1.0));
     Normal = mat3(transpose(inverse(m))) * aNormal;

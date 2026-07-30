@@ -4,6 +4,7 @@
 #include <include/Instances/BallSocket.hpp>
 #include <include/Instances/BaseCube.hpp>
 #include <include/Instances/Force.hpp>
+#include <include/Instances/LiquidCube.hpp>
 #include <include/Instances/Motor.hpp>
 #include <include/Instances/NoCollision.hpp>
 #include <include/Instances/Rod.hpp>
@@ -16,6 +17,7 @@
 #include <cfloat>
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <queue>
 #include <unordered_set>
 
@@ -27,6 +29,188 @@ constexpr float TORQUE_TO_MKS = 1.0f / 400.0f;
 constexpr float FIXED_STEP = 1.0f / 60.0f;
 constexpr int SUB_STEPS = 4;
 constexpr int MAX_STEPS = 10;
+constexpr float CLIP_EPSILON = 1.0e-5f;
+
+struct FacePolyhedron {
+    std::vector<std::vector<Vector3>> faces;
+};
+
+struct Plane {
+    Vector3 normal;
+    float offset = 0.0f;
+};
+
+bool finiteVector(const Vector3& value) {
+    return std::isfinite(value.x) && std::isfinite(value.y) &&
+           std::isfinite(value.z);
+}
+
+void orientFaces(
+    const std::vector<Vector3>& vertices, std::vector<std::vector<int>>& faces) {
+    Vector3 center;
+    for (const Vector3& vertex : vertices) center = center + vertex;
+    if (!vertices.empty()) center = center / static_cast<float>(vertices.size());
+    for (auto& face : faces) {
+        if (face.size() < 3) continue;
+        const Vector3 normal = Vector3::Cross(
+            vertices[face[1]] - vertices[face[0]],
+            vertices[face[2]] - vertices[face[0]]);
+        if (Vector3::Dot(normal, center - vertices[face[0]]) > 0.0f)
+            std::reverse(face.begin(), face.end());
+    }
+}
+
+FacePolyhedron makeFacePolyhedron(
+    const std::vector<Vector3>& vertices,
+    const std::vector<std::vector<int>>& indices) {
+    FacePolyhedron result;
+    for (const auto& face : indices) {
+        std::vector<Vector3> polygon;
+        polygon.reserve(face.size());
+        for (int index : face) {
+            if (index >= 0 && static_cast<size_t>(index) < vertices.size())
+                polygon.push_back(vertices[static_cast<size_t>(index)]);
+        }
+        if (polygon.size() >= 3) result.faces.push_back(std::move(polygon));
+    }
+    return result;
+}
+
+bool samePoint(const Vector3& first, const Vector3& second) {
+    const Vector3 delta = first - second;
+    return Vector3::Dot(delta, delta) <= CLIP_EPSILON * CLIP_EPSILON;
+}
+
+FacePolyhedron clipPolyhedron(const FacePolyhedron& input, const Plane& plane) {
+    FacePolyhedron result;
+    std::vector<Vector3> cap;
+    for (const auto& face : input.faces) {
+        if (face.size() < 3) continue;
+        std::vector<Vector3> clipped;
+        Vector3 previous = face.back();
+        float previousDistance =
+            Vector3::Dot(plane.normal, previous) - plane.offset;
+        bool previousInside = previousDistance <= CLIP_EPSILON;
+        for (const Vector3& current : face) {
+            const float currentDistance =
+                Vector3::Dot(plane.normal, current) - plane.offset;
+            const bool currentInside = currentDistance <= CLIP_EPSILON;
+            if (currentInside != previousInside) {
+                const float denominator = previousDistance - currentDistance;
+                if (std::abs(denominator) > CLIP_EPSILON) {
+                    const float amount = std::clamp(
+                        previousDistance / denominator, 0.0f, 1.0f);
+                    const Vector3 intersection =
+                        previous + (current - previous) * amount;
+                    if (finiteVector(intersection)) {
+                        clipped.push_back(intersection);
+                        bool duplicate = false;
+                        for (const Vector3& existing : cap)
+                            if (samePoint(existing, intersection)) {
+                                duplicate = true;
+                                break;
+                            }
+                        if (!duplicate) cap.push_back(intersection);
+                    }
+                }
+            }
+            if (currentInside) clipped.push_back(current);
+            previous = current;
+            previousDistance = currentDistance;
+            previousInside = currentInside;
+        }
+        if (clipped.size() >= 3) result.faces.push_back(std::move(clipped));
+    }
+
+    if (cap.size() >= 3) {
+        Vector3 center;
+        for (const Vector3& point : cap) center = center + point;
+        center = center / static_cast<float>(cap.size());
+        Vector3 axis = std::abs(plane.normal.x) < 0.8f
+            ? Vector3(1.0f, 0.0f, 0.0f) : Vector3(0.0f, 1.0f, 0.0f);
+        Vector3 tangent = Vector3::Cross(axis, plane.normal).normalize();
+        Vector3 bitangent = Vector3::Cross(plane.normal, tangent);
+        std::sort(cap.begin(), cap.end(), [&](const Vector3& first, const Vector3& second) {
+            const Vector3 a = first - center;
+            const Vector3 b = second - center;
+            return std::atan2(Vector3::Dot(a, bitangent), Vector3::Dot(a, tangent)) <
+                   std::atan2(Vector3::Dot(b, bitangent), Vector3::Dot(b, tangent));
+        });
+        if (Vector3::Dot(
+                Vector3::Cross(cap[1] - cap[0], cap[2] - cap[0]),
+                plane.normal) < 0.0f)
+            std::reverse(cap.begin(), cap.end());
+        result.faces.push_back(std::move(cap));
+    }
+    return result;
+}
+
+bool volumeAndCentroid(
+    const FacePolyhedron& polyhedron, float& volume, Vector3& centroid) {
+    double signedVolume = 0.0;
+    Vector3 weighted;
+    for (const auto& face : polyhedron.faces) {
+        if (face.size() < 3) continue;
+        const Vector3& first = face[0];
+        for (size_t index = 1; index + 1 < face.size(); ++index) {
+            const Vector3& second = face[index];
+            const Vector3& third = face[index + 1];
+            const double tetrahedron = static_cast<double>(
+                Vector3::Dot(first, Vector3::Cross(second, third))) / 6.0;
+            if (!std::isfinite(tetrahedron)) return false;
+            signedVolume += tetrahedron;
+            weighted = weighted +
+                (first + second + third) * static_cast<float>(tetrahedron * 0.25);
+        }
+    }
+    if (!std::isfinite(signedVolume) ||
+        std::abs(signedVolume) <= static_cast<double>(CLIP_EPSILON)) {
+        volume = 0.0f;
+        centroid = Vector3();
+        return false;
+    }
+    centroid = weighted / static_cast<float>(signedVolume);
+    volume = static_cast<float>(std::abs(signedVolume));
+    return finiteVector(centroid) && std::isfinite(volume);
+}
+
+std::vector<Plane> planesFromPolyhedron(const FacePolyhedron& polyhedron) {
+    std::vector<Plane> result;
+    for (const auto& face : polyhedron.faces) {
+        if (face.size() < 3) continue;
+        Vector3 normal =
+            Vector3::Cross(face[1] - face[0], face[2] - face[0]).normalize();
+        if (normal.length() <= CLIP_EPSILON || !finiteVector(normal)) continue;
+        result.push_back({normal, Vector3::Dot(normal, face[0])});
+    }
+    return result;
+}
+
+FacePolyhedron makeLiquidPrism(float time, bool secondTriangle) {
+    const Vector3 top[4] = {
+        {-0.5f, 0.5f + LiquidCube::waveHeight(-0.5f, 0.5f, time), 0.5f},
+        {-0.5f, 0.5f + LiquidCube::waveHeight(-0.5f, -0.5f, time), -0.5f},
+        {0.5f, 0.5f + LiquidCube::waveHeight(0.5f, -0.5f, time), -0.5f},
+        {0.5f, 0.5f + LiquidCube::waveHeight(0.5f, 0.5f, time), 0.5f},
+    };
+    const int triangle[2][3] = {{0, 1, 2}, {0, 2, 3}};
+    const int* selected = triangle[secondTriangle ? 1 : 0];
+    std::vector<Vector3> vertices;
+    vertices.reserve(6);
+    for (int index = 0; index < 3; ++index)
+        vertices.push_back(top[selected[index]]);
+    for (int index = 0; index < 3; ++index) {
+        Vector3 bottom = top[selected[index]];
+        bottom.y = -0.5f;
+        vertices.push_back(bottom);
+    }
+    std::vector<std::vector<int>> faces = {
+        {0, 1, 2}, {3, 5, 4},
+        {0, 3, 4, 1}, {1, 4, 5, 2}, {2, 5, 3, 0},
+    };
+    orientFaces(vertices, faces);
+    return makeFacePolyhedron(vertices, faces);
+}
 
 b3Vec3 toB3Vector(const Vector3& value) {
     return {value.x, value.y, value.z};
@@ -281,6 +465,121 @@ b3ShapeId Box3DPhysicsBackend::createCubeShape(
         id, &definition, &box.base, toB3Transform(localFrame), b3Vec3_one);
 }
 
+const Box3DPhysicsBackend::BuoyancyProxy*
+Box3DPhysicsBackend::getBuoyancyProxy(const BaseCube& cube) {
+    const PhysicsShape shape = cube.getPhysicsShape();
+    auto cached = m_buoyancyProxyCache.find(&cube);
+    if (cached != m_buoyancyProxyCache.end() &&
+        cached->second.shape == shape && cached->second.size == cube.Size)
+        return &cached->second;
+
+    BuoyancyProxy proxy;
+    proxy.shape = shape;
+    proxy.size = cube.Size;
+    if (shape == PhysicsShape::Box) {
+        proxy.vertices = {
+            {-0.5f, -0.5f, -0.5f}, {0.5f, -0.5f, -0.5f},
+            {0.5f, 0.5f, -0.5f}, {-0.5f, 0.5f, -0.5f},
+            {-0.5f, -0.5f, 0.5f}, {0.5f, -0.5f, 0.5f},
+            {0.5f, 0.5f, 0.5f}, {-0.5f, 0.5f, 0.5f},
+        };
+        proxy.faces = {
+            {0, 3, 2, 1}, {4, 5, 6, 7}, {0, 1, 5, 4},
+            {3, 7, 6, 2}, {0, 4, 7, 3}, {1, 2, 6, 5},
+        };
+    } else if (shape == PhysicsShape::ConvexMesh) {
+        const auto source = cube.getConvexVertices();
+        std::vector<b3Vec3> points;
+        points.reserve(source.size());
+        for (const Vector3& point : source)
+            if (finiteVector(point)) points.push_back(toB3Vector(point));
+        b3HullData* hull = points.size() >= 4
+            ? b3CreateHull(points.data(), static_cast<int>(points.size()), 64)
+            : nullptr;
+        if (hull) {
+            const b3Vec3* hullPoints = b3GetHullPoints(hull);
+            const b3HullHalfEdge* edges = b3GetHullEdges(hull);
+            const b3HullFace* faces = b3GetHullFaces(hull);
+            for (int index = 0; index < hull->vertexCount; ++index)
+                proxy.vertices.push_back(fromB3Vector(hullPoints[index]));
+            for (int faceIndex = 0; faceIndex < hull->faceCount; ++faceIndex) {
+                std::vector<int> face;
+                const uint8_t first = faces[faceIndex].edge;
+                uint8_t edge = first;
+                do {
+                    face.push_back(edges[edge].origin);
+                    edge = edges[edge].next;
+                } while (edge != first && face.size() <=
+                         static_cast<size_t>(hull->edgeCount));
+                if (face.size() >= 3) proxy.faces.push_back(std::move(face));
+            }
+            b3DestroyHull(hull);
+        }
+    } else if (shape == PhysicsShape::Sphere) {
+        const float golden = (1.0f + std::sqrt(5.0f)) * 0.5f;
+        proxy.vertices = {
+            {-1, golden, 0}, {1, golden, 0}, {-1, -golden, 0}, {1, -golden, 0},
+            {0, -1, golden}, {0, 1, golden}, {0, -1, -golden}, {0, 1, -golden},
+            {golden, 0, -1}, {golden, 0, 1}, {-golden, 0, -1}, {-golden, 0, 1},
+        };
+        for (Vector3& vertex : proxy.vertices)
+            vertex = vertex.normalize() * 0.5f;
+        proxy.faces = {
+            {0,11,5},{0,5,1},{0,1,7},{0,7,10},{0,10,11},
+            {1,5,9},{5,11,4},{11,10,2},{10,7,6},{7,1,8},
+            {3,9,4},{3,4,2},{3,2,6},{3,6,8},{3,8,9},
+            {4,9,5},{2,4,11},{6,2,10},{8,6,7},{9,8,1},
+        };
+        for (int subdivision = 0; subdivision < 2; ++subdivision) {
+            std::unordered_map<std::uint64_t, int> midpointCache;
+            std::vector<std::vector<int>> subdivided;
+            auto midpoint = [&](int first, int second) {
+                const std::uint32_t low =
+                    static_cast<std::uint32_t>(std::min(first, second));
+                const std::uint32_t high =
+                    static_cast<std::uint32_t>(std::max(first, second));
+                const std::uint64_t key =
+                    (static_cast<std::uint64_t>(low) << 32) | high;
+                auto found = midpointCache.find(key);
+                if (found != midpointCache.end()) return found->second;
+                const int index = static_cast<int>(proxy.vertices.size());
+                proxy.vertices.push_back(
+                    ((proxy.vertices[first] + proxy.vertices[second]) * 0.5f)
+                        .normalize() * 0.5f);
+                midpointCache[key] = index;
+                return index;
+            };
+            for (const auto& face : proxy.faces) {
+                const int a = midpoint(face[0], face[1]);
+                const int b = midpoint(face[1], face[2]);
+                const int c = midpoint(face[2], face[0]);
+                subdivided.push_back({face[0], a, c});
+                subdivided.push_back({face[1], b, a});
+                subdivided.push_back({face[2], c, b});
+                subdivided.push_back({a, b, c});
+            }
+            proxy.faces = std::move(subdivided);
+        }
+    }
+
+    orientFaces(proxy.vertices, proxy.faces);
+    volumeAndCentroid(
+        makeFacePolyhedron(proxy.vertices, proxy.faces),
+        proxy.normalizedVolume, proxy.normalizedCentroid);
+    if (shape == PhysicsShape::Sphere && proxy.normalizedVolume > CLIP_EPSILON) {
+        const float analyticalSphereVolume =
+            4.0f / 3.0f * pi * 0.5f * 0.5f * 0.5f;
+        proxy.volumeCorrection =
+            analyticalSphereVolume / proxy.normalizedVolume;
+    }
+    if (proxy.vertices.empty() || proxy.faces.empty() ||
+        !(proxy.normalizedVolume > CLIP_EPSILON))
+        return nullptr;
+    auto inserted =
+        m_buoyancyProxyCache.insert_or_assign(&cube, std::move(proxy)).first;
+    return &inserted->second;
+}
+
 void Box3DPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
     if (!cube || hasBody(*cube) || !isAvailable()) return;
     const CFrame world = cube->getWorldCFrame();
@@ -301,6 +600,7 @@ void Box3DPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
 
 void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
+    m_buoyancyProxyCache.erase(cube.get());
     const b3BodyId oldId = bodyId(*cube);
     if (B3_IS_NULL(oldId)) {
         createActor(cube);
@@ -327,6 +627,7 @@ void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
 
 void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
+    m_buoyancyProxyCache.erase(cube.get());
     std::vector<std::shared_ptr<Instance>> attachedConstraints;
     for (const ConstraintEntry& entry : m_constraints) {
         auto value = entry.constraint.lock();
@@ -384,6 +685,7 @@ void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
 }
 
 void Box3DPhysicsBackend::onCubeDestroyed(BaseCube& cube) {
+    m_buoyancyProxyCache.erase(&cube);
     const b3BodyId oldId = bodyId(cube);
     if (B3_IS_NON_NULL(oldId)) {
         const int shapeCount = b3Body_GetShapeCount(oldId);
@@ -444,6 +746,7 @@ void Box3DPhysicsBackend::clearCubes() {
     m_noCollisionEntries.clear();
     rebuildNoCollisionSnapshot();
     destroyUniqueBodies();
+    m_buoyancyProxyCache.clear();
 }
 
 void Box3DPhysicsBackend::syncCube(BaseCube& cube) {
@@ -548,6 +851,193 @@ void Box3DPhysicsBackend::applyForces() {
     }
 }
 
+void Box3DPhysicsBackend::applyBuoyancy() {
+    if (!m_facade) return;
+    std::vector<std::shared_ptr<LiquidCube>> liquids;
+    for (const BodyEntry& entry : m_bodies) {
+        auto cube = entry.cube.lock();
+        if (cube && cube->IsA("LiquidCube"))
+            liquids.push_back(std::static_pointer_cast<LiquidCube>(cube));
+    }
+
+    std::set<std::uint64_t> visitedBodies;
+    const Vector3 gravity = getGravity();
+    const float waveTime = m_facade->getWaveTime();
+    for (const BodyEntry& bodyEntry : m_bodies) {
+        const b3BodyId id = bodyEntry.bodyId;
+        if (B3_IS_NULL(id) || !b3Body_IsValid(id) ||
+            b3Body_GetType(id) != b3_dynamicBody)
+            continue;
+        const std::uint64_t stored = b3StoreBodyId(id);
+        if (!visitedBodies.insert(stored).second) continue;
+
+        std::vector<std::shared_ptr<BaseCube>> members;
+        float totalBodyVolume = 0.0f;
+        for (const BodyEntry& entry : m_bodies) {
+            if (!idsEqual(entry.bodyId, id)) continue;
+            auto member = entry.cube.lock();
+            if (!member || member->IsA("LiquidCube")) continue;
+            if (!finiteVector(member->Size)) continue;
+            const BuoyancyProxy* proxy = getBuoyancyProxy(*member);
+            if (!proxy) continue;
+            members.push_back(member);
+            const float sizeVolume = proxy->shape == PhysicsShape::Sphere
+                ? std::abs(member->Size.x * member->Size.x * member->Size.x)
+                : std::abs(member->Size.x * member->Size.y * member->Size.z);
+            totalBodyVolume += proxy->normalizedVolume * sizeVolume *
+                               proxy->volumeCorrection;
+        }
+
+        float totalSubmergedVolume = 0.0f;
+        for (const auto& liquid : liquids) {
+            if (!liquid || !std::isfinite(liquid->Density) ||
+                !finiteVector(liquid->Size) ||
+                std::abs(liquid->Size.x) <= CLIP_EPSILON ||
+                std::abs(liquid->Size.y) <= CLIP_EPSILON ||
+                std::abs(liquid->Size.z) <= CLIP_EPSILON)
+                continue;
+            const CFrame liquidWorld = liquid->getWorldCFrame();
+            const CFrame liquidInverse = liquidWorld.inverse();
+            const FacePolyhedron prisms[2] = {
+                makeLiquidPrism(waveTime, false),
+                makeLiquidPrism(waveTime, true),
+            };
+            std::vector<Plane> prismPlanes[2] = {
+                planesFromPolyhedron(prisms[0]),
+                planesFromPolyhedron(prisms[1]),
+            };
+            const float minimumSurfaceHeight = std::min({
+                0.5f + LiquidCube::waveHeight(-0.5f, 0.5f, waveTime),
+                0.5f + LiquidCube::waveHeight(-0.5f, -0.5f, waveTime),
+                0.5f + LiquidCube::waveHeight(0.5f, -0.5f, waveTime),
+                0.5f + LiquidCube::waveHeight(0.5f, 0.5f, waveTime),
+            });
+            float liquidVolume = 0.0f;
+            Vector3 liquidWeightedCenter;
+
+            for (const auto& member : members) {
+                const BuoyancyProxy* proxy = getBuoyancyProxy(*member);
+                if (!proxy) continue;
+                const CFrame memberWorld =
+                    bodyWorldFrame(id) * member->m_compoundLocalOffset;
+                std::vector<Vector3> normalizedVertices;
+                normalizedVertices.reserve(proxy->vertices.size());
+                Vector3 minimum(
+                    std::numeric_limits<float>::max(),
+                    std::numeric_limits<float>::max(),
+                    std::numeric_limits<float>::max());
+                Vector3 maximum(
+                    -std::numeric_limits<float>::max(),
+                    -std::numeric_limits<float>::max(),
+                    -std::numeric_limits<float>::max());
+                for (const Vector3& source : proxy->vertices) {
+                    const Vector3 memberScale =
+                        proxy->shape == PhysicsShape::Sphere
+                        ? Vector3(member->Size.x, member->Size.x, member->Size.x)
+                        : member->Size;
+                    const Vector3 world =
+                        memberWorld.pointToWorld(source * memberScale);
+                    const Vector3 local = liquidInverse.pointToWorld(world);
+                    const Vector3 normalized = local / liquid->Size;
+                    if (!finiteVector(normalized)) {
+                        normalizedVertices.clear();
+                        break;
+                    }
+                    normalizedVertices.push_back(normalized);
+                    minimum.x = std::min(minimum.x, normalized.x);
+                    minimum.y = std::min(minimum.y, normalized.y);
+                    minimum.z = std::min(minimum.z, normalized.z);
+                    maximum.x = std::max(maximum.x, normalized.x);
+                    maximum.y = std::max(maximum.y, normalized.y);
+                    maximum.z = std::max(maximum.z, normalized.z);
+                }
+                if (normalizedVertices.empty() ||
+                    maximum.x < -0.5f || minimum.x > 0.5f ||
+                    maximum.z < -0.5f || minimum.z > 0.5f ||
+                    maximum.y < -0.5f ||
+                    minimum.y > 0.5f + LiquidCube::WAVE_AMPLITUDE)
+                    continue;
+
+                const bool fullyContained =
+                    minimum.x >= -0.5f + CLIP_EPSILON &&
+                    maximum.x <= 0.5f - CLIP_EPSILON &&
+                    minimum.z >= -0.5f + CLIP_EPSILON &&
+                    maximum.z <= 0.5f - CLIP_EPSILON &&
+                    minimum.y >= -0.5f + CLIP_EPSILON &&
+                    maximum.y <= minimumSurfaceHeight - CLIP_EPSILON;
+                if (fullyContained) {
+                    const float sizeVolume =
+                        proxy->shape == PhysicsShape::Sphere
+                        ? std::abs(member->Size.x * member->Size.x *
+                                   member->Size.x)
+                        : std::abs(member->Size.x * member->Size.y *
+                                   member->Size.z);
+                    const float volume = proxy->normalizedVolume * sizeVolume *
+                                         proxy->volumeCorrection;
+                    const Vector3 memberScale =
+                        proxy->shape == PhysicsShape::Sphere
+                        ? Vector3(member->Size.x, member->Size.x, member->Size.x)
+                        : member->Size;
+                    const Vector3 center = memberWorld.pointToWorld(
+                        proxy->normalizedCentroid * memberScale);
+                    if (volume > CLIP_EPSILON && std::isfinite(volume) &&
+                        finiteVector(center)) {
+                        liquidVolume += volume;
+                        liquidWeightedCenter =
+                            liquidWeightedCenter + center * volume;
+                    }
+                    continue;
+                }
+
+                const FacePolyhedron memberPoly =
+                    makeFacePolyhedron(normalizedVertices, proxy->faces);
+                for (int prismIndex = 0; prismIndex < 2; ++prismIndex) {
+                    FacePolyhedron clipped = memberPoly;
+                    for (const Plane& plane : prismPlanes[prismIndex]) {
+                        clipped = clipPolyhedron(clipped, plane);
+                        if (clipped.faces.empty()) break;
+                    }
+                    float normalizedVolume = 0.0f;
+                    Vector3 normalizedCentroid;
+                    if (!volumeAndCentroid(
+                            clipped, normalizedVolume, normalizedCentroid))
+                        continue;
+                    const float volume = normalizedVolume *
+                        std::abs(liquid->Size.x * liquid->Size.y * liquid->Size.z) *
+                        proxy->volumeCorrection;
+                    if (!(volume > CLIP_EPSILON) || !std::isfinite(volume))
+                        continue;
+                    const Vector3 center = liquidWorld.pointToWorld(
+                        normalizedCentroid * liquid->Size);
+                    if (!finiteVector(center)) continue;
+                    liquidVolume += volume;
+                    liquidWeightedCenter =
+                        liquidWeightedCenter + center * volume;
+                }
+            }
+
+            if (!(liquidVolume > CLIP_EPSILON) ||
+                !std::isfinite(liquidVolume))
+                continue;
+            const Vector3 centerOfBuoyancy =
+                liquidWeightedCenter / liquidVolume;
+            const float density = std::max(liquid->Density, 0.0f);
+            const Vector3 force =
+                (-gravity) * (liquidVolume * density / STUDS_PER_METER);
+            if (finiteVector(force) && finiteVector(centerOfBuoyancy))
+                b3Body_ApplyForce(
+                    id, toB3Vector(force), toB3Position(centerOfBuoyancy), true);
+            totalSubmergedVolume += liquidVolume;
+        }
+
+        const float fraction = totalBodyVolume > CLIP_EPSILON
+            ? std::clamp(totalSubmergedVolume / totalBodyVolume, 0.0f, 1.0f)
+            : 0.0f;
+        b3Body_SetLinearDamping(id, 3.0f * fraction);
+        b3Body_SetAngularDamping(id, 3.0f * fraction);
+    }
+}
+
 void Box3DPhysicsBackend::processContactEvents() {
     if (!Physics::s_contactCallback) return;
     const b3ContactEvents events = b3World_GetContactEvents(m_worldId);
@@ -569,8 +1059,10 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
     m_accumulator += std::clamp(dt, 0.0f, 0.25f);
     int stepCount = 0;
     while (m_accumulator >= FIXED_STEP && stepCount < MAX_STEPS) {
+        applyBuoyancy();
         applyForces();
         b3World_Step(m_worldId, FIXED_STEP, SUB_STEPS);
+        ++m_simulationTick;
         processContactEvents();
         m_accumulator -= FIXED_STEP;
         ++stepCount;
@@ -579,6 +1071,7 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
         m_accumulator = 0.0f;
         RCBN_WARN("Box3D physics safety break engaged");
     }
+    m_accumulatorAlpha = std::clamp(m_accumulator / FIXED_STEP, 0.0f, 1.0f);
 }
 
 Box3DPhysicsBackend::CubePair Box3DPhysicsBackend::normalizePair(

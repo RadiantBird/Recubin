@@ -1,4 +1,5 @@
 #include <Core/Renderer.hpp>
+#include <Core/Physics.hpp>
 #include <Core/FileLoader.hpp>
 #include <Util/Logger.hpp>
 #include <Util/FrameProfiler.hpp>
@@ -1782,7 +1783,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     glBindVertexArray(VAO);
 
     // 波アニメ用の時間と液体フラグ（既定 0）
-    glUniform1f(uTimeLoc,     (float)glfwGetTime());
+    const Physics* wavePhysics = desc.workspace->getPhysicsEngine();
+    glUniform1f(uTimeLoc, wavePhysics ? wavePhysics->getWaveTime() : 0.0f);
     glUniform1f(uIsLiquidLoc, 0.0f);
 
     // 完全不透明(Color.a>=1)のオブジェクトはGL_BLENDを無効化して描画コスト削減。

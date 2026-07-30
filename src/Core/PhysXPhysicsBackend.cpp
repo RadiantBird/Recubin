@@ -1196,6 +1196,7 @@ void PhysXPhysicsBackend::stepOnce(float dt) {
 
         scene->simulate(fixedStep);
         scene->fetchResults(true);
+        ++m_simulationTick;
 
         m_accumulator -= fixedStep;
         steps++;
@@ -1207,6 +1208,7 @@ void PhysXPhysicsBackend::stepOnce(float dt) {
             break;
         }
     }
+    m_accumulatorAlpha = std::clamp(m_accumulator / fixedStep, 0.0f, 1.0f);
 
     // 遅延キューをフラッシュ（fetchResults 完了後の安全ウインドウ）
     for (auto& op : m_pendingOps) {

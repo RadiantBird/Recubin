@@ -1,6 +1,7 @@
 #pragma once
 
 #include <include/Core/IPhysicsBackend.hpp>
+#include <include/Instances/BaseCube.hpp>
 #include <box3d/box3d.h>
 #include <memory>
 #include <set>
@@ -39,6 +40,16 @@ private:
         std::vector<b3HullData*> hulls;
     };
 
+    struct BuoyancyProxy {
+        PhysicsShape shape = PhysicsShape::Box;
+        Vector3 size;
+        std::vector<Vector3> vertices;
+        std::vector<std::vector<int>> faces;
+        float volumeCorrection = 1.0f;
+        float normalizedVolume = 0.0f;
+        Vector3 normalizedCentroid;
+    };
+
     using CubePair = std::pair<const BaseCube*, const BaseCube*>;
 
     Physics* m_facade = nullptr;
@@ -50,6 +61,7 @@ private:
     std::vector<NoCollisionEntry> m_noCollisionEntries;
     std::shared_ptr<const std::set<CubePair>> m_noCollisionSnapshot;
     std::vector<TerrainEntry> m_terrains;
+    std::unordered_map<const BaseCube*, BuoyancyProxy> m_buoyancyProxyCache;
 
     static bool customFilter(
         b3ShapeId shapeIdA, b3ShapeId shapeIdB, void* context);
@@ -61,7 +73,9 @@ private:
     void destroyUniqueBodies();
     void rebuildNoCollisionSnapshot();
     void processContactEvents();
+    void applyBuoyancy();
     void applyForces();
+    const BuoyancyProxy* getBuoyancyProxy(const BaseCube& cube);
     void removeExpiredEntries();
     void rebuildAssembly(const std::vector<std::shared_ptr<BaseCube>>& assembly);
     void recreateConstraintsFor(const std::set<BaseCube*>& cubes);

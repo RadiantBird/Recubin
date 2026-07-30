@@ -145,6 +145,12 @@ bool NetworkManager::initializeBoundHost(uint16_t port) {
     return true;
 }
 
+float NetworkManager::getHostPeerRttMs() const {
+    if (m_role != NetworkRole::Client || m_peers.empty() || !m_peers.front())
+        return 0.0f;
+    return static_cast<float>(m_peers.front()->roundTripTime);
+}
+
 bool NetworkManager::startHost(uint16_t port) {
     shutdown();
     if (!initializeBoundHost(port)) return false;
@@ -1384,7 +1390,7 @@ void NetworkManager::handleEvent(const ENetEvent& event) {
                             }
                         }
                     }
-                } else if (type >= MessageType::AvatarState && type <= MessageType::WorldTransforms) {
+                } else if (type >= MessageType::AvatarState && type <= MessageType::SimulationClock) {
                     // レプリケーション系メッセージはゲーム層(ReplicationManager)へ委譲する。
                     // packet破棄前の同期呼び出しなのでpayloadポインタをそのまま渡してよい。
                     if (onGameMessage) {

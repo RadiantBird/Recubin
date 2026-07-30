@@ -4,6 +4,7 @@
 #include <include/Math/Vector3.hpp>
 #include <memory>
 #include <string>
+#include <cstdint>
 
 class BaseCube;
 class Workspace;
@@ -26,12 +27,18 @@ struct RaycastHit {
 };
 
 class IPhysicsBackend {
+protected:
+    std::uint64_t m_simulationTick = 0;
+    float m_accumulatorAlpha = 0.0f;
+
 public:
     virtual ~IPhysicsBackend();
 
     virtual bool init() = 0;
     virtual bool isAvailable() const = 0;
     virtual PhysicsBackendType getType() const = 0;
+    std::uint64_t getSimulationTick() const;
+    float getAccumulatorAlpha() const;
 
     virtual void update(Workspace& workspace, float dt) = 0;
     virtual void stepOnce(float dt) = 0;

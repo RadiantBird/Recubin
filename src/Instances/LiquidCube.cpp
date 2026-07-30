@@ -3,6 +3,7 @@
 #include <include/Core/PropertyRegistry.hpp>
 #include <Util/GLUniformCache.hpp>
 #include <GL/glew.h>
+#include <cmath>
 
 static const bool s_liquidCubeRegistered = []{
     using namespace PropertyRegistry;
@@ -11,6 +12,13 @@ static const bool s_liquidCubeRegistered = []{
     });
     return true;
 }();
+
+float LiquidCube::waveHeight(
+    float normalizedX, float normalizedZ, float time) {
+    return std::sin(time * WAVE_ANGULAR_SPEED +
+                    normalizedX * WAVE_SPATIAL_FREQUENCY +
+                    normalizedZ * WAVE_SPATIAL_FREQUENCY) * WAVE_AMPLITUDE;
+}
 
 LiquidCube::LiquidCube(Vector3 Pos, Vector3 Sz)
     : Named<LiquidCube, BaseCube>(Pos, Sz)

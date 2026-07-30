@@ -3,12 +3,20 @@
 #include "include/Core/PhysXPhysicsBackend.hpp"
 #include "include/Instances/BaseCube.hpp"
 #include "include/Util/Logger.hpp"
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 
 PhysicsBackendType Physics::s_requestedBackend = PhysicsBackendType::Box3D;
 std::function<void(BaseCube*, BaseCube*)> Physics::s_contactCallback;
 
 IPhysicsBackend::~IPhysicsBackend() = default;
+std::uint64_t IPhysicsBackend::getSimulationTick() const {
+    return m_simulationTick;
+}
+float IPhysicsBackend::getAccumulatorAlpha() const {
+    return m_accumulatorAlpha;
+}
 
 Physics::Physics()
     : m_backendType(s_requestedBackend) {
@@ -71,11 +79,91 @@ PhysicsBackendType Physics::getBackendType() const {
     return m_backendType;
 }
 
+std::uint64_t Physics::getSimulationTick() const {
+    return isAvailable() ? m_backend->getSimulationTick() : 0;
+}
+
+float Physics::getAccumulatorAlpha() const {
+    return isAvailable() ? m_backend->getAccumulatorAlpha() : 0.0f;
+}
+
+float Physics::getWaveTime() const {
+    return static_cast<float>(getWavePhaseTicks() / 60.0);
+}
+
+double Physics::getWavePhaseTicks() const {
+    return static_cast<double>(getSimulationTick()) +
+        static_cast<double>(getAccumulatorAlpha()) + m_wavePhaseOffsetTicks;
+}
+
+void Physics::getSynchronizedSimulationClock(
+    std::uint32_t& tick, float& alpha) const {
+    constexpr double WRAP = 4294967296.0;
+    double phase = std::fmod(getWavePhaseTicks(), WRAP);
+    if (phase < 0.0) phase += WRAP;
+    const double whole = std::floor(phase);
+    tick = static_cast<std::uint32_t>(whole);
+    alpha = static_cast<float>(phase - whole);
+}
+
+void Physics::synchronizeSimulationClock(
+    std::uint32_t authoritativeTick, float authoritativeAlpha) {
+    if (!std::isfinite(authoritativeAlpha)) return;
+    authoritativeAlpha = std::clamp(authoritativeAlpha, 0.0f, 1.0f);
+    const double rawLocalPhase = static_cast<double>(getSimulationTick()) +
+        static_cast<double>(getAccumulatorAlpha());
+    const double localPhase = rawLocalPhase + m_wavePhaseOffsetTicks;
+    constexpr double WRAP = 4294967296.0;
+    const double baseCycle = std::floor(localPhase / WRAP);
+    double authoritativePhase = baseCycle * WRAP +
+        static_cast<double>(authoritativeTick) +
+        static_cast<double>(authoritativeAlpha);
+    if (authoritativePhase - localPhase > WRAP * 0.5)
+        authoritativePhase -= WRAP;
+    else if (localPhase - authoritativePhase > WRAP * 0.5)
+        authoritativePhase += WRAP;
+    const double target = authoritativePhase - rawLocalPhase;
+    if (!m_hasWavePhaseTarget ||
+        std::abs(target - m_wavePhaseOffsetTicks) > 6.0) {
+        m_wavePhaseOffsetTicks = target;
+    }
+    m_wavePhaseTargetOffsetTicks = target;
+    m_hasWavePhaseTarget = true;
+}
+
+void Physics::resetSimulationClockSynchronization() {
+    m_wavePhaseOffsetTicks = 0.0;
+    m_wavePhaseTargetOffsetTicks = 0.0;
+    m_hasWavePhaseTarget = false;
+}
+
+void Physics::makeSimulationClockAuthoritative() {
+    m_hasWavePhaseTarget = false;
+    m_wavePhaseTargetOffsetTicks = m_wavePhaseOffsetTicks;
+}
+
+void Physics::advanceWavePhaseCorrection(std::uint64_t simulatedSteps) {
+    if (!m_hasWavePhaseTarget || simulatedSteps == 0) return;
+    const double error = m_wavePhaseTargetOffsetTicks - m_wavePhaseOffsetTicks;
+    const double maximum = 0.1 * static_cast<double>(simulatedSteps);
+    m_wavePhaseOffsetTicks += std::clamp(error, -maximum, maximum);
+}
+
 #define RCBN_PHYSICS_VOID(method, ...) \
     do { if (isAvailable()) m_backend->method(__VA_ARGS__); } while (false)
 
-void Physics::update(Workspace& workspace, float dt) { RCBN_PHYSICS_VOID(update, workspace, dt); }
-void Physics::stepOnce(float dt) { RCBN_PHYSICS_VOID(stepOnce, dt); }
+void Physics::update(Workspace& workspace, float dt) {
+    if (!isAvailable()) return;
+    const std::uint64_t before = m_backend->getSimulationTick();
+    m_backend->update(workspace, dt);
+    advanceWavePhaseCorrection(m_backend->getSimulationTick() - before);
+}
+void Physics::stepOnce(float dt) {
+    if (!isAvailable()) return;
+    const std::uint64_t before = m_backend->getSimulationTick();
+    m_backend->stepOnce(dt);
+    advanceWavePhaseCorrection(m_backend->getSimulationTick() - before);
+}
 void Physics::syncAllCubes() { RCBN_PHYSICS_VOID(syncAllCubes); }
 void Physics::syncWeldKinematics() { RCBN_PHYSICS_VOID(syncWeldKinematics); }
 void Physics::moveWeldAssembly(const std::shared_ptr<BaseCube>& member, const CFrame& cframe) {

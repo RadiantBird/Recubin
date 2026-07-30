@@ -1,6 +1,7 @@
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/LiquidCube.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Instances/Humanoid.hpp>
@@ -1374,6 +1375,362 @@ int runPhysicsMigrationRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runBox3DBuoyancyRegression() {
+    auto workspace = std::make_shared<Workspace>();
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    if (physics->getBackendType() != PhysicsBackendType::Box3D) {
+        std::cout << "[Box3DBuoyancyRegression] SKIP: this mode validates "
+                     "Box3D buoyancy; run with --physics=box3d.\n";
+        return 0;
+    }
+
+    int failures = 0;
+    auto expect = [&](bool condition, const char* name) {
+        std::cout << "[Box3DBuoyancyRegression] "
+                  << (condition ? "PASS" : "FAIL") << ": " << name << "\n";
+        if (!condition) ++failures;
+    };
+    expect(physics->isAvailable(), "Box3D backend initialization");
+    if (!physics->isAvailable()) return 1;
+
+    bool waveFormulaMatches = true;
+    float maximumWaveFormulaError = 0.0f;
+    for (float time : {0.0f, 0.5f, 2.0f}) {
+        for (const Vector3& corner : {
+                 Vector3(-0.5f, 0, -0.5f),
+                 Vector3(-0.5f, 0,  0.5f),
+                 Vector3( 0.5f, 0, -0.5f),
+                 Vector3( 0.5f, 0,  0.5f)}) {
+            const float expected = std::sin(
+                time * LiquidCube::WAVE_ANGULAR_SPEED +
+                corner.x * LiquidCube::WAVE_SPATIAL_FREQUENCY +
+                corner.z * LiquidCube::WAVE_SPATIAL_FREQUENCY) *
+                LiquidCube::WAVE_AMPLITUDE;
+            const float actual = LiquidCube::waveHeight(corner.x, corner.z, time);
+            const float error = std::abs(actual - expected);
+            maximumWaveFormulaError = std::max(maximumWaveFormulaError, error);
+            waveFormulaMatches = waveFormulaMatches && error <= 1.0e-6f;
+        }
+    }
+    std::cout << "[Box3DBuoyancyRegression] metric=wave_formula"
+              << " max_error=" << maximumWaveFormulaError << "\n";
+    expect(waveFormulaMatches, "waveHeight matches deterministic formula at all corners/times");
+
+    const std::uint64_t initialTick = physics->getSimulationTick();
+    const float initialWaveTime = physics->getWaveTime();
+    physics->update(*workspace, 1.0f / 60.0f);
+    physics->update(*workspace, 1.0f / 60.0f);
+    const std::uint64_t advancedTick = physics->getSimulationTick();
+    const float advancedWaveTime = physics->getWaveTime();
+    expect(advancedTick == initialTick + 2 &&
+               std::abs(
+                   advancedWaveTime - initialWaveTime - 2.0f / 60.0f) <= 1.0e-6f,
+           "1/60 physics steps advance tick and wave time deterministically");
+
+    workspace->PhysicsEnabled = false;
+    const std::uint64_t pausedTick = physics->getSimulationTick();
+    const float pausedWaveTime = physics->getWaveTime();
+    for (int step = 0; step < 5; ++step)
+        physics->update(*workspace, 1.0f / 60.0f);
+    expect(physics->getSimulationTick() == pausedTick &&
+               std::abs(physics->getWaveTime() - pausedWaveTime) <= 1.0e-7f,
+           "PhysicsEnabled=false pauses tick and wave time");
+    workspace->PhysicsEnabled = true;
+    physics->update(*workspace, 1.0f / 60.0f);
+    expect(physics->getSimulationTick() == pausedTick + 1,
+           "physics clock resumes after PhysicsEnabled=true");
+
+    physics->resetSimulationClockSynchronization();
+    const std::uint32_t snapTick =
+        static_cast<std::uint32_t>(physics->getSimulationTick() + 20);
+    constexpr float snapAlpha = 0.25f;
+    physics->synchronizeSimulationClock(snapTick, snapAlpha);
+    std::uint32_t synchronizedTick = 0;
+    float synchronizedAlpha = 0.0f;
+    physics->getSynchronizedSimulationClock(
+        synchronizedTick, synchronizedAlpha);
+    std::cout << "[Box3DBuoyancyRegression] metric=clock_snap"
+              << " requested_tick=" << snapTick
+              << " actual_tick=" << synchronizedTick
+              << " requested_alpha=" << snapAlpha
+              << " actual_alpha=" << synchronizedAlpha << "\n";
+    expect(synchronizedTick == snapTick &&
+               std::abs(synchronizedAlpha - snapAlpha) <= 1.0e-5f,
+           "synchronizeSimulationClock first sample snaps");
+
+    physics->synchronizeSimulationClock(snapTick + 1, snapAlpha);
+    const double phaseBeforeSlew = physics->getWavePhaseTicks();
+    physics->update(*workspace, 1.0f / 60.0f);
+    const double phaseAfterSlew = physics->getWavePhaseTicks();
+    const double observedCorrection =
+        phaseAfterSlew - phaseBeforeSlew - 1.0;
+    std::cout << "[Box3DBuoyancyRegression] metric=clock_slew"
+              << " correction_ticks=" << observedCorrection << "\n";
+    expect(observedCorrection >= -1.0e-6 &&
+               observedCorrection <= 0.10001 &&
+               std::abs(observedCorrection - 0.1) <= 1.0e-4,
+           "small clock difference slews by at most 0.1 tick per step");
+
+    physics->resetSimulationClockSynchronization();
+    constexpr std::uint32_t wrapTick = 0xFFFFFFFEu;
+    constexpr float wrapAlpha = 0.75f;
+    physics->synchronizeSimulationClock(wrapTick, wrapAlpha);
+    physics->getSynchronizedSimulationClock(
+        synchronizedTick, synchronizedAlpha);
+    std::cout << "[Box3DBuoyancyRegression] metric=clock_wrap"
+              << " requested_tick=" << wrapTick
+              << " actual_tick=" << synchronizedTick
+              << " requested_alpha=" << wrapAlpha
+              << " actual_alpha=" << synchronizedAlpha << "\n";
+    expect(synchronizedTick == wrapTick &&
+               std::abs(synchronizedAlpha - wrapAlpha) <= 1.0e-5f,
+           "synchronized simulation clock preserves U32 wrap-near phase");
+    physics->resetSimulationClockSynchronization();
+
+    auto primaryLiquid = std::make_shared<LiquidCube>(
+        Vector3(0, 20, 0), Vector3(80, 40, 80));
+    primaryLiquid->Name = "PrimaryLiquid";
+    primaryLiquid->Anchored = true;
+    primaryLiquid->Density = 2.0f;
+    workspace->addChild(primaryLiquid);
+
+    auto waterBox = addMigrationCube(
+        workspace, "BuoyantBox", {0, 20, 0}, {2, 2, 2});
+    auto dryBox = addMigrationCube(
+        workspace, "DryBox", {100, 20, 0}, {2, 2, 2});
+
+    auto waterSphere = std::make_shared<Sphere>(
+        Vector3(-20, 20, 0), Vector3(2, 2, 2));
+    waterSphere->Name = "BuoyantSphere";
+    workspace->addChild(waterSphere);
+    auto drySphere = std::make_shared<Sphere>(
+        Vector3(120, 20, 0), Vector3(2, 2, 2));
+    drySphere->Name = "DrySphere";
+    workspace->addChild(drySphere);
+
+    auto waterPrism = std::make_shared<TriangularPrism>(
+        Vector3(20, 20, 0), Vector3(2, 2, 2));
+    waterPrism->Name = "BuoyantPrism";
+    workspace->addChild(waterPrism);
+    auto dryPrism = std::make_shared<TriangularPrism>(
+        Vector3(140, 20, 0), Vector3(2, 2, 2));
+    dryPrism->Name = "DryPrism";
+    workspace->addChild(dryPrism);
+
+    auto zeroDensityLiquid = std::make_shared<LiquidCube>(
+        Vector3(240, 20, 0), Vector3(40, 40, 40));
+    zeroDensityLiquid->Name = "ZeroDensityLiquid";
+    zeroDensityLiquid->Anchored = true;
+    zeroDensityLiquid->Density = 0.0f;
+    workspace->addChild(zeroDensityLiquid);
+    auto zeroDensityBody = addMigrationCube(
+        workspace, "ZeroDensityBody", {240, 20, 0}, {2, 2, 2});
+    auto zeroDensityControl = addMigrationCube(
+        workspace, "ZeroDensityControl", {300, 20, 0}, {2, 2, 2});
+
+    auto rotatedLiquid = std::make_shared<LiquidCube>(
+        Vector3(400, 20, 0), Vector3(40, 20, 10));
+    rotatedLiquid->Name = "RotatedLiquid";
+    rotatedLiquid->Anchored = true;
+    rotatedLiquid->Density = 5.0f;
+    rotatedLiquid->setRotation(
+        Quaternion::fromAxisAngle(Vector3(0, 1, 0), 45.0f));
+    workspace->addChild(rotatedLiquid);
+    auto obbOutsideBody = addMigrationCube(
+        workspace, "ObbOutsideBody", {418, 20, 4}, {1, 1, 1});
+    auto obbOutsideControl = addMigrationCube(
+        workspace, "ObbOutsideControl", {480, 20, 0}, {1, 1, 1});
+
+    auto neutralLiquid = std::make_shared<LiquidCube>(
+        Vector3(600, 20, 0), Vector3(40, 40, 40));
+    neutralLiquid->Name = "NeutralDensityLiquid";
+    neutralLiquid->Anchored = true;
+    neutralLiquid->Density = 1.0f;
+    workspace->addChild(neutralLiquid);
+    auto neutralSphere = std::make_shared<Sphere>(
+        Vector3(600, 20, 0), Vector3(2, 2, 2));
+    neutralSphere->Name = "NeutralBuoyancySphere";
+    workspace->addChild(neutralSphere);
+
+    auto weldFirst = addMigrationCube(
+        workspace, "BuoyantWeldFirst", {-8, 24, 20}, {2, 2, 2});
+    auto weldSecond = addMigrationCube(
+        workspace, "BuoyantWeldSecond", {-4, 24, 20}, {2, 2, 2});
+    const CFrame weldInitialRelative =
+        weldFirst->getWorldCFrame().inverse() * weldSecond->getWorldCFrame();
+    auto buoyantWeld = std::make_shared<Weld>(weldFirst, weldSecond);
+    buoyantWeld->Name = "BuoyantWeld";
+    workspace->addChild(buoyantWeld);
+
+    physics->update(*workspace, 0.0f);
+    for (int step = 0; step < 8; ++step)
+        physics->update(*workspace, 1.0f / 60.0f);
+
+    struct BuoyancyComparison {
+        const char* shape;
+        std::shared_ptr<BaseCube> wet;
+        std::shared_ptr<BaseCube> dry;
+    };
+    for (const BuoyancyComparison& comparison : {
+             BuoyancyComparison{"Box", waterBox, dryBox},
+             BuoyancyComparison{
+                 "Sphere",
+                 std::static_pointer_cast<BaseCube>(waterSphere),
+                 std::static_pointer_cast<BaseCube>(drySphere)},
+             BuoyancyComparison{
+                 "TriangularPrism",
+                 std::static_pointer_cast<BaseCube>(waterPrism),
+                 std::static_pointer_cast<BaseCube>(dryPrism)}}) {
+        const float wetVelocity =
+            physics->getLinearVelocity(*comparison.wet).y;
+        const float dryVelocity =
+            physics->getLinearVelocity(*comparison.dry).y;
+        std::cout << "[Box3DBuoyancyRegression] metric=buoyancy"
+                  << " shape=" << comparison.shape
+                  << " wet_vy=" << wetVelocity
+                  << " dry_vy=" << dryVelocity
+                  << " delta=" << wetVelocity - dryVelocity << "\n";
+        expect(std::isfinite(wetVelocity) &&
+                   std::isfinite(dryVelocity) &&
+                   wetVelocity >= dryVelocity + 5.0f,
+               comparison.shape);
+    }
+
+    const float zeroDensityVelocity =
+        physics->getLinearVelocity(*zeroDensityBody).y;
+    const float zeroDensityControlVelocity =
+        physics->getLinearVelocity(*zeroDensityControl).y;
+    const float positiveDensityBoxVelocity =
+        physics->getLinearVelocity(*waterBox).y;
+    std::cout << "[Box3DBuoyancyRegression] metric=zero_density"
+              << " wet_vy=" << zeroDensityVelocity
+              << " dry_vy=" << zeroDensityControlVelocity
+              << " dry_difference_informational="
+              << std::abs(zeroDensityVelocity - zeroDensityControlVelocity)
+              << " density2_box_vy=" << positiveDensityBoxVelocity
+              << " density_delta="
+              << positiveDensityBoxVelocity - zeroDensityVelocity << "\n";
+    expect(std::isfinite(zeroDensityVelocity) &&
+               zeroDensityVelocity < 0.0f &&
+               positiveDensityBoxVelocity >= zeroDensityVelocity + 5.0f,
+           "Density=0 has no upward buoyancy while submerged damping remains active");
+
+    const float neutralSphereVelocity =
+        physics->getLinearVelocity(*neutralSphere).y;
+    std::cout << "[Box3DBuoyancyRegression] metric=neutral_sphere"
+              << " density=1"
+              << " vy=" << neutralSphereVelocity
+              << " tolerance=2\n";
+    expect(std::isfinite(neutralSphereVelocity) &&
+               std::abs(neutralSphereVelocity) <= 2.0f,
+           "fully submerged Density=1 Sphere is neutrally buoyant within 2 studs/s");
+
+    const float obbOutsideVelocity =
+        physics->getLinearVelocity(*obbOutsideBody).y;
+    const float obbOutsideControlVelocity =
+        physics->getLinearVelocity(*obbOutsideControl).y;
+    std::cout << "[Box3DBuoyancyRegression] metric=rotated_obb_control"
+              << " outside_vy=" << obbOutsideVelocity
+              << " control_vy=" << obbOutsideControlVelocity
+              << " difference="
+              << std::abs(obbOutsideVelocity - obbOutsideControlVelocity)
+              << "\n";
+    expect(std::abs(
+               obbOutsideVelocity - obbOutsideControlVelocity) <= 1.0f,
+           "rotated LiquidCube does not buoy old-AABB-only control body");
+
+    workspace->removeChild(primaryLiquid->Name);
+    physics->update(*workspace, 0.0f);
+    physics->setLinearVelocity(*waterBox, Vector3());
+    physics->setLinearVelocity(*dryBox, Vector3());
+    for (int step = 0; step < 6; ++step)
+        physics->update(*workspace, 1.0f / 60.0f);
+    const float removedLiquidVelocity =
+        physics->getLinearVelocity(*waterBox).y;
+    const float removedLiquidControlVelocity =
+        physics->getLinearVelocity(*dryBox).y;
+    std::cout << "[Box3DBuoyancyRegression] metric=liquid_removal"
+              << " former_wet_vy=" << removedLiquidVelocity
+              << " control_vy=" << removedLiquidControlVelocity
+              << " difference="
+              << std::abs(
+                     removedLiquidVelocity - removedLiquidControlVelocity)
+              << "\n";
+    expect(removedLiquidVelocity < -10.0f &&
+               std::abs(
+                   removedLiquidVelocity - removedLiquidControlVelocity) <= 1.0f,
+           "Liquid removal clears damping and restores gravity acceleration");
+
+    const CFrame weldFinalRelative =
+        weldFirst->getWorldCFrame().inverse() * weldSecond->getWorldCFrame();
+    const float buoyantWeldError = positionDistance(
+        weldInitialRelative.Position, weldFinalRelative.Position);
+    const bool buoyantWeldFinite =
+        finiteCFrame(weldFirst->getWorldCFrame()) &&
+        finiteCFrame(weldSecond->getWorldCFrame()) &&
+        finiteVector(physics->getLinearVelocity(*weldFirst)) &&
+        finiteVector(physics->getLinearVelocity(*weldSecond));
+    std::cout << "[Box3DBuoyancyRegression] metric=buoyant_weld"
+              << " relative_position_error=" << buoyantWeldError
+              << " finite=" << (buoyantWeldFinite ? "true" : "false")
+              << "\n";
+    expect(buoyantWeldFinite &&
+               buoyantWeldError <= 0.001f &&
+               sameCFrame(weldInitialRelative, weldFinalRelative),
+           "two-member buoyant Weld remains finite with <=0.001 stud error");
+
+    auto performanceWorkspace = std::make_shared<Workspace>();
+    performanceWorkspace->initPhysics();
+    Physics* performancePhysics =
+        performanceWorkspace->getPhysicsEngine();
+    auto performanceLiquid = std::make_shared<LiquidCube>(
+        Vector3(0, 20, 0), Vector3(100, 40, 100));
+    performanceLiquid->Name = "PerformanceLiquid";
+    performanceLiquid->Anchored = true;
+    performanceLiquid->Density = 1.0f;
+    performanceWorkspace->addChild(performanceLiquid);
+    for (int index = 0; index < 128; ++index) {
+        auto sphere = std::make_shared<Sphere>(
+            Vector3(
+                -45.0f + static_cast<float>(index % 16) * 6.0f,
+                20.0f,
+                -21.0f + static_cast<float>(index / 16) * 6.0f),
+            Vector3(1, 1, 1));
+        sphere->Name = "BuoyancyPerformanceSphere" + std::to_string(index);
+        performanceWorkspace->addChild(sphere);
+    }
+    performancePhysics->update(*performanceWorkspace, 0.0f);
+    std::vector<double> buoyancyStepMilliseconds;
+    buoyancyStepMilliseconds.reserve(60);
+    for (int step = 0; step < 60; ++step) {
+        const auto start = std::chrono::steady_clock::now();
+        performancePhysics->update(
+            *performanceWorkspace, 1.0f / 60.0f);
+        const auto end = std::chrono::steady_clock::now();
+        buoyancyStepMilliseconds.push_back(
+            std::chrono::duration<double, std::milli>(end - start).count());
+    }
+    std::vector<double> sortedBuoyancySteps = buoyancyStepMilliseconds;
+    std::sort(sortedBuoyancySteps.begin(), sortedBuoyancySteps.end());
+    const double buoyancyMedian =
+        sortedBuoyancySteps[sortedBuoyancySteps.size() / 2];
+    double buoyancyAverage = 0.0;
+    for (double milliseconds : buoyancyStepMilliseconds)
+        buoyancyAverage += milliseconds;
+    buoyancyAverage /= buoyancyStepMilliseconds.size();
+    std::cout << "BOX3D_BUOYANCY_PERF"
+              << " spheres=128 steps=60"
+              << " median_ms=" << buoyancyMedian
+              << " average_ms=" << buoyancyAverage
+              << " guard_ms=4\n";
+    expect(buoyancyMedian <= 4.0, "128 Sphere buoyancy median stays within 4ms");
+
+    std::cout << "[Box3DBuoyancyRegression] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << "\n";
+    return failures == 0 ? 0 : 1;
+}
+
 struct PhysicsPerformanceResult {
     bool available = false;
     bool guardPassed = false;
@@ -1830,15 +2187,19 @@ int main(int argc, char* argv[]) {
     const bool natCodecRegression = argc > 1 && std::string_view(argv[1]) == "--nat-codec-regression";
     bool physicsMigrationRegression = false;
     bool physicsPerformanceGuard = false;
+    bool box3dBuoyancyRegression = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument(argv[i]);
         physicsMigrationRegression =
             physicsMigrationRegression || argument == "--physics-migration-regression";
         physicsPerformanceGuard =
             physicsPerformanceGuard || argument == "--physics-performance-guard";
+        box3dBuoyancyRegression =
+            box3dBuoyancyRegression || argument == "--box3d-buoyancy-regression";
     }
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
     if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
+    if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
     if (toolWeldRegression) return runToolWeldRegression();
     if (toolWeldReequipRegression) return runToolWeldReequipRegression();
     if (toolRespawnRegression) return runToolRespawnRegression();

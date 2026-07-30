@@ -76,6 +76,7 @@ private:
     };
 
     void sendAvatarUpdates(float dt);   // 20Hz: Client=AvatarState送信 / Host=自姿勢記録+AvatarBatch配布
+    void hostSendSimulationClock(float dt, Physics* physics);
     void reconcileAvatars();            // ロスターと生成済みアバターの突き合わせ(生成/破棄)
     void applyAvatarPoses(float dt);    // 受信姿勢を平滑補間してパーツcframeへ書き込み
     void reconcileLocalPose(); // Client: Hostから受信した自分の権威姿勢とローカル予測のズレが大きければスナップ補正する
@@ -95,6 +96,10 @@ private:
     std::unordered_map<PeerId, Vector3> m_latestVels; // Host: 各ピアRootの最新線速度(AvatarBatch配布用)
     std::unordered_map<PeerId, RemoteAvatar> m_remoteAvatars;
     float m_avatarSendTimer = 0.0f;
+    float m_simulationClockTimer = 0.0f;
+    size_t m_simulationClockRosterSize = 0;
+    bool m_forceReliableSimulationClock = false;
+    Physics* m_physics = nullptr;
 
     std::unordered_map<PeerId, AvatarInputWire> m_pendingAvatarInput; // Host: 各ピアの最新受信入力
     bool m_pendingProxyUpgradeAll = false; // Client→Host昇格時にセットされ、次のupdate()で全既存アバターをプロキシ化する

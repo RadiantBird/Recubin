@@ -18,11 +18,13 @@
 #include <unordered_set>
 
 ReplicationManager::ReplicationManager(std::shared_ptr<Workspace> workspace, std::shared_ptr<User> user, Instance* characterSearchRoot)
-    : m_workspace(workspace), m_user(user), m_characterSearchRoot(characterSearchRoot) {
+    : m_workspace(workspace), m_user(user), m_characterSearchRoot(characterSearchRoot),
+      m_physics(workspace ? workspace->getPhysicsEngine() : nullptr) {
 }
 
 void ReplicationManager::update(float dt, Physics* physics) {
     auto& net = NetworkManager::get();
+    m_physics = physics;
     if (!net.isActive()) return;
 
     reconcileAvatars();
@@ -40,6 +42,7 @@ void ReplicationManager::update(float dt, Physics* physics) {
     applyAvatarPoses(dt);
 
     if (net.getRole() == NetworkRole::Host) {
+        hostSendSimulationClock(dt, physics);
         hostUpdateWorld(dt);
     } else if (net.getRole() == NetworkRole::Client) {
         ensurePredictionScene();
@@ -55,6 +58,32 @@ void ReplicationManager::update(float dt, Physics* physics) {
         reconcileLocalPose();
         clientApplyWorldSmoothing(dt);
     }
+}
+
+void ReplicationManager::hostSendSimulationClock(float dt, Physics* physics) {
+    if (!physics) return;
+    auto& net = NetworkManager::get();
+    const size_t rosterSize = net.getRoster().size();
+    if (rosterSize > m_simulationClockRosterSize)
+        m_forceReliableSimulationClock = true;
+    m_simulationClockRosterSize = rosterSize;
+    m_simulationClockTimer += (std::max)(dt, 0.0f);
+    const bool periodic = m_simulationClockTimer >= 0.2f;
+    if (!periodic && !m_forceReliableSimulationClock) return;
+
+    std::uint32_t tick = 0;
+    float alpha = 0.0f;
+    physics->getSynchronizedSimulationClock(tick, alpha);
+    ByteWriter writer;
+    writer.writeU8(static_cast<uint8_t>(MessageType::SimulationClock));
+    writer.writeU32(tick);
+    writer.writeF32(alpha);
+    if (m_forceReliableSimulationClock &&
+        net.sendBytes(writer.data, NetworkChannel::Reliable))
+        m_forceReliableSimulationClock = false;
+    if (periodic)
+        net.sendBytes(writer.data, NetworkChannel::Unreliable);
+    if (periodic) m_simulationClockTimer = 0.0f;
 }
 
 bool ReplicationManager::getLocalRootCFrame(CFrame& out) const {
@@ -224,6 +253,24 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
         if (NetworkManager::get().getRole() == NetworkRole::Client) {
             clientStoreWorldTransforms(payload, len);
         }
+    } else if (type == static_cast<uint8_t>(MessageType::SimulationClock)) {
+        if (NetworkManager::get().getRole() != NetworkRole::Client || !m_physics)
+            return;
+        ByteReader reader{payload, len};
+        std::uint32_t tick = 0;
+        float alpha = 0.0f;
+        if (!reader.readU32(tick) || !reader.readF32(alpha) ||
+            !std::isfinite(alpha))
+            return;
+        const double phase = static_cast<double>(tick) +
+            static_cast<double>(alpha) +
+            static_cast<double>(NetworkManager::get().getHostPeerRttMs()) *
+                0.001 * 60.0 * 0.5;
+        const double whole = std::floor(phase);
+        const auto adjustedTick = static_cast<std::uint32_t>(
+            static_cast<std::uint64_t>(whole) & 0xffffffffu);
+        m_physics->synchronizeSimulationClock(
+            adjustedTick, static_cast<float>(phase - whole));
     }
 }
 
@@ -841,6 +888,10 @@ void ReplicationManager::clientReleaseWorldObjects() {
 
 void ReplicationManager::onNetworkRoleChanged(NetworkRole oldRole, NetworkRole newRole) {
     if (newRole == NetworkRole::Offline) {
+        if (m_physics) m_physics->resetSimulationClockSynchronization();
+        m_simulationClockTimer = 0.0f;
+        m_simulationClockRosterSize = 0;
+        m_forceReliableSimulationClock = false;
         despawnAllAvatars();
         m_latestPoses.clear();
         m_latestVels.clear();
@@ -853,11 +904,16 @@ void ReplicationManager::onNetworkRoleChanged(NetworkRole oldRole, NetworkRole n
         m_predictionStaticMirror.clear();
         m_predictionRescanTimer = 0.0f;
     } else if (oldRole == NetworkRole::Client && newRole == NetworkRole::Host) {
+        if (m_physics) m_physics->makeSimulationClockAuthoritative();
+        m_forceReliableSimulationClock = true;
         // ホスト昇格: クライアントとして凍結(Anchored化)していた物理を解放し、自分の世界を権威として再スキャンさせる
         clientReleaseWorldObjects();
         m_worldMappingDirty = true;
         m_worldRescanTimer = 1.0f; // 次のupdateで即再スキャン
         m_pendingProxyUpgradeAll = true;
+    } else if (newRole == NetworkRole::Host) {
+        if (m_physics) m_physics->makeSimulationClockAuthoritative();
+        m_forceReliableSimulationClock = true;
     }
 }
 

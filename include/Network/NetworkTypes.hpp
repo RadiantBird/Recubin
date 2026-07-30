@@ -101,7 +101,8 @@ enum class MessageType : uint8_t {
     AvatarState     = 6, // Client→Host (UNRELIABLE): 移動入力スナップショット+seq(flatForward/flatRight/targetMoveDir/flags/forwardAxis/rightAxis/seq、flags bit2=jumpRequested)
     AvatarBatch     = 7, // Host→全員 (UNRELIABLE): 全ピアのアバター姿勢(各エントリ: id/pos/quat/linVel/lastProcessedSeq)
     WorldMapping    = 8, // Host→全員 (RELIABLE): netId→Workspace相対パス表
-    WorldTransforms = 9  // Host→全員 (UNRELIABLE): netIdごとのpos+quat(分割送信)
+    WorldTransforms = 9, // Host→全員 (UNRELIABLE): netIdごとのpos+quat(分割送信)
+    SimulationClock = 10 // Host→全員: 物理tick+accumulator alpha
 };
 
 // ホスト移行の進行状態(遷移処理はPhase 2で実装)
