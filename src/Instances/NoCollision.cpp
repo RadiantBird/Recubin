@@ -11,9 +11,10 @@ NoCollision::NoCollision(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCu
       m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 NoCollision::~NoCollision() {
-    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine()) {
+    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
         m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
     }
+    m_constraintHandle = {};
 }
 
 void NoCollision::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
@@ -121,7 +122,7 @@ void NoCollision::onAncestorChanged() {
         ws->registerConstraint(shared_from_this());
         m_lastWorkspace = ws;
     } else {
-        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine()) {
+        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
             m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
         }
         m_lastWorkspace = nullptr;

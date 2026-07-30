@@ -66,14 +66,17 @@ private:
 
     struct ConstraintEntry {
         std::weak_ptr<Instance> constraint;
+        PhysicsConstraintHandle handle;
         physx::PxJoint* joint = nullptr;
     };
     std::vector<ConstraintEntry> m_constraints;
+    std::uint64_t m_nextConstraintHandle = 1;
     std::set<physx::PxRigidStatic*> m_terrainActors;
 
     struct NoCollisionEntry {
         std::weak_ptr<Instance> inst;   // NoCollision インスタンス
         std::weak_ptr<BaseCube> c0, c1;
+        PhysicsConstraintHandle handle;
     };
     std::vector<NoCollisionEntry> m_noCollisionEntries;
     // フィルターコールバック照合用の正規化済みペア集合（simulate 中は不変のためロック不要）
@@ -85,6 +88,9 @@ private:
     bool isInNoCollisionPair(const BaseCube* cube) const;
     // cube の全シェイプの filterData word0 候補ビットを isInNoCollisionPair の結果に応じて更新する
     void applyNoCollisionFilterBit(const std::shared_ptr<BaseCube>& cube);
+    PhysicsConstraintHandle allocateConstraintHandle();
+    ConstraintEntry* findConstraintEntry(PhysicsConstraintHandle handle);
+    void clearConstraintHandle(Instance& constraint);
 
     void rebuildGroup(const std::vector<std::shared_ptr<BaseCube>>& assembly);
     void removeInvalidConstraints(Workspace& workspace);
@@ -152,6 +158,7 @@ public:
     void createBallSocket(const std::shared_ptr<BallSocket>& bs) override;
     void createNoCollision(const std::shared_ptr<NoCollision>& nc) override;
     void removeConstraint(const std::shared_ptr<Instance>& c) override;
+    void updateConstraint(const std::shared_ptr<Instance>& constraint) override;
 
     bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, const BaseCube* ignoreCube = nullptr) override;
 

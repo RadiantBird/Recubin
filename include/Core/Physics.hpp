@@ -57,6 +57,7 @@ public:
     void createBallSocket(const std::shared_ptr<BallSocket>& ballSocket);
     void createNoCollision(const std::shared_ptr<NoCollision>& noCollision);
     void removeConstraint(const std::shared_ptr<Instance>& constraint);
+    void updateConstraint(const std::shared_ptr<Instance>& constraint);
 
     bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance,
                  RaycastHit& hitResult, const BaseCube* ignoreCube = nullptr);

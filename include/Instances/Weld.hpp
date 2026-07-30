@@ -1,7 +1,6 @@
 #pragma once
 #include <include/Instances/Instance.hpp>
 #include <include/Instances/BaseCube.hpp>
-#include <include/PhysX/PxPhysicsAPI.h>
 #include <memory>
 #include <vector>
 
@@ -11,7 +10,7 @@ class PhysXPhysicsBackend;
 class Weld : public Instance {
     std::weak_ptr<BaseCube> m_cube0;
     std::weak_ptr<BaseCube> m_cube1;
-    physx::PxRigidDynamic*  m_compound = nullptr;
+    PhysicsConstraintHandle m_constraintHandle;
     Workspace* m_lastWorkspace = nullptr;
 
     friend class Physics;

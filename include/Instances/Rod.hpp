@@ -1,7 +1,6 @@
 #pragma once
 #include <include/Instances/Instance.hpp>
 #include <include/Instances/BaseCube.hpp>
-#include <include/PhysX/PxPhysicsAPI.h>
 #include <include/Util/Color4.hpp>
 #include <memory>
 
@@ -14,7 +13,7 @@ class Rod : public Instance {
     std::weak_ptr<BaseCube> m_cube1;
     std::weak_ptr<Attachment> m_attachment0; // 任意。設定時はこの位置にアンカーする
     std::weak_ptr<Attachment> m_attachment1;
-    physx::PxDistanceJoint* m_joint = nullptr;
+    PhysicsConstraintHandle m_constraintHandle;
     Workspace* m_lastWorkspace = nullptr;
 
     friend class Physics;

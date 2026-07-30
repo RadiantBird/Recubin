@@ -12,10 +12,10 @@ Rope::Rope(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
       m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 Rope::~Rope() {
-    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_joint) {
+    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
         m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
     }
-    m_joint = nullptr;
+    m_constraintHandle = {};
 }
 
 void Rope::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
@@ -81,20 +81,20 @@ void Rope::resolveAttachments() {
 
 void Rope::setMaxDistance(float v) {
     MaxDistance = v;
-    if (m_joint) m_joint->setMaxDistance(v);
+    if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
+        m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
 
 void Rope::setStiffness(float v) {
     Stiffness = v;
-    if (m_joint) {
-        m_joint->setStiffness(v);
-        m_joint->setDistanceJointFlag(physx::PxDistanceJointFlag::eSPRING_ENABLED, v > 0.0f);
-    }
+    if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
+        m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
 
 void Rope::setDamping(float v) {
     Damping = v;
-    if (m_joint) m_joint->setDamping(v);
+    if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
+        m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
 
 std::shared_ptr<Instance> Rope::clone() const {
@@ -173,7 +173,7 @@ void Rope::onAncestorChanged() {
         ws->registerConstraint(shared_from_this());
         m_lastWorkspace = ws;
     } else {
-        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_joint) {
+        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
             m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
         }
         m_lastWorkspace = nullptr;

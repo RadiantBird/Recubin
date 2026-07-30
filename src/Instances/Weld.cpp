@@ -15,7 +15,7 @@ Weld::Weld(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
       m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 Weld::~Weld() {
-    m_compound = nullptr;
+    m_constraintHandle = {};
 }
 
 void Weld::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
@@ -135,10 +135,11 @@ void Weld::onAncestorChanged() {
         const bool endpointsAlsoLeft = m_lastWorkspace && cube0 && cube1 &&
             cube0->findFirstAncestorWorkspace() != m_lastWorkspace &&
             cube1->findFirstAncestorWorkspace() != m_lastWorkspace;
-        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && !endpointsAlsoLeft) {
+        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() &&
+            m_constraintHandle && !endpointsAlsoLeft) {
             m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
         }
-        m_compound = nullptr;
+        if (!endpointsAlsoLeft) m_constraintHandle = {};
         m_lastWorkspace = nullptr;
     }
     Instance::onAncestorChanged();

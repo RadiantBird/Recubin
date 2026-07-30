@@ -12,10 +12,10 @@ Motor::Motor(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
       m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 Motor::~Motor() {
-    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_joint) {
+    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
         m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
     }
-    m_joint = nullptr;
+    m_constraintHandle = {};
 }
 
 void Motor::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
@@ -81,12 +81,20 @@ void Motor::resolveAttachments() {
 
 void Motor::setDriveVelocity(float v) {
     DriveVelocity = v;
-    if (m_joint) m_joint->setDriveVelocity(v);
+    if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
+        m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
 
 void Motor::setMaxForce(float v) {
     MaxForce = v;
-    if (m_joint) m_joint->setDriveForceLimit(v);
+    if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
+        m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
+}
+
+void Motor::setAxis(Vector3 axis) {
+    Axis = axis;
+    if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
+        m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
 
 std::shared_ptr<Instance> Motor::clone() const {
@@ -143,9 +151,7 @@ void Motor::setProperty(const std::string& name, const YAML::Node& value) {
         m_attachment1Name = value.as<std::string>();
         m_attachment1.reset();
     } else if (name == "Axis") {
-        Axis.x = value[0].as<float>();
-        Axis.y = value[1].as<float>();
-        Axis.z = value[2].as<float>();
+        setAxis(Vector3(value[0].as<float>(), value[1].as<float>(), value[2].as<float>()));
     } else if (name == "DriveVelocity") {
         setDriveVelocity(value.as<float>());
     } else if (name == "MaxForce") {
@@ -163,7 +169,7 @@ void Motor::onAncestorChanged() {
         ws->registerConstraint(shared_from_this());
         m_lastWorkspace = ws;
     } else {
-        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_joint) {
+        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
             m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
         }
         m_lastWorkspace = nullptr;

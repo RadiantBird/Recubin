@@ -12,10 +12,10 @@ BallSocket::BallSocket(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube
       m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 BallSocket::~BallSocket() {
-    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_joint) {
+    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
         m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
     }
-    m_joint = nullptr;
+    m_constraintHandle = {};
 }
 
 void BallSocket::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
@@ -142,7 +142,7 @@ void BallSocket::onAncestorChanged() {
         ws->registerConstraint(shared_from_this());
         m_lastWorkspace = ws;
     } else {
-        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_joint) {
+        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
             m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
         }
         m_lastWorkspace = nullptr;

@@ -1,7 +1,6 @@
 #pragma once
 #include <include/Instances/Instance.hpp>
 #include <include/Instances/BaseCube.hpp>
-#include <include/PhysX/PxPhysicsAPI.h>
 #include <memory>
 
 class SceneLoader;
@@ -11,6 +10,7 @@ class NoCollision : public Instance {
     std::weak_ptr<BaseCube> m_cube0;
     std::weak_ptr<BaseCube> m_cube1;
     Workspace* m_lastWorkspace = nullptr;
+    PhysicsConstraintHandle m_constraintHandle;
 
     friend class Physics;
     friend class PhysXPhysicsBackend;

@@ -7,6 +7,12 @@
 
 class Instance;
 
+enum class PhysicsConstraintType {
+    Distance,
+    Spherical,
+    Revolute,
+};
+
 enum class PhysicsBackendType {
     PhysX,
     Box3D,
@@ -47,6 +53,29 @@ struct PhysicsConstraintHandle {
     friend constexpr bool operator!=(PhysicsConstraintHandle lhs, PhysicsConstraintHandle rhs) {
         return !(lhs == rhs);
     }
+};
+
+struct PhysicsConstraintDescriptor {
+    PhysicsConstraintType type = PhysicsConstraintType::Distance;
+    PhysicsBodyHandle bodyA;
+    PhysicsBodyHandle bodyB;
+    CFrame localFrameA;
+    CFrame localFrameB;
+    Instance* userData = nullptr;
+    bool collideConnected = false;
+
+    float restLength = 0.0f;
+    float minLength = 0.0f;
+    float maxLength = 0.0f;
+    bool enableLimit = false;
+    bool enableSpring = false;
+    bool tensionOnly = false;
+    float stiffness = 0.0f;
+    float damping = 0.0f;
+
+    bool enableMotor = false;
+    float driveVelocity = 0.0f;
+    float maxTorque = 0.0f;
 };
 
 struct PhysicsTerrainHandle {

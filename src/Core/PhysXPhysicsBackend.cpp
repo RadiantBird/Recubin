@@ -334,7 +334,50 @@ PhysicsBackendType PhysXPhysicsBackend::getType() const {
     return PhysicsBackendType::PhysX;
 }
 
+PhysicsConstraintHandle PhysXPhysicsBackend::allocateConstraintHandle() {
+    if (m_nextConstraintHandle == 0) ++m_nextConstraintHandle;
+    return PhysicsConstraintHandle{m_nextConstraintHandle++};
+}
+
+PhysXPhysicsBackend::ConstraintEntry* PhysXPhysicsBackend::findConstraintEntry(
+    PhysicsConstraintHandle handle) {
+    if (!handle) return nullptr;
+    auto it = std::find_if(m_constraints.begin(), m_constraints.end(),
+        [&](const ConstraintEntry& entry) { return entry.handle == handle; });
+    return it == m_constraints.end() ? nullptr : &*it;
+}
+
+void PhysXPhysicsBackend::clearConstraintHandle(Instance& constraint) {
+    if (constraint.IsA("Rope")) {
+        static_cast<Rope&>(constraint).m_constraintHandle = {};
+    } else if (constraint.IsA("Rod")) {
+        static_cast<Rod&>(constraint).m_constraintHandle = {};
+    } else if (constraint.IsA("Weld")) {
+        static_cast<Weld&>(constraint).m_constraintHandle = {};
+    } else if (constraint.IsA("Motor")) {
+        static_cast<Motor&>(constraint).m_constraintHandle = {};
+    } else if (constraint.IsA("BallSocket")) {
+        static_cast<BallSocket&>(constraint).m_constraintHandle = {};
+    } else if (constraint.IsA("NoCollision")) {
+        static_cast<NoCollision&>(constraint).m_constraintHandle = {};
+    }
+}
+
 PhysXPhysicsBackend::~PhysXPhysicsBackend() {
+    for (auto& entry : m_constraints) {
+        if (auto constraint = entry.constraint.lock()) clearConstraintHandle(*constraint);
+        if (entry.joint) {
+            entry.joint->release();
+            entry.joint = nullptr;
+        }
+    }
+    m_constraints.clear();
+    for (auto& entry : m_noCollisionEntries) {
+        if (auto constraint = entry.inst.lock()) clearConstraintHandle(*constraint);
+    }
+    m_noCollisionEntries.clear();
+    m_noCollisionPairs.clear();
+
     for (physx::PxRigidStatic* actor : m_terrainActors) {
         if (scene) scene->removeActor(*actor);
         actor->release();
@@ -342,15 +385,6 @@ PhysXPhysicsBackend::~PhysXPhysicsBackend() {
     m_terrainActors.clear();
 
     if (scene) {
-        // 制約ジョイントを先にリリース
-        for (auto& entry : m_constraints) {
-            if (entry.joint) {
-                entry.joint->release();
-                entry.joint = nullptr;
-            }
-        }
-        m_constraints.clear();
-
         std::unordered_set<physx::PxRigidActor*> released;
         for (auto& entry : cubes) {
             if (entry.actor && released.find(entry.actor) == released.end()) {
@@ -785,6 +819,7 @@ void PhysXPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
                 entry.joint->release();
                 entry.joint = nullptr;
             }
+            clearConstraintHandle(*inst);
             toRebuild.push_back(inst);
         }
     }
@@ -799,21 +834,13 @@ void PhysXPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
     );
     for (auto& inst : toRebuild) {
         if (inst->IsA("Rope")) {
-            auto r = std::static_pointer_cast<Rope>(inst);
-            r->m_joint = nullptr;
-            createRope(r);
+            createRope(std::static_pointer_cast<Rope>(inst));
         } else if (inst->IsA("Rod")) {
-            auto r = std::static_pointer_cast<Rod>(inst);
-            r->m_joint = nullptr;
-            createRod(r);
+            createRod(std::static_pointer_cast<Rod>(inst));
         } else if (inst->IsA("Motor")) {
-            auto m = std::static_pointer_cast<Motor>(inst);
-            m->m_joint = nullptr;
-            createMotor(m);
+            createMotor(std::static_pointer_cast<Motor>(inst));
         } else if (inst->IsA("BallSocket")) {
-            auto b = std::static_pointer_cast<BallSocket>(inst);
-            b->m_joint = nullptr;
-            createBallSocket(b);
+            createBallSocket(std::static_pointer_cast<BallSocket>(inst));
         }
     }
 }
@@ -821,19 +848,18 @@ void PhysXPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
 void PhysXPhysicsBackend::clearCubes() {
     // 1. ジョイントを解放（Weld の compound は cubes ループで解放）
     for (auto& entry : m_constraints) {
+        if (auto constraint = entry.constraint.lock()) clearConstraintHandle(*constraint);
         if (entry.joint) {
             entry.joint->release();
             entry.joint = nullptr;
         }
-        if (auto c = entry.constraint.lock()) {
-            if (c->IsA("Weld")) {
-                auto w = std::static_pointer_cast<Weld>(c);
-                // compound 本体は cubes ループで release されるためポインタ無効化のみ
-                w->m_compound = nullptr;
-            }
-        }
     }
     m_constraints.clear();
+    for (auto& entry : m_noCollisionEntries) {
+        if (auto constraint = entry.inst.lock()) clearConstraintHandle(*constraint);
+    }
+    m_noCollisionEntries.clear();
+    m_noCollisionPairs.clear();
 
     // 2. cube actor を release（compound は最初の参照で release し以降スキップ）
     std::unordered_set<physx::PxRigidActor*> released;
@@ -1214,6 +1240,7 @@ void PhysXPhysicsBackend::update(Workspace& workspace, float dt) {
             std::remove_if(m_noCollisionEntries.begin(), m_noCollisionEntries.end(),
                 [&](const NoCollisionEntry& e) {
                     if (!e.inst.expired() && !e.c0.expired() && !e.c1.expired()) return false;
+                    if (auto constraint = e.inst.lock()) clearConstraintHandle(*constraint);
                     if (auto c0 = e.c0.lock()) survivors.push_back(c0);
                     if (auto c1 = e.c1.lock()) survivors.push_back(c1);
                     return true;
@@ -1240,7 +1267,9 @@ void PhysXPhysicsBackend::update(Workspace& workspace, float dt) {
             m_constraints.begin(), m_constraints.end(),
             [&](const ConstraintEntry& entry) { return entry.constraint.lock() == weld; });
         if (!alreadyRegistered) {
-            m_constraints.push_back({std::weak_ptr<Instance>(weld), nullptr});
+            const auto handle = allocateConstraintHandle();
+            weld->m_constraintHandle = handle;
+            m_constraints.push_back({std::weak_ptr<Instance>(weld), handle, nullptr});
         }
         pendingWelds.push_back(weld);
     }
@@ -1406,6 +1435,7 @@ static physx::PxTransform composeAttachmentFrame(
 }
 
 void PhysXPhysicsBackend::createRope(const std::shared_ptr<Rope>& rope) {
+    if (!rope || rope->m_constraintHandle) return;
     auto c0 = rope->m_cube0.lock();
     auto c1 = rope->m_cube1.lock();
     if (!c0 || !c1) {
@@ -1430,26 +1460,52 @@ void PhysXPhysicsBackend::createRope(const std::shared_ptr<Rope>& rope) {
         dist = (p1 - p0).magnitude();
     }
 
-    physx::PxDistanceJoint* joint = PxDistanceJointCreate(
-        *s_pxPhysics, actor0, frame0, actor1, frame1
-    );
-    joint->setMaxDistance(dist);
-    joint->setMinDistance(0.0f);
-    joint->setDistanceJointFlag(physx::PxDistanceJointFlag::eMAX_DISTANCE_ENABLED, true);
-    if (rope->Stiffness > 0.0f) {
-        joint->setStiffness(rope->Stiffness);
-        joint->setDamping(rope->Damping);
-        joint->setDistanceJointFlag(physx::PxDistanceJointFlag::eSPRING_ENABLED, true);
-    }
-    // 衝突無効化（連結された2体が衝突しないようにする）
-    joint->setConstraintFlag(physx::PxConstraintFlag::eCOLLISION_ENABLED, false);
+    PhysicsConstraintDescriptor descriptor;
+    descriptor.type = PhysicsConstraintType::Distance;
+    descriptor.bodyA = c0->m_bodyHandle;
+    descriptor.bodyB = c1->m_bodyHandle;
+    descriptor.localFrameA = fromPxTransform(frame0);
+    descriptor.localFrameB = fromPxTransform(frame1);
+    descriptor.userData = rope.get();
+    descriptor.maxLength = dist;
+    descriptor.enableLimit = true;
+    descriptor.enableSpring = rope->Stiffness > 0.0f;
+    descriptor.tensionOnly = true;
+    descriptor.stiffness = rope->Stiffness;
+    descriptor.damping = rope->Damping;
 
-    rope->m_joint = joint;
-    m_constraints.push_back({ std::weak_ptr<Instance>(rope), joint });
+    physx::PxDistanceJoint* joint = nullptr;
+    if (actor0 != actor1) {
+        joint = PxDistanceJointCreate(
+            *s_pxPhysics, actor0, toPxTransform(descriptor.localFrameA),
+            actor1, toPxTransform(descriptor.localFrameB));
+    }
+    if (actor0 != actor1 && !joint) return;
+    if (joint) {
+        joint->setMaxDistance(descriptor.maxLength);
+        joint->setMinDistance(descriptor.minLength);
+        joint->setDistanceJointFlag(
+            physx::PxDistanceJointFlag::eMAX_DISTANCE_ENABLED, descriptor.enableLimit);
+        joint->setDistanceJointFlag(
+            physx::PxDistanceJointFlag::eMIN_DISTANCE_ENABLED,
+            descriptor.enableLimit && !descriptor.tensionOnly);
+        joint->setStiffness(descriptor.stiffness);
+        joint->setDamping(descriptor.damping);
+        joint->setDistanceJointFlag(
+            physx::PxDistanceJointFlag::eSPRING_ENABLED, descriptor.enableSpring);
+        joint->setConstraintFlag(
+            physx::PxConstraintFlag::eCOLLISION_ENABLED, descriptor.collideConnected);
+        joint->userData = descriptor.userData;
+    }
+
+    const auto handle = allocateConstraintHandle();
+    rope->m_constraintHandle = handle;
+    m_constraints.push_back({std::weak_ptr<Instance>(rope), handle, joint});
     // // RCBN_LOG("Rope \"" << rope->Name << "\" created, maxDistance=" << dist);
 }
 
 void PhysXPhysicsBackend::createRod(const std::shared_ptr<Rod>& rod) {
+    if (!rod || rod->m_constraintHandle) return;
     auto c0 = rod->m_cube0.lock();
     auto c1 = rod->m_cube1.lock();
     if (!c0 || !c1) {
@@ -1471,21 +1527,46 @@ void PhysXPhysicsBackend::createRod(const std::shared_ptr<Rod>& rod) {
     auto p1 = actor1->getGlobalPose().transform(frame1).p;
     float dist = (p1 - p0).magnitude();
 
-    physx::PxDistanceJoint* joint = PxDistanceJointCreate(
-        *s_pxPhysics, actor0, frame0, actor1, frame1
-    );
-    joint->setMaxDistance(dist);
-    joint->setMinDistance(dist);
-    joint->setDistanceJointFlag(physx::PxDistanceJointFlag::eMAX_DISTANCE_ENABLED, true);
-    joint->setDistanceJointFlag(physx::PxDistanceJointFlag::eMIN_DISTANCE_ENABLED, true);
-    joint->setConstraintFlag(physx::PxConstraintFlag::eCOLLISION_ENABLED, false);
+    PhysicsConstraintDescriptor descriptor;
+    descriptor.type = PhysicsConstraintType::Distance;
+    descriptor.bodyA = c0->m_bodyHandle;
+    descriptor.bodyB = c1->m_bodyHandle;
+    descriptor.localFrameA = fromPxTransform(frame0);
+    descriptor.localFrameB = fromPxTransform(frame1);
+    descriptor.userData = rod.get();
+    descriptor.restLength = dist;
+    descriptor.minLength = dist;
+    descriptor.maxLength = dist;
+    descriptor.enableLimit = true;
 
-    rod->m_joint = joint;
-    m_constraints.push_back({ std::weak_ptr<Instance>(rod), joint });
+    physx::PxDistanceJoint* joint = nullptr;
+    if (actor0 != actor1) {
+        joint = PxDistanceJointCreate(
+            *s_pxPhysics, actor0, toPxTransform(descriptor.localFrameA),
+            actor1, toPxTransform(descriptor.localFrameB));
+    }
+    if (actor0 != actor1 && !joint) return;
+    if (joint) {
+        joint->setMaxDistance(descriptor.maxLength);
+        joint->setMinDistance(descriptor.minLength);
+        joint->setDistanceJointFlag(
+            physx::PxDistanceJointFlag::eMAX_DISTANCE_ENABLED, descriptor.enableLimit);
+        joint->setDistanceJointFlag(
+            physx::PxDistanceJointFlag::eMIN_DISTANCE_ENABLED,
+            descriptor.enableLimit && !descriptor.tensionOnly);
+        joint->setConstraintFlag(
+            physx::PxConstraintFlag::eCOLLISION_ENABLED, descriptor.collideConnected);
+        joint->userData = descriptor.userData;
+    }
+
+    const auto handle = allocateConstraintHandle();
+    rod->m_constraintHandle = handle;
+    m_constraints.push_back({std::weak_ptr<Instance>(rod), handle, joint});
     RCBN_LOG("Rod \"" << rod->Name << "\" created, distance=" << dist);
 }
 
 void PhysXPhysicsBackend::createBallSocket(const std::shared_ptr<BallSocket>& bs) {
+    if (!bs || bs->m_constraintHandle) return;
     auto c0 = bs->m_cube0.lock();
     auto c1 = bs->m_cube1.lock();
     if (!c0 || !c1) {
@@ -1504,13 +1585,30 @@ void PhysXPhysicsBackend::createBallSocket(const std::shared_ptr<BallSocket>& bs
     physx::PxTransform frame1 = composeAttachmentFrame(
         toPxTransform(c1->m_compoundLocalOffset), bs->m_attachment1, c1.get());
 
-    physx::PxSphericalJoint* joint = PxSphericalJointCreate(
-        *s_pxPhysics, actor0, frame0, actor1, frame1
-    );
-    joint->setConstraintFlag(physx::PxConstraintFlag::eCOLLISION_ENABLED, false);
+    PhysicsConstraintDescriptor descriptor;
+    descriptor.type = PhysicsConstraintType::Spherical;
+    descriptor.bodyA = c0->m_bodyHandle;
+    descriptor.bodyB = c1->m_bodyHandle;
+    descriptor.localFrameA = fromPxTransform(frame0);
+    descriptor.localFrameB = fromPxTransform(frame1);
+    descriptor.userData = bs.get();
 
-    bs->m_joint = joint;
-    m_constraints.push_back({ std::weak_ptr<Instance>(bs), joint });
+    physx::PxSphericalJoint* joint = nullptr;
+    if (actor0 != actor1) {
+        joint = PxSphericalJointCreate(
+            *s_pxPhysics, actor0, toPxTransform(descriptor.localFrameA),
+            actor1, toPxTransform(descriptor.localFrameB));
+    }
+    if (actor0 != actor1 && !joint) return;
+    if (joint) {
+        joint->setConstraintFlag(
+            physx::PxConstraintFlag::eCOLLISION_ENABLED, descriptor.collideConnected);
+        joint->userData = descriptor.userData;
+    }
+
+    const auto handle = allocateConstraintHandle();
+    bs->m_constraintHandle = handle;
+    m_constraints.push_back({std::weak_ptr<Instance>(bs), handle, joint});
     RCBN_LOG("BallSocket \"" << bs->Name << "\" created");
 }
 
@@ -1571,6 +1669,7 @@ void PhysXPhysicsBackend::applyNoCollisionFilterBit(const std::shared_ptr<BaseCu
 }
 
 void PhysXPhysicsBackend::createNoCollision(const std::shared_ptr<NoCollision>& nc) {
+    if (!nc) return;
     auto c0 = nc->m_cube0.lock();
     auto c1 = nc->m_cube1.lock();
     if (!c0 || !c1) {
@@ -1578,10 +1677,16 @@ void PhysXPhysicsBackend::createNoCollision(const std::shared_ptr<NoCollision>& 
         return;
     }
 
-    bool alreadyRegistered = std::any_of(m_noCollisionEntries.begin(), m_noCollisionEntries.end(),
+    auto existing = std::find_if(m_noCollisionEntries.begin(), m_noCollisionEntries.end(),
         [&](const NoCollisionEntry& e) { return e.inst.lock() == nc; });
-    if (!alreadyRegistered) {
-        m_noCollisionEntries.push_back({ std::weak_ptr<Instance>(nc), std::weak_ptr<BaseCube>(c0), std::weak_ptr<BaseCube>(c1) });
+    if (existing == m_noCollisionEntries.end()) {
+        const auto handle = allocateConstraintHandle();
+        nc->m_constraintHandle = handle;
+        m_noCollisionEntries.push_back({
+            std::weak_ptr<Instance>(nc), std::weak_ptr<BaseCube>(c0),
+            std::weak_ptr<BaseCube>(c1), handle});
+    } else {
+        nc->m_constraintHandle = existing->handle;
     }
 
     rebuildNoCollisionPairSet();
@@ -1822,19 +1927,7 @@ void PhysXPhysicsBackend::rebuildGroup(const std::vector<std::shared_ptr<BaseCub
         }
     }
 
-    // 6. m_constraints の Weld で、両端が assembly 内にある Weld の m_compound を更新
-    for (auto& cEntry : m_constraints) {
-        auto inst = cEntry.constraint.lock();
-        if (!inst || !inst->IsA("Weld")) continue;
-        auto ew = std::static_pointer_cast<Weld>(inst);
-        auto ec0 = ew->m_cube0.lock();
-        auto ec1 = ew->m_cube1.lock();
-        if (ec0 && ec1 && assemblyPtrs.count(ec0.get()) && assemblyPtrs.count(ec1.get())) {
-            ew->m_compound = compound;
-        }
-    }
-
-    // 7. assembly 内の cube を参照している Rope/Rod/Motor を再構築
+    // 6. assembly 内の cube を参照している Rope/Rod/Motor を再構築
     std::vector<std::shared_ptr<Instance>> constraintsToRebuild;
     for (auto& cEntry : m_constraints) {
         auto inst = cEntry.constraint.lock();
@@ -1857,6 +1950,7 @@ void PhysXPhysicsBackend::rebuildGroup(const std::vector<std::shared_ptr<BaseCub
                        (ec1 && assemblyPtrs.count(ec1.get()));
         if (touched) {
             if (cEntry.joint) { cEntry.joint->release(); cEntry.joint = nullptr; }
+            clearConstraintHandle(*inst);
             constraintsToRebuild.push_back(inst);
         }
     }
@@ -1868,17 +1962,13 @@ void PhysXPhysicsBackend::rebuildGroup(const std::vector<std::shared_ptr<BaseCub
         }), m_constraints.end());
     for (auto& inst : constraintsToRebuild) {
         if (inst->IsA("Rope")) {
-            auto r = std::static_pointer_cast<Rope>(inst);
-            r->m_joint = nullptr; createRope(r);
+            createRope(std::static_pointer_cast<Rope>(inst));
         } else if (inst->IsA("Rod")) {
-            auto r = std::static_pointer_cast<Rod>(inst);
-            r->m_joint = nullptr; createRod(r);
+            createRod(std::static_pointer_cast<Rod>(inst));
         } else if (inst->IsA("Motor")) {
-            auto m = std::static_pointer_cast<Motor>(inst);
-            m->m_joint = nullptr; createMotor(m);
+            createMotor(std::static_pointer_cast<Motor>(inst));
         } else if (inst->IsA("BallSocket")) {
-            auto b = std::static_pointer_cast<BallSocket>(inst);
-            b->m_joint = nullptr; createBallSocket(b);
+            createBallSocket(std::static_pointer_cast<BallSocket>(inst));
         }
     }
 }
@@ -1907,15 +1997,13 @@ void PhysXPhysicsBackend::createWeld(const std::shared_ptr<Weld>& weld, Workspac
     // グループ全体を 1 compound として再構築
     rebuildGroup(assembly);
 
-    // この Weld の m_compound を設定
-    weld->m_compound = static_cast<physx::PxRigidDynamic*>(
-        getActor(assembly[0]->m_bodyHandle));
-
     // m_constraints に未登録なら追加
     bool alreadyRegistered = std::any_of(m_constraints.begin(), m_constraints.end(),
         [&](const ConstraintEntry& e) { return e.constraint.lock() == weld; });
     if (!alreadyRegistered) {
-        m_constraints.push_back({ std::weak_ptr<Instance>(weld), nullptr });
+        const auto handle = allocateConstraintHandle();
+        weld->m_constraintHandle = handle;
+        m_constraints.push_back({std::weak_ptr<Instance>(weld), handle, nullptr});
     }
     // RCBN_LOG("Weld \"" << weld->Name << "\" created (group size: " << assembly.size() << ")");
 }
@@ -1936,6 +2024,7 @@ static physx::PxQuat computeShortestRotationFromX(const physx::PxVec3& to) {
 }
 
 void PhysXPhysicsBackend::createMotor(const std::shared_ptr<Motor>& motor) {
+    if (!motor || motor->m_constraintHandle) return;
     auto c0 = motor->m_cube0.lock();
     auto c1 = motor->m_cube1.lock();
     if (!c0 || !c1) {
@@ -1998,32 +2087,82 @@ void PhysXPhysicsBackend::createMotor(const std::shared_ptr<Motor>& motor) {
     physx::PxTransform frame0 = pose0.transformInv(physx::PxTransform(pivot0World, axisRot));
     physx::PxTransform frame1 = pose1.transformInv(physx::PxTransform(pivot1World, axisRot));
 
-    physx::PxRevoluteJoint* joint = PxRevoluteJointCreate(
-        *s_pxPhysics, actor0, frame0, actor1, frame1
-    );
-    if (!joint) {
+    PhysicsConstraintDescriptor descriptor;
+    descriptor.type = PhysicsConstraintType::Revolute;
+    descriptor.bodyA = c0->m_bodyHandle;
+    descriptor.bodyB = c1->m_bodyHandle;
+    descriptor.localFrameA = fromPxTransform(frame0);
+    descriptor.localFrameB = fromPxTransform(frame1);
+    descriptor.userData = motor.get();
+    descriptor.enableMotor = true;
+    descriptor.driveVelocity = motor->DriveVelocity;
+    descriptor.maxTorque = motor->MaxForce;
+
+    physx::PxRevoluteJoint* joint = nullptr;
+    if (actor0 != actor1) {
+        joint = PxRevoluteJointCreate(
+            *s_pxPhysics, actor0, toPxTransform(descriptor.localFrameA),
+            actor1, toPxTransform(descriptor.localFrameB));
+    }
+    if (actor0 != actor1 && !joint) {
         RCBN_WARN("Motor \"" << motor->Name << "\": PxRevoluteJointCreate failed");
         return;
     }
-    joint->setRevoluteJointFlag(physx::PxRevoluteJointFlag::eDRIVE_ENABLED, true);
-    joint->setDriveVelocity(motor->DriveVelocity);
-    joint->setDriveForceLimit(motor->MaxForce);
-    // 連結体同士の衝突を無効化（接触面で詰まらないように）
-    joint->setConstraintFlag(physx::PxConstraintFlag::eCOLLISION_ENABLED, false);
+    if (joint) {
+        joint->setRevoluteJointFlag(
+            physx::PxRevoluteJointFlag::eDRIVE_ENABLED, descriptor.enableMotor);
+        joint->setDriveVelocity(descriptor.driveVelocity);
+        joint->setDriveForceLimit(descriptor.maxTorque);
+        joint->setConstraintFlag(
+            physx::PxConstraintFlag::eCOLLISION_ENABLED, descriptor.collideConnected);
+        joint->userData = descriptor.userData;
+    }
 
-    motor->m_joint = joint;
-    m_constraints.push_back({ std::weak_ptr<Instance>(motor), joint });
+    const auto handle = allocateConstraintHandle();
+    motor->m_constraintHandle = handle;
+    m_constraints.push_back({std::weak_ptr<Instance>(motor), handle, joint});
     RCBN_LOG("Motor \"" << motor->Name << "\" created at pivot (" << pivotWorld.x << ", " << pivotWorld.y << ", " << pivotWorld.z << ")");
 }
 
+void PhysXPhysicsBackend::updateConstraint(
+    const std::shared_ptr<Instance>& constraint) {
+    if (!constraint) return;
+
+    if (constraint->IsA("Rope")) {
+        auto rope = std::static_pointer_cast<Rope>(constraint);
+        auto* entry = findConstraintEntry(rope->m_constraintHandle);
+        if (!entry || !entry->joint) return;
+
+        auto* joint = static_cast<physx::PxDistanceJoint*>(entry->joint);
+        joint->setMaxDistance(rope->MaxDistance);
+        joint->setStiffness(rope->Stiffness);
+        joint->setDamping(rope->Damping);
+        joint->setDistanceJointFlag(
+            physx::PxDistanceJointFlag::eSPRING_ENABLED, rope->Stiffness > 0.0f);
+        return;
+    }
+
+    if (constraint->IsA("Motor")) {
+        auto motor = std::static_pointer_cast<Motor>(constraint);
+        if (!motor->m_constraintHandle) return;
+        removeConstraint(motor);
+        createMotor(motor);
+    }
+}
+
 void PhysXPhysicsBackend::removeConstraint(const std::shared_ptr<Instance>& c) {
+    if (!c) return;
     if (c->IsA("NoCollision")) {
         auto ncIt = std::find_if(m_noCollisionEntries.begin(), m_noCollisionEntries.end(),
             [&](const NoCollisionEntry& e) { return e.inst.lock() == c; });
-        if (ncIt == m_noCollisionEntries.end()) return;
+        if (ncIt == m_noCollisionEntries.end()) {
+            clearConstraintHandle(*c);
+            return;
+        }
 
         auto oldC0 = ncIt->c0.lock();
         auto oldC1 = ncIt->c1.lock();
+        clearConstraintHandle(*c);
         m_noCollisionEntries.erase(ncIt);
         rebuildNoCollisionPairSet();
         if (oldC0) applyNoCollisionFilterBit(oldC0);
@@ -2033,75 +2172,109 @@ void PhysXPhysicsBackend::removeConstraint(const std::shared_ptr<Instance>& c) {
 
     auto it = std::find_if(m_constraints.begin(), m_constraints.end(),
         [&](const ConstraintEntry& e) { return e.constraint.lock() == c; });
-    if (it == m_constraints.end()) return;
+    if (it == m_constraints.end()) {
+        clearConstraintHandle(*c);
+        return;
+    }
 
     if (c->IsA("Weld")) {
         auto weld = std::static_pointer_cast<Weld>(c);
 
-        // weld->m_compound はキャッシュした生ポインタであり、別経路(他Weldの削除に伴う
-        // 再構築や Workspace 破棄)で既に release 済み = dangling になっている場合がある。
-        // dangling ポインタは nullptr ではないので nullptr チェックでは弾けない。
-        // 唯一信頼できる「生存判定」は cubes テーブル: compound が解放されるとき必ず
-        // 対応する cube のbody handle / entry.actor は空へ更新されるため、いずれかの
-        // 生存 cube が今も m_compound を指しているかどうかで判定する。
-        physx::PxRigidDynamic* oldCompound = weld->m_compound;
+        // native body は制約側にキャッシュせず、現在の端点の opaque body handle から解決する。
+        auto endpoint = weld->m_cube0.lock();
+        auto* candidate = endpoint ? getActor(endpoint->m_bodyHandle) : nullptr;
+        if (!candidate) {
+            endpoint = weld->m_cube1.lock();
+            candidate = endpoint ? getActor(endpoint->m_bodyHandle) : nullptr;
+        }
+        physx::PxRigidDynamic* oldCompound = nullptr;
+        if (candidate) {
+            const bool candidateIsLive = candidate && std::any_of(
+                cubes.begin(), cubes.end(),
+                [&](const CubeEntry& entry) {
+                    return !entry.cube.expired() && entry.actor == candidate;
+                });
+            if (candidateIsLive) oldCompound = candidate->is<physx::PxRigidDynamic>();
+        }
 
-        // 1. 旧 compound を共有していた全キューブを収集（＝生存判定も兼ねる）
+        // 1. 旧 compound を共有していた全キューブを収集
         std::vector<std::shared_ptr<BaseCube>> oldGroupCubes;
         if (oldCompound) {
             for (auto& entry : cubes) {
                 auto cube = entry.cube.lock();
-                if (cube && getActor(cube->m_bodyHandle) == oldCompound)
-                    oldGroupCubes.push_back(cube);
+                if (cube && entry.actor == oldCompound) oldGroupCubes.push_back(cube);
             }
         }
 
-        // どの生存 cube も指していない → compound は既に解放済み(dangling) または未構築。
-        // この場合 actor には一切触れず、参照をクリアして Weld を除去するだけにする。
+        clearConstraintHandle(*c);
+
+        // どの生存 cube も指していない場合は native actor に触れず登録だけ除去する。
         if (oldGroupCubes.empty()) {
-            for (auto& cEntry : m_constraints) {
-                auto inst = cEntry.constraint.lock();
-                if (inst && inst->IsA("Weld")) {
-                    auto ew = std::static_pointer_cast<Weld>(inst);
-                    if (oldCompound && ew->m_compound == oldCompound) ew->m_compound = nullptr;
-                }
-            }
-            weld->m_compound = nullptr;
             m_constraints.erase(it);
             return;
         }
 
+        // 先に削除対象 Weld と旧グループに接続する joint 制約を登録から外す。
+        // 分割途中では片側の actor がまだ未生成になり得るため、全成分の再構築後にまとめて戻す。
+        m_constraints.erase(it);
+        std::unordered_set<BaseCube*> oldPtrs;
+        for (const auto& cube : oldGroupCubes) oldPtrs.insert(cube.get());
+        std::vector<std::shared_ptr<Instance>> constraintsToRebuild;
+        for (auto& entry : m_constraints) {
+            auto inst = entry.constraint.lock();
+            if (!inst || inst->IsA("Weld")) continue;
+
+            std::shared_ptr<BaseCube> ec0, ec1;
+            if (inst->IsA("Rope")) {
+                auto value = std::static_pointer_cast<Rope>(inst);
+                ec0 = value->m_cube0.lock(); ec1 = value->m_cube1.lock();
+            } else if (inst->IsA("Rod")) {
+                auto value = std::static_pointer_cast<Rod>(inst);
+                ec0 = value->m_cube0.lock(); ec1 = value->m_cube1.lock();
+            } else if (inst->IsA("Motor")) {
+                auto value = std::static_pointer_cast<Motor>(inst);
+                ec0 = value->m_cube0.lock(); ec1 = value->m_cube1.lock();
+            } else if (inst->IsA("BallSocket")) {
+                auto value = std::static_pointer_cast<BallSocket>(inst);
+                ec0 = value->m_cube0.lock(); ec1 = value->m_cube1.lock();
+            }
+            const bool touched = (ec0 && oldPtrs.contains(ec0.get())) ||
+                                 (ec1 && oldPtrs.contains(ec1.get()));
+            if (!touched) continue;
+            if (entry.joint) {
+                entry.joint->release();
+                entry.joint = nullptr;
+            }
+            clearConstraintHandle(*inst);
+            constraintsToRebuild.push_back(inst);
+        }
+        m_constraints.erase(
+            std::remove_if(m_constraints.begin(), m_constraints.end(),
+                [&](const ConstraintEntry& entry) {
+                    auto inst = entry.constraint.lock();
+                    return inst && std::find(
+                        constraintsToRebuild.begin(), constraintsToRebuild.end(), inst)
+                        != constraintsToRebuild.end();
+                }),
+            m_constraints.end());
+
         {
-            // 旧 compound を破棄（ここに来た時点で生存が確認できている）
+            // 旧 compound を破棄（cubes テーブルで生存確認済み）
             scene->removeActor(*oldCompound);
             oldCompound->release();
 
             // 全キューブの body handle/offset をリセット
-            std::unordered_set<BaseCube*> oldPtrs;
             for (auto& cube : oldGroupCubes) {
                 cube->m_bodyHandle = {};
                 cube->m_compoundLocalOffset = CFrame();
-                oldPtrs.insert(cube.get());
             }
             for (auto& entry : cubes) {
                 auto cube = entry.cube.lock();
                 if (cube && oldPtrs.count(cube.get())) entry.actor = nullptr;
             }
-            // この compound を参照していた全 Weld の m_compound をクリア
-            for (auto& cEntry : m_constraints) {
-                auto inst = cEntry.constraint.lock();
-                if (inst && inst->IsA("Weld")) {
-                    auto ew = std::static_pointer_cast<Weld>(inst);
-                    if (ew->m_compound == oldCompound) ew->m_compound = nullptr;
-                }
-            }
-            weld->m_compound = nullptr;
         }
 
-        // 2. この Weld を m_constraints から削除（BFS の前に除外する）
-        m_constraints.erase(it);
-
-        // 3. 旧グループを残存 Weld で連結成分に分割し、各成分を再構築
+        // 2. 旧グループを残存 Weld で連結成分に分割し、各成分を再構築
         if (!oldGroupCubes.empty()) {
             // Workspace から既に除去されたキューブ(cubes に未登録)は BFS でグループへ
             // 引き戻さない。削除カスケード中に removeCube 済みのキューブへここでbodyを
@@ -2154,10 +2327,23 @@ void PhysXPhysicsBackend::removeConstraint(const std::shared_ptr<Instance>& c) {
                 }
             }
         }
+
+        for (auto& inst : constraintsToRebuild) {
+            if (inst->IsA("Rope")) {
+                createRope(std::static_pointer_cast<Rope>(inst));
+            } else if (inst->IsA("Rod")) {
+                createRod(std::static_pointer_cast<Rod>(inst));
+            } else if (inst->IsA("Motor")) {
+                createMotor(std::static_pointer_cast<Motor>(inst));
+            } else if (inst->IsA("BallSocket")) {
+                createBallSocket(std::static_pointer_cast<BallSocket>(inst));
+            }
+        }
         return;
     }
 
     // Weld 以外: joint を解放してエントリーを削除
     if (it->joint) it->joint->release();
+    clearConstraintHandle(*c);
     m_constraints.erase(it);
 }

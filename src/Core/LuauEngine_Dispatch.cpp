@@ -756,8 +756,11 @@ void LuauEngine::InitSetterTable_Physics() {
     SetterTable["Motor"]["Attachment1"]   = setter_property_string("Attachment1");
     SetterTable["Motor"]["DriveVelocity"] = setter_method_float<Motor, &Motor::setDriveVelocity>();
     SetterTable["Motor"]["MaxForce"]      = setter_method_float<Motor, &Motor::setMaxForce>();
-    // Axis は既存ジョイントへの即時再適用はされない（生成時に参照される）。
-    SetterTable["Motor"]["Axis"]          = setter_vec3<Motor, &Motor::Axis>();
+    SetterTable["Motor"]["Axis"] = [](lua_State* L, Instance* obj) {
+        Vector3* axis = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
+        static_cast<Motor*>(obj)->setAxis(*axis);
+        return 0;
+    };
 }
 
 // ==================== Setter: Sound, Humanoid, AppImage, Script ====================

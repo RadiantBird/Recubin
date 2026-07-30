@@ -66,6 +66,7 @@ public:
     virtual void createBallSocket(const std::shared_ptr<BallSocket>& ballSocket) = 0;
     virtual void createNoCollision(const std::shared_ptr<NoCollision>& noCollision) = 0;
     virtual void removeConstraint(const std::shared_ptr<Instance>& constraint) = 0;
+    virtual void updateConstraint(const std::shared_ptr<Instance>& constraint) = 0;
 
     virtual bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance,
                          RaycastHit& hitResult, const BaseCube* ignoreCube = nullptr) = 0;

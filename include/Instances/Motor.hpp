@@ -2,7 +2,6 @@
 #include <include/Instances/Instance.hpp>
 #include <include/Instances/BaseCube.hpp>
 #include <include/Math/Vector3.hpp>
-#include <include/PhysX/PxPhysicsAPI.h>
 #include <memory>
 
 class SceneLoader;
@@ -14,7 +13,7 @@ class Motor : public Instance {
     std::weak_ptr<BaseCube> m_cube1;
     std::weak_ptr<Attachment> m_attachment0; // 任意。設定時はこの位置でジョイントを生成
     std::weak_ptr<Attachment> m_attachment1;
-    physx::PxRevoluteJoint* m_joint = nullptr;
+    PhysicsConstraintHandle m_constraintHandle;
     Workspace* m_lastWorkspace = nullptr;
 
     friend class Physics;
@@ -50,6 +49,7 @@ public:
     void refreshRefNames();
     void setDriveVelocity(float v);
     void setMaxForce(float v);
+    void setAxis(Vector3 axis);
 
     virtual std::string getClassName() override;
     virtual bool IsA(std::string className) override;

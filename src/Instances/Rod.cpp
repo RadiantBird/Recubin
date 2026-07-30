@@ -12,10 +12,10 @@ Rod::Rod(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
       m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 Rod::~Rod() {
-    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_joint) {
+    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
         m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
     }
-    m_joint = nullptr;
+    m_constraintHandle = {};
 }
 
 void Rod::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
@@ -151,7 +151,7 @@ void Rod::onAncestorChanged() {
         ws->registerConstraint(shared_from_this());
         m_lastWorkspace = ws;
     } else {
-        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_joint) {
+        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
             m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
         }
         m_lastWorkspace = nullptr;

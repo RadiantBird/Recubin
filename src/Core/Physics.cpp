@@ -151,6 +151,9 @@ void Physics::createNoCollision(const std::shared_ptr<NoCollision>& noCollision)
 void Physics::removeConstraint(const std::shared_ptr<Instance>& constraint) {
     RCBN_PHYSICS_VOID(removeConstraint, constraint);
 }
+void Physics::updateConstraint(const std::shared_ptr<Instance>& constraint) {
+    RCBN_PHYSICS_VOID(updateConstraint, constraint);
+}
 
 bool Physics::raycast(const Vector3& origin, const Vector3& direction, float maxDistance,
                       RaycastHit& hitResult, const BaseCube* ignoreCube) {
