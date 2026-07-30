@@ -37,6 +37,7 @@ public:
     bool Unlit = false;
     bool UseTriplanar = false;
     float TextureScale = 1.0f;
+    CCDMode CollisionDetection = CCDMode::Default;
 
     Color4 Color;
     Material material = Material::GetDefault(MaterialType::Plastic);
@@ -78,6 +79,7 @@ public:
     void setCanCollide(bool canCollide);
     void setMaterial(const Material& m);
     void setMassDensity(float d);
+    void setCCDMode(CCDMode mode);
 
     // 自律的な登録・解除ロジック
     void onAncestorChanged() override;

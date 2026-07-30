@@ -23,6 +23,19 @@ set(RECASTNAVIGATION_TESTS OFF CACHE BOOL "" FORCE)
 set(RECASTNAVIGATION_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation)
 
+# --- 2.6. Box3D ---
+set(BOX3D_SAMPLES OFF CACHE BOOL "" FORCE)
+set(BOX3D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(BOX3D_DOCS OFF CACHE BOOL "" FORCE)
+set(BOX3D_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(BOX3D_PROFILE OFF CACHE BOOL "" FORCE)
+set(BOX3D_VALIDATE OFF CACHE BOOL "" FORCE)
+set(BOX3D_SANITIZE OFF CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_SOURCE_DIR}/temp_libs/box3d EXCLUDE_FROM_ALL)
+if(MSVC)
+    set_target_properties(box3d PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+endif()
+
 # --- 3. ソース収集 ---
 # Recubin / RecubinEngine の二重コンパイルを避けるため、両ターゲットで共有できる
 # ソース（エントリポイントと EDITOR_DISABLED で分岐する User.cpp/Renderer.cpp を除く全て）を
@@ -212,7 +225,7 @@ target_link_options(Recubin PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/DEBUG>
     $<$<CXX_COMPILER_ID:MSVC>:/ignore:4099>
 )
-target_link_libraries(Recubin PRIVATE ${COMMON_LIBS})
+target_link_libraries(Recubin PRIVATE ${COMMON_LIBS} box3d::box3d)
 
 # ---- RecubinEngine (ゲームランタイム専用) ----
 target_compile_definitions(RecubinEngine PRIVATE ${COMMON_DEFS} EDITOR_DISABLED)
@@ -222,7 +235,7 @@ target_link_options(RecubinEngine PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/DEBUG>
     $<$<CXX_COMPILER_ID:MSVC>:/ignore:4099>
 )
-target_link_libraries(RecubinEngine PRIVATE ${COMMON_LIBS})
+target_link_libraries(RecubinEngine PRIVATE ${COMMON_LIBS} box3d::box3d)
 
 # ---- RecubinTest (ヘッドレスLuauテストランナー) ----
 target_compile_definitions(RecubinTest PRIVATE ${COMMON_DEFS} EDITOR_DISABLED)
@@ -232,7 +245,7 @@ target_link_options(RecubinTest PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/DEBUG>
     $<$<CXX_COMPILER_ID:MSVC>:/ignore:4099>
 )
-target_link_libraries(RecubinTest PRIVATE ${COMMON_LIBS})
+target_link_libraries(RecubinTest PRIVATE ${COMMON_LIBS} box3d::box3d)
 
 if(WIN32)
     foreach(target IN ITEMS Recubin RecubinEngine RecubinTest)

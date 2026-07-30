@@ -2,6 +2,16 @@
 
 #include <cstdint>
 
+enum class PhysicsBackendType {
+    PhysX,
+    Box3D,
+};
+
+enum class CCDMode {
+    Default,
+    Bullet,
+};
+
 struct PhysicsBodyHandle {
     std::uint64_t value = 0;
 
@@ -14,6 +24,38 @@ struct PhysicsBodyHandle {
     }
 
     friend constexpr bool operator!=(PhysicsBodyHandle lhs, PhysicsBodyHandle rhs) {
+        return !(lhs == rhs);
+    }
+};
+
+struct PhysicsConstraintHandle {
+    std::uint64_t value = 0;
+
+    explicit constexpr operator bool() const {
+        return value != 0;
+    }
+
+    friend constexpr bool operator==(PhysicsConstraintHandle lhs, PhysicsConstraintHandle rhs) {
+        return lhs.value == rhs.value;
+    }
+
+    friend constexpr bool operator!=(PhysicsConstraintHandle lhs, PhysicsConstraintHandle rhs) {
+        return !(lhs == rhs);
+    }
+};
+
+struct PhysicsTerrainHandle {
+    std::uint64_t value = 0;
+
+    explicit constexpr operator bool() const {
+        return value != 0;
+    }
+
+    friend constexpr bool operator==(PhysicsTerrainHandle lhs, PhysicsTerrainHandle rhs) {
+        return lhs.value == rhs.value;
+    }
+
+    friend constexpr bool operator!=(PhysicsTerrainHandle lhs, PhysicsTerrainHandle rhs) {
         return !(lhs == rhs);
     }
 };

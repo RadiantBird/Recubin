@@ -30,6 +30,19 @@ static const bool s_baseCubeRegistered = []{
     };
     massDensity.noYaml();
 
+    PropertyDesc ccdMode = custom("CCDMode", PropType::Enum,
+        [](Instance* o) {
+            return PropValue(static_cast<int>(static_cast<BaseCube*>(o)->CollisionDetection));
+        },
+        [](Instance* o, const PropValue& v) {
+            CCDMode mode = static_cast<CCDMode>(std::get<int>(v));
+            if (mode != CCDMode::Bullet) mode = CCDMode::Default;
+            static_cast<BaseCube*>(o)->setCCDMode(mode);
+        });
+    ccdMode.enumNames = { {"Default", 0}, {"Bullet", 1} };
+    ccdMode.group("Physics");
+    ccdMode.noYaml();
+
     // MaterialType: プリセット選択で material 一式を上書きする
     PropertyDesc materialType = custom("MaterialType", PropType::Enum,
         [](Instance* o) { return PropValue(static_cast<int>(static_cast<BaseCube*>(o)->material.type)); },
@@ -66,6 +79,7 @@ static const bool s_baseCubeRegistered = []{
         field<&BaseCube::CastShadow>("CastShadow").noYaml(),
         field<&BaseCube::Unlit>("Unlit").noYaml(),
         massDensity,
+        ccdMode,
         materialType,
         frictionProp("StaticFriction", &Material::staticFriction),
         frictionProp("DynamicFriction", &Material::dynamicFriction),
@@ -170,6 +184,15 @@ void BaseCube::setMassDensity(float d) {
     }
 }
 
+void BaseCube::setCCDMode(CCDMode mode) {
+    if (mode != CCDMode::Bullet) mode = CCDMode::Default;
+    if (CollisionDetection == mode) return;
+    CollisionDetection = mode;
+    if (m_physicsOwner && m_physicsOwner->hasBody(*this)) {
+        m_physicsOwner->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
+    }
+}
+
 void BaseCube::syncPhysics() {
     if (lastWorkspace && lastWorkspace->physicsEngine)
         lastWorkspace->physicsEngine->syncCube(*this);
@@ -233,6 +256,9 @@ void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
         material.restitution = value.as<float>();
     } else if (name == "MassDensity") {
         setMassDensity(value.as<float>());
+    } else if (name == "CCDMode") {
+        const std::string mode = value.as<std::string>();
+        setCCDMode(mode == "Bullet" ? CCDMode::Bullet : CCDMode::Default);
     } else {
         Spatial::setProperty(name, value);
     }

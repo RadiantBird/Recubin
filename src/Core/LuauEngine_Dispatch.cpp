@@ -384,6 +384,11 @@ void LuauEngine::InitDispatchTable_Base() {
     DispatchTable["BaseCube"]["UseTriplanar"] = getter_bool   <BaseCube, &BaseCube::UseTriplanar>();
     DispatchTable["BaseCube"]["TextureScale"] = getter_number <BaseCube, &BaseCube::TextureScale>();
     DispatchTable["BaseCube"]["Touched"]      = getter_signal <BaseCube, &BaseCube::Touched>();
+    DispatchTable["BaseCube"]["CCDMode"]      = [](lua_State* L, Instance* obj) {
+        const auto* cube = static_cast<BaseCube*>(obj);
+        lua_pushstring(L, cube->CollisionDetection == CCDMode::Bullet ? "Bullet" : "Default");
+        return 1;
+    };
     // Velocity is read from the physics actor at runtime, no direct field to bind
     DispatchTable["BaseCube"]["Velocity"]   = [](lua_State* L, Instance* obj) {
         auto* cube = static_cast<BaseCube*>(obj);
@@ -676,6 +681,12 @@ void LuauEngine::InitSetterTable_Base() {
     SetterTable["BaseCube"]["Unlit"]        = setter_bool       <BaseCube, &BaseCube::Unlit>();
     SetterTable["BaseCube"]["UseTriplanar"] = setter_bool       <BaseCube, &BaseCube::UseTriplanar>();
     SetterTable["BaseCube"]["TextureScale"] = setter_number     <BaseCube, &BaseCube::TextureScale>();
+    SetterTable["BaseCube"]["CCDMode"] = [](lua_State* L, Instance* obj) {
+        const std::string mode = luaL_checkstring(L, 3);
+        static_cast<BaseCube*>(obj)->setCCDMode(
+            mode == "Bullet" ? CCDMode::Bullet : CCDMode::Default);
+        return 0;
+    };
 }
 
 // ==================== Setter: Workspace, Decal, Lighting ====================
