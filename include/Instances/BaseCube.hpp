@@ -12,6 +12,7 @@
 
 class Physics;
 class PhysXPhysicsBackend;
+class Box3DPhysicsBackend;
 class Workspace;
 
 enum class PhysicsShape { Box, Sphere, ConvexMesh };
@@ -19,6 +20,7 @@ enum class PhysicsShape { Box, Sphere, ConvexMesh };
 class BaseCube : public Spatial {
     friend class Physics;
     friend class PhysXPhysicsBackend;
+    friend class Box3DPhysicsBackend;
 
 private:
     PhysicsBodyHandle m_bodyHandle;

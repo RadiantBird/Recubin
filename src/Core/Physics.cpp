@@ -1,4 +1,5 @@
 #include "include/Core/Physics.hpp"
+#include "include/Core/Box3DPhysicsBackend.hpp"
 #include "include/Core/PhysXPhysicsBackend.hpp"
 #include "include/Instances/BaseCube.hpp"
 #include "include/Util/Logger.hpp"
@@ -13,6 +14,8 @@ Physics::Physics()
     : m_backendType(s_requestedBackend) {
     if (m_backendType == PhysicsBackendType::PhysX)
         m_backend = std::make_unique<PhysXPhysicsBackend>(this);
+    else if (m_backendType == PhysicsBackendType::Box3D)
+        m_backend = std::make_unique<Box3DPhysicsBackend>(this);
 }
 
 Physics::~Physics() = default;
@@ -52,12 +55,12 @@ bool Physics::configureBackendFromCommandLine(int argc, char* argv[]) {
 }
 
 void Physics::init() {
-    if (m_backendType == PhysicsBackendType::Box3D) {
-        RCBN_ERROR("Box3D physics backend is not implemented");
-        m_available = false;
-        return;
-    }
     m_available = m_backend && m_backend->init();
+    if (!m_available) {
+        RCBN_ERROR(
+            "Requested physics backend failed to initialize: "
+            << (m_backendType == PhysicsBackendType::Box3D ? "box3d" : "physx"));
+    }
 }
 
 bool Physics::isAvailable() const {

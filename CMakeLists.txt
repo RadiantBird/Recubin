@@ -73,6 +73,9 @@ set_source_files_properties("${CMAKE_SOURCE_DIR}/src/Core/TimeStretchNode.cpp" P
 )
 
 add_library(RecubinCore OBJECT ${CORE_SOURCES})
+target_include_directories(RecubinCore PRIVATE
+    "${CMAKE_SOURCE_DIR}/temp_libs/box3d/include"
+)
 
 if(WIN32)
     add_executable(Watcher

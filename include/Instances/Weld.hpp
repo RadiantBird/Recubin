@@ -6,6 +6,7 @@
 
 class SceneLoader;
 class PhysXPhysicsBackend;
+class Box3DPhysicsBackend;
 
 class Weld : public Instance {
     std::weak_ptr<BaseCube> m_cube0;
@@ -15,6 +16,7 @@ class Weld : public Instance {
 
     friend class Physics;
     friend class PhysXPhysicsBackend;
+    friend class Box3DPhysicsBackend;
     friend class SceneLoader;
     friend class Renderer;
 
