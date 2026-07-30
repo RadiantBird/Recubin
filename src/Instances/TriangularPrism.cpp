@@ -190,7 +190,7 @@ std::shared_ptr<Instance> TriangularPrism::clone() const {
     return copy;
 }
 
-std::vector<physx::PxVec3> TriangularPrism::getConvexVertices() const {
+std::vector<Vector3> TriangularPrism::getConvexVertices() const {
     return {
         { TP_AX,  0.5f, TP_AZ },
         { TP_BX,  0.5f, TP_BZ },

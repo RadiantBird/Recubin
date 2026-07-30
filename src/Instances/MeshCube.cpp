@@ -244,11 +244,11 @@ void MeshCube::draw(int modelLoc, int shaderProgram) {
     glActiveTexture(GL_TEXTURE0);
 }
 
-std::vector<physx::PxVec3> MeshCube::getConvexVertices() const {
-    std::vector<physx::PxVec3> out;
+std::vector<Vector3> MeshCube::getConvexVertices() const {
+    std::vector<Vector3> out;
     out.reserve(m_cpuVertices.size());
     for (auto const& v : m_cpuVertices) {
-        out.push_back(physx::PxVec3(v.Position.x, v.Position.y, v.Position.z));
+        out.push_back(v.Position);
     }
     return out;
 }

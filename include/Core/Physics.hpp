@@ -54,6 +54,7 @@ private:
 
     struct CubeEntry {
         std::weak_ptr<BaseCube> cube;
+        BaseCube* cubeRaw = nullptr;
         physx::PxRigidActor* actor = nullptr;
     };
     std::vector<CubeEntry> cubes;
@@ -126,6 +127,7 @@ public:
     void createActor(const std::shared_ptr<BaseCube>& cube);
     void recreateActor(const std::shared_ptr<BaseCube>& cube);
     void removeCube(const std::shared_ptr<BaseCube>& cube);
+    void onCubeDestroyed(BaseCube& cube);
 
     void clearCubes();
 

@@ -3,18 +3,31 @@
 #include <include/Instances/Spatial.hpp>
 #include <include/Core/RCBNScriptSignal.hpp>
 #include <include/Core/PhysicsTypes.hpp>
-#include <include/Instances/Workspace.hpp>
 #include <include/Math/Vector3.hpp>
 #include <include/Math/Quaternion.hpp>
 #include <include/Util/Color4.hpp>
 #include <include/Util/Material.hpp>
-#include <include/PhysX/PxPhysicsAPI.h>
 #include <include/Instances/Decal.hpp>
 #include <vector>
+
+class Physics;
+class Workspace;
 
 enum class PhysicsShape { Box, Sphere, ConvexMesh };
 
 class BaseCube : public Spatial {
+    friend class Physics;
+
+private:
+    PhysicsBodyHandle m_bodyHandle;
+    CFrame m_compoundLocalOffset;
+    Physics* m_physicsOwner = nullptr;
+    // このキューブがアンカーを含むWeldのキネマティックcompoundのメンバーであるか。
+    // true のときは syncPhysics() でキネマティック駆動を setKinematicTarget ではなく
+    // 即時姿勢更新で行い、アニメ駆動部(Head等)への追従ラグを無くす。
+    // 単独のキネマティック(動くプラットフォーム等)は false のままで通常の駆動を使う。
+    bool m_weldKinematic = false;
+
 public:
     std::shared_ptr<RCBNScriptSignal> Touched;
 
@@ -33,19 +46,12 @@ public:
     Workspace* lastWorkspace = nullptr;
 
     PhysicsLockFlags LockFlags = PhysicsLockFlags::None;
-    physx::PxRigidActor* actor = nullptr;
-    physx::PxTransform m_compoundLocalOffset = physx::PxTransform(physx::PxIdentity);
-    // このキューブがアンカーを含むWeldのキネマティックcompoundのメンバーであるか。
-    // true のときは syncPhysics() でキネマティック駆動を setKinematicTarget ではなく
-    // setGlobalPose(即時) で行い、アニメ駆動部(Head等)への追従ラグを無くす。
-    // 単独のキネマティック(動くプラットフォーム等)は false のままで通常通り setKinematicTarget を使う。
-    bool m_weldKinematic = false;
 
     BaseCube(Vector3 Pos, Vector3 Sz);
     virtual ~BaseCube();
 
     virtual PhysicsShape getPhysicsShape() const { return PhysicsShape::Box; }
-    virtual std::vector<physx::PxVec3> getConvexVertices() const { return {}; }
+    virtual std::vector<Vector3> getConvexVertices() const { return {}; }
 
     // ハイライト描画(塗り+輪郭)用にジオメトリのVAO/インデックス数を返す。
     // 描画可能なジオメトリがなければ0を返す(MeshCube未ロード時など)

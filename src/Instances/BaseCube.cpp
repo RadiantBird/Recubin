@@ -105,8 +105,7 @@ void BaseCube::onAncestorChanged() {
             if (lastWorkspace->physicsEngine) {
                 lastWorkspace->physicsEngine->removeCube(std::static_pointer_cast<BaseCube>(shared_from_this()));
             } else {
-                // physicsEngine が nullptr の場合、actor は Physics::~Physics() で解放済み
-                actor = nullptr;
+                // physicsEngine が nullptr の場合、backend body は Physics::~Physics() で解放済み
             }
         }
         lastWorkspace = nullptr;
@@ -189,18 +188,8 @@ void BaseCube::teleportTo(Vector3 localPos) {
 
 BaseCube::~BaseCube() {
     // RCBN_LOG("BaseCube Destructor: " << this->Name);
-    if (actor) {
-        // 重要：レイキャスト等での逆引きを無効化するため、まず userData をクリアする
-        actor->userData = nullptr;
-
-        // Physics 側で actor を参照している可能性があるため（Physics::cubes など）、
-        // 基本的には Physics::update のクリーンアップループに任せるのが安全。
-        // ただし、物理エンジン自体が存在しない場合（終了時など）は、ここで明示的に解放する。
-        if (!lastWorkspace || !lastWorkspace->physicsEngine) {
-            actor->release();
-            actor = nullptr;
-        }
-    }
+    // backend body の所有権と逆引き情報は、登録元の Physics が一元的に破棄する。
+    if (m_physicsOwner) m_physicsOwner->onCubeDestroyed(*this);
 }
 unsigned int BaseCube::getDecalTexture(Face face, unsigned int fallback) const {
     for (auto const& [name, child] : children) {

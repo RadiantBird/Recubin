@@ -23,7 +23,7 @@ public:
     std::shared_ptr<Instance> clone() const override;
 
     PhysicsShape getPhysicsShape() const override { return PhysicsShape::ConvexMesh; }
-    std::vector<physx::PxVec3> getConvexVertices() const override;
+    std::vector<Vector3> getConvexVertices() const override;
 
     unsigned int getHighlightVAO() const override { return s_VAO; }
     unsigned int getHighlightIndexCount() const override { return (unsigned int)s_IndexCount; }

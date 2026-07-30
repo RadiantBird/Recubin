@@ -181,8 +181,8 @@ std::shared_ptr<Instance> Cylinder::clone() const {
     return copy;
 }
 
-std::vector<physx::PxVec3> Cylinder::getConvexVertices() const {
-    std::vector<physx::PxVec3> verts;
+std::vector<Vector3> Cylinder::getConvexVertices() const {
+    std::vector<Vector3> verts;
     for (int i = 0; i < CYL_SEG; ++i) {
         float a = 2.f * CYL_PI * i / CYL_SEG;
         float x = 0.5f * std::cos(a);

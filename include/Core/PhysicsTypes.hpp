@@ -2,6 +2,22 @@
 
 #include <cstdint>
 
+struct PhysicsBodyHandle {
+    std::uint64_t value = 0;
+
+    explicit constexpr operator bool() const {
+        return value != 0;
+    }
+
+    friend constexpr bool operator==(PhysicsBodyHandle lhs, PhysicsBodyHandle rhs) {
+        return lhs.value == rhs.value;
+    }
+
+    friend constexpr bool operator!=(PhysicsBodyHandle lhs, PhysicsBodyHandle rhs) {
+        return !(lhs == rhs);
+    }
+};
+
 enum class PhysicsLockFlags : std::uint8_t {
     None     = 0,
     LinearX  = 1u << 0,
