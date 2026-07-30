@@ -218,11 +218,12 @@ void TerrainStreamer::enqueueJob(Job&& job) {
 }
 
 void TerrainStreamer::releaseChunkResources(Chunk& chunk) {
-    if (chunk.physicsActor) {
+    if (chunk.physicsHandle) {
         Physics* phys = getPhysics();
-        if (phys && phys->getScene()) phys->getScene()->removeActor(*chunk.physicsActor);
-        chunk.physicsActor->release();
-        chunk.physicsActor = nullptr;
+        if (phys && phys->isAvailable()) {
+            phys->destroyTerrain(chunk.physicsHandle);
+            chunk.physicsHandle = {};
+        }
     }
     if (chunk.mesh.VAO) { glDeleteVertexArrays(1, &chunk.mesh.VAO); chunk.mesh.VAO = 0; }
     if (chunk.mesh.VBO) { glDeleteBuffers(1, &chunk.mesh.VBO);      chunk.mesh.VBO = 0; }
@@ -329,9 +330,7 @@ void TerrainStreamer::rebuildIfDirty(ChunkEntry& entry)
     buildChunkMesh(entry.chunk, this);
     Physics* phys = getPhysics();
     if (phys) {
-        buildChunkPhysics(entry.chunk, *phys);
-        // レイキャストで地形だと識別できるよう、アクターに Terrain インスタンスを紐づける
-        if (entry.chunk.physicsActor) entry.chunk.physicsActor->userData = m_owner;
+        buildChunkPhysics(entry.chunk, *phys, m_owner);
     }
 }
 

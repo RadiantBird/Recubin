@@ -69,6 +69,7 @@ private:
         physx::PxJoint* joint = nullptr;
     };
     std::vector<ConstraintEntry> m_constraints;
+    std::set<physx::PxRigidStatic*> m_terrainActors;
 
     struct NoCollisionEntry {
         std::weak_ptr<Instance> inst;   // NoCollision インスタンス
@@ -161,8 +162,9 @@ public:
     void setGravity(const Vector3& g) override;
     Vector3 getGravity() const override;
 
-    // ---- Terrain 用アクセサ ----
-    // buildChunkPhysics() から呼ばれる。
-    physx::PxScene* getScene() const;
-    static physx::PxPhysics* GetPhysics();
+    PhysicsTerrainHandle createTerrain(const PhysicsTerrainDescriptor& descriptor) override;
+    PhysicsTerrainHandle replaceTerrain(
+        PhysicsTerrainHandle oldHandle,
+        const PhysicsTerrainDescriptor& descriptor) override;
+    void destroyTerrain(PhysicsTerrainHandle handle) override;
 };

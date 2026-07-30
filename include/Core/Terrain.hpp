@@ -1,6 +1,6 @@
 #pragma once
 #include <include/GL/glew.h>
-#include <include/PhysX/PxPhysicsAPI.h>
+#include <include/Core/PhysicsTypes.hpp>
 #include <include/Math/Vector3.hpp>
 #include <cstdint>
 #include <vector>
@@ -64,23 +64,23 @@ struct TerrainMesh {
 
 static constexpr int CHUNK_SIZE = 16;
 
-// ramp/top-wedge ブロックは凸包(convex)で当たり判定を作る。shape と中心ワールド座標を保持。
+// Cube 以外のブロックは凸包で当たり判定を作る。中心はチャンク原点基準。
 struct ConvexBlock {
     uint8_t shape;
-    float   cx, cy, cz;
+    Vector3 localCenter;
 };
 
 struct Chunk {
     Block   blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE]; // [x][y][z]  約20KB
     int32_t cx = 0, cy = 0, cz = 0;
     TerrainMesh mesh;
-    physx::PxRigidStatic* physicsActor = nullptr;
+    PhysicsTerrainHandle physicsHandle;
 
     // CPU 側の物理メッシュキャッシュ
     // buildChunkMesh() が描画頂点と同時に埋め、buildChunkPhysics() が参照する。
-    std::vector<physx::PxVec3> physVerts;
+    std::vector<Vector3>       physVerts;
     std::vector<uint32_t>      physIndices;
-    std::vector<ConvexBlock>   physConvexBlocks; // ramp/wedge の凸包配置
+    std::vector<ConvexBlock>   physConvexBlocks;
 
     int32_t worldOriginX() const { return cx * CHUNK_SIZE; }
     int32_t worldOriginY() const { return cy * CHUNK_SIZE; }
@@ -92,15 +92,16 @@ struct Chunk {
 // ------------------------------------------------------------------ //
 class Physics;
 class TerrainStreamer;
+class Instance;
 
 // チャンクの描画メッシュを（再）生成して VAO/VBO/EBO をアップロードする。
 // 同時に physVerts / physIndices を埋める。
 // OpenGL コンテキストが有効なスレッドから呼ぶこと。
 void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer = nullptr);
 
-// チャンクの物理 actor を（再）生成して PhysX シーンに追加する。
+// チャンクの物理形状を（再）生成する。
 // buildChunkMesh() の後に呼ぶこと（physVerts/physIndices を参照するため）。
-void buildChunkPhysics(Chunk& chunk, Physics& physics);
+void buildChunkPhysics(Chunk& chunk, Physics& physics, Instance* userData = nullptr);
 
 #include <Instances/Instance.hpp>
 #include <memory>

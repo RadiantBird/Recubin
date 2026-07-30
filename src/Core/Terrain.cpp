@@ -301,23 +301,29 @@ static bool getRampConvexVertexIndices(BlockShape shape, int out[6])
     return true;
 }
 
-static bool isTopWedgeShape(BlockShape shape)
+static int getConvexVertexIndices(BlockShape shape, int out[8])
 {
-    return shape >= BlockShape::Wedge_TopNE && shape <= BlockShape::Wedge_TopSW;
-}
+    int rampIndices[6];
+    if (getRampConvexVertexIndices(shape, rampIndices)) {
+        for (int i = 0; i < 6; ++i) out[i] = rampIndices[i];
+        return 6;
+    }
 
-static bool getTopWedgeConvexVertexIndices(BlockShape shape, int out[7])
-{
-    static const int WEDGE_VERTS[4][7] = {
-        {0, 1, 2, 3, 4, 5, 6},
-        {0, 1, 2, 3, 5, 6, 7},
-        {0, 1, 2, 3, 4, 6, 7},
-        {0, 1, 2, 3, 4, 5, 7},
-    };
-    if (!isTopWedgeShape(shape)) return false;
-    const int wedgeIndex = (int)shape - (int)BlockShape::Wedge_TopNE;
-    for (int i = 0; i < 7; i++) out[i] = WEDGE_VERTS[wedgeIndex][i];
-    return true;
+    const uint8_t shapeIndex = static_cast<uint8_t>(shape);
+    if (shapeIndex >= sizeof(SHAPE_TRIS) / sizeof(SHAPE_TRIS[0])) return 0;
+    const int* triangles = SHAPE_TRIS[shapeIndex];
+    const int triangleIndexCount = SHAPE_TRI_COUNTS[shapeIndex];
+    if (!triangles || triangleIndexCount == 0) return 0;
+
+    bool used[8] = {};
+    int count = 0;
+    for (int i = 0; i < triangleIndexCount; ++i) {
+        const int vertexIndex = triangles[i];
+        if (vertexIndex < 0 || vertexIndex >= 8 || used[vertexIndex]) continue;
+        used[vertexIndex] = true;
+        out[count++] = vertexIndex;
+    }
+    return count;
 }
 
 static void calcNormal(const float* a, const float* b, const float* c,
@@ -351,14 +357,20 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
 {
     std::vector<TerrainVertex>    verts;
     std::vector<uint32_t>         indices;
-    std::vector<physx::PxVec3>    physVerts;
+    std::vector<Vector3>          physVerts;
     std::vector<uint32_t>         physIndices;
-    std::vector<ConvexBlock>      physConvexBlocks; // ramp/top-wedge の凸包
+    std::vector<ConvexBlock>      physConvexBlocks;
 
     verts.reserve(4096);
     indices.reserve(8192);
     physVerts.reserve(4096);
     physIndices.reserve(8192);
+
+    static constexpr float BS = TerrainStreamer::BLOCK_STUD_SIZE;
+    const Vector3 chunkOriginStuds(
+        static_cast<float>(chunk.worldOriginX()) * BS,
+        static_cast<float>(chunk.worldOriginY()) * BS,
+        static_cast<float>(chunk.worldOriginZ()) * BS);
 
     for (int x = 0; x < CHUNK_SIZE; x++)
     for (int y = 0; y < CHUNK_SIZE; y++)
@@ -371,7 +383,6 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
         const uint8_t fg = blk.g;
         const uint8_t fb = blk.b;
 
-        static constexpr float BS  = TerrainStreamer::BLOCK_STUD_SIZE; // 1ブロックのサイズ (studs)
         static constexpr float BHS = BS * 0.5f; // ブロック半サイズ
 
         const float ox = (float)(chunk.worldOriginX() + x) * BS;
@@ -401,7 +412,10 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
                         (vi==0||vi==3)?0.0f:1.0f,
                         (vi<2)?0.0f:1.0f,
                         fr, fg, fb);
-                    physVerts.push_back({wx, wy, wz});
+                    physVerts.emplace_back(
+                        wx - chunkOriginStuds.x,
+                        wy - chunkOriginStuds.y,
+                        wz - chunkOriginStuds.z);
                 }
                 // 描画用
                 indices.push_back(base+0); indices.push_back(base+1); indices.push_back(base+2);
@@ -416,10 +430,13 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
             const int*  tris  = SHAPE_TRIS[shapeIdx];
             const int   count = SHAPE_TRI_COUNTS[shapeIdx];
             if (!tris || count == 0) continue;
-            const bool useConvexPhysics = isTopWedgeShape(blk.shape);
-            if (useConvexPhysics) {
-                physConvexBlocks.push_back({ shapeIdx, ox, oy, oz });
-            }
+            physConvexBlocks.push_back({
+                shapeIdx,
+                Vector3(
+                    ox - chunkOriginStuds.x,
+                    oy - chunkOriginStuds.y,
+                    oz - chunkOriginStuds.z)
+            });
 
             for (int ti = 0; ti + 2 < count; ti += 3)
             {
@@ -435,18 +452,9 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
                 calcNormal(wa, wb, wc, nx, ny, nz);
 
                 const uint32_t base     = (uint32_t)verts.size();
-                const uint32_t physBase = (uint32_t)physVerts.size();
-
                 pushVertex(verts, wa[0],wa[1],wa[2], nx,ny,nz, 0.0f,0.0f, fr,fg,fb);
                 pushVertex(verts, wb[0],wb[1],wb[2], nx,ny,nz, 1.0f,0.0f, fr,fg,fb);
                 pushVertex(verts, wc[0],wc[1],wc[2], nx,ny,nz, 0.5f,1.0f, fr,fg,fb);
-
-                if (!useConvexPhysics) {
-                    physVerts.push_back({wa[0], wa[1], wa[2]});
-                    physVerts.push_back({wb[0], wb[1], wb[2]});
-                    physVerts.push_back({wc[0], wc[1], wc[2]});
-                    physIndices.push_back(physBase+0); physIndices.push_back(physBase+1); physIndices.push_back(physBase+2);
-                }
 
                 indices.push_back(base+0); indices.push_back(base+1); indices.push_back(base+2);
             }
@@ -472,7 +480,13 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
             };
 
             // 当たり判定は凸包で作る（三角形物理は出さない）
-            physConvexBlocks.push_back({ shapeIdx, ox, oy, oz });
+            physConvexBlocks.push_back({
+                shapeIdx,
+                Vector3(
+                    ox - chunkOriginStuds.x,
+                    oy - chunkOriginStuds.y,
+                    oz - chunkOriginStuds.z)
+            });
 
             const RampGeom& rg = RAMP_GEOM[(int)blk.shape - (int)BlockShape::Ramp_N];
             // 斜面（常時）
@@ -540,99 +554,40 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
 //  buildChunkPhysics
 // ================================================================== //
 #include <include/Core/Physics.hpp>
-#include <include/PhysX/cooking/PxCooking.h>
-#include <unordered_map>
 
-// 形状ごとの「単位 convex」をブロックローカル空間で1回だけ cook してキャッシュする。
-// （メインスレッド専用＝buildChunkPhysics からのみ呼ばれる）
-static physx::PxConvexMesh* getUnitConvexMesh(BlockShape shape)
+void buildChunkPhysics(Chunk& chunk, Physics& physics, Instance* userData)
 {
-    static std::unordered_map<int, physx::PxConvexMesh*> s_cache;
-    const int key = (int)shape;
-    auto it = s_cache.find(key);
-    if (it != s_cache.end()) return it->second;
+    PhysicsTerrainDescriptor descriptor;
+    descriptor.origin = Vector3(
+        static_cast<float>(chunk.worldOriginX()) * TerrainStreamer::BLOCK_STUD_SIZE,
+        static_cast<float>(chunk.worldOriginY()) * TerrainStreamer::BLOCK_STUD_SIZE,
+        static_cast<float>(chunk.worldOriginZ()) * TerrainStreamer::BLOCK_STUD_SIZE);
+    descriptor.vertices = chunk.physVerts;
+    descriptor.indices = chunk.physIndices;
+    descriptor.userData = userData;
 
     static constexpr float BHS = TerrainStreamer::BLOCK_STUD_SIZE * 0.5f;
-    int idx[7];
-    int count = 0;
-    if (getTopWedgeConvexVertexIndices(shape, idx))      count = 7;
-    else if (getRampConvexVertexIndices(shape, idx))     count = 6;
-    else { s_cache[key] = nullptr; return nullptr; }
-
-    std::vector<physx::PxVec3> pts;
-    pts.reserve(count);
-    for (int i = 0; i < count; i++) {
-        const float* lv = BASE_VERTS[idx[i]];
-        pts.push_back({ lv[0]*BHS, lv[1]*BHS, lv[2]*BHS });
-    }
-
-    physx::PxConvexMeshDesc desc;
-    desc.points.count  = (physx::PxU32)pts.size();
-    desc.points.stride = sizeof(physx::PxVec3);
-    desc.points.data   = pts.data();
-    desc.flags         = physx::PxConvexFlag::eCOMPUTE_CONVEX;
-
-    physx::PxCookingParams cookParams(Physics::GetPhysics()->getTolerancesScale());
-    physx::PxConvexMesh* cm = PxCreateConvexMesh(cookParams, desc);
-    s_cache[key] = cm;
-    return cm;
-}
-
-void buildChunkPhysics(Chunk& chunk, Physics& physics)
-{
-    // 既存アクターを破棄
-    if (chunk.physicsActor) {
-        physics.getScene()->removeActor(*chunk.physicsActor);
-        chunk.physicsActor->release();
-        chunk.physicsActor = nullptr;
-    }
-
-    const bool hasTriMesh = !chunk.physVerts.empty() && !chunk.physIndices.empty();
-    const bool hasConvex  = !chunk.physConvexBlocks.empty();
-    if (!hasTriMesh && !hasConvex) return;
-
-    physx::PxCookingParams cookParams(Physics::GetPhysics()->getTolerancesScale());
-    physx::PxMaterial* mat = Physics::GetPhysics()->createMaterial(0.5f, 0.5f, 0.2f);
-    physx::PxRigidStatic* actor = Physics::GetPhysics()->createRigidStatic(
-        physx::PxTransform(physx::PxIdentity)
-    );
-
-    // --- Cube 由来の三角形メッシュ ---
-    if (hasTriMesh) {
-        physx::PxTriangleMeshDesc desc;
-        desc.points.data     = chunk.physVerts.data();
-        desc.points.count    = static_cast<physx::PxU32>(chunk.physVerts.size());
-        desc.points.stride   = sizeof(physx::PxVec3);
-        desc.triangles.data  = chunk.physIndices.data();
-        desc.triangles.count = static_cast<physx::PxU32>(chunk.physIndices.size() / 3);
-        desc.triangles.stride = sizeof(uint32_t) * 3;
-
-        physx::PxDefaultMemoryOutputStream buf;
-        if (PxCookTriangleMesh(cookParams, desc, buf)) {
-            physx::PxDefaultMemoryInputData input(buf.getData(), buf.getSize());
-            physx::PxTriangleMesh* triMesh = Physics::GetPhysics()->createTriangleMesh(input);
-            if (triMesh) {
-                physx::PxTriangleMeshGeometry geom(triMesh);
-                geom.meshFlags = physx::PxMeshGeometryFlag::eDOUBLE_SIDED;
-                physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *mat);
-                triMesh->release();
-            }
-        }
-    }
-
-    // --- ramp/top-wedge 由来の convex（キャッシュした単位 convex をブロック中心へ配置）---
+    descriptor.hulls.reserve(chunk.physConvexBlocks.size());
     for (const ConvexBlock& cb : chunk.physConvexBlocks) {
-        physx::PxConvexMesh* cm = getUnitConvexMesh((BlockShape)cb.shape);
-        if (!cm) continue;
-        physx::PxConvexMeshGeometry geom(cm);
-        physx::PxShape* shape = physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *mat);
-        if (shape) shape->setLocalPose(physx::PxTransform(physx::PxVec3(cb.cx, cb.cy, cb.cz)));
+        int vertexIndices[8];
+        const int vertexCount =
+            getConvexVertexIndices(static_cast<BlockShape>(cb.shape), vertexIndices);
+        if (vertexCount < 4) continue;
+
+        PhysicsTerrainHullDescriptor hull;
+        hull.localFrame = CFrame(cb.localCenter);
+        hull.vertices.reserve(vertexCount);
+        for (int i = 0; i < vertexCount; ++i) {
+            const float* localVertex = BASE_VERTS[vertexIndices[i]];
+            hull.vertices.emplace_back(
+                localVertex[0] * BHS,
+                localVertex[1] * BHS,
+                localVertex[2] * BHS);
+        }
+        descriptor.hulls.push_back(std::move(hull));
     }
 
-    physics.getScene()->addActor(*actor);
-    mat->release();
-
-    chunk.physicsActor = actor;
+    chunk.physicsHandle = physics.replaceTerrain(chunk.physicsHandle, descriptor);
 }
 
 // ================================================================== //

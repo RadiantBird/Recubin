@@ -170,15 +170,18 @@ Vector3 Physics::getGravity() const {
     return isAvailable() ? m_backend->getGravity() : Vector3();
 }
 
-physx::PxScene* Physics::getScene() const {
-    if (!isAvailable() || m_backendType != PhysicsBackendType::PhysX) return nullptr;
-    return static_cast<PhysXPhysicsBackend*>(m_backend.get())->getScene();
+PhysicsTerrainHandle Physics::createTerrain(const PhysicsTerrainDescriptor& descriptor) {
+    return isAvailable() ? m_backend->createTerrain(descriptor) : PhysicsTerrainHandle{};
 }
 
-physx::PxPhysics* Physics::GetPhysics() {
-    return s_requestedBackend == PhysicsBackendType::PhysX
-        ? PhysXPhysicsBackend::GetPhysics()
-        : nullptr;
+PhysicsTerrainHandle Physics::replaceTerrain(
+    PhysicsTerrainHandle oldHandle,
+    const PhysicsTerrainDescriptor& descriptor) {
+    return isAvailable() ? m_backend->replaceTerrain(oldHandle, descriptor) : oldHandle;
+}
+
+void Physics::destroyTerrain(PhysicsTerrainHandle handle) {
+    if (isAvailable()) m_backend->destroyTerrain(handle);
 }
 
 #undef RCBN_PHYSICS_VOID

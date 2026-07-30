@@ -38,6 +38,17 @@ PhysicsBodyHandle makeBodyHandle(physx::PxRigidActor* actor) {
     };
 }
 
+physx::PxRigidStatic* getTerrainActor(PhysicsTerrainHandle handle) {
+    return reinterpret_cast<physx::PxRigidStatic*>(
+        static_cast<std::uintptr_t>(handle.value));
+}
+
+PhysicsTerrainHandle makeTerrainHandle(physx::PxRigidStatic* actor) {
+    return PhysicsTerrainHandle{
+        static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(actor))
+    };
+}
+
 void setActor(PhysicsBodyHandle& handle, physx::PxRigidActor* actor) {
     handle = makeBodyHandle(actor);
 }
@@ -323,15 +334,13 @@ PhysicsBackendType PhysXPhysicsBackend::getType() const {
     return PhysicsBackendType::PhysX;
 }
 
-physx::PxScene* PhysXPhysicsBackend::getScene() const {
-    return scene;
-}
-
-physx::PxPhysics* PhysXPhysicsBackend::GetPhysics() {
-    return s_pxPhysics;
-}
-
 PhysXPhysicsBackend::~PhysXPhysicsBackend() {
+    for (physx::PxRigidStatic* actor : m_terrainActors) {
+        if (scene) scene->removeActor(*actor);
+        actor->release();
+    }
+    m_terrainActors.clear();
+
     if (scene) {
         // 制約ジョイントを先にリリース
         for (auto& entry : m_constraints) {
@@ -383,6 +392,128 @@ PhysXPhysicsBackend::~PhysXPhysicsBackend() {
         if (s_pxPhysics)  { s_pxPhysics->release();  s_pxPhysics  = nullptr; }
         if (s_foundation) { s_foundation->release();  s_foundation = nullptr; }
     }
+}
+
+PhysicsTerrainHandle PhysXPhysicsBackend::createTerrain(
+    const PhysicsTerrainDescriptor& descriptor) {
+    if (!scene || !s_pxPhysics) return {};
+
+    physx::PxRigidStatic* actor = s_pxPhysics->createRigidStatic(
+        physx::PxTransform(
+            physx::PxVec3(descriptor.origin.x, descriptor.origin.y, descriptor.origin.z)));
+    if (!actor) return {};
+
+    physx::PxMaterial* material = s_pxPhysics->createMaterial(
+        descriptor.staticFriction,
+        descriptor.dynamicFriction,
+        descriptor.restitution);
+    if (!material) {
+        actor->release();
+        return {};
+    }
+
+    const physx::PxCookingParams cookingParams(s_pxPhysics->getTolerancesScale());
+    std::size_t shapeCount = 0;
+
+    const bool triangleDataValid =
+        descriptor.vertices.size() >= 3 &&
+        descriptor.indices.size() >= 3 &&
+        descriptor.indices.size() % 3 == 0 &&
+        std::all_of(
+            descriptor.indices.begin(),
+            descriptor.indices.end(),
+            [&descriptor](std::uint32_t index) {
+                return index < descriptor.vertices.size();
+            });
+    if (triangleDataValid) {
+        const std::vector<physx::PxVec3> vertices = toPxVertices(descriptor.vertices);
+        physx::PxTriangleMeshDesc meshDescriptor;
+        meshDescriptor.points.data = vertices.data();
+        meshDescriptor.points.count = static_cast<physx::PxU32>(vertices.size());
+        meshDescriptor.points.stride = sizeof(physx::PxVec3);
+        meshDescriptor.triangles.data = descriptor.indices.data();
+        meshDescriptor.triangles.count =
+            static_cast<physx::PxU32>(descriptor.indices.size() / 3);
+        meshDescriptor.triangles.stride = sizeof(std::uint32_t) * 3;
+
+        physx::PxTriangleMesh* mesh = meshDescriptor.isValid()
+            ? PxCreateTriangleMesh(cookingParams, meshDescriptor)
+            : nullptr;
+        if (mesh) {
+            physx::PxTriangleMeshGeometry geometry(mesh);
+            geometry.meshFlags = physx::PxMeshGeometryFlag::eDOUBLE_SIDED;
+            if (physx::PxRigidActorExt::createExclusiveShape(*actor, geometry, *material))
+                ++shapeCount;
+            mesh->release();
+        }
+    }
+
+    for (const PhysicsTerrainHullDescriptor& hull : descriptor.hulls) {
+        if (hull.vertices.size() < 4) continue;
+
+        const std::vector<physx::PxVec3> vertices = toPxVertices(hull.vertices);
+        physx::PxConvexMeshDesc hullDescriptor;
+        hullDescriptor.points.data = vertices.data();
+        hullDescriptor.points.count = static_cast<physx::PxU32>(vertices.size());
+        hullDescriptor.points.stride = sizeof(physx::PxVec3);
+        hullDescriptor.flags = physx::PxConvexFlag::eCOMPUTE_CONVEX;
+
+        physx::PxConvexMesh* mesh = hullDescriptor.isValid()
+            ? PxCreateConvexMesh(cookingParams, hullDescriptor)
+            : nullptr;
+        if (!mesh) continue;
+
+        physx::PxConvexMeshGeometry geometry(mesh);
+        physx::PxShape* shape =
+            physx::PxRigidActorExt::createExclusiveShape(*actor, geometry, *material);
+        if (shape) {
+            shape->setLocalPose(toPxTransform(hull.localFrame));
+            ++shapeCount;
+        }
+        mesh->release();
+    }
+
+    material->release();
+    if (shapeCount == 0) {
+        actor->release();
+        return {};
+    }
+
+    actor->userData = descriptor.userData;
+    scene->addActor(*actor);
+    m_terrainActors.insert(actor);
+    return makeTerrainHandle(actor);
+}
+
+PhysicsTerrainHandle PhysXPhysicsBackend::replaceTerrain(
+    PhysicsTerrainHandle oldHandle,
+    const PhysicsTerrainDescriptor& descriptor) {
+    const bool empty =
+        descriptor.vertices.empty() &&
+        descriptor.indices.empty() &&
+        descriptor.hulls.empty();
+    if (empty) {
+        destroyTerrain(oldHandle);
+        return {};
+    }
+
+    const PhysicsTerrainHandle newHandle = createTerrain(descriptor);
+    if (!newHandle) return oldHandle;
+
+    destroyTerrain(oldHandle);
+    return newHandle;
+}
+
+void PhysXPhysicsBackend::destroyTerrain(PhysicsTerrainHandle handle) {
+    physx::PxRigidStatic* actor = getTerrainActor(handle);
+    if (!actor) return;
+
+    const auto it = m_terrainActors.find(actor);
+    if (it == m_terrainActors.end()) return;
+    m_terrainActors.erase(it);
+
+    if (scene) scene->removeActor(*actor);
+    actor->release();
 }
 
 void PhysXPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {

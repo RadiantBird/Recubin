@@ -74,4 +74,10 @@ public:
 
     virtual void setGravity(const Vector3& gravity) = 0;
     virtual Vector3 getGravity() const = 0;
+
+    virtual PhysicsTerrainHandle createTerrain(const PhysicsTerrainDescriptor& descriptor) = 0;
+    virtual PhysicsTerrainHandle replaceTerrain(
+        PhysicsTerrainHandle oldHandle,
+        const PhysicsTerrainDescriptor& descriptor) = 0;
+    virtual void destroyTerrain(PhysicsTerrainHandle handle) = 0;
 };

@@ -4,11 +4,6 @@
 #include <functional>
 #include <memory>
 
-namespace physx {
-class PxPhysics;
-class PxScene;
-}
-
 class Physics {
 private:
     static PhysicsBackendType s_requestedBackend;
@@ -71,6 +66,9 @@ public:
     void setGravity(const Vector3& gravity);
     Vector3 getGravity() const;
 
-    physx::PxScene* getScene() const;
-    static physx::PxPhysics* GetPhysics();
+    PhysicsTerrainHandle createTerrain(const PhysicsTerrainDescriptor& descriptor);
+    PhysicsTerrainHandle replaceTerrain(
+        PhysicsTerrainHandle oldHandle,
+        const PhysicsTerrainDescriptor& descriptor);
+    void destroyTerrain(PhysicsTerrainHandle handle);
 };

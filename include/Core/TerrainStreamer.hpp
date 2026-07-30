@@ -38,7 +38,7 @@ public:
     std::string terrainDir = "terrain";
 
     // owner: このストリーマーを所有する Terrain インスタンス。
-    // チャンクの物理アクターの userData に設定し、レイキャストで地形だと識別できるようにする。
+    // チャンクの物理オブジェクトの userData に設定し、レイキャストで地形だと識別できるようにする。
     TerrainStreamer(Workspace* workspace, Instance* owner = nullptr, const std::string& dataDir = "terrain",
                     uint32_t seed = 12345u, bool flat = false);
 
@@ -120,7 +120,7 @@ public:
 
 private:
     Workspace* m_workspace; // 所有しない、ライフタイムは呼び出し元が管理
-    Instance*  m_owner;     // 所有しない。物理アクターの userData に設定する Terrain インスタンス
+    Instance*  m_owner;     // 所有しない。物理オブジェクトの userData に設定する Terrain インスタンス
     PerlinNoise m_noise;
     bool        m_flat = false; // true なら平坦地形を生成
 
@@ -214,7 +214,7 @@ private:
     void enqueueJob(Job&& job);
 
     // ==== メインスレッド側 ====
-    void releaseChunkResources(Chunk& chunk); // GL/PhysX を解放（メイン）
+    void releaseChunkResources(Chunk& chunk); // GL/物理リソースを解放（メイン）
     void rebuildIfDirty(ChunkEntry& entry);   // mesh/physics をビルド（メイン）
 
     // ノイズから列(wx,wz)の地表Y座標を直接計算する（ブロック未生成時のフォールバック用。const読取りでスレッド安全）

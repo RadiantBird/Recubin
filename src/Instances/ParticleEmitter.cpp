@@ -122,12 +122,12 @@ void ParticleEmitter::buildCutoffContext(CutoffContext& ctx) {
         break;
     }
 
-    // Physicsオブジェクトとシーンはエディタ中も存在するが、キューブアクターはPlay中しか
-    // 揃わない（編集中はプロパティ変更で部分的に生成されるだけ）ため、Play中のみPhysXを採用する
+    // Physicsオブジェクトはエディタ中も存在するが、キューブbodyはPlay中しか
+    // 揃わない（編集中はプロパティ変更で部分的に生成されるだけ）ため、Play中のみphysicsを採用する
     Physics* physics = workspace->getPhysicsEngine();
-    if (physics && physics->getScene() && SystemState::get().isPlaying) ctx.physics = physics;
+    if (physics && physics->isAvailable() && SystemState::get().isPlaying) ctx.physics = physics;
 
-    // PhysXシーンが無い間（エディタ編集中）はBaseCubeへのOBBレイキャストで代用する
+    // physicsが使えない間（エディタ編集中）はBaseCubeへのOBBレイキャストで代用する
     if (!ctx.physics) {
         auto collect = [&](auto& self, Instance* inst) -> void {
             if (inst->IsA("BaseCube")) {

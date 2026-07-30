@@ -1,6 +1,11 @@
 #pragma once
 
+#include <include/Math/CFrame.hpp>
+#include <include/Math/Vector3.hpp>
 #include <cstdint>
+#include <vector>
+
+class Instance;
 
 enum class PhysicsBackendType {
     PhysX,
@@ -58,6 +63,22 @@ struct PhysicsTerrainHandle {
     friend constexpr bool operator!=(PhysicsTerrainHandle lhs, PhysicsTerrainHandle rhs) {
         return !(lhs == rhs);
     }
+};
+
+struct PhysicsTerrainHullDescriptor {
+    std::vector<Vector3> vertices;
+    CFrame localFrame;
+};
+
+struct PhysicsTerrainDescriptor {
+    Vector3 origin;
+    std::vector<Vector3> vertices;
+    std::vector<std::uint32_t> indices;
+    std::vector<PhysicsTerrainHullDescriptor> hulls;
+    Instance* userData = nullptr;
+    float staticFriction = 0.5f;
+    float dynamicFriction = 0.5f;
+    float restitution = 0.2f;
 };
 
 enum class PhysicsLockFlags : std::uint8_t {
