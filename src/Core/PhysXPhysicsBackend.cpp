@@ -1111,6 +1111,7 @@ void PhysXPhysicsBackend::applyForces() {
 void PhysXPhysicsBackend::stepOnce(float dt) {
     const float fixedStep = 1.0f / 60.0f;
     const int MAX_STEPS = 10;
+    constexpr float DISTANCE_TOLERANCE = 0.005f;
 
     if (dt > 0.25f) dt = 0.25f;
 
@@ -1121,6 +1122,78 @@ void PhysXPhysicsBackend::stepOnce(float dt) {
 
     int steps = 0;
     while (m_accumulator >= fixedStep) {
+        // PxDistanceJoint の spring flag は距離上限そのものを soft constraint にするため、
+        // Rope の hard max joint とは分離して張力だけを明示的に加える。
+        for (auto& entry : m_constraints) {
+            auto constraint = entry.constraint.lock();
+            if (!constraint || !constraint->IsA("Rope") || !entry.joint) continue;
+            auto rope = std::static_pointer_cast<Rope>(constraint);
+            const float stiffness = std::max(0.0f, rope->Stiffness);
+            const float damping = std::max(0.0f, rope->Damping);
+            if (stiffness <= 0.0f && damping <= 0.0f) continue;
+
+            auto* joint = static_cast<physx::PxDistanceJoint*>(entry.joint);
+            physx::PxRigidActor* actor0 = nullptr;
+            physx::PxRigidActor* actor1 = nullptr;
+            joint->getActors(actor0, actor1);
+            if (!actor0 || !actor1 || actor0 == actor1) continue;
+
+            const physx::PxVec3 anchor0 = actor0->getGlobalPose()
+                .transform(joint->getLocalPose(physx::PxJointActorIndex::eACTOR0)).p;
+            const physx::PxVec3 anchor1 = actor1->getGlobalPose()
+                .transform(joint->getLocalPose(physx::PxJointActorIndex::eACTOR1)).p;
+            const physx::PxVec3 delta = anchor1 - anchor0;
+            const float distanceSquared = delta.magnitudeSquared();
+            if (!std::isfinite(distanceSquared) ||
+                distanceSquared <= DISTANCE_TOLERANCE * DISTANCE_TOLERANCE) continue;
+
+            const float distance = std::sqrt(distanceSquared);
+            const float maximumDistance = joint->getMaxDistance();
+            // max より十分内側では完全に slack。ばね・減衰とも押し広げない。
+            if (distance < maximumDistance - DISTANCE_TOLERANCE) continue;
+            const physx::PxVec3 direction = delta / distance;
+
+            auto* dynamic0 = actor0->is<physx::PxRigidDynamic>();
+            auto* dynamic1 = actor1->is<physx::PxRigidDynamic>();
+            const bool movable0 = dynamic0 &&
+                !(dynamic0->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC);
+            const bool movable1 = dynamic1 &&
+                !(dynamic1->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC);
+            const float inverseMass0 = movable0 ? dynamic0->getInvMass() : 0.0f;
+            const float inverseMass1 = movable1 ? dynamic1->getInvMass() : 0.0f;
+            const float inverseMassSum = inverseMass0 + inverseMass1;
+            if (!(inverseMassSum > 0.0f) || !std::isfinite(inverseMassSum)) continue;
+            const float effectiveMass = 1.0f / inverseMassSum;
+
+            physx::PxVec3 velocity0(0.0f);
+            physx::PxVec3 velocity1(0.0f);
+            if (dynamic0)
+                velocity0 = physx::PxRigidBodyExt::getVelocityAtPos(*dynamic0, anchor0);
+            if (dynamic1)
+                velocity1 = physx::PxRigidBodyExt::getVelocityAtPos(*dynamic1, anchor1);
+            const float separatingSpeed = (velocity1 - velocity0).dot(direction);
+            const float extension = std::max(0.0f, distance - maximumDistance);
+
+            // approaching 時の減衰項は張力を減らすだけにし、負値を clamp することで
+            // Rope が圧縮力を発生して slack を押し広げることを防ぐ。
+            float tension = stiffness * extension + damping * separatingSpeed;
+            if (!std::isfinite(tension) || tension <= 0.0f) continue;
+
+            // 1 substep で許される相対速度/伸び補正を超えないよう有効質量で上限を置く。
+            const float stableLimit = effectiveMass * (
+                std::max(extension, DISTANCE_TOLERANCE) / (fixedStep * fixedStep) +
+                std::max(separatingSpeed, 0.0f) / fixedStep);
+            if (!std::isfinite(stableLimit) || stableLimit <= 0.0f) continue;
+            tension = std::min(tension, stableLimit);
+            const physx::PxVec3 force = direction * tension;
+            if (movable0)
+                physx::PxRigidBodyExt::addForceAtPos(
+                    *dynamic0, force, anchor0, physx::PxForceMode::eFORCE);
+            if (movable1)
+                physx::PxRigidBodyExt::addForceAtPos(
+                    *dynamic1, -force, anchor1, physx::PxForceMode::eFORCE);
+        }
+
         scene->simulate(fixedStep);
         scene->fetchResults(true);
 
@@ -1482,6 +1555,7 @@ void PhysXPhysicsBackend::createRope(const std::shared_ptr<Rope>& rope) {
     }
     if (actor0 != actor1 && !joint) return;
     if (joint) {
+        joint->setTolerance(0.005f);
         joint->setMaxDistance(descriptor.maxLength);
         joint->setMinDistance(descriptor.minLength);
         joint->setDistanceJointFlag(
@@ -1489,10 +1563,11 @@ void PhysXPhysicsBackend::createRope(const std::shared_ptr<Rope>& rope) {
         joint->setDistanceJointFlag(
             physx::PxDistanceJointFlag::eMIN_DISTANCE_ENABLED,
             descriptor.enableLimit && !descriptor.tensionOnly);
-        joint->setStiffness(descriptor.stiffness);
-        joint->setDamping(descriptor.damping);
+        // max distance は常に hard constraint。張力ばねは stepOnce() で別途適用する。
+        joint->setStiffness(0.0f);
+        joint->setDamping(0.0f);
         joint->setDistanceJointFlag(
-            physx::PxDistanceJointFlag::eSPRING_ENABLED, descriptor.enableSpring);
+            physx::PxDistanceJointFlag::eSPRING_ENABLED, false);
         joint->setConstraintFlag(
             physx::PxConstraintFlag::eCOLLISION_ENABLED, descriptor.collideConnected);
         joint->userData = descriptor.userData;
@@ -1547,6 +1622,7 @@ void PhysXPhysicsBackend::createRod(const std::shared_ptr<Rod>& rod) {
     }
     if (actor0 != actor1 && !joint) return;
     if (joint) {
+        joint->setTolerance(0.005f);
         joint->setMaxDistance(descriptor.maxLength);
         joint->setMinDistance(descriptor.minLength);
         joint->setDistanceJointFlag(
@@ -2134,11 +2210,16 @@ void PhysXPhysicsBackend::updateConstraint(
         if (!entry || !entry->joint) return;
 
         auto* joint = static_cast<physx::PxDistanceJoint*>(entry->joint);
-        joint->setMaxDistance(rope->MaxDistance);
-        joint->setStiffness(rope->Stiffness);
-        joint->setDamping(rope->Damping);
+        joint->setTolerance(0.005f);
+        joint->setMaxDistance(std::max(rope->MaxDistance, 0.005f));
         joint->setDistanceJointFlag(
-            physx::PxDistanceJointFlag::eSPRING_ENABLED, rope->Stiffness > 0.0f);
+            physx::PxDistanceJointFlag::eMAX_DISTANCE_ENABLED, true);
+        joint->setDistanceJointFlag(
+            physx::PxDistanceJointFlag::eMIN_DISTANCE_ENABLED, false);
+        joint->setStiffness(0.0f);
+        joint->setDamping(0.0f);
+        joint->setDistanceJointFlag(
+            physx::PxDistanceJointFlag::eSPRING_ENABLED, false);
         return;
     }
 
