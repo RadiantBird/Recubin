@@ -34,6 +34,19 @@
 #include <vector>
 
 namespace {
+const char* findSceneArgument(int argc, char* argv[], int startIndex) {
+    for (int i = startIndex; i < argc; ++i) {
+        const std::string_view argument(argv[i]);
+        if (argument == "--expect-error") {
+            ++i;
+            continue;
+        }
+        if (argument.starts_with("--")) continue;
+        return argv[i];
+    }
+    return nullptr;
+}
+
 void collectBaseCubes(const std::shared_ptr<Instance>& instance,
                       std::vector<std::shared_ptr<BaseCube>>& cubes) {
     if (!instance) return;
@@ -800,6 +813,7 @@ int runNatCodecRegression() {
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
+    if (!Physics::configureBackendFromCommandLine(argc, argv)) return -1;
 
     const bool weldRegression = argc > 1 && std::string_view(argv[1]) == "--weld-regression";
     const bool toolWeldRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-regression";
@@ -816,9 +830,10 @@ int main(int argc, char* argv[]) {
     if (humanoidPartRefRegression) return runHumanoidPartRefRegression();
     if (soundStretchRegression) return runSoundStretchRegression();
     if (natCodecRegression) return runNatCodecRegression();
-    std::string scenePath = weldRegression
-        ? ((argc > 2) ? argv[2] : "assets/scenes/_snapshot.yaml")
-        : ((argc > 1) ? argv[1] : "assets/scenes/test_bindings.yaml");
+    const char* sceneArgument = findSceneArgument(argc, argv, weldRegression ? 2 : 1);
+    std::string scenePath = sceneArgument
+        ? sceneArgument
+        : (weldRegression ? "assets/scenes/_snapshot.yaml" : "assets/scenes/test_bindings.yaml");
 
     std::vector<std::string> expectedErrors;
     for (int i = 2; i < argc; ++i) {

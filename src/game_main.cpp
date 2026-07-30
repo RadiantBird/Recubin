@@ -261,6 +261,7 @@ int main(int argc, char* argv[]) {
     //  ログやLuauのprint出力が文字化けする)
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
+    if (!Physics::configureBackendFromCommandLine(argc, argv)) return -1;
 
     GameConfig cfg = loadStartup();
 

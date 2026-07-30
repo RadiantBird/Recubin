@@ -7,6 +7,7 @@
 
 class SceneLoader;
 class Attachment;
+class PhysXPhysicsBackend;
 
 class Rope : public Instance {
     std::weak_ptr<BaseCube> m_cube0;
@@ -17,6 +18,7 @@ class Rope : public Instance {
     Workspace* m_lastWorkspace = nullptr;
 
     friend class Physics;
+    friend class PhysXPhysicsBackend;
     friend class SceneLoader;
     friend class Renderer;
 

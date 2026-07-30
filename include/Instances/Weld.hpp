@@ -6,6 +6,7 @@
 #include <vector>
 
 class SceneLoader;
+class PhysXPhysicsBackend;
 
 class Weld : public Instance {
     std::weak_ptr<BaseCube> m_cube0;
@@ -14,6 +15,7 @@ class Weld : public Instance {
     Workspace* m_lastWorkspace = nullptr;
 
     friend class Physics;
+    friend class PhysXPhysicsBackend;
     friend class SceneLoader;
     friend class Renderer;
 

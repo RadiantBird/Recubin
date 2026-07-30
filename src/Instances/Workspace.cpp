@@ -1,5 +1,6 @@
 #include <Instances/Workspace.hpp>
 #include <Core/Physics.hpp>
+#include <Util/Logger.hpp>
 #include <algorithm>
 
 void Workspace::registerScript(const std::shared_ptr<Instance>& s) {
@@ -68,5 +69,7 @@ void Workspace::initPhysics() {
     m_ownedPhysics = std::make_unique<Physics>();
     m_ownedPhysics->init();
     physicsEngine = m_ownedPhysics.get();
+    if (!m_ownedPhysics->isAvailable())
+        RCBN_ERROR("Workspace physics backend is unavailable");
 }
 

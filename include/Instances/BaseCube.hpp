@@ -11,12 +11,14 @@
 #include <vector>
 
 class Physics;
+class PhysXPhysicsBackend;
 class Workspace;
 
 enum class PhysicsShape { Box, Sphere, ConvexMesh };
 
 class BaseCube : public Spatial {
     friend class Physics;
+    friend class PhysXPhysicsBackend;
 
 private:
     PhysicsBodyHandle m_bodyHandle;
