@@ -5,7 +5,7 @@
 #include "include/Util/Logger.hpp"
 #include <cstring>
 
-PhysicsBackendType Physics::s_requestedBackend = PhysicsBackendType::PhysX;
+PhysicsBackendType Physics::s_requestedBackend = PhysicsBackendType::Box3D;
 std::function<void(BaseCube*, BaseCube*)> Physics::s_contactCallback;
 
 IPhysicsBackend::~IPhysicsBackend() = default;
@@ -22,7 +22,7 @@ Physics::~Physics() = default;
 
 bool Physics::configureBackendFromCommandLine(int argc, char* argv[]) {
     bool found = false;
-    PhysicsBackendType requested = PhysicsBackendType::PhysX;
+    PhysicsBackendType requested = PhysicsBackendType::Box3D;
 
     for (int i = 1; i < argc; ++i) {
         const char* argument = argv[i];
