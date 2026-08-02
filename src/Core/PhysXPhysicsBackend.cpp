@@ -2191,6 +2191,11 @@ void PhysXPhysicsBackend::createMotor(const std::shared_ptr<Motor>& motor) {
             physx::PxRevoluteJointFlag::eDRIVE_ENABLED, descriptor.enableMotor);
         joint->setDriveVelocity(descriptor.driveVelocity);
         joint->setDriveForceLimit(descriptor.maxTorque);
+        // Keep Motor's established public MaxForce contract stable across
+        // PhysX SDK versions: revolute drive limits are angular impulses per
+        // fixed tick, rather than force/torque limits.
+        joint->setConstraintFlag(
+            physx::PxConstraintFlag::eDRIVE_LIMITS_ARE_FORCES, false);
         joint->setConstraintFlag(
             physx::PxConstraintFlag::eCOLLISION_ENABLED, descriptor.collideConnected);
         joint->userData = descriptor.userData;
@@ -2227,9 +2232,11 @@ void PhysXPhysicsBackend::updateConstraint(
 
     if (constraint->IsA("Motor")) {
         auto motor = std::static_pointer_cast<Motor>(constraint);
-        if (!motor->m_constraintHandle) return;
-        removeConstraint(motor);
-        createMotor(motor);
+        auto* entry = findConstraintEntry(motor->m_constraintHandle);
+        if (!entry || !entry->joint) return;
+        auto* joint = static_cast<physx::PxRevoluteJoint*>(entry->joint);
+        joint->setDriveVelocity(motor->DriveVelocity);
+        joint->setDriveForceLimit(std::max(motor->MaxForce, 0.0f));
     }
 }
 

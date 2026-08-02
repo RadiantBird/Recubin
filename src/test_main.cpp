@@ -11,6 +11,9 @@
 #include <Instances/Rope.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/BallSocket.hpp>
+#include <Instances/Attachment.hpp>
+#include <Instances/Cylinder.hpp>
+#include <Instances/Force.hpp>
 #include <Instances/Motor.hpp>
 #include <Instances/NoCollision.hpp>
 #include <Instances/Sphere.hpp>
@@ -1152,6 +1155,570 @@ int runPhysicsMigrationRegression() {
     expect(filteredPairContacts == 0 && controlPairContacts > 0,
            "NoCollision suppresses specified pair only");
 
+    auto axisMotorAnchor = addMigrationCube(
+        workspace, "AxisMotorAnchor", {0, 100, 120}, {2, 2, 2}, true);
+    auto axisMotorCylinder = std::make_shared<Cylinder>(
+        Vector3(0, 100, 120), Vector3(2, 6, 2));
+    axisMotorCylinder->Name = "AxisMotorCylinder";
+    axisMotorCylinder->setRotation(
+        Quaternion::fromAxisAngle(Vector3(1, 0, 0), 90.0f));
+    workspace->addChild(axisMotorCylinder);
+    auto axisMotorAttachment0 = std::make_shared<Attachment>();
+    axisMotorAttachment0->Name = "AxisMotorAttachment0";
+    axisMotorAnchor->addChild(axisMotorAttachment0);
+    auto axisMotorAttachment1 =
+        std::make_shared<Attachment>(Vector3(0, 2, 0));
+    axisMotorAttachment1->Name = "AxisMotorAttachment1";
+    axisMotorCylinder->addChild(axisMotorAttachment1);
+    auto axisMotor = std::make_shared<Motor>(
+        axisMotorAnchor, axisMotorCylinder);
+    axisMotor->Name = "AxisMotorDiagnostic";
+    axisMotor->Axis = Vector3(0, 0, 1);
+    axisMotor->DriveVelocity = 0.0f;
+    axisMotor->MaxForce = 1000.0f;
+    workspace->addChild(axisMotor);
+    YAML::Node axisMotorAttachment0Name;
+    axisMotorAttachment0Name = axisMotorAttachment0->Name;
+    axisMotor->setProperty("Attachment0", axisMotorAttachment0Name);
+    YAML::Node axisMotorAttachment1Name;
+    axisMotorAttachment1Name = axisMotorAttachment1->Name;
+    axisMotor->setProperty("Attachment1", axisMotorAttachment1Name);
+
+    const CFrame axisMotorInitialFrame = axisMotorCylinder->getWorldCFrame();
+    const Vector3 axisMotorInitialAxis =
+        axisMotorInitialFrame.Rotation.rotate(Vector3(0, 1, 0)).normalize();
+    const float axisMotorInitialWorldZDot =
+        std::abs(Vector3::Dot(axisMotorInitialAxis, Vector3(0, 0, 1)));
+    const bool axisMotorInitialFinite =
+        finiteCFrame(axisMotorInitialFrame) && finiteVector(axisMotorInitialAxis);
+    const float axisMotorInitialAttachmentSeparation = positionDistance(
+        axisMotorAttachment0->getWorldCFrame().Position,
+        axisMotorAttachment1->getWorldCFrame().Position);
+    physics->update(*workspace, 0.0f);
+    const PhysicsConstraintHandle axisMotorInitialHandle =
+        axisMotor->getConstraintHandle();
+    physics->setGravityEnabled(*axisMotorCylinder, false);
+    auto axisMotorMarker = [&]() {
+        return axisMotorCylinder->getWorldCFrame().Rotation
+            .rotate(Vector3(1, 0, 0));
+    };
+    auto signedProjectedAngle = [](
+        const Vector3& fromValue, const Vector3& toValue,
+        const Vector3& axisValue) {
+        const Vector3 axis = axisValue.normalize();
+        const Vector3 from =
+            (fromValue - axis * Vector3::Dot(fromValue, axis)).normalize();
+        const Vector3 to =
+            (toValue - axis * Vector3::Dot(toValue, axis)).normalize();
+        return std::atan2(
+            Vector3::Dot(axis, Vector3::Cross(from, to)),
+            std::clamp(Vector3::Dot(from, to), -1.0f, 1.0f));
+    };
+
+    for (int step = 0; step < 180; ++step) {
+        axisMotor->setDriveVelocity(0.0f);
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    const PhysicsConstraintHandle axisMotorSleepingHandle =
+        axisMotor->getConstraintHandle();
+    const Vector3 positiveReference = axisMotorMarker();
+    for (int step = 0; step < 60; ++step) {
+        axisMotor->setDriveVelocity(2.0f);
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    const Vector3 motorWorldAxis = axisMotorAnchor->getWorldCFrame().Rotation
+        .rotate(axisMotor->Axis).normalize();
+    const float positiveMotorAngle = signedProjectedAngle(
+        positiveReference, axisMotorMarker(), motorWorldAxis);
+
+    for (int step = 0; step < 60; ++step) {
+        axisMotor->setDriveVelocity(0.0f);
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    const Vector3 negativeReference = axisMotorMarker();
+    for (int step = 0; step < 60; ++step) {
+        axisMotor->setDriveVelocity(-2.0f);
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    const float negativeMotorAngle = signedProjectedAngle(
+        negativeReference, axisMotorMarker(), motorWorldAxis);
+
+    for (int step = 0; step < 60; ++step) {
+        axisMotor->setDriveVelocity(0.0f);
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    axisMotor->setMaxForce(0.0f);
+    const Vector3 zeroTorqueReference = axisMotorMarker();
+    axisMotor->setDriveVelocity(2.0f);
+    for (int step = 0; step < 60; ++step) {
+        axisMotor->setDriveVelocity(2.0f);
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    const float zeroTorqueMotorAngle = signedProjectedAngle(
+        zeroTorqueReference, axisMotorMarker(), motorWorldAxis);
+
+    const Vector3 recoveredReference = axisMotorMarker();
+    axisMotor->setMaxForce(1000.0f);
+    for (int step = 0; step < 60; ++step)
+        physics->update(*workspace, 1.0f / 60.0f);
+    const float recoveredMotorAngle = signedProjectedAngle(
+        recoveredReference, axisMotorMarker(), motorWorldAxis);
+    const PhysicsConstraintHandle axisMotorUpdatedHandle =
+        axisMotor->getConstraintHandle();
+
+    const CFrame axisMotorFinalFrame = axisMotorCylinder->getWorldCFrame();
+    const Vector3 axisMotorFinalAxis =
+        axisMotorFinalFrame.Rotation.rotate(Vector3(0, 1, 0)).normalize();
+    const float axisMotorWorldZDot =
+        std::abs(Vector3::Dot(axisMotorFinalAxis, Vector3(0, 0, 1)));
+    const float axisMotorAttachmentSeparation = positionDistance(
+        axisMotorAttachment0->getWorldCFrame().Position,
+        axisMotorAttachment1->getWorldCFrame().Position);
+    const bool axisMotorFinalFinite =
+        finiteCFrame(axisMotorFinalFrame) && finiteVector(axisMotorFinalAxis);
+    std::cout << "[PhysicsMigrationRegression] backend=" << backend
+              << " metric=motor_axis_diagnostic"
+              << " initial_axis=[" << axisMotorInitialAxis.x << ','
+              << axisMotorInitialAxis.y << ',' << axisMotorInitialAxis.z << ']'
+              << " initial_abs_world_z_dot=" << axisMotorInitialWorldZDot
+              << " final_axis=[" << axisMotorFinalAxis.x << ','
+              << axisMotorFinalAxis.y << ',' << axisMotorFinalAxis.z << ']'
+              << " final_quat=[" << axisMotorFinalFrame.Rotation.w << ','
+              << axisMotorFinalFrame.Rotation.x << ','
+              << axisMotorFinalFrame.Rotation.y << ','
+              << axisMotorFinalFrame.Rotation.z << ']'
+              << " abs_world_z_dot=" << axisMotorWorldZDot
+              << " initial_attachment_separation="
+              << axisMotorInitialAttachmentSeparation
+              << " attachment_separation=" << axisMotorAttachmentSeparation
+              << " initial_handle=" << axisMotorInitialHandle.value
+              << " sleeping_handle=" << axisMotorSleepingHandle.value
+              << " updated_handle=" << axisMotorUpdatedHandle.value
+              << " positive_angle=" << positiveMotorAngle
+              << " negative_angle=" << negativeMotorAngle
+              << " zero_torque_angle=" << zeroTorqueMotorAngle
+              << " recovered_angle=" << recoveredMotorAngle
+              << "\n";
+    expect(axisMotorInitialFinite && axisMotorFinalFinite &&
+               axisMotorInitialHandle &&
+               axisMotorSleepingHandle == axisMotorInitialHandle &&
+               axisMotorUpdatedHandle == axisMotorInitialHandle &&
+               axisMotorInitialWorldZDot >= 0.999f &&
+               axisMotorWorldZDot >= 0.999f &&
+               std::abs(axisMotorInitialAttachmentSeparation - 2.0f) <= 0.05f &&
+               axisMotorAttachmentSeparation <= 0.05f &&
+               std::isfinite(positiveMotorAngle) && positiveMotorAngle > 0.5f &&
+               std::isfinite(negativeMotorAngle) && negativeMotorAngle < -0.5f &&
+               std::isfinite(zeroTorqueMotorAngle) &&
+               std::abs(zeroTorqueMotorAngle) <= 0.15f &&
+               std::isfinite(recoveredMotorAngle) && recoveredMotorAngle > 0.5f,
+           "Motor wakes, reverses, and resumes without replacing its handle");
+
+    axisMotor->setAxis(Vector3(0, 0, 1));
+    const PhysicsConstraintHandle axisMotorSameAxisHandle =
+        axisMotor->getConstraintHandle();
+    axisMotor->setAxis(Vector3(0, 0, -1));
+    const PhysicsConstraintHandle axisMotorChangedAxisHandle =
+        axisMotor->getConstraintHandle();
+    axisMotor->setDriveVelocity(0.0f);
+    for (int step = 0; step < 30; ++step)
+        physics->update(*workspace, 1.0f / 60.0f);
+    const CFrame axisMotorReframedCylinder =
+        axisMotorCylinder->getWorldCFrame();
+    const Vector3 axisMotorReframedLocalY =
+        axisMotorReframedCylinder.Rotation.rotate(Vector3(0, 1, 0)).normalize();
+    const Vector3 axisMotorExpectedReframedAxis =
+        axisMotorAnchor->getWorldCFrame().Rotation
+            .rotate(axisMotor->Axis).normalize();
+    const float axisMotorReframedAxisDot = std::abs(Vector3::Dot(
+        axisMotorReframedLocalY, axisMotorExpectedReframedAxis));
+    const float axisMotorReframedAnchorError = positionDistance(
+        axisMotorAttachment0->getWorldCFrame().Position,
+        axisMotorAttachment1->getWorldCFrame().Position);
+    std::cout << "[PhysicsMigrationRegression] backend=" << backend
+              << " metric=motor_axis_setter"
+              << " previous_handle=" << axisMotorUpdatedHandle.value
+              << " same_axis_handle=" << axisMotorSameAxisHandle.value
+              << " changed_axis_handle=" << axisMotorChangedAxisHandle.value
+              << " expected_axis=[" << axisMotorExpectedReframedAxis.x << ','
+              << axisMotorExpectedReframedAxis.y << ','
+              << axisMotorExpectedReframedAxis.z << ']'
+              << " cylinder_local_y=[" << axisMotorReframedLocalY.x << ','
+              << axisMotorReframedLocalY.y << ','
+              << axisMotorReframedLocalY.z << ']'
+              << " abs_axis_dot=" << axisMotorReframedAxisDot
+              << " anchor_error=" << axisMotorReframedAnchorError
+              << "\n";
+    expect(axisMotorSameAxisHandle == axisMotorUpdatedHandle &&
+               axisMotorChangedAxisHandle &&
+               axisMotorChangedAxisHandle != axisMotorUpdatedHandle &&
+               finiteCFrame(axisMotorReframedCylinder) &&
+               finiteVector(axisMotorExpectedReframedAxis) &&
+               axisMotorReframedAxisDot >= 0.999f &&
+               axisMotorReframedAnchorError <= 0.05f,
+           "Motor Axis setter recreates frame only when axis changes");
+
+    const Vector3 carStart(-120.0f, 3.25f, 100.0f);
+    auto carChassis = addMigrationCube(
+        workspace, "MotorWakeCarChassis", carStart, {8, 1, 4});
+    carChassis->LockFlags =
+        PhysicsLockFlags::AngularX |
+        PhysicsLockFlags::AngularY |
+        PhysicsLockFlags::AngularZ;
+    struct MotorWakeWheel {
+        std::shared_ptr<Cylinder> wheel;
+        std::shared_ptr<Attachment> chassisAttachment;
+        std::shared_ptr<Attachment> wheelAttachment;
+        std::shared_ptr<Motor> motor;
+        PhysicsConstraintHandle handle;
+    };
+    std::vector<MotorWakeWheel> carWheels;
+    const std::array<Vector3, 4> carWheelOffsets = {
+        Vector3(-3.0f, -1.2f, -2.5f),
+        Vector3(-3.0f, -1.2f,  2.5f),
+        Vector3( 3.0f, -1.2f, -2.5f),
+        Vector3( 3.0f, -1.2f,  2.5f),
+    };
+    for (std::size_t index = 0; index < carWheelOffsets.size(); ++index) {
+        const std::string suffix = std::to_string(index);
+        auto chassisAttachment =
+            std::make_shared<Attachment>(carWheelOffsets[index]);
+        chassisAttachment->Name = "MotorWakeCarChassisAttachment" + suffix;
+        carChassis->addChild(chassisAttachment);
+
+        auto wheel = std::make_shared<Cylinder>(
+            carStart + carWheelOffsets[index], Vector3(4, 1, 4));
+        wheel->Name = "MotorWakeCarWheel" + suffix;
+        wheel->setRotation(
+            Quaternion::fromAxisAngle(Vector3(1, 0, 0), 90.0f));
+        workspace->addChild(wheel);
+        auto wheelAttachment = std::make_shared<Attachment>();
+        wheelAttachment->Name = "MotorWakeCarWheelAttachment";
+        wheel->addChild(wheelAttachment);
+
+        auto wheelMotor = std::make_shared<Motor>(carChassis, wheel);
+        wheelMotor->Name = "MotorWakeCarMotor" + suffix;
+        wheelMotor->Axis = Vector3(0, 0, 1);
+        wheelMotor->DriveVelocity = 0.0f;
+        wheelMotor->MaxForce = 5000.0f;
+        workspace->addChild(wheelMotor);
+        YAML::Node chassisAttachmentName;
+        chassisAttachmentName = chassisAttachment->Name;
+        wheelMotor->setProperty("Attachment0", chassisAttachmentName);
+        YAML::Node wheelAttachmentName;
+        wheelAttachmentName = wheelAttachment->Name;
+        wheelMotor->setProperty("Attachment1", wheelAttachmentName);
+        carWheels.push_back({
+            wheel, chassisAttachment, wheelAttachment, wheelMotor, {}});
+    }
+
+    physics->update(*workspace, 0.0f);
+    for (MotorWakeWheel& value : carWheels)
+        value.handle = value.motor->getConstraintHandle();
+    for (int step = 0; step < 180; ++step) {
+        for (MotorWakeWheel& value : carWheels)
+            value.motor->setDriveVelocity(0.0f);
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    const Vector3 settledCarPosition = carChassis->getWorldPosition();
+    for (int step = 0; step < 180; ++step) {
+        for (MotorWakeWheel& value : carWheels)
+            value.motor->setDriveVelocity(6.0f);
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    const Vector3 finalCarPosition = carChassis->getWorldPosition();
+    const float carHorizontalDistance = std::sqrt(
+        (finalCarPosition.x - settledCarPosition.x) *
+            (finalCarPosition.x - settledCarPosition.x) +
+        (finalCarPosition.z - settledCarPosition.z) *
+            (finalCarPosition.z - settledCarPosition.z));
+    bool carWheelsValid = finiteCFrame(carChassis->getWorldCFrame());
+    float minimumCarWheelAxisDot = 1.0f;
+    float maximumCarAttachmentSeparation = 0.0f;
+    bool carHandlesStable = true;
+    const Vector3 carExpectedAxis = carChassis->getWorldCFrame().Rotation
+        .rotate(Vector3(0, 0, 1)).normalize();
+    for (MotorWakeWheel& value : carWheels) {
+        const CFrame wheelFrame = value.wheel->getWorldCFrame();
+        const Vector3 wheelAxis = wheelFrame.Rotation
+            .rotate(Vector3(0, 1, 0)).normalize();
+        minimumCarWheelAxisDot = std::min(
+            minimumCarWheelAxisDot,
+            std::abs(Vector3::Dot(wheelAxis, carExpectedAxis)));
+        maximumCarAttachmentSeparation = std::max(
+            maximumCarAttachmentSeparation,
+            positionDistance(
+                value.chassisAttachment->getWorldCFrame().Position,
+                value.wheelAttachment->getWorldCFrame().Position));
+        carHandlesStable = carHandlesStable && value.handle &&
+            value.motor->getConstraintHandle() == value.handle;
+        carWheelsValid = carWheelsValid && finiteCFrame(wheelFrame) &&
+            finiteVector(wheelAxis);
+        value.motor->setDriveVelocity(0.0f);
+    }
+    std::cout << "[PhysicsMigrationRegression] backend=" << backend
+              << " metric=motor_wake_car"
+              << " settled_position=[" << settledCarPosition.x << ','
+              << settledCarPosition.y << ',' << settledCarPosition.z << ']'
+              << " final_position=[" << finalCarPosition.x << ','
+              << finalCarPosition.y << ',' << finalCarPosition.z << ']'
+              << " horizontal_distance=" << carHorizontalDistance
+              << " minimum_axis_dot=" << minimumCarWheelAxisDot
+              << " maximum_attachment_separation="
+              << maximumCarAttachmentSeparation
+              << " handles_stable=" << (carHandlesStable ? "true" : "false")
+              << " finite=" << (carWheelsValid ? "true" : "false")
+              << "\n";
+    expect(carWheelsValid && carHandlesStable &&
+               std::isfinite(carHorizontalDistance) &&
+               carHorizontalDistance > 1.0f &&
+               minimumCarWheelAxisDot >= 0.999f &&
+               maximumCarAttachmentSeparation <= 0.05f,
+           "four-wheel Motor car wakes and travels after resting");
+
+    struct MotorScaleResult {
+        float horizontalDistance = 0.0f;
+        float averageRelativeAngularVelocity = 0.0f;
+        float maximumAttachmentSeparation = 0.0f;
+        float minimumAxisDot = 1.0f;
+        bool handlesStable = true;
+        bool finite = true;
+    };
+    auto runMotorScaleDiagnostic = [&]
+        (const std::string& caseName, const Vector3& origin,
+         bool fourWheels, bool grounded, bool mismatchedAnchors,
+         bool repeatVelocitySetter) {
+        auto chassis = addMigrationCube(
+            workspace, "MotorScaleChassis" + caseName,
+            origin, Vector3(20, 2, 10), !grounded && !fourWheels);
+        struct ScaleWheel {
+            std::shared_ptr<Cylinder> wheel;
+            std::shared_ptr<Attachment> chassisAttachment;
+            std::shared_ptr<Attachment> wheelAttachment;
+            std::shared_ptr<Motor> motor;
+            PhysicsConstraintHandle handle;
+            Vector3 previousMarker;
+            float accumulatedAngle = 0.0f;
+        };
+        std::vector<ScaleWheel> wheels;
+        const std::array<Vector3, 4> chassisOffsets = {
+            Vector3(-8.0f, -0.5f, -5.0f),
+            Vector3(-8.0f, -0.5f,  5.0f),
+            Vector3( 8.0f, -0.5f, -5.0f),
+            Vector3( 8.0f, -0.5f,  5.0f),
+        };
+        const std::size_t wheelCount = fourWheels ? 4u : 1u;
+        for (std::size_t index = 0; index < wheelCount; ++index) {
+            const std::string suffix = std::to_string(index);
+            const float side = chassisOffsets[index].z < 0.0f ? -1.0f : 1.0f;
+            const float mismatch = mismatchedAnchors
+                ? (side < 0.0f ? 2.0f : 1.0f) : 0.0f;
+            const Vector3 wheelCenter = origin + Vector3(
+                chassisOffsets[index].x,
+                chassisOffsets[index].y,
+                side * (5.5f + mismatch));
+
+            auto chassisAttachment =
+                std::make_shared<Attachment>(chassisOffsets[index]);
+            chassisAttachment->Name =
+                "MotorScaleChassisAttachment" + caseName + suffix;
+            chassis->addChild(chassisAttachment);
+            auto wheel = std::make_shared<Cylinder>(
+                wheelCenter, Vector3(4, 1, 4));
+            wheel->Name = "MotorScaleWheel" + caseName + suffix;
+            wheel->setRotation(
+                Quaternion::fromAxisAngle(Vector3(1, 0, 0), 90.0f));
+            workspace->addChild(wheel);
+            auto wheelAttachment = std::make_shared<Attachment>(
+                Vector3(0, side < 0.0f ? 0.5f : -0.5f, 0));
+            wheelAttachment->Name = "MotorScaleWheelAttachment";
+            wheel->addChild(wheelAttachment);
+            auto wheelMotor = std::make_shared<Motor>(chassis, wheel);
+            wheelMotor->Name =
+                "MotorScaleDiagnostic" + caseName + suffix;
+            wheelMotor->Axis = Vector3(0, 0, 1);
+            wheelMotor->DriveVelocity = 0.0f;
+            wheelMotor->MaxForce = 1000.0f;
+            workspace->addChild(wheelMotor);
+            YAML::Node chassisAttachmentName;
+            chassisAttachmentName = chassisAttachment->Name;
+            wheelMotor->setProperty("Attachment0", chassisAttachmentName);
+            YAML::Node wheelAttachmentName;
+            wheelAttachmentName = wheelAttachment->Name;
+            wheelMotor->setProperty("Attachment1", wheelAttachmentName);
+            wheels.push_back({
+                wheel, chassisAttachment, wheelAttachment, wheelMotor,
+                {}, {}, 0.0f});
+        }
+
+        physics->update(*workspace, 0.0f);
+        if (!grounded) {
+            physics->setGravityEnabled(*chassis, false);
+            for (ScaleWheel& value : wheels)
+                physics->setGravityEnabled(*value.wheel, false);
+        }
+        for (int step = 0; step < 180; ++step)
+            physics->update(*workspace, 1.0f / 60.0f);
+        for (ScaleWheel& value : wheels) {
+            value.handle = value.motor->getConstraintHandle();
+            const Quaternion chassisInverse =
+                chassis->getWorldCFrame().Rotation.conjugate();
+            value.previousMarker = chassisInverse.rotate(
+                value.wheel->getWorldCFrame().Rotation.rotate(Vector3(1, 0, 0)));
+        }
+        const Vector3 settledPosition = chassis->getWorldPosition();
+        for (ScaleWheel& value : wheels)
+            value.motor->setDriveVelocity(15.0f);
+        for (int step = 0; step < 180; ++step) {
+            if (repeatVelocitySetter) {
+                for (ScaleWheel& value : wheels)
+                    value.motor->setDriveVelocity(15.0f);
+            }
+            physics->update(*workspace, 1.0f / 60.0f);
+            const Quaternion chassisInverse =
+                chassis->getWorldCFrame().Rotation.conjugate();
+            for (ScaleWheel& value : wheels) {
+                const Vector3 marker = chassisInverse.rotate(
+                    value.wheel->getWorldCFrame().Rotation
+                        .rotate(Vector3(1, 0, 0)));
+                value.accumulatedAngle += signedProjectedAngle(
+                    value.previousMarker, marker, Vector3(0, 0, 1));
+                value.previousMarker = marker;
+            }
+        }
+
+        MotorScaleResult result;
+        const Vector3 finalPosition = chassis->getWorldPosition();
+        result.horizontalDistance = std::sqrt(
+            (finalPosition.x - settledPosition.x) *
+                (finalPosition.x - settledPosition.x) +
+            (finalPosition.z - settledPosition.z) *
+                (finalPosition.z - settledPosition.z));
+        result.finite = finiteCFrame(chassis->getWorldCFrame());
+        const Vector3 expectedAxis = chassis->getWorldCFrame().Rotation
+            .rotate(Vector3(0, 0, 1)).normalize();
+        float totalAngularVelocity = 0.0f;
+        for (ScaleWheel& value : wheels) {
+            const CFrame wheelFrame = value.wheel->getWorldCFrame();
+            const Vector3 wheelAxis = wheelFrame.Rotation
+                .rotate(Vector3(0, 1, 0)).normalize();
+            result.minimumAxisDot = std::min(
+                result.minimumAxisDot,
+                std::abs(Vector3::Dot(wheelAxis, expectedAxis)));
+            result.maximumAttachmentSeparation = std::max(
+                result.maximumAttachmentSeparation,
+                positionDistance(
+                    value.chassisAttachment->getWorldCFrame().Position,
+                    value.wheelAttachment->getWorldCFrame().Position));
+            result.handlesStable = result.handlesStable && value.handle &&
+                value.motor->getConstraintHandle() == value.handle;
+            result.finite = result.finite && finiteCFrame(wheelFrame) &&
+                finiteVector(wheelAxis) &&
+                std::isfinite(value.accumulatedAngle);
+            totalAngularVelocity += value.accumulatedAngle / 3.0f;
+            value.motor->setDriveVelocity(0.0f);
+        }
+        result.averageRelativeAngularVelocity =
+            totalAngularVelocity / static_cast<float>(wheels.size());
+        std::cout << "[PhysicsMigrationRegression] backend=" << backend
+                  << " metric=motor_scale_diagnostic"
+                  << " case=" << caseName
+                  << " grounded=" << (grounded ? "true" : "false")
+                  << " mismatch=" << (mismatchedAnchors ? "true" : "false")
+                  << " repeat_setter=" << (repeatVelocitySetter ? "true" : "false")
+                  << " horizontal_distance=" << result.horizontalDistance
+                  << " relative_angular_velocity="
+                  << result.averageRelativeAngularVelocity
+                  << " max_anchor_error="
+                  << result.maximumAttachmentSeparation
+                  << " min_axis_dot=" << result.minimumAxisDot
+                  << " handles_stable="
+                  << (result.handlesStable ? "true" : "false")
+                  << " finite=" << (result.finite ? "true" : "false")
+                  << "\n";
+        return result;
+    };
+
+    const MotorScaleResult scaleAir = runMotorScaleDiagnostic(
+        "AirSingle", Vector3(100, 80, 145), false, false, false, true);
+    const MotorScaleResult scaleGroundOnce = runMotorScaleDiagnostic(
+        "GroundOnce", Vector3(0, 2.5f, 130), true, true, false, false);
+    const MotorScaleResult scaleGroundRepeat = runMotorScaleDiagnostic(
+        "GroundRepeat", Vector3(0, 2.5f, 70), true, true, false, true);
+    const MotorScaleResult scaleGroundMismatch = runMotorScaleDiagnostic(
+        "GroundMismatch", Vector3(0, 2.5f, -130), true, true, true, true);
+    expect(scaleAir.finite && scaleAir.handlesStable &&
+               scaleAir.averageRelativeAngularVelocity >= 13.5f &&
+               scaleAir.averageRelativeAngularVelocity <= 15.5f &&
+               scaleAir.maximumAttachmentSeparation <= 0.05f &&
+               scaleAir.minimumAxisDot >= 0.999f,
+           "isolated full-scale Motor reaches target speed and preserves its frame");
+    expect(scaleGroundOnce.finite && scaleGroundRepeat.finite &&
+               scaleGroundMismatch.finite &&
+               scaleGroundOnce.handlesStable &&
+               scaleGroundRepeat.handlesStable &&
+               scaleGroundMismatch.handlesStable,
+           "full-scale grounded Motor diagnostics remain finite");
+    const auto fullScaleDriveInCompatibilityEnvelope =
+        [](const MotorScaleResult& result) {
+            return result.horizontalDistance >= 70.0f &&
+                   result.horizontalDistance <= 105.0f &&
+                   result.averageRelativeAngularVelocity >= 11.5f &&
+                   result.averageRelativeAngularVelocity <= 17.5f &&
+                   result.maximumAttachmentSeparation <= 0.1f &&
+                   result.minimumAxisDot >= 0.999f;
+        };
+    expect(fullScaleDriveInCompatibilityEnvelope(scaleGroundOnce) &&
+               fullScaleDriveInCompatibilityEnvelope(scaleGroundRepeat) &&
+               fullScaleDriveInCompatibilityEnvelope(scaleGroundMismatch),
+           "full-scale Motor drive matches the PhysX compatibility envelope");
+    expect(std::abs(scaleGroundOnce.horizontalDistance -
+                    scaleGroundRepeat.horizontalDistance) <= 1.0f &&
+               std::abs(scaleGroundOnce.averageRelativeAngularVelocity -
+                        scaleGroundRepeat.averageRelativeAngularVelocity) <= 0.2f,
+           "repeating DriveVelocity each tick preserves Motor behavior");
+
+    auto jumpLiquid = std::make_shared<LiquidCube>(
+        Vector3(160, 120, -120), Vector3(20, 20, 20));
+    jumpLiquid->Name = "MigrationJumpLiquid";
+    jumpLiquid->Anchored = true;
+    jumpLiquid->CanCollide = false;
+    workspace->addChild(jumpLiquid);
+    auto submergedJumpRoot = addMigrationCube(
+        workspace, "SubmergedJumpRoot", {160, 120, -120}, {2, 2, 2});
+    auto airborneJumpRoot = addMigrationCube(
+        workspace, "AirborneJumpRoot", {190, 120, -120}, {2, 2, 2});
+    auto submergedHumanoid = std::make_shared<Humanoid>();
+    submergedHumanoid->Name = "SubmergedJumpHumanoid";
+    submergedHumanoid->setRootPart(submergedJumpRoot);
+    submergedHumanoid->setIsGroundedForReplication(false);
+    workspace->addChild(submergedHumanoid);
+    auto airborneHumanoid = std::make_shared<Humanoid>();
+    airborneHumanoid->Name = "AirborneJumpHumanoid";
+    airborneHumanoid->setRootPart(airborneJumpRoot);
+    airborneHumanoid->setIsGroundedForReplication(false);
+    workspace->addChild(airborneHumanoid);
+
+    physics->update(*workspace, 0.0f);
+    physics->setGravityEnabled(*submergedJumpRoot, false);
+    physics->setGravityEnabled(*airborneJumpRoot, false);
+    physics->setLinearVelocity(*submergedJumpRoot, Vector3());
+    physics->setLinearVelocity(*airborneJumpRoot, Vector3());
+    submergedHumanoid->jump(physics);
+    airborneHumanoid->jump(physics);
+    const float submergedJumpVelocity =
+        physics->getLinearVelocity(*submergedJumpRoot).y;
+    const float airborneJumpVelocity =
+        physics->getLinearVelocity(*airborneJumpRoot).y;
+    std::cout << "[PhysicsMigrationRegression] backend=" << backend
+              << " metric=liquid_jump"
+              << " submerged_velocity=" << submergedJumpVelocity
+              << " airborne_velocity=" << airborneJumpVelocity << "\n";
+    expect(std::abs(submergedJumpVelocity - submergedHumanoid->JumpPower) <=
+               0.001f &&
+               std::abs(airborneJumpVelocity) <= 0.001f,
+           "submerged Humanoid can jump while airborne Humanoid cannot");
+
     auto chunkTerrainOwner = std::make_shared<Instance>("ChunkTerrainOwner");
     Chunk chunk0;
     chunk0.cx = 3;
@@ -1553,6 +2120,23 @@ int runBox3DBuoyancyRegression() {
     neutralSphere->Name = "NeutralBuoyancySphere";
     workspace->addChild(neutralSphere);
 
+    auto maintainVelocityLiquid = std::make_shared<LiquidCube>(
+        Vector3(720, 20, 0), Vector3(40, 40, 40));
+    maintainVelocityLiquid->Name = "MaintainVelocityLiquid";
+    maintainVelocityLiquid->Anchored = true;
+    maintainVelocityLiquid->Density = 1.0f;
+    workspace->addChild(maintainVelocityLiquid);
+    auto maintainVelocityCube = addMigrationCube(
+        workspace, "MaintainVelocityBuoyantCube", {720, 20, 0}, {2, 2, 2});
+    maintainVelocityCube->MassDensity = 0.25f;
+    auto zeroVelocityForce = std::make_shared<Force>();
+    zeroVelocityForce->Name = "MaintainZeroLinearVelocity";
+    zeroVelocityForce->Enabled = true;
+    zeroVelocityForce->Torque = false;
+    zeroVelocityForce->MaintainVelocity = true;
+    zeroVelocityForce->Value = Vector3(0, 0, 0);
+    maintainVelocityCube->addChild(zeroVelocityForce);
+
     auto weldFirst = addMigrationCube(
         workspace, "BuoyantWeldFirst", {-8, 24, 20}, {2, 2, 2});
     auto weldSecond = addMigrationCube(
@@ -1625,6 +2209,30 @@ int runBox3DBuoyancyRegression() {
     expect(std::isfinite(neutralSphereVelocity) &&
                std::abs(neutralSphereVelocity) <= 2.0f,
            "fully submerged Density=1 Sphere is neutrally buoyant within 2 studs/s");
+
+    const Vector3 maintainedVelocity =
+        physics->getLinearVelocity(*maintainVelocityCube);
+    const Vector3 expectedMaintainedVelocity =
+        workspace->Gravity * (1.0f / 60.0f);
+    const Vector3 maintainedVelocityError =
+        maintainedVelocity - expectedMaintainedVelocity;
+    std::cout << "[Box3DBuoyancyRegression] metric=maintain_velocity_buoyancy"
+              << " mass_density=" << maintainVelocityCube->MassDensity
+              << " liquid_density=" << maintainVelocityLiquid->Density
+              << " actual_velocity=[" << maintainedVelocity.x << ','
+              << maintainedVelocity.y << ',' << maintainedVelocity.z << ']'
+              << " expected_velocity=[" << expectedMaintainedVelocity.x << ','
+              << expectedMaintainedVelocity.y << ','
+              << expectedMaintainedVelocity.z << ']'
+              << " error=[" << maintainedVelocityError.x << ','
+              << maintainedVelocityError.y << ','
+              << maintainedVelocityError.z << ']'
+              << " tolerance=0.05\n";
+    expect(finiteVector(maintainedVelocity) &&
+               std::abs(maintainedVelocityError.x) <= 0.05f &&
+               std::abs(maintainedVelocityError.y) <= 0.05f &&
+               std::abs(maintainedVelocityError.z) <= 0.05f,
+           "MaintainVelocity zero prevents accumulated buoyancy, leaving one gravity step");
 
     const float obbOutsideVelocity =
         physics->getLinearVelocity(*obbOutsideBody).y;

@@ -31,6 +31,15 @@ constexpr int SUB_STEPS = 4;
 constexpr int MAX_STEPS = 10;
 constexpr float CLIP_EPSILON = 1.0e-5f;
 
+float motorTorqueToMks(float maxForce) {
+    // PhysX revolute joints use the legacy drive-limit contract: MaxForce is
+    // the maximum angular impulse per fixed tick in kg*stud^2/s. Box3D takes
+    // a torque in N*m, so convert the impulse to torque before converting
+    // stud^2 to m^2. This is intentionally specific to Motor; ordinary torque
+    // values continue to use TORQUE_TO_MKS directly.
+    return std::max(0.0f, maxForce) * TORQUE_TO_MKS / FIXED_STEP;
+}
+
 struct FacePolyhedron {
     std::vector<std::vector<Vector3>> faces;
 };
@@ -873,10 +882,20 @@ void Box3DPhysicsBackend::applyBuoyancy() {
 
         std::vector<std::shared_ptr<BaseCube>> members;
         float totalBodyVolume = 0.0f;
+        bool maintainsLinearVelocity = false;
         for (const BodyEntry& entry : m_bodies) {
             if (!idsEqual(entry.bodyId, id)) continue;
             auto member = entry.cube.lock();
-            if (!member || member->IsA("LiquidCube")) continue;
+            if (!member) continue;
+            for (const auto& [name, child] : member->children) {
+                if (!child || !child->IsA("Force")) continue;
+                const auto* force = static_cast<const Force*>(child.get());
+                if (force->Enabled && force->MaintainVelocity && !force->Torque) {
+                    maintainsLinearVelocity = true;
+                    break;
+                }
+            }
+            if (member->IsA("LiquidCube") || !member->CanCollide) continue;
             if (!finiteVector(member->Size)) continue;
             const BuoyancyProxy* proxy = getBuoyancyProxy(*member);
             if (!proxy) continue;
@@ -1024,7 +1043,8 @@ void Box3DPhysicsBackend::applyBuoyancy() {
             const float density = std::max(liquid->Density, 0.0f);
             const Vector3 force =
                 (-gravity) * (liquidVolume * density / STUDS_PER_METER);
-            if (finiteVector(force) && finiteVector(centerOfBuoyancy))
+            if (!maintainsLinearVelocity && finiteVector(force) &&
+                finiteVector(centerOfBuoyancy))
                 b3Body_ApplyForce(
                     id, toB3Vector(force), toB3Position(centerOfBuoyancy), true);
             totalSubmergedVolume += liquidVolume;
@@ -1033,7 +1053,8 @@ void Box3DPhysicsBackend::applyBuoyancy() {
         const float fraction = totalBodyVolume > CLIP_EPSILON
             ? std::clamp(totalSubmergedVolume / totalBodyVolume, 0.0f, 1.0f)
             : 0.0f;
-        b3Body_SetLinearDamping(id, 3.0f * fraction);
+        b3Body_SetLinearDamping(
+            id, maintainsLinearVelocity ? 0.0f : 3.0f * fraction);
         b3Body_SetAngularDamping(id, 3.0f * fraction);
     }
 }
@@ -1449,12 +1470,13 @@ void Box3DPhysicsBackend::createMotor(const std::shared_ptr<Motor>& motor) {
     definition.base.userData = motor.get();
     definition.enableMotor = true;
     definition.motorSpeed = motor->DriveVelocity;
-    definition.maxMotorTorque = std::max(0.0f, motor->MaxForce) * TORQUE_TO_MKS;
+    definition.maxMotorTorque = motorTorqueToMks(motor->MaxForce);
     const b3JointId joint = b3CreateRevoluteJoint(m_worldId, &definition);
     if (B3_IS_NULL(joint)) return;
     const PhysicsConstraintHandle handle{b3StoreJointId(joint)};
     motor->m_constraintHandle = handle;
     m_constraints.push_back({motor, handle, joint});
+    b3Joint_WakeBodies(joint);
 }
 
 void Box3DPhysicsBackend::createNoCollision(
@@ -1673,8 +1695,12 @@ void Box3DPhysicsBackend::updateConstraint(
     }
     if (constraint->IsA("Motor")) {
         auto motor = std::static_pointer_cast<Motor>(constraint);
-        removeConstraint(motor);
-        createMotor(motor);
+        if (B3_IS_NULL(entry->jointId) || !b3Joint_IsValid(entry->jointId))
+            return;
+        b3RevoluteJoint_SetMotorSpeed(entry->jointId, motor->DriveVelocity);
+        b3RevoluteJoint_SetMaxMotorTorque(
+            entry->jointId, motorTorqueToMks(motor->MaxForce));
+        b3Joint_WakeBodies(entry->jointId);
     }
 }
 
@@ -1812,21 +1838,6 @@ float box3dRayCallback(
     return fraction;
 }
 
-struct OverlapContext {
-    const BaseCube* ignore = nullptr;
-    const std::string* className = nullptr;
-    BaseCube* result = nullptr;
-};
-
-bool box3dOverlapCallback(b3ShapeId shapeId, void* rawContext) {
-    auto* context = static_cast<OverlapContext*>(rawContext);
-    auto* instance = static_cast<Instance*>(b3Shape_GetUserData(shapeId));
-    if (!instance || !instance->IsA("BaseCube")) return true;
-    auto* cube = static_cast<BaseCube*>(instance);
-    if (cube == context->ignore || !cube->IsA(*context->className)) return true;
-    context->result = cube;
-    return false;
-}
 }
 
 bool Box3DPhysicsBackend::raycast(
@@ -1848,17 +1859,28 @@ BaseCube* Box3DPhysicsBackend::findOverlapping(
     const BaseCube& cube, const std::string& className, float margin) const {
     if (!isAvailable()) return nullptr;
     const Vector3 center = cube.getWorldPosition();
-    const Vector3 half = cube.Size * 0.5f +
-        Vector3(margin, margin, margin);
-    const b3AABB aabb = {
-        toB3Length(center - half),
-        toB3Length(center + half),
-    };
-    OverlapContext context{&cube, &className, nullptr};
-    b3World_OverlapAABB(
-        m_worldId, aabb, b3DefaultQueryFilter(),
-        box3dOverlapCallback, &context);
-    return context.result;
+    const Vector3 size = cube.Size +
+        Vector3(margin * 2.0f, margin * 2.0f, margin * 2.0f);
+    const Vector3 minimum = center - size * 0.5f;
+    const Vector3 maximum = center + size * 0.5f;
+    for (const BodyEntry& entry : m_bodies) {
+        auto other = entry.cube.lock();
+        if (!other || other.get() == &cube || !other->IsA(className)) continue;
+        const Vector3 otherCenter = other->getWorldPosition();
+        const Vector3 otherMinimum = otherCenter - other->Size * 0.5f;
+        const Vector3 otherMaximum = otherCenter + other->Size * 0.5f;
+        const float overlapX = std::max(
+            0.0f, std::min(maximum.x, otherMaximum.x) -
+                std::max(minimum.x, otherMinimum.x));
+        const float overlapY = std::max(
+            0.0f, std::min(maximum.y, otherMaximum.y) -
+                std::max(minimum.y, otherMinimum.y));
+        const float overlapZ = std::max(
+            0.0f, std::min(maximum.z, otherMaximum.z) -
+                std::max(minimum.z, otherMinimum.z));
+        if (overlapX * overlapY * overlapZ > 0.0f) return other.get();
+    }
+    return nullptr;
 }
 
 void Box3DPhysicsBackend::setGravity(const Vector3& gravity) {

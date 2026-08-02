@@ -28,6 +28,8 @@ class Motor : public Instance {
     void registerIfReady();
     // 名前が設定済みで未解決のAttachment参照を対応Cube配下から遅延解決する
     void resolveAttachments();
+    // Axisや参照先などjoint frameが変わるプロパティの変更時だけnative jointを再生成する
+    void recreateConstraint();
 public:
     Vector3 Axis          = {1.0f, 0.0f, 0.0f}; // 回転軸（Cube0基準のローカル方向）
     float DriveVelocity   = 1.0f;  // rad/s
@@ -52,6 +54,7 @@ public:
     void setDriveVelocity(float v);
     void setMaxForce(float v);
     void setAxis(Vector3 axis);
+    PhysicsConstraintHandle getConstraintHandle() const;
 
     virtual std::string getClassName() override;
     virtual bool IsA(std::string className) override;

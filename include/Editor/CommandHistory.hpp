@@ -811,7 +811,7 @@ struct SetRopeLineWidthCommand : Command {
     void undo()    override { if (m_target) m_target->LineWidth = m_before; }
 };
 
-// --- Motor の Axis 変更（次回 Play 時に適用） ---
+// --- Motor の Axis 変更 ---
 struct SetMotorAxisCommand : Command {
     std::shared_ptr<Motor> m_target;
     Vector3 m_before, m_after;
@@ -819,8 +819,8 @@ struct SetMotorAxisCommand : Command {
     SetMotorAxisCommand(std::shared_ptr<Motor> target, Vector3 before, Vector3 after)
         : m_target(std::move(target)), m_before(before), m_after(after) {}
 
-    void execute() override { if (m_target) m_target->Axis = m_after; }
-    void undo()    override { if (m_target) m_target->Axis = m_before; }
+    void execute() override { if (m_target) m_target->setAxis(m_after); }
+    void undo()    override { if (m_target) m_target->setAxis(m_before); }
 };
 
 // --- Script bool プロパティ変更（Enabled） ---

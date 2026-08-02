@@ -1687,20 +1687,22 @@ void PropertiesPanel::onRender() {
           float ax[3] = { motor->Axis.x, motor->Axis.y, motor->Axis.z };
           bool ch = ImGui::DragFloat3("Axis", ax, 0.01f, -1.0f, 1.0f, "%.3f");
           if (ImGui::IsItemActivated()) s_axisBefore = motor->Axis;
-          if (ch) motor->Axis = Vector3(ax[0], ax[1], ax[2]);
+          if (ch) motor->setAxis(Vector3(ax[0], ax[1], ax[2]));
           if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
               m_history->record(std::make_unique<SetMotorAxisCommand>(motorSp, s_axisBefore, motor->Axis)); }
 
         static float s_mf;
-        { ImGui::DragFloat("DriveVelocity", &motor->DriveVelocity, 0.1f, -1e4f, 1e4f);
+        { float value = motor->DriveVelocity;
+          bool changed = ImGui::DragFloat("DriveVelocity", &value, 0.1f, -1e4f, 1e4f);
           if (ImGui::IsItemActivated()) s_mf = motor->DriveVelocity;
+          if (changed) motor->setDriveVelocity(value);
           if (ImGui::IsItemDeactivatedAfterEdit()) {
-              motor->setDriveVelocity(motor->DriveVelocity);
               if (m_history) m_history->record(std::make_unique<SetMotorFloatCommand>(motorSp, "DriveVelocity", s_mf, motor->DriveVelocity)); } }
-        { ImGui::DragFloat("MaxForce",      &motor->MaxForce,      10.0f, 0.0f, 1e7f);
+        { float value = motor->MaxForce;
+          bool changed = ImGui::DragFloat("MaxForce", &value, 10.0f, 0.0f, 1e7f);
           if (ImGui::IsItemActivated()) s_mf = motor->MaxForce;
+          if (changed) motor->setMaxForce(value);
           if (ImGui::IsItemDeactivatedAfterEdit()) {
-              motor->setMaxForce(motor->MaxForce);
               if (m_history) m_history->record(std::make_unique<SetMotorFloatCommand>(motorSp, "MaxForce", s_mf, motor->MaxForce)); } }
     }
 

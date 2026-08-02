@@ -19,21 +19,28 @@ Motor::~Motor() {
 }
 
 void Motor::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
+    const bool changed = m_cube0.lock() != cube0 || m_cube1.lock() != cube1;
     m_cube0 = cube0;
     m_cube1 = cube1;
     m_cube0Name = cube0 ? cube0->getWorkspaceRelativePath() : "";
     m_cube1Name = cube1 ? cube1->getWorkspaceRelativePath() : "";
+    if (changed) recreateConstraint();
+    registerIfReady();
 }
 
 void Motor::setCube0(std::shared_ptr<BaseCube> cube) {
+    const bool changed = m_cube0.lock() != cube;
     m_cube0 = cube;
     m_cube0Name = cube ? cube->getWorkspaceRelativePath() : "";
+    if (changed) recreateConstraint();
     registerIfReady();
 }
 
 void Motor::setCube1(std::shared_ptr<BaseCube> cube) {
+    const bool changed = m_cube1.lock() != cube;
     m_cube1 = cube;
     m_cube1Name = cube ? cube->getWorkspaceRelativePath() : "";
+    if (changed) recreateConstraint();
     registerIfReady();
 }
 
@@ -66,7 +73,7 @@ void Motor::registerIfReady() {
             m_cube1 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
     }
     resolveAttachments();
-    if (m_cube0.lock() && m_cube1.lock())
+    if (m_cube0.lock() && m_cube1.lock() && !m_constraintHandle)
         ws->registerConstraint(shared_from_this());
 }
 
@@ -79,22 +86,38 @@ void Motor::resolveAttachments() {
             m_attachment1 = Attachment::findUnder(c1.get(), m_attachment1Name);
 }
 
+void Motor::recreateConstraint() {
+    if (!m_constraintHandle || !m_lastWorkspace ||
+        !m_lastWorkspace->getPhysicsEngine()) return;
+    auto self = std::static_pointer_cast<Motor>(shared_from_this());
+    Physics* physics = m_lastWorkspace->getPhysicsEngine();
+    physics->removeConstraint(self);
+    physics->createMotor(self);
+    if (!m_constraintHandle) m_lastWorkspace->registerConstraint(self);
+}
+
 void Motor::setDriveVelocity(float v) {
+    if (DriveVelocity == v && (v == 0.0f || MaxForce <= 0.0f)) return;
     DriveVelocity = v;
     if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
         m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
 
 void Motor::setMaxForce(float v) {
+    if (MaxForce == v) return;
     MaxForce = v;
     if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
         m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
 
 void Motor::setAxis(Vector3 axis) {
+    if (Axis == axis) return;
     Axis = axis;
-    if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
-        m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
+    recreateConstraint();
+}
+
+PhysicsConstraintHandle Motor::getConstraintHandle() const {
+    return m_constraintHandle;
 }
 
 std::shared_ptr<Instance> Motor::clone() const {
@@ -130,24 +153,33 @@ bool Motor::IsA(std::string className) {
 }
 
 void Motor::setProperty(const std::string& name, const YAML::Node& value) {
+    bool frameChanged = false;
     if (name == "Cube0") {
+        auto previous = m_cube0.lock();
         m_cube0Name = value.as<std::string>();
+        m_cube0.reset();
         if (auto* ws_raw = findFirstAncestorWorkspace()) {
             auto* child = ws_raw->getChildByPath(m_cube0Name);
             if (child && child->IsA("BaseCube"))
                 m_cube0 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
         }
+        frameChanged = previous != m_cube0.lock();
     } else if (name == "Cube1") {
+        auto previous = m_cube1.lock();
         m_cube1Name = value.as<std::string>();
+        m_cube1.reset();
         if (auto* ws_raw = findFirstAncestorWorkspace()) {
             auto* child = ws_raw->getChildByPath(m_cube1Name);
             if (child && child->IsA("BaseCube"))
                 m_cube1 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
         }
+        frameChanged = previous != m_cube1.lock();
     } else if (name == "Attachment0") {
+        frameChanged = m_attachment0Name != value.as<std::string>();
         m_attachment0Name = value.as<std::string>();
         m_attachment0.reset(); // 名前変更後に registerIfReady() 経由で再解決させる
     } else if (name == "Attachment1") {
+        frameChanged = m_attachment1Name != value.as<std::string>();
         m_attachment1Name = value.as<std::string>();
         m_attachment1.reset();
     } else if (name == "Axis") {
@@ -159,6 +191,8 @@ void Motor::setProperty(const std::string& name, const YAML::Node& value) {
     } else {
         Instance::setProperty(name, value);
     }
+    resolveAttachments();
+    if (frameChanged) recreateConstraint();
     registerIfReady();
 }
 

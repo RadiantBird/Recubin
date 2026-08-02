@@ -1061,7 +1061,7 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
                 else          pivot = (c0->getWorldCFrame().Position + c1->getWorldCFrame().Position) * 0.5f;
 
                 setColor(MOTOR_COLOR);
-                Vector3 axis = motor->Axis.normalize();
+                Vector3 axis = c0->getWorldCFrame().Rotation.rotate(motor->Axis).normalize();
                 drawSegment(pivot - axis * 1.5f, pivot + axis * 1.5f); // 回転軸
                 drawCross(pivot, 0.12f);                               // ピボット
                 if (motor->DriveVelocity != 0.0f)
