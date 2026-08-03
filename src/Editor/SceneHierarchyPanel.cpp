@@ -92,6 +92,23 @@ static std::string pickFolder() {
     return getPlatform().openFolderDialog();
 }
 
+static bool isValidNewScriptName(const std::string& name) {
+    if (name.empty() || name == "." || name == "..") return false;
+    if (name.find('/') != std::string::npos || name.find('\\') != std::string::npos) return false;
+    return std::any_of(name.begin(), name.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    });
+}
+
+static constexpr const char* SCRIPT_NAME_ERROR =
+    "Enter a name that is not blank, '.', '..', or a path.";
+static constexpr const char* SCRIPT_EXISTS_ERROR =
+    "A script with that name already exists in the selected folder.";
+static constexpr const char* SCRIPT_PATH_ERROR =
+    "The selected folder path could not be resolved.";
+static constexpr const char* SCRIPT_WRITE_ERROR =
+    "The script file could not be written.";
+
 // ===================================================
 //  SceneHierarchyPanel 実装
 // ===================================================
@@ -381,6 +398,7 @@ void SceneHierarchyPanel::requestNewScript(const std::shared_ptr<Instance>& pare
     m_pendingScriptParent = parent;
     m_openScriptDialog     = true;
     m_pendingScriptClass   = ScriptInsertClass::Script;
+    m_scriptDialogError.clear();
 }
 
 void SceneHierarchyPanel::renderNewScriptDialog() {
@@ -394,29 +412,47 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
         static char s_name[128] = "NewScript";
         static int  s_mode = 0; // 0=新規作成, 1=既存ファイル
 
-        ImGui::RadioButton(Loc::t(Loc::LocKey::ScriptModeNew),      &s_mode, 0); ImGui::SameLine();
-        ImGui::RadioButton(Loc::t(Loc::LocKey::ScriptModeExisting), &s_mode, 1);
+        if (ImGui::RadioButton(Loc::t(Loc::LocKey::ScriptModeNew), &s_mode, 0)) {
+            m_scriptDialogError.clear();
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton(Loc::t(Loc::LocKey::ScriptModeExisting), &s_mode, 1)) {
+            m_scriptDialogError.clear();
+        }
         ImGui::Separator();
 
         if (s_mode == 0) {
             ImGui::Text("%s", Loc::t(Loc::LocKey::ScriptNameLabel));
             ImGui::SetNextItemWidth(220.0f);
-            ImGui::InputText("##sname", s_name, sizeof(s_name));
+            if (ImGui::InputText("##sname", s_name, sizeof(s_name))) {
+                m_scriptDialogError.clear();
+            }
         } else {
             ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::ScriptPickHint));
         }
 
+        if (!m_scriptDialogError.empty()) {
+            ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.35f, 1.0f), "%s", m_scriptDialogError.c_str());
+        }
+
         if (ImGui::Button(Loc::t(Loc::LocKey::OK), ImVec2(100, 0))) {
-            m_pickName     = std::string(s_name);
-            m_pickParent   = m_pendingScriptParent;
-            m_pickExisting = (s_mode == 1);
-            m_doPick       = true;
-            m_pendingScriptParent.reset();
-            ImGui::CloseCurrentPopup();
+            std::string requestedName(s_name);
+            if (s_mode == 0 && !isValidNewScriptName(requestedName)) {
+                m_scriptDialogError = SCRIPT_NAME_ERROR;
+            } else {
+                m_scriptDialogError.clear();
+                m_pickName     = requestedName;
+                m_pickParent   = m_pendingScriptParent;
+                m_pickExisting = (s_mode == 1);
+                m_doPick       = true;
+                m_pendingScriptParent.reset();
+                ImGui::CloseCurrentPopup();
+            }
         }
         ImGui::SameLine();
         if (ImGui::Button(Loc::t(Loc::LocKey::Cancel), ImVec2(100, 0))) {
             m_pendingScriptParent.reset();
+            m_scriptDialogError.clear();
             ImGui::CloseCurrentPopup();
         }
 
@@ -427,21 +463,62 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
     if (m_doPick) {
         m_doPick = false;
         std::string filePath;
+        bool reopenDialog = false;
+
+        auto reopenWithError = [this, &reopenDialog](const char* message) {
+            m_scriptDialogError = message;
+            m_pendingScriptParent = m_pickParent;
+            m_openScriptDialog = true;
+            reopenDialog = true;
+        };
 
         if (m_pickExisting) {
             filePath = pickFile();
+            if (!filePath.empty()) {
+                std::error_code ec;
+                std::filesystem::path absolutePath =
+                    std::filesystem::absolute(std::filesystem::path(filePath), ec);
+                if (!ec) filePath = absolutePath.string();
+            }
         } else {
             std::string folder = pickFolder();
             if (!folder.empty()) {
-                filePath = folder + "\\" + m_pickName + ".luau";
-                {
-                    std::ofstream f(filePath);
-                    if (f) {
-                        if (m_pendingScriptClass == ScriptInsertClass::ModuleScript) {
-                            // requireは返り値を要求するため、モジュールの雛形を書いておく
-                            f << "-- " << m_pickName << "\nlocal M = {}\n\nreturn M\n";
+                std::error_code ec;
+                std::filesystem::path folderPath =
+                    std::filesystem::absolute(std::filesystem::path(folder), ec);
+                if (ec) {
+                    reopenWithError(SCRIPT_PATH_ERROR);
+                } else {
+                    std::filesystem::path scriptPath = folderPath / (m_pickName + ".luau");
+                    bool scriptExists = std::filesystem::exists(scriptPath, ec);
+                    if (ec) {
+                        reopenWithError(SCRIPT_PATH_ERROR);
+                    } else if (scriptExists) {
+                        reopenWithError(SCRIPT_EXISTS_ERROR);
+                    } else {
+                        std::ofstream stream(scriptPath, std::ios::out | std::ios::noreplace);
+                        bool fileCreated = stream.is_open();
+                        bool writeSucceeded = fileCreated;
+                        if (writeSucceeded) {
+                            if (m_pendingScriptClass == ScriptInsertClass::ModuleScript) {
+                                // requireは返り値を要求するため、モジュールの雛形を書いておく
+                                stream << "-- " << m_pickName << "\nlocal M = {}\n\nreturn M\n";
+                            } else {
+                                stream << "-- " << m_pickName << "\n";
+                            }
+                            writeSucceeded = stream.good();
+                            stream.close();
+                            writeSucceeded = writeSucceeded && !stream.fail();
+                        }
+
+                        if (!writeSucceeded) {
+                            if (fileCreated) {
+                                std::error_code removeError;
+                                std::filesystem::remove(scriptPath, removeError);
+                            }
+                            reopenWithError(SCRIPT_WRITE_ERROR);
                         } else {
-                            f << "-- " << m_pickName << "\n";
+                            filePath = scriptPath.string();
                         }
                     }
                 }
@@ -453,11 +530,12 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
 
             // 既存選択時はファイル名をスクリプト名にする
             if (m_pickExisting) {
-                auto slash = filePath.find_last_of("/\\");
-                std::string fname = (slash == std::string::npos) ? filePath : filePath.substr(slash + 1);
-                auto dot = fname.rfind('.');
-                bool isLuar = (dot != std::string::npos && fname.substr(dot) == ".luar");
-                m_pickName = (dot == std::string::npos || isLuar) ? fname : fname.substr(0, dot);
+                std::filesystem::path selectedPath(filePath);
+                std::string fileName = selectedPath.filename().string();
+                bool isLuar = selectedPath.extension() == ".luar";
+                m_pickName = (selectedPath.extension().empty() || isLuar)
+                    ? fileName
+                    : selectedPath.stem().string();
             }
 
             std::shared_ptr<Script> script;
@@ -470,6 +548,7 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
             m_history->execute(std::make_unique<AddInstanceCommand>(m_pickParent, script));
         }
         m_pickParent.reset();
+        if (!reopenDialog) m_scriptDialogError.clear();
     }
 }
 
@@ -649,16 +728,19 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
             m_pendingScriptParent = parentSp;
             m_openScriptDialog    = true;
             m_pendingScriptClass  = ScriptInsertClass::Script;
+            m_scriptDialogError.clear();
         }
         if (ImGui::MenuItem("LocalScript")) {
             m_pendingScriptParent = parentSp;
             m_openScriptDialog    = true;
             m_pendingScriptClass  = ScriptInsertClass::LocalScript;
+            m_scriptDialogError.clear();
         }
         if (ImGui::MenuItem("ModuleScript")) {
             m_pendingScriptParent = parentSp;
             m_openScriptDialog    = true;
             m_pendingScriptClass  = ScriptInsertClass::ModuleScript;
+            m_scriptDialogError.clear();
         }
         
         tryInsertInstance<Folder>(m_history, "Folder", parentSp);

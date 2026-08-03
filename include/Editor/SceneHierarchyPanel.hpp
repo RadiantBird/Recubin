@@ -108,6 +108,7 @@ private:
     bool                      m_pickExisting = false; // true=既存ファイル選択
     std::string               m_pickName;
     std::shared_ptr<Instance> m_pickParent;
+    std::string               m_scriptDialogError;
 
     // F2 インラインリネーム用の編集バッファ（drawNode が再帰するためメンバで持つ）
     char m_renameBuf[256] = {};

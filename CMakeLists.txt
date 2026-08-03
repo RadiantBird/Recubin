@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.26)
 project(Recubin)
 
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -43,6 +47,9 @@ endif()
 file(GLOB_RECURSE ALL_SOURCES_CPP "src/*.cpp")
 file(GLOB_RECURSE ALL_SOURCES_C "src/*.c")
 set(ALL_SOURCES ${ALL_SOURCES_CPP} ${ALL_SOURCES_C})
+if(APPLE)
+    list(APPEND ALL_SOURCES "${CMAKE_SOURCE_DIR}/src/Util/MacPlatform.mm")
+endif()
 set(PER_TARGET_SOURCES
     "${CMAKE_SOURCE_DIR}/src/main.cpp"
     "${CMAKE_SOURCE_DIR}/src/game_main.cpp"
@@ -160,11 +167,16 @@ else()
     )
     FetchContent_MakeAvailable(Luau)
 
-    # yaml-cpp: Homebrew版(0.9.0リリースタグ)には`include/yaml-cpp`に同梱されている
-    # patched header(GetShowTrailingZero/insert_map_pairのforce引数等、jbeder/yaml-cpp
-    # masterブランチには存在するがリリースタグ0.9.0には未リリースのAPI)が無く、
-    # リンク時にシンボル不足で失敗する。ヘッダと一致するmasterブランチをソースから取得する。
-    set(RECUBIN_YAMLCPP_GIT_TAG "master" CACHE STRING "yaml-cppの取得元git tag/コミット")
+    # yaml-cpp: Homebrew版には同梱patched headerが使う未リリースAPIが無く、最新masterは
+    # convert<T, Enable>へ変更され同梱ヘッダのconvert<T>とリンク互換性がないため、
+    # 以前の成功実績があり同梱ヘッダと一致するコミットを既定にする。旧既定値masterだけは
+    # 一度移行し、ユーザーが指定した別のタグ/コミットは維持する。
+    set(RECUBIN_YAMLCPP_DEFAULT_GIT_TAG "356643ba267039367d87fa70ce3d8f87144f55e9")
+    if(DEFINED RECUBIN_YAMLCPP_GIT_TAG AND RECUBIN_YAMLCPP_GIT_TAG STREQUAL "master")
+        set(RECUBIN_YAMLCPP_GIT_TAG "${RECUBIN_YAMLCPP_DEFAULT_GIT_TAG}" CACHE STRING "同梱ヘッダと互換性があるyaml-cppのgitコミット" FORCE)
+    else()
+        set(RECUBIN_YAMLCPP_GIT_TAG "${RECUBIN_YAMLCPP_DEFAULT_GIT_TAG}" CACHE STRING "同梱ヘッダと互換性があるyaml-cppのgitコミット")
+    endif()
     set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(
         yaml-cpp
