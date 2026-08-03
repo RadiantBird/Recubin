@@ -102,27 +102,25 @@ bool BaseCube::IsA(std::string className) {
 
 void BaseCube::onAncestorChanged() {
     // 1. 先祖を遡って Workspace を探す (O(h))
-    Instance* ws_raw = findFirstAncestorWorkspace();
-    
-    if (ws_raw) {
-        // Workspace を発見した場合
-        Workspace* ws = static_cast<Workspace*>(ws_raw);
-        
-        // 重複登録を防ぎつつ、物理エンジンの待機リストへ
-        // std::cout << "Adding to workspace...\n";
-        ws->registerCube(std::static_pointer_cast<BaseCube>(shared_from_this()));
-        lastWorkspace = ws;
-    } else {
-        // std::cout << "Workspace is null!\n";
-        // Workspace の外に出た場合は Physics から削除
-        if (lastWorkspace) {
-            if (lastWorkspace->physicsEngine) {
-                lastWorkspace->physicsEngine->removeCube(std::static_pointer_cast<BaseCube>(shared_from_this()));
-            } else {
-                // physicsEngine が nullptr の場合、backend body は Physics::~Physics() で解放済み
-            }
+    Workspace* newWorkspace =
+        static_cast<Workspace*>(findFirstAncestorWorkspace());
+
+    // Folder/Model 間など、同じ Workspace 内の親変更で body を
+    // 登録し直してはいけない。
+    if (newWorkspace != lastWorkspace) {
+        auto self = std::static_pointer_cast<BaseCube>(shared_from_this());
+        Workspace* oldWorkspace = lastWorkspace;
+
+        // 新 world に登録する前に旧 world を完全に離脱する。
+        // Physics 停止中でも pending の strong reference は残さない。
+        if (oldWorkspace) {
+            oldWorkspace->unregisterCube(this);
+            if (oldWorkspace->physicsEngine)
+                oldWorkspace->physicsEngine->removeCube(self);
         }
-        lastWorkspace = nullptr;
+
+        lastWorkspace = newWorkspace;
+        if (newWorkspace) newWorkspace->registerCube(self);
     }
 
     // 2. 子階層への通知も継続（BaseCube の中に何か入っている場合のため）

@@ -26,12 +26,9 @@ class Workspace : public Instance {
         void registerScript(const std::shared_ptr<Instance>& s);
         void unregisterScript(const std::shared_ptr<Instance>& s);
         void registerCube(const std::shared_ptr<Instance>& c);
+        void unregisterCube(const Instance* c);
         void registerConstraint(const std::shared_ptr<Instance>& c);
-
-        // !! <DO NOT UNREGISTER THE CUBE, IT IS HANDLED BY "physics" CLASS.> !!
-        // void unregisterCube(Instance* c) {
-        //     pendingInstances.erase(std::remove(pendingInstances.begin(), pendingInstances.end(), c), pendingInstances.end());
-        // }
+        void unregisterConstraint(const Instance* c);
 
     public:
         Vector3 Gravity = {0.0f, -METER_TO_STUD * EARTH_GRAVITY_MPS2, 0.0f};

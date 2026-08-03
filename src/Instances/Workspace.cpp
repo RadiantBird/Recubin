@@ -17,10 +17,28 @@ void Workspace::registerCube(const std::shared_ptr<Instance>& c) {
     }
 }
 
+void Workspace::unregisterCube(const Instance* c) {
+    pendingInstances.erase(
+        std::remove_if(pendingInstances.begin(), pendingInstances.end(),
+            [c](const std::shared_ptr<Instance>& value) {
+                return !value || value.get() == c;
+            }),
+        pendingInstances.end());
+}
+
 void Workspace::registerConstraint(const std::shared_ptr<Instance>& c) {
     if (std::find(pendingConstraints.begin(), pendingConstraints.end(), c) == pendingConstraints.end()) {
         pendingConstraints.push_back(c);
     }
+}
+
+void Workspace::unregisterConstraint(const Instance* c) {
+    pendingConstraints.erase(
+        std::remove_if(pendingConstraints.begin(), pendingConstraints.end(),
+            [c](const std::shared_ptr<Instance>& value) {
+                return !value || value.get() == c;
+            }),
+        pendingConstraints.end());
 }
 
 Workspace::Workspace() : Instance("Workspace") {}

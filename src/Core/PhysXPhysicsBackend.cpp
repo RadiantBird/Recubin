@@ -211,26 +211,32 @@ Vector3 PhysXPhysicsBackend::getGravity() const {
 }
 
 bool PhysXPhysicsBackend::hasBody(const BaseCube& cube) const {
-    return static_cast<bool>(cube.m_bodyHandle);
+    return cube.m_physicsOwner == m_facade &&
+        getActor(cube.m_bodyHandle) != nullptr;
 }
 
 bool PhysXPhysicsBackend::sharesBody(const BaseCube& first, const BaseCube& second) const {
-    return first.m_bodyHandle && first.m_bodyHandle == second.m_bodyHandle;
+    return first.m_physicsOwner == m_facade &&
+        second.m_physicsOwner == m_facade && first.m_bodyHandle &&
+        first.m_bodyHandle == second.m_bodyHandle;
 }
 
 CFrame PhysXPhysicsBackend::getBodyWorldCFrame(const BaseCube& cube) const {
+    if (cube.m_physicsOwner != m_facade) return CFrame();
     auto* actor = getActor(cube.m_bodyHandle);
     if (!actor) return CFrame();
     return fromPxTransform(actor->getGlobalPose());
 }
 
 void PhysXPhysicsBackend::setBodyWorldCFrame(BaseCube& cube, const CFrame& worldCFrame) {
+    if (cube.m_physicsOwner != m_facade) return;
     auto* actor = getActor(cube.m_bodyHandle);
     if (!actor) return;
     actor->setGlobalPose(toPxTransform(worldCFrame));
 }
 
 Vector3 PhysXPhysicsBackend::getLinearVelocity(const BaseCube& cube) const {
+    if (cube.m_physicsOwner != m_facade) return Vector3();
     auto* actor = getActor(cube.m_bodyHandle);
     auto* dynamic = actor ? actor->is<physx::PxRigidDynamic>() : nullptr;
     if (!dynamic) return Vector3();
@@ -239,6 +245,7 @@ Vector3 PhysXPhysicsBackend::getLinearVelocity(const BaseCube& cube) const {
 }
 
 void PhysXPhysicsBackend::setLinearVelocity(BaseCube& cube, const Vector3& velocity) {
+    if (cube.m_physicsOwner != m_facade) return;
     auto* actor = getActor(cube.m_bodyHandle);
     auto* dynamic = actor ? actor->is<physx::PxRigidDynamic>() : nullptr;
     if (!dynamic) return;
@@ -246,6 +253,7 @@ void PhysXPhysicsBackend::setLinearVelocity(BaseCube& cube, const Vector3& veloc
 }
 
 void PhysXPhysicsBackend::setAngularVelocity(BaseCube& cube, const Vector3& velocity) {
+    if (cube.m_physicsOwner != m_facade) return;
     auto* actor = getActor(cube.m_bodyHandle);
     auto* dynamic = actor ? actor->is<physx::PxRigidDynamic>() : nullptr;
     if (!dynamic) return;
@@ -253,6 +261,7 @@ void PhysXPhysicsBackend::setAngularVelocity(BaseCube& cube, const Vector3& velo
 }
 
 void PhysXPhysicsBackend::setGravityEnabled(BaseCube& cube, bool enabled) {
+    if (cube.m_physicsOwner != m_facade) return;
     auto* actor = getActor(cube.m_bodyHandle);
     auto* dynamic = actor ? actor->is<physx::PxRigidDynamic>() : nullptr;
     if (!dynamic) return;
@@ -260,6 +269,7 @@ void PhysXPhysicsBackend::setGravityEnabled(BaseCube& cube, bool enabled) {
 }
 
 void PhysXPhysicsBackend::applyLockFlags(BaseCube& cube) {
+    if (cube.m_physicsOwner != m_facade) return;
     auto* actor = getActor(cube.m_bodyHandle);
     auto* dynamic = actor ? actor->is<physx::PxRigidDynamic>() : nullptr;
     if (!dynamic || (dynamic->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) return;
@@ -267,6 +277,7 @@ void PhysXPhysicsBackend::applyLockFlags(BaseCube& cube) {
 }
 
 void PhysXPhysicsBackend::syncCube(BaseCube& cube) {
+    if (cube.m_physicsOwner != m_facade) return;
     auto* actor = getActor(cube.m_bodyHandle);
     if (!actor) return;
     if (cube.Anchored) {
@@ -883,31 +894,61 @@ void PhysXPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
 
     physx::PxRigidActor* a = getActor(cube->m_bodyHandle);
+
+    // actor を破棄する前に、移動する endpoint に結び付いた native
+    // joint/filter を解除する。Weld は native joint を持たないため、論理
+    // topology を残して復帰時に再接続できるようにする。
+    std::vector<std::shared_ptr<Instance>> attached;
+    for (const auto& entry : m_constraints) {
+        auto value = entry.constraint.lock();
+        if (!value || value->IsA("Weld")) continue;
+        std::shared_ptr<BaseCube> first;
+        std::shared_ptr<BaseCube> second;
+        if (value->IsA("Rope")) {
+            auto c = std::static_pointer_cast<Rope>(value);
+            first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        } else if (value->IsA("Rod")) {
+            auto c = std::static_pointer_cast<Rod>(value);
+            first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        } else if (value->IsA("Motor")) {
+            auto c = std::static_pointer_cast<Motor>(value);
+            first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        } else if (value->IsA("BallSocket")) {
+            auto c = std::static_pointer_cast<BallSocket>(value);
+            first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        }
+        if (first == cube || second == cube) attached.push_back(value);
+    }
+    for (const auto& entry : m_noCollisionEntries) {
+        auto value = entry.inst.lock();
+        if (value && (entry.c0.lock() == cube || entry.c1.lock() == cube))
+            attached.push_back(value);
+    }
+    for (const auto& value : attached) removeConstraint(value);
+
     cube->m_bodyHandle = {};
     cube->m_compoundLocalOffset = CFrame();
     cube->m_physicsOwner = nullptr;
 
-    if (a) {
-        // 同じ actor を共有している cube が他にいないか確認（compound の場合）
-        bool sharedWithOthers = false;
-        for (auto& entry : cubes) {
-            auto other = entry.cube.lock();
-            if (other && other != cube && getActor(other->m_bodyHandle) == a) {
-                sharedWithOthers = true;
-                break;
-            }
-        }
-        if (!sharedWithOthers) {
-            if (scene) scene->removeActor(*a);
-            a->release();
-        }
-    }
-
-    // cubes ベクターから自分のエントリーを削除
     cubes.erase(std::remove_if(cubes.begin(), cubes.end(),
         [&](const CubeEntry& entry) {
             return entry.cubeRaw == cube.get() || entry.cube.lock() == cube;
         }), cubes.end());
+
+    if (!a) return;
+    std::vector<std::shared_ptr<BaseCube>> survivors;
+    for (const auto& entry : cubes) {
+        if (entry.actor != a) continue;
+        if (auto other = entry.cube.lock()) survivors.push_back(other);
+    }
+    if (survivors.empty()) {
+        if (scene) scene->removeActor(*a);
+        a->release();
+    } else {
+        // rebuildGroup は旧 actor から全 member の姿勢と速度を保存し、
+        // 残留 member の shape だけを持つ actor に差し替える。
+        rebuildGroup(survivors);
+    }
 }
 
 void PhysXPhysicsBackend::onCubeDestroyed(BaseCube& cube) {
@@ -931,12 +972,18 @@ void PhysXPhysicsBackend::onCubeDestroyed(BaseCube& cube) {
         cubes.end());
 
     if (!actor) return;
-    const bool sharedWithOthers = std::any_of(
-        cubes.begin(), cubes.end(),
-        [&](const CubeEntry& entry) { return entry.actor == actor; });
-    if (!sharedWithOthers) {
+    std::vector<std::shared_ptr<BaseCube>> survivors;
+    for (const auto& entry : cubes) {
+        if (entry.actor != actor) continue;
+        if (auto other = entry.cube.lock()) survivors.push_back(other);
+    }
+    if (survivors.empty()) {
         if (scene) scene->removeActor(*actor);
         actor->release();
+    } else {
+        // shape userData を null にするだけでは衝突形状自体が残る。
+        // 生存 member のみで compound を再構築し ghost shape を除去する。
+        rebuildGroup(survivors);
     }
 }
 
@@ -1242,8 +1289,6 @@ void PhysXPhysicsBackend::update(Workspace& workspace, float dt) {
     // 削除済み Cube を参照する制約を実行前に回収する。これにより Weld だけでなく、すべての2点制約がシーンツリーと PhysX の両方から残らない。
     removeInvalidConstraints(workspace);
 
-    stepOnce(dt);
-
     // 0. 削除されたキューブをクリーンアップ（Workspace に存在しなくなったキューブを検出）
     auto it = cubes.begin();
     while (it != cubes.end()) {
@@ -1252,7 +1297,7 @@ void PhysXPhysicsBackend::update(Workspace& workspace, float dt) {
         // actor が nullptr でも削除しない: CanCollide==false のキューブ(例: HumanoidのHead)は
         // 元々 actor を持たないが、Weld で compound に組み込まれると駆動対象(syncPhysics)になる。
         // ここで除外すると syncPhysics が呼ばれなくなり、キネマティック追従が止まってしまう
-        if (!cube || cube->Parent.expired()) {
+        if (!cube || cube->findFirstAncestorWorkspace() != &workspace) {
             if (cube) {
                 cube->m_bodyHandle = {};
                 cube->m_compoundLocalOffset = CFrame();
@@ -1277,16 +1322,29 @@ void PhysXPhysicsBackend::update(Workspace& workspace, float dt) {
 
     // 1. 未反映の新入りを登録
     for (auto& inst : workspace.pendingInstances) {
-        if (inst->IsA("BaseCube")) {
+        if (inst && inst->IsA("BaseCube")) {
             auto cube = std::static_pointer_cast<BaseCube>(inst);
             // 削除済み/別Workspaceへ移動済みのキューブはアクターを作らない。
             // pendingInstances には残留しうる(removeCubeはここを掃除しない)ため、
             // ここで弾かないと死んだキューブにアクターが生成され二重releaseでクラッシュする。
             if (cube->findFirstAncestorWorkspace() != static_cast<Instance*>(&workspace)) continue;
+            if (cube->m_physicsOwner && cube->m_physicsOwner != m_facade) {
+                RCBN_ERROR("Ignoring Cube registered in a foreign Physics world: "
+                           << cube->Name);
+                continue;
+            }
             createActor(cube);
-            cubes.push_back({
-                std::weak_ptr<BaseCube>(cube), cube.get(), getActor(cube->m_bodyHandle)
-            });
+            auto* actor = getActor(cube->m_bodyHandle);
+            if (!actor) continue;
+            auto existing = std::find_if(
+                cubes.begin(), cubes.end(),
+                [&](const CubeEntry& entry) { return entry.cubeRaw == cube.get(); });
+            if (existing == cubes.end()) {
+                cubes.push_back({std::weak_ptr<BaseCube>(cube), cube.get(), actor});
+            } else {
+                existing->cube = cube;
+                existing->actor = actor;
+            }
         }
     }
     workspace.pendingInstances.clear();
@@ -1370,6 +1428,9 @@ void PhysXPhysicsBackend::update(Workspace& workspace, float dt) {
     }
     workspace.pendingConstraints.clear();
 
+    // body/constraint のpendingを同じ固定stepに反映する。Box3Dと
+    // 同じく、登録前に world を進めない。
+    stepOnce(dt);
     syncAllCubes();
 }
 

@@ -149,6 +149,10 @@ void Physics::advanceWavePhaseCorrection(std::uint64_t simulatedSteps) {
     m_wavePhaseOffsetTicks += std::clamp(error, -maximum, maximum);
 }
 
+bool Physics::ownsBody(const BaseCube& cube) const {
+    return cube.m_physicsOwner == this;
+}
+
 #define RCBN_PHYSICS_VOID(method, ...) \
     do { if (isAvailable()) m_backend->method(__VA_ARGS__); } while (false)
 
@@ -172,59 +176,86 @@ void Physics::moveWeldAssembly(const std::shared_ptr<BaseCube>& member, const CF
 
 void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
     if (!isAvailable() || !cube) return;
+    if (cube->m_physicsOwner && cube->m_physicsOwner != this) {
+        RCBN_ERROR("Refusing to create a body owned by another Physics world: "
+                   << cube->Name);
+        return;
+    }
     cube->m_physicsOwner = this;
     m_backend->createActor(cube);
+    if (!m_backend->hasBody(*cube)) cube->m_physicsOwner = nullptr;
 }
 
 void Physics::recreateActor(const std::shared_ptr<BaseCube>& cube) {
     if (!isAvailable() || !cube) return;
+    if (cube->m_physicsOwner && cube->m_physicsOwner != this) {
+        RCBN_ERROR("Refusing to recreate a body owned by another Physics world: "
+                   << cube->Name);
+        return;
+    }
     cube->m_physicsOwner = this;
     m_backend->recreateActor(cube);
+    if (!m_backend->hasBody(*cube)) cube->m_physicsOwner = nullptr;
 }
 
-void Physics::removeCube(const std::shared_ptr<BaseCube>& cube) { RCBN_PHYSICS_VOID(removeCube, cube); }
+void Physics::removeCube(const std::shared_ptr<BaseCube>& cube) {
+    if (!isAvailable() || !cube ||
+        (cube->m_physicsOwner && cube->m_physicsOwner != this)) return;
+    m_backend->removeCube(cube);
+}
 void Physics::onCubeDestroyed(BaseCube& cube) {
-    if (m_backend) m_backend->onCubeDestroyed(cube);
+    if (m_backend && ownsBody(cube)) m_backend->onCubeDestroyed(cube);
 }
 void Physics::clearCubes() { RCBN_PHYSICS_VOID(clearCubes); }
 
 bool Physics::hasBody(const BaseCube& cube) const {
-    return isAvailable() && m_backend->hasBody(cube);
+    return isAvailable() && ownsBody(cube) && m_backend->hasBody(cube);
 }
 
 bool Physics::sharesBody(const BaseCube& first, const BaseCube& second) const {
-    return isAvailable() && m_backend->sharesBody(first, second);
+    return isAvailable() && ownsBody(first) && ownsBody(second) &&
+        m_backend->sharesBody(first, second);
 }
 
 CFrame Physics::getBodyWorldCFrame(const BaseCube& cube) const {
-    return isAvailable() ? m_backend->getBodyWorldCFrame(cube) : CFrame();
+    return isAvailable() && ownsBody(cube)
+        ? m_backend->getBodyWorldCFrame(cube) : CFrame();
 }
 
 void Physics::setBodyWorldCFrame(BaseCube& cube, const CFrame& cframe) {
-    RCBN_PHYSICS_VOID(setBodyWorldCFrame, cube, cframe);
+    if (isAvailable() && ownsBody(cube))
+        m_backend->setBodyWorldCFrame(cube, cframe);
 }
 
 Vector3 Physics::getLinearVelocity(const BaseCube& cube) const {
-    return isAvailable() ? m_backend->getLinearVelocity(cube) : Vector3();
+    return isAvailable() && ownsBody(cube)
+        ? m_backend->getLinearVelocity(cube) : Vector3();
 }
 
 void Physics::setLinearVelocity(BaseCube& cube, const Vector3& velocity) {
-    RCBN_PHYSICS_VOID(setLinearVelocity, cube, velocity);
+    if (isAvailable() && ownsBody(cube)) m_backend->setLinearVelocity(cube, velocity);
 }
 
 void Physics::setAngularVelocity(BaseCube& cube, const Vector3& velocity) {
-    RCBN_PHYSICS_VOID(setAngularVelocity, cube, velocity);
+    if (isAvailable() && ownsBody(cube)) m_backend->setAngularVelocity(cube, velocity);
 }
 
 void Physics::setGravityEnabled(BaseCube& cube, bool enabled) {
-    RCBN_PHYSICS_VOID(setGravityEnabled, cube, enabled);
+    if (isAvailable() && ownsBody(cube)) m_backend->setGravityEnabled(cube, enabled);
 }
 
-void Physics::applyLockFlags(BaseCube& cube) { RCBN_PHYSICS_VOID(applyLockFlags, cube); }
-void Physics::syncCube(BaseCube& cube) { RCBN_PHYSICS_VOID(syncCube, cube); }
-void Physics::enqueueResize(const std::shared_ptr<BaseCube>& cube) { RCBN_PHYSICS_VOID(enqueueResize, cube); }
+void Physics::applyLockFlags(BaseCube& cube) {
+    if (isAvailable() && ownsBody(cube)) m_backend->applyLockFlags(cube);
+}
+void Physics::syncCube(BaseCube& cube) {
+    if (isAvailable() && ownsBody(cube)) m_backend->syncCube(cube);
+}
+void Physics::enqueueResize(const std::shared_ptr<BaseCube>& cube) {
+    if (isAvailable() && cube && ownsBody(*cube)) m_backend->enqueueResize(cube);
+}
 void Physics::enqueueSetRotation(const std::shared_ptr<BaseCube>& cube, Quaternion rotation) {
-    RCBN_PHYSICS_VOID(enqueueSetRotation, cube, rotation);
+    if (isAvailable() && cube && ownsBody(*cube))
+        m_backend->enqueueSetRotation(cube, rotation);
 }
 
 void Physics::createRope(const std::shared_ptr<Rope>& rope) { RCBN_PHYSICS_VOID(createRope, rope); }

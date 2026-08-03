@@ -17,6 +17,7 @@ private:
     bool m_hasWavePhaseTarget = false;
 
     void advanceWavePhaseCorrection(std::uint64_t simulatedSteps);
+    bool ownsBody(const BaseCube& cube) const;
 
 public:
     static std::function<void(BaseCube*, BaseCube*)> s_contactCallback;

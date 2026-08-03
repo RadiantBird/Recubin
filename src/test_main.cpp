@@ -2769,6 +2769,92 @@ int runNatCodecRegression() {
 //  GLFW/OpenGL/Renderer/PhysXを構築せず、シーンYAML内のScriptを実行して
 //  print()の [PASS]/[FAIL]/[ERROR] 件数から終了コードを決める。
 // ===================================================
+int runPhysicsLifecycleRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[PhysicsLifecycle] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto workspaceA = std::make_shared<Workspace>();
+    auto workspaceB = std::make_shared<Workspace>();
+    workspaceA->Name = "WorkspaceA";
+    workspaceB->Name = "WorkspaceB";
+    workspaceA->Gravity = {};
+    workspaceB->Gravity = {};
+    workspaceA->initPhysics();
+    workspaceB->initPhysics();
+    auto* physicsA = workspaceA->getPhysicsEngine();
+    auto* physicsB = workspaceB->getPhysicsEngine();
+
+    auto folder = std::make_shared<Model>();
+    folder->Name = "Folder";
+    workspaceA->addChild(folder);
+
+    auto cube = std::make_shared<BaseCube>(Vector3(0, 0, 0), Vector3(2, 2, 2));
+    cube->Name = "MovingCube";
+    cube->Anchored = true;
+    workspaceA->addChild(cube);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(physicsA->hasBody(*cube), "Cube is created in Workspace A");
+    const CFrame beforeReparent = physicsA->getBodyWorldCFrame(*cube);
+
+    cube->setParent(folder);
+    expect(physicsA->hasBody(*cube),
+           "same-Workspace reparent keeps the existing body");
+    expect(sameCFrame(beforeReparent, physicsA->getBodyWorldCFrame(*cube)),
+           "same-Workspace reparent preserves the body pose");
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(physicsA->hasBody(*cube),
+           "same-Workspace reparent does not lose the body after flush");
+
+    cube->setParent(workspaceB);
+    expect(!physicsA->hasBody(*cube),
+           "direct A-to-B move invalidates the old owner immediately");
+    physicsB->update(*workspaceB, 1.0f / 60.0f);
+    expect(physicsB->hasBody(*cube), "direct A-to-B move creates a body in B");
+    RaycastHit hitA;
+    RaycastHit hitB;
+    expect(!physicsA->raycast(Vector3(0, 10, 0), Vector3(0, -1, 0), 20, hitA),
+           "old world has no ghost shape after direct move");
+    expect(physicsB->raycast(Vector3(0, 10, 0), Vector3(0, -1, 0), 20, hitB) &&
+               hitB.instance == cube.get(),
+           "new world raycast resolves the moved Cube");
+
+    auto survivor = std::make_shared<BaseCube>(Vector3(20, 0, 0), Vector3(2, 2, 2));
+    auto departing = std::make_shared<BaseCube>(Vector3(26, 0, 0), Vector3(2, 2, 2));
+    survivor->Name = "WeldSurvivor";
+    departing->Name = "WeldDeparting";
+    survivor->Anchored = true;
+    departing->Anchored = true;
+    workspaceA->addChild(survivor);
+    workspaceA->addChild(departing);
+    auto weld = std::make_shared<Weld>(survivor, departing);
+    weld->Name = "Weld";
+    workspaceA->addChild(weld);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(physicsA->sharesBody(*survivor, *departing),
+           "Weld members initially share one body");
+
+    departing->setParent(workspaceB);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    physicsB->update(*workspaceB, 1.0f / 60.0f);
+    expect(physicsA->hasBody(*survivor),
+           "remaining Weld component is rebuilt in the old world");
+    expect(physicsB->hasBody(*departing),
+           "departing Weld member receives a body in the new world");
+    RaycastHit oldWeldHit;
+    expect(!physicsA->raycast(Vector3(26, 10, 0), Vector3(0, -1, 0), 20,
+                              oldWeldHit) ||
+               oldWeldHit.instance != departing.get(),
+           "old Weld compound contains no departing member ghost shape");
+
+    std::cout << "[PhysicsLifecycle] "
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
@@ -2794,18 +2880,22 @@ int main(int argc, char* argv[]) {
     const bool soundStretchRegression = argc > 1 && std::string_view(argv[1]) == "--sound-stretch-regression";
     const bool natCodecRegression = argc > 1 && std::string_view(argv[1]) == "--nat-codec-regression";
     bool physicsMigrationRegression = false;
+    bool physicsLifecycleRegression = false;
     bool physicsPerformanceGuard = false;
     bool box3dBuoyancyRegression = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument(argv[i]);
         physicsMigrationRegression =
             physicsMigrationRegression || argument == "--physics-migration-regression";
+        physicsLifecycleRegression =
+            physicsLifecycleRegression || argument == "--physics-lifecycle-regression";
         physicsPerformanceGuard =
             physicsPerformanceGuard || argument == "--physics-performance-guard";
         box3dBuoyancyRegression =
             box3dBuoyancyRegression || argument == "--box3d-buoyancy-regression";
     }
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
+    if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
     if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
     if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
     if (toolWeldRegression) return runToolWeldRegression();

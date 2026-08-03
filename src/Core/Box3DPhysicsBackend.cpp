@@ -367,7 +367,8 @@ PhysicsBackendType Box3DPhysicsBackend::getType() const {
 }
 
 b3BodyId Box3DPhysicsBackend::bodyId(const BaseCube& cube) const {
-    if (!cube.m_bodyHandle) return b3_nullBodyId;
+    if (cube.m_physicsOwner != m_facade || !cube.m_bodyHandle)
+        return b3_nullBodyId;
     const b3BodyId result = b3LoadBodyId(cube.m_bodyHandle.value);
     return b3Body_IsValid(result) ? result : b3_nullBodyId;
 }
@@ -685,12 +686,13 @@ void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
         if (!idsEqual(entry.bodyId, oldId)) continue;
         if (auto value = entry.cube.lock()) survivors.push_back(value);
     }
-    b3DestroyBody(oldId);
-    for (const auto& value : survivors) assignBody(*value, b3_nullBodyId, CFrame());
-    for (BodyEntry& entry : m_bodies) {
-        if (idsEqual(entry.bodyId, oldId)) entry.bodyId = b3_nullBodyId;
+    if (survivors.empty()) {
+        if (b3Body_IsValid(oldId)) b3DestroyBody(oldId);
+    } else {
+        // old body が生きている間に姿勢と速度を保存し、移動した
+        // member の shape を除いた compound へ一度で差し替える。
+        rebuildAssembly(survivors);
     }
-    for (const auto& value : survivors) createActor(value);
 }
 
 void Box3DPhysicsBackend::onCubeDestroyed(BaseCube& cube) {
@@ -1796,14 +1798,21 @@ void Box3DPhysicsBackend::update(Workspace& workspace, float dt) {
     std::vector<std::shared_ptr<BaseCube>> removed;
     for (const BodyEntry& entry : m_bodies) {
         auto cube = entry.cube.lock();
-        if (cube && !cube->findFirstAncestorWorkspace()) removed.push_back(cube);
+        if (cube && cube->findFirstAncestorWorkspace() != &workspace)
+            removed.push_back(cube);
     }
     for (const auto& cube : removed) removeCube(cube);
 
     for (const auto& value : workspace.pendingInstances) {
         if (!value || !value->IsA("BaseCube")) continue;
         auto cube = std::static_pointer_cast<BaseCube>(value);
-        if (cube->findFirstAncestorWorkspace() == &workspace) createActor(cube);
+        if (cube->findFirstAncestorWorkspace() != &workspace) continue;
+        if (cube->m_physicsOwner && cube->m_physicsOwner != m_facade) {
+            RCBN_ERROR("Ignoring Cube registered in a foreign Physics world: "
+                       << cube->Name);
+            continue;
+        }
+        createActor(cube);
     }
     workspace.pendingInstances.clear();
     createPendingConstraints(workspace);
