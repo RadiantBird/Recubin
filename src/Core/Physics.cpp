@@ -18,6 +18,72 @@
 PhysicsBackendType Physics::s_requestedBackend = PhysicsBackendType::Box3D;
 std::function<void(BaseCube*, BaseCube*)> Physics::s_contactCallback;
 
+namespace {
+bool finiteVector(const Vector3& value) {
+    return std::isfinite(value.x) && std::isfinite(value.y) &&
+           std::isfinite(value.z);
+}
+
+bool finiteQuaternion(const Quaternion& value) {
+    return std::isfinite(value.w) && std::isfinite(value.x) &&
+           std::isfinite(value.y) && std::isfinite(value.z);
+}
+
+bool validQuaternion(const Quaternion& value) {
+    if (!finiteQuaternion(value)) return false;
+    const float lengthSquared = value.w * value.w + value.x * value.x +
+        value.y * value.y + value.z * value.z;
+    return std::isfinite(lengthSquared) && lengthSquared > 1.0e-12f;
+}
+
+bool validCubeDescriptor(const BaseCube& cube) {
+    const bool baseValid = finiteVector(cube.Size) && cube.Size.x > 0.0f &&
+           cube.Size.y > 0.0f && cube.Size.z > 0.0f &&
+           finiteVector(cube.getWorldPosition()) &&
+           validQuaternion(cube.getWorldCFrame().Rotation) &&
+           std::isfinite(cube.MassDensity) && cube.MassDensity > 0.0f &&
+           std::isfinite(cube.material.staticFriction) &&
+           std::isfinite(cube.material.dynamicFriction) &&
+           std::isfinite(cube.material.restitution) &&
+           cube.material.staticFriction >= 0.0f &&
+           cube.material.dynamicFriction >= 0.0f &&
+           cube.material.restitution >= 0.0f;
+    if (!baseValid) return false;
+    if (cube.getPhysicsShape() != PhysicsShape::ConvexMesh) return true;
+    const auto vertices = cube.getConvexVertices();
+    return vertices.size() >= 4 &&
+        std::all_of(vertices.begin(), vertices.end(), finiteVector);
+}
+
+bool validTerrainDescriptor(const PhysicsTerrainDescriptor& descriptor) {
+    if (!finiteVector(descriptor.origin) ||
+        !std::isfinite(descriptor.staticFriction) ||
+        !std::isfinite(descriptor.dynamicFriction) ||
+        !std::isfinite(descriptor.restitution) ||
+        descriptor.staticFriction < 0.0f ||
+        descriptor.dynamicFriction < 0.0f || descriptor.restitution < 0.0f)
+        return false;
+    if (!std::all_of(descriptor.vertices.begin(), descriptor.vertices.end(),
+                     finiteVector))
+        return false;
+    if (descriptor.indices.size() % 3 != 0 ||
+        !std::all_of(descriptor.indices.begin(), descriptor.indices.end(),
+                     [&](std::uint32_t index) {
+                         return index < descriptor.vertices.size();
+                     }))
+        return false;
+    for (const auto& hull : descriptor.hulls) {
+        if (hull.vertices.size() < 4 ||
+            !std::all_of(hull.vertices.begin(), hull.vertices.end(),
+                         finiteVector) ||
+            !finiteVector(hull.localFrame.Position) ||
+            !validQuaternion(hull.localFrame.Rotation))
+            return false;
+    }
+    return true;
+}
+}
+
 IPhysicsBackend::~IPhysicsBackend() = default;
 std::uint64_t IPhysicsBackend::getSimulationTick() const {
     return m_simulationTick;
@@ -187,6 +253,8 @@ void Physics::reconcileConstraints(Workspace& workspace) {
     });
     std::erase_if(m_crossWorkspaceWarnings,
         [&](Instance* value) { return !live.contains(value); });
+    std::erase_if(m_invalidBindingWarnings,
+        [&](Instance* value) { return !live.contains(value); });
 
     auto sameFrame = [](const CFrame& first, const CFrame& second) {
         return first.Position == second.Position &&
@@ -287,6 +355,21 @@ void Physics::reconcileConstraints(Workspace& workspace) {
             ? attachment1->relativeToAncestor(cube1.get()) : CFrame();
         current.axis = axis;
 
+        const bool bindingFinite =
+            finiteVector(current.localFrame0.Position) &&
+            finiteQuaternion(current.localFrame0.Rotation) &&
+            finiteVector(current.localFrame1.Position) &&
+            finiteQuaternion(current.localFrame1.Rotation) &&
+            (!value->IsA("Motor") ||
+             (finiteVector(current.axis) && current.axis.length() > 1.0e-6f));
+        if (!bindingFinite) {
+            if (m_invalidBindingWarnings.insert(value.get()).second)
+                RCBN_ERROR("Constraint binding is non-finite; old native state "
+                           "retained: " << value->Name);
+            continue;
+        }
+        m_invalidBindingWarnings.erase(value.get());
+
         if (!handle) {
             workspace.registerConstraint(value);
             m_constraintBindings[value.get()] = current;
@@ -343,6 +426,10 @@ void Physics::moveWeldAssembly(const std::shared_ptr<BaseCube>& member, const CF
 
 void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
     if (!isAvailable() || !cube) return;
+    if (!validCubeDescriptor(*cube)) {
+        RCBN_ERROR("Refusing invalid physics body descriptor: " << cube->Name);
+        return;
+    }
     if (cube->m_physicsOwner && cube->m_physicsOwner != this) {
         RCBN_ERROR("Refusing to create a body owned by another Physics world: "
                    << cube->Name);
@@ -355,6 +442,11 @@ void Physics::createActor(const std::shared_ptr<BaseCube>& cube) {
 
 void Physics::recreateActor(const std::shared_ptr<BaseCube>& cube) {
     if (!isAvailable() || !cube) return;
+    if (!validCubeDescriptor(*cube)) {
+        RCBN_ERROR("Refusing invalid replacement body descriptor; old body "
+                   "retained: " << cube->Name);
+        return;
+    }
     if (cube->m_physicsOwner && cube->m_physicsOwner != this) {
         RCBN_ERROR("Refusing to recreate a body owned by another Physics world: "
                    << cube->Name);
@@ -382,6 +474,9 @@ bool Physics::hasBody(const BaseCube& cube) const {
 bool Physics::sharesBody(const BaseCube& first, const BaseCube& second) const {
     return isAvailable() && ownsBody(first) && ownsBody(second) &&
         m_backend->sharesBody(first, second);
+}
+PhysicsBodyHandle Physics::getBodyHandle(const BaseCube& cube) const {
+    return ownsBody(cube) ? cube.m_bodyHandle : PhysicsBodyHandle{};
 }
 
 CFrame Physics::getBodyWorldCFrame(const BaseCube& cube) const {
@@ -446,7 +541,8 @@ void Physics::updateConstraint(const std::shared_ptr<Instance>& constraint) {
 
 bool Physics::raycast(const Vector3& origin, const Vector3& direction, float maxDistance,
                       RaycastHit& hitResult, const BaseCube* ignoreCube) {
-    if (!isAvailable()) {
+    if (!isAvailable() || !finiteVector(origin) || !finiteVector(direction) ||
+        !std::isfinite(maxDistance) || maxDistance <= 0.0f) {
         hitResult = {};
         return false;
     }
@@ -457,19 +553,38 @@ BaseCube* Physics::findOverlapping(const BaseCube& cube, const std::string& clas
     return isAvailable() ? m_backend->findOverlapping(cube, className, margin) : nullptr;
 }
 
-void Physics::setGravity(const Vector3& gravity) { RCBN_PHYSICS_VOID(setGravity, gravity); }
+void Physics::setGravity(const Vector3& gravity) {
+    if (!finiteVector(gravity)) {
+        RCBN_ERROR("Rejected non-finite Workspace gravity");
+        return;
+    }
+    RCBN_PHYSICS_VOID(setGravity, gravity);
+}
 Vector3 Physics::getGravity() const {
     return isAvailable() ? m_backend->getGravity() : Vector3();
 }
 
 PhysicsTerrainHandle Physics::createTerrain(const PhysicsTerrainDescriptor& descriptor) {
-    return isAvailable() ? m_backend->createTerrain(descriptor) : PhysicsTerrainHandle{};
+    const bool empty = descriptor.vertices.empty() && descriptor.indices.empty() &&
+        descriptor.hulls.empty();
+    if (!isAvailable() || empty || !validTerrainDescriptor(descriptor)) {
+        RCBN_ERROR("Rejected invalid Terrain physics descriptor");
+        return {};
+    }
+    return m_backend->createTerrain(descriptor);
 }
 
 PhysicsTerrainHandle Physics::replaceTerrain(
     PhysicsTerrainHandle oldHandle,
     const PhysicsTerrainDescriptor& descriptor) {
-    return isAvailable() ? m_backend->replaceTerrain(oldHandle, descriptor) : oldHandle;
+    const bool empty = descriptor.vertices.empty() && descriptor.indices.empty() &&
+        descriptor.hulls.empty();
+    if (!isAvailable()) return oldHandle;
+    if (!empty && !validTerrainDescriptor(descriptor)) {
+        RCBN_ERROR("Rejected invalid Terrain replacement; old handle retained");
+        return oldHandle;
+    }
+    return m_backend->replaceTerrain(oldHandle, descriptor);
 }
 
 void Physics::destroyTerrain(PhysicsTerrainHandle handle) {

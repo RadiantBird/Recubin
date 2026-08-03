@@ -603,7 +603,13 @@ void Box3DPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
     definition.isBullet = cube->CollisionDetection == CCDMode::Bullet;
     const b3BodyId id = b3CreateBody(m_worldId, &definition);
     if (B3_IS_NULL(id)) return;
-    createCubeShape(id, cube, CFrame());
+    const b3ShapeId shape = createCubeShape(id, cube, CFrame());
+    if (cube->CanCollide && B3_IS_NULL(shape)) {
+        b3DestroyBody(id);
+        RCBN_ERROR("Box3D body creation failed; logical Cube retained: "
+                   << cube->Name);
+        return;
+    }
     assignBody(*cube, id, CFrame());
     cube->m_weldKinematic = false;
     m_bodies.push_back({cube, cube.get(), id});
@@ -630,10 +636,52 @@ void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
 
     const Vector3 linear = getLinearVelocity(*cube);
     const Vector3 angular = fromB3Vector(b3Body_GetAngularVelocity(oldId));
+    const CFrame pose = bodyWorldFrame(oldId);
+    const float linearDamping = b3Body_GetLinearDamping(oldId);
+    const float angularDamping = b3Body_GetAngularDamping(oldId);
+    const float gravityScale = b3Body_GetGravityScale(oldId);
+    const bool awake = b3Body_IsAwake(oldId);
+
+    // 旧bodyを保持したままdisabled bodyへ全shapeを構築する。shape生成に
+    // 失敗した場合は新bodyだけを捨て、旧handleとconstraintを維持する。
+    b3BodyDef definition = b3DefaultBodyDef();
+    definition.type = cube->Anchored ? b3_kinematicBody : b3_dynamicBody;
+    definition.position = toB3Position(pose.Position);
+    definition.rotation = toB3Quaternion(pose.Rotation);
+    definition.userData = cube.get();
+    definition.motionLocks = toB3Locks(cube->LockFlags);
+    definition.isBullet = cube->CollisionDetection == CCDMode::Bullet;
+    const b3BodyId replacement = b3CreateBody(m_worldId, &definition);
+    if (B3_IS_NULL(replacement)) {
+        RCBN_ERROR("Box3D body replacement allocation failed; old body retained: "
+                   << cube->Name);
+        return;
+    }
+    b3Body_Disable(replacement);
+    const b3ShapeId replacementShape =
+        createCubeShape(replacement, cube, CFrame());
+    if (cube->CanCollide && B3_IS_NULL(replacementShape)) {
+        b3DestroyBody(replacement);
+        RCBN_ERROR("Box3D body replacement shape failed; old body retained: "
+                   << cube->Name);
+        return;
+    }
+    b3Body_SetLinearVelocity(replacement, toB3Length(linear));
+    b3Body_SetAngularVelocity(replacement, toB3Vector(angular));
+    b3Body_SetLinearDamping(replacement, linearDamping);
+    b3Body_SetAngularDamping(replacement, angularDamping);
+    b3Body_SetGravityScale(replacement, gravityScale);
+
+    const auto gravitySetting = m_gravityEnabled.find(cube.get());
+    const bool hadGravitySetting = gravitySetting != m_gravityEnabled.end();
+    const bool explicitGravity = hadGravitySetting && gravitySetting->second;
     removeCube(cube);
-    createActor(cube);
-    setLinearVelocity(*cube, linear);
-    setAngularVelocity(*cube, angular);
+    assignBody(*cube, replacement, CFrame());
+    cube->m_weldKinematic = false;
+    m_bodies.push_back({cube, cube.get(), replacement});
+    if (hadGravitySetting) m_gravityEnabled[cube.get()] = explicitGravity;
+    b3Body_Enable(replacement);
+    if (!awake && !cube->Anchored) b3Body_SetAwake(replacement, false);
 }
 
 void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
@@ -1222,6 +1270,9 @@ void Box3DPhysicsBackend::rebuildAssembly(
     bool velocityCaptured = false;
     bool anchored = false;
     PhysicsLockFlags combinedLocks = PhysicsLockFlags::None;
+    float savedLinearDamping = 0.0f;
+    float savedAngularDamping = 0.0f;
+    float savedGravityScale = 1.0f;
 
     for (const auto& cube : assembly) {
         if (!cube) continue;
@@ -1235,11 +1286,59 @@ void Box3DPhysicsBackend::rebuildAssembly(
             if (!velocityCaptured && b3Body_GetType(id) == b3_dynamicBody) {
                 linearVelocity = fromB3Length(b3Body_GetLinearVelocity(id));
                 angularVelocity = fromB3Vector(b3Body_GetAngularVelocity(id));
+                savedLinearDamping = b3Body_GetLinearDamping(id);
+                savedAngularDamping = b3Body_GetAngularDamping(id);
+                savedGravityScale = b3Body_GetGravityScale(id);
                 velocityCaptured = true;
             }
         }
         anchored = anchored || cube->Anchored;
         combinedLocks |= cube->LockFlags;
+    }
+
+    const auto originIt = std::find_if(
+        assembly.begin(), assembly.end(),
+        [](const auto& cube) { return static_cast<bool>(cube); });
+    if (originIt == assembly.end()) return;
+    const auto& originCube = *originIt;
+    const CFrame origin = worldFrames[originCube.get()];
+    b3BodyDef bodyDefinition = b3DefaultBodyDef();
+    bodyDefinition.type = anchored ? b3_kinematicBody : b3_dynamicBody;
+    bodyDefinition.position = toB3Position(origin.Position);
+    bodyDefinition.rotation = toB3Quaternion(origin.Rotation);
+    bodyDefinition.userData = originCube.get();
+    bodyDefinition.motionLocks = toB3Locks(combinedLocks);
+    bodyDefinition.isBullet = std::any_of(
+        assembly.begin(), assembly.end(), [](const auto& cube) {
+            return cube && cube->CollisionDetection == CCDMode::Bullet;
+        });
+    const b3BodyId newBody = b3CreateBody(m_worldId, &bodyDefinition);
+    if (B3_IS_NULL(newBody)) {
+        RCBN_ERROR("Box3D compound allocation failed; old assembly retained");
+        return;
+    }
+    b3Body_Disable(newBody);
+    std::unordered_map<BaseCube*, CFrame> localFrames;
+    bool constructionFailed = false;
+    for (const auto& cube : assembly) {
+        if (!cube) continue;
+        const CFrame local = origin.inverse() * worldFrames[cube.get()];
+        localFrames[cube.get()] = local;
+        const b3ShapeId shape = createCubeShape(newBody, cube, local);
+        if (cube->CanCollide && B3_IS_NULL(shape)) constructionFailed = true;
+    }
+    if (constructionFailed) {
+        b3DestroyBody(newBody);
+        RCBN_ERROR("Box3D compound shape creation failed; old assembly retained");
+        return;
+    }
+    b3Body_ApplyMassFromShapes(newBody);
+    b3Body_SetLinearDamping(newBody, savedLinearDamping);
+    b3Body_SetAngularDamping(newBody, savedAngularDamping);
+    b3Body_SetGravityScale(newBody, savedGravityScale);
+    if (!anchored && velocityCaptured) {
+        b3Body_SetLinearVelocity(newBody, toB3Length(linearVelocity));
+        b3Body_SetAngularVelocity(newBody, toB3Vector(angularVelocity));
     }
 
     std::vector<std::shared_ptr<Instance>> recreate;
@@ -1289,28 +1388,9 @@ void Box3DPhysicsBackend::rebuildAssembly(
         }
     }
 
-    const auto originCube = *std::find_if(
-        assembly.begin(), assembly.end(),
-        [](const std::shared_ptr<BaseCube>& cube) { return static_cast<bool>(cube); });
-    const CFrame origin = worldFrames[originCube.get()];
-    b3BodyDef bodyDefinition = b3DefaultBodyDef();
-    bodyDefinition.type = anchored ? b3_kinematicBody : b3_dynamicBody;
-    bodyDefinition.position = toB3Position(origin.Position);
-    bodyDefinition.rotation = toB3Quaternion(origin.Rotation);
-    bodyDefinition.userData = originCube.get();
-    bodyDefinition.motionLocks = toB3Locks(combinedLocks);
-    bodyDefinition.isBullet = std::any_of(
-        assembly.begin(), assembly.end(),
-        [](const auto& cube) {
-            return cube && cube->CollisionDetection == CCDMode::Bullet;
-        });
-    const b3BodyId newBody = b3CreateBody(m_worldId, &bodyDefinition);
-    if (B3_IS_NULL(newBody)) return;
-
     for (const auto& cube : assembly) {
         if (!cube) continue;
-        const CFrame local = origin.inverse() * worldFrames[cube.get()];
-        createCubeShape(newBody, cube, local);
+        const CFrame local = localFrames[cube.get()];
         assignBody(*cube, newBody, local);
         cube->m_weldKinematic = anchored;
         auto found = std::find_if(
@@ -1321,11 +1401,7 @@ void Box3DPhysicsBackend::rebuildAssembly(
         else
             found->bodyId = newBody;
     }
-    b3Body_ApplyMassFromShapes(newBody);
-    if (!anchored && velocityCaptured) {
-        b3Body_SetLinearVelocity(newBody, toB3Length(linearVelocity));
-        b3Body_SetAngularVelocity(newBody, toB3Vector(angularVelocity));
-    }
+    b3Body_Enable(newBody);
 
     for (const auto& value : recreate) {
         if (value->IsA("Rope"))

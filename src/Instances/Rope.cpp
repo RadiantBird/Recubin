@@ -2,6 +2,7 @@
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/Attachment.hpp>
 #include <include/Core/Physics.hpp>
+#include <cmath>
 
 Rope::Rope()
     : Instance("Rope") {}
@@ -78,18 +79,21 @@ void Rope::resolveAttachments() {
 }
 
 void Rope::setMaxDistance(float v) {
+    if (!std::isfinite(v) || v < 0.0f || MaxDistance == v) return;
     MaxDistance = v;
     if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
         m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
 
 void Rope::setStiffness(float v) {
+    if (!std::isfinite(v) || v < 0.0f || Stiffness == v) return;
     Stiffness = v;
     if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
         m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
 
 void Rope::setDamping(float v) {
+    if (!std::isfinite(v) || v < 0.0f || Damping == v) return;
     Damping = v;
     if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
         m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());

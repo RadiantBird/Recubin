@@ -43,6 +43,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <thread>
 #include <iostream>
 #include <limits>
@@ -3087,6 +3088,103 @@ int runMultiWorkspaceRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runPhysicsRollbackRegression() {
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Gravity = {};
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    const char* backend = physicsBackendName(physics->getBackendType());
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[PhysicsRollback] backend=" << backend << ' '
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto cube = addMigrationCube(
+        workspace, "RollbackCube", {0, 0, 0}, {2, 2, 2}, true);
+    physics->update(*workspace, 1.0f / 60.0f);
+    const PhysicsBodyHandle originalHandle = physics->getBodyHandle(*cube);
+    cube->setSize(cube->Size);
+    cube->setAnchored(cube->Anchored);
+    cube->setCanCollide(cube->CanCollide);
+    cube->setMaterial(cube->material);
+    cube->setMassDensity(cube->MassDensity);
+    expect(physics->getBodyHandle(*cube) == originalHandle,
+           "same-value setters preserve the native body handle");
+
+    const Vector3 originalSize = cube->Size;
+    cube->setSize({std::numeric_limits<float>::quiet_NaN(), 2, 2});
+    expect(cube->Size == originalSize &&
+               physics->getBodyHandle(*cube) == originalHandle,
+           "invalid Size setter leaves logical and native state unchanged");
+    cube->Size = {std::numeric_limits<float>::quiet_NaN(), 2, 2};
+    physics->recreateActor(cube);
+    RaycastHit retainedHit;
+    const bool retainedCollision = physics->raycast(
+        {0, 10, 0}, {0, -1, 0}, 20, retainedHit);
+    expect(physics->getBodyHandle(*cube) == originalHandle &&
+               retainedCollision && retainedHit.instance == cube.get(),
+           "invalid replacement descriptor retains the old collision body");
+    cube->Size = originalSize;
+
+    PhysicsTerrainDescriptor terrainDescriptor = makeMigrationTerrain(nullptr);
+    const PhysicsTerrainHandle terrain =
+        physics->createTerrain(terrainDescriptor);
+    PhysicsTerrainDescriptor invalidTerrain = terrainDescriptor;
+    invalidTerrain.indices = {0, 1, 99};
+    const PhysicsTerrainHandle afterInvalid =
+        physics->replaceTerrain(terrain, invalidTerrain);
+    RaycastHit terrainHit;
+    expect(terrain && afterInvalid == terrain && physics->raycast(
+               {0, 10, 0}, {0, -1, 0}, 20, terrainHit),
+           "invalid Terrain replacement retains the old handle and collision");
+    physics->destroyTerrain(terrain);
+    expect(!physics->createTerrain({}),
+           "empty Terrain descriptor does not create a native handle");
+
+    workspace->PhysicsEnabled = false;
+    auto pending = addMigrationCube(
+        workspace, "RemovedWhileDisabled", {50, 0, 0}, {2, 2, 2});
+    pending->setParent(nullptr);
+    workspace->PhysicsEnabled = true;
+    physics->update(*workspace, 1.0f / 60.0f);
+    expect(!physics->hasBody(*pending),
+           "removed pending Cube is not resurrected when physics resumes");
+
+    auto saveRoot = std::make_shared<Instance>("SaveRoot");
+    auto locked = std::make_shared<Cube>(Vector3(), Vector3(1, 1, 1), 0);
+    locked->Name = "LockedCube";
+    locked->LockFlags = PhysicsLockFlags::LinearX |
+        PhysicsLockFlags::AngularY | PhysicsLockFlags::AngularZ;
+    locked->CollisionDetection = CCDMode::Bullet;
+    auto lockedClone = std::dynamic_pointer_cast<BaseCube>(locked->clone());
+    expect(lockedClone && lockedClone->LockFlags == locked->LockFlags &&
+               lockedClone->CollisionDetection == CCDMode::Bullet,
+           "clone preserves LockFlags and CCDMode without native handles");
+    saveRoot->addChild(locked);
+    const auto savePath = std::filesystem::temp_directory_path() /
+        ("recubin_lockflags_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) +
+         ".yaml");
+    SceneLoader::saveScene(saveRoot.get(), savePath.string());
+    auto loadedRoot = SceneLoader::loadScene(savePath.string());
+    std::error_code removeError;
+    std::filesystem::remove(savePath, removeError);
+    Instance* loadedChild = loadedRoot
+        ? loadedRoot->getChild("LockedCube") : nullptr;
+    auto loaded = loadedChild
+        ? std::dynamic_pointer_cast<BaseCube>(loadedChild->shared_from_this())
+        : nullptr;
+    expect(loaded && loaded->LockFlags == locked->LockFlags,
+           "LockFlags string sequence survives YAML save/load");
+
+    std::cout << "[PhysicsRollback] backend=" << backend << " failures="
+              << failures << " result=" << (failures == 0 ? "PASS" : "FAIL")
+              << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int runConstraintRebindRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -3294,6 +3392,7 @@ int main(int argc, char* argv[]) {
     bool fixedStepForceRegression = false;
     bool contactReentryRegression = false;
     bool multiWorkspaceRegression = false;
+    bool physicsRollbackRegression = false;
     bool physicsPerformanceGuard = false;
     bool box3dBuoyancyRegression = false;
     for (int i = 1; i < argc; ++i) {
@@ -3312,6 +3411,8 @@ int main(int argc, char* argv[]) {
             contactReentryRegression || argument == "--contact-reentry-regression";
         multiWorkspaceRegression =
             multiWorkspaceRegression || argument == "--multi-workspace-regression";
+        physicsRollbackRegression =
+            physicsRollbackRegression || argument == "--physics-rollback-regression";
         physicsPerformanceGuard =
             physicsPerformanceGuard || argument == "--physics-performance-guard";
         box3dBuoyancyRegression =
@@ -3324,6 +3425,7 @@ int main(int argc, char* argv[]) {
     if (fixedStepForceRegression) return runFixedStepForceRegression();
     if (contactReentryRegression) return runContactReentryRegression();
     if (multiWorkspaceRegression) return runMultiWorkspaceRegression();
+    if (physicsRollbackRegression) return runPhysicsRollbackRegression();
     if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
     if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
     if (toolWeldRegression) return runToolWeldRegression();

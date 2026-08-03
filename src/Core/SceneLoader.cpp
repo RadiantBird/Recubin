@@ -484,6 +484,18 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "MassDensity" << YAML::Value << bc->MassDensity;
             out << YAML::Key << "CCDMode" << YAML::Value
                 << (bc->CollisionDetection == CCDMode::Bullet ? "Bullet" : "Default");
+            out << YAML::Key << "LockFlags" << YAML::Value
+                << YAML::Flow << YAML::BeginSeq;
+            for (const auto& [flag, name] : {
+                     std::pair{PhysicsLockFlags::LinearX, "LinearX"},
+                     std::pair{PhysicsLockFlags::LinearY, "LinearY"},
+                     std::pair{PhysicsLockFlags::LinearZ, "LinearZ"},
+                     std::pair{PhysicsLockFlags::AngularX, "AngularX"},
+                     std::pair{PhysicsLockFlags::AngularY, "AngularY"},
+                     std::pair{PhysicsLockFlags::AngularZ, "AngularZ"}}) {
+                if (hasPhysicsLockFlag(bc->LockFlags, flag)) out << name;
+            }
+            out << YAML::EndSeq;
             out << YAML::Key << "MaterialType"    << YAML::Value << static_cast<int>(bc->material.type);
             out << YAML::Key << "StaticFriction"  << YAML::Value << bc->material.staticFriction;
             out << YAML::Key << "DynamicFriction" << YAML::Value << bc->material.dynamicFriction;

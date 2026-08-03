@@ -59,6 +59,9 @@ private:
     std::unordered_map<const BaseCube*, bool> m_gravityEnabled;
     std::vector<std::pair<const void*, const void*>> m_pendingContacts;
     physx::PxMaterial* getOrCreateMaterial(const Material& m);
+    physx::PxRigidActor* buildActor(
+        const std::shared_ptr<BaseCube>& cube,
+        const physx::PxTransform& transform);
 
     struct PendingOp {
         enum class Type { Resize, SetRotation };

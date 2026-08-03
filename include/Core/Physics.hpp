@@ -34,6 +34,7 @@ private:
     };
     std::unordered_map<Instance*, ConstraintBindingSnapshot> m_constraintBindings;
     std::unordered_set<Instance*> m_crossWorkspaceWarnings;
+    std::unordered_set<Instance*> m_invalidBindingWarnings;
 
     void advanceWavePhaseCorrection(std::uint64_t simulatedSteps);
     bool ownsBody(const BaseCube& cube) const;
@@ -75,6 +76,7 @@ public:
 
     bool hasBody(const BaseCube& cube) const;
     bool sharesBody(const BaseCube& first, const BaseCube& second) const;
+    PhysicsBodyHandle getBodyHandle(const BaseCube& cube) const;
     CFrame getBodyWorldCFrame(const BaseCube& cube) const;
     void setBodyWorldCFrame(BaseCube& cube, const CFrame& worldCFrame);
     Vector3 getLinearVelocity(const BaseCube& cube) const;

@@ -438,6 +438,14 @@ PhysXPhysicsBackend::~PhysXPhysicsBackend() {
     delete m_filterCallback;
     m_filterCallback = nullptr;
 
+    // createMaterial()が返した所有参照をbackend寿命の終端で対称に解放する。
+    // shape側の参照は上で全actorを解放済み。
+    for (auto& [key, material] : materialCache) {
+        (void)key;
+        if (material) material->release();
+    }
+    materialCache.clear();
+
     // 最後のインスタンスが共有リソースを解放
     --s_refCount;
     if (s_refCount == 0) {
@@ -575,26 +583,19 @@ void PhysXPhysicsBackend::destroyTerrain(PhysicsTerrainHandle handle) {
     actor->release();
 }
 
-void PhysXPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
-    if (!cube) return;
-    cube->m_physicsOwner = m_facade;
-    cube->m_weldKinematic = false; // 単独アクター生成時はWeldメンバーではない
-    if (getActor(cube->m_bodyHandle)) return; // 二重登録防止
-
-    // 初期姿勢（親Model等の変換を含むワールド姿勢。syncPhysics/rebuildGroupと整合させる）
-    CFrame wcf = cube->getWorldCFrame();
-    physx::PxTransform transform(
-        physx::PxVec3(wcf.Position.x, wcf.Position.y, wcf.Position.z),
-        physx::PxQuat(wcf.Rotation.x, wcf.Rotation.y, wcf.Rotation.z, wcf.Rotation.w)
-    );
-
+physx::PxRigidActor* PhysXPhysicsBackend::buildActor(
+    const std::shared_ptr<BaseCube>& cube,
+    const physx::PxTransform& transform) {
+    if (!cube || !s_pxPhysics) return nullptr;
     physx::PxRigidActor* actor = nullptr;
     if (cube->Anchored) {
         physx::PxRigidDynamic* kin = s_pxPhysics->createRigidDynamic(transform);
+        if (!kin) return nullptr;
         kin->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
         actor = kin;
     } else {
         physx::PxRigidDynamic* dynamicActor = s_pxPhysics->createRigidDynamic(transform);
+        if (!dynamicActor) return nullptr;
         dynamicActor->setRigidDynamicLockFlags(toPxLockFlags(cube->LockFlags));
         dynamicActor->setRigidBodyFlag(physx::PxRigidBodyFlag::eENABLE_CCD, true);
         dynamicActor->setSolverIterationCounts(8, 2);
@@ -603,6 +604,10 @@ void PhysXPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
 
     if (cube->CanCollide) {
         physx::PxMaterial* pxMat = getOrCreateMaterial(cube->material);
+        if (!pxMat) {
+            actor->release();
+            return nullptr;
+        }
 
         switch (cube->getPhysicsShape()) {
         case PhysicsShape::Box: {
@@ -628,18 +633,25 @@ void PhysXPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
             physx::PxDefaultMemoryOutputStream buf;
             physx::PxConvexMeshCookingResult::Enum result;
             if (!PxCookConvexMesh(cookParams, desc, buf, &result)) {
-                // RCBN_WARN("ConvexMesh cooking failed for: " << cube->Name);
                 actor->release();
-                return;
+                return nullptr;
             }
             physx::PxDefaultMemoryInputData input(buf.getData(), buf.getSize());
             physx::PxConvexMesh* mesh = s_pxPhysics->createConvexMesh(input);
+            if (!mesh) {
+                actor->release();
+                return nullptr;
+            }
             physx::PxMeshScale scale(physx::PxVec3(cube->Size.x, cube->Size.y, cube->Size.z));
             physx::PxConvexMeshGeometry geom(mesh, scale);
             physx::PxShape* shape = physx::PxRigidActorExt::createExclusiveShape(*actor, geom, *pxMat);
             if (shape) shape->userData = cube.get();
             mesh->release();
             break;
+        }
+        if (actor->getNbShapes() == 0) {
+            actor->release();
+            return nullptr;
         }
         }
     }
@@ -673,9 +685,36 @@ void PhysXPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
             dyn->setMassSpaceInertiaTensor(physx::PxVec3(1.0f, 1.0f, 1.0f));
         }
     }
+    actor->userData = cube.get();
+    return actor;
+}
+
+void PhysXPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
+    if (!cube || !scene || getActor(cube->m_bodyHandle)) return;
+    const CFrame world = cube->getWorldCFrame();
+    const physx::PxTransform transform(
+        physx::PxVec3(world.Position.x, world.Position.y, world.Position.z),
+        physx::PxQuat(world.Rotation.x, world.Rotation.y,
+                      world.Rotation.z, world.Rotation.w));
+    physx::PxRigidActor* actor = buildActor(cube, transform);
+    if (!actor) {
+        RCBN_ERROR("PhysX body creation failed; logical Cube retained: "
+                   << cube->Name);
+        return;
+    }
     scene->addActor(*actor);
-    actor->userData = cube.get(); // レイキャスト等で逆引きできるようにポインタを保持
-    setActor(cube->m_bodyHandle, actor); // BaseCube側にopaque handleを戻す
+    setActor(cube->m_bodyHandle, actor);
+    cube->m_physicsOwner = m_facade;
+    cube->m_weldKinematic = false;
+    auto existing = std::find_if(
+        cubes.begin(), cubes.end(),
+        [&](const CubeEntry& entry) { return entry.cubeRaw == cube.get(); });
+    if (existing == cubes.end())
+        cubes.push_back({cube, cube.get(), actor});
+    else {
+        existing->cube = cube;
+        existing->actor = actor;
+    }
 }
 
 namespace {
@@ -768,6 +807,7 @@ physx::PxMaterial* PhysXPhysicsBackend::getOrCreateMaterial(const Material& m) {
     if (it != materialCache.end()) return it->second;
 
     physx::PxMaterial* pxMat = s_pxPhysics->createMaterial(m.staticFriction, m.dynamicFriction, m.restitution);
+    if (!pxMat) return nullptr;
     materialCache[key] = pxMat;
     return pxMat;
 }
@@ -782,7 +822,6 @@ void PhysXPhysicsBackend::enqueueSetRotation(const std::shared_ptr<BaseCube>& cu
 
 void PhysXPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
-    cube->m_physicsOwner = m_facade;
 
     physx::PxTransform savedPose(physx::PxIdentity);
     physx::PxVec3 savedLinearVelocity(0.0f);
@@ -817,25 +856,39 @@ void PhysXPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
         }
     }
 
+    if (!restorePose) {
+        const CFrame world = cube->getWorldCFrame();
+        savedPose = physx::PxTransform(
+            physx::PxVec3(world.Position.x, world.Position.y, world.Position.z),
+            physx::PxQuat(world.Rotation.x, world.Rotation.y,
+                          world.Rotation.z, world.Rotation.w));
+    }
+    // scene未登録actorへshape・質量・lockを完成させる。失敗時は旧actorと
+    // それに接続するjointを一切変更しない。
+    physx::PxRigidActor* replacement = buildActor(cube, savedPose);
+    if (!replacement) {
+        RCBN_ERROR("PhysX body replacement failed; old body retained: "
+                   << cube->Name);
+        return;
+    }
+    if (restoreDynamicVelocity) {
+        if (auto* dynamic = replacement->is<physx::PxRigidDynamic>();
+            dynamic && !(dynamic->getRigidBodyFlags() &
+                         physx::PxRigidBodyFlag::eKINEMATIC)) {
+            dynamic->setLinearVelocity(savedLinearVelocity);
+            dynamic->setAngularVelocity(savedAngularVelocity);
+        }
+    }
+
     if (cubeActor) {
         scene->removeActor(*cubeActor);
         cubeActor->release();
-        setActor(cube->m_bodyHandle, nullptr);
     }
-    createActor(cube);
-
-    cubeActor = getActor(cube->m_bodyHandle);
-    if (cubeActor && restorePose) {
-        cubeActor->setGlobalPose(savedPose);
-        if (restoreDynamicVelocity) {
-            if (auto* dynamic = cubeActor->is<physx::PxRigidDynamic>()) {
-                if (!(dynamic->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) {
-                    dynamic->setLinearVelocity(savedLinearVelocity);
-                    dynamic->setAngularVelocity(savedAngularVelocity);
-                }
-            }
-        }
-    }
+    scene->addActor(*replacement);
+    setActor(cube->m_bodyHandle, replacement);
+    cube->m_physicsOwner = m_facade;
+    cube->m_weldKinematic = false;
+    cubeActor = replacement;
 
     // cubes 配列内の古いエントリを新アクターに同期（同期しないと cleanup ループが
     // 解放済みの古いポインタに対して二重に removeActor/release してしまう）
@@ -2038,133 +2091,111 @@ void PhysXPhysicsBackend::rebuildGroup(const std::vector<std::shared_ptr<BaseCub
         }
     }
 
-    // 2. 既存アクターを破棄（compound の重複解放を防ぐため set で管理）
-    std::unordered_set<physx::PxRigidActor*> toRelease;
-    for (auto& cube : assembly) {
-        if (auto* actor = getActor(cube->m_bodyHandle)) toRelease.insert(actor);
-    }
-    for (auto* a : toRelease) {
-        scene->removeActor(*a);
-        a->release();
-    }
+    const auto originIt = std::find_if(
+        assembly.begin(), assembly.end(),
+        [](const auto& cube) { return static_cast<bool>(cube); });
+    if (originIt == assembly.end()) return;
+    const auto& originCube = *originIt;
+    const physx::PxTransform originPose =
+        savedPoses[originCube.get()].getNormalized();
 
-    // 3. cube の actor/offset をリセット
-    std::unordered_set<BaseCube*> assemblyPtrs;
-    for (auto& cube : assembly) {
-        cube->m_bodyHandle = {};
-        cube->m_compoundLocalOffset = CFrame();
-        assemblyPtrs.insert(cube.get());
+    // 旧actorをsceneに残したまま、新compoundをscene未登録状態で完成させる。
+    physx::PxRigidDynamic* compound =
+        s_pxPhysics->createRigidDynamic(originPose);
+    if (!compound) {
+        RCBN_ERROR("PhysX compound allocation failed; old assembly retained");
+        return;
     }
-    for (auto& entry : cubes) {
-        auto cube = entry.cube.lock();
-        if (cube && assemblyPtrs.count(cube.get())) entry.actor = nullptr;
-    }
-
-    // 4. compound 生成（assembly[0] を原点）
-    physx::PxTransform originPose = savedPoses[assembly[0].get()].getNormalized();
-    physx::PxRigidDynamic* compound = s_pxPhysics->createRigidDynamic(originPose);
     compound->setSolverIterationCounts(8, 2);
-
-    // シェイプが実際に追加された順に密度を記録し、updateMassAndInertia の
-    // per-shape density 配列（getShapes() の並び = attachShape した順）に対応させる
+    std::unordered_map<BaseCube*, physx::PxTransform> localOffsets;
     std::vector<physx::PxReal> shapeDensities;
-    for (size_t i = 0; i < assembly.size(); i++) {
-        auto& cube = assembly[i];
-        physx::PxTransform localOffset = (i == 0)
-            ? physx::PxTransform(physx::PxIdentity)
-            : originPose.getInverse().transform(savedPoses[cube.get()]).getNormalized();
-        physx::PxMaterial* mat = getOrCreateMaterial(cube->material);
-        if (attachShapeToCompound(s_pxPhysics, cube, compound, localOffset, mat)) {
-            shapeDensities.push_back(std::max(cube->MassDensity, 0.01f));
-        }
-        setActor(cube->m_bodyHandle, compound);
-        cube->m_compoundLocalOffset = fromPxTransform(localOffset);
-        cube->m_physicsOwner = m_facade;
-    }
-
-    // アンカー付きキューブが含まれる場合は compound をキネマティックに設定
+    bool constructionFailed = false;
     bool anyAnchored = false;
-    for (auto& cube : assembly) {
-        if (cube->Anchored) { anyAnchored = true; break; }
+    PhysicsLockFlags combinedLockFlags = PhysicsLockFlags::None;
+    for (const auto& cube : assembly) {
+        if (!cube) continue;
+        const physx::PxTransform localOffset = originPose.getInverse()
+            .transform(savedPoses[cube.get()]).getNormalized();
+        localOffsets[cube.get()] = localOffset;
+        physx::PxMaterial* material = getOrCreateMaterial(cube->material);
+        const bool attached = material && attachShapeToCompound(
+            s_pxPhysics, cube, compound, localOffset, material);
+        if (attached)
+            shapeDensities.push_back(std::max(cube->MassDensity, 0.01f));
+        else if (cube->CanCollide)
+            constructionFailed = true;
+        anyAnchored = anyAnchored || cube->Anchored;
+        combinedLockFlags |= cube->LockFlags;
+    }
+    if (constructionFailed) {
+        compound->release();
+        RCBN_ERROR("PhysX compound shape creation failed; old assembly retained");
+        return;
     }
     if (anyAnchored) {
-        // キネマティックボディはCCD非対応のため、CCDは有効化しない（PhysX警告回避）
         compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
     } else {
         compound->setRigidBodyFlag(physx::PxRigidBodyFlag::eENABLE_CCD, true);
-        // createActor()と同様にLockFlagsを反映する(OR合成)。これをしないと、Humanoid.Rootのように
-        // 角度ロックを持つキューブがWeld等でcompound化されるたびにロックが失われ、
-        // 着席/離脱の繰り返しなどでキャラクターが転倒しやすくなる
-        PhysicsLockFlags combinedLockFlags = PhysicsLockFlags::None;
-        for (auto& cube : assembly) combinedLockFlags |= cube->LockFlags;
         compound->setRigidDynamicLockFlags(toPxLockFlags(combinedLockFlags));
     }
-
-    // 質量計算はシェイプが1つ以上ある場合のみ行う。CanCollide==false のキューブだけで
-    // 構成されたアセンブリ(例: 装飾用 MeshCube を Head に Weld した髪)はシェイプを持たず、
-    // ゼロシェイプの body に対して updateMassAndInertia を呼ぶと不正なメモリアクセス
-    // (0x0 実行)でクラッシュするため、固定質量・慣性で代替する（位置追従のみで十分）。
-    // 各パーツの BaseCube::MassDensity を per-shape density として渡すことで、
-    // 単独アクター(createActor)と同じ基準でパーツごとの密度を質量に反映する。
     if (compound->getNbShapes() > 0) {
-        bool ok = physx::PxRigidBodyExt::updateMassAndInertia(
-            *compound, shapeDensities.data(), static_cast<physx::PxU32>(shapeDensities.size()));
-        if (!ok) {
-            // 失敗時（縮退ジオメトリ等）は質量ゼロ/不正な慣性のcompoundをシーンに残さないよう固定値で保険をかける
-            RCBN_WARN("updateMassAndInertia (per-shape) failed for compound — falling back to mass=1.0");
+        if (!physx::PxRigidBodyExt::updateMassAndInertia(
+                *compound, shapeDensities.data(),
+                static_cast<physx::PxU32>(shapeDensities.size()))) {
             compound->setMass(1.0f);
-            compound->setMassSpaceInertiaTensor(physx::PxVec3(1.0f, 1.0f, 1.0f));
+            compound->setMassSpaceInertiaTensor(
+                physx::PxVec3(1.0f, 1.0f, 1.0f));
         }
     } else {
         compound->setMass(1.0f);
-        compound->setMassSpaceInertiaTensor(physx::PxVec3(1.0f, 1.0f, 1.0f));
+        compound->setMassSpaceInertiaTensor(
+            physx::PxVec3(1.0f, 1.0f, 1.0f));
     }
-
-    // メンバーに「アンカー駆動のキネマティックWeldか」を記録する。
-    // (syncPhysics()/syncWeldKinematics() が setGlobalPose で即時追従させるための判定用)
-    for (auto& cube : assembly) {
-        cube->m_weldKinematic = anyAnchored;
-    }
-
     if (restoreDynamicVelocity && !anyAnchored) {
         compound->setLinearVelocity(savedLinearVelocity);
         compound->setAngularVelocity(savedAngularVelocity);
     }
-
-    scene->addActor(*compound);
-    // createActor()と同様にuserDataを設定する。これが無いとRCBNContactCallback::onContact
-    // (Touched通知)やレイキャストがcompound化されたキューブ(Weld/Motor等)を解決できず、
-    // 素通りしてしまう。代表としてassembly[0](compoundの原点キューブ)を指す
-    compound->userData = assembly[0].get();
-
-    // NoCollision の対象キューブが含まれていれば、対応するシェイプに候補ビットを立てる
-    for (physx::PxU32 i = 0; i < compound->getNbShapes(); i++) {
+    compound->userData = originCube.get();
+    for (physx::PxU32 index = 0; index < compound->getNbShapes(); ++index) {
         physx::PxShape* shape = nullptr;
-        compound->getShapes(&shape, 1, i);
-        if (!shape || !shape->userData) continue;
-        auto* shapeCube = static_cast<BaseCube*>(shape->userData);
-        if (!isInNoCollisionPair(shapeCube)) continue;
-        physx::PxFilterData fd = shape->getSimulationFilterData();
-        fd.word0 |= FILTER_WORD0_NOCOLLISION_CANDIDATE;
-        shape->setSimulationFilterData(fd);
+        compound->getShapes(&shape, 1, index);
+        if (!shape || !shape->userData ||
+            !isInNoCollisionPair(static_cast<BaseCube*>(shape->userData)))
+            continue;
+        physx::PxFilterData data = shape->getSimulationFilterData();
+        data.word0 |= FILTER_WORD0_NOCOLLISION_CANDIDATE;
+        shape->setSimulationFilterData(data);
     }
 
-    // 5. cubes エントリーを更新（既存エントリのみ更新し、未登録のcubeは新規追加する。
-    // 未登録のまま残すと、このcubeのactorはcompound解放後も誰にもnullされず、
-    // BaseCubeの実デストラクタでdangling actorへアクセスしてクラッシュする）
-    for (auto& cube : assembly) {
-        bool found = false;
-        for (auto& entry : cubes) {
-            auto c = entry.cube.lock();
-            if (c && c.get() == cube.get()) {
-                entry.cubeRaw = cube.get();
-                entry.actor = compound;
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            cubes.push_back({ std::weak_ptr<BaseCube>(cube), cube.get(), compound });
+    // 新compound完成後だけ旧actorを交換する。
+    std::unordered_set<physx::PxRigidActor*> toRelease;
+    std::unordered_set<BaseCube*> assemblyPtrs;
+    for (const auto& cube : assembly) {
+        if (!cube) continue;
+        assemblyPtrs.insert(cube.get());
+        if (auto* actor = getActor(cube->m_bodyHandle)) toRelease.insert(actor);
+    }
+    for (physx::PxRigidActor* actor : toRelease) {
+        scene->removeActor(*actor);
+        actor->release();
+    }
+    scene->addActor(*compound);
+    for (const auto& cube : assembly) {
+        if (!cube) continue;
+        setActor(cube->m_bodyHandle, compound);
+        cube->m_compoundLocalOffset =
+            fromPxTransform(localOffsets[cube.get()]);
+        cube->m_physicsOwner = m_facade;
+        cube->m_weldKinematic = anyAnchored;
+        auto entry = std::find_if(
+            cubes.begin(), cubes.end(), [&](const CubeEntry& candidate) {
+                return candidate.cubeRaw == cube.get();
+            });
+        if (entry == cubes.end())
+            cubes.push_back({cube, cube.get(), compound});
+        else {
+            entry->cube = cube;
+            entry->actor = compound;
         }
     }
 

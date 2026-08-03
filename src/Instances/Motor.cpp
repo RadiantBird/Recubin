@@ -2,6 +2,7 @@
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/Attachment.hpp>
 #include <include/Core/Physics.hpp>
+#include <cmath>
 
 Motor::Motor()
     : Instance("Motor") {}
@@ -89,6 +90,7 @@ void Motor::recreateConstraint() {
 }
 
 void Motor::setDriveVelocity(float v) {
+    if (!std::isfinite(v)) return;
     if (DriveVelocity == v && (v == 0.0f || MaxForce <= 0.0f)) return;
     DriveVelocity = v;
     if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
@@ -96,6 +98,7 @@ void Motor::setDriveVelocity(float v) {
 }
 
 void Motor::setMaxForce(float v) {
+    if (!std::isfinite(v) || v < 0.0f) return;
     if (MaxForce == v) return;
     MaxForce = v;
     if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
@@ -103,6 +106,9 @@ void Motor::setMaxForce(float v) {
 }
 
 void Motor::setAxis(Vector3 axis) {
+    if (!std::isfinite(axis.x) || !std::isfinite(axis.y) ||
+        !std::isfinite(axis.z) || axis.length() <= 1.0e-6f)
+        return;
     if (Axis == axis) return;
     Axis = axis;
 }
