@@ -80,22 +80,30 @@ std::vector<physx::PxVec3> toPxVertices(const std::vector<Vector3>& vertices) {
 //  衝突通知コールバック
 // ===================================================
 struct RCBNContactCallback : physx::PxSimulationEventCallback {
+    std::vector<std::pair<const void*, const void*>>* pending = nullptr;
+
+    explicit RCBNContactCallback(
+        std::vector<std::pair<const void*, const void*>>* pendingContacts)
+        : pending(pendingContacts) {}
+
     void onContact(const physx::PxContactPairHeader& header,
-                   const physx::PxContactPair*, physx::PxU32) override {
-        // 削除済みアクターに対する最後のcontactイベントの可能性があるため、userDataを読む前に弾く
+                   const physx::PxContactPair* pairs,
+                   physx::PxU32 pairCount) override {
         if (header.flags & (physx::PxContactPairHeaderFlag::eREMOVED_ACTOR_0 |
                              physx::PxContactPairHeaderFlag::eREMOVED_ACTOR_1))
             return;
-        // userData は BaseCube だけでなく Terrain 等も格納されるため(TerrainStreamer.cpp参照)、
-        // Instance 経由で IsA チェックしてからでないと BaseCube* として安全に解釈できない
-        auto* instA = static_cast<Instance*>(header.actors[0]->userData);
-        auto* instB = static_cast<Instance*>(header.actors[1]->userData);
-        if (!instA || !instB || !instA->IsA("BaseCube") || !instB->IsA("BaseCube"))
-            return;
-        auto* a = static_cast<BaseCube*>(instA);
-        auto* b = static_cast<BaseCube*>(instB);
-        if (a && b && Physics::s_contactCallback)
-            Physics::s_contactCallback(a, b);
+        if (!pending || !pairs) return;
+        for (physx::PxU32 index = 0; index < pairCount; ++index) {
+            const auto& pair = pairs[index];
+            if (pair.flags & (physx::PxContactPairFlag::eREMOVED_SHAPE_0 |
+                              physx::PxContactPairFlag::eREMOVED_SHAPE_1))
+                continue;
+            const void* first = pair.shapes[0]
+                ? pair.shapes[0]->userData : nullptr;
+            const void* second = pair.shapes[1]
+                ? pair.shapes[1]->userData : nullptr;
+            if (first && second) pending->emplace_back(first, second);
+        }
     }
     void onTrigger(physx::PxTriggerPair*, physx::PxU32) override {}
     void onWake(physx::PxActor**, physx::PxU32) override {}
@@ -328,7 +336,7 @@ bool PhysXPhysicsBackend::init() {
     sceneDesc.gravity               = physx::PxVec3(0.0f, -METER_TO_STUD * EARTH_GRAVITY_MPS2, 0.0f);
     sceneDesc.cpuDispatcher         = s_dispatcher;
     sceneDesc.filterShader          = rcbnFilterShader;
-    m_contactCallback               = new RCBNContactCallback();
+    m_contactCallback               = new RCBNContactCallback(&m_pendingContacts);
     sceneDesc.simulationEventCallback = m_contactCallback;
     m_filterCallback                = new RCBNFilterCallback();
     m_filterCallback->pairs         = &m_noCollisionPairs;
@@ -488,8 +496,12 @@ PhysicsTerrainHandle PhysXPhysicsBackend::createTerrain(
         if (mesh) {
             physx::PxTriangleMeshGeometry geometry(mesh);
             geometry.meshFlags = physx::PxMeshGeometryFlag::eDOUBLE_SIDED;
-            if (physx::PxRigidActorExt::createExclusiveShape(*actor, geometry, *material))
+            physx::PxShape* shape = physx::PxRigidActorExt::createExclusiveShape(
+                *actor, geometry, *material);
+            if (shape) {
+                shape->userData = descriptor.userData;
                 ++shapeCount;
+            }
             mesh->release();
         }
     }
@@ -514,6 +526,7 @@ PhysicsTerrainHandle PhysXPhysicsBackend::createTerrain(
             physx::PxRigidActorExt::createExclusiveShape(*actor, geometry, *material);
         if (shape) {
             shape->setLocalPose(toPxTransform(hull.localFrame));
+            shape->userData = descriptor.userData;
             ++shapeCount;
         }
         mesh->release();
@@ -665,10 +678,29 @@ void PhysXPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
     setActor(cube->m_bodyHandle, actor); // BaseCube側にopaque handleを戻す
 }
 
+namespace {
+class MemberRaycastFilter final : public physx::PxQueryFilterCallback {
+public:
+    const BaseCube* ignored = nullptr;
+
+    physx::PxQueryHitType::Enum preFilter(
+        const physx::PxFilterData&, const physx::PxShape* shape,
+        const physx::PxRigidActor*, physx::PxHitFlags&) override {
+        return ignored && shape && shape->userData == ignored
+            ? physx::PxQueryHitType::eNONE
+            : physx::PxQueryHitType::eBLOCK;
+    }
+
+    physx::PxQueryHitType::Enum postFilter(
+        const physx::PxFilterData&, const physx::PxQueryHit&,
+        const physx::PxShape*, const physx::PxRigidActor*) override {
+        return physx::PxQueryHitType::eBLOCK;
+    }
+};
+}
+
 bool PhysXPhysicsBackend::raycast(const Vector3& origin, const Vector3& direction, float maxDistance, RaycastHit& hitResult, const BaseCube* ignoreCube) {
     if (!scene) return false;
-    physx::PxRigidActor* ignoreActor =
-        ignoreCube ? getActor(ignoreCube->m_bodyHandle) : nullptr;
 
     physx::PxVec3 pxOrigin(origin.x, origin.y, origin.z);
     physx::PxVec3 pxDir(direction.x, direction.y, direction.z);
@@ -681,7 +713,13 @@ bool PhysXPhysicsBackend::raycast(const Vector3& origin, const Vector3& directio
     physx::PxRaycastHit hitBuffer[maxHits];
     physx::PxRaycastBuffer buf(hitBuffer, maxHits);
 
-    bool status = scene->raycast(pxOrigin, pxDir, maxDistance, buf);
+    MemberRaycastFilter memberFilter;
+    memberFilter.ignored = ignoreCube;
+    physx::PxQueryFilterData filterData;
+    filterData.flags |= physx::PxQueryFlag::ePREFILTER;
+    bool status = scene->raycast(
+        pxOrigin, pxDir, maxDistance, buf, physx::PxHitFlag::eDEFAULT,
+        filterData, &memberFilter);
 
     if (status) {
         // ヒットしたアクターを走査し、無視対象以外を見つける
@@ -689,7 +727,8 @@ bool PhysXPhysicsBackend::raycast(const Vector3& origin, const Vector3& directio
 
         // 通常のブロッキングヒットを確認
         if (buf.hasBlock) {
-            if (buf.block.actor != ignoreActor) {
+            if (!ignoreCube || !buf.block.shape ||
+                buf.block.shape->userData != ignoreCube) {
                 bestHit = &buf.block;
             }
         }
@@ -697,7 +736,8 @@ bool PhysXPhysicsBackend::raycast(const Vector3& origin, const Vector3& directio
         // touchesはBVH走査順で距離順ではない（フィルタコールバック無しだと全ヒットが
         // touchesに入りhasBlockは立たない）ため、全走査して最近接を選ぶ
         for (physx::PxU32 i = 0; i < buf.nbTouches; i++) {
-            if (buf.touches[i].actor == ignoreActor) continue;
+            if (ignoreCube && buf.touches[i].shape &&
+                buf.touches[i].shape->userData == ignoreCube) continue;
             if (!bestHit || buf.touches[i].distance < bestHit->distance) {
                 bestHit = &buf.touches[i];
             }
@@ -708,8 +748,8 @@ bool PhysXPhysicsBackend::raycast(const Vector3& origin, const Vector3& directio
             hitResult.distance = bestHit->distance;
             hitResult.position = Vector3(bestHit->position.x, bestHit->position.y, bestHit->position.z);
             hitResult.normal   = Vector3(bestHit->normal.x,   bestHit->normal.y,   bestHit->normal.z);
-            if (bestHit->actor && bestHit->actor->userData) {
-                hitResult.instance = static_cast<Instance*>(bestHit->actor->userData);
+            if (bestHit->shape && bestHit->shape->userData) {
+                hitResult.instance = static_cast<Instance*>(bestHit->shape->userData);
             } else {
                 hitResult.instance = nullptr;
             }
@@ -858,6 +898,7 @@ void PhysXPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
 }
 
 void PhysXPhysicsBackend::clearCubes() {
+    m_pendingContacts.clear();
     // 1. ジョイントを解放（Weld の compound は cubes ループで解放）
     for (auto& entry : m_constraints) {
         if (auto constraint = entry.constraint.lock()) clearConstraintHandle(*constraint);
@@ -1319,6 +1360,29 @@ void PhysXPhysicsBackend::syncAllCubes() {
     }
 }
 
+std::shared_ptr<BaseCube> PhysXPhysicsBackend::resolveContactIdentity(
+    const void* identity) const {
+    if (!identity) return {};
+    for (const CubeEntry& entry : cubes) {
+        if (entry.cubeRaw != identity) continue;
+        auto cube = entry.cube.lock();
+        if (cube && cube.get() == identity && cube->m_physicsOwner == m_facade)
+            return cube;
+    }
+    return {};
+}
+
+void PhysXPhysicsBackend::dispatchContactEvents() {
+    auto pending = std::move(m_pendingContacts);
+    m_pendingContacts.clear();
+    for (const auto& [firstIdentity, secondIdentity] : pending) {
+        auto first = resolveContactIdentity(firstIdentity);
+        auto second = resolveContactIdentity(secondIdentity);
+        if (!first || !second || !Physics::s_contactCallback) continue;
+        Physics::s_contactCallback(first.get(), second.get());
+    }
+}
+
 void PhysXPhysicsBackend::update(Workspace& workspace, float dt) {
     if (!workspace.PhysicsEnabled) return;
     setGravity(workspace.Gravity);
@@ -1469,6 +1533,7 @@ void PhysXPhysicsBackend::update(Workspace& workspace, float dt) {
     // 同じく、登録前に world を進めない。
     stepOnce(dt);
     syncAllCubes();
+    dispatchContactEvents();
 }
 
 void PhysXPhysicsBackend::removeInvalidConstraints(Workspace& workspace) {

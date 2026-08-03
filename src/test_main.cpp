@@ -2958,6 +2958,85 @@ int runFixedStepForceRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runContactReentryRegression() {
+    auto workspaceA = std::make_shared<Workspace>();
+    auto workspaceB = std::make_shared<Workspace>();
+    workspaceA->Name = "ContactWorkspaceA";
+    workspaceB->Name = "ContactWorkspaceB";
+    workspaceA->initPhysics();
+    workspaceB->initPhysics();
+    Physics* physicsA = workspaceA->getPhysicsEngine();
+    Physics* physicsB = workspaceB->getPhysicsEngine();
+    const char* backend = physicsBackendName(physicsA->getBackendType());
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[ContactReentry] backend=" << backend << ' '
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto floor = addMigrationCube(
+        workspaceA, "ContactFloor", {0, 0, 0}, {20, 1, 20}, true);
+    auto falling = addMigrationCube(
+        workspaceA, "ContactFalling", {0, 5, 0}, {2, 2, 2});
+    int callbacks = 0;
+    bool poseWasSynchronized = false;
+    Physics::s_contactCallback = [&](BaseCube* first, BaseCube* second) {
+        const bool isPair =
+            (first == floor.get() && second == falling.get()) ||
+            (first == falling.get() && second == floor.get());
+        if (!isPair) return;
+        ++callbacks;
+        poseWasSynchronized = positionDistance(
+            falling->getWorldPosition(),
+            physicsA->getBodyWorldCFrame(*falling).Position) <= 0.01f;
+        if (callbacks == 1) {
+            // callback中のreparentとshape再構築要求は、native step完了後の
+            // 安全窓で処理されなければならない。
+            falling->setParent(workspaceB);
+            floor->setSize({22, 1, 22});
+        }
+    };
+    for (int step = 0; step < 180 && callbacks == 0; ++step)
+        physicsA->update(*workspaceA, 1.0f / 60.0f);
+    Physics::s_contactCallback = {};
+    expect(callbacks == 1, "contact is dispatched once without callback re-entry");
+    expect(poseWasSynchronized,
+           "contact dispatch occurs after native pose synchronization");
+    expect(!physicsA->hasBody(*falling),
+           "callback reparent immediately detaches the old-world body");
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    physicsB->update(*workspaceB, 1.0f / 60.0f);
+    expect(physicsB->hasBody(*falling),
+           "callback reparent registers the body in the destination world");
+    expect(physicsA->hasBody(*floor),
+           "callback resize is applied in the next safe update window");
+
+    auto lower = addMigrationCube(
+        workspaceA, "CompoundLower", {40, 1, 0}, {2, 2, 2}, true);
+    auto upper = addMigrationCube(
+        workspaceA, "CompoundUpper", {40, 4, 0}, {2, 2, 2}, true);
+    auto weld = std::make_shared<Weld>(lower, upper);
+    weld->Name = "CompoundRaycastWeld";
+    workspaceA->addChild(weld);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    RaycastHit upperHit;
+    RaycastHit lowerHit;
+    const bool hitUpper = physicsA->raycast(
+        {40, 10, 0}, {0, -1, 0}, 20, upperHit);
+    const bool hitLowerWhenIgnoringUpper = physicsA->raycast(
+        {40, 10, 0}, {0, -1, 0}, 20, lowerHit, upper.get());
+    expect(hitUpper && upperHit.instance == upper.get(),
+           "compound raycast reports the member shape that was hit");
+    expect(hitLowerWhenIgnoringUpper && lowerHit.instance == lower.get(),
+           "ignoreCube skips only its member shape, not the whole compound");
+
+    std::cout << "[ContactReentry] backend=" << backend << " failures="
+              << failures << " result=" << (failures == 0 ? "PASS" : "FAIL")
+              << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int runConstraintRebindRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -3163,6 +3242,7 @@ int main(int argc, char* argv[]) {
     bool constraintRebindRegression = false;
     bool terrainInstanceRegression = false;
     bool fixedStepForceRegression = false;
+    bool contactReentryRegression = false;
     bool physicsPerformanceGuard = false;
     bool box3dBuoyancyRegression = false;
     for (int i = 1; i < argc; ++i) {
@@ -3177,6 +3257,8 @@ int main(int argc, char* argv[]) {
             terrainInstanceRegression || argument == "--terrain-instance-regression";
         fixedStepForceRegression =
             fixedStepForceRegression || argument == "--fixed-step-force-regression";
+        contactReentryRegression =
+            contactReentryRegression || argument == "--contact-reentry-regression";
         physicsPerformanceGuard =
             physicsPerformanceGuard || argument == "--physics-performance-guard";
         box3dBuoyancyRegression =
@@ -3187,6 +3269,7 @@ int main(int argc, char* argv[]) {
     if (constraintRebindRegression) return runConstraintRebindRegression();
     if (terrainInstanceRegression) return runTerrainInstanceRegression();
     if (fixedStepForceRegression) return runFixedStepForceRegression();
+    if (contactReentryRegression) return runContactReentryRegression();
     if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
     if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
     if (toolWeldRegression) return runToolWeldRegression();

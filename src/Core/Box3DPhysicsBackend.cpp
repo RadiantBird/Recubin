@@ -749,6 +749,7 @@ void Box3DPhysicsBackend::destroyUniqueBodies() {
 }
 
 void Box3DPhysicsBackend::clearCubes() {
+    m_pendingContacts.clear();
     for (ConstraintEntry& entry : m_constraints) {
         if (auto value = entry.constraint.lock()) clearConstraintHandle(*value);
         if (B3_IS_NON_NULL(entry.jointId) && b3Joint_IsValid(entry.jointId))
@@ -1097,18 +1098,37 @@ void Box3DPhysicsBackend::applyBuoyancy() {
 }
 
 void Box3DPhysicsBackend::processContactEvents() {
-    if (!Physics::s_contactCallback) return;
     const b3ContactEvents events = b3World_GetContactEvents(m_worldId);
     for (int index = 0; index < events.beginCount; ++index) {
         const b3ContactBeginTouchEvent& event = events.beginEvents[index];
         if (!b3Shape_IsValid(event.shapeIdA) || !b3Shape_IsValid(event.shapeIdB))
             continue;
-        auto* first = static_cast<Instance*>(b3Shape_GetUserData(event.shapeIdA));
-        auto* second = static_cast<Instance*>(b3Shape_GetUserData(event.shapeIdB));
-        if (!first || !second || !first->IsA("BaseCube") || !second->IsA("BaseCube"))
-            continue;
-        Physics::s_contactCallback(
-            static_cast<BaseCube*>(first), static_cast<BaseCube*>(second));
+        const void* first = b3Shape_GetUserData(event.shapeIdA);
+        const void* second = b3Shape_GetUserData(event.shapeIdB);
+        if (first && second) m_pendingContacts.emplace_back(first, second);
+    }
+}
+
+std::shared_ptr<BaseCube> Box3DPhysicsBackend::resolveContactIdentity(
+    const void* identity) const {
+    if (!identity) return {};
+    for (const BodyEntry& entry : m_bodies) {
+        if (entry.cubeRaw != identity) continue;
+        auto cube = entry.cube.lock();
+        if (cube && cube.get() == identity && cube->m_physicsOwner == m_facade)
+            return cube;
+    }
+    return {};
+}
+
+void Box3DPhysicsBackend::dispatchContactEvents() {
+    auto pending = std::move(m_pendingContacts);
+    m_pendingContacts.clear();
+    for (const auto& [firstIdentity, secondIdentity] : pending) {
+        auto first = resolveContactIdentity(firstIdentity);
+        auto second = resolveContactIdentity(secondIdentity);
+        if (!first || !second || !Physics::s_contactCallback) continue;
+        Physics::s_contactCallback(first.get(), second.get());
     }
 }
 
@@ -1853,6 +1873,7 @@ void Box3DPhysicsBackend::update(Workspace& workspace, float dt) {
     createPendingConstraints(workspace);
     stepOnce(dt);
     syncAllCubes();
+    dispatchContactEvents();
 }
 
 namespace {

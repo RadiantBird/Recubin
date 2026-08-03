@@ -57,6 +57,7 @@ private:
     // native actor flag は MaintainVelocity でも一時変更されるため、明示的な
     // setGravityEnabled() の状態を Cube 単位で別に保持する。
     std::unordered_map<const BaseCube*, bool> m_gravityEnabled;
+    std::vector<std::pair<const void*, const void*>> m_pendingContacts;
     physx::PxMaterial* getOrCreateMaterial(const Material& m);
 
     struct PendingOp {
@@ -103,6 +104,8 @@ private:
 
     // Force インスタンス（BaseCube の子）の力/トルク/速度維持を適用する（simulate 前に呼ぶ）
     void applyForces();
+    void dispatchContactEvents();
+    std::shared_ptr<BaseCube> resolveContactIdentity(const void* identity) const;
 
     // 2つのAABB(回転無視)の重なり体積を返す(重ならなければ0)。findOverlappingで使用
     static float aabbOverlapVolume(const Vector3& posA, const Vector3& sizeA, const Vector3& posB, const Vector3& sizeB);
