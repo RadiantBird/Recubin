@@ -62,6 +62,9 @@ private:
     std::shared_ptr<const std::set<CubePair>> m_noCollisionSnapshot;
     std::vector<TerrainEntry> m_terrains;
     std::unordered_map<const BaseCube*, BuoyancyProxy> m_buoyancyProxyCache;
+    // setGravityEnabled() の論理状態。MaintainVelocity による一時抑止を
+    // 解除した際、明示的に無効化された重力を誤って有効化しないため保持する。
+    std::unordered_map<const BaseCube*, bool> m_gravityEnabled;
 
     static bool customFilter(
         b3ShapeId shapeIdA, b3ShapeId shapeIdB, void* context);

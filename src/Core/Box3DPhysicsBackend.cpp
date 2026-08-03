@@ -421,6 +421,7 @@ void Box3DPhysicsBackend::setAngularVelocity(
 }
 
 void Box3DPhysicsBackend::setGravityEnabled(BaseCube& cube, bool enabled) {
+    m_gravityEnabled[&cube] = enabled;
     const b3BodyId id = bodyId(cube);
     if (B3_IS_NON_NULL(id)) b3Body_SetGravityScale(id, enabled ? 1.0f : 0.0f);
 }
@@ -638,6 +639,7 @@ void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
 void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
     m_buoyancyProxyCache.erase(cube.get());
+    m_gravityEnabled.erase(cube.get());
     std::vector<std::shared_ptr<Instance>> attachedConstraints;
     for (const ConstraintEntry& entry : m_constraints) {
         auto value = entry.constraint.lock();
@@ -697,6 +699,7 @@ void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
 
 void Box3DPhysicsBackend::onCubeDestroyed(BaseCube& cube) {
     m_buoyancyProxyCache.erase(&cube);
+    m_gravityEnabled.erase(&cube);
     const b3BodyId oldId = bodyId(cube);
     if (B3_IS_NON_NULL(oldId)) {
         const int shapeCount = b3Body_GetShapeCount(oldId);
@@ -742,6 +745,7 @@ void Box3DPhysicsBackend::destroyUniqueBodies() {
         entry.bodyId = b3_nullBodyId;
     }
     m_bodies.clear();
+    m_gravityEnabled.clear();
 }
 
 void Box3DPhysicsBackend::clearCubes() {
@@ -833,32 +837,63 @@ void Box3DPhysicsBackend::enqueueSetRotation(
 }
 
 void Box3DPhysicsBackend::applyForces() {
-    for (BodyEntry& entry : m_bodies) {
-        auto cube = entry.cube.lock();
-        if (!cube || B3_IS_NULL(entry.bodyId) ||
-            b3Body_GetType(entry.bodyId) != b3_dynamicBody) continue;
-        for (const auto& childEntry : cube->children) {
-            const auto& child = childEntry.second;
-            if (!child || !child->IsA("Force")) continue;
-            auto* force = static_cast<Force*>(child.get());
-            if (!force->Enabled) continue;
-            if (force->MaintainVelocity) {
-                if (force->Torque)
-                    b3Body_SetAngularVelocity(entry.bodyId, toB3Vector(force->Value));
-                else
-                    b3Body_SetLinearVelocity(entry.bodyId, toB3Length(force->Value));
-            } else if (force->Torque) {
-                b3Body_ApplyTorque(
-                    entry.bodyId,
-                    {force->Value.x * TORQUE_TO_MKS,
-                     force->Value.y * TORQUE_TO_MKS,
-                     force->Value.z * TORQUE_TO_MKS},
-                    true);
-            } else {
-                b3Body_ApplyForceToCenter(
-                    entry.bodyId, toB3Length(force->Value), true);
+    std::set<std::uint64_t> visited;
+    for (const BodyEntry& bodyEntry : m_bodies) {
+        const b3BodyId id = bodyEntry.bodyId;
+        if (B3_IS_NULL(id) || !b3Body_IsValid(id) ||
+            b3Body_GetType(id) != b3_dynamicBody) continue;
+        if (!visited.insert(b3StoreBodyId(id)).second) continue;
+
+        bool maintainLinear = false;
+        bool maintainAngular = false;
+        bool gravityEnabled = true;
+        Vector3 linearTarget;
+        Vector3 angularTarget;
+        std::vector<const Force*> additive;
+        for (const BodyEntry& entry : m_bodies) {
+            if (!idsEqual(entry.bodyId, id)) continue;
+            auto member = entry.cube.lock();
+            if (!member) continue;
+            if (const auto gravity = m_gravityEnabled.find(member.get());
+                gravity != m_gravityEnabled.end())
+                gravityEnabled = gravityEnabled && gravity->second;
+            for (const auto& [name, child] : member->children) {
+                (void)name;
+                if (!child || !child->IsA("Force")) continue;
+                const auto* force = static_cast<const Force*>(child.get());
+                if (!force->Enabled) continue;
+                if (!force->MaintainVelocity) {
+                    additive.push_back(force);
+                } else if (force->Torque) {
+                    maintainAngular = true;
+                    angularTarget = force->Value;
+                } else {
+                    maintainLinear = true;
+                    linearTarget = force->Value;
+                }
             }
         }
+
+        // MaintainVelocityは対象系の重力・浮力・加算Force/Torqueより
+        // 優先する。shared body内のどのmemberから指定されても同じ。
+        b3Body_SetGravityScale(
+            id, gravityEnabled && !maintainLinear ? 1.0f : 0.0f);
+        for (const Force* force : additive) {
+            if (force->Torque) {
+                if (maintainAngular) continue;
+                b3Body_ApplyTorque(
+                    id, {force->Value.x * TORQUE_TO_MKS,
+                         force->Value.y * TORQUE_TO_MKS,
+                         force->Value.z * TORQUE_TO_MKS}, true);
+            } else {
+                if (maintainLinear) continue;
+                b3Body_ApplyForceToCenter(id, toB3Length(force->Value), true);
+            }
+        }
+        if (maintainLinear)
+            b3Body_SetLinearVelocity(id, toB3Length(linearTarget));
+        if (maintainAngular)
+            b3Body_SetAngularVelocity(id, toB3Vector(angularTarget));
     }
 }
 

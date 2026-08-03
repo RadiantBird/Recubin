@@ -262,6 +262,7 @@ void PhysXPhysicsBackend::setAngularVelocity(BaseCube& cube, const Vector3& velo
 
 void PhysXPhysicsBackend::setGravityEnabled(BaseCube& cube, bool enabled) {
     if (cube.m_physicsOwner != m_facade) return;
+    m_gravityEnabled[&cube] = enabled;
     auto* actor = getActor(cube.m_bodyHandle);
     auto* dynamic = actor ? actor->is<physx::PxRigidDynamic>() : nullptr;
     if (!dynamic) return;
@@ -887,11 +888,13 @@ void PhysXPhysicsBackend::clearCubes() {
         }
     }
     cubes.clear();
+    m_gravityEnabled.clear();
     m_pendingOps.clear();
 }
 
 void PhysXPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
+    m_gravityEnabled.erase(cube.get());
 
     physx::PxRigidActor* a = getActor(cube->m_bodyHandle);
 
@@ -952,6 +955,7 @@ void PhysXPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
 }
 
 void PhysXPhysicsBackend::onCubeDestroyed(BaseCube& cube) {
+    m_gravityEnabled.erase(&cube);
     physx::PxRigidActor* actor = getActor(cube.m_bodyHandle);
 
     if (actor) {
@@ -1026,131 +1030,164 @@ void PhysXPhysicsBackend::applyBuoyancy() {
     physx::PxVec3 g = scene->getGravity();
     Vector3 gVec(g.x, g.y, g.z);
 
-    // 液体を収集
     std::vector<BaseCube*> liquids;
     for (auto& e : cubes)
         if (auto c = e.cube.lock())
             if (c->IsA("LiquidCube")) liquids.push_back(c.get());
-    if (liquids.empty()) {
-        for (auto& e : cubes) {
-            auto cube = e.cube.lock();
-            if (!cube) continue;
-            auto* actor = getActor(cube->m_bodyHandle);
-            if (!actor) continue;
-            auto* dyn = actor->is<physx::PxRigidDynamic>();
-            if (!dyn || (dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) continue;
-            const MaintainVelocityState maintainVelocity = getMaintainVelocityState(*cube);
-            if (maintainVelocity.linear) dyn->setLinearDamping(0.0f);
-            if (maintainVelocity.angular) dyn->setAngularDamping(0.0f);
-        }
-        return;
-    }
 
-    for (auto& e : cubes) {
-        auto cube = e.cube.lock();
-        if (!cube) continue;
-        auto* actor = getActor(cube->m_bodyHandle);
-        if (!actor) continue;
-        auto* dyn = actor->is<physx::PxRigidDynamic>();
-        if (!dyn || (dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) continue;
-        const MaintainVelocityState maintainVelocity = getMaintainVelocityState(*cube);
-        if (cube->IsA("LiquidCube")) {
-            if (maintainVelocity.linear) dyn->setLinearDamping(0.0f);
-            if (maintainVelocity.angular) dyn->setAngularDamping(0.0f);
+    std::unordered_set<physx::PxRigidDynamic*> visited;
+    for (const auto& bodyEntry : cubes) {
+        auto* dyn = bodyEntry.actor
+            ? bodyEntry.actor->is<physx::PxRigidDynamic>() : nullptr;
+        if (!dyn || !visited.insert(dyn).second ||
+            (dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC))
             continue;
+
+        std::vector<std::shared_ptr<BaseCube>> members;
+        bool maintainLinear = false;
+        bool maintainAngular = false;
+        for (const auto& entry : cubes) {
+            if (entry.actor != dyn) continue;
+            auto member = entry.cube.lock();
+            if (!member) continue;
+            const MaintainVelocityState state = getMaintainVelocityState(*member);
+            maintainLinear = maintainLinear || state.linear;
+            maintainAngular = maintainAngular || state.angular;
+            if (!member->IsA("LiquidCube") && member->CanCollide)
+                members.push_back(member);
         }
 
-        Vector3 cs = cube->Size;
-        float cubeVol = std::max(cs.x * cs.y * cs.z, 1e-4f);
-
-        // サンプル点を物体ローカル空間に均等配置し、物体のワールド回転を適用する。
-        // これにより、液体側は軸平行ボックスのまま、浮力を受ける物体側だけが OBB になる。
-        const CFrame cubeWorld = cube->getWorldCFrame();
+        float totalBodyVolume = 0.0f;
+        float totalSubmergedVolume = 0.0f;
+        const CFrame bodyWorld = fromPxTransform(dyn->getGlobalPose());
         constexpr int GRID = BUOYANCY_SAMPLE_RES;
         constexpr int SAMPLE_COUNT = GRID * GRID * GRID;
-        const float sampleVolume = cubeVol / static_cast<float>(SAMPLE_COUNT);
-        float submergedVolume = 0.0f;
+        for (const auto& member : members) {
+            const Vector3 size = member->Size;
+            const float memberVolume = std::max(
+                std::abs(size.x * size.y * size.z), 1e-4f);
+            totalBodyVolume += memberVolume;
+            const float sampleVolume =
+                memberVolume / static_cast<float>(SAMPLE_COUNT);
+            const CFrame memberWorld =
+                bodyWorld * member->m_compoundLocalOffset;
 
-        if (!maintainVelocity.linear) {
-            for (int ix = 0; ix < GRID; ix++) {
-                for (int iy = 0; iy < GRID; iy++) {
-                    for (int iz = 0; iz < GRID; iz++) {
-                    Vector3 localPos(
-                        ((ix + 0.5f) / GRID - 0.5f) * cs.x,
-                        ((iy + 0.5f) / GRID - 0.5f) * cs.y,
-                        ((iz + 0.5f) / GRID - 0.5f) * cs.z
-                    );
-                    Vector3 pos = cubeWorld.pointToWorld(localPos);
-                    bool isSubmerged = false;
-                    float sampleDensity = 0.0f;
-
-                    for (BaseCube* lq : liquids) {
-                        Vector3 lMin = lq->getWorldPosition() - lq->Size * 0.5f;
-                        Vector3 lMax = lq->getWorldPosition() + lq->Size * 0.5f;
-                        if (pos.x >= lMin.x && pos.x <= lMax.x &&
-                            pos.y >= lMin.y && pos.y <= lMax.y &&
-                            pos.z >= lMin.z && pos.z <= lMax.z) {
-                            isSubmerged = true;
-                            sampleDensity += std::max(0.0f, static_cast<LiquidCube*>(lq)->Density);
+            for (int ix = 0; ix < GRID; ++ix) {
+                for (int iy = 0; iy < GRID; ++iy) {
+                    for (int iz = 0; iz < GRID; ++iz) {
+                        const Vector3 localPosition(
+                            ((ix + 0.5f) / GRID - 0.5f) * size.x,
+                            ((iy + 0.5f) / GRID - 0.5f) * size.y,
+                            ((iz + 0.5f) / GRID - 0.5f) * size.z);
+                        const Vector3 position =
+                            memberWorld.pointToWorld(localPosition);
+                        bool submerged = false;
+                        float density = 0.0f;
+                        for (BaseCube* liquid : liquids) {
+                            const Vector3 minimum =
+                                liquid->getWorldPosition() - liquid->Size * 0.5f;
+                            const Vector3 maximum =
+                                liquid->getWorldPosition() + liquid->Size * 0.5f;
+                            if (position.x < minimum.x || position.x > maximum.x ||
+                                position.y < minimum.y || position.y > maximum.y ||
+                                position.z < minimum.z || position.z > maximum.z)
+                                continue;
+                            submerged = true;
+                            density += std::max(
+                                0.0f, static_cast<LiquidCube*>(liquid)->Density);
                         }
-                    }
+                        if (submerged) totalSubmergedVolume += sampleVolume;
+                        if (maintainLinear || density <= 0.0f) continue;
 
-                    if (isSubmerged) submergedVolume += sampleVolume;
-                    if (sampleDensity <= 0.0f) continue;
-
-                    // 各セルが担当する体積分の浮力を、重心から少し離した位置へ適用する。
-                    // 合計浮力は保ったまま、サンプル位置の偏りによる復元トルクを穏やかにする。
-                    const float buoyantVolume = sampleVolume * sampleDensity;
-                    physx::PxVec3 f(-gVec.x * buoyantVolume,
-                                    -gVec.y * buoyantVolume,
-                                    -gVec.z * buoyantVolume);
-                    const Vector3 torqueReducedPos = cubeWorld.Position +
-                        (pos - cubeWorld.Position) * BUOYANCY_TORQUE_SCALE;
-                    physx::PxVec3 pxPos(torqueReducedPos.x, torqueReducedPos.y, torqueReducedPos.z);
-                        physx::PxRigidBodyExt::addForceAtPos(*dyn, f, pxPos, physx::PxForceMode::eFORCE);
+                        const float buoyantVolume = sampleVolume * density;
+                        const physx::PxVec3 force(
+                            -gVec.x * buoyantVolume,
+                            -gVec.y * buoyantVolume,
+                            -gVec.z * buoyantVolume);
+                        const Vector3 applicationPoint = memberWorld.Position +
+                            (position - memberWorld.Position) *
+                                BUOYANCY_TORQUE_SCALE;
+                        physx::PxRigidBodyExt::addForceAtPos(
+                            *dyn, force,
+                            physx::PxVec3(applicationPoint.x,
+                                          applicationPoint.y,
+                                          applicationPoint.z),
+                            physx::PxForceMode::eFORCE);
                     }
                 }
             }
         }
 
-        // 水没割合に比例した PhysX ダンピング（指数減衰で安定して素早く収束）。
-        // 水の外（frac==0）では 0 に戻すので、飛び出した瞬間も含めて全フレームで設定する。
-        const float frac = std::min(submergedVolume / cubeVol, 1.0f);
-        dyn->setLinearDamping(maintainVelocity.linear ? 0.0f : LIQUID_LINEAR_DAMPING * frac);
-        dyn->setAngularDamping(maintainVelocity.angular ? 0.0f : LIQUID_ANGULAR_DAMPING * frac);
+        const float fraction = totalBodyVolume > 1e-4f
+            ? std::clamp(totalSubmergedVolume / totalBodyVolume, 0.0f, 1.0f)
+            : 0.0f;
+        // LiquidCubeが0個の場合も毎fixed tick必ず0へ戻す。
+        dyn->setLinearDamping(
+            maintainLinear ? 0.0f : LIQUID_LINEAR_DAMPING * fraction);
+        dyn->setAngularDamping(
+            maintainAngular ? 0.0f : LIQUID_ANGULAR_DAMPING * fraction);
     }
 }
 
 void PhysXPhysicsBackend::applyForces() {
-    for (auto& entry : cubes) {
-        auto cube = entry.cube.lock();
-        if (!cube) continue;
-        auto* actor = getActor(cube->m_bodyHandle);
-        if (!actor) continue;
-        auto* dyn = actor->is<physx::PxRigidDynamic>();
-        if (!dyn || (dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) continue;
+    std::unordered_set<physx::PxRigidDynamic*> visited;
+    for (const auto& bodyEntry : cubes) {
+        auto* dyn = bodyEntry.actor
+            ? bodyEntry.actor->is<physx::PxRigidDynamic>() : nullptr;
+        if (!dyn || !visited.insert(dyn).second ||
+            (dyn->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC))
+            continue;
 
-        const MaintainVelocityState maintainVelocity = getMaintainVelocityState(*cube);
-        dyn->setActorFlag(physx::PxActorFlag::eDISABLE_GRAVITY, maintainVelocity.linear);
-
-        for (auto const& [name, child] : cube->children) {
-            if (!child || !child->IsA("Force")) continue;
-            auto* force = static_cast<Force*>(child.get());
-            if (!force->Enabled) continue;
-            if (!force->MaintainVelocity &&
-                ((force->Torque && maintainVelocity.angular) ||
-                 (!force->Torque && maintainVelocity.linear))) continue;
-
-            physx::PxVec3 v(force->Value.x, force->Value.y, force->Value.z);
-            if (force->MaintainVelocity) {
-                // 維持モード: 目標速度(線速度/角速度)を毎フレーム設定して保つ
-                if (force->Torque) dyn->setAngularVelocity(v);
-                else               dyn->setLinearVelocity(v);
-            } else {
-                // 加算モード: 力/トルクとして加える（重力・浮力など他の力と合成される）
-                if (force->Torque) dyn->addTorque(v, physx::PxForceMode::eFORCE);
-                else               dyn->addForce(v, physx::PxForceMode::eFORCE);
+        bool maintainLinear = false;
+        bool maintainAngular = false;
+        bool gravityEnabled = true;
+        Vector3 linearTarget;
+        Vector3 angularTarget;
+        std::vector<const Force*> additive;
+        for (const auto& entry : cubes) {
+            if (entry.actor != dyn) continue;
+            auto member = entry.cube.lock();
+            if (!member) continue;
+            if (const auto gravity = m_gravityEnabled.find(member.get());
+                gravity != m_gravityEnabled.end())
+                gravityEnabled = gravityEnabled && gravity->second;
+            for (const auto& [name, child] : member->children) {
+                (void)name;
+                if (!child || !child->IsA("Force")) continue;
+                const auto* force = static_cast<const Force*>(child.get());
+                if (!force->Enabled) continue;
+                if (!force->MaintainVelocity) {
+                    additive.push_back(force);
+                } else if (force->Torque) {
+                    maintainAngular = true;
+                    angularTarget = force->Value;
+                } else {
+                    maintainLinear = true;
+                    linearTarget = force->Value;
+                }
             }
+        }
+
+        dyn->setActorFlag(
+            physx::PxActorFlag::eDISABLE_GRAVITY,
+            maintainLinear || !gravityEnabled);
+        for (const Force* force : additive) {
+            const physx::PxVec3 value(
+                force->Value.x, force->Value.y, force->Value.z);
+            if (force->Torque) {
+                if (!maintainAngular)
+                    dyn->addTorque(value, physx::PxForceMode::eFORCE);
+            } else if (!maintainLinear) {
+                dyn->addForce(value, physx::PxForceMode::eFORCE);
+            }
+        }
+        if (maintainLinear) {
+            dyn->setLinearVelocity(physx::PxVec3(
+                linearTarget.x, linearTarget.y, linearTarget.z));
+        }
+        if (maintainAngular) {
+            dyn->setAngularVelocity(physx::PxVec3(
+                angularTarget.x, angularTarget.y, angularTarget.z));
         }
     }
 }
@@ -1164,11 +1201,11 @@ void PhysXPhysicsBackend::stepOnce(float dt) {
 
     m_accumulator += dt;
 
-    applyBuoyancy();  // 浮力を addForce（次の simulate で消費される）
-    applyForces();    // Forceインスタンスの力/トルク/速度維持（同上）
-
     int steps = 0;
     while (m_accumulator >= fixedStep) {
+        // 力は描画frameではなく、実際に進む各fixed tickにだけ蓄積する。
+        applyBuoyancy();
+        applyForces();
         // PxDistanceJoint の spring flag は距離上限そのものを soft constraint にするため、
         // Rope の hard max joint とは分離して張力だけを明示的に加える。
         for (auto& entry : m_constraints) {

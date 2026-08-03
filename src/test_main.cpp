@@ -2215,8 +2215,7 @@ int runBox3DBuoyancyRegression() {
 
     const Vector3 maintainedVelocity =
         physics->getLinearVelocity(*maintainVelocityCube);
-    const Vector3 expectedMaintainedVelocity =
-        workspace->Gravity * (1.0f / 60.0f);
+    const Vector3 expectedMaintainedVelocity;
     const Vector3 maintainedVelocityError =
         maintainedVelocity - expectedMaintainedVelocity;
     std::cout << "[Box3DBuoyancyRegression] metric=maintain_velocity_buoyancy"
@@ -2235,7 +2234,7 @@ int runBox3DBuoyancyRegression() {
                std::abs(maintainedVelocityError.x) <= 0.05f &&
                std::abs(maintainedVelocityError.y) <= 0.05f &&
                std::abs(maintainedVelocityError.z) <= 0.05f,
-           "MaintainVelocity zero prevents accumulated buoyancy, leaving one gravity step");
+           "MaintainVelocity zero overrides gravity and accumulated buoyancy");
 
     const float obbOutsideVelocity =
         physics->getLinearVelocity(*obbOutsideBody).y;
@@ -2858,6 +2857,107 @@ int runPhysicsLifecycleRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runFixedStepForceRegression() {
+    auto backendWorkspace = std::make_shared<Workspace>();
+    backendWorkspace->initPhysics();
+    const char* backend = physicsBackendName(
+        backendWorkspace->getPhysicsEngine()->getBackendType());
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[FixedStepForce] backend=" << backend << ' '
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    struct Result {
+        Vector3 position;
+        Vector3 velocity;
+        Quaternion rotation;
+    };
+    auto simulate = [](float frameDt) {
+        auto workspace = std::make_shared<Workspace>();
+        workspace->Gravity = {};
+        workspace->initPhysics();
+        auto body = addMigrationCube(
+            workspace, "FixedStepBody", {0, 0, 0}, {2, 2, 2});
+        auto linear = std::make_shared<Force>();
+        linear->Name = "Linear";
+        linear->Value = {80, 0, 0};
+        body->addChild(linear);
+        auto torque = std::make_shared<Force>();
+        torque->Name = "Torque";
+        torque->Torque = true;
+        torque->Value = {0, 0, 2};
+        body->addChild(torque);
+
+        Physics* physics = workspace->getPhysicsEngine();
+        const int frames = static_cast<int>(std::lround(1.0f / frameDt));
+        for (int frame = 0; frame < frames; ++frame)
+            physics->update(*workspace, frameDt);
+        return Result{body->getWorldPosition(), physics->getLinearVelocity(*body),
+                      body->getWorldCFrame().Rotation};
+    };
+
+    const Result at30 = simulate(1.0f / 30.0f);
+    const Result at60 = simulate(1.0f / 60.0f);
+    const Result at120 = simulate(1.0f / 120.0f);
+    auto closeVector = [](const Vector3& first, const Vector3& second,
+                          float tolerance) {
+        return positionDistance(first, second) <= tolerance;
+    };
+    auto rotationDot = [](const Quaternion& first, const Quaternion& second) {
+        return std::abs(first.w * second.w + first.x * second.x +
+                        first.y * second.y + first.z * second.z);
+    };
+    std::cout << "[FixedStepForce] backend=" << backend
+              << " metric=dt_invariance"
+              << " p30=" << at30.position.x << " p60=" << at60.position.x
+              << " p120=" << at120.position.x
+              << " v30=" << at30.velocity.x << " v60=" << at60.velocity.x
+              << " v120=" << at120.velocity.x << '\n';
+    expect(closeVector(at30.position, at60.position, 0.05f) &&
+               closeVector(at120.position, at60.position, 0.05f) &&
+               closeVector(at30.velocity, at60.velocity, 0.05f) &&
+               closeVector(at120.velocity, at60.velocity, 0.05f),
+           "Force integration is invariant at render dt 1/30, 1/60, and 1/120");
+    expect(rotationDot(at30.rotation, at60.rotation) >= 0.999f &&
+               rotationDot(at120.rotation, at60.rotation) >= 0.999f,
+           "Torque integration is invariant at render dt 1/30, 1/60, and 1/120");
+
+    auto workspace = std::make_shared<Workspace>();
+    workspace->initPhysics();
+    auto liquid = std::make_shared<LiquidCube>(
+        Vector3(0, 0, 0), Vector3(20, 20, 20));
+    liquid->Anchored = true;
+    liquid->Density = 4.0f;
+    workspace->addChild(liquid);
+    auto maintained = addMigrationCube(
+        workspace, "Maintained", {0, 0, 0}, {2, 2, 2});
+    auto additive = std::make_shared<Force>();
+    additive->Name = "Additive";
+    additive->Value = {10000, 10000, 10000};
+    maintained->addChild(additive);
+    auto target = std::make_shared<Force>();
+    target->Name = "Maintain";
+    target->MaintainVelocity = true;
+    target->Value = {3, 4, 5};
+    maintained->addChild(target);
+    Physics* physics = workspace->getPhysicsEngine();
+    for (int step = 0; step < 60; ++step)
+        physics->update(*workspace, 1.0f / 60.0f);
+    const Vector3 actual = physics->getLinearVelocity(*maintained);
+    std::cout << "[FixedStepForce] backend=" << backend
+              << " metric=maintain_priority actual=[" << actual.x << ','
+              << actual.y << ',' << actual.z << "]\n";
+    expect(closeVector(actual, target->Value, 0.05f),
+           "MaintainVelocity overrides gravity, buoyancy, and additive Force");
+
+    std::cout << "[FixedStepForce] backend=" << backend << " failures="
+              << failures << " result=" << (failures == 0 ? "PASS" : "FAIL")
+              << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int runConstraintRebindRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -3062,6 +3162,7 @@ int main(int argc, char* argv[]) {
     bool physicsLifecycleRegression = false;
     bool constraintRebindRegression = false;
     bool terrainInstanceRegression = false;
+    bool fixedStepForceRegression = false;
     bool physicsPerformanceGuard = false;
     bool box3dBuoyancyRegression = false;
     for (int i = 1; i < argc; ++i) {
@@ -3074,6 +3175,8 @@ int main(int argc, char* argv[]) {
             constraintRebindRegression || argument == "--constraint-rebind-regression";
         terrainInstanceRegression =
             terrainInstanceRegression || argument == "--terrain-instance-regression";
+        fixedStepForceRegression =
+            fixedStepForceRegression || argument == "--fixed-step-force-regression";
         physicsPerformanceGuard =
             physicsPerformanceGuard || argument == "--physics-performance-guard";
         box3dBuoyancyRegression =
@@ -3083,6 +3186,7 @@ int main(int argc, char* argv[]) {
     if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
     if (constraintRebindRegression) return runConstraintRebindRegression();
     if (terrainInstanceRegression) return runTerrainInstanceRegression();
+    if (fixedStepForceRegression) return runFixedStepForceRegression();
     if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
     if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
     if (toolWeldRegression) return runToolWeldRegression();

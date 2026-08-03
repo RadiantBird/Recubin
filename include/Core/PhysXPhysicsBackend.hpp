@@ -54,6 +54,9 @@ private:
         physx::PxRigidActor* actor = nullptr;
     };
     std::vector<CubeEntry> cubes;
+    // native actor flag は MaintainVelocity でも一時変更されるため、明示的な
+    // setGravityEnabled() の状態を Cube 単位で別に保持する。
+    std::unordered_map<const BaseCube*, bool> m_gravityEnabled;
     physx::PxMaterial* getOrCreateMaterial(const Material& m);
 
     struct PendingOp {
