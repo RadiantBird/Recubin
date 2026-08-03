@@ -611,6 +611,7 @@ int main(int argc, char* argv[]) {
                     }
                     workspace = std::static_pointer_cast<Workspace>(next->shared_from_this());
                     if (!workspace->getPhysicsEngine()) workspace->initPhysics();
+                    replication.setWorkspace(workspace);
                     luauEngine->setGlobalInstance("workspace", workspace);
                     luauEngine->setWorkspace(workspace);
                 }

@@ -22,9 +22,90 @@ ReplicationManager::ReplicationManager(std::shared_ptr<Workspace> workspace, std
       m_physics(workspace ? workspace->getPhysicsEngine() : nullptr) {
 }
 
+void ReplicationManager::setWorkspace(std::shared_ptr<Workspace> workspace) {
+    Physics* newPhysics = workspace ? workspace->getPhysicsEngine() : nullptr;
+    if (workspace == m_workspace) {
+        m_physics = newPhysics;
+        return;
+    }
+
+    std::uint32_t inheritedTick = 0;
+    float inheritedAlpha = 0.0f;
+    const bool inheritClock = m_physics != nullptr;
+    if (m_physics)
+        m_physics->getSynchronizedSimulationClock(
+            inheritedTick, inheritedAlpha);
+
+    // 旧Workspaceがまだ正本である間に、そこへ追加したproxyとAnchored変更を
+    // 対称に解除する。
+    despawnAllAvatars();
+    clientReleaseWorldObjects();
+    m_latestPoses.clear();
+    m_latestVels.clear();
+    m_pendingAvatarInput.clear();
+    m_lastProcessedSeq.clear();
+    m_pathToNetId.clear();
+    m_hostObjects.clear();
+    m_clientObjects.clear();
+
+    if (m_predictionPhysics) m_predictionPhysics->clearCubes();
+    m_predictionStaticMirror.clear();
+    m_predictionHumanoid.reset();
+    m_shadowRoot.reset();
+    m_predictionPhysics.reset();
+    m_predictionSceneReady = false;
+    m_predictionRescanTimer = 0.0f;
+
+    // WorkspaceとPhysicsは同じ更新点で交換し、以降のpacket/updateから旧worldを
+    // 参照できないよう世代を進める。
+    m_workspace = std::move(workspace);
+    m_physics = newPhysics;
+    ++m_workspaceGeneration;
+    m_warnedPhysicsMismatch = false;
+
+    m_avatarSendTimer = 0.0f;
+    m_simulationClockTimer = 0.0f;
+    m_simulationClockRosterSize = 0;
+    m_worldRescanTimer = 1.0f;
+    m_worldSendTimer = 0.0f;
+    m_worldSnapshotTimer = 0.0f;
+    m_worldSnapshotPending = true;
+    m_worldMappingDirty = true;
+    m_prevRosterSize = 0;
+    m_nextNetId = 1;
+    m_hasHostAuthoritativeSelfPose = false;
+    m_inputHistory.clear();
+
+    const NetworkRole role = NetworkManager::get().getRole();
+    m_forceReliableSimulationClock = role == NetworkRole::Host;
+    if (m_physics) {
+        if (role == NetworkRole::Offline) {
+            m_physics->resetSimulationClockSynchronization();
+        } else if (inheritClock) {
+            m_physics->synchronizeSimulationClock(
+                inheritedTick, inheritedAlpha);
+        }
+        if (role == NetworkRole::Host) {
+            m_physics->makeSimulationClockAuthoritative();
+            m_forceReliableSimulationClock = true;
+        }
+    }
+}
+
 void ReplicationManager::update(float dt, Physics* physics) {
     auto& net = NetworkManager::get();
-    m_physics = physics;
+    Physics* boundPhysics =
+        m_workspace ? m_workspace->getPhysicsEngine() : nullptr;
+    if (physics && physics != boundPhysics) {
+        if (!m_warnedPhysicsMismatch) {
+            RCBN_WARN("Replication update rejected a Physics pointer from a "
+                      "different active Workspace");
+            m_warnedPhysicsMismatch = true;
+        }
+        return;
+    }
+    m_warnedPhysicsMismatch = false;
+    m_physics = boundPhysics;
     if (!net.isActive()) return;
 
     reconcileAvatars();
@@ -35,14 +116,14 @@ void ReplicationManager::update(float dt, Physics* physics) {
             // WorkspaceのpendingConstraintsがflushされる前にproxy化・moveされうる。
             m_pendingProxyUpgradeAll = false;
         }
-        hostSimulateAvatars(dt, physics);
+        hostSimulateAvatars(dt, m_physics);
     }
 
     sendAvatarUpdates(dt);
     applyAvatarPoses(dt);
 
     if (net.getRole() == NetworkRole::Host) {
-        hostSendSimulationClock(dt, physics);
+        hostSendSimulationClock(dt, m_physics);
         hostUpdateWorld(dt);
     } else if (net.getRole() == NetworkRole::Client) {
         ensurePredictionScene();
@@ -181,6 +262,12 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
 }
 
 void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, size_t len, PeerId senderId) {
+    const std::uint64_t receivedGeneration = m_workspaceGeneration;
+    const auto receivedWorkspace = m_workspace;
+    auto bindingIsCurrent = [&]() {
+        return receivedGeneration == m_workspaceGeneration &&
+               receivedWorkspace == m_workspace;
+    };
     if (type == static_cast<uint8_t>(MessageType::AvatarState)) {
         ByteReader r{payload, len};
         AvatarInputWire in;
@@ -246,15 +333,20 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
             // 他ピア分の速度は読み捨て(表示はRoot姿勢の平滑補間を使う)
         }
     } else if (type == static_cast<uint8_t>(MessageType::WorldMapping)) {
-        if (NetworkManager::get().getRole() == NetworkRole::Client) {
+        if (bindingIsCurrent() &&
+            NetworkManager::get().getRole() == NetworkRole::Client) {
             clientApplyWorldMapping(payload, len);
         }
     } else if (type == static_cast<uint8_t>(MessageType::WorldTransforms)) {
-        if (NetworkManager::get().getRole() == NetworkRole::Client) {
+        if (bindingIsCurrent() &&
+            NetworkManager::get().getRole() == NetworkRole::Client) {
             clientStoreWorldTransforms(payload, len);
         }
     } else if (type == static_cast<uint8_t>(MessageType::SimulationClock)) {
-        if (NetworkManager::get().getRole() != NetworkRole::Client || !m_physics)
+        Physics* receivedPhysics = m_physics;
+        if (!bindingIsCurrent() ||
+            NetworkManager::get().getRole() != NetworkRole::Client ||
+            !receivedPhysics)
             return;
         ByteReader reader{payload, len};
         std::uint32_t tick = 0;
@@ -269,7 +361,8 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
         const double whole = std::floor(phase);
         const auto adjustedTick = static_cast<std::uint32_t>(
             static_cast<std::uint64_t>(whole) & 0xffffffffu);
-        m_physics->synchronizeSimulationClock(
+        if (!bindingIsCurrent() || receivedPhysics != m_physics) return;
+        receivedPhysics->synchronizeSimulationClock(
             adjustedTick, static_cast<float>(phase - whole));
     }
 }
@@ -887,6 +980,7 @@ void ReplicationManager::clientReleaseWorldObjects() {
 }
 
 void ReplicationManager::onNetworkRoleChanged(NetworkRole oldRole, NetworkRole newRole) {
+    m_physics = m_workspace ? m_workspace->getPhysicsEngine() : nullptr;
     if (newRole == NetworkRole::Offline) {
         if (m_physics) m_physics->resetSimulationClockSynchronization();
         m_simulationClockTimer = 0.0f;

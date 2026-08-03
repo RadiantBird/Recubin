@@ -32,6 +32,7 @@
 #include <Core/User.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Network/NatProtocol.hpp>
+#include <Network/Replication.hpp>
 #include <Util/Logger.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
@@ -3037,6 +3038,55 @@ int runContactReentryRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runMultiWorkspaceRegression() {
+    auto workspaceA = std::make_shared<Workspace>();
+    auto workspaceB = std::make_shared<Workspace>();
+    workspaceA->Name = "NetworkWorkspaceA";
+    workspaceB->Name = "NetworkWorkspaceB";
+    workspaceA->initPhysics();
+    workspaceB->initPhysics();
+    Physics* physicsA = workspaceA->getPhysicsEngine();
+    Physics* physicsB = workspaceB->getPhysicsEngine();
+    auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    ReplicationManager replication(workspaceA, user, nullptr);
+    const char* backend = physicsBackendName(physicsA->getBackendType());
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[MultiWorkspace] backend=" << backend << ' '
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    const std::uint64_t firstGeneration =
+        replication.getWorkspaceGeneration();
+    replication.setWorkspace(workspaceB);
+    expect(replication.getWorkspace() == workspaceB &&
+               replication.getBoundPhysics() == physicsB,
+           "Workspace and Physics binding switch atomically");
+    expect(replication.getWorkspaceGeneration() == firstGeneration + 1,
+           "Workspace switch advances the packet binding generation");
+
+    replication.update(1.0f / 60.0f, physicsA);
+    expect(replication.getWorkspace() == workspaceB &&
+               replication.getBoundPhysics() == physicsB,
+           "update rejects a Physics pointer from the previous Workspace");
+    replication.update(1.0f / 60.0f, physicsB);
+    expect(replication.getBoundPhysics() == physicsB,
+           "update accepts the currently bound Workspace Physics");
+
+    const std::uint64_t secondGeneration =
+        replication.getWorkspaceGeneration();
+    replication.setWorkspace(nullptr);
+    expect(!replication.getWorkspace() && !replication.getBoundPhysics() &&
+               replication.getWorkspaceGeneration() == secondGeneration + 1,
+           "unbinding clears Workspace and Physics in one generation");
+
+    std::cout << "[MultiWorkspace] backend=" << backend << " failures="
+              << failures << " result=" << (failures == 0 ? "PASS" : "FAIL")
+              << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int runConstraintRebindRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -3243,6 +3293,7 @@ int main(int argc, char* argv[]) {
     bool terrainInstanceRegression = false;
     bool fixedStepForceRegression = false;
     bool contactReentryRegression = false;
+    bool multiWorkspaceRegression = false;
     bool physicsPerformanceGuard = false;
     bool box3dBuoyancyRegression = false;
     for (int i = 1; i < argc; ++i) {
@@ -3259,6 +3310,8 @@ int main(int argc, char* argv[]) {
             fixedStepForceRegression || argument == "--fixed-step-force-regression";
         contactReentryRegression =
             contactReentryRegression || argument == "--contact-reentry-regression";
+        multiWorkspaceRegression =
+            multiWorkspaceRegression || argument == "--multi-workspace-regression";
         physicsPerformanceGuard =
             physicsPerformanceGuard || argument == "--physics-performance-guard";
         box3dBuoyancyRegression =
@@ -3270,6 +3323,7 @@ int main(int argc, char* argv[]) {
     if (terrainInstanceRegression) return runTerrainInstanceRegression();
     if (fixedStepForceRegression) return runFixedStepForceRegression();
     if (contactReentryRegression) return runContactReentryRegression();
+    if (multiWorkspaceRegression) return runMultiWorkspaceRegression();
     if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
     if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
     if (toolWeldRegression) return runToolWeldRegression();

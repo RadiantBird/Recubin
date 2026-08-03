@@ -58,6 +58,12 @@ public:
     void onGameMessage(uint8_t type, const uint8_t* payload, size_t len, PeerId senderId);
     // NetworkManager::onRoleChanged から配線される。
     void onNetworkRoleChanged(NetworkRole oldRole, NetworkRole newRole);
+    // active Workspace切替の唯一の入口。WorkspaceとPhysics参照、proxy、
+    // world mapping、prediction mirror、clock bindingを同じ世代で交換する。
+    void setWorkspace(std::shared_ptr<Workspace> workspace);
+    std::shared_ptr<Workspace> getWorkspace() const { return m_workspace; }
+    Physics* getBoundPhysics() const { return m_physics; }
+    std::uint64_t getWorkspaceGeneration() const { return m_workspaceGeneration; }
     bool hasFatalIdentityError() const { return m_fatalIdentityError; }
 
 private:
@@ -100,6 +106,8 @@ private:
     size_t m_simulationClockRosterSize = 0;
     bool m_forceReliableSimulationClock = false;
     Physics* m_physics = nullptr;
+    std::uint64_t m_workspaceGeneration = 1;
+    bool m_warnedPhysicsMismatch = false;
 
     std::unordered_map<PeerId, AvatarInputWire> m_pendingAvatarInput; // Host: 各ピアの最新受信入力
     bool m_pendingProxyUpgradeAll = false; // Client→Host昇格時にセットされ、次のupdate()で全既存アバターをプロキシ化する
