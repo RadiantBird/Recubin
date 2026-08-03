@@ -595,7 +595,7 @@ void buildChunkPhysics(Chunk& chunk, Physics& physics, Instance* userData)
 // ================================================================== //
 
 Terrain::Terrain() : Instance("Terrain") {}
-Terrain::~Terrain() {}
+Terrain::~Terrain() { releaseStreamer(); }
 
 std::string Terrain::getClassName() { return "Terrain"; }
 
@@ -606,9 +606,9 @@ bool Terrain::IsA(std::string className) {
 
 void Terrain::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Enabled") {
-        Enabled = value.as<bool>();
+        setEnabled(value.as<bool>());
     } else if (name == "DataPath") {
-        DataPath = value.as<std::string>();
+        setDataPath(value.as<std::string>());
     } else if (name == "Seed") {
         Seed = value.as<int>();
     } else if (name == "Flat") {
@@ -618,19 +618,75 @@ void Terrain::setProperty(const std::string& name, const YAML::Node& value) {
     }
 }
 
+void Terrain::setEnabled(bool enabled) {
+    if (Enabled == enabled) return;
+    Enabled = enabled;
+    if (!Enabled) releaseStreamer();
+}
+
+void Terrain::setDataPath(const std::string& path) {
+    if (DataPath == path) return;
+    // setDataPath() は旧リージョンをflushしてから切り替える。
+    // 空パスはTerrain未構成を表すためstreamerも解除する。
+    if (streamer && !path.empty()) {
+        streamer->setDataPath(path);
+        m_appliedDataPath = path;
+    } else if (path.empty()) {
+        releaseStreamer();
+    }
+    DataPath = path;
+}
+
+void Terrain::releaseStreamer() {
+    if (streamer) {
+        streamer->clear();
+        streamer.reset();
+    }
+    m_appliedDataPath.clear();
+}
+
+void Terrain::onAncestorChanged() {
+    auto* workspace = static_cast<Workspace*>(findFirstAncestorWorkspace());
+    if (workspace != m_workspaceOwner) {
+        // old Physics が生きている間にchunk handleを破棄する。
+        releaseStreamer();
+        m_workspaceOwner = workspace;
+    }
+    Instance::onAncestorChanged();
+}
+
+std::shared_ptr<Instance> Terrain::clone() const {
+    auto result = std::make_shared<Terrain>();
+    result->Name = Name;
+    result->Enabled = Enabled;
+    result->DataPath = DataPath;
+    result->Seed = Seed;
+    result->Flat = Flat;
+    for (const auto& [name, child] : children) {
+        (void)name;
+        result->addChild(child->clone());
+    }
+    return result;
+}
+
 void Terrain::update(const Vector3& centerPos) {
-    if (!Enabled) {
-        if (streamer) {
-            streamer->clear();
-            streamer.reset();
-        }
+    if (!Enabled || DataPath.empty()) {
+        releaseStreamer();
         return;
     }
 
+    auto* workspace = static_cast<Workspace*>(findFirstAncestorWorkspace());
+    if (!workspace) {
+        releaseStreamer();
+        m_workspaceOwner = nullptr;
+        return;
+    }
+    if (workspace != m_workspaceOwner) {
+        releaseStreamer();
+        m_workspaceOwner = workspace;
+    }
     if (!streamer) {
-        Workspace* ws = static_cast<Workspace*>(findFirstAncestorWorkspace());
-        if (!ws) return;
-        streamer = std::make_unique<TerrainStreamer>(ws, this, DataPath,
+        streamer = std::make_unique<TerrainStreamer>(workspace, this, DataPath,
                                                      static_cast<uint32_t>(Seed), Flat);
         m_appliedDataPath = DataPath;
     }

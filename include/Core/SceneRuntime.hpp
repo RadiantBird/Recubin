@@ -8,6 +8,8 @@ class User;
 class Workspace;
 class Instance;
 class LuauEngine;
+class Terrain;
+struct Vector3;
 struct GLFWwindow;
 
 namespace SceneRuntime {
@@ -28,6 +30,11 @@ namespace SceneRuntime {
                       GLFWwindow* window);
 
     std::vector<std::shared_ptr<Workspace>> collectWorkspaces(const std::shared_ptr<System>& system);
+
+    // Workspace配下のFolder/Modelを含めて全Terrainを列挙する。
+    std::vector<Terrain*> collectTerrains(Instance* root);
+    void updateTerrains(Workspace* workspace, const Vector3& centerPos);
+    void releaseTerrainStreamers(const std::vector<std::shared_ptr<Workspace>>& workspaces);
 
     void applyAppIcon(GLFWwindow* window, Instance* root);
 

@@ -93,6 +93,7 @@ struct Chunk {
 class Physics;
 class TerrainStreamer;
 class Instance;
+class Workspace;
 
 // チャンクの描画メッシュを（再）生成して VAO/VBO/EBO をアップロードする。
 // 同時に physVerts / physIndices を埋める。
@@ -110,7 +111,7 @@ class Terrain : public Instance {
 public:
     bool Enabled = true;
     // 地形データ（リージョンファイル）の保存先ディレクトリ。シーンごとに切り替えられる。
-    std::string DataPath = "terrain";
+    std::string DataPath;
     int  Seed = 12345; // ノイズ生成のシード
     bool Flat = false; // true なら平坦地形を生成
     std::unique_ptr<TerrainStreamer> streamer;
@@ -121,10 +122,16 @@ public:
     std::string getClassName() override;
     bool IsA(std::string className) override;
     void setProperty(const std::string& name, const YAML::Node& value) override;
+    void onAncestorChanged() override;
+    std::shared_ptr<Instance> clone() const override;
 
+    void setEnabled(bool enabled);
+    void setDataPath(const std::string& path);
+    void releaseStreamer();
     void update(const Vector3& centerPos);
 
 private:
     // 直近 streamer に適用した DataPath。変更検出に使う。
     std::string m_appliedDataPath;
+    Workspace* m_workspaceOwner = nullptr;
 };

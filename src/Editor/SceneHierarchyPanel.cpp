@@ -67,8 +67,10 @@
 #include <Core/AudioService.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
+#include <Util/Logger.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
+#include <filesystem>
 
 static bool hierarchyContainsInstance(Instance* root, Instance* target) {
     if (!root || !target) return false;
@@ -145,7 +147,10 @@ void SceneHierarchyPanel::onRender() {
         ImGui::EndPopup();
     }
 
-    if (!readOnly) renderNewScriptDialog();
+    if (!readOnly) {
+        renderNewScriptDialog();
+        renderNewTerrainDialog();
+    }
 
     ImGui::End();
 }
@@ -468,6 +473,83 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
     }
 }
 
+void SceneHierarchyPanel::renderNewTerrainDialog() {
+    if (m_openTerrainDialog) {
+        ImGui::OpenPopup("###NewTerrain");
+        m_openTerrainDialog = false;
+    }
+    if (ImGui::BeginPopupModal(
+            "Terrain Data###NewTerrain", nullptr,
+            ImGuiWindowFlags_AlwaysAutoResize)) {
+        static char terrainName[128] = "Terrain";
+        static int mode = 0;
+        ImGui::RadioButton("Create new", &mode, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("Use existing", &mode, 1);
+        ImGui::Separator();
+        if (mode == 0) {
+            ImGui::TextUnformatted("Terrain name");
+            ImGui::SetNextItemWidth(240.0f);
+            ImGui::InputText("##terrainName", terrainName, sizeof(terrainName));
+            ImGui::TextDisabled("A parent folder will be selected next.");
+        } else {
+            ImGui::TextDisabled("Select an existing Terrain region directory.");
+        }
+        if (ImGui::Button("OK", ImVec2(100, 0))) {
+            m_pendingTerrainName = terrainName;
+            m_pickExistingTerrain = mode == 1;
+            m_doPickTerrain = true;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(100, 0))) {
+            m_pendingTerrainParent.reset();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    if (!m_doPickTerrain) return;
+    m_doPickTerrain = false;
+    const std::string selected = pickFolder();
+    if (selected.empty() || !m_pendingTerrainParent || !m_history) {
+        m_pendingTerrainParent.reset();
+        return;
+    }
+
+    std::filesystem::path dataPath(selected);
+    if (!m_pickExistingTerrain) {
+        if (m_pendingTerrainName.empty()) {
+            RCBN_WARN("Terrain creation requires a non-empty name");
+            m_pendingTerrainParent.reset();
+            return;
+        }
+        dataPath /= m_pendingTerrainName;
+        std::error_code error;
+        if (std::filesystem::exists(dataPath, error) &&
+            !std::filesystem::is_empty(dataPath, error)) {
+            RCBN_WARN("Terrain directory is not empty; refusing to overwrite: "
+                      << dataPath.string());
+            m_pendingTerrainParent.reset();
+            return;
+        }
+        if (!std::filesystem::create_directories(dataPath, error) && error) {
+            RCBN_WARN("Failed to create Terrain directory: " << error.message());
+            m_pendingTerrainParent.reset();
+            return;
+        }
+    }
+
+    auto terrain = std::make_shared<Terrain>();
+    terrain->Name = uniqueName(
+        m_pendingTerrainParent,
+        m_pendingTerrainName.empty() ? "Terrain" : m_pendingTerrainName);
+    terrain->setDataPath(dataPath.string());
+    m_history->execute(std::make_unique<AddInstanceCommand>(
+        m_pendingTerrainParent, terrain));
+    m_pendingTerrainParent.reset();
+}
+
 void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
     auto parentSp = inst->shared_from_this();
 
@@ -516,7 +598,10 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
 
         tryInsertInstance<Workspace>(m_history, "Workspace", parentSp);
         tryInsertInstance<Weather>(m_history, "Weather", parentSp);
-        tryInsertInstance<Terrain>(m_history, "Terrain", parentSp);
+        if (ImGui::MenuItem("Terrain") && m_history) {
+            m_pendingTerrainParent = parentSp;
+            m_openTerrainDialog = true;
+        }
         tryInsertInstance<Skybox>(m_history, "Skybox", parentSp);
 
         tryInsertInstance<Lighting>(m_history, "Lighting", parentSp);

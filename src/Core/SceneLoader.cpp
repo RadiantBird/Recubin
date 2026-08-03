@@ -215,6 +215,15 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
             instance->setProperty(it->first.as<std::string>(), it->second);
         }
     }
+    if (className == "Terrain" &&
+        (!node["Properties"] || !node["Properties"]["DataPath"])) {
+        // DataPath導入前の旧形式だけは従来のterrainディレクトリを
+        // 明示的に引き継ぐ。新規Terrainの空DataPathとは区別する。
+        YAML::Node legacyPath;
+        legacyPath = "terrain";
+        instance->setProperty("DataPath", legacyPath);
+        RCBN_WARN("Legacy Terrain without DataPath uses compatibility path 'terrain'");
+    }
 
     // 名前はシングルトン以外のみ、かつ「プロパティ適用の後」に上書きする。
     // Decal/Texture の setFace() 等は setProperty 内で Name を書き換える（既定名へ）ため、

@@ -1494,14 +1494,14 @@ void PropertiesPanel::onRender() {
             bool before = terrain->Enabled;
             bool value  = terrain->Enabled;
             if (ImGui::Checkbox("Enabled##terrain", &value)) {
-                terrain->Enabled = value;
+                terrain->setEnabled(value);
                 if (m_history) m_history->record(std::make_unique<SetTerrainBoolCommand>(terrSp, "Enabled", before, value));
             }
         }
 
         // データ保存先ディレクトリ（リージョンファイルの置き場所）— フォルダ参照
         ImGui::LabelText("DataPath", "%s", terrain->DataPath.c_str());
-        if (ImGui::Button(locId(Loc::LocKey::Browse, "##terraindp").c_str())) {
+        if (ImGui::Button("Use Existing...##terraindp")) {
             std::string folder = getPlatform().openFolderDialog();
             if (!folder.empty()) {
                 std::string before = terrain->DataPath;
@@ -1509,6 +1509,48 @@ void PropertiesPanel::onRender() {
                 terrain->setProperty("DataPath", node);
                 if (m_history) m_history->record(std::make_unique<SetTerrainStringCommand>(terrSp, "DataPath", before, terrain->DataPath));
             }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Create New...##terraindp"))
+            ImGui::OpenPopup("###TerrainDataPathCreate");
+        if (ImGui::BeginPopupModal(
+                "Create Terrain Data###TerrainDataPathCreate", nullptr,
+                ImGuiWindowFlags_AlwaysAutoResize)) {
+            static char directoryName[128] = "Terrain";
+            ImGui::TextUnformatted("Terrain directory name");
+            ImGui::SetNextItemWidth(240.0f);
+            ImGui::InputText("##terrainDirectoryName", directoryName,
+                             sizeof(directoryName));
+            if (ImGui::Button("Select Parent Folder", ImVec2(150, 0))) {
+                const std::string parent = getPlatform().openFolderDialog();
+                if (!parent.empty() && directoryName[0] != '\0') {
+                    std::filesystem::path target =
+                        std::filesystem::path(parent) / directoryName;
+                    std::error_code error;
+                    const bool occupied = std::filesystem::exists(target, error) &&
+                        !std::filesystem::is_empty(target, error);
+                    if (occupied) {
+                        RCBN_WARN("Terrain directory is not empty; refusing to overwrite: "
+                                  << target.string());
+                    } else if ((!std::filesystem::create_directories(target, error) && error)) {
+                        RCBN_WARN("Failed to create Terrain directory: "
+                                  << error.message());
+                    } else {
+                        const std::string before = terrain->DataPath;
+                        YAML::Node node;
+                        node = target.string();
+                        terrain->setProperty("DataPath", node);
+                        if (m_history && before != terrain->DataPath)
+                            m_history->record(std::make_unique<SetTerrainStringCommand>(
+                                terrSp, "DataPath", before, terrain->DataPath));
+                        ImGui::CloseCurrentPopup();
+                    }
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(100, 0)))
+                ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
         }
 
         // 生成設定（Seed / Flat）

@@ -22,6 +22,7 @@
 
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
+#include <Core/SceneRuntime.hpp>
 #include <Core/AudioService.hpp>
 #include <Core/TimeStretchNode.hpp>
 #include <Core/NullInputBackend.hpp>
@@ -2939,6 +2940,100 @@ int runConstraintRebindRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runTerrainInstanceRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[TerrainInstance] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto workspaceA = std::make_shared<Workspace>();
+    auto workspaceB = std::make_shared<Workspace>();
+    workspaceA->Name = "WorkspaceA";
+    workspaceB->Name = "WorkspaceB";
+    workspaceA->initPhysics();
+    workspaceB->initPhysics();
+    auto folder = std::make_shared<Model>();
+    folder->Name = "TerrainFolder";
+    workspaceA->addChild(folder);
+
+    auto terrain0 = std::make_shared<Terrain>();
+    auto terrain1 = std::make_shared<Terrain>();
+    terrain0->Name = "Terrain0";
+    terrain1->Name = "Terrain1";
+    folder->addChild(terrain0);
+    workspaceA->addChild(terrain1);
+    expect(SceneRuntime::collectTerrains(workspaceA.get()).size() == 2,
+           "recursive enumeration finds multiple nested Terrain instances");
+    expect(terrain0->DataPath.empty() && terrain1->DataPath.empty(),
+           "new Terrain has no implicit current-directory DataPath");
+    SceneRuntime::updateTerrains(workspaceA.get(), Vector3());
+    expect(!terrain0->streamer && !terrain1->streamer,
+           "empty DataPath does not create a streamer or terrain directory");
+
+    terrain0->setDataPath("build/terrain_instance_regression_a");
+    terrain1->setDataPath("build/terrain_instance_regression_b");
+    // Headless runnerにはOpenGL contextが無いため、streamerの所有権遷移
+    // だけを構築し、chunk mesh uploadを伴うupdateはGUI回帰に委ねる。
+    terrain0->streamer = std::make_unique<TerrainStreamer>(
+        workspaceA.get(), terrain0.get(), terrain0->DataPath);
+    terrain1->streamer = std::make_unique<TerrainStreamer>(
+        workspaceA.get(), terrain1.get(), terrain1->DataPath);
+    expect(terrain0->streamer && terrain1->streamer,
+           "all enabled Terrain instances own independent streamers");
+
+    terrain0->setEnabled(false);
+    expect(!terrain0->streamer && terrain1->streamer,
+           "disabling one Terrain immediately releases only its streamer");
+    terrain0->setEnabled(true);
+    terrain0->streamer = std::make_unique<TerrainStreamer>(
+        workspaceA.get(), terrain0.get(), terrain0->DataPath);
+    expect(terrain0->streamer != nullptr,
+           "re-enabling Terrain recreates its streamer on update");
+
+    terrain0->setParent(workspaceB);
+    expect(!terrain0->streamer,
+           "Workspace move releases old-world Terrain resources immediately");
+    terrain0->streamer = std::make_unique<TerrainStreamer>(
+        workspaceB.get(), terrain0.get(), terrain0->DataPath);
+    expect(terrain0->streamer != nullptr,
+           "moved Terrain creates an independent streamer in the new Workspace");
+
+    auto cloned = std::dynamic_pointer_cast<Terrain>(terrain0->clone());
+    expect(cloned && cloned->Enabled == terrain0->Enabled &&
+               cloned->DataPath == terrain0->DataPath &&
+               cloned->Seed == terrain0->Seed && cloned->Flat == terrain0->Flat,
+           "clone preserves Terrain type and settings");
+    expect(cloned && !cloned->streamer,
+           "clone does not duplicate streamer or native handles");
+
+    PhysicsTerrainDescriptor descriptor;
+    descriptor.vertices = {
+        {-2, 0, -2}, {2, 0, -2}, {2, 0, 2}, {-2, 0, 2},
+    };
+    descriptor.indices = {0, 2, 1, 0, 3, 2};
+    descriptor.userData = terrain1.get();
+    auto* physics = workspaceA->getPhysicsEngine();
+    PhysicsTerrainHandle handle = physics->createTerrain(descriptor);
+    RaycastHit beforeDelete;
+    expect(handle && physics->raycast(
+               Vector3(0, 5, 0), Vector3(0, -1, 0), 10, beforeDelete),
+           "non-empty Terrain descriptor creates collision");
+    PhysicsTerrainDescriptor empty;
+    handle = physics->replaceTerrain(handle, empty);
+    RaycastHit afterDelete;
+    expect(!handle && !physics->raycast(
+               Vector3(0, 5, 0), Vector3(0, -1, 0), 10, afterDelete),
+           "empty replacement destroys the final Terrain collision handle");
+
+    terrain0->releaseStreamer();
+    terrain1->releaseStreamer();
+    std::cout << "[TerrainInstance] "
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
@@ -2966,6 +3061,7 @@ int main(int argc, char* argv[]) {
     bool physicsMigrationRegression = false;
     bool physicsLifecycleRegression = false;
     bool constraintRebindRegression = false;
+    bool terrainInstanceRegression = false;
     bool physicsPerformanceGuard = false;
     bool box3dBuoyancyRegression = false;
     for (int i = 1; i < argc; ++i) {
@@ -2976,6 +3072,8 @@ int main(int argc, char* argv[]) {
             physicsLifecycleRegression || argument == "--physics-lifecycle-regression";
         constraintRebindRegression =
             constraintRebindRegression || argument == "--constraint-rebind-regression";
+        terrainInstanceRegression =
+            terrainInstanceRegression || argument == "--terrain-instance-regression";
         physicsPerformanceGuard =
             physicsPerformanceGuard || argument == "--physics-performance-guard";
         box3dBuoyancyRegression =
@@ -2984,6 +3082,7 @@ int main(int argc, char* argv[]) {
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
     if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
     if (constraintRebindRegression) return runConstraintRebindRegression();
+    if (terrainInstanceRegression) return runTerrainInstanceRegression();
     if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
     if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
     if (toolWeldRegression) return runToolWeldRegression();

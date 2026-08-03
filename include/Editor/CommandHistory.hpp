@@ -901,7 +901,7 @@ struct SetTerrainBoolCommand : Command {
 private:
     void apply(bool v) {
         if (!m_target) return;
-        if      (m_prop == "Enabled") m_target->Enabled = v;
+        if      (m_prop == "Enabled") m_target->setEnabled(v);
         else if (m_prop == "Flat")    m_target->Flat    = v;
     }
 };

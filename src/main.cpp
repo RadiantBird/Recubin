@@ -208,14 +208,7 @@ static void resetSystemForReload(
 // ここで物理が生きているうちに reset し、ワーカー停止・GL/PhysX 解放・"terrain"フラッシュを完了させる。
 static void resetTerrainStreamers(const std::vector<std::shared_ptr<Workspace>>& workspaces)
 {
-    for (auto& ws : workspaces) {
-        if (!ws) continue;
-        for (auto& [name, child] : ws->getChildren()) {
-            if (child->IsA("Terrain")) {
-                static_cast<Terrain*>(child.get())->streamer.reset();
-            }
-        }
-    }
+    SceneRuntime::releaseTerrainStreamers(workspaces);
 }
 
 
@@ -868,12 +861,7 @@ int main(int argc, char* argv[]) {
                 if (auto root = user->humanoid->getRootPart())
                     centerPos = root->getWorldCFrame().Position;
             }
-            for (auto& [name, child] : workspace->getChildren()) {
-                if (child->IsA("Terrain")) {
-                    static_cast<Terrain*>(child.get())->update(centerPos);
-                    break;
-                }
-            }
+            SceneRuntime::updateTerrains(workspace.get(), centerPos);
         });
 
         // ---- 天気更新（Edit/Play問わず常時。ParticleEmitter更新より前に風/発生源位置を反映） ----

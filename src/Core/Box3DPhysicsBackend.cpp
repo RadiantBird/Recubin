@@ -2013,6 +2013,11 @@ PhysicsTerrainHandle Box3DPhysicsBackend::createTerrain(
 PhysicsTerrainHandle Box3DPhysicsBackend::replaceTerrain(
     PhysicsTerrainHandle oldHandle,
     const PhysicsTerrainDescriptor& descriptor) {
+    if (descriptor.vertices.empty() && descriptor.indices.empty() &&
+        descriptor.hulls.empty()) {
+        destroyTerrain(oldHandle);
+        return {};
+    }
     const PhysicsTerrainHandle newHandle = createTerrain(descriptor);
     if (!newHandle) return oldHandle;
     destroyTerrain(oldHandle);

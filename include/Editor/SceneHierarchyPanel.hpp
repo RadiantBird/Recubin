@@ -87,6 +87,11 @@ private:
     std::shared_ptr<Instance> m_pendingScriptParent;
     bool                      m_openScriptDialog = false;
     ScriptInsertClass         m_pendingScriptClass = ScriptInsertClass::Script;
+    std::shared_ptr<Instance> m_pendingTerrainParent;
+    bool                      m_openTerrainDialog = false;
+    bool                      m_doPickTerrain = false;
+    bool                      m_pickExistingTerrain = false;
+    std::string               m_pendingTerrainName;
 
     // ドラッグ＆ドロップの親変更は走査完了後にまとめて実行する
     // （drawNode が children マップを走査中に move すると iterator 無効化で表示が壊れるため）
@@ -114,4 +119,5 @@ private:
     void renderInsertMenu(Instance* inst);
     void renderContextMenu(Instance* inst);
     void renderNewScriptDialog();
+    void renderNewTerrainDialog();
 };
