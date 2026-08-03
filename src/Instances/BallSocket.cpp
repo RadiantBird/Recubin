@@ -12,9 +12,7 @@ BallSocket::BallSocket(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube
       m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 BallSocket::~BallSocket() {
-    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
-        m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
-    }
+    if (m_lastWorkspace) m_lastWorkspace->unregisterConstraint(this);
     m_constraintHandle = {};
 }
 
@@ -111,6 +109,7 @@ bool BallSocket::IsA(std::string className) {
 void BallSocket::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Cube0") {
         m_cube0Name = value.as<std::string>();
+        m_cube0.reset();
         if (auto* ws_raw = findFirstAncestorWorkspace()) {
             auto* child = ws_raw->getChildByPath(m_cube0Name);
             if (child && child->IsA("BaseCube"))
@@ -118,6 +117,7 @@ void BallSocket::setProperty(const std::string& name, const YAML::Node& value) {
         }
     } else if (name == "Cube1") {
         m_cube1Name = value.as<std::string>();
+        m_cube1.reset();
         if (auto* ws_raw = findFirstAncestorWorkspace()) {
             auto* child = ws_raw->getChildByPath(m_cube1Name);
             if (child && child->IsA("BaseCube"))
@@ -136,16 +136,15 @@ void BallSocket::setProperty(const std::string& name, const YAML::Node& value) {
 }
 
 void BallSocket::onAncestorChanged() {
-    Instance* ws_raw = findFirstAncestorWorkspace();
-    if (ws_raw) {
-        Workspace* ws = static_cast<Workspace*>(ws_raw);
-        ws->registerConstraint(shared_from_this());
-        m_lastWorkspace = ws;
-    } else {
-        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
-            m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
+    auto* workspace = static_cast<Workspace*>(findFirstAncestorWorkspace());
+    if (workspace != m_lastWorkspace) {
+        if (m_lastWorkspace) {
+            m_lastWorkspace->unregisterConstraint(this);
+            if (m_lastWorkspace->getPhysicsEngine() && m_constraintHandle)
+                m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
         }
-        m_lastWorkspace = nullptr;
+        m_lastWorkspace = workspace;
+        if (workspace) workspace->registerConstraint(shared_from_this());
     }
     Instance::onAncestorChanged();
 }

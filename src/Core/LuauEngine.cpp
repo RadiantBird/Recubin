@@ -2601,17 +2601,35 @@ void LuauEngine::reportSafetyBreach(const std::string& reason,
 }
 
 void LuauEngine::onCollision(BaseCube* a, BaseCube* b) {
-    if (a && a->Touched) {
-        a->Touched->fire(L, [b](lua_State* Lx) -> int {
-            if (!b) { lua_pushnil(Lx); return 1; }
-            pushInstanceUserdata(Lx, std::static_pointer_cast<Instance>(b->shared_from_this()));
+    if (!a || !b) return;
+    auto aShared = std::dynamic_pointer_cast<BaseCube>(a->shared_from_this());
+    auto bShared = std::dynamic_pointer_cast<BaseCube>(b->shared_from_this());
+    if (!aShared || !bShared) return;
+    std::weak_ptr<BaseCube> weakA = aShared;
+    std::weak_ptr<BaseCube> weakB = bShared;
+    if (aShared->Touched) {
+        aShared->Touched->fire(L, [weakB](lua_State* Lx) -> int {
+            auto other = weakB.lock();
+            if (!other) { lua_pushnil(Lx); return 1; }
+            pushInstanceUserdata(Lx, std::static_pointer_cast<Instance>(other));
             return 1;
         });
     }
-    if (b && b->Touched) {
-        b->Touched->fire(L, [a](lua_State* Lx) -> int {
-            if (!a) { lua_pushnil(Lx); return 1; }
-            pushInstanceUserdata(Lx, std::static_pointer_cast<Instance>(a->shared_from_this()));
+
+    // A側listenerはBをDestroy/reparentできるため、B側通知の直前に
+    // weak_ptrとWorkspace所属を取り直す。
+    aShared = weakA.lock();
+    bShared = weakB.lock();
+    if (!aShared || !bShared ||
+        !aShared->findFirstAncestorWorkspace() ||
+        aShared->findFirstAncestorWorkspace() !=
+            bShared->findFirstAncestorWorkspace())
+        return;
+    if (bShared->Touched) {
+        bShared->Touched->fire(L, [weakA](lua_State* Lx) -> int {
+            auto other = weakA.lock();
+            if (!other) { lua_pushnil(Lx); return 1; }
+            pushInstanceUserdata(Lx, std::static_pointer_cast<Instance>(other));
             return 1;
         });
     }

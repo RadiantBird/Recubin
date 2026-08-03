@@ -3,6 +3,26 @@
 #include "include/Core/SystemState.hpp"
 #include "include/Util/Logger.hpp"
 #include "include/Core/PropertyRegistry.hpp"
+#include <cmath>
+
+namespace {
+bool finiteVector3(const Vector3& value) {
+    return std::isfinite(value.x) && std::isfinite(value.y) &&
+           std::isfinite(value.z);
+}
+
+bool finiteQuaternion(const Quaternion& value) {
+    return std::isfinite(value.w) && std::isfinite(value.x) &&
+           std::isfinite(value.y) && std::isfinite(value.z);
+}
+
+bool validQuaternion(const Quaternion& value) {
+    if (!finiteQuaternion(value)) return false;
+    const float lengthSquared = value.w * value.w + value.x * value.x +
+        value.y * value.y + value.z * value.z;
+    return std::isfinite(lengthSquared) && lengthSquared > 1.0e-12f;
+}
+}
 
 // ─── エディターUI専用のプロパティスキーマ登録 ───
 // BaseCube の YAML 保存(SceneLoader)と Luau ディスパッチ(LuauEngine_Dispatch)は
@@ -25,9 +45,6 @@ static const bool s_baseCubeRegistered = []{
         [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->MassDensity); },
         [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setMassDensity(std::get<float>(v)); });
     massDensity.lo = 0.01f; massDensity.hi = 50.0f; massDensity.step = 0.01f;
-    massDensity.liveSet = [](void* o, const PropValue& v) {
-        static_cast<BaseCube*>(o)->MassDensity = std::get<float>(v);
-    };
     massDensity.noYaml();
 
     PropertyDesc ccdMode = custom("CCDMode", PropType::Enum,
@@ -59,12 +76,10 @@ static const bool s_baseCubeRegistered = []{
             [field](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->material.*field); },
             [field](Instance* o, const PropValue& v) {
                 BaseCube* bc = static_cast<BaseCube*>(o);
-                bc->material.*field = std::get<float>(v);
-                bc->setMaterial(bc->material);
+                Material updated = bc->material;
+                updated.*field = std::get<float>(v);
+                bc->setMaterial(updated);
             });
-        d.liveSet = [field](void* o, const PropValue& v) {
-            static_cast<BaseCube*>(o)->material.*field = std::get<float>(v);
-        };
         d.lo = 0.0f; d.hi = 2.0f; d.step = 0.01f;
         d.noYaml();
         return d;
@@ -102,27 +117,25 @@ bool BaseCube::IsA(std::string className) {
 
 void BaseCube::onAncestorChanged() {
     // 1. 先祖を遡って Workspace を探す (O(h))
-    Instance* ws_raw = findFirstAncestorWorkspace();
-    
-    if (ws_raw) {
-        // Workspace を発見した場合
-        Workspace* ws = static_cast<Workspace*>(ws_raw);
-        
-        // 重複登録を防ぎつつ、物理エンジンの待機リストへ
-        // std::cout << "Adding to workspace...\n";
-        ws->registerCube(std::static_pointer_cast<BaseCube>(shared_from_this()));
-        lastWorkspace = ws;
-    } else {
-        // std::cout << "Workspace is null!\n";
-        // Workspace の外に出た場合は Physics から削除
-        if (lastWorkspace) {
-            if (lastWorkspace->physicsEngine) {
-                lastWorkspace->physicsEngine->removeCube(std::static_pointer_cast<BaseCube>(shared_from_this()));
-            } else {
-                // physicsEngine が nullptr の場合、backend body は Physics::~Physics() で解放済み
-            }
+    Workspace* newWorkspace =
+        static_cast<Workspace*>(findFirstAncestorWorkspace());
+
+    // Folder/Model 間など、同じ Workspace 内の親変更で body を
+    // 登録し直してはいけない。
+    if (newWorkspace != lastWorkspace) {
+        auto self = std::static_pointer_cast<BaseCube>(shared_from_this());
+        Workspace* oldWorkspace = lastWorkspace;
+
+        // 新 world に登録する前に旧 world を完全に離脱する。
+        // Physics 停止中でも pending の strong reference は残さない。
+        if (oldWorkspace) {
+            oldWorkspace->unregisterCube(this);
+            if (oldWorkspace->physicsEngine)
+                oldWorkspace->physicsEngine->removeCube(self);
         }
-        lastWorkspace = nullptr;
+
+        lastWorkspace = newWorkspace;
+        if (newWorkspace) newWorkspace->registerCube(self);
     }
 
     // 2. 子階層への通知も継続（BaseCube の中に何か入っている場合のため）
@@ -130,6 +143,12 @@ void BaseCube::onAncestorChanged() {
 }
 
 void BaseCube::setSize(Vector3 newSize) {
+    if (!finiteVector3(newSize) || newSize.x <= 0.0f ||
+        newSize.y <= 0.0f || newSize.z <= 0.0f) {
+        RCBN_ERROR("Rejected invalid Size for " << Name);
+        return;
+    }
+    if (Size == newSize) return;
     Size = newSize;
     if (lastWorkspace && lastWorkspace->physicsEngine) {
         auto self = std::static_pointer_cast<BaseCube>(shared_from_this());
@@ -143,6 +162,14 @@ void BaseCube::setSize(Vector3 newSize) {
 
 // localRot: 親 Spatial からの相対回転
 void BaseCube::setRotation(Quaternion localRot) {
+    if (!validQuaternion(localRot)) {
+        RCBN_ERROR("Rejected invalid Rotation for " << Name);
+        return;
+    }
+    const float dot = std::abs(
+        cframe.Rotation.w * localRot.w + cframe.Rotation.x * localRot.x +
+        cframe.Rotation.y * localRot.y + cframe.Rotation.z * localRot.z);
+    if (dot >= 0.9999999f) return;
     cframe.Rotation = localRot;
     if (!lastWorkspace || !lastWorkspace->physicsEngine ||
         !lastWorkspace->physicsEngine->hasBody(*this)) return;
@@ -157,6 +184,7 @@ void BaseCube::setRotation(Quaternion localRot) {
 }
 
 void BaseCube::setAnchored(bool anchored) {
+    if (Anchored == anchored) return;
     Anchored = anchored;
     if (lastWorkspace && lastWorkspace->physicsEngine) {
         lastWorkspace->physicsEngine->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
@@ -164,6 +192,7 @@ void BaseCube::setAnchored(bool anchored) {
 }
 
 void BaseCube::setCanCollide(bool canCollide) {
+    if (CanCollide == canCollide) return;
     CanCollide = canCollide;
     if (lastWorkspace && lastWorkspace->physicsEngine) {
         lastWorkspace->physicsEngine->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
@@ -171,6 +200,16 @@ void BaseCube::setCanCollide(bool canCollide) {
 }
 
 void BaseCube::setMaterial(const Material& m) {
+    if (!std::isfinite(m.staticFriction) || !std::isfinite(m.dynamicFriction) ||
+        !std::isfinite(m.restitution) || m.staticFriction < 0.0f ||
+        m.dynamicFriction < 0.0f || m.restitution < 0.0f) {
+        RCBN_ERROR("Rejected invalid Material for " << Name);
+        return;
+    }
+    if (material.type == m.type && material.staticFriction == m.staticFriction &&
+        material.dynamicFriction == m.dynamicFriction &&
+        material.restitution == m.restitution)
+        return;
     material = m;
     if (lastWorkspace && lastWorkspace->physicsEngine) {
         lastWorkspace->physicsEngine->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
@@ -178,10 +217,22 @@ void BaseCube::setMaterial(const Material& m) {
 }
 
 void BaseCube::setMassDensity(float d) {
+    if (!std::isfinite(d) || d <= 0.0f) {
+        RCBN_ERROR("Rejected invalid MassDensity for " << Name);
+        return;
+    }
+    if (MassDensity == d) return;
     MassDensity = d;
     if (lastWorkspace && lastWorkspace->physicsEngine) {
         lastWorkspace->physicsEngine->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
     }
+}
+
+void BaseCube::setLockFlags(PhysicsLockFlags flags) {
+    if (LockFlags == flags) return;
+    LockFlags = flags;
+    if (m_physicsOwner && m_physicsOwner->hasBody(*this))
+        m_physicsOwner->applyLockFlags(*this);
 }
 
 void BaseCube::setCCDMode(CCDMode mode) {
@@ -259,6 +310,21 @@ void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
     } else if (name == "CCDMode") {
         const std::string mode = value.as<std::string>();
         setCCDMode(mode == "Bullet" ? CCDMode::Bullet : CCDMode::Default);
+    } else if (name == "LockFlags") {
+        PhysicsLockFlags flags = PhysicsLockFlags::None;
+        if (value.IsSequence()) {
+            for (const YAML::Node& item : value) {
+                const std::string flag = item.as<std::string>();
+                if (flag == "LinearX") flags |= PhysicsLockFlags::LinearX;
+                else if (flag == "LinearY") flags |= PhysicsLockFlags::LinearY;
+                else if (flag == "LinearZ") flags |= PhysicsLockFlags::LinearZ;
+                else if (flag == "AngularX") flags |= PhysicsLockFlags::AngularX;
+                else if (flag == "AngularY") flags |= PhysicsLockFlags::AngularY;
+                else if (flag == "AngularZ") flags |= PhysicsLockFlags::AngularZ;
+                else RCBN_WARN("Ignoring unknown LockFlags value: " << flag);
+            }
+        }
+        setLockFlags(flags);
     } else {
         Spatial::setProperty(name, value);
     }

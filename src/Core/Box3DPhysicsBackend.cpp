@@ -367,7 +367,8 @@ PhysicsBackendType Box3DPhysicsBackend::getType() const {
 }
 
 b3BodyId Box3DPhysicsBackend::bodyId(const BaseCube& cube) const {
-    if (!cube.m_bodyHandle) return b3_nullBodyId;
+    if (cube.m_physicsOwner != m_facade || !cube.m_bodyHandle)
+        return b3_nullBodyId;
     const b3BodyId result = b3LoadBodyId(cube.m_bodyHandle.value);
     return b3Body_IsValid(result) ? result : b3_nullBodyId;
 }
@@ -420,6 +421,7 @@ void Box3DPhysicsBackend::setAngularVelocity(
 }
 
 void Box3DPhysicsBackend::setGravityEnabled(BaseCube& cube, bool enabled) {
+    m_gravityEnabled[&cube] = enabled;
     const b3BodyId id = bodyId(cube);
     if (B3_IS_NON_NULL(id)) b3Body_SetGravityScale(id, enabled ? 1.0f : 0.0f);
 }
@@ -601,7 +603,13 @@ void Box3DPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
     definition.isBullet = cube->CollisionDetection == CCDMode::Bullet;
     const b3BodyId id = b3CreateBody(m_worldId, &definition);
     if (B3_IS_NULL(id)) return;
-    createCubeShape(id, cube, CFrame());
+    const b3ShapeId shape = createCubeShape(id, cube, CFrame());
+    if (cube->CanCollide && B3_IS_NULL(shape)) {
+        b3DestroyBody(id);
+        RCBN_ERROR("Box3D body creation failed; logical Cube retained: "
+                   << cube->Name);
+        return;
+    }
     assignBody(*cube, id, CFrame());
     cube->m_weldKinematic = false;
     m_bodies.push_back({cube, cube.get(), id});
@@ -628,15 +636,58 @@ void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
 
     const Vector3 linear = getLinearVelocity(*cube);
     const Vector3 angular = fromB3Vector(b3Body_GetAngularVelocity(oldId));
+    const CFrame pose = bodyWorldFrame(oldId);
+    const float linearDamping = b3Body_GetLinearDamping(oldId);
+    const float angularDamping = b3Body_GetAngularDamping(oldId);
+    const float gravityScale = b3Body_GetGravityScale(oldId);
+    const bool awake = b3Body_IsAwake(oldId);
+
+    // 旧bodyを保持したままdisabled bodyへ全shapeを構築する。shape生成に
+    // 失敗した場合は新bodyだけを捨て、旧handleとconstraintを維持する。
+    b3BodyDef definition = b3DefaultBodyDef();
+    definition.type = cube->Anchored ? b3_kinematicBody : b3_dynamicBody;
+    definition.position = toB3Position(pose.Position);
+    definition.rotation = toB3Quaternion(pose.Rotation);
+    definition.userData = cube.get();
+    definition.motionLocks = toB3Locks(cube->LockFlags);
+    definition.isBullet = cube->CollisionDetection == CCDMode::Bullet;
+    const b3BodyId replacement = b3CreateBody(m_worldId, &definition);
+    if (B3_IS_NULL(replacement)) {
+        RCBN_ERROR("Box3D body replacement allocation failed; old body retained: "
+                   << cube->Name);
+        return;
+    }
+    b3Body_Disable(replacement);
+    const b3ShapeId replacementShape =
+        createCubeShape(replacement, cube, CFrame());
+    if (cube->CanCollide && B3_IS_NULL(replacementShape)) {
+        b3DestroyBody(replacement);
+        RCBN_ERROR("Box3D body replacement shape failed; old body retained: "
+                   << cube->Name);
+        return;
+    }
+    b3Body_SetLinearVelocity(replacement, toB3Length(linear));
+    b3Body_SetAngularVelocity(replacement, toB3Vector(angular));
+    b3Body_SetLinearDamping(replacement, linearDamping);
+    b3Body_SetAngularDamping(replacement, angularDamping);
+    b3Body_SetGravityScale(replacement, gravityScale);
+
+    const auto gravitySetting = m_gravityEnabled.find(cube.get());
+    const bool hadGravitySetting = gravitySetting != m_gravityEnabled.end();
+    const bool explicitGravity = hadGravitySetting && gravitySetting->second;
     removeCube(cube);
-    createActor(cube);
-    setLinearVelocity(*cube, linear);
-    setAngularVelocity(*cube, angular);
+    assignBody(*cube, replacement, CFrame());
+    cube->m_weldKinematic = false;
+    m_bodies.push_back({cube, cube.get(), replacement});
+    if (hadGravitySetting) m_gravityEnabled[cube.get()] = explicitGravity;
+    b3Body_Enable(replacement);
+    if (!awake && !cube->Anchored) b3Body_SetAwake(replacement, false);
 }
 
 void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
     m_buoyancyProxyCache.erase(cube.get());
+    m_gravityEnabled.erase(cube.get());
     std::vector<std::shared_ptr<Instance>> attachedConstraints;
     for (const ConstraintEntry& entry : m_constraints) {
         auto value = entry.constraint.lock();
@@ -685,16 +736,18 @@ void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
         if (!idsEqual(entry.bodyId, oldId)) continue;
         if (auto value = entry.cube.lock()) survivors.push_back(value);
     }
-    b3DestroyBody(oldId);
-    for (const auto& value : survivors) assignBody(*value, b3_nullBodyId, CFrame());
-    for (BodyEntry& entry : m_bodies) {
-        if (idsEqual(entry.bodyId, oldId)) entry.bodyId = b3_nullBodyId;
+    if (survivors.empty()) {
+        if (b3Body_IsValid(oldId)) b3DestroyBody(oldId);
+    } else {
+        // old body が生きている間に姿勢と速度を保存し、移動した
+        // member の shape を除いた compound へ一度で差し替える。
+        rebuildAssembly(survivors);
     }
-    for (const auto& value : survivors) createActor(value);
 }
 
 void Box3DPhysicsBackend::onCubeDestroyed(BaseCube& cube) {
     m_buoyancyProxyCache.erase(&cube);
+    m_gravityEnabled.erase(&cube);
     const b3BodyId oldId = bodyId(cube);
     if (B3_IS_NON_NULL(oldId)) {
         const int shapeCount = b3Body_GetShapeCount(oldId);
@@ -740,9 +793,11 @@ void Box3DPhysicsBackend::destroyUniqueBodies() {
         entry.bodyId = b3_nullBodyId;
     }
     m_bodies.clear();
+    m_gravityEnabled.clear();
 }
 
 void Box3DPhysicsBackend::clearCubes() {
+    m_pendingContacts.clear();
     for (ConstraintEntry& entry : m_constraints) {
         if (auto value = entry.constraint.lock()) clearConstraintHandle(*value);
         if (B3_IS_NON_NULL(entry.jointId) && b3Joint_IsValid(entry.jointId))
@@ -831,32 +886,63 @@ void Box3DPhysicsBackend::enqueueSetRotation(
 }
 
 void Box3DPhysicsBackend::applyForces() {
-    for (BodyEntry& entry : m_bodies) {
-        auto cube = entry.cube.lock();
-        if (!cube || B3_IS_NULL(entry.bodyId) ||
-            b3Body_GetType(entry.bodyId) != b3_dynamicBody) continue;
-        for (const auto& childEntry : cube->children) {
-            const auto& child = childEntry.second;
-            if (!child || !child->IsA("Force")) continue;
-            auto* force = static_cast<Force*>(child.get());
-            if (!force->Enabled) continue;
-            if (force->MaintainVelocity) {
-                if (force->Torque)
-                    b3Body_SetAngularVelocity(entry.bodyId, toB3Vector(force->Value));
-                else
-                    b3Body_SetLinearVelocity(entry.bodyId, toB3Length(force->Value));
-            } else if (force->Torque) {
-                b3Body_ApplyTorque(
-                    entry.bodyId,
-                    {force->Value.x * TORQUE_TO_MKS,
-                     force->Value.y * TORQUE_TO_MKS,
-                     force->Value.z * TORQUE_TO_MKS},
-                    true);
-            } else {
-                b3Body_ApplyForceToCenter(
-                    entry.bodyId, toB3Length(force->Value), true);
+    std::set<std::uint64_t> visited;
+    for (const BodyEntry& bodyEntry : m_bodies) {
+        const b3BodyId id = bodyEntry.bodyId;
+        if (B3_IS_NULL(id) || !b3Body_IsValid(id) ||
+            b3Body_GetType(id) != b3_dynamicBody) continue;
+        if (!visited.insert(b3StoreBodyId(id)).second) continue;
+
+        bool maintainLinear = false;
+        bool maintainAngular = false;
+        bool gravityEnabled = true;
+        Vector3 linearTarget;
+        Vector3 angularTarget;
+        std::vector<const Force*> additive;
+        for (const BodyEntry& entry : m_bodies) {
+            if (!idsEqual(entry.bodyId, id)) continue;
+            auto member = entry.cube.lock();
+            if (!member) continue;
+            if (const auto gravity = m_gravityEnabled.find(member.get());
+                gravity != m_gravityEnabled.end())
+                gravityEnabled = gravityEnabled && gravity->second;
+            for (const auto& [name, child] : member->children) {
+                (void)name;
+                if (!child || !child->IsA("Force")) continue;
+                const auto* force = static_cast<const Force*>(child.get());
+                if (!force->Enabled) continue;
+                if (!force->MaintainVelocity) {
+                    additive.push_back(force);
+                } else if (force->Torque) {
+                    maintainAngular = true;
+                    angularTarget = force->Value;
+                } else {
+                    maintainLinear = true;
+                    linearTarget = force->Value;
+                }
             }
         }
+
+        // MaintainVelocityは対象系の重力・浮力・加算Force/Torqueより
+        // 優先する。shared body内のどのmemberから指定されても同じ。
+        b3Body_SetGravityScale(
+            id, gravityEnabled && !maintainLinear ? 1.0f : 0.0f);
+        for (const Force* force : additive) {
+            if (force->Torque) {
+                if (maintainAngular) continue;
+                b3Body_ApplyTorque(
+                    id, {force->Value.x * TORQUE_TO_MKS,
+                         force->Value.y * TORQUE_TO_MKS,
+                         force->Value.z * TORQUE_TO_MKS}, true);
+            } else {
+                if (maintainLinear) continue;
+                b3Body_ApplyForceToCenter(id, toB3Length(force->Value), true);
+            }
+        }
+        if (maintainLinear)
+            b3Body_SetLinearVelocity(id, toB3Length(linearTarget));
+        if (maintainAngular)
+            b3Body_SetAngularVelocity(id, toB3Vector(angularTarget));
     }
 }
 
@@ -1060,18 +1146,37 @@ void Box3DPhysicsBackend::applyBuoyancy() {
 }
 
 void Box3DPhysicsBackend::processContactEvents() {
-    if (!Physics::s_contactCallback) return;
     const b3ContactEvents events = b3World_GetContactEvents(m_worldId);
     for (int index = 0; index < events.beginCount; ++index) {
         const b3ContactBeginTouchEvent& event = events.beginEvents[index];
         if (!b3Shape_IsValid(event.shapeIdA) || !b3Shape_IsValid(event.shapeIdB))
             continue;
-        auto* first = static_cast<Instance*>(b3Shape_GetUserData(event.shapeIdA));
-        auto* second = static_cast<Instance*>(b3Shape_GetUserData(event.shapeIdB));
-        if (!first || !second || !first->IsA("BaseCube") || !second->IsA("BaseCube"))
-            continue;
-        Physics::s_contactCallback(
-            static_cast<BaseCube*>(first), static_cast<BaseCube*>(second));
+        const void* first = b3Shape_GetUserData(event.shapeIdA);
+        const void* second = b3Shape_GetUserData(event.shapeIdB);
+        if (first && second) m_pendingContacts.emplace_back(first, second);
+    }
+}
+
+std::shared_ptr<BaseCube> Box3DPhysicsBackend::resolveContactIdentity(
+    const void* identity) const {
+    if (!identity) return {};
+    for (const BodyEntry& entry : m_bodies) {
+        if (entry.cubeRaw != identity) continue;
+        auto cube = entry.cube.lock();
+        if (cube && cube.get() == identity && cube->m_physicsOwner == m_facade)
+            return cube;
+    }
+    return {};
+}
+
+void Box3DPhysicsBackend::dispatchContactEvents() {
+    auto pending = std::move(m_pendingContacts);
+    m_pendingContacts.clear();
+    for (const auto& [firstIdentity, secondIdentity] : pending) {
+        auto first = resolveContactIdentity(firstIdentity);
+        auto second = resolveContactIdentity(secondIdentity);
+        if (!first || !second || !Physics::s_contactCallback) continue;
+        Physics::s_contactCallback(first.get(), second.get());
     }
 }
 
@@ -1165,6 +1270,9 @@ void Box3DPhysicsBackend::rebuildAssembly(
     bool velocityCaptured = false;
     bool anchored = false;
     PhysicsLockFlags combinedLocks = PhysicsLockFlags::None;
+    float savedLinearDamping = 0.0f;
+    float savedAngularDamping = 0.0f;
+    float savedGravityScale = 1.0f;
 
     for (const auto& cube : assembly) {
         if (!cube) continue;
@@ -1178,11 +1286,59 @@ void Box3DPhysicsBackend::rebuildAssembly(
             if (!velocityCaptured && b3Body_GetType(id) == b3_dynamicBody) {
                 linearVelocity = fromB3Length(b3Body_GetLinearVelocity(id));
                 angularVelocity = fromB3Vector(b3Body_GetAngularVelocity(id));
+                savedLinearDamping = b3Body_GetLinearDamping(id);
+                savedAngularDamping = b3Body_GetAngularDamping(id);
+                savedGravityScale = b3Body_GetGravityScale(id);
                 velocityCaptured = true;
             }
         }
         anchored = anchored || cube->Anchored;
         combinedLocks |= cube->LockFlags;
+    }
+
+    const auto originIt = std::find_if(
+        assembly.begin(), assembly.end(),
+        [](const auto& cube) { return static_cast<bool>(cube); });
+    if (originIt == assembly.end()) return;
+    const auto& originCube = *originIt;
+    const CFrame origin = worldFrames[originCube.get()];
+    b3BodyDef bodyDefinition = b3DefaultBodyDef();
+    bodyDefinition.type = anchored ? b3_kinematicBody : b3_dynamicBody;
+    bodyDefinition.position = toB3Position(origin.Position);
+    bodyDefinition.rotation = toB3Quaternion(origin.Rotation);
+    bodyDefinition.userData = originCube.get();
+    bodyDefinition.motionLocks = toB3Locks(combinedLocks);
+    bodyDefinition.isBullet = std::any_of(
+        assembly.begin(), assembly.end(), [](const auto& cube) {
+            return cube && cube->CollisionDetection == CCDMode::Bullet;
+        });
+    const b3BodyId newBody = b3CreateBody(m_worldId, &bodyDefinition);
+    if (B3_IS_NULL(newBody)) {
+        RCBN_ERROR("Box3D compound allocation failed; old assembly retained");
+        return;
+    }
+    b3Body_Disable(newBody);
+    std::unordered_map<BaseCube*, CFrame> localFrames;
+    bool constructionFailed = false;
+    for (const auto& cube : assembly) {
+        if (!cube) continue;
+        const CFrame local = origin.inverse() * worldFrames[cube.get()];
+        localFrames[cube.get()] = local;
+        const b3ShapeId shape = createCubeShape(newBody, cube, local);
+        if (cube->CanCollide && B3_IS_NULL(shape)) constructionFailed = true;
+    }
+    if (constructionFailed) {
+        b3DestroyBody(newBody);
+        RCBN_ERROR("Box3D compound shape creation failed; old assembly retained");
+        return;
+    }
+    b3Body_ApplyMassFromShapes(newBody);
+    b3Body_SetLinearDamping(newBody, savedLinearDamping);
+    b3Body_SetAngularDamping(newBody, savedAngularDamping);
+    b3Body_SetGravityScale(newBody, savedGravityScale);
+    if (!anchored && velocityCaptured) {
+        b3Body_SetLinearVelocity(newBody, toB3Length(linearVelocity));
+        b3Body_SetAngularVelocity(newBody, toB3Vector(angularVelocity));
     }
 
     std::vector<std::shared_ptr<Instance>> recreate;
@@ -1232,28 +1388,9 @@ void Box3DPhysicsBackend::rebuildAssembly(
         }
     }
 
-    const auto originCube = *std::find_if(
-        assembly.begin(), assembly.end(),
-        [](const std::shared_ptr<BaseCube>& cube) { return static_cast<bool>(cube); });
-    const CFrame origin = worldFrames[originCube.get()];
-    b3BodyDef bodyDefinition = b3DefaultBodyDef();
-    bodyDefinition.type = anchored ? b3_kinematicBody : b3_dynamicBody;
-    bodyDefinition.position = toB3Position(origin.Position);
-    bodyDefinition.rotation = toB3Quaternion(origin.Rotation);
-    bodyDefinition.userData = originCube.get();
-    bodyDefinition.motionLocks = toB3Locks(combinedLocks);
-    bodyDefinition.isBullet = std::any_of(
-        assembly.begin(), assembly.end(),
-        [](const auto& cube) {
-            return cube && cube->CollisionDetection == CCDMode::Bullet;
-        });
-    const b3BodyId newBody = b3CreateBody(m_worldId, &bodyDefinition);
-    if (B3_IS_NULL(newBody)) return;
-
     for (const auto& cube : assembly) {
         if (!cube) continue;
-        const CFrame local = origin.inverse() * worldFrames[cube.get()];
-        createCubeShape(newBody, cube, local);
+        const CFrame local = localFrames[cube.get()];
         assignBody(*cube, newBody, local);
         cube->m_weldKinematic = anchored;
         auto found = std::find_if(
@@ -1264,11 +1401,7 @@ void Box3DPhysicsBackend::rebuildAssembly(
         else
             found->bodyId = newBody;
     }
-    b3Body_ApplyMassFromShapes(newBody);
-    if (!anchored && velocityCaptured) {
-        b3Body_SetLinearVelocity(newBody, toB3Length(linearVelocity));
-        b3Body_SetAngularVelocity(newBody, toB3Vector(angularVelocity));
-    }
+    b3Body_Enable(newBody);
 
     for (const auto& value : recreate) {
         if (value->IsA("Rope"))
@@ -1796,19 +1929,27 @@ void Box3DPhysicsBackend::update(Workspace& workspace, float dt) {
     std::vector<std::shared_ptr<BaseCube>> removed;
     for (const BodyEntry& entry : m_bodies) {
         auto cube = entry.cube.lock();
-        if (cube && !cube->findFirstAncestorWorkspace()) removed.push_back(cube);
+        if (cube && cube->findFirstAncestorWorkspace() != &workspace)
+            removed.push_back(cube);
     }
     for (const auto& cube : removed) removeCube(cube);
 
     for (const auto& value : workspace.pendingInstances) {
         if (!value || !value->IsA("BaseCube")) continue;
         auto cube = std::static_pointer_cast<BaseCube>(value);
-        if (cube->findFirstAncestorWorkspace() == &workspace) createActor(cube);
+        if (cube->findFirstAncestorWorkspace() != &workspace) continue;
+        if (cube->m_physicsOwner && cube->m_physicsOwner != m_facade) {
+            RCBN_ERROR("Ignoring Cube registered in a foreign Physics world: "
+                       << cube->Name);
+            continue;
+        }
+        createActor(cube);
     }
     workspace.pendingInstances.clear();
     createPendingConstraints(workspace);
     stepOnce(dt);
     syncAllCubes();
+    dispatchContactEvents();
 }
 
 namespace {
@@ -2004,6 +2145,11 @@ PhysicsTerrainHandle Box3DPhysicsBackend::createTerrain(
 PhysicsTerrainHandle Box3DPhysicsBackend::replaceTerrain(
     PhysicsTerrainHandle oldHandle,
     const PhysicsTerrainDescriptor& descriptor) {
+    if (descriptor.vertices.empty() && descriptor.indices.empty() &&
+        descriptor.hulls.empty()) {
+        destroyTerrain(oldHandle);
+        return {};
+    }
     const PhysicsTerrainHandle newHandle = createTerrain(descriptor);
     if (!newHandle) return oldHandle;
     destroyTerrain(oldHandle);

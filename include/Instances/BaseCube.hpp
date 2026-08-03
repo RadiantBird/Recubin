@@ -84,6 +84,7 @@ public:
     void setMaterial(const Material& m);
     void setMassDensity(float d);
     void setCCDMode(CCDMode mode);
+    void setLockFlags(PhysicsLockFlags flags);
 
     // 自律的な登録・解除ロジック
     void onAncestorChanged() override;

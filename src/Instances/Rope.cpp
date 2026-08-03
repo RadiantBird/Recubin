@@ -2,6 +2,7 @@
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/Attachment.hpp>
 #include <include/Core/Physics.hpp>
+#include <cmath>
 
 Rope::Rope()
     : Instance("Rope") {}
@@ -12,9 +13,7 @@ Rope::Rope(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
       m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 Rope::~Rope() {
-    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
-        m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
-    }
+    if (m_lastWorkspace) m_lastWorkspace->unregisterConstraint(this);
     m_constraintHandle = {};
 }
 
@@ -80,18 +79,21 @@ void Rope::resolveAttachments() {
 }
 
 void Rope::setMaxDistance(float v) {
+    if (!std::isfinite(v) || v < 0.0f || MaxDistance == v) return;
     MaxDistance = v;
     if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
         m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
 
 void Rope::setStiffness(float v) {
+    if (!std::isfinite(v) || v < 0.0f || Stiffness == v) return;
     Stiffness = v;
     if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
         m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
 
 void Rope::setDamping(float v) {
+    if (!std::isfinite(v) || v < 0.0f || Damping == v) return;
     Damping = v;
     if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
         m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
@@ -134,6 +136,7 @@ bool Rope::IsA(std::string className) {
 void Rope::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Cube0") {
         m_cube0Name = value.as<std::string>();
+        m_cube0.reset();
         if (auto* ws_raw = findFirstAncestorWorkspace()) {
             auto* child = ws_raw->getChildByPath(m_cube0Name);
             if (child && child->IsA("BaseCube"))
@@ -141,6 +144,7 @@ void Rope::setProperty(const std::string& name, const YAML::Node& value) {
         }
     } else if (name == "Cube1") {
         m_cube1Name = value.as<std::string>();
+        m_cube1.reset();
         if (auto* ws_raw = findFirstAncestorWorkspace()) {
             auto* child = ws_raw->getChildByPath(m_cube1Name);
             if (child && child->IsA("BaseCube"))
@@ -167,16 +171,15 @@ void Rope::setProperty(const std::string& name, const YAML::Node& value) {
 }
 
 void Rope::onAncestorChanged() {
-    Instance* ws_raw = findFirstAncestorWorkspace();
-    if (ws_raw) {
-        Workspace* ws = static_cast<Workspace*>(ws_raw);
-        ws->registerConstraint(shared_from_this());
-        m_lastWorkspace = ws;
-    } else {
-        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
-            m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
+    auto* workspace = static_cast<Workspace*>(findFirstAncestorWorkspace());
+    if (workspace != m_lastWorkspace) {
+        if (m_lastWorkspace) {
+            m_lastWorkspace->unregisterConstraint(this);
+            if (m_lastWorkspace->getPhysicsEngine() && m_constraintHandle)
+                m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
         }
-        m_lastWorkspace = nullptr;
+        m_lastWorkspace = workspace;
+        if (workspace) workspace->registerConstraint(shared_from_this());
     }
     Instance::onAncestorChanged();
 }

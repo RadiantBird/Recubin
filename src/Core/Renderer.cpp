@@ -33,6 +33,7 @@
 #include <include/Math/PerlinNoise.hpp>
 #include <include/Core/Terrain.hpp>
 #include <include/Core/TerrainStreamer.hpp>
+#include <include/Core/SceneRuntime.hpp>
 #include <include/Instances/PostEffect.hpp>
 #include <algorithm>
 #include <array>
@@ -1700,9 +1701,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         // ---- Terrain Shadow ----
         Matrix4 identity;
         glUniformMatrix4fv(modelDepthLoc, 1, GL_FALSE, identity.m);
-        for (auto const& [name, child] : desc.workspace->getChildren()) {
-            if (!child->IsA("Terrain")) continue;
-            auto* terrain = static_cast<Terrain*>(child.get());
+        for (Terrain* terrain : SceneRuntime::collectTerrains(desc.workspace)) {
             if (!terrain->Enabled || !terrain->streamer) continue;
             for (auto& [key, entry] : terrain->streamer->getChunks()) {
                 const Chunk& chunk = entry.chunk;
@@ -2176,16 +2175,6 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection, Wor
 {
     if (!workspace) return;
 
-    // Workspaceツリーにある Terrain を探す
-    Terrain* terrain = nullptr;
-    for (auto& [name, child] : workspace->getChildren()) {
-        if (child->IsA("Terrain")) {
-            terrain = static_cast<Terrain*>(child.get());
-            break;
-        }
-    }
-    if (!terrain || !terrain->Enabled || !terrain->streamer) return;
-
     glUseProgram(shaderProgram);
     glUniformMatrix4fv(viewLoc,       1, GL_FALSE, view.m);
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, projection.m);
@@ -2202,11 +2191,15 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection, Wor
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, whiteTexture);
 
-    for (auto& [key, entry] : terrain->streamer->getChunks()) {
-        const Chunk& chunk = entry.chunk;
-        if (chunk.mesh.indexCount == 0) continue;
-        glBindVertexArray(chunk.mesh.VAO);
-        glDrawElements(GL_TRIANGLES, (GLsizei)chunk.mesh.indexCount, GL_UNSIGNED_INT, nullptr);
+    for (Terrain* terrain : SceneRuntime::collectTerrains(workspace)) {
+        if (!terrain || !terrain->Enabled || !terrain->streamer) continue;
+        for (auto& [key, entry] : terrain->streamer->getChunks()) {
+            const Chunk& chunk = entry.chunk;
+            if (chunk.mesh.indexCount == 0) continue;
+            glBindVertexArray(chunk.mesh.VAO);
+            glDrawElements(GL_TRIANGLES, (GLsizei)chunk.mesh.indexCount,
+                           GL_UNSIGNED_INT, nullptr);
+        }
     }
 
     glBindVertexArray(0);

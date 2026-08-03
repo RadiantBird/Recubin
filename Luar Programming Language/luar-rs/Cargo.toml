@@ -6,4 +6,8 @@ edition = "2024"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "luar"
+path = "src/main.rs"
+
 [dependencies]

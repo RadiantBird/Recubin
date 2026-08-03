@@ -10,6 +10,7 @@
 #include <Instances/Folder.hpp>
 #include <Instances/Users.hpp>
 #include <Instances/ChatService.hpp>
+#include <Core/Terrain.hpp>
 #include <include/GLFW/glfw3.h>
 #include "include/stb_image.h"
 #include <Util/AssetGuard.hpp>
@@ -24,6 +25,36 @@ std::vector<std::shared_ptr<Workspace>> collectWorkspaces(const std::shared_ptr<
             result.push_back(std::static_pointer_cast<Workspace>(child));
     }
     return result;
+}
+
+std::vector<Terrain*> collectTerrains(Instance* root) {
+    std::vector<Terrain*> result;
+    if (!root) return result;
+    auto visit = [&](auto& self, Instance* value) -> void {
+        if (!value) return;
+        if (value->IsA("Terrain")) result.push_back(static_cast<Terrain*>(value));
+        for (const auto& [name, child] : value->getChildren()) {
+            (void)name;
+            self(self, child.get());
+        }
+    };
+    visit(visit, root);
+    return result;
+}
+
+void updateTerrains(Workspace* workspace, const Vector3& centerPos) {
+    for (Terrain* terrain : collectTerrains(workspace)) {
+        if (terrain) terrain->update(centerPos);
+    }
+}
+
+void releaseTerrainStreamers(
+    const std::vector<std::shared_ptr<Workspace>>& workspaces) {
+    for (const auto& workspace : workspaces) {
+        for (Terrain* terrain : collectTerrains(workspace.get())) {
+            if (terrain) terrain->releaseStreamer();
+        }
+    }
 }
 
 void applyAppIcon(GLFWwindow* window, Instance* root) {

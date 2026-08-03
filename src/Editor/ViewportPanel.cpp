@@ -17,6 +17,7 @@
 #include <Core/Physics.hpp>
 #include <Core/Terrain.hpp>
 #include <Core/TerrainStreamer.hpp>
+#include <Core/SceneRuntime.hpp>
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -560,10 +561,39 @@ void ViewportPanel::onRender() {
     static constexpr float  kTerrainBrushMaxDist  = 400.0f; // グレージング角で遠方を誤編集しないよう距離制限
     double now = ImGui::GetTime();
     if (terrainBrushActive && isHoveringViewport && user && workspace) {
-        // Workspace 直下から Terrain を探す
-        Terrain* terrain = nullptr;
-        for (auto const& [name, child] : workspace->getChildren()) {
-            if (child->IsA("Terrain")) { terrain = static_cast<Terrain*>(child.get()); break; }
+        ImVec2 mousePos = ImGui::GetMousePos();
+        Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
+        Vector3 rayOri = camPos();
+        Vector3 hitPos;
+        int32_t hitBx = 0, hitBy = 0, hitBz = 0, hitAxis = 1, hitSign = 1;
+        bool terrainHit = false;
+
+        // ストローク中は開始時Terrainに固定。開始前は全Enabled
+        // Terrainをraycastし、最近のヒットだけを対象にする。
+        Terrain* terrain = m_terrainBrushStrokeTarget.get();
+        if (terrain && terrain->Enabled && terrain->streamer) {
+            terrainHit = terrain->streamer->raycastVoxelFace(
+                rayOri, rayDir, kTerrainBrushMaxDist, hitPos,
+                hitBx, hitBy, hitBz, hitAxis, hitSign);
+        } else {
+            terrain = nullptr;
+            float nearestDistance = kTerrainBrushMaxDist + 1.0f;
+            for (Terrain* candidate : SceneRuntime::collectTerrains(workspace)) {
+                if (!candidate || !candidate->Enabled || !candidate->streamer) continue;
+                Vector3 candidateHit;
+                int32_t bx = 0, by = 0, bz = 0, axis = 1, sign = 1;
+                if (!candidate->streamer->raycastVoxelFace(
+                        rayOri, rayDir, kTerrainBrushMaxDist, candidateHit,
+                        bx, by, bz, axis, sign)) continue;
+                const float distance = (candidateHit - rayOri).length();
+                if (distance >= nearestDistance) continue;
+                nearestDistance = distance;
+                terrain = candidate;
+                hitPos = candidateHit;
+                hitBx = bx; hitBy = by; hitBz = bz;
+                hitAxis = axis; hitSign = sign;
+                terrainHit = true;
+            }
         }
         if (terrain && terrain->Enabled && terrain->streamer) {
             // クリックでストローク開始。現在のUndo用差分バッファをこのTerrainに紐付けて記録開始する。
@@ -573,17 +603,10 @@ void ViewportPanel::onRender() {
                 m_terrainBrushStrokeTarget = std::static_pointer_cast<Terrain>(terrain->shared_from_this());
             }
 
-            ImVec2 mousePos = ImGui::GetMousePos();
-            Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
-            Vector3 rayOri = camPos();
-
             // 物理シーンではなくブロックデータへ直接レイキャストする。常に最新の地形を
             // 参照するため、編集直後でも貫通（地中ワープ）が発生しない。
             // 面法線つきレイキャストで、ヒットした面の軸(axis)/符号(sign)を取得する。
-            Vector3 hitPos;
-            int32_t hitBx = 0, hitBy = 0, hitBz = 0, hitAxis = 1, hitSign = 1;
-            if (terrain->streamer->raycastVoxelFace(rayOri, rayDir, kTerrainBrushMaxDist,
-                                                     hitPos, hitBx, hitBy, hitBz, hitAxis, hitSign)) {
+            if (terrainHit) {
                 // ヒット位置にブラシ範囲のガイドリングを描画（シーン描画済みFBOへ追記）。
                 // クリック前でも「どこに当たるか」が見えるようマウス押下に関係なく毎フレーム描く。
                 if (Renderer::instance && framebuffer) {

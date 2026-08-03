@@ -180,6 +180,8 @@ std::shared_ptr<Instance> TriangularPrism::clone() const {
     copy->cframe     = this->cframe;
     copy->material     = this->material;
     copy->MassDensity  = this->MassDensity;
+    copy->LockFlags = this->LockFlags;
+    copy->CollisionDetection = this->CollisionDetection;
     copy->CastShadow   = this->CastShadow;
     copy->Unlit        = this->Unlit;
     copy->UseTriplanar = this->UseTriplanar;

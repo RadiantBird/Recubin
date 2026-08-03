@@ -15,23 +15,28 @@ Weld::Weld(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
       m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 Weld::~Weld() {
+    if (m_lastWorkspace) m_lastWorkspace->unregisterConstraint(this);
     m_constraintHandle = {};
 }
 
 void Weld::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
+    if (m_cube0.lock() != cube0 || m_cube1.lock() != cube1) invalidateBinding();
     m_cube0 = cube0;
     m_cube1 = cube1;
     m_cube0Name = cube0 ? cube0->getWorkspaceRelativePath() : "";
     m_cube1Name = cube1 ? cube1->getWorkspaceRelativePath() : "";
+    registerIfReady();
 }
 
 void Weld::setCube0(std::shared_ptr<BaseCube> cube) {
+    if (m_cube0.lock() != cube) invalidateBinding();
     m_cube0 = cube;
     m_cube0Name = cube ? cube->getWorkspaceRelativePath() : "";
     registerIfReady();
 }
 
 void Weld::setCube1(std::shared_ptr<BaseCube> cube) {
+    if (m_cube1.lock() != cube) invalidateBinding();
     m_cube1 = cube;
     m_cube1Name = cube ? cube->getWorkspaceRelativePath() : "";
     registerIfReady();
@@ -65,6 +70,12 @@ void Weld::registerIfReady() {
         ws->registerConstraint(shared_from_this());
 }
 
+void Weld::invalidateBinding() {
+    if (!m_constraintHandle || !m_lastWorkspace ||
+        !m_lastWorkspace->getPhysicsEngine()) return;
+    m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
+}
+
 std::string Weld::getClassName() { return "Weld"; }
 
 bool Weld::IsA(std::string className) {
@@ -90,10 +101,14 @@ void Weld::setProperty(const std::string& name, const YAML::Node& value) {
     };
 
     if (name == "Cube0") {
+        invalidateBinding();
         m_cube0Name = value.as<std::string>();
+        m_cube0.reset();
         if (auto c = resolveCube(m_cube0Name)) m_cube0 = c;
     } else if (name == "Cube1") {
+        invalidateBinding();
         m_cube1Name = value.as<std::string>();
+        m_cube1.reset();
         if (auto c = resolveCube(m_cube1Name)) m_cube1 = c;
     } else {
         Instance::setProperty(name, value);
@@ -118,29 +133,15 @@ void Weld::remapClonedInstances(const CloneRemap& map) {
 }
 
 void Weld::onAncestorChanged() {
-    Instance* ws_raw = findFirstAncestorWorkspace();
-    if (ws_raw) {
-        Workspace* ws = static_cast<Workspace*>(ws_raw);
-        ws->registerConstraint(shared_from_this());
-        m_lastWorkspace = ws;
-    } else {
-        // Tool の装備解除では、Weld 自身と両端の Cube がまとめて Workspace 外
-        // (Inventory) へ移る。この途中で Weld ごとに removeConstraint() すると、同じ
-        // compound を何度も分割・再構築して二本目以降の部品が独立 actor になる。
-        // 両端も旧 Workspace 外へ移った場合は、再装備時に再利用する制約エントリーを
-        // 残す。Cube 側の onAncestorChanged() が actor を安全に解放し、再装備時の
-        // registerConstraint()/rebuildGroup() が compound を作り直す。
-        auto cube0 = m_cube0.lock();
-        auto cube1 = m_cube1.lock();
-        const bool endpointsAlsoLeft = m_lastWorkspace && cube0 && cube1 &&
-            cube0->findFirstAncestorWorkspace() != m_lastWorkspace &&
-            cube1->findFirstAncestorWorkspace() != m_lastWorkspace;
-        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() &&
-            m_constraintHandle && !endpointsAlsoLeft) {
-            m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
+    auto* workspace = static_cast<Workspace*>(findFirstAncestorWorkspace());
+    if (workspace != m_lastWorkspace) {
+        if (m_lastWorkspace) {
+            m_lastWorkspace->unregisterConstraint(this);
+            if (m_lastWorkspace->getPhysicsEngine() && m_constraintHandle)
+                m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
         }
-        if (!endpointsAlsoLeft) m_constraintHandle = {};
-        m_lastWorkspace = nullptr;
+        m_lastWorkspace = workspace;
+        if (workspace) workspace->registerConstraint(shared_from_this());
     }
     Instance::onAncestorChanged();
 }

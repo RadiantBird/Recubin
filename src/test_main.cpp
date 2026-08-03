@@ -22,6 +22,7 @@
 
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
+#include <Core/SceneRuntime.hpp>
 #include <Core/AudioService.hpp>
 #include <Core/TimeStretchNode.hpp>
 #include <Core/NullInputBackend.hpp>
@@ -31,6 +32,7 @@
 #include <Core/User.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Network/NatProtocol.hpp>
+#include <Network/Replication.hpp>
 #include <Util/Logger.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
@@ -41,6 +43,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <thread>
 #include <iostream>
 #include <limits>
@@ -1318,10 +1321,12 @@ int runPhysicsMigrationRegression() {
     const PhysicsConstraintHandle axisMotorSameAxisHandle =
         axisMotor->getConstraintHandle();
     axisMotor->setAxis(Vector3(0, 0, -1));
+    // frame/topology 変更は固定step前の binding reconciliation で反映する。
+    physics->update(*workspace, 1.0f / 60.0f);
     const PhysicsConstraintHandle axisMotorChangedAxisHandle =
         axisMotor->getConstraintHandle();
     axisMotor->setDriveVelocity(0.0f);
-    for (int step = 0; step < 30; ++step)
+    for (int step = 1; step < 30; ++step)
         physics->update(*workspace, 1.0f / 60.0f);
     const CFrame axisMotorReframedCylinder =
         axisMotorCylinder->getWorldCFrame();
@@ -2212,8 +2217,7 @@ int runBox3DBuoyancyRegression() {
 
     const Vector3 maintainedVelocity =
         physics->getLinearVelocity(*maintainVelocityCube);
-    const Vector3 expectedMaintainedVelocity =
-        workspace->Gravity * (1.0f / 60.0f);
+    const Vector3 expectedMaintainedVelocity;
     const Vector3 maintainedVelocityError =
         maintainedVelocity - expectedMaintainedVelocity;
     std::cout << "[Box3DBuoyancyRegression] metric=maintain_velocity_buoyancy"
@@ -2232,7 +2236,7 @@ int runBox3DBuoyancyRegression() {
                std::abs(maintainedVelocityError.x) <= 0.05f &&
                std::abs(maintainedVelocityError.y) <= 0.05f &&
                std::abs(maintainedVelocityError.z) <= 0.05f,
-           "MaintainVelocity zero prevents accumulated buoyancy, leaving one gravity step");
+           "MaintainVelocity zero overrides gravity and accumulated buoyancy");
 
     const float obbOutsideVelocity =
         physics->getLinearVelocity(*obbOutsideBody).y;
@@ -2769,6 +2773,594 @@ int runNatCodecRegression() {
 //  GLFW/OpenGL/Renderer/PhysXを構築せず、シーンYAML内のScriptを実行して
 //  print()の [PASS]/[FAIL]/[ERROR] 件数から終了コードを決める。
 // ===================================================
+int runPhysicsLifecycleRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[PhysicsLifecycle] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto workspaceA = std::make_shared<Workspace>();
+    auto workspaceB = std::make_shared<Workspace>();
+    workspaceA->Name = "WorkspaceA";
+    workspaceB->Name = "WorkspaceB";
+    workspaceA->Gravity = {};
+    workspaceB->Gravity = {};
+    workspaceA->initPhysics();
+    workspaceB->initPhysics();
+    auto* physicsA = workspaceA->getPhysicsEngine();
+    auto* physicsB = workspaceB->getPhysicsEngine();
+
+    auto folder = std::make_shared<Model>();
+    folder->Name = "Folder";
+    workspaceA->addChild(folder);
+
+    auto cube = std::make_shared<BaseCube>(Vector3(0, 0, 0), Vector3(2, 2, 2));
+    cube->Name = "MovingCube";
+    cube->Anchored = true;
+    workspaceA->addChild(cube);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(physicsA->hasBody(*cube), "Cube is created in Workspace A");
+    const CFrame beforeReparent = physicsA->getBodyWorldCFrame(*cube);
+
+    cube->setParent(folder);
+    expect(physicsA->hasBody(*cube),
+           "same-Workspace reparent keeps the existing body");
+    expect(sameCFrame(beforeReparent, physicsA->getBodyWorldCFrame(*cube)),
+           "same-Workspace reparent preserves the body pose");
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(physicsA->hasBody(*cube),
+           "same-Workspace reparent does not lose the body after flush");
+
+    cube->setParent(workspaceB);
+    expect(!physicsA->hasBody(*cube),
+           "direct A-to-B move invalidates the old owner immediately");
+    physicsB->update(*workspaceB, 1.0f / 60.0f);
+    expect(physicsB->hasBody(*cube), "direct A-to-B move creates a body in B");
+    RaycastHit hitA;
+    RaycastHit hitB;
+    expect(!physicsA->raycast(Vector3(0, 10, 0), Vector3(0, -1, 0), 20, hitA),
+           "old world has no ghost shape after direct move");
+    expect(physicsB->raycast(Vector3(0, 10, 0), Vector3(0, -1, 0), 20, hitB) &&
+               hitB.instance == cube.get(),
+           "new world raycast resolves the moved Cube");
+
+    auto survivor = std::make_shared<BaseCube>(Vector3(20, 0, 0), Vector3(2, 2, 2));
+    auto departing = std::make_shared<BaseCube>(Vector3(26, 0, 0), Vector3(2, 2, 2));
+    survivor->Name = "WeldSurvivor";
+    departing->Name = "WeldDeparting";
+    survivor->Anchored = true;
+    departing->Anchored = true;
+    workspaceA->addChild(survivor);
+    workspaceA->addChild(departing);
+    auto weld = std::make_shared<Weld>(survivor, departing);
+    weld->Name = "Weld";
+    workspaceA->addChild(weld);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(physicsA->sharesBody(*survivor, *departing),
+           "Weld members initially share one body");
+
+    departing->setParent(workspaceB);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    physicsB->update(*workspaceB, 1.0f / 60.0f);
+    expect(physicsA->hasBody(*survivor),
+           "remaining Weld component is rebuilt in the old world");
+    expect(physicsB->hasBody(*departing),
+           "departing Weld member receives a body in the new world");
+    RaycastHit oldWeldHit;
+    expect(!physicsA->raycast(Vector3(26, 10, 0), Vector3(0, -1, 0), 20,
+                              oldWeldHit) ||
+               oldWeldHit.instance != departing.get(),
+           "old Weld compound contains no departing member ghost shape");
+
+    std::cout << "[PhysicsLifecycle] "
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runFixedStepForceRegression() {
+    auto backendWorkspace = std::make_shared<Workspace>();
+    backendWorkspace->initPhysics();
+    const char* backend = physicsBackendName(
+        backendWorkspace->getPhysicsEngine()->getBackendType());
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[FixedStepForce] backend=" << backend << ' '
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    struct Result {
+        Vector3 position;
+        Vector3 velocity;
+        Quaternion rotation;
+    };
+    auto simulate = [](float frameDt) {
+        auto workspace = std::make_shared<Workspace>();
+        workspace->Gravity = {};
+        workspace->initPhysics();
+        auto body = addMigrationCube(
+            workspace, "FixedStepBody", {0, 0, 0}, {2, 2, 2});
+        auto linear = std::make_shared<Force>();
+        linear->Name = "Linear";
+        linear->Value = {80, 0, 0};
+        body->addChild(linear);
+        auto torque = std::make_shared<Force>();
+        torque->Name = "Torque";
+        torque->Torque = true;
+        torque->Value = {0, 0, 2};
+        body->addChild(torque);
+
+        Physics* physics = workspace->getPhysicsEngine();
+        const int frames = static_cast<int>(std::lround(1.0f / frameDt));
+        for (int frame = 0; frame < frames; ++frame)
+            physics->update(*workspace, frameDt);
+        return Result{body->getWorldPosition(), physics->getLinearVelocity(*body),
+                      body->getWorldCFrame().Rotation};
+    };
+
+    const Result at30 = simulate(1.0f / 30.0f);
+    const Result at60 = simulate(1.0f / 60.0f);
+    const Result at120 = simulate(1.0f / 120.0f);
+    auto closeVector = [](const Vector3& first, const Vector3& second,
+                          float tolerance) {
+        return positionDistance(first, second) <= tolerance;
+    };
+    auto rotationDot = [](const Quaternion& first, const Quaternion& second) {
+        return std::abs(first.w * second.w + first.x * second.x +
+                        first.y * second.y + first.z * second.z);
+    };
+    std::cout << "[FixedStepForce] backend=" << backend
+              << " metric=dt_invariance"
+              << " p30=" << at30.position.x << " p60=" << at60.position.x
+              << " p120=" << at120.position.x
+              << " v30=" << at30.velocity.x << " v60=" << at60.velocity.x
+              << " v120=" << at120.velocity.x << '\n';
+    expect(closeVector(at30.position, at60.position, 0.05f) &&
+               closeVector(at120.position, at60.position, 0.05f) &&
+               closeVector(at30.velocity, at60.velocity, 0.05f) &&
+               closeVector(at120.velocity, at60.velocity, 0.05f),
+           "Force integration is invariant at render dt 1/30, 1/60, and 1/120");
+    expect(rotationDot(at30.rotation, at60.rotation) >= 0.999f &&
+               rotationDot(at120.rotation, at60.rotation) >= 0.999f,
+           "Torque integration is invariant at render dt 1/30, 1/60, and 1/120");
+
+    auto workspace = std::make_shared<Workspace>();
+    workspace->initPhysics();
+    auto liquid = std::make_shared<LiquidCube>(
+        Vector3(0, 0, 0), Vector3(20, 20, 20));
+    liquid->Anchored = true;
+    liquid->Density = 4.0f;
+    workspace->addChild(liquid);
+    auto maintained = addMigrationCube(
+        workspace, "Maintained", {0, 0, 0}, {2, 2, 2});
+    auto additive = std::make_shared<Force>();
+    additive->Name = "Additive";
+    additive->Value = {10000, 10000, 10000};
+    maintained->addChild(additive);
+    auto target = std::make_shared<Force>();
+    target->Name = "Maintain";
+    target->MaintainVelocity = true;
+    target->Value = {3, 4, 5};
+    maintained->addChild(target);
+    Physics* physics = workspace->getPhysicsEngine();
+    for (int step = 0; step < 60; ++step)
+        physics->update(*workspace, 1.0f / 60.0f);
+    const Vector3 actual = physics->getLinearVelocity(*maintained);
+    std::cout << "[FixedStepForce] backend=" << backend
+              << " metric=maintain_priority actual=[" << actual.x << ','
+              << actual.y << ',' << actual.z << "]\n";
+    expect(closeVector(actual, target->Value, 0.05f),
+           "MaintainVelocity overrides gravity, buoyancy, and additive Force");
+
+    std::cout << "[FixedStepForce] backend=" << backend << " failures="
+              << failures << " result=" << (failures == 0 ? "PASS" : "FAIL")
+              << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runContactReentryRegression() {
+    auto workspaceA = std::make_shared<Workspace>();
+    auto workspaceB = std::make_shared<Workspace>();
+    workspaceA->Name = "ContactWorkspaceA";
+    workspaceB->Name = "ContactWorkspaceB";
+    workspaceA->initPhysics();
+    workspaceB->initPhysics();
+    Physics* physicsA = workspaceA->getPhysicsEngine();
+    Physics* physicsB = workspaceB->getPhysicsEngine();
+    const char* backend = physicsBackendName(physicsA->getBackendType());
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[ContactReentry] backend=" << backend << ' '
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto floor = addMigrationCube(
+        workspaceA, "ContactFloor", {0, 0, 0}, {20, 1, 20}, true);
+    auto falling = addMigrationCube(
+        workspaceA, "ContactFalling", {0, 5, 0}, {2, 2, 2});
+    int callbacks = 0;
+    bool poseWasSynchronized = false;
+    Physics::s_contactCallback = [&](BaseCube* first, BaseCube* second) {
+        const bool isPair =
+            (first == floor.get() && second == falling.get()) ||
+            (first == falling.get() && second == floor.get());
+        if (!isPair) return;
+        ++callbacks;
+        poseWasSynchronized = positionDistance(
+            falling->getWorldPosition(),
+            physicsA->getBodyWorldCFrame(*falling).Position) <= 0.01f;
+        if (callbacks == 1) {
+            // callback中のreparentとshape再構築要求は、native step完了後の
+            // 安全窓で処理されなければならない。
+            falling->setParent(workspaceB);
+            floor->setSize({22, 1, 22});
+        }
+    };
+    for (int step = 0; step < 180 && callbacks == 0; ++step)
+        physicsA->update(*workspaceA, 1.0f / 60.0f);
+    Physics::s_contactCallback = {};
+    expect(callbacks == 1, "contact is dispatched once without callback re-entry");
+    expect(poseWasSynchronized,
+           "contact dispatch occurs after native pose synchronization");
+    expect(!physicsA->hasBody(*falling),
+           "callback reparent immediately detaches the old-world body");
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    physicsB->update(*workspaceB, 1.0f / 60.0f);
+    expect(physicsB->hasBody(*falling),
+           "callback reparent registers the body in the destination world");
+    expect(physicsA->hasBody(*floor),
+           "callback resize is applied in the next safe update window");
+
+    auto lower = addMigrationCube(
+        workspaceA, "CompoundLower", {40, 1, 0}, {2, 2, 2}, true);
+    auto upper = addMigrationCube(
+        workspaceA, "CompoundUpper", {40, 4, 0}, {2, 2, 2}, true);
+    auto weld = std::make_shared<Weld>(lower, upper);
+    weld->Name = "CompoundRaycastWeld";
+    workspaceA->addChild(weld);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    RaycastHit upperHit;
+    RaycastHit lowerHit;
+    const bool hitUpper = physicsA->raycast(
+        {40, 10, 0}, {0, -1, 0}, 20, upperHit);
+    const bool hitLowerWhenIgnoringUpper = physicsA->raycast(
+        {40, 10, 0}, {0, -1, 0}, 20, lowerHit, upper.get());
+    expect(hitUpper && upperHit.instance == upper.get(),
+           "compound raycast reports the member shape that was hit");
+    expect(hitLowerWhenIgnoringUpper && lowerHit.instance == lower.get(),
+           "ignoreCube skips only its member shape, not the whole compound");
+
+    std::cout << "[ContactReentry] backend=" << backend << " failures="
+              << failures << " result=" << (failures == 0 ? "PASS" : "FAIL")
+              << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runMultiWorkspaceRegression() {
+    auto workspaceA = std::make_shared<Workspace>();
+    auto workspaceB = std::make_shared<Workspace>();
+    workspaceA->Name = "NetworkWorkspaceA";
+    workspaceB->Name = "NetworkWorkspaceB";
+    workspaceA->initPhysics();
+    workspaceB->initPhysics();
+    Physics* physicsA = workspaceA->getPhysicsEngine();
+    Physics* physicsB = workspaceB->getPhysicsEngine();
+    auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    ReplicationManager replication(workspaceA, user, nullptr);
+    const char* backend = physicsBackendName(physicsA->getBackendType());
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[MultiWorkspace] backend=" << backend << ' '
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    const std::uint64_t firstGeneration =
+        replication.getWorkspaceGeneration();
+    replication.setWorkspace(workspaceB);
+    expect(replication.getWorkspace() == workspaceB &&
+               replication.getBoundPhysics() == physicsB,
+           "Workspace and Physics binding switch atomically");
+    expect(replication.getWorkspaceGeneration() == firstGeneration + 1,
+           "Workspace switch advances the packet binding generation");
+
+    replication.update(1.0f / 60.0f, physicsA);
+    expect(replication.getWorkspace() == workspaceB &&
+               replication.getBoundPhysics() == physicsB,
+           "update rejects a Physics pointer from the previous Workspace");
+    replication.update(1.0f / 60.0f, physicsB);
+    expect(replication.getBoundPhysics() == physicsB,
+           "update accepts the currently bound Workspace Physics");
+
+    const std::uint64_t secondGeneration =
+        replication.getWorkspaceGeneration();
+    replication.setWorkspace(nullptr);
+    expect(!replication.getWorkspace() && !replication.getBoundPhysics() &&
+               replication.getWorkspaceGeneration() == secondGeneration + 1,
+           "unbinding clears Workspace and Physics in one generation");
+
+    std::cout << "[MultiWorkspace] backend=" << backend << " failures="
+              << failures << " result=" << (failures == 0 ? "PASS" : "FAIL")
+              << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runPhysicsRollbackRegression() {
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Gravity = {};
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    const char* backend = physicsBackendName(physics->getBackendType());
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[PhysicsRollback] backend=" << backend << ' '
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto cube = addMigrationCube(
+        workspace, "RollbackCube", {0, 0, 0}, {2, 2, 2}, true);
+    physics->update(*workspace, 1.0f / 60.0f);
+    const PhysicsBodyHandle originalHandle = physics->getBodyHandle(*cube);
+    cube->setSize(cube->Size);
+    cube->setAnchored(cube->Anchored);
+    cube->setCanCollide(cube->CanCollide);
+    cube->setMaterial(cube->material);
+    cube->setMassDensity(cube->MassDensity);
+    expect(physics->getBodyHandle(*cube) == originalHandle,
+           "same-value setters preserve the native body handle");
+
+    const Vector3 originalSize = cube->Size;
+    cube->setSize({std::numeric_limits<float>::quiet_NaN(), 2, 2});
+    expect(cube->Size == originalSize &&
+               physics->getBodyHandle(*cube) == originalHandle,
+           "invalid Size setter leaves logical and native state unchanged");
+    cube->Size = {std::numeric_limits<float>::quiet_NaN(), 2, 2};
+    physics->recreateActor(cube);
+    RaycastHit retainedHit;
+    const bool retainedCollision = physics->raycast(
+        {0, 10, 0}, {0, -1, 0}, 20, retainedHit);
+    expect(physics->getBodyHandle(*cube) == originalHandle &&
+               retainedCollision && retainedHit.instance == cube.get(),
+           "invalid replacement descriptor retains the old collision body");
+    cube->Size = originalSize;
+
+    PhysicsTerrainDescriptor terrainDescriptor = makeMigrationTerrain(nullptr);
+    const PhysicsTerrainHandle terrain =
+        physics->createTerrain(terrainDescriptor);
+    PhysicsTerrainDescriptor invalidTerrain = terrainDescriptor;
+    invalidTerrain.indices = {0, 1, 99};
+    const PhysicsTerrainHandle afterInvalid =
+        physics->replaceTerrain(terrain, invalidTerrain);
+    RaycastHit terrainHit;
+    expect(terrain && afterInvalid == terrain && physics->raycast(
+               {0, 10, 0}, {0, -1, 0}, 20, terrainHit),
+           "invalid Terrain replacement retains the old handle and collision");
+    physics->destroyTerrain(terrain);
+    expect(!physics->createTerrain({}),
+           "empty Terrain descriptor does not create a native handle");
+
+    workspace->PhysicsEnabled = false;
+    auto pending = addMigrationCube(
+        workspace, "RemovedWhileDisabled", {50, 0, 0}, {2, 2, 2});
+    pending->setParent(nullptr);
+    workspace->PhysicsEnabled = true;
+    physics->update(*workspace, 1.0f / 60.0f);
+    expect(!physics->hasBody(*pending),
+           "removed pending Cube is not resurrected when physics resumes");
+
+    auto saveRoot = std::make_shared<Instance>("SaveRoot");
+    auto locked = std::make_shared<Cube>(Vector3(), Vector3(1, 1, 1), 0);
+    locked->Name = "LockedCube";
+    locked->LockFlags = PhysicsLockFlags::LinearX |
+        PhysicsLockFlags::AngularY | PhysicsLockFlags::AngularZ;
+    locked->CollisionDetection = CCDMode::Bullet;
+    auto lockedClone = std::dynamic_pointer_cast<BaseCube>(locked->clone());
+    expect(lockedClone && lockedClone->LockFlags == locked->LockFlags &&
+               lockedClone->CollisionDetection == CCDMode::Bullet,
+           "clone preserves LockFlags and CCDMode without native handles");
+    saveRoot->addChild(locked);
+    const auto savePath = std::filesystem::temp_directory_path() /
+        ("recubin_lockflags_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) +
+         ".yaml");
+    SceneLoader::saveScene(saveRoot.get(), savePath.string());
+    auto loadedRoot = SceneLoader::loadScene(savePath.string());
+    std::error_code removeError;
+    std::filesystem::remove(savePath, removeError);
+    Instance* loadedChild = loadedRoot
+        ? loadedRoot->getChild("LockedCube") : nullptr;
+    auto loaded = loadedChild
+        ? std::dynamic_pointer_cast<BaseCube>(loadedChild->shared_from_this())
+        : nullptr;
+    expect(loaded && loaded->LockFlags == locked->LockFlags,
+           "LockFlags string sequence survives YAML save/load");
+
+    std::cout << "[PhysicsRollback] backend=" << backend << " failures="
+              << failures << " result=" << (failures == 0 ? "PASS" : "FAIL")
+              << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runConstraintRebindRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[ConstraintRebind] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto workspaceA = std::make_shared<Workspace>();
+    auto workspaceB = std::make_shared<Workspace>();
+    workspaceA->Name = "WorkspaceA";
+    workspaceB->Name = "WorkspaceB";
+    workspaceA->Gravity = {};
+    workspaceB->Gravity = {};
+    workspaceA->initPhysics();
+    workspaceB->initPhysics();
+
+    auto cube0 = std::make_shared<BaseCube>(Vector3(0, 0, 0), Vector3(2, 2, 2));
+    auto cube1 = std::make_shared<BaseCube>(Vector3(4, 0, 0), Vector3(2, 2, 2));
+    cube0->Name = "Cube0";
+    cube1->Name = "Cube1";
+    auto attachment0 = std::make_shared<Attachment>(Vector3(1, 0, 0));
+    auto attachment1 = std::make_shared<Attachment>(Vector3(-1, 0, 0));
+    attachment0->Name = "Attachment0";
+    attachment1->Name = "Attachment1";
+    cube0->addChild(attachment0);
+    cube1->addChild(attachment1);
+    workspaceA->addChild(cube0);
+    workspaceA->addChild(cube1);
+
+    auto motor = std::make_shared<Motor>(cube0, cube1);
+    motor->Name = "Motor";
+    workspaceA->addChild(motor);
+    YAML::Node attachmentName;
+    attachmentName = "Attachment0";
+    motor->setProperty("Attachment0", attachmentName);
+    attachmentName = "Attachment1";
+    motor->setProperty("Attachment1", attachmentName);
+
+    auto* physicsA = workspaceA->getPhysicsEngine();
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    const auto originalHandle = motor->getConstraintHandle();
+    expect(static_cast<bool>(originalHandle), "Motor receives an initial native binding");
+
+    attachment0->Position.x += 0.5f;
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    const auto movedAttachmentHandle = motor->getConstraintHandle();
+    expect(movedAttachmentHandle && movedAttachmentHandle != originalHandle,
+           "Attachment transform change rebuilds the native binding");
+
+    YAML::Node invalidPath;
+    invalidPath = "MissingCube";
+    motor->setProperty("Cube1", invalidPath);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(!motor->getConstraintHandle(),
+           "invalid endpoint path clears the old weak binding and native joint");
+
+    YAML::Node validPath;
+    validPath = cube1->getWorkspaceRelativePath();
+    motor->setProperty("Cube1", validPath);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(static_cast<bool>(motor->getConstraintHandle()),
+           "valid endpoint path reconnects automatically");
+
+    cube1->setParent(workspaceB);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(!motor->getConstraintHandle(),
+           "cross-Workspace endpoint has no native binding");
+    expect(motor->Parent.lock() == workspaceA,
+           "endpoint departure preserves the logical Constraint Instance");
+
+    cube1->setParent(workspaceA);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(static_cast<bool>(motor->getConstraintHandle()),
+           "returning endpoint reconnects during the next fixed-step flush");
+
+    std::cout << "[ConstraintRebind] "
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runTerrainInstanceRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[TerrainInstance] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto workspaceA = std::make_shared<Workspace>();
+    auto workspaceB = std::make_shared<Workspace>();
+    workspaceA->Name = "WorkspaceA";
+    workspaceB->Name = "WorkspaceB";
+    workspaceA->initPhysics();
+    workspaceB->initPhysics();
+    auto folder = std::make_shared<Model>();
+    folder->Name = "TerrainFolder";
+    workspaceA->addChild(folder);
+
+    auto terrain0 = std::make_shared<Terrain>();
+    auto terrain1 = std::make_shared<Terrain>();
+    terrain0->Name = "Terrain0";
+    terrain1->Name = "Terrain1";
+    folder->addChild(terrain0);
+    workspaceA->addChild(terrain1);
+    expect(SceneRuntime::collectTerrains(workspaceA.get()).size() == 2,
+           "recursive enumeration finds multiple nested Terrain instances");
+    expect(terrain0->DataPath.empty() && terrain1->DataPath.empty(),
+           "new Terrain has no implicit current-directory DataPath");
+    SceneRuntime::updateTerrains(workspaceA.get(), Vector3());
+    expect(!terrain0->streamer && !terrain1->streamer,
+           "empty DataPath does not create a streamer or terrain directory");
+
+    terrain0->setDataPath("build/terrain_instance_regression_a");
+    terrain1->setDataPath("build/terrain_instance_regression_b");
+    // Headless runnerにはOpenGL contextが無いため、streamerの所有権遷移
+    // だけを構築し、chunk mesh uploadを伴うupdateはGUI回帰に委ねる。
+    terrain0->streamer = std::make_unique<TerrainStreamer>(
+        workspaceA.get(), terrain0.get(), terrain0->DataPath);
+    terrain1->streamer = std::make_unique<TerrainStreamer>(
+        workspaceA.get(), terrain1.get(), terrain1->DataPath);
+    expect(terrain0->streamer && terrain1->streamer,
+           "all enabled Terrain instances own independent streamers");
+
+    terrain0->setEnabled(false);
+    expect(!terrain0->streamer && terrain1->streamer,
+           "disabling one Terrain immediately releases only its streamer");
+    terrain0->setEnabled(true);
+    terrain0->streamer = std::make_unique<TerrainStreamer>(
+        workspaceA.get(), terrain0.get(), terrain0->DataPath);
+    expect(terrain0->streamer != nullptr,
+           "re-enabling Terrain recreates its streamer on update");
+
+    terrain0->setParent(workspaceB);
+    expect(!terrain0->streamer,
+           "Workspace move releases old-world Terrain resources immediately");
+    terrain0->streamer = std::make_unique<TerrainStreamer>(
+        workspaceB.get(), terrain0.get(), terrain0->DataPath);
+    expect(terrain0->streamer != nullptr,
+           "moved Terrain creates an independent streamer in the new Workspace");
+
+    auto cloned = std::dynamic_pointer_cast<Terrain>(terrain0->clone());
+    expect(cloned && cloned->Enabled == terrain0->Enabled &&
+               cloned->DataPath == terrain0->DataPath &&
+               cloned->Seed == terrain0->Seed && cloned->Flat == terrain0->Flat,
+           "clone preserves Terrain type and settings");
+    expect(cloned && !cloned->streamer,
+           "clone does not duplicate streamer or native handles");
+
+    PhysicsTerrainDescriptor descriptor;
+    descriptor.vertices = {
+        {-2, 0, -2}, {2, 0, -2}, {2, 0, 2}, {-2, 0, 2},
+    };
+    descriptor.indices = {0, 2, 1, 0, 3, 2};
+    descriptor.userData = terrain1.get();
+    auto* physics = workspaceA->getPhysicsEngine();
+    PhysicsTerrainHandle handle = physics->createTerrain(descriptor);
+    RaycastHit beforeDelete;
+    expect(handle && physics->raycast(
+               Vector3(0, 5, 0), Vector3(0, -1, 0), 10, beforeDelete),
+           "non-empty Terrain descriptor creates collision");
+    PhysicsTerrainDescriptor empty;
+    handle = physics->replaceTerrain(handle, empty);
+    RaycastHit afterDelete;
+    expect(!handle && !physics->raycast(
+               Vector3(0, 5, 0), Vector3(0, -1, 0), 10, afterDelete),
+           "empty replacement destroys the final Terrain collision handle");
+
+    terrain0->releaseStreamer();
+    terrain1->releaseStreamer();
+    std::cout << "[TerrainInstance] "
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
@@ -2794,18 +3386,46 @@ int main(int argc, char* argv[]) {
     const bool soundStretchRegression = argc > 1 && std::string_view(argv[1]) == "--sound-stretch-regression";
     const bool natCodecRegression = argc > 1 && std::string_view(argv[1]) == "--nat-codec-regression";
     bool physicsMigrationRegression = false;
+    bool physicsLifecycleRegression = false;
+    bool constraintRebindRegression = false;
+    bool terrainInstanceRegression = false;
+    bool fixedStepForceRegression = false;
+    bool contactReentryRegression = false;
+    bool multiWorkspaceRegression = false;
+    bool physicsRollbackRegression = false;
     bool physicsPerformanceGuard = false;
     bool box3dBuoyancyRegression = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument(argv[i]);
         physicsMigrationRegression =
             physicsMigrationRegression || argument == "--physics-migration-regression";
+        physicsLifecycleRegression =
+            physicsLifecycleRegression || argument == "--physics-lifecycle-regression";
+        constraintRebindRegression =
+            constraintRebindRegression || argument == "--constraint-rebind-regression";
+        terrainInstanceRegression =
+            terrainInstanceRegression || argument == "--terrain-instance-regression";
+        fixedStepForceRegression =
+            fixedStepForceRegression || argument == "--fixed-step-force-regression";
+        contactReentryRegression =
+            contactReentryRegression || argument == "--contact-reentry-regression";
+        multiWorkspaceRegression =
+            multiWorkspaceRegression || argument == "--multi-workspace-regression";
+        physicsRollbackRegression =
+            physicsRollbackRegression || argument == "--physics-rollback-regression";
         physicsPerformanceGuard =
             physicsPerformanceGuard || argument == "--physics-performance-guard";
         box3dBuoyancyRegression =
             box3dBuoyancyRegression || argument == "--box3d-buoyancy-regression";
     }
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
+    if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
+    if (constraintRebindRegression) return runConstraintRebindRegression();
+    if (terrainInstanceRegression) return runTerrainInstanceRegression();
+    if (fixedStepForceRegression) return runFixedStepForceRegression();
+    if (contactReentryRegression) return runContactReentryRegression();
+    if (multiWorkspaceRegression) return runMultiWorkspaceRegression();
+    if (physicsRollbackRegression) return runPhysicsRollbackRegression();
     if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
     if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
     if (toolWeldRegression) return runToolWeldRegression();

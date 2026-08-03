@@ -611,6 +611,7 @@ int main(int argc, char* argv[]) {
                     }
                     workspace = std::static_pointer_cast<Workspace>(next->shared_from_this());
                     if (!workspace->getPhysicsEngine()) workspace->initPhysics();
+                    replication.setWorkspace(workspace);
                     luauEngine->setGlobalInstance("workspace", workspace);
                     luauEngine->setWorkspace(workspace);
                 }
@@ -628,6 +629,12 @@ int main(int argc, char* argv[]) {
             workspace->getPhysicsEngine()->syncWeldKinematics();
 
         if (!navMeshBusy) {
+            Vector3 terrainCenter = user->cpos;
+            if (user->humanoid) {
+                if (auto root = user->humanoid->getRootPart())
+                    terrainCenter = root->getWorldCFrame().Position;
+            }
+            SceneRuntime::updateTerrains(workspace.get(), terrainCenter);
             Weather::updateAll(workspace.get(), deltaTime, user->cpos);
             ParticleEmitter::updateAll(workspace.get(), deltaTime);
         }
@@ -646,6 +653,7 @@ int main(int argc, char* argv[]) {
     NetworkManager::get().onChatMessage = nullptr;
     if (chatService) chatService->onSendRequested = nullptr;
     luauEngine->cancelAllTasks();
+    SceneRuntime::releaseTerrainStreamers(workspaces);
     for (auto& ws : workspaces) {
         if (ws && ws->getPhysicsEngine()) {
             ws->getPhysicsEngine()->clearCubes();
