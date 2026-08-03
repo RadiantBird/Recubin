@@ -1318,10 +1318,12 @@ int runPhysicsMigrationRegression() {
     const PhysicsConstraintHandle axisMotorSameAxisHandle =
         axisMotor->getConstraintHandle();
     axisMotor->setAxis(Vector3(0, 0, -1));
+    // frame/topology 変更は固定step前の binding reconciliation で反映する。
+    physics->update(*workspace, 1.0f / 60.0f);
     const PhysicsConstraintHandle axisMotorChangedAxisHandle =
         axisMotor->getConstraintHandle();
     axisMotor->setDriveVelocity(0.0f);
-    for (int step = 0; step < 30; ++step)
+    for (int step = 1; step < 30; ++step)
         physics->update(*workspace, 1.0f / 60.0f);
     const CFrame axisMotorReframedCylinder =
         axisMotorCylinder->getWorldCFrame();
@@ -2855,6 +2857,88 @@ int runPhysicsLifecycleRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runConstraintRebindRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[ConstraintRebind] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto workspaceA = std::make_shared<Workspace>();
+    auto workspaceB = std::make_shared<Workspace>();
+    workspaceA->Name = "WorkspaceA";
+    workspaceB->Name = "WorkspaceB";
+    workspaceA->Gravity = {};
+    workspaceB->Gravity = {};
+    workspaceA->initPhysics();
+    workspaceB->initPhysics();
+
+    auto cube0 = std::make_shared<BaseCube>(Vector3(0, 0, 0), Vector3(2, 2, 2));
+    auto cube1 = std::make_shared<BaseCube>(Vector3(4, 0, 0), Vector3(2, 2, 2));
+    cube0->Name = "Cube0";
+    cube1->Name = "Cube1";
+    auto attachment0 = std::make_shared<Attachment>(Vector3(1, 0, 0));
+    auto attachment1 = std::make_shared<Attachment>(Vector3(-1, 0, 0));
+    attachment0->Name = "Attachment0";
+    attachment1->Name = "Attachment1";
+    cube0->addChild(attachment0);
+    cube1->addChild(attachment1);
+    workspaceA->addChild(cube0);
+    workspaceA->addChild(cube1);
+
+    auto motor = std::make_shared<Motor>(cube0, cube1);
+    motor->Name = "Motor";
+    workspaceA->addChild(motor);
+    YAML::Node attachmentName;
+    attachmentName = "Attachment0";
+    motor->setProperty("Attachment0", attachmentName);
+    attachmentName = "Attachment1";
+    motor->setProperty("Attachment1", attachmentName);
+
+    auto* physicsA = workspaceA->getPhysicsEngine();
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    const auto originalHandle = motor->getConstraintHandle();
+    expect(static_cast<bool>(originalHandle), "Motor receives an initial native binding");
+
+    attachment0->Position.x += 0.5f;
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    const auto movedAttachmentHandle = motor->getConstraintHandle();
+    expect(movedAttachmentHandle && movedAttachmentHandle != originalHandle,
+           "Attachment transform change rebuilds the native binding");
+
+    YAML::Node invalidPath;
+    invalidPath = "MissingCube";
+    motor->setProperty("Cube1", invalidPath);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(!motor->getConstraintHandle(),
+           "invalid endpoint path clears the old weak binding and native joint");
+
+    YAML::Node validPath;
+    validPath = cube1->getWorkspaceRelativePath();
+    motor->setProperty("Cube1", validPath);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(static_cast<bool>(motor->getConstraintHandle()),
+           "valid endpoint path reconnects automatically");
+
+    cube1->setParent(workspaceB);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(!motor->getConstraintHandle(),
+           "cross-Workspace endpoint has no native binding");
+    expect(motor->Parent.lock() == workspaceA,
+           "endpoint departure preserves the logical Constraint Instance");
+
+    cube1->setParent(workspaceA);
+    physicsA->update(*workspaceA, 1.0f / 60.0f);
+    expect(static_cast<bool>(motor->getConstraintHandle()),
+           "returning endpoint reconnects during the next fixed-step flush");
+
+    std::cout << "[ConstraintRebind] "
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
@@ -2881,6 +2965,7 @@ int main(int argc, char* argv[]) {
     const bool natCodecRegression = argc > 1 && std::string_view(argv[1]) == "--nat-codec-regression";
     bool physicsMigrationRegression = false;
     bool physicsLifecycleRegression = false;
+    bool constraintRebindRegression = false;
     bool physicsPerformanceGuard = false;
     bool box3dBuoyancyRegression = false;
     for (int i = 1; i < argc; ++i) {
@@ -2889,6 +2974,8 @@ int main(int argc, char* argv[]) {
             physicsMigrationRegression || argument == "--physics-migration-regression";
         physicsLifecycleRegression =
             physicsLifecycleRegression || argument == "--physics-lifecycle-regression";
+        constraintRebindRegression =
+            constraintRebindRegression || argument == "--constraint-rebind-regression";
         physicsPerformanceGuard =
             physicsPerformanceGuard || argument == "--physics-performance-guard";
         box3dBuoyancyRegression =
@@ -2896,6 +2983,7 @@ int main(int argc, char* argv[]) {
     }
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
     if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
+    if (constraintRebindRegression) return runConstraintRebindRegression();
     if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
     if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
     if (toolWeldRegression) return runToolWeldRegression();

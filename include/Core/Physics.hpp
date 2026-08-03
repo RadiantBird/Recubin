@@ -4,6 +4,10 @@
 #include <functional>
 #include <memory>
 #include <cstdint>
+#include <unordered_map>
+#include <unordered_set>
+
+class Attachment;
 
 class Physics {
 private:
@@ -16,8 +20,24 @@ private:
     double m_wavePhaseTargetOffsetTicks = 0.0;
     bool m_hasWavePhaseTarget = false;
 
+    struct ConstraintBindingSnapshot {
+        std::weak_ptr<Instance> constraint;
+        BaseCube* cube0 = nullptr;
+        BaseCube* cube1 = nullptr;
+        PhysicsBodyHandle body0;
+        PhysicsBodyHandle body1;
+        Attachment* attachment0 = nullptr;
+        Attachment* attachment1 = nullptr;
+        CFrame localFrame0;
+        CFrame localFrame1;
+        Vector3 axis;
+    };
+    std::unordered_map<Instance*, ConstraintBindingSnapshot> m_constraintBindings;
+    std::unordered_set<Instance*> m_crossWorkspaceWarnings;
+
     void advanceWavePhaseCorrection(std::uint64_t simulatedSteps);
     bool ownsBody(const BaseCube& cube) const;
+    void reconcileConstraints(Workspace& workspace);
 
 public:
     static std::function<void(BaseCube*, BaseCube*)> s_contactCallback;

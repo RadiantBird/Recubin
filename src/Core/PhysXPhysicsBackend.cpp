@@ -1489,9 +1489,9 @@ void PhysXPhysicsBackend::removeInvalidConstraints(Workspace& workspace) {
     std::sort(stale.begin(), stale.end());
     stale.erase(std::unique(stale.begin(), stale.end()), stale.end());
     for (const auto& constraint : stale) {
-        RCBN_LOG("Removing constraint \"" << constraint->Name << "\" because one of its cubes left the Workspace");
+        RCBN_LOG("Unbinding constraint \"" << constraint->Name
+                 << "\" because one of its cubes left the Workspace");
         removeConstraint(constraint);
-        if (auto parent = constraint->Parent.lock()) parent->removeChild(constraint->Name);
     }
     workspace.pendingConstraints.erase(
         std::remove_if(workspace.pendingConstraints.begin(), workspace.pendingConstraints.end(),

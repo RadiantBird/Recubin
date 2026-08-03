@@ -528,11 +528,14 @@ void PropertiesPanel::drawConstraintCubeRef(const char* label, std::string& name
     ImGui::InputText(inputId.c_str(), buf, sizeof(buf));
     if (ImGui::IsItemActivated()) s_before[key] = nameRef;
     if (ImGui::IsItemDeactivatedAfterEdit()) {
+        std::string before = s_before[key];
         std::string after(buf);
-        if (nameRef != after && m_history)
+        YAML::Node node;
+        node = after;
+        inst->setProperty(prop, node);
+        if (before != after && m_history)
             m_history->record(std::make_unique<SetConstraintCubeNameCommand>(
-                inst, prop, nameRef, after));
-        nameRef = after;
+                inst, prop, before, after));
     }
 
     ImGui::SameLine();

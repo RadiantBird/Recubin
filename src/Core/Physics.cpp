@@ -2,6 +2,14 @@
 #include "include/Core/Box3DPhysicsBackend.hpp"
 #include "include/Core/PhysXPhysicsBackend.hpp"
 #include "include/Instances/BaseCube.hpp"
+#include "include/Instances/Attachment.hpp"
+#include "include/Instances/BallSocket.hpp"
+#include "include/Instances/Motor.hpp"
+#include "include/Instances/NoCollision.hpp"
+#include "include/Instances/Rod.hpp"
+#include "include/Instances/Rope.hpp"
+#include "include/Instances/Weld.hpp"
+#include "include/Instances/Workspace.hpp"
 #include "include/Util/Logger.hpp"
 #include <algorithm>
 #include <cmath>
@@ -153,11 +161,170 @@ bool Physics::ownsBody(const BaseCube& cube) const {
     return cube.m_physicsOwner == this;
 }
 
+void Physics::reconcileConstraints(Workspace& workspace) {
+    std::vector<std::shared_ptr<Instance>> constraints;
+    auto collect = [&](auto& self, const std::shared_ptr<Instance>& value) -> void {
+        if (!value) return;
+        if (value->IsA("Weld") || value->IsA("Rope") || value->IsA("Rod") ||
+            value->IsA("BallSocket") || value->IsA("Motor") ||
+            value->IsA("NoCollision"))
+            constraints.push_back(value);
+        for (const auto& [name, child] : value->getChildren()) {
+            (void)name;
+            self(self, child);
+        }
+    };
+    for (const auto& [name, child] : workspace.getChildren()) {
+        (void)name;
+        collect(collect, child);
+    }
+
+    std::unordered_set<Instance*> live;
+    live.reserve(constraints.size());
+    for (const auto& value : constraints) live.insert(value.get());
+    std::erase_if(m_constraintBindings, [&](const auto& entry) {
+        return entry.second.constraint.expired() || !live.contains(entry.first);
+    });
+    std::erase_if(m_crossWorkspaceWarnings,
+        [&](Instance* value) { return !live.contains(value); });
+
+    auto sameFrame = [](const CFrame& first, const CFrame& second) {
+        return first.Position == second.Position &&
+            first.Rotation.w == second.Rotation.w &&
+            first.Rotation.x == second.Rotation.x &&
+            first.Rotation.y == second.Rotation.y &&
+            first.Rotation.z == second.Rotation.z;
+    };
+
+    for (const auto& value : constraints) {
+        std::shared_ptr<BaseCube> cube0;
+        std::shared_ptr<BaseCube> cube1;
+        std::shared_ptr<Attachment> attachment0;
+        std::shared_ptr<Attachment> attachment1;
+        PhysicsConstraintHandle handle;
+        Vector3 axis;
+
+        if (value->IsA("Weld")) {
+            auto constraint = std::static_pointer_cast<Weld>(value);
+            cube0 = constraint->m_cube0.lock();
+            cube1 = constraint->m_cube1.lock();
+            handle = constraint->m_constraintHandle;
+        } else if (value->IsA("Rope")) {
+            auto constraint = std::static_pointer_cast<Rope>(value);
+            cube0 = constraint->m_cube0.lock();
+            cube1 = constraint->m_cube1.lock();
+            attachment0 = constraint->m_attachment0.lock();
+            attachment1 = constraint->m_attachment1.lock();
+            handle = constraint->m_constraintHandle;
+        } else if (value->IsA("Rod")) {
+            auto constraint = std::static_pointer_cast<Rod>(value);
+            cube0 = constraint->m_cube0.lock();
+            cube1 = constraint->m_cube1.lock();
+            attachment0 = constraint->m_attachment0.lock();
+            attachment1 = constraint->m_attachment1.lock();
+            handle = constraint->m_constraintHandle;
+        } else if (value->IsA("BallSocket")) {
+            auto constraint = std::static_pointer_cast<BallSocket>(value);
+            cube0 = constraint->m_cube0.lock();
+            cube1 = constraint->m_cube1.lock();
+            attachment0 = constraint->m_attachment0.lock();
+            attachment1 = constraint->m_attachment1.lock();
+            handle = constraint->m_constraintHandle;
+        } else if (value->IsA("Motor")) {
+            auto constraint = std::static_pointer_cast<Motor>(value);
+            cube0 = constraint->m_cube0.lock();
+            cube1 = constraint->m_cube1.lock();
+            attachment0 = constraint->m_attachment0.lock();
+            attachment1 = constraint->m_attachment1.lock();
+            handle = constraint->m_constraintHandle;
+            axis = constraint->Axis;
+        } else if (value->IsA("NoCollision")) {
+            auto constraint = std::static_pointer_cast<NoCollision>(value);
+            cube0 = constraint->m_cube0.lock();
+            cube1 = constraint->m_cube1.lock();
+            handle = constraint->m_constraintHandle;
+        }
+
+        const bool endpointsInWorkspace = cube0 && cube1 &&
+            cube0->findFirstAncestorWorkspace() == &workspace &&
+            cube1->findFirstAncestorWorkspace() == &workspace;
+        const bool bodiesOwned = endpointsInWorkspace && ownsBody(*cube0) &&
+            ownsBody(*cube1) && m_backend->hasBody(*cube0) &&
+            m_backend->hasBody(*cube1);
+
+        if (!bodiesOwned) {
+            if (handle) m_backend->removeConstraint(value);
+            m_constraintBindings.erase(value.get());
+            if (endpointsInWorkspace) {
+                // body が同じ update のpending flushで作成される場合がある。
+                // constraint も残し、body 生成後の同じ安全窓で接続する。
+                workspace.registerConstraint(value);
+                continue;
+            }
+            workspace.unregisterConstraint(value.get());
+            const bool crossWorkspace = cube0 && cube1 &&
+                (cube0->findFirstAncestorWorkspace() != &workspace ||
+                 cube1->findFirstAncestorWorkspace() != &workspace);
+            if (crossWorkspace && m_crossWorkspaceWarnings.insert(value.get()).second) {
+                RCBN_WARN("Constraint \"" << value->Name
+                          << "\" crosses Workspace boundaries; native binding disabled");
+            }
+            continue;
+        }
+        m_crossWorkspaceWarnings.erase(value.get());
+
+        ConstraintBindingSnapshot current;
+        current.constraint = value;
+        current.cube0 = cube0.get();
+        current.cube1 = cube1.get();
+        current.body0 = cube0->m_bodyHandle;
+        current.body1 = cube1->m_bodyHandle;
+        current.attachment0 = attachment0.get();
+        current.attachment1 = attachment1.get();
+        current.localFrame0 = attachment0
+            ? attachment0->relativeToAncestor(cube0.get()) : CFrame();
+        current.localFrame1 = attachment1
+            ? attachment1->relativeToAncestor(cube1.get()) : CFrame();
+        current.axis = axis;
+
+        if (!handle) {
+            workspace.registerConstraint(value);
+            m_constraintBindings[value.get()] = current;
+            continue;
+        }
+
+        auto previous = m_constraintBindings.find(value.get());
+        if (previous == m_constraintBindings.end()) {
+            m_constraintBindings[value.get()] = current;
+            continue;
+        }
+        const auto& old = previous->second;
+        const bool bodyChanged = old.body0 != current.body0 ||
+            old.body1 != current.body1;
+        const bool changed = old.cube0 != current.cube0 ||
+            old.cube1 != current.cube1 ||
+            (!value->IsA("Weld") && bodyChanged) ||
+            old.attachment0 != current.attachment0 ||
+            old.attachment1 != current.attachment1 ||
+            !sameFrame(old.localFrame0, current.localFrame0) ||
+            !sameFrame(old.localFrame1, current.localFrame1) ||
+            old.axis != current.axis;
+        if (changed) {
+            // topology/filter/frame 変更は固定step開始前の安全窓で一度だけ
+            // 解除し、新しい binding を同じ update で生成する。
+            m_backend->removeConstraint(value);
+            workspace.registerConstraint(value);
+            previous->second = current;
+        }
+    }
+}
+
 #define RCBN_PHYSICS_VOID(method, ...) \
     do { if (isAvailable()) m_backend->method(__VA_ARGS__); } while (false)
 
 void Physics::update(Workspace& workspace, float dt) {
     if (!isAvailable()) return;
+    reconcileConstraints(workspace);
     const std::uint64_t before = m_backend->getSimulationTick();
     m_backend->update(workspace, dt);
     advanceWavePhaseCorrection(m_backend->getSimulationTick() - before);

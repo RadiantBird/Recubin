@@ -12,35 +12,27 @@ Motor::Motor(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
       m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
 
 Motor::~Motor() {
-    if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
-        m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
-    }
+    if (m_lastWorkspace) m_lastWorkspace->unregisterConstraint(this);
     m_constraintHandle = {};
 }
 
 void Motor::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
-    const bool changed = m_cube0.lock() != cube0 || m_cube1.lock() != cube1;
     m_cube0 = cube0;
     m_cube1 = cube1;
     m_cube0Name = cube0 ? cube0->getWorkspaceRelativePath() : "";
     m_cube1Name = cube1 ? cube1->getWorkspaceRelativePath() : "";
-    if (changed) recreateConstraint();
     registerIfReady();
 }
 
 void Motor::setCube0(std::shared_ptr<BaseCube> cube) {
-    const bool changed = m_cube0.lock() != cube;
     m_cube0 = cube;
     m_cube0Name = cube ? cube->getWorkspaceRelativePath() : "";
-    if (changed) recreateConstraint();
     registerIfReady();
 }
 
 void Motor::setCube1(std::shared_ptr<BaseCube> cube) {
-    const bool changed = m_cube1.lock() != cube;
     m_cube1 = cube;
     m_cube1Name = cube ? cube->getWorkspaceRelativePath() : "";
-    if (changed) recreateConstraint();
     registerIfReady();
 }
 
@@ -113,7 +105,6 @@ void Motor::setMaxForce(float v) {
 void Motor::setAxis(Vector3 axis) {
     if (Axis == axis) return;
     Axis = axis;
-    recreateConstraint();
 }
 
 PhysicsConstraintHandle Motor::getConstraintHandle() const {
@@ -153,9 +144,7 @@ bool Motor::IsA(std::string className) {
 }
 
 void Motor::setProperty(const std::string& name, const YAML::Node& value) {
-    bool frameChanged = false;
     if (name == "Cube0") {
-        auto previous = m_cube0.lock();
         m_cube0Name = value.as<std::string>();
         m_cube0.reset();
         if (auto* ws_raw = findFirstAncestorWorkspace()) {
@@ -163,9 +152,7 @@ void Motor::setProperty(const std::string& name, const YAML::Node& value) {
             if (child && child->IsA("BaseCube"))
                 m_cube0 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
         }
-        frameChanged = previous != m_cube0.lock();
     } else if (name == "Cube1") {
-        auto previous = m_cube1.lock();
         m_cube1Name = value.as<std::string>();
         m_cube1.reset();
         if (auto* ws_raw = findFirstAncestorWorkspace()) {
@@ -173,13 +160,10 @@ void Motor::setProperty(const std::string& name, const YAML::Node& value) {
             if (child && child->IsA("BaseCube"))
                 m_cube1 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
         }
-        frameChanged = previous != m_cube1.lock();
     } else if (name == "Attachment0") {
-        frameChanged = m_attachment0Name != value.as<std::string>();
         m_attachment0Name = value.as<std::string>();
         m_attachment0.reset(); // 名前変更後に registerIfReady() 経由で再解決させる
     } else if (name == "Attachment1") {
-        frameChanged = m_attachment1Name != value.as<std::string>();
         m_attachment1Name = value.as<std::string>();
         m_attachment1.reset();
     } else if (name == "Axis") {
@@ -192,21 +176,19 @@ void Motor::setProperty(const std::string& name, const YAML::Node& value) {
         Instance::setProperty(name, value);
     }
     resolveAttachments();
-    if (frameChanged) recreateConstraint();
     registerIfReady();
 }
 
 void Motor::onAncestorChanged() {
-    Instance* ws_raw = findFirstAncestorWorkspace();
-    if (ws_raw) {
-        Workspace* ws = static_cast<Workspace*>(ws_raw);
-        ws->registerConstraint(shared_from_this());
-        m_lastWorkspace = ws;
-    } else {
-        if (m_lastWorkspace && m_lastWorkspace->getPhysicsEngine() && m_constraintHandle) {
-            m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
+    auto* workspace = static_cast<Workspace*>(findFirstAncestorWorkspace());
+    if (workspace != m_lastWorkspace) {
+        if (m_lastWorkspace) {
+            m_lastWorkspace->unregisterConstraint(this);
+            if (m_lastWorkspace->getPhysicsEngine() && m_constraintHandle)
+                m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
         }
-        m_lastWorkspace = nullptr;
+        m_lastWorkspace = workspace;
+        if (workspace) workspace->registerConstraint(shared_from_this());
     }
     Instance::onAncestorChanged();
 }
