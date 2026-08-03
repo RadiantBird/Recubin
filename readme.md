@@ -103,6 +103,7 @@ v2.0では、さらに面白い要素、いろいろなインスタンス、
 - miniaudio
 - Signalsmith Stretch & Signalsmith Linear
 - PhysX
+- Box3D
 - Windows bat
 - Python
 - font-awesome

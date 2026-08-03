@@ -17,6 +17,26 @@ cmake -S tools/network_probe -B build-network-probe \
 cmake --build build-network-probe --config Release
 ```
 
+## CI/CD
+
+pushとPull Requestでは、Pythonランデブーサーバーのテストに加え、Windows latestと
+macOS latestでRelease版をビルドする。各ビルドではloopback上にdirect Host/Clientを起動し、
+2ピアの`READY`と双方向チャットを確認してから、OS別zipをGitHub Actionsのartifactへ保存する。
+
+ローカルでも、ビルド済みの実行ファイルを指定して同じ疎通テストを実行できる。
+
+```powershell
+python tools/network_probe/test_local.py `
+  build-network-probe/Release/RecubinNetworkProbe.exe
+```
+
+```sh
+python3 tools/network_probe/test_local.py build-network-probe/RecubinNetworkProbe
+```
+
+`v`で始まるタグ（例: `v1.0.0`）をpushすると、テスト成功後に対応するGitHub Releaseを
+必要に応じて作成し、Windows版とmacOS版のzipを更新する。
+
 ## 起動
 
 ### Tailscaleで直接接続

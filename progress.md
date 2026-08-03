@@ -16,3 +16,11 @@
 - 未完了: 公開STUN/ランデブーを用いた異なる2回線での接続、およびNAT越し3ピアのホスト移行実地検証。
 - macOSでPhysXや描画を起動せず同じ`NetworkManager`を検証できる独立CLI
   `tools/network_probe`を追加。別回線での候補、チャット、Roster、PeerId/UDP port維持を表示する。
+
+## 2026-08-03: ネットワークテストCI/CD
+
+- pushとPull RequestでPythonランデブーテストを実行し、Windows/macOSのRelease版
+  `RecubinNetworkProbe`をビルドするGitHub Actionsを追加。
+- direct Host/Clientの2ピアloopback疎通、双方の`READY expected-peers=2`と双方向チャットを
+  標準ライブラリのみで検証し、OS別zipをartifactとして保存するようにした。
+- `v*`タグではテスト成功後にGitHub Releaseを作成または再利用し、OS別zipを更新する。

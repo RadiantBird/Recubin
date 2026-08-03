@@ -1,0 +1,94 @@
+name: Network Probe CI/CD
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - "**"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rendezvous-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Run rendezvous tests
+        run: python -m unittest tools.rendezvous.test_server
+
+  network-probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: network-probe-windows
+            archive: RecubinNetworkProbe-windows.zip
+          - os: macos-latest
+            artifact: network-probe-macos
+            archive: RecubinNetworkProbe-macos.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Configure network probe
+        run: cmake -S tools/network_probe -B build-network-probe -DCMAKE_BUILD_TYPE=Release
+      - name: Build network probe
+        run: cmake --build build-network-probe --config Release
+      - name: Test network probe (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python tools/network_probe/test_local.py build-network-probe/Release/RecubinNetworkProbe.exe
+      - name: Test network probe (macOS)
+        if: runner.os == 'macOS'
+        run: python tools/network_probe/test_local.py build-network-probe/RecubinNetworkProbe
+      - name: Package network probe (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path network-probe-package
+          Copy-Item build-network-probe/Release/RecubinNetworkProbe.exe network-probe-package/
+          cmake -E tar cf "${{ matrix.archive }}" --format=zip -- network-probe-package/RecubinNetworkProbe.exe
+      - name: Package network probe (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir network-probe-package
+          cp build-network-probe/RecubinNetworkProbe network-probe-package/
+          cmake -E tar cf "${{ matrix.archive }}" --format=zip -- network-probe-package/RecubinNetworkProbe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - rendezvous-tests
+      - network-probe
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: network-probe-*
+          path: release-assets
+          merge-multiple: true
+      - name: Create release and upload network probes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+          fi
+          gh release upload "$GITHUB_REF_NAME" release-assets/*.zip --clobber
