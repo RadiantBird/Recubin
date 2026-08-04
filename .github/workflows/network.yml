@@ -40,28 +40,28 @@ jobs:
         with:
           python-version: "3.x"
       - name: Configure network probe
-        run: cmake -S tools/network_probe -B build-network-probe -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S tools/network_probe -B "${{ runner.temp }}/recubin-network-probe-build" -DCMAKE_BUILD_TYPE=Release
       - name: Build network probe
-        run: cmake --build build-network-probe --config Release
+        run: cmake --build "${{ runner.temp }}/recubin-network-probe-build" --config Release
       - name: Test network probe (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: python tools/network_probe/test_local.py build-network-probe/Release/RecubinNetworkProbe.exe
+        run: python tools/network_probe/test_local.py "${{ runner.temp }}/recubin-network-probe-build/Release/RecubinNetworkProbe.exe"
       - name: Test network probe (macOS)
         if: runner.os == 'macOS'
-        run: python tools/network_probe/test_local.py build-network-probe/RecubinNetworkProbe
+        run: python tools/network_probe/test_local.py "${{ runner.temp }}/recubin-network-probe-build/RecubinNetworkProbe"
       - name: Package network probe (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path network-probe-package
-          Copy-Item build-network-probe/Release/RecubinNetworkProbe.exe network-probe-package/
+          Copy-Item "${{ runner.temp }}/recubin-network-probe-build/Release/RecubinNetworkProbe.exe" network-probe-package/
           cmake -E tar cf "${{ matrix.archive }}" --format=zip -- network-probe-package/RecubinNetworkProbe.exe
       - name: Package network probe (macOS)
         if: runner.os == 'macOS'
         run: |
           mkdir network-probe-package
-          cp build-network-probe/RecubinNetworkProbe network-probe-package/
+          cp "${{ runner.temp }}/recubin-network-probe-build/RecubinNetworkProbe" network-probe-package/
           cmake -E tar cf "${{ matrix.archive }}" --format=zip -- network-probe-package/RecubinNetworkProbe
       - uses: actions/upload-artifact@v4
         with:

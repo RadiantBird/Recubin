@@ -1,6 +1,7 @@
 external
 build/
 build-mac/
+/build-network-probe/
 dist/
 sound/
 temp_build/
