@@ -30,10 +30,15 @@ OS依存の操作(ファイル/フォルダダイアログ、ファイルマネ�
 | クラス | ファイル | 説明 |
 |---|---|---|
 | `WindowsPlatform` | `include/Util/WindowsPlatform.hpp` / `src/Util/WindowsPlatform.cpp` | COMファイルダイアログ・`ShellExecuteW`・`SetConsoleOutputCP`・`LoadLibraryA`等を集約した実装 |
-| `MockPlatform` | `include/Util/MockPlatform.hpp` | Mac対応準備用のスタブ実装。ダイアログ系は空文字列、その他はno-op |
+| `MacPlatform` | `include/Util/MacPlatform.hpp` / `src/Util/MacPlatform.mm` | Cocoaの`NSOpenPanel`/`NSSavePanel`/`NSWorkspace`と`dlopen`/`dlsym`/`dlclose`を使うmacOS実装 |
+| `MockPlatform` | `include/Util/MockPlatform.hpp` | OS非依存のスタブ実装。ダイアログ系は空文字列、その他はno-op |
 
-`getPlatform()`は`_WIN32`かつ環境変数`RECUBIN_MOCK_PLATFORM`が未設定なら`WindowsPlatform`、
-それ以外(Mac、またはWindows上で同環境変数を設定した場合)は`MockPlatform`を返す。
+`getPlatform()`はWindowsでは`WindowsPlatform`、macOSでは`MacPlatform`、それ以外では
+`MockPlatform`を返す。環境変数`RECUBIN_MOCK_PLATFORM`が設定されている場合は、OSに関係なく
+最優先で`MockPlatform`へ切り替える。
+
+macOSのファイルダイアログは`FileFilter.spec`の`;`区切りパターンを拡張子として扱い、
+`*.*`は種類を制限しない。UI操作はCocoaのメインスレッドで実行される。
 
 ## 使われる場所
 

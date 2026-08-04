@@ -1,0 +1,201 @@
+diff --git a/physx/include/foundation/PxSIMDHelpers.h b/physx/include/foundation/PxSIMDHelpers.h
+index 8d29cc2..f68e2d0 100644
+--- a/physx/include/foundation/PxSIMDHelpers.h
++++ b/physx/include/foundation/PxSIMDHelpers.h
+@@ -48,7 +48,7 @@ namespace physx
+ 			const QuatV qV = V4LoadU(&q.x);
+ 			Vec3V column0V, column1V, column2V;
+ 			QuatGetMat33V(qV, column0V, column1V, column2V);
+-#if defined(PX_SIMD_DISABLED) || (PX_LINUX && (PX_ARM || PX_A64))
++#if defined(PX_SIMD_DISABLED) || ((PX_LINUX || PX_OSX) && (PX_ARM || PX_A64))
+ 			V3StoreU(column0V, column0);
+ 			V3StoreU(column1V, column1);
+ 			V3StoreU(column2V, column2);
+diff --git a/physx/source/compiler/cmake/linux/CMakeLists.txt b/physx/source/compiler/cmake/linux/CMakeLists.txt
+index 59c3d40..69b8c3c 100644
+--- a/physx/source/compiler/cmake/linux/CMakeLists.txt
++++ b/physx/source/compiler/cmake/linux/CMakeLists.txt
+@@ -28,6 +28,10 @@ STRING(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_LOWERCASE)
+ 
+ #TODO: Fix warnings
+ SET(CLANG_WARNINGS "-ferror-limit=0 -Wall -Wextra -Werror -Weverything\
++    -Wno-missing-include-dirs \
++    -Wno-poison-system-directories \
++    -Wno-bitwise-instead-of-logical \
++    -Wno-unused-parameter \
+     -Wno-unused-but-set-variable \
+     -Wno-switch-default \
+     -Wno-cast-qual \
+@@ -110,7 +114,7 @@ IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+ 	# tree-vrp and delete-null-pointer-checks cause known bugs on some versions of gcc
+ 	IF ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+ 		SET(AARCH64_FLAGS "-ffp-contract=off -fno-delete-null-pointer-checks -faligned-new")
+-	ELSEIF ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
++	ELSEIF ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+ 		SET(AARCH64_FLAGS "-ffp-contract=off -Wno-unsupported-floating-point-opt")
+ 	ENDIF()
+ ELSE()
+@@ -119,7 +123,7 @@ ENDIF()
+ 
+ SET(COMMON_CXX_FLAGS "-std=c++14 -D_GLIBCXX_USE_CXX11_ABI=1 -fno-rtti -fno-exceptions -ffunction-sections -fdata-sections -fvisibility=hidden ${AARCH64_FLAGS}")
+ 
+-IF ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
++IF ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+ 	IF ("${CMAKE_CXX_COMPILER_VERSION}" VERSION_LESS "10.0.0")
+ 		SET(PHYSX_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_CXX_FLAGS} -fstrict-aliasing -Wstrict-aliasing=2 -Wno-shadow ${CLANG_WARNINGS}" CACHE INTERNAL "PhysX CXX")
+ 	ELSE()
+diff --git a/physx/source/foundation/FdTempAllocator.cpp b/physx/source/foundation/FdTempAllocator.cpp
+index d90294b..481ae8f 100644
+--- a/physx/source/foundation/FdTempAllocator.cpp
++++ b/physx/source/foundation/FdTempAllocator.cpp
+@@ -64,7 +64,7 @@ void* PxTempAllocator::allocate(size_t size, const char* filename, PxI32 line)
+ 	if(!size)
+ 		return 0;
+ 
+-	PxU32 index = PxMax(PxHighestSetBit(PxU32(size) + sizeof(Chunk) - 1), sMinIndex);
++	PxU32 index = PxMax(PxHighestSetBit(PxU32(PxU32(size) + sizeof(Chunk) - 1)), sMinIndex);
+ 
+ 	Chunk* chunk = 0;
+ 	if(index < sMaxIndex)
+diff --git a/physx/source/foundation/unix/FdUnixFPU.cpp b/physx/source/foundation/unix/FdUnixFPU.cpp
+index 22f3fb3..e2b47df 100644
+--- a/physx/source/foundation/unix/FdUnixFPU.cpp
++++ b/physx/source/foundation/unix/FdUnixFPU.cpp
+@@ -32,7 +32,11 @@
+ PX_COMPILE_TIME_ASSERT(8 * sizeof(uint32_t) >= sizeof(fenv_t));
+ #endif
+ 
+-#if PX_OSX
++// OSXの元々の想定はIntel Macのみ(SSEのFPU制御レジスタを使う)。Apple SiliconにはSSEが
++// 無いため、x86系(PX_ARM/PX_A64ではない)の場合のみこの経路を使う。ARM Macは下のfenv汎用経路にfallbackする。
++#define PX_OSX_INTEL (PX_OSX && !(PX_ARM || PX_A64))
++
++#if PX_OSX_INTEL
+ // osx defines SIMD as standard for floating point operations.
+ #include <xmmintrin.h>
+ #endif
+@@ -41,7 +45,7 @@ physx::PxFPUGuard::PxFPUGuard()
+ {
+ #if defined(__CYGWIN__)
+ #pragma message "FPUGuard::FPUGuard() is not implemented"
+-#elif PX_OSX
++#elif PX_OSX_INTEL
+ 	mControlWords[0] = _mm_getcsr();
+ 	// set default (disable exceptions: _MM_MASK_MASK) and FTZ (_MM_FLUSH_ZERO_ON), DAZ (_MM_DENORMALS_ZERO_ON: (1<<6))
+ 	_mm_setcsr(_MM_MASK_MASK | _MM_FLUSH_ZERO_ON | (1 << 6));
+@@ -66,7 +70,7 @@ physx::PxFPUGuard::~PxFPUGuard()
+ {
+ #if defined(__CYGWIN__)
+ #pragma message "PxFPUGuard::~PxFPUGuard() is not implemented"
+-#elif PX_OSX
++#elif PX_OSX_INTEL
+ 	// restore control word and clear exception flags
+ 	// (setting exception state flags cause exceptions on the first following fp operation)
+ 	_mm_setcsr(mControlWords[0] & ~_MM_EXCEPT_MASK);
+@@ -82,7 +86,7 @@ PX_FOUNDATION_API void physx::PxEnableFPExceptions()
+ #if PX_LINUX && !defined(__EMSCRIPTEN__)
+ 	feclearexcept(FE_ALL_EXCEPT);
+ 	feenableexcept(FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW);
+-#elif PX_OSX
++#elif PX_OSX_INTEL
+ 	// clear any pending exceptions
+ 	// (setting exception state flags cause exceptions on the first following fp operation)
+ 	uint32_t control = _mm_getcsr() & ~_MM_EXCEPT_MASK;
+@@ -98,7 +102,7 @@ PX_FOUNDATION_API void physx::PxDisableFPExceptions()
+ {
+ #if PX_LINUX && !defined(__EMSCRIPTEN__)
+ 	fedisableexcept(FE_ALL_EXCEPT);
+-#elif PX_OSX
++#elif PX_OSX_INTEL
+ 	// clear any pending exceptions
+ 	// (setting exception state flags cause exceptions on the first following fp operation)
+ 	uint32_t control = _mm_getcsr() & ~_MM_EXCEPT_MASK;
+diff --git a/physx/source/geomutils/src/mesh/GuBV4Build.cpp b/physx/source/geomutils/src/mesh/GuBV4Build.cpp
+index e992d5c..32104a7 100644
+--- a/physx/source/geomutils/src/mesh/GuBV4Build.cpp
++++ b/physx/source/geomutils/src/mesh/GuBV4Build.cpp
+@@ -396,7 +396,7 @@ bool BV4_AABBTree::buildFromMesh(SourceMeshBase& mesh, PxU32 limit, BV4_BuildStr
+ 	PX_FREE(boxes);
+ 
+ 	if(0)
+-		printf("Tree depth: %d\n", walk(NULL, NULL));
++		printf("Tree depth: %u\n", walk(NULL, NULL));
+ 
+ 	return true;
+ }
+diff --git a/physx/source/physxextensions/src/serialization/SnSerialUtils.cpp b/physx/source/physxextensions/src/serialization/SnSerialUtils.cpp
+index d79f6f6..9952902 100644
+--- a/physx/source/physxextensions/src/serialization/SnSerialUtils.cpp
++++ b/physx/source/physxextensions/src/serialization/SnSerialUtils.cpp
+@@ -38,7 +38,7 @@ using namespace physx;
+ namespace
+ {
+ 
+-#define SN_NUM_BINARY_PLATFORMS 9
++#define SN_NUM_BINARY_PLATFORMS 10
+ const PxU32 sBinaryPlatformTags[SN_NUM_BINARY_PLATFORMS] =
+ {
+ 	PX_MAKE_FOURCC('W','_','3','2'),
+@@ -49,7 +49,8 @@ const PxU32 sBinaryPlatformTags[SN_NUM_BINARY_PLATFORMS] =
+ 	PX_MAKE_FOURCC('M','_','6','4'),
+ 	PX_MAKE_FOURCC('N','X','3','2'),
+ 	PX_MAKE_FOURCC('N','X','6','4'),
+-	PX_MAKE_FOURCC('L','A','6','4')
++	PX_MAKE_FOURCC('L','A','6','4'),
++	PX_MAKE_FOURCC('M','A','6','4')
+ };
+ 
+ const char* sBinaryPlatformNames[SN_NUM_BINARY_PLATFORMS] =
+@@ -62,7 +63,8 @@ const char* sBinaryPlatformNames[SN_NUM_BINARY_PLATFORMS] =
+ 	"mac64",
+ 	"switch32",
+ 	"switch64",
+-	"linuxaarch64"
++	"linuxaarch64",
++	"macaarch64"
+ };
+ 
+ }
+@@ -89,6 +91,8 @@ PxU32 getBinaryPlatformTag()
+ 	return sBinaryPlatformTags[7];
+ #elif PX_LINUX && PX_A64
+ 	return sBinaryPlatformTags[8];
++#elif PX_OSX && PX_A64
++	return sBinaryPlatformTags[9];
+ #else
+ 	#error Unknown binary platform
+ #endif
+diff --git a/physx/source/physxextensions/src/tet/ExtDelaunayBoundaryInserter.cpp b/physx/source/physxextensions/src/tet/ExtDelaunayBoundaryInserter.cpp
+index a72bcfb..1fe12b8 100644
+--- a/physx/source/physxextensions/src/tet/ExtDelaunayBoundaryInserter.cpp
++++ b/physx/source/physxextensions/src/tet/ExtDelaunayBoundaryInserter.cpp
+@@ -1108,17 +1108,17 @@ namespace
+ 		fprintf(fp, "# Tetrahedral mesh generated using\n\n");
+ 
+ 
+-		fprintf(fp, "# %d vertices\n", tetPoints.size());
++		fprintf(fp, "# %u vertices\n", tetPoints.size());
+ 		for (PxU32 i = 0; i < tetPoints.size(); ++i)
+ 		{
+ 			fprintf(fp, "v %f %f %f\n", PxF64(tetPoints[i].x), PxF64(tetPoints[i].y), PxF64(tetPoints[i].z));
+ 		}
+ 
+ 		fprintf(fp, "\n");
+-		fprintf(fp, "# %d tetrahedra\n", (tets.size() / 4));
++		fprintf(fp, "# %u tetrahedra\n", (tets.size() / 4));
+ 		for (PxU32 i = 0; i < tets.size(); i += 4)
+ 		{
+-			fprintf(fp, "t %d %d %d %d\n", tets[i], tets[i + 1], tets[i + 2], tets[i + 3]);
++			fprintf(fp, "t %u %u %u %u\n", tets[i], tets[i + 1], tets[i + 2], tets[i + 3]);
+ 		}
+ 
+ 		fclose(fp);
+@@ -1132,7 +1132,7 @@ namespace
+ 		fp = fopen(path, "w+");
+ 		fprintf(fp, "OFF\n");
+ 
+-		fprintf(fp, "%d %d 0\n", vertices.size() / 3, tris.size() / 3);
++		fprintf(fp, "%u %u 0\n", vertices.size() / 3, tris.size() / 3);
+ 		for (PxU32 i = 0; i < vertices.size(); i += 3)
+ 		{
+ 			fprintf(fp, "%f %f %f\n", PxF64(vertices[i]), PxF64(vertices[i + 1]), PxF64(vertices[i + 2]));

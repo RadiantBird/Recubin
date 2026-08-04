@@ -13,6 +13,19 @@ BUILD_DIR = ROOT_DIR / ("build" if IS_WINDOWS else "build-mac")
 DLL_DIR = ROOT_DIR / "dlls"
 DIST_DIR = ROOT_DIR / "dist"
 VC_REDIST_PATH = ROOT_DIR / "redist" / "vc_redist.x64.exe"
+PHYSX_MAC_REPOSITORY = "https://github.com/NVIDIA-Omniverse/PhysX.git"
+PHYSX_MAC_TAG = "107.3-physx-5.6.1"
+PHYSX_MAC_SOURCE_DIR = BUILD_DIR / "_deps" / "physx-src"
+PHYSX_MAC_BUILD_DIR = BUILD_DIR / "_deps" / "physx-build"
+PHYSX_MAC_LIBRARY_DIR = PHYSX_MAC_BUILD_DIR / "bin" / "UNKNOWN" / "release"
+PHYSX_MAC_PATCH = ROOT_DIR / "tools" / "macos" / "physx-5.6.1-macos-arm64.patch"
+PHYSX_MAC_LIBRARIES = (
+    "libPhysX_static.a",
+    "libPhysXCommon_static.a",
+    "libPhysXFoundation_static.a",
+    "libPhysXExtensions_static.a",
+    "libPhysXCooking_static.a",
+)
 
 
 def run_command(args: list[str]) -> int:
@@ -29,6 +42,123 @@ def normalize_config(value: str | None) -> str:
     if lowered in ("release", "r"):
         return "Release"
     raise ValueError(f"Unknown configuration: {value}")
+
+
+def run_physx_command(args: list[str], cwd: Path) -> int:
+    try:
+        return subprocess.call(args, cwd=cwd)
+    except OSError as exc:
+        print(f"[ERROR] Failed to run {args[0]}: {exc}")
+        return 1
+
+
+def apply_physx_mac_patch() -> int:
+    check_args = ["git", "apply", "--check", str(PHYSX_MAC_PATCH)]
+    reverse_check_args = ["git", "apply", "--reverse", "--check", str(PHYSX_MAC_PATCH)]
+
+    try:
+        check_result = subprocess.call(
+            check_args,
+            cwd=PHYSX_MAC_SOURCE_DIR,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if check_result == 0:
+            print("[INFO] Applying the macOS Apple Silicon PhysX patch...")
+            return run_physx_command(
+                ["git", "apply", str(PHYSX_MAC_PATCH)],
+                PHYSX_MAC_SOURCE_DIR,
+            )
+
+        reverse_check_result = subprocess.call(
+            reverse_check_args,
+            cwd=PHYSX_MAC_SOURCE_DIR,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        print(f"[ERROR] Failed to check the PhysX patch: {exc}")
+        return 1
+
+    if reverse_check_result == 0:
+        print("[INFO] The macOS Apple Silicon PhysX patch is already applied.")
+        return 0
+
+    print(f"[ERROR] PhysX patch cannot be applied cleanly: {PHYSX_MAC_PATCH}")
+    return 1
+
+
+def bootstrap_physx_mac() -> tuple[int, Path | None]:
+    machine = platform.machine().lower()
+    if platform.system() != "Darwin" or machine not in ("arm64", "aarch64"):
+        print(
+            "[ERROR] Automatic PhysX bootstrap is supported only on Apple Silicon "
+            "macOS (arm64). Set RECUBIN_PHYSX_MAC_DIR to use a prebuilt PhysX."
+        )
+        return 1, None
+
+    if not PHYSX_MAC_PATCH.is_file():
+        print(f"[ERROR] PhysX patch not found: {PHYSX_MAC_PATCH}")
+        return 1, None
+
+    PHYSX_MAC_SOURCE_DIR.parent.mkdir(parents=True, exist_ok=True)
+    if not PHYSX_MAC_SOURCE_DIR.exists():
+        print(f"[INFO] Cloning PhysX {PHYSX_MAC_TAG}...")
+        result = run_physx_command([
+            "git", "clone", "--depth", "1", "--branch", PHYSX_MAC_TAG,
+            PHYSX_MAC_REPOSITORY, str(PHYSX_MAC_SOURCE_DIR),
+        ], ROOT_DIR)
+        if result != 0:
+            print("[ERROR] PhysX clone failed.")
+            return result, None
+    elif not (PHYSX_MAC_SOURCE_DIR / ".git").exists():
+        print(f"[ERROR] Existing PhysX source directory is not a Git checkout: {PHYSX_MAC_SOURCE_DIR}")
+        return 1, None
+
+    result = apply_physx_mac_patch()
+    if result != 0:
+        return result, None
+
+    if all((PHYSX_MAC_LIBRARY_DIR / name).is_file() for name in PHYSX_MAC_LIBRARIES):
+        print(f"[INFO] Using existing PhysX libraries: {PHYSX_MAC_LIBRARY_DIR}")
+        return 0, PHYSX_MAC_LIBRARY_DIR
+
+    print("[INFO] Configuring PhysX Release static libraries...")
+    configure_args = [
+        "cmake",
+        "-S", str(PHYSX_MAC_SOURCE_DIR / "physx" / "compiler" / "public"),
+        "-B", str(PHYSX_MAC_BUILD_DIR),
+        f"-DPHYSX_ROOT_DIR={PHYSX_MAC_SOURCE_DIR / 'physx'}",
+        "-DTARGET_BUILD_PLATFORM=linux",
+        "-DPX_GENERATE_STATIC_LIBRARIES=ON",
+        "-DPX_BUILDSNIPPETS=OFF",
+        "-DPX_BUILDPVDRUNTIME=OFF",
+        "-DCMAKE_BUILD_TYPE=release",
+        f"-DPX_OUTPUT_LIB_DIR={PHYSX_MAC_BUILD_DIR}",
+        f"-DPX_OUTPUT_BIN_DIR={PHYSX_MAC_BUILD_DIR}",
+    ]
+    result = run_physx_command(configure_args, ROOT_DIR)
+    if result != 0:
+        print("[ERROR] PhysX CMake configuration failed.")
+        return result, None
+
+    print("[INFO] Building PhysX Release static libraries...")
+    result = run_physx_command([
+        "cmake", "--build", str(PHYSX_MAC_BUILD_DIR),
+        "--config", "release", "--parallel", "4",
+        "--target", "PhysX", "PhysXCommon", "PhysXFoundation",
+        "PhysXExtensions", "PhysXCooking",
+    ], ROOT_DIR)
+    if result != 0:
+        print("[ERROR] PhysX build failed.")
+        return result, None
+
+    missing = [name for name in PHYSX_MAC_LIBRARIES if not (PHYSX_MAC_LIBRARY_DIR / name).is_file()]
+    if missing:
+        print(f"[ERROR] PhysX build completed but required libraries are missing: {', '.join(missing)}")
+        return 1, None
+
+    return 0, PHYSX_MAC_LIBRARY_DIR
 
 
 def copy_dlls(config: str) -> None:
@@ -65,20 +195,31 @@ def build(config: str) -> int:
         configure_args += ["-A", "x64", "-D", "GLEW_STATIC=ON"]
     else:
         # Unix系は単一構成ジェネレーターのため、Release/Debugを明示する。
-        configure_args += [f"-DCMAKE_BUILD_TYPE={config}"]
+        configure_args += [
+            f"-DCMAKE_BUILD_TYPE={config}",
+            "-U", "PHYSX_MAC_LIB_*",
+        ]
         physx_dir = os.environ.get("RECUBIN_PHYSX_MAC_DIR")
-        if physx_dir:
-            configure_args += [f"-DRECUBIN_PHYSX_MAC_DIR={physx_dir}"]
+        if not physx_dir:
+            result, bootstrapped_dir = bootstrap_physx_mac()
+            if result != 0 or bootstrapped_dir is None:
+                return result if result != 0 else 1
+            physx_dir = str(bootstrapped_dir)
+        configure_args += [f"-DRECUBIN_PHYSX_MAC_DIR={physx_dir}"]
     result = run_command(configure_args)
     if result != 0:
         print("[ERROR] CMake configuration failed.")
         return result
 
     print(f"[INFO] Building {config}...")
-    result = run_command([
+    build_args = [
         "cmake", "--build", str(BUILD_DIR), "--config", config,
-        "--parallel", "--target", "Recubin", "RecubinEngine", "RecubinTest"
-    ])
+        "--parallel",
+    ]
+    if not IS_WINDOWS:
+        build_args.append("4")
+    build_args += ["--target", "Recubin", "RecubinEngine", "RecubinTest"]
+    result = run_command(build_args)
     if result != 0:
         print("[ERROR] Build execution failed.")
         return result
