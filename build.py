@@ -1,4 +1,5 @@
 import datetime
+import filecmp
 import os
 import platform
 import shutil
@@ -6,12 +7,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import psutil
+
 
 ROOT_DIR = Path(__file__).resolve().parent
 IS_WINDOWS = platform.system() == "Windows"
 BUILD_DIR = ROOT_DIR / ("build" if IS_WINDOWS else "build-mac")
 DLL_DIR = ROOT_DIR / "dlls"
 DIST_DIR = ROOT_DIR / "dist"
+TESTCASES_DIR = ROOT_DIR / "TestCases"
 VC_REDIST_PATH = ROOT_DIR / "redist" / "vc_redist.x64.exe"
 PHYSX_MAC_REPOSITORY = "https://github.com/NVIDIA-Omniverse/PhysX.git"
 PHYSX_MAC_TAG = "107.3-physx-5.6.1"
@@ -30,6 +34,24 @@ PHYSX_MAC_LIBRARIES = (
 
 def run_command(args: list[str]) -> int:
     return subprocess.call(args, cwd=ROOT_DIR)
+
+
+def files_have_same_content(source: Path, destination: Path) -> bool:
+    try:
+        if not destination.is_file():
+            return False
+        if source.stat().st_size != destination.stat().st_size:
+            return False
+        return filecmp.cmp(source, destination, shallow=False)
+    except FileNotFoundError:
+        return False
+
+
+def copy_if_different(source: Path, destination: Path) -> bool:
+    if files_have_same_content(source, destination):
+        return False
+    shutil.copy2(source, destination)
+    return True
 
 
 def normalize_config(value: str | None) -> str:
@@ -173,15 +195,21 @@ def copy_dlls(config: str) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     copied = 0
+    skipped = 0
     for dll_path in DLL_DIR.glob("*.dll"):
         legacy_dll_path = BUILD_DIR / config / dll_path.name
         if legacy_dll_path.exists():
             legacy_dll_path.unlink()
-        shutil.copy2(dll_path, target_dir / dll_path.name)
-        copied += 1
+        if copy_if_different(dll_path, target_dir / dll_path.name):
+            copied += 1
+        else:
+            skipped += 1
 
-    if copied > 0:
-        print(f"[SUCCESS] Copied {copied} DLL file(s) to {target_dir}.")
+    if copied + skipped > 0:
+        print(
+            f"[SUCCESS] DLL sync completed for {target_dir}: "
+            f"copied {copied}, skipped {skipped} unchanged file(s)."
+        )
     else:
         print("[WARNING] No DLL files found in dlls folder.")
 
@@ -234,6 +262,113 @@ def build(config: str) -> int:
                 print("[WARNING] launcher.exe build failed — packaging will skip it.")
         except FileNotFoundError:
             print("[WARNING] cl.exe not found - skipping launcher build. Run from Developer Command Prompt to build it.")
+
+        # ネットワークテスト環境のRecubinEngine.exeを更新
+        network_test_dir = TESTCASES_DIR / "NetworkTest"
+        source = BUILD_DIR / config / "RecubinEngine.exe"
+        destination = network_test_dir / "RecubinEngine.exe"
+        try:
+            if network_test_dir.exists():
+                if copy_if_different(source, destination):
+                    print(f"[INFO] Updated {destination}")
+                else:
+                    print(f"[INFO] NetworkTest executable is up to date: {destination}")
+        except Exception as e:
+            print(f"[WARNING] Failed to update {destination} in NetworkTest: {e}")
+            if isinstance(e, OSError) and getattr(e, "winerror", None) == 32:
+                print(f"ファイル {destination} をロックしているプロセスを探索中...")
+
+                def normalized_path(path: str | Path) -> str:
+                    return os.path.normcase(
+                        os.path.normpath(os.path.abspath(path))
+                    ).casefold()
+
+                target_path = normalized_path(destination)
+                locking_processes = []
+
+                # 実行イメージはopen_files()に表示されない場合がある。
+                for proc in psutil.process_iter(["pid", "name"]):
+                    is_locker = False
+                    try:
+                        executable_path = proc.exe()
+                    except (
+                        psutil.AccessDenied,
+                        psutil.NoSuchProcess,
+                        psutil.ZombieProcess,
+                    ):
+                        executable_path = None
+                    if executable_path:
+                        is_locker = normalized_path(executable_path) == target_path
+
+                    if not is_locker:
+                        try:
+                            is_locker = any(
+                                normalized_path(f.path) == target_path
+                                for f in proc.open_files()
+                            )
+                        except (
+                            psutil.AccessDenied,
+                            psutil.NoSuchProcess,
+                            psutil.ZombieProcess,
+                        ):
+                            # 権限のないシステムプロセスなどはスキップ
+                            continue
+
+                    if is_locker:
+                        locking_processes.append(proc)
+
+                if not locking_processes:
+                    print("ファイルをロックしている外部プロセスが見つかりませんでした。")
+                else:
+                    terminated_processes = []
+                    for proc in locking_processes:
+                        ans = input(
+                            f"PID {proc.info['pid']} ({proc.info['name']}) がファイルをロックしています。"
+                            "強制終了して再度試行しますか？ (y/n): "
+                        )
+                        if ans.strip().lower() != "y":
+                            continue
+                        try:
+                            proc.terminate()
+                            terminated_processes.append(proc)
+                            print(f"PID {proc.info['pid']} を強制終了しました。")
+                        except (
+                            psutil.AccessDenied,
+                            psutil.NoSuchProcess,
+                            psutil.ZombieProcess,
+                        ) as terminate_error:
+                            print(
+                                f"[WARNING] PID {proc.info['pid']} の終了に失敗しました: "
+                                f"{terminate_error}"
+                            )
+
+                    if terminated_processes:
+                        for proc in terminated_processes:
+                            try:
+                                proc.wait(timeout=3)
+                            except psutil.TimeoutExpired:
+                                print(
+                                    f"[WARNING] PID {proc.info['pid']} の終了待ちが"
+                                    "タイムアウトしました。"
+                                )
+                            except (
+                                psutil.AccessDenied,
+                                psutil.NoSuchProcess,
+                                psutil.ZombieProcess,
+                            ):
+                                pass
+
+                        try:
+                            if copy_if_different(source, destination):
+                                print(f"[INFO] Updated {destination}")
+                            else:
+                                print(f"[INFO] NetworkTest executable is up to date: {destination}")
+                        except Exception as retry_error:
+                            print(
+                                f"[WARNING] Failed to update {destination} in NetworkTest "
+                                f"after terminating the locking process: {retry_error}"
+                            )
+
     else:
         print("[INFO] Non-Windows platform detected - skipping DLL copy and launcher build (Mac版ランチャーは未対応).")
 
@@ -290,6 +425,18 @@ def build_launcher(config: str) -> int:
     out_dir = BUILD_DIR / config
     out_dir.mkdir(parents=True, exist_ok=True)
     out_exe = out_dir / "launcher.exe"
+    build_script = Path(__file__).resolve()
+    if out_exe.is_file():
+        try:
+            launcher_mtime = out_exe.stat().st_mtime_ns
+            if all(
+                launcher_mtime >= dependency.stat().st_mtime_ns
+                for dependency in (src, build_script)
+            ):
+                print(f"[INFO] launcher.exe is up to date: {out_exe}")
+                return 0
+        except OSError:
+            pass
 
     # Compile with MSVC cl.exe (assumes Developer Command Prompt or vcvars in PATH)
     args = [
