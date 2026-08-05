@@ -104,6 +104,7 @@ GLFWwindow* setupWindow() {
 
     std::cout << "making context...\n";
     glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
 
     std::cout << "initing GLEW...\n";
     glewExperimental = GL_TRUE; // Core Profileで必要
@@ -590,7 +591,7 @@ int main(int argc, char* argv[]) {
     renderer->editor = std::move(editorOwned);
     RCBN_LOG("Editor initialized.");
 
-    float lastFrame = static_cast<float>(glfwGetTime());
+    double lastFrame = glfwGetTime();
     bool wasPlaying = false;
     bool snapshotDirty = false;
     const std::string snapshotPath = "assets/scenes/_snapshot.yaml";
@@ -638,15 +639,17 @@ int main(int argc, char* argv[]) {
                 break;
             }
         }
-        float currentFrame = static_cast<float>(glfwGetTime());
-        float deltaTime    = currentFrame - lastFrame;
+        double currentFrame = glfwGetTime();
+        float deltaTime = static_cast<float>(std::max(0.0, currentFrame - lastFrame));
         lastFrame          = currentFrame;
+
+        SystemState& state = SystemState::get();
+        state.deltaTime = deltaTime;
 
         // ワールド更新が停止中でも、非同期FindPathの完了だけは毎フレーム処理する。
         luauEngine->pollPathfindingRequests();
         bool navMeshBusy = PathfindingService::IsBuildActive();
 
-        SystemState& state = SystemState::get();
         state.isPlaying  = ed && !ed->isEditMode();
         state.isPaused   = ed &&  ed->isPauseMode();
         state.inputState = state.isPlaying ? InputState::Gameplay : InputState::Editor;

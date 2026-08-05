@@ -7,6 +7,7 @@ enum class InputState {
 };
 
 struct SystemState {
+    float deltaTime           = 1.0f / 60.0f;
     bool isPlaying           = false;
     bool isPaused            = false;
     bool viewportFocused     = false;

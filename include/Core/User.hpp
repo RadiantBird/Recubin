@@ -57,9 +57,9 @@ public:
     // respawnを跨いで古いRoot等への参照を握り続けてしまうスクリプト向けに、都度取り直す手段として使う
     std::shared_ptr<RCBNScriptSignal> CharacterAdded;
 
-    bool processCameraRotation(bool viewportFocused);
-    void processZoom(bool viewportZoomEnabled);
-    void processMovement(bool viewportZoomEnabled, Physics* physics);
+    bool processCameraRotation(bool viewportFocused, float deltaTime);
+    void processZoom(bool viewportZoomEnabled, float deltaTime);
+    void processMovement(bool viewportZoomEnabled, Physics* physics, float deltaTime);
     void processHotkeys(Physics* physics);
     void processToolkeys(bool viewportFocused, bool isGameplayInput, bool wantsTextInput);
     void processMouse(bool isGameplayInput);
@@ -185,7 +185,7 @@ private:
     bool isRemoteUser = false;
 
     // キャラクターの移動・カメラ追従(Humanoidに入力を渡し、結果を読んでカメラ位置を更新する)
-    void processCharacterMovement(Physics* physics);
+    void processCharacterMovement(Physics* physics, float deltaTime);
 
     // currentTool/Handからleft/rightのarm-raised状態を算出する(processMovement各分岐とprocessCharacterMovementで共用)
     void getToolArmRaiseState(bool& leftArmRaised, bool& rightArmRaised) const;

@@ -51,6 +51,7 @@
 #include "include/Instances/FileRef.hpp"
 #include "include/Instances/StarterCharacter.hpp"
 #include "include/Core/Terrain.hpp"
+#include "include/Core/SystemState.hpp"
 #include "include/Instances/Rope.hpp"
 #include "include/Instances/Rod.hpp"
 #include "include/Instances/Weld.hpp"
@@ -1986,7 +1987,8 @@ int LuauEngine::humanoid_move_toward_closure(lua_State* L) {
     Instance* wsInst = self->findFirstAncestorWorkspace();
     Physics* physics = wsInst ? static_cast<Workspace*>(wsInst)->getPhysicsEngine() : nullptr;
 
-    bool arrived = static_cast<Humanoid*>(self.get())->moveToward(*target, physics);
+    bool arrived = static_cast<Humanoid*>(self.get())->moveToward(
+        *target, physics, SystemState::get().deltaTime);
     lua_pushboolean(L, arrived ? 1 : 0);
     return 1;
 }
