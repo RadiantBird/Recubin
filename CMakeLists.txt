@@ -146,13 +146,27 @@ if(WIN32)
     )
 else()
     # --- Mac対応 ---
-    # GLFW / GLEW は Windows用.libのプリビルドが無いため、
-    # Homebrew等でインストールされたものを find_package で解決する想定。
+    # GLFW / GLEW は配布先のHomebrew dylibに依存しないよう、
+    # Homebrew等でインストールされた静的archiveを明示的に解決する。
     #   brew install glfw glew
-    set(COMMON_DEFS YAML_CPP_STATIC_LIBRARIES $<$<CONFIG:Debug>:NDEBUG>)
+    set(COMMON_DEFS YAML_CPP_STATIC_LIBRARIES GLEW_STATIC $<$<CONFIG:Debug>:NDEBUG>)
 
-    find_package(glfw3 REQUIRED)
-    find_package(GLEW REQUIRED)
+    set(RECUBIN_ORIGINAL_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    find_library(RECUBIN_GLFW_STATIC_LIBRARY NAMES glfw3 glfw REQUIRED)
+    find_library(RECUBIN_GLEW_STATIC_LIBRARY NAMES GLEW glew REQUIRED)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${RECUBIN_ORIGINAL_FIND_LIBRARY_SUFFIXES})
+    if(NOT RECUBIN_GLFW_STATIC_LIBRARY MATCHES "\\.a$" OR
+       NOT RECUBIN_GLEW_STATIC_LIBRARY MATCHES "\\.a$")
+        message(FATAL_ERROR "Mac向けGLFW/GLEWには静的archive (.a) が必要です。")
+    endif()
+
+    find_path(RECUBIN_GLFW_INCLUDE_DIR NAMES GLFW/glfw3.h REQUIRED)
+    find_path(RECUBIN_GLEW_INCLUDE_DIR NAMES GL/glew.h REQUIRED)
+    list(APPEND COMMON_INCLUDES
+        ${RECUBIN_GLFW_INCLUDE_DIR}
+        ${RECUBIN_GLEW_INCLUDE_DIR}
+    )
     find_package(OpenGL REQUIRED)
 
     include(FetchContent)
@@ -211,12 +225,13 @@ else()
     endforeach()
 
     set(COMMON_LIBS
-        glfw
+        ${RECUBIN_GLFW_STATIC_LIBRARY}
         yaml-cpp
-        GLEW::GLEW
+        ${RECUBIN_GLEW_STATIC_LIBRARY}
         OpenGL::GL
         "-framework Cocoa"
         "-framework IOKit"
+        "-framework CoreFoundation"
         "-framework CoreVideo"
         ${PHYSX_MAC_LIBS}
         Luau.Ast
