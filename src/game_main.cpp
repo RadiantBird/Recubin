@@ -313,6 +313,7 @@ int main(int argc, char* argv[]) {
     GLFWwindow* window = glfwCreateWindow(1280, 720, cfg.gameName.c_str(), nullptr, nullptr);
     if (!window) { glfwTerminate(); return -1; }
     glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
     glewExperimental = GL_TRUE; // Core Profileで必要
     if (glewInit() != GLEW_OK) return -1;
 
@@ -501,14 +502,15 @@ int main(int argc, char* argv[]) {
     SystemState::get().viewportFocused = true;
     SystemState::get().inputState      = InputState::Gameplay;
 
-    float lastFrame = static_cast<float>(glfwGetTime());
+    double lastFrame = glfwGetTime();
     int networkExitCode = 0;
 
     // ---- メインループ（常にプレイ状態） ----
     while (!glfwWindowShouldClose(window)) {
-        float now       = static_cast<float>(glfwGetTime());
-        float deltaTime = now - lastFrame;
+        double now = glfwGetTime();
+        float deltaTime = static_cast<float>(std::max(0.0, now - lastFrame));
         lastFrame       = now;
+        SystemState::get().deltaTime = deltaTime;
 
         // ---- ネットワークポーリング（物理更新より前＝受信内容を反映してからシミュレートする） ----
         NetworkManager::get().update(deltaTime);

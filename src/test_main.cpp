@@ -52,6 +52,21 @@
 #include <vector>
 
 namespace {
+class FrameRateTestInputBackend final : public IInputBackend {
+public:
+    std::unordered_set<KeyCode> pressedKeys;
+
+    bool isKeyDown(KeyCode key) const override { return pressedKeys.contains(key); }
+    bool isMouseButtonDown(MouseButton button) const override {
+        (void)button;
+        return false;
+    }
+    void getCursorPos(double& x, double& y) const override { x = 0.0; y = 0.0; }
+    void setCursorPos(double x, double y) override { (void)x; (void)y; }
+    void setMouseCaptured(bool captured) override { (void)captured; }
+    double consumeScrollDelta() override { return 0.0; }
+};
+
 const char* findSceneArgument(int argc, char* argv[], int startIndex) {
     for (int i = startIndex; i < argc; ++i) {
         const std::string_view argument(argv[i]);
@@ -3361,6 +3376,129 @@ int runTerrainInstanceRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+struct HumanoidFrameRateSample {
+    float walkCycle = 0.0f;
+    Vector3 currentMoveDir;
+    Quaternion rootRotation;
+    bool valid = false;
+};
+
+HumanoidFrameRateSample sampleHumanoidAtFrameRate(int frameRate) {
+    auto workspace = std::make_shared<Workspace>();
+    auto root = std::make_shared<BaseCube>(Vector3(0, 100, 0), Vector3(2, 2, 2));
+    root->Name = "FrameRateRoot";
+    auto humanoid = std::make_shared<Humanoid>();
+    humanoid->Name = "FrameRateHumanoid";
+    humanoid->setRootPart(root);
+    workspace->addChild(root);
+    workspace->addChild(humanoid);
+    workspace->initPhysics();
+
+    Physics* physics = workspace->getPhysicsEngine();
+    if (!physics) return {};
+    physics->update(*workspace, 0.0f);
+    if (!physics->hasBody(*root)) return {};
+
+    const float dt = 1.0f / static_cast<float>(frameRate);
+    const Vector3 flatForward(0, 0, -1);
+    const Vector3 flatRight(1, 0, 0);
+    const Vector3 targetMoveDir(1, 0, 0);
+    for (int frame = 0; frame < frameRate; ++frame) {
+        humanoid->move(flatForward, flatRight, true, targetMoveDir, false, physics,
+                       false, false, 1.0f, 0.0f, dt);
+    }
+
+    return {
+        humanoid->getWalkCycle(),
+        humanoid->getCurrentMoveDir(),
+        root->Rotation,
+        true,
+    };
+}
+
+struct CameraFrameRateSample {
+    Vector3 position;
+    Quaternion rotation;
+};
+
+CameraFrameRateSample sampleCameraAtFrameRate(int frameRate, KeyCode key) {
+    auto backend = std::make_unique<FrameRateTestInputBackend>();
+    backend->pressedKeys.insert(key);
+    auto user = std::make_shared<User>(std::move(backend));
+    user->controlMode = User::ControlMode::Free;
+
+    const float dt = 1.0f / static_cast<float>(frameRate);
+    for (int frame = 0; frame < frameRate; ++frame) {
+        user->processInput(nullptr, dt, true, true, false, false);
+    }
+    return {user->cpos, user->cam.Orientation};
+}
+
+float quaternionDotMagnitude(const Quaternion& a, const Quaternion& b) {
+    return std::abs(a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z);
+}
+
+int runFrameRateInvarianceRegression() {
+    const std::array<int, 3> frameRates{30, 60, 120};
+    std::array<HumanoidFrameRateSample, 3> humanoidSamples;
+    std::array<CameraFrameRateSample, 3> movementSamples;
+    std::array<CameraFrameRateSample, 3> rotationSamples;
+    std::array<CameraFrameRateSample, 3> zoomInSamples;
+    std::array<CameraFrameRateSample, 3> zoomOutSamples;
+
+    for (size_t i = 0; i < frameRates.size(); ++i) {
+        humanoidSamples[i] = sampleHumanoidAtFrameRate(frameRates[i]);
+        movementSamples[i] = sampleCameraAtFrameRate(frameRates[i], KeyCode::W);
+        rotationSamples[i] = sampleCameraAtFrameRate(frameRates[i], KeyCode::Left);
+        zoomInSamples[i] = sampleCameraAtFrameRate(frameRates[i], KeyCode::I);
+        zoomOutSamples[i] = sampleCameraAtFrameRate(frameRates[i], KeyCode::O);
+    }
+
+    int failures = 0;
+    auto expect = [&failures](bool condition, const char* name) {
+        std::cout << "[FrameRateInvariance] " << (condition ? "PASS" : "FAIL")
+                  << ": " << name << '\n';
+        if (!condition) ++failures;
+    };
+
+    const HumanoidFrameRateSample& humanoidBaseline = humanoidSamples[1];
+    for (size_t i = 0; i < frameRates.size(); ++i) {
+        const auto& sample = humanoidSamples[i];
+        expect(sample.valid, "Humanoid physics body is available");
+        if (!sample.valid || !humanoidBaseline.valid) continue;
+        expect(std::abs(sample.walkCycle - humanoidBaseline.walkCycle) <= 0.0001f,
+               "Humanoid walkCycle is frame-rate invariant");
+        expect(positionDistance(sample.currentMoveDir, humanoidBaseline.currentMoveDir) <= 0.0001f,
+               "Humanoid currentMoveDir is frame-rate invariant");
+        expect(quaternionDotMagnitude(sample.rootRotation, humanoidBaseline.rootRotation) >= 0.9999f,
+               "Humanoid root rotation is frame-rate invariant");
+    }
+
+    auto cameraSamplesMatch = [](const std::array<CameraFrameRateSample, 3>& samples) {
+        const auto& baseline = samples[1];
+        for (const auto& sample : samples) {
+            if (positionDistance(sample.position, baseline.position) > 0.001f ||
+                quaternionDotMagnitude(sample.rotation, baseline.rotation) < 0.9999f) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    expect(cameraSamplesMatch(movementSamples), "Free camera W movement is frame-rate invariant");
+    expect(cameraSamplesMatch(rotationSamples), "Free camera arrow rotation is frame-rate invariant");
+    expect(cameraSamplesMatch(zoomInSamples), "Free camera I-key zoom is frame-rate invariant");
+    expect(cameraSamplesMatch(zoomOutSamples), "Free camera O-key zoom is frame-rate invariant");
+    expect(positionDistance(movementSamples[1].position, Vector3(0, -2, -10)) <= 0.001f,
+           "Free camera W preserves the 60 Hz movement rate");
+    expect(positionDistance(zoomInSamples[1].position, Vector3(0, -2, -1)) <= 0.001f &&
+               positionDistance(zoomOutSamples[1].position, Vector3(0, -2, 11)) <= 0.001f,
+           "Free camera I/O preserves the 60 Hz zoom rate");
+
+    std::cout << "[FrameRateInvariance] " << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
@@ -3395,6 +3533,7 @@ int main(int argc, char* argv[]) {
     bool physicsRollbackRegression = false;
     bool physicsPerformanceGuard = false;
     bool box3dBuoyancyRegression = false;
+    bool frameRateInvarianceRegression = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument(argv[i]);
         physicsMigrationRegression =
@@ -3417,6 +3556,8 @@ int main(int argc, char* argv[]) {
             physicsPerformanceGuard || argument == "--physics-performance-guard";
         box3dBuoyancyRegression =
             box3dBuoyancyRegression || argument == "--box3d-buoyancy-regression";
+        frameRateInvarianceRegression =
+            frameRateInvarianceRegression || argument == "--frame-rate-invariance-regression";
     }
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
     if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
@@ -3428,6 +3569,7 @@ int main(int argc, char* argv[]) {
     if (physicsRollbackRegression) return runPhysicsRollbackRegression();
     if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
     if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
+    if (frameRateInvarianceRegression) return runFrameRateInvarianceRegression();
     if (toolWeldRegression) return runToolWeldRegression();
     if (toolWeldReequipRegression) return runToolWeldReequipRegression();
     if (toolRespawnRegression) return runToolRespawnRegression();

@@ -1,0 +1,81 @@
+Root:
+  Properties:
+    MaxClonesPerFrame: 1000
+    MaxRestartsPerFrame: 100
+    ScriptLoopTimeoutSeconds: 2
+    BaseResolution: [1920, 1080]
+    UseNetwork: false
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Properties:
+        Gravity: [0, -196.20001, 0]
+        Wind: [0, 0, 0]
+        PhysicsEnabled: true
+      Children:
+        - ClassName: Lighting
+          Name: Lighting
+          Properties:
+            Direction: [1, -1, -1]
+            Brightness: 1
+            Color: [1, 1, 1, 1]
+        - ClassName: Cube
+          Name: Cube
+          Properties:
+            Position: [-75.07628, -40.919567, 4.048311]
+            Size: [512, 4, 512]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.3648299, 0.5421687, 0.31572068, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: Cube1
+          Properties:
+            Position: [-75.01326, -38.419567, -54.890865]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: Script
+              Name: DiscoIt
+              Properties:
+                ContentPath: /Users/Redbird/Recubin/scripts/DiscoIt.luau
+                Enabled: true
+    - ClassName: PathfindingService
+      Name: PathfindingService
+    - ClassName: Users
+      Name: Users
+      Children:
+        - ClassName: User
+          Name: User
+          Properties:
+            ControlMode: Free
+            Speed: 0.25
+            RotationSpeed: 1
+            MouseRotationSpeed: 0.15
+            CameraDistance: 10
+            ZoomSpeed: 0.1
+            MouseZoomSpeed: 1
+          Children:
+            - ClassName: Folder
+              Name: Inventory

@@ -189,7 +189,7 @@ void Humanoid::resolveParts(Instance* characterModel) {
 void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool isPressingMove,
                      const Vector3& targetMoveDir, bool ctrlLockEnabled, Physics* physics,
                      bool leftArmRaised, bool rightArmRaised,
-                     float forwardAxis, float rightAxis) {
+                     float forwardAxis, float rightAxis, float deltaTime) {
     if (m_dead) return;
     auto root = getRootPart();
     if (!root || !physics || !physics->hasBody(*root)) return;
@@ -211,8 +211,11 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         return;
     }
 
+    const float frameScale = std::max(deltaTime, 0.0f) * 60.0f;
+    const float smoothingAlpha = 1.0f - std::pow(1.0f - 0.15f, frameScale);
+
     // --- 移動ベクトルの補間 ---
-    currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * 0.15f;
+    currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * smoothingAlpha;
 
     // --- Truss(はしご)接触判定。登坂中は重力を切り、静止していても留まれるようにする ---
     BaseCube* trussCube = physics ? physics->findOverlapping(*root, "Truss", 0.5f) : nullptr;
@@ -228,7 +231,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         } else if (isPressingMove) {
             targetRot = Quaternion::LookRotation(targetMoveDir, Vector3(0, 1, 0));
         }
-        root->Rotation = Quaternion::Slerp(root->Rotation, targetRot, 0.15f);
+        root->Rotation = Quaternion::Slerp(root->Rotation, targetRot, smoothingAlpha);
 
         CFrame bodyCFrame = physics->getBodyWorldCFrame(*root);
         bodyCFrame.Rotation = root->Rotation;
@@ -251,17 +254,16 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     }
 
     // --- アニメーションサイクル（0.0 ~ 1.0）の更新 ---
-    const float animationSpeed = 0.025f;
+    const float animationStep = 0.025f * frameScale;
     if (isPressingMove) {
-        walkCycle += animationSpeed;
-        if (walkCycle > 1.0f) walkCycle -= 1.0f;
+        walkCycle = std::fmod(walkCycle + animationStep, 1.0f);
+        if (walkCycle < 0.0f) walkCycle += 1.0f;
     } else if (walkCycle > 0.0f) {
         if (walkCycle > 0.5f) {
-            walkCycle += animationSpeed;
+            walkCycle = std::min(1.0f, walkCycle + animationStep);
             if (walkCycle >= 1.0f) walkCycle = 0.0f;
         } else {
-            walkCycle -= animationSpeed;
-            if (walkCycle < 0.0f) walkCycle = 0.0f;
+            walkCycle = std::max(0.0f, walkCycle - animationStep);
         }
     }
 
@@ -274,7 +276,8 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     applyBodyAnimation(leftArmRaised, rightArmRaised);
 }
 
-bool Humanoid::moveToward(const Vector3& target, Physics* physics, float arrivalRadius) {
+bool Humanoid::moveToward(const Vector3& target, Physics* physics, float deltaTime,
+                          float arrivalRadius) {
     if (m_dead) return false;
     auto root = getRootPart();
     if (!root) {
@@ -287,12 +290,14 @@ bool Humanoid::moveToward(const Vector3& target, Physics* physics, float arrival
     toTarget.y = 0.0f;
     float dist = toTarget.length();
     if (dist <= arrivalRadius) {
-        move(Vector3(0, 0, -1), Vector3(1, 0, 0), false, Vector3(0, 0, 0), false, physics);
+        move(Vector3(0, 0, -1), Vector3(1, 0, 0), false, Vector3(0, 0, 0), false,
+             physics, false, false, 0.0f, 0.0f, deltaTime);
         return true;
     }
 
     Vector3 dir = toTarget.normalize();
-    move(dir, Vector3::Cross(Vector3(0, 1, 0), dir), true, dir, false, physics);
+    move(dir, Vector3::Cross(Vector3(0, 1, 0), dir), true, dir, false,
+         physics, false, false, 0.0f, 0.0f, deltaTime);
     return false;
 }
 

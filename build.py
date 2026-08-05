@@ -214,6 +214,31 @@ def copy_dlls(config: str) -> None:
         print("[WARNING] No DLL files found in dlls folder.")
 
 
+def sync_network_test_engine(config: str) -> int:
+    if IS_WINDOWS:
+        source = BUILD_DIR / config / "RecubinEngine.exe"
+        destination = ROOT_DIR / "TestCases" / "NetworkTest" / "RecubinEngine.exe"
+    elif platform.system() == "Darwin" and platform.machine().lower() in ("arm64", "aarch64"):
+        source = BUILD_DIR / "RecubinEngine"
+        destination = ROOT_DIR / "TestCases" / "NetworkTest" / "RecubinEngine-macos-arm64"
+    else:
+        return 0
+
+    if not source.is_file():
+        print(f"[ERROR] NetworkTest engine source not found: {source}")
+        return 1
+
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+    except OSError as exc:
+        print(f"[ERROR] Failed to sync NetworkTest engine: {exc}")
+        return 1
+
+    print(f"[SUCCESS] Synced NetworkTest engine to {destination}.")
+    return 0
+
+
 def build(config: str) -> int:
     BUILD_DIR.mkdir(exist_ok=True)
 
@@ -371,6 +396,10 @@ def build(config: str) -> int:
 
     else:
         print("[INFO] Non-Windows platform detected - skipping DLL copy and launcher build (Mac版ランチャーは未対応).")
+
+    result = sync_network_test_engine(config)
+    if result != 0:
+        return result
 
     print("[SUCCESS] Build process completed.")
     return 0

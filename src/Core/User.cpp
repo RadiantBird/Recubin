@@ -7,6 +7,7 @@
 #include <include/Core/Physics.hpp>
 #include <include/Core/LuauEngine.hpp>
 #include <include/Util/Logger.hpp>
+#include <algorithm>
 
 User* User::s_instance = nullptr;
 
@@ -205,10 +206,11 @@ CFrame User::getCameraCFrame() const {
 }
 
 // カメラ回転（マウス右ドラッグ＋矢印キー）
-bool User::processCameraRotation(bool viewportFocused) {
+bool User::processCameraRotation(bool viewportFocused, float deltaTime) {
     if (controlMode == ControlMode::Program) return false; // Luauがカメラを直接制御するため入力は無視する
 
     bool rotated = false;
+    const float frameScale = std::max(deltaTime, 0.0f) * 60.0f;
 
     // Alt トグル: ビューポートにフォーカスがあるとき、Alt 押下の立ち上がりで
     // フリールック(マウスを動かすだけでカメラが回る)を ON/OFF する
@@ -256,10 +258,11 @@ bool User::processCameraRotation(bool viewportFocused) {
     }
 
     if (viewportFocused) {
-        if (m_input->isKeyDown(KeyCode::Left))  { cam.Orientation = Quaternion::fromAxisAngle(Vector3(0,1,0),  rotationSpeed) * cam.Orientation; rotated = true; }
-        if (m_input->isKeyDown(KeyCode::Right)) { cam.Orientation = Quaternion::fromAxisAngle(Vector3(0,1,0), -rotationSpeed) * cam.Orientation; rotated = true; }
-        if (m_input->isKeyDown(KeyCode::Up))    { cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1,0,0),  rotationSpeed); rotated = true; }
-        if (m_input->isKeyDown(KeyCode::Down))  { cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1,0,0), -rotationSpeed); rotated = true; }
+        const float keyboardRotation = rotationSpeed * frameScale;
+        if (m_input->isKeyDown(KeyCode::Left))  { cam.Orientation = Quaternion::fromAxisAngle(Vector3(0,1,0),  keyboardRotation) * cam.Orientation; rotated = true; }
+        if (m_input->isKeyDown(KeyCode::Right)) { cam.Orientation = Quaternion::fromAxisAngle(Vector3(0,1,0), -keyboardRotation) * cam.Orientation; rotated = true; }
+        if (m_input->isKeyDown(KeyCode::Up))    { cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1,0,0),  keyboardRotation); rotated = true; }
+        if (m_input->isKeyDown(KeyCode::Down))  { cam.Orientation = cam.Orientation * Quaternion::fromAxisAngle(Vector3(1,0,0), -keyboardRotation); rotated = true; }
     }
 
     if (rotated) updateVectors();
@@ -288,22 +291,23 @@ void User::endExternalCameraDrag() {
 }
 
 // ズーム（I/Oキー・スクロール）
-void User::processZoom(bool viewportZoomEnabled) {
+void User::processZoom(bool viewportZoomEnabled, float deltaTime) {
     // 無効時も毎フレーム破棄しておかないと、ビューポート外でのスクロールが
     // 消費されずに溜まり、後でhoverしただけの瞬間にまとめて適用されてしまう
     const double scrollDelta = m_input->consumeScrollDelta();
     if (!viewportZoomEnabled) return;
     if (controlMode == ControlMode::Program) return; // Luauがカメラを直接制御するため入力は無視する
 
+    const float keyboardZoom = zoomSpeed * std::max(deltaTime, 0.0f) * 60.0f;
     if (controlMode == ControlMode::Free) {
-        if (m_input->isKeyDown(KeyCode::I)) cpos = cpos + forward * zoomSpeed;
-        if (m_input->isKeyDown(KeyCode::O)) cpos = cpos - forward * zoomSpeed;
+        if (m_input->isKeyDown(KeyCode::I)) cpos = cpos + forward * keyboardZoom;
+        if (m_input->isKeyDown(KeyCode::O)) cpos = cpos - forward * keyboardZoom;
         if (scrollDelta != 0.0) {
             cpos = cpos + forward * (static_cast<float>(scrollDelta) * mouseZoomSpeed);
         }
     } else {
-        if (m_input->isKeyDown(KeyCode::I)) { cameraDistance -= zoomSpeed; if (cameraDistance < minCameraDistance) cameraDistance = minCameraDistance; }
-        if (m_input->isKeyDown(KeyCode::O)) cameraDistance += zoomSpeed;
+        if (m_input->isKeyDown(KeyCode::I)) { cameraDistance -= keyboardZoom; if (cameraDistance < minCameraDistance) cameraDistance = minCameraDistance; }
+        if (m_input->isKeyDown(KeyCode::O)) cameraDistance += keyboardZoom;
         if (scrollDelta != 0.0) {
             cameraDistance -= static_cast<float>(scrollDelta) * mouseZoomSpeed;
             if (cameraDistance < minCameraDistance) cameraDistance = minCameraDistance;
@@ -312,22 +316,23 @@ void User::processZoom(bool viewportZoomEnabled) {
 }
 
 // 移動ディスパッチ（Free / Character を振り分け）
-void User::processMovement(bool viewportZoomEnabled, Physics* physics) {
+void User::processMovement(bool viewportZoomEnabled, Physics* physics, float deltaTime) {
     if (viewportZoomEnabled) {
         if (controlMode == ControlMode::Free) {
-            if (m_input->isKeyDown(KeyCode::W)) cpos = cpos + forward * speed;
-            if (m_input->isKeyDown(KeyCode::S)) cpos = cpos - forward * speed;
-            if (m_input->isKeyDown(KeyCode::A)) cpos = cpos - right   * speed;
-            if (m_input->isKeyDown(KeyCode::D)) cpos = cpos + right   * speed;
-            if (m_input->isKeyDown(KeyCode::Q)) cpos = cpos - up      * speed;
-            if (m_input->isKeyDown(KeyCode::E)) cpos = cpos + up      * speed;
+            const float keyboardSpeed = speed * std::max(deltaTime, 0.0f) * 60.0f;
+            if (m_input->isKeyDown(KeyCode::W)) cpos = cpos + forward * keyboardSpeed;
+            if (m_input->isKeyDown(KeyCode::S)) cpos = cpos - forward * keyboardSpeed;
+            if (m_input->isKeyDown(KeyCode::A)) cpos = cpos - right   * keyboardSpeed;
+            if (m_input->isKeyDown(KeyCode::D)) cpos = cpos + right   * keyboardSpeed;
+            if (m_input->isKeyDown(KeyCode::Q)) cpos = cpos - up      * keyboardSpeed;
+            if (m_input->isKeyDown(KeyCode::E)) cpos = cpos + up      * keyboardSpeed;
             // Free モードでもボディパーツを Root に追従させる
             // （Character モードでは humanoid->move() 内で呼ばれる）
             bool leftArmRaised = false, rightArmRaised = false;
             getToolArmRaiseState(leftArmRaised, rightArmRaised);
             if (humanoid) humanoid->applyBodyAnimation(leftArmRaised, rightArmRaised);
         } else if (controlMode == ControlMode::Character && character && humanoid) {
-            processCharacterMovement(physics);
+            processCharacterMovement(physics, deltaTime);
         } else if (controlMode == ControlMode::Program) {
             // Program モードでもボディパーツを Root に追従させる
             // （カメラはLuauが制御するが、キャラクター自体の同期は他モードと同様に必要）
@@ -370,7 +375,7 @@ static void attachToolHandle(
 }
 
 // キャラクターの移動・カメラ追従（移動・回転・歩行アニメ・接地判定そのものはHumanoidが行う）
-void User::processCharacterMovement(Physics* physics) {
+void User::processCharacterMovement(Physics* physics, float deltaTime) {
     if (!humanoid) return;
     auto root = humanoid->getRootPart();
     if (!root) return;
@@ -411,7 +416,7 @@ void User::processCharacterMovement(Physics* physics) {
     lastMovementInput.rightAxis       = rightAxis;
 
     humanoid->move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, physics,
-                   leftArmRaised, rightArmRaised, forwardAxis, rightAxis);
+                   leftArmRaised, rightArmRaised, forwardAxis, rightAxis, deltaTime);
 
     // --- 装備中のツールを手の位置に追従させる ---
     if (toolEquipped) {
@@ -571,7 +576,6 @@ void User::processMouse(bool isGameplayInput) {
 
 void User::processInput(Physics* physics, float deltaTime, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput) {
     if (!m_input) return;
-    (void)deltaTime;
 
     // ジャンプ要求は毎フレームクリアし、processHotkeys()内でSpace押下時にのみセットする
     // (ネットワークレプリケーション用: このフレームでジャンプ要求があったかをlastMovementInputに残す)
@@ -583,11 +587,13 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     // 死亡後の経過時間はHumanoid側で管理し、再生成だけUserが行う
     if (humanoid && humanoid->isRespawnReady()) respawnCharacter();
 
-    bool rotated = processCameraRotation(viewportFocused && !wantsTextInput);
-    processZoom(viewportZoomEnabled && !wantsTextInput);
+    bool rotated = processCameraRotation(viewportFocused && !wantsTextInput, deltaTime);
+    processZoom(viewportZoomEnabled && !wantsTextInput, deltaTime);
     if (humanoid) humanoid->updateFirstPersonState(cameraDistance <= firstPersonThreshold);
     // 死亡中はキャラクター移動を駆動しない（ばらしたパーツを上書きしないため）
-    if (!humanoid || !humanoid->isDead()) processMovement(viewportFocused && !wantsTextInput, physics);
+    if (!humanoid || !humanoid->isDead()) {
+        processMovement(viewportFocused && !wantsTextInput, physics, deltaTime);
+    }
     if (rotated) updateVectors();
     if (!wantsTextInput) processHotkeys(physics);
     processToolkeys(viewportFocused, isGameplayInput, wantsTextInput);

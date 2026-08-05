@@ -656,7 +656,7 @@ void ReplicationManager::reconcileLocalPose() {
         if (entry.input.jumpRequested) m_predictionHumanoid->jump(m_predictionPhysics.get());
         m_predictionHumanoid->move(entry.input.flatForward, entry.input.flatRight, entry.input.isPressingMove,
                                     entry.input.targetMoveDir, entry.input.ctrlLockEnabled, m_predictionPhysics.get(),
-                                    false, false, entry.input.forwardAxis, entry.input.rightAxis);
+                                    false, false, entry.input.forwardAxis, entry.input.rightAxis, entry.dt);
         m_predictionPhysics->stepOnce(entry.dt);
         m_predictionPhysics->syncAllCubes();
     }
@@ -720,7 +720,7 @@ void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
 
         if (in.jumpRequested) avatar.humanoid->jump(physics);
         avatar.humanoid->move(in.flatForward, in.flatRight, in.isPressingMove, in.targetMoveDir,
-                               in.ctrlLockEnabled, physics, false, false, in.forwardAxis, in.rightAxis);
+                               in.ctrlLockEnabled, physics, false, false, in.forwardAxis, in.rightAxis, dt);
 
         m_latestPoses[id] = root->getWorldCFrame();
         Vector3 vel = physics->getLinearVelocity(*root);
@@ -761,6 +761,12 @@ void ReplicationManager::hostUpdateWorld(float dt) {
             hostSendWorldTransforms(m_worldSnapshotPending);
             m_worldSnapshotPending = false;
         }
+    }
+
+    const float elapsed = std::max(dt, 0.0f);
+    for (auto& [id, obj] : m_hostObjects) {
+        (void)id;
+        obj.tailTimer = std::max(0.0f, obj.tailTimer - elapsed);
     }
 }
 
@@ -852,7 +858,6 @@ void ReplicationManager::hostSendWorldTransforms(bool forceAll) {
         if (moved) obj.tailTimer = 0.5f;
 
         bool shouldSend = forceAll || !obj.hasSent || moved || obj.tailTimer > 0.0f;
-        if (obj.tailTimer > 0.0f) obj.tailTimer -= 0.05f;
 
         if (!shouldSend) continue;
 

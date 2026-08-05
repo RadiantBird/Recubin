@@ -72,8 +72,8 @@ public:
     // forwardAxis/rightAxis: W:+1/S:-1, A:-1/D:+1の生の独立2軸(-1..1)。Truss登坂とSeat.Steer/Throttleで使う
     void move(const Vector3& flatForward, const Vector3& flatRight, bool isPressingMove,
               const Vector3& targetMoveDir, bool ctrlLockEnabled, Physics* physics,
-              bool leftArmRaised = false, bool rightArmRaised = false,
-              float forwardAxis = 0.0f, float rightAxis = 0.0f);
+              bool leftArmRaised, bool rightArmRaised,
+              float forwardAxis, float rightAxis, float deltaTime);
 
     // 接地中、または水没中にJumpPowerで上方向の速度をセットする
     void jump(Physics* physics);
@@ -85,7 +85,8 @@ public:
 
     // パス追従用: targetへ向けて1フレーム分移動する（move()のXZ方向移動ロジックを流用）。
     // arrivalRadius以内に到達していれば何もせず true を返す。
-    bool moveToward(const Vector3& target, Physics* physics, float arrivalRadius = 1.0f);
+    bool moveToward(const Vector3& target, Physics* physics, float deltaTime,
+                    float arrivalRadius = 1.0f);
 
     // --- ヘルス / 死亡 ---
     void setHealth(float v);          // クランプして設定。0以下への遷移で Died を発火
