@@ -771,63 +771,122 @@ void ViewportPanel::onRender() {
             m_decalPlace->active  = false;
             m_isDraggingSelected  = false;
             m_isBoxSelectArmed    = false;
-        } else {
-        // Step 1: 現在の選択物のOBBにヒットしたか判定（非Selectモードのドラッグ用）
-        bool hitSelected = false;
-        if (!selectOnly && selectedInstance && *selectedInstance && (*selectedInstance)->IsA("Spatial")) {
-            Spatial* sp = static_cast<Spatial*>(*selectedInstance);
-            float t = obbHit(rayOri, rayDir, sp->getWorldCFrame(), sp->Size);
-            hitSelected = (t >= 0.0f);
         }
-        m_isDraggingSelected = hitSelected;
+        else {
+            // Step 1: 現在の選択物のOBBにヒットしたか判定（非Selectモードのドラッグ用）
+            bool hitSelected = false;
+            if (!selectOnly && selectedInstance && *selectedInstance && (*selectedInstance)->IsA("Spatial")) {
+                Spatial* sp = static_cast<Spatial*>(*selectedInstance);
+                float t = obbHit(rayOri, rayDir, sp->getWorldCFrame(), sp->Size);
+                hitSelected = (t >= 0.0f);
+            }
+            m_isDraggingSelected = hitSelected;
 
-        // Step 2: Selectモード、または非SelectモードでShift+クリックかつ選択物にヒットしなかった場合
-        //         → レイキャストで選択変更
-        bool shiftHeld = ImGui::GetIO().KeyShift;
-        bool clickFoundSomething = false;
-        if ((selectOnly || (shiftHeld && !hitSelected)) && selectedInstance) {
-            Instance* nearest = nullptr;
-            float nearestT = 1e30f;
-            auto castRay = [&](auto& self, Instance* inst) -> void {
-                if (!inst) return;
-                if (inst->getClassName() == "Skybox") return;
-                if (inst->IsA("BaseCube")) {
-                    Spatial* s = static_cast<Spatial*>(inst);
-                    float t = obbHit(rayOri, rayDir, s->getWorldCFrame(), s->Size);
-                    if (t >= 0.0f && t < nearestT) { nearestT = t; nearest = inst; }
+            // Step 2: Selectモード、または非SelectモードでShift+クリックかつ選択物にヒットしなかった場合
+            //         → レイキャストで選択変更
+            bool shiftHeld = ImGui::GetIO().KeyShift;
+            bool clickFoundSomething = false;
+            bool hitLockedObject = false;
+
+            if ((selectOnly || (shiftHeld && !hitSelected)) && selectedInstance) {
+                Instance* nearest = nullptr;
+
+                float nearestT = 1e30f;
+                auto castRay = [&](auto& self, Instance* inst) -> void {
+                    if (!inst) {
+                        return;
+                    }
+
+                    if (inst->getClassName() == "Skybox") {
+                        return;
+                    }
+
+                    if (inst->IsA("BaseCube")) {
+                        Spatial* spatial = static_cast<Spatial*>(inst);
+
+                        float t = obbHit(
+                            rayOri,
+                            rayDir,
+                            spatial->getWorldCFrame(),
+                            spatial->Size
+                        );
+
+                        if (t >= 0.0f && t < nearestT) {
+                            nearestT = t;
+                            nearest = inst;
+                        }
+                    }
+
+                    for (auto const& [_, child] : inst->getChildren()) {
+                        self(self, child.get());
+                    }
+                };
+
+                castRay(castRay, workspace);
+
+                bool hitSomething = (nearest != nullptr);
+
+                if (hitSomething) {
+                    BaseCube* cube = static_cast<BaseCube*>(nearest);
+                    hitLockedObject = cube->Locked;
                 }
-                for (auto const& [_, child] : inst->getChildren())
-                    self(self, child.get());
-            };
-            castRay(castRay, workspace);
-            if (ImGui::GetIO().KeyCtrl && selectedInstances) {
-                // Ctrl+クリック: 複数選択のトグル（ヒエラルキー側と同じセマンティクス）
-                if (nearest) {
-                    auto it = std::find(selectedInstances->begin(), selectedInstances->end(), nearest);
-                    if (it != selectedInstances->end()) {
-                        selectedInstances->erase(it);
-                        if (*selectedInstance == nearest)
-                            *selectedInstance = selectedInstances->empty() ? nullptr : selectedInstances->back();
-                    } else {
-                        selectedInstances->push_back(nearest);
+
+                bool hitSelectableObject =
+                    hitSomething &&
+                    !hitLockedObject;
+
+                bool ctrlHeld = ImGui::GetIO().KeyCtrl;
+
+                if (ctrlHeld && selectedInstances) {
+                    if (hitSelectableObject) {
+                        auto it = std::find(
+                            selectedInstances->begin(),
+                            selectedInstances->end(),
+                            nearest
+                        );
+
+                        bool isAlreadySelected =
+                            (it != selectedInstances->end());
+
+                        if (isAlreadySelected) {
+                            selectedInstances->erase(it);
+
+                            if (*selectedInstance == nearest) {
+                                if (selectedInstances->empty()) {
+                                    *selectedInstance = nullptr;
+                                } else {
+                                    *selectedInstance = selectedInstances->back();
+                                }
+                            }
+                        } else {
+                            selectedInstances->push_back(nearest);
+                            *selectedInstance = nearest;
+                        }
+                    }
+                } else {
+                    if (hitSelectableObject) {
                         *selectedInstance = nearest;
+
+                        if (selectedInstances) {
+                            selectedInstances->clear();
+                            selectedInstances->push_back(nearest);
+                        }
+                    } else {
+                        *selectedInstance = nullptr;
+
+                        if (selectedInstances) {
+                            selectedInstances->clear();
+                        }
                     }
                 }
-                // ヒットなしの場合は選択を維持（何もしない）
-            } else {
-                *selectedInstance = nearest;
-                if (selectedInstances) {
-                    selectedInstances->clear();
-                    if (nearest) selectedInstances->push_back(nearest);
-                }
-            }
-            clickFoundSomething = (nearest != nullptr);
-        }
 
-        // ボックス選択 arm: Selectモードのみ、何にもヒットしなかった場合にドラッグで開始
-        // 非Selectモードではギズモ操作と競合するため arm しない
-        m_isBoxSelectArmed = isSelectMode() && !clickFoundSomething && !shiftHeld;
-        m_boxSelectStart   = ImGui::GetMousePos();
+                clickFoundSomething = hitSelectableObject;
+            }
+
+            // ボックス選択 arm: Selectモードのみ、何にもヒットしなかった場合にドラッグで開始
+            // 非Selectモードではギズモ操作と競合するため arm しない
+            m_isBoxSelectArmed = isSelectMode() && (hitLockedObject || !clickFoundSomething) && !shiftHeld;
+            m_boxSelectStart   = ImGui::GetMousePos();
         } // end else (not picking)
     }
 
@@ -869,27 +928,131 @@ void ViewportPanel::onRender() {
             *selectedInstance = nullptr;
 
             auto collect = [&](auto& self, Instance* node) -> void {
-                if (!node || node->getClassName() == "Skybox") return;
+                if (!node) {
+                    return;
+                }
+
+                if (node->getClassName() == "Skybox") {
+                    return;
+                }
+
                 if (node->IsA("BaseCube")) {
-                    Spatial* sp = static_cast<Spatial*>(node);
-                    Vector3 wp  = sp->getWorldPosition();
-                    // column-major VP 行列でワールド座標をスクリーン投影
-                    float cx = mv[0]*wp.x + mv[4]*wp.y + mv[8]*wp.z  + mv[12];
-                    float cy = mv[1]*wp.x + mv[5]*wp.y + mv[9]*wp.z  + mv[13];
-                    float cw = mv[3]*wp.x + mv[7]*wp.y + mv[11]*wp.z + mv[15];
+                    BaseCube* cube = static_cast<BaseCube*>(node);
+
+                    // Locked自身と、その子孫をボックス選択から除外
+                    if (cube->Locked) {
+                        return;
+                    }
+
+                    Spatial* spatial = static_cast<Spatial*>(node);
+                    Vector3 worldPosition = spatial->getWorldPosition();
+
+                    float cx =
+                        mv[0] * worldPosition.x +
+                        mv[4] * worldPosition.y +
+                        mv[8] * worldPosition.z +
+                        mv[12];
+
+                    float cy =
+                        mv[1] * worldPosition.x +
+                        mv[5] * worldPosition.y +
+                        mv[9] * worldPosition.z +
+                        mv[13];
+
+                    float cw =
+                        mv[3] * worldPosition.x +
+                        mv[7] * worldPosition.y +
+                        mv[11] * worldPosition.z +
+                        mv[15];
+
                     if (cw > 0.0f) {
-                        float sx = contentOrigin.x + (cx/cw + 1.0f) * 0.5f * (float)w;
-                        float sy = contentOrigin.y + (1.0f - cy/cw) * 0.5f * (float)h;
-                        if (sx >= minX && sx <= maxX && sy >= minY && sy <= maxY)
+                        float sx =
+                            contentOrigin.x +
+                            (cx / cw + 1.0f) *
+                            0.5f *
+                            static_cast<float>(w);
+
+                        float sy =
+                            contentOrigin.y +
+                            (1.0f - cy / cw) *
+                            0.5f *
+                            static_cast<float>(h);
+
+                        bool insideSelectionBox =
+                            sx >= minX &&
+                            sx <= maxX &&
+                            sy >= minY &&
+                            sy <= maxY;
+
+                        if (insideSelectionBox) {
+                                // std::cout
+                                //         << "[BOX ADD] "
+                                //         << cube->Name
+                                //         << " Locked="
+                                //         << cube->Locked
+                                //         << " ptr="
+                                //         << cube
+                                //         << '\n';
                             selectedInstances->push_back(node);
+                        }
                     }
                 }
-                for (auto const& [_, ch] : node->getChildren()) self(self, ch.get());
+
+                for (auto const& [_, child] : node->getChildren()) {
+                    self(self, child.get());
+                }
             };
             collect(collect, workspace);
 
-            if (!selectedInstances->empty())
+            std::cout << "=== AFTER COLLECT ===\n";
+
+            for (Instance* instance : *selectedInstances) {
+                if (!instance) {
+                    std::cout << "nullptr\n";
+                    continue;
+                }
+
+                std::cout
+                    << instance->Name
+                    << " ptr="
+                    << instance;
+
+                if (instance->IsA("BaseCube")) {
+                    BaseCube* cube = static_cast<BaseCube*>(instance);
+
+                    std::cout
+                        << " Locked="
+                        << cube->Locked;
+                }
+
+                std::cout << '\n';
+            }
+
+            selectedInstances->erase(
+                std::remove_if(
+                    selectedInstances->begin(),
+                    selectedInstances->end(),
+                    [](Instance* instance) {
+                        if (!instance) {
+                            return true;
+                        }
+
+                        if (!instance->IsA("BaseCube")) {
+                            return false;
+                        }
+
+                        BaseCube* cube = static_cast<BaseCube*>(instance);
+                        return cube->Locked;
+                    }
+                ),
+                selectedInstances->end()
+            );
+
+            if (selectedInstances->empty()) {
+                *selectedInstance = nullptr;
+            } else {
                 *selectedInstance = selectedInstances->front();
+            }
         }
         m_isBoxSelecting   = false;
         m_isBoxSelectArmed = false;
@@ -1251,7 +1414,26 @@ void ViewportPanel::onRender() {
         auto* dl = ImGui::GetWindowDrawList();
 
         for (Instance* inst : *selectedInstances) {
-            if (!inst || inst->Parent.expired() || !inst->IsA("BaseCube")) continue;
+            if (!inst) {
+                continue;
+            }
+
+            if (inst->IsA("BaseCube")) {
+                BaseCube* cube = static_cast<BaseCube*>(inst);
+
+                // std::cout
+                //     << "[HIGHLIGHT] "
+                //     << cube->Name
+                //     << " Locked="
+                //     << cube->Locked
+                //     << " ptr="
+                //     << cube
+                //     << '\n';
+            }
+
+            if (inst->Parent.expired() || !inst->IsA("BaseCube")) {
+                continue;
+            }
             Spatial* sp = static_cast<Spatial*>(inst);
             CFrame   wf = sp->getWorldCFrame();
             float hx = sp->Size.x * 0.5f, hy = sp->Size.y * 0.5f, hz = sp->Size.z * 0.5f;

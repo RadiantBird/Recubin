@@ -60,6 +60,12 @@ static const bool s_baseCubeRegistered = []{
     ccdMode.group("Physics");
     ccdMode.noYaml();
 
+    PropertyDesc locked = custom("Locked", PropType::Bool,
+        [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->Locked);},
+        [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setLocked(std::get<bool>(v)); });
+    locked.group("Editor");
+    locked.noYaml();
+
     // MaterialType: プリセット選択で material 一式を上書きする
     PropertyDesc materialType = custom("MaterialType", PropType::Enum,
         [](Instance* o) { return PropValue(static_cast<int>(static_cast<BaseCube*>(o)->material.type)); },
@@ -93,6 +99,7 @@ static const bool s_baseCubeRegistered = []{
             [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setCanCollide(std::get<bool>(v)); }).noYaml(),
         field<&BaseCube::CastShadow>("CastShadow").noYaml(),
         field<&BaseCube::Unlit>("Unlit").noYaml(),
+        locked,
         massDensity,
         ccdMode,
         materialType,
@@ -197,6 +204,11 @@ void BaseCube::setCanCollide(bool canCollide) {
     if (lastWorkspace && lastWorkspace->physicsEngine) {
         lastWorkspace->physicsEngine->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
     }
+}
+
+void BaseCube::setLocked(bool locked) {
+    if (Locked == locked) return;
+    Locked = locked;
 }
 
 void BaseCube::setMaterial(const Material& m) {
@@ -307,6 +319,8 @@ void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
         material.restitution = value.as<float>();
     } else if (name == "MassDensity") {
         setMassDensity(value.as<float>());
+    } else if (name == "Locked") {
+        setLocked(value.as<bool>());
     } else if (name == "CCDMode") {
         const std::string mode = value.as<std::string>();
         setCCDMode(mode == "Bullet" ? CCDMode::Bullet : CCDMode::Default);

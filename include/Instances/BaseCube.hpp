@@ -40,6 +40,7 @@ public:
     bool CastShadow = true;
     bool Unlit = false;
     bool UseTriplanar = false;
+    bool Locked = false;
     float TextureScale = 1.0f;
     CCDMode CollisionDetection = CCDMode::Default;
 
@@ -81,6 +82,7 @@ public:
     void setRotation(Quaternion rot);
     void setAnchored(bool anchored);
     void setCanCollide(bool canCollide);
+    void setLocked(bool locked);
     void setMaterial(const Material& m);
     void setMassDensity(float d);
     void setCCDMode(CCDMode mode);

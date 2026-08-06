@@ -481,6 +481,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "CanCollide" << YAML::Value << bc->CanCollide;
             out << YAML::Key << "CastShadow" << YAML::Value << bc->CastShadow;
             out << YAML::Key << "Unlit"      << YAML::Value << bc->Unlit;
+            out << YAML::Key << "Locked"     << YAML::Value << bc->Locked;
             out << YAML::Key << "MassDensity" << YAML::Value << bc->MassDensity;
             out << YAML::Key << "CCDMode" << YAML::Value
                 << (bc->CollisionDetection == CCDMode::Bullet ? "Bullet" : "Default");
