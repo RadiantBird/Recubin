@@ -34,6 +34,13 @@ public:
     float cameraDistance = 10.0f;
     float zoomSpeed = 0.1f;
     float mouseZoomSpeed = 1.0f; // キーボードより早めに
+
+    float movingTime = 0.0f;
+    float accelerationDelay = 1.5f;
+    float accelerationRate = 0.6f;
+    float accelerationMultiplier = 1.0f;
+    float maxAccelerationMultiplier = 3.0f;
+
     bool allowControlModeSwitch = true; // false のとき L キーをブロック
     camera current_camera;
 

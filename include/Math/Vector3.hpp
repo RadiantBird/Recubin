@@ -16,8 +16,43 @@ struct Vector3 {
     Vector3 operator/(const Vector3& v) const { return {x / v.x, y / v.y, z / v.z}; }
     bool operator==(const Vector3& v) const { return x == v.x && y == v.y && z == v.z; }
 
+    Vector3& operator+=(const Vector3& v) {
+        x += v.x;
+        y += v.y;
+        z += v.z;
+        return *this;
+    }
+
+    Vector3& operator-=(const Vector3& v) {
+        x -= v.x;
+        y -= v.y;
+        z -= v.z;
+        return *this;
+    }
+
+    Vector3& operator*=(float s) {
+        x *= s;
+        y *= s;
+        z *= s;
+        return *this;
+    }
+
+    Vector3& operator/=(float s) {
+        x /= s;
+        y /= s;
+        z /= s;
+        return *this;
+    }
+
     // ベクトルの長さ（距離）を計算
     float length() const { return std::sqrt(x * x + y * y + z * z); }
+
+    float lengthSquared() const {
+        return
+            x * x +
+            y * y +
+            z * z;
+    }
 
     // 正規化（長さを1にする：方向だけが欲しいとき）
     Vector3 normalize() const {

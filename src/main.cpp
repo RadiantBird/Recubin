@@ -470,7 +470,7 @@ int main(int argc, char* argv[]) {
     if (!Physics::configureBackendFromCommandLine(argc, argv)) return -1;
 
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.9983\n";
+              << "Recubin Studio v0.9984\n";
     std::filesystem::path engineExePath = (argc > 0 && argv[0]) ? std::filesystem::path(argv[0]) : std::filesystem::path();
 
     windows(

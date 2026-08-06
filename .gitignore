@@ -17,6 +17,7 @@ editor_settings.yaml
 *.pdb
 *.d
 *.o
+*.exe
 
 Claude's last exam/
 assets/scenes/.navcache/_snapshot_Workspace.navcache

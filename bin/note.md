@@ -47,6 +47,8 @@ LAN / localhost 前提です。インターネット越し（NAT配下同士）�
 試すなら、同じPCでコンソールを2つ開いて --host 7777 と --connect 127.0.0.1 7777 を起動し、ログに roster や [chat] Hello from ... が出るのを見るのが一番手軽です。
 ---
 
+# NAT越えまでやった最新の接続方法
+
 現在、実際に接続成功まで確認済みなのは「Tailscaleによる直接接続」です。公開STUN＋ランデブー方式も実装済みですが、異なる回線での実地検証は未完了です。
 事前準備
 RecubinEngine.exeと同じ作業フォルダにstartup.yamlを置く。
@@ -62,7 +64,7 @@ tailscale status
 ホスト側：
 .\RecubinEngine.exe --direct-host 41001
 クライアント側：
-.\RecubinEngine.exe --direct-connect 100.64.0.10:41001 --listen-port 41002
+.\RecubinEngine.exe --direct-connect 100.90.255.77:41001 --listen-port 41002
 100.64.0.10はホストのTailscale IPv4またはMagicDNS名に置き換えます。
 Windows Defender FirewallではUDP受信を許可してください。ホスト移行も試す場合、クライアントの待受ポートも必要です。
 New-NetFirewallRule `

@@ -123,7 +123,13 @@ set(COMMON_INCLUDES ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/include/imgu
     .)
 
 if(WIN32)
-    set(COMMON_DEFS YAML_CPP_STATIC_LIBRARIES GLEW_STATIC $<$<CONFIG:Debug>:NDEBUG>)
+    set(COMMON_DEFS
+        YAML_CPP_STATIC_LIBRARIES 
+        GLEW_STATIC 
+        NOMINMAX 
+        $<$<CONFIG:Debug>:NDEBUG>
+    )
+
     set(COMMON_LIBS
         "${LIB_DIR}/glfw3.lib"
         "${LIB_DIR}/glew32s.lib"
@@ -149,7 +155,12 @@ else()
     # GLFW / GLEW は配布先のHomebrew dylibに依存しないよう、
     # Homebrew等でインストールされた静的archiveを明示的に解決する。
     #   brew install glfw glew
-    set(COMMON_DEFS YAML_CPP_STATIC_LIBRARIES GLEW_STATIC $<$<CONFIG:Debug>:NDEBUG>)
+    set(COMMON_DEFS
+        YAML_CPP_STATIC_LIBRARIES 
+        GLEW_STATIC 
+        NOMINMAX 
+        $<$<CONFIG:Debug>:NDEBUG>
+    )
 
     set(RECUBIN_ORIGINAL_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")

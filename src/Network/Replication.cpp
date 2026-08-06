@@ -17,6 +17,10 @@
 #include <cmath>
 #include <unordered_set>
 
+#ifdef max
+#undef max
+#endif
+
 ReplicationManager::ReplicationManager(std::shared_ptr<Workspace> workspace, std::shared_ptr<User> user, Instance* characterSearchRoot)
     : m_workspace(workspace), m_user(user), m_characterSearchRoot(characterSearchRoot),
       m_physics(workspace ? workspace->getPhysicsEngine() : nullptr) {

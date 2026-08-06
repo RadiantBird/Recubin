@@ -319,13 +319,39 @@ void User::processZoom(bool viewportZoomEnabled, float deltaTime) {
 void User::processMovement(bool viewportZoomEnabled, Physics* physics, float deltaTime) {
     if (viewportZoomEnabled) {
         if (controlMode == ControlMode::Free) {
-            const float keyboardSpeed = speed * std::max(deltaTime, 0.0f) * 60.0f;
-            if (m_input->isKeyDown(KeyCode::W)) cpos = cpos + forward * keyboardSpeed;
-            if (m_input->isKeyDown(KeyCode::S)) cpos = cpos - forward * keyboardSpeed;
-            if (m_input->isKeyDown(KeyCode::A)) cpos = cpos - right   * keyboardSpeed;
-            if (m_input->isKeyDown(KeyCode::D)) cpos = cpos + right   * keyboardSpeed;
-            if (m_input->isKeyDown(KeyCode::Q)) cpos = cpos - up      * keyboardSpeed;
-            if (m_input->isKeyDown(KeyCode::E)) cpos = cpos + up      * keyboardSpeed;
+            Vector3 moveDirection{};
+
+            if (m_input->isKeyDown(KeyCode::W)) moveDirection += forward;
+            if (m_input->isKeyDown(KeyCode::S)) moveDirection -= forward;
+            if (m_input->isKeyDown(KeyCode::A)) moveDirection -= right;
+            if (m_input->isKeyDown(KeyCode::D)) moveDirection += right;
+            if (m_input->isKeyDown(KeyCode::Q)) moveDirection -= up;
+            if (m_input->isKeyDown(KeyCode::E)) moveDirection += up;
+
+            const bool isMoving = moveDirection.lengthSquared() > 0.0f;
+
+            if (isMoving) {
+                movingTime += deltaTime;
+
+                if (movingTime > accelerationDelay) {
+                    accelerationMultiplier += accelerationRate * deltaTime;
+                    if (maxAccelerationMultiplier < accelerationMultiplier) {
+                        accelerationMultiplier = maxAccelerationMultiplier;
+                    }
+                }
+
+                moveDirection = moveDirection.normalize();
+
+                const float movementSpeed =
+                    speed * std::max(deltaTime, 0.0f) * 60.0f * accelerationMultiplier;
+
+                cpos += moveDirection * movementSpeed;
+            }
+            else {
+                movingTime = 0.0f;
+                accelerationMultiplier = 1.0f;
+            }
+
             // Free モードでもボディパーツを Root に追従させる
             // （Character モードでは humanoid->move() 内で呼ばれる）
             bool leftArmRaised = false, rightArmRaised = false;

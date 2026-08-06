@@ -9,6 +9,7 @@
 #include <Math/Quaternion.hpp>
 #include <Math/CFrame.hpp>
 #include <Math/Units.hpp>
+#include <include/Util/Logger.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -95,6 +96,11 @@ void Humanoid::setRootPart(const std::shared_ptr<BaseCube>& root) {
 }
 
 void Humanoid::setHealth(float v) {
+    if (std::isnan(v)) {
+        RCBN_ERROR("Received NaN value for Health, rejected.");
+        return;
+    }
+
     if (v > MaxHealth) v = MaxHealth;
     bool wasAlive = (Health > 0.0f) && !m_dead;
     Health = v;
