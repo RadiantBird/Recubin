@@ -584,7 +584,7 @@ int main(int argc, char* argv[]) {
         SystemState::get().viewportFocused = !uiInput;
         if (!navMeshBusy) {
             user->processInput(workspace->getPhysicsEngine(), deltaTime,
-                               /*viewportFocused=*/!uiInput, /*viewportZoomEnabled=*/!uiInput,
+                               /*viewportFocused=*/!uiInput, /*viewportHovered=*/!uiInput,
                                /*isGameplayInput=*/!uiInput,
                                uiInput);
         }

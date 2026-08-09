@@ -6,7 +6,6 @@
 
 class BaseCube;
 class Instance;
-class Spatial;
 class Workspace;
 
 namespace ViewportSceneQueries {
@@ -22,6 +21,25 @@ struct BaseCubeRayHit {
     ViewportGeometry::ObbRayHit obb;
 };
 
+// 通常選択／ホバー用。レイ上の最前面 Cube を保持しつつ、選択単位だけを
+// 最上位 Model へ昇格する。Locked は背後を遮るため target へ昇格しない。
+struct SelectionRayHit {
+    bool hit = false;
+    bool locked = false;
+    BaseCube* cube = nullptr;
+    Instance* target = nullptr;
+    ViewportGeometry::ObbRayHit obb;
+};
+
+// 表面ドラッグと衝突フィットが共有するワールド境界。
+// BaseCube は OBB、Model は子孫 BaseCube のワールド AABB（rotation=identity）。
+struct MovementBounds {
+    bool valid = false;
+    Vector3 center;
+    Vector3 size;
+    Quaternion rotation;
+};
+
 struct PickerRayHit {
     bool hit = false;
     Instance* target = nullptr;
@@ -34,6 +52,10 @@ BaseCubeRayHit findNearestBaseCube(
     Workspace& workspace,
     const ViewportGeometry::Ray& ray,
     Instance* exclude = nullptr);
+
+SelectionRayHit findSelectionTarget(
+    Workspace& workspace,
+    const ViewportGeometry::Ray& ray);
 
 PickerRayHit findPickerTarget(
     Workspace& workspace,
@@ -50,17 +72,21 @@ std::vector<Instance*> collectBoxSelectableCubes(
 
 ViewportGeometry::WorldAabb computeDescendantWorldAabb(Instance& root);
 
+MovementBounds computeMovementBounds(Instance& target);
+
+std::vector<BaseCube*> collectHighlightBaseCubes(Instance& target);
+
 float fitOnAxis(
     Workspace& workspace,
-    Vector3 position,
-    const Vector3& size,
-    Spatial& moving,
+    Vector3 center,
+    const MovementBounds& bounds,
+    Instance& movingRoot,
     int axis);
 
 Vector3 fitCollision(
     Workspace& workspace,
-    Vector3 position,
-    const Vector3& size,
-    Spatial& moving);
+    Vector3 center,
+    const MovementBounds& bounds,
+    Instance& movingRoot);
 
 } // namespace ViewportSceneQueries

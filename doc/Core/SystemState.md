@@ -15,7 +15,7 @@ Meyer's シングルトン（`static SystemState& get()`）
 | `isPlaying` | `bool` | ゲーム実行中（Play モード） |
 | `isPaused` | `bool` | 一時停止中 |
 | `viewportFocused` | `bool` | ビューポートが入力フォーカスを持つ |
-| `viewportZoomEnabled` | `bool` | ズーム操作が有効か |
+| `viewportHovered` | `bool` | Primaryビューポート画像上にマウスがあるか（ホイール許可用） |
 
 ## 依存関係
 
@@ -26,7 +26,7 @@ Meyer's シングルトン（`static SystemState& get()`）
 | 読み取り元 | 用途 |
 |---|---|
 | `main.cpp` | Play/Stop トランジション判定・物理/スクリプト更新のゲート |
-| `User::processInput()` | `viewportFocused` でカメラ入力を受け付けるか判断 |
+| `User::processInput()` | `viewportFocused`でキーボード、`viewportHovered`でホイール入力を受け付けるか判断 |
 
 | 書き込み元 | 用途 |
 |---|---|

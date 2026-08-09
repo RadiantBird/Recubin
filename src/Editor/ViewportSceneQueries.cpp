@@ -2,6 +2,7 @@
 
 #include <Instances/BaseCube.hpp>
 #include <Instances/Instance.hpp>
+#include <Instances/Model.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/Workspace.hpp>
 
@@ -140,23 +141,36 @@ void accumulateDescendantWorldAabbRecursive(
     }
 }
 
-void fitOnAxisRecursive(
+void collectHighlightBaseCubesRecursive(
     Instance* instance,
-    Instance* moving,
-    const Quaternion& movingRotation,
-    const Vector3& size,
+    std::vector<BaseCube*>& result) {
+    if (!instance) {
+        return;
+    }
+    if (instance->IsA("BaseCube")) {
+        result.push_back(static_cast<BaseCube*>(instance));
+    }
+    for (auto const& [_, child] : instance->getChildren()) {
+        collectHighlightBaseCubesRecursive(child.get(), result);
+    }
+}
+
+void fitBoundsOnAxisRecursive(
+    Instance* instance,
+    Instance* movingRoot,
+    const MovementBounds& movingBounds,
     const Vector3& axisDirection,
     int axis,
     float position[3]) {
-    if (!instance || instance == moving) {
+    if (!instance || instance == movingRoot) {
         return;
     }
     if (instance->getClassName() == "Skybox") {
         return;
     }
 
-    if (instance->IsA("Spatial")) {
-        auto* other = static_cast<Spatial*>(instance);
+    if (instance->IsA("BaseCube")) {
+        auto* other = static_cast<BaseCube*>(instance);
         const Vector3 otherWorldPosition = other->getWorldPosition();
         const Quaternion otherRotation = other->getWorldCFrame().Rotation;
         const float otherPosition[3] = {
@@ -166,13 +180,13 @@ void fitOnAxisRecursive(
         };
         if (ViewportGeometry::obbIntersects(
                 Vector3(position[0], position[1], position[2]),
-                movingRotation,
-                size,
+                movingBounds.rotation,
+                movingBounds.size,
                 otherWorldPosition,
                 otherRotation,
                 other->Size)) {
             const float overlap = ViewportGeometry::obbSupportRadius(
-                    movingRotation, size, axisDirection)
+                    movingBounds.rotation, movingBounds.size, axisDirection)
                 + ViewportGeometry::obbSupportRadius(
                     otherRotation, other->Size, axisDirection)
                 - std::abs(position[axis] - otherPosition[axis]);
@@ -184,53 +198,46 @@ void fitOnAxisRecursive(
     }
 
     for (auto const& [_, child] : instance->getChildren()) {
-        fitOnAxisRecursive(
-            child.get(),
-            moving,
-            movingRotation,
-            size,
-            axisDirection,
-            axis,
-            position);
+        fitBoundsOnAxisRecursive(
+            child.get(), movingRoot, movingBounds, axisDirection, axis, position);
     }
 }
 
-void fitCollisionRecursive(
+void fitBoundsCollisionRecursive(
     Instance* instance,
-    Instance* moving,
-    const Quaternion& movingRotation,
-    const Vector3& size,
+    Instance* movingRoot,
+    const MovementBounds& movingBounds,
     Vector3& position) {
-    if (!instance || instance == moving) {
+    if (!instance || instance == movingRoot) {
         return;
     }
     if (instance->getClassName() == "Skybox") {
         return;
     }
 
-    if (instance->IsA("Spatial")) {
-        auto* other = static_cast<Spatial*>(instance);
+    if (instance->IsA("BaseCube")) {
+        auto* other = static_cast<BaseCube*>(instance);
         const Vector3 otherWorldPosition = other->getWorldPosition();
         const Quaternion otherRotation = other->getWorldCFrame().Rotation;
         if (ViewportGeometry::obbIntersects(
                 position,
-                movingRotation,
-                size,
+                movingBounds.rotation,
+                movingBounds.size,
                 otherWorldPosition,
                 otherRotation,
                 other->Size)) {
             const float overlapX = ViewportGeometry::obbSupportRadius(
-                    movingRotation, size, Vector3(1.0f, 0.0f, 0.0f))
+                    movingBounds.rotation, movingBounds.size, Vector3(1.0f, 0.0f, 0.0f))
                 + ViewportGeometry::obbSupportRadius(
                     otherRotation, other->Size, Vector3(1.0f, 0.0f, 0.0f))
                 - std::abs(position.x - otherWorldPosition.x);
             const float overlapY = ViewportGeometry::obbSupportRadius(
-                    movingRotation, size, Vector3(0.0f, 1.0f, 0.0f))
+                    movingBounds.rotation, movingBounds.size, Vector3(0.0f, 1.0f, 0.0f))
                 + ViewportGeometry::obbSupportRadius(
                     otherRotation, other->Size, Vector3(0.0f, 1.0f, 0.0f))
                 - std::abs(position.y - otherWorldPosition.y);
             const float overlapZ = ViewportGeometry::obbSupportRadius(
-                    movingRotation, size, Vector3(0.0f, 0.0f, 1.0f))
+                    movingBounds.rotation, movingBounds.size, Vector3(0.0f, 0.0f, 1.0f))
                 + ViewportGeometry::obbSupportRadius(
                     otherRotation, other->Size, Vector3(0.0f, 0.0f, 1.0f))
                 - std::abs(position.z - otherWorldPosition.z);
@@ -250,12 +257,7 @@ void fitCollisionRecursive(
     }
 
     for (auto const& [_, child] : instance->getChildren()) {
-        fitCollisionRecursive(
-            child.get(),
-            moving,
-            movingRotation,
-            size,
-            position);
+        fitBoundsCollisionRecursive(child.get(), movingRoot, movingBounds, position);
     }
 }
 
@@ -273,6 +275,38 @@ BaseCubeRayHit findNearestBaseCube(
     BaseCubeRayHit result;
     float nearestDistance = 1e30f;
     findNearestBaseCubeRecursive(&workspace, ray, exclude, nearestDistance, result);
+    return result;
+}
+
+SelectionRayHit findSelectionTarget(
+    Workspace& workspace,
+    const ViewportGeometry::Ray& ray) {
+    const BaseCubeRayHit cubeHit = findNearestBaseCube(workspace, ray);
+    SelectionRayHit result;
+    if (!cubeHit.hit || !cubeHit.cube) {
+        return result;
+    }
+
+    result.hit = true;
+    result.cube = cubeHit.cube;
+    result.obb = cubeHit.obb;
+    result.locked = cubeHit.cube->Locked;
+    result.target = cubeHit.cube;
+    if (result.locked) {
+        return result;
+    }
+
+    Instance* topmostModel = nullptr;
+    auto parent = cubeHit.cube->Parent.lock();
+    while (parent && !parent->IsA("Workspace")) {
+        if (parent->IsA("Model")) {
+            topmostModel = parent.get();
+        }
+        parent = parent->Parent.lock();
+    }
+    if (topmostModel) {
+        result.target = topmostModel;
+    }
     return result;
 }
 
@@ -313,43 +347,71 @@ ViewportGeometry::WorldAabb computeDescendantWorldAabb(Instance& root) {
     return result;
 }
 
+MovementBounds computeMovementBounds(Instance& target) {
+    MovementBounds result;
+    if (target.IsA("Model")) {
+        const ViewportGeometry::WorldAabb aabb = computeDescendantWorldAabb(target);
+        if (!aabb.valid) {
+            return result;
+        }
+        result.valid = true;
+        result.center = (aabb.minimum + aabb.maximum) * 0.5f;
+        result.size = aabb.maximum - aabb.minimum;
+        result.rotation = Quaternion();
+        return result;
+    }
+    if (target.IsA("Spatial")) {
+        auto* spatial = static_cast<Spatial*>(&target);
+        result.valid = true;
+        result.center = spatial->getWorldPosition();
+        result.size = spatial->Size;
+        result.rotation = spatial->getWorldCFrame().Rotation;
+    }
+    return result;
+}
+
+std::vector<BaseCube*> collectHighlightBaseCubes(Instance& target) {
+    std::vector<BaseCube*> result;
+    if (target.IsA("BaseCube")) {
+        result.push_back(static_cast<BaseCube*>(&target));
+    } else {
+        for (auto const& [_, child] : target.getChildren()) {
+            collectHighlightBaseCubesRecursive(child.get(), result);
+        }
+    }
+    return result;
+}
+
 float fitOnAxis(
     Workspace& workspace,
-    Vector3 position,
-    const Vector3& size,
-    Spatial& moving,
+    Vector3 center,
+    const MovementBounds& bounds,
+    Instance& movingRoot,
     int axis) {
-    const Quaternion movingRotation = moving.getWorldCFrame().Rotation;
+    if (!bounds.valid || axis < 0 || axis > 2) {
+        return axis == 0 ? center.x : axis == 1 ? center.y : center.z;
+    }
     const Vector3 axisDirection = axis == 0
         ? Vector3(1.0f, 0.0f, 0.0f)
         : axis == 1
             ? Vector3(0.0f, 1.0f, 0.0f)
             : Vector3(0.0f, 0.0f, 1.0f);
-    float positionComponents[3] = { position.x, position.y, position.z };
-    fitOnAxisRecursive(
-        &workspace,
-        &moving,
-        movingRotation,
-        size,
-        axisDirection,
-        axis,
-        positionComponents);
-    return positionComponents[axis];
+    float position[3] = { center.x, center.y, center.z };
+    fitBoundsOnAxisRecursive(
+        &workspace, &movingRoot, bounds, axisDirection, axis, position);
+    return position[axis];
 }
 
 Vector3 fitCollision(
     Workspace& workspace,
-    Vector3 position,
-    const Vector3& size,
-    Spatial& moving) {
-    const Quaternion movingRotation = moving.getWorldCFrame().Rotation;
-    fitCollisionRecursive(
-        &workspace,
-        &moving,
-        movingRotation,
-        size,
-        position);
-    return position;
+    Vector3 center,
+    const MovementBounds& bounds,
+    Instance& movingRoot) {
+    if (!bounds.valid) {
+        return center;
+    }
+    fitBoundsCollisionRecursive(&workspace, &movingRoot, bounds, center);
+    return center;
 }
 
 } // namespace ViewportSceneQueries

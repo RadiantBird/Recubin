@@ -57,6 +57,7 @@ namespace {
 class FrameRateTestInputBackend final : public IInputBackend {
 public:
     std::unordered_set<KeyCode> pressedKeys;
+    double scrollDelta = 0.0;
 
     bool isKeyDown(KeyCode key) const override { return pressedKeys.contains(key); }
     bool isMouseButtonDown(MouseButton button) const override {
@@ -66,7 +67,11 @@ public:
     void getCursorPos(double& x, double& y) const override { x = 0.0; y = 0.0; }
     void setCursorPos(double x, double y) override { (void)x; (void)y; }
     void setMouseCaptured(bool captured) override { (void)captured; }
-    double consumeScrollDelta() override { return 0.0; }
+    double consumeScrollDelta() override {
+        const double result = scrollDelta;
+        scrollDelta = 0.0;
+        return result;
+    }
 };
 
 const char* findSceneArgument(int argc, char* argv[], int startIndex) {
@@ -3611,6 +3616,8 @@ int runViewportHelperRegression() {
     auto workspace = std::make_shared<Workspace>();
     auto nestedModel = std::make_shared<Model>();
     nestedModel->Name = "NestedModel";
+    auto innerModel = std::make_shared<Model>();
+    innerModel->Name = "InnerModel";
     auto front = std::make_shared<BaseCube>(
         Vector3(0.0f, 0.0f, -3.0f), Vector3(1.0f, 1.0f, 1.0f));
     front->Name = "Front";
@@ -3621,7 +3628,8 @@ int runViewportHelperRegression() {
         Vector3(0.0f, 0.0f, -6.0f), Vector3(1.0f, 1.0f, 1.0f));
     behind->Name = "Behind";
     workspace->addChild(nestedModel);
-    nestedModel->addChild(front);
+    nestedModel->addChild(innerModel);
+    innerModel->addChild(front);
     front->addChild(lockedDescendant);
     workspace->addChild(behind);
 
@@ -3631,6 +3639,12 @@ int runViewportHelperRegression() {
         ViewportSceneQueries::findNearestBaseCube(*workspace, sceneRay);
     expect(nearest.hit && nearest.cube == front.get(),
            "nearest BaseCube search traverses nested instances");
+    const ViewportSceneQueries::SelectionRayHit promotedSelection =
+        ViewportSceneQueries::findSelectionTarget(*workspace, sceneRay);
+    expect(promotedSelection.hit && !promotedSelection.locked
+               && promotedSelection.cube == front.get()
+               && promotedSelection.target == nestedModel.get(),
+           "selection promotes the nearest cube to its topmost Model");
     const ViewportSceneQueries::BaseCubeRayHit excluded =
         ViewportSceneQueries::findNearestBaseCube(*workspace, sceneRay, front.get());
     expect(excluded.hit && excluded.cube == behind.get(),
@@ -3642,6 +3656,44 @@ int runViewportHelperRegression() {
     expect(lockedNearest.hit && lockedNearest.cube == front.get()
                && ViewportSceneQueries::isLockedBaseCube(lockedNearest.cube),
            "front Locked cube remains the hit ahead of an unlocked cube");
+    const ViewportSceneQueries::SelectionRayHit lockedSelection =
+        ViewportSceneQueries::findSelectionTarget(*workspace, sceneRay);
+    expect(lockedSelection.hit && lockedSelection.locked
+               && lockedSelection.cube == front.get()
+               && lockedSelection.target == front.get(),
+           "Locked cube blocks selection without promoting to its Model");
+
+    auto priorityWorkspace = std::make_shared<Workspace>();
+    auto looseFront = std::make_shared<BaseCube>(
+        Vector3(0.0f, 0.0f, -3.0f), Vector3(1.0f, 1.0f, 1.0f));
+    looseFront->Name = "LooseFront";
+    auto rearModel = std::make_shared<Model>();
+    rearModel->Name = "RearModel";
+    auto rearChild = std::make_shared<BaseCube>(
+        Vector3(0.0f, 0.0f, -6.0f), Vector3(1.0f, 1.0f, 1.0f));
+    rearChild->Name = "RearChild";
+    priorityWorkspace->addChild(looseFront);
+    priorityWorkspace->addChild(rearModel);
+    rearModel->addChild(rearChild);
+    const ViewportSceneQueries::SelectionRayHit depthPriority =
+        ViewportSceneQueries::findSelectionTarget(*priorityWorkspace, sceneRay);
+    expect(depthPriority.hit && depthPriority.target == looseFront.get(),
+           "front loose cube remains ahead of a rear Model target");
+
+    auto gapWorkspace = std::make_shared<Workspace>();
+    auto gapModel = std::make_shared<Model>();
+    gapModel->Name = "GapModel";
+    auto gapLeft = std::make_shared<BaseCube>(
+        Vector3(-2.0f, 0.0f, -4.0f), Vector3(1.0f, 1.0f, 1.0f));
+    auto gapRight = std::make_shared<BaseCube>(
+        Vector3(2.0f, 0.0f, -4.0f), Vector3(1.0f, 1.0f, 1.0f));
+    gapLeft->Name = "GapLeft";
+    gapRight->Name = "GapRight";
+    gapWorkspace->addChild(gapModel);
+    gapModel->addChild(gapLeft);
+    gapModel->addChild(gapRight);
+    expect(!ViewportSceneQueries::findSelectionTarget(*gapWorkspace, sceneRay).hit,
+           "empty space inside a Model AABB is not selectable");
 
     const ViewportSceneQueries::PickerRayHit cubePick =
         ViewportSceneQueries::findPickerTarget(
@@ -3696,6 +3748,22 @@ int runViewportHelperRegression() {
                && positionDistance(bounds.minimum, Vector3(7.0f, -2.0f, -1.0f)) <= 0.001f
                && positionDistance(bounds.maximum, Vector3(15.0f, 2.0f, 3.0f)) <= 0.001f,
            "descendant world AABB includes nested BaseCubes");
+    const ViewportSceneQueries::MovementBounds modelBounds =
+        ViewportSceneQueries::computeMovementBounds(*boundsRoot);
+    expect(modelBounds.valid
+               && positionDistance(modelBounds.center, Vector3(11.0f, 0.0f, 1.0f)) <= 0.001f
+               && positionDistance(modelBounds.size, Vector3(8.0f, 4.0f, 4.0f)) <= 0.001f,
+           "Model movement bounds use the descendant world AABB");
+    const ViewportSceneQueries::MovementBounds rotatedCubeBounds =
+        ViewportSceneQueries::computeMovementBounds(*transformChild);
+    expect(rotatedCubeBounds.valid
+               && positionDistance(rotatedCubeBounds.size, transformChild->Size) <= 0.001f
+               && quaternionDotMagnitude(
+                      rotatedCubeBounds.rotation,
+                      transformChild->getWorldCFrame().Rotation) >= 0.9999f,
+           "BaseCube movement bounds preserve its rotated world OBB");
+    expect(ViewportSceneQueries::collectHighlightBaseCubes(*boundsRoot).size() == 2,
+           "Model highlight query returns descendant BaseCubes only once");
 
     auto fitWorkspace = std::make_shared<Workspace>();
     auto obstacle = std::make_shared<BaseCube>(
@@ -3704,15 +3772,66 @@ int runViewportHelperRegression() {
     fitWorkspace->addChild(obstacle);
     auto moving = std::make_shared<BaseCube>(
         Vector3(1.5f, 0.0f, 0.0f), Vector3(2.0f, 2.0f, 2.0f));
+    const ViewportSceneQueries::MovementBounds movingBounds =
+        ViewportSceneQueries::computeMovementBounds(*moving);
     expect(near(ViewportSceneQueries::fitOnAxis(
-                    *fitWorkspace, moving->Position, moving->Size, *moving, 0),
+                    *fitWorkspace, moving->Position, movingBounds, *moving, 0),
                 2.0f),
            "axis collision fit resolves overlap along the requested axis");
     expect(positionDistance(
                ViewportSceneQueries::fitCollision(
-                   *fitWorkspace, moving->Position, moving->Size, *moving),
+                   *fitWorkspace, moving->Position, movingBounds, *moving),
                Vector3(2.0f, 0.0f, 0.0f)) <= 0.001f,
            "minimum-overlap collision fit resolves a stable axis-aligned overlap");
+
+    auto movingModel = std::make_shared<Model>(Vector3(1.5f, 0.0f, 0.0f));
+    movingModel->Name = "MovingModel";
+    auto movingChild = std::make_shared<BaseCube>(
+        Vector3(0.0f, 0.0f, 0.0f), Vector3(2.0f, 2.0f, 2.0f));
+    movingChild->Name = "MovingChild";
+    movingModel->addChild(movingChild);
+    fitWorkspace->addChild(movingModel);
+    const ViewportSceneQueries::MovementBounds movingModelBounds =
+        ViewportSceneQueries::computeMovementBounds(*movingModel);
+    expect(positionDistance(
+               ViewportSceneQueries::fitCollision(
+                   *fitWorkspace, movingModelBounds.center, movingModelBounds, *movingModel),
+               Vector3(2.0f, 0.0f, 0.0f)) <= 0.001f,
+           "Model collision fit uses its AABB and excludes its descendant subtree");
+
+    const Vector3 smallResize = ViewportGeometry::additiveResize(
+        Vector3(2.0f, 4.0f, 6.0f), Vector3(1.5f, 1.0f, 1.0f), false, 1.0f);
+    const Vector3 largeResize = ViewportGeometry::additiveResize(
+        Vector3(20.0f, 40.0f, 60.0f), Vector3(1.5f, 1.0f, 1.0f), false, 1.0f);
+    expect(near(smallResize.x - 2.0f, 0.5f)
+               && near(largeResize.x - 20.0f, 0.5f)
+               && near(smallResize.y, 4.0f) && near(largeResize.y, 40.0f),
+           "additive resize produces the same world delta for different initial sizes");
+    const Vector3 snappedResize = ViewportGeometry::additiveResize(
+        Vector3(2.2f, 2.0f, 0.1f), Vector3(1.4f, 1.0f, 0.0f), true, 1.0f);
+    expect(near(snappedResize.x, 3.0f) && near(snappedResize.y, 2.0f)
+               && near(snappedResize.z, 0.05f),
+           "additive resize preserves unchanged axes, absolute snap, and minimum size");
+
+    auto zoomBackend = std::make_unique<FrameRateTestInputBackend>();
+    FrameRateTestInputBackend* zoomInput = zoomBackend.get();
+    auto zoomUser = std::make_shared<User>(std::move(zoomBackend));
+    zoomUser->controlMode = User::ControlMode::Free;
+    const Vector3 zoomStart = zoomUser->cpos;
+    zoomInput->scrollDelta = 2.0;
+    zoomUser->processInput(nullptr, 1.0f / 60.0f, true, false, false, false);
+    expect(positionDistance(zoomUser->cpos, zoomStart) <= 0.001f
+               && near(static_cast<float>(zoomInput->scrollDelta), 0.0f),
+           "focused but non-hovered viewport consumes scroll without zooming");
+    zoomInput->scrollDelta = 2.0;
+    zoomUser->processInput(nullptr, 1.0f / 60.0f, true, true, false, false);
+    expect(positionDistance(zoomUser->cpos, zoomStart) > 0.5f,
+           "hovered viewport applies mouse-wheel zoom");
+    zoomInput->pressedKeys.insert(KeyCode::I);
+    const Vector3 beforeKeyboardZoom = zoomUser->cpos;
+    zoomUser->processInput(nullptr, 1.0f / 60.0f, true, false, false, false);
+    expect(positionDistance(zoomUser->cpos, beforeKeyboardZoom) > 0.01f,
+           "focused viewport keeps keyboard zoom when the mouse is outside");
 
     std::cout << "[ViewportHelperRegression] "
               << (failures == 0 ? "PASS" : "FAIL") << '\n';

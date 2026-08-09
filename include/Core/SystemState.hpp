@@ -11,7 +11,7 @@ struct SystemState {
     bool isPlaying           = false;
     bool isPaused            = false;
     bool viewportFocused     = false;
-    bool viewportZoomEnabled = false;
+    bool viewportHovered     = false;
     InputState inputState    = InputState::Editor;
 
     static SystemState& get();

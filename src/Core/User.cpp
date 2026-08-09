@@ -291,24 +291,23 @@ void User::endExternalCameraDrag() {
 }
 
 // ズーム（I/Oキー・スクロール）
-void User::processZoom(bool viewportZoomEnabled, float deltaTime) {
+void User::processZoom(bool keyboardZoomEnabled, bool mouseZoomEnabled, float deltaTime) {
     // 無効時も毎フレーム破棄しておかないと、ビューポート外でのスクロールが
     // 消費されずに溜まり、後でhoverしただけの瞬間にまとめて適用されてしまう
     const double scrollDelta = m_input->consumeScrollDelta();
-    if (!viewportZoomEnabled) return;
     if (controlMode == ControlMode::Program) return; // Luauがカメラを直接制御するため入力は無視する
 
     const float keyboardZoom = zoomSpeed * std::max(deltaTime, 0.0f) * 60.0f;
     if (controlMode == ControlMode::Free) {
-        if (m_input->isKeyDown(KeyCode::I)) cpos = cpos + forward * keyboardZoom;
-        if (m_input->isKeyDown(KeyCode::O)) cpos = cpos - forward * keyboardZoom;
-        if (scrollDelta != 0.0) {
+        if (keyboardZoomEnabled && m_input->isKeyDown(KeyCode::I)) cpos = cpos + forward * keyboardZoom;
+        if (keyboardZoomEnabled && m_input->isKeyDown(KeyCode::O)) cpos = cpos - forward * keyboardZoom;
+        if (mouseZoomEnabled && scrollDelta != 0.0) {
             cpos = cpos + forward * (static_cast<float>(scrollDelta) * mouseZoomSpeed);
         }
     } else {
-        if (m_input->isKeyDown(KeyCode::I)) { cameraDistance -= keyboardZoom; if (cameraDistance < minCameraDistance) cameraDistance = minCameraDistance; }
-        if (m_input->isKeyDown(KeyCode::O)) cameraDistance += keyboardZoom;
-        if (scrollDelta != 0.0) {
+        if (keyboardZoomEnabled && m_input->isKeyDown(KeyCode::I)) { cameraDistance -= keyboardZoom; if (cameraDistance < minCameraDistance) cameraDistance = minCameraDistance; }
+        if (keyboardZoomEnabled && m_input->isKeyDown(KeyCode::O)) cameraDistance += keyboardZoom;
+        if (mouseZoomEnabled && scrollDelta != 0.0) {
             cameraDistance -= static_cast<float>(scrollDelta) * mouseZoomSpeed;
             if (cameraDistance < minCameraDistance) cameraDistance = minCameraDistance;
         }
@@ -316,8 +315,8 @@ void User::processZoom(bool viewportZoomEnabled, float deltaTime) {
 }
 
 // 移動ディスパッチ（Free / Character を振り分け）
-void User::processMovement(bool viewportZoomEnabled, Physics* physics, float deltaTime) {
-    if (viewportZoomEnabled) {
+void User::processMovement(bool viewportFocused, Physics* physics, float deltaTime) {
+    if (viewportFocused) {
         if (controlMode == ControlMode::Free) {
             Vector3 moveDirection{};
 
@@ -600,7 +599,8 @@ void User::processMouse(bool isGameplayInput) {
 // processInput（呼び出し口）
 // ============================================================
 
-void User::processInput(Physics* physics, float deltaTime, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput) {
+void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
+                        bool viewportHovered, bool isGameplayInput, bool wantsTextInput) {
     if (!m_input) return;
 
     // ジャンプ要求は毎フレームクリアし、processHotkeys()内でSpace押下時にのみセットする
@@ -614,7 +614,9 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     if (humanoid && humanoid->isRespawnReady()) respawnCharacter();
 
     bool rotated = processCameraRotation(viewportFocused && !wantsTextInput, deltaTime);
-    processZoom(viewportZoomEnabled && !wantsTextInput, deltaTime);
+    processZoom(viewportFocused && !wantsTextInput,
+                viewportHovered && !wantsTextInput,
+                deltaTime);
     if (humanoid) humanoid->updateFirstPersonState(cameraDistance <= firstPersonThreshold);
     // 死亡中はキャラクター移動を駆動しない（ばらしたパーツを上書きしないため）
     if (!humanoid || !humanoid->isDead()) {

@@ -1287,6 +1287,7 @@ void PropertiesPanel::onRender() {
         ImGui::DragFloat("CameraDistance", &usr->cameraDistance, 0.1f, 1.0f, 50.0f, "%.2f");
         ImGui::DragFloat("ZoomSpeed", &usr->zoomSpeed, 0.01f, 0.0f, 1.0f, "%.3f");
         ImGui::DragFloat("MouseZoomSpeed", &usr->mouseZoomSpeed, 0.1f, 0.0f, 10.0f, "%.2f");
+        ImGui::DragFloat("GizmoSize", &usr->gizmoSize, 0.01f, 0.05f, 0.50f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
 
         // Current slot index (read-only)
         ImGui::LabelText("CurrentSlotIndex", "%d", usr->currentSlotIndex);

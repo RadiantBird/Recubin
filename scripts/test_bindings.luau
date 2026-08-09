@@ -104,6 +104,11 @@ cube.Anchored = true
 check("Anchored setter = true", cube.Anchored == true)
 cube.Anchored = false
 
+check("Locked getter == false", cube.Locked == false)
+cube.Locked = true
+check("Locked setter = true", cube.Locked == true)
+cube.Locked = false
+
 check("CanCollide getter == true", cube.CanCollide == true)
 cube.CanCollide = false
 check("CanCollide setter = false", cube.CanCollide == false)

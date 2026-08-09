@@ -383,6 +383,7 @@ void LuauEngine::InitDispatchTable_Base() {
     DispatchTable["BaseCube"]["Unlit"]        = getter_bool   <BaseCube, &BaseCube::Unlit>();
     DispatchTable["BaseCube"]["UseTriplanar"] = getter_bool   <BaseCube, &BaseCube::UseTriplanar>();
     DispatchTable["BaseCube"]["TextureScale"] = getter_number <BaseCube, &BaseCube::TextureScale>();
+    DispatchTable["BaseCube"]["Locked"]       = getter_bool   <BaseCube, &BaseCube::Locked>();
     DispatchTable["BaseCube"]["Touched"]      = getter_signal <BaseCube, &BaseCube::Touched>();
     DispatchTable["BaseCube"]["CCDMode"]      = [](lua_State* L, Instance* obj) {
         const auto* cube = static_cast<BaseCube*>(obj);
@@ -681,6 +682,7 @@ void LuauEngine::InitSetterTable_Base() {
     SetterTable["BaseCube"]["Unlit"]        = setter_bool       <BaseCube, &BaseCube::Unlit>();
     SetterTable["BaseCube"]["UseTriplanar"] = setter_bool       <BaseCube, &BaseCube::UseTriplanar>();
     SetterTable["BaseCube"]["TextureScale"] = setter_number     <BaseCube, &BaseCube::TextureScale>();
+    SetterTable["BaseCube"]["Locked"]       = setter_method_bool<BaseCube, &BaseCube::setLocked>();
     SetterTable["BaseCube"]["CCDMode"] = [](lua_State* L, Instance* obj) {
         const std::string mode = luaL_checkstring(L, 3);
         static_cast<BaseCube*>(obj)->setCCDMode(

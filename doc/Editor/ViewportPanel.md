@@ -23,7 +23,7 @@ private メソッドは次の責務に分かれる。
 | 表示 | `renderLayoutAndScene()` | FBO リサイズ、シーン描画、レターボックス、ゲーム GUI 合成 |
 | フォーカス／カメラ | `updateViewportFocus()`, `updateOwnCameraInput()` | ビューポートフォーカスと独立カメラ入力 |
 | クリックツール | `updateTerrainBrush()`, `updateWeldMode()`, `handleViewportClick()` | クリックの優先消費と Picker／Decal／通常選択 |
-| 選択表示／操作 | `updateBoxSelection()`, `updateGizmo()`, `drawSelectionHighlights()`, `drawModelHighlight()` | 矩形選択、ギズモ、Cube／Model ハイライト |
+| 選択表示／操作 | `updateBoxSelection()`, `updateGizmo()`, `drawHoverHighlight()` | 矩形選択、ギズモ、クリック候補の事前ハイライト |
 | ドラッグ／キー | `updateFreeDrag()`, `moveFreeDragSelection()`, `handlePivotShortcut()`, `handleFocusShortcut()` | 自由移動、Undo 記録、Tab ピボット、F フォーカス |
 
 ## フレーム内の順序
@@ -35,7 +35,7 @@ private メソッドは次の責務に分かれる。
 3. フォーカスを更新し、セカンダリの場合は独立カメラ入力を反映する。
 4. Terrain ブラシ、Weld の順にクリックを処理する。
 5. 未消費のクリックを Picker、Decal、通常選択の順で処理する。
-6. 矩形選択、フォーカス枠、ギズモ、Cube ハイライト、Model ハイライトを更新・描画する。
+6. 矩形選択、フォーカス枠、ギズモ、クリック候補の実形状外枠を更新・描画する。
 7. 自由ドラッグとその Undo 記録、Tab ピボット、F フォーカスを処理する。
 8. ImGuizmo ID と ImGui ウィンドウのスコープを終了する。
 
@@ -56,6 +56,7 @@ UI やシーンツリーに依存しない幾何計算を提供する。
 - ワールド座標から親 Spatial のローカル位置・回転への変換
 - ワールド座標の画面投影
 - 回転済み OBB を含む `WorldAabb` の集約
+- ImGuizmoの係数差をワールド単位へ変換する加算Resize
 
 結果は `Ray`、`ObbRayHit`、`ProjectedPoint`、`WorldAabb` の値型で返す。
 
@@ -66,14 +67,29 @@ UI やシーンツリーに依存しない幾何計算を提供する。
 `Workspace` / `Instance` の再帰走査を名前付き関数として提供する。
 
 - 最近傍 BaseCube と Picker 対象（BaseCube／Attachment）の検索
+- 最前面Cubeから最上位Modelへ昇格する通常選択／ホバー問い合わせ
 - 矩形内の選択可能 Cube の収集
-- Model 子孫のワールド AABB 計算
-- 自由ドラッグ用の軸別／最小移動量による衝突フィット
+- Model 子孫のワールド AABB と、Cube／Model共通の移動境界計算
+- 自由ドラッグとギズモ用の軸別／最小移動量による衝突フィット
+- BaseCube／Model子孫の実形状ハイライト対象収集
 - BaseCube の Locked 判定
 
 通常選択の最近傍検索は Locked Cube もヒットとして返す。これにより最前面の Locked Cube が
 背後の未ロック Cube を遮り、呼び出し側が通常クリック時の選択解除を適用できる。矩形選択では
 Locked Cube 自身とその子孫を収集しない。
+
+非Locked CubeがModelに属する場合、クリック単位はWorkspace直下に最も近い最上位Modelへ昇格する。
+ただしレイの距離が先に評価されるため、手前の単独Cubeが奥のModelより優先され、Model AABB内の
+空白だけでは選択されない。Select／Moveの表面ドラッグは5px閾値後に開始し、Modelは子孫Cubeの
+ワールドAABBを使って配置・衝突フィットする。
+
+Editor選択表示はRenderer内の実形状外枠へ統一され、Primaryは黄色、Secondaryは橙色で描画する。
+旧画面矩形とModel AABB線、Editor選択用の塗りは使用しない。Select／Move／Resize／Rotate中の未選択候補は
+白い半透明外枠で事前表示し、Highlightインスタンス自身のFillColor設定には影響しない。
+
+Resizeは初期Sizeへの倍率ではなく、単位スケール行列から得た係数差をワールド単位として加算する。
+`User::gizmoSize`は既定0.20で、シーンではなく`editor_settings.yaml`へ保存される。Primaryカメラ入力は
+キーボードズームをフォーカス、ホイールズームを画像ホバーで個別に許可する。
 
 ## 公開ライフサイクル
 

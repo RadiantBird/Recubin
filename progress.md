@@ -24,3 +24,12 @@
 - direct Host/Clientの2ピアloopback疎通、双方の`READY expected-peers=2`と双方向チャットを
   標準ライブラリのみで検証し、OS別zipをartifactとして保存するようにした。
 - `v*`タグではテスト成功後にGitHub Releaseを作成または再利用し、OS別zipを更新する。
+
+## 2026-08-09: Viewport QoL改善
+
+- LockedをLuau Read/Writeへ公開し、最前面Lockedの遮蔽・クリック解除・矩形選択開始を維持した。
+- 通常クリックを最前面Cubeから最上位Modelへ昇格し、Select／Move共通の表面ドラッグとModel子孫AABBによる衝突フィットを追加した。
+- Editor選択表示を塗りなしの実形状外枠へ統一し、旧画面矩形／Model AABB線を廃止。ギズモモードのクリック候補へ白い事前外枠を追加した。
+- Resizeを初期サイズ非依存のワールド単位加算式へ変更し、`User::gizmoSize`（既定0.20）をEditor設定として保存するようにした。
+- Primaryカメラのキーボードズームとホイール許可を分離し、Viewport外スクロールを消費のみとしてカメラへ適用しないようにした。
+- Viewportヘルパー回帰を34項目へ拡張し、フルビルドと全項目の成功を確認した。

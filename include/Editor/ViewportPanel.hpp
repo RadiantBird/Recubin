@@ -54,6 +54,8 @@ public:
     bool isHoveringViewport  = false;  // マウスがViewport上にあるか
     bool showPhysicsDebug    = false;  // 物理制約デバッグビジュアライザー（Viewメニューで切替）
     bool m_isDraggingSelected = false; // 選択キューブ上でドラッグ開始したか
+    bool m_isFreeDragArmed = false;    // 選択対象上の押下後、5px閾値待ち
+    ImVec2 m_freeDragStart = {};
 
     // ボックス選択ステート
     bool   m_isBoxSelecting   = false;
@@ -158,8 +160,7 @@ private:
     void updateBoxSelection(const ViewportLayout& layout);
     void drawFocusBorder();
     void updateGizmo(const ViewportLayout& layout);
-    void drawSelectionHighlights(const ViewportLayout& layout);
-    void drawModelHighlight(const ViewportLayout& layout);
+    void drawHoverHighlight(const ViewportLayout& layout);
     void updateFreeDrag(const ViewportLayout& layout);
     void moveFreeDragSelection(const ViewportLayout& layout);
     void handlePivotShortcut(const ViewportLayout& layout);

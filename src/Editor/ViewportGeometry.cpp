@@ -220,4 +220,27 @@ void accumulateWorldAabb(
     aabb.valid = true;
 }
 
+Vector3 additiveResize(
+    const Vector3& initialSize,
+    const Vector3& gizmoScale,
+    bool snapEnabled,
+    float snapStep,
+    float minimumSize) {
+    const float initial[3] = { initialSize.x, initialSize.y, initialSize.z };
+    const float scale[3] = { gizmoScale.x, gizmoScale.y, gizmoScale.z };
+    float result[3] = { initialSize.x, initialSize.y, initialSize.z };
+    for (int axis = 0; axis < 3; ++axis) {
+        if (std::abs(scale[axis] - 1.0f) < 1e-4f) {
+            continue;
+        }
+        result[axis] = (std::max)(initial[axis] + (scale[axis] - 1.0f), minimumSize);
+        if (snapEnabled && snapStep > 1e-6f) {
+            result[axis] = (std::max)(
+                std::round(result[axis] / snapStep) * snapStep,
+                minimumSize);
+        }
+    }
+    return Vector3(result[0], result[1], result[2]);
+}
+
 } // namespace ViewportGeometry

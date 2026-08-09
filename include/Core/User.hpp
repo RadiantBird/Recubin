@@ -34,6 +34,7 @@ public:
     float cameraDistance = 10.0f;
     float zoomSpeed = 0.1f;
     float mouseZoomSpeed = 1.0f; // キーボードより早めに
+    float gizmoSize = 0.20f;     // Editorローカル設定。シーン/Luauには保存・公開しない
 
     float movingTime = 0.0f;
     float accelerationDelay = 1.5f;
@@ -65,8 +66,8 @@ public:
     std::shared_ptr<RCBNScriptSignal> CharacterAdded;
 
     bool processCameraRotation(bool viewportFocused, float deltaTime);
-    void processZoom(bool viewportZoomEnabled, float deltaTime);
-    void processMovement(bool viewportZoomEnabled, Physics* physics, float deltaTime);
+    void processZoom(bool keyboardZoomEnabled, bool mouseZoomEnabled, float deltaTime);
+    void processMovement(bool viewportFocused, Physics* physics, float deltaTime);
     void processHotkeys(Physics* physics);
     void processToolkeys(bool viewportFocused, bool isGameplayInput, bool wantsTextInput);
     void processMouse(bool isGameplayInput);
@@ -138,7 +139,8 @@ public:
     std::shared_ptr<Tool> getToolInSlot(int slotIndex) const;
     // スロットから Tool を外し、ツリーからもデタッチして返す。装備中なら解除する。範囲外/空なら nullptr。
     std::shared_ptr<Tool> removeToolFromSlot(int slotIndex);
-    void processInput(class Physics* physics, float deltaTime, bool viewportFocused, bool viewportZoomEnabled, bool isGameplayInput, bool wantsTextInput);
+    void processInput(class Physics* physics, float deltaTime, bool viewportFocused,
+                      bool viewportHovered, bool isGameplayInput, bool wantsTextInput);
     // searchRoot: StarterCharacterを探す起点(通常はSystem)。Userは自身のParentに必ずしも
     // システムが居るとは限らない(パッケージ済みランタイムではUserがツリーに属さない)ため、
     // 呼び出し元(main.cpp/game_main.cpp)から明示的に渡す

@@ -39,6 +39,7 @@
 #include <array>
 #include <cstring>
 #include <filesystem>
+#include <unordered_set>
 
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -1963,20 +1964,35 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     FrameProfiler::get().endSection("main");
 
     FrameProfiler::get().beginSection("extras");
-    // ---- 選択インスタンスのハイライト（黄色系。Highlightインスタンスと同じ共有描画ロジックを使用） ----
-    if (desc.renderHighlights && editor) {
-        if (Instance* sel = editor->getSelectedInstance()) {
-            if (!sel->Parent.expired() && (sel->IsA("BaseCube") || sel->IsA("Model"))) {
-                static const Color4 kSelectionFillColor(1.0f, 1.0f, 0.0f, 0.15f);   // 半透明の黄色塗り
-                static const Color4 kSelectionOutlineColor(1.0f, 1.0f, 0.0f, 1.0f); // 既存の黄色
-                const float kSelectionOutlineThickness = 2.0f;                     // 既存のglLineWidth(2.0f)と同じ
+    // ---- Editor選択外枠。Highlightインスタンスの塗り設定とは独立 ----
+    if (desc.renderHighlights && desc.primarySelection) {
+        static const Color4 kTransparentFill(0.0f, 0.0f, 0.0f, 0.0f);
+        static const Color4 kPrimaryOutline(1.0f, 1.0f, 0.0f, 1.0f);
+        static const Color4 kSecondaryOutline(1.0f, 0.59f, 0.12f, 0.82f);
+        constexpr float kSelectionOutlineThickness = 2.0f;
 
+        std::unordered_set<BaseCube*> secondaryDrawn;
+        if (desc.selectionTargets) {
+            for (Instance* selected : *desc.selectionTargets) {
+                if (!selected || selected == desc.primarySelection || selected->Parent.expired()) continue;
                 std::vector<BaseCube*> targets;
-                collectHighlightTargets(sel, targets);
+                collectHighlightTargets(selected, targets);
                 for (BaseCube* bc : targets) {
-                    drawBaseCubeHighlight(bc, kSelectionFillColor, kSelectionOutlineColor, kSelectionOutlineThickness,
-                                          view, projection, desc.cameraPosition, fovYDegrees, desc.height);
+                    if (!bc || !secondaryDrawn.insert(bc).second) continue;
+                    drawBaseCubeHighlight(
+                        bc, kTransparentFill, kSecondaryOutline, kSelectionOutlineThickness,
+                        view, projection, desc.cameraPosition, fovYDegrees, desc.height);
                 }
+            }
+        }
+
+        if (!desc.primarySelection->Parent.expired()) {
+            std::vector<BaseCube*> primaryTargets;
+            collectHighlightTargets(desc.primarySelection, primaryTargets);
+            for (BaseCube* bc : primaryTargets) {
+                drawBaseCubeHighlight(
+                    bc, kTransparentFill, kPrimaryOutline, kSelectionOutlineThickness,
+                    view, projection, desc.cameraPosition, fovYDegrees, desc.height);
             }
         }
     }

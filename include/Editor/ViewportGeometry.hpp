@@ -70,4 +70,11 @@ void accumulateWorldAabb(
     const CFrame& worldCFrame,
     const Vector3& size);
 
+Vector3 additiveResize(
+    const Vector3& initialSize,
+    const Vector3& gizmoScale,
+    bool snapEnabled,
+    float snapStep,
+    float minimumSize = 0.05f);
+
 } // namespace ViewportGeometry

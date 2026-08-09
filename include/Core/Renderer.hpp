@@ -46,6 +46,8 @@ struct ViewportRenderDesc {
     Vector3 cameraForward;
     Vector3 cameraUp;
     Workspace* workspace = nullptr;
+    Instance* primarySelection = nullptr;                      // 非所有。Editor選択外枠用
+    const std::vector<Instance*>* selectionTargets = nullptr; // 非所有。複数選択用
     bool renderShadows = true;
     bool renderHighlights = false;
     bool renderInstanceHighlights = true;  // Highlightインスタンス自体の描画。エディタ選択ハイライト(renderHighlights)とは独立。ランタイム単体でも常にtrue

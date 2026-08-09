@@ -315,6 +315,7 @@ static void loadEditorPreferences(EditorManager* ed, User* user) {
     if (p["SnapScale"])        ed->viewportPanel->snapScale        = p["SnapScale"].as<bool>();
     if (p["SnapScaleVal"])     ed->viewportPanel->snapScaleVal     = p["SnapScaleVal"].as<float>();
     if (p["CollisionFit"])     ed->viewportPanel->collisionFit     = p["CollisionFit"].as<bool>();
+    if (p["GizmoSize"])        user->gizmoSize = std::clamp(p["GizmoSize"].as<float>(), 0.05f, 0.50f);
 
     if (p["GizmoOp"]) {
         int op = p["GizmoOp"].as<int>();
@@ -363,6 +364,7 @@ static void saveEditorPreferences(EditorManager* ed, User* user) {
     p["SnapScale"]        = ed->viewportPanel->snapScale;
     p["SnapScaleVal"]     = ed->viewportPanel->snapScaleVal;
     p["CollisionFit"]     = ed->viewportPanel->collisionFit;
+    p["GizmoSize"]        = std::clamp(user->gizmoSize, 0.05f, 0.50f);
 
     p["GizmoOp"]     = static_cast<int>(ed->viewportPanel->gizmoOp);
     p["GizmoMode"]   = static_cast<int>(ed->viewportPanel->gizmoMode);
@@ -802,10 +804,10 @@ int main(int argc, char* argv[]) {
         ViewportPanel* focusedVP = ed ? GetFocusedViewport() : nullptr;
         bool primaryFocused = focusedVP != nullptr && ed && focusedVP == ed->viewportPanel.get();
         state.viewportFocused    = primaryFocused;
-        state.viewportZoomEnabled = primaryFocused || (ed && ed->viewportPanel && ed->viewportPanel->isHoveringViewport);
+        state.viewportHovered = ed && ed->viewportPanel && ed->viewportPanel->isHoveringViewport;
         if (!navMeshBusy) {
             user->processInput(workspace->getPhysicsEngine(), deltaTime,
-                               state.viewportFocused, state.viewportZoomEnabled,
+                               state.viewportFocused, state.viewportHovered,
                                state.inputState == InputState::Gameplay,
                                ImGui::GetIO().WantTextInput);
         }
