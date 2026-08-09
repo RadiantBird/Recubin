@@ -11,6 +11,9 @@ _snapshot.yaml
 terrain/
 assets/bin
 editor_settings.yaml
+
+desktop.ini
+
 *.glb
 *.gltf
 *.obj
