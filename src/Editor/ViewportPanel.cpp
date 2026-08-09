@@ -56,6 +56,11 @@ static bool computeDescendantWorldAABB(Instance* root, Vector3& outMin, Vector3&
     return found;
 }
 
+static bool isLockedBaseCube(Instance* instance) {
+    return instance && instance->IsA("BaseCube") &&
+        static_cast<BaseCube*>(instance)->Locked;
+}
+
 // ===================================================
 //  ViewportPanel 実装
 // ===================================================
@@ -775,7 +780,9 @@ void ViewportPanel::onRender() {
         else {
             // Step 1: 現在の選択物のOBBにヒットしたか判定（非Selectモードのドラッグ用）
             bool hitSelected = false;
-            if (!selectOnly && selectedInstance && *selectedInstance && (*selectedInstance)->IsA("Spatial")) {
+            if (!selectOnly && selectedInstance && *selectedInstance &&
+                    (*selectedInstance)->IsA("Spatial") &&
+                    !isLockedBaseCube(*selectedInstance)) {
                 Spatial* sp = static_cast<Spatial*>(*selectedInstance);
                 float t = obbHit(rayOri, rayDir, sp->getWorldCFrame(), sp->Size);
                 hitSelected = (t >= 0.0f);
@@ -786,8 +793,6 @@ void ViewportPanel::onRender() {
             //         → レイキャストで選択変更
             bool shiftHeld = ImGui::GetIO().KeyShift;
             bool clickFoundSomething = false;
-            bool hitLockedObject = false;
-
             if ((selectOnly || (shiftHeld && !hitSelected)) && selectedInstance) {
                 Instance* nearest = nullptr;
 
@@ -825,19 +830,21 @@ void ViewportPanel::onRender() {
                 castRay(castRay, workspace);
 
                 bool hitSomething = (nearest != nullptr);
-
-                if (hitSomething) {
-                    BaseCube* cube = static_cast<BaseCube*>(nearest);
-                    hitLockedObject = cube->Locked;
-                }
-
-                bool hitSelectableObject =
-                    hitSomething &&
-                    !hitLockedObject;
+                bool hitLockedObject = isLockedBaseCube(nearest);
+                bool hitSelectableObject = hitSomething && !hitLockedObject;
 
                 bool ctrlHeld = ImGui::GetIO().KeyCtrl;
 
-                if (ctrlHeld && selectedInstances) {
+                if (hitLockedObject) {
+                    // 最前面がLockedなら背後のCubeは選択しない。
+                    // 通常クリックでは選択解除、Ctrl+クリックでは現在の選択を維持する。
+                    if (!ctrlHeld) {
+                        *selectedInstance = nullptr;
+                        if (selectedInstances) {
+                            selectedInstances->clear();
+                        }
+                    }
+                } else if (ctrlHeld && selectedInstances) {
                     if (hitSelectableObject) {
                         auto it = std::find(
                             selectedInstances->begin(),
@@ -880,12 +887,12 @@ void ViewportPanel::onRender() {
                     }
                 }
 
-                clickFoundSomething = hitSelectableObject;
+                clickFoundSomething = hitSomething;
             }
 
             // ボックス選択 arm: Selectモードのみ、何にもヒットしなかった場合にドラッグで開始
             // 非Selectモードではギズモ操作と競合するため arm しない
-            m_isBoxSelectArmed = isSelectMode() && (hitLockedObject || !clickFoundSomething) && !shiftHeld;
+            m_isBoxSelectArmed = isSelectMode() && !clickFoundSomething && !shiftHeld;
             m_boxSelectStart   = ImGui::GetMousePos();
         } // end else (not picking)
     }
@@ -985,14 +992,6 @@ void ViewportPanel::onRender() {
                             sy <= maxY;
 
                         if (insideSelectionBox) {
-                                // std::cout
-                                //         << "[BOX ADD] "
-                                //         << cube->Name
-                                //         << " Locked="
-                                //         << cube->Locked
-                                //         << " ptr="
-                                //         << cube
-                                //         << '\n';
                             selectedInstances->push_back(node);
                         }
                     }
@@ -1003,50 +1002,6 @@ void ViewportPanel::onRender() {
                 }
             };
             collect(collect, workspace);
-
-            std::cout << "=== AFTER COLLECT ===\n";
-
-            for (Instance* instance : *selectedInstances) {
-                if (!instance) {
-                    std::cout << "nullptr\n";
-                    continue;
-                }
-
-                std::cout
-                    << instance->Name
-                    << " ptr="
-                    << instance;
-
-                if (instance->IsA("BaseCube")) {
-                    BaseCube* cube = static_cast<BaseCube*>(instance);
-
-                    std::cout
-                        << " Locked="
-                        << cube->Locked;
-                }
-
-                std::cout << '\n';
-            }
-
-            selectedInstances->erase(
-                std::remove_if(
-                    selectedInstances->begin(),
-                    selectedInstances->end(),
-                    [](Instance* instance) {
-                        if (!instance) {
-                            return true;
-                        }
-
-                        if (!instance->IsA("BaseCube")) {
-                            return false;
-                        }
-
-                        BaseCube* cube = static_cast<BaseCube*>(instance);
-                        return cube->Locked;
-                    }
-                ),
-                selectedInstances->end()
-            );
 
             if (selectedInstances->empty()) {
                 *selectedInstance = nullptr;
@@ -1070,7 +1025,8 @@ void ViewportPanel::onRender() {
     }
 
     // ---- ギズモのオーバーレイ ----
-    if (isGizmoMode() && selectedInstance && *selectedInstance && user) {
+    if (isGizmoMode() && selectedInstance && *selectedInstance && user &&
+            !isLockedBaseCube(*selectedInstance)) {
         Instance* inst = *selectedInstance;
 
         // ピボット自動解除: 対象・操作モードが変わったら Tab ピボットを無効化する
@@ -1099,7 +1055,8 @@ void ViewportPanel::onRender() {
                 Vector3 mn(1e30f, 1e30f, 1e30f), mx(-1e30f, -1e30f, -1e30f);
                 bool any = false;
                 for (Instance* o : *selectedInstances) {
-                    if (o && !o->Parent.expired() && o->IsA("BaseCube")) {
+                    if (o && !o->Parent.expired() && o->IsA("BaseCube") &&
+                            !isLockedBaseCube(o)) {
                         accumulateWorldAABB(static_cast<Spatial*>(o), mn, mx);
                         any = true;
                     }
@@ -1114,7 +1071,8 @@ void ViewportPanel::onRender() {
                 std::vector<Instance*> targets = hasMultiSelection()
                     ? *selectedInstances : std::vector<Instance*>{ inst };
                 for (Instance* tgt : targets) {
-                    if (tgt && !tgt->Parent.expired() && tgt->IsA("Spatial")) {
+                    if (tgt && !tgt->Parent.expired() && tgt->IsA("Spatial") &&
+                            !isLockedBaseCube(tgt)) {
                         Spatial* sp = static_cast<Spatial*>(tgt);
                         m_gizmoEntries.push_back({
                             std::static_pointer_cast<Spatial>(tgt->shared_from_this()),
@@ -1249,7 +1207,8 @@ void ViewportPanel::onRender() {
                     std::vector<Instance*> targets = hasMultiSelection()
                         ? *selectedInstances : std::vector<Instance*>{ inst };
                     for (Instance* tgt : targets) {
-                        if (!tgt || tgt->Parent.expired() || !tgt->IsA("Spatial")) continue;
+                        if (!tgt || tgt->Parent.expired() || !tgt->IsA("Spatial") ||
+                                isLockedBaseCube(tgt)) continue;
                         Spatial* tsp = static_cast<Spatial*>(tgt);
                         Vector3 newWorld = tsp->getWorldPosition() + delta;
                         Vector3 localP   = worldToLocal(newWorld, tsp);
@@ -1263,7 +1222,8 @@ void ViewportPanel::onRender() {
                     // 複数選択中心経路: 集合中心からの delta を全選択対象に適用（collisionFit は使わない）
                     Vector3 delta = newPos - multiCenter;
                     for (Instance* other : *selectedInstances) {
-                        if (!other || other->Parent.expired() || !other->IsA("BaseCube")) continue;
+                        if (!other || other->Parent.expired() || !other->IsA("BaseCube") ||
+                                isLockedBaseCube(other)) continue;
                         BaseCube* bc = static_cast<BaseCube*>(other);
                         Vector3 nw = bc->getWorldPosition() + delta;
                         bc->teleportTo(worldToLocal(nw, bc));
@@ -1297,7 +1257,8 @@ void ViewportPanel::onRender() {
                     if (hasMultiSelection()) {
                         Vector3 deltaWorld = s->getWorldPosition() - prevPrimaryWorld;
                         for (Instance* other : *selectedInstances) {
-                            if (!other || other->Parent.expired() || other == inst || !other->IsA("BaseCube")) continue;
+                            if (!other || other->Parent.expired() || other == inst ||
+                                    !other->IsA("BaseCube") || isLockedBaseCube(other)) continue;
                             BaseCube* bc = static_cast<BaseCube*>(other);
                             Vector3 nw = bc->getWorldPosition() + deltaWorld;
                             bc->teleportTo(worldToLocal(nw, bc));
@@ -1349,7 +1310,8 @@ void ViewportPanel::onRender() {
                     // 複数選択中心経路: 集合中心を軸に全選択 Spatial を回転
                     if (m_gizmoEntries.empty()) {
                         for (Instance* tgt : *selectedInstances) {
-                            if (tgt && !tgt->Parent.expired() && tgt->IsA("Spatial")) {
+                            if (tgt && !tgt->Parent.expired() && tgt->IsA("Spatial") &&
+                                    !isLockedBaseCube(tgt)) {
                                 Spatial* sp = static_cast<Spatial*>(tgt);
                                 m_gizmoEntries.push_back({
                                     std::static_pointer_cast<Spatial>(tgt->shared_from_this()),
@@ -1414,21 +1376,8 @@ void ViewportPanel::onRender() {
         auto* dl = ImGui::GetWindowDrawList();
 
         for (Instance* inst : *selectedInstances) {
-            if (!inst) {
+            if (!inst || isLockedBaseCube(inst)) {
                 continue;
-            }
-
-            if (inst->IsA("BaseCube")) {
-                BaseCube* cube = static_cast<BaseCube*>(inst);
-
-                // std::cout
-                //     << "[HIGHLIGHT] "
-                //     << cube->Name
-                //     << " Locked="
-                //     << cube->Locked
-                //     << " ptr="
-                //     << cube
-                //     << '\n';
             }
 
             if (inst->Parent.expired() || !inst->IsA("BaseCube")) {
@@ -1540,7 +1489,8 @@ void ViewportPanel::onRender() {
         std::vector<Instance*> targets = hasMultiSelection()
             ? *selectedInstances : std::vector<Instance*>{ *selectedInstance };
         for (Instance* tgt : targets) {
-            if (tgt && !tgt->Parent.expired() && tgt->IsA("Spatial")) {
+            if (tgt && !tgt->Parent.expired() && tgt->IsA("Spatial") &&
+                    !isLockedBaseCube(tgt)) {
                 Spatial* sp = static_cast<Spatial*>(tgt);
                 m_freeDragEntries.push_back({
                     std::static_pointer_cast<Spatial>(tgt->shared_from_this()),
@@ -1555,7 +1505,8 @@ void ViewportPanel::onRender() {
 
     // ---- Move モード自由移動: 選択キューブ上からのドラッグでサーフェスに追従 ----
     if (isMoveMode() && m_isDraggingSelected && !ImGuizmo::IsUsing()
-            && selectedInstance && *selectedInstance && user && workspace) {
+            && selectedInstance && *selectedInstance && user && workspace &&
+            !isLockedBaseCube(*selectedInstance)) {
         Instance* inst = *selectedInstance;
         if (inst->IsA("Spatial")) {
             Spatial* s = static_cast<Spatial*>(inst);
@@ -1633,7 +1584,8 @@ void ViewportPanel::onRender() {
                 if (hasMultiSelection()) {
                     Vector3 deltaWorld = s->getWorldPosition() - prevPrimaryWorld;
                     for (Instance* other : *selectedInstances) {
-                        if (!other || other->Parent.expired() || other == inst || !other->IsA("BaseCube")) continue;
+                        if (!other || other->Parent.expired() || other == inst ||
+                                !other->IsA("BaseCube") || isLockedBaseCube(other)) continue;
                         BaseCube* bc = static_cast<BaseCube*>(other);
                         Vector3 nw = bc->getWorldPosition() + deltaWorld;
                         bc->teleportTo(worldToLocal(nw, bc));
@@ -1646,7 +1598,8 @@ void ViewportPanel::onRender() {
     // ---- Tab キー: ギズモをマウス位置へ移動するピボットを設定 ----
     if (isViewportFocused && ImGui::IsKeyPressed(ImGuiKey_Tab, false) && !ImGui::GetIO().WantTextInput
             && !ImGuizmo::IsUsing() && selectedInstance && *selectedInstance
-            && (*selectedInstance)->IsA("Spatial") && user && workspace) {
+            && (*selectedInstance)->IsA("Spatial") && user && workspace &&
+            !isLockedBaseCube(*selectedInstance)) {
         Instance* inst = *selectedInstance;
         Spatial*  s    = static_cast<Spatial*>(inst);
 

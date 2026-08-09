@@ -33,6 +33,7 @@ std::shared_ptr<Instance> Skybox::clone() const {
     copy->Name = this->Name;
     copy->Anchored = this->Anchored;
     copy->CanCollide = this->CanCollide;
+    copy->Locked = this->Locked;
     copy->CastShadow = this->CastShadow;
     copy->Unlit = this->Unlit;
     copy->cframe = this->cframe;

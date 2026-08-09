@@ -207,6 +207,7 @@ std::shared_ptr<Instance> Cube::clone() const {
     copy->Color    = this->Color;
     copy->Anchored = this->Anchored;
     copy->CanCollide = this->CanCollide;
+    copy->Locked   = this->Locked;
     copy->cframe   = this->cframe;
     copy->material     = this->material;
     copy->MassDensity  = this->MassDensity;

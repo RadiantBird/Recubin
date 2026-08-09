@@ -3173,10 +3173,12 @@ int runPhysicsRollbackRegression() {
     locked->LockFlags = PhysicsLockFlags::LinearX |
         PhysicsLockFlags::AngularY | PhysicsLockFlags::AngularZ;
     locked->CollisionDetection = CCDMode::Bullet;
+    locked->Locked = true;
     auto lockedClone = std::dynamic_pointer_cast<BaseCube>(locked->clone());
     expect(lockedClone && lockedClone->LockFlags == locked->LockFlags &&
-               lockedClone->CollisionDetection == CCDMode::Bullet,
-           "clone preserves LockFlags and CCDMode without native handles");
+               lockedClone->CollisionDetection == CCDMode::Bullet &&
+               lockedClone->Locked,
+           "clone preserves LockFlags, CCDMode, and Locked without native handles");
     saveRoot->addChild(locked);
     const auto savePath = std::filesystem::temp_directory_path() /
         ("recubin_lockflags_" + std::to_string(

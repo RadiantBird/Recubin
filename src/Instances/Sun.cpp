@@ -35,6 +35,7 @@ std::shared_ptr<Instance> Sun::clone() const {
     copy->Color     = this->Color;
     copy->Anchored  = this->Anchored;
     copy->CanCollide = this->CanCollide;
+    copy->Locked    = this->Locked;
     copy->cframe    = this->cframe;
     for (auto const& [n, child] : children) {
         copy->addChild(child->clone());
