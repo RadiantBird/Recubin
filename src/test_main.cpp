@@ -31,6 +31,8 @@
 #include <Core/TerrainStreamer.hpp>
 #include <Core/User.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/ViewportGeometry.hpp>
+#include <Editor/ViewportSceneQueries.hpp>
 #include <Network/NatProtocol.hpp>
 #include <Network/Replication.hpp>
 #include <Util/Logger.hpp>
@@ -3501,6 +3503,222 @@ int runFrameRateInvarianceRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runViewportHelperRegression() {
+    int failures = 0;
+    auto expect = [&failures](bool condition, const char* name) {
+        std::cout << "[ViewportHelperRegression] "
+                  << (condition ? "PASS" : "FAIL") << ": " << name << '\n';
+        if (!condition) ++failures;
+    };
+
+    const Quaternion identity;
+    const CFrame identityBox(Vector3(0.0f, 0.0f, 0.0f), identity);
+    const ViewportGeometry::ObbRayHit externalHit = ViewportGeometry::raycastObb(
+        {Vector3(0.0f, 0.0f, 5.0f), Vector3(0.0f, 0.0f, -1.0f)},
+        identityBox,
+        Vector3(2.0f, 2.0f, 2.0f));
+    expect(externalHit.hit && near(externalHit.distance, 4.0f)
+               && externalHit.axis == 2 && near(externalHit.sign, 1.0f),
+           "external OBB ray hit preserves distance, axis, and face sign");
+
+    const ViewportGeometry::ObbRayHit insideHit = ViewportGeometry::raycastObb(
+        {Vector3(0.0f, 0.0f, 0.0f), Vector3(1.0f, 0.0f, 0.0f)},
+        identityBox,
+        Vector3(2.0f, 2.0f, 2.0f));
+    expect(insideHit.hit && near(insideHit.distance, 1.0f)
+               && insideHit.axis == 0 && near(insideHit.sign, -1.0f),
+           "inside OBB ray exits with the established axis/sign semantics");
+
+    const Quaternion rotatedBoxRotation =
+        Quaternion::fromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), 90.0f);
+    const ViewportGeometry::ObbRayHit rotatedHit = ViewportGeometry::raycastObb(
+        {Vector3(0.0f, 0.0f, 5.0f), Vector3(0.0f, 0.0f, -1.0f)},
+        CFrame(Vector3(0.0f, 0.0f, 0.0f), rotatedBoxRotation),
+        Vector3(2.0f, 2.0f, 4.0f));
+    expect(rotatedHit.hit && near(rotatedHit.distance, 4.0f)
+               && rotatedHit.axis == 0 && near(rotatedHit.sign, -1.0f),
+           "rotated OBB ray hit reports the rotated local face");
+
+    expect(!ViewportGeometry::obbIntersects(
+               Vector3(0.0f, 0.0f, 0.0f), identity, Vector3(2.0f, 2.0f, 2.0f),
+               Vector3(2.01f, 0.0f, 0.0f), identity, Vector3(2.0f, 2.0f, 2.0f)),
+           "SAT rejects separated OBBs");
+    expect(!ViewportGeometry::obbIntersects(
+               Vector3(0.0f, 0.0f, 0.0f), identity, Vector3(2.0f, 2.0f, 2.0f),
+               Vector3(2.0f, 0.0f, 0.0f), identity, Vector3(2.0f, 2.0f, 2.0f)),
+           "SAT treats exact face contact as non-intersection");
+    expect(ViewportGeometry::obbIntersects(
+               Vector3(0.0f, 0.0f, 0.0f), identity, Vector3(2.0f, 2.0f, 2.0f),
+               Vector3(1.99f, 0.0f, 0.0f), identity, Vector3(2.0f, 2.0f, 2.0f)),
+           "SAT accepts positive-volume overlap");
+
+    const ViewportGeometry::Ray centerRay = ViewportGeometry::makeScreenRay(
+        Vector3(3.0f, 4.0f, 5.0f),
+        Vector3(0.0f, 0.0f, -1.0f),
+        Vector3(1.0f, 0.0f, 0.0f),
+        Vector3(0.0f, 1.0f, 0.0f),
+        Vector2(640.0f, 360.0f),
+        Vector2(1280.0f, 720.0f));
+    expect(positionDistance(centerRay.origin, Vector3(3.0f, 4.0f, 5.0f)) <= 0.001f
+               && positionDistance(centerRay.direction, Vector3(0.0f, 0.0f, -1.0f)) <= 0.001f,
+           "screen-center ray uses the camera origin and forward direction");
+
+    auto transformParent = std::make_shared<Model>(Vector3(10.0f, 2.0f, -4.0f));
+    transformParent->Rotation =
+        Quaternion::fromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), 90.0f);
+    auto transformChild = std::make_shared<BaseCube>(
+        Vector3(1.0f, 0.0f, 0.0f), Vector3(1.0f, 1.0f, 1.0f));
+    transformChild->Name = "TransformChild";
+    transformParent->addChild(transformChild);
+    const Vector3 expectedLocalPosition(2.0f, -1.0f, 3.0f);
+    const Vector3 worldPosition =
+        transformParent->getWorldCFrame().pointToWorld(expectedLocalPosition);
+    expect(positionDistance(
+               ViewportGeometry::worldToLocalPosition(worldPosition, *transformChild),
+               expectedLocalPosition) <= 0.001f,
+           "world position converts through a rotated Spatial parent");
+
+    const Quaternion expectedLocalRotation =
+        Quaternion::fromAxisAngle(Vector3(1.0f, 0.0f, 0.0f), 30.0f);
+    const Quaternion worldRotation =
+        transformParent->getWorldCFrame().Rotation * expectedLocalRotation;
+    expect(quaternionDotMagnitude(
+               ViewportGeometry::worldToLocalRotation(worldRotation, *transformChild),
+               expectedLocalRotation) >= 0.9999f,
+           "world rotation converts through a rotated Spatial parent");
+
+    const Matrix4 projection = Matrix4::Perspective(45.0f, 2.0f, 0.1f, 100.0f);
+    const Matrix4 view = Matrix4::LookAt(
+        Vector3(0.0f, 0.0f, 0.0f),
+        Vector3(0.0f, 0.0f, -1.0f),
+        Vector3(0.0f, 1.0f, 0.0f));
+    const ViewportGeometry::ProjectedPoint centerProjection =
+        ViewportGeometry::projectWorldToScreen(
+            projection * view,
+            Vector3(0.0f, 0.0f, -5.0f),
+            Vector2(10.0f, 20.0f),
+            Vector2(200.0f, 100.0f));
+    expect(centerProjection.visible && near(centerProjection.position.x, 110.0f)
+               && near(centerProjection.position.y, 70.0f),
+           "front-facing center point projects to the viewport center");
+    expect(!ViewportGeometry::projectWorldToScreen(
+                projection * view,
+                Vector3(0.0f, 0.0f, 5.0f),
+                Vector2(10.0f, 20.0f),
+                Vector2(200.0f, 100.0f)).visible,
+           "point behind the camera is not visible");
+
+    auto workspace = std::make_shared<Workspace>();
+    auto nestedModel = std::make_shared<Model>();
+    nestedModel->Name = "NestedModel";
+    auto front = std::make_shared<BaseCube>(
+        Vector3(0.0f, 0.0f, -3.0f), Vector3(1.0f, 1.0f, 1.0f));
+    front->Name = "Front";
+    auto lockedDescendant = std::make_shared<BaseCube>(
+        Vector3(0.8f, 0.0f, 0.0f), Vector3(0.2f, 0.2f, 0.2f));
+    lockedDescendant->Name = "LockedDescendant";
+    auto behind = std::make_shared<BaseCube>(
+        Vector3(0.0f, 0.0f, -6.0f), Vector3(1.0f, 1.0f, 1.0f));
+    behind->Name = "Behind";
+    workspace->addChild(nestedModel);
+    nestedModel->addChild(front);
+    front->addChild(lockedDescendant);
+    workspace->addChild(behind);
+
+    const ViewportGeometry::Ray sceneRay{
+        Vector3(0.0f, 0.0f, 0.0f), Vector3(0.0f, 0.0f, -1.0f)};
+    const ViewportSceneQueries::BaseCubeRayHit nearest =
+        ViewportSceneQueries::findNearestBaseCube(*workspace, sceneRay);
+    expect(nearest.hit && nearest.cube == front.get(),
+           "nearest BaseCube search traverses nested instances");
+    const ViewportSceneQueries::BaseCubeRayHit excluded =
+        ViewportSceneQueries::findNearestBaseCube(*workspace, sceneRay, front.get());
+    expect(excluded.hit && excluded.cube == behind.get(),
+           "nearest BaseCube exclusion skips the target subtree");
+
+    front->Locked = true;
+    const ViewportSceneQueries::BaseCubeRayHit lockedNearest =
+        ViewportSceneQueries::findNearestBaseCube(*workspace, sceneRay);
+    expect(lockedNearest.hit && lockedNearest.cube == front.get()
+               && ViewportSceneQueries::isLockedBaseCube(lockedNearest.cube),
+           "front Locked cube remains the hit ahead of an unlocked cube");
+
+    const ViewportSceneQueries::PickerRayHit cubePick =
+        ViewportSceneQueries::findPickerTarget(
+            *workspace, sceneRay, ViewportSceneQueries::PickerTargetType::BaseCube);
+    expect(cubePick.hit && cubePick.target == front.get(),
+           "BaseCube picker returns the nearest cube");
+
+    auto attachment = std::make_shared<Attachment>(Vector3(3.0f, 0.0f, -2.0f));
+    attachment->Name = "PickerAttachment";
+    workspace->addChild(attachment);
+    const ViewportSceneQueries::PickerRayHit attachmentPick =
+        ViewportSceneQueries::findPickerTarget(
+            *workspace,
+            {Vector3(3.0f, 0.0f, 0.0f), Vector3(0.0f, 0.0f, -1.0f)},
+            ViewportSceneQueries::PickerTargetType::Attachment);
+    expect(attachmentPick.hit && attachmentPick.target == attachment.get()
+               && near(attachmentPick.distance, 1.75f),
+           "Attachment picker uses the fixed helper hit volume");
+
+    const std::vector<Instance*> boxSelection =
+        ViewportSceneQueries::collectBoxSelectableCubes(
+            *workspace,
+            Matrix4(),
+            Vector2(0.0f, 0.0f),
+            Vector2(100.0f, 100.0f),
+            Vector2(0.0f, 0.0f),
+            Vector2(100.0f, 100.0f));
+    expect(std::find(boxSelection.begin(), boxSelection.end(), behind.get())
+               != boxSelection.end(),
+           "box selection collects an unlocked cube");
+    expect(std::find(boxSelection.begin(), boxSelection.end(), front.get())
+                   == boxSelection.end()
+               && std::find(boxSelection.begin(), boxSelection.end(), lockedDescendant.get())
+                   == boxSelection.end(),
+           "box selection excludes a Locked cube and its descendants");
+
+    auto boundsRoot = std::make_shared<Model>(Vector3(10.0f, 0.0f, 0.0f));
+    auto boundsLeft = std::make_shared<BaseCube>(
+        Vector3(-2.0f, 1.0f, 0.0f), Vector3(2.0f, 2.0f, 2.0f));
+    boundsLeft->Name = "BoundsLeft";
+    auto boundsNested = std::make_shared<Model>(Vector3(3.0f, -1.0f, 2.0f));
+    boundsNested->Name = "BoundsNested";
+    auto boundsRight = std::make_shared<BaseCube>(
+        Vector3(0.0f, 0.0f, 0.0f), Vector3(4.0f, 2.0f, 2.0f));
+    boundsRight->Name = "BoundsRight";
+    boundsRoot->addChild(boundsLeft);
+    boundsRoot->addChild(boundsNested);
+    boundsNested->addChild(boundsRight);
+    const ViewportGeometry::WorldAabb bounds =
+        ViewportSceneQueries::computeDescendantWorldAabb(*boundsRoot);
+    expect(bounds.valid
+               && positionDistance(bounds.minimum, Vector3(7.0f, -2.0f, -1.0f)) <= 0.001f
+               && positionDistance(bounds.maximum, Vector3(15.0f, 2.0f, 3.0f)) <= 0.001f,
+           "descendant world AABB includes nested BaseCubes");
+
+    auto fitWorkspace = std::make_shared<Workspace>();
+    auto obstacle = std::make_shared<BaseCube>(
+        Vector3(0.0f, 0.0f, 0.0f), Vector3(2.0f, 2.0f, 2.0f));
+    obstacle->Name = "Obstacle";
+    fitWorkspace->addChild(obstacle);
+    auto moving = std::make_shared<BaseCube>(
+        Vector3(1.5f, 0.0f, 0.0f), Vector3(2.0f, 2.0f, 2.0f));
+    expect(near(ViewportSceneQueries::fitOnAxis(
+                    *fitWorkspace, moving->Position, moving->Size, *moving, 0),
+                2.0f),
+           "axis collision fit resolves overlap along the requested axis");
+    expect(positionDistance(
+               ViewportSceneQueries::fitCollision(
+                   *fitWorkspace, moving->Position, moving->Size, *moving),
+               Vector3(2.0f, 0.0f, 0.0f)) <= 0.001f,
+           "minimum-overlap collision fit resolves a stable axis-aligned overlap");
+
+    std::cout << "[ViewportHelperRegression] "
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
@@ -3536,6 +3754,7 @@ int main(int argc, char* argv[]) {
     bool physicsPerformanceGuard = false;
     bool box3dBuoyancyRegression = false;
     bool frameRateInvarianceRegression = false;
+    bool viewportHelperRegression = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument(argv[i]);
         physicsMigrationRegression =
@@ -3560,6 +3779,8 @@ int main(int argc, char* argv[]) {
             box3dBuoyancyRegression || argument == "--box3d-buoyancy-regression";
         frameRateInvarianceRegression =
             frameRateInvarianceRegression || argument == "--frame-rate-invariance-regression";
+        viewportHelperRegression =
+            viewportHelperRegression || argument == "--viewport-helper-regression";
     }
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
     if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
@@ -3572,6 +3793,7 @@ int main(int argc, char* argv[]) {
     if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
     if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
     if (frameRateInvarianceRegression) return runFrameRateInvarianceRegression();
+    if (viewportHelperRegression) return runViewportHelperRegression();
     if (toolWeldRegression) return runToolWeldRegression();
     if (toolWeldReequipRegression) return runToolWeldReequipRegression();
     if (toolRespawnRegression) return runToolRespawnRegression();

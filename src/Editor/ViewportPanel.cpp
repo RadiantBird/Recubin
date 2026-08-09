@@ -3,6 +3,8 @@
 #include <Editor/ViewportFocusManager.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Editor/SceneHierarchyPanel.hpp>
+#include <Editor/ViewportGeometry.hpp>
+#include <Editor/ViewportSceneQueries.hpp>
 #include <Math/Matrix4.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/ImGuizmo.h>
@@ -20,46 +22,8 @@
 #include <Core/SceneRuntime.hpp>
 #include <algorithm>
 #include <cmath>
-#include <functional>
 
 // NOTE: ImGuizmoは乗算でスケール処理を行っている
-
-// 対象SpatialのOBB8頂点をワールド空間で求め、AABBに集約する（複数選択中心・ModelのAABB計算で共用）
-static void accumulateWorldAABB(Spatial* sp, Vector3& mn, Vector3& mx) {
-    CFrame wf = sp->getWorldCFrame();
-    float hx = sp->Size.x * 0.5f, hy = sp->Size.y * 0.5f, hz = sp->Size.z * 0.5f;
-    for (int ci = 0; ci < 8; ++ci) {
-        float lx = (ci & 1) ? hx : -hx;
-        float ly = (ci & 2) ? hy : -hy;
-        float lz = (ci & 4) ? hz : -hz;
-        Vector3 wc = wf.Position + wf.Rotation.rotate(Vector3(lx, ly, lz));
-        mn.x = (std::min)(mn.x, wc.x); mx.x = (std::max)(mx.x, wc.x);
-        mn.y = (std::min)(mn.y, wc.y); mx.y = (std::max)(mx.y, wc.y);
-        mn.z = (std::min)(mn.z, wc.z); mx.z = (std::max)(mx.z, wc.z);
-    }
-}
-
-// rootの子孫を再帰し、BaseCubeのワールドOBBをAABBに集約する。1つも見つからなければfalse
-static bool computeDescendantWorldAABB(Instance* root, Vector3& outMin, Vector3& outMax) {
-    bool found = false;
-    Vector3 mn(1e30f, 1e30f, 1e30f), mx(-1e30f, -1e30f, -1e30f);
-    std::function<void(Instance*)> visit = [&](Instance* inst) {
-        if (!inst) return;
-        if (inst->IsA("BaseCube")) {
-            accumulateWorldAABB(static_cast<Spatial*>(inst), mn, mx);
-            found = true;
-        }
-        for (auto const& [_, child] : inst->getChildren()) visit(child.get());
-    };
-    for (auto const& [_, child] : root->getChildren()) visit(child.get());
-    if (found) { outMin = mn; outMax = mx; }
-    return found;
-}
-
-static bool isLockedBaseCube(Instance* instance) {
-    return instance && instance->IsA("BaseCube") &&
-        static_cast<BaseCube*>(instance)->Locked;
-}
 
 // ===================================================
 //  ViewportPanel 実装
@@ -148,7 +112,6 @@ void ViewportPanel::endRenderAndDisplay() {
 }
 
 void ViewportPanel::onRender() {
-    // printf("\033[36m[CHECK] workspace=%p, user=%p, hovered=%d\033[0m\n", workspace, user, isHoveringViewport);
     // パディングを削除してゲームビューをパネルに密着させる
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
@@ -163,6 +126,29 @@ void ViewportPanel::onRender() {
     // ImGuizmoのグローバル状態(gContext)をビューポート毎に分離する
     // (複数ビューポートが同一フレームでManipulate/IsUsingを呼んでも干渉しないように)
     ImGuizmo::PushID(this);
+
+    const ViewportLayout layout = renderLayoutAndScene();
+    updateViewportFocus();
+    updateOwnCameraInput();
+    const bool terrainBrushActive = updateTerrainBrush(layout);
+    const bool weldModeConsumedClick = updateWeldMode(layout);
+    handleViewportClick(layout, terrainBrushActive, weldModeConsumedClick);
+    updateBoxSelection(layout);
+    drawFocusBorder();
+    updateGizmo(layout);
+    drawSelectionHighlights(layout);
+    drawModelHighlight(layout);
+    updateFreeDrag(layout);
+    handlePivotShortcut(layout);
+    handleFocusShortcut();
+
+    ImGuizmo::PopID();
+    ImGui::PopStyleVar();
+    ImGui::End();
+}
+
+ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
+    ViewportLayout layout;
 
     // パネルの利用可能サイズ
     ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -248,9 +234,15 @@ void ViewportPanel::onRender() {
         if (imgB < panelB) dl->AddRectFilled(ImVec2(panelL, imgB), ImVec2(panelR, panelB), IM_COL32(0, 0, 0, 255));
     }
 
-    // ===================================================
-    //  Viewportクリック検出とフォーカス管理
-    // ===================================================
+    layout.availableSize = avail;
+    layout.panelOrigin = panelOrigin;
+    layout.contentOrigin = contentOrigin;
+    layout.width = w;
+    layout.height = h;
+    return layout;
+}
+
+void ViewportPanel::updateViewportFocus() {
     isHoveringViewport = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
 
     if (!isHoveringViewport && (ImGui::IsMouseClicked(0) || ImGui::IsMouseClicked(1))) {
@@ -267,10 +259,9 @@ void ViewportPanel::onRender() {
     if (isHoveringViewport && ImGui::GetIO().MouseWheel != 0.0f) {
         ViewportFocusManager::getInstance().onFocusViewport(this);
     }
+}
 
-    // ===================================================
-    //  独立カメラの入力処理（セカンダリビューポートのみ）
-    // ===================================================
+void ViewportPanel::updateOwnCameraInput() {
     if (m_useOwnCamera) {
         ImGuiIO& io = ImGui::GetIO();
         // 右ドラッグで視点回転（プライマリと同じカーソルロック+アンカー方式）
@@ -307,256 +298,25 @@ void ViewportPanel::onRender() {
             m_camPos = m_camPos + camForward() * (io.MouseWheel * user->mouseZoomSpeed);
         }
     }
+}
 
-    // ===================================================
-    //  共用ヘルパーラムダ
-    // ===================================================
+ViewportGeometry::Ray ViewportPanel::makeMouseRay(const ViewportLayout& layout) const {
+    const ImVec2 mousePosition = ImGui::GetMousePos();
+    return ViewportGeometry::makeScreenRay(
+        camPos(), camForward(), camRight(), camUp(),
+        Vector2(mousePosition.x - layout.contentOrigin.x,
+                mousePosition.y - layout.contentOrigin.y),
+        Vector2(static_cast<float>(layout.width), static_cast<float>(layout.height)));
+}
 
-    // ワールド座標 → 対象 Spatial のローカル座標に変換
-    auto worldToLocal = [](const Vector3& worldPos, const Spatial* sp) -> Vector3 {
-        auto par = sp->Parent.lock();
-        if (par && par->IsA("Spatial")) {
-            CFrame pw = static_cast<Spatial*>(par.get())->getWorldCFrame();
-            return pw.Rotation.conjugate().rotate(worldPos - pw.Position);
-        }
-        return worldPos;
-    };
+float ViewportPanel::scaleGrabSign(int axis) {
+    const float sign = ImGuizmo::GetScaleGrabSign(axis);
+    return sign != 0.0f ? sign : (ImGuizmo::IsScaleNegative(axis) ? -1.0f : 1.0f);
+}
 
-    // ワールド回転 → 対象 Spatial のローカル回転に変換
-    auto worldToLocalRot = [](const Quaternion& worldRot, const Spatial* sp) -> Quaternion {
-        auto par = sp->Parent.lock();
-        if (par && par->IsA("Spatial")) {
-            CFrame pw = static_cast<Spatial*>(par.get())->getWorldCFrame();
-            return pw.Rotation.conjugate() * worldRot;
-        }
-        return worldRot;
-    };
-
-    // マウスパネル座標 → ワールドレイ方向
-    auto makeRay = [&](float mx, float my) -> Vector3 {
-        float ndcX  = (mx / (float)w) * 2.0f - 1.0f;
-        float ndcY  = 1.0f - (my / (float)h) * 2.0f;
-        float aspect = (w > 0 && h > 0) ? (float)w / (float)h : 1.0f;
-        float tanH  = std::tan(45.0f * (3.14159265f / 180.0f) * 0.5f);
-        return (camForward()
-              + camRight() * (ndcX * aspect * tanH)
-              + camUp()    * (ndcY * tanH)).normalize();
-    };
-
-    // OBB スラブ法: レイをオブジェクトのローカル空間に変換して AABB テストする
-    // → 回転したオブジェクトでも正確に判定できる（クリック選択・Tabピボットで共用）
-    auto obbHit = [](const Vector3& ori, const Vector3& dir,
-                     const CFrame& worldCF, const Vector3& size) -> float {
-        // レイをオブジェクトローカル空間へ変換
-        Quaternion invRot = worldCF.Rotation.conjugate();
-        Vector3 lo = invRot.rotate(ori - worldCF.Position);
-        Vector3 ld = invRot.rotate(dir);
-        float ld3[3] = { ld.x, ld.y, ld.z };
-        float lo3[3] = { lo.x, lo.y, lo.z };
-        float hs[3]  = { size.x * 0.5f, size.y * 0.5f, size.z * 0.5f };
-        float tmin = -1e30f, tmax = 1e30f;
-        for (int i = 0; i < 3; ++i) {
-            if (std::abs(ld3[i]) < 1e-8f) {
-                if (lo3[i] < -hs[i] || lo3[i] > hs[i]) return -1.0f;
-            } else {
-                float t1 = (-hs[i] - lo3[i]) / ld3[i];
-                float t2 = ( hs[i] - lo3[i]) / ld3[i];
-                if (t1 > t2) std::swap(t1, t2);
-                tmin = (std::max)(tmin, t1);
-                tmax = (std::min)(tmax, t2);
-                if (tmax < tmin) return -1.0f;
-            }
-        }
-        if (tmax < 0.0f) return -1.0f;
-        return (tmin >= 0.0f) ? tmin : tmax;
-    };
-
-    // OBBを任意のワールド方向dirへ投影した半径(dirは正規化済み前提)
-    auto obbSupportRadius = [](const Quaternion& rot, const Vector3& size, const Vector3& dir) -> float {
-        Vector3 ex = rot.rotate(Vector3(1.0f, 0.0f, 0.0f));
-        Vector3 ey = rot.rotate(Vector3(0.0f, 1.0f, 0.0f));
-        Vector3 ez = rot.rotate(Vector3(0.0f, 0.0f, 1.0f));
-        return std::abs(Vector3::Dot(dir, ex)) * size.x * 0.5f
-             + std::abs(Vector3::Dot(dir, ey)) * size.y * 0.5f
-             + std::abs(Vector3::Dot(dir, ez)) * size.z * 0.5f;
-    };
-
-    // OBB同士のSAT交差判定。15分離軸(Aの3軸 + Bの3軸 + 外積9軸)。
-    auto obbIntersects = [&](const Vector3& posA, const Quaternion& rotA, const Vector3& sizeA,
-                             const Vector3& posB, const Quaternion& rotB, const Vector3& sizeB) -> bool {
-        Vector3 axesA[3] = {
-            rotA.rotate(Vector3(1.0f, 0.0f, 0.0f)),
-            rotA.rotate(Vector3(0.0f, 1.0f, 0.0f)),
-            rotA.rotate(Vector3(0.0f, 0.0f, 1.0f))
-        };
-        Vector3 axesB[3] = {
-            rotB.rotate(Vector3(1.0f, 0.0f, 0.0f)),
-            rotB.rotate(Vector3(0.0f, 1.0f, 0.0f)),
-            rotB.rotate(Vector3(0.0f, 0.0f, 1.0f))
-        };
-        Vector3 centerDiff = posB - posA;
-
-        // Aの3軸 + Bの3軸
-        for (int i = 0; i < 3; ++i) {
-            if (std::abs(Vector3::Dot(axesA[i], centerDiff)) >=
-                obbSupportRadius(rotA, sizeA, axesA[i]) + obbSupportRadius(rotB, sizeB, axesA[i]))
-                return false;
-        }
-        for (int i = 0; i < 3; ++i) {
-            if (std::abs(Vector3::Dot(axesB[i], centerDiff)) >=
-                obbSupportRadius(rotA, sizeA, axesB[i]) + obbSupportRadius(rotB, sizeB, axesB[i]))
-                return false;
-        }
-
-        // 外積9軸
-        for (int i = 0; i < 3; ++i) {
-            for (int j = 0; j < 3; ++j) {
-                Vector3 axis = Vector3::Cross(axesA[i], axesB[j]);
-                float lenSq = Vector3::Dot(axis, axis);
-                if (lenSq < 1e-6f) continue; // 平行軸ペアはスキップ
-                axis = axis.normalize();
-                if (std::abs(Vector3::Dot(axis, centerDiff)) >=
-                    obbSupportRadius(rotA, sizeA, axis) + obbSupportRadius(rotB, sizeB, axis))
-                    return false;
-            }
-        }
-        return true;
-    };
-
-    // OBB スラブ法レイキャスト
-    // 最近傍の Spatial* を返し、衝突軸(0-2)と法線符号(+1/-1)を出力する
-    // → 出力軸/符号はサーフェスのローカル軸インデックスと符号
-    auto castRaySurface = [&](const Vector3& ori, const Vector3& dir,
-                              Instance* exclude,
-                              int& outAxis, float& outSign) -> Spatial* {
-        float nearestT = 1e30f;
-        Spatial* found = nullptr;
-        int   foundAxis = 1;
-        float foundSign = 1.0f;
-        auto visit = [&](auto& self, Instance* inst) -> void {
-            if (!inst || inst == exclude) return;
-            if (inst->getClassName() == "Skybox") return;
-            if (inst->IsA("BaseCube")) {
-                Spatial* sp = static_cast<Spatial*>(inst);
-                CFrame wf = sp->getWorldCFrame();
-                // レイをサーフェスのローカル空間へ変換してAABBスラブ法で判定する
-                Quaternion invRot = wf.Rotation.conjugate();
-                Vector3 lo = invRot.rotate(ori - wf.Position);
-                Vector3 ld = invRot.rotate(dir);
-                float bmin[3] = { -sp->Size.x * 0.5f, -sp->Size.y * 0.5f, -sp->Size.z * 0.5f };
-                float bmax[3] = {  sp->Size.x * 0.5f,  sp->Size.y * 0.5f,  sp->Size.z * 0.5f };
-                float rd[3] = { ld.x, ld.y, ld.z };
-                float ro[3] = { lo.x, lo.y, lo.z };
-                float tmin = -1e30f, tmax = 1e30f;
-                bool  hit  = true;
-                int   axis = 1;
-                float sign = 1.0f;
-                for (int i = 0; i < 3 && hit; ++i) {
-                    if (std::abs(rd[i]) < 1e-8f) {
-                        if (ro[i] < bmin[i] || ro[i] > bmax[i]) hit = false;
-                    } else {
-                        float t1 = (bmin[i] - ro[i]) / rd[i];
-                        float t2 = (bmax[i] - ro[i]) / rd[i];
-                        bool swapped = (t1 > t2);
-                        if (swapped) std::swap(t1, t2);
-                        if (t1 > tmin) {
-                            tmin = t1;
-                            axis = i;
-                            // swapped = ray going - on this axis → entered from + face → sign +1
-                            sign = swapped ? 1.0f : -1.0f;
-                        }
-                        tmax = (std::min)(tmax, t2);
-                        if (tmax < tmin) hit = false;
-                    }
-                }
-                if (hit && tmax >= 0.0f) {
-                    float t = (tmin >= 0.0f) ? tmin : tmax;
-                    if (t < nearestT) {
-                        nearestT  = t;
-                        found     = sp;
-                        foundAxis = axis;
-                        foundSign = sign;
-                    }
-                }
-            }
-            for (auto const& [_, child] : inst->getChildren()) self(self, child.get());
-        };
-        visit(visit, workspace);
-        outAxis = foundAxis;
-        outSign = foundSign;
-        return found;
-    };
-
-    // 指定軸のみで衝突解決する（軸ジャンプ防止用）
-    // axis: 0=X, 1=Y, 2=Z。その軸の解決後ワールド座標を返す
-    auto fitOnAxis = [&](Vector3 pos, const Vector3& size, Instance* moving, int axis) -> float {
-        Quaternion movRot = static_cast<Spatial*>(moving)->getWorldCFrame().Rotation;
-        Vector3 eAxis = (axis == 0) ? Vector3(1.0f, 0.0f, 0.0f)
-                      : (axis == 1) ? Vector3(0.0f, 1.0f, 0.0f)
-                                    : Vector3(0.0f, 0.0f, 1.0f);
-        float p[3] = { pos.x, pos.y, pos.z };
-        auto visit = [&](auto& self, Instance* inst) -> void {
-            if (!inst || inst == moving) return;
-            if (inst->getClassName() == "Skybox") return;
-            if (inst->IsA("Spatial")) {
-                Spatial* other = static_cast<Spatial*>(inst);
-                Vector3 owp = other->getWorldPosition();
-                Quaternion otherRot = other->getWorldCFrame().Rotation;
-                float op[3] = { owp.x, owp.y, owp.z };
-                if (obbIntersects(Vector3(p[0], p[1], p[2]), movRot, size, owp, otherRot, other->Size)) {
-                    float oa = obbSupportRadius(movRot, size, eAxis)
-                             + obbSupportRadius(otherRot, other->Size, eAxis)
-                             - std::abs(p[axis] - op[axis]);
-                    if (oa > 0.0f) {
-                        float d = p[axis] - op[axis];
-                        p[axis] += (d >= 0.0f ? oa : -oa);
-                    }
-                }
-            }
-            for (auto const& [_, child] : inst->getChildren()) self(self, child.get());
-        };
-        visit(visit, workspace);
-        return p[axis];
-    };
-
-    // OBB-OBB MTV 衝突フィット（moving と重なるキューブから押し出したワールド位置を返す）
-    auto fitCollision = [&](Vector3 pos, const Vector3& size, Instance* moving) -> Vector3 {
-        Quaternion movRot = static_cast<Spatial*>(moving)->getWorldCFrame().Rotation;
-        auto visit = [&](auto& self, Instance* inst) -> void {
-            if (!inst || inst == moving) return;
-            if (inst->getClassName() == "Skybox") return;
-            if (inst->IsA("Spatial")) {
-                Spatial* other = static_cast<Spatial*>(inst);
-                Vector3 owp = other->getWorldPosition();
-                Quaternion otherRot = other->getWorldCFrame().Rotation;
-                if (obbIntersects(pos, movRot, size, owp, otherRot, other->Size)) {
-                    float ox = obbSupportRadius(movRot, size, Vector3(1.0f, 0.0f, 0.0f))
-                             + obbSupportRadius(otherRot, other->Size, Vector3(1.0f, 0.0f, 0.0f))
-                             - std::abs(pos.x - owp.x);
-                    float oy = obbSupportRadius(movRot, size, Vector3(0.0f, 1.0f, 0.0f))
-                             + obbSupportRadius(otherRot, other->Size, Vector3(0.0f, 1.0f, 0.0f))
-                             - std::abs(pos.y - owp.y);
-                    float oz = obbSupportRadius(movRot, size, Vector3(0.0f, 0.0f, 1.0f))
-                             + obbSupportRadius(otherRot, other->Size, Vector3(0.0f, 0.0f, 1.0f))
-                             - std::abs(pos.z - owp.z);
-                    if (ox > 0.0f && oy > 0.0f && oz > 0.0f) {
-                        float dx = pos.x - owp.x;
-                        float dy = pos.y - owp.y;
-                        float dz = pos.z - owp.z;
-                        if (ox <= oy && ox <= oz)
-                            pos.x += (dx >= 0.0f ? ox : -ox);
-                        else if (oy <= ox && oy <= oz)
-                            pos.y += (dy >= 0.0f ? oy : -oy);
-                        else
-                            pos.z += (dz >= 0.0f ? oz : -oz);
-                    }
-                }
-            }
-            for (auto const& [_, child] : inst->getChildren()) self(self, child.get());
-        };
-        visit(visit, workspace);
-        return pos;
-    };
+bool ViewportPanel::updateTerrainBrush(const ViewportLayout& layout) {
+    const int w = layout.width;
+    const int h = layout.height;
 
     // ===================================================
     //  Terrainブラシ適用（有効時はクリックでの選択・ドラッグより優先する）
@@ -566,9 +326,9 @@ void ViewportPanel::onRender() {
     static constexpr float  kTerrainBrushMaxDist  = 400.0f; // グレージング角で遠方を誤編集しないよう距離制限
     double now = ImGui::GetTime();
     if (terrainBrushActive && isHoveringViewport && user && workspace) {
-        ImVec2 mousePos = ImGui::GetMousePos();
-        Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
-        Vector3 rayOri = camPos();
+        const ViewportGeometry::Ray ray = makeMouseRay(layout);
+        const Vector3 rayDir = ray.direction;
+        const Vector3 rayOri = ray.origin;
         Vector3 hitPos;
         int32_t hitBx = 0, hitBy = 0, hitBz = 0, hitAxis = 1, hitSign = 1;
         bool terrainHit = false;
@@ -662,27 +422,20 @@ void ViewportPanel::onRender() {
         m_terrainBrushStrokeTarget.reset();
     }
 
-    // ---- クリック処理: 選択 & ドラッグ開始（全モード共通） ----
-    // Selectモードでも非Selectモードでもレイキャストでオブジェクトを選択できる。
-    // 非Selectモードでは現在の選択物をクリックしたときのみドラッグ開始する。
+    return terrainBrushActive;
+}
+
+bool ViewportPanel::updateWeldMode(const ViewportLayout& layout) {
+    const int w = layout.width;
+    const int h = layout.height;
     bool weldModeConsumedClick = false;
     if (m_weldMode && m_weldMode->active && isHoveringViewport && user && workspace) {
         weldModeConsumedClick = ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsUsing();
-        ImVec2 mousePos = ImGui::GetMousePos();
-        Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
-        Vector3 rayOri = camPos();
-        BaseCube* hoveredCube = nullptr;
-        float nearestT = 1e30f;
-        auto weldCast = [&](auto& self, Instance* inst) -> void {
-            if (!inst) return;
-            if (inst->IsA("BaseCube")) {
-                auto* cube = static_cast<BaseCube*>(inst);
-                float t = obbHit(rayOri, rayDir, cube->getWorldCFrame(), cube->Size);
-                if (t >= 0.0f && t < nearestT) { nearestT = t; hoveredCube = cube; }
-            }
-            for (auto const& [_, child] : inst->getChildren()) self(self, child.get());
-        };
-        weldCast(weldCast, workspace);
+        const ViewportGeometry::Ray ray = makeMouseRay(layout);
+        const ViewportSceneQueries::PickerRayHit hoverHit =
+            ViewportSceneQueries::findPickerTarget(
+                *workspace, ray, ViewportSceneQueries::PickerTargetType::BaseCube);
+        BaseCube* hoveredCube = hoverHit.hit ? static_cast<BaseCube*>(hoverHit.target) : nullptr;
 
         if (hoveredCube && Renderer::instance && framebuffer) {
             const float aspect = h > 0 ? static_cast<float>(w) / static_cast<float>(h) : 1.0f;
@@ -722,29 +475,27 @@ void ViewportPanel::onRender() {
         }
     }
 
+    return weldModeConsumedClick;
+}
+
+void ViewportPanel::handleViewportClick(
+        const ViewportLayout& layout,
+        bool terrainBrushActive,
+        bool weldModeConsumedClick) {
     if (!terrainBrushActive && !weldModeConsumedClick && !isNoToolMode() && isHoveringViewport && ImGui::IsMouseClicked(0) && !ImGuizmo::IsUsing() && user && workspace) {
-        ImVec2 mousePos = ImGui::GetMousePos();
-        Vector3 rayDir = makeRay(mousePos.x - contentOrigin.x, mousePos.y - contentOrigin.y);
-        Vector3 rayOri = camPos();
+        const ViewportGeometry::Ray ray = makeMouseRay(layout);
 
         // ---- ピッカーモード: Pick ボタン押下中はクリックをキューブ/Attachment指定に横取り ----
         if (m_picker && m_picker->active) {
-            Instance* nearest = nullptr;
-            float nearestT = 1e30f;
             const bool pickAtt = m_picker->pickAttachment;
-            auto pickerCast = [&](auto& self, Instance* node) -> void {
-                if (!node) return;
-                if (pickAtt ? node->IsA("Attachment") : node->IsA("BaseCube")) {
-                    auto* s = static_cast<Spatial*>(node);
-                    // Attachment はサイズを持たないので、デバッグ描画のワイヤ球より
-                    // 少し大きい固定サイズの当たり判定でクリックできるようにする
-                    Vector3 hitSize = pickAtt ? Vector3(0.5f, 0.5f, 0.5f) : s->Size;
-                    float t = obbHit(rayOri, rayDir, s->getWorldCFrame(), hitSize);
-                    if (t >= 0.0f && t < nearestT) { nearestT = t; nearest = node; }
-                }
-                for (auto& [_, c] : node->getChildren()) self(self, c.get());
-            };
-            pickerCast(pickerCast, workspace);
+            const ViewportSceneQueries::PickerRayHit pickerHit =
+                ViewportSceneQueries::findPickerTarget(
+                    *workspace,
+                    ray,
+                    pickAtt
+                        ? ViewportSceneQueries::PickerTargetType::Attachment
+                        : ViewportSceneQueries::PickerTargetType::BaseCube);
+            Instance* nearest = pickerHit.hit ? pickerHit.target : nullptr;
             if (nearest && nearest != m_picker->constraint)
                 m_picker->onPick(nearest->shared_from_this());
             m_picker->active     = false;
@@ -757,8 +508,8 @@ void ViewportPanel::onRender() {
             CFrame    wcf = mc->getWorldCFrame();
             Quaternion invRot = wcf.Rotation.conjugate();
 
-            Vector3 localOri = invRot.rotate(rayOri - wcf.Position) / mc->Size;
-            Vector3 localDir = invRot.rotate(rayDir) / mc->Size;
+            Vector3 localOri = invRot.rotate(ray.origin - wcf.Position) / mc->Size;
+            Vector3 localDir = invRot.rotate(ray.direction) / mc->Size;
 
             MeshHitResult hitResult = mc->raycastLocal(localOri, localDir);
             if (hitResult.hit && m_history) {
@@ -782,10 +533,10 @@ void ViewportPanel::onRender() {
             bool hitSelected = false;
             if (!selectOnly && selectedInstance && *selectedInstance &&
                     (*selectedInstance)->IsA("Spatial") &&
-                    !isLockedBaseCube(*selectedInstance)) {
+                    !ViewportSceneQueries::isLockedBaseCube(*selectedInstance)) {
                 Spatial* sp = static_cast<Spatial*>(*selectedInstance);
-                float t = obbHit(rayOri, rayDir, sp->getWorldCFrame(), sp->Size);
-                hitSelected = (t >= 0.0f);
+                hitSelected = ViewportGeometry::raycastObb(
+                    ray, sp->getWorldCFrame(), sp->Size).hit;
             }
             m_isDraggingSelected = hitSelected;
 
@@ -794,43 +545,12 @@ void ViewportPanel::onRender() {
             bool shiftHeld = ImGui::GetIO().KeyShift;
             bool clickFoundSomething = false;
             if ((selectOnly || (shiftHeld && !hitSelected)) && selectedInstance) {
-                Instance* nearest = nullptr;
-
-                float nearestT = 1e30f;
-                auto castRay = [&](auto& self, Instance* inst) -> void {
-                    if (!inst) {
-                        return;
-                    }
-
-                    if (inst->getClassName() == "Skybox") {
-                        return;
-                    }
-
-                    if (inst->IsA("BaseCube")) {
-                        Spatial* spatial = static_cast<Spatial*>(inst);
-
-                        float t = obbHit(
-                            rayOri,
-                            rayDir,
-                            spatial->getWorldCFrame(),
-                            spatial->Size
-                        );
-
-                        if (t >= 0.0f && t < nearestT) {
-                            nearestT = t;
-                            nearest = inst;
-                        }
-                    }
-
-                    for (auto const& [_, child] : inst->getChildren()) {
-                        self(self, child.get());
-                    }
-                };
-
-                castRay(castRay, workspace);
+                const ViewportSceneQueries::BaseCubeRayHit selectionHit =
+                    ViewportSceneQueries::findNearestBaseCube(*workspace, ray);
+                Instance* nearest = selectionHit.hit ? selectionHit.cube : nullptr;
 
                 bool hitSomething = (nearest != nullptr);
-                bool hitLockedObject = isLockedBaseCube(nearest);
+                bool hitLockedObject = ViewportSceneQueries::isLockedBaseCube(nearest);
                 bool hitSelectableObject = hitSomething && !hitLockedObject;
 
                 bool ctrlHeld = ImGui::GetIO().KeyCtrl;
@@ -896,8 +616,11 @@ void ViewportPanel::onRender() {
             m_boxSelectStart   = ImGui::GetMousePos();
         } // end else (not picking)
     }
+}
 
-    // ---- ボックス選択 ----
+void ViewportPanel::updateBoxSelection(const ViewportLayout& layout) {
+    const int w = layout.width;
+    const int h = layout.height;
     // ドラッグ閾値(5px²)を超えたら選択モード開始（Selectモード専用）
     if (m_isBoxSelectArmed && isSelectMode() && ImGui::IsMouseDown(0) && isHoveringViewport) {
         ImVec2 cur = ImGui::GetMousePos();
@@ -923,7 +646,6 @@ void ViewportPanel::onRender() {
             Vector3 camTarget = camPos() + camForward();
             Matrix4 view = Matrix4::LookAt(camPos(), camTarget, camUp());
             Matrix4 vp   = proj * view;
-            const float* mv = vp.m;
 
             ImVec2 cur = ImGui::GetMousePos();
             float minX = (std::min)(m_boxSelectStart.x, cur.x);
@@ -933,75 +655,13 @@ void ViewportPanel::onRender() {
 
             selectedInstances->clear();
             *selectedInstance = nullptr;
-
-            auto collect = [&](auto& self, Instance* node) -> void {
-                if (!node) {
-                    return;
-                }
-
-                if (node->getClassName() == "Skybox") {
-                    return;
-                }
-
-                if (node->IsA("BaseCube")) {
-                    BaseCube* cube = static_cast<BaseCube*>(node);
-
-                    // Locked自身と、その子孫をボックス選択から除外
-                    if (cube->Locked) {
-                        return;
-                    }
-
-                    Spatial* spatial = static_cast<Spatial*>(node);
-                    Vector3 worldPosition = spatial->getWorldPosition();
-
-                    float cx =
-                        mv[0] * worldPosition.x +
-                        mv[4] * worldPosition.y +
-                        mv[8] * worldPosition.z +
-                        mv[12];
-
-                    float cy =
-                        mv[1] * worldPosition.x +
-                        mv[5] * worldPosition.y +
-                        mv[9] * worldPosition.z +
-                        mv[13];
-
-                    float cw =
-                        mv[3] * worldPosition.x +
-                        mv[7] * worldPosition.y +
-                        mv[11] * worldPosition.z +
-                        mv[15];
-
-                    if (cw > 0.0f) {
-                        float sx =
-                            contentOrigin.x +
-                            (cx / cw + 1.0f) *
-                            0.5f *
-                            static_cast<float>(w);
-
-                        float sy =
-                            contentOrigin.y +
-                            (1.0f - cy / cw) *
-                            0.5f *
-                            static_cast<float>(h);
-
-                        bool insideSelectionBox =
-                            sx >= minX &&
-                            sx <= maxX &&
-                            sy >= minY &&
-                            sy <= maxY;
-
-                        if (insideSelectionBox) {
-                            selectedInstances->push_back(node);
-                        }
-                    }
-                }
-
-                for (auto const& [_, child] : node->getChildren()) {
-                    self(self, child.get());
-                }
-            };
-            collect(collect, workspace);
+            *selectedInstances = ViewportSceneQueries::collectBoxSelectableCubes(
+                *workspace,
+                vp,
+                Vector2(layout.contentOrigin.x, layout.contentOrigin.y),
+                Vector2(static_cast<float>(w), static_cast<float>(h)),
+                Vector2(minX, minY),
+                Vector2(maxX, maxY));
 
             if (selectedInstances->empty()) {
                 *selectedInstance = nullptr;
@@ -1012,8 +672,9 @@ void ViewportPanel::onRender() {
         m_isBoxSelecting   = false;
         m_isBoxSelectArmed = false;
     }
+}
 
-    // フォーカス状態の可視化（フォーカス時に薄いボーダーを描画）
+void ViewportPanel::drawFocusBorder() {
     if (isViewportFocused) {
         ImGui::GetWindowDrawList()->AddRect(
             ImGui::GetWindowPos(),
@@ -1023,10 +684,14 @@ void ViewportPanel::onRender() {
             0.0f, 0, 2.0f
         );
     }
+}
 
-    // ---- ギズモのオーバーレイ ----
+void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
+    const int w = layout.width;
+    const int h = layout.height;
+    const ImVec2 contentOrigin = layout.contentOrigin;
     if (isGizmoMode() && selectedInstance && *selectedInstance && user &&
-            !isLockedBaseCube(*selectedInstance)) {
+            !ViewportSceneQueries::isLockedBaseCube(*selectedInstance)) {
         Instance* inst = *selectedInstance;
 
         // ピボット自動解除: 対象・操作モードが変わったら Tab ピボットを無効化する
@@ -1052,16 +717,20 @@ void ViewportPanel::onRender() {
             bool haveMultiCenter = false;
             if (!isModelTarget && (gizmoOp == ImGuizmo::TRANSLATE || gizmoOp == ImGuizmo::ROTATE)
                 && hasMultiSelection()) {
-                Vector3 mn(1e30f, 1e30f, 1e30f), mx(-1e30f, -1e30f, -1e30f);
-                bool any = false;
+                ViewportGeometry::WorldAabb selectionAabb;
                 for (Instance* o : *selectedInstances) {
                     if (o && !o->Parent.expired() && o->IsA("BaseCube") &&
-                            !isLockedBaseCube(o)) {
-                        accumulateWorldAABB(static_cast<Spatial*>(o), mn, mx);
-                        any = true;
+                            !ViewportSceneQueries::isLockedBaseCube(o)) {
+                        Spatial* selectedSpatial = static_cast<Spatial*>(o);
+                        ViewportGeometry::accumulateWorldAabb(
+                            selectionAabb,
+                            selectedSpatial->getWorldCFrame(),
+                            selectedSpatial->Size);
                     }
                 }
-                multiCenter     = any ? (mn + mx) * 0.5f : s->getWorldPosition();
+                multiCenter = selectionAabb.valid
+                    ? (selectionAabb.minimum + selectionAabb.maximum) * 0.5f
+                    : s->getWorldPosition();
                 haveMultiCenter = true;
             }
 
@@ -1072,7 +741,7 @@ void ViewportPanel::onRender() {
                     ? *selectedInstances : std::vector<Instance*>{ inst };
                 for (Instance* tgt : targets) {
                     if (tgt && !tgt->Parent.expired() && tgt->IsA("Spatial") &&
-                            !isLockedBaseCube(tgt)) {
+                            !ViewportSceneQueries::isLockedBaseCube(tgt)) {
                         Spatial* sp = static_cast<Spatial*>(tgt);
                         m_gizmoEntries.push_back({
                             std::static_pointer_cast<Spatial>(tgt->shared_from_this()),
@@ -1116,12 +785,13 @@ void ViewportPanel::onRender() {
             }
 
             // Model のバウンディングボックス中心（TRANSLATE/ROTATE のピボットに使う）
-            Vector3 modelAabbMin(0.0f, 0.0f, 0.0f), modelAabbMax(0.0f, 0.0f, 0.0f);
-            bool haveModelAABB = false;
+            ViewportGeometry::WorldAabb modelAabb;
             Vector3 modelPivotCenter;
             if (isModelTarget) {
-                haveModelAABB   = computeDescendantWorldAABB(inst, modelAabbMin, modelAabbMax);
-                modelPivotCenter = haveModelAABB ? (modelAabbMin + modelAabbMax) * 0.5f : s->getWorldPosition();
+                modelAabb = ViewportSceneQueries::computeDescendantWorldAabb(*inst);
+                modelPivotCenter = modelAabb.valid
+                    ? (modelAabb.minimum + modelAabb.maximum) * 0.5f
+                    : s->getWorldPosition();
             }
             // ROTATE で使う Model の直前ワールド状態（Manipulate 呼び出し前に保存）
             Vector3    modelOldWorldPos = isModelTarget ? s->getWorldPosition()          : Vector3();
@@ -1189,18 +859,18 @@ void ViewportPanel::onRender() {
 
                 if (isModelTarget && gizmoOp == ImGuizmo::TRANSLATE) {
                     // Model: AABB中心（無ければ自身のワールド位置）からの delta を Position に加算
-                    Vector3 centerBefore = haveModelAABB ? modelPivotCenter : s->getWorldPosition();
+                    Vector3 centerBefore = modelAabb.valid ? modelPivotCenter : s->getWorldPosition();
                     Vector3 delta        = newPos - centerBefore;
                     Vector3 newWorldPos  = s->getWorldPosition() + delta;
-                    s->Position = worldToLocal(newWorldPos, s);
+                    s->Position = ViewportGeometry::worldToLocalPosition(newWorldPos, *s);
                 } else if (isModelTarget && gizmoOp == ImGuizmo::ROTATE) {
                     // Model: AABB中心（無ければ自身のワールド位置）を軸に回転を適用
                     Quaternion rotDelta   = newRot * modelOldWorldRot.conjugate();
-                    Vector3    pivotCenter = haveModelAABB ? modelPivotCenter : modelOldWorldPos;
+                    Vector3    pivotCenter = modelAabb.valid ? modelPivotCenter : modelOldWorldPos;
                     Vector3    newWorldPos = pivotCenter + rotDelta.rotate(modelOldWorldPos - pivotCenter);
                     Quaternion newWorldRot = rotDelta * modelOldWorldRot;
-                    s->Position         = worldToLocal(newWorldPos, s);
-                    s->cframe.Rotation  = worldToLocalRot(newWorldRot, s);
+                    s->Position = ViewportGeometry::worldToLocalPosition(newWorldPos, *s);
+                    s->cframe.Rotation = ViewportGeometry::worldToLocalRotation(newWorldRot, *s);
                 } else if (m_pivotActive && gizmoOp == ImGuizmo::TRANSLATE) {
                     // Tab ピボット経路: delta を全選択対象に適用（collisionFit は使わない）
                     Vector3 delta = newPos - m_pivotWorld;
@@ -1208,10 +878,10 @@ void ViewportPanel::onRender() {
                         ? *selectedInstances : std::vector<Instance*>{ inst };
                     for (Instance* tgt : targets) {
                         if (!tgt || tgt->Parent.expired() || !tgt->IsA("Spatial") ||
-                                isLockedBaseCube(tgt)) continue;
+                                ViewportSceneQueries::isLockedBaseCube(tgt)) continue;
                         Spatial* tsp = static_cast<Spatial*>(tgt);
                         Vector3 newWorld = tsp->getWorldPosition() + delta;
-                        Vector3 localP   = worldToLocal(newWorld, tsp);
+                        Vector3 localP = ViewportGeometry::worldToLocalPosition(newWorld, *tsp);
                         if (tgt->IsA("BaseCube"))
                             static_cast<BaseCube*>(tgt)->teleportTo(localP);
                         else
@@ -1223,10 +893,10 @@ void ViewportPanel::onRender() {
                     Vector3 delta = newPos - multiCenter;
                     for (Instance* other : *selectedInstances) {
                         if (!other || other->Parent.expired() || !other->IsA("BaseCube") ||
-                                isLockedBaseCube(other)) continue;
+                                ViewportSceneQueries::isLockedBaseCube(other)) continue;
                         BaseCube* bc = static_cast<BaseCube*>(other);
                         Vector3 nw = bc->getWorldPosition() + delta;
-                        bc->teleportTo(worldToLocal(nw, bc));
+                        bc->teleportTo(ViewportGeometry::worldToLocalPosition(nw, *bc));
                     }
                 } else if (gizmoOp == ImGuizmo::TRANSLATE && workspace) {
                     // teleportTo 前のワールド座標を保存（複数選択の delta 計算用）
@@ -1236,18 +906,21 @@ void ViewportPanel::onRender() {
                     if (collisionFit) {
                         Vector3 prevWorld = prevPrimaryWorld;
                         float rx = (std::abs(newPos.x - prevWorld.x) > 1e-5f)
-                                   ? fitOnAxis({newPos.x, prevWorld.y, prevWorld.z}, s->Size, inst, 0)
+                                   ? ViewportSceneQueries::fitOnAxis(
+                                         *workspace, {newPos.x, prevWorld.y, prevWorld.z}, s->Size, *s, 0)
                                    : prevWorld.x;
                         float ry = (std::abs(newPos.y - prevWorld.y) > 1e-5f)
-                                   ? fitOnAxis({prevWorld.x, newPos.y, prevWorld.z}, s->Size, inst, 1)
+                                   ? ViewportSceneQueries::fitOnAxis(
+                                         *workspace, {prevWorld.x, newPos.y, prevWorld.z}, s->Size, *s, 1)
                                    : prevWorld.y;
                         float rz = (std::abs(newPos.z - prevWorld.z) > 1e-5f)
-                                   ? fitOnAxis({prevWorld.x, prevWorld.y, newPos.z}, s->Size, inst, 2)
+                                   ? ViewportSceneQueries::fitOnAxis(
+                                         *workspace, {prevWorld.x, prevWorld.y, newPos.z}, s->Size, *s, 2)
                                    : prevWorld.z;
                         newPos = Vector3(rx, ry, rz);
                     }
                     // ワールド → ローカルに変換して設定
-                    Vector3 localPos = worldToLocal(newPos, s);
+                    Vector3 localPos = ViewportGeometry::worldToLocalPosition(newPos, *s);
                     if (inst->IsA("BaseCube"))
                         static_cast<BaseCube*>(inst)->teleportTo(localPos);
                     else
@@ -1258,10 +931,11 @@ void ViewportPanel::onRender() {
                         Vector3 deltaWorld = s->getWorldPosition() - prevPrimaryWorld;
                         for (Instance* other : *selectedInstances) {
                             if (!other || other->Parent.expired() || other == inst ||
-                                    !other->IsA("BaseCube") || isLockedBaseCube(other)) continue;
+                                    !other->IsA("BaseCube") ||
+                                    ViewportSceneQueries::isLockedBaseCube(other)) continue;
                             BaseCube* bc = static_cast<BaseCube*>(other);
                             Vector3 nw = bc->getWorldPosition() + deltaWorld;
-                            bc->teleportTo(worldToLocal(nw, bc));
+                            bc->teleportTo(ViewportGeometry::worldToLocalPosition(nw, *bc));
                         }
                     }
                 } else if (gizmoOp == ImGuizmo::SCALE) {
@@ -1282,13 +956,9 @@ void ViewportPanel::onRender() {
                     Vector3 deltaSize = newSize - m_scaleBeforeSize;
                     // 固定面の符号は「掴み点が軸のどちら側か」のワールド幾何で決める（カメラ非依存）。
                     // 背面に回っても反転しない。単一軸以外は従来の IsScaleNegative にフォールバック。
-                    auto grabSign = [](int ax) -> float {
-                        float g = ImGuizmo::GetScaleGrabSign(ax);
-                        return g != 0.0f ? g : (ImGuizmo::IsScaleNegative(ax) ? -1.0f : 1.0f);
-                    };
-                    float sx = grabSign(0);
-                    float sy = grabSign(1);
-                    float sz = grabSign(2);
+                    float sx = scaleGrabSign(0);
+                    float sy = scaleGrabSign(1);
+                    float sz = scaleGrabSign(2);
                     // オフセットはオブジェクトのローカル軸に沿って行う。回転していても反対面が
                     // 正しく固定される（未回転ならワールド軸と一致＝従来と同等）
                     Quaternion wr = s->getWorldCFrame().Rotation;
@@ -1297,7 +967,7 @@ void ViewportPanel::onRender() {
                         wr.rotate(Vector3(0, 1, 0)) * (deltaSize.y * sy) +
                         wr.rotate(Vector3(0, 0, 1)) * (deltaSize.z * sz);
                     Vector3 newWorldPos = m_scaleBeforeWorldPos + offset * 0.5f;
-                    Vector3 localPos = worldToLocal(newWorldPos, s);
+                    Vector3 localPos = ViewportGeometry::worldToLocalPosition(newWorldPos, *s);
                     if (inst->IsA("BaseCube")) {
                         BaseCube* bc = static_cast<BaseCube*>(inst);
                         bc->teleportTo(localPos);
@@ -1311,7 +981,7 @@ void ViewportPanel::onRender() {
                     if (m_gizmoEntries.empty()) {
                         for (Instance* tgt : *selectedInstances) {
                             if (tgt && !tgt->Parent.expired() && tgt->IsA("Spatial") &&
-                                    !isLockedBaseCube(tgt)) {
+                                    !ViewportSceneQueries::isLockedBaseCube(tgt)) {
                                 Spatial* sp = static_cast<Spatial*>(tgt);
                                 m_gizmoEntries.push_back({
                                     std::static_pointer_cast<Spatial>(tgt->shared_from_this()),
@@ -1344,17 +1014,19 @@ void ViewportPanel::onRender() {
                         Quaternion newWorldRot = rotDelta * worldStart.Rotation;
                         if (e.target->IsA("BaseCube")) {
                             BaseCube* bc = static_cast<BaseCube*>(e.target.get());
-                            bc->teleportTo(worldToLocal(newWorldPos, bc));
-                            bc->setRotation(worldToLocalRot(newWorldRot, bc));
+                            bc->teleportTo(ViewportGeometry::worldToLocalPosition(newWorldPos, *bc));
+                            bc->setRotation(ViewportGeometry::worldToLocalRotation(newWorldRot, *bc));
                         } else {
-                            e.target->Position = worldToLocal(newWorldPos, e.target.get());
-                            e.target->cframe.Rotation = worldToLocalRot(newWorldRot, e.target.get());
+                            e.target->Position = ViewportGeometry::worldToLocalPosition(
+                                newWorldPos, *e.target);
+                            e.target->cframe.Rotation = ViewportGeometry::worldToLocalRotation(
+                                newWorldRot, *e.target);
                         }
                     }
                     m_multiRotateGizmoCurRot = newRot;
                 } else if (gizmoOp == ImGuizmo::ROTATE) {
                     // newRot はワールド回転 → ローカルに変換
-                    Quaternion localRot = worldToLocalRot(newRot, s);
+                    Quaternion localRot = ViewportGeometry::worldToLocalRotation(newRot, *s);
                     if (inst->IsA("BaseCube")) {
                         static_cast<BaseCube*>(inst)->setRotation(localRot);
                     } else {
@@ -1365,18 +1037,20 @@ void ViewportPanel::onRender() {
             } // end if (!skipGizmoForModelScale)
         }
     }
+}
 
-    // ---- 複数選択ハイライト: 全選択オブジェクトの OBB を画面投影してアウトラインを描画 ----
+void ViewportPanel::drawSelectionHighlights(const ViewportLayout& layout) {
+    const int w = layout.width;
+    const int h = layout.height;
     if (user && selectedInstances && !selectedInstances->empty()) {
         float aspect = (h > 0) ? (float)w / (float)h : 1.0f;
         Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
         Matrix4 view = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
         Matrix4 vp   = proj * view;
-        const float* mv = vp.m;
         auto* dl = ImGui::GetWindowDrawList();
 
         for (Instance* inst : *selectedInstances) {
-            if (!inst || isLockedBaseCube(inst)) {
+            if (!inst || ViewportSceneQueries::isLockedBaseCube(inst)) {
                 continue;
             }
 
@@ -1396,14 +1070,17 @@ void ViewportPanel::onRender() {
                 float ly = (ci & 2) ? hy : -hy;
                 float lz = (ci & 4) ? hz : -hz;
                 Vector3 wc = wf.Position + wf.Rotation.rotate(Vector3(lx, ly, lz));
-                float cx = mv[0]*wc.x + mv[4]*wc.y + mv[8]*wc.z  + mv[12];
-                float cy = mv[1]*wc.x + mv[5]*wc.y + mv[9]*wc.z  + mv[13];
-                float cw = mv[3]*wc.x + mv[7]*wc.y + mv[11]*wc.z + mv[15];
-                if (cw <= 0.0f) continue;
-                float sx = contentOrigin.x + (cx/cw + 1.0f) * 0.5f * (float)w;
-                float sy = contentOrigin.y + (1.0f - cy/cw) * 0.5f * (float)h;
-                sxMin = (std::min)(sxMin, sx); sxMax = (std::max)(sxMax, sx);
-                syMin = (std::min)(syMin, sy); syMax = (std::max)(syMax, sy);
+                const ViewportGeometry::ProjectedPoint projected =
+                    ViewportGeometry::projectWorldToScreen(
+                        vp,
+                        wc,
+                        Vector2(layout.contentOrigin.x, layout.contentOrigin.y),
+                        Vector2(static_cast<float>(w), static_cast<float>(h)));
+                if (!projected.visible) continue;
+                sxMin = (std::min)(sxMin, projected.position.x);
+                sxMax = (std::max)(sxMax, projected.position.x);
+                syMin = (std::min)(syMin, projected.position.y);
+                syMax = (std::max)(syMax, projected.position.y);
                 anyVis = true;
             }
             if (!anyVis) continue;
@@ -1416,51 +1093,56 @@ void ViewportPanel::onRender() {
                         ImVec2(sxMax + 2.0f, syMax + 2.0f), col, 0.0f, 0, 2.0f);
         }
     }
+}
 
-    // ---- Model ハイライト: 選択中が Model のとき、子孫 BaseCube の集合 AABB の12辺を描画 ----
+void ViewportPanel::drawModelHighlight(const ViewportLayout& layout) {
+    const int w = layout.width;
+    const int h = layout.height;
     if (user && selectedInstance && *selectedInstance && (*selectedInstance)->IsA("Model")) {
-        Vector3 aabbMin, aabbMax;
-        if (computeDescendantWorldAABB(*selectedInstance, aabbMin, aabbMax)) {
+        const ViewportGeometry::WorldAabb aabb =
+            ViewportSceneQueries::computeDescendantWorldAabb(**selectedInstance);
+        if (aabb.valid) {
             float aspect = (h > 0) ? (float)w / (float)h : 1.0f;
             Matrix4 proj = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
             Matrix4 view = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
             Matrix4 vp   = proj * view;
-            const float* mv = vp.m;
             auto* dl = ImGui::GetWindowDrawList();
 
             Vector3 corners[8];
             for (int ci = 0; ci < 8; ++ci) {
                 corners[ci] = Vector3(
-                    (ci & 1) ? aabbMax.x : aabbMin.x,
-                    (ci & 2) ? aabbMax.y : aabbMin.y,
-                    (ci & 4) ? aabbMax.z : aabbMin.z
+                    (ci & 1) ? aabb.maximum.x : aabb.minimum.x,
+                    (ci & 2) ? aabb.maximum.y : aabb.minimum.y,
+                    (ci & 4) ? aabb.maximum.z : aabb.minimum.z
                 );
             }
-            auto project = [&](const Vector3& wc, bool& visible) -> ImVec2 {
-                float cx = mv[0]*wc.x + mv[4]*wc.y + mv[8]*wc.z  + mv[12];
-                float cy = mv[1]*wc.x + mv[5]*wc.y + mv[9]*wc.z  + mv[13];
-                float cw = mv[3]*wc.x + mv[7]*wc.y + mv[11]*wc.z + mv[15];
-                visible = (cw > 0.0f);
-                if (!visible) return ImVec2(0, 0);
-                float sx = contentOrigin.x + (cx/cw + 1.0f) * 0.5f * (float)w;
-                float sy = contentOrigin.y + (1.0f - cy/cw) * 0.5f * (float)h;
-                return ImVec2(sx, sy);
-            };
             static const int kEdges[12][2] = {
                 {0,1},{0,2},{0,4},{1,3},{1,5},{2,3},
                 {2,6},{3,7},{4,5},{4,6},{5,7},{6,7}
             };
             ImU32 col = IM_COL32(255, 240, 80, 220); // primary色に合わせる
             for (auto& e : kEdges) {
-                bool v0, v1;
-                ImVec2 p0 = project(corners[e[0]], v0);
-                ImVec2 p1 = project(corners[e[1]], v1);
-                if (v0 && v1) dl->AddLine(p0, p1, col, 2.0f);
+                const ViewportGeometry::ProjectedPoint p0 =
+                    ViewportGeometry::projectWorldToScreen(
+                        vp, corners[e[0]],
+                        Vector2(layout.contentOrigin.x, layout.contentOrigin.y),
+                        Vector2(static_cast<float>(w), static_cast<float>(h)));
+                const ViewportGeometry::ProjectedPoint p1 =
+                    ViewportGeometry::projectWorldToScreen(
+                        vp, corners[e[1]],
+                        Vector2(layout.contentOrigin.x, layout.contentOrigin.y),
+                        Vector2(static_cast<float>(w), static_cast<float>(h)));
+                if (p0.visible && p1.visible) {
+                    dl->AddLine(
+                        ImVec2(p0.position.x, p0.position.y),
+                        ImVec2(p1.position.x, p1.position.y), col, 2.0f);
+                }
             }
         }
     }
+}
 
-    // ---- 自由移動ドラッグ開始/終了検出 ----
+void ViewportPanel::updateFreeDrag(const ViewportLayout& layout) {
     bool wasDragging = m_wasDraggingSelected;
 
     // ボタンを離したらリセット
@@ -1490,7 +1172,7 @@ void ViewportPanel::onRender() {
             ? *selectedInstances : std::vector<Instance*>{ *selectedInstance };
         for (Instance* tgt : targets) {
             if (tgt && !tgt->Parent.expired() && tgt->IsA("Spatial") &&
-                    !isLockedBaseCube(tgt)) {
+                    !ViewportSceneQueries::isLockedBaseCube(tgt)) {
                 Spatial* sp = static_cast<Spatial*>(tgt);
                 m_freeDragEntries.push_back({
                     std::static_pointer_cast<Spatial>(tgt->shared_from_this()),
@@ -1503,23 +1185,31 @@ void ViewportPanel::onRender() {
     // 次フレームの比較用に今フレームの最終状態を保存する
     m_wasDraggingSelected = m_isDraggingSelected;
 
-    // ---- Move モード自由移動: 選択キューブ上からのドラッグでサーフェスに追従 ----
-    if (isMoveMode() && m_isDraggingSelected && !ImGuizmo::IsUsing()
-            && selectedInstance && *selectedInstance && user && workspace &&
-            !isLockedBaseCube(*selectedInstance)) {
-        Instance* inst = *selectedInstance;
-        if (inst->IsA("Spatial")) {
-            Spatial* s = static_cast<Spatial*>(inst);
-            ImVec2 mp = ImGui::GetMousePos();
-            Vector3 dir = makeRay(mp.x - contentOrigin.x, mp.y - contentOrigin.y);
-            Vector3 ori = camPos();
+    moveFreeDragSelection(layout);
+}
 
-            [&]() {
-                // レイキャストなしは移動しない
-                int   hitAxis = 1;
-                float hitSign = 1.0f;
-                Spatial* surface = castRaySurface(ori, dir, inst, hitAxis, hitSign);
-                if (!surface) return;
+void ViewportPanel::moveFreeDragSelection(const ViewportLayout& layout) {
+    if (!isMoveMode() || !m_isDraggingSelected || ImGuizmo::IsUsing()
+            || !selectedInstance || !*selectedInstance || !user || !workspace
+            || ViewportSceneQueries::isLockedBaseCube(*selectedInstance)) {
+        return;
+    }
+    Instance* inst = *selectedInstance;
+    if (!inst->IsA("Spatial")) {
+        return;
+    }
+    Spatial* s = static_cast<Spatial*>(inst);
+    const ViewportGeometry::Ray ray = makeMouseRay(layout);
+    const ViewportSceneQueries::BaseCubeRayHit surfaceHit =
+        ViewportSceneQueries::findNearestBaseCube(*workspace, ray, inst);
+    if (!surfaceHit.hit || !surfaceHit.cube) {
+        return;
+    }
+    Spatial* surface = surfaceHit.cube;
+    const int hitAxis = surfaceHit.obb.axis;
+    const float hitSign = surfaceHit.obb.sign;
+    const Vector3 ori = ray.origin;
+    const Vector3 dir = ray.direction;
 
                 // 衝突面の法線軸 (hitAxis) に沿ってオブジェクトを隣接配置し、
                 // 残り2軸はレイと軸平面の交点で決定する
@@ -1541,7 +1231,8 @@ void ViewportPanel::onRender() {
                 Vector3 faceNormalWorld = surfCF.Rotation.rotate(eHitAxis) * hitSign;
 
                 // 移動物の面法線方向サポート半径(符号なし半径)
-                float movSupportN = obbSupportRadius(movRot, s->Size, faceNormalWorld);
+                float movSupportN = ViewportGeometry::obbSupportRadius(
+                    movRot, s->Size, faceNormalWorld);
 
                 // 固定ローカル座標
                 float fixedCoord = hitSign * surfHalf[hitAxis] + hitSign * movSupportN;
@@ -1561,7 +1252,8 @@ void ViewportPanel::onRender() {
                     Vector3 eI = (i == 0) ? Vector3(1.0f, 0.0f, 0.0f)
                                : (i == 1) ? Vector3(0.0f, 1.0f, 0.0f)
                                           : Vector3(0.0f, 0.0f, 1.0f);
-                    float movSupportI = obbSupportRadius(movRot, s->Size, surfCF.Rotation.rotate(eI));
+                    float movSupportI = ViewportGeometry::obbSupportRadius(
+                        movRot, s->Size, surfCF.Rotation.rotate(eI));
                     float loLim = -surfHalf[i] + movSupportI;
                     float hiLim =  surfHalf[i] - movSupportI;
                     if (loLim > hiLim) { loLim = hiLim = 0.0f; } // サーフェスより移動物が大きい場合は面中央に固定
@@ -1572,9 +1264,12 @@ void ViewportPanel::onRender() {
                 // ワールドへ戻す
                 Vector3 newPos = surfCF.Position + surfCF.Rotation.rotate(surfLocalPos);
 
-                if (collisionFit) newPos = fitCollision(newPos, s->Size, inst);
+                if (collisionFit) {
+                    newPos = ViewportSceneQueries::fitCollision(
+                        *workspace, newPos, s->Size, *s);
+                }
                 Vector3 prevPrimaryWorld = s->getWorldPosition();
-                Vector3 localPos = worldToLocal(newPos, s);
+                Vector3 localPos = ViewportGeometry::worldToLocalPosition(newPos, *s);
                 if (inst->IsA("BaseCube"))
                     static_cast<BaseCube*>(inst)->teleportTo(localPos);
                 else
@@ -1585,54 +1280,39 @@ void ViewportPanel::onRender() {
                     Vector3 deltaWorld = s->getWorldPosition() - prevPrimaryWorld;
                     for (Instance* other : *selectedInstances) {
                         if (!other || other->Parent.expired() || other == inst ||
-                                !other->IsA("BaseCube") || isLockedBaseCube(other)) continue;
+                                !other->IsA("BaseCube") ||
+                                ViewportSceneQueries::isLockedBaseCube(other)) continue;
                         BaseCube* bc = static_cast<BaseCube*>(other);
                         Vector3 nw = bc->getWorldPosition() + deltaWorld;
-                        bc->teleportTo(worldToLocal(nw, bc));
+                        bc->teleportTo(ViewportGeometry::worldToLocalPosition(nw, *bc));
                     }
                 }
-            }();
-        }
-    }
+}
 
-    // ---- Tab キー: ギズモをマウス位置へ移動するピボットを設定 ----
+void ViewportPanel::handlePivotShortcut(const ViewportLayout& layout) {
     if (isViewportFocused && ImGui::IsKeyPressed(ImGuiKey_Tab, false) && !ImGui::GetIO().WantTextInput
             && !ImGuizmo::IsUsing() && selectedInstance && *selectedInstance
             && (*selectedInstance)->IsA("Spatial") && user && workspace &&
-            !isLockedBaseCube(*selectedInstance)) {
+            !ViewportSceneQueries::isLockedBaseCube(*selectedInstance)) {
         Instance* inst = *selectedInstance;
         Spatial*  s    = static_cast<Spatial*>(inst);
 
-        ImVec2  mp  = ImGui::GetMousePos();
-        Vector3 dir = makeRay(mp.x - contentOrigin.x, mp.y - contentOrigin.y);
-        Vector3 ori = camPos();
-
-        float nearestT = 1e30f;
-        bool  hitAny   = false;
-        auto pivotCast = [&](auto& self, Instance* node) -> void {
-            if (!node) return;
-            if (node->getClassName() == "Skybox") return;
-            if (node->IsA("BaseCube")) {
-                Spatial* sp = static_cast<Spatial*>(node);
-                float t = obbHit(ori, dir, sp->getWorldCFrame(), sp->Size);
-                if (t >= 0.0f && t < nearestT) { nearestT = t; hitAny = true; }
-            }
-            for (auto const& [_, child] : node->getChildren()) self(self, child.get());
-        };
-        pivotCast(pivotCast, workspace);
-
-        if (hitAny) {
-            m_pivotWorld = ori + dir * nearestT;
+        const ViewportGeometry::Ray ray = makeMouseRay(layout);
+        const ViewportSceneQueries::BaseCubeRayHit pivotHit =
+            ViewportSceneQueries::findNearestBaseCube(*workspace, ray);
+        if (pivotHit.hit) {
+            m_pivotWorld = ray.origin + ray.direction * pivotHit.obb.distance;
         } else {
-            float dist = (s->getWorldPosition() - ori).length();
-            m_pivotWorld = ori + dir * dist;
+            float dist = (s->getWorldPosition() - ray.origin).length();
+            m_pivotWorld = ray.origin + ray.direction * dist;
         }
         m_pivotActive = true;
         m_pivotOwner  = inst;
         m_pivotOp     = (int)gizmoOp;
     }
+}
 
-    // ---- F キー: 選択オブジェクトにカメラをフォーカス ----
+void ViewportPanel::handleFocusShortcut() {
     if (isViewportFocused && user && selectedInstance && *selectedInstance
             && ImGui::IsKeyPressed(ImGuiKey_F)) {
         Instance* inst = *selectedInstance;
@@ -1649,8 +1329,4 @@ void ViewportPanel::onRender() {
             }
         }
     }
-
-    ImGuizmo::PopID();
-    ImGui::PopStyleVar();
-    ImGui::End();
 }

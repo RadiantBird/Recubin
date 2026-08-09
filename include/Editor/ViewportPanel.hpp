@@ -1,5 +1,6 @@
 #pragma once
 #include <Editor/EditorPanel.hpp>
+#include <Editor/ViewportGeometry.hpp>
 #include <memory>
 struct PickerState;        // PropertiesPanel.hpp で定義
 struct TerrainBrushState;  // PropertiesPanel.hpp で定義
@@ -136,4 +137,34 @@ public:
     void endRenderAndDisplay();
 
     void onRender() override;
+
+private:
+    struct ViewportLayout {
+        ImVec2 availableSize;
+        ImVec2 panelOrigin;
+        ImVec2 contentOrigin;
+        int width = 1;
+        int height = 1;
+    };
+
+    ViewportLayout renderLayoutAndScene();
+    void updateViewportFocus();
+    void updateOwnCameraInput();
+    bool updateTerrainBrush(const ViewportLayout& layout);
+    bool updateWeldMode(const ViewportLayout& layout);
+    void handleViewportClick(const ViewportLayout& layout,
+                             bool terrainBrushActive,
+                             bool weldModeConsumedClick);
+    void updateBoxSelection(const ViewportLayout& layout);
+    void drawFocusBorder();
+    void updateGizmo(const ViewportLayout& layout);
+    void drawSelectionHighlights(const ViewportLayout& layout);
+    void drawModelHighlight(const ViewportLayout& layout);
+    void updateFreeDrag(const ViewportLayout& layout);
+    void moveFreeDragSelection(const ViewportLayout& layout);
+    void handlePivotShortcut(const ViewportLayout& layout);
+    void handleFocusShortcut();
+
+    ViewportGeometry::Ray makeMouseRay(const ViewportLayout& layout) const;
+    static float scaleGrabSign(int axis);
 };
