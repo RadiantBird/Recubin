@@ -9,6 +9,7 @@ public:
     std::string saveFileDialog(const std::vector<FileFilter>& filters, const std::string& defaultExt) override;
     std::string openFolderDialog() override;
     void revealInFileManager(const std::string& path) override;
+    ApplicationIconResult setApplicationIcon(const std::string& path) override;
     void setupConsoleUtf8() override;
     void setupDllSearchPath() override;
     void* loadDynamicLibrary(const std::string& name) override;

@@ -14,6 +14,10 @@
 #include <include/GLFW/glfw3.h>
 #include "include/stb_image.h"
 #include <Util/AssetGuard.hpp>
+#include <Util/AssetPath.hpp>
+#include <Util/IPlatform.hpp>
+#include <Util/Logger.hpp>
+#include <Util/Platform.hpp>
 
 namespace SceneRuntime {
 
@@ -58,23 +62,43 @@ void releaseTerrainStreamers(
 }
 
 void applyAppIcon(GLFWwindow* window, Instance* root) {
-    if (!window || !root) return;
+    if (!root) return;
+    std::string iconPath;
     for (auto& [name, child] : root->children) {
         if (child->getClassName() == "AppImage") {
             auto* ai = static_cast<AppImage*>(child.get());
-            if (ai->iconPath.empty()) return;
-            if (!AssetGuard::allow(ai->iconPath)) return;
-            int w, h, ch;
-            stbi_set_flip_vertically_on_load(0);
-            unsigned char* px = stbi_load(ai->iconPath.c_str(), &w, &h, &ch, 4);
-            stbi_set_flip_vertically_on_load(1);
-            if (px) {
-                GLFWimage img{ w, h, px };
-                glfwSetWindowIcon(window, 1, &img);
-                stbi_image_free(px);
-            }
-            return;
+            iconPath = ai->iconPath;
+            break;
         }
+    }
+
+    if (iconPath.empty()) {
+        // macOSではシーン切り替え前のDockアイコンが残らないよう、既定値へ戻す。
+        // Windows/MockはUnsupportedを返すため、従来どおり何もしない。
+        (void)getPlatform().setApplicationIcon({});
+        return;
+    }
+    if (!AssetGuard::allow(iconPath)) return;
+
+    const std::string normalizedPath = AssetPath::normalize(iconPath);
+    const ApplicationIconResult platformResult =
+        getPlatform().setApplicationIcon(normalizedPath);
+    if (platformResult == ApplicationIconResult::Applied) return;
+    if (platformResult == ApplicationIconResult::Failed) {
+        RCBN_WARN("Failed to load application icon: " << normalizedPath);
+        return;
+    }
+
+    // Windowsでは従来どおり、GLFWのウィンドウアイコンとして設定する。
+    if (!window) return;
+    int w, h, ch;
+    stbi_set_flip_vertically_on_load(0);
+    unsigned char* px = stbi_load(normalizedPath.c_str(), &w, &h, &ch, 4);
+    stbi_set_flip_vertically_on_load(1);
+    if (px) {
+        GLFWimage img{ w, h, px };
+        glfwSetWindowIcon(window, 1, &img);
+        stbi_image_free(px);
     }
 }
 

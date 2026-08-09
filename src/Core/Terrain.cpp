@@ -1,6 +1,7 @@
 #include <include/Core/Terrain.hpp>
 #include <include/Core/TerrainStreamer.hpp>
 #include <Instances/Workspace.hpp>
+#include <Util/AssetPath.hpp>
 #include <vector>
 #include <cstring>
 #include <cmath>
@@ -625,16 +626,17 @@ void Terrain::setEnabled(bool enabled) {
 }
 
 void Terrain::setDataPath(const std::string& path) {
-    if (DataPath == path) return;
+    const std::string normalizedPath = AssetPath::normalize(path);
+    if (DataPath == normalizedPath) return;
     // setDataPath() は旧リージョンをflushしてから切り替える。
     // 空パスはTerrain未構成を表すためstreamerも解除する。
-    if (streamer && !path.empty()) {
-        streamer->setDataPath(path);
-        m_appliedDataPath = path;
-    } else if (path.empty()) {
+    if (streamer && !normalizedPath.empty()) {
+        streamer->setDataPath(normalizedPath);
+        m_appliedDataPath = normalizedPath;
+    } else if (normalizedPath.empty()) {
         releaseStreamer();
     }
-    DataPath = path;
+    DataPath = normalizedPath;
 }
 
 void Terrain::releaseStreamer() {

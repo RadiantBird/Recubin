@@ -2,6 +2,7 @@
 #include "Core/TimeStretchNode.hpp"
 #include <Util/Logger.hpp>
 #include <Util/AssetGuard.hpp>
+#include <Util/AssetPath.hpp>
 #include <algorithm>
 #include <cmath>
 #ifdef _WIN32
@@ -97,20 +98,31 @@ void Sound::setPreservePitch(bool b) {
 bool Sound::getPreservePitch() const { return m_preservePitch; }
 
 void Sound::loadFromFile(const std::string& path) {
+    if (path.empty()) {
+        if (loaded) {
+            destroyTimeStretchNode();
+            ma_sound_uninit(&sound);
+            loaded = false;
+        }
+        m_currentPath.clear();
+        return;
+    }
     if (!AssetGuard::allow(path)) return;
+    const std::string normalizedPath = AssetPath::normalize(path);
     if (loaded) {
         destroyTimeStretchNode();
         ma_sound_uninit(&sound);
         loaded = false;
     }
+    m_currentPath.clear();
     if (m_audioService) {
         ma_uint32 flags = MA_SOUND_FLAG_DECODE;
-        if (initSoundFromFile(&m_audioService->engine, path, flags,
+        if (initSoundFromFile(&m_audioService->engine, normalizedPath, flags,
                               getTargetGroup(), &sound) == MA_SUCCESS) {
             loaded = true;
-            m_currentPath = path;
+            m_currentPath = normalizedPath;
             applyLoadedProperties();
-            std::cout << "[DEBUG] Audio loaded: " << path << std::endl;
+            std::cout << "[DEBUG] Audio loaded: " << normalizedPath << std::endl;
         } else {
             RCBN_WARN("Failed to load audio: " << path);
         }

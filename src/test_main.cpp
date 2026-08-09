@@ -21,6 +21,8 @@
 #include <Instances/Tool.hpp>
 
 #include <Core/LuauEngine.hpp>
+#include <Core/FileLoader.hpp>
+#include <Core/Packager.hpp>
 #include <Core/SceneLoader.hpp>
 #include <Core/SceneRuntime.hpp>
 #include <Core/AudioService.hpp>
@@ -36,8 +38,14 @@
 #include <Network/NatProtocol.hpp>
 #include <Network/Replication.hpp>
 #include <Util/Logger.hpp>
+#include <Util/AssetGuard.hpp>
+#include <Util/AssetPath.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
+#include <Util/MockPlatform.hpp>
+#ifdef __APPLE__
+#include <Util/MacPlatform.hpp>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -46,6 +54,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <thread>
 #include <iostream>
 #include <limits>
@@ -3838,6 +3847,129 @@ int runViewportHelperRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runAssetPathRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[AssetPath] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    expect(AssetPath::normalize("assets\\image\\sample.png") ==
+               "assets/image/sample.png",
+           "Windows separators normalize to portable separators");
+    expect(AssetPath::normalize("assets/image/sample.png") ==
+               "assets/image/sample.png",
+           "portable separators remain unchanged");
+    expect(AssetPath::normalize("").empty(),
+           "empty asset path remains unset");
+    expect(AssetPath::toStored(std::filesystem::path("assets") / "scripts" / "sample.luauc") ==
+               "assets/scripts/sample.luauc",
+           "stored filesystem paths always use portable separators");
+
+    const auto originalCwd = std::filesystem::current_path();
+    const auto tempRoot = std::filesystem::temp_directory_path() /
+        ("recubin_asset_path_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::error_code ec;
+    std::filesystem::create_directories(tempRoot / "assets", ec);
+    if (ec) {
+        expect(false, "temporary asset directory can be created");
+        return 1;
+    }
+
+    {
+        std::ofstream textFile(tempRoot / "assets" / "sample.txt", std::ios::binary);
+        textFile << "portable-text";
+        const std::array<char, 4> binary{{'R', '\0', 'C', 'B'}};
+        std::ofstream binaryFile(tempRoot / "assets" / "sample.bin", std::ios::binary);
+        binaryFile.write(binary.data(), static_cast<std::streamsize>(binary.size()));
+        std::ofstream sceneFile(tempRoot / "scene.yaml", std::ios::binary);
+        sceneFile << "Properties:\n"
+                  << "  Texture: assets\\sample.bin\n"
+                  << "  MeshFile: assets\\models\\missing.glb\n";
+    }
+
+    std::filesystem::current_path(tempRoot, ec);
+    expect(!ec, "temporary asset directory can become the working directory");
+    if (!ec) {
+        AssetGuard::enableSandbox(tempRoot);
+        expect(FileLoader::readText("assets/sample.txt") == "portable-text" &&
+                   FileLoader::readText("assets\\sample.txt") == "portable-text",
+               "text loader accepts both separator styles");
+        const auto forwardBytes = FileLoader::readBinary("assets/sample.bin");
+        const auto windowsBytes = FileLoader::readBinary("assets\\sample.bin");
+        expect(forwardBytes == windowsBytes && forwardBytes.size() == 4 &&
+                   forwardBytes[0] == 'R' && forwardBytes[1] == '\0' &&
+                   forwardBytes[2] == 'C' && forwardBytes[3] == 'B',
+               "binary loader accepts both separator styles");
+        expect(AssetGuard::allow("assets\\sample.txt"),
+               "guard accepts an in-root Windows-style path");
+        expect(!AssetGuard::allow("..\\outside.txt"),
+               "guard rejects Windows-style parent traversal");
+
+        Packager::Config packageConfig;
+        packageConfig.gameName = "PortablePackage";
+        packageConfig.outputDir = "package-output";
+        packageConfig.scenePath = "scene.yaml";
+        const bool packaged = Packager::package(packageConfig, [](const std::string&) {});
+        const std::string packagedScene = FileLoader::readText(
+            "package-output/PortablePackage/assets/scenes/PortablePackage.yaml");
+        expect(packaged && std::filesystem::exists(
+                   tempRoot / "package-output" / "PortablePackage" / "assets" / "sample.bin") &&
+                   packagedScene.find("assets/sample.bin") != std::string::npos &&
+                   packagedScene.find("assets/models/missing.glb") != std::string::npos &&
+                   packagedScene.find('\\') == std::string::npos,
+               "packager copies Windows-style inputs and writes portable YAML paths");
+    }
+
+    std::filesystem::current_path(originalCwd, ec);
+    expect(!ec, "original working directory is restored");
+    std::filesystem::remove_all(tempRoot, ec);
+
+    std::cout << "[AssetPath] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runAppImageRegression() {
+    int failures = 0;
+    auto expect = [&failures](bool condition, const char* name) {
+        std::cout << "[AppImage] " << (condition ? "PASS" : "FAIL")
+                  << ": " << name << '\n';
+        if (!condition) ++failures;
+    };
+
+    MockPlatform mockPlatform;
+    expect(mockPlatform.setApplicationIcon("") == ApplicationIconResult::Unsupported &&
+               mockPlatform.setApplicationIcon("assets/image/hooo.png") ==
+                   ApplicationIconResult::Unsupported,
+           "unsupported platforms leave application icons to the GLFW fallback");
+
+#ifdef __APPLE__
+    MacPlatform macPlatform;
+    const std::filesystem::path sourceRoot =
+        std::filesystem::path(__FILE__).parent_path().parent_path();
+    const std::string validIcon =
+        AssetPath::normalize((sourceRoot / "assets/image/hooo.png").string());
+    const std::string missingIcon =
+        AssetPath::normalize((sourceRoot / "assets/image/app-image-missing.png").string());
+
+    expect(macPlatform.setApplicationIcon("") == ApplicationIconResult::Applied,
+           "an empty macOS icon path restores the default application icon");
+    expect(macPlatform.setApplicationIcon(validIcon) == ApplicationIconResult::Applied,
+           "macOS loads a valid image as the application icon");
+    expect(macPlatform.setApplicationIcon(missingIcon) == ApplicationIconResult::Failed,
+           "macOS reports a missing application icon");
+    expect(macPlatform.setApplicationIcon("") == ApplicationIconResult::Applied,
+           "macOS restores the default icon after the regression test");
+#endif
+
+    std::cout << "[AppImage] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
@@ -3874,6 +4006,8 @@ int main(int argc, char* argv[]) {
     bool box3dBuoyancyRegression = false;
     bool frameRateInvarianceRegression = false;
     bool viewportHelperRegression = false;
+    bool assetPathRegression = false;
+    bool appImageRegression = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument(argv[i]);
         physicsMigrationRegression =
@@ -3900,6 +4034,10 @@ int main(int argc, char* argv[]) {
             frameRateInvarianceRegression || argument == "--frame-rate-invariance-regression";
         viewportHelperRegression =
             viewportHelperRegression || argument == "--viewport-helper-regression";
+        assetPathRegression =
+            assetPathRegression || argument == "--asset-path-regression";
+        appImageRegression =
+            appImageRegression || argument == "--app-image-regression";
     }
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
     if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
@@ -3913,6 +4051,8 @@ int main(int argc, char* argv[]) {
     if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
     if (frameRateInvarianceRegression) return runFrameRateInvarianceRegression();
     if (viewportHelperRegression) return runViewportHelperRegression();
+    if (assetPathRegression) return runAssetPathRegression();
+    if (appImageRegression) return runAppImageRegression();
     if (toolWeldRegression) return runToolWeldRegression();
     if (toolWeldReequipRegression) return runToolWeldReequipRegression();
     if (toolRespawnRegression) return runToolRespawnRegression();

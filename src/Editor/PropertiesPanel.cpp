@@ -1756,6 +1756,9 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "AppImage") {
         AppImage* ai = static_cast<AppImage*>(inst);
         ImGui::SeparatorText("AppImage");
+#ifdef __APPLE__
+        ImGui::TextDisabled("macOS: Used as the Dock/Application icon while running.");
+#endif
         ImGui::LabelText("IconPath", "%s", ai->iconPath.empty() ? "(none)" : ai->iconPath.c_str());
         if (ImGui::Button(locId(Loc::LocKey::Browse, "##appimage").c_str())) {
             std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.ico)", "*.png;*.jpg;*.bmp;*.ico"}});

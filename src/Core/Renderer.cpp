@@ -4,6 +4,7 @@
 #include <Util/Logger.hpp>
 #include <Util/FrameProfiler.hpp>
 #include <Util/AssetGuard.hpp>
+#include <Util/AssetPath.hpp>
 #include <Util/MeshEdges.hpp>
 #include <Util/GLUniformCache.hpp>
 #include <Editor/IEditorManager.hpp>
@@ -2122,13 +2123,14 @@ void Renderer::renderImGui(User& user, GLFWwindow* window, Workspace& workspace)
 // ===================================================
 unsigned int Renderer::loadTexture(const char* path) {
     std::string pathStr(path);
-    if (textureCache.find(pathStr) != textureCache.end()) {
-        return textureCache[pathStr];
+    const std::string normalizedPath = AssetPath::normalize(pathStr);
+    if (textureCache.find(normalizedPath) != textureCache.end()) {
+        return textureCache[normalizedPath];
     }
     if (!AssetGuard::allow(pathStr)) return 0;
 
     int width, height, nrChannels;
-    unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 4);
+    unsigned char* data = stbi_load(normalizedPath.c_str(), &width, &height, &nrChannels, 4);
 
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -2152,7 +2154,7 @@ unsigned int Renderer::loadTexture(const char* path) {
     stbi_image_free(data);
 
     glBindTexture(GL_TEXTURE_2D, 0);  // texture state をクリアして後の描画に影響しないようにする
-    textureCache[pathStr] = textureID;
+    textureCache[normalizedPath] = textureID;
     return textureID;
 }
 

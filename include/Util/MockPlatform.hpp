@@ -14,6 +14,9 @@ public:
     std::string saveFileDialog(const std::vector<FileFilter>&, const std::string&) override { return {}; }
     std::string openFolderDialog() override { return {}; }
     void revealInFileManager(const std::string&) override {}
+    ApplicationIconResult setApplicationIcon(const std::string&) override {
+        return ApplicationIconResult::Unsupported;
+    }
     void setupConsoleUtf8() override {}
     void setupDllSearchPath() override {}
     void* loadDynamicLibrary(const std::string&) override { return nullptr; }

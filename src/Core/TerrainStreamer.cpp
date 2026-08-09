@@ -2,6 +2,7 @@
 #include <include/Core/Terrain.hpp>
 #include <include/Core/FileLoader.hpp>
 #include <Core/Physics.hpp>
+#include <Util/AssetPath.hpp>
 #include <include/Instances/PathfindingService.hpp>
 #include <yaml-cpp/yaml.h>
 #include <fstream>
@@ -119,7 +120,7 @@ TerrainStreamer::TerrainStreamer(Workspace* workspace, Instance* owner, const st
                                  uint32_t seed, bool flat)
     : m_workspace(workspace), m_owner(owner), m_noise(seed), m_flat(flat)
 {
-    terrainDir = dataDir;
+    terrainDir = AssetPath::normalize(dataDir);
     ensureDir(terrainDir);
     // ワーカースレッド起動（terrainDir 設定後・m_chunks 未使用の時点で開始）
     m_worker = std::thread([this]{ workerLoop(); });
@@ -169,7 +170,7 @@ void TerrainStreamer::setDataPath(const std::string& dir) {
         releaseChunkResources(entry.chunk);
     }
     m_chunks.clear();
-    { Job job; job.type = JobType::SetDir; job.dir = dir; enqueueJob(std::move(job)); }
+    { Job job; job.type = JobType::SetDir; job.dir = AssetPath::normalize(dir); enqueueJob(std::move(job)); }
     // 結果キューに残る旧チャンクの結果はキー不在で破棄される
 }
 

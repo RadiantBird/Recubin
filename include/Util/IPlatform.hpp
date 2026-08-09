@@ -15,6 +15,12 @@ struct FileFilter {
     std::string spec; // セミコロン区切りの拡張子パターン (例: "*.yaml;*.yml")
 };
 
+enum class ApplicationIconResult {
+    Unsupported,
+    Applied,
+    Failed,
+};
+
 class IPlatform {
 public:
     virtual ~IPlatform() = default;
@@ -31,6 +37,10 @@ public:
 
     // OS標準のファイルマネージャー(エクスプローラー/Finder相当)でパスを開く
     virtual void revealInFileManager(const std::string& path) = 0;
+
+    // OS固有のアプリケーションアイコンを設定する。空パスは既定アイコンへの復帰を表す。
+    // ウィンドウ単位のアイコンしか持たないOSはUnsupportedを返し、呼び出し側で処理する。
+    virtual ApplicationIconResult setApplicationIcon(const std::string& path) = 0;
 
     // 起動時に1回呼ぶ、コンソールの入出力コードページをUTF-8にする処理
     virtual void setupConsoleUtf8() = 0;

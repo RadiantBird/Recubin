@@ -1,4 +1,5 @@
 #include <Util/AssetGuard.hpp>
+#include <Util/AssetPath.hpp>
 #include <Util/Logger.hpp>
 #include <system_error>
 
@@ -36,8 +37,9 @@ bool allow(const std::string& path) {
     std::error_code ec;
     // 相対パスはルート基準で解決。絶対パスはそのまま正規化される。
     // フォールバックでも lexically_normal で `..` を必ず畳み込む（脱出検出のため）。
-    fs::path resolved = fs::weakly_canonical(s_root / fs::path(path), ec);
-    if (ec) resolved = (s_root / fs::path(path)).lexically_normal();
+    const fs::path storedPath = AssetPath::fromStored(path);
+    fs::path resolved = fs::weakly_canonical(s_root / storedPath, ec);
+    if (ec) resolved = (s_root / storedPath).lexically_normal();
 
     if (!isWithin(s_root, resolved)) {
         RCBN_WARN("Blocked out-of-root asset path: " << path

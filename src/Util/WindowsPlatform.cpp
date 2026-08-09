@@ -101,6 +101,11 @@ void WindowsPlatform::revealInFileManager(const std::string& path) {
     ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOW);
 }
 
+ApplicationIconResult WindowsPlatform::setApplicationIcon(const std::string& path) {
+    (void)path;
+    return ApplicationIconResult::Unsupported;
+}
+
 void WindowsPlatform::setupConsoleUtf8() {
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);

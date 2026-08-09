@@ -1,4 +1,5 @@
 #include <Core/Packager.hpp>
+#include <Util/AssetPath.hpp>
 #include "include/luau/luacode.h"
 #include <yaml-cpp/yaml.h>
 #include <iostream>
@@ -22,7 +23,7 @@ static bool isScript(const std::string& path) {
 }
 
 static std::string assetSubdir(const std::string& path) {
-    std::string ext = fs::path(path).extension().string();
+    std::string ext = AssetPath::fromStored(path).extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     if (ext == ".mp3" || ext == ".wav" || ext == ".ogg" || ext == ".flac")
         return "assets/sound";
@@ -121,14 +122,16 @@ static void rewritePaths(YAML::Node node,
             if ((key == "ContentPath" || key == "Texture" || key == "FacePath" || key == "MeshFile" || key == "IconPath" || key == "DataPath") && it->second.IsScalar()) {
                 std::string v = it->second.as<std::string>();
                 auto found = pathMap.find(v);
-                if (found != pathMap.end()) it->second = found->second;
+                it->second = found != pathMap.end()
+                    ? found->second : AssetPath::normalize(v);
             } else if (key == "SkyboxPaths" && it->second.IsSequence()) {
                 YAML::Node seq = it->second;
                 for (std::size_t i = 0; i < seq.size(); ++i) {
                     if (seq[i].IsScalar()) {
                         std::string v = seq[i].as<std::string>();
                         auto found = pathMap.find(v);
-                        if (found != pathMap.end()) seq[i] = found->second;
+                        seq[i] = found != pathMap.end()
+                            ? found->second : AssetPath::normalize(v);
                     }
                 }
             } else {
@@ -207,7 +210,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     // Process each referenced file
     std::unordered_map<std::string, std::string> pathMap; // old -> new (relative to gameDir)
     for (const std::string& rawPath : rawPaths) {
-        fs::path src(rawPath);
+        fs::path src = AssetPath::fromStored(rawPath);
         if (!fs::exists(src)) {
             log("[WARN] File not found, skipping: " + rawPath);
             continue;
@@ -218,8 +221,9 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
             std::string compiled = compileLuauInProc(src, dstDir, log);
             if (!compiled.empty()) {
                 fs::path rel = fs::relative(compiled, gameDir, ec);
-                pathMap[rawPath] = rel.string();
-                log("[OK] Compiled: " + src.filename().string() + " -> " + rel.string());
+                const std::string storedRel = AssetPath::toStored(rel);
+                pathMap[rawPath] = storedRel;
+                log("[OK] Compiled: " + src.filename().string() + " -> " + storedRel);
             } else {
                 // Fallback: copy source (compile failed)
                 fs::path dst = dstDir / src.filename();
@@ -233,14 +237,15 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
             bool isRel = src.is_relative();
             fs::path dst;
             if (isRel) {
-                dst = gameDir / rawPath;
+                dst = gameDir / src;
             } else {
                 dst = gameDir / sub / src.filename();
             }
             if (copyFile(src, dst, log)) {
                 fs::path rel = fs::relative(dst, gameDir, ec);
-                pathMap[rawPath] = rel.string();
-                log("[OK] Copied: " + rawPath + " -> " + rel.string());
+                const std::string storedRel = AssetPath::toStored(rel);
+                pathMap[rawPath] = storedRel;
+                log("[OK] Copied: " + rawPath + " -> " + storedRel);
             }
         }
     }
@@ -249,7 +254,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     // ディレクトリごと再帰コピーする。未編集（ディレクトリ未作成）の地形はシードから自動生成
     // されるため、存在しない場合は警告のみでスキップする。
     for (const std::string& rawDir : rawDirPaths) {
-        fs::path src(rawDir);
+        fs::path src = AssetPath::fromStored(rawDir);
         if (!fs::exists(src) || !fs::is_directory(src)) {
             log("[WARN] Terrain data dir not found, skipping: " + rawDir);
             continue;
@@ -257,11 +262,11 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
         fs::path dst;
         std::string newRel;
         if (src.is_relative()) {
-            dst = gameDir / rawDir;   // 相対はそのままの位置に同梱（YAML書き換え不要）
-            newRel = rawDir;
+            dst = gameDir / src;   // 相対はそのままの位置に同梱
+            newRel = AssetPath::toStored(src);
         } else {
             dst = gameDir / "terrain" / src.filename();
-            newRel = "terrain/" + src.filename().string();
+            newRel = AssetPath::toStored(fs::path("terrain") / src.filename());
         }
         std::error_code dirEc;
         fs::create_directories(dst.parent_path(), dirEc);

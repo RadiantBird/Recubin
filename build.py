@@ -7,11 +7,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-import psutil
+
+IS_WINDOWS = platform.system() == "Windows"
+if IS_WINDOWS:
+    import psutil
 
 
 ROOT_DIR = Path(__file__).resolve().parent
-IS_WINDOWS = platform.system() == "Windows"
 BUILD_DIR = ROOT_DIR / ("build" if IS_WINDOWS else "build-mac")
 DLL_DIR = ROOT_DIR / "dlls"
 DIST_DIR = ROOT_DIR / "dist"

@@ -1,4 +1,6 @@
 #include <Core/FileLoader.hpp>
+#include <Util/AssetGuard.hpp>
+#include <Util/AssetPath.hpp>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -20,10 +22,12 @@ static std::wstring utf8_to_wstring(const std::string& str) {
 #endif
 
 std::string FileLoader::readText(const std::string& filePath) {
+    if (!AssetGuard::allow(filePath)) return "";
+    const std::string normalizedPath = AssetPath::normalize(filePath);
 #ifdef _WIN32
-    std::ifstream fileStream(utf8_to_wstring(filePath), std::ios::in | std::ios::ate);
+    std::ifstream fileStream(utf8_to_wstring(normalizedPath), std::ios::in | std::ios::ate);
 #else
-    std::ifstream fileStream(filePath, std::ios::in | std::ios::ate);
+    std::ifstream fileStream(normalizedPath, std::ios::in | std::ios::ate);
 #endif
 
     if (!fileStream.is_open()) {
@@ -45,10 +49,12 @@ std::string FileLoader::readText(const std::string& filePath) {
 }
 
 std::vector<char> FileLoader::readBinary(const std::string& filePath) {
+    if (!AssetGuard::allow(filePath)) return {};
+    const std::string normalizedPath = AssetPath::normalize(filePath);
 #ifdef _WIN32
-    std::ifstream fileStream(utf8_to_wstring(filePath), std::ios::binary | std::ios::ate);
+    std::ifstream fileStream(utf8_to_wstring(normalizedPath), std::ios::binary | std::ios::ate);
 #else
-    std::ifstream fileStream(filePath, std::ios::binary | std::ios::ate);
+    std::ifstream fileStream(normalizedPath, std::ios::binary | std::ios::ate);
 #endif
 
     if (!fileStream.is_open()) {

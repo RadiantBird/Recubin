@@ -143,6 +143,30 @@ void MacPlatform::revealInFileManager(const std::string& path) {
     });
 }
 
+ApplicationIconResult MacPlatform::setApplicationIcon(const std::string& path) {
+    ApplicationIconResult result = ApplicationIconResult::Failed;
+    runVoidOperationOnMain([&path, &result]() {
+        @autoreleasepool {
+            NSApplication* application = [NSApplication sharedApplication];
+            if (path.empty()) {
+                application.applicationIconImage = nil;
+                result = ApplicationIconResult::Applied;
+                return;
+            }
+
+            NSString* filePath = [NSString stringWithUTF8String:path.c_str()];
+            if (!filePath) return;
+
+            NSImage* image = [[[NSImage alloc] initWithContentsOfFile:filePath] autorelease];
+            if (!image) return;
+
+            application.applicationIconImage = image;
+            result = ApplicationIconResult::Applied;
+        }
+    });
+    return result;
+}
+
 void MacPlatform::setupConsoleUtf8() {}
 
 void MacPlatform::setupDllSearchPath() {}

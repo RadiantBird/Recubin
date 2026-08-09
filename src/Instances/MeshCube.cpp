@@ -7,6 +7,7 @@
 #include <Core/Physics.hpp>
 #include <Util/Logger.hpp>
 #include <Util/AssetGuard.hpp>
+#include <Util/AssetPath.hpp>
 #include <Util/MeshEdges.hpp>
 #include <Util/GLUniformCache.hpp>
 #include <GL/glew.h>
@@ -358,7 +359,9 @@ static Vector3 glbTransformNormal(const float m[16], const Vector3& n) {
 }
 
 bool MeshCube::loadFromGLB(const std::string& path) {
-    if (path.size() < 4 || path.compare(path.size() - 4, 4, ".glb") != 0) {
+    const std::string normalizedPath = AssetPath::normalize(path);
+    if (normalizedPath.size() < 4 ||
+        normalizedPath.compare(normalizedPath.size() - 4, 4, ".glb") != 0) {
         RCBN_WARN("MeshCube: GLB以外のファイルは未対応です: " << path);
         return false;
     }
@@ -366,11 +369,11 @@ bool MeshCube::loadFromGLB(const std::string& path) {
 
     cgltf_options options = {};
     cgltf_data* data = nullptr;
-    if (cgltf_parse_file(&options, path.c_str(), &data) != cgltf_result_success) {
+    if (cgltf_parse_file(&options, normalizedPath.c_str(), &data) != cgltf_result_success) {
         RCBN_WARN("MeshCube: GLBの解析に失敗しました: " << path);
         return false;
     }
-    if (cgltf_load_buffers(&options, data, path.c_str()) != cgltf_result_success) {
+    if (cgltf_load_buffers(&options, data, normalizedPath.c_str()) != cgltf_result_success) {
         RCBN_WARN("MeshCube: GLBのバッファ読み込みに失敗しました: " << path);
         cgltf_free(data);
         return false;
