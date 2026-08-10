@@ -78,6 +78,42 @@
   ランデブーの永続化・高可用化は対象外とする。運用とプロトコルの詳細は
   `doc/Network/NatTraversal.md`を参照する。
 
+### エディター内プレイテスト
+
+- エディターのプレイツールバーでは`Normal`、`PlayHere`、`LocalServer`を選択する。
+  選択中のモードと実行中のモードは別状態として保持し、プレイ中の選択変更を現在の実行へ
+  反映しない。選択モードとLocalServerのクライアント数は`editor_settings.yaml`へ保存する。
+- `Normal`は従来のオフラインPlayとスポーン位置を維持する。`PlayHere`はプレイ開始時の
+  プライマリViewportカメラ座標を初回CharacterのModel原点にそのまま使用し、
+  `CharacterAdded`はその座標を設定した後に発火する。死亡後のrespawnは従来どおりとする。
+- `LocalServer`は`System.UseNetwork=true`の場合だけ開始できる。無効時はローカライズ済みの
+  エラーを表示し、Playスナップショットの保存、ネットワーク開始、子プロセス起動を行わない。
+  未保存の編集内容を含む既存のPlayスナップショットを、サーバーと全クライアントが共有する。
+- LocalServer中のエディターは空きUDPポートで待ち受ける専用Hostであり、観察カメラを
+  `Free`に固定する。専用HostのPeerIdは1だが非プレイヤーとしてRosterへ記録し、
+  対応するUser/Characterを`System.Users`、Luauの`User`グローバル、Workspaceへ生成しない。
+  最初のプレイヤークライアントにはPeerId 2を割り当てる。
+- 専用Hostでは`Script`のみ、外部クライアントでは`LocalScript`のみを実行する。接続した
+  プレイヤーのUser/Characterは専用Host側にも生成し、Hostが物理とワールド状態を権威的に
+  シミュレーションして各クライアントへ配信する。非プレイヤーPeerはAvatar生成対象外とする。
+- LocalServerの人数は専用Hostを含まない外部クライアント窓数で、1〜8、既定値は2とする。
+  各`RecubinEngine`はlocalhostへDirect接続し、STUN／ランデブーは使用しない。ツールバーには
+  接続済み数／指定数を表示し、ネットワークテスト中はPauseを無効化する。
+- クライアントはエディター実行ファイルと同じディレクトリの`RecubinEngine`を、プロジェクト
+  ルートを作業ディレクトリとして起動する。エディターテスト用ランタイムCLIは
+  `--scene <snapshot>`、`--direct-connect 127.0.0.1:<port>`、`--listen-port 0`、
+  `--window-title "Client N"`、`--editor-test`とする。`--editor-test`はlocalhostへのDirect
+  クライアント接続かつ`--scene`と`--window-title`が指定された場合だけ許可し、そのクライアントの
+  AssetGuardをエディター相当にして未パッケージの絶対アセット参照を許可する。`--scene`と
+  `--window-title`は値を必須とし、各オプションの重複指定と`--option=value`形式を拒否する。
+- 実行ファイル欠落、Host開始失敗、途中のクライアント起動失敗では開始済みクライアント、
+  ネットワーク、シーンをロールバックする。実行中に個別クライアントが終了した場合は残りを
+  継続し、終了コードとログ場所をConsoleへ記録する。
+- Stopまたはエディター終了時は全クライアントへ通常終了を要求し、期限後に残るものだけを
+  強制終了する。終了待ちはフレームを停止しない状態機械で行い、片付け中は再Playを無効化する。
+  NetworkManagerのコールバック、Replication、専用サーバー状態を解除した後、Play開始前の
+  スナップショットを再読込する。
+
 ## キャラクター(Humanoidクラス)
 - StarterCharacter内のテンプレート、またはそのclone後にRoot/Torso/Head/LeftArm/RightArm/
   LeftLeg/RightLegという名前の兄弟Cube/Sphereを探して保持し、移動・ジャンプ・接地判定・

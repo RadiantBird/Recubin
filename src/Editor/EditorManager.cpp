@@ -135,11 +135,65 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     applyTheme();
 }
 
+EditorPlayMode EditorManager::selectedPlayMode() const {
+    return m_selectedPlayMode;
+}
+
+void EditorManager::setSelectedPlayMode(EditorPlayMode playMode) {
+    switch (playMode) {
+        case EditorPlayMode::Normal:
+        case EditorPlayMode::PlayHere:
+        case EditorPlayMode::LocalServer:
+            m_selectedPlayMode = playMode;
+            break;
+    }
+}
+
+EditorPlayMode EditorManager::activePlayMode() const {
+    return m_activePlayMode;
+}
+
+int EditorManager::networkClientCount() const {
+    return m_networkClientCount;
+}
+
+void EditorManager::setNetworkClientCount(int count) {
+    m_networkClientCount = std::clamp(count, 1, 8);
+}
+
+void EditorManager::setNetworkClientStatus(int connected, int expected) {
+    m_connectedClientCount = (std::max)(connected, 0);
+    m_expectedClientCount = (std::max)(expected, 0);
+}
+
+void EditorManager::setExternalPlayCleanup(bool cleaningUp) {
+    m_externalPlayCleanup = cleaningUp;
+}
+
+bool EditorManager::isExternalPlayCleanup() const {
+    return m_externalPlayCleanup;
+}
+
+void EditorManager::showPlayStartError(const std::string& detail) {
+    m_playStartErrorKind = PlayStartErrorKind::Generic;
+    m_playStartErrorDetail = detail;
+    m_showPlayStartError = true;
+}
+
+void EditorManager::showLocalServerNetworkRequiredError() {
+    m_playStartErrorKind = PlayStartErrorKind::NetworkRequired;
+    m_playStartErrorDetail.clear();
+    m_showPlayStartError = true;
+}
+
 void EditorManager::render(GLFWwindow* window) {
     updateResponsiveScale();
 
-    // Edit モード中は L キーによるモード切替をブロック
-    if (m_user) m_user->allowControlModeSwitch = !isEditMode();
+    // Edit中と専用サーバー観察中は L キーによるモード切替をブロック
+    if (m_user) {
+        const bool localServerActive = !isEditMode() && m_activePlayMode == EditorPlayMode::LocalServer;
+        m_user->allowControlModeSwitch = !isEditMode() && !localServerActive;
+    }
     cleanupOrphanedSelection();
 
     // ---- エディターショートカット処理 ----
@@ -149,6 +203,8 @@ void EditorManager::render(GLFWwindow* window) {
     renderSaveDialog();
     // ---- テストプレイ中のシーン読み込み確認ダイアログ ----
     renderPlayLoadConfirmDialog();
+    // ---- テストプレイ開始エラー ----
+    renderPlayStartErrorDialog();
 
     // ---- 全画面 DockSpace ----
     ImGuiViewport* vp = ImGui::GetMainViewport();
@@ -505,6 +561,32 @@ void EditorManager::renderPlayLoadConfirmDialog() {
     }
 }
 
+void EditorManager::renderPlayStartErrorDialog() {
+    if (m_showPlayStartError) {
+        ImGui::OpenPopup("###PlayStartError");
+        m_showPlayStartError = false;
+    }
+
+    std::string popupTitle = std::string(Loc::t(Loc::LocKey::PlayStartErrorTitle)) + "###PlayStartError";
+    if (ImGui::BeginPopupModal(popupTitle.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped("%s", Loc::t(Loc::LocKey::PlayStartErrorMessage));
+        if (m_playStartErrorKind == PlayStartErrorKind::NetworkRequired) {
+            ImGui::Spacing();
+            ImGui::TextWrapped("%s", Loc::t(Loc::LocKey::LocalServerRequiresNetwork));
+        }
+        if (!m_playStartErrorDetail.empty()) {
+            ImGui::Spacing();
+            ImGui::TextWrapped("%s", m_playStartErrorDetail.c_str());
+        }
+        ImGui::Separator();
+        if (ImGui::Button(Loc::t(Loc::LocKey::OK), ImVec2(90.0f * m_uiLayoutScale, 0))) {
+            m_playStartErrorDetail.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+}
+
 void EditorManager::requestSaveDialog(GLFWwindow* window) {
     m_showSaveDialog = true;
     m_dialogWindow   = window;
@@ -663,7 +745,7 @@ void EditorManager::tryAddObjectButton(const char* icon, const std::string& labe
 
 void EditorManager::renderToolbar() {
     ImGuiViewport* vp = ImGui::GetMainViewport();
-    const float toolbarHeight = 110.0f * m_uiLayoutScale;
+    const float toolbarHeight = 140.0f * m_uiLayoutScale;
     ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, toolbarHeight), ImGuiCond_Always);
 
     ImGuiWindowFlags tbFlags =
@@ -718,6 +800,7 @@ void EditorManager::renderToolbarBasic() {
     const auto& colors = editorThemeColors();
     const float scale = m_uiLayoutScale;
     const ImVec2 iconBtnSz = ImVec2(78.0f * scale, 58.0f * scale);
+    const ImVec2 playBtnSz = ImVec2(120.0f * scale, 58.0f * scale);
 
     auto toolbarSeparator = [scale] {
         ImGui::SameLine();
@@ -731,17 +814,76 @@ void EditorManager::renderToolbarBasic() {
         ImGui::SameLine();
     };
 
-    // ---- Play / Pause / Stop ----
+    // ---- Play方式 / Client数 / Play / Pause / Stop ----
+    ImGui::BeginGroup();
+    const bool localServerActive = !isEditMode() && m_activePlayMode == EditorPlayMode::LocalServer;
+    const bool lockPlaySelectors = localServerActive || m_externalPlayCleanup;
+    const char* playModePreview = Loc::t(Loc::LocKey::PlayModeNormal);
+    switch (m_selectedPlayMode) {
+        case EditorPlayMode::Normal:      playModePreview = Loc::t(Loc::LocKey::PlayModeNormal); break;
+        case EditorPlayMode::PlayHere:    playModePreview = Loc::t(Loc::LocKey::PlayModeHere); break;
+        case EditorPlayMode::LocalServer: playModePreview = Loc::t(Loc::LocKey::PlayModeLocalServer); break;
+    }
+
+    ImGui::SetNextItemWidth(playBtnSz.x);
+    ImGui::BeginDisabled(lockPlaySelectors);
+    if (ImGui::BeginCombo("##EditorPlayMode", playModePreview)) {
+        auto playModeItem = [this](EditorPlayMode candidate, Loc::LocKey labelKey) {
+            const bool selected = m_selectedPlayMode == candidate;
+            if (ImGui::Selectable(Loc::t(labelKey), selected)) m_selectedPlayMode = candidate;
+            if (selected) ImGui::SetItemDefaultFocus();
+        };
+        playModeItem(EditorPlayMode::Normal, Loc::LocKey::PlayModeNormal);
+        playModeItem(EditorPlayMode::PlayHere, Loc::LocKey::PlayModeHere);
+        playModeItem(EditorPlayMode::LocalServer, Loc::LocKey::PlayModeLocalServer);
+        ImGui::EndCombo();
+    }
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", Loc::t(Loc::LocKey::PlayModeLabel));
+
+    if (m_selectedPlayMode == EditorPlayMode::LocalServer) {
+        ImGui::SameLine();
+        char clientPreview[64] = {};
+        std::snprintf(clientPreview, sizeof(clientPreview),
+                      Loc::t(Loc::LocKey::NetworkClientCountFormat), m_networkClientCount);
+        ImGui::SetNextItemWidth(112.0f * scale);
+        if (ImGui::BeginCombo("##NetworkClientCount", clientPreview)) {
+            for (int count = 1; count <= 8; ++count) {
+                char itemLabel[64] = {};
+                std::snprintf(itemLabel, sizeof(itemLabel),
+                              Loc::t(Loc::LocKey::NetworkClientCountFormat), count);
+                const bool selected = m_networkClientCount == count;
+                if (ImGui::Selectable(itemLabel, selected)) m_networkClientCount = count;
+                if (selected) ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", Loc::t(Loc::LocKey::NetworkClientCountLabel));
+        }
+    }
+    ImGui::EndDisabled();
+
     if (mode == EditorMode::Edit) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.65f, 0.18f, 1.0f));
-        if (drawIconButton(ICON_PLAY, Loc::t(Loc::LocKey::PlayButton), iconBtnSz)) mode = EditorMode::Play;
+        ImGui::BeginDisabled(m_externalPlayCleanup);
+        if (drawIconButton(ICON_PLAY, Loc::t(Loc::LocKey::PlayButton), playBtnSz)) {
+            m_activePlayMode = m_selectedPlayMode;
+            if (m_activePlayMode == EditorPlayMode::LocalServer) {
+                m_connectedClientCount = 0;
+                m_expectedClientCount = m_networkClientCount;
+            }
+            mode = EditorMode::Play;
+        }
+        ImGui::EndDisabled();
         ImGui::PopStyleColor();
     } else {
         ImGui::PushStyleColor(ImGuiCol_Button,
             mode == EditorMode::Pause ? ImVec4(0.7f, 0.55f, 0.0f, 1.0f)
                                       : ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+        ImGui::BeginDisabled(localServerActive);
         if (drawIconButton(ICON_PAUSE, Loc::t(Loc::LocKey::PauseButton), iconBtnSz))
             mode = (mode == EditorMode::Pause) ? EditorMode::Play : EditorMode::Pause;
+        ImGui::EndDisabled();
         ImGui::PopStyleColor();
 
         ImGui::SameLine();
@@ -763,7 +905,14 @@ void EditorManager::renderToolbarBasic() {
             }
         }
         ImGui::PopStyleColor();
+
+        if (localServerActive) {
+            ImGui::SameLine();
+            ImGui::Text(Loc::t(Loc::LocKey::NetworkClientStatus),
+                        m_connectedClientCount, m_expectedClientCount);
+        }
     }
+    ImGui::EndGroup();
 
     toolbarSeparator();
 

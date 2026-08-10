@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <array>
 #include <memory>
+#include <optional>
 
 struct camera {
     Quaternion Orientation;
@@ -144,7 +145,8 @@ public:
     // searchRoot: StarterCharacterを探す起点(通常はSystem)。Userは自身のParentに必ずしも
     // システムが居るとは限らない(パッケージ済みランタイムではUserがツリーに属さない)ため、
     // 呼び出し元(main.cpp/game_main.cpp)から明示的に渡す
-    void spawnCharacter(Instance* searchRoot);
+    void spawnCharacter(Instance* searchRoot,
+                        const std::optional<Vector3>& initialPosition = std::nullopt);
     // StarterCharacter(無ければ既定リグを生成)からキャラクターModelを構築して返す。
     // Workspaceへの追加・Humanoid解決は呼び出し元の責任。失敗時は nullptr。
     // spawnCharacter とネットワークのリモートアバター生成(ReplicationManager)が共用する。

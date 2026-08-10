@@ -89,6 +89,7 @@ struct PeerInfo {
     float        cpuScore  = 0.0f; // 起動時マイクロベンチマークの結果(大きいほど高性能)
     float        latencyMs = 0.0f; // Hostが peer->roundTripTime で観測
     bool         isHost    = false;
+    bool         isPlayer  = true; // false=専用サーバー。User/Characterを持たない
 };
 
 enum class MessageType : uint8_t {

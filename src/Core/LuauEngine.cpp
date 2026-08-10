@@ -642,6 +642,11 @@ void LuauEngine::setGlobalInstance(const std::string& name, const std::shared_pt
     lua_setglobal(L, name.c_str());
 }
 
+void LuauEngine::clearGlobalInstance(const std::string& name) {
+    lua_pushnil(L);
+    lua_setglobal(L, name.c_str());
+}
+
 int LuauEngine::instance_newindex(lua_State* L) {
     auto* userdata = (std::weak_ptr<Instance>*)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
     auto obj_shared = userdata->lock();
@@ -1700,6 +1705,17 @@ void LuauEngine::setWorkspace(const std::shared_ptr<Workspace>& ws) {
     setGlobalInstance("workspace", ws);
 }
 
+static bool skipScriptForNetworkContext(const std::shared_ptr<Script>& script,
+                                        const System* system) {
+    if (!script || !system || !system->UseNetwork) return false;
+    auto& network = NetworkManager::get();
+    if (network.getRole() == NetworkRole::Client)
+        return !script->IsA("LocalScript");
+    if (network.getRole() == NetworkRole::Host && !network.isLocalPlayer())
+        return script->IsA("LocalScript");
+    return false;
+}
+
 void LuauEngine::executeWorkspaceScripts(Workspace& ws) {
     if (m_haltRequested) return; // 安全対策による強制停止済み
 
@@ -1711,14 +1727,9 @@ void LuauEngine::executeWorkspaceScripts(Workspace& ws) {
     lua_setmetatable(L, -2);
     lua_setglobal(L, "workspace");
 
-    // UseNetwork=true かつ Client の場合、Script(非LocalScript)はHost側でのみ実行する
-    // (Hostは同時にプレイヤーでもあるため、Script/LocalScript両方を実行する)
-    bool skipNonLocalScripts = m_system && m_system->UseNetwork
-        && NetworkManager::get().getRole() == NetworkRole::Client;
-
     for (auto& inst : ws.scripts) {
         auto script = std::dynamic_pointer_cast<Script>(inst);
-        if (skipNonLocalScripts && script && !script->IsA("LocalScript")) continue;
+        if (skipScriptForNetworkContext(script, m_system)) continue;
         if (script && script->Enabled && !script->Sleeping && !script->WaitingForChild
             && !script->WaitingForPath && !script->Completed && !script->Aborted) {
             execute(*script);
@@ -1729,15 +1740,11 @@ void LuauEngine::executeWorkspaceScripts(Workspace& ws) {
 void LuauEngine::executeSystemScripts() {
     if (m_haltRequested || !m_system) return;
 
-    // executeWorkspaceScriptsと同じネットワークフィルタを適用する
-    bool skipNonLocalScripts = m_system->UseNetwork
-        && NetworkManager::get().getRole() == NetworkRole::Client;
-
     // 実行中のスクリプトが親付け替え等で登録リストを変更しても安全なようコピーして回す
     auto scripts = m_system->scripts;
     for (auto& inst : scripts) {
         auto script = std::dynamic_pointer_cast<Script>(inst);
-        if (skipNonLocalScripts && script && !script->IsA("LocalScript")) continue;
+        if (skipScriptForNetworkContext(script, m_system)) continue;
         if (script && script->Enabled && !script->Sleeping && !script->WaitingForChild
             && !script->WaitingForPath && !script->Completed && !script->Aborted) {
             execute(*script);

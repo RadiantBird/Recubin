@@ -33,3 +33,26 @@
 - Resizeを初期サイズ非依存のワールド単位加算式へ変更し、`User::gizmoSize`（既定0.20）をEditor設定として保存するようにした。
 - Primaryカメラのキーボードズームとホイール許可を分離し、Viewport外スクロールを消費のみとしてカメラへ適用しないようにした。
 - Viewportヘルパー回帰を34項目へ拡張し、フルビルドと全項目の成功を確認した。
+
+## 2026-08-10: エディター内マルチクライアントテスト
+
+- エディターのPlay方式に通常プレイ、カメラ位置から初回Characterを生成する「ここでプレイ」、
+  localhost専用の「ローカルサーバー」を追加し、選択方式と1〜8人のクライアント数を
+  `editor_settings.yaml`へ保存するようにした。
+- ローカルサーバーではエディターを非プレイヤー専用Hostとして動作させ、通常`Script`のみを実行する。
+  未保存内容を含むPlayスナップショットから`RecubinEngine`を1〜8個起動し、各クライアントでは
+  `LocalScript`のみを実行する。接続数表示、個別終了ログ、通常終了要求から強制終了への
+  非同期フォールバック、起動失敗時のネットワーク解体とシーン復元も追加した。
+- `PeerInfo::isPlayer`をRosterへ追加して専用HostのUser/Character生成を除外し、protocol versionを更新。
+  Direct接続にもversion検証を適用し、ローカルCharacterを持たないHostからのアバター、ワールド、
+  シミュレーションクロック同期に対応した。
+- `User::spawnCharacter`へ任意の初期位置を追加し、Play Hereの`CharacterAdded`発火時点で位置が
+  反映済みになるようにした。`IPlatform`には子プロセス起動・監視・通常終了・強制終了APIを追加し、
+  Windows/macOS/Mock実装とランタイムの`--window-title`対応を追加した。
+- 検証: `cmd.exe /d /c py build.py build`はRecubin/RecubinEngine/RecubinTestの3ターゲットすべて成功。
+  `--network-core-regression`と`--runtime-launch-args-regression`も成功した。
+- `py run_regression.py Release`は実行済みだが、既存の無関係なシーンにより140 passed / 3 failedのまま。
+  `pathfinder.yaml`がUser/CharacterChangerコンテキストで1件、`test_bindings.yaml`が音声欠落と
+  IsPlayingで2件失敗する。
+- 未確認: macOS子プロセスbackendの実機ビルド、および通常／Play Here／2クライアント／
+  8クライアントのGUI手動スモークテスト。

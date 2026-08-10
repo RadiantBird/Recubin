@@ -32,6 +32,36 @@ static const bool s_humanoidRegistered = []{
     return true;
 }();
 
+namespace {
+
+// Humanoidが論理パーツを動かすとき、そのパーツにWeldされたアクセサリーも同じ
+// world deltaで動かす。物理backendがcompoundのdriverを推測する前に論理姿勢を揃えることで、
+// 両endpointがAnchoredのWeldでも古いアクセサリー姿勢がassemblyを引き戻さない。
+void setRigPartLocalCFrame(const std::shared_ptr<BaseCube>& part,
+                          const CFrame& targetLocal,
+                          Instance* model) {
+    if (!part || !model) return;
+
+    const CFrame beforeWorld = part->getWorldCFrame();
+    const auto* modelSpatial = dynamic_cast<const Spatial*>(model);
+    const CFrame targetWorld = modelSpatial
+        ? modelSpatial->getWorldCFrame() * targetLocal
+        : targetLocal;
+    const CFrame delta = targetWorld * beforeWorld.inverse();
+
+    auto assembly = Weld::collectAssembly(part, *model);
+    std::vector<std::pair<std::shared_ptr<BaseCube>, CFrame>> oldWorldFrames;
+    oldWorldFrames.reserve(assembly.size());
+    for (const auto& member : assembly) {
+        if (member) oldWorldFrames.emplace_back(member, member->getWorldCFrame());
+    }
+    for (const auto& [member, oldWorld] : oldWorldFrames) {
+        member->setWorldCFrame(delta * oldWorld);
+    }
+}
+
+} // namespace
+
 Humanoid::Humanoid() : Instance("Humanoid"), Died(std::make_shared<RCBNScriptSignal>()),
     KeyframeReached(std::make_shared<RCBNScriptSignal>()) {}
 
@@ -511,7 +541,14 @@ void Humanoid::updateAnimation(float dt) {
         Instance* child = model->getChild(track.partName);
         Spatial* part = dynamic_cast<Spatial*>(child);
         if (!part || part == root.get()) continue; // Rootは物理駆動なので動かさない
-        part->cframe = rootCF * m_currentAnim->evaluateTrack(track, m_animTime);
+        const CFrame targetLocal = rootCF * m_currentAnim->evaluateTrack(track, m_animTime);
+        if (auto* cube = dynamic_cast<BaseCube*>(part)) {
+            setRigPartLocalCFrame(
+                std::static_pointer_cast<BaseCube>(cube->shared_from_this()),
+                targetLocal, model);
+        } else {
+            part->cframe = targetLocal;
+        }
     }
 }
 
@@ -666,13 +703,21 @@ void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
     const Vector3 leftHipPos       = Vector3(-0.5f, 0.0f, 0);
     const Vector3 rightHipPos      = Vector3( 0.5f, 0.0f, 0);
 
-    if (torso) torso->cframe = root->cframe * CFrame(torsoOffset.x, torsoOffset.y, torsoOffset.z);
-    if (head)  head->cframe  = root->cframe * CFrame(headOffset.x,  headOffset.y,  headOffset.z);
+    Instance* model = Parent.lock().get();
+    if (!model) return;
 
-    if (leftArm)  leftArm->cframe  = makeArm(root->cframe, leftShoulderPos,  pose.leftArm);
-    if (rightArm) rightArm->cframe = makeArm(root->cframe, rightShoulderPos, pose.rightArm);
-    if (leftLeg)  leftLeg->cframe  = makeLeg(root->cframe, leftHipPos,  pose.leftLeg);
-    if (rightLeg) rightLeg->cframe = makeLeg(root->cframe, rightHipPos, pose.rightLeg);
+    setRigPartLocalCFrame(torso,
+        root->cframe * CFrame(torsoOffset.x, torsoOffset.y, torsoOffset.z), model);
+    setRigPartLocalCFrame(head,
+        root->cframe * CFrame(headOffset.x, headOffset.y, headOffset.z), model);
+    setRigPartLocalCFrame(leftArm,
+        makeArm(root->cframe, leftShoulderPos, pose.leftArm), model);
+    setRigPartLocalCFrame(rightArm,
+        makeArm(root->cframe, rightShoulderPos, pose.rightArm), model);
+    setRigPartLocalCFrame(leftLeg,
+        makeLeg(root->cframe, leftHipPos, pose.leftLeg), model);
+    setRigPartLocalCFrame(rightLeg,
+        makeLeg(root->cframe, rightHipPos, pose.rightLeg), model);
 }
 
 void Humanoid::updateAll(Instance* root, float dt, Physics* physics) {

@@ -119,6 +119,7 @@ class Renderer {
 
         unsigned int whiteTexture;
         void createWhiteTexture();
+        unsigned int getMeshFallbackTexture() const { return m_meshFallbackTexture; }
 
         std::string loadShaderSource(const char* filePath);
 
@@ -211,6 +212,9 @@ class Renderer {
         void renderPostEffects(Workspace& workspace, GLuint targetFbo, int width, int height);
 
     private:
+        unsigned int m_meshFallbackTexture = 0;
+        void createMeshFallbackTexture();
+
         void renderTerrain(const Matrix4& view, const Matrix4& projection, class Workspace* workspace);
 
         // 形状の共有VAOにインスタンス属性(5-9, divisor=1)を後付けする

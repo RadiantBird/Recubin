@@ -15,4 +15,6 @@ public:
     void* loadDynamicLibrary(const std::string& name) override;
     void* getSymbol(void* handle, const std::string& symbolName) override;
     void freeDynamicLibrary(void* handle) override;
+    std::unique_ptr<IChildProcess> launchChildProcess(
+        const ChildProcessLaunchOptions& options) override;
 };

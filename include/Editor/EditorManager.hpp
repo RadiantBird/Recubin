@@ -28,6 +28,15 @@ enum class EditorMode {
 };
 
 // ===================================================
+//  テストプレイの起動方式
+// ===================================================
+enum class EditorPlayMode {
+    Normal,
+    PlayHere,
+    LocalServer
+};
+
+// ===================================================
 //  ツールバーのカテゴリタブ
 // ===================================================
 enum class ToolbarCategory {
@@ -97,6 +106,22 @@ public:
     bool isPlayMode()  const { return mode == EditorMode::Play;  }
     bool isPauseMode() const { return mode == EditorMode::Pause; }
 
+    // テストプレイ設定。selected は次回起動用、active は直近の起動要求を保持する。
+    EditorPlayMode selectedPlayMode() const;
+    void setSelectedPlayMode(EditorPlayMode playMode);
+    EditorPlayMode activePlayMode() const;
+    int networkClientCount() const;
+    void setNetworkClientCount(int count);
+
+    // LocalServer の外部ライフサイクル状態を main.cpp から反映する。
+    void setNetworkClientStatus(int connected, int expected);
+    void setExternalPlayCleanup(bool cleaningUp);
+    bool isExternalPlayCleanup() const;
+
+    // 開始失敗を次の ImGui フレームでローカライズ済みモーダルとして表示する。
+    void showPlayStartError(const std::string& detail = {});
+    void showLocalServerNetworkRequiredError();
+
     bool isDirty()  const { return m_isDirty; }
     void markDirty()      { m_isDirty = true; }
 
@@ -139,6 +164,19 @@ private:
     bool        m_showPlayLoadConfirm = false;
     std::string m_pendingPlayLoadPath;
 
+    // テストプレイ方式と外部クライアント状態
+    EditorPlayMode m_selectedPlayMode = EditorPlayMode::Normal;
+    EditorPlayMode m_activePlayMode   = EditorPlayMode::Normal;
+    int  m_networkClientCount     = 2;
+    int  m_connectedClientCount   = 0;
+    int  m_expectedClientCount    = 0;
+    bool m_externalPlayCleanup    = false;
+
+    enum class PlayStartErrorKind { Generic, NetworkRequired };
+    bool m_showPlayStartError = false;
+    PlayStartErrorKind m_playStartErrorKind = PlayStartErrorKind::Generic;
+    std::string m_playStartErrorDetail;
+
     // パッケージダイアログ関連
     bool        m_showPackageDialog = false;
     char        m_pkgName[256]      = {};
@@ -170,6 +208,7 @@ private:
     void handleEditorShortcuts();
     void renderSaveDialog();
     void renderPlayLoadConfirmDialog();
+    void renderPlayStartErrorDialog();
     void renderPackageDialog();
     void saveCurrentScene();
     void openSceneDialog();

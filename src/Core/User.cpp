@@ -754,7 +754,8 @@ std::shared_ptr<Model> User::buildCharacterModel(Instance* searchRoot, const std
     return model;
 }
 
-void User::spawnCharacter(Instance* searchRoot) {
+void User::spawnCharacter(Instance* searchRoot,
+                          const std::optional<Vector3>& initialPosition) {
     m_lastSearchRoot = searchRoot; // respawn 用に保持
     if (character) {
         despawnCharacter();
@@ -786,6 +787,7 @@ void User::spawnCharacter(Instance* searchRoot) {
         return;
     }
     if (peerId != 0) character->lockRuntimeName();
+    if (initialPosition) character->Position = *initialPosition;
 
     auto it = character->getChildren().find("Humanoid");
     humanoid = (it != character->getChildren().end()) ? std::dynamic_pointer_cast<Humanoid>(it->second) : nullptr;

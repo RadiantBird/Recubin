@@ -1,4 +1,6 @@
 #pragma once
+#include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -19,6 +21,27 @@ enum class ApplicationIconResult {
     Unsupported,
     Applied,
     Failed,
+};
+
+// 子プロセスへ渡す起動情報。標準入力は常に切断され、outputLogPathを指定した場合は
+// 標準出力と標準エラーの両方を同じファイルへ書き込む。
+struct ChildProcessLaunchOptions {
+    std::string executable;
+    std::vector<std::string> arguments;
+    std::string workingDirectory;
+    std::optional<std::string> outputLogPath;
+};
+
+// 子プロセスをフレームを止めずに監視・終了するためのハンドル。
+// exitCode()は実行中ならstd::nulloptを返す。
+class IChildProcess {
+public:
+    virtual ~IChildProcess() = default;
+
+    virtual bool isRunning() = 0;
+    virtual std::optional<int> exitCode() = 0;
+    virtual bool requestClose() = 0;
+    virtual bool terminate() = 0;
 };
 
 class IPlatform {
@@ -52,4 +75,8 @@ public:
     virtual void* loadDynamicLibrary(const std::string& name) = 0;
     virtual void* getSymbol(void* handle, const std::string& symbolName) = 0;
     virtual void  freeDynamicLibrary(void* handle) = 0;
+
+    // GUIを持つ子プロセスを非同期起動する。失敗時はnullptrを返す。
+    virtual std::unique_ptr<IChildProcess> launchChildProcess(
+        const ChildProcessLaunchOptions& options) = 0;
 };

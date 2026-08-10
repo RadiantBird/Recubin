@@ -4,10 +4,19 @@
 #import <Cocoa/Cocoa.h>
 #include <dispatch/dispatch.h>
 #include <dlfcn.h>
+#include <cerrno>
 #include <cctype>
+#include <csignal>
+#include <fcntl.h>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <spawn.h>
 #include <sstream>
+#include <sys/wait.h>
+#include <unistd.h>
+
+extern char** environ;
 
 namespace {
 
@@ -82,6 +91,58 @@ void configureFileTypes(NSSavePanel* panel, const std::vector<FileFilter>& filte
         panel.allowsOtherFileTypes = NO;
     }
 }
+
+class MacChildProcess final : public IChildProcess {
+public:
+    explicit MacChildProcess(pid_t processId)
+        : m_processId(processId) {}
+
+    ~MacChildProcess() override {
+        refreshExitCode();
+    }
+
+    bool isRunning() override {
+        refreshExitCode();
+        return !m_exitCode.has_value();
+    }
+
+    std::optional<int> exitCode() override {
+        refreshExitCode();
+        return m_exitCode;
+    }
+
+    bool requestClose() override {
+        if (!isRunning()) return true;
+        @autoreleasepool {
+            NSRunningApplication* application =
+                [NSRunningApplication runningApplicationWithProcessIdentifier:m_processId];
+            if (application && [application terminate]) return true;
+        }
+        return kill(m_processId, SIGTERM) == 0 || errno == ESRCH;
+    }
+
+    bool terminate() override {
+        if (!isRunning()) return true;
+        return kill(m_processId, SIGKILL) == 0 || errno == ESRCH;
+    }
+
+private:
+    void refreshExitCode() {
+        if (m_processId <= 0 || m_exitCode.has_value()) return;
+        int status = 0;
+        const pid_t result = waitpid(m_processId, &status, WNOHANG);
+        if (result != m_processId) return;
+
+        if (WIFEXITED(status)) {
+            m_exitCode = WEXITSTATUS(status);
+        } else if (WIFSIGNALED(status)) {
+            m_exitCode = 128 + WTERMSIG(status);
+        }
+    }
+
+    pid_t m_processId = -1;
+    std::optional<int> m_exitCode;
+};
 
 } // namespace
 
@@ -181,6 +242,58 @@ void* MacPlatform::getSymbol(void* handle, const std::string& symbolName) {
 
 void MacPlatform::freeDynamicLibrary(void* handle) {
     if (handle) dlclose(handle);
+}
+
+std::unique_ptr<IChildProcess> MacPlatform::launchChildProcess(
+    const ChildProcessLaunchOptions& options) {
+    if (options.executable.empty() ||
+        (options.outputLogPath.has_value() && options.outputLogPath->empty())) {
+        return nullptr;
+    }
+
+    posix_spawn_file_actions_t actions;
+    if (posix_spawn_file_actions_init(&actions) != 0) return nullptr;
+
+    bool actionsValid =
+        posix_spawn_file_actions_addopen(
+            &actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0) == 0;
+    const char* outputPath = options.outputLogPath.has_value()
+        ? options.outputLogPath->c_str() : "/dev/null";
+    const int outputFlags = options.outputLogPath.has_value()
+        ? O_WRONLY | O_CREAT | O_TRUNC : O_WRONLY;
+    if (actionsValid) {
+        actionsValid = posix_spawn_file_actions_addopen(
+            &actions, STDOUT_FILENO, outputPath, outputFlags, 0644) == 0;
+    }
+    if (actionsValid) {
+        actionsValid = posix_spawn_file_actions_adddup2(
+            &actions, STDOUT_FILENO, STDERR_FILENO) == 0;
+    }
+    if (actionsValid && !options.workingDirectory.empty()) {
+        actionsValid = posix_spawn_file_actions_addchdir_np(
+            &actions, options.workingDirectory.c_str()) == 0;
+    }
+
+    std::vector<std::string> argumentStorage;
+    argumentStorage.reserve(options.arguments.size() + 1);
+    argumentStorage.push_back(options.executable);
+    argumentStorage.insert(
+        argumentStorage.end(), options.arguments.begin(), options.arguments.end());
+
+    std::vector<char*> arguments;
+    arguments.reserve(argumentStorage.size() + 1);
+    for (std::string& argument : argumentStorage) arguments.push_back(argument.data());
+    arguments.push_back(nullptr);
+
+    pid_t processId = -1;
+    const int spawnResult = actionsValid
+        ? posix_spawn(&processId, options.executable.c_str(), &actions, nullptr,
+                      arguments.data(), environ)
+        : EINVAL;
+    posix_spawn_file_actions_destroy(&actions);
+    if (spawnResult != 0) return nullptr;
+
+    return std::make_unique<MacChildProcess>(processId);
 }
 
 #endif // __APPLE__
