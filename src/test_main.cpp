@@ -4,6 +4,7 @@
 #include <Instances/LiquidCube.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/BaseCube.hpp>
+#include <Instances/Cube.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/Sound.hpp>
@@ -645,6 +646,442 @@ bool finiteCFrame(const CFrame& value) {
            std::isfinite(value.Rotation.x) &&
            std::isfinite(value.Rotation.y) &&
            std::isfinite(value.Rotation.z);
+}
+
+struct HumanoidRigCollisionCase {
+    const char* name;
+    bool includeTorso;
+    bool torsoAnchored;
+    bool torsoCanCollide;
+    bool includeHair;
+    bool hairAnchored;
+    bool hairCanCollide;
+    bool weldHair;
+};
+
+struct HumanoidRigCollisionResult {
+    PhysicsBackendType backend = PhysicsBackendType::PhysX;
+    float finalY = 0.0f;
+    float minimumY = std::numeric_limits<float>::infinity();
+    Vector3 finalVelocity;
+    bool available = false;
+    bool finite = true;
+    int sameCharacterContacts = 0;
+    int floorContacts = 0;
+};
+
+HumanoidRigCollisionResult simulateHumanoidRigCollision(
+    const HumanoidRigCollisionCase& testCase) {
+    constexpr float expectedRootY = 2.0f;
+    constexpr float initialRootY = 16.25f;
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = std::string("HumanoidRigCollision_") + testCase.name;
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    HumanoidRigCollisionResult result;
+    result.backend = physics->getBackendType();
+    result.available = physics->isAvailable();
+
+    // 上面 Y=0 の床。巨大床や薄い床に依存しない寸法にして、リグ内部の
+    // collider/kinematic drive だけを比較する。
+    auto floor = std::make_shared<BaseCube>(Vector3(0, -1, 0), Vector3(32, 2, 32));
+    floor->Name = "Floor";
+    floor->Anchored = true;
+    workspace->addChild(floor);
+
+    auto character = std::make_shared<Model>();
+    character->Name = "PlayerCharacter";
+    workspace->addChild(character);
+    std::unordered_set<BaseCube*> characterParts;
+
+    auto humanoid = std::make_shared<Humanoid>();
+    humanoid->Name = "Humanoid";
+    auto root = std::make_shared<BaseCube>(
+        Vector3(0, initialRootY, 0), Vector3(2, 4, 1));
+    root->Name = "Root";
+    root->Anchored = false;
+    root->CanCollide = true;
+    root->LockFlags = PhysicsLockFlags::AngularX | PhysicsLockFlags::AngularZ;
+    characterParts.insert(root.get());
+
+    // 標準部品は存在させるが、疑わしい部品以外はゲーム中の通常リグと同様に
+    // anchored/non-colliding とし、診断対象へ余計な接触を加えない。
+    auto makeBodyPart = [&](const char* name, const Vector3& position,
+                            const Vector3& size) {
+        auto part = std::make_shared<BaseCube>(position, size);
+        part->Name = name;
+        part->Anchored = true;
+        part->CanCollide = false;
+        character->addChild(part);
+        characterParts.insert(part.get());
+        return part;
+    };
+
+    character->addChild(root);
+    auto head = makeBodyPart("Head", {0, initialRootY + 2.25f, 0},
+                             {1.25f, 1.25f, 1.25f});
+    makeBodyPart("LeftArm", {-1.5f, initialRootY + 0.75f, 0}, {1, 2, 1});
+    makeBodyPart("RightArm", {1.5f, initialRootY + 0.75f, 0}, {1, 2, 1});
+    makeBodyPart("LeftLeg", {-0.5f, initialRootY - 1.25f, 0}, {1, 2, 1});
+    makeBodyPart("RightLeg", {0.5f, initialRootY - 1.25f, 0}, {1, 2, 1});
+
+    if (testCase.includeTorso) {
+        auto torso = std::make_shared<BaseCube>(Vector3(0, initialRootY + 0.75f, 0),
+                                                Vector3(2, 2, 2));
+        torso->Name = "Torso";
+        torso->Anchored = testCase.torsoAnchored;
+        torso->CanCollide = testCase.torsoCanCollide;
+        character->addChild(torso);
+        characterParts.insert(torso.get());
+    }
+
+    if (testCase.includeHair) {
+        // chilly.yaml の Head 相対位置と Size を使い、Hair collider が
+        // Root 上部と重なる実リグの配置を Cube proxy で再現する。
+        auto hair = std::make_shared<BaseCube>(
+            Vector3(0.035648704f, -0.35836554f, 0.08281714f),
+                                               Vector3(2.5f, 2.5f, 2.5f));
+        hair->Name = "Hair";
+        hair->Anchored = testCase.hairAnchored;
+        hair->CanCollide = testCase.hairCanCollide;
+        head->addChild(hair);
+        characterParts.insert(hair.get());
+        if (testCase.weldHair) {
+            auto weld = std::make_shared<Weld>(head, hair);
+            weld->Name = "HairWeld";
+            head->addChild(weld);
+        }
+    }
+
+    character->addChild(humanoid);
+    humanoid->resolveParts(character.get());
+
+    const auto previousContactCallback = Physics::s_contactCallback;
+    Physics::s_contactCallback = [&](BaseCube* first, BaseCube* second) {
+        if (!first || !second) return;
+        if (characterParts.contains(first) && characterParts.contains(second))
+            ++result.sameCharacterContacts;
+        if ((first == floor.get() && characterParts.contains(second)) ||
+            (second == floor.get() && characterParts.contains(first)))
+            ++result.floorContacts;
+    };
+
+    result.minimumY = root->getWorldPosition().y;
+    for (int frame = 0; frame < 480; ++frame) {
+        physics->update(*workspace, 1.0f / 60.0f);
+        humanoid->applyBodyAnimation(false, false);
+        physics->syncWeldKinematics();
+
+        const Vector3 position = root->getWorldPosition();
+        const Vector3 velocity = physics->getLinearVelocity(*root);
+        result.minimumY = std::min(result.minimumY, position.y);
+        result.finite = result.finite && finiteVector(position) &&
+                        finiteVector(velocity) && finiteCFrame(root->getWorldCFrame());
+    }
+    result.finalY = root->getWorldPosition().y;
+    result.finalVelocity = physics->getLinearVelocity(*root);
+    Physics::s_contactCallback = previousContactCallback;
+    return result;
+}
+
+struct CharacterCollisionFilterProbeResult {
+    bool available = false;
+    int initialSelfContacts = 0;
+    int selfContactsAfterReparentOut = 0;
+    int selfContactsAfterReparentBack = 0;
+    int selfContactsAfterHumanoidRemove = 0;
+    int selfContactsAfterHumanoidRestore = 0;
+    int initialToolContacts = 0;
+    int toolContactsAfterReparentOut = 0;
+    int toolContactsAfterReparentBack = 0;
+    int remoteNpcContacts = 0;
+    int floorContacts = 0;
+    int cloneContacts = 0;
+    int nestedCharacterContacts = 0;
+    int ragdollSelfContacts = 0;
+    int ragdollContactsAfterReparentOut = 0;
+    bool raycastDetectedSelfPart = false;
+    bool overlapDetectedSelfBlock = false;
+};
+
+CharacterCollisionFilterProbeResult runCharacterCollisionFilterProbe() {
+    CharacterCollisionFilterProbeResult result;
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "CharacterCollisionFilterProbe";
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    result.available = physics->isAvailable();
+    physics->setGravity({0, 0, 0});
+
+    struct CharacterParts {
+        std::shared_ptr<Model> model;
+        std::shared_ptr<Humanoid> humanoid;
+        std::shared_ptr<BaseCube> root;
+    };
+    auto makeCharacter = [&](const char* name, float x, bool anchored) {
+        CharacterParts parts;
+        parts.model = std::make_shared<Model>();
+        parts.model->Name = name;
+        parts.root = std::make_shared<Cube>(
+            Vector3(x, 2, 0), Vector3(2, 2, 2), 0);
+        parts.root->Name = "Root";
+        parts.root->Anchored = anchored;
+        parts.humanoid = std::make_shared<Humanoid>();
+        parts.humanoid->Name = "Humanoid";
+        parts.model->addChild(parts.root);
+        parts.model->addChild(parts.humanoid);
+        workspace->addChild(parts.model);
+        return parts;
+    };
+
+    CharacterParts selfCharacter = makeCharacter("SelfCharacter", -18.0f, false);
+    auto selfBlock = std::make_shared<BaseCube>(
+        Vector3(-18, 2, 0), Vector3(2, 2, 2));
+    selfBlock->Name = "SelfBlock";
+    selfBlock->Anchored = true;
+    selfCharacter.model->addChild(selfBlock);
+
+    CharacterParts toolCharacter = makeCharacter("ToolCharacter", -12.0f, false);
+    auto tool = std::make_shared<Tool>("EquippedTool");
+    auto handle = std::make_shared<BaseCube>(
+        Vector3(-12, 2, 0), Vector3(2, 2, 2));
+    handle->Name = "Handle";
+    handle->Anchored = true;
+    tool->addChild(handle);
+    toolCharacter.model->addChild(tool);
+
+    CharacterParts remoteCharacter = makeCharacter("RemoteCharacter", -6.0f, false);
+    CharacterParts npcCharacter = makeCharacter("NPCCharacter", -6.0f, true);
+
+    CharacterParts floorCharacter = makeCharacter("FloorCharacter", 0.0f, false);
+    auto floor = std::make_shared<BaseCube>(Vector3(0, 2, 0), Vector3(2, 2, 2));
+    floor->Name = "FloorProbe";
+    floor->Anchored = true;
+    workspace->addChild(floor);
+
+    CharacterParts cloneSource = makeCharacter("CloneSource", 6.0f, false);
+    auto clone = std::dynamic_pointer_cast<Model>(cloneSource.model->cloneTree());
+    clone->Name = "CloneCharacter";
+    auto cloneRoot = std::static_pointer_cast<BaseCube>(clone->children.at("Root"));
+    cloneRoot->Anchored = true;
+    workspace->addChild(clone);
+
+    CharacterParts outerCharacter = makeCharacter("OuterCharacter", 12.0f, false);
+    auto nestedCharacter = std::make_shared<Model>();
+    nestedCharacter->Name = "NestedCharacter";
+    auto nestedRoot = std::make_shared<BaseCube>(
+        Vector3(12, 2, 0), Vector3(2, 2, 2));
+    nestedRoot->Name = "Root";
+    nestedRoot->Anchored = true;
+    auto nestedHumanoid = std::make_shared<Humanoid>();
+    nestedHumanoid->Name = "Humanoid";
+    nestedCharacter->addChild(nestedRoot);
+    nestedCharacter->addChild(nestedHumanoid);
+    outerCharacter.model->addChild(nestedCharacter);
+
+    CharacterParts ragdollCharacter = makeCharacter("RagdollCharacter", 18.0f, false);
+    auto ragdollTorso = std::make_shared<BaseCube>(
+        Vector3(18, 2, 0), Vector3(2, 2, 2));
+    ragdollTorso->Name = "Torso";
+    ragdollTorso->Anchored = true;
+    ragdollTorso->CanCollide = false;
+    auto ragdollHead = std::make_shared<BaseCube>(
+        Vector3(18, 2, 0), Vector3(2, 2, 2));
+    ragdollHead->Name = "Head";
+    ragdollHead->Anchored = true;
+    ragdollHead->CanCollide = false;
+    ragdollCharacter.model->addChild(ragdollTorso);
+    ragdollCharacter.model->addChild(ragdollHead);
+    ragdollCharacter.humanoid->resolveParts(ragdollCharacter.model.get());
+
+    auto isPair = [](BaseCube* first, BaseCube* second,
+                     BaseCube* expectedFirst, BaseCube* expectedSecond) {
+        return (first == expectedFirst && second == expectedSecond) ||
+               (first == expectedSecond && second == expectedFirst);
+    };
+    int selfContacts = 0;
+    int toolContacts = 0;
+    int ragdollContacts = 0;
+    const auto previousContactCallback = Physics::s_contactCallback;
+    Physics::s_contactCallback = [&](BaseCube* first, BaseCube* second) {
+        if (isPair(first, second, selfCharacter.root.get(), selfBlock.get()))
+            ++selfContacts;
+        if (isPair(first, second, toolCharacter.root.get(), handle.get()))
+            ++toolContacts;
+        if (isPair(first, second, remoteCharacter.root.get(), npcCharacter.root.get()))
+            ++result.remoteNpcContacts;
+        if (isPair(first, second, floorCharacter.root.get(), floor.get()))
+            ++result.floorContacts;
+        if (isPair(first, second, cloneSource.root.get(), cloneRoot.get()))
+            ++result.cloneContacts;
+        if (isPair(first, second, outerCharacter.root.get(), nestedRoot.get()))
+            ++result.nestedCharacterContacts;
+        if (isPair(first, second, ragdollTorso.get(), ragdollHead.get()))
+            ++ragdollContacts;
+    };
+
+    auto step = [&] {
+        for (int frame = 0; frame < 8; ++frame)
+            physics->update(*workspace, 1.0f / 60.0f);
+    };
+    auto resetPair = [&](BaseCube& dynamicCube, BaseCube& anchoredCube,
+                         const Vector3& position) {
+        dynamicCube.teleportTo(position);
+        anchoredCube.teleportTo(position);
+        physics->setLinearVelocity(dynamicCube, {});
+        physics->setAngularVelocity(dynamicCube, {});
+        if (!anchoredCube.Anchored) {
+            physics->setLinearVelocity(anchoredCube, {});
+            physics->setAngularVelocity(anchoredCube, {});
+        }
+    };
+
+    step();
+    result.initialSelfContacts = selfContacts;
+    result.initialToolContacts = toolContacts;
+    RaycastHit selfPartHit;
+    result.raycastDetectedSelfPart = physics->raycast(
+        Vector3(-18, 10, 0), Vector3(0, -1, 0), 16.0f, selfPartHit) &&
+        (selfPartHit.instance == selfCharacter.root.get() ||
+         selfPartHit.instance == selfBlock.get());
+    result.overlapDetectedSelfBlock =
+        physics->findOverlapping(*selfCharacter.root, "BaseCube") ==
+        selfBlock.get();
+
+    ragdollCharacter.humanoid->enterRagdoll(physics);
+    resetPair(*ragdollTorso, *ragdollHead, {18, 2, 0});
+    step();
+    result.ragdollSelfContacts = ragdollContacts;
+
+    ragdollHead->setParent(workspace);
+    resetPair(*ragdollTorso, *ragdollHead, {18, 2, 0});
+    step();
+    result.ragdollContactsAfterReparentOut = ragdollContacts;
+
+    selfBlock->setParent(workspace);
+    resetPair(*selfCharacter.root, *selfBlock, {-18, 2, 0});
+    step();
+    result.selfContactsAfterReparentOut = selfContacts;
+
+    selfCharacter.model->addChild(selfBlock);
+    resetPair(*selfCharacter.root, *selfBlock, {-18, 2, 0});
+    step();
+    result.selfContactsAfterReparentBack = selfContacts;
+
+    selfCharacter.model->removeChild(selfCharacter.humanoid->Name);
+    resetPair(*selfCharacter.root, *selfBlock, {-18, 2, 0});
+    step();
+    result.selfContactsAfterHumanoidRemove = selfContacts;
+
+    selfCharacter.model->addChild(selfCharacter.humanoid);
+    resetPair(*selfCharacter.root, *selfBlock, {-18, 2, 0});
+    step();
+    result.selfContactsAfterHumanoidRestore = selfContacts;
+
+    tool->setParent(workspace);
+    resetPair(*toolCharacter.root, *handle, {-12, 2, 0});
+    step();
+    result.toolContactsAfterReparentOut = toolContacts;
+
+    toolCharacter.model->addChild(tool);
+    resetPair(*toolCharacter.root, *handle, {-12, 2, 0});
+    step();
+    result.toolContactsAfterReparentBack = toolContacts;
+
+    Physics::s_contactCallback = previousContactCallback;
+    return result;
+}
+
+int runHumanoidRigCollisionRegression() {
+    constexpr float expectedRootY = 2.0f;
+    const std::array<HumanoidRigCollisionCase, 7> cases{{
+        {"baseline_root_only", false, false, false, false, false, false, false},
+        {"torso_original", true, false, true, false, false, false, false},
+        {"hair_weld_original", false, false, false, true, false, true, true},
+        {"torso_and_hair_original", true, false, true, true, false, true, true},
+        {"torso_and_hair_no_weld", true, false, true, true, false, true, false},
+        {"torso_and_hair_noncollide", true, false, false, true, false, false, true},
+        {"torso_and_hair_anchored", true, true, true, true, true, true, true},
+    }};
+
+    int failures = 0;
+    bool allCasesHealthy = true;
+    for (size_t index = 0; index < cases.size(); ++index) {
+        const auto& testCase = cases[index];
+        const HumanoidRigCollisionResult result =
+            simulateHumanoidRigCollision(testCase);
+        const float penetration = std::max(0.0f, expectedRootY - result.minimumY);
+        const float speed = vectorLength(result.finalVelocity);
+        const bool healthy = result.available && result.finite &&
+            std::abs(result.finalY - expectedRootY) <= 0.15f &&
+            speed <= 0.5f && result.sameCharacterContacts == 0 &&
+            result.floorContacts > 0;
+        if (!healthy) {
+            ++failures;
+            allCasesHealthy = false;
+        }
+
+        std::cout << "[HumanoidRigCollisionRegression]"
+                  << " backend=" << physicsBackendName(result.backend)
+                  << " case=" << testCase.name
+                  << " expected_y=" << expectedRootY
+                  << " final_y=" << result.finalY
+                  << " min_y=" << result.minimumY
+                  << " penetration=" << penetration
+                  << " velocity=[" << result.finalVelocity.x << ','
+                  << result.finalVelocity.y << ',' << result.finalVelocity.z << ']'
+                  << " speed=" << speed
+                  << " same_character_contacts=" << result.sameCharacterContacts
+                  << " floor_contacts=" << result.floorContacts
+                  << " available=" << (result.available ? "true" : "false")
+                  << " finite=" << (result.finite ? "true" : "false")
+                  << " result=" << (healthy ? "PASS" : "FAIL")
+                  << '\n';
+    }
+
+    const CharacterCollisionFilterProbeResult probe =
+        runCharacterCollisionFilterProbe();
+    const bool probeHealthy = probe.available &&
+        probe.initialSelfContacts == 0 &&
+        probe.selfContactsAfterReparentOut > probe.initialSelfContacts &&
+        probe.selfContactsAfterReparentBack == probe.selfContactsAfterReparentOut &&
+        probe.selfContactsAfterHumanoidRemove > probe.selfContactsAfterReparentBack &&
+        probe.selfContactsAfterHumanoidRestore == probe.selfContactsAfterHumanoidRemove &&
+        probe.initialToolContacts == 0 &&
+        probe.toolContactsAfterReparentOut > probe.initialToolContacts &&
+        probe.toolContactsAfterReparentBack == probe.toolContactsAfterReparentOut &&
+        probe.remoteNpcContacts > 0 && probe.floorContacts > 0 &&
+        probe.cloneContacts > 0 && probe.nestedCharacterContacts > 0 &&
+        probe.ragdollSelfContacts == 0 &&
+        probe.ragdollContactsAfterReparentOut > probe.ragdollSelfContacts &&
+        probe.raycastDetectedSelfPart && probe.overlapDetectedSelfBlock;
+    if (!probeHealthy) ++failures;
+    std::cout << "[HumanoidRigCollisionRegression] filter_probe"
+              << " initial_self=" << probe.initialSelfContacts
+              << " self_out=" << probe.selfContactsAfterReparentOut
+              << " self_back=" << probe.selfContactsAfterReparentBack
+              << " humanoid_removed=" << probe.selfContactsAfterHumanoidRemove
+              << " humanoid_restored=" << probe.selfContactsAfterHumanoidRestore
+              << " initial_tool=" << probe.initialToolContacts
+              << " tool_out=" << probe.toolContactsAfterReparentOut
+              << " tool_back=" << probe.toolContactsAfterReparentBack
+              << " remote_npc=" << probe.remoteNpcContacts
+              << " floor=" << probe.floorContacts
+              << " clone=" << probe.cloneContacts
+              << " nested=" << probe.nestedCharacterContacts
+              << " ragdoll_self=" << probe.ragdollSelfContacts
+              << " ragdoll_out=" << probe.ragdollContactsAfterReparentOut
+              << " raycast_self="
+              << (probe.raycastDetectedSelfPart ? "true" : "false")
+              << " overlap_self="
+              << (probe.overlapDetectedSelfBlock ? "true" : "false")
+              << " result=" << (probeHealthy ? "PASS" : "FAIL") << '\n';
+
+    std::cout << "[HumanoidRigCollisionRegression] rig_cases="
+              << (allCasesHealthy ? "PASS" : "FAIL")
+              << " failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
 }
 
 void addTerrainBoxHull(
@@ -4008,6 +4445,7 @@ int main(int argc, char* argv[]) {
     bool viewportHelperRegression = false;
     bool assetPathRegression = false;
     bool appImageRegression = false;
+    bool humanoidRigCollisionRegression = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument(argv[i]);
         physicsMigrationRegression =
@@ -4038,6 +4476,9 @@ int main(int argc, char* argv[]) {
             assetPathRegression || argument == "--asset-path-regression";
         appImageRegression =
             appImageRegression || argument == "--app-image-regression";
+        humanoidRigCollisionRegression =
+            humanoidRigCollisionRegression ||
+            argument == "--humanoid-rig-collision-regression";
     }
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
     if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
@@ -4053,6 +4494,8 @@ int main(int argc, char* argv[]) {
     if (viewportHelperRegression) return runViewportHelperRegression();
     if (assetPathRegression) return runAssetPathRegression();
     if (appImageRegression) return runAppImageRegression();
+    if (humanoidRigCollisionRegression)
+        return runHumanoidRigCollisionRegression();
     if (toolWeldRegression) return runToolWeldRegression();
     if (toolWeldReequipRegression) return runToolWeldReequipRegression();
     if (toolRespawnRegression) return runToolRespawnRegression();

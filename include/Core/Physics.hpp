@@ -84,6 +84,7 @@ public:
     void setAngularVelocity(BaseCube& cube, const Vector3& velocity);
     void setGravityEnabled(BaseCube& cube, bool enabled);
     void applyLockFlags(BaseCube& cube);
+    void refreshCollisionFilter(BaseCube& cube);
     void syncCube(BaseCube& cube);
 
     void enqueueResize(const std::shared_ptr<BaseCube>& cube);

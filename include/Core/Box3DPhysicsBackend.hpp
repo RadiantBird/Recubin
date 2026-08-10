@@ -122,6 +122,7 @@ public:
     void setAngularVelocity(BaseCube& cube, const Vector3& velocity) override;
     void setGravityEnabled(BaseCube& cube, bool enabled) override;
     void applyLockFlags(BaseCube& cube) override;
+    void refreshCollisionFilter(BaseCube& cube) override;
     void syncCube(BaseCube& cube) override;
 
     void enqueueResize(const std::shared_ptr<BaseCube>& cube) override;

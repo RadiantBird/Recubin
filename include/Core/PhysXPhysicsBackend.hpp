@@ -93,8 +93,8 @@ private:
     void rebuildNoCollisionPairSet();
     // cube がいずれかの生きた NoCollision エントリに含まれるか
     bool isInNoCollisionPair(const BaseCube* cube) const;
-    // cube の全シェイプの filterData word0 候補ビットを isInNoCollisionPair の結果に応じて更新する
-    void applyNoCollisionFilterBit(const std::shared_ptr<BaseCube>& cube);
+    // cube の全シェイプへNoCollision候補ビットとCharacter IDを反映する。
+    void applyCollisionFilter(BaseCube& cube);
     PhysicsConstraintHandle allocateConstraintHandle();
     ConstraintEntry* findConstraintEntry(PhysicsConstraintHandle handle);
     void clearConstraintHandle(Instance& constraint);
@@ -155,6 +155,7 @@ public:
     void setAngularVelocity(BaseCube& cube, const Vector3& velocity) override;
     void setGravityEnabled(BaseCube& cube, bool enabled) override;
     void applyLockFlags(BaseCube& cube) override;
+    void refreshCollisionFilter(BaseCube& cube) override;
     void syncCube(BaseCube& cube) override;
 
     void enqueueResize(const std::shared_ptr<BaseCube>& cube) override;

@@ -3,6 +3,7 @@
 #include "include/Core/SystemState.hpp"
 #include "include/Util/Logger.hpp"
 #include "include/Core/PropertyRegistry.hpp"
+#include "include/Instances/Model.hpp"
 #include <cmath>
 
 namespace {
@@ -123,6 +124,19 @@ bool BaseCube::IsA(std::string className) {
 }
 
 void BaseCube::onAncestorChanged() {
+    std::uint32_t newCharacterCollisionGroup = 0;
+    for (auto ancestor = Parent.lock(); ancestor; ancestor = ancestor->Parent.lock()) {
+        if (!ancestor->IsA("Model")) continue;
+        const auto* model = static_cast<const Model*>(ancestor.get());
+        if (model->m_characterCollisionGroup == 0) continue;
+        newCharacterCollisionGroup = model->m_characterCollisionGroup;
+        break;
+    }
+    if (m_characterCollisionGroup != newCharacterCollisionGroup) {
+        m_characterCollisionGroup = newCharacterCollisionGroup;
+        if (m_physicsOwner) m_physicsOwner->refreshCollisionFilter(*this);
+    }
+
     // 1. 先祖を遡って Workspace を探す (O(h))
     Workspace* newWorkspace =
         static_cast<Workspace*>(findFirstAncestorWorkspace());

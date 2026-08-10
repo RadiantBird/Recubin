@@ -509,6 +509,9 @@ void Physics::setGravityEnabled(BaseCube& cube, bool enabled) {
 void Physics::applyLockFlags(BaseCube& cube) {
     if (isAvailable() && ownsBody(cube)) m_backend->applyLockFlags(cube);
 }
+void Physics::refreshCollisionFilter(BaseCube& cube) {
+    if (isAvailable() && ownsBody(cube)) m_backend->refreshCollisionFilter(cube);
+}
 void Physics::syncCube(BaseCube& cube) {
     if (isAvailable() && ownsBody(cube)) m_backend->syncCube(cube);
 }

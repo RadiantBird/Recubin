@@ -431,6 +431,27 @@ void Box3DPhysicsBackend::applyLockFlags(BaseCube& cube) {
     if (B3_IS_NON_NULL(id)) b3Body_SetMotionLocks(id, toB3Locks(cube.LockFlags));
 }
 
+void Box3DPhysicsBackend::refreshCollisionFilter(BaseCube& cube) {
+    const b3BodyId id = bodyId(cube);
+    if (B3_IS_NULL(id) || !b3Body_IsValid(id)) return;
+
+    const int shapeCount = b3Body_GetShapeCount(id);
+    std::vector<b3ShapeId> shapes(shapeCount);
+    b3Body_GetShapes(id, shapes.data(), shapeCount);
+    const int groupIndex = cube.m_characterCollisionGroup == 0
+        ? 0 : -static_cast<int>(cube.m_characterCollisionGroup);
+    bool changed = false;
+    for (b3ShapeId shape : shapes) {
+        if (b3Shape_GetUserData(shape) != &cube) continue;
+        b3Filter filter = b3Shape_GetFilter(shape);
+        if (filter.groupIndex == groupIndex) continue;
+        filter.groupIndex = groupIndex;
+        b3Shape_SetFilter(shape, filter, true);
+        changed = true;
+    }
+    if (changed) b3Body_SetAwake(id, true);
+}
+
 b3ShapeId Box3DPhysicsBackend::createCubeShape(
     b3BodyId id, const std::shared_ptr<BaseCube>& cube, const CFrame& localFrame) {
     if (!cube || !cube->CanCollide || B3_IS_NULL(id)) return b3_nullShapeId;
@@ -439,6 +460,8 @@ b3ShapeId Box3DPhysicsBackend::createCubeShape(
     definition.userData = cube.get();
     definition.baseMaterial = toB3Material(cube->material);
     definition.density = std::max(cube->MassDensity, 0.01f) * DENSITY_TO_MKS;
+    definition.filter.groupIndex = cube->m_characterCollisionGroup == 0
+        ? 0 : -static_cast<int>(cube->m_characterCollisionGroup);
     definition.enableCustomFiltering = true;
     definition.enableContactEvents = true;
     definition.updateBodyMass = true;

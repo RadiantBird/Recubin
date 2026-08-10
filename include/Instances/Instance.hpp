@@ -22,6 +22,7 @@ class Instance : public std::enable_shared_from_this<Instance> {
         std::unordered_map<string, std::shared_ptr<Instance>> children = {};
 
         virtual void onAncestorChanged();
+        virtual void onChildrenChanged();
         virtual void setParent(std::shared_ptr<Instance> newParent);
 
         // Name を変更する唯一の正しい経路。親の children マップとの整合を保つ。

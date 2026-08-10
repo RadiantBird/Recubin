@@ -26,6 +26,8 @@ void Instance::onAncestorChanged() {
     }
 }
 
+void Instance::onChildrenChanged() {}
+
 void Instance::setParent(std::shared_ptr<Instance> newParent) {
     auto currentParent = this->Parent.lock();
     if (currentParent == newParent) return;
@@ -67,6 +69,8 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
         newParent->children[this->Name] = shared_from_this();
     }
 
+    if (currentParent) currentParent->onChildrenChanged();
+    if (newParent) newParent->onChildrenChanged();
     this->onAncestorChanged();
 }
 
@@ -167,6 +171,7 @@ bool Instance::removeChild(string name) {
         auto child = it->second;
         child->Parent = {};
         this->children.erase(it);
+        onChildrenChanged();
         child->onAncestorChanged();
         return true;
     }

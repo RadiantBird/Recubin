@@ -411,8 +411,10 @@ static void drawVec3Field(const char* id,
         if (ImGui::InputText(txtId.c_str(), buf, sizeof(buf),
                              ImGuiInputTextFlags_EnterReturnsTrue)) {
             float x = val.x, y = val.y, z = val.z;
-            if (sscanf(buf, "%f , %f , %f", &x, &y, &z) == 3 ||
-                sscanf(buf, "%f,%f,%f",     &x, &y, &z) == 3) {
+            int valueCount = sscanf(buf, "%f , %f , %f", &x, &y, &z);
+            if (valueCount >= 1) {
+                if (valueCount == 1) y = x;
+                if (valueCount <= 2) z = y;
                 Vector3 newVal(x, y, z);
                 if (history && sp) {
                     history->execute(std::make_unique<SetVec3Command>(sp, prop, val, newVal));

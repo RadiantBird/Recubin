@@ -162,6 +162,11 @@ static physx::PxFilterFlags rcbnFilterShader(
               | physx::PxPairFlag::eDETECT_CCD_CONTACT
               | physx::PxPairFlag::eNOTIFY_TOUCH_FOUND;
 
+    // word1 はCharacterごとの実行時ID。同一の非zero IDは接触ペア自体を
+    // 生成しないため、接触解決とTouchedの両方が無効になる。
+    if (filterData0.word1 != 0 && filterData0.word1 == filterData1.word1)
+        return physx::PxFilterFlag::eSUPPRESS;
+
     if ((filterData0.word0 & FILTER_WORD0_NOCOLLISION_CANDIDATE) &&
         (filterData1.word0 & FILTER_WORD0_NOCOLLISION_CANDIDATE))
         return physx::PxFilterFlag::eCALLBACK;
@@ -656,16 +661,16 @@ physx::PxRigidActor* PhysXPhysicsBackend::buildActor(
         }
     }
 
-    // NoCollision の対象なら新規シェイプに候補ビットを立てる（新規actorのためresetFiltering不要）
-    if (isInNoCollisionPair(cube.get())) {
-        for (physx::PxU32 i = 0; i < actor->getNbShapes(); i++) {
-            physx::PxShape* shape = nullptr;
-            actor->getShapes(&shape, 1, i);
-            if (!shape || shape->userData != cube.get()) continue;
-            physx::PxFilterData fd = shape->getSimulationFilterData();
+    // 新規actorのためresetFilteringは不要。query filter dataは変更しない。
+    for (physx::PxU32 i = 0; i < actor->getNbShapes(); i++) {
+        physx::PxShape* shape = nullptr;
+        actor->getShapes(&shape, 1, i);
+        if (!shape || shape->userData != cube.get()) continue;
+        physx::PxFilterData fd = shape->getSimulationFilterData();
+        if (isInNoCollisionPair(cube.get()))
             fd.word0 |= FILTER_WORD0_NOCOLLISION_CANDIDATE;
-            shape->setSimulationFilterData(fd);
-        }
+        fd.word1 = cube->m_characterCollisionGroup;
+        shape->setSimulationFilterData(fd);
     }
 
     if (!cube->Anchored) {
@@ -1519,7 +1524,7 @@ void PhysXPhysicsBackend::update(Workspace& workspace, float dt) {
 
     // 2b. NoCollision エントリークリーンアップ（inst/c0/c1 いずれかが expired なら除去）。
     // 生き残った Cube はビットを解除しないと eSUPPRESS されたペアが再評価されず
-    // 衝突が復活しないため、除去後に applyNoCollisionFilterBit で再適用する
+    // 衝突が復活しないため、除去後にapplyCollisionFilterで再適用する
     {
         std::vector<std::shared_ptr<BaseCube>> survivors;
         size_t beforeSize = m_noCollisionEntries.size();
@@ -1535,7 +1540,7 @@ void PhysXPhysicsBackend::update(Workspace& workspace, float dt) {
             m_noCollisionEntries.end());
         if (m_noCollisionEntries.size() != beforeSize) {
             rebuildNoCollisionPairSet();
-            for (auto& c : survivors) applyNoCollisionFilterBit(c);
+            for (auto& c : survivors) applyCollisionFilter(*c);
         }
     }
 
@@ -1930,25 +1935,27 @@ bool PhysXPhysicsBackend::isInNoCollisionPair(const BaseCube* cube) const {
     return false;
 }
 
-void PhysXPhysicsBackend::applyNoCollisionFilterBit(const std::shared_ptr<BaseCube>& cube) {
-    if (!cube) return;
-    auto* actor = getActor(cube->m_bodyHandle);
+void PhysXPhysicsBackend::applyCollisionFilter(BaseCube& cube) {
+    auto* actor = getActor(cube.m_bodyHandle);
     if (!actor) return;
 
-    bool shouldHaveBit = isInNoCollisionPair(cube.get());
+    const bool shouldHaveBit = isInNoCollisionPair(&cube);
     bool changed = false;
 
     for (physx::PxU32 i = 0; i < actor->getNbShapes(); i++) {
         physx::PxShape* shape = nullptr;
         actor->getShapes(&shape, 1, i);
-        if (!shape || shape->userData != cube.get()) continue;
+        if (!shape || shape->userData != &cube) continue;
 
         physx::PxFilterData fd = shape->getSimulationFilterData();
-        bool hasBit = (fd.word0 & FILTER_WORD0_NOCOLLISION_CANDIDATE) != 0;
-        if (hasBit == shouldHaveBit) continue;
+        const bool hasBit =
+            (fd.word0 & FILTER_WORD0_NOCOLLISION_CANDIDATE) != 0;
+        if (hasBit == shouldHaveBit &&
+            fd.word1 == cube.m_characterCollisionGroup) continue;
 
         if (shouldHaveBit) fd.word0 |= FILTER_WORD0_NOCOLLISION_CANDIDATE;
         else                fd.word0 &= ~FILTER_WORD0_NOCOLLISION_CANDIDATE;
+        fd.word1 = cube.m_characterCollisionGroup;
         shape->setSimulationFilterData(fd);
         changed = true;
     }
@@ -1960,6 +1967,10 @@ void PhysXPhysicsBackend::applyNoCollisionFilterBit(const std::shared_ptr<BaseCu
             dyn->wakeUp();
         }
     }
+}
+
+void PhysXPhysicsBackend::refreshCollisionFilter(BaseCube& cube) {
+    applyCollisionFilter(cube);
 }
 
 void PhysXPhysicsBackend::createNoCollision(const std::shared_ptr<NoCollision>& nc) {
@@ -1984,8 +1995,8 @@ void PhysXPhysicsBackend::createNoCollision(const std::shared_ptr<NoCollision>& 
     }
 
     rebuildNoCollisionPairSet();
-    applyNoCollisionFilterBit(c0);
-    applyNoCollisionFilterBit(c1);
+    applyCollisionFilter(*c0);
+    applyCollisionFilter(*c1);
     RCBN_LOG("NoCollision \"" << nc->Name << "\" created");
 }
 
@@ -2159,11 +2170,12 @@ void PhysXPhysicsBackend::rebuildGroup(const std::vector<std::shared_ptr<BaseCub
     for (physx::PxU32 index = 0; index < compound->getNbShapes(); ++index) {
         physx::PxShape* shape = nullptr;
         compound->getShapes(&shape, 1, index);
-        if (!shape || !shape->userData ||
-            !isInNoCollisionPair(static_cast<BaseCube*>(shape->userData)))
-            continue;
+        if (!shape || !shape->userData) continue;
         physx::PxFilterData data = shape->getSimulationFilterData();
-        data.word0 |= FILTER_WORD0_NOCOLLISION_CANDIDATE;
+        BaseCube* shapeCube = static_cast<BaseCube*>(shape->userData);
+        if (isInNoCollisionPair(shapeCube))
+            data.word0 |= FILTER_WORD0_NOCOLLISION_CANDIDATE;
+        data.word1 = shapeCube->m_characterCollisionGroup;
         shape->setSimulationFilterData(data);
     }
 
@@ -2449,8 +2461,8 @@ void PhysXPhysicsBackend::removeConstraint(const std::shared_ptr<Instance>& c) {
         clearConstraintHandle(*c);
         m_noCollisionEntries.erase(ncIt);
         rebuildNoCollisionPairSet();
-        if (oldC0) applyNoCollisionFilterBit(oldC0);
-        if (oldC1) applyNoCollisionFilterBit(oldC1);
+        if (oldC0) applyCollisionFilter(*oldC0);
+        if (oldC1) applyCollisionFilter(*oldC1);
         return;
     }
 
