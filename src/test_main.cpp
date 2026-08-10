@@ -64,6 +64,20 @@
 #include <vector>
 
 namespace {
+class HullRegressionCube final : public BaseCube {
+public:
+    std::vector<Vector3> vertices;
+
+    HullRegressionCube(
+        Vector3 position, Vector3 size, std::vector<Vector3> source)
+        : BaseCube(position, size), vertices(std::move(source)) {}
+
+    PhysicsShape getPhysicsShape() const override {
+        return PhysicsShape::ConvexMesh;
+    }
+    std::vector<Vector3> getConvexVertices() const override { return vertices; }
+};
+
 class FrameRateTestInputBackend final : public IInputBackend {
 public:
     std::unordered_set<KeyCode> pressedKeys;
@@ -112,6 +126,25 @@ float positionDistance(const Vector3& a, const Vector3& b) {
     const float dy = a.y - b.y;
     const float dz = a.z - b.z;
     return std::sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+std::vector<Vector3> makeDenseHullVertices(int count = 96) {
+    std::vector<Vector3> result;
+    result.reserve(static_cast<std::size_t>(count));
+    constexpr float GOLDEN_ANGLE = 2.39996323f;
+    for (int index = 0; index < count; ++index) {
+        const float y = 1.0f -
+            2.0f * (static_cast<float>(index) + 0.5f) /
+                static_cast<float>(count);
+        const float radius = std::sqrt(std::max(0.0f, 1.0f - y * y));
+        const float angle = GOLDEN_ANGLE * static_cast<float>(index);
+        result.push_back({
+            std::cos(angle) * radius * 0.5f,
+            y * 0.5f,
+            std::sin(angle) * radius * 0.5f,
+        });
+    }
+    return result;
 }
 
 int runWeldRegression(const std::shared_ptr<Workspace>& workspace) {
@@ -3655,6 +3688,122 @@ int runPhysicsRollbackRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runBox3DHullRegression() {
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Gravity = {};
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    if (physics->getBackendType() != PhysicsBackendType::Box3D) {
+        std::cout << "[Box3DHullRegression] SKIP: run with --physics=box3d.\n";
+        return 0;
+    }
+
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[Box3DHullRegression] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    const std::vector<Vector3> denseVertices = makeDenseHullVertices();
+    auto standalone = std::make_shared<HullRegressionCube>(
+        Vector3(-20.0f, 0.0f, 0.0f), Vector3(4.0f, 4.0f, 4.0f),
+        denseVertices);
+    standalone->Name = "DenseStandalone";
+    standalone->Anchored = true;
+    workspace->addChild(standalone);
+
+    auto weldFirst = std::make_shared<HullRegressionCube>(
+        Vector3(0.0f, 0.0f, 0.0f), Vector3(4.0f, 4.0f, 4.0f),
+        denseVertices);
+    auto weldSecond = std::make_shared<HullRegressionCube>(
+        Vector3(6.0f, 0.0f, 0.0f), Vector3(4.0f, 4.0f, 4.0f),
+        denseVertices);
+    weldFirst->Name = "DenseWeldFirst";
+    weldSecond->Name = "DenseWeldSecond";
+    weldFirst->Anchored = true;
+    workspace->addChild(weldFirst);
+    workspace->addChild(weldSecond);
+
+    physics->update(*workspace, 1.0f / 60.0f);
+    RaycastHit standaloneHit;
+    expect(physics->hasBody(*standalone) && physics->raycast(
+               {-20.0f, 10.0f, 0.0f}, {0, -1, 0}, 20.0f, standaloneHit) &&
+               standaloneHit.instance == standalone.get(),
+           ">=64-point convex creates a standalone body and raycasts");
+
+    auto weld = std::make_shared<Weld>(weldFirst, weldSecond);
+    weld->Name = "DenseHullWeld";
+    workspace->addChild(weld);
+    physics->update(*workspace, 1.0f / 60.0f);
+    RaycastHit weldedHit;
+    expect(physics->hasBody(*weldFirst) && physics->hasBody(*weldSecond) &&
+               physics->sharesBody(*weldFirst, *weldSecond) && physics->raycast(
+                   {6.0f, 10.0f, 0.0f}, {0, -1, 0}, 20.0f, weldedHit) &&
+               weldedHit.instance == weldSecond.get(),
+           "multiple dense convexes build one welded compound");
+
+    auto terrainOwner = std::make_shared<Instance>("DenseHullTerrainOwner");
+    PhysicsTerrainDescriptor terrainDescriptor;
+    terrainDescriptor.userData = terrainOwner.get();
+    PhysicsTerrainHullDescriptor terrainHull;
+    terrainHull.localFrame = CFrame(Vector3(40.0f, 0.0f, 0.0f));
+    terrainHull.vertices = denseVertices;
+    terrainDescriptor.hulls.push_back(std::move(terrainHull));
+    const PhysicsTerrainHandle terrain =
+        physics->createTerrain(terrainDescriptor);
+    RaycastHit terrainHit;
+    expect(terrain && physics->raycast(
+               {40.0f, 10.0f, 0.0f}, {0, -1, 0}, 20.0f, terrainHit) &&
+               terrainHit.instance == terrainOwner.get(),
+           ">=64-point terrain convex is simplified and raycasts");
+
+    const std::vector<Vector3> degenerateVertices = {
+        {0.2f, 0.1f, -0.15f},
+        {0.25f, 0.1f, -0.15f},
+        {0.3f, 0.1f, -0.15f},
+        {0.4f, 0.1f, -0.15f},
+    };
+    int fallbackWarnings = 0;
+    const auto previousLogHook = g_logHook;
+    g_logHook = [&](const std::string& message) {
+        if (message.find("Box3D convex hull used local bounds fallback") !=
+            std::string::npos)
+            ++fallbackWarnings;
+        if (previousLogHook) previousLogHook(message);
+    };
+    auto degenerate = std::make_shared<HullRegressionCube>(
+        Vector3(20.0f, 0.0f, 0.0f), Vector3(4.0f, 4.0f, 4.0f),
+        degenerateVertices);
+    degenerate->Name = "DegenerateHull";
+    degenerate->Anchored = true;
+    workspace->addChild(degenerate);
+    physics->update(*workspace, 1.0f / 60.0f);
+    RaycastHit fallbackHit;
+    const bool hitOffCenterBounds = physics->raycast(
+        {21.2f, 5.0f, -0.6f}, {0, -1, 0}, 10.0f, fallbackHit);
+    expect(physics->hasBody(*degenerate) && hitOffCenterBounds &&
+               fallbackHit.instance == degenerate.get(),
+           "degenerate convex uses its off-center local bounds for collision");
+
+    physics->recreateActor(degenerate);
+    physics->recreateActor(degenerate);
+    expect(fallbackWarnings == 1,
+           "repeated degenerate rebuilds emit one bounds fallback warning");
+    degenerate->vertices = denseVertices;
+    physics->recreateActor(degenerate);
+    degenerate->vertices = degenerateVertices;
+    physics->recreateActor(degenerate);
+    expect(fallbackWarnings == 2,
+           "normal hull success resets bounds fallback warning suppression");
+    g_logHook = previousLogHook;
+    physics->destroyTerrain(terrain);
+
+    std::cout << "[Box3DHullRegression] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int runConstraintRebindRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -4439,6 +4588,7 @@ int main(int argc, char* argv[]) {
     bool contactReentryRegression = false;
     bool multiWorkspaceRegression = false;
     bool physicsRollbackRegression = false;
+    bool box3dHullRegression = false;
     bool physicsPerformanceGuard = false;
     bool box3dBuoyancyRegression = false;
     bool frameRateInvarianceRegression = false;
@@ -4464,6 +4614,8 @@ int main(int argc, char* argv[]) {
             multiWorkspaceRegression || argument == "--multi-workspace-regression";
         physicsRollbackRegression =
             physicsRollbackRegression || argument == "--physics-rollback-regression";
+        box3dHullRegression =
+            box3dHullRegression || argument == "--box3d-hull-regression";
         physicsPerformanceGuard =
             physicsPerformanceGuard || argument == "--physics-performance-guard";
         box3dBuoyancyRegression =
@@ -4488,6 +4640,7 @@ int main(int argc, char* argv[]) {
     if (contactReentryRegression) return runContactReentryRegression();
     if (multiWorkspaceRegression) return runMultiWorkspaceRegression();
     if (physicsRollbackRegression) return runPhysicsRollbackRegression();
+    if (box3dHullRegression) return runBox3DHullRegression();
     if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
     if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
     if (frameRateInvarianceRegression) return runFrameRateInvarianceRegression();

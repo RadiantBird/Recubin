@@ -30,6 +30,7 @@ constexpr float FIXED_STEP = 1.0f / 60.0f;
 constexpr int SUB_STEPS = 4;
 constexpr int MAX_STEPS = 10;
 constexpr float CLIP_EPSILON = 1.0e-5f;
+constexpr int MAX_HULL_VERTICES = 44;
 
 float motorTorqueToMks(float maxForce) {
     // PhysX revolute joints use the legacy drive-limit contract: MaxForce is
@@ -373,6 +374,127 @@ b3BodyId Box3DPhysicsBackend::bodyId(const BaseCube& cube) const {
     return b3Body_IsValid(result) ? result : b3_nullBodyId;
 }
 
+Box3DPhysicsBackend::SafeHullResult Box3DPhysicsBackend::createSafeHull(
+    const std::vector<Vector3>& source, const Vector3& scale) {
+    std::vector<b3Vec3> points;
+    std::vector<Vector3> finitePoints;
+    points.reserve(source.size());
+    finitePoints.reserve(source.size());
+    Vector3 minimum(FLT_MAX, FLT_MAX, FLT_MAX);
+    Vector3 maximum(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+    for (const Vector3& point : source) {
+        const Vector3 scaled(
+            point.x * scale.x, point.y * scale.y, point.z * scale.z);
+        const Vector3 meters = scaled * METERS_PER_STUD;
+        if (!finiteVector(meters)) continue;
+        points.push_back(toB3Vector(meters));
+        finitePoints.push_back(meters);
+        minimum.x = std::min(minimum.x, meters.x);
+        minimum.y = std::min(minimum.y, meters.y);
+        minimum.z = std::min(minimum.z, meters.z);
+        maximum.x = std::max(maximum.x, meters.x);
+        maximum.y = std::max(maximum.y, meters.y);
+        maximum.z = std::max(maximum.z, meters.z);
+    }
+
+    bool hasSpatialVolume = false;
+    if (finitePoints.size() >= 4) {
+        const Vector3& origin = finitePoints.front();
+        const Vector3* linePoint = nullptr;
+        const Vector3* planePoint = nullptr;
+        Vector3 planeNormal;
+        for (const Vector3& point : finitePoints) {
+            if ((point - origin).length() > B3_LINEAR_SLOP) {
+                linePoint = &point;
+                break;
+            }
+        }
+        if (linePoint) {
+            const Vector3 line = *linePoint - origin;
+            for (const Vector3& point : finitePoints) {
+                const Vector3 normal = Vector3::Cross(line, point - origin);
+                if (normal.length() > B3_LINEAR_SLOP * line.length()) {
+                    planePoint = &point;
+                    planeNormal = normal;
+                    break;
+                }
+            }
+        }
+        if (planePoint) {
+            for (const Vector3& point : finitePoints) {
+                if (std::abs(Vector3::Dot(planeNormal, point - origin)) >
+                    B3_LINEAR_SLOP * planeNormal.length()) {
+                    hasSpatialVolume = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (hasSpatialVolume) {
+        if (b3HullData* hull = b3CreateHull(
+                points.data(), static_cast<int>(points.size()),
+                MAX_HULL_VERTICES))
+            return {hull, false};
+    }
+    if (points.empty()) return {};
+
+    const Vector3 center = (minimum + maximum) * 0.5f;
+    const Vector3 halfSize(
+        std::max((maximum.x - minimum.x) * 0.5f, B3_LINEAR_SLOP),
+        std::max((maximum.y - minimum.y) * 0.5f, B3_LINEAR_SLOP),
+        std::max((maximum.z - minimum.z) * 0.5f, B3_LINEAR_SLOP));
+    const b3Vec3 bounds[8] = {
+        toB3Vector(center + Vector3(-halfSize.x, -halfSize.y, -halfSize.z)),
+        toB3Vector(center + Vector3( halfSize.x, -halfSize.y, -halfSize.z)),
+        toB3Vector(center + Vector3(-halfSize.x,  halfSize.y, -halfSize.z)),
+        toB3Vector(center + Vector3( halfSize.x,  halfSize.y, -halfSize.z)),
+        toB3Vector(center + Vector3(-halfSize.x, -halfSize.y,  halfSize.z)),
+        toB3Vector(center + Vector3( halfSize.x, -halfSize.y,  halfSize.z)),
+        toB3Vector(center + Vector3(-halfSize.x,  halfSize.y,  halfSize.z)),
+        toB3Vector(center + Vector3( halfSize.x,  halfSize.y,  halfSize.z)),
+    };
+    return {
+        b3CreateHull(bounds, 8, MAX_HULL_VERTICES),
+        true,
+    };
+}
+
+void Box3DPhysicsBackend::reportBoundsFallback(
+    const std::shared_ptr<BaseCube>& cube) {
+    if (!cube || !m_boundsFallbackWarnings.insert(cube.get()).second) return;
+    m_shapeLogOwners[cube.get()] = cube;
+    RCBN_WARN("Box3D convex hull used local bounds fallback: " << cube->Name);
+}
+
+void Box3DPhysicsBackend::reportShapeFailure(
+    const std::shared_ptr<BaseCube>& cube, ShapeFailureReason reason) {
+    if (!cube || !m_shapeFailureWarnings[cube.get()].insert(reason).second) return;
+    m_shapeLogOwners[cube.get()] = cube;
+    if (reason == ShapeFailureReason::NoFiniteConvexVertices) {
+        RCBN_ERROR("Box3D shape creation failed: no finite convex vertices: "
+                   << cube->Name);
+    } else {
+        RCBN_ERROR("Box3D native shape creation failed: " << cube->Name);
+    }
+}
+
+void Box3DPhysicsBackend::recordShapeSuccess(
+    const std::shared_ptr<BaseCube>& cube, bool normalHull) {
+    if (!cube) return;
+    m_shapeFailureWarnings.erase(cube.get());
+    if (normalHull) m_boundsFallbackWarnings.erase(cube.get());
+    if (!m_boundsFallbackWarnings.contains(cube.get()))
+        m_shapeLogOwners.erase(cube.get());
+}
+
+void Box3DPhysicsBackend::clearShapeLogState(const BaseCube* cube) {
+    if (!cube) return;
+    m_boundsFallbackWarnings.erase(cube);
+    m_shapeFailureWarnings.erase(cube);
+    m_shapeLogOwners.erase(cube);
+}
+
 void Box3DPhysicsBackend::assignBody(
     BaseCube& cube, b3BodyId value, const CFrame& localOffset) {
     cube.m_bodyHandle = {B3_IS_NON_NULL(value) ? b3StoreBodyId(value) : 0};
@@ -471,23 +593,33 @@ b3ShapeId Box3DPhysicsBackend::createCubeShape(
             toB3Length(localFrame.Position),
             std::max(cube->Size.x * 0.5f * METERS_PER_STUD, B3_LINEAR_SLOP),
         };
-        return b3CreateSphereShape(id, &definition, &sphere);
+        const b3ShapeId shapeId = b3CreateSphereShape(id, &definition, &sphere);
+        if (B3_IS_NULL(shapeId))
+            reportShapeFailure(cube, ShapeFailureReason::NativeShapeCreation);
+        else
+            recordShapeSuccess(cube, false);
+        return shapeId;
     }
 
     if (cube->getPhysicsShape() == PhysicsShape::ConvexMesh) {
         const auto source = cube->getConvexVertices();
-        if (source.empty()) return b3_nullShapeId;
-        std::vector<b3Vec3> points;
-        points.reserve(source.size());
-        for (const Vector3& point : source) {
-            points.push_back(toB3Length(point * cube->Size));
+        const SafeHullResult safeHull = createSafeHull(source, cube->Size);
+        if (!safeHull.hull) {
+            reportShapeFailure(
+                cube, safeHull.usedBoundsFallback
+                    ? ShapeFailureReason::NativeShapeCreation
+                    : ShapeFailureReason::NoFiniteConvexVertices);
+            return b3_nullShapeId;
         }
-        b3HullData* hull = b3CreateHull(
-            points.data(), static_cast<int>(points.size()), 64);
-        if (!hull) return b3_nullShapeId;
         const b3ShapeId shapeId = b3CreateTransformedHullShape(
-            id, &definition, hull, toB3Transform(localFrame), b3Vec3_one);
-        b3DestroyHull(hull);
+            id, &definition, safeHull.hull, toB3Transform(localFrame), b3Vec3_one);
+        b3DestroyHull(safeHull.hull);
+        if (B3_IS_NULL(shapeId)) {
+            reportShapeFailure(cube, ShapeFailureReason::NativeShapeCreation);
+        } else {
+            recordShapeSuccess(cube, !safeHull.usedBoundsFallback);
+            if (safeHull.usedBoundsFallback) reportBoundsFallback(cube);
+        }
         return shapeId;
     }
 
@@ -495,8 +627,13 @@ b3ShapeId Box3DPhysicsBackend::createCubeShape(
         std::max(cube->Size.x * 0.5f * METERS_PER_STUD, B3_LINEAR_SLOP),
         std::max(cube->Size.y * 0.5f * METERS_PER_STUD, B3_LINEAR_SLOP),
         std::max(cube->Size.z * 0.5f * METERS_PER_STUD, B3_LINEAR_SLOP));
-    return b3CreateTransformedHullShape(
+    const b3ShapeId shapeId = b3CreateTransformedHullShape(
         id, &definition, &box.base, toB3Transform(localFrame), b3Vec3_one);
+    if (B3_IS_NULL(shapeId))
+        reportShapeFailure(cube, ShapeFailureReason::NativeShapeCreation);
+    else
+        recordShapeSuccess(cube, false);
+    return shapeId;
 }
 
 const Box3DPhysicsBackend::BuoyancyProxy*
@@ -523,20 +660,16 @@ Box3DPhysicsBackend::getBuoyancyProxy(const BaseCube& cube) {
         };
     } else if (shape == PhysicsShape::ConvexMesh) {
         const auto source = cube.getConvexVertices();
-        std::vector<b3Vec3> points;
-        points.reserve(source.size());
-        for (const Vector3& point : source)
-            if (finiteVector(point)) points.push_back(toB3Vector(point));
-        b3HullData* hull = points.size() >= 4
-            ? b3CreateHull(points.data(), static_cast<int>(points.size()), 64)
-            : nullptr;
-        if (hull) {
-            const b3Vec3* hullPoints = b3GetHullPoints(hull);
-            const b3HullHalfEdge* edges = b3GetHullEdges(hull);
-            const b3HullFace* faces = b3GetHullFaces(hull);
-            for (int index = 0; index < hull->vertexCount; ++index)
-                proxy.vertices.push_back(fromB3Vector(hullPoints[index]));
-            for (int faceIndex = 0; faceIndex < hull->faceCount; ++faceIndex) {
+        const SafeHullResult safeHull =
+            createSafeHull(source, Vector3(1.0f, 1.0f, 1.0f));
+        if (safeHull.hull) {
+            const b3Vec3* hullPoints = b3GetHullPoints(safeHull.hull);
+            const b3HullHalfEdge* edges = b3GetHullEdges(safeHull.hull);
+            const b3HullFace* faces = b3GetHullFaces(safeHull.hull);
+            for (int index = 0; index < safeHull.hull->vertexCount; ++index)
+                proxy.vertices.push_back(fromB3Length(hullPoints[index]));
+            for (int faceIndex = 0; faceIndex < safeHull.hull->faceCount;
+                 ++faceIndex) {
                 std::vector<int> face;
                 const uint8_t first = faces[faceIndex].edge;
                 uint8_t edge = first;
@@ -544,10 +677,10 @@ Box3DPhysicsBackend::getBuoyancyProxy(const BaseCube& cube) {
                     face.push_back(edges[edge].origin);
                     edge = edges[edge].next;
                 } while (edge != first && face.size() <=
-                         static_cast<size_t>(hull->edgeCount));
+                         static_cast<size_t>(safeHull.hull->edgeCount));
                 if (face.size() >= 3) proxy.faces.push_back(std::move(face));
             }
-            b3DestroyHull(hull);
+            b3DestroyHull(safeHull.hull);
         }
     } else if (shape == PhysicsShape::Sphere) {
         const float golden = (1.0f + std::sqrt(5.0f)) * 0.5f;
@@ -629,8 +762,6 @@ void Box3DPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
     const b3ShapeId shape = createCubeShape(id, cube, CFrame());
     if (cube->CanCollide && B3_IS_NULL(shape)) {
         b3DestroyBody(id);
-        RCBN_ERROR("Box3D body creation failed; logical Cube retained: "
-                   << cube->Name);
         return;
     }
     assignBody(*cube, id, CFrame());
@@ -685,8 +816,6 @@ void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
         createCubeShape(replacement, cube, CFrame());
     if (cube->CanCollide && B3_IS_NULL(replacementShape)) {
         b3DestroyBody(replacement);
-        RCBN_ERROR("Box3D body replacement shape failed; old body retained: "
-                   << cube->Name);
         return;
     }
     b3Body_SetLinearVelocity(replacement, toB3Length(linear));
@@ -698,7 +827,13 @@ void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
     const auto gravitySetting = m_gravityEnabled.find(cube.get());
     const bool hadGravitySetting = gravitySetting != m_gravityEnabled.end();
     const bool explicitGravity = hadGravitySetting && gravitySetting->second;
+    const bool preserveBoundsWarning =
+        m_boundsFallbackWarnings.contains(cube.get());
     removeCube(cube);
+    if (preserveBoundsWarning) {
+        m_boundsFallbackWarnings.insert(cube.get());
+        m_shapeLogOwners[cube.get()] = cube;
+    }
     assignBody(*cube, replacement, CFrame());
     cube->m_weldKinematic = false;
     m_bodies.push_back({cube, cube.get(), replacement});
@@ -711,6 +846,7 @@ void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
     m_buoyancyProxyCache.erase(cube.get());
     m_gravityEnabled.erase(cube.get());
+    clearShapeLogState(cube.get());
     std::vector<std::shared_ptr<Instance>> attachedConstraints;
     for (const ConstraintEntry& entry : m_constraints) {
         auto value = entry.constraint.lock();
@@ -771,6 +907,7 @@ void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
 void Box3DPhysicsBackend::onCubeDestroyed(BaseCube& cube) {
     m_buoyancyProxyCache.erase(&cube);
     m_gravityEnabled.erase(&cube);
+    clearShapeLogState(&cube);
     const b3BodyId oldId = bodyId(cube);
     if (B3_IS_NON_NULL(oldId)) {
         const int shapeCount = b3Body_GetShapeCount(oldId);
@@ -817,6 +954,9 @@ void Box3DPhysicsBackend::destroyUniqueBodies() {
     }
     m_bodies.clear();
     m_gravityEnabled.clear();
+    m_boundsFallbackWarnings.clear();
+    m_shapeFailureWarnings.clear();
+    m_shapeLogOwners.clear();
 }
 
 void Box3DPhysicsBackend::clearCubes() {
@@ -1352,7 +1492,6 @@ void Box3DPhysicsBackend::rebuildAssembly(
     }
     if (constructionFailed) {
         b3DestroyBody(newBody);
-        RCBN_ERROR("Box3D compound shape creation failed; old assembly retained");
         return;
     }
     b3Body_ApplyMassFromShapes(newBody);
@@ -1861,6 +2000,16 @@ void Box3DPhysicsBackend::updateConstraint(
 }
 
 void Box3DPhysicsBackend::removeExpiredEntries() {
+    for (auto iterator = m_shapeLogOwners.begin();
+         iterator != m_shapeLogOwners.end();) {
+        if (!iterator->second.expired()) {
+            ++iterator;
+            continue;
+        }
+        m_boundsFallbackWarnings.erase(iterator->first);
+        m_shapeFailureWarnings.erase(iterator->first);
+        iterator = m_shapeLogOwners.erase(iterator);
+    }
     for (auto iterator = m_constraints.begin(); iterator != m_constraints.end();) {
         if (!iterator->constraint.expired()) {
             ++iterator;
@@ -2098,21 +2247,17 @@ PhysicsTerrainHandle Box3DPhysicsBackend::createTerrain(
     }
 
     for (const PhysicsTerrainHullDescriptor& source : descriptor.hulls) {
-        if (source.vertices.size() < 4) continue;
-        std::vector<b3Vec3> points;
-        points.reserve(source.vertices.size());
-        for (const Vector3& point : source.vertices)
-            points.push_back(toB3Length(point));
-        b3HullData* hull = b3CreateHull(
-            points.data(), static_cast<int>(points.size()), 64);
-        if (!hull) {
+        if (source.vertices.empty()) continue;
+        const SafeHullResult safeHull =
+            createSafeHull(source.vertices, Vector3(1.0f, 1.0f, 1.0f));
+        if (!safeHull.hull) {
             for (b3MeshData* mesh : terrain.meshes) b3DestroyMesh(mesh);
             for (b3HullData* oldHull : terrain.hulls) b3DestroyHull(oldHull);
             return {};
         }
-        terrain.hulls.push_back(hull);
+        terrain.hulls.push_back(safeHull.hull);
         b3CompoundHullDef child = {};
-        child.hull = hull;
+        child.hull = safeHull.hull;
         child.transform = toB3Transform(source.localFrame);
         child.material = b3DefaultSurfaceMaterial();
         child.material.friction = descriptor.dynamicFriction;

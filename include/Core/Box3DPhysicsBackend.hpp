@@ -50,6 +50,16 @@ private:
         Vector3 normalizedCentroid;
     };
 
+    enum class ShapeFailureReason {
+        NoFiniteConvexVertices,
+        NativeShapeCreation,
+    };
+
+    struct SafeHullResult {
+        b3HullData* hull = nullptr;
+        bool usedBoundsFallback = false;
+    };
+
     using CubePair = std::pair<const BaseCube*, const BaseCube*>;
 
     Physics* m_facade = nullptr;
@@ -62,6 +72,10 @@ private:
     std::shared_ptr<const std::set<CubePair>> m_noCollisionSnapshot;
     std::vector<TerrainEntry> m_terrains;
     std::unordered_map<const BaseCube*, BuoyancyProxy> m_buoyancyProxyCache;
+    std::set<const BaseCube*> m_boundsFallbackWarnings;
+    std::unordered_map<const BaseCube*, std::set<ShapeFailureReason>>
+        m_shapeFailureWarnings;
+    std::unordered_map<const BaseCube*, std::weak_ptr<BaseCube>> m_shapeLogOwners;
     // setGravityEnabled() の論理状態。MaintainVelocity による一時抑止を
     // 解除した際、明示的に無効化された重力を誤って有効化しないため保持する。
     std::unordered_map<const BaseCube*, bool> m_gravityEnabled;
@@ -72,6 +86,13 @@ private:
         b3ShapeId shapeIdA, b3ShapeId shapeIdB, void* context);
 
     b3BodyId bodyId(const BaseCube& cube) const;
+    static SafeHullResult createSafeHull(
+        const std::vector<Vector3>& source, const Vector3& scale);
+    void reportBoundsFallback(const std::shared_ptr<BaseCube>& cube);
+    void reportShapeFailure(
+        const std::shared_ptr<BaseCube>& cube, ShapeFailureReason reason);
+    void recordShapeSuccess(const std::shared_ptr<BaseCube>& cube, bool normalHull);
+    void clearShapeLogState(const BaseCube* cube);
     void assignBody(BaseCube& cube, b3BodyId bodyId, const CFrame& localOffset);
     b3ShapeId createCubeShape(
         b3BodyId bodyId, const std::shared_ptr<BaseCube>& cube, const CFrame& localFrame);
