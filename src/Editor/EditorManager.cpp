@@ -342,7 +342,8 @@ void EditorManager::handleEditorShortcuts() {
         }
 
         // F2: 選択中インスタンスをアウトライナー上でインラインリネーム開始
-        if (ImGui::IsKeyPressed(ImGuiKey_F2) && !GetFocusedViewport() && hierarchyPanel->selectedInstance) {
+        if (ImGui::IsKeyPressed(ImGuiKey_F2) && !GetFocusedViewport() && hierarchyPanel->selectedInstance &&
+            !hierarchyPanel->selectedInstance->isRuntimeNameLocked()) {
             hierarchyPanel->renamingInstance   = hierarchyPanel->selectedInstance;
             hierarchyPanel->renameFocusPending = true;
         }

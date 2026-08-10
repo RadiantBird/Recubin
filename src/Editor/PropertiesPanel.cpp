@@ -760,19 +760,53 @@ void PropertiesPanel::onRender() {
     ImGui::LabelText("ClassName", "%s", inst->getClassName().c_str());
     ImGui::LabelText("Path",      "%s", inst->getFullPath().c_str());
 
+    static std::weak_ptr<Instance> s_nameTarget;
     static std::string s_nameBefore;
-    char nameBuf[256] = {};
-    strncpy(nameBuf, inst->Name.c_str(), sizeof(nameBuf) - 1);
-    if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf))) {
-        inst->renameTo(std::string(nameBuf));
-    }
-    if (ImGui::IsItemActivated()) s_nameBefore = inst->Name;
-    if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-        std::string after = inst->Name;
-        if (s_nameBefore != after) {
-            m_history->record(std::make_unique<RenameInstanceCommand>(
-                inst->shared_from_this(), s_nameBefore, after));
+    static char s_nameBuf[256] = {};
+    auto commitName = [&]() {
+        if (auto target = s_nameTarget.lock(); target && !target->isRuntimeNameLocked()) {
+            std::string requestedName(s_nameBuf);
+            if (s_nameBefore != requestedName) {
+                target->renameTo(requestedName);
+                std::string after = target->Name;
+                if (m_history && s_nameBefore != after) {
+                    m_history->record(std::make_unique<RenameInstanceCommand>(
+                        target, s_nameBefore, after));
+                }
+            }
         }
+    };
+    auto clearNameEdit = [&]() {
+        s_nameTarget.reset();
+        s_nameBefore.clear();
+    };
+    if (auto target = s_nameTarget.lock(); target && target.get() != inst) {
+        commitName();
+        clearNameEdit();
+    }
+    if (s_nameTarget.expired()) {
+        strncpy(s_nameBuf, inst->Name.c_str(), sizeof(s_nameBuf) - 1);
+        s_nameBuf[sizeof(s_nameBuf) - 1] = '\0';
+    }
+
+    const bool nameLocked = inst->isRuntimeNameLocked();
+    if (nameLocked) ImGui::BeginDisabled();
+    bool submit = ImGui::InputText("Name", s_nameBuf, sizeof(s_nameBuf),
+                                   ImGuiInputTextFlags_EnterReturnsTrue);
+    bool activated = ImGui::IsItemActivated();
+    bool deactivatedAfterEdit = ImGui::IsItemDeactivatedAfterEdit();
+    bool deactivated = ImGui::IsItemDeactivated();
+    if (nameLocked) ImGui::EndDisabled();
+
+    if (activated && !nameLocked) {
+        s_nameTarget = inst->shared_from_this();
+        s_nameBefore = inst->Name;
+    }
+    if (submit || deactivatedAfterEdit) {
+        commitName();
+    }
+    if (deactivated) {
+        clearNameEdit();
     }
 
     // ---- Spatial (Position / Size) ----

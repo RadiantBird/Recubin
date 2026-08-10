@@ -240,7 +240,11 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
         }
     }
 
-    bool renaming = !readOnly && (inst == renamingInstance);
+    if (inst == renamingInstance && inst->isRuntimeNameLocked()) {
+        renamingInstance = nullptr;
+        renameFocusPending = false;
+    }
+    bool renaming = !readOnly && !inst->isRuntimeNameLocked() && (inst == renamingInstance);
     bool open = renaming
         ? ImGui::TreeNodeEx(inst, flags, "%s", getClassIcon(inst->getClassName()))
         : ImGui::TreeNodeEx(inst, flags, "%s %s", getClassIcon(inst->getClassName()), inst->Name.c_str());
