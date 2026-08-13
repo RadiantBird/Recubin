@@ -49,11 +49,39 @@ static void collectWorldGuiHosts(Instance* node, std::vector<BaseCube*>& out) {
 // ===================================================
 //  ScreenGui 1 要素の描画
 // ===================================================
-// テキストを縦中央に描画。FontSize>0 なら指定サイズ、0 なら既定サイズを使う
+// テキストを要素矩形内の縦中央へ描画。FontSize>0 なら指定サイズ、0 なら既定サイズを使う。
+// BillboardGuiの子ではfitToBoundsを有効にし、指定サイズを上限として文字列全体を収める。
 static void drawGuiText(ImDrawList* dl, ScreenGuiObject* sgo,
-                        float px, float py, float sh, ImU32 col, const char* text) {
-    float size = (sgo->FontSize > 0.f) ? sgo->FontSize : ImGui::GetFontSize();
-    dl->AddText(ImGui::GetFont(), size, ImVec2(px + 4.f, py + (sh - size) * 0.5f), col, text);
+                        float px, float py, float sw, float sh,
+                        ImU32 col, const char* text,
+                        float textScaleY = 1.0f, bool fitToBounds = false) {
+    if (sw <= 0.0f || sh <= 0.0f) return;
+
+    ImFont* font = ImGui::GetFont();
+    float size = ((sgo->FontSize > 0.f) ? sgo->FontSize : ImGui::GetFontSize()) * textScaleY;
+    if (size <= 0.0f) return;
+
+    // 左右の余白はImGui論理ピクセル。極端に小さいWorldパネルでも負の描画領域にしない。
+    const float paddingX = (std::min)(4.0f, sw * 0.5f);
+    const float availableWidth = (std::max)(0.0f, sw - paddingX * 2.0f);
+    ImVec2 textSize = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+
+    if (fitToBounds && textSize.x > 0.0f && textSize.y > 0.0f) {
+        const float fitScale = (std::min)({
+            1.0f,
+            availableWidth / textSize.x,
+            sh / textSize.y
+        });
+        size *= (std::max)(0.0f, fitScale);
+        if (size <= 0.0f) return;
+        textSize = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+    }
+
+    const ImVec2 textPosition(
+        px + paddingX,
+        py + (std::max)(0.0f, (sh - textSize.y) * 0.5f));
+    const ImVec4 textClipRect(px, py, px + sw, py + sh);
+    dl->AddText(font, size, textPosition, col, text, nullptr, 0.0f, &textClipRect);
 }
 
 static ImU32 toImCol(const Color4& c) {
@@ -65,14 +93,17 @@ static ImU32 toImCol(const Color4& c) {
 // onActivated が null のときは非対話（ベイク用: InvisibleButton を発行しない）
 static void drawGuiContent(ImDrawList* dl, ScreenGuiObject* sgo,
                            float px, float py, float sw, float sh,
-                           std::function<void(GuiButton*)>* onActivated) {
+                           std::function<void(GuiButton*)>* onActivated,
+                           float textScaleY = 1.0f,
+                           bool fitTextToBounds = false) {
     ImVec2 tl(px, py), br(px + sw, py + sh);
     dl->AddRectFilled(tl, br, toImCol(sgo->BackgroundColor));
     if (auto* img = sgo->imageContent(); img && img->textureID != 0)
         dl->AddImage((ImTextureID)(uintptr_t)img->textureID, tl, br,
                      ImVec2(0, 1), ImVec2(1, 0));  // 上下反転（テクスチャ原点補正）
     if (auto* txt = sgo->textContent(); txt && !txt->Text.empty())
-        drawGuiText(dl, sgo, px, py, sh, toImCol(txt->TextColor), txt->Text.c_str());
+        drawGuiText(dl, sgo, px, py, sw, sh, toImCol(txt->TextColor), txt->Text.c_str(),
+                    textScaleY, fitTextToBounds);
     if (onActivated && *onActivated && sgo->Active && sgo->IsA("GuiButton")) {
         // ID はインスタンスポインタ由来（同名インスタンスの ID 衝突防止）
         ImGui::SetCursorScreenPos(tl);
@@ -299,12 +330,74 @@ static bool worldToScreen(const Matrix4& view, const Matrix4& proj,
     return true;
 }
 
+struct BillboardLayout {
+    float centerX = 0.0f;
+    float centerY = 0.0f;
+    float width = 0.0f;
+    float height = 0.0f;
+    float scaleX = 1.0f;
+    float scaleY = 1.0f;
+};
+
+// BillboardGuiのWorldモード用レイアウト。
+// Sizeのワールド幅・高さをカメラ平面のright/up方向へ展開して投影し、
+// 画面上のパネルサイズと、子GUIへ渡すワールド→ピクセル倍率を求める。
+static bool computeBillboardLayout(const Matrix4& view, const Matrix4& proj,
+                                   const BillboardGui& billboard, const Vector3& center,
+                                   float vpX, float vpY, float vpW, float vpH,
+                                   BillboardLayout& out) {
+    if (billboard.Size.x <= 0.0f || billboard.Size.y <= 0.0f) return false;
+
+    if (!worldToScreen(view, proj, center.x, center.y, center.z,
+                       vpX, vpY, vpW, vpH, out.centerX, out.centerY)) {
+        return false;
+    }
+
+    // view行列の1行目/2行目はワールド座標をカメラright/upへ変換する係数。
+    // 軸ベクトルを取り出して、カメラ平面上のワールド矩形を作る。
+    Vector3 cameraRight(view.m[0], view.m[4], view.m[8]);
+    Vector3 cameraUp(view.m[1], view.m[5], view.m[9]);
+    cameraRight = cameraRight.normalize();
+    cameraUp = cameraUp.normalize();
+
+    float leftX, leftY, rightX, rightY;
+    Vector3 left = center - cameraRight * (billboard.Size.x * 0.5f);
+    Vector3 right = center + cameraRight * (billboard.Size.x * 0.5f);
+    if (!worldToScreen(view, proj, left.x, left.y, left.z,
+                       vpX, vpY, vpW, vpH, leftX, leftY)
+        || !worldToScreen(view, proj, right.x, right.y, right.z,
+                          vpX, vpY, vpW, vpH, rightX, rightY)) {
+        return false;
+    }
+
+    float topX, topY, bottomX, bottomY;
+    Vector3 top = center + cameraUp * (billboard.Size.y * 0.5f);
+    Vector3 bottom = center - cameraUp * (billboard.Size.y * 0.5f);
+    if (!worldToScreen(view, proj, top.x, top.y, top.z,
+                       vpX, vpY, vpW, vpH, topX, topY)
+        || !worldToScreen(view, proj, bottom.x, bottom.y, bottom.z,
+                          vpX, vpY, vpW, vpH, bottomX, bottomY)) {
+        return false;
+    }
+
+    out.width = std::abs(rightX - leftX);
+    out.height = std::abs(bottomY - topY);
+    if (out.width <= 0.0f || out.height <= 0.0f) return false;
+    out.scaleX = out.width / billboard.Size.x;
+    out.scaleY = out.height / billboard.Size.y;
+    return true;
+}
+
 // ===================================================
 //  WorldGuiObject の子 ScreenGuiObject を描画
 // ===================================================
 static void drawWorldGuiChildren(ImDrawList* dl, WorldGuiObject* wgo,
                                   float panelX, float panelY, float panelW, float panelH,
-                                  std::function<void(GuiButton*)>& onActivated) {
+                                  std::function<void(GuiButton*)>& onActivated,
+                                  float pixelScaleX = 1.0f, float pixelScaleY = 1.0f,
+                                  bool worldMode = false) {
+    // 子GUIが親パネルより大きい場合も、BillboardGuiのキャンバス外へ描画しない。
+    dl->PushClipRect(ImVec2(panelX, panelY), ImVec2(panelX + panelW, panelY + panelH), true);
     for (auto& [name, child] : wgo->getChildren()) {
         if (!child->IsA("ScreenGuiObject")) continue;
         auto* sgo = static_cast<ScreenGuiObject*>(child.get());
@@ -314,27 +407,36 @@ static void drawWorldGuiChildren(ImDrawList* dl, WorldGuiObject* wgo,
         Norm origNorm = sgo->NormType;
 
         // パネル座標にオーバーライドして描画
-        float px = (origNorm == Norm::Scale) ? origNormX * panelW + panelX : origNormX + panelX;
-        float py = (origNorm == Norm::Scale) ? origNormY * panelH + panelY : origNormY + panelY;
-        float sw = (origNorm == Norm::Scale) ? origSizeX * panelW : origSizeX;
-        float sh = (origNorm == Norm::Scale) ? origSizeY * panelH : origSizeY;
+        float px = (origNorm == Norm::Scale)
+            ? origNormX * panelW + panelX
+            : origNormX * pixelScaleX + panelX;
+        float py = (origNorm == Norm::Scale)
+            ? origNormY * panelH + panelY
+            : origNormY * pixelScaleY + panelY;
+        float sw = (origNorm == Norm::Scale) ? origSizeX * panelW : origSizeX * pixelScaleX;
+        float sh = (origNorm == Norm::Scale) ? origSizeY * panelH : origSizeY * pixelScaleY;
 
-        drawGuiContent(dl, sgo, px, py, sw, sh, &onActivated);
+        drawGuiContent(dl, sgo, px, py, sw, sh, &onActivated,
+                       worldMode ? pixelScaleY : 1.0f,
+                       /*fitTextToBounds=*/true);
     }
+    dl->PopClipRect();
 }
 
 // ===================================================
 //  SurfaceGui クリックヒットテスト用のマウスレイ生成
 //  ViewportPanel.cpp の makeRay と同じ数式（45°FOV固定、forward/right/up基底）
 // ===================================================
-static Vector3 makeGuiRay(User* user, float mx, float my, float vpW, float vpH) {
+static Vector3 makeGuiRay(const GameGuiRenderContext& context, float mx, float my) {
+    const float vpW = context.viewportWidth;
+    const float vpH = context.viewportHeight;
     float ndcX  = (vpW > 0.f) ? (mx / vpW) * 2.0f - 1.0f : 0.0f;
     float ndcY  = (vpH > 0.f) ? 1.0f - (my / vpH) * 2.0f : 0.0f;
-    float aspect = (vpW > 0.f && vpH > 0.f) ? vpW / vpH : 1.0f;
+    float aspect = context.projectionAspect > 0.0f ? context.projectionAspect : 1.0f;
     float tanH  = std::tan(45.0f * (3.14159265f / 180.0f) * 0.5f);
-    return (user->forward
-          + user->right * (ndcX * aspect * tanH)
-          + user->up    * (ndcY * tanH)).normalize();
+    return (context.cameraForward
+          + context.cameraRight * (ndcX * aspect * tanH)
+          + context.cameraUp    * (ndcY * tanH)).normalize();
 }
 
 // ===================================================
@@ -414,7 +516,11 @@ static bool hitTestSurfaceGui(SurfaceGui* sg, BaseCube* cube, const Vector3& ray
 // ===================================================
 //  renderWorldGui
 // ===================================================
-void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH) {
+void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderContext& context) {
+    const float vpX = context.viewportX;
+    const float vpY = context.viewportY;
+    const float vpW = context.viewportWidth;
+    const float vpH = context.viewportHeight;
     std::vector<BaseCube*> guiHosts;
     collectWorldGuiHosts(&ws, guiHosts);
 
@@ -429,25 +535,31 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, f
     // SurfaceGui クリック判定: 全キューブの全 SurfaceGui からレイと最も近く交差したボタンを探して発火する
     if (user && ImGui::IsMouseClicked(0)) {
         ImVec2 mousePos = ImGui::GetMousePos();
-        Vector3 rayOri = user->cpos;
-        Vector3 rayDir = makeGuiRay(user, mousePos.x - vpX, mousePos.y - vpY, vpW, vpH);
+        const float localMouseX = mousePos.x - vpX;
+        const float localMouseY = mousePos.y - vpY;
+        const bool mouseInsideViewport = localMouseX >= 0.0f && localMouseY >= 0.0f
+            && localMouseX <= vpW && localMouseY <= vpH;
+        if (mouseInsideViewport) {
+            Vector3 rayOri = context.cameraPosition;
+            Vector3 rayDir = makeGuiRay(context, localMouseX, localMouseY);
 
-        float bestT = 1e30f;
-        GuiButton* bestBtn = nullptr;
-        for (BaseCube* cube : guiHosts) {
-            for (auto& [gname, ginst] : cube->getChildren()) {
-                if (ginst->getClassName() != "SurfaceGui") continue;
-                auto* sg = static_cast<SurfaceGui*>(ginst.get());
-                if (!sg->Visible) continue;
+            float bestT = 1e30f;
+            GuiButton* bestBtn = nullptr;
+            for (BaseCube* cube : guiHosts) {
+                for (auto& [gname, ginst] : cube->getChildren()) {
+                    if (ginst->getClassName() != "SurfaceGui") continue;
+                    auto* sg = static_cast<SurfaceGui*>(ginst.get());
+                    if (!sg->Visible) continue;
 
-                float t; ScreenGuiObject* hitChild = nullptr;
-                if (hitTestSurfaceGui(sg, cube, rayOri, rayDir, t, hitChild) && t < bestT) {
-                    bestT   = t;
-                    bestBtn = static_cast<GuiButton*>(hitChild);
+                    float t; ScreenGuiObject* hitChild = nullptr;
+                    if (hitTestSurfaceGui(sg, cube, rayOri, rayDir, t, hitChild) && t < bestT) {
+                        bestT   = t;
+                        bestBtn = static_cast<GuiButton*>(hitChild);
+                    }
                 }
             }
+            if (bestBtn && m_onButtonActivated) m_onButtonActivated(bestBtn);
         }
-        if (bestBtn && m_onButtonActivated) m_onButtonActivated(bestBtn);
     }
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -478,6 +590,14 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, f
                     case Face::Right:  guiCenterOffset.x += hx; break;
                     case Face::Left:   guiCenterOffset.x -= hx; break;
                 }
+            }
+
+            // BillboardGui / ProximityPromptのOffsetは親BaseCubeのローカル座標。
+            // SurfaceGuiには適用せず、従来どおりフェイス中心へ描画する。
+            BillboardGui* billboard = nullptr;
+            if (wgo->IsA("BillboardGui")) {
+                billboard = static_cast<BillboardGui*>(wgo);
+                guiCenterOffset += billboard->Offset;
             }
 
             Vector3 guiCenter = cubeWorldCFrame.pointToWorld(guiCenterOffset);
@@ -553,47 +673,73 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, f
                 }
             }
 
+            BillboardLayout billboardLayout;
             float sx, sy;
-            if (!worldToScreen(m_lastView, m_lastProj, guiCenter.x, guiCenter.y, guiCenter.z,
-                                vpX, vpY, vpW, vpH, sx, sy)) continue;
+            float pw = wgo->Size.x, ph = wgo->Size.y;
+            float childScaleX = 1.0f, childScaleY = 1.0f;
+            bool worldSizeMode = billboard && billboard->SizeMode == BillboardSizeMode::World;
+            if (worldSizeMode) {
+                if (!computeBillboardLayout(context.view, context.projection, *billboard, guiCenter,
+                                             vpX, vpY, vpW, vpH, billboardLayout)) {
+                    continue;
+                }
+                sx = billboardLayout.centerX;
+                sy = billboardLayout.centerY;
+                pw = billboardLayout.width;
+                ph = billboardLayout.height;
+                childScaleX = billboardLayout.scaleX;
+                childScaleY = billboardLayout.scaleY;
+            } else {
+                if (!worldToScreen(context.view, context.projection, guiCenter.x, guiCenter.y, guiCenter.z,
+                                   vpX, vpY, vpW, vpH, sx, sy)) continue;
+            }
 
             // パネル描画: スクリーン座標 (sx,sy) を中心にサイズを配置
-            float pw = wgo->Size.x, ph = wgo->Size.y;
             float panelX = sx - pw * 0.5f;
             float panelY = sy - ph * 0.5f;
 
             if (pp) {
+                float promptScale = worldSizeMode ? (std::min)(childScaleX, childScaleY) : 1.0f;
                 const Color4& bg = pp->BackgroundColor;
                 ImU32 bgCol = IM_COL32((int)(bg.r*255),(int)(bg.g*255),(int)(bg.b*255),(int)(bg.a*255));
-                dl->AddRectFilled(ImVec2(panelX, panelY), ImVec2(panelX+pw, panelY+ph), bgCol, 8.0f);
-                dl->AddRect(ImVec2(panelX, panelY), ImVec2(panelX+pw, panelY+ph), IM_COL32(255,255,255,80), 8.0f, 0, 1.5f);
+                dl->AddRectFilled(ImVec2(panelX, panelY), ImVec2(panelX+pw, panelY+ph), bgCol, 8.0f * promptScale);
+                dl->AddRect(ImVec2(panelX, panelY), ImVec2(panelX+pw, panelY+ph), IM_COL32(255,255,255,80),
+                            8.0f * promptScale, 0, 1.5f * promptScale);
 
-                float textY = panelY + 8.0f;
+                float textY = panelY + 8.0f * promptScale;
+                float promptFontSize = ImGui::GetFontSize() * promptScale;
                 if (!pp->ObjectText.empty()) {
-                    ImVec2 textSize = ImGui::CalcTextSize(pp->ObjectText.c_str());
-                    dl->AddText(ImVec2(panelX + (pw - textSize.x)*0.5f, textY), IM_COL32(200,200,200,255), pp->ObjectText.c_str());
-                    textY += textSize.y + 4.0f;
+                    ImVec2 baseTextSize = ImGui::CalcTextSize(pp->ObjectText.c_str());
+                    ImVec2 textSize(baseTextSize.x * promptScale, baseTextSize.y * promptScale);
+                    dl->AddText(ImGui::GetFont(), promptFontSize,
+                                ImVec2(panelX + (pw - textSize.x)*0.5f, textY),
+                                IM_COL32(200,200,200,255), pp->ObjectText.c_str());
+                    textY += textSize.y + 4.0f * promptScale;
                 }
 
                 std::string actionStr = "[" + pp->KeyboardKeyCode + "] " + pp->ActionText;
-                ImVec2 actionSize = ImGui::CalcTextSize(actionStr.c_str());
-                dl->AddText(ImVec2(panelX + (pw - actionSize.x)*0.5f, textY), IM_COL32(255,255,255,255), actionStr.c_str());
+                ImVec2 baseActionSize = ImGui::CalcTextSize(actionStr.c_str());
+                ImVec2 actionSize(baseActionSize.x * promptScale, baseActionSize.y * promptScale);
+                dl->AddText(ImGui::GetFont(), promptFontSize,
+                            ImVec2(panelX + (pw - actionSize.x)*0.5f, textY),
+                            IM_COL32(255,255,255,255), actionStr.c_str());
 
                 if (pp->HoldDuration > 0.0f) {
                     float progress = pp->m_elapsedTime / pp->HoldDuration;
                     if (progress > 1.0f) progress = 1.0f;
 
-                    float barMargin = 12.0f;
-                    float barY = panelY + ph - 12.0f;
+                    float barMargin = 12.0f * promptScale;
+                    float barY = panelY + ph - 12.0f * promptScale;
                     float barW = pw - barMargin * 2.0f;
-                    float barH = 5.0f;
-                    dl->AddRectFilled(ImVec2(panelX + barMargin, barY), ImVec2(panelX + barMargin + barW, barY + barH), IM_COL32(50,50,50,255), 2.0f);
+                    float barH = 5.0f * promptScale;
+                    dl->AddRectFilled(ImVec2(panelX + barMargin, barY), ImVec2(panelX + barMargin + barW, barY + barH), IM_COL32(50,50,50,255), 2.0f * promptScale);
                     if (progress > 0.0f) {
-                        dl->AddRectFilled(ImVec2(panelX + barMargin, barY), ImVec2(panelX + barMargin + barW * progress, barY + barH), IM_COL32(100,255,100,255), 2.0f);
+                        dl->AddRectFilled(ImVec2(panelX + barMargin, barY), ImVec2(panelX + barMargin + barW * progress, barY + barH), IM_COL32(100,255,100,255), 2.0f * promptScale);
                     }
                 }
 
-                drawWorldGuiChildren(dl, wgo, panelX, panelY, pw, ph, m_onButtonActivated);
+                drawWorldGuiChildren(dl, wgo, panelX, panelY, pw, ph, m_onButtonActivated,
+                                     childScaleX, childScaleY, worldSizeMode);
                 continue;
             }
 
@@ -601,7 +747,8 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, float vpX, float vpY, f
             ImU32 bgCol = IM_COL32((int)(bg.r*255),(int)(bg.g*255),(int)(bg.b*255),(int)(bg.a*255));
             dl->AddRectFilled(ImVec2(panelX, panelY), ImVec2(panelX+pw, panelY+ph), bgCol);
 
-            drawWorldGuiChildren(dl, wgo, panelX, panelY, pw, ph, m_onButtonActivated);
+            drawWorldGuiChildren(dl, wgo, panelX, panelY, pw, ph, m_onButtonActivated,
+                                 childScaleX, childScaleY, worldSizeMode);
         }
     }
 
@@ -657,11 +804,53 @@ void Renderer::renderToolHotbar(User& user, float vpX, float vpY, float vpW, flo
 // ===================================================
 //  renderGameGui — ScreenGui + WorldGui + ToolHotbar の統合描画
 // ===================================================
-void Renderer::renderGameGui(Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH) {
-    if (user) user->setGameViewport(vpX, vpY, vpW, vpH);
-    renderScreenGui(ws, vpX, vpY, vpW, vpH);
-    renderWorldGui (ws, user, vpX, vpY, vpW, vpH);
-    if (user) renderToolHotbar(*user, vpX, vpY, vpW, vpH);
+GameGuiRenderContext Renderer::makeGameGuiRenderContext(
+    float vpX, float vpY, float vpW, float vpH,
+    const Vector3& cameraPosition,
+    const Vector3& cameraForward,
+    const Vector3& cameraRight,
+    const Vector3& cameraUp,
+    float projectionAspect,
+    bool recordUserViewport) {
+    GameGuiRenderContext context;
+    context.viewportX = vpX;
+    context.viewportY = vpY;
+    context.viewportWidth = vpW;
+    context.viewportHeight = vpH;
+    context.projectionAspect = projectionAspect > 0.0f
+        ? projectionAspect
+        : ((vpW > 0.0f && vpH > 0.0f) ? vpW / vpH : 1.0f);
+    context.cameraPosition = cameraPosition;
+    context.cameraForward = cameraForward;
+    context.cameraRight = cameraRight;
+    context.cameraUp = cameraUp;
+    context.view = Matrix4::LookAt(
+        cameraPosition, cameraPosition + cameraForward, cameraUp);
+    context.projection = Matrix4::Perspective(
+        45.0f, context.projectionAspect, 0.1f, 10000.0f);
+    context.recordUserViewport = recordUserViewport;
+    return context;
+}
+
+void Renderer::renderGameGui(
+    Workspace& ws, User* user, const GameGuiRenderContext& context) {
+    if (user && context.recordUserViewport) {
+        user->setGameViewport(
+            context.viewportX, context.viewportY,
+            context.viewportWidth, context.viewportHeight,
+            context.projectionAspect,
+            context.cameraPosition, context.cameraForward,
+            context.cameraRight, context.cameraUp);
+    }
+    renderScreenGui(
+        ws, context.viewportX, context.viewportY,
+        context.viewportWidth, context.viewportHeight);
+    renderWorldGui(ws, user, context);
+    if (user) {
+        renderToolHotbar(
+            *user, context.viewportX, context.viewportY,
+            context.viewportWidth, context.viewportHeight);
+    }
 }
 
 // ===================================================

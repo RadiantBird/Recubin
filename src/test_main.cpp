@@ -30,6 +30,7 @@
 #include <Core/TimeStretchNode.hpp>
 #include <Core/NullInputBackend.hpp>
 #include <Core/Physics.hpp>
+#include <Core/Renderer.hpp>
 #include <Core/Terrain.hpp>
 #include <Core/TerrainStreamer.hpp>
 #include <Core/User.hpp>
@@ -4208,6 +4209,52 @@ int runViewportHelperRegression() {
                 Vector2(200.0f, 100.0f)).visible,
            "point behind the camera is not visible");
 
+    // Retinaでも3D projectionはFramebufferのアスペクトを使うが、NDCの配置先は
+    // ImGui論理座標のままにする。同じ16:9なら倍率1x/2xで表示位置は変わらない。
+    const Vector3 guiCameraPosition(0.0f, 0.0f, 0.0f);
+    const Vector3 guiCameraForward(0.0f, 0.0f, -1.0f);
+    const Vector3 guiCameraRight(1.0f, 0.0f, 0.0f);
+    const Vector3 guiCameraUp(0.0f, 1.0f, 0.0f);
+    const GameGuiRenderContext normalDpiContext = Renderer::makeGameGuiRenderContext(
+        0.0f, 0.0f, 1280.0f, 720.0f,
+        guiCameraPosition, guiCameraForward, guiCameraRight, guiCameraUp,
+        1280.0f / 720.0f);
+    const GameGuiRenderContext retinaContext = Renderer::makeGameGuiRenderContext(
+        0.0f, 0.0f, 1280.0f, 720.0f,
+        guiCameraPosition, guiCameraForward, guiCameraRight, guiCameraUp,
+        2560.0f / 1440.0f);
+    const Vector3 billboardParentPosition(0.0f, 0.0f, -5.0f);
+    const Vector3 billboardAnchor = CFrame(billboardParentPosition).pointToWorld(
+        Vector3(0.0f, 1.25f, 0.0f));
+    const auto normalDpiProjection = ViewportGeometry::projectWorldToScreen(
+        normalDpiContext.projection * normalDpiContext.view,
+        billboardAnchor,
+        Vector2(normalDpiContext.viewportX, normalDpiContext.viewportY),
+        Vector2(normalDpiContext.viewportWidth, normalDpiContext.viewportHeight));
+    const auto retinaProjection = ViewportGeometry::projectWorldToScreen(
+        retinaContext.projection * retinaContext.view,
+        billboardAnchor,
+        Vector2(retinaContext.viewportX, retinaContext.viewportY),
+        Vector2(retinaContext.viewportWidth, retinaContext.viewportHeight));
+    expect(normalDpiProjection.visible && retinaProjection.visible
+               && positionDistance(
+                      Vector3(normalDpiProjection.position.x, normalDpiProjection.position.y, 0.0f),
+                      Vector3(retinaProjection.position.x, retinaProjection.position.y, 0.0f)) <= 0.001f,
+           "Billboard projection is invariant between 1x and 2x framebuffer density");
+    expect(near(normalDpiProjection.position.x, 640.0f)
+               && normalDpiProjection.position.y < 360.0f,
+           "positive local Y Billboard offset projects directly above its parent");
+
+    const CFrame rotatedBillboardParent(
+        Vector3(3.0f, 4.0f, -5.0f),
+        Quaternion::fromAxisAngle(Vector3(0.0f, 0.0f, 1.0f), 90.0f));
+    const Vector3 rotatedAnchor = rotatedBillboardParent.pointToWorld(
+        Vector3(0.0f, 1.25f, 0.0f));
+    const Vector3 expectedRotatedAnchor = rotatedBillboardParent.Position
+        + rotatedBillboardParent.Rotation.rotate(Vector3(0.0f, 1.25f, 0.0f));
+    expect(positionDistance(rotatedAnchor, expectedRotatedAnchor) <= 0.001f,
+           "Billboard offset follows the parent local rotation");
+
     auto workspace = std::make_shared<Workspace>();
     auto nestedModel = std::make_shared<Model>();
     nestedModel->Name = "NestedModel";
@@ -4464,12 +4511,28 @@ int runAssetPathRegression() {
         return 1;
     }
 
+    std::filesystem::create_directories(tempRoot / "assets/fonts", ec);
+    for (const char* fontName : { "DotGothic16-Regular.ttf", "fa-solid-900.ttf" }) {
+        std::filesystem::copy_file(
+            originalCwd / "assets/fonts" / fontName,
+            tempRoot / "assets/fonts" / fontName,
+            std::filesystem::copy_options::overwrite_existing, ec);
+        if (ec) break;
+    }
+    expect(!ec, "runtime test fonts can be staged for packaging");
+
     {
         std::ofstream textFile(tempRoot / "assets" / "sample.txt", std::ios::binary);
         textFile << "portable-text";
         const std::array<char, 4> binary{{'R', '\0', 'C', 'B'}};
         std::ofstream binaryFile(tempRoot / "assets" / "sample.bin", std::ios::binary);
         binaryFile.write(binary.data(), static_cast<std::streamsize>(binary.size()));
+#ifndef __APPLE__
+        std::ofstream editorFile(tempRoot / "Recubin.exe", std::ios::binary);
+        editorFile << "editor";
+        std::ofstream runtimeFile(tempRoot / "RecubinEngine.exe", std::ios::binary);
+        runtimeFile << "runtime";
+#endif
         std::ofstream sceneFile(tempRoot / "scene.yaml", std::ios::binary);
         sceneFile << "Properties:\n"
                   << "  Texture: assets\\sample.bin\n"
@@ -4498,15 +4561,169 @@ int runAssetPathRegression() {
         packageConfig.gameName = "PortablePackage";
         packageConfig.outputDir = "package-output";
         packageConfig.scenePath = "scene.yaml";
+        packageConfig.engineExePath =
+#ifdef __APPLE__
+            (originalCwd / "build-mac/Recubin").string();
+#else
+            "Recubin.exe";
+#endif
         const bool packaged = Packager::package(packageConfig, [](const std::string&) {});
+#ifdef __APPLE__
+        const std::filesystem::path packageRoot = tempRoot / "package-output" / "PortablePackage.app";
+#else
+        const std::filesystem::path packageRoot = tempRoot / "package-output" / "PortablePackage";
+#endif
+#ifdef __APPLE__
+        const std::filesystem::path packageContentRoot = packageRoot / "Contents/Resources";
+#else
+        const std::filesystem::path packageContentRoot = packageRoot;
+#endif
         const std::string packagedScene = FileLoader::readText(
-            "package-output/PortablePackage/assets/scenes/PortablePackage.yaml");
-        expect(packaged && std::filesystem::exists(
-                   tempRoot / "package-output" / "PortablePackage" / "assets" / "sample.bin") &&
+            std::filesystem::relative(packageContentRoot / "assets/scenes/PortablePackage.yaml",
+                                       tempRoot).generic_string());
+        expect(packaged && std::filesystem::exists(packageContentRoot / "assets/sample.bin") &&
+                   std::filesystem::exists(packageContentRoot / "assets/fonts/DotGothic16-Regular.ttf") &&
+                   std::filesystem::exists(packageContentRoot / "assets/fonts/fa-solid-900.ttf") &&
                    packagedScene.find("assets/sample.bin") != std::string::npos &&
                    packagedScene.find("assets/models/missing.glb") != std::string::npos &&
                    packagedScene.find('\\') == std::string::npos,
-               "packager copies Windows-style inputs and writes portable YAML paths");
+               "packager copies referenced assets, runtime fonts, and portable YAML paths");
+#ifdef __APPLE__
+        const std::string plist = FileLoader::readText(
+            std::filesystem::relative(packageRoot / "Contents/Info.plist", tempRoot).generic_string());
+        expect(std::filesystem::exists(packageRoot / "Contents/MacOS/RecubinEngine") &&
+                   std::filesystem::exists(packageRoot / "Contents/Resources/startup.yaml") &&
+                   plist.find("CFBundleExecutable") != std::string::npos &&
+                   plist.find("RecubinEngine") != std::string::npos &&
+                   plist.find("CFBundlePackageType") != std::string::npos &&
+                   plist.find("APPL") != std::string::npos,
+               "macOS packager writes an App Bundle with runtime and Info.plist");
+        expect(std::system(("/usr/bin/codesign --verify --deep --strict " +
+                            packageRoot.string()).c_str()) == 0,
+               "macOS packager ad-hoc signs the finished App Bundle");
+
+        auto readBinaryFile = [](const std::filesystem::path& path) {
+            std::vector<unsigned char> bytes;
+            std::ifstream file(path, std::ios::binary);
+            if (!file) return bytes;
+            file.seekg(0, std::ios::end);
+            const auto length = file.tellg();
+            if (length <= 0) return bytes;
+            bytes.resize(static_cast<std::size_t>(length));
+            file.seekg(0, std::ios::beg);
+            file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+            if (!file) bytes.clear();
+            return bytes;
+        };
+        auto isValidIcns = [](const std::vector<unsigned char>& bytes) {
+            if (bytes.size() < 8 || std::string(bytes.begin(), bytes.begin() + 4) != "icns") return false;
+            const auto readBigEndian32 = [&bytes](std::size_t offset) -> std::uint32_t {
+                return (static_cast<std::uint32_t>(bytes[offset]) << 24) |
+                       (static_cast<std::uint32_t>(bytes[offset + 1]) << 16) |
+                       (static_cast<std::uint32_t>(bytes[offset + 2]) << 8) |
+                       static_cast<std::uint32_t>(bytes[offset + 3]);
+            };
+            if (readBigEndian32(4) != bytes.size()) return false;
+            constexpr unsigned char pngSignature[] = {0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
+            std::size_t offset = 8;
+            int pngEntries = 0;
+            while (offset + 8 <= bytes.size()) {
+                const std::uint32_t entrySize = readBigEndian32(offset + 4);
+                if (entrySize < 8 || offset + entrySize > bytes.size()) return false;
+                for (std::size_t i = offset + 8; i + sizeof(pngSignature) <= offset + entrySize; ++i) {
+                    if (std::equal(std::begin(pngSignature), std::end(pngSignature), bytes.begin() + i)) {
+                        ++pngEntries;
+                        break;
+                    }
+                }
+                offset += entrySize;
+            }
+            return offset == bytes.size() && pngEntries > 0;
+        };
+
+        const auto packageIconScene = [&](const std::string& packageName,
+                                          const std::filesystem::path& iconSource) {
+            const auto scenePath = tempRoot / (packageName + "-scene.yaml");
+            std::ofstream iconScene(scenePath, std::ios::binary);
+            iconScene << "Root:\n"
+                      << "  Children:\n"
+                      << "    - ClassName: AppImage\n"
+                      << "      Properties:\n"
+                      << "        IconPath: " << iconSource.generic_string() << "\n";
+            iconScene.close();
+
+            Packager::Config iconConfig = packageConfig;
+            iconConfig.gameName = packageName;
+            iconConfig.scenePath = scenePath.filename().generic_string();
+            std::vector<std::string> logs;
+            const bool result = Packager::package(iconConfig, [&logs](const std::string& message) {
+                logs.push_back(message);
+            });
+            const auto bundle = tempRoot / "package-output" / (packageName + ".app");
+            const auto iconBytes = readBinaryFile(bundle / "Contents/Resources/AppIcon.icns");
+            const std::string iconPlist = FileLoader::readText(
+                std::filesystem::relative(bundle / "Contents/Info.plist", tempRoot).generic_string());
+            return result && isValidIcns(iconBytes) &&
+                   iconPlist.find("CFBundleIconFile") != std::string::npos &&
+                   iconPlist.find("AppIcon.icns") != std::string::npos;
+        };
+
+        expect(packageIconScene("PortablePngIconPackage", originalCwd / "assets/image/the-cat.png"),
+               "macOS packager creates a valid ICNS from PNG AppImage");
+        expect(packageIconScene("PortableJpegIconPackage", originalCwd / "assets/image/salad-cat.jpg"),
+               "macOS packager creates a valid ICNS from JPEG AppImage");
+
+        const auto invalidScenePath = tempRoot / "invalid-icon-scene.yaml";
+        std::ofstream invalidScene(invalidScenePath, std::ios::binary);
+        invalidScene << "Root:\n"
+                     << "  Children:\n"
+                     << "    - ClassName: AppImage\n"
+                     << "      Properties:\n"
+                     << "        IconPath: " << (tempRoot / "missing-icon.png").generic_string() << "\n";
+        invalidScene.close();
+        Packager::Config invalidIconConfig = packageConfig;
+        invalidIconConfig.gameName = "InvalidIconPackage";
+        invalidIconConfig.scenePath = invalidScenePath.filename().generic_string();
+        std::vector<std::string> invalidIconLogs;
+        const bool invalidIconPackaged = Packager::package(
+            invalidIconConfig, [&invalidIconLogs](const std::string& message) {
+                invalidIconLogs.push_back(message);
+            });
+        const bool invalidIconLogged = std::any_of(
+            invalidIconLogs.begin(), invalidIconLogs.end(), [](const std::string& message) {
+                return message.find("[ERROR]") != std::string::npos;
+            });
+        expect(!invalidIconPackaged && invalidIconLogged,
+               "macOS packager rejects a missing AppImage icon");
+
+        const auto corruptIconPath = tempRoot / "corrupt-icon.png";
+        std::ofstream corruptIcon(corruptIconPath, std::ios::binary);
+        corruptIcon << "this is not an image";
+        corruptIcon.close();
+        const auto corruptScenePath = tempRoot / "corrupt-icon-scene.yaml";
+        std::ofstream corruptScene(corruptScenePath, std::ios::binary);
+        corruptScene << "Root:\n"
+                     << "  Children:\n"
+                     << "    - ClassName: AppImage\n"
+                     << "      Properties:\n"
+                     << "        IconPath: " << corruptIconPath.generic_string() << "\n";
+        corruptScene.close();
+        Packager::Config corruptIconConfig = packageConfig;
+        corruptIconConfig.gameName = "CorruptIconPackage";
+        corruptIconConfig.scenePath = corruptScenePath.filename().generic_string();
+        std::vector<std::string> corruptIconLogs;
+        const bool corruptIconPackaged = Packager::package(
+            corruptIconConfig, [&corruptIconLogs](const std::string& message) {
+                corruptIconLogs.push_back(message);
+            });
+        const bool corruptIconLogged = std::any_of(
+            corruptIconLogs.begin(), corruptIconLogs.end(), [](const std::string& message) {
+                return message.find("Cannot decode AppImage icon") != std::string::npos;
+            });
+        expect(!corruptIconPackaged && corruptIconLogged,
+               "macOS packager rejects a corrupt AppImage icon");
+
+#endif
     }
 
     std::filesystem::current_path(originalCwd, ec);

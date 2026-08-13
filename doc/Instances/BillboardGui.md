@@ -11,6 +11,17 @@
 | 変数 | 型 | 説明 |
 |---|---|---|
 | `Mode` | `BillboardMode` | `Parallel`（カメラ平面に平行）/ `Focus`（カメラ方向を向く） |
+| `SizeMode` | `BillboardSizeMode` | `Screen`（画面上のサイズを維持）/ `World`（ワールド単位で投影） |
+| `Offset` | `Vector3` | 親オブジェクトのローカル座標での表示位置オフセット |
+
+`Screen`が既定値で、従来どおり`Size`を画面ピクセルとして扱う。`World`では`Size`をワールド単位として扱い、カメラから離れるほど画面上の表示が小さくなる。`World`時の子GUIも同じ投影倍率で縮小される。
+
+Luauからは次のように設定できる。
+
+```lua
+billboard.SizeMode = "World"
+billboard.Offset = Vector3.new(0, 1, 0)
+```
 
 ## メソッド
 | メソッド | 説明 |

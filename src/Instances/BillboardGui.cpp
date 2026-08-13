@@ -5,6 +5,8 @@ static const bool s_billboardGuiRegistered = []{
     using namespace PropertyRegistry;
     registerClass("BillboardGui", "WorldGuiObject", {
         enumProp<&BillboardGui::Mode>("Mode", {{"Parallel",0},{"Focus",1}}, /*yamlAsString*/true),
+        enumProp<&BillboardGui::SizeMode>("SizeMode", {{"Screen",0},{"World",1}}, /*yamlAsString*/true),
+        field<&BillboardGui::Offset>("Offset"),
     });
     return true;
 }();

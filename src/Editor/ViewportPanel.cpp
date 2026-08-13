@@ -218,7 +218,12 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
 
     // ゲーム内 GUI をビューポート上に重ねて描画
     if (workspace && Renderer::instance) {
-        Renderer::instance->renderGameGui(*workspace, user, contentOrigin.x, contentOrigin.y, (float)w, (float)h);
+        const GameGuiRenderContext guiContext = Renderer::makeGameGuiRenderContext(
+            contentOrigin.x, contentOrigin.y, static_cast<float>(w), static_cast<float>(h),
+            camPos(), camForward(), camRight(), camUp(),
+            static_cast<float>(w) / static_cast<float>(h),
+            /*recordUserViewport=*/!m_useOwnCamera);
+        Renderer::instance->renderGameGui(*workspace, user, guiContext);
     }
 
     // レターボックス外側の黒帯を最前面に重ね描きする（BillboardGui等の3D投影GUIは

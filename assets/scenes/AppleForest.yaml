@@ -13,6 +13,257 @@ Root:
         Wind: [0, 0, 0]
         PhysicsEnabled: true
       Children:
+        - ClassName: StarterCharacter
+          Name: StarterCharacter
+          Children:
+            - ClassName: Cube
+              Name: RightArm
+              Properties:
+                Position: [1.5, 1, 0]
+                Size: [1, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0.23694777, 0.26249573, 0.3333333, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+            - ClassName: Cube
+              Name: RightLeg
+              Properties:
+                Position: [0.5, -1, 0]
+                Size: [1, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0.23694777, 0.26249573, 0.3333333, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+            - ClassName: Humanoid
+              Name: Humanoid
+              Properties:
+                WalkSpeed: 16
+                JumpPower: 48.522
+                ClimbSpeed: 10
+                JumpHeight: 5.99996
+                MaxHealth: 100
+                RespawnTime: 5
+                Health: 100
+            - ClassName: Cube
+              Name: Root
+              Properties:
+                Position: [0, 0, 0]
+                Size: [2, 4, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0.23529412, 0.2627451, 0.33333334, 0]
+                Anchored: false
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: [AngularX, AngularZ]
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+            - ClassName: Cube
+              Name: LeftArm
+              Properties:
+                Position: [-1.5, 1, 0]
+                Size: [1, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0.23694777, 0.26249573, 0.3333333, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+            - ClassName: Cube
+              Name: LeftLeg
+              Properties:
+                Position: [-0.5, -1, 0]
+                Size: [1, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0.23694777, 0.26249573, 0.3333333, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+            - ClassName: Sphere
+              Name: Head
+              Properties:
+                Position: [0, 2.5, 0]
+                Size: [1.25, 1.25, 1.25]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: BillboardGui
+                  Name: BillboardGui
+                  Properties:
+                    Size: [4, 1]
+                    Norm: Pixel
+                    Active: true
+                    Visible: true
+                    BackgroundColor: [1, 1, 1, 1]
+                    ZIndex: 0
+                    Mode: Parallel
+                    SizeMode: World
+                    Offset: [0, 1.25, 0]
+                  Children:
+                    - ClassName: TextLabel
+                      Name: TextLabel
+                      Properties:
+                        Size: [1, 1]
+                        Norm: Scale
+                        Active: true
+                        Visible: true
+                        BackgroundColor: [1, 1, 1, 1]
+                        ZIndex: 0
+                        Position: [0, 0]
+                        Text: Hello world
+                        TextColor: [1, 0.9638554, 0, 1]
+                        FontSize: 1
+                - ClassName: Decal
+                  Name: Decal
+                  Properties:
+                    Face: 0
+                    Texture: /Users/Redbird/Recubin/assets/image/hehe.png
+                    UVCenter: [0.5, 0.5]
+                    UVRadius: 0.15
+                    Mode: 0
+            - ClassName: Cube
+              Name: Torso
+              Properties:
+                Position: [0, 1, 0]
+                Size: [2, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.26506042, 1, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+        - ClassName: Model
+          Name: HappyTree
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+          Children:
+            - ClassName: Cube
+              Name: Log
+              Properties:
+                Position: [-75.01326, -35.919567, -54.890865]
+                Size: [1, 6, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0.43373495, 0.20902888, 0, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Script
+                  Name: DiscoIt
+                  Properties:
+                    ContentPath: /Users/Redbird/Recubin/scripts/DiscoIt.luau
+                    Enabled: true
+            - ClassName: Cube
+              Name: Leaves
+              Properties:
+                Position: [-75.01326, -29.919567, -54.890865]
+                Size: [3, 6, 3]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 0.67469877, 0, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Script
+                  Name: DiscoIt
+                  Properties:
+                    ContentPath: /Users/Redbird/Recubin/scripts/DiscoIt.luau
+                    Enabled: true
+        - ClassName: Sound
+          Name: 45 days ago...
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            ContentPath: /Users/Redbird/LocalMusic/45日前(Soundcloud Ver).mp3
+            Looped: true
+            SoundGroup: SFX
+            AutoPlay: false
+            Volume: 1
+            Speed: 1
+            PreservePitch: false
         - ClassName: Lighting
           Name: Lighting
           Properties:
@@ -30,6 +281,7 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: true
             MassDensity: 1
             CCDMode: Default
             LockFlags: []
@@ -37,32 +289,57 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-        - ClassName: Cube
-          Name: Cube1
+        - ClassName: Model
+          Name: NormalTree
           Properties:
-            Position: [-75.01326, -38.419567, -54.890865]
+            Position: [11.832714, 0, 7.021488]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            CCDMode: Default
-            LockFlags: []
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
           Children:
-            - ClassName: Script
-              Name: DiscoIt
+            - ClassName: Cube
+              Name: Log
               Properties:
-                ContentPath: /Users/Redbird/Recubin/scripts/DiscoIt.luau
-                Enabled: true
+                Position: [-75.01326, -35.919567, -54.890865]
+                Size: [1, 6, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0.43373495, 0.20902888, 0, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+            - ClassName: Cube
+              Name: Leaves
+              Properties:
+                Position: [-75.01326, -29.919567, -54.890865]
+                Size: [3, 6, 3]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 0.67469877, 0, 1]
+                Anchored: true
+                CanCollide: true
+                CastShadow: true
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
     - ClassName: PathfindingService
       Name: PathfindingService
+    - ClassName: AppImage
+      Name: AppImage
+      Properties:
+        IconPath: assets/image/salad-cat.jpg
     - ClassName: Users
       Name: Users
       Children:

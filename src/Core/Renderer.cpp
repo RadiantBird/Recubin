@@ -281,6 +281,9 @@ void Renderer::init(GLFWwindow* window) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    // エディターとランタイムで同じモニターDPIのフォント密度を使用する。
+    // ゲームGUIのレイアウト座標自体はImGui論理座標のまま維持される。
+    io.ConfigDpiScaleFonts = true;
     // NavEnableKeyboard は意図的に無効。Alt でメニュー層がフォーカスされる前時代的な挙動を避ける
 #ifndef EDITOR_DISABLED
     // ドッキング/マルチビューポートはエディター専用
@@ -288,7 +291,6 @@ void Renderer::init(GLFWwindow* window) {
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     // GLFW backendが提供するモニターDPIをImGuiへ反映する。
     // フォントとDockingのプラットフォームウィンドウを、モニター移動時も追従させる。
-    io.ConfigDpiScaleFonts    = true;
     io.ConfigDpiScaleViewports = true;
 #else
     // ランタイムはレイアウトを永続化しない。エディターと同じフォルダで起動すると
@@ -298,13 +300,22 @@ void Renderer::init(GLFWwindow* window) {
 
     ImGui::StyleColorsDark();
 
-    // 日本語フォントが存在すれば使う。無ければ ImGui 既定フォントにフォールバック
-    // （パッケージ版には assets/fonts/ が同梱されない場合があるため）
+    // ゲームGUIをエディターとランタイムで同じ字形・メトリクスにする。
+    // Packagerはassets/fontsを必須ランタイムリソースとして同梱する。
+    ImFont* gameFont = nullptr;
     if (std::filesystem::exists("assets/fonts/DotGothic16-Regular.ttf")) {
-        io.Fonts->AddFontFromFileTTF("assets/fonts/DotGothic16-Regular.ttf", 22.0f, nullptr,
-                                      io.Fonts->GetGlyphRangesJapanese());
+        gameFont = io.Fonts->AddFontFromFileTTF(
+            "assets/fonts/DotGothic16-Regular.ttf", 22.0f, nullptr,
+            io.Fonts->GetGlyphRangesJapanese());
+        if (gameFont) io.FontDefault = gameFont;
     }
     if (std::filesystem::exists("assets/fonts/fa-solid-900.ttf")) {
+        // MergeModeにはマージ先が必要。開発用の単体起動でゲームフォントが無い場合だけ
+        // ImGui既定フォントを明示的に作る。
+        if (!gameFont && io.Fonts->Fonts.empty()) {
+            gameFont = io.Fonts->AddFontDefault();
+            io.FontDefault = gameFont;
+        }
         ImFontConfig cfg;
         cfg.MergeMode  = true;
         cfg.PixelSnapH = true;
@@ -2040,11 +2051,6 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
     glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
     
-    // GUI 描画のためにビュー/プロジェクション行列を保存 (Primary Viewport用と仮定)
-    if (desc.renderHighlights) { 
-        m_lastView = view;
-        m_lastProj = projection;
-    }
 }
 
 // ===================================================

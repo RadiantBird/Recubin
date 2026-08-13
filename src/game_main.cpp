@@ -5,6 +5,10 @@
     #include <windows26.h>
 #endif
 
+#ifdef __APPLE__
+    #include <mach-o/dyld.h>
+#endif
+
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Lighting.hpp>
@@ -51,6 +55,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 // ===================================================
 //  startup.yaml からゲーム設定を読み込む
@@ -250,6 +255,29 @@ static GameConfig loadStartup() {
     return cfg;
 }
 
+#ifdef __APPLE__
+// Finder launches an app with an unspecified working directory.  Resolve the
+// bundle's Resources directory from the executable location before reading
+// startup.yaml so all existing relative asset paths continue to work.
+static void prepareMacBundleResources() {
+    uint32_t bufferSize = 0;
+    _NSGetExecutablePath(nullptr, &bufferSize);
+    if (bufferSize == 0) return;
+
+    std::vector<char> buffer(bufferSize + 1, '\0');
+    if (_NSGetExecutablePath(buffer.data(), &bufferSize) != 0) return;
+
+    std::error_code ec;
+    const std::filesystem::path executable =
+        std::filesystem::weakly_canonical(std::filesystem::path(buffer.data()), ec);
+    if (ec) return;
+
+    const std::filesystem::path resources = executable.parent_path().parent_path() / "Resources";
+    if (!std::filesystem::exists(resources / "startup.yaml")) return;
+    std::filesystem::current_path(resources, ec);
+}
+#endif
+
 
 
 // ===================================================
@@ -263,6 +291,9 @@ int main(int argc, char* argv[]) {
     getPlatform().setupDllSearchPath();
     if (!Physics::configureBackendFromCommandLine(argc, argv)) return -1;
 
+#ifdef __APPLE__
+    prepareMacBundleResources();
+#endif
     GameConfig cfg = loadStartup();
 
     // ---- ルームコード/STUNネットワーク起動引数 ----
@@ -427,7 +458,10 @@ int main(int argc, char* argv[]) {
     if (auto it = system->children.find("ChatService"); it != system->children.end()) {
         chatService = std::dynamic_pointer_cast<ChatService>(it->second);
     }
-    if (chatService) {
+    // Chat is a network feature.  ChatService still exists for Luau/API
+    // compatibility, but the runtime overlay must not be installed when the
+    // scene explicitly disables networking.
+    if (chatService && system->UseNetwork) {
         chatService->onSendRequested = [](const std::string& text) {
             NetworkManager::get().sendChatMessage(text);
         };

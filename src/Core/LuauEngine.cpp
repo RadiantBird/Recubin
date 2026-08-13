@@ -2141,16 +2141,18 @@ int LuauEngine::user_get_mouse_ray_closure(lua_State* L) {
 
     float ndcX = (mx / user->m_gameVpW) * 2.0f - 1.0f;
     float ndcY = 1.0f - (my / user->m_gameVpH) * 2.0f;
-    float aspect = user->m_gameVpW / user->m_gameVpH;
+    float aspect = user->m_gameProjectionAspect > 0.f
+        ? user->m_gameProjectionAspect
+        : user->m_gameVpW / user->m_gameVpH;
     float tanH = std::tan(45.0f * (3.14159265f / 180.0f) * 0.5f);
-    Vector3 dir = (user->forward
-                 + user->right * (ndcX * aspect * tanH)
-                 + user->up    * (ndcY * tanH)).normalize();
+    Vector3 dir = (user->m_gameCameraForward
+                 + user->m_gameCameraRight * (ndcX * aspect * tanH)
+                 + user->m_gameCameraUp    * (ndcY * tanH)).normalize();
 
     lua_newtable(L);
 
     Vector3* origin = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
-    *origin = user->cpos;
+    *origin = user->m_gameCameraPosition;
     luaL_getmetatable(L, RCBN_VEC3_METATABLE);
     lua_setmetatable(L, -2);
     lua_setfield(L, -2, "Origin");

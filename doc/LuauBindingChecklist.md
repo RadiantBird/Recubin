@@ -114,7 +114,7 @@
 | TextLabel / TextButton | Text / TextColor / FontSize | ✅ | |
 | WorldGuiObject | Size/Norm/Active/Visible/BackgroundColor/ZIndex/Transparency | ✅ | |
 | SurfaceGui | Face | ✅ | |
-| BillboardGui | Mode | ✅ | |
+| BillboardGui | Mode/SizeMode/Offset | ✅ | SizeModeはScreen/World文字列、OffsetはVector3 |
 | ProximityPrompt | KeyboardKeyCode/HoldDuration/MaxActivationDistance/Enabled/ActionText/ObjectText/Triggered | ✅ | |
 | **ImageLabel** | Image | 🔧 | **要配線**（最優先セクション参照） |
 | **ImageButton** | Image | 🔧 | **要配線**（最優先セクション参照） |
