@@ -18,6 +18,7 @@
 #include <Editor/IconsDef.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/LiquidCube.hpp>
+#include <Instances/SpawnLocation.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
 #include <Instances/Rod.hpp>
@@ -1086,6 +1087,9 @@ void EditorManager::renderToolbarCubes() {
     ImGui::SameLine();
     tryAddObjectButton<LiquidCube>(ICON_LIQUIDCUBE, "LiquidCube", "LiquidCube", ws, btnSz,
         spawnPos, Vector3(4, 2, 4));
+    ImGui::SameLine();
+    tryAddObjectButton<SpawnLocation>(ICON_CUBE, "SpawnLocation", "SpawnLocation", ws, btnSz,
+        spawnPos);
 }
 
 void EditorManager::renderToolbarTerrain() {

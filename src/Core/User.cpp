@@ -3,6 +3,8 @@
 #include <Core/NullInputBackend.hpp>
 #include <Network/NetworkIdentity.hpp>
 #include <Instances/StarterCharacter.hpp>
+#include <Instances/SpawnLocation.hpp>
+#include <Instances/Workspace.hpp>
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
 #include <include/Core/LuauEngine.hpp>
@@ -661,7 +663,7 @@ void User::respawnCharacter() {
     }
 
     despawnCharacter();
-    spawnCharacter(m_lastSearchRoot);
+    spawnCharacter(m_lastSearchRoot, m_lastSpawnWorkspace);
     if (parent && character) {
         parent->addChild(character);
     }
@@ -754,9 +756,54 @@ std::shared_ptr<Model> User::buildCharacterModel(Instance* searchRoot, const std
     return model;
 }
 
-void User::spawnCharacter(Instance* searchRoot,
+void User::placeCharacterAtSpawn(
+    const std::shared_ptr<Model>& model,
+    const std::shared_ptr<Humanoid>& humanoid,
+    Workspace* workspace,
+    std::uint32_t spawnPeerId) {
+    if (!model || !humanoid) return;
+    auto root = humanoid->getRootPart();
+    if (!root) return;
+
+    std::vector<std::shared_ptr<SpawnLocation>> candidates;
+    auto collect = [&](auto& self, const std::shared_ptr<Instance>& node) -> void {
+        if (!node) return;
+        if (auto spawn = std::dynamic_pointer_cast<SpawnLocation>(node);
+            spawn && spawn->Enabled) {
+            candidates.push_back(std::move(spawn));
+        }
+        for (const auto& [name, child] : node->children) {
+            (void)name;
+            self(self, child);
+        }
+    };
+    if (workspace) {
+        for (const auto& [name, child] : workspace->children) {
+            (void)name;
+            collect(collect, child);
+        }
+    }
+    std::sort(candidates.begin(), candidates.end(),
+        [](const auto& first, const auto& second) {
+            return first->getFullPath() < second->getFullPath();
+        });
+
+    CFrame targetRoot;
+    if (!candidates.empty()) {
+        const std::size_t index = spawnPeerId == 0
+            ? 0
+            : static_cast<std::size_t>(spawnPeerId - 1) % candidates.size();
+        const auto& spawn = candidates[index];
+        targetRoot = spawn->getWorldCFrame() *
+            CFrame(0.0f, (spawn->Size.y + root->Size.y) * 0.5f, 0.0f);
+    }
+    model->cframe = targetRoot * root->cframe.inverse();
+}
+
+void User::spawnCharacter(Instance* searchRoot, Workspace* workspace,
                           const std::optional<Vector3>& initialPosition) {
     m_lastSearchRoot = searchRoot; // respawn 用に保持
+    m_lastSpawnWorkspace = workspace;
     if (character) {
         despawnCharacter();
     }
@@ -787,11 +834,21 @@ void User::spawnCharacter(Instance* searchRoot,
         return;
     }
     if (peerId != 0) character->lockRuntimeName();
-    if (initialPosition) character->Position = *initialPosition;
-
     auto it = character->getChildren().find("Humanoid");
     humanoid = (it != character->getChildren().end()) ? std::dynamic_pointer_cast<Humanoid>(it->second) : nullptr;
-    if (humanoid) humanoid->resolveParts(character.get());
+    if (humanoid) {
+        humanoid->resolveParts(character.get());
+        if (auto root = humanoid->getRootPart()) {
+            root->Anchored = false;
+            root->CanCollide = true;
+        }
+    }
+    if (initialPosition) {
+        // Play HereはSpawnLocationより明示Model.Positionを優先する。
+        character->Position = *initialPosition;
+    } else {
+        placeCharacterAtSpawn(character, humanoid, workspace, peerId);
+    }
 
     // NOTE: この時点ではcharacterはまだWorkspaceに追加されていない(addChildは呼び出し元が行う)。
     // それでもRoot等のパーツ解決は完了しているため、Luau側はcharacterを直接受け取れば

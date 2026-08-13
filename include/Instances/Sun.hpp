@@ -11,8 +11,6 @@ public:
 
     Sun();
 
-    std::string getClassName() override { return "Sun"; }
-    bool IsA(std::string className) override;
     void setProperty(const std::string& name, const YAML::Node& value) override;
     std::shared_ptr<Instance> clone() const override;
 };

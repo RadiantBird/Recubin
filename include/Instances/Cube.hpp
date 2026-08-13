@@ -34,7 +34,6 @@ class Cube : public Named<Cube, BaseCube> {
         // メソッドの宣言
         void draw(int modelLoc, int shaderProgram);
 
-        virtual bool IsA(std::string name) override;
         std::shared_ptr<Instance> clone() const override;
 
         unsigned int getHighlightVAO() const override { return s_VAO; }

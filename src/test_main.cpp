@@ -24,6 +24,10 @@
 #include <Instances/Tool.hpp>
 #include <Instances/Users.hpp>
 #include <Instances/StarterCharacter.hpp>
+#include <Instances/SpawnLocation.hpp>
+#include <Instances/Seat.hpp>
+#include <Instances/Skybox.hpp>
+#include <Instances/Sun.hpp>
 
 #include <Core/LuauEngine.hpp>
 #include <Core/FileLoader.hpp>
@@ -32,6 +36,7 @@
 #include <Core/SceneRuntime.hpp>
 #include <Core/AudioService.hpp>
 #include <Core/CharacterRig.hpp>
+#include <Core/BaseCubeFactory.hpp>
 #include <Core/TimeStretchNode.hpp>
 #include <Core/NullInputBackend.hpp>
 #include <Core/Physics.hpp>
@@ -424,7 +429,7 @@ int runToolRespawnRegression() {
     system->addChild(user);
     user->initializeInventory();
 
-    user->spawnCharacter(system.get());
+    user->spawnCharacter(system.get(), workspace.get());
     workspace->addChild(user->character);
     auto oldCharacter = user->character;
 
@@ -618,6 +623,19 @@ int runStarterAccessoryWeldRegression() {
         return std::any_of(assembly.begin(), assembly.end(),
             [expected](const auto& member) { return member.get() == expected; });
     };
+    auto finiteVector = [](const Vector3& value) {
+        return std::isfinite(value.x) && std::isfinite(value.y) &&
+               std::isfinite(value.z);
+    };
+    auto finiteCFrame = [&](const CFrame& value) {
+        const Quaternion& rotation = value.Rotation;
+        return finiteVector(value.Position) && std::isfinite(rotation.w) &&
+               std::isfinite(rotation.x) && std::isfinite(rotation.y) &&
+               std::isfinite(rotation.z);
+    };
+    auto vectorLength = [](const Vector3& value) {
+        return std::sqrt(value.x * value.x + value.y * value.y + value.z * value.z);
+    };
 
     auto system = std::make_shared<System>();
     auto starter = std::make_shared<StarterCharacter>();
@@ -642,12 +660,26 @@ int runStarterAccessoryWeldRegression() {
     auto templateWeld = std::make_shared<Weld>(templateHead, templateHair);
     templateWeld->Name = "HairWeld";
     templateHead->addChild(templateWeld);
+
+    auto templateGlasses = std::make_shared<Cube>(Vector3{}, Vector3(1.7f, 0.3f, 0.3f), 0);
+    templateGlasses->Name = "Glasses";
+    templateGlasses->Anchored = true;
+    templateGlasses->CanCollide = false;
+    const CFrame initialGlassesRelative(
+        Vector3(0.0f, 0.05f, -0.62f),
+        Quaternion::fromAxisAngle(Vector3(0, 1, 0), -9.0f));
+    templateGlasses->cframe = templateHead->cframe * initialGlassesRelative;
+    starter->addChild(templateGlasses);
+    auto glassesWeld = std::make_shared<Weld>(templateHead, templateGlasses);
+    glassesWeld->Name = "GlassesWeld";
+    templateHead->addChild(glassesWeld);
     system->addChild(starter);
 
     auto first = User::buildCharacterModel(system.get(), "CharacterA");
     auto second = User::buildCharacterModel(system.get(), "CharacterB");
     auto workspace = std::make_shared<Workspace>();
     workspace->Name = "StarterAccessoryWeldRegression";
+    workspace->Gravity = Vector3(0, 0, 0);
     system->addChild(workspace);
     workspace->addChild(first);
     workspace->addChild(second);
@@ -657,6 +689,8 @@ int runStarterAccessoryWeldRegression() {
         std::shared_ptr<BaseCube> root;
         std::shared_ptr<BaseCube> head;
         std::shared_ptr<BaseCube> hair;
+        std::shared_ptr<BaseCube> glasses;
+        std::vector<std::shared_ptr<BaseCube>> bodyParts;
     };
     auto getParts = [](const std::shared_ptr<Model>& model) {
         RigParts parts;
@@ -669,48 +703,57 @@ int runStarterAccessoryWeldRegression() {
         parts.root = std::dynamic_pointer_cast<BaseCube>(find("Root"));
         parts.head = std::dynamic_pointer_cast<BaseCube>(find("Head"));
         parts.hair = std::dynamic_pointer_cast<BaseCube>(find("Hair"));
+        parts.glasses = std::dynamic_pointer_cast<BaseCube>(find("Glasses"));
+        constexpr std::array<const char*, 9> partNames = {
+            "Root", "Torso", "Head", "LeftArm", "RightArm",
+            "LeftLeg", "RightLeg", "Hair", "Glasses"
+        };
+        for (const char* name : partNames) {
+            if (auto part = std::dynamic_pointer_cast<BaseCube>(find(name)))
+                parts.bodyParts.push_back(std::move(part));
+        }
         return parts;
     };
     RigParts a = getParts(first);
     RigParts b = getParts(second);
-    expect(first && second && a.humanoid && a.root && a.head && a.hair &&
-               b.humanoid && b.root && b.head && b.hair,
-           "two standard StarterCharacter clones contain independent Head/Hair rigs");
-    if (!a.humanoid || !a.root || !a.head || !a.hair ||
-        !b.humanoid || !b.root || !b.head || !b.hair) {
+    expect(first && second && a.humanoid && a.root && a.head && a.hair && a.glasses &&
+               b.humanoid && b.root && b.head && b.hair && b.glasses &&
+               a.bodyParts.size() == 9 && b.bodyParts.size() == 9,
+           "two standard StarterCharacter clones contain independent accessory rigs");
+    if (!a.humanoid || !a.root || !a.head || !a.hair || !a.glasses ||
+        !b.humanoid || !b.root || !b.head || !b.hair || !b.glasses) {
         return 1;
     }
 
-    const CFrame relativeA = a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame();
-    const CFrame relativeB = b.head->getWorldCFrame().inverse() * b.hair->getWorldCFrame();
-    const CFrame secondHeadBefore = b.head->getWorldCFrame();
-    const CFrame secondHairBefore = b.hair->getWorldCFrame();
-
-    a.root->cframe = CFrame(
-        Vector3(12.0f, 5.0f, -3.0f),
-        Quaternion::fromAxisAngle(Vector3(0, 1, 0), 35.0f));
-    a.humanoid->applyBodyAnimation(false, false);
-    expect(cframeNear(relativeA,
-               a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame()) &&
-               cframeNear(secondHeadBefore, b.head->getWorldCFrame()) &&
-               cframeNear(secondHairBefore, b.hair->getWorldCFrame()),
-           "moving the first rig preserves its accessory pose without moving the second rig");
-
-    b.root->cframe = CFrame(
-        Vector3(-14.0f, 8.0f, 6.0f),
-        Quaternion::fromAxisAngle(Vector3(0, 1, 0), -50.0f));
-    b.humanoid->applyBodyAnimation(false, false);
-    expect(cframeNear(relativeB,
-               b.head->getWorldCFrame().inverse() * b.hair->getWorldCFrame()),
-           "second rig keeps its own initial Head/Hair relative pose");
+    const CFrame hairRelativeA = a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame();
+    const CFrame hairRelativeB = b.head->getWorldCFrame().inverse() * b.hair->getWorldCFrame();
+    const CFrame glassesRelativeA =
+        a.head->getWorldCFrame().inverse() * a.glasses->getWorldCFrame();
+    const CFrame glassesRelativeB =
+        b.head->getWorldCFrame().inverse() * b.glasses->getWorldCFrame();
 
     const auto assemblyA = Weld::collectAssembly(a.head, *first);
     const auto assemblyB = Weld::collectAssembly(b.head, *second);
     expect(contains(assemblyA, a.head.get()) && contains(assemblyA, a.hair.get()) &&
+               contains(assemblyA, a.glasses.get()) &&
                !contains(assemblyA, b.head.get()) && !contains(assemblyA, b.hair.get()) &&
+               !contains(assemblyA, b.glasses.get()) &&
                contains(assemblyB, b.head.get()) && contains(assemblyB, b.hair.get()) &&
-               !contains(assemblyB, a.head.get()) && !contains(assemblyB, a.hair.get()),
+               contains(assemblyB, b.glasses.get()) &&
+               !contains(assemblyB, a.head.get()) && !contains(assemblyB, a.hair.get()) &&
+               !contains(assemblyB, a.glasses.get()),
            "each cloned Weld assembly excludes the other character");
+
+    // Spawn the two complete rigs apart before native bodies are constructed.
+    // Preserve both accessory offsets so compound-local poses start valid.
+    a.root->cframe = CFrame(Vector3(12.0f, 5.0f, -3.0f));
+    b.root->cframe = CFrame(Vector3(-14.0f, 8.0f, 6.0f));
+    a.humanoid->applyBodyAnimation(false, false);
+    b.humanoid->applyBodyAnimation(false, false);
+    a.hair->setWorldCFrame(a.head->getWorldCFrame() * hairRelativeA);
+    a.glasses->setWorldCFrame(a.head->getWorldCFrame() * glassesRelativeA);
+    b.hair->setWorldCFrame(b.head->getWorldCFrame() * hairRelativeB);
+    b.glasses->setWorldCFrame(b.head->getWorldCFrame() * glassesRelativeB);
 
     workspace->initPhysics();
     Physics* physics = workspace->getPhysicsEngine();
@@ -718,34 +761,497 @@ int runStarterAccessoryWeldRegression() {
         physics->setGravity(Vector3(0, 0, 0));
         physics->update(*workspace, 1.0f / 60.0f);
         expect(physics->sharesBody(*a.head, *a.hair) &&
-                   physics->sharesBody(*b.head, *b.hair),
-               "anchored Head/Hair endpoints form independent compound bodies");
+                   physics->sharesBody(*a.head, *a.glasses) &&
+                   physics->sharesBody(*b.head, *b.hair) &&
+                   physics->sharesBody(*b.head, *b.glasses) &&
+                   !physics->sharesBody(*a.head, *b.head),
+               "multiple anchored accessories form one independent compound per rig");
 
-        const CFrame rootTargetA(
-            Vector3(22.0f, 11.0f, -9.0f),
-            Quaternion::fromAxisAngle(Vector3(0, 1, 0), 80.0f));
-        const CFrame rootTargetB(
-            Vector3(-25.0f, 13.0f, 4.0f),
-            Quaternion::fromAxisAngle(Vector3(0, 1, 0), -75.0f));
-        physics->setBodyWorldCFrame(*a.root, rootTargetA);
-        physics->setBodyWorldCFrame(*b.root, rootTargetB);
+        const CFrame secondHeadBefore = b.head->getWorldCFrame();
+        const CFrame secondHairBefore = b.hair->getWorldCFrame();
+        const CFrame secondGlassesBefore = b.glasses->getWorldCFrame();
+        physics->setBodyWorldCFrame(*a.root, CFrame(
+            Vector3(12.0f, 5.0f, -3.0f),
+            Quaternion::fromAxisAngle(Vector3(0, 1, 0), 35.0f)));
         physics->syncCube(*a.root);
-        physics->syncCube(*b.root);
         a.humanoid->applyBodyAnimation(false, false);
+        expect(!cframeNear(hairRelativeA,
+                   a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame()) &&
+                   cframeNear(secondHeadBefore, b.head->getWorldCFrame()) &&
+                   cframeNear(secondHairBefore, b.hair->getWorldCFrame()) &&
+                   cframeNear(secondGlassesBefore, b.glasses->getWorldCFrame()),
+               "Humanoid updates only logical rig parts before compound synchronization");
+
+        physics->setBodyWorldCFrame(*b.root, CFrame(
+            Vector3(-14.0f, 8.0f, 6.0f),
+            Quaternion::fromAxisAngle(Vector3(0, 1, 0), -50.0f)));
+        physics->syncCube(*b.root);
         b.humanoid->applyBodyAnimation(false, false);
         physics->syncWeldKinematics();
-
-        expect(cframeNear(relativeA,
+        expect(cframeNear(hairRelativeA,
                    a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame()) &&
-                   cframeNear(relativeB,
+                   cframeNear(glassesRelativeA,
+                   a.head->getWorldCFrame().inverse() * a.glasses->getWorldCFrame()) &&
+                   cframeNear(hairRelativeB,
                    b.head->getWorldCFrame().inverse() * b.hair->getWorldCFrame()) &&
-                   positionDistance(a.head->getWorldPosition(), b.head->getWorldPosition()) > 5.0f,
-               "anchored accessory compounds remain attached after physics sync");
+                   cframeNear(glassesRelativeB,
+                   b.head->getWorldCFrame().inverse() * b.glasses->getWorldCFrame()),
+               "one compound sync follows both anchored accessories from each Head driver");
+
+        bool relativePosesPreserved = true;
+        bool finiteAndNearRoots = true;
+        bool rigsRemainSeparated = true;
+        bool velocitiesRemainBounded = true;
+        float maxPartDistance = 0.0f;
+        float maxRootSpeed = 0.0f;
+        std::string farthestPart;
+        int farthestFrame = -1;
+        int fastestFrame = -1;
+        constexpr int frameCount = 180;
+        for (int frame = 0; frame < frameCount; ++frame) {
+            const float phase = static_cast<float>(frame);
+            const CFrame rootTargetA(
+                Vector3(16.0f + phase * 0.025f,
+                        9.0f + std::sin(phase * 0.07f) * 0.6f,
+                        -5.0f + std::cos(phase * 0.05f) * 0.8f),
+                Quaternion::fromAxisAngle(Vector3(0, 1, 0), phase * 1.35f));
+            const CFrame rootTargetB(
+                Vector3(-18.0f - phase * 0.02f,
+                        12.0f + std::cos(phase * 0.06f) * 0.7f,
+                        6.0f + std::sin(phase * 0.04f) * 0.9f),
+                Quaternion::fromAxisAngle(Vector3(0, 1, 0), -phase * 1.1f));
+
+            physics->setBodyWorldCFrame(*a.root, rootTargetA);
+            physics->setBodyWorldCFrame(*b.root, rootTargetB);
+            physics->syncCube(*a.root);
+            physics->syncCube(*b.root);
+            a.humanoid->applyBodyAnimation(false, false);
+            b.humanoid->applyBodyAnimation(false, false);
+            physics->syncWeldKinematics();
+
+            auto validate = [&]() {
+                relativePosesPreserved = relativePosesPreserved &&
+                    cframeNear(hairRelativeA,
+                        a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame()) &&
+                    cframeNear(glassesRelativeA,
+                        a.head->getWorldCFrame().inverse() * a.glasses->getWorldCFrame()) &&
+                    cframeNear(hairRelativeB,
+                        b.head->getWorldCFrame().inverse() * b.hair->getWorldCFrame()) &&
+                    cframeNear(glassesRelativeB,
+                        b.head->getWorldCFrame().inverse() * b.glasses->getWorldCFrame());
+                for (const auto& part : a.bodyParts) {
+                    const float distance = part
+                        ? positionDistance(part->getWorldPosition(), a.root->getWorldPosition())
+                        : std::numeric_limits<float>::infinity();
+                    if (distance > maxPartDistance) {
+                        maxPartDistance = distance;
+                        farthestPart = std::string("A/") + (part ? part->Name : "missing");
+                        farthestFrame = frame;
+                    }
+                    finiteAndNearRoots = finiteAndNearRoots && part &&
+                        finiteCFrame(part->getWorldCFrame()) &&
+                        distance < 12.0f;
+                }
+                for (const auto& part : b.bodyParts) {
+                    const float distance = part
+                        ? positionDistance(part->getWorldPosition(), b.root->getWorldPosition())
+                        : std::numeric_limits<float>::infinity();
+                    if (distance > maxPartDistance) {
+                        maxPartDistance = distance;
+                        farthestPart = std::string("B/") + (part ? part->Name : "missing");
+                        farthestFrame = frame;
+                    }
+                    finiteAndNearRoots = finiteAndNearRoots && part &&
+                        finiteCFrame(part->getWorldCFrame()) &&
+                        distance < 12.0f;
+                }
+                rigsRemainSeparated = rigsRemainSeparated &&
+                    positionDistance(a.head->getWorldPosition(), b.head->getWorldPosition()) > 20.0f;
+                const Vector3 velocityA = physics->getLinearVelocity(*a.root);
+                const Vector3 velocityB = physics->getLinearVelocity(*b.root);
+                const float speed = std::max(vectorLength(velocityA), vectorLength(velocityB));
+                if (speed > maxRootSpeed) {
+                    maxRootSpeed = speed;
+                    fastestFrame = frame;
+                }
+                velocitiesRemainBounded = velocitiesRemainBounded &&
+                    finiteVector(velocityA) && finiteVector(velocityB) &&
+                    vectorLength(velocityA) < 100.0f && vectorLength(velocityB) < 100.0f;
+            };
+
+            validate();
+            physics->update(*workspace, 1.0f / 60.0f);
+            validate();
+        }
+
+        expect(relativePosesPreserved,
+               "Head/Hair/Glasses relative poses survive 180 compound sync frames");
+        expect(finiteAndNearRoots,
+               "all body and accessory parts remain finite and near their own Root");
+        expect(rigsRemainSeparated,
+               "continuous translation and rotation never mixes the two rig assemblies");
+        expect(velocitiesRemainBounded,
+               "compound pose synchronization leaves Root velocities finite and bounded");
+        if (!finiteAndNearRoots || !velocitiesRemainBounded) {
+            std::cout << "[StarterAccessoryWeld] diagnostics maxPartDistance="
+                      << maxPartDistance << " part=" << farthestPart
+                      << " frame=" << farthestFrame << " maxRootSpeed="
+                      << maxRootSpeed << " speedFrame=" << fastestFrame << '\n';
+        }
     } else {
         std::cout << "[StarterAccessoryWeld] SKIP: physics backend unavailable\n";
     }
 
     std::cout << "[StarterAccessoryWeld] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runStarterRootSpawnRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[StarterRootSpawn] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "StarterRootSpawnRegression";
+    system->addChild(workspace);
+
+    auto starter = std::make_shared<StarterCharacter>();
+    starter->Name = "StarterCharacter";
+    CharacterRig::buildDefaultRigParts(starter);
+    auto templateRoot = std::dynamic_pointer_cast<BaseCube>(
+        starter->children.contains("Root") ? starter->children.at("Root") : nullptr);
+    if (!templateRoot) {
+        expect(false, "default StarterCharacter contains Root");
+        return 1;
+    }
+    templateRoot->Anchored = true;
+    templateRoot->CanCollide = false;
+    system->addChild(starter);
+
+    auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    system->addChild(user);
+    user->initializeInventory();
+
+    LuauEngine engine;
+    engine.setWorkspace(workspace);
+    engine.setSystem(system.get());
+    engine.setGlobalInstance("User", user);
+    bool eventSawNormalizedRoot = false;
+    const auto oldLogHook = g_luauLogHook;
+    g_luauLogHook = [&](const std::string& message) {
+        if (message.find("[StarterRootSpawnEvent]") != std::string::npos)
+            eventSawNormalizedRoot = true;
+    };
+    auto listener = std::make_shared<Script>();
+    listener->Name = "StarterRootSpawnListener";
+    listener->Source =
+        "User.CharacterAdded:Connect(function(character) "
+        "local root = character:WaitChild('Root') "
+        "if root and root.Anchored == false and root.CanCollide == true then "
+        "print('[StarterRootSpawnEvent]') end end)";
+    workspace->addChild(listener);
+    expect(engine.execute(*listener),
+           "CharacterAdded Root normalization listener starts successfully");
+
+    const Vector3 spawnPosition(0.0f, 16.0f, 0.0f);
+    user->spawnCharacter(system.get(), workspace.get(), spawnPosition);
+    g_luauLogHook = oldLogHook;
+    auto root = user->humanoid ? user->humanoid->getRootPart() : nullptr;
+    expect(root && !root->Anchored && root->CanCollide,
+           "spawnCharacter normalizes only the cloned local Root physics flags");
+    expect(eventSawNormalizedRoot,
+           "CharacterAdded observes the normalized Root before firing completes");
+    expect(templateRoot->Anchored && !templateRoot->CanCollide,
+           "saved StarterCharacter Root flags remain unchanged for serialization and retry");
+    if (!user->character || !root) return 1;
+
+    auto floor = std::make_shared<BaseCube>(
+        Vector3(0.0f, -1.0f, 0.0f), Vector3(64.0f, 2.0f, 64.0f));
+    floor->Name = "Floor";
+    floor->Anchored = true;
+    workspace->addChild(floor);
+    workspace->addChild(user->character);
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    expect(physics && physics->isAvailable(),
+           "selected physics backend is available for spawned Root simulation");
+    if (physics && physics->isAvailable()) {
+        const float initialY = root->getWorldPosition().y;
+        float minimumY = initialY;
+        for (int frame = 0; frame < 300; ++frame) {
+            physics->update(*workspace, 1.0f / 60.0f);
+            minimumY = std::min(minimumY, root->getWorldPosition().y);
+        }
+        const float finalY = root->getWorldPosition().y;
+        const Vector3 finalVelocity = physics->getLinearVelocity(*root);
+        const bool finiteVelocity = std::isfinite(finalVelocity.x) &&
+            std::isfinite(finalVelocity.y) && std::isfinite(finalVelocity.z);
+        const bool settled = initialY > 10.0f && minimumY < 3.0f &&
+            finalY > 1.5f && finalY < 2.5f && finiteVelocity &&
+            std::abs(finalVelocity.y) < 1.0f;
+        expect(settled,
+               "normalized Root falls from the spawn height and settles on the floor");
+        if (!settled) {
+            std::cout << "[StarterRootSpawn] diagnostics backend="
+                      << (physics->getBackendType() == PhysicsBackendType::Box3D
+                              ? "box3d" : "physx")
+                      << " initialY=" << initialY << " minimumY=" << minimumY
+                      << " finalY=" << finalY << " velocity=["
+                      << finalVelocity.x << ',' << finalVelocity.y << ','
+                      << finalVelocity.z << "]\n";
+        }
+    }
+
+    std::cout << "[StarterRootSpawn] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runSpawnLocationRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[SpawnLocation] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto cframeNear = [](const CFrame& first, const CFrame& second) {
+        const float dot = std::abs(
+            first.Rotation.w * second.Rotation.w +
+            first.Rotation.x * second.Rotation.x +
+            first.Rotation.y * second.Rotation.y +
+            first.Rotation.z * second.Rotation.z);
+        return positionDistance(first.Position, second.Position) < 0.002f &&
+               std::abs(1.0f - dot) < 0.002f;
+    };
+
+    auto spawnDefaults = std::make_shared<SpawnLocation>();
+    expect(spawnDefaults->Name == "SpawnLocation" &&
+               spawnDefaults->Size == Vector3(8, 1, 8) &&
+               spawnDefaults->Color.r == 1.0f && spawnDefaults->Color.g == 1.0f &&
+               spawnDefaults->Color.b == 1.0f && spawnDefaults->Color.a == 1.0f &&
+               spawnDefaults->Anchored && spawnDefaults->CanCollide &&
+               spawnDefaults->Enabled,
+           "default SpawnLocation state matches the editor/runtime contract");
+    expect(spawnDefaults->IsA("SpawnLocation") && spawnDefaults->IsA("Cube") &&
+               spawnDefaults->IsA("BaseCube") && spawnDefaults->IsA("Spatial") &&
+               spawnDefaults->IsA("Instance"),
+           "Named supplies the complete SpawnLocation IsA inheritance chain");
+
+    constexpr std::array<const char*, 12> baseCubeClasses = {
+        "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere",
+        "MeshCube", "LiquidCube", "SpawnLocation", "Skybox", "Sun", "Moon"
+    };
+    bool factoryComplete = true;
+    for (const char* className : baseCubeClasses) {
+        auto created = createBaseCubeInstance(className);
+        factoryComplete = factoryComplete && created &&
+            created->getClassName() == className && created->IsA("BaseCube");
+    }
+    expect(factoryComplete && !createBaseCubeInstance("Folder"),
+           "shared BaseCube factory covers every concrete BaseCube class only");
+
+    spawnDefaults->Enabled = false;
+    spawnDefaults->Color = Color4(0.2f, 0.3f, 0.4f, 0.5f);
+    spawnDefaults->Locked = true;
+    spawnDefaults->MassDensity = 3.5f;
+    spawnDefaults->CollisionDetection = CCDMode::Bullet;
+    spawnDefaults->LockFlags = PhysicsLockFlags::LinearX | PhysicsLockFlags::AngularY;
+    spawnDefaults->addChild(std::make_shared<Folder>());
+    auto spawnClone = std::dynamic_pointer_cast<SpawnLocation>(spawnDefaults->clone());
+    expect(spawnClone && !spawnClone->Enabled && spawnClone->Color.r == 0.2f &&
+               spawnClone->Locked && spawnClone->MassDensity == 3.5f &&
+               spawnClone->CollisionDetection == CCDMode::Bullet &&
+               spawnClone->LockFlags == spawnDefaults->LockFlags &&
+               spawnClone->children.size() == 1 && !spawnClone->lastWorkspace,
+           "BaseCube clone helper preserves design/custom state and children without runtime ownership");
+
+    auto liquid = std::make_shared<LiquidCube>(
+        Vector3(0, 0, 0), Vector3(4, 2, 4));
+    liquid->Density = 4.25f;
+    auto liquidClone = std::dynamic_pointer_cast<LiquidCube>(liquid->clone());
+    auto sun = std::make_shared<Sun>();
+    sun->Angle = 123.0f;
+    auto sunClone = std::dynamic_pointer_cast<Sun>(sun->clone());
+    auto skybox = std::make_shared<Skybox>();
+    skybox->skyboxPaths[2] = "custom/top.png";
+    auto skyboxClone = std::dynamic_pointer_cast<Skybox>(skybox->clone());
+    auto seat = std::make_shared<Seat>(
+        Vector3(0, 0, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+    seat->Steer = 1.0f;
+    seat->Throttle = -1.0f;
+    auto seatClone = std::dynamic_pointer_cast<Seat>(seat->clone());
+    expect(liquidClone && liquidClone->Density == liquid->Density &&
+               sunClone && sunClone->Angle == sun->Angle &&
+               skyboxClone && skyboxClone->skyboxPaths[2] == skybox->skyboxPaths[2],
+           "BaseCube clone helper keeps each derived class's persistent custom state");
+    expect(seatClone && seatClone->Steer == 0.0f && seatClone->Throttle == 0.0f &&
+               !seatClone->isOccupied(),
+           "BaseCube clone helper excludes Seat live input and occupant runtime state");
+
+    {
+        LuauEngine engine;
+        auto system = std::make_shared<System>();
+        auto workspace = std::make_shared<Workspace>();
+        system->addChild(workspace);
+        engine.setWorkspace(workspace);
+        engine.setSystem(system.get());
+        bool luauCreated = false;
+        const auto oldLogHook = g_luauLogHook;
+        g_luauLogHook = [&](const std::string& message) {
+            if (message.find("[SpawnLocationLuau]") != std::string::npos)
+                luauCreated = true;
+        };
+        auto script = std::make_shared<Script>();
+        script->Name = "SpawnLocationLuauFactory";
+        script->Source =
+            "local spawn = Instance.new('SpawnLocation') "
+            "spawn.Enabled = false "
+            "if spawn:IsA('Cube') and spawn.Enabled == false then "
+            "print('[SpawnLocationLuau]') end";
+        expect(engine.execute(*script),
+               "Luau Instance.new accepts SpawnLocation through the shared factory");
+        g_luauLogHook = oldLogHook;
+        expect(luauCreated,
+               "SpawnLocation Enabled is readable and writable from Luau");
+    }
+
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    system->addChild(workspace);
+    auto starter = std::make_shared<StarterCharacter>();
+    CharacterRig::buildDefaultRigParts(starter);
+    auto templateRoot = std::dynamic_pointer_cast<BaseCube>(starter->children.at("Root"));
+    auto templateHead = std::dynamic_pointer_cast<BaseCube>(starter->children.at("Head"));
+    templateRoot->cframe = CFrame(
+        Vector3(1.0f, 0.5f, -2.0f),
+        Quaternion::fromAxisAngle(Vector3(0, 1, 0), 12.0f));
+    templateHead->cframe = CFrame(Vector3(0, 3, 0));
+    system->addChild(starter);
+
+    auto folderA = std::make_shared<Folder>();
+    folderA->Name = "A";
+    auto folderZ = std::make_shared<Folder>();
+    folderZ->Name = "Z";
+    auto spawnA = std::make_shared<SpawnLocation>(Vector3(8, 2, -4));
+    spawnA->cframe.Rotation = Quaternion::fromEuler(Vector3(20, 45, -15));
+    auto spawnZ = std::make_shared<SpawnLocation>(Vector3(-12, 5, 7));
+    spawnZ->cframe.Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), -30.0f);
+    auto disabled = std::make_shared<SpawnLocation>(Vector3(100, 100, 100));
+    disabled->Name = "Disabled";
+    disabled->Enabled = false;
+    folderA->addChild(spawnA);
+    folderA->addChild(disabled);
+    folderZ->addChild(spawnZ);
+    workspace->addChild(folderZ);
+    workspace->addChild(folderA);
+
+    auto spawnUser = [&](std::uint32_t id) {
+        auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
+        user->peerId = id;
+        user->spawnCharacter(system.get(), workspace.get());
+        return user;
+    };
+
+    auto user0 = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    LuauEngine spawnEventEngine;
+    spawnEventEngine.setWorkspace(workspace);
+    spawnEventEngine.setSystem(system.get());
+    spawnEventEngine.setGlobalInstance("User", user0);
+    bool eventSawFinalCFrame = false;
+    const auto oldSpawnLogHook = g_luauLogHook;
+    g_luauLogHook = [&](const std::string& message) {
+        if (message.find("[SpawnLocationEvent]") != std::string::npos)
+            eventSawFinalCFrame = true;
+    };
+    auto spawnListener = std::make_shared<Script>();
+    spawnListener->Name = "SpawnLocationListener";
+    spawnListener->Source =
+        "User.CharacterAdded:Connect(function(character) "
+        "local root = character:WaitChild('Root') "
+        "local spawn = workspace:WaitChild('A'):WaitChild('SpawnLocation') "
+        "local expected = spawn.WorldCFrame * CFrame.new(0, (spawn.Size.y + root.Size.y) * 0.5, 0) "
+        "local p, ep, q, eq = root.WorldCFrame.Position, expected.Position, root.WorldCFrame.Rotation, expected.Rotation "
+        "local pd = math.abs(p.x-ep.x)+math.abs(p.y-ep.y)+math.abs(p.z-ep.z) "
+        "local dot = math.abs(q.w*eq.w+q.x*eq.x+q.y*eq.y+q.z*eq.z) "
+        "if pd < 0.002 and math.abs(1-dot) < 0.002 then print('[SpawnLocationEvent]') end end)";
+    workspace->addChild(spawnListener);
+    expect(spawnEventEngine.execute(*spawnListener),
+           "CharacterAdded final-CFrame listener starts successfully");
+    user0->spawnCharacter(system.get(), workspace.get());
+    g_luauLogHook = oldSpawnLogHook;
+    expect(eventSawFinalCFrame,
+           "CharacterAdded observes the selected SpawnLocation full CFrame");
+
+    auto user1 = spawnUser(1);
+    auto user2 = spawnUser(2);
+    auto user3 = spawnUser(3);
+    auto root0 = user0->humanoid->getRootPart();
+    auto root1 = user1->humanoid->getRootPart();
+    auto root2 = user2->humanoid->getRootPart();
+    auto root3 = user3->humanoid->getRootPart();
+    const CFrame expectedA = spawnA->getWorldCFrame() *
+        CFrame(0, (spawnA->Size.y + root0->Size.y) * 0.5f, 0);
+    const CFrame expectedZ = spawnZ->getWorldCFrame() *
+        CFrame(0, (spawnZ->Size.y + root2->Size.y) * 0.5f, 0);
+    expect(cframeNear(root0->getWorldCFrame(), expectedA) &&
+               cframeNear(root1->getWorldCFrame(), expectedA) &&
+               cframeNear(root2->getWorldCFrame(), expectedZ) &&
+               cframeNear(root3->getWorldCFrame(), expectedA),
+           "full-path sorting maps peer0/peer1/peer3 to first spawn and peer2 to second");
+    const CFrame rootToHead = templateRoot->cframe.inverse() * templateHead->cframe;
+    expect(cframeNear(root0->getWorldCFrame().inverse() *
+                          user0->humanoid->getHeadPart()->getWorldCFrame(), rootToHead),
+           "full CFrame spawn placement preserves the original Root-to-part assembly pose");
+
+    auto playHereUser = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    const Vector3 playHere(33, 44, 55);
+    playHereUser->spawnCharacter(system.get(), workspace.get(), playHere);
+    expect(playHereUser->character->Position == playHere,
+           "Play Here explicit Model.Position overrides SpawnLocation selection");
+
+    workspace->addChild(user2->character);
+    user2->respawnCharacter();
+    root2 = user2->humanoid->getRootPart();
+    expect(root2 && cframeNear(root2->getWorldCFrame(), expectedZ),
+           "respawn reuses the active Workspace and selected SpawnLocation");
+
+    auto emptyWorkspace = std::make_shared<Workspace>();
+    auto originUser = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    originUser->spawnCharacter(system.get(), emptyWorkspace.get());
+    expect(originUser->humanoid &&
+               cframeNear(originUser->humanoid->getRootPart()->getWorldCFrame(), CFrame()),
+           "absence of enabled SpawnLocations places Root at the world origin");
+
+    std::error_code ec;
+    const auto yamlPath = std::filesystem::temp_directory_path(ec) /
+        "recubin_spawn_location_regression.yaml";
+    if (!ec) {
+        auto yamlSystem = std::make_shared<System>();
+        auto yamlWorkspace = std::make_shared<Workspace>();
+        yamlSystem->addChild(yamlWorkspace);
+        auto yamlSpawn = std::make_shared<SpawnLocation>(Vector3(3, 4, 5));
+        yamlSpawn->Enabled = false;
+        yamlWorkspace->addChild(yamlSpawn);
+        SceneLoader::saveScene(yamlSystem.get(), yamlPath.string());
+        auto loaded = SceneLoader::loadScene(yamlPath.string());
+        auto loadedSpawn = loaded
+            ? dynamic_cast<SpawnLocation*>(loaded->getChildByPath(
+                  "Workspace\\SpawnLocation"))
+            : nullptr;
+        expect(loadedSpawn && !loadedSpawn->Enabled &&
+                   loadedSpawn->Size == Vector3(8, 1, 8),
+               "SceneLoader shared factory round-trips SpawnLocation YAML and Enabled");
+        std::filesystem::remove(yamlPath, ec);
+    } else {
+        expect(false, "temporary path is available for SpawnLocation YAML round-trip");
+    }
+
+    std::cout << "[SpawnLocation] failures=" << failures
               << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
     return failures == 0 ? 0 : 1;
 }
@@ -4122,7 +4628,7 @@ int runNetworkCoreRegression() {
                "CharacterAdded position listener starts successfully");
 
         const Vector3 initialPosition(12.0f, 34.0f, -56.0f);
-        user->spawnCharacter(system.get(), initialPosition);
+        user->spawnCharacter(system.get(), workspace.get(), initialPosition);
         expect(user->character &&
                    positionDistance(user->character->getWorldPosition(), initialPosition) < 1e-5f,
                "spawnCharacter applies the requested initial model position");
@@ -5249,6 +5755,8 @@ int main(int argc, char* argv[]) {
     bool runtimeLaunchArgsRegression = false;
     bool starterWeldRenameRegression = false;
     bool starterAccessoryWeldRegression = false;
+    bool starterRootSpawnRegression = false;
+    bool spawnLocationRegression = false;
     bool meshCubeFallbackRegression = false;
     bool humanoidRigCollisionRegression = false;
     for (int i = 1; i < argc; ++i) {
@@ -5291,6 +5799,10 @@ int main(int argc, char* argv[]) {
             argument == "--starter-weld-rename-regression";
         starterAccessoryWeldRegression = starterAccessoryWeldRegression ||
             argument == "--starter-accessory-weld-regression";
+        starterRootSpawnRegression = starterRootSpawnRegression ||
+            argument == "--starter-root-spawn-regression";
+        spawnLocationRegression = spawnLocationRegression ||
+            argument == "--spawn-location-regression";
         meshCubeFallbackRegression = meshCubeFallbackRegression ||
             argument == "--meshcube-fallback-regression";
         humanoidRigCollisionRegression =
@@ -5318,6 +5830,10 @@ int main(int argc, char* argv[]) {
         return runStarterWeldRenameRegression();
     if (starterAccessoryWeldRegression)
         return runStarterAccessoryWeldRegression();
+    if (starterRootSpawnRegression)
+        return runStarterRootSpawnRegression();
+    if (spawnLocationRegression)
+        return runSpawnLocationRegression();
     if (meshCubeFallbackRegression)
         return runMeshCubeFallbackRegression();
     if (humanoidRigCollisionRegression)

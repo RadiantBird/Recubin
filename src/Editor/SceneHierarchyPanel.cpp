@@ -15,6 +15,7 @@
 #include <Instances/Sphere.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/LiquidCube.hpp>
+#include <Instances/SpawnLocation.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/LocalScript.hpp>
 #include <Instances/ModuleScript.hpp>
@@ -188,7 +189,7 @@ static const char* getClassIcon(const std::string& cn) {
         cn == "ImageLabel" || cn == "ImageButton")                           return ICON_DECAL;
     if (cn == "FileRef")                                                     return ICON_FILE;
     if (cn == "Sphere")                                                      return ICON_SPHERE;
-    if (cn == "Cube"   || cn == "Cylinder" || cn == "LiquidCube" ||
+    if (cn == "Cube"   || cn == "Cylinder" || cn == "LiquidCube" || cn == "SpawnLocation" ||
         cn == "TriangularPrism" || cn == "Truss" || cn == "Seat")            return ICON_CUBE;
     if (cn == "MeshCube") return ICON_MESHCUBE;
     if (cn == "TextLabel"  || cn == "TextButton" || cn == "GuiButton" ||
@@ -650,6 +651,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Sphere>(m_history, "Sphere", parentSp, spawnPos, Vector3(1, 1, 1));
         tryInsertInstance<MeshCube>(m_history, "MeshCube", parentSp, spawnPos, Vector3(1, 1, 1));
         tryInsertInstance<LiquidCube>(m_history, "LiquidCube", parentSp, spawnPos, Vector3(4, 2, 4));
+        tryInsertInstance<SpawnLocation>(m_history, "SpawnLocation", parentSp, spawnPos);
 
         ImGui::EndMenu();
     }

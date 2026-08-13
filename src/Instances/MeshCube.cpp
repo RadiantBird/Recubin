@@ -77,11 +77,6 @@ const std::vector<float>& MeshCube::getHighlightEdgeVerts() const {
     return m_VAO != 0 ? m_highlightEdgeVerts : empty;
 }
 
-bool MeshCube::IsA(std::string className) {
-    if (className == "MeshCube") return true;
-    return BaseCube::IsA(className);
-}
-
 void MeshCube::releaseMeshBuffers() {
     if (m_EBO) { glDeleteBuffers(1, &m_EBO); m_EBO = 0; }
     if (m_VBO) { glDeleteBuffers(1, &m_VBO); m_VBO = 0; }
@@ -628,27 +623,11 @@ void MeshCube::setProperty(const std::string& name, const YAML::Node& value) {
 
 std::shared_ptr<Instance> MeshCube::clone() const {
     auto copy = std::make_shared<MeshCube>(this->Position, this->Size);
-    copy->Name       = this->Name;
-    copy->Color      = this->Color;
-    copy->Anchored   = this->Anchored;
-    copy->CanCollide = this->CanCollide;
-    copy->Locked     = this->Locked;
-    copy->cframe     = this->cframe;
-    copy->material     = this->material;
-    copy->MassDensity  = this->MassDensity;
-    copy->LockFlags = this->LockFlags;
-    copy->CollisionDetection = this->CollisionDetection;
-    copy->CastShadow   = this->CastShadow;
-    copy->Unlit        = this->Unlit;
-    copy->UseTriplanar = this->UseTriplanar;
-    copy->TextureScale = this->TextureScale;
     if (this->m_fallbackActive) {
         copy->activateFallback(this->MeshFile);
     } else if (!this->MeshFile.empty()) {
         copy->loadFromGLB(this->MeshFile);
     }
-    for (auto const& [name, child] : children) {
-        copy->addChild(child->clone());
-    }
+    cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }

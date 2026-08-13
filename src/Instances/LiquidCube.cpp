@@ -28,11 +28,6 @@ LiquidCube::LiquidCube(Vector3 Pos, Vector3 Sz)
     Color = Color4(0.2f, 0.5f, 0.9f, 0.5f);   // 半透明の水色
 }
 
-bool LiquidCube::IsA(std::string className) {
-    if (className == "LiquidCube") return true;
-    return BaseCube::IsA(className);
-}
-
 void LiquidCube::setProperty(const std::string& name, const YAML::Node& value) {
     if (PropertyRegistry::loadProperty(this, "LiquidCube", name, value)) return;
     BaseCube::setProperty(name, value);
@@ -57,22 +52,7 @@ void LiquidCube::draw(int modelLoc, int shaderProgram) {
 
 std::shared_ptr<Instance> LiquidCube::clone() const {
     auto copy = std::make_shared<LiquidCube>(this->Position, this->Size);
-    copy->Name       = this->Name;
-    copy->Color      = this->Color;
-    copy->Anchored   = this->Anchored;
-    copy->CanCollide = this->CanCollide;
-    copy->Locked     = this->Locked;
-    copy->cframe     = this->cframe;
-    copy->material     = this->material;
-    copy->MassDensity  = this->MassDensity;
-    copy->LockFlags = this->LockFlags;
-    copy->CollisionDetection = this->CollisionDetection;
-    copy->CastShadow   = this->CastShadow;
-    copy->Unlit        = this->Unlit;
-    copy->UseTriplanar = this->UseTriplanar;
-    copy->TextureScale = this->TextureScale;
     PropertyRegistry::cloneFields(this, copy.get(), "LiquidCube");  // Density
-    for (auto const& [name, child] : children)
-        copy->addChild(child->clone());
+    cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }

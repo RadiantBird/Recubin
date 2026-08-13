@@ -55,6 +55,22 @@ bool finiteVector(const Vector3& value) {
            std::isfinite(value.z);
 }
 
+float cframeDifference(const CFrame& first, const CFrame& second) {
+    const Vector3 translation = first.Position - second.Position;
+    if (!finiteVector(translation)) return -std::numeric_limits<float>::infinity();
+    const Quaternion& a = first.Rotation;
+    const Quaternion& b = second.Rotation;
+    const float aLength = std::sqrt(a.w*a.w + a.x*a.x + a.y*a.y + a.z*a.z);
+    const float bLength = std::sqrt(b.w*b.w + b.x*b.x + b.y*b.y + b.z*b.z);
+    if (!std::isfinite(aLength) || !std::isfinite(bLength) ||
+        aLength < 1.0e-6f || bLength < 1.0e-6f)
+        return -std::numeric_limits<float>::infinity();
+    const float dot = std::clamp(std::abs(
+        (a.w*b.w + a.x*b.x + a.y*b.y + a.z*b.z) / (aLength * bLength)),
+        0.0f, 1.0f);
+    return translation.length() + 2.0f * std::acos(dot);
+}
+
 void orientFaces(
     const std::vector<Vector3>& vertices, std::vector<std::vector<int>>& faces) {
     Vector3 center;
@@ -997,18 +1013,57 @@ void Box3DPhysicsBackend::syncCube(BaseCube& cube) {
 
 void Box3DPhysicsBackend::syncAllCubes() {
     for (BodyEntry& entry : m_bodies) {
-        if (auto cube = entry.cube.lock()) syncCube(*cube);
+        if (auto cube = entry.cube.lock(); cube && !cube->m_weldKinematic)
+            syncCube(*cube);
     }
+    syncWeldKinematics();
 }
 
 void Box3DPhysicsBackend::syncWeldKinematics() {
-    for (BodyEntry& entry : m_bodies) {
-        auto cube = entry.cube.lock();
-        if (cube && cube->m_weldKinematic && cube->Anchored) syncCube(*cube);
-    }
-    for (BodyEntry& entry : m_bodies) {
-        auto cube = entry.cube.lock();
-        if (cube && cube->m_weldKinematic && !cube->Anchored) syncCube(*cube);
+    std::unordered_set<std::uint64_t> visited;
+    for (const BodyEntry& seedEntry : m_bodies) {
+        auto seed = seedEntry.cube.lock();
+        const b3BodyId id = seedEntry.bodyId;
+        if (!seed || !seed->m_weldKinematic || B3_IS_NULL(id) ||
+            !b3Body_IsValid(id))
+            continue;
+        const std::uint64_t stored = b3StoreBodyId(id);
+        if (!visited.insert(stored).second) continue;
+
+        std::vector<std::shared_ptr<BaseCube>> members;
+        for (const BodyEntry& entry : m_bodies) {
+            if (!idsEqual(entry.bodyId, id)) continue;
+            if (auto member = entry.cube.lock()) members.push_back(member);
+        }
+
+        const CFrame currentBody = bodyWorldFrame(id);
+        CFrame driverTarget = currentBody;
+        float driverDifference = -std::numeric_limits<float>::infinity();
+        const BaseCube* driver = nullptr;
+        for (const auto& member : members) {
+            if (!member || !member->Anchored) continue;
+            const CFrame candidate =
+                member->getWorldCFrame() * member->m_compoundLocalOffset.inverse();
+            const float difference = cframeDifference(candidate, currentBody);
+            if (!std::isfinite(difference)) continue;
+            if (difference > driverDifference ||
+                (difference == driverDifference && driver &&
+                 std::less<const BaseCube*>{}(member.get(), driver))) {
+                driverDifference = difference;
+                driverTarget = candidate;
+                driver = member.get();
+            }
+        }
+
+        if (driver && std::isfinite(driverDifference)) {
+            b3Body_SetTransform(id, toB3Position(driverTarget.Position),
+                               toB3Quaternion(driverTarget.Rotation));
+        }
+        const CFrame confirmedBody = bodyWorldFrame(id);
+        for (const auto& member : members) {
+            if (member)
+                member->setWorldCFrame(confirmedBody * member->m_compoundLocalOffset);
+        }
     }
 }
 

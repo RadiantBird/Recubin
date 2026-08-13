@@ -9,6 +9,15 @@
   `"PlayerCharacter"`、ネットワークHost/ClientではHost割り当てPeerIdに基づく
   `"PlayerCharacter_<PeerId>"`となる。StarterCharacterが存在しない場合は、既定のリグ(旧来
   ハードコードされていたもの)を持つStarterCharacterが自動的にSystem直下に生成される。
+- **SpawnLocation**: `Cube`派生の出現地点。既定値は`Name=SpawnLocation`、`Size=[8,1,8]`、
+  白、`Anchored=true`、`CanCollide=true`、`Enabled=true`とし、通常のCubeとして描画・衝突する。
+  active Workspaceの全子孫にある`Enabled=true`のSpawnLocationをfull path昇順で選ぶ。
+  ローカルpeer 0とpeer 1は先頭、peer 2以降は`(PeerId-1) % 件数`を用いる。
+  CharacterのRootはSpawnLocationのfull CFrameを引き継ぎ、SpawnLocation上面へ
+  `Spawn.Size.y/2 + Root.Size.y/2`だけ上げる。Model全体は元のRoot local CFrameの逆変換を
+  合成して配置し、各パーツの相対姿勢を維持する。候補が無い場合はRootをワールド原点へ置く。
+  `Name=Spawn`の通常Cubeを暗黙変換する旧形式互換は持たず、シーン側でClassNameを明示的に
+  `SpawnLocation`へ変更する。
 
 ## 単位系
 - **Roblox erik_stud(0.05 meterに等しい)**
@@ -48,6 +57,10 @@
   (この時点ではまだWorkspaceに未追加。Root等のパーツ参照はresolveParts済みで取得可能)。
   respawnを跨いで参照を使い続けたいスクリプトは、起動時の`WaitChild`/`FindChild`で一度だけ
   参照を取るのではなく、この signal で都度取り直すこと。
+- StarterCharacterからcloneしたローカルCharacterは、保存されたテンプレート値にかかわらず
+  Rootだけを`Anchored=false`、`CanCollide=true`へ正規化する。その後SpawnLocationで配置してから
+  `CharacterAdded`を発火する。死亡respawnでもactive WorkspaceからSpawnLocationを再選択する。
+  Play Hereの初回だけは明示されたModel.PositionをSpawnLocationより優先し、respawnは通常選択へ戻る。
 
 ### ネットワークIDと正式名
 

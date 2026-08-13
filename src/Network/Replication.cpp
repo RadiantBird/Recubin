@@ -499,7 +499,10 @@ void ReplicationManager::spawnRemoteAvatar(PeerId id) {
     std::shared_ptr<Humanoid> humanoid;
     if (auto it = model->getChildren().find("Humanoid"); it != model->getChildren().end()) {
         humanoid = std::dynamic_pointer_cast<Humanoid>(it->second);
-        if (humanoid) humanoid->resolveParts(model.get());
+        if (humanoid) {
+            humanoid->resolveParts(model.get());
+            User::placeCharacterAtSpawn(model, humanoid, m_workspace.get(), id);
+        }
     }
 
     std::vector<BaseCube*> cubes;

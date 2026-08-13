@@ -56,3 +56,26 @@
   IsPlayingで2件失敗する。
 - 未確認: macOS子プロセスbackendの実機ビルド、および通常／Play Here／2クライアント／
   8クライアントのGUI手動スモークテスト。
+
+## 2026-08-14: SpawnLocationと共通BaseCube生成・複製
+
+- Cube派生の`SpawnLocation`を追加し、既定の8x1x8白色・固定・衝突あり・Enabled状態を
+  YAML、Luau、Properties、Hierarchy Insert、Cubeツールバーへ公開した。
+- active Workspace全子孫の有効なSpawnLocationをfull path順で決定的に選び、PeerIdに応じて
+  分散するCharacter配置を追加した。Spawnのfull CFrameとRoot/Spawnの半高を使い、Model全体の
+  相対姿勢を維持したまま`CharacterAdded`前に配置する。Play Here初回位置を優先し、respawnと
+  専用Host上のリモートAvatarも同じ選択処理を使用する。
+- `Named`へ派生型の`IsA`連鎖を自動化し、全BaseCube派生の設計状態・子ツリーclone処理を共通化した。
+  native physics body、Workspace所有、collision group等の実行時状態はcloneしない。SceneLoaderと
+  Luau `Instance.new`は全BaseCube具象型を扱う共通factoryを使用する。
+- Floating worldの`baseplate.yaml`は既存Spawnの位置・外観・Decalを保ったままClassNameを
+  `SpawnLocation`へ変更し、旧`Spawner`子Scriptだけを除去した。名前による暗黙移行は追加していない。
+- `--spawn-location-regression`で既定値、IsA、全factory型、clone、Luau、YAML、full-path/PeerId選択、
+  pitch/yaw/rollを含むfull CFrame、CharacterAdded観測、assembly相対姿勢、Play Here、respawn、
+  候補なし原点を検証し、Box3D/PhysXともPASSした。
+- 検証: `cmd.exe /d /c py build.py build`はRecubin/RecubinEngine/RecubinTestの3ターゲットすべて成功。
+  `--starter-root-spawn-regression`、`--starter-accessory-weld-regression`、
+  `--humanoid-rig-collision-regression`はBox3D/PhysXともPASSし、`--network-core-regression`もPASSした。
+- `run_regression.py Release`は既存と同じ140 passed / 3 failedで、新規失敗はない。外部baseplateも
+  SpawnLocationを含めてロードでき、同シーン固有の既存Scriptエラー3件のみを確認した。
+- 未確認: SpawnLocation追加・配置・回転のGUI手動スモークテスト。

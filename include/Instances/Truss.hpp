@@ -11,6 +11,5 @@ public:
 
     using Named<Truss, Cube>::Named;
 
-    virtual bool IsA(std::string name) override;
     std::shared_ptr<Instance> clone() const override;
 };

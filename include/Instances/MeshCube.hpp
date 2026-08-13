@@ -44,7 +44,6 @@ public:
 
     void draw(int modelLoc, int shaderProgram);
 
-    virtual bool IsA(std::string name) override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
     std::shared_ptr<Instance> clone() const override;
 

@@ -438,7 +438,7 @@ static int runGenTestScene(const std::string& outputPath) {
     // PathfindingService/Script は特殊なため除外。Script は末尾で検証用に個別追加する）。
     // createInstance() に新しいクラスを追加した場合はここにも追加すること。
     static const char* kClassNames[] = {
-        "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere", "MeshCube", "LiquidCube",
+        "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere", "MeshCube", "LiquidCube", "SpawnLocation",
         "Skybox", "Sun", "Moon", "Model", "Sound",
         "Lighting", "PointLight", "SpotLight", "PostEffect",
         "AppImage", "FileRef", "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance",
@@ -942,7 +942,7 @@ int main(int argc, char* argv[]) {
                 if (playMode != EditorPlayMode::LocalServer) {
                     // CharacterAddedからも初期座標が見えるよう、Play Hereの位置は
                     // spawnCharacterへ直接渡す。
-                    user->spawnCharacter(system.get(), playHerePosition);
+                    user->spawnCharacter(system.get(), workspace.get(), playHerePosition);
                     audioService->playAutoPlaySounds();
                     if (user->character) workspace->addChild(user->character);
                 }

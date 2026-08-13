@@ -125,11 +125,6 @@ TriangularPrism::TriangularPrism(Vector3 Pos, Vector3 Sz)
     if (Renderer::instance) initGeometry();
 }
 
-bool TriangularPrism::IsA(std::string className) {
-    if (className == "TriangularPrism") return true;
-    return BaseCube::IsA(className);
-}
-
 // インデックスバッファのリージョン境界 (initGeometry の生成順)
 // [0..3)   : Top   (Face::Top)
 // [3..6)   : Bottom(Face::Bottom)
@@ -173,23 +168,7 @@ void TriangularPrism::draw(int modelLoc, int shaderProgram) {
 
 std::shared_ptr<Instance> TriangularPrism::clone() const {
     auto copy = std::make_shared<TriangularPrism>(this->Position, this->Size);
-    copy->Name       = this->Name;
-    copy->Color      = this->Color;
-    copy->Anchored   = this->Anchored;
-    copy->CanCollide = this->CanCollide;
-    copy->Locked     = this->Locked;
-    copy->cframe     = this->cframe;
-    copy->material     = this->material;
-    copy->MassDensity  = this->MassDensity;
-    copy->LockFlags = this->LockFlags;
-    copy->CollisionDetection = this->CollisionDetection;
-    copy->CastShadow   = this->CastShadow;
-    copy->Unlit        = this->Unlit;
-    copy->UseTriplanar = this->UseTriplanar;
-    copy->TextureScale = this->TextureScale;
-    for (auto const& [name, child] : children) {
-        copy->addChild(child->clone());
-    }
+    cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }
 

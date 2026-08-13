@@ -94,4 +94,10 @@ public:
     // 自律的な登録・解除ロジック
     void onAncestorChanged() override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
+
+protected:
+    // BaseCube派生cloneの共通設計状態と子ツリーを複製する。native body、Workspace、
+    // collision group等の実行時状態は新規インスタンスへ持ち越さない。
+    void cloneBaseCubeStateAndChildrenTo(
+        const std::shared_ptr<BaseCube>& copy) const;
 };

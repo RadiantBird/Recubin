@@ -145,12 +145,19 @@ public:
     // searchRoot: StarterCharacterを探す起点(通常はSystem)。Userは自身のParentに必ずしも
     // システムが居るとは限らない(パッケージ済みランタイムではUserがツリーに属さない)ため、
     // 呼び出し元(main.cpp/game_main.cpp)から明示的に渡す
-    void spawnCharacter(Instance* searchRoot,
+    void spawnCharacter(Instance* searchRoot, class Workspace* workspace,
                         const std::optional<Vector3>& initialPosition = std::nullopt);
     // StarterCharacter(無ければ既定リグを生成)からキャラクターModelを構築して返す。
     // Workspaceへの追加・Humanoid解決は呼び出し元の責任。失敗時は nullptr。
     // spawnCharacter とネットワークのリモートアバター生成(ReplicationManager)が共用する。
     static std::shared_ptr<Model> buildCharacterModel(Instance* searchRoot, const std::string& name);
+    // enabled SpawnLocationをfull path順に選び、Rootを上面へ揃える。候補なしは原点。
+    // ローカルUserとReplicationのリモートAvatar生成で共用する。
+    static void placeCharacterAtSpawn(
+        const std::shared_ptr<Model>& model,
+        const std::shared_ptr<Humanoid>& humanoid,
+        class Workspace* workspace,
+        std::uint32_t spawnPeerId);
     void despawnCharacter();
     // 死亡後の再生成: 元の親(Workspace)を保持してキャラクターを作り直す
     void respawnCharacter();
@@ -222,4 +229,5 @@ private:
     bool m_externalDragActive = false;  // セカンダリビューポートの独立カメラがカーソルロック中か
 
     Instance* m_lastSearchRoot = nullptr; // spawnCharacter の検索起点を保持（respawn 用）
+    class Workspace* m_lastSpawnWorkspace = nullptr;
 };

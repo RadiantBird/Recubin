@@ -75,6 +75,7 @@
 #include "include/Instances/ParticleEmitter.hpp"
 #include "include/Instances/Weather.hpp"
 #include "include/Core/AudioService.hpp"
+#include "include/Core/BaseCubeFactory.hpp"
 #include <cmath>
 #include <algorithm>
 #include <float.h>
@@ -2341,17 +2342,6 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "Folder",           [] { return std::make_shared<Folder>(); } },
         { "Workspace",        [] { return std::make_shared<Workspace>(); } },
         { "PathfindingService", [] { return std::make_shared<PathfindingService>(); } },
-        { "Cube",             [] { return std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); } },
-        { "Cylinder",         [] { return std::make_shared<Cylinder>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
-        { "TriangularPrism",  [] { return std::make_shared<TriangularPrism>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
-        { "Truss",            [] { return std::make_shared<Truss>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); } },
-        { "Seat",             [] { return std::make_shared<Seat>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); } },
-        { "Sphere",           [] { return std::make_shared<Sphere>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
-        { "MeshCube",         [] { return std::make_shared<MeshCube>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
-        { "LiquidCube",       [] { return std::make_shared<LiquidCube>(Vector3(0, 0, 0), Vector3(4, 2, 4)); } },
-        { "Skybox",           [] { return std::make_shared<Skybox>(); } },
-        { "Sun",              [] { return std::make_shared<Sun>(); } },
-        { "Moon",             [] { return std::make_shared<Moon>(); } },
         { "Script",           [] { return std::make_shared<Script>(""); } },
         { "LocalScript",      [] { return std::make_shared<LocalScript>(""); } },
         { "ModuleScript",     [] { return std::make_shared<ModuleScript>(""); } },
@@ -2407,9 +2397,11 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
 int LuauEngine::instance_new_closure(lua_State* L) {
     const char* className = luaL_checkstring(L, 1);
 
-    std::shared_ptr<Instance> inst;
-    auto it = instanceFactories().find(className);
-    if (it != instanceFactories().end()) inst = it->second();
+    std::shared_ptr<Instance> inst = createBaseCubeInstance(className);
+    if (!inst) {
+        auto it = instanceFactories().find(className);
+        if (it != instanceFactories().end()) inst = it->second();
+    }
 
     if (!inst) { lua_pushnil(L); return 1; }
 

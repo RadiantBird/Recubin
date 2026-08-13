@@ -13,11 +13,6 @@ Skybox::Skybox() : Named<Skybox, Cube>(Vector3(0,0,0), Vector3(5000.0f, 5000.0f,
 
 }
 
-bool Skybox::IsA(std::string className) {
-    if (className == "Skybox") return true;
-    return Cube::IsA(className);
-}
-
 void Skybox::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "SkyboxPaths" && value.IsSequence() && value.size() == 6) {
         for (int i = 0; i < 6; i++) {
@@ -30,20 +25,10 @@ void Skybox::setProperty(const std::string& name, const YAML::Node& value) {
 
 std::shared_ptr<Instance> Skybox::clone() const {
     auto copy = std::make_shared<Skybox>();
-    copy->Name = this->Name;
-    copy->Anchored = this->Anchored;
-    copy->CanCollide = this->CanCollide;
-    copy->Locked = this->Locked;
-    copy->CastShadow = this->CastShadow;
-    copy->Unlit = this->Unlit;
-    copy->cframe = this->cframe;
-    copy->Color = this->Color;
     for (int i = 0; i < 6; i++) {
         copy->skyboxPaths[i] = this->skyboxPaths[i];
     }
-    for (auto const& [name, child] : children) {
-        copy->addChild(child->clone());
-    }
+    cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }
 
