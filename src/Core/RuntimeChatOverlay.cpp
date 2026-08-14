@@ -4,7 +4,7 @@
 #include <algorithm>
 
 void RuntimeChatOverlay::render(ChatService& service, float x, float y, float width, float height) {
-    if (!m_open && (ImGui::IsKeyPressed(ImGuiKey_T, false) || ImGui::IsKeyPressed(ImGuiKey_Enter, false))) {
+    if (!m_open && ImGui::IsKeyPressed(ImGuiKey_Slash, false)) {
         m_open = true; m_focusInput = true; m_input[0] = '\0'; m_error.clear();
     }
     const float panelWidth = std::max(120.f, std::min(420.f, width - 24.f));
@@ -19,7 +19,7 @@ void RuntimeChatOverlay::render(ChatService& service, float x, float y, float wi
         const std::size_t first = messages.size() > 4 ? messages.size() - 4 : 0;
         for (std::size_t i = first; i < messages.size(); ++i)
             ImGui::TextWrapped("[Peer %u] %s", messages[i].senderId, messages[i].text.c_str());
-        ImGui::TextDisabled("T / Enter: Chat");
+        ImGui::TextDisabled("/ : Chat");
         ImGui::End();
         return;
     }

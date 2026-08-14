@@ -1130,14 +1130,15 @@ void NetworkManager::broadcastRoster() {
 }
 
 void NetworkManager::logRoster() const {
-    RCBN_LOG("NetworkManager: roster (" << m_roster.size() << " peers)");
-    for (const auto& info : m_roster) {
-        RCBN_LOG("  peer id=" << info.id
-                  << " cpuScore=" << info.cpuScore
-                  << " latencyMs=" << info.latencyMs
-                  << " isHost=" << (info.isHost ? "true" : "false")
-                  << " isPlayer=" << (info.isPlayer ? "true" : "false"));
-    }
+    // RCBN_LOG("NetworkManager: roster (" << m_roster.size() << " peers)");
+    // for (const auto& info : m_roster) {
+    //     RCBN_LOG("  peer id=" << info.id
+    //               << " cpuScore=" << info.cpuScore
+    //               << " latencyMs=" << info.latencyMs
+    //               << " isHost=" << (info.isHost ? "true" : "false")
+    //               << " isPlayer=" << (info.isPlayer ? "true" : "false"));
+    // }
+    return;
 }
 
 void NetworkManager::handleEvent(const ENetEvent& event) {
