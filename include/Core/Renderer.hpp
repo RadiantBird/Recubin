@@ -57,6 +57,26 @@ struct ViewportRenderDesc {
     bool isFocused = false;
 };
 
+// ImGui上へゲームGUIを描画する際の投影情報。
+// viewport* はImGuiの論理座標、projectionは3D描画と同じアスペクト比で構築する。
+struct GameGuiRenderContext {
+    float viewportX = 0.0f;
+    float viewportY = 0.0f;
+    float viewportWidth = 0.0f;
+    float viewportHeight = 0.0f;
+    float projectionAspect = 1.0f;
+
+    Matrix4 view;
+    Matrix4 projection;
+    Vector3 cameraPosition;
+    Vector3 cameraForward;
+    Vector3 cameraRight;
+    Vector3 cameraUp;
+
+    // セカンダリViewportがUser.GetMouseRay用のプライマリ矩形を上書きしないための指定。
+    bool recordUserViewport = true;
+};
+
 class Renderer {
     public:
         static Renderer* instance;
@@ -181,16 +201,22 @@ class Renderer {
         void renderLightning(Workspace& workspace, const Matrix4& view, const Matrix4& projection, const Vector3& cameraPosition);
 
         // GUI 描画
-        Matrix4  m_lastView;
-        Matrix4  m_lastProj;
         std::function<void(GuiButton*)> m_onButtonActivated;
         std::weak_ptr<ChatService> m_chatService;
         RuntimeChatOverlay m_chatOverlay;
 
         void renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH);
-        void renderWorldGui (Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH);
+        void renderWorldGui (Workspace& ws, User* user, const GameGuiRenderContext& context);
         void renderToolHotbar(User& user, float vpX, float vpY, float vpW, float vpH);
-        void renderGameGui(Workspace& ws, User* user, float vpX, float vpY, float vpW, float vpH);
+        static GameGuiRenderContext makeGameGuiRenderContext(
+            float vpX, float vpY, float vpW, float vpH,
+            const Vector3& cameraPosition,
+            const Vector3& cameraForward,
+            const Vector3& cameraRight,
+            const Vector3& cameraUp,
+            float projectionAspect,
+            bool recordUserViewport = true);
+        void renderGameGui(Workspace& ws, User* user, const GameGuiRenderContext& context);
         void renderRuntimeChat(float vpX, float vpY, float vpW, float vpH);
         void setChatService(const std::shared_ptr<ChatService>& service) { m_chatService = service; }
         bool isChatCapturingKeyboard() const { return m_chatOverlay.isCapturingKeyboard(); }

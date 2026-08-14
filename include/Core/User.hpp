@@ -180,10 +180,31 @@ public:
     void sampleExternalCameraDrag(double& dx, double& dy);
     void endExternalCameraDrag();
 
-    // ゲームプレイビューポート矩形（スクリーン座標）。renderGameGuiが毎フレーム記録し、
-    // GetMouseRay（Luau）のマウス座標→ワールドレイ変換に使う。W/H<=0は未記録を意味する
+    // プライマリのゲームプレイビューポートと、その3D描画に使ったカメラ情報。
+    // renderGameGuiが毎フレーム記録し、GetMouseRay（Luau）がGUIと同じ論理座標・
+    // projection基準を使う。W/H<=0は未記録を意味する。
     float m_gameVpX = 0.f, m_gameVpY = 0.f, m_gameVpW = 0.f, m_gameVpH = 0.f;
-    void setGameViewport(float x, float y, float w, float h) { m_gameVpX = x; m_gameVpY = y; m_gameVpW = w; m_gameVpH = h; }
+    float m_gameProjectionAspect = 1.f;
+    Vector3 m_gameCameraPosition;
+    Vector3 m_gameCameraForward{0.f, 0.f, -1.f};
+    Vector3 m_gameCameraRight{1.f, 0.f, 0.f};
+    Vector3 m_gameCameraUp{0.f, 1.f, 0.f};
+    void setGameViewport(float x, float y, float w, float h,
+                         float projectionAspect,
+                         const Vector3& cameraPosition,
+                         const Vector3& cameraForward,
+                         const Vector3& cameraRight,
+                         const Vector3& cameraUp) {
+        m_gameVpX = x;
+        m_gameVpY = y;
+        m_gameVpW = w;
+        m_gameVpH = h;
+        m_gameProjectionAspect = projectionAspect;
+        m_gameCameraPosition = cameraPosition;
+        m_gameCameraForward = cameraForward;
+        m_gameCameraRight = cameraRight;
+        m_gameCameraUp = cameraUp;
+    }
 
 private:
     static User* s_instance;

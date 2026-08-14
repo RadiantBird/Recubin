@@ -118,6 +118,12 @@ add_executable(RecubinTest
     $<TARGET_OBJECTS:RecubinCore>
 )
 
+# The macOS package regression signs a real RecubinEngine Mach-O into its
+# temporary App Bundle, so ensure it exists before RecubinTest is run.
+if(APPLE)
+    add_dependencies(RecubinTest RecubinEngine)
+endif()
+
 # --- 4. 静的リンクの強制定義 (重要) ---
 set(LIB_DIR "${CMAKE_SOURCE_DIR}/include/libs")
 set(COMMON_INCLUDES ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/include/imgui

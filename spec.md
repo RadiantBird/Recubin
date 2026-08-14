@@ -158,6 +158,9 @@ PhysXに実装されているもののこと。
 - ScreenGuiObject と WorldGuiObject は共通基底 GuiObject（Active/Size/Norm/Visible/
   BackgroundColor/ZIndex/Transparency を保持）を持つ。GuiObject はファクトリ非登録の
   抽象基底で Instance.new 不可。
+- BillboardGui は SizeMode（Screen/World）と Offset（親オブジェクトのローカルVector3）を持つ。
+  Screen は既存どおり Size を画面ピクセルとして扱い、World は Size をワールド単位として
+  投影する。World 時は子GUIも親パネルと同じ投影倍率で縮小する。
 - TextLabel/TextButton は `TextContent`（Text/TextColor）、ImageLabel/ImageButton は
   `ImageContent`（Image）をコンポーネント（HasA）として保持する。描画・エディターは
   `GuiObject::textContent()`/`imageContent()` で問い合わせて分岐を一本化する
