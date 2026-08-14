@@ -203,7 +203,9 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
         w.writeVector3(in.flatForward);
         w.writeVector3(in.flatRight);
         w.writeVector3(in.targetMoveDir);
-        uint8_t flags = (in.isPressingMove ? 1 : 0) | (in.ctrlLockEnabled ? 2 : 0) | (m_pendingJumpLatch ? 4 : 0);
+        bool standUpPending = m_standUpRequestSeq != 0 && m_standUpRequestSeq > m_hostAckedSeq;
+        uint8_t flags = (in.isPressingMove ? 1 : 0) | (in.ctrlLockEnabled ? 2 : 0) |
+                        (m_pendingJumpLatch ? 4 : 0) | (standUpPending ? 8 : 0);
         w.writeU8(flags);
         w.writeF32(in.forwardAxis);
         w.writeF32(in.rightAxis);
@@ -292,6 +294,7 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
         in.isPressingMove  = (flags & 1) != 0;
         in.ctrlLockEnabled = (flags & 2) != 0;
         in.jumpRequested   = (flags & 4) != 0;
+        in.standUpRequested = (flags & 8) != 0;
         auto flattenAndClamp = [](Vector3 v) {
             v.y = 0.0f;
             float len = v.length();
@@ -657,6 +660,7 @@ void ReplicationManager::reconcileLocalPose() {
 
     // 3. 未ack入力を古い順に1件ずつ再生(1エントリ=1回のmove()+stepOnce()を厳守)
     for (const auto& entry : m_inputHistory) {
+        if (entry.input.standUpRequested) m_predictionHumanoid->standUp(m_predictionPhysics.get());
         if (entry.input.jumpRequested) m_predictionHumanoid->jump(m_predictionPhysics.get());
         m_predictionHumanoid->move(entry.input.flatForward, entry.input.flatRight, entry.input.isPressingMove,
                                     entry.input.targetMoveDir, entry.input.ctrlLockEnabled, m_predictionPhysics.get(),
@@ -722,6 +726,7 @@ void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
         if (in.rightAxis > 1.0f) in.rightAxis = 1.0f;
         if (in.rightAxis < -1.0f) in.rightAxis = -1.0f;
 
+        if (in.standUpRequested) avatar.humanoid->standUp(physics);
         if (in.jumpRequested) avatar.humanoid->jump(physics);
         avatar.humanoid->move(in.flatForward, in.flatRight, in.isPressingMove, in.targetMoveDir,
                                in.ctrlLockEnabled, physics, false, false, in.forwardAxis, in.rightAxis, dt);
@@ -1006,6 +1011,8 @@ void ReplicationManager::onNetworkRoleChanged(NetworkRole oldRole, NetworkRole n
         m_predictionSceneReady = false;
         m_predictionStaticMirror.clear();
         m_predictionRescanTimer = 0.0f;
+        m_standUpRequestSeq = 0;
+        m_pendingJumpLatch = false;
     } else if (oldRole == NetworkRole::Client && newRole == NetworkRole::Host) {
         if (m_physics) m_physics->makeSimulationClockAuthoritative();
         m_forceReliableSimulationClock = true;
@@ -1034,8 +1041,10 @@ void ReplicationManager::bufferLocalInput(float dt) {
     entry.input.forwardAxis     = m_user->lastMovementInput.forwardAxis;
     entry.input.rightAxis       = m_user->lastMovementInput.rightAxis;
     entry.input.jumpRequested   = m_user->lastMovementInput.jumpRequested;
+    entry.input.standUpRequested = m_user->lastMovementInput.standUpRequested;
     if (entry.input.jumpRequested) m_pendingJumpLatch = true;
     entry.input.seq             = entry.seq;
+    if (entry.input.standUpRequested) m_standUpRequestSeq = entry.seq;
     entry.dt = dt;
     entry.currentMoveDirBefore = m_user->humanoid->getCurrentMoveDir();
     entry.walkCycleBefore      = m_user->humanoid->getWalkCycle();

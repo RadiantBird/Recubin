@@ -82,3 +82,5 @@ enterRagdoll(physics):
 ## 継承クラス
 
 なし
+
+ネットワーク接続中の離席要求はClientからHostへ入力シーケンスとして送信され、Host側の代理Humanoidが`standUp()`を実行してSeatWeldとOccupantを権威的に解除する。

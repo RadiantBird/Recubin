@@ -20,6 +20,7 @@
 #include <Instances/Sphere.hpp>
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Tool.hpp>
+#include <Instances/Seat.hpp>
 
 #include <Core/LuauEngine.hpp>
 #include <Core/FileLoader.hpp>
@@ -1023,6 +1024,42 @@ CharacterCollisionFilterProbeResult runCharacterCollisionFilterProbe() {
 
     Physics::s_contactCallback = previousContactCallback;
     return result;
+}
+
+int runSeatNetworkRegression() {
+    int failures = 0;
+    auto expect = [&](bool ok, const char* msg) {
+        std::cout << "[SeatNetworkRegression] " << (ok ? "PASS: " : "FAIL: ") << msg << '\n';
+        if (!ok) ++failures;
+    };
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Gravity = {};
+    workspace->initPhysics();
+    auto character = std::make_shared<Model>();
+    character->Name = "SeatRegressionCharacter";
+    auto root = std::make_shared<Cube>(Vector3(0, 1.0f, 0), Vector3(2, 2, 2), Cube::defaultTextureID);
+    root->Name = "Root";
+    character->addChild(root);
+    auto humanoid = std::make_shared<Humanoid>();
+    character->addChild(humanoid);
+    humanoid->resolveParts(character.get());
+    workspace->addChild(character);
+    auto seat = std::make_shared<Seat>(Vector3(0, 0, 0), Vector3(2, 1, 2), Cube::defaultTextureID);
+    seat->Name = "RegressionSeat";
+    workspace->addChild(seat);
+    auto* physics = workspace->getPhysicsEngine();
+    physics->update(*workspace, 1.0f / 60.0f);
+    humanoid->move(Vector3(0, 0, -1), Vector3(1, 0, 0), false, Vector3{}, false,
+                   physics, false, false, 0.0f, 0.0f, 1.0f / 60.0f);
+    expect(humanoid->isSeated() && seat->isOccupied(), "Humanoid seats and Seat occupant is set");
+    humanoid->standUp(physics);
+    const Vector3 velocity = physics->getLinearVelocity(*root);
+    const bool seatWeldRemoved = std::none_of(workspace->getChildren().begin(), workspace->getChildren().end(),
+        [](const auto& entry) { return entry.second && entry.second->Name == "SeatWeld"; });
+    expect(!humanoid->isSeated() && !seat->isOccupied(), "standUp clears SeatWeld and occupant");
+    expect(seatWeldRemoved, "standUp removes SeatWeld instance");
+    expect(velocity.y >= humanoid->JumpPower - 0.1f, "standUp applies upward hop velocity");
+    return failures;
 }
 
 int runHumanoidRigCollisionRegression() {
@@ -4596,6 +4633,7 @@ int main(int argc, char* argv[]) {
     bool assetPathRegression = false;
     bool appImageRegression = false;
     bool humanoidRigCollisionRegression = false;
+    bool seatNetworkRegression = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument(argv[i]);
         physicsMigrationRegression =
@@ -4631,8 +4669,10 @@ int main(int argc, char* argv[]) {
         humanoidRigCollisionRegression =
             humanoidRigCollisionRegression ||
             argument == "--humanoid-rig-collision-regression";
+        seatNetworkRegression = seatNetworkRegression || argument == "--seat-network-regression";
     }
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
+    if (seatNetworkRegression) return runSeatNetworkRegression();
     if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
     if (constraintRebindRegression) return runConstraintRebindRegression();
     if (terrainInstanceRegression) return runTerrainInstanceRegression();

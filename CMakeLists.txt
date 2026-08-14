@@ -88,6 +88,11 @@ if(WIN32)
     add_executable(Watcher
         "${CMAKE_SOURCE_DIR}/src/watcher.cpp"
     )
+    target_compile_definitions(Watcher PRIVATE
+        WINVER=0x0600
+        _WIN32_WINNT=0x0600
+    )
+    target_link_libraries(Watcher PRIVATE comctl32)
 endif()
 
 add_executable(Recubin

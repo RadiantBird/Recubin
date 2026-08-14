@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <commctrl.h>
 #include <cstdlib>
 #include <cstdio>
 #include <cwchar>
@@ -27,12 +28,31 @@ int main(int argc, char* argv[]) {
             L"\n\nよかったら報告してね<(_ _)>"
         );
 
-        MessageBoxW(
+        TASKDIALOGCONFIG dialogConfig{};
+        dialogConfig.cbSize = sizeof(dialogConfig);
+        dialogConfig.dwCommonButtons = TDCBF_OK;
+        dialogConfig.pszWindowTitle = L"Recubin Studio - Error";
+        dialogConfig.pszMainIcon = TD_ERROR_ICON;
+        dialogConfig.pszContent = msg;
+        // Keep the notification comfortably wider than the default narrow layout.
+        dialogConfig.cxWidth = 360;
+
+        const HRESULT dialogResult = TaskDialogIndirect(
+            &dialogConfig,
             nullptr,
-            msg,
-            L"Recubin Studio - Error",
-            MB_OK | MB_ICONERROR | MB_SYSTEMMODAL
+            nullptr,
+            nullptr
         );
+        if (FAILED(dialogResult)) {
+            // Task dialogs require the Common Controls v6 activation context. Fall
+            // back to the legacy notification if that context is unavailable.
+            MessageBoxW(
+                nullptr,
+                msg,
+                L"Recubin Studio - Error",
+                MB_OK | MB_ICONERROR | MB_SYSTEMMODAL
+            );
+        }
     }
 
     CloseHandle(h);

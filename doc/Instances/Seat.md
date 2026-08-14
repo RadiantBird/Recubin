@@ -2,7 +2,7 @@
 
 `include/Instances/Seat.hpp`
 
-座席。RobloxのVehicleSeat相当。`Humanoid`が`Physics::findOverlapping(*Root, "Seat")`で接触を検知すると、未占有であれば自動的に着席する(`Humanoid::sitOn`): Rootをシート直上へスナップし、ハードコードされた座りポーズへ切り替え、`Weld`でRootとSeatを剛体結合する。着席中はSpace押下で`Humanoid::standUp`が呼ばれ、Weldを解除して離脱する。
+座席。RobloxのVehicleSeat相当。`Humanoid`が`Physics::findOverlapping(*Root, "Seat")`で接触を検知すると、未占有であれば自動的に着席する(`Humanoid::sitOn`): Rootをシート直上へスナップし、ハードコードされた座りポーズへ切り替え、`Weld`でRootとSeatを剛体結合する。着席中はSpace押下で`Humanoid::standUp`が呼ばれ、Weldを解除して離脱する。ネットワーク時も離席はHost権威で確定し、Clientの要求はHost ACKまで再送される。
 
 見た目・衝突形状は`Cube`と完全に同じ(Box、Decal/Texture対応込み)で、専用ジオメトリは持たない。
 

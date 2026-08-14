@@ -498,7 +498,10 @@ void User::processHotkeys(Physics* physics) {
     // 接地判定自体はHumanoid内部で行うため、ここでは押下中であれば毎フレーム要求するだけでよい）
     bool spacePressed = m_input->isKeyDown(KeyCode::Space);
     if (spacePressed && controlMode == ControlMode::Character && humanoid) {
-        if (humanoid->isSeated()) humanoid->standUp(physics);
+        if (humanoid->isSeated()) {
+            humanoid->standUp(physics);
+            lastMovementInput.standUpRequested = true;
+        }
         else {
             humanoid->jump(physics);
             lastMovementInput.jumpRequested = true;
@@ -606,6 +609,7 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     // ジャンプ要求は毎フレームクリアし、processHotkeys()内でSpace押下時にのみセットする
     // (ネットワークレプリケーション用: このフレームでジャンプ要求があったかをlastMovementInputに残す)
     lastMovementInput.jumpRequested = false;
+    lastMovementInput.standUpRequested = false;
 
     // User.Input: 前フレームとの差分で Pressed/Released を発火する
     if (Input) Input->poll();

@@ -31,6 +31,7 @@ struct AvatarInputWire {
     bool isPressingMove = false;
     bool ctrlLockEnabled = false;
     bool jumpRequested = false;
+    bool standUpRequested = false;
     float forwardAxis = 0.0f, rightAxis = 0.0f;
     uint32_t seq = 0; // このスナップショットの送信元フレーム通し番号(Client→Host)
 };
@@ -175,6 +176,7 @@ private:
     std::deque<BufferedInput> m_inputHistory;
     uint32_t m_nextSeq = 1;
     bool m_pendingJumpLatch = false; // Client: 前回AvatarState送信以降にジャンプ要求があったか(20Hz間引きでタップを取りこぼさないためのラッチ)
+    uint32_t m_standUpRequestSeq = 0; // Client: 離席要求を含む入力のseq。Host ACKまで再送する
 
     std::unordered_map<PeerId, uint32_t> m_lastProcessedSeq; // Host: 各ピアの最後に処理したseq(0=未受信)
 
