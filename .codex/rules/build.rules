@@ -1,0 +1,16 @@
+prefix_rule(
+    pattern = ["cmd.exe", "/d", "/c", "py", "build.py", "build"],
+    decision = "allow",
+    justification = "Recubin の Windows ビルドを WSL2 から実行するため。",
+    match = [
+        "cmd.exe /d /c py build.py build",
+        "cmd.exe /d /c py build.py build Release",
+        "cmd.exe /d /c py build.py build Debug",
+    ],
+    not_match = [
+        "cmd.exe /d /c py build.py launcher",
+        "cmd.exe /d /c py build.py test",
+        "cmd.exe /d /c py run_regression.py Release",
+        "cmd.exe /d /c py arbitrary.py",
+    ],
+)

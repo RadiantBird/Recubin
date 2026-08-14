@@ -1,0 +1,6 @@
+interface:
+  display_name: "Recubin Session Summary"
+  short_description: "Recubin の作業内容を progress.md に追記"
+  default_prompt: "Use $recubin-session-summary to append this session summary to progress.md in Japanese."
+policy:
+  allow_implicit_invocation: false
