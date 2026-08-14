@@ -525,12 +525,10 @@ void ReplicationManager::spawnRemoteAvatar(PeerId id) {
     RemoteAvatar avatar;
     avatar.model = model;
     avatar.humanoid = humanoid;
-    Quaternion invR = root->cframe.Rotation.conjugate();
+    const CFrame rootWorldInverse = root->getWorldCFrame().inverse();
     for (BaseCube* cube : cubes) {
-        CFrame rel;
-        rel.Position = invR.rotate(cube->cframe.Position - root->cframe.Position);
-        rel.Rotation = invR * cube->cframe.Rotation;
-        avatar.parts.emplace_back(cube, rel);
+        avatar.parts.emplace_back(
+            cube, rootWorldInverse * cube->getWorldCFrame());
     }
 
     auto identity = User::createRemoteUser(id);
@@ -586,7 +584,7 @@ void ReplicationManager::applyAvatarPoses(float dt) {
         }
 
         for (auto& [part, rel] : avatar.parts) {
-            part->cframe = avatar.current * rel;
+            part->setWorldCFrame(avatar.current * rel);
         }
         if (avatar.humanoid) {
             avatar.humanoid->setWalkCycle(avatar.walkCycle);

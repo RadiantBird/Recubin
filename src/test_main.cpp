@@ -80,6 +80,41 @@
 #undef near
 #endif
 
+struct ReplicationTestAccess {
+    static bool spawnRemoteAvatar(ReplicationManager& replication, PeerId id) {
+        replication.spawnRemoteAvatar(id);
+        return replication.m_remoteAvatars.contains(id);
+    }
+
+    static void setLatestPose(
+        ReplicationManager& replication, PeerId id, const CFrame& pose) {
+        replication.m_latestPoses[id] = pose;
+    }
+
+    static void applyAvatarPoses(ReplicationManager& replication, float dt) {
+        replication.applyAvatarPoses(dt);
+    }
+
+    static std::shared_ptr<Model> model(
+        ReplicationManager& replication, PeerId id) {
+        auto it = replication.m_remoteAvatars.find(id);
+        return it == replication.m_remoteAvatars.end() ? nullptr : it->second.model;
+    }
+
+    static std::shared_ptr<User> identity(
+        ReplicationManager& replication, PeerId id) {
+        auto it = replication.m_remoteAvatars.find(id);
+        return it == replication.m_remoteAvatars.end() ? nullptr : it->second.identity;
+    }
+
+    static bool hasPendingPhysicsRegistration(
+        ReplicationManager& replication, PeerId id) {
+        auto it = replication.m_remoteAvatars.find(id);
+        return it != replication.m_remoteAvatars.end() &&
+            replication.hasPendingPhysicsRegistration(it->second);
+    }
+};
+
 namespace {
 class HullRegressionCube final : public BaseCube {
 public:
@@ -1252,6 +1287,231 @@ int runSpawnLocationRegression() {
     }
 
     std::cout << "[SpawnLocation] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runRemoteAvatarSpawnTransformRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[RemoteAvatarSpawnTransform] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto cframeNear = [](const CFrame& first, const CFrame& second,
+                         float tolerance = 0.003f) {
+        const float dot = std::abs(
+            first.Rotation.w * second.Rotation.w +
+            first.Rotation.x * second.Rotation.x +
+            first.Rotation.y * second.Rotation.y +
+            first.Rotation.z * second.Rotation.z);
+        return positionDistance(first.Position, second.Position) < tolerance &&
+            std::abs(1.0f - dot) < tolerance;
+    };
+
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "RemoteAvatarSpawnTransformWorkspace";
+    auto users = std::make_shared<Users>();
+    auto starter = std::make_shared<StarterCharacter>();
+    CharacterRig::buildDefaultRigParts(starter);
+    auto templateHead = std::dynamic_pointer_cast<BaseCube>(
+        starter->children.at("Head"));
+    auto templateHair = std::make_shared<Cube>(
+        Vector3(), Vector3(1.4f, 0.4f, 1.4f), Cube::defaultTextureID);
+    templateHair->Name = "Hair";
+    templateHair->cframe = templateHead->cframe * CFrame(
+        Vector3(0.15f, 0.85f, -0.1f),
+        Quaternion::fromEuler(Vector3(8.0f, -13.0f, 5.0f)));
+    templateHair->Anchored = true;
+    templateHair->CanCollide = false;
+    starter->addChild(templateHair);
+    auto templateHairWeld = std::make_shared<Weld>(templateHead, templateHair);
+    templateHairWeld->Name = "HairWeld";
+    starter->addChild(templateHairWeld);
+    for (auto& [name, child] : starter->children) {
+        (void)name;
+        if (auto cube = std::dynamic_pointer_cast<BaseCube>(child))
+            cube->Anchored = true;
+    }
+    system->addChild(workspace);
+    system->addChild(users);
+    system->addChild(starter);
+
+    auto folderA = std::make_shared<Folder>();
+    folderA->Name = "A";
+    auto folderB = std::make_shared<Folder>();
+    folderB->Name = "B";
+    auto spawnA = std::make_shared<SpawnLocation>(Vector3(18, 3, -11));
+    spawnA->cframe.Rotation = Quaternion::fromEuler(Vector3(19, -34, 12));
+    auto spawnB = std::make_shared<SpawnLocation>(Vector3(-23, 7, 9));
+    spawnB->cframe.Rotation = Quaternion::fromEuler(Vector3(-21, 47, -16));
+    folderA->addChild(spawnA);
+    folderB->addChild(spawnB);
+    workspace->addChild(folderB);
+    workspace->addChild(folderA);
+
+    ReplicationManager replication(workspace, nullptr, system.get());
+    const bool spawnedTwo =
+        ReplicationTestAccess::spawnRemoteAvatar(replication, 2);
+    const bool spawnedThree =
+        ReplicationTestAccess::spawnRemoteAvatar(replication, 3);
+    auto modelTwo = ReplicationTestAccess::model(replication, 2);
+    auto modelThree = ReplicationTestAccess::model(replication, 3);
+    auto identityTwo = ReplicationTestAccess::identity(replication, 2);
+    auto identityThree = ReplicationTestAccess::identity(replication, 3);
+    expect(spawnedTwo && spawnedThree && modelTwo && modelThree &&
+               modelTwo != modelThree,
+           "actual spawnRemoteAvatar path creates two independent avatar Models");
+    if (!modelTwo || !modelThree) return 1;
+
+    auto part = [](const std::shared_ptr<Model>& model, const char* name) {
+        auto it = model->children.find(name);
+        return it == model->children.end()
+            ? std::shared_ptr<BaseCube>()
+            : std::dynamic_pointer_cast<BaseCube>(it->second);
+    };
+    auto rootTwo = part(modelTwo, "Root");
+    auto headTwo = part(modelTwo, "Head");
+    auto torsoTwo = part(modelTwo, "Torso");
+    auto hairTwo = part(modelTwo, "Hair");
+    auto rootThree = part(modelThree, "Root");
+    auto headThree = part(modelThree, "Head");
+    auto hairThree = part(modelThree, "Hair");
+    expect(rootTwo && headTwo && torsoTwo && hairTwo && rootThree &&
+               headThree && hairThree,
+           "spawned avatars contain standard body parts and cloned Weld accessory");
+    if (!rootTwo || !headTwo || !torsoTwo || !hairTwo || !rootThree ||
+        !headThree || !hairThree) return 1;
+
+    const CFrame expectedSpawnTwo = spawnB->getWorldCFrame() *
+        CFrame(0, (spawnB->Size.y + rootTwo->Size.y) * 0.5f, 0);
+    const CFrame expectedSpawnThree = spawnA->getWorldCFrame() *
+        CFrame(0, (spawnA->Size.y + rootThree->Size.y) * 0.5f, 0);
+    expect(cframeNear(rootTwo->getWorldCFrame(), expectedSpawnTwo) &&
+               cframeNear(rootThree->getWorldCFrame(), expectedSpawnThree),
+           "PeerId mapping applies each nonidentity SpawnLocation full CFrame");
+
+    const CFrame modelTwoSpawnFrame = modelTwo->getWorldCFrame();
+    const CFrame modelThreeSpawnFrame = modelThree->getWorldCFrame();
+    expect(!cframeNear(modelTwoSpawnFrame, CFrame()) &&
+               !cframeNear(modelThreeSpawnFrame, CFrame()),
+           "remote avatar Models retain nonidentity spawn transforms");
+
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    for (int frame = 0; physics && frame < 8 &&
+         (ReplicationTestAccess::hasPendingPhysicsRegistration(replication, 2) ||
+          ReplicationTestAccess::hasPendingPhysicsRegistration(replication, 3));
+         ++frame) {
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    expect(physics &&
+               !ReplicationTestAccess::hasPendingPhysicsRegistration(replication, 2) &&
+               !ReplicationTestAccess::hasPendingPhysicsRegistration(replication, 3),
+           "runtime physics registration completes before remote pose application");
+
+    const CFrame rootToTorso =
+        rootTwo->getWorldCFrame().inverse() * torsoTwo->getWorldCFrame();
+    const CFrame headToHair =
+        headTwo->getWorldCFrame().inverse() * hairTwo->getWorldCFrame();
+    const CFrame poseTwo(
+        Vector3(-41, 13, 28),
+        Quaternion::fromEuler(Vector3(24, -52, 17)));
+    const CFrame poseThree(
+        Vector3(36, 9, -31),
+        Quaternion::fromEuler(Vector3(-18, 63, -22)));
+    ReplicationTestAccess::setLatestPose(replication, 2, poseTwo);
+    ReplicationTestAccess::setLatestPose(replication, 3, poseThree);
+    ReplicationTestAccess::applyAvatarPoses(replication, 1.0f / 60.0f);
+
+    expect(cframeNear(rootTwo->getWorldCFrame(), poseTwo) &&
+               cframeNear(rootThree->getWorldCFrame(), poseThree),
+           "first received poses snap both Roots to exact world CFrames");
+    expect(cframeNear(rootTwo->getWorldCFrame().inverse() *
+                          torsoTwo->getWorldCFrame(), rootToTorso) &&
+               cframeNear(headTwo->getWorldCFrame().inverse() *
+                          hairTwo->getWorldCFrame(), headToHair),
+           "body and Weld accessory relative poses survive world-pose application");
+    const auto assemblyTwo = Weld::collectAssembly(headTwo, *modelTwo);
+    const auto assemblyThree = Weld::collectAssembly(headThree, *modelThree);
+    const bool twoOwnsHair = std::find(
+        assemblyTwo.begin(), assemblyTwo.end(), hairTwo) != assemblyTwo.end();
+    const bool twoOwnsOtherHair = std::find(
+        assemblyTwo.begin(), assemblyTwo.end(), hairThree) != assemblyTwo.end();
+    const bool threeOwnsHair = std::find(
+        assemblyThree.begin(), assemblyThree.end(), hairThree) != assemblyThree.end();
+    expect(twoOwnsHair && threeOwnsHair && !twoOwnsOtherHair,
+           "cloned Weld assemblies remain separated between peers");
+
+    const CFrame nextPoseTwo(
+        Vector3(52, 21, -44),
+        Quaternion::fromEuler(Vector3(-31, 78, 26)));
+    constexpr float interpolationDt = 0.1f;
+    const float alpha = 1.0f - std::exp(-15.0f * interpolationDt);
+    CFrame expectedInterpolated = poseTwo;
+    expectedInterpolated.Position = poseTwo.Position +
+        (nextPoseTwo.Position - poseTwo.Position) * alpha;
+    expectedInterpolated.Rotation = Quaternion::Slerp(
+        poseTwo.Rotation, nextPoseTwo.Rotation, alpha);
+    ReplicationTestAccess::setLatestPose(replication, 2, nextPoseTwo);
+    ReplicationTestAccess::applyAvatarPoses(replication, interpolationDt);
+    expect(cframeNear(rootTwo->getWorldCFrame(), expectedInterpolated) &&
+               cframeNear(rootThree->getWorldCFrame(), poseThree),
+           "second pose interpolates only its target peer in world space");
+    expect(cframeNear(modelTwo->getWorldCFrame(), modelTwoSpawnFrame) &&
+               cframeNear(modelThree->getWorldCFrame(), modelThreeSpawnFrame),
+           "pose application preserves each nonidentity Model CFrame");
+    expect(identityTwo && identityThree && identityTwo != identityThree &&
+               identityTwo->Name == "User_2" && identityThree->Name == "User_3" &&
+               identityTwo->character == modelTwo &&
+               identityThree->character == modelThree &&
+               users->children.contains("User_2") &&
+               users->children.contains("User_3"),
+           "multiple peer identities retain their own canonical avatar Models");
+
+    {
+        auto legacySystem = std::make_shared<System>();
+        auto legacyWorkspace = std::make_shared<Workspace>();
+        auto legacyUsers = std::make_shared<Users>();
+        auto legacyStarter = std::make_shared<StarterCharacter>();
+        CharacterRig::buildDefaultRigParts(legacyStarter);
+        auto legacyTemplateRoot = std::dynamic_pointer_cast<BaseCube>(
+            legacyStarter->children.at("Root"));
+        legacyTemplateRoot->Anchored = true;
+        legacySystem->addChild(legacyWorkspace);
+        legacySystem->addChild(legacyUsers);
+        legacySystem->addChild(legacyStarter);
+
+        ReplicationManager legacyReplication(
+            legacyWorkspace, nullptr, legacySystem.get());
+        const bool legacySpawned =
+            ReplicationTestAccess::spawnRemoteAvatar(legacyReplication, 2);
+        auto legacyModel =
+            ReplicationTestAccess::model(legacyReplication, 2);
+        auto legacyRoot = legacyModel ? part(legacyModel, "Root") : nullptr;
+        legacyWorkspace->initPhysics();
+        Physics* legacyPhysics = legacyWorkspace->getPhysicsEngine();
+        for (int frame = 0; legacyPhysics && frame < 8 &&
+             ReplicationTestAccess::hasPendingPhysicsRegistration(
+                 legacyReplication, 2);
+             ++frame) {
+            legacyPhysics->update(*legacyWorkspace, 1.0f / 60.0f);
+        }
+        const CFrame legacyPose(
+            Vector3(7, 12, -19),
+            Quaternion::fromEuler(Vector3(13, -28, 9)));
+        ReplicationTestAccess::setLatestPose(
+            legacyReplication, 2, legacyPose);
+        ReplicationTestAccess::applyAvatarPoses(
+            legacyReplication, 1.0f / 60.0f);
+        expect(legacySpawned && legacyModel && legacyRoot &&
+                   cframeNear(legacyModel->getWorldCFrame(), CFrame()) &&
+                   cframeNear(legacyRoot->getWorldCFrame(), legacyPose),
+               "legacy no-SpawnLocation identity Model follows the same world-pose path");
+    }
+
+    std::cout << "[RemoteAvatarSpawnTransform] failures=" << failures
               << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
     return failures == 0 ? 0 : 1;
 }
@@ -5757,6 +6017,7 @@ int main(int argc, char* argv[]) {
     bool starterAccessoryWeldRegression = false;
     bool starterRootSpawnRegression = false;
     bool spawnLocationRegression = false;
+    bool remoteAvatarSpawnTransformRegression = false;
     bool meshCubeFallbackRegression = false;
     bool humanoidRigCollisionRegression = false;
     for (int i = 1; i < argc; ++i) {
@@ -5803,6 +6064,9 @@ int main(int argc, char* argv[]) {
             argument == "--starter-root-spawn-regression";
         spawnLocationRegression = spawnLocationRegression ||
             argument == "--spawn-location-regression";
+        remoteAvatarSpawnTransformRegression =
+            remoteAvatarSpawnTransformRegression ||
+            argument == "--remote-avatar-spawn-transform-regression";
         meshCubeFallbackRegression = meshCubeFallbackRegression ||
             argument == "--meshcube-fallback-regression";
         humanoidRigCollisionRegression =
@@ -5834,6 +6098,8 @@ int main(int argc, char* argv[]) {
         return runStarterRootSpawnRegression();
     if (spawnLocationRegression)
         return runSpawnLocationRegression();
+    if (remoteAvatarSpawnTransformRegression)
+        return runRemoteAvatarSpawnTransformRegression();
     if (meshCubeFallbackRegression)
         return runMeshCubeFallbackRegression();
     if (humanoidRigCollisionRegression)

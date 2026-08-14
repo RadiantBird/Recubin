@@ -78,4 +78,36 @@
   `--humanoid-rig-collision-regression`はBox3D/PhysXともPASSし、`--network-core-regression`もPASSした。
 - `run_regression.py Release`は既存と同じ140 passed / 3 failedで、新規失敗はない。外部baseplateも
   SpawnLocationを含めてロードでき、同シーン固有の既存Scriptエラー3件のみを確認した。
+- SpawnLocationでリモートAvatar Modelが非identityになった場合、ローカルCFrameから作ったRoot相対値を
+  world poseとして直接書き戻してModel変換を二重適用していた問題を修正した。Root/Partのworld CFrameから
+  相対値を生成し、受信姿勢も`setWorldCFrame`で適用するため、wire、補間、Host physics proxyは変更していない。
+- `--remote-avatar-spawn-transform-regression`で実際の`spawnRemoteAvatar`/`applyAvatarPoses`を通し、
+  translationとpitch/yaw/rollを含む非identity Spawn、2 PeerのRoot/body/Weld accessory、2回目補間、
+  User identityとModel分離、Spawnなしidentity Model互換を検証し、Box3D/PhysXともPASSした。
+- 修正後のRelease全3ターゲット、Network core、Weld accessory回帰もPASSし、全体回帰は
+  従来と同じ140 passed / 3 failedで新規失敗はなかった。
 - 未確認: SpawnLocation追加・配置・回転のGUI手動スモークテスト。
+
+## 2026-08-14: 今回セッションの総括
+
+- エディター内でNormal／Play Here／localhost専用Hostと1〜8クライアントを切り替えて検証できる
+  マルチクライアントPlay環境を完成させた。専用Hostの非プレイヤーPeer、Script／LocalScript分離、
+  子プロセスの起動・監視・終了、未保存Playスナップショット共有、設定保存と失敗時rollbackを含む。
+- Editorテストクライアントにlocalhost限定の`--editor-test`を追加し、通常パッケージのAssetGuardは
+  維持したまま、未パッケージの外部アセットをクライアント間で読み込めるようにした。MeshCube読込失敗時は
+  magenta／black checkerの箱を描画し、欠損モデルを論理的・視覚的に判別できるようにした。
+- StarterCharacterのWeldアクセサリー問題を調査し、一時的なHumanoid全assembly移動は物理破損を招くため撤回した。
+  Box3D／PhysX側でWeld compoundをnative body単位に一度だけ同期する方式へ修正し、Hair／Glassesの追従、
+  複数キャラクター間のassembly分離、長時間移動時の有限な速度を回帰で保証した。
+- cloneされたStarterCharacterのRootがテンプレートの`Anchored=true`を引き継いで浮く問題を修正し、
+  `CharacterAdded`前にRootだけを`Anchored=false`、`CanCollide=true`へ正規化した。
+- `SpawnLocation`を導入してNormal／respawn／ネットワークAvatarの生成地点を統一し、Play Here初回だけは
+  カメラ位置を優先した。同時にBaseCube派生の`IsA`、clone状態転送、SceneLoader／Luau factoryを共通化し、
+  Floating worldのbaseplateを旧Spawner ScriptからSpawnLocationへ移行した。
+- 非identityのCharacter Modelへ受信Root world poseをローカル値として書き込み、リモートCharacterが遠方へ
+  二重移動していた問題を修正した。Root相対値と姿勢適用をworld CFrame規約へ統一し、身体とWeldアクセサリー、
+  複数Peer、補間、Spawnなし互換を専用回帰で確認した。wire protocolとHost physics proxyは変更していない。
+- 最終検証ではReleaseのRecubin／RecubinEngine／RecubinTestがすべてbuild成功。Network core、runtime args、
+  SpawnLocation、remote Avatar、Starter Root／Weld accessory／Humanoid collision等の関連回帰はPASSした。
+  全体回帰は既存と同じ140 passed / 3 failedで、新規失敗はない。
+- 残作業はmacOS子プロセスbackendの実機buildと、Normal／Play Here／2・8クライアントでのGUI手動スモーク。

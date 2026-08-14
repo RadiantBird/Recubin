@@ -70,6 +70,10 @@
 - ネットワークUser/CharacterのNameは実行中ロックされ、通常のName変更は警告付きで無視される。
 - 正式名との衝突は自動サフィックスせず、ネットワークゲームを明示的なエラーで停止する。
 - Offline起動では従来の`User` / `PlayerCharacter`を維持する。ネットワーク時の旧パス互換は提供しない。
+- リモートAvatarは生成時の`Root.WorldCFrame.inverse() * Part.WorldCFrame`を各パーツのRoot相対姿勢として
+  保持し、受信・補間したRoot姿勢へ`setWorldCFrame(RootPose * RelativePose)`で適用する。
+  SpawnLocationによってAvatar Model自身が非identity CFrameを持つ場合もModel変換を二重適用せず、
+  Model CFrame、身体・Weldアクセサリの相対姿勢を維持する。Avatarのwire形式と補間方式は変えない。
 
 ### IPv4 NAT越えとルーム接続
 
