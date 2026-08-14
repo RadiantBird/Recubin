@@ -61,6 +61,24 @@ void Renderer::createWhiteTexture() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 }
 
+void Renderer::createMeshFallbackTexture() {
+    if (m_meshFallbackTexture != 0) return;
+
+    // Missing/invalid mesh indicator. Kept entirely in engine memory so the
+    // fallback remains available even when all project assets are unavailable.
+    constexpr unsigned char pixels[] = {
+        255,   0, 255, 255,     0,   0,   0, 255,
+          0,   0,   0, 255,   255,   0, 255, 255,
+    };
+    glGenTextures(1, &m_meshFallbackTexture);
+    glBindTexture(GL_TEXTURE_2D, m_meshFallbackTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+}
+
 Renderer* Renderer::instance = nullptr;
 
 static Lighting* findLightingInTree(Instance* inst) {
@@ -530,6 +548,7 @@ void Renderer::init(GLFWwindow* window) {
     }
 
     createWhiteTexture();
+    createMeshFallbackTexture();
     Cube::defaultTextureID            = whiteTexture;
     Cube::s_VAO                       = VAO;
     Cube::s_EBO                       = EBO;
@@ -569,6 +588,7 @@ Renderer::~Renderer() {
     if (shadowFBO)    glDeleteFramebuffers(1, &shadowFBO);
     if (shadowMapTex) glDeleteTextures(1, &shadowMapTex);
     if (depthShader)  glDeleteProgram(depthShader);
+    if (m_meshFallbackTexture) glDeleteTextures(1, &m_meshFallbackTexture);
 
     if (m_lineVBO)    glDeleteBuffers(1, &m_lineVBO);
     if (m_lineVAO)    glDeleteVertexArrays(1, &m_lineVAO);
@@ -1677,7 +1697,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 // 収集済み → インスタンス描画済み
             } else if (inst->IsA("BaseCube")) {
                 BaseCube* bc = static_cast<BaseCube*>(inst);
-                if (bc->Color.a > 0.001f && bc->CastShadow) {
+                const bool visibleForShadow = bc->Color.a > 0.001f ||
+                    (inst->IsA("MeshCube") && static_cast<MeshCube*>(inst)->isUsingFallback());
+                if (visibleForShadow && bc->CastShadow) {
                     Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
                                        Matrix4::Scale(bc->Size.x, bc->Size.y, bc->Size.z);
                     glUniformMatrix4fv(modelDepthLoc, 1, GL_FALSE, modelMat.m);
@@ -1894,12 +1916,12 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             }
         } else if (inst->IsA("MeshCube")) {
             MeshCube* mc = static_cast<MeshCube*>(inst);
-            if (mc->Color.a > 0.001f) {
+            if (mc->Color.a > 0.001f || mc->isUsingFallback()) {
                 CFrame wcf = mc->getWorldCFrame();
                 if (sphereInFrustum(camFrustum, wcf.Position, mc->Size.length() * 0.5f)) {
                     Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(mc->Size.x, mc->Size.y, mc->Size.z);
                     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
-                    setBlendForAlpha(mc->Color.a);
+                    setBlendForAlpha(mc->isUsingFallback() ? 1.0f : mc->Color.a);
                     mc->draw(modelLoc, shaderProgram);
                     FrameProfiler::get().addCount("cubesDrawn", 1);
                 } else {

@@ -10,7 +10,5 @@ public:
 
     Moon();
 
-    std::string getClassName() override { return "Moon"; }
-    bool IsA(std::string className) override;
     std::shared_ptr<Instance> clone() const override;
 };

@@ -17,6 +17,7 @@ class Instance;
 class Humanoid;
 class Physics;
 class Cube;
+struct ReplicationTestAccess;
 
 // ワールドレプリケーション層。NetworkManager(トランスポート)の上に載り、
 // Instance/Workspaceを知る側の同期処理をここに隔離する。
@@ -68,10 +69,12 @@ public:
     bool hasFatalIdentityError() const { return m_fatalIdentityError; }
 
 private:
+    friend struct ReplicationTestAccess;
+
     struct RemoteAvatar {
         std::shared_ptr<Model> model;
         std::shared_ptr<User> identity; // System.Users配下のUser identity(見つからない場合はnullptrのまま)
-        // Root含む全パーツと、Root相対のローカルオフセット(剛体一括追従用)。生ポインタの所有はmodel。
+        // Root含む全パーツと、生成時Root world相対のオフセット(剛体一括追従用)。生ポインタの所有はmodel。
         std::vector<std::pair<BaseCube*, CFrame>> parts;
         CFrame current;         // 平滑表示中の姿勢
         bool   hasPose = false; // 初回受信前はfalse(初回はスナップ)
@@ -85,7 +88,7 @@ private:
     void sendAvatarUpdates(float dt);   // 20Hz: Client=AvatarState送信 / Host=自姿勢記録+AvatarBatch配布
     void hostSendSimulationClock(float dt, Physics* physics);
     void reconcileAvatars();            // ロスターと生成済みアバターの突き合わせ(生成/破棄)
-    void applyAvatarPoses(float dt);    // 受信姿勢を平滑補間してパーツcframeへ書き込み
+    void applyAvatarPoses(float dt);    // 受信姿勢を平滑補間して各パーツのworld CFrameへ書き込み
     void reconcileLocalPose(); // Client: Hostから受信した自分の権威姿勢とローカル予測のズレが大きければスナップ補正する
     bool getLocalRootCFrame(CFrame& out) const; // 自キャラRootのワールド姿勢。無ければfalse
     void spawnRemoteAvatar(PeerId id);

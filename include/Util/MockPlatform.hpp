@@ -10,16 +10,16 @@
 // ==================================================================
 class MockPlatform : public IPlatform {
 public:
-    std::string openFileDialog(const std::vector<FileFilter>&) override { return {}; }
-    std::string saveFileDialog(const std::vector<FileFilter>&, const std::string&) override { return {}; }
-    std::string openFolderDialog() override { return {}; }
-    void revealInFileManager(const std::string&) override {}
-    ApplicationIconResult setApplicationIcon(const std::string&) override {
-        return ApplicationIconResult::Unsupported;
-    }
-    void setupConsoleUtf8() override {}
-    void setupDllSearchPath() override {}
-    void* loadDynamicLibrary(const std::string&) override { return nullptr; }
-    void* getSymbol(void*, const std::string&) override { return nullptr; }
-    void  freeDynamicLibrary(void*) override {}
+    std::string openFileDialog(const std::vector<FileFilter>&) override;
+    std::string saveFileDialog(const std::vector<FileFilter>&, const std::string&) override;
+    std::string openFolderDialog() override;
+    void revealInFileManager(const std::string&) override;
+    ApplicationIconResult setApplicationIcon(const std::string&) override;
+    void setupConsoleUtf8() override;
+    void setupDllSearchPath() override;
+    void* loadDynamicLibrary(const std::string&) override;
+    void* getSymbol(void*, const std::string&) override;
+    void freeDynamicLibrary(void*) override;
+    std::unique_ptr<IChildProcess> launchChildProcess(
+        const ChildProcessLaunchOptions& options) override;
 };

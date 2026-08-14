@@ -3,10 +3,12 @@
 #include <Instances/Lighting.hpp>
 #include <Instances/LiquidCube.hpp>
 #include <Instances/Script.hpp>
+#include <Instances/LocalScript.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Instances/Cube.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/Model.hpp>
+#include <Instances/MeshCube.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Rope.hpp>
@@ -21,6 +23,12 @@
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Tool.hpp>
 #include <Instances/Seat.hpp>
+#include <Instances/Users.hpp>
+#include <Instances/StarterCharacter.hpp>
+#include <Instances/SpawnLocation.hpp>
+#include <Instances/Seat.hpp>
+#include <Instances/Skybox.hpp>
+#include <Instances/Sun.hpp>
 
 #include <Core/LuauEngine.hpp>
 #include <Core/FileLoader.hpp>
@@ -28,6 +36,8 @@
 #include <Core/SceneLoader.hpp>
 #include <Core/SceneRuntime.hpp>
 #include <Core/AudioService.hpp>
+#include <Core/CharacterRig.hpp>
+#include <Core/BaseCubeFactory.hpp>
 #include <Core/TimeStretchNode.hpp>
 #include <Core/NullInputBackend.hpp>
 #include <Core/Physics.hpp>
@@ -38,7 +48,9 @@
 #include <Editor/CommandHistory.hpp>
 #include <Editor/ViewportGeometry.hpp>
 #include <Editor/ViewportSceneQueries.hpp>
+#include <Network/ByteStream.hpp>
 #include <Network/NatProtocol.hpp>
+#include <Network/NetworkManager.hpp>
 #include <Network/Replication.hpp>
 #include <Util/Logger.hpp>
 #include <Util/AssetGuard.hpp>
@@ -46,6 +58,7 @@
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
 #include <Util/MockPlatform.hpp>
+#include <Util/RuntimeLaunchArgs.hpp>
 #ifdef __APPLE__
 #include <Util/MacPlatform.hpp>
 #endif
@@ -64,6 +77,45 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
+
+#ifdef near
+#undef near
+#endif
+
+struct ReplicationTestAccess {
+    static bool spawnRemoteAvatar(ReplicationManager& replication, PeerId id) {
+        replication.spawnRemoteAvatar(id);
+        return replication.m_remoteAvatars.contains(id);
+    }
+
+    static void setLatestPose(
+        ReplicationManager& replication, PeerId id, const CFrame& pose) {
+        replication.m_latestPoses[id] = pose;
+    }
+
+    static void applyAvatarPoses(ReplicationManager& replication, float dt) {
+        replication.applyAvatarPoses(dt);
+    }
+
+    static std::shared_ptr<Model> model(
+        ReplicationManager& replication, PeerId id) {
+        auto it = replication.m_remoteAvatars.find(id);
+        return it == replication.m_remoteAvatars.end() ? nullptr : it->second.model;
+    }
+
+    static std::shared_ptr<User> identity(
+        ReplicationManager& replication, PeerId id) {
+        auto it = replication.m_remoteAvatars.find(id);
+        return it == replication.m_remoteAvatars.end() ? nullptr : it->second.identity;
+    }
+
+    static bool hasPendingPhysicsRegistration(
+        ReplicationManager& replication, PeerId id) {
+        auto it = replication.m_remoteAvatars.find(id);
+        return it != replication.m_remoteAvatars.end() &&
+            replication.hasPendingPhysicsRegistration(it->second);
+    }
+};
 
 namespace {
 class HullRegressionCube final : public BaseCube {
@@ -414,7 +466,7 @@ int runToolRespawnRegression() {
     system->addChild(user);
     user->initializeInventory();
 
-    user->spawnCharacter(system.get());
+    user->spawnCharacter(system.get(), workspace.get());
     workspace->addChild(user->character);
     auto oldCharacter = user->character;
 
@@ -474,6 +526,1042 @@ int runToolRespawnRegression() {
            workspace->getPhysicsEngine()->sharesBody(*handle, *member),
            "respawn後の物理更新でToolのcompound actorを再構築する", failures);
 
+    return failures == 0 ? 0 : 1;
+}
+
+int runStarterWeldRenameRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[StarterWeldRename] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto containsInstance = [](const std::vector<std::shared_ptr<BaseCube>>& values,
+                               const BaseCube* expected) {
+        return std::any_of(values.begin(), values.end(),
+                           [expected](const auto& value) {
+                               return value.get() == expected;
+                           });
+    };
+
+    auto system = std::make_shared<System>();
+    auto starter = std::make_shared<StarterCharacter>();
+    auto hair = std::make_shared<Cube>(Vector3{}, Vector3(1, 1, 1), 0);
+    auto head = std::make_shared<Sphere>(Vector3{}, Vector3(1, 1, 1));
+    hair->Name = "Hair";
+    head->Name = "Head";
+    system->addChild(starter);
+    starter->addChild(hair);
+    starter->addChild(head);
+    auto weld = std::make_shared<Weld>(hair, head);
+    hair->addChild(weld);
+
+    hair->renameTo("HairTemporary");
+    head->renameTo("HeadTemporary");
+    auto hairCollision = std::make_shared<Cube>(
+        Vector3{}, Vector3(1, 1, 1), 0);
+    auto headCollision = std::make_shared<Sphere>(
+        Vector3{}, Vector3(1, 1, 1));
+    hairCollision->Name = "Hair";
+    headCollision->Name = "Head";
+    starter->addChild(hairCollision);
+    starter->addChild(headCollision);
+    hair->renameTo("Hair");
+    head->renameTo("Head");
+    expect(hair->Name == "Hair1" && head->Name == "Head1" &&
+               starter->getChild("Hair1") == hair.get() &&
+               starter->getChild("Head1") == head.get(),
+           "collision renames update instance names and parent lookup keys");
+
+    hair->renameTo("Ponytail");
+    head->renameTo("Face");
+    hair->renameTo("Hair");
+    head->renameTo("Head");
+    weld->refreshRefNames();
+    expect(hair->Name == "Hair1" && head->Name == "Head1" &&
+               weld->m_cube0Name == "StarterCharacter\\Hair1" &&
+               weld->m_cube1Name == "StarterCharacter\\Head1",
+           "save-time refresh follows repeated and collision-renamed parts");
+
+    const auto savePath = std::filesystem::temp_directory_path() /
+        ("recubin_starter_weld_rename_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) +
+         ".yaml");
+    SceneLoader::saveScene(system.get(), savePath.string());
+    const std::string saved = FileLoader::readText(savePath.string());
+    std::error_code removeError;
+    std::filesystem::remove(savePath, removeError);
+    expect(saved.find("Cube0: StarterCharacter\\Hair1") != std::string::npos &&
+               saved.find("Cube1: StarterCharacter\\Head1") != std::string::npos,
+           "scene serialization writes refreshed StarterCharacter paths");
+
+    auto character = User::buildCharacterModel(system.get(), "PlayerCharacter");
+    std::shared_ptr<BaseCube> clonedHair;
+    std::shared_ptr<BaseCube> clonedHead;
+    if (character) {
+        if (auto it = character->children.find("Hair1");
+            it != character->children.end())
+            clonedHair = std::dynamic_pointer_cast<BaseCube>(it->second);
+        if (auto it = character->children.find("Head1");
+            it != character->children.end())
+            clonedHead = std::dynamic_pointer_cast<BaseCube>(it->second);
+    }
+    const auto clonedAssembly = clonedHair
+        ? Weld::collectAssembly(clonedHair, *character)
+        : std::vector<std::shared_ptr<BaseCube>>{};
+    expect(clonedHair && clonedHead &&
+               containsInstance(clonedAssembly, clonedHair.get()) &&
+               containsInstance(clonedAssembly, clonedHead.get()) &&
+               !containsInstance(clonedAssembly, hair.get()) &&
+               !containsInstance(clonedAssembly, head.get()),
+           "character clone Weld targets renamed clone parts, not template parts");
+
+    auto snapshot = SceneLoader::loadScene("assets/scenes/_snapshot.yaml");
+    auto* snapshotHair = snapshot
+        ? dynamic_cast<BaseCube*>(
+              snapshot->getChildByPath("StarterCharacter\\Hair"))
+        : nullptr;
+    auto* snapshotHead = snapshot
+        ? dynamic_cast<BaseCube*>(
+              snapshot->getChildByPath("StarterCharacter\\Head"))
+        : nullptr;
+    std::vector<std::shared_ptr<BaseCube>> snapshotAssembly;
+    if (snapshotHair)
+        snapshotAssembly = Weld::collectAssembly(
+            std::static_pointer_cast<BaseCube>(snapshotHair->shared_from_this()),
+            *snapshot);
+    expect(snapshotHair && snapshotHead &&
+               containsInstance(snapshotAssembly, snapshotHead),
+           "baseplate-style StarterCharacter Hair/Head paths resolve to a Weld assembly");
+
+    std::cout << "[StarterWeldRename] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runStarterAccessoryWeldRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[StarterAccessoryWeld] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto cframeNear = [](const CFrame& first, const CFrame& second) {
+        const float rotationDot = std::abs(
+            first.Rotation.w * second.Rotation.w +
+            first.Rotation.x * second.Rotation.x +
+            first.Rotation.y * second.Rotation.y +
+            first.Rotation.z * second.Rotation.z);
+        return positionDistance(first.Position, second.Position) < 0.002f &&
+               std::abs(1.0f - rotationDot) < 0.002f;
+    };
+    auto contains = [](const std::vector<std::shared_ptr<BaseCube>>& assembly,
+                       const BaseCube* expected) {
+        return std::any_of(assembly.begin(), assembly.end(),
+            [expected](const auto& member) { return member.get() == expected; });
+    };
+    auto finiteVector = [](const Vector3& value) {
+        return std::isfinite(value.x) && std::isfinite(value.y) &&
+               std::isfinite(value.z);
+    };
+    auto finiteCFrame = [&](const CFrame& value) {
+        const Quaternion& rotation = value.Rotation;
+        return finiteVector(value.Position) && std::isfinite(rotation.w) &&
+               std::isfinite(rotation.x) && std::isfinite(rotation.y) &&
+               std::isfinite(rotation.z);
+    };
+    auto vectorLength = [](const Vector3& value) {
+        return std::sqrt(value.x * value.x + value.y * value.y + value.z * value.z);
+    };
+
+    auto system = std::make_shared<System>();
+    auto starter = std::make_shared<StarterCharacter>();
+    CharacterRig::buildDefaultRigParts(starter);
+    auto templateHeadIt = starter->children.find("Head");
+    auto templateHead = templateHeadIt != starter->children.end()
+        ? std::dynamic_pointer_cast<BaseCube>(templateHeadIt->second)
+        : nullptr;
+    if (!templateHead) {
+        expect(false, "default StarterCharacter contains Head");
+        return 1;
+    }
+    auto templateHair = std::make_shared<Cube>(Vector3{}, Vector3(1.5f, 0.8f, 1.4f), 0);
+    templateHair->Name = "Hair";
+    templateHair->Anchored = true;
+    templateHair->CanCollide = false;
+    const CFrame initialHairRelative(
+        Vector3(0.2f, 0.85f, 0.1f),
+        Quaternion::fromAxisAngle(Vector3(0, 1, 0), 17.0f));
+    templateHair->cframe = templateHead->cframe * initialHairRelative;
+    starter->addChild(templateHair);
+    auto templateWeld = std::make_shared<Weld>(templateHead, templateHair);
+    templateWeld->Name = "HairWeld";
+    templateHead->addChild(templateWeld);
+
+    auto templateGlasses = std::make_shared<Cube>(Vector3{}, Vector3(1.7f, 0.3f, 0.3f), 0);
+    templateGlasses->Name = "Glasses";
+    templateGlasses->Anchored = true;
+    templateGlasses->CanCollide = false;
+    const CFrame initialGlassesRelative(
+        Vector3(0.0f, 0.05f, -0.62f),
+        Quaternion::fromAxisAngle(Vector3(0, 1, 0), -9.0f));
+    templateGlasses->cframe = templateHead->cframe * initialGlassesRelative;
+    starter->addChild(templateGlasses);
+    auto glassesWeld = std::make_shared<Weld>(templateHead, templateGlasses);
+    glassesWeld->Name = "GlassesWeld";
+    templateHead->addChild(glassesWeld);
+    system->addChild(starter);
+
+    auto first = User::buildCharacterModel(system.get(), "CharacterA");
+    auto second = User::buildCharacterModel(system.get(), "CharacterB");
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "StarterAccessoryWeldRegression";
+    workspace->Gravity = Vector3(0, 0, 0);
+    system->addChild(workspace);
+    workspace->addChild(first);
+    workspace->addChild(second);
+
+    struct RigParts {
+        std::shared_ptr<Humanoid> humanoid;
+        std::shared_ptr<BaseCube> root;
+        std::shared_ptr<BaseCube> head;
+        std::shared_ptr<BaseCube> hair;
+        std::shared_ptr<BaseCube> glasses;
+        std::vector<std::shared_ptr<BaseCube>> bodyParts;
+    };
+    auto getParts = [](const std::shared_ptr<Model>& model) {
+        RigParts parts;
+        if (!model) return parts;
+        auto find = [&](const char* name) -> std::shared_ptr<Instance> {
+            auto it = model->children.find(name);
+            return it != model->children.end() ? it->second : nullptr;
+        };
+        parts.humanoid = std::dynamic_pointer_cast<Humanoid>(find("Humanoid"));
+        parts.root = std::dynamic_pointer_cast<BaseCube>(find("Root"));
+        parts.head = std::dynamic_pointer_cast<BaseCube>(find("Head"));
+        parts.hair = std::dynamic_pointer_cast<BaseCube>(find("Hair"));
+        parts.glasses = std::dynamic_pointer_cast<BaseCube>(find("Glasses"));
+        constexpr std::array<const char*, 9> partNames = {
+            "Root", "Torso", "Head", "LeftArm", "RightArm",
+            "LeftLeg", "RightLeg", "Hair", "Glasses"
+        };
+        for (const char* name : partNames) {
+            if (auto part = std::dynamic_pointer_cast<BaseCube>(find(name)))
+                parts.bodyParts.push_back(std::move(part));
+        }
+        return parts;
+    };
+    RigParts a = getParts(first);
+    RigParts b = getParts(second);
+    expect(first && second && a.humanoid && a.root && a.head && a.hair && a.glasses &&
+               b.humanoid && b.root && b.head && b.hair && b.glasses &&
+               a.bodyParts.size() == 9 && b.bodyParts.size() == 9,
+           "two standard StarterCharacter clones contain independent accessory rigs");
+    if (!a.humanoid || !a.root || !a.head || !a.hair || !a.glasses ||
+        !b.humanoid || !b.root || !b.head || !b.hair || !b.glasses) {
+        return 1;
+    }
+
+    const CFrame hairRelativeA = a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame();
+    const CFrame hairRelativeB = b.head->getWorldCFrame().inverse() * b.hair->getWorldCFrame();
+    const CFrame glassesRelativeA =
+        a.head->getWorldCFrame().inverse() * a.glasses->getWorldCFrame();
+    const CFrame glassesRelativeB =
+        b.head->getWorldCFrame().inverse() * b.glasses->getWorldCFrame();
+
+    const auto assemblyA = Weld::collectAssembly(a.head, *first);
+    const auto assemblyB = Weld::collectAssembly(b.head, *second);
+    expect(contains(assemblyA, a.head.get()) && contains(assemblyA, a.hair.get()) &&
+               contains(assemblyA, a.glasses.get()) &&
+               !contains(assemblyA, b.head.get()) && !contains(assemblyA, b.hair.get()) &&
+               !contains(assemblyA, b.glasses.get()) &&
+               contains(assemblyB, b.head.get()) && contains(assemblyB, b.hair.get()) &&
+               contains(assemblyB, b.glasses.get()) &&
+               !contains(assemblyB, a.head.get()) && !contains(assemblyB, a.hair.get()) &&
+               !contains(assemblyB, a.glasses.get()),
+           "each cloned Weld assembly excludes the other character");
+
+    // Spawn the two complete rigs apart before native bodies are constructed.
+    // Preserve both accessory offsets so compound-local poses start valid.
+    a.root->cframe = CFrame(Vector3(12.0f, 5.0f, -3.0f));
+    b.root->cframe = CFrame(Vector3(-14.0f, 8.0f, 6.0f));
+    a.humanoid->applyBodyAnimation(false, false);
+    b.humanoid->applyBodyAnimation(false, false);
+    a.hair->setWorldCFrame(a.head->getWorldCFrame() * hairRelativeA);
+    a.glasses->setWorldCFrame(a.head->getWorldCFrame() * glassesRelativeA);
+    b.hair->setWorldCFrame(b.head->getWorldCFrame() * hairRelativeB);
+    b.glasses->setWorldCFrame(b.head->getWorldCFrame() * glassesRelativeB);
+
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    if (physics && physics->isAvailable()) {
+        physics->setGravity(Vector3(0, 0, 0));
+        physics->update(*workspace, 1.0f / 60.0f);
+        expect(physics->sharesBody(*a.head, *a.hair) &&
+                   physics->sharesBody(*a.head, *a.glasses) &&
+                   physics->sharesBody(*b.head, *b.hair) &&
+                   physics->sharesBody(*b.head, *b.glasses) &&
+                   !physics->sharesBody(*a.head, *b.head),
+               "multiple anchored accessories form one independent compound per rig");
+
+        const CFrame secondHeadBefore = b.head->getWorldCFrame();
+        const CFrame secondHairBefore = b.hair->getWorldCFrame();
+        const CFrame secondGlassesBefore = b.glasses->getWorldCFrame();
+        physics->setBodyWorldCFrame(*a.root, CFrame(
+            Vector3(12.0f, 5.0f, -3.0f),
+            Quaternion::fromAxisAngle(Vector3(0, 1, 0), 35.0f)));
+        physics->syncCube(*a.root);
+        a.humanoid->applyBodyAnimation(false, false);
+        expect(!cframeNear(hairRelativeA,
+                   a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame()) &&
+                   cframeNear(secondHeadBefore, b.head->getWorldCFrame()) &&
+                   cframeNear(secondHairBefore, b.hair->getWorldCFrame()) &&
+                   cframeNear(secondGlassesBefore, b.glasses->getWorldCFrame()),
+               "Humanoid updates only logical rig parts before compound synchronization");
+
+        physics->setBodyWorldCFrame(*b.root, CFrame(
+            Vector3(-14.0f, 8.0f, 6.0f),
+            Quaternion::fromAxisAngle(Vector3(0, 1, 0), -50.0f)));
+        physics->syncCube(*b.root);
+        b.humanoid->applyBodyAnimation(false, false);
+        physics->syncWeldKinematics();
+        expect(cframeNear(hairRelativeA,
+                   a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame()) &&
+                   cframeNear(glassesRelativeA,
+                   a.head->getWorldCFrame().inverse() * a.glasses->getWorldCFrame()) &&
+                   cframeNear(hairRelativeB,
+                   b.head->getWorldCFrame().inverse() * b.hair->getWorldCFrame()) &&
+                   cframeNear(glassesRelativeB,
+                   b.head->getWorldCFrame().inverse() * b.glasses->getWorldCFrame()),
+               "one compound sync follows both anchored accessories from each Head driver");
+
+        bool relativePosesPreserved = true;
+        bool finiteAndNearRoots = true;
+        bool rigsRemainSeparated = true;
+        bool velocitiesRemainBounded = true;
+        float maxPartDistance = 0.0f;
+        float maxRootSpeed = 0.0f;
+        std::string farthestPart;
+        int farthestFrame = -1;
+        int fastestFrame = -1;
+        constexpr int frameCount = 180;
+        for (int frame = 0; frame < frameCount; ++frame) {
+            const float phase = static_cast<float>(frame);
+            const CFrame rootTargetA(
+                Vector3(16.0f + phase * 0.025f,
+                        9.0f + std::sin(phase * 0.07f) * 0.6f,
+                        -5.0f + std::cos(phase * 0.05f) * 0.8f),
+                Quaternion::fromAxisAngle(Vector3(0, 1, 0), phase * 1.35f));
+            const CFrame rootTargetB(
+                Vector3(-18.0f - phase * 0.02f,
+                        12.0f + std::cos(phase * 0.06f) * 0.7f,
+                        6.0f + std::sin(phase * 0.04f) * 0.9f),
+                Quaternion::fromAxisAngle(Vector3(0, 1, 0), -phase * 1.1f));
+
+            physics->setBodyWorldCFrame(*a.root, rootTargetA);
+            physics->setBodyWorldCFrame(*b.root, rootTargetB);
+            physics->syncCube(*a.root);
+            physics->syncCube(*b.root);
+            a.humanoid->applyBodyAnimation(false, false);
+            b.humanoid->applyBodyAnimation(false, false);
+            physics->syncWeldKinematics();
+
+            auto validate = [&]() {
+                relativePosesPreserved = relativePosesPreserved &&
+                    cframeNear(hairRelativeA,
+                        a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame()) &&
+                    cframeNear(glassesRelativeA,
+                        a.head->getWorldCFrame().inverse() * a.glasses->getWorldCFrame()) &&
+                    cframeNear(hairRelativeB,
+                        b.head->getWorldCFrame().inverse() * b.hair->getWorldCFrame()) &&
+                    cframeNear(glassesRelativeB,
+                        b.head->getWorldCFrame().inverse() * b.glasses->getWorldCFrame());
+                for (const auto& part : a.bodyParts) {
+                    const float distance = part
+                        ? positionDistance(part->getWorldPosition(), a.root->getWorldPosition())
+                        : std::numeric_limits<float>::infinity();
+                    if (distance > maxPartDistance) {
+                        maxPartDistance = distance;
+                        farthestPart = std::string("A/") + (part ? part->Name : "missing");
+                        farthestFrame = frame;
+                    }
+                    finiteAndNearRoots = finiteAndNearRoots && part &&
+                        finiteCFrame(part->getWorldCFrame()) &&
+                        distance < 12.0f;
+                }
+                for (const auto& part : b.bodyParts) {
+                    const float distance = part
+                        ? positionDistance(part->getWorldPosition(), b.root->getWorldPosition())
+                        : std::numeric_limits<float>::infinity();
+                    if (distance > maxPartDistance) {
+                        maxPartDistance = distance;
+                        farthestPart = std::string("B/") + (part ? part->Name : "missing");
+                        farthestFrame = frame;
+                    }
+                    finiteAndNearRoots = finiteAndNearRoots && part &&
+                        finiteCFrame(part->getWorldCFrame()) &&
+                        distance < 12.0f;
+                }
+                rigsRemainSeparated = rigsRemainSeparated &&
+                    positionDistance(a.head->getWorldPosition(), b.head->getWorldPosition()) > 20.0f;
+                const Vector3 velocityA = physics->getLinearVelocity(*a.root);
+                const Vector3 velocityB = physics->getLinearVelocity(*b.root);
+                const float speed = std::max(vectorLength(velocityA), vectorLength(velocityB));
+                if (speed > maxRootSpeed) {
+                    maxRootSpeed = speed;
+                    fastestFrame = frame;
+                }
+                velocitiesRemainBounded = velocitiesRemainBounded &&
+                    finiteVector(velocityA) && finiteVector(velocityB) &&
+                    vectorLength(velocityA) < 100.0f && vectorLength(velocityB) < 100.0f;
+            };
+
+            validate();
+            physics->update(*workspace, 1.0f / 60.0f);
+            validate();
+        }
+
+        expect(relativePosesPreserved,
+               "Head/Hair/Glasses relative poses survive 180 compound sync frames");
+        expect(finiteAndNearRoots,
+               "all body and accessory parts remain finite and near their own Root");
+        expect(rigsRemainSeparated,
+               "continuous translation and rotation never mixes the two rig assemblies");
+        expect(velocitiesRemainBounded,
+               "compound pose synchronization leaves Root velocities finite and bounded");
+        if (!finiteAndNearRoots || !velocitiesRemainBounded) {
+            std::cout << "[StarterAccessoryWeld] diagnostics maxPartDistance="
+                      << maxPartDistance << " part=" << farthestPart
+                      << " frame=" << farthestFrame << " maxRootSpeed="
+                      << maxRootSpeed << " speedFrame=" << fastestFrame << '\n';
+        }
+    } else {
+        std::cout << "[StarterAccessoryWeld] SKIP: physics backend unavailable\n";
+    }
+
+    std::cout << "[StarterAccessoryWeld] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runStarterRootSpawnRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[StarterRootSpawn] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "StarterRootSpawnRegression";
+    system->addChild(workspace);
+
+    auto starter = std::make_shared<StarterCharacter>();
+    starter->Name = "StarterCharacter";
+    CharacterRig::buildDefaultRigParts(starter);
+    auto templateRoot = std::dynamic_pointer_cast<BaseCube>(
+        starter->children.contains("Root") ? starter->children.at("Root") : nullptr);
+    if (!templateRoot) {
+        expect(false, "default StarterCharacter contains Root");
+        return 1;
+    }
+    templateRoot->Anchored = true;
+    templateRoot->CanCollide = false;
+    system->addChild(starter);
+
+    auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    system->addChild(user);
+    user->initializeInventory();
+
+    LuauEngine engine;
+    engine.setWorkspace(workspace);
+    engine.setSystem(system.get());
+    engine.setGlobalInstance("User", user);
+    bool eventSawNormalizedRoot = false;
+    const auto oldLogHook = g_luauLogHook;
+    g_luauLogHook = [&](const std::string& message) {
+        if (message.find("[StarterRootSpawnEvent]") != std::string::npos)
+            eventSawNormalizedRoot = true;
+    };
+    auto listener = std::make_shared<Script>();
+    listener->Name = "StarterRootSpawnListener";
+    listener->Source =
+        "User.CharacterAdded:Connect(function(character) "
+        "local root = character:WaitChild('Root') "
+        "if root and root.Anchored == false and root.CanCollide == true then "
+        "print('[StarterRootSpawnEvent]') end end)";
+    workspace->addChild(listener);
+    expect(engine.execute(*listener),
+           "CharacterAdded Root normalization listener starts successfully");
+
+    const Vector3 spawnPosition(0.0f, 16.0f, 0.0f);
+    user->spawnCharacter(system.get(), workspace.get(), spawnPosition);
+    g_luauLogHook = oldLogHook;
+    auto root = user->humanoid ? user->humanoid->getRootPart() : nullptr;
+    expect(root && !root->Anchored && root->CanCollide,
+           "spawnCharacter normalizes only the cloned local Root physics flags");
+    expect(eventSawNormalizedRoot,
+           "CharacterAdded observes the normalized Root before firing completes");
+    expect(templateRoot->Anchored && !templateRoot->CanCollide,
+           "saved StarterCharacter Root flags remain unchanged for serialization and retry");
+    if (!user->character || !root) return 1;
+
+    auto floor = std::make_shared<BaseCube>(
+        Vector3(0.0f, -1.0f, 0.0f), Vector3(64.0f, 2.0f, 64.0f));
+    floor->Name = "Floor";
+    floor->Anchored = true;
+    workspace->addChild(floor);
+    workspace->addChild(user->character);
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    expect(physics && physics->isAvailable(),
+           "selected physics backend is available for spawned Root simulation");
+    if (physics && physics->isAvailable()) {
+        const float initialY = root->getWorldPosition().y;
+        float minimumY = initialY;
+        for (int frame = 0; frame < 300; ++frame) {
+            physics->update(*workspace, 1.0f / 60.0f);
+            minimumY = std::min(minimumY, root->getWorldPosition().y);
+        }
+        const float finalY = root->getWorldPosition().y;
+        const Vector3 finalVelocity = physics->getLinearVelocity(*root);
+        const bool finiteVelocity = std::isfinite(finalVelocity.x) &&
+            std::isfinite(finalVelocity.y) && std::isfinite(finalVelocity.z);
+        const bool settled = initialY > 10.0f && minimumY < 3.0f &&
+            finalY > 1.5f && finalY < 2.5f && finiteVelocity &&
+            std::abs(finalVelocity.y) < 1.0f;
+        expect(settled,
+               "normalized Root falls from the spawn height and settles on the floor");
+        if (!settled) {
+            std::cout << "[StarterRootSpawn] diagnostics backend="
+                      << (physics->getBackendType() == PhysicsBackendType::Box3D
+                              ? "box3d" : "physx")
+                      << " initialY=" << initialY << " minimumY=" << minimumY
+                      << " finalY=" << finalY << " velocity=["
+                      << finalVelocity.x << ',' << finalVelocity.y << ','
+                      << finalVelocity.z << "]\n";
+        }
+    }
+
+    std::cout << "[StarterRootSpawn] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runSpawnLocationRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[SpawnLocation] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto cframeNear = [](const CFrame& first, const CFrame& second) {
+        const float dot = std::abs(
+            first.Rotation.w * second.Rotation.w +
+            first.Rotation.x * second.Rotation.x +
+            first.Rotation.y * second.Rotation.y +
+            first.Rotation.z * second.Rotation.z);
+        return positionDistance(first.Position, second.Position) < 0.002f &&
+               std::abs(1.0f - dot) < 0.002f;
+    };
+
+    auto spawnDefaults = std::make_shared<SpawnLocation>();
+    expect(spawnDefaults->Name == "SpawnLocation" &&
+               spawnDefaults->Size == Vector3(8, 1, 8) &&
+               spawnDefaults->Color.r == 1.0f && spawnDefaults->Color.g == 1.0f &&
+               spawnDefaults->Color.b == 1.0f && spawnDefaults->Color.a == 1.0f &&
+               spawnDefaults->Anchored && spawnDefaults->CanCollide &&
+               spawnDefaults->Enabled,
+           "default SpawnLocation state matches the editor/runtime contract");
+    expect(spawnDefaults->IsA("SpawnLocation") && spawnDefaults->IsA("Cube") &&
+               spawnDefaults->IsA("BaseCube") && spawnDefaults->IsA("Spatial") &&
+               spawnDefaults->IsA("Instance"),
+           "Named supplies the complete SpawnLocation IsA inheritance chain");
+
+    constexpr std::array<const char*, 12> baseCubeClasses = {
+        "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere",
+        "MeshCube", "LiquidCube", "SpawnLocation", "Skybox", "Sun", "Moon"
+    };
+    bool factoryComplete = true;
+    for (const char* className : baseCubeClasses) {
+        auto created = createBaseCubeInstance(className);
+        factoryComplete = factoryComplete && created &&
+            created->getClassName() == className && created->IsA("BaseCube");
+    }
+    expect(factoryComplete && !createBaseCubeInstance("Folder"),
+           "shared BaseCube factory covers every concrete BaseCube class only");
+
+    spawnDefaults->Enabled = false;
+    spawnDefaults->Color = Color4(0.2f, 0.3f, 0.4f, 0.5f);
+    spawnDefaults->Locked = true;
+    spawnDefaults->MassDensity = 3.5f;
+    spawnDefaults->CollisionDetection = CCDMode::Bullet;
+    spawnDefaults->LockFlags = PhysicsLockFlags::LinearX | PhysicsLockFlags::AngularY;
+    spawnDefaults->addChild(std::make_shared<Folder>());
+    auto spawnClone = std::dynamic_pointer_cast<SpawnLocation>(spawnDefaults->clone());
+    expect(spawnClone && !spawnClone->Enabled && spawnClone->Color.r == 0.2f &&
+               spawnClone->Locked && spawnClone->MassDensity == 3.5f &&
+               spawnClone->CollisionDetection == CCDMode::Bullet &&
+               spawnClone->LockFlags == spawnDefaults->LockFlags &&
+               spawnClone->children.size() == 1 && !spawnClone->lastWorkspace,
+           "BaseCube clone helper preserves design/custom state and children without runtime ownership");
+
+    auto liquid = std::make_shared<LiquidCube>(
+        Vector3(0, 0, 0), Vector3(4, 2, 4));
+    liquid->Density = 4.25f;
+    auto liquidClone = std::dynamic_pointer_cast<LiquidCube>(liquid->clone());
+    auto sun = std::make_shared<Sun>();
+    sun->Angle = 123.0f;
+    auto sunClone = std::dynamic_pointer_cast<Sun>(sun->clone());
+    auto skybox = std::make_shared<Skybox>();
+    skybox->skyboxPaths[2] = "custom/top.png";
+    auto skyboxClone = std::dynamic_pointer_cast<Skybox>(skybox->clone());
+    auto seat = std::make_shared<Seat>(
+        Vector3(0, 0, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+    seat->Steer = 1.0f;
+    seat->Throttle = -1.0f;
+    auto seatClone = std::dynamic_pointer_cast<Seat>(seat->clone());
+    expect(liquidClone && liquidClone->Density == liquid->Density &&
+               sunClone && sunClone->Angle == sun->Angle &&
+               skyboxClone && skyboxClone->skyboxPaths[2] == skybox->skyboxPaths[2],
+           "BaseCube clone helper keeps each derived class's persistent custom state");
+    expect(seatClone && seatClone->Steer == 0.0f && seatClone->Throttle == 0.0f &&
+               !seatClone->isOccupied(),
+           "BaseCube clone helper excludes Seat live input and occupant runtime state");
+
+    {
+        LuauEngine engine;
+        auto system = std::make_shared<System>();
+        auto workspace = std::make_shared<Workspace>();
+        system->addChild(workspace);
+        engine.setWorkspace(workspace);
+        engine.setSystem(system.get());
+        bool luauCreated = false;
+        const auto oldLogHook = g_luauLogHook;
+        g_luauLogHook = [&](const std::string& message) {
+            if (message.find("[SpawnLocationLuau]") != std::string::npos)
+                luauCreated = true;
+        };
+        auto script = std::make_shared<Script>();
+        script->Name = "SpawnLocationLuauFactory";
+        script->Source =
+            "local spawn = Instance.new('SpawnLocation') "
+            "spawn.Enabled = false "
+            "if spawn:IsA('Cube') and spawn.Enabled == false then "
+            "print('[SpawnLocationLuau]') end";
+        expect(engine.execute(*script),
+               "Luau Instance.new accepts SpawnLocation through the shared factory");
+        g_luauLogHook = oldLogHook;
+        expect(luauCreated,
+               "SpawnLocation Enabled is readable and writable from Luau");
+    }
+
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    system->addChild(workspace);
+    auto starter = std::make_shared<StarterCharacter>();
+    CharacterRig::buildDefaultRigParts(starter);
+    auto templateRoot = std::dynamic_pointer_cast<BaseCube>(starter->children.at("Root"));
+    auto templateHead = std::dynamic_pointer_cast<BaseCube>(starter->children.at("Head"));
+    templateRoot->cframe = CFrame(
+        Vector3(1.0f, 0.5f, -2.0f),
+        Quaternion::fromAxisAngle(Vector3(0, 1, 0), 12.0f));
+    templateHead->cframe = CFrame(Vector3(0, 3, 0));
+    system->addChild(starter);
+
+    auto folderA = std::make_shared<Folder>();
+    folderA->Name = "A";
+    auto folderZ = std::make_shared<Folder>();
+    folderZ->Name = "Z";
+    auto spawnA = std::make_shared<SpawnLocation>(Vector3(8, 2, -4));
+    spawnA->cframe.Rotation = Quaternion::fromEuler(Vector3(20, 45, -15));
+    auto spawnZ = std::make_shared<SpawnLocation>(Vector3(-12, 5, 7));
+    spawnZ->cframe.Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), -30.0f);
+    auto disabled = std::make_shared<SpawnLocation>(Vector3(100, 100, 100));
+    disabled->Name = "Disabled";
+    disabled->Enabled = false;
+    folderA->addChild(spawnA);
+    folderA->addChild(disabled);
+    folderZ->addChild(spawnZ);
+    workspace->addChild(folderZ);
+    workspace->addChild(folderA);
+
+    auto spawnUser = [&](std::uint32_t id) {
+        auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
+        user->peerId = id;
+        user->spawnCharacter(system.get(), workspace.get());
+        return user;
+    };
+
+    auto user0 = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    LuauEngine spawnEventEngine;
+    spawnEventEngine.setWorkspace(workspace);
+    spawnEventEngine.setSystem(system.get());
+    spawnEventEngine.setGlobalInstance("User", user0);
+    bool eventSawFinalCFrame = false;
+    const auto oldSpawnLogHook = g_luauLogHook;
+    g_luauLogHook = [&](const std::string& message) {
+        if (message.find("[SpawnLocationEvent]") != std::string::npos)
+            eventSawFinalCFrame = true;
+    };
+    auto spawnListener = std::make_shared<Script>();
+    spawnListener->Name = "SpawnLocationListener";
+    spawnListener->Source =
+        "User.CharacterAdded:Connect(function(character) "
+        "local root = character:WaitChild('Root') "
+        "local spawn = workspace:WaitChild('A'):WaitChild('SpawnLocation') "
+        "local expected = spawn.WorldCFrame * CFrame.new(0, (spawn.Size.y + root.Size.y) * 0.5, 0) "
+        "local p, ep, q, eq = root.WorldCFrame.Position, expected.Position, root.WorldCFrame.Rotation, expected.Rotation "
+        "local pd = math.abs(p.x-ep.x)+math.abs(p.y-ep.y)+math.abs(p.z-ep.z) "
+        "local dot = math.abs(q.w*eq.w+q.x*eq.x+q.y*eq.y+q.z*eq.z) "
+        "if pd < 0.002 and math.abs(1-dot) < 0.002 then print('[SpawnLocationEvent]') end end)";
+    workspace->addChild(spawnListener);
+    expect(spawnEventEngine.execute(*spawnListener),
+           "CharacterAdded final-CFrame listener starts successfully");
+    user0->spawnCharacter(system.get(), workspace.get());
+    g_luauLogHook = oldSpawnLogHook;
+    expect(eventSawFinalCFrame,
+           "CharacterAdded observes the selected SpawnLocation full CFrame");
+
+    auto user1 = spawnUser(1);
+    auto user2 = spawnUser(2);
+    auto user3 = spawnUser(3);
+    auto root0 = user0->humanoid->getRootPart();
+    auto root1 = user1->humanoid->getRootPart();
+    auto root2 = user2->humanoid->getRootPart();
+    auto root3 = user3->humanoid->getRootPart();
+    const CFrame expectedA = spawnA->getWorldCFrame() *
+        CFrame(0, (spawnA->Size.y + root0->Size.y) * 0.5f, 0);
+    const CFrame expectedZ = spawnZ->getWorldCFrame() *
+        CFrame(0, (spawnZ->Size.y + root2->Size.y) * 0.5f, 0);
+    expect(cframeNear(root0->getWorldCFrame(), expectedA) &&
+               cframeNear(root1->getWorldCFrame(), expectedA) &&
+               cframeNear(root2->getWorldCFrame(), expectedZ) &&
+               cframeNear(root3->getWorldCFrame(), expectedA),
+           "full-path sorting maps peer0/peer1/peer3 to first spawn and peer2 to second");
+    const CFrame rootToHead = templateRoot->cframe.inverse() * templateHead->cframe;
+    expect(cframeNear(root0->getWorldCFrame().inverse() *
+                          user0->humanoid->getHeadPart()->getWorldCFrame(), rootToHead),
+           "full CFrame spawn placement preserves the original Root-to-part assembly pose");
+
+    auto playHereUser = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    const Vector3 playHere(33, 44, 55);
+    playHereUser->spawnCharacter(system.get(), workspace.get(), playHere);
+    expect(playHereUser->character->Position == playHere,
+           "Play Here explicit Model.Position overrides SpawnLocation selection");
+
+    workspace->addChild(user2->character);
+    user2->respawnCharacter();
+    root2 = user2->humanoid->getRootPart();
+    expect(root2 && cframeNear(root2->getWorldCFrame(), expectedZ),
+           "respawn reuses the active Workspace and selected SpawnLocation");
+
+    auto emptyWorkspace = std::make_shared<Workspace>();
+    auto originUser = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    originUser->spawnCharacter(system.get(), emptyWorkspace.get());
+    expect(originUser->humanoid &&
+               cframeNear(originUser->humanoid->getRootPart()->getWorldCFrame(), CFrame()),
+           "absence of enabled SpawnLocations places Root at the world origin");
+
+    std::error_code ec;
+    const auto yamlPath = std::filesystem::temp_directory_path(ec) /
+        "recubin_spawn_location_regression.yaml";
+    if (!ec) {
+        auto yamlSystem = std::make_shared<System>();
+        auto yamlWorkspace = std::make_shared<Workspace>();
+        yamlSystem->addChild(yamlWorkspace);
+        auto yamlSpawn = std::make_shared<SpawnLocation>(Vector3(3, 4, 5));
+        yamlSpawn->Enabled = false;
+        yamlWorkspace->addChild(yamlSpawn);
+        SceneLoader::saveScene(yamlSystem.get(), yamlPath.string());
+        auto loaded = SceneLoader::loadScene(yamlPath.string());
+        auto loadedSpawn = loaded
+            ? dynamic_cast<SpawnLocation*>(loaded->getChildByPath(
+                  "Workspace\\SpawnLocation"))
+            : nullptr;
+        expect(loadedSpawn && !loadedSpawn->Enabled &&
+                   loadedSpawn->Size == Vector3(8, 1, 8),
+               "SceneLoader shared factory round-trips SpawnLocation YAML and Enabled");
+        std::filesystem::remove(yamlPath, ec);
+    } else {
+        expect(false, "temporary path is available for SpawnLocation YAML round-trip");
+    }
+
+    std::cout << "[SpawnLocation] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runRemoteAvatarSpawnTransformRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[RemoteAvatarSpawnTransform] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto cframeNear = [](const CFrame& first, const CFrame& second,
+                         float tolerance = 0.003f) {
+        const float dot = std::abs(
+            first.Rotation.w * second.Rotation.w +
+            first.Rotation.x * second.Rotation.x +
+            first.Rotation.y * second.Rotation.y +
+            first.Rotation.z * second.Rotation.z);
+        return positionDistance(first.Position, second.Position) < tolerance &&
+            std::abs(1.0f - dot) < tolerance;
+    };
+
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "RemoteAvatarSpawnTransformWorkspace";
+    auto users = std::make_shared<Users>();
+    auto starter = std::make_shared<StarterCharacter>();
+    CharacterRig::buildDefaultRigParts(starter);
+    auto templateHead = std::dynamic_pointer_cast<BaseCube>(
+        starter->children.at("Head"));
+    auto templateHair = std::make_shared<Cube>(
+        Vector3(), Vector3(1.4f, 0.4f, 1.4f), Cube::defaultTextureID);
+    templateHair->Name = "Hair";
+    templateHair->cframe = templateHead->cframe * CFrame(
+        Vector3(0.15f, 0.85f, -0.1f),
+        Quaternion::fromEuler(Vector3(8.0f, -13.0f, 5.0f)));
+    templateHair->Anchored = true;
+    templateHair->CanCollide = false;
+    starter->addChild(templateHair);
+    auto templateHairWeld = std::make_shared<Weld>(templateHead, templateHair);
+    templateHairWeld->Name = "HairWeld";
+    starter->addChild(templateHairWeld);
+    for (auto& [name, child] : starter->children) {
+        (void)name;
+        if (auto cube = std::dynamic_pointer_cast<BaseCube>(child))
+            cube->Anchored = true;
+    }
+    system->addChild(workspace);
+    system->addChild(users);
+    system->addChild(starter);
+
+    auto folderA = std::make_shared<Folder>();
+    folderA->Name = "A";
+    auto folderB = std::make_shared<Folder>();
+    folderB->Name = "B";
+    auto spawnA = std::make_shared<SpawnLocation>(Vector3(18, 3, -11));
+    spawnA->cframe.Rotation = Quaternion::fromEuler(Vector3(19, -34, 12));
+    auto spawnB = std::make_shared<SpawnLocation>(Vector3(-23, 7, 9));
+    spawnB->cframe.Rotation = Quaternion::fromEuler(Vector3(-21, 47, -16));
+    folderA->addChild(spawnA);
+    folderB->addChild(spawnB);
+    workspace->addChild(folderB);
+    workspace->addChild(folderA);
+
+    ReplicationManager replication(workspace, nullptr, system.get());
+    const bool spawnedTwo =
+        ReplicationTestAccess::spawnRemoteAvatar(replication, 2);
+    const bool spawnedThree =
+        ReplicationTestAccess::spawnRemoteAvatar(replication, 3);
+    auto modelTwo = ReplicationTestAccess::model(replication, 2);
+    auto modelThree = ReplicationTestAccess::model(replication, 3);
+    auto identityTwo = ReplicationTestAccess::identity(replication, 2);
+    auto identityThree = ReplicationTestAccess::identity(replication, 3);
+    expect(spawnedTwo && spawnedThree && modelTwo && modelThree &&
+               modelTwo != modelThree,
+           "actual spawnRemoteAvatar path creates two independent avatar Models");
+    if (!modelTwo || !modelThree) return 1;
+
+    auto part = [](const std::shared_ptr<Model>& model, const char* name) {
+        auto it = model->children.find(name);
+        return it == model->children.end()
+            ? std::shared_ptr<BaseCube>()
+            : std::dynamic_pointer_cast<BaseCube>(it->second);
+    };
+    auto rootTwo = part(modelTwo, "Root");
+    auto headTwo = part(modelTwo, "Head");
+    auto torsoTwo = part(modelTwo, "Torso");
+    auto hairTwo = part(modelTwo, "Hair");
+    auto rootThree = part(modelThree, "Root");
+    auto headThree = part(modelThree, "Head");
+    auto hairThree = part(modelThree, "Hair");
+    expect(rootTwo && headTwo && torsoTwo && hairTwo && rootThree &&
+               headThree && hairThree,
+           "spawned avatars contain standard body parts and cloned Weld accessory");
+    if (!rootTwo || !headTwo || !torsoTwo || !hairTwo || !rootThree ||
+        !headThree || !hairThree) return 1;
+
+    const CFrame expectedSpawnTwo = spawnB->getWorldCFrame() *
+        CFrame(0, (spawnB->Size.y + rootTwo->Size.y) * 0.5f, 0);
+    const CFrame expectedSpawnThree = spawnA->getWorldCFrame() *
+        CFrame(0, (spawnA->Size.y + rootThree->Size.y) * 0.5f, 0);
+    expect(cframeNear(rootTwo->getWorldCFrame(), expectedSpawnTwo) &&
+               cframeNear(rootThree->getWorldCFrame(), expectedSpawnThree),
+           "PeerId mapping applies each nonidentity SpawnLocation full CFrame");
+
+    const CFrame modelTwoSpawnFrame = modelTwo->getWorldCFrame();
+    const CFrame modelThreeSpawnFrame = modelThree->getWorldCFrame();
+    expect(!cframeNear(modelTwoSpawnFrame, CFrame()) &&
+               !cframeNear(modelThreeSpawnFrame, CFrame()),
+           "remote avatar Models retain nonidentity spawn transforms");
+
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    for (int frame = 0; physics && frame < 8 &&
+         (ReplicationTestAccess::hasPendingPhysicsRegistration(replication, 2) ||
+          ReplicationTestAccess::hasPendingPhysicsRegistration(replication, 3));
+         ++frame) {
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    expect(physics &&
+               !ReplicationTestAccess::hasPendingPhysicsRegistration(replication, 2) &&
+               !ReplicationTestAccess::hasPendingPhysicsRegistration(replication, 3),
+           "runtime physics registration completes before remote pose application");
+
+    const CFrame rootToTorso =
+        rootTwo->getWorldCFrame().inverse() * torsoTwo->getWorldCFrame();
+    const CFrame headToHair =
+        headTwo->getWorldCFrame().inverse() * hairTwo->getWorldCFrame();
+    const CFrame poseTwo(
+        Vector3(-41, 13, 28),
+        Quaternion::fromEuler(Vector3(24, -52, 17)));
+    const CFrame poseThree(
+        Vector3(36, 9, -31),
+        Quaternion::fromEuler(Vector3(-18, 63, -22)));
+    ReplicationTestAccess::setLatestPose(replication, 2, poseTwo);
+    ReplicationTestAccess::setLatestPose(replication, 3, poseThree);
+    ReplicationTestAccess::applyAvatarPoses(replication, 1.0f / 60.0f);
+
+    expect(cframeNear(rootTwo->getWorldCFrame(), poseTwo) &&
+               cframeNear(rootThree->getWorldCFrame(), poseThree),
+           "first received poses snap both Roots to exact world CFrames");
+    expect(cframeNear(rootTwo->getWorldCFrame().inverse() *
+                          torsoTwo->getWorldCFrame(), rootToTorso) &&
+               cframeNear(headTwo->getWorldCFrame().inverse() *
+                          hairTwo->getWorldCFrame(), headToHair),
+           "body and Weld accessory relative poses survive world-pose application");
+    const auto assemblyTwo = Weld::collectAssembly(headTwo, *modelTwo);
+    const auto assemblyThree = Weld::collectAssembly(headThree, *modelThree);
+    const bool twoOwnsHair = std::find(
+        assemblyTwo.begin(), assemblyTwo.end(), hairTwo) != assemblyTwo.end();
+    const bool twoOwnsOtherHair = std::find(
+        assemblyTwo.begin(), assemblyTwo.end(), hairThree) != assemblyTwo.end();
+    const bool threeOwnsHair = std::find(
+        assemblyThree.begin(), assemblyThree.end(), hairThree) != assemblyThree.end();
+    expect(twoOwnsHair && threeOwnsHair && !twoOwnsOtherHair,
+           "cloned Weld assemblies remain separated between peers");
+
+    const CFrame nextPoseTwo(
+        Vector3(52, 21, -44),
+        Quaternion::fromEuler(Vector3(-31, 78, 26)));
+    constexpr float interpolationDt = 0.1f;
+    const float alpha = 1.0f - std::exp(-15.0f * interpolationDt);
+    CFrame expectedInterpolated = poseTwo;
+    expectedInterpolated.Position = poseTwo.Position +
+        (nextPoseTwo.Position - poseTwo.Position) * alpha;
+    expectedInterpolated.Rotation = Quaternion::Slerp(
+        poseTwo.Rotation, nextPoseTwo.Rotation, alpha);
+    ReplicationTestAccess::setLatestPose(replication, 2, nextPoseTwo);
+    ReplicationTestAccess::applyAvatarPoses(replication, interpolationDt);
+    expect(cframeNear(rootTwo->getWorldCFrame(), expectedInterpolated) &&
+               cframeNear(rootThree->getWorldCFrame(), poseThree),
+           "second pose interpolates only its target peer in world space");
+    expect(cframeNear(modelTwo->getWorldCFrame(), modelTwoSpawnFrame) &&
+               cframeNear(modelThree->getWorldCFrame(), modelThreeSpawnFrame),
+           "pose application preserves each nonidentity Model CFrame");
+    expect(identityTwo && identityThree && identityTwo != identityThree &&
+               identityTwo->Name == "User_2" && identityThree->Name == "User_3" &&
+               identityTwo->character == modelTwo &&
+               identityThree->character == modelThree &&
+               users->children.contains("User_2") &&
+               users->children.contains("User_3"),
+           "multiple peer identities retain their own canonical avatar Models");
+
+    {
+        auto legacySystem = std::make_shared<System>();
+        auto legacyWorkspace = std::make_shared<Workspace>();
+        auto legacyUsers = std::make_shared<Users>();
+        auto legacyStarter = std::make_shared<StarterCharacter>();
+        CharacterRig::buildDefaultRigParts(legacyStarter);
+        auto legacyTemplateRoot = std::dynamic_pointer_cast<BaseCube>(
+            legacyStarter->children.at("Root"));
+        legacyTemplateRoot->Anchored = true;
+        legacySystem->addChild(legacyWorkspace);
+        legacySystem->addChild(legacyUsers);
+        legacySystem->addChild(legacyStarter);
+
+        ReplicationManager legacyReplication(
+            legacyWorkspace, nullptr, legacySystem.get());
+        const bool legacySpawned =
+            ReplicationTestAccess::spawnRemoteAvatar(legacyReplication, 2);
+        auto legacyModel =
+            ReplicationTestAccess::model(legacyReplication, 2);
+        auto legacyRoot = legacyModel ? part(legacyModel, "Root") : nullptr;
+        legacyWorkspace->initPhysics();
+        Physics* legacyPhysics = legacyWorkspace->getPhysicsEngine();
+        for (int frame = 0; legacyPhysics && frame < 8 &&
+             ReplicationTestAccess::hasPendingPhysicsRegistration(
+                 legacyReplication, 2);
+             ++frame) {
+            legacyPhysics->update(*legacyWorkspace, 1.0f / 60.0f);
+        }
+        const CFrame legacyPose(
+            Vector3(7, 12, -19),
+            Quaternion::fromEuler(Vector3(13, -28, 9)));
+        ReplicationTestAccess::setLatestPose(
+            legacyReplication, 2, legacyPose);
+        ReplicationTestAccess::applyAvatarPoses(
+            legacyReplication, 1.0f / 60.0f);
+        expect(legacySpawned && legacyModel && legacyRoot &&
+                   cframeNear(legacyModel->getWorldCFrame(), CFrame()) &&
+                   cframeNear(legacyRoot->getWorldCFrame(), legacyPose),
+               "legacy no-SpawnLocation identity Model follows the same world-pose path");
+    }
+
+    std::cout << "[RemoteAvatarSpawnTransform] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runMeshCubeFallbackRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[MeshCubeFallback] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    const std::string missingPath =
+        "assets/models/__recubin_missing_mesh_fallback__.glb";
+    auto mesh = std::make_shared<MeshCube>(
+        Vector3(1, 2, 3), Vector3(4, 5, 6));
+    const bool loaded = mesh->loadFromGLB(missingPath);
+    expect(!loaded && mesh->MeshFile == missingPath &&
+               mesh->isUsingFallback() && mesh->hasGeometry() &&
+               mesh->getIndexCount() == 36,
+           "missing GLB preserves its path and activates box fallback geometry");
+
+    const auto vertices = mesh->getConvexVertices();
+    bool unitCorners = vertices.size() == 8;
+    for (const Vector3& vertex : vertices) {
+        unitCorners = unitCorners && near(std::abs(vertex.x), 0.5f) &&
+            near(std::abs(vertex.y), 0.5f) &&
+            near(std::abs(vertex.z), 0.5f);
+    }
+    expect(unitCorners,
+           "fallback physics hull contains the eight unit-box corners");
+
+    auto clone = std::dynamic_pointer_cast<MeshCube>(mesh->clone());
+    expect(clone && clone->MeshFile == missingPath &&
+               clone->isUsingFallback() && clone->hasGeometry() &&
+               clone->getIndexCount() == 36 &&
+               clone->getConvexVertices().size() == 8,
+           "clone preserves fallback state without discarding the requested path");
+
+    auto empty = std::make_shared<MeshCube>(Vector3{}, Vector3(1, 1, 1));
+    expect(!empty->loadFromGLB("") && empty->MeshFile.empty() &&
+               !empty->isUsingFallback() && !empty->hasGeometry() &&
+               empty->getIndexCount() == 0 &&
+               empty->getConvexVertices().empty(),
+           "empty mesh request remains an explicit no-model state");
+
+    std::cout << "[MeshCubeFallback] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
     return failures == 0 ? 0 : 1;
 }
 
@@ -3578,6 +4666,280 @@ int runContactReentryRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runNetworkCoreRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[NetworkCore] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n' << std::flush;
+        if (!condition) ++failures;
+    };
+
+    auto& network = NetworkManager::get();
+    network.shutdown();
+    const bool dedicatedStarted = network.startHost(0, false);
+    const auto& dedicatedRoster = network.getRoster();
+    expect(dedicatedStarted && network.getRole() == NetworkRole::Host &&
+               network.getLocalPeerId() == 1 && !network.isLocalPlayer(),
+           "dedicated host reserves PeerId 1 and is not a player");
+    expect(dedicatedRoster.size() == 1 && dedicatedRoster.front().isHost &&
+               !dedicatedRoster.front().isPlayer,
+           "dedicated host roster entry preserves the non-player flag");
+
+    auto connectRawClient = [&](ENetHost*& client, ENetPeer*& peer) {
+        client = enet_host_create(
+            nullptr, 1, static_cast<size_t>(NetworkChannel::Count), 0, 0);
+        if (!client) return false;
+        ENetAddress address{};
+        if (enet_address_set_host(&address, "127.0.0.1") != 0) return false;
+        address.port = network.getListenPort();
+        peer = enet_host_connect(
+            client, &address, static_cast<size_t>(NetworkChannel::Count), 0);
+        if (!peer) return false;
+
+        for (int attempt = 0; attempt < 300; ++attempt) {
+            network.update(0.01f);
+            ENetEvent event{};
+            while (enet_host_service(client, &event, 1) > 0) {
+                if (event.type == ENET_EVENT_TYPE_CONNECT) return true;
+                if (event.type == ENET_EVENT_TYPE_RECEIVE)
+                    enet_packet_destroy(event.packet);
+                if (event.type == ENET_EVENT_TYPE_DISCONNECT) return false;
+            }
+        }
+        return false;
+    };
+    auto makeHello = [](uint8_t version) {
+        ByteWriter writer;
+        writer.writeU8(static_cast<uint8_t>(MessageType::Hello));
+        writer.writeU8(version);
+        writer.writeU32(0);
+        const AdmissionToken token{};
+        writer.data.insert(writer.data.end(), token.begin(), token.end());
+        writer.writeU16(0);
+        writer.writeU32(0);
+        std::vector<uint8_t> candidates;
+        NatProtocol::encodeCandidates({}, candidates);
+        writer.data.insert(writer.data.end(), candidates.begin(), candidates.end());
+        return writer.data;
+    };
+    auto sendRawHello = [](ENetHost* client, ENetPeer* peer,
+                           const std::vector<uint8_t>& hello) {
+        ENetPacket* packet = enet_packet_create(
+            hello.data(), hello.size(), ENET_PACKET_FLAG_RELIABLE);
+        if (!packet) return false;
+        if (enet_peer_send(peer,
+                           static_cast<enet_uint8>(NetworkChannel::Reliable),
+                           packet) != 0) {
+            enet_packet_destroy(packet);
+            return false;
+        }
+        enet_host_flush(client);
+        return true;
+    };
+    auto destroyRawClient = [](ENetHost*& client, ENetPeer*& peer) {
+        if (peer) enet_peer_reset(peer);
+        if (client) enet_host_destroy(client);
+        peer = nullptr;
+        client = nullptr;
+    };
+
+    ENetHost* rawClient = nullptr;
+    ENetPeer* rawPeer = nullptr;
+    const bool oldClientConnected = connectRawClient(rawClient, rawPeer);
+    bool oldClientWelcomed = false;
+    bool oldClientDisconnected = false;
+    if (oldClientConnected && sendRawHello(rawClient, rawPeer, makeHello(1))) {
+        for (int attempt = 0; attempt < 300 && !oldClientDisconnected; ++attempt) {
+            network.update(0.01f);
+            ENetEvent event{};
+            while (enet_host_service(rawClient, &event, 1) > 0) {
+                if (event.type == ENET_EVENT_TYPE_RECEIVE) {
+                    oldClientWelcomed = oldClientWelcomed ||
+                        (event.packet->dataLength > 0 &&
+                         event.packet->data[0] ==
+                             static_cast<uint8_t>(MessageType::Welcome));
+                    enet_packet_destroy(event.packet);
+                } else if (event.type == ENET_EVENT_TYPE_DISCONNECT) {
+                    oldClientDisconnected = true;
+                }
+            }
+        }
+    }
+    expect(oldClientConnected && oldClientDisconnected && !oldClientWelcomed &&
+               network.getRoster().size() == 1 && !network.hasPeers(),
+           "direct host rejects an old game protocol version before admission");
+    destroyRawClient(rawClient, rawPeer);
+
+    const bool validClientConnected = connectRawClient(rawClient, rawPeer);
+    bool sawWelcomePeerTwo = false;
+    bool decodedRoster = false;
+    bool rosterHostIsNonPlayer = false;
+    bool rosterClientIsPlayer = false;
+    if (validClientConnected && sendRawHello(rawClient, rawPeer, makeHello(2))) {
+        for (int attempt = 0; attempt < 300 && !decodedRoster; ++attempt) {
+            network.update(0.01f);
+            ENetEvent event{};
+            while (enet_host_service(rawClient, &event, 1) > 0) {
+                if (event.type != ENET_EVENT_TYPE_RECEIVE) continue;
+                if (event.packet->dataLength == 0) {
+                    enet_packet_destroy(event.packet);
+                    continue;
+                }
+                ByteReader reader{event.packet->data + 1,
+                                  event.packet->dataLength - 1};
+                const auto type =
+                    static_cast<MessageType>(event.packet->data[0]);
+                if (type == MessageType::Welcome) {
+                    uint32_t assignedId = 0;
+                    sawWelcomePeerTwo = reader.readU32(assignedId) && assignedId == 2;
+                } else if (type == MessageType::Roster) {
+                    uint32_t count = 0;
+                    bool valid = reader.readU32(count) && count == 2;
+                    for (uint32_t index = 0; index < count && valid; ++index) {
+                        uint32_t id = 0, endpointHost = 0;
+                        uint16_t listenPort = 0;
+                        float cpuScore = 0.0f, latencyMs = 0.0f;
+                        uint8_t isHost = 0, isPlayer = 0;
+                        valid = reader.readU32(id) && reader.readU32(endpointHost) &&
+                            reader.readU16(listenPort);
+                        if (valid && reader.remaining >= 1) {
+                            const size_t candidateBytes =
+                                1 + static_cast<size_t>(reader.p[0]) * 7;
+                            valid = candidateBytes <= reader.remaining;
+                            if (valid) {
+                                reader.p += candidateBytes;
+                                reader.remaining -= candidateBytes;
+                            }
+                        } else {
+                            valid = false;
+                        }
+                        if (valid && reader.remaining >= AdmissionToken{}.size()) {
+                            reader.p += AdmissionToken{}.size();
+                            reader.remaining -= AdmissionToken{}.size();
+                        } else {
+                            valid = false;
+                        }
+                        valid = valid && reader.readF32(cpuScore) &&
+                            reader.readF32(latencyMs) && reader.readU8(isHost) &&
+                            reader.readU8(isPlayer);
+                        if (id == 1)
+                            rosterHostIsNonPlayer = isHost != 0 && isPlayer == 0;
+                        if (id == 2)
+                            rosterClientIsPlayer = isHost == 0 && isPlayer != 0;
+                    }
+                    uint32_t nextPeerId = 0;
+                    decodedRoster = valid && reader.readU32(nextPeerId) &&
+                        nextPeerId == 3 && reader.remaining == 0;
+                }
+                enet_packet_destroy(event.packet);
+            }
+        }
+    }
+    expect(validClientConnected && sawWelcomePeerTwo && decodedRoster &&
+               rosterHostIsNonPlayer && rosterClientIsPlayer,
+           "roster round-trip preserves dedicated and player participation flags");
+    {
+        auto replicationSystem = std::make_shared<System>();
+        auto replicationWorkspace = std::make_shared<Workspace>();
+        auto users = std::make_shared<Users>();
+        replicationSystem->addChild(replicationWorkspace);
+        replicationSystem->addChild(users);
+        ReplicationManager replication(
+            replicationWorkspace, nullptr, replicationSystem.get());
+        replication.update(0.01f, nullptr);
+        expect(!users->children.contains("User_1") &&
+                   !replicationWorkspace->children.contains("PlayerCharacter_1") &&
+                   users->children.contains("User_2") &&
+                   replicationWorkspace->children.contains("PlayerCharacter_2"),
+               "replication excludes the dedicated peer and creates the player identity");
+    }
+    if (rawPeer) {
+        enet_peer_disconnect(rawPeer, 0);
+        enet_host_flush(rawClient);
+        bool disconnected = false;
+        for (int attempt = 0; attempt < 300 && !disconnected; ++attempt) {
+            network.update(0.01f);
+            ENetEvent event{};
+            while (enet_host_service(rawClient, &event, 1) > 0) {
+                if (event.type == ENET_EVENT_TYPE_RECEIVE)
+                    enet_packet_destroy(event.packet);
+                if (event.type == ENET_EVENT_TYPE_DISCONNECT)
+                    disconnected = true;
+            }
+        }
+    }
+    destroyRawClient(rawClient, rawPeer);
+
+    {
+        LuauEngine engine;
+        auto system = std::make_shared<System>();
+        auto workspace = std::make_shared<Workspace>();
+        system->UseNetwork = true;
+        system->addChild(workspace);
+
+        auto serverScript = std::make_shared<Script>();
+        serverScript->Name = "DedicatedServerScript";
+        serverScript->Source = "local serverOnly = true";
+        auto localScript = std::make_shared<LocalScript>();
+        localScript->Name = "DedicatedLocalScript";
+        localScript->Source = "local clientOnly = true";
+        workspace->addChild(serverScript);
+        workspace->addChild(localScript);
+
+        engine.setWorkspace(workspace);
+        engine.setSystem(system.get());
+        engine.executeWorkspaceScripts(*workspace);
+        expect(serverScript->Completed && !localScript->Completed &&
+                   localScript->Coroutine == nullptr,
+               "dedicated host executes Script and skips LocalScript");
+    }
+    network.shutdown();
+    expect(network.getRole() == NetworkRole::Offline && !network.isActive(),
+           "dedicated host shuts down cleanly after direct clients leave");
+
+    {
+        LuauEngine engine;
+        auto system = std::make_shared<System>();
+        auto workspace = std::make_shared<Workspace>();
+        system->addChild(workspace);
+        auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
+        system->addChild(user);
+        user->initializeInventory();
+
+        engine.setWorkspace(workspace);
+        engine.setSystem(system.get());
+        bool eventSawInitialPosition = false;
+        const auto oldLogHook = g_luauLogHook;
+        g_luauLogHook = [&](const std::string& message) {
+            if (message.find("[NetworkCoreSpawnEvent]") != std::string::npos)
+                eventSawInitialPosition = true;
+        };
+        engine.setGlobalInstance("User", user);
+        auto listener = std::make_shared<Script>();
+        listener->Name = "InitialSpawnListener";
+        listener->Source =
+            "User.CharacterAdded:Connect(function(character) "
+            "if character.Position.x == 12 and character.Position.y == 34 and "
+            "character.Position.z == -56 then print('[NetworkCoreSpawnEvent]') end end)";
+        workspace->addChild(listener);
+        expect(engine.execute(*listener),
+               "CharacterAdded position listener starts successfully");
+
+        const Vector3 initialPosition(12.0f, 34.0f, -56.0f);
+        user->spawnCharacter(system.get(), workspace.get(), initialPosition);
+        expect(user->character &&
+                   positionDistance(user->character->getWorldPosition(), initialPosition) < 1e-5f,
+               "spawnCharacter applies the requested initial model position");
+        expect(eventSawInitialPosition,
+               "CharacterAdded observes the requested position before firing");
+        g_luauLogHook = oldLogHook;
+    }
+
+    std::cout << "[NetworkCore] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int runMultiWorkspaceRegression() {
     auto workspaceA = std::make_shared<Workspace>();
     auto workspaceB = std::make_shared<Workspace>();
@@ -4810,6 +6172,60 @@ int runAppImageRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runRuntimeLaunchArgsRegression() {
+    int failures = 0;
+    auto expect = [&failures](bool condition, const char* name) {
+        std::cout << "[RuntimeLaunchArgs] " << (condition ? "PASS" : "FAIL")
+                  << ": " << name << '\n';
+        if (!condition) ++failures;
+    };
+    auto parse = [](std::vector<std::string> values) {
+        std::vector<char*> arguments;
+        arguments.reserve(values.size());
+        for (std::string& value : values) arguments.push_back(value.data());
+        return parseRuntimeLaunchArgs(
+            static_cast<int>(arguments.size()), arguments.data());
+    };
+
+    const RuntimeLaunchArgs valid = parse({
+        "RecubinEngine", "--direct-connect", "127.0.0.1:41000",
+        "--scene", "assets/scenes/a snapshot.yaml", "--listen-port", "0",
+        "--window-title", "Client 1",
+    });
+    expect(valid.valid && valid.scenePath == "assets/scenes/a snapshot.yaml" &&
+               valid.windowTitle == "Client 1",
+           "scene and title override while unrelated network arguments are ignored");
+    const RuntimeLaunchArgs editorTest = parse({
+        "RecubinEngine", "--scene", "assets/scenes/_snapshot.yaml",
+        "--window-title", "Client 1", "--editor-test",
+    });
+    expect(editorTest.valid && editorTest.editorTest,
+           "editor test flag is accepted without a value");
+    expect(!parse({"RecubinEngine", "--editor-test", "--editor-test"}).valid,
+           "duplicate editor test flag is rejected");
+    expect(!parse({"RecubinEngine", "--editor-test=true"}).valid,
+           "equals-form editor test flag is rejected");
+    expect(!parse({"RecubinEngine", "--scene"}).valid,
+           "missing scene value is rejected");
+    expect(!parse({"RecubinEngine", "--window-title", "--listen-port", "0"}).valid,
+           "missing window title value is rejected");
+    expect(!parse({"RecubinEngine", "--scene", "a.yaml", "--scene", "b.yaml"}).valid,
+           "duplicate scene override is rejected");
+    expect(!parse({"RecubinEngine", "--scene=a.yaml"}).valid &&
+               !parse({"RecubinEngine", "--window-title=Client"}).valid,
+           "equals-form runtime options are rejected");
+
+    MockPlatform mockPlatform;
+    ChildProcessLaunchOptions options;
+    options.executable = "RecubinEngine";
+    expect(!mockPlatform.launchChildProcess(options),
+           "mock platform reports child process launch as unsupported");
+
+    std::cout << "[RuntimeLaunchArgs] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
@@ -4841,6 +6257,7 @@ int main(int argc, char* argv[]) {
     bool fixedStepForceRegression = false;
     bool contactReentryRegression = false;
     bool multiWorkspaceRegression = false;
+    bool networkCoreRegression = false;
     bool physicsRollbackRegression = false;
     bool box3dHullRegression = false;
     bool physicsPerformanceGuard = false;
@@ -4849,6 +6266,13 @@ int main(int argc, char* argv[]) {
     bool viewportHelperRegression = false;
     bool assetPathRegression = false;
     bool appImageRegression = false;
+    bool runtimeLaunchArgsRegression = false;
+    bool starterWeldRenameRegression = false;
+    bool starterAccessoryWeldRegression = false;
+    bool starterRootSpawnRegression = false;
+    bool spawnLocationRegression = false;
+    bool remoteAvatarSpawnTransformRegression = false;
+    bool meshCubeFallbackRegression = false;
     bool humanoidRigCollisionRegression = false;
     bool seatNetworkRegression = false;
     for (int i = 1; i < argc; ++i) {
@@ -4867,6 +6291,8 @@ int main(int argc, char* argv[]) {
             contactReentryRegression || argument == "--contact-reentry-regression";
         multiWorkspaceRegression =
             multiWorkspaceRegression || argument == "--multi-workspace-regression";
+        networkCoreRegression =
+            networkCoreRegression || argument == "--network-core-regression";
         physicsRollbackRegression =
             physicsRollbackRegression || argument == "--physics-rollback-regression";
         box3dHullRegression =
@@ -4883,6 +6309,21 @@ int main(int argc, char* argv[]) {
             assetPathRegression || argument == "--asset-path-regression";
         appImageRegression =
             appImageRegression || argument == "--app-image-regression";
+        runtimeLaunchArgsRegression =
+            runtimeLaunchArgsRegression || argument == "--runtime-launch-args-regression";
+        starterWeldRenameRegression = starterWeldRenameRegression ||
+            argument == "--starter-weld-rename-regression";
+        starterAccessoryWeldRegression = starterAccessoryWeldRegression ||
+            argument == "--starter-accessory-weld-regression";
+        starterRootSpawnRegression = starterRootSpawnRegression ||
+            argument == "--starter-root-spawn-regression";
+        spawnLocationRegression = spawnLocationRegression ||
+            argument == "--spawn-location-regression";
+        remoteAvatarSpawnTransformRegression =
+            remoteAvatarSpawnTransformRegression ||
+            argument == "--remote-avatar-spawn-transform-regression";
+        meshCubeFallbackRegression = meshCubeFallbackRegression ||
+            argument == "--meshcube-fallback-regression";
         humanoidRigCollisionRegression =
             humanoidRigCollisionRegression ||
             argument == "--humanoid-rig-collision-regression";
@@ -4895,6 +6336,7 @@ int main(int argc, char* argv[]) {
     if (terrainInstanceRegression) return runTerrainInstanceRegression();
     if (fixedStepForceRegression) return runFixedStepForceRegression();
     if (contactReentryRegression) return runContactReentryRegression();
+    if (networkCoreRegression) return runNetworkCoreRegression();
     if (multiWorkspaceRegression) return runMultiWorkspaceRegression();
     if (physicsRollbackRegression) return runPhysicsRollbackRegression();
     if (box3dHullRegression) return runBox3DHullRegression();
@@ -4904,6 +6346,19 @@ int main(int argc, char* argv[]) {
     if (viewportHelperRegression) return runViewportHelperRegression();
     if (assetPathRegression) return runAssetPathRegression();
     if (appImageRegression) return runAppImageRegression();
+    if (runtimeLaunchArgsRegression) return runRuntimeLaunchArgsRegression();
+    if (starterWeldRenameRegression)
+        return runStarterWeldRenameRegression();
+    if (starterAccessoryWeldRegression)
+        return runStarterAccessoryWeldRegression();
+    if (starterRootSpawnRegression)
+        return runStarterRootSpawnRegression();
+    if (spawnLocationRegression)
+        return runSpawnLocationRegression();
+    if (remoteAvatarSpawnTransformRegression)
+        return runRemoteAvatarSpawnTransformRegression();
+    if (meshCubeFallbackRegression)
+        return runMeshCubeFallbackRegression();
     if (humanoidRigCollisionRegression)
         return runHumanoidRigCollisionRegression();
     if (toolWeldRegression) return runToolWeldRegression();

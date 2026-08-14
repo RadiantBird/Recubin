@@ -319,6 +319,7 @@ public:
     void setBindings(const std::shared_ptr<Instance>& instance);
 
     void setGlobalInstance(const std::string& name, const std::shared_ptr<Instance>& instance);
+    void clearGlobalInstance(const std::string& name);
 
     bool execute(Script& script);
     // WaitChild で yield 中のスクリプトを、見つかった子（無ければ nullptr）を結果に渡して再開する

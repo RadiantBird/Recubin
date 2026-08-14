@@ -9,6 +9,8 @@
 #include <queue>
 #include <cmath>
 #include <cstdint>
+#include <functional>
+#include <limits>
 #include <include/Instances/LiquidCube.hpp>
 #include <include/Instances/Attachment.hpp>
 #include <include/Instances/Force.hpp>
@@ -64,6 +66,24 @@ CFrame fromPxTransform(const physx::PxTransform& value) {
     return CFrame(
         Vector3(value.p.x, value.p.y, value.p.z),
         Quaternion(value.q.w, value.q.x, value.q.y, value.q.z));
+}
+
+float cframeDifference(const CFrame& first, const CFrame& second) {
+    const Vector3 translation = first.Position - second.Position;
+    if (!std::isfinite(translation.x) || !std::isfinite(translation.y) ||
+        !std::isfinite(translation.z))
+        return -std::numeric_limits<float>::infinity();
+    const Quaternion& a = first.Rotation;
+    const Quaternion& b = second.Rotation;
+    const float aLength = std::sqrt(a.w*a.w + a.x*a.x + a.y*a.y + a.z*a.z);
+    const float bLength = std::sqrt(b.w*b.w + b.x*b.x + b.y*b.y + b.z*b.z);
+    if (!std::isfinite(aLength) || !std::isfinite(bLength) ||
+        aLength < 1.0e-6f || bLength < 1.0e-6f)
+        return -std::numeric_limits<float>::infinity();
+    const float dot = std::clamp(std::abs(
+        (a.w*b.w + a.x*b.x + a.y*b.y + a.z*b.z) / (aLength * bLength)),
+        0.0f, 1.0f);
+    return translation.length() + 2.0f * std::acos(dot);
 }
 
 std::vector<physx::PxVec3> toPxVertices(const std::vector<Vector3>& vertices) {
@@ -1412,10 +1432,11 @@ void PhysXPhysicsBackend::stepOnce(float dt) {
 
 void PhysXPhysicsBackend::syncAllCubes() {
     for (auto& entry : cubes) {
-        if (auto cube = entry.cube.lock()) {
+        if (auto cube = entry.cube.lock(); cube && !cube->m_weldKinematic) {
             syncCube(*cube);
         }
     }
+    syncWeldKinematics();
 }
 
 std::shared_ptr<BaseCube> PhysXPhysicsBackend::resolveContactIdentity(
@@ -1662,16 +1683,49 @@ void PhysXPhysicsBackend::removeInvalidConstraints(Workspace& workspace) {
 }
 
 void PhysXPhysicsBackend::syncWeldKinematics() {
-    // アンカー駆動部(Head等)を先に即時 setGlobalPose で動かし(syncPhysics内でm_weldKinematic
-    // のためsetGlobalPoseになる)、その後で非アンカーのメンバー(帽子のCube)のcframeを
-    // compoundから読み戻す。2パスに分けるのは、駆動部を動かしてからメンバーを読む必要があるため。
-    for (auto& entry : cubes) {
-        auto cube = entry.cube.lock();
-        if (cube && cube->m_weldKinematic && cube->Anchored) syncCube(*cube);
-    }
-    for (auto& entry : cubes) {
-        auto cube = entry.cube.lock();
-        if (cube && cube->m_weldKinematic && !cube->Anchored) syncCube(*cube);
+    std::unordered_set<physx::PxRigidActor*> visited;
+    for (const CubeEntry& seedEntry : cubes) {
+        auto seed = seedEntry.cube.lock();
+        physx::PxRigidActor* actor = seedEntry.actor;
+        if (!seed || !seed->m_weldKinematic || !actor ||
+            !visited.insert(actor).second)
+            continue;
+
+        std::vector<std::shared_ptr<BaseCube>> members;
+        for (const CubeEntry& entry : cubes) {
+            if (entry.actor != actor) continue;
+            if (auto member = entry.cube.lock()) members.push_back(member);
+        }
+
+        const CFrame currentBody = fromPxTransform(actor->getGlobalPose());
+        CFrame driverTarget = currentBody;
+        float driverDifference = -std::numeric_limits<float>::infinity();
+        const BaseCube* driver = nullptr;
+        for (const auto& member : members) {
+            if (!member || !member->Anchored) continue;
+            const CFrame candidate =
+                member->getWorldCFrame() * member->m_compoundLocalOffset.inverse();
+            const float difference = cframeDifference(candidate, currentBody);
+            if (!std::isfinite(difference)) continue;
+            if (difference > driverDifference ||
+                (difference == driverDifference && driver &&
+                 std::less<const BaseCube*>{}(member.get(), driver))) {
+                driverDifference = difference;
+                driverTarget = candidate;
+                driver = member.get();
+            }
+        }
+
+        auto* dynamic = actor->is<physx::PxRigidDynamic>();
+        if (driver && dynamic &&
+            (dynamic->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) {
+            dynamic->setGlobalPose(toPxTransform(driverTarget));
+        }
+        const CFrame confirmedBody = fromPxTransform(actor->getGlobalPose());
+        for (const auto& member : members) {
+            if (member)
+                member->setWorldCFrame(confirmedBody * member->m_compoundLocalOffset);
+        }
     }
 }
 

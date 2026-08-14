@@ -22,7 +22,6 @@ public:
     void setOccupant(std::shared_ptr<Humanoid> h) { m_occupant = h; }
     void clearOccupant() { m_occupant.reset(); }
 
-    virtual bool IsA(std::string name) override;
     std::shared_ptr<Instance> clone() const override;
 
 private:

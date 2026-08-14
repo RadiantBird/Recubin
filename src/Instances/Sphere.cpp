@@ -116,11 +116,6 @@ Sphere::Sphere(Vector3 Pos, Vector3 Sz)
     if (Renderer::instance) initGeometry();
 }
 
-bool Sphere::IsA(std::string className) {
-    if (className == "Sphere") return true;
-    return BaseCube::IsA(className);
-}
-
 void Sphere::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(s_VAO);
 
@@ -140,22 +135,6 @@ void Sphere::draw(int modelLoc, int shaderProgram) {
 
 std::shared_ptr<Instance> Sphere::clone() const {
     auto copy = std::make_shared<Sphere>(this->Position, this->Size);
-    copy->Name       = this->Name;
-    copy->Color      = this->Color;
-    copy->Anchored   = this->Anchored;
-    copy->CanCollide = this->CanCollide;
-    copy->Locked     = this->Locked;
-    copy->cframe     = this->cframe;
-    copy->material     = this->material;
-    copy->MassDensity  = this->MassDensity;
-    copy->LockFlags = this->LockFlags;
-    copy->CollisionDetection = this->CollisionDetection;
-    copy->CastShadow   = this->CastShadow;
-    copy->Unlit        = this->Unlit;
-    copy->UseTriplanar = this->UseTriplanar;
-    copy->TextureScale = this->TextureScale;
-    for (auto const& [name, child] : children) {
-        copy->addChild(child->clone());
-    }
+    cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }

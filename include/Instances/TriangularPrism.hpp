@@ -19,7 +19,6 @@ public:
 
     void draw(int modelLoc, int shaderProgram);
 
-    virtual bool IsA(std::string name) override;
     std::shared_ptr<Instance> clone() const override;
 
     PhysicsShape getPhysicsShape() const override { return PhysicsShape::ConvexMesh; }

@@ -39,6 +39,7 @@
 #include <Util/AssetGuard.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
+#include <Util/RuntimeLaunchArgs.hpp>
 #include <yaml-cpp/yaml.h>
 #include "include/stb_image.h"
 
@@ -291,10 +292,22 @@ int main(int argc, char* argv[]) {
     getPlatform().setupDllSearchPath();
     if (!Physics::configureBackendFromCommandLine(argc, argv)) return -1;
 
-#ifdef __APPLE__
-    prepareMacBundleResources();
-#endif
+    const RuntimeLaunchArgs runtimeArgs = parseRuntimeLaunchArgs(argc, argv);
+    if (!runtimeArgs.valid) {
+        RCBN_ERROR("Invalid runtime arguments: " << runtimeArgs.error);
+        return -1;
+    }
+
     GameConfig cfg = loadStartup();
+    if (runtimeArgs.scenePath.has_value()) {
+        std::error_code sceneError;
+        if (!std::filesystem::is_regular_file(*runtimeArgs.scenePath, sceneError)) {
+            RCBN_ERROR("Invalid --scene path: " << *runtimeArgs.scenePath);
+            return -1;
+        }
+        cfg.startScene = *runtimeArgs.scenePath;
+    }
+    if (runtimeArgs.windowTitle.has_value()) cfg.gameName = *runtimeArgs.windowTitle;
 
     // ---- ルームコード/STUNネットワーク起動引数 ----
     NetworkLaunchArgs netArgs = parseNetworkArgs(argc, argv);
@@ -307,6 +320,13 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     const bool networkRequested = networkModeCount == 1;
+    if (runtimeArgs.editorTest &&
+        (!runtimeArgs.scenePath.has_value() || !runtimeArgs.windowTitle.has_value() ||
+         !netArgs.asDirectClient || netArgs.directHost != "127.0.0.1")) {
+        RCBN_ERROR("Invalid --editor-test usage: requires --scene, --window-title, "
+                   "and --direct-connect 127.0.0.1:<port>");
+        return -1;
+    }
     // System.UseNetwork is loaded from the scene, so networking starts after loadAndBind.
 
     // 標準入力はblockingなので、レンダー/ネットワークスレッドから分離する。
@@ -325,9 +345,15 @@ int main(int argc, char* argv[]) {
         std::cout << "[Chat] Type a message and press Enter (maximum 512 UTF-8 bytes)." << std::endl;
     }
 
-    // ランタイムはゲームフォルダ(cwd)外のアセット読み込みを禁止する（配布ゲームのサンドボックス）。
-    // エディター(Recubin.exe)はこれを呼ばないため従来通り任意パスを扱える。
-    AssetGuard::enableSandbox(std::filesystem::current_path());
+    // 通常ランタイムはゲームフォルダ(cwd)外のアセット読み込みを禁止する。
+    // localhost専用のEditorテストクライアントだけは、未パッケージの絶対アセットを
+    // Editorと同様に参照できるようAssetGuardを有効化しない。
+    if (runtimeArgs.editorTest) {
+        std::cout << "[EditorTest] AssetGuard disabled for localhost editor test client."
+                  << std::endl;
+    } else {
+        AssetGuard::enableSandbox(std::filesystem::current_path());
+    }
 
     // ---- ウィンドウ作成 ----
 #ifdef _WIN32
@@ -526,7 +552,7 @@ int main(int argc, char* argv[]) {
     luauEngine->executeSystemScripts();
 
     // その後にキャラクターをスポーンする
-    user->spawnCharacter(system.get());
+    user->spawnCharacter(system.get(), workspace.get());
     audioService->playAutoPlaySounds();
     if (user->character) workspace->addChild(user->character);
 

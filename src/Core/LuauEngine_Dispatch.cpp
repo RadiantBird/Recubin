@@ -405,6 +405,7 @@ void LuauEngine::InitDispatchTable_Base() {
     };
 
     PropertyRegistry::applyToDispatch("LiquidCube", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("SpawnLocation", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Force", DispatchTable, SetterTable);
     // Force.Value を既存のスキーマ名として維持しつつ、Luau では一般的な Force 名でも扱えるようにする。
     DispatchTable["Force"]["Force"] = getter_vec3<Force, &Force::Value>();

@@ -11,6 +11,14 @@ from pathlib import Path
 IS_WINDOWS = platform.system() == "Windows"
 if IS_WINDOWS:
     import psutil
+else:
+    # Language Server pls shut up!!!
+    class DummyPsutil:
+        AccessDenied = False
+        NoSuchProcess = None
+        ZombieProcess = None
+
+    psutil = DummyPsutil()  # type: ignore
 
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -491,7 +499,7 @@ def build_launcher(config: str) -> int:
     return result
 
 
-def package_editor(config: str) -> int:
+def package_editor_for_windows(config: str) -> int:
     result = build(config)
     if result != 0:
         return result
@@ -582,6 +590,18 @@ def package_editor(config: str) -> int:
     else:
         print("[WARNING] imgui.ini not found - skipping.")
 
+    # ライセンスコピー
+    licence_t = ROOT_DIR / "LICENCE"
+    licence_3rd = ROOT_DIR / "LICENCE_3RD_PARTY"
+    if licence_t.exists():
+        shutil.copy2(licence_t, pkg_dir / "LICENSE")
+    else:
+        print("[WARNING] LICENSE not found - skipping.")
+    if licence_3rd.exists():
+        shutil.copy2(licence_3rd, pkg_dir / "LICENCE_3RD_PARTY")
+    else:
+        print("[WARNING] LICENCE_3RD_PARTY not found - skipping.")
+
     with open(pkg_dir / "readme.txt", "w", encoding="utf-8") as f:
         f.write("""Recubin.exeがエディター(スタジオ)なので、それをクリックすれば始められます。
 RecubinEngine.exeはランタイム用なので触らずにそのままにしておいてください。
@@ -639,7 +659,7 @@ def main() -> int:
         return build_launcher(config)
 
     if action == "package":
-        return package_editor(config)
+        return package_editor_for_windows(config)
 
     print(f"[ERROR] Unknown action: {action}")
     return 1

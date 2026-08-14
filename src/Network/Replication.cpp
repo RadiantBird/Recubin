@@ -191,10 +191,9 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
     if (m_avatarSendTimer < 0.05f) return;
     m_avatarSendTimer = 0.0f;
 
-    CFrame local;
-    if (!getLocalRootCFrame(local)) return;
-
     if (net.getRole() == NetworkRole::Client) {
+        CFrame local;
+        if (!getLocalRootCFrame(local)) return;
         if (!net.hasPeers() || !m_user || m_inputHistory.empty()) return;
         const auto& entry = m_inputHistory.back();
         const auto& in = entry.input;
@@ -213,18 +212,23 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
         net.sendBytes(w.data, NetworkChannel::Unreliable);
         m_pendingJumpLatch = false;
     } else if (net.getRole() == NetworkRole::Host) {
-        m_latestPoses[net.getLocalPeerId()] = local;
+        CFrame local;
+        if (net.isLocalPlayer() && getLocalRootCFrame(local)) {
+            m_latestPoses[net.getLocalPeerId()] = local;
 
-        // 自分(ホスト)の速度を記録してからAvatarBatchに載せる
-        Vector3 localVel{};
-        auto localRoot = (m_user && m_user->humanoid) ? m_user->humanoid->getRootPart() : nullptr;
-        Physics* physics = m_workspace ? m_workspace->getPhysicsEngine() : nullptr;
-        if (localRoot && physics) localVel = physics->getLinearVelocity(*localRoot);
-        m_latestVels[net.getLocalPeerId()] = localVel;
+            // プレイヤーホストの速度を記録してからAvatarBatchに載せる。
+            Vector3 localVel{};
+            auto localRoot = m_user && m_user->humanoid
+                ? m_user->humanoid->getRootPart() : nullptr;
+            Physics* physics = m_workspace ? m_workspace->getPhysicsEngine() : nullptr;
+            if (localRoot && physics) localVel = physics->getLinearVelocity(*localRoot);
+            m_latestVels[net.getLocalPeerId()] = localVel;
+        }
 
         std::unordered_set<PeerId> rosterIds;
-        for (const auto& info : net.getRoster()) rosterIds.insert(info.id);
-        rosterIds.insert(net.getLocalPeerId());
+        for (const auto& info : net.getRoster()) {
+            if (info.isPlayer) rosterIds.insert(info.id);
+        }
 
         std::vector<std::pair<PeerId, CFrame>> entries;
         for (const auto& [id, pose] : m_latestPoses) {
@@ -275,6 +279,14 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
                receivedWorkspace == m_workspace;
     };
     if (type == static_cast<uint8_t>(MessageType::AvatarState)) {
+        auto& net = NetworkManager::get();
+        const auto sender = std::find_if(
+            net.getRoster().begin(), net.getRoster().end(),
+            [senderId](const PeerInfo& info) {
+                return info.id == senderId && info.isPlayer;
+            });
+        if (net.getRole() != NetworkRole::Host || sender == net.getRoster().end())
+            return;
         ByteReader r{payload, len};
         AvatarInputWire in;
         uint8_t flags = 0;
@@ -379,14 +391,16 @@ void ReplicationManager::reconcileAvatars() {
     PeerId localId = net.getLocalPeerId();
 
     for (const auto& info : net.getRoster()) {
-        if (info.id == localId) continue;
+        if (info.id == localId || !info.isPlayer) continue;
         if (m_remoteAvatars.find(info.id) == m_remoteAvatars.end()) {
             spawnRemoteAvatar(info.id);
         }
     }
 
     std::unordered_set<PeerId> rosterIds;
-    for (const auto& info : net.getRoster()) rosterIds.insert(info.id);
+    for (const auto& info : net.getRoster()) {
+        if (info.isPlayer) rosterIds.insert(info.id);
+    }
 
     std::vector<PeerId> toRemove;
     for (const auto& [id, avatar] : m_remoteAvatars) {
@@ -488,7 +502,10 @@ void ReplicationManager::spawnRemoteAvatar(PeerId id) {
     std::shared_ptr<Humanoid> humanoid;
     if (auto it = model->getChildren().find("Humanoid"); it != model->getChildren().end()) {
         humanoid = std::dynamic_pointer_cast<Humanoid>(it->second);
-        if (humanoid) humanoid->resolveParts(model.get());
+        if (humanoid) {
+            humanoid->resolveParts(model.get());
+            User::placeCharacterAtSpawn(model, humanoid, m_workspace.get(), id);
+        }
     }
 
     std::vector<BaseCube*> cubes;
@@ -511,12 +528,10 @@ void ReplicationManager::spawnRemoteAvatar(PeerId id) {
     RemoteAvatar avatar;
     avatar.model = model;
     avatar.humanoid = humanoid;
-    Quaternion invR = root->cframe.Rotation.conjugate();
+    const CFrame rootWorldInverse = root->getWorldCFrame().inverse();
     for (BaseCube* cube : cubes) {
-        CFrame rel;
-        rel.Position = invR.rotate(cube->cframe.Position - root->cframe.Position);
-        rel.Rotation = invR * cube->cframe.Rotation;
-        avatar.parts.emplace_back(cube, rel);
+        avatar.parts.emplace_back(
+            cube, rootWorldInverse * cube->getWorldCFrame());
     }
 
     auto identity = User::createRemoteUser(id);
@@ -572,7 +587,7 @@ void ReplicationManager::applyAvatarPoses(float dt) {
         }
 
         for (auto& [part, rel] : avatar.parts) {
-            part->cframe = avatar.current * rel;
+            part->setWorldCFrame(avatar.current * rel);
         }
         if (avatar.humanoid) {
             avatar.humanoid->setWalkCycle(avatar.walkCycle);

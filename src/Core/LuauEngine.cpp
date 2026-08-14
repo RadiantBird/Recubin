@@ -75,6 +75,7 @@
 #include "include/Instances/ParticleEmitter.hpp"
 #include "include/Instances/Weather.hpp"
 #include "include/Core/AudioService.hpp"
+#include "include/Core/BaseCubeFactory.hpp"
 #include <cmath>
 #include <algorithm>
 #include <float.h>
@@ -639,6 +640,11 @@ void LuauEngine::setBindings(const std::shared_ptr<Instance>& instance) {
 
 void LuauEngine::setGlobalInstance(const std::string& name, const std::shared_ptr<Instance>& instance) {
     setBindings(instance);
+    lua_setglobal(L, name.c_str());
+}
+
+void LuauEngine::clearGlobalInstance(const std::string& name) {
+    lua_pushnil(L);
     lua_setglobal(L, name.c_str());
 }
 
@@ -1700,6 +1706,17 @@ void LuauEngine::setWorkspace(const std::shared_ptr<Workspace>& ws) {
     setGlobalInstance("workspace", ws);
 }
 
+static bool skipScriptForNetworkContext(const std::shared_ptr<Script>& script,
+                                        const System* system) {
+    if (!script || !system || !system->UseNetwork) return false;
+    auto& network = NetworkManager::get();
+    if (network.getRole() == NetworkRole::Client)
+        return !script->IsA("LocalScript");
+    if (network.getRole() == NetworkRole::Host && !network.isLocalPlayer())
+        return script->IsA("LocalScript");
+    return false;
+}
+
 void LuauEngine::executeWorkspaceScripts(Workspace& ws) {
     if (m_haltRequested) return; // 安全対策による強制停止済み
 
@@ -1711,14 +1728,9 @@ void LuauEngine::executeWorkspaceScripts(Workspace& ws) {
     lua_setmetatable(L, -2);
     lua_setglobal(L, "workspace");
 
-    // UseNetwork=true かつ Client の場合、Script(非LocalScript)はHost側でのみ実行する
-    // (Hostは同時にプレイヤーでもあるため、Script/LocalScript両方を実行する)
-    bool skipNonLocalScripts = m_system && m_system->UseNetwork
-        && NetworkManager::get().getRole() == NetworkRole::Client;
-
     for (auto& inst : ws.scripts) {
         auto script = std::dynamic_pointer_cast<Script>(inst);
-        if (skipNonLocalScripts && script && !script->IsA("LocalScript")) continue;
+        if (skipScriptForNetworkContext(script, m_system)) continue;
         if (script && script->Enabled && !script->Sleeping && !script->WaitingForChild
             && !script->WaitingForPath && !script->Completed && !script->Aborted) {
             execute(*script);
@@ -1729,15 +1741,11 @@ void LuauEngine::executeWorkspaceScripts(Workspace& ws) {
 void LuauEngine::executeSystemScripts() {
     if (m_haltRequested || !m_system) return;
 
-    // executeWorkspaceScriptsと同じネットワークフィルタを適用する
-    bool skipNonLocalScripts = m_system->UseNetwork
-        && NetworkManager::get().getRole() == NetworkRole::Client;
-
     // 実行中のスクリプトが親付け替え等で登録リストを変更しても安全なようコピーして回す
     auto scripts = m_system->scripts;
     for (auto& inst : scripts) {
         auto script = std::dynamic_pointer_cast<Script>(inst);
-        if (skipNonLocalScripts && script && !script->IsA("LocalScript")) continue;
+        if (skipScriptForNetworkContext(script, m_system)) continue;
         if (script && script->Enabled && !script->Sleeping && !script->WaitingForChild
             && !script->WaitingForPath && !script->Completed && !script->Aborted) {
             execute(*script);
@@ -2336,17 +2344,6 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "Folder",           [] { return std::make_shared<Folder>(); } },
         { "Workspace",        [] { return std::make_shared<Workspace>(); } },
         { "PathfindingService", [] { return std::make_shared<PathfindingService>(); } },
-        { "Cube",             [] { return std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); } },
-        { "Cylinder",         [] { return std::make_shared<Cylinder>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
-        { "TriangularPrism",  [] { return std::make_shared<TriangularPrism>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
-        { "Truss",            [] { return std::make_shared<Truss>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); } },
-        { "Seat",             [] { return std::make_shared<Seat>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); } },
-        { "Sphere",           [] { return std::make_shared<Sphere>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
-        { "MeshCube",         [] { return std::make_shared<MeshCube>(Vector3(0, 0, 0), Vector3(1, 1, 1)); } },
-        { "LiquidCube",       [] { return std::make_shared<LiquidCube>(Vector3(0, 0, 0), Vector3(4, 2, 4)); } },
-        { "Skybox",           [] { return std::make_shared<Skybox>(); } },
-        { "Sun",              [] { return std::make_shared<Sun>(); } },
-        { "Moon",             [] { return std::make_shared<Moon>(); } },
         { "Script",           [] { return std::make_shared<Script>(""); } },
         { "LocalScript",      [] { return std::make_shared<LocalScript>(""); } },
         { "ModuleScript",     [] { return std::make_shared<ModuleScript>(""); } },
@@ -2402,9 +2399,11 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
 int LuauEngine::instance_new_closure(lua_State* L) {
     const char* className = luaL_checkstring(L, 1);
 
-    std::shared_ptr<Instance> inst;
-    auto it = instanceFactories().find(className);
-    if (it != instanceFactories().end()) inst = it->second();
+    std::shared_ptr<Instance> inst = createBaseCubeInstance(className);
+    if (!inst) {
+        auto it = instanceFactories().find(className);
+        if (it != instanceFactories().end()) inst = it->second();
+    }
 
     if (!inst) { lua_pushnil(L); return 1; }
 

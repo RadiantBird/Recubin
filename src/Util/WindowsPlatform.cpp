@@ -5,6 +5,7 @@
 #include <shobjidl.h>
 #include <shellapi.h>
 #include <filesystem>
+#include <optional>
 #include <vector>
 
 namespace {
@@ -25,6 +26,103 @@ std::string wideToUtf8(PWSTR w) {
     WideCharToMultiByte(CP_UTF8, 0, w, -1, s.data(), len, nullptr, nullptr);
     return s;
 }
+
+std::wstring quoteCommandLineArgument(const std::wstring& argument) {
+    const bool needsQuotes = argument.empty() ||
+        argument.find_first_of(L" \t\n\v\"") != std::wstring::npos;
+    if (!needsQuotes) return argument;
+
+    std::wstring quoted;
+    quoted.push_back(L'\"');
+    size_t backslashCount = 0;
+    for (const wchar_t character : argument) {
+        if (character == L'\\') {
+            ++backslashCount;
+            continue;
+        }
+        if (character == L'\"') {
+            quoted.append(backslashCount * 2 + 1, L'\\');
+            quoted.push_back(L'\"');
+        } else {
+            quoted.append(backslashCount, L'\\');
+            quoted.push_back(character);
+        }
+        backslashCount = 0;
+    }
+    quoted.append(backslashCount * 2, L'\\');
+    quoted.push_back(L'\"');
+    return quoted;
+}
+
+std::wstring makeCommandLine(const ChildProcessLaunchOptions& options) {
+    std::wstring commandLine = quoteCommandLineArgument(utf8ToWide(options.executable));
+    for (const std::string& argument : options.arguments) {
+        commandLine.push_back(L' ');
+        commandLine += quoteCommandLineArgument(utf8ToWide(argument));
+    }
+    return commandLine;
+}
+
+struct CloseWindowContext {
+    DWORD processId = 0;
+    bool posted = false;
+};
+
+BOOL CALLBACK requestProcessWindowClose(HWND window, LPARAM parameter) {
+    auto* context = reinterpret_cast<CloseWindowContext*>(parameter);
+    DWORD processId = 0;
+    GetWindowThreadProcessId(window, &processId);
+    if (processId != context->processId) return TRUE;
+    if (PostMessageW(window, WM_CLOSE, 0, 0)) context->posted = true;
+    return TRUE;
+}
+
+class WindowsChildProcess final : public IChildProcess {
+public:
+    WindowsChildProcess(HANDLE process, DWORD processId)
+        : m_process(process), m_processId(processId) {}
+
+    ~WindowsChildProcess() override {
+        if (m_process) CloseHandle(m_process);
+    }
+
+    bool isRunning() override {
+        refreshExitCode();
+        return !m_exitCode.has_value();
+    }
+
+    std::optional<int> exitCode() override {
+        refreshExitCode();
+        return m_exitCode;
+    }
+
+    bool requestClose() override {
+        if (!isRunning()) return true;
+        CloseWindowContext context{m_processId, false};
+        EnumWindows(requestProcessWindowClose, reinterpret_cast<LPARAM>(&context));
+        return context.posted;
+    }
+
+    bool terminate() override {
+        if (!isRunning()) return true;
+        return TerminateProcess(m_process, 1) != FALSE;
+    }
+
+private:
+    void refreshExitCode() {
+        if (!m_process || m_exitCode.has_value()) return;
+        if (WaitForSingleObject(m_process, 0) != WAIT_OBJECT_0) return;
+
+        DWORD code = 0;
+        if (GetExitCodeProcess(m_process, &code)) {
+            m_exitCode = static_cast<int>(code);
+        }
+    }
+
+    HANDLE m_process = nullptr;
+    DWORD m_processId = 0;
+    std::optional<int> m_exitCode;
+};
 
 // filtersが空の場合、IFileDialog::SetFileTypesを呼ばない(=すべてのファイルを表示)。
 // COMDLG_FILTERSPECはLPCWSTRを保持するだけなので、変換したwstringの寿命をpfd->Show()まで保つ。
@@ -132,6 +230,87 @@ void* WindowsPlatform::getSymbol(void* handle, const std::string& symbolName) {
 
 void WindowsPlatform::freeDynamicLibrary(void* handle) {
     if (handle) FreeLibrary(reinterpret_cast<HMODULE>(handle));
+}
+
+std::unique_ptr<IChildProcess> WindowsPlatform::launchChildProcess(
+    const ChildProcessLaunchOptions& options) {
+    if (options.executable.empty() ||
+        (options.outputLogPath.has_value() && options.outputLogPath->empty())) {
+        return nullptr;
+    }
+
+    SECURITY_ATTRIBUTES securityAttributes{};
+    securityAttributes.nLength = sizeof(securityAttributes);
+    securityAttributes.bInheritHandle = TRUE;
+
+    HANDLE inputHandle = CreateFileW(
+        L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        &securityAttributes, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (inputHandle == INVALID_HANDLE_VALUE) return nullptr;
+
+    const std::wstring outputPath = options.outputLogPath.has_value()
+        ? utf8ToWide(*options.outputLogPath) : std::wstring(L"NUL");
+    const DWORD outputDisposition = options.outputLogPath.has_value()
+        ? CREATE_ALWAYS : OPEN_EXISTING;
+    HANDLE outputHandle = CreateFileW(
+        outputPath.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        &securityAttributes, outputDisposition, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (outputHandle == INVALID_HANDLE_VALUE) {
+        CloseHandle(inputHandle);
+        return nullptr;
+    }
+
+    SIZE_T attributeBytes = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &attributeBytes);
+    std::vector<unsigned char> attributeStorage(attributeBytes);
+    auto* attributeList = reinterpret_cast<PPROC_THREAD_ATTRIBUTE_LIST>(
+        attributeStorage.data());
+    if (attributeBytes == 0 ||
+        !InitializeProcThreadAttributeList(attributeList, 1, 0, &attributeBytes)) {
+        CloseHandle(outputHandle);
+        CloseHandle(inputHandle);
+        return nullptr;
+    }
+
+    HANDLE inheritedHandles[] = {inputHandle, outputHandle};
+    if (!UpdateProcThreadAttribute(
+            attributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+            inheritedHandles, sizeof(inheritedHandles), nullptr, nullptr)) {
+        DeleteProcThreadAttributeList(attributeList);
+        CloseHandle(outputHandle);
+        CloseHandle(inputHandle);
+        return nullptr;
+    }
+
+    STARTUPINFOEXW startupInfo{};
+    startupInfo.StartupInfo.cb = sizeof(startupInfo);
+    startupInfo.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    startupInfo.StartupInfo.hStdInput = inputHandle;
+    startupInfo.StartupInfo.hStdOutput = outputHandle;
+    startupInfo.StartupInfo.hStdError = outputHandle;
+    startupInfo.lpAttributeList = attributeList;
+
+    const std::wstring executable = utf8ToWide(options.executable);
+    std::wstring commandLineString = makeCommandLine(options);
+    std::vector<wchar_t> commandLine(commandLineString.begin(), commandLineString.end());
+    commandLine.push_back(L'\0');
+    const std::wstring workingDirectory = utf8ToWide(options.workingDirectory);
+
+    PROCESS_INFORMATION processInfo{};
+    const BOOL created = CreateProcessW(
+        executable.c_str(), commandLine.data(), nullptr, nullptr, TRUE,
+        CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
+        nullptr, workingDirectory.empty() ? nullptr : workingDirectory.c_str(),
+        &startupInfo.StartupInfo, &processInfo);
+
+    DeleteProcThreadAttributeList(attributeList);
+    CloseHandle(outputHandle);
+    CloseHandle(inputHandle);
+    if (!created) return nullptr;
+
+    CloseHandle(processInfo.hThread);
+    return std::make_unique<WindowsChildProcess>(
+        processInfo.hProcess, processInfo.dwProcessId);
 }
 
 #endif // _WIN32

@@ -18,7 +18,7 @@
 
 namespace {
 constexpr size_t kMaxChatBytes = 512;
-constexpr uint8_t kGameProtocolVersion = 1;
+constexpr uint8_t kGameProtocolVersion = 2;
 constexpr float kDiscoveryTimeout = 8.0f;
 constexpr float kPunchTimeout = 8.0f;
 constexpr float kEnetTimeout = 8.0f;
@@ -151,10 +151,11 @@ float NetworkManager::getHostPeerRttMs() const {
     return static_cast<float>(m_peers.front()->roundTripTime);
 }
 
-bool NetworkManager::startHost(uint16_t port) {
+bool NetworkManager::startHost(uint16_t port, bool isPlayerHost) {
     shutdown();
     if (!initializeBoundHost(port)) return false;
 
+    m_localIsPlayer = isPlayerHost;
     changeRole(NetworkRole::Host);
     m_connectionState = ConnectionState::Connected;
     m_peers.clear();
@@ -173,6 +174,7 @@ bool NetworkManager::startHost(uint16_t port) {
     self.cpuScore = m_localCpuScore;
     self.latencyMs = 0.0f;
     self.isHost = true;
+    self.isPlayer = m_localIsPlayer;
     m_roster.push_back(self);
     m_peerIds.clear();
     m_rosterDirty = true;
@@ -198,6 +200,7 @@ bool NetworkManager::connect(const std::string& address, uint16_t port, uint16_t
         return false;
     }
 
+    m_localIsPlayer = true;
     changeRole(NetworkRole::Client);
     m_connectionState = ConnectionState::Connecting;
     m_peers.clear(); // ハンドシェイク完了(ENET_EVENT_TYPE_CONNECT)時にhandleEventで追加される
@@ -245,6 +248,7 @@ void NetworkManager::shutdown() {
     m_pendingAdmissions.clear();
     m_roster.clear();
     m_localPeerId = 0;
+    m_localIsPlayer = true;
     m_resourceReportTimer = 0.0f;
     m_rosterBroadcastTimer = 0.0f;
     m_rosterDirty = false;
@@ -547,6 +551,7 @@ void NetworkManager::handleRendezvous(const NatProtocol::RendezvousPacket& packe
         }
         self.cpuScore = m_localCpuScore;
         self.isHost = true;
+        self.isPlayer = true;
         m_roster.push_back(self);
         m_rosterDirty = true;
         RCBN_LOG("NetworkManager: room " << m_roomCode << " created");
@@ -952,7 +957,7 @@ PeerInfo NetworkManager::electNewHost() const {
     PeerInfo winner;
     bool found = false;
     for (const auto& info : m_roster) {
-        if (info.isHost) continue;
+        if (info.isHost || !info.isPlayer) continue;
         if (!found) {
             winner = info;
             found = true;
@@ -990,6 +995,7 @@ bool NetworkManager::promoteToHost() {
     for (auto& info : m_roster) {
         if (info.id == m_localPeerId) {
             info.isHost = true;
+            info.isPlayer = true;
             info.latencyMs = 0.0f;
             info.endpoint.host = m_localCandidates.empty() ? 0 : m_localCandidates.front().host;
             info.endpoint.listenPort = m_listenPort;
@@ -1008,6 +1014,7 @@ bool NetworkManager::promoteToHost() {
         self.cpuScore = m_localCpuScore;
         self.latencyMs = 0.0f;
         self.isHost = true;
+        self.isPlayer = true;
         m_roster.push_back(self);
     }
 
@@ -1106,6 +1113,7 @@ void NetworkManager::broadcastRoster() {
         w.writeF32(info.cpuScore);
         w.writeF32(info.latencyMs);
         w.writeU8(info.isHost ? 1 : 0);
+        w.writeU8(info.isPlayer ? 1 : 0);
     }
     w.writeU32(m_nextPeerId);
 
@@ -1127,7 +1135,8 @@ void NetworkManager::logRoster() const {
         RCBN_LOG("  peer id=" << info.id
                   << " cpuScore=" << info.cpuScore
                   << " latencyMs=" << info.latencyMs
-                  << " isHost=" << (info.isHost ? "true" : "false"));
+                  << " isHost=" << (info.isHost ? "true" : "false")
+                  << " isPlayer=" << (info.isPlayer ? "true" : "false"));
     }
 }
 
@@ -1227,11 +1236,11 @@ void NetworkManager::handleEvent(const ENetEvent& event) {
                             NatProtocol::decodeCandidates(reader.p, reader.remaining, helloCandidates) ==
                             NatProtocol::DecodeResult::Ok;
                         auto expectedToken = m_peerTokens.find(static_cast<PeerId>(previousPeerId));
-                        const bool admitted = !m_natMode ||
-                            (protocolVersion == kGameProtocolVersion &&
-                             roomEpoch == m_roomEpoch &&
+                        const bool admitted = protocolVersion == kGameProtocolVersion &&
+                            (!m_natMode ||
+                             (roomEpoch == m_roomEpoch &&
                              expectedToken != m_peerTokens.end() &&
-                             expectedToken->second == token);
+                             expectedToken->second == token));
                         if (!candidatesOk || !admitted) {
                             RCBN_WARN("NetworkManager: rejected unauthorised Hello");
                             enet_peer_disconnect_now(event.peer, 0);
@@ -1268,11 +1277,13 @@ void NetworkManager::handleEvent(const ENetEvent& event) {
                         info.cpuScore = 0.0f;
                         info.latencyMs = 0.0f;
                         info.isHost = false;
+                        info.isPlayer = true;
 
                         bool replaced = false;
                         for (auto& existing : m_roster) {
                             if (existing.id == id) {
                                 info.cpuScore = existing.cpuScore; // 引き継いだ集計値を保持
+                                info.isPlayer = existing.isPlayer;
                                 existing = info;
                                 replaced = true;
                                 break;
@@ -1310,7 +1321,7 @@ void NetworkManager::handleEvent(const ENetEvent& event) {
                             uint32_t id = 0, endpointHost = 0;
                             uint16_t listenPort = 0;
                             float cpuScore = 0.0f, latencyMs = 0.0f;
-                            uint8_t isHost = 0;
+                            uint8_t isHost = 0, isPlayer = 0;
                             AdmissionToken token{};
                             ok = reader.readU32(id) && reader.readU32(endpointHost) &&
                                  reader.readU16(listenPort);
@@ -1336,7 +1347,8 @@ void NetworkManager::handleEvent(const ENetEvent& event) {
                                 ok = false;
                             }
                             ok = ok && reader.readF32(cpuScore) &&
-                                 reader.readF32(latencyMs) && reader.readU8(isHost);
+                                 reader.readF32(latencyMs) && reader.readU8(isHost) &&
+                                 reader.readU8(isPlayer);
                             if (!ok) break;
 
                             PeerInfo info;
@@ -1347,6 +1359,7 @@ void NetworkManager::handleEvent(const ENetEvent& event) {
                             info.cpuScore = cpuScore;
                             info.latencyMs = latencyMs;
                             info.isHost = (isHost != 0);
+                            info.isPlayer = (isPlayer != 0);
                             newRoster.push_back(info);
                             m_peerTokens[info.id] = token;
                         }
@@ -1360,7 +1373,7 @@ void NetworkManager::handleEvent(const ENetEvent& event) {
                                     if (a.id != b.id || a.endpoint.host != b.endpoint.host ||
                                         a.endpoint.listenPort != b.endpoint.listenPort ||
                                         a.cpuScore != b.cpuScore || a.latencyMs != b.latencyMs ||
-                                        a.isHost != b.isHost) {
+                                        a.isHost != b.isHost || a.isPlayer != b.isPlayer) {
                                         changed = true;
                                         break;
                                     }

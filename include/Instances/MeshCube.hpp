@@ -44,27 +44,24 @@ public:
 
     void draw(int modelLoc, int shaderProgram);
 
-    virtual bool IsA(std::string name) override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
     std::shared_ptr<Instance> clone() const override;
 
     PhysicsShape getPhysicsShape() const override { return PhysicsShape::ConvexMesh; }
     std::vector<Vector3> getConvexVertices() const override;
 
-    unsigned int getHighlightVAO() const override { return hasGeometry() ? m_VAO : 0; }
-    unsigned int getHighlightIndexCount() const override { return hasGeometry() ? m_indexCount : 0; }
-    const std::vector<float>& getHighlightEdgeVerts() const override {
-        static const std::vector<float> empty;
-        return hasGeometry() ? m_highlightEdgeVerts : empty;
-    }
+    unsigned int getHighlightVAO() const override;
+    unsigned int getHighlightIndexCount() const override;
+    const std::vector<float>& getHighlightEdgeVerts() const override;
 
     // GLBファイルをロードしてメッシュ・テクスチャ・GPUバッファを再構築する。
-    // 失敗時は false を返し、既存のジオメトリ・MeshFile は変更しない。
+    // 失敗時は要求パスをMeshFileへ保持し、単位ボックスのフォールバックへ切り替える。
     bool loadFromGLB(const std::string& path);
 
-    bool hasGeometry() const { return m_VAO != 0; }
-    unsigned int getVAO() const { return m_VAO; }
-    unsigned int getIndexCount() const { return m_indexCount; }
+    bool hasGeometry() const { return m_fallbackActive || m_VAO != 0; }
+    bool isUsingFallback() const { return m_fallbackActive; }
+    unsigned int getVAO() const;
+    unsigned int getIndexCount() const;
 
     // 全MeshVertexのU/Vそれぞれのmin/maxを走査し、範囲(max-min)が閾値未満なら
     // 縮退(UV未設定/重複)と判定してfalseを返す。
@@ -93,6 +90,7 @@ private:
     unsigned int m_EBO = 0;
     unsigned int m_indexCount = 0;
     unsigned int m_textureID = 0;
+    bool m_fallbackActive = false;
 
     std::vector<MeshVertex>   m_cpuVertices;
     std::vector<unsigned int> m_cpuIndices;
@@ -104,4 +102,5 @@ private:
 
     void releaseMeshBuffers();
     void releaseGPU();
+    void activateFallback(const std::string& requestedPath);
 };

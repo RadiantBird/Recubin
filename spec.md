@@ -9,6 +9,15 @@
   `"PlayerCharacter"`、ネットワークHost/ClientではHost割り当てPeerIdに基づく
   `"PlayerCharacter_<PeerId>"`となる。StarterCharacterが存在しない場合は、既定のリグ(旧来
   ハードコードされていたもの)を持つStarterCharacterが自動的にSystem直下に生成される。
+- **SpawnLocation**: `Cube`派生の出現地点。既定値は`Name=SpawnLocation`、`Size=[8,1,8]`、
+  白、`Anchored=true`、`CanCollide=true`、`Enabled=true`とし、通常のCubeとして描画・衝突する。
+  active Workspaceの全子孫にある`Enabled=true`のSpawnLocationをfull path昇順で選ぶ。
+  ローカルpeer 0とpeer 1は先頭、peer 2以降は`(PeerId-1) % 件数`を用いる。
+  CharacterのRootはSpawnLocationのfull CFrameを引き継ぎ、SpawnLocation上面へ
+  `Spawn.Size.y/2 + Root.Size.y/2`だけ上げる。Model全体は元のRoot local CFrameの逆変換を
+  合成して配置し、各パーツの相対姿勢を維持する。候補が無い場合はRootをワールド原点へ置く。
+  `Name=Spawn`の通常Cubeを暗黙変換する旧形式互換は持たず、シーン側でClassNameを明示的に
+  `SpawnLocation`へ変更する。
 
 ## 単位系
 - **Roblox erik_stud(0.05 meterに等しい)**
@@ -48,6 +57,10 @@
   (この時点ではまだWorkspaceに未追加。Root等のパーツ参照はresolveParts済みで取得可能)。
   respawnを跨いで参照を使い続けたいスクリプトは、起動時の`WaitChild`/`FindChild`で一度だけ
   参照を取るのではなく、この signal で都度取り直すこと。
+- StarterCharacterからcloneしたローカルCharacterは、保存されたテンプレート値にかかわらず
+  Rootだけを`Anchored=false`、`CanCollide=true`へ正規化する。その後SpawnLocationで配置してから
+  `CharacterAdded`を発火する。死亡respawnでもactive WorkspaceからSpawnLocationを再選択する。
+  Play Hereの初回だけは明示されたModel.PositionをSpawnLocationより優先し、respawnは通常選択へ戻る。
 
 ### ネットワークIDと正式名
 
@@ -57,6 +70,10 @@
 - ネットワークUser/CharacterのNameは実行中ロックされ、通常のName変更は警告付きで無視される。
 - 正式名との衝突は自動サフィックスせず、ネットワークゲームを明示的なエラーで停止する。
 - Offline起動では従来の`User` / `PlayerCharacter`を維持する。ネットワーク時の旧パス互換は提供しない。
+- リモートAvatarは生成時の`Root.WorldCFrame.inverse() * Part.WorldCFrame`を各パーツのRoot相対姿勢として
+  保持し、受信・補間したRoot姿勢へ`setWorldCFrame(RootPose * RelativePose)`で適用する。
+  SpawnLocationによってAvatar Model自身が非identity CFrameを持つ場合もModel変換を二重適用せず、
+  Model CFrame、身体・Weldアクセサリの相対姿勢を維持する。Avatarのwire形式と補間方式は変えない。
 
 ### IPv4 NAT越えとルーム接続
 
@@ -77,6 +94,42 @@
 - IPv4直結のみを対象とし、TURN/ゲーム通信リレー、IPv6、通信暗号化、アカウント認証、
   ランデブーの永続化・高可用化は対象外とする。運用とプロトコルの詳細は
   `doc/Network/NatTraversal.md`を参照する。
+
+### エディター内プレイテスト
+
+- エディターのプレイツールバーでは`Normal`、`PlayHere`、`LocalServer`を選択する。
+  選択中のモードと実行中のモードは別状態として保持し、プレイ中の選択変更を現在の実行へ
+  反映しない。選択モードとLocalServerのクライアント数は`editor_settings.yaml`へ保存する。
+- `Normal`は従来のオフラインPlayとスポーン位置を維持する。`PlayHere`はプレイ開始時の
+  プライマリViewportカメラ座標を初回CharacterのModel原点にそのまま使用し、
+  `CharacterAdded`はその座標を設定した後に発火する。死亡後のrespawnは従来どおりとする。
+- `LocalServer`は`System.UseNetwork=true`の場合だけ開始できる。無効時はローカライズ済みの
+  エラーを表示し、Playスナップショットの保存、ネットワーク開始、子プロセス起動を行わない。
+  未保存の編集内容を含む既存のPlayスナップショットを、サーバーと全クライアントが共有する。
+- LocalServer中のエディターは空きUDPポートで待ち受ける専用Hostであり、観察カメラを
+  `Free`に固定する。専用HostのPeerIdは1だが非プレイヤーとしてRosterへ記録し、
+  対応するUser/Characterを`System.Users`、Luauの`User`グローバル、Workspaceへ生成しない。
+  最初のプレイヤークライアントにはPeerId 2を割り当てる。
+- 専用Hostでは`Script`のみ、外部クライアントでは`LocalScript`のみを実行する。接続した
+  プレイヤーのUser/Characterは専用Host側にも生成し、Hostが物理とワールド状態を権威的に
+  シミュレーションして各クライアントへ配信する。非プレイヤーPeerはAvatar生成対象外とする。
+- LocalServerの人数は専用Hostを含まない外部クライアント窓数で、1〜8、既定値は2とする。
+  各`RecubinEngine`はlocalhostへDirect接続し、STUN／ランデブーは使用しない。ツールバーには
+  接続済み数／指定数を表示し、ネットワークテスト中はPauseを無効化する。
+- クライアントはエディター実行ファイルと同じディレクトリの`RecubinEngine`を、プロジェクト
+  ルートを作業ディレクトリとして起動する。エディターテスト用ランタイムCLIは
+  `--scene <snapshot>`、`--direct-connect 127.0.0.1:<port>`、`--listen-port 0`、
+  `--window-title "Client N"`、`--editor-test`とする。`--editor-test`はlocalhostへのDirect
+  クライアント接続かつ`--scene`と`--window-title`が指定された場合だけ許可し、そのクライアントの
+  AssetGuardをエディター相当にして未パッケージの絶対アセット参照を許可する。`--scene`と
+  `--window-title`は値を必須とし、各オプションの重複指定と`--option=value`形式を拒否する。
+- 実行ファイル欠落、Host開始失敗、途中のクライアント起動失敗では開始済みクライアント、
+  ネットワーク、シーンをロールバックする。実行中に個別クライアントが終了した場合は残りを
+  継続し、終了コードとログ場所をConsoleへ記録する。
+- Stopまたはエディター終了時は全クライアントへ通常終了を要求し、期限後に残るものだけを
+  強制終了する。終了待ちはフレームを停止しない状態機械で行い、片付け中は再Playを無効化する。
+  NetworkManagerのコールバック、Replication、専用サーバー状態を解除した後、Play開始前の
+  スナップショットを再読込する。
 
 ## キャラクター(Humanoidクラス)
 - StarterCharacter内のテンプレート、またはそのclone後にRoot/Torso/Head/LeftArm/RightArm/

@@ -9,6 +9,7 @@
 #include <Instances/BaseCube.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/LiquidCube.hpp>
+#include <Instances/SpawnLocation.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
@@ -929,6 +930,10 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "LiquidCube") {
         ImGui::SeparatorText("LiquidCube");
         renderSchemaInspector(inst, "LiquidCube", m_history);
+    }
+    if (inst->getClassName() == "SpawnLocation") {
+        ImGui::SeparatorText("SpawnLocation");
+        renderSchemaInspector(inst, "SpawnLocation", m_history);
     }
 
     // ---- Sun（Angle、スキーマ駆動） ----

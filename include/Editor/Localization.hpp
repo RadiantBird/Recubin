@@ -30,9 +30,12 @@ enum class LocKey {
     PackageGameTitle, GameNameLabel, OutputDirLabel, PackageButton,
     CloseButton, ProcessingText,
     NavMeshBuildTitle, NavMeshBuildMessage, NavMeshBuildProgress,
+    PlayStartErrorTitle, PlayStartErrorMessage, LocalServerRequiresNetwork,
 
     // ---- EditorManager: ツールバー ----
     PlayButton, PauseButton, StopButton,
+    PlayModeLabel, PlayModeNormal, PlayModeHere, PlayModeLocalServer,
+    NetworkClientCountLabel, NetworkClientCountFormat, NetworkClientStatus,
     SelectTool, MoveTool, ResizeTool, RotateTool,
     SnapTranslate, SnapRotate, SnapScale, CollisionFit,
     AddObjectDropdown, SaveButton, LoadButton,

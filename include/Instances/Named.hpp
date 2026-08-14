@@ -8,4 +8,7 @@ class Named : public Base {
     public:
         using Base::Base;
         std::string getClassName() override { return Derived::ClassName; }
+        bool IsA(std::string className) override {
+            return className == Derived::ClassName || Base::IsA(className);
+        }
 };

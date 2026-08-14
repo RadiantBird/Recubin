@@ -2,6 +2,7 @@
 #include <cgltf.h>
 
 #include <Instances/MeshCube.hpp>
+#include <Instances/Cube.hpp>
 #include <Instances/Decal.hpp>
 #include <Core/Renderer.hpp>
 #include <Core/Physics.hpp>
@@ -21,9 +22,59 @@ MeshCube::~MeshCube() {
     releaseGPU();
 }
 
-bool MeshCube::IsA(std::string className) {
-    if (className == "MeshCube") return true;
-    return BaseCube::IsA(className);
+void MeshCube::activateFallback(const std::string& requestedPath) {
+    MeshFile = requestedPath;
+    releaseGPU();
+    m_fallbackActive = true;
+
+    constexpr float h = 0.5f;
+    const Vector3 positions[] = {
+        {-h, -h, -h}, { h, -h, -h}, { h,  h, -h}, {-h,  h, -h},
+        {-h, -h,  h}, { h, -h,  h}, { h,  h,  h}, {-h,  h,  h},
+    };
+    m_cpuVertices.clear();
+    m_cpuVertices.reserve(8);
+    for (const Vector3& position : positions) {
+        MeshVertex vertex;
+        vertex.Position = position;
+        vertex.Normal = Vector3(0.0f, 1.0f, 0.0f);
+        vertex.U = 0.0f;
+        vertex.V = 0.0f;
+        m_cpuVertices.push_back(vertex);
+    }
+    m_cpuIndices = {
+        0, 2, 1, 0, 3, 2,
+        4, 5, 6, 4, 6, 7,
+        0, 1, 5, 0, 5, 4,
+        3, 7, 6, 3, 6, 2,
+        0, 4, 7, 0, 7, 3,
+        1, 2, 6, 1, 6, 5,
+    };
+    m_highlightEdgeVerts.clear();
+    m_localBoundsMin = Vector3(-h, -h, -h);
+    m_localBoundsMax = Vector3( h,  h,  h);
+}
+
+unsigned int MeshCube::getVAO() const {
+    return m_fallbackActive ? Cube::s_VAO : m_VAO;
+}
+
+unsigned int MeshCube::getIndexCount() const {
+    return m_fallbackActive ? 36u : m_indexCount;
+}
+
+unsigned int MeshCube::getHighlightVAO() const {
+    return getVAO();
+}
+
+unsigned int MeshCube::getHighlightIndexCount() const {
+    return getIndexCount();
+}
+
+const std::vector<float>& MeshCube::getHighlightEdgeVerts() const {
+    if (m_fallbackActive) return Cube::s_HighlightEdgeVerts;
+    static const std::vector<float> empty;
+    return m_VAO != 0 ? m_highlightEdgeVerts : empty;
 }
 
 void MeshCube::releaseMeshBuffers() {
@@ -173,8 +224,10 @@ namespace {
 }
 
 void MeshCube::draw(int modelLoc, int shaderProgram) {
-    if (m_VAO == 0) return;
-    glBindVertexArray(m_VAO);
+    const unsigned int drawVAO = getVAO();
+    const unsigned int drawIndexCount = getIndexCount();
+    if (drawVAO == 0 || drawIndexCount == 0) return;
+    glBindVertexArray(drawVAO);
 
     static CachedUniform s_colorLocCache;
     static CachedUniform s_uvScaleLocCache;
@@ -191,7 +244,13 @@ void MeshCube::draw(int modelLoc, int shaderProgram) {
     int useVertexColorLoc = cachedUniformLocation(shaderProgram, s_useVertexColorLocCache, "useVertexColor");
     int instancedLoc = cachedUniformLocation(shaderProgram, s_instancedLocCache, "uInstanced");
     if (colorLoc != -1) {
-        glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
+        if (m_fallbackActive) {
+            // The fallback is diagnostic UI: instance tint/alpha must never
+            // hide or recolor its magenta/black missing-mesh pattern.
+            glUniform4f(colorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
+        } else {
+            glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
+        }
     }
 
     // These uniforms are shared by all objects using the main shader.  A
@@ -205,7 +264,13 @@ void MeshCube::draw(int modelLoc, int shaderProgram) {
     if (instancedLoc != -1) glUniform1f(instancedLoc, 0.0f);
 
     glActiveTexture(GL_TEXTURE0);
-    unsigned int tex = (m_textureID != 0) ? m_textureID : (Renderer::instance ? Renderer::instance->whiteTexture : 0);
+    unsigned int tex = 0;
+    if (m_fallbackActive && Renderer::instance) {
+        tex = Renderer::instance->getMeshFallbackTexture();
+    } else {
+        tex = (m_textureID != 0) ? m_textureID
+                                 : (Renderer::instance ? Renderer::instance->whiteTexture : 0);
+    }
     glBindTexture(GL_TEXTURE_2D, tex);
 
     std::vector<UVDecalDesc> uvDecals = collectUVDecals(kMaxDecalUniforms);
@@ -239,7 +304,7 @@ void MeshCube::draw(int modelLoc, int shaderProgram) {
     if (boundsMinLoc != -1) glUniform3f(boundsMinLoc, m_localBoundsMin.x, m_localBoundsMin.y, m_localBoundsMin.z);
     if (boundsMaxLoc != -1) glUniform3f(boundsMaxLoc, m_localBoundsMax.x, m_localBoundsMax.y, m_localBoundsMax.z);
 
-    glDrawElements(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, nullptr);
+    glDrawElements(GL_TRIANGLES, drawIndexCount, GL_UNSIGNED_INT, nullptr);
 
     if (countLoc != -1) glUniform1i(countLoc, 0);
     glActiveTexture(GL_TEXTURE0);
@@ -271,7 +336,7 @@ bool MeshCube::hasValidUV() const {
 }
 
 bool MeshCube::regenerateUV() {
-    if (m_cpuVertices.empty() || m_cpuIndices.empty()) return false;
+    if (m_fallbackActive || m_cpuVertices.empty() || m_cpuIndices.empty()) return false;
 
     xatlas::Atlas* atlas = xatlas::Create();
     if (!atlas) {
@@ -359,23 +424,42 @@ static Vector3 glbTransformNormal(const float m[16], const Vector3& n) {
 }
 
 bool MeshCube::loadFromGLB(const std::string& path) {
+    // The requested path is user data and must survive a failed load so it can
+    // be saved with the scene and retried after the asset becomes available.
+    MeshFile = path;
+    if (path.empty()) {
+        releaseGPU();
+        m_cpuVertices.clear();
+        m_cpuIndices.clear();
+        m_highlightEdgeVerts.clear();
+        m_localBoundsMin = Vector3{};
+        m_localBoundsMax = Vector3{};
+        m_fallbackActive = false;
+        return false;
+    }
     const std::string normalizedPath = AssetPath::normalize(path);
     if (normalizedPath.size() < 4 ||
         normalizedPath.compare(normalizedPath.size() - 4, 4, ".glb") != 0) {
         RCBN_WARN("MeshCube: GLB以外のファイルは未対応です: " << path);
+        activateFallback(path);
         return false;
     }
-    if (!AssetGuard::allow(path)) return false;
+    if (!AssetGuard::allow(path)) {
+        activateFallback(path);
+        return false;
+    }
 
     cgltf_options options = {};
     cgltf_data* data = nullptr;
     if (cgltf_parse_file(&options, normalizedPath.c_str(), &data) != cgltf_result_success) {
         RCBN_WARN("MeshCube: GLBの解析に失敗しました: " << path);
+        activateFallback(path);
         return false;
     }
     if (cgltf_load_buffers(&options, data, normalizedPath.c_str()) != cgltf_result_success) {
         RCBN_WARN("MeshCube: GLBのバッファ読み込みに失敗しました: " << path);
         cgltf_free(data);
+        activateFallback(path);
         return false;
     }
 
@@ -463,6 +547,7 @@ bool MeshCube::loadFromGLB(const std::string& path) {
     if (vertices.empty() || indices.empty()) {
         RCBN_WARN("MeshCube: GLBに有効なメッシュがありません: " << path);
         if (loadedTexture) glDeleteTextures(1, &loadedTexture);
+        activateFallback(path);
         return false;
     }
 
@@ -511,6 +596,8 @@ bool MeshCube::loadFromGLB(const std::string& path) {
     m_cpuVertices = std::move(vertices);
     m_cpuIndices  = std::move(indices);
     m_textureID   = loadedTexture;
+    m_fallbackActive = false;
+    MeshFile = path;
 
     if (!hasValidUV()) {
         regenerateUV();
@@ -524,12 +611,10 @@ bool MeshCube::loadFromGLB(const std::string& path) {
 void MeshCube::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "MeshFile") {
         std::string path = value.as<std::string>();
-        if (loadFromGLB(path)) {
-            MeshFile = path;
-            if (lastWorkspace && lastWorkspace->getPhysicsEngine()) {
-                lastWorkspace->getPhysicsEngine()->recreateActor(
-                    std::static_pointer_cast<BaseCube>(shared_from_this()));
-            }
+        loadFromGLB(path);
+        if (lastWorkspace && lastWorkspace->getPhysicsEngine()) {
+            lastWorkspace->getPhysicsEngine()->recreateActor(
+                std::static_pointer_cast<BaseCube>(shared_from_this()));
         }
     } else {
         BaseCube::setProperty(name, value);
@@ -538,25 +623,11 @@ void MeshCube::setProperty(const std::string& name, const YAML::Node& value) {
 
 std::shared_ptr<Instance> MeshCube::clone() const {
     auto copy = std::make_shared<MeshCube>(this->Position, this->Size);
-    copy->Name       = this->Name;
-    copy->Color      = this->Color;
-    copy->Anchored   = this->Anchored;
-    copy->CanCollide = this->CanCollide;
-    copy->Locked     = this->Locked;
-    copy->cframe     = this->cframe;
-    copy->material     = this->material;
-    copy->MassDensity  = this->MassDensity;
-    copy->LockFlags = this->LockFlags;
-    copy->CollisionDetection = this->CollisionDetection;
-    copy->CastShadow   = this->CastShadow;
-    copy->Unlit        = this->Unlit;
-    copy->UseTriplanar = this->UseTriplanar;
-    copy->TextureScale = this->TextureScale;
-    if (!this->MeshFile.empty() && copy->loadFromGLB(this->MeshFile)) {
-        copy->MeshFile = this->MeshFile;
+    if (this->m_fallbackActive) {
+        copy->activateFallback(this->MeshFile);
+    } else if (!this->MeshFile.empty()) {
+        copy->loadFromGLB(this->MeshFile);
     }
-    for (auto const& [name, child] : children) {
-        copy->addChild(child->clone());
-    }
+    cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }

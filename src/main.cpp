@@ -22,6 +22,7 @@
 #include <Instances/Weather.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/PathfindingService.hpp>
+#include <Instances/ChatService.hpp>
 
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
@@ -38,6 +39,8 @@
 #include <Editor/ViewportFocusManager.hpp>
 #include <Editor/Localization.hpp>
 #include <Core/SystemState.hpp>
+#include <Network/NetworkManager.hpp>
+#include <Network/Replication.hpp>
 #include <include/imgui/imgui.h>
 
 #include <Util/Logger.hpp>
@@ -48,10 +51,13 @@
 #include <iostream>
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <fstream>
 #include <filesystem>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 #include <cmath>
 #include <cstddef>
@@ -331,6 +337,15 @@ static void loadEditorPreferences(EditorManager* ed, User* user) {
     }
     if (p["SelectOnly"]) ed->viewportPanel->selectOnly = p["SelectOnly"].as<bool>();
     if (p["ToolNone"])   ed->viewportPanel->toolNone   = p["ToolNone"].as<bool>();
+
+    if (p["PlayMode"]) {
+        const std::string playMode = p["PlayMode"].as<std::string>();
+        if (playMode == "PlayHere") ed->setSelectedPlayMode(EditorPlayMode::PlayHere);
+        else if (playMode == "LocalServer") ed->setSelectedPlayMode(EditorPlayMode::LocalServer);
+        else ed->setSelectedPlayMode(EditorPlayMode::Normal);
+    }
+    if (p["NetworkClientCount"])
+        ed->setNetworkClientCount(std::clamp(p["NetworkClientCount"].as<int>(), 1, 8));
 }
 
 // エディター環境設定を editor_settings.yaml へ保存する（他キーは保持）
@@ -370,6 +385,15 @@ static void saveEditorPreferences(EditorManager* ed, User* user) {
     p["GizmoMode"]   = static_cast<int>(ed->viewportPanel->gizmoMode);
     p["SelectOnly"]  = ed->viewportPanel->selectOnly;
     p["ToolNone"]    = ed->viewportPanel->toolNone;
+
+    const char* playMode = "Normal";
+    switch (ed->selectedPlayMode()) {
+        case EditorPlayMode::Normal:      playMode = "Normal"; break;
+        case EditorPlayMode::PlayHere:    playMode = "PlayHere"; break;
+        case EditorPlayMode::LocalServer: playMode = "LocalServer"; break;
+    }
+    p["PlayMode"] = playMode;
+    p["NetworkClientCount"] = std::clamp(ed->networkClientCount(), 1, 8);
 
     root["Preferences"] = p;
     writeEditorSettings(root);
@@ -414,7 +438,7 @@ static int runGenTestScene(const std::string& outputPath) {
     // PathfindingService/Script は特殊なため除外。Script は末尾で検証用に個別追加する）。
     // createInstance() に新しいクラスを追加した場合はここにも追加すること。
     static const char* kClassNames[] = {
-        "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere", "MeshCube", "LiquidCube",
+        "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere", "MeshCube", "LiquidCube", "SpawnLocation",
         "Skybox", "Sun", "Moon", "Model", "Sound",
         "Lighting", "PointLight", "SpotLight", "PostEffect",
         "AppImage", "FileRef", "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance",
@@ -598,6 +622,70 @@ int main(int argc, char* argv[]) {
     bool snapshotDirty = false;
     const std::string snapshotPath = "assets/scenes/_snapshot.yaml";
 
+    struct ManagedNetworkClient {
+        std::unique_ptr<IChildProcess> process;
+        std::filesystem::path logPath;
+        bool exitReported = false;
+    };
+    std::vector<ManagedNetworkClient> networkClients;
+    std::unique_ptr<ReplicationManager> editorReplication;
+    std::shared_ptr<ChatService> editorChatService;
+    bool networkClientCleanupActive = false;
+    double networkClientCleanupDeadline = 0.0;
+
+    auto clearEditorNetwork = [&] {
+        auto& network = NetworkManager::get();
+        network.onRoleChanged = nullptr;
+        network.onGameMessage = nullptr;
+        network.onChatMessage = nullptr;
+        if (editorChatService) editorChatService->onSendRequested = nullptr;
+        renderer->setChatService(nullptr);
+        editorChatService.reset();
+        editorReplication.reset();
+        network.shutdown();
+        if (ed) ed->setNetworkClientStatus(0, 0);
+    };
+
+    auto beginNetworkClientCleanup = [&] {
+        if (networkClients.empty()) return;
+        for (auto& client : networkClients) {
+            if (client.process && client.process->isRunning()) client.process->requestClose();
+        }
+        networkClientCleanupActive = true;
+        networkClientCleanupDeadline = glfwGetTime() + 2.0;
+        if (ed) ed->setExternalPlayCleanup(true);
+    };
+
+    auto pollNetworkClientCleanup = [&](double now) {
+        if (!networkClientCleanupActive) return;
+        bool allStopped = true;
+        for (auto& client : networkClients) {
+            if (!client.process || !client.process->isRunning()) continue;
+            allStopped = false;
+            if (now >= networkClientCleanupDeadline) {
+                client.process->terminate();
+            }
+        }
+        if (allStopped) {
+            networkClients.clear();
+            networkClientCleanupActive = false;
+            if (ed) ed->setExternalPlayCleanup(false);
+        }
+    };
+
+    auto restoreObserverBinding = [&] {
+        std::shared_ptr<Instance> usersContainer;
+        for (auto& [name, child] : system->getChildren()) {
+            if (child && child->IsA("Users")) {
+                usersContainer = child;
+                break;
+            }
+        }
+        if (usersContainer && user->Parent.expired()) usersContainer->addChild(user);
+        luauEngine->setGlobalInstance("User", user);
+        user->controlMode = User::ControlMode::Free;
+    };
+
     // The editor does not need a busy loop while it is idle.  Keep the
     // timeout short enough to remain responsive, while avoiding a full-rate
     // redraw when there is nothing to update.
@@ -625,6 +713,25 @@ int main(int argc, char* argv[]) {
         workspace->initPhysics();
     };
 
+    auto restorePlaySnapshot = [&] {
+        audioService->stopAllSounds();
+        user->despawnCharacter();
+        // Undo/Clipboardが旧WorkspaceのInstanceを保持したままPhysicsを破棄しないよう、
+        // 通常Stopと起動失敗の両方をこの順序へ集約する。
+        if (ed) {
+            ed->hierarchyPanel->selectedInstance = nullptr;
+            ed->m_history.clear();
+            ed->clearClipboard();
+            ed->animationPanel->endEditSession();
+        }
+        workspaces = SceneRuntime::collectWorkspaces(system);
+        luauEngine->cancelAllTasks();
+        resetTerrainStreamers(workspaces);
+        clearWorkspacePhysics(workspaces);
+        resetSystemForReload(system, user);
+        initNewScene(snapshotPath, snapshotDirty);
+    };
+
     while (true) {
         const bool windowInactive =
             glfwGetWindowAttrib(window, GLFW_FOCUSED) == GLFW_FALSE ||
@@ -644,6 +751,7 @@ int main(int argc, char* argv[]) {
         double currentFrame = glfwGetTime();
         float deltaTime = static_cast<float>(std::max(0.0, currentFrame - lastFrame));
         lastFrame          = currentFrame;
+        pollNetworkClientCleanup(currentFrame);
 
         SystemState& state = SystemState::get();
         state.deltaTime = deltaTime;
@@ -660,7 +768,23 @@ int main(int argc, char* argv[]) {
         const bool isPaused  = state.isPaused;
 
         // ---- Play/Stop 遷移処理 ----
+        bool playTransitionAccepted = true;
         if (isPlaying && !wasPlaying) {
+            const EditorPlayMode playMode = ed->activePlayMode();
+            const std::optional<Vector3> playHerePosition =
+                playMode == EditorPlayMode::PlayHere
+                    ? std::optional<Vector3>(user->getCameraCFrame().Position)
+                    : std::nullopt;
+            if (playMode == EditorPlayMode::LocalServer && !system->UseNetwork) {
+                ed->showLocalServerNetworkRequiredError();
+                ed->mode = EditorMode::Edit;
+                user->controlMode = User::ControlMode::Free;
+                state.isPlaying = false;
+                state.inputState = InputState::Editor;
+                playTransitionAccepted = false;
+            }
+
+            if (playTransitionAccepted) {
             // SlotsはInventoryから導出される実行時キャッシュ。EditorでToolを移動した
             // 直後でも前回のshared_ptrを持ち越さないよう、Play開始時に実体から再構築する。
             user->syncToolsFromInventory();
@@ -680,46 +804,159 @@ int main(int argc, char* argv[]) {
                     if (!ws->getPhysicsEngine()) ws->initPhysics();
                 }
             }
-            // 先にスクリプトを実行開始する
-            for (auto& [name, child] : system->getChildren()) {
-                if (child->IsA("Workspace")) {
-                    auto* ws = static_cast<Workspace*>(child.get());
-                    luauEngine->executeWorkspaceScripts(*ws);
+
+            if (playMode == EditorPlayMode::LocalServer) {
+                std::error_code pathError;
+                std::filesystem::path studioPath = std::filesystem::absolute(engineExePath, pathError);
+                if (pathError || studioPath.empty()) {
+                    ed->showPlayStartError("Failed to resolve the editor executable path.");
+                    playTransitionAccepted = false;
+                }
+                std::filesystem::path enginePath;
+                if (playTransitionAccepted) {
+#ifdef _WIN32
+                    enginePath = studioPath.parent_path() / "RecubinEngine.exe";
+#else
+                    enginePath = studioPath.parent_path() / "RecubinEngine";
+#endif
+                    pathError.clear();
+                    if (!std::filesystem::is_regular_file(enginePath, pathError) || pathError) {
+                        ed->showPlayStartError("RecubinEngine was not found next to the editor executable.");
+                        playTransitionAccepted = false;
+                    }
+                }
+
+                std::filesystem::path workingDirectory;
+                std::filesystem::path logDirectory;
+                if (playTransitionAccepted) {
+                    pathError.clear();
+                    workingDirectory = std::filesystem::current_path(pathError);
+                    if (pathError) {
+                        ed->showPlayStartError("Failed to resolve the project working directory.");
+                        playTransitionAccepted = false;
+                    }
+                }
+                if (playTransitionAccepted) {
+                    pathError.clear();
+                    const auto sessionId = std::chrono::steady_clock::now().time_since_epoch().count();
+                    logDirectory = std::filesystem::temp_directory_path(pathError) /
+                        "RecubinStudio" / ("local-server-" + std::to_string(sessionId));
+                    if (!pathError) std::filesystem::create_directories(logDirectory, pathError);
+                    if (pathError) {
+                        ed->showPlayStartError("Failed to create the client log directory.");
+                        playTransitionAccepted = false;
+                    }
+                }
+
+                if (playTransitionAccepted && !NetworkManager::get().startHost(0, false)) {
+                    ed->showPlayStartError("Failed to start the local direct server.");
+                    playTransitionAccepted = false;
+                }
+
+                if (playTransitionAccepted) {
+                    user->controlMode = User::ControlMode::Free;
+                    user->despawnCharacter();
+                    if (auto parent = user->Parent.lock()) parent->removeChild(user->Name);
+                    luauEngine->clearGlobalInstance("User");
+
+                    if (auto it = system->children.find("ChatService"); it != system->children.end())
+                        editorChatService = std::dynamic_pointer_cast<ChatService>(it->second);
+                    if (editorChatService) {
+                        editorChatService->onSendRequested = [](const std::string& text) {
+                            NetworkManager::get().sendChatMessage(text);
+                        };
+                        renderer->setChatService(editorChatService);
+                    }
+
+                    editorReplication = std::make_unique<ReplicationManager>(workspace, user, system.get());
+                    NetworkManager::get().onGameMessage = [&](uint8_t type, const uint8_t* payload,
+                                                               size_t len, PeerId senderId) {
+                        if (editorReplication)
+                            editorReplication->onGameMessage(type, payload, len, senderId);
+                    };
+                    NetworkManager::get().onChatMessage = [&](PeerId senderId, const std::string& text) {
+                        RCBN_LOG("[Chat][Peer " << senderId << "] " << text);
+                        if (editorChatService) {
+                            editorChatService->receiveMessage(senderId, text);
+                            luauEngine->fireChatMessage(editorChatService.get(), senderId, text);
+                        }
+                    };
+                    NetworkManager::get().onRoleChanged = [&](NetworkRole oldRole, NetworkRole newRole) {
+                        RCBN_LOG("NetworkManager: role changed " << NetworkManager::roleToString(oldRole)
+                                  << " -> " << NetworkManager::roleToString(newRole));
+                        luauEngine->fireNetworkRoleChanged(oldRole, newRole);
+                        if (editorReplication)
+                            editorReplication->onNetworkRoleChanged(oldRole, newRole);
+                    };
+
+                    const uint16_t port = NetworkManager::get().getListenPort();
+                    const int clientCount = std::clamp(ed->networkClientCount(), 1, 8);
+                    ed->setNetworkClientStatus(0, clientCount);
+                    for (int clientIndex = 1; clientIndex <= clientCount; ++clientIndex) {
+                        const std::filesystem::path logPath =
+                            logDirectory / ("client-" + std::to_string(clientIndex) + ".log");
+                        ChildProcessLaunchOptions options;
+                        options.executable = enginePath.string();
+                        options.arguments = {
+                            "--scene", snapshotPath,
+                            "--direct-connect", "127.0.0.1:" + std::to_string(port),
+                            "--listen-port", "0",
+                            "--window-title", "Client " + std::to_string(clientIndex),
+                            "--editor-test"
+                        };
+                        options.workingDirectory = workingDirectory.string();
+                        options.outputLogPath = logPath.string();
+                        auto process = getPlatform().launchChildProcess(options);
+                        if (!process) {
+                            ed->showPlayStartError(
+                                "Failed to launch Client " + std::to_string(clientIndex) + ".");
+                            playTransitionAccepted = false;
+                            break;
+                        }
+                        networkClients.push_back({std::move(process), logPath, false});
+                    }
+                }
+
+                if (!playTransitionAccepted) {
+                    beginNetworkClientCleanup();
+                    clearEditorNetwork();
+                    restoreObserverBinding();
+                    restorePlaySnapshot();
+                    ed->mode = EditorMode::Edit;
+                    state.isPlaying = false;
+                    state.inputState = InputState::Editor;
                 }
             }
-            luauEngine->executeSystemScripts();
 
-            // その後にキャラクターをスポーンする
-            user->spawnCharacter(system.get());
-            audioService->playAutoPlaySounds();
-            if (user->character) workspace->addChild(user->character);
+            if (playTransitionAccepted) {
+                // 先にスクリプトを実行開始する。専用サーバーではNetworkRoleにより
+                // LocalScriptが除外され、通常のScriptだけが実行される。
+                for (auto& [name, child] : system->getChildren()) {
+                    if (child->IsA("Workspace")) {
+                        auto* ws = static_cast<Workspace*>(child.get());
+                        luauEngine->executeWorkspaceScripts(*ws);
+                    }
+                }
+                luauEngine->executeSystemScripts();
+
+                if (playMode != EditorPlayMode::LocalServer) {
+                    // CharacterAddedからも初期座標が見えるよう、Play Hereの位置は
+                    // spawnCharacterへ直接渡す。
+                    user->spawnCharacter(system.get(), workspace.get(), playHerePosition);
+                    audioService->playAutoPlaySounds();
+                    if (user->character) workspace->addChild(user->character);
+                }
+            }
+            }
         }
         if (!isPlaying && wasPlaying) {
-            audioService->stopAllSounds();
-            user->despawnCharacter();
-            // ---- Undo履歴/Clipboardのクリア（旧Workspace/Physics破棄より前に行う） ----
-            // EditorManager の Undo スタックや Clipboard が BaseCube 等の shared_ptr を
-            // 保持していると、resetSystemForReload() での実デストラクタ実行が
-            // Workspace/Physics 破棄後まで遅延され、lastWorkspace がダングリングポインタ化
-            // してクラッシュしうる（main.cpp末尾の明示的クリーンアップと同じ理由）。
-            // Physics がまだ生きている今のうちにクリアする。
-            if (ed) {
-                ed->hierarchyPanel->selectedInstance = nullptr;
-                ed->m_history.clear();
-                ed->clearClipboard();
-                ed->animationPanel->endEditSession();
+            if (ed->activePlayMode() == EditorPlayMode::LocalServer) {
+                beginNetworkClientCleanup();
+                clearEditorNetwork();
             }
-            // 全Workspaceのクリア（ownedPhysics デストラクタで自動解放）
-            // Terrainは次回のload時に再構築される
-            workspaces = SceneRuntime::collectWorkspaces(system);
-            luauEngine->cancelAllTasks();
-            resetTerrainStreamers(workspaces); // 物理が生きているうちにTerrainを解放
-            clearWorkspacePhysics(workspaces);
-            resetSystemForReload(system, user);
-
-            initNewScene(snapshotPath, snapshotDirty);
+            restorePlaySnapshot();
         }
-        wasPlaying = isPlaying;
+        wasPlaying = isPlaying && playTransitionAccepted;
 
         // ---- シーンのリロード（Loadボタン / 新規作成）----
         if (ed && (ed->pendingNewScene || !ed->pendingLoadPath.empty()) && ed->isEditMode()) {
@@ -760,8 +997,56 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        bool runtimeFrameOk = playTransitionAccepted;
+        const bool localServerFrame = isPlaying && playTransitionAccepted && ed &&
+            ed->activePlayMode() == EditorPlayMode::LocalServer;
+        if (localServerFrame) {
+            user->controlMode = User::ControlMode::Free;
+            NetworkManager::get().update(deltaTime);
+
+            int connectedPlayers = 0;
+            for (const PeerInfo& peer : NetworkManager::get().getRoster()) {
+                if (peer.isPlayer) ++connectedPlayers;
+            }
+            ed->setNetworkClientStatus(connectedPlayers,
+                                       std::clamp(ed->networkClientCount(), 1, 8));
+
+            for (auto& client : networkClients) {
+                if (!client.process || client.exitReported || client.process->isRunning()) continue;
+                const std::optional<int> exitCode = client.process->exitCode();
+                RCBN_LOG("[Network Test] Client exited"
+                         << (exitCode ? " with code " + std::to_string(*exitCode) : std::string())
+                         << ". Log: " << client.logPath.string());
+                client.exitReported = true;
+            }
+
+            const bool networkFailed = !NetworkManager::get().isActive() ||
+                NetworkManager::get().getConnectionState() == ConnectionState::Failed;
+            if (networkFailed) {
+                const ConnectionError error = NetworkManager::get().getConnectionError();
+                ed->showPlayStartError(
+                    std::string("Local server failed: ") +
+                    NetworkManager::connectionErrorToString(error));
+                ed->mode = EditorMode::Edit;
+                user->controlMode = User::ControlMode::Free;
+                state.isPlaying = false;
+                state.inputState = InputState::Editor;
+                runtimeFrameOk = false;
+            } else if (!navMeshBusy && editorReplication) {
+                editorReplication->update(deltaTime, workspace->getPhysicsEngine());
+                if (editorReplication->hasFatalIdentityError()) {
+                    ed->showPlayStartError("Local server replication failed.");
+                    ed->mode = EditorMode::Edit;
+                    user->controlMode = User::ControlMode::Free;
+                    state.isPlaying = false;
+                    state.inputState = InputState::Editor;
+                    runtimeFrameOk = false;
+                }
+            }
+        }
+
         // ---- エディターモード中は物理・スクリプトを止める ----
-        if (isPlaying && !isPaused && !navMeshBusy) {
+        if (isPlaying && runtimeFrameOk && !isPaused && !navMeshBusy) {
             FrameProfiler::get().beginSection("luau");
             luauEngine->resetFrameSafetyCounters();
             for (auto& [name, child] : system->getChildren()) {
@@ -820,18 +1105,18 @@ int main(int argc, char* argv[]) {
         // 再生中のAnimationを評価し、対象Cubeのcframeを上書きする
         // (processInput内のapplyBodyAnimationより後に行うことでアニメーションを優先させる)
         // workspace内の全Humanoid(NPC含む)が対象(旧: user->humanoidのみに限定されていた)
-        if (isPlaying && !isPaused && !navMeshBusy) {
+        if (isPlaying && runtimeFrameOk && !isPaused && !navMeshBusy) {
             Humanoid::updateAll(workspace.get(), deltaTime, workspace->getPhysicsEngine());
         }
 
         // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、
         // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす
-        if (isPlaying && !isPaused && !navMeshBusy && workspace->getPhysicsEngine()) {
+        if (isPlaying && runtimeFrameOk && !isPaused && !navMeshBusy && workspace->getPhysicsEngine()) {
             workspace->getPhysicsEngine()->syncWeldKinematics();
         }
 
         // ---- Pキー: Workspace 切り替え ----
-        if (!navMeshBusy && user->consumeWorkspaceSwitchRequest() && isPlaying) {
+        if (!navMeshBusy && runtimeFrameOk && user->consumeWorkspaceSwitchRequest() && isPlaying) {
             // System直下のWorkspaceリストを収集
             std::vector<Workspace*> workspacePtrs;
             workspaces = SceneRuntime::collectWorkspaces(system);
@@ -853,6 +1138,7 @@ int main(int argc, char* argv[]) {
                     }
                     // activeWorkspace 更新
                     workspace = std::static_pointer_cast<Workspace>(next->shared_from_this());
+                    if (editorReplication) editorReplication->setWorkspace(workspace);
                     luauEngine->setGlobalInstance("workspace", workspace);
                     luauEngine->setWorkspace(workspace);
                     ed->setWorkspace(workspace.get());
@@ -947,6 +1233,32 @@ int main(int argc, char* argv[]) {
 
     savePanelVisibility(ed); // 次回起動時に復元できるようパネル開閉状態を保存
     saveEditorPreferences(ed, user.get()); // 次回起動時に復元できるようエディター環境設定を保存
+
+    // LocalServerの子プロセスはGLFW/GLを破棄する前に閉じる。通常終了に最大2秒を
+    // 与えた後、残ったプロセスだけを強制終了する。
+    for (auto& client : networkClients) {
+        if (client.process && client.process->isRunning()) client.process->requestClose();
+    }
+    const auto childExitDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (!networkClients.empty() && std::chrono::steady_clock::now() < childExitDeadline) {
+        bool allStopped = true;
+        for (auto& client : networkClients) {
+            if (client.process && client.process->isRunning()) {
+                allStopped = false;
+                break;
+            }
+        }
+        if (allStopped) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    for (auto& client : networkClients) {
+        if (client.process && client.process->isRunning()) client.process->terminate();
+    }
+    networkClients.clear();
+    networkClientCleanupActive = false;
+    if (ed) ed->setExternalPlayCleanup(false);
+    clearEditorNetwork();
 
     // windows(
     //     std::thread t([]() {

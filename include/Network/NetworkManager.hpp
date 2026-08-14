@@ -22,7 +22,7 @@ public:
     static NetworkManager& get();
 
     // port で Listen し、Role を Host にする。enet_initialize が未実行なら内部で行う。
-    bool startHost(uint16_t port);
+    bool startHost(uint16_t port, bool isPlayerHost = true);
     // address:port の Host へ接続する。Role を Client にする。
     // listenPort = 自分がHost昇格した場合にListenするポート。Helloで申告する。
     bool connect(const std::string& address, uint16_t port, uint16_t listenPort);
@@ -42,6 +42,7 @@ public:
     bool hasPeers() const { return !m_peers.empty(); }
 
     PeerId getLocalPeerId() const { return m_localPeerId; }
+    bool isLocalPlayer() const { return m_localIsPlayer; }
     const std::vector<PeerInfo>& getRoster() const { return m_roster; }
     MigrationState getMigrationState() const { return m_migrationState; }
     ConnectionState getConnectionState() const { return m_connectionState; }
@@ -133,6 +134,7 @@ private:
     NetworkRole m_role = NetworkRole::Offline;
     std::vector<ENetPeer*> m_peers; // Host視点: 接続中の全Client。Client視点: Hostのみ1件
     bool m_enetInitialized = false;
+    bool m_localIsPlayer = true;
 
     PeerId m_localPeerId = 0;
     uint32_t m_nextPeerId = 2; // Host専用。1はHost自身

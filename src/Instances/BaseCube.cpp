@@ -357,3 +357,27 @@ void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
         Spatial::setProperty(name, value);
     }
 }
+
+void BaseCube::cloneBaseCubeStateAndChildrenTo(
+    const std::shared_ptr<BaseCube>& copy) const {
+    if (!copy) return;
+    copy->Name = Name;
+    copy->Color = Color;
+    copy->Anchored = Anchored;
+    copy->CanCollide = CanCollide;
+    copy->CastShadow = CastShadow;
+    copy->Unlit = Unlit;
+    copy->UseTriplanar = UseTriplanar;
+    copy->TextureScale = TextureScale;
+    copy->Locked = Locked;
+    copy->cframe = cframe;
+    copy->Size = Size;
+    copy->material = material;
+    copy->MassDensity = MassDensity;
+    copy->LockFlags = LockFlags;
+    copy->CollisionDetection = CollisionDetection;
+    for (const auto& [name, child] : children) {
+        (void)name;
+        copy->addChild(child->clone());
+    }
+}
