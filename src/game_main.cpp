@@ -394,6 +394,11 @@ int main(int argc, char* argv[]) {
 
     // ---- シーンのロード（共通初期化） ----
     auto bound     = SceneRuntime::loadAndBind(cfg.startScene, system, user, *luauEngine, window);
+    if (bound.loadStatus != SceneLoader::LoadStatus::Success &&
+        !(cfg.startScene.empty() && bound.loadStatus == SceneLoader::LoadStatus::NotFound)) {
+        std::cerr << "[Runtime] Scene load failed: " << bound.loadMessage << std::endl;
+        return -1;
+    }
     auto workspaces = bound.workspaces;
     auto workspace  = bound.workspace;
 

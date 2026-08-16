@@ -66,6 +66,7 @@
 #include <iostream>
 #include <fstream>
 #include <memory>
+#include <filesystem>
 
 #ifdef _WIN32
 #include <windows26.h>
@@ -107,14 +108,50 @@ namespace YAML {
     };
 }
 
-std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
+SceneLoader::LoadResult SceneLoader::loadSceneResult(const std::string& filePath) {
+    LoadResult result;
     try {
         std::string yamlContent = FileLoader::readText(filePath);
-        if (yamlContent.empty()) return nullptr;
+        if (yamlContent.empty()) {
+            result.status = std::filesystem::exists(filePath) ? LoadStatus::IoError : LoadStatus::NotFound;
+            result.message = "Scene file is empty or could not be read";
+            return result;
+        }
         YAML::Node config = YAML::Load(yamlContent);
+        if (config["recubin"]) {
+            const auto header = config["recubin"];
+            const std::string type = header["type"] ? header["type"].as<std::string>() : "";
+            const int version = header["version"] ? header["version"].as<int>() : -1;
+            if (type != "scene") {
+                result.status = LoadStatus::InvalidType;
+                result.message = "Unsupported Recubin document type: " + type;
+                return result;
+            }
+            if (version < 0 || version > 0) {
+                result.status = LoadStatus::UnsupportedVersion;
+                result.message = "Scene format version is not supported: " + std::to_string(version);
+                return result;
+            }
+            result.metadata.version = version;
+            const auto migrations = header["migrations"];
+            const auto bindingMigration = migrations
+                ? migrations["character_animation_bindings"] : YAML::Node();
+            if (bindingMigration && bindingMigration["version"])
+                result.metadata.characterAnimationBindingsVersion =
+                    bindingMigration["version"].as<int>();
+            const auto migration = migrations ? migrations["default_r6_animations"] : YAML::Node();
+            if (migration && migration["version"] && migration["version"].as<int>() == 1 && migration["decision"])
+                result.metadata.legacyDefaultR6AnimationDecision = migration["decision"].as<std::string>();
+            const auto animations = header["animations"];
+            const auto walk = animations ? animations["r6_walk"] : YAML::Node();
+            if (walk && walk["ContentPath"])
+                result.metadata.legacyWalkContentPath = walk["ContentPath"].as<std::string>();
+        }
         if (!config["Root"]) {
             std::cerr << "[SceneLoader] Error: No Root defined in " << filePath << std::endl;
-            return nullptr;
+            result.status = LoadStatus::MissingRoot;
+            result.message = "No Root defined";
+            return result;
         }
         YAML::Node root = config["Root"];
 
@@ -140,7 +177,8 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
             // bag が System シングルトン自身の場合、同じツリーを二重解決して警告も二重に出るためスキップ
             for (auto& [n, sing] : s_singletons)
                 if (sing != bag) resolveConstraintRefs(sing.get());
-            return bag;
+            result.root = bag;
+            return result;
         }
 
         // ClassName のない Root は子リストを直接処理する（フラット形式）
@@ -164,18 +202,26 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
             // bag が System シングルトン自身の場合、同じツリーを二重解決して警告も二重に出るためスキップ
             for (auto& [n, sing] : s_singletons)
                 if (sing != bag) resolveConstraintRefs(sing.get());
-            return bag;
+            result.root = bag;
+            return result;
         }
 
-        auto result = parseInstance(root);
-        resolveConstraintRefs(result.get());
+        auto loadedRoot = parseInstance(root);
+        resolveConstraintRefs(loadedRoot.get());
         for (auto& [n, sing] : s_singletons)
-            if (sing != result) resolveConstraintRefs(sing.get());
+            if (sing != loadedRoot) resolveConstraintRefs(sing.get());
+        result.root = loadedRoot;
         return result;
     } catch (const std::exception& e) {
         std::cerr << "[SceneLoader] Exception: " << e.what() << std::endl;
-        return nullptr;
+        result.status = LoadStatus::YamlError;
+        result.message = e.what();
+        return result;
     }
+}
+
+std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
+    return loadSceneResult(filePath).root;
 }
 
 std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
@@ -397,6 +443,10 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
                         std::cerr << "[SceneLoader] ObjectValue \"" << ov->getFullPath()
                                   << "\": target not found (Value=\"" << ov->m_targetPathName << "\")\n";
                 }
+            } else if (child->IsA("Humanoid")) {
+                // Propertiesは子ツリーより先に読まれるため、Animation参照は
+                // ツリー全体を構築した後に解決する。
+                static_cast<Humanoid*>(child.get())->resolveAnimationReferences(child->Parent.lock().get());
             }
             self(self, c);
         }
@@ -554,30 +604,31 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "Length" << YAML::Value << anim->Length;
             out << YAML::Key << "Speed"  << YAML::Value << anim->Speed;
             out << YAML::Key << "Looped" << YAML::Value << anim->Looped;
-            out << YAML::Key << "Tracks" << YAML::Value << YAML::BeginSeq;
-            for (const AnimTrack& tr : anim->getTracks()) {
-                out << YAML::BeginMap;
-                out << YAML::Key << "PartName" << YAML::Value << tr.partName;
-                out << YAML::Key << "Keyframes" << YAML::Value << YAML::BeginSeq;
-                for (const Keyframe& kf : tr.keyframes) {
-                    out << YAML::BeginMap;
-                    out << YAML::Key << "Time" << YAML::Value << kf.time;
-                    out << YAML::Key << "Position" << YAML::Value
-                        << YAML::Flow << YAML::BeginSeq
-                        << kf.cframe.Position.x << kf.cframe.Position.y << kf.cframe.Position.z
-                        << YAML::EndSeq;
-                    out << YAML::Key << "Rotation" << YAML::Value
-                        << YAML::Flow << YAML::BeginSeq
-                        << kf.cframe.Rotation.x << kf.cframe.Rotation.y
-                        << kf.cframe.Rotation.z << kf.cframe.Rotation.w
-                        << YAML::EndSeq;
-                    out << YAML::Key << "Easing" << YAML::Value << static_cast<int>(kf.easing);
-                    out << YAML::EndMap;
+            if (!anim->ContentPath.empty()) {
+                // 外部資産は参照だけを保存する。読込失敗中でも
+                // ユーザーが設定したパスを内蔵Clipで上書きしない。
+                out << YAML::Key << "ContentPath" << YAML::Value << anim->ContentPath;
+            } else if (const auto* clip = anim->getClip()) {
+                // 旧Scene埋め込みAnimationの互換保存。データの実体は
+                // AnimationClip::tracksのみで、別vectorは持たない。
+                out << YAML::Key << "Rig" << YAML::Value << clip->rig;
+                out << YAML::Key << "Space" << YAML::Value << clip->space;
+                out << YAML::Key << "Tracks" << YAML::Value << YAML::BeginSeq;
+                for (const auto& tr : clip->tracks) {
+                    out << YAML::BeginMap << YAML::Key << "PartName" << YAML::Value << tr.targetName;
+                    out << YAML::Key << "Keyframes" << YAML::Value << YAML::BeginSeq;
+                    for (const auto& kf : tr.keyframes) {
+                        out << YAML::BeginMap << YAML::Key << "Time" << YAML::Value << kf.time
+                            << YAML::Key << "Position" << YAML::Value << YAML::Flow << YAML::BeginSeq
+                            << kf.delta.Position.x << kf.delta.Position.y << kf.delta.Position.z << YAML::EndSeq
+                            << YAML::Key << "Rotation" << YAML::Value << YAML::Flow << YAML::BeginSeq
+                            << kf.delta.Rotation.x << kf.delta.Rotation.y << kf.delta.Rotation.z << kf.delta.Rotation.w << YAML::EndSeq
+                            << YAML::Key << "Easing" << YAML::Value << static_cast<int>(kf.easing) << YAML::EndMap;
+                    }
+                    out << YAML::EndSeq << YAML::EndMap;
                 }
                 out << YAML::EndSeq;
-                out << YAML::EndMap;
             }
-            out << YAML::EndSeq;
         }
         if (inst->getClassName() == "Lighting") {
             PropertyRegistry::saveProperties(out, inst, "Lighting");
@@ -793,8 +844,25 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
 }
 
 void SceneLoader::saveScene(Instance* root, const std::string& filePath) {
+    saveSceneResult(root, filePath);
+}
+
+bool SceneLoader::saveSceneResult(Instance* root, const std::string& filePath,
+                                  const SceneDocumentMetadata& metadata) {
+    if (!root) return false;
     YAML::Emitter out;
     out << YAML::BeginMap;
+    out << YAML::Key << "recubin" << YAML::Value << YAML::BeginMap;
+    out << YAML::Key << "type" << YAML::Value << "scene";
+    out << YAML::Key << "version" << YAML::Value << 0;
+    if (metadata.characterAnimationBindingsVersion > 0) {
+        out << YAML::Key << "migrations" << YAML::Value << YAML::BeginMap
+            << YAML::Key << "character_animation_bindings" << YAML::Value << YAML::BeginMap
+            << YAML::Key << "version" << YAML::Value
+                << metadata.characterAnimationBindingsVersion
+            << YAML::EndMap << YAML::EndMap;
+    }
+    out << YAML::EndMap;
     out << YAML::Key << "Root" << YAML::Value << YAML::BeginMap;
 
     // Root(System)自身はChildrenの一部として保存されない仮想的な親のため、
@@ -835,6 +903,10 @@ void SceneLoader::saveScene(Instance* root, const std::string& filePath) {
     std::ofstream file(filePath);
 #endif
     
-    if (file) file << out.c_str();
-    else std::cerr << "[SceneLoader] Failed to open for write: " << filePath << std::endl;
+    if (file) {
+        file << out.c_str();
+        return static_cast<bool>(file);
+    }
+    std::cerr << "[SceneLoader] Failed to open for write: " << filePath << std::endl;
+    return false;
 }

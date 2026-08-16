@@ -516,6 +516,34 @@ void LuauEngine::InitDispatchTable_Misc() {
     // Humanoid — フィールド/シグナルの getter/setter は PropertyRegistry の表から流し込む
     // （WalkSpeed/JumpPower/MaxHealth/RespawnTime/Health/Died）。下記メソッド系のみ手書き。
     PropertyRegistry::applyToDispatch("Humanoid", DispatchTable, SetterTable);
+    auto pushAnimationReference = [](lua_State* L, const std::shared_ptr<Animation>& animation) -> int {
+        if (animation) LuauEngine::pushInstance(L, animation);
+        else lua_pushnil(L);
+        return 1;
+    };
+    DispatchTable["Humanoid"]["WalkAnimation"] = [pushAnimationReference](lua_State* L, Instance* o) {
+        return pushAnimationReference(L, static_cast<Humanoid*>(o)->getWalkAnimation());
+    };
+    DispatchTable["Humanoid"]["JumpAnimation"] = [pushAnimationReference](lua_State* L, Instance* o) {
+        return pushAnimationReference(L, static_cast<Humanoid*>(o)->getJumpAnimation());
+    };
+    DispatchTable["Humanoid"]["EquipAnimation"] = [pushAnimationReference](lua_State* L, Instance* o) {
+        return pushAnimationReference(L, static_cast<Humanoid*>(o)->getEquipAnimation());
+    };
+    auto readAnimationReference = [](lua_State* L) -> std::shared_ptr<Animation> {
+        if (lua_isnil(L, 3)) return nullptr;
+        auto* ud = (std::weak_ptr<Instance>*)luaL_checkudata(L, 3, LuauEngine::RCBN_INST_METATABLE);
+        return std::dynamic_pointer_cast<Animation>(ud->lock());
+    };
+    SetterTable["Humanoid"]["WalkAnimation"] = [readAnimationReference](lua_State* L, Instance* o) {
+        static_cast<Humanoid*>(o)->setWalkAnimation(readAnimationReference(L)); return 0;
+    };
+    SetterTable["Humanoid"]["JumpAnimation"] = [readAnimationReference](lua_State* L, Instance* o) {
+        static_cast<Humanoid*>(o)->setJumpAnimation(readAnimationReference(L)); return 0;
+    };
+    SetterTable["Humanoid"]["EquipAnimation"] = [readAnimationReference](lua_State* L, Instance* o) {
+        static_cast<Humanoid*>(o)->setEquipAnimation(readAnimationReference(L)); return 0;
+    };
     DispatchTable["Humanoid"]["PlayAnimation"]  = getter_closure(humanoid_play_animation_closure,  "PlayAnimation");
     DispatchTable["Humanoid"]["PauseAnimation"] = getter_closure(humanoid_pause_animation_closure, "PauseAnimation");
     DispatchTable["Humanoid"]["StopAnimation"]  = getter_closure(humanoid_stop_animation_closure,  "StopAnimation");
@@ -524,8 +552,35 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Humanoid"]["Jump"]        = getter_closure(humanoid_jump_closure,        "Jump");
     DispatchTable["Humanoid"]["KeyframeReached"] = getter_signal<Humanoid, &Humanoid::KeyframeReached>();
 
+    DispatchTable["Animation"]["Length"] = getter_number<Animation, &Animation::Length>();
+    DispatchTable["Animation"]["Speed"] = getter_number<Animation, &Animation::Speed>();
     DispatchTable["Animation"]["Looped"] = getter_bool<Animation, &Animation::Looped>();
-    SetterTable["Animation"]["Looped"]   = setter_bool<Animation, &Animation::Looped>();
+    DispatchTable["Animation"]["ContentPath"] = [](lua_State* L, Instance* o) {
+        lua_pushstring(L, static_cast<Animation*>(o)->ContentPath.c_str()); return 1;
+    };
+    DispatchTable["Animation"]["Source"] = [](lua_State* L, Instance* o) {
+        lua_pushstring(L, static_cast<Animation*>(o)->getSourceName().c_str()); return 1;
+    };
+    DispatchTable["Animation"]["LoadStatus"] = [](lua_State* L, Instance* o) {
+        lua_pushstring(L, static_cast<Animation*>(o)->getLoadStatusName().c_str()); return 1;
+    };
+    DispatchTable["Animation"]["UsingBuiltInFallback"] = [](lua_State* L, Instance* o) {
+        lua_pushboolean(L, static_cast<Animation*>(o)->isUsingBuiltInFallback()); return 1;
+    };
+    auto setAnimationProperty = [](const char* property) {
+        return [property](lua_State* L, Instance* o) {
+            YAML::Node value;
+            if (std::string_view(property) == "Looped") value = lua_toboolean(L, 3) != 0;
+            else if (std::string_view(property) == "ContentPath") value = std::string(luaL_checkstring(L, 3));
+            else value = static_cast<float>(luaL_checknumber(L, 3));
+            o->setProperty(property, value);
+            return 0;
+        };
+    };
+    SetterTable["Animation"]["Length"] = setAnimationProperty("Length");
+    SetterTable["Animation"]["Speed"] = setAnimationProperty("Speed");
+    SetterTable["Animation"]["Looped"] = setAnimationProperty("Looped");
+    SetterTable["Animation"]["ContentPath"] = setAnimationProperty("ContentPath");
 
     // Seat — Steer/ThrottleはPropertyRegistry経由でLua読取専用として公開(エンジンが着席中に書き込む)
     PropertyRegistry::applyToDispatch("Seat", DispatchTable, SetterTable);

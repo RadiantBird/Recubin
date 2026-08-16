@@ -1,10 +1,12 @@
 #include <Core/User.hpp>
 #include <Core/CharacterRig.hpp>
+#include <Instances/System.hpp>
 #include <Core/NullInputBackend.hpp>
 #include <Network/NetworkIdentity.hpp>
 #include <Instances/StarterCharacter.hpp>
 #include <Instances/SpawnLocation.hpp>
 #include <Instances/Workspace.hpp>
+#include <Instances/Animation.hpp>
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
 #include <include/Core/LuauEngine.hpp>
@@ -757,6 +759,22 @@ std::shared_ptr<Model> User::buildCharacterModel(Instance* searchRoot, const std
     // 制約（Weld/Rope 等）の Cube 参照をクローン側（PlayerCharacter 内）へ張り替える。
     // 髪の Weld は兄弟 Head を参照するため、キャラ全体で一括して張り替える必要がある。
     Instance::rebindClonedConstraints(*starter, *model);
+    // 旧SceneでWalkAnimation参照が無い場合も、Scene Treeを変更せず
+    // PlayerCharacter側にだけ可視なAnimation Instanceを作る。壊れた
+    // ユーザーAnimation参照がある場合はそれを保持し、Animation内の
+    // runtime fallbackに任せる。
+    auto humanoidIt = model->getChildren().find("Humanoid");
+    if (humanoidIt != model->getChildren().end()) {
+        if (auto characterHumanoid = std::dynamic_pointer_cast<Humanoid>(humanoidIt->second);
+            characterHumanoid && !characterHumanoid->getWalkAnimation() &&
+            characterHumanoid->getWalkAnimationPath().empty()) {
+            auto fallback = std::make_shared<Animation>();
+            fallback->Name = "R6Walk";
+            fallback->setBuiltInClip(AnimationClip::defaultR6Walk());
+            model->addChild(fallback);
+            characterHumanoid->setWalkAnimation(fallback);
+        }
+    }
     return model;
 }
 

@@ -1,5 +1,7 @@
 #include <Instances/Humanoid.hpp>
 #include <Instances/Animation.hpp>
+#include <Core/AnimationClip.hpp>
+#include <Core/CharacterRig.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/Seat.hpp>
 #include <Instances/Weld.hpp>
@@ -27,6 +29,15 @@ static const bool s_humanoidRegistered = []{
         field   <&Humanoid::MaxHealth>  ("MaxHealth",   0, 10000).clampLua(),
         field   <&Humanoid::RespawnTime>("RespawnTime", 0, 600).clampLua(),
         fieldVia<&Humanoid::Health, &Humanoid::setHealth>("Health", 0, 100),
+        custom("WalkAnimation", PropType::String,
+            [](Instance* o) { return static_cast<Humanoid*>(o)->getWalkAnimationPath(); },
+            [](Instance* o, const PropValue& v) { static_cast<Humanoid*>(o)->setWalkAnimationPath(std::get<std::string>(v)); }).omitEmpty().noEditor(),
+        custom("JumpAnimation", PropType::String,
+            [](Instance* o) { return static_cast<Humanoid*>(o)->getJumpAnimationPath(); },
+            [](Instance* o, const PropValue& v) { static_cast<Humanoid*>(o)->setJumpAnimationPath(std::get<std::string>(v)); }).omitEmpty().noEditor(),
+        custom("EquipAnimation", PropType::String,
+            [](Instance* o) { return static_cast<Humanoid*>(o)->getEquipAnimationPath(); },
+            [](Instance* o, const PropValue& v) { static_cast<Humanoid*>(o)->setEquipAnimationPath(std::get<std::string>(v)); }).omitEmpty().noEditor(),
         sig     <&Humanoid::Died>("Died"),
     });
     return true;
@@ -49,10 +60,93 @@ std::shared_ptr<Instance> Humanoid::clone() const {
     auto copy = std::make_shared<Humanoid>();
     copy->Name = Name;
     PropertyRegistry::cloneFields(this, copy.get(), "Humanoid");
+    copy->m_walkAnimation = m_walkAnimation;
+    copy->m_jumpAnimation = m_jumpAnimation;
+    copy->m_equipAnimation = m_equipAnimation;
     // m_dead / Died / KeyframeReached は複製せず新規（=生存状態・新しいシグナル）
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());
     return copy;
+}
+
+static std::string animationPathFromHumanoid(const Humanoid& humanoid,
+                                             const std::shared_ptr<Animation>& animation) {
+    if (!animation) return {};
+    auto character = humanoid.Parent.lock();
+    if (!character) return animation->getFullPath();
+    for (auto node = animation->Parent.lock(); node; node = node->Parent.lock()) {
+        if (node.get() == character.get()) return animation->getPathUpTo(character.get());
+    }
+    Instance* top = animation.get();
+    for (auto node = animation->Parent.lock(); node; node = node->Parent.lock()) top = node.get();
+    return animation->getPathUpTo(top);
+}
+
+void Humanoid::setWalkAnimation(const std::shared_ptr<Animation>& animation) {
+    m_walkAnimation = animation;
+    m_walkAnimationPath = animationPathFromHumanoid(*this, animation);
+}
+
+void Humanoid::setJumpAnimation(const std::shared_ptr<Animation>& animation) {
+    m_jumpAnimation = animation;
+    m_jumpAnimationPath = animationPathFromHumanoid(*this, animation);
+}
+
+void Humanoid::setEquipAnimation(const std::shared_ptr<Animation>& animation) {
+    m_equipAnimation = animation;
+    m_equipAnimationPath = animationPathFromHumanoid(*this, animation);
+}
+
+void Humanoid::setWalkAnimationPath(const std::string& path) {
+    m_walkAnimationPath = path;
+    m_walkAnimation.reset();
+}
+
+void Humanoid::setJumpAnimationPath(const std::string& path) {
+    m_jumpAnimationPath = path;
+    m_jumpAnimation.reset();
+}
+
+void Humanoid::setEquipAnimationPath(const std::string& path) {
+    m_equipAnimationPath = path;
+    m_equipAnimation.reset();
+}
+
+void Humanoid::remapClonedInstances(const CloneRemap& map) {
+    auto remap = [&map](std::weak_ptr<Animation>& reference) {
+        auto current = reference.lock();
+        if (!current) return;
+        auto it = map.find(current.get());
+        if (it != map.end()) reference = std::dynamic_pointer_cast<Animation>(it->second);
+    };
+    remap(m_walkAnimation);
+    remap(m_jumpAnimation);
+    remap(m_equipAnimation);
+}
+
+void Humanoid::resolveAnimationReferences(Instance* characterModel) {
+    if (!characterModel) return;
+    auto resolve = [characterModel](const std::string& path) -> std::shared_ptr<Animation> {
+        if (path.empty()) return nullptr;
+        Instance* found = characterModel->getChildByPath(path);
+        if (!found) {
+            Instance* top = characterModel;
+            for (auto parent = characterModel->Parent.lock(); parent; parent = parent->Parent.lock()) top = parent.get();
+            found = top->getChildByPath(path);
+        }
+        if (!found) return nullptr;
+        return std::dynamic_pointer_cast<Animation>(found->shared_from_this());
+    };
+    if (m_walkAnimation.expired()) m_walkAnimation = resolve(m_walkAnimationPath);
+    if (m_jumpAnimation.expired()) m_jumpAnimation = resolve(m_jumpAnimationPath);
+    if (m_equipAnimation.expired()) m_equipAnimation = resolve(m_equipAnimationPath);
+}
+
+const AnimationClip& Humanoid::resolveWalkClip() const {
+    static const AnimationClip builtin = AnimationClip::defaultR6Walk();
+    auto animation = m_walkAnimation.lock();
+    if (!animation) return builtin;
+    return animation->resolveR6WalkClip();
 }
 
 std::shared_ptr<BaseCube> Humanoid::getRootPart() const {
@@ -171,6 +265,7 @@ void Humanoid::enterRagdoll(Physics* physics) {
 }
 
 void Humanoid::resolveParts(Instance* characterModel) {
+    resolveAnimationReferences(characterModel);
     if (!characterModel) return;
     const auto& kids = characterModel->getChildren();
 
@@ -480,21 +575,19 @@ void Humanoid::updateAnimation(float dt) {
     // KeyframeReachedを発火する（パーツ名と時刻を引数に渡す）
     if (KeyframeReached) {
         float length = m_currentAnim->Length;
-        for (const AnimTrack& track : m_currentAnim->getTracks()) {
-            for (const Keyframe& kf : track.keyframes) {
+        auto notify = [&](const std::string& partName, float kfTime) {
                 bool passed = wrapped
-                    ? ((kf.time > prevTime && kf.time <= length) || (kf.time >= 0.0f && kf.time <= m_animTime))
-                    : (kf.time > prevTime && kf.time <= m_animTime);
-                if (!passed) continue;
-                std::string partName = track.partName;
-                float kfTime = kf.time;
+                    ? ((kfTime > prevTime && kfTime <= length) || (kfTime >= 0.0f && kfTime <= m_animTime))
+                    : (kfTime > prevTime && kfTime <= m_animTime);
+                if (!passed) return;
                 KeyframeReached->fire([partName, kfTime](lua_State* Lx) -> int {
                     lua_pushstring(Lx, partName.c_str());
                     lua_pushnumber(Lx, kfTime);
                     return 2;
                 });
-            }
-        }
+        };
+        for (const auto& track : m_currentAnim->getClip()->tracks)
+            for (const auto& kf : track.keyframes) notify(track.targetName, kf.time);
     }
 
     // このフレーム中に(move()等から)applyBodyAnimation()が実際の引数で呼ばれていなければ、
@@ -507,8 +600,18 @@ void Humanoid::updateAnimation(float dt) {
     // キーフレームはRoot相対で保持されているため、現在のRoot CFrameに合成して
     // キャラクターの移動・回転に追従させる（歩行アニメと同じ基準）
     CFrame rootCF = root ? root->cframe : CFrame();
+    if (m_currentAnim->getClip() && m_currentAnim->getClip()->space == "joint_delta") {
+        for (const auto& track : m_currentAnim->getClip()->tracks) {
+            const auto* binding = CharacterRig::findR6Joint(track.targetName);
+            if (!binding || !root) continue;
+            auto child = model->getChild(binding->partName);
+            auto part = dynamic_cast<Spatial*>(child);
+            if (part) part->cframe = CharacterRig::applyR6Joint(rootCF, *binding, m_currentAnim->getClip()->evaluate(track, m_animTime));
+        }
+        return;
+    }
     for (const AnimTrack& track : m_currentAnim->getTracks()) {
-        Instance* child = model->getChild(track.partName);
+        Instance* child = model->getChild(track.targetName);
         Spatial* part = dynamic_cast<Spatial*>(child);
         if (!part || part == root.get()) continue; // Rootは物理駆動なので動かさない
         part->cframe = rootCF * m_currentAnim->evaluateTrack(track, m_animTime);
@@ -591,10 +694,20 @@ Humanoid::Pose Humanoid::computePose(bool leftArmRaised, bool rightArmRaised) co
         p.leftLeg  = -swing;
         p.rightLeg =  swing;
     } else if (isGrounded) {
-        p.leftArm  = swing;
-        p.rightArm = -swing;
-        p.leftLeg  = -swing;
-        p.rightLeg =  swing;
+        p.leftArm = swing; p.rightArm = -swing; p.leftLeg = -swing; p.rightLeg = swing;
+        const AnimationClip& walkClip = resolveWalkClip();
+        const float t = walkCycle * walkClip.length;
+        auto angle = [&](const char* joint, float fallback) {
+            const auto* track = walkClip.findTrack(joint);
+            if (!track) return fallback;
+            const CFrame cf = walkClip.evaluate(*track, t);
+            // R6 walk keys are rotation-only X-axis deltas.
+            return cf.Rotation.toEuler().x;
+        };
+        p.leftArm = angle("LeftShoulder", p.leftArm);
+        p.rightArm = angle("RightShoulder", p.rightArm);
+        p.leftLeg = angle("LeftHip", p.leftLeg);
+        p.rightLeg = angle("RightHip", p.rightLeg);
     } else {
         p.leftArm  = 180.0f;
         p.rightArm = 180.0f;
@@ -607,36 +720,6 @@ Humanoid::Pose Humanoid::computePose(bool leftArmRaised, bool rightArmRaised) co
 // ============================================================
 // Animation: Limb組み立て（共通）
 // ============================================================
-
-static CFrame makeArm(
-    const CFrame& root,
-    const Vector3& jointPos,
-    float angleDeg
-) {
-    const Vector3 pivotOffset = Vector3(0, -0.5f, 0); // 回転中心調整
-    const Vector3 meshOffset  = Vector3(0, -1.0f, 0); // モデル補正
-
-    return root *
-           CFrame(jointPos.x, jointPos.y, jointPos.z) *
-           CFrame(pivotOffset.x, pivotOffset.y, pivotOffset.z) *
-           CFrame::fromAxisAngle(Vector3(1,0,0), angleDeg) *
-           CFrame(-pivotOffset.x, -pivotOffset.y, -pivotOffset.z) *
-           CFrame(meshOffset.x, meshOffset.y, meshOffset.z);
-}
-
-static CFrame makeLeg(
-    const CFrame& root,
-    const Vector3& jointPos,
-    float angleDeg
-) {
-    // 脚は今のところpivot補正なし
-    const Vector3 meshOffset = Vector3(0, -1.0f, 0);
-
-    return root *
-           CFrame(jointPos.x, jointPos.y, jointPos.z) *
-           CFrame::fromAxisAngle(Vector3(1,0,0), angleDeg) *
-           CFrame(meshOffset.x, meshOffset.y, meshOffset.z);
-}
 
 void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
     m_bodyPoseUpdatedThisFrame = true; // 呼ばれた事実を記録(Root未解決で以降no-opでも「試行済み」として扱う)
@@ -655,24 +738,41 @@ void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
     auto rightLeg = getRightLegPart();
 
     Pose pose = computePose(leftArmRaised, rightArmRaised);
+    const AnimationClip& walkClip = resolveWalkClip();
+    auto clipDelta = [&](const char* joint, float fallback) {
+        if (const auto* track = walkClip.findTrack(joint))
+            return walkClip.evaluate(*track, walkCycle * walkClip.length);
+        return CFrame::fromAxisAngle(Vector3(1,0,0), fallback);
+    };
 
-    // --- リグ定義（全部ここに固定） ---
-    const Vector3 torsoOffset      = Vector3(0, 1.0f, 0);
-    const Vector3 headOffset       = Vector3(0, 2.5f, 0);
-
-    const Vector3 leftShoulderPos  = Vector3(-1.5f, 2.0f, 0);
-    const Vector3 rightShoulderPos = Vector3( 1.5f, 2.0f, 0);
-
-    const Vector3 leftHipPos       = Vector3(-0.5f, 0.0f, 0);
-    const Vector3 rightHipPos      = Vector3( 0.5f, 0.0f, 0);
-
-    if (torso) torso->cframe = root->cframe * CFrame(torsoOffset.x, torsoOffset.y, torsoOffset.z);
-    if (head)  head->cframe  = root->cframe * CFrame(headOffset.x,  headOffset.y,  headOffset.z);
-
-    if (leftArm)  leftArm->cframe  = makeArm(root->cframe, leftShoulderPos,  pose.leftArm);
-    if (rightArm) rightArm->cframe = makeArm(root->cframe, rightShoulderPos, pose.rightArm);
-    if (leftLeg)  leftLeg->cframe  = makeLeg(root->cframe, leftHipPos,  pose.leftLeg);
-    if (rightLeg) rightLeg->cframe = makeLeg(root->cframe, rightHipPos, pose.rightLeg);
+    auto apply = [&](const char* joint, const std::shared_ptr<BaseCube>& part, float angle, const CFrame* direct = nullptr) {
+        if (part) if (const auto* binding = CharacterRig::findR6Joint(joint))
+            part->cframe = CharacterRig::applyR6Joint(root->cframe, *binding,
+                direct ? *direct : CFrame::fromAxisAngle(Vector3(1,0,0), angle));
+    };
+    if (torso) if (auto b = CharacterRig::findR6Joint("Torso")) torso->cframe = CharacterRig::applyR6Joint(root->cframe, *b, CFrame());
+    if (head) if (auto b = CharacterRig::findR6Joint("Head")) head->cframe = CharacterRig::applyR6Joint(root->cframe, *b, CFrame());
+    CFrame leftArmDelta = clipDelta("LeftShoulder", pose.leftArm);
+    CFrame rightArmDelta = clipDelta("RightShoulder", pose.rightArm);
+    CFrame leftLegDelta = clipDelta("LeftHip", pose.leftLeg);
+    CFrame rightLegDelta = clipDelta("RightHip", pose.rightLeg);
+    // Seat and tool poses override only their relevant joints; airborne poses
+    // retain the walking leg cycle while raising both arms.
+    if (m_seated) {
+        leftArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 10.0f);
+        rightArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 10.0f);
+        leftLegDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 90.0f);
+        rightLegDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 90.0f);
+    } else {
+        if (leftArmRaised) leftArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 90.0f);
+        if (rightArmRaised) rightArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 90.0f);
+        if (!isGrounded) {
+            if (!leftArmRaised) leftArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 180.0f);
+            if (!rightArmRaised) rightArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 180.0f);
+        }
+    }
+    apply("LeftShoulder", leftArm, pose.leftArm, &leftArmDelta); apply("RightShoulder", rightArm, pose.rightArm, &rightArmDelta);
+    apply("LeftHip", leftLeg, pose.leftLeg, &leftLegDelta); apply("RightHip", rightLeg, pose.rightLeg, &rightLegDelta);
 }
 
 void Humanoid::updateAll(Instance* root, float dt, Physics* physics) {

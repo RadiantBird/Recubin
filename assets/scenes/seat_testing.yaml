@@ -1,3 +1,13 @@
+recubin:
+  type: scene
+  version: 0
+  migrations:
+    default_r6_animations:
+      version: 1
+      decision: generated
+  animations:
+    r6_walk:
+      ContentPath: animations/walk.rcanim
 Root:
   Properties:
     MaxClonesPerFrame: 1000

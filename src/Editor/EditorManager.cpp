@@ -28,18 +28,22 @@
 #include <Instances/BallSocket.hpp>
 #include <Instances/NoCollision.hpp>
 #include <Instances/Humanoid.hpp>
+#include <Instances/Animation.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/PathfindingService.hpp>
 #include <Core/CharacterRig.hpp>
 #include <Core/SceneLoader.hpp>
+#include <Instances/System.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
 #include <include/imgui/imgui_impl_opengl3.h>
 #include <include/imgui/ImGuizmo.h>
 #include <string>
 #include <cstdio>
+#include <filesystem>
 #include <algorithm>
 #include <unordered_set>
+#include <Util/AssetPath.hpp>
 #include <Util/Logger.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
@@ -64,6 +68,67 @@ struct EditorThemeColors {
 const EditorThemeColors& editorThemeColors() {
     static const EditorThemeColors colors;
     return colors;
+}
+
+struct R6AnimationBindingTarget {
+    std::shared_ptr<Instance> character;
+    std::shared_ptr<Humanoid> humanoid;
+};
+
+R6AnimationBindingTarget findR6AnimationBindingTarget(Instance* system) {
+    if (!system) return {};
+    Instance* starterRaw = system->getChild("StarterCharacter");
+    if (!starterRaw || !starterRaw->IsA("StarterCharacter")) return {};
+    static constexpr const char* R6_PARTS[] = {
+        "Root", "Torso", "Head", "LeftArm", "RightArm", "LeftLeg", "RightLeg"
+    };
+    for (const char* part : R6_PARTS) {
+        if (!starterRaw->getChild(part)) return {};
+    }
+    Instance* humanoidRaw = starterRaw->getChild("Humanoid");
+    if (!humanoidRaw || !humanoidRaw->IsA("Humanoid")) return {};
+    return {
+        starterRaw->shared_from_this(),
+        std::static_pointer_cast<Humanoid>(humanoidRaw->shared_from_this())
+    };
+}
+
+std::shared_ptr<Animation> addDefaultR6Walk(const R6AnimationBindingTarget& target,
+                                             const std::string& contentPath) {
+    if (!target.character || !target.humanoid) return nullptr;
+    auto animation = std::make_shared<Animation>();
+    animation->Name = "R6Walk";
+    YAML::Node pathNode;
+    pathNode = contentPath;
+    animation->setProperty("ContentPath", pathNode);
+    target.character->addChild(animation);
+    target.humanoid->setWalkAnimation(animation);
+    return animation;
+}
+
+std::string migrateLegacyWalkContentPath(const std::string& currentScenePath,
+                                         const std::string& legacyStoredPath) {
+    namespace fs = std::filesystem;
+    if (legacyStoredPath.empty()) return {};
+
+    std::error_code ec;
+    fs::path source = AssetPath::fromStored(legacyStoredPath);
+    if (source.is_relative())
+        source = fs::path(currentScenePath).parent_path() / source;
+    const fs::path absolute = fs::absolute(source, ec).lexically_normal();
+    if (ec) return AssetPath::toStored(source.lexically_normal());
+
+    // New Animation.ContentPath is project/CWD-relative. Preserve portability
+    // only when the legacy file resolves and stays within the current project.
+    if (fs::exists(absolute, ec) && !ec) {
+        const fs::path projectPath = fs::current_path(ec);
+        if (!ec) {
+            const fs::path relative = fs::relative(absolute, projectPath, ec);
+            if (!ec && !relative.empty() && *relative.begin() != "..")
+                return AssetPath::toStored(relative.lexically_normal());
+        }
+    }
+    return AssetPath::toStored(absolute);
 }
 
 }
@@ -206,6 +271,8 @@ void EditorManager::render(GLFWwindow* window) {
     renderPlayLoadConfirmDialog();
     // ---- テストプレイ開始エラー ----
     renderPlayStartErrorDialog();
+    renderSceneLoadErrorDialog();
+    renderRestoreR6Dialog();
 
     // ---- 全画面 DockSpace ----
     ImGuiViewport* vp = ImGui::GetMainViewport();
@@ -231,6 +298,10 @@ void EditorManager::render(GLFWwindow* window) {
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuNewScene), "Ctrl+N") && isEditMode()) requestNewScene();
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuSaveScene), "Ctrl+S") && isEditMode()) saveCurrentScene();
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuOpenScene), "Ctrl+O")) openSceneDialog();
+            ImGui::BeginDisabled(!isEditMode());
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuRestoreDefaultR6Animations)))
+                m_showRestoreR6Confirm = true;
+            ImGui::EndDisabled();
             ImGui::Separator();
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuPackageGame)) && isEditMode()) {
                 m_pkgLog.clear();
@@ -505,8 +576,89 @@ void EditorManager::saveCurrentScene() {
     }
     // System とその全ての子（Workspace, Lighting など）を保存
     Instance* saveRoot = m_system ? m_system : static_cast<Instance*>(m_workspace);
-    SceneLoader::saveScene(saveRoot, scenePath);
-    m_isDirty = false;
+    if (SceneLoader::saveSceneResult(saveRoot, scenePath, m_sceneMetadata)) m_isDirty = false;
+}
+
+void EditorManager::showSceneLoadError(const std::string& message) {
+    m_loadError = message;
+    m_showLoadError = true;
+}
+
+void EditorManager::evaluateSceneMigration() {
+    if (!m_workspace) return;
+    const auto result = migrateCharacterAnimationBindings(
+        m_system, scenePath, m_sceneMetadata);
+    if (result != CharacterAnimationMigrationResult::Inserted &&
+        result != CharacterAnimationMigrationResult::RecordedOnly) return;
+    m_isDirty = true;
+    RCBN_LOG((result == CharacterAnimationMigrationResult::Inserted
+        ? "Character animation bindings migrated: added an explicit R6 Walk Animation reference."
+        : "Character animation bindings migration recorded; existing WalkAnimation was preserved."));
+}
+
+EditorManager::CharacterAnimationMigrationResult
+EditorManager::migrateCharacterAnimationBindings(
+    Instance* system, const std::string& scenePath,
+    SceneLoader::SceneDocumentMetadata& metadata) {
+    if (scenePath.empty()) return CharacterAnimationMigrationResult::NotApplicable;
+    if (metadata.characterAnimationBindingsVersion >= 1)
+        return CharacterAnimationMigrationResult::AlreadyMigrated;
+    const auto target = findR6AnimationBindingTarget(system);
+    if (!target.character || !target.humanoid)
+        return CharacterAnimationMigrationResult::NotApplicable;
+
+    bool insertedWalk = false;
+    if (target.humanoid->getWalkAnimationPath().empty()) {
+        const std::string contentPath = metadata.legacyWalkContentPath.empty()
+            ? "assets/anims/r6_walk.rcanim"
+            : migrateLegacyWalkContentPath(scenePath, metadata.legacyWalkContentPath);
+        insertedWalk = addDefaultR6Walk(target, contentPath) != nullptr;
+    }
+    metadata.characterAnimationBindingsVersion = 1;
+    return insertedWalk ? CharacterAnimationMigrationResult::Inserted
+                        : CharacterAnimationMigrationResult::RecordedOnly;
+}
+
+bool EditorManager::restoreDefaultR6Bindings(Instance* system) {
+    const auto target = findR6AnimationBindingTarget(system);
+    return addDefaultR6Walk(target, "assets/anims/r6_walk.rcanim") != nullptr;
+}
+
+void EditorManager::restoreDefaultR6Animations() {
+    if (!restoreDefaultR6Bindings(m_system)) {
+        showSceneLoadError(Loc::t(Loc::LocKey::RestoreDefaultR6Unavailable));
+        return;
+    }
+    m_sceneMetadata.characterAnimationBindingsVersion = 1;
+    m_isDirty = true;
+}
+
+void EditorManager::renderSceneLoadErrorDialog() {
+    if (!m_showLoadError) return;
+    const char* title = Loc::t(Loc::LocKey::SceneLoadErrorTitle);
+    ImGui::OpenPopup(title); m_showLoadError = false;
+    if (ImGui::BeginPopupModal(title, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped("%s", m_loadError.c_str());
+    if (ImGui::Button(Loc::t(Loc::LocKey::OK))) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+}
+
+void EditorManager::renderRestoreR6Dialog() {
+    const char* title = Loc::t(Loc::LocKey::RestoreDefaultR6Title);
+    if (m_showRestoreR6Confirm) {
+        ImGui::OpenPopup(title);
+        m_showRestoreR6Confirm = false;
+    }
+    if (!ImGui::BeginPopupModal(title, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+    ImGui::TextWrapped("%s", Loc::t(Loc::LocKey::RestoreDefaultR6Message));
+    if (ImGui::Button(Loc::t(Loc::LocKey::RestoreDefaultR6Button))) {
+        restoreDefaultR6Animations();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button(Loc::t(Loc::LocKey::Cancel))) ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
 }
 
 void EditorManager::openSceneDialog() {

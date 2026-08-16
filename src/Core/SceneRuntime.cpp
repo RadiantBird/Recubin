@@ -137,7 +137,8 @@ Bound loadAndBind(const std::string& scenePath,
         SceneLoader::registerSingleton("Users", usersContainer);
     }
 
-    SceneLoader::loadScene(scenePath);
+    const auto loadResult = SceneLoader::loadSceneResult(scenePath);
+    const auto metadata = loadResult.metadata;
     SceneLoader::clearSingletons();
 
     // Users コンテナが無ければ自動生成する(Workspace/PathfindingServiceと同様のパターン)
@@ -200,7 +201,7 @@ Bound loadAndBind(const std::string& scenePath,
     if (auto it = system->children.find("ChatService"); it != system->children.end())
         engine.setGlobalInstance("ChatService", it->second);
 
-    return Bound{ workspace, workspaces };
+    return Bound{ workspace, workspaces, metadata, scenePath, loadResult.status, loadResult.message };
 }
 
 } // namespace SceneRuntime

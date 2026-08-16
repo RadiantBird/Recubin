@@ -111,3 +111,44 @@
   SpawnLocation、remote Avatar、Starter Root／Weld accessory／Humanoid collision等の関連回帰はPASSした。
   全体回帰は既存と同じ140 passed / 3 failedで、新規失敗はない。
 - 残作業はmacOS子プロセスbackendの実機buildと、Normal／Play Here／2・8クライアントでのGUI手動スモーク。
+
+## 2026-08-14: AnimationClip／R6 Walk回帰と保存仕様
+
+- 内蔵R6 WalkのAnimationClip、`.rcanim` round-trip、破損／型違い／新version拒否、旧Animation YAML
+  import、Sceneヘッダーなしversion 0、migration decision round-trip、新version拒否を
+  `--animation-clip-regression`へ追加した。
+- Animation、Humanoid、SceneLoader、AnimationEditorPanelの仕様文書へAnimationClipと
+  `.rcanim`／Scene migrationの契約を追記した。GUI移行確認は手動スモーク対象として残る。
+- Release build成功。`--animation-clip-regression`、`--asset-path-regression`、
+  `--starter-root-spawn-regression`、`--starter-accessory-weld-regression`、
+  `--humanoid-rig-collision-regression`、`--remote-avatar-spawn-transform-regression`は
+  すべてfailures=0。全回帰は140 passed / 3 failedで既知baselineと一致した。
+- GUI migration確認とAnimation Editorの手動スモークは未実施。
+
+## 2026-08-14: R6 Walk migration UX改善検証
+
+- Editor R6 Walk migration UXを更新。Sceneロード後にのみ判定し、Scene親基準のabsolute/normalized生成先を表示する。
+  生成後の即時再読込・System適用、成功/失敗/上書きモーダル、snapshot復元時の確認抑止を追加。
+- Release build成功。`--animation-clip-regression` はfailures=0。
+- Full regressionは140 passed / 3 failed（既知のPathfinder 1件・Sound 2件）で、新規失敗なし。
+
+## 2026-08-16: Character Animationの明示参照化とmigration再設計
+
+- `Animation`をScene Tree上の正式な資産Instanceとし、トラックデータを単一の`AnimationClip`へ統合した。
+  `Humanoid.WalkAnimation`／`JumpAnimation`／`EquipAnimation`はAnimationを明示参照し、
+  StarterCharacterからPlayerCharacterへのclone時にclone側へ再接続する。
+- 標準Walkは`assets/anims/r6_walk.rcanim`へ配置した。ユーザー指定Animationを優先し、欠損・破損時も
+  参照とContentPathを変更せず実行時だけ内蔵Walkへフォールバックする。参照自体がない旧Characterでは
+  PlayerCharacter側だけに可視なBuiltIn Animationを追加する。
+- 旧Scene migrationは`character_animation_bindings.version: 1`未記録かつ空欄の参照だけを一度補完する。
+  非空の未解決参照を保持し、移行後の削除・差し替えには再挿入しない。旧生成headerはread-only互換とし、
+  新規保存ではcharacter binding markerだけを出力する。明示的な`Restore Default Animations`だけ再設定を許可する。
+- GUI非依存のmigration helperと構造回帰を追加し、Animation可視性、3参照のclone remap、custom優先、
+  欠損／破損fallback、Scene参照round-trip、legacy path変換、migration一回性、無題／非R6非変更、
+  Packagerの`assets/anims`同梱を検証した。
+- 検証: ReleaseのRecubin／RecubinEngine／RecubinTestはbuild成功。`--animation-clip-regression`、
+  `--asset-path-regression`、`--starter-root-spawn-regression`、`--starter-accessory-weld-regression`、
+  `--humanoid-rig-collision-regression`、`--remote-avatar-spawn-transform-regression`はすべてfailures=0。
+  全体回帰は既知baselineと同じ140 passed / 3 failed（Pathfinder 1件、Sound 2件）で新規失敗なし。
+- 未確認: PropertiesでのWalk／Jump／Equip差し替え、Restore Default Animations、Animation Editor
+  import/export、Play／Local ServerのGUI手動スモーク。

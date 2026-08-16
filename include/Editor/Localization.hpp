@@ -19,6 +19,7 @@ enum class LocKey {
 
     // ---- EditorManager: メニューバー / パネルタイトル ----
     MenuFile, MenuSaveScene, MenuOpenScene, MenuNewScene, MenuPackageGame, MenuQuit,
+    MenuRestoreDefaultR6Animations,
     MenuView,
     PanelExplorer, PanelProperties, PanelViewport, PanelContentBrowser,
     PanelConsole, PanelAnimation, AnimationEditorWindowTitle,
@@ -31,6 +32,8 @@ enum class LocKey {
     CloseButton, ProcessingText,
     NavMeshBuildTitle, NavMeshBuildMessage, NavMeshBuildProgress,
     PlayStartErrorTitle, PlayStartErrorMessage, LocalServerRequiresNetwork,
+    SceneLoadErrorTitle, RestoreDefaultR6Title, RestoreDefaultR6Message,
+    RestoreDefaultR6Button, RestoreDefaultR6Unavailable,
 
     // ---- EditorManager: ツールバー ----
     PlayButton, PauseButton, StopButton,

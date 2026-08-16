@@ -41,7 +41,15 @@ static std::string assetSubdir(const std::string& path) {
         return "assets/scripts";
     if (ext == ".glb" || ext == ".gltf")
         return "assets/models";
+    if (ext == ".rcanim")
+        return "assets/anims";
     return "assets/image";
+}
+
+static bool isAnimationClip(const std::string& path) {
+    std::string ext = AssetPath::fromStored(path).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    return ext == ".rcanim";
 }
 
 // Copy a file, creating parent dirs as needed. Returns false on error.
@@ -185,6 +193,14 @@ static std::string findRootAppIconPath(const YAML::Node& sceneNode) {
         return {};
     }
     return {};
+}
+
+static std::string findLegacyWalkContentPath(const YAML::Node& sceneNode) {
+    const YAML::Node recubin = findYamlMapValue(sceneNode, "recubin");
+    const YAML::Node animations = findYamlMapValue(recubin, "animations");
+    const YAML::Node walk = findYamlMapValue(animations, "r6_walk");
+    const YAML::Node contentPath = findYamlMapValue(walk, "ContentPath");
+    return contentPath.IsScalar() ? contentPath.as<std::string>() : std::string();
 }
 
 #ifdef __APPLE__
@@ -579,7 +595,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     log("Output: " + bundleDir.string());
 
     // Create subdirs
-    for (const char* sub : { "assets/image", "assets/sound", "assets/scripts", "assets/scenes", "assets/models", "assets/fonts" }) {
+    for (const char* sub : { "assets/image", "assets/sound", "assets/scripts", "assets/scenes", "assets/models", "assets/anims", "assets/fonts" }) {
         fs::create_directories(gameDir / sub, ec);
     }
 
@@ -662,6 +678,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     }
 
     const std::string rawAppIconPath = findRootAppIconPath(sceneNode);
+    const std::string legacyWalkContentPath = findLegacyWalkContentPath(sceneNode);
 
     // Collect all asset paths referenced in the scene
     std::vector<std::string> rawPaths;
@@ -678,6 +695,12 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     std::unordered_map<std::string, std::string> pathMap; // old -> new (relative to gameDir)
     for (const std::string& rawPath : rawPaths) {
         fs::path src = AssetPath::fromStored(rawPath);
+        // Only the retired scene-header reference used scene-relative paths.
+        // Animation Instance ContentPath values follow normal project lookup.
+        if (!fs::exists(src) && rawPath == legacyWalkContentPath && src.is_relative()) {
+            const fs::path legacySource = fs::path(cfg.scenePath).parent_path() / src;
+            if (fs::exists(legacySource)) src = legacySource;
+        }
         if (!fs::exists(src)) {
             log("[WARN] File not found, skipping: " + rawPath);
             continue;
@@ -703,7 +726,11 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
             // For relative paths, preserve directory structure under the subdir
             bool isRel = src.is_relative();
             fs::path dst;
-            if (isRel) {
+            // Animation clips use the normal project-relative lookup rule and
+            // are collected into the package's stable assets/anims namespace.
+            if (isAnimationClip(rawPath)) {
+                dst = gameDir / "assets/anims" / src.filename();
+            } else if (isRel) {
                 dst = gameDir / src;
             } else {
                 dst = gameDir / sub / src.filename();

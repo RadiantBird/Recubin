@@ -10,14 +10,37 @@
  */
 class SceneLoader {
 public:
+    struct SceneDocumentMetadata {
+        int version = 0;
+        int characterAnimationBindingsVersion = 0;
+        // Read-only compatibility data from the retired default_r6_animations
+        // header. New saves never emit these fields.
+        std::string legacyDefaultR6AnimationDecision;
+        std::string legacyWalkContentPath;
+    };
+
+    enum class LoadStatus { Success, NotFound, IoError, YamlError, InvalidType,
+                            UnsupportedVersion, MissingRoot };
+    struct LoadResult {
+        std::shared_ptr<Instance> root;
+        SceneDocumentMetadata metadata;
+        LoadStatus status = LoadStatus::Success;
+        std::string message;
+        explicit operator bool() const { return status == LoadStatus::Success && root != nullptr; }
+    };
+
     /**
      * @brief 指定されたYAMLファイルからシーンをロードし、ルートオブジェクトを返す
      * @param filePath YAMLファイルのパス
      * @return ロードされたルートオブジェクト（通常はWorkspace）
      */
     static std::shared_ptr<Instance> loadScene(const std::string& filePath);
+    // Result-bearing API used by the editor. loadScene remains a compatibility wrapper.
+    static LoadResult loadSceneResult(const std::string& filePath);
 
     static void saveScene(Instance* root, const std::string& filePath);
+    static bool saveSceneResult(Instance* root, const std::string& filePath,
+                                const SceneDocumentMetadata& metadata = {});
     static void resolveConstraintRefs(Instance* root);
 
     // シングルトン登録: YAML に同名 className が現れたとき既存インスタンスへマージする

@@ -94,3 +94,15 @@ hierarchyPanel->m_clipboard
 
 - `Renderer` が `unique_ptr<EditorManager>` として所有
 - `Renderer::renderImGui()` から `render()` を呼ぶ
+
+## Character Animation参照migration
+
+- 保存済みSceneのロード後、R6 StarterCharacterかつ
+  `character_animation_bindings.version: 1`未記録の場合だけ判定する。
+- WalkAnimationが空欄なら、StarterCharacterへ`R6Walk` Animationを追加して
+  `assets/anims/r6_walk.rcanim`を参照する。旧headerにWalkパスがあればScene相対から新規則へ変換する。
+- 非空のユーザー参照は、未解決・欠損・破損でも変更しない。migration versionだけを記録する。
+- migration後にユーザーが参照を差し替えたり削除しても自動挿入しない。
+- Treeまたはmetadataを変更した場合はDirtyにするが自動保存しない。無題Scene、非R6、Play snapshot復元は変更しない。
+- Fileメニューの`Restore Default Animations`をユーザーが明示実行した場合だけ標準Walk参照を再設定する。
+- `migrateCharacterAnimationBindings`はGUIを構築しないTree＋metadataの静的処理で、Editor表示側も同じ結果を利用する。

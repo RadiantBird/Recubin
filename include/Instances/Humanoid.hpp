@@ -5,9 +5,10 @@
 #include <Instances/Sphere.hpp>
 #include <Util/Color4.hpp>
 #include <Core/RCBNScriptSignal.hpp>
+#include <Instances/Animation.hpp>
 
 class Physics;   // Forward declaration
-class Animation; // Forward declaration
+class AnimationClip;
 class Seat;      // Forward declaration
 class Weld;      // Forward declaration
 
@@ -53,6 +54,9 @@ public:
 
     // characterModel(クローン後のModel)の子から名前("Root","Torso",...)でパーツを解決する
     void resolveParts(Instance* characterModel);
+    // YAMLに保存されたAnimation相対パスを、ツリー構築完了後に
+    // weak参照へ解決する。解決失敗時も保存パスは保持する。
+    void resolveAnimationReferences(Instance* characterModel);
 
     // 兄弟パーツは親Modelが所有する。各getterは処理中の寿命を保証する一時的な強参照を返す
     std::shared_ptr<BaseCube> getRootPart() const;
@@ -101,6 +105,19 @@ public:
     // --- アニメーション再生 ---
     // Animationインスタンスを再生する（先頭から）
     void playAnimation(std::shared_ptr<Animation> animation);
+    void setWalkAnimation(const std::shared_ptr<Animation>& animation);
+    void setJumpAnimation(const std::shared_ptr<Animation>& animation);
+    void setEquipAnimation(const std::shared_ptr<Animation>& animation);
+    std::shared_ptr<Animation> getWalkAnimation() const { return m_walkAnimation.lock(); }
+    std::shared_ptr<Animation> getJumpAnimation() const { return m_jumpAnimation.lock(); }
+    std::shared_ptr<Animation> getEquipAnimation() const { return m_equipAnimation.lock(); }
+    const std::string& getWalkAnimationPath() const { return m_walkAnimationPath; }
+    const std::string& getJumpAnimationPath() const { return m_jumpAnimationPath; }
+    const std::string& getEquipAnimationPath() const { return m_equipAnimationPath; }
+    void setWalkAnimationPath(const std::string& path);
+    void setJumpAnimationPath(const std::string& path);
+    void setEquipAnimationPath(const std::string& path);
+    void remapClonedInstances(const CloneRemap& map) override;
     void pauseAnimation();
     void stopAnimation();
     void setAnimationSpeed(float speed);
@@ -165,6 +182,12 @@ private:
     void sitOn(std::shared_ptr<Seat> seat, Physics* physics);
 
     std::shared_ptr<Animation> m_currentAnim;
+    std::weak_ptr<Animation> m_walkAnimation;
+    std::weak_ptr<Animation> m_jumpAnimation;
+    std::weak_ptr<Animation> m_equipAnimation;
+    std::string m_walkAnimationPath;
+    std::string m_jumpAnimationPath;
+    std::string m_equipAnimationPath;
     float m_animTime = 0.0f;
     bool  m_animPlaying = false;
     bool  m_bodyPoseUpdatedThisFrame = false; // このフレームでapplyBodyAnimation()が(呼び出し元を問わず)実行されたか。
@@ -180,4 +203,5 @@ private:
     Color4 savedRightLegColor;
 
     Pose computePose(bool leftArmRaised, bool rightArmRaised) const;
+    const AnimationClip& resolveWalkClip() const;
 };

@@ -2,16 +2,19 @@
 #include <Editor/CommandHistory.hpp>
 #include <Editor/Localization.hpp>
 #include <Instances/Spatial.hpp>
+#include <Core/AnimationClip.hpp>
+#include <Core/CharacterRig.hpp>
 #include <include/imgui/imgui.h>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
 #include <string>
+#include <filesystem>
 
 namespace {
 
 std::string openAnimDialog(bool save) {
-    static const std::vector<FileFilter> filters = {{"Animation (*.yaml)", "*.yaml"}};
-    return save ? getPlatform().saveFileDialog(filters, "yaml")
+    static const std::vector<FileFilter> filters = {{"Animation (*.rcanim;*.yaml)", "*.rcanim;*.yaml"}};
+    return save ? getPlatform().saveFileDialog(filters, "rcanim")
                 : getPlatform().openFileDialog(filters);
 }
 
@@ -81,8 +84,17 @@ void AnimationEditorPanel::applyPreview(Animation* anim, Instance* model, float 
     // キーフレームはRoot相対なので、現在のRoot CFrameに合成して適用する
     Spatial* root = dynamic_cast<Spatial*>(model->getChild("Root"));
     CFrame rootCF = root ? root->cframe : CFrame();
+    if (const auto* clip = anim->getClip(); clip && clip->space == "joint_delta") {
+        for (const auto& track : clip->tracks) {
+            const auto* binding = CharacterRig::findR6Joint(track.targetName);
+            Spatial* sp = binding ? dynamic_cast<Spatial*>(model->getChild(binding->partName)) : nullptr;
+            if (!binding || !sp || sp == root) continue;
+            sp->cframe = CharacterRig::applyR6Joint(rootCF, *binding, clip->evaluate(track, t));
+        }
+        return;
+    }
     for (const AnimTrack& track : anim->getTracks()) {
-        Spatial* sp = dynamic_cast<Spatial*>(model->getChild(track.partName));
+        Spatial* sp = dynamic_cast<Spatial*>(model->getChild(track.targetName));
         if (!sp || sp == root) continue;
         sp->cframe = rootCF * anim->evaluateTrack(track, t);
     }
@@ -169,21 +181,30 @@ void AnimationEditorPanel::onRender() {
     ImGui::DragFloat("Speed", &anim->Speed, 0.05f, 0.05f, 10.0f, "%.2fx");
     ImGui::SameLine();
     ImGui::Checkbox("Looped", &anim->Looped);
+    if (auto clip = anim->getClip()) {
+        clip->length = anim->Length;
+        clip->speed = anim->Speed;
+        clip->looped = anim->Looped;
+    }
 
     // --- 専用ファイルへのエクスポート/インポート ---
     if (ImGui::Button(Loc::t(Loc::LocKey::ExportButton))) {
         std::string path = openAnimDialog(true);
-        if (!path.empty()) anim->exportToFile(path);
+        if (!path.empty()) {
+            bool ok = anim->exportToFile(path);
+            if (!ok) { m_fileError = "Animation export failed"; m_showFileError = true; }
+        }
     }
     ImGui::SameLine();
     if (ImGui::Button(Loc::t(Loc::LocKey::ImportButton))) {
         std::string path = openAnimDialog(false);
-        if (!path.empty()) anim->importFromFile(path);
+        if (!path.empty() && !anim->importFromFile(path)) { m_fileError = "Animation import failed"; m_showFileError = true; }
     }
 
     // --- 長さ・再生バー ---
     ImGui::SetNextItemWidth(120.0f);
     ImGui::DragFloat("Length", &anim->Length, 0.05f, 0.1f, 600.0f, "%.2f s");
+    if (auto clip = anim->getClip()) { clip->length = anim->Length; clip->speed = anim->Speed; clip->looped = anim->Looped; }
     if (m_time > anim->Length) m_time = anim->Length;
 
     ImGui::BeginDisabled(!m_editing);
@@ -209,8 +230,22 @@ void AnimationEditorPanel::onRender() {
             CFrame rel = keyPart->cframe;
             if (root && keyPart != root)
                 rel = root->cframe.inverse() * keyPart->cframe;
-            anim->addOrReplaceKey(keyPart->Name, m_time, rel,
-                                  static_cast<EasingType>(m_easingChoice));
+            if (auto* clip = anim->getClip(); clip && clip->space == "joint_delta") {
+                const auto* binding = [&]() -> const R6JointBinding* {
+                    for (const auto& candidate : CharacterRig::r6JointBindings())
+                        if (candidate.partName == keyPart->Name) return &candidate;
+                    return nullptr;
+                }();
+                if (binding) {
+                    const CFrame delta = binding->rootToJoint.inverse() * rel * binding->jointToPartBind.inverse();
+                    clip->addKey(binding->jointName, m_time, delta,
+                                 static_cast<EasingType>(m_easingChoice));
+                    anim->syncClipMetadata();
+                }
+            } else {
+                anim->addOrReplaceKey(keyPart->Name, m_time, rel,
+                                      static_cast<EasingType>(m_easingChoice));
+            }
             if (m_time > anim->Length) anim->Length = m_time;
         }
         ImGui::EndDisabled();
@@ -223,36 +258,20 @@ void AnimationEditorPanel::onRender() {
     // --- トラック一覧 ---
     ImGui::SeparatorText("Tracks");
     if (ImGui::BeginChild("TrackList", ImVec2(0, 0), true)) {
-        for (AnimTrack& track : anim->getTracks()) {
-            if (ImGui::TreeNode(track.partName.c_str(),
-                                "%s  (%d keys)", track.partName.c_str(),
-                                static_cast<int>(track.keyframes.size()))) {
+        if (auto* clip = anim->getClip()) {
+        for (auto& track : clip->tracks) {
+            if (ImGui::TreeNode(track.targetName.c_str(), "%s  (%d keys)", track.targetName.c_str(), static_cast<int>(track.keyframes.size()))) {
                 for (size_t i = 0; i < track.keyframes.size(); ++i) {
-                    Keyframe& kf = track.keyframes[i];
-                    ImGui::PushID(static_cast<int>(i));
-                    ImGui::Text("t=%.2f", kf.time);
-                    ImGui::SameLine();
-                    int e = static_cast<int>(kf.easing);
-                    ImGui::SetNextItemWidth(120.0f);
-                    if (ImGui::Combo("##e", &e, easingNames, IM_ARRAYSIZE(easingNames)))
-                        kf.easing = static_cast<EasingType>(e);
-                    ImGui::SameLine();
-                    ImGui::BeginDisabled(!m_editing);
-                    if (ImGui::SmallButton("Go")) {
-                        m_time = kf.time;
-                        applyPreview(anim, model, m_time);
-                    }
-                    ImGui::EndDisabled();
-                    ImGui::SameLine();
-                    if (ImGui::SmallButton("X")) {
-                        anim->removeKey(track.partName, kf.time);
-                        ImGui::PopID();
-                        break;
-                    }
-                    ImGui::PopID();
-                }
-                ImGui::TreePop();
+                    auto& kf = track.keyframes[i]; ImGui::PushID(static_cast<int>(i)); ImGui::Text("t=%.2f", kf.time); ImGui::SameLine();
+                    int e = static_cast<int>(kf.easing); ImGui::SetNextItemWidth(120.0f);
+                    if (ImGui::Combo("##e", &e, easingNames, IM_ARRAYSIZE(easingNames))) kf.easing = static_cast<EasingType>(e);
+                    ImGui::SameLine(); ImGui::BeginDisabled(!m_editing);
+                    if (ImGui::SmallButton("Go")) { m_time = kf.time; applyPreview(anim, model, m_time); }
+                    ImGui::SameLine(); if (ImGui::SmallButton("X")) { track.keyframes.erase(track.keyframes.begin() + i); ImGui::PopID(); ImGui::EndDisabled(); break; }
+                    ImGui::EndDisabled(); ImGui::PopID();
+                } ImGui::TreePop();
             }
+        }
         }
     }
     ImGui::EndChild();
@@ -275,5 +294,11 @@ void AnimationEditorPanel::onRender() {
         }
     }
 
+    if (m_showFileError) { ImGui::OpenPopup("Animation File Error"); m_showFileError = false; }
+    if (ImGui::BeginPopupModal("Animation File Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped("%s", m_fileError.c_str());
+        if (ImGui::Button(Loc::t(Loc::LocKey::OK))) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
     ImGui::End();
 }

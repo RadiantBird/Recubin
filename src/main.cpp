@@ -620,6 +620,7 @@ int main(int argc, char* argv[]) {
     double lastFrame = glfwGetTime();
     bool wasPlaying = false;
     bool snapshotDirty = false;
+    SceneLoader::SceneDocumentMetadata originalSceneMetadata;
     const std::string snapshotPath = "assets/scenes/_snapshot.yaml";
 
     struct ManagedNetworkClient {
@@ -708,6 +709,7 @@ int main(int argc, char* argv[]) {
         auto bound = SceneRuntime::loadAndBind(path, system, user, *luauEngine, window);
         workspace  = bound.workspace;
         workspaces = bound.workspaces;
+        ed->setSceneMetadata(bound.metadata);
         ed->setWorkspace(workspace.get());
         if (isDirty) ed->markDirty();
         workspace->initPhysics();
@@ -730,6 +732,7 @@ int main(int argc, char* argv[]) {
         clearWorkspacePhysics(workspaces);
         resetSystemForReload(system, user);
         initNewScene(snapshotPath, snapshotDirty);
+        if (ed) ed->setSceneMetadata(originalSceneMetadata);
     };
 
     while (true) {
@@ -792,10 +795,12 @@ int main(int argc, char* argv[]) {
             // 前回Playの実行状態(Completed等)をリセットして毎回最初から実行させる
             luauEngine->resetSystemScripts();
             snapshotDirty = ed && ed->isDirty();
+            originalSceneMetadata = ed ? ed->sceneMetadata() : SceneLoader::SceneDocumentMetadata{};
             // Animation Editorの編集セッションが開いたままだと、リグ/プレビュー姿勢が
             // スナップショットに焼き込まれ、Stop後のシーンが静かに汚染される。保存前に必ず復元する
             if (ed && ed->animationPanel) ed->animationPanel->endEditSession();
-            SceneLoader::saveScene(system.get(), snapshotPath);
+            auto snapshotMetadata = ed ? ed->sceneMetadata() : SceneLoader::SceneDocumentMetadata{};
+            SceneLoader::saveSceneResult(system.get(), snapshotPath, snapshotMetadata);
             SceneLoader::resolveConstraintRefs(system.get());
             // 全WorkspaceのPhysicsを初期化
             for (auto& [name, child] : system->getChildren()) {
@@ -962,8 +967,18 @@ int main(int argc, char* argv[]) {
         if (ed && (ed->pendingNewScene || !ed->pendingLoadPath.empty()) && ed->isEditMode()) {
             bool isNewScene = ed->pendingNewScene;
             std::string loadPath = isNewScene ? std::string() : ed->pendingLoadPath;
+            if (!isNewScene && !loadPath.empty()) {
+                const auto preflight = SceneLoader::loadSceneResult(loadPath);
+                if (!preflight && preflight.status != SceneLoader::LoadStatus::NotFound) {
+                    ed->showSceneLoadError(preflight.message.empty() ? "Scene format is not supported" : preflight.message);
+                    ed->pendingNewScene = false;
+                    ed->pendingLoadPath.clear();
+                    continue;
+                }
+            }
             ed->pendingNewScene = false;
             ed->pendingLoadPath.clear();
+            ed->scenePath = loadPath;
 
             // ---- Undo履歴/Clipboardのクリア（Play→Stop遷移と同じ理由） ----
             ed->hierarchyPanel->selectedInstance = nullptr;
@@ -979,7 +994,7 @@ int main(int argc, char* argv[]) {
             resetSystemForReload(system, user);
 
             initNewScene(loadPath, false);
-            ed->scenePath = loadPath;
+            ed->evaluateSceneMigration();
             SceneRuntime::applyAppIcon(window, system.get());
         }
 

@@ -1,0 +1,40 @@
+recubin:
+  type: animation
+  version: 1
+
+animation:
+  name: R6Walk
+  rig: R6
+  space: joint_delta
+  length: 0.6666667
+  speed: 1.0
+  looped: true
+  tracks:
+    - joint: LeftShoulder
+      keyframes:
+        - { time: 0.0,       position: [0, 0, 0], rotation: [0, 0, 0, 1], easing: linear }
+        - { time: 0.1666667, position: [0, 0, 0], rotation: [0.3007058, 0, 0, 0.9537169], easing: linear }
+        - { time: 0.3333333, position: [0, 0, 0], rotation: [0, 0, 0, 1], easing: linear }
+        - { time: 0.5,       position: [0, 0, 0], rotation: [-0.3007058, 0, 0, 0.9537169], easing: linear }
+        - { time: 0.6666667, position: [0, 0, 0], rotation: [0, 0, 0, 1], easing: linear }
+    - joint: RightShoulder
+      keyframes:
+        - { time: 0.0,       position: [0, 0, 0], rotation: [0, 0, 0, 1], easing: linear }
+        - { time: 0.1666667, position: [0, 0, 0], rotation: [-0.3007058, 0, 0, 0.9537169], easing: linear }
+        - { time: 0.3333333, position: [0, 0, 0], rotation: [0, 0, 0, 1], easing: linear }
+        - { time: 0.5,       position: [0, 0, 0], rotation: [0.3007058, 0, 0, 0.9537169], easing: linear }
+        - { time: 0.6666667, position: [0, 0, 0], rotation: [0, 0, 0, 1], easing: linear }
+    - joint: LeftHip
+      keyframes:
+        - { time: 0.0,       position: [0, 0, 0], rotation: [0, 0, 0, 1], easing: linear }
+        - { time: 0.1666667, position: [0, 0, 0], rotation: [-0.3007058, 0, 0, 0.9537169], easing: linear }
+        - { time: 0.3333333, position: [0, 0, 0], rotation: [0, 0, 0, 1], easing: linear }
+        - { time: 0.5,       position: [0, 0, 0], rotation: [0.3007058, 0, 0, 0.9537169], easing: linear }
+        - { time: 0.6666667, position: [0, 0, 0], rotation: [0, 0, 0, 1], easing: linear }
+    - joint: RightHip
+      keyframes:
+        - { time: 0.0,       position: [0, 0, 0], rotation: [0, 0, 0, 1], easing: linear }
+        - { time: 0.1666667, position: [0, 0, 0], rotation: [0.3007058, 0, 0, 0.9537169], easing: linear }
+        - { time: 0.3333333, position: [0, 0, 0], rotation: [0, 0, 0, 1], easing: linear }
+        - { time: 0.5,       position: [0, 0, 0], rotation: [-0.3007058, 0, 0, 0.9537169], easing: linear }
+        - { time: 0.6666667, position: [0, 0, 0], rotation: [0, 0, 0, 1], easing: linear }

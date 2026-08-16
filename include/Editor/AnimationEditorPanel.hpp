@@ -31,6 +31,8 @@ private:
     int   m_easingChoice = 0;     // EasingType に対応するコンボ選択
 
     bool       m_editing    = false; // 編集セッション中か。開始ボタンで退避+リグ組み立て、終了で復元
+    bool       m_showFileError = false;
+    std::string m_fileError;
     bool       m_poseSaved  = false;
     Instance*  m_savedModel = nullptr;
     std::unordered_map<std::string, CFrame> m_bindPose; // partName -> 退避CFrame

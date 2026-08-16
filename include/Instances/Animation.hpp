@@ -3,26 +3,24 @@
 #include <Instances/Instance.hpp>
 #include <Math/CFrame.hpp>
 #include <Math/Easing.hpp>
+#include <Core/AnimationClip.hpp>
 #include <string>
-#include <vector>
+#include <memory>
 
 // ==================================================================
 //  Animation
 //
-//  時間tにおける各パーツ(Cube)のローカルCFrameをキーフレームで保持する
-//  インスタンス。各トラックはパーツ名(Model相対)と昇順のキーフレーム列を持ち、
-//  Humanoidがこれを再生して対象Cubeのcframeを毎フレーム補間する。
+//  Scene Tree上のアニメーション資産。AnimationClipが唯一のトラック
+//  データで、AnimTrack/Keyframeは旧APIの型aliasとしてのみ残す。
 // ==================================================================
 
-struct Keyframe {
-    float      time = 0.0f;                    // 秒（0..Length）
-    CFrame     cframe;                         // 対象Cubeのローカル(親=Model基準)CFrame
-    EasingType easing = EasingType::Linear;    // このキー→次キーへの補間方法
-};
+using Keyframe = AnimationClipKeyframe;
+using AnimTrack = AnimationClipTrack;
 
-struct AnimTrack {
-    std::string           partName;            // Model相対のCube名（getChildで解決）
-    std::vector<Keyframe> keyframes;           // time昇順を維持
+enum class AnimationSource {
+    LegacyEmbedded,
+    File,
+    BuiltIn
 };
 
 class Animation : public Instance {
@@ -30,6 +28,7 @@ public:
     float Length = 1.0f;   // 全長（秒）
     float Speed  = 1.0f;   // 再生速度倍率
     bool  Looped = false;  // trueでループ再生
+    std::string ContentPath;
 
     Animation();
 
@@ -47,8 +46,26 @@ public:
     // partNameのトラックの時刻timeに最も近いキーを削除
     void removeKey(const std::string& partName, float time);
 
-    std::vector<AnimTrack>&       getTracks()       { return m_tracks; }
-    const std::vector<AnimTrack>& getTracks() const { return m_tracks; }
+    std::vector<AnimTrack>& getTracks() { return m_clip->tracks; }
+    const std::vector<AnimTrack>& getTracks() const { return m_clip->tracks; }
+    AnimationClip* getClip() { return m_clip.get(); }
+    const AnimationClip* getClip() const { return m_clip.get(); }
+    void setClip(const AnimationClip& clip);
+    void setClip(std::shared_ptr<AnimationClip> clip);
+    void syncClipMetadata();
+
+    bool loadContent();
+    AnimationSource getSource() const { return m_source; }
+    AnimationClipLoadStatus getLoadStatus() const { return m_loadStatus; }
+    std::string getSourceName() const;
+    std::string getLoadStatusName() const;
+    const std::string& getLoadMessage() const { return m_loadMessage; }
+    bool isUsingBuiltInFallback() const { return m_usingBuiltInFallback; }
+    void setUsingBuiltInFallback(bool value) const { m_usingBuiltInFallback = value; }
+    void setBuiltInClip(const AnimationClip& clip);
+    // Walk用に使用可能なR6 joint_delta Clipを返す。読込失敗時も
+    // 保存参照は書き換えず、この実行中だけ内蔵Clipを返す。
+    const AnimationClip& resolveR6WalkClip() const;
 
     // 単体の .yaml ファイルへ書き出す/読み込む（シーンとは独立した再利用用）。
     // 成功時 true を返す（失敗はリターンコードで扱い、例外は投げない）。
@@ -56,7 +73,11 @@ public:
     bool importFromFile(const std::string& path);
 
 private:
-    std::vector<AnimTrack> m_tracks;
+    std::unique_ptr<AnimationClip> m_clip;
+    AnimationSource m_source = AnimationSource::LegacyEmbedded;
+    AnimationClipLoadStatus m_loadStatus = AnimationClipLoadStatus::Success;
+    std::string m_loadMessage;
+    mutable bool m_usingBuiltInFallback = false;
 
     // partNameのトラックを返す（なければ作成）
     AnimTrack& trackFor(const std::string& partName);

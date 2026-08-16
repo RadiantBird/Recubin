@@ -34,6 +34,7 @@
 #include <Core/FileLoader.hpp>
 #include <Core/Packager.hpp>
 #include <Core/SceneLoader.hpp>
+#include <Core/AnimationClip.hpp>
 #include <Core/SceneRuntime.hpp>
 #include <Core/AudioService.hpp>
 #include <Core/CharacterRig.hpp>
@@ -46,6 +47,7 @@
 #include <Core/TerrainStreamer.hpp>
 #include <Core/User.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/EditorManager.hpp>
 #include <Editor/ViewportGeometry.hpp>
 #include <Editor/ViewportSceneQueries.hpp>
 #include <Network/ByteStream.hpp>
@@ -77,6 +79,8 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
+
+static int runAnimationClipRegression();
 
 #ifdef near
 #undef near
@@ -5926,6 +5930,14 @@ int runAssetPathRegression() {
         const std::array<char, 4> binary{{'R', '\0', 'C', 'B'}};
         std::ofstream binaryFile(tempRoot / "assets" / "sample.bin", std::ios::binary);
         binaryFile.write(binary.data(), static_cast<std::streamsize>(binary.size()));
+        std::filesystem::create_directories(tempRoot / "assets/anims");
+        std::ofstream animationFile(tempRoot / "assets/anims" / "r6_walk.rcanim", std::ios::binary);
+        animationFile << "recubin:\n  type: animation\n  version: 1\n"
+                         "animation:\n  name: R6Walk\n  rig: R6\n  space: joint_delta\n"
+                         "  length: 1\n  speed: 1\n  looped: true\n  tracks:\n"
+                         "    - joint: LeftShoulder\n      keyframes:\n"
+                         "        - time: 0\n          position: [0, 0, 0]\n"
+                         "          rotation: [0, 0, 0, 1]\n          easing: linear\n";
 #ifndef __APPLE__
         std::ofstream editorFile(tempRoot / "Recubin.exe", std::ios::binary);
         editorFile << "editor";
@@ -5933,7 +5945,16 @@ int runAssetPathRegression() {
         runtimeFile << "runtime";
 #endif
         std::ofstream sceneFile(tempRoot / "scene.yaml", std::ios::binary);
-        sceneFile << "Properties:\n"
+        sceneFile << "recubin:\n"
+                  << "  type: scene\n"
+                  << "  version: 0\n"
+                  << "Root:\n"
+                  << "  Children:\n"
+                  << "    - ClassName: Animation\n"
+                  << "      Name: R6Walk\n"
+                  << "      Properties:\n"
+                  << "        ContentPath: assets/anims/r6_walk.rcanim\n"
+                  << "Properties:\n"
                   << "  Texture: assets\\sample.bin\n"
                   << "  MeshFile: assets\\models\\missing.glb\n";
     }
@@ -5985,6 +6006,8 @@ int runAssetPathRegression() {
                    std::filesystem::exists(packageContentRoot / "assets/fonts/fa-solid-900.ttf") &&
                    packagedScene.find("assets/sample.bin") != std::string::npos &&
                    packagedScene.find("assets/models/missing.glb") != std::string::npos &&
+                   std::filesystem::exists(packageContentRoot / "assets/anims/r6_walk.rcanim") &&
+                   packagedScene.find("assets/anims/r6_walk.rcanim") != std::string::npos &&
                    packagedScene.find('\\') == std::string::npos,
                "packager copies referenced assets, runtime fonts, and portable YAML paths");
 #ifdef __APPLE__
@@ -6226,6 +6249,650 @@ int runRuntimeLaunchArgsRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runAnimationClipRegression() {
+    int failures = 0;
+    const auto expect = [&](bool condition, const char* description) {
+        if (!condition) {
+            ++failures;
+            std::cerr << "[FAIL] " << description << '\n';
+        } else {
+            std::cout << "[PASS] " << description << '\n';
+        }
+    };
+    const auto near = [](float a, float b, float epsilon = 1e-4f) {
+        return std::fabs(a - b) <= epsilon;
+    };
+
+    const auto tempRoot = std::filesystem::temp_directory_path() /
+        ("recubin_animation_clip_regression_" + std::to_string(std::rand()));
+    std::filesystem::create_directories(tempRoot);
+    const auto clipPath = tempRoot / "walk.rcanim";
+    const auto invalidPath = tempRoot / "invalid.rcanim";
+    const auto wrongTypePath = tempRoot / "scene.rcanim";
+    const auto newerPath = tempRoot / "newer.rcanim";
+    const auto legacyPath = tempRoot / "legacy.yaml";
+    const auto scenePath = tempRoot / "scene.yaml";
+    const auto sceneRoundTripPath = tempRoot / "scene_roundtrip.yaml";
+
+    const AnimationClip builtin = AnimationClip::defaultR6Walk();
+    expect(builtin.name == "R6Walk" && builtin.rig == "R6" && builtin.space == "joint_delta",
+           "built-in walk has the R6 joint-delta identity");
+    expect(near(builtin.length, 2.0f / 3.0f) && builtin.looped,
+           "built-in walk has the expected cycle length and looping");
+    const auto* shoulder = builtin.findTrack("LeftShoulder");
+    expect(shoulder && shoulder->keyframes.size() == 5,
+           "built-in walk contains five shoulder keys");
+    if (shoulder && shoulder->keyframes.size() == 5) {
+        expect(near(shoulder->keyframes[1].delta.Rotation.w,
+                    CFrame::fromAxisAngle(Vector3(1, 0, 0), 35.0f).Rotation.w),
+               "walk shoulder key reaches the expected 35 degree pose");
+        const auto midpoint = builtin.evaluate(*shoulder, builtin.length * 0.5f);
+        expect(near(midpoint.Position.x, 0.0f) && near(midpoint.Position.y, 0.0f) &&
+               near(midpoint.Position.z, 0.0f), "walk midpoint preserves joint translation");
+        const CFrame root(Vector3(10.0f, 2.0f, -4.0f),
+                          Quaternion::fromAxisAngle(Vector3(0, 1, 0), 0.5f));
+        const CFrame delta(Vector3(1.0f, 0.0f, 0.0f), Quaternion());
+        const CFrame world = root * delta;
+        expect(near(world.Position.x, root.pointToWorld(delta.Position).x) &&
+               near(world.Position.y, 2.0f) && near(world.Position.z, root.pointToWorld(delta.Position).z),
+               "joint delta composes after the rig root transform");
+        if (const auto* binding = CharacterRig::findR6Joint("LeftShoulder")) {
+            const CFrame applied = CharacterRig::applyR6Joint(root, *binding, delta);
+            const CFrame expected = root * binding->rootToJoint * delta * binding->jointToPartBind;
+            expect(near(applied.Position.x, expected.Position.x) &&
+                   near(applied.Position.y, expected.Position.y) &&
+                   near(applied.Position.z, expected.Position.z) &&
+                   near(applied.Rotation.x, expected.Rotation.x) &&
+                   near(applied.Rotation.y, expected.Rotation.y) &&
+                   near(applied.Rotation.z, expected.Rotation.z) &&
+                   near(applied.Rotation.w, expected.Rotation.w),
+                   "R6 joint binding composes translated and rotated roots correctly");
+        } else {
+            expect(false, "R6 shoulder binding is available");
+        }
+    }
+
+    {
+        AnimationClip eased = builtin;
+        eased.tracks.clear();
+        eased.addKey("LeftShoulder", 0.0f, CFrame(), EasingType::Sine);
+        eased.addKey("LeftShoulder", eased.length, CFrame::fromAxisAngle(Vector3(1, 0, 0), 10.0f), EasingType::Exponential);
+        const auto easedPath = tempRoot / "eased.rcanim";
+        expect(AnimationClipIO::save(easedPath.string(), eased), "eased clip saves");
+        const auto loaded = AnimationClipIO::load(easedPath.string());
+        expect(loaded && loaded.clip.tracks.front().keyframes.front().easing == EasingType::Sine &&
+               loaded.clip.tracks.front().keyframes.back().easing == EasingType::Exponential,
+               "rcanim round-trip preserves easing modes");
+        const auto zeroQuaternionPath = tempRoot / "zero_quaternion.rcanim";
+        std::ofstream out(zeroQuaternionPath);
+        out << "recubin:\n  type: animation\n  version: 1\nanimation:\n"
+               "  name: bad\n  rig: R6\n  space: joint_delta\n  length: 1\n"
+               "  speed: 1\n  looped: false\n  tracks:\n    - joint: LeftShoulder\n"
+               "      keyframes:\n        - time: 0\n          position: [0,0,0]\n"
+               "          rotation: [0,0,0,0]\n";
+        out.close();
+        const auto zeroQuaternion = AnimationClipIO::load(zeroQuaternionPath.string());
+        expect(zeroQuaternion.status == AnimationClipLoadStatus::InvalidData &&
+                   zeroQuaternion.message == "invalid quaternion",
+               "zero quaternion is rejected for the quaternion reason");
+        const auto duplicatePath = tempRoot / "duplicate_joint.rcanim";
+        out.open(duplicatePath);
+        out << "recubin:\n  type: animation\n  version: 1\nanimation:\n"
+               "  name: bad\n  rig: R6\n  space: joint_delta\n  length: 1\n"
+               "  speed: 1\n  looped: false\n  tracks:\n"
+               "    - joint: LeftShoulder\n      keyframes:\n        - time: 0\n          position: [0,0,0]\n          rotation: [0,0,0,1]\n"
+               "    - joint: LeftShoulder\n      keyframes:\n        - time: 1\n          position: [0,0,0]\n          rotation: [0,0,0,1]\n";
+        out.close();
+        const auto duplicateJoint = AnimationClipIO::load(duplicatePath.string());
+        expect(duplicateJoint.status == AnimationClipLoadStatus::InvalidData &&
+                   duplicateJoint.message == "duplicate joint or empty keyframes",
+               "duplicate known-joint tracks are rejected for the duplicate reason");
+    }
+
+    expect(AnimationClipIO::save(clipPath.string(), builtin), "animation clip saves as rcanim");
+    const auto roundTrip = AnimationClipIO::load(clipPath.string());
+    expect(roundTrip && roundTrip.clip.tracks.size() == builtin.tracks.size(),
+           "saved rcanim loads successfully");
+    const auto* loadedShoulder = roundTrip.clip.findTrack("LeftShoulder");
+    expect(loadedShoulder && shoulder && loadedShoulder->keyframes.size() == shoulder->keyframes.size(),
+           "rcanim round-trip preserves joint key count");
+
+    {
+        std::ofstream out(invalidPath); out << "recubin: [broken";
+        out.close();
+        expect(AnimationClipIO::load(invalidPath.string()).status == AnimationClipLoadStatus::InvalidYaml,
+               "malformed rcanim is rejected");
+        out.open(wrongTypePath); out << "recubin:\n  type: scene\n  version: 1\n";
+        out.close();
+        expect(AnimationClipIO::load(wrongTypePath.string()).status == AnimationClipLoadStatus::TypeMismatch,
+               "wrong document type is rejected");
+        out.open(newerPath); out << "recubin:\n  type: animation\n  version: 99\n";
+        out.close();
+        expect(AnimationClipIO::load(newerPath.string()).status == AnimationClipLoadStatus::UnsupportedVersion,
+               "newer animation version is rejected");
+    }
+
+    {
+        std::ofstream out(legacyPath);
+        out << "Animation:\n  Length: 1\n  Speed: 1\n  Looped: true\n"
+               "  Tracks:\n    - PartName: Arm\n      Keyframes:\n"
+               "        - Time: 0\n          Position: [0, 0, 0]\n"
+               "          Rotation: [0, 0, 0, 1]\n          Easing: 0\n";
+        out.close();
+        Animation legacy;
+        expect(legacy.importFromFile(legacyPath.string()) && legacy.getTracks().size() == 1,
+               "legacy Animation YAML remains importable");
+    }
+
+    {
+        auto legacySceneRoot = std::make_shared<Workspace>();
+        auto legacyAnimation = std::make_shared<Animation>();
+        legacyAnimation->Name = "LegacyTracksAnimation";
+        legacyAnimation->Length = 1.0f;
+        legacyAnimation->addOrReplaceKey("LeftArm", 0.0f, CFrame(), EasingType::Linear);
+        auto followingCube = std::make_shared<Cube>(Vector3(3.0f, 2.0f, 1.0f), Vector3(1.0f, 1.0f, 1.0f), 0);
+        followingCube->Name = "FollowingChild";
+        legacySceneRoot->addChild(legacyAnimation);
+        legacySceneRoot->addChild(followingCube);
+        const auto legacyScenePath = tempRoot / "legacy_animation_scene.yaml";
+        SceneLoader::saveScene(legacySceneRoot.get(), legacyScenePath.string());
+        auto loadedLegacyScene = SceneLoader::loadScene(legacyScenePath.string());
+        auto loadedLegacyAnimationNode = loadedLegacyScene
+            ? loadedLegacyScene->getChild("LegacyTracksAnimation") : nullptr;
+        auto loadedFollowingChild = loadedLegacyScene
+            ? loadedLegacyScene->getChild("FollowingChild") : nullptr;
+        expect(loadedLegacyAnimationNode && loadedFollowingChild,
+               "legacy Animation and following Scene child both survive round-trip");
+        auto loadedLegacyAnimation = loadedLegacyAnimationNode
+            ? std::dynamic_pointer_cast<Animation>(loadedLegacyAnimationNode->shared_from_this()) : nullptr;
+        expect(loadedLegacyAnimation && loadedLegacyAnimation->getTracks().size() == 1,
+               "legacy Animation tracks remain present before following child");
+    }
+
+    {
+        auto system = std::make_shared<System>();
+        auto starter = std::make_shared<StarterCharacter>();
+        CharacterRig::buildDefaultRigParts(starter);
+        system->addChild(starter);
+        auto injected = std::make_shared<AnimationClip>(builtin);
+        injected->name = "InjectedWalk";
+        auto starterWalk = std::dynamic_pointer_cast<Animation>(starter->getChildren().at("R6Walk"));
+        auto starterHumanoid = std::dynamic_pointer_cast<Humanoid>(
+            starter->getChildren().at("Humanoid"));
+        auto starterJump = std::make_shared<Animation>();
+        starterJump->Name = "R6Jump";
+        starterJump->ContentPath = "assets/anims/r6_jump.rcanim";
+        starter->addChild(starterJump);
+        starterHumanoid->setJumpAnimation(starterJump);
+        auto starterEquip = std::make_shared<Animation>();
+        starterEquip->Name = "R6Equip";
+        starterEquip->ContentPath = "assets/anims/r6_equip.rcanim";
+        starter->addChild(starterEquip);
+        starterHumanoid->setEquipAnimation(starterEquip);
+        if (starterWalk) starterWalk->setClip(injected);
+        expect(starterWalk && starterHumanoid &&
+                   starterHumanoid->getWalkAnimation() == starterWalk &&
+                   starterWalk->ContentPath == "assets/anims/r6_walk.rcanim",
+               "default StarterCharacter exposes R6Walk and Humanoid references it");
+        auto model = User::buildCharacterModel(system.get(), "ClipInjectionCharacter");
+        std::shared_ptr<Humanoid> humanoid;
+        if (model) {
+            auto humanoidNode = model->getChildren().find("Humanoid");
+            if (humanoidNode != model->getChildren().end())
+                humanoid = std::dynamic_pointer_cast<Humanoid>(humanoidNode->second);
+        }
+        auto clonedWalk = humanoid ? humanoid->getWalkAnimation() : nullptr;
+        auto clonedJump = humanoid ? humanoid->getJumpAnimation() : nullptr;
+        auto clonedEquip = humanoid ? humanoid->getEquipAnimation() : nullptr;
+        expect(humanoid && clonedWalk && clonedWalk->Parent.lock().get() == model.get() &&
+               clonedWalk.get() != starterWalk.get() && clonedWalk->getClip() &&
+               clonedWalk->getClip()->name == "InjectedWalk",
+               "StarterCharacter Animation reference is remapped into generated User Humanoid");
+        expect(clonedJump && clonedEquip &&
+                   clonedJump->Parent.lock().get() == model.get() &&
+                   clonedEquip->Parent.lock().get() == model.get() &&
+                   clonedJump.get() != starterJump.get() &&
+                   clonedEquip.get() != starterEquip.get(),
+               "Walk, Jump, and Equip references all remap to PlayerCharacter clones");
+        if (humanoid) {
+            humanoid->resolveParts(model.get());
+            const auto sameCFrame = [&](const CFrame& a, const CFrame& b) {
+                return near(a.Position.x, b.Position.x) && near(a.Position.y, b.Position.y) &&
+                       near(a.Position.z, b.Position.z) && near(a.Rotation.x, b.Rotation.x) &&
+                       near(a.Rotation.y, b.Rotation.y) && near(a.Rotation.z, b.Rotation.z) &&
+                       near(a.Rotation.w, b.Rotation.w);
+            };
+            auto rootPart = humanoid->getRootPart();
+            const auto* shoulderBinding = CharacterRig::findR6Joint("LeftShoulder");
+            const auto* hipBinding = CharacterRig::findR6Joint("LeftHip");
+            humanoid->setIsGroundedForReplication(true);
+            humanoid->setWalkCycle(0.0f);
+            humanoid->applyBodyAnimation(true, false);
+            auto toolLeft = humanoid->getLeftArmPart();
+            expect(rootPart && shoulderBinding && toolLeft && sameCFrame(
+                       toolLeft->getWorldCFrame(),
+                       CharacterRig::applyR6Joint(rootPart->cframe, *shoulderBinding,
+                           CFrame::fromAxisAngle(Vector3(1, 0, 0), 90.0f))),
+                   "tool left-arm pose uses the R6 shoulder binding");
+            humanoid->setSeatedForReplication(true);
+            humanoid->applyBodyAnimation(false, false);
+            auto seatedLeft = humanoid->getLeftArmPart();
+            auto seatedLeg = humanoid->getLeftLegPart();
+            expect(rootPart && shoulderBinding && hipBinding && seatedLeft && seatedLeg &&
+                   sameCFrame(seatedLeft->getWorldCFrame(), CharacterRig::applyR6Joint(
+                       rootPart->cframe, *shoulderBinding,
+                       CFrame::fromAxisAngle(Vector3(1, 0, 0), 10.0f))) &&
+                   sameCFrame(seatedLeg->getWorldCFrame(), CharacterRig::applyR6Joint(
+                       rootPart->cframe, *hipBinding,
+                       CFrame::fromAxisAngle(Vector3(1, 0, 0), 90.0f))),
+                   "seated arm and leg poses use the R6 bindings");
+            humanoid->setSeatedForReplication(false);
+            humanoid->setWalkCycle(0.0f);
+            humanoid->applyBodyAnimation(false, false);
+            auto neutralLeft = humanoid->getLeftArmPart();
+            auto neutralLeftCFrame = neutralLeft ? neutralLeft->getWorldCFrame() : CFrame();
+            auto neutralLeg = humanoid->getLeftLegPart();
+            auto neutralLegCFrame = neutralLeg ? neutralLeg->getWorldCFrame() : CFrame();
+            humanoid->setWalkCycle(0.25f);
+            humanoid->applyBodyAnimation(false, false);
+            auto left = humanoid->getLeftArmPart();
+            auto right = humanoid->getRightArmPart();
+            expect(left && right && left->getWorldCFrame().Rotation.x *
+                       right->getWorldCFrame().Rotation.x < -1e-4f,
+                   "injected walk produces opposite left/right arm poses");
+            const auto animatedLeftCFrame = left ? left->getWorldCFrame() : CFrame();
+            const auto animatedLegCFrame = neutralLeg ? neutralLeg->getWorldCFrame() : CFrame();
+            humanoid->setWalkCycle(0.0f);
+            humanoid->applyBodyAnimation(false, false);
+            const auto returnedLeftCFrame = left ? left->getWorldCFrame() : CFrame();
+            const auto returnedLegCFrame = neutralLeg ? neutralLeg->getWorldCFrame() : CFrame();
+            expect(!near(animatedLeftCFrame.Rotation.x, neutralLeftCFrame.Rotation.x, 1e-3f) &&
+                   near(returnedLeftCFrame.Rotation.x, neutralLeftCFrame.Rotation.x, 1e-3f) &&
+                   !near(animatedLegCFrame.Rotation.x, neutralLegCFrame.Rotation.x, 1e-3f) &&
+                   near(returnedLegCFrame.Rotation.x, neutralLegCFrame.Rotation.x, 1e-3f) &&
+                   near(returnedLeftCFrame.Position.x, neutralLeftCFrame.Position.x) &&
+                   near(returnedLeftCFrame.Position.y, neutralLeftCFrame.Position.y) &&
+                   near(returnedLeftCFrame.Position.z, neutralLeftCFrame.Position.z),
+                   "grounded walk returns the shoulder to its neutral binding pose");
+            humanoid->setIsGroundedForReplication(false);
+            humanoid->applyBodyAnimation(false, false);
+            expect(left && left->getWorldCFrame().Rotation.w < 0.99f,
+                   "airborne Humanoid keeps its distinct fallback pose");
+            humanoid->setIsGroundedForReplication(true);
+            auto custom = std::make_shared<Animation>();
+            custom->Length = 1.0f;
+            custom->Speed = 1.0f;
+            custom->Looped = true;
+            auto customClip = std::make_shared<AnimationClip>();
+            customClip->name = "CustomShoulder55";
+            customClip->length = 1.0f;
+            customClip->speed = 1.0f;
+            customClip->looped = true;
+            customClip->addKey("LeftShoulder", 0.0f,
+                               CFrame::fromAxisAngle(Vector3(1, 0, 0), 55.0f));
+            customClip->addKey("LeftShoulder", 1.0f,
+                               CFrame::fromAxisAngle(Vector3(1, 0, 0), 55.0f));
+            custom->setClip(customClip);
+            humanoid->playAnimation(custom);
+            humanoid->updateAnimation(0.1f);
+            auto customLeft = humanoid->getLeftArmPart();
+            expect(rootPart && shoulderBinding && customLeft && sameCFrame(
+                       customLeft->getWorldCFrame(),
+                       CharacterRig::applyR6Joint(rootPart->cframe, *shoulderBinding,
+                           CFrame::fromAxisAngle(Vector3(1, 0, 0), 55.0f))),
+                   "custom joint_delta Animation overrides the basic walk pose");
+            humanoid->stopAnimation();
+        }
+    }
+
+    {
+        auto system = std::make_shared<System>();
+        auto starter = std::make_shared<StarterCharacter>();
+        CharacterRig::buildDefaultRigParts(starter);
+        auto starterHumanoid = std::dynamic_pointer_cast<Humanoid>(starter->getChildren().at("Humanoid"));
+        if (starterHumanoid) starterHumanoid->setWalkAnimationPath("MissingCustomWalk");
+        system->addChild(starter);
+        auto model = User::buildCharacterModel(system.get(), "UnresolvedWalkCharacter");
+        std::shared_ptr<Humanoid> humanoid;
+        if (model) {
+            auto humanoidNode = model->getChildren().find("Humanoid");
+            if (humanoidNode != model->getChildren().end())
+                humanoid = std::dynamic_pointer_cast<Humanoid>(humanoidNode->second);
+        }
+        expect(humanoid && !humanoid->getWalkAnimation() &&
+               humanoid->getWalkAnimationPath() == "MissingCustomWalk",
+               "non-empty unresolved WalkAnimation path is preserved without runtime reference replacement");
+    }
+
+    {
+        const auto clipScenePath = tempRoot / "clip_scene.yaml";
+        const auto clipSceneRoundTripPath = tempRoot / "clip_scene_roundtrip.yaml";
+        auto clipRoot = std::make_shared<Workspace>();
+        auto clipAnimation = std::make_shared<Animation>();
+        clipAnimation->Name = "JointDeltaAnimation";
+        clipAnimation->setProperty("Length", YAML::Load("1.0"));
+        clipAnimation->setProperty("Space", YAML::Load("joint_delta"));
+        clipAnimation->setProperty("Rig", YAML::Load("R6"));
+        clipAnimation->setProperty("Tracks", YAML::Load(
+            "- PartName: LeftShoulder\n"
+            "  Keyframes:\n"
+            "    - Time: 0.0\n"
+            "      Position: [0, 0, 0]\n"
+            "      Rotation: [0, 0, 0, 1]\n"
+            "      Easing: 0\n"));
+        clipRoot->addChild(clipAnimation);
+        SceneLoader::saveScene(clipRoot.get(), clipScenePath.string());
+        auto loadedClipScene = SceneLoader::loadScene(clipScenePath.string());
+        auto loadedAnimationNode = loadedClipScene ? loadedClipScene->getChild("JointDeltaAnimation") : nullptr;
+        auto loadedAnimation = loadedAnimationNode
+            ? std::dynamic_pointer_cast<Animation>(loadedAnimationNode->shared_from_this()) : nullptr;
+        expect(loadedAnimation && loadedAnimation->getClip() &&
+               loadedAnimation->getClip()->space == "joint_delta" &&
+               loadedAnimation->getClip()->tracks.size() == 1,
+               "joint_delta Animation clip survives Scene save/load");
+        if (loadedAnimation && loadedAnimation->getClip()) {
+            expect(loadedAnimation->getClip()->tracks.front().targetName == "LeftShoulder" &&
+                   loadedAnimation->getClip()->tracks.front().keyframes.size() == 1,
+                   "Scene round-trip preserves joint_delta track and keyframe");
+            SceneLoader::saveScene(loadedClipScene.get(), clipSceneRoundTripPath.string());
+            auto secondClipScene = SceneLoader::loadScene(clipSceneRoundTripPath.string());
+            auto secondNode = secondClipScene ? secondClipScene->getChild("JointDeltaAnimation") : nullptr;
+            auto secondAnimation = secondNode
+                ? std::dynamic_pointer_cast<Animation>(secondNode->shared_from_this()) : nullptr;
+            expect(secondAnimation && secondAnimation->getClip() &&
+                   secondAnimation->getClip()->space == "joint_delta",
+                   "joint_delta clip survives a second Scene round-trip");
+        }
+    }
+
+    {
+        const auto validAnim = tempRoot / "animations" / "walk.rcanim";
+        std::filesystem::create_directories(validAnim.parent_path());
+        expect(AnimationClipIO::save(validAnim.string(), builtin), "project walk clip is written");
+        Animation project;
+        project.ContentPath = validAnim.string();
+        expect(project.loadContent() && project.resolveR6WalkClip().name == "R6Walk",
+               "valid project walk Animation is selected");
+        std::filesystem::remove(validAnim);
+        Animation missing;
+        missing.ContentPath = validAnim.string();
+        expect(!missing.loadContent() && missing.resolveR6WalkClip().tracks.size() == builtin.tracks.size() &&
+               missing.ContentPath == validAnim.string() && missing.isUsingBuiltInFallback(),
+               "missing project walk Animation keeps its reference and falls back at runtime");
+        std::filesystem::create_directories(validAnim.parent_path());
+        std::ofstream out(validAnim); out << "recubin:\n  type: scene\n  version: 0\n"; out.close();
+        Animation invalid;
+        invalid.ContentPath = validAnim.string();
+        expect(!invalid.loadContent() && invalid.resolveR6WalkClip().tracks.size() == builtin.tracks.size() &&
+               invalid.getLoadStatus() == AnimationClipLoadStatus::TypeMismatch,
+               "invalid project walk Animation preserves failure and falls back at runtime");
+    }
+
+    {
+        const auto customPath = tempRoot / "assets" / "anims" / "my_walk.rcanim";
+        std::filesystem::create_directories(customPath.parent_path());
+        AnimationClip customClip = builtin;
+        customClip.name = "MyWalk";
+        expect(AnimationClipIO::save(customPath.string(), customClip),
+               "custom Walk asset is written");
+
+        auto makeStarterWithWalk = [&](const std::string& name,
+                                       const std::string& contentPath) {
+            auto system = std::make_shared<System>();
+            auto starter = std::make_shared<StarterCharacter>();
+            CharacterRig::buildDefaultRigParts(starter);
+            system->addChild(starter);
+            auto humanoid = std::dynamic_pointer_cast<Humanoid>(
+                starter->getChildren().at("Humanoid"));
+            auto animation = std::make_shared<Animation>();
+            animation->Name = name;
+            animation->ContentPath = contentPath;
+            animation->loadContent();
+            starter->addChild(animation);
+            humanoid->setWalkAnimation(animation);
+            return system;
+        };
+
+        auto customSystem = makeStarterWithWalk("MyCustomWalk", customPath.string());
+        auto customModel = User::buildCharacterModel(customSystem.get(), "CustomCharacter");
+        auto customHumanoid = customModel
+            ? std::dynamic_pointer_cast<Humanoid>(customModel->getChildren().at("Humanoid")) : nullptr;
+        auto clonedCustom = customHumanoid ? customHumanoid->getWalkAnimation() : nullptr;
+        expect(clonedCustom && clonedCustom->Name == "MyCustomWalk" &&
+                   clonedCustom->ContentPath == customPath.string() &&
+                   clonedCustom->resolveR6WalkClip().name == "MyWalk" &&
+                   !clonedCustom->isUsingBuiltInFallback(),
+               "valid custom Walk remains the preferred PlayerCharacter reference");
+
+        const auto missingPath = tempRoot / "assets" / "anims" / "missing_walk.rcanim";
+        auto missingSystem = makeStarterWithWalk("MissingCustomWalk", missingPath.string());
+        auto missingModel = User::buildCharacterModel(missingSystem.get(), "MissingCharacter");
+        auto missingHumanoid = missingModel
+            ? std::dynamic_pointer_cast<Humanoid>(missingModel->getChildren().at("Humanoid")) : nullptr;
+        auto clonedMissing = missingHumanoid ? missingHumanoid->getWalkAnimation() : nullptr;
+        expect(clonedMissing && clonedMissing->Name == "MissingCustomWalk" &&
+                   clonedMissing->ContentPath == missingPath.string() &&
+                   clonedMissing->resolveR6WalkClip().name == "R6Walk" &&
+                   clonedMissing->isUsingBuiltInFallback(),
+               "missing custom Walk keeps its Animation and ContentPath during runtime fallback");
+
+        const auto brokenPath = tempRoot / "assets" / "anims" / "broken_walk.rcanim";
+        std::ofstream brokenFile(brokenPath);
+        brokenFile << "recubin:\n  type: scene\n  version: 0\n";
+        brokenFile.close();
+        auto brokenSystem = makeStarterWithWalk("BrokenCustomWalk", brokenPath.string());
+        auto brokenModel = User::buildCharacterModel(brokenSystem.get(), "BrokenCharacter");
+        auto brokenHumanoid = brokenModel
+            ? std::dynamic_pointer_cast<Humanoid>(brokenModel->getChildren().at("Humanoid")) : nullptr;
+        auto clonedBroken = brokenHumanoid ? brokenHumanoid->getWalkAnimation() : nullptr;
+        expect(clonedBroken && clonedBroken->Name == "BrokenCustomWalk" &&
+                   clonedBroken->ContentPath == brokenPath.string() &&
+                   clonedBroken->resolveR6WalkClip().name == "R6Walk" &&
+                   clonedBroken->getLoadStatus() == AnimationClipLoadStatus::TypeMismatch &&
+                   clonedBroken->isUsingBuiltInFallback(),
+               "broken custom Walk keeps its Animation and ContentPath during runtime fallback");
+
+        auto legacySystem = std::make_shared<System>();
+        auto legacyStarter = std::make_shared<StarterCharacter>();
+        CharacterRig::buildDefaultRigParts(legacyStarter);
+        legacySystem->addChild(legacyStarter);
+        auto legacyHumanoid = std::dynamic_pointer_cast<Humanoid>(
+            legacyStarter->getChildren().at("Humanoid"));
+        legacyHumanoid->setWalkAnimation(nullptr);
+        legacyStarter->removeChild("R6Walk");
+        auto legacyModel = User::buildCharacterModel(legacySystem.get(), "LegacyCharacter");
+        auto runtimeHumanoid = legacyModel
+            ? std::dynamic_pointer_cast<Humanoid>(legacyModel->getChildren().at("Humanoid")) : nullptr;
+        auto runtimeWalk = runtimeHumanoid ? runtimeHumanoid->getWalkAnimation() : nullptr;
+        expect(!legacyStarter->getChild("R6Walk") && runtimeWalk &&
+                   runtimeWalk->Parent.lock().get() == legacyModel.get() &&
+                   runtimeWalk->getSource() == AnimationSource::BuiltIn,
+               "unbound legacy character receives a visible runtime-only built-in Walk");
+    }
+
+    {
+        const auto referenceScenePath = tempRoot / "animation_reference_scene.yaml";
+        auto referenceRoot = std::make_shared<Workspace>();
+        auto character = std::make_shared<Model>();
+        character->Name = "Character";
+        auto humanoid = std::make_shared<Humanoid>();
+        humanoid->Name = "Humanoid";
+        auto walk = std::make_shared<Animation>();
+        walk->Name = "MyWalk";
+        walk->ContentPath = "assets/anims/my_walk.rcanim";
+        character->addChild(humanoid);
+        character->addChild(walk);
+        humanoid->setWalkAnimation(walk);
+        referenceRoot->addChild(character);
+        expect(SceneLoader::saveSceneResult(referenceRoot.get(), referenceScenePath.string()),
+               "Scene with a Humanoid Animation reference saves");
+        auto loadedReferenceRoot = SceneLoader::loadScene(referenceScenePath.string());
+        auto loadedCharacter = loadedReferenceRoot
+            ? loadedReferenceRoot->getChild("Character") : nullptr;
+        auto loadedHumanoid = loadedCharacter
+            ? dynamic_cast<Humanoid*>(loadedCharacter->getChild("Humanoid")) : nullptr;
+        auto loadedWalk = loadedHumanoid ? loadedHumanoid->getWalkAnimation() : nullptr;
+        expect(loadedWalk && loadedWalk->Name == "MyWalk" &&
+                   loadedWalk->ContentPath == "assets/anims/my_walk.rcanim" &&
+                   loadedWalk->Parent.lock().get() == loadedCharacter,
+               "Humanoid Animation reference and ContentPath survive Scene round-trip");
+    }
+
+    {
+        std::ofstream out(scenePath);
+        out << "Root:\n"
+                "  ClassName: System\n"
+                "  Name: System\n"
+                "  Children:\n"
+                "    - ClassName: Workspace\n"
+                "      Name: Workspace\n";
+        out.close();
+        auto old = SceneLoader::loadSceneResult(scenePath.string());
+        expect(old && old.metadata.version == 0 &&
+                   old.metadata.characterAnimationBindingsVersion == 0 &&
+                   old.metadata.legacyDefaultR6AnimationDecision.empty(),
+               "headerless scene loads as implicit version zero");
+
+        const auto legacyHeaderPath = tempRoot / "legacy_header_scene.yaml";
+        out.open(legacyHeaderPath);
+        out << "recubin:\n  type: scene\n  version: 0\n"
+               "  migrations:\n    default_r6_animations:\n      version: 1\n      decision: generated\n"
+               "  animations:\n    r6_walk:\n      ContentPath: animations/walk.rcanim\n"
+               "Root:\n  ClassName: System\n  Name: System\n  Children: []\n";
+        out.close();
+        auto legacyHeader = SceneLoader::loadSceneResult(legacyHeaderPath.string());
+        expect(legacyHeader &&
+                   legacyHeader.metadata.legacyDefaultR6AnimationDecision == "generated" &&
+                   legacyHeader.metadata.legacyWalkContentPath == "animations/walk.rcanim",
+               "retired R6 generation header remains readable as compatibility metadata");
+        old.metadata.characterAnimationBindingsVersion = 1;
+        expect(SceneLoader::saveSceneResult(old.root.get(), sceneRoundTripPath.string(), old.metadata),
+               "scene metadata saves with character binding migration version");
+        const std::string savedText = FileLoader::readText(sceneRoundTripPath.string());
+        expect(savedText.find("character_animation_bindings") != std::string::npos &&
+                   savedText.find("default_r6_animations") == std::string::npos &&
+                   savedText.find("r6_walk") == std::string::npos,
+               "new Scene saves emit only the character binding migration header");
+        auto saved = SceneLoader::loadSceneResult(sceneRoundTripPath.string());
+        expect(saved && saved.metadata.characterAnimationBindingsVersion == 1 &&
+                   saved.metadata.legacyDefaultR6AnimationDecision.empty() &&
+                   saved.metadata.legacyWalkContentPath.empty(),
+               "character binding migration metadata round-trips without retired fields");
+        const auto wrongScene = tempRoot / "wrong_scene.yaml";
+        out.open(wrongScene); out << "recubin:\n  type: animation\n  version: 1\nRoot: {}\n"; out.close();
+        expect(SceneLoader::loadSceneResult(wrongScene.string()).status == SceneLoader::LoadStatus::InvalidType,
+               "scene loader rejects a mismatched document type");
+        const auto newerScene = tempRoot / "newer_scene.yaml";
+        out.open(newerScene); out << "recubin:\n  type: scene\n  version: 1\nRoot: {}\n"; out.close();
+        expect(SceneLoader::loadSceneResult(newerScene.string()).status == SceneLoader::LoadStatus::UnsupportedVersion,
+               "scene loader rejects a newer scene version");
+    }
+
+    {
+        const auto makeR6System = [](bool withWalk) {
+            auto system = std::make_shared<System>();
+            auto starter = std::make_shared<StarterCharacter>();
+            CharacterRig::buildDefaultRigParts(starter);
+            system->addChild(starter);
+            if (!withWalk) {
+                auto humanoid = std::dynamic_pointer_cast<Humanoid>(
+                    starter->getChildren().at("Humanoid"));
+                humanoid->setWalkAnimation(nullptr);
+                starter->removeChild("R6Walk");
+            }
+            return system;
+        };
+        const auto migrationScenePath = (tempRoot / "migration_scene.yaml").string();
+
+        auto insertionSystem = makeR6System(false);
+        SceneLoader::SceneDocumentMetadata insertionMetadata;
+        auto insertionResult = EditorManager::migrateCharacterAnimationBindings(
+            insertionSystem.get(), migrationScenePath, insertionMetadata);
+        auto insertionStarter = insertionSystem->getChild("StarterCharacter");
+        auto insertionHumanoid = insertionStarter
+            ? dynamic_cast<Humanoid*>(insertionStarter->getChild("Humanoid")) : nullptr;
+        auto insertedWalk = insertionHumanoid ? insertionHumanoid->getWalkAnimation() : nullptr;
+        expect(insertionResult == EditorManager::CharacterAnimationMigrationResult::Inserted &&
+                   insertionMetadata.characterAnimationBindingsVersion == 1 &&
+                   insertedWalk && insertedWalk->ContentPath == "assets/anims/r6_walk.rcanim",
+               "unmigrated empty R6 Walk binding is filled once with the standard asset");
+
+        insertionHumanoid->setWalkAnimation(nullptr);
+        insertionStarter->removeChild(insertedWalk->Name);
+        auto repeatedResult = EditorManager::migrateCharacterAnimationBindings(
+            insertionSystem.get(), migrationScenePath, insertionMetadata);
+        expect(repeatedResult == EditorManager::CharacterAnimationMigrationResult::AlreadyMigrated &&
+                   !insertionHumanoid->getWalkAnimation() &&
+                   insertionHumanoid->getWalkAnimationPath().empty(),
+               "migration marker prevents reinsertion after a user removes the standard binding");
+
+        auto unresolvedSystem = makeR6System(false);
+        auto unresolvedStarter = unresolvedSystem->getChild("StarterCharacter");
+        auto unresolvedHumanoid = dynamic_cast<Humanoid*>(
+            unresolvedStarter->getChild("Humanoid"));
+        unresolvedHumanoid->setWalkAnimationPath("MissingCustomWalk");
+        SceneLoader::SceneDocumentMetadata unresolvedMetadata;
+        auto unresolvedResult = EditorManager::migrateCharacterAnimationBindings(
+            unresolvedSystem.get(), migrationScenePath, unresolvedMetadata);
+        expect(unresolvedResult == EditorManager::CharacterAnimationMigrationResult::RecordedOnly &&
+                   unresolvedMetadata.characterAnimationBindingsVersion == 1 &&
+                   unresolvedHumanoid->getWalkAnimationPath() == "MissingCustomWalk" &&
+                   !unresolvedHumanoid->getWalkAnimation(),
+               "migration preserves a non-empty unresolved custom Animation reference");
+
+        auto legacyPathSystem = makeR6System(false);
+        SceneLoader::SceneDocumentMetadata legacyPathMetadata;
+        legacyPathMetadata.legacyWalkContentPath = "animations/walk.rcanim";
+        const auto legacyAssetPath = tempRoot / "animations" / "walk.rcanim";
+        std::filesystem::create_directories(legacyAssetPath.parent_path());
+        expect(AnimationClipIO::save(legacyAssetPath.string(), builtin),
+               "legacy scene-relative Walk asset is written");
+        auto legacyPathResult = EditorManager::migrateCharacterAnimationBindings(
+            legacyPathSystem.get(), migrationScenePath, legacyPathMetadata);
+        auto legacyPathStarter = legacyPathSystem->getChild("StarterCharacter");
+        auto legacyPathHumanoid = dynamic_cast<Humanoid*>(
+            legacyPathStarter->getChild("Humanoid"));
+        auto migratedLegacyWalk = legacyPathHumanoid->getWalkAnimation();
+        const auto expectedLegacyPath = std::filesystem::absolute(legacyAssetPath).lexically_normal().string();
+        expect(legacyPathResult == EditorManager::CharacterAnimationMigrationResult::Inserted &&
+                   migratedLegacyWalk &&
+                   std::filesystem::path(migratedLegacyWalk->ContentPath).lexically_normal() ==
+                       std::filesystem::path(expectedLegacyPath),
+               "legacy scene-relative Walk path is resolved before insertion");
+
+        auto untitledSystem = makeR6System(false);
+        SceneLoader::SceneDocumentMetadata untitledMetadata;
+        expect(EditorManager::migrateCharacterAnimationBindings(
+                   untitledSystem.get(), {}, untitledMetadata) ==
+                   EditorManager::CharacterAnimationMigrationResult::NotApplicable &&
+                   untitledMetadata.characterAnimationBindingsVersion == 0,
+               "untitled Scene is not changed by animation migration");
+
+        auto nonR6System = std::make_shared<System>();
+        auto nonR6Starter = std::make_shared<StarterCharacter>();
+        nonR6Starter->addChild(std::make_shared<Humanoid>());
+        nonR6System->addChild(nonR6Starter);
+        SceneLoader::SceneDocumentMetadata nonR6Metadata;
+        expect(EditorManager::migrateCharacterAnimationBindings(
+                   nonR6System.get(), migrationScenePath, nonR6Metadata) ==
+                   EditorManager::CharacterAnimationMigrationResult::NotApplicable &&
+                   nonR6Metadata.characterAnimationBindingsVersion == 0,
+               "non-R6 StarterCharacter is not changed by animation migration");
+
+        expect(EditorManager::restoreDefaultR6Bindings(insertionSystem.get()) &&
+                   insertionHumanoid->getWalkAnimation() &&
+                   insertionHumanoid->getWalkAnimation()->ContentPath ==
+                       "assets/anims/r6_walk.rcanim",
+               "explicit Restore Default Animations can reset a migrated empty binding");
+    }
+
+    std::error_code ignored;
+    std::filesystem::remove_all(tempRoot, ignored);
+    std::cout << "[AnimationClip] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
@@ -6250,6 +6917,7 @@ int main(int argc, char* argv[]) {
     const bool humanoidPartRefRegression = argc > 1 && std::string_view(argv[1]) == "--humanoid-part-ref-regression";
     const bool soundStretchRegression = argc > 1 && std::string_view(argv[1]) == "--sound-stretch-regression";
     const bool natCodecRegression = argc > 1 && std::string_view(argv[1]) == "--nat-codec-regression";
+    const bool animationClipRegression = argc > 1 && std::string_view(argv[1]) == "--animation-clip-regression";
     bool physicsMigrationRegression = false;
     bool physicsLifecycleRegression = false;
     bool constraintRebindRegression = false;
@@ -6368,6 +7036,7 @@ int main(int argc, char* argv[]) {
     if (humanoidPartRefRegression) return runHumanoidPartRefRegression();
     if (soundStretchRegression) return runSoundStretchRegression();
     if (natCodecRegression) return runNatCodecRegression();
+    if (animationClipRegression) return runAnimationClipRegression();
     const char* sceneArgument = findSceneArgument(argc, argv, weldRegression ? 2 : 1);
     std::string scenePath = sceneArgument
         ? sceneArgument

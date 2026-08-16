@@ -34,6 +34,7 @@
 #include <Instances/Motor.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/Humanoid.hpp>
+#include <Instances/Animation.hpp>
 #include <Instances/ScreenGuiObject.hpp>
 #include <Instances/TextLabel.hpp>
 #include <Instances/TextButton.hpp>
@@ -93,6 +94,11 @@ static void renderSchemaInspector(Instance* inst, const char* className, Command
     for (const auto& d : PropertyRegistry::schemaFor(className)) {
         const PropertyDesc* dp = &d;
         if (d.kind != PropKind::Field || !d.editable || !d.get) continue;
+        // Animation references are rendered as type-safe Instance pickers below;
+        // exposing their serialized path as a free-form string is misleading.
+        if (std::string_view(className) == "Humanoid" &&
+            (d.name == "WalkAnimation" || d.name == "JumpAnimation" ||
+             d.name == "EquipAnimation")) continue;
         const bool readOnly = !d.set;
         std::string label(d.name);
         // liveSet があればドラッグ中はそちらを使う（軽量反映）。無ければ set をそのまま使う
@@ -369,6 +375,173 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
         ImGui::PopID();
     }
 }
+
+namespace {
+
+enum class HumanoidAnimationSlot { Walk, Jump, Equip };
+
+static std::shared_ptr<Animation> animationForSlot(const Humanoid& humanoid,
+                                                    HumanoidAnimationSlot slot) {
+    switch (slot) {
+        case HumanoidAnimationSlot::Walk: return humanoid.getWalkAnimation();
+        case HumanoidAnimationSlot::Jump: return humanoid.getJumpAnimation();
+        case HumanoidAnimationSlot::Equip: return humanoid.getEquipAnimation();
+    }
+    return nullptr;
+}
+
+static void setAnimationForSlot(Humanoid& humanoid, HumanoidAnimationSlot slot,
+                                const std::shared_ptr<Animation>& animation) {
+    switch (slot) {
+        case HumanoidAnimationSlot::Walk: humanoid.setWalkAnimation(animation); break;
+        case HumanoidAnimationSlot::Jump: humanoid.setJumpAnimation(animation); break;
+        case HumanoidAnimationSlot::Equip: humanoid.setEquipAnimation(animation); break;
+    }
+}
+
+static const std::string& animationPathForSlot(const Humanoid& humanoid,
+                                                HumanoidAnimationSlot slot) {
+    switch (slot) {
+        case HumanoidAnimationSlot::Walk: return humanoid.getWalkAnimationPath();
+        case HumanoidAnimationSlot::Jump: return humanoid.getJumpAnimationPath();
+        case HumanoidAnimationSlot::Equip: return humanoid.getEquipAnimationPath();
+    }
+    return humanoid.getWalkAnimationPath();
+}
+
+static void setAnimationPathForSlot(Humanoid& humanoid, HumanoidAnimationSlot slot,
+                                    const std::string& path) {
+    switch (slot) {
+        case HumanoidAnimationSlot::Walk: humanoid.setWalkAnimationPath(path); break;
+        case HumanoidAnimationSlot::Jump: humanoid.setJumpAnimationPath(path); break;
+        case HumanoidAnimationSlot::Equip: humanoid.setEquipAnimationPath(path); break;
+    }
+}
+
+struct HumanoidAnimationReferenceState {
+    std::shared_ptr<Animation> animation;
+    std::string unresolvedPath;
+};
+
+struct SetHumanoidAnimationCommand final : Command {
+    std::shared_ptr<Humanoid> humanoid;
+    HumanoidAnimationSlot slot;
+    HumanoidAnimationReferenceState before;
+    HumanoidAnimationReferenceState after;
+
+    SetHumanoidAnimationCommand(std::shared_ptr<Humanoid> humanoidValue,
+                                HumanoidAnimationSlot slotValue,
+                                HumanoidAnimationReferenceState beforeValue,
+                                HumanoidAnimationReferenceState afterValue)
+        : humanoid(std::move(humanoidValue)), slot(slotValue),
+          before(std::move(beforeValue)), after(std::move(afterValue)) {}
+
+    void execute() override {
+        apply(after);
+    }
+    void undo() override {
+        apply(before);
+    }
+private:
+    void apply(const HumanoidAnimationReferenceState& state) {
+        if (!humanoid) return;
+        if (state.animation) setAnimationForSlot(*humanoid, slot, state.animation);
+        else setAnimationPathForSlot(*humanoid, slot, state.unresolvedPath);
+    }
+};
+
+static void collectAnimations(Instance* node, std::vector<std::shared_ptr<Animation>>& output) {
+    if (!node) return;
+    if (node->IsA("Animation"))
+        output.push_back(std::static_pointer_cast<Animation>(node->shared_from_this()));
+    for (const auto& [name, child] : node->getChildren()) {
+        (void)name;
+        collectAnimations(child.get(), output);
+    }
+}
+
+static void drawHumanoidAnimationReference(const char* label,
+                                            const std::shared_ptr<Humanoid>& humanoid,
+                                            HumanoidAnimationSlot slot,
+    CommandHistory* history) {
+    auto current = animationForSlot(*humanoid, slot);
+    const std::string storedPath = animationPathForSlot(*humanoid, slot);
+    const HumanoidAnimationReferenceState currentState{current, storedPath};
+    const std::string preview = current ? current->getFullPath()
+        : (storedPath.empty() ? "(None)" : "Unresolved: " + storedPath);
+    if (!ImGui::BeginCombo(label, preview.c_str())) return;
+
+    if (ImGui::Selectable("(None)", !current && storedPath.empty()) &&
+        (current || !storedPath.empty())) {
+        if (history) history->execute(std::make_unique<SetHumanoidAnimationCommand>(
+            humanoid, slot, currentState, HumanoidAnimationReferenceState{}));
+        else setAnimationForSlot(*humanoid, slot, nullptr);
+    }
+
+    Instance* root = humanoid.get();
+    while (auto parent = root->Parent.lock()) root = parent.get();
+    std::vector<std::shared_ptr<Animation>> animations;
+    collectAnimations(root, animations);
+    std::sort(animations.begin(), animations.end(),
+              [](const auto& a, const auto& b) { return a->getFullPath() < b->getFullPath(); });
+    for (const auto& candidate : animations) {
+        const bool selected = candidate == current;
+        const std::string path = candidate->getFullPath();
+        if (ImGui::Selectable(path.c_str(), selected) && !selected) {
+            if (history) history->execute(std::make_unique<SetHumanoidAnimationCommand>(
+                humanoid, slot, currentState,
+                HumanoidAnimationReferenceState{candidate, {}}));
+            else setAnimationForSlot(*humanoid, slot, candidate);
+        }
+        if (selected) ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+}
+
+static void drawAnimationInspector(const std::shared_ptr<Animation>& animation,
+                                   CommandHistory* history) {
+    static std::unordered_map<Animation*, std::string> beforePaths;
+    char pathBuffer[512] = {};
+    std::snprintf(pathBuffer, sizeof(pathBuffer), "%s", animation->ContentPath.c_str());
+    ImGui::SetNextItemWidth(-1.0f);
+    const bool pathChanged = ImGui::InputText("ContentPath", pathBuffer, sizeof(pathBuffer));
+    if (ImGui::IsItemActivated()) beforePaths[animation.get()] = animation->ContentPath;
+    if (pathChanged) {
+        YAML::Node node; node = std::string(pathBuffer);
+        animation->setProperty("ContentPath", node);
+    }
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        const std::string before = beforePaths[animation.get()];
+        const std::string after = animation->ContentPath;
+        if (history && before != after)
+            history->record(std::make_unique<SetConstraintCubeNameCommand>(
+                animation, "ContentPath", before, after));
+    }
+    if (ImGui::Button(Loc::t(Loc::LocKey::Browse))) {
+        const std::string selected = getPlatform().openFileDialog(
+            {{"Recubin Animation (*.rcanim)", "*.rcanim"}});
+        if (!selected.empty()) {
+            const std::string after = toProjectRelative(selected);
+            if (after != animation->ContentPath) {
+                if (history) history->execute(std::make_unique<SetConstraintCubeNameCommand>(
+                    animation, "ContentPath", animation->ContentPath, after));
+                else {
+                    YAML::Node node; node = after;
+                    animation->setProperty("ContentPath", node);
+                }
+            }
+        }
+    }
+    ImGui::LabelText("Source", "%s", animation->getSourceName().c_str());
+    ImGui::LabelText("LoadStatus", "%s", animation->getLoadStatusName().c_str());
+    ImGui::LabelText("UsingBuiltInFallback", "%s",
+                     animation->isUsingBuiltInFallback() ? "true" : "false");
+    ImGui::TextUnformatted("Message");
+    ImGui::TextWrapped("%s", animation->getLoadMessage().empty()
+        ? "(none)" : animation->getLoadMessage().c_str());
+}
+
+} // namespace
 
 PropertiesPanel::PropertiesPanel()
     : EditorPanel("Properties") {}
@@ -1820,6 +1993,20 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "Humanoid") {
         ImGui::SeparatorText("Humanoid");
         renderSchemaInspector(inst, "Humanoid", m_history);
+        auto humanoid = std::static_pointer_cast<Humanoid>(inst->shared_from_this());
+        ImGui::SeparatorText("Animation References");
+        drawHumanoidAnimationReference("WalkAnimation", humanoid,
+                                       HumanoidAnimationSlot::Walk, m_history);
+        drawHumanoidAnimationReference("JumpAnimation", humanoid,
+                                       HumanoidAnimationSlot::Jump, m_history);
+        drawHumanoidAnimationReference("EquipAnimation", humanoid,
+                                       HumanoidAnimationSlot::Equip, m_history);
+    }
+
+    if (inst->getClassName() == "Animation") {
+        ImGui::SeparatorText("Animation");
+        drawAnimationInspector(
+            std::static_pointer_cast<Animation>(inst->shared_from_this()), m_history);
     }
 
     // ---- Seat（Steer/Throttleは着席中エンジンが書き込むLua読取専用値。確認用に表示） ----

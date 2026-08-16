@@ -12,6 +12,7 @@
 #include <Editor/ViewportFocusManager.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
+#include <Core/SceneLoader.hpp>
 #include <include/GLFW/glfw3.h>
 #include <memory>
 #include <string>
@@ -133,6 +134,21 @@ public:
     void requestSceneLoad(const std::string& path);
     void requestNewScene();
 
+    void setSceneMetadata(const SceneLoader::SceneDocumentMetadata& metadata) { m_sceneMetadata = metadata; }
+    enum class CharacterAnimationMigrationResult {
+        NotApplicable,
+        AlreadyMigrated,
+        RecordedOnly,
+        Inserted
+    };
+    static CharacterAnimationMigrationResult migrateCharacterAnimationBindings(
+        Instance* system, const std::string& scenePath,
+        SceneLoader::SceneDocumentMetadata& metadata);
+    static bool restoreDefaultR6Bindings(Instance* system);
+    void evaluateSceneMigration();
+    void showSceneLoadError(const std::string& message);
+    const SceneLoader::SceneDocumentMetadata& sceneMetadata() const { return m_sceneMetadata; }
+
     CommandHistory m_history;
     PickerState    m_picker;          // PickerState は PropertiesPanel.hpp で定義
     TerrainBrushState m_terrainBrush; // TerrainBrushState は PropertiesPanel.hpp で定義
@@ -148,6 +164,10 @@ private:
     Instance*  m_system    = nullptr;
     User*      m_user      = nullptr;
     bool       m_isDirty   = false;
+    SceneLoader::SceneDocumentMetadata m_sceneMetadata;
+    bool m_showLoadError = false;
+    std::string m_loadError;
+    bool m_showRestoreR6Confirm = false;
     std::vector<std::shared_ptr<Instance>> m_clipboard;  // 複数コピー対応
 
 public:
@@ -213,4 +233,7 @@ private:
     void saveCurrentScene();
     void openSceneDialog();
     void cleanupOrphanedSelection();
+    void restoreDefaultR6Animations();
+    void renderSceneLoadErrorDialog();
+    void renderRestoreR6Dialog();
 };

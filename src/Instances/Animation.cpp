@@ -1,11 +1,17 @@
 #include <Instances/Animation.hpp>
+#include <Core/CharacterRig.hpp>
+#include <Instances/Model.hpp>
 #include <Math/Quaternion.hpp>
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <cctype>
+#include <Util/AssetPath.hpp>
 
-Animation::Animation() : Instance("Animation") {}
+Animation::Animation() : Instance("Animation"), m_clip(std::make_unique<AnimationClip>()) {
+    m_clip->space = "model_relative";
+}
 
 bool Animation::IsA(std::string className) {
     if (className == "Animation") return true;
@@ -13,14 +19,35 @@ bool Animation::IsA(std::string className) {
 }
 
 void Animation::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "Length") { Length = value.as<float>(); return; }
-    if (name == "Speed")  { Speed  = value.as<float>(); return; }
-    if (name == "Looped") { Looped = value.as<bool>();  return; }
+    if (name == "Length") { Length = value.as<float>(); if (m_clip) m_clip->length = Length; return; }
+    if (name == "Speed")  { Speed  = value.as<float>(); if (m_clip) m_clip->speed = Speed; return; }
+    if (name == "Looped") { Looped = value.as<bool>();  if (m_clip) m_clip->looped = Looped; return; }
+    if (name == "ContentPath") {
+        ContentPath = value.as<std::string>("");
+        loadContent();
+        return;
+    }
+    if (name == "Space") {
+        if (value.as<std::string>("") == "joint_delta") {
+            m_clip->space = "joint_delta"; m_clip->rig = "R6";
+        }
+        return;
+    }
+    if (name == "Rig") {
+        m_clip->rig = value.as<std::string>("R6");
+        return;
+    }
     if (name == "Tracks") {
-        m_tracks.clear();
+        m_clip->tracks.clear();
+        m_source = AnimationSource::LegacyEmbedded;
+        m_loadStatus = AnimationClipLoadStatus::Success;
+        m_loadMessage.clear();
         for (const auto& trackNode : value) {
             AnimTrack track;
-            track.partName = trackNode["PartName"].as<std::string>("");
+            track.targetKind = m_clip->space == "joint_delta"
+                ? AnimationClipTrackTarget::Joint
+                : AnimationClipTrackTarget::Part;
+            track.targetName = trackNode["PartName"].as<std::string>("");
             const YAML::Node& keys = trackNode["Keyframes"];
             for (const auto& keyNode : keys) {
                 Keyframe kf;
@@ -28,11 +55,11 @@ void Animation::setProperty(const std::string& name, const YAML::Node& value) {
 
                 const YAML::Node& pos = keyNode["Position"];
                 if (pos && pos.size() == 3)
-                    kf.cframe.Position = Vector3(pos[0].as<float>(), pos[1].as<float>(), pos[2].as<float>());
+                kf.delta.Position = Vector3(pos[0].as<float>(), pos[1].as<float>(), pos[2].as<float>());
 
                 const YAML::Node& rot = keyNode["Rotation"];
                 if (rot && rot.size() == 4) // 保存順は [x, y, z, w]
-                    kf.cframe.Rotation = Quaternion(rot[3].as<float>(), rot[0].as<float>(),
+                    kf.delta.Rotation = Quaternion(rot[3].as<float>(), rot[0].as<float>(),
                                                     rot[1].as<float>(), rot[2].as<float>());
 
                 kf.easing = static_cast<EasingType>(keyNode["Easing"].as<int>(0));
@@ -40,11 +67,84 @@ void Animation::setProperty(const std::string& name, const YAML::Node& value) {
             }
             std::sort(track.keyframes.begin(), track.keyframes.end(),
                       [](const Keyframe& a, const Keyframe& b) { return a.time < b.time; });
-            m_tracks.push_back(std::move(track));
+            m_clip->tracks.push_back(std::move(track));
         }
+        m_clip->length = Length; m_clip->speed = Speed; m_clip->looped = Looped;
         return;
     }
     Instance::setProperty(name, value);
+}
+
+void Animation::syncClipMetadata() {
+    Length = m_clip->length; Speed = m_clip->speed; Looped = m_clip->looped;
+}
+
+void Animation::setClip(const AnimationClip& clip) {
+    m_clip = std::make_unique<AnimationClip>(clip);
+    m_source = AnimationSource::LegacyEmbedded;
+    m_loadStatus = AnimationClipLoadStatus::Success;
+    m_loadMessage.clear();
+    m_usingBuiltInFallback = false;
+    syncClipMetadata();
+}
+
+void Animation::setClip(std::shared_ptr<AnimationClip> clip) {
+    if (clip) setClip(*clip);
+}
+
+const AnimationClip& Animation::resolveR6WalkClip() const {
+    static const AnimationClip builtin = AnimationClip::defaultR6Walk();
+    const bool valid = m_loadStatus == AnimationClipLoadStatus::Success && m_clip &&
+                       m_clip->rig == "R6" && m_clip->space == "joint_delta";
+    m_usingBuiltInFallback = !valid;
+    return valid ? *m_clip : builtin;
+}
+
+bool Animation::loadContent() {
+    m_source = AnimationSource::File;
+    m_usingBuiltInFallback = false;
+    if (ContentPath.empty()) {
+        m_loadStatus = AnimationClipLoadStatus::NotFound;
+        m_loadMessage = "ContentPath is empty";
+        return false;
+    }
+    const auto result = AnimationClipIO::load(AssetPath::normalize(ContentPath));
+    m_loadStatus = result.status;
+    m_loadMessage = result.message;
+    if (!result) return false;
+    m_clip = std::make_unique<AnimationClip>(result.clip);
+    syncClipMetadata();
+    return true;
+}
+
+std::string Animation::getSourceName() const {
+    switch (m_source) {
+        case AnimationSource::File: return "File";
+        case AnimationSource::BuiltIn: return "BuiltIn";
+        default: return "LegacyEmbedded";
+    }
+}
+
+std::string Animation::getLoadStatusName() const {
+    switch (m_loadStatus) {
+        case AnimationClipLoadStatus::Success: return "Success";
+        case AnimationClipLoadStatus::NotFound: return "NotFound";
+        case AnimationClipLoadStatus::IOError: return "IOError";
+        case AnimationClipLoadStatus::InvalidYaml: return "InvalidYaml";
+        case AnimationClipLoadStatus::TypeMismatch: return "TypeMismatch";
+        case AnimationClipLoadStatus::UnsupportedVersion: return "UnsupportedVersion";
+        default: return "InvalidData";
+    }
+}
+
+void Animation::setBuiltInClip(const AnimationClip& clip) {
+    m_clip = std::make_unique<AnimationClip>(clip);
+    ContentPath.clear();
+    m_source = AnimationSource::BuiltIn;
+    m_loadStatus = AnimationClipLoadStatus::Success;
+    m_loadMessage.clear();
+    m_usingBuiltInFallback = false;
+    syncClipMetadata();
 }
 
 std::shared_ptr<Instance> Animation::clone() const {
@@ -53,7 +153,11 @@ std::shared_ptr<Instance> Animation::clone() const {
     copy->Length  = Length;
     copy->Speed   = Speed;
     copy->Looped  = Looped;
-    copy->m_tracks = m_tracks;
+    copy->ContentPath = ContentPath;
+    copy->m_clip = std::make_unique<AnimationClip>(*m_clip);
+    copy->m_source = m_source;
+    copy->m_loadStatus = m_loadStatus;
+    copy->m_loadMessage = m_loadMessage;
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());
     return copy;
@@ -62,35 +166,13 @@ std::shared_ptr<Instance> Animation::clone() const {
 CFrame Animation::evaluateTrack(const AnimTrack& track, float t) const {
     const auto& keys = track.keyframes;
     if (keys.empty()) return CFrame();
-    if (t <= keys.front().time) return keys.front().cframe;
-    if (t >= keys.back().time)  return keys.back().cframe;
-
-    // tを囲む2キーを探す
-    size_t next = 0;
-    for (size_t i = 0; i < keys.size(); ++i) {
-        if (keys[i].time >= t) { next = i; break; }
-    }
-    const Keyframe& a = keys[next - 1];
-    const Keyframe& b = keys[next];
-
-    float span = b.time - a.time;
-    float u = (span > 1e-6f) ? (t - a.time) / span : 0.0f;
-    u = ease(a.easing, u); // 開始キー側のeasingを区間に適用
-
-    CFrame result;
-    result.Position = a.cframe.Position + (b.cframe.Position - a.cframe.Position) * u;
-    result.Rotation = Quaternion::Slerp(a.cframe.Rotation, b.cframe.Rotation, u);
-    return result;
+    return m_clip->evaluate(track, t);
 }
 
 AnimTrack& Animation::trackFor(const std::string& partName) {
-    for (auto& tr : m_tracks) {
-        if (tr.partName == partName) return tr;
-    }
-    AnimTrack tr;
-    tr.partName = partName;
-    m_tracks.push_back(std::move(tr));
-    return m_tracks.back();
+    return m_clip->trackFor(partName,
+        m_clip->space == "joint_delta" ? AnimationClipTrackTarget::Joint
+                                        : AnimationClipTrackTarget::Part);
 }
 
 void Animation::addOrReplaceKey(const std::string& partName, float time,
@@ -98,14 +180,14 @@ void Animation::addOrReplaceKey(const std::string& partName, float time,
     AnimTrack& track = trackFor(partName);
     for (auto& kf : track.keyframes) {
         if (std::fabs(kf.time - time) < 1e-4f) {
-            kf.cframe = cframe;
+            kf.delta = cframe;
             kf.easing = easing;
             return;
         }
     }
     Keyframe kf;
     kf.time   = time;
-    kf.cframe = cframe;
+    kf.delta = cframe;
     kf.easing = easing;
     track.keyframes.push_back(kf);
     std::sort(track.keyframes.begin(), track.keyframes.end(),
@@ -113,6 +195,28 @@ void Animation::addOrReplaceKey(const std::string& partName, float time,
 }
 
 bool Animation::exportToFile(const std::string& path) const {
+    if (path.size() >= 7) {
+        std::string ext = path.substr(path.size() - 7);
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+        if (ext == ".rcanim") {
+            if (m_clip->space == "joint_delta") return AnimationClipIO::save(path, *m_clip);
+            AnimationClip converted; converted.name = Name; converted.length = Length; converted.speed = Speed; converted.looped = Looped;
+            for (const auto& legacy : m_clip->tracks) {
+                const auto* binding = CharacterRig::findR6Joint(legacy.targetName);
+                if (!binding || legacy.keyframes.empty()) {
+                    // Legacy names use body-part names rather than joint names.
+                    static const std::pair<const char*, const char*> names[] = {
+                        {"LeftArm","LeftShoulder"},{"RightArm","RightShoulder"},{"LeftLeg","LeftHip"},{"RightLeg","RightHip"},{"Torso","Torso"},{"Head","Head"}};
+                    for (const auto& n : names) if (legacy.targetName == n.first) { binding = CharacterRig::findR6Joint(n.second); break; }
+                }
+                if (!binding || legacy.keyframes.empty()) return false;
+                for (const auto& key : legacy.keyframes)
+                    converted.addKey(binding->jointName, key.time,
+                        binding->rootToJoint.inverse() * key.delta * binding->jointToPartBind.inverse(), key.easing);
+            }
+            return AnimationClipIO::save(path, converted);
+        }
+    }
     YAML::Emitter out;
     out << YAML::BeginMap;
     out << YAML::Key << "Animation" << YAML::Value << YAML::BeginMap;
@@ -120,21 +224,21 @@ bool Animation::exportToFile(const std::string& path) const {
     out << YAML::Key << "Speed"  << YAML::Value << Speed;
     out << YAML::Key << "Looped" << YAML::Value << Looped;
     out << YAML::Key << "Tracks" << YAML::Value << YAML::BeginSeq;
-    for (const AnimTrack& tr : m_tracks) {
+    for (const AnimTrack& tr : m_clip->tracks) {
         out << YAML::BeginMap;
-        out << YAML::Key << "PartName" << YAML::Value << tr.partName;
+        out << YAML::Key << "PartName" << YAML::Value << tr.targetName;
         out << YAML::Key << "Keyframes" << YAML::Value << YAML::BeginSeq;
         for (const Keyframe& kf : tr.keyframes) {
             out << YAML::BeginMap;
             out << YAML::Key << "Time" << YAML::Value << kf.time;
             out << YAML::Key << "Position" << YAML::Value
                 << YAML::Flow << YAML::BeginSeq
-                << kf.cframe.Position.x << kf.cframe.Position.y << kf.cframe.Position.z
+                << kf.delta.Position.x << kf.delta.Position.y << kf.delta.Position.z
                 << YAML::EndSeq;
             out << YAML::Key << "Rotation" << YAML::Value
                 << YAML::Flow << YAML::BeginSeq
-                << kf.cframe.Rotation.x << kf.cframe.Rotation.y
-                << kf.cframe.Rotation.z << kf.cframe.Rotation.w
+                << kf.delta.Rotation.x << kf.delta.Rotation.y
+                << kf.delta.Rotation.z << kf.delta.Rotation.w
                 << YAML::EndSeq;
             out << YAML::Key << "Easing" << YAML::Value << static_cast<int>(kf.easing);
             out << YAML::EndMap;
@@ -159,6 +263,17 @@ bool Animation::importFromFile(const std::string& path) {
     } catch (...) {
         return false;
     }
+    if (root["recubin"] && root["recubin"]["type"].as<std::string>("") == "animation") {
+        auto result = AnimationClipIO::load(path);
+        if (!result) return false;
+        m_clip = std::make_unique<AnimationClip>(result.clip);
+        ContentPath = path;
+        m_source = AnimationSource::File;
+        m_loadStatus = AnimationClipLoadStatus::Success;
+        m_loadMessage.clear();
+        syncClipMetadata();
+        return true;
+    }
     const YAML::Node& a = root["Animation"];
     if (!a) return false;
     // 既存のsetPropertyのパース処理を再利用する
@@ -170,8 +285,8 @@ bool Animation::importFromFile(const std::string& path) {
 }
 
 void Animation::removeKey(const std::string& partName, float time) {
-    for (auto& tr : m_tracks) {
-        if (tr.partName != partName) continue;
+    for (auto& tr : m_clip->tracks) {
+        if (tr.targetName != partName) continue;
         auto& keys = tr.keyframes;
         if (keys.empty()) return;
         size_t best = 0;

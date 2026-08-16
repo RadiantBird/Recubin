@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <Core/SceneLoader.hpp>
 
 class System;
 class User;
@@ -17,6 +18,10 @@ namespace SceneRuntime {
     struct Bound {
         std::shared_ptr<Workspace> workspace;
         std::vector<std::shared_ptr<Workspace>> workspaces;
+        SceneLoader::SceneDocumentMetadata metadata;
+        std::string scenePath;
+        SceneLoader::LoadStatus loadStatus = SceneLoader::LoadStatus::Success;
+        std::string loadMessage;
     };
 
     // singleton登録 → loadScene → clearSingletons → User確保 →

@@ -27,6 +27,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "シーンの新規作成", "New Scene" },
     { "ゲームをパッケージ化...", "Package Game..." },
     { "終了",               "Quit" },
+    { "既定R6アニメーションに戻す...", "Restore Default R6 Animations..." },
     { "表示",               "View" },
     { "エクスプローラー",     "Explorer" },
     { "プロパティ",          "Properties" },
@@ -59,6 +60,11 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "テストプレイ開始エラー",       "Play Test Start Error" },
     { "テストプレイを開始できませんでした。", "The play test could not be started." },
     { "ローカルサーバーテストには System.UseNetwork=true が必要です。", "Local server testing requires System.UseNetwork=true." },
+    { "シーン読込エラー", "Scene Load Error" },
+    { "既定R6アニメーションに戻す", "Restore Default R6 Animations" },
+    { "HumanoidのWalkAnimationを標準R6 Walkへ戻します。今回はWalkのみが対象です。ファイルの生成や上書きは行いません。", "Set the Humanoid WalkAnimation reference to the standard R6 Walk. Only Walk is handled for now; no files will be created or overwritten." },
+    { "標準Walkへ戻す", "Restore Standard Walk" },
+    { "対象のStarterCharacterは有効なR6リグではありません。", "The target StarterCharacter is not an eligible R6 rig." },
 
     // ---- EditorManager: ツールバー ----
     { "  再生  ",           "  Play  " },

@@ -1,5 +1,35 @@
 # 仕様書
 ---
+
+## アニメーション保存形式（v1）
+
+`Animation` InstanceをScene Tree上の正式なアニメーション資産および参照主体とする。
+`AnimationClip`は`Animation`が内部に所有する唯一のランタイムトラックデータであり、
+Scene Treeへ直接公開しない。内蔵R6アニメーションと`.rcanim`は同じClip評価器を使い、
+Rig固有のJoint/Pivotバインドオフセットとキーの姿勢変化を分離する。旧Scene埋め込み
+Animationもロード時に`AnimationClip`へ変換し、別のトラック表現を併存させない。
+
+`.rcanim`はYAMLで、`recubin.type: animation`および`recubin.version: 1`を必須とする。
+`rig: R6`、`space: joint_delta`のキーはJointのローカル差分である。エンジン標準のR6
+アニメーション資産は`assets/anims/`配下（Walk、Jump、Equipなど）に配置する。
+Humanoidは`WalkAnimation`、`JumpAnimation`、`EquipAnimation`から対応する`Animation`
+Instanceを明示的に参照し、StarterCharacterからPlayerCharacterへcloneする際はclone先の
+Animationを参照するように接続し直す。ユーザーが指定した有効なAnimationを常に優先する。
+
+参照先の未検出、破損、type不一致、未対応version、データ不正があっても、保存された
+Animation参照、Animation Instance、`.rcanim`ファイルおよびScene Treeを変更しない。
+SceneをDirtyにもせず、その実行中だけコンパイル済みの内蔵R6 Clipへフォールバックする。
+ロード状態と使用中のフォールバックはPropertiesおよび警告で確認できるようにする。
+Instance名やContentPathの文字列から標準Animationかどうかを推測してはならない。
+
+Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダーのない旧Sceneは
+暗黙のversion 0として読み込むが、version 1以上や別typeは拒否する。旧Sceneの自動移行は、
+`migrations.character_animation_bindings.version: 1`が未記録で、かつHumanoidの対象参照が
+空欄の場合に限り、標準Animation Instanceと参照を一度だけ補完する。移行versionを記録した後は、
+参照が空欄、欠損または破損していても自動挿入や再設定を行わない。移行後にユーザーが標準参照を
+差し替えたり削除した結果を尊重する。標準参照を再設定できるのは、ユーザーが明示的に
+`Restore Default Animations`を実行した場合だけとする。
+
 ## 特殊なインスタンス
 - **System**: シングルトン。常に1つのみ存在。Insert Objectリストには登録しない。
 - **Workspace**: 複数インスタンスを持つ。切り替え可能。

@@ -24,7 +24,8 @@
 | `walkCycle` | `float` | 歩行アニメーションの位相（0..1） |
 | `isGrounded` | `bool` | 接地判定結果 |
 | `isFirstPerson` / `bodyColorsSaved` / `saved*Color` | - | 一人称時の身体非表示・色の退避用 |
-| `m_currentAnim`/`m_animTime`/`m_animPlaying` | - | Animation再生状態 |
+| `m_walkAnimation`/`m_jumpAnimation`/`m_equipAnimation` | `weak_ptr<Animation>` | Scene Tree上のAnimationへの非所有参照 |
+| `m_currentAnim`/`m_animTime`/`m_animPlaying` | - | カスタムAnimationの再生状態 |
 
 `JumpHeight`（get/set）はJumpPowerとの相互変換プロパティ（`Units.hpp`の重力定数を使用、`h = JumpPower²/(2g)`）。
 
@@ -33,6 +34,8 @@
 | メソッド | 説明 |
 |---|---|
 | `resolveParts(characterModel)` | 親Modelの子から名前でパーツ解決。Rootの角度(X/Z軸)をロックし転倒防止 |
+| `resolveAnimationReferences(characterModel)` | YAMLの保存パスをTree構築後にAnimation参照へ解決。失敗時も保存パスを保持 |
+| `set/getWalkAnimation`、`set/getJumpAnimation`、`set/getEquipAnimation` | Animation参照を明示的に設定・取得 |
 | `getRootPart()`/`getTorsoPart()`/`getHeadPart()`/左右の腕・脚getter | C++処理向けにweak参照を一時的な`shared_ptr`へ昇格。期限切れ時は`nullptr` |
 | `setRootPart(root)` | ネットワーク予測用Rootの非所有参照を設定し、通常Rootと同じ角度ロックを適用。Luau/YAMLには非公開 |
 | `move(...)` | WASD相当の入力から移動・回転・壁ずり・歩行アニメ・接地判定・身体配置を実行 |
@@ -41,7 +44,7 @@
 | `setHealth(v)`/`takeDamage(n)` | クランプしつつ設定。0以下遷移でDied発火 |
 | `enterRagdoll(physics)` | 全身パーツを動的アクター化しランダム速度で吹き飛ばす |
 | `playAnimation`/`pauseAnimation`/`stopAnimation`/`setAnimationSpeed` | Animation再生制御 |
-| `updateAnimation(dt)` | 再生中トラックを評価しRoot相対でパーツcframeを更新（Rootは物理駆動のため対象外） |
+| `updateAnimation(dt)` | AnimationClip（内蔵または.rcanim）を評価し、RigのJoint/Pivotバインドオフセットと合成してパーツCFrameを更新（Rootは物理駆動のため対象外） |
 | `updateFirstPersonState(wantsFirstPerson)` | 一人称/三人称切替時に身体色を透明化/復元 |
 | `getRootWorldPosition()`/`getHeadWorldPosition()` | ワールド座標取得 |
 | `applyBodyAnimation(leftArmRaised, rightArmRaised)` | Pose計算結果をリグ定義に基づき各パーツへ適用 |
@@ -78,6 +81,17 @@ enterRagdoll(physics):
 - `RCBNScriptSignal`（Died）
 - `PropertyRegistry`（WalkSpeed/JumpPower/JumpHeight/MaxHealth/RespawnTime/Health/Diedを一括登録）
 - `Math/Units.hpp`（重力定数によるJumpHeight換算）
+- `Core/AnimationClip`（内蔵R6 Walk／プロジェクト`.rcanim`共通ランタイム表現）
+
+## Animation参照とフォールバック
+
+`WalkAnimation`、`JumpAnimation`、`EquipAnimation`はProperties、YAML、Luauから参照できる。
+StarterCharacterをPlayerCharacterへcloneすると、3参照ともclone先のAnimationへ再接続され、
+テンプレート側を参照し続けない。現在データ化済みの既定再生はWalkである。
+
+Walk参照先の`.rcanim`が欠損・破損しても参照パスとAnimation Instanceは保持し、Sceneを変更せず
+実行中だけ内蔵Walkを評価する。参照自体がない旧Characterでは、StarterCharacterを変更せず、
+PlayerCharacter側だけに可視な`Source=BuiltIn`のR6Walk Animationを追加する。
 
 ## 継承クラス
 

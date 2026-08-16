@@ -2,7 +2,9 @@
 
 `include/Editor/AnimationEditorPanel.hpp`
 
-選択中 Model の子 Animation をキーフレーム編集するパネル。再生バーで時間 `t` を指定し、Model 直下の Cube を選択してギズモで動かした後「Add Key」で現在の CFrame をキーとして記録する。フォーカスが入っている間だけ Model 配下の Cube を一時的に改変するプレビュー専用ツールで、フォーカスが外れると元の CFrame（バインドポーズ）へ復元する。
+選択中Modelの子`Animation`が所有する`AnimationClip`を編集するパネル。再生バーで時間`t`を指定し、
+Model直下のCubeを選択してギズモで動かした後「Add Key」でキーを記録する。ClipはScene Treeへ
+直接公開しない。フォーカス中だけModelを一時変更し、フォーカスが外れるとバインドポーズへ戻す。
 
 ## メンバ変数
 
@@ -34,11 +36,11 @@
 onRender()
   フォーカス遷移: saveBindPose() / restoreBindPose()
   Animation 無ければ [Create Animation] → AddInstanceCommand (Undo対応)
-  Play/Pause/Stop, Speed, Export/Import(.yaml)
+  Play/Pause/Stop, Speed, Export(.rcanim)/Import(.rcanim または旧単体.yaml)
   Time スライダー操作 or Play中
     └─ applyPreview(anim, model, m_time)
   選択Cubeがあれば [Add Key]
-    └─ Root相対CFrame算出 → anim->addOrReplaceKey(partName, t, cframe, easing)
+    └─ model_relativeはRoot相対CFrame、joint_deltaはRig Joint差分として記録
   トラック一覧: キーごとに easing変更 / Go(該当tへジャンプ) / X(削除)
 ```
 
@@ -48,6 +50,11 @@ onRender()
 - `Instance`, `Spatial`, `Animation`, `AnimTrack`, `Keyframe`
 - `Math/CFrame`
 - ImGui, Windows COM（`IFileDialog`, Export/Import 用ファイル選択）
+- `Core/AnimationClip` / `AnimationClipIO`（新形式のランタイム評価・入出力）
+
+`joint_delta`のプレビューは`CharacterRig`の`rootToJoint`と`jointToPartBind`を用い、ランタイムと
+同じ合成順を使う。対象Rigまたは親Modelを解決できないimportは明示エラーにする。編集セッション中は
+対象Modelのバインド姿勢を保持し、Play snapshotへプレビュー姿勢を焼き込まない。
 
 ## 使われる場所
 
