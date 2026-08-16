@@ -118,6 +118,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "コピー",              "Copy" },
     { "貼り付け",            "Paste" },
     { "子として貼り付け",     "Paste as Child" },
+    { "グループ化",            "Group" },
 
     // ---- PropertiesPanel ----
     { "丸",                 "Round" },

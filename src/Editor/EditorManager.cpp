@@ -441,6 +441,38 @@ void EditorManager::handleEditorShortcuts() {
     }
 
     if (!textActive) {
+        // Basic toolbar: number-row shortcuts select tools without the toggle behavior
+        // of toolbar buttons.  ImGuiKey_1..4 are the top-row keys (not keypad keys).
+        if (m_toolbarCategory == ToolbarCategory::Basic) {
+            ViewportPanel* targetViewport = GetFocusedViewport();
+            if (!targetViewport) targetViewport = GetLastFocusedViewport();
+            if (!targetViewport) targetViewport = viewportPanel.get();
+            if (targetViewport) {
+                ImGuizmo::OPERATION operation = ImGuizmo::TRANSLATE;
+                bool pressed = false;
+                int toolKey = 0;
+                if (ImGui::IsKeyPressed(ImGuiKey_1)) toolKey = 1;
+                else if (ImGui::IsKeyPressed(ImGuiKey_2)) toolKey = 2;
+                else if (ImGui::IsKeyPressed(ImGuiKey_3)) toolKey = 3;
+                else if (ImGui::IsKeyPressed(ImGuiKey_4)) toolKey = 4;
+                if (toolKey == 1) {
+                    targetViewport->toolNone = false;
+                    targetViewport->selectOnly = true;
+                    pressed = true;
+                } else if (toolKey == 2) {
+                    operation = ImGuizmo::TRANSLATE; pressed = true;
+                } else if (toolKey == 3) {
+                    operation = ImGuizmo::SCALE; pressed = true;
+                } else if (toolKey == 4) {
+                    operation = ImGuizmo::ROTATE; pressed = true;
+                }
+                if (pressed && toolKey != 1) {
+                    targetViewport->toolNone = false;
+                    targetViewport->selectOnly = false;
+                    targetViewport->gizmoOp = operation;
+                }
+            }
+        }
         // Ctrl+Z: Undo
         if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Z)) {
             m_history.undo();

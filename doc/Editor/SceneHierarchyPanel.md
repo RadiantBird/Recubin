@@ -30,6 +30,7 @@
 - ツリー上でクリックすると `selectedInstance` が更新され、`PropertiesPanel` / `ViewportPanel` にリアルタイム反映される
 - インスタンスの追加・削除・親変更は `m_history` 経由で Undo 対応
 - Script 追加時はダイアログで新規ファイル作成 or 既存ファイル選択を選べる（`m_doPick` / `m_pickExisting` フラグでポップアップ外ファイルピッカーを遅延実行）
+- 右クリックの「グループ化」は選択項目を Model / Folder / Tool または Insert Object の各種コンテナへまとめる。生成と親変更は `GroupInstancesCommand` の1 Undo単位で処理し、Spatial 子孫のワールド姿勢を保持する。
 
 ## 依存関係
 

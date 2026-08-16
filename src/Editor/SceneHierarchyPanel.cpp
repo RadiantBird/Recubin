@@ -2,6 +2,7 @@
 #include "include/Editor/IconsDef.hpp"
 #include <Editor/SpawnUtil.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/SceneHierarchyGrouping.hpp>
 #include <Editor/PropertiesPanel.hpp>  // PickerState の定義
 #include <Editor/Localization.hpp>
 #include <Instances/BaseCube.hpp>
@@ -400,6 +401,7 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
 
 void SceneHierarchyPanel::requestNewScript(const std::shared_ptr<Instance>& parent) {
     if (!parent) return;
+    m_pendingGroupTargets.clear();
     m_pendingScriptParent = parent;
     m_openScriptDialog     = true;
     m_pendingScriptClass   = ScriptInsertClass::Script;
@@ -457,6 +459,7 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
         ImGui::SameLine();
         if (ImGui::Button(Loc::t(Loc::LocKey::Cancel), ImVec2(100, 0))) {
             m_pendingScriptParent.reset();
+            m_pendingGroupTargets.clear();
             m_scriptDialogError.clear();
             ImGui::CloseCurrentPopup();
         }
@@ -550,9 +553,21 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
                 default:                              script = std::make_shared<Script>(filePath);       break;
             }
             script->Name = m_pickName;
-            m_history->execute(std::make_unique<AddInstanceCommand>(m_pickParent, script));
+            if (!m_pendingGroupTargets.empty()) {
+                auto groupParent = m_pendingGroupTargets.front()->Parent.lock();
+                if (groupParent) {
+                    m_history->execute(std::make_unique<GroupInstancesCommand>(
+                        groupParent, script, m_pendingGroupTargets));
+                    selectedInstances = { script.get() };
+                    selectedInstance = script.get();
+                }
+                m_pendingGroupTargets.clear();
+            } else {
+                m_history->execute(std::make_unique<AddInstanceCommand>(m_pickParent, script));
+            }
         }
         m_pickParent.reset();
+        if (filePath.empty() && !reopenDialog) m_pendingGroupTargets.clear();
         if (!reopenDialog) m_scriptDialogError.clear();
     }
 }
@@ -588,6 +603,7 @@ void SceneHierarchyPanel::renderNewTerrainDialog() {
         ImGui::SameLine();
         if (ImGui::Button("Cancel", ImVec2(100, 0))) {
             m_pendingTerrainParent.reset();
+            m_pendingGroupTargets.clear();
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
@@ -598,6 +614,7 @@ void SceneHierarchyPanel::renderNewTerrainDialog() {
     const std::string selected = pickFolder();
     if (selected.empty() || !m_pendingTerrainParent || !m_history) {
         m_pendingTerrainParent.reset();
+        m_pendingGroupTargets.clear();
         return;
     }
 
@@ -606,6 +623,7 @@ void SceneHierarchyPanel::renderNewTerrainDialog() {
         if (m_pendingTerrainName.empty()) {
             RCBN_WARN("Terrain creation requires a non-empty name");
             m_pendingTerrainParent.reset();
+            m_pendingGroupTargets.clear();
             return;
         }
         dataPath /= m_pendingTerrainName;
@@ -615,11 +633,13 @@ void SceneHierarchyPanel::renderNewTerrainDialog() {
             RCBN_WARN("Terrain directory is not empty; refusing to overwrite: "
                       << dataPath.string());
             m_pendingTerrainParent.reset();
+            m_pendingGroupTargets.clear();
             return;
         }
         if (!std::filesystem::create_directories(dataPath, error) && error) {
             RCBN_WARN("Failed to create Terrain directory: " << error.message());
             m_pendingTerrainParent.reset();
+            m_pendingGroupTargets.clear();
             return;
         }
     }
@@ -629,8 +649,19 @@ void SceneHierarchyPanel::renderNewTerrainDialog() {
         m_pendingTerrainParent,
         m_pendingTerrainName.empty() ? "Terrain" : m_pendingTerrainName);
     terrain->setDataPath(dataPath.string());
-    m_history->execute(std::make_unique<AddInstanceCommand>(
-        m_pendingTerrainParent, terrain));
+    if (!m_pendingGroupTargets.empty()) {
+        auto groupParent = m_pendingGroupTargets.front()->Parent.lock();
+        if (groupParent) {
+            m_history->execute(std::make_unique<GroupInstancesCommand>(
+                groupParent, terrain, m_pendingGroupTargets));
+            selectedInstances = { terrain.get() };
+            selectedInstance = terrain.get();
+        }
+        m_pendingGroupTargets.clear();
+    } else {
+        m_history->execute(std::make_unique<AddInstanceCommand>(
+            m_pendingTerrainParent, terrain));
+    }
     m_pendingTerrainParent.reset();
 }
 
@@ -833,6 +864,169 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
 
     if (ImGui::BeginMenu(Loc::t(Loc::LocKey::InsertObjectMenu))) {
         renderInsertMenu(inst);
+        ImGui::EndMenu();
+    }
+
+    // Group selected nodes into a newly-created container.  A right-click on a
+    // selected node applies to the whole selection; otherwise it applies only
+    // to the clicked node (matching Delete/Copy behavior below).
+    if (ImGui::BeginMenu(Loc::t(Loc::LocKey::MenuGroup)) && m_history) {
+        bool inSelection = std::find(selectedInstances.begin(), selectedInstances.end(), inst)
+                           != selectedInstances.end();
+        std::vector<Instance*> rawTargets =
+            (inSelection && selectedInstances.size() > 1) ? selectedInstances
+                                                           : std::vector<Instance*>{inst};
+        std::vector<std::shared_ptr<Instance>> targets;
+        for (Instance* target : rawTargets) {
+            if (!target || target == systemRoot) continue;
+            auto parent = target->Parent.lock();
+            if (!parent) continue;
+            // Never include a descendant when one of its ancestors is selected.
+            bool ancestorSelected = false;
+            for (auto p = target->Parent.lock(); p; p = p->Parent.lock()) {
+                if (std::find(rawTargets.begin(), rawTargets.end(), p.get()) != rawTargets.end()) {
+                    ancestorSelected = true; break;
+                }
+            }
+            if (!ancestorSelected) targets.push_back(target->shared_from_this());
+        }
+        auto makeGroup = [&](const char* base, auto factory) {
+            if (!ImGui::MenuItem(base) || targets.empty()) return;
+            auto parent = targets.front()->Parent.lock();
+            if (!parent) return;
+            for (auto p = parent; p; p = p->Parent.lock()) {
+                if (std::find_if(targets.begin(), targets.end(), [&](const auto& t) {
+                        return t.get() == p.get(); }) != targets.end()) return;
+            }
+            auto group = factory();
+            group->Name = uniqueName(parent, base);
+            m_history->execute(std::make_unique<GroupInstancesCommand>(
+                parent, group, targets));
+            selectedInstances = { group.get() };
+            selectedInstance = group.get();
+        };
+        makeGroup("Model", [&] { return std::make_shared<Model>(Vector3(0, 0, 0), Vector3(1, 1, 1)); });
+        makeGroup("Folder", [&] { return std::make_shared<Folder>(); });
+        makeGroup("Tool", [&] { return std::make_shared<Tool>(std::string("Tool")); });
+        if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryOther))) {
+        if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryCubes))) {
+            makeGroup("Cube", [&] { return std::make_shared<Cube>(Vector3(), Vector3(1,1,1), Cube::defaultTextureID); });
+            makeGroup("Cylinder", [&] { return std::make_shared<Cylinder>(Vector3(), Vector3(1,1,1)); });
+            makeGroup("TriangularPrism", [&] { return std::make_shared<TriangularPrism>(Vector3(), Vector3(1,1,1)); });
+            makeGroup("Truss", [&] { return std::make_shared<Truss>(Vector3(), Vector3(1,1,1), Cube::defaultTextureID); });
+            makeGroup("Seat", [&] { return std::make_shared<Seat>(Vector3(), Vector3(1,1,1), Cube::defaultTextureID); });
+            makeGroup("Sphere", [&] { return std::make_shared<Sphere>(Vector3(), Vector3(1,1,1)); });
+            makeGroup("MeshCube", [&] { return std::make_shared<MeshCube>(Vector3(), Vector3(1,1,1)); });
+            makeGroup("LiquidCube", [&] { return std::make_shared<LiquidCube>(Vector3(), Vector3(4,2,4)); });
+            makeGroup("SpawnLocation", [&] { return std::make_shared<SpawnLocation>(Vector3()); });
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryEffects))) {
+            if (AudioService::instance) makeGroup("Sound", [&] { return std::make_shared<Sound>(*AudioService::instance); });
+            makeGroup("Decal", [&] { return std::make_shared<Decal>(0, Face::Front); });
+            makeGroup("Texture", [&] { return std::make_shared<Texture>(0, Face::Front); });
+            makeGroup("PostEffect", [&] { return std::make_shared<PostEffect>(); });
+            makeGroup("ParticleEmitter", [&] { return std::make_shared<ParticleEmitter>(); });
+            makeGroup("Highlight", [&] { return std::make_shared<Highlight>(); });
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryEnvironment))) {
+            makeGroup("Workspace", [&] { return std::make_shared<Workspace>(); });
+            makeGroup("Weather", [&] { return std::make_shared<Weather>(); });
+            if (ImGui::MenuItem("Terrain") && !targets.empty()) {
+                m_pendingGroupTargets = targets;
+                m_pendingTerrainParent = targets.front()->Parent.lock();
+                m_pendingTerrainName = "Terrain";
+                m_openTerrainDialog = true;
+            }
+            makeGroup("Skybox", [&] { return std::make_shared<Skybox>(); });
+            makeGroup("Lighting", [&] { return std::make_shared<Lighting>(); });
+            makeGroup("PointLight", [&] { return std::make_shared<PointLight>(); });
+            makeGroup("SpotLight", [&] { return std::make_shared<SpotLight>(); });
+            makeGroup("Sun", [&] {
+                auto sun = std::make_shared<Sun>();
+                if (m_user) {
+                    float rad = sun->Angle * (3.14159265f / 180.0f);
+                    sun->cframe.Position = m_user->cpos + Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f;
+                }
+                return sun;
+            });
+            makeGroup("Moon", [&] {
+                auto moon = std::make_shared<Moon>();
+                float angle = 45.0f;
+                auto parent = targets.empty() ? std::shared_ptr<Instance>() : targets.front()->Parent.lock();
+                if (parent) for (auto const& [name, child] : parent->children)
+                    if (child && child->IsA("Sun")) { angle = static_cast<Sun*>(child.get())->Angle; break; }
+                if (m_user) {
+                    float rad = angle * (3.14159265f / 180.0f);
+                    moon->cframe.Position = m_user->cpos - Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f;
+                }
+                return moon;
+            });
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryGui))) {
+            makeGroup("TextLabel", [&] { return std::make_shared<TextLabel>(); });
+            makeGroup("TextButton", [&] { return std::make_shared<TextButton>(); });
+            makeGroup("SurfaceGui", [&] { return std::make_shared<SurfaceGui>(); });
+            makeGroup("Canvas", [&] { return std::make_shared<Canvas>(); });
+            makeGroup("BillboardGui", [&] { return std::make_shared<BillboardGui>(); });
+            makeGroup("ProximityPrompt", [&] { return std::make_shared<ProximityPrompt>(); });
+            makeGroup("ImageLabel", [&] { return std::make_shared<ImageLabel>(); });
+            makeGroup("ImageButton", [&] { return std::make_shared<ImageButton>(); });
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryPhysicsConstraints))) {
+            makeGroup("Weld", [&] { return std::make_shared<Weld>(); });
+            makeGroup("Motor", [&] { return std::make_shared<Motor>(); });
+            makeGroup("Rod", [&] { return std::make_shared<Rod>(); });
+            makeGroup("BallSocket", [&] { return std::make_shared<BallSocket>(); });
+            makeGroup("NoCollision", [&] { return std::make_shared<NoCollision>(); });
+            makeGroup("Rope", [&] { return std::make_shared<Rope>(); });
+            makeGroup("Attachment", [&] { return std::make_shared<Attachment>(); });
+            makeGroup("Force", [&] { return std::make_shared<Force>(); });
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryValue))) {
+            makeGroup("IntValue", [&] { return std::make_shared<IntValue>(); });
+            makeGroup("BoolValue", [&] { return std::make_shared<BoolValue>(); });
+            makeGroup("NumberValue", [&] { return std::make_shared<NumberValue>(); });
+            makeGroup("Vector3Value", [&] { return std::make_shared<Vector3Value>(); });
+            makeGroup("Color4Value", [&] { return std::make_shared<Color4Value>(); });
+            makeGroup("CFrameValue", [&] { return std::make_shared<CFrameValue>(); });
+            makeGroup("QuaternionValue", [&] { return std::make_shared<QuaternionValue>(); });
+            makeGroup("ObjectValue", [&] { return std::make_shared<ObjectValue>(); });
+            ImGui::EndMenu();
+        }
+            if (ImGui::MenuItem("Script") && !targets.empty()) {
+                m_pendingGroupTargets = targets;
+                m_pendingScriptParent = targets.front()->Parent.lock();
+                m_pendingScriptClass = ScriptInsertClass::Script;
+                m_scriptDialogError.clear();
+                m_openScriptDialog = true;
+            }
+            if (ImGui::MenuItem("LocalScript") && !targets.empty()) {
+                m_pendingGroupTargets = targets;
+                m_pendingScriptParent = targets.front()->Parent.lock();
+                m_pendingScriptClass = ScriptInsertClass::LocalScript;
+                m_scriptDialogError.clear();
+                m_openScriptDialog = true;
+            }
+            if (ImGui::MenuItem("ModuleScript") && !targets.empty()) {
+                m_pendingGroupTargets = targets;
+                m_pendingScriptParent = targets.front()->Parent.lock();
+                m_pendingScriptClass = ScriptInsertClass::ModuleScript;
+                m_scriptDialogError.clear();
+                m_openScriptDialog = true;
+            }
+            makeGroup("FileRef", [&] { return std::make_shared<FileRef>(); });
+            makeGroup("AppImage", [&] { return std::make_shared<AppImage>(); });
+            makeGroup("StarterCharacter", [&] { return std::make_shared<StarterCharacter>(); });
+            makeGroup("Humanoid", [&] { return std::make_shared<Humanoid>(); });
+            makeGroup("Animation", [&] { return std::make_shared<Animation>(); });
+            makeGroup("SignalEvent", [&] { return std::make_shared<SignalEvent>(); });
+            ImGui::EndMenu();
+        }
         ImGui::EndMenu();
     }
 

@@ -55,6 +55,7 @@ enum class LocKey {
     CategoryValue, CategoryValueDesc,
     SwitchToWorkspace, OpenInNewViewport, InsertObjectMenu,
     MenuDelete, MenuCopy, MenuPaste, MenuPasteAsChild,
+    MenuGroup,
 
     // ---- PropertiesPanel ----
     RoundButton, RoundTooltip, OpenExternalEditor, ResetButton,

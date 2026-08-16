@@ -110,6 +110,9 @@ private:
     std::shared_ptr<Instance> m_pickParent;
     std::string               m_scriptDialogError;
 
+    // Targets queued while a Script/Terrain group container dialog is open.
+    std::vector<std::shared_ptr<Instance>> m_pendingGroupTargets;
+
     // F2 インラインリネーム用の編集バッファ（drawNode が再帰するためメンバで持つ）
     char m_renameBuf[256] = {};
 

@@ -8,6 +8,7 @@
 #include <Instances/Cube.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/Model.hpp>
+#include <Instances/Folder.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Weld.hpp>
@@ -47,6 +48,7 @@
 #include <Core/TerrainStreamer.hpp>
 #include <Core/User.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/SceneHierarchyGrouping.hpp>
 #include <Editor/EditorManager.hpp>
 #include <Editor/ViewportGeometry.hpp>
 #include <Editor/ViewportSceneQueries.hpp>
@@ -6893,6 +6895,44 @@ static int runAnimationClipRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runSceneHierarchyGroupingRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        if (!condition) { ++failures; std::cerr << "[Grouping] FAIL: " << message << '\n'; }
+    };
+    auto workspace = std::make_shared<Workspace>();
+    auto cube = std::make_shared<Cube>(Vector3(4, 2, -3), Vector3(1, 1, 1), Cube::defaultTextureID);
+    auto folder = std::make_shared<Folder>();
+    cube->Name = "Cube";
+    folder->Name = "Folder";
+    auto nested = std::make_shared<Cube>(Vector3(1, 2, 3), Vector3(1, 1, 1), Cube::defaultTextureID);
+    folder->addChild(nested);
+    workspace->addChild(cube);
+    workspace->addChild(folder);
+    const CFrame cubeWorld = cube->getWorldCFrame();
+    const CFrame nestedWorld = nested->getWorldCFrame();
+    auto model = std::make_shared<Model>();
+    model->Name = "Model";
+    CommandHistory history;
+    history.execute(std::make_unique<GroupInstancesCommand>(
+        workspace, model, std::vector<std::shared_ptr<Instance>>{cube, folder}));
+    expect(model->getChild("Cube") == cube.get() && model->getChild("Folder") == folder.get(),
+           "group moves selected roots");
+    expect(cube->getWorldCFrame().Position == cubeWorld.Position &&
+               nested->getWorldCFrame().Position == nestedWorld.Position,
+           "group preserves descendant world positions");
+    history.undo();
+    expect(workspace->getChild("Cube") == cube.get() && workspace->getChild("Folder") == folder.get(),
+           "undo restores original parents");
+    history.redo();
+    expect(model->getChild("Folder") == folder.get() &&
+               nested->getWorldCFrame().Position == nestedWorld.Position,
+           "redo restores group and descendant pose");
+    std::cout << "[Grouping] failures=" << failures << " result="
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
@@ -6918,6 +6958,7 @@ int main(int argc, char* argv[]) {
     const bool soundStretchRegression = argc > 1 && std::string_view(argv[1]) == "--sound-stretch-regression";
     const bool natCodecRegression = argc > 1 && std::string_view(argv[1]) == "--nat-codec-regression";
     const bool animationClipRegression = argc > 1 && std::string_view(argv[1]) == "--animation-clip-regression";
+    const bool groupingRegression = argc > 1 && std::string_view(argv[1]) == "--scene-hierarchy-grouping-regression";
     bool physicsMigrationRegression = false;
     bool physicsLifecycleRegression = false;
     bool constraintRebindRegression = false;
@@ -6998,6 +7039,7 @@ int main(int argc, char* argv[]) {
         seatNetworkRegression = seatNetworkRegression || argument == "--seat-network-regression";
     }
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
+    if (groupingRegression) return runSceneHierarchyGroupingRegression();
     if (seatNetworkRegression) return runSeatNetworkRegression();
     if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
     if (constraintRebindRegression) return runConstraintRebindRegression();

@@ -58,6 +58,7 @@ enum class EditorMode { Edit, Play, Pause }
 | `Ctrl+C` | 選択インスタンスをクリップボードへコピー |
 | `Ctrl+V` | クリップボードから兄弟として貼り付け |
 | `Ctrl+Shift+V` | クリップボードから選択インスタンスの子として貼り付け |
+| `1`〜`4` | Basicツールバー表示中、Select／Move／Resize／Rotateを選択（テキスト入力中は無効） |
 
 ## ツールバーボタン
 
