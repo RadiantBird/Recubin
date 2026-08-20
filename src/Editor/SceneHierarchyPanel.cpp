@@ -41,6 +41,7 @@
 #include <Instances/Model.hpp>
 #include <Instances/Folder.hpp>
 #include <Instances/FileRef.hpp>
+#include <Instances/FontFile.hpp>
 #include <Instances/Tool.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/Sun.hpp>
@@ -284,7 +285,9 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     if (!renaming && ImGui::IsItemClicked()) {
         // ---- ピッカーモード: Pick 中はクリックを Cube/Attachment 参照指定に横取り（選択は変更しない） ----
         if (m_picker && m_picker->active) {
-            const bool matches = m_picker->pickAnyInstance ? true
+            const bool matches = !m_picker->pickClassName.empty()
+                                ? inst->getClassName() == m_picker->pickClassName
+                                : m_picker->pickAnyInstance ? true
                                 : m_picker->pickAttachment  ? inst->IsA("Attachment")
                                                              : inst->IsA("BaseCube");
             if (matches && inst != m_picker->constraint && m_picker->onPick)
@@ -782,6 +785,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         
         tryInsertInstance<Folder>(m_history, "Folder", parentSp);
         tryInsertInstance<FileRef>(m_history, "FileRef", parentSp);
+        tryInsertInstance<FontFile>(m_history, "FontFile", parentSp);
         tryInsertInstance<Model>(m_history, "Model", parentSp, Vector3(0, 0, 0), Vector3(1, 1, 1));
         tryInsertInstance<Tool>(m_history, "Tool", parentSp, std::string("Tool"));
 
@@ -1020,6 +1024,7 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
                 m_openScriptDialog = true;
             }
             makeGroup("FileRef", [&] { return std::make_shared<FileRef>(); });
+            makeGroup("FontFile", [&] { return std::make_shared<FontFile>(); });
             makeGroup("AppImage", [&] { return std::make_shared<AppImage>(); });
             makeGroup("StarterCharacter", [&] { return std::make_shared<StarterCharacter>(); });
             makeGroup("Humanoid", [&] { return std::make_shared<Humanoid>(); });

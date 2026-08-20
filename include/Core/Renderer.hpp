@@ -31,6 +31,7 @@ class IEditorManager;
 class ChatService;
 class GuiButton;
 class SurfaceGui;
+class ScreenGuiObject;
 
 // 素のプリミティブ形状（デカール等なし・不透明）のインスタンス描画用データ
 struct CubeInstanceData {
@@ -219,9 +220,17 @@ class Renderer {
             bool recordUserViewport = true);
         void renderGameGui(Workspace& ws, User* user, const GameGuiRenderContext& context);
         void renderRuntimeChat(float vpX, float vpY, float vpW, float vpH);
+        // ImGui::NewFrame() より前に FontFile を atlas へ追加する。
+        // 描画中の atlas 更新は避け、UTF-8 パスを持つ外部フォントもここで解決する。
+        void prepareGuiFonts(Workspace& workspace);
         void setChatService(const std::shared_ptr<ChatService>& service) { m_chatService = service; }
         bool isChatCapturingKeyboard() const { return m_chatOverlay.isCapturingKeyboard(); }
         void bakeSurfaceGui (SurfaceGui* sg);
+        ImFont* resolveGuiFont(ScreenGuiObject* sgo);
+        ImFont* loadGuiFont(ScreenGuiObject* sgo);
+        std::map<std::wstring, ImFont*> m_guiFontCache;
+        ImFont* m_systemDefaultGuiFont = nullptr;
+        ImFont* m_dotGothicGuiFont = nullptr;
 
         // カメラ回転ドラッグ中、非表示のOSカーソルの代わりにアンカー位置へ固定表示する擬似カーソル
         void drawCameraRotationCursor(User& user, GLFWwindow* window);

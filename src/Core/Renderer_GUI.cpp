@@ -2,6 +2,7 @@
 #include "include/Core/SystemState.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/ScreenGuiObject.hpp"
+#include "include/Instances/FontFile.hpp"
 #include "include/Instances/GuiButton.hpp"
 #include "include/Instances/WorldGuiObject.hpp"
 #include "include/Instances/SurfaceGui.hpp"
@@ -12,9 +13,156 @@
 #include "include/Instances/ChatService.hpp"
 #include "include/imgui/imgui.h"
 #include "include/imgui/imgui_impl_opengl3.h"
+#include "include/Util/AssetPath.hpp"
+#include "include/Util/Logger.hpp"
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <limits>
 #include <vector>
+
+static Instance* sceneRoot(Instance* node) {
+    if (!node) return nullptr;
+    while (auto parent = node->Parent.lock()) node = parent.get();
+    return node;
+}
+
+static std::string pathToUtf8(const std::filesystem::path& path) {
+    const std::u8string value = path.generic_u8string();
+    return std::string(reinterpret_cast<const char*>(value.data()), value.size());
+}
+
+static FontFile* findFontFile(Instance* node, const std::string& reference) {
+    if (!node) return nullptr;
+    const std::string normalizedReference = AssetPath::normalize(reference);
+    for (auto& [childName, child] : node->getChildren()) {
+        if (child->getClassName() == "FontFile") {
+            auto* fontFile = static_cast<FontFile*>(child.get());
+            if (AssetPath::normalize(fontFile->getWorkspaceRelativePath()) == normalizedReference ||
+                AssetPath::normalize(fontFile->getFullPath()) == normalizedReference ||
+                fontFile->Name == reference) {
+                return fontFile;
+            }
+        }
+        if (auto* result = findFontFile(child.get(), reference)) return result;
+    }
+    return nullptr;
+}
+
+static std::filesystem::path resolveStoredFontPath(const std::string& storedPath) {
+    const std::filesystem::path path = AssetPath::fromStored(storedPath);
+    if (path.is_absolute()) return path;
+
+    std::error_code ec;
+    const std::filesystem::path current = std::filesystem::current_path(ec);
+    return ec ? path : current / path;
+}
+
+// ImGui::AddFontFromFileTTF() はナローパスの fopen() を使うため、Windows では
+// UTF-8 を含む FontFile.ContentPath を開けない。filesystem::path 経由で読み込んで
+// ImGui に所有権を渡せば、Unicode パスでも同じフォントローダーを安全に使える。
+static ImFont* addFontFromPath(const std::filesystem::path& fontPath) {
+    std::ifstream input(fontPath, std::ios::binary | std::ios::ate);
+    if (!input) return nullptr;
+
+    const std::streamsize size = input.tellg();
+    if (size <= 100 || size > std::numeric_limits<int>::max()) return nullptr;
+
+    void* data = IM_ALLOC(static_cast<size_t>(size));
+    if (!data) return nullptr;
+
+    input.seekg(0, std::ios::beg);
+    if (!input.read(static_cast<char*>(data), size)) {
+        IM_FREE(data);
+        return nullptr;
+    }
+
+    ImFontConfig config;
+    config.FontDataOwnedByAtlas = true;
+    return ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
+        data, static_cast<int>(size), 22.0f, &config,
+        ImGui::GetIO().Fonts->GetGlyphRangesJapanese());
+}
+
+ImFont* Renderer::loadGuiFont(ScreenGuiObject* sgo) {
+    if (!sgo) return ImGui::GetFont();
+
+    FontFile* fontFile = !sgo->UseFontFile || sgo->FontFile.empty()
+        ? nullptr
+        : findFontFile(sceneRoot(sgo), sgo->FontFile);
+    if (!fontFile || fontFile->Path.empty()) {
+        RCBN_WARN("FontFile reference could not be resolved: " << sgo->FontFile);
+        return ImGui::GetFont();
+    }
+
+    const std::filesystem::path fontPath = resolveStoredFontPath(fontFile->Path);
+    std::error_code ec;
+    if (!std::filesystem::exists(fontPath, ec) || ec) {
+        RCBN_WARN("FontFile TTF/OTF not found: " << fontFile->Path
+                  << " (resolved: " << pathToUtf8(fontPath) << ")");
+        return ImGui::GetFont();
+    }
+
+    const std::wstring cacheKey = fontPath.lexically_normal().wstring();
+    auto cached = m_guiFontCache.find(cacheKey);
+    if (cached != m_guiFontCache.end()) {
+        return cached->second ? cached->second : ImGui::GetFont();
+    }
+
+    ImFont* loaded = addFontFromPath(fontPath);
+    m_guiFontCache[cacheKey] = loaded;
+    if (!loaded) {
+        RCBN_WARN("Failed to load FontFile: " << pathToUtf8(fontPath));
+        return ImGui::GetFont();
+    }
+    return loaded;
+}
+
+static void collectFontFileUsers(Instance* node, std::vector<ScreenGuiObject*>& out) {
+    if (!node) return;
+    if (node->IsA("ScreenGuiObject"))
+        out.push_back(static_cast<ScreenGuiObject*>(node));
+    for (const auto& [name, child] : node->getChildren()) {
+        (void)name;
+        collectFontFileUsers(child.get(), out);
+    }
+}
+
+void Renderer::prepareGuiFonts(Workspace& workspace) {
+    std::vector<ScreenGuiObject*> guiObjects;
+    collectFontFileUsers(sceneRoot(&workspace), guiObjects);
+    for (ScreenGuiObject* guiObject : guiObjects) {
+        if (guiObject->UseFontFile)
+            loadGuiFont(guiObject);
+    }
+}
+
+ImFont* Renderer::resolveGuiFont(ScreenGuiObject* sgo) {
+    if (!sgo) return ImGui::GetFont();
+
+    if (!sgo->UseFontFile) {
+        switch (sgo->Font) {
+            case SystemFont::DotGothic16:
+                return m_dotGothicGuiFont ? m_dotGothicGuiFont : ImGui::GetFont();
+            case SystemFont::Default:
+            default:
+                return m_systemDefaultGuiFont ? m_systemDefaultGuiFont : ImGui::GetFont();
+        }
+    }
+
+    FontFile* fontFile = sgo->FontFile.empty()
+        ? nullptr
+        : findFontFile(sceneRoot(sgo), sgo->FontFile);
+    if (!fontFile || fontFile->Path.empty()) return ImGui::GetFont();
+
+    const std::filesystem::path fontPath = resolveStoredFontPath(fontFile->Path);
+    const std::wstring cacheKey = fontPath.lexically_normal().wstring();
+    const auto cached = m_guiFontCache.find(cacheKey);
+    return cached != m_guiFontCache.end() && cached->second
+        ? cached->second
+        : ImGui::GetFont();
+}
 
 void Renderer::renderRuntimeChat(float vpX, float vpY, float vpW, float vpH) {
     if (auto service = m_chatService.lock()) m_chatOverlay.render(*service, vpX, vpY, vpW, vpH);
@@ -54,10 +202,14 @@ static void collectWorldGuiHosts(Instance* node, std::vector<BaseCube*>& out) {
 static void drawGuiText(ImDrawList* dl, ScreenGuiObject* sgo,
                         float px, float py, float sw, float sh,
                         ImU32 col, const char* text,
-                        float textScaleY = 1.0f, bool fitToBounds = false) {
+                        float textScaleY = 1.0f, bool fitToBounds = false)
+{
     if (sw <= 0.0f || sh <= 0.0f) return;
 
-    ImFont* font = ImGui::GetFont();
+    ImFont* font = Renderer::instance
+        ? Renderer::instance->resolveGuiFont(sgo)
+        : ImGui::GetFont();
+
     float size = ((sgo->FontSize > 0.f) ? sgo->FontSize : ImGui::GetFontSize()) * textScaleY;
     if (size <= 0.0f) return;
 

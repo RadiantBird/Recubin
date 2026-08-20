@@ -1444,7 +1444,8 @@ void EditorManager::clearForImGui(GLFWwindow* window) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void EditorManager::renderUI(User& user, GLFWwindow* window, Workspace&) {
+void EditorManager::renderUI(User& user, GLFWwindow* window, Workspace& workspace) {
+    if (Renderer::instance) Renderer::instance->prepareGuiFonts(workspace);
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();

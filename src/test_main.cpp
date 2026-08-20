@@ -5904,6 +5904,9 @@ int runAssetPathRegression() {
     expect(AssetPath::toStored(std::filesystem::path("assets") / "scripts" / "sample.luauc") ==
                "assets/scripts/sample.luauc",
            "stored filesystem paths always use portable separators");
+    const std::string unicodePath = "assets/日本語/フォント.ttf";
+    expect(AssetPath::toStored(AssetPath::fromStored(unicodePath)) == unicodePath,
+           "UTF-8 asset paths round-trip without using the Windows ANSI code page");
 
     const auto originalCwd = std::filesystem::current_path();
     const auto tempRoot = std::filesystem::temp_directory_path() /

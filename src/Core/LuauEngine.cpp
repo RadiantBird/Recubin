@@ -49,6 +49,7 @@
 #include "include/imgui/imgui.h"
 #include "include/Instances/AppImage.hpp"
 #include "include/Instances/FileRef.hpp"
+#include "include/Instances/FontFile.hpp"
 #include "include/Instances/StarterCharacter.hpp"
 #include "include/Core/Terrain.hpp"
 #include "include/Core/SystemState.hpp"
@@ -2360,6 +2361,7 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "PostEffect",       [] { return std::make_shared<PostEffect>(); } },
         { "AppImage",         [] { return std::make_shared<AppImage>(); } },
         { "FileRef",          [] { return std::make_shared<FileRef>(); } },
+        { "FontFile",         [] { return std::make_shared<FontFile>(); } },
         { "Humanoid",         [] { return std::make_shared<Humanoid>(); } },
         { "Animation",        [] { return std::make_shared<Animation>(); } },
         { "StarterCharacter", [] { return std::make_shared<StarterCharacter>(); } },

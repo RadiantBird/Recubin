@@ -15,6 +15,7 @@ struct PickerState {
     bool        active          = false;
     bool        pickAttachment  = false;                           // true のとき BaseCube ではなく Attachment を対象にする
     bool        pickAnyInstance = false;                           // true のとき型制限なしで任意のInstanceを対象にする（ObjectValue用）
+    std::string pickClassName;                                     // 空でなければ指定クラスだけを対象にする
     std::string prop;                                              // "Cube0"/"Cube1"/"Attachment0"/"Attachment1"
     Instance*   constraint = nullptr;
     std::function<void(std::shared_ptr<Instance>)> onPick;         // pickAttachment に応じた型のインスタンスが渡される

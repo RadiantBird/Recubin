@@ -17,6 +17,7 @@
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/AppImage.hpp>
+#include <Instances/FontFile.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Weather.hpp>
@@ -441,7 +442,7 @@ static int runGenTestScene(const std::string& outputPath) {
         "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere", "MeshCube", "LiquidCube", "SpawnLocation",
         "Skybox", "Sun", "Moon", "Model", "Sound",
         "Lighting", "PointLight", "SpotLight", "PostEffect",
-        "AppImage", "FileRef", "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance",
+        "AppImage", "FileRef", "FontFile", "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance",
         "Rope", "Rod", "Weld", "Motor", "Attachment", "Force",
         "TextLabel", "TextButton", "ImageLabel", "ImageButton", "SurfaceGui", "BillboardGui",
         "ProximityPrompt", "Folder", "Tool", "ParticleEmitter", "Weather",

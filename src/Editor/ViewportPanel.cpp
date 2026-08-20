@@ -494,6 +494,7 @@ void ViewportPanel::handleViewportClick(
 
         // ---- ピッカーモード: Pick ボタン押下中はクリックをキューブ/Attachment指定に横取り ----
         if (m_picker && m_picker->active) {
+            if (!m_picker->pickClassName.empty()) return;
             const bool pickAtt = m_picker->pickAttachment;
             const ViewportSceneQueries::PickerRayHit pickerHit =
                 ViewportSceneQueries::findPickerTarget(

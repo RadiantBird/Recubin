@@ -14,6 +14,7 @@
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/FileRef.hpp>
+#include <Instances/FontFile.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/Canvas.hpp>
@@ -460,6 +461,106 @@ static void collectAnimations(Instance* node, std::vector<std::shared_ptr<Animat
     }
 }
 
+static const PropertyDesc* screenGuiFontFileProperty() {
+    for (const auto& desc : PropertyRegistry::schemaFor("ScreenGuiObject")) {
+        if (desc.name == "FontFile") return &desc;
+    }
+    return nullptr;
+}
+
+static const PropertyDesc* screenGuiFontProperty() {
+    for (const auto& desc : PropertyRegistry::schemaFor("ScreenGuiObject")) {
+        if (desc.name == "Font") return &desc;
+    }
+    return nullptr;
+}
+
+static void drawFontFileReference(ScreenGuiObject* gui,
+                                  CommandHistory* history,
+                                  PickerState* picker) {
+    if (!gui) return;
+
+    bool isPickingThis = picker && picker->active && picker->constraint == gui
+                      && picker->prop == "FontFile";
+    bool anyPicking = picker && picker->active;
+    const float buttonWidth = 46.0f;
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+
+    ImGui::TextUnformatted("FontFile");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - buttonWidth - spacing);
+    char reference[512] = {};
+    std::snprintf(reference, sizeof(reference), "%s", gui->FontFile.c_str());
+    ImGui::InputText("##fontfile_ref", reference, sizeof(reference),
+                     ImGuiInputTextFlags_ReadOnly);
+    ImGui::SameLine();
+
+    if (isPickingThis) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9f, 0.4f, 0.1f, 1.0f));
+        if (ImGui::Button("Cancel##fontfile_pick", ImVec2(buttonWidth, 0)))
+            picker->active = false;
+        ImGui::PopStyleColor();
+    } else {
+        if (anyPicking) ImGui::BeginDisabled();
+        if (ImGui::Button("Pick##fontfile", ImVec2(buttonWidth, 0)) && picker) {
+            picker->active = true;
+            picker->pickAttachment = false;
+            picker->pickAnyInstance = false;
+            picker->pickClassName = "FontFile";
+            picker->prop = "FontFile";
+            picker->constraint = gui;
+            picker->onPick = [gui, history](std::shared_ptr<Instance> picked) {
+                const PropertyDesc* desc = screenGuiFontFileProperty();
+                if (!desc || !picked || picked->getClassName() != "FontFile") return;
+                const std::string before = gui->FontFile;
+                const std::string after = picked->getWorkspaceRelativePath();
+                if (before == after) return;
+                const auto target = gui->shared_from_this();
+                const PropValue oldValue = desc->get(gui);
+                const PropValue newValue = PropValue(after);
+                if (history) history->execute(std::make_unique<SetPropertyCommand>(
+                    target, desc, oldValue, newValue));
+                else PropertyRegistry::writeValue(gui, *desc, newValue);
+            };
+        }
+        if (anyPicking) ImGui::EndDisabled();
+    }
+}
+
+static void drawSystemFontSelection(ScreenGuiObject* gui, CommandHistory* history) {
+    if (!gui) return;
+    const PropertyDesc* desc = screenGuiFontProperty();
+    if (!desc) return;
+
+    int current = static_cast<int>(gui->Font);
+    const char* preview = "Default";
+    for (const auto& [name, value] : desc->enumNames)
+        if (value == current) preview = name.data();
+
+    if (!ImGui::BeginCombo("Font", preview)) return;
+    const auto target = gui->shared_from_this();
+    for (const auto& [name, value] : desc->enumNames) {
+        const bool selected = value == current;
+        if (ImGui::Selectable(name.data(), selected) && !selected) {
+            const PropValue before = desc->get(gui);
+            const PropValue after = PropValue(value);
+            if (history) history->execute(std::make_unique<SetPropertyCommand>(
+                target, desc, before, after));
+            else PropertyRegistry::writeValue(gui, *desc, after);
+        }
+        if (selected) ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+}
+
+static void drawFontSelection(ScreenGuiObject* gui,
+                              CommandHistory* history,
+                              PickerState* picker) {
+    if (!gui) return;
+    if (gui->UseFontFile) drawFontFileReference(gui, history, picker);
+    else drawSystemFontSelection(gui, history);
+}
+
 static void drawHumanoidAnimationReference(const char* label,
                                             const std::shared_ptr<Humanoid>& humanoid,
                                             HumanoidAnimationSlot slot,
@@ -727,6 +828,7 @@ void PropertiesPanel::drawConstraintCubeRef(const char* label, std::string& name
             m_picker->active          = true;
             m_picker->pickAttachment  = false;
             m_picker->pickAnyInstance = false;
+            m_picker->pickClassName.clear();
             m_picker->prop            = prop;
             m_picker->constraint      = inst.get();
             m_picker->onPick = [inst, propStr = std::string(prop),
@@ -790,6 +892,7 @@ void PropertiesPanel::drawObjectValueRef(const char* label, const std::shared_pt
             m_picker->active          = true;
             m_picker->pickAttachment  = false;
             m_picker->pickAnyInstance = true;
+            m_picker->pickClassName.clear();
             m_picker->prop            = "Value";
             m_picker->constraint      = inst.get();
             m_picker->onPick = [inst, hist = m_history](std::shared_ptr<Instance> picked) {
@@ -855,6 +958,7 @@ void PropertiesPanel::drawConstraintAttachmentRef(const char* label, std::string
             m_picker->active          = true;
             m_picker->pickAttachment  = true;
             m_picker->pickAnyInstance = false;
+            m_picker->pickClassName.clear();
             m_picker->prop            = prop;
             m_picker->constraint      = inst.get();
             m_picker->onPick = [inst, propStr = std::string(prop), cubeName,
@@ -920,7 +1024,9 @@ void PropertiesPanel::onRender() {
 
     if (m_picker && m_picker->active) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.1f, 1.0f));
-        ImGui::TextUnformatted(m_picker->pickAnyInstance
+        if (!m_picker->pickClassName.empty())
+            ImGui::Text("Select %s", m_picker->pickClassName.c_str());
+        else ImGui::TextUnformatted(m_picker->pickAnyInstance
             ? Loc::t(Loc::LocKey::PickerPromptAny)
             : m_picker->pickAttachment
                 ? Loc::t(Loc::LocKey::PickerPromptAttachment)
@@ -2009,6 +2115,40 @@ void PropertiesPanel::onRender() {
             std::static_pointer_cast<Animation>(inst->shared_from_this()), m_history);
     }
 
+    if (inst->getClassName() == "FontFile") {
+        auto* fontFile = static_cast<FontFile*>(inst);
+        ImGui::SeparatorText("FontFile");
+        ImGui::LabelText("ContentPath", "%s",
+                         fontFile->Path.empty() ? "(none)" : fontFile->Path.c_str());
+        if (ImGui::Button(locId(Loc::LocKey::Browse, "##fontfile").c_str())) {
+            std::string path = getPlatform().openFileDialog({
+                {"Font (*.ttf;*.otf)", "*.ttf;*.otf"}
+            });
+            if (!path.empty()) {
+                const std::string relativePath = toProjectRelative(path);
+                const std::string before = fontFile->Path;
+                YAML::Node node;
+                node = relativePath;
+                fontFile->setProperty("ContentPath", node);
+                if (m_history && before != fontFile->Path) {
+                    const PropertyDesc* pathDesc = nullptr;
+                    for (const auto& desc : PropertyRegistry::schemaFor("FontFile")) {
+                        if (desc.name == "Path") {
+                            pathDesc = &desc;
+                            break;
+                        }
+                    }
+                    if (pathDesc) {
+                        m_history->record(std::make_unique<SetPropertyCommand>(
+                            inst->shared_from_this(),
+                            pathDesc,
+                            PropValue(before), PropValue(fontFile->Path)));
+                    }
+                }
+            }
+        }
+    }
+
     // ---- Seat（Steer/Throttleは着席中エンジンが書き込むLua読取専用値。確認用に表示） ----
     if (inst->getClassName() == "Seat") {
         ImGui::SeparatorText("Seat");
@@ -2028,10 +2168,12 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "TextLabel") {
         ImGui::SeparatorText("TextLabel");
         renderSchemaInspector(inst, "TextLabel", m_history);
+        drawFontSelection(static_cast<ScreenGuiObject*>(inst), m_history, m_picker);
     }
     if (inst->getClassName() == "TextButton") {
         ImGui::SeparatorText("TextButton");
         renderSchemaInspector(inst, "TextButton", m_history);
+        drawFontSelection(static_cast<ScreenGuiObject*>(inst), m_history, m_picker);
     }
     if (inst->getClassName() == "SurfaceGui") {
         ImGui::SeparatorText("SurfaceGui");

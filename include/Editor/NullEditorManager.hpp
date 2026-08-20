@@ -43,6 +43,7 @@ public:
 
 
     void renderUI(User& user, GLFWwindow* window, Workspace& ws) override {
+        if (Renderer::instance) Renderer::instance->prepareGuiFonts(ws);
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();

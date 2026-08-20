@@ -16,7 +16,7 @@ Root:
           Name: User
           Properties:
             ControlMode: Free
-            Speed: 0.25
+            Speed: 0.1
             RotationSpeed: 1
             MouseRotationSpeed: 0.15
             CameraDistance: 10
@@ -32,38 +32,39 @@ Root:
         Wind: [0, 0, 0]
         PhysicsEnabled: true
       Children:
+        - ClassName: MeshCube
+          Name: MeshCube
+          Properties:
+            Position: [79.46193, 1, -63.545616]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.38769233, 0.53464633, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            MeshFile: C:\Users\Ryarta\Models\R.glb
         - ClassName: Lighting
           Name: Lighting
           Properties:
-            Direction: [1, -1, -1]
+            Direction: [0, -1, 1]
             Brightness: 1
             Color: [1, 1, 1, 1]
-        - ClassName: Seat
-          Name: Seat
-          Properties:
-            Position: [34.284943, 0.99999976, 51.516224]
-            Size: [2, 1, 4]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.52, 0.52, 0.52, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            Locked: false
-            MassDensity: 1
-            CCDMode: Default
-            LockFlags: []
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
         - ClassName: Cube
-          Name: Cube
+          Name: Plate
           Properties:
             Position: [0, 0, 0]
-            Size: [512, 1, 512]
+            Size: [2048, 1, 2048]
             Rotation: [0, 0, 0, 1]
-            Color: [0.17427693, 0.48000002, 0.22319265, 1]
+            Color: [0.4958485, 0.79384613, 0.6370535, 1]
             Anchored: true
             CanCollide: true
             CastShadow: true
@@ -76,18 +77,14 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-        - ClassName: FontFile
-          Name: Tanuki
+        - ClassName: MeshCube
+          Name: MeshCube1
           Properties:
-            ContentPath: C:\Users\Ryarta\Desktop\bin\九九闘争\TanukiMagic.ttf
-        - ClassName: SpawnLocation
-          Name: SpawnLocation
-          Properties:
-            Position: [22.710655, 1, 52.713257]
-            Size: [8, 1, 8]
+            Position: [78.93922, 1, -63.036118]
+            Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
+            Color: [0, 0.42736107, 0.93846154, 1]
+            Anchored: false
             CanCollide: true
             CastShadow: true
             Unlit: false
@@ -99,22 +96,6 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-            Enabled: true
-        - ClassName: TextLabel
-          Name: TextLabel
-          Properties:
-            Size: [1000, 100]
-            Norm: Pixel
-            Active: true
-            Visible: true
-            BackgroundColor: [1, 1, 1, 1]
-            ZIndex: 0
-            Position: [0, 0]
-            UseFontFile: true
-            Font: DotGothic16
-            FontFile: Tanuki
-            Text: こんにちは世界！The lazy fox jumps over the dog
-            TextColor: [0, 0, 0, 1]
-            FontSize: 18
+            MeshFile: C:\Users\Ryarta\Models\C.glb
     - ClassName: PathfindingService
       Name: PathfindingService

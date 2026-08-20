@@ -320,25 +320,25 @@ void Renderer::init(GLFWwindow* window) {
 
     // ゲームGUIをエディターとランタイムで同じ字形・メトリクスにする。
     // Packagerはassets/fontsを必須ランタイムリソースとして同梱する。
+    m_systemDefaultGuiFont = io.Fonts->AddFontDefault();
     ImFont* gameFont = nullptr;
     if (std::filesystem::exists("assets/fonts/DotGothic16-Regular.ttf")) {
         gameFont = io.Fonts->AddFontFromFileTTF(
             "assets/fonts/DotGothic16-Regular.ttf", 22.0f, nullptr,
             io.Fonts->GetGlyphRangesJapanese());
-        if (gameFont) io.FontDefault = gameFont;
+        if (gameFont) m_dotGothicGuiFont = gameFont;
     }
+    io.FontDefault = m_dotGothicGuiFont ? m_dotGothicGuiFont : m_systemDefaultGuiFont;
     if (std::filesystem::exists("assets/fonts/fa-solid-900.ttf")) {
-        // MergeModeにはマージ先が必要。開発用の単体起動でゲームフォントが無い場合だけ
-        // ImGui既定フォントを明示的に作る。
-        if (!gameFont && io.Fonts->Fonts.empty()) {
-            gameFont = io.Fonts->AddFontDefault();
-            io.FontDefault = gameFont;
+        // MergeModeにはマージ先が必要。ゲームフォントが無い場合は既定フォントへマージする。
+        ImFont* mergeTarget = m_dotGothicGuiFont ? m_dotGothicGuiFont : m_systemDefaultGuiFont;
+        if (mergeTarget) {
+            ImFontConfig cfg;
+            cfg.MergeMode  = true;
+            cfg.PixelSnapH = true;
+            static const ImWchar iconRanges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+            io.Fonts->AddFontFromFileTTF("assets/fonts/fa-solid-900.ttf", 18.0f, &cfg, iconRanges);
         }
-        ImFontConfig cfg;
-        cfg.MergeMode  = true;
-        cfg.PixelSnapH = true;
-        static const ImWchar iconRanges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
-        io.Fonts->AddFontFromFileTTF("assets/fonts/fa-solid-900.ttf", 18.0f, &cfg, iconRanges);
     }
 
     ImGuiStyle& style = ImGui::GetStyle();
