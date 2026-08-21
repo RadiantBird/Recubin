@@ -19,6 +19,7 @@
 #include <map>
 #include <memory>
 #include <functional>
+#include <filesystem>
 
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
@@ -136,7 +137,13 @@ class Renderer {
 
         std::vector<unsigned int> indices = {};
 
-        std::map<std::string, unsigned int> textureCache;
+        struct TextureCacheEntry {
+            unsigned int textureID = 0;
+            std::filesystem::file_time_type lastWriteTime{};
+            uintmax_t fileSize = 0;
+            bool hasFileMetadata = false;
+        };
+        std::map<std::string, TextureCacheEntry> textureCache;
 
         unsigned int whiteTexture;
         void createWhiteTexture();

@@ -167,3 +167,13 @@
   `--scene-load-transaction-regression`はfailures=0、`--inventory-tool-sync-regression`はPASS、
   `--animation-clip-regression`はfailures=0。全体回帰は既知baselineと同じ140 passed / 3 failedで、
   新規失敗はない。GUIはユーザーからアプリ動作良好の報告あり。
+
+## 2026-08-21: 外部画像変更時のテクスチャキャッシュ更新
+
+- `Renderer::loadTexture()`が正規化パスごとに保持する最終更新時刻とファイルサイズを比較し、
+  外部画像の変更時は既存のOpenGLテクスチャを破棄して再読み込みするようにした。
+  ファイル情報を取得できない場合は既存キャッシュを維持する。
+- `doc/Core/Renderer.md`へ画像キャッシュの更新検知仕様を追記した。
+- 検証: `cmd.exe /d /c py build.py build`はRecubin／RecubinEngine／RecubinTestの3ターゲットすべて成功。
+  `git diff --check`は成功。`--asset-path-regression`はWSLの`UtilBindVsockAnyPort: socket failed 1`
+  により起動できず未実施。

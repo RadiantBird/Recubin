@@ -2152,10 +2152,36 @@ void Renderer::renderImGui(User& user, GLFWwindow* window, Workspace& workspace)
 unsigned int Renderer::loadTexture(const char* path) {
     std::string pathStr(path);
     const std::string normalizedPath = AssetPath::normalize(pathStr);
-    if (textureCache.find(normalizedPath) != textureCache.end()) {
-        return textureCache[normalizedPath];
+    auto cachedTexture = textureCache.find(normalizedPath);
+    if (cachedTexture != textureCache.end()) {
+        std::error_code fileInfoError;
+        const auto lastWriteTime = std::filesystem::last_write_time(
+            AssetPath::fromStored(normalizedPath), fileInfoError);
+        if (!fileInfoError) {
+            const uintmax_t fileSize = std::filesystem::file_size(
+                AssetPath::fromStored(normalizedPath), fileInfoError);
+            if (!fileInfoError && cachedTexture->second.hasFileMetadata &&
+                (cachedTexture->second.lastWriteTime != lastWriteTime ||
+                 cachedTexture->second.fileSize != fileSize)) {
+                if (!AssetGuard::allow(pathStr)) return 0;
+                glDeleteTextures(1, &cachedTexture->second.textureID);
+                textureCache.erase(cachedTexture);
+            } else {
+                return cachedTexture->second.textureID;
+            }
+        } else {
+            return cachedTexture->second.textureID;
+        }
     }
     if (!AssetGuard::allow(pathStr)) return 0;
+
+    std::error_code fileInfoError;
+    const auto lastWriteTime = std::filesystem::last_write_time(
+        AssetPath::fromStored(normalizedPath), fileInfoError);
+    const bool hasLastWriteTime = !fileInfoError;
+    const uintmax_t fileSize = std::filesystem::file_size(
+        AssetPath::fromStored(normalizedPath), fileInfoError);
+    const bool hasFileMetadata = hasLastWriteTime && !fileInfoError;
 
     int width, height, nrChannels;
     unsigned char* data = stbi_load(normalizedPath.c_str(), &width, &height, &nrChannels, 4);
@@ -2182,7 +2208,9 @@ unsigned int Renderer::loadTexture(const char* path) {
     stbi_image_free(data);
 
     glBindTexture(GL_TEXTURE_2D, 0);  // texture state をクリアして後の描画に影響しないようにする
-    textureCache[normalizedPath] = textureID;
+    textureCache[normalizedPath] = {
+        textureID, lastWriteTime, fileSize, hasFileMetadata
+    };
     return textureID;
 }
 

@@ -15,7 +15,7 @@ OpenGL レンダリングパイプライン全体を管理するシングルト�
 | `VBO`, `VAO`, `EBO` | `GLuint` | 頂点バッファオブジェクト |
 | `shaderProgram` | `GLuint` | コンパイル済み GLSL シェーダー |
 | `indices` | `vector<GLuint>` | インデックスバッファ |
-| `textureCache` | `map<string, GLuint>` | パス → テクスチャ ID キャッシュ |
+| `textureCache` | `map<string, TextureCacheEntry>` | 正規化パス → テクスチャ IDとファイルメタデータのキャッシュ |
 | `whiteTexture` | `GLuint` | デフォルトフォールバックテクスチャ |
 | `editor` | `unique_ptr<EditorManager>` | エディタ UI マネージャ |
 
@@ -27,7 +27,7 @@ OpenGL レンダリングパイプライン全体を管理するシングルト�
 | `render(user, window, workspace)` | メインレンダーエントリ（3D + ImGui を 1 フレーム描画） |
 | `renderScene(user, workspace)` | 3D シーンのみを描画（FBO へ書き込む） |
 | `renderImGui(user, window, workspace)` | ImGui パネルを描画 |
-| `loadTexture(path)` | 画像ファイルを GPU にアップロードして ID を返す |
+| `loadTexture(path)` | 画像ファイルを GPU にアップロードして ID を返す。同一正規化パスのキャッシュは、ロード時の最終更新時刻またはファイルサイズが変わった場合に破棄して再読み込みする。ファイル情報を取得できない場合は既存の正常なキャッシュを維持する |
 | `loadTextureFromMemory(data, size)` | メモリ上の画像データから GPU テクスチャを生成 |
 | `createWhiteTexture()` | 1×1 白テクスチャを生成 |
 | `loadShaderSource(filePath)` | GLSL ソースをファイルから読み込む |

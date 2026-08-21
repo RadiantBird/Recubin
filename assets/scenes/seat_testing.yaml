@@ -38,25 +38,19 @@ Root:
             Direction: [1, -1, -1]
             Brightness: 1
             Color: [1, 1, 1, 1]
-        - ClassName: Seat
-          Name: Seat
+        - ClassName: ImageLabel
+          Name: ImageLabel
           Properties:
-            Position: [34.284943, 0.99999976, 51.516224]
-            Size: [2, 1, 4]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.52, 0.52, 0.52, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            Locked: false
-            MassDensity: 1
-            CCDMode: Default
-            LockFlags: []
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
+            Size: [512, 512]
+            Norm: Pixel
+            Active: true
+            Visible: true
+            BackgroundColor: [1, 1, 1, 1]
+            ZIndex: 0
+            Position: [200, 200]
+            UseFontFile: false
+            Font: Default
+            Image: C:\Users\Ryarta\Pictures\てきとう.png
         - ClassName: Cube
           Name: Cube
           Properties:
@@ -76,10 +70,25 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-        - ClassName: FontFile
-          Name: Tanuki
+        - ClassName: Seat
+          Name: Seat
           Properties:
-            ContentPath: C:\Users\Ryarta\Desktop\bin\九九闘争\TanukiMagic.ttf
+            Position: [34.284943, 0.99999976, 51.516224]
+            Size: [2, 1, 4]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.52, 0.52, 0.52, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
         - ClassName: SpawnLocation
           Name: SpawnLocation
           Properties:
@@ -100,6 +109,10 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
             Enabled: true
+        - ClassName: FontFile
+          Name: Tanuki
+          Properties:
+            ContentPath: C:/Users/Ryarta/Desktop/bin/九九闘争/TanukiMagic.ttf
         - ClassName: TextLabel
           Name: TextLabel
           Properties:
