@@ -9,10 +9,20 @@ YAML シーンファイルを読み込んで Instance ツリーを再構築す�
 | メソッド | 説明 |
 |---|---|
 | `loadScene(filePath)` | YAML ファイルをパースしてルート Instance を返す |
+| `loadScene(filePath, context)` | 呼び出し単位の `LoadContext` に登録された既存Instanceへ対象クラスをマージして読み込む |
 | `loadSceneResult(filePath)` | `LoadResult`（状態、メッセージ、`SceneDocumentMetadata`）付きで読み込む。ヘッダーなしはscene version 0 |
+| `loadSceneResult(filePath, context)` | `LoadContext` を使うResult付きロード |
 | `saveSceneResult(root, filePath, metadata)` | SceneヘッダーとCharacter Animation参照移行versionを保存する。失敗はfalse |
-| `parseInstance(node)` | YAML ノードを再帰的に Instance に変換 |
+| `parseInstance(node, context)` | `LoadContext` を伝播しながらYAMLノードを再帰的にInstanceへ変換（内部API） |
 | `createInstance(className)` | クラス名文字列から Instance を new して返すファクトリ |
+
+## LoadContext
+
+`LoadContext` はクラス名と既存Instanceの対応を1回のロード呼び出しだけに適用する。`System`や
+`User`のように新規生成せず既存オブジェクトへプロパティと子をマージする対象を
+`registerMergeInstance(className, instance)` で登録する。Contextなしのロードには登録が存在せず、
+通常クラスだけをファクトリ生成する。登録内容を保持するプロセス全体の静的状態はないため、
+失敗後や別ロードへマージ対象が漏れない。
 
 ## 対応クラス（createInstance）
 
@@ -21,10 +31,10 @@ YAML シーンファイルを読み込んで Instance ツリーを再構築す�
 ## シーンロードフロー
 
 ```
-SceneLoader::loadScene("assets/scenes/test_scene.yaml")
+SceneLoader::loadScene("assets/scenes/test_scene.yaml", context)
   → YAML ドキュメントをパース
   → parseInstance(rootNode)
-       → createInstance(className)   ← new でオブジェクト生成
+       → context対象なら既存Instance、その他はcreateInstance(className)
        → node のプロパティを setProperty() で適用
        → 子ノードを再帰的に parseInstance()
        → setParent() で親子関係を構築
@@ -39,7 +49,7 @@ SceneLoader::loadScene("assets/scenes/test_scene.yaml")
 
 ## 使われる場所
 
-- `main.cpp` 起動時とゲーム停止時（シーンリロード）に呼ばれる
+- `SceneRuntime` の隔離Stage、および単体のシーン読込処理から呼ばれる
 
 ## 保存ヘッダーと移行状態
 

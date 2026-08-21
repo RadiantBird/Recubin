@@ -2,6 +2,7 @@
 #include <Core/SceneLoader.hpp>
 #include <Core/LuauEngine.hpp>
 #include <Core/User.hpp>
+#include <Core/NullInputBackend.hpp>
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Lighting.hpp>
@@ -20,6 +21,73 @@
 #include <Util/Platform.hpp>
 
 namespace SceneRuntime {
+
+namespace {
+
+void copySystemScalars(const System& source, System& destination) {
+    destination.MaxClonesPerFrame = source.MaxClonesPerFrame;
+    destination.MaxRestartsPerFrame = source.MaxRestartsPerFrame;
+    destination.MaxTasksPerFrame = source.MaxTasksPerFrame;
+    destination.ScriptLoopTimeoutSeconds = source.ScriptLoopTimeoutSeconds;
+    destination.BaseResolution = source.BaseResolution;
+    destination.UseNetwork = source.UseNetwork;
+}
+
+void copyUserScalars(const User& source, User& destination) {
+    destination.controlMode = source.controlMode;
+    destination.speed = source.speed;
+    destination.rotationSpeed = source.rotationSpeed;
+    destination.mouseRotationSpeed = source.mouseRotationSpeed;
+    destination.cameraDistance = source.cameraDistance;
+    destination.zoomSpeed = source.zoomSpeed;
+    destination.mouseZoomSpeed = source.mouseZoomSpeed;
+}
+
+void disconnectSceneSignals(const std::shared_ptr<System>& system,
+                            const std::shared_ptr<User>& user) {
+    if (system && system->Heartbeat) system->Heartbeat->disconnectAll();
+    if (!user) return;
+    if (user->CharacterAdded) user->CharacterAdded->disconnectAll();
+    if (user->Input) {
+        if (user->Input->Pressed) user->Input->Pressed->disconnectAll();
+        if (user->Input->Released) user->Input->Released->disconnectAll();
+    }
+}
+
+void removeAllChildren(const std::shared_ptr<Instance>& parent) {
+    if (!parent) return;
+    std::vector<std::string> names;
+    names.reserve(parent->children.size());
+    for (const auto& [name, child] : parent->children) {
+        (void)child;
+        names.push_back(name);
+    }
+    for (const auto& name : names) parent->removeChild(name);
+}
+
+void moveAllChildren(const std::shared_ptr<Instance>& source,
+                     const std::shared_ptr<Instance>& destination) {
+    if (!source || !destination) return;
+    std::vector<std::shared_ptr<Instance>> children;
+    children.reserve(source->children.size());
+    for (const auto& [name, child] : source->children) {
+        (void)name;
+        children.push_back(child);
+    }
+    for (const auto& child : children) destination->addChild(child);
+}
+
+std::shared_ptr<Users> findUsers(const std::shared_ptr<System>& system) {
+    if (!system) return nullptr;
+    for (const auto& [name, child] : system->children) {
+        (void)name;
+        if (child && child->IsA("Users"))
+            return std::static_pointer_cast<Users>(child);
+    }
+    return nullptr;
+}
+
+} // namespace
 
 std::vector<std::shared_ptr<Workspace>> collectWorkspaces(const std::shared_ptr<System>& system) {
     std::vector<std::shared_ptr<Workspace>> result;
@@ -125,47 +193,88 @@ Bound loadAndBind(const std::string& scenePath,
                   const std::shared_ptr<User>& user,
                   LuauEngine& engine,
                   GLFWwindow* window) {
-    SceneLoader::registerSingleton("System", system);
-    SceneLoader::registerSingleton("User", user);
+    auto staged = stageSceneLoad(scenePath, system, user);
+    if (!staged) {
+        Bound failed;
+        failed.metadata = staged.metadata;
+        failed.scenePath = scenePath;
+        failed.loadStatus = staged.status;
+        failed.loadMessage = staged.message;
+        return failed;
+    }
+    return commitAndBind(std::move(staged), system, user, engine, window);
+}
 
-    // Users コンテナが reload をまたいで温存されている場合(resetSystemForReload参照)、
-    // System/User と同様に事前登録してマージ対象にする。登録しないと loadScene() が
-    // YAML中のUsersノードを新規生成してしまい、温存済みコンテナとキー衝突して増殖する。
-    std::shared_ptr<Instance> usersContainer;
-    if (auto it = system->children.find("Users"); it != system->children.end()) {
-        usersContainer = it->second;
-        SceneLoader::registerSingleton("Users", usersContainer);
+StagedSceneLoad stageSceneLoad(const std::string& scenePath,
+                               const std::shared_ptr<System>& liveSystem,
+                               const std::shared_ptr<User>& liveUser) {
+    StagedSceneLoad staged;
+    staged.scenePath = scenePath;
+    staged.system = std::make_shared<System>();
+    staged.user = std::make_shared<User>(std::make_unique<NullInputBackend>(), true);
+    if (liveSystem) copySystemScalars(*liveSystem, *staged.system);
+    if (liveUser) copyUserScalars(*liveUser, *staged.user);
+
+    if (scenePath.empty()) return staged;
+
+    SceneLoader::LoadContext context;
+    context.registerMergeInstance("System", staged.system);
+    context.registerMergeInstance("User", staged.user);
+    const auto result = SceneLoader::loadSceneResult(scenePath, context);
+    staged.metadata = result.metadata;
+    staged.status = result.status;
+    staged.message = result.message;
+    if (result && result.root != staged.system && result.root != staged.user &&
+        result.root->Parent.expired()) {
+        staged.system->addChild(result.root);
+    }
+    return staged;
+}
+
+Bound commitAndBind(StagedSceneLoad&& staged,
+                    const std::shared_ptr<System>& system,
+                    const std::shared_ptr<User>& user,
+                    LuauEngine& engine,
+                    GLFWwindow* window) {
+    if (!staged || !system || !user) {
+        Bound failed;
+        failed.metadata = staged.metadata;
+        failed.scenePath = staged.scenePath;
+        failed.loadStatus = staged.status == SceneLoader::LoadStatus::Success
+            ? SceneLoader::LoadStatus::YamlError : staged.status;
+        failed.loadMessage = staged.message.empty() ? "Invalid staged scene" : staged.message;
+        return failed;
     }
 
-    const auto loadResult = SceneLoader::loadSceneResult(scenePath);
-    const auto metadata = loadResult.metadata;
-    SceneLoader::clearSingletons();
+    copySystemScalars(*staged.system, *system);
+    copyUserScalars(*staged.user, *user);
 
-    // Users コンテナが無ければ自動生成する(Workspace/PathfindingServiceと同様のパターン)
-    if (!usersContainer) {
-        if (auto it = system->children.find("Users"); it != system->children.end()) {
-            usersContainer = it->second;
-        } else {
-            usersContainer = std::make_shared<Users>();
-            system->addChild(usersContainer);
-        }
+    auto stagedUsers = findUsers(staged.system);
+    if (!stagedUsers) {
+        stagedUsers = std::make_shared<Users>();
+        staged.system->addChild(stagedUsers);
     }
 
-    // User が YAML に存在しなくてもSystem/Users直下に確保する
-    if (usersContainer->children.find("User") == usersContainer->children.end()) {
-        usersContainer->addChild(user);
-    }
+    // User配下を隔離Userからlive Userへ移す。入力、Signal、camera、identityはlive側を維持する。
+    removeAllChildren(std::static_pointer_cast<Instance>(user));
+    user->resetInventory();
+    moveAllChildren(std::static_pointer_cast<Instance>(staged.user),
+                    std::static_pointer_cast<Instance>(user));
+    if (auto stagedParent = staged.user->Parent.lock())
+        stagedParent->removeChild(staged.user->Name);
 
-    // Inventory: シーンYAMLにUser直下のFolder("Inventory")が保存されていれば、それを
-    // user->Inventory として採用する（tree上の実体とuser->Inventoryメンバが乖離すると、
-    // 装備中Toolの追跡等がずれるため）。保存されていなければ新しい空Inventoryを生成する。
+    // 旧ツリーを破棄してから、staged Users内のUserをlive Userへ置換して全子を移植する。
+    disconnectSceneSignals(system, user);
+    removeAllChildren(std::static_pointer_cast<Instance>(system));
+    stagedUsers->addChild(user);
+    moveAllChildren(std::static_pointer_cast<Instance>(staged.system),
+                    std::static_pointer_cast<Instance>(system));
+
     if (auto it = user->children.find("Inventory"); it != user->children.end()) {
-        if (auto folder = std::dynamic_pointer_cast<Folder>(it->second)) {
+        if (auto folder = std::dynamic_pointer_cast<Folder>(it->second))
             user->Inventory = folder;
-        }
-    } else {
-        // メンバに残っている旧Inventoryは再利用しない。シーンにInventoryが無い場合も
-        // 毎回新しい空Folderを作り、前回の子やTool参照を持ち越さない。
+    }
+    if (!user->Inventory || user->Inventory->Parent.lock().get() != user.get()) {
         user->resetInventory();
         user->initializeInventory();
     }
@@ -189,19 +298,23 @@ Bound loadAndBind(const std::string& scenePath,
     }
     // NavMeshディスクキャッシュのパス算出に使うため、シーン読み込みのたびに更新する
     if (auto it = system->children.find("PathfindingService"); it != system->children.end()) {
-        static_cast<PathfindingService*>(it->second.get())->ScenePath = scenePath;
+        static_cast<PathfindingService*>(it->second.get())->ScenePath = staged.scenePath;
     }
 
     if (system->children.find("ChatService") == system->children.end()) {
         system->addChild(std::make_shared<ChatService>());
     }
 
+    // staged Userをlive Userへ置換し、既定サービスも揃った最終ツリーで参照を張り直す。
+    SceneLoader::resolveConstraintRefs(system.get());
+
     applyAppIcon(window, system.get());
     bindStandardGlobals(engine, workspace, system, user);
     if (auto it = system->children.find("ChatService"); it != system->children.end())
         engine.setGlobalInstance("ChatService", it->second);
 
-    return Bound{ workspace, workspaces, metadata, scenePath, loadResult.status, loadResult.message };
+    return Bound{ workspace, workspaces, staged.metadata, staged.scenePath,
+                  SceneLoader::LoadStatus::Success, {} };
 }
 
 } // namespace SceneRuntime

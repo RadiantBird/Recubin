@@ -144,72 +144,6 @@ static void removeWorkspacesFromSystem(
     }
 }
 
-// シーンの再読込前に System 配下を全てリセットする（Users コンテナと、その中の user のみ例外）。
-// Workspace 以外にも PathfindingService/StarterCharacter 等が System 直下に
-// 残り続けると、再読込で同名の新規インスタンスが追加された際にInstance::setParent
-// のキー衝突（残存コピー・警告連発の原因）を招くため、Users(user)以外は無条件で除去する。
-// user 自身は System/Users 配下で使い回すが、その子（Inventory等）もシーンYAMLから毎回
-// 作り直されるため、同じ理由で user の子も合わせてクリアする（残すとInventoryが同様に
-// キー衝突→増殖する）。Users コンテナ自体も user 同様使い回す（毎回作り直すと
-// user->Parent の張替えが不要に発生するため）。
-static void resetSystemForReload(
-    const std::shared_ptr<System>& system,
-    const std::shared_ptr<User>& user)
-{
-    if (!system) return;
-
-    // System/UserはPlay/Stop・シーンLoadを跨いで同一インスタンスが使い回されるため、
-    // ScriptがConnect()したコールバックをここで明示的に切断しないと、次回Play/Load時に
-    // 古いコールバックが残ったまま発火し続けてしまう(LuaState自体もPlay/Stopで
-    // 再生成されないため、disconnectしない限りLuaレジストリ参照が永遠に残る)。
-    // 呼び出し元(Stop遷移・Loadボタン)の両方がこの関数を経由するため、ここに集約する。
-    if (system->Heartbeat) system->Heartbeat->disconnectAll();
-    if (user) {
-        if (user->CharacterAdded) user->CharacterAdded->disconnectAll();
-        if (user->Input) {
-            if (user->Input->Pressed)  user->Input->Pressed->disconnectAll();
-            if (user->Input->Released) user->Input->Released->disconnectAll();
-        }
-    }
-
-    std::shared_ptr<Instance> usersContainer;
-    for (auto& [name, child] : system->getChildren()) {
-        if (child && child->IsA("Users")) { usersContainer = child; break; }
-    }
-
-    std::vector<std::string> namesToRemove;
-    for (auto& [name, child] : system->getChildren()) {
-        if (child.get() == usersContainer.get()) continue;
-        namesToRemove.push_back(name);
-    }
-    for (auto& name : namesToRemove) {
-        system->removeChild(name);
-    }
-
-    if (usersContainer) {
-        std::vector<std::string> usersChildNames;
-        for (auto& [name, child] : usersContainer->getChildren()) {
-            if (child.get() == user.get()) continue;
-            usersChildNames.push_back(name);
-        }
-        for (auto& name : usersChildNames) {
-            usersContainer->removeChild(name);
-        }
-    }
-
-    if (user) {
-        std::vector<std::string> userChildNames;
-        for (auto& [name, child] : user->getChildren()) {
-            userChildNames.push_back(name);
-        }
-        for (auto& name : userChildNames) {
-            user->removeChild(name);
-        }
-        // Inventory本体も再利用せず、前回の子とSlotsの強参照をまとめて破棄する。
-        user->resetInventory();
-    }
-}
-
 // シーン破棄の前に Terrain の streamer を明示的に解放する。
 // Workspace のメンバ(m_ownedPhysics)は基底の children(Terrain) より先に破棄されるため、
 // Workspace 破棄に任せると ~TerrainStreamer が解放済み Physics を参照してクラッシュする。
@@ -706,14 +640,19 @@ int main(int argc, char* argv[]) {
     glfwGetCursorPos(window, &previousCursorX, &previousCursorY);
     glfwGetFramebufferSize(window, &previousFramebufferWidth, &previousFramebufferHeight);
 
-    auto initNewScene = [&](const std::string& path, bool isDirty) {
-        auto bound = SceneRuntime::loadAndBind(path, system, user, *luauEngine, window);
+    auto installBoundScene = [&](SceneRuntime::Bound bound, bool isDirty) {
         workspace  = bound.workspace;
         workspaces = bound.workspaces;
         ed->setSceneMetadata(bound.metadata);
         ed->setWorkspace(workspace.get());
         if (isDirty) ed->markDirty();
-        workspace->initPhysics();
+        if (workspace) workspace->initPhysics();
+    };
+
+    auto initNewScene = [&](const std::string& path, bool isDirty) {
+        installBoundScene(
+            SceneRuntime::loadAndBind(path, system, user, *luauEngine, window),
+            isDirty);
     };
 
     auto restorePlaySnapshot = [&] {
@@ -731,7 +670,6 @@ int main(int argc, char* argv[]) {
         luauEngine->cancelAllTasks();
         resetTerrainStreamers(workspaces);
         clearWorkspacePhysics(workspaces);
-        resetSystemForReload(system, user);
         initNewScene(snapshotPath, snapshotDirty);
         if (ed) ed->setSceneMetadata(originalSceneMetadata);
     };
@@ -968,14 +906,13 @@ int main(int argc, char* argv[]) {
         if (ed && (ed->pendingNewScene || !ed->pendingLoadPath.empty()) && ed->isEditMode()) {
             bool isNewScene = ed->pendingNewScene;
             std::string loadPath = isNewScene ? std::string() : ed->pendingLoadPath;
-            if (!isNewScene && !loadPath.empty()) {
-                const auto preflight = SceneLoader::loadSceneResult(loadPath);
-                if (!preflight && preflight.status != SceneLoader::LoadStatus::NotFound) {
-                    ed->showSceneLoadError(preflight.message.empty() ? "Scene format is not supported" : preflight.message);
-                    ed->pendingNewScene = false;
-                    ed->pendingLoadPath.clear();
-                    continue;
-                }
+            auto staged = SceneRuntime::stageSceneLoad(loadPath, system, user);
+            if (!staged) {
+                ed->showSceneLoadError(staged.message.empty()
+                    ? "Scene could not be loaded" : staged.message);
+                ed->pendingNewScene = false;
+                ed->pendingLoadPath.clear();
+                continue;
             }
             ed->pendingNewScene = false;
             ed->pendingLoadPath.clear();
@@ -992,9 +929,9 @@ int main(int argc, char* argv[]) {
             luauEngine->cancelAllTasks();
             resetTerrainStreamers(workspaces); // 物理が生きているうちにTerrainを解放
             clearWorkspacePhysics(workspaces);
-            resetSystemForReload(system, user);
 
-            initNewScene(loadPath, false);
+            installBoundScene(SceneRuntime::commitAndBind(
+                std::move(staged), system, user, *luauEngine, window), false);
             ed->evaluateSceneMigration();
             SceneRuntime::applyAppIcon(window, system.get());
         }

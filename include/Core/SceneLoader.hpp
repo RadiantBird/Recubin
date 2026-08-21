@@ -10,6 +10,14 @@
  */
 class SceneLoader {
 public:
+    struct LoadContext {
+        std::unordered_map<std::string, std::shared_ptr<Instance>> mergeInstances;
+
+        void registerMergeInstance(const std::string& className,
+                                   std::shared_ptr<Instance> instance);
+        std::shared_ptr<Instance> findMergeInstance(const std::string& className) const;
+    };
+
     struct SceneDocumentMetadata {
         int version = 0;
         int characterAnimationBindingsVersion = 0;
@@ -35,17 +43,17 @@ public:
      * @return ロードされたルートオブジェクト（通常はWorkspace）
      */
     static std::shared_ptr<Instance> loadScene(const std::string& filePath);
+    static std::shared_ptr<Instance> loadScene(const std::string& filePath,
+                                               const LoadContext& context);
     // Result-bearing API used by the editor. loadScene remains a compatibility wrapper.
     static LoadResult loadSceneResult(const std::string& filePath);
+    static LoadResult loadSceneResult(const std::string& filePath,
+                                      const LoadContext& context);
 
     static void saveScene(Instance* root, const std::string& filePath);
     static bool saveSceneResult(Instance* root, const std::string& filePath,
                                 const SceneDocumentMetadata& metadata = {});
     static void resolveConstraintRefs(Instance* root);
-
-    // シングルトン登録: YAML に同名 className が現れたとき既存インスタンスへマージする
-    static void registerSingleton(const std::string& className, std::shared_ptr<Instance> instance);
-    static void clearSingletons();
 
     /**
      * @brief ClassName文字列から適切なInstance派生クラスを生成する
@@ -53,11 +61,11 @@ public:
     static std::shared_ptr<Instance> createInstance(const std::string& className);
 
 private:
-    static std::unordered_map<std::string, std::shared_ptr<Instance>> s_singletons;
     /**
      * @brief YAMLノードを再帰的に解析してInstanceを生成する
      */
-    static std::shared_ptr<Instance> parseInstance(const YAML::Node& node);
+    static std::shared_ptr<Instance> parseInstance(const YAML::Node& node,
+                                                   const LoadContext& context);
 
     static void saveNode(YAML::Emitter& out, Instance* inst);
 };

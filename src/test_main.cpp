@@ -52,6 +52,7 @@
 #include <Editor/EditorManager.hpp>
 #include <Editor/ViewportGeometry.hpp>
 #include <Editor/ViewportSceneQueries.hpp>
+#include <Instances/ObjectValue.hpp>
 #include <Network/ByteStream.hpp>
 #include <Network/NatProtocol.hpp>
 #include <Network/NetworkManager.hpp>
@@ -6898,6 +6899,242 @@ static int runAnimationClipRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runSceneLoadTransactionRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[SceneLoadTransaction] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto writeScene = [&](const std::filesystem::path& path,
+                          const std::string& yaml) {
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        out << yaml;
+        return static_cast<bool>(out);
+    };
+
+    const auto suffix = std::to_string(
+        std::chrono::steady_clock::now().time_since_epoch().count());
+    const auto scenePath = std::filesystem::temp_directory_path() /
+        ("recubin_scene_transaction_" + suffix + ".yaml");
+    const auto invalidPath = std::filesystem::temp_directory_path() /
+        ("recubin_scene_transaction_invalid_" + suffix + ".yaml");
+    const auto missingUserPath = std::filesystem::temp_directory_path() /
+        ("recubin_scene_transaction_missing_user_" + suffix + ".yaml");
+    const auto contextOnlyPath = std::filesystem::temp_directory_path() /
+        ("recubin_scene_transaction_context_only_" + suffix + ".yaml");
+
+    expect(writeScene(scenePath,
+        "recubin:\n"
+        "  type: scene\n"
+        "  version: 0\n"
+        "Root:\n"
+        "  ClassName: System\n"
+        "  Properties:\n"
+        "    MaxClonesPerFrame: 77\n"
+        "    BaseResolution: [1280, 720]\n"
+        "    UseNetwork: true\n"
+        "  Children:\n"
+        "    - ClassName: Users\n"
+        "      Name: Users\n"
+        "      Children:\n"
+        "        - ClassName: User\n"
+        "          Name: User\n"
+        "          Properties:\n"
+        "            ControlMode: Program\n"
+        "            Speed: 0.75\n"
+        "            RotationSpeed: 2.5\n"
+        "            MouseRotationSpeed: 0.35\n"
+        "            CameraDistance: 14.0\n"
+        "            ZoomSpeed: 0.25\n"
+        "            MouseZoomSpeed: 1.5\n"
+        "          Children:\n"
+        "            - ClassName: Folder\n"
+        "              Name: Inventory\n"
+        "              Children:\n"
+        "                - ClassName: Tool\n"
+        "                  Name: Hammer\n"
+        "    - ClassName: Workspace\n"
+        "      Name: LoadedWorkspace\n"
+        "      Children:\n"
+        "        - ClassName: ObjectValue\n"
+        "          Name: UserReference\n"
+        "          Properties:\n"
+        "            Value: 'Users\\User'\n"),
+        "transaction scene fixture is written");
+    expect(writeScene(invalidPath,
+        "Root:\n"
+        "  ClassName: System\n"
+        "  Children:\n"
+        "    - ClassName: Users\n"
+        "      Children:\n"
+        "        - ClassName: User\n"
+        "          Properties:\n"
+        "            Speed: [invalid]\n"),
+        "invalid User property fixture is written");
+    expect(writeScene(missingUserPath,
+        "Root:\n"
+        "  ClassName: System\n"
+        "  Children:\n"
+        "    - ClassName: Workspace\n"
+        "      Name: EmptyWorkspace\n"),
+        "missing User/Inventory fixture is written");
+    expect(writeScene(contextOnlyPath,
+        "Root:\n"
+        "  ClassName: System\n"
+        "  Properties:\n"
+        "    MaxClonesPerFrame: 3\n"),
+        "LoadContext isolation fixture is written");
+
+    auto liveSystem = std::make_shared<System>();
+    liveSystem->MaxClonesPerFrame = 321;
+    liveSystem->BaseResolution = {1600.0f, 900.0f};
+    auto oldWorkspace = std::make_shared<Workspace>();
+    oldWorkspace->Name = "OldWorkspace";
+    liveSystem->addChild(oldWorkspace);
+    auto liveUsers = std::make_shared<Users>();
+    liveSystem->addChild(liveUsers);
+    auto liveUser = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    liveUser->speed = 0.5f;
+    liveUser->cameraDistance = 9.0f;
+    liveUser->initializeInventory();
+    auto oldTool = std::make_shared<Tool>("OldTool");
+    liveUser->Inventory->addChild(oldTool);
+    liveUsers->addChild(liveUser);
+
+    System* const liveSystemAddress = liveSystem.get();
+    User* const liveUserAddress = liveUser.get();
+    UserInput* const inputAddress = liveUser->Input.get();
+    RCBNScriptSignal* const characterAddedAddress = liveUser->CharacterAdded.get();
+    camera* const cameraAddress = &liveUser->current_camera;
+    const camera cameraBefore = liveUser->current_camera;
+
+    auto staged = SceneRuntime::stageSceneLoad(
+        scenePath.string(), liveSystem, liveUser);
+    expect(static_cast<bool>(staged),
+           "User/Inventory/Tool scene stages successfully");
+    expect(staged.system &&
+               staged.system->getChildByPath("Users\\User\\Inventory\\Hammer"),
+           "staged tree retains User/Inventory/Tool without skipping User");
+    Instance* stagedReferenceNode = staged.system
+        ? staged.system->getChildByPath("LoadedWorkspace\\UserReference")
+        : nullptr;
+    auto stagedReference = stagedReferenceNode
+        ? std::dynamic_pointer_cast<ObjectValue>(stagedReferenceNode->shared_from_this())
+        : nullptr;
+    expect(stagedReference && stagedReference->getTarget() == staged.user,
+           "staged ObjectValue resolves Users\\User to the staged User");
+    expect(liveSystem.get() == liveSystemAddress &&
+               liveUser.get() == liveUserAddress &&
+               liveSystem->getChild("OldWorkspace") == oldWorkspace.get() &&
+               liveUser->Inventory->getChild("OldTool") == oldTool.get() &&
+               liveSystem->MaxClonesPerFrame == 321 && liveUser->speed == 0.5f,
+           "staging leaves the live tree and scalar values unchanged");
+    expect(User::getInstance() == liveUser.get(),
+           "remote staged User does not replace the local User singleton");
+
+    const auto invalid = SceneRuntime::stageSceneLoad(
+        invalidPath.string(), liveSystem, liveUser);
+    expect(!invalid && invalid.status == SceneLoader::LoadStatus::YamlError,
+           "invalid User property fails staging with YamlError");
+    expect(liveSystem->getChild("OldWorkspace") == oldWorkspace.get() &&
+               liveUser->Inventory->getChild("OldTool") == oldTool.get(),
+           "failed staging preserves the current live scene");
+
+    LuauEngine engine;
+    const auto bound = SceneRuntime::commitAndBind(
+        std::move(staged), liveSystem, liveUser, engine, nullptr);
+    const auto committedUsersIt = liveSystem->children.find("Users");
+    auto committedUsers = committedUsersIt != liveSystem->children.end()
+        ? std::dynamic_pointer_cast<Users>(committedUsersIt->second) : nullptr;
+    expect(bound.workspace && bound.workspace->Name == "LoadedWorkspace" &&
+               liveSystem->getChild("OldWorkspace") == nullptr,
+           "commit replaces System children with the staged scene");
+    expect(liveSystem.get() == liveSystemAddress && liveUser.get() == liveUserAddress &&
+               committedUsers && committedUsers->getChild("User") == liveUser.get(),
+           "commit preserves live System/User identities and replaces staged User");
+    expect(stagedReference &&
+               liveSystem->getChildByPath("LoadedWorkspace\\UserReference") ==
+                   stagedReference.get() &&
+               stagedReference->getTarget() == liveUser,
+           "commit keeps the ObjectValue instance and re-resolves it to the live User");
+    expect(liveUser->Input.get() == inputAddress &&
+               liveUser->CharacterAdded.get() == characterAddedAddress &&
+               &liveUser->current_camera == cameraAddress &&
+               liveUser->current_camera.Position.x == cameraBefore.Position.x &&
+               liveUser->current_camera.Position.y == cameraBefore.Position.y &&
+               liveUser->current_camera.Position.z == cameraBefore.Position.z,
+           "commit preserves input, signals, and camera runtime state");
+    expect(liveSystem->MaxClonesPerFrame == 77 &&
+               liveSystem->BaseResolution == Vector2(1280.0f, 720.0f) &&
+               liveSystem->UseNetwork &&
+               liveUser->controlMode == User::ControlMode::Program &&
+               liveUser->speed == 0.75f && liveUser->cameraDistance == 14.0f,
+           "commit applies persisted System/User scalar values");
+    expect(liveUser->Inventory && liveUser->Inventory->getChild("Hammer") &&
+               liveUser->getToolInSlot(0) && liveUser->getToolInSlot(0)->Name == "Hammer",
+           "commit adopts Inventory and synchronizes staged Tools");
+    expect(liveSystem->getChild("PathfindingService") &&
+               liveSystem->getChild("ChatService"),
+           "commit supplies default runtime services");
+
+    auto missingUserSystem = std::make_shared<System>();
+    auto missingUser = std::make_shared<User>(
+        std::make_unique<NullInputBackend>(), true);
+    auto missingStage = SceneRuntime::stageSceneLoad(
+        missingUserPath.string(), missingUserSystem, missingUser);
+    LuauEngine missingEngine;
+    const auto missingBound = SceneRuntime::commitAndBind(
+        std::move(missingStage), missingUserSystem, missingUser,
+        missingEngine, nullptr);
+    const auto generatedUsersIt = missingUserSystem->children.find("Users");
+    auto generatedUsers = generatedUsersIt != missingUserSystem->children.end()
+        ? std::dynamic_pointer_cast<Users>(generatedUsersIt->second) : nullptr;
+    expect(missingBound.workspace && generatedUsers &&
+               generatedUsers->getChild("User") == missingUser.get() &&
+               missingUser->Inventory &&
+               missingUser->Inventory->Parent.lock().get() == missingUser.get(),
+           "missing User and Inventory are supplied during commit");
+
+    const auto notFoundPath = std::filesystem::temp_directory_path() /
+        ("recubin_scene_transaction_not_found_" + suffix + ".yaml");
+    const auto notFound = SceneRuntime::stageSceneLoad(
+        notFoundPath.string(), liveSystem, liveUser);
+    expect(!notFound && notFound.status == SceneLoader::LoadStatus::NotFound,
+           "non-empty missing path is a staging failure");
+
+    auto emptySystem = std::make_shared<System>();
+    auto emptyUser = std::make_shared<User>(
+        std::make_unique<NullInputBackend>(), true);
+    auto emptyStage = SceneRuntime::stageSceneLoad({}, emptySystem, emptyUser);
+    LuauEngine emptyEngine;
+    const auto emptyBound = SceneRuntime::commitAndBind(
+        std::move(emptyStage), emptySystem, emptyUser, emptyEngine, nullptr);
+    expect(emptyBound.workspace && emptyBound.workspace->getChild("Lighting"),
+           "empty path commits a new scene with default Workspace and Lighting");
+
+    auto mappedSystem = std::make_shared<System>();
+    SceneLoader::LoadContext firstContext;
+    firstContext.registerMergeInstance("System", mappedSystem);
+    const auto contextLoad = SceneLoader::loadSceneResult(
+        contextOnlyPath.string(), firstContext);
+    const auto contextFreeLoad = SceneLoader::loadSceneResult(contextOnlyPath.string());
+    expect(contextLoad.root == mappedSystem && mappedSystem->MaxClonesPerFrame == 3,
+           "LoadContext merges into its explicitly registered System");
+    expect(contextFreeLoad && contextFreeLoad.root != mappedSystem,
+           "LoadContext registrations do not leak into later loads");
+
+    for (const auto& path : {scenePath, invalidPath, missingUserPath, contextOnlyPath}) {
+        std::error_code error;
+        std::filesystem::remove(path, error);
+        expect(!error, "temporary fixture is removed: " + path.filename().string());
+    }
+
+    std::cout << "[SceneLoadTransaction] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 static int runSceneHierarchyGroupingRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -6961,6 +7198,8 @@ int main(int argc, char* argv[]) {
     const bool soundStretchRegression = argc > 1 && std::string_view(argv[1]) == "--sound-stretch-regression";
     const bool natCodecRegression = argc > 1 && std::string_view(argv[1]) == "--nat-codec-regression";
     const bool animationClipRegression = argc > 1 && std::string_view(argv[1]) == "--animation-clip-regression";
+    const bool sceneLoadTransactionRegression =
+        argc > 1 && std::string_view(argv[1]) == "--scene-load-transaction-regression";
     const bool groupingRegression = argc > 1 && std::string_view(argv[1]) == "--scene-hierarchy-grouping-regression";
     bool physicsMigrationRegression = false;
     bool physicsLifecycleRegression = false;
@@ -7081,6 +7320,7 @@ int main(int argc, char* argv[]) {
     if (humanoidPartRefRegression) return runHumanoidPartRefRegression();
     if (soundStretchRegression) return runSoundStretchRegression();
     if (natCodecRegression) return runNatCodecRegression();
+    if (sceneLoadTransactionRegression) return runSceneLoadTransactionRegression();
     if (animationClipRegression) return runAnimationClipRegression();
     const char* sceneArgument = findSceneArgument(argc, argv, weldRegression ? 2 : 1);
     std::string scenePath = sceneArgument
@@ -7124,10 +7364,10 @@ int main(int argc, char* argv[]) {
     system->addChild(workspace);
     workspace->addChild(lighting);
 
-    SceneLoader::registerSingleton("System", system);
-    SceneLoader::registerSingleton("Workspace", workspace);
-    SceneLoader::loadScene(scenePath);
-    SceneLoader::clearSingletons();
+    SceneLoader::LoadContext loadContext;
+    loadContext.registerMergeInstance("System", system);
+    loadContext.registerMergeInstance("Workspace", workspace);
+    SceneLoader::loadScene(scenePath, loadContext);
 
     // 古い形式のYAML対応: System直下のLightingを見つけたら、WorkspaceのLightingにプロパティを移して削除
     for (auto it = system->children.begin(); it != system->children.end(); ) {

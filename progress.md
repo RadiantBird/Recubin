@@ -152,3 +152,18 @@
   全体回帰は既知baselineと同じ140 passed / 3 failed（Pathfinder 1件、Sound 2件）で新規失敗なし。
 - 未確認: PropertiesでのWalk／Jump／Equip差し替え、Restore Default Animations、Animation Editor
   import/export、Play／Local ServerのGUI手動スモーク。
+
+## 2026-08-21: Sceneロードのトランザクション化
+
+- `SceneLoader`のプロセス全体singleton表を廃止し、呼び出し単位の`LoadContext`へ置き換えた。
+- `SceneRuntime`へ隔離System/Userを使うStageと、live System/Userのidentity・入力・Signal・Cameraを
+  保持して子ツリーと保存対象値だけを移植するCommitを追加した。
+- EditorのOpen SceneはStage成功後にだけUndo、Terrain、Physicsを解放してCommitするため、
+  `User`を未知クラスとして事前検査でスキップせず、NotFoundやYAML変換失敗でも現在シーンを維持する。
+- `--scene-load-transaction-regression`を追加し、StageのUser/Inventory/Tool構築、live不変、失敗保持、
+  Commit identity保持、既定補完、NotFound、LoadContext非漏洩を検証対象にした。
+- PhysicalFileInstanceRegistry化に関する既存の未コミット変更は保持して統合した。
+- 検証: ReleaseのRecubin／RecubinEngine／RecubinTestの3ターゲットはbuild成功。
+  `--scene-load-transaction-regression`はfailures=0、`--inventory-tool-sync-regression`はPASS、
+  `--animation-clip-regression`はfailures=0。全体回帰は既知baselineと同じ140 passed / 3 failedで、
+  新規失敗はない。GUIはユーザーからアプリ動作良好の報告あり。

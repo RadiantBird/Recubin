@@ -73,14 +73,16 @@
 #include <windows26.h>
 #endif
 
-std::unordered_map<std::string, std::shared_ptr<Instance>> SceneLoader::s_singletons;
-
-void SceneLoader::registerSingleton(const std::string& className, std::shared_ptr<Instance> instance) {
-    s_singletons[className] = std::move(instance);
+void SceneLoader::LoadContext::registerMergeInstance(
+    const std::string& className,
+    std::shared_ptr<Instance> instance) {
+    if (instance) mergeInstances[className] = std::move(instance);
 }
 
-void SceneLoader::clearSingletons() {
-    s_singletons.clear();
+std::shared_ptr<Instance> SceneLoader::LoadContext::findMergeInstance(
+    const std::string& className) const {
+    const auto it = mergeInstances.find(className);
+    return it != mergeInstances.end() ? it->second : nullptr;
 }
 
 // YAML -> Vector3 変換
@@ -110,6 +112,12 @@ namespace YAML {
 }
 
 SceneLoader::LoadResult SceneLoader::loadSceneResult(const std::string& filePath) {
+    return loadSceneResult(filePath, LoadContext{});
+}
+
+SceneLoader::LoadResult SceneLoader::loadSceneResult(
+    const std::string& filePath,
+    const LoadContext& context) {
     LoadResult result;
     try {
         std::string yamlContent = FileLoader::readText(filePath);
@@ -156,11 +164,10 @@ SceneLoader::LoadResult SceneLoader::loadSceneResult(const std::string& filePath
         }
         YAML::Node root = config["Root"];
 
-        // 非シングルトンの root 直下インスタンスを受け取るコンテナを決定する。
-        // System シングルトンがある場合はそこへ直接追加し、ない場合は bag を返す。
+        // Context対象外のroot直下インスタンスを受け取るコンテナを決定する。
+        // Systemマージ対象がある場合はそこへ直接追加し、ない場合はbagを返す。
         auto getOrphanParent = [&]() -> std::shared_ptr<Instance> {
-            auto it = s_singletons.find("System");
-            if (it != s_singletons.end()) return it->second;
+            if (auto system = context.findMergeInstance("System")) return system;
             return std::make_shared<Instance>("__root__");
         };
 
@@ -169,15 +176,16 @@ SceneLoader::LoadResult SceneLoader::loadSceneResult(const std::string& filePath
             auto bag = getOrphanParent();
             for (const auto& itemNode : root) {
                 std::string cn = itemNode["ClassName"] ? itemNode["ClassName"].as<std::string>() : "";
-                auto inst = parseInstance(itemNode);
-                if (inst && s_singletons.count(cn) == 0) {
+                auto inst = parseInstance(itemNode, context);
+                if (inst && !context.findMergeInstance(cn)) {
                     bag->addChild(inst);
                 }
             }
             resolveConstraintRefs(bag.get());
-            // bag が System シングルトン自身の場合、同じツリーを二重解決して警告も二重に出るためスキップ
-            for (auto& [n, sing] : s_singletons)
-                if (sing != bag) resolveConstraintRefs(sing.get());
+            for (const auto& [name, mergeInstance] : context.mergeInstances) {
+                (void)name;
+                if (mergeInstance != bag) resolveConstraintRefs(mergeInstance.get());
+            }
             result.root = bag;
             return result;
         }
@@ -193,24 +201,27 @@ SceneLoader::LoadResult SceneLoader::loadSceneResult(const std::string& filePath
             }
             for (const auto& childNode : root["Children"]) {
                 std::string cn = childNode["ClassName"] ? childNode["ClassName"].as<std::string>() : "";
-                auto inst = parseInstance(childNode);
-                // シングルトンはすでに正しい親にいるので addChild で reparent しない
-                if (inst && s_singletons.count(cn) == 0) {
+                auto inst = parseInstance(childNode, context);
+                // Context対象は呼び出し側が所有・配置するため、ここではreparentしない。
+                if (inst && !context.findMergeInstance(cn)) {
                     bag->addChild(inst);
                 }
             }
             resolveConstraintRefs(bag.get());
-            // bag が System シングルトン自身の場合、同じツリーを二重解決して警告も二重に出るためスキップ
-            for (auto& [n, sing] : s_singletons)
-                if (sing != bag) resolveConstraintRefs(sing.get());
+            for (const auto& [name, mergeInstance] : context.mergeInstances) {
+                (void)name;
+                if (mergeInstance != bag) resolveConstraintRefs(mergeInstance.get());
+            }
             result.root = bag;
             return result;
         }
 
-        auto loadedRoot = parseInstance(root);
+        auto loadedRoot = parseInstance(root, context);
         resolveConstraintRefs(loadedRoot.get());
-        for (auto& [n, sing] : s_singletons)
-            if (sing != loadedRoot) resolveConstraintRefs(sing.get());
+        for (const auto& [name, mergeInstance] : context.mergeInstances) {
+            (void)name;
+            if (mergeInstance != loadedRoot) resolveConstraintRefs(mergeInstance.get());
+        }
         result.root = loadedRoot;
         return result;
     } catch (const std::exception& e) {
@@ -225,7 +236,15 @@ std::shared_ptr<Instance> SceneLoader::loadScene(const std::string& filePath) {
     return loadSceneResult(filePath).root;
 }
 
-std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
+std::shared_ptr<Instance> SceneLoader::loadScene(
+    const std::string& filePath,
+    const LoadContext& context) {
+    return loadSceneResult(filePath, context).root;
+}
+
+std::shared_ptr<Instance> SceneLoader::parseInstance(
+    const YAML::Node& node,
+    const LoadContext& context) {
     if (!node["ClassName"]) {
         RCBN_WARN("[SceneLoader] Instance node is missing ClassName — skipped");
         return nullptr;
@@ -233,12 +252,10 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
 
     std::string className = node["ClassName"].as<std::string>();
 
-    // シングルトン登録済みなら既存インスタンスへマージ（新規生成しない）
-    std::shared_ptr<Instance> instance;
-    auto sit = s_singletons.find(className);
-    if (sit != s_singletons.end()) {
-        instance = sit->second;
-    } else {
+    // 呼び出し単位Contextに登録済みなら既存インスタンスへマージする。
+    std::shared_ptr<Instance> instance = context.findMergeInstance(className);
+    const bool isMergeInstance = instance != nullptr;
+    if (!instance) {
         instance = createInstance(className);
         if (!instance) {
             if (className == "Sound" && !AudioService::instance) {
@@ -268,17 +285,17 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(const YAML::Node& node) {
         RCBN_WARN("Legacy Terrain without DataPath uses compatibility path 'terrain'");
     }
 
-    // 名前はシングルトン以外のみ、かつ「プロパティ適用の後」に上書きする。
+    // 名前はContextのマージ対象以外のみ、かつ「プロパティ適用の後」に上書きする。
     // Decal/Texture の setFace() 等は setProperty 内で Name を書き換える（既定名へ）ため、
     // ここで保存名を最終的に当て直さないとユーザー指定名が潰れ、名前参照が壊れる。
-    if (sit == s_singletons.end() && node["Name"]) {
+    if (!isMergeInstance && node["Name"]) {
         instance->Name = node["Name"].as<std::string>();
     }
 
     // 子要素の解析
     if (node["Children"]) {
         for (const auto& childNode : node["Children"]) {
-            std::shared_ptr<Instance> child = parseInstance(childNode);
+            std::shared_ptr<Instance> child = parseInstance(childNode, context);
             if (child) {
                 instance->addChild(child);
             }
