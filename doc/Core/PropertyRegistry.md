@@ -31,6 +31,7 @@
 | `serialize` / `cloneable` / `editable` | `bool` | 各機能への参加可否（既定 true） |
 | `noLuaWrite` / `clampOnLuaWrite` | `bool` | Lua からの書込制御 |
 | `lo` / `hi` / `step` | `float` | エディタースライダー用レンジ |
+| `instanceRefClass` | `string_view` | 非空なら、その `IsA` 型だけを選択可能なInstance参照文字列としてエディターに通知する |
 
 `readOnly()` / `noYaml()` / `noClone()` / `noEditor()` / `omitEmpty()` / `yaml(key)` / `clampLua()` / `luaReadOnly()` で宣言を後置き修飾する。
 
@@ -39,6 +40,7 @@
 | 関数 | 説明 |
 |---|---|
 | `field<M>(name, lo, hi, step)` | メンバポインタ `M` から直接読み書きする通常フィールド |
+| `instanceRefField<M>(name, targetClass)` | `string`メンバをWorkspace相対パスで保持する型制約付きInstance参照として宣言し、`instanceRefClass`へ対象型を設定する |
 | `fieldVia<Field, SetMethod>(name, ...)` | 読みはフィールド直、Lua 書込のみセッターメソッド経由 |
 | `method_prop<Getter, Setter>(name, ...)` | get/set 双方メソッド経由（例: `Transparency`, `Sound.Volume`） |
 | `enumProp<M>(name, names, yamlAsString)` | enum メンバ。Luau 側は文字列で読み書きする |
@@ -70,3 +72,4 @@
 - 各 Instance 派生クラスのコンストラクタ／静的初期化で `registerClass()` を呼びスキーマを登録する
 - `LuauEngine::InitDispatchTable_*` 系が `applyToDispatch()` を呼んで dispatch テーブルへ配線する
 - `SceneLoader` が `loadProperty()` を、保存処理が `saveProperties()` を、`Instance::clone()` 系が `cloneFields()` を利用する
+- Propertiesの共通Instance pickerは`instanceRefClass`を参照し、対象型の`IsA`検証、Workspace相対パス設定、Pick/Clear、Undo/Redoを共通処理する。`ScreenGuiObject.FontFile`のように条件付き表示する欄も、個別UIから同じ共通pickerを呼び出す

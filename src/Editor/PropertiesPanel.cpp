@@ -3,6 +3,7 @@
 #include <Editor/UiHelpers.hpp>
 #include <Editor/Localization.hpp>
 #include <Core/Physics.hpp>
+#include <Core/PhysicalFileInstanceRegistry.hpp>
 #include <Core/User.hpp>
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
@@ -52,6 +53,7 @@
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
 #include <Util/Logger.hpp>
+#include <Util/AssetPath.hpp>
 #include <include/imgui/imgui.h>
 #include <unordered_map>
 #include <string>
@@ -82,14 +84,137 @@ static std::string locId(Loc::LocKey key, const char* idSuffix) {
 // (シーンYAMLの可搬性とPackagerの相対パス同梱を助ける)
 static std::string toProjectRelative(const std::string& absPath) {
     std::error_code ec;
-    std::filesystem::path rel = std::filesystem::relative(absPath, std::filesystem::current_path(), ec);
-    if (ec || rel.empty()) return absPath;
-    std::string s = rel.generic_string();
-    if (s.rfind("..", 0) == 0) return absPath; // プロジェクト外
-    return s;
+    const std::filesystem::path absolute = AssetPath::fromStored(absPath);
+    const std::filesystem::path project = std::filesystem::current_path(ec);
+    if (ec) return AssetPath::toStored(absolute);
+    const std::filesystem::path relative =
+        std::filesystem::relative(absolute, project, ec);
+    if (ec || relative.empty()) return AssetPath::toStored(absolute);
+    const std::string stored = AssetPath::toStored(relative);
+    if (stored == ".." || stored.rfind("../", 0) == 0)
+        return AssetPath::toStored(absolute);
+    return stored;
 }
 
-static void renderSchemaInspector(Instance* inst, const char* className, CommandHistory* history) {
+static const PropertyDesc* findSchemaProperty(std::string_view className,
+                                              std::string_view propertyName) {
+    for (const PropertyDesc* desc : PropertyRegistry::collectSchema(className))
+        if (desc->name == propertyName) return desc;
+    return nullptr;
+}
+
+static void drawPhysicalFileInspector(PhysicalFileInstance* file,
+                                      CommandHistory* history) {
+    if (!file) return;
+    const PhysicalFileInstanceType* type =
+        PhysicalFileInstanceRegistry::find(file->getClassName());
+    const PropertyDesc* pathDesc =
+        findSchemaProperty(file->getClassName(), "Path");
+    if (!type || !pathDesc) return;
+
+    ImGui::SeparatorText(file->getClassName().c_str());
+    ImGui::LabelText("ContentPath", "%s",
+                     file->Path.empty() ? "(none)" : file->Path.c_str());
+    ImGui::PushID(file);
+    if (ImGui::Button(Loc::t(Loc::LocKey::Browse))) {
+        const std::string selected = getPlatform().openFileDialog({{
+            std::string(type->dialogLabel), std::string(type->dialogFilter)}});
+        if (!selected.empty()) {
+            const PropValue before = pathDesc->get(file);
+            const PropValue after = PropValue(toProjectRelative(selected));
+            if (before != after) {
+                if (history) history->execute(std::make_unique<SetPropertyCommand>(
+                    file->shared_from_this(), pathDesc, before, after));
+                else PropertyRegistry::writeValue(file, *pathDesc, after);
+            }
+        }
+    }
+    ImGui::SameLine();
+    const bool hasPath = !file->Path.empty();
+    if (!hasPath) ImGui::BeginDisabled();
+    if (ImGui::Button("Clear")) {
+        const PropValue before = pathDesc->get(file);
+        const PropValue after = PropValue(std::string{});
+        if (history) history->execute(std::make_unique<SetPropertyCommand>(
+            file->shared_from_this(), pathDesc, before, after));
+        else PropertyRegistry::writeValue(file, *pathDesc, after);
+    }
+    if (!hasPath) ImGui::EndDisabled();
+    ImGui::PopID();
+}
+
+static void drawInstanceReferenceField(Instance* owner,
+                                       const PropertyDesc& desc,
+                                       CommandHistory* history,
+                                       PickerState* picker) {
+    if (!owner || desc.instanceRefClass.empty() || !desc.get || !desc.set) return;
+
+    const std::string propertyName(desc.name);
+    const std::string targetClass(desc.instanceRefClass);
+    const std::string current = std::get<std::string>(desc.get(owner));
+    const bool isPickingThis = picker && picker->active &&
+        picker->constraint == owner && picker->prop == propertyName;
+    const bool anyPicking = picker && picker->active;
+    constexpr float BUTTON_WIDTH = 46.0f;
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+
+    ImGui::PushID(&desc);
+    ImGui::TextUnformatted(propertyName.c_str());
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(
+        std::max(1.0f, ImGui::GetContentRegionAvail().x - BUTTON_WIDTH * 2.0f - spacing * 2.0f));
+    char reference[512] = {};
+    std::snprintf(reference, sizeof(reference), "%s", current.c_str());
+    ImGui::InputText("##instance_ref", reference, sizeof(reference),
+                     ImGuiInputTextFlags_ReadOnly);
+    ImGui::SameLine();
+
+    if (isPickingThis) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9f, 0.4f, 0.1f, 1.0f));
+        if (ImGui::Button("Cancel##pick", ImVec2(BUTTON_WIDTH, 0)))
+            picker->active = false;
+        ImGui::PopStyleColor();
+    } else {
+        if (anyPicking) ImGui::BeginDisabled();
+        if (ImGui::Button("Pick##instance", ImVec2(BUTTON_WIDTH, 0)) && picker) {
+            picker->active = true;
+            picker->pickAttachment = false;
+            picker->pickAnyInstance = false;
+            picker->pickClassName = targetClass;
+            picker->prop = propertyName;
+            picker->constraint = owner;
+            const std::weak_ptr<Instance> weakOwner = owner->shared_from_this();
+            const PropertyDesc* property = &desc;
+            picker->onPick = [weakOwner, property, targetClass, history](
+                std::shared_ptr<Instance> picked) {
+                auto target = weakOwner.lock();
+                if (!target || !picked || !picked->IsA(targetClass)) return;
+                const PropValue before = property->get(target.get());
+                const PropValue after = PropValue(picked->getWorkspaceRelativePath());
+                if (before == after) return;
+                if (history) history->execute(std::make_unique<SetPropertyCommand>(
+                    target, property, before, after));
+                else PropertyRegistry::writeValue(target.get(), *property, after);
+            };
+        }
+        if (anyPicking) ImGui::EndDisabled();
+    }
+
+    ImGui::SameLine();
+    if (anyPicking || current.empty()) ImGui::BeginDisabled();
+    if (ImGui::Button("Clear##instance", ImVec2(BUTTON_WIDTH, 0))) {
+        const PropValue before = desc.get(owner);
+        const PropValue after = PropValue(std::string{});
+        if (history) history->execute(std::make_unique<SetPropertyCommand>(
+            owner->shared_from_this(), &desc, before, after));
+        else PropertyRegistry::writeValue(owner, desc, after);
+    }
+    if (anyPicking || current.empty()) ImGui::EndDisabled();
+    ImGui::PopID();
+}
+
+static void renderSchemaInspector(Instance* inst, const char* className,
+                                  CommandHistory* history, PickerState* picker) {
     static PropValue s_before;  // 編集開始時の値（同時編集は1つなので単一でよい）
     // own-only（既存の per-level エディターブロック構造を保つ。基底は各 IsA ブロックで描画）
     for (const auto& d : PropertyRegistry::schemaFor(className)) {
@@ -100,6 +225,10 @@ static void renderSchemaInspector(Instance* inst, const char* className, Command
         if (std::string_view(className) == "Humanoid" &&
             (d.name == "WalkAnimation" || d.name == "JumpAnimation" ||
              d.name == "EquipAnimation")) continue;
+        if (!d.instanceRefClass.empty()) {
+            drawInstanceReferenceField(inst, d, history, picker);
+            continue;
+        }
         const bool readOnly = !d.set;
         std::string label(d.name);
         // liveSet があればドラッグ中はそちらを使う（軽量反映）。無ければ set をそのまま使う
@@ -461,70 +590,11 @@ static void collectAnimations(Instance* node, std::vector<std::shared_ptr<Animat
     }
 }
 
-static const PropertyDesc* screenGuiFontFileProperty() {
-    for (const auto& desc : PropertyRegistry::schemaFor("ScreenGuiObject")) {
-        if (desc.name == "FontFile") return &desc;
-    }
-    return nullptr;
-}
-
 static const PropertyDesc* screenGuiFontProperty() {
     for (const auto& desc : PropertyRegistry::schemaFor("ScreenGuiObject")) {
         if (desc.name == "Font") return &desc;
     }
     return nullptr;
-}
-
-static void drawFontFileReference(ScreenGuiObject* gui,
-                                  CommandHistory* history,
-                                  PickerState* picker) {
-    if (!gui) return;
-
-    bool isPickingThis = picker && picker->active && picker->constraint == gui
-                      && picker->prop == "FontFile";
-    bool anyPicking = picker && picker->active;
-    const float buttonWidth = 46.0f;
-    const float spacing = ImGui::GetStyle().ItemSpacing.x;
-
-    ImGui::TextUnformatted("FontFile");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - buttonWidth - spacing);
-    char reference[512] = {};
-    std::snprintf(reference, sizeof(reference), "%s", gui->FontFile.c_str());
-    ImGui::InputText("##fontfile_ref", reference, sizeof(reference),
-                     ImGuiInputTextFlags_ReadOnly);
-    ImGui::SameLine();
-
-    if (isPickingThis) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9f, 0.4f, 0.1f, 1.0f));
-        if (ImGui::Button("Cancel##fontfile_pick", ImVec2(buttonWidth, 0)))
-            picker->active = false;
-        ImGui::PopStyleColor();
-    } else {
-        if (anyPicking) ImGui::BeginDisabled();
-        if (ImGui::Button("Pick##fontfile", ImVec2(buttonWidth, 0)) && picker) {
-            picker->active = true;
-            picker->pickAttachment = false;
-            picker->pickAnyInstance = false;
-            picker->pickClassName = "FontFile";
-            picker->prop = "FontFile";
-            picker->constraint = gui;
-            picker->onPick = [gui, history](std::shared_ptr<Instance> picked) {
-                const PropertyDesc* desc = screenGuiFontFileProperty();
-                if (!desc || !picked || picked->getClassName() != "FontFile") return;
-                const std::string before = gui->FontFile;
-                const std::string after = picked->getWorkspaceRelativePath();
-                if (before == after) return;
-                const auto target = gui->shared_from_this();
-                const PropValue oldValue = desc->get(gui);
-                const PropValue newValue = PropValue(after);
-                if (history) history->execute(std::make_unique<SetPropertyCommand>(
-                    target, desc, oldValue, newValue));
-                else PropertyRegistry::writeValue(gui, *desc, newValue);
-            };
-        }
-        if (anyPicking) ImGui::EndDisabled();
-    }
 }
 
 static void drawSystemFontSelection(ScreenGuiObject* gui, CommandHistory* history) {
@@ -557,8 +627,14 @@ static void drawFontSelection(ScreenGuiObject* gui,
                               CommandHistory* history,
                               PickerState* picker) {
     if (!gui) return;
-    if (gui->UseFontFile) drawFontFileReference(gui, history, picker);
-    else drawSystemFontSelection(gui, history);
+    if (gui->UseFontFile) {
+        for (const auto& desc : PropertyRegistry::schemaFor("ScreenGuiObject")) {
+            if (desc.name == "FontFile") {
+                drawInstanceReferenceField(gui, desc, history, picker);
+                break;
+            }
+        }
+    } else drawSystemFontSelection(gui, history);
 }
 
 static void drawHumanoidAnimationReference(const char* label,
@@ -1161,7 +1237,7 @@ void PropertiesPanel::onRender() {
 
     // ---- BaseCube (Color / Anchored / CanCollide / Material、スキーマ駆動) ----
     if (inst->IsA("BaseCube")) {
-        renderSchemaInspector(inst, "BaseCube", m_history);
+        renderSchemaInspector(inst, "BaseCube", m_history, m_picker);
     }
 
     // ---- MeshCube ----
@@ -1208,30 +1284,24 @@ void PropertiesPanel::onRender() {
     // ---- LiquidCube（Density、スキーマ駆動） ----
     if (inst->getClassName() == "LiquidCube") {
         ImGui::SeparatorText("LiquidCube");
-        renderSchemaInspector(inst, "LiquidCube", m_history);
+        renderSchemaInspector(inst, "LiquidCube", m_history, m_picker);
     }
     if (inst->getClassName() == "SpawnLocation") {
         ImGui::SeparatorText("SpawnLocation");
-        renderSchemaInspector(inst, "SpawnLocation", m_history);
+        renderSchemaInspector(inst, "SpawnLocation", m_history, m_picker);
     }
 
     // ---- Sun（Angle、スキーマ駆動） ----
     if (inst->getClassName() == "Sun") {
         ImGui::SeparatorText("Sun");
-        renderSchemaInspector(inst, "Sun", m_history);
+        renderSchemaInspector(inst, "Sun", m_history, m_picker);
+    }
+
+    if (inst->IsA("PhysicalFileInstance")) {
+        drawPhysicalFileInspector(static_cast<PhysicalFileInstance*>(inst), m_history);
     }
 
     // ---- Sound ----
-    if (inst->getClassName() == "FileRef") {
-        FileRef* fr = static_cast<FileRef*>(inst);
-        ImGui::SeparatorText("FileRef");
-        ImGui::LabelText("Path", "%s", fr->Path.c_str());
-        if (ImGui::Button(locId(Loc::LocKey::Browse, "##fileref").c_str())) {
-            std::string path = getPlatform().openFileDialog({{"All files (*.*)", "*.*"}});
-            if (!path.empty()) fr->Path = path;
-        }
-    }
-
     if (inst->getClassName() == "Sound") {
         Sound* snd = static_cast<Sound*>(inst);
         auto sndSp = std::static_pointer_cast<Sound>(inst->shared_from_this());
@@ -1546,7 +1616,7 @@ void PropertiesPanel::onRender() {
 
         // BaseResolutionは安全マージンではないため、Safety Limits欄の外（上）に表示する。
         ImGui::SeparatorText("System");
-        renderSchemaInspector(inst, "System", m_history);
+        renderSchemaInspector(inst, "System", m_history, m_picker);
 
         ImGui::SeparatorText("System (Safety Limits)");
 
@@ -1681,30 +1751,30 @@ void PropertiesPanel::onRender() {
     // ---- Lighting（スキーマ駆動） ----
     if (inst->getClassName() == "Lighting") {
         ImGui::SeparatorText("Lighting");
-        renderSchemaInspector(inst, "Lighting", m_history);
+        renderSchemaInspector(inst, "Lighting", m_history, m_picker);
     }
 
     // ---- LightSource（PointLight / SpotLight、スキーマ駆動） ----
     if (inst->IsA("LightSource")) {
         ImGui::SeparatorText("Light");
-        renderSchemaInspector(inst, "LightSource", m_history);
+        renderSchemaInspector(inst, "LightSource", m_history, m_picker);
     }
     if (inst->getClassName() == "SpotLight") {
         ImGui::SeparatorText("SpotLight");
-        renderSchemaInspector(inst, "SpotLight", m_history);
+        renderSchemaInspector(inst, "SpotLight", m_history, m_picker);
     }
 
     // ---- ParticleEmitter（スキーマ駆動） ----
     if (inst->getClassName() == "ParticleEmitter") {
         ImGui::SeparatorText("ParticleEmitter");
-        renderSchemaInspector(inst, "ParticleEmitter", m_history);
+        renderSchemaInspector(inst, "ParticleEmitter", m_history, m_picker);
     }
 
     // ---- Weather（スキーマ駆動。文字列プロパティ(ClearAmbientPath等)は上のInputTextで直接編集可能だが、
     //      音声ファイル選択の利便性のため参照ボタンも添える） ----
     if (inst->getClassName() == "Weather") {
         ImGui::SeparatorText("Weather");
-        renderSchemaInspector(inst, "Weather", m_history);
+        renderSchemaInspector(inst, "Weather", m_history, m_picker);
 
         auto browseAmbient = [&](const char* propName, const char* idSuffix) {
             std::string btnLabel = std::string(propName) + " " + Loc::t(Loc::LocKey::Browse) + "##" + idSuffix;
@@ -2092,13 +2162,13 @@ void PropertiesPanel::onRender() {
     // ---- Force（スキーマ駆動） ----
     if (inst->getClassName() == "Force") {
         ImGui::SeparatorText("Force");
-        renderSchemaInspector(inst, "Force", m_history);
+        renderSchemaInspector(inst, "Force", m_history, m_picker);
     }
 
     // ---- Humanoid（スキーマ駆動。プロパティ追加はスキーマに1行足すだけ） ----
     if (inst->getClassName() == "Humanoid") {
         ImGui::SeparatorText("Humanoid");
-        renderSchemaInspector(inst, "Humanoid", m_history);
+        renderSchemaInspector(inst, "Humanoid", m_history, m_picker);
         auto humanoid = std::static_pointer_cast<Humanoid>(inst->shared_from_this());
         ImGui::SeparatorText("Animation References");
         drawHumanoidAnimationReference("WalkAnimation", humanoid,
@@ -2115,101 +2185,67 @@ void PropertiesPanel::onRender() {
             std::static_pointer_cast<Animation>(inst->shared_from_this()), m_history);
     }
 
-    if (inst->getClassName() == "FontFile") {
-        auto* fontFile = static_cast<FontFile*>(inst);
-        ImGui::SeparatorText("FontFile");
-        ImGui::LabelText("ContentPath", "%s",
-                         fontFile->Path.empty() ? "(none)" : fontFile->Path.c_str());
-        if (ImGui::Button(locId(Loc::LocKey::Browse, "##fontfile").c_str())) {
-            std::string path = getPlatform().openFileDialog({
-                {"Font (*.ttf;*.otf)", "*.ttf;*.otf"}
-            });
-            if (!path.empty()) {
-                const std::string relativePath = toProjectRelative(path);
-                const std::string before = fontFile->Path;
-                YAML::Node node;
-                node = relativePath;
-                fontFile->setProperty("ContentPath", node);
-                if (m_history && before != fontFile->Path) {
-                    const PropertyDesc* pathDesc = nullptr;
-                    for (const auto& desc : PropertyRegistry::schemaFor("FontFile")) {
-                        if (desc.name == "Path") {
-                            pathDesc = &desc;
-                            break;
-                        }
-                    }
-                    if (pathDesc) {
-                        m_history->record(std::make_unique<SetPropertyCommand>(
-                            inst->shared_from_this(),
-                            pathDesc,
-                            PropValue(before), PropValue(fontFile->Path)));
-                    }
-                }
-            }
-        }
-    }
-
     // ---- Seat（Steer/Throttleは着席中エンジンが書き込むLua読取専用値。確認用に表示） ----
     if (inst->getClassName() == "Seat") {
         ImGui::SeparatorText("Seat");
-        renderSchemaInspector(inst, "Seat", m_history);
+        renderSchemaInspector(inst, "Seat", m_history, m_picker);
     }
 
     // ---- ScreenGuiObject ----
     // ---- GUI 一族（スキーマ駆動。基底は IsA ブロック、葉は getClassName ブロックで描画） ----
     if (inst->IsA("GuiObject")) {
         ImGui::SeparatorText("GuiObject");
-        renderSchemaInspector(inst, "GuiObject", m_history);
+        renderSchemaInspector(inst, "GuiObject", m_history, m_picker);
     }
     if (inst->IsA("ScreenGuiObject")) {
         ImGui::SeparatorText("ScreenGuiObject");
-        renderSchemaInspector(inst, "ScreenGuiObject", m_history);
+        renderSchemaInspector(inst, "ScreenGuiObject", m_history, m_picker);
     }
     if (inst->getClassName() == "TextLabel") {
         ImGui::SeparatorText("TextLabel");
-        renderSchemaInspector(inst, "TextLabel", m_history);
+        renderSchemaInspector(inst, "TextLabel", m_history, m_picker);
         drawFontSelection(static_cast<ScreenGuiObject*>(inst), m_history, m_picker);
     }
     if (inst->getClassName() == "TextButton") {
         ImGui::SeparatorText("TextButton");
-        renderSchemaInspector(inst, "TextButton", m_history);
+        renderSchemaInspector(inst, "TextButton", m_history, m_picker);
         drawFontSelection(static_cast<ScreenGuiObject*>(inst), m_history, m_picker);
     }
     if (inst->getClassName() == "SurfaceGui") {
         ImGui::SeparatorText("SurfaceGui");
-        renderSchemaInspector(inst, "SurfaceGui", m_history);
+        renderSchemaInspector(inst, "SurfaceGui", m_history, m_picker);
     }
     if (inst->getClassName() == "Canvas") {
         ImGui::SeparatorText("Canvas");
-        renderSchemaInspector(inst, "Canvas", m_history);
+        renderSchemaInspector(inst, "Canvas", m_history, m_picker);
     }
     if (inst->getClassName() == "Highlight") {
         ImGui::SeparatorText("Highlight");
-        renderSchemaInspector(inst, "Highlight", m_history);
+        renderSchemaInspector(inst, "Highlight", m_history, m_picker);
     }
     if (inst->getClassName() == "BillboardGui") {
         ImGui::SeparatorText("BillboardGui");
-        renderSchemaInspector(inst, "BillboardGui", m_history);
+        renderSchemaInspector(inst, "BillboardGui", m_history, m_picker);
     }
     if (inst->getClassName() == "ProximityPrompt") {
         ImGui::SeparatorText("ProximityPrompt");
-        renderSchemaInspector(inst, "ProximityPrompt", m_history);
+        renderSchemaInspector(inst, "ProximityPrompt", m_history, m_picker);
     }
     if (inst->getClassName() == "IntValue") {
         ImGui::SeparatorText("IntValue");
-        renderSchemaInspector(inst, "IntValue", m_history);
+        renderSchemaInspector(inst, "IntValue", m_history, m_picker);
     }
     if (inst->getClassName() == "BoolValue") {
         ImGui::SeparatorText("BoolValue");
-        renderSchemaInspector(inst, "BoolValue", m_history);
+        renderSchemaInspector(inst, "BoolValue", m_history, m_picker);
     }
     if (inst->getClassName() == "Vector3Value") {
         ImGui::SeparatorText("Vector3Value");
-        renderSchemaInspector(inst, "Vector3Value", m_history);
+        renderSchemaInspector(inst, "Vector3Value", m_history, m_picker);
     }
     if (inst->getClassName() == "Color4Value") {
         ImGui::SeparatorText("Color4Value");
-        renderSchemaInspector(inst, "Color4Value", m_history);
+        renderSchemaInspector(inst, "Color4Value", m_history, m_picker);
     }
     if (inst->getClassName() == "NumberValue") {
         ImGui::SeparatorText("NumberValue");

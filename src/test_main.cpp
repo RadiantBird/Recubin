@@ -30,6 +30,9 @@
 #include <Instances/Seat.hpp>
 #include <Instances/Skybox.hpp>
 #include <Instances/Sun.hpp>
+#include <Instances/FileRef.hpp>
+#include <Instances/FontFile.hpp>
+#include <Instances/ScreenGuiObject.hpp>
 
 #include <Core/LuauEngine.hpp>
 #include <Core/FileLoader.hpp>
@@ -40,6 +43,8 @@
 #include <Core/AudioService.hpp>
 #include <Core/CharacterRig.hpp>
 #include <Core/BaseCubeFactory.hpp>
+#include <Core/PhysicalFileInstanceRegistry.hpp>
+#include <Core/PropertyRegistry.hpp>
 #include <Core/TimeStretchNode.hpp>
 #include <Core/NullInputBackend.hpp>
 #include <Core/Physics.hpp>
@@ -7173,6 +7178,154 @@ static int runSceneHierarchyGroupingRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runPhysicalFileInstanceRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[PhysicalFileInstance] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto directFontFile = std::make_shared<FontFile>();
+    YAML::Node directPath;
+    directPath = "assets\\fonts\\direct.ttf";
+    directFontFile->setProperty("ContentPath", directPath);
+    auto directClone = std::dynamic_pointer_cast<PhysicalFileInstance>(
+        directFontFile->clone());
+    expect(directFontFile->Path == "assets/fonts/direct.ttf" && directClone &&
+               directClone->Path == directFontFile->Path,
+           "direct construction initializes the shared schema before setProperty/clone");
+
+    const auto& types = PhysicalFileInstanceRegistry::types();
+    expect(!types.empty(), "registry exposes at least one physical file type");
+    const auto& screenGuiSchema = PropertyRegistry::schemaFor("ScreenGuiObject");
+    const auto fontRef = std::find_if(screenGuiSchema.begin(), screenGuiSchema.end(),
+        [](const PropertyDesc& desc) { return desc.name == "FontFile"; });
+    expect(fontRef != screenGuiSchema.end() &&
+               fontRef->instanceRefClass == "FontFile",
+           "TextLabel FontFile uses the typed instance-reference metadata");
+
+    bool hasFileRef = false;
+    bool hasFontFile = false;
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    system->addChild(workspace);
+    std::vector<std::pair<std::string, std::string>> expectedPaths;
+
+    for (const auto& type : types) {
+        const std::string className(type.className);
+        hasFileRef = hasFileRef || className == "FileRef";
+        hasFontFile = hasFontFile || className == "FontFile";
+
+        auto created = PhysicalFileInstanceRegistry::create(type.className);
+        expect(created && created->getClassName() == className &&
+                   created->IsA(className) && created->IsA("PhysicalFileInstance") &&
+                   created->IsA("Instance"),
+               "registry create preserves class and IsA chain for " + className);
+
+        auto sceneCreated = SceneLoader::createInstance(className);
+        expect(sceneCreated && sceneCreated->getClassName() == className &&
+                   sceneCreated->IsA("PhysicalFileInstance"),
+               "SceneLoader factory delegates " + className + " to the registry");
+        if (!created) continue;
+
+        created->Name = className + "Asset";
+        const std::string inputPath =
+            "assets\\physical\\" + className + "\\日本語ファイル.dat";
+        const std::string storedPath = AssetPath::normalize(inputPath);
+        YAML::Node pathNode;
+        pathNode = inputPath;
+        created->setProperty("ContentPath", pathNode);
+        expect(created->Path == storedPath,
+               "ContentPath setter normalizes Path for " + className);
+
+        auto clonedBase = created->clone();
+        auto cloned = std::dynamic_pointer_cast<PhysicalFileInstance>(clonedBase);
+        expect(cloned && cloned->getClassName() == className &&
+                   cloned->Path == storedPath && cloned->Name == created->Name,
+               "clone preserves type, Path, and Name for " + className);
+
+        expectedPaths.emplace_back(created->Name, storedPath);
+        workspace->addChild(created);
+    }
+    expect(hasFileRef && hasFontFile,
+           "registry retains the FileRef and FontFile compatibility class names");
+
+    const auto scenePath = std::filesystem::temp_directory_path() /
+        ("recubin_physical_file_instance_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) +
+         ".yaml");
+    SceneLoader::saveScene(system.get(), scenePath.string());
+    const std::string savedYaml = FileLoader::readText(scenePath.string());
+    expect(savedYaml.find("ClassName: FileRef") != std::string::npos &&
+               savedYaml.find("ClassName: FontFile") != std::string::npos &&
+               savedYaml.find("ContentPath:") != std::string::npos,
+           "YAML keeps FileRef/FontFile class names and the ContentPath key");
+
+    auto loadedRoot = SceneLoader::loadScene(scenePath.string());
+    for (const auto& [name, expectedPath] : expectedPaths) {
+        Instance* loadedNode = loadedRoot
+            ? loadedRoot->getChildByPath("Workspace\\" + name)
+            : nullptr;
+        auto* loadedFile = loadedNode && loadedNode->IsA("PhysicalFileInstance")
+            ? static_cast<PhysicalFileInstance*>(loadedNode)
+            : nullptr;
+        const std::string expectedClass =
+            name.ends_with("Asset") ? name.substr(0, name.size() - 5) : name;
+        expect(loadedFile && loadedFile->getClassName() == expectedClass &&
+                   loadedFile->Path == expectedPath,
+               "Scene YAML round-trip preserves ContentPath for " + expectedClass);
+    }
+    std::error_code removeError;
+    std::filesystem::remove(scenePath, removeError);
+    expect(!removeError, "temporary physical-file Scene is removed");
+
+    {
+        LuauEngine engine;
+        auto luauSystem = std::make_shared<System>();
+        auto luauWorkspace = std::make_shared<Workspace>();
+        luauSystem->addChild(luauWorkspace);
+        engine.setWorkspace(luauWorkspace);
+        engine.setSystem(luauSystem.get());
+
+        std::unordered_set<std::string> luauCreated;
+        const auto oldLogHook = g_luauLogHook;
+        g_luauLogHook = [&](const std::string& message) {
+            constexpr std::string_view PREFIX = "[PhysicalFileLuau:";
+            const size_t begin = message.find(PREFIX);
+            if (begin == std::string::npos) return;
+            const size_t nameBegin = begin + PREFIX.size();
+            const size_t end = message.find(']', nameBegin);
+            if (end != std::string::npos)
+                luauCreated.insert(message.substr(nameBegin, end - nameBegin));
+        };
+
+        auto script = std::make_shared<Script>();
+        script->Name = "PhysicalFileInstanceLuauFactory";
+        for (const auto& type : types) {
+            const std::string className(type.className);
+            script->Source +=
+                "do local file = Instance.new('" + className + "') "
+                "if file and file:IsA('" + className +
+                "') and file:IsA('PhysicalFileInstance') and type(file.Path) == 'string' "
+                "then print('[PhysicalFileLuau:" + className + "]') end end\n";
+        }
+        const bool executed = engine.execute(*script);
+        g_luauLogHook = oldLogHook;
+        expect(executed, "Luau physical-file factory script executes");
+        for (const auto& type : types) {
+            const std::string className(type.className);
+            expect(luauCreated.contains(className),
+                   "Luau Instance.new creates " + className +
+                       " and exposes readable Path");
+        }
+    }
+
+    std::cout << "[PhysicalFileInstance] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char* argv[]) {
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
@@ -7226,6 +7379,7 @@ int main(int argc, char* argv[]) {
     bool meshCubeFallbackRegression = false;
     bool humanoidRigCollisionRegression = false;
     bool seatNetworkRegression = false;
+    bool physicalFileInstanceRegression = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument(argv[i]);
         physicsMigrationRegression =
@@ -7279,7 +7433,11 @@ int main(int argc, char* argv[]) {
             humanoidRigCollisionRegression ||
             argument == "--humanoid-rig-collision-regression";
         seatNetworkRegression = seatNetworkRegression || argument == "--seat-network-regression";
+        physicalFileInstanceRegression = physicalFileInstanceRegression ||
+            argument == "--physical-file-instance-regression";
     }
+    if (physicalFileInstanceRegression)
+        return runPhysicalFileInstanceRegression();
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
     if (groupingRegression) return runSceneHierarchyGroupingRegression();
     if (seatNetworkRegression) return runSeatNetworkRegression();

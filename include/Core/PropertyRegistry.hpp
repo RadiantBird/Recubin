@@ -56,6 +56,7 @@ struct PropertyDesc {
     bool noLuaWrite = false;         // Lua からは読取専用（YAML/clone は読み書き可のまま）
     float lo = 0.0f, hi = 0.0f, step = 0.1f;                     // エディター用レンジ
     std::string_view separator{};     // 空でなければ、このプロパティの直前に ImGui::SeparatorText を描画する（"Appearance"等）
+    std::string_view instanceRefClass{}; // 非空なら指定IsA型だけを受けるInstance参照文字列
 
     std::string_view effYamlKey() const { return yamlKey.empty() ? name : yamlKey; }
 
@@ -139,6 +140,19 @@ PropertyDesc field(std::string_view name, float lo = 0.0f, float hi = 0.0f, floa
     d.get = [](Instance* o) { return detail::toPV<V>(static_cast<C*>(o)->*M); };
     d.set = [](Instance* o, const PropValue& v) { static_cast<C*>(o)->*M = detail::fromPV<V>(v); };
     d.lo = lo; d.hi = hi; d.step = step;
+    return d;
+}
+
+// Workspace相対パスで保存する、型制約付きInstance参照フィールド。
+// YAML/Luau/clone上の表現は従来どおりstringのまま、エディターだけが
+// instanceRefClassを使って共通pickerを表示する。
+template<auto M>
+PropertyDesc instanceRefField(std::string_view name, std::string_view targetClass) {
+    using V = typename member_traits<M>::Value;
+    static_assert(std::is_same_v<V, std::string>,
+                  "instanceRefField requires a std::string member");
+    PropertyDesc d = field<M>(name);
+    d.instanceRefClass = targetClass;
     return d;
 }
 

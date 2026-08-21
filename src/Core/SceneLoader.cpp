@@ -18,8 +18,7 @@
 #include <Instances/SpotLight.hpp>
 #include <Instances/PostEffect.hpp>
 #include <Instances/AppImage.hpp>
-#include <Instances/FileRef.hpp>
-#include <Instances/FontFile.hpp>
+#include <Core/PhysicalFileInstanceRegistry.hpp>
 #include <Instances/SignalEvent.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/PathfindingService.hpp>
@@ -307,6 +306,8 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(
 
 std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& className) {
     if (auto cube = createBaseCubeInstance(className)) return cube;
+    if (auto physicalFile = PhysicalFileInstanceRegistry::create(className))
+        return physicalFile;
     if (className == "System")    return std::make_shared<System>();
     if (className == "Workspace") return std::make_shared<Workspace>();
     if (className == "PathfindingService") return std::make_shared<PathfindingService>();
@@ -328,8 +329,6 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "SpotLight")  return std::make_shared<SpotLight>();
     if (className == "PostEffect") return std::make_shared<PostEffect>();
     if (className == "AppImage")         return std::make_shared<AppImage>();
-    if (className == "FileRef")          return std::make_shared<FileRef>();
-    if (className == "FontFile")         return std::make_shared<FontFile>();
     if (className == "Humanoid")          return std::make_shared<Humanoid>();
     if (className == "Animation")         return std::make_shared<Animation>();
     if (className == "StarterCharacter")  return std::make_shared<StarterCharacter>();
@@ -486,8 +485,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->IsA("LightSource")
                  || inst->getClassName() == "PostEffect"
                  || inst->getClassName() == "AppImage"
-                 || inst->getClassName() == "FileRef"
-                 || inst->getClassName() == "FontFile"
+                 || inst->IsA("PhysicalFileInstance")
                  || inst->getClassName() == "Humanoid"
                  || inst->getClassName() == "Animation"
                  || inst->IsA("Rope") || inst->IsA("Rod") || inst->IsA("BallSocket")
@@ -599,11 +597,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         if (inst->getClassName() == "AppImage") {
             PropertyRegistry::saveProperties(out, inst, "AppImage");
         }
-        if (inst->getClassName() == "FileRef") {
-            PropertyRegistry::saveProperties(out, inst, "FileRef");  // ContentPath（空なら省略）
-        }
-        if (inst->getClassName() == "FontFile") {
-            PropertyRegistry::saveProperties(out, inst, "FontFile");
+        if (inst->IsA("PhysicalFileInstance")) {
+            PropertyRegistry::saveProperties(out, inst, inst->getClassName());
         }
         if (inst->getClassName() == "MeshCube") {
             const MeshCube* mc = static_cast<const MeshCube*>(inst);

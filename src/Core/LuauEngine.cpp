@@ -77,6 +77,7 @@
 #include "include/Instances/Weather.hpp"
 #include "include/Core/AudioService.hpp"
 #include "include/Core/BaseCubeFactory.hpp"
+#include "include/Core/PhysicalFileInstanceRegistry.hpp"
 #include <cmath>
 #include <algorithm>
 #include <float.h>
@@ -2360,8 +2361,6 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "SpotLight",        [] { return std::make_shared<SpotLight>(); } },
         { "PostEffect",       [] { return std::make_shared<PostEffect>(); } },
         { "AppImage",         [] { return std::make_shared<AppImage>(); } },
-        { "FileRef",          [] { return std::make_shared<FileRef>(); } },
-        { "FontFile",         [] { return std::make_shared<FontFile>(); } },
         { "Humanoid",         [] { return std::make_shared<Humanoid>(); } },
         { "Animation",        [] { return std::make_shared<Animation>(); } },
         { "StarterCharacter", [] { return std::make_shared<StarterCharacter>(); } },
@@ -2402,6 +2401,7 @@ int LuauEngine::instance_new_closure(lua_State* L) {
     const char* className = luaL_checkstring(L, 1);
 
     std::shared_ptr<Instance> inst = createBaseCubeInstance(className);
+    if (!inst) inst = PhysicalFileInstanceRegistry::create(className);
     if (!inst) {
         auto it = instanceFactories().find(className);
         if (it != instanceFactories().end()) inst = it->second();

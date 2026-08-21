@@ -1,0 +1,3 @@
+// ClassName, PhysicalFileKind, insert category, dialog label, dialog filter
+RCBN_FILE_INSTANCE(FileRef, Generic, Other, "All files (*.*)", "*.*")
+RCBN_FILE_INSTANCE(FontFile, Font, Other, "Font (*.ttf;*.otf)", "*.ttf;*.otf")

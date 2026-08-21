@@ -1,16 +1,4 @@
 #pragma once
-#include <Instances/Instance.hpp>
-#include <string>
+#include <Instances/PhysicalFileInstance.hpp>
 
-class FontFile : public Instance {
-public:
-    std::string Path;
-
-    FontFile();
-    virtual ~FontFile() = default;
-
-    std::string getClassName() override { return "FontFile"; }
-    bool IsA(std::string className) override;
-    void setProperty(const std::string& name, const YAML::Node& value) override;
-    std::shared_ptr<Instance> clone() const override;
-};
+// FontFile型はPhysicalFileInstance.hppの中央X-macro定義から生成される。

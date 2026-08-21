@@ -32,6 +32,7 @@
 #include <Core/SceneRuntime.hpp>
 #include <Core/FileLoader.hpp>
 #include <Core/AudioService.hpp>
+#include <Core/PhysicalFileInstanceRegistry.hpp>
 #include <Core/GLFWInputBackend.hpp>
 #include <include/Core/Terrain.hpp>
 #include <include/Core/TerrainStreamer.hpp>
@@ -376,7 +377,7 @@ static int runGenTestScene(const std::string& outputPath) {
         "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere", "MeshCube", "LiquidCube", "SpawnLocation",
         "Skybox", "Sun", "Moon", "Model", "Sound",
         "Lighting", "PointLight", "SpotLight", "PostEffect",
-        "AppImage", "FileRef", "FontFile", "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance",
+        "AppImage", "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance",
         "Rope", "Rod", "Weld", "Motor", "Attachment", "Force",
         "TextLabel", "TextButton", "ImageLabel", "ImageButton", "SurfaceGui", "BillboardGui",
         "ProximityPrompt", "Folder", "Tool", "ParticleEmitter", "Weather",
@@ -390,6 +391,17 @@ static int runGenTestScene(const std::string& outputPath) {
             continue;
         }
         inst->Name = className;
+        workspace->addChild(inst);
+        ++generated;
+    }
+    for (const auto& type : PhysicalFileInstanceRegistry::types()) {
+        auto inst = PhysicalFileInstanceRegistry::create(type.className);
+        if (!inst) {
+            std::cout << "[gen-test-scene] WARNING: failed to create "
+                      << type.className << "\n";
+            continue;
+        }
+        inst->Name = std::string(type.className);
         workspace->addChild(inst);
         ++generated;
     }

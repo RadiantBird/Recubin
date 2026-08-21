@@ -1,5 +1,6 @@
 #include "include/Core/LuauEngine.hpp"
 #include "include/Core/PropertyRegistry.hpp"
+#include "include/Core/PhysicalFileInstanceRegistry.hpp"
 #include "include/Core/Physics.hpp"
 #include "include/Core/RCBNScriptSignal.hpp"
 #include "include/Instances/Workspace.hpp"
@@ -650,7 +651,9 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["UserInput"]["IsPressed"] = getter_closure(userinput_ispressed_closure, "IsPressed");
 
     PropertyRegistry::applyToDispatch("AppImage", DispatchTable, SetterTable);
-    PropertyRegistry::applyToDispatch("FileRef",  DispatchTable, SetterTable);  // Path（読取専用）
+    PropertyRegistry::applyToDispatch("PhysicalFileInstance", DispatchTable, SetterTable);
+    for (const auto& type : PhysicalFileInstanceRegistry::types())
+        PropertyRegistry::applyToDispatch(type.className, DispatchTable, SetterTable);
 
     DispatchTable["MeshCube"]["MeshFile"] = getter_string<MeshCube, &MeshCube::MeshFile>();
 

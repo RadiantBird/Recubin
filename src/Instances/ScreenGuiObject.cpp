@@ -10,7 +10,8 @@ static const bool s_screenGuiRegistered = []{
         field<&ScreenGuiObject::Position>("Position", 0, 0, 1),
         field<&ScreenGuiObject::UseFontFile>("UseFontFile"),
         std::move(systemFont),
-        field<&ScreenGuiObject::FontFile>("FontFile").omitEmpty().noEditor(),
+        instanceRefField<&ScreenGuiObject::FontFile>("FontFile", "FontFile")
+            .omitEmpty().noEditor(),
         sig  <&ScreenGuiObject::Hovered>("Hovered"),
     });
     return true;

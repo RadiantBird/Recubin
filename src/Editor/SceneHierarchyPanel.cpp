@@ -68,6 +68,7 @@
 #include <Instances/QuaternionValue.hpp>
 #include <Instances/ObjectValue.hpp>
 #include <Core/AudioService.hpp>
+#include <Core/PhysicalFileInstanceRegistry.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
 #include <Util/Logger.hpp>
@@ -286,7 +287,7 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
         // ---- ピッカーモード: Pick 中はクリックを Cube/Attachment 参照指定に横取り（選択は変更しない） ----
         if (m_picker && m_picker->active) {
             const bool matches = !m_picker->pickClassName.empty()
-                                ? inst->getClassName() == m_picker->pickClassName
+                                ? inst->IsA(m_picker->pickClassName)
                                 : m_picker->pickAnyInstance ? true
                                 : m_picker->pickAttachment  ? inst->IsA("Attachment")
                                                              : inst->IsA("BaseCube");
@@ -784,8 +785,16 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         }
         
         tryInsertInstance<Folder>(m_history, "Folder", parentSp);
-        tryInsertInstance<FileRef>(m_history, "FileRef", parentSp);
-        tryInsertInstance<FontFile>(m_history, "FontFile", parentSp);
+        for (const auto& type : PhysicalFileInstanceRegistry::types()) {
+            if (type.insertCategory != PhysicalFileInsertCategory::Other) continue;
+            const std::string className(type.className);
+            if (ImGui::MenuItem(className.c_str()) && m_history) {
+                auto obj = PhysicalFileInstanceRegistry::create(type.className);
+                if (!obj) continue;
+                obj->Name = uniqueName(parentSp, className);
+                m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
+            }
+        }
         tryInsertInstance<Model>(m_history, "Model", parentSp, Vector3(0, 0, 0), Vector3(1, 1, 1));
         tryInsertInstance<Tool>(m_history, "Tool", parentSp, std::string("Tool"));
 
@@ -1023,8 +1032,13 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
                 m_scriptDialogError.clear();
                 m_openScriptDialog = true;
             }
-            makeGroup("FileRef", [&] { return std::make_shared<FileRef>(); });
-            makeGroup("FontFile", [&] { return std::make_shared<FontFile>(); });
+            for (const auto& type : PhysicalFileInstanceRegistry::types()) {
+                if (type.insertCategory != PhysicalFileInsertCategory::Other) continue;
+                const std::string className(type.className);
+                makeGroup(className.c_str(), [&] {
+                    return PhysicalFileInstanceRegistry::create(type.className);
+                });
+            }
             makeGroup("AppImage", [&] { return std::make_shared<AppImage>(); });
             makeGroup("StarterCharacter", [&] { return std::make_shared<StarterCharacter>(); });
             makeGroup("Humanoid", [&] { return std::make_shared<Humanoid>(); });
