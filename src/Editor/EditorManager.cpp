@@ -754,7 +754,10 @@ void EditorManager::renderPlayStartErrorDialog() {
     }
 
     std::string popupTitle = std::string(Loc::t(Loc::LocKey::PlayStartErrorTitle)) + "###PlayStartError";
-    if (ImGui::BeginPopupModal(popupTitle.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    // TextWrapped needs a usable content width; auto-sizing the popup to its
+    // unwrapped text can collapse it to a narrow, very tall window.
+    ImGui::SetNextWindowSize(ImVec2(420.0f * m_uiLayoutScale, 0.0f), ImGuiCond_Appearing);
+    if (ImGui::BeginPopupModal(popupTitle.c_str(), nullptr, 0)) {
         ImGui::TextWrapped("%s", Loc::t(Loc::LocKey::PlayStartErrorMessage));
         if (m_playStartErrorKind == PlayStartErrorKind::NetworkRequired) {
             ImGui::Spacing();
