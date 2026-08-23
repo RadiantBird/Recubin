@@ -3,6 +3,7 @@
 #include <Core/RCBNScriptSignal.hpp>
 #include <Math/Vector2.hpp>
 #include <memory>
+#include <string>
 
 class System : public Instance {
     private:
@@ -34,6 +35,14 @@ class System : public Instance {
         // trueの場合、LocalScript/Scriptが区別されて動作する(Client側ではLocalScriptのみ実行)。
         // falseの場合、区別されず、ネットワーク通信も一切行わない。
         bool UseNetwork = false;
+
+        // Persistent application identity and opt-in system extensions. These are
+        // intentionally read-only from Luau; only the scene/editor may configure them.
+        // Public PascalCase is retained for the existing reflection/YAML API.
+        std::string ApplicationId;
+        bool EnableIOAPI = false;
+        bool EnableIPCAPI = false;
+        bool EnableExternalFileAccess = false;
 
         System(string name = "System");
         string getClassName() override;

@@ -177,3 +177,27 @@
 - 検証: `cmd.exe /d /c py build.py build`はRecubin／RecubinEngine／RecubinTestの3ターゲットすべて成功。
   `git diff --check`は成功。`--asset-path-regression`はWSLの`UtilBindVsockAnyPort: socket failed 1`
   により起動できず未実施。
+
+## 2026-08-21: TextFileとSystem拡張権限
+
+- TextFileのEditor挿入・永続seed、System拡張設定、RuntimeFileSystem接続、Packager ApplicationId出力と
+  通常ランタイムの拡張権限同意モーダルを追加した。
+- ReleaseのRecubin／RecubinEngine／RecubinTest 3ターゲットbuild成功。
+- `--system-extension-regression` PASS、`--physical-file-instance-regression` failures=0、
+  `--asset-path-regression` failures=0、`--scene-load-transaction-regression` failures=0。
+- 全回帰は140 passed / 3 failedで既知baseline（Pathfinder 1・Sound 2）と一致し、新規失敗なし。
+  GUI自動スモークは未実施。
+
+## 2026-08-22: SystemExtensionSmoke手動検証
+
+- `tools/capture_window.ps1`と`click_window.ps1`を追加した（Title/Class filter、timeout、NoActivate、click hold対応）。
+- SystemExtensionSmoke二列fixtureと`RecubinTest --package-system-extension-smoke`を追加した。
+- ReleaseのRecubin／RecubinEngine／RecubinTest 3ターゲットbuild成功。
+- `--system-extension-regression`、`--physical-file-instance-regression`、`--asset-path-regression`、
+  `--scene-load-transaction-regression`は全てPASS。
+- GUI確認: 通常runtime初回警告でIO+IPC列挙を確認。Studio Playは警告なしでIO/IPC/TextFile全PASS。
+  Packager生成実package内EXEでも全PASS。
+- PNG artifacts: `artifacts/SystemExtensionSmoke/runtime-warning.png`、
+  `artifacts/SystemExtensionSmoke/editor-results.png`、
+  `artifacts/SystemExtensionSmoke/package-results.png`。
+- 自動全回帰は今回未実施。

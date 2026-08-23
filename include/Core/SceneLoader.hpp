@@ -25,6 +25,9 @@ public:
         // header. New saves never emit these fields.
         std::string legacyDefaultR6AnimationDecision;
         std::string legacyWalkContentPath;
+        // True when the loaded document had no valid System.ApplicationId and
+        // the System constructor supplied a new transient identity.
+        bool applicationIdGenerated = false;
     };
 
     enum class LoadStatus { Success, NotFound, IoError, YamlError, InvalidType,

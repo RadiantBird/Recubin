@@ -4,6 +4,7 @@
 #include <Editor/Localization.hpp>
 #include <Core/Physics.hpp>
 #include <Core/PhysicalFileInstanceRegistry.hpp>
+#include <Instances/TextFile.hpp>
 #include <Core/User.hpp>
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
@@ -223,8 +224,9 @@ static void renderSchemaInspector(Instance* inst, const char* className,
         // Animation references are rendered as type-safe Instance pickers below;
         // exposing their serialized path as a free-form string is misleading.
         if (std::string_view(className) == "Humanoid" &&
-            (d.name == "WalkAnimation" || d.name == "JumpAnimation" ||
+             (d.name == "WalkAnimation" || d.name == "JumpAnimation" ||
              d.name == "EquipAnimation")) continue;
+        if (std::string_view(className) == "System" && d.name == "ApplicationId") continue;
         if (!d.instanceRefClass.empty()) {
             drawInstanceReferenceField(inst, d, history, picker);
             continue;
@@ -1300,6 +1302,11 @@ void PropertiesPanel::onRender() {
     if (inst->IsA("PhysicalFileInstance")) {
         drawPhysicalFileInspector(static_cast<PhysicalFileInstance*>(inst), m_history);
     }
+    if (inst->getClassName() == "TextFile") {
+        const auto* textFile = static_cast<const TextFile*>(inst);
+        ImGui::SeparatorText("TextFile");
+        ImGui::LabelText("StorageId", "%s", textFile->StorageId.c_str());
+    }
 
     // ---- Sound ----
     if (inst->getClassName() == "Sound") {
@@ -1617,6 +1624,7 @@ void PropertiesPanel::onRender() {
         // BaseResolutionは安全マージンではないため、Safety Limits欄の外（上）に表示する。
         ImGui::SeparatorText("System");
         renderSchemaInspector(inst, "System", m_history, m_picker);
+        ImGui::LabelText("ApplicationId", "%s", sys->ApplicationId.c_str());
 
         ImGui::SeparatorText("System (Safety Limits)");
 

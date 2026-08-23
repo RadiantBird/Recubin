@@ -44,6 +44,7 @@ public:
 
     // ツールバーの「New Script」ボタンから呼ばれる。Script(通常スクリプト)固定でダイアログを開く。
     void requestNewScript(const std::shared_ptr<Instance>& parent);
+    void requestNewTextFile(const std::shared_ptr<Instance>& parent);
 
     // Ctrl+F: 選択インスタンスをツリー上で自動展開してスクロールする
     void requestReveal(Instance* inst);
@@ -109,6 +110,12 @@ private:
     std::string               m_pickName;
     std::shared_ptr<Instance> m_pickParent;
     std::string               m_scriptDialogError;
+    bool                      m_openTextFileDialog = false;
+    bool                      m_doPickTextFile = false;
+    bool                      m_pickExistingTextFile = false;
+    std::string               m_textFileName;
+    std::string               m_textFileDialogError;
+    std::shared_ptr<Instance> m_pendingTextFileParent;
 
     // Targets queued while a Script/Terrain group container dialog is open.
     std::vector<std::shared_ptr<Instance>> m_pendingGroupTargets;
@@ -121,6 +128,7 @@ private:
 
     void drawNode(Instance* inst);
     void renderInsertMenu(Instance* inst);
+    void renderTextFileDialog();
     void renderContextMenu(Instance* inst);
     void renderNewScriptDialog();
     void renderNewTerrainDialog();

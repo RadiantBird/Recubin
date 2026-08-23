@@ -40,6 +40,11 @@
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
 #include <Util/RuntimeLaunchArgs.hpp>
+#include <Util/RuntimeFileSystem.hpp>
+#include <Util/SystemExtensionPermissions.hpp>
+#include <Util/UUID.hpp>
+#include <include/imgui/imgui_impl_glfw.h>
+#include <include/imgui/imgui_impl_opengl3.h>
 #include <yaml-cpp/yaml.h>
 #include "include/stb_image.h"
 
@@ -348,12 +353,8 @@ int main(int argc, char* argv[]) {
     // 通常ランタイムはゲームフォルダ(cwd)外のアセット読み込みを禁止する。
     // localhost専用のEditorテストクライアントだけは、未パッケージの絶対アセットを
     // Editorと同様に参照できるようAssetGuardを有効化しない。
-    if (runtimeArgs.editorTest) {
-        std::cout << "[EditorTest] AssetGuard disabled for localhost editor test client."
-                  << std::endl;
-    } else {
-        AssetGuard::enableSandbox(std::filesystem::current_path());
-    }
+    // AssetGuard is configured after Scene bind, once System's external-file
+    // permission is known.
 
     // ---- ウィンドウ作成 ----
 #ifdef _WIN32
@@ -401,6 +402,71 @@ int main(int argc, char* argv[]) {
     }
     auto workspaces = bound.workspaces;
     auto workspace  = bound.workspace;
+
+    if (!RecubinUUID::isValid(system->ApplicationId)) {
+        RCBN_ERROR("Scene has no ApplicationId; refusing to start runtime file system.");
+        return -1;
+    }
+    auto runtimeFs = std::make_shared<RuntimeFileSystem>(
+        system->ApplicationId,
+        runtimeArgs.editorTest ? RuntimeFileSystem::Namespace::Editor
+                                : RuntimeFileSystem::Namespace::Runtime,
+        system->EnableExternalFileAccess);
+    luauEngine->setRuntimeFileSystem(runtimeFs);
+    if (runtimeArgs.editorTest) {
+        std::cout << "[EditorTest] AssetGuard disabled for localhost editor test client."
+                  << std::endl;
+    } else if (!system->EnableExternalFileAccess) {
+        AssetGuard::enableSandbox(std::filesystem::current_path());
+    }
+
+    // Consent is deliberately checked after binding the scene (so the live
+    // System flags are authoritative), but before network/physics/scripts.
+    if (!runtimeArgs.editorTest) {
+        SystemExtensionPermissions permissions{
+            system->EnableIOAPI, system->EnableIPCAPI, system->EnableExternalFileAccess};
+        const auto applicationRoot = runtimeFs->namespaceRoot().parent_path();
+        const bool anyEnabled = permissions.io || permissions.ipc || permissions.external;
+        if (!anyEnabled) {
+            if (!SystemExtensionConsent::write(applicationRoot, permissions))
+                RCBN_WARN("System extension receipt could not be written; it will be retried.");
+        } else if (SystemExtensionConsent::shouldWarn(applicationRoot, permissions)) {
+            bool continueRuntime = false;
+            bool quitRuntime = false;
+            while (!continueRuntime && !quitRuntime && !glfwWindowShouldClose(window)) {
+                glfwPollEvents();
+                ImGui_ImplOpenGL3_NewFrame();
+                ImGui_ImplGlfw_NewFrame();
+                ImGui::NewFrame();
+                const ImGuiViewport* viewport = ImGui::GetMainViewport();
+                ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(.5f, .5f));
+                ImGui::SetNextWindowSize(ImVec2(520.f, 0.f), ImGuiCond_Always);
+                ImGui::Begin("System extensions###SystemExtensionConsent", nullptr,
+                    ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+                    ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
+                ImGui::TextWrapped("This game requests the following system extensions:");
+                if (permissions.io) ImGui::BulletText("I/O API - read and write game data files.");
+                if (permissions.ipc) ImGui::BulletText("IPC API - communicate with external processes.");
+                if (permissions.external) ImGui::BulletText("External File Access - access files outside the game data directory.");
+                ImGui::Spacing();
+                ImGui::TextWrapped("These permissions may read, modify, or communicate outside the game sandbox.");
+                if (ImGui::Button("Continue", ImVec2(120, 0))) continueRuntime = true;
+                ImGui::SameLine();
+                if (ImGui::Button("Quit", ImVec2(120, 0))) quitRuntime = true;
+                ImGui::End();
+                ImGui::Render();
+                ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+                glfwSwapBuffers(window);
+            }
+            if (!continueRuntime) {
+                glfwDestroyWindow(window);
+                glfwTerminate();
+                return 0;
+            }
+            if (!SystemExtensionConsent::write(applicationRoot, permissions))
+                RCBN_WARN("System extension receipt could not be written; it will be shown next launch.");
+        }
+    }
 
     // Networked games do not start scripts, character spawning, physics, or replication
     // until the host-authoritative PeerId is known.

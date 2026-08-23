@@ -3,6 +3,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 // ==================================================================
 //  IPlatform
@@ -79,4 +80,5 @@ public:
     // GUIを持つ子プロセスを非同期起動する。失敗時はnullptrを返す。
     virtual std::unique_ptr<IChildProcess> launchChildProcess(
         const ChildProcessLaunchOptions& options) = 0;
+    virtual std::filesystem::path userDataRoot() const = 0;
 };

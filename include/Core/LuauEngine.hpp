@@ -23,6 +23,7 @@
 #include "include/Core/RCBNScriptSignal.hpp"
 #include "include/Pathfinding/PathTypes.hpp"
 #include <Network/NetworkTypes.hpp>
+#include "include/Util/RuntimeFileSystem.hpp"
 
 // Forward declarations
 class Workspace;
@@ -41,6 +42,7 @@ private:
     lua_State* L;
     std::weak_ptr<Workspace> workspace;  // 管理対象の Workspace
     System*    m_system = nullptr;
+    std::shared_ptr<RuntimeFileSystem> m_runtimeFileSystem;
     static Script* currentScript;  // 現在実行中のスクリプト
     std::string m_lastTraceback;   // debugprotectederror で取得したスタックトレース
 
@@ -156,6 +158,19 @@ private:
     static int instance_is_a_closure(lua_State* L);
     static int instance_destroy_closure(lua_State* L);
     static int instance_clone_closure(lua_State* L);
+
+    // Runtime file and IPC extension callbacks. The engine is captured as a
+    // light-userdata upvalue so the same registration works for every state.
+    static int io_read_text(lua_State* L); static int io_read_bytes(lua_State* L);
+    static int io_write_text(lua_State* L); static int io_write_bytes(lua_State* L);
+    static int io_append_text(lua_State* L); static int io_append_bytes(lua_State* L);
+    static int io_exists(lua_State* L); static int io_is_file(lua_State* L);
+    static int io_is_directory(lua_State* L); static int io_list(lua_State* L);
+    static int io_create_directory(lua_State* L); static int io_copy(lua_State* L);
+    static int io_move(lua_State* L); static int io_remove(lua_State* L);
+    static int io_remove_tree(lua_State* L);
+    static int ipc_connect(lua_State* L); static int ipc_send(lua_State* L);
+    static int ipc_receive(lua_State* L); static int ipc_close(lua_State* L);
 
     // Script methods
     static int script_restart_closure(lua_State* L);
@@ -329,6 +344,9 @@ public:
 
     void setWorkspace(const std::shared_ptr<Workspace>& ws);
     void setSystem(System* s);
+    void setRuntimeFileSystem(std::shared_ptr<RuntimeFileSystem> fs) { m_runtimeFileSystem = std::move(fs); }
+    RuntimeFileSystem* runtimeFileSystem() const { return m_runtimeFileSystem.get(); }
+    System* system() const { return m_system; }
 
     void executeWorkspaceScripts(Workspace& ws);
     // Workspace外(System配下)に登録されたスクリプトを実行する

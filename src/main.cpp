@@ -49,6 +49,8 @@
 #include <Util/FrameProfiler.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
+#include <Util/RuntimeFileSystem.hpp>
+#include <Util/UUID.hpp>
 
 #include <iostream>
 #include <algorithm>
@@ -506,12 +508,19 @@ int main(int argc, char* argv[]) {
     // （旧: LastScenePath の自動ロード。前回パスは「前回の続きから」ボタンの源泉として温存する）
     std::string lastScenePath = loadLastScenePath();
     std::string scenePath; // 空 = 無題
+    SceneLoader::SceneDocumentMetadata initialSceneMetadata;
     updateWindowTitle(window, scenePath);
 
     {
         auto bound = SceneRuntime::loadAndBind(scenePath, system, user, *luauEngine, window);
         workspace  = bound.workspace;
         workspaces = bound.workspaces;
+        initialSceneMetadata = bound.metadata;
+        if (RecubinUUID::isValid(system->ApplicationId)) {
+            luauEngine->setRuntimeFileSystem(std::make_shared<RuntimeFileSystem>(
+                system->ApplicationId, RuntimeFileSystem::Namespace::Editor,
+                system->EnableExternalFileAccess));
+        }
     }
     workspace->initPhysics();
 
@@ -539,6 +548,8 @@ int main(int argc, char* argv[]) {
     // ===================================================
     auto editorOwned = std::make_unique<EditorManager>(workspace.get(), user.get(), system.get());
     EditorManager* ed = editorOwned.get();
+    ed->setSceneMetadata(initialSceneMetadata);
+    if (initialSceneMetadata.applicationIdGenerated) ed->markDirty();
     ed->engineExePath = engineExePath.string();
     ed->scenePath     = scenePath; // 起動時に決定したシーンパスを反映
     loadPanelVisibility(ed);       // 前回のパネル開閉状態を復元
@@ -655,9 +666,14 @@ int main(int argc, char* argv[]) {
     auto installBoundScene = [&](SceneRuntime::Bound bound, bool isDirty) {
         workspace  = bound.workspace;
         workspaces = bound.workspaces;
+        if (system && RecubinUUID::isValid(system->ApplicationId)) {
+            luauEngine->setRuntimeFileSystem(std::make_shared<RuntimeFileSystem>(
+                system->ApplicationId, RuntimeFileSystem::Namespace::Editor,
+                system->EnableExternalFileAccess));
+        }
         ed->setSceneMetadata(bound.metadata);
         ed->setWorkspace(workspace.get());
-        if (isDirty) ed->markDirty();
+        if (isDirty || bound.metadata.applicationIdGenerated) ed->markDirty();
         if (workspace) workspace->initPhysics();
     };
 

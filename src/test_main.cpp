@@ -32,6 +32,7 @@
 #include <Instances/Sun.hpp>
 #include <Instances/FileRef.hpp>
 #include <Instances/FontFile.hpp>
+#include <Instances/TextFile.hpp>
 #include <Instances/ScreenGuiObject.hpp>
 
 #include <Core/LuauEngine.hpp>
@@ -69,6 +70,9 @@
 #include <Util/IPlatform.hpp>
 #include <Util/MockPlatform.hpp>
 #include <Util/RuntimeLaunchArgs.hpp>
+#include <Util/RuntimeFileSystem.hpp>
+#include <Util/UUID.hpp>
+#include <Util/SystemExtensionPermissions.hpp>
 #ifdef __APPLE__
 #include <Util/MacPlatform.hpp>
 #endif
@@ -5990,6 +5994,7 @@ int runAssetPathRegression() {
 
         Packager::Config packageConfig;
         packageConfig.gameName = "PortablePackage";
+        packageConfig.applicationId = RecubinUUID::generate();
         packageConfig.outputDir = "package-output";
         packageConfig.scenePath = "scene.yaml";
         packageConfig.engineExePath =
@@ -5998,7 +6003,9 @@ int runAssetPathRegression() {
 #else
             "Recubin.exe";
 #endif
-        const bool packaged = Packager::package(packageConfig, [](const std::string&) {});
+        const bool packaged = Packager::package(packageConfig, [](const std::string& message) {
+            std::cout << "[Packager] " << message << '\n';
+        });
 #ifdef __APPLE__
         const std::filesystem::path packageRoot = tempRoot / "package-output" / "PortablePackage.app";
 #else
@@ -6012,6 +6019,9 @@ int runAssetPathRegression() {
         const std::string packagedScene = FileLoader::readText(
             std::filesystem::relative(packageContentRoot / "assets/scenes/PortablePackage.yaml",
                                        tempRoot).generic_string());
+        const std::string packagedStartup = FileLoader::readText(
+            std::filesystem::relative(packageContentRoot / "startup.yaml",
+                                       tempRoot).generic_string());
         expect(packaged && std::filesystem::exists(packageContentRoot / "assets/sample.bin") &&
                    std::filesystem::exists(packageContentRoot / "assets/fonts/DotGothic16-Regular.ttf") &&
                    std::filesystem::exists(packageContentRoot / "assets/fonts/fa-solid-900.ttf") &&
@@ -6019,6 +6029,8 @@ int runAssetPathRegression() {
                    packagedScene.find("assets/models/missing.glb") != std::string::npos &&
                    std::filesystem::exists(packageContentRoot / "assets/anims/r6_walk.rcanim") &&
                    packagedScene.find("assets/anims/r6_walk.rcanim") != std::string::npos &&
+                   packagedScene.find(packageConfig.applicationId) != std::string::npos &&
+                   packagedStartup.find(packageConfig.applicationId) != std::string::npos &&
                    packagedScene.find('\\') == std::string::npos,
                "packager copies referenced assets, runtime fonts, and portable YAML paths");
 #ifdef __APPLE__
@@ -7178,6 +7190,161 @@ static int runSceneHierarchyGroupingRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runSystemExtensionRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[SystemExtension] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+    const auto root = std::filesystem::temp_directory_path() /
+        ("recubin_system_extension_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    const auto applicationId = RecubinUUID::generate();
+    RuntimeFileSystem fs(applicationId, RuntimeFileSystem::Namespace::Runtime, false, root);
+    expect(static_cast<bool>(fs.write("a.bin", std::string("a\0b", 3))), "binary write succeeds");
+    auto bytes = fs.read("a.bin");
+    expect(static_cast<bool>(bytes) && bytes.value.size() == 3 && bytes.value[1] == '\0', "binary NUL round-trip");
+    expect(static_cast<bool>(fs.append("a.bin", "c")), "append succeeds");
+    expect(fs.isFile("a.bin").isFile && !fs.isDirectory("a.bin").isDirectory,
+           "typed file/directory results");
+    expect(static_cast<bool>(fs.createDirectory("dir")), "directory creation succeeds");
+    expect(static_cast<bool>(fs.copy("a.bin", "dir/copy.bin")), "copy succeeds");
+    std::vector<RuntimeFileEntry> entries;
+    expect(static_cast<bool>(fs.list("dir", entries)) && entries.size() == 1 && entries.front().name == "copy.bin",
+           "deterministic directory listing");
+    expect(!static_cast<bool>(fs.read("../escape")), "parent traversal rejected");
+    expect(!static_cast<bool>(fs.removeTree(".")), "runtime namespace root cannot be removed");
+    TextFile file;
+    file.Path = "seed.txt";
+    expect(static_cast<bool>(fs.writeTextFile(file.StorageId, "persisted")), "TextFile overlay write succeeds");
+    auto persisted = fs.readTextFile(file.Path, file.StorageId);
+    expect(static_cast<bool>(persisted) && persisted.value == "persisted", "TextFile overlay read succeeds");
+    RuntimeFileSystem editorFs(applicationId, RuntimeFileSystem::Namespace::Editor, false, root);
+    expect(editorFs.namespaceRoot() != fs.namespaceRoot(), "runtime/editor namespaces are isolated");
+    expect(!static_cast<bool>(fs.write("oversize.bin", std::string(128u * 1024u * 1024u + 1u, 'x'))),
+           "files over 128 MiB are rejected");
+    expect(!static_cast<bool>(fs.copy("a.bin", "dir/copy.bin")) &&
+               static_cast<bool>(fs.copy("a.bin", "dir/copy.bin", true)),
+           "copy overwrite policy is enforced");
+    expect(static_cast<bool>(fs.removeTree("dir")), "recursive removal succeeds");
+    RuntimeFileSystem externalFs(applicationId, RuntimeFileSystem::Namespace::Runtime,
+                                 true, root / "external-base");
+    const auto absoluteTarget = root / "absolute.bin";
+    expect(static_cast<bool>(externalFs.write(absoluteTarget.string(), "external")) &&
+               externalFs.isFile(absoluteTarget.string()).isFile,
+           "external access permits absolute paths");
+    auto system = std::make_shared<System>();
+    system->ApplicationId = applicationId;
+    expect(!system->EnableIOAPI && !system->EnableIPCAPI &&
+               !system->EnableExternalFileAccess && !system->ApplicationId.empty(),
+           "System extension defaults are disabled with an application id");
+    system->EnableIOAPI = true;
+    system->EnableIPCAPI = true;
+    system->EnableExternalFileAccess = true;
+    const auto systemYaml = root / "system.yaml";
+    expect(SceneLoader::saveSceneResult(system.get(), systemYaml.string()),
+           "System extension YAML save succeeds");
+    auto mergedSystem = std::make_shared<System>();
+    SceneLoader::LoadContext loadContext;
+    loadContext.registerMergeInstance("System", mergedSystem);
+    const auto loadedSystem = SceneLoader::loadSceneResult(systemYaml.string(), loadContext);
+    expect(loadedSystem && mergedSystem->ApplicationId == system->ApplicationId &&
+               mergedSystem->EnableIOAPI && mergedSystem->EnableIPCAPI &&
+               mergedSystem->EnableExternalFileAccess,
+           "System extension YAML round-trip preserves values");
+    const auto consentRoot = fs.namespaceRoot().parent_path();
+    SystemExtensionPermissions consentPermissions{true, false, false};
+    expect(SystemExtensionConsent::shouldWarn(consentRoot, consentPermissions),
+           "extension consent warns on first launch");
+    expect(SystemExtensionConsent::write(consentRoot, consentPermissions) &&
+               !SystemExtensionConsent::shouldWarn(consentRoot, consentPermissions),
+           "same extension consent does not warn again");
+    SystemExtensionPermissions changedPermissions{true, true, false};
+    expect(SystemExtensionConsent::shouldWarn(consentRoot, changedPermissions),
+           "extension consent warns when configuration changes");
+    SystemExtensionPermissions readPermissions;
+    expect(SystemExtensionConsent::read(consentRoot, readPermissions) &&
+               readPermissions.io && !readPermissions.ipc && !readPermissions.external,
+           "extension consent round-trip preserves exact set");
+
+    // Exercise the Luau permission boundary and the read-only System fields.
+    LuauEngine extensionEngine;
+    system->EnableIOAPI = false;
+    system->EnableIPCAPI = false;
+    system->EnableExternalFileAccess = false;
+    extensionEngine.setSystem(system.get());
+    extensionEngine.setRuntimeFileSystem(std::make_shared<RuntimeFileSystem>(
+        applicationId, RuntimeFileSystem::Namespace::Runtime, true, root));
+    auto extensionWorkspace = std::make_shared<Workspace>();
+    system->addChild(extensionWorkspace);
+    extensionEngine.setWorkspace(extensionWorkspace);
+    const auto seedPath = root / "seed.txt";
+    { std::ofstream seed(seedPath, std::ios::binary); seed << "seed"; }
+    auto textFile = std::make_shared<TextFile>();
+    textFile->Path = seedPath.string();
+    textFile->Name = "SaveData";
+    extensionWorkspace->addChild(textFile);
+    extensionEngine.setGlobalInstance("SaveData", textFile);
+    auto permissionScript = std::make_shared<Script>();
+    permissionScript->Source =
+        "assert(pcall(function() IO.Exists('x') end) == false) "
+        "assert(pcall(function() IPC.Connect('x') end) == false) "
+        "System.EnableIOAPI = true System.EnableIPCAPI = true "
+        "System.EnableExternalFileAccess = true System.ApplicationId = 'mutate'";
+    extensionEngine.setGlobalInstance("System", system);
+    expect(extensionEngine.execute(*permissionScript),
+           "Luau IO permission and read-only System assignments are handled");
+    expect(!system->EnableIOAPI && !system->EnableExternalFileAccess &&
+               system->ApplicationId == applicationId,
+           "System extension fields remain read-only from Luau");
+    system->EnableIOAPI = true;
+    auto ioScript = std::make_shared<Script>();
+    ioScript->Source =
+        "IO.WriteBytes('nul.bin', 'a\\0b') "
+        "assert(IO.ReadBytes('nul.bin') == 'a\\0b')";
+    expect(extensionEngine.execute(*ioScript), "Luau enabled IO binary round-trip succeeds");
+    system->EnableIOAPI = false;
+    system->EnableIPCAPI = true;
+    auto ipcScript = std::make_shared<Script>();
+    ipcScript->Source = "assert(pcall(function() IPC.Connect('x') end) == false)";
+    expect(extensionEngine.execute(*ipcScript), "enabled IPC reports not implemented");
+    auto contentScript = std::make_shared<Script>();
+    contentScript->Source =
+        "assert(SaveData.Content == 'seed') SaveData.Content = 'overlay' "
+        "assert(SaveData.Content == 'overlay') assert(SaveData.StorageId == nil) "
+        "assert(pcall(function() SaveData:Clone() end) == false) "
+        "assert(pcall(function() Instance.new('TextFile') end) == false)";
+    expect(extensionEngine.execute(*contentScript),
+           "TextFile Content overlay works without exposing StorageId");
+    std::filesystem::remove_all(root, ec);
+    return failures;
+}
+
+static int runSystemExtensionSmokePackaging(int argc, char* argv[]) {
+    if (argc < 3) {
+        std::cerr << "usage: RecubinTest --package-system-extension-smoke <output-dir>\n";
+        return 2;
+    }
+    Packager::Config config;
+    config.gameName = "SystemExtensionSmokePackage";
+    config.applicationId = "9b4d2c11-5e73-4a6f-8c20-1d9f7b3e6a42";
+    config.scenePath = "TestCases/SystemExtensionSmoke/SystemExtensionSmoke.yaml";
+    config.outputDir = argv[2];
+#ifdef __APPLE__
+    config.engineExePath =
+        (std::filesystem::current_path() / "build-mac/Recubin").string();
+#else
+    config.engineExePath =
+        (std::filesystem::current_path() / "build/Release/Recubin.exe").string();
+#endif
+    const bool packaged = Packager::package(config, [](const std::string& message) {
+        std::cout << "[SystemExtensionPackage] " << message << '\n';
+    });
+    return packaged ? 0 : 1;
+}
+
 static int runPhysicalFileInstanceRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const std::string& message) {
@@ -7217,6 +7384,10 @@ static int runPhysicalFileInstanceRegression() {
         hasFileRef = hasFileRef || className == "FileRef";
         hasFontFile = hasFontFile || className == "FontFile";
 
+        if (className == "TextFile")
+            expect(!type.luaCreatable,
+                   "TextFile is scene-owned and not Luau-creatable");
+
         auto created = PhysicalFileInstanceRegistry::create(type.className);
         expect(created && created->getClassName() == className &&
                    created->IsA(className) && created->IsA("PhysicalFileInstance") &&
@@ -7244,6 +7415,12 @@ static int runPhysicalFileInstanceRegression() {
         expect(cloned && cloned->getClassName() == className &&
                    cloned->Path == storedPath && cloned->Name == created->Name,
                "clone preserves type, Path, and Name for " + className);
+        if (className == "TextFile") {
+            auto* text = static_cast<TextFile*>(created.get());
+            auto* textClone = dynamic_cast<TextFile*>(cloned.get());
+            expect(textClone && textClone->StorageId != text->StorageId,
+                   "TextFile clone receives a distinct StorageId");
+        }
 
         expectedPaths.emplace_back(created->Name, storedPath);
         workspace->addChild(created);
@@ -7304,6 +7481,7 @@ static int runPhysicalFileInstanceRegression() {
         script->Name = "PhysicalFileInstanceLuauFactory";
         for (const auto& type : types) {
             const std::string className(type.className);
+            if (!type.luaCreatable) continue;
             script->Source +=
                 "do local file = Instance.new('" + className + "') "
                 "if file and file:IsA('" + className +
@@ -7315,6 +7493,7 @@ static int runPhysicalFileInstanceRegression() {
         expect(executed, "Luau physical-file factory script executes");
         for (const auto& type : types) {
             const std::string className(type.className);
+            if (!type.luaCreatable) continue;
             expect(luauCreated.contains(className),
                    "Luau Instance.new creates " + className +
                        " and exposes readable Path");
@@ -7342,6 +7521,9 @@ int main(int argc, char* argv[]) {
             static_cast<int>(physicsArguments.size()), physicsArguments.data()))
         return -1;
 
+    if (argc > 1 && std::string_view(argv[1]) == "--package-system-extension-smoke")
+        return runSystemExtensionSmokePackaging(argc, argv);
+
     const bool weldRegression = argc > 1 && std::string_view(argv[1]) == "--weld-regression";
     const bool toolWeldRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-regression";
     const bool toolWeldReequipRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-reequip-regression";
@@ -7353,6 +7535,8 @@ int main(int argc, char* argv[]) {
     const bool animationClipRegression = argc > 1 && std::string_view(argv[1]) == "--animation-clip-regression";
     const bool sceneLoadTransactionRegression =
         argc > 1 && std::string_view(argv[1]) == "--scene-load-transaction-regression";
+    const bool systemExtensionRegression =
+        argc > 1 && std::string_view(argv[1]) == "--system-extension-regression";
     const bool groupingRegression = argc > 1 && std::string_view(argv[1]) == "--scene-hierarchy-grouping-regression";
     bool physicsMigrationRegression = false;
     bool physicsLifecycleRegression = false;
@@ -7438,6 +7622,8 @@ int main(int argc, char* argv[]) {
     }
     if (physicalFileInstanceRegression)
         return runPhysicalFileInstanceRegression();
+    if (systemExtensionRegression)
+        return runSystemExtensionRegression();
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
     if (groupingRegression) return runSceneHierarchyGroupingRegression();
     if (seatNetworkRegression) return runSeatNetworkRegression();

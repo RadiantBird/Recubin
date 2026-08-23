@@ -9,6 +9,7 @@ public:
         std::string outputDir;
         std::string scenePath;
         std::string engineExePath;
+        std::string applicationId;
     };
 
     // Returns true on success. Progress lines are delivered via log callback.

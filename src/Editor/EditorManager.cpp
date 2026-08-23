@@ -9,6 +9,7 @@
 #include <Editor/CommandHistory.hpp>
 #include <Editor/Localization.hpp>
 #include <Instances/Cube.hpp>
+#include <Instances/System.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Truss.hpp>
@@ -855,6 +856,8 @@ void EditorManager::renderPackageDialog() {
             cfg.outputDir     = m_pkgOutDir;
             cfg.scenePath     = scenePath;
             cfg.engineExePath = engineExePath;
+            if (m_system && m_system->IsA("System"))
+                cfg.applicationId = static_cast<System*>(m_system)->ApplicationId;
 
             auto logFn = [this](const std::string& msg) { m_pkgLog.push_back(msg); m_pkgLogScrollToBottom = true; };
             Packager::package(cfg, logFn);

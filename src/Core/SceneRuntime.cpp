@@ -31,6 +31,10 @@ void copySystemScalars(const System& source, System& destination) {
     destination.ScriptLoopTimeoutSeconds = source.ScriptLoopTimeoutSeconds;
     destination.BaseResolution = source.BaseResolution;
     destination.UseNetwork = source.UseNetwork;
+    destination.ApplicationId = source.ApplicationId;
+    destination.EnableIOAPI = source.EnableIOAPI;
+    destination.EnableIPCAPI = source.EnableIPCAPI;
+    destination.EnableExternalFileAccess = source.EnableExternalFileAccess;
 }
 
 void copyUserScalars(const User& source, User& destination) {

@@ -5,6 +5,7 @@ build-mac/
 dist/
 sound/
 temp_build/
+/artifacts/
 
 imgui.ini
 _snapshot.yaml

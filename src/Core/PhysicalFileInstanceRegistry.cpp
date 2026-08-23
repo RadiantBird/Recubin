@@ -37,6 +37,7 @@ void ensureBaseSchemaRegistered() {
 void ensureBuiltinsRegistered() {
     static const bool registered = [] {
         ensureBaseSchemaRegistered();
+        PhysicalFileInstanceRegistry::registerTextFileType();
 #define RCBN_FILE_INSTANCE(ClassName, Kind, Category, DialogLabel, Filter)       \
         PhysicalFileInstanceRegistry::registerType(                             \
             PhysicalFileInstanceType{                                           \

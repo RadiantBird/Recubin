@@ -42,6 +42,7 @@
 #include <Instances/Folder.hpp>
 #include <Instances/FileRef.hpp>
 #include <Instances/FontFile.hpp>
+#include <Instances/TextFile.hpp>
 #include <Instances/Tool.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/Sun.hpp>
@@ -72,6 +73,7 @@
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
 #include <Util/Logger.hpp>
+#include <Util/AssetPath.hpp>
 #include <include/imgui/imgui.h>
 #include <fstream>
 #include <filesystem>
@@ -94,6 +96,18 @@ static std::string pickFile() {
 
 static std::string pickFolder() {
     return getPlatform().openFolderDialog();
+}
+
+static std::string textFileProjectRelative(const std::string& path) {
+    std::error_code ec;
+    const auto absolute = std::filesystem::absolute(path, ec);
+    const auto project = std::filesystem::current_path(ec);
+    if (ec) return AssetPath::toStored(std::filesystem::path(path));
+    const auto relative = std::filesystem::relative(absolute, project, ec);
+    if (ec || relative.empty()) return AssetPath::toStored(absolute);
+    const auto stored = AssetPath::toStored(relative);
+    if (stored == ".." || stored.rfind("../", 0) == 0) return AssetPath::toStored(absolute);
+    return stored;
 }
 
 static bool isValidNewScriptName(const std::string& name) {
@@ -171,6 +185,7 @@ void SceneHierarchyPanel::onRender() {
     if (!readOnly) {
         renderNewScriptDialog();
         renderNewTerrainDialog();
+        renderTextFileDialog();
     }
 
     ImGui::End();
@@ -410,6 +425,95 @@ void SceneHierarchyPanel::requestNewScript(const std::shared_ptr<Instance>& pare
     m_openScriptDialog     = true;
     m_pendingScriptClass   = ScriptInsertClass::Script;
     m_scriptDialogError.clear();
+}
+
+void SceneHierarchyPanel::requestNewTextFile(const std::shared_ptr<Instance>& parent) {
+    if (!parent) return;
+    m_pendingGroupTargets.clear();
+    m_pendingTextFileParent = parent;
+    m_openTextFileDialog = true;
+    m_textFileDialogError.clear();
+}
+
+void SceneHierarchyPanel::renderTextFileDialog() {
+    if (m_openTextFileDialog) {
+        ImGui::OpenPopup("###TextFile");
+        m_openTextFileDialog = false;
+    }
+    const std::string title = std::string(Loc::t(Loc::LocKey::TextFileTitle)) + "###TextFile";
+    if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        static char name[128] = "NewTextFile";
+        static int mode = 0;
+        ImGui::RadioButton(Loc::t(Loc::LocKey::TextFileModeNew), &mode, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton(Loc::t(Loc::LocKey::TextFileModeExisting), &mode, 1);
+        ImGui::Separator();
+        if (mode == 0) {
+            ImGui::Text("%s", Loc::t(Loc::LocKey::TextFileNameLabel));
+            ImGui::SetNextItemWidth(220.0f);
+            ImGui::InputText("##textfilename", name, sizeof(name));
+        } else ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::TextFilePickHint));
+        if (!m_textFileDialogError.empty())
+            ImGui::TextColored(ImVec4(1, .35f, .35f, 1), "%s", m_textFileDialogError.c_str());
+        if (ImGui::Button(Loc::t(Loc::LocKey::OK), ImVec2(100, 0))) {
+            std::string requested(name);
+            if (mode == 0 && requested.size() >= 4 && requested.substr(requested.size() - 4) == ".txt")
+                requested.resize(requested.size() - 4);
+            bool invalidName = requested.empty() || requested == "." || requested == ".." ||
+                               requested.find_first_of("/\\:*?\"<>|") != std::string::npos;
+            if (mode == 0 && invalidName)
+                m_textFileDialogError = Loc::t(Loc::LocKey::TextFileNameError);
+            else {
+                m_textFileName = requested;
+                m_pickExistingTextFile = mode == 1;
+                m_doPickTextFile = true;
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(Loc::t(Loc::LocKey::Cancel), ImVec2(100, 0))) {
+            m_pendingTextFileParent.reset();
+            m_pendingGroupTargets.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    if (!m_doPickTextFile) return;
+    m_doPickTextFile = false;
+    std::string path;
+    bool retry = false;
+    if (m_pickExistingTextFile) {
+        path = getPlatform().openFileDialog({{"Text file (*.txt)", "*.txt"}});
+    } else {
+        const std::string folder = pickFolder();
+        if (!folder.empty()) {
+            std::filesystem::path target = std::filesystem::absolute(folder) / (m_textFileName + ".txt");
+            std::ofstream out(target, std::ios::binary | std::ios::out | std::ios::noreplace);
+            if (!out.is_open()) {
+                m_textFileDialogError = Loc::t(Loc::LocKey::TextFileWriteError);
+                m_openTextFileDialog = true;
+                retry = true;
+            } else {
+                out.close();
+                path = target.string();
+            }
+        }
+    }
+    if (!path.empty() && m_pendingTextFileParent && m_history) {
+        auto file = std::make_shared<TextFile>();
+        file->Path = textFileProjectRelative(path);
+        std::filesystem::path selected(path);
+        file->Name = uniqueName(m_pendingTextFileParent,
+                                m_pickExistingTextFile ? selected.stem().string() : m_textFileName);
+        getPlatform().revealInFileManager(path);
+        m_history->execute(std::make_unique<AddInstanceCommand>(m_pendingTextFileParent, file));
+        selectedInstance = file.get();
+        selectedInstances = {file.get()};
+    }
+    if (!retry) {
+        m_pendingTextFileParent.reset();
+        m_textFileDialogError.clear();
+    }
 }
 
 void SceneHierarchyPanel::renderNewScriptDialog() {
@@ -785,8 +889,11 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         }
         
         tryInsertInstance<Folder>(m_history, "Folder", parentSp);
+        if (ImGui::MenuItem("TextFile") && m_history)
+            requestNewTextFile(parentSp);
         for (const auto& type : PhysicalFileInstanceRegistry::types()) {
             if (type.insertCategory != PhysicalFileInsertCategory::Other) continue;
+            if (std::string(type.className) == "TextFile") continue;
             const std::string className(type.className);
             if (ImGui::MenuItem(className.c_str()) && m_history) {
                 auto obj = PhysicalFileInstanceRegistry::create(type.className);
@@ -1034,6 +1141,7 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
             }
             for (const auto& type : PhysicalFileInstanceRegistry::types()) {
                 if (type.insertCategory != PhysicalFileInsertCategory::Other) continue;
+                if (std::string(type.className) == "TextFile") continue;
                 const std::string className(type.className);
                 makeGroup(className.c_str(), [&] {
                     return PhysicalFileInstanceRegistry::create(type.className);

@@ -56,6 +56,8 @@ enum class LocKey {
     SwitchToWorkspace, OpenInNewViewport, InsertObjectMenu,
     MenuDelete, MenuCopy, MenuPaste, MenuPasteAsChild,
     MenuGroup,
+    TextFileTitle, TextFileModeNew, TextFileModeExisting, TextFileNameLabel,
+    TextFilePickHint, TextFileNameError, TextFileWriteError,
 
     // ---- PropertiesPanel ----
     RoundButton, RoundTooltip, OpenExternalEditor, ResetButton,

@@ -296,4 +296,9 @@ std::unique_ptr<IChildProcess> MacPlatform::launchChildProcess(
     return std::make_unique<MacChildProcess>(processId);
 }
 
+std::filesystem::path MacPlatform::userDataRoot() const {
+    if (const char* home = std::getenv("HOME")) return std::filesystem::path(home) / "Library/Application Support/Recubin";
+    return std::filesystem::temp_directory_path() / "Recubin";
+}
+
 #endif // __APPLE__

@@ -432,6 +432,38 @@ void LuauEngine::InitMetatables() {
 }
 
 void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
+    // File/IPC extensions are closures over this engine.  Registering here is
+    // also done for every script coroutine, so globals cannot escape the
+    // engine's permission and filesystem context.
+    auto registerExtension = [this, L](const char* tableName, const char* name,
+                                       lua_CFunction fn) {
+        lua_getglobal(L, tableName);
+        if (lua_isnil(L, -1)) { lua_pop(L, 1); lua_newtable(L); }
+        lua_pushlightuserdata(L, this);
+        lua_pushcclosure(L, fn, name, 1);
+        lua_setfield(L, -2, name);
+        lua_setglobal(L, tableName);
+    };
+    registerExtension("IO", "ReadText", io_read_text);
+    registerExtension("IO", "ReadBytes", io_read_bytes);
+    registerExtension("IO", "WriteText", io_write_text);
+    registerExtension("IO", "WriteBytes", io_write_bytes);
+    registerExtension("IO", "AppendText", io_append_text);
+    registerExtension("IO", "AppendBytes", io_append_bytes);
+    registerExtension("IO", "Exists", io_exists);
+    registerExtension("IO", "IsFile", io_is_file);
+    registerExtension("IO", "IsDirectory", io_is_directory);
+    registerExtension("IO", "List", io_list);
+    registerExtension("IO", "CreateDirectory", io_create_directory);
+    registerExtension("IO", "Copy", io_copy);
+    registerExtension("IO", "Move", io_move);
+    registerExtension("IO", "Remove", io_remove);
+    registerExtension("IO", "RemoveTree", io_remove_tree);
+    registerExtension("IPC", "Connect", ipc_connect);
+    registerExtension("IPC", "Send", ipc_send);
+    registerExtension("IPC", "Receive", ipc_receive);
+    registerExtension("IPC", "Close", ipc_close);
+
     // Register Vector3 with new method
     lua_newtable(L);
     lua_pushcfunction(L, vec3_constructor, "new");
@@ -533,6 +565,81 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
         lua_setglobal(L, "workspace");
     }
 }
+
+namespace {
+LuauEngine* extensionEngine(lua_State* L) {
+    return static_cast<LuauEngine*>(lua_touserdata(L, lua_upvalueindex(1)));
+}
+RuntimeFileSystem& checkedFileSystem(lua_State* L, LuauEngine* engine) {
+    if (!engine || !engine->runtimeFileSystem())
+        luaL_error(L, "I/O API is unavailable: runtime filesystem is not configured");
+    if (!engine->system() || !engine->system()->EnableIOAPI)
+        luaL_error(L, "I/O API permission is not enabled");
+    auto& fileSystem = *engine->runtimeFileSystem();
+    fileSystem.setExternalAllowed(engine->system()->EnableExternalFileAccess);
+    return fileSystem;
+}
+void pushResultError(lua_State* L, const RuntimeFileResult& r) {
+    luaL_error(L, "%s", r.error.empty() ? "I/O operation failed" : r.error.c_str());
+}
+int readFile(lua_State* L) {
+    auto* e = extensionEngine(L); auto& fs = checkedFileSystem(L, e);
+    auto r = fs.read(luaL_checkstring(L, 1));
+    if (!r) pushResultError(L, r);
+    lua_pushlstring(L, r.value.data(), r.value.size()); return 1;
+}
+int writeFile(lua_State* L, bool append) {
+    auto* e = extensionEngine(L); auto& fs = checkedFileSystem(L, e);
+    size_t n = 0; const char* data = luaL_checklstring(L, 2, &n);
+    auto r = append ? fs.append(luaL_checkstring(L, 1), std::string(data, n))
+                    : fs.write(luaL_checkstring(L, 1), std::string(data, n));
+    if (!r) pushResultError(L, r); lua_pushboolean(L, 1); return 1;
+}
+int boolFile(lua_State* L, int kind) {
+    auto* e = extensionEngine(L); auto& fs = checkedFileSystem(L, e);
+    const char* path = luaL_checkstring(L, 1);
+    RuntimeFileResult result = kind == 0 ? fs.exists(path)
+        : (kind == 1 ? fs.isFile(path) : fs.isDirectory(path));
+    if (!result) pushResultError(L, result);
+    lua_pushboolean(L, kind == 0 ? result.exists :
+                    (kind == 1 ? result.isFile : result.isDirectory));
+    return 1;
+}
+int mutateFile(lua_State* L, int kind) {
+    auto* e=extensionEngine(L); auto& fs=checkedFileSystem(L,e); const char* a=luaL_checkstring(L,1);
+    RuntimeFileResult r;
+    if(kind==0) r=fs.createDirectory(a); else if(kind==1) r=fs.remove(a); else r=fs.removeTree(a);
+    if(!r)pushResultError(L,r); lua_pushboolean(L,1); return 1;
+}
+int transferFile(lua_State* L, bool moving) {
+    auto* e=extensionEngine(L); auto& fs=checkedFileSystem(L,e); const char* a=luaL_checkstring(L,1); const char* b=luaL_checkstring(L,2);
+    bool overwrite=lua_toboolean(L,3)!=0; auto r=moving?fs.move(a,b,overwrite):fs.copy(a,b,overwrite);
+    if(!r)pushResultError(L,r); lua_pushboolean(L,1); return 1;
+}
+}
+
+int LuauEngine::io_read_text(lua_State* L){return readFile(L);}
+int LuauEngine::io_read_bytes(lua_State* L){return readFile(L);}
+int LuauEngine::io_write_text(lua_State* L){return writeFile(L,false);}
+int LuauEngine::io_write_bytes(lua_State* L){return writeFile(L,false);}
+int LuauEngine::io_append_text(lua_State* L){return writeFile(L,true);}
+int LuauEngine::io_append_bytes(lua_State* L){return writeFile(L,true);}
+int LuauEngine::io_exists(lua_State* L){return boolFile(L,0);}
+int LuauEngine::io_is_file(lua_State* L){return boolFile(L,1);}
+int LuauEngine::io_is_directory(lua_State* L){return boolFile(L,2);}
+int LuauEngine::io_list(lua_State* L){
+    auto* e=extensionEngine(L); auto& fs=checkedFileSystem(L,e); std::vector<RuntimeFileEntry> v; auto r=fs.list(luaL_checkstring(L,1),v); if(!r)pushResultError(L,r);
+    lua_newtable(L); int i=1; for(auto& x:v){lua_newtable(L);lua_pushstring(L,x.name.c_str());lua_setfield(L,-2,"Name");lua_pushstring(L,x.path.c_str());lua_setfield(L,-2,"Path");lua_pushboolean(L,x.isDirectory);lua_setfield(L,-2,"IsDirectory");lua_pushinteger(L,(lua_Integer)x.size);lua_setfield(L,-2,"Size");lua_rawseti(L,-2,i++);} return 1;
+}
+int LuauEngine::io_create_directory(lua_State* L){return mutateFile(L,0);}
+int LuauEngine::io_copy(lua_State* L){return transferFile(L,false);}
+int LuauEngine::io_move(lua_State* L){return transferFile(L,true);}
+int LuauEngine::io_remove(lua_State* L){return mutateFile(L,1);}
+int LuauEngine::io_remove_tree(lua_State* L){return mutateFile(L,2);}
+int LuauEngine::ipc_connect(lua_State* L){auto*e=extensionEngine(L);if(!e||!e->system()||!e->system()->EnableIPCAPI){luaL_error(L,"IPC API permission is not enabled");return 0;}luaL_error(L,"IPC API is not implemented");return 0;}
+int LuauEngine::ipc_send(lua_State* L){return ipc_connect(L);}
+int LuauEngine::ipc_receive(lua_State* L){return ipc_connect(L);}
+int LuauEngine::ipc_close(lua_State* L){return ipc_connect(L);}
 
 int LuauEngine::instance_index(lua_State* L) {
     auto* userdata = (std::weak_ptr<Instance>*)luaL_checkudata(L, 1, RCBN_INST_METATABLE);
@@ -2400,6 +2507,15 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
 int LuauEngine::instance_new_closure(lua_State* L) {
     const char* className = luaL_checkstring(L, 1);
 
+    // TextFile instances represent persisted scene resources and must be
+    // created by the scene/editor/packager pipeline.  Allowing Luau to create
+    // one would produce an untracked StorageId and make the save-data
+    // namespace ambiguous.
+    if (std::strcmp(className, "TextFile") == 0) {
+        luaL_error(L, "Instance.new('TextFile') is not permitted; TextFile instances are scene-owned");
+        return 0;
+    }
+
     std::shared_ptr<Instance> inst = createBaseCubeInstance(className);
     if (!inst) inst = PhysicalFileInstanceRegistry::create(className);
     if (!inst) {
@@ -2424,6 +2540,14 @@ int LuauEngine::instance_clone_closure(lua_State* L) {
     auto* userdata = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
     auto obj_shared = userdata->lock();
     if (!obj_shared) { lua_pushnil(L); return 1; }
+
+    // TextFile storage is identity-bearing.  Cloning it would either alias
+    // save data or silently create an untracked persistent file, so the
+    // operation is intentionally unavailable to scripts.
+    if (obj_shared->IsA("TextFile")) {
+        luaL_error(L, "TextFile:Clone() is not permitted; TextFile instances are not script-cloneable");
+        return 0;
+    }
 
     auto copy = obj_shared->cloneTree();
     if (!copy) { lua_pushnil(L); return 1; }

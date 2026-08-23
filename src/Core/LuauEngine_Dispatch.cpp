@@ -34,6 +34,8 @@
 #include "include/Instances/BillboardGui.hpp"
 #include "include/Instances/ProximityPrompt.hpp"
 #include "include/Instances/FileRef.hpp"
+#include "include/Instances/TextFile.hpp"
+#include "include/Util/RuntimeFileSystem.hpp"
 #include "include/Instances/Texture.hpp"
 #include "include/Instances/ImageLabel.hpp"
 #include "include/Instances/ImageButton.hpp"
@@ -654,6 +656,45 @@ void LuauEngine::InitDispatchTable_Misc() {
     PropertyRegistry::applyToDispatch("PhysicalFileInstance", DispatchTable, SetterTable);
     for (const auto& type : PhysicalFileInstanceRegistry::types())
         PropertyRegistry::applyToDispatch(type.className, DispatchTable, SetterTable);
+    // StorageId is an engine-owned identity and is intentionally invisible to
+    // scripts; exposing it would allow save-data aliasing across TextFiles.
+    DispatchTable["TextFile"].erase("StorageId");
+    SetterTable["TextFile"].erase("StorageId");
+    // TextFile.Content is backed by the runtime seed/overlay service rather
+    // than the scene property value. Resolve the owning engine through the
+    // Lua state's callback userdata (the same engine captured by IO globals).
+    DispatchTable["TextFile"]["Content"] = [](lua_State* L, Instance* object) {
+        auto* engine = static_cast<LuauEngine*>(lua_callbacks(L)->userdata);
+        auto* file = static_cast<TextFile*>(object);
+        if (!engine || !engine->runtimeFileSystem()) {
+            luaL_error(L, "TextFile.Content is unavailable: runtime filesystem is not configured");
+            return 0;
+        }
+        auto result = engine->runtimeFileSystem()->readTextFile(file->Path, file->StorageId);
+        if (!result) {
+            luaL_error(L, "%s", result.error.c_str());
+            return 0;
+        }
+        lua_pushlstring(L, result.value.data(), result.value.size());
+        return 1;
+    };
+    SetterTable["TextFile"]["Content"] = [](lua_State* L, Instance* object) {
+        auto* engine = static_cast<LuauEngine*>(lua_callbacks(L)->userdata);
+        auto* file = static_cast<TextFile*>(object);
+        if (!engine || !engine->runtimeFileSystem()) {
+            luaL_error(L, "TextFile.Content is unavailable: runtime filesystem is not configured");
+            return 0;
+        }
+        size_t size = 0;
+        const char* data = luaL_checklstring(L, 3, &size);
+        auto result = engine->runtimeFileSystem()->writeTextFile(
+            file->StorageId, std::string(data, size));
+        if (!result) {
+            luaL_error(L, "%s", result.error.c_str());
+            return 0;
+        }
+        return 0;
+    };
 
     DispatchTable["MeshCube"]["MeshFile"] = getter_string<MeshCube, &MeshCube::MeshFile>();
 

@@ -1,5 +1,6 @@
 #include <Core/Packager.hpp>
 #include <Util/AssetPath.hpp>
+#include <Util/UUID.hpp>
 #include "include/luau/luacode.h"
 #include <yaml-cpp/yaml.h>
 #include <iostream>
@@ -172,6 +173,23 @@ static YAML::Node findYamlMapValue(const YAML::Node& map, const char* key) {
     for (auto it = map.begin(); it != map.end(); ++it) {
         if (it->first.IsScalar() && it->first.as<std::string>() == key) {
             return it->second;
+        }
+    }
+    return {};
+}
+
+static YAML::Node findSystemNode(const YAML::Node& node) {
+    if (node.IsMap()) {
+        const YAML::Node className = findYamlMapValue(node, "ClassName");
+        if (className.IsScalar() && className.as<std::string>() == "System") return node;
+        for (auto it = node.begin(); it != node.end(); ++it) {
+            YAML::Node found = findSystemNode(it->second);
+            if (found) return found;
+        }
+    } else if (node.IsSequence()) {
+        for (const auto& child : node) {
+            YAML::Node found = findSystemNode(child);
+            if (found) return found;
         }
     }
     return {};
@@ -575,6 +593,10 @@ static bool signMacBundle(const fs::path& bundleDir,
 // ---- public API ----
 
 bool Packager::package(const Config& cfg, std::function<void(const std::string&)> log) {
+    if (!RecubinUUID::isValid(cfg.applicationId)) {
+        log("[ERROR] Invalid or missing ApplicationId; save the scene before packaging.");
+        return false;
+    }
     // Keep the package content root at the same relative location on every
     // platform.  On macOS it is Contents/Resources so startup.yaml and all
     // existing assets remain addressable as assets/... and shaders/....
@@ -676,6 +698,27 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
         log("[ERROR] Failed to parse scene YAML: " + std::string(e.what()));
         return false;
     }
+
+    // The packaged scene must carry the live System identity, even when an old
+    // scene omitted it or contains a stale value from a previous package.
+    YAML::Node rootNode = findYamlMapValue(sceneNode, "Root");
+    YAML::Node systemNode;
+    // Current SceneLoader saves a virtual System as a flat Root map (there is
+    // no ClassName field); preserve that format and inject into Root itself.
+    const YAML::Node rootClassName = findYamlMapValue(rootNode, "ClassName");
+    if (rootNode.IsMap() && !rootClassName.IsScalar()) {
+        systemNode = rootNode;
+    } else {
+        systemNode = findSystemNode(rootNode);
+        if (!systemNode || !systemNode.IsMap()) systemNode = findSystemNode(sceneNode);
+    }
+    if (!systemNode || !systemNode.IsMap()) {
+        log("[ERROR] Scene YAML has no System root; cannot inject ApplicationId.");
+        return false;
+    }
+    YAML::Node properties = findYamlMapValue(systemNode, "Properties");
+    if (!properties || !properties.IsMap()) properties = systemNode["Properties"] = YAML::Node(YAML::NodeType::Map);
+    properties["ApplicationId"] = cfg.applicationId;
 
     const std::string rawAppIconPath = findRootAppIconPath(sceneNode);
     const std::string legacyWalkContentPath = findLegacyWalkContentPath(sceneNode);
@@ -872,6 +915,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
         YAML::Emitter startup;
         startup << YAML::BeginMap
                 << YAML::Key << "GameName"   << YAML::Value << cfg.gameName
+                << YAML::Key << "ApplicationId" << YAML::Value << cfg.applicationId
                 << YAML::Key << "StartScene" << YAML::Value
                     << ("assets/scenes/" + cfg.gameName + ".yaml")
                 << YAML::EndMap;

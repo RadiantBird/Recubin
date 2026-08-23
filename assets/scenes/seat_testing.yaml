@@ -8,6 +8,10 @@ Root:
     ScriptLoopTimeoutSeconds: 2
     BaseResolution: [1920, 1080]
     UseNetwork: true
+    ApplicationId: 0e2f6485-b0d4-4cc4-ba66-7f24fa8818cd
+    EnableIOAPI: false
+    EnableIPCAPI: false
+    EnableExternalFileAccess: false
   Children:
     - ClassName: Users
       Name: Users
@@ -38,38 +42,11 @@ Root:
             Direction: [1, -1, -1]
             Brightness: 1
             Color: [1, 1, 1, 1]
-        - ClassName: ImageLabel
-          Name: ImageLabel
+        - ClassName: TextFile
+          Name: HelloRC
           Properties:
-            Size: [512, 512]
-            Norm: Pixel
-            Active: true
-            Visible: true
-            BackgroundColor: [1, 1, 1, 1]
-            ZIndex: 0
-            Position: [200, 200]
-            UseFontFile: false
-            Font: Default
-            Image: C:\Users\Ryarta\Pictures\てきとう.png
-        - ClassName: Cube
-          Name: Cube
-          Properties:
-            Position: [0, 0, 0]
-            Size: [512, 1, 512]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.17427693, 0.48000002, 0.22319265, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            Locked: false
-            MassDensity: 1
-            CCDMode: Default
-            LockFlags: []
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
+            ContentPath: scripts/HelloRC.txt
+            StorageId: c7bbba23-aac4-41d0-bed4-9067218ea46d
         - ClassName: Seat
           Name: Seat
           Properties:
@@ -89,6 +66,42 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
+        - ClassName: Cube
+          Name: Cube
+          Properties:
+            Position: [0, 0, 0]
+            Size: [512, 1, 512]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.17427693, 0.48000002, 0.22319265, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: ImageLabel
+          Name: ImageLabel
+          Properties:
+            Size: [512, 512]
+            Norm: Pixel
+            Active: true
+            Visible: true
+            BackgroundColor: [1, 1, 1, 1]
+            ZIndex: 0
+            Position: [200, 200]
+            UseFontFile: false
+            Font: Default
+            Image: C:\Users\Ryarta\Pictures\てきとう.png
+        - ClassName: FontFile
+          Name: Tanuki
+          Properties:
+            ContentPath: C:/Users/Ryarta/Desktop/bin/九九闘争/TanukiMagic.ttf
         - ClassName: SpawnLocation
           Name: SpawnLocation
           Properties:
@@ -109,10 +122,6 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
             Enabled: true
-        - ClassName: FontFile
-          Name: Tanuki
-          Properties:
-            ContentPath: C:/Users/Ryarta/Desktop/bin/九九闘争/TanukiMagic.ttf
         - ClassName: TextLabel
           Name: TextLabel
           Properties:

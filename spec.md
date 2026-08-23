@@ -31,7 +31,23 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 `Restore Default Animations`を実行した場合だけとする。
 
 ## 特殊なインスタンス
+
+### システム拡張API
+
+`EnableIOAPI`が有効な場合のみLuauへ`IO.ReadText`/`ReadBytes`/`WriteText`/`WriteBytes`/`AppendText`/
+`AppendBytes`/`Exists`/`IsFile`/`IsDirectory`/`List`/`CreateDirectory`/`Copy`/`Move`/`Remove`/`RemoveTree`
+を公開する。読取りは値または状態、変更系の成功は`true`、権限不足・不正パス・I/O失敗はエラーとする。
+相対パスはnamespace root内、External許可時のみ絶対パスを許可し、`..`・symlink脱出を拒否する。RemoveTreeは
+ユーザーデータroot、ホーム、ドライブ／FS rootを保護する。TextFile.Contentを含むデータサイズ上限は128 MiB。
+`EnableIPCAPI`では`Connect`/`Send`/`Receive`/`Close`のstubを公開するが未実装エラーを返す。拡張同意receiptは
+構成versionとIO/IPC/External権限集合を保存・比較し、Editorと`--editor-test`では警告とreceiptをバイパスする。
 - **System**: シングルトン。常に1つのみ存在。Insert Objectリストには登録しない。
+  `ApplicationId`（UUID）と、`EnableIOAPI`、`EnableIPCAPI`、`EnableExternalFileAccess`の
+  システム拡張フラグを保持する。これらはエディターでのみ変更でき、Luauからは読み取り専用である。
+- **TextFile**: `PhysicalFileInstance`を継承する永続テキスト資産。`ContentPath`は配布時の
+  初期seed、`StorageId`はユーザー領域のmutable copyを識別するUUIDである。`Content`は全文を
+  読み書きでき、I/O API権限を要求しない。Luauの`Instance.new`では生成できず、エディターの
+  Insert ObjectまたはSceneロードからのみ生成される。複製時は新しい`StorageId`を割り当てる。
 - **Workspace**: 複数インスタンスを持つ。切り替え可能。
 - **StarterCharacter**: System直下に置く、キャラクターのテンプレートを保持するだけのコンテナ。
   中にHumanoid・Root(Cube)・その他のCube/Sphereを通常のInsert Object操作で組み立てる。

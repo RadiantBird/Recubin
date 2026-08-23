@@ -1,5 +1,10 @@
 # SceneRuntime
 
+Sceneのbind/commit後、live Systemの`ApplicationId`と拡張フラグからRuntimeFileSystemを構成し、LuauEngineへ渡す。
+エディターはEditor namespace、配布ランタイムはRuntime namespaceを使用する。
+TextFile seedと保存データもnamespaceごとに分離される。通常ランタイムの拡張警告receiptは構成versionと
+IO/IPC/External権限集合を比較し、Editorおよび`--editor-test`では警告とreceiptをバイパスする。
+
 `include/Core/SceneRuntime.hpp`
 
 シーンを隔離環境へロードし、成功後にliveランタイムへCommitする名前空間関数群。エディター・ゲームランタイム双方で共通するStage／Commit、既定サービス補完、参照再解決、Luauグローバル登録を1箇所にまとめる。物理エンジンの初期化・Lighting の移行・エディター固有のUndo/Terrain/Physics解放は呼び出し側の責務として残す。

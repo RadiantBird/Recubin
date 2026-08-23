@@ -119,6 +119,13 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "貼り付け",            "Paste" },
     { "子として貼り付け",     "Paste as Child" },
     { "グループ化",            "Group" },
+    { "TextFileを挿入", "Insert TextFile" },
+    { "新規.txtを作成", "Create new .txt" },
+    { "既存.txtを選択", "Select existing .txt" },
+    { "ファイル名:", "File name:" },
+    { ".txtファイルを選択します", "Select a .txt file" },
+    { "ファイル名が不正です。", "The file name is invalid." },
+    { "TextFileを作成できませんでした。", "The TextFile could not be created." },
 
     // ---- PropertiesPanel ----
     { "丸",                 "Round" },

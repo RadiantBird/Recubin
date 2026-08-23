@@ -11,6 +11,7 @@
 enum class PhysicalFileKind {
     Generic,
     Font,
+    Text,
 };
 
 enum class PhysicalFileInsertCategory {
@@ -24,6 +25,7 @@ struct PhysicalFileInstanceType {
     std::string_view dialogLabel;
     std::string_view dialogFilter;
     std::function<std::shared_ptr<PhysicalFileInstance>()> factory;
+    bool luaCreatable = true;
 };
 
 namespace PhysicalFileInstanceRegistry {
@@ -36,5 +38,9 @@ const std::vector<PhysicalFileInstanceType>& types();
 // className等のstring_viewはプログラム終了まで有効な文字列を指すこと。
 bool registerType(PhysicalFileInstanceType type,
                   std::vector<PropertyDesc> additionalProperties = {});
+
+// Explicitly registers hand-written builtins (referenced by the registry so
+// static-library linking cannot discard their translation unit).
+void registerTextFileType();
 
 } // namespace PhysicalFileInstanceRegistry

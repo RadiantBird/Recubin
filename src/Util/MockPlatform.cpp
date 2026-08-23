@@ -1,4 +1,5 @@
 #include <Util/MockPlatform.hpp>
+#include <filesystem>
 
 std::string MockPlatform::openFileDialog(const std::vector<FileFilter>&) {
     return {};
@@ -35,4 +36,11 @@ void MockPlatform::freeDynamicLibrary(void*) {}
 std::unique_ptr<IChildProcess> MockPlatform::launchChildProcess(
     const ChildProcessLaunchOptions&) {
     return nullptr;
+}
+
+std::filesystem::path MockPlatform::userDataRoot() const {
+    auto path = std::filesystem::temp_directory_path() / "Recubin";
+    std::error_code ec;
+    std::filesystem::create_directories(path, ec);
+    return path;
 }

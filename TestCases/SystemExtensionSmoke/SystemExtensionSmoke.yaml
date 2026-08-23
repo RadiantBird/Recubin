@@ -1,0 +1,51 @@
+recubin:
+  type: scene
+  version: 0
+Root:
+  Properties:
+    ApplicationId: 9b4d2c11-5e73-4a6f-8c20-1d9f7b3e6a42
+    EnableIOAPI: true
+    EnableIPCAPI: true
+    EnableExternalFileAccess: false
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Children:
+        - ClassName: TextFile
+          Name: SaveData
+          Properties:
+            ContentPath: TestCases/SystemExtensionSmoke/assets/seed.txt
+            StorageId: 4fcb2d18-6a90-4e73-b521-8c3d7f0a9e64
+        - ClassName: Folder
+          Name: SmokeGui
+          Children:
+            - ClassName: TextLabel
+              Name: SmokeResultsLeft
+              Properties:
+                Position: [32, 8]
+                Size: [720, 850]
+                Norm: Pixel
+                Active: true
+                Visible: true
+                ZIndex: 20
+                BackgroundColor: [0.02, 0.02, 0.04, 0.88]
+                TextColor: [0.85, 1, 0.85, 1]
+                FontSize: 10
+                Text: "SystemExtensionSmoke starting..."
+            - ClassName: TextLabel
+              Name: SmokeResultsRight
+              Properties:
+                Position: [780, 8]
+                Size: [720, 850]
+                Norm: Pixel
+                Active: true
+                Visible: true
+                ZIndex: 20
+                BackgroundColor: [0.02, 0.02, 0.04, 0.88]
+                TextColor: [0.85, 1, 0.85, 1]
+                FontSize: 10
+                Text: ""
+        - ClassName: Script
+          Name: SystemExtensionSmoke
+          Properties:
+            ContentPath: TestCases/SystemExtensionSmoke/scripts/SystemExtensionSmoke.luau
