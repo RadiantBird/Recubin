@@ -40,6 +40,7 @@
 #include "include/Instances/Moon.hpp"
 #include "include/Instances/Model.hpp"
 #include "include/Instances/Decal.hpp"
+#include "include/Instances/SurfaceMark.hpp"
 #include "include/Instances/Texture.hpp"
 #include "include/Instances/Lighting.hpp"
 #include "include/Instances/PointLight.hpp"
@@ -2458,6 +2459,7 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "ModuleScript",     [] { return std::make_shared<ModuleScript>(""); } },
         { "Model",            [] { return std::make_shared<Model>(); } },
         { "Decal",            [] { return std::make_shared<Decal>(0, Face::Front); } },
+        { "SurfaceMark",      [] { return std::make_shared<SurfaceMark>(); } },
         { "Texture",          [] { return std::make_shared<Texture>(0, Face::Front); } },
         { "Canvas",           [] { return std::make_shared<Canvas>(); } },
         { "Sound",            [] () -> std::shared_ptr<Instance> {

@@ -77,4 +77,14 @@ Vector3 additiveResize(
     float snapStep,
     float minimumSize = 0.05f);
 
+// Resize a volume while keeping the selected local face fixed.  SurfaceMark's
+// Position is the near-plane origin, so its local center factor is (0,0,-0.5).
+Vector3 fixedFaceResizeOrigin(
+    const Vector3& initialOrigin,
+    const Quaternion& worldRotation,
+    const Vector3& initialSize,
+    const Vector3& newSize,
+    const Vector3& grabSigns,
+    const Vector3& localCenterFactor);
+
 } // namespace ViewportGeometry

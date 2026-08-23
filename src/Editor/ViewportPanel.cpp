@@ -186,6 +186,7 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
         desc.renderConstraints = true;
         desc.renderHighlights  = true;              // サブ側は一旦ハイライトなし
         desc.renderPhysicsDebug = showPhysicsDebug;
+        desc.renderRenderingDebug = showRenderingDebug;
         desc.isFocused         = isViewportFocused;
 
         // レンダラーにこのサブテクスチャへ描き込ませる！
@@ -848,7 +849,14 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                 model = CFrame(pivot, gizmoRot).toMatrix4();
             } else if (gizmoOp == ImGuizmo::SCALE) {
                 CFrame stableCF = s->getWorldCFrame();
-                stableCF.Position = m_scaleBeforeWorldPos;
+                // SurfaceMark の Position は volume 中心ではなく near plane 原点。
+                // SCALE 中も ImGuizmo の基準点は投影 volume 中心で安定させる。
+                if (inst->IsA("SurfaceMark")) {
+                    stableCF.Position = m_scaleBeforeWorldPos + stableCF.Rotation.rotate(
+                        Vector3(0.0f, 0.0f, -m_scaleBeforeSize.z * 0.5f));
+                } else {
+                    stableCF.Position = m_scaleBeforeWorldPos;
+                }
                 // ImGuizmoの倍率をそのままSizeへ掛けず、1.0からの差を
                 // ワールド単位の加算量として解釈するため単位スケールを渡す。
                 model = stableCF.toMatrix4();
@@ -996,7 +1004,6 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                 } else if (gizmoOp == ImGuizmo::SCALE) {
                     // Roblox スタイル: size デルタの半分だけ position をオフセット
                     // 負方向ハンドルのときは符号を反転して逆面を固定する
-                    Vector3 deltaSize = newSize - m_scaleBeforeSize;
                     // 固定面の符号は「掴み点が軸のどちら側か」のワールド幾何で決める（カメラ非依存）。
                     // 背面に回っても反転しない。単一軸以外は従来の IsScaleNegative にフォールバック。
                     float signX = scaleGrabSign(0);
@@ -1005,11 +1012,11 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                     // オフセットはオブジェクトのローカル軸に沿って行う。回転していても反対面が
                     // 正しく固定される（未回転ならワールド軸と一致＝従来と同等）
                     Quaternion wr = s->getWorldCFrame().Rotation;
-                    Vector3 offset =
-                        wr.rotate(Vector3(1, 0, 0)) * (deltaSize.x * signX) +
-                        wr.rotate(Vector3(0, 1, 0)) * (deltaSize.y * signY) +
-                        wr.rotate(Vector3(0, 0, 1)) * (deltaSize.z * signZ);
-                    Vector3 newWorldPos = m_scaleBeforeWorldPos + offset * 0.5f;
+                    const Vector3 localCenterFactor = inst->IsA("SurfaceMark")
+                        ? Vector3(0.0f, 0.0f, -0.5f) : Vector3(0.0f, 0.0f, 0.0f);
+                    const Vector3 newWorldPos = ViewportGeometry::fixedFaceResizeOrigin(
+                        m_scaleBeforeWorldPos, wr, m_scaleBeforeSize, newSize,
+                        Vector3(signX, signY, signZ), localCenterFactor);
                     Vector3 localPos = ViewportGeometry::worldToLocalPosition(newWorldPos, *s);
                     if (inst->IsA("BaseCube")) {
                         BaseCube* bc = static_cast<BaseCube*>(inst);

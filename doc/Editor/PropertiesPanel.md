@@ -36,4 +36,6 @@
 
 ## 依存関係
 
+SurfaceMarkにはFilterModeコンボとFilterInstancesリストを表示する。任意Instance PickerによるAdd、行ごとのRemove、Clearを専用Undoコマンドで操作でき、未解決パスも編集対象として表示する。
+
 - `EditorPanel`, `Instance`, `CommandHistory`, ImGui

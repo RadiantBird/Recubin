@@ -3,6 +3,7 @@
 #include <Instances/Spatial.hpp>
 #include <Instances/Instance.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/SurfaceMark.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
@@ -75,6 +76,22 @@ struct SetPropertyCommand : Command {
 
     void execute() override { if (m_target && m_desc) PropertyRegistry::writeValue(m_target.get(), *m_desc, m_after); }
     void undo()    override { if (m_target && m_desc) PropertyRegistry::writeValue(m_target.get(), *m_desc, m_before); }
+};
+
+struct SetSurfaceMarkFilterCommand : Command {
+    std::shared_ptr<SurfaceMark> m_target;
+    std::vector<std::shared_ptr<Instance>> m_beforeInstances, m_afterInstances;
+    std::vector<std::string> m_beforePaths, m_afterPaths;
+    SetSurfaceMarkFilterCommand(std::shared_ptr<SurfaceMark> target,
+                                 std::vector<std::shared_ptr<Instance>> beforeInstances,
+                                 std::vector<std::string> beforePaths,
+                                 std::vector<std::shared_ptr<Instance>> afterInstances,
+                                 std::vector<std::string> afterPaths)
+        : m_target(std::move(target)), m_beforeInstances(std::move(beforeInstances)),
+          m_afterInstances(std::move(afterInstances)), m_beforePaths(std::move(beforePaths)),
+          m_afterPaths(std::move(afterPaths)) {}
+    void execute() override { if (m_target) m_target->setFilterState(m_afterInstances, m_afterPaths); }
+    void undo() override { if (m_target) m_target->setFilterState(m_beforeInstances, m_beforePaths); }
 };
 
 // --- インスタンス追加 ---

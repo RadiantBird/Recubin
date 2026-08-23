@@ -1,3 +1,9 @@
+recubin:
+  type: scene
+  version: 0
+  migrations:
+    character_animation_bindings:
+      version: 1
 Root:
   Properties:
     MaxClonesPerFrame: 1000
@@ -5,6 +11,10 @@ Root:
     ScriptLoopTimeoutSeconds: 2
     BaseResolution: [1920, 1080]
     UseNetwork: false
+    ApplicationId: 9b4d2c11-5e73-4a6f-8c20-1d9f7b3e6a42
+    EnableIOAPI: true
+    EnableIPCAPI: true
+    EnableExternalFileAccess: false
   Children:
     - ClassName: StarterCharacter
       Name: StarterCharacter
@@ -19,6 +29,7 @@ Root:
             MaxHealth: 100
             RespawnTime: 5
             Health: 100
+            WalkAnimation: R6Walk
         - ClassName: Cube
           Name: LeftArm
           Properties:
@@ -30,7 +41,10 @@ Root:
             CanCollide: false
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -46,7 +60,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -62,7 +79,10 @@ Root:
             CanCollide: false
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -78,7 +98,10 @@ Root:
             CanCollide: false
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -103,7 +126,10 @@ Root:
             CanCollide: false
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -119,7 +145,10 @@ Root:
             CanCollide: false
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -135,11 +164,21 @@ Root:
             CanCollide: false
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
+        - ClassName: Animation
+          Name: R6Walk
+          Properties:
+            Length: 0.6666667
+            Speed: 1
+            Looped: true
+            ContentPath: assets/anims/r6_walk.rcanim
     - ClassName: Users
       Name: Users
       Children:
@@ -161,6 +200,8 @@ Root:
                   Name: TestTool1
                   Properties:
                     Hand: Right
+                    Position: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
                   Children:
                     - ClassName: Cube
                       Name: Handle
@@ -173,7 +214,10 @@ Root:
                         CanCollide: false
                         CastShadow: true
                         Unlit: false
+                        Locked: false
                         MassDensity: 1
+                        CCDMode: Default
+                        LockFlags: []
                         MaterialType: 0
                         StaticFriction: 0.5
                         DynamicFriction: 0.5
@@ -182,6 +226,8 @@ Root:
                   Name: TestTool2
                   Properties:
                     Hand: Right
+                    Position: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
     - ClassName: AppImage
       Name: AppImage
       Properties:
@@ -214,7 +260,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -230,7 +279,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -246,7 +298,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -262,7 +317,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -289,6 +347,8 @@ Root:
                     BackgroundColor: [1, 1, 1, 1]
                     ZIndex: 0
                     Position: [0, 0]
+                    UseFontFile: false
+                    Font: Default
                     Text: Hello world!
                     TextColor: [0, 0, 0, 1]
                     FontSize: 0
@@ -303,7 +363,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -319,7 +382,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -336,7 +402,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [-10.933312, 2.7280412, -17.613544]
+            Position: [-47.39113, 22.518997, 37.418556]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -344,7 +410,10 @@ Root:
             CanCollide: false
             CastShadow: false
             Unlit: true
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -375,7 +444,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -391,7 +463,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -407,7 +482,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -428,7 +506,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -485,15 +566,18 @@ Root:
         - ClassName: Cube
           Name: Radio
           Properties:
-            Position: [-17.76123, -7.5, -6.6466923]
-            Size: [13.340713, 4, 1]
+            Position: [-17.76123, -2.9499998, -6.6466923]
+            Size: [13.340713, 13.1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
             Anchored: false
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -523,7 +607,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -539,7 +626,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -555,7 +645,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -571,7 +664,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -587,7 +683,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -603,7 +702,10 @@ Root:
             CanCollide: true
             CastShadow: true
             Unlit: false
+            Locked: false
             MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
             MaterialType: 0
             StaticFriction: 0.5
             DynamicFriction: 0.5
@@ -672,5 +774,35 @@ Root:
                 Intensity: 1
                 Param1: 3
                 Param2: 0.15
+        - ClassName: SpawnLocation
+          Name: SpawnLocation
+          Properties:
+            Position: [-13.193642, -9, 8.2522]
+            Size: [8, 1, 8]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Enabled: true
+        - ClassName: SurfaceMark
+          Name: SurfaceMark
+          Properties:
+            Position: [-17.149338, -3.0190315, -1.884321]
+            Size: [10, 4, 256]
+            Rotation: [-0.39814013, 0.5265508, -0.30160025, 0.6879433]
+            Color: [1, 1, 1, 1]
+            FilterMode: Exclude
+            Texture: C:/Users/Ryarta/Pictures/Recubin.png
+            FilterInstances: [Skybox]
     - ClassName: PathfindingService
       Name: PathfindingService

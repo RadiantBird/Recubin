@@ -10,6 +10,7 @@
 #include <Instances/Script.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/SurfaceMark.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/Canvas.hpp>
 #include <Instances/Highlight.hpp>
@@ -353,6 +354,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Script")    return std::make_shared<Script>("");
     if (className == "Model")     return std::make_shared<Model>();
     if (className == "Decal")     return std::make_shared<Decal>(0, Face::Front);
+    if (className == "SurfaceMark") return std::make_shared<SurfaceMark>();
     if (className == "Texture")   return std::make_shared<Texture>(0, Face::Front);
     if (className == "Canvas")    return std::make_shared<Canvas>();
     if (className == "Highlight") return std::make_shared<Highlight>();
@@ -461,7 +463,9 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
     auto walk = [&](auto& self, Instance* inst) -> void {
         for (auto& [name, child] : inst->children) {
             Instance* c = child.get();
-            if (child->IsA("Rope")) {
+            if (child->IsA("SurfaceMark")) {
+                static_cast<SurfaceMark*>(child.get())->resolveFilterInstances(sceneRoot);
+            } else if (child->IsA("Rope")) {
                 auto rope = std::static_pointer_cast<Rope>(child);
                 resolvePair(c, "Rope", rope->m_cube0Name, rope->m_cube1Name,
                             [&](auto c0, auto c1) { rope->setCubes(c0, c1); rope->resolveAttachments(); });
@@ -519,6 +523,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     // プロパティ
     bool hasProps = inst->IsA("Spatial") || inst->IsA("Script")
                  || inst->getClassName() == "Sound" || inst->getClassName() == "Decal"
+                 || inst->getClassName() == "SurfaceMark"
                  || inst->getClassName() == "Texture"
                  || inst->getClassName() == "Lighting" || inst->getClassName() == "Skybox"
                  || inst->IsA("LightSource")
@@ -620,6 +625,14 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << YAML::EndSeq;
             out << YAML::Key << "UVRadius" << YAML::Value << d->UVRadius;
             out << YAML::Key << "Mode" << YAML::Value << static_cast<int>(d->Mode);
+        }
+        if (inst->getClassName() == "SurfaceMark") {
+            PropertyRegistry::saveProperties(out, inst, "SurfaceMark");
+            auto* mark = static_cast<SurfaceMark*>(inst);
+            mark->refreshFilterPaths();
+            out << YAML::Key << "FilterInstances" << YAML::Value << YAML::Flow << YAML::BeginSeq;
+            for (const auto& path : mark->getFilterPaths()) out << path;
+            out << YAML::EndSeq;
         }
         if (inst->getClassName() == "Texture") {
             const Texture* tx = static_cast<const Texture*>(inst);

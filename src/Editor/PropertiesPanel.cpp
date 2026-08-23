@@ -18,6 +18,7 @@
 #include <Instances/FileRef.hpp>
 #include <Instances/FontFile.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/SurfaceMark.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/Canvas.hpp>
 #include <Instances/Lighting.hpp>
@@ -1240,6 +1241,103 @@ void PropertiesPanel::onRender() {
     // ---- BaseCube (Color / Anchored / CanCollide / Material、スキーマ駆動) ----
     if (inst->IsA("BaseCube")) {
         renderSchemaInspector(inst, "BaseCube", m_history, m_picker);
+    }
+
+    // ---- SurfaceMark (空間からの投影画像) ----
+    if (inst->getClassName() == "SurfaceMark") {
+        ImGui::SeparatorText("SurfaceMark");
+        ImGui::TextDisabled("Size: X = Width, Y = Height, Z = Projection Depth");
+        // Color は SurfaceMark の PropertyRegistry スキーマから描画する。
+        renderSchemaInspector(inst, "SurfaceMark", m_history, m_picker);
+
+        auto mark = static_cast<SurfaceMark*>(inst);
+        auto commitFilter = [this, mark](const std::vector<std::shared_ptr<Instance>>& before,
+                                         const std::vector<std::string>& beforePaths) {
+            auto target = std::static_pointer_cast<SurfaceMark>(mark->shared_from_this());
+            std::vector<std::shared_ptr<Instance>> after;
+            for (const auto& weak : mark->getFilterInstances()) after.push_back(weak.lock());
+            if (m_history) m_history->record(std::make_unique<SetSurfaceMarkFilterCommand>(
+                target, before, beforePaths, after, mark->getFilterPaths()));
+        };
+        ImGui::SeparatorText("SurfaceMark Filter");
+        if (ImGui::Button("Add Instance##surfacemarkfilter") && m_picker) {
+            m_picker->active = true; m_picker->pickAnyInstance = true;
+            m_picker->pickAttachment = false; m_picker->pickClassName.clear();
+            m_picker->prop = "FilterInstances"; m_picker->constraint = inst;
+            m_picker->onPick = [mark, commitFilter](std::shared_ptr<Instance> picked) {
+                if (!picked) return;
+                for (const auto& weak : mark->getFilterInstances())
+                    if (auto existing = weak.lock(); existing.get() == picked.get()) return;
+                std::vector<std::shared_ptr<Instance>> before;
+                for (const auto& weak : mark->getFilterInstances()) before.push_back(weak.lock());
+                const auto beforePaths = mark->getFilterPaths();
+                auto after = before;
+                after.push_back(picked);
+                auto paths = beforePaths;
+                paths.push_back(picked->getWorkspaceRelativePath());
+                mark->setFilterState(after, paths);
+                commitFilter(before, beforePaths);
+            };
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Clear##surfacemarkfilter") && !mark->getFilterPaths().empty()) {
+            std::vector<std::shared_ptr<Instance>> before;
+            for (const auto& weak : mark->getFilterInstances()) before.push_back(weak.lock());
+            const auto beforePaths = mark->getFilterPaths();
+            mark->setFilterState({}, {});
+            commitFilter(before, beforePaths);
+        }
+        for (size_t i = 0; i < mark->getFilterPaths().size(); ++i) {
+            ImGui::PushID(static_cast<int>(i));
+            ImGui::TextUnformatted(mark->getFilterPaths()[i].c_str());
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Remove")) {
+                std::vector<std::shared_ptr<Instance>> before;
+                for (const auto& weak : mark->getFilterInstances()) before.push_back(weak.lock());
+                const auto beforePaths = mark->getFilterPaths();
+                auto after = before;
+                if (i < after.size()) after.erase(after.begin() + static_cast<std::ptrdiff_t>(i));
+                auto paths = beforePaths;
+                paths.erase(paths.begin() + static_cast<std::ptrdiff_t>(i));
+                mark->setFilterState(after, paths);
+                commitFilter(before, beforePaths);
+                ImGui::PopID(); break;
+            }
+            ImGui::PopID();
+        }
+
+        // TexturePath は画像ファイル参照として表示し、変更を汎用Undoへ記録する。
+        const PropertyDesc* textureDesc = nullptr;
+        for (const auto& d : PropertyRegistry::schemaFor("SurfaceMark")) {
+            if (d.name == "TexturePath") { textureDesc = &d; break; }
+        }
+        if (textureDesc && textureDesc->get) {
+            const std::string path = std::get<std::string>(textureDesc->get(inst));
+            ImGui::LabelText("Texture", "%s", path.empty() ? "(none)" : path.c_str());
+            if (ImGui::Button(locId(Loc::LocKey::Browse, "##surfacemark").c_str())) {
+                std::string selected = getPlatform().openFileDialog(
+                    {{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
+                if (!selected.empty()) {
+                    const PropValue before = textureDesc->get(inst);
+                    const PropValue after = PropValue(toProjectRelative(selected));
+                    PropertyRegistry::writeValue(inst, *textureDesc, after);
+                    if (m_history)
+                        m_history->record(std::make_unique<SetPropertyCommand>(
+                            inst->shared_from_this(), textureDesc, before, after));
+                }
+            }
+            ImGui::SameLine();
+            ImGui::BeginDisabled(path.empty());
+            if (ImGui::Button("Clear##surfacemark")) {
+                const PropValue before = textureDesc->get(inst);
+                const PropValue after = PropValue(std::string());
+                PropertyRegistry::writeValue(inst, *textureDesc, after);
+                if (m_history)
+                    m_history->record(std::make_unique<SetPropertyCommand>(
+                        inst->shared_from_this(), textureDesc, before, after));
+            }
+            ImGui::EndDisabled();
+        }
     }
 
     // ---- MeshCube ----

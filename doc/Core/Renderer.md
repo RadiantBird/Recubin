@@ -34,6 +34,14 @@ OpenGL レンダリングパイプライン全体を管理するシングルト�
 | `renderViewport(desc)` | `ViewportRenderDesc` を受け取る統合ビューポート描画（シャドウ/ハイライト/コンストレイント/ポストエフェクトの各フラグを見て描画） |
 | `initLineRenderer()` / `renderConstraints(ws, view, proj)` | Rope/Rod 制約の可視化用ラインレンダラーの初期化・描画 |
 | `renderBrushMarker(view, proj, center, radius)` | 地形ブラシのヒット位置を示す水平リングを描画（呼び出し側が FBO バインド済みであること） |
+
+`ViewportRenderDesc::renderRenderingDebug` は物理デバッグとは独立した描画デバッグの切替である。
+SurfaceMark の投影ボリューム表示など、レンダリング由来の可視化はこのフラグだけで有効化する。
+
+SurfaceMark オーバーレイは既存の `shaderProgram` に組み込まれており、`uSurfaceMarkPass` が有効な
+候補再描画時だけ world position を投影ローカルへ変換する。画像は texture unit 2、マーク視点の
+最前面深度は texture unit 3、既存のシャドウマップは unit 1 を使用する。深度生成は既存の
+`depthShader` を再利用し、`uTime` / `uIsLiquid` により LiquidCube の波形をメインパスと一致させる。
 | `initPostEffectRenderer()` / `ensurePostEffectFBOs(w, h)` / `renderPostEffects(ws, targetFbo, w, h)` | `PostEffect` インスタンスを ZIndex 順に適用するポストエフェクトチェーン |
 | `renderTerrain(view, proj, workspace)`（private） | `Workspace` 内の `Terrain`（`TerrainStreamer::getChunks()`）を描画 |
 
@@ -63,6 +71,8 @@ render()
 | `bakeSurfaceGui(sg)` | `SurfaceGui` の内容をテクスチャへベイクし、対象キューブ面に貼り付けられるようにする |
 
 ## 依存関係
+
+SurfaceMarkの投影では各マークのFilterMode/FilterInstancesをvolume cullより先に評価する。拒否対象は深度生成とoverlayの両方から除外されるため、除外物を貫通して奥の許可対象へ投影できる。
 
 - GLEW, GLFW, ImGui, PhysX（コンストレイント可視化）
 - `EditorManager`, `User`, `Workspace`, `FileLoader`, `Matrix4`

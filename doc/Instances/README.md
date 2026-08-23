@@ -79,6 +79,7 @@ Instance
 | [Script](Script.md) | `include/Instances/Script.hpp` | Luau スクリプトコンテナ |
 | [Sound](Sound.md) | `include/Instances/Sound.hpp` | 3D 空間オーディオ |
 | [Decal](Decal.md) | `include/Instances/Decal.hpp` | 面テクスチャオーバーレイ |
+| [SurfaceMark](SurfaceMark.md) | `include/Instances/SurfaceMark.hpp` | 3D空間から最前面の表面へ画像を投影 |
 | [Texture](Texture.md) | `include/Instances/Texture.hpp` | 面テクスチャ設定（タイル対応） |
 | [LightSource](LightSource.md) | `include/Instances/LightSource.hpp` | Point/Spot ライト共通基底 |
 | [PointLight](PointLight.md) | `include/Instances/PointLight.hpp` | 全方位点光源 |

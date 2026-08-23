@@ -22,6 +22,7 @@
 #include <Instances/ModuleScript.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/SurfaceMark.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/Canvas.hpp>
 #include <Instances/Highlight.hpp>
@@ -203,7 +204,7 @@ static const char* getClassIcon(const std::string& cn) {
     if (cn == "Sound")                                                       return ICON_SOUND;
     if (cn == "Humanoid")                                                    return ICON_HUMANOID;
     if (cn == "User")                                                        return ICON_USER;
-    if (cn == "Decal" || cn == "Texture" || cn == "Canvas" ||
+    if (cn == "Decal" || cn == "Texture" || cn == "SurfaceMark" || cn == "Canvas" ||
         cn == "ImageLabel" || cn == "ImageButton")                           return ICON_DECAL;
     if (cn == "FileRef")                                                     return ICON_FILE;
     if (cn == "Sphere")                                                      return ICON_SPHERE;
@@ -809,6 +810,15 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         }
         tryInsertInstance<Decal>(m_history, "Decal", parentSp, 0, Face::Front);
         tryInsertInstance<Texture>(m_history, "Texture", parentSp, 0, Face::Front);
+        if (ImGui::MenuItem("SurfaceMark") && m_history) {
+            // SurfaceMark は BaseCube 所属ではなく、空間上の独立インスタンスとして配置する。
+            auto surfaceParent = parentSp;
+            if (surfaceParent->IsA("BaseCube") && workspace)
+                surfaceParent = workspace->shared_from_this();
+            auto mark = std::make_shared<SurfaceMark>(computeSpawnPos(m_user, workspace), Vector3(4, 4, 4));
+            mark->Name = uniqueName(surfaceParent, "SurfaceMark");
+            m_history->execute(std::make_unique<AddInstanceCommand>(surfaceParent, mark));
+        }
         tryInsertInstance<PostEffect>(m_history, "PostEffect", parentSp);
         tryInsertInstance<ParticleEmitter>(m_history, "ParticleEmitter", parentSp);
         tryInsertInstance<Highlight>(m_history, "Highlight", parentSp);
@@ -1045,6 +1055,7 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
             if (AudioService::instance) makeGroup("Sound", [&] { return std::make_shared<Sound>(*AudioService::instance); });
             makeGroup("Decal", [&] { return std::make_shared<Decal>(0, Face::Front); });
             makeGroup("Texture", [&] { return std::make_shared<Texture>(0, Face::Front); });
+            makeGroup("SurfaceMark", [&] { return std::make_shared<SurfaceMark>(Vector3(), Vector3(4, 4, 4)); });
             makeGroup("PostEffect", [&] { return std::make_shared<PostEffect>(); });
             makeGroup("ParticleEmitter", [&] { return std::make_shared<ParticleEmitter>(); });
             makeGroup("Highlight", [&] { return std::make_shared<Highlight>(); });

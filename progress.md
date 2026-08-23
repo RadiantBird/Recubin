@@ -201,3 +201,34 @@
   `artifacts/SystemExtensionSmoke/editor-results.png`、
   `artifacts/SystemExtensionSmoke/package-results.png`。
 - 自動全回帰は今回未実施。
+
+## 2026-08-24: SurfaceMark Editor integration
+
+- Effects の挿入メニュー、階層アイコン、テストシーン生成へ SurfaceMark を追加した。
+- Properties に Width/Height/Projection Depth の説明、schema Color、画像 Browse/Clear（project-relative + undo）を追加した。
+- View メニューと editor_settings.yaml Preferences に RenderingDebug を追加し、ViewportRenderDesc へ伝播するようにした。
+- `cmd.exe /d /c py build.py build`でRecubin／RecubinEngine／RecubinTestのReleaseビルド成功（既存NOMINMAX/APIENTRY警告のみ）。
+- `--surface-mark-regression`は継承、既定値、Forward、親Transform、volume、clone、factory、YAML、Luau Source／Color／read-onlyを全てPASS。
+- `--asset-path-regression`、`--viewport-helper-regression`はPASS。
+- `py run_regression.py Release`は140 passed / 3 failedで既知ベースライン一致（Pathfinder 1、欠落音声のSound 2）。SurfaceMark新規失敗なし。
+- RecubinEngine Releaseで一時Sceneを6秒runtime smokeし、texture load成功、shader compile／FBO incomplete／OpenGLエラーログなし。一時fixture／logは削除済み。
+- 手動GUIでの視覚比較（正面・斜面・角・重なり、debug toggle見た目）は未実施。
+
+## 2026-08-24: SurfaceMark SCALE gizmo origin fix
+
+- SurfaceMark の Position が near-plane 原点で volume 中心と異なるため SCALE ギズモがずれる問題を修正した。
+- SCALE ギズモ中心を local `(0,0,-Depth/2)` へ補正し、`fixedFaceResizeOrigin` で near/far の反対面固定を保証した。通常 Spatial の挙動は維持した。
+- Release 3ターゲットのビルド成功（既存NOMINMAX/APIENTRY警告のみ）。
+- `--viewport-helper-regression`（centered／far／near／90度回転を含む）と `--surface-mark-regression` はPASS。
+- 手動GUIドラッグ確認は未実施。
+
+## 2026-08-24: SurfaceMark投影フィルター
+
+- SurfaceMarkへExclude/IncludeとInstance参照配列を追加。Model/Folder子孫BaseCubeに一致し、Exclude対象は深度生成からも除外して奥の許可対象へ投影できる。
+- YAML相対パス、未解決保持、保存時パス更新、Luau配列getter/setter、Editor Add/Remove/Clear Undoを実装。
+- `--surface-mark-regression`へ空モード、祖先一致、重複・期限切れ、clone、YAML round-trip/rename/unresolvedを追加。
+- 回帰項目にはLuau setterの無効要素に対する原子性、未解決entryの保持、clone時の内部参照remapも含めた（この項目の実行結果は別途記録する）。
+- ReleaseのRecubin／RecubinEngine／RecubinTest 3ターゲットbuild成功（既存NOMINMAX/APIENTRY警告のみ）。
+- `--surface-mark-regression`はfilter modes、Model/Folder、expired、clone remap、YAML rename/unresolved、Luau atomicを含め全PASS。
+- `--scene-load-transaction-regression`はfailures=0でPASS。全回帰は140 passed / 3 failedで既知baseline（Pathfinder 1、Sound 2）一致、新規失敗なし。
+- GUIのInclude/Exclude picker、Undo、奥への投影確認は未実施。

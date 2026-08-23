@@ -37,6 +37,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "アニメーション",       "Animation" },
     { "アニメーションエディター", "Animation Editor" },
     { "物理デバッグ表示",     "Physics Debug" },
+    { "描画デバッグ表示",     "Rendering Debug" },
 
     // ---- EditorManager: ダイアログ ----
     { "テストプレイ中のシーン読込", "Load Scene During Play" },

@@ -13,20 +13,6 @@ Linux対応予定です。
 
 [パッケージ](https://github.com/RadiantBird/Recubin/releases)はここからダウンロードできます！
 
-## Macでのビルド
-
-Apple Silicon（arm64）のMacに必要なツールを入れ、リポジトリのルートでビルドします。
-
-```sh
-brew install cmake glfw glew git
-python3 build.py build Release
-```
-
-`Debug`も指定できます。PhysX 5.6.1は初回ビルド時に自動取得・パッチ適用・ビルドされるため、
-ネット接続が必要で時間がかかります。自動取得はApple Silicon Mac限定です。
-既にビルド済みのPhysXを使う場合は、静的ライブラリがあるディレクトリを
-`RECUBIN_PHYSX_MAC_DIR=/path/to/physx/libs`で上書きできます。
-
 ## 目標
 - 誰でも簡単にゲームを開発し、ローカルで公開できるように。
 - Robloxでできなかったことを実現する。

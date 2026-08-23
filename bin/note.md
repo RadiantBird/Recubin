@@ -114,3 +114,17 @@ IPv4専用。IPv6、TURN／通信リレーは未対応。
 Tailscale直接接続で失敗した際、状態がConnectingのまま残る既知の診断不備があるため、その場合は手動終了する。
 公開STUN＋ランデブー方式はローカル自動テスト済みですが、異なる実回線での最終検証はまだ未完了。
 詳細は[NatTraversal.md](/mnt/c/Users/Ryarta/Documents/Recubin/doc/Network/NatTraversal.md)と[Network Probe手順](/mnt/c/Users/Ryarta/Documents/Recubin/tools/network_probe/README.md)にまとまっています。
+
+## Macでのビルド
+
+Apple Silicon（arm64）のMacに必要なツールを入れ、リポジトリのルートでビルドします。
+
+```sh
+brew install cmake glfw glew git
+python3 build.py build Release
+```
+
+`Debug`も指定できます。PhysX 5.6.1は初回ビルド時に自動取得・パッチ適用・ビルドされるため、
+ネット接続が必要で時間がかかります。自動取得はApple Silicon Mac限定です。
+既にビルド済みのPhysXを使う場合は、静的ライブラリがあるディレクトリを
+`RECUBIN_PHYSX_MAC_DIR=/path/to/physx/libs`で上書きできます。

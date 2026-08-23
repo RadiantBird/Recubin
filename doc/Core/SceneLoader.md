@@ -53,6 +53,8 @@ SceneLoader::loadScene("assets/scenes/test_scene.yaml", context)
 
 ## 保存ヘッダーと移行状態
 
+SurfaceMarkのFilterInstancesはWorkspace相対パス配列として保存し、全tree構築後に解決する。未解決パスは警告して保持し、ライブ参照は保存直前にrename/move後のパスへ更新する。
+
 Scene YAMLには`recubin: {type: scene, version: 0}`を付けられる。`version: 1`以上や
 `type`がscene以外の文書は、将来形式として明示的に拒否する。旧ファイル（ヘッダーなし）は
 暗黙のversion 0として読み込む。新規保存では移行済みの場合だけ

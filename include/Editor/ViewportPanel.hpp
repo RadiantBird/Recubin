@@ -53,6 +53,7 @@ public:
     bool isViewportFocused   = false;  // このViewportが現在フォーカスされているか
     bool isHoveringViewport  = false;  // マウスがViewport上にあるか
     bool showPhysicsDebug    = false;  // 物理制約デバッグビジュアライザー（Viewメニューで切替）
+    bool showRenderingDebug  = false;  // SurfaceMark等の描画デバッグ（Viewメニューで切替）
     bool m_isDraggingSelected = false; // 選択キューブ上でドラッグ開始したか
     bool m_isFreeDragArmed = false;    // 選択対象上の押下後、5px閾値待ち
     ImVec2 m_freeDragStart = {};

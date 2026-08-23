@@ -29,6 +29,18 @@ uniform float uInstanced;
 uniform vec4 uTextureTintColor;
 uniform float uUseTextureTint;
 
+// SurfaceMark is rendered by re-drawing only BaseCube candidates.  The mark
+// transform maps world positions into the mark's local space (origin is the
+// near plane, and -Z is the projection direction).  Its depth map contains
+// the first surface visible from the mark for each projected pixel.
+uniform float uSurfaceMarkPass;
+uniform mat4  uSurfaceMarkWorldToLocal;
+uniform mat4  uSurfaceMarkProjection;
+uniform vec3  uSurfaceMarkSize;
+uniform vec4  uSurfaceMarkTint;
+uniform sampler2D uSurfaceMarkTexture;
+uniform sampler2D uSurfaceMarkDepth;
+
 // ---- 追加光源（Point/Spot）。方向光 lightDir は別扱い ----
 #define MAX_LIGHTS 8
 struct Light {
@@ -117,6 +129,36 @@ if (useTriplanar > 0.5) {
         baseColor = (isSurfaceGui > 0.5)
             ? mix(effColor.rgb, texColor.rgb, texColor.a)
             : mix(effColor.rgb, finalTexColor, texColor.a);
+    }
+
+    // SurfaceMark overlay. During this dedicated candidate redraw the renderer
+    // sets uDecalCount=0, so this early branch is not contaminated by Decal
+    // composition; the ordinary pass (uSurfaceMarkPass=0) is unchanged.
+    if (uSurfaceMarkPass > 0.5) {
+        vec3 markLocal = (uSurfaceMarkWorldToLocal * vec4(FragPos, 1.0)).xyz;
+        vec3 markExtent = max(uSurfaceMarkSize, vec3(1e-4));
+        // The mark plane is z=0 and projects towards -Z.
+        if (markLocal.x < -markExtent.x * 0.5 || markLocal.x > markExtent.x * 0.5 ||
+            markLocal.y < -markExtent.y * 0.5 || markLocal.y > markExtent.y * 0.5 ||
+            markLocal.z > 0.0 || markLocal.z < -markExtent.z) {
+            discard;
+        }
+        vec4 markClip = uSurfaceMarkProjection * vec4(FragPos, 1.0);
+        vec3 markNdc = markClip.xyz / max(markClip.w, 1e-6);
+        vec2 markUv = markNdc.xy * 0.5 + 0.5;
+        if (markUv.x < 0.0 || markUv.x > 1.0 || markUv.y < 0.0 || markUv.y > 1.0) discard;
+        float nearestDepth = texture(uSurfaceMarkDepth, markUv).r;
+        float currentDepth = markNdc.z * 0.5 + 0.5;
+        // A small epsilon prevents coplanar precision noise while retaining
+        // only the first surface recorded in the mark depth pass.
+        if (currentDepth > nearestDepth + 0.0015) discard;
+        vec4 markColor = texture(uSurfaceMarkTexture, vec2(markUv.x, markUv.y));
+        float markAlpha = markColor.a * uSurfaceMarkTint.a * effColor.a;
+        if (markAlpha <= 0.001) discard;
+        baseColor = markColor.rgb * uSurfaceMarkTint.rgb;
+        // Overlay alpha is finalized below together with the normal material
+        // path, preserving the existing lighting and blend state.
+        effColor.a = markAlpha;
     }
 
     // ---- UV空間Decal合成(MeshCube専用。他クラスはuDecalCount==0でno-op) ----

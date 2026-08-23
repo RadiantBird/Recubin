@@ -243,4 +243,26 @@ Vector3 additiveResize(
     return Vector3(result[0], result[1], result[2]);
 }
 
+Vector3 fixedFaceResizeOrigin(
+    const Vector3& initialOrigin,
+    const Quaternion& worldRotation,
+    const Vector3& initialSize,
+    const Vector3& newSize,
+    const Vector3& grabSigns,
+    const Vector3& localCenterFactor) {
+    const Vector3 centerBefore = initialOrigin + worldRotation.rotate(Vector3(
+        initialSize.x * localCenterFactor.x,
+        initialSize.y * localCenterFactor.y,
+        initialSize.z * localCenterFactor.z));
+    const Vector3 deltaSize = newSize - initialSize;
+    const Vector3 centerAfter = centerBefore + worldRotation.rotate(Vector3(
+        deltaSize.x * grabSigns.x,
+        deltaSize.y * grabSigns.y,
+        deltaSize.z * grabSigns.z)) * 0.5f;
+    return centerAfter - worldRotation.rotate(Vector3(
+        newSize.x * localCenterFactor.x,
+        newSize.y * localCenterFactor.y,
+        newSize.z * localCenterFactor.z));
+}
+
 } // namespace ViewportGeometry

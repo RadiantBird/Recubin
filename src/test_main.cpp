@@ -34,6 +34,7 @@
 #include <Instances/FontFile.hpp>
 #include <Instances/TextFile.hpp>
 #include <Instances/ScreenGuiObject.hpp>
+#include <Instances/SurfaceMark.hpp>
 
 #include <Core/LuauEngine.hpp>
 #include <Core/FileLoader.hpp>
@@ -93,6 +94,7 @@
 #include <vector>
 
 static int runAnimationClipRegression();
+static int runSurfaceMarkRegression();
 
 #ifdef near
 #undef near
@@ -5870,6 +5872,34 @@ int runViewportHelperRegression() {
                && near(snappedResize.z, 0.05f),
            "additive resize preserves unchanged axes, absolute snap, and minimum size");
 
+    const Quaternion identityRotation;
+    const Vector3 centeredOrigin = ViewportGeometry::fixedFaceResizeOrigin(
+        Vector3(1.0f, 2.0f, 3.0f), identityRotation,
+        Vector3(2.0f, 4.0f, 6.0f), Vector3(3.0f, 4.0f, 6.0f),
+        Vector3(1.0f, 0.0f, 0.0f), Vector3(0.0f, 0.0f, 0.0f));
+    expect(near(centeredOrigin.x, 1.5f) && near(centeredOrigin.y, 2.0f)
+               && near(centeredOrigin.z, 3.0f),
+           "fixed-face resize preserves centered Spatial behavior");
+
+    const Vector3 surfaceFarOrigin = ViewportGeometry::fixedFaceResizeOrigin(
+        Vector3(0.0f, 0.0f, 0.0f), identityRotation,
+        Vector3(4.0f, 4.0f, 4.0f), Vector3(4.0f, 4.0f, 6.0f),
+        Vector3(0.0f, 0.0f, -1.0f), Vector3(0.0f, 0.0f, -0.5f));
+    const Vector3 surfaceNearOrigin = ViewportGeometry::fixedFaceResizeOrigin(
+        Vector3(0.0f, 0.0f, 0.0f), identityRotation,
+        Vector3(4.0f, 4.0f, 4.0f), Vector3(4.0f, 4.0f, 6.0f),
+        Vector3(0.0f, 0.0f, 1.0f), Vector3(0.0f, 0.0f, -0.5f));
+    expect(near(surfaceFarOrigin.z, 0.0f) && near(surfaceNearOrigin.z, 2.0f),
+           "SurfaceMark resize keeps the near origin or far face fixed");
+
+    const Quaternion quarterTurn = Quaternion::fromEuler(Vector3(0.0f, 90.0f, 0.0f));
+    const Vector3 rotatedSurfaceOrigin = ViewportGeometry::fixedFaceResizeOrigin(
+        Vector3(0.0f, 0.0f, 0.0f), quarterTurn,
+        Vector3(4.0f, 4.0f, 4.0f), Vector3(4.0f, 4.0f, 6.0f),
+        Vector3(0.0f, 0.0f, 1.0f), Vector3(0.0f, 0.0f, -0.5f));
+    expect(near(rotatedSurfaceOrigin.x, 2.0f) && near(rotatedSurfaceOrigin.z, 0.0f),
+           "SurfaceMark fixed-face resize follows world rotation");
+
     auto zoomBackend = std::make_unique<FrameRateTestInputBackend>();
     FrameRateTestInputBackend* zoomInput = zoomBackend.get();
     auto zoomUser = std::make_shared<User>(std::move(zoomBackend));
@@ -6269,6 +6299,206 @@ int runRuntimeLaunchArgsRegression() {
 
     std::cout << "[RuntimeLaunchArgs] failures=" << failures
               << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+static int runSurfaceMarkRegression() {
+    int failures = 0;
+    const auto expect = [&](bool condition, const char* description) {
+        if (!condition) { ++failures; std::cerr << "[FAIL] " << description << '\n'; }
+        else std::cout << "[PASS] " << description << '\n';
+    };
+    SurfaceMark mark;
+    expect(mark.IsA("SurfaceMark") && mark.IsA("Spatial") && !mark.IsA("BaseCube"),
+           "SurfaceMark has the independent Spatial inheritance");
+    expect(mark.Position == Vector3(0, 0, 0) && mark.Size == Vector3(4, 4, 4) &&
+           mark.getForward() == Vector3(0, 0, -1), "SurfaceMark defaults are stable");
+    mark.Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f);
+    expect(mark.getForward().x < -0.99f && std::fabs(mark.getForward().z) < 0.01f,
+           "SurfaceMark forward follows rotation");
+    auto parent = std::make_shared<Model>(Vector3(10, 0, 0), Vector3(1, 1, 1));
+    auto child = std::make_shared<SurfaceMark>();
+    child->Position = Vector3(2, 0, 0);
+    parent->addChild(child);
+    expect(std::fabs(child->getWorldPosition().x - 12.0f) < 0.001f,
+           "SurfaceMark follows parent Spatial transform");
+    expect(child->intersectsSphere(Vector3(12, 0, 0), 0.1f) &&
+           child->intersectsSphere(Vector3(12, 0, -4), 0.1f) &&
+           child->intersectsSphere(Vector3(12, 0, -2), 0.1f) &&
+           !child->intersectsSphere(Vector3(12, 0, 0.1f), 0.01f) &&
+           !child->intersectsSphere(Vector3(100, 0, 0), 0.1f),
+           "SurfaceMark projection volume culls spheres");
+    child->Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f);
+    expect(child->intersectsSphere(Vector3(8, 0, 2), 0.1f),
+           "SurfaceMark projection volume follows rotation");
+    auto filterWorkspace = std::make_shared<Workspace>();
+    auto exactCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); exactCube->Name = "Exact";
+    auto modelFilter = std::make_shared<Model>(); modelFilter->Name = "ModelFilter";
+    auto modelCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); modelCube->Name = "ModelCube";
+    auto folderFilter = std::make_shared<Folder>(); folderFilter->Name = "FolderFilter";
+    auto folderCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); folderCube->Name = "FolderCube";
+    auto unrelatedCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); unrelatedCube->Name = "Unrelated";
+    auto filterMark = std::make_shared<SurfaceMark>(); filterMark->Name = "FilterMark";
+    modelFilter->addChild(modelCube); filterWorkspace->addChild(exactCube);
+    folderFilter->addChild(folderCube);
+    filterWorkspace->addChild(modelFilter); filterWorkspace->addChild(unrelatedCube);
+    filterWorkspace->addChild(folderFilter);
+    filterWorkspace->addChild(filterMark);
+    expect(filterMark->allowsSurfaceTarget(*exactCube) && filterMark->allowsSurfaceTarget(*unrelatedCube),
+           "SurfaceMark Exclude empty filter allows all targets");
+    filterMark->FilterMode = SurfaceMarkFilterMode::Include;
+    expect(!filterMark->allowsSurfaceTarget(*exactCube), "SurfaceMark Include empty filter rejects all targets");
+    filterMark->setFilterInstances({exactCube, exactCube, modelFilter});
+    expect(filterMark->getFilterInstances().size() == 2 && filterMark->allowsSurfaceTarget(*exactCube) &&
+           filterMark->allowsSurfaceTarget(*modelCube) && !filterMark->allowsSurfaceTarget(*unrelatedCube),
+           "SurfaceMark filter matches exact and Model descendants with deduplication");
+    filterMark->setFilterInstances({folderFilter});
+    expect(filterMark->allowsSurfaceTarget(*folderCube) && !filterMark->allowsSurfaceTarget(*unrelatedCube),
+           "SurfaceMark filter matches Folder descendants");
+    filterMark->FilterMode = SurfaceMarkFilterMode::Exclude;
+    filterMark->setFilterInstances({exactCube, modelFilter});
+    expect(!filterMark->allowsSurfaceTarget(*exactCube) && !filterMark->allowsSurfaceTarget(*modelCube) &&
+           filterMark->allowsSurfaceTarget(*unrelatedCube),
+           "SurfaceMark Exclude filter rejects exact and descendant targets");
+    {
+        auto expiring = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0);
+        filterMark->setFilterInstances({expiring});
+        expiring.reset();
+        expect(filterMark->allowsSurfaceTarget(*unrelatedCube), "Expired SurfaceMark filter references are ignored");
+    }
+    filterMark->FilterMode = SurfaceMarkFilterMode::Include;
+    filterMark->setFilterState({modelFilter, nullptr}, {"ModelFilter", "Missing\\Target"});
+    auto clones = Instance::cloneForest({modelFilter, filterMark});
+    auto clonedModelFilter = clones.size() > 0 ? clones[0] : nullptr;
+    auto clonedFilterMark = clones.size() > 1 ? std::dynamic_pointer_cast<SurfaceMark>(clones[1]) : nullptr;
+    bool cloneTargetRemapped = clonedFilterMark && clonedModelFilter && clonedFilterMark->getFilterInstances().size() == 2 &&
+        clonedFilterMark->getFilterInstances()[0].lock().get() == clonedModelFilter.get() &&
+        clonedFilterMark->getFilterInstances()[1].expired() && clonedFilterMark->getFilterPaths().size() == 2;
+    expect(cloneTargetRemapped, "SurfaceMark cloneForest remaps live filters and preserves unresolved paths");
+    auto serializedFilterMark = std::make_shared<SurfaceMark>(); serializedFilterMark->Name = "SerializedMark";
+    serializedFilterMark->FilterMode = SurfaceMarkFilterMode::Include;
+    serializedFilterMark->setFilterInstances({modelFilter});
+    filterWorkspace->addChild(serializedFilterMark);
+    auto workspaceFilterMark = std::make_shared<SurfaceMark>(); workspaceFilterMark->Name = "WorkspaceFilterMark";
+    workspaceFilterMark->FilterMode = SurfaceMarkFilterMode::Include;
+    workspaceFilterMark->setFilterInstances({filterWorkspace});
+    filterWorkspace->addChild(workspaceFilterMark);
+    const auto filterYaml = std::filesystem::temp_directory_path() / "recubin_surface_mark_filter.yaml";
+    auto filterRoot = std::make_shared<System>(); filterRoot->addChild(filterWorkspace);
+    expect(SceneLoader::saveSceneResult(filterRoot.get(), filterYaml.string()), "SurfaceMark filter YAML save succeeds");
+    auto filterLoadedRoot = SceneLoader::loadScene(filterYaml.string());
+    std::error_code filterRemoveError;
+    auto loadedFilterMark = filterLoadedRoot ? dynamic_cast<SurfaceMark*>(filterLoadedRoot->getChildByPath("Workspace\\SerializedMark")) : nullptr;
+    expect(loadedFilterMark && loadedFilterMark->FilterMode == SurfaceMarkFilterMode::Include &&
+           loadedFilterMark->getFilterPaths().size() == 1 && loadedFilterMark->getFilterInstances().size() == 1,
+           "SurfaceMark filter YAML round-trip resolves paths");
+    auto loadedWorkspaceFilterMark = filterLoadedRoot ? dynamic_cast<SurfaceMark*>(filterLoadedRoot->getChildByPath("Workspace\\WorkspaceFilterMark")) : nullptr;
+    auto loadedExactCube = filterLoadedRoot ? filterLoadedRoot->getChildByPath("Workspace\\Exact") : nullptr;
+    auto loadedExactBaseCube = loadedExactCube ? dynamic_cast<BaseCube*>(loadedExactCube) : nullptr;
+    expect(loadedWorkspaceFilterMark && loadedWorkspaceFilterMark->getFilterPaths().size() == 1 &&
+           loadedWorkspaceFilterMark->getFilterInstances().size() == 1 &&
+           !loadedWorkspaceFilterMark->getFilterInstances()[0].expired() && loadedExactBaseCube &&
+           loadedWorkspaceFilterMark->allowsSurfaceTarget(*loadedExactBaseCube),
+           "SurfaceMark Workspace filter resolves and matches descendants after YAML round-trip");
+    if (loadedFilterMark) {
+        auto loadedModel = filterLoadedRoot->getChildByPath("Workspace\\ModelFilter");
+        if (loadedModel) loadedModel->renameTo("RenamedModel");
+        loadedFilterMark->refreshFilterPaths();
+        expect(!loadedFilterMark->getFilterPaths().empty() && loadedFilterMark->getFilterPaths()[0].find("RenamedModel") != std::string::npos,
+               "SurfaceMark filter path refresh follows rename");
+        const auto renamedFilterYaml = std::filesystem::temp_directory_path() / "recubin_surface_mark_filter_renamed.yaml";
+        expect(SceneLoader::saveSceneResult(filterLoadedRoot.get(), renamedFilterYaml.string()),
+               "SurfaceMark filter rename YAML save succeeds");
+        auto renamedRoot = SceneLoader::loadScene(renamedFilterYaml.string());
+        auto renamedMark = renamedRoot ? dynamic_cast<SurfaceMark*>(renamedRoot->getChildByPath("Workspace\\SerializedMark")) : nullptr;
+        expect(renamedMark && renamedMark->getFilterInstances().size() == 1 &&
+               !renamedMark->getFilterInstances()[0].expired() && renamedMark->getFilterPaths()[0].find("RenamedModel") != std::string::npos,
+               "SurfaceMark renamed filter path resolves after save and reload");
+        std::filesystem::remove(renamedFilterYaml, filterRemoveError);
+        loadedFilterMark->setFilterPaths({"Missing\\Target"});
+        loadedFilterMark->resolveFilterInstances(filterLoadedRoot.get());
+        expect(loadedFilterMark->getFilterPaths().size() == 1 && loadedFilterMark->getFilterInstances().size() == 1 &&
+               loadedFilterMark->getFilterInstances()[0].expired(), "Unresolved SurfaceMark filter paths are retained");
+    }
+    std::filesystem::remove(filterYaml, filterRemoveError);
+    child->Color = Color4(0.2f, 0.3f, 0.4f, 0.5f);
+    child->setTexturePath("assets/mark.png");
+    auto copy = std::dynamic_pointer_cast<SurfaceMark>(child->clone());
+    expect(copy && copy->Position == child->Position && copy->Size == child->Size &&
+           copy->Color == child->Color && copy->texturePath == child->texturePath,
+           "SurfaceMark clone preserves authoring properties");
+    const auto& schema = PropertyRegistry::schemaFor("SurfaceMark");
+    const bool hasColor = std::any_of(schema.begin(), schema.end(), [](const auto& p) { return p.name == "Color"; });
+    const bool hasTexture = std::any_of(schema.begin(), schema.end(), [](const auto& p) { return p.name == "TexturePath"; });
+    expect(hasColor && hasTexture, "SurfaceMark property schema exposes Color and TexturePath");
+    expect(SceneLoader::createInstance("SurfaceMark") != nullptr,
+           "SceneLoader creates SurfaceMark instances");
+    const auto tempPath = std::filesystem::temp_directory_path() / "recubin_surface_mark_regression.yaml";
+    auto root = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    auto saved = std::make_shared<SurfaceMark>();
+    saved->Name = "Paint";
+    saved->Position = Vector3(3, 4, 5);
+    saved->Size = Vector3(2, 3, 6);
+    saved->Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 30.0f);
+    saved->Color = Color4(0.1f, 0.2f, 0.3f, 0.4f);
+    saved->setTexturePath("assets/paint.png");
+    workspace->addChild(saved); root->addChild(workspace);
+    expect(SceneLoader::saveSceneResult(root.get(), tempPath.string()), "SurfaceMark YAML save succeeds");
+    auto loadedRoot = SceneLoader::loadScene(tempPath.string());
+    auto loaded = loadedRoot ? dynamic_cast<SurfaceMark*>(loadedRoot->getChildByPath("Workspace\\Paint")) : nullptr;
+    expect(loaded && loaded->Position == saved->Position && loaded->Size == saved->Size &&
+           loaded->Color == saved->Color && loaded->texturePath == saved->texturePath,
+           "SurfaceMark YAML round-trip preserves transform, color and texture");
+    expect(loaded && std::fabs(loaded->Rotation.w - saved->Rotation.w) < 1e-4f &&
+           std::fabs(loaded->Rotation.x - saved->Rotation.x) < 1e-4f &&
+           std::fabs(loaded->Rotation.y - saved->Rotation.y) < 1e-4f &&
+           std::fabs(loaded->Rotation.z - saved->Rotation.z) < 1e-4f,
+           "SurfaceMark YAML round-trip preserves rotation");
+    std::error_code removeError; std::filesystem::remove(tempPath, removeError);
+
+    {
+        LuauEngine engine;
+        auto luauSystem = std::make_shared<System>();
+        auto luauWorkspace = std::make_shared<Workspace>();
+        auto file = std::make_shared<FileRef>();
+        file->Path = "assets/paint.png";
+        luauSystem->addChild(luauWorkspace);
+        luauWorkspace->addChild(file);
+        engine.setWorkspace(luauWorkspace);
+        engine.setSystem(luauSystem.get());
+        bool luauMarker = false;
+        const auto oldLogHook = g_luauLogHook;
+        g_luauLogHook = [&](const std::string& message) {
+            if (message.find("[SurfaceMarkLuau]") != std::string::npos) luauMarker = true;
+        };
+        auto script = std::make_shared<Script>();
+        script->Source =
+            "local mark = Instance.new('SurfaceMark') "
+            "local f = workspace:WaitChild('FileRef') "
+            "mark.Color = Color4.new(0.2, 0.4, 0.6, 0.8) "
+            "mark.Source = f "
+            "local expectedPath = mark.TexturePath "
+            "local expectedId = mark.TextureID "
+            "mark.TexturePath = 'bad.png' "
+            "mark.TextureID = 4 "
+            "mark.FilterMode = 'Include' "
+            "mark.FilterInstances = { f } "
+            "local filterSnapshot = mark.FilterInstances "
+            "local filterOk = pcall(function() mark.FilterInstances = { 123 } end) "
+            "local filterAtomic = #mark.FilterInstances == 1 and mark.FilterInstances[1].Name == f.Name "
+            "mark.FilterInstances = {} "
+            "if mark:IsA('Spatial') and not mark:IsA('BaseCube') and "
+            "math.abs(mark.Color.r - 0.2) < 0.00001 and "
+            "math.abs(mark.Color.g - 0.4) < 0.00001 and math.abs(mark.Color.b - 0.6) < 0.00001 and "
+            "math.abs(mark.Color.a - 0.8) < 0.00001 and mark.TexturePath == expectedPath and "
+            "mark.TexturePath == 'assets/paint.png' and mark.TextureID == expectedId and not filterOk and filterAtomic and "
+            "#mark.FilterInstances == 0 and "
+            "type(mark.TextureID) == 'number' then print('[SurfaceMarkLuau]') end";
+        expect(engine.execute(*script), "SurfaceMark Luau factory script executes");
+        g_luauLogHook = oldLogHook;
+        expect(luauMarker, "SurfaceMark Luau exposes Color, Source, TexturePath and TextureID");
+    }
     return failures == 0 ? 0 : 1;
 }
 
@@ -7564,6 +7794,7 @@ int main(int argc, char* argv[]) {
     bool humanoidRigCollisionRegression = false;
     bool seatNetworkRegression = false;
     bool physicalFileInstanceRegression = false;
+    bool surfaceMarkRegression = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument(argv[i]);
         physicsMigrationRegression =
@@ -7619,9 +7850,13 @@ int main(int argc, char* argv[]) {
         seatNetworkRegression = seatNetworkRegression || argument == "--seat-network-regression";
         physicalFileInstanceRegression = physicalFileInstanceRegression ||
             argument == "--physical-file-instance-regression";
+        surfaceMarkRegression = surfaceMarkRegression ||
+            argument == "--surface-mark-regression";
     }
     if (physicalFileInstanceRegression)
         return runPhysicalFileInstanceRegression();
+    if (surfaceMarkRegression)
+        return runSurfaceMarkRegression();
     if (systemExtensionRegression)
         return runSystemExtensionRegression();
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();

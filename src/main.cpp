@@ -19,6 +19,7 @@
 #include <Instances/AppImage.hpp>
 #include <Instances/FontFile.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/SurfaceMark.hpp>
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Weather.hpp>
 #include <Instances/Humanoid.hpp>
@@ -230,6 +231,7 @@ static void loadEditorPreferences(EditorManager* ed, User* user) {
     if (!p) return;
 
     if (p["PhysicsDebug"]) ed->viewportPanel->showPhysicsDebug = p["PhysicsDebug"].as<bool>();
+    if (p["RenderingDebug"]) ed->viewportPanel->showRenderingDebug = p["RenderingDebug"].as<bool>();
 
     if (p["Language"]) {
         std::string lang = p["Language"].as<std::string>();
@@ -293,6 +295,7 @@ static void saveEditorPreferences(EditorManager* ed, User* user) {
     YAML::Node p;
 
     p["PhysicsDebug"] = ed->viewportPanel->showPhysicsDebug;
+    p["RenderingDebug"] = ed->viewportPanel->showRenderingDebug;
     p["Language"] = (Loc::getLanguage() == Loc::Lang::JA) ? std::string("JA") : std::string("EN");
 
     CFrame camCf = user->getCameraCFrame();
@@ -377,7 +380,7 @@ static int runGenTestScene(const std::string& outputPath) {
     // createInstance() に新しいクラスを追加した場合はここにも追加すること。
     static const char* kClassNames[] = {
         "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere", "MeshCube", "LiquidCube", "SpawnLocation",
-        "Skybox", "Sun", "Moon", "Model", "Sound",
+        "Skybox", "Sun", "Moon", "Model", "Sound", "SurfaceMark",
         "Lighting", "PointLight", "SpotLight", "PostEffect",
         "AppImage", "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance",
         "Rope", "Rod", "Weld", "Motor", "Attachment", "Force",

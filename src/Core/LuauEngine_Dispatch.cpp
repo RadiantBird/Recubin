@@ -5,6 +5,7 @@
 #include "include/Core/RCBNScriptSignal.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/Decal.hpp"
+#include "include/Instances/SurfaceMark.hpp"
 #include "include/Instances/Motor.hpp"
 #include "include/Instances/Sound.hpp"
 #include "include/Instances/Lighting.hpp"
@@ -440,6 +441,19 @@ void LuauEngine::InitDispatchTable_World() {
     DispatchTable["ParticleEmitter"]["Emit"] = getter_closure(particle_emitter_emit_closure, "Emit");
 
     PropertyRegistry::applyToDispatch("Weather", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("SurfaceMark", DispatchTable, SetterTable);
+
+    DispatchTable["SurfaceMark"]["TextureID"] = getter_number<SurfaceMark, &SurfaceMark::TextureID>();
+    DispatchTable["SurfaceMark"]["FilterInstances"] = [](lua_State* L, Instance* obj) {
+        auto* mark = static_cast<SurfaceMark*>(obj);
+        lua_newtable(L);
+        int index = 1;
+        for (const auto& weak : mark->getFilterInstances()) if (auto ref = weak.lock()) {
+            LuauEngine::pushInstance(L, ref);
+            lua_rawseti(L, -2, index++);
+        }
+        return 1;
+    };
 
     DispatchTable["System"]["Heartbeat"] = getter_signal<System, &System::Heartbeat>();
     DispatchTable["System"]["NetworkRoleChanged"] = getter_signal<System, &System::NetworkRoleChanged>();
@@ -812,6 +826,38 @@ void LuauEngine::InitSetterTable_World() {
     // FileRef.Source: 画像 FileRef を代入してテクスチャを適用
     SetterTable["Decal"]["Source"] = [](lua_State* L, Instance* o) {
         std::string p; if (getFileRefPath(L, 3, p)) static_cast<Decal*>(o)->setTexturePath(p);
+        return 0;
+    };
+    SetterTable["SurfaceMark"]["Source"] = [](lua_State* L, Instance* o) {
+        std::string p;
+        if (getFileRefPath(L, 3, p)) static_cast<SurfaceMark*>(o)->setTexturePath(p);
+        return 0;
+    };
+    SetterTable["SurfaceMark"]["FilterInstances"] = [](lua_State* L, Instance* o) -> int {
+        if (std::string(lua_typename(L, lua_type(L, 3))) != "table") {
+            luaL_error(L, "FilterInstances must be a table");
+            return 0;
+        }
+        const size_t length = static_cast<size_t>(lua_objlen(L, 3));
+        std::vector<std::shared_ptr<Instance>> refs;
+        refs.reserve(length);
+        for (size_t i = 1; i <= length; ++i) {
+            lua_rawgeti(L, 3, static_cast<int>(i));
+            if (std::string(lua_typename(L, lua_type(L, -1))) != "userdata") {
+                lua_pop(L, 1);
+                luaL_error(L, "FilterInstances elements must be Instances");
+                return 0;
+            }
+            auto* ud = (std::weak_ptr<Instance>*)luaL_checkudata(L, -1, RCBN_INST_METATABLE);
+            auto ref = ud->lock();
+            lua_pop(L, 1);
+            if (!ref) {
+                luaL_error(L, "FilterInstances contains an expired Instance");
+                return 0;
+            }
+            refs.push_back(std::move(ref));
+        }
+        static_cast<SurfaceMark*>(o)->setFilterInstances(refs);
         return 0;
     };
     SetterTable["Texture"]["Source"] = [](lua_State* L, Instance* o) {

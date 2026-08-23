@@ -23,7 +23,7 @@ enum class LocKey {
     MenuView,
     PanelExplorer, PanelProperties, PanelViewport, PanelContentBrowser,
     PanelConsole, PanelAnimation, AnimationEditorWindowTitle,
-    MenuPhysicsDebug,
+    MenuPhysicsDebug, MenuRenderingDebug,
 
     // ---- EditorManager: ダイアログ ----
     PlayLoadTitle, PlayLoadLine1, PlayLoadLine2, PlayLoadConfirm,

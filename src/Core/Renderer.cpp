@@ -18,6 +18,7 @@
 #include <Instances/LightSource.hpp>
 #include <Instances/SpotLight.hpp>
 #include <Instances/Spatial.hpp>
+#include <Instances/SurfaceMark.hpp>
 #include <Instances/LiquidCube.hpp>
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Highlight.hpp>
@@ -111,6 +112,14 @@ static void collectParticleEmitters(Instance* inst, std::vector<ParticleEmitter*
 // 戻り値: 描画可能なジオメトリがあれば true（VAOバインド済み・outIndexCountセット済み）
 static bool bindHighlightGeometry(BaseCube* target, GLsizei& outIndexCount) {
     if (!target) return false;
+    // LiquidCube uses the shared cube geometry but does not expose highlight
+    // geometry of its own; keep it on the same geometry path as renderInst.
+    if (target->IsA("LiquidCube")) {
+        if (Cube::s_VAO == 0) return false;
+        glBindVertexArray(Cube::s_VAO);
+        outIndexCount = 36;
+        return true;
+    }
     unsigned int vao = target->getHighlightVAO();
     unsigned int idx = target->getHighlightIndexCount();
     if (vao == 0 || idx == 0) return false;
@@ -472,6 +481,13 @@ void Renderer::init(GLFWwindow* window) {
     uIsLiquidLoc        = glGetUniformLocation(shaderProgram, "uIsLiquid");
     useVertexColorLoc   = glGetUniformLocation(shaderProgram, "useVertexColor");
     ourColorLoc         = glGetUniformLocation(shaderProgram, "ourColor");
+    surfaceMarkPassLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkPass");
+    surfaceMarkWorldToLocalLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkWorldToLocal");
+    surfaceMarkProjectionLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkProjection");
+    surfaceMarkSizeLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkSize");
+    surfaceMarkTintLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkTint");
+    surfaceMarkTextureLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkTexture");
+    surfaceMarkDepthLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkDepth");
     uLightCountLoc      = glGetUniformLocation(shaderProgram, "uLightCount");
     m_uInstancedLoc     = glGetUniformLocation(shaderProgram, "uInstanced");
     for (int i = 0; i < MAX_LIGHTS; i++) {
@@ -487,6 +503,10 @@ void Renderer::init(GLFWwindow* window) {
 
     // --- Shadow map テクスチャユニットのバインド設定 ---
     glUniform1i(glGetUniformLocation(shaderProgram, "shadowMap"), 1);
+    // SurfaceMark uses dedicated units 2 (image) and 3 (viewpoint depth).
+    glUniform1i(surfaceMarkTextureLoc, 2);
+    glUniform1i(surfaceMarkDepthLoc, 3);
+    glUniform1f(surfaceMarkPassLoc, 0.0f);
     glUniform1f(hasShadowsLoc, 0.0f);
 
     // --- Depth シェーダーのコンパイル（Shadow Pass 用）---
@@ -516,6 +536,8 @@ void Renderer::init(GLFWwindow* window) {
         glDeleteShader(dv);
         glDeleteShader(df);
         m_uInstancedDepthLoc = glGetUniformLocation(depthShader, "uInstanced");
+        m_uTimeDepthLoc = glGetUniformLocation(depthShader, "uTime");
+        m_uIsLiquidDepthLoc = glGetUniformLocation(depthShader, "uIsLiquid");
     }
 
     // --- Shadow Map FBO + 深度テクスチャ生成 ---
@@ -546,6 +568,27 @@ void Renderer::init(GLFWwindow* window) {
         }
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
+
+    glGenTextures(1, &surfaceMarkDepthTex);
+    glBindTexture(GL_TEXTURE_2D, surfaceMarkDepthTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, SURFACE_MARK_MAP_SIZE, SURFACE_MARK_MAP_SIZE,
+                 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    const float markBorder[] = {1.f, 1.f, 1.f, 1.f};
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, markBorder);
+    glGenFramebuffers(1, &surfaceMarkFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, surfaceMarkFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, surfaceMarkDepthTex, 0);
+    glDrawBuffer(GL_NONE); glReadBuffer(GL_NONE);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cout << "[Renderer] SurfaceMark depth framebuffer is incomplete." << std::endl;
+        glDeleteFramebuffers(1, &surfaceMarkFBO); glDeleteTextures(1, &surfaceMarkDepthTex);
+        surfaceMarkFBO = surfaceMarkDepthTex = 0;
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     createWhiteTexture();
     createMeshFallbackTexture();
@@ -587,6 +630,8 @@ Renderer::~Renderer() {
 
     if (shadowFBO)    glDeleteFramebuffers(1, &shadowFBO);
     if (shadowMapTex) glDeleteTextures(1, &shadowMapTex);
+    if (surfaceMarkFBO) glDeleteFramebuffers(1, &surfaceMarkFBO);
+    if (surfaceMarkDepthTex) glDeleteTextures(1, &surfaceMarkDepthTex);
     if (depthShader)  glDeleteProgram(depthShader);
     if (m_meshFallbackTexture) glDeleteTextures(1, &m_meshFallbackTexture);
 
@@ -1673,6 +1718,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         int lsmDepthLoc  = cachedUniformLocation(depthShader, s_lsmDepthLocCache,  "lightSpaceMatrix");
         int modelDepthLoc = cachedUniformLocation(depthShader, s_modelDepthLocCache, "model");
         glUniformMatrix4fv(lsmDepthLoc, 1, GL_FALSE, lightSpaceMatrix.m);
+        if (m_uTimeDepthLoc != -1) glUniform1f(m_uTimeDepthLoc, lighting && desc.workspace->getPhysicsEngine() ? desc.workspace->getPhysicsEngine()->getWaveTime() : 0.0f);
+        if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, 0.0f);
 
         if (m_uInstancedDepthLoc != -1) {
             bool anyShadowInst = false;
@@ -1700,6 +1747,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 const bool visibleForShadow = bc->Color.a > 0.001f ||
                     (inst->IsA("MeshCube") && static_cast<MeshCube*>(inst)->isUsingFallback());
                 if (visibleForShadow && bc->CastShadow) {
+                    if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, bc->IsA("LiquidCube") ? 1.0f : 0.0f);
                     Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
                                        Matrix4::Scale(bc->Size.x, bc->Size.y, bc->Size.z);
                     glUniformMatrix4fv(modelDepthLoc, 1, GL_FALSE, modelMat.m);
@@ -1723,6 +1771,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
                     }
                     FrameProfiler::get().addCount("shadowCubes", 1);
+                    if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, 0.0f);
                 }
             }
             for (auto const& [name, child] : inst->getChildren()) {
@@ -1997,6 +2046,120 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     if (!depthMaskEnabled) { glDepthMask(GL_TRUE); depthMaskEnabled = true; }
     FrameProfiler::get().endSection("main");
 
+    // ---- SurfaceMark projection overlay ----
+    // Collect once per viewport; marks are ordered by full hierarchy path so
+    // later marks naturally appear above earlier marks.
+    std::vector<SurfaceMark*> surfaceMarks;
+    std::vector<BaseCube*> surfaceTargets;
+    auto collectSurface = [&](auto& self, Instance* inst) -> void {
+        if (!inst) return;
+        if (inst->IsA("SurfaceMark")) {
+            auto* mark = static_cast<SurfaceMark*>(inst);
+            if (std::isfinite(mark->Size.x) && std::isfinite(mark->Size.y) && std::isfinite(mark->Size.z) &&
+                std::isfinite(mark->Color.r) && std::isfinite(mark->Color.g) &&
+                std::isfinite(mark->Color.b) && std::isfinite(mark->Color.a) &&
+                mark->Size.x > 0.0f && mark->Size.y > 0.0f && mark->Size.z > 0.0f) surfaceMarks.push_back(mark);
+        } else if (inst->IsA("BaseCube")) {
+            BaseCube* cube = static_cast<BaseCube*>(inst);
+            const std::string cn = cube->getClassName();
+            const bool visible = cube->Color.a > 0.001f || (cube->IsA("MeshCube") && static_cast<MeshCube*>(cube)->isUsingFallback());
+            const bool hasGeometry = cube->IsA("LiquidCube") ||
+                (cube->getHighlightVAO() != 0 && cube->getHighlightIndexCount() != 0);
+            if (cn != "Skybox" && cn != "Sun" && cn != "Moon" && visible && hasGeometry)
+                surfaceTargets.push_back(cube);
+        }
+        for (auto const& [name, child] : inst->getChildren()) self(self, child.get());
+    };
+    for (auto const& [name, child] : desc.workspace->getChildren()) collectSurface(collectSurface, child.get());
+    std::sort(surfaceMarks.begin(), surfaceMarks.end(), [](SurfaceMark* a, SurfaceMark* b) {
+        return a->getFullPath() < b->getFullPath();
+    });
+
+    if (surfaceMarkFBO && surfaceMarkDepthTex && !surfaceMarks.empty() && !surfaceTargets.empty()) {
+        static CachedUniform depthModelCache;
+        static CachedUniform depthTimeCache;
+        static CachedUniform depthLiquidCache;
+        static CachedUniform depthLightCache;
+        const int depthModelLoc = cachedUniformLocation(depthShader, depthModelCache, "model");
+        const int depthTimeLoc = cachedUniformLocation(depthShader, depthTimeCache, "uTime");
+        const int depthLiquidLoc = cachedUniformLocation(depthShader, depthLiquidCache, "uIsLiquid");
+        const Physics* markPhysics = desc.workspace->getPhysicsEngine();
+        const float markTime = markPhysics ? markPhysics->getWaveTime() : 0.0f;
+        GLint savedDrawFbo = 0, savedReadFbo = 0, savedViewport[4] = {}, savedProgram = 0;
+        GLint savedActiveTex = 0, savedDepthFunc = GL_LESS;
+        GLint savedTex2 = 0, savedTex3 = 0;
+        GLboolean savedDepthMask = GL_TRUE, savedDepthTest = GL_TRUE, savedBlend = GL_TRUE;
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &savedDrawFbo);
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &savedReadFbo); glGetIntegerv(GL_VIEWPORT, savedViewport);
+        glGetIntegerv(GL_CURRENT_PROGRAM, &savedProgram); glGetIntegerv(GL_ACTIVE_TEXTURE, &savedActiveTex);
+        glActiveTexture(GL_TEXTURE2); glGetIntegerv(GL_TEXTURE_BINDING_2D, &savedTex2);
+        glActiveTexture(GL_TEXTURE3); glGetIntegerv(GL_TEXTURE_BINDING_2D, &savedTex3);
+        glActiveTexture(savedActiveTex);
+        glGetIntegerv(GL_DEPTH_FUNC, &savedDepthFunc); glGetBooleanv(GL_DEPTH_WRITEMASK, &savedDepthMask);
+        savedDepthTest = glIsEnabled(GL_DEPTH_TEST); savedBlend = glIsEnabled(GL_BLEND);
+
+        for (SurfaceMark* mark : surfaceMarks) {
+            if (mark->texturePath.empty() || mark->Color.a <= 0.001f) continue;
+            if (!mark->TextureID) mark->TextureID = loadTexture(mark->texturePath.c_str());
+            if (!mark->TextureID) continue;
+            std::vector<BaseCube*> candidates;
+            for (BaseCube* cube : surfaceTargets) {
+                if (!mark->allowsSurfaceTarget(*cube)) continue;
+                CFrame cf = cube->getWorldCFrame();
+                if (mark->intersectsSphere(cf.Position, cube->Size.length() * 0.5f)) candidates.push_back(cube);
+            }
+            if (candidates.empty()) continue;
+            CFrame markCf = mark->getWorldCFrame();
+            Matrix4 markView = markCf.inverse().toMatrix4();
+            Matrix4 markProj = Matrix4::Ortho(-mark->Size.x * 0.5f, mark->Size.x * 0.5f,
+                                                -mark->Size.y * 0.5f, mark->Size.y * 0.5f,
+                                                0.001f, mark->Size.z);
+            Matrix4 markVP = markProj * markView;
+
+            glBindFramebuffer(GL_FRAMEBUFFER, surfaceMarkFBO); glViewport(0, 0, SURFACE_MARK_MAP_SIZE, SURFACE_MARK_MAP_SIZE);
+            glClearDepth(1.0); glClear(GL_DEPTH_BUFFER_BIT); glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS); glDepthMask(GL_TRUE);
+            glDisable(GL_BLEND); glUseProgram(depthShader); glUniform1f(m_uInstancedDepthLoc, 0.0f);
+            glUniformMatrix4fv(cachedUniformLocation(depthShader, depthLightCache, "lightSpaceMatrix"), 1, GL_FALSE, markVP.m);
+            glUniform1f(depthTimeLoc, markTime); glUniform1f(depthLiquidLoc, 0.0f); glBindVertexArray(VAO);
+            for (BaseCube* cube : candidates) {
+                Matrix4 model = cube->getWorldCFrame().toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
+                glUniformMatrix4fv(depthModelLoc, 1, GL_FALSE, model.m);
+                glUniform1f(depthLiquidLoc, cube->IsA("LiquidCube") ? 1.0f : 0.0f);
+                GLsizei count = 0; if (!bindHighlightGeometry(cube, count)) continue;
+                glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, nullptr);
+            }
+
+            glBindFramebuffer(GL_FRAMEBUFFER, desc.fbo); glViewport(0, 0, desc.width, desc.height);
+            glUseProgram(shaderProgram); glUniform1f(m_uInstancedLoc, 0.0f); glDepthFunc(GL_LEQUAL); glDepthMask(GL_FALSE); glEnable(GL_BLEND);
+            glUniform1f(surfaceMarkPassLoc, 1.0f);
+            glUniform1i(glGetUniformLocation(shaderProgram, "uDecalCount"), 0);
+            glUniformMatrix4fv(surfaceMarkWorldToLocalLoc, 1, GL_FALSE, markCf.inverse().toMatrix4().m);
+            glUniformMatrix4fv(surfaceMarkProjectionLoc, 1, GL_FALSE, markVP.m);
+            glUniform3f(surfaceMarkSizeLoc, mark->Size.x, mark->Size.y, mark->Size.z);
+            glUniform4f(surfaceMarkTintLoc, mark->Color.r, mark->Color.g, mark->Color.b, mark->Color.a);
+            glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, mark->TextureID);
+            glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, surfaceMarkDepthTex);
+            glActiveTexture(GL_TEXTURE0);
+            for (BaseCube* cube : candidates) {
+                Matrix4 model = cube->getWorldCFrame().toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
+                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
+                glUniform1f(uIsLiquidLoc, cube->IsA("LiquidCube") ? 1.0f : 0.0f);
+                glUniform1f(unlitLoc, cube->Unlit ? 1.0f : 0.0f);
+                glUniform4f(ourColorLoc, cube->Color.r, cube->Color.g, cube->Color.b, cube->Color.a);
+                GLsizei count = 0; if (!bindHighlightGeometry(cube, count)) continue;
+                glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, nullptr);
+            }
+        }
+        glUseProgram(shaderProgram); glUniform1f(surfaceMarkPassLoc, 0.0f); glUniform1f(uIsLiquidLoc, 0.0f);
+        glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, savedTex2);
+        glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, savedTex3);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, savedDrawFbo); glBindFramebuffer(GL_READ_FRAMEBUFFER, savedReadFbo);
+        glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+        glUseProgram((GLuint)savedProgram); glActiveTexture(savedActiveTex); glDepthFunc(savedDepthFunc);
+        glDepthMask(savedDepthMask); if (savedDepthTest) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+        if (savedBlend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+    }
+
     FrameProfiler::get().beginSection("extras");
     // ---- Editor選択外枠。Highlightインスタンスの塗り設定とは独立 ----
     if (desc.renderHighlights && desc.primarySelection) {
@@ -2044,6 +2207,36 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     // ---- 物理制約デバッグビジュアライザー（Weld/Motor/Attachment/Force。デフォルトOFF） ----
     if (desc.renderPhysicsDebug) {
         renderPhysicsDebug(*desc.workspace, view, projection, desc.cameraPosition);
+    }
+
+    // SurfaceMark rendering debug is deliberately independent of physics debug.
+    if (desc.renderRenderingDebug && m_lineShader) {
+        glUseProgram(m_lineShader);
+        glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"), 1, GL_FALSE, view.m);
+        glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
+        glUniform4f(glGetUniformLocation(m_lineShader, "lineColor"), 1.0f, 0.35f, 0.1f, 0.95f);
+        std::vector<float> segs;
+        for (SurfaceMark* mark : surfaceMarks) {
+            CFrame cf = mark->getWorldCFrame();
+            const float hx = mark->Size.x * 0.5f, hy = mark->Size.y * 0.5f, d = mark->Size.z;
+            Vector3 p[8];
+            for (int i = 0; i < 8; ++i) {
+                float x = (i & 1) ? hx : -hx, y = (i & 2) ? hy : -hy, z = (i & 4) ? -d : 0.0f;
+                p[i] = cf.pointToWorld(Vector3(x, y, z));
+            }
+            const int edges[][2] = {{0,1},{1,3},{3,2},{2,0},{4,5},{5,7},{7,6},{6,4},{0,4},{1,5},{2,6},{3,7}};
+            for (const auto& e : edges) { segs.push_back(p[e[0]].x); segs.push_back(p[e[0]].y); segs.push_back(p[e[0]].z); segs.push_back(p[e[1]].x); segs.push_back(p[e[1]].y); segs.push_back(p[e[1]].z); }
+            Vector3 c = cf.Position, tip = cf.pointToWorld(Vector3(0, 0, -d * 1.25f));
+            segs.push_back(c.x); segs.push_back(c.y); segs.push_back(c.z); segs.push_back(tip.x); segs.push_back(tip.y); segs.push_back(tip.z);
+            Vector3 fwd = (tip - c).normalize(), side = Vector3::Cross(fwd, cf.Rotation.rotate(Vector3(0,1,0))).normalize();
+            if (side.length() < 1e-4f) side = Vector3(1,0,0);
+            Vector3 q = tip - fwd * (d * 0.18f);
+            for (Vector3 a : {tip, q + side * (d*0.08f), tip, q - side * (d*0.08f)}) { segs.push_back(a.x); segs.push_back(a.y); segs.push_back(a.z); }
+        }
+        std::vector<float> ribbons; buildSegmentRibbons(segs, desc.cameraPosition, fovYDegrees, desc.height, 2.0f, ribbons);
+        glBindVertexArray(m_lineVAO); glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
+        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(ribbons.size() * sizeof(float)), ribbons.data(), GL_DYNAMIC_DRAW);
+        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(ribbons.size() / 3)); glBindVertexArray(0); glUseProgram(shaderProgram);
     }
 
     // ---- Terrain の描画 ----

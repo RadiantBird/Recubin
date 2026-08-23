@@ -325,6 +325,7 @@ void EditorManager::render(GLFWwindow* window) {
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelWelcome),        nullptr, &welcomePanel->isOpen);
             ImGui::Separator();
             ImGui::MenuItem(Loc::t(Loc::LocKey::MenuPhysicsDebug),    nullptr, &viewportPanel->showPhysicsDebug);
+            ImGui::MenuItem(Loc::t(Loc::LocKey::MenuRenderingDebug), nullptr, &viewportPanel->showRenderingDebug);
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu(Loc::t(Loc::LocKey::MenuSettings))) {

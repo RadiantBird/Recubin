@@ -57,5 +57,7 @@ struct GizmoState {
 
 ## 依存関係
 
+SurfaceMarkのフィルター編集は、live参照と未解決パスを含むentry配列のbefore/afterスナップショットを一つのCommandに保存してUndo/Redoする。
+
 - `BaseCube`（`SetVec3Command`, `SetColorCommand`, `SetBoolCommand`, `GizmoCommand` が操作対象）
 - `Instance`（`AddInstanceCommand`, `RemoveInstanceCommand`, `MoveInstanceCommand` が操作対象）

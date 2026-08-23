@@ -5,8 +5,7 @@ export type Connection = {
 export type Signal = {
     Connect: (Signal, (...any) -> ()) -> Connection,
     Once: (Signal, (...any) -> ()) -> Connection,
-    -- Until:
-    Wait: (Signal) -> (...any),
+    Until: (Signal, Event, (...any) -> ()) -> Connection,
 }
 
 export type Instance = {
@@ -21,6 +20,7 @@ export type Instance = {
     GetChildren: <T>(Instance) -> { T },
     IsA: (Instance, string) -> boolean,
     Destroy: (Instance) -> (),
+    Clone: <T>(Instance) -> T?,
 }
 
 export type Spatial = Instance & {
@@ -28,6 +28,8 @@ export type Spatial = Instance & {
     Rotation: Quaternion,
     CFrame: CFrame,
     Size: Vector3,
+    WorldPosition: Vector3, -- read only
+    WorldCFrame: CFrame, -- read only
 }
 
 export type BaseCube = Spatial & {
@@ -40,6 +42,8 @@ export type BaseCube = Spatial & {
     Unlit: boolean,
     UseTriplanar: boolean,
     TextureScale: number,
+    Locked: boolean,
+    CCDMode: "Default" | "Bullet",
 }
 
 export type Cube = BaseCube & {}
@@ -59,14 +63,29 @@ export type Attachment = Spatial & {
 
 export type MeshCube = BaseCube & {
     MeshFile: string, -- read only
+    Source: FileRef, -- write only
 }
 
 export type Decal = Instance & {
     TextureID: number,
     Face: number,
+    Mode: number,
+    Color: Color4,
+    TexturePath: string, -- read only
+    -- Source is write-only at runtime: assign a FileRef to load an image.
+    Source: FileRef,
 }
 
-export type Sound = Instance & {
+export type SurfaceMark = Spatial & {
+    Color: Color4,
+    FilterMode: "Exclude" | "Include",
+    FilterInstances: { Instance },
+    TexturePath: string, -- read only
+    TextureID: number, -- read only
+    Source: FileRef, -- write only
+}
+
+export type Sound = Spatial & {
     IsPlaying: boolean, -- read only
     Looped: boolean,
     Volume: number,
@@ -79,18 +98,30 @@ export type Sound = Instance & {
     TimePosition: number,
     Length: number,
     AutoPlay: boolean,
-    ContentPath: string,
-    SoundGroup: Instance?,
+    ContentPath: string, -- read only
+    SoundGroup: string, -- read only
+    Source: FileRef, -- write only
 }
 
 export type Lighting = Instance & {
     Brightness: number,
     Direction: Vector3,
+    Color: Color4,
 }
 
+export type LightSource = Instance & {
+    Color: Color4,
+    Brightness: number,
+    Range: number,
+}
+export type PointLight = LightSource & {}
+export type SpotLight = LightSource & { Angle: number }
+
 export type Rope = Instance & {
-    Cube0: string,
-    Cube1: string,
+    Attachment0: string,
+    Attachment1: string,
+    Cube0: BaseCube, -- write only
+    Cube1: BaseCube, -- write only
     MaxDistance: number,
     Stiffness: number,
     Damping: number,
@@ -99,34 +130,86 @@ export type Rope = Instance & {
 }
 
 export type Rod = Instance & {
-    Cube0: string,
-    Cube1: string,
+    Attachment0: string,
+    Attachment1: string,
+    Cube0: BaseCube, -- write only
+    Cube1: BaseCube, -- write only
     LineWidth: number,
     Color: Color4,
 }
 
 export type Weld = Instance & {
-    Cube0: string,
-    Cube1: string,
+    Cube0: string | BaseCube, -- getter string; setter accepts BaseCube
+    Cube1: string | BaseCube, -- getter string; setter accepts BaseCube
+}
+
+export type BallSocket = Instance & {
+    Attachment0: string,
+    Attachment1: string,
+    Cube0: BaseCube, -- write only
+    Cube1: BaseCube, -- write only
+}
+
+export type NoCollision = Instance & {
+    Cube0: string | BaseCube, -- getter string; setter accepts BaseCube
+    Cube1: string | BaseCube, -- getter string; setter accepts BaseCube
 }
 
 export type Motor = Instance & {
-    Cube0: string,
-    Cube1: string,
+    Cube0: BaseCube, -- write only
+    Cube1: BaseCube, -- write only
+    Attachment0: string,
+    Attachment1: string,
     DriveVelocity: number,
     MaxForce: number,
+    Axis: Vector3,
 }
 
 export type AppImage = Instance & {
     IconPath: string,
 }
 
-export type Animation = Instance & { Looped: boolean }
+export type PhysicalFileInstance = Instance & {
+    Path: string, -- read only; YAML field is ContentPath
+}
+
+export type FileRef = PhysicalFileInstance & {}
+export type FontFile = PhysicalFileInstance & {}
+export type TextFile = PhysicalFileInstance & {
+    Content: string,
+}
+
+export type Texture = Instance & {
+    -- Source is write-only at runtime; Texture has no Luau getters.
+    Source: FileRef,
+}
+
+-- These classes are not wired into Luau's dispatch table. Their C++ fields
+-- therefore intentionally are not declared here.
+export type PostEffect = Instance & {}
+export type Highlight = Instance & {}
+
+export type Animation = Instance & {
+    Length: number,
+    Speed: number,
+    Looped: boolean,
+    ContentPath: string,
+    Source: string, -- read only
+    LoadStatus: string, -- read only
+    UsingBuiltInFallback: boolean, -- read only
+}
 
 export type Humanoid = Instance & {
     WalkSpeed: number,
     JumpPower: number,
+    ClimbSpeed: number,
+    JumpHeight: number,
+    MaxHealth: number,
+    RespawnTime: number,
     Health: number,
+    WalkAnimation: Animation?,
+    JumpAnimation: Animation?,
+    EquipAnimation: Animation?,
 
     PlayAnimation: (Humanoid, Animation) -> (),
     PauseAnimation: (Humanoid) -> (),
@@ -143,6 +226,8 @@ export type Script = Instance & {
     Enabled: boolean,
     Path: string,
     Source: string, -- read only
+    Aborted: boolean, -- read only
+    Restart: (Script) -> (),
 }
 
 export type LocalScript = Script & {
@@ -195,6 +280,7 @@ export type RaycastResult = {
 
 export type Workspace = Instance & {
     Gravity: Vector3,
+    Wind: Vector3,
     PhysicsEnabled: boolean,
     Raycast: ((Workspace, Vector3, Vector3, Instance?) -> RaycastResult?) & ((Workspace, Vector3, Vector3, number, Instance?) -> RaycastResult?),
 }
@@ -216,6 +302,7 @@ type Vector3Metatable = {
          & ((a: number, b: Vector3) -> Vector3),
     __div: ((a: Vector3, b: Vector3) -> Vector3)
          & ((a: Vector3, b: number) -> Vector3),
+    __eq: (Vector3, Vector3) -> boolean,
 }
 export type Vector3 = typeof(setmetatable({} :: Vector3Data, {} :: Vector3Metatable))
 
@@ -233,6 +320,7 @@ type Color4Metatable = {
          & ((Color4, number) -> Color4)
          & ((number, Color4) -> Color4),
     __div: (Color4, number) -> Color4,
+    __eq: (Color4, Color4) -> boolean,
 }
 export type Color4 = typeof(setmetatable({} :: Color4Data, {} :: Color4Metatable))
 
@@ -251,6 +339,7 @@ type Vector2Metatable = {
          & ((number, Vector2) -> Vector2),
     __div: ((Vector2, Vector2) -> Vector2)
          & ((Vector2, number) -> Vector2),
+    __eq: (Vector2, Vector2) -> boolean,
 }
 export type Vector2 = typeof(setmetatable({} :: Vector2Data, {} :: Vector2Metatable))
 
@@ -259,6 +348,12 @@ export type System = Instance & {
     NetworkRoleChanged: Signal,
     NetworkRole: string,
     LocalPeerId: number,
+    BaseResolution: Vector2, -- read only
+    UseNetwork: boolean,
+    ApplicationId: string, -- read only
+    EnableIOAPI: boolean, -- read only
+    EnableIPCAPI: boolean, -- read only
+    EnableExternalFileAccess: boolean, -- read only
 }
 
 export type ChatService = Instance & {
@@ -270,19 +365,32 @@ export type Event = Instance & {
     Fire: (Event, ...any) -> (),
 }
 
-export type ScreenGuiObject = Instance & {
+export type GuiObject = Instance & {
+    Size: Vector2,
+    Norm: "Pixel" | "Scale",
     Active: boolean,
     Visible: boolean,
-    ZIndex: number,
-    Position: Vector2,
-    Size: Vector2,
     BackgroundColor: Color4,
+    ZIndex: number,
     Transparency: number,
-    Norm: string,
 }
 
-export type ImageLabel = ScreenGuiObject & { Image: string }
-export type ImageButton = GuiButton & { Image: string }
+export type ScreenGuiObject = GuiObject & {
+    Position: Vector2,
+    UseFontFile: boolean,
+    Font: "Default" | "DotGothic16",
+    FontFile: FontFile?,
+    Hovered: Signal,
+}
+
+export type ImageLabel = ScreenGuiObject & {
+    Image: string, -- read only
+    Source: FileRef, -- write only
+}
+export type ImageButton = GuiButton & {
+    Image: string, -- read only
+    Source: FileRef, -- write only
+}
 
 export type GuiButton = ScreenGuiObject & {
     Activated: Signal,
@@ -305,25 +413,19 @@ export type TextButton = GuiButton & {
     FontSize: number, -- 0 = 既定サイズ
 }
 
-export type WorldGuiObject = Instance & {
-    Active: boolean,
-    Visible: boolean,
-    ZIndex: number,
-    Size: Vector2,
-    BackgroundColor: Color4,
-    Transparency: number,
-    Norm: string,
-}
+export type WorldGuiObject = GuiObject & {}
 
 export type SurfaceGui = WorldGuiObject & {
-    Face: string,
+    Face: "Front" | "Back" | "Top" | "Bottom" | "Right" | "Left",
 }
 
 export type BillboardGui = WorldGuiObject & {
-    Mode: string,
+    Mode: "Parallel" | "Focus",
+    SizeMode: "Screen" | "World",
+    Offset: Vector3,
 }
 
-export type ProximityPrompt = Instance & {
+export type ProximityPrompt = BillboardGui & {
     KeyboardKeyCode: string,
     HoldDuration: number,
     MaxActivationDistance: number,
@@ -335,16 +437,20 @@ export type ProximityPrompt = Instance & {
 
 export type Tool = Instance & {
     Activated: Signal,
+    Equipped: boolean, -- read only
+    Hand: number,
+    Position: Vector3,
+    Rotation: Quaternion,
 }
 
 export type User = Instance & {
-    Input: UserInput,
+    Input: UserInput?,
     Character: Model?,
-    AddTool: (User, number?) -> number,
+    AddTool: (User, Tool, number?) -> number?,
     RemoveTool: (User, number|string) -> Tool?,
     GetTool: (User, number|string) -> Tool?,
     GetTools: (User) -> { Tool },
-    GetMouseRay: (User) -> Ray,
+    GetMouseRay: (User) -> Ray?,
     PeerId: number,
     ControlMode: string,
     CameraCFrame: CFrame,
@@ -357,19 +463,139 @@ export type UserInput = Instance & {
     IsPressed: (UserInput, string) -> boolean,
 }
 
+export type ValueBase = Instance & {
+    Changed: Signal,
+}
+export type IntValue = ValueBase & { Value: number }
+export type BoolValue = ValueBase & { Value: boolean }
+export type NumberValue = ValueBase & { Value: number }
+export type Vector3Value = ValueBase & { Value: Vector3 }
+export type Color4Value = ValueBase & { Value: Color4 }
+export type CFrameValue = ValueBase & { Value: CFrame }
+export type QuaternionValue = ValueBase & { Value: Quaternion }
+export type ObjectValue = ValueBase & { Value: Instance? }
+
 export type Skybox = Cube & {
 
+}
+
+export type ParticleEmitter = Instance & {
+    StartColor: Color4,
+    EndColor: Color4,
+    StartSize: number,
+    EndSize: number,
+    EmitRate: number,
+    MaxParticles: number,
+    Lifetime: number,
+    LifetimeVariance: number,
+    Speed: number,
+    SpeedVariance: number,
+    Direction: Vector3,
+    SpreadAngle: number,
+    GravityScale: number,
+    SpinSpeed: number,
+    SpinSpeedVariance: number,
+    Rotation: number,
+    RotationVariance: number,
+    Enabled: boolean,
+    WindScale: number,
+    SpawnRadius: number,
+    CollisionCutoff: boolean,
+    Emit: (ParticleEmitter, number?) -> (),
+}
+
+export type Weather = Instance & {
+    Enabled: boolean,
+    CurrentWeather: "Clear" | "Rain" | "Snow",
+    CloudCover: number,
+    CloudDensity: number,
+    CloudHeight: number,
+    WindDirection: Vector3,
+    LightningEnabled: boolean,
+    LightningInterval: number,
+    ClearAmbientPath: string,
+    RainAmbientPath: string,
+    SnowAmbientPath: string,
+    AmbientVolume: number,
+}
+
+export type PathfindingService = Instance & {
+    AgentRadius: number,
+    AgentHeight: number,
+    AgentMaxClimb: number,
+    AgentMaxSlope: number,
+    MaxJumpDistance: number,
+    MaxJumpHeight: number,
+    FindPath: (PathfindingService, Workspace, Vector3, Vector3) -> { { Position: Vector3, Action: string } },
+    Configure: (PathfindingService, { [string]: any }) -> (),
+}
+
+export type Canvas = Instance & {
+    Face: "Front" | "Back" | "Top" | "Bottom" | "Right" | "Left",
+    Width: number,
+    Height: number,
+    BackgroundColor: Color4,
+    SetPixel: (Canvas, number, number, Color4) -> boolean,
+    GetPixel: (Canvas, number, number) -> Color4?,
+    Clear: (Canvas, Color4?) -> (),
+    WorldToUV: (Canvas, Vector3) -> Vector2?,
 }
 
 export type Sun = Sphere & {
     Angle: number,
 }
+export type Moon = Sphere & {}
+export type Truss = Cube & {}
+export type Seat = Cube & { Steer: number, Throttle: number }
+export type LiquidCube = BaseCube & { Density: number }
+export type SpawnLocation = Cube & { Enabled: boolean }
+export type StarterCharacter = Instance & {}
+export type Folder = Instance & {}
+export type Force = Instance & {
+    Enabled: boolean,
+    Torque: Vector3,
+    MaintainVelocity: boolean,
+    Value: Vector3,
+    Force: Vector3,
+}
 
 export type Ray = { Origin: Vector3, Direction: Vector3 }
 
+export type IOEntry = {
+    Name: string,
+    Path: string,
+    IsDirectory: boolean,
+    Size: number,
+}
+
+export type IO = {
+    ReadText: (string) -> string,
+    ReadBytes: (string) -> string,
+    WriteText: (string, string) -> boolean,
+    WriteBytes: (string, string) -> boolean,
+    AppendText: (string, string) -> boolean,
+    AppendBytes: (string, string) -> boolean,
+    Exists: (string) -> boolean,
+    IsFile: (string) -> boolean,
+    IsDirectory: (string) -> boolean,
+    List: (string) -> { IOEntry },
+    CreateDirectory: (string) -> boolean,
+    Copy: (string, string, boolean?) -> boolean,
+    Move: (string, string, boolean?) -> boolean,
+    Remove: (string) -> boolean,
+    RemoveTree: (string) -> boolean,
+}
+
+export type IPC = {
+    Connect: (...any) -> any,
+    Send: (...any) -> any,
+    Receive: (...any) -> any,
+    Close: (...any) -> any,
+}
+
 export type task = {
     spawn: (fn: (...any) -> (...any), ...any) -> (),
-    delay: (seconds: number, fn: (...any) -> (...any)) -> (),
+    delay: (seconds: number, fn: (...any) -> (...any), ...any) -> (),
     wait:  (seconds: number?) -> ()
 }
 
@@ -382,6 +608,9 @@ declare User:      User
 declare System:    System
 declare system:    System
 declare ChatService: ChatService
+declare IO: IO
+declare IPC: IPC
+declare erik: Erik
 declare Vector3: {
     new: (number, number, number) -> Vector3,
     zero: Vector3,

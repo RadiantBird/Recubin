@@ -56,6 +56,7 @@ struct ViewportRenderDesc {
     bool renderConstraints = true;
     bool renderPostEffects = true;
     bool renderPhysicsDebug = false; // 物理制約のデバッグビジュアライザー（エディターのViewメニューで切替）
+    bool renderRenderingDebug = false; // SurfaceMark 等の描画デバッグビジュアライザー
     bool isFocused = false;
 };
 
@@ -108,6 +109,14 @@ class Renderer {
         int          uIsLiquidLoc        = -1;
         int          useVertexColorLoc   = -1;
         int          ourColorLoc         = -1;
+        // SurfaceMark projection overlay uniforms (set only during the overlay pass).
+        int          surfaceMarkPassLoc = -1;
+        int          surfaceMarkWorldToLocalLoc = -1;
+        int          surfaceMarkProjectionLoc = -1;
+        int          surfaceMarkSizeLoc = -1;
+        int          surfaceMarkTintLoc = -1;
+        int          surfaceMarkDepthLoc = -1;
+        int          surfaceMarkTextureLoc = -1;
 
         unsigned int m_instanceVBO = 0;  // 毎フレーム上書きするインスタンスバッファ（全形状共有）
 
@@ -121,6 +130,8 @@ class Renderer {
         InstanceBatch m_instBatches[INST_SHAPE_COUNT];
         int m_uInstancedLoc = -1;       // メインシェーダーの uInstanced
         int m_uInstancedDepthLoc = -1;  // depthシェーダーの uInstanced
+        int m_uTimeDepthLoc = -1;
+        int m_uIsLiquidDepthLoc = -1;
 
         struct LightUniformLocs {
             int type = -1, position = -1, direction = -1, color = -1;
@@ -134,6 +145,9 @@ class Renderer {
         unsigned int shadowMapTex  = 0;
         unsigned int depthShader   = 0;
         static const int SHADOW_MAP_SIZE = 2048;
+        unsigned int surfaceMarkFBO = 0;
+        unsigned int surfaceMarkDepthTex = 0;
+        static const int SURFACE_MARK_MAP_SIZE = 1024;
 
         std::vector<unsigned int> indices = {};
 
