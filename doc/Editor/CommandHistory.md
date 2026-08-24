@@ -61,3 +61,9 @@ SurfaceMarkのフィルター編集は、live参照と未解決パスを含むen
 
 - `BaseCube`（`SetVec3Command`, `SetColorCommand`, `SetBoolCommand`, `GizmoCommand` が操作対象）
 - `Instance`（`AddInstanceCommand`, `RemoveInstanceCommand`, `MoveInstanceCommand` が操作対象）
+# インスタンス置換
+
+Explorer の「Replace Instance」は `ReplaceInstanceCommand` として 1 操作の
+Undo 単位になる。置換先は `InstanceCatalog` の検索結果から選び、同名の互換
+プロパティを移送した後、子インスタンスを複製せず新しい親へ移す。Undo は元の
+インスタンスと子の identity を復元し、Redo は同じ置換を再適用する。

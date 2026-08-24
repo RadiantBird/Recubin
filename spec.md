@@ -280,3 +280,10 @@ PhysXに実装されているもののこと。
   インスタンス名（`Name`）をIDに使うと、同名インスタンスが複数存在する構成
   （コピペ量産、テンプレート的な使い方）でImGuiのID衝突（"conflicting ID"警告、
   クリック判定の誤動作）を起こす。
+- Explorer の Insert Object / Group は検索付きクラスピッカーから選択する。分類は既存分類に加えて Container、File、Script を持ち、検索は大文字小文字を区別しない部分一致とする。
+- Explorer の Replace Instance は単一ノードを同名の選択クラスへ置換する。共通プロパティは移送し、互換性のないプロパティは破棄する。子要素は同一オブジェクトを維持して新しい親へ移動し、Undo/Redo で完全に復元する。System、Workspace、親を持たないルートは対象外とする。
+## Editor GUI automation
+
+`--ui-automation` を指定したEditorだけがstdin操作と意味IDによるUI target登録を有効化する。
+通常起動ではreader、入力注入、target登録、captureはno-op。captureはmain viewportの
+default back framebufferをphysical pixel sizeでRGBA PNGとして保存する。

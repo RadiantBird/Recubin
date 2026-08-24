@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <functional>
 
 #include <yaml-cpp/yaml.h>
 
@@ -16,6 +17,12 @@ class Instance : public std::enable_shared_from_this<Instance> {
     protected:
         using string = std::string;
     public:
+        struct InstanceReference {
+            std::shared_ptr<Instance> target;
+            std::string requiredClass;
+            std::string ownerLabel;
+            std::function<void(std::shared_ptr<Instance>)> set;
+        };
         string Name = "Instance";
 
         std::weak_ptr<Instance> Parent;
@@ -64,6 +71,10 @@ class Instance : public std::enable_shared_from_this<Instance> {
         using CloneRemap = std::unordered_map<Instance*, std::shared_ptr<Instance>>;
         // 既定 no-op。参照を持つ派生クラスが自分のメンバを map で引いて差し替える。
         virtual void remapClonedInstances(const CloneRemap&) {}
+        // Enumerate persistent typed references for editor operations such as
+        // replacing an instance.  Implementations must provide a setter so
+        // commands can snapshot and restore the exact pointer.
+        virtual void collectInstanceReferences(std::vector<InstanceReference>&) {}
 
         // orig と clone を子名でペアリングして並行走査し、clone 内の制約参照を
         // clone 側のキューブへ張り替える（アセンブリ剛体がクローンで壊れないように）。

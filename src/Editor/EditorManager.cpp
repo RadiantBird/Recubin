@@ -1,5 +1,6 @@
 #include <Editor/EditorManager.hpp>
 
+#include <Editor/GuiAutomation.hpp>
 #include <Editor/UiHelpers.hpp>
 #include <Editor/WelcomePanel.hpp>
 #include <Core/Renderer.hpp>
@@ -1455,7 +1456,9 @@ void EditorManager::renderUI(User& user, GLFWwindow* window, Workspace& workspac
     if (Renderer::instance) Renderer::instance->prepareGuiFonts(workspace);
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
+    GuiAutomation::beforeNewFrame();
     ImGui::NewFrame();
+    GuiAutomation::afterNewFrame();
     ImGuizmo::BeginFrame();
 
     render(window);
@@ -1464,6 +1467,7 @@ void EditorManager::renderUI(User& user, GLFWwindow* window, Workspace& workspac
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    GuiAutomation::afterRender(window);
 
     ImGuiIO& io = ImGui::GetIO();
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {

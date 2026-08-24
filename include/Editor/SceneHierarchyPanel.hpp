@@ -2,11 +2,13 @@
 #include <include/imgui/imgui.h>
 #include <Editor/EditorPanel.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/InstanceCatalog.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Instance.hpp>
 #include <Core/User.hpp>
 #include <cctype>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -120,6 +122,18 @@ private:
     // Targets queued while a Script/Terrain group container dialog is open.
     std::vector<std::shared_ptr<Instance>> m_pendingGroupTargets;
 
+    enum class ClassPickerMode { Insert, Group, Replace };
+    bool m_classPickerOpen = false;
+    bool m_classPickerPopupRequested = false;
+    bool m_classPickerConfirm = false;
+    bool m_classPickerCloseParent = false;
+    ClassPickerMode m_classPickerMode = ClassPickerMode::Insert;
+    std::shared_ptr<Instance> m_classPickerParent;
+    std::shared_ptr<Instance> m_classPickerTarget;
+    std::vector<std::shared_ptr<Instance>> m_classPickerTargets;
+    char m_classPickerSearch[256] = {};
+    std::string m_classPickerSelected;
+
     // F2 インラインリネーム用の編集バッファ（drawNode が再帰するためメンバで持つ）
     char m_renameBuf[256] = {};
 
@@ -127,9 +141,10 @@ private:
     Instance* m_revealRequest = nullptr;
 
     void drawNode(Instance* inst);
-    void renderInsertMenu(Instance* inst);
     void renderTextFileDialog();
     void renderContextMenu(Instance* inst);
     void renderNewScriptDialog();
     void renderNewTerrainDialog();
+    void renderClassPicker();
+    void openClassPicker(ClassPickerMode mode, Instance* inst);
 };

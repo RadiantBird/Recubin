@@ -1,4 +1,6 @@
 #include "include/Core/PropertyRegistry.hpp"
+#include <Instances/Spatial.hpp>
+#include <Instances/Script.hpp>
 #include <algorithm>
 
 namespace PropertyRegistry {
@@ -167,6 +169,56 @@ void cloneFields(const Instance* src, Instance* dst, std::string_view className)
     for (const PropertyDesc* p : collectSchema(className))
         if (p->kind == PropKind::Field && p->cloneable && p->get && p->set)
             p->set(dst, p->get(const_cast<Instance*>(src)));
+}
+
+void copyCompatibleProperties(const Instance* src, Instance* dst) {
+    if (!src || !dst) return;
+    // Some concrete scene classes (Cube/Sphere and other BaseCube-derived
+    // types) intentionally have no own registry row.  Walk every registered
+    // class that both objects implement so their shared BaseCube/Spatial
+    // schema is still copied during replacement.
+    std::vector<const PropertyDesc*> source;
+    std::vector<const PropertyDesc*> target;
+    for (const auto className : registeredClassNames()) {
+        if (const_cast<Instance*>(src)->IsA(std::string(className)) && dst->IsA(std::string(className))) {
+            const auto schema = collectSchema(className);
+            source.insert(source.end(), schema.begin(), schema.end());
+            target.insert(target.end(), schema.begin(), schema.end());
+        }
+    }
+    std::unordered_map<std::string_view, const PropertyDesc*> byName;
+    for (const auto* d : source) {
+        if (d && d->kind == PropKind::Field && d->cloneable && d->get)
+            byName.emplace(d->name, d);
+    }
+    for (const auto* d : target) {
+        if (!d || d->kind != PropKind::Field || !d->cloneable || !d->set) continue;
+        const auto it = byName.find(d->name);
+        if (it == byName.end() || !it->second || !it->second->get) continue;
+        const PropValue value = it->second->get(const_cast<Instance*>(src));
+        // PropValue is deliberately type-tagged.  Do not coerce values during
+        // replacement: a property is compatible only when its schema type is.
+        if (it->second->type != d->type) continue;
+        d->set(dst, value);
+    }
+
+    // Spatial and Script fields are intentionally hand-written in their
+    // classes (rather than registered schemas), but remain serialized editor
+    // state and must survive class replacement when the destination supports
+    // the same family.
+    if (const auto* sourceSpatial = dynamic_cast<const Spatial*>(src)) {
+        if (auto* targetSpatial = dynamic_cast<Spatial*>(dst)) {
+            targetSpatial->cframe = sourceSpatial->cframe;
+            targetSpatial->Size = sourceSpatial->Size;
+        }
+    }
+    if (const auto* sourceScript = dynamic_cast<const Script*>(src)) {
+        if (auto* targetScript = dynamic_cast<Script*>(dst)) {
+            targetScript->Source = sourceScript->Source;
+            targetScript->Path = sourceScript->Path;
+            targetScript->Enabled = sourceScript->Enabled;
+        }
+    }
 }
 
 void applyToDispatch(std::string_view className, GetterMap& getters, SetterMap& setters) {

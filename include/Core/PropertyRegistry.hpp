@@ -240,6 +240,11 @@ bool loadProperty(Instance* obj, std::string_view className,
                   const std::string& name, const YAML::Node& value);
 void saveProperties(YAML::Emitter& out, const Instance* obj, std::string_view className);
 void cloneFields(const Instance* src, Instance* dst, std::string_view className);
+// Copy properties shared by the source and destination schemas.  Values whose
+// representation is not accepted by the destination are intentionally skipped.
+// This is used by editor instance replacement and keeps the YAML/clone schema
+// as the single compatibility contract.
+void copyCompatibleProperties(const Instance* src, Instance* dst);
 void applyToDispatch(std::string_view className, GetterMap& getters, SetterMap& setters);
 
 PropValue readValue(Instance* obj, const PropertyDesc& d);

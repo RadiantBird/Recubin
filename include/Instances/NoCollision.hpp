@@ -42,5 +42,10 @@ public:
     void onAncestorChanged() override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
     std::shared_ptr<Instance> clone() const override;
+    void collectInstanceReferences(std::vector<InstanceReference>& out) override {
+        auto self = this;
+        out.push_back({m_cube0.lock(), "BaseCube", "NoCollision.Cube0", [self](std::shared_ptr<Instance> v) { self->setCube0(std::dynamic_pointer_cast<BaseCube>(v)); }});
+        out.push_back({m_cube1.lock(), "BaseCube", "NoCollision.Cube1", [self](std::shared_ptr<Instance> v) { self->setCube1(std::dynamic_pointer_cast<BaseCube>(v)); }});
+    }
     void remapClonedInstances(const CloneRemap& map) override;
 };

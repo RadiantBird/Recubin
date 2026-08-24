@@ -1,6 +1,7 @@
 #pragma once
 #include <include/Instances/Instance.hpp>
 #include <include/Instances/BaseCube.hpp>
+#include <include/Instances/Attachment.hpp>
 #include <include/Util/Color4.hpp>
 #include <memory>
 
@@ -60,4 +61,11 @@ public:
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
     std::shared_ptr<Instance> clone() const override;
     void remapClonedInstances(const CloneRemap& map) override;
+    void collectInstanceReferences(std::vector<InstanceReference>& out) override {
+        auto self = this;
+        out.push_back({m_cube0.lock(), "BaseCube", "Rope.Cube0", [self](std::shared_ptr<Instance> v) { self->setCube0(std::dynamic_pointer_cast<BaseCube>(v)); }});
+        out.push_back({m_cube1.lock(), "BaseCube", "Rope.Cube1", [self](std::shared_ptr<Instance> v) { self->setCube1(std::dynamic_pointer_cast<BaseCube>(v)); }});
+        out.push_back({m_attachment0.lock(), "Attachment", "Rope.Attachment0", [self, oldName = m_attachment0Name](std::shared_ptr<Instance> v) { self->m_attachment0 = std::dynamic_pointer_cast<Attachment>(v); self->m_attachment0Name = v ? oldName : std::string{}; }});
+        out.push_back({m_attachment1.lock(), "Attachment", "Rope.Attachment1", [self, oldName = m_attachment1Name](std::shared_ptr<Instance> v) { self->m_attachment1 = std::dynamic_pointer_cast<Attachment>(v); self->m_attachment1Name = v ? oldName : std::string{}; }});
+    }
 };

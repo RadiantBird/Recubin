@@ -5,6 +5,11 @@ Tool::Tool(std::string name) : Instance(name) {
     Activated = std::make_shared<RCBNScriptSignal>();
 }
 
+void Tool::setHandleReference(const std::shared_ptr<BaseCube>& handle) {
+    Handle = handle;
+    m_handleName = handle ? handle->getWorkspaceRelativePath() : std::string{};
+}
+
 void Tool::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Position" && value.IsSequence() && value.size() == 3) {
         Position = Vector3(value[0].as<float>(), value[1].as<float>(), value[2].as<float>());

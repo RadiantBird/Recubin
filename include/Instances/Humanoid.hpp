@@ -118,6 +118,14 @@ public:
     void setJumpAnimationPath(const std::string& path);
     void setEquipAnimationPath(const std::string& path);
     void remapClonedInstances(const CloneRemap& map) override;
+    void collectInstanceReferences(std::vector<InstanceReference>& out) override {
+        out.push_back({getWalkAnimation(), "Animation", "Humanoid.WalkAnimation",
+            [this](std::shared_ptr<Instance> v) { setWalkAnimation(std::dynamic_pointer_cast<Animation>(v)); }});
+        out.push_back({getJumpAnimation(), "Animation", "Humanoid.JumpAnimation",
+            [this](std::shared_ptr<Instance> v) { setJumpAnimation(std::dynamic_pointer_cast<Animation>(v)); }});
+        out.push_back({getEquipAnimation(), "Animation", "Humanoid.EquipAnimation",
+            [this](std::shared_ptr<Instance> v) { setEquipAnimation(std::dynamic_pointer_cast<Animation>(v)); }});
+    }
     void pauseAnimation();
     void stopAnimation();
     void setAnimationSpeed(float speed);

@@ -39,6 +39,7 @@
 #include <include/Core/TerrainStreamer.hpp>
 
 #include <Editor/EditorManager.hpp>
+#include <Editor/GuiAutomation.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <Editor/Localization.hpp>
 #include <Core/SystemState.hpp>
@@ -440,15 +441,17 @@ static int runGenTestScene(const std::string& outputPath) {
 //  main
 // ===================================================
 int main(int argc, char* argv[]) {
+    GuiAutomation::configureFromArgs(argc, argv);
     // コンソールの出力/入力コードページをUTF-8にする
     // (Windows日本語版等では既定のANSIコードページのままだと、UTF-8で書かれた
     //  ログやLuauのprint出力が文字化けする)
     getPlatform().setupConsoleUtf8();
+    GuiAutomation::start();
     getPlatform().setupDllSearchPath();
     if (!Physics::configureBackendFromCommandLine(argc, argv)) return -1;
 
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.9984\n";
+              << "Recubin Studio v0.9986\n";
     std::filesystem::path engineExePath = (argc > 0 && argv[0]) ? std::filesystem::path(argv[0]) : std::filesystem::path();
 
     windows(
@@ -458,7 +461,7 @@ int main(int argc, char* argv[]) {
         STARTUPINFOA si = { sizeof(si) };
         PROCESS_INFORMATION pi = {};
 
-        // 外部監視プロセスを起動（クラッシュ時の再起動用）
+        // ウォッチドッグを起動(エラー情報の収集用)
         // ※ 子プロセスのライフサイクルは管理しないためハンドルは即破棄
         if (CreateProcessA(NULL, &cmd[0], NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
             CloseHandle(pi.hProcess);

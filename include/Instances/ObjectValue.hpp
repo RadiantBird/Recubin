@@ -22,4 +22,8 @@ public:
     void setTarget(std::shared_ptr<Instance> target);
     void resolveTarget(std::shared_ptr<Instance> target);
     void refreshRefName();
+    void collectInstanceReferences(std::vector<InstanceReference>& out) override {
+        out.push_back({getTarget(), {}, "ObjectValue.Value",
+            [this](std::shared_ptr<Instance> value) { setTarget(std::move(value)); }});
+    }
 };

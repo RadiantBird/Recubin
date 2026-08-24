@@ -56,6 +56,7 @@
 #include <Core/User.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Editor/SceneHierarchyGrouping.hpp>
+#include <Editor/InstanceCatalog.hpp>
 #include <Editor/EditorManager.hpp>
 #include <Editor/ViewportGeometry.hpp>
 #include <Editor/ViewportSceneQueries.hpp>
@@ -66,6 +67,7 @@
 #include <Network/Replication.hpp>
 #include <Util/Logger.hpp>
 #include <Util/AssetGuard.hpp>
+#include <Util/PngWriter.hpp>
 #include <Util/AssetPath.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
@@ -7382,11 +7384,66 @@ static int runSceneLoadTransactionRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runGuiAutomationRegression() {
+    int failures = 0;
+    auto expect = [&](bool ok, const char* message) {
+        if (!ok) { ++failures; std::cerr << "[GuiAutomation] FAIL: " << message << '\n'; }
+    };
+    const auto path = std::filesystem::temp_directory_path() / "recubin_gui_automation_test.png";
+    std::vector<std::uint8_t> pixels = {255, 0, 0, 255, 0, 255, 0, 255,
+                                        0, 0, 255, 255, 255, 255, 255, 255};
+    std::string error;
+    expect(PngWriter::writeRgba8(path.string(), 2, 2, pixels, &error), "small RGBA PNG is written");
+    std::ifstream in(path, std::ios::binary);
+    std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(in)), {});
+    expect(bytes.size() > 24 && bytes[0] == 137 && bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G',
+           "PNG signature is valid");
+    expect(bytes.size() > 24 && bytes[16] == 0 && bytes[17] == 0 && bytes[18] == 0 && bytes[19] == 2 &&
+               bytes[20] == 0 && bytes[21] == 0 && bytes[22] == 0 && bytes[23] == 2,
+           "PNG IHDR dimensions are 2x2");
+    expect(!PngWriter::writeRgba8(path.string(), 2, 2, {}, &error), "invalid RGBA buffer is rejected");
+    std::error_code ec; std::filesystem::remove(path, ec);
+    std::cout << "[GuiAutomation] failures=" << failures << " result="
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 static int runSceneHierarchyGroupingRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
         if (!condition) { ++failures; std::cerr << "[Grouping] FAIL: " << message << '\n'; }
     };
+    const auto& catalogEntries = InstanceCatalog::entries();
+    std::unordered_set<std::string_view> catalogNames;
+    bool catalogUnique = true;
+    for (const auto& entry : catalogEntries)
+        catalogUnique = catalogUnique && catalogNames.insert(entry.className).second;
+    expect(catalogUnique, "catalog class names contain no duplicates");
+    auto expectCategory = [&](std::string_view className, InstanceCategory category) {
+        const auto it = std::find_if(catalogEntries.begin(), catalogEntries.end(),
+            [&](const auto& entry) { return entry.className == className; });
+        return it != catalogEntries.end() && it->category == category;
+    };
+    expect(expectCategory("Folder", InstanceCategory::Container) &&
+               expectCategory("Model", InstanceCategory::Container) &&
+               expectCategory("Tool", InstanceCategory::Container),
+           "catalog classifies container instances");
+    expect(expectCategory("TextFile", InstanceCategory::File) &&
+               expectCategory("FileRef", InstanceCategory::File) &&
+               expectCategory("FontFile", InstanceCategory::File),
+           "catalog classifies file instances");
+    expect(expectCategory("Script", InstanceCategory::Script) &&
+               expectCategory("LocalScript", InstanceCategory::Script) &&
+               expectCategory("ModuleScript", InstanceCategory::Script),
+           "catalog classifies script instances");
+    expect(std::none_of(catalogEntries.begin(), catalogEntries.end(), [](const auto& entry) {
+               return entry.className == "System" || entry.className == "Users" || entry.className == "User";
+           }), "catalog excludes system and user singleton classes");
+    const auto scriptMatches = InstanceCatalog::search("script");
+    expect(scriptMatches.size() == 3 && InstanceCatalog::search("SCRIPT").size() == 3,
+           "catalog search is case-insensitive and finds all script classes");
+    expect(InstanceCatalog::search("SYSTEM").empty(), "catalog excludes system classes");
+    expect(InstanceCatalog::create("Workspace") != nullptr, "catalog creates Workspace");
     auto workspace = std::make_shared<Workspace>();
     auto cube = std::make_shared<Cube>(Vector3(4, 2, -3), Vector3(1, 1, 1), Cube::defaultTextureID);
     auto folder = std::make_shared<Folder>();
@@ -7414,7 +7471,95 @@ static int runSceneHierarchyGroupingRegression() {
     history.redo();
     expect(model->getChild("Folder") == folder.get() &&
                nested->getWorldCFrame().Position == nestedWorld.Position,
-           "redo restores group and descendant pose");
+               "redo restores group and descendant pose");
+
+    auto scriptParent = std::make_shared<Folder>();
+    auto script = std::make_shared<Script>("old.luau");
+    script->Name = "Logic"; script->Source = "return 1"; script->Enabled = false;
+    auto child = std::make_shared<Folder>(); child->Name = "Child";
+    script->addChild(child); scriptParent->addChild(script);
+    CommandHistory replacementHistory;
+    replacementHistory.execute(std::make_unique<ReplaceInstanceCommand>(
+        scriptParent, script, "LocalScript"));
+    auto local = scriptParent->getChild("Logic");
+    expect(local && local->IsA("LocalScript") && static_cast<Script*>(local)->Path == "old.luau" &&
+               static_cast<Script*>(local)->Source == "return 1" && local->getChild("Child") == child.get(),
+           "replacement preserves script properties and child identity");
+    replacementHistory.undo();
+    expect(scriptParent->getChild("Logic") == script.get() && script->getChild("Child") == child.get(),
+           "replacement undo restores original script and child");
+    replacementHistory.redo();
+    expect(scriptParent->getChild("Logic") == local && local->getChild("Child") == child.get(),
+           "replacement redo restores replacement and child identity");
+
+    // Replacement reference contract: generic ObjectValue references update
+    // for every destination, while typed BaseCube references are cleared for
+    // an incompatible Script destination and restored by undo.
+    auto system = std::make_shared<System>();
+    auto refWorkspace = std::make_shared<Workspace>();
+    system->addChild(refWorkspace);
+    auto target = std::make_shared<Cube>(Vector3(2, 3, 4), Vector3(5, 6, 7), Cube::defaultTextureID);
+    target->Name = "Target";
+    target->Anchored = true;
+    target->Color = Color4(0.2f, 0.4f, 0.6f, 1.0f);
+    auto targetChild = std::make_shared<Folder>();
+    targetChild->Name = "Child";
+    target->addChild(targetChild);
+    auto other = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+    other->Name = "Other";
+    auto objectValue = std::make_shared<ObjectValue>();
+    objectValue->Name = "TargetValue";
+    objectValue->setTarget(target);
+    auto weld = std::make_shared<Weld>();
+    weld->Name = "TargetWeld";
+    weld->setCubes(target, other);
+    refWorkspace->addChild(target);
+    refWorkspace->addChild(other);
+    refWorkspace->addChild(objectValue);
+    refWorkspace->addChild(weld);
+
+    CommandHistory refHistory;
+    refHistory.execute(std::make_unique<ReplaceInstanceCommand>(
+        refWorkspace, target, "Sphere", std::function<void(Instance*)>{}, system));
+    auto sphere = refWorkspace->getChild("Target");
+    expect(sphere && sphere->IsA("Sphere") && sphere->IsA("BaseCube"),
+           "Cube replacement creates the requested Sphere");
+    expect(sphere && static_cast<Spatial*>(sphere)->Size == target->Size &&
+               static_cast<BaseCube*>(sphere)->Anchored &&
+               static_cast<BaseCube*>(sphere)->Color == target->Color,
+           "Cube replacement preserves common properties");
+    expect(sphere && sphere->getChild("Child") == targetChild.get() &&
+               objectValue->getTarget().get() == sphere &&
+               weld->getCube0().get() == sphere,
+           "Cube replacement preserves child identity and compatible references");
+    refHistory.undo();
+    expect(refWorkspace->getChild("Target") == target.get() &&
+               target->getChild("Child") == targetChild.get() &&
+               objectValue->getTarget().get() == target.get() &&
+               weld->getCube0().get() == target.get(),
+           "Cube replacement undo restores exact node, child, and references");
+    refHistory.redo();
+    sphere = refWorkspace->getChild("Target");
+    expect(sphere && objectValue->getTarget().get() == sphere &&
+               weld->getCube0().get() == sphere && sphere->getChild("Child") == targetChild.get(),
+           "Cube replacement redo reapplies references and child identity");
+
+    auto scriptReplacement = std::make_unique<ReplaceInstanceCommand>(
+        refWorkspace, sphere->shared_from_this(), "Script", std::function<void(Instance*)>{}, system);
+    auto scriptPreview = InstanceCatalog::create("Script");
+    scriptReplacement->analyzeReferences(scriptPreview);
+    expect(std::find(scriptReplacement->incompatibleReferenceOwners().begin(),
+                     scriptReplacement->incompatibleReferenceOwners().end(),
+                     "Weld.Cube0") != scriptReplacement->incompatibleReferenceOwners().end(),
+           "Cube to Script preview reports incompatible Weld reference");
+    refHistory.execute(std::move(scriptReplacement));
+    auto replacedScript = refWorkspace->getChild("Target");
+    expect(replacedScript && replacedScript->IsA("Script") && !weld->getCube0() &&
+               objectValue->getTarget().get() == replacedScript,
+           "Cube to Script clears typed reference but updates ObjectValue");
+    refHistory.undo();
+    expect(weld->getCube0().get() == sphere && objectValue->getTarget().get() == sphere,
+           "Cube to Script undo restores typed and generic references");
     std::cout << "[Grouping] failures=" << failures << " result="
               << (failures == 0 ? "PASS" : "FAIL") << '\n';
     return failures == 0 ? 0 : 1;
@@ -7768,6 +7913,7 @@ int main(int argc, char* argv[]) {
     const bool systemExtensionRegression =
         argc > 1 && std::string_view(argv[1]) == "--system-extension-regression";
     const bool groupingRegression = argc > 1 && std::string_view(argv[1]) == "--scene-hierarchy-grouping-regression";
+    const bool guiAutomationRegression = argc > 1 && std::string_view(argv[1]) == "--gui-automation-regression";
     bool physicsMigrationRegression = false;
     bool physicsLifecycleRegression = false;
     bool constraintRebindRegression = false;
@@ -7861,6 +8007,7 @@ int main(int argc, char* argv[]) {
         return runSystemExtensionRegression();
     if (physicsMigrationRegression) return runPhysicsMigrationRegression();
     if (groupingRegression) return runSceneHierarchyGroupingRegression();
+    if (guiAutomationRegression) return runGuiAutomationRegression();
     if (seatNetworkRegression) return runSeatNetworkRegression();
     if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
     if (constraintRebindRegression) return runConstraintRebindRegression();

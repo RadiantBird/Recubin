@@ -33,6 +33,11 @@ class Tool : public Instance {
 
         virtual void setProperty(const std::string& name, const YAML::Node& value) override;
         void onAncestorChanged() override;
+        void collectInstanceReferences(std::vector<InstanceReference>& out) override {
+            out.push_back({Handle, "BaseCube", "Tool.Handle",
+                [this](std::shared_ptr<Instance> v) { setHandleReference(std::dynamic_pointer_cast<BaseCube>(v)); }});
+        }
+        void setHandleReference(const std::shared_ptr<BaseCube>& handle);
 
     private:
         // Tool固有のプロパティやメソッドをここに追加

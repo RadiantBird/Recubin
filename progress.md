@@ -232,3 +232,16 @@
 - `--surface-mark-regression`はfilter modes、Model/Folder、expired、clone remap、YAML rename/unresolved、Luau atomicを含め全PASS。
 - `--scene-load-transaction-regression`はfailures=0でPASS。全回帰は140 passed / 3 failedで既知baseline（Pathfinder 1、Sound 2）一致、新規失敗なし。
 - GUIのInclude/Exclude picker、Undo、奥への投影確認は未実施。
+
+## 2026-08-24: 検索付きクラス選択とInstance置換
+
+- 挿入・グループ化・置換を共通の検索付きクラス選択UIへ統合し、Container／File／Script分類を追加した。
+- Instance置換で互換プロパティと子要素identityを維持し、typed参照は互換時に更新、非互換時は警告表示して解除するようにした。
+- ObjectValue、SurfaceMark、制約、Humanoid Animation、Tool Handle等の参照をUndo/Redoで復元可能にした。
+- ReleaseのRecubin／RecubinEngine／RecubinTest 3ターゲットbuild成功。`--scene-hierarchy-grouping-regression`はfailures=0。
+- constraint／tool／humanoid／surface-mark／physical-file各回帰はPASS。既存NOMINMAX/APIENTRY等のwarningのみ。
+## 2026-08-24: GUI automation documentation
+
+- `--ui-automation` のコマンド形式、Explorer target ID、back framebuffer capture契約を `doc/Editor/GuiAutomation.md` に整理した。
+- `--gui-automation-regression` にPNG signature/IHDR/invalid buffer回帰を追加した。
+- 検証: 未実施（親エージェントでビルド・回帰を実行予定）。

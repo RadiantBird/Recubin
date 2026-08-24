@@ -43,6 +43,24 @@ public:
     void refreshFilterPaths();
     bool allowsSurfaceTarget(const BaseCube& target) const;
     void remapClonedInstances(const CloneRemap& remap) override;
+    void collectInstanceReferences(std::vector<InstanceReference>& out) override {
+        std::vector<std::shared_ptr<Instance>> instances;
+        instances.reserve(m_filterInstances.size());
+        for (const auto& weak : m_filterInstances) instances.push_back(weak.lock());
+        const auto paths = m_filterPaths;
+        for (std::size_t index = 0; index < m_filterInstances.size(); ++index) {
+            const auto& weak = m_filterInstances[index];
+            auto target = weak.lock();
+            out.push_back({target, {}, "SurfaceMark.Filter",
+                [this, target, index, instances, paths](std::shared_ptr<Instance> value) mutable {
+                    auto updated = instances;
+                    for (auto& item : updated) if (item == target) item = value;
+                    auto updatedPaths = paths;
+                    if (!value && index < updatedPaths.size()) updatedPaths[index].clear();
+                    setFilterState(updated, updatedPaths);
+                }});
+        }
+    }
 
 private:
     std::vector<std::weak_ptr<Instance>> m_filterInstances;
