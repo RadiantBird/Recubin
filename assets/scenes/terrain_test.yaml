@@ -88,7 +88,7 @@ Root:
               Name: Decal_Front
               Properties:
                 Face: 0
-                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\hehe.png
+                Texture: assets/image/hehe.png
                 UVCenter: [0.5, 0.5]
                 UVRadius: 0.15
                 Mode: 0
@@ -185,7 +185,7 @@ Root:
     - ClassName: AppImage
       Name: AppImage
       Properties:
-        IconPath: C:\Users\Ryarta\Documents\Recubin\assets\image\the-cat.png
+        IconPath: assets/image/the-cat.png
     - ClassName: Workspace
       Name: Workspace
       Properties:
@@ -209,7 +209,7 @@ Root:
         - ClassName: Script
           Name: TerrainDoodle
           Properties:
-            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\TerrainDoodle.luau
+            ContentPath: scripts/TerrainDoodle.luau
             Enabled: true
         - ClassName: Cube
           Name: Cube1

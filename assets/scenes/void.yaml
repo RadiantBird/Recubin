@@ -191,8 +191,7 @@ Root:
         - ClassName: LocalScript
           Name: whoareyou
           Properties:
-            ContentPath: ""
-            Enabled: true
+            Enabled: false
     - ClassName: Users
       Name: Users
       Children:
@@ -686,8 +685,8 @@ Root:
                 - ClassName: Script
                   Name: Prox
                   Properties:
-                    ContentPath: assets\scripts\Prox.luauc
-                    Enabled: true
+                    ContentPath: scripts/Prox.luau
+                    Enabled: false
         - ClassName: Cube
           Name: Brik31
           Properties:
@@ -1655,8 +1654,8 @@ Root:
         - ClassName: Script
           Name: FallingSafe
           Properties:
-            ContentPath: assets\scripts\FallingSafe.luauc
-            Enabled: true
+            ContentPath: scripts/FallingSafe.luau
+            Enabled: false
         - ClassName: Cube
           Name: Brik312
           Properties:

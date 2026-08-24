@@ -5,12 +5,14 @@
 #include <Util/AssetPath.hpp>
 #include <include/Instances/PathfindingService.hpp>
 #include <yaml-cpp/yaml.h>
+#include <Util/YamlLoadResult.hpp>
 #include <fstream>
 #include <filesystem>
 #include <cmath>
 #include <cstring>
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 #include <utility>
 #include <vector>
 
@@ -346,10 +348,27 @@ TerrainStreamer::RegionCache& TerrainStreamer::getRegionCache(int32_t rx, int32_
     auto& cache = m_regions[{rx, rz}];
     if (!cache.loaded) {
         std::string path = regionPath(terrainDir, rx, rz);
-        std::string content = FileLoader::readText(path);
-        if (!content.empty()) {
-            try { cache.root = YAML::Load(content); } catch (...) {}
+        const bool fileExists = std::filesystem::exists(path);
+        std::string content = fileExists ? FileLoader::readText(path) : std::string{};
+        if (content.empty() && fileExists) {
+            cache.loadFailed = true;
+            std::cerr << "[TerrainStreamer] Failed to read empty region YAML: " << path << std::endl;
+        } else if (!content.empty()) {
+            const YamlLoadResult loaded = loadYamlText(content, path);
+            if (loaded.success) {
+                cache.root = loaded.node;
+                if (!cache.root.IsMap() ||
+                    (cache.root["chunks"] && !cache.root["chunks"].IsSequence())) {
+                    cache.loadFailed = true;
+                    std::cerr << "[TerrainStreamer] Invalid region YAML schema: " << path << std::endl;
+                }
+            } else {
+                cache.loadFailed = true;
+                std::cerr << "[TerrainStreamer] Failed to load region YAML: "
+                          << loaded.error << std::endl;
+            }
         }
+        if (!cache.root.IsMap()) cache.root = YAML::Node(YAML::NodeType::Map);
         if (!cache.root["chunks"] || !cache.root["chunks"].IsSequence()) {
             cache.root["chunks"] = YAML::Node(YAML::NodeType::Sequence);
         }
@@ -365,18 +384,43 @@ void TerrainStreamer::flushRegions() {
     enqueueJob(std::move(job));
 }
 
+bool TerrainStreamer::validateRegionLoadFailure(int32_t rx, int32_t rz) {
+    auto result = std::make_shared<std::promise<bool>>();
+    auto future = result->get_future();
+    Job job;
+    job.type = JobType::ValidateRegion;
+    job.cx = rx;
+    job.cz = rz;
+    job.validationResult = result;
+    enqueueJob(std::move(job));
+    if (future.wait_for(std::chrono::seconds(2)) != std::future_status::ready)
+        return false;
+    return future.get();
+}
+
 // ワーカー専用: modified リージョンをディスクへ書き出す
 void TerrainStreamer::flushRegionsToDisk() {
     ensureDir(terrainDir);
     for (auto& [k, cache] : m_regions) {
-        if (cache.loaded && cache.modified) {
+        if (cache.loaded && cache.modified && !cache.loadFailed) {
             std::string path = regionPath(terrainDir, k.rx, k.rz);
             YAML::Emitter out;
             out << cache.root;
             std::ofstream ofs(path);
-            if (ofs.is_open()) ofs << out.c_str();
-            else std::cerr << "[TerrainStreamer] Failed to write: " << path << std::endl;
+            if (!ofs.is_open()) {
+                std::cerr << "[TerrainStreamer] Failed to open for write: " << path << std::endl;
+                continue;
+            }
+            ofs << out.c_str();
+            ofs.flush();
+            if (!ofs) {
+                std::cerr << "[TerrainStreamer] Failed to write: " << path << std::endl;
+                continue;
+            }
             cache.modified = false;
+        } else if (cache.loaded && cache.modified && cache.loadFailed) {
+            std::cerr << "[TerrainStreamer] Skipping write of corrupt region: "
+                      << regionPath(terrainDir, k.rx, k.rz) << std::endl;
         }
     }
 }
@@ -402,7 +446,11 @@ bool TerrainStreamer::decodeChunkFromRegion(int32_t cx, int32_t cy, int32_t cz, 
             return true;
         }
     } catch (const std::exception& e) {
+        cache.loadFailed = true;
         std::cerr << "[TerrainStreamer] YAML parse error: " << e.what() << std::endl;
+    } catch (...) {
+        cache.loadFailed = true;
+        std::cerr << "[TerrainStreamer] YAML parse error: unknown error" << std::endl;
     }
     return false;
 }
@@ -490,6 +538,21 @@ void TerrainStreamer::workerLoop()
             std::error_code ec;
             std::filesystem::remove_all(terrainDir, ec); // DataPath を丸ごと削除
             ensureDir(terrainDir);
+            break;
+        }
+        case JobType::ValidateRegion: {
+            bool failed = false;
+            try {
+                RegionCache& cache = getRegionCache(job.cx, job.cz);
+                failed = cache.loadFailed;
+                // Force the guarded branch for the regression without changing
+                // normal persistence semantics.
+                cache.modified = true;
+                flushRegionsToDisk();
+            } catch (...) {
+                failed = false;
+            }
+            if (job.validationResult) job.validationResult->set_value(failed);
             break;
         }
         case JobType::Stop:

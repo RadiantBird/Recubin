@@ -245,3 +245,26 @@
 - `--ui-automation` のコマンド形式、Explorer target ID、back framebuffer capture契約を `doc/Editor/GuiAutomation.md` に整理した。
 - `--gui-automation-regression` にPNG signature/IHDR/invalid buffer回帰を追加した。
 - 検証: 未実施（親エージェントでビルド・回帰を実行予定）。
+
+## 2026-08-25: v0.999 リリース前コード監査完了
+
+- Editor: 置換確認を選択クラス別に管理し、ImGui popupの自動close、TextFile group cleanup、
+  unrelated class間の同名同型PropertyRegistry移送（型不一致破棄）、Highlight Luau dispatch、
+  CommandHistoryの責務別分割を実施した。
+- Runtime: SoundのWorldCFrame位置計算、AudioServiceの段階的初期化rollbackと冪等teardownを実施した。
+  startup/editor settings/terrain YAMLは共通結果型で失敗をログ出力し、破損時の保存を遮断した。
+- GUI automation: parserをtokenize/validation/queueへ分割し、Windows/macOS/MockのIPlatformで
+  main-thread非ブロッキングstdinへ統一した。automation専用の未保存danger cooldownは0秒、通常は3秒。
+- 回帰基盤: 42-entry registry、`--list-regressions`、manifest一致検査、timeout、PhysX/Box3D両backend、
+  fixture、Python標準ライブラリ生成PCM WAV、回帰sceneの相対化を整備した。
+- 検証: Windows ReleaseのRecubinCore、Recubin、RecubinEngine、RecubinTest build成功。
+  42 dedicated regressionsはPhysX/Box3Dで全PASS、両backend performance guard PASS、GUI smoke PASS、
+  9 scenesで228 passed/0 failed、Regression OK。PropertyRegistry不可視、Unknown User、Lighting重複、
+  Sound fixture欠落の警告なし。
+- macOS静的確認: IPlatform純粋仮想メソッド一致、MacPlatform実装、Windows API漏出なし、CMakeの.mm選択、
+  自動sceneのWindows絶対パスなしを確認。macOS実機buildは未実施。
+- リリース作成・公開・バージョン変更は未実施。
+- 追加finding（severity: test false-state/fixture warning、リリースruntimeクラッシュではない）を修正。
+  headless UserがInventoryを先に生成してシーンInventoryをInventory1へrenameしていたため、ロード済みInventoryを
+  採用し不足時のみ補完するよう変更した。自動sceneの欠落Prox/FallingSafe bytecodeと空Scriptは同梱source/無効fixtureへ置換し、
+  欠落警告と常駐timeoutを解消。最終`run_regression.py Release`は42 x PhysX/Box3D、performance、GUI、9 scenes 228/0でexit 0。

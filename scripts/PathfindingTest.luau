@@ -42,6 +42,8 @@ if #waypoints == 0 then
     return
 end
 
+print("[PASS] 経路を取得しました")
+
 for i, wp in ipairs(waypoints) do
     print(string.format("  #%d %s (%.1f, %.1f, %.1f)", i, wp.Action, wp.Position.x, wp.Position.y, wp.Position.z))
 end

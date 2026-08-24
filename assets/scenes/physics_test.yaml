@@ -104,7 +104,7 @@ Root:
               Name: Decal_Front
               Properties:
                 Face: 0
-                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\hooo.png
+                Texture: assets/image/hooo.png
                 UVCenter: [0.5, 0.5]
                 UVRadius: 0.15
                 Mode: 0
@@ -140,7 +140,7 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-            MeshFile: C:\Users\Ryarta\Documents\Recubin\assets\models\hair-Curuata.glb
+            MeshFile: assets/models/hair-Curuata.glb
           Children:
             - ClassName: Weld
               Name: Weld
@@ -163,20 +163,20 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-            MeshFile: C:\Users\Ryarta\Documents\Recubin\assets\models\GirlTorso.glb
+            MeshFile: assets/models/GirlTorso.glb
           Children:
             - ClassName: Decal
               Name: Decal
               Properties:
                 Face: 0
-                Texture: C:\Users\Ryarta\Pictures\Tux.svg.png
+                Texture: ""
                 UVCenter: [0.2, 0.7]
                 UVRadius: 0.4
                 Mode: 1
         - ClassName: Script
           Name: KeyframeCheck
           Properties:
-            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\KeyframeCheck.luau
+            ContentPath: scripts/KeyframeCheck.luau
             Enabled: true
         - ClassName: Animation
           Name: Animation
@@ -326,7 +326,7 @@ Root:
                 Color: [1, 0.60923076, 0, 1]
                 StudsPerTileU: 1
                 StudsPerTileV: 1
-                Texture: C:\Users\Ryarta\Documents\Recubin\assets\image\Grass_Texture.png
+                Texture: assets/image/Grass_Texture.png
         - ClassName: Cube
           Name: Cube12
           Properties:
@@ -581,7 +581,7 @@ Root:
             - ClassName: Script
               Name: DamageScript
               Properties:
-                ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\DamageScript.luau
+                ContentPath: scripts/DamageScript.luau
                 Enabled: true
         - ClassName: Cube
           Name: Jumper1

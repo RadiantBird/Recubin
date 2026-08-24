@@ -174,15 +174,18 @@ void cloneFields(const Instance* src, Instance* dst, std::string_view className)
 void copyCompatibleProperties(const Instance* src, Instance* dst) {
     if (!src || !dst) return;
     // Some concrete scene classes (Cube/Sphere and other BaseCube-derived
-    // types) intentionally have no own registry row.  Walk every registered
-    // class that both objects implement so their shared BaseCube/Spatial
-    // schema is still copied during replacement.
+    // types) intentionally have no own registry row. Gather each side's
+    // complete schema independently; unrelated replacement classes can still
+    // share editor properties without sharing an inheritance relationship.
     std::vector<const PropertyDesc*> source;
     std::vector<const PropertyDesc*> target;
     for (const auto className : registeredClassNames()) {
-        if (const_cast<Instance*>(src)->IsA(std::string(className)) && dst->IsA(std::string(className))) {
+        if (const_cast<Instance*>(src)->IsA(std::string(className))) {
             const auto schema = collectSchema(className);
             source.insert(source.end(), schema.begin(), schema.end());
+        }
+        if (dst->IsA(std::string(className))) {
+            const auto schema = collectSchema(className);
             target.insert(target.end(), schema.begin(), schema.end());
         }
     }

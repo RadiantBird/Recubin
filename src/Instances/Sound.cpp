@@ -166,6 +166,20 @@ bool Sound::IsA(std::string name) {
     return (name == "Sound") || Spatial::IsA(name);
 }
 
+SoundSpatialMix Sound::calculateSpatialMix(const Vector3& worldPos,
+                                           const Vector3& listenerPos,
+                                           const Vector3& listenerRight,
+                                           float baseVolume) {
+    const Vector3 toSound = worldPos - listenerPos;
+    const float dist = toSound.length();
+    SoundSpatialMix mix;
+    mix.volume = baseVolume / (1.0f + dist * 0.1f);
+    if (dist > 0.001f) {
+        mix.pan = Vector3::Dot(toSound.normalize(), listenerRight);
+    }
+    return mix;
+}
+
 void Sound::update3D(const Vector3& listenerPos, const Vector3& listenerRight) {
     if (!loaded) return;
 
@@ -177,22 +191,12 @@ void Sound::update3D(const Vector3& listenerPos, const Vector3& listenerRight) {
         return;
     }
 
-    Spatial* ps = static_cast<Spatial*>(parentPtr.get());
-    // Sound のワールド位置 = 親の Position + Sound 自身の Position
-    Vector3 worldPos = ps->Position + this->Position;
-    Vector3 toSound  = worldPos - listenerPos;
-    float dist = toSound.length();
-
-    // 距離減衰 (ユーザー設定音量に乗算)
-    ma_sound_set_volume(&sound, m_volume / (1.0f + dist * 0.1f));
-
-    // 左右パンニング（カメラの right ベクトルを基準に）
-    if (dist > 0.001f) {
-        float pan = Vector3::Dot(toSound.normalize(), listenerRight);
-        ma_sound_set_pan(&sound, pan);
-    } else {
-        ma_sound_set_pan(&sound, 0.0f);
-    }
+    // 親の回転・多段階の親子関係を含む完全なワールド変換から位置を求める。
+    // Sound 自身が Spatial であるため、親が Spatial なら自身のローカル CFrame も含まれる。
+    const SoundSpatialMix mix = calculateSpatialMix(
+        getWorldCFrame().Position, listenerPos, listenerRight, m_volume);
+    ma_sound_set_volume(&sound, mix.volume);
+    ma_sound_set_pan(&sound, mix.pan);
 }
 
 Sound::~Sound() {

@@ -438,6 +438,7 @@ void LuauEngine::InitDispatchTable_World() {
     PropertyRegistry::applyToDispatch("SpotLight", DispatchTable, SetterTable);
 
     PropertyRegistry::applyToDispatch("ParticleEmitter", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Highlight", DispatchTable, SetterTable);
     DispatchTable["ParticleEmitter"]["Emit"] = getter_closure(particle_emitter_emit_closure, "Emit");
 
     PropertyRegistry::applyToDispatch("Weather", DispatchTable, SetterTable);
@@ -667,8 +668,9 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["UserInput"]["IsPressed"] = getter_closure(userinput_ispressed_closure, "IsPressed");
 
     PropertyRegistry::applyToDispatch("AppImage", DispatchTable, SetterTable);
+    const auto& physicalFileTypes = PhysicalFileInstanceRegistry::types();
     PropertyRegistry::applyToDispatch("PhysicalFileInstance", DispatchTable, SetterTable);
-    for (const auto& type : PhysicalFileInstanceRegistry::types())
+    for (const auto& type : physicalFileTypes)
         PropertyRegistry::applyToDispatch(type.className, DispatchTable, SetterTable);
     // StorageId is an engine-owned identity and is intentionally invisible to
     // scripts; exposing it would allow save-data aliasing across TextFiles.

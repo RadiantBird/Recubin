@@ -4,6 +4,11 @@
 
 class TimeStretchNode;
 
+struct SoundSpatialMix {
+    float volume = 0.0f;
+    float pan = 0.0f;
+};
+
 class Sound : public Spatial {
 private:
     ma_sound sound{};
@@ -31,6 +36,10 @@ public:
     void stop();
     void setLooping(bool loop);
     void update3D(const Vector3& listenerPos, const Vector3& listenerRight);
+    static SoundSpatialMix calculateSpatialMix(const Vector3& worldPos,
+                                                const Vector3& listenerPos,
+                                                const Vector3& listenerRight,
+                                                float baseVolume);
 
     void  reset();                  // 再生位置を 0:00 へ
     void  seekSeconds(float sec);   // 任意秒へシーク（[0,length] にクランプ）

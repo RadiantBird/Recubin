@@ -282,6 +282,16 @@ PhysXに実装されているもののこと。
   クリック判定の誤動作）を起こす。
 - Explorer の Insert Object / Group は検索付きクラスピッカーから選択する。分類は既存分類に加えて Container、File、Script を持ち、検索は大文字小文字を区別しない部分一致とする。
 - Explorer の Replace Instance は単一ノードを同名の選択クラスへ置換する。共通プロパティは移送し、互換性のないプロパティは破棄する。子要素は同一オブジェクトを維持して新しい親へ移動し、Undo/Redo で完全に復元する。System、Workspace、親を持たないルートは対象外とする。
+
+置換確認は現在選択中のクラスに紐づけ、選択クラスが変わった場合は再確認する。TextFileの
+グループ化確定・取消では保留対象を破棄する。PropertyRegistryの移送は継承関係のないクラス間でも
+同名同型を対象とし、型不一致は破棄する。子identity、typed参照、Undo/Redo契約は維持する。
+Soundの3D位置は完全なWorldCFrameから求め、AudioServiceの段階的初期化失敗はrollbackし、
+teardownは冪等にする。startup/editor settings/terrain YAMLの失敗は共通結果でログへ報告し、
+破損データの空データ上書きを禁止する。
+
+GUI automation専用モードの未保存変更確認danger cooldownは0秒、通常Editorは3秒とする。
+Class Pickerのpopupは選択変更時に旧クラスの承認だけを破棄して維持し、確定・取消時に保留状態を閉じる。
 ## Editor GUI automation
 
 `--ui-automation` を指定したEditorだけがstdin操作と意味IDによるUI target登録を有効化する。

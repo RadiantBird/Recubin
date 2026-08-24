@@ -43,6 +43,7 @@
 #include <Util/RuntimeFileSystem.hpp>
 #include <Util/SystemExtensionPermissions.hpp>
 #include <Util/UUID.hpp>
+#include <Util/YamlLoadResult.hpp>
 #include <include/imgui/imgui_impl_glfw.h>
 #include <include/imgui/imgui_impl_opengl3.h>
 #include <yaml-cpp/yaml.h>
@@ -246,18 +247,27 @@ static bool parseServerAddress(const std::string& value,
 
 static GameConfig loadStartup() {
     GameConfig cfg;
+    const YamlLoadResult loaded = loadYamlFile("startup.yaml");
+    if (!loaded.success) {
+        // startup.yaml is optional, but a present and malformed file must not
+        // fail silently and fall back to defaults.
+        if (std::filesystem::exists("startup.yaml")) {
+            RCBN_ERROR("Failed to load startup.yaml: " << loaded.error);
+        }
+        return cfg;
+    }
     try {
-        std::ifstream f("startup.yaml");
-        if (!f.is_open()) return cfg;
-        std::stringstream ss;
-        ss << f.rdbuf();
-        YAML::Node node = YAML::Load(ss.str());
+        YAML::Node node = loaded.node;
         if (node["GameName"])   cfg.gameName   = node["GameName"].as<std::string>();
         if (node["StartScene"]) cfg.startScene = node["StartScene"].as<std::string>();
         if (node["DebugLog"])   cfg.debugLog   = node["DebugLog"].as<bool>();
         if (node["StunServer"]) cfg.stunServer = node["StunServer"].as<std::string>();
         if (node["RendezvousServer"]) cfg.rendezvousServer = node["RendezvousServer"].as<std::string>();
-    } catch (...) {}
+    } catch (const std::exception& error) {
+        RCBN_ERROR("Invalid startup.yaml values: " << error.what());
+    } catch (...) {
+        RCBN_ERROR("Invalid startup.yaml values: unknown error");
+    }
     return cfg;
 }
 

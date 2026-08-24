@@ -242,6 +242,11 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     ImGuiTreeNodeFlags flags =
         ImGuiTreeNodeFlags_OpenOnArrow |
         ImGuiTreeNodeFlags_SpanAvailWidth;
+    // The system root is the stable entry point for the editor hierarchy. Keep
+    // only this root expanded by default so automation can discover Workspace;
+    // users can still collapse it normally afterwards.
+    if (inst == systemRoot || inst->IsA("Workspace"))
+        flags |= ImGuiTreeNodeFlags_DefaultOpen;
 
     bool inSelection = std::find(selectedInstances.begin(), selectedInstances.end(), inst)
                        != selectedInstances.end();
@@ -520,6 +525,7 @@ void SceneHierarchyPanel::renderTextFileDialog() {
     }
     if (!retry) {
         m_pendingTextFileParent.reset();
+        m_pendingGroupTargets.clear();
         m_textFileDialogError.clear();
     }
 }
@@ -810,12 +816,19 @@ void SceneHierarchyPanel::openClassPicker(ClassPickerMode mode, Instance* inst) 
     }
     std::fill(std::begin(m_classPickerSearch), std::end(m_classPickerSearch), '\0');
     m_classPickerSelected.clear();
-    m_classPickerConfirm = false;
+    m_classPickerConfirmClass.clear();
     m_classPickerOpen = true;
     m_classPickerPopupRequested = true;
 }
 
 void SceneHierarchyPanel::renderClassPicker() {
+    // Keep the popup lifecycle entry point small.  Rendering and action
+    // handling live in a dedicated routine so callers cannot accidentally
+    // couple picker state management to the surrounding hierarchy UI.
+    renderClassPickerPopup();
+}
+
+void SceneHierarchyPanel::renderClassPickerPopup() {
     if (!m_classPickerOpen) return;
     bool popupRequestedThisFrame = false;
     if (m_classPickerPopupRequested) {
@@ -845,7 +858,7 @@ void SceneHierarchyPanel::renderClassPicker() {
         // after the Insert/Group/Replace row was clicked.
         if (!popupRequestedThisFrame && !ImGui::IsPopupOpen("###InstanceClassPicker")) {
             m_classPickerOpen = false;
-            m_classPickerConfirm = false;
+            m_classPickerConfirmClass.clear();
             m_classPickerSelected.clear();
         }
         return;
@@ -856,6 +869,136 @@ void SceneHierarchyPanel::renderClassPicker() {
     ImGui::InputText("##class-search", m_classPickerSearch, sizeof(m_classPickerSearch));
     GuiAutomation::registerLastItem("Explorer/ClassPicker/Search");
     const auto matches = InstanceCatalog::search(m_classPickerSearch);
+    bool activateSelection = renderClassPickerEntries(matches);
+    const bool hasIncompatibleReferences = previewClassPickerSelection();
+    renderClassPickerReplacementConfirmation(hasIncompatibleReferences, activateSelection);
+    if (matches.empty()) ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::InstancePickerNoResults));
+    ImGui::Separator();
+    const bool canConfirm = !m_classPickerSelected.empty();
+    if (activateSelection && canConfirm &&
+        (!hasIncompatibleReferences || m_classPickerConfirmClass == m_classPickerSelected)) {
+        executeClassPickerSelection(m_classPickerSelected);
+        ImGui::CloseCurrentPopup(); m_classPickerOpen = false; m_classPickerCloseParent = true;
+    }
+    ImGui::EndPopup();
+}
+
+bool SceneHierarchyPanel::executeClassPickerSelection(const std::string& selected) {
+    if (m_classPickerMode == ClassPickerMode::Insert && m_classPickerParent) {
+        if (selected == "Script" || selected == "LocalScript" || selected == "ModuleScript") {
+            m_pendingScriptParent = m_classPickerParent;
+            m_pendingScriptClass = selected == "Script" ? ScriptInsertClass::Script
+                : (selected == "LocalScript" ? ScriptInsertClass::LocalScript : ScriptInsertClass::ModuleScript);
+            m_scriptDialogError.clear();
+            m_openScriptDialog = true;
+            return true;
+        }
+        if (selected == "TextFile") {
+            requestNewTextFile(m_classPickerParent);
+            return true;
+        }
+        if (selected == "Terrain") {
+            m_pendingTerrainParent = m_classPickerParent;
+            m_openTerrainDialog = true;
+            return true;
+        }
+        if (!m_history) return false;
+        auto obj = InstanceCatalog::create(selected);
+        if (obj && obj->IsA("Spatial"))
+            static_cast<Spatial*>(obj.get())->cframe.Position = computeSpawnPos(m_user, workspace);
+        auto insertParent = m_classPickerParent;
+        if (selected == "SurfaceMark" && insertParent->IsA("BaseCube") && workspace)
+            insertParent = workspace->shared_from_this();
+        if (selected == "Sound" && !AudioService::instance) obj.reset();
+        if (selected == "Sun" && m_user && obj) {
+            auto* sun = static_cast<Sun*>(obj.get());
+            float rad = sun->Angle * (3.14159265f / 180.0f);
+            sun->cframe.Position = m_user->cpos + Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f;
+        }
+        if (selected == "Moon" && m_user && obj) {
+            auto* moon = static_cast<Moon*>(obj.get());
+            float rad = 45.0f * (3.14159265f / 180.0f);
+            moon->cframe.Position = m_user->cpos - Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f;
+        }
+        if (!obj) return false;
+        obj->Name = uniqueName(insertParent, selected);
+        m_history->execute(std::make_unique<AddInstanceCommand>(insertParent, obj));
+        return true;
+    }
+    if (m_classPickerMode == ClassPickerMode::Group && m_history && !m_classPickerTargets.empty()) {
+        auto parent = m_classPickerTargets.front()->Parent.lock();
+        if (!parent) return false;
+        if (selected == "Script" || selected == "LocalScript" || selected == "ModuleScript") {
+            m_pendingGroupTargets = m_classPickerTargets;
+            m_pendingScriptParent = parent;
+            m_pendingScriptClass = selected == "Script" ? ScriptInsertClass::Script
+                : (selected == "LocalScript" ? ScriptInsertClass::LocalScript : ScriptInsertClass::ModuleScript);
+            m_scriptDialogError.clear();
+            m_openScriptDialog = true;
+        } else if (selected == "Terrain") {
+            m_pendingGroupTargets = m_classPickerTargets;
+            m_pendingTerrainParent = parent;
+            m_pendingTerrainName = "Terrain";
+            m_openTerrainDialog = true;
+        } else if (selected == "TextFile") {
+            m_pendingGroupTargets = m_classPickerTargets;
+            m_pendingTextFileParent = parent;
+            m_openTextFileDialog = true;
+        } else {
+            auto group = InstanceCatalog::create(selected);
+            if (!group) return false;
+            group->Name = uniqueName(parent, selected);
+            m_history->execute(std::make_unique<GroupInstancesCommand>(parent, group, m_classPickerTargets));
+            selectedInstance = group.get();
+            selectedInstances = {group.get()};
+        }
+        return true;
+    }
+    if (m_classPickerMode == ClassPickerMode::Replace && m_history && m_classPickerTarget) {
+        auto parent = m_classPickerTarget->Parent.lock();
+        if (!parent || selected == m_classPickerTarget->getClassName()) return false;
+        m_history->execute(std::make_unique<ReplaceInstanceCommand>(
+            parent, m_classPickerTarget, selected,
+            [this](Instance* replacement) { selectedInstance = replacement; selectedInstances = {replacement}; },
+            systemRoot ? systemRoot->shared_from_this()
+                       : (workspace ? workspace->shared_from_this() : nullptr)));
+        return true;
+    }
+    return false;
+}
+
+bool SceneHierarchyPanel::renderClassPickerReplacementConfirmation(
+    bool hasIncompatibleReferences, bool& activateSelection) {
+    const bool acknowledged = !m_classPickerSelected.empty() &&
+        m_classPickerConfirmClass == m_classPickerSelected;
+    if (activateSelection && hasIncompatibleReferences && !acknowledged) {
+        m_classPickerConfirmClass.clear();
+        activateSelection = false;
+    }
+    if (hasIncompatibleReferences && !acknowledged) {
+        const bool confirmClicked = ImGui::Button(
+            Loc::t(Loc::LocKey::InstancePickerReplaceAndClear));
+        GuiAutomation::registerLastItem("Explorer/ClassPicker/ConfirmReplace");
+        if (confirmClicked) {
+            m_classPickerConfirmClass = m_classPickerSelected;
+            activateSelection = true;
+        }
+        ImGui::SameLine();
+        const bool cancelClicked = ImGui::Button(Loc::t(Loc::LocKey::InstancePickerCancel));
+        GuiAutomation::registerLastItem("Explorer/ClassPicker/CancelReplace");
+        if (cancelClicked) {
+            m_classPickerConfirmClass.clear();
+            m_classPickerSelected.clear();
+        }
+    }
+    // Re-read state so a confirmation click can complete replacement this
+    // frame rather than waiting for another selection event.
+    return !m_classPickerSelected.empty() &&
+        m_classPickerConfirmClass == m_classPickerSelected;
+}
+
+bool SceneHierarchyPanel::renderClassPickerEntries(
+    const std::vector<InstanceCatalogEntry>& matches) {
     constexpr InstanceCategory categories[] = { InstanceCategory::Cubes, InstanceCategory::Effects,
         InstanceCategory::Environment, InstanceCategory::Gui, InstanceCategory::Physics,
         InstanceCategory::Values, InstanceCategory::Container, InstanceCategory::File,
@@ -888,18 +1031,19 @@ void SceneHierarchyPanel::renderClassPicker() {
         default: return Loc::t(Loc::LocKey::CategoryOtherDesc);
         }
     };
-    bool activateSelection = false;
+    bool activate = false;
     for (const auto category : categories) {
         bool hasMatch = false;
-        for (const auto& entry : matches) if (entry.category == category) { hasMatch = true; break; }
+        for (const auto& entry : matches)
+            if (entry.category == category) { hasMatch = true; break; }
         if (!hasMatch) continue;
         const bool expanded = m_classPickerSearch[0] != '\0';
         ImGui::PushID(static_cast<int>(category));
         if (expanded) ImGui::SetNextItemOpen(true, ImGuiCond_Always);
         const char* categoryKey = InstanceCatalog::categoryLabel(category);
         ImGui::PushID(categoryKey);
-        const bool categoryOpen = ImGui::CollapsingHeader(categoryName(category),
-                                    expanded ? ImGuiTreeNodeFlags_DefaultOpen : 0);
+        const bool categoryOpen = ImGui::CollapsingHeader(
+            categoryName(category), expanded ? ImGuiTreeNodeFlags_DefaultOpen : 0);
         GuiAutomation::registerLastItem(std::string("Explorer/ClassPicker/Category/") + categoryKey);
         if (categoryOpen) {
             ImGui::TextDisabled("%s", categoryDescription(category));
@@ -910,119 +1054,39 @@ void SceneHierarchyPanel::renderClassPicker() {
                 const bool sameReplace = m_classPickerMode == ClassPickerMode::Replace &&
                     m_classPickerTarget && entry.className == m_classPickerTarget->getClassName();
                 if (ImGui::Selectable(entry.className.data(), m_classPickerSelected == entry.className,
-                                      sameReplace ? ImGuiSelectableFlags_Disabled : 0)) {
+                                      ImGuiSelectableFlags_NoAutoClosePopups |
+                                          (sameReplace ? ImGuiSelectableFlags_Disabled : 0))) {
                     m_classPickerSelected = std::string(entry.className);
-                    activateSelection = true;
+                    m_classPickerConfirmClass.clear();
+                    activate = true;
                 }
-                GuiAutomation::registerLastItem(std::string("Explorer/ClassPicker/Class/") + std::string(entry.className));
+                GuiAutomation::registerLastItem(std::string("Explorer/ClassPicker/Class/") +
+                                                std::string(entry.className));
             }
             ImGui::PopID();
         }
         ImGui::PopID();
         ImGui::PopID();
     }
-    bool hasIncompatibleReferences = false;
-    if (m_classPickerMode == ClassPickerMode::Replace && m_classPickerTarget && !m_classPickerSelected.empty()) {
-        auto parent = m_classPickerTarget->Parent.lock();
-        auto root = systemRoot ? systemRoot->shared_from_this()
-                               : (workspace ? workspace->shared_from_this() : nullptr);
-        auto previewReplacement = InstanceCatalog::create(m_classPickerSelected);
-        ReplaceInstanceCommand preview(parent, m_classPickerTarget, m_classPickerSelected, {}, root);
-        if (previewReplacement) preview.analyzeReferences(previewReplacement);
-        if (!preview.incompatibleReferenceOwners().empty()) {
-            hasIncompatibleReferences = true;
-            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f),
-                               Loc::t(Loc::LocKey::InstancePickerIncompatibleCount),
-                               static_cast<int>(preview.incompatibleReferenceOwners().size()));
-            for (const auto& owner : preview.incompatibleReferenceOwners())
-                ImGui::BulletText("%s", owner.c_str());
-        }
-    }
-    if (activateSelection && hasIncompatibleReferences && !m_classPickerConfirm) {
-        m_classPickerConfirm = true;
-        activateSelection = false;
-    }
-    if (m_classPickerConfirm && hasIncompatibleReferences) {
-        const bool confirmClicked = ImGui::Button(Loc::t(Loc::LocKey::InstancePickerReplaceAndClear));
-        GuiAutomation::registerLastItem("Explorer/ClassPicker/ConfirmReplace");
-        if (confirmClicked) { activateSelection = true; }
-        ImGui::SameLine();
-        const bool cancelClicked = ImGui::Button(Loc::t(Loc::LocKey::InstancePickerCancel));
-        GuiAutomation::registerLastItem("Explorer/ClassPicker/CancelReplace");
-        if (cancelClicked) { m_classPickerConfirm = false; m_classPickerSelected.clear(); }
-    }
-    if (matches.empty()) ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::InstancePickerNoResults));
-    ImGui::Separator();
-    const bool canConfirm = !m_classPickerSelected.empty();
-    if (activateSelection && canConfirm && (!hasIncompatibleReferences || m_classPickerConfirm)) {
-        const std::string selected = m_classPickerSelected;
-        if (m_classPickerMode == ClassPickerMode::Insert && m_classPickerParent) {
-            if (selected == "Script" || selected == "LocalScript" || selected == "ModuleScript") {
-                m_pendingScriptParent = m_classPickerParent;
-                m_pendingScriptClass = selected == "Script" ? ScriptInsertClass::Script
-                    : (selected == "LocalScript" ? ScriptInsertClass::LocalScript : ScriptInsertClass::ModuleScript);
-                m_scriptDialogError.clear(); m_openScriptDialog = true;
-            } else if (selected == "TextFile") {
-                requestNewTextFile(m_classPickerParent);
-            } else if (selected == "Terrain") {
-                m_pendingTerrainParent = m_classPickerParent; m_openTerrainDialog = true;
-            } else if (m_history) {
-                auto obj = InstanceCatalog::create(selected);
-                if (obj && obj->IsA("Spatial")) {
-                    auto spatial = static_cast<Spatial*>(obj.get());
-                    spatial->cframe.Position = computeSpawnPos(m_user, workspace);
-                }
-                auto insertParent = m_classPickerParent;
-                if (selected == "SurfaceMark" && insertParent->IsA("BaseCube") && workspace)
-                    insertParent = workspace->shared_from_this();
-                if (selected == "Sound" && !AudioService::instance) obj.reset();
-                if (selected == "Sun" && m_user) {
-                    auto* sun = static_cast<Sun*>(obj.get());
-                    float rad = sun->Angle * (3.14159265f / 180.0f);
-                    sun->cframe.Position = m_user->cpos + Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f;
-                }
-                if (selected == "Moon" && m_user) {
-                    auto* moon = static_cast<Moon*>(obj.get());
-                    float rad = 45.0f * (3.14159265f / 180.0f);
-                    moon->cframe.Position = m_user->cpos - Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f;
-                }
-                if (obj) { obj->Name = uniqueName(insertParent, selected);
-                    m_history->execute(std::make_unique<AddInstanceCommand>(insertParent, obj)); }
-            }
-        } else if (m_classPickerMode == ClassPickerMode::Group && m_history && !m_classPickerTargets.empty()) {
-            auto parent = m_classPickerTargets.front()->Parent.lock();
-            if (selected == "Script" || selected == "LocalScript" || selected == "ModuleScript") {
-                m_pendingGroupTargets = m_classPickerTargets;
-                m_pendingScriptParent = parent;
-                m_pendingScriptClass = selected == "Script" ? ScriptInsertClass::Script
-                    : (selected == "LocalScript" ? ScriptInsertClass::LocalScript : ScriptInsertClass::ModuleScript);
-                m_scriptDialogError.clear(); m_openScriptDialog = true;
-            } else if (selected == "Terrain") {
-                m_pendingGroupTargets = m_classPickerTargets;
-                m_pendingTerrainParent = parent; m_pendingTerrainName = "Terrain"; m_openTerrainDialog = true;
-            } else if (selected == "TextFile") {
-                m_pendingGroupTargets = m_classPickerTargets;
-                m_pendingTextFileParent = parent; m_openTextFileDialog = true;
-            } else {
-                auto group = InstanceCatalog::create(selected);
-                if (!parent || !group) { ImGui::CloseCurrentPopup(); m_classPickerOpen = false; ImGui::EndPopup(); return; }
-                group->Name = uniqueName(parent, selected);
-                m_history->execute(std::make_unique<GroupInstancesCommand>(parent, group, m_classPickerTargets));
-                selectedInstance = group.get(); selectedInstances = {group.get()};
-            }
-        } else if (m_classPickerMode == ClassPickerMode::Replace && m_history && m_classPickerTarget) {
-            auto parent = m_classPickerTarget->Parent.lock();
-            if (parent && selected != m_classPickerTarget->getClassName()) {
-                m_history->execute(std::make_unique<ReplaceInstanceCommand>(
-                    parent, m_classPickerTarget, selected,
-                    [this](Instance* replacement) { selectedInstance = replacement; selectedInstances = {replacement}; },
-                    systemRoot ? systemRoot->shared_from_this()
-                               : (workspace ? workspace->shared_from_this() : nullptr)));
-            }
-        }
-        ImGui::CloseCurrentPopup(); m_classPickerOpen = false; m_classPickerCloseParent = true;
-    }
-    ImGui::EndPopup();
+    return activate;
+}
+
+bool SceneHierarchyPanel::previewClassPickerSelection() {
+    if (m_classPickerMode != ClassPickerMode::Replace || !m_classPickerTarget ||
+        m_classPickerSelected.empty()) return false;
+    auto parent = m_classPickerTarget->Parent.lock();
+    auto root = systemRoot ? systemRoot->shared_from_this()
+                           : (workspace ? workspace->shared_from_this() : nullptr);
+    auto previewReplacement = InstanceCatalog::create(m_classPickerSelected);
+    ReplaceInstanceCommand preview(parent, m_classPickerTarget, m_classPickerSelected, {}, root);
+    if (previewReplacement) preview.analyzeReferences(previewReplacement);
+    if (preview.incompatibleReferenceOwners().empty()) return false;
+    ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f),
+                       Loc::t(Loc::LocKey::InstancePickerIncompatibleCount),
+                       static_cast<int>(preview.incompatibleReferenceOwners().size()));
+    for (const auto& owner : preview.incompatibleReferenceOwners())
+        ImGui::BulletText("%s", owner.c_str());
+    return true;
 }
 
 #if 0 // Legacy hierarchical insert menu retained only as historical reference.

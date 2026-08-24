@@ -6,6 +6,8 @@
 struct RuntimeLaunchArgs {
     std::optional<std::string> scenePath;
     std::optional<std::string> windowTitle;
+    std::optional<std::string> uiAutomationScene;
+    std::optional<std::string> uiAutomationSettings;
     bool editorTest = false;
     bool valid = true;
     std::string error;

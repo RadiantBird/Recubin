@@ -9,18 +9,46 @@
 #endif
 
 AudioService* AudioService::instance = nullptr;
-AudioService::AudioService() : Instance("AudioService") {}
+AudioService::AudioService()
+    : AudioService({ma_engine_init, ma_sound_group_init,
+                    ma_sound_group_uninit, ma_engine_uninit}) {}
+
+AudioService::AudioService(const InitializationOps& initializationOps)
+    : Instance("AudioService"), m_initializationOps(initializationOps) {}
 
 bool AudioService::initialize() {
+    if (m_engineInitialized) {
+        // Initialization is idempotent, but this instance remains the
+        // authoritative singleton even if another failed instance attempted
+        // initialization in the meantime.
+        instance = this;
+        return true;
+    }
+    if (instance != nullptr && instance != this) return false;
+    if (!m_initializationOps.engineInit || !m_initializationOps.groupInit ||
+        !m_initializationOps.groupUninit || !m_initializationOps.engineUninit) {
+        return false;
+    }
+    if (m_initializationOps.engineInit(nullptr, &engine) != MA_SUCCESS) {
+        return false;
+    }
+    m_engineInitialized = true;
+    if (m_initializationOps.groupInit(&engine, 0, nullptr, &groupBGM) != MA_SUCCESS) {
+        uninit();
+        return false;
+    }
+    m_groupBGMInitialized = true;
+    if (m_initializationOps.groupInit(&engine, 0, nullptr, &groupSFX) != MA_SUCCESS) {
+        uninit();
+        return false;
+    }
+    m_groupSFXInitialized = true;
     instance = this;
-    if (ma_engine_init(NULL, &engine) != MA_SUCCESS) return false;
-    ma_sound_group_init(&engine, 0, NULL, &groupBGM);
-    ma_sound_group_init(&engine, 0, NULL, &groupSFX);
     return true;
 }
 
-void AudioService::setBGMVolume(float volume) { ma_sound_group_set_volume(&groupBGM, volume); }
-void AudioService::setSFXVolume(float volume) { ma_sound_group_set_volume(&groupSFX, volume); }
+void AudioService::setBGMVolume(float volume) { if (m_groupBGMInitialized) ma_sound_group_set_volume(&groupBGM, volume); }
+void AudioService::setSFXVolume(float volume) { if (m_groupSFXInitialized) ma_sound_group_set_volume(&groupSFX, volume); }
 
 void AudioService::addSound(const std::shared_ptr<Sound>& sound) {
     sounds.push_back(std::weak_ptr<Sound>(sound));
@@ -66,9 +94,19 @@ void AudioService::updateSounds(const Vector3& listenerPos, const Vector3& liste
 }
 
 void AudioService::uninit() {
-    ma_sound_group_uninit(&groupBGM);
-    ma_sound_group_uninit(&groupSFX);
-    ma_engine_uninit(&engine);
+    if (m_groupBGMInitialized) {
+        m_initializationOps.groupUninit(&groupBGM);
+        m_groupBGMInitialized = false;
+    }
+    if (m_groupSFXInitialized) {
+        m_initializationOps.groupUninit(&groupSFX);
+        m_groupSFXInitialized = false;
+    }
+    if (m_engineInitialized) {
+        m_initializationOps.engineUninit(&engine);
+        m_engineInitialized = false;
+    }
+    if (instance == this) instance = nullptr;
 }
 
 AudioService::~AudioService() {

@@ -10,12 +10,28 @@ class AudioService : public Instance {
 private:
     std::vector<std::weak_ptr<Sound>> sounds;
 public:
+    struct InitializationOps {
+        ma_result (*engineInit)(const ma_engine_config*, ma_engine*);
+        ma_result (*groupInit)(ma_engine*, ma_uint32, ma_sound_group*, ma_sound_group*);
+        void (*groupUninit)(ma_sound_group*);
+        void (*engineUninit)(ma_engine*);
+    };
+
     static AudioService* instance;
-    ma_engine engine;
-    ma_sound_group groupSFX;
-    ma_sound_group groupBGM;
+    ma_engine engine{};
+    ma_sound_group groupSFX{};
+    ma_sound_group groupBGM{};
+private:
+    bool m_engineInitialized = false;
+    bool m_groupSFXInitialized = false;
+    bool m_groupBGMInitialized = false;
+    InitializationOps m_initializationOps;
+public:
 
     AudioService();
+    // Explicit operation seam for deterministic initialization/rollback tests.
+    // Production code should use the default constructor.
+    explicit AudioService(const InitializationOps& initializationOps);
     bool initialize();
     void setBGMVolume(float volume);
     void setSFXVolume(float volume);

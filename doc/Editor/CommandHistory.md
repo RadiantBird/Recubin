@@ -61,6 +61,12 @@ SurfaceMarkのフィルター編集は、live参照と未解決パスを含むen
 
 - `BaseCube`（`SetVec3Command`, `SetColorCommand`, `SetBoolCommand`, `GizmoCommand` が操作対象）
 - `Instance`（`AddInstanceCommand`, `RemoveInstanceCommand`, `MoveInstanceCommand` が操作対象）
+
+## 実装分割
+
+非テンプレート実装はヘッダから分離し、Instance操作、Property操作、Terrain操作を
+それぞれ対応するcppへ分割している。テンプレート宣言と公開シグネチャはヘッダに
+残し、Undo/Redoの契約は従来どおり維持する。
 # インスタンス置換
 
 Explorer の「Replace Instance」は `ReplaceInstanceCommand` として 1 操作の

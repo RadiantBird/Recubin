@@ -31,7 +31,7 @@
 struct Command {
     virtual void execute() = 0;
     virtual void undo() = 0;
-    virtual ~Command() = default;
+    virtual ~Command();
 };
 
 // ===================================================
@@ -43,9 +43,9 @@ class CommandHistory {
     std::function<void()> m_onChange;  // 変更が起きるたびに呼ばれる（未保存マーク用）
 public:
     // 履歴に変更が加わった時（execute/record/undo/redo）に呼ばれるコールバックを設定する
-    void setOnChange(std::function<void()> cb) { m_onChange = std::move(cb); }
+    void setOnChange(std::function<void()> cb);
     // ライブ編集中の変更通知。Undo履歴は編集確定時にrecord()で1操作だけ積む。
-    void notifyChanged() { if (m_onChange) m_onChange(); }
+    void notifyChanged();
 
     // execute: コマンドを適用してUndoスタックに積む（redo クリア）
     void execute(std::unique_ptr<Command> cmd);
@@ -54,8 +54,8 @@ public:
     void undo();
     void redo();
     void clear();
-    bool canUndo() const { return !m_undoStack.empty(); }
-    bool canRedo() const { return !m_redoStack.empty(); }
+    bool canUndo() const;
+    bool canRedo() const;
 };
 
 // ===================================================
@@ -71,12 +71,10 @@ struct SetPropertyCommand : Command {
     PropValue                 m_before, m_after;
 
     SetPropertyCommand(std::shared_ptr<Instance> target, const PropertyDesc* desc,
-                       PropValue before, PropValue after)
-        : m_target(std::move(target)), m_desc(desc),
-          m_before(std::move(before)), m_after(std::move(after)) {}
+                       PropValue before, PropValue after);
 
-    void execute() override { if (m_target && m_desc) PropertyRegistry::writeValue(m_target.get(), *m_desc, m_after); }
-    void undo()    override { if (m_target && m_desc) PropertyRegistry::writeValue(m_target.get(), *m_desc, m_before); }
+    void execute() override;
+    void undo() override;
 };
 
 struct SetSurfaceMarkFilterCommand : Command {
@@ -87,12 +85,9 @@ struct SetSurfaceMarkFilterCommand : Command {
                                  std::vector<std::shared_ptr<Instance>> beforeInstances,
                                  std::vector<std::string> beforePaths,
                                  std::vector<std::shared_ptr<Instance>> afterInstances,
-                                 std::vector<std::string> afterPaths)
-        : m_target(std::move(target)), m_beforeInstances(std::move(beforeInstances)),
-          m_afterInstances(std::move(afterInstances)), m_beforePaths(std::move(beforePaths)),
-          m_afterPaths(std::move(afterPaths)) {}
-    void execute() override { if (m_target) m_target->setFilterState(m_afterInstances, m_afterPaths); }
-    void undo() override { if (m_target) m_target->setFilterState(m_beforeInstances, m_beforePaths); }
+                                 std::vector<std::string> afterPaths);
+    void execute() override;
+    void undo() override;
 };
 
 // --- インスタンス追加 ---
@@ -100,15 +95,9 @@ struct AddInstanceCommand : Command {
     std::shared_ptr<Instance> m_parent;
     std::shared_ptr<Instance> m_child;
 
-    AddInstanceCommand(std::shared_ptr<Instance> parent, std::shared_ptr<Instance> child)
-        : m_parent(std::move(parent)), m_child(std::move(child)) {}
-
-    void execute() override {
-        if (m_parent && m_child) m_parent->addChild(m_child);
-    }
-    void undo() override {
-        if (m_parent && m_child) m_parent->removeChild(m_child->Name);
-    }
+    AddInstanceCommand(std::shared_ptr<Instance> parent, std::shared_ptr<Instance> child);
+    void execute() override;
+    void undo() override;
 };
 
 // Replace one scene node while retaining its name, compatible schema fields,
@@ -136,99 +125,15 @@ struct ReplaceInstanceCommand : Command {
                            std::shared_ptr<Instance> before,
                            std::string className,
                            std::function<void(Instance*)> onSelection = {},
-                           std::shared_ptr<Instance> systemRoot = {})
-        : m_parent(std::move(parent)), m_before(std::move(before)),
-          m_className(std::move(className)), m_onSelection(std::move(onSelection)),
-          m_systemRoot(std::move(systemRoot)) {}
+                           std::shared_ptr<Instance> systemRoot = {});
 
-    const std::vector<std::string>& incompatibleReferenceOwners() const { return m_incompatibleOwners; }
+    const std::vector<std::string>& incompatibleReferenceOwners() const;
 
-    void analyzeReferences(const std::shared_ptr<Instance>& replacement) {
-        m_referenceChanges.clear(); m_incompatibleOwners.clear();
-        if (!m_systemRoot) return;
-        std::function<void(const std::shared_ptr<Instance>&)> visit = [&](const std::shared_ptr<Instance>& node) {
-            if (!node) return;
-            std::vector<Instance::InstanceReference> refs;
-            node->collectInstanceReferences(refs);
-            for (auto& ref : refs) {
-                if (!ref.target || ref.target.get() != m_before.get() || !ref.set) continue;
-                const bool compatible = ref.requiredClass.empty() || replacement->IsA(ref.requiredClass);
-                m_referenceChanges.push_back({ref.set, ref.target, compatible ? replacement : nullptr,
-                                              compatible, ref.ownerLabel});
-                if (!compatible) m_incompatibleOwners.push_back(ref.ownerLabel);
-            }
-            // Schema-declared string references (instanceRefClass) use the
-            // same path contract as YAML. Resolve them before replacing and
-            // restore the exact original string through the captured setter.
-            for (const auto* desc : PropertyRegistry::collectSchema(node->getClassName())) {
-                if (!desc || desc->instanceRefClass.empty() || !desc->get || !desc->set) continue;
-                const auto value = desc->get(node.get());
-                if (!std::holds_alternative<std::string>(value)) continue;
-                const auto& path = std::get<std::string>(value);
-                auto target = m_systemRoot->getChildByPath(path);
-                if (!target) {
-                    // Some serialized references are Workspace-relative rather
-                    // than System-root-relative. Resolve them against the
-                    // owner's nearest Workspace using the same path contract.
-                    if (auto* workspace = node->findFirstAncestorWorkspace())
-                        target = workspace->getChildByPath(path);
-                }
-                if (!target || target != m_before.get()) continue;
-                const bool compatible = replacement->IsA(std::string(desc->instanceRefClass));
-                const std::string beforePath = path;
-                // The replacement is not parented yet during analysis. It has
-                // the same name and parent slot as the old node, so compatible
-                // serialized references retain their original path exactly.
-                const std::string afterPath = compatible ? beforePath : std::string{};
-                auto setter = [owner = node, desc, beforePath, afterPath, old = m_before](std::shared_ptr<Instance> value) {
-                    desc->set(owner.get(), PropValue(value ? (value == old ? beforePath : afterPath) : afterPath));
-                };
-                m_referenceChanges.push_back({setter, m_before, compatible ? replacement : nullptr,
-                                              compatible, node->getFullPath() + "." + std::string(desc->name)});
-                if (!compatible) m_incompatibleOwners.push_back(node->getFullPath() + "." + std::string(desc->name));
-            }
-            for (const auto& [name, child] : node->children) visit(child);
-        };
-        visit(m_systemRoot);
-        m_referencesAnalyzed = true;
-    }
+    void analyzeReferences(const std::shared_ptr<Instance>& replacement);
 
-    void execute() override {
-        if (!m_parent || !m_before || m_before->Parent.lock().get() != m_parent.get()) return;
-        if (!m_after) {
-            m_after = SceneLoader::createInstance(m_className);
-            if (!m_after) return;
-            PropertyRegistry::copyCompatibleProperties(m_before.get(), m_after.get());
-            m_after->Name = m_before->Name;
-            analyzeReferences(m_after);
-        }
-        // Undo moves the exact child objects back to m_before. Move them
-        // again on every execute so Redo restores child identity as well.
-        std::vector<std::shared_ptr<Instance>> children;
-        children.reserve(m_before->children.size());
-        for (const auto& [name, child] : m_before->children)
-            if (child) children.push_back(child);
-        for (const auto& child : children) m_before->removeChild(child->Name);
-        for (const auto& child : children) m_after->addChild(child);
-        m_parent->removeChild(m_before->Name);
-        m_parent->addChild(m_after);
-        for (auto& ref : m_referenceChanges) ref.set(ref.after);
-        if (m_onSelection) m_onSelection(m_after.get());
-    }
+    void execute() override;
 
-    void undo() override {
-        if (!m_parent || !m_before || !m_after) return;
-        m_parent->removeChild(m_after->Name);
-        std::vector<std::shared_ptr<Instance>> children;
-        children.reserve(m_after->children.size());
-        for (const auto& [name, child] : m_after->children)
-            if (child) children.push_back(child);
-        for (const auto& child : children) m_after->removeChild(child->Name);
-        for (const auto& child : children) m_before->addChild(child);
-        m_parent->addChild(m_before);
-        for (auto& ref : m_referenceChanges) ref.set(ref.before);
-        if (m_onSelection) m_onSelection(m_before.get());
-    }
+    void undo() override;
 };
 
 // --- インスタンス削除 ---
@@ -239,15 +144,9 @@ struct RemoveInstanceCommand : Command {
 
     RemoveInstanceCommand(std::shared_ptr<Instance> parent,
                           std::string name,
-                          std::shared_ptr<Instance> child)
-        : m_parent(std::move(parent)), m_name(std::move(name)), m_child(std::move(child)) {}
-
-    void execute() override {
-        if (m_parent) m_parent->removeChild(m_name);
-    }
-    void undo() override {
-        if (m_parent && m_child) m_parent->addChild(m_child);
-    }
+                          std::shared_ptr<Instance> child);
+    void execute() override;
+    void undo() override;
 };
 
 // --- インスタンス移動（親変更） ---
@@ -258,32 +157,19 @@ struct MoveInstanceCommand : Command {
 
     MoveInstanceCommand(std::shared_ptr<Instance> oldParent,
                         std::shared_ptr<Instance> newParent,
-                        std::shared_ptr<Instance> child)
-        : m_oldParent(std::move(oldParent)), m_newParent(std::move(newParent)), m_child(std::move(child)) {}
-
-    void execute() override {
-        if (m_oldParent) m_oldParent->removeChild(m_child->Name);
-        if (m_newParent) m_newParent->addChild(m_child);
-    }
-    void undo() override {
-        if (m_newParent) m_newParent->removeChild(m_child->Name);
-        if (m_oldParent) m_oldParent->addChild(m_child);
-    }
+                        std::shared_ptr<Instance> child);
+    void execute() override;
+    void undo() override;
 };
 
 // --- 複合コマンド（複数操作を1つの Undo 単位に束ねる。複数ペースト/複数親変更用） ---
 struct CompositeCommand : Command {
     std::vector<std::unique_ptr<Command>> m_cmds;
 
-    void add(std::unique_ptr<Command> c) { if (c) m_cmds.push_back(std::move(c)); }
-    bool empty() const { return m_cmds.empty(); }
-
-    void execute() override {
-        for (auto& c : m_cmds) c->execute();
-    }
-    void undo() override {
-        for (auto it = m_cmds.rbegin(); it != m_cmds.rend(); ++it) (*it)->undo();
-    }
+    void add(std::unique_ptr<Command> c);
+    bool empty() const;
+    void execute() override;
+    void undo() override;
 };
 
 // --- Vector3プロパティ変更（Position / Size） ---
@@ -296,25 +182,12 @@ struct SetVec3Command : Command {
 
     SetVec3Command(std::shared_ptr<Spatial> target,
                    std::string prop,
-                   Vector3 before, Vector3 after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+                   Vector3 before, Vector3 after);
+    void execute() override;
+    void undo() override;
 
 private:
-    void apply(const Vector3& v) {
-        if (!m_target) return;
-        if (m_target->IsA("BaseCube")) {
-            BaseCube* bc = static_cast<BaseCube*>(m_target.get());
-            if (m_prop == "Position") bc->teleportTo(v);
-            else if (m_prop == "Size") bc->setSize(v);
-        } else {
-            if (m_prop == "Position") m_target->cframe.Position = v;
-            else if (m_prop == "Size") m_target->Size = v;
-        }
-    }
+    void apply(const Vector3& v);
 };
 
 // --- Color変更 ---
@@ -322,11 +195,9 @@ struct SetColorCommand : Command {
     std::shared_ptr<BaseCube> m_target;
     Color4 m_before, m_after;
 
-    SetColorCommand(std::shared_ptr<BaseCube> target, Color4 before, Color4 after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->Color = m_after; }
-    void undo()    override { if (m_target) m_target->Color = m_before; }
+    SetColorCommand(std::shared_ptr<BaseCube> target, Color4 before, Color4 after);
+    void execute() override;
+    void undo() override;
 };
 
 // --- Material変更（type + friction/restitution） ---
@@ -334,11 +205,9 @@ struct SetMaterialCommand : Command {
     std::shared_ptr<BaseCube> m_target;
     Material m_before, m_after;
 
-    SetMaterialCommand(std::shared_ptr<BaseCube> target, Material before, Material after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->setMaterial(m_after); }
-    void undo()    override { if (m_target) m_target->setMaterial(m_before); }
+    SetMaterialCommand(std::shared_ptr<BaseCube> target, Material before, Material after);
+    void execute() override;
+    void undo() override;
 };
 
 // --- MassDensity変更 ---
@@ -346,11 +215,9 @@ struct SetMassDensityCommand : Command {
     std::shared_ptr<BaseCube> m_target;
     float m_before, m_after;
 
-    SetMassDensityCommand(std::shared_ptr<BaseCube> target, float before, float after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->setMassDensity(m_after); }
-    void undo()    override { if (m_target) m_target->setMassDensity(m_before); }
+    SetMassDensityCommand(std::shared_ptr<BaseCube> target, float before, float after);
+    void execute() override;
+    void undo() override;
 };
 
 // --- bool プロパティ変更（Anchored / CanCollide） ---
@@ -359,19 +226,12 @@ struct SetBoolCommand : Command {
     std::string m_prop;
     bool m_before, m_after;
 
-    SetBoolCommand(std::shared_ptr<BaseCube> target, std::string prop, bool before, bool after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetBoolCommand(std::shared_ptr<BaseCube> target, std::string prop, bool before, bool after);
+    void execute() override;
+    void undo() override;
 
 private:
-    void apply(bool v) {
-        if (!m_target) return;
-        if (m_prop == "Anchored")   m_target->setAnchored(v);
-        else if (m_prop == "CanCollide") m_target->CanCollide = v;
-    }
+    void apply(bool v);
 };
 
 // --- インスタンスリネーム ---
@@ -379,11 +239,9 @@ struct RenameInstanceCommand : Command {
     std::shared_ptr<Instance> m_target;
     std::string m_before, m_after;
 
-    RenameInstanceCommand(std::shared_ptr<Instance> target, std::string before, std::string after)
-        : m_target(std::move(target)), m_before(std::move(before)), m_after(std::move(after)) {}
-
-    void execute() override { if (m_target) m_target->renameTo(m_after); }
-    void undo()    override { if (m_target) m_target->renameTo(m_before); }
+    RenameInstanceCommand(std::shared_ptr<Instance> target, std::string before, std::string after);
+    void execute() override;
+    void undo() override;
 };
 
 // --- Rotation 変更 ---
@@ -391,11 +249,9 @@ struct SetRotationCommand : Command {
     std::shared_ptr<Spatial> m_target;
     Quaternion m_before, m_after;
 
-    SetRotationCommand(std::shared_ptr<Spatial> target, Quaternion before, Quaternion after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->cframe.Rotation = m_after; }
-    void undo()    override { if (m_target) m_target->cframe.Rotation = m_before; }
+    SetRotationCommand(std::shared_ptr<Spatial> target, Quaternion before, Quaternion after);
+    void execute() override;
+    void undo() override;
 };
 
 // --- Tool Position 変更 ---
@@ -403,11 +259,9 @@ struct SetToolPositionCommand : Command {
     std::shared_ptr<Tool> m_target;
     Vector3 m_before, m_after;
 
-    SetToolPositionCommand(std::shared_ptr<Tool> target, Vector3 before, Vector3 after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->Position = m_after; }
-    void undo()    override { if (m_target) m_target->Position = m_before; }
+    SetToolPositionCommand(std::shared_ptr<Tool> target, Vector3 before, Vector3 after);
+    void execute() override;
+    void undo() override;
 };
 
 // --- Tool Rotation 変更 ---
@@ -415,11 +269,9 @@ struct SetToolRotationCommand : Command {
     std::shared_ptr<Tool> m_target;
     Quaternion m_before, m_after;
 
-    SetToolRotationCommand(std::shared_ptr<Tool> target, Quaternion before, Quaternion after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->Rotation = m_after; }
-    void undo()    override { if (m_target) m_target->Rotation = m_before; }
+    SetToolRotationCommand(std::shared_ptr<Tool> target, Quaternion before, Quaternion after);
+    void execute() override;
+    void undo() override;
 };
 
 // --- CFrame 一括変更（Position + Rotation をまとめて undo できる） ---
@@ -427,24 +279,12 @@ struct SetSpatialCFrameCommand : Command {
     std::shared_ptr<Spatial> m_target;
     CFrame m_before, m_after;
 
-    SetSpatialCFrameCommand(std::shared_ptr<Spatial> target, CFrame before, CFrame after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetSpatialCFrameCommand(std::shared_ptr<Spatial> target, CFrame before, CFrame after);
+    void execute() override;
+    void undo() override;
 
 private:
-    void apply(const CFrame& v) {
-        if (!m_target) return;
-        if (m_target->IsA("BaseCube")) {
-            // GizmoCommand と同じく物理同期付きで適用
-            BaseCube* bc = static_cast<BaseCube*>(m_target.get());
-            bc->teleportTo(v.Position);
-            bc->setRotation(v.Rotation);
-        } else {
-            m_target->cframe = v;
-        }
-    }
+    void apply(const CFrame& v);
 };
 
 // --- Gizmo操作（位置/サイズ/回転をまとめてundoできる） ---
@@ -458,19 +298,12 @@ struct GizmoCommand : Command {
     std::shared_ptr<BaseCube> m_target;
     GizmoState m_before, m_after;
 
-    GizmoCommand(std::shared_ptr<BaseCube> target, GizmoState before, GizmoState after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    GizmoCommand(std::shared_ptr<BaseCube> target, GizmoState before, GizmoState after);
+    void execute() override;
+    void undo() override;
 
 private:
-    void apply(const GizmoState& s) {
-        if (!m_target) return;
-        m_target->teleportTo(s.position);
-        m_target->setSize(s.size);
-        m_target->setRotation(s.rotation);
-    }
+    void apply(const GizmoState& s);
 };
 
 // --- 複数オブジェクトのGizmo操作（位置/サイズ/回転をまとめてundoできる） ---
@@ -481,26 +314,12 @@ struct MultiGizmoCommand : Command {
     };
     std::vector<Entry> m_entries;
 
-    explicit MultiGizmoCommand(std::vector<Entry> entries)
-        : m_entries(std::move(entries)) {}
-
-    void execute() override { for (auto& e : m_entries) applyState(e.target, e.after);  }
-    void undo()    override { for (auto& e : m_entries) applyState(e.target, e.before); }
+    explicit MultiGizmoCommand(std::vector<Entry> entries);
+    void execute() override;
+    void undo() override;
 
 private:
-    static void applyState(const std::shared_ptr<Spatial>& sp, const GizmoState& s) {
-        if (!sp || sp->Parent.expired()) return;
-        if (sp->IsA("BaseCube")) {
-            BaseCube* bc = static_cast<BaseCube*>(sp.get());
-            bc->teleportTo(s.position);
-            bc->setSize(s.size);
-            bc->setRotation(s.rotation);
-        } else {
-            sp->Position = s.position;
-            sp->Size = s.size;
-            sp->Rotation = s.rotation;
-        }
-    }
+    static void applyState(const std::shared_ptr<Spatial>& sp, const GizmoState& s);
 };
 
 // --- Decal Color 変更 ---
@@ -508,11 +327,8 @@ struct SetDecalColorCommand : Command {
     std::shared_ptr<Decal> m_target;
     Color4 m_before, m_after;
 
-    SetDecalColorCommand(std::shared_ptr<Decal> target, Color4 before, Color4 after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->Color = m_after; }
-    void undo()    override { if (m_target) m_target->Color = m_before; }
+    SetDecalColorCommand(std::shared_ptr<Decal> target, Color4 before, Color4 after);
+    void execute() override; void undo() override;
 };
 
 // --- Decal Face 変更 ---
@@ -520,11 +336,8 @@ struct SetDecalFaceCommand : Command {
     std::shared_ptr<Decal> m_target;
     Face m_before, m_after;
 
-    SetDecalFaceCommand(std::shared_ptr<Decal> target, Face before, Face after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->setFace(m_after); }
-    void undo()    override { if (m_target) m_target->setFace(m_before); }
+    SetDecalFaceCommand(std::shared_ptr<Decal> target, Face before, Face after);
+    void execute() override; void undo() override;
 };
 
 // --- Decal Mode 変更 ---
@@ -532,11 +345,8 @@ struct SetDecalModeCommand : Command {
     std::shared_ptr<Decal> m_target;
     DecalMode m_before, m_after;
 
-    SetDecalModeCommand(std::shared_ptr<Decal> target, DecalMode before, DecalMode after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->Mode = m_after; }
-    void undo()    override { if (m_target) m_target->Mode = m_before; }
+    SetDecalModeCommand(std::shared_ptr<Decal> target, DecalMode before, DecalMode after);
+    void execute() override; void undo() override;
 };
 
 // --- Decal Texture 変更 ---
@@ -547,13 +357,8 @@ struct SetDecalTextureCommand : Command {
 
     SetDecalTextureCommand(std::shared_ptr<Decal> target,
                            std::string beforePath, unsigned int beforeID,
-                           std::string afterPath,  unsigned int afterID)
-        : m_target(std::move(target)),
-          m_beforePath(std::move(beforePath)), m_afterPath(std::move(afterPath)),
-          m_beforeID(beforeID), m_afterID(afterID) {}
-
-    void execute() override { if (m_target) { m_target->texturePath = m_afterPath;  m_target->TextureID = m_afterID;  } }
-    void undo()    override { if (m_target) { m_target->texturePath = m_beforePath; m_target->TextureID = m_beforeID; } }
+                           std::string afterPath,  unsigned int afterID);
+    void execute() override; void undo() override;
 };
 
 // --- Decal UVCenter/UVRadius 変更 (MeshCube配下のUV空間配置) ---
@@ -564,13 +369,8 @@ struct SetDecalUVCommand : Command {
 
     SetDecalUVCommand(std::shared_ptr<Decal> target,
                        Vector2 beforeCenter, float beforeRadius,
-                       Vector2 afterCenter,  float afterRadius)
-        : m_target(std::move(target)),
-          m_beforeCenter(beforeCenter), m_afterCenter(afterCenter),
-          m_beforeRadius(beforeRadius), m_afterRadius(afterRadius) {}
-
-    void execute() override { if (m_target) { m_target->UVCenter = m_afterCenter;  m_target->UVRadius = m_afterRadius;  } }
-    void undo()    override { if (m_target) { m_target->UVCenter = m_beforeCenter; m_target->UVRadius = m_beforeRadius; } }
+                       Vector2 afterCenter,  float afterRadius);
+    void execute() override; void undo() override;
 };
 
 // --- Texture Face 変更 ---
@@ -578,11 +378,8 @@ struct SetTextureFaceCommand : Command {
     std::shared_ptr<Texture> m_target;
     Face m_before, m_after;
 
-    SetTextureFaceCommand(std::shared_ptr<Texture> target, Face before, Face after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->setFace(m_after); }
-    void undo()    override { if (m_target) m_target->setFace(m_before); }
+    SetTextureFaceCommand(std::shared_ptr<Texture> target, Face before, Face after);
+    void execute() override; void undo() override;
 };
 
 // --- Texture テクスチャパス変更 ---
@@ -593,13 +390,8 @@ struct SetTextureTextureCommand : Command {
 
     SetTextureTextureCommand(std::shared_ptr<Texture> target,
                              std::string beforePath, unsigned int beforeID,
-                             std::string afterPath,  unsigned int afterID)
-        : m_target(std::move(target)),
-          m_beforePath(std::move(beforePath)), m_afterPath(std::move(afterPath)),
-          m_beforeID(beforeID), m_afterID(afterID) {}
-
-    void execute() override { if (m_target) { m_target->texturePath = m_afterPath;  m_target->TextureID = m_afterID;  } }
-    void undo()    override { if (m_target) { m_target->texturePath = m_beforePath; m_target->TextureID = m_beforeID; } }
+                             std::string afterPath,  unsigned int afterID);
+    void execute() override; void undo() override;
 };
 
 // --- Texture Color 変更 ---
@@ -607,11 +399,8 @@ struct SetTextureColorCommand : Command {
     std::shared_ptr<Texture> m_target;
     Color4 m_before, m_after;
 
-    SetTextureColorCommand(std::shared_ptr<Texture> target, Color4 before, Color4 after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->Color = m_after; }
-    void undo()    override { if (m_target) m_target->Color = m_before; }
+    SetTextureColorCommand(std::shared_ptr<Texture> target, Color4 before, Color4 after);
+    void execute() override; void undo() override;
 };
 
 // --- Texture StudsPerTile 変更 ---
@@ -622,13 +411,8 @@ struct SetTextureStudsCommand : Command {
 
     SetTextureStudsCommand(std::shared_ptr<Texture> target,
                            float beforeU, float beforeV,
-                           float afterU,  float afterV)
-        : m_target(std::move(target)),
-          m_beforeU(beforeU), m_afterU(afterU),
-          m_beforeV(beforeV), m_afterV(afterV) {}
-
-    void execute() override { if (m_target) { m_target->StudsPerTileU = m_afterU;  m_target->StudsPerTileV = m_afterV;  } }
-    void undo()    override { if (m_target) { m_target->StudsPerTileU = m_beforeU; m_target->StudsPerTileV = m_beforeV; } }
+                           float afterU,  float afterV);
+    void execute() override; void undo() override;
 };
 
 // --- Sound bool プロパティ変更 ---
@@ -637,20 +421,11 @@ struct SetSoundBoolCommand : Command {
     std::string m_prop;
     bool m_before, m_after;
 
-    SetSoundBoolCommand(std::shared_ptr<Sound> target, std::string prop, bool before, bool after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetSoundBoolCommand(std::shared_ptr<Sound> target, std::string prop, bool before, bool after);
+    void execute() override; void undo() override;
 
 private:
-    void apply(bool v) {
-        if (!m_target) return;
-        if (m_prop == "AutoPlay")  m_target->autoPlay = v;
-        else if (m_prop == "Looped") m_target->setLooping(v);
-        else if (m_prop == "PreservePitch") m_target->setPreservePitch(v);
-    }
+    void apply(bool v);
 };
 
 // --- Sound float プロパティ変更 ---
@@ -659,19 +434,11 @@ struct SetSoundFloatCommand : Command {
     std::string m_prop;
     float m_before, m_after;
 
-    SetSoundFloatCommand(std::shared_ptr<Sound> target, std::string prop, float before, float after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetSoundFloatCommand(std::shared_ptr<Sound> target, std::string prop, float before, float after);
+    void execute() override; void undo() override;
 
 private:
-    void apply(float v) {
-        if (!m_target) return;
-        if (m_prop == "Volume")     m_target->setVolume(v);
-        else if (m_prop == "Speed") m_target->setSpeed(v);
-    }
+    void apply(float v);
 };
 
 // --- Light Direction 変更 ---
@@ -679,11 +446,8 @@ struct SetLightDirCommand : Command {
     std::shared_ptr<Lighting> m_target;
     Vector3 m_before, m_after;
 
-    SetLightDirCommand(std::shared_ptr<Lighting> target, Vector3 before, Vector3 after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->lightDir = m_after; }
-    void undo()    override { if (m_target) m_target->lightDir = m_before; }
+    SetLightDirCommand(std::shared_ptr<Lighting> target, Vector3 before, Vector3 after);
+    void execute() override; void undo() override;
 };
 
 // --- Brightness 変更 ---
@@ -691,11 +455,8 @@ struct SetLightBrightnessCommand : Command {
     std::shared_ptr<Lighting> m_target;
     float m_before, m_after;
 
-    SetLightBrightnessCommand(std::shared_ptr<Lighting> target, float before, float after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->brightness = m_after; }
-    void undo()    override { if (m_target) m_target->brightness = m_before; }
+    SetLightBrightnessCommand(std::shared_ptr<Lighting> target, float before, float after);
+    void execute() override; void undo() override;
 };
 
 // --- PostEffect bool プロパティ変更（Enabled） ---
@@ -704,18 +465,11 @@ struct SetPostEffectBoolCommand : Command {
     std::string m_prop;
     bool m_before, m_after;
 
-    SetPostEffectBoolCommand(std::shared_ptr<PostEffect> target, std::string prop, bool before, bool after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetPostEffectBoolCommand(std::shared_ptr<PostEffect> target, std::string prop, bool before, bool after);
+    void execute() override; void undo() override;
 
 private:
-    void apply(bool v) {
-        if (!m_target) return;
-        if (m_prop == "Enabled") m_target->Enabled = v;
-    }
+    void apply(bool v);
 };
 
 // --- PostEffect int プロパティ変更（ZIndex） ---
@@ -724,18 +478,11 @@ struct SetPostEffectIntCommand : Command {
     std::string m_prop;
     int m_before, m_after;
 
-    SetPostEffectIntCommand(std::shared_ptr<PostEffect> target, std::string prop, int before, int after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetPostEffectIntCommand(std::shared_ptr<PostEffect> target, std::string prop, int before, int after);
+    void execute() override; void undo() override;
 
 private:
-    void apply(int v) {
-        if (!m_target) return;
-        if (m_prop == "ZIndex") m_target->ZIndex = v;
-    }
+    void apply(int v);
 };
 
 // --- PostEffect Type 変更 ---
@@ -743,11 +490,8 @@ struct SetPostEffectTypeCommand : Command {
     std::shared_ptr<PostEffect> m_target;
     PostEffectKind m_before, m_after;
 
-    SetPostEffectTypeCommand(std::shared_ptr<PostEffect> target, PostEffectKind before, PostEffectKind after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->Type = m_after; }
-    void undo()    override { if (m_target) m_target->Type = m_before; }
+    SetPostEffectTypeCommand(std::shared_ptr<PostEffect> target, PostEffectKind before, PostEffectKind after);
+    void execute() override; void undo() override;
 };
 
 // --- PostEffect float プロパティ変更（Intensity / Param1 / Param2） ---
@@ -756,20 +500,11 @@ struct SetPostEffectFloatCommand : Command {
     std::string m_prop;
     float m_before, m_after;
 
-    SetPostEffectFloatCommand(std::shared_ptr<PostEffect> target, std::string prop, float before, float after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetPostEffectFloatCommand(std::shared_ptr<PostEffect> target, std::string prop, float before, float after);
+    void execute() override; void undo() override;
 
 private:
-    void apply(float v) {
-        if (!m_target) return;
-        if      (m_prop == "Intensity") m_target->Intensity = v;
-        else if (m_prop == "Param1")    m_target->Param1    = v;
-        else if (m_prop == "Param2")    m_target->Param2    = v;
-    }
+    void apply(float v);
 };
 
 // --- Skybox 1面のパス変更 ---
@@ -779,12 +514,8 @@ struct SetSkyboxFaceCommand : Command {
     std::string m_before, m_after;
 
     SetSkyboxFaceCommand(std::shared_ptr<Skybox> target, int faceIndex,
-                         std::string before, std::string after)
-        : m_target(std::move(target)), m_faceIndex(faceIndex),
-          m_before(std::move(before)), m_after(std::move(after)) {}
-
-    void execute() override { if (m_target) m_target->setSkyboxPath(m_faceIndex, m_after); }
-    void undo()    override { if (m_target) m_target->setSkyboxPath(m_faceIndex, m_before); }
+                         std::string before, std::string after);
+    void execute() override; void undo() override;
 };
 
 // --- 制約の Cube0/Cube1 参照名変更（全制約型に使える） ---
@@ -795,18 +526,10 @@ struct SetConstraintCubeNameCommand : Command {
 
     SetConstraintCubeNameCommand(std::shared_ptr<Instance> target,
                                   std::string prop,
-                                  std::string before, std::string after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(std::move(before)), m_after(std::move(after)) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+                                  std::string before, std::string after);
+    void execute() override; void undo() override;
 private:
-    void apply(const std::string& v) {
-        if (!m_target) return;
-        YAML::Node n; n = v;
-        m_target->setProperty(m_prop, n);
-    }
+    void apply(const std::string& v);
 };
 
 // --- NumberValue.Value 変更 ---
@@ -815,16 +538,10 @@ struct SetNumberValueCommand : Command {
     double m_before, m_after;
 
     SetNumberValueCommand(std::shared_ptr<Instance> target, double before, double after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+        ;
+    void execute() override; void undo() override;
 private:
-    void apply(double v) {
-        if (!m_target) return;
-        YAML::Node n; n = v;
-        m_target->setProperty("Value", n);
-    }
+    void apply(double v);
 };
 
 // --- QuaternionValue.Value 変更 ---
@@ -833,17 +550,10 @@ struct SetQuaternionValueCommand : Command {
     Quaternion m_before, m_after;
 
     SetQuaternionValueCommand(std::shared_ptr<Instance> target, Quaternion before, Quaternion after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+        ;
+    void execute() override; void undo() override;
 private:
-    void apply(const Quaternion& v) {
-        if (!m_target) return;
-        YAML::Node n;
-        n.push_back(v.x); n.push_back(v.y); n.push_back(v.z); n.push_back(v.w);
-        m_target->setProperty("Value", n);
-    }
+    void apply(const Quaternion& v);
 };
 
 // --- CFrameValue.Value 変更 ---
@@ -852,20 +562,10 @@ struct SetCFrameValueCommand : Command {
     CFrame m_before, m_after;
 
     SetCFrameValueCommand(std::shared_ptr<Instance> target, CFrame before, CFrame after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+        ;
+    void execute() override; void undo() override;
 private:
-    void apply(const CFrame& v) {
-        if (!m_target) return;
-        YAML::Node n;
-        YAML::Node pos; pos.push_back(v.Position.x); pos.push_back(v.Position.y); pos.push_back(v.Position.z);
-        YAML::Node rot; rot.push_back(v.Rotation.x); rot.push_back(v.Rotation.y); rot.push_back(v.Rotation.z); rot.push_back(v.Rotation.w);
-        n["Position"] = pos;
-        n["Rotation"] = rot;
-        m_target->setProperty("Value", n);
-    }
+    void apply(const CFrame& v);
 };
 
 // --- Rope の float プロパティ変更（MaxDistance / Stiffness / Damping） ---
@@ -874,19 +574,10 @@ struct SetRopeFloatCommand : Command {
     std::string m_prop;
     float m_before, m_after;
 
-    SetRopeFloatCommand(std::shared_ptr<Rope> target, std::string prop, float before, float after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetRopeFloatCommand(std::shared_ptr<Rope> target, std::string prop, float before, float after);
+    void execute() override; void undo() override;
 private:
-    void apply(float v) {
-        if (!m_target) return;
-        if      (m_prop == "MaxDistance") m_target->setMaxDistance(v);
-        else if (m_prop == "Stiffness")   m_target->setStiffness(v);
-        else if (m_prop == "Damping")     m_target->setDamping(v);
-    }
+    void apply(float v);
 };
 
 // --- Motor の float プロパティ変更（DriveVelocity / MaxForce） ---
@@ -895,58 +586,42 @@ struct SetMotorFloatCommand : Command {
     std::string m_prop;
     float m_before, m_after;
 
-    SetMotorFloatCommand(std::shared_ptr<Motor> target, std::string prop, float before, float after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetMotorFloatCommand(std::shared_ptr<Motor> target, std::string prop, float before, float after);
+    void execute() override; void undo() override;
 private:
-    void apply(float v) {
-        if (!m_target) return;
-        if      (m_prop == "DriveVelocity") m_target->setDriveVelocity(v);
-        else if (m_prop == "MaxForce")      m_target->setMaxForce(v);
-    }
+    void apply(float v);
 };
 
 // --- Rod の Color 変更 ---
 struct SetRodColorCommand : Command {
     std::shared_ptr<Rod> m_target;
     Color4 m_before, m_after;
-    SetRodColorCommand(std::shared_ptr<Rod> t, Color4 before, Color4 after)
-        : m_target(std::move(t)), m_before(before), m_after(after) {}
-    void execute() override { if (m_target) m_target->Color = m_after; }
-    void undo()    override { if (m_target) m_target->Color = m_before; }
+    SetRodColorCommand(std::shared_ptr<Rod> t, Color4 before, Color4 after);
+    void execute() override; void undo() override;
 };
 
 // --- Rod の LineWidth 変更 ---
 struct SetRodLineWidthCommand : Command {
     std::shared_ptr<Rod> m_target;
     float m_before, m_after;
-    SetRodLineWidthCommand(std::shared_ptr<Rod> t, float before, float after)
-        : m_target(std::move(t)), m_before(before), m_after(after) {}
-    void execute() override { if (m_target) m_target->LineWidth = m_after; }
-    void undo()    override { if (m_target) m_target->LineWidth = m_before; }
+    SetRodLineWidthCommand(std::shared_ptr<Rod> t, float before, float after);
+    void execute() override; void undo() override;
 };
 
 // --- Rope の Color 変更 ---
 struct SetRopeColorCommand : Command {
     std::shared_ptr<Rope> m_target;
     Color4 m_before, m_after;
-    SetRopeColorCommand(std::shared_ptr<Rope> t, Color4 before, Color4 after)
-        : m_target(std::move(t)), m_before(before), m_after(after) {}
-    void execute() override { if (m_target) m_target->Color = m_after; }
-    void undo()    override { if (m_target) m_target->Color = m_before; }
+    SetRopeColorCommand(std::shared_ptr<Rope> t, Color4 before, Color4 after);
+    void execute() override; void undo() override;
 };
 
 // --- Rope の LineWidth 変更 ---
 struct SetRopeLineWidthCommand : Command {
     std::shared_ptr<Rope> m_target;
     float m_before, m_after;
-    SetRopeLineWidthCommand(std::shared_ptr<Rope> t, float before, float after)
-        : m_target(std::move(t)), m_before(before), m_after(after) {}
-    void execute() override { if (m_target) m_target->LineWidth = m_after; }
-    void undo()    override { if (m_target) m_target->LineWidth = m_before; }
+    SetRopeLineWidthCommand(std::shared_ptr<Rope> t, float before, float after);
+    void execute() override; void undo() override;
 };
 
 // --- Motor の Axis 変更 ---
@@ -954,11 +629,8 @@ struct SetMotorAxisCommand : Command {
     std::shared_ptr<Motor> m_target;
     Vector3 m_before, m_after;
 
-    SetMotorAxisCommand(std::shared_ptr<Motor> target, Vector3 before, Vector3 after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { if (m_target) m_target->setAxis(m_after); }
-    void undo()    override { if (m_target) m_target->setAxis(m_before); }
+    SetMotorAxisCommand(std::shared_ptr<Motor> target, Vector3 before, Vector3 after);
+    void execute() override; void undo() override;
 };
 
 // --- Script bool プロパティ変更（Enabled） ---
@@ -967,18 +639,11 @@ struct SetScriptBoolCommand : Command {
     std::string m_prop;
     bool m_before, m_after;
 
-    SetScriptBoolCommand(std::shared_ptr<Script> target, std::string prop, bool before, bool after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetScriptBoolCommand(std::shared_ptr<Script> target, std::string prop, bool before, bool after);
+    void execute() override; void undo() override;
 
 private:
-    void apply(bool v) {
-        if (!m_target) return;
-        if (m_prop == "Enabled") m_target->Enabled = v;
-    }
+    void apply(bool v);
 };
 
 // --- System int プロパティ変更（MaxClonesPerFrame / MaxRestartsPerFrame） ---
@@ -987,20 +652,11 @@ struct SetSystemIntCommand : Command {
     std::string m_prop;
     int m_before, m_after;
 
-    SetSystemIntCommand(std::shared_ptr<System> target, std::string prop, int before, int after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetSystemIntCommand(std::shared_ptr<System> target, std::string prop, int before, int after);
+    void execute() override; void undo() override;
 
 private:
-    void apply(int v) {
-        if (!m_target) return;
-        if      (m_prop == "MaxClonesPerFrame")   m_target->MaxClonesPerFrame   = v;
-        else if (m_prop == "MaxRestartsPerFrame") m_target->MaxRestartsPerFrame = v;
-        else if (m_prop == "MaxTasksPerFrame")    m_target->MaxTasksPerFrame    = v;
-    }
+    void apply(int v);
 };
 
 // --- System float プロパティ変更（ScriptLoopTimeoutSeconds） ---
@@ -1009,18 +665,11 @@ struct SetSystemFloatCommand : Command {
     std::string m_prop;
     float m_before, m_after;
 
-    SetSystemFloatCommand(std::shared_ptr<System> target, std::string prop, float before, float after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetSystemFloatCommand(std::shared_ptr<System> target, std::string prop, float before, float after);
+    void execute() override; void undo() override;
 
 private:
-    void apply(float v) {
-        if (!m_target) return;
-        if (m_prop == "ScriptLoopTimeoutSeconds") m_target->ScriptLoopTimeoutSeconds = v;
-    }
+    void apply(float v);
 };
 
 // --- Terrain bool プロパティ変更（Enabled / Flat） ---
@@ -1029,19 +678,12 @@ struct SetTerrainBoolCommand : Command {
     std::string m_prop;
     bool m_before, m_after;
 
-    SetTerrainBoolCommand(std::shared_ptr<Terrain> target, std::string prop, bool before, bool after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetTerrainBoolCommand(std::shared_ptr<Terrain> target, std::string prop, bool before, bool after);
+    void execute() override;
+    void undo() override;
 
 private:
-    void apply(bool v) {
-        if (!m_target) return;
-        if      (m_prop == "Enabled") m_target->setEnabled(v);
-        else if (m_prop == "Flat")    m_target->Flat    = v;
-    }
+    void apply(bool v);
 };
 
 // --- Terrain int プロパティ変更（Seed） ---
@@ -1050,18 +692,12 @@ struct SetTerrainIntCommand : Command {
     std::string m_prop;
     int m_before, m_after;
 
-    SetTerrainIntCommand(std::shared_ptr<Terrain> target, std::string prop, int before, int after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetTerrainIntCommand(std::shared_ptr<Terrain> target, std::string prop, int before, int after);
+    void execute() override;
+    void undo() override;
 
 private:
-    void apply(int v) {
-        if (!m_target) return;
-        if (m_prop == "Seed") m_target->Seed = v;
-    }
+    void apply(int v);
 };
 
 // --- Terrain string プロパティ変更（DataPath） ---
@@ -1070,18 +706,12 @@ struct SetTerrainStringCommand : Command {
     std::string m_prop;
     std::string m_before, m_after;
 
-    SetTerrainStringCommand(std::shared_ptr<Terrain> target, std::string prop, std::string before, std::string after)
-        : m_target(std::move(target)), m_prop(std::move(prop)),
-          m_before(std::move(before)), m_after(std::move(after)) {}
-
-    void execute() override { apply(m_after); }
-    void undo()    override { apply(m_before); }
+    SetTerrainStringCommand(std::shared_ptr<Terrain> target, std::string prop, std::string before, std::string after);
+    void execute() override;
+    void undo() override;
 
 private:
-    void apply(const std::string& v) {
-        if (!m_target) return;
-        if (m_prop == "DataPath") { YAML::Node n; n = v; m_target->setProperty("DataPath", n); }
-    }
+    void apply(const std::string& v);
 };
 
 // --- 地形ブラシの1ストローク分の変更をまとめてUndo/Redoする ---
@@ -1090,17 +720,9 @@ struct TerrainBrushStrokeCommand : Command {
     std::vector<TerrainStreamer::VoxelDiffEntry> m_entries;
 
     TerrainBrushStrokeCommand(std::shared_ptr<Terrain> target,
-                               std::vector<TerrainStreamer::VoxelDiffEntry> entries)
-        : m_target(std::move(target)), m_entries(std::move(entries)) {}
-
-    void execute() override { apply(true); }
-    void undo()    override { apply(false); }
+                               std::vector<TerrainStreamer::VoxelDiffEntry> entries);
+    void execute() override;
+    void undo() override;
 private:
-    void apply(bool useAfter) {
-        if (!m_target || !m_target->streamer) return;
-        for (auto& e : m_entries) {
-            const Block& v = useAfter ? e.after : e.before;
-            m_target->streamer->setBlock(e.wx, e.wy, e.wz, v.shape, v.r, v.g, v.b);
-        }
-    }
+    void apply(bool useAfter);
 };

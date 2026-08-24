@@ -23,4 +23,5 @@ public:
     std::unique_ptr<IChildProcess> launchChildProcess(
         const ChildProcessLaunchOptions& options) override;
     std::filesystem::path userDataRoot() const override;
+    std::optional<std::string> pollStdinLine() override;
 };

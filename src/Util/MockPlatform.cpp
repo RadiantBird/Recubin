@@ -44,3 +44,7 @@ std::filesystem::path MockPlatform::userDataRoot() const {
     std::filesystem::create_directories(path, ec);
     return path;
 }
+
+std::optional<std::string> MockPlatform::pollStdinLine() {
+    return std::nullopt;
+}

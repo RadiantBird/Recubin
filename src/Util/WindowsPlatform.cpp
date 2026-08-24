@@ -5,6 +5,7 @@
 #include <shobjidl.h>
 #include <shellapi.h>
 #include <filesystem>
+#include <algorithm>
 #include <optional>
 #include <vector>
 
@@ -317,6 +318,63 @@ std::filesystem::path WindowsPlatform::userDataRoot() const {
     if (const char* value = std::getenv("LOCALAPPDATA")) return std::filesystem::path(value) / "Recubin";
     if (const char* value = std::getenv("APPDATA")) return std::filesystem::path(value) / "Recubin";
     return std::filesystem::temp_directory_path() / "Recubin";
+}
+
+std::optional<std::string> WindowsPlatform::pollStdinLine() {
+    static std::string pending;
+    const auto takePendingLine = [&]() -> std::optional<std::string> {
+        const auto newline = pending.find('\n');
+        if (newline == std::string::npos) return std::nullopt;
+        std::string result = pending.substr(0, newline);
+        if (!result.empty() && result.back() == '\r') result.pop_back();
+        pending.erase(0, newline + 1);
+        return result;
+    };
+    if (const auto line = takePendingLine()) return line;
+    HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+    if (input == INVALID_HANDLE_VALUE || input == nullptr) return std::nullopt;
+    DWORD type = GetFileType(input);
+    if (type == FILE_TYPE_CHAR) {
+        DWORD events = 0;
+        if (!GetNumberOfConsoleInputEvents(input, &events) || events == 0)
+            return std::nullopt;
+        while (events-- > 0) {
+            INPUT_RECORD record{};
+            DWORD read = 0;
+            if (!ReadConsoleInputW(input, &record, 1, &read) || read == 0 ||
+                record.EventType != KEY_EVENT || !record.Event.KeyEvent.bKeyDown)
+                continue;
+            const wchar_t character = record.Event.KeyEvent.uChar.UnicodeChar;
+            if (character == L'\r' || character == L'\n') {
+                std::string result = pending;
+                pending.clear();
+                return result;
+            }
+            if (character == L'\b') {
+                if (!pending.empty()) pending.pop_back();
+                continue;
+            }
+            if (character == L'\0') continue;
+            char buffer[4]{};
+            const int count = WideCharToMultiByte(CP_UTF8, 0, &character, 1,
+                                                   buffer, sizeof(buffer), nullptr, nullptr);
+            if (count > 0) pending.append(buffer, static_cast<size_t>(count));
+        }
+        return std::nullopt;
+    }
+    DWORD available = 0;
+    if (!PeekNamedPipe(input, nullptr, 0, nullptr, &available, nullptr) || available == 0)
+        return std::nullopt;
+    while (available > 0) {
+        char buffer[256];
+        DWORD read = 0;
+        if (!ReadFile(input, buffer, (std::min)(available, static_cast<DWORD>(sizeof(buffer))), &read, nullptr) || read == 0)
+            break;
+        pending.append(buffer, buffer + read);
+        available -= read;
+        if (const auto line = takePendingLine()) return line;
+    }
+    return std::nullopt;
 }
 
 #endif // _WIN32

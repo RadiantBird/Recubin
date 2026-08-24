@@ -48,3 +48,20 @@ quit
 `capture` はmain viewportのdefault framebufferをphysical framebuffer sizeで読み取り、
 RGBA PNGとして保存します。OpenGLのback framebufferを対象とし、secondary viewportは
 対象外です。通常起動時はreader、入力注入、target登録、captureのいずれも有効化されません。
+
+## 実行契約
+
+入力は`IPlatform`の非ブロッキング標準入力取得をメインスレッドから行う。
+Windows、macOS、Mockで同じインターフェイスを実装し、reader threadやdetached
+threadは使用しない。コマンドの構文検証は共有pure validatorを本番queue処理と
+回帰テストで共用し、余剰引数や終端のない`key Ctrl+`は拒否する。
+
+fixtureを使用するスモークでは、`--ui-automation-scene <scene>`と
+`--ui-automation-settings <settings>`を`--ui-automation`と同時に指定する。
+captureはRGBA PNGとして保存される。
+
+## Popupと未保存変更の自動化契約
+
+`--ui-automation` 専用モードでは未保存変更確認のdanger cooldownを0秒とする。通常のEditor操作では
+3秒を維持する。Class Pickerの置換確認popupは選択クラスに紐づき、選択クラスが変わった場合は
+再確認する。選択変更では旧クラスの承認だけを破棄してpickerを維持し、確定・取消では保留中の操作を閉じて次の挿入・置換へ状態を漏らさない。

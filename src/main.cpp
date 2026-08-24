@@ -52,7 +52,9 @@
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
 #include <Util/RuntimeFileSystem.hpp>
+#include <Util/RuntimeLaunchArgs.hpp>
 #include <Util/UUID.hpp>
+#include <Util/YamlLoadResult.hpp>
 
 #include <iostream>
 #include <algorithm>
@@ -160,29 +162,42 @@ static void resetTerrainStreamers(const std::vector<std::shared_ptr<Workspace>>&
 
 
 // エディター設定（前回開いていたシーンパスなど）の保存先
-static const std::string kEditorSettingsPath = "editor_settings.yaml";
+static std::string kEditorSettingsPath = "editor_settings.yaml";
+static bool g_editorSettingsLoadFailed = false;
 
 // editor_settings.yaml 全体を読み込む（無ければ空ノード）
 static YAML::Node loadEditorSettings() {
-    try {
-        return YAML::LoadFile(kEditorSettingsPath);
-    } catch (...) {
+    if (!std::filesystem::exists(kEditorSettingsPath)) return YAML::Node();
+    const YamlLoadResult loaded = loadYamlFile(kEditorSettingsPath);
+    if (!loaded.success) {
+        g_editorSettingsLoadFailed = true;
+        RCBN_ERROR("Failed to load editor settings: " << loaded.error);
         return YAML::Node();
     }
+    if (loaded.node && !loaded.node.IsMap()) {
+        g_editorSettingsLoadFailed = true;
+        RCBN_ERROR("Invalid editor settings root: expected a YAML map");
+        return YAML::Node();
+    }
+    return loaded.node;
 }
 
 // editor_settings.yaml 全体を書き出す（既存キーを保持してマージ保存するために使う）
 static void writeEditorSettings(const YAML::Node& root) {
-    YAML::Emitter out;
-    out << root;
-    std::ofstream file(kEditorSettingsPath);
-    if (file) file << out.c_str();
+    const YamlSaveResult saved = saveYamlFileGuarded(
+        kEditorSettingsPath, root, g_editorSettingsLoadFailed);
+    if (!saved.success) RCBN_ERROR("Failed to save editor settings: " << saved.error);
 }
 
 // 前回開いていたシーンパスを読み込む。記録が無い/壊れている場合は空文字列を返す
 static std::string loadLastScenePath() {
     YAML::Node root = loadEditorSettings();
-    if (root && root["LastScenePath"]) return root["LastScenePath"].as<std::string>();
+    try {
+        if (root && root["LastScenePath"]) return root["LastScenePath"].as<std::string>();
+    } catch (const std::exception& error) {
+        g_editorSettingsLoadFailed = true;
+        RCBN_ERROR("Invalid LastScenePath in editor settings: " << error.what());
+    }
     return "";
 }
 
@@ -197,16 +212,28 @@ static void saveLastScenePath(const std::string& path) {
 // 記録が無い場合は既定（Animation のみ非表示、他は表示）を使う。
 static void loadPanelVisibility(EditorManager* ed) {
     if (!ed) return;
-    YAML::Node p = loadEditorSettings()["Panels"];
+    YAML::Node root = loadEditorSettings();
+    YAML::Node p;
+    try { p = root["Panels"]; }
+    catch (const std::exception& error) {
+        g_editorSettingsLoadFailed = true;
+        RCBN_ERROR("Invalid Panels in editor settings: " << error.what());
+        return;
+    }
     auto get = [&](const char* key, bool def) -> bool {
         return (p && p[key]) ? p[key].as<bool>() : def;
     };
-    ed->hierarchyPanel->isOpen      = get("Explorer",       true);
-    ed->propertiesPanel->isOpen     = get("Properties",     true);
-    ed->viewportPanel->isOpen       = get("Viewport",       true);
-    ed->contentBrowserPanel->isOpen = get("ContentBrowser", true);
-    ed->consolePanel->isOpen        = get("Console",        true);
-    ed->animationPanel->isOpen      = get("Animation",      false);
+    try {
+        ed->hierarchyPanel->isOpen      = get("Explorer",       true);
+        ed->propertiesPanel->isOpen     = get("Properties",     true);
+        ed->viewportPanel->isOpen       = get("Viewport",       true);
+        ed->contentBrowserPanel->isOpen = get("ContentBrowser", true);
+        ed->consolePanel->isOpen        = get("Console",        true);
+        ed->animationPanel->isOpen      = get("Animation",      false);
+    } catch (const std::exception& error) {
+        g_editorSettingsLoadFailed = true;
+        RCBN_ERROR("Invalid panel visibility in editor settings: " << error.what());
+    }
 }
 
 // 各パネルの開閉状態を editor_settings.yaml へ保存する（他キーは保持）
@@ -228,8 +255,17 @@ static void savePanelVisibility(EditorManager* ed) {
 // editor_settings.yaml から復元する。記録が無い/壊れている場合は既定値のまま変更しない。
 static void loadEditorPreferences(EditorManager* ed, User* user) {
     if (!ed || !user) return;
-    YAML::Node p = loadEditorSettings()["Preferences"];
+    YAML::Node root = loadEditorSettings();
+    YAML::Node p;
+    try { p = root["Preferences"]; }
+    catch (const std::exception& error) {
+        g_editorSettingsLoadFailed = true;
+        RCBN_ERROR("Invalid Preferences in editor settings: " << error.what());
+        return;
+    }
     if (!p) return;
+
+    try {
 
     if (p["PhysicsDebug"]) ed->viewportPanel->showPhysicsDebug = p["PhysicsDebug"].as<bool>();
     if (p["RenderingDebug"]) ed->viewportPanel->showRenderingDebug = p["RenderingDebug"].as<bool>();
@@ -287,6 +323,13 @@ static void loadEditorPreferences(EditorManager* ed, User* user) {
     }
     if (p["NetworkClientCount"])
         ed->setNetworkClientCount(std::clamp(p["NetworkClientCount"].as<int>(), 1, 8));
+    } catch (const std::exception& error) {
+        g_editorSettingsLoadFailed = true;
+        RCBN_ERROR("Invalid Preferences in editor settings: " << error.what());
+    } catch (...) {
+        g_editorSettingsLoadFailed = true;
+        RCBN_ERROR("Invalid Preferences in editor settings: unknown error");
+    }
 }
 
 // エディター環境設定を editor_settings.yaml へ保存する（他キーは保持）
@@ -370,7 +413,10 @@ static int runGenTestScene(const std::string& outputPath) {
     getPlatform().setupConsoleUtf8();
 
     auto audioService = std::make_unique<AudioService>();
-    audioService->initialize();
+    if (!audioService->initialize()) {
+        std::cerr << "[gen-test-scene] ERROR: AudioService initialization failed\n";
+        return 1;
+    }
 
     auto system    = std::make_shared<System>();
     auto workspace = std::make_shared<Workspace>();
@@ -442,6 +488,31 @@ static int runGenTestScene(const std::string& outputPath) {
 // ===================================================
 int main(int argc, char* argv[]) {
     GuiAutomation::configureFromArgs(argc, argv);
+    const RuntimeLaunchArgs runtimeArgs = parseRuntimeLaunchArgs(argc, argv);
+    if (!runtimeArgs.valid) {
+        RCBN_ERROR("Invalid runtime arguments: " << runtimeArgs.error);
+        return -1;
+    }
+    const bool uiAutomationScene = runtimeArgs.uiAutomationScene.has_value() ||
+                                   runtimeArgs.uiAutomationSettings.has_value();
+    if (uiAutomationScene && !GuiAutomation::enabled()) {
+        RCBN_ERROR("UI automation fixture arguments require --ui-automation");
+        return -1;
+    }
+    if (uiAutomationScene &&
+        (!runtimeArgs.uiAutomationScene.has_value() ||
+         !runtimeArgs.uiAutomationSettings.has_value())) {
+        RCBN_ERROR("--ui-automation-scene and --ui-automation-settings must be provided together");
+        return -1;
+    }
+    if (uiAutomationScene) {
+        std::error_code sceneError;
+        if (!std::filesystem::is_regular_file(*runtimeArgs.uiAutomationScene, sceneError)) {
+            RCBN_ERROR("Invalid --ui-automation-scene path: " << *runtimeArgs.uiAutomationScene);
+            return -1;
+        }
+        kEditorSettingsPath = *runtimeArgs.uiAutomationSettings;
+    }
     // コンソールの出力/入力コードページをUTF-8にする
     // (Windows日本語版等では既定のANSIコードページのままだと、UTF-8で書かれた
     //  ログやLuauのprint出力が文字化けする)
@@ -451,7 +522,7 @@ int main(int argc, char* argv[]) {
     if (!Physics::configureBackendFromCommandLine(argc, argv)) return -1;
 
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.9986\n";
+              << "Recubin Studio v0.9989\n";
     std::filesystem::path engineExePath = (argc > 0 && argv[0]) ? std::filesystem::path(argv[0]) : std::filesystem::path();
 
     windows(
@@ -513,7 +584,7 @@ int main(int argc, char* argv[]) {
     // 起動時は無題の空シーンで開始し、ようこそタブから新規作成/前回の続き/読み込みを選ばせる
     // （旧: LastScenePath の自動ロード。前回パスは「前回の続きから」ボタンの源泉として温存する）
     std::string lastScenePath = loadLastScenePath();
-    std::string scenePath; // 空 = 無題
+    std::string scenePath = runtimeArgs.uiAutomationScene.value_or(""); // 空 = 無題
     SceneLoader::SceneDocumentMetadata initialSceneMetadata;
     updateWindowTitle(window, scenePath);
 

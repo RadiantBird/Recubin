@@ -1,5 +1,12 @@
 #include <Editor/CommandHistory.hpp>
 
+Command::~Command() = default;
+
+void CommandHistory::setOnChange(std::function<void()> cb) { m_onChange = std::move(cb); }
+void CommandHistory::notifyChanged() { if (m_onChange) m_onChange(); }
+bool CommandHistory::canUndo() const { return !m_undoStack.empty(); }
+bool CommandHistory::canRedo() const { return !m_redoStack.empty(); }
+
 void CommandHistory::execute(std::unique_ptr<Command> cmd) {
     cmd->execute();
     m_undoStack.push_back(std::move(cmd));

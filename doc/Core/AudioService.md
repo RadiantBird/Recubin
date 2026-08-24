@@ -42,3 +42,9 @@ miniaudio を使った空間オーディオサービス。BGM と SFX のグル�
 - `main.cpp` 起動時に `initialize()` を呼ぶ
 - メインループ末尾で `updateSounds()` を呼ぶ
 - `Sound` オブジェクトが `play()` / `stop()` を通じて間接的に使用
+
+## 初期化と破棄
+
+初期化はengine、BGM group、SFX groupの各結果を確認する。途中で失敗した場合は
+既に初期化した資源を逆順に解放し、部分初期化を残さない。`uninit()`は冪等で、
+singletonはこのサービスが所有している場合のみ解除する。

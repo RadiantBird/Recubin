@@ -11,6 +11,7 @@
 #include <deque>
 #include <atomic>
 #include <memory>
+#include <future>
 
 // ================================================================== //
 //  TerrainStreamer
@@ -70,6 +71,10 @@ public:
 
     // キャッシュされたリージョンデータをファイルに書き出す
     void flushRegions();
+
+    // Deterministic validation seam used by the release regression harness.
+    // It synchronously loads one region and exercises the guarded flush path.
+    bool validateRegionLoadFailure(int32_t rx, int32_t rz);
 
     // 指定列(wx,wz)の表層Y座標を求める。チャンクが未ロードならノイズから推定する。
     int32_t findSurfaceY(int32_t wx, int32_t wz) const;
@@ -176,6 +181,7 @@ private:
         YAML::Node root;
         bool loaded = false;
         bool modified = false;
+        bool loadFailed = false;
     };
     // ==== リージョンキャッシュ・ディスクI/O（ワーカースレッド専用。メインから触らない）====
     std::unordered_map<RegionKey, RegionCache, RegionKeyHash> m_regions;
@@ -188,7 +194,7 @@ private:
     void generateRawGrid(int32_t cx, int32_t cy, int32_t cz, BlockGrid& grid); // worker: ノイズの生フィルのみ
 
     // ==== ワーカースレッド基盤 ====
-    enum class JobType { Load, Save, Flush, SetDir, Regenerate, Stop };
+    enum class JobType { Load, Save, Flush, SetDir, Regenerate, ValidateRegion, Stop };
     struct Job {
         JobType type;
         int32_t cx = 0, cy = 0, cz = 0;
@@ -196,6 +202,7 @@ private:
         std::string dir;                 // SetDir 用
         uint32_t seed = 0;               // Regenerate 用
         bool     flat = false;           // Regenerate 用
+        std::shared_ptr<std::promise<bool>> validationResult;
     };
     struct LoadResult {
         int32_t cx, cy, cz;

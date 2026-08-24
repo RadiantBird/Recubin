@@ -4,6 +4,7 @@
 #include <vector>
 struct GLFWwindow;
 namespace GuiAutomation {
+// Syntax-only parser hook used by regression tests; does not affect the live queue.
 void configureFromArgs(int argc, char** argv);
 void start();
 void beforeNewFrame();

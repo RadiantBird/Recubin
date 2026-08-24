@@ -49,10 +49,30 @@ RuntimeLaunchArgs parseRuntimeLaunchArgs(int argc, char* argv[]) {
             } else {
                 args.editorTest = true;
             }
+        } else if (argument == "--ui-automation-scene") {
+            std::string value;
+            if (args.uiAutomationScene.has_value()) {
+                setError(args, "--ui-automation-scene may only be specified once");
+            } else if (!readValue(argc, argv, index, value)) {
+                setError(args, "--ui-automation-scene requires a non-empty path");
+            } else {
+                args.uiAutomationScene = std::move(value);
+            }
+        } else if (argument == "--ui-automation-settings") {
+            std::string value;
+            if (args.uiAutomationSettings.has_value()) {
+                setError(args, "--ui-automation-settings may only be specified once");
+            } else if (!readValue(argc, argv, index, value)) {
+                setError(args, "--ui-automation-settings requires a non-empty path");
+            } else {
+                args.uiAutomationSettings = std::move(value);
+            }
         } else if (argument.starts_with("--scene=") ||
                    argument.starts_with("--window-title=") ||
-                   argument.starts_with("--editor-test=")) {
-            setError(args, "use --scene <path>, --window-title <title>, and --editor-test");
+                   argument.starts_with("--editor-test=") ||
+                   argument.starts_with("--ui-automation-scene=") ||
+                   argument.starts_with("--ui-automation-settings=")) {
+            setError(args, "launch options require separate values");
         }
     }
     return args;

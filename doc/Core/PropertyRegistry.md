@@ -73,3 +73,11 @@
 - `LuauEngine::InitDispatchTable_*` 系が `applyToDispatch()` を呼んで dispatch テーブルへ配線する
 - `SceneLoader` が `loadProperty()` を、保存処理が `saveProperties()` を、`Instance::clone()` 系が `cloneFields()` を利用する
 - Propertiesの共通Instance pickerは`instanceRefClass`を参照し、対象型の`IsA`検証、Workspace相対パス設定、Pick/Clear、Undo/Redoを共通処理する。`ScreenGuiObject.FontFile`のように条件付き表示する欄も、個別UIから同じ共通pickerを呼び出す
+
+## 置換時の互換性
+
+インスタンス置換のプロパティ移送は、置換元と置換先の継承関係に依存せず、両方の
+集約schemaから同名・同型のフィールドだけを対象にする。型が異なるフィールドは
+移送せず、子インスタンスのidentity、typed参照、Undo/Redoの復元契約を維持する。
+Highlightも`applyToDispatch()`へ接続し、Luauのread/writeとclampを通常のregistry
+経路で扱う。

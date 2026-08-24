@@ -92,3 +92,11 @@ update(playerPos)
 - Luau の Terrain 部分編集 API（`terrain_set_block_closure` 等）が `setBlock` / `removeBlock` / `raycastVoxel` を呼ぶ
 - エディターの地形ブラシが `applyBrush()` を呼ぶ（レイキャストはボクセル DDA 版を使用し PhysX SQ 未更新問題を回避）
 - `Renderer::renderTerrain()` が `getChunks()` でロード済みチャンクを描画する
+
+## リージョン読込失敗
+
+リージョンYAMLの読込失敗は`loadFailed`として記録し、内容を空データへ置き換えて
+保存しない。ワーカーのguarded flushが破損リージョンを検出した場合は書込みを
+遮断する。未生成リージョンはファイルを読まず、警告なしで生成可能とする。
+回帰用の検証はワーカージョブ経由で同期完了を待機し、メインスレッドから
+ワーカー専用cacheを直接操作しない。

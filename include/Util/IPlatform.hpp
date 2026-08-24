@@ -81,4 +81,8 @@ public:
     virtual std::unique_ptr<IChildProcess> launchChildProcess(
         const ChildProcessLaunchOptions& options) = 0;
     virtual std::filesystem::path userDataRoot() const = 0;
+
+    // 非ブロッキングで標準入力から1行取得する。入力がまだ無い場合はnullopt。
+    // GUI automationはメインスレッドから毎フレーム呼び出し、reader threadを作らない。
+    virtual std::optional<std::string> pollStdinLine() = 0;
 };

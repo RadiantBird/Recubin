@@ -125,7 +125,8 @@ private:
     enum class ClassPickerMode { Insert, Group, Replace };
     bool m_classPickerOpen = false;
     bool m_classPickerPopupRequested = false;
-    bool m_classPickerConfirm = false;
+    // Class-specific acknowledgement for incompatible replacement references.
+    std::string m_classPickerConfirmClass;
     bool m_classPickerCloseParent = false;
     ClassPickerMode m_classPickerMode = ClassPickerMode::Insert;
     std::shared_ptr<Instance> m_classPickerParent;
@@ -146,5 +147,11 @@ private:
     void renderNewScriptDialog();
     void renderNewTerrainDialog();
     void renderClassPicker();
+    void renderClassPickerPopup();
+    bool renderClassPickerEntries(const std::vector<InstanceCatalogEntry>& matches);
+    bool previewClassPickerSelection();
+    bool executeClassPickerSelection(const std::string& selected);
+    bool renderClassPickerReplacementConfirmation(bool hasIncompatibleReferences,
+                                                  bool& activateSelection);
     void openClassPicker(ClassPickerMode mode, Instance* inst);
 };

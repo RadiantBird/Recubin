@@ -33,8 +33,13 @@
 #include <Instances/FileRef.hpp>
 #include <Instances/FontFile.hpp>
 #include <Instances/TextFile.hpp>
+#include <Instances/TextLabel.hpp>
 #include <Instances/ScreenGuiObject.hpp>
 #include <Instances/SurfaceMark.hpp>
+#include <Instances/Highlight.hpp>
+#include <Instances/IntValue.hpp>
+#include <Util/YamlLoadResult.hpp>
+#include <stb_image.h>
 
 #include <Core/LuauEngine.hpp>
 #include <Core/FileLoader.hpp>
@@ -55,6 +60,7 @@
 #include <Core/TerrainStreamer.hpp>
 #include <Core/User.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/GuiAutomationCommand.hpp>
 #include <Editor/SceneHierarchyGrouping.hpp>
 #include <Editor/InstanceCatalog.hpp>
 #include <Editor/EditorManager.hpp>
@@ -636,23 +642,17 @@ int runStarterWeldRenameRegression() {
                !containsInstance(clonedAssembly, head.get()),
            "character clone Weld targets renamed clone parts, not template parts");
 
-    auto snapshot = SceneLoader::loadScene("assets/scenes/_snapshot.yaml");
-    auto* snapshotHair = snapshot
-        ? dynamic_cast<BaseCube*>(
-              snapshot->getChildByPath("StarterCharacter\\Hair"))
+    auto localHair = starter->children.contains("Hair1")
+        ? std::dynamic_pointer_cast<BaseCube>(starter->children.at("Hair1"))
         : nullptr;
-    auto* snapshotHead = snapshot
-        ? dynamic_cast<BaseCube*>(
-              snapshot->getChildByPath("StarterCharacter\\Head"))
+    auto localHead = starter->children.contains("Head1")
+        ? std::dynamic_pointer_cast<BaseCube>(starter->children.at("Head1"))
         : nullptr;
-    std::vector<std::shared_ptr<BaseCube>> snapshotAssembly;
-    if (snapshotHair)
-        snapshotAssembly = Weld::collectAssembly(
-            std::static_pointer_cast<BaseCube>(snapshotHair->shared_from_this()),
-            *snapshot);
-    expect(snapshotHair && snapshotHead &&
-               containsInstance(snapshotAssembly, snapshotHead),
-           "baseplate-style StarterCharacter Hair/Head paths resolve to a Weld assembly");
+    const auto localAssembly = localHair
+        ? Weld::collectAssembly(localHair, *starter)
+        : std::vector<std::shared_ptr<BaseCube>>{};
+    expect(localHair && localHead && containsInstance(localAssembly, localHead.get()),
+           "self-contained StarterCharacter Hair/Head paths resolve to a Weld assembly");
 
     std::cout << "[StarterWeldRename] failures=" << failures
               << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
@@ -4225,6 +4225,29 @@ int runSoundStretchRegression() {
     expect(liveEditNotified && !liveEditHistory.canUndo(),
            "ライブ編集通知はdirtyを中継してUndo履歴を増やさない");
 
+    AudioService spatialAudio;
+    auto spatialRoot = std::make_shared<Model>(Vector3(10, 0, 0));
+    spatialRoot->Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f);
+    auto spatialParent = std::make_shared<Model>(Vector3(0, 2, 0));
+    spatialParent->Rotation = Quaternion::fromAxisAngle(Vector3(0, 0, 1), 90.0f);
+    auto spatialSound = std::make_shared<Sound>(spatialAudio);
+    spatialSound->Position = Vector3(3, 0, 0);
+    spatialRoot->addChild(spatialParent);
+    spatialParent->addChild(spatialSound);
+    const Vector3 worldPosition = spatialSound->getWorldCFrame().Position;
+    const Vector3 oldPosition = spatialParent->Position + spatialSound->Position;
+    const Vector3 listenerPosition(0, 0, 0);
+    const Vector3 listenerRight(1, 0, 0);
+    const SoundSpatialMix spatialMix = Sound::calculateSpatialMix(
+        worldPosition, listenerPosition, listenerRight, 0.8f);
+    const float distance = worldPosition.length();
+    const float expectedVolume = 0.8f / (1.0f + distance * 0.1f);
+    const float expectedPan = Vector3::Dot(worldPosition.normalize(), listenerRight);
+    expect(positionDistance(worldPosition, oldPosition) > 1e-4f &&
+               std::abs(spatialMix.volume - expectedVolume) < 1e-5f &&
+               std::abs(spatialMix.pan - expectedPan) < 1e-5f,
+           "Sound uses rotated multi-level Spatial world position for volume and pan");
+
     for (float speed : {2.0f, 0.5f}) {
         std::vector<float> output;
         const bool processed = TimeStretchNode::processOffline(
@@ -6292,6 +6315,19 @@ int runRuntimeLaunchArgsRegression() {
     expect(!parse({"RecubinEngine", "--scene=a.yaml"}).valid &&
                !parse({"RecubinEngine", "--window-title=Client"}).valid,
            "equals-form runtime options are rejected");
+    const RuntimeLaunchArgs automationPair = parse({
+        "RecubinEngine", "--ui-automation", "--ui-automation-scene", "fixture.yaml",
+        "--ui-automation-settings", "settings.yaml"});
+    expect(automationPair.valid && automationPair.uiAutomationScene == "fixture.yaml" &&
+               automationPair.uiAutomationSettings == "settings.yaml",
+           "GUI automation scene/settings pair is parsed");
+    const RuntimeLaunchArgs missingAutomationSettings = parse({
+        "RecubinEngine", "--ui-automation-scene", "fixture.yaml"});
+    expect(missingAutomationSettings.valid && missingAutomationSettings.uiAutomationScene,
+           "launch parser accepts individual values before main enforces the required pair");
+    expect(!parse({"RecubinEngine", "--ui-automation-scene"}).valid &&
+               !parse({"RecubinEngine", "--ui-automation-settings"}).valid,
+           "missing GUI automation pair values are rejected");
 
     MockPlatform mockPlatform;
     ChildProcessLaunchOptions options;
@@ -7392,6 +7428,9 @@ static int runGuiAutomationRegression() {
     const auto path = std::filesystem::temp_directory_path() / "recubin_gui_automation_test.png";
     std::vector<std::uint8_t> pixels = {255, 0, 0, 255, 0, 255, 0, 255,
                                         0, 0, 255, 255, 255, 255, 255, 255};
+    const std::vector<std::uint8_t> expectedPngPixels = {
+        0, 0, 255, 255, 255, 255, 255, 255,
+        255, 0, 0, 255, 0, 255, 0, 255};
     std::string error;
     expect(PngWriter::writeRgba8(path.string(), 2, 2, pixels, &error), "small RGBA PNG is written");
     std::ifstream in(path, std::ios::binary);
@@ -7401,6 +7440,29 @@ static int runGuiAutomationRegression() {
     expect(bytes.size() > 24 && bytes[16] == 0 && bytes[17] == 0 && bytes[18] == 0 && bytes[19] == 2 &&
                bytes[20] == 0 && bytes[21] == 0 && bytes[22] == 0 && bytes[23] == 2,
            "PNG IHDR dimensions are 2x2");
+    int decodedWidth = 0, decodedHeight = 0, decodedChannels = 0;
+    unsigned char* decoded = stbi_load(path.string().c_str(), &decodedWidth,
+                                       &decodedHeight, &decodedChannels, 4);
+    bool decodedPixels = decoded && decodedWidth == 2 && decodedHeight == 2;
+    if (decoded) {
+        for (size_t index = 0; index < expectedPngPixels.size(); ++index)
+            decodedPixels = decodedPixels && decoded[index] == expectedPngPixels[index];
+        stbi_image_free(decoded);
+    }
+    expect(decodedPixels, "PNG decodes to the expected RGBA pixel content");
+    expect(validateGuiAutomationCommand("click Picker") &&
+               validateGuiAutomationCommand("right_click Picker") &&
+               validateGuiAutomationCommand("capture output.png") &&
+               validateGuiAutomationCommand("key ctrl+shift+a") &&
+               validateGuiAutomationCommand("quit"),
+           "valid GUI automation commands are accepted");
+    expect(!validateGuiAutomationCommand("click Picker extra") &&
+               !validateGuiAutomationCommand("key Ctrl+") &&
+               !validateGuiAutomationCommand("quit extra") &&
+               !validateGuiAutomationCommand("wait Picker nope") &&
+               !validateGuiAutomationCommand("mouse nope 1") &&
+               !validateGuiAutomationCommand("mouse_down 3"),
+           "malformed GUI automation commands are rejected");
     expect(!PngWriter::writeRgba8(path.string(), 2, 2, {}, &error), "invalid RGBA buffer is rejected");
     std::error_code ec; std::filesystem::remove(path, ec);
     std::cout << "[GuiAutomation] failures=" << failures << " result="
@@ -7474,7 +7536,8 @@ static int runSceneHierarchyGroupingRegression() {
                "redo restores group and descendant pose");
 
     auto scriptParent = std::make_shared<Folder>();
-    auto script = std::make_shared<Script>("old.luau");
+    auto script = std::make_shared<Script>();
+    script->Path = "old.luau";
     script->Name = "Logic"; script->Source = "return 1"; script->Enabled = false;
     auto child = std::make_shared<Folder>(); child->Name = "Child";
     script->addChild(child); scriptParent->addChild(script);
@@ -7560,6 +7623,122 @@ static int runSceneHierarchyGroupingRegression() {
     refHistory.undo();
     expect(weld->getCube0().get() == sphere && objectValue->getTarget().get() == sphere,
            "Cube to Script undo restores typed and generic references");
+
+    {
+        auto highlightSystem = std::make_shared<System>();
+        auto highlightWorkspace = std::make_shared<Workspace>();
+        auto highlight = std::make_shared<Highlight>();
+        highlight->Name = "Highlight";
+        highlightWorkspace->addChild(highlight);
+        highlightSystem->addChild(highlightWorkspace);
+        LuauEngine highlightEngine;
+        highlightEngine.setWorkspace(highlightWorkspace);
+        highlightEngine.setSystem(highlightSystem.get());
+        highlightEngine.setGlobalInstance("workspace", highlightWorkspace);
+        auto highlightScript = std::make_shared<Script>();
+        highlightScript->Source =
+            "local h = workspace:FindChild('Highlight') "
+            "h.FillColor = Color4.new(1, 0, 0, 0.25) "
+            "h.OutlineColor = Color4.new(0, 1, 0, 1) "
+            "h.OutlineThickness = 99 "
+            "if h.OutlineThickness == 10 then print('[HighlightPass]') end";
+        highlightWorkspace->addChild(highlightScript);
+        const bool executed = highlightEngine.execute(*highlightScript);
+        expect(executed && highlight->FillColor == Color4(1, 0, 0, 0.25f) &&
+                   highlight->OutlineColor == Color4(0, 1, 0, 1) &&
+                   highlight->OutlineThickness == 10.0f,
+               "Highlight Luau read/write and OutlineThickness clamp contract");
+    }
+
+    {
+        auto fontSystem = std::make_shared<System>();
+        auto fontWorkspace = std::make_shared<Workspace>();
+        auto font = std::make_shared<FontFile>();
+        auto label = std::make_shared<TextLabel>();
+        font->Name = "FontFile";
+        label->Name = "Label";
+        label->FontFile = "Workspace\\FontFile";
+        fontWorkspace->addChild(font);
+        fontWorkspace->addChild(label);
+        fontSystem->addChild(fontWorkspace);
+        auto fontScriptPreview = InstanceCatalog::create("Script");
+        ReplaceInstanceCommand fontReplacement(
+            fontWorkspace, font, "Script", std::function<void(Instance*)>{}, fontSystem);
+        fontReplacement.analyzeReferences(fontScriptPreview);
+        const auto& incompatible = fontReplacement.incompatibleReferenceOwners();
+        expect(std::find_if(incompatible.begin(), incompatible.end(), [](const std::string& owner) {
+                   return owner.ends_with(".FontFile");
+               }) != incompatible.end(),
+               "FontFile to Script preview reports TextLabel.FontFile incompatibility");
+
+        const auto fontScenePath = std::filesystem::temp_directory_path() /
+            ("recubin_font_reference_replace_" +
+             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".yaml");
+        {
+            std::ofstream scene(fontScenePath);
+            scene << "Root:\n"
+                     "  Children:\n"
+                     "    - ClassName: Workspace\n"
+                     "      Name: Workspace\n"
+                     "      Children:\n"
+                     "        - ClassName: FontFile\n"
+                     "          Name: FontFile\n"
+                     "        - ClassName: TextLabel\n"
+                     "          Name: Label\n"
+                     "          Properties:\n"
+                     "            FontFile: 'Workspace\\FontFile'\n";
+        }
+        auto fontContextSystem = std::make_shared<System>();
+        SceneLoader::LoadContext fontContext;
+        fontContext.registerMergeInstance("System", fontContextSystem);
+        const auto loadedFontScene = SceneLoader::loadSceneResult(fontScenePath.string(), fontContext);
+        auto loadedSystem = loadedFontScene.root
+            ? std::dynamic_pointer_cast<System>(loadedFontScene.root)
+            : nullptr;
+        auto loadedFont = loadedSystem
+            ? loadedSystem->getChildByPath("Workspace\\FontFile")
+            : nullptr;
+        auto loadedWorkspace = loadedSystem && loadedFont && loadedFont->Parent.lock()
+            ? std::dynamic_pointer_cast<Workspace>(loadedFont->Parent.lock())
+            : nullptr;
+        auto loadedLabel = loadedSystem
+            ? dynamic_cast<TextLabel*>(loadedSystem->getChildByPath("Workspace\\Label"))
+            : nullptr;
+        expect(loadedFontScene && loadedSystem && loadedWorkspace && loadedFont && loadedLabel,
+               "FontFile reference fixture loads through SceneLoader");
+        expect(loadedLabel && loadedLabel->FontFile == "Workspace\\FontFile" &&
+                   loadedSystem->getChildByPath("Workspace\\FontFile") == loadedFont,
+               "loaded TextLabel retains Workspace-relative FontFile reference");
+        auto loadedPreview = InstanceCatalog::create("Script");
+        ReplaceInstanceCommand loadedReplacement(
+            loadedWorkspace, loadedFont->shared_from_this(), "Script",
+            std::function<void(Instance*)>{}, loadedSystem);
+        loadedReplacement.analyzeReferences(loadedPreview);
+        const auto& loadedIncompatible = loadedReplacement.incompatibleReferenceOwners();
+        expect(std::find_if(loadedIncompatible.begin(), loadedIncompatible.end(), [](const std::string& owner) {
+                   return owner.ends_with(".FontFile");
+               }) != loadedIncompatible.end(),
+               "loaded FontFile to Script preview reports TextLabel.FontFile incompatibility");
+        std::error_code fontSceneError;
+        std::filesystem::remove(fontScenePath, fontSceneError);
+    }
+
+    {
+        auto force = std::make_shared<Force>();
+        auto forceHighlight = std::make_shared<Highlight>();
+        force->Enabled = false;
+        forceHighlight->Enabled = true;
+        PropertyRegistry::copyCompatibleProperties(force.get(), forceHighlight.get());
+        expect(!forceHighlight->Enabled,
+               "unrelated Force to Highlight copies same-name same-type Enabled");
+        auto vectorForce = std::make_shared<Force>();
+        auto integerValue = std::make_shared<IntValue>();
+        vectorForce->Value = Vector3(7, 8, 9);
+        integerValue->Value = 42;
+        PropertyRegistry::copyCompatibleProperties(vectorForce.get(), integerValue.get());
+        expect(integerValue->Value == 42,
+               "Force Vector3 Value does not overwrite IntValue integer Value");
+    }
     std::cout << "[Grouping] failures=" << failures << " result="
               << (failures == 0 ? "PASS" : "FAIL") << '\n';
     return failures == 0 ? 0 : 1;
@@ -7880,7 +8059,172 @@ static int runPhysicalFileInstanceRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+namespace {
+int* g_audioEngineInit = nullptr;
+int* g_audioGroupInit = nullptr;
+int* g_audioGroupUninit = nullptr;
+int* g_audioEngineUninit = nullptr;
+int g_audioFailAt = 0;
+bool g_audioEngineFails = false;
+ma_result testAudioEngineInit(const ma_engine_config*, ma_engine*) {
+    ++*g_audioEngineInit; return g_audioEngineFails ? MA_ERROR : MA_SUCCESS;
+}
+ma_result testAudioGroupInit(ma_engine*, ma_uint32, ma_sound_group*, ma_sound_group*) {
+    ++*g_audioGroupInit; return g_audioFailAt == *g_audioGroupInit ? MA_ERROR : MA_SUCCESS;
+}
+void testAudioGroupUninit(ma_sound_group*) { ++*g_audioGroupUninit; }
+void testAudioEngineUninit(ma_engine*) { ++*g_audioEngineUninit; }
+}
+
+int runAudioServiceInitializationRegression() {
+    int failures = 0;
+    int engineInit = 0, groupInit = 0, groupUninit = 0, engineUninit = 0;
+    g_audioEngineInit = &engineInit; g_audioGroupInit = &groupInit;
+    g_audioGroupUninit = &groupUninit; g_audioEngineUninit = &engineUninit;
+    g_audioFailAt = 2;
+    AudioService::InitializationOps ops{testAudioEngineInit, testAudioGroupInit,
+                                        testAudioGroupUninit, testAudioEngineUninit};
+    AudioService service(ops);
+    const bool first = service.initialize();
+    service.uninit(); service.uninit();
+    if (first || engineInit != 1 || groupInit != 2 || groupUninit != 1 || engineUninit != 1 ||
+        AudioService::instance != nullptr) ++failures;
+    engineInit = groupInit = groupUninit = engineUninit = 0;
+    g_audioFailAt = 1;
+    AudioService bgmFailure(ops);
+    if (bgmFailure.initialize() || engineInit != 1 || groupInit != 1 ||
+        groupUninit != 0 || engineUninit != 1 || AudioService::instance != nullptr) ++failures;
+    engineInit = groupInit = groupUninit = engineUninit = 0;
+    g_audioFailAt = 0;
+    AudioService success(ops);
+    const bool initialized = success.initialize();
+    const bool reinitialized = success.initialize();
+    success.uninit(); success.uninit();
+    if (!initialized || !reinitialized || engineInit != 1 || groupInit != 2 ||
+        groupUninit != 2 || engineUninit != 1 || AudioService::instance != nullptr) ++failures;
+    engineInit = groupInit = groupUninit = engineUninit = 0;
+    g_audioFailAt = 0; g_audioEngineFails = true;
+    AudioService engineFailure(ops);
+    if (engineFailure.initialize() || engineInit != 1 || groupInit != 0 ||
+        engineUninit != 0 || AudioService::instance != nullptr) ++failures;
+    g_audioEngineFails = false; g_audioFailAt = -1;
+    AudioService firstService(ops);
+    AudioService secondService(ops);
+    if (!firstService.initialize()) ++failures;
+    const int engineAfterFirst = engineInit;
+    const int groupsAfterFirst = groupInit;
+    if (secondService.initialize() || engineInit != engineAfterFirst ||
+        groupInit != groupsAfterFirst ||
+        AudioService::instance != &firstService) ++failures;
+    firstService.uninit(); secondService.uninit();
+    std::cout << "[AudioServiceInitialization] " << (failures == 0 ? "PASS" : "FAIL")
+              << ": initialization and idempotent teardown\n";
+    return failures == 0 ? 0 : 1;
+}
+
+int runYamlErrorRegression() {
+    int failures = 0;
+    std::error_code error;
+    const auto path = std::filesystem::temp_directory_path() / "recubin_yaml_error_regression.yaml";
+    const std::string original = "broken: [1, 2\n";
+    { std::ofstream file(path, std::ios::binary); file << original; }
+    const auto loaded = loadYamlFile(path.string());
+    if (loaded.success || !loaded.loadFailed || loaded.error.empty()) ++failures;
+    const auto before = FileLoader::readText(path.string());
+    const auto saved = saveYamlFileGuarded(path.string(), YAML::Node(YAML::NodeType::Map), loaded.loadFailed);
+    const auto after = FileLoader::readText(path.string());
+    if (saved.success || saved.error.empty() || before != after) ++failures;
+    const auto textLoaded = loadYamlText("broken: [1, 2\n", "startup.yaml");
+    if (textLoaded.success || textLoaded.error.empty()) ++failures;
+    const auto terrainDir = std::filesystem::temp_directory_path() / "recubin_yaml_error_terrain";
+    std::filesystem::create_directories(terrainDir);
+    const auto regionPath = terrainDir / "r_0_0.yaml";
+    const std::string regionContent = "chunks: [broken\n";
+    { std::ofstream region(regionPath, std::ios::binary); region << regionContent; }
+    {
+        auto terrainWorkspace = std::make_shared<Workspace>();
+        TerrainStreamer streamer(terrainWorkspace.get(), nullptr, terrainDir.string(), 12345u, false);
+        if (!streamer.validateRegionLoadFailure(0, 0)) ++failures;
+    }
+    if (FileLoader::readText(regionPath.string()) != regionContent) ++failures;
+    std::filesystem::remove_all(terrainDir, error);
+    std::filesystem::remove(path, error);
+    std::cout << "[YamlErrorRegression] " << (failures == 0 ? "PASS" : "FAIL")
+              << ": malformed YAML is reported and guarded save preserves content\n";
+    return failures == 0 ? 0 : 1;
+}
+
+struct RegressionEntry {
+    std::string_view name;
+    int (*runner)(int, char**);
+    bool sceneHarness;
+};
+
+int dedicatedReturn(int result);
+
+const std::vector<RegressionEntry>& regressionRegistry() {
+    static const std::vector<RegressionEntry> entries = {
+#define REG(name, function) {name, [](int, char**) { return dedicatedReturn(function()); }, false}
+        REG("--sound-stretch-regression", runSoundStretchRegression),
+        REG("--audio-service-initialization-regression", runAudioServiceInitializationRegression),
+        REG("--yaml-error-regression", runYamlErrorRegression),
+        REG("--nat-codec-regression", runNatCodecRegression),
+        REG("--animation-clip-regression", runAnimationClipRegression),
+        REG("--scene-load-transaction-regression", runSceneLoadTransactionRegression),
+        REG("--system-extension-regression", runSystemExtensionRegression),
+        REG("--scene-hierarchy-grouping-regression", runSceneHierarchyGroupingRegression),
+        REG("--gui-automation-regression", runGuiAutomationRegression),
+        REG("--physics-migration-regression", runPhysicsMigrationRegression),
+        REG("--physics-lifecycle-regression", runPhysicsLifecycleRegression),
+        REG("--constraint-rebind-regression", runConstraintRebindRegression),
+        REG("--terrain-instance-regression", runTerrainInstanceRegression),
+        REG("--fixed-step-force-regression", runFixedStepForceRegression),
+        REG("--contact-reentry-regression", runContactReentryRegression),
+        REG("--network-core-regression", runNetworkCoreRegression),
+        REG("--multi-workspace-regression", runMultiWorkspaceRegression),
+        REG("--physics-rollback-regression", runPhysicsRollbackRegression),
+        REG("--box3d-hull-regression", runBox3DHullRegression),
+        REG("--box3d-buoyancy-regression", runBox3DBuoyancyRegression),
+        REG("--frame-rate-invariance-regression", runFrameRateInvarianceRegression),
+        REG("--viewport-helper-regression", runViewportHelperRegression),
+        REG("--asset-path-regression", runAssetPathRegression),
+        REG("--app-image-regression", runAppImageRegression),
+        REG("--runtime-launch-args-regression", runRuntimeLaunchArgsRegression),
+        REG("--starter-weld-rename-regression", runStarterWeldRenameRegression),
+        REG("--starter-accessory-weld-regression", runStarterAccessoryWeldRegression),
+        REG("--starter-root-spawn-regression", runStarterRootSpawnRegression),
+        REG("--spawn-location-regression", runSpawnLocationRegression),
+        REG("--remote-avatar-spawn-transform-regression", runRemoteAvatarSpawnTransformRegression),
+        REG("--meshcube-fallback-regression", runMeshCubeFallbackRegression),
+        REG("--humanoid-rig-collision-regression", runHumanoidRigCollisionRegression),
+        REG("--seat-network-regression", runSeatNetworkRegression),
+        REG("--physical-file-instance-regression", runPhysicalFileInstanceRegression),
+        REG("--surface-mark-regression", runSurfaceMarkRegression),
+        REG("--tool-weld-regression", runToolWeldRegression),
+        REG("--tool-weld-reequip-regression", runToolWeldReequipRegression),
+        REG("--tool-respawn-regression", runToolRespawnRegression),
+        REG("--inventory-tool-sync-regression", runInventoryToolSyncRegression),
+        REG("--humanoid-part-ref-regression", runHumanoidPartRefRegression),
+        {"--physics-performance-guard", [](int argc, char** argv) {
+            return dedicatedReturn(runPhysicsPerformanceGuard(argc, argv));
+        }, false},
+        {"--weld-regression", nullptr, true},
+#undef REG
+    };
+    return entries;
+}
+
+int dedicatedReturn(int result) {
+    std::cout << "[RecubinTest] " << (result == 0 ? 1 : 0) << " passed, "
+              << (result == 0 ? 0 : 1) << " failed.\n";
+    return result;
+}
+
 int main(int argc, char* argv[]) {
+    if (argc > 1 && std::string_view(argv[1]) == "--list-regressions") {
+        for (const auto& entry : regressionRegistry()) std::cout << entry.name << '\n';
+        return 0;
+    }
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
     // Physics test mode names also start with "--physics". Pass only the actual
@@ -7899,159 +8243,33 @@ int main(int argc, char* argv[]) {
     if (argc > 1 && std::string_view(argv[1]) == "--package-system-extension-smoke")
         return runSystemExtensionSmokePackaging(argc, argv);
 
-    const bool weldRegression = argc > 1 && std::string_view(argv[1]) == "--weld-regression";
-    const bool toolWeldRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-regression";
-    const bool toolWeldReequipRegression = argc > 1 && std::string_view(argv[1]) == "--tool-weld-reequip-regression";
-    const bool toolRespawnRegression = argc > 1 && std::string_view(argv[1]) == "--tool-respawn-regression";
-    const bool inventoryToolSyncRegression = argc > 1 && std::string_view(argv[1]) == "--inventory-tool-sync-regression";
-    const bool humanoidPartRefRegression = argc > 1 && std::string_view(argv[1]) == "--humanoid-part-ref-regression";
-    const bool soundStretchRegression = argc > 1 && std::string_view(argv[1]) == "--sound-stretch-regression";
-    const bool natCodecRegression = argc > 1 && std::string_view(argv[1]) == "--nat-codec-regression";
-    const bool animationClipRegression = argc > 1 && std::string_view(argv[1]) == "--animation-clip-regression";
-    const bool sceneLoadTransactionRegression =
-        argc > 1 && std::string_view(argv[1]) == "--scene-load-transaction-regression";
-    const bool systemExtensionRegression =
-        argc > 1 && std::string_view(argv[1]) == "--system-extension-regression";
-    const bool groupingRegression = argc > 1 && std::string_view(argv[1]) == "--scene-hierarchy-grouping-regression";
-    const bool guiAutomationRegression = argc > 1 && std::string_view(argv[1]) == "--gui-automation-regression";
-    bool physicsMigrationRegression = false;
-    bool physicsLifecycleRegression = false;
-    bool constraintRebindRegression = false;
-    bool terrainInstanceRegression = false;
-    bool fixedStepForceRegression = false;
-    bool contactReentryRegression = false;
-    bool multiWorkspaceRegression = false;
-    bool networkCoreRegression = false;
-    bool physicsRollbackRegression = false;
-    bool box3dHullRegression = false;
-    bool physicsPerformanceGuard = false;
-    bool box3dBuoyancyRegression = false;
-    bool frameRateInvarianceRegression = false;
-    bool viewportHelperRegression = false;
-    bool assetPathRegression = false;
-    bool appImageRegression = false;
-    bool runtimeLaunchArgsRegression = false;
-    bool starterWeldRenameRegression = false;
-    bool starterAccessoryWeldRegression = false;
-    bool starterRootSpawnRegression = false;
-    bool spawnLocationRegression = false;
-    bool remoteAvatarSpawnTransformRegression = false;
-    bool meshCubeFallbackRegression = false;
-    bool humanoidRigCollisionRegression = false;
-    bool seatNetworkRegression = false;
-    bool physicalFileInstanceRegression = false;
-    bool surfaceMarkRegression = false;
-    for (int i = 1; i < argc; ++i) {
-        const std::string_view argument(argv[i]);
-        physicsMigrationRegression =
-            physicsMigrationRegression || argument == "--physics-migration-regression";
-        physicsLifecycleRegression =
-            physicsLifecycleRegression || argument == "--physics-lifecycle-regression";
-        constraintRebindRegression =
-            constraintRebindRegression || argument == "--constraint-rebind-regression";
-        terrainInstanceRegression =
-            terrainInstanceRegression || argument == "--terrain-instance-regression";
-        fixedStepForceRegression =
-            fixedStepForceRegression || argument == "--fixed-step-force-regression";
-        contactReentryRegression =
-            contactReentryRegression || argument == "--contact-reentry-regression";
-        multiWorkspaceRegression =
-            multiWorkspaceRegression || argument == "--multi-workspace-regression";
-        networkCoreRegression =
-            networkCoreRegression || argument == "--network-core-regression";
-        physicsRollbackRegression =
-            physicsRollbackRegression || argument == "--physics-rollback-regression";
-        box3dHullRegression =
-            box3dHullRegression || argument == "--box3d-hull-regression";
-        physicsPerformanceGuard =
-            physicsPerformanceGuard || argument == "--physics-performance-guard";
-        box3dBuoyancyRegression =
-            box3dBuoyancyRegression || argument == "--box3d-buoyancy-regression";
-        frameRateInvarianceRegression =
-            frameRateInvarianceRegression || argument == "--frame-rate-invariance-regression";
-        viewportHelperRegression =
-            viewportHelperRegression || argument == "--viewport-helper-regression";
-        assetPathRegression =
-            assetPathRegression || argument == "--asset-path-regression";
-        appImageRegression =
-            appImageRegression || argument == "--app-image-regression";
-        runtimeLaunchArgsRegression =
-            runtimeLaunchArgsRegression || argument == "--runtime-launch-args-regression";
-        starterWeldRenameRegression = starterWeldRenameRegression ||
-            argument == "--starter-weld-rename-regression";
-        starterAccessoryWeldRegression = starterAccessoryWeldRegression ||
-            argument == "--starter-accessory-weld-regression";
-        starterRootSpawnRegression = starterRootSpawnRegression ||
-            argument == "--starter-root-spawn-regression";
-        spawnLocationRegression = spawnLocationRegression ||
-            argument == "--spawn-location-regression";
-        remoteAvatarSpawnTransformRegression =
-            remoteAvatarSpawnTransformRegression ||
-            argument == "--remote-avatar-spawn-transform-regression";
-        meshCubeFallbackRegression = meshCubeFallbackRegression ||
-            argument == "--meshcube-fallback-regression";
-        humanoidRigCollisionRegression =
-            humanoidRigCollisionRegression ||
-            argument == "--humanoid-rig-collision-regression";
-        seatNetworkRegression = seatNetworkRegression || argument == "--seat-network-regression";
-        physicalFileInstanceRegression = physicalFileInstanceRegression ||
-            argument == "--physical-file-instance-regression";
-        surfaceMarkRegression = surfaceMarkRegression ||
-            argument == "--surface-mark-regression";
+    if (argc > 1) {
+        const std::string_view requested(argv[1]);
+        const auto& registry = regressionRegistry();
+        const auto entry = std::find_if(registry.begin(), registry.end(),
+            [requested](const RegressionEntry& candidate) { return candidate.name == requested; });
+        if (entry != registry.end() && entry->runner && !entry->sceneHarness)
+            return entry->runner(argc, argv);
+        if (entry == registry.end() && requested.starts_with("--") &&
+            requested.find("regression") != std::string_view::npos) {
+            std::cerr << "[RecubinTest] Unknown regression mode: " << requested << '\n';
+            return 2;
+        }
     }
-    if (physicalFileInstanceRegression)
-        return runPhysicalFileInstanceRegression();
-    if (surfaceMarkRegression)
-        return runSurfaceMarkRegression();
-    if (systemExtensionRegression)
-        return runSystemExtensionRegression();
-    if (physicsMigrationRegression) return runPhysicsMigrationRegression();
-    if (groupingRegression) return runSceneHierarchyGroupingRegression();
-    if (guiAutomationRegression) return runGuiAutomationRegression();
-    if (seatNetworkRegression) return runSeatNetworkRegression();
-    if (physicsLifecycleRegression) return runPhysicsLifecycleRegression();
-    if (constraintRebindRegression) return runConstraintRebindRegression();
-    if (terrainInstanceRegression) return runTerrainInstanceRegression();
-    if (fixedStepForceRegression) return runFixedStepForceRegression();
-    if (contactReentryRegression) return runContactReentryRegression();
-    if (networkCoreRegression) return runNetworkCoreRegression();
-    if (multiWorkspaceRegression) return runMultiWorkspaceRegression();
-    if (physicsRollbackRegression) return runPhysicsRollbackRegression();
-    if (box3dHullRegression) return runBox3DHullRegression();
-    if (physicsPerformanceGuard) return runPhysicsPerformanceGuard(argc, argv);
-    if (box3dBuoyancyRegression) return runBox3DBuoyancyRegression();
-    if (frameRateInvarianceRegression) return runFrameRateInvarianceRegression();
-    if (viewportHelperRegression) return runViewportHelperRegression();
-    if (assetPathRegression) return runAssetPathRegression();
-    if (appImageRegression) return runAppImageRegression();
-    if (runtimeLaunchArgsRegression) return runRuntimeLaunchArgsRegression();
-    if (starterWeldRenameRegression)
-        return runStarterWeldRenameRegression();
-    if (starterAccessoryWeldRegression)
-        return runStarterAccessoryWeldRegression();
-    if (starterRootSpawnRegression)
-        return runStarterRootSpawnRegression();
-    if (spawnLocationRegression)
-        return runSpawnLocationRegression();
-    if (remoteAvatarSpawnTransformRegression)
-        return runRemoteAvatarSpawnTransformRegression();
-    if (meshCubeFallbackRegression)
-        return runMeshCubeFallbackRegression();
-    if (humanoidRigCollisionRegression)
-        return runHumanoidRigCollisionRegression();
-    if (toolWeldRegression) return runToolWeldRegression();
-    if (toolWeldReequipRegression) return runToolWeldReequipRegression();
-    if (toolRespawnRegression) return runToolRespawnRegression();
-    if (inventoryToolSyncRegression) return runInventoryToolSyncRegression();
-    if (humanoidPartRefRegression) return runHumanoidPartRefRegression();
-    if (soundStretchRegression) return runSoundStretchRegression();
-    if (natCodecRegression) return runNatCodecRegression();
-    if (sceneLoadTransactionRegression) return runSceneLoadTransactionRegression();
-    if (animationClipRegression) return runAnimationClipRegression();
+
+    const RegressionEntry* selectedEntry = nullptr;
+    if (argc > 1) {
+        const std::string_view requested(argv[1]);
+        const auto& registry = regressionRegistry();
+        const auto it = std::find_if(registry.begin(), registry.end(),
+            [requested](const RegressionEntry& candidate) { return candidate.name == requested; });
+        if (it != registry.end()) selectedEntry = &*it;
+    }
+    const bool weldRegression = selectedEntry && selectedEntry->sceneHarness;
     const char* sceneArgument = findSceneArgument(argc, argv, weldRegression ? 2 : 1);
     std::string scenePath = sceneArgument
         ? sceneArgument
-        : (weldRegression ? "assets/scenes/_snapshot.yaml" : "assets/scenes/test_bindings.yaml");
+        : (weldRegression ? "assets/scenes/test_weld_chain.yaml" : "assets/scenes/test_bindings.yaml");
 
     std::vector<std::string> expectedErrors;
     for (int i = 2; i < argc; ++i) {
@@ -8081,7 +8299,10 @@ int main(int argc, char* argv[]) {
     };
 
     auto audioService = std::make_unique<AudioService>();
-    audioService->initialize();
+    if (!audioService->initialize()) {
+        std::cerr << "[RecubinTest] ERROR: AudioService initialization failed\n";
+        return dedicatedReturn(1);
+    }
 
     auto system    = std::make_shared<System>();
     auto workspace = std::make_shared<Workspace>();
@@ -8093,7 +8314,22 @@ int main(int argc, char* argv[]) {
     SceneLoader::LoadContext loadContext;
     loadContext.registerMergeInstance("System", system);
     loadContext.registerMergeInstance("Workspace", workspace);
+    auto users = std::make_shared<Users>();
+    users->Name = "Users";
+    auto user = std::make_shared<User>(std::make_unique<NullInputBackend>(), true);
+    user->Name = "User";
+    users->addChild(user);
+    system->addChild(users);
+    loadContext.registerMergeInstance("Users", users);
+    loadContext.registerMergeInstance("User", user);
+    loadContext.registerMergeInstance("Lighting", lighting);
     SceneLoader::loadScene(scenePath, loadContext);
+    if (auto inventory = user->getChild("Inventory")) {
+        if (auto folder = std::dynamic_pointer_cast<Folder>(inventory->shared_from_this()))
+            user->Inventory = folder;
+    }
+    if (!user->Inventory || user->Inventory->Parent.lock().get() != user.get())
+        user->initializeInventory();
 
     // 古い形式のYAML対応: System直下のLightingを見つけたら、WorkspaceのLightingにプロパティを移して削除
     for (auto it = system->children.begin(); it != system->children.end(); ) {
@@ -8110,13 +8346,14 @@ int main(int argc, char* argv[]) {
 
     if (weldRegression) {
         audioService->stopAllSounds();
-        return runWeldRegression(workspace);
+        return dedicatedReturn(runWeldRegression(workspace));
     }
 
     auto luauEngine = std::make_unique<LuauEngine>();
     luauEngine->setGlobalInstance(workspace->Name, workspace);
     luauEngine->setGlobalInstance("workspace", workspace);
     luauEngine->setGlobalInstance("System", system);
+    luauEngine->setGlobalInstance("User", user);
     luauEngine->setWorkspace(workspace);
     luauEngine->setSystem(system.get());
 

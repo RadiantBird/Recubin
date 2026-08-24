@@ -301,4 +301,34 @@ std::filesystem::path MacPlatform::userDataRoot() const {
     return std::filesystem::temp_directory_path() / "Recubin";
 }
 
+std::optional<std::string> MacPlatform::pollStdinLine() {
+    static std::string pending;
+    const auto takePendingLine = [&]() -> std::optional<std::string> {
+        const auto newline = pending.find('\n');
+        if (newline == std::string::npos) return std::nullopt;
+        std::string result = pending.substr(0, newline);
+        if (!result.empty() && result.back() == '\r') result.pop_back();
+        pending.erase(0, newline + 1);
+        return result;
+    };
+    if (const auto line = takePendingLine()) return line;
+    static bool configured = false;
+    if (!configured) {
+        const int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+        if (flags >= 0) fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+        configured = true;
+    }
+    char buffer[256];
+    for (;;) {
+        const ssize_t count = ::read(STDIN_FILENO, buffer, sizeof(buffer));
+        if (count > 0) {
+            pending.append(buffer, static_cast<size_t>(count));
+            if (const auto line = takePendingLine()) return line;
+            continue;
+        }
+        if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return std::nullopt;
+        return std::nullopt;
+    }
+}
+
 #endif // __APPLE__

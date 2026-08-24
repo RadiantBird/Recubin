@@ -796,7 +796,8 @@ void EditorManager::renderSaveDialog() {
         ImGui::Text("%s", Loc::t(Loc::LocKey::UnsavedLine2));
         ImGui::Separator();
 
-        if (EditorUi::dangerButton(Loc::t(Loc::LocKey::SaveAndQuit), m_saveDialogOpenedAt)) {
+        const float quitCooldown = GuiAutomation::enabled() ? 0.0f : 3.0f;
+        if (EditorUi::dangerButton(Loc::t(Loc::LocKey::SaveAndQuit), m_saveDialogOpenedAt, quitCooldown)) {
             saveCurrentScene();
             // GL コンテキストが生きている今のうちに GPU リソースを持つ
             // インスタンスの shared_ptr を解放する（コンテキスト破棄後の
@@ -809,7 +810,8 @@ void EditorManager::renderSaveDialog() {
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (EditorUi::dangerButton(Loc::t(Loc::LocKey::QuitWithoutSaving), m_saveDialogOpenedAt)) {
+        const bool quitWithoutSavingReady = ImGui::GetTime() - m_saveDialogOpenedAt >= quitCooldown;
+        if (EditorUi::dangerButton(Loc::t(Loc::LocKey::QuitWithoutSaving), m_saveDialogOpenedAt, quitCooldown)) {
             m_isDirty = false;
             hierarchyPanel->selectedInstance = nullptr;
             hierarchyPanel->selectedInstances.clear();
@@ -818,6 +820,8 @@ void EditorManager::renderSaveDialog() {
             if (m_dialogWindow) glfwSetWindowShouldClose(m_dialogWindow, GLFW_TRUE);
             ImGui::CloseCurrentPopup();
         }
+        if (quitWithoutSavingReady)
+            GuiAutomation::registerLastItem("Editor/UnsavedChanges/QuitWithoutSaving");
         ImGui::SameLine();
         if (EditorUi::safeButton(Loc::t(Loc::LocKey::Cancel))) {
             ImGui::CloseCurrentPopup();
