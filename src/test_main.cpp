@@ -1585,6 +1585,89 @@ int runMeshCubeFallbackRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runShadowModeRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[ShadowMode] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto cube = std::make_shared<Cube>(Vector3{}, Vector3(1, 1, 1), 0);
+    expect(cube->ShadowMode == ShadowMode::Normal, "default mode is Normal");
+    cube->Color.a = 0.0f;
+    cube->CastShadow = true;
+    for (const auto mode : {ShadowMode::Always, ShadowMode::Never, ShadowMode::Normal}) {
+        cube->ShadowMode = mode;
+        expect(cube->shouldCastShadow(false) == (mode == ShadowMode::Always),
+               "transparent cube follows each ShadowMode");
+        cube->Color.a = 1.0f;
+        expect(cube->shouldCastShadow(false) == (mode != ShadowMode::Never),
+               "opaque cube follows each ShadowMode");
+        cube->Color.a = 0.0f;
+    }
+    cube->ShadowMode = ShadowMode::Always;
+    cube->CastShadow = false;
+    expect(!cube->shouldCastShadow(false), "CastShadow false overrides Always");
+    cube->CastShadow = true;
+    cube->setProperty("ShadowMode", YAML::Node("Always"));
+    expect(cube->ShadowMode == ShadowMode::Always, "YAML setter accepts Always");
+    cube->setProperty("ShadowMode", YAML::Node("Never"));
+    expect(cube->ShadowMode == ShadowMode::Never, "YAML setter accepts Never");
+    cube->setProperty("ShadowMode", YAML::Node("unknown"));
+    expect(cube->ShadowMode == ShadowMode::Normal, "unknown YAML mode falls back to Normal");
+    cube->CastShadow = false;
+    cube->ShadowMode = ShadowMode::Always;
+    auto clone = std::dynamic_pointer_cast<BaseCube>(cube->clone());
+    expect(clone && clone->ShadowMode == ShadowMode::Always && !clone->CastShadow,
+           "clone preserves ShadowMode and CastShadow");
+    auto mesh = std::make_shared<MeshCube>(Vector3{}, Vector3(1, 1, 1));
+    mesh->loadFromGLB("assets/models/__recubin_missing_shadow_mode__.glb");
+    mesh->Color.a = 0.0f;
+    mesh->ShadowMode = ShadowMode::Normal;
+    expect(mesh->isUsingFallback() && mesh->shouldCastShadow(mesh->isUsingFallback()),
+           "missing MeshCube fallback casts a Normal shadow");
+    const auto path = std::filesystem::temp_directory_path() / "recubin_shadow_mode_regression.yaml";
+    cube->CastShadow = true;
+    cube->ShadowMode = ShadowMode::Always;
+    cube->Name = "ShadowModeCube";
+    auto saveRoot = std::make_shared<Instance>("ShadowModeSaveRoot");
+    saveRoot->addChild(cube);
+    SceneLoader::saveScene(saveRoot.get(), path.string());
+    auto loadedRoot = SceneLoader::loadScene(path.string());
+    Instance* loadedChild = loadedRoot ? loadedRoot->getChild("ShadowModeCube") : nullptr;
+    auto loaded = loadedChild
+        ? std::dynamic_pointer_cast<BaseCube>(loadedChild->shared_from_this())
+        : nullptr;
+    expect(loaded && loaded->ShadowMode == ShadowMode::Always,
+           "Scene YAML round-trip preserves ShadowMode");
+    std::ifstream saved(path);
+    std::string yaml((std::istreambuf_iterator<char>(saved)), std::istreambuf_iterator<char>());
+    const std::string key = "ShadowMode: Always\n";
+    const std::size_t keyPos = yaml.find(key);
+    expect(keyPos != std::string::npos, "Scene YAML writes ShadowMode");
+    if (keyPos != std::string::npos) {
+        const std::size_t lineStart = yaml.rfind('\n', keyPos);
+        const std::size_t lineEnd = yaml.find('\n', keyPos);
+        const std::size_t eraseStart = lineStart == std::string::npos ? 0 : lineStart + 1;
+        const std::size_t eraseEnd = lineEnd == std::string::npos ? yaml.size() : lineEnd + 1;
+        yaml.erase(eraseStart, eraseEnd - eraseStart);
+        std::ofstream legacy(path, std::ios::trunc);
+        legacy << yaml;
+        legacy.close();
+        auto legacyRoot = SceneLoader::loadScene(path.string());
+        Instance* legacyChild = legacyRoot ? legacyRoot->getChild("ShadowModeCube") : nullptr;
+        auto legacyLoaded = legacyChild
+            ? std::dynamic_pointer_cast<BaseCube>(legacyChild->shared_from_this())
+            : nullptr;
+        expect(legacyLoaded && legacyLoaded->ShadowMode == ShadowMode::Normal,
+               "legacy YAML without ShadowMode defaults to Normal");
+    }
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+    std::cout << "[ShadowMode] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int runInventoryToolSyncRegression() {
     auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
     user->initializeInventory();
@@ -8196,6 +8279,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--spawn-location-regression", runSpawnLocationRegression),
         REG("--remote-avatar-spawn-transform-regression", runRemoteAvatarSpawnTransformRegression),
         REG("--meshcube-fallback-regression", runMeshCubeFallbackRegression),
+        REG("--shadow-mode-regression", runShadowModeRegression),
         REG("--humanoid-rig-collision-regression", runHumanoidRigCollisionRegression),
         REG("--seat-network-regression", runSeatNetworkRegression),
         REG("--physical-file-instance-regression", runPhysicalFileInstanceRegression),

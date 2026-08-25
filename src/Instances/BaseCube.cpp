@@ -67,6 +67,17 @@ static const bool s_baseCubeRegistered = []{
     locked.group("Editor");
     locked.noYaml();
 
+    PropertyDesc shadowMode = custom("ShadowMode", PropType::Enum,
+        [](Instance* o) { return PropValue(static_cast<int>(static_cast<BaseCube*>(o)->ShadowMode)); },
+        [](Instance* o, const PropValue& v) {
+            int value = std::get<int>(v);
+            if (value < 0 || value > 2) value = 2;
+            static_cast<BaseCube*>(o)->ShadowMode = static_cast<::ShadowMode>(value);
+        });
+    shadowMode.enumNames = { {"Always", 0}, {"Never", 1}, {"Normal", 2} };
+    shadowMode.group("Appearance");
+    shadowMode.noYaml();
+
     // MaterialType: プリセット選択で material 一式を上書きする
     PropertyDesc materialType = custom("MaterialType", PropType::Enum,
         [](Instance* o) { return PropValue(static_cast<int>(static_cast<BaseCube*>(o)->material.type)); },
@@ -99,6 +110,7 @@ static const bool s_baseCubeRegistered = []{
             [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->CanCollide); },
             [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setCanCollide(std::get<bool>(v)); }).noYaml(),
         field<&BaseCube::CastShadow>("CastShadow").noYaml(),
+        shadowMode,
         field<&BaseCube::Unlit>("Unlit").noYaml(),
         locked,
         massDensity,
@@ -121,6 +133,12 @@ bool BaseCube::IsA(std::string className) {
         return true;
     }
     return Spatial::IsA(className);
+}
+
+bool BaseCube::shouldCastShadow(bool hasVisibleFallbackGeometry) const {
+    if (!CastShadow || ShadowMode == ::ShadowMode::Never) return false;
+    if (ShadowMode == ::ShadowMode::Always) return true;
+    return Color.a > 0.001f || hasVisibleFallbackGeometry;
 }
 
 void BaseCube::onAncestorChanged() {
@@ -317,6 +335,11 @@ void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
         this->Color = color;
     } else if (name == "CastShadow") {
         this->CastShadow = value.as<bool>();
+    } else if (name == "ShadowMode") {
+        const std::string mode = value.as<std::string>();
+        if (mode == "Always") this->ShadowMode = ::ShadowMode::Always;
+        else if (mode == "Never") this->ShadowMode = ::ShadowMode::Never;
+        else this->ShadowMode = ::ShadowMode::Normal;
     } else if (name == "Unlit") {
         this->Unlit = value.as<bool>();
     } else if (name == "UseTriplanar") {
@@ -366,6 +389,7 @@ void BaseCube::cloneBaseCubeStateAndChildrenTo(
     copy->Anchored = Anchored;
     copy->CanCollide = CanCollide;
     copy->CastShadow = CastShadow;
+    copy->ShadowMode = ShadowMode;
     copy->Unlit = Unlit;
     copy->UseTriplanar = UseTriplanar;
     copy->TextureScale = TextureScale;

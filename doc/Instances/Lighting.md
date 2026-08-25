@@ -38,7 +38,7 @@ Shadow Pass (Lighting が見つかった場合)
   → lightEye = shadowCenter - ld * 80, lightView = LookAt(lightEye, shadowCenter, up)
   → lightProj = Ortho(-80..80, -80..80, 0.1..400)
   → lightSpaceMatrix = lightProj * lightView
-  → シャドウマップへ CastShadow な BaseCube/Terrain を描画
+  → `CastShadow` と `ShadowMode` の共通判定を満たす BaseCube、および Terrain をシャドウマップへ描画（深度テクスチャは GL_LINEAR、3×3 PCF）。深度バイアスは最小 0.0005、slope-scale 最大 0.0015 とし、接地影を保つ一方で自己シャドウのアクネとのトレードオフがある
 
 Main Pass
   → lighting があれば lightDir/brightness/lightColor をシェーダ uniform へ

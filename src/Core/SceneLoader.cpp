@@ -578,6 +578,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "Anchored"   << YAML::Value << bc->Anchored;
             out << YAML::Key << "CanCollide" << YAML::Value << bc->CanCollide;
             out << YAML::Key << "CastShadow" << YAML::Value << bc->CastShadow;
+            out << YAML::Key << "ShadowMode" << YAML::Value
+                << (bc->ShadowMode == ShadowMode::Always ? "Always" :
+                    bc->ShadowMode == ShadowMode::Never ? "Never" : "Normal");
             out << YAML::Key << "Unlit"      << YAML::Value << bc->Unlit;
             out << YAML::Key << "Locked"     << YAML::Value << bc->Locked;
             out << YAML::Key << "MassDensity" << YAML::Value << bc->MassDensity;

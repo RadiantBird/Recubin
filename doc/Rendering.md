@@ -69,7 +69,7 @@ main.cpp ループ
 
 - 頂点属性: `aPos`(0), `aNormal`(1), `aTexCoord`(2), `aVertexColor`(3, Terrain用)
 - ライティング: Lambert 拡散光 + 固定 ambient(0.3) のみ。スペキュラなし
-- シャドウ: 3×3 PCF、深度バイアスは法線とライト方向の内積に応じて可変
+- シャドウ: 3×3 PCF、深度バイアスは法線とライト方向の内積に応じて可変（最小 0.0005、slope-scale 最大 0.0015）。バイアスを小さくして接地影を復元する一方、自己シャドウのアクネが発生しやすくなるトレードオフがある
 - `useTriplanar`: ON のとき FragPos の3平面（XY/XZ/ZY）から法線ブレンドでサンプリングしテクスチャの伸び・タイル割れを回避
 - `useVertexColor`: ON のとき頂点カラー（Terrain）を直接 baseColor として使用しテクスチャ合成をスキップ
 - `unlit`: ON のときライティング計算をスキップして `ourColor`/テクスチャのみで出力（GUI ベイク・デカール等）
@@ -98,7 +98,7 @@ main.cpp ループ
 ## Shadow Map の制約
 
 - 固定サイズ 2048×2048、正射影範囲は ±80（ワールド単位）固定
-- シーン全体のうち `BaseCube::CastShadow == true` のインスタンスと Terrain チャンクのみが寄与
+- `CastShadow == false` は常に影なし。true の場合は `ShadowMode`（Always/Never/Normal）で判定し、Normal は `Color.a > 0.001`、MeshCube の fallback geometry は例外として影を生成する。深度テクスチャは `GL_LINEAR`、シェーダは既存の3×3 PCFを使用する。深度バイアスは最小 0.0005、slope-scale 最大 0.0015 で、接地影と自己シャドウのアクネをバランスする
 - ライト方向は `Lighting.lightDir` のみ参照（複数ライト・ポイントライトのシャドウ未対応）
 
 ## マルチビューポートの注意点

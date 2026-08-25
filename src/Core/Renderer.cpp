@@ -279,6 +279,13 @@ static int instanceableShapeIndex(BaseCube* bc) {
     return shapeIdx;
 }
 
+static bool shouldCastShadow(BaseCube* bc) {
+    if (!bc) return false;
+    const bool hasFallback = bc->IsA("MeshCube") &&
+        static_cast<MeshCube*>(bc)->isUsingFallback();
+    return bc->shouldCastShadow(hasFallback);
+}
+
 // 形状の共有VAOにインスタンス属性(5-9, divisor=1)を後付けする。
 // 非インスタンス描画時は uInstanced=0 でシェーダーが属性5-9を読まないため影響しない。
 void Renderer::attachInstanceAttribs(unsigned int vao) {
@@ -546,8 +553,8 @@ void Renderer::init(GLFWwindow* window) {
         glBindTexture(GL_TEXTURE_2D, shadowMapTex);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE,
                      0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
@@ -1679,7 +1686,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 std::memcpy(d.model, mtx.m, sizeof(d.model));
                 d.color[0] = bc->Color.r; d.color[1] = bc->Color.g;
                 d.color[2] = bc->Color.b; d.color[3] = bc->Color.a;
-                if (bc->CastShadow) m_instBatches[shapeIdx].shadow.push_back(d);
+                if (shouldCastShadow(bc)) m_instBatches[shapeIdx].shadow.push_back(d);
                 if (sphereInFrustum(camFrustum, wcf.Position, bc->Size.length() * 0.5f)) {
                     m_instBatches[shapeIdx].main.push_back(d);
                 } else {
@@ -1744,9 +1751,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 // 収集済み → インスタンス描画済み
             } else if (inst->IsA("BaseCube")) {
                 BaseCube* bc = static_cast<BaseCube*>(inst);
-                const bool visibleForShadow = bc->Color.a > 0.001f ||
-                    (inst->IsA("MeshCube") && static_cast<MeshCube*>(inst)->isUsingFallback());
-                if (visibleForShadow && bc->CastShadow) {
+                if (shouldCastShadow(bc)) {
                     if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, bc->IsA("LiquidCube") ? 1.0f : 0.0f);
                     Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
                                        Matrix4::Scale(bc->Size.x, bc->Size.y, bc->Size.z);

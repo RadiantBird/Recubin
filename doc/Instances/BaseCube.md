@@ -14,6 +14,8 @@
 |---|---|---|
 | `Anchored` | `bool` | true = 静的オブジェクト（重力・力の影響なし） |
 | `CanCollide` | `bool` | 衝突判定の有無 |
+| `CastShadow` | `bool` | false の場合は常に影を生成しない |
+| `ShadowMode` | `ShadowMode` | `Always`（透明度を無視）、`Never`（影なし）、`Normal`（`Color.a > 0.001`）。既定値は `Normal`。MeshCube の fallback geometry は `Normal` でも影を生成する |
 | `Color` | `Color4` | オブジェクト色 |
 | `material` | `Material` | 物理マテリアル（摩擦・反発） |
 | `lastWorkspace` | `Workspace*` | 登録済み Workspace のキャッシュ |

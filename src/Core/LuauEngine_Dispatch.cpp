@@ -384,6 +384,11 @@ void LuauEngine::InitDispatchTable_Base() {
     DispatchTable["BaseCube"]["Anchored"]     = getter_bool   <BaseCube, &BaseCube::Anchored>();
     DispatchTable["BaseCube"]["CanCollide"]   = getter_bool   <BaseCube, &BaseCube::CanCollide>();
     DispatchTable["BaseCube"]["CastShadow"]   = getter_bool   <BaseCube, &BaseCube::CastShadow>();
+    DispatchTable["BaseCube"]["ShadowMode"]   = [](lua_State* L, Instance* obj) {
+        const auto mode = static_cast<BaseCube*>(obj)->ShadowMode;
+        lua_pushstring(L, mode == ShadowMode::Always ? "Always" : mode == ShadowMode::Never ? "Never" : "Normal");
+        return 1;
+    };
     DispatchTable["BaseCube"]["Unlit"]        = getter_bool   <BaseCube, &BaseCube::Unlit>();
     DispatchTable["BaseCube"]["UseTriplanar"] = getter_bool   <BaseCube, &BaseCube::UseTriplanar>();
     DispatchTable["BaseCube"]["TextureScale"] = getter_number <BaseCube, &BaseCube::TextureScale>();
@@ -795,6 +800,14 @@ void LuauEngine::InitSetterTable_Base() {
     SetterTable["BaseCube"]["Anchored"]     = setter_method_bool<BaseCube, &BaseCube::setAnchored>();
     SetterTable["BaseCube"]["CanCollide"]   = setter_method_bool<BaseCube, &BaseCube::setCanCollide>();
     SetterTable["BaseCube"]["CastShadow"]   = setter_bool       <BaseCube, &BaseCube::CastShadow>();
+    SetterTable["BaseCube"]["ShadowMode"]   = [](lua_State* L, Instance* obj) {
+        const std::string mode = luaL_checkstring(L, 3);
+        auto* cube = static_cast<BaseCube*>(obj);
+        if (mode == "Always") cube->ShadowMode = ShadowMode::Always;
+        else if (mode == "Never") cube->ShadowMode = ShadowMode::Never;
+        else cube->ShadowMode = ShadowMode::Normal;
+        return 0;
+    };
     SetterTable["BaseCube"]["Unlit"]        = setter_bool       <BaseCube, &BaseCube::Unlit>();
     SetterTable["BaseCube"]["UseTriplanar"] = setter_bool       <BaseCube, &BaseCube::UseTriplanar>();
     SetterTable["BaseCube"]["TextureScale"] = setter_number     <BaseCube, &BaseCube::TextureScale>();

@@ -17,6 +17,7 @@ class Box3DPhysicsBackend;
 class Workspace;
 
 enum class PhysicsShape { Box, Sphere, ConvexMesh };
+enum class ShadowMode { Always, Never, Normal };
 
 class BaseCube : public Spatial {
     friend class Physics;
@@ -41,6 +42,8 @@ public:
     bool Anchored = false;
     bool CanCollide = true;
     bool CastShadow = true;
+    using ShadowModeType = ::ShadowMode;
+    ShadowModeType ShadowMode = ::ShadowMode::Normal;
     bool Unlit = false;
     bool UseTriplanar = false;
     bool Locked = false;
@@ -79,6 +82,7 @@ public:
     unsigned int getDecalTexture(Face face, unsigned int fallback) const;
     
     virtual bool IsA(std::string name) override;
+    bool shouldCastShadow(bool hasVisibleFallbackGeometry = false) const;
     void syncPhysics();
     void teleportTo(Vector3 pos);
     void setSize(Vector3 newSize);

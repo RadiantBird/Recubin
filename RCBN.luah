@@ -39,6 +39,7 @@ export type BaseCube = Spatial & {
     Velocity: Vector3, -- read only
     Touched: Signal,
     CastShadow: boolean,
+    ShadowMode: "Always" | "Never" | "Normal",
     Unlit: boolean,
     UseTriplanar: boolean,
     TextureScale: number,
