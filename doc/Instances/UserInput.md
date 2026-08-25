@@ -17,7 +17,7 @@
 | `m_prevKeyDown` | `vector<uint8_t>` | 前フレームのキー押下状態（キーテーブルと同順） |
 | `m_prevMouseDown` | `uint8_t[3]` | 前フレームのマウスボタン押下状態 |
 
-キー/マウスの文字列テーブルは `UserInput.cpp` の匿名namespace内に固定定義（A-Z, 0-9, 方向キー, Escape/Space/Return/Tab/Backspace, Shift/Control/Alt各種, MouseButton1-3）。
+キー/マウスの文字列テーブルは `UserInput.cpp` の匿名namespace内に固定定義（A-Z, 0-9, F1-F12, 方向キー, Escape/Space/Return/Tab/Backspace, Shift/Control/Alt各種, MouseButton1-3）。F1-F12は常に生入力として通知され、エンジン既定動作はF8のMouseLock切替だけである。
 
 ## メソッド
 

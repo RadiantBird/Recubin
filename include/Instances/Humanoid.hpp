@@ -74,10 +74,11 @@ public:
     // flatForward/flatRight: カメラ由来の水平方向ベクトル, targetMoveDir: 押下キーから求めた移動方向(未押下なら長さ0)
     // leftArmRaised/rightArmRaised: User側のTool装備状態に応じた腕ポーズの上書き指示(Humanoid自体はToolを知らない)
     // forwardAxis/rightAxis: W:+1/S:-1, A:-1/D:+1の生の独立2軸(-1..1)。Truss登坂とSeat.Steer/Throttleで使う
+    // smoothing: User.CharacterSmoothing。1.0で入力方向・向きを即時適用、0.0で追従しない
     void move(const Vector3& flatForward, const Vector3& flatRight, bool isPressingMove,
               const Vector3& targetMoveDir, bool ctrlLockEnabled, Physics* physics,
               bool leftArmRaised, bool rightArmRaised,
-              float forwardAxis, float rightAxis, float deltaTime);
+              float forwardAxis, float rightAxis, float smoothing, float deltaTime);
 
     // 接地中、または水没中にJumpPowerで上方向の速度をセットする
     void jump(Physics* physics);

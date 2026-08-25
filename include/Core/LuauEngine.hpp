@@ -181,6 +181,22 @@ private:
     static int user_get_tool_closure(lua_State* L);
     static int user_get_tools_closure(lua_State* L);
     static int user_get_mouse_ray_closure(lua_State* L);
+    static int user_toggle_control_mode_closure(lua_State* L);
+    static int user_toggle_ctrl_lock_closure(lua_State* L);
+    static int user_set_ctrl_lock_enabled_closure(lua_State* L);
+    static int user_toggle_ctrl_lock_offset_closure(lua_State* L);
+    static int user_set_ctrl_lock_offset_closure(lua_State* L);
+    static int user_toggle_mouse_lock_closure(lua_State* L);
+    static int user_set_mouse_lock_enabled_closure(lua_State* L);
+    static int user_set_move_direction_closure(lua_State* L);
+    static int user_clear_move_direction_closure(lua_State* L);
+    static int user_jump_closure(lua_State* L);
+    static int user_request_workspace_switch_closure(lua_State* L);
+    static int user_request_exit_closure(lua_State* L);
+    static int user_confirm_exit_closure(lua_State* L);
+    static int user_cancel_exit_closure(lua_State* L);
+    static int user_select_tool_slot_closure(lua_State* L);
+    static int user_activate_tool_closure(lua_State* L);
 
     // Workspace methods
     static int workspace_raycast_closure(lua_State* L);

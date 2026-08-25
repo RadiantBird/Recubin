@@ -95,6 +95,13 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   移動・ジャンプ・接地判定・歩行アニメーションは`character`内のHumanoidに委譲する
 - Cameraを持つ
 - 入力を管理する
+- `MovementInputEnabled`/`CameraInputEnabled`/`HotkeyInputEnabled`/`ToolInputEnabled`は既定trueの保存対象で、
+  対応する組み込み操作のみをgateする。`User.Input`の生ポーリングとLuau Direct APIは常に利用可能。
+- F1-F12は`User.Input`へ固定名で通知し、組み込み動作はF8のMouseLock切替だけとする。MouseLockはprimary
+  viewportの中心client座標を使い、フォーカス喪失で解除する。
+- `CharacterSmoothing`は移動方向・向きの補間率（既定`0.15`）。`1`で補間なし、`0`で目標へ追従しない。
+  YAML/Luauからの設定値は`[0,1]`へクランプし、非有限値は既定値に戻す。ネットワークの入力パケットには
+  含めず、HostはリモートUser生成時にシーン権威のローカルUser値を引き継ぐ。
 - ControlMode
     - エディターではデフォルトでFree
     - ゲームランタイムではデフォルトでCharacter
@@ -183,6 +190,7 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   歩行アニメーション・一人称時の身体非表示を行う
 - `WalkSpeed`/`JumpPower`/`ClimbSpeed`を持つ(旧CharacterSettingの`moveSpeed`/`jumpPower`の統合先)
 - GLFWwindow/SystemStateには依存しない。Userが入力をベクトル/boolに変換して渡す
+- 移動方向と向きの補間率は呼び出し元Userの`CharacterSmoothing`で決まり、フレームレート補正式を適用する
 - `jump()`は接地中に加え、`LiquidCube`に水没中も許可される(水中でもジャンプ/浮上できる)
 - `Truss`に接触中は、W/Sで垂直移動、A/Dで水平ストレイフする(通常の歩行の代わり)
 - `Seat`に接触すると自動着席し、Rootを`Weld`でSeatに固定する。着席中はジャンプキーで離脱し、

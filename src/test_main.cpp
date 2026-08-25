@@ -161,16 +161,18 @@ public:
 class FrameRateTestInputBackend final : public IInputBackend {
 public:
     std::unordered_set<KeyCode> pressedKeys;
+    std::unordered_set<MouseButton> pressedMouseButtons;
     double scrollDelta = 0.0;
+    double cursorX = 0.0, cursorY = 0.0;
+    bool mouseCaptured = false;
 
     bool isKeyDown(KeyCode key) const override { return pressedKeys.contains(key); }
     bool isMouseButtonDown(MouseButton button) const override {
-        (void)button;
-        return false;
+        return pressedMouseButtons.contains(button);
     }
-    void getCursorPos(double& x, double& y) const override { x = 0.0; y = 0.0; }
-    void setCursorPos(double x, double y) override { (void)x; (void)y; }
-    void setMouseCaptured(bool captured) override { (void)captured; }
+    void getCursorPos(double& x, double& y) const override { x = cursorX; y = cursorY; }
+    void setCursorPos(double x, double y) override { cursorX = x; cursorY = y; }
+    void setMouseCaptured(bool captured) override { mouseCaptured = captured; }
     double consumeScrollDelta() override {
         const double result = scrollDelta;
         scrollDelta = 0.0;
@@ -2242,7 +2244,7 @@ int runSeatNetworkRegression() {
     auto* physics = workspace->getPhysicsEngine();
     physics->update(*workspace, 1.0f / 60.0f);
     humanoid->move(Vector3(0, 0, -1), Vector3(1, 0, 0), false, Vector3{}, false,
-                   physics, false, false, 0.0f, 0.0f, 1.0f / 60.0f);
+                   physics, false, false, 0.0f, 0.0f, 0.15f, 1.0f / 60.0f);
     expect(humanoid->isSeated() && seat->isOccupied(), "Humanoid seats and Seat occupant is set");
     humanoid->standUp(physics);
     const Vector3 velocity = physics->getLinearVelocity(*root);
@@ -5513,6 +5515,376 @@ struct HumanoidFrameRateSample {
     bool valid = false;
 };
 
+HumanoidFrameRateSample sampleHumanoidSmoothing(float smoothing) {
+    auto workspace = std::make_shared<Workspace>();
+    auto root = std::make_shared<BaseCube>(Vector3(0, 100, 0), Vector3(2, 2, 2));
+    root->Name = "CharacterSmoothingRoot";
+    auto humanoid = std::make_shared<Humanoid>();
+    humanoid->Name = "CharacterSmoothingHumanoid";
+    humanoid->setRootPart(root);
+    workspace->addChild(root);
+    workspace->addChild(humanoid);
+    workspace->initPhysics();
+
+    Physics* physics = workspace->getPhysicsEngine();
+    if (!physics) return {};
+    physics->update(*workspace, 0.0f);
+    if (!physics->hasBody(*root)) return {};
+
+    humanoid->move(Vector3(0, 0, -1), Vector3(1, 0, 0), true, Vector3(1, 0, 0), false,
+                   physics, false, false, 1.0f, 0.0f, smoothing, 1.0f / 60.0f);
+    return { humanoid->getWalkCycle(), humanoid->getCurrentMoveDir(), root->Rotation, true };
+}
+
+int runUserCharacterSmoothingRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[UserCharacterSmoothing] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    expect(std::abs(user->characterSmoothing - 0.15f) < 0.0001f,
+           "default is the previous 0.15 smoothing rate");
+
+    YAML::Node smoothing;
+    smoothing = 2.0f;
+    user->setProperty("CharacterSmoothing", smoothing);
+    expect(user->characterSmoothing == 1.0f, "YAML setter clamps values above one");
+    smoothing = -1.0f;
+    user->setProperty("CharacterSmoothing", smoothing);
+    expect(user->characterSmoothing == 0.0f, "YAML setter clamps values below zero");
+    smoothing = std::numeric_limits<float>::quiet_NaN();
+    user->setProperty("CharacterSmoothing", smoothing);
+    expect(std::abs(user->characterSmoothing - 0.15f) < 0.0001f,
+           "YAML NaN resets to the safe default");
+
+    auto system = std::make_shared<System>();
+    auto users = std::make_shared<Users>();
+    system->addChild(users);
+    user->initializeInventory();
+    users->addChild(user);
+    user->characterSmoothing = 0.75f;
+    const auto yamlPath = std::filesystem::temp_directory_path() /
+        ("recubin_user_character_smoothing_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) + ".yaml");
+    SceneLoader::saveScene(system.get(), yamlPath.string());
+    const std::string saved = FileLoader::readText(yamlPath.string());
+    expect(saved.find("CharacterSmoothing: 0.75") != std::string::npos,
+           "scene save persists CharacterSmoothing");
+    std::error_code removeError;
+    std::filesystem::remove(yamlPath, removeError);
+    expect(!removeError, "temporary save fixture is removed");
+
+    LuauEngine engine;
+    engine.setGlobalInstance("User", user);
+    auto script = std::make_shared<Script>();
+    script->Source =
+        "User.CharacterSmoothing = 2 assert(User.CharacterSmoothing == 1) "
+        "User.CharacterSmoothing = -3 assert(User.CharacterSmoothing == 0) "
+        "User.CharacterSmoothing = 0/0 assert(math.abs(User.CharacterSmoothing - 0.15) < 0.001)";
+    expect(engine.execute(*script), "Luau getter/setter clamps and handles NaN");
+
+    const auto normal = sampleHumanoidSmoothing(0.15f);
+    const auto immediate = sampleHumanoidSmoothing(1.0f);
+    const auto frozen = sampleHumanoidSmoothing(0.0f);
+    expect(normal.valid && immediate.valid && frozen.valid,
+           "Humanoid smoothing samples initialize physics bodies");
+    expect(std::abs(normal.currentMoveDir.x - 0.15f) < 0.001f,
+           "0.15 retains the former one-frame interpolation rate");
+    expect(immediate.currentMoveDir.x > 0.999f,
+           "one applies movement direction without interpolation");
+    expect(frozen.currentMoveDir.length() < 0.001f,
+           "zero does not follow the movement target");
+
+    std::cout << "[UserCharacterSmoothing] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runUserInputControlsRegression() {
+    int failures = 0;
+    auto expect = [&](bool ok, const char* message) {
+        std::cout << "[UserInputControls] " << (ok ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!ok) ++failures;
+    };
+
+    auto backend = std::make_unique<FrameRateTestInputBackend>();
+    auto* input = backend.get();
+    auto user = std::make_shared<User>(std::move(backend));
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    const std::array<KeyCode, 12> functionKeys = {
+        KeyCode::F1, KeyCode::F2, KeyCode::F3, KeyCode::F4, KeyCode::F5, KeyCode::F6,
+        KeyCode::F7, KeyCode::F8, KeyCode::F9, KeyCode::F10, KeyCode::F11, KeyCode::F12};
+    bool allFunctionKeysRaw = true;
+    for (size_t i = 0; i < functionKeys.size(); ++i) {
+        input->pressedKeys.insert(functionKeys[i]);
+        user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+        allFunctionKeysRaw = allFunctionKeysRaw && user->Input->isPressed("F" + std::to_string(i + 1));
+        input->pressedKeys.erase(functionKeys[i]);
+        user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    }
+    expect(allFunctionKeysRaw, "User.Input exposes all raw F1-F12 key states");
+
+    YAML::Node off; off = false;
+    user->setProperty("MovementInputEnabled", off);
+    user->setProperty("CameraInputEnabled", off);
+    user->setProperty("HotkeyInputEnabled", off);
+    user->setProperty("ToolInputEnabled", off);
+    expect(!user->isMovementInputEnabled() && !user->isCameraInputEnabled() &&
+           !user->isHotkeyInputEnabled() && !user->isToolInputEnabled(),
+           "YAML controls persist all input categories");
+    YAML::Node on; on = true;
+    user->setProperty("MovementInputEnabled", on);
+    user->setProperty("CameraInputEnabled", on);
+    user->setProperty("HotkeyInputEnabled", on);
+    user->setProperty("ToolInputEnabled", on);
+
+    user->setGameViewport(10, 20, 100, 60, 1.0f, Vector3(), Vector3(0, 0, -1),
+                          Vector3(1, 0, 0), Vector3(0, 1, 0), 60, 50, true);
+    expect(user->setMouseLockEnabled(true) && input->mouseCaptured,
+           "MouseLock captures through the fake backend when focused viewport is valid");
+    expect(!user->setMouseLockEnabled(false) && !input->mouseCaptured,
+           "MouseLock releases the fake backend");
+
+    input->pressedKeys.insert(KeyCode::F8);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(user->isMouseLockEnabled(), "F8 enables MouseLock only during focused gameplay input");
+    input->pressedKeys.erase(KeyCode::F8);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    input->pressedKeys.insert(KeyCode::F8);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(!user->isMouseLockEnabled(), "F8 toggles MouseLock off on its next rising edge");
+    input->pressedKeys.erase(KeyCode::F8);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+
+    input->pressedKeys.insert(KeyCode::F8);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, false, false);
+    expect(!user->isMouseLockEnabled(), "F8 is ignored outside gameplay input");
+    input->pressedKeys.erase(KeyCode::F8);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    input->pressedKeys.insert(KeyCode::F8);
+    user->processInput(nullptr, 1.0f / 60.0f, false, false, true, false);
+    expect(!user->isMouseLockEnabled(), "F8 is ignored without viewport focus");
+    input->pressedKeys.erase(KeyCode::F8);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+
+    input->pressedKeys.insert(KeyCode::F8);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, true);
+    expect(!user->isMouseLockEnabled(), "F8 is ignored while text input owns the keyboard");
+    input->pressedKeys.erase(KeyCode::F8);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    user->setProperty("CameraInputEnabled", off);
+    input->pressedKeys.insert(KeyCode::F8);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(!user->isMouseLockEnabled(), "Camera category gates the F8 builtin only");
+    input->pressedKeys.erase(KeyCode::F8);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(user->setMouseLockEnabled(true), "direct MouseLock bypasses the camera input category");
+    input->pressedKeys.insert(KeyCode::Escape);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(user->isMouseLockEnabled(), "Escape requests exit without releasing MouseLock");
+    input->pressedKeys.erase(KeyCode::Escape);
+    user->processInput(nullptr, 1.0f / 60.0f, false, false, true, false);
+    expect(!user->isMouseLockEnabled() && !input->mouseCaptured,
+           "viewport focus loss releases MouseLock capture");
+    user->setProperty("CameraInputEnabled", on);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(user->setMouseLockEnabled(true), "MouseLock can be restored after focus returns");
+    user->setGameViewport(20, 30, 120, 80, 1.0f, Vector3(), Vector3(0, 0, -1),
+                          Vector3(1, 0, 0), Vector3(0, 1, 0), 80, 70, true);
+    double anchorX = 0.0, anchorY = 0.0;
+    user->getRotationAnchor(anchorX, anchorY);
+    expect(anchorX == 80.0 && anchorY == 70.0 && input->cursorX == 80.0 && input->cursorY == 70.0,
+           "MouseLock viewport changes recenter the camera anchor without a delta");
+    const Quaternion beforeProgramRotation = user->cam.Orientation;
+    user->controlMode = User::ControlMode::Program;
+    input->cursorX = 140.0;
+    input->cursorY = 110.0;
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(input->mouseCaptured && user->cam.Orientation.w == beforeProgramRotation.w &&
+               user->cam.Orientation.x == beforeProgramRotation.x &&
+               user->cam.Orientation.y == beforeProgramRotation.y &&
+               user->cam.Orientation.z == beforeProgramRotation.z,
+           "Program MouseLock retains capture but never applies cursor rotation");
+    user->controlMode = User::ControlMode::Character;
+    user->setMouseLockEnabled(false);
+
+    user->setMoveDirection(Vector3(3, 0, 0));
+    user->clearMoveDirection();
+    user->queueJump();
+    user->requestWorkspaceSwitch();
+    expect(user->consumeWorkspaceSwitchRequest(), "direct workspace switch request bypasses categories");
+    user->requestExit();
+    expect(user->consumeExitRequest() && !user->isExitRequestPending(),
+           "unhandled exit request is consumed immediately");
+
+    auto character = std::make_shared<Model>();
+    character->Name = "InputControlsCharacter";
+    user->character = character;
+    user->initializeInventory();
+    auto tool = std::make_shared<Tool>("InputControlsTool");
+    user->addToolToSlot(tool, 0);
+    expect(user->selectToolSlot(1) && user->activateTool(),
+           "direct one-based tool selection and activation work");
+
+    auto inputRoot = std::make_shared<BaseCube>(Vector3(), Vector3(2, 2, 2));
+    auto inputHumanoid = std::make_shared<Humanoid>();
+    inputHumanoid->setRootPart(inputRoot);
+    user->humanoid = inputHumanoid;
+    user->controlMode = User::ControlMode::Character;
+    user->setProperty("MovementInputEnabled", off);
+    input->pressedKeys.insert(KeyCode::W);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(user->Input->isPressed("W") && !user->lastMovementInput.isPressingMove,
+           "Movement category gates W builtin while raw input remains available");
+    input->pressedKeys.erase(KeyCode::W);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+
+    const Quaternion beforeArrowRotation = user->cam.Orientation;
+    user->setProperty("CameraInputEnabled", off);
+    input->pressedKeys.insert(KeyCode::Left);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(user->Input->isPressed("Left") && user->cam.Orientation.w == beforeArrowRotation.w &&
+               user->cam.Orientation.x == beforeArrowRotation.x &&
+               user->cam.Orientation.y == beforeArrowRotation.y &&
+               user->cam.Orientation.z == beforeArrowRotation.z,
+           "Camera category gates arrow rotation while raw input remains available");
+    input->pressedKeys.erase(KeyCode::Left);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    user->setProperty("CameraInputEnabled", on);
+
+    user->setProperty("HotkeyInputEnabled", off);
+    input->pressedKeys.insert(KeyCode::Escape);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(user->Input->isPressed("Escape") && !user->consumeExitRequest(),
+           "Hotkey category gates Escape builtin while raw input remains available");
+    input->pressedKeys.erase(KeyCode::Escape);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    user->setProperty("HotkeyInputEnabled", on);
+
+    user->setProperty("ToolInputEnabled", off);
+    input->pressedKeys.insert(KeyCode::Num1);
+    input->pressedMouseButtons.insert(MouseButton::Left);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    const bool toolSuppressed = user->Input->isPressed("1") && user->Input->isPressed("MouseButton1") &&
+        user->currentTool == tool;
+    user->setProperty("ToolInputEnabled", on);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(toolSuppressed && user->currentTool == tool,
+           "Tool category gates Num/left-click and synchronizes held input without latent activation");
+    input->pressedKeys.erase(KeyCode::Num1);
+    input->pressedMouseButtons.erase(MouseButton::Left);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+
+    user->setMoveDirection(Vector3(3, 0, 0));
+    user->processInput(nullptr, 1.0f / 60.0f, false, false, true, false);
+    const auto scriptedMovement = user->lastMovementInput;
+    user->clearMoveDirection();
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(scriptedMovement.isPressingMove && scriptedMovement.targetMoveDir.x > 0.99f &&
+               scriptedMovement.rightAxis > 0.99f &&
+               !user->lastMovementInput.isPressingMove &&
+               user->lastMovementInput.targetMoveDir.lengthSquared() < 0.0001f,
+           "persistent world-space script movement works unfocused and clear sends zero Character input");
+    user->queueJump();
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(user->lastMovementInput.jumpRequested,
+           "direct Jump is queued and consumed by the next physics input frame");
+
+    LuauEngine engine;
+    engine.setGlobalInstance("User", user);
+    auto script = std::make_shared<Script>();
+    script->Source =
+        "User.MovementInputEnabled=false User.CameraInputEnabled=false "
+        "User.HotkeyInputEnabled=false User.ToolInputEnabled=false "
+        "assert(not User.MovementInputEnabled and not User.CameraInputEnabled and "
+        "not User.HotkeyInputEnabled and not User.ToolInputEnabled) "
+        "User.Input.Pressed:Connect(function(key) if key == 'F2' then User.MovementInputEnabled=false end end) "
+        "User.Input.Released:Connect(function(key) if key == 'F2' then User.CameraInputEnabled=false end end) "
+        "User:SetMoveDirection(Vector3.new(0,0,-1)) User:ClearMoveDirection() "
+        "assert(User:ToggleCtrlLock() == true) assert(User:SetCtrlLockOffset('Left') == 'Left')";
+    expect(engine.execute(*script), "Luau exposes category properties and direct input APIs");
+    user->setProperty("MovementInputEnabled", on);
+    user->setProperty("CameraInputEnabled", on);
+    input->pressedKeys.insert(KeyCode::F2);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    const bool pressedEdgeDelivered = !user->isMovementInputEnabled();
+    input->pressedKeys.erase(KeyCode::F2);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(pressedEdgeDelivered && !user->isCameraInputEnabled(),
+           "raw F-key Pressed and Released signals deliver exact F2 names while categories are disabled");
+
+    auto exitScript = std::make_shared<Script>();
+    exitScript->Source =
+        "User.ToolInputEnabled=true "
+        "User.ExitRequested:Connect(function() User.ToolInputEnabled=false end)";
+    expect(engine.execute(*exitScript), "Luau can subscribe to User.ExitRequested");
+    user->setProperty("HotkeyInputEnabled", on);
+    input->pressedKeys.insert(KeyCode::Escape);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    const bool firstExitDelivered = user->isExitRequestPending() && !user->isToolInputEnabled();
+    user->setProperty("ToolInputEnabled", on);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(firstExitDelivered && user->isExitRequestPending() && user->isToolInputEnabled(),
+           "Escape listener exit is pending and held Escape does not refire");
+    input->pressedKeys.erase(KeyCode::Escape);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    user->cancelExit();
+    input->pressedKeys.insert(KeyCode::Escape);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    input->pressedKeys.erase(KeyCode::Escape);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    user->confirmExit();
+    expect(!user->isExitRequestPending() && user->consumeExitRequest(),
+           "CancelExit and ConfirmExit resolve the listener-aware exit request");
+
+    const auto yamlSuffix = std::to_string(
+        std::chrono::steady_clock::now().time_since_epoch().count());
+    const auto yamlPath = std::filesystem::temp_directory_path() /
+        ("recubin_user_input_controls_" + yamlSuffix + ".yaml");
+    const auto legacyYamlPath = std::filesystem::temp_directory_path() /
+        ("recubin_user_input_controls_legacy_" + yamlSuffix + ".yaml");
+    auto persistedSystem = std::make_shared<System>();
+    auto persistedUsers = std::make_shared<Users>();
+    persistedSystem->addChild(persistedUsers);
+    persistedUsers->addChild(user);
+    user->setProperty("MovementInputEnabled", off);
+    user->setProperty("CameraInputEnabled", off);
+    user->setProperty("HotkeyInputEnabled", off);
+    user->setProperty("ToolInputEnabled", off);
+    const bool savedControls = SceneLoader::saveSceneResult(persistedSystem.get(), yamlPath.string());
+    auto loadSystem = std::make_shared<System>();
+    auto loadUser = std::make_shared<User>(std::make_unique<NullInputBackend>(), true);
+    auto loadedControls = SceneRuntime::stageSceneLoad(
+        savedControls ? yamlPath.string() : std::string{}, loadSystem, loadUser);
+    expect(savedControls && loadedControls && loadedControls.user && !loadedControls.user->isMovementInputEnabled() &&
+               !loadedControls.user->isCameraInputEnabled() && !loadedControls.user->isHotkeyInputEnabled() &&
+               !loadedControls.user->isToolInputEnabled(),
+           "SceneLoader saves and loads all input category properties");
+    {
+        std::ofstream legacy(legacyYamlPath, std::ios::binary | std::ios::trunc);
+        legacy << "Root:\n  ClassName: System\n  Children:\n    - ClassName: Users\n"
+                  "      Children:\n        - ClassName: User\n          Name: User\n";
+    }
+    auto legacySystem = std::make_shared<System>();
+    auto legacyUser = std::make_shared<User>(std::make_unique<NullInputBackend>(), true);
+    auto legacyControls = SceneRuntime::stageSceneLoad(
+        legacyYamlPath.string(), legacySystem, legacyUser);
+    expect(legacyControls && legacyControls.user && legacyControls.user->isMovementInputEnabled() &&
+               legacyControls.user->isCameraInputEnabled() && legacyControls.user->isHotkeyInputEnabled() &&
+               legacyControls.user->isToolInputEnabled(),
+           "legacy YAML without input category properties keeps true defaults");
+    std::error_code yamlError;
+    std::filesystem::remove(yamlPath, yamlError);
+    std::filesystem::remove(legacyYamlPath, yamlError);
+
+    std::cout << "[UserInputControls] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 HumanoidFrameRateSample sampleHumanoidAtFrameRate(int frameRate) {
     auto workspace = std::make_shared<Workspace>();
     auto root = std::make_shared<BaseCube>(Vector3(0, 100, 0), Vector3(2, 2, 2));
@@ -5535,7 +5907,7 @@ HumanoidFrameRateSample sampleHumanoidAtFrameRate(int frameRate) {
     const Vector3 targetMoveDir(1, 0, 0);
     for (int frame = 0; frame < frameRate; ++frame) {
         humanoid->move(flatForward, flatRight, true, targetMoveDir, false, physics,
-                       false, false, 1.0f, 0.0f, dt);
+                       false, false, 1.0f, 0.0f, 0.15f, dt);
     }
 
     return {
@@ -7313,6 +7685,11 @@ static int runSceneLoadTransactionRegression() {
         "            Speed: 0.75\n"
         "            RotationSpeed: 2.5\n"
         "            MouseRotationSpeed: 0.35\n"
+        "            CharacterSmoothing: 0.75\n"
+        "            MovementInputEnabled: false\n"
+        "            CameraInputEnabled: false\n"
+        "            HotkeyInputEnabled: false\n"
+        "            ToolInputEnabled: false\n"
         "            CameraDistance: 14.0\n"
         "            ZoomSpeed: 0.25\n"
         "            MouseZoomSpeed: 1.5\n"
@@ -7437,7 +7814,10 @@ static int runSceneLoadTransactionRegression() {
                liveSystem->BaseResolution == Vector2(1280.0f, 720.0f) &&
                liveSystem->UseNetwork &&
                liveUser->controlMode == User::ControlMode::Program &&
-               liveUser->speed == 0.75f && liveUser->cameraDistance == 14.0f,
+               liveUser->speed == 0.75f && liveUser->characterSmoothing == 0.75f &&
+               !liveUser->isMovementInputEnabled() && !liveUser->isCameraInputEnabled() &&
+               !liveUser->isHotkeyInputEnabled() && !liveUser->isToolInputEnabled() &&
+               liveUser->cameraDistance == 14.0f,
            "commit applies persisted System/User scalar values");
     expect(liveUser->Inventory && liveUser->Inventory->getChild("Hammer") &&
                liveUser->getToolInSlot(0) && liveUser->getToolInSlot(0)->Name == "Hammer",
@@ -8269,6 +8649,8 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--box3d-hull-regression", runBox3DHullRegression),
         REG("--box3d-buoyancy-regression", runBox3DBuoyancyRegression),
         REG("--frame-rate-invariance-regression", runFrameRateInvarianceRegression),
+        REG("--user-character-smoothing-regression", runUserCharacterSmoothingRegression),
+        REG("--user-input-controls-regression", runUserInputControlsRegression),
         REG("--viewport-helper-regression", runViewportHelperRegression),
         REG("--asset-path-regression", runAssetPathRegression),
         REG("--app-image-regression", runAppImageRegression),

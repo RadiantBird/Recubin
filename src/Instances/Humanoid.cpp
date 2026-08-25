@@ -290,7 +290,7 @@ void Humanoid::resolveParts(Instance* characterModel) {
 void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool isPressingMove,
                      const Vector3& targetMoveDir, bool ctrlLockEnabled, Physics* physics,
                      bool leftArmRaised, bool rightArmRaised,
-                     float forwardAxis, float rightAxis, float deltaTime) {
+                     float forwardAxis, float rightAxis, float smoothing, float deltaTime) {
     if (m_dead) return;
     auto root = getRootPart();
     if (!root || !physics || !physics->hasBody(*root)) return;
@@ -313,7 +313,9 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     }
 
     const float frameScale = std::max(deltaTime, 0.0f) * 60.0f;
-    const float smoothingAlpha = 1.0f - std::pow(1.0f - 0.15f, frameScale);
+    const float clampedSmoothing = std::isfinite(smoothing)
+        ? std::clamp(smoothing, 0.0f, 1.0f) : 0.15f;
+    const float smoothingAlpha = 1.0f - std::pow(1.0f - clampedSmoothing, frameScale);
 
     // --- 移動ベクトルの補間 ---
     currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * smoothingAlpha;
@@ -392,13 +394,13 @@ bool Humanoid::moveToward(const Vector3& target, Physics* physics, float deltaTi
     float dist = toTarget.length();
     if (dist <= arrivalRadius) {
         move(Vector3(0, 0, -1), Vector3(1, 0, 0), false, Vector3(0, 0, 0), false,
-             physics, false, false, 0.0f, 0.0f, deltaTime);
+             physics, false, false, 0.0f, 0.0f, 0.15f, deltaTime);
         return true;
     }
 
     Vector3 dir = toTarget.normalize();
     move(dir, Vector3::Cross(Vector3(0, 1, 0), dir), true, dir, false,
-         physics, false, false, 0.0f, 0.0f, deltaTime);
+         physics, false, false, 0.0f, 0.0f, 0.15f, deltaTime);
     return false;
 }
 

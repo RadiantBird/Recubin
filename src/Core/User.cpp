@@ -15,6 +15,15 @@
 
 User* User::s_instance = nullptr;
 
+namespace {
+constexpr float DEFAULT_CHARACTER_SMOOTHING = 0.15f;
+
+float sanitizeCharacterSmoothing(float value) {
+    if (!std::isfinite(value)) return DEFAULT_CHARACTER_SMOOTHING;
+    return std::clamp(value, 0.0f, 1.0f);
+}
+}
+
 User::User(std::unique_ptr<IInputBackend> input, bool isRemoteUser)
     : Instance("User"),
       m_input(std::move(input)),
@@ -35,6 +44,7 @@ User::User(std::unique_ptr<IInputBackend> input, bool isRemoteUser)
     Input->setBackend(m_input.get());
 
     CharacterAdded = std::make_shared<RCBNScriptSignal>();
+    ExitRequested = std::make_shared<RCBNScriptSignal>();
 }
 
 std::shared_ptr<User> User::createRemoteUser(uint32_t peerId) {
@@ -185,6 +195,7 @@ std::shared_ptr<Tool> User::removeToolFromSlot(int slotIndex) {
 }
 
 User::~User() {
+    resetInputRuntimeState();
     if (s_instance == this) s_instance = nullptr;
     // shared_ptr なので参照カウントが 0 になれば自動解放される
     character = nullptr;
@@ -209,31 +220,198 @@ CFrame User::getCameraCFrame() const {
     return CFrame(cpos, cam.Orientation);
 }
 
+void User::updateMouseCapture() {
+    if (!m_input) return;
+    const bool wantsCapture = isRightMouseRotating || m_externalDragActive || m_mouseLockEnabled;
+    if (wantsCapture == m_mouseCaptureApplied) return;
+    m_input->setMouseCaptured(wantsCapture);
+    m_mouseCaptureApplied = wantsCapture;
+}
+
+std::string User::toggleControlMode() {
+    controlMode = controlMode == ControlMode::Free ? ControlMode::Character : ControlMode::Free;
+    return controlMode == ControlMode::Free ? "Free" : "Character";
+}
+
+bool User::toggleCtrlLock() { return setCtrlLockEnabled(!ctrlLockEnabled); }
+bool User::setCtrlLockEnabled(bool enabled) { ctrlLockEnabled = enabled; return ctrlLockEnabled; }
+
+std::string User::toggleCtrlLockOffset() {
+    ctrlLockOffsetRight = !ctrlLockOffsetRight;
+    return ctrlLockOffsetRight ? "Right" : "Left";
+}
+
+std::string User::setCtrlLockOffset(const std::string& side) {
+    if (side == "Left") ctrlLockOffsetRight = false;
+    else if (side == "Right") ctrlLockOffsetRight = true;
+    return ctrlLockOffsetRight ? "Right" : "Left";
+}
+
+bool User::setMouseLockEnabled(bool enabled) {
+    if (enabled && (!m_lastViewportFocused || !m_gameViewportCursorCenterValid ||
+                    m_gameVpW <= 0.0f || m_gameVpH <= 0.0f))
+        return false;
+    m_mouseLockEnabled = enabled;
+    if (m_mouseLockEnabled && m_input) {
+        lastMouseX = m_gameViewportCursorCenterX;
+        lastMouseY = m_gameViewportCursorCenterY;
+        m_input->setCursorPos(lastMouseX, lastMouseY);
+    }
+    updateMouseCapture();
+    return m_mouseLockEnabled;
+}
+
+bool User::toggleMouseLock() { return setMouseLockEnabled(!m_mouseLockEnabled); }
+
+void User::setMoveDirection(const Vector3& direction) {
+    if (!std::isfinite(direction.x) || !std::isfinite(direction.y) || !std::isfinite(direction.z) ||
+        direction.lengthSquared() <= 0.0f) {
+        clearMoveDirection();
+        return;
+    }
+    m_scriptMoveDirection = direction.normalize();
+    m_hasScriptMoveDirection = true;
+}
+
+void User::clearMoveDirection() {
+    m_scriptMoveDirection = {};
+    m_hasScriptMoveDirection = false;
+}
+
+void User::queueJump() { m_jumpQueued = true; }
+void User::requestWorkspaceSwitch() { wantsSwitchWorkspace = true; }
+
+void User::requestExit() {
+    if (ExitRequested && ExitRequested->hasListeners()) {
+        if (!m_exitRequestPending) {
+            m_exitRequestPending = true;
+            ExitRequested->fire();
+        }
+    } else {
+        m_exitRequestPending = false;
+        wannaExit = true;
+    }
+}
+
+void User::confirmExit() { m_exitRequestPending = false; wannaExit = true; }
+void User::cancelExit() { m_exitRequestPending = false; }
+
+bool User::selectToolSlot(int slot) {
+    const int index = slot - 1;
+    if (!character || index < 0 || index >= static_cast<int>(Slots.size())) return false;
+    const int previous = currentSlotIndex;
+    if (currentTool) {
+        currentTool->Equipped = false;
+        character->removeChild(currentTool->Name);
+        Inventory->addChild(std::static_pointer_cast<Instance>(currentTool));
+        currentTool = nullptr;
+        currentSlotIndex = -1;
+    }
+    if (previous == index || !Slots[index]) return previous == index;
+    currentTool = Slots[index];
+    currentTool->Equipped = true;
+    Inventory->removeChild(currentTool->Name);
+    character->addChild(std::static_pointer_cast<Instance>(currentTool));
+    currentSlotIndex = index;
+    return true;
+}
+
+bool User::activateTool() {
+    if (!currentTool || !currentTool->Equipped) return false;
+    currentTool->Activated->fire();
+    return true;
+}
+
+void User::applyQueuedJump(Physics* physics) {
+    if (!m_jumpQueued) return;
+    m_jumpQueued = false;
+    if (!humanoid) return;
+    if (humanoid->isSeated()) {
+        humanoid->standUp(physics);
+        lastMovementInput.standUpRequested = true;
+    } else {
+        humanoid->jump(physics);
+        lastMovementInput.jumpRequested = true;
+    }
+}
+
+void User::resetInputRuntimeState() {
+    m_mouseLockEnabled = false;
+    isRightMouseRotating = false;
+    m_externalDragActive = false;
+    updateMouseCapture();
+    m_altLookActive = false;
+    m_altKeyWasDown = false;
+    m_lastEscapeKeyPressed = false;
+    m_lastF8KeyPressed = false;
+    m_lastPKeyPressed = false;
+    m_lastViewportFocused = false;
+    m_jumpQueued = false;
+    clearMoveDirection();
+    m_exitRequestPending = false;
+    wannaExit = false;
+    wantsSwitchWorkspace = false;
+    toolActivated = false;
+    lastFKeyPressed = false;
+    lastCtrlKeyPressed = false;
+    lastCtrlLockFKeyPressed = false;
+    lastToolKeyPressed.fill(false);
+    m_gameViewportCursorCenterValid = false;
+}
+
 // カメラ回転（マウス右ドラッグ＋矢印キー）
-bool User::processCameraRotation(bool viewportFocused, float deltaTime) {
-    if (controlMode == ControlMode::Program) return false; // Luauがカメラを直接制御するため入力は無視する
+bool User::processCameraRotation(bool viewportFocused, float deltaTime, bool builtinInputEnabled) {
+    const bool physicalAltDown = m_input->isKeyDown(KeyCode::LeftAlt) ||
+        m_input->isKeyDown(KeyCode::RightAlt);
+    if (controlMode == ControlMode::Program) {
+        // Program はカメラを回さない。右ドラッグ/Alt が残した一時捕捉だけを
+        // 解放し、MouseLock と外部ドラッグの所有分は updateMouseCapture() に任せる。
+        m_altLookActive = false;
+        m_altKeyWasDown = physicalAltDown;
+        if (isRightMouseRotating) {
+            isRightMouseRotating = false;
+            updateMouseCapture();
+        }
+        return false;
+    }
+
+    if (!builtinInputEnabled || !viewportFocused) {
+        // カテゴリを無効化した瞬間に Alt/右ドラッグによる捕捉を残さない。
+        // MouseLock は明示 API の持続状態なので、その回転入力は継続する。
+        m_altLookActive = false;
+        m_altKeyWasDown = physicalAltDown;
+        if (isRightMouseRotating && !m_mouseLockEnabled) {
+            isRightMouseRotating = false;
+            updateMouseCapture();
+        }
+    }
 
     bool rotated = false;
     const float frameScale = std::max(deltaTime, 0.0f) * 60.0f;
 
     // Alt トグル: ビューポートにフォーカスがあるとき、Alt 押下の立ち上がりで
     // フリールック(マウスを動かすだけでカメラが回る)を ON/OFF する
-    const bool altDown = viewportFocused &&
-        (m_input->isKeyDown(KeyCode::LeftAlt) || m_input->isKeyDown(KeyCode::RightAlt));
+    const bool altDown = physicalAltDown;
     if (altDown && !m_altKeyWasDown) m_altLookActive = !m_altLookActive;
     m_altKeyWasDown = altDown;
     // フォーカスを失ったらフリールックは解除（カーソルが隠れたままになるのを防ぐ）
     if (!viewportFocused) m_altLookActive = false;
 
-    const bool rightMousePressed = viewportFocused && m_input->isMouseButtonDown(MouseButton::Right);
-    const bool looking = rightMousePressed || m_altLookActive;
+    const bool rightMousePressed = builtinInputEnabled && viewportFocused && m_input->isMouseButtonDown(MouseButton::Right);
+    const bool looking = rightMousePressed || m_altLookActive || m_mouseLockEnabled;
 
     if (looking) {
         if (!isRightMouseRotating) {
             // 開始: カーソルをロック(非表示)し、アンカー位置を取得する
             isRightMouseRotating = true;
-            m_input->setMouseCaptured(true);
-            m_input->getCursorPos(lastMouseX, lastMouseY);
+            updateMouseCapture();
+            if (m_mouseLockEnabled && m_gameViewportCursorCenterValid) {
+                lastMouseX = m_gameViewportCursorCenterX;
+                lastMouseY = m_gameViewportCursorCenterY;
+                m_input->setCursorPos(lastMouseX, lastMouseY);
+            } else {
+                m_input->getCursorPos(lastMouseX, lastMouseY);
+            }
         } else {
             // ロック中(DISABLED+raw)なので画面端クランプ・加速が無く滑らかな差分が得られる。
             // アンカーからの差分で回転したのち、仮想カーソルをアンカーへ戻す。
@@ -256,12 +434,12 @@ bool User::processCameraRotation(bool viewportFocused, float deltaTime) {
     } else {
         // ドラッグ終了(ボタン解除 or フォーカス喪失): カーソルロックを解放する
         if (isRightMouseRotating) {
-            m_input->setMouseCaptured(false);
             isRightMouseRotating = false;
+            updateMouseCapture();
         }
     }
 
-    if (viewportFocused) {
+    if (builtinInputEnabled && viewportFocused) {
         const float keyboardRotation = rotationSpeed * frameScale;
         if (m_input->isKeyDown(KeyCode::Left))  { cam.Orientation = Quaternion::fromAxisAngle(Vector3(0,1,0),  keyboardRotation) * cam.Orientation; rotated = true; }
         if (m_input->isKeyDown(KeyCode::Right)) { cam.Orientation = Quaternion::fromAxisAngle(Vector3(0,1,0), -keyboardRotation) * cam.Orientation; rotated = true; }
@@ -276,7 +454,7 @@ bool User::processCameraRotation(bool viewportFocused, float deltaTime) {
 void User::beginExternalCameraDrag() {
     if (m_externalDragActive) return;
     m_externalDragActive = true;
-    m_input->setMouseCaptured(true);
+    updateMouseCapture();
     m_input->getCursorPos(lastMouseX, lastMouseY);
 }
 void User::sampleExternalCameraDrag(double& dx, double& dy) {
@@ -291,7 +469,7 @@ void User::sampleExternalCameraDrag(double& dx, double& dy) {
 void User::endExternalCameraDrag() {
     if (!m_externalDragActive) return;
     m_externalDragActive = false;
-    m_input->setMouseCaptured(false);
+    updateMouseCapture();
 }
 
 // ズーム（I/Oキー・スクロール）
@@ -320,16 +498,20 @@ void User::processZoom(bool keyboardZoomEnabled, bool mouseZoomEnabled, float de
 
 // 移動ディスパッチ（Free / Character を振り分け）
 void User::processMovement(bool viewportFocused, Physics* physics, float deltaTime) {
-    if (viewportFocused) {
+    if (viewportFocused || m_hasScriptMoveDirection) {
         if (controlMode == ControlMode::Free) {
             Vector3 moveDirection{};
 
-            if (m_input->isKeyDown(KeyCode::W)) moveDirection += forward;
-            if (m_input->isKeyDown(KeyCode::S)) moveDirection -= forward;
-            if (m_input->isKeyDown(KeyCode::A)) moveDirection -= right;
-            if (m_input->isKeyDown(KeyCode::D)) moveDirection += right;
-            if (m_input->isKeyDown(KeyCode::Q)) moveDirection -= up;
-            if (m_input->isKeyDown(KeyCode::E)) moveDirection += up;
+            if (m_hasScriptMoveDirection) {
+                moveDirection = m_scriptMoveDirection;
+            } else if (m_movementInputEnabled) {
+                if (m_input->isKeyDown(KeyCode::W)) moveDirection += forward;
+                if (m_input->isKeyDown(KeyCode::S)) moveDirection -= forward;
+                if (m_input->isKeyDown(KeyCode::A)) moveDirection -= right;
+                if (m_input->isKeyDown(KeyCode::D)) moveDirection += right;
+                if (m_input->isKeyDown(KeyCode::Q)) moveDirection -= up;
+                if (m_input->isKeyDown(KeyCode::E)) moveDirection += up;
+            }
 
             const bool isMoving = moveDirection.lengthSquared() > 0.0f;
 
@@ -416,21 +598,31 @@ void User::processCharacterMovement(Physics* physics, float deltaTime) {
     Vector3 flatForward = Vector3(forward.x, 0, forward.z).normalize();
     Vector3 flatRight   = Vector3(right.x,   0, right.z  ).normalize();
 
-    bool wDown = m_input->isKeyDown(KeyCode::W);
-    bool sDown = m_input->isKeyDown(KeyCode::S);
-    bool aDown = m_input->isKeyDown(KeyCode::A);
-    bool dDown = m_input->isKeyDown(KeyCode::D);
+    bool wDown = m_movementInputEnabled && m_input->isKeyDown(KeyCode::W);
+    bool sDown = m_movementInputEnabled && m_input->isKeyDown(KeyCode::S);
+    bool aDown = m_movementInputEnabled && m_input->isKeyDown(KeyCode::A);
+    bool dDown = m_movementInputEnabled && m_input->isKeyDown(KeyCode::D);
 
-    if (wDown) { targetMoveDir = targetMoveDir + flatForward; isPressingMove = true; }
-    if (sDown) { targetMoveDir = targetMoveDir - flatForward; isPressingMove = true; }
-    if (aDown) { targetMoveDir = targetMoveDir - flatRight;   isPressingMove = true; }
-    if (dDown) { targetMoveDir = targetMoveDir + flatRight;   isPressingMove = true; }
+    if (m_hasScriptMoveDirection) {
+        targetMoveDir = m_scriptMoveDirection;
+        isPressingMove = true;
+        wDown = sDown = aDown = dDown = false;
+    } else {
+        if (wDown) { targetMoveDir = targetMoveDir + flatForward; isPressingMove = true; }
+        if (sDown) { targetMoveDir = targetMoveDir - flatForward; isPressingMove = true; }
+        if (aDown) { targetMoveDir = targetMoveDir - flatRight;   isPressingMove = true; }
+        if (dDown) { targetMoveDir = targetMoveDir + flatRight;   isPressingMove = true; }
+    }
 
     if (isPressingMove) targetMoveDir = targetMoveDir.normalize();
 
     // Truss登坂・Seat操作用の独立した2軸(-1..1)。斜め入力でも減衰しない生の値
     float forwardAxis = (wDown ? 1.0f : 0.0f) - (sDown ? 1.0f : 0.0f);
     float rightAxis   = (dDown ? 1.0f : 0.0f) - (aDown ? 1.0f : 0.0f);
+    if (m_hasScriptMoveDirection) {
+        forwardAxis = std::clamp(Vector3::Dot(m_scriptMoveDirection, flatForward), -1.0f, 1.0f);
+        rightAxis = std::clamp(Vector3::Dot(m_scriptMoveDirection, flatRight), -1.0f, 1.0f);
+    }
 
     bool toolEquipped   = currentTool && currentTool->Equipped;
     bool leftArmRaised = false, rightArmRaised = false;
@@ -445,7 +637,7 @@ void User::processCharacterMovement(Physics* physics, float deltaTime) {
     lastMovementInput.rightAxis       = rightAxis;
 
     humanoid->move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, physics,
-                   leftArmRaised, rightArmRaised, forwardAxis, rightAxis, deltaTime);
+                   leftArmRaised, rightArmRaised, forwardAxis, rightAxis, characterSmoothing, deltaTime);
 
     // --- 装備中のツールを手の位置に追従させる ---
     if (toolEquipped) {
@@ -475,47 +667,26 @@ void User::processCharacterMovement(Physics* physics, float deltaTime) {
 
 // ホットキー（ESC / L / P / Space）
 void User::processHotkeys(Physics* physics) {
-    if (m_input->isKeyDown(KeyCode::Escape)) {
-        wannaExit = true;
-    }
+    const bool escapePressed = m_input->isKeyDown(KeyCode::Escape);
+    if (escapePressed && !m_lastEscapeKeyPressed) requestExit();
+    m_lastEscapeKeyPressed = escapePressed;
 
     // Lキー: Free/Character モード切り替え
     bool fPressed = m_input->isKeyDown(KeyCode::L);
     if (fPressed && !lastFKeyPressed && allowControlModeSwitch) {
-        if (controlMode == ControlMode::Free) {
-            controlMode = ControlMode::Character;
-            RCBN_LOG("Control Mode: Character");
-        } else {
-            controlMode = ControlMode::Free;
-            RCBN_LOG("Control Mode: Free");
-        }
+        RCBN_LOG("Control Mode: " << toggleControlMode());
     }
     lastFKeyPressed = fPressed;
 
     // Pキー: ワークスペース切り替え
-    static bool lastPPressed = false;
     bool pPressed = m_input->isKeyDown(KeyCode::P);
-    if (pPressed && !lastPPressed) wantsSwitchWorkspace = true;
-    lastPPressed = pPressed;
-
-    // Space: ジャンプ（押し続けている間は接地するたびに連続でジャンプする。
-    // 接地判定自体はHumanoid内部で行うため、ここでは押下中であれば毎フレーム要求するだけでよい）
-    bool spacePressed = m_input->isKeyDown(KeyCode::Space);
-    if (spacePressed && controlMode == ControlMode::Character && humanoid) {
-        if (humanoid->isSeated()) {
-            humanoid->standUp(physics);
-            lastMovementInput.standUpRequested = true;
-        }
-        else {
-            humanoid->jump(physics);
-            lastMovementInput.jumpRequested = true;
-        }
-    }
+    if (pPressed && !m_lastPKeyPressed) requestWorkspaceSwitch();
+    m_lastPKeyPressed = pPressed;
 
     // 左Ctrlキー: CtrlLock ON/OFFトグル
     bool ctrlKeyPressed = m_input->isKeyDown(KeyCode::LeftControl);
     if (ctrlKeyPressed && !lastCtrlKeyPressed && controlMode == ControlMode::Character) {
-        ctrlLockEnabled = !ctrlLockEnabled;
+        toggleCtrlLock();
         RCBN_LOG(ctrlLockEnabled ? "CtrlLock: ON" : "CtrlLock: OFF");
     }
     lastCtrlKeyPressed = ctrlKeyPressed;
@@ -523,7 +694,7 @@ void User::processHotkeys(Physics* physics) {
     // Fキー: CtrlLockのオフセット方向（左右）切り替え（CtrlLockのON/OFFに関わらず状態は保持される）
     bool ctrlLockFKeyPressed = m_input->isKeyDown(KeyCode::F);
     if (ctrlLockFKeyPressed && !lastCtrlLockFKeyPressed) {
-        ctrlLockOffsetRight = !ctrlLockOffsetRight;
+        toggleCtrlLockOffset();
         RCBN_LOG(ctrlLockOffsetRight ? "CtrlLock offset: Right" : "CtrlLock offset: Left");
     }
     lastCtrlLockFKeyPressed = ctrlLockFKeyPressed;
@@ -542,47 +713,19 @@ bool User::consumeWorkspaceSwitchRequest() {
 }
 
 void User::processToolkeys(bool viewportFocused, bool isGameplayInput, bool wantsTextInput) {
-    if (!isGameplayInput) return;
-    if (!character) return;
-    if (!viewportFocused || controlMode != ControlMode::Character) return;
-    if (wantsTextInput) return; // テキストボックス入力中はツール切り替えキーを無視
-
     static const KeyCode keys[] = {
         KeyCode::Num1, KeyCode::Num2, KeyCode::Num3, KeyCode::Num4, KeyCode::Num5,
         KeyCode::Num6, KeyCode::Num7, KeyCode::Num8, KeyCode::Num9, KeyCode::Num0
     };
+    const bool actionsEnabled = isGameplayInput && character && viewportFocused &&
+        controlMode == ControlMode::Character && !wantsTextInput;
 
     for (int i = 0; i < 10; i++) {
         const bool pressed = m_input->isKeyDown(keys[i]);
 
-        if (pressed && !lastToolKeyPressed[i]) {
+        if (actionsEnabled && pressed && !lastToolKeyPressed[i]) {
             RCBN_TRACE("Tool key pressed: " + std::to_string(i + 1));
-
-            // 現在装備中のツールを外す
-            int prevSlotIndex = currentSlotIndex;
-            if (currentTool) {
-                currentTool->Equipped = false;
-                // character から削除して Inventory に戻す
-                character->removeChild(currentTool->Name);
-                Inventory->addChild(std::static_pointer_cast<Instance>(currentTool));
-                RCBN_TRACE("Unequipped tool from slot " + std::to_string(currentSlotIndex + 1));
-                currentTool      = nullptr;
-                currentSlotIndex = -1;
-            }
-
-            // 同じスロットを再度押した場合は解除のみ（unequip前の番号で判定）
-            if (i == prevSlotIndex) {
-                // currentSlotIndex は既に -1 → 解除のみで完了
-            } else if (Slots[i]) {
-                // 新しいスロットを装備
-                currentTool           = Slots[i];
-                currentTool->Equipped = true;
-                // Inventory から削除して character に追加
-                Inventory->removeChild(currentTool->Name);
-                character->addChild(std::static_pointer_cast<Instance>(currentTool));
-                currentSlotIndex      = i;
-                RCBN_TRACE("Equipped tool from slot " + std::to_string(i + 1));
-            }
+            selectToolSlot(i + 1);
         }
 
         lastToolKeyPressed[i] = pressed;
@@ -592,13 +735,12 @@ void User::processToolkeys(bool viewportFocused, bool isGameplayInput, bool want
 void User::processMouse(bool isGameplayInput) {
     if (m_input->isMouseButtonDown(MouseButton::Left)) {
         if (!toolActivated && currentTool && currentTool->Equipped && isGameplayInput) {
-            RCBN_TRACE("Activated tool: " + currentTool->Name);
-            currentTool->Activated->fire();
-            // NOTE: currentTool will be nullptr if Luau removed the tool
-            toolActivated = true;
+            activateTool();
         }
+        // 抑止中の押下も同期し、有効化直後の遅延発火を防ぐ。
+        toolActivated = true;
     } else {
-        toolActivated = false;
+        toolActivated = m_input->isMouseButtonDown(MouseButton::Left);
     }
 }
 
@@ -609,6 +751,7 @@ void User::processMouse(bool isGameplayInput) {
 void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
                         bool viewportHovered, bool isGameplayInput, bool wantsTextInput) {
     if (!m_input) return;
+    m_lastViewportFocused = viewportFocused;
 
     // ジャンプ要求は毎フレームクリアし、processHotkeys()内でSpace押下時にのみセットする
     // (ネットワークレプリケーション用: このフレームでジャンプ要求があったかをlastMovementInputに残す)
@@ -618,22 +761,57 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     // User.Input: 前フレームとの差分で Pressed/Released を発火する
     if (Input) Input->poll();
 
+    // MouseLockはフォーカスを失った瞬間に解除する。Escapeでは解除しない。
+    if (!viewportFocused && m_mouseLockEnabled) setMouseLockEnabled(false);
+
+    const bool f8Pressed = m_input->isKeyDown(KeyCode::F8);
+    if (f8Pressed && !m_lastF8KeyPressed && isGameplayInput && viewportFocused &&
+        !wantsTextInput && m_cameraInputEnabled) {
+        toggleMouseLock();
+    }
+    m_lastF8KeyPressed = f8Pressed;
+
     // 死亡後の経過時間はHumanoid側で管理し、再生成だけUserが行う
     if (humanoid && humanoid->isRespawnReady()) respawnCharacter();
 
-    bool rotated = processCameraRotation(viewportFocused && !wantsTextInput, deltaTime);
-    processZoom(viewportFocused && !wantsTextInput,
-                viewportHovered && !wantsTextInput,
-                deltaTime);
+    bool rotated = processCameraRotation(viewportFocused && !wantsTextInput, deltaTime, m_cameraInputEnabled);
+    if (m_cameraInputEnabled) {
+        processZoom(viewportFocused && !wantsTextInput,
+                    viewportHovered && !wantsTextInput,
+                    deltaTime);
+    } else {
+        // 無効中もスクロールは溜めない。
+        m_input->consumeScrollDelta();
+    }
     if (humanoid) humanoid->updateFirstPersonState(cameraDistance <= firstPersonThreshold);
     // 死亡中はキャラクター移動を駆動しない（ばらしたパーツを上書きしないため）
     if (!humanoid || !humanoid->isDead()) {
         processMovement(viewportFocused && !wantsTextInput, physics, deltaTime);
     }
     if (rotated) updateVectors();
-    if (!wantsTextInput) processHotkeys(physics);
-    processToolkeys(viewportFocused, isGameplayInput, wantsTextInput);
-    processMouse(isGameplayInput && !wantsTextInput);
+    if (m_movementInputEnabled && !wantsTextInput && controlMode == ControlMode::Character &&
+        m_input->isKeyDown(KeyCode::Space)) {
+        queueJump();
+    }
+    if (m_hotkeyInputEnabled && !wantsTextInput) {
+        processHotkeys(physics);
+    } else {
+        m_lastEscapeKeyPressed = m_input->isKeyDown(KeyCode::Escape);
+        lastFKeyPressed = m_input->isKeyDown(KeyCode::L);
+        m_lastPKeyPressed = m_input->isKeyDown(KeyCode::P);
+        lastCtrlKeyPressed = m_input->isKeyDown(KeyCode::LeftControl);
+        lastCtrlLockFKeyPressed = m_input->isKeyDown(KeyCode::F);
+    }
+    if (m_toolInputEnabled) {
+        processToolkeys(viewportFocused, isGameplayInput, wantsTextInput);
+        processMouse(isGameplayInput && !wantsTextInput);
+    } else {
+        toolActivated = m_input->isMouseButtonDown(MouseButton::Left);
+        static const KeyCode keys[] = { KeyCode::Num1, KeyCode::Num2, KeyCode::Num3, KeyCode::Num4, KeyCode::Num5,
+            KeyCode::Num6, KeyCode::Num7, KeyCode::Num8, KeyCode::Num9, KeyCode::Num0 };
+        for (int i = 0; i < 10; ++i) lastToolKeyPressed[i] = m_input->isKeyDown(keys[i]);
+    }
+    applyQueuedJump(physics);
 }
 
 
@@ -905,6 +1083,11 @@ void User::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "Speed")             { speed             = value.as<float>(); return; }
     if (name == "RotationSpeed")     { rotationSpeed      = value.as<float>(); return; }
     if (name == "MouseRotationSpeed"){ mouseRotationSpeed = value.as<float>(); return; }
+    if (name == "CharacterSmoothing") { characterSmoothing = sanitizeCharacterSmoothing(value.as<float>()); return; }
+    if (name == "MovementInputEnabled") { m_movementInputEnabled = value.as<bool>(); return; }
+    if (name == "CameraInputEnabled") { m_cameraInputEnabled = value.as<bool>(); return; }
+    if (name == "HotkeyInputEnabled") { m_hotkeyInputEnabled = value.as<bool>(); return; }
+    if (name == "ToolInputEnabled") { m_toolInputEnabled = value.as<bool>(); return; }
     if (name == "CameraDistance")    { cameraDistance     = value.as<float>(); return; }
     if (name == "ZoomSpeed")         { zoomSpeed          = value.as<float>(); return; }
     if (name == "MouseZoomSpeed")    { mouseZoomSpeed     = value.as<float>(); return; }

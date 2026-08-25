@@ -32,6 +32,8 @@ public:
     float speed = 0.25f;
     float rotationSpeed = 1.0f;
     float mouseRotationSpeed = 0.15f;
+    // Humanoid::move の移動方向・向き補間率。1.0で補間なし、0.0で目標へ追従しない。
+    float characterSmoothing = 0.15f;
     float cameraDistance = 10.0f;
     float zoomSpeed = 0.1f;
     float mouseZoomSpeed = 1.0f; // キーボードより早めに
@@ -65,13 +67,38 @@ public:
     // Luau側にはキャラクター本体(character, Model)が引数として渡される。
     // respawnを跨いで古いRoot等への参照を握り続けてしまうスクリプト向けに、都度取り直す手段として使う
     std::shared_ptr<RCBNScriptSignal> CharacterAdded;
+    std::shared_ptr<RCBNScriptSignal> ExitRequested;
 
-    bool processCameraRotation(bool viewportFocused, float deltaTime);
+    bool processCameraRotation(bool viewportFocused, float deltaTime, bool builtinInputEnabled = true);
     void processZoom(bool keyboardZoomEnabled, bool mouseZoomEnabled, float deltaTime);
     void processMovement(bool viewportFocused, Physics* physics, float deltaTime);
     void processHotkeys(Physics* physics);
     void processToolkeys(bool viewportFocused, bool isGameplayInput, bool wantsTextInput);
     void processMouse(bool isGameplayInput);
+
+    std::string toggleControlMode();
+    bool toggleCtrlLock();
+    bool setCtrlLockEnabled(bool enabled);
+    std::string toggleCtrlLockOffset();
+    std::string setCtrlLockOffset(const std::string& side);
+    bool toggleMouseLock();
+    bool setMouseLockEnabled(bool enabled);
+    void setMoveDirection(const Vector3& direction);
+    void clearMoveDirection();
+    void queueJump();
+    void requestWorkspaceSwitch();
+    void requestExit();
+    void confirmExit();
+    void cancelExit();
+    bool selectToolSlot(int slot); // 1-based
+    bool activateTool();
+    bool isExitRequestPending() const { return m_exitRequestPending; }
+    bool isMouseLockEnabled() const { return m_mouseLockEnabled; }
+    bool isMovementInputEnabled() const { return m_movementInputEnabled; }
+    bool isCameraInputEnabled() const { return m_cameraInputEnabled; }
+    bool isHotkeyInputEnabled() const { return m_hotkeyInputEnabled; }
+    bool isToolInputEnabled() const { return m_toolInputEnabled; }
+    void resetInputRuntimeState();
 
     // 多分このあたりprivateにしたほうが安全だよね。Tool追加/Tool取り除き、って感じ。
     std::shared_ptr<Folder> Inventory = std::make_shared<Folder>(); // ユーザーのインベントリ（アイテムを入れるためのフォルダ）
@@ -179,7 +206,7 @@ public:
 
     // カメラ回転ドラッグ中か（右ドラッグ／Altフリールックいずれか）。
     // OSカーソルは非表示のままだが、擬似カーソルの描画位置決定のために公開する
-    bool isRotatingCamera() const { return isRightMouseRotating || m_externalDragActive; }
+    bool isRotatingCamera() const { return isRightMouseRotating || m_externalDragActive || m_mouseLockEnabled; }
     // カメラ回転ドラッグ中のアンカー位置（ウィンドウクライアント座標）
     void getRotationAnchor(double& x, double& y) const { x = lastMouseX; y = lastMouseY; }
 
@@ -203,7 +230,9 @@ public:
                          const Vector3& cameraPosition,
                          const Vector3& cameraForward,
                          const Vector3& cameraRight,
-                         const Vector3& cameraUp) {
+                         const Vector3& cameraUp,
+                         double cursorCenterX, double cursorCenterY,
+                         bool cursorCenterValid) {
         m_gameVpX = x;
         m_gameVpY = y;
         m_gameVpW = w;
@@ -213,6 +242,16 @@ public:
         m_gameCameraForward = cameraForward;
         m_gameCameraRight = cameraRight;
         m_gameCameraUp = cameraUp;
+        m_gameViewportCursorCenterX = cursorCenterX;
+        m_gameViewportCursorCenterY = cursorCenterY;
+        m_gameViewportCursorCenterValid = cursorCenterValid;
+        // ドック移動・リサイズで中心が変わっても、旧中心との差分をカメラ回転として
+        // 解釈しない。MouseLock中は新しい中心へ即座にアンカーを移す。
+        if (m_mouseLockEnabled && cursorCenterValid && m_input) {
+            lastMouseX = cursorCenterX;
+            lastMouseY = cursorCenterY;
+            m_input->setCursorPos(lastMouseX, lastMouseY);
+        }
     }
 
 private:
@@ -232,6 +271,14 @@ private:
 
     // 外部からは参照されない内部状態（フレーム間のトグル判定）
     bool lastFKeyPressed = false; // トグル判定用
+    bool m_lastEscapeKeyPressed = false;
+    bool m_lastF8KeyPressed = false;
+    bool m_lastPKeyPressed = false;
+    bool m_lastViewportFocused = false;
+    bool m_movementInputEnabled = true;
+    bool m_cameraInputEnabled = true;
+    bool m_hotkeyInputEnabled = true;
+    bool m_toolInputEnabled = true;
 
     // CtrlLock(Roblox ShiftLock相当)
     bool ctrlLockEnabled = false;
@@ -249,6 +296,18 @@ private:
     bool m_altLookActive = false;  // Alt トグルによるフリールック中か
     bool m_altKeyWasDown = false;  // Alt 押下の立ち上がり検出用
     bool m_externalDragActive = false;  // セカンダリビューポートの独立カメラがカーソルロック中か
+    bool m_mouseLockEnabled = false;
+    bool m_mouseCaptureApplied = false;
+    bool m_hasScriptMoveDirection = false;
+    Vector3 m_scriptMoveDirection{};
+    bool m_jumpQueued = false;
+    bool m_exitRequestPending = false;
+    double m_gameViewportCursorCenterX = 0.0;
+    double m_gameViewportCursorCenterY = 0.0;
+    bool m_gameViewportCursorCenterValid = false;
+
+    void updateMouseCapture();
+    void applyQueuedJump(Physics* physics);
 
     Instance* m_lastSearchRoot = nullptr; // spawnCharacter の検索起点を保持（respawn 用）
     class Workspace* m_lastSpawnWorkspace = nullptr;

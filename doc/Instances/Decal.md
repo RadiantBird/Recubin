@@ -37,3 +37,4 @@ enum Face { Front=0, Back=1, Top=2, Bottom=3, Right=4, Left=5 }
 
 - `Cube::draw()` が子の `Decal` を検索し、その `TextureID` でテクスチャをオーバーライドする
 - `LuauEngine` のバインディングで `TextureID` と `Face` を Luau スクリプトから操作可能
+- Editor で選択すると、直接親の `Cube` 上の対象 `Face` の外縁4辺を選択色で表示する。親が `Cube` 以外の Decal はこの補助表示を行わない

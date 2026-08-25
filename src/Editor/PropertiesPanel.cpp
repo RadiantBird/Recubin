@@ -76,6 +76,46 @@
 //  描画し、編集を汎用 SetPropertyCommand として記録する（Undo / dirty 対応）。
 //  → スキーマに1行足すだけでインスペクタに反映され、エディター取り残しを防ぐ。
 // ===================================================
+namespace {
+class SetUserCharacterSmoothingCommand final : public Command {
+public:
+    SetUserCharacterSmoothingCommand(std::shared_ptr<User> target, float before, float after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+
+    void execute() override { apply(m_after); }
+    void undo() override { apply(m_before); }
+
+private:
+    void apply(float value) {
+        if (!m_target) return;
+        YAML::Node node;
+        node = value;
+        m_target->setProperty("CharacterSmoothing", node);
+    }
+
+    std::shared_ptr<User> m_target;
+    float m_before;
+    float m_after;
+};
+
+class SetUserInputBoolCommand final : public Command {
+public:
+    SetUserInputBoolCommand(std::shared_ptr<User> target, std::string property, bool before, bool after)
+        : m_target(std::move(target)), m_property(std::move(property)), m_before(before), m_after(after) {}
+    void execute() override { apply(m_after); }
+    void undo() override { apply(m_before); }
+private:
+    void apply(bool value) {
+        if (!m_target) return;
+        YAML::Node node; node = value;
+        m_target->setProperty(m_property, node);
+    }
+    std::shared_ptr<User> m_target;
+    std::string m_property;
+    bool m_before, m_after;
+};
+}
+
 // ローカライズ済みラベル + ImGui ID サフィックス（"##foo"）を連結するヘルパー
 static std::string locId(Loc::LocKey key, const char* idSuffix) {
     return std::string(Loc::t(key)) + idSuffix;
@@ -1780,6 +1820,36 @@ void PropertiesPanel::onRender() {
         ImGui::DragFloat("Speed", &usr->speed, 0.01f, 0.0f, 10.0f, "%.3f");
         ImGui::DragFloat("RotationSpeed", &usr->rotationSpeed, 0.01f, 0.0f, 10.0f, "%.3f");
         ImGui::DragFloat("MouseRotationSpeed", &usr->mouseRotationSpeed, 0.01f, 0.0f, 2.0f, "%.3f");
+        auto inputCheckbox = [&](const char* label, const char* property, bool current) {
+            const bool before = current;
+            bool value = current;
+            if (ImGui::Checkbox(label, &value)) {
+                YAML::Node node; node = value;
+                usr->setProperty(property, node);
+                if (m_history) m_history->record(std::make_unique<SetUserInputBoolCommand>(
+                    usrSp, property, before, value));
+            }
+        };
+        inputCheckbox("MovementInputEnabled", "MovementInputEnabled", usr->isMovementInputEnabled());
+        inputCheckbox("CameraInputEnabled", "CameraInputEnabled", usr->isCameraInputEnabled());
+        inputCheckbox("HotkeyInputEnabled", "HotkeyInputEnabled", usr->isHotkeyInputEnabled());
+        inputCheckbox("ToolInputEnabled", "ToolInputEnabled", usr->isToolInputEnabled());
+        {
+            static float s_before;
+            const float beforeEdit = usr->characterSmoothing;
+            float value = usr->characterSmoothing;
+            if (ImGui::SliderFloat("CharacterSmoothing", &value, 0.0f, 1.0f, "%.3f")) {
+                YAML::Node node;
+                node = value;
+                usr->setProperty("CharacterSmoothing", node);
+            }
+            if (ImGui::IsItemActivated()) s_before = beforeEdit;
+            if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
+                m_history->record(std::make_unique<SetUserCharacterSmoothingCommand>(
+                    usrSp, s_before, usr->characterSmoothing));
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("1.0 applies movement direction and facing immediately; 0.0 stops following the target.");
+        }
         ImGui::DragFloat("CameraDistance", &usr->cameraDistance, 0.1f, 1.0f, 50.0f, "%.2f");
         ImGui::DragFloat("ZoomSpeed", &usr->zoomSpeed, 0.01f, 0.0f, 1.0f, "%.3f");
         ImGui::DragFloat("MouseZoomSpeed", &usr->mouseZoomSpeed, 0.1f, 0.0f, 10.0f, "%.2f");

@@ -30,6 +30,7 @@
 // 前方宣言（循環インクルード回避）
 class IEditorManager;
 class ChatService;
+class Decal;
 class GuiButton;
 class SurfaceGui;
 class ScreenGuiObject;
@@ -284,6 +285,12 @@ class Renderer {
                                     int viewportHeightPx);
 
     private:
+
+        // Decal が直接貼り付く Cube Face の4辺だけを、エディタ選択表示として描画する。
+        void drawDecalFaceHighlight(Decal* decal, const Color4& outlineColor,
+                                    float outlineThickness, const Matrix4& view,
+                                    const Matrix4& projection, const Vector3& cameraPosition,
+                                    float fovYDegrees, int viewportHeightPx);
 
         // 塗り+輪郭のハイライト描画（深度テスト無効）。1つのBaseCubeターゲットに対して呼ぶ。
         // Highlightインスタンス描画・エディタ選択ハイライトの両方から共有される

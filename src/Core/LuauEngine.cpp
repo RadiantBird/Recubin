@@ -2284,6 +2284,73 @@ int LuauEngine::user_get_mouse_ray_closure(lua_State* L) {
     return 1;
 }
 
+namespace {
+User* userFromClosure(lua_State* L) {
+    auto* ud = static_cast<std::weak_ptr<Instance>*>(lua_touserdata(L, lua_upvalueindex(1)));
+    auto self = ud ? ud->lock() : nullptr;
+    return self && self->IsA("User") ? static_cast<User*>(self.get()) : nullptr;
+}
+}
+
+int LuauEngine::user_toggle_control_mode_closure(lua_State* L) {
+    auto* user = userFromClosure(L); if (!user) { lua_pushnil(L); return 1; }
+    const std::string mode = user->toggleControlMode(); lua_pushstring(L, mode.c_str()); return 1;
+}
+int LuauEngine::user_toggle_ctrl_lock_closure(lua_State* L) {
+    auto* user = userFromClosure(L); lua_pushboolean(L, user && user->toggleCtrlLock()); return 1;
+}
+int LuauEngine::user_set_ctrl_lock_enabled_closure(lua_State* L) {
+    auto* user = userFromClosure(L); lua_pushboolean(L, user && user->setCtrlLockEnabled(lua_toboolean(L, 2) != 0)); return 1;
+}
+int LuauEngine::user_toggle_ctrl_lock_offset_closure(lua_State* L) {
+    auto* user = userFromClosure(L); if (!user) { lua_pushnil(L); return 1; }
+    const std::string side = user->toggleCtrlLockOffset(); lua_pushstring(L, side.c_str()); return 1;
+}
+int LuauEngine::user_set_ctrl_lock_offset_closure(lua_State* L) {
+    auto* user = userFromClosure(L); if (!user) { lua_pushnil(L); return 1; }
+    const std::string side = luaL_checkstring(L, 2);
+    if (side != "Left" && side != "Right") {
+        luaL_error(L, "SetCtrlLockOffset expects 'Left' or 'Right'");
+        return 0;
+    }
+    const std::string result = user->setCtrlLockOffset(side); lua_pushstring(L, result.c_str()); return 1;
+}
+int LuauEngine::user_toggle_mouse_lock_closure(lua_State* L) {
+    auto* user = userFromClosure(L); lua_pushboolean(L, user && user->toggleMouseLock()); return 1;
+}
+int LuauEngine::user_set_mouse_lock_enabled_closure(lua_State* L) {
+    auto* user = userFromClosure(L); lua_pushboolean(L, user && user->setMouseLockEnabled(lua_toboolean(L, 2) != 0)); return 1;
+}
+int LuauEngine::user_set_move_direction_closure(lua_State* L) {
+    auto* user = userFromClosure(L); if (!user) return 0;
+    auto* direction = static_cast<Vector3*>(luaL_checkudata(L, 2, RCBN_VEC3_METATABLE));
+    user->setMoveDirection(*direction); return 0;
+}
+int LuauEngine::user_clear_move_direction_closure(lua_State* L) {
+    if (auto* user = userFromClosure(L)) user->clearMoveDirection(); return 0;
+}
+int LuauEngine::user_jump_closure(lua_State* L) {
+    if (auto* user = userFromClosure(L)) user->queueJump(); return 0;
+}
+int LuauEngine::user_request_workspace_switch_closure(lua_State* L) {
+    if (auto* user = userFromClosure(L)) user->requestWorkspaceSwitch(); return 0;
+}
+int LuauEngine::user_request_exit_closure(lua_State* L) {
+    if (auto* user = userFromClosure(L)) user->requestExit(); return 0;
+}
+int LuauEngine::user_confirm_exit_closure(lua_State* L) {
+    if (auto* user = userFromClosure(L)) user->confirmExit(); return 0;
+}
+int LuauEngine::user_cancel_exit_closure(lua_State* L) {
+    if (auto* user = userFromClosure(L)) user->cancelExit(); return 0;
+}
+int LuauEngine::user_select_tool_slot_closure(lua_State* L) {
+    auto* user = userFromClosure(L); lua_pushboolean(L, user && user->selectToolSlot(static_cast<int>(luaL_checkinteger(L, 2)))); return 1;
+}
+int LuauEngine::user_activate_tool_closure(lua_State* L) {
+    auto* user = userFromClosure(L); lua_pushboolean(L, user && user->activateTool()); return 1;
+}
+
 int LuauEngine::userinput_ispressed_closure(lua_State* L) {
     auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
     auto self = ud->lock();

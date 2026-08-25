@@ -19,6 +19,7 @@
 #include <Instances/SpotLight.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/SurfaceMark.hpp>
+#include <Instances/Decal.hpp>
 #include <Instances/LiquidCube.hpp>
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Highlight.hpp>
@@ -1580,6 +1581,66 @@ void Renderer::drawTransientHighlight(BaseCube* target, const Color4& fillColor,
                           view, projection, cameraPosition, fovYDegrees, viewportHeightPx);
 }
 
+void Renderer::drawDecalFaceHighlight(Decal* decal, const Color4& outlineColor,
+                                      float outlineThickness, const Matrix4& view,
+                                      const Matrix4& projection, const Vector3& cameraPosition,
+                                      float fovYDegrees, int viewportHeightPx) {
+    if (!decal || outlineColor.a <= 0.001f || outlineThickness <= 0.001f ||
+        !m_lineShader || !m_lineVAO || !m_lineVBO) {
+        return;
+    }
+
+    const auto parent = decal->Parent.lock();
+    if (!parent || !parent->IsA("Cube")) return;
+    const int faceIndex = static_cast<int>(decal->face);
+    if (faceIndex < static_cast<int>(Face::Front) || faceIndex > static_cast<int>(Face::Left)) return;
+
+    const Vector3 faceCorners[6][4] = {
+        { {-0.5f, -0.5f, -0.5f}, { 0.5f, -0.5f, -0.5f}, { 0.5f,  0.5f, -0.5f}, {-0.5f,  0.5f, -0.5f} }, // Front
+        { { 0.5f, -0.5f,  0.5f}, {-0.5f, -0.5f,  0.5f}, {-0.5f,  0.5f,  0.5f}, { 0.5f,  0.5f,  0.5f} }, // Back
+        { {-0.5f,  0.5f,  0.5f}, { 0.5f,  0.5f,  0.5f}, { 0.5f,  0.5f, -0.5f}, {-0.5f,  0.5f, -0.5f} }, // Top
+        { {-0.5f, -0.5f, -0.5f}, { 0.5f, -0.5f, -0.5f}, { 0.5f, -0.5f,  0.5f}, {-0.5f, -0.5f,  0.5f} }, // Bottom
+        { { 0.5f, -0.5f, -0.5f}, { 0.5f, -0.5f,  0.5f}, { 0.5f,  0.5f,  0.5f}, { 0.5f,  0.5f, -0.5f} }, // Right
+        { {-0.5f, -0.5f,  0.5f}, {-0.5f, -0.5f, -0.5f}, {-0.5f,  0.5f, -0.5f}, {-0.5f,  0.5f,  0.5f} }, // Left
+    };
+
+    const BaseCube* cube = static_cast<const BaseCube*>(parent.get());
+    const CFrame worldCFrame = cube->getWorldCFrame();
+    const Vector3 size = cube->Size;
+    std::vector<float> worldSegments;
+    worldSegments.reserve(4 * 6);
+    for (int cornerIndex = 0; cornerIndex < 4; ++cornerIndex) {
+        const Vector3 localStart = faceCorners[faceIndex][cornerIndex] * size;
+        const Vector3 localEnd = faceCorners[faceIndex][(cornerIndex + 1) % 4] * size;
+        const Vector3 worldStart = worldCFrame.pointToWorld(localStart);
+        const Vector3 worldEnd = worldCFrame.pointToWorld(localEnd);
+        worldSegments.insert(worldSegments.end(), {
+            worldStart.x, worldStart.y, worldStart.z,
+            worldEnd.x, worldEnd.y, worldEnd.z,
+        });
+    }
+
+    std::vector<float> ribbonVerts;
+    buildSegmentRibbons(worldSegments, cameraPosition, fovYDegrees, viewportHeightPx,
+                        outlineThickness, ribbonVerts);
+    if (ribbonVerts.empty()) return;
+
+    glDisable(GL_DEPTH_TEST);
+    glUseProgram(m_lineShader);
+    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"), 1, GL_FALSE, view.m);
+    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
+    glUniform4f(glGetUniformLocation(m_lineShader, "lineColor"), outlineColor.r,
+                outlineColor.g, outlineColor.b, outlineColor.a);
+    glBindVertexArray(m_lineVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(ribbonVerts.size() * sizeof(float)),
+                 ribbonVerts.data(), GL_DYNAMIC_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(ribbonVerts.size() / 3));
+    glBindVertexArray(0);
+    glUseProgram(shaderProgram);
+    glEnable(GL_DEPTH_TEST);
+}
+
 void Renderer::renderInstanceHighlights(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                                          const Vector3& cameraPosition, float fovYDegrees, int viewportHeightPx) {
     std::vector<Highlight*> highlights;
@@ -2177,6 +2238,12 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         if (desc.selectionTargets) {
             for (Instance* selected : *desc.selectionTargets) {
                 if (!selected || selected == desc.primarySelection || selected->Parent.expired()) continue;
+                if (selected->IsA("Decal")) {
+                    drawDecalFaceHighlight(
+                        static_cast<Decal*>(selected), kSecondaryOutline, kSelectionOutlineThickness,
+                        view, projection, desc.cameraPosition, fovYDegrees, desc.height);
+                    continue;
+                }
                 std::vector<BaseCube*> targets;
                 collectHighlightTargets(selected, targets);
                 for (BaseCube* bc : targets) {
@@ -2189,12 +2256,18 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         }
 
         if (!desc.primarySelection->Parent.expired()) {
+            if (desc.primarySelection->IsA("Decal")) {
+                drawDecalFaceHighlight(
+                    static_cast<Decal*>(desc.primarySelection), kPrimaryOutline, kSelectionOutlineThickness,
+                    view, projection, desc.cameraPosition, fovYDegrees, desc.height);
+            } else {
             std::vector<BaseCube*> primaryTargets;
             collectHighlightTargets(desc.primarySelection, primaryTargets);
             for (BaseCube* bc : primaryTargets) {
                 drawBaseCubeHighlight(
                     bc, kTransparentFill, kPrimaryOutline, kSelectionOutlineThickness,
                     view, projection, desc.cameraPosition, fovYDegrees, desc.height);
+            }
             }
         }
     }

@@ -838,6 +838,11 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "Speed"             << YAML::Value << usr->speed;
             out << YAML::Key << "RotationSpeed"     << YAML::Value << usr->rotationSpeed;
             out << YAML::Key << "MouseRotationSpeed" << YAML::Value << usr->mouseRotationSpeed;
+            out << YAML::Key << "CharacterSmoothing" << YAML::Value << usr->characterSmoothing;
+            out << YAML::Key << "MovementInputEnabled" << YAML::Value << usr->isMovementInputEnabled();
+            out << YAML::Key << "CameraInputEnabled" << YAML::Value << usr->isCameraInputEnabled();
+            out << YAML::Key << "HotkeyInputEnabled" << YAML::Value << usr->isHotkeyInputEnabled();
+            out << YAML::Key << "ToolInputEnabled" << YAML::Value << usr->isToolInputEnabled();
             out << YAML::Key << "CameraDistance"    << YAML::Value << usr->cameraDistance;
             out << YAML::Key << "ZoomSpeed"         << YAML::Value << usr->zoomSpeed;
             out << YAML::Key << "MouseZoomSpeed"    << YAML::Value << usr->mouseZoomSpeed;

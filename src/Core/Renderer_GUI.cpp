@@ -987,12 +987,23 @@ GameGuiRenderContext Renderer::makeGameGuiRenderContext(
 void Renderer::renderGameGui(
     Workspace& ws, User* user, const GameGuiRenderContext& context) {
     if (user && context.recordUserViewport) {
+        // GLFWのカーソル座標はメインウィンドウclient座標。ImGui multi-viewport時の
+        // contextはデスクトップ座標なので、main viewportの原点を引いて明示変換する。
+        const ImVec2 mainViewportPos = ImGui::GetMainViewport()->Pos;
+        const bool viewportsEnabled =
+            (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0;
+        const double cursorCenterX = static_cast<double>(context.viewportX + context.viewportWidth * 0.5f
+            - (viewportsEnabled ? mainViewportPos.x : 0.0f));
+        const double cursorCenterY = static_cast<double>(context.viewportY + context.viewportHeight * 0.5f
+            - (viewportsEnabled ? mainViewportPos.y : 0.0f));
+        const bool cursorCenterValid = context.viewportWidth > 0.0f && context.viewportHeight > 0.0f;
         user->setGameViewport(
             context.viewportX, context.viewportY,
             context.viewportWidth, context.viewportHeight,
             context.projectionAspect,
             context.cameraPosition, context.cameraForward,
-            context.cameraRight, context.cameraUp);
+            context.cameraRight, context.cameraUp,
+            cursorCenterX, cursorCenterY, cursorCenterValid);
     }
     renderScreenGui(
         ws, context.viewportX, context.viewportY,

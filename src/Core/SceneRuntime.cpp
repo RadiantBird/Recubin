@@ -42,6 +42,16 @@ void copyUserScalars(const User& source, User& destination) {
     destination.speed = source.speed;
     destination.rotationSpeed = source.rotationSpeed;
     destination.mouseRotationSpeed = source.mouseRotationSpeed;
+    destination.characterSmoothing = source.characterSmoothing;
+    YAML::Node inputEnabled;
+    inputEnabled = source.isMovementInputEnabled();
+    destination.setProperty("MovementInputEnabled", inputEnabled);
+    inputEnabled = source.isCameraInputEnabled();
+    destination.setProperty("CameraInputEnabled", inputEnabled);
+    inputEnabled = source.isHotkeyInputEnabled();
+    destination.setProperty("HotkeyInputEnabled", inputEnabled);
+    inputEnabled = source.isToolInputEnabled();
+    destination.setProperty("ToolInputEnabled", inputEnabled);
     destination.cameraDistance = source.cameraDistance;
     destination.zoomSpeed = source.zoomSpeed;
     destination.mouseZoomSpeed = source.mouseZoomSpeed;
@@ -51,7 +61,9 @@ void disconnectSceneSignals(const std::shared_ptr<System>& system,
                             const std::shared_ptr<User>& user) {
     if (system && system->Heartbeat) system->Heartbeat->disconnectAll();
     if (!user) return;
+    user->resetInputRuntimeState();
     if (user->CharacterAdded) user->CharacterAdded->disconnectAll();
+    if (user->ExitRequested) user->ExitRequested->disconnectAll();
     if (user->Input) {
         if (user->Input->Pressed) user->Input->Pressed->disconnectAll();
         if (user->Input->Released) user->Input->Released->disconnectAll();

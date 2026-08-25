@@ -55,7 +55,8 @@ main.cpp ループ
    - Workspace を再帰走査し、`Cube`/`Cylinder`/`TriangularPrism`/`Sphere`（すべて `BaseCube` 派生）を `Color.a > 0` のときだけ `draw()`
    - 各インスタンスの `Unlit`/`UseTriplanar`/`TextureScale` をユニフォームに反映
 8. **選択ハイライト**（`desc.renderHighlights` かつエディタの選択中インスタンスがある場合）
-   - 102% スケールでワイヤーフレーム（`glPolygonMode(GL_LINE)`）の黄色アウトラインを上書き描画
+   - BaseCube は102% スケールでワイヤーフレーム（`glPolygonMode(GL_LINE)`）の黄色アウトラインを上書き描画
+   - 直接親が `Cube` の Decal は、親Cube全体ではなく対象Faceの外縁4辺を固定ピクセル幅リボンで描画する
 9. **制約ビジュアライズ**（`desc.renderConstraints`）: `renderConstraints()` で Rope（二次ベジェ近似の垂れ下がり線）/ Rod（直線）を `m_lineShader` で描画
 10. **Terrain 描画**: `renderTerrain()` で `TerrainStreamer::getChunks()` の全チャンクメッシュを描画（頂点カラー使用、ライティングはメインシェーダーと共通）
 11. **雲パス**: `renderClouds()` で Workspace 直下から `Weather` を探し（`Enabled` かつ見つかった場合のみ）、カメラ直上に毎フレーム再配置する巨大水平クアッド（`aPos`(vec3)+`aUV`(vec2)）に、起動時に一度だけ `PerlinNoise::fbm2` で焼いた 512×512 グレースケールテクスチャ（`m_cloudNoiseTex`、実行時の再焼き込みはしない）を `Weather::WindDirection` 由来の UV オフセットでスクロールサンプルし、`CloudCover`/`CloudDensity` でしきい値・不透明度を計算する専用シェーダー `m_cloudShader` で描画する。`glDepthMask(GL_FALSE)` で自己遮蔽を避けつつ深度テストは有効のまま（地形などには正しく隠れる）

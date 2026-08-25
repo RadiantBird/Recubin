@@ -641,17 +641,45 @@ void LuauEngine::InitDispatchTable_Misc() {
     // User.CharacterAdded: 新しいキャラクター(PlayerCharacter)がspawnされるたび発火(初回spawn+全respawn)。
     // Luau側にcharacter(Model)を引数で渡す
     DispatchTable["User"]["CharacterAdded"] = getter_signal<User, &User::CharacterAdded>();
+    DispatchTable["User"]["ExitRequested"] = getter_signal<User, &User::ExitRequested>();
     DispatchTable["User"]["AddTool"]    = getter_closure(user_add_tool_closure,    "AddTool");
     DispatchTable["User"]["RemoveTool"] = getter_closure(user_remove_tool_closure, "RemoveTool");
     DispatchTable["User"]["GetTool"]    = getter_closure(user_get_tool_closure,    "GetTool");
     DispatchTable["User"]["GetTools"]   = getter_closure(user_get_tools_closure,   "GetTools");
     DispatchTable["User"]["GetMouseRay"] = getter_closure(user_get_mouse_ray_closure, "GetMouseRay");
+    DispatchTable["User"]["ToggleControlMode"] = getter_closure(user_toggle_control_mode_closure, "ToggleControlMode");
+    DispatchTable["User"]["ToggleCtrlLock"] = getter_closure(user_toggle_ctrl_lock_closure, "ToggleCtrlLock");
+    DispatchTable["User"]["SetCtrlLockEnabled"] = getter_closure(user_set_ctrl_lock_enabled_closure, "SetCtrlLockEnabled");
+    DispatchTable["User"]["ToggleCtrlLockOffset"] = getter_closure(user_toggle_ctrl_lock_offset_closure, "ToggleCtrlLockOffset");
+    DispatchTable["User"]["SetCtrlLockOffset"] = getter_closure(user_set_ctrl_lock_offset_closure, "SetCtrlLockOffset");
+    DispatchTable["User"]["ToggleMouseLock"] = getter_closure(user_toggle_mouse_lock_closure, "ToggleMouseLock");
+    DispatchTable["User"]["SetMouseLockEnabled"] = getter_closure(user_set_mouse_lock_enabled_closure, "SetMouseLockEnabled");
+    DispatchTable["User"]["SetMoveDirection"] = getter_closure(user_set_move_direction_closure, "SetMoveDirection");
+    DispatchTable["User"]["ClearMoveDirection"] = getter_closure(user_clear_move_direction_closure, "ClearMoveDirection");
+    DispatchTable["User"]["Jump"] = getter_closure(user_jump_closure, "Jump");
+    DispatchTable["User"]["RequestWorkspaceSwitch"] = getter_closure(user_request_workspace_switch_closure, "RequestWorkspaceSwitch");
+    DispatchTable["User"]["RequestExit"] = getter_closure(user_request_exit_closure, "RequestExit");
+    DispatchTable["User"]["ConfirmExit"] = getter_closure(user_confirm_exit_closure, "ConfirmExit");
+    DispatchTable["User"]["CancelExit"] = getter_closure(user_cancel_exit_closure, "CancelExit");
+    DispatchTable["User"]["SelectToolSlot"] = getter_closure(user_select_tool_slot_closure, "SelectToolSlot");
+    DispatchTable["User"]["ActivateTool"] = getter_closure(user_activate_tool_closure, "ActivateTool");
 
     // User.PeerId (読み取り専用): ネットワークPeerId。0=ローカル/未接続。
     // リモートUser(System.Users配下のUser_<id>)はReplicationManagerが生成時に設定する
     DispatchTable["User"]["PeerId"] = [](lua_State* L, Instance* obj) {
         lua_pushnumber(L, static_cast<double>(static_cast<User*>(obj)->peerId));
         return 1;
+    };
+    DispatchTable["User"]["CharacterSmoothing"] = [](lua_State* L, Instance* obj) {
+        lua_pushnumber(L, static_cast<User*>(obj)->characterSmoothing);
+        return 1;
+    };
+    DispatchTable["User"]["MovementInputEnabled"] = [](lua_State* L, Instance* obj) { lua_pushboolean(L, static_cast<User*>(obj)->isMovementInputEnabled()); return 1; };
+    DispatchTable["User"]["CameraInputEnabled"] = [](lua_State* L, Instance* obj) { lua_pushboolean(L, static_cast<User*>(obj)->isCameraInputEnabled()); return 1; };
+    DispatchTable["User"]["HotkeyInputEnabled"] = [](lua_State* L, Instance* obj) { lua_pushboolean(L, static_cast<User*>(obj)->isHotkeyInputEnabled()); return 1; };
+    DispatchTable["User"]["ToolInputEnabled"] = [](lua_State* L, Instance* obj) { lua_pushboolean(L, static_cast<User*>(obj)->isToolInputEnabled()); return 1; };
+    DispatchTable["User"]["ExitRequestPending"] = [](lua_State* L, Instance* obj) {
+        lua_pushboolean(L, static_cast<User*>(obj)->isExitRequestPending()); return 1;
     };
 
     // User.ControlMode ("Free"/"Character"/"Program")
@@ -977,6 +1005,16 @@ void LuauEngine::InitSetterTable_Misc() {
         else                     u->controlMode = User::ControlMode::Character;
         return 0;
     };
+    SetterTable["User"]["CharacterSmoothing"] = [](lua_State* L, Instance* obj) {
+        YAML::Node value;
+        value = static_cast<float>(luaL_checknumber(L, 3));
+        static_cast<User*>(obj)->setProperty("CharacterSmoothing", value);
+        return 0;
+    };
+    SetterTable["User"]["MovementInputEnabled"] = [](lua_State* L, Instance* obj) { YAML::Node value; value = lua_toboolean(L, 3) != 0; obj->setProperty("MovementInputEnabled", value); return 0; };
+    SetterTable["User"]["CameraInputEnabled"] = [](lua_State* L, Instance* obj) { YAML::Node value; value = lua_toboolean(L, 3) != 0; obj->setProperty("CameraInputEnabled", value); return 0; };
+    SetterTable["User"]["HotkeyInputEnabled"] = [](lua_State* L, Instance* obj) { YAML::Node value; value = lua_toboolean(L, 3) != 0; obj->setProperty("HotkeyInputEnabled", value); return 0; };
+    SetterTable["User"]["ToolInputEnabled"] = [](lua_State* L, Instance* obj) { YAML::Node value; value = lua_toboolean(L, 3) != 0; obj->setProperty("ToolInputEnabled", value); return 0; };
     // User.CameraCFrame — ControlMode::Program 中にLuauからカメラを直接制御する
     SetterTable["User"]["CameraCFrame"] = [](lua_State* L, Instance* obj) {
         CFrame* cf = (CFrame*)luaL_checkudata(L, 3, LuauEngine::RCBN_CFRAME_METATABLE);

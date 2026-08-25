@@ -55,6 +55,18 @@ static int toGlfwKey(KeyCode key) {
         case KeyCode::RightControl: return GLFW_KEY_RIGHT_CONTROL;
         case KeyCode::LeftAlt:      return GLFW_KEY_LEFT_ALT;
         case KeyCode::RightAlt:     return GLFW_KEY_RIGHT_ALT;
+        case KeyCode::F1: return GLFW_KEY_F1;
+        case KeyCode::F2: return GLFW_KEY_F2;
+        case KeyCode::F3: return GLFW_KEY_F3;
+        case KeyCode::F4: return GLFW_KEY_F4;
+        case KeyCode::F5: return GLFW_KEY_F5;
+        case KeyCode::F6: return GLFW_KEY_F6;
+        case KeyCode::F7: return GLFW_KEY_F7;
+        case KeyCode::F8: return GLFW_KEY_F8;
+        case KeyCode::F9: return GLFW_KEY_F9;
+        case KeyCode::F10: return GLFW_KEY_F10;
+        case KeyCode::F11: return GLFW_KEY_F11;
+        case KeyCode::F12: return GLFW_KEY_F12;
         default: return GLFW_KEY_UNKNOWN;
     }
 }

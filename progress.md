@@ -268,3 +268,14 @@
   headless UserがInventoryを先に生成してシーンInventoryをInventory1へrenameしていたため、ロード済みInventoryを
   採用し不足時のみ補完するよう変更した。自動sceneの欠落Prox/FallingSafe bytecodeと空Scriptは同梱source/無効fixtureへ置換し、
   欠落警告と常駐timeoutを解消。最終`run_regression.py Release`は42 x PhysX/Box3D、performance、GUI、9 scenes 228/0でexit 0。
+
+## 2026-08-25: User入力制御・F1-F12・MouseLock
+
+- Userへ保存対象の入力カテゴリ、F1-F12 raw input、Direct API、script移動、listener-aware ExitRequested、
+  primary viewport中心を使うMouseLockを実装した。
+- 検証: ReleaseのRecubin／RecubinEngine／RecubinTest 3ターゲットbuild成功。
+  `--user-input-controls-regression`は32 assertions PASS。
+  `--frame-rate-invariance-regression`、`--scene-load-transaction-regression`、
+  `--network-core-regression`はPASS。
+  `py run_regression.py Release`は45 dedicated regressionsと9 scenesで234 passed / 0 failed、Regression OK。
+- 実GLFW/ImGuiでのviewport中心座標の視覚smokeは未実施。

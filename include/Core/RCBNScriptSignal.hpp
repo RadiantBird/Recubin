@@ -25,6 +25,7 @@ public:
     int  connect(lua_State* L, int luaRef, bool once, std::string sourceLabel = "Unknown signal listener");
     void disconnect(int id);
     void disconnectAll();
+    bool hasListeners() const { return !m_listeners.empty(); }
     void fire(lua_State* L, std::function<int(lua_State*)> pushArgs = nullptr);
     void fire(std::function<int(lua_State*)> pushArgs = nullptr);
 };

@@ -535,6 +535,7 @@ void ReplicationManager::spawnRemoteAvatar(PeerId id) {
     }
 
     auto identity = User::createRemoteUser(id);
+    identity->characterSmoothing = m_user ? m_user->characterSmoothing : 0.15f;
     identity->character = model;
     model->lockRuntimeName();
     users->addChild(identity);
@@ -679,7 +680,8 @@ void ReplicationManager::reconcileLocalPose() {
         if (entry.input.jumpRequested) m_predictionHumanoid->jump(m_predictionPhysics.get());
         m_predictionHumanoid->move(entry.input.flatForward, entry.input.flatRight, entry.input.isPressingMove,
                                     entry.input.targetMoveDir, entry.input.ctrlLockEnabled, m_predictionPhysics.get(),
-                                    false, false, entry.input.forwardAxis, entry.input.rightAxis, entry.dt);
+                                    false, false, entry.input.forwardAxis, entry.input.rightAxis,
+                                    m_user ? m_user->characterSmoothing : 0.15f, entry.dt);
         m_predictionPhysics->stepOnce(entry.dt);
         m_predictionPhysics->syncAllCubes();
     }
@@ -744,7 +746,8 @@ void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
         if (in.standUpRequested) avatar.humanoid->standUp(physics);
         if (in.jumpRequested) avatar.humanoid->jump(physics);
         avatar.humanoid->move(in.flatForward, in.flatRight, in.isPressingMove, in.targetMoveDir,
-                               in.ctrlLockEnabled, physics, false, false, in.forwardAxis, in.rightAxis, dt);
+                               in.ctrlLockEnabled, physics, false, false, in.forwardAxis, in.rightAxis,
+                               avatar.identity ? avatar.identity->characterSmoothing : 0.15f, dt);
 
         m_latestPoses[id] = root->getWorldCFrame();
         Vector3 vel = physics->getLinearVelocity(*root);
