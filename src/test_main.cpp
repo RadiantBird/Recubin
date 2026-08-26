@@ -8773,6 +8773,55 @@ int runAudioServiceInitializationRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runAudioServiceRegistrationRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* name) {
+        std::cout << "[AudioServiceRegistration] "
+                  << (condition ? "PASS" : "FAIL") << ": " << name << "\n";
+        if (!condition) ++failures;
+    };
+
+    AudioService* const previousInstance = AudioService::instance;
+    AudioService::instance = nullptr;
+    AudioService service;
+    AudioService::instance = &service;
+    auto workspace = std::make_shared<Workspace>();
+    auto firstModel = std::make_shared<Model>(Vector3());
+    auto secondModel = std::make_shared<Model>(Vector3());
+    firstModel->Name = "FirstModel";
+    secondModel->Name = "SecondModel";
+    auto sound = std::make_shared<Sound>(service);
+    workspace->addChild(firstModel);
+    workspace->addChild(secondModel);
+    firstModel->addChild(sound);
+    expect(service.registeredSoundCount() == 1,
+           "未初期化AudioServiceでもWorkspace内Soundを登録する");
+    secondModel->addChild(sound);
+    expect(service.registeredSoundCount() == 1,
+           "同一SoundのWorkspace内reparentで登録数が1のままになる");
+    sound->setParent(nullptr);
+    expect(service.registeredSoundCount() == 0,
+           "Workspace外detachでSound登録が解除される");
+
+    {
+        auto transient = std::make_shared<Sound>(service);
+        service.addSound(transient);
+        transient.reset();
+        auto retained = std::make_shared<Sound>(service);
+        service.addSound(retained);
+        expect(service.registeredSoundCount() == 1,
+               "次のSound登録時にexpired weak参照を掃除する");
+        service.removeSound(retained);
+        expect(service.registeredSoundCount() == 0,
+               "Sound削除時にexpired weak参照も掃除する");
+    }
+
+    AudioService::instance = previousInstance;
+    std::cout << "[AudioServiceRegistration] "
+              << (failures == 0 ? "PASS" : "FAIL") << "\n";
+    return failures == 0 ? 0 : 1;
+}
+
 int runYamlErrorRegression() {
     int failures = 0;
     std::error_code error;
@@ -8818,6 +8867,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
 #define REG(name, function) {name, [](int, char**) { return dedicatedReturn(function()); }, false}
         REG("--sound-stretch-regression", runSoundStretchRegression),
         REG("--audio-service-initialization-regression", runAudioServiceInitializationRegression),
+        REG("--audio-service-registration-regression", runAudioServiceRegistrationRegression),
         REG("--yaml-error-regression", runYamlErrorRegression),
         REG("--nat-codec-regression", runNatCodecRegression),
         REG("--animation-clip-regression", runAnimationClipRegression),

@@ -237,7 +237,11 @@ StagedSceneLoad stageSceneLoad(const std::string& scenePath,
     context.registerMergeInstance("System", staged.system);
     context.registerMergeInstance("User", staged.user);
     const auto result = SceneLoader::loadSceneResult(scenePath, context);
-    staged.metadata = result.metadata;
+    staged.metadata.version = result.metadata.version;
+    staged.metadata.characterAnimationBindingsVersion = result.metadata.characterAnimationBindingsVersion;
+    staged.metadata.legacyDefaultR6AnimationDecision = result.metadata.legacyDefaultR6AnimationDecision;
+    staged.metadata.legacyWalkContentPath = result.metadata.legacyWalkContentPath;
+    staged.metadata.applicationIdGenerated = result.metadata.applicationIdGenerated;
     staged.status = result.status;
     staged.message = result.message;
     if (result && result.root != staged.system && result.root != staged.user &&
@@ -254,7 +258,11 @@ Bound commitAndBind(StagedSceneLoad&& staged,
                     GLFWwindow* window) {
     if (!staged || !system || !user) {
         Bound failed;
-        failed.metadata = staged.metadata;
+        failed.metadata.version = staged.metadata.version;
+        failed.metadata.characterAnimationBindingsVersion = staged.metadata.characterAnimationBindingsVersion;
+        failed.metadata.legacyDefaultR6AnimationDecision = staged.metadata.legacyDefaultR6AnimationDecision;
+        failed.metadata.legacyWalkContentPath = staged.metadata.legacyWalkContentPath;
+        failed.metadata.applicationIdGenerated = staged.metadata.applicationIdGenerated;
         failed.scenePath = staged.scenePath;
         failed.loadStatus = staged.status == SceneLoader::LoadStatus::Success
             ? SceneLoader::LoadStatus::YamlError : staged.status;

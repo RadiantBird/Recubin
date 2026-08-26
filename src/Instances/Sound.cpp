@@ -279,11 +279,14 @@ void Sound::resetTimeStretchProcessing() {
 }
 
 void Sound::onAncestorChanged() {
-    if (AudioService::instance && findFirstAncestorWorkspace()) {
-        AudioService::instance->addSound(std::static_pointer_cast<Sound>(shared_from_this()));
+    if (findFirstAncestorWorkspace()) {
+        if (AudioService::instance == m_audioService)
+            m_audioService->addSound(std::static_pointer_cast<Sound>(shared_from_this()));
     }
     else {
         stop(); // 削除されたのと同じなので、再生を停止する
+        if (AudioService::instance == m_audioService)
+            m_audioService->removeSound(std::static_pointer_cast<Sound>(shared_from_this()));
     }
     Spatial::onAncestorChanged();
 }

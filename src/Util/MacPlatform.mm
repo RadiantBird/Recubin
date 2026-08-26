@@ -2,6 +2,7 @@
 
 #include <Util/MacPlatform.hpp>
 #import <Cocoa/Cocoa.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <dispatch/dispatch.h>
 #include <dlfcn.h>
 #include <cerrno>
@@ -87,8 +88,17 @@ void configureFileTypes(NSSavePanel* panel, const std::vector<FileFilter>& filte
     bool unrestricted = false;
     NSMutableArray<NSString*>* extensions = allowedExtensions(filters, unrestricted);
     if (!unrestricted && extensions.count > 0) {
-        panel.allowedFileTypes = extensions;
-        panel.allowsOtherFileTypes = NO;
+        NSMutableArray<UTType*>* contentTypes = [NSMutableArray array];
+        for (NSString* extension in extensions) {
+            UTType* contentType = [UTType typeWithFilenameExtension:extension];
+            if (contentType && ![contentTypes containsObject:contentType]) {
+                [contentTypes addObject:contentType];
+            }
+        }
+        if (contentTypes.count > 0) {
+            panel.allowedContentTypes = contentTypes;
+            panel.allowsOtherFileTypes = NO;
+        }
     }
 }
 

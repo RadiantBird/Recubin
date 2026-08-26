@@ -252,6 +252,7 @@ else()
         ${RECUBIN_GLEW_STATIC_LIBRARY}
         OpenGL::GL
         "-framework Cocoa"
+        "-framework UniformTypeIdentifiers"
         "-framework IOKit"
         "-framework CoreFoundation"
         "-framework CoreVideo"
