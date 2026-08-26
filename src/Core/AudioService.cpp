@@ -51,13 +51,28 @@ void AudioService::setBGMVolume(float volume) { if (m_groupBGMInitialized) ma_so
 void AudioService::setSFXVolume(float volume) { if (m_groupSFXInitialized) ma_sound_group_set_volume(&groupSFX, volume); }
 
 void AudioService::addSound(const std::shared_ptr<Sound>& sound) {
+    if (!sound) return;
+    sounds.erase(std::remove_if(sounds.begin(), sounds.end(), [&](const std::weak_ptr<Sound>& w) {
+        return w.expired();
+    }), sounds.end());
+    const auto alreadyRegistered = std::find_if(sounds.begin(), sounds.end(), [&](const std::weak_ptr<Sound>& w) {
+        return w.lock() == sound;
+    });
+    if (alreadyRegistered != sounds.end()) return;
     sounds.push_back(std::weak_ptr<Sound>(sound));
 }
 
 void AudioService::removeSound(const std::shared_ptr<Sound>& sound) {
     sounds.erase(std::remove_if(sounds.begin(), sounds.end(), [&](const std::weak_ptr<Sound>& w) {
-        return w.lock() == sound;
+        return w.expired() || w.lock() == sound;
     }), sounds.end());
+}
+
+std::size_t AudioService::registeredSoundCount() const {
+    sounds.erase(std::remove_if(sounds.begin(), sounds.end(), [](const std::weak_ptr<Sound>& w) {
+        return w.expired();
+    }), sounds.end());
+    return sounds.size();
 }
 
 void AudioService::playAutoPlaySounds() {

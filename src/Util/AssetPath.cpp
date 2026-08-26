@@ -11,9 +11,12 @@ std::string normalize(std::string_view path) {
 }
 
 std::filesystem::path fromStored(std::string_view path) {
-    // Scene は UTF-8 で保存する。Windows の path(string) はロケール依存なので、
-    // 日本語などを含む ContentPath を正しく wide path に変換できる u8path を使う。
-    return std::filesystem::u8path(normalize(path));
+    // Scene は UTF-8 で保存する。UTF-8バイト列をu8stringとしてpathへ渡し、
+    // Windowsでも日本語などを含むContentPathを正しく扱う。
+    const std::string normalized = normalize(path);
+    const std::u8string utf8(
+        reinterpret_cast<const char8_t*>(normalized.data()), normalized.size());
+    return std::filesystem::path(utf8);
 }
 
 std::string toStored(const std::filesystem::path& path) {

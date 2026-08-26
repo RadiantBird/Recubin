@@ -8,7 +8,7 @@ class Sound; // 前方宣言
 
 class AudioService : public Instance {
 private:
-    std::vector<std::weak_ptr<Sound>> sounds;
+    mutable std::vector<std::weak_ptr<Sound>> sounds;
 public:
     struct InitializationOps {
         ma_result (*engineInit)(const ma_engine_config*, ma_engine*);
@@ -37,6 +37,7 @@ public:
     void setSFXVolume(float volume);
     void addSound(const std::shared_ptr<Sound>& sound);
     void removeSound(const std::shared_ptr<Sound>& sound);
+    std::size_t registeredSoundCount() const;
     void updateSounds(const Vector3& listenerPos, const Vector3& listenerRight);
     void playAutoPlaySounds();
     void stopAllSounds();

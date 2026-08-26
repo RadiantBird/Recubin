@@ -925,6 +925,10 @@ void SceneLoader::saveScene(Instance* root, const std::string& filePath) {
     saveSceneResult(root, filePath);
 }
 
+bool SceneLoader::saveSceneResult(Instance* root, const std::string& filePath) {
+    return saveSceneResult(root, filePath, SceneDocumentMetadata{});
+}
+
 bool SceneLoader::saveSceneResult(Instance* root, const std::string& filePath,
                                   const SceneDocumentMetadata& metadata) {
     if (!root) return false;

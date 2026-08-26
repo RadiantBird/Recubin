@@ -54,8 +54,9 @@ public:
                                       const LoadContext& context);
 
     static void saveScene(Instance* root, const std::string& filePath);
+    static bool saveSceneResult(Instance* root, const std::string& filePath);
     static bool saveSceneResult(Instance* root, const std::string& filePath,
-                                const SceneDocumentMetadata& metadata = {});
+                                const SceneDocumentMetadata& metadata);
     static void resolveConstraintRefs(Instance* root);
 
     /**

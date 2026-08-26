@@ -1,3 +1,6 @@
+recubin:
+  type: scene
+  version: 0
 Root:
   Properties:
     MaxClonesPerFrame: 1000
@@ -5,6 +8,10 @@ Root:
     ScriptLoopTimeoutSeconds: 2
     BaseResolution: [1920, 1080]
     UseNetwork: false
+    ApplicationId: ec5a8e3e-9070-4d6d-893b-5cf4adb18efe
+    EnableIOAPI: false
+    EnableIPCAPI: false
+    EnableExternalFileAccess: false
   Children:
     - ClassName: Workspace
       Name: Workspace
@@ -13,6 +20,19 @@ Root:
         Wind: [0, 0, 0]
         PhysicsEnabled: true
       Children:
+        - ClassName: Sound
+          Name: NDog vs NCat
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            ContentPath: /Users/Redbird/Downloads/Audio/norainutonoranekonokousou.mp3
+            Looped: true
+            SoundGroup: SFX
+            AutoPlay: true
+            Volume: 1
+            Speed: 1
+            PreservePitch: false
         - ClassName: StarterCharacter
           Name: StarterCharacter
           Children:
@@ -26,6 +46,7 @@ Root:
                 Anchored: true
                 CanCollide: false
                 CastShadow: true
+                ShadowMode: Always
                 Unlit: false
                 Locked: false
                 MassDensity: 1
@@ -45,6 +66,7 @@ Root:
                 Anchored: true
                 CanCollide: false
                 CastShadow: true
+                ShadowMode: Always
                 Unlit: false
                 Locked: false
                 MassDensity: 1
@@ -74,6 +96,7 @@ Root:
                 Anchored: false
                 CanCollide: true
                 CastShadow: true
+                ShadowMode: Normal
                 Unlit: false
                 Locked: false
                 MassDensity: 1
@@ -93,6 +116,7 @@ Root:
                 Anchored: true
                 CanCollide: false
                 CastShadow: true
+                ShadowMode: Always
                 Unlit: false
                 Locked: false
                 MassDensity: 1
@@ -112,6 +136,7 @@ Root:
                 Anchored: true
                 CanCollide: false
                 CastShadow: true
+                ShadowMode: Always
                 Unlit: false
                 Locked: false
                 MassDensity: 1
@@ -131,6 +156,7 @@ Root:
                 Anchored: true
                 CanCollide: false
                 CastShadow: true
+                ShadowMode: Always
                 Unlit: false
                 Locked: false
                 MassDensity: 1
@@ -164,6 +190,8 @@ Root:
                         BackgroundColor: [1, 1, 1, 1]
                         ZIndex: 0
                         Position: [0, 0]
+                        UseFontFile: false
+                        Font: Default
                         Text: Hello world
                         TextColor: [1, 0.9638554, 0, 1]
                         FontSize: 1
@@ -185,6 +213,7 @@ Root:
                 Anchored: true
                 CanCollide: false
                 CastShadow: true
+                ShadowMode: Always
                 Unlit: false
                 Locked: false
                 MassDensity: 1
@@ -211,6 +240,7 @@ Root:
                 Anchored: true
                 CanCollide: true
                 CastShadow: true
+                ShadowMode: Normal
                 Unlit: false
                 Locked: false
                 MassDensity: 1
@@ -236,6 +266,7 @@ Root:
                 Anchored: true
                 CanCollide: true
                 CastShadow: true
+                ShadowMode: Normal
                 Unlit: false
                 Locked: false
                 MassDensity: 1
@@ -251,19 +282,6 @@ Root:
                   Properties:
                     ContentPath: /Users/Redbird/Recubin/scripts/DiscoIt.luau
                     Enabled: true
-        - ClassName: Sound
-          Name: 45 days ago...
-          Properties:
-            Position: [0, 0, 0]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            ContentPath: /Users/Redbird/LocalMusic/45日前(Soundcloud Ver).mp3
-            Looped: true
-            SoundGroup: SFX
-            AutoPlay: false
-            Volume: 1
-            Speed: 1
-            PreservePitch: false
         - ClassName: Lighting
           Name: Lighting
           Properties:
@@ -280,6 +298,7 @@ Root:
             Anchored: true
             CanCollide: true
             CastShadow: true
+            ShadowMode: Normal
             Unlit: false
             Locked: true
             MassDensity: 1
@@ -306,6 +325,7 @@ Root:
                 Anchored: true
                 CanCollide: true
                 CastShadow: true
+                ShadowMode: Normal
                 Unlit: false
                 Locked: false
                 MassDensity: 1
@@ -325,6 +345,7 @@ Root:
                 Anchored: true
                 CanCollide: true
                 CastShadow: true
+                ShadowMode: Normal
                 Unlit: false
                 Locked: false
                 MassDensity: 1
@@ -350,6 +371,11 @@ Root:
             Speed: 0.25
             RotationSpeed: 1
             MouseRotationSpeed: 0.15
+            CharacterSmoothing: 0.15
+            MovementInputEnabled: true
+            CameraInputEnabled: true
+            HotkeyInputEnabled: true
+            ToolInputEnabled: true
             CameraDistance: 10
             ZoomSpeed: 0.1
             MouseZoomSpeed: 1
