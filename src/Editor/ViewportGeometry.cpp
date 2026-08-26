@@ -243,6 +243,62 @@ Vector3 additiveResize(
     return Vector3(result[0], result[1], result[2]);
 }
 
+float snapScaleFactor(float factor, bool snapEnabled, float snapStep) {
+    if (!snapEnabled || snapStep <= 1e-6f) return factor;
+    return 1.0f + std::round((factor - 1.0f) / snapStep) * snapStep;
+}
+
+Vector3 effectiveGroupScaleFactors(const std::vector<Vector3>& initialSizes,
+                                   const Vector3& rawFactors,
+                                   bool snapEnabled, float snapStep,
+                                   float minimumSize) {
+    Vector3 result(
+        snapScaleFactor(rawFactors.x, snapEnabled, snapStep),
+        snapScaleFactor(rawFactors.y, snapEnabled, snapStep),
+        snapScaleFactor(rawFactors.z, snapEnabled, snapStep));
+    // One common lower bound per axis keeps every selected Cube above the
+    // minimum while preserving a uniform handle's common scalar factor.
+    Vector3 lower(0.0f, 0.0f, 0.0f);
+    for (const Vector3& size : initialSizes) {
+        if (size.x > 1e-6f) lower.x = (std::max)(lower.x, minimumSize / size.x);
+        if (size.y > 1e-6f) lower.y = (std::max)(lower.y, minimumSize / size.y);
+        if (size.z > 1e-6f) lower.z = (std::max)(lower.z, minimumSize / size.z);
+    }
+    const bool uniform = std::abs(rawFactors.x - rawFactors.y) < 1e-5f &&
+                         std::abs(rawFactors.x - rawFactors.z) < 1e-5f;
+    if (uniform) {
+        const float commonLower = (std::max)({lower.x, lower.y, lower.z});
+        const float common = (std::max)(result.x, commonLower);
+        result = Vector3(common, common, common);
+        return result;
+    }
+    result.x = (std::max)(result.x, lower.x);
+    result.y = (std::max)(result.y, lower.y);
+    result.z = (std::max)(result.z, lower.z);
+    return result;
+}
+
+Vector3 groupScaleSize(const Vector3& initialSize, const Vector3& factors,
+                       bool snapEnabled, float snapStep, float minimumSize) {
+    const float values[3] = {initialSize.x, initialSize.y, initialSize.z};
+    const float scale[3] = {factors.x, factors.y, factors.z};
+    float result[3] = {};
+    for (int axis = 0; axis < 3; ++axis) {
+        const float f = snapScaleFactor(scale[axis], snapEnabled, snapStep);
+        result[axis] = (std::max)(minimumSize, values[axis] * f);
+    }
+    return Vector3(result[0], result[1], result[2]);
+}
+
+Vector3 groupScalePosition(const Vector3& initialWorldPosition,
+                           const Vector3& pivot,
+                           const Vector3& effectiveFactors) {
+    return pivot + Vector3(
+        (initialWorldPosition.x - pivot.x) * effectiveFactors.x,
+        (initialWorldPosition.y - pivot.y) * effectiveFactors.y,
+        (initialWorldPosition.z - pivot.z) * effectiveFactors.z);
+}
+
 Vector3 fixedFaceResizeOrigin(
     const Vector3& initialOrigin,
     const Quaternion& worldRotation,

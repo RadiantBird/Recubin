@@ -58,10 +58,13 @@
 #include <Util/AssetPath.hpp>
 #include <include/imgui/imgui.h>
 #include <unordered_map>
+#include <unordered_set>
+#include <array>
 #include <string>
 #include <cstdint>
 #include <cstdio>
 #include <cmath>
+#include <cstdlib>
 #include <algorithm>
 #include <filesystem>
 #include <system_error>
@@ -355,6 +358,98 @@ static void renderSchemaInspector(Instance* inst, const char* className,
 //  それを示しつつ、編集は選択中の全インスタンスへ同時適用する。
 //  Undo は CompositeCommand に SetPropertyCommand を束ねて1操作として記録する。
 // ===================================================
+static bool parseFloats(const char* text, float* out, int count) {
+    if (!text || !out || count <= 0) return false;
+    const char* p=text;
+    for (int i=0;i<count;++i) {
+        char* end=nullptr; out[i]=std::strtof(p,&end);
+        if (end==p || !std::isfinite(out[i])) return false;
+        p=end; while (*p==' '||*p=='\t'||*p==',') ++p;
+    }
+    while (*p==' '||*p=='\t'||*p==',') ++p;
+    if (*p!='\0') return false;
+    return true;
+}
+
+static void applyMultiTransform(const std::vector<Spatial*>& spaces,
+                                const std::vector<CFrame>& beforeCf,
+                                const std::vector<Vector3>& beforeSize,
+                                const std::vector<CFrame>& afterCf,
+                                const std::vector<Vector3>& afterSize,
+                                CommandHistory* history) {
+    std::vector<MultiSpatialTransformCommand::Entry> entries;
+    for (size_t i=0;i<spaces.size();++i) {
+        if (!spaces[i] || !spaces[i]->Parent.lock()) continue;
+        MultiSpatialTransformCommand::Entry e;
+        e.target=std::static_pointer_cast<Spatial>(spaces[i]->shared_from_this());
+        e.beforeCFrame=beforeCf[i]; e.afterCFrame=afterCf[i];
+        e.beforeSize=beforeSize[i]; e.afterSize=afterSize[i];
+        entries.push_back(std::move(e));
+    }
+    if (!entries.empty()) {
+        auto command=std::make_unique<MultiSpatialTransformCommand>(std::move(entries));
+        command->execute();
+        if (history) history->record(std::move(command));
+    }
+}
+static void applyWorldCFrameLive(Spatial* s, const CFrame& world) {
+    if (!s) return;
+    if (s->IsA("BaseCube")) {
+        CFrame local=world;
+        auto p=s->Parent.lock();
+        if (p&&p->IsA("Spatial")) local=static_cast<Spatial*>(p.get())->getWorldCFrame().inverse()*world;
+        auto* b=static_cast<BaseCube*>(s); b->teleportTo(local.Position); b->setRotation(local.Rotation);
+    } else s->setWorldCFrame(world);
+}
+
+static void renderMultiTransform(const std::vector<Instance*>& valid, CommandHistory* history) {
+    std::vector<Spatial*> spaces;
+    for (Instance* i:valid) if (i && i->IsA("Spatial")) spaces.push_back(static_cast<Spatial*>(i));
+    if (spaces.size()!=valid.size()) return;
+    std::vector<CFrame> beforeCf; std::vector<Vector3> beforeSize;
+    for (auto* s:spaces) { beforeCf.push_back(s->getWorldCFrame()); beforeSize.push_back(s->Size); }
+    auto currentCf=beforeCf;
+    auto currentSize=beforeSize;
+    static std::vector<CFrame> editBeforeCf;
+    static std::vector<Vector3> editBeforeSize;
+    static std::unordered_map<std::string,std::array<char,192>> buffers;
+    static std::unordered_map<std::string,bool> expanded;
+    static std::unordered_map<std::string,bool> editing;
+    auto vecField = [&](const char* label, bool sizeField) {
+        std::string key=std::string("multi_")+label;
+        Vector3 v=sizeField?currentSize[0]:currentCf[0].Position;
+        auto& b=buffers[key]; if(!editing[key]&&!expanded[key]) std::snprintf(b.data(),b.size(),"%.3f, %.3f, %.3f",v.x,v.y,v.z);
+        ImGui::Text("%s",label); ImGui::SameLine(80.0f); ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x-28.0f);
+        bool enter=ImGui::InputText(("##"+key).c_str(),b.data(),b.size(),ImGuiInputTextFlags_EnterReturnsTrue);
+        bool activated=ImGui::IsItemActivated(), deactivatedAfter=ImGui::IsItemDeactivatedAfterEdit(), deactivated=ImGui::IsItemDeactivated();
+        if(activated) editing[key]=true;
+        ImGui::SameLine(); std::string expandLabel=(expanded[key]?"-##":"+##")+key; if(ImGui::SmallButton(expandLabel.c_str())) expanded[key]=!expanded[key];
+        if(enter||deactivatedAfter){float a[3]; if(parseFloats(b.data(),a,3) && (!sizeField || (a[0]>0&&a[1]>0&&a[2]>0))){Vector3 nv(a[0],a[1],a[2]);for(size_t i=0;i<spaces.size();++i){if(sizeField)currentSize[i]=nv;else currentCf[i].Position=nv;}applyMultiTransform(spaces,beforeCf,beforeSize,currentCf,currentSize,history);}} if(deactivated) editing[key]=false;
+        if(expanded[key]) { ImGui::Indent(12); float a[3]={v.x,v.y,v.z}; ImGui::PushID(key.c_str()); bool ch=ImGui::DragFloat3("##axes",a,0.05f,sizeField?0.01f:-1e9f,sizeField?1000.f:1e9f); if(ImGui::IsItemActivated()){editBeforeCf=beforeCf;editBeforeSize=beforeSize;} if(ch){for(size_t i=0;i<spaces.size();++i){Vector3 old=sizeField?currentSize[i]:currentCf[i].Position;Vector3 nv=old; if(a[0]!=v.x)nv.x=a[0];if(a[1]!=v.y)nv.y=a[1];if(a[2]!=v.z)nv.z=a[2];if(sizeField&&(nv.x<=0||nv.y<=0||nv.z<=0))continue;if(sizeField)currentSize[i]=nv;else currentCf[i].Position=nv; if(sizeField){if(spaces[i]->IsA("BaseCube"))static_cast<BaseCube*>(spaces[i])->setSize(nv);else spaces[i]->Size=nv;}else applyWorldCFrameLive(spaces[i],currentCf[i]);}} if(ImGui::IsItemDeactivatedAfterEdit())applyMultiTransform(spaces,editBeforeCf.empty()?beforeCf:editBeforeCf,editBeforeSize.empty()?beforeSize:editBeforeSize,currentCf,currentSize,history); ImGui::PopID(); ImGui::Unindent(12); }
+    };
+    vecField("Position",false); vecField("Size",true);
+    ImGui::Text("CFrame"); ImGui::SameLine(80.0f);
+    static char cfbuf[256]={}; static bool cfedit=false;
+    if(!cfedit){Vector3 e=currentCf[0].Rotation.toEuler();std::snprintf(cfbuf,sizeof(cfbuf),"%.3f, %.3f, %.3f, %.2f, %.2f, %.2f",currentCf[0].Position.x,currentCf[0].Position.y,currentCf[0].Position.z,e.x,e.y,e.z);}
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x-28.0f); bool cfEnter=ImGui::InputText("##multi_cframe",cfbuf,sizeof(cfbuf),ImGuiInputTextFlags_EnterReturnsTrue);
+    bool cfSubmit=cfEnter||ImGui::IsItemDeactivatedAfterEdit(), cfActivated=ImGui::IsItemActivated(), cfDeactivated=ImGui::IsItemDeactivated(); if(cfActivated)cfedit=true;
+    ImGui::SameLine(); std::string cframeExpandLabel=(expanded["multi_CFrame"]?"-##":"+##")+std::string("multi_cf_expand"); if(ImGui::SmallButton(cframeExpandLabel.c_str())) expanded["multi_CFrame"]=!expanded["multi_CFrame"];
+    if(cfSubmit){float a[6];if(parseFloats(cfbuf,a,6)){for(auto& c:currentCf)c=CFrame(Vector3(a[0],a[1],a[2]),Quaternion::fromEuler(Vector3(a[3],a[4],a[5])));applyMultiTransform(spaces,beforeCf,beforeSize,currentCf,currentSize,history);}} if(cfDeactivated)cfedit=false;
+    if(expanded["multi_CFrame"]) {
+        ImGui::Indent(12); float p[3]={currentCf[0].Position.x,currentCf[0].Position.y,currentCf[0].Position.z};
+        ImGui::DragFloat3("Position##multi_cf_axes",p,0.05f,-1e9f,1e9f);
+        if(ImGui::IsItemActivated()){editBeforeCf=beforeCf;editBeforeSize=beforeSize;}
+        if(ImGui::IsItemEdited()) { Vector3 primary=currentCf[0].Position; bool changed[3]={p[0]!=primary.x,p[1]!=primary.y,p[2]!=primary.z}; for(size_t i=0;i<spaces.size();++i){Vector3 nv=currentCf[i].Position;if(changed[0])nv.x=p[0];if(changed[1])nv.y=p[1];if(changed[2])nv.z=p[2];currentCf[i].Position=nv;applyWorldCFrameLive(spaces[i],currentCf[i]);} }
+        if(ImGui::IsItemDeactivatedAfterEdit())applyMultiTransform(spaces,editBeforeCf,editBeforeSize,currentCf,currentSize,history);
+        Vector3 e=currentCf[0].Rotation.toEuler(); float r[3]={e.x,e.y,e.z};
+        ImGui::DragFloat3("Rotation##multi_cf_axes",r,1.0f,-360.f,360.f);
+        if(ImGui::IsItemActivated()){editBeforeCf=beforeCf;editBeforeSize=beforeSize;}
+        if(ImGui::IsItemEdited()) { Vector3 primary=currentCf[0].Rotation.toEuler(); bool changed[3]={r[0]!=primary.x,r[1]!=primary.y,r[2]!=primary.z}; for(size_t i=0;i<spaces.size();++i){Vector3 own=currentCf[i].Rotation.toEuler();if(changed[0])own.x=r[0];if(changed[1])own.y=r[1];if(changed[2])own.z=r[2];currentCf[i].Rotation=Quaternion::fromEuler(own);applyWorldCFrameLive(spaces[i],currentCf[i]);} }
+        if(ImGui::IsItemDeactivatedAfterEdit())applyMultiTransform(spaces,editBeforeCf,editBeforeSize,currentCf,currentSize,history);
+        ImGui::Unindent(12);
+    }
+}
+
 static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHistory* history) {
     static std::vector<PropValue> s_multiBefore;
 
@@ -367,6 +462,23 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
 
     ImGui::Text(Loc::t(Loc::LocKey::MultiSelectedCount), (int)valid.size());
     if (valid.size() < 2) return;
+
+    // Nameは選択順に base, base1, ... を割り当てる一括編集。
+    static char multiName[256] = {};
+    const bool multiNameSubmit = ImGui::InputTextWithHint(
+        "Name", "base, base1, ...", multiName, sizeof(multiName), ImGuiInputTextFlags_EnterReturnsTrue);
+    if(ImGui::IsItemActivated()) multiName[0]='\0';
+    if((multiNameSubmit || ImGui::IsItemDeactivatedAfterEdit()) && multiName[0]!='\0') {
+        std::vector<MultiRenameInstanceCommand::Entry> entries;
+        std::unordered_set<Instance*> selected;
+        for (Instance* i : valid) if (!i->isRuntimeNameLocked()) selected.insert(i);
+        std::unordered_map<Instance*,std::unordered_set<std::string>> occupied;
+        for(Instance* i:valid){auto p=i->Parent.lock();if(!p)continue;auto& set=occupied[p.get()];for(auto& [n,ch]:p->getChildren())if(!selected.count(ch.get()))set.insert(n);}
+        size_t suffix=0;
+        for(Instance* t:valid){if(t->isRuntimeNameLocked())continue;auto p=t->Parent.lock();std::string desired=std::string(multiName)+(suffix?std::to_string(suffix):"");if(p){auto& used=occupied[p.get()];while(used.count(desired)){++suffix;desired=std::string(multiName)+std::to_string(suffix);}used.insert(desired);}++suffix;if(desired!=t->Name)entries.push_back({t->shared_from_this(),t->Name,desired});}
+        if(!entries.empty()){auto command=std::make_unique<MultiRenameInstanceCommand>(std::move(entries));command->execute();if(history)history->record(std::move(command));}
+    }
+    renderMultiTransform(valid, history);
 
     // 各インスタンスのスキーマ集合（自クラス優先、BaseCube配下なら共通プロパティを補完）
     auto buildSchema = [](Instance* inst) {
@@ -398,6 +510,7 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
     // 共通プロパティの積集合を、先頭インスタンスのスキーマ順に走査する
     for (const PropertyDesc* d0 : perInstSchema[0]) {
         if (d0->kind != PropKind::Field || !d0->editable || !d0->get || !d0->set) continue;
+        if (d0->name == "Name" || d0->name == "Position" || d0->name == "Size" || d0->name == "CFrame" || d0->name == "Rotation") continue;
 
         std::vector<std::pair<Instance*, const PropertyDesc*>> rows;
         rows.emplace_back(valid[0], d0);

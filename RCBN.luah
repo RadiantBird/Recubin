@@ -381,7 +381,6 @@ export type ScreenGuiObject = GuiObject & {
     UseFontFile: boolean,
     Font: "Default" | "DotGothic16",
     FontFile: FontFile?,
-    Hovered: Signal,
 }
 
 export type ImageLabel = ScreenGuiObject & {
@@ -395,6 +394,8 @@ export type ImageButton = GuiButton & {
 
 export type GuiButton = ScreenGuiObject & {
     Activated: Signal,
+    Hovered: Signal,
+    HoverEnded: Signal,
 }
 
 export type SignalEvent = Instance & {
@@ -634,7 +635,7 @@ declare system:    System
 declare ChatService: ChatService
 declare IO: IO
 declare IPC: IPC
-declare erik: Erik
+
 declare Vector3: {
     new: (number, number, number) -> Vector3,
     zero: Vector3,

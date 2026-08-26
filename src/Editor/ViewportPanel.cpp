@@ -53,6 +53,8 @@ void ViewportPanel::initFBO(int w, int h) {
                  GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                            GL_TEXTURE_2D, colorTexture, 0);
 
@@ -555,13 +557,13 @@ void ViewportPanel::handleViewportClick(
             m_isDraggingSelected = false;
             m_isFreeDragArmed = false;
 
-            // Step 2: Selectモード、または非SelectモードでShift+クリックかつ
-            // 現在の選択物にヒットしなかった場合は、クリック単位を問い合わせる。
+            // Step 2: Selectモード、または任意のツールでCtrl+クリックの場合は、
+            // 現在のPrimaryへのヒットも含めてクリック単位を問い合わせる。
             bool shiftHeld = ImGui::GetIO().KeyShift;
             bool ctrlHeld = ImGui::GetIO().KeyCtrl;
             bool clickFoundSomething = false;
             bool clickHitLockedObject = false;
-            if ((selectOnly || (shiftHeld && !hitSelected)) && selectedInstance) {
+            if ((selectOnly || ctrlHeld) && selectedInstance) {
                 const ViewportSceneQueries::SelectionRayHit selectionHit =
                     ViewportSceneQueries::findSelectionTarget(*workspace, ray);
                 Instance* nearest = selectionHit.hit ? selectionHit.target : nullptr;
@@ -637,6 +639,19 @@ void ViewportPanel::handleViewportClick(
                 // Moveモードも同じ5px閾値を経て表面ドラッグへ移る。
                 m_isFreeDragArmed = true;
                 m_freeDragStart = ImGui::GetMousePos();
+            } else if ((isMoveMode() || isResizeMode() || isRotateMode()) &&
+                       !hitSelected && !ctrlHeld && !shiftHeld && !ImGuizmo::IsOver() &&
+                       selectedInstance) {
+                // 非Selectツールでも本当に空の空間をplain clickした場合は選択解除する。
+                // 未選択対象やLocked対象へのヒットは空間として扱わず、既存選択を維持する。
+                const ViewportSceneQueries::SelectionRayHit selectionHit =
+                    ViewportSceneQueries::findSelectionTarget(*workspace, ray);
+                if (!selectionHit.hit) {
+                    *selectedInstance = nullptr;
+                    if (selectedInstances) {
+                        selectedInstances->clear();
+                    }
+                }
             }
 
             // ボックス選択 arm: Selectモードのみ、何にもヒットしなかった場合、または
@@ -743,10 +758,10 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
             // Gizmo Undo: ドラッグ開始/終了を検知して MultiGizmoCommand を記録
             bool isUsingGizmo = ImGuizmo::IsUsing();
 
-            // 複数選択の集合中心（TRANSLATE/ROTATE、Model 以外）
+            // 複数選択の集合中心（TRANSLATE/ROTATE/SCALE、Model 以外）
             Vector3 multiCenter;
             bool haveMultiCenter = false;
-            if (!isModelTarget && (gizmoOp == ImGuizmo::TRANSLATE || gizmoOp == ImGuizmo::ROTATE)
+            if (!isModelTarget && (gizmoOp == ImGuizmo::TRANSLATE || gizmoOp == ImGuizmo::ROTATE || gizmoOp == ImGuizmo::SCALE)
                 && hasMultiSelection()) {
                 ViewportGeometry::WorldAabb selectionAabb;
                 for (Instance* o : *selectedInstances) {
@@ -788,9 +803,18 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                     m_multiRotateGizmoCurRot = m_multiRotateGizmoStartRot;
                     m_multiRotatePivotActive = true;
                 }
+                // 複数Resizeはモードに関係なく、ドラッグ開始時の集合中心を
+                // ImGuizmoの基準点として固定する。Individualでも各Cubeの
+                // サイズ・位置更新で集合AABBが変わるため、毎フレーム中心を
+                // 渡すとImGuizmoの内部基準とずれて操作が暴れる。
+                if (gizmoOp == ImGuizmo::SCALE && hasMultiSelection() && haveMultiCenter) {
+                    m_multiScalePivot = multiCenter;
+                    m_multiScalePivotActive = true;
+                }
             }
             if (m_wasUsingGizmo && !isUsingGizmo) {
                 m_multiRotatePivotActive = false;
+                m_multiScalePivotActive = false;
                 if (m_history && !m_gizmoEntries.empty()) {
                     for (auto& e : m_gizmoEntries) {
                         if (e.target && !e.target->Parent.expired())
@@ -847,6 +871,8 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                     ? m_multiRotateGizmoCurRot
                     : ((gizmoMode == ImGuizmo::LOCAL) ? s->getWorldCFrame().Rotation : Quaternion());
                 model = CFrame(pivot, gizmoRot).toMatrix4();
+            } else if (gizmoOp == ImGuizmo::SCALE && haveMultiCenter && hasMultiSelection()) {
+                model = CFrame(m_multiScalePivotActive ? m_multiScalePivot : multiCenter).toMatrix4();
             } else if (gizmoOp == ImGuizmo::SCALE) {
                 CFrame stableCF = s->getWorldCFrame();
                 // SurfaceMark の Position は volume 中心ではなく near plane 原点。
@@ -1011,20 +1037,62 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                     float signZ = scaleGrabSign(2);
                     // オフセットはオブジェクトのローカル軸に沿って行う。回転していても反対面が
                     // 正しく固定される（未回転ならワールド軸と一致＝従来と同等）
-                    Quaternion wr = s->getWorldCFrame().Rotation;
-                    const Vector3 localCenterFactor = inst->IsA("SurfaceMark")
-                        ? Vector3(0.0f, 0.0f, -0.5f) : Vector3(0.0f, 0.0f, 0.0f);
-                    const Vector3 newWorldPos = ViewportGeometry::fixedFaceResizeOrigin(
-                        m_scaleBeforeWorldPos, wr, m_scaleBeforeSize, newSize,
-                        Vector3(signX, signY, signZ), localCenterFactor);
-                    Vector3 localPos = ViewportGeometry::worldToLocalPosition(newWorldPos, *s);
-                    if (inst->IsA("BaseCube")) {
-                        BaseCube* bc = static_cast<BaseCube*>(inst);
-                        bc->teleportTo(localPos);
-                        bc->setSize(newSize);
+                    const Vector3 factors(sx, sy, sz);
+                    const bool multiScale = hasMultiSelection() && haveMultiCenter;
+                    if (multiScale) {
+                        // The primary drag supplies either a common additive delta
+                        // (Individual) or world-axis factors (GroupScale).
+                        Vector3 effectiveFactors = factors;
+                        if (multiResizeMode == MultiResizeMode::GroupScale) {
+                            std::vector<Vector3> initialSizes;
+                            initialSizes.reserve(m_gizmoEntries.size());
+                            for (const auto& entry : m_gizmoEntries) {
+                                if (entry.target && !entry.target->Parent.expired() &&
+                                    entry.target->IsA("BaseCube"))
+                                    initialSizes.push_back(entry.before.size);
+                            }
+                            effectiveFactors = ViewportGeometry::effectiveGroupScaleFactors(
+                                initialSizes, factors, snapScale, snapScaleVal);
+                        }
+                        for (auto& e : m_gizmoEntries) {
+                            if (!e.target || e.target->Parent.expired() || !e.target->IsA("BaseCube")) continue;
+                            BaseCube* bc = static_cast<BaseCube*>(e.target.get());
+                            const Vector3 oldSize = e.before.size;
+                            Vector3 targetSize = (multiResizeMode == MultiResizeMode::GroupScale)
+                                ? ViewportGeometry::groupScaleSize(oldSize, effectiveFactors, false, 0.0f)
+                                : ViewportGeometry::additiveResize(oldSize, factors, snapScale, snapScaleVal);
+                            auto parent = e.target->Parent.lock();
+                            CFrame oldWorld(e.before.position, e.before.rotation);
+                            if (parent && parent->IsA("Spatial"))
+                                oldWorld = static_cast<Spatial*>(parent.get())->getWorldCFrame() * oldWorld;
+                            Vector3 targetWorld = oldWorld.Position;
+                            if (multiResizeMode == MultiResizeMode::GroupScale) {
+                                targetWorld = ViewportGeometry::groupScalePosition(
+                                    oldWorld.Position, m_multiScalePivot, effectiveFactors);
+                            } else {
+                                targetWorld = ViewportGeometry::fixedFaceResizeOrigin(
+                                    oldWorld.Position, oldWorld.Rotation, oldSize, targetSize,
+                                    Vector3(signX, signY, signZ), Vector3(0.0f, 0.0f, 0.0f));
+                            }
+                            bc->teleportTo(ViewportGeometry::worldToLocalPosition(targetWorld, *bc));
+                            bc->setSize(targetSize);
+                        }
                     } else {
-                        s->Position = localPos;
-                        s->Size = newSize;
+                        Quaternion wr = s->getWorldCFrame().Rotation;
+                        const Vector3 localCenterFactor = inst->IsA("SurfaceMark")
+                            ? Vector3(0.0f, 0.0f, -0.5f) : Vector3(0.0f, 0.0f, 0.0f);
+                        const Vector3 newWorldPos = ViewportGeometry::fixedFaceResizeOrigin(
+                            m_scaleBeforeWorldPos, wr, m_scaleBeforeSize, newSize,
+                            Vector3(signX, signY, signZ), localCenterFactor);
+                        Vector3 localPos = ViewportGeometry::worldToLocalPosition(newWorldPos, *s);
+                        if (inst->IsA("BaseCube")) {
+                            BaseCube* bc = static_cast<BaseCube*>(inst);
+                            bc->teleportTo(localPos);
+                            bc->setSize(newSize);
+                        } else {
+                            s->Position = localPos;
+                            s->Size = newSize;
+                        }
                     }
                 } else if (gizmoOp == ImGuizmo::ROTATE && haveMultiCenter) {
                     // 複数選択中心経路: 集合中心を軸に全選択 Spatial を回転

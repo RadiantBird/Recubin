@@ -244,6 +244,20 @@ struct RenameInstanceCommand : Command {
     void undo() override;
 };
 
+// 複数インスタンスの名前変更。実行時は一時名を経由して兄弟名の衝突を避ける。
+struct MultiRenameInstanceCommand : Command {
+    struct Entry {
+        std::shared_ptr<Instance> target;
+        std::string before, after;
+    };
+    std::vector<Entry> m_entries;
+    explicit MultiRenameInstanceCommand(std::vector<Entry> entries);
+    void execute() override;
+    void undo() override;
+private:
+    void apply(bool after);
+};
+
 // --- Rotation 変更 ---
 struct SetRotationCommand : Command {
     std::shared_ptr<Spatial> m_target;
@@ -285,6 +299,21 @@ struct SetSpatialCFrameCommand : Command {
 
 private:
     void apply(const CFrame& v);
+};
+
+// 複数SpatialのワールドCFrameとSizeを一つのUndo単位で変更する。
+struct MultiSpatialTransformCommand : Command {
+    struct Entry {
+        std::shared_ptr<Spatial> target;
+        CFrame beforeCFrame, afterCFrame;
+        Vector3 beforeSize, afterSize;
+    };
+    std::vector<Entry> m_entries;
+    explicit MultiSpatialTransformCommand(std::vector<Entry> entries);
+    void execute() override;
+    void undo() override;
+private:
+    void apply(bool after);
 };
 
 // --- Gizmo操作（位置/サイズ/回転をまとめてundoできる） ---

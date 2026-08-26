@@ -34,6 +34,22 @@ SetBoolCommand::SetBoolCommand(std::shared_ptr<BaseCube> t,std::string p,bool b,
 void SetBoolCommand::execute(){apply(m_after);} void SetBoolCommand::undo(){apply(m_before);} void SetBoolCommand::apply(bool v){if(!m_target)return;if(m_prop=="Anchored")m_target->setAnchored(v);else if(m_prop=="CanCollide")m_target->CanCollide=v;}
 RenameInstanceCommand::RenameInstanceCommand(std::shared_ptr<Instance> t,std::string b,std::string a):m_target(std::move(t)),m_before(std::move(b)),m_after(std::move(a)){}
 void RenameInstanceCommand::execute(){if(m_target)m_target->renameTo(m_after);} void RenameInstanceCommand::undo(){if(m_target)m_target->renameTo(m_before);}
+MultiRenameInstanceCommand::MultiRenameInstanceCommand(std::vector<Entry> e):m_entries(std::move(e)){}
+void MultiRenameInstanceCommand::execute(){apply(true);}
+void MultiRenameInstanceCommand::undo(){apply(false);}
+void MultiRenameInstanceCommand::apply(bool after){
+    // 先に全対象を親ごとに衝突しない一時名へ移してから確定名へ移す。
+    for (size_t i=0;i<m_entries.size();++i) if (m_entries[i].target && !m_entries[i].target->isRuntimeNameLocked()) {
+        auto p=m_entries[i].target->Parent.lock();
+        if (p) {
+            std::string tmp="__CodexRenameTmp"+std::to_string(i);
+            int n=0; while (p->getChild(tmp)) tmp="__CodexRenameTmp"+std::to_string(i)+"_"+std::to_string(++n);
+            m_entries[i].target->renameToAuthoritative(tmp);
+        }
+    }
+    for (const auto& e:m_entries) if(e.target && !e.target->isRuntimeNameLocked())
+        e.target->renameToAuthoritative(after ? e.after : e.before);
+}
 SetRotationCommand::SetRotationCommand(std::shared_ptr<Spatial> t,Quaternion b,Quaternion a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetRotationCommand::execute(){if(m_target)m_target->cframe.Rotation=m_after;} void SetRotationCommand::undo(){if(m_target)m_target->cframe.Rotation=m_before;}
 SetToolPositionCommand::SetToolPositionCommand(std::shared_ptr<Tool> t,Vector3 b,Vector3 a):m_target(std::move(t)),m_before(b),m_after(a){}
@@ -42,6 +58,23 @@ SetToolRotationCommand::SetToolRotationCommand(std::shared_ptr<Tool> t,Quaternio
 void SetToolRotationCommand::execute(){if(m_target)m_target->Rotation=m_after;} void SetToolRotationCommand::undo(){if(m_target)m_target->Rotation=m_before;}
 SetSpatialCFrameCommand::SetSpatialCFrameCommand(std::shared_ptr<Spatial> t,CFrame b,CFrame a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetSpatialCFrameCommand::execute(){apply(m_after);} void SetSpatialCFrameCommand::undo(){apply(m_before);} void SetSpatialCFrameCommand::apply(const CFrame& v){if(!m_target)return;if(m_target->IsA("BaseCube")){auto*b=static_cast<BaseCube*>(m_target.get());b->teleportTo(v.Position);b->setRotation(v.Rotation);}else m_target->cframe=v;}
+MultiSpatialTransformCommand::MultiSpatialTransformCommand(std::vector<Entry> e):m_entries(std::move(e)){}
+void MultiSpatialTransformCommand::execute(){apply(true);} void MultiSpatialTransformCommand::undo(){apply(false);}
+void MultiSpatialTransformCommand::apply(bool after){
+    for (auto& e:m_entries) if(e.target){
+        const CFrame& cf=after?e.afterCFrame:e.beforeCFrame;
+        const Vector3& sz=after?e.afterSize:e.beforeSize;
+        if(e.target->IsA("BaseCube")) {
+            auto* b=static_cast<BaseCube*>(e.target.get());
+            auto p=e.target->Parent.lock();
+            CFrame local=cf;
+            if(p&&p->IsA("Spatial")) local=static_cast<Spatial*>(p.get())->getWorldCFrame().inverse()*cf;
+            b->teleportTo(local.Position); b->setRotation(local.Rotation); b->setSize(sz);
+        }
+        else e.target->Size=sz;
+        if(!e.target->IsA("BaseCube")) e.target->setWorldCFrame(cf);
+    }
+}
 GizmoCommand::GizmoCommand(std::shared_ptr<BaseCube> t,GizmoState b,GizmoState a):m_target(std::move(t)),m_before(b),m_after(a){}
 void GizmoCommand::execute(){apply(m_after);} void GizmoCommand::undo(){apply(m_before);} void GizmoCommand::apply(const GizmoState&s){if(!m_target)return;m_target->teleportTo(s.position);m_target->setSize(s.size);m_target->setRotation(s.rotation);}
 MultiGizmoCommand::MultiGizmoCommand(std::vector<Entry> e):m_entries(std::move(e)){}

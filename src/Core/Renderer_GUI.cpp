@@ -287,6 +287,8 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
         bool hovered = ImGui::IsMouseHoveringRect(tl, br);
         if (hovered && !sgo->m_wasHovered && sgo->Hovered)
             sgo->Hovered->fire();
+        if (!hovered && sgo->m_wasHovered && sgo->IsA("GuiButton"))
+            static_cast<GuiButton*>(sgo)->HoverEnded->fire();
         sgo->m_wasHovered = hovered;
     }
 }

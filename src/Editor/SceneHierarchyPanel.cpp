@@ -3,6 +3,7 @@
 #include <Editor/SpawnUtil.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Editor/SceneHierarchyGrouping.hpp>
+#include <Editor/SceneHierarchySelection.hpp>
 #include <Editor/PropertiesPanel.hpp>  // PickerState の定義
 #include <Editor/Localization.hpp>
 #include <Editor/GuiAutomation.hpp>
@@ -156,8 +157,25 @@ void SceneHierarchyPanel::onRender() {
     if (!hierarchyContainsInstance(root, selectedInstance)) {
         selectedInstance = selectedInstances.empty() ? nullptr : selectedInstances.back();
     }
+    if (m_selectionAnchor && !hierarchyContainsInstance(root, m_selectionAnchor))
+        m_selectionAnchor = nullptr;
 
+    m_visibleNodes.clear();
     drawNode(root);
+
+    if (m_pendingRangeTarget) {
+        const bool anchorVisible =
+            std::find(m_visibleNodes.begin(), m_visibleNodes.end(), m_selectionAnchor)
+                != m_visibleNodes.end();
+        selectedInstances = SceneHierarchySelection::selectVisibleRange(
+            m_visibleNodes, m_selectionAnchor, m_pendingRangeTarget,
+            selectedInstances, m_pendingRangeAppend);
+        selectedInstance = m_pendingRangeTarget;
+        if (!anchorVisible) m_selectionAnchor = m_pendingRangeTarget;
+        m_pendingRangeTarget = nullptr;
+        m_pendingRangeAppend = false;
+    }
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) m_shiftClickTarget = nullptr;
 
     // ドラッグ＆ドロップで積まれた親変更を、走査完了後にまとめて実行する
     // （走査中の children マップ変更による iterator 無効化＝表示崩れを回避）
@@ -239,6 +257,8 @@ void SceneHierarchyPanel::requestReveal(Instance* inst) {
 void SceneHierarchyPanel::drawNode(Instance* inst) {
     if (!inst) return;
 
+    m_visibleNodes.push_back(inst);
+
     ImGuiTreeNodeFlags flags =
         ImGuiTreeNodeFlags_OpenOnArrow |
         ImGuiTreeNodeFlags_SpanAvailWidth;
@@ -318,23 +338,31 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
                 m_picker->onPick(inst->shared_from_this());
             m_picker->active = false;
         } else
-        if (ImGui::GetIO().KeyCtrl) {
+        if (ImGui::GetIO().KeyShift) {
+            m_pendingRangeTarget = inst;
+            m_pendingRangeAppend = ImGui::GetIO().KeyCtrl;
+            m_shiftClickTarget = inst;
+        } else if (ImGui::GetIO().KeyCtrl) {
             auto it = std::find(selectedInstances.begin(), selectedInstances.end(), inst);
             if (it != selectedInstances.end()) {
                 selectedInstances.erase(it);
                 if (selectedInstance == inst)
                     selectedInstance = selectedInstances.empty() ? nullptr : selectedInstances.back();
+                m_selectionAnchor = selectedInstance;
             } else {
                 selectedInstances.push_back(inst);
                 selectedInstance = inst;
+                m_selectionAnchor = inst;
             }
         } else if (!inSelection) {
             selectedInstance = inst;
             selectedInstances = { inst };
+            m_selectionAnchor = inst;
         } else {
             // 既に複数選択に含まれる項目のプレーンクリックでは集合を潰さない
             // （まとめてドラッグできるように）。単一化はドラッグせず離したときに行う。
             selectedInstance = inst;
+            m_selectionAnchor = inst;
         }
     }
 
@@ -342,11 +370,14 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     if (!renaming && inSelection && selectedInstances.size() > 1
         && ImGui::IsItemHovered()
         && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
-        && !ImGui::GetIO().KeyCtrl) {
+        && !ImGui::GetIO().KeyCtrl
+        && !ImGui::GetIO().KeyShift
+        && m_shiftClickTarget != inst) {
         ImVec2 dd = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
         if (dd.x * dd.x + dd.y * dd.y < 25.0f) {  // ほぼ動いていない＝クリック（ドラッグでない）
             selectedInstance = inst;
             selectedInstances = { inst };
+            m_selectionAnchor = inst;
         }
     }
 
@@ -1309,6 +1340,18 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
         }
         ImGui::Separator();
     }
+
+    const auto directChildren = SceneHierarchySelection::collectDirectChildren(*inst);
+    const bool selectChildrenClicked = ImGui::MenuItem(
+        Loc::t(Loc::LocKey::MenuSelectAllChildren), nullptr, false, !directChildren.empty());
+    GuiAutomation::registerLastItem("Explorer/Context/SelectChildren");
+    if (selectChildrenClicked) {
+        selectedInstances = directChildren;
+        selectedInstance = directChildren.back();
+        m_selectionAnchor = selectedInstance;
+    }
+
+    ImGui::Separator();
 
     const bool insertClicked = ImGui::Selectable(Loc::t(Loc::LocKey::InsertObjectMenu), false, ImGuiSelectableFlags_DontClosePopups);
     GuiAutomation::registerLastItem("Explorer/Context/InsertObject");

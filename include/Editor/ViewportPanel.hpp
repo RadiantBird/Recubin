@@ -31,6 +31,7 @@ struct WeldModeState {
 // ===================================================
 class ViewportPanel : public EditorPanel {
 public:
+    enum class MultiResizeMode { Individual, GroupScale };
     GLuint framebuffer       = 0;
     GLuint colorTexture      = 0;
     GLuint depthRenderbuffer = 0;
@@ -87,6 +88,8 @@ public:
     Quaternion m_multiRotateGizmoStartRot;
     Quaternion m_multiRotateGizmoCurRot;
     bool m_multiRotatePivotActive = false;
+    Vector3 m_multiScalePivot;
+    bool m_multiScalePivotActive = false;
 
     // Tab キー長押し中のみ有効な移動ピボット（ギズモをマウス位置へ持ってくる。離すと解除）
     bool m_pivotActive = false;
@@ -102,6 +105,7 @@ public:
     bool  snapScale        = false;
     float snapScaleVal     = 1.0f;
     bool  collisionFit     = true;
+    MultiResizeMode multiResizeMode = MultiResizeMode::Individual;
 
     // 独立カメラ（セカンダリビューポート用。プライマリは user カメラを使う）
     bool    m_useOwnCamera = false;

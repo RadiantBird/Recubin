@@ -312,6 +312,12 @@ static void loadEditorPreferences(EditorManager* ed, User* user) {
             ed->viewportPanel->gizmoMode = static_cast<ImGuizmo::MODE>(mode);
         }
     }
+    if (p["MultiResizeMode"]) {
+        const std::string mode = p["MultiResizeMode"].as<std::string>();
+        ed->viewportPanel->multiResizeMode =
+            mode == "GroupScale" ? ViewportPanel::MultiResizeMode::GroupScale
+                                  : ViewportPanel::MultiResizeMode::Individual;
+    }
     if (p["SelectOnly"]) ed->viewportPanel->selectOnly = p["SelectOnly"].as<bool>();
     if (p["ToolNone"])   ed->viewportPanel->toolNone   = p["ToolNone"].as<bool>();
 
@@ -368,6 +374,8 @@ static void saveEditorPreferences(EditorManager* ed, User* user) {
 
     p["GizmoOp"]     = static_cast<int>(ed->viewportPanel->gizmoOp);
     p["GizmoMode"]   = static_cast<int>(ed->viewportPanel->gizmoMode);
+    p["MultiResizeMode"] = ed->viewportPanel->multiResizeMode == ViewportPanel::MultiResizeMode::GroupScale
+        ? "GroupScale" : "Individual";
     p["SelectOnly"]  = ed->viewportPanel->selectOnly;
     p["ToolNone"]    = ed->viewportPanel->toolNone;
 

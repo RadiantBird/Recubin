@@ -24,6 +24,7 @@ Explorerの代表的なtarget IDは次の通りです。
 - `Explorer/Context/InsertObject`
 - `Explorer/Context/Group`
 - `Explorer/Context/ReplaceInstance`
+- `Explorer/Context/SelectChildren`
 - `Explorer/ClassPicker/Search`
 - `Explorer/ClassPicker/Category/Cubes`
 - `Explorer/ClassPicker/Class/Cube`

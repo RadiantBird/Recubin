@@ -244,7 +244,7 @@
 
 - `--ui-automation` のコマンド形式、Explorer target ID、back framebuffer capture契約を `doc/Editor/GuiAutomation.md` に整理した。
 - `--gui-automation-regression` にPNG signature/IHDR/invalid buffer回帰を追加した。
-- 検証: 未実施（親エージェントでビルド・回帰を実行予定）。
+- ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。`--viewport-helper-regression`はPASS。手動GUI確認は未実施。
 
 ## 2026-08-25: v0.999 リリース前コード監査完了
 
@@ -279,3 +279,50 @@
   `--network-core-regression`はPASS。
   `py run_regression.py Release`は45 dedicated regressionsと9 scenesで234 passed / 0 failed、Regression OK。
 - 実GLFW/ImGuiでのviewport中心座標の視覚smokeは未実施。
+
+## 2026-08-25: 複数Cube変形・Rename対応
+
+- 複数選択Resizeへ個別Resize／Group Scale切替を追加し、反対面固定の軸別変更、集合中心基準の
+  ワールド軸倍率、倍率スナップ、設定保存へ対応した。
+- Propertiesで全Instanceの衝突回避付き連番Renameと、複数SpatialのワールドPosition／Size／CFrameを
+  統合入力または成分別に編集できるようにし、各操作を一括Undo/Redo対応にした。
+- `--viewport-helper-regression`へGroup Scaleの軸別／一様倍率、倍率スナップ、選択全体の最小Size clamp、
+  回転Cubeの反対面固定を追加した。
+- `--scene-hierarchy-grouping-regression`へ複数Renameの未選択兄弟衝突とruntime name lock、二段階renameの
+  undo/redo children key復元、および異なるSpatial親を跨ぐMultiSpatialTransformCommandのworld CFrame／Size
+  適用とundo/redoを追加した。
+- ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。`--viewport-helper-regression`と
+  `--scene-hierarchy-grouping-regression`はPASS。全回帰は45 dedicated regressionsと9 scenesで
+  234 passed / 0 failed、Regression OK。手動GUI確認は未実施。
+
+## 2026-08-26: 複数Resizeの固定ピボット修正
+
+- Individual／Group Scaleの両モードで、複数Resizeドラッグ開始時の集合AABB中心を固定ピボットへ保存するよう修正。
+  Individualのサイズ・位置変更後もAABB中心を毎フレームImGuizmoへ渡さないため、リサイズ中のギズモの暴れを防止する。
+- ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。`--viewport-helper-regression`はPASS。
+  `git diff --check`も成功。手動GUIでのドラッグ確認は未実施。
+
+## 2026-08-26: ExplorerのShift範囲選択・子選択
+
+- Explorerの展開状態を反映した可視行順で、Shiftによる置換範囲選択とCtrl+Shiftによる重複なしの追加選択を実装した。
+- 通常／Ctrlクリックのアンカー更新、無効・非表示アンカーの単一選択フォールバック、右クリック対象の直下の子だけを選ぶ「子をすべて選択」を追加した。
+- 可視範囲と直接の子の抽出をUI非依存ヘルパーへ分離し、`--scene-hierarchy-grouping-regression`へ前後方向、折りたたみ、併合、フォールバック、直接の子の回帰を追加した。
+- ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。`--scene-hierarchy-grouping-regression`はPASS。手動GUI確認は未実施。
+
+## 2026-08-26: Viewport複数選択のCtrl統一
+
+- Select／Move／Resize／Rotateの全ツールで、Ctrl+クリックだけで対象を複数選択へ追加・解除できるよう統一した。
+- 非Selectツールで必要だったShift併用を廃止し、Primary自身のCtrl+クリックも再問い合わせして解除できるようにした。
+- ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。`--viewport-helper-regression`はPASS。手動GUI確認は未実施。
+
+## 2026-08-26: 非Select変形ツールの空間クリック選択解除
+
+- Move／Resize／Rotateで修飾キーなしに空間をクリックした場合、Primaryと複数選択を解除するようにした。
+- 現在選択中の対象、未選択対象、Locked対象へのヒットは従来どおり扱い、空間クリックによる解除対象から除外した。
+- ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。`--viewport-helper-regression`はPASS。手動GUI確認は未実施。
+
+## 2026-08-26: Viewport境界のテクスチャノイズ修正
+
+- FBOカラーテクスチャのS/Tラップを`GL_CLAMP_TO_EDGE`へ固定し、線形補間時に反対側の端が
+  レターボックス境界へ混ざる1pxノイズを防止した。
+- ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。`--viewport-helper-regression`はPASS。手動GUI確認は未実施。

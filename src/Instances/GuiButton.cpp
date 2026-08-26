@@ -1,11 +1,12 @@
 #include <Instances/GuiButton.hpp>
 #include <include/Core/PropertyRegistry.hpp>
 
-// GuiButton は ScreenGuiObject を継承し Activated シグナルのみ持つ（clone 連鎖用に base 登録）
+// GuiButton は ScreenGuiObject を継承しボタン用シグナルを持つ（clone 連鎖用に base 登録）
 static const bool s_guiButtonRegistered = []{
     using namespace PropertyRegistry;
     registerClass("GuiButton", "ScreenGuiObject", {
         sig<&GuiButton::Activated>("Activated"),
+        sig<&GuiButton::HoverEnded>("HoverEnded"),
     });
     return true;
 }();
@@ -13,6 +14,7 @@ static const bool s_guiButtonRegistered = []{
 GuiButton::GuiButton(std::string className)
     : Named<GuiButton, ScreenGuiObject>(className)
     , Activated(std::make_shared<RCBNScriptSignal>())
+    , HoverEnded(std::make_shared<RCBNScriptSignal>())
 {}
 
 bool GuiButton::IsA(std::string name) {

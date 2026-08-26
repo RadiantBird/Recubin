@@ -62,6 +62,10 @@ SurfaceMarkのフィルター編集は、live参照と未解決パスを含むen
 - `BaseCube`（`SetVec3Command`, `SetColorCommand`, `SetBoolCommand`, `GizmoCommand` が操作対象）
 - `Instance`（`AddInstanceCommand`, `RemoveInstanceCommand`, `MoveInstanceCommand` が操作対象）
 
+複数編集には `MultiRenameInstanceCommand` と `MultiSpatialTransformCommand` を用いる。
+前者は一時名を経由して兄弟名衝突を避け、後者はワールド CFrame と Size の before/after
+を保持する。BaseCube の変換は物理同期付き setter を通して適用される。
+
 ## 実装分割
 
 非テンプレート実装はヘッダから分離し、Instance操作、Property操作、Terrain操作を

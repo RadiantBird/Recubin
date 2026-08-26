@@ -8,6 +8,7 @@ public:
     static constexpr const char* ClassName = "GuiButton";
 
     std::shared_ptr<RCBNScriptSignal> Activated;
+    std::shared_ptr<RCBNScriptSignal> HoverEnded;
 
     explicit GuiButton(std::string className);
     bool IsA(std::string name) override;

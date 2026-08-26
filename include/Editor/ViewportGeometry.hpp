@@ -5,6 +5,7 @@
 #include <Math/Quaternion.hpp>
 #include <Math/Vector2.hpp>
 #include <Math/Vector3.hpp>
+#include <vector>
 
 class Spatial;
 
@@ -76,6 +77,18 @@ Vector3 additiveResize(
     bool snapEnabled,
     float snapStep,
     float minimumSize = 0.05f);
+
+Vector3 groupScaleSize(const Vector3& initialSize, const Vector3& factors,
+                       bool snapEnabled, float snapStep,
+                       float minimumSize = 0.05f);
+Vector3 groupScalePosition(const Vector3& initialWorldPosition,
+                           const Vector3& pivot,
+                           const Vector3& effectiveFactors);
+float snapScaleFactor(float factor, bool snapEnabled, float snapStep);
+Vector3 effectiveGroupScaleFactors(const std::vector<Vector3>& initialSizes,
+                                   const Vector3& rawFactors,
+                                   bool snapEnabled, float snapStep,
+                                   float minimumSize = 0.05f);
 
 // Resize a volume while keeping the selected local face fixed.  SurfaceMark's
 // Position is the near-plane origin, so its local center factor is (0,0,-0.5).

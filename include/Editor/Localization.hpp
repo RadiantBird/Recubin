@@ -39,7 +39,7 @@ enum class LocKey {
     PlayButton, PauseButton, StopButton,
     PlayModeLabel, PlayModeNormal, PlayModeHere, PlayModeLocalServer,
     NetworkClientCountLabel, NetworkClientCountFormat, NetworkClientStatus,
-    SelectTool, MoveTool, ResizeTool, RotateTool,
+    SelectTool, MoveTool, ResizeTool, RotateTool, MultiResizeIndividual, MultiResizeGroupScale,
     SnapTranslate, SnapRotate, SnapScale, CollisionFit,
     AddObjectDropdown, SaveButton, LoadButton,
 
@@ -57,7 +57,7 @@ enum class LocKey {
     CategoryFile, CategoryFileDesc,
     CategoryScript, CategoryScriptDesc,
     SwitchToWorkspace, OpenInNewViewport, InsertObjectMenu,
-    MenuDelete, MenuCopy, MenuPaste, MenuPasteAsChild,
+    MenuDelete, MenuCopy, MenuPaste, MenuPasteAsChild, MenuSelectAllChildren,
     MenuGroup,
     InstancePickerTitleInsert, InstancePickerTitleGroup, InstancePickerTitleReplace,
     InstancePickerSearch, InstancePickerNoResults, InstancePickerReferenceWarning,

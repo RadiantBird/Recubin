@@ -1128,6 +1128,17 @@ void EditorManager::renderToolbarBasic() {
         }
         ImGui::PopStyleColor(2);
 
+        if (activeViewport->isResizeMode() && activeViewport->hasMultiSelection()) {
+            ImGui::SameLine();
+            const bool group = activeViewport->multiResizeMode == ViewportPanel::MultiResizeMode::GroupScale;
+            if (ImGui::SmallButton(Loc::t(group ? Loc::LocKey::MultiResizeGroupScale
+                                               : Loc::LocKey::MultiResizeIndividual))) {
+                activeViewport->multiResizeMode = group
+                    ? ViewportPanel::MultiResizeMode::Individual
+                    : ViewportPanel::MultiResizeMode::GroupScale;
+            }
+        }
+
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button,

@@ -34,6 +34,8 @@
 #include <Instances/FontFile.hpp>
 #include <Instances/TextFile.hpp>
 #include <Instances/TextLabel.hpp>
+#include <Instances/TextButton.hpp>
+#include <Instances/ImageButton.hpp>
 #include <Instances/ScreenGuiObject.hpp>
 #include <Instances/SurfaceMark.hpp>
 #include <Instances/Highlight.hpp>
@@ -62,6 +64,7 @@
 #include <Editor/CommandHistory.hpp>
 #include <Editor/GuiAutomationCommand.hpp>
 #include <Editor/SceneHierarchyGrouping.hpp>
+#include <Editor/SceneHierarchySelection.hpp>
 #include <Editor/InstanceCatalog.hpp>
 #include <Editor/EditorManager.hpp>
 #include <Editor/ViewportGeometry.hpp>
@@ -6380,6 +6383,44 @@ int runViewportHelperRegression() {
     expect(near(rotatedSurfaceOrigin.x, 2.0f) && near(rotatedSurfaceOrigin.z, 0.0f),
            "SurfaceMark fixed-face resize follows world rotation");
 
+    const std::vector<Vector3> groupSizes{
+        Vector3(2.0f, 4.0f, 1.0f), Vector3(1.0f, 2.0f, 8.0f)};
+    const Vector3 axisFactors = ViewportGeometry::effectiveGroupScaleFactors(
+        groupSizes, Vector3(2.0f, 1.0f, 1.0f), false, 0.25f);
+    const Vector3 axisScaled = ViewportGeometry::groupScaleSize(
+        groupSizes[0], axisFactors, false, 0.25f);
+    expect(axisFactors == Vector3(2.0f, 1.0f, 1.0f) &&
+               axisScaled == Vector3(4.0f, 4.0f, 1.0f),
+           "group scale applies an axis factor to every selected size");
+    const Vector3 uniformFactors = ViewportGeometry::effectiveGroupScaleFactors(
+        groupSizes, Vector3(0.1f, 0.1f, 0.1f), false, 0.25f, 0.5f);
+    expect(uniformFactors == Vector3(0.5f, 0.5f, 0.5f) &&
+               ViewportGeometry::groupScaleSize(groupSizes[1], uniformFactors, false, 0.25f)
+                   == Vector3(0.5f, 1.0f, 4.0f),
+           "uniform group scale clamps one common factor to every minimum size");
+    expect(near(ViewportGeometry::snapScaleFactor(1.26f, true, 0.25f), 1.25f) &&
+               near(ViewportGeometry::snapScaleFactor(0.63f, true, 0.25f), 0.75f),
+           "group scale factor snap uses increments around one");
+    const Vector3 clampedAxis = ViewportGeometry::effectiveGroupScaleFactors(
+        groupSizes, Vector3(0.1f, 0.8f, 1.0f), false, 0.25f, 0.5f);
+    expect(clampedAxis.x >= 0.5f && clampedAxis.y >= 0.5f && clampedAxis.z >= 0.5f,
+           "axis group scale clamps every axis against all selected sizes");
+    const Vector3 groupPivot(1.0f, 1.0f, 1.0f);
+    const Vector3 groupFactors(2.0f, 0.5f, 3.0f);
+    const Vector3 groupPosition = ViewportGeometry::groupScalePosition(
+        Vector3(9.0f, 4.0f, -2.0f), groupPivot, groupFactors);
+    const Vector3 pivotPosition = ViewportGeometry::groupScalePosition(
+        groupPivot, groupPivot, groupFactors);
+    expect(positionDistance(groupPosition, Vector3(17.0f, 2.5f, -8.0f)) <= 0.001f &&
+               positionDistance(pivotPosition, groupPivot) <= 0.001f,
+           "group scale applies world-axis position factors around a fixed pivot");
+    const Vector3 rotatedOrigin = ViewportGeometry::fixedFaceResizeOrigin(
+        Vector3(3.0f, 0.0f, 0.0f), quarterTurn,
+        Vector3(2.0f, 2.0f, 2.0f), Vector3(4.0f, 2.0f, 2.0f),
+        Vector3(1.0f, 0.0f, 0.0f), Vector3(0.0f, 0.0f, 0.0f));
+    expect(positionDistance(rotatedOrigin, Vector3(3.0f, 0.0f, -1.0f)) <= 0.001f,
+           "individual resize keeps the grabbed face fixed after rotation");
+
     auto zoomBackend = std::make_unique<FrameRateTestInputBackend>();
     FrameRateTestInputBackend* zoomInput = zoomBackend.get();
     auto zoomUser = std::make_shared<User>(std::move(zoomBackend));
@@ -7969,6 +8010,80 @@ static int runSceneHierarchyGroupingRegression() {
            "catalog search is case-insensitive and finds all script classes");
     expect(InstanceCatalog::search("SYSTEM").empty(), "catalog excludes system classes");
     expect(InstanceCatalog::create("Workspace") != nullptr, "catalog creates Workspace");
+
+    // Explorer range selection is based only on the expanded rows supplied in
+    // visible display order. Reverse selection returns the same stable order.
+    auto selectionRoot = std::make_shared<Folder>();
+    auto selectionA = std::make_shared<Folder>();
+    auto selectionB = std::make_shared<Folder>();
+    auto selectionC = std::make_shared<Folder>();
+    auto collapsedGrandchild = std::make_shared<Folder>();
+    selectionRoot->Name = "SelectionRoot";
+    selectionA->Name = "SelectionA";
+    selectionB->Name = "SelectionB";
+    selectionC->Name = "SelectionC";
+    collapsedGrandchild->Name = "CollapsedGrandchild";
+    selectionB->addChild(collapsedGrandchild);
+    selectionRoot->addChild(selectionA);
+    selectionRoot->addChild(selectionB);
+    selectionRoot->addChild(selectionC);
+    const std::vector<Instance*> visibleSelectionRows = {
+        selectionRoot.get(), selectionA.get(), selectionB.get(), selectionC.get()};
+    const std::vector<Instance*> expectedVisibleRange = {
+        selectionA.get(), selectionB.get(), selectionC.get()};
+    expect(SceneHierarchySelection::selectVisibleRange(
+               visibleSelectionRows, selectionA.get(), selectionC.get(), {}, false)
+               == expectedVisibleRange,
+           "Explorer Shift range includes both endpoints in forward visible order");
+    expect(SceneHierarchySelection::selectVisibleRange(
+               visibleSelectionRows, selectionC.get(), selectionA.get(), {}, false)
+               == expectedVisibleRange,
+           "Explorer Shift range supports reverse clicks with stable visible order");
+    const auto collapsedRange = SceneHierarchySelection::selectVisibleRange(
+        visibleSelectionRows, selectionA.get(), selectionC.get(), {}, false);
+    expect(std::find(collapsedRange.begin(), collapsedRange.end(), collapsedGrandchild.get())
+               == collapsedRange.end(),
+           "Explorer Shift range excludes nodes omitted by collapsed branches");
+
+    const std::vector<Instance*> priorSelection = {
+        selectionRoot.get(), selectionB.get(), selectionB.get()};
+    expect(SceneHierarchySelection::selectVisibleRange(
+               visibleSelectionRows, selectionA.get(), selectionC.get(), priorSelection, false)
+               == expectedVisibleRange,
+           "plain Shift replaces the existing selection");
+    const std::vector<Instance*> expectedAppendedRange = {
+        selectionRoot.get(), selectionB.get(), selectionA.get(), selectionC.get()};
+    expect(SceneHierarchySelection::selectVisibleRange(
+               visibleSelectionRows, selectionA.get(), selectionC.get(), priorSelection, true)
+               == expectedAppendedRange,
+           "Ctrl+Shift preserves existing order and deduplicates the visible range");
+
+    const std::vector<Instance*> expectedFallback = {selectionC.get()};
+    expect(SceneHierarchySelection::selectVisibleRange(
+               visibleSelectionRows, collapsedGrandchild.get(), selectionC.get(), priorSelection, false)
+               == expectedFallback,
+           "non-visible Explorer anchor falls back to the clicked target");
+    const std::vector<Instance*> expectedAppendedFallback = {
+        selectionRoot.get(), selectionB.get(), selectionC.get()};
+    expect(SceneHierarchySelection::selectVisibleRange(
+               visibleSelectionRows, nullptr, selectionC.get(), priorSelection, true)
+               == expectedAppendedFallback,
+           "invalid Explorer anchor appends only the clicked target for Ctrl+Shift");
+
+    const auto directChildren = SceneHierarchySelection::collectDirectChildren(*selectionRoot);
+    std::vector<Instance*> expectedDirectChildren;
+    for (const auto& [name, child] : selectionRoot->getChildren())
+        if (child) expectedDirectChildren.push_back(child.get());
+    expect(directChildren == expectedDirectChildren &&
+               std::find(directChildren.begin(), directChildren.end(), selectionRoot.get())
+                   == directChildren.end() &&
+               std::find(directChildren.begin(), directChildren.end(), collapsedGrandchild.get())
+                   == directChildren.end(),
+           "select children returns direct children only in Explorer display order");
+    Folder emptySelectionParent;
+    expect(SceneHierarchySelection::collectDirectChildren(emptySelectionParent).empty(),
+           "select children returns an empty selection for a leaf");
+
     auto workspace = std::make_shared<Workspace>();
     auto cube = std::make_shared<Cube>(Vector3(4, 2, -3), Vector3(1, 1, 1), Cube::defaultTextureID);
     auto folder = std::make_shared<Folder>();
@@ -7997,6 +8112,68 @@ static int runSceneHierarchyGroupingRegression() {
     expect(model->getChild("Folder") == folder.get() &&
                nested->getWorldCFrame().Position == nestedWorld.Position,
                "redo restores group and descendant pose");
+
+    // Multi-selection rename uses canonical names without disturbing an
+    // unselected sibling, and runtime-locked instances are skipped.
+    auto renameParent = std::make_shared<Folder>();
+    auto renameA = std::make_shared<Cube>(Vector3(), Vector3(1, 1, 1), Cube::defaultTextureID);
+    auto renameB = std::make_shared<Cube>(Vector3(), Vector3(1, 1, 1), Cube::defaultTextureID);
+    auto occupied = std::make_shared<Cube>(Vector3(), Vector3(1, 1, 1), Cube::defaultTextureID);
+    renameA->Name = "oldA"; renameB->Name = "oldB"; occupied->Name = "base";
+    renameB->lockRuntimeName();
+    renameParent->addChild(renameA); renameParent->addChild(renameB); renameParent->addChild(occupied);
+    CommandHistory renameHistory;
+    renameHistory.execute(std::make_unique<MultiRenameInstanceCommand>(
+        std::vector<MultiRenameInstanceCommand::Entry>{
+            {renameA, "oldA", "base1"}, {renameB, "oldB", "base2"}}));
+    expect(renameParent->getChild("base1") == renameA.get() &&
+               renameParent->getChild("base") == occupied.get() &&
+               renameParent->getChild("oldB") == renameB.get(),
+           "multi rename skips runtime lock and preserves unselected sibling keys");
+    renameHistory.undo();
+    expect(renameParent->getChild("oldA") == renameA.get() &&
+               renameParent->getChild("oldB") == renameB.get() &&
+               renameParent->getChild("base") == occupied.get(),
+           "multi rename undo restores every children key");
+    renameHistory.redo();
+    expect(renameParent->getChild("base1") == renameA.get() &&
+               renameParent->getChild("oldB") == renameB.get(),
+           "multi rename redo restores canonical keys");
+
+    // A single command applies world transforms to Spatial children with
+    // different parents, while BaseCube physics setters receive local values.
+    auto transformRoot = std::make_shared<Workspace>();
+    auto parentA = std::make_shared<Model>(Vector3(10, 0, 0));
+    auto parentB = std::make_shared<Model>(Vector3(-4, 2, 3));
+    parentB->Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f);
+    auto transformA = std::make_shared<Cube>(Vector3(1, 0, 0), Vector3(1, 2, 3), Cube::defaultTextureID);
+    auto transformB = std::make_shared<Cube>(Vector3(0, 1, 0), Vector3(2, 2, 2), Cube::defaultTextureID);
+    parentA->addChild(transformA); parentB->addChild(transformB);
+    transformRoot->addChild(parentA); transformRoot->addChild(parentB);
+    const CFrame beforeA = transformA->getWorldCFrame();
+    const CFrame beforeB = transformB->getWorldCFrame();
+    const Vector3 beforeSizeA = transformA->Size;
+    const Vector3 beforeSizeB = transformB->Size;
+    const CFrame afterA(Vector3(3, 4, 5), Quaternion::fromEuler(Vector3(0, 20, 0)));
+    const CFrame afterB(Vector3(-2, 6, 1), Quaternion::fromEuler(Vector3(10, 0, 30)));
+    CommandHistory transformHistory;
+    transformHistory.execute(std::make_unique<MultiSpatialTransformCommand>(
+        std::vector<MultiSpatialTransformCommand::Entry>{
+            {transformA, beforeA, afterA, beforeSizeA, Vector3(4, 5, 6)},
+            {transformB, beforeB, afterB, beforeSizeB, Vector3(7, 8, 9)}}));
+    expect(positionDistance(transformA->getWorldCFrame().Position, afterA.Position) <= 0.001f &&
+               positionDistance(transformB->getWorldCFrame().Position, afterB.Position) <= 0.001f &&
+               transformA->Size == Vector3(4, 5, 6) && transformB->Size == Vector3(7, 8, 9),
+           "multi spatial transform applies world CFrame and size across different parents");
+    transformHistory.undo();
+    expect(positionDistance(transformA->getWorldCFrame().Position, beforeA.Position) <= 0.001f &&
+               positionDistance(transformB->getWorldCFrame().Position, beforeB.Position) <= 0.001f &&
+               transformA->Size == beforeSizeA && transformB->Size == beforeSizeB,
+           "multi spatial transform undo restores world poses and sizes");
+    transformHistory.redo();
+    expect(positionDistance(transformA->getWorldCFrame().Position, afterA.Position) <= 0.001f &&
+               positionDistance(transformB->getWorldCFrame().Position, afterB.Position) <= 0.001f,
+           "multi spatial transform redo restores world poses");
 
     auto scriptParent = std::make_shared<Folder>();
     auto script = std::make_shared<Script>();
@@ -8388,6 +8565,17 @@ static int runPhysicalFileInstanceRegression() {
     expect(fontRef != screenGuiSchema.end() &&
                fontRef->instanceRefClass == "FontFile",
            "TextLabel FontFile uses the typed instance-reference metadata");
+
+    const auto hasSignal = [](std::string_view className, std::string_view signalName) {
+        const auto schema = PropertyRegistry::collectSchema(className);
+        return std::any_of(schema.begin(), schema.end(), [&](const PropertyDesc* desc) {
+            return desc->kind == PropKind::Signal && desc->name == signalName;
+        });
+    };
+    expect(hasSignal("TextButton", "HoverEnded"),
+           "TextButton exposes GuiButton HoverEnded signal schema");
+    expect(hasSignal("ImageButton", "HoverEnded"),
+           "ImageButton exposes GuiButton HoverEnded signal schema");
 
     bool hasFileRef = false;
     bool hasFontFile = false;

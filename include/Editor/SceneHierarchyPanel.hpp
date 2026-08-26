@@ -141,6 +141,13 @@ private:
     // Ctrl+F でリクエストされた自動展開・スクロール対象（requestReveal で設定）
     Instance* m_revealRequest = nullptr;
 
+    // Explorer の可視行を基準にした Shift 範囲選択状態。
+    Instance* m_selectionAnchor = nullptr;
+    std::vector<Instance*> m_visibleNodes;
+    Instance* m_pendingRangeTarget = nullptr;
+    bool m_pendingRangeAppend = false;
+    Instance* m_shiftClickTarget = nullptr;
+
     void drawNode(Instance* inst);
     void renderTextFileDialog();
     void renderContextMenu(Instance* inst);
