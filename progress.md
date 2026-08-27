@@ -326,3 +326,19 @@
 - FBOカラーテクスチャのS/Tラップを`GL_CLAMP_TO_EDGE`へ固定し、線形補間時に反対側の端が
   レターボックス境界へ混ざる1pxノイズを防止した。
 - ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。`--viewport-helper-regression`はPASS。手動GUI確認は未実施。
+
+## 2026-08-26: Userカスタムマウスカーソル
+
+- `User.CursorType` の Default／Type1〜10、各画像ContentPath・Hotspotを実装し、PropertiesのBrowse／Clear／Hotspot編集、Luau Enum、YAML／Packager、GLFW適用へ対応した。
+- SVGは今回対象外。ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功、対象3回帰成功、9シーン全回帰は236 passed / 0 failed、GUI自動smoke成功。カスタムカーソル固有の手動GUI確認は未実施。
+
+## 2026-08-28: GUI整理と日本語パッケージ対応
+
+- Resize横の常設▼メニュー、BaseCubeカテゴリ整理、PackagerのUTF-8 filesystem境界、
+  日本語gameName/outputDir/scene/startup、RecubinEngineの実行ファイル基準content root（`--scene`時は維持）を実装した。
+- ReleaseのRecubin／RecubinEngine／RecubinTest 3ターゲットbuild成功（既存NOMINMAX/APIENTRY警告のみ）。
+  全回帰初回はテスト自身のnarrow日本語pathでasset-pathがPhysX／Box3D各1 FAILしたが、テスト修正後は
+  `--asset-path-regression` が両backendでPASS。全回帰中の`--viewport-helper-regression`両backend、GUI automation smokeはPASSし、
+  他の新規失敗はなかった。日本語名の実パッケージを外部CWDから4秒起動し、startup／scene／script読込と非即時終了を確認した。
+- 一時package／processは削除済み。手動GUIの見た目確認は未実施。
+- 修正後の最終全回帰は236 passed / 0 failed、GUI automation smokeを含めRegression OK。

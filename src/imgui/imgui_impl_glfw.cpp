@@ -1030,6 +1030,13 @@ static void ImGui_ImplGlfw_UpdateMouseCursor()
     }
 }
 
+void ImGui_ImplGlfw_InvalidateMouseCursor()
+{
+    ImGui_ImplGlfw_Data* bd = ImGui_ImplGlfw_GetBackendData();
+    if (bd)
+        bd->LastMouseCursor = nullptr;
+}
+
 // Update gamepad inputs
 static inline float Saturate(float v) { return v < 0.0f ? 0.0f : v  > 1.0f ? 1.0f : v; }
 static void ImGui_ImplGlfw_UpdateGamepads()

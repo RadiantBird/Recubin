@@ -15,5 +15,6 @@ public:
     void getCursorPos(double& x, double& y) const override;
     void setCursorPos(double x, double y) override;
     void setMouseCaptured(bool captured) override;
+    bool setCustomCursor(const std::string& path, int hotspotX, int hotspotY) override;
     double consumeScrollDelta() override;
 };

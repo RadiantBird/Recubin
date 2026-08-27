@@ -117,6 +117,33 @@ private:
     std::string m_property;
     bool m_before, m_after;
 };
+
+class SetUserCursorCommand final : public Command {
+public:
+    enum class Kind { Type, Path, HotspotX, HotspotY };
+    SetUserCursorCommand(std::shared_ptr<User> target, Kind kind, std::size_t index,
+                         int beforeInt, int afterInt, std::string beforePath, std::string afterPath)
+        : m_target(std::move(target)), m_kind(kind), m_index(index),
+          m_beforeInt(beforeInt), m_afterInt(afterInt),
+          m_beforePath(std::move(beforePath)), m_afterPath(std::move(afterPath)) {}
+    void execute() override { apply(m_afterInt, m_afterPath); }
+    void undo() override { apply(m_beforeInt, m_beforePath); }
+private:
+    void apply(int value, const std::string& path) {
+        if (!m_target) return;
+        switch (m_kind) {
+        case Kind::Type: m_target->setCursorType(static_cast<User::CursorType>(value)); break;
+        case Kind::Path: m_target->setCursorImagePath(m_index, path); break;
+        case Kind::HotspotX: m_target->setCursorHotspotX(m_index, value); break;
+        case Kind::HotspotY: m_target->setCursorHotspotY(m_index, value); break;
+        }
+    }
+    std::shared_ptr<User> m_target;
+    Kind m_kind;
+    std::size_t m_index;
+    int m_beforeInt, m_afterInt;
+    std::string m_beforePath, m_afterPath;
+};
 }
 
 // ローカライズ済みラベル + ImGui ID サフィックス（"##foo"）を連結するヘルパー
@@ -1927,6 +1954,81 @@ void PropertiesPanel::onRender() {
                                   : (modeIdx == 1) ? User::ControlMode::Character
                                                     : User::ControlMode::Program;
             }
+        }
+
+        // Custom mouse cursors.  The image slots are intentionally explicit so
+        // their serialized names remain stable (CursorImages[0..9]).
+        {
+            const bool cursorReadOnly = readOnly;
+            ImGui::BeginDisabled(cursorReadOnly);
+            const char* cursorTypes[] = { "Default", "Type1", "Type2", "Type3", "Type4", "Type5",
+                                          "Type6", "Type7", "Type8", "Type9", "Type10" };
+            int type = static_cast<int>(usr->getCursorType());
+            if (ImGui::Combo("CursorType", &type, cursorTypes, 11)) {
+                const int before = static_cast<int>(usr->getCursorType());
+                usr->setCursorType(static_cast<User::CursorType>(type));
+                if (m_history && before != type)
+                    m_history->record(std::make_unique<SetUserCursorCommand>(
+                        usrSp, SetUserCursorCommand::Kind::Type, 0, before, type, "", ""));
+            }
+            for (std::size_t i = 0; i < User::CURSOR_IMAGE_SLOT_COUNT; ++i) {
+                const auto& slot = usr->getCursorImageSlot(i);
+                static std::array<int, User::CURSOR_IMAGE_SLOT_COUNT> hotspotBeforeX{};
+                static std::array<int, User::CURSOR_IMAGE_SLOT_COUNT> hotspotBeforeY{};
+                ImGui::PushID(static_cast<int>(i));
+                ImGui::Text("Type%zu", i + 1);
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(std::max(1.0f, ImGui::GetContentRegionAvail().x - 120.0f));
+                ImGui::LabelText("##cursor_path", "%s", slot.contentPath.empty() ? "(none)" : slot.contentPath.c_str());
+                ImGui::SameLine();
+                if (ImGui::Button("Browse")) {
+                    const std::string selected = getPlatform().openFileDialog({{
+                        "Cursor image", "*.png;*.jpg;*.jpeg;*.bmp;*.tga"}});
+                    if (!selected.empty()) {
+                        const std::string path = toProjectRelative(selected);
+                        if (path != slot.contentPath) {
+                            if (m_history) m_history->execute(std::make_unique<SetUserCursorCommand>(
+                                usrSp, SetUserCursorCommand::Kind::Path, i, 0, 0,
+                                slot.contentPath, path));
+                            else usr->setCursorImagePath(i, path);
+                        }
+                    }
+                }
+                ImGui::SameLine();
+                ImGui::BeginDisabled(slot.contentPath.empty());
+                if (ImGui::Button("Clear")) {
+                    if (m_history) m_history->execute(std::make_unique<SetUserCursorCommand>(
+                        usrSp, SetUserCursorCommand::Kind::Path, i, 0, 0, slot.contentPath, ""));
+                    else usr->setCursorImagePath(i, "");
+                }
+                ImGui::EndDisabled();
+                int hotspotX = slot.hotspotX;
+                int hotspotY = slot.hotspotY;
+                const int originalX = slot.hotspotX;
+                const int originalY = slot.hotspotY;
+                ImGui::SetNextItemWidth(90.0f);
+                if (ImGui::InputInt("HotspotX", &hotspotX)) {
+                    hotspotX = std::max(0, hotspotX);
+                    usr->setCursorHotspotX(i, hotspotX);
+                }
+                if (ImGui::IsItemActivated()) hotspotBeforeX[i] = originalX;
+                if (ImGui::IsItemDeactivatedAfterEdit() && m_history && hotspotX != hotspotBeforeX[i])
+                    m_history->execute(std::make_unique<SetUserCursorCommand>(
+                        usrSp, SetUserCursorCommand::Kind::HotspotX, i,
+                        hotspotBeforeX[i], hotspotX, "", ""));
+                ImGui::SetNextItemWidth(90.0f);
+                if (ImGui::InputInt("HotspotY", &hotspotY)) {
+                    hotspotY = std::max(0, hotspotY);
+                    usr->setCursorHotspotY(i, hotspotY);
+                }
+                if (ImGui::IsItemActivated()) hotspotBeforeY[i] = originalY;
+                if (ImGui::IsItemDeactivatedAfterEdit() && m_history && hotspotY != hotspotBeforeY[i])
+                    m_history->execute(std::make_unique<SetUserCursorCommand>(
+                        usrSp, SetUserCursorCommand::Kind::HotspotY, i,
+                        hotspotBeforeY[i], hotspotY, "", ""));
+                ImGui::PopID();
+            }
+            ImGui::EndDisabled();
         }
 
         // Character mode parameters

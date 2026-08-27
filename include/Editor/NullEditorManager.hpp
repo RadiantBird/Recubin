@@ -115,6 +115,9 @@ public:
 
         renderNavMeshBuildOverlay();
 
+        if (user.applyCursor(true))
+            ImGui_ImplGlfw_InvalidateMouseCursor();
+
         if (Renderer::instance) Renderer::instance->drawCameraRotationCursor(user, window);
 
         ImGui::Render();

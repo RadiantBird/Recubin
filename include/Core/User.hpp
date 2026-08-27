@@ -29,6 +29,14 @@ struct camera {
 
 class User : public Instance {
 public:
+    enum class CursorType { Default = 0, Type1, Type2, Type3, Type4, Type5,
+                            Type6, Type7, Type8, Type9, Type10 };
+    struct CursorImageSlot {
+        std::string contentPath;
+        int hotspotX = 0;
+        int hotspotY = 0;
+    };
+    static constexpr std::size_t CURSOR_IMAGE_SLOT_COUNT = 10;
     float speed = 0.25f;
     float rotationSpeed = 1.0f;
     float mouseRotationSpeed = 0.15f;
@@ -98,6 +106,13 @@ public:
     bool isCameraInputEnabled() const { return m_cameraInputEnabled; }
     bool isHotkeyInputEnabled() const { return m_hotkeyInputEnabled; }
     bool isToolInputEnabled() const { return m_toolInputEnabled; }
+    CursorType getCursorType() const { return m_cursorType; }
+    void setCursorType(CursorType type);
+    const CursorImageSlot& getCursorImageSlot(std::size_t index) const;
+    void setCursorImagePath(std::size_t index, const std::string& path);
+    void setCursorHotspotX(std::size_t index, int value);
+    void setCursorHotspotY(std::size_t index, int value);
+    bool applyCursor(bool gameplayHovered);
     void resetInputRuntimeState();
 
     // 多分このあたりprivateにしたほうが安全だよね。Tool追加/Tool取り除き、って感じ。
@@ -305,6 +320,8 @@ private:
     double m_gameViewportCursorCenterX = 0.0;
     double m_gameViewportCursorCenterY = 0.0;
     bool m_gameViewportCursorCenterValid = false;
+    CursorType m_cursorType = CursorType::Default;
+    std::array<CursorImageSlot, CURSOR_IMAGE_SLOT_COUNT> m_cursorImages{};
 
     void updateMouseCapture();
     void applyQueuedJump(Physics* physics);

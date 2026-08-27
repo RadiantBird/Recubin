@@ -46,6 +46,7 @@
 #include "include/Instances/NumberValue.hpp"
 #include "include/Instances/QuaternionValue.hpp"
 #include "include/Instances/CFrameValue.hpp"
+#include <limits>
 #include "include/Instances/ObjectValue.hpp"
 
 // ─── Binding helper factories (anonymous, internal to this TU) ────────────────
@@ -61,6 +62,18 @@
 //  Requires C++17 (auto non-type template parameters, if constexpr).
 // ─────────────────────────────────────────────────────────────────────────────
 namespace {
+static constexpr const char* CURSOR_SOURCE_NAMES[10] = {
+    "CursorType1Source", "CursorType2Source", "CursorType3Source", "CursorType4Source", "CursorType5Source",
+    "CursorType6Source", "CursorType7Source", "CursorType8Source", "CursorType9Source", "CursorType10Source"};
+static constexpr const char* CURSOR_PATH_NAMES[10] = {
+    "CursorType1ContentPath", "CursorType2ContentPath", "CursorType3ContentPath", "CursorType4ContentPath", "CursorType5ContentPath",
+    "CursorType6ContentPath", "CursorType7ContentPath", "CursorType8ContentPath", "CursorType9ContentPath", "CursorType10ContentPath"};
+static constexpr const char* CURSOR_X_NAMES[10] = {
+    "CursorType1HotspotX", "CursorType2HotspotX", "CursorType3HotspotX", "CursorType4HotspotX", "CursorType5HotspotX",
+    "CursorType6HotspotX", "CursorType7HotspotX", "CursorType8HotspotX", "CursorType9HotspotX", "CursorType10HotspotX"};
+static constexpr const char* CURSOR_Y_NAMES[10] = {
+    "CursorType1HotspotY", "CursorType2HotspotY", "CursorType3HotspotY", "CursorType4HotspotY", "CursorType5HotspotY",
+    "CursorType6HotspotY", "CursorType7HotspotY", "CursorType8HotspotY", "CursorType9HotspotY", "CursorType10HotspotY"};
 
 // ── Getter: numeric field (float / int / unsigned / enum) ────────────────────
 template<typename T, auto M>
@@ -642,6 +655,47 @@ void LuauEngine::InitDispatchTable_Misc() {
     // Luau側にcharacter(Model)を引数で渡す
     DispatchTable["User"]["CharacterAdded"] = getter_signal<User, &User::CharacterAdded>();
     DispatchTable["User"]["ExitRequested"] = getter_signal<User, &User::ExitRequested>();
+    // User.CursorType is a typed enum item (the setter rejects strings and
+    // enum items belonging to another enum type).
+    DispatchTable["User"]["CursorType"] = [](lua_State* L, Instance* obj) -> int {
+        auto* user = static_cast<User*>(obj);
+        const int value = static_cast<int>(user->getCursorType());
+        lua_getglobal(L, "Enum");
+        lua_getfield(L, -1, "CursorType");
+        lua_getfield(L, -1, value == 0 ? "Default" : (std::string("Type") + std::to_string(value)).c_str());
+        lua_remove(L, -2);
+        lua_remove(L, -2);
+        return 1;
+    };
+    for (std::size_t i = 0; i < User::CURSOR_IMAGE_SLOT_COUNT; ++i) {
+        DispatchTable["User"][CURSOR_PATH_NAMES[i]] = [i](lua_State* L, Instance* obj) -> int {
+            lua_pushstring(L, static_cast<User*>(obj)->getCursorImageSlot(i).contentPath.c_str()); return 1;
+        };
+        DispatchTable["User"][CURSOR_X_NAMES[i]] = [i](lua_State* L, Instance* obj) -> int {
+            lua_pushinteger(L, static_cast<User*>(obj)->getCursorImageSlot(i).hotspotX); return 1;
+        };
+        DispatchTable["User"][CURSOR_Y_NAMES[i]] = [i](lua_State* L, Instance* obj) -> int {
+            lua_pushinteger(L, static_cast<User*>(obj)->getCursorImageSlot(i).hotspotY); return 1;
+        };
+        SetterTable["User"][CURSOR_SOURCE_NAMES[i]] = [i](lua_State* L, Instance* obj) -> int {
+            if (lua_isnil(L, 3)) { static_cast<User*>(obj)->setCursorImagePath(i, ""); return 0; }
+            std::string path;
+            if (!getFileRefPath(L, 3, path)) {
+                luaL_error(L, "CursorType%zuSource expects a FileRef or nil", i + 1); return 0;
+            }
+            static_cast<User*>(obj)->setCursorImagePath(i, path); return 0;
+        };
+        SetterTable["User"][CURSOR_X_NAMES[i]] = [i](lua_State* L, Instance* obj) -> int {
+            const lua_Integer value = luaL_checkinteger(L, 3);
+            if (value < 0 || value > std::numeric_limits<int>::max()) { luaL_error(L, "cursor hotspot must be a non-negative 32-bit integer"); return 0; }
+            static_cast<User*>(obj)->setCursorHotspotX(i, static_cast<int>(value)); return 0;
+        };
+        SetterTable["User"][CURSOR_Y_NAMES[i]] = [i](lua_State* L, Instance* obj) -> int {
+            const lua_Integer value = luaL_checkinteger(L, 3);
+            if (value < 0 || value > std::numeric_limits<int>::max()) { luaL_error(L, "cursor hotspot must be a non-negative 32-bit integer"); return 0; }
+            static_cast<User*>(obj)->setCursorHotspotY(i, static_cast<int>(value)); return 0;
+        };
+    }
     DispatchTable["User"]["AddTool"]    = getter_closure(user_add_tool_closure,    "AddTool");
     DispatchTable["User"]["RemoveTool"] = getter_closure(user_remove_tool_closure, "RemoveTool");
     DispatchTable["User"]["GetTool"]    = getter_closure(user_get_tool_closure,    "GetTool");
@@ -1003,6 +1057,40 @@ void LuauEngine::InitSetterTable_Misc() {
         if (s == "Free")         u->controlMode = User::ControlMode::Free;
         else if (s == "Program") u->controlMode = User::ControlMode::Program;
         else                     u->controlMode = User::ControlMode::Character;
+        return 0;
+    };
+    SetterTable["User"]["CursorType"] = [](lua_State* L, Instance* obj) -> int {
+        if (lua_type(L, 3) != LUA_TUSERDATA) {
+            luaL_error(L, "User.CursorType expects an Enum.CursorType item");
+            return 0;
+        }
+        lua_getmetatable(L, 3);
+        luaL_getmetatable(L, "RCBN_EnumItem");
+        const bool isEnumItem = lua_rawequal(L, -2, -1) != 0;
+        lua_pop(L, 2);
+        if (!isEnumItem) {
+            luaL_error(L, "User.CursorType expects an Enum.CursorType item");
+            return 0;
+        }
+        // Read the public fields through the metatable; this also avoids
+        // depending on the private C++ representation of EnumItem.
+        lua_getfield(L, 3, "EnumType");
+        lua_getglobal(L, "Enum");
+        lua_getfield(L, -1, "CursorType");
+        const bool sameType = lua_rawequal(L, -3, -1) != 0;
+        lua_pop(L, 3);
+        if (!sameType) {
+            luaL_error(L, "User.CursorType expects an Enum.CursorType item");
+            return 0;
+        }
+        lua_getfield(L, 3, "Value");
+        const lua_Integer value = luaL_checkinteger(L, -1);
+        lua_pop(L, 1);
+        if (value < 0 || value > 10) {
+            luaL_error(L, "invalid Enum.CursorType value");
+            return 0;
+        }
+        static_cast<User*>(obj)->setCursorType(static_cast<User::CursorType>(value));
         return 0;
     };
     SetterTable["User"]["CharacterSmoothing"] = [](lua_State* L, Instance* obj) {

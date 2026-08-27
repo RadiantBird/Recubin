@@ -2,6 +2,10 @@
 
 #include <Core/IInputBackend.hpp>
 #include <include/GLFW/glfw3.h>
+#include <filesystem>
+#include <string>
+#include <array>
+#include <unordered_set>
 
 // ==================================================================
 //  GLFWInputBackend
@@ -20,6 +24,7 @@ public:
     void getCursorPos(double& x, double& y) const override;
     void setCursorPos(double x, double y) override;
     void setMouseCaptured(bool captured) override;
+    bool setCustomCursor(const std::string& path, int hotspotX, int hotspotY) override;
     double consumeScrollDelta() override;
 
 private:
@@ -28,6 +33,16 @@ private:
     GLFWwindow*    m_window;
     double         m_pendingScrollY = 0.0;
     GLFWscrollfun  m_previousScrollCallback = nullptr;
+    struct CursorCacheEntry {
+        GLFWcursor* cursor = nullptr;
+        std::string path;
+        std::filesystem::file_time_type writeTime{};
+        int hotspotX = 0;
+        int hotspotY = 0;
+    };
+    std::array<CursorCacheEntry, 10> m_cursorCache{};
+    GLFWcursor* m_activeCursor = nullptr;
+    std::unordered_set<std::string> m_cursorWarningKeys;
 
     static GLFWInputBackend* s_instance;
 };

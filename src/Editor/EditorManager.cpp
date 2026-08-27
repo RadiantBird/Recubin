@@ -1128,17 +1128,6 @@ void EditorManager::renderToolbarBasic() {
         }
         ImGui::PopStyleColor(2);
 
-        if (activeViewport->isResizeMode() && activeViewport->hasMultiSelection()) {
-            ImGui::SameLine();
-            const bool group = activeViewport->multiResizeMode == ViewportPanel::MultiResizeMode::GroupScale;
-            if (ImGui::SmallButton(Loc::t(group ? Loc::LocKey::MultiResizeGroupScale
-                                               : Loc::LocKey::MultiResizeIndividual))) {
-                activeViewport->multiResizeMode = group
-                    ? ViewportPanel::MultiResizeMode::Individual
-                    : ViewportPanel::MultiResizeMode::GroupScale;
-            }
-        }
-
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button,
@@ -1170,6 +1159,21 @@ void EditorManager::renderToolbarBasic() {
             }
         }
         ImGui::PopStyleColor(2);
+
+        ImGui::SameLine();
+        if (ImGui::ArrowButton("##MultiResizeModeMenu", ImGuiDir_Down)) {
+            ImGui::OpenPopup("##MultiResizeModePopup");
+        }
+        if (ImGui::BeginPopup("##MultiResizeModePopup")) {
+            const bool group = activeViewport->multiResizeMode == ViewportPanel::MultiResizeMode::GroupScale;
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MultiResizeIndividual), nullptr, !group)) {
+                activeViewport->multiResizeMode = ViewportPanel::MultiResizeMode::Individual;
+            }
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MultiResizeGroupScale), nullptr, group)) {
+                activeViewport->multiResizeMode = ViewportPanel::MultiResizeMode::GroupScale;
+            }
+            ImGui::EndPopup();
+        }
 
         ImGui::SameLine();
 
@@ -1477,6 +1481,14 @@ void EditorManager::renderUI(User& user, GLFWwindow* window, Workspace& workspac
     ImGuizmo::BeginFrame();
 
     render(window);
+
+    // ImGui restores its own cursor during NewFrame; apply the game's cursor
+    // at the end of the frame only while the primary gameplay viewport is hot.
+    {
+        const bool gameplayHovered = viewportPanel && viewportPanel->isHoveringViewport;
+        if (user.applyCursor(gameplayHovered))
+            ImGui_ImplGlfw_InvalidateMouseCursor();
+    }
 
     if (Renderer::instance) Renderer::instance->drawCameraRotationCursor(user, window);
 

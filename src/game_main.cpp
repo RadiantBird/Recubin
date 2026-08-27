@@ -35,6 +35,8 @@
 #include <include/imgui/imgui.h>
 
 #include <Util/Logger.hpp>
+#include <Util/AssetPath.hpp>
+#include <Util/RuntimeContentRoot.hpp>
 #include <Util/FrameProfiler.hpp>
 #include <Util/AssetGuard.hpp>
 #include <Util/Platform.hpp>
@@ -288,9 +290,28 @@ static void prepareMacBundleResources() {
         std::filesystem::weakly_canonical(std::filesystem::path(buffer.data()), ec);
     if (ec) return;
 
-    const std::filesystem::path resources = executable.parent_path().parent_path() / "Resources";
-    if (!std::filesystem::exists(resources / "startup.yaml")) return;
-    std::filesystem::current_path(resources, ec);
+    const auto resources = resolveRuntimeContentRoot(
+        executable, RuntimeContentPlatform::MacOS, false,
+        std::filesystem::is_regular_file(
+            executable.parent_path().parent_path() / "Resources" / "startup.yaml", ec));
+    if (resources) std::filesystem::current_path(*resources, ec);
+}
+#endif
+
+#ifdef _WIN32
+// Explorer starts an executable with an arbitrary CWD. Resolve packaged
+// resources beside the runtime before reading startup.yaml.
+static void prepareWindowsPackageResources() {
+    std::vector<wchar_t> buffer(32768, L'\0');
+    const DWORD length = GetModuleFileNameW(nullptr, buffer.data(),
+                                             static_cast<DWORD>(buffer.size()));
+    if (length == 0 || length >= buffer.size()) return;
+    const std::filesystem::path executable(std::wstring(buffer.data(), length));
+    std::error_code ec;
+    const auto packageRoot = resolveRuntimeContentRoot(
+        executable, RuntimeContentPlatform::Windows, false,
+        std::filesystem::is_regular_file(executable.parent_path() / L"startup.yaml", ec));
+    if (packageRoot) std::filesystem::current_path(*packageRoot, ec);
 }
 #endif
 
@@ -313,10 +334,17 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
+    if (!runtimeArgs.scenePath.has_value()) {
+#ifdef _WIN32
+        prepareWindowsPackageResources();
+#elif defined(__APPLE__)
+        prepareMacBundleResources();
+#endif
+    }
     GameConfig cfg = loadStartup();
     if (runtimeArgs.scenePath.has_value()) {
         std::error_code sceneError;
-        if (!std::filesystem::is_regular_file(*runtimeArgs.scenePath, sceneError)) {
+        if (!std::filesystem::is_regular_file(AssetPath::fromStored(*runtimeArgs.scenePath), sceneError)) {
             RCBN_ERROR("Invalid --scene path: " << *runtimeArgs.scenePath);
             return -1;
         }

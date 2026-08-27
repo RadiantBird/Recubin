@@ -78,6 +78,7 @@
 #include <Util/AssetGuard.hpp>
 #include <Util/PngWriter.hpp>
 #include <Util/AssetPath.hpp>
+#include <Util/RuntimeContentRoot.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
 #include <Util/MockPlatform.hpp>
@@ -168,6 +169,9 @@ public:
     double scrollDelta = 0.0;
     double cursorX = 0.0, cursorY = 0.0;
     bool mouseCaptured = false;
+    std::string customCursorPath;
+    int customCursorHotspotX = 0, customCursorHotspotY = 0;
+    bool customCursorApplied = false;
 
     bool isKeyDown(KeyCode key) const override { return pressedKeys.contains(key); }
     bool isMouseButtonDown(MouseButton button) const override {
@@ -176,6 +180,13 @@ public:
     void getCursorPos(double& x, double& y) const override { x = cursorX; y = cursorY; }
     void setCursorPos(double x, double y) override { cursorX = x; cursorY = y; }
     void setMouseCaptured(bool captured) override { mouseCaptured = captured; }
+    bool setCustomCursor(const std::string& path, int hotspotX, int hotspotY) override {
+        customCursorPath = path;
+        customCursorHotspotX = hotspotX;
+        customCursorHotspotY = hotspotY;
+        customCursorApplied = !path.empty();
+        return customCursorApplied;
+    }
     double consumeScrollDelta() override {
         const double result = scrollDelta;
         scrollDelta = 0.0;
@@ -5616,7 +5627,33 @@ int runUserInputControlsRegression() {
     auto backend = std::make_unique<FrameRateTestInputBackend>();
     auto* input = backend.get();
     auto user = std::make_shared<User>(std::move(backend));
+    expect(user->getCursorType() == User::CursorType::Default,
+           "custom cursor defaults to Default");
+    user->setCursorType(User::CursorType::Type3);
+    user->setCursorImagePath(2, "cursor.png");
+    user->setCursorHotspotX(2, 7);
+    user->setCursorHotspotY(2, 9);
+    const auto& cursorSlot = user->getCursorImageSlot(2);
+    expect(cursorSlot.contentPath == "cursor.png" && cursorSlot.hotspotX == 7 && cursorSlot.hotspotY == 9,
+           "custom cursor slot path and hotspot are mutable");
+    expect(user->applyCursor(true) && input->customCursorApplied &&
+               input->customCursorPath == "cursor.png" && input->customCursorHotspotX == 7 &&
+               input->customCursorHotspotY == 9,
+           "custom cursor applies while gameplay viewport is hovered");
+    expect(!user->applyCursor(false), "custom cursor is not applied outside gameplay viewport");
+    user->setCursorType(User::CursorType::Default);
+    expect(!user->applyCursor(true), "Default cursor falls back to the platform cursor");
+    user->setCursorType(User::CursorType::Type4);
+    expect(!user->applyCursor(true), "empty cursor slot falls back to the platform cursor");
+    user->setCursorType(User::CursorType::Type3);
+    user->setGameViewport(0, 0, 100, 60, 1.0f, Vector3(), Vector3(0, 0, -1),
+                          Vector3(1, 0, 0), Vector3(0, 1, 0), 50, 30, true);
     user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(user->setMouseLockEnabled(true), "MouseLock can be enabled for cursor arbitration");
+    input->mouseCaptured = false; // simulate an external ImGui/backend overwrite
+    expect(!user->applyCursor(true) && input->mouseCaptured,
+           "MouseLock reapplies capture and suppresses custom cursor");
+    user->setMouseLockEnabled(false);
     const std::array<KeyCode, 12> functionKeys = {
         KeyCode::F1, KeyCode::F2, KeyCode::F3, KeyCode::F4, KeyCode::F5, KeyCode::F6,
         KeyCode::F7, KeyCode::F8, KeyCode::F9, KeyCode::F10, KeyCode::F11, KeyCode::F12};
@@ -5644,6 +5681,8 @@ int runUserInputControlsRegression() {
     user->setProperty("HotkeyInputEnabled", on);
     user->setProperty("ToolInputEnabled", on);
 
+    user->setMouseLockEnabled(false);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
     user->setGameViewport(10, 20, 100, 60, 1.0f, Vector3(), Vector3(0, 0, -1),
                           Vector3(1, 0, 0), Vector3(0, 1, 0), 60, 50, true);
     expect(user->setMouseLockEnabled(true) && input->mouseCaptured,
@@ -5798,6 +5837,9 @@ int runUserInputControlsRegression() {
 
     LuauEngine engine;
     engine.setGlobalInstance("User", user);
+    auto cursorAsset = std::make_shared<FileRef>();
+    cursorAsset->Path = "assets/cursor.png";
+    engine.setGlobalInstance("CursorAsset", cursorAsset);
     auto script = std::make_shared<Script>();
     script->Source =
         "User.MovementInputEnabled=false User.CameraInputEnabled=false "
@@ -5809,6 +5851,23 @@ int runUserInputControlsRegression() {
         "User:SetMoveDirection(Vector3.new(0,0,-1)) User:ClearMoveDirection() "
         "assert(User:ToggleCtrlLock() == true) assert(User:SetCtrlLockOffset('Left') == 'Left')";
     expect(engine.execute(*script), "Luau exposes category properties and direct input APIs");
+    auto cursorScript = std::make_shared<Script>();
+    cursorScript->Source =
+        "assert(Enum.CursorType.Default.Name == 'Default', 'name') "
+        "assert(Enum.CursorType.Type10.Value == 10, 'value') "
+        "assert(tostring(Enum.CursorType.Type1) == 'Enum.CursorType.Type1', 'tostring') "
+        "local items=Enum.CursorType:GetEnumItems() assert(#items == 11 and items[1] == Enum.CursorType.Default, 'items') "
+        "User.CursorType=Enum.CursorType.Type2 assert(User.CursorType == Enum.CursorType.Type2, 'assign') "
+        "User.CursorType2HotspotX=4 User.CursorType2HotspotY=5 "
+        "assert(User.CursorType2HotspotX == 4 and User.CursorType2HotspotY == 5, 'hotspot') "
+        "User.CursorType2Source=CursorAsset assert(User.CursorType2ContentPath == 'assets/cursor.png', 'source') "
+        "User.CursorType2Source=nil assert(User.CursorType2ContentPath == '', 'clear') "
+        "local ok=pcall(function() User.CursorType='Type1' end) assert(not ok, 'invalid-string') "
+        "ok=pcall(function() Enum.CursorType.Type1.Name='x' end) assert(not ok, 'readonly-name') "
+        "ok=pcall(function() Enum.CursorType.Type1.Value=99 end) assert(not ok, 'readonly-value') "
+        "ok=pcall(function() Enum.CursorType.Type1.EnumType='x' end) assert(not ok, 'readonly-enumtype') "
+        "assert(Enum.CursorType.Type1 == Enum.CursorType.Type1 and Enum.CursorType.Type1 ~= Enum.CursorType.Type2, 'equality')";
+    expect(engine.execute(*cursorScript), "Luau exposes CursorType enum and cursor settings");
     user->setProperty("MovementInputEnabled", on);
     user->setProperty("CameraInputEnabled", on);
     input->pressedKeys.insert(KeyCode::F2);
@@ -5857,6 +5916,10 @@ int runUserInputControlsRegression() {
     user->setProperty("CameraInputEnabled", off);
     user->setProperty("HotkeyInputEnabled", off);
     user->setProperty("ToolInputEnabled", off);
+    user->setCursorType(User::CursorType::Type3);
+    user->setCursorImagePath(2, "assets/cursor.png");
+    user->setCursorHotspotX(2, 11);
+    user->setCursorHotspotY(2, 13);
     const bool savedControls = SceneLoader::saveSceneResult(persistedSystem.get(), yamlPath.string());
     auto loadSystem = std::make_shared<System>();
     auto loadUser = std::make_shared<User>(std::make_unique<NullInputBackend>(), true);
@@ -5864,8 +5927,12 @@ int runUserInputControlsRegression() {
         savedControls ? yamlPath.string() : std::string{}, loadSystem, loadUser);
     expect(savedControls && loadedControls && loadedControls.user && !loadedControls.user->isMovementInputEnabled() &&
                !loadedControls.user->isCameraInputEnabled() && !loadedControls.user->isHotkeyInputEnabled() &&
-               !loadedControls.user->isToolInputEnabled(),
-           "SceneLoader saves and loads all input category properties");
+               !loadedControls.user->isToolInputEnabled() &&
+               loadedControls.user->getCursorType() == User::CursorType::Type3 &&
+               loadedControls.user->getCursorImageSlot(2).contentPath == "assets/cursor.png" &&
+               loadedControls.user->getCursorImageSlot(2).hotspotX == 11 &&
+               loadedControls.user->getCursorImageSlot(2).hotspotY == 13,
+           "SceneLoader saves and loads input and custom cursor properties");
     {
         std::ofstream legacy(legacyYamlPath, std::ios::binary | std::ios::trunc);
         legacy << "Root:\n  ClassName: System\n  Children:\n    - ClassName: Users\n"
@@ -6469,6 +6536,24 @@ int runAssetPathRegression() {
     expect(AssetPath::toStored(AssetPath::fromStored(unicodePath)) == unicodePath,
            "UTF-8 asset paths round-trip without using the Windows ANSI code page");
 
+    const std::filesystem::path siblingExecutable =
+        AssetPath::fromStored("日本語/RecubinEngine.exe");
+    const auto siblingRoot = resolveRuntimeContentRoot(
+        siblingExecutable, RuntimeContentPlatform::Windows, false, true);
+    expect(siblingRoot && *siblingRoot == siblingExecutable.parent_path(),
+           "Windows runtime content root resolves beside the executable");
+    const std::filesystem::path bundleExecutable =
+        AssetPath::fromStored("てすと.app/Contents/MacOS/RecubinEngine");
+    const auto resourcesRoot = resolveRuntimeContentRoot(
+        bundleExecutable, RuntimeContentPlatform::MacOS, false, true);
+    expect(resourcesRoot && *resourcesRoot ==
+               bundleExecutable.parent_path().parent_path() / "Resources",
+           "macOS runtime content root resolves to Bundle Resources");
+    expect(!resolveRuntimeContentRoot(siblingExecutable, RuntimeContentPlatform::Windows, false, false),
+           "runtime content root is absent when startup.yaml is missing");
+    expect(!resolveRuntimeContentRoot(siblingExecutable, RuntimeContentPlatform::Windows, true, true),
+           "explicit scene keeps the caller working directory");
+
     const auto originalCwd = std::filesystem::current_path();
     const auto tempRoot = std::filesystem::temp_directory_path() /
         ("recubin_asset_path_" + std::to_string(
@@ -6496,6 +6581,8 @@ int runAssetPathRegression() {
         const std::array<char, 4> binary{{'R', '\0', 'C', 'B'}};
         std::ofstream binaryFile(tempRoot / "assets" / "sample.bin", std::ios::binary);
         binaryFile.write(binary.data(), static_cast<std::streamsize>(binary.size()));
+        std::ofstream cursorFile(tempRoot / "assets" / "cursor.png", std::ios::binary);
+        cursorFile << "dummy-cursor";
         std::filesystem::create_directories(tempRoot / "assets/anims");
         std::ofstream animationFile(tempRoot / "assets/anims" / "r6_walk.rcanim", std::ios::binary);
         animationFile << "recubin:\n  type: animation\n  version: 1\n"
@@ -6520,6 +6607,12 @@ int runAssetPathRegression() {
                   << "      Name: R6Walk\n"
                   << "      Properties:\n"
                   << "        ContentPath: assets/anims/r6_walk.rcanim\n"
+                  << "    - ClassName: User\n"
+                  << "      Properties:\n"
+                  << "        CursorType: Type1\n"
+                  << "        CursorImages:\n"
+                  << "          - ContentPath: assets\\cursor.png\n"
+                  << "            Hotspot: [1, 2]\n"
                   << "Properties:\n"
                   << "  Texture: assets\\sample.bin\n"
                   << "  MeshFile: assets\\models\\missing.glb\n";
@@ -6574,16 +6667,49 @@ int runAssetPathRegression() {
             std::filesystem::relative(packageContentRoot / "startup.yaml",
                                        tempRoot).generic_string());
         expect(packaged && std::filesystem::exists(packageContentRoot / "assets/sample.bin") &&
+                   std::filesystem::exists(packageContentRoot / "assets/cursor.png") &&
                    std::filesystem::exists(packageContentRoot / "assets/fonts/DotGothic16-Regular.ttf") &&
                    std::filesystem::exists(packageContentRoot / "assets/fonts/fa-solid-900.ttf") &&
                    packagedScene.find("assets/sample.bin") != std::string::npos &&
                    packagedScene.find("assets/models/missing.glb") != std::string::npos &&
                    std::filesystem::exists(packageContentRoot / "assets/anims/r6_walk.rcanim") &&
                    packagedScene.find("assets/anims/r6_walk.rcanim") != std::string::npos &&
+                   packagedScene.find("ContentPath: assets/cursor.png") != std::string::npos &&
+                   packagedScene.find("Hotspot: [1, 2]") != std::string::npos &&
                    packagedScene.find(packageConfig.applicationId) != std::string::npos &&
                    packagedStartup.find(packageConfig.applicationId) != std::string::npos &&
                    packagedScene.find('\\') == std::string::npos,
                "packager copies referenced assets, runtime fonts, and portable YAML paths");
+
+        Packager::Config unicodePackageConfig = packageConfig;
+        unicodePackageConfig.outputDir = "日本語出力";
+        unicodePackageConfig.gameName = "てすと";
+        const bool unicodePackaged = Packager::package(unicodePackageConfig,
+            [](const std::string& message) { std::cout << "[Packager] " << message << '\n'; });
+#ifdef __APPLE__
+        const std::filesystem::path unicodePackageRoot =
+            AssetPath::fromStored(unicodePackageConfig.outputDir) /
+            AssetPath::fromStored(unicodePackageConfig.gameName + ".app");
+        const std::filesystem::path unicodeContentRoot = unicodePackageRoot / "Contents/Resources";
+#else
+        const std::filesystem::path unicodePackageRoot =
+            AssetPath::fromStored(unicodePackageConfig.outputDir) /
+            AssetPath::fromStored(unicodePackageConfig.gameName);
+        const std::filesystem::path unicodeContentRoot = unicodePackageRoot;
+#endif
+        const std::filesystem::path unicodeScenePath =
+            unicodeContentRoot / AssetPath::fromStored("assets/scenes/てすと.yaml");
+        const std::string unicodeScene = FileLoader::readText(
+            AssetPath::toStored(std::filesystem::relative(unicodeScenePath, tempRoot)));
+        const std::string unicodeStartup = FileLoader::readText(
+            AssetPath::toStored(std::filesystem::relative(
+                unicodeContentRoot / "startup.yaml", tempRoot)));
+        expect(unicodePackaged && std::filesystem::is_directory(unicodePackageRoot) &&
+                   std::filesystem::is_regular_file(unicodeScenePath) &&
+                   unicodeScene.find(unicodePackageConfig.applicationId) != std::string::npos &&
+                   unicodeStartup.find("GameName: てすと") != std::string::npos &&
+                   unicodeStartup.find("StartScene: assets/scenes/てすと.yaml") != std::string::npos,
+               "packager preserves Japanese game and output paths");
 #ifdef __APPLE__
         const std::string plist = FileLoader::readText(
             std::filesystem::relative(packageRoot / "Contents/Info.plist", tempRoot).generic_string());

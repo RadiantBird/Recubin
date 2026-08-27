@@ -97,6 +97,100 @@ LuauEngine::EngineTask* LuauEngine::currentTask = nullptr;
 
 namespace {
 constexpr const char* RCBN_ORIGINAL_TOSTRING_KEY = "RCBN_OriginalTostring";
+constexpr const char* RCBN_ENUM_ITEM_METATABLE = "RCBN_EnumItem";
+struct EnumDefinition;
+struct EnumItemDefinition {
+    int value;
+    const char* name;
+};
+struct EnumDefinition {
+    const char* name;
+    const EnumItemDefinition* items;
+    std::size_t itemCount;
+};
+static const EnumItemDefinition CURSOR_ENUM_ITEMS[] = {
+    {0, "Default"}, {1, "Type1"}, {2, "Type2"}, {3, "Type3"}, {4, "Type4"}, {5, "Type5"},
+    {6, "Type6"}, {7, "Type7"}, {8, "Type8"}, {9, "Type9"}, {10, "Type10"}
+};
+struct EnumItemUserdata { const EnumDefinition* definition; const EnumItemDefinition* item; };
+static const EnumDefinition CURSOR_ENUM_DEFINITION = {"CursorType", CURSOR_ENUM_ITEMS, 11};
+
+void pushEnumItem(lua_State* L, const EnumDefinition* definition, const EnumItemDefinition* item) {
+    auto* userdata = static_cast<EnumItemUserdata*>(lua_newuserdata(L, sizeof(EnumItemUserdata)));
+    userdata->definition = definition; userdata->item = item;
+    luaL_getmetatable(L, RCBN_ENUM_ITEM_METATABLE);
+    lua_setmetatable(L, -2);
+}
+
+int enumItemIndex(lua_State* L) {
+    auto* userdata = static_cast<const EnumItemUserdata*>(luaL_checkudata(L, 1, RCBN_ENUM_ITEM_METATABLE));
+    const auto* item = userdata->item;
+    const char* key = luaL_checkstring(L, 2);
+    if (std::strcmp(key, "Name") == 0) { lua_pushstring(L, item->name); return 1; }
+    if (std::strcmp(key, "Value") == 0) { lua_pushinteger(L, item->value); return 1; }
+    if (std::strcmp(key, "EnumType") == 0) {
+        lua_getglobal(L, "Enum");
+        lua_getfield(L, -1, userdata->definition->name);
+        lua_remove(L, -2);
+        return 1;
+    }
+    lua_pushnil(L);
+    return 1;
+}
+
+int enumItemNewIndex(lua_State* L) {
+    luaL_error(L, "EnumItem properties are read-only");
+    return 0;
+}
+
+int enumItemToString(lua_State* L) {
+    auto* userdata = static_cast<const EnumItemUserdata*>(luaL_checkudata(L, 1, RCBN_ENUM_ITEM_METATABLE));
+    const auto* item = userdata->item;
+    std::string text = std::string("Enum.") + userdata->definition->name + "." + item->name;
+    lua_pushlstring(L, text.data(), text.size());
+    return 1;
+}
+
+int enumItemEqual(lua_State* L) {
+    if (lua_type(L, 1) != LUA_TUSERDATA || lua_type(L, 2) != LUA_TUSERDATA) { lua_pushboolean(L, 0); return 1; }
+    lua_getmetatable(L, 1); luaL_getmetatable(L, RCBN_ENUM_ITEM_METATABLE);
+    const bool first = lua_rawequal(L, -2, -1) != 0; lua_pop(L, 2);
+    lua_getmetatable(L, 2); luaL_getmetatable(L, RCBN_ENUM_ITEM_METATABLE);
+    const bool second = lua_rawequal(L, -2, -1) != 0; lua_pop(L, 2);
+    if (!first || !second) { lua_pushboolean(L, 0); return 1; }
+    auto* a = static_cast<const EnumItemUserdata*>(lua_touserdata(L, 1));
+    auto* b = static_cast<const EnumItemUserdata*>(lua_touserdata(L, 2));
+    lua_pushboolean(L, a->definition == b->definition && a->item->value == b->item->value);
+    return 1;
+}
+
+int enumGetItems(lua_State* L) {
+    auto* definition = static_cast<const EnumDefinition*>(lua_touserdata(L, lua_upvalueindex(1)));
+    lua_newtable(L);
+    for (std::size_t i = 0; i < definition->itemCount; ++i) { pushEnumItem(L, definition, &definition->items[i]); lua_rawseti(L, -2, static_cast<int>(i + 1)); }
+    lua_setreadonly(L, -1, 1);
+    return 1;
+}
+
+void registerCursorEnum(lua_State* L) {
+    luaL_newmetatable(L, RCBN_ENUM_ITEM_METATABLE);
+    lua_pushcfunction(L, enumItemIndex, "enum_item_index"); lua_setfield(L, -2, "__index");
+    lua_pushcfunction(L, enumItemNewIndex, "enum_item_newindex"); lua_setfield(L, -2, "__newindex");
+    lua_pushcfunction(L, enumItemToString, "enum_item_tostring"); lua_setfield(L, -2, "__tostring");
+    lua_pushcfunction(L, enumItemEqual, "enum_item_equal"); lua_setfield(L, -2, "__eq");
+    lua_pushliteral(L, "EnumItem"); lua_setfield(L, -2, "__metatable");
+    lua_pop(L, 1);
+
+    lua_newtable(L); // Enum
+    lua_newtable(L); // Enum.CursorType
+    for (std::size_t i = 0; i < CURSOR_ENUM_DEFINITION.itemCount; ++i) { pushEnumItem(L, &CURSOR_ENUM_DEFINITION, &CURSOR_ENUM_DEFINITION.items[i]); lua_setfield(L, -2, CURSOR_ENUM_DEFINITION.items[i].name); }
+    lua_pushlightuserdata(L, const_cast<EnumDefinition*>(&CURSOR_ENUM_DEFINITION));
+    lua_pushcclosure(L, enumGetItems, "GetEnumItems", 1); lua_setfield(L, -2, "GetEnumItems");
+    lua_setreadonly(L, -1, 1);
+    lua_setfield(L, -2, "CursorType");
+    lua_setreadonly(L, -1, 1);
+    lua_setglobal(L, "Enum");
+}
 
 bool isTableAt(lua_State* L, int index) {
     return std::string_view(lua_typename(L, lua_type(L, index))) == "table";
@@ -433,6 +527,8 @@ void LuauEngine::InitMetatables() {
 }
 
 void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
+    // Read-only enum namespace used by script-facing typed properties.
+    registerCursorEnum(L);
     // File/IPC extensions are closures over this engine.  Registering here is
     // also done for every script coroutine, so globals cannot escape the
     // engine's permission and filesystem context.

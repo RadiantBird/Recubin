@@ -55,6 +55,13 @@ void copyUserScalars(const User& source, User& destination) {
     destination.cameraDistance = source.cameraDistance;
     destination.zoomSpeed = source.zoomSpeed;
     destination.mouseZoomSpeed = source.mouseZoomSpeed;
+    destination.setCursorType(source.getCursorType());
+    for (std::size_t i = 0; i < User::CURSOR_IMAGE_SLOT_COUNT; ++i) {
+        const auto& slot = source.getCursorImageSlot(i);
+        destination.setCursorImagePath(i, slot.contentPath);
+        destination.setCursorHotspotX(i, slot.hotspotX);
+        destination.setCursorHotspotY(i, slot.hotspotY);
+    }
 }
 
 void disconnectSceneSignals(const std::shared_ptr<System>& system,

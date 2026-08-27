@@ -846,6 +846,21 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "CameraDistance"    << YAML::Value << usr->cameraDistance;
             out << YAML::Key << "ZoomSpeed"         << YAML::Value << usr->zoomSpeed;
             out << YAML::Key << "MouseZoomSpeed"    << YAML::Value << usr->mouseZoomSpeed;
+            const auto cursorTypeName = [](User::CursorType type) {
+                static const char* names[] = {"Default", "Type1", "Type2", "Type3", "Type4", "Type5", "Type6", "Type7", "Type8", "Type9", "Type10"};
+                const int i = static_cast<int>(type);
+                return names[(i >= 0 && i <= 10) ? i : 0];
+            };
+            out << YAML::Key << "CursorType" << YAML::Value << cursorTypeName(usr->getCursorType());
+            out << YAML::Key << "CursorImages" << YAML::Value << YAML::BeginSeq;
+            for (std::size_t i = 0; i < User::CURSOR_IMAGE_SLOT_COUNT; ++i) {
+                const auto& slot = usr->getCursorImageSlot(i);
+                out << YAML::BeginMap << YAML::Key << "Type" << YAML::Value << ("Type" + std::to_string(i + 1));
+                out << YAML::Key << "ContentPath" << YAML::Value << slot.contentPath;
+                out << YAML::Key << "Hotspot" << YAML::Value << YAML::Flow << YAML::BeginSeq << slot.hotspotX << slot.hotspotY << YAML::EndSeq;
+                out << YAML::EndMap;
+            }
+            out << YAML::EndSeq;
         }
         if (inst->getClassName() == "System") {
             const System* sys = static_cast<const System*>(inst);

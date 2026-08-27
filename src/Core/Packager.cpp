@@ -34,7 +34,7 @@ static bool isScript(const std::string& path) {
 }
 
 static std::string assetSubdir(const std::string& path) {
-    std::string ext = AssetPath::fromStored(path).extension().string();
+    std::string ext = AssetPath::toStored(AssetPath::fromStored(path).extension());
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     if (ext == ".mp3" || ext == ".wav" || ext == ".ogg" || ext == ".flac")
         return "assets/sound";
@@ -48,7 +48,7 @@ static std::string assetSubdir(const std::string& path) {
 }
 
 static bool isAnimationClip(const std::string& path) {
-    std::string ext = AssetPath::fromStored(path).extension().string();
+    std::string ext = AssetPath::toStored(AssetPath::fromStored(path).extension());
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     return ext == ".rcanim";
 }
@@ -58,10 +58,10 @@ static bool copyFile(const fs::path& src, const fs::path& dst,
                      std::function<void(const std::string&)>& log) {
     std::error_code ec;
     fs::create_directories(dst.parent_path(), ec);
-    if (ec) { log("[WARN] mkdir failed: " + dst.parent_path().string()); }
+    if (ec) { log("[WARN] mkdir failed: " + AssetPath::toStored(dst.parent_path())); }
     fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec);
     if (ec) {
-        log("[WARN] Copy failed: " + src.string() + " -> " + dst.string() + " : " + ec.message());
+        log("[WARN] Copy failed: " + AssetPath::toStored(src) + " -> " + AssetPath::toStored(dst) + " : " + ec.message());
         return false;
     }
     return true;
@@ -75,7 +75,7 @@ static std::string compileLuauInProc(const fs::path& src, const fs::path& dstDir
 
     std::ifstream f(src, std::ios::binary);
     if (!f) {
-        log("[WARN] Cannot read script: " + src.string());
+        log("[WARN] Cannot read script: " + AssetPath::toStored(src));
         return "";
     }
     std::string source((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
@@ -89,15 +89,15 @@ static std::string compileLuauInProc(const fs::path& src, const fs::path& dstDir
             ? std::string(bytecode + 1, bytecodeSize - 1)
             : "unknown compile error";
         if (bytecode) free(bytecode);
-        log("[WARN] Compile failed (" + src.filename().string() + "): " + errMsg);
+        log("[WARN] Compile failed (" + AssetPath::toStored(src.filename()) + "): " + errMsg);
         return "";
     }
 
-    fs::path outPath = dstDir / (src.stem().string() + ".luauc");
+    fs::path outPath = dstDir / AssetPath::fromStored(AssetPath::toStored(src.stem()) + ".luauc");
     std::ofstream out(outPath, std::ios::binary);
     out.write(bytecode, (std::streamsize)bytecodeSize);
     free(bytecode);
-    return outPath.string();
+    return AssetPath::toStored(outPath);
 }
 
 // Walk YAML tree and collect file-referencing values for given keys.
@@ -379,7 +379,7 @@ static bool generateMacIcon(const fs::path& source,
                             const fs::path& resourcesDir,
                             std::function<void(const std::string&)>& log) {
     if (!fs::exists(source) || !fs::is_regular_file(source)) {
-        log("[ERROR] AppImage icon source not found: " + source.string());
+        log("[ERROR] AppImage icon source not found: " + AssetPath::toStored(source));
         return false;
     }
 
@@ -395,7 +395,7 @@ static bool generateMacIcon(const fs::path& source,
     stbi_set_flip_vertically_on_load(1);
     if (!decoded) {
         const char* reason = stbi_failure_reason();
-        log("[ERROR] Cannot decode AppImage icon " + source.string() + ": " +
+        log("[ERROR] Cannot decode AppImage icon " + AssetPath::toStored(source) + ": " +
             (reason ? reason : "unknown image decode error"));
         return false;
     }
@@ -427,7 +427,7 @@ static bool generateMacIcon(const fs::path& source,
         std::string error;
         if (!resizeToSquareRgba(decoded, sourceWidth, sourceHeight, entry.size, rgba, error)) {
             stbi_image_free(decoded);
-            log("[ERROR] Cannot resize AppImage icon " + source.string() + " to " +
+            log("[ERROR] Cannot resize AppImage icon " + AssetPath::toStored(source) + " to " +
                 std::to_string(entry.size) + "x" + std::to_string(entry.size) + ": " + error);
             return false;
         }
@@ -435,7 +435,7 @@ static bool generateMacIcon(const fs::path& source,
         IconPng png;
         if (!encodeRgbaPng(rgba, entry.size, png, error)) {
             stbi_image_free(decoded);
-            log("[ERROR] Cannot encode AppImage icon PNG " + source.string() + " at " +
+            log("[ERROR] Cannot encode AppImage icon PNG " + AssetPath::toStored(source) + " at " +
                 std::to_string(entry.size) + "x" + std::to_string(entry.size) + ": " + error);
             return false;
         }
@@ -474,12 +474,12 @@ static bool generateMacIcon(const fs::path& source,
     const fs::path output = resourcesDir / "AppIcon.icns";
     std::ofstream file(output, std::ios::binary);
     if (!file) {
-        log("[ERROR] Cannot open AppIcon.icns for writing: " + output.string());
+        log("[ERROR] Cannot open AppIcon.icns for writing: " + AssetPath::toStored(output));
         return false;
     }
     file.write(reinterpret_cast<const char*>(icns.data()), static_cast<std::streamsize>(icns.size()));
     if (!file) {
-        log("[ERROR] Failed writing AppIcon.icns: " + output.string());
+        log("[ERROR] Failed writing AppIcon.icns: " + AssetPath::toStored(output));
         return false;
     }
     file.close();
@@ -487,10 +487,10 @@ static bool generateMacIcon(const fs::path& source,
     std::error_code ec;
     const auto writtenSize = fs::file_size(output, ec);
     if (ec || writtenSize != totalSize) {
-        log("[ERROR] AppIcon.icns size validation failed: " + output.string());
+        log("[ERROR] AppIcon.icns size validation failed: " + AssetPath::toStored(output));
         return false;
     }
-    log("[OK] AppIcon.icns generated internally from " + source.string());
+    log("[OK] AppIcon.icns generated internally from " + AssetPath::toStored(source));
     return true;
 }
 
@@ -527,7 +527,7 @@ static bool writeMacInfoPlist(const fs::path& bundleDir,
     const fs::path plistPath = bundleDir / "Contents/Info.plist";
     std::ofstream plist(plistPath);
     if (!plist) {
-        log("[ERROR] Cannot write Info.plist: " + plistPath.string());
+        log("[ERROR] Cannot write Info.plist: " + AssetPath::toStored(plistPath));
         return false;
     }
 
@@ -550,7 +550,7 @@ static bool writeMacInfoPlist(const fs::path& bundleDir,
     }
     plist << "\t<key>NSHighResolutionCapable</key>\n\t<true/>\n</dict>\n</plist>\n";
     if (!plist) {
-        log("[ERROR] Failed while writing Info.plist: " + plistPath.string());
+        log("[ERROR] Failed while writing Info.plist: " + AssetPath::toStored(plistPath));
         return false;
     }
     log("[OK] Info.plist written");
@@ -559,7 +559,7 @@ static bool writeMacInfoPlist(const fs::path& bundleDir,
 
 static std::string shellQuote(const fs::path& path) {
     std::string quoted = "'";
-    for (const char c : path.string()) {
+    for (const char c : AssetPath::toStored(path)) {
         if (c == '\'') quoted += "'\\''";
         else quoted += c;
     }
@@ -575,14 +575,14 @@ static bool signMacBundle(const fs::path& bundleDir,
     const std::string quotedBundle = shellQuote(bundleDir);
     const std::string signCommand = "/usr/bin/codesign --force --deep --sign - " + quotedBundle;
     if (std::system(signCommand.c_str()) != 0) {
-        log("[ERROR] macOS ad-hoc signing failed for: " + bundleDir.string());
+        log("[ERROR] macOS ad-hoc signing failed for: " + AssetPath::toStored(bundleDir));
         return false;
     }
 
     const std::string verifyCommand =
         "/usr/bin/codesign --verify --deep --strict --verbose=2 " + quotedBundle;
     if (std::system(verifyCommand.c_str()) != 0) {
-        log("[ERROR] macOS signature verification failed for: " + bundleDir.string());
+        log("[ERROR] macOS signature verification failed for: " + AssetPath::toStored(bundleDir));
         return false;
     }
     log("[OK] macOS App Bundle ad-hoc signed and verified");
@@ -600,21 +600,24 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     // Keep the package content root at the same relative location on every
     // platform.  On macOS it is Contents/Resources so startup.yaml and all
     // existing assets remain addressable as assets/... and shaders/....
+    const fs::path gameName = AssetPath::fromStored(cfg.gameName);
 #ifdef __APPLE__
-    const fs::path bundleDir = fs::path(cfg.outputDir) / (cfg.gameName + ".app");
+    const fs::path outputDir = AssetPath::fromStored(cfg.outputDir);
+    const fs::path bundleDir = outputDir / AssetPath::fromStored(cfg.gameName + ".app");
     const fs::path contentsDir = bundleDir / "Contents";
     const fs::path macOsDir = contentsDir / "MacOS";
     const fs::path resourcesDir = contentsDir / "Resources";
     fs::path gameDir = resourcesDir;
 #else
-    const fs::path bundleDir = fs::path(cfg.outputDir) / cfg.gameName;
+    const fs::path outputDir = AssetPath::fromStored(cfg.outputDir);
+    const fs::path bundleDir = outputDir / gameName;
     fs::path gameDir = bundleDir;
 #endif
     std::error_code ec;
     fs::create_directories(gameDir, ec);
-    if (ec) { log("[ERROR] Cannot create output folder: " + gameDir.string()); return false; }
+    if (ec) { log("[ERROR] Cannot create output folder: " + AssetPath::toStored(gameDir)); return false; }
 
-    log("Output: " + bundleDir.string());
+    log("Output: " + AssetPath::toStored(bundleDir));
 
     // Create subdirs
     for (const char* sub : { "assets/image", "assets/sound", "assets/scripts", "assets/scenes", "assets/models", "assets/anims", "assets/fonts" }) {
@@ -625,7 +628,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     // されていなくてもエンジン標準フォントを必ず同梱する。起動場所の違いに対応して、
     // CWD、エディター実行ファイルの隣、その親、macOS App BundleのResourcesを探索する。
     {
-        const fs::path editorDir = fs::path(cfg.engineExePath).parent_path();
+        const fs::path editorDir = AssetPath::fromStored(cfg.engineExePath).parent_path();
         const std::vector<fs::path> fontCandidates = {
             fs::path("assets/fonts"),
             editorDir / "assets/fonts",
@@ -652,13 +655,13 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
             if (!it->is_regular_file()) continue;
             const fs::path relative = fs::relative(it->path(), fontSrcDir, fontEc);
             if (fontEc || !copyFile(it->path(), gameDir / "assets/fonts" / relative, log)) {
-                log("[ERROR] Failed to package runtime font: " + it->path().string());
+                log("[ERROR] Failed to package runtime font: " + AssetPath::toStored(it->path()));
                 return false;
             }
             ++fontCount;
         }
         if (fontEc || fontCount == 0) {
-            log("[ERROR] Failed to enumerate runtime fonts: " + fontSrcDir.string());
+            log("[ERROR] Failed to enumerate runtime fonts: " + AssetPath::toStored(fontSrcDir));
             return false;
         }
         log("[OK] Runtime fonts copied: " + std::to_string(fontCount) + " file(s)");
@@ -684,7 +687,8 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     }
 
     // Load scene YAML
-    std::ifstream sceneFile(cfg.scenePath);
+    const fs::path scenePath = AssetPath::fromStored(cfg.scenePath);
+    std::ifstream sceneFile(scenePath, std::ios::binary);
     if (!sceneFile.is_open()) {
         log("[ERROR] Cannot open scene: " + cfg.scenePath);
         return false;
@@ -741,7 +745,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
         // Only the retired scene-header reference used scene-relative paths.
         // Animation Instance ContentPath values follow normal project lookup.
         if (!fs::exists(src) && rawPath == legacyWalkContentPath && src.is_relative()) {
-            const fs::path legacySource = fs::path(cfg.scenePath).parent_path() / src;
+            const fs::path legacySource = scenePath.parent_path() / src;
             if (fs::exists(legacySource)) src = legacySource;
         }
         if (!fs::exists(src)) {
@@ -753,15 +757,15 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
             fs::path dstDir = gameDir / "assets/scripts";
             std::string compiled = compileLuauInProc(src, dstDir, log);
             if (!compiled.empty()) {
-                fs::path rel = fs::relative(compiled, gameDir, ec);
+                fs::path rel = fs::relative(AssetPath::fromStored(compiled), gameDir, ec);
                 const std::string storedRel = AssetPath::toStored(rel);
                 pathMap[rawPath] = storedRel;
-                log("[OK] Compiled: " + src.filename().string() + " -> " + storedRel);
+                log("[OK] Compiled: " + AssetPath::toStored(src.filename()) + " -> " + storedRel);
             } else {
                 // Fallback: copy source (compile failed)
                 fs::path dst = dstDir / src.filename();
                 if (copyFile(src, dst, log))
-                    pathMap[rawPath] = "assets/scripts/" + src.filename().string();
+                    pathMap[rawPath] = AssetPath::toStored(fs::path("assets/scripts") / src.filename());
             }
         } else {
             // Determine destination subdir from file extension
@@ -821,11 +825,11 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     {
         YAML::Emitter emit;
         emit << sceneNode;
-        fs::path sceneOut = gameDir / "assets/scenes" / (cfg.gameName + ".yaml");
+        fs::path sceneOut = gameDir / "assets/scenes" / AssetPath::fromStored(cfg.gameName + ".yaml");
         std::ofstream outFile(sceneOut);
-        if (!outFile) { log("[ERROR] Cannot write scene YAML to: " + sceneOut.string()); return false; }
+        if (!outFile) { log("[ERROR] Cannot write scene YAML to: " + AssetPath::toStored(sceneOut)); return false; }
         outFile << emit.c_str();
-        log("[OK] Scene written: " + sceneOut.string());
+        log("[OK] Scene written: " + AssetPath::toStored(sceneOut));
     }
 
 #ifdef __APPLE__
@@ -836,10 +840,10 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
         log("[ERROR] Editor executable path is empty; cannot locate RecubinEngine");
         return false;
     }
-    const fs::path exeDir = fs::path(cfg.engineExePath).parent_path();
+    const fs::path exeDir = AssetPath::fromStored(cfg.engineExePath).parent_path();
     const fs::path runtime = exeDir / "RecubinEngine";
     if (!fs::exists(runtime) || !fs::is_regular_file(runtime)) {
-        log("[ERROR] RecubinEngine not found next to editor executable: " + runtime.string());
+        log("[ERROR] RecubinEngine not found next to editor executable: " + AssetPath::toStored(runtime));
         return false;
     }
     fs::create_directories(macOsDir, ec);
@@ -852,11 +856,11 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
                     fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec,
                     fs::perm_options::add, ec);
     if (ec) {
-        log("[ERROR] Failed to set executable permission on " + packagedRuntime.string() +
+        log("[ERROR] Failed to set executable permission on " + AssetPath::toStored(packagedRuntime) +
             " : " + ec.message());
         return false;
     }
-    log("[OK] Runtime: " + packagedRuntime.string());
+    log("[OK] Runtime: " + AssetPath::toStored(packagedRuntime));
 #else
     // Windows keeps the existing folder package layout, but must also require
     // the actual game runtime instead of falling back to the editor binary.
@@ -864,10 +868,10 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
         log("[ERROR] Editor executable path is empty; cannot locate RecubinEngine.exe");
         return false;
     }
-    const fs::path exeDir = fs::path(cfg.engineExePath).parent_path();
+    const fs::path exeDir = AssetPath::fromStored(cfg.engineExePath).parent_path();
     const fs::path runtime = exeDir / "RecubinEngine.exe";
     if (!fs::exists(runtime) || !fs::is_regular_file(runtime)) {
-        log("[ERROR] RecubinEngine.exe not found next to editor executable: " + runtime.string());
+        log("[ERROR] RecubinEngine.exe not found next to editor executable: " + AssetPath::toStored(runtime));
         return false;
     }
     if (!copyFile(runtime, gameDir / "RecubinEngine.exe", log)) {
@@ -889,7 +893,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     for (auto& entry : fs::directory_iterator(exeDir, ec)) {
         if (entry.path().extension() == ".dll") {
             if (copyFile(entry.path(), gameDir / entry.path().filename(), log)) {
-                log("[OK] DLL: " + entry.path().filename().string());
+                log("[OK] DLL: " + AssetPath::toStored(entry.path().filename()));
             }
         }
     }
@@ -917,7 +921,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
                 << YAML::Key << "GameName"   << YAML::Value << cfg.gameName
                 << YAML::Key << "ApplicationId" << YAML::Value << cfg.applicationId
                 << YAML::Key << "StartScene" << YAML::Value
-                    << ("assets/scenes/" + cfg.gameName + ".yaml")
+                << ("assets/scenes/" + AssetPath::toStored(gameName) + ".yaml")
                 << YAML::EndMap;
         std::ofstream startupFile(gameDir / "startup.yaml");
         if (startupFile) {
@@ -945,6 +949,6 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     if (!signMacBundle(bundleDir, log)) return false;
 #endif
 
-    log("[DONE] Package created: " + bundleDir.string());
+    log("[DONE] Package created: " + AssetPath::toStored(bundleDir));
     return true;
 }

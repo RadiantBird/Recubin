@@ -58,7 +58,6 @@ static const bool s_baseCubeRegistered = []{
             static_cast<BaseCube*>(o)->setCCDMode(mode);
         });
     ccdMode.enumNames = { {"Default", 0}, {"Bullet", 1} };
-    ccdMode.group("Physics");
     ccdMode.noYaml();
 
     PropertyDesc locked = custom("Locked", PropType::Bool,
@@ -75,7 +74,6 @@ static const bool s_baseCubeRegistered = []{
             static_cast<BaseCube*>(o)->ShadowMode = static_cast<::ShadowMode>(value);
         });
     shadowMode.enumNames = { {"Always", 0}, {"Never", 1}, {"Normal", 2} };
-    shadowMode.group("Appearance");
     shadowMode.noYaml();
 
     // MaterialType: プリセット選択で material 一式を上書きする
@@ -105,20 +103,20 @@ static const bool s_baseCubeRegistered = []{
 
     registerClass("BaseCube", {
         field<&BaseCube::Color>("Color").group("Appearance").noYaml(),
+        field<&BaseCube::CastShadow>("CastShadow").noYaml(),
+        shadowMode,
+        field<&BaseCube::Unlit>("Unlit").noYaml(),
         anchored,
         custom("CanCollide", PropType::Bool,
             [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->CanCollide); },
             [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setCanCollide(std::get<bool>(v)); }).noYaml(),
-        field<&BaseCube::CastShadow>("CastShadow").noYaml(),
-        shadowMode,
-        field<&BaseCube::Unlit>("Unlit").noYaml(),
-        locked,
         massDensity,
         ccdMode,
         materialType,
         frictionProp("StaticFriction", &Material::staticFriction),
         frictionProp("DynamicFriction", &Material::dynamicFriction),
         frictionProp("Restitution", &Material::restitution),
+        locked,
     });
     return true;
 }();

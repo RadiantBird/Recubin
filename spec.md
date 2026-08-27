@@ -97,6 +97,8 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 - 入力を管理する
 - `MovementInputEnabled`/`CameraInputEnabled`/`HotkeyInputEnabled`/`ToolInputEnabled`は既定trueの保存対象で、
   対応する組み込み操作のみをgateする。`User.Input`の生ポーリングとLuau Direct APIは常に利用可能。
+- `CursorType` は `Default`/`Type1`〜`Type10` を選択し、各スロットはPNG/JPEG/BMP/TGAの
+  `ContentPath`と0以上の整数ホットスポットを保存する。ゲーム領域外ではUser指定カーソルを適用しない。
 - F1-F12は`User.Input`へ固定名で通知し、組み込み動作はF8のMouseLock切替だけとする。MouseLockはprimary
   viewportの中心client座標を使い、フォーカス喪失で解除する。
 - `CharacterSmoothing`は移動方向・向きの補間率（既定`0.15`）。`1`で補間なし、`0`で目標へ追従しない。

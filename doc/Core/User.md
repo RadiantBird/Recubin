@@ -35,6 +35,18 @@
 | `lastMouseX` / `lastMouseY` | `double` | 前フレームのマウス座標 |
 | `pendingScrollY` | `double` | スクロール量の蓄積値 |
 
+### マウスカーソル
+
+`CursorType` は `Default` または `Type1`〜`Type10` を選択する。各 Type は
+`CursorImages` の画像パス（PNG/JPEG/BMP/TGA）とピクセル単位の `HotspotX/Y` を持つ。
+ゲーム領域上で選択中の画像をOSカーソルへ適用し、空欄・読込失敗時は標準カーソルへ戻す。
+
+Luauでは `Enum.CursorType.Default` と `Type1`〜`Type10` を使用する。各EnumItemは
+`Name`、`Value`、`EnumType`を読み取り専用で持ち、`Enum.CursorType:GetEnumItems()`で列挙できる。
+`User.CursorType`は選択値、`User.CursorTypeNSource`は`FileRef`または`nil`、
+`User.CursorTypeNContentPath`は読み取り専用の保存パス、`User.CursorTypeNHotspotX/Y`は読み書き可能な
+ホットスポットである。画像はPNG/JPEG/BMP/TGAに対応し、SVGは今回対象外とする。
+
 ## 列挙型
 
 ```cpp
@@ -49,6 +61,11 @@ enum ControlMode { Free, Character, Program }
 | `processInput(physics)` | キーボード・マウス入力を処理して位置・向きを更新 |
 | `spawnCharacter()` | キャラクターモデル（Model + Cube 7 体）を生成してワールドへ追加 |
 | `despawnCharacter()` | キャラクターを削除してワールドからクリーンアップ |
+| `getCursorType()` / `setCursorType(type)` | 使用するカーソル種別を取得・設定 |
+| `getCursorImageSlot(index)` | 0-basedスロットの画像パスとホットスポットを取得 |
+| `setCursorImagePath(index, path)` | スロット画像を設定（空文字でクリア） |
+| `setCursorHotspotX/Y(index, value)` | ホットスポットを0以上の整数で設定 |
+| `applyCursor(gameplayHovered)` | ゲーム領域上ならカーソルを適用し、適用成功時`true` |
 
 ## 静的メンバ
 

@@ -32,6 +32,9 @@
 | `Color` | BaseCube |
 | `Anchored`, `CanCollide` | BaseCube |
 
+BaseCubeのプロパティは、`Appearance` → `Physics` → `Material` → `Editor` のカテゴリ順で表示する。
+各カテゴリの見出しはカテゴリ先頭に一度だけ表示し、同じ見出しを重複させない。
+
 値を変更すると `m_history` 経由で対応する Command（`SetVec3Command`、`SetColorCommand`、`SetBoolCommand` など）を記録し、Undo 対応で反映する。
 
 複数選択時は Name の入力で選択順に base/base1/base2... を割り当て、Spatial の

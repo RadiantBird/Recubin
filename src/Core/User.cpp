@@ -10,7 +10,6 @@
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
 #include <include/Core/LuauEngine.hpp>
-#include <include/Util/Logger.hpp>
 #include <algorithm>
 
 User* User::s_instance = nullptr;
@@ -22,6 +21,40 @@ float sanitizeCharacterSmoothing(float value) {
     if (!std::isfinite(value)) return DEFAULT_CHARACTER_SMOOTHING;
     return std::clamp(value, 0.0f, 1.0f);
 }
+}
+void User::setCursorType(CursorType type) {
+    const auto value = static_cast<int>(type);
+    m_cursorType = (value >= 0 && value <= 10) ? type : CursorType::Default;
+}
+
+const User::CursorImageSlot& User::getCursorImageSlot(std::size_t index) const {
+    static const CursorImageSlot empty{};
+    return index < m_cursorImages.size() ? m_cursorImages[index] : empty;
+}
+
+void User::setCursorImagePath(std::size_t index, const std::string& path) {
+    if (index < m_cursorImages.size()) m_cursorImages[index].contentPath = path;
+}
+
+void User::setCursorHotspotX(std::size_t index, int value) {
+    if (index < m_cursorImages.size()) m_cursorImages[index].hotspotX = std::max(0, value);
+}
+
+void User::setCursorHotspotY(std::size_t index, int value) {
+    if (index < m_cursorImages.size()) m_cursorImages[index].hotspotY = std::max(0, value);
+}
+
+bool User::applyCursor(bool gameplayHovered) {
+    if (!m_input) return false;
+    if (m_mouseLockEnabled || isRightMouseRotating || m_externalDragActive) {
+        m_input->setMouseCaptured(true);
+        return false;
+    }
+    if (!gameplayHovered || m_cursorType == CursorType::Default) return false;
+    const auto index = static_cast<std::size_t>(m_cursorType) - 1;
+    const auto& slot = m_cursorImages[index];
+    if (slot.contentPath.empty()) return false;
+    return m_input->setCustomCursor(slot.contentPath, slot.hotspotX, slot.hotspotY);
 }
 
 User::User(std::unique_ptr<IInputBackend> input, bool isRemoteUser)
@@ -1091,6 +1124,32 @@ void User::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "CameraDistance")    { cameraDistance     = value.as<float>(); return; }
     if (name == "ZoomSpeed")         { zoomSpeed          = value.as<float>(); return; }
     if (name == "MouseZoomSpeed")    { mouseZoomSpeed     = value.as<float>(); return; }
+    if (name == "CursorType") {
+        const std::string s = value.as<std::string>();
+        if (s == "Type1") setCursorType(CursorType::Type1); else if (s == "Type2") setCursorType(CursorType::Type2);
+        else if (s == "Type3") setCursorType(CursorType::Type3); else if (s == "Type4") setCursorType(CursorType::Type4);
+        else if (s == "Type5") setCursorType(CursorType::Type5); else if (s == "Type6") setCursorType(CursorType::Type6);
+        else if (s == "Type7") setCursorType(CursorType::Type7); else if (s == "Type8") setCursorType(CursorType::Type8);
+        else if (s == "Type9") setCursorType(CursorType::Type9); else if (s == "Type10") setCursorType(CursorType::Type10);
+        else setCursorType(CursorType::Default);
+        return;
+    }
+    if (name == "CursorImages" && value.IsSequence()) {
+        for (const auto& item : value) {
+            if (!item["Type"] || !item["Type"].IsScalar()) continue;
+            const std::string type = item["Type"].as<std::string>();
+            int index = -1;
+            static constexpr const char* names[] = {"Type1", "Type2", "Type3", "Type4", "Type5",
+                "Type6", "Type7", "Type8", "Type9", "Type10"};
+            for (int candidate = 0; candidate < 10; ++candidate)
+                if (type == names[candidate]) { index = candidate; break; }
+            if (index < 0 || index >= 10) continue;
+            if (item["ContentPath"]) setCursorImagePath(index, item["ContentPath"].as<std::string>());
+            const auto hs = item["Hotspot"];
+            if (hs && hs.IsSequence() && hs.size() >= 2) { setCursorHotspotX(index, hs[0].as<int>()); setCursorHotspotY(index, hs[1].as<int>()); }
+        }
+        return;
+    }
     Instance::setProperty(name, value);
 }
 

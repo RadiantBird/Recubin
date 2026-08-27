@@ -97,7 +97,7 @@ Editor選択表示はRenderer内の実形状外枠へ統一され、Primaryは�
 白い半透明外枠で事前表示し、Highlightインスタンス自身のFillColor設定には影響しない。
 
 Resizeは初期Sizeへの倍率ではなく、単位スケール行列から得た係数差をワールド単位として加算する。
-複数のBaseCubeを選択したResizeでは、ツールバーのモードボタンでIndividual（同じstud差分を
+複数のBaseCubeを選択したResizeでは、Resize横の常設▼メニューからIndividual（同じstud差分を
 各Cubeへ適用）とGroup Scale（集合AABB中心を固定ピボットにしたワールド軸スケール）を切り替える。
 Group Scaleの倍率スナップは倍率の差分を指定刻みへ丸め、各Cubeの回転を維持する。
 両モードともドラッグ開始時の集合AABB中心をResize中の固定ピボットとして使用する。
