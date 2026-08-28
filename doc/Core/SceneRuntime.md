@@ -1,8 +1,8 @@
 # SceneRuntime
 
-Sceneのbind/commit後、live Systemの`ApplicationId`と拡張フラグからRuntimeFileSystemを構成し、LuauEngineへ渡す。
-エディターはEditor namespace、配布ランタイムはRuntime namespaceを使用する。
-TextFile seedと保存データもnamespaceごとに分離される。通常ランタイムの拡張警告receiptは構成versionと
+Sceneのbind/commit後、live Systemの`ApplicationId`検証と拡張フラグからRuntimeFileSystemを構成し、LuauEngineへ渡す。
+保存rootはEditorでは起動時のプロジェクトCWD、配布ランタイムではパッケージcontent rootを使用する。
+TextFile seedと保存データはroot直下の`textfiles/`へ保存される。通常ランタイムの拡張警告receiptは構成versionと
 IO/IPC/External権限集合を比較し、Editorおよび`--editor-test`では警告とreceiptをバイパスする。
 
 `include/Core/SceneRuntime.hpp`

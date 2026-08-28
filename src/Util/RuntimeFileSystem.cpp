@@ -1,6 +1,4 @@
 #include <Util/RuntimeFileSystem.hpp>
-#include <Util/IPlatform.hpp>
-#include <Util/Platform.hpp>
 #include <Util/AssetGuard.hpp>
 #include <Util/UUID.hpp>
 #include <algorithm>
@@ -26,24 +24,37 @@ RuntimeFileResult failure(std::string message) {
 }
 }
 
-RuntimeFileSystem::RuntimeFileSystem(std::string applicationId, Namespace space,
-                                     bool externalAllowed, fs::path base)
+RuntimeFileSystem::RuntimeFileSystem(bool externalAllowed, fs::path root)
     : m_external(externalAllowed) {
-    m_invalidApplicationId = !RecubinUUID::isValid(applicationId);
-    m_userDataRoot = base.empty() ? getPlatform().userDataRoot() : base;
-    m_base = m_userDataRoot.lexically_normal();
-    m_applicationRoot = (m_base / applicationId).lexically_normal();
-    m_root = (m_applicationRoot / (space == Namespace::Runtime ? "runtime" : "editor")).lexically_normal();
     std::error_code error;
+    fs::path base = root;
+    if (base.empty()) {
+        base = fs::current_path(error);
+        if (error) {
+            m_rootError = "cannot resolve root: " + error.message();
+            return;
+        }
+    }
+    if (!base.is_absolute()) {
+        base = fs::absolute(base, error);
+        if (error) {
+            m_rootError = "cannot resolve root: " + error.message();
+            return;
+        }
+    }
+    m_root = base.lexically_normal();
     fs::create_directories(m_root, error);
+    if (error) m_rootError = "cannot create root: " + error.message();
+    if (m_rootError.empty()) {
+        const fs::path canonicalRoot = fs::weakly_canonical(m_root, error);
+        if (error) m_rootError = "cannot canonicalize root: " + error.message();
+        else m_root = canonicalRoot;
+    }
 }
 
 fs::path RuntimeFileSystem::resolve(const std::string& raw, bool allowMissing,
-                                    std::string& error) const {
-    if (m_invalidApplicationId) {
-        error = "invalid application id";
-        return {};
-    }
+    std::string& error) const {
+    if (!m_rootError.empty()) { error = m_rootError; return {}; }
     if (raw.empty()) { error = "empty path"; return {}; }
     const fs::path input(raw);
     if (input.is_absolute() && !m_external) {
@@ -63,7 +74,7 @@ fs::path RuntimeFileSystem::resolve(const std::string& raw, bool allowMissing,
         return {};
     }
     if (!input.is_absolute() && !isWithin(m_root, resolved)) {
-        error = "path escapes namespace";
+        error = "path escapes portable root";
         return {};
     }
     if (!allowMissing) {
@@ -179,8 +190,8 @@ RuntimeFileResult RuntimeFileSystem::list(const std::string& path, std::vector<R
 RuntimeFileResult RuntimeFileSystem::createDirectory(const std::string& path) { std::string e; auto p=resolve(path,true,e); if(p.empty())return failure(e); std::error_code c; fs::create_directories(p,c); return c?failure(c.message()):RuntimeFileResult{true}; }
 RuntimeFileResult RuntimeFileSystem::copy(const std::string& source,const std::string& destination,bool overwrite){std::string e;auto a=resolve(source,false,e),b=resolve(destination,true,e);if(a.empty()||b.empty())return failure(e);std::error_code c;fs::copy_file(a,b,overwrite?fs::copy_options::overwrite_existing:fs::copy_options::none,c);return c?failure(c.message()):RuntimeFileResult{true};}
 RuntimeFileResult RuntimeFileSystem::move(const std::string& source,const std::string& destination,bool overwrite){std::string e;auto a=resolve(source,false,e),b=resolve(destination,true,e);if(a.empty()||b.empty())return failure(e);std::error_code c;if(overwrite){fs::remove(b,c);if(c)return failure(c.message());}fs::rename(a,b,c);return c?failure(c.message()):RuntimeFileResult{true};}
-RuntimeFileResult RuntimeFileSystem::remove(const std::string& path){std::string e;auto p=resolve(path,false,e);if(p.empty())return failure(e);if(p==m_root)return failure("cannot remove namespace root");std::error_code c;if(fs::is_directory(p,c)&&!fs::is_empty(p,c))return failure("directory is not empty");fs::remove(p,c);return c?failure(c.message()):RuntimeFileResult{true};}
-RuntimeFileResult RuntimeFileSystem::removeTree(const std::string& path){std::string e;auto p=resolve(path,false,e);if(p.empty())return failure(e);const char* homeValue=std::getenv("HOME");const char* profileValue=std::getenv("USERPROFILE");const fs::path home=homeValue?fs::path(homeValue):(profileValue?fs::path(profileValue):fs::path{});if(p==m_root||p==m_applicationRoot||p==m_base||p==m_userDataRoot||(!home.empty()&&p==home)||p==p.root_path())return failure("cannot remove protected root");std::error_code c;fs::remove_all(p,c);return c?failure(c.message()):RuntimeFileResult{true};}
+RuntimeFileResult RuntimeFileSystem::remove(const std::string& path){std::string e;auto p=resolve(path,false,e);if(p.empty())return failure(e);if(p==m_root)return failure("cannot remove portable root");std::error_code c;if(fs::is_directory(p,c)&&!fs::is_empty(p,c))return failure("directory is not empty");fs::remove(p,c);return c?failure(c.message()):RuntimeFileResult{true};}
+RuntimeFileResult RuntimeFileSystem::removeTree(const std::string& path){std::string e;auto p=resolve(path,false,e);if(p.empty())return failure(e);const char* homeValue=std::getenv("HOME");const char* profileValue=std::getenv("USERPROFILE");const fs::path home=homeValue?fs::path(homeValue):(profileValue?fs::path(profileValue):fs::path{});if(p==m_root||(!home.empty()&&p==home)||p==p.root_path())return failure("cannot remove protected root");std::error_code c;fs::remove_all(p,c);return c?failure(c.message()):RuntimeFileResult{true};}
 
 RuntimeFileResult RuntimeFileSystem::readTextFile(const std::string& seedPath,
                                                   const std::string& storageId) {

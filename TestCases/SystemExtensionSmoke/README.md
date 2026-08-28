@@ -11,7 +11,7 @@ I/O and IPC, and leaves external file access disabled.
 3. Inspect the `SmokeResultsLeft`/`SmokeResultsRight` labels and the output console. Every operation is
    reported as `PASS` or `FAIL`; the script continues after expected errors.
 4. Stop Play, then Play again. The TextFile line should show the prior overlay
-   content for that editor namespace.
+   content for that editor project root.
 
 ## Packaged runtime
 
@@ -23,7 +23,7 @@ build/Release/RecubinTest.exe --package-system-extension-smoke <output-dir>
 
 The helper uses the repository root as the project root and creates
 `SystemExtensionSmokePackage`. Launch the generated package executable and inspect the
-same label and console output. Runtime storage is separate from Editor storage,
+same label and console output. Runtime storage is separate from Editor storage because it uses the packaged content root,
 so its first Content value should be the seed (or an earlier runtime overlay),
 not the Editor overlay.
 

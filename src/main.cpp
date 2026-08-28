@@ -530,7 +530,7 @@ int main(int argc, char* argv[]) {
     if (!Physics::configureBackendFromCommandLine(argc, argv)) return -1;
 
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.9989\n";
+              << "Recubin Studio v0.99895\n";
     std::filesystem::path engineExePath = (argc > 0 && argv[0]) ? std::filesystem::path(argv[0]) : std::filesystem::path();
 
     windows(
@@ -603,7 +603,6 @@ int main(int argc, char* argv[]) {
         initialSceneMetadata = bound.metadata;
         if (RecubinUUID::isValid(system->ApplicationId)) {
             luauEngine->setRuntimeFileSystem(std::make_shared<RuntimeFileSystem>(
-                system->ApplicationId, RuntimeFileSystem::Namespace::Editor,
                 system->EnableExternalFileAccess));
         }
     }
@@ -753,7 +752,6 @@ int main(int argc, char* argv[]) {
         workspaces = bound.workspaces;
         if (system && RecubinUUID::isValid(system->ApplicationId)) {
             luauEngine->setRuntimeFileSystem(std::make_shared<RuntimeFileSystem>(
-                system->ApplicationId, RuntimeFileSystem::Namespace::Editor,
                 system->EnableExternalFileAccess));
         }
         ed->setSceneMetadata(bound.metadata);

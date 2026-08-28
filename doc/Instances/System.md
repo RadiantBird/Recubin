@@ -56,7 +56,7 @@
 
 ## システム拡張と同意
 
-receiptはApplicationIdごとのアプリケーション領域に、構成versionと権限集合（IO/IPC/External）を保存する。
+receiptはポータブルroot直下の`system_extensions.receipt`に、構成versionと権限集合（IO/IPC/External）を保存する。
 有効権限集合または構成versionが一致しない場合だけ、通常ランタイムのスクリプト開始前に警告を表示する。
 Continue時だけreceiptを書き込み、失敗時は警告して次回も再表示する。Quitまたはウィンドウ閉鎖は起動中止となる。
 全権限無効時も空集合のreceiptを更新する。Editorと`--editor-test`は警告・receiptを完全にバイパスする。

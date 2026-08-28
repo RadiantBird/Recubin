@@ -314,12 +314,6 @@ std::unique_ptr<IChildProcess> WindowsPlatform::launchChildProcess(
         processInfo.hProcess, processInfo.dwProcessId);
 }
 
-std::filesystem::path WindowsPlatform::userDataRoot() const {
-    if (const char* value = std::getenv("LOCALAPPDATA")) return std::filesystem::path(value) / "Recubin";
-    if (const char* value = std::getenv("APPDATA")) return std::filesystem::path(value) / "Recubin";
-    return std::filesystem::temp_directory_path() / "Recubin";
-}
-
 std::optional<std::string> WindowsPlatform::pollStdinLine() {
     static std::string pending;
     const auto takePendingLine = [&]() -> std::optional<std::string> {

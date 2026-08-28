@@ -18,9 +18,7 @@ struct RuntimeFileEntry { std::string name; std::string path; bool isDirectory =
 
 class RuntimeFileSystem {
 public:
-    enum class Namespace { Runtime, Editor };
-    RuntimeFileSystem(std::string applicationId, Namespace space,
-                      bool externalAllowed = false, std::filesystem::path base = {});
+    RuntimeFileSystem(bool externalAllowed = false, std::filesystem::path root = {});
     RuntimeFileResult read(const std::string& path) const;
     RuntimeFileResult write(const std::string& path, const std::string& data);
     RuntimeFileResult append(const std::string& path, const std::string& data);
@@ -36,11 +34,11 @@ public:
     RuntimeFileResult readTextFile(const std::string& seedPath, const std::string& storageId);
     RuntimeFileResult writeTextFile(const std::string& storageId, const std::string& content);
     void setExternalAllowed(bool allowed) { m_external = allowed; }
-    std::filesystem::path namespaceRoot() const { return m_root; }
+    std::filesystem::path root() const { return m_root; }
 private:
     std::filesystem::path resolve(const std::string& path, bool allowMissing, std::string& error) const;
     RuntimeFileResult inspect(const std::string& path) const;
-    std::filesystem::path m_root, m_base, m_userDataRoot, m_applicationRoot;
+    std::filesystem::path m_root;
+    std::string m_rootError;
     bool m_external = false;
-    bool m_invalidApplicationId = false;
 };

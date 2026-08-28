@@ -5,8 +5,8 @@
 `IO` exposes `ReadText`, `ReadBytes`, `WriteText`, `WriteBytes`, `AppendText`, `AppendBytes`, `Exists`, `IsFile`,
 `IsDirectory`, `List`, `CreateDirectory`, `Copy`, `Move`, `Remove`, and `RemoveTree`. Read operations return
 content/status; mutating success returns `true`; permission, invalid-path, and I/O failures raise Luau errors.
-Relative paths stay under the namespace root; `..` and symlink escapes are rejected. Only External permission allows
-explicit absolute paths. `RemoveTree` protects user-data, home, and filesystem/drive roots. IPC exposes Connect,
+Relative paths stay under the portable root; `..` and symlink escapes are rejected. Only External permission allows
+explicit absolute paths. `RemoveTree` protects the portable root, home, and filesystem/drive roots. IPC exposes Connect,
 Send, Receive, Close as a stub; disabled permission is an authorization error and enabled calls return not-implemented.
 TextFile.Content is capped at 128 MiB and does not require IO.
 

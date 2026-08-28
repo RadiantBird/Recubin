@@ -38,13 +38,6 @@ std::unique_ptr<IChildProcess> MockPlatform::launchChildProcess(
     return nullptr;
 }
 
-std::filesystem::path MockPlatform::userDataRoot() const {
-    auto path = std::filesystem::temp_directory_path() / "Recubin";
-    std::error_code ec;
-    std::filesystem::create_directories(path, ec);
-    return path;
-}
-
 std::optional<std::string> MockPlatform::pollStdinLine() {
     return std::nullopt;
 }

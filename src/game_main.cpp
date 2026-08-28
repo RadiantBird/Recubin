@@ -446,9 +446,6 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     auto runtimeFs = std::make_shared<RuntimeFileSystem>(
-        system->ApplicationId,
-        runtimeArgs.editorTest ? RuntimeFileSystem::Namespace::Editor
-                                : RuntimeFileSystem::Namespace::Runtime,
         system->EnableExternalFileAccess);
     luauEngine->setRuntimeFileSystem(runtimeFs);
     if (runtimeArgs.editorTest) {
@@ -463,7 +460,7 @@ int main(int argc, char* argv[]) {
     if (!runtimeArgs.editorTest) {
         SystemExtensionPermissions permissions{
             system->EnableIOAPI, system->EnableIPCAPI, system->EnableExternalFileAccess};
-        const auto applicationRoot = runtimeFs->namespaceRoot().parent_path();
+        const auto applicationRoot = runtimeFs->root();
         const bool anyEnabled = permissions.io || permissions.ipc || permissions.external;
         if (!anyEnabled) {
             if (!SystemExtensionConsent::write(applicationRoot, permissions))

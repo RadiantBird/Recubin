@@ -2,7 +2,7 @@
 
 `include/Instances/TextFile.hpp`
 
-`TextFile`は同梱されたテキストseedと、実行環境ごとのユーザー保存領域を結び付ける
+`TextFile`は同梱されたテキストseedと、実行時のポータブルroot内保存領域を結び付ける
 `PhysicalFileInstance`である。エディターではInsert Objectから新規`.txt`の作成または
 既存`.txt`の選択を行う。新規作成は既存ファイルを上書きせず、UndoではScene Instanceだけを
 取り消して物理ファイルを削除しない。
@@ -17,5 +17,5 @@ Luauから`Instance.new("TextFile")`や`Clone()`で新しいファイルを増�
 Packagerは既存の`ContentPath`追跡を使ってseedを同梱する。
 
 初回アクセス時だけ`ContentPath`のseedを`StorageId`保存先へコピーし、以後はユーザー保存を優先する。
-runtime namespaceとeditor namespaceは保存領域を分離する。Contentは最大128 MiBで、読み書きにI/O API権限を必要としない。
+Contentはroot直下の`textfiles/<StorageId>.txt`へ保存され、Editorと配布ランタイムはそれぞれの起動rootによって分離される。Contentは最大128 MiBで、読み書きにI/O API権限を必要としない。
 `StorageId`はYAMLには保存するがLuauへ公開しない。Luauの`Instance.new("TextFile")`および`TextFile:Clone()`は拒否される。
