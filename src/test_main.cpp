@@ -169,8 +169,10 @@ public:
     double scrollDelta = 0.0;
     double cursorX = 0.0, cursorY = 0.0;
     bool mouseCaptured = false;
-    std::string customCursorPath;
+    std::vector<std::uint8_t> customCursorRgba;
+    int customCursorWidth = 0, customCursorHeight = 0;
     int customCursorHotspotX = 0, customCursorHotspotY = 0;
+    std::uint64_t customCursorRevision = 0;
     bool customCursorApplied = false;
 
     bool isKeyDown(KeyCode key) const override { return pressedKeys.contains(key); }
@@ -180,11 +182,14 @@ public:
     void getCursorPos(double& x, double& y) const override { x = cursorX; y = cursorY; }
     void setCursorPos(double x, double y) override { cursorX = x; cursorY = y; }
     void setMouseCaptured(bool captured) override { mouseCaptured = captured; }
-    bool setCustomCursor(const std::string& path, int hotspotX, int hotspotY) override {
-        customCursorPath = path;
-        customCursorHotspotX = hotspotX;
-        customCursorHotspotY = hotspotY;
-        customCursorApplied = !path.empty();
+    bool setCustomCursor(const CursorImageData& image) override {
+        customCursorRgba = image.rgba;
+        customCursorWidth = image.width;
+        customCursorHeight = image.height;
+        customCursorHotspotX = image.hotspotX;
+        customCursorHotspotY = image.hotspotY;
+        customCursorRevision = image.revision;
+        customCursorApplied = image.isValid();
         return customCursorApplied;
     }
     double consumeScrollDelta() override {
@@ -5627,25 +5632,91 @@ int runUserInputControlsRegression() {
     auto backend = std::make_unique<FrameRateTestInputBackend>();
     auto* input = backend.get();
     auto user = std::make_shared<User>(std::move(backend));
+    const auto cursorTestRoot = std::filesystem::temp_directory_path() /
+        ("recubin_cursor_processing_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()));
+    const auto wideCursorPath = cursorTestRoot / "wide.png";
+    const auto tallCursorPath = cursorTestRoot / "tall.png";
+    const auto missingCursorPath = cursorTestRoot / "missing.png";
+    std::string cursorWriteError;
+    const std::vector<std::uint8_t> widePixels(8 * 4 * 4, 255);
+    const std::vector<std::uint8_t> tallPixels(4 * 8 * 4, 255);
+    expect(PngWriter::writeRgba8(wideCursorPath.string(), 8, 4, widePixels, &cursorWriteError) &&
+               PngWriter::writeRgba8(tallCursorPath.string(), 4, 8, tallPixels, &cursorWriteError),
+           "cursor processing PNG fixtures are written");
     expect(user->getCursorType() == User::CursorType::Default,
            "custom cursor defaults to Default");
     user->setCursorType(User::CursorType::Type3);
-    user->setCursorImagePath(2, "cursor.png");
+    user->setCursorImagePath(2, wideCursorPath.string());
     user->setCursorHotspotX(2, 7);
     user->setCursorHotspotY(2, 9);
     const auto& cursorSlot = user->getCursorImageSlot(2);
-    expect(cursorSlot.contentPath == "cursor.png" && cursorSlot.hotspotX == 7 && cursorSlot.hotspotY == 9,
+    expect(cursorSlot.size == User::DEFAULT_CURSOR_SIZE,
+           "custom cursor size defaults to 32 logical pixels");
+    user->setCursorSize(2, 0);
+    expect(cursorSlot.size == 1, "custom cursor size clamps to the minimum");
+    user->setCursorSize(2, User::MAX_CURSOR_SIZE + 1);
+    expect(cursorSlot.size == User::MAX_CURSOR_SIZE, "custom cursor size clamps to the maximum");
+    user->setCursorSize(2, 48);
+    expect(cursorSlot.contentPath == wideCursorPath.string() && cursorSlot.hotspotX == 7 && cursorSlot.hotspotY == 9,
            "custom cursor slot path and hotspot are mutable");
     expect(user->applyCursor(true) && input->customCursorApplied &&
-               input->customCursorPath == "cursor.png" && input->customCursorHotspotX == 7 &&
-               input->customCursorHotspotY == 9,
-           "custom cursor applies while gameplay viewport is hovered");
+               input->customCursorWidth == 48 && input->customCursorHeight == 24 &&
+               input->customCursorHotspotX == 7 && input->customCursorHotspotY == 9 &&
+               input->customCursorRgba.size() == 48u * 24u * 4u && input->customCursorRevision != 0,
+           "User passes only processed RGBA cursor data to the input backend");
+    const std::uint64_t initialCursorRevision = input->customCursorRevision;
+    expect(user->applyCursor(true) && input->customCursorRevision == initialCursorRevision,
+           "unchanged cursor processing settings reuse the cached revision");
+    expect(user->applyCursor(true, 1.5f) && input->customCursorWidth == 72 &&
+               input->customCursorHeight == 36 && input->customCursorHotspotX == 11 &&
+               input->customCursorHotspotY == 14 && input->customCursorRevision != initialCursorRevision,
+           "content scale resizes the cursor and logical hotspot to physical pixels");
+    const std::uint64_t scaledCursorRevision = input->customCursorRevision;
+    user->setCursorImagePath(2, tallCursorPath.string());
+    expect(user->applyCursor(true) && input->customCursorWidth == 24 && input->customCursorHeight == 48 &&
+               std::max(input->customCursorWidth, input->customCursorHeight) == 48 &&
+               input->customCursorRevision != scaledCursorRevision,
+           "different source aspect ratios preserve the same configured long edge");
+    user->setCursorImagePath(2, wideCursorPath.string());
+    expect(user->applyCursor(true), "cursor fixture is prepared before its file update");
+    const std::uint64_t beforeFileUpdateRevision = input->customCursorRevision;
+    const auto previousWriteTime = std::filesystem::last_write_time(wideCursorPath);
+    std::vector<std::uint8_t> updatedWidePixels(8 * 4 * 4, 127);
+    expect(PngWriter::writeRgba8(wideCursorPath.string(), 8, 4, updatedWidePixels, &cursorWriteError),
+           "cursor processing fixture can be updated");
+    std::error_code cursorTimeError;
+    std::filesystem::last_write_time(
+        wideCursorPath, previousWriteTime + std::chrono::seconds(2), cursorTimeError);
+    expect(!cursorTimeError && user->applyCursor(true) &&
+               input->customCursorRevision != beforeFileUpdateRevision,
+           "cursor file mtime changes regenerate the processed revision");
+    user->setCursorSize(2, 20);
+    user->setCursorHotspotX(2, 1000);
+    user->setCursorHotspotY(2, 1000);
+    const std::uint64_t beforeSizeRevision = input->customCursorRevision;
+    expect(user->applyCursor(true) && input->customCursorWidth == 20 && input->customCursorHeight == 10 &&
+               input->customCursorHotspotX == 19 && input->customCursorHotspotY == 9 &&
+               input->customCursorRevision != beforeSizeRevision,
+           "cursor Size and hotspot changes regenerate and clamp processed data");
+    user->setCursorImagePath(2, missingCursorPath.string());
+    expect(!user->applyCursor(true) && !user->applyCursor(true),
+           "unchanged missing cursor input safely remains a cached failure");
+    expect(PngWriter::writeRgba8(missingCursorPath.string(), 2, 2,
+               std::vector<std::uint8_t>(2 * 2 * 4, 255), &cursorWriteError) && user->applyCursor(true),
+           "a failed cursor retries when the file mtime becomes available");
+    auto nullCursorUser = std::make_shared<User>(std::make_unique<NullInputBackend>(), true);
+    nullCursorUser->setCursorType(User::CursorType::Type1);
+    nullCursorUser->setCursorImagePath(0, wideCursorPath.string());
+    expect(!nullCursorUser->applyCursor(true), "NullInputBackend rejects processed cursors safely");
     expect(!user->applyCursor(false), "custom cursor is not applied outside gameplay viewport");
     user->setCursorType(User::CursorType::Default);
     expect(!user->applyCursor(true), "Default cursor falls back to the platform cursor");
     user->setCursorType(User::CursorType::Type4);
     expect(!user->applyCursor(true), "empty cursor slot falls back to the platform cursor");
     user->setCursorType(User::CursorType::Type3);
+    std::error_code cursorCleanupError;
+    std::filesystem::remove_all(cursorTestRoot, cursorCleanupError);
     user->setGameViewport(0, 0, 100, 60, 1.0f, Vector3(), Vector3(0, 0, -1),
                           Vector3(1, 0, 0), Vector3(0, 1, 0), 50, 30, true);
     user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
@@ -5756,6 +5827,10 @@ int runUserInputControlsRegression() {
     user->setMoveDirection(Vector3(3, 0, 0));
     user->clearMoveDirection();
     user->queueJump();
+    input->pressedKeys.insert(KeyCode::P);
+    user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(!user->consumeWorkspaceSwitchRequest(), "P key does not request a workspace switch");
+    input->pressedKeys.erase(KeyCode::P);
     user->requestWorkspaceSwitch();
     expect(user->consumeWorkspaceSwitchRequest(), "direct workspace switch request bypasses categories");
     user->requestExit();
@@ -5776,6 +5851,45 @@ int runUserInputControlsRegression() {
     inputHumanoid->setRootPart(inputRoot);
     user->humanoid = inputHumanoid;
     user->controlMode = User::ControlMode::Character;
+
+    auto deadBackend = std::make_unique<FrameRateTestInputBackend>();
+    auto* deadInput = deadBackend.get();
+    auto deadUser = std::make_shared<User>(std::move(deadBackend), true);
+    auto deadCharacter = std::make_shared<Model>();
+    auto deadRoot = std::make_shared<BaseCube>(Vector3(), Vector3(2, 2, 2));
+    auto deadHumanoid = std::make_shared<Humanoid>();
+    deadHumanoid->setRootPart(deadRoot);
+    deadHumanoid->setHealth(0.0f);
+    deadUser->character = deadCharacter;
+    deadUser->humanoid = deadHumanoid;
+    deadUser->controlMode = User::ControlMode::Character;
+    deadUser->cpos = Vector3(10, 20, 30);
+    deadUser->cam.Orientation = Quaternion();
+    deadUser->updateVectors();
+    const Vector3 deadCharacterCameraPosition = deadUser->cpos;
+    const Quaternion deadCharacterCameraRotation = deadUser->cam.Orientation;
+    deadInput->pressedKeys.insert(KeyCode::Left);
+    deadUser->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    deadInput->pressedKeys.erase(KeyCode::Left);
+    expect(deadUser->cpos.x == deadCharacterCameraPosition.x &&
+               deadUser->cpos.y == deadCharacterCameraPosition.y &&
+               deadUser->cpos.z == deadCharacterCameraPosition.z &&
+               deadUser->cam.Orientation.w != deadCharacterCameraRotation.w,
+           "dead Character keeps camera position while allowing in-place rotation");
+
+    deadInput->pressedKeys.insert(KeyCode::L);
+    deadUser->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    deadInput->pressedKeys.erase(KeyCode::L);
+    deadUser->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    expect(deadUser->controlMode == User::ControlMode::Free,
+           "L switches to Free while the Humanoid is dead");
+    const Vector3 deadFreeCameraPosition = deadUser->cpos;
+    deadInput->pressedKeys.insert(KeyCode::W);
+    deadUser->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
+    deadInput->pressedKeys.erase(KeyCode::W);
+    expect((deadUser->cpos - deadFreeCameraPosition).lengthSquared() > 0.0f,
+           "dead Free mode still allows free camera movement");
+
     user->setProperty("MovementInputEnabled", off);
     input->pressedKeys.insert(KeyCode::W);
     user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
@@ -5860,9 +5974,13 @@ int runUserInputControlsRegression() {
         "User.CursorType=Enum.CursorType.Type2 assert(User.CursorType == Enum.CursorType.Type2, 'assign') "
         "User.CursorType2HotspotX=4 User.CursorType2HotspotY=5 "
         "assert(User.CursorType2HotspotX == 4 and User.CursorType2HotspotY == 5, 'hotspot') "
+        "assert(User.CursorType2Size == 32, 'default-size') User.CursorType2Size=24 "
+        "assert(User.CursorType2Size == 24, 'size') "
         "User.CursorType2Source=CursorAsset assert(User.CursorType2ContentPath == 'assets/cursor.png', 'source') "
         "User.CursorType2Source=nil assert(User.CursorType2ContentPath == '', 'clear') "
         "local ok=pcall(function() User.CursorType='Type1' end) assert(not ok, 'invalid-string') "
+        "ok=pcall(function() User.CursorType2Size=0 end) assert(not ok, 'invalid-size-low') "
+        "ok=pcall(function() User.CursorType2Size=513 end) assert(not ok, 'invalid-size-high') "
         "ok=pcall(function() Enum.CursorType.Type1.Name='x' end) assert(not ok, 'readonly-name') "
         "ok=pcall(function() Enum.CursorType.Type1.Value=99 end) assert(not ok, 'readonly-value') "
         "ok=pcall(function() Enum.CursorType.Type1.EnumType='x' end) assert(not ok, 'readonly-enumtype') "
@@ -5920,6 +6038,7 @@ int runUserInputControlsRegression() {
     user->setCursorImagePath(2, "assets/cursor.png");
     user->setCursorHotspotX(2, 11);
     user->setCursorHotspotY(2, 13);
+    user->setCursorSize(2, 48);
     const bool savedControls = SceneLoader::saveSceneResult(persistedSystem.get(), yamlPath.string());
     auto loadSystem = std::make_shared<System>();
     auto loadUser = std::make_shared<User>(std::make_unique<NullInputBackend>(), true);
@@ -5931,7 +6050,8 @@ int runUserInputControlsRegression() {
                loadedControls.user->getCursorType() == User::CursorType::Type3 &&
                loadedControls.user->getCursorImageSlot(2).contentPath == "assets/cursor.png" &&
                loadedControls.user->getCursorImageSlot(2).hotspotX == 11 &&
-               loadedControls.user->getCursorImageSlot(2).hotspotY == 13,
+               loadedControls.user->getCursorImageSlot(2).hotspotY == 13 &&
+               loadedControls.user->getCursorImageSlot(2).size == 48,
            "SceneLoader saves and loads input and custom cursor properties");
     {
         std::ofstream legacy(legacyYamlPath, std::ios::binary | std::ios::trunc);
@@ -5944,7 +6064,8 @@ int runUserInputControlsRegression() {
         legacyYamlPath.string(), legacySystem, legacyUser);
     expect(legacyControls && legacyControls.user && legacyControls.user->isMovementInputEnabled() &&
                legacyControls.user->isCameraInputEnabled() && legacyControls.user->isHotkeyInputEnabled() &&
-               legacyControls.user->isToolInputEnabled(),
+               legacyControls.user->isToolInputEnabled() &&
+               legacyControls.user->getCursorImageSlot(0).size == User::DEFAULT_CURSOR_SIZE,
            "legacy YAML without input category properties keeps true defaults");
     std::error_code yamlError;
     std::filesystem::remove(yamlPath, yamlError);
@@ -6613,6 +6734,7 @@ int runAssetPathRegression() {
                   << "        CursorImages:\n"
                   << "          - ContentPath: assets\\cursor.png\n"
                   << "            Hotspot: [1, 2]\n"
+                  << "            Size: 40\n"
                   << "Properties:\n"
                   << "  Texture: assets\\sample.bin\n"
                   << "  MeshFile: assets\\models\\missing.glb\n";
@@ -6676,6 +6798,7 @@ int runAssetPathRegression() {
                    packagedScene.find("assets/anims/r6_walk.rcanim") != std::string::npos &&
                    packagedScene.find("ContentPath: assets/cursor.png") != std::string::npos &&
                    packagedScene.find("Hotspot: [1, 2]") != std::string::npos &&
+                   packagedScene.find("Size: 40") != std::string::npos &&
                    packagedScene.find(packageConfig.applicationId) != std::string::npos &&
                    packagedStartup.find(packageConfig.applicationId) != std::string::npos &&
                    packagedScene.find('\\') == std::string::npos,
@@ -8522,8 +8645,11 @@ static int runSystemExtensionRegression() {
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     const auto applicationId = RecubinUUID::generate();
-    RuntimeFileSystem fs(applicationId, RuntimeFileSystem::Namespace::Runtime, false, root);
+    RuntimeFileSystem fs(false, root);
     expect(static_cast<bool>(fs.write("a.bin", std::string("a\0b", 3))), "binary write succeeds");
+    expect(std::filesystem::exists(root / "a.bin") &&
+               !std::filesystem::exists(root / applicationId),
+           "relative I/O writes directly below the explicit root");
     auto bytes = fs.read("a.bin");
     expect(static_cast<bool>(bytes) && bytes.value.size() == 3 && bytes.value[1] == '\0', "binary NUL round-trip");
     expect(static_cast<bool>(fs.append("a.bin", "c")), "append succeeds");
@@ -8535,23 +8661,26 @@ static int runSystemExtensionRegression() {
     expect(static_cast<bool>(fs.list("dir", entries)) && entries.size() == 1 && entries.front().name == "copy.bin",
            "deterministic directory listing");
     expect(!static_cast<bool>(fs.read("../escape")), "parent traversal rejected");
-    expect(!static_cast<bool>(fs.removeTree(".")), "runtime namespace root cannot be removed");
+    expect(!static_cast<bool>(fs.removeTree(".")), "runtime root cannot be removed");
     TextFile file;
     file.Path = "seed.txt";
     expect(static_cast<bool>(fs.writeTextFile(file.StorageId, "persisted")), "TextFile overlay write succeeds");
+    expect(std::filesystem::exists(root / "textfiles" / (file.StorageId + ".txt")),
+           "TextFile overlay is stored below root/textfiles");
     auto persisted = fs.readTextFile(file.Path, file.StorageId);
     expect(static_cast<bool>(persisted) && persisted.value == "persisted", "TextFile overlay read succeeds");
-    RuntimeFileSystem editorFs(applicationId, RuntimeFileSystem::Namespace::Editor, false, root);
-    expect(editorFs.namespaceRoot() != fs.namespaceRoot(), "runtime/editor namespaces are isolated");
+    RuntimeFileSystem editorFs(false, root);
+    expect(editorFs.root() == fs.root(), "explicit roots are shared directly");
     expect(!static_cast<bool>(fs.write("oversize.bin", std::string(128u * 1024u * 1024u + 1u, 'x'))),
            "files over 128 MiB are rejected");
     expect(!static_cast<bool>(fs.copy("a.bin", "dir/copy.bin")) &&
                static_cast<bool>(fs.copy("a.bin", "dir/copy.bin", true)),
            "copy overwrite policy is enforced");
     expect(static_cast<bool>(fs.removeTree("dir")), "recursive removal succeeds");
-    RuntimeFileSystem externalFs(applicationId, RuntimeFileSystem::Namespace::Runtime,
-                                 true, root / "external-base");
+    RuntimeFileSystem externalFs(true, root / "external-base");
     const auto absoluteTarget = root / "absolute.bin";
+    expect(!static_cast<bool>(fs.write(absoluteTarget.string(), "denied")),
+           "external-disabled file system rejects absolute paths");
     expect(static_cast<bool>(externalFs.write(absoluteTarget.string(), "external")) &&
                externalFs.isFile(absoluteTarget.string()).isFile,
            "external access permits absolute paths");
@@ -8574,13 +8703,15 @@ static int runSystemExtensionRegression() {
                mergedSystem->EnableIOAPI && mergedSystem->EnableIPCAPI &&
                mergedSystem->EnableExternalFileAccess,
            "System extension YAML round-trip preserves values");
-    const auto consentRoot = fs.namespaceRoot().parent_path();
+    const auto consentRoot = fs.root();
     SystemExtensionPermissions consentPermissions{true, false, false};
     expect(SystemExtensionConsent::shouldWarn(consentRoot, consentPermissions),
            "extension consent warns on first launch");
     expect(SystemExtensionConsent::write(consentRoot, consentPermissions) &&
                !SystemExtensionConsent::shouldWarn(consentRoot, consentPermissions),
            "same extension consent does not warn again");
+    expect(std::filesystem::exists(root / "system_extensions.receipt"),
+           "extension consent receipt is stored directly below root");
     SystemExtensionPermissions changedPermissions{true, true, false};
     expect(SystemExtensionConsent::shouldWarn(consentRoot, changedPermissions),
            "extension consent warns when configuration changes");
@@ -8589,14 +8720,24 @@ static int runSystemExtensionRegression() {
                readPermissions.io && !readPermissions.ipc && !readPermissions.external,
            "extension consent round-trip preserves exact set");
 
+    const auto originalCwd = std::filesystem::current_path(ec);
+    const auto defaultRoot = root / "default-cwd";
+    std::filesystem::create_directories(defaultRoot, ec);
+    std::filesystem::current_path(defaultRoot, ec);
+    RuntimeFileSystem defaultFs;
+    expect(!ec && defaultFs.root() == std::filesystem::absolute(defaultRoot, ec).lexically_normal() &&
+               static_cast<bool>(defaultFs.write("default.txt", "cwd")) &&
+               std::filesystem::exists(defaultRoot / "default.txt"),
+           "default file system uses construction-time current directory");
+    std::filesystem::current_path(originalCwd, ec);
+
     // Exercise the Luau permission boundary and the read-only System fields.
     LuauEngine extensionEngine;
     system->EnableIOAPI = false;
     system->EnableIPCAPI = false;
     system->EnableExternalFileAccess = false;
     extensionEngine.setSystem(system.get());
-    extensionEngine.setRuntimeFileSystem(std::make_shared<RuntimeFileSystem>(
-        applicationId, RuntimeFileSystem::Namespace::Runtime, true, root));
+    extensionEngine.setRuntimeFileSystem(std::make_shared<RuntimeFileSystem>(true, root));
     auto extensionWorkspace = std::make_shared<Workspace>();
     system->addChild(extensionWorkspace);
     extensionEngine.setWorkspace(extensionWorkspace);

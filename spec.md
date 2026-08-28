@@ -37,8 +37,8 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 `EnableIOAPI`が有効な場合のみLuauへ`IO.ReadText`/`ReadBytes`/`WriteText`/`WriteBytes`/`AppendText`/
 `AppendBytes`/`Exists`/`IsFile`/`IsDirectory`/`List`/`CreateDirectory`/`Copy`/`Move`/`Remove`/`RemoveTree`
 を公開する。読取りは値または状態、変更系の成功は`true`、権限不足・不正パス・I/O失敗はエラーとする。
-相対パスはnamespace root内、External許可時のみ絶対パスを許可し、`..`・symlink脱出を拒否する。RemoveTreeは
-ユーザーデータroot、ホーム、ドライブ／FS rootを保護する。TextFile.Contentを含むデータサイズ上限は128 MiB。
+相対パスは起動時のポータブルroot直下、External許可時のみ絶対パスを許可し、`..`・symlink脱出を拒否する。RemoveTreeは
+ポータブルroot、ホーム、ドライブ／FS rootを保護する。TextFile.Contentを含むデータサイズ上限は128 MiB。
 `EnableIPCAPI`では`Connect`/`Send`/`Receive`/`Close`のstubを公開するが未実装エラーを返す。拡張同意receiptは
 構成versionとIO/IPC/External権限集合を保存・比較し、Editorと`--editor-test`では警告とreceiptをバイパスする。
 - **System**: シングルトン。常に1つのみ存在。Insert Objectリストには登録しない。
@@ -98,7 +98,11 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 - `MovementInputEnabled`/`CameraInputEnabled`/`HotkeyInputEnabled`/`ToolInputEnabled`は既定trueの保存対象で、
   対応する組み込み操作のみをgateする。`User.Input`の生ポーリングとLuau Direct APIは常に利用可能。
 - `CursorType` は `Default`/`Type1`〜`Type10` を選択し、各スロットはPNG/JPEG/BMP/TGAの
-  `ContentPath`と0以上の整数ホットスポットを保存する。ゲーム領域外ではUser指定カーソルを適用しない。
+  `ContentPath`、0以上の整数ホットスポット、長辺の論理サイズ`Size`を保存する。`Size`は既定32px、
+  1〜512pxで、画像は縦横比を維持してcontent scale込みの物理サイズへbilinearリサイズする。
+  共通CursorImageProcessorがAssetGuard確認、RGBA8読込、mtime／設定／DPIキャッシュ、Hotspot変換を担当し、
+  入力バックエンドはrevision付きの完成RGBAデータからOSカーソルを生成するだけとする。
+  ゲーム領域外ではUser指定カーソルを適用しない。
 - F1-F12は`User.Input`へ固定名で通知し、組み込み動作はF8のMouseLock切替だけとする。MouseLockはprimary
   viewportの中心client座標を使い、フォーカス喪失で解除する。
 - `CharacterSmoothing`は移動方向・向きの補間率（既定`0.15`）。`1`で補間なし、`0`で目標へ追従しない。
@@ -107,6 +111,7 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 - ControlMode
     - エディターではデフォルトでFree
     - ゲームランタイムではデフォルトでCharacter
+    - Humanoid死亡中もカメラ入力とLキーのモード切替を受け付ける。Characterではキャラクターを移動・追従させずその場でカメラを回転し、Freeではカメラを自由移動できる。Free移動中も死亡ラグドールの姿勢を上書きしない。
 - `CharacterAdded`(Signal): 新しいローカルCharacterがspawnされるたび発火する(初回spawn +
   死亡respawn全て)。Luau側にはspawn直後のcharacter(Model)が引数として渡される
   (この時点ではまだWorkspaceに未追加。Root等のパーツ参照はresolveParts済みで取得可能)。
@@ -210,6 +215,7 @@ PhysXに実装されているもののこと。
 ## 物理制約
 - ツリー構造のどこにあっても有効
 - 必要なプロパティがそろえば自動で初期化される
+- `Rope`、`Rod`、`BallSocket`、`Weld`、`Motor`、`NoCollision` は `Enabled`（既定値`true`）を持ち、`true` の場合のみ物理制約を有効化する。
 - Box3D の ConvexMesh および Terrain 凸包は物理生成時に最大44頂点へ簡略化する。
   有限な頂点から凸包を生成できない場合は、ローカル境界Boxを衝突形状として使用する。
   この処理は物理形状だけを対象とし、描画モデルは変更しない。

@@ -64,7 +64,7 @@ render()
 
 | メソッド | 説明 |
 |---|---|
-| `renderScreenGui(ws, vpX, vpY, vpW, vpH)` | `ScreenGuiObject` 系（画面固定UI）をビューポート座標系で描画。`Norm::Pixel` 要素は `ws` の親 `System.BaseResolution` と実際のビューポート解像度(vpW/vpH)の比率(X,Y別々)でスケーリングする（`System` が見つからない場合は等倍） |
+| `renderScreenGui(ws, vpX, vpY, vpW, vpH)` | `ScreenGuiObject` 系（画面固定UI）をビューポート座標系で描画。`Norm::Pixel` 要素は `ws` の親 `System.BaseResolution` と実際のビューポート解像度(vpW/vpH)の比率(X,Y別々)でスケーリングし、文字サイズにも既存のY方向比率を適用する（`System` が見つからない場合は等倍） |
 | `renderWorldGui(ws, vpX, vpY, vpW, vpH)` | `WorldGuiObject`（3D空間内に配置されるGUI、BillboardGui等）を描画 |
 | `renderToolHotbar(user, vpX, vpY, vpW, vpH)` | `User` が所持するツールのホットバーUIを描画 |
 | `renderGameGui(ws, user, vpX, vpY, vpW, vpH)` | Play モード時のゲーム内 GUI をまとめて描画 |

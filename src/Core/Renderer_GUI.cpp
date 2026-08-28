@@ -280,7 +280,9 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
     ImVec2 tl(px, py);
     ImVec2 br(px + sw, py + sh);
 
-    drawGuiContent(dl, sgo, px, py, sw, sh, &onActivated);
+    // FontSizeは論理値として保持し、画面GUIの描画時だけ既存の
+    // BaseResolution比率を適用する。文字の高さに対応するY倍率を使う。
+    drawGuiContent(dl, sgo, px, py, sw, sh, &onActivated, scaleY);
 
     // ホバー判定（TextLabel/TextButton 共通）: 入った瞬間に Hovered を発火
     if (SystemState::get().isPlaying) {

@@ -17,7 +17,7 @@
 | `Visible` | `bool` | 表示/非表示 |
 | `BackgroundColor` | `Color4` | 背景色（アルファ = 不透明度） |
 | `ZIndex` | `int` | 描画順 |
-| `FontSize` | `float` | 文字サイズ。0 = 既定サイズ（TextLabel/TextButton のみ使用） |
+| `FontSize` | `float` | 論理文字サイズ。0 = 既定サイズ（TextLabel/TextButton のみ使用）。画面GUIの描画時だけ `System.BaseResolution` 基準の画面スケールを適用 |
 | `Hovered` | `shared_ptr<RCBNScriptSignal>` | マウスカーソルが要素内に入った瞬間に発火（Roblox の MouseEnter 相当） |
 | `m_wasHovered` | `bool` | ホバー判定のエッジ検出用（Luau 非公開） |
 

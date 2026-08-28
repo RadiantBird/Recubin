@@ -12,6 +12,7 @@
 |---|---|---|
 | `Text` | `string` | 表示文字列 |
 | `TextColor` | `Color4` | 文字色（既定は黒不透明） |
+| `FontSize` | `float` | 論理文字サイズ。画面GUIの描画時に `System.BaseResolution` 基準の画面スケールが適用される |
 
 ## メソッド
 | メソッド | 説明 |

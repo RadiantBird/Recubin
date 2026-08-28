@@ -342,3 +342,48 @@
   他の新規失敗はなかった。日本語名の実パッケージを外部CWDから4秒起動し、startup／scene／script読込と非即時終了を確認した。
 - 一時package／processは削除済み。手動GUIの見た目確認は未実施。
 - 修正後の最終全回帰は236 passed / 0 failed、GUI automation smokeを含めRegression OK。
+
+## 2026-08-28: カスタムマウスカーソルの論理サイズ対応
+
+- UserのType1〜10へ`Size`を追加した。既定32px、設定範囲1〜512論理pxとし、画像の縦横比を維持して
+  bilinearリサイズする。
+- GLFWのcontent scale／DPIを物理サイズとHotspotへ反映し、Luau、YAML、Properties、Undo/Redo、
+  PackagerでのSize保持へ対応した。
+- ReleaseのRecubin／RecubinEngine／RecubinTest 3ターゲットbuild成功。対象3回帰はPASS。
+  全回帰は9 scenesで236 passed / 0 failed、GUI automation smoke成功。
+  カスタムカーソルサイズの手動目視確認は未実施。
+
+## 2026-08-28: カーソル画像加工と入力バックエンド責務分離
+
+- `CursorImageData`／`CursorImageProcessor`を新設し、画像の読込・加工と成功／失敗／mtimeキャッシュを
+  User側の共通処理へ分離した。
+- `IInputBackend`／GLFWからSize、ContentPath、DPI処理を除去し、完成RGBA、物理寸法、物理Hotspot、
+  revisionだけを受け渡す構成へ変更した。
+- ReleaseのRecubin／RecubinEngine／RecubinTest 3ターゲットbuild成功。対象3回帰はPASS。
+  全回帰は9 scenesで236 passed / 0 failed、GUI automation smoke成功。
+  カスタムカーソル固有の手動目視確認は未実施。
+
+## 2026-08-28: ポータブル保存root
+
+- `LOCALAPPDATA`／`APPDATA`／`Application Support`およびRuntime／Editor／ApplicationId階層を廃止。Windowsはexe隣、macOSは`.app/Contents/Resources`、Editor／`--scene`は起動CWDをrootとし、IOは直下、TextFileは`textfiles/<StorageId>.txt`、receiptはroot直下へ保存する。External等の制限は維持し、旧データ移行は行わない。
+- ReleaseのRecubin／RecubinEngine／RecubinTest build成功（既存警告のみ）。`--system-extension-regression`と`--asset-path-regression` PASS、全46 dedicated + GUI automation + 9 scenes 236/0 Regression OK。
+
+## 2026-08-28: 死亡中のカメラ操作
+
+- Character死亡中はCharacterモードでその場回転、Freeモードで自由移動を可能にし、Lキーによるモード切替を有効化した。Free移動で死亡ラグドールを上書きしないようにした。
+- ReleaseのRecubin／RecubinEngine／RecubinTest 3ターゲットbuild成功（既存APIENTRY警告のみ）。`--user-input-controls-regression`は追加3ケースを含め failures=0 / 1 passed 0 failed。対象差分の`git diff --check` PASS。
+
+## 2026-08-28: 物理制約基底クラスとEnabled Editor配線
+
+- `PhysicsConstraint` 基底クラスを追加し、Enabled、Cube参照、Constraint handle、Workspace登録・解除、共通プロパティ処理を集約した。
+- Rope/Rod/BallSocket/Weld/Motor/NoCollisionを基底から派生させ、EditorのEnabledチェックボックスを共通Undo/Redoコマンドへ接続した。
+- 対象差分の`git diff --check`は成功。ReleaseビルドはWSL↔Windows通信エラー（`UtilBindVsockAnyPort`）で未実施。
+
+## 2026-08-28: 単体Attachmentの移動ギズモ表示修正
+
+- SizeがゼロのAttachmentにゼロスケールのモデル行列を渡していたため、単体選択時も単位スケールでImGuizmoを描画するよう修正した。
+
+## 2026-08-28: シーン読み込み時のようこそタブ自動クローズ
+
+- 有効なシーン読み込み要求を受け付けた時点で、ようこそタブを自動的に閉じるよう修正した。ファイル選択のキャンセル時は表示状態を維持する。
+- ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。全回帰はWSL↔Windows通信エラー（`UtilBindVsockAnyPort`）で未実施。
