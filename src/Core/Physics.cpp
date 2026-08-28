@@ -6,6 +6,7 @@
 #include "include/Instances/BallSocket.hpp"
 #include "include/Instances/Motor.hpp"
 #include "include/Instances/NoCollision.hpp"
+#include "include/Instances/PhysicsConstraint.hpp"
 #include "include/Instances/Rod.hpp"
 #include "include/Instances/Rope.hpp"
 #include "include/Instances/Weld.hpp"
@@ -231,9 +232,7 @@ void Physics::reconcileConstraints(Workspace& workspace) {
     std::vector<std::shared_ptr<Instance>> constraints;
     auto collect = [&](auto& self, const std::shared_ptr<Instance>& value) -> void {
         if (!value) return;
-        if (value->IsA("Weld") || value->IsA("Rope") || value->IsA("Rod") ||
-            value->IsA("BallSocket") || value->IsA("Motor") ||
-            value->IsA("NoCollision"))
+        if (value->IsA("PhysicsConstraint"))
             constraints.push_back(value);
         for (const auto& [name, child] : value->getChildren()) {
             (void)name;
@@ -265,14 +264,7 @@ void Physics::reconcileConstraints(Workspace& workspace) {
     };
 
     for (const auto& value : constraints) {
-        bool enabled = true;
-        if (value->IsA("Weld")) enabled = std::static_pointer_cast<Weld>(value)->Enabled;
-        else if (value->IsA("Rope")) enabled = std::static_pointer_cast<Rope>(value)->Enabled;
-        else if (value->IsA("Rod")) enabled = std::static_pointer_cast<Rod>(value)->Enabled;
-        else if (value->IsA("BallSocket")) enabled = std::static_pointer_cast<BallSocket>(value)->Enabled;
-        else if (value->IsA("Motor")) enabled = std::static_pointer_cast<Motor>(value)->Enabled;
-        else if (value->IsA("NoCollision")) enabled = std::static_pointer_cast<NoCollision>(value)->Enabled;
-        if (!enabled) {
+        if (!std::static_pointer_cast<PhysicsConstraint>(value)->Enabled) {
             if (m_constraintBindings.contains(value.get())) m_backend->removeConstraint(value);
             workspace.unregisterConstraint(value.get());
             m_constraintBindings.erase(value.get());
