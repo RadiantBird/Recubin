@@ -3,40 +3,18 @@
 #include <include/Instances/Attachment.hpp>
 #include <include/Core/Physics.hpp>
 #include <cmath>
+#include <utility>
 
 Rope::Rope()
-    : Instance("Rope") {}
+    : PhysicsConstraint("Rope") {}
 
 Rope::Rope(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
-    : Instance("Rope"), m_cube0(cube0), m_cube1(cube1),
-      m_cube0Name(cube0 ? cube0->getWorkspaceRelativePath() : ""),
-      m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
-
-Rope::~Rope() {
-    if (m_lastWorkspace) m_lastWorkspace->unregisterConstraint(this);
-    m_constraintHandle = {};
-}
-
-void Rope::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
-    m_cube0 = cube0;
-    m_cube1 = cube1;
-    m_cube0Name = cube0 ? cube0->getWorkspaceRelativePath() : "";
-    m_cube1Name = cube1 ? cube1->getWorkspaceRelativePath() : "";
-}
-
-void Rope::setCube0(std::shared_ptr<BaseCube> cube) {
-    m_cube0 = cube;
-    m_cube0Name = cube ? cube->getWorkspaceRelativePath() : "";
-    registerIfReady();
-}
-
-void Rope::setCube1(std::shared_ptr<BaseCube> cube) {
-    m_cube1 = cube;
-    m_cube1Name = cube ? cube->getWorkspaceRelativePath() : "";
-    registerIfReady();
+    : PhysicsConstraint("Rope") {
+    setCubes(std::move(cube0), std::move(cube1));
 }
 
 void Rope::refreshRefNames() {
+    PhysicsConstraint::refreshRefNames();
     if (auto c0 = m_cube0.lock(); c0 && !m_cube0Name.empty())
         m_cube0Name = c0->getWorkspaceRelativePath();
     if (auto c1 = m_cube1.lock(); c1 && !m_cube1Name.empty())
@@ -50,6 +28,7 @@ void Rope::refreshRefNames() {
 }
 
 void Rope::registerIfReady() {
+    if (!Enabled) return;
     auto* ws_raw = findFirstAncestorWorkspace();
     if (!ws_raw) return;
     Workspace* ws = static_cast<Workspace*>(ws_raw);
@@ -98,10 +77,10 @@ void Rope::setDamping(float v) {
     if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
         m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
-
 std::shared_ptr<Instance> Rope::clone() const {
     auto c = std::make_shared<Rope>();
     c->Name        = Name;
+    c->Enabled     = Enabled;
     c->m_cube0Name = m_cube0Name;
     c->m_cube1Name = m_cube1Name;
     c->m_attachment0Name = m_attachment0Name;
@@ -130,7 +109,7 @@ std::string Rope::getClassName() { return "Rope"; }
 
 bool Rope::IsA(std::string className) {
     if (className == "Rope") return true;
-    return Instance::IsA(className);
+    return PhysicsConstraint::IsA(className);
 }
 
 void Rope::setProperty(const std::string& name, const YAML::Node& value) {
@@ -166,20 +145,6 @@ void Rope::setProperty(const std::string& name, const YAML::Node& value) {
         Color.a = value[3].as<float>();
     } else if (name == "LineWidth") {
         LineWidth = value.as<float>();
-    } else Instance::setProperty(name, value);
+    } else PhysicsConstraint::setProperty(name, value);
     registerIfReady();
-}
-
-void Rope::onAncestorChanged() {
-    auto* workspace = static_cast<Workspace*>(findFirstAncestorWorkspace());
-    if (workspace != m_lastWorkspace) {
-        if (m_lastWorkspace) {
-            m_lastWorkspace->unregisterConstraint(this);
-            if (m_lastWorkspace->getPhysicsEngine() && m_constraintHandle)
-                m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
-        }
-        m_lastWorkspace = workspace;
-        if (workspace) workspace->registerConstraint(shared_from_this());
-    }
-    Instance::onAncestorChanged();
 }

@@ -265,6 +265,19 @@ void Physics::reconcileConstraints(Workspace& workspace) {
     };
 
     for (const auto& value : constraints) {
+        bool enabled = true;
+        if (value->IsA("Weld")) enabled = std::static_pointer_cast<Weld>(value)->Enabled;
+        else if (value->IsA("Rope")) enabled = std::static_pointer_cast<Rope>(value)->Enabled;
+        else if (value->IsA("Rod")) enabled = std::static_pointer_cast<Rod>(value)->Enabled;
+        else if (value->IsA("BallSocket")) enabled = std::static_pointer_cast<BallSocket>(value)->Enabled;
+        else if (value->IsA("Motor")) enabled = std::static_pointer_cast<Motor>(value)->Enabled;
+        else if (value->IsA("NoCollision")) enabled = std::static_pointer_cast<NoCollision>(value)->Enabled;
+        if (!enabled) {
+            if (m_constraintBindings.contains(value.get())) m_backend->removeConstraint(value);
+            workspace.unregisterConstraint(value.get());
+            m_constraintBindings.erase(value.get());
+            continue;
+        }
         std::shared_ptr<BaseCube> cube0;
         std::shared_ptr<BaseCube> cube1;
         std::shared_ptr<Attachment> attachment0;

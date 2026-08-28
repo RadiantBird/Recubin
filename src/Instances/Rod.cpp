@@ -2,40 +2,18 @@
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/Attachment.hpp>
 #include <include/Core/Physics.hpp>
+#include <utility>
 
 Rod::Rod()
-    : Instance("Rod") {}
+    : PhysicsConstraint("Rod") {}
 
 Rod::Rod(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
-    : Instance("Rod"), m_cube0(cube0), m_cube1(cube1),
-      m_cube0Name(cube0 ? cube0->getWorkspaceRelativePath() : ""),
-      m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
-
-Rod::~Rod() {
-    if (m_lastWorkspace) m_lastWorkspace->unregisterConstraint(this);
-    m_constraintHandle = {};
-}
-
-void Rod::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
-    m_cube0 = cube0;
-    m_cube1 = cube1;
-    m_cube0Name = cube0 ? cube0->getWorkspaceRelativePath() : "";
-    m_cube1Name = cube1 ? cube1->getWorkspaceRelativePath() : "";
-}
-
-void Rod::setCube0(std::shared_ptr<BaseCube> cube) {
-    m_cube0 = cube;
-    m_cube0Name = cube ? cube->getWorkspaceRelativePath() : "";
-    registerIfReady();
-}
-
-void Rod::setCube1(std::shared_ptr<BaseCube> cube) {
-    m_cube1 = cube;
-    m_cube1Name = cube ? cube->getWorkspaceRelativePath() : "";
-    registerIfReady();
+    : PhysicsConstraint("Rod") {
+    setCubes(std::move(cube0), std::move(cube1));
 }
 
 void Rod::refreshRefNames() {
+    PhysicsConstraint::refreshRefNames();
     if (auto c0 = m_cube0.lock(); c0 && !m_cube0Name.empty())
         m_cube0Name = c0->getWorkspaceRelativePath();
     if (auto c1 = m_cube1.lock(); c1 && !m_cube1Name.empty())
@@ -49,6 +27,7 @@ void Rod::refreshRefNames() {
 }
 
 void Rod::registerIfReady() {
+    if (!Enabled) return;
     auto* ws_raw = findFirstAncestorWorkspace();
     if (!ws_raw) return;
     Workspace* ws = static_cast<Workspace*>(ws_raw);
@@ -76,10 +55,10 @@ void Rod::resolveAttachments() {
         if (auto c1 = m_cube1.lock())
             m_attachment1 = Attachment::findUnder(c1.get(), m_attachment1Name);
 }
-
 std::shared_ptr<Instance> Rod::clone() const {
     auto c = std::make_shared<Rod>();
     c->Name        = Name;
+    c->Enabled     = Enabled;
     c->m_cube0Name = m_cube0Name;
     c->m_cube1Name = m_cube1Name;
     c->m_attachment0Name = m_attachment0Name;
@@ -105,7 +84,7 @@ std::string Rod::getClassName() { return "Rod"; }
 
 bool Rod::IsA(std::string className) {
     if (className == "Rod") return true;
-    return Instance::IsA(className);
+    return PhysicsConstraint::IsA(className);
 }
 
 void Rod::setProperty(const std::string& name, const YAML::Node& value) {
@@ -139,21 +118,7 @@ void Rod::setProperty(const std::string& name, const YAML::Node& value) {
     } else if (name == "LineWidth") {
         LineWidth = value.as<float>();
     } else {
-        Instance::setProperty(name, value);
+        PhysicsConstraint::setProperty(name, value);
     }
     registerIfReady();
-}
-
-void Rod::onAncestorChanged() {
-    auto* workspace = static_cast<Workspace*>(findFirstAncestorWorkspace());
-    if (workspace != m_lastWorkspace) {
-        if (m_lastWorkspace) {
-            m_lastWorkspace->unregisterConstraint(this);
-            if (m_lastWorkspace->getPhysicsEngine() && m_constraintHandle)
-                m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
-        }
-        m_lastWorkspace = workspace;
-        if (workspace) workspace->registerConstraint(shared_from_this());
-    }
-    Instance::onAncestorChanged();
 }

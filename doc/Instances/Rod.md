@@ -17,6 +17,7 @@
 | `m_lastWorkspace` | `Workspace*` | 登録済みWorkspaceのキャッシュ |
 | `Color` | `Color4` | 描画色（既定 橙系） |
 | `LineWidth` | `float` | 描画線幅（既定2.5） |
+| `Enabled` | `bool` | `true` の場合のみ制約を有効化（既定`true`） |
 
 ## メソッド
 

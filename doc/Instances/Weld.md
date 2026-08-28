@@ -15,6 +15,7 @@
 | `m_cube0Name`/`m_cube1Name` | `string` | 名前ベースの遅延解決用 |
 | `m_compound` | `PxRigidDynamic*` | 結合された剛体 |
 | `m_lastWorkspace` | `Workspace*` | 登録済みWorkspaceのキャッシュ |
+| `Enabled` | `bool` | `true` の場合のみ制約を有効化（既定`true`） |
 
 ## メソッド
 

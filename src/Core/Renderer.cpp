@@ -967,7 +967,7 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
             Rope* rope = static_cast<Rope*>(inst);
             auto c0 = rope->m_cube0.lock();
             auto c1 = rope->m_cube1.lock();
-            if (c0 && c1) {
+            if (rope->Enabled && c0 && c1) {
                 auto a0 = rope->m_attachment0.lock();
                 auto a1 = rope->m_attachment1.lock();
                 Vector3 p0 = (a0 ? a0->getWorldCFrame() : c0->getWorldCFrame()).Position;
@@ -992,7 +992,7 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
             Rod* rod = static_cast<Rod*>(inst);
             auto c0 = rod->m_cube0.lock();
             auto c1 = rod->m_cube1.lock();
-            if (c0 && c1) {
+            if (rod->Enabled && c0 && c1) {
                 auto a0 = rod->m_attachment0.lock();
                 auto a1 = rod->m_attachment1.lock();
                 Vector3 p0 = (a0 ? a0->getWorldCFrame() : c0->getWorldCFrame()).Position;

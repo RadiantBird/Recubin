@@ -1,5 +1,5 @@
 #pragma once
-#include <include/Instances/Instance.hpp>
+#include <include/Instances/PhysicsConstraint.hpp>
 #include <include/Instances/BaseCube.hpp>
 #include <include/Instances/Attachment.hpp>
 #include <include/Math/Vector3.hpp>
@@ -10,13 +10,9 @@ class Attachment;
 class PhysXPhysicsBackend;
 class Box3DPhysicsBackend;
 
-class Motor : public Instance {
-    std::weak_ptr<BaseCube> m_cube0;
-    std::weak_ptr<BaseCube> m_cube1;
+class Motor : public PhysicsConstraint {
     std::weak_ptr<Attachment> m_attachment0; // 任意。設定時はこの位置でジョイントを生成
     std::weak_ptr<Attachment> m_attachment1;
-    PhysicsConstraintHandle m_constraintHandle;
-    Workspace* m_lastWorkspace = nullptr;
 
     friend class Physics;
     friend class PhysXPhysicsBackend;
@@ -36,18 +32,12 @@ public:
     float DriveVelocity   = 1.0f;  // rad/s
     float MaxForce        = 1000.0f;
 
-    std::string m_cube0Name;
-    std::string m_cube1Name;
     std::string m_attachment0Name; // Cube0配下の子孫パス（空=未使用）
     std::string m_attachment1Name; // Cube1配下の子孫パス（空=未使用）
 
     Motor();
     Motor(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1);
-    virtual ~Motor();
 
-    void setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1);
-    void setCube0(std::shared_ptr<BaseCube> cube);
-    void setCube1(std::shared_ptr<BaseCube> cube);
     // セーブ直前に呼ばれ、生きている参照から現在の正しいパスを再生成する
     // （Cube のリパレント/リネームでパス文字列が古くなるため）。
     // 名前が空 = 「未設定」の正当な状態なので復活させない
@@ -59,7 +49,6 @@ public:
 
     virtual std::string getClassName() override;
     virtual bool IsA(std::string className) override;
-    void onAncestorChanged() override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
     std::shared_ptr<Instance> clone() const override;
     void remapClonedInstances(const CloneRemap& map) override;

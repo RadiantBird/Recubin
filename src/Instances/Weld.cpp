@@ -5,44 +5,18 @@
 #include <queue>
 #include <set>
 #include <unordered_set>
+#include <utility>
 
 Weld::Weld()
-    : Instance("Weld") {}
+    : PhysicsConstraint("Weld") {}
 
 Weld::Weld(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
-    : Instance("Weld"), m_cube0(cube0), m_cube1(cube1),
-      m_cube0Name(cube0 ? cube0->getWorkspaceRelativePath() : ""),
-      m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
-
-Weld::~Weld() {
-    if (m_lastWorkspace) m_lastWorkspace->unregisterConstraint(this);
-    m_constraintHandle = {};
-}
-
-void Weld::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
-    if (m_cube0.lock() != cube0 || m_cube1.lock() != cube1) invalidateBinding();
-    m_cube0 = cube0;
-    m_cube1 = cube1;
-    m_cube0Name = cube0 ? cube0->getWorkspaceRelativePath() : "";
-    m_cube1Name = cube1 ? cube1->getWorkspaceRelativePath() : "";
-    registerIfReady();
-}
-
-void Weld::setCube0(std::shared_ptr<BaseCube> cube) {
-    if (m_cube0.lock() != cube) invalidateBinding();
-    m_cube0 = cube;
-    m_cube0Name = cube ? cube->getWorkspaceRelativePath() : "";
-    registerIfReady();
-}
-
-void Weld::setCube1(std::shared_ptr<BaseCube> cube) {
-    if (m_cube1.lock() != cube) invalidateBinding();
-    m_cube1 = cube;
-    m_cube1Name = cube ? cube->getWorkspaceRelativePath() : "";
-    registerIfReady();
+    : PhysicsConstraint("Weld") {
+    setCubes(std::move(cube0), std::move(cube1));
 }
 
 void Weld::refreshRefNames() {
+    PhysicsConstraint::refreshRefNames();
     if (auto c0 = m_cube0.lock(); c0 && !m_cube0Name.empty())
         m_cube0Name = c0->getWorkspaceRelativePath();
     if (auto c1 = m_cube1.lock(); c1 && !m_cube1Name.empty())
@@ -50,6 +24,7 @@ void Weld::refreshRefNames() {
 }
 
 void Weld::registerIfReady() {
+    if (!Enabled) return;
     auto* ws_raw = findFirstAncestorWorkspace();
     if (!ws_raw) return;
     Workspace* ws = static_cast<Workspace*>(ws_raw);
@@ -75,12 +50,11 @@ void Weld::invalidateBinding() {
         !m_lastWorkspace->getPhysicsEngine()) return;
     m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
 }
-
 std::string Weld::getClassName() { return "Weld"; }
 
 bool Weld::IsA(std::string className) {
     if (className == "Weld") return true;
-    return Instance::IsA(className);
+    return PhysicsConstraint::IsA(className);
 }
 
 void Weld::setProperty(const std::string& name, const YAML::Node& value) {
@@ -111,7 +85,7 @@ void Weld::setProperty(const std::string& name, const YAML::Node& value) {
         m_cube1.reset();
         if (auto c = resolveCube(m_cube1Name)) m_cube1 = c;
     } else {
-        Instance::setProperty(name, value);
+        PhysicsConstraint::setProperty(name, value);
     }
     registerIfReady();
 }
@@ -119,6 +93,7 @@ void Weld::setProperty(const std::string& name, const YAML::Node& value) {
 std::shared_ptr<Instance> Weld::clone() const {
     auto c = std::make_shared<Weld>();
     c->Name        = Name;
+    c->Enabled     = Enabled;
     c->m_cube0Name = m_cube0Name;
     c->m_cube1Name = m_cube1Name;
     c->m_cube0     = m_cube0;   // 一旦は元キューブを指す（rebindClonedConstraints が張り替える）
@@ -132,19 +107,6 @@ void Weld::remapClonedInstances(const CloneRemap& map) {
     if (auto c1 = m_cube1.lock()) { auto it = map.find(c1.get()); if (it != map.end()) m_cube1 = std::static_pointer_cast<BaseCube>(it->second); }
 }
 
-void Weld::onAncestorChanged() {
-    auto* workspace = static_cast<Workspace*>(findFirstAncestorWorkspace());
-    if (workspace != m_lastWorkspace) {
-        if (m_lastWorkspace) {
-            m_lastWorkspace->unregisterConstraint(this);
-            if (m_lastWorkspace->getPhysicsEngine() && m_constraintHandle)
-                m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
-        }
-        m_lastWorkspace = workspace;
-        if (workspace) workspace->registerConstraint(shared_from_this());
-    }
-    Instance::onAncestorChanged();
-}
 
 std::vector<std::shared_ptr<BaseCube>>
 Weld::collectAssembly(const std::shared_ptr<BaseCube>& start, const Instance& root) {
@@ -153,8 +115,10 @@ Weld::collectAssembly(const std::shared_ptr<BaseCube>& start, const Instance& ro
     std::vector<std::shared_ptr<Motor>> allMotors;
     auto collect = [&](auto& self, const Instance* inst) -> void {
         for (auto const& [n, c] : inst->children) {
-            if (c->IsA("Weld"))  allWelds.push_back(std::static_pointer_cast<Weld>(c));
-            if (c->IsA("Motor")) allMotors.push_back(std::static_pointer_cast<Motor>(c));
+            if (c->IsA("Weld") && std::static_pointer_cast<Weld>(c)->Enabled)
+                allWelds.push_back(std::static_pointer_cast<Weld>(c));
+            if (c->IsA("Motor") && std::static_pointer_cast<Motor>(c)->Enabled)
+                allMotors.push_back(std::static_pointer_cast<Motor>(c));
             self(self, c.get());
         }
     };

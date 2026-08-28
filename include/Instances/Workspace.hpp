@@ -20,6 +20,7 @@ class Workspace : public Instance {
         friend class BallSocket;
         friend class NoCollision;
         friend class Physics;
+        friend class PhysicsConstraint;
 
         Physics* physicsEngine = nullptr; // Physics エンジンへのポインタ
         std::unique_ptr<Physics> m_ownedPhysics; // 所有するPhysicsインスタンス

@@ -746,6 +746,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         if (inst->IsA("Rope")) {
             Rope* r = static_cast<Rope*>(inst);
             r->refreshRefNames();
+            out << YAML::Key << "Enabled"      << YAML::Value << r->Enabled;
             out << YAML::Key << "Cube0"       << YAML::Value << r->m_cube0Name;
             out << YAML::Key << "Cube1"       << YAML::Value << r->m_cube1Name;
             if (!r->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << r->m_attachment0Name;
@@ -759,6 +760,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         if (inst->IsA("Rod")) {
             Rod* r = static_cast<Rod*>(inst);
             r->refreshRefNames();
+            out << YAML::Key << "Enabled" << YAML::Value << r->Enabled;
             out << YAML::Key << "Cube0" << YAML::Value << r->m_cube0Name;
             out << YAML::Key << "Cube1" << YAML::Value << r->m_cube1Name;
             if (!r->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << r->m_attachment0Name;
@@ -769,6 +771,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         if (inst->IsA("BallSocket")) {
             BallSocket* bs = static_cast<BallSocket*>(inst);
             bs->refreshRefNames();
+            out << YAML::Key << "Enabled" << YAML::Value << bs->Enabled;
             out << YAML::Key << "Cube0" << YAML::Value << bs->m_cube0Name;
             out << YAML::Key << "Cube1" << YAML::Value << bs->m_cube1Name;
             if (!bs->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << bs->m_attachment0Name;
@@ -777,18 +780,21 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         if (inst->IsA("NoCollision")) {
             NoCollision* nc = static_cast<NoCollision*>(inst);
             nc->refreshRefNames();
+            out << YAML::Key << "Enabled" << YAML::Value << nc->Enabled;
             out << YAML::Key << "Cube0" << YAML::Value << nc->m_cube0Name;
             out << YAML::Key << "Cube1" << YAML::Value << nc->m_cube1Name;
         }
         if (inst->IsA("Weld")) {
             Weld* w = static_cast<Weld*>(inst);
             w->refreshRefNames();
+            out << YAML::Key << "Enabled" << YAML::Value << w->Enabled;
             out << YAML::Key << "Cube0" << YAML::Value << w->m_cube0Name;
             out << YAML::Key << "Cube1" << YAML::Value << w->m_cube1Name;
         }
         if (inst->IsA("Motor")) {
             Motor* m = static_cast<Motor*>(inst);
             m->refreshRefNames();
+            out << YAML::Key << "Enabled" << YAML::Value << m->Enabled;
             out << YAML::Key << "Cube0" << YAML::Value << m->m_cube0Name;
             out << YAML::Key << "Cube1" << YAML::Value << m->m_cube1Name;
             if (!m->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << m->m_attachment0Name;
@@ -858,6 +864,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 out << YAML::BeginMap << YAML::Key << "Type" << YAML::Value << ("Type" + std::to_string(i + 1));
                 out << YAML::Key << "ContentPath" << YAML::Value << slot.contentPath;
                 out << YAML::Key << "Hotspot" << YAML::Value << YAML::Flow << YAML::BeginSeq << slot.hotspotX << slot.hotspotY << YAML::EndSeq;
+                out << YAML::Key << "Size" << YAML::Value << slot.size;
                 out << YAML::EndMap;
             }
             out << YAML::EndSeq;

@@ -119,6 +119,7 @@ export type PointLight = LightSource & {}
 export type SpotLight = LightSource & { Angle: number }
 
 export type Rope = Instance & {
+    Enabled: boolean,
     Attachment0: string,
     Attachment1: string,
     Cube0: BaseCube, -- write only
@@ -131,6 +132,7 @@ export type Rope = Instance & {
 }
 
 export type Rod = Instance & {
+    Enabled: boolean,
     Attachment0: string,
     Attachment1: string,
     Cube0: BaseCube, -- write only
@@ -140,11 +142,13 @@ export type Rod = Instance & {
 }
 
 export type Weld = Instance & {
+    Enabled: boolean,
     Cube0: string | BaseCube, -- getter string; setter accepts BaseCube
     Cube1: string | BaseCube, -- getter string; setter accepts BaseCube
 }
 
 export type BallSocket = Instance & {
+    Enabled: boolean,
     Attachment0: string,
     Attachment1: string,
     Cube0: BaseCube, -- write only
@@ -152,11 +156,13 @@ export type BallSocket = Instance & {
 }
 
 export type NoCollision = Instance & {
+    Enabled: boolean,
     Cube0: string | BaseCube, -- getter string; setter accepts BaseCube
     Cube1: string | BaseCube, -- getter string; setter accepts BaseCube
 }
 
 export type Motor = Instance & {
+    Enabled: boolean,
     Cube0: BaseCube, -- write only
     Cube1: BaseCube, -- write only
     Attachment0: string,

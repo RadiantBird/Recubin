@@ -1,40 +1,18 @@
 #include <include/Instances/NoCollision.hpp>
 #include <include/Instances/Workspace.hpp>
 #include <include/Core/Physics.hpp>
+#include <utility>
 
 NoCollision::NoCollision()
-    : Instance("NoCollision") {}
+    : PhysicsConstraint("NoCollision") {}
 
 NoCollision::NoCollision(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
-    : Instance("NoCollision"), m_cube0(cube0), m_cube1(cube1),
-      m_cube0Name(cube0 ? cube0->getWorkspaceRelativePath() : ""),
-      m_cube1Name(cube1 ? cube1->getWorkspaceRelativePath() : "") {}
-
-NoCollision::~NoCollision() {
-    if (m_lastWorkspace) m_lastWorkspace->unregisterConstraint(this);
-    m_constraintHandle = {};
-}
-
-void NoCollision::setCubes(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1) {
-    m_cube0 = cube0;
-    m_cube1 = cube1;
-    m_cube0Name = cube0 ? cube0->getWorkspaceRelativePath() : "";
-    m_cube1Name = cube1 ? cube1->getWorkspaceRelativePath() : "";
-}
-
-void NoCollision::setCube0(std::shared_ptr<BaseCube> cube) {
-    m_cube0 = cube;
-    m_cube0Name = cube ? cube->getWorkspaceRelativePath() : "";
-    registerIfReady();
-}
-
-void NoCollision::setCube1(std::shared_ptr<BaseCube> cube) {
-    m_cube1 = cube;
-    m_cube1Name = cube ? cube->getWorkspaceRelativePath() : "";
-    registerIfReady();
+    : PhysicsConstraint("NoCollision") {
+    setCubes(std::move(cube0), std::move(cube1));
 }
 
 void NoCollision::refreshRefNames() {
+    PhysicsConstraint::refreshRefNames();
     if (auto c0 = m_cube0.lock(); c0 && !m_cube0Name.empty())
         m_cube0Name = c0->getWorkspaceRelativePath();
     if (auto c1 = m_cube1.lock(); c1 && !m_cube1Name.empty())
@@ -42,6 +20,7 @@ void NoCollision::refreshRefNames() {
 }
 
 void NoCollision::registerIfReady() {
+    if (!Enabled) return;
     auto* ws_raw = findFirstAncestorWorkspace();
     if (!ws_raw) return;
     Workspace* ws = static_cast<Workspace*>(ws_raw);
@@ -66,7 +45,7 @@ std::string NoCollision::getClassName() { return "NoCollision"; }
 
 bool NoCollision::IsA(std::string className) {
     if (className == "NoCollision") return true;
-    return Instance::IsA(className);
+    return PhysicsConstraint::IsA(className);
 }
 
 void NoCollision::setProperty(const std::string& name, const YAML::Node& value) {
@@ -94,7 +73,7 @@ void NoCollision::setProperty(const std::string& name, const YAML::Node& value) 
         m_cube1.reset();
         if (auto c = resolveCube(m_cube1Name)) m_cube1 = c;
     } else {
-        Instance::setProperty(name, value);
+        PhysicsConstraint::setProperty(name, value);
     }
     registerIfReady();
 }
@@ -102,6 +81,7 @@ void NoCollision::setProperty(const std::string& name, const YAML::Node& value) 
 std::shared_ptr<Instance> NoCollision::clone() const {
     auto c = std::make_shared<NoCollision>();
     c->Name        = Name;
+    c->Enabled     = Enabled;
     c->m_cube0Name = m_cube0Name;
     c->m_cube1Name = m_cube1Name;
     c->m_cube0     = m_cube0;   // 一旦は元キューブを指す（rebindClonedConstraints が張り替える）
@@ -113,18 +93,4 @@ std::shared_ptr<Instance> NoCollision::clone() const {
 void NoCollision::remapClonedInstances(const CloneRemap& map) {
     if (auto c0 = m_cube0.lock()) { auto it = map.find(c0.get()); if (it != map.end()) m_cube0 = std::static_pointer_cast<BaseCube>(it->second); }
     if (auto c1 = m_cube1.lock()) { auto it = map.find(c1.get()); if (it != map.end()) m_cube1 = std::static_pointer_cast<BaseCube>(it->second); }
-}
-
-void NoCollision::onAncestorChanged() {
-    auto* workspace = static_cast<Workspace*>(findFirstAncestorWorkspace());
-    if (workspace != m_lastWorkspace) {
-        if (m_lastWorkspace) {
-            m_lastWorkspace->unregisterConstraint(this);
-            if (m_lastWorkspace->getPhysicsEngine() && m_constraintHandle)
-                m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
-        }
-        m_lastWorkspace = workspace;
-        if (workspace) workspace->registerConstraint(shared_from_this());
-    }
-    Instance::onAncestorChanged();
 }
