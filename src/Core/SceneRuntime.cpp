@@ -61,6 +61,7 @@ void copyUserScalars(const User& source, User& destination) {
         destination.setCursorImagePath(i, slot.contentPath);
         destination.setCursorHotspotX(i, slot.hotspotX);
         destination.setCursorHotspotY(i, slot.hotspotY);
+        destination.setCursorSize(i, slot.size);
     }
 }
 

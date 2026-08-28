@@ -38,20 +38,27 @@
 ### マウスカーソル
 
 `CursorType` は `Default` または `Type1`〜`Type10` を選択する。各 Type は
-`CursorImages` の画像パス（PNG/JPEG/BMP/TGA）とピクセル単位の `HotspotX/Y` を持つ。
+`CursorImages` の画像パス（PNG/JPEG/BMP/TGA）、リサイズ後の論理ピクセル単位の `HotspotX/Y`、
+長辺の表示サイズ `Size` を持つ。`Size` の既定値は32px、設定範囲は1〜512pxで、画像の縦横比を維持する。
+OSのcontent scaleを掛けて物理ピクセルへ変換するため、DPIが異なる環境でも論理サイズを維持する。
 ゲーム領域上で選択中の画像をOSカーソルへ適用し、空欄・読込失敗時は標準カーソルへ戻す。
+画像のAssetGuard確認、RGBA8読込、bilinear加工、mtimeと設定値による10スロットキャッシュは
+`CursorImageProcessor`が担当する。入力バックエンドへは加工済みの物理寸法・Hotspot・RGBA・revisionのみを渡す。
 
 Luauでは `Enum.CursorType.Default` と `Type1`〜`Type10` を使用する。各EnumItemは
 `Name`、`Value`、`EnumType`を読み取り専用で持ち、`Enum.CursorType:GetEnumItems()`で列挙できる。
 `User.CursorType`は選択値、`User.CursorTypeNSource`は`FileRef`または`nil`、
 `User.CursorTypeNContentPath`は読み取り専用の保存パス、`User.CursorTypeNHotspotX/Y`は読み書き可能な
-ホットスポットである。画像はPNG/JPEG/BMP/TGAに対応し、SVGは今回対象外とする。
+ホットスポット、`User.CursorTypeNSize`は1〜512の整数で読み書き可能な長辺サイズである。
+画像はPNG/JPEG/BMP/TGAに対応し、SVGは今回対象外とする。
 
 ## 列挙型
 
 ```cpp
 enum ControlMode { Free, Character, Program }
 ```
+
+Humanoid死亡中もカメラ入力と`L`キーによるモード切り替えは有効である。Characterではキャラクターを移動・カメラ追従させずその場でカメラを回転し、FreeではWASD/QEで自由移動する。この間、Free移動が死亡ラグドールの姿勢を上書きすることはない。
 
 ## メソッド
 
@@ -62,10 +69,11 @@ enum ControlMode { Free, Character, Program }
 | `spawnCharacter()` | キャラクターモデル（Model + Cube 7 体）を生成してワールドへ追加 |
 | `despawnCharacter()` | キャラクターを削除してワールドからクリーンアップ |
 | `getCursorType()` / `setCursorType(type)` | 使用するカーソル種別を取得・設定 |
-| `getCursorImageSlot(index)` | 0-basedスロットの画像パスとホットスポットを取得 |
+| `getCursorImageSlot(index)` | 0-basedスロットの画像パス、ホットスポット、サイズを取得 |
 | `setCursorImagePath(index, path)` | スロット画像を設定（空文字でクリア） |
 | `setCursorHotspotX/Y(index, value)` | ホットスポットを0以上の整数で設定 |
-| `applyCursor(gameplayHovered)` | ゲーム領域上ならカーソルを適用し、適用成功時`true` |
+| `setCursorSize(index, value)` | 長辺の論理サイズを1〜512pxへクランプして設定 |
+| `applyCursor(gameplayHovered, contentScale)` | ゲーム領域上なら指定DPI scaleで画像を加工してカーソルを適用し、適用成功時`true` |
 
 ## 静的メンバ
 

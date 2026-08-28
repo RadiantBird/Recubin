@@ -1,9 +1,4 @@
 #include <Core/GLFWInputBackend.hpp>
-#include <Util/AssetGuard.hpp>
-#include <Util/AssetPath.hpp>
-#include <include/stb_image.h>
-#include <include/Util/Logger.hpp>
-#include <algorithm>
 
 GLFWInputBackend* GLFWInputBackend::s_instance = nullptr;
 
@@ -146,54 +141,32 @@ void GLFWInputBackend::setMouseCaptured(bool captured) {
     }
 }
 
-bool GLFWInputBackend::setCustomCursor(const std::string& path, int hotspotX, int hotspotY) {
-    if (!m_window) return false;
-    const std::string normalized = AssetPath::normalize(path);
-    if (normalized.empty()) {
-        m_activeCursor = nullptr;
-        glfwSetCursor(m_window, nullptr);
-        return true;
-    }
-    if (!AssetGuard::allow(normalized)) return false;
-    std::error_code ec;
-    const auto fsPath = AssetPath::fromStored(normalized);
-    const auto writeTime = std::filesystem::last_write_time(fsPath, ec);
-    if (ec) return false;
+bool GLFWInputBackend::setCustomCursor(const CursorImageData& imageData) {
+    if (!m_window || !imageData.isValid() ||
+        imageData.width > CursorImageProcessor::MAX_PHYSICAL_SIZE ||
+        imageData.height > CursorImageProcessor::MAX_PHYSICAL_SIZE)
+        return false;
+    if (m_failedCursorRevisions.contains(imageData.revision)) return false;
     for (auto& entry : m_cursorCache) {
-        if (entry.cursor && entry.path == normalized && entry.writeTime == writeTime &&
-            entry.hotspotX == hotspotX && entry.hotspotY == hotspotY) {
+        if (entry.cursor && entry.revision == imageData.revision) {
             m_activeCursor = entry.cursor;
             glfwSetCursor(m_window, m_activeCursor);
             return true;
         }
     }
-    int width = 0, height = 0, channels = 0;
-    stbi_set_flip_vertically_on_load(0);
-    stbi_uc* pixels = stbi_load(fsPath.string().c_str(), &width, &height, &channels, 4);
-    stbi_set_flip_vertically_on_load(1);
-    if (!pixels || width <= 0 || height <= 0) {
-        const std::string warningKey = normalized + ":" + std::to_string(hotspotX) + ":" + std::to_string(hotspotY);
-        if (m_cursorWarningKeys.insert(warningKey).second) {
-            RCBN_WARN("GLFWInputBackend: failed to load cursor image " + normalized);
-        }
-        if (pixels) stbi_image_free(pixels);
+    GLFWimage image{imageData.width, imageData.height,
+                    const_cast<unsigned char*>(imageData.rgba.data())};
+    GLFWcursor* cursor = glfwCreateCursor(&image, imageData.hotspotX, imageData.hotspotY);
+    if (!cursor) {
+        m_failedCursorRevisions.insert(imageData.revision);
         return false;
     }
-    GLFWimage image{width, height, pixels};
-    const int clampedX = std::clamp(hotspotX, 0, width - 1);
-    const int clampedY = std::clamp(hotspotY, 0, height - 1);
-    GLFWcursor* cursor = glfwCreateCursor(&image, clampedX, clampedY);
-    stbi_image_free(pixels);
-    if (!cursor) return false;
     CursorCacheEntry* target = nullptr;
     for (auto& entry : m_cursorCache) if (!entry.cursor) { target = &entry; break; }
     if (!target) target = &m_cursorCache[0];
     if (target->cursor) glfwDestroyCursor(target->cursor);
     target->cursor = cursor;
-    target->path = normalized;
-    target->writeTime = writeTime;
-    target->hotspotX = hotspotX;
-    target->hotspotY = hotspotY;
+    target->revision = imageData.revision;
     m_activeCursor = cursor;
     glfwSetCursor(m_window, m_activeCursor);
     return true;

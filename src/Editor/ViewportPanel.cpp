@@ -886,6 +886,10 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                 // ImGuizmoの倍率をそのままSizeへ掛けず、1.0からの差を
                 // ワールド単位の加算量として解釈するため単位スケールを渡す。
                 model = stableCF.toMatrix4();
+            } else if (inst->IsA("Attachment")) {
+                // Attachment は Spatial の Size がゼロなので、そのまま Scale を掛けると
+                // 単体選択時の ImGuizmo のモデル行列もゼロスケールになり表示されない。
+                model = s->getWorldCFrame().toMatrix4();
             } else {
                 model = s->getWorldCFrame().toMatrix4() *
                         Matrix4::Scale(s->Size.x, s->Size.y, s->Size.z);

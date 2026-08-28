@@ -44,7 +44,12 @@ void User::setCursorHotspotY(std::size_t index, int value) {
     if (index < m_cursorImages.size()) m_cursorImages[index].hotspotY = std::max(0, value);
 }
 
-bool User::applyCursor(bool gameplayHovered) {
+void User::setCursorSize(std::size_t index, int value) {
+    if (index < m_cursorImages.size())
+        m_cursorImages[index].size = std::clamp(value, 1, MAX_CURSOR_SIZE);
+}
+
+bool User::applyCursor(bool gameplayHovered, float contentScale) {
     if (!m_input) return false;
     if (m_mouseLockEnabled || isRightMouseRotating || m_externalDragActive) {
         m_input->setMouseCaptured(true);
@@ -54,7 +59,9 @@ bool User::applyCursor(bool gameplayHovered) {
     const auto index = static_cast<std::size_t>(m_cursorType) - 1;
     const auto& slot = m_cursorImages[index];
     if (slot.contentPath.empty()) return false;
-    return m_input->setCustomCursor(slot.contentPath, slot.hotspotX, slot.hotspotY);
+    const CursorImageData* image = m_cursorImageProcessor.prepare(
+        index, slot.contentPath, slot.hotspotX, slot.hotspotY, slot.size, contentScale);
+    return image && m_input->setCustomCursor(*image);
 }
 
 User::User(std::unique_ptr<IInputBackend> input, bool isRemoteUser)
@@ -377,7 +384,6 @@ void User::resetInputRuntimeState() {
     m_altKeyWasDown = false;
     m_lastEscapeKeyPressed = false;
     m_lastF8KeyPressed = false;
-    m_lastPKeyPressed = false;
     m_lastViewportFocused = false;
     m_jumpQueued = false;
     clearMoveDirection();
@@ -574,7 +580,7 @@ void User::processMovement(bool viewportFocused, Physics* physics, float deltaTi
             // （Character モードでは humanoid->move() 内で呼ばれる）
             bool leftArmRaised = false, rightArmRaised = false;
             getToolArmRaiseState(leftArmRaised, rightArmRaised);
-            if (humanoid) humanoid->applyBodyAnimation(leftArmRaised, rightArmRaised);
+            if (humanoid && !humanoid->isDead()) humanoid->applyBodyAnimation(leftArmRaised, rightArmRaised);
         } else if (controlMode == ControlMode::Character && character && humanoid) {
             processCharacterMovement(physics, deltaTime);
         } else if (controlMode == ControlMode::Program) {
@@ -589,7 +595,7 @@ void User::processMovement(bool viewportFocused, Physics* physics, float deltaTi
         // Focusがどうであれ、ボディパーツはRootに追従させるべきであるため
         bool leftArmRaised = false, rightArmRaised = false;
         getToolArmRaiseState(leftArmRaised, rightArmRaised);
-        if (humanoid) humanoid->applyBodyAnimation(leftArmRaised, rightArmRaised);
+        if (humanoid && !humanoid->isDead()) humanoid->applyBodyAnimation(leftArmRaised, rightArmRaised);
     }
 }
 
@@ -698,7 +704,7 @@ void User::processCharacterMovement(Physics* physics, float deltaTime) {
     }
 }
 
-// ホットキー（ESC / L / P / Space）
+// ホットキー（ESC / L / Space）
 void User::processHotkeys(Physics* physics) {
     const bool escapePressed = m_input->isKeyDown(KeyCode::Escape);
     if (escapePressed && !m_lastEscapeKeyPressed) requestExit();
@@ -710,11 +716,6 @@ void User::processHotkeys(Physics* physics) {
         RCBN_LOG("Control Mode: " << toggleControlMode());
     }
     lastFKeyPressed = fPressed;
-
-    // Pキー: ワークスペース切り替え
-    bool pPressed = m_input->isKeyDown(KeyCode::P);
-    if (pPressed && !m_lastPKeyPressed) requestWorkspaceSwitch();
-    m_lastPKeyPressed = pPressed;
 
     // 左Ctrlキー: CtrlLock ON/OFFトグル
     bool ctrlKeyPressed = m_input->isKeyDown(KeyCode::LeftControl);
@@ -818,7 +819,7 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     }
     if (humanoid) humanoid->updateFirstPersonState(cameraDistance <= firstPersonThreshold);
     // 死亡中はキャラクター移動を駆動しない（ばらしたパーツを上書きしないため）
-    if (!humanoid || !humanoid->isDead()) {
+    if (!humanoid || !humanoid->isDead() || controlMode == ControlMode::Free) {
         processMovement(viewportFocused && !wantsTextInput, physics, deltaTime);
     }
     if (rotated) updateVectors();
@@ -831,7 +832,6 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     } else {
         m_lastEscapeKeyPressed = m_input->isKeyDown(KeyCode::Escape);
         lastFKeyPressed = m_input->isKeyDown(KeyCode::L);
-        m_lastPKeyPressed = m_input->isKeyDown(KeyCode::P);
         lastCtrlKeyPressed = m_input->isKeyDown(KeyCode::LeftControl);
         lastCtrlLockFKeyPressed = m_input->isKeyDown(KeyCode::F);
     }
@@ -1147,6 +1147,7 @@ void User::setProperty(const std::string& name, const YAML::Node& value) {
             if (item["ContentPath"]) setCursorImagePath(index, item["ContentPath"].as<std::string>());
             const auto hs = item["Hotspot"];
             if (hs && hs.IsSequence() && hs.size() >= 2) { setCursorHotspotX(index, hs[0].as<int>()); setCursorHotspotY(index, hs[1].as<int>()); }
+            if (item["Size"]) setCursorSize(index, item["Size"].as<int>());
         }
         return;
     }

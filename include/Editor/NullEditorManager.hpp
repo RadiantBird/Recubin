@@ -9,6 +9,7 @@
 #include <Editor/SceneHierarchyPanel.hpp>
 #include <Editor/PropertiesPanel.hpp>
 #include <algorithm>
+#include <cmath>
 
 // ランタイムビルド用の no-op 実装
 // エディターなしで Renderer が常に有効な IEditorManager を持てるようにする
@@ -115,7 +116,14 @@ public:
 
         renderNavMeshBuildOverlay();
 
-        if (user.applyCursor(true))
+        float contentScale = 1.0f;
+        if (window) {
+            float scaleX = 1.0f, scaleY = 1.0f;
+            glfwGetWindowContentScale(window, &scaleX, &scaleY);
+            const float candidate = std::max(scaleX, scaleY);
+            if (std::isfinite(candidate) && candidate > 0.0f) contentScale = candidate;
+        }
+        if (user.applyCursor(true, contentScale))
             ImGui_ImplGlfw_InvalidateMouseCursor();
 
         if (Renderer::instance) Renderer::instance->drawCameraRotationCursor(user, window);

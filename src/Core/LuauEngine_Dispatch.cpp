@@ -74,6 +74,9 @@ static constexpr const char* CURSOR_X_NAMES[10] = {
 static constexpr const char* CURSOR_Y_NAMES[10] = {
     "CursorType1HotspotY", "CursorType2HotspotY", "CursorType3HotspotY", "CursorType4HotspotY", "CursorType5HotspotY",
     "CursorType6HotspotY", "CursorType7HotspotY", "CursorType8HotspotY", "CursorType9HotspotY", "CursorType10HotspotY"};
+static constexpr const char* CURSOR_SIZE_NAMES[10] = {
+    "CursorType1Size", "CursorType2Size", "CursorType3Size", "CursorType4Size", "CursorType5Size",
+    "CursorType6Size", "CursorType7Size", "CursorType8Size", "CursorType9Size", "CursorType10Size"};
 
 // ── Getter: numeric field (float / int / unsigned / enum) ────────────────────
 template<typename T, auto M>
@@ -281,7 +284,7 @@ auto setter_method_bool() {
 }
 
 // ── Setter: BaseCube reference setter method (e.g. Weld/Rope/Rod/Motor の Cube0/Cube1) ──
-template<typename T, void (T::*Setter)(std::shared_ptr<BaseCube>)>
+template<typename T, auto Setter>
 auto setter_cube_ref() {
     return [](lua_State* L, Instance* obj) -> int {
         auto* ud = (std::weak_ptr<Instance>*)luaL_checkudata(L, 3, LuauEngine::RCBN_INST_METATABLE);
@@ -498,6 +501,7 @@ void LuauEngine::InitDispatchTable_World() {
 
 // ==================== Getter: Rope, Rod, Weld, Motor ====================
 void LuauEngine::InitDispatchTable_Physics() {
+    DispatchTable["Rope"]["Enabled"] = getter_bool<Rope, &Rope::Enabled>();
     DispatchTable["Rope"]["Attachment0"] = getter_string<Rope, &Rope::m_attachment0Name>();
     DispatchTable["Rope"]["Attachment1"] = getter_string<Rope, &Rope::m_attachment1Name>();
     DispatchTable["Rope"]["MaxDistance"] = getter_number <Rope, &Rope::MaxDistance>();
@@ -507,20 +511,25 @@ void LuauEngine::InitDispatchTable_Physics() {
     DispatchTable["Rope"]["Color"]       = getter_color4 <Rope, &Rope::Color>();
 
     DispatchTable["Rod"]["Attachment0"] = getter_string<Rod, &Rod::m_attachment0Name>();
+    DispatchTable["Rod"]["Enabled"] = getter_bool<Rod, &Rod::Enabled>();
     DispatchTable["Rod"]["Attachment1"] = getter_string<Rod, &Rod::m_attachment1Name>();
     DispatchTable["Rod"]["LineWidth"] = getter_number <Rod, &Rod::LineWidth>();
     DispatchTable["Rod"]["Color"]     = getter_color4 <Rod, &Rod::Color>();
 
     DispatchTable["BallSocket"]["Attachment0"] = getter_string<BallSocket, &BallSocket::m_attachment0Name>();
+    DispatchTable["BallSocket"]["Enabled"] = getter_bool<BallSocket, &BallSocket::Enabled>();
     DispatchTable["BallSocket"]["Attachment1"] = getter_string<BallSocket, &BallSocket::m_attachment1Name>();
 
     DispatchTable["Weld"]["Cube0"] = getter_string<Weld, &Weld::m_cube0Name>();
+    DispatchTable["Weld"]["Enabled"] = getter_bool<Weld, &Weld::Enabled>();
     DispatchTable["Weld"]["Cube1"] = getter_string<Weld, &Weld::m_cube1Name>();
 
     DispatchTable["NoCollision"]["Cube0"] = getter_string<NoCollision, &NoCollision::m_cube0Name>();
+    DispatchTable["NoCollision"]["Enabled"] = getter_bool<NoCollision, &NoCollision::Enabled>();
     DispatchTable["NoCollision"]["Cube1"] = getter_string<NoCollision, &NoCollision::m_cube1Name>();
 
     DispatchTable["Motor"]["Attachment0"]   = getter_string<Motor, &Motor::m_attachment0Name>();
+    DispatchTable["Motor"]["Enabled"]        = getter_bool<Motor, &Motor::Enabled>();
     DispatchTable["Motor"]["Attachment1"]   = getter_string<Motor, &Motor::m_attachment1Name>();
     DispatchTable["Motor"]["DriveVelocity"] = getter_number<Motor, &Motor::DriveVelocity>();
     DispatchTable["Motor"]["MaxForce"]      = getter_number<Motor, &Motor::MaxForce>();
@@ -677,6 +686,9 @@ void LuauEngine::InitDispatchTable_Misc() {
         DispatchTable["User"][CURSOR_Y_NAMES[i]] = [i](lua_State* L, Instance* obj) -> int {
             lua_pushinteger(L, static_cast<User*>(obj)->getCursorImageSlot(i).hotspotY); return 1;
         };
+        DispatchTable["User"][CURSOR_SIZE_NAMES[i]] = [i](lua_State* L, Instance* obj) -> int {
+            lua_pushinteger(L, static_cast<User*>(obj)->getCursorImageSlot(i).size); return 1;
+        };
         SetterTable["User"][CURSOR_SOURCE_NAMES[i]] = [i](lua_State* L, Instance* obj) -> int {
             if (lua_isnil(L, 3)) { static_cast<User*>(obj)->setCursorImagePath(i, ""); return 0; }
             std::string path;
@@ -694,6 +706,13 @@ void LuauEngine::InitDispatchTable_Misc() {
             const lua_Integer value = luaL_checkinteger(L, 3);
             if (value < 0 || value > std::numeric_limits<int>::max()) { luaL_error(L, "cursor hotspot must be a non-negative 32-bit integer"); return 0; }
             static_cast<User*>(obj)->setCursorHotspotY(i, static_cast<int>(value)); return 0;
+        };
+        SetterTable["User"][CURSOR_SIZE_NAMES[i]] = [i](lua_State* L, Instance* obj) -> int {
+            const lua_Integer value = luaL_checkinteger(L, 3);
+            if (value < 1 || value > User::MAX_CURSOR_SIZE) {
+                luaL_error(L, "cursor size must be an integer from 1 through %d", User::MAX_CURSOR_SIZE); return 0;
+            }
+            static_cast<User*>(obj)->setCursorSize(i, static_cast<int>(value)); return 0;
         };
     }
     DispatchTable["User"]["AddTool"]    = getter_closure(user_add_tool_closure,    "AddTool");
@@ -967,13 +986,16 @@ void LuauEngine::InitSetterTable_World() {
 
 // ==================== Setter: Weld, Rope, Rod, Motor ====================
 void LuauEngine::InitSetterTable_Physics() {
+    SetterTable["Weld"]["Enabled"] = setter_method_bool<Weld, &Weld::setEnabled>();
     SetterTable["Weld"]["Cube0"] = setter_cube_ref<Weld, &Weld::setCube0>();
     SetterTable["Weld"]["Cube1"] = setter_cube_ref<Weld, &Weld::setCube1>();
 
     SetterTable["NoCollision"]["Cube0"] = setter_cube_ref<NoCollision, &NoCollision::setCube0>();
+    SetterTable["NoCollision"]["Enabled"] = setter_method_bool<NoCollision, &NoCollision::setEnabled>();
     SetterTable["NoCollision"]["Cube1"] = setter_cube_ref<NoCollision, &NoCollision::setCube1>();
 
     SetterTable["Rope"]["Cube0"]       = setter_cube_ref     <Rope, &Rope::setCube0>();
+    SetterTable["Rope"]["Enabled"]      = setter_method_bool<Rope, &Rope::setEnabled>();
     SetterTable["Rope"]["Cube1"]       = setter_cube_ref     <Rope, &Rope::setCube1>();
     SetterTable["Rope"]["Attachment0"] = setter_property_string("Attachment0");
     SetterTable["Rope"]["Attachment1"] = setter_property_string("Attachment1");
@@ -984,6 +1006,7 @@ void LuauEngine::InitSetterTable_Physics() {
     SetterTable["Rope"]["Color"]       = setter_color4      <Rope, &Rope::Color>();
 
     SetterTable["Rod"]["Cube0"]     = setter_cube_ref<Rod, &Rod::setCube0>();
+    SetterTable["Rod"]["Enabled"]    = setter_method_bool<Rod, &Rod::setEnabled>();
     SetterTable["Rod"]["Cube1"]     = setter_cube_ref<Rod, &Rod::setCube1>();
     SetterTable["Rod"]["Attachment0"] = setter_property_string("Attachment0");
     SetterTable["Rod"]["Attachment1"] = setter_property_string("Attachment1");
@@ -991,11 +1014,13 @@ void LuauEngine::InitSetterTable_Physics() {
     SetterTable["Rod"]["Color"]     = setter_color4<Rod, &Rod::Color>();
 
     SetterTable["BallSocket"]["Cube0"]     = setter_cube_ref<BallSocket, &BallSocket::setCube0>();
+    SetterTable["BallSocket"]["Enabled"]    = setter_method_bool<BallSocket, &BallSocket::setEnabled>();
     SetterTable["BallSocket"]["Cube1"]     = setter_cube_ref<BallSocket, &BallSocket::setCube1>();
     SetterTable["BallSocket"]["Attachment0"] = setter_property_string("Attachment0");
     SetterTable["BallSocket"]["Attachment1"] = setter_property_string("Attachment1");
 
     SetterTable["Motor"]["Cube0"]         = setter_cube_ref<Motor, &Motor::setCube0>();
+    SetterTable["Motor"]["Enabled"]       = setter_method_bool<Motor, &Motor::setEnabled>();
     SetterTable["Motor"]["Cube1"]         = setter_cube_ref<Motor, &Motor::setCube1>();
     SetterTable["Motor"]["Attachment0"]   = setter_property_string("Attachment0");
     SetterTable["Motor"]["Attachment1"]   = setter_property_string("Attachment1");

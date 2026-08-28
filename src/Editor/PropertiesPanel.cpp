@@ -30,6 +30,7 @@
 #include <random>
 #include <Instances/Skybox.hpp>
 #include <Instances/Rope.hpp>
+#include <Instances/PhysicsConstraint.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/BallSocket.hpp>
 #include <Instances/NoCollision.hpp>
@@ -80,6 +81,19 @@
 //  → スキーマに1行足すだけでインスペクタに反映され、エディター取り残しを防ぐ。
 // ===================================================
 namespace {
+class SetPhysicsConstraintEnabledCommand final : public Command {
+public:
+    SetPhysicsConstraintEnabledCommand(std::shared_ptr<PhysicsConstraint> target,
+                                       bool before, bool after)
+        : m_target(std::move(target)), m_before(before), m_after(after) {}
+    void execute() override { if (m_target) m_target->setEnabled(m_after); }
+    void undo() override { if (m_target) m_target->setEnabled(m_before); }
+private:
+    std::shared_ptr<PhysicsConstraint> m_target;
+    bool m_before;
+    bool m_after;
+};
+
 class SetUserCharacterSmoothingCommand final : public Command {
 public:
     SetUserCharacterSmoothingCommand(std::shared_ptr<User> target, float before, float after)
@@ -120,7 +134,7 @@ private:
 
 class SetUserCursorCommand final : public Command {
 public:
-    enum class Kind { Type, Path, HotspotX, HotspotY };
+    enum class Kind { Type, Path, HotspotX, HotspotY, Size };
     SetUserCursorCommand(std::shared_ptr<User> target, Kind kind, std::size_t index,
                          int beforeInt, int afterInt, std::string beforePath, std::string afterPath)
         : m_target(std::move(target)), m_kind(kind), m_index(index),
@@ -136,6 +150,7 @@ private:
         case Kind::Path: m_target->setCursorImagePath(m_index, path); break;
         case Kind::HotspotX: m_target->setCursorHotspotX(m_index, value); break;
         case Kind::HotspotY: m_target->setCursorHotspotY(m_index, value); break;
+        case Kind::Size: m_target->setCursorSize(m_index, value); break;
         }
     }
     std::shared_ptr<User> m_target;
@@ -1975,6 +1990,7 @@ void PropertiesPanel::onRender() {
                 const auto& slot = usr->getCursorImageSlot(i);
                 static std::array<int, User::CURSOR_IMAGE_SLOT_COUNT> hotspotBeforeX{};
                 static std::array<int, User::CURSOR_IMAGE_SLOT_COUNT> hotspotBeforeY{};
+                static std::array<int, User::CURSOR_IMAGE_SLOT_COUNT> sizeBefore{};
                 ImGui::PushID(static_cast<int>(i));
                 ImGui::Text("Type%zu", i + 1);
                 ImGui::SameLine();
@@ -2026,6 +2042,18 @@ void PropertiesPanel::onRender() {
                     m_history->execute(std::make_unique<SetUserCursorCommand>(
                         usrSp, SetUserCursorCommand::Kind::HotspotY, i,
                         hotspotBeforeY[i], hotspotY, "", ""));
+                int size = slot.size;
+                const int originalSize = slot.size;
+                ImGui::SetNextItemWidth(90.0f);
+                if (ImGui::InputInt("Size(px)", &size)) {
+                    size = std::clamp(size, 1, User::MAX_CURSOR_SIZE);
+                    usr->setCursorSize(i, size);
+                }
+                if (ImGui::IsItemActivated()) sizeBefore[i] = originalSize;
+                if (ImGui::IsItemDeactivatedAfterEdit() && m_history && size != sizeBefore[i])
+                    m_history->execute(std::make_unique<SetUserCursorCommand>(
+                        usrSp, SetUserCursorCommand::Kind::Size, i,
+                        sizeBefore[i], size, "", ""));
                 ImGui::PopID();
             }
             ImGui::EndDisabled();
@@ -2413,6 +2441,10 @@ void PropertiesPanel::onRender() {
         Rope* rope = static_cast<Rope*>(inst);
         auto ropeSp = std::static_pointer_cast<Rope>(inst->shared_from_this());
         ImGui::SeparatorText("Rope");
+        { bool enabled = rope->Enabled; const bool before = enabled;
+          if (ImGui::Checkbox("Enabled", &enabled)) rope->setEnabled(enabled);
+          if (ImGui::IsItemDeactivatedAfterEdit() && m_history && enabled != before)
+              m_history->record(std::make_unique<SetPhysicsConstraintEnabledCommand>(ropeSp, before, enabled)); }
 
         drawConstraintCubeRef("Cube0", rope->m_cube0Name, "Cube0", ropeSp);
         drawConstraintCubeRef("Cube1", rope->m_cube1Name, "Cube1", ropeSp);
@@ -2453,6 +2485,10 @@ void PropertiesPanel::onRender() {
         Rod* rod = static_cast<Rod*>(inst);
         auto rodSp = std::static_pointer_cast<Rod>(inst->shared_from_this());
         ImGui::SeparatorText("Rod");
+        { bool enabled = rod->Enabled; const bool before = enabled;
+          if (ImGui::Checkbox("Enabled", &enabled)) rod->setEnabled(enabled);
+          if (ImGui::IsItemDeactivatedAfterEdit() && m_history && enabled != before)
+              m_history->record(std::make_unique<SetPhysicsConstraintEnabledCommand>(rodSp, before, enabled)); }
         drawConstraintCubeRef("Cube0", rod->m_cube0Name, "Cube0", rodSp);
         drawConstraintCubeRef("Cube1", rod->m_cube1Name, "Cube1", rodSp);
         drawConstraintAttachmentRef("Attachment0", rod->m_attachment0Name, "Attachment0", rod->m_cube0Name, rodSp);
@@ -2475,6 +2511,10 @@ void PropertiesPanel::onRender() {
         BallSocket* bs = static_cast<BallSocket*>(inst);
         auto bsSp = std::static_pointer_cast<BallSocket>(inst->shared_from_this());
         ImGui::SeparatorText("BallSocket");
+        { bool enabled = bs->Enabled; const bool before = enabled;
+          if (ImGui::Checkbox("Enabled", &enabled)) bs->setEnabled(enabled);
+          if (ImGui::IsItemDeactivatedAfterEdit() && m_history && enabled != before)
+              m_history->record(std::make_unique<SetPhysicsConstraintEnabledCommand>(bsSp, before, enabled)); }
         drawConstraintCubeRef("Cube0", bs->m_cube0Name, "Cube0", bsSp);
         drawConstraintCubeRef("Cube1", bs->m_cube1Name, "Cube1", bsSp);
         drawConstraintAttachmentRef("Attachment0", bs->m_attachment0Name, "Attachment0", bs->m_cube0Name, bsSp);
@@ -2486,6 +2526,10 @@ void PropertiesPanel::onRender() {
         NoCollision* nc = static_cast<NoCollision*>(inst);
         auto ncSp = std::static_pointer_cast<NoCollision>(inst->shared_from_this());
         ImGui::SeparatorText("NoCollision");
+        { bool enabled = nc->Enabled; const bool before = enabled;
+          if (ImGui::Checkbox("Enabled", &enabled)) nc->setEnabled(enabled);
+          if (ImGui::IsItemDeactivatedAfterEdit() && m_history && enabled != before)
+              m_history->record(std::make_unique<SetPhysicsConstraintEnabledCommand>(ncSp, before, enabled)); }
         drawConstraintCubeRef("Cube0", nc->m_cube0Name, "Cube0", ncSp);
         drawConstraintCubeRef("Cube1", nc->m_cube1Name, "Cube1", ncSp);
     }
@@ -2495,6 +2539,10 @@ void PropertiesPanel::onRender() {
         Weld* weld = static_cast<Weld*>(inst);
         auto weldSp = std::static_pointer_cast<Weld>(inst->shared_from_this());
         ImGui::SeparatorText("Weld");
+        { bool enabled = weld->Enabled; const bool before = enabled;
+          if (ImGui::Checkbox("Enabled", &enabled)) weld->setEnabled(enabled);
+          if (ImGui::IsItemDeactivatedAfterEdit() && m_history && enabled != before)
+              m_history->record(std::make_unique<SetPhysicsConstraintEnabledCommand>(weldSp, before, enabled)); }
         drawConstraintCubeRef("Cube0", weld->m_cube0Name, "Cube0", weldSp);
         drawConstraintCubeRef("Cube1", weld->m_cube1Name, "Cube1", weldSp);
     }
@@ -2504,6 +2552,10 @@ void PropertiesPanel::onRender() {
         Motor* motor = static_cast<Motor*>(inst);
         auto motorSp = std::static_pointer_cast<Motor>(inst->shared_from_this());
         ImGui::SeparatorText("Motor");
+        { bool enabled = motor->Enabled; const bool before = enabled;
+          if (ImGui::Checkbox("Enabled", &enabled)) motor->setEnabled(enabled);
+          if (ImGui::IsItemDeactivatedAfterEdit() && m_history && enabled != before)
+              m_history->record(std::make_unique<SetPhysicsConstraintEnabledCommand>(motorSp, before, enabled)); }
 
         drawConstraintCubeRef("Cube0", motor->m_cube0Name, "Cube0", motorSp);
         drawConstraintCubeRef("Cube1", motor->m_cube1Name, "Cube1", motorSp);

@@ -31,12 +31,15 @@ class User : public Instance {
 public:
     enum class CursorType { Default = 0, Type1, Type2, Type3, Type4, Type5,
                             Type6, Type7, Type8, Type9, Type10 };
+    static constexpr std::size_t CURSOR_IMAGE_SLOT_COUNT = 10;
+    static constexpr int DEFAULT_CURSOR_SIZE = CursorImageProcessor::DEFAULT_LOGICAL_SIZE;
+    static constexpr int MAX_CURSOR_SIZE = CursorImageProcessor::MAX_LOGICAL_SIZE;
     struct CursorImageSlot {
         std::string contentPath;
         int hotspotX = 0;
         int hotspotY = 0;
+        int size = DEFAULT_CURSOR_SIZE;
     };
-    static constexpr std::size_t CURSOR_IMAGE_SLOT_COUNT = 10;
     float speed = 0.25f;
     float rotationSpeed = 1.0f;
     float mouseRotationSpeed = 0.15f;
@@ -112,7 +115,8 @@ public:
     void setCursorImagePath(std::size_t index, const std::string& path);
     void setCursorHotspotX(std::size_t index, int value);
     void setCursorHotspotY(std::size_t index, int value);
-    bool applyCursor(bool gameplayHovered);
+    void setCursorSize(std::size_t index, int value);
+    bool applyCursor(bool gameplayHovered, float contentScale = 1.0f);
     void resetInputRuntimeState();
 
     // 多分このあたりprivateにしたほうが安全だよね。Tool追加/Tool取り除き、って感じ。
@@ -288,7 +292,6 @@ private:
     bool lastFKeyPressed = false; // トグル判定用
     bool m_lastEscapeKeyPressed = false;
     bool m_lastF8KeyPressed = false;
-    bool m_lastPKeyPressed = false;
     bool m_lastViewportFocused = false;
     bool m_movementInputEnabled = true;
     bool m_cameraInputEnabled = true;
@@ -322,6 +325,7 @@ private:
     bool m_gameViewportCursorCenterValid = false;
     CursorType m_cursorType = CursorType::Default;
     std::array<CursorImageSlot, CURSOR_IMAGE_SLOT_COUNT> m_cursorImages{};
+    CursorImageProcessor m_cursorImageProcessor;
 
     void updateMouseCapture();
     void applyQueuedJump(Physics* physics);

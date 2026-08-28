@@ -2,7 +2,7 @@
 
 `include/Core/GLFWInputBackend.hpp`
 
-`IInputBackend` の GLFW 実装。`KeyCode` / `MouseButton`（エンジン共通の入力識別子、`include/Core/InputKey.hpp`）を GLFW の定数に変換して入力を読み取る。`User` はこのインタフェース経由でのみ入力を取得し、GLFW に直接依存しない。
+`IInputBackend` の GLFW 実装。`KeyCode` / `MouseButton`（エンジン共通の入力識別子、`include/Core/InputKey.hpp`）を GLFW の定数へ変換して入力を読み取る。カーソルについては共通Processorが生成したRGBA8データをGLFWカーソルへ変換するだけで、アセット読込や画像加工は行わない。`User` はこのインタフェース経由でのみ入力を扱い、GLFW に直接依存しない。
 
 ## メンバ変数
 
@@ -22,9 +22,12 @@
 | `getCursorPos(x, y)` | `glfwGetCursorPos()` のラッパー |
 | `setCursorPos(x, y)` | `glfwSetCursorPos()` のラッパー（回転ドラッグ中の再センタリング用） |
 | `setMouseCaptured(captured)` | カーソルの非表示・ロック（`GLFW_CURSOR_DISABLED`）を切り替え、対応環境では Raw Mouse Motion も有効化 |
-| `setCustomCursor(path, hotspotX, hotspotY)` | PNG/JPEG/BMP/TGA画像を遅延読込してGLFWカーソルへ設定。空欄・失敗時は標準カーソルへフォールバック |
+| `setCustomCursor(image)` | 加工済み`CursorImageData`を`glfwCreateCursor`へ渡す。非0のrevisionだけをキャッシュキーとして再利用し、不正データ・生成失敗時は`false` |
 | `consumeScrollDelta()` | 蓄積したスクロール量を返して内部カウンタを 0 にリセット |
 | `scrollCallback(window, x, y)` | `static`。GLFW のスクロールコールバック。`m_pendingScrollY` に加算後、退避しておいた既存コールバックへ連鎖する |
+
+画像形式、AssetGuard、mtime、DPI、リサイズ、Hotspot変換は`CursorImageProcessor`の責務である。
+Processorは物理長辺4096pxを安全上限とし、同一失敗条件をキャッシュして毎フレームの再読込と警告を抑止する。
 
 ## 入力フロー
 
@@ -40,7 +43,7 @@ GLFWInputBackend(window)
 ## 依存関係
 
 - GLFW
-- `IInputBackend`（実装するインタフェース）, `KeyCode` / `MouseButton`（`InputKey.hpp`）
+- `IInputBackend`（実装するインタフェース）, `CursorImageData`, `KeyCode` / `MouseButton`（`InputKey.hpp`）
 
 ## 使われる場所
 

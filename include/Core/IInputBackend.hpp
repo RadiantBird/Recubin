@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core/InputKey.hpp>
+#include <Core/CursorImage.hpp>
 #include <string>
 
 // ==================================================================
@@ -30,8 +31,8 @@ public:
     // 回転ドラッグ中のカーソル固定に使う(画面端クランプ・加速を回避し滑らかな delta を得る)。
     virtual void setMouseCaptured(bool captured) = 0;
 
-    // 指定画像をOSカーソルへ適用する。空パスは標準カーソルへ戻す。
-    virtual bool setCustomCursor(const std::string& path, int hotspotX, int hotspotY) = 0;
+    // 加工済みRGBA画像をOSカーソルへ適用する。
+    virtual bool setCustomCursor(const CursorImageData& image) = 0;
 
     // 前回の呼び出し以降に蓄積されたスクロール量を返し、内部カウンタを 0 にリセットする
     virtual double consumeScrollDelta() = 0;

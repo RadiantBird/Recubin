@@ -38,6 +38,7 @@
 #include <Instances/System.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
+#include <cmath>
 #include <include/imgui/imgui_impl_opengl3.h>
 #include <include/imgui/ImGuizmo.h>
 #include <string>
@@ -705,6 +706,7 @@ void EditorManager::requestSceneLoad(const std::string& path) {
 
     if (isEditMode()) {
         pendingLoadPath = path;
+        if (welcomePanel) welcomePanel->isOpen = false;
         return;
     }
 
@@ -1486,7 +1488,14 @@ void EditorManager::renderUI(User& user, GLFWwindow* window, Workspace& workspac
     // at the end of the frame only while the primary gameplay viewport is hot.
     {
         const bool gameplayHovered = viewportPanel && viewportPanel->isHoveringViewport;
-        if (user.applyCursor(gameplayHovered))
+        float contentScale = 1.0f;
+        if (window) {
+            float scaleX = 1.0f, scaleY = 1.0f;
+            glfwGetWindowContentScale(window, &scaleX, &scaleY);
+            const float candidate = std::max(scaleX, scaleY);
+            if (std::isfinite(candidate) && candidate > 0.0f) contentScale = candidate;
+        }
+        if (user.applyCursor(gameplayHovered, contentScale))
             ImGui_ImplGlfw_InvalidateMouseCursor();
     }
 
