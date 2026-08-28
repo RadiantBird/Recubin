@@ -73,13 +73,36 @@ AnimationClipLoadResult AnimationClipIO::load(const std::string& path) {
     }
     try {
         YAML::Node root = YAML::LoadFile(path), h = root["recubin"];
-        if (!h || h["type"].as<std::string>("") != "animation") { r.status = AnimationClipLoadStatus::TypeMismatch; r.message = "not an animation"; return r; }
-        if (h["version"].as<int>(-1) != 1) { r.status = AnimationClipLoadStatus::UnsupportedVersion; r.message = "unsupported animation version: " + std::to_string(h["version"].as<int>(-1)); return r; }
-        auto a = root["animation"]; if (!a || !a.IsMap()) { r.status = AnimationClipLoadStatus::InvalidData; r.message = "animation must be a map"; return r; }
-        AnimationClip c; c.name = a["name"].as<std::string>(""); c.rig = a["rig"].as<std::string>(""); c.space = a["space"].as<std::string>("");
-        c.length = a["length"].as<float>(0); c.speed = a["speed"].as<float>(1); c.looped = a["looped"].as<bool>(false);
-        if (c.rig != "R6" || c.space != "joint_delta" || !finite(c.length) || c.length <= 0 || !finite(c.speed)) { r.status = AnimationClipLoadStatus::InvalidData; r.message = "invalid animation metadata"; return r; }
-        if (!a["tracks"] || !a["tracks"].IsSequence() || a["tracks"].size() == 0) { r.status = AnimationClipLoadStatus::InvalidData; r.message = "tracks must be a non-empty sequence"; return r; }
+        if (!h || h["type"].as<std::string>("") != "animation") { 
+            r.status = AnimationClipLoadStatus::TypeMismatch;
+            r.message = "not an animation"; return r;
+        }
+        if (h["version"].as<int>(-1) != 1) {
+            r.status = AnimationClipLoadStatus::UnsupportedVersion;
+            r.message = "unsupported animation version: " + std::to_string(h["version"].as<int>(-1));
+            return r;
+        }
+        auto a = root["animation"];
+        if (!a || !a.IsMap()) {
+            r.status = AnimationClipLoadStatus::InvalidData;
+            r.message = "animation must be a map"; return r;
+        }
+        AnimationClip c;
+        c.name = a["name"].as<std::string>("");
+        c.rig = a["rig"].as<std::string>("");
+        c.space = a["space"].as<std::string>("");
+        c.length = a["length"].as<float>(0);
+        c.speed = a["speed"].as<float>(1);
+        c.looped = a["looped"].as<bool>(false);
+        if (c.rig != "R6" || c.space != "joint_delta" || !finite(c.length) || c.length <= 0 || !finite(c.speed)) {
+            r.status = AnimationClipLoadStatus::InvalidData;
+            r.message = "invalid animation metadata"; return r;
+        }
+        if (!a["tracks"] || !a["tracks"].IsSequence() || a["tracks"].size() == 0) {
+            r.status = AnimationClipLoadStatus::InvalidData;
+            r.message = "tracks must be a non-empty sequence";
+            return r;
+        }
         for (const auto& tn : a["tracks"]) {
             if (!tn.IsMap()) { r.status = AnimationClipLoadStatus::InvalidData; r.message = "track must be a map"; return r; }
             std::string joint = tn["joint"].as<std::string>(""); if (joint.empty() || !CharacterRig::findR6Joint(joint)) { r.status = AnimationClipLoadStatus::InvalidData; r.message = "unknown or empty joint"; return r; }

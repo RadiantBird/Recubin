@@ -387,3 +387,8 @@
 
 - 有効なシーン読み込み要求を受け付けた時点で、ようこそタブを自動的に閉じるよう修正した。ファイル選択のキャンセル時は表示状態を維持する。
 - ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。全回帰はWSL↔Windows通信エラー（`UtilBindVsockAnyPort`）で未実施。
+
+## 2026-08-29: 物理制約の複数選択Enabled編集
+
+- 複数選択した全項目がPhysicsConstraintの場合、PropertiesからEnabledを一括変更できるようにした。変更は1件の複合Undo/Redo操作として記録する。
+- ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。全回帰はWSL↔Windows通信エラー（`UtilBindVsockAnyPort`）で未実施。

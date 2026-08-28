@@ -207,35 +207,45 @@ Root:
             CursorType: Default
             CursorImages:
               - Type: Type1
-                ContentPath: C:/Users/Ryarta/Pictures/てきとう.png
+                ContentPath: C:/Users/Ryarta/Pictures/macgirl.png
                 Hotspot: [0, 0]
+                Size: 64
               - Type: Type2
                 ContentPath: ""
                 Hotspot: [0, 0]
+                Size: 32
               - Type: Type3
                 ContentPath: ""
                 Hotspot: [0, 0]
+                Size: 32
               - Type: Type4
                 ContentPath: ""
                 Hotspot: [0, 0]
+                Size: 32
               - Type: Type5
                 ContentPath: ""
                 Hotspot: [0, 0]
+                Size: 32
               - Type: Type6
                 ContentPath: ""
                 Hotspot: [0, 0]
+                Size: 32
               - Type: Type7
                 ContentPath: ""
                 Hotspot: [0, 0]
+                Size: 32
               - Type: Type8
                 ContentPath: ""
                 Hotspot: [0, 0]
+                Size: 32
               - Type: Type9
                 ContentPath: ""
                 Hotspot: [0, 0]
+                Size: 32
               - Type: Type10
                 ContentPath: ""
                 Hotspot: [0, 0]
+                Size: 32
           Children:
             - ClassName: Folder
               Name: Inventory
@@ -498,7 +508,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [-22.514858, 4.561222, 26.970505]
+            Position: [23.97886, 35.179375, 10.73399]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]

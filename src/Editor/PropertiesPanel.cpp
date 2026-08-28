@@ -492,6 +492,44 @@ static void renderMultiTransform(const std::vector<Instance*>& valid, CommandHis
     }
 }
 
+static void renderMultiPhysicsConstraintEnabled(const std::vector<Instance*>& valid,
+                                                CommandHistory* history) {
+    std::vector<PhysicsConstraint*> constraints;
+    constraints.reserve(valid.size());
+    for (Instance* inst : valid) {
+        if (!inst || !inst->IsA("PhysicsConstraint")) return;
+        constraints.push_back(static_cast<PhysicsConstraint*>(inst));
+    }
+    if (constraints.size() < 2) return;
+
+    bool enabled = constraints.front()->Enabled;
+    bool mixed = false;
+    for (size_t i = 1; i < constraints.size(); ++i) {
+        if (constraints[i]->Enabled != enabled) {
+            mixed = true;
+            break;
+        }
+    }
+
+    ImGui::SeparatorText("PhysicsConstraint");
+    if (ImGui::Checkbox("Enabled", &enabled)) {
+        auto composite = std::make_unique<CompositeCommand>();
+        for (PhysicsConstraint* constraint : constraints) {
+            const bool before = constraint->Enabled;
+            if (before == enabled) continue;
+            constraint->setEnabled(enabled);
+            composite->add(std::make_unique<SetPhysicsConstraintEnabledCommand>(
+                std::static_pointer_cast<PhysicsConstraint>(constraint->shared_from_this()),
+                before, enabled));
+        }
+        if (!composite->empty() && history) history->record(std::move(composite));
+    }
+    if (mixed) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::MixedValue));
+    }
+}
+
 static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHistory* history) {
     static std::vector<PropValue> s_multiBefore;
 
@@ -521,6 +559,7 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
         if(!entries.empty()){auto command=std::make_unique<MultiRenameInstanceCommand>(std::move(entries));command->execute();if(history)history->record(std::move(command));}
     }
     renderMultiTransform(valid, history);
+    renderMultiPhysicsConstraintEnabled(valid, history);
 
     // 各インスタンスのスキーマ集合（自クラス優先、BaseCube配下なら共通プロパティを補完）
     auto buildSchema = [](Instance* inst) {

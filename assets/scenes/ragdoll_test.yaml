@@ -1,0 +1,435 @@
+recubin:
+  type: scene
+  version: 0
+Root:
+  Properties:
+    MaxClonesPerFrame: 1000
+    MaxRestartsPerFrame: 100
+    ScriptLoopTimeoutSeconds: 2
+    BaseResolution: [1920, 1080]
+    UseNetwork: false
+    ApplicationId: 9b4d2c11-5e73-4a6f-8c20-1d9f7b3e6a42
+    EnableIOAPI: true
+    EnableIPCAPI: true
+    EnableExternalFileAccess: false
+  Children:
+    - ClassName: Users
+      Name: Users
+      Children:
+        - ClassName: User
+          Name: User
+          Properties:
+            ControlMode: Free
+            Speed: 0.25
+            RotationSpeed: 1
+            MouseRotationSpeed: 0.15
+            CharacterSmoothing: 0.15
+            MovementInputEnabled: true
+            CameraInputEnabled: true
+            HotkeyInputEnabled: true
+            ToolInputEnabled: true
+            CameraDistance: 10
+            ZoomSpeed: 0.1
+            MouseZoomSpeed: 1
+            CursorType: Default
+            CursorImages:
+              - Type: Type1
+                ContentPath: C:/Users/Ryarta/Pictures/macgirl.png
+                Hotspot: [0, 0]
+                Size: 64
+              - Type: Type2
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type3
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type4
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type5
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type6
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type7
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type8
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type9
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type10
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+          Children:
+            - ClassName: Folder
+              Name: Inventory
+    - ClassName: Workspace
+      Name: Workspace
+      Properties:
+        Gravity: [0, -196.20001, 0]
+        Wind: [0, 0, 0]
+        PhysicsEnabled: true
+      Children:
+        - ClassName: Lighting
+          Name: Lighting
+          Properties:
+            Direction: [1, -1, -1]
+            Brightness: 1
+            Color: [1, 1, 1, 1]
+        - ClassName: StarterCharacter
+          Name: StarterCharacter
+          Children:
+            - ClassName: Humanoid
+              Name: Humanoid
+              Properties:
+                WalkSpeed: 16
+                JumpPower: 48.522
+                ClimbSpeed: 10
+                JumpHeight: 5.99996
+                MaxHealth: 100
+                RespawnTime: 5
+                Health: 100
+                WalkAnimation: R6Walk
+            - ClassName: Cube
+              Name: LeftArm
+              Properties:
+                Position: [-6.547391, 12.520298, -2.1775408]
+                Size: [1, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [0.5, 0.5, 0]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+            - ClassName: Cube
+              Name: Root
+              Properties:
+                Position: [-3.5003004, 11.520298, -2.1775408]
+                Size: [2, 4, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 0.5, 0.5, 0]
+                Anchored: false
+                CanCollide: true
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: [AngularX, AngularZ]
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+            - ClassName: Cube
+              Name: RightArm
+              Properties:
+                Position: [-0.9405514, 12.520298, -2.1775408]
+                Size: [1, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [-0.5, 0.5, 0]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+            - ClassName: Sphere
+              Name: Head
+              Properties:
+                Position: [-3.5003004, 15.926299, -2.1775408]
+                Size: [1.25, 1.25, 1.25]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Decal
+                  Name: Decal
+                  Properties:
+                    Face: 0
+                    Texture: C:\Users\Ryarta\Pictures\dev_imgs\char_n.png
+                    UVCenter: [0.5, 0.5]
+                    UVRadius: 0.15
+                    Mode: 0
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [0, -0.5, 0]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+            - ClassName: Cube
+              Name: Torso
+              Properties:
+                Position: [-3.5003004, 12.520298, -2.1775408]
+                Size: [2, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0.39215687, 0.047058824, 0.1254902, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: BallSocket
+                  Name: LArmS
+                  Properties:
+                    Enabled: true
+                    Cube0: StarterCharacter\Torso
+                    Cube1: StarterCharacter\LeftArm
+                    Attachment0: Attachment
+                    Attachment1: Attachment
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [-1, 0.5, 0]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+                - ClassName: Attachment
+                  Name: Attachment1
+                  Properties:
+                    Position: [1, 0.5, 0]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+                - ClassName: BallSocket
+                  Name: LLegS
+                  Properties:
+                    Enabled: true
+                    Cube0: StarterCharacter\Torso
+                    Cube1: StarterCharacter\LeftLeg
+                    Attachment0: Attachment2
+                    Attachment1: Attachment
+                - ClassName: BallSocket
+                  Name: RArmS
+                  Properties:
+                    Enabled: true
+                    Cube0: StarterCharacter\Torso
+                    Cube1: StarterCharacter\RightArm
+                    Attachment0: Attachment1
+                    Attachment1: Attachment
+                - ClassName: BallSocket
+                  Name: RLegS
+                  Properties:
+                    Enabled: true
+                    Cube0: StarterCharacter\Torso
+                    Cube1: StarterCharacter\RightLeg
+                    Attachment0: Attachment3
+                    Attachment1: Attachment
+                - ClassName: Attachment
+                  Name: Attachment2
+                  Properties:
+                    Position: [-0.5, -1, 0]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+                - ClassName: Attachment
+                  Name: Attachment3
+                  Properties:
+                    Position: [0.5, -1, 0]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+                - ClassName: Attachment
+                  Name: Attachment4
+                  Properties:
+                    Position: [0, 1, 0]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+                - ClassName: BallSocket
+                  Name: BallSocket
+                  Properties:
+                    Enabled: true
+                    Cube0: StarterCharacter\Head
+                    Cube1: StarterCharacter\Torso
+                    Attachment0: Attachment4
+                    Attachment1: Attachment
+            - ClassName: Cube
+              Name: LeftLeg
+              Properties:
+                Position: [-4.0003004, 9.169385, -2.1775408]
+                Size: [1, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.14117648, 0.31764707, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [0, 1, 0]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+            - ClassName: Cube
+              Name: RightLeg
+              Properties:
+                Position: [-3.0003004, 9.169385, -2.1775408]
+                Size: [1, 2, 1]
+                Rotation: [0, 0, 0, 1]
+                Color: [0, 0.14117648, 0.31764707, 1]
+                Anchored: true
+                CanCollide: false
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                Locked: false
+                MassDensity: 1
+                CCDMode: Default
+                LockFlags: []
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+              Children:
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [0, 1, 0]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+            - ClassName: Animation
+              Name: R6Walk
+              Properties:
+                Length: 0.6666667
+                Speed: 1
+                Looped: true
+                ContentPath: assets/anims/r6_walk.rcanim
+        - ClassName: Cube
+          Name: Plate
+          Properties:
+            Position: [0, 0, 0]
+            Size: [512, 1, 512]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.2658789, 0.5261538, 0.21855618, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: SpawnLocation
+          Name: SpawnLocation
+          Properties:
+            Position: [0, 1, 0]
+            Size: [8, 1, 8]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Enabled: true
+        - ClassName: Cube
+          Name: KillBrick
+          Properties:
+            Position: [9.491859, 1, 11.898758]
+            Size: [4, 1, 4]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0, 0, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: true
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: Script
+              Name: DamageScript
+              Properties:
+                ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\DamageScript.luau
+                Enabled: true
+    - ClassName: PathfindingService
+      Name: PathfindingService
