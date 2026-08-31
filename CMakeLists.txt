@@ -101,6 +101,11 @@ add_executable(Recubin
     "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
     $<TARGET_OBJECTS:RecubinCore>
 )
+if(WIN32)
+    target_sources(Recubin PRIVATE
+        "${CMAKE_SOURCE_DIR}/src/Editor/RecubinResources.rc"
+    )
+endif()
 
 # ---- RecubinEngine (ゲームランタイム専用) ----
 add_executable(RecubinEngine

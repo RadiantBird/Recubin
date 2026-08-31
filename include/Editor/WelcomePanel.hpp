@@ -3,6 +3,7 @@
 #include <functional>
 #include <string>
 #include <include/imgui/imgui.h>
+#include <GL/glew.h>
 
 // ===================================================
 //  WelcomePanel  — 起動時に表示する「ようこそ」タブ
@@ -16,5 +17,13 @@ public:
     std::function<bool()> onOpenScene; // ダイアログでパスが選ばれたら true
 
     WelcomePanel();
+    ~WelcomePanel() override;
     void onRender() override;
+
+private:
+    void loadLogo();
+    GLuint m_logoTexture = 0;
+    int m_logoWidth = 0;
+    int m_logoHeight = 0;
+    bool m_logoLoadAttempted = false;
 };

@@ -1,0 +1,3 @@
+#define RECUBIN_WELCOME_LOGO 101
+
+RECUBIN_WELCOME_LOGO RCDATA "../../Recubin.png"
