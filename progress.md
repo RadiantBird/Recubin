@@ -392,3 +392,14 @@
 
 - 複数選択した全項目がPhysicsConstraintの場合、PropertiesからEnabledを一括変更できるようにした。変更は1件の複合Undo/Redo操作として記録する。
 - ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。全回帰はWSL↔Windows通信エラー（`UtilBindVsockAnyPort`）で未実施。
+
+## 2026-08-29: 実行時スキーマによる物理制約共通プロパティ
+
+- `PropertyRegistry::collectApplicableSchema()`を追加し、具象クラスの個別登録がなくても`IsA()`に一致する基底スキーマをPropertiesへ提供するようにした。
+- PhysicsConstraintのEnabledを副作用付きスキーマへ登録し、単一・複数選択とも共通のSetPropertyCommandでUndo/Redoする。複数選択はスキーマの和集合を表示し、対応する型だけへ適用する。
+- ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。`--property-schema-regression`はWSL↔Windows通信エラー（`UtilBindVsockAnyPort`）で未実施。
+
+## 2026-08-29: スキーマ駆動Propertiesの共通Editor種別
+
+- `PropertyDesc`へ`EditorWidget`、ファイルダイアログ設定、複数選択互換キーを追加した。PhysicalFileInstanceのPathは手書き専用UIを廃止し、共通のFilePath入力・Browse・Clear・Undoへ移行した。
+- ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。`--property-schema-regression`はWSL↔Windows通信エラー（`UtilBindVsockAnyPort`）で未実施。

@@ -19,26 +19,6 @@ Root:
     - ClassName: StarterCharacter
       Name: StarterCharacter
       Children:
-        - ClassName: Cube
-          Name: LeftArm
-          Properties:
-            Position: [0, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            Locked: false
-            MassDensity: 1
-            CCDMode: Default
-            LockFlags: []
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
         - ClassName: Humanoid
           Name: Humanoid
           Properties:
@@ -51,7 +31,7 @@ Root:
             Health: 100
             WalkAnimation: R6Walk
         - ClassName: Cube
-          Name: RightArm
+          Name: LeftArm
           Properties:
             Position: [0, 0, 0]
             Size: [1, 2, 1]
@@ -79,6 +59,26 @@ Root:
             Color: [1, 0.5, 0.5, 0]
             Anchored: false
             CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: RightArm
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: false
             CastShadow: true
             ShadowMode: Normal
             Unlit: false
@@ -120,12 +120,12 @@ Root:
                 UVRadius: 0.15
                 Mode: 0
         - ClassName: Cube
-          Name: LeftLeg
+          Name: Torso
           Properties:
             Position: [0, 0, 0]
-            Size: [1, 2, 1]
+            Size: [2, 2, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 0.14117648, 0.31764707, 1]
+            Color: [0.39215687, 0.047058824, 0.1254902, 1]
             Anchored: true
             CanCollide: false
             CastShadow: true
@@ -140,12 +140,12 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Torso
+          Name: LeftLeg
           Properties:
             Position: [0, 0, 0]
-            Size: [2, 2, 1]
+            Size: [1, 2, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0.39215687, 0.047058824, 0.1254902, 1]
+            Color: [0, 0.14117648, 0.31764707, 1]
             Anchored: true
             CanCollide: false
             CastShadow: true
@@ -295,6 +295,37 @@ Root:
         PhysicsEnabled: true
       Children:
         - ClassName: Cube
+          Name: Blue
+          Properties:
+            Position: [-2, 0, -8]
+            Size: [1, 4, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Rope
+          Name: Rope
+          Properties:
+            Enabled: true
+            Cube0: Branch
+            Cube1: Saw
+            MaxDistance: 3
+            Stiffness: 100
+            Damping: 10
+            Color: [0.3, 0.9, 1, 1]
+            LineWidth: 2.5
+        - ClassName: Cube
           Name: Branch
           Properties:
             Position: [2.4310784, -4, 11.834326]
@@ -322,85 +353,6 @@ Root:
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
             Anchored: true
-            CanCollide: true
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            Locked: false
-            MassDensity: 1
-            CCDMode: Default
-            LockFlags: []
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Blue
-          Properties:
-            Position: [-2, 0, -8]
-            Size: [1, 4, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            Locked: false
-            MassDensity: 1
-            CCDMode: Default
-            LockFlags: []
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Rope
-          Name: Rope
-          Properties:
-            Cube0: Branch
-            Cube1: Saw
-            MaxDistance: 3
-            Stiffness: 100
-            Damping: 10
-            Color: [0.3, 0.9, 1, 1]
-            LineWidth: 2.5
-        - ClassName: Cube
-          Name: Baseplate
-          Properties:
-            Position: [0, -10, 0]
-            Size: [128, 1, 128]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0.5, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            Locked: false
-            MassDensity: 1
-            CCDMode: Default
-            LockFlags: []
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Texture
-              Name: Texture_Top
-              Properties:
-                Face: 2
-                Color: [1, 1, 1, 1]
-                StudsPerTileU: 1
-                StudsPerTileV: 1
-                Texture: assets/image/Grass_Texture.png
-        - ClassName: Cube
-          Name: Green
-          Properties:
-            Position: [-2, 0, -4]
-            Size: [2, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0, 1]
-            Anchored: false
             CanCollide: true
             CastShadow: true
             ShadowMode: Normal
@@ -461,12 +413,12 @@ Root:
                     TextColor: [0, 0, 0, 1]
                     FontSize: 0
         - ClassName: Cube
-          Name: Cube12
+          Name: Green
           Properties:
-            Position: [8.118143, -8.859938, 35.223503]
-            Size: [1, 1, 1]
+            Position: [-2, 0, -4]
+            Size: [2, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
+            Color: [0, 1, 0, 1]
             Anchored: false
             CanCollide: true
             CastShadow: true
@@ -481,13 +433,13 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Cube1
+          Name: Baseplate
           Properties:
-            Position: [8.118143, -6.9850116, 35.223503]
-            Size: [1, 1, 1]
+            Position: [0, -10, 0]
+            Size: [128, 1, 128]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 1, 1]
-            Anchored: false
+            Color: [0, 1, 0.5, 1]
+            Anchored: true
             CanCollide: true
             CastShadow: true
             ShadowMode: Normal
@@ -500,15 +452,19 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-        - ClassName: Script
-          Name: HiGeorge
-          Properties:
-            ContentPath: ""
-            Enabled: false
+          Children:
+            - ClassName: Texture
+              Name: Texture_Top
+              Properties:
+                Face: 2
+                Color: [1, 1, 1, 1]
+                StudsPerTileU: 1
+                StudsPerTileV: 1
+                Texture: assets/image/Grass_Texture.png
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [23.97886, 35.179375, 10.73399]
+            Position: [-50.62802, 33.787857, -23.623795]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -535,10 +491,55 @@ Root:
                 UVRadius: 0.15
                 Mode: 0
         - ClassName: Script
+          Name: HiGeorge
+          Properties:
+            ContentPath: ""
+            Enabled: false
+        - ClassName: Cube
+          Name: Cube1
+          Properties:
+            Position: [8.118143, -6.9850116, 35.223503]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Cube
+          Name: Cube12
+          Properties:
+            Position: [8.118143, -8.859938, 35.223503]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: Script
           Name: 2006
           Properties:
             ContentPath: scripts/2006.luau
-            Enabled: true
+            Enabled: false
         - ClassName: TriangularPrism
           Name: TriangularPrism
           Properties:
@@ -581,10 +582,10 @@ Root:
             Restitution: 0.1
           Children:
             - ClassName: Decal
-              Name: Decal_Left
+              Name: Decal_Front
               Properties:
-                Face: 5
-                Texture: assets/image/Limabis_logo.png
+                Face: 0
+                Texture: assets/image/floppa2048.jpg
                 UVCenter: [0.5, 0.5]
                 UVRadius: 0.15
                 Mode: 0
@@ -597,18 +598,10 @@ Root:
                 UVRadius: 0.15
                 Mode: 0
             - ClassName: Decal
-              Name: Decal_Front
+              Name: Decal_Left
               Properties:
-                Face: 0
-                Texture: assets/image/floppa2048.jpg
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
-            - ClassName: Decal
-              Name: Decal_Bottom
-              Properties:
-                Face: 3
-                Texture: assets/image/smile.png
+                Face: 5
+                Texture: assets/image/Limabis_logo.png
                 UVCenter: [0.5, 0.5]
                 UVRadius: 0.15
                 Mode: 0
@@ -617,6 +610,14 @@ Root:
               Properties:
                 Face: 1
                 Texture: assets/image/the-cat.png
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
+                Mode: 0
+            - ClassName: Decal
+              Name: Decal_Bottom
+              Properties:
+                Face: 3
+                Texture: assets/image/smile.png
                 UVCenter: [0.5, 0.5]
                 UVRadius: 0.15
                 Mode: 0
@@ -723,13 +724,13 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Cube2
+          Name: Cube11
           Properties:
-            Position: [-20.448927, -9, 16.048754]
-            Size: [1, 1, 1]
+            Position: [0.43107843, -7, 11.834326]
+            Size: [1, 5, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
-            Anchored: false
+            Anchored: true
             CanCollide: true
             CastShadow: true
             ShadowMode: Normal
@@ -743,13 +744,13 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
         - ClassName: Cube
-          Name: Cube11
+          Name: Cube2
           Properties:
-            Position: [0.43107843, -7, 11.834326]
-            Size: [1, 5, 1]
+            Position: [-20.448927, -9, 16.048754]
+            Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
-            Anchored: true
+            Anchored: false
             CanCollide: true
             CastShadow: true
             ShadowMode: Normal
@@ -805,6 +806,7 @@ Root:
         - ClassName: Rope
           Name: Rope1
           Properties:
+            Enabled: true
             Cube0: Branch
             Cube1: Saw2
             MaxDistance: 3
@@ -815,11 +817,13 @@ Root:
         - ClassName: Weld
           Name: Weld
           Properties:
+            Enabled: true
             Cube0: Saw
             Cube1: Saw2
         - ClassName: Motor
           Name: Motor
           Properties:
+            Enabled: true
             Cube0: Cube1
             Cube1: Cube12
             Axis: [0, 1, 0]
@@ -829,7 +833,7 @@ Root:
           Name: HelloLuar
           Properties:
             ContentPath: scripts/HelloLuar.luar
-            Enabled: true
+            Enabled: false
         - ClassName: Lighting
           Name: Lighting
           Properties:
@@ -840,15 +844,6 @@ Root:
           Name: _Effects
           Children:
             - ClassName: PostEffect
-              Name: CRT
-              Properties:
-                Enabled: false
-                Type: 1
-                ZIndex: 1
-                Intensity: 1
-                Param1: 16
-                Param2: 0.15
-            - ClassName: PostEffect
               Name: Poster
               Properties:
                 Enabled: false
@@ -856,6 +851,15 @@ Root:
                 ZIndex: 0
                 Intensity: 1
                 Param1: 4
+                Param2: 0.15
+            - ClassName: PostEffect
+              Name: CRT
+              Properties:
+                Enabled: false
+                Type: 1
+                ZIndex: 1
+                Intensity: 1
+                Param1: 16
                 Param2: 0.15
             - ClassName: PostEffect
               Name: Pixel

@@ -81,19 +81,6 @@
 //  → スキーマに1行足すだけでインスペクタに反映され、エディター取り残しを防ぐ。
 // ===================================================
 namespace {
-class SetPhysicsConstraintEnabledCommand final : public Command {
-public:
-    SetPhysicsConstraintEnabledCommand(std::shared_ptr<PhysicsConstraint> target,
-                                       bool before, bool after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-    void execute() override { if (m_target) m_target->setEnabled(m_after); }
-    void undo() override { if (m_target) m_target->setEnabled(m_before); }
-private:
-    std::shared_ptr<PhysicsConstraint> m_target;
-    bool m_before;
-    bool m_after;
-};
-
 class SetUserCharacterSmoothingCommand final : public Command {
 public:
     SetUserCharacterSmoothingCommand(std::shared_ptr<User> target, float before, float after)
@@ -183,53 +170,6 @@ static std::string toProjectRelative(const std::string& absPath) {
     return stored;
 }
 
-static const PropertyDesc* findSchemaProperty(std::string_view className,
-                                              std::string_view propertyName) {
-    for (const PropertyDesc* desc : PropertyRegistry::collectSchema(className))
-        if (desc->name == propertyName) return desc;
-    return nullptr;
-}
-
-static void drawPhysicalFileInspector(PhysicalFileInstance* file,
-                                      CommandHistory* history) {
-    if (!file) return;
-    const PhysicalFileInstanceType* type =
-        PhysicalFileInstanceRegistry::find(file->getClassName());
-    const PropertyDesc* pathDesc =
-        findSchemaProperty(file->getClassName(), "Path");
-    if (!type || !pathDesc) return;
-
-    ImGui::SeparatorText(file->getClassName().c_str());
-    ImGui::LabelText("ContentPath", "%s",
-                     file->Path.empty() ? "(none)" : file->Path.c_str());
-    ImGui::PushID(file);
-    if (ImGui::Button(Loc::t(Loc::LocKey::Browse))) {
-        const std::string selected = getPlatform().openFileDialog({{
-            std::string(type->dialogLabel), std::string(type->dialogFilter)}});
-        if (!selected.empty()) {
-            const PropValue before = pathDesc->get(file);
-            const PropValue after = PropValue(toProjectRelative(selected));
-            if (before != after) {
-                if (history) history->execute(std::make_unique<SetPropertyCommand>(
-                    file->shared_from_this(), pathDesc, before, after));
-                else PropertyRegistry::writeValue(file, *pathDesc, after);
-            }
-        }
-    }
-    ImGui::SameLine();
-    const bool hasPath = !file->Path.empty();
-    if (!hasPath) ImGui::BeginDisabled();
-    if (ImGui::Button("Clear")) {
-        const PropValue before = pathDesc->get(file);
-        const PropValue after = PropValue(std::string{});
-        if (history) history->execute(std::make_unique<SetPropertyCommand>(
-            file->shared_from_this(), pathDesc, before, after));
-        else PropertyRegistry::writeValue(file, *pathDesc, after);
-    }
-    if (!hasPath) ImGui::EndDisabled();
-    ImGui::PopID();
-}
-
 static void drawInstanceReferenceField(Instance* owner,
                                        const PropertyDesc& desc,
                                        CommandHistory* history,
@@ -278,7 +218,7 @@ static void drawInstanceReferenceField(Instance* owner,
                 if (!target || !picked || !picked->IsA(targetClass)) return;
                 const PropValue before = property->get(target.get());
                 const PropValue after = PropValue(picked->getWorkspaceRelativePath());
-                if (before == after) return;
+                if (std::get<std::string>(before) == std::get<std::string>(after)) return;
                 if (history) history->execute(std::make_unique<SetPropertyCommand>(
                     target, property, before, after));
                 else PropertyRegistry::writeValue(target.get(), *property, after);
@@ -300,10 +240,65 @@ static void drawInstanceReferenceField(Instance* owner,
     ImGui::PopID();
 }
 
+static void drawFilePathField(Instance* owner, const PropertyDesc& desc,
+                              CommandHistory* history) {
+    if (!owner || desc.type != PropType::String || !desc.get || !desc.set) return;
+
+    std::string dialogLabel(desc.editorDialogLabel);
+    std::string dialogFilter(desc.editorDialogFilter);
+    if ((dialogLabel.empty() || dialogFilter.empty()) && owner->IsA("PhysicalFileInstance")) {
+        if (const auto* type = PhysicalFileInstanceRegistry::find(owner->getClassName())) {
+            dialogLabel = std::string(type->dialogLabel);
+            dialogFilter = std::string(type->dialogFilter);
+        }
+    }
+    if (dialogLabel.empty()) dialogLabel = "Files (*.*)";
+    if (dialogFilter.empty()) dialogFilter = "*.*";
+
+    const std::string label(desc.name);
+    const std::string current = std::get<std::string>(desc.get(owner));
+    char path[512] = {};
+    std::snprintf(path, sizeof(path), "%s", current.c_str());
+    ImGui::PushID(&desc);
+    ImGui::SetNextItemWidth(std::max(1.0f, ImGui::GetContentRegionAvail().x - 108.0f));
+    if (ImGui::InputText(label.c_str(), path, sizeof(path), ImGuiInputTextFlags_EnterReturnsTrue)) {
+        const PropValue before = desc.get(owner);
+        const PropValue after = PropValue(std::string(path));
+        if (std::get<std::string>(before) != std::get<std::string>(after)) {
+            if (history) history->execute(std::make_unique<SetPropertyCommand>(
+                owner->shared_from_this(), &desc, before, after));
+            else PropertyRegistry::writeValue(owner, desc, after);
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button(Loc::t(Loc::LocKey::Browse))) {
+        const std::string selected = getPlatform().openFileDialog({{dialogLabel, dialogFilter}});
+        if (!selected.empty()) {
+            const PropValue before = desc.get(owner);
+            const PropValue after = PropValue(toProjectRelative(selected));
+            if (std::get<std::string>(before) != std::get<std::string>(after)) {
+                if (history) history->execute(std::make_unique<SetPropertyCommand>(
+                    owner->shared_from_this(), &desc, before, after));
+                else PropertyRegistry::writeValue(owner, desc, after);
+            }
+        }
+    }
+    ImGui::SameLine();
+    if (current.empty()) ImGui::BeginDisabled();
+    if (ImGui::Button("Clear")) {
+        const PropValue before = desc.get(owner);
+        const PropValue after = PropValue(std::string{});
+        if (history) history->execute(std::make_unique<SetPropertyCommand>(
+            owner->shared_from_this(), &desc, before, after));
+        else PropertyRegistry::writeValue(owner, desc, after);
+    }
+    if (current.empty()) ImGui::EndDisabled();
+    ImGui::PopID();
+}
+
 static void renderSchemaInspector(Instance* inst, const char* className,
                                   CommandHistory* history, PickerState* picker) {
     static PropValue s_before;  // 編集開始時の値（同時編集は1つなので単一でよい）
-    // own-only（既存の per-level エディターブロック構造を保つ。基底は各 IsA ブロックで描画）
     for (const auto& d : PropertyRegistry::schemaFor(className)) {
         const PropertyDesc* dp = &d;
         if (d.kind != PropKind::Field || !d.editable || !d.get) continue;
@@ -313,6 +308,10 @@ static void renderSchemaInspector(Instance* inst, const char* className,
              (d.name == "WalkAnimation" || d.name == "JumpAnimation" ||
              d.name == "EquipAnimation")) continue;
         if (std::string_view(className) == "System" && d.name == "ApplicationId") continue;
+        if (d.editorWidget == EditorWidget::FilePath) {
+            drawFilePathField(inst, d, history);
+            continue;
+        }
         if (!d.instanceRefClass.empty()) {
             drawInstanceReferenceField(inst, d, history, picker);
             continue;
@@ -328,6 +327,8 @@ static void renderSchemaInspector(Instance* inst, const char* className,
         if (readOnly) ImGui::BeginDisabled();
 
         PropValue cur = d.get(inst);
+        bool itemActivated = false;
+        bool itemDeactivatedAfterEdit = false;
         switch (d.type) {
             case PropType::Float: {
                 float v = std::get<float>(cur);
@@ -365,6 +366,31 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                 if (ImGui::ColorEdit4(label.c_str(), &v.r)) applyLive(inst, PropValue(v));
                 break;
             }
+            case PropType::CFrame: {
+                CFrame v = std::get<CFrame>(cur);
+                ImGui::TextUnformatted(label.c_str());
+                ImGui::Indent();
+                if (ImGui::DragFloat3("Position", &v.Position.x, d.step, d.lo, d.hi, "%.2f"))
+                    applyLive(inst, PropValue(v));
+                itemActivated = ImGui::IsItemActivated();
+                itemDeactivatedAfterEdit = ImGui::IsItemDeactivatedAfterEdit();
+                Vector3 rotation = v.Rotation.toEuler();
+                if (ImGui::DragFloat3("Rotation", &rotation.x, 1.0f, -360.0f, 360.0f, "%.1f")) {
+                    v.Rotation = Quaternion::fromEuler(rotation);
+                    applyLive(inst, PropValue(v));
+                }
+                itemActivated = itemActivated || ImGui::IsItemActivated();
+                itemDeactivatedAfterEdit = itemDeactivatedAfterEdit || ImGui::IsItemDeactivatedAfterEdit();
+                ImGui::Unindent();
+                break;
+            }
+            case PropType::Quaternion: {
+                Quaternion v = std::get<Quaternion>(cur);
+                Vector3 rotation = v.toEuler();
+                if (ImGui::DragFloat3(label.c_str(), &rotation.x, 1.0f, -360.0f, 360.0f, "%.1f"))
+                    applyLive(inst, PropValue(Quaternion::fromEuler(rotation)));
+                break;
+            }
             case PropType::Enum: {
                 int iv = std::get<int>(cur);
                 int idx = 0;
@@ -380,9 +406,9 @@ static void renderSchemaInspector(Instance* inst, const char* className,
         }
 
         // 編集の開始/確定を捉えて Undo 1ステップとして記録する
-        if (ImGui::IsItemActivated())
+        if (itemActivated || ImGui::IsItemActivated())
             s_before = PropertyRegistry::readValue(inst, d);
-        if (ImGui::IsItemDeactivatedAfterEdit() && history) {
+        if ((itemDeactivatedAfterEdit || ImGui::IsItemDeactivatedAfterEdit()) && history) {
             PropValue after = PropertyRegistry::readValue(inst, d);
             if (d.liveSet) d.set(inst, after);  // liveSet運用のプロパティのみ、確定時に本来の set（actor再生成等）を適用
             history->record(std::make_unique<SetPropertyCommand>(
@@ -411,6 +437,32 @@ static bool parseFloats(const char* text, float* out, int count) {
     while (*p==' '||*p=='\t'||*p==',') ++p;
     if (*p!='\0') return false;
     return true;
+}
+
+static bool propValuesEqual(const PropValue& left, const PropValue& right) {
+    if (left.index() != right.index()) return false;
+    switch (left.index()) {
+        case 0: return std::get<float>(left) == std::get<float>(right);
+        case 1: return std::get<int>(left) == std::get<int>(right);
+        case 2: return std::get<bool>(left) == std::get<bool>(right);
+        case 3: return std::get<std::string>(left) == std::get<std::string>(right);
+        case 4: return std::get<Vector3>(left) == std::get<Vector3>(right);
+        case 5: return std::get<Vector2>(left) == std::get<Vector2>(right);
+        case 6: return std::get<Color4>(left) == std::get<Color4>(right);
+        case 7: {
+            const CFrame& a = std::get<CFrame>(left);
+            const CFrame& b = std::get<CFrame>(right);
+            return a.Position == b.Position && a.Rotation.w == b.Rotation.w &&
+                   a.Rotation.x == b.Rotation.x && a.Rotation.y == b.Rotation.y &&
+                   a.Rotation.z == b.Rotation.z;
+        }
+        case 8: {
+            const Quaternion& a = std::get<Quaternion>(left);
+            const Quaternion& b = std::get<Quaternion>(right);
+            return a.w == b.w && a.x == b.x && a.y == b.y && a.z == b.z;
+        }
+        default: return false;
+    }
 }
 
 static void applyMultiTransform(const std::vector<Spatial*>& spaces,
@@ -492,44 +544,6 @@ static void renderMultiTransform(const std::vector<Instance*>& valid, CommandHis
     }
 }
 
-static void renderMultiPhysicsConstraintEnabled(const std::vector<Instance*>& valid,
-                                                CommandHistory* history) {
-    std::vector<PhysicsConstraint*> constraints;
-    constraints.reserve(valid.size());
-    for (Instance* inst : valid) {
-        if (!inst || !inst->IsA("PhysicsConstraint")) return;
-        constraints.push_back(static_cast<PhysicsConstraint*>(inst));
-    }
-    if (constraints.size() < 2) return;
-
-    bool enabled = constraints.front()->Enabled;
-    bool mixed = false;
-    for (size_t i = 1; i < constraints.size(); ++i) {
-        if (constraints[i]->Enabled != enabled) {
-            mixed = true;
-            break;
-        }
-    }
-
-    ImGui::SeparatorText("PhysicsConstraint");
-    if (ImGui::Checkbox("Enabled", &enabled)) {
-        auto composite = std::make_unique<CompositeCommand>();
-        for (PhysicsConstraint* constraint : constraints) {
-            const bool before = constraint->Enabled;
-            if (before == enabled) continue;
-            constraint->setEnabled(enabled);
-            composite->add(std::make_unique<SetPhysicsConstraintEnabledCommand>(
-                std::static_pointer_cast<PhysicsConstraint>(constraint->shared_from_this()),
-                before, enabled));
-        }
-        if (!composite->empty() && history) history->record(std::move(composite));
-    }
-    if (mixed) {
-        ImGui::SameLine();
-        ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::MixedValue));
-    }
-}
-
 static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHistory* history) {
     static std::vector<PropValue> s_multiBefore;
 
@@ -559,58 +573,75 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
         if(!entries.empty()){auto command=std::make_unique<MultiRenameInstanceCommand>(std::move(entries));command->execute();if(history)history->record(std::move(command));}
     }
     renderMultiTransform(valid, history);
-    renderMultiPhysicsConstraintEnabled(valid, history);
 
-    // 各インスタンスのスキーマ集合（自クラス優先、BaseCube配下なら共通プロパティを補完）
-    auto buildSchema = [](Instance* inst) {
+    // multiEditKey（未指定時は表示名）と、値型・Editor種別・参照対象型が
+    // 一致するプロパティだけを同じ一括編集行として扱う。
+    auto multiCompatibilityKey = [](const PropertyDesc& desc) {
+        const std::string_view editKey = desc.multiEditKey.empty() ? desc.name : desc.multiEditKey;
+        std::string key;
+        const auto appendPart = [&key](std::string_view value) {
+            key += std::to_string(value.size());
+            key += ':';
+            key.append(value);
+            key += ';';
+        };
+        appendPart(editKey);
+        key += std::to_string(static_cast<int>(desc.type));
+        key += ';';
+        key += std::to_string(static_cast<int>(desc.editorWidget));
+        key += ';';
+        appendPart(desc.instanceRefClass);
+        return key;
+    };
+
+    // 実行時型に適用されるスキーマ集合。具象型が未登録でも、IsA() に
+    // 一致する基底（PhysicsConstraint など）の共通プロパティを含める。
+    auto buildSchema = [&multiCompatibilityKey](Instance* inst) {
         std::vector<const PropertyDesc*> result;
-        std::unordered_map<std::string_view, bool> seen;
-        for (const auto* d : PropertyRegistry::collectSchema(inst->getClassName())) {
-            if (!seen.count(d->name)) { result.push_back(d); seen[d->name] = true; }
-        }
-        if (inst->IsA("BaseCube")) {
-            for (const auto* d : PropertyRegistry::collectSchema("BaseCube")) {
-                if (!seen.count(d->name)) { result.push_back(d); seen[d->name] = true; }
-            }
+        std::unordered_set<std::string> seen;
+        for (const auto* d : PropertyRegistry::collectApplicableSchema(inst)) {
+            if (!seen.insert(multiCompatibilityKey(*d)).second) continue;
+            result.push_back(d);
         }
         return result;
     };
 
-    std::vector<std::vector<const PropertyDesc*>> perInstSchema;
-    std::vector<std::unordered_map<std::string_view, const PropertyDesc*>> perInstMap;
-    perInstSchema.reserve(valid.size());
-    perInstMap.reserve(valid.size());
+    struct MultiPropertyRow {
+        const PropertyDesc* display = nullptr;
+        std::vector<std::pair<Instance*, const PropertyDesc*>> targets;
+    };
+    std::vector<MultiPropertyRow> propertyRows;
+    std::unordered_map<std::string, size_t> rowIndex;
     for (Instance* inst : valid) {
-        auto s = buildSchema(inst);
-        std::unordered_map<std::string_view, const PropertyDesc*> m;
-        for (const auto* d : s) m[d->name] = d;
-        perInstMap.push_back(std::move(m));
-        perInstSchema.push_back(std::move(s));
+        std::unordered_set<std::string> seenForInstance;
+        for (const PropertyDesc* desc : buildSchema(inst)) {
+            if (desc->kind != PropKind::Field || !desc->editable || !desc->get || !desc->set)
+                continue;
+            // FilePath / InstanceReference は個別のダイアログ・Picker 操作と
+            // Undo 状態を持つため、通常の String 一括入力へ流用しない。
+            if (desc->editorWidget != EditorWidget::Auto)
+                continue;
+            if (desc->name == "Name" || desc->name == "Position" || desc->name == "Size" ||
+                desc->name == "CFrame" || desc->name == "Rotation")
+                continue;
+            const std::string key = multiCompatibilityKey(*desc);
+            if (!seenForInstance.insert(key).second) continue;
+            auto [it, inserted] = rowIndex.emplace(key, propertyRows.size());
+            if (inserted) propertyRows.push_back({desc, {}});
+            propertyRows[it->second].targets.emplace_back(inst, desc);
+        }
     }
 
-    // 共通プロパティの積集合を、先頭インスタンスのスキーマ順に走査する
-    for (const PropertyDesc* d0 : perInstSchema[0]) {
-        if (d0->kind != PropKind::Field || !d0->editable || !d0->get || !d0->set) continue;
-        if (d0->name == "Name" || d0->name == "Position" || d0->name == "Size" || d0->name == "CFrame" || d0->name == "Rotation") continue;
-
-        std::vector<std::pair<Instance*, const PropertyDesc*>> rows;
-        rows.emplace_back(valid[0], d0);
-        bool commonAcrossAll = true;
-        for (size_t i = 1; i < valid.size(); ++i) {
-            auto it = perInstMap[i].find(d0->name);
-            if (it == perInstMap[i].end()) { commonAcrossAll = false; break; }
-            const PropertyDesc* di = it->second;
-            if (di->type != d0->type || di->kind != PropKind::Field || !di->editable || !di->get || !di->set) {
-                commonAcrossAll = false; break;
-            }
-            rows.emplace_back(valid[i], di);
-        }
-        if (!commonAcrossAll) continue;
-
+    // 和集合を走査し、対応する型だけへ変更を適用する。
+    for (auto& propertyRow : propertyRows) {
+        const PropertyDesc* d0 = propertyRow.display;
+        auto& rows = propertyRow.targets;
         std::string name(d0->name);
+        if (rows.size() != valid.size())
+            name += " (" + std::to_string(rows.size()) + "/" + std::to_string(valid.size()) + ")";
 
         if (!d0->separator.empty()) ImGui::SeparatorText(d0->separator.data());
-        ImGui::PushID(name.c_str());
+        ImGui::PushID(multiCompatibilityKey(*d0).c_str());
 
         // liveSet があればドラッグ中はそちらを使う（軽量反映）。無ければ set をそのまま使う
         auto applyLiveAll = [&rows](const PropValue& v) {
@@ -625,9 +656,26 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
         for (auto& [inst, d] : rows) curVals.push_back(d->get(inst));
         bool mixed = false;
         for (size_t i = 1; i < curVals.size(); ++i) {
-            if (!(curVals[i] == curVals[0])) { mixed = true; break; }
+            if (!propValuesEqual(curVals[i], curVals[0])) { mixed = true; break; }
         }
         PropValue cur = curVals[0];
+        bool recordedImmediately = false;
+        bool itemActivated = false;
+        bool itemDeactivatedAfterEdit = false;
+        auto recordCurrentValues = [&]() {
+            if (!history) return;
+            auto composite = std::make_unique<CompositeCommand>();
+            for (size_t i = 0; i < rows.size(); ++i) {
+                Instance* target = rows[i].first;
+                const PropertyDesc* desc = rows[i].second;
+                const PropValue after = desc->get(target);
+                if (!propValuesEqual(curVals[i], after)) {
+                    composite->add(std::make_unique<SetPropertyCommand>(
+                        target->shared_from_this(), desc, curVals[i], after));
+                }
+            }
+            if (!composite->empty()) history->record(std::move(composite));
+        };
 
         switch (d0->type) {
             case PropType::Float: {
@@ -646,7 +694,11 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                 bool v = std::get<bool>(cur);
                 bool changed = ImGui::Checkbox(name.c_str(), &v);
                 if (mixed) { ImGui::SameLine(); ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::MixedValue)); }
-                if (changed) applyLiveAll(PropValue(v));
+                if (changed) {
+                    applyLiveAll(PropValue(v));
+                    recordCurrentValues();
+                    recordedImmediately = true;
+                }
                 break;
             }
             case PropType::String: {
@@ -679,6 +731,34 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                 bool changed = ImGui::ColorEdit4(name.c_str(), &v.r);
                 if (mixed) { ImGui::SameLine(); ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::MixedValue)); }
                 if (changed) applyLiveAll(PropValue(v));
+                break;
+            }
+            case PropType::CFrame: {
+                CFrame v = std::get<CFrame>(cur);
+                ImGui::TextUnformatted(name.c_str());
+                ImGui::Indent();
+                const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.2f";
+                if (ImGui::DragFloat3("Position", &v.Position.x, d0->step, d0->lo, d0->hi, fmt))
+                    applyLiveAll(PropValue(v));
+                itemActivated = ImGui::IsItemActivated();
+                itemDeactivatedAfterEdit = ImGui::IsItemDeactivatedAfterEdit();
+                Vector3 rotation = v.Rotation.toEuler();
+                const char* rotationFmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.1f";
+                if (ImGui::DragFloat3("Rotation", &rotation.x, 1.0f, -360.0f, 360.0f, rotationFmt)) {
+                    v.Rotation = Quaternion::fromEuler(rotation);
+                    applyLiveAll(PropValue(v));
+                }
+                itemActivated = itemActivated || ImGui::IsItemActivated();
+                itemDeactivatedAfterEdit = itemDeactivatedAfterEdit || ImGui::IsItemDeactivatedAfterEdit();
+                ImGui::Unindent();
+                break;
+            }
+            case PropType::Quaternion: {
+                Quaternion v = std::get<Quaternion>(cur);
+                Vector3 rotation = v.toEuler();
+                const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.1f";
+                if (ImGui::DragFloat3(name.c_str(), &rotation.x, 1.0f, -360.0f, 360.0f, fmt))
+                    applyLiveAll(PropValue(Quaternion::fromEuler(rotation)));
                 break;
             }
             case PropType::Enum: {
@@ -720,11 +800,11 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
         }
 
         // 編集の開始/確定を捉えて、全員分の SetPropertyCommand を1つの CompositeCommand として記録する
-        if (ImGui::IsItemActivated()) {
+        if (itemActivated || ImGui::IsItemActivated()) {
             s_multiBefore.clear();
             for (auto& [inst, d] : rows) s_multiBefore.push_back(d->get(inst));
         }
-        if (ImGui::IsItemDeactivatedAfterEdit() && history) {
+        if (!recordedImmediately && (itemDeactivatedAfterEdit || ImGui::IsItemDeactivatedAfterEdit()) && history) {
             auto composite = std::make_unique<CompositeCommand>();
             for (size_t i = 0; i < rows.size(); ++i) {
                 Instance* inst = rows[i].first;
@@ -1632,7 +1712,8 @@ void PropertiesPanel::onRender() {
     }
 
     if (inst->IsA("PhysicalFileInstance")) {
-        drawPhysicalFileInspector(static_cast<PhysicalFileInstance*>(inst), m_history);
+        ImGui::SeparatorText(inst->getClassName().c_str());
+        renderSchemaInspector(inst, "PhysicalFileInstance", m_history, m_picker);
     }
     if (inst->getClassName() == "TextFile") {
         const auto* textFile = static_cast<const TextFile*>(inst);
@@ -2475,15 +2556,16 @@ void PropertiesPanel::onRender() {
         }
     }
 
+    // ---- PhysicsConstraint（スキーマ駆動の共通プロパティ） ----
+    if (inst->IsA("PhysicsConstraint")) {
+        renderSchemaInspector(inst, "PhysicsConstraint", m_history, m_picker);
+    }
+
     // ---- Rope ----
     if (inst->getClassName() == "Rope") {
         Rope* rope = static_cast<Rope*>(inst);
         auto ropeSp = std::static_pointer_cast<Rope>(inst->shared_from_this());
         ImGui::SeparatorText("Rope");
-        { bool enabled = rope->Enabled; const bool before = enabled;
-          if (ImGui::Checkbox("Enabled", &enabled)) rope->setEnabled(enabled);
-          if (ImGui::IsItemDeactivatedAfterEdit() && m_history && enabled != before)
-              m_history->record(std::make_unique<SetPhysicsConstraintEnabledCommand>(ropeSp, before, enabled)); }
 
         drawConstraintCubeRef("Cube0", rope->m_cube0Name, "Cube0", ropeSp);
         drawConstraintCubeRef("Cube1", rope->m_cube1Name, "Cube1", ropeSp);
@@ -2524,10 +2606,6 @@ void PropertiesPanel::onRender() {
         Rod* rod = static_cast<Rod*>(inst);
         auto rodSp = std::static_pointer_cast<Rod>(inst->shared_from_this());
         ImGui::SeparatorText("Rod");
-        { bool enabled = rod->Enabled; const bool before = enabled;
-          if (ImGui::Checkbox("Enabled", &enabled)) rod->setEnabled(enabled);
-          if (ImGui::IsItemDeactivatedAfterEdit() && m_history && enabled != before)
-              m_history->record(std::make_unique<SetPhysicsConstraintEnabledCommand>(rodSp, before, enabled)); }
         drawConstraintCubeRef("Cube0", rod->m_cube0Name, "Cube0", rodSp);
         drawConstraintCubeRef("Cube1", rod->m_cube1Name, "Cube1", rodSp);
         drawConstraintAttachmentRef("Attachment0", rod->m_attachment0Name, "Attachment0", rod->m_cube0Name, rodSp);
@@ -2550,10 +2628,6 @@ void PropertiesPanel::onRender() {
         BallSocket* bs = static_cast<BallSocket*>(inst);
         auto bsSp = std::static_pointer_cast<BallSocket>(inst->shared_from_this());
         ImGui::SeparatorText("BallSocket");
-        { bool enabled = bs->Enabled; const bool before = enabled;
-          if (ImGui::Checkbox("Enabled", &enabled)) bs->setEnabled(enabled);
-          if (ImGui::IsItemDeactivatedAfterEdit() && m_history && enabled != before)
-              m_history->record(std::make_unique<SetPhysicsConstraintEnabledCommand>(bsSp, before, enabled)); }
         drawConstraintCubeRef("Cube0", bs->m_cube0Name, "Cube0", bsSp);
         drawConstraintCubeRef("Cube1", bs->m_cube1Name, "Cube1", bsSp);
         drawConstraintAttachmentRef("Attachment0", bs->m_attachment0Name, "Attachment0", bs->m_cube0Name, bsSp);
@@ -2565,10 +2639,6 @@ void PropertiesPanel::onRender() {
         NoCollision* nc = static_cast<NoCollision*>(inst);
         auto ncSp = std::static_pointer_cast<NoCollision>(inst->shared_from_this());
         ImGui::SeparatorText("NoCollision");
-        { bool enabled = nc->Enabled; const bool before = enabled;
-          if (ImGui::Checkbox("Enabled", &enabled)) nc->setEnabled(enabled);
-          if (ImGui::IsItemDeactivatedAfterEdit() && m_history && enabled != before)
-              m_history->record(std::make_unique<SetPhysicsConstraintEnabledCommand>(ncSp, before, enabled)); }
         drawConstraintCubeRef("Cube0", nc->m_cube0Name, "Cube0", ncSp);
         drawConstraintCubeRef("Cube1", nc->m_cube1Name, "Cube1", ncSp);
     }
@@ -2578,10 +2648,6 @@ void PropertiesPanel::onRender() {
         Weld* weld = static_cast<Weld*>(inst);
         auto weldSp = std::static_pointer_cast<Weld>(inst->shared_from_this());
         ImGui::SeparatorText("Weld");
-        { bool enabled = weld->Enabled; const bool before = enabled;
-          if (ImGui::Checkbox("Enabled", &enabled)) weld->setEnabled(enabled);
-          if (ImGui::IsItemDeactivatedAfterEdit() && m_history && enabled != before)
-              m_history->record(std::make_unique<SetPhysicsConstraintEnabledCommand>(weldSp, before, enabled)); }
         drawConstraintCubeRef("Cube0", weld->m_cube0Name, "Cube0", weldSp);
         drawConstraintCubeRef("Cube1", weld->m_cube1Name, "Cube1", weldSp);
     }
@@ -2591,10 +2657,6 @@ void PropertiesPanel::onRender() {
         Motor* motor = static_cast<Motor*>(inst);
         auto motorSp = std::static_pointer_cast<Motor>(inst->shared_from_this());
         ImGui::SeparatorText("Motor");
-        { bool enabled = motor->Enabled; const bool before = enabled;
-          if (ImGui::Checkbox("Enabled", &enabled)) motor->setEnabled(enabled);
-          if (ImGui::IsItemDeactivatedAfterEdit() && m_history && enabled != before)
-              m_history->record(std::make_unique<SetPhysicsConstraintEnabledCommand>(motorSp, before, enabled)); }
 
         drawConstraintCubeRef("Cube0", motor->m_cube0Name, "Cube0", motorSp);
         drawConstraintCubeRef("Cube1", motor->m_cube1Name, "Cube1", motorSp);
@@ -2749,100 +2811,11 @@ void PropertiesPanel::onRender() {
     }
     if (inst->getClassName() == "CFrameValue") {
         ImGui::SeparatorText("CFrameValue");
-        auto* cv = static_cast<CFrameValue*>(inst);
-        static std::unordered_map<std::string, CFrame> s_cfBefore;
-        std::string key = "cfval_" + inst->Name;
-
-        auto applyCFrame = [&](const CFrame& v) {
-            YAML::Node n;
-            YAML::Node pos; pos.push_back(v.Position.x); pos.push_back(v.Position.y); pos.push_back(v.Position.z);
-            YAML::Node rot; rot.push_back(v.Rotation.x); rot.push_back(v.Rotation.y); rot.push_back(v.Rotation.z); rot.push_back(v.Rotation.w);
-            n["Position"] = pos; n["Rotation"] = rot;
-            inst->setProperty("Value", n);
-        };
-
-        ImGui::Text("Position");
-        ImGui::SameLine(80.0f);
-        {
-            float pos[3] = { cv->Value.Position.x, cv->Value.Position.y, cv->Value.Position.z };
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            bool changed = ImGui::DragFloat3("##cfpos", pos, 0.05f);
-            if (ImGui::IsItemActivated()) s_cfBefore[key + "_pos"] = cv->Value;
-            if (changed) { CFrame v = cv->Value; v.Position = Vector3(pos[0], pos[1], pos[2]); applyCFrame(v); }
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                m_history->record(std::make_unique<SetCFrameValueCommand>(
-                    inst->shared_from_this(), s_cfBefore[key + "_pos"], cv->Value));
-            }
-        }
-
-        ImGui::Text("Rotation");
-        ImGui::SameLine(80.0f);
-        {
-            Vector3 euler = cv->Value.Rotation.toEuler();
-            float rot[3] = { euler.x, euler.y, euler.z };
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            bool changed = ImGui::DragFloat3("##cfrot", rot, 1.0f, -360.0f, 360.0f, "%.1f");
-            if (ImGui::IsItemActivated()) s_cfBefore[key + "_rot"] = cv->Value;
-            if (changed) { CFrame v = cv->Value; v.Rotation = Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2])); applyCFrame(v); }
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                m_history->record(std::make_unique<SetCFrameValueCommand>(
-                    inst->shared_from_this(), s_cfBefore[key + "_rot"], cv->Value));
-            }
-        }
-
-        // 6値一括編集（pos + rot Euler度。コピペ用）
-        ImGui::Text("CFrame");
-        ImGui::SameLine(80.0f);
-        {
-            static char s_cvBuf[160] = {};
-            static bool s_cvEditing = false;
-            if (!s_cvEditing) {
-                Vector3 euler = cv->Value.Rotation.toEuler();
-                snprintf(s_cvBuf, sizeof(s_cvBuf), "%.3f, %.3f, %.3f, %.2f, %.2f, %.2f",
-                         cv->Value.Position.x, cv->Value.Position.y, cv->Value.Position.z,
-                         euler.x, euler.y, euler.z);
-            }
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            ImGui::InputText("##cfval6", s_cvBuf, sizeof(s_cvBuf));
-            if (ImGui::IsItemActivated()) { s_cvEditing = true; s_cfBefore[key + "_all"] = cv->Value; }
-            if (ImGui::IsItemDeactivatedAfterEdit()) {
-                float v[6];
-                if (sscanf(s_cvBuf, "%f , %f , %f , %f , %f , %f",
-                           &v[0], &v[1], &v[2], &v[3], &v[4], &v[5]) == 6) {
-                    CFrame after(Vector3(v[0], v[1], v[2]),
-                                 Quaternion::fromEuler(Vector3(v[3], v[4], v[5])));
-                    applyCFrame(after);
-                    if (m_history) {
-                        m_history->record(std::make_unique<SetCFrameValueCommand>(
-                            inst->shared_from_this(), s_cfBefore[key + "_all"], cv->Value));
-                    }
-                }
-            }
-            if (ImGui::IsItemDeactivated()) s_cvEditing = false;
-        }
+        renderSchemaInspector(inst, "CFrameValue", m_history, m_picker);
     }
     if (inst->getClassName() == "QuaternionValue") {
         ImGui::SeparatorText("QuaternionValue");
-        auto* qv = static_cast<QuaternionValue*>(inst);
-        static std::unordered_map<std::string, Quaternion> s_qBefore;
-        std::string key = "qval_" + inst->Name;
-
-        ImGui::Text("Value");
-        ImGui::SameLine(80.0f);
-        Vector3 euler = qv->Value.toEuler();
-        float rot[3] = { euler.x, euler.y, euler.z };
-        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-        bool changed = ImGui::DragFloat3("##qrot", rot, 1.0f, -360.0f, 360.0f, "%.1f");
-        if (ImGui::IsItemActivated()) s_qBefore[key] = qv->Value;
-        if (changed) {
-            Quaternion v = Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2]));
-            YAML::Node n; n.push_back(v.x); n.push_back(v.y); n.push_back(v.z); n.push_back(v.w);
-            inst->setProperty("Value", n);
-        }
-        if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-            m_history->record(std::make_unique<SetQuaternionValueCommand>(
-                inst->shared_from_this(), s_qBefore[key], qv->Value));
-        }
+        renderSchemaInspector(inst, "QuaternionValue", m_history, m_picker);
     }
     if (inst->getClassName() == "ObjectValue") {
         ImGui::SeparatorText("ObjectValue");

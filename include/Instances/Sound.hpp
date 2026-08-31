@@ -49,6 +49,7 @@ public:
     float getSpeed() const;
     void  setPreservePitch(bool b);
     bool  getPreservePitch() const;
+    void  setSoundGroup(const std::string& group);
 
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
     virtual std::string getClassName() override { return "Sound"; }

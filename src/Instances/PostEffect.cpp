@@ -1,4 +1,18 @@
 #include <include/Instances/PostEffect.hpp>
+#include <include/Core/PropertyRegistry.hpp>
+
+static const bool s_postEffectRegistered = []{
+    using namespace PropertyRegistry;
+    registerClass("PostEffect", {
+        field<&PostEffect::Enabled>  ("Enabled"),
+        field<&PostEffect::Type>     ("Type"),
+        field<&PostEffect::ZIndex>   ("ZIndex"),
+        field<&PostEffect::Intensity>("Intensity"),
+        field<&PostEffect::Param1>   ("Param1"),
+        field<&PostEffect::Param2>   ("Param2"),
+    });
+    return true;
+}();
 
 PostEffect::PostEffect() : Instance("PostEffect") {}
 
@@ -11,29 +25,11 @@ bool PostEffect::IsA(std::string className) {
 
 std::shared_ptr<Instance> PostEffect::clone() const {
     auto copy = std::make_shared<PostEffect>();
-    copy->Enabled   = Enabled;
-    copy->Type      = Type;
-    copy->ZIndex    = ZIndex;
-    copy->Intensity = Intensity;
-    copy->Param1    = Param1;
-    copy->Param2    = Param2;
+    PropertyRegistry::cloneFields(this, copy.get(), "PostEffect");
     return copy;
 }
 
 void PostEffect::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "Enabled") {
-        Enabled = value.as<bool>();
-    } else if (name == "Type") {
-        Type = static_cast<PostEffectKind>(value.as<int>());
-    } else if (name == "ZIndex") {
-        ZIndex = value.as<int>();
-    } else if (name == "Intensity") {
-        Intensity = value.as<float>();
-    } else if (name == "Param1") {
-        Param1 = value.as<float>();
-    } else if (name == "Param2") {
-        Param2 = value.as<float>();
-    } else {
-        Instance::setProperty(name, value);
-    }
+    if (PropertyRegistry::loadProperty(this, "PostEffect", name, value)) return;
+    Instance::setProperty(name, value);
 }

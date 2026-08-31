@@ -1,5 +1,6 @@
 #include "Instances/Sound.hpp"
 #include "Core/TimeStretchNode.hpp"
+#include <include/Core/PropertyRegistry.hpp>
 #include <Util/Logger.hpp>
 #include <Util/AssetGuard.hpp>
 #include <Util/AssetPath.hpp>
@@ -31,6 +32,26 @@ namespace {
 #endif
     }
 }
+
+static const bool s_soundRegistered = [] {
+    using namespace PropertyRegistry;
+    registerClass("Sound", "Spatial", {
+        custom("ContentPath", PropType::String,
+            [](Instance* instance) {
+                return PropValue(static_cast<Sound*>(instance)->getContentPath());
+            },
+            [](Instance* instance, const PropValue& value) {
+                static_cast<Sound*>(instance)->loadFromFile(std::get<std::string>(value));
+            }).filePath("Audio (*.mp3;*.wav;*.ogg)", "*.mp3;*.wav;*.ogg").luaReadOnly(),
+        field<&Sound::autoPlay>("AutoPlay"),
+        method_prop<&Sound::isLooping, &Sound::setLooping>("Looped"),
+        method_prop<&Sound::getSoundGroup, &Sound::setSoundGroup>("SoundGroup").luaReadOnly(),
+        method_prop<&Sound::getVolume, &Sound::setVolume>("Volume", 0.0f, 8.0f, 0.01f),
+        method_prop<&Sound::getSpeed, &Sound::setSpeed>("Speed", 0.25f, 4.0f, 0.01f),
+        method_prop<&Sound::getPreservePitch, &Sound::setPreservePitch>("PreservePitch"),
+    });
+    return true;
+}();
 
 Sound::Sound(AudioService& service, const std::string& path)
     : Spatial(Vector3(0,0,0), Vector3(1,1,1), "Sound"),
@@ -97,6 +118,15 @@ void Sound::setPreservePitch(bool b) {
 }
 bool Sound::getPreservePitch() const { return m_preservePitch; }
 
+void Sound::setSoundGroup(const std::string& group) {
+    soundGroup = group;
+    if (m_timeStretchNode) {
+        resetTimeStretchProcessing();
+    } else {
+        updatePlaybackRouting();
+    }
+}
+
 void Sound::loadFromFile(const std::string& path) {
     if (path.empty()) {
         if (loaded) {
@@ -130,26 +160,8 @@ void Sound::loadFromFile(const std::string& path) {
 }
 
 void Sound::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "ContentPath") {
-        loadFromFile(value.as<std::string>());
-    } else if (name == "Looped") {
-        setLooping(value.as<bool>());
-    } else if (name == "SoundGroup") {
-        this->soundGroup = value.as<std::string>();
-        if (m_timeStretchNode) {
-            resetTimeStretchProcessing();
-        } else {
-            updatePlaybackRouting();
-        }
-    } else if (name == "AutoPlay") {
-        autoPlay = value.as<bool>();
-    } else if (name == "Volume") {
-        setVolume(value.as<float>());
-    } else if (name == "Speed") {
-        setSpeed(value.as<float>());
-    } else if (name == "PreservePitch") {
-        setPreservePitch(value.as<bool>());
-    } else if (name == "Playing") {
+    if (PropertyRegistry::loadProperty(this, "Sound", name, value)) return;
+    if (name == "Playing") {
         if (value.as<bool>()) {
             play();
             std::cout << "[DEBUG] Sound play triggered via setProperty\n";

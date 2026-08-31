@@ -1,7 +1,33 @@
 #include <include/Instances/Decal.hpp>
 #include <include/Core/Renderer.hpp>
+#include <include/Core/PropertyRegistry.hpp>
 
 static const char* faceNames[] = { "Front", "Back", "Top", "Bottom", "Right", "Left" };
+
+static const bool s_decalRegistered = []{
+    using namespace PropertyRegistry;
+    registerClass("Decal", "Instance", {
+        custom("Texture", PropType::String,
+            [](Instance* instance) {
+                return PropValue(static_cast<Decal*>(instance)->texturePath);
+            },
+            [](Instance* instance, const PropValue& value) {
+                static_cast<Decal*>(instance)->setTexturePath(std::get<std::string>(value));
+            }).omitEmpty().filePath("Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"),
+        custom("Face", PropType::Int,
+            [](Instance* instance) {
+                return PropValue(static_cast<int>(static_cast<Decal*>(instance)->face));
+            },
+            [](Instance* instance, const PropValue& value) {
+                static_cast<Decal*>(instance)->setFace(static_cast<Face>(std::get<int>(value)));
+            }),
+        field<&Decal::Color>("Color"),
+        field<&Decal::UVCenter>("UVCenter"),
+        field<&Decal::UVRadius>("UVRadius"),
+        field<&Decal::Mode>("Mode"),
+    });
+    return true;
+}();
 
 Decal::Decal(unsigned int textureID, Face targetFace) 
     : Instance("Decal_" + std::string(faceNames[(int)targetFace])), TextureID(textureID), face(targetFace) {}
@@ -19,12 +45,9 @@ bool Decal::IsA(std::string className) {
 
 std::shared_ptr<Instance> Decal::clone() const {
     auto copy = std::make_shared<Decal>(this->TextureID, this->face);
-    copy->Name        = this->Name;
-    copy->texturePath = this->texturePath;
-    copy->Color       = this->Color;
-    copy->UVCenter    = this->UVCenter;
-    copy->UVRadius    = this->UVRadius;
-    copy->Mode        = this->Mode;
+    copy->Name = this->Name;
+    PropertyRegistry::cloneFields(this, copy.get(), "Decal");
+    copy->TextureID = this->TextureID;
     return copy;
 }
 
@@ -46,27 +69,6 @@ void Decal::setTexturePath(const std::string& path) {
 }
 
 void Decal::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "Texture") {
-        setTexturePath(value.as<std::string>());
-    } else if (name == "Face") {
-        setFace(static_cast<Face>(value.as<int>()));
-    } else if (name == "Color") {
-        Color4 c;
-        c.r = value[0].as<float>();
-        c.g = value[1].as<float>();
-        c.b = value[2].as<float>();
-        c.a = value[3].as<float>();
-        this->Color = c;
-    } else if (name == "UVCenter") {
-        Vector2 v;
-        v.x = value[0].as<float>();
-        v.y = value[1].as<float>();
-        this->UVCenter = v;
-    } else if (name == "UVRadius") {
-        this->UVRadius = value.as<float>();
-    } else if (name == "Mode") {
-        this->Mode = static_cast<DecalMode>(value.as<int>());
-    } else {
-        Instance::setProperty(name, value);
-    }
+    if (PropertyRegistry::loadProperty(this, "Decal", name, value)) return;
+    Instance::setProperty(name, value);
 }

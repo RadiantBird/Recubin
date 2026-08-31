@@ -1,7 +1,53 @@
 #include <Instances/Script.hpp>
 #include <Instances/System.hpp>
 #include <Core/FileLoader.hpp>
+#include <Core/PropertyRegistry.hpp>
 #include <Util/Logger.hpp>
+
+namespace {
+void setScriptPath(Script& script, const std::string& path) {
+    script.Path = path;
+    // .luauc files are pre-compiled bytecode — load as binary
+    const bool isBytecode = script.Path.size() >= 6 &&
+                            script.Path.rfind(".luauc") == script.Path.size() - 6;
+    if (isBytecode) {
+        auto bytes = FileLoader::readBinary(script.Path);
+        if (!bytes.empty()) {
+            script.Source = std::string(bytes.begin(), bytes.end());
+            script.isPrecompiled = true;
+            std::cout << "Loaded bytecode script from " << script.Path << "\n";
+        } else {
+            RCBN_WARN("Failed to load bytecode: " << script.Path);
+            script.Source = "print('Error: Failed to load bytecode: " + script.Path + "')";
+            script.isPrecompiled = false;
+        }
+        return;
+    }
+
+    script.Source = FileLoader::readText(script.Path);
+    script.isPrecompiled = false;
+    if (script.Source.empty()) {
+        RCBN_WARN("Failed to load script source: " << script.Path);
+        script.Source = "print('Error: Failed to load script source: " + script.Path + "')";
+    }
+}
+
+const bool s_scriptRegistered = [] {
+    using namespace PropertyRegistry;
+    registerClass("Script", "Instance", {
+        field<&Script::Enabled>("Enabled"),
+        custom("Path", PropType::String,
+            [](Instance* instance) -> PropValue {
+                return static_cast<Script*>(instance)->Path;
+            },
+            [](Instance* instance, const PropValue& value) {
+                setScriptPath(*static_cast<Script*>(instance), std::get<std::string>(value));
+            }).yaml("ContentPath").filePath("Luau Script (*.luau;*.lua;*.luauc)",
+                                            "*.luau;*.lua;*.luauc").noClone(),
+    });
+    return true;
+}();
+} // namespace
 
 Script::Script(string path) : Instance("Script"), Coroutine(nullptr), Path(path) {
     if (!path.empty()) {
@@ -16,35 +62,14 @@ Script::Script(string path) : Instance("Script"), Coroutine(nullptr), Path(path)
 }
 
 void Script::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "Enabled") {
-        this->Enabled = value.as<bool>();
-    } else if (name == "Source" || name == "Path" || name == "ContentPath") {
-        this->Path = value.as<std::string>();
-        // .luauc files are pre-compiled bytecode — load as binary
-        bool isBytecode = this->Path.size() >= 6 &&
-                          this->Path.rfind(".luauc") == this->Path.size() - 6;
-        if (isBytecode) {
-            auto bytes = FileLoader::readBinary(this->Path);
-            if (!bytes.empty()) {
-                this->Source = std::string(bytes.begin(), bytes.end());
-                this->isPrecompiled = true;
-                std::cout << "Loaded bytecode script from " << this->Path << "\n";
-            } else {
-                RCBN_WARN("Failed to load bytecode: " << this->Path);
-                this->Source = "print('Error: Failed to load bytecode: " + this->Path + "')";
-                this->isPrecompiled = false;
-            }
-        } else {
-            this->Source = FileLoader::readText(this->Path);
-            this->isPrecompiled = false;
-            if (this->Source.empty()) {
-                RCBN_WARN("Failed to load script source: " << this->Path);
-                this->Source = "print('Error: Failed to load script source: " + this->Path + "')";
-            }
-        }
-    } else {
-        Instance::setProperty(name, value);
+    if (PropertyRegistry::loadProperty(this, "Script", name, value)) return;
+
+    // Path と Source は旧YAMLの別名。ContentPathは上のスキーマ定義が受け持つ。
+    if (name == "Source" || name == "Path") {
+        setScriptPath(*this, value.as<std::string>());
+        return;
     }
+    Instance::setProperty(name, value);
 }
 
 // 実行中のコルーチンを切り離す。次のexecute()呼び出しがCoroutine==nullptrを
@@ -68,9 +93,10 @@ void Script::restart() {
 std::shared_ptr<Instance> Script::clone() const {
     auto copy = std::make_shared<Script>();
     copy->Name          = Name;
+    PropertyRegistry::cloneFields(this, copy.get(), "Script");
+    // Path はclone時に再読込せず、元のソース／bytecode状態をそのまま復元する。
     copy->Source        = Source;
     copy->Path          = Path;
-    copy->Enabled       = Enabled;
     copy->isPrecompiled = isPrecompiled;
     // 実行時状態(Coroutine/Sleeping/Completed/lastWorkspace等)は複製せず新規のまま
     for (auto const& [n, child] : children)

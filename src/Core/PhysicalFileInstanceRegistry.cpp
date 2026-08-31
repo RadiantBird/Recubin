@@ -27,7 +27,7 @@ void ensureBaseSchemaRegistered() {
                 .yaml("ContentPath")
                 .omitEmpty()
                 .luaReadOnly()
-                .noEditor(),
+                .filePath({}, {}),
         });
         return true;
     }();

@@ -1,5 +1,6 @@
 #include <include/Core/Terrain.hpp>
 #include <include/Core/TerrainStreamer.hpp>
+#include <include/Core/PropertyRegistry.hpp>
 #include <Instances/Workspace.hpp>
 #include <Util/AssetPath.hpp>
 #include <vector>
@@ -595,6 +596,32 @@ void buildChunkPhysics(Chunk& chunk, Physics& physics, Instance* userData)
 //  Terrain Instance
 // ================================================================== //
 
+// Terrain の YAML 読込・clone・複数選択Propertiesが共有するプロパティ定義。
+// Enabled と DataPath は streamer のライフサイクルに副作用を持つため、
+// 常に専用setterを経由する。
+static const bool s_terrainRegistered = [] {
+    using namespace PropertyRegistry;
+    registerClass("Terrain", "Instance", {
+        custom("Enabled", PropType::Bool,
+            [](Instance* instance) {
+                return PropValue(static_cast<Terrain*>(instance)->Enabled);
+            },
+            [](Instance* instance, const PropValue& value) {
+                static_cast<Terrain*>(instance)->setEnabled(std::get<bool>(value));
+            }),
+        custom("DataPath", PropType::String,
+            [](Instance* instance) {
+                return PropValue(static_cast<Terrain*>(instance)->DataPath);
+            },
+            [](Instance* instance, const PropValue& value) {
+                static_cast<Terrain*>(instance)->setDataPath(std::get<std::string>(value));
+            }).luaReadOnly(),
+        field<&Terrain::Seed>("Seed"),
+        field<&Terrain::Flat>("Flat"),
+    });
+    return true;
+}();
+
 Terrain::Terrain() : Instance("Terrain") {}
 Terrain::~Terrain() { releaseStreamer(); }
 
@@ -606,17 +633,8 @@ bool Terrain::IsA(std::string className) {
 }
 
 void Terrain::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "Enabled") {
-        setEnabled(value.as<bool>());
-    } else if (name == "DataPath") {
-        setDataPath(value.as<std::string>());
-    } else if (name == "Seed") {
-        Seed = value.as<int>();
-    } else if (name == "Flat") {
-        Flat = value.as<bool>();
-    } else {
-        Instance::setProperty(name, value);
-    }
+    if (PropertyRegistry::loadProperty(this, "Terrain", name, value)) return;
+    Instance::setProperty(name, value);
 }
 
 void Terrain::setEnabled(bool enabled) {
@@ -660,10 +678,7 @@ void Terrain::onAncestorChanged() {
 std::shared_ptr<Instance> Terrain::clone() const {
     auto result = std::make_shared<Terrain>();
     result->Name = Name;
-    result->Enabled = Enabled;
-    result->DataPath = DataPath;
-    result->Seed = Seed;
-    result->Flat = Flat;
+    PropertyRegistry::cloneFields(this, result.get(), "Terrain");
     for (const auto& [name, child] : children) {
         (void)name;
         result->addChild(child->clone());

@@ -1,7 +1,18 @@
 #include <Instances/Workspace.hpp>
 #include <Core/Physics.hpp>
+#include <Core/PropertyRegistry.hpp>
 #include <Util/Logger.hpp>
 #include <algorithm>
+
+static const bool s_workspaceRegistered = []{
+    using namespace PropertyRegistry;
+    registerClass("Workspace", {
+        field<&Workspace::Gravity>("Gravity"),
+        field<&Workspace::Wind>("Wind"),
+        field<&Workspace::PhysicsEnabled>("PhysicsEnabled"),
+    });
+    return true;
+}();
 
 void Workspace::registerScript(const std::shared_ptr<Instance>& s) {
     scripts.push_back(s);
@@ -63,23 +74,8 @@ bool Workspace::IsA(std::string className) {
 }
 
 void Workspace::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "Gravity") {
-        if (value.IsSequence() && value.size() == 3) {
-            Gravity.x = value[0].as<float>();
-            Gravity.y = value[1].as<float>();
-            Gravity.z = value[2].as<float>();
-        }
-    } else if (name == "Wind") {
-        if (value.IsSequence() && value.size() == 3) {
-            Wind.x = value[0].as<float>();
-            Wind.y = value[1].as<float>();
-            Wind.z = value[2].as<float>();
-        }
-    } else if (name == "PhysicsEnabled") {
-        PhysicsEnabled = value.as<bool>();
-    } else {
-        Instance::setProperty(name, value);
-    }
+    if (PropertyRegistry::loadProperty(this, "Workspace", name, value)) return;
+    Instance::setProperty(name, value);
 }
 
 void Workspace::initPhysics() {
@@ -90,4 +86,3 @@ void Workspace::initPhysics() {
     if (!m_ownedPhysics->isAvailable())
         RCBN_ERROR("Workspace physics backend is unavailable");
 }
-

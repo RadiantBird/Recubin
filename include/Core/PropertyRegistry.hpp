@@ -25,13 +25,18 @@
 #include "include/Instances/Instance.hpp"
 #include "include/Math/Vector3.hpp"
 #include "include/Math/Vector2.hpp"
+#include "include/Math/CFrame.hpp"
+#include "include/Math/Quaternion.hpp"
 #include "include/Util/Color4.hpp"
 
-enum class PropType { Float, Int, Bool, String, Vec3, Vec2, Color4, Enum };
+enum class PropType { Float, Int, Bool, String, Vec3, Vec2, Color4, Enum, CFrame, Quaternion };
 enum class PropKind { Field, Signal };
+// CoreはImGuiへ依存させず、Editorが選ぶ操作種別だけを宣言する。
+enum class EditorWidget { Auto, FilePath, InstanceReference };
 
 // 値の正規表現（Enum は int として格納）
-using PropValue = std::variant<float, int, bool, std::string, Vector3, Vector2, Color4>;
+using PropValue = std::variant<float, int, bool, std::string, Vector3, Vector2, Color4,
+                               CFrame, Quaternion>;
 
 struct PropertyDesc {
     std::string_view name;
@@ -57,6 +62,10 @@ struct PropertyDesc {
     float lo = 0.0f, hi = 0.0f, step = 0.1f;                     // エディター用レンジ
     std::string_view separator{};     // 空でなければ、このプロパティの直前に ImGui::SeparatorText を描画する（"Appearance"等）
     std::string_view instanceRefClass{}; // 非空なら指定IsA型だけを受けるInstance参照文字列
+    EditorWidget editorWidget = EditorWidget::Auto;
+    std::string_view editorDialogLabel{};
+    std::string_view editorDialogFilter{};
+    std::string_view multiEditKey{};  // 空ならname/typeを複数選択の互換キーにする
 
     std::string_view effYamlKey() const { return yamlKey.empty() ? name : yamlKey; }
 
@@ -75,6 +84,13 @@ struct PropertyDesc {
     PropertyDesc& live(std::function<void(void*, const PropValue&)> fn) { liveSet = std::move(fn); return *this; }
     // エディターでこのプロパティの直前にセクション見出しを描画する
     PropertyDesc& group(std::string_view groupName) { separator = groupName; return *this; }
+    PropertyDesc& filePath(std::string_view dialogLabel, std::string_view dialogFilter) {
+        editorWidget = EditorWidget::FilePath;
+        editorDialogLabel = dialogLabel;
+        editorDialogFilter = dialogFilter;
+        return *this;
+    }
+    PropertyDesc& multiKey(std::string_view key) { multiEditKey = key; return *this; }
 };
 
 namespace PropertyRegistry {
@@ -99,6 +115,8 @@ constexpr PropType propTypeOf() {
     else if constexpr (std::is_same_v<V, Vector3>)     return PropType::Vec3;
     else if constexpr (std::is_same_v<V, Vector2>)     return PropType::Vec2;
     else if constexpr (std::is_same_v<V, Color4>)      return PropType::Color4;
+    else if constexpr (std::is_same_v<V, CFrame>)      return PropType::CFrame;
+    else if constexpr (std::is_same_v<V, Quaternion>)  return PropType::Quaternion;
     else if constexpr (std::is_enum_v<V>)              return PropType::Int;  // 数値表現の enum
     else if constexpr (std::is_integral_v<V>)          return PropType::Int;
     else                                               return PropType::Float;
@@ -112,6 +130,8 @@ template<typename V> PropValue toPV(const V& v) {
     else if constexpr (std::is_same_v<V, Vector3>)     return v;
     else if constexpr (std::is_same_v<V, Vector2>)     return v;
     else if constexpr (std::is_same_v<V, Color4>)      return v;
+    else if constexpr (std::is_same_v<V, CFrame>)      return v;
+    else if constexpr (std::is_same_v<V, Quaternion>)  return v;
     else if constexpr (std::is_enum_v<V>)              return static_cast<int>(v);
     else if constexpr (std::is_integral_v<V>)          return static_cast<int>(v);
     else                                               return static_cast<float>(v);
@@ -122,6 +142,8 @@ template<typename V> V fromPV(const PropValue& pv) {
     else if constexpr (std::is_same_v<V, Vector3>)     return std::get<Vector3>(pv);
     else if constexpr (std::is_same_v<V, Vector2>)     return std::get<Vector2>(pv);
     else if constexpr (std::is_same_v<V, Color4>)      return std::get<Color4>(pv);
+    else if constexpr (std::is_same_v<V, CFrame>)      return std::get<CFrame>(pv);
+    else if constexpr (std::is_same_v<V, Quaternion>)  return std::get<Quaternion>(pv);
     else if constexpr (std::is_enum_v<V>)              return static_cast<V>(std::get<int>(pv));
     else if constexpr (std::is_integral_v<V>)          return static_cast<V>(std::get<int>(pv));
     else                                               return static_cast<V>(std::get<float>(pv));
@@ -153,6 +175,7 @@ PropertyDesc instanceRefField(std::string_view name, std::string_view targetClas
                   "instanceRefField requires a std::string member");
     PropertyDesc d = field<M>(name);
     d.instanceRefClass = targetClass;
+    d.editorWidget = EditorWidget::InstanceReference;
     return d;
 }
 
@@ -235,6 +258,10 @@ std::vector<std::string_view> registeredClassNames();
 const std::vector<PropertyDesc>& schemaFor(std::string_view className);
 // 基底→派生の順に集約（YAML/clone/editor 用）
 std::vector<const PropertyDesc*> collectSchema(std::string_view className);
+// 実行時の IsA() に基づき、直接のクラス登録が無い派生型も含めて
+// 適用可能なスキーマを基底→派生順で集約する。Properties/置換などの
+// 実行時型ベースの処理はこの入口を使う。
+std::vector<const PropertyDesc*> collectApplicableSchema(Instance* obj);
 
 bool loadProperty(Instance* obj, std::string_view className,
                   const std::string& name, const YAML::Node& value);

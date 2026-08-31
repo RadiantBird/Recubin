@@ -37,6 +37,15 @@ public:
     void setProperty(const std::string& name, const YAML::Node& value) override;
     std::shared_ptr<Instance> clone() const override;
 
+    float getLength() const { return Length; }
+    void setLength(float value);
+    float getSpeed() const { return Speed; }
+    void setSpeed(float value);
+    bool getLooped() const { return Looped; }
+    void setLooped(bool value);
+    std::string getContentPath() const { return ContentPath; }
+    void setContentPath(const std::string& value);
+
     // 指定時刻tにおけるトラックのCFrameを補間して返す。範囲外はクランプ。
     CFrame evaluateTrack(const AnimTrack& track, float t) const;
 

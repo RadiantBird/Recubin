@@ -674,33 +674,29 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         }
         if (inst->getClassName() == "Animation") {
             const Animation* anim = static_cast<const Animation*>(inst);
-            out << YAML::Key << "Length" << YAML::Value << anim->Length;
-            out << YAML::Key << "Speed"  << YAML::Value << anim->Speed;
-            out << YAML::Key << "Looped" << YAML::Value << anim->Looped;
-            if (!anim->ContentPath.empty()) {
-                // 外部資産は参照だけを保存する。読込失敗中でも
-                // ユーザーが設定したパスを内蔵Clipで上書きしない。
-                out << YAML::Key << "ContentPath" << YAML::Value << anim->ContentPath;
-            } else if (const auto* clip = anim->getClip()) {
-                // 旧Scene埋め込みAnimationの互換保存。データの実体は
-                // AnimationClip::tracksのみで、別vectorは持たない。
-                out << YAML::Key << "Rig" << YAML::Value << clip->rig;
-                out << YAML::Key << "Space" << YAML::Value << clip->space;
-                out << YAML::Key << "Tracks" << YAML::Value << YAML::BeginSeq;
-                for (const auto& tr : clip->tracks) {
-                    out << YAML::BeginMap << YAML::Key << "PartName" << YAML::Value << tr.targetName;
-                    out << YAML::Key << "Keyframes" << YAML::Value << YAML::BeginSeq;
-                    for (const auto& kf : tr.keyframes) {
-                        out << YAML::BeginMap << YAML::Key << "Time" << YAML::Value << kf.time
-                            << YAML::Key << "Position" << YAML::Value << YAML::Flow << YAML::BeginSeq
-                            << kf.delta.Position.x << kf.delta.Position.y << kf.delta.Position.z << YAML::EndSeq
-                            << YAML::Key << "Rotation" << YAML::Value << YAML::Flow << YAML::BeginSeq
-                            << kf.delta.Rotation.x << kf.delta.Rotation.y << kf.delta.Rotation.z << kf.delta.Rotation.w << YAML::EndSeq
-                            << YAML::Key << "Easing" << YAML::Value << static_cast<int>(kf.easing) << YAML::EndMap;
+            PropertyRegistry::saveProperties(out, inst, "Animation");
+            if (anim->ContentPath.empty()) {
+                if (const auto* clip = anim->getClip()) {
+                    // 旧Scene埋め込みAnimationの互換保存。データの実体は
+                    // AnimationClip::tracksのみで、別vectorは持たない。
+                    out << YAML::Key << "Rig" << YAML::Value << clip->rig;
+                    out << YAML::Key << "Space" << YAML::Value << clip->space;
+                    out << YAML::Key << "Tracks" << YAML::Value << YAML::BeginSeq;
+                    for (const auto& tr : clip->tracks) {
+                        out << YAML::BeginMap << YAML::Key << "PartName" << YAML::Value << tr.targetName;
+                        out << YAML::Key << "Keyframes" << YAML::Value << YAML::BeginSeq;
+                        for (const auto& kf : tr.keyframes) {
+                            out << YAML::BeginMap << YAML::Key << "Time" << YAML::Value << kf.time
+                                << YAML::Key << "Position" << YAML::Value << YAML::Flow << YAML::BeginSeq
+                                << kf.delta.Position.x << kf.delta.Position.y << kf.delta.Position.z << YAML::EndSeq
+                                << YAML::Key << "Rotation" << YAML::Value << YAML::Flow << YAML::BeginSeq
+                                << kf.delta.Rotation.x << kf.delta.Rotation.y << kf.delta.Rotation.z << kf.delta.Rotation.w << YAML::EndSeq
+                                << YAML::Key << "Easing" << YAML::Value << static_cast<int>(kf.easing) << YAML::EndMap;
+                        }
+                        out << YAML::EndSeq << YAML::EndMap;
                     }
-                    out << YAML::EndSeq << YAML::EndMap;
+                    out << YAML::EndSeq;
                 }
-                out << YAML::EndSeq;
             }
         }
         if (inst->getClassName() == "Lighting") {
@@ -900,26 +896,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             NumberValue* nv = static_cast<NumberValue*>(inst);
             out << YAML::Key << "Value" << YAML::Value << nv->Value;
         }
-        if (inst->getClassName() == "QuaternionValue") {
-            QuaternionValue* qv = static_cast<QuaternionValue*>(inst);
-            out << YAML::Key << "Value" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << qv->Value.x << qv->Value.y << qv->Value.z << qv->Value.w
-                << YAML::EndSeq;
-        }
-        if (inst->getClassName() == "CFrameValue") {
-            CFrameValue* cv = static_cast<CFrameValue*>(inst);
-            out << YAML::Key << "Value" << YAML::Value << YAML::BeginMap;
-            out << YAML::Key << "Position" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << cv->Value.Position.x << cv->Value.Position.y << cv->Value.Position.z
-                << YAML::EndSeq;
-            out << YAML::Key << "Rotation" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << cv->Value.Rotation.x << cv->Value.Rotation.y << cv->Value.Rotation.z << cv->Value.Rotation.w
-                << YAML::EndSeq;
-            out << YAML::EndMap;
-        }
+        if (inst->getClassName() == "QuaternionValue") PropertyRegistry::saveProperties(out, inst, "QuaternionValue");
+        if (inst->getClassName() == "CFrameValue") PropertyRegistry::saveProperties(out, inst, "CFrameValue");
         if (inst->getClassName() == "ObjectValue") {
             ObjectValue* ov = static_cast<ObjectValue*>(inst);
             ov->refreshRefName();

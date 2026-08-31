@@ -4,6 +4,7 @@
 #include <Instances/LiquidCube.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/LocalScript.hpp>
+#include <Instances/ModuleScript.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Instances/Cube.hpp>
 #include <Instances/Humanoid.hpp>
@@ -40,6 +41,10 @@
 #include <Instances/SurfaceMark.hpp>
 #include <Instances/Highlight.hpp>
 #include <Instances/IntValue.hpp>
+#include <Instances/CFrameValue.hpp>
+#include <Instances/QuaternionValue.hpp>
+#include <Instances/Decal.hpp>
+#include <Instances/Texture.hpp>
 #include <Util/YamlLoadResult.hpp>
 #include <stb_image.h>
 
@@ -8977,6 +8982,292 @@ static int runPhysicalFileInstanceRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runPropertySchemaRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[PropertySchema] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    const std::array<std::pair<std::string_view, std::shared_ptr<PhysicsConstraint>>, 6>
+        constraints = {{{"Rope", std::make_shared<Rope>()},
+                        {"Rod", std::make_shared<Rod>()},
+                        {"BallSocket", std::make_shared<BallSocket>()},
+                        {"Weld", std::make_shared<Weld>()},
+                        {"Motor", std::make_shared<Motor>()},
+                        {"NoCollision", std::make_shared<NoCollision>()}}};
+    const auto findEnabled = [](const std::vector<const PropertyDesc*>& schema) {
+        return std::find_if(schema.begin(), schema.end(),
+            [](const PropertyDesc* desc) { return desc && desc->name == "Enabled"; });
+    };
+
+    for (const auto& [expectedClass, constraint] : constraints) {
+        const auto schema = PropertyRegistry::collectApplicableSchema(constraint.get());
+        const auto enabled = findEnabled(schema);
+        const size_t enabledCount = std::count_if(schema.begin(), schema.end(),
+            [](const PropertyDesc* desc) { return desc && desc->name == "Enabled"; });
+        expect(constraint->getClassName() == expectedClass,
+               std::string(expectedClass) + " constraint instance is covered");
+        expect(enabled != schema.end() && (*enabled)->type == PropType::Bool &&
+                   (*enabled)->get && (*enabled)->set && enabledCount == 1,
+               std::string(expectedClass) +
+                   " inherits one editable PhysicsConstraint.Enabled schema");
+        if (enabled == schema.end()) continue;
+
+        const PropValue before = PropertyRegistry::readValue(constraint.get(), **enabled);
+        expect(std::holds_alternative<bool>(before) && std::get<bool>(before),
+               std::string(expectedClass) + " Enabled schema reads its default value");
+        SetPropertyCommand command(constraint, *enabled, before, PropValue(false));
+        command.execute();
+        expect(!constraint->Enabled,
+               std::string(expectedClass) +
+                   " generic property command executes the Enabled setter");
+        command.undo();
+        expect(constraint->Enabled,
+               std::string(expectedClass) +
+                   " generic property command undo restores Enabled");
+    }
+
+    // PropertiesPanel の和集合表示は ImGui に依存するため、ここではその入力となる
+    // スキーマ可用性だけを検証する。Rope の Enabled は混在選択でも 1/2 件で残る。
+    auto cube = std::make_shared<Folder>();
+    const std::array<Instance*, 2> partialSelection = {
+        constraints.front().second.get(), cube.get()};
+    size_t enabledSupportCount = 0;
+    for (Instance* instance : partialSelection) {
+        const auto schema = PropertyRegistry::collectApplicableSchema(instance);
+        if (findEnabled(schema) != schema.end()) ++enabledSupportCount;
+    }
+    expect(enabledSupportCount == 1,
+           "partial Rope/Cube selection retains Enabled schema availability for 1/2 targets");
+
+    const std::array<std::pair<std::string_view, std::shared_ptr<Script>>, 3> scripts = {{
+        {"Script", std::make_shared<Script>()},
+        {"LocalScript", std::make_shared<LocalScript>()},
+        {"ModuleScript", std::make_shared<ModuleScript>()},
+    }};
+    const auto findProperty = [](const std::vector<const PropertyDesc*>& schema,
+                                 std::string_view name) {
+        return std::find_if(schema.begin(), schema.end(), [name](const PropertyDesc* desc) {
+            return desc && desc->name == name;
+        });
+    };
+
+    for (const auto& [expectedClass, script] : scripts) {
+        const auto schema = PropertyRegistry::collectApplicableSchema(script.get());
+        const auto enabled = findProperty(schema, "Enabled");
+        const auto path = findProperty(schema, "Path");
+        expect(script->getClassName() == expectedClass,
+               std::string(expectedClass) + " script instance is covered");
+        expect(enabled != schema.end() && (*enabled)->type == PropType::Bool &&
+                   (*enabled)->get && (*enabled)->set,
+               std::string(expectedClass) +
+                   " inherits editable Script.Enabled schema");
+        expect(path != schema.end() && (*path)->type == PropType::String &&
+                   (*path)->get && (*path)->set && (*path)->effYamlKey() == "ContentPath",
+               std::string(expectedClass) +
+                   " inherits Script.Path schema with ContentPath YAML key");
+        if (enabled == schema.end()) continue;
+
+        SetPropertyCommand command(script, *enabled,
+                                   PropertyRegistry::readValue(script.get(), **enabled),
+                                   PropValue(false));
+        command.execute();
+        expect(!script->Enabled,
+               std::string(expectedClass) + " generic property command disables Enabled");
+        command.undo();
+        expect(script->Enabled,
+               std::string(expectedClass) + " generic property command restores Enabled");
+    }
+
+    const auto scriptPath = std::filesystem::temp_directory_path() /
+                            "recubin_property_schema_script.luau";
+    {
+        std::ofstream out(scriptPath, std::ios::binary | std::ios::trunc);
+        out << "return 'property-schema-script'";
+    }
+    auto aliasScript = std::make_shared<Script>();
+    const std::string scriptPathString = scriptPath.string();
+    YAML::Node aliasValue;
+    aliasValue = scriptPathString;
+    aliasScript->setProperty("ContentPath", aliasValue);
+    expect(aliasScript->Path == scriptPathString &&
+               aliasScript->Source == "return 'property-schema-script'" &&
+               !aliasScript->isPrecompiled,
+           "Script ContentPath schema setter loads source text");
+    aliasScript->setProperty("Path", aliasValue);
+    expect(aliasScript->Path == scriptPathString &&
+               aliasScript->Source == "return 'property-schema-script'",
+           "Script Path YAML alias preserves source loading");
+    aliasScript->setProperty("Source", aliasValue);
+    expect(aliasScript->Path == scriptPathString &&
+               aliasScript->Source == "return 'property-schema-script'",
+           "Script Source YAML alias preserves source loading");
+    std::error_code removeError;
+    std::filesystem::remove(scriptPath, removeError);
+    expect(!removeError, "Script schema regression removes temporary source file");
+
+    const auto sameQuaternion = [](const Quaternion& left, const Quaternion& right) {
+        return left.w == right.w && left.x == right.x && left.y == right.y &&
+               left.z == right.z;
+    };
+    const auto sameCFrame = [&](const CFrame& left, const CFrame& right) {
+        return left.Position == right.Position && sameQuaternion(left.Rotation, right.Rotation);
+    };
+
+    auto cframeValue = std::make_shared<CFrameValue>();
+    cframeValue->Value = CFrame(Vector3(-9.0f, 8.0f, -7.0f),
+                                Quaternion(0.5f, -0.25f, 0.75f, -1.0f));
+    const CFrame expectedCFrame(Vector3(1.0f, -2.0f, 3.0f),
+                                Quaternion(1.0f, 0.25f, -0.5f, 0.75f));
+    cframeValue->setProperty("Value", YAML::Load(
+        "{Position: [1.0, -2.0, 3.0], Rotation: [0.25, -0.5, 0.75, 1.0]}"));
+    const auto cframeSchema = PropertyRegistry::collectApplicableSchema(cframeValue.get());
+    const auto cframeValueDesc = findProperty(cframeSchema, "Value");
+    expect(cframeValueDesc != cframeSchema.end() &&
+               (*cframeValueDesc)->type == PropType::CFrame &&
+               (*cframeValueDesc)->get && (*cframeValueDesc)->set,
+           "CFrameValue exposes an editable CFrame Value schema");
+    expect(sameCFrame(cframeValue->Value, expectedCFrame),
+           "CFrameValue YAML Value setter updates an existing value");
+    const auto cframeClone = std::static_pointer_cast<CFrameValue>(cframeValue->clone());
+    expect(sameCFrame(cframeClone->Value, expectedCFrame),
+           "CFrameValue clone preserves Value");
+    YAML::Emitter cframeOut;
+    cframeOut << YAML::BeginMap;
+    PropertyRegistry::saveProperties(cframeOut, cframeValue.get(), "CFrameValue");
+    cframeOut << YAML::EndMap;
+    const YAML::Node savedCFrame = YAML::Load(cframeOut.c_str())["Value"];
+    expect(savedCFrame.IsMap() && savedCFrame["Position"].IsSequence() &&
+               savedCFrame["Position"].size() == 3 &&
+               savedCFrame["Position"][0].as<float>() == expectedCFrame.Position.x &&
+               savedCFrame["Position"][1].as<float>() == expectedCFrame.Position.y &&
+               savedCFrame["Position"][2].as<float>() == expectedCFrame.Position.z &&
+               savedCFrame["Rotation"].IsSequence() && savedCFrame["Rotation"].size() == 4 &&
+               savedCFrame["Rotation"][0].as<float>() == expectedCFrame.Rotation.x &&
+               savedCFrame["Rotation"][1].as<float>() == expectedCFrame.Rotation.y &&
+               savedCFrame["Rotation"][2].as<float>() == expectedCFrame.Rotation.z &&
+               savedCFrame["Rotation"][3].as<float>() == expectedCFrame.Rotation.w,
+           "CFrameValue save keeps the Position/Rotation YAML form");
+
+    auto quaternionValue = std::make_shared<QuaternionValue>();
+    quaternionValue->Value = Quaternion(-1.0f, 2.0f, -3.0f, 4.0f);
+    const Quaternion expectedQuaternion(0.875f, -0.5f, 0.25f, -0.75f);
+    quaternionValue->setProperty("Value", YAML::Load("[-0.5, 0.25, -0.75, 0.875]"));
+    const auto quaternionSchema = PropertyRegistry::collectApplicableSchema(quaternionValue.get());
+    const auto quaternionValueDesc = findProperty(quaternionSchema, "Value");
+    expect(quaternionValueDesc != quaternionSchema.end() &&
+               (*quaternionValueDesc)->type == PropType::Quaternion &&
+               (*quaternionValueDesc)->get && (*quaternionValueDesc)->set,
+           "QuaternionValue exposes an editable Quaternion Value schema");
+    expect(sameQuaternion(quaternionValue->Value, expectedQuaternion),
+           "QuaternionValue YAML Value setter updates an existing value");
+    const auto quaternionClone = std::static_pointer_cast<QuaternionValue>(quaternionValue->clone());
+    expect(sameQuaternion(quaternionClone->Value, expectedQuaternion),
+           "QuaternionValue clone preserves Value");
+    YAML::Emitter quaternionOut;
+    quaternionOut << YAML::BeginMap;
+    PropertyRegistry::saveProperties(quaternionOut, quaternionValue.get(), "QuaternionValue");
+    quaternionOut << YAML::EndMap;
+    const YAML::Node savedQuaternion = YAML::Load(quaternionOut.c_str())["Value"];
+    expect(savedQuaternion.IsSequence() && savedQuaternion.size() == 4 &&
+               savedQuaternion[0].as<float>() == expectedQuaternion.x &&
+               savedQuaternion[1].as<float>() == expectedQuaternion.y &&
+               savedQuaternion[2].as<float>() == expectedQuaternion.z &&
+               savedQuaternion[3].as<float>() == expectedQuaternion.w,
+           "QuaternionValue save keeps the XYZW YAML sequence form");
+
+    const auto hasSchemaProperties = [&](const std::vector<const PropertyDesc*>& schema,
+                                         const auto& expectedProperties) {
+        return std::all_of(expectedProperties.begin(), expectedProperties.end(),
+            [&](const auto& expectedProperty) {
+                const auto property = findProperty(schema, expectedProperty.first);
+                return property != schema.end() && (*property)->type == expectedProperty.second &&
+                       (*property)->get && (*property)->set;
+            });
+    };
+    auto decal = std::make_shared<Decal>();
+    const auto decalSchema = PropertyRegistry::collectApplicableSchema(decal.get());
+    const std::array<std::pair<std::string_view, PropType>, 6> decalProperties = {{
+        {"Texture", PropType::String}, {"Face", PropType::Int}, {"Color", PropType::Color4},
+        {"UVCenter", PropType::Vec2}, {"UVRadius", PropType::Float}, {"Mode", PropType::Int},
+    }};
+    const auto decalTexture = findProperty(decalSchema, "Texture");
+    const auto decalFace = findProperty(decalSchema, "Face");
+    expect(hasSchemaProperties(decalSchema, decalProperties),
+           "Decal exposes Texture, Face, and visual property schemas");
+    if (decalTexture != decalSchema.end() && decalFace != decalSchema.end()) {
+        SetPropertyCommand textureCommand(decal, *decalTexture,
+                                          PropertyRegistry::readValue(decal.get(), **decalTexture),
+                                          PropValue(std::string("assets/decal.png")));
+        textureCommand.execute();
+        expect(decal->texturePath == "assets/decal.png",
+               "generic property command uses Decal Texture custom setter");
+        textureCommand.undo();
+        expect(decal->texturePath.empty(),
+               "generic property command undo restores Decal Texture through its custom setter");
+        SetPropertyCommand faceCommand(decal, *decalFace,
+                                       PropertyRegistry::readValue(decal.get(), **decalFace),
+                                       PropValue(static_cast<int>(Face::Top)));
+        faceCommand.execute();
+        expect(decal->face == Face::Top && decal->Name == "Decal_Top",
+               "generic property command uses Decal Face custom setter");
+        faceCommand.undo();
+        expect(decal->face == Face::Front && decal->Name == "Decal_Front",
+               "generic property command undo restores Decal Face through its custom setter");
+    }
+
+    auto texture = std::make_shared<Texture>();
+    const auto textureSchema = PropertyRegistry::collectApplicableSchema(texture.get());
+    const std::array<std::pair<std::string_view, PropType>, 5> textureProperties = {{
+        {"Texture", PropType::String}, {"Face", PropType::Int}, {"Color", PropType::Color4},
+        {"StudsPerTileU", PropType::Float}, {"StudsPerTileV", PropType::Float},
+    }};
+    const auto texturePath = findProperty(textureSchema, "Texture");
+    const auto textureFace = findProperty(textureSchema, "Face");
+    expect(hasSchemaProperties(textureSchema, textureProperties),
+           "Texture exposes Texture, Face, and tiling property schemas");
+    if (texturePath != textureSchema.end() && textureFace != textureSchema.end()) {
+        SetPropertyCommand textureCommand(texture, *texturePath,
+                                          PropertyRegistry::readValue(texture.get(), **texturePath),
+                                          PropValue(std::string("assets/texture.png")));
+        textureCommand.execute();
+        expect(texture->texturePath == "assets/texture.png",
+               "generic property command uses Texture Texture custom setter");
+        textureCommand.undo();
+        expect(texture->texturePath.empty(),
+               "generic property command undo restores Texture Texture through its custom setter");
+        SetPropertyCommand faceCommand(texture, *textureFace,
+                                       PropertyRegistry::readValue(texture.get(), **textureFace),
+                                       PropValue(static_cast<int>(Face::Right)));
+        faceCommand.execute();
+        expect(texture->face == Face::Right && texture->Name == "Texture_Right",
+               "generic property command uses Texture Face custom setter");
+        faceCommand.undo();
+        expect(texture->face == Face::Front && texture->Name == "Texture_Front",
+               "generic property command undo restores Texture Face through its custom setter");
+    }
+
+    auto workspace = std::make_shared<Workspace>();
+    const auto workspaceSchema = PropertyRegistry::collectApplicableSchema(workspace.get());
+    const std::array<std::pair<std::string_view, PropType>, 3> workspaceProperties = {{
+        {"Gravity", PropType::Vec3}, {"Wind", PropType::Vec3}, {"PhysicsEnabled", PropType::Bool},
+    }};
+    expect(hasSchemaProperties(workspaceSchema, workspaceProperties),
+           "Workspace exposes Gravity, Wind, and PhysicsEnabled schemas");
+    workspace->setProperty("Gravity", YAML::Load("[1.0, -2.0, 3.0]"));
+    workspace->setProperty("Wind", YAML::Load("[-4.0, 5.0, -6.0]"));
+    workspace->setProperty("PhysicsEnabled", YAML::Load("false"));
+    expect(workspace->Gravity == Vector3(1.0f, -2.0f, 3.0f) &&
+               workspace->Wind == Vector3(-4.0f, 5.0f, -6.0f) && !workspace->PhysicsEnabled,
+           "Workspace YAML setters update Gravity, Wind, and PhysicsEnabled");
+
+    std::cout << "[PropertySchema] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 namespace {
 int* g_audioEngineInit = nullptr;
 int* g_audioGroupInit = nullptr;
@@ -9170,6 +9461,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--humanoid-rig-collision-regression", runHumanoidRigCollisionRegression),
         REG("--seat-network-regression", runSeatNetworkRegression),
         REG("--physical-file-instance-regression", runPhysicalFileInstanceRegression),
+        REG("--property-schema-regression", runPropertySchemaRegression),
         REG("--surface-mark-regression", runSurfaceMarkRegression),
         REG("--tool-weld-regression", runToolWeldRegression),
         REG("--tool-weld-reequip-regression", runToolWeldReequipRegression),

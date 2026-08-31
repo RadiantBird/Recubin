@@ -32,8 +32,12 @@
 | `noLuaWrite` / `clampOnLuaWrite` | `bool` | Lua からの書込制御 |
 | `lo` / `hi` / `step` | `float` | エディタースライダー用レンジ |
 | `instanceRefClass` | `string_view` | 非空なら、その `IsA` 型だけを選択可能なInstance参照文字列としてエディターに通知する |
+| `editorWidget` | `EditorWidget` | `Auto`、`FilePath`、`InstanceReference` の共通Editor操作種別 |
+| `editorDialogLabel` / `editorDialogFilter` | `string_view` | `FilePath` のBrowseダイアログ設定。物理ファイルInstanceは型レジストリの設定を使用する |
+| `multiEditKey` | `string_view` | 複数選択時に同じ意味のプロパティを対応付ける任意キー |
 
 `readOnly()` / `noYaml()` / `noClone()` / `noEditor()` / `omitEmpty()` / `yaml(key)` / `clampLua()` / `luaReadOnly()` で宣言を後置き修飾する。
+`filePath(label, filter)` は共通のパス入力・Browse・Clear・Undo操作を有効にし、`multiKey(key)` は異なるクラス間の一括編集互換キーを指定する。
 
 ## 宣言ビルダー
 
@@ -55,6 +59,7 @@
 | `registeredClassNames()` | 登録済み全クラス名（dispatch 配線漏れ検出用） |
 | `schemaFor(className)` | 自クラス分のみのスキーマ（Lua dispatch 登録用） |
 | `collectSchema(className)` | 基底→派生の順に集約したスキーマ（YAML/clone/editor 用） |
+| `collectApplicableSchema(instance)` | 実行時の`IsA()`に一致する登録済み基底を含めたスキーマ。具象型が未登録でも共通プロパティを取得する |
 | `loadProperty(obj, className, name, yamlNode)` | YAML の1キーを対応プロパティへ書き込む |
 | `saveProperties(emitter, obj, className)` | 自クラス分のプロパティを YAML へ出力 |
 | `cloneFields(src, dst, className)` | `collectSchema` に従い全プロパティを複製 |

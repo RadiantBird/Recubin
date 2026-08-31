@@ -2,12 +2,27 @@
 #include <Core/CharacterRig.hpp>
 #include <Instances/Model.hpp>
 #include <Math/Quaternion.hpp>
+#include <Core/PropertyRegistry.hpp>
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <cctype>
 #include <Util/AssetPath.hpp>
+
+static const bool s_animationRegistered = [] {
+    using namespace PropertyRegistry;
+    registerClass("Animation", "Instance", {
+        method_prop<&Animation::getLength, &Animation::setLength>("Length"),
+        method_prop<&Animation::getSpeed, &Animation::setSpeed>("Speed"),
+        method_prop<&Animation::getLooped, &Animation::setLooped>("Looped"),
+        method_prop<&Animation::getContentPath, &Animation::setContentPath>("ContentPath")
+            .omitEmpty()
+            .filePath("Recubin Animation (*.rcanim)", "*.rcanim")
+            .noClone(),
+    });
+    return true;
+}();
 
 Animation::Animation() : Instance("Animation"), m_clip(std::make_unique<AnimationClip>()) {
     m_clip->space = "model_relative";
@@ -19,14 +34,9 @@ bool Animation::IsA(std::string className) {
 }
 
 void Animation::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "Length") { Length = value.as<float>(); if (m_clip) m_clip->length = Length; return; }
-    if (name == "Speed")  { Speed  = value.as<float>(); if (m_clip) m_clip->speed = Speed; return; }
-    if (name == "Looped") { Looped = value.as<bool>();  if (m_clip) m_clip->looped = Looped; return; }
-    if (name == "ContentPath") {
-        ContentPath = value.as<std::string>("");
-        loadContent();
-        return;
-    }
+    if (PropertyRegistry::loadProperty(this, "Animation", name, value)) return;
+
+    // Scene埋め込みAnimationの旧形式はschema外として読み込み続ける。
     if (name == "Space") {
         if (value.as<std::string>("") == "joint_delta") {
             m_clip->space = "joint_delta"; m_clip->rig = "R6";
@@ -73,6 +83,26 @@ void Animation::setProperty(const std::string& name, const YAML::Node& value) {
         return;
     }
     Instance::setProperty(name, value);
+}
+
+void Animation::setLength(float value) {
+    Length = value;
+    if (m_clip) m_clip->length = value;
+}
+
+void Animation::setSpeed(float value) {
+    Speed = value;
+    if (m_clip) m_clip->speed = value;
+}
+
+void Animation::setLooped(bool value) {
+    Looped = value;
+    if (m_clip) m_clip->looped = value;
+}
+
+void Animation::setContentPath(const std::string& value) {
+    ContentPath = value;
+    loadContent();
 }
 
 void Animation::syncClipMetadata() {
@@ -149,15 +179,16 @@ void Animation::setBuiltInClip(const AnimationClip& clip) {
 
 std::shared_ptr<Instance> Animation::clone() const {
     auto copy = std::make_shared<Animation>();
-    copy->Name    = Name;
-    copy->Length  = Length;
-    copy->Speed   = Speed;
-    copy->Looped  = Looped;
-    copy->ContentPath = ContentPath;
+    copy->Name = Name;
     copy->m_clip = std::make_unique<AnimationClip>(*m_clip);
+    PropertyRegistry::cloneFields(this, copy.get(), "Animation");
+    // ContentPathはnoClone。setter経由で外部ファイルを再読込せず、
+    // 読込済み/失敗中のClipと保存参照をそのまま引き継ぐ。
+    copy->ContentPath = ContentPath;
     copy->m_source = m_source;
     copy->m_loadStatus = m_loadStatus;
     copy->m_loadMessage = m_loadMessage;
+    copy->m_usingBuiltInFallback = m_usingBuiltInFallback;
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());
     return copy;

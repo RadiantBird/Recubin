@@ -2,6 +2,21 @@
 #include <include/Instances/BaseCube.hpp>
 #include <include/Instances/Workspace.hpp>
 #include <include/Core/Physics.hpp>
+#include <include/Core/PropertyRegistry.hpp>
+
+static const bool s_physicsConstraintRegistered = [] {
+    using namespace PropertyRegistry;
+    registerClass("PhysicsConstraint", "Instance", {
+        custom("Enabled", PropType::Bool,
+            [](Instance* instance) {
+                return PropValue(static_cast<PhysicsConstraint*>(instance)->Enabled);
+            },
+            [](Instance* instance, const PropValue& value) {
+                static_cast<PhysicsConstraint*>(instance)->setEnabled(std::get<bool>(value));
+            }),
+    });
+    return true;
+}();
 
 PhysicsConstraint::PhysicsConstraint(const std::string& className)
     : Instance(className) {}
@@ -71,6 +86,6 @@ void PhysicsConstraint::onAncestorChanged() {
 }
 
 void PhysicsConstraint::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "Enabled") setEnabled(value.as<bool>());
-    else Instance::setProperty(name, value);
+    if (PropertyRegistry::loadProperty(this, "PhysicsConstraint", name, value)) return;
+    Instance::setProperty(name, value);
 }

@@ -39,7 +39,8 @@ BaseCubeのプロパティは、`Appearance` → `Physics` → `Material` → `E
 
 複数選択時は Name の入力で選択順に base/base1/base2... を割り当て、Spatial の
 Position/Size/CFrame を一括編集できる。Position と CFrame はワールド座標で適用し、
-展開した XYZ 編集では変更軸だけを反映する。全変更は一つの複合履歴として記録される。
+展開した XYZ 編集では変更軸だけを反映する。スキーマプロパティは和集合で表示し、
+対応する型だけへ一括適用する（表示名の`(n/m)`は適用対象数）。全変更は一つの複合履歴として記録される。
 
 ## 依存関係
 

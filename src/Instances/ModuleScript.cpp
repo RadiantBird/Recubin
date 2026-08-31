@@ -1,4 +1,5 @@
 #include <Instances/ModuleScript.hpp>
+#include <Core/PropertyRegistry.hpp>
 
 ModuleScript::ModuleScript(string path) : Script(path) {
     Name = "ModuleScript";
@@ -24,9 +25,10 @@ void ModuleScript::onAncestorChanged() {
 std::shared_ptr<Instance> ModuleScript::clone() const {
     auto copy = std::make_shared<ModuleScript>();
     copy->Name          = Name;
+    PropertyRegistry::cloneFields(this, copy.get(), "ModuleScript");
+    // Path はclone時に再読込せず、元のソース／bytecode状態をそのまま復元する。
     copy->Source        = Source;
     copy->Path          = Path;
-    copy->Enabled       = Enabled;
     copy->isPrecompiled = isPrecompiled;
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());

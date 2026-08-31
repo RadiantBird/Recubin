@@ -597,12 +597,7 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Humanoid"]["Jump"]        = getter_closure(humanoid_jump_closure,        "Jump");
     DispatchTable["Humanoid"]["KeyframeReached"] = getter_signal<Humanoid, &Humanoid::KeyframeReached>();
 
-    DispatchTable["Animation"]["Length"] = getter_number<Animation, &Animation::Length>();
-    DispatchTable["Animation"]["Speed"] = getter_number<Animation, &Animation::Speed>();
-    DispatchTable["Animation"]["Looped"] = getter_bool<Animation, &Animation::Looped>();
-    DispatchTable["Animation"]["ContentPath"] = [](lua_State* L, Instance* o) {
-        lua_pushstring(L, static_cast<Animation*>(o)->ContentPath.c_str()); return 1;
-    };
+    PropertyRegistry::applyToDispatch("Animation", DispatchTable, SetterTable);
     DispatchTable["Animation"]["Source"] = [](lua_State* L, Instance* o) {
         lua_pushstring(L, static_cast<Animation*>(o)->getSourceName().c_str()); return 1;
     };
@@ -612,20 +607,6 @@ void LuauEngine::InitDispatchTable_Misc() {
     DispatchTable["Animation"]["UsingBuiltInFallback"] = [](lua_State* L, Instance* o) {
         lua_pushboolean(L, static_cast<Animation*>(o)->isUsingBuiltInFallback()); return 1;
     };
-    auto setAnimationProperty = [](const char* property) {
-        return [property](lua_State* L, Instance* o) {
-            YAML::Node value;
-            if (std::string_view(property) == "Looped") value = lua_toboolean(L, 3) != 0;
-            else if (std::string_view(property) == "ContentPath") value = std::string(luaL_checkstring(L, 3));
-            else value = static_cast<float>(luaL_checknumber(L, 3));
-            o->setProperty(property, value);
-            return 0;
-        };
-    };
-    SetterTable["Animation"]["Length"] = setAnimationProperty("Length");
-    SetterTable["Animation"]["Speed"] = setAnimationProperty("Speed");
-    SetterTable["Animation"]["Looped"] = setAnimationProperty("Looped");
-    SetterTable["Animation"]["ContentPath"] = setAnimationProperty("ContentPath");
 
     // Seat — Steer/ThrottleはPropertyRegistry経由でLua読取専用として公開(エンジンが着席中に書き込む)
     PropertyRegistry::applyToDispatch("Seat", DispatchTable, SetterTable);
@@ -832,18 +813,10 @@ void LuauEngine::InitDispatchTable_Misc() {
     PropertyRegistry::applyToDispatch("BoolValue",     DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Vector3Value",  DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Color4Value",   DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("QuaternionValue", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("CFrameValue",     DispatchTable, SetterTable);
 
     DispatchTable["NumberValue"]["Value"] = getter_number<NumberValue, &NumberValue::Value>();
-
-    DispatchTable["QuaternionValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
-        pushQuaternion(L, static_cast<QuaternionValue*>(obj)->Value);
-        return 1;
-    };
-
-    DispatchTable["CFrameValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
-        pushCFrame(L, static_cast<CFrameValue*>(obj)->Value);
-        return 1;
-    };
 
     DispatchTable["ObjectValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
         auto target = static_cast<ObjectValue*>(obj)->getTarget();
@@ -1157,28 +1130,6 @@ void LuauEngine::InitSetterTable_Misc() {
         self->Value = static_cast<double>(luaL_checknumber(L, 3));
         if (self->Changed) self->Changed->fire([self](lua_State* L2) {
             lua_pushnumber(L2, static_cast<lua_Number>(self->Value));
-            return 1;
-        });
-        return 0;
-    };
-
-    SetterTable["QuaternionValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
-        Quaternion* q = (Quaternion*)luaL_checkudata(L, 3, LuauEngine::RCBN_QUATERNION_METATABLE);
-        auto* self = static_cast<QuaternionValue*>(obj);
-        self->Value = *q;
-        if (self->Changed) self->Changed->fire([self](lua_State* L2) {
-            pushQuaternion(L2, self->Value);
-            return 1;
-        });
-        return 0;
-    };
-
-    SetterTable["CFrameValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
-        CFrame* cf = (CFrame*)luaL_checkudata(L, 3, LuauEngine::RCBN_CFRAME_METATABLE);
-        auto* self = static_cast<CFrameValue*>(obj);
-        self->Value = *cf;
-        if (self->Changed) self->Changed->fire([self](lua_State* L2) {
-            pushCFrame(L2, self->Value);
             return 1;
         });
         return 0;
