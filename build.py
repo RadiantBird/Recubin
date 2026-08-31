@@ -6,19 +6,16 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 
 IS_WINDOWS = platform.system() == "Windows"
 if IS_WINDOWS:
-    import psutil
+    import psutil as psutil_module
 else:
-    # Language Server pls shut up!!!
-    class DummyPsutil:
-        AccessDenied = False
-        NoSuchProcess = None
-        ZombieProcess = None
-
-    psutil = DummyPsutil()  # type: ignore
+    # psutil is only used on Windows; keep the platform-specific module out of
+    # the non-Windows runtime while giving static analyzers a known symbol.
+    psutil_module: Any = None
 
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -249,43 +246,92 @@ def sync_network_test_engine(config: str) -> int:
     return 0
 
 
+def build_outputs_are_up_to_date(config: str) -> bool:
+    if IS_WINDOWS:
+        output_paths = [
+            BUILD_DIR / config / "Recubin.exe",
+            BUILD_DIR / config / "RecubinEngine.exe",
+            BUILD_DIR / config / "RecubinTest.exe",
+        ]
+    else:
+        output_paths = [
+            BUILD_DIR / "Recubin",
+            BUILD_DIR / "RecubinEngine",
+            BUILD_DIR / "RecubinTest",
+        ]
+
+    if not all(path.is_file() for path in output_paths):
+        return False
+
+    oldest_output = min(path.stat().st_mtime_ns for path in output_paths)
+    input_suffixes = {
+        ".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx",
+        ".inl", ".cmake", ".lib", ".a",
+    }
+    input_names = {"CMakeLists.txt", "CMakePresets.json"}
+    ignored_parts = {".git", ".claude", ".codex", "build", "build-mac", "dist"}
+    input_paths = [ROOT_DIR / name for name in ("CMakeLists.txt", "CMakePresets.json")]
+    input_roots = [ROOT_DIR / name for name in ("src", "include", "temp_libs", "cmake")]
+    candidate_paths = [path for path in input_paths if path.is_file()]
+    for input_root in input_roots:
+        if input_root.is_dir():
+            candidate_paths.extend(
+                path for path in input_root.rglob("*")
+                if path.is_file() and not any(part in ignored_parts for part in path.parts)
+            )
+
+    for path in candidate_paths:
+        if path.name not in input_names and path.suffix.lower() not in input_suffixes:
+            continue
+        try:
+            if path.stat().st_mtime_ns > oldest_output:
+                return False
+        except OSError:
+            return False
+
+    return True
+
+
 def build(config: str) -> int:
     BUILD_DIR.mkdir(exist_ok=True)
 
-    print(f"[INFO] Configuring {config} build...")
-    configure_args = ["cmake", "-S", ".", "-B", str(BUILD_DIR)]
-    if IS_WINDOWS:
-        configure_args += ["-A", "x64", "-D", "GLEW_STATIC=ON"]
+    if build_outputs_are_up_to_date(config):
+        print(f"[INFO] {config} build is up to date; skipping compile and link.")
     else:
-        # Unix系は単一構成ジェネレーターのため、Release/Debugを明示する。
-        configure_args += [
-            f"-DCMAKE_BUILD_TYPE={config}",
-            "-U", "PHYSX_MAC_LIB_*",
-        ]
-        physx_dir = os.environ.get("RECUBIN_PHYSX_MAC_DIR")
-        if not physx_dir:
-            result, bootstrapped_dir = bootstrap_physx_mac()
-            if result != 0 or bootstrapped_dir is None:
-                return result if result != 0 else 1
-            physx_dir = str(bootstrapped_dir)
-        configure_args += [f"-DRECUBIN_PHYSX_MAC_DIR={physx_dir}"]
-    result = run_command(configure_args)
-    if result != 0:
-        print("[ERROR] CMake configuration failed.")
-        return result
+        print(f"[INFO] Configuring {config} build...")
+        configure_args = ["cmake", "-S", ".", "-B", str(BUILD_DIR)]
+        if IS_WINDOWS:
+            configure_args += ["-A", "x64", "-D", "GLEW_STATIC=ON"]
+        else:
+            # Unix系は単一構成ジェネレーターのため、Release/Debugを明示する。
+            configure_args += [
+                f"-DCMAKE_BUILD_TYPE={config}",
+                "-U", "PHYSX_MAC_LIB_*",
+            ]
+            physx_dir = os.environ.get("RECUBIN_PHYSX_MAC_DIR")
+            if not physx_dir:
+                result, bootstrapped_dir = bootstrap_physx_mac()
+                if result != 0 or bootstrapped_dir is None:
+                    return result if result != 0 else 1
+                physx_dir = str(bootstrapped_dir)
+            configure_args += [f"-DRECUBIN_PHYSX_MAC_DIR={physx_dir}"]
+        result = run_command(configure_args)
+        if result != 0:
+            print("[ERROR] CMake configuration failed.")
+            return result
 
-    print(f"[INFO] Building {config}...")
-    build_args = [
-        "cmake", "--build", str(BUILD_DIR), "--config", config,
-        "--parallel",
-    ]
-    if not IS_WINDOWS:
-        build_args.append("4")
-    build_args += ["--target", "Recubin", "RecubinEngine", "RecubinTest"]
-    result = run_command(build_args)
-    if result != 0:
-        print("[ERROR] Build execution failed.")
-        return result
+        print(f"[INFO] Building {config}...")
+        build_args = [
+            "cmake", "--build", str(BUILD_DIR), "--config", config,
+            "--parallel",
+        ]
+        if not IS_WINDOWS:
+            build_args.append("4")
+        build_args += ["--target", "Recubin", "RecubinEngine", "RecubinTest"]
+        result = run_command(build_args)
+        if result != 0:
+            print("[ERROR] Build execution failed.")
+            return result
 
     if IS_WINDOWS:
         copy_dlls(config)
@@ -322,14 +368,14 @@ def build(config: str) -> int:
                 locking_processes = []
 
                 # 実行イメージはopen_files()に表示されない場合がある。
-                for proc in psutil.process_iter(["pid", "name"]):
+                for proc in psutil_module.process_iter(["pid", "name"]):
                     is_locker = False
                     try:
                         executable_path = proc.exe()
                     except (
-                        psutil.AccessDenied,
-                        psutil.NoSuchProcess,
-                        psutil.ZombieProcess,
+                        psutil_module.AccessDenied,
+                        psutil_module.NoSuchProcess,
+                        psutil_module.ZombieProcess,
                     ):
                         executable_path = None
                     if executable_path:
@@ -342,9 +388,9 @@ def build(config: str) -> int:
                                 for f in proc.open_files()
                             )
                         except (
-                            psutil.AccessDenied,
-                            psutil.NoSuchProcess,
-                            psutil.ZombieProcess,
+                            psutil_module.AccessDenied,
+                            psutil_module.NoSuchProcess,
+                            psutil_module.ZombieProcess,
                         ):
                             # 権限のないシステムプロセスなどはスキップ
                             continue
@@ -368,9 +414,9 @@ def build(config: str) -> int:
                             terminated_processes.append(proc)
                             print(f"PID {proc.info['pid']} を強制終了しました。")
                         except (
-                            psutil.AccessDenied,
-                            psutil.NoSuchProcess,
-                            psutil.ZombieProcess,
+                            psutil_module.AccessDenied,
+                            psutil_module.NoSuchProcess,
+                            psutil_module.ZombieProcess,
                         ) as terminate_error:
                             print(
                                 f"[WARNING] PID {proc.info['pid']} の終了に失敗しました: "
@@ -381,15 +427,15 @@ def build(config: str) -> int:
                         for proc in terminated_processes:
                             try:
                                 proc.wait(timeout=3)
-                            except psutil.TimeoutExpired:
+                            except psutil_module.TimeoutExpired:
                                 print(
                                     f"[WARNING] PID {proc.info['pid']} の終了待ちが"
                                     "タイムアウトしました。"
                                 )
                             except (
-                                psutil.AccessDenied,
-                                psutil.NoSuchProcess,
-                                psutil.ZombieProcess,
+                                psutil_module.AccessDenied,
+                                psutil_module.NoSuchProcess,
+                                psutil_module.ZombieProcess,
                             ):
                                 pass
 
