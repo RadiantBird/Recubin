@@ -20,12 +20,15 @@
 | `EnableIOAPI` | `bool` | Luau I/O APIの許可（既定false） |
 | `EnableIPCAPI` | `bool` | IPC APIスタブの許可（既定false） |
 | `EnableExternalFileAccess` | `bool` | ゲーム領域外ファイルアクセスの許可（既定false） |
+| `DefaultCameraMode` | `CameraMode` | パッケージ版ゲーム起動時のカメラモード（`Character`/`Free`/`Program`、既定`Character`） |
 
 `MaxClonesPerFrame`/`MaxRestartsPerFrame`/`ScriptLoopTimeoutSeconds` は意図的にLuauへバインドしない（DispatchTable/SetterTableに非登録）。エディターからのみ編集可能。
 
 `BaseResolution` は `PropertyRegistry` 経由で登録され、YAML保存/エディター編集/Luau読み取りに対応する（`.luaReadOnly()` によりLuauからの書込のみ不可）。`Renderer::renderScreenGui` が現在のビューポート解像度との比率を計算し、`Norm::Pixel` の `Position`/`Size` にX,Y別々に乗算する（`doc/Core/Renderer.md` 参照）。
 
 拡張フラグもYAMLとエディターの通常System inspectorで扱うが、Luauからは読み取り専用である。通常ランタイムでは有効な拡張の同意receiptが必要になり、Editor/`--editor-test`では警告receiptを省略する。
+
+`DefaultCameraMode` はPropertyRegistryへ登録された文字列enumで、YAML保存とエディター編集に対応し、Luauからは読み取り専用である。パッケージ版ゲームはこの値を起動時のUserカメラモードへ適用する。旧シーンや未知のYAML値は`Character`へフォールバックする。
 
 ## メソッド
 

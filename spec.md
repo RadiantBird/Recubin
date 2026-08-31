@@ -110,7 +110,8 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   含めず、HostはリモートUser生成時にシーン権威のローカルUser値を引き継ぐ。
 - ControlMode
     - エディターではデフォルトでFree
-    - ゲームランタイムではデフォルトでCharacter
+    - ゲームランタイムではSystem.DefaultCameraMode（Free/Character/Program、既定Character）を
+      Userの起動カメラモードへ適用する。旧シーンや未知の値はCharacterへフォールバックする。
     - Humanoid死亡中もカメラ入力とLキーのモード切替を受け付ける。Characterではキャラクターを移動・追従させずその場でカメラを回転し、Freeではカメラを自由移動できる。Free移動中も死亡ラグドールの姿勢を上書きしない。
 - `CharacterAdded`(Signal): 新しいローカルCharacterがspawnされるたび発火する(初回spawn +
   死亡respawn全て)。Luau側にはspawn直後のcharacter(Model)が引数として渡される

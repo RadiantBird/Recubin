@@ -14,6 +14,11 @@ static const bool s_systemRegistered = []{
         field<&System::EnableIOAPI>("EnableIOAPI").luaReadOnly(),
         field<&System::EnableIPCAPI>("EnableIPCAPI").luaReadOnly(),
         field<&System::EnableExternalFileAccess>("EnableExternalFileAccess").luaReadOnly(),
+        enumProp<&System::DefaultCameraMode>("DefaultCameraMode", {
+            {"Character", static_cast<int>(System::CameraMode::Character)},
+            {"Free", static_cast<int>(System::CameraMode::Free)},
+            {"Program", static_cast<int>(System::CameraMode::Program)},
+        }, true).luaReadOnly().group("Runtime"),
     });
     return true;
 }();

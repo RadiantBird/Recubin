@@ -14,6 +14,8 @@ class System : public Instance {
         void unregisterScript(const std::shared_ptr<Instance>& s);
 
     public:
+        enum class CameraMode { Character = 0, Free, Program };
+
         std::shared_ptr<RCBNScriptSignal> Heartbeat;
         // ネットワークロール変更時(ホスト移行等)に (oldRole, newRole) の文字列2引数で発火する
         std::shared_ptr<RCBNScriptSignal> NetworkRoleChanged;
@@ -43,6 +45,9 @@ class System : public Instance {
         bool EnableIOAPI = false;
         bool EnableIPCAPI = false;
         bool EnableExternalFileAccess = false;
+
+        // パッケージ済みゲーム起動時にUserへ適用するカメラモード。
+        CameraMode DefaultCameraMode = CameraMode::Character;
 
         System(string name = "System");
         string getClassName() override;

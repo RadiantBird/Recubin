@@ -6728,6 +6728,9 @@ int runAssetPathRegression() {
                   << "  type: scene\n"
                   << "  version: 0\n"
                   << "Root:\n"
+                  << "  ClassName: System\n"
+                  << "  Properties:\n"
+                  << "    DefaultCameraMode: Free\n"
                   << "  Children:\n"
                   << "    - ClassName: Animation\n"
                   << "      Name: R6Walk\n"
@@ -6802,6 +6805,7 @@ int runAssetPathRegression() {
                    std::filesystem::exists(packageContentRoot / "assets/anims/r6_walk.rcanim") &&
                    packagedScene.find("assets/anims/r6_walk.rcanim") != std::string::npos &&
                    packagedScene.find("ContentPath: assets/cursor.png") != std::string::npos &&
+                   packagedScene.find("DefaultCameraMode: Free") != std::string::npos &&
                    packagedScene.find("Hotspot: [1, 2]") != std::string::npos &&
                    packagedScene.find("Size: 40") != std::string::npos &&
                    packagedScene.find(packageConfig.applicationId) != std::string::npos &&
@@ -7934,6 +7938,56 @@ static int runAnimationClipRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runDefaultCameraModeRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[DefaultCameraMode] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    const std::array<std::pair<System::CameraMode, const char*>, 3> modes = {{
+        {System::CameraMode::Character, "Character"},
+        {System::CameraMode::Free, "Free"},
+        {System::CameraMode::Program, "Program"},
+    }};
+    for (const auto& [mode, name] : modes) {
+        System system;
+        system.DefaultCameraMode = mode;
+        YAML::Emitter output;
+        output << YAML::BeginMap;
+        PropertyRegistry::saveProperties(output, &system, "System");
+        output << YAML::EndMap;
+        const std::string yaml = output.c_str();
+        expect(yaml.find(std::string("DefaultCameraMode: ") + name) != std::string::npos,
+               "System YAML stores each camera mode as a string");
+
+        System loaded;
+        loaded.setProperty("DefaultCameraMode", YAML::Node(name));
+        expect(loaded.DefaultCameraMode == mode,
+               "System setProperty reads each camera mode");
+
+        User user(std::make_unique<NullInputBackend>());
+        SceneRuntime::applyDefaultCameraMode(loaded, user);
+        const auto expected = mode == System::CameraMode::Free
+            ? User::ControlMode::Free
+            : mode == System::CameraMode::Program
+                ? User::ControlMode::Program : User::ControlMode::Character;
+        expect(user.controlMode == expected,
+               "default camera mode maps explicitly to User control mode");
+    }
+
+    System unknown;
+    unknown.DefaultCameraMode = System::CameraMode::Free;
+    unknown.setProperty("DefaultCameraMode", YAML::Node("Unknown"));
+    expect(unknown.DefaultCameraMode == System::CameraMode::Character,
+           "unknown camera mode falls back to Character");
+
+    std::cout << "[DefaultCameraMode] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 static int runSceneLoadTransactionRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const std::string& message) {
@@ -7967,6 +8021,7 @@ static int runSceneLoadTransactionRegression() {
         "  ClassName: System\n"
         "  Properties:\n"
         "    MaxClonesPerFrame: 77\n"
+        "    DefaultCameraMode: Program\n"
         "    BaseResolution: [1280, 720]\n"
         "    UseNetwork: true\n"
         "  Children:\n"
@@ -8106,6 +8161,7 @@ static int runSceneLoadTransactionRegression() {
                liveUser->current_camera.Position.z == cameraBefore.Position.z,
            "commit preserves input, signals, and camera runtime state");
     expect(liveSystem->MaxClonesPerFrame == 77 &&
+               liveSystem->DefaultCameraMode == System::CameraMode::Program &&
                liveSystem->BaseResolution == Vector2(1280.0f, 720.0f) &&
                liveSystem->UseNetwork &&
                liveUser->controlMode == User::ControlMode::Program &&
@@ -9429,6 +9485,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--yaml-error-regression", runYamlErrorRegression),
         REG("--nat-codec-regression", runNatCodecRegression),
         REG("--animation-clip-regression", runAnimationClipRegression),
+        REG("--default-camera-mode-regression", runDefaultCameraModeRegression),
         REG("--scene-load-transaction-regression", runSceneLoadTransactionRegression),
         REG("--system-extension-regression", runSystemExtensionRegression),
         REG("--scene-hierarchy-grouping-regression", runSceneHierarchyGroupingRegression),

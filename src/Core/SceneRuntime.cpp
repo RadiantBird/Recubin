@@ -35,6 +35,7 @@ void copySystemScalars(const System& source, System& destination) {
     destination.EnableIOAPI = source.EnableIOAPI;
     destination.EnableIPCAPI = source.EnableIPCAPI;
     destination.EnableExternalFileAccess = source.EnableExternalFileAccess;
+    destination.DefaultCameraMode = source.DefaultCameraMode;
 }
 
 void copyUserScalars(const User& source, User& destination) {
@@ -112,6 +113,21 @@ std::shared_ptr<Users> findUsers(const std::shared_ptr<System>& system) {
 }
 
 } // namespace
+
+void applyDefaultCameraMode(const System& system, User& user) {
+    switch (system.DefaultCameraMode) {
+        case System::CameraMode::Free:
+            user.controlMode = User::ControlMode::Free;
+            break;
+        case System::CameraMode::Program:
+            user.controlMode = User::ControlMode::Program;
+            break;
+        case System::CameraMode::Character:
+        default:
+            user.controlMode = User::ControlMode::Character;
+            break;
+    }
+}
 
 std::vector<std::shared_ptr<Workspace>> collectWorkspaces(const std::shared_ptr<System>& system) {
     std::vector<std::shared_ptr<Workspace>> result;

@@ -419,7 +419,6 @@ int main(int argc, char* argv[]) {
     auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
     auto user         = std::make_shared<User>(std::make_unique<GLFWInputBackend>(window));
-    user->controlMode = User::ControlMode::Character;
 
     renderer->init(window);
     auto runtimeEditor = std::make_unique<NullEditorManager>();
@@ -600,9 +599,7 @@ int main(int argc, char* argv[]) {
         renderer->setChatService(chatService);
     }
 
-    // シーンの User ノード（ControlMode: Free 等）がマージで上書きするため、
-    // ランタイムは常にキャラクター操作へ再強制する。
-    user->controlMode = User::ControlMode::Character;
+    SceneRuntime::applyDefaultCameraMode(*system, *user);
 
     // 全Workspaceの物理初期化
     for (auto& ws : workspaces) {

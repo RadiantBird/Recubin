@@ -57,6 +57,8 @@ namespace SceneRuntime {
                       LuauEngine& engine,
                       GLFWwindow* window);
 
+    void applyDefaultCameraMode(const System& system, User& user);
+
     std::vector<std::shared_ptr<Workspace>> collectWorkspaces(const std::shared_ptr<System>& system);
 
     // Workspace配下のFolder/Modelを含めて全Terrainを列挙する。
