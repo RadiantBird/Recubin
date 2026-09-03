@@ -530,7 +530,7 @@ int main(int argc, char* argv[]) {
     if (!Physics::configureBackendFromCommandLine(argc, argv)) return -1;
 
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.99895\n";
+              << "Recubin Studio v0.999\n";
     std::filesystem::path engineExePath = (argc > 0 && argv[0]) ? std::filesystem::path(argv[0]) : std::filesystem::path();
 
     windows(
@@ -644,9 +644,14 @@ int main(int argc, char* argv[]) {
 
     // Workspace 切り替えコールバックを設定
     ed->hierarchyPanel->onSwitchWorkspace = [&](Workspace* ws) {
+        if (!ws || ws == workspace.get()) return;
         auto wsSp = std::static_pointer_cast<Workspace>(ws->shared_from_this());
         workspaces = SceneRuntime::collectWorkspaces(system);
+        if (SystemState::get().isPlaying && user->character &&
+            !user->moveCharacterToWorkspace(*ws)) return;
         workspace = wsSp;
+        if (SystemState::get().isPlaying && !workspace->getPhysicsEngine())
+            workspace->initPhysics();
         luauEngine->setGlobalInstance("workspace", workspace);
         luauEngine->setWorkspace(workspace);
         ed->setWorkspace(workspace.get());
@@ -714,6 +719,17 @@ int main(int argc, char* argv[]) {
             networkClientCleanupActive = false;
             if (ed) ed->setExternalPlayCleanup(false);
         }
+    };
+
+    auto syncCharacterWorkspace = [&] {
+        Workspace* characterWorkspace = user->getCharacterWorkspace();
+        if (!characterWorkspace || characterWorkspace == workspace.get()) return;
+        workspace = std::static_pointer_cast<Workspace>(characterWorkspace->shared_from_this());
+        if (!workspace->getPhysicsEngine()) workspace->initPhysics();
+        if (editorReplication) editorReplication->setWorkspace(workspace);
+        luauEngine->setGlobalInstance("workspace", workspace);
+        luauEngine->setWorkspace(workspace);
+        ed->setWorkspace(workspace.get());
     };
 
     auto restoreObserverBinding = [&] {
@@ -1062,6 +1078,7 @@ int main(int argc, char* argv[]) {
         }
 
         bool runtimeFrameOk = playTransitionAccepted;
+        if (isPlaying && runtimeFrameOk) syncCharacterWorkspace();
         const bool localServerFrame = isPlaying && playTransitionAccepted && ed &&
             ed->activePlayMode() == EditorPlayMode::LocalServer;
         if (localServerFrame) {
@@ -1137,6 +1154,7 @@ int main(int argc, char* argv[]) {
                     navMeshBusy = true;
                 }
             }
+            syncCharacterWorkspace();
             FrameProfiler::get().endSection("luau");
 
             if (luauEngine->consumeSafetyHaltRequest()) {
@@ -1193,15 +1211,10 @@ int main(int argc, char* argv[]) {
                     ? *std::next(it) : workspacePtrs.front();
                 if (next != workspace.get()) {
                     // キャラクターを新Workspaceに移動（ワールド座標維持）
-                    if (user->character) {
-                        Vector3 worldPos = user->character->getWorldPosition();
-                        auto charSp = std::static_pointer_cast<Instance>(user->character);
-                        workspace->removeChild(user->character->Name);
-                        next->addChild(charSp);
-                        user->character->Position = worldPos;
-                    }
+                    if (user->character && !user->moveCharacterToWorkspace(*next)) continue;
                     // activeWorkspace 更新
                     workspace = std::static_pointer_cast<Workspace>(next->shared_from_this());
+                    if (!workspace->getPhysicsEngine()) workspace->initPhysics();
                     if (editorReplication) editorReplication->setWorkspace(workspace);
                     luauEngine->setGlobalInstance("workspace", workspace);
                     luauEngine->setWorkspace(workspace);

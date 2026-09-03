@@ -5102,6 +5102,15 @@ int runMultiWorkspaceRegression() {
     Physics* physicsA = workspaceA->getPhysicsEngine();
     Physics* physicsB = workspaceB->getPhysicsEngine();
     auto user = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    auto system = std::make_shared<System>();
+    system->addChild(workspaceA);
+    system->addChild(workspaceB);
+    LuauEngine luau;
+    luau.setGlobalInstance("User", user);
+    luau.setGlobalInstance("workspaceA", workspaceA);
+    luau.setGlobalInstance("workspaceB", workspaceB);
+    luau.setGlobalInstance("workspace", workspaceA);
+    luau.setWorkspace(workspaceA);
     ReplicationManager replication(workspaceA, user, nullptr);
     const char* backend = physicsBackendName(physicsA->getBackendType());
     int failures = 0;
@@ -5110,6 +5119,57 @@ int runMultiWorkspaceRegression() {
                   << (condition ? "PASS: " : "FAIL: ") << message << '\n';
         if (!condition) ++failures;
     };
+
+    auto character = std::make_shared<Model>(Vector3(3, 4, 5), Vector3(1, 2, 1));
+    character->Name = "Character";
+    character->Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 37.0f);
+    workspaceA->addChild(character);
+    user->character = character;
+    const CFrame originalCFrame = character->getWorldCFrame();
+    expect(user->getCharacterWorkspace() == workspaceA.get(),
+           "Character workspace resolves to nearest ancestor");
+    expect(user->moveCharacterToWorkspace(*workspaceA) &&
+               character->getWorldCFrame().Position.x == originalCFrame.Position.x &&
+               character->getWorldCFrame().Position.y == originalCFrame.Position.y &&
+               character->getWorldCFrame().Position.z == originalCFrame.Position.z &&
+               std::abs(character->getWorldCFrame().Rotation.w - originalCFrame.Rotation.w) < 1e-5f &&
+               std::abs(character->getWorldCFrame().Rotation.x - originalCFrame.Rotation.x) < 1e-5f &&
+               std::abs(character->getWorldCFrame().Rotation.y - originalCFrame.Rotation.y) < 1e-5f &&
+               std::abs(character->getWorldCFrame().Rotation.z - originalCFrame.Rotation.z) < 1e-5f,
+           "Moving to the current Workspace is a successful no-op");
+    expect(user->moveCharacterToWorkspace(*workspaceB) &&
+               user->getCharacterWorkspace() == workspaceB.get() &&
+               character->getWorldCFrame().Position.x == originalCFrame.Position.x &&
+               character->getWorldCFrame().Position.y == originalCFrame.Position.y &&
+               character->getWorldCFrame().Position.z == originalCFrame.Position.z &&
+               std::abs(character->getWorldCFrame().Rotation.w - originalCFrame.Rotation.w) < 1e-5f &&
+               std::abs(character->getWorldCFrame().Rotation.x - originalCFrame.Rotation.x) < 1e-5f &&
+               std::abs(character->getWorldCFrame().Rotation.y - originalCFrame.Rotation.y) < 1e-5f &&
+               std::abs(character->getWorldCFrame().Rotation.z - originalCFrame.Rotation.z) < 1e-5f,
+           "Character move preserves world CFrame");
+    character->setParent(nullptr);
+    expect(user->getCharacterWorkspace() == nullptr,
+           "Detached Character reports no Workspace");
+    Workspace* activeWorkspaceFallback = workspaceB.get();
+    if (user->getCharacterWorkspace())
+        activeWorkspaceFallback = user->getCharacterWorkspace();
+    expect(activeWorkspaceFallback == workspaceB.get(),
+           "Detached Character leaves the active Workspace unchanged");
+    auto observer = std::make_shared<User>(std::make_unique<NullInputBackend>());
+    if (observer->getCharacterWorkspace())
+        activeWorkspaceFallback = observer->getCharacterWorkspace();
+    expect(observer->getCharacterWorkspace() == nullptr &&
+               activeWorkspaceFallback == workspaceB.get(),
+           "No-character observer leaves the active Workspace unchanged");
+    expect(user->moveCharacterToWorkspace(*workspaceA) &&
+               user->getCharacterWorkspace() == workspaceA.get(),
+           "Detached Character can be explicitly attached to a Workspace");
+    auto moveScript = std::make_shared<Script>();
+    moveScript->Name = "MoveCharacterScript";
+    moveScript->Source = "User.Character.Parent = workspaceB";
+    workspaceA->addChild(moveScript);
+    expect(luau.execute(*moveScript) && user->getCharacterWorkspace() == workspaceB.get(),
+           "Luau Character.Parent assignment moves Character workspace");
 
     const std::uint64_t firstGeneration =
         replication.getWorkspaceGeneration();
@@ -9318,6 +9378,26 @@ static int runPropertySchemaRegression() {
     expect(workspace->Gravity == Vector3(1.0f, -2.0f, 3.0f) &&
                workspace->Wind == Vector3(-4.0f, 5.0f, -6.0f) && !workspace->PhysicsEnabled,
            "Workspace YAML setters update Gravity, Wind, and PhysicsEnabled");
+
+    workspace->Name = "CloneWorkspace";
+    auto child = std::make_shared<Folder>();
+    child->Name = "CloneChild";
+    workspace->addChild(child);
+    auto workspaceClone = workspace->cloneTree();
+    auto typedWorkspaceClone = dynamic_cast<Workspace*>(workspaceClone.get());
+    expect(typedWorkspaceClone != nullptr,
+           "Workspace cloneTree preserves the Workspace type");
+    expect(typedWorkspaceClone && typedWorkspaceClone->Name == workspace->Name &&
+               typedWorkspaceClone->Gravity == workspace->Gravity &&
+               typedWorkspaceClone->Wind == workspace->Wind &&
+               typedWorkspaceClone->PhysicsEnabled == workspace->PhysicsEnabled,
+           "Workspace cloneTree preserves Name and persistent properties");
+    const auto clonedChild = typedWorkspaceClone
+                                 ? typedWorkspaceClone->getChild("CloneChild")
+                                 : nullptr;
+    expect(clonedChild != nullptr && clonedChild != child.get() &&
+               clonedChild->Parent.lock().get() == typedWorkspaceClone,
+           "Workspace cloneTree clones children with the cloned parent");
 
     std::cout << "[PropertySchema] failures=" << failures
               << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';

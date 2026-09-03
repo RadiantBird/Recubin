@@ -46,6 +46,8 @@ class Workspace : public Instance {
 
         virtual std::string getClassName() override;
 
+        std::shared_ptr<Instance> clone() const override;
+
         bool IsA(std::string className) override;
 
         void setProperty(const std::string& name, const YAML::Node& value) override;

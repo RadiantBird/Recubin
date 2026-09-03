@@ -16,7 +16,7 @@ ImVec4 consoleLogColor(const std::string& line, bool systemLog) {
 }
 
 std::vector<std::pair<std::string, ImVec4>> splitColoredLines(
-    const std::deque<std::string>& logs, const char* filter, bool systemLog) {
+    const std::deque<std::string>& logs, const char* filter, bool systemLog, float wrapWidth) {
     std::vector<std::pair<std::string, ImVec4>> result;
     for (const auto& entry : logs) {
         if (filter[0] != '\0' && entry.find(filter) == std::string::npos) continue;
@@ -24,12 +24,48 @@ std::vector<std::pair<std::string, ImVec4>> splitColoredLines(
         size_t begin = 0;
         for (;;) {
             const size_t end = entry.find('\n', begin);
-            result.emplace_back(entry.substr(begin, end == std::string::npos ? std::string::npos : end - begin), color);
+            const std::string logicalLine = entry.substr(
+                begin, end == std::string::npos ? std::string::npos : end - begin);
+            if (logicalLine.empty()) {
+                result.emplace_back("", color);
+            } else {
+                size_t segmentBegin = 0;
+                float segmentWidth = 0.0f;
+                const char* text = logicalLine.data();
+                const char* textEnd = text + logicalLine.size();
+                while (text < textEnd) {
+                    unsigned int codepoint = 0;
+                    const int codepointBytes = ImTextCharFromUtf8(&codepoint, text, textEnd);
+                    const int bytes = codepointBytes > 0 ? codepointBytes : 1;
+                    const char* next = text + ImMin(bytes, (int)(textEnd - text));
+                    const std::string codepointText(text, next);
+                    const float codepointWidth = ImGui::CalcTextSize(codepointText.c_str()).x;
+                    if (segmentBegin != (size_t)(text - logicalLine.data()) &&
+                        segmentWidth + codepointWidth > wrapWidth) {
+                        result.emplace_back(logicalLine.substr(
+                            segmentBegin, (size_t)(text - logicalLine.data()) - segmentBegin), color);
+                        segmentBegin = (size_t)(text - logicalLine.data());
+                        segmentWidth = 0.0f;
+                    }
+                    segmentWidth += codepointWidth;
+                    text = next;
+                }
+                result.emplace_back(logicalLine.substr(segmentBegin), color);
+            }
             if (end == std::string::npos) break;
             begin = end + 1;
         }
     }
     return result;
+}
+
+std::string joinConsoleLines(const std::vector<std::pair<std::string, ImVec4>>& lines) {
+    std::string joined;
+    for (const auto& line : lines) {
+        joined += line.first;
+        joined += '\n';
+    }
+    return joined;
 }
 
 void drawColoredConsoleText(ImGuiWindow* parent, ImGuiID inputId,
@@ -111,7 +147,13 @@ void ConsolePanel::onRender() {
         if (ImGui::BeginTabItem(Loc::t(Loc::LocKey::TabSystem))) {
             if (ImGui::SmallButton(Loc::t(Loc::LocKey::ClearButton))) { clear(); }
             ImGui::SameLine();
-            ImGui::SetNextItemWidth(200.0f);
+            const ImGuiStyle& style = ImGui::GetStyle();
+            const float filterLabelWidth = ImGui::CalcTextSize(Loc::t(Loc::LocKey::FilterLabel)).x;
+            const float copyButtonWidth = ImGui::CalcTextSize(Loc::t(Loc::LocKey::MenuCopy)).x
+                                         + style.FramePadding.x * 2.0f;
+            const float filterWidth = ImGui::GetContentRegionAvail().x - filterLabelWidth
+                                    - style.ItemInnerSpacing.x - copyButtonWidth - style.ItemSpacing.x;
+            ImGui::SetNextItemWidth(filterWidth > 1.0f ? filterWidth : 1.0f);
             std::string filterLabel = std::string(Loc::t(Loc::LocKey::FilterLabel)) + "##sys";
             ImGui::InputText(filterLabel.c_str(), filterBuf, sizeof(filterBuf));
             std::string joined;
@@ -128,16 +170,21 @@ void ConsolePanel::onRender() {
             ImGui::Separator();
 
             ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.045f, 0.060f, 0.105f, 1.0f));
+            const float logWrapWidth = ImMax(1.0f, ImGui::GetContentRegionAvail().x
+                                                   - ImGui::GetStyle().FramePadding.x * 2.0f
+                                                   - ImGui::GetStyle().ScrollbarSize);
+            const auto wrappedLines = splitColoredLines(logs, filterBuf, true, logWrapWidth);
+            std::string displayJoined = joinConsoleLines(wrappedLines);
             if (scrollToBottom) { ImGui::SetNextWindowScroll(ImVec2(-1.0f, FLT_MAX)); }
             ImGuiWindow* sysParent = GImGui->CurrentWindow;
             const ImGuiID sysInputId = sysParent->GetID("##SysLog");
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 0));
             ImGui::PushStyleColor(ImGuiCol_InputTextCursor, ImVec4(0, 0, 0, 0));
-            ImGui::InputTextMultiline("##SysLog", joined.data(), joined.size() + 1,
-                                      ImVec2(0, 0), ImGuiInputTextFlags_ReadOnly);
+            ImGui::InputTextMultiline("##SysLog", displayJoined.data(), displayJoined.size() + 1,
+                                      ImVec2(-FLT_MIN, -FLT_MIN), ImGuiInputTextFlags_ReadOnly);
             ImGui::PopStyleColor(2);
             drawColoredConsoleText(sysParent, sysInputId,
-                                   splitColoredLines(logs, filterBuf, true));
+                                   wrappedLines);
             scrollToBottom = false;
             ImGui::PopStyleColor();
             ImGui::EndTabItem();
@@ -148,7 +195,13 @@ void ConsolePanel::onRender() {
             std::string clearLabel = std::string(Loc::t(Loc::LocKey::ClearButton)) + "##luau";
             if (ImGui::SmallButton(clearLabel.c_str())) { luauLogs.clear(); }
             ImGui::SameLine();
-            ImGui::SetNextItemWidth(200.0f);
+            const ImGuiStyle& style = ImGui::GetStyle();
+            const float filterLabelWidth = ImGui::CalcTextSize(Loc::t(Loc::LocKey::FilterLabel)).x;
+            const float copyButtonWidth = ImGui::CalcTextSize(Loc::t(Loc::LocKey::MenuCopy)).x
+                                         + style.FramePadding.x * 2.0f;
+            const float filterWidth = ImGui::GetContentRegionAvail().x - filterLabelWidth
+                                    - style.ItemInnerSpacing.x - copyButtonWidth - style.ItemSpacing.x;
+            ImGui::SetNextItemWidth(filterWidth > 1.0f ? filterWidth : 1.0f);
             std::string filterLabel = std::string(Loc::t(Loc::LocKey::FilterLabel)) + "##luau";
             ImGui::InputText(filterLabel.c_str(), luauFilterBuf, sizeof(luauFilterBuf));
             std::string joined;
@@ -165,16 +218,21 @@ void ConsolePanel::onRender() {
             ImGui::Separator();
 
             ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.045f, 0.060f, 0.105f, 1.0f));
+            const float logWrapWidth = ImMax(1.0f, ImGui::GetContentRegionAvail().x
+                                                   - ImGui::GetStyle().FramePadding.x * 2.0f
+                                                   - ImGui::GetStyle().ScrollbarSize);
+            const auto wrappedLines = splitColoredLines(luauLogs, luauFilterBuf, false, logWrapWidth);
+            std::string displayJoined = joinConsoleLines(wrappedLines);
             if (luauScrollToBottom) { ImGui::SetNextWindowScroll(ImVec2(-1.0f, FLT_MAX)); }
             ImGuiWindow* luauParent = GImGui->CurrentWindow;
             const ImGuiID luauInputId = luauParent->GetID("##LuauLog");
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 0));
             ImGui::PushStyleColor(ImGuiCol_InputTextCursor, ImVec4(0, 0, 0, 0));
-            ImGui::InputTextMultiline("##LuauLog", joined.data(), joined.size() + 1,
-                                      ImVec2(0, 0), ImGuiInputTextFlags_ReadOnly);
+            ImGui::InputTextMultiline("##LuauLog", displayJoined.data(), displayJoined.size() + 1,
+                                      ImVec2(-FLT_MIN, -FLT_MIN), ImGuiInputTextFlags_ReadOnly);
             ImGui::PopStyleColor(2);
             drawColoredConsoleText(luauParent, luauInputId,
-                                   splitColoredLines(luauLogs, luauFilterBuf, false));
+                                   wrappedLines);
             luauScrollToBottom = false;
             ImGui::PopStyleColor();
             ImGui::EndTabItem();

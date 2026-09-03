@@ -1,5 +1,12 @@
 # User
 
+## Character の Workspace
+
+`getCharacterWorkspace()` は Character の最寄りの祖先 Workspace を返す。`moveCharacterToWorkspace()` は
+Weld を同期してワールド CFrame を維持したまま移動する。同じ Workspace は成功する no-op とし、Character が
+一時的に Workspace 外にある場合は自動追従を行わない。Play 中のアクティブ Workspace は Character の所属先に
+自動追従する。Free/Program カメラの変換は移動先へテレポートせず、セカンダリ Viewport は指定 Workspace に固定される。
+
 `include/Core/User.hpp`
 
 プレイヤーのカメラ制御とキャラクター操作を担う。Free モード（エディタ視点）と Character モード（キャラクター操作）の 2 モードを持つ。

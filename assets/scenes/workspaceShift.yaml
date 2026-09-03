@@ -1,0 +1,251 @@
+recubin:
+  type: scene
+  version: 0
+Root:
+  Properties:
+    MaxClonesPerFrame: 1000
+    MaxRestartsPerFrame: 100
+    ScriptLoopTimeoutSeconds: 2
+    BaseResolution: [1920, 1080]
+    UseNetwork: false
+    ApplicationId: 4e8470e0-299b-431e-9875-b17e26aa9760
+    EnableIOAPI: false
+    EnableIPCAPI: false
+    EnableExternalFileAccess: false
+    DefaultCameraMode: Character
+  Children:
+    - ClassName: Script
+      Name: Portal
+      Properties:
+        ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\Portal.luau
+        Enabled: true
+    - ClassName: Users
+      Name: Users
+      Children:
+        - ClassName: User
+          Name: User
+          Properties:
+            ControlMode: Free
+            Speed: 0.25
+            RotationSpeed: 1
+            MouseRotationSpeed: 0.15
+            CharacterSmoothing: 0.15
+            MovementInputEnabled: true
+            CameraInputEnabled: true
+            HotkeyInputEnabled: true
+            ToolInputEnabled: true
+            CameraDistance: 10
+            ZoomSpeed: 0.1
+            MouseZoomSpeed: 1
+            CursorType: Default
+            CursorImages:
+              - Type: Type1
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type2
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type3
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type4
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type5
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type6
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type7
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type8
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type9
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type10
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+          Children:
+            - ClassName: Folder
+              Name: Inventory
+    - ClassName: Workspace
+      Name: Backrooms
+      Properties:
+        Gravity: [0, -196.20001, 0]
+        Wind: [0, 0, 0]
+        PhysicsEnabled: true
+      Children:
+        - ClassName: Cube
+          Name: Button
+          Properties:
+            Position: [-9, 1, -0]
+            Size: [4, 1, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.29230767, 0.29230767, 0.29230767, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: ProximityPrompt
+              Name: Prompt
+              Properties:
+                Size: [200, 100]
+                Norm: Pixel
+                Active: true
+                Visible: true
+                BackgroundColor: [0.08, 0.08, 0.08, 0.85]
+                ZIndex: 0
+                Mode: Parallel
+                SizeMode: Screen
+                Offset: [0, 0, 0]
+                KeyboardKeyCode: E
+                HoldDuration: 1
+                MaxActivationDistance: 10
+                Enabled: true
+                ActionText: Interact
+                ObjectText: ???
+        - ClassName: Lighting
+          Name: Lighting
+          Properties:
+            Direction: [1, -1, -1]
+            Brightness: 1
+            Color: [1, 1, 1, 1]
+        - ClassName: Cube
+          Name: Cube
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1024, 1, 1024]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.1008284, 0.23050942, 0.65538466, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+    - ClassName: PathfindingService
+      Name: PathfindingService
+    - ClassName: Workspace
+      Name: Frontrooms
+      Properties:
+        Gravity: [0, -196.20001, 0]
+        Wind: [0, 0, 0]
+        PhysicsEnabled: true
+      Children:
+        - ClassName: Cube
+          Name: Button
+          Properties:
+            Position: [-9, 1, -0]
+            Size: [4, 1, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.29230767, 0.29230767, 0.29230767, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+          Children:
+            - ClassName: ProximityPrompt
+              Name: Prompt
+              Properties:
+                Size: [200, 100]
+                Norm: Pixel
+                Active: true
+                Visible: true
+                BackgroundColor: [0.08, 0.08, 0.08, 0.85]
+                ZIndex: 0
+                Mode: Parallel
+                SizeMode: Screen
+                Offset: [0, 0, 0]
+                KeyboardKeyCode: E
+                HoldDuration: 1
+                MaxActivationDistance: 10
+                Enabled: true
+                ActionText: Interact
+                ObjectText: ???
+        - ClassName: Lighting
+          Name: Lighting
+          Properties:
+            Direction: [1, -1, -1]
+            Brightness: 1
+            Color: [1, 1, 1, 1]
+        - ClassName: Cube
+          Name: Cube
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1024, 1, 1024]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.1759068, 0.65538466, 0.1008284, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+        - ClassName: SpawnLocation
+          Name: SpawnLocation
+          Properties:
+            Position: [0, 1, 0]
+            Size: [8, 1, 8]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Enabled: true

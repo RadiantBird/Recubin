@@ -73,6 +73,11 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 - 重力など、現実のSI単位の物理定数だけは個別にstud相当へ変換する
   (例: 9.81 m/s² -> 196.2 stud/s²、`include/Math/Units.hpp`参照)
 
+## プロパティ操作
+  - すべてのR/W/RWプロパティはエディターで表示される（理由があればその限りではない）
+  - 複数選択時は共通プロパティの和集合を表示する
+  - プロパティにはエディターで実行できる関数のボタンも含める(ScriptのRestartなど)
+  
 ## 方角
 - +Zが東
 - -Zが西
@@ -309,6 +314,14 @@ teardownは冪等にする。startup/editor settings/terrain YAMLの失敗は共
 
 GUI automation専用モードの未保存変更確認danger cooldownは0秒、通常Editorは3秒とする。
 Class Pickerのpopupは選択変更時に旧クラスの承認だけを破棄して維持し、確定・取消時に保留状態を閉じる。
+## Play 中の複数 Workspace
+
+Play 中はローカル User の Character が属する最寄りの Workspace をアクティブ Workspace とする。
+Luau の `Character.Parent` 変更は同一フレーム内に検出し、カメラ、入力、物理、Terrain、Weather、Particle、
+Replication、Luau の `workspace`、Primary Viewport、Explorer を追従させる。Character が未生成または
+一時的に Workspace 外にある場合は現在のアクティブ Workspace を維持する。Free/Program カメラの変換は
+移動先へテレポートせず、セカンダリ Viewport は開いた Workspace に固定する。
+
 ## Editor GUI automation
 
 `--ui-automation` を指定したEditorだけがstdin操作と意味IDによるUI target登録を有効化する。

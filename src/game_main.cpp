@@ -649,6 +649,16 @@ int main(int argc, char* argv[]) {
         luauEngine->onGuiButtonActivated(btn);
     };
 
+    auto syncCharacterWorkspace = [&] {
+        Workspace* characterWorkspace = user->getCharacterWorkspace();
+        if (!characterWorkspace || characterWorkspace == workspace.get()) return;
+        workspace = std::static_pointer_cast<Workspace>(characterWorkspace->shared_from_this());
+        if (!workspace->getPhysicsEngine()) workspace->initPhysics();
+        replication.setWorkspace(workspace);
+        luauEngine->setGlobalInstance("workspace", workspace);
+        luauEngine->setWorkspace(workspace);
+    };
+
     // ---- ゲーム開始 ----
     // 先にスクリプトを実行開始する
     luauEngine->executeWorkspaceScripts(*workspace);
@@ -674,6 +684,7 @@ int main(int argc, char* argv[]) {
         float deltaTime = static_cast<float>(std::max(0.0, now - lastFrame));
         lastFrame       = now;
         SystemState::get().deltaTime = deltaTime;
+        syncCharacterWorkspace();
 
         // ---- ネットワークポーリング（物理更新より前＝受信内容を反映してからシミュレートする） ----
         NetworkManager::get().update(deltaTime);
@@ -735,6 +746,7 @@ int main(int argc, char* argv[]) {
                 luauEngine->executeSystemScripts();
                 navMeshBusy = PathfindingService::IsBuildActive();
             }
+            syncCharacterWorkspace();
             FrameProfiler::get().endSection("luau");
         }
         if (luauEngine->consumeSafetyHaltRequest()) break; // 既存のconsumeExitRequestと同じglfwTerminate()クリーンアップ経路に合流
@@ -763,17 +775,7 @@ int main(int argc, char* argv[]) {
                 Workspace* next = (it != ptrs.end() && std::next(it) != ptrs.end())
                     ? *std::next(it) : ptrs.front();
                 if (next != workspace.get()) {
-                    if (user->character) {
-                        // 旧Workspaceで Weld を一旦同期し、アンカー(Head)と非アンカー(帽子等)の
-                        // ワールド姿勢を同一瞬間で揃えてから移す。これをしないと移動先の rebuildGroup が
-                        // 1フレームずれた姿勢からオフセットを再計算し、Weldメンバーが毎スイッチ離れていく。
-                        if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->syncWeldKinematics();
-                        Vector3 worldPos = user->character->getWorldPosition();
-                        auto charSp = std::static_pointer_cast<Instance>(user->character);
-                        workspace->removeChild(user->character->Name);
-                        next->addChild(charSp);
-                        user->character->Position = worldPos;
-                    }
+                    if (user->character && !user->moveCharacterToWorkspace(*next)) continue;
                     workspace = std::static_pointer_cast<Workspace>(next->shared_from_this());
                     if (!workspace->getPhysicsEngine()) workspace->initPhysics();
                     replication.setWorkspace(workspace);

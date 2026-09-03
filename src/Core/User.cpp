@@ -321,6 +321,27 @@ void User::clearMoveDirection() {
 void User::queueJump() { m_jumpQueued = true; }
 void User::requestWorkspaceSwitch() { wantsSwitchWorkspace = true; }
 
+Workspace* User::getCharacterWorkspace() const {
+    if (!character) return nullptr;
+    return dynamic_cast<Workspace*>(character->findFirstAncestorWorkspace());
+}
+
+bool User::moveCharacterToWorkspace(Workspace& destination) {
+    if (!character) return false;
+    auto current = getCharacterWorkspace();
+    if (current == &destination) return true;
+
+    if (current && current->getPhysicsEngine())
+        current->getPhysicsEngine()->syncWeldKinematics();
+    const CFrame worldCFrame = character->getWorldCFrame();
+
+    auto characterInstance = std::static_pointer_cast<Instance>(character);
+    destination.addChild(characterInstance);
+    if (getCharacterWorkspace() != &destination) return false;
+    character->setWorldCFrame(worldCFrame);
+    return true;
+}
+
 void User::requestExit() {
     if (ExitRequested && ExitRequested->hasListeners()) {
         if (!m_exitRequestPending) {

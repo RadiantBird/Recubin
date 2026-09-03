@@ -27,6 +27,8 @@ struct camera {
     Vector3 Position = Vector3(0, -2, 5); // ただのダミーデータ
 };
 
+class Workspace;
+
 class User : public Instance {
 public:
     enum class CursorType { Default = 0, Type1, Type2, Type3, Type4, Type5,
@@ -212,6 +214,10 @@ public:
     // newCharacter が nullptr なら参照をクリアし ControlMode::Free に切り替える。
     // 旧character自体の破棄・ツリーからの除去は行わない(スクリプト側の責任)
     void setCharacterFromScript(std::shared_ptr<Model> newCharacter);
+    // Characterが属する最寄りのWorkspace。未接続時はnullptr。
+    Workspace* getCharacterWorkspace() const;
+    // CharacterをWorkspace間でワールド姿勢を維持して移動する。
+    bool moveCharacterToWorkspace(Workspace& destination);
     static User* getInstance() { return s_instance; }
 
     // ネットワークのリモートピア用の軽量Userを構築する(NullInputBackend、s_instanceを書き換えない、

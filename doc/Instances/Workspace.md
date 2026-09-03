@@ -25,6 +25,10 @@
 | `registerCube(c)` | BaseCube を pendingInstances に追加 |
 | `setPhysicsEngine(physics)` | Physics を接続 |
 
+`Workspace::cloneTree()` は複製先も `Workspace` 型を維持し、`Name`、`Gravity`、`Wind`、
+`PhysicsEnabled` と子ツリーを複製する。物理エンジン、物理登録待ちリスト、制約待ちリスト、
+スクリプト登録などの実行時状態は複製せず、新しい祖先関係により必要な登録が行われる。
+
 ## フレンドクラス
 
 `Script` と `BaseCube` は Workspace の登録メソッドに直接アクセスできる。

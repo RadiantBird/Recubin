@@ -62,6 +62,16 @@ Workspace::~Workspace() {
     this->children.clear();
 }
 
+std::shared_ptr<Instance> Workspace::clone() const {
+    auto copy = std::make_shared<Workspace>();
+    copy->Name = Name;
+    PropertyRegistry::cloneFields(this, copy.get(), "Workspace");
+    for (const auto& [name, child] : children) {
+        if (child) copy->addChild(child->clone());
+    }
+    return copy;
+}
+
 std::string Workspace::getClassName() {
     return "Workspace";
 }

@@ -403,3 +403,9 @@
 
 - `PropertyDesc`へ`EditorWidget`、ファイルダイアログ設定、複数選択互換キーを追加した。PhysicalFileInstanceのPathは手書き専用UIを廃止し、共通のFilePath入力・Browse・Clear・Undoへ移行した。
 - ReleaseのRecubin／RecubinEngine／RecubinTestビルド成功。`--property-schema-regression`はWSL↔Windows通信エラー（`UtilBindVsockAnyPort`）で未実施。
+
+## 2026-09-03: Character所在WorkspaceへのPlay中自動追従
+
+- Play中のCharacter所属Workspace自動追従、User API、Pキー／Explorer共通移動、非推奨ラベル削除、関連docs/testsを実装した。
+- ReleaseでRecubin／RecubinEngine／RecubinTestビルド成功。`--multi-workspace-regression`はPhysX／Box3DともPASS。
+- `workspaceShift.yaml`／`Portal.luau`による往復、Primary Viewport・Explorer・カメラ追従、Secondary Viewport固定表示はユーザー確認済み。

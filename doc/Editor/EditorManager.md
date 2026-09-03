@@ -107,3 +107,9 @@ hierarchyPanel->m_clipboard
 - Treeまたはmetadataを変更した場合はDirtyにするが自動保存しない。無題Scene、非R6、Play snapshot復元は変更しない。
 - Fileメニューの`Restore Default Animations`をユーザーが明示実行した場合だけ標準Walk参照を再設定する。
 - `migrateCharacterAnimationBindings`はGUIを構築しないTree＋metadataの静的処理で、Editor表示側も同じ結果を利用する。
+
+# Play 中の Workspace 追従
+
+Play 中はローカル Character の所属 Workspace が Primary Viewport と Explorer の表示対象になる。
+Character が Workspace 外にある間は現在の対象を維持する。Secondary Viewport は開いた Workspace に固定され、
+Free/Program カメラの変換は Workspace 切替時にテレポートしない。
