@@ -5,13 +5,21 @@
 
 ![logo](Recubin.png)
 
-RecubinはC++で作成されたゲームエンジンで、
-楽しい物理エンジン、Luauでコーディング、複数Workspaceなど、
-ゲーム開発を楽しくしてくれる要素がたくさんです。
-Windowsで動作します。
-Linux対応予定です。
+Recubinは、Luauスクリプティング、物理遊び、複数Workspaceを備えたC++製のローカルゲームエンジンです。
+Robloxに影響を受けつつ、「もっと自由にローカルで遊べたら」を形にしています。
+
+| プラットフォーム | 対応状況 |
+|---|---|
+| Windows | ✅ 対応 |
+| Linux | 🚧 対応予定 |
+| macOS | ⚠️ v1.0のみ |
 
 [パッケージ](https://github.com/RadiantBird/Recubin/releases)はここからダウンロードできます！
+
+## English summary
+
+Recubin is a local game engine inspired by Roblox, featuring Luau scripting, physics, and multiple Workspaces.
+[Download Recubin](https://github.com/RadiantBird/Recubin/releases) :DD
 
 ## 目標
 - 誰でも簡単にゲームを開発し、ローカルで公開できるように。
@@ -63,11 +71,63 @@ Humanoidクラスによるパスファインディングで、
 リポジトリにあるサンプルスクリプトを見てもらうとわかる気がします。
 よければ、ドキュメント一緒に書きましょう！
 
+### ネットワーク
+![p](images/Network.png)
+
+インターネットが欲しいですか？
+```
+＿人人人人人人人人人人人人人人＿
+＞　インターネットあります！　＜
+￣Y^Y^Y^Y^Y^Y^Y^Y^Y^Y^Y^Y￣
+```
+……まあサーバーがないので、TailScaleとかは必須ですね。  
+サーバーが欲しいなら……私は知りません。
+
+### SurfaceMark
+![p](images/SurfaceMark.png)
+
+プロジェクターみたいにいろんなところに画像をべたっと貼れます。  
+なんでも貼ってしまへ。
+
+### ポストエフェクト
+![p](images/PostEffect.png)
+
+デフォルトのグラフィックがつまらない？  
+ちょっとだけ装飾しよう！
+
+インダストリアルからVHSまでだいたいカスタマイズできます。  
+ワイヤーフレームだけってのはまだないです。欲しい人がいたら作ります(－O－)
+
 ### 複数ワークスペース
 これ試してみると本当に面白いと思います。
 一つのゲームでいろんなステージを作れて、
 次元移動的なことができるので。
-まだあんまりテストしてませんけどね。
+例えばこんな感じ。
+
+プレイヤーのキャラクターを別のWorkspaceの子にするだけで、別世界へ移動できます。
+
+```lua
+-- Portal
+local frontrooms: Workspace = system.Frontrooms
+local backrooms:  Workspace = system.Backrooms
+
+local fButton, bButton = frontrooms.Button, backrooms.Button
+local p1:ProximityPrompt, p2:ProximityPrompt = fButton.Prompt, bButton.Prompt
+
+local char = nil
+User.CharacterAdded:Connect(function(c)
+    char = c
+    print(char)
+end)
+
+p1.Triggered:Connect(function()
+    char.Parent = backrooms
+end)
+
+p2.Triggered:Connect(function()
+    char.Parent = frontrooms
+end)
+```
 
 ---
 あといろいろ…多分面白いものがたくさんあります。
@@ -121,3 +181,5 @@ v2.0では、さらに面白い要素、いろいろなインスタンス、
   - 詳細は[このファイル](doc/LPL.md)をご覧ください。
   
 ---
+
+ちなみに、スクショに映ってる髪型のポリゴンはcuruataさんの物です。
