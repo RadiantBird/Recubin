@@ -42,3 +42,5 @@ Luar Programming Language/luar-vscode/*.vsix
 
 # Windows reserved device accidentally created by redirected WSL output
 /NUL
+
+TestCases/NetworkTest/RecubinEngine-macos-arm64
