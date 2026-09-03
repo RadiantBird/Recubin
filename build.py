@@ -10,6 +10,7 @@ from typing import Any
 
 
 IS_WINDOWS = platform.system() == "Windows"
+IS_MACOS = platform.system() == "Darwin"
 if IS_WINDOWS:
     import psutil as psutil_module
 else:
@@ -670,6 +671,121 @@ If Recubin.exe does not start, run redist/vc_redist.x64.exe before launching Rec
     return 0
 
 
+def package_editor_for_macos(config: str) -> int:
+    result = build(config)
+    if result != 0:
+        return result
+
+    recubin_executable = BUILD_DIR / "Recubin"
+    engine_executable = BUILD_DIR / "RecubinEngine"
+    for executable in (recubin_executable, engine_executable):
+        if not executable.is_file():
+            print(f"[ERROR] Executable not found: {executable}")
+            return 1
+
+    bundle_dir = DIST_DIR / "RecubinStudio.app"
+    if bundle_dir.exists():
+        shutil.rmtree(bundle_dir)
+
+    contents_dir = bundle_dir / "Contents"
+    macos_dir = contents_dir / "MacOS"
+    resources_dir = contents_dir / "Resources"
+    macos_dir.mkdir(parents=True, exist_ok=True)
+    resources_dir.mkdir(parents=True, exist_ok=True)
+
+    for source, destination in (
+        (recubin_executable, macos_dir / "Recubin"),
+        (engine_executable, macos_dir / "RecubinEngine"),
+    ):
+        shutil.copy2(source, destination)
+        destination.chmod(destination.stat().st_mode | 0o111)
+
+    info_plist = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>Recubin</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.recubin.studio</string>
+    <key>CFBundleName</key>
+    <string>Recubin Studio</string>
+    <key>CFBundleDisplayName</key>
+    <string>Recubin Studio</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.999</string>
+    <key>CFBundleVersion</key>
+    <string>0.999</string>
+</dict>
+</plist>
+"""
+    (contents_dir / "Info.plist").write_text(info_plist, encoding="utf-8")
+
+    shaders_src = ROOT_DIR / "shaders"
+    shaders_dst = resources_dir / "shaders"
+    shaders_dst.mkdir(parents=True, exist_ok=True)
+    shader_paths = list(shaders_src.glob("*.glsl"))
+    if not shader_paths:
+        print("[ERROR] No shader files found in shaders folder.")
+        return 1
+    for shader_path in shader_paths:
+        shutil.copy2(shader_path, shaders_dst / shader_path.name)
+
+    fonts_src = ROOT_DIR / "assets" / "fonts"
+    if not fonts_src.is_dir():
+        print("[ERROR] assets/fonts folder missing - cannot package macOS bundle.")
+        return 1
+    (resources_dir / "assets").mkdir(parents=True, exist_ok=True)
+    shutil.copytree(fonts_src, resources_dir / "assets" / "fonts")
+
+    for dir_name in ("scenes", "image", "models", "scripts"):
+        (resources_dir / "assets" / dir_name).mkdir(parents=True, exist_ok=True)
+
+    optional_files = (
+        (ROOT_DIR / "imgui.ini", resources_dir / "imgui.ini", "imgui.ini not found - skipping."),
+        (ROOT_DIR / "LICENCE", resources_dir / "LICENSE", "LICENSE not found - skipping."),
+        (
+            ROOT_DIR / "LICENCE_3RD_PARTY",
+            resources_dir / "LICENCE_3RD_PARTY",
+            "LICENCE_3RD_PARTY not found - skipping.",
+        ),
+    )
+    for source, destination, warning in optional_files:
+        if source.exists():
+            shutil.copy2(source, destination)
+        else:
+            print(f"[WARNING] {warning}")
+
+    try:
+        result = subprocess.call([
+            "/usr/bin/codesign", "--force", "--deep", "--sign", "-", str(bundle_dir)
+        ], cwd=ROOT_DIR)
+        if result != 0:
+            print("[ERROR] macOS bundle signing failed.")
+            return result
+        result = subprocess.call([
+            "/usr/bin/codesign", "--verify", "--deep", "--strict", str(bundle_dir)
+        ], cwd=ROOT_DIR)
+    except OSError as exc:
+        print(f"[ERROR] Failed to run codesign: {exc}")
+        return 1
+    if result != 0:
+        print("[ERROR] macOS bundle signature verification failed.")
+        return result
+
+    date_str = datetime.date.today().strftime("%Y%m%d")
+    archive_base = DIST_DIR / f"RecubinStudio-macos-{date_str}"
+    zip_path = shutil.make_archive(
+        str(archive_base), "zip", root_dir=DIST_DIR, base_dir="RecubinStudio.app"
+    )
+
+    print(f"[SUCCESS] Packaged studio at {bundle_dir}")
+    print(f"[SUCCESS] Created archive at {zip_path}")
+    return 0
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print("Usage: <python> build.py <build|run|brun|test|launcher|package> [Debug|Release]")
@@ -705,7 +821,12 @@ def main() -> int:
         return build_launcher(config)
 
     if action == "package":
-        return package_editor_for_windows(config)
+        if IS_WINDOWS:
+            return package_editor_for_windows(config)
+        if IS_MACOS:
+            return package_editor_for_macos(config)
+        print(f"[ERROR] Unsupported platform for package: {platform.system()}")
+        return 1
 
     print(f"[ERROR] Unknown action: {action}")
     return 1
