@@ -182,4 +182,5 @@ v2.0では、さらに面白い要素、いろいろなインスタンス、
   
 ---
 
-ちなみに、スクショに映ってる髪型のポリゴンはcuruataさんの物です。
+スクリーンショット内の髪型モデルは curuata さんの制作物です。  
+Licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
