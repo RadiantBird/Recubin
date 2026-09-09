@@ -7,7 +7,7 @@
 class EditorPanel {
 public:
     std::string title;
-    bool        isOpen = true;
+    bool        isOpen = false; // 既定でfalse
 
     explicit EditorPanel(std::string title) : title(std::move(title)) {}
     virtual ~EditorPanel() = default;

@@ -641,7 +641,9 @@ int main(int argc, char* argv[]) {
     loadEditorPreferences(ed, user.get()); // 前回のエディター環境設定を復元
 
     ed->welcomePanel->lastScenePath = lastScenePath;
-    ed->welcomePanel->isOpen = true; // ようこそタブは起動時に必ず表示する
+
+    // 2026/09/09: ようこそタブを表示するかはinitializeAutosaveRecoveryに移行させました
+    // ed->welcomePanel->isOpen = true; // ようこそタブは起動時に必ず表示する
 
     // Workspace 切り替えコールバックを設定
     ed->hierarchyPanel->onSwitchWorkspace = [&](Workspace* ws) {

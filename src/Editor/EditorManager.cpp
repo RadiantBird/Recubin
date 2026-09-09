@@ -796,7 +796,11 @@ void EditorManager::initializeAutosaveRecovery() {
     m_recoveryCandidate = m_autosave.findLatestCrashRecovery();
     if (m_recoveryCandidate) {
         m_showCrashRecovery = true;
+        welcomePanel->isOpen = false;
         return;
+    }
+    else {
+        welcomePanel->isOpen = true;
     }
     beginAutosaveSession();
 }
