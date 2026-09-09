@@ -636,6 +636,7 @@ int main(int argc, char* argv[]) {
     if (initialSceneMetadata.applicationIdGenerated) ed->markDirty();
     ed->engineExePath = engineExePath.string();
     ed->scenePath     = scenePath; // 起動時に決定したシーンパスを反映
+    ed->initializeAutosaveRecovery();
     loadPanelVisibility(ed);       // 前回のパネル開閉状態を復元
     loadEditorPreferences(ed, user.get()); // 前回のエディター環境設定を復元
 
@@ -668,7 +669,7 @@ int main(int argc, char* argv[]) {
     bool wasPlaying = false;
     bool snapshotDirty = false;
     SceneLoader::SceneDocumentMetadata originalSceneMetadata;
-    const std::string snapshotPath = "assets/scenes/_snapshot.yaml";
+    const std::string snapshotPath = "assets/scenes/_snapshot.rcbn";
 
     struct ManagedNetworkClient {
         std::unique_ptr<IChildProcess> process;
@@ -820,6 +821,7 @@ int main(int argc, char* argv[]) {
         double currentFrame = glfwGetTime();
         float deltaTime = static_cast<float>(std::max(0.0, currentFrame - lastFrame));
         lastFrame          = currentFrame;
+
         pollNetworkClientCleanup(currentFrame);
 
         SystemState& state = SystemState::get();
@@ -865,6 +867,7 @@ int main(int argc, char* argv[]) {
             // Animation Editorの編集セッションが開いたままだと、リグ/プレビュー姿勢が
             // スナップショットに焼き込まれ、Stop後のシーンが静かに汚染される。保存前に必ず復元する
             if (ed && ed->animationPanel) ed->animationPanel->endEditSession();
+            ed->flushAutosaveRecovery();
             auto snapshotMetadata = ed ? ed->sceneMetadata() : SceneLoader::SceneDocumentMetadata{};
             SceneLoader::saveSceneResult(system.get(), snapshotPath, snapshotMetadata);
             SceneLoader::resolveConstraintRefs(system.get());
@@ -1029,21 +1032,22 @@ int main(int argc, char* argv[]) {
         }
         wasPlaying = isPlaying && playTransitionAccepted;
 
+        if (ed && ed->isEditMode()) ed->updateAutosave();
+
         // ---- シーンのリロード（Loadボタン / 新規作成）----
-        if (ed && (ed->pendingNewScene || !ed->pendingLoadPath.empty()) && ed->isEditMode()) {
-            bool isNewScene = ed->pendingNewScene;
-            std::string loadPath = isNewScene ? std::string() : ed->pendingLoadPath;
+        if (ed && ed->pendingScene.active && ed->isEditMode()) {
+            const auto request = ed->pendingScene;
+            const bool isNewScene = request.kind == EditorManager::PendingSceneKind::New;
+            std::string loadPath = isNewScene ? std::string() : request.sourcePath;
             auto staged = SceneRuntime::stageSceneLoad(loadPath, system, user);
             if (!staged) {
                 ed->showSceneLoadError(staged.message.empty()
                     ? "Scene could not be loaded" : staged.message);
-                ed->pendingNewScene = false;
-                ed->pendingLoadPath.clear();
+                ed->pendingScene = {};
                 continue;
             }
-            ed->pendingNewScene = false;
-            ed->pendingLoadPath.clear();
-            ed->scenePath = loadPath;
+            ed->pendingScene = {};
+            ed->endAutosaveSessionNormally();
 
             // ---- Undo履歴/Clipboardのクリア（Play→Stop遷移と同じ理由） ----
             ed->hierarchyPanel->selectedInstance = nullptr;
@@ -1059,6 +1063,9 @@ int main(int argc, char* argv[]) {
 
             installBoundScene(SceneRuntime::commitAndBind(
                 std::move(staged), system, user, *luauEngine, window), false);
+            ed->scenePath = request.logicalPath;
+            ed->beginAutosaveSession();
+            if (request.markDirty) ed->markDirty();
             ed->evaluateSceneMigration();
             SceneRuntime::applyAppIcon(window, system.get());
         }
@@ -1244,6 +1251,7 @@ int main(int argc, char* argv[]) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderer->render(*user, window, *workspace.get());
 
+
         audioService->updateSounds(user->cpos, user->right);
         FrameProfiler::get().endFrame();
 
@@ -1355,6 +1363,7 @@ int main(int argc, char* argv[]) {
     // 解放されると、BaseCube のデストラクタで lastWorkspace->physicsEngine に
     // アクセスしてクラッシュする。Physics がまだ生きている今のうちにクリアする。
     if (ed) {
+        ed->endAutosaveSessionNormally();
         ed->hierarchyPanel->selectedInstance = nullptr;
         ed->m_history.clear();
         ed->clearClipboard();

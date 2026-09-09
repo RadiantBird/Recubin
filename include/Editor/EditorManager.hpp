@@ -13,10 +13,12 @@
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
 #include <Core/SceneLoader.hpp>
+#include <Editor/AutosaveManager.hpp>
 #include <include/GLFW/glfw3.h>
 #include <memory>
 #include <string>
 #include <vector>
+#include <filesystem>
 #include <include/imgui/imgui.h>
 
 // ===================================================
@@ -74,8 +76,15 @@ public:
     // 起動時にmain.cppが決定したシーンパスが入る(前回開いていたシーン、または
     // ユーザーがダイアログで選択したシーン)。construct直後にmain.cppが設定する
     std::string scenePath;
-    std::string pendingLoadPath;  // 非空のとき main.cpp がリロードを実行する
-    bool pendingNewScene = false; // 新規シーン作成要求（mainループが処理）
+    enum class PendingSceneKind { Formal, New, Recovery };
+    struct PendingSceneRequest {
+        bool active = false;
+        PendingSceneKind kind = PendingSceneKind::Formal;
+        std::string sourcePath;
+        std::string logicalPath;
+        bool markDirty = false;
+    };
+    PendingSceneRequest pendingScene;
 
     EditorManager(Workspace* workspace, User* user, Instance* system = nullptr);
 
@@ -124,7 +133,12 @@ public:
     void showLocalServerNetworkRequiredError();
 
     bool isDirty()  const { return m_isDirty; }
-    void markDirty()      { m_isDirty = true; }
+    void markDirty()      { m_isDirty = true; if (m_autosave.isActive()) m_autosave.markSceneChanged(); }
+    void updateAutosave();
+    bool flushAutosaveRecovery();
+    bool beginAutosaveSession();
+    void endAutosaveSessionNormally() { m_autosave.endSessionNormally(); }
+    void initializeAutosaveRecovery();
 
     // 未保存確認ダイアログを ImGui モーダルで表示する（毎フレーム render() 内で処理する）
     void requestSaveDialog(GLFWwindow* window);
@@ -134,7 +148,7 @@ public:
     void requestSceneLoad(const std::string& path);
     void requestNewScene();
 
-    void setSceneMetadata(const SceneLoader::SceneDocumentMetadata& metadata) { m_sceneMetadata = metadata; }
+    void setSceneMetadata(const SceneLoader::SceneDocumentMetadata& metadata) { m_sceneMetadata = metadata; m_autosave.setSceneMetadata(metadata); }
     enum class CharacterAnimationMigrationResult {
         NotApplicable,
         AlreadyMigrated,
@@ -164,11 +178,14 @@ private:
     Instance*  m_system    = nullptr;
     User*      m_user      = nullptr;
     bool       m_isDirty   = false;
+    AutosaveManager m_autosave{std::filesystem::current_path()};
     SceneLoader::SceneDocumentMetadata m_sceneMetadata;
     bool m_showLoadError = false;
     std::string m_loadError;
     bool m_showRestoreR6Confirm = false;
     std::vector<std::shared_ptr<Instance>> m_clipboard;  // 複数コピー対応
+    std::shared_ptr<AutosaveManager::RecoveryCandidate> m_recoveryCandidate;
+    bool m_showCrashRecovery = false;
 
 public:
     void clearClipboard() { m_clipboard.clear(); }
@@ -228,9 +245,10 @@ private:
     void handleEditorShortcuts();
     void renderSaveDialog();
     void renderPlayLoadConfirmDialog();
+    void renderCrashRecoveryDialog();
     void renderPlayStartErrorDialog();
     void renderPackageDialog();
-    void saveCurrentScene();
+    bool saveCurrentScene();
     void openSceneDialog();
     void cleanupOrphanedSelection();
     void restoreDefaultR6Animations();

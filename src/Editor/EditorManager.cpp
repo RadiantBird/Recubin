@@ -173,7 +173,7 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
 
     // 履歴に変更が入ったら未保存(dirty)にする。これで全パネル（挿入/貼付/削除/
     // D&D/リネーム/プロパティ編集）が CommandHistory 経由で自動的に dirty 化される
-    m_history.setOnChange([this]{ m_isDirty = true; });
+    m_history.setOnChange([this]{ markDirty(); });
 
     // CommandHistory と clipboard を各パネルに渡す
     hierarchyPanel->m_history   = &m_history;
@@ -199,9 +199,28 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system)
     // ようこそタブのボタン → 既存のシーン操作へ委譲
     welcomePanel->onNewScene  = [this]{ requestNewScene(); };
     welcomePanel->onLoadLast  = [this]{ requestSceneLoad(welcomePanel->lastScenePath); };
-    welcomePanel->onOpenScene = [this]{ openSceneDialog(); return !pendingLoadPath.empty(); };
+    welcomePanel->onOpenScene = [this]{ openSceneDialog(); return pendingScene.active; };
 
     applyTheme();
+}
+
+bool EditorManager::beginAutosaveSession() {
+    m_autosave.setSceneMetadata(m_sceneMetadata);
+    const bool ok = m_autosave.beginSession(m_system, scenePath, m_sceneMetadata);
+    if (!ok) RCBN_ERROR("Autosave: failed to begin session for " << scenePath);
+    if (ok && m_isDirty) m_autosave.markSceneChanged();
+    return ok;
+}
+
+void EditorManager::updateAutosave() {
+    if (!isEditMode()) return;
+    m_autosave.setSceneMetadata(m_sceneMetadata);
+    m_autosave.update();
+}
+
+bool EditorManager::flushAutosaveRecovery() {
+    m_autosave.setSceneMetadata(m_sceneMetadata);
+    return m_autosave.flushRecovery();
 }
 
 EditorPlayMode EditorManager::selectedPlayMode() const {
@@ -272,6 +291,7 @@ void EditorManager::render(GLFWwindow* window) {
     renderSaveDialog();
     // ---- テストプレイ中のシーン読み込み確認ダイアログ ----
     renderPlayLoadConfirmDialog();
+    renderCrashRecoveryDialog();
     // ---- テストプレイ開始エラー ----
     renderPlayStartErrorDialog();
     renderSceneLoadErrorDialog();
@@ -540,7 +560,7 @@ void EditorManager::handleEditorShortcuts() {
                 m_history.execute(std::move(group));
                 si.clear();
                 hierarchyPanel->selectedInstance = nullptr;
-                m_isDirty = true;
+                markDirty();
             }
         }
 
@@ -581,7 +601,7 @@ void EditorManager::handleEditorShortcuts() {
                 m_history.execute(std::move(group));
                 hierarchyPanel->selectedInstances = pasted;
                 hierarchyPanel->selectedInstance  = pasted.empty() ? nullptr : pasted.back();
-                m_isDirty = true;
+                markDirty();
             }
         };
 
@@ -602,17 +622,30 @@ void EditorManager::handleEditorShortcuts() {
     }
 }
 
-void EditorManager::saveCurrentScene() {
-    if (!m_system && !m_workspace) return;
+bool EditorManager::saveCurrentScene() {
+    if (!m_system && !m_workspace) return false;
+    std::string targetPath = scenePath;
     // 無題シーン: 保存先を決める（キャンセルなら何もしない = dirty維持）
-    if (scenePath.empty()) {
-        std::string path = getPlatform().saveFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}}, "yaml");
-        if (path.empty()) return;
-        scenePath = path;
+    if (targetPath.empty()) {
+        std::string path = getPlatform().saveFileDialog({{"Scene (*.rcbn;*.yaml;*.yml)", "*.rcbn;*.yaml;*.yml"}}, "rcbn");
+        if (path.empty()) return false;
+        targetPath = path;
     }
     // System とその全ての子（Workspace, Lighting など）を保存
     Instance* saveRoot = m_system ? m_system : static_cast<Instance*>(m_workspace);
-    if (SceneLoader::saveSceneResult(saveRoot, scenePath, m_sceneMetadata)) m_isDirty = false;
+    if (!SceneLoader::saveSceneResult(saveRoot, targetPath, m_sceneMetadata)) {
+        RCBN_ERROR("Failed to save scene: " << targetPath);
+        return false;
+    }
+    m_isDirty = false;
+    if (targetPath != scenePath) {
+        endAutosaveSessionNormally();
+        if (auto stale = m_autosave.findCrashRecoveryForScene(targetPath))
+            m_autosave.discardRecovery(*stale);
+        scenePath = targetPath;
+        beginAutosaveSession();
+    }
+    return true;
 }
 
 void EditorManager::showSceneLoadError(const std::string& message) {
@@ -626,7 +659,7 @@ void EditorManager::evaluateSceneMigration() {
         m_system, scenePath, m_sceneMetadata);
     if (result != CharacterAnimationMigrationResult::Inserted &&
         result != CharacterAnimationMigrationResult::RecordedOnly) return;
-    m_isDirty = true;
+    markDirty();
     RCBN_LOG((result == CharacterAnimationMigrationResult::Inserted
         ? "Character animation bindings migrated: added an explicit R6 Walk Animation reference."
         : "Character animation bindings migration recorded; existing WalkAnimation was preserved."));
@@ -666,7 +699,7 @@ void EditorManager::restoreDefaultR6Animations() {
         return;
     }
     m_sceneMetadata.characterAnimationBindingsVersion = 1;
-    m_isDirty = true;
+    markDirty();
 }
 
 void EditorManager::renderSceneLoadErrorDialog() {
@@ -698,14 +731,21 @@ void EditorManager::renderRestoreR6Dialog() {
 }
 
 void EditorManager::openSceneDialog() {
-    requestSceneLoad(getPlatform().openFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}}));
+    requestSceneLoad(getPlatform().openFileDialog({{"Scene (*.rcbn;*.yaml;*.yml)", "*.rcbn;*.yaml;*.yml"}}));
 }
 
 void EditorManager::requestSceneLoad(const std::string& path) {
     if (path.empty()) return;
 
     if (isEditMode()) {
-        pendingLoadPath = path;
+        if (auto candidate = m_autosave.findCrashRecoveryForScene(path)) {
+            if (!m_autosave.isActive() || candidate->directory != m_autosave.autosaveDirectory()) {
+                m_recoveryCandidate = std::move(candidate);
+                m_showCrashRecovery = true;
+                return;
+            }
+        }
+        pendingScene = {true, PendingSceneKind::Formal, path, path, false};
         if (welcomePanel) welcomePanel->isOpen = false;
         return;
     }
@@ -717,7 +757,7 @@ void EditorManager::requestSceneLoad(const std::string& path) {
 
 void EditorManager::requestNewScene() {
     if (!isEditMode()) return; // Play中は無視（Save/Packageと同じゲート方針）
-    pendingNewScene = true;
+    pendingScene = {true, PendingSceneKind::New, {}, {}, false};
 }
 
 void EditorManager::renderPlayLoadConfirmDialog() {
@@ -738,8 +778,9 @@ void EditorManager::renderPlayLoadConfirmDialog() {
                 m_user->controlMode = User::ControlMode::Free;
                 RCBN_LOG("[INFO] Stopped due to scene load request. Switched to Free Camera mode.");
             }
-            pendingLoadPath = m_pendingPlayLoadPath;
+            const std::string path = m_pendingPlayLoadPath;
             m_pendingPlayLoadPath.clear();
+            requestSceneLoad(path);
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
@@ -749,6 +790,75 @@ void EditorManager::renderPlayLoadConfirmDialog() {
         }
         ImGui::EndPopup();
     }
+}
+
+void EditorManager::initializeAutosaveRecovery() {
+    m_recoveryCandidate = m_autosave.findLatestCrashRecovery();
+    if (m_recoveryCandidate) {
+        m_showCrashRecovery = true;
+        return;
+    }
+    beginAutosaveSession();
+}
+
+void EditorManager::renderCrashRecoveryDialog() {
+    const std::string popupTitle = std::string(Loc::t(Loc::LocKey::CrashRecoveryTitle)) + "###Editor/CrashRecovery";
+    if (m_showCrashRecovery) {
+        ImGui::OpenPopup(popupTitle.c_str());
+        m_showCrashRecovery = false;
+    }
+    if (!m_recoveryCandidate) return;
+    if (!ImGui::BeginPopupModal(popupTitle.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+    const auto candidatePath = AssetPath::toStored(m_recoveryCandidate->recoveryPath);
+    const auto validateCandidate = [this, &candidatePath]() {
+        if (m_autosave.validateRecoveryCandidate(*m_recoveryCandidate)) return true;
+        RCBN_ERROR("Recovery candidate is no longer valid: " << candidatePath);
+        m_recoveryCandidate.reset();
+        if (!m_autosave.isActive()) beginAutosaveSession();
+        showSceneLoadError("Recovery file is no longer available: " + candidatePath);
+        ImGui::CloseCurrentPopup();
+        return false;
+    };
+    ImGui::TextWrapped("%s", Loc::t(Loc::LocKey::CrashRecoveryMessage));
+    if (ImGui::Button((std::string(Loc::t(Loc::LocKey::CrashRecoveryRecover)) + "###Editor/CrashRecovery/Recover").c_str())) {
+        if (!validateCandidate()) { ImGui::EndPopup(); return; }
+        const auto candidate = *m_recoveryCandidate;
+        {
+            pendingScene = {true, PendingSceneKind::Recovery,
+                            AssetPath::toStored(candidate.recoveryPath),
+                            candidate.logicalScenePath, true};
+            m_recoveryCandidate.reset();
+            ImGui::CloseCurrentPopup();
+        }
+    }
+    GuiAutomation::registerLastItem("Editor/CrashRecovery/Recover");
+    ImGui::SameLine();
+    if (ImGui::Button((std::string(Loc::t(Loc::LocKey::CrashRecoveryOpenFolder)) + "###Editor/CrashRecovery/OpenFolder").c_str())) {
+        if (!validateCandidate()) { ImGui::EndPopup(); return; }
+        getPlatform().revealInFileManager(AssetPath::toStored(m_recoveryCandidate->directory));
+    }
+    GuiAutomation::registerLastItem("Editor/CrashRecovery/OpenFolder");
+    ImGui::SameLine();
+    if (ImGui::Button((std::string(Loc::t(Loc::LocKey::CrashRecoveryDiscard)) + "###Editor/CrashRecovery/Discard").c_str())) {
+        if (!validateCandidate()) { ImGui::EndPopup(); return; }
+        auto candidate = *m_recoveryCandidate;
+        if (m_autosave.discardRecovery(candidate)) {
+            pendingScene = {true, candidate.untitled ? PendingSceneKind::New : PendingSceneKind::Formal,
+                            candidate.untitled ? std::string() : candidate.logicalScenePath,
+                            candidate.untitled ? std::string() : candidate.logicalScenePath, false};
+            m_recoveryCandidate.reset();
+            ImGui::CloseCurrentPopup();
+        } else {
+            const std::string path = AssetPath::toStored(candidate.recoveryPath);
+            RCBN_ERROR("Failed to discard recovery candidate: " << path);
+            m_recoveryCandidate.reset();
+            if (!m_autosave.isActive()) beginAutosaveSession();
+            ImGui::CloseCurrentPopup();
+            showSceneLoadError("Could not discard the recovery session: " + path);
+        }
+    }
+    GuiAutomation::registerLastItem("Editor/CrashRecovery/Discard");
+    ImGui::EndPopup();
 }
 
 void EditorManager::renderPlayStartErrorDialog() {
@@ -800,7 +910,10 @@ void EditorManager::renderSaveDialog() {
 
         const float quitCooldown = GuiAutomation::enabled() ? 0.0f : 3.0f;
         if (EditorUi::dangerButton(Loc::t(Loc::LocKey::SaveAndQuit), m_saveDialogOpenedAt, quitCooldown)) {
-            saveCurrentScene();
+            if (!saveCurrentScene()) {
+                ImGui::EndPopup();
+                return;
+            }
             // GL コンテキストが生きている今のうちに GPU リソースを持つ
             // インスタンスの shared_ptr を解放する（コンテキスト破棄後の
             // glDelete* 呼び出しによるヒープ破壊を防ぐ）
@@ -938,7 +1051,7 @@ void EditorManager::tryAddObjectButton(const char* icon, const std::string& labe
         auto obj = std::make_shared<T>(std::forward<Args>(args)...);
         obj->Name = SceneHierarchyPanel::uniqueName(parent, defaultName);
         m_history.execute(std::make_unique<AddInstanceCommand>(parent, obj));
-        m_isDirty = true;
+        markDirty();
     }
 }
 
@@ -1267,7 +1380,7 @@ void EditorManager::renderToolbarBasic() {
     }
     ImGui::SameLine();
     if (drawIconButton(ICON_LOAD, Loc::t(Loc::LocKey::LoadButton), iconBtnSz)) {
-        requestSceneLoad(getPlatform().openFileDialog({{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}}));
+        requestSceneLoad(getPlatform().openFileDialog({{"Scene (*.rcbn;*.yaml;*.yml)", "*.rcbn;*.yaml;*.yml"}}));
     }
 }
 
@@ -1411,7 +1524,7 @@ void EditorManager::renderToolbarCharacter() {
         model->Name = SceneHierarchyPanel::uniqueName(ws, "Model");
         CharacterRig::buildDefaultRigParts(model);
         m_history.execute(std::make_unique<AddInstanceCommand>(ws, model));
-        m_isDirty = true;
+        markDirty();
     }
 }
 

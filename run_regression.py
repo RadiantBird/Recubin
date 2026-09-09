@@ -1,4 +1,6 @@
 import re
+import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -6,6 +8,7 @@ import time
 import wave
 import struct
 import zlib
+import shutil
 from pathlib import Path
 
 # 子プロセス(Recubin.exe/RecubinTest.exe)の出力はUTF-8/CP932が混在しうるため、
@@ -34,6 +37,24 @@ RESULT_RE = re.compile(r"\[RecubinTest\]\s+(\d+)\s+passed,\s+(\d+)\s+failed\.")
 PROCESS_TIMEOUT_SECONDS = 180
 
 
+def windows_process_path(path: Path | str) -> str:
+    """Convert a local WSL path only at the Windows-process boundary."""
+    value = str(path)
+    if os.name == "nt" or not sys.platform.startswith("linux"):
+        return value
+    converter = shutil.which("wslpath")
+    if converter is None:
+        return value
+    try:
+        converted = subprocess.run(
+            [converter, "-w", value], capture_output=True, text=True,
+            check=True, timeout=5,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return value
+    return converted or value
+
+
 def normalize_config(value: str | None) -> str:
     if value is None:
         return "Release"
@@ -49,7 +70,7 @@ def run_scene(test_exe: Path, scene_path: str) -> tuple[int, int, int]:
     """Returns (exit_code, passed, failed). passed/failed are -1 if unparsable."""
     try:
         proc = subprocess.run(
-            [str(test_exe), scene_path],
+            [str(test_exe), windows_process_path(scene_path)],
         cwd=ROOT_DIR,
         capture_output=True,
         text=True,
@@ -113,10 +134,21 @@ def run_dedicated(test_exe: Path, mode: str, backend: str) -> tuple[bool, int, i
 
 
 def run_gui_smoke(editor_exe: Path, temp_dir: Path) -> bool:
+    candidate_dir = ROOT_DIR / ".autosave" / "gui_smoke.rcbn"
+    try:
+        return _run_gui_smoke_impl(editor_exe, temp_dir, candidate_dir)
+    finally:
+        # The target is fixed and narrowly scoped; never remove the whole
+        # project .autosave root because other editor sessions may exist.
+        if candidate_dir.parent == ROOT_DIR / ".autosave" and candidate_dir.exists():
+            shutil.rmtree(candidate_dir)
+
+
+def _run_gui_smoke_impl(editor_exe: Path, temp_dir: Path, candidate_dir: Path) -> bool:
     capture_path = temp_dir / "gui_smoke.png"
-    scene_path = temp_dir / "gui_smoke.yaml"
+    scene_path = temp_dir / "gui_smoke.rcbn"
     settings_path = temp_dir / "gui_smoke_settings.yaml"
-    scene_path.write_text("""Root:
+    scene_text = """Root:
   Children:
     - ClassName: Workspace
       Name: Workspace
@@ -151,18 +183,38 @@ def run_gui_smoke(editor_exe: Path, temp_dir: Path) -> bool:
           Name: Sound
         - ClassName: SurfaceMark
           Name: SurfaceMark
-""", encoding="utf-8")
+"""
+    scene_path.write_text(scene_text, encoding="utf-8")
+    official_scene_bytes = scene_path.read_bytes()
+    recovery_text = scene_text.replace(
+        "      Children:\n", "      Children:\n        - ClassName: Cube\n          Name: RecoveredTarget\n          Properties:\n            Position: [8, 0, 0]\n            Size: [2, 2, 2]\n            Anchored: true\n", 1)
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+    (candidate_dir / "session.lock").write_text(
+        f"ScenePath: {json.dumps(windows_process_path(scene_path.absolute()))}\nUntitled: false\n",
+        encoding="utf-8")
+    (candidate_dir / "recovery.rcbn").write_text(recovery_text, encoding="utf-8")
+    # Make this fixture the deterministic latest candidate even when the
+    # project contains unrelated stale sessions.  Cleanup below still removes
+    # only this exact candidate directory.
+    future_mtime = time.time() + 7 * 24 * 60 * 60
+    os.utime(candidate_dir / "recovery.rcbn", (future_mtime, future_mtime))
     settings_path.write_text("{}\n", encoding="utf-8")
     original_settings = ROOT_DIR / "editor_settings.yaml"
     original_snapshot = (original_settings.read_bytes(), original_settings.stat().st_mtime_ns) if original_settings.exists() else None
     try:
         process = subprocess.Popen(
-            [str(editor_exe), "--ui-automation", "--ui-automation-scene", str(scene_path),
-             "--ui-automation-settings", str(settings_path)], cwd=ROOT_DIR,
+            [str(editor_exe), "--ui-automation", "--ui-automation-scene",
+             windows_process_path(scene_path), "--ui-automation-settings",
+             windows_process_path(settings_path)], cwd=ROOT_DIR,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding="utf-8", errors="replace",
         )
         commands = "\n".join([
+            'wait "Editor/CrashRecovery/Recover"',
+            'wait "Editor/CrashRecovery/OpenFolder"',
+            'wait "Editor/CrashRecovery/Discard"',
+            'click "Editor/CrashRecovery/Recover"',
+            'wait "Explorer/Node/System\\\\Workspace\\\\RecoveredTarget"',
             'focus_window "###Explorer"',
             'wait "Explorer/Node/System\\\\"',
             'right_click "Explorer/Node/System\\\\Workspace"',
@@ -205,7 +257,7 @@ def run_gui_smoke(editor_exe: Path, temp_dir: Path) -> bool:
             'click "Explorer/ClassPicker/ConfirmReplace"',
             'key Ctrl+Z',
             'key Ctrl+Shift+Z',
-            'capture "' + capture_path.as_posix().replace('\\', '\\\\').replace('"', '\\"') + '"',
+            'capture "' + windows_process_path(capture_path).replace('\\', '\\\\').replace('"', '\\"') + '"',
             'quit',
             'wait "Editor/UnsavedChanges/QuitWithoutSaving" 10',
             'click "Editor/UnsavedChanges/QuitWithoutSaving"',
@@ -222,8 +274,36 @@ def run_gui_smoke(editor_exe: Path, temp_dir: Path) -> bool:
     print(stdout, end="")
     if stderr:
         print(stderr, end="", file=sys.stderr)
-    if process.returncode != 0 or re.search(r"\bERROR\b", stdout + stderr):
+    output = stdout + stderr
+    ansi_free_output = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", output)
+    unexpected_errors = []
+    for line in ansi_free_output.splitlines():
+        error_marker = re.search(
+            r"\[ERROR\]|\[UIAUTO\]\s*ERROR|\[RCBN_ERROR\]", line,
+            re.IGNORECASE)
+        if error_marker is None:
+            continue
+        # A pre-existing candidate with a missing/corrupt recovery is expected
+        # to be rejected during startup.  Whitelist only those precise
+        # Autosave diagnostics; UI automation and save failures remain fatal.
+        missing_recovery = re.search(
+            r"Autosave: cannot inspect recovery .*cannot find (?:the )?file", line,
+            re.IGNORECASE)
+        corrupt_recovery = re.search(
+            r"Autosave: corrupt recovery ", line, re.IGNORECASE)
+        if missing_recovery or corrupt_recovery:
+            continue
+        unexpected_errors.append(line)
+    if process.returncode != 0 or unexpected_errors:
         print("[ERROR] GUI automation smoke exited with errors")
+        for line in unexpected_errors:
+            print(f"[ERROR] {line}")
+        return False
+    if scene_path.read_bytes() != official_scene_bytes:
+        print("[ERROR] GUI recovery changed the official scene")
+        return False
+    if (candidate_dir / "session.lock").exists() or (candidate_dir / "recovery.rcbn").exists():
+        print("[ERROR] GUI smoke left crash recovery files after normal quit")
         return False
     if not capture_path.exists():
         print("[ERROR] GUI automation smoke did not produce a capture")
@@ -289,6 +369,11 @@ def run_gui_smoke(editor_exe: Path, temp_dir: Path) -> bool:
         print("[ERROR] GUI smoke unexpectedly created editor_settings.yaml")
         return False
     required_ok = (
+        '[UIAUTO] OK wait target Editor/CrashRecovery/Recover' in stdout and
+        '[UIAUTO] OK wait target Editor/CrashRecovery/OpenFolder' in stdout and
+        '[UIAUTO] OK wait target Editor/CrashRecovery/Discard' in stdout and
+        '[UIAUTO] OK click Editor/CrashRecovery/Recover' in stdout and
+        '[UIAUTO] OK wait target Explorer/Node/System\\Workspace\\RecoveredTarget' in stdout and
         "[UIAUTO] OK wait target Explorer/Node/System\\Workspace\\Sound1" in stdout and
         "[UIAUTO] OK wait target Explorer/Node/System\\Workspace\\SurfaceMark1" in stdout and
         stdout.count("[UIAUTO] OK wait target Explorer/ClassPicker/ConfirmReplace") >= 2 and
@@ -336,7 +421,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp_dir:
         if not run_gui_smoke(editor_exe, Path(tmp_dir)):
             return 1
-        generated_scene = str(Path(tmp_dir) / "gen_test_scene.yaml")
+        generated_scene = str(Path(tmp_dir) / "gen_test_scene.rcbn")
         sound_path = Path(tmp_dir) / "regression_sound.wav"
         with wave.open(str(sound_path), "wb") as sound:
             sound.setnchannels(1)
@@ -346,12 +431,13 @@ def main() -> int:
         sound_scene = Path(tmp_dir) / "test_bindings_sound.yaml"
         sound_source = (ROOT_DIR / "assets/scenes/test_bindings.yaml").read_text(encoding="utf-8")
         sound_scene.write_text(sound_source.replace(
-            "assets/sound/Flight of the Bumblebee.mp3", sound_path.as_posix()), encoding="utf-8")
+            "assets/sound/Flight of the Bumblebee.mp3",
+            windows_process_path(sound_path)), encoding="utf-8")
 
         print(f"[INFO] Generating all-instances scene via {editor_exe.name} --gen-test-scene ...")
         try:
             gen_proc = subprocess.run(
-                [str(editor_exe), "--gen-test-scene", generated_scene],
+                [str(editor_exe), "--gen-test-scene", windows_process_path(generated_scene)],
                 cwd=ROOT_DIR, capture_output=True, text=True,
                 encoding="utf-8", errors="replace",
                 timeout=PROCESS_TIMEOUT_SECONDS,

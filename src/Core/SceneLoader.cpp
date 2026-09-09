@@ -931,9 +931,50 @@ bool SceneLoader::saveSceneResult(Instance* root, const std::string& filePath) {
 
 bool SceneLoader::saveSceneResult(Instance* root, const std::string& filePath,
                                   const SceneDocumentMetadata& metadata) {
-    if (!root) return false;
-    YAML::Emitter out;
-    out << YAML::BeginMap;
+    const auto serialized = serializeSceneResult(root, metadata);
+    if (!serialized) {
+        RCBN_ERROR("Scene serialization failed for '" << filePath << "': " << serialized.message);
+        return false;
+    }
+#ifdef _WIN32
+    auto wstrTo = [](const std::string& str) -> std::wstring {
+        if (str.empty()) return std::wstring();
+        int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.data(), (int)str.size(), NULL, 0);
+        std::wstring result(size_needed, 0);
+        MultiByteToWideChar(CP_UTF8, 0, str.data(), (int)str.size(), result.data(), size_needed);
+        return result;
+    };
+    std::ofstream file(wstrTo(filePath), std::ios::binary | std::ios::trunc);
+#else
+    std::ofstream file(filePath, std::ios::binary | std::ios::trunc);
+#endif
+    if (!file) {
+        RCBN_ERROR("Failed to open scene for write: " << filePath);
+        return false;
+    }
+    file.write(serialized.yaml.data(), static_cast<std::streamsize>(serialized.yaml.size()));
+    file.flush();
+    if (!file) {
+        RCBN_ERROR("Failed to write scene: " << filePath);
+        return false;
+    }
+    return true;
+}
+
+SceneLoader::SerializeResult SceneLoader::serializeSceneResult(Instance* root) {
+    return serializeSceneResult(root, SceneDocumentMetadata{});
+}
+
+SceneLoader::SerializeResult SceneLoader::serializeSceneResult(
+    Instance* root, const SceneDocumentMetadata& metadata) {
+    SerializeResult result;
+    if (!root) {
+        result.message = "scene root is null";
+        return result;
+    }
+    try {
+        YAML::Emitter out;
+        out << YAML::BeginMap;
     out << YAML::Key << "recubin" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << "scene";
     out << YAML::Key << "version" << YAML::Value << 0;
@@ -969,26 +1010,19 @@ bool SceneLoader::saveSceneResult(Instance* root, const std::string& filePath,
         out << YAML::EndSeq;
     }
     
-    out << YAML::EndMap;
-    out << YAML::EndMap;
-
-#ifdef _WIN32
-    auto wstrTo = [](const std::string& str) -> std::wstring {
-        if (str.empty()) return std::wstring();
-        int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
-        std::wstring wstrTo(size_needed, 0);
-        MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
-        return wstrTo;
-    };
-    std::ofstream file(wstrTo(filePath));
-#else
-    std::ofstream file(filePath);
-#endif
-    
-    if (file) {
-        file << out.c_str();
-        return static_cast<bool>(file);
+        out << YAML::EndMap;
+        out << YAML::EndMap;
+        if (!out.good()) {
+            result.message = "YAML emitter reported an error";
+            return result;
+        }
+        result.yaml = out.c_str();
+        result.success = true;
+        return result;
+    } catch (const std::exception& e) {
+        result.message = e.what();
+    } catch (...) {
+        result.message = "unknown serialization exception";
     }
-    std::cerr << "[SceneLoader] Failed to open for write: " << filePath << std::endl;
-    return false;
+    return result;
 }

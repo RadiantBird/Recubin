@@ -40,6 +40,13 @@ public:
         explicit operator bool() const { return status == LoadStatus::Success && root != nullptr; }
     };
 
+    struct SerializeResult {
+        std::string yaml;
+        std::string message;
+        bool success = false;
+        explicit operator bool() const { return success; }
+    };
+
     /**
      * @brief 指定されたYAMLファイルからシーンをロードし、ルートオブジェクトを返す
      * @param filePath YAMLファイルのパス
@@ -57,6 +64,12 @@ public:
     static bool saveSceneResult(Instance* root, const std::string& filePath);
     static bool saveSceneResult(Instance* root, const std::string& filePath,
                                 const SceneDocumentMetadata& metadata);
+    // Serializes a scene without touching the filesystem. This is used by
+    // autosave and keeps the editor's transient saves byte-compatible with
+    // normal scene saves.
+    static SerializeResult serializeSceneResult(Instance* root);
+    static SerializeResult serializeSceneResult(
+        Instance* root, const SceneDocumentMetadata& metadata);
     static void resolveConstraintRefs(Instance* root);
 
     /**

@@ -34,6 +34,8 @@ enum class LocKey {
     PlayStartErrorTitle, PlayStartErrorMessage, LocalServerRequiresNetwork,
     SceneLoadErrorTitle, RestoreDefaultR6Title, RestoreDefaultR6Message,
     RestoreDefaultR6Button, RestoreDefaultR6Unavailable,
+    CrashRecoveryTitle, CrashRecoveryMessage, CrashRecoveryRecover,
+    CrashRecoveryOpenFolder, CrashRecoveryDiscard,
 
     // ---- EditorManager: ツールバー ----
     PlayButton, PauseButton, StopButton,

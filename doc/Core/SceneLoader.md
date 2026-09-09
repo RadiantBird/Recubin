@@ -12,6 +12,7 @@ YAML シーンファイルを読み込んで Instance ツリーを再構築す�
 | `loadScene(filePath, context)` | 呼び出し単位の `LoadContext` に登録された既存Instanceへ対象クラスをマージして読み込む |
 | `loadSceneResult(filePath)` | `LoadResult`（状態、メッセージ、`SceneDocumentMetadata`）付きで読み込む。ヘッダーなしはscene version 0 |
 | `loadSceneResult(filePath, context)` | `LoadContext` を使うResult付きロード |
+| `serializeSceneResult(root, metadata)` | ファイルを開かずScene YAMLを文字列として生成する |
 | `saveSceneResult(root, filePath, metadata)` | SceneヘッダーとCharacter Animation参照移行versionを保存する。失敗はfalse |
 | `parseInstance(node, context)` | `LoadContext` を伝播しながらYAMLノードを再帰的にInstanceへ変換（内部API） |
 | `createInstance(className)` | クラス名文字列から Instance を new して返すファクトリ |
@@ -63,3 +64,8 @@ Scene YAMLには`recubin: {type: scene, version: 0}`を付けられる。`versio
 廃止済みの`migrations.default_r6_animations`と`animations.r6_walk.ContentPath`は旧Scene移行用の
 read-only互換データとして読み取るが、新規保存へは出力しない。HumanoidのWalk/Jump/Equip参照は
 通常のInstanceプロパティとして保存し、全Tree構築後にAnimation Instanceへ解決する。
+`serializeSceneResult`と正式保存は
+同じEmitter経路を利用するため、Autosaveも正式Sceneと同一形式になる。
+
+`SerializeResult`はnull root、Emitter失敗、シリアライズ例外時に説明メッセージを返す。
+`saveSceneResult`はこの結果を利用し、成功／失敗だけを必要とする既存呼び出し向けのbool APIを維持する。

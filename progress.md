@@ -409,3 +409,16 @@
 - Play中のCharacter所属Workspace自動追従、User API、Pキー／Explorer共通移動、非推奨ラベル削除、関連docs/testsを実装した。
 - ReleaseでRecubin／RecubinEngine／RecubinTestビルド成功。`--multi-workspace-regression`はPhysX／Box3DともPASS。
 - `workspaceShift.yaml`／`Portal.luau`による往復、Primary Viewport・Explorer・カメラ追従、Secondary Viewport固定表示はユーザー確認済み。
+
+## 2026-09-09: Scene Autosave / Crash Recovery
+
+- AutosaveManager（1秒Recovery、5分・5世代snapshot、atomic replace、session lock、正常終了cleanup）とEditor lifecycle／transactional Recovery modalを実装した。`.rcbn` migrationとPackagerの`.autosave`除外も反映した。
+- ReleaseのRecubin／RecubinEngine／RecubinTest 3ターゲットbuild成功。対象3回帰PASS、GUI smoke PASS。F12一時abortの実機検証PASS後、hookは完全削除した。
+- 全回帰は49 dedicated両backend＋9 scenesで242 passed / 0 failed Regression OK。Windows `py`不在のため、同等のVS CMake direct buildを使用した。
+
+## 2026-09-09: Autosave候補走査の不要エラー抑制
+
+- 現在のactive sessionをCrash Recovery候補から除外し、lockだけでRecovery未作成・欠落のディレクトリは
+  正常な非候補としてエラーログなしで無視するよう修正した。実際のfilesystem検査失敗と破損Recoveryの
+  path付きエラーログは維持した。
+- `--autosave-regression`へactive session自身の除外とorphan lockの非候補判定を追加した。ビルド・回帰は未実施。

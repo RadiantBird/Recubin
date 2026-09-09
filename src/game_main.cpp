@@ -71,7 +71,7 @@
 // ===================================================
 struct GameConfig {
     std::string gameName  = "Recubin Game";
-    std::string startScene = "assets/scenes/game.yaml";
+    std::string startScene = "assets/scenes/game.rcbn";
     bool debugLog = false; // ランタイムのコンソールを表示するかどうか（未実装）
     std::string stunServer;
     std::string rendezvousServer;

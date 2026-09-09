@@ -66,6 +66,11 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "HumanoidのWalkAnimationを標準R6 Walkへ戻します。今回はWalkのみが対象です。ファイルの生成や上書きは行いません。", "Set the Humanoid WalkAnimation reference to the standard R6 Walk. Only Walk is handled for now; no files will be created or overwritten." },
     { "標準Walkへ戻す", "Restore Standard Walk" },
     { "対象のStarterCharacterは有効なR6リグではありません。", "The target StarterCharacter is not an eligible R6 rig." },
+    { "前回の終了が正常に完了しませんでした", "The previous session did not exit normally" },
+    { "復旧可能なシーンの自動保存が見つかりました。復旧しますか？", "A recoverable scene autosave was found. Recover it?" },
+    { "復旧", "Recover" },
+    { "自動保存フォルダーを開く", "Open Autosave Folder" },
+    { "破棄", "Discard" },
 
     // ---- EditorManager: ツールバー ----
     { "  再生  ",           "  Play  " },

@@ -53,6 +53,14 @@ static bool isAnimationClip(const std::string& path) {
     return ext == ".rcanim";
 }
 
+// Editor recovery data must never leak into a packaged game.
+static bool isAutosavePath(const fs::path& path) {
+    for (const auto& component : path) {
+        if (component == ".autosave") return true;
+    }
+    return false;
+}
+
 // Copy a file, creating parent dirs as needed. Returns false on error.
 static bool copyFile(const fs::path& src, const fs::path& dst,
                      std::function<void(const std::string&)>& log) {
@@ -62,6 +70,35 @@ static bool copyFile(const fs::path& src, const fs::path& dst,
     fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec);
     if (ec) {
         log("[WARN] Copy failed: " + AssetPath::toStored(src) + " -> " + AssetPath::toStored(dst) + " : " + ec.message());
+        return false;
+    }
+    return true;
+}
+
+static bool copyDirectoryWithoutAutosave(const fs::path& src, const fs::path& dst,
+                                         std::function<void(const std::string&)>& log) {
+    std::error_code ec;
+    fs::create_directories(dst, ec);
+    if (ec) {
+        log("[WARN] Terrain mkdir failed: " + AssetPath::toStored(dst) + " : " + ec.message());
+        return false;
+    }
+    for (fs::directory_iterator it(src, ec), end; !ec && it != end; it.increment(ec)) {
+        const fs::path entry = it->path();
+        if (entry.filename() == ".autosave") {
+            log("[WARN] Skipping editor autosave directory: " + AssetPath::toStored(entry));
+            continue;
+        }
+        const fs::path target = dst / entry.filename();
+        if (it->is_directory(ec)) {
+            if (!copyDirectoryWithoutAutosave(entry, target, log)) return false;
+        } else if (it->is_regular_file(ec) && !copyFile(entry, target, log)) {
+            return false;
+        }
+    }
+    if (ec) {
+        log("[WARN] Terrain directory enumeration failed: " + AssetPath::toStored(src) +
+            " : " + ec.message());
         return false;
     }
     return true;
@@ -741,6 +778,10 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     // Process each referenced file
     std::unordered_map<std::string, std::string> pathMap; // old -> new (relative to gameDir)
     for (const std::string& rawPath : rawPaths) {
+        if (isAutosavePath(AssetPath::fromStored(rawPath))) {
+            log("[WARN] Skipping editor autosave reference: " + rawPath);
+            continue;
+        }
         fs::path src = AssetPath::fromStored(rawPath);
         // Only the retired scene-header reference used scene-relative paths.
         // Animation Instance ContentPath values follow normal project lookup.
@@ -795,6 +836,10 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     // ディレクトリごと再帰コピーする。未編集（ディレクトリ未作成）の地形はシードから自動生成
     // されるため、存在しない場合は警告のみでスキップする。
     for (const std::string& rawDir : rawDirPaths) {
+        if (isAutosavePath(AssetPath::fromStored(rawDir))) {
+            log("[WARN] Skipping editor autosave terrain directory: " + rawDir);
+            continue;
+        }
         fs::path src = AssetPath::fromStored(rawDir);
         if (!fs::exists(src) || !fs::is_directory(src)) {
             log("[WARN] Terrain data dir not found, skipping: " + rawDir);
@@ -811,9 +856,8 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
         }
         std::error_code dirEc;
         fs::create_directories(dst.parent_path(), dirEc);
-        fs::copy(src, dst, fs::copy_options::recursive | fs::copy_options::overwrite_existing, dirEc);
-        if (dirEc) {
-            log("[WARN] Terrain data copy failed: " + rawDir + " : " + dirEc.message());
+        if (!copyDirectoryWithoutAutosave(src, dst, log)) {
+            log("[WARN] Terrain data copy failed: " + rawDir);
             continue;
         }
         if (newRel != rawDir) pathMap[rawDir] = newRel;
@@ -825,7 +869,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     {
         YAML::Emitter emit;
         emit << sceneNode;
-        fs::path sceneOut = gameDir / "assets/scenes" / AssetPath::fromStored(cfg.gameName + ".yaml");
+        fs::path sceneOut = gameDir / "assets/scenes" / AssetPath::fromStored(cfg.gameName + ".rcbn");
         std::ofstream outFile(sceneOut);
         if (!outFile) { log("[ERROR] Cannot write scene YAML to: " + AssetPath::toStored(sceneOut)); return false; }
         outFile << emit.c_str();
@@ -921,7 +965,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
                 << YAML::Key << "GameName"   << YAML::Value << cfg.gameName
                 << YAML::Key << "ApplicationId" << YAML::Value << cfg.applicationId
                 << YAML::Key << "StartScene" << YAML::Value
-                << ("assets/scenes/" + AssetPath::toStored(gameName) + ".yaml")
+                << ("assets/scenes/" + AssetPath::toStored(gameName) + ".rcbn")
                 << YAML::EndMap;
         std::ofstream startupFile(gameDir / "startup.yaml");
         if (startupFile) {

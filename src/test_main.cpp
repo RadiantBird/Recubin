@@ -68,6 +68,7 @@
 #include <Core/User.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Editor/GuiAutomationCommand.hpp>
+#include <Editor/AutosaveManager.hpp>
 #include <Editor/SceneHierarchyGrouping.hpp>
 #include <Editor/SceneHierarchySelection.hpp>
 #include <Editor/InstanceCatalog.hpp>
@@ -6699,6 +6700,172 @@ int runViewportHelperRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runAutosaveRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[Autosave] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    namespace fs = std::filesystem;
+    const fs::path rootPath = fs::temp_directory_path() /
+        ("recubin_autosave_regression_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::error_code ec;
+    fs::create_directories(rootPath, ec);
+    AutosaveManager::Config config;
+    config.recoveryDebounce = std::chrono::milliseconds(1000);
+    config.snapshotInterval = std::chrono::seconds(300);
+    config.retryBackoff = std::chrono::seconds(0);
+    config.snapshotCount = 5;
+    auto system = std::make_shared<System>();
+    AutosaveManager manager(rootPath, config);
+    expect(manager.beginSession(system.get(), rootPath / "Main.rcbn"),
+           "named session creates its autosave lock");
+    const fs::path namedDir = rootPath / ".autosave" / "Main.rcbn";
+    expect(fs::exists(namedDir / "session.lock") && manager.logicalScenePath().filename() == "Main.rcbn",
+           "named session uses scene filename directory");
+    manager.markSceneChanged();
+    auto now = std::chrono::steady_clock::now();
+    expect(!manager.update(now), "recovery debounce delays immediate update");
+    expect(!manager.update(now + std::chrono::milliseconds(900)),
+           "recovery remains debounced before one second");
+    manager.markSceneChanged();
+    expect(!manager.update(now + std::chrono::seconds(1)),
+           "repeated change postpones recovery debounce");
+    expect(manager.update(now + std::chrono::seconds(2)), "debounce update writes recovery");
+    expect(fs::exists(namedDir / "recovery.rcbn") && !manager.isRecoveryDirty(),
+           "successful recovery clears only recovery dirty state");
+    for (int i = 0; i < 6; ++i) {
+        manager.markSceneChanged();
+        expect(manager.update(now + std::chrono::seconds(1) + std::chrono::seconds(300 * (i + 1))),
+               "snapshot update writes changed scene");
+    }
+    int snapshots = 0;
+    for (const auto& entry : fs::directory_iterator(namedDir))
+        if (entry.path().filename().string().starts_with("snapshot_") && entry.path().extension() == ".rcbn") ++snapshots;
+    expect(snapshots == 5, "snapshot rotation retains five generations");
+    int readableSnapshots = 0;
+    for (const auto& entry : fs::directory_iterator(namedDir)) {
+        if (!entry.path().filename().string().starts_with("snapshot_") ||
+            entry.path().extension() != ".rcbn") continue;
+        if (SceneLoader::loadSceneResult(entry.path().string())) ++readableSnapshots;
+    }
+    expect(readableSnapshots == 5, "all rotated snapshots remain readable Scene YAML");
+    manager.endSessionNormally();
+    expect(!fs::exists(namedDir / "session.lock") && !fs::exists(namedDir / "recovery.rcbn"),
+           "normal session end removes lock and recovery");
+    int snapshotsAfterEnd = 0;
+    for (const auto& entry : fs::directory_iterator(namedDir))
+        if (entry.path().filename().string().starts_with("snapshot_") && entry.path().extension() == ".rcbn") ++snapshotsAfterEnd;
+    expect(snapshots == 5 && snapshotsAfterEnd == 5, "normal session end preserves snapshots");
+
+    AutosaveManager::Config isolatedConfig = config;
+    isolatedConfig.recoveryDebounce = std::chrono::hours(1);
+    AutosaveManager isolated(rootPath, isolatedConfig);
+    auto isolatedRoot = std::make_shared<System>();
+    expect(isolated.beginSession(isolatedRoot.get(), rootPath / "Isolated.rcbn"),
+           "isolated snapshot session starts");
+    const auto isolatedNow = std::chrono::steady_clock::now();
+    expect(!isolated.update(isolatedNow + std::chrono::seconds(300)),
+           "clean session skips snapshot after interval");
+    isolated.markSceneChanged();
+    expect(isolated.update(isolatedNow + std::chrono::seconds(300)),
+           "snapshot writes independently of recovery debounce");
+    expect(!isolated.isSnapshotDirty() && isolated.isRecoveryDirty(),
+           "snapshot success clears snapshot dirty but preserves recovery dirty");
+    const auto isolatedTarget = isolated.autosaveDirectory() / "recovery.rcbn";
+    const std::string preservedRecovery = "existing-valid-recovery";
+    std::ofstream(isolatedTarget, std::ios::binary) << preservedRecovery;
+    const auto readBytes = [](const fs::path& path) {
+        std::ifstream input(path, std::ios::binary);
+        return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    };
+    isolated.setRoot(nullptr);
+    isolated.markSceneChanged();
+    expect(!isolated.update(isolatedNow + std::chrono::seconds(301)) && isolated.isRecoveryDirty(),
+           "failed serialization preserves dirty state");
+    expect(!fs::exists(isolatedTarget.string() + ".tmp"),
+           "failed serialization leaves no recovery temporary file");
+    expect(fs::exists(isolatedTarget) && readBytes(isolatedTarget) == preservedRecovery,
+           "failed serialization preserves existing recovery bytes");
+    isolated.setRoot(isolatedRoot.get());
+    fs::create_directory(isolatedTarget.string() + ".tmp", ec);
+    const std::string beforeAtomicFailure = readBytes(isolatedTarget);
+    isolated.markSceneChanged();
+    expect(!isolated.update(isolatedNow + std::chrono::seconds(302)) &&
+               readBytes(isolatedTarget) == beforeAtomicFailure,
+           "atomic replace failure preserves existing recovery bytes");
+    fs::remove_all(isolatedTarget.string() + ".tmp", ec);
+    expect(!fs::exists(isolatedTarget.string() + ".tmp"),
+           "failed atomic replace temporary path is cleaned by test teardown");
+    isolated.endSessionNormally();
+
+    AutosaveManager untitled(rootPath, config);
+    auto untitledRoot = std::make_shared<System>();
+    expect(untitled.beginSession(untitledRoot.get(), fs::path{}), "untitled session starts");
+    const fs::path untitledDir = rootPath / ".autosave" / "Untitled.rcbn";
+    expect(fs::exists(untitledDir / "session.lock"), "untitled session uses Untitled.rcbn");
+    untitled.markSceneChanged();
+    const auto untitledNow = std::chrono::steady_clock::now();
+    expect(untitled.update(untitledNow + std::chrono::seconds(1)), "untitled recovery writes");
+    expect(untitled.findCrashRecoveries().empty(),
+           "active session excludes its flushed recovery from crash candidates");
+    AutosaveManager observer(rootPath, config);
+    auto candidates = observer.findCrashRecoveries();
+    expect(candidates.size() == 1 && candidates.front().untitled, "valid candidate is discoverable");
+    expect(observer.findCrashRecoveryForScene("") != nullptr,
+           "untitled candidate can be found without a formal scene path");
+    AutosaveManager latestNamed(rootPath, config);
+    auto latestRoot = std::make_shared<System>();
+    expect(latestNamed.beginSession(latestRoot.get(), rootPath / "Latest.rcbn"),
+           "second crash candidate session starts");
+    latestNamed.markSceneChanged();
+    expect(latestNamed.update(std::chrono::steady_clock::now() + std::chrono::seconds(1)),
+           "second crash candidate writes recovery");
+    candidates = observer.findCrashRecoveries();
+    if (candidates.size() == 2) {
+        std::error_code timeEc;
+        const auto untitledCandidate = std::find_if(candidates.begin(), candidates.end(),
+            [](const auto& candidate) { return candidate.untitled; });
+        const auto latestCandidate = std::find_if(candidates.begin(), candidates.end(),
+            [](const auto& candidate) { return candidate.directory.filename() == "Latest.rcbn"; });
+        if (untitledCandidate != candidates.end() && latestCandidate != candidates.end()) {
+            fs::last_write_time(latestCandidate->recoveryPath,
+                                fs::last_write_time(untitledCandidate->recoveryPath, timeEc) +
+                                    std::chrono::seconds(1), timeEc);
+        }
+    }
+    const auto latestRecovery = observer.findLatestCrashRecovery();
+    expect(candidates.size() == 2 && latestRecovery != nullptr &&
+               latestRecovery->directory.filename() == "Latest.rcbn" &&
+               latestRecovery->logicalScenePath == fs::absolute(rootPath / "Latest.rcbn").generic_string(),
+           "latest recovery selects the intended Latest directory and logical path");
+    expect(observer.findCrashRecoveryForScene((rootPath / "Latest.rcbn").string()) != nullptr,
+           "named candidate can be found by formal scene path");
+    latestNamed.endSessionNormally();
+    const auto remainingCandidates = observer.findCrashRecoveries();
+    expect(remainingCandidates.size() == 1 &&
+               observer.discardRecovery(remainingCandidates.front()),
+           "discard removes selected recovery and lock");
+    untitled.endSessionNormally();
+    fs::create_directories(rootPath / ".autosave" / "Missing.rcbn", ec);
+    std::ofstream(rootPath / ".autosave" / "Missing.rcbn" / "session.lock")
+        << "ScenePath: missing.rcbn\nUntitled: false\n";
+    expect(observer.findCrashRecoveries().empty(),
+           "orphan lock without recovery is ignored as a non-candidate");
+    fs::create_directories(rootPath / ".autosave" / "Corrupt.rcbn", ec);
+    std::ofstream(rootPath / ".autosave" / "Corrupt.rcbn" / "session.lock")
+        << "ScenePath: corrupt.rcbn\nUntitled: false\n";
+    std::ofstream(rootPath / ".autosave" / "Corrupt.rcbn" / "recovery.rcbn") << "not: valid scene\n";
+    expect(observer.findCrashRecoveries().empty(), "corrupt recovery is rejected");
+    expect(observer.findLatestCrashRecovery() == nullptr,
+           "corrupt and missing recovery candidates are excluded");
+    fs::remove_all(rootPath, ec);
+    std::cout << "[Autosave] failures=" << failures << " result="
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int runAssetPathRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -6777,6 +6944,14 @@ int runAssetPathRegression() {
                          "    - joint: LeftShoulder\n      keyframes:\n"
                          "        - time: 0\n          position: [0, 0, 0]\n"
                          "          rotation: [0, 0, 0, 1]\n          easing: linear\n";
+        std::filesystem::create_directories(tempRoot / ".autosave");
+        std::ofstream autosaveFile(tempRoot / ".autosave" / "hidden.bin", std::ios::binary);
+        autosaveFile << "editor-only";
+        std::filesystem::create_directories(tempRoot / "terrain_data" / ".autosave");
+        std::ofstream terrainAutosaveFile(tempRoot / "terrain_data" / ".autosave" / "hidden.chunk", std::ios::binary);
+        terrainAutosaveFile << "editor-only";
+        std::ofstream terrainVisibleFile(tempRoot / "terrain_data" / "visible.chunk", std::ios::binary);
+        terrainVisibleFile << "runtime";
 #ifndef __APPLE__
         std::ofstream editorFile(tempRoot / "Recubin.exe", std::ios::binary);
         editorFile << "editor";
@@ -6791,6 +6966,8 @@ int runAssetPathRegression() {
                   << "  ClassName: System\n"
                   << "  Properties:\n"
                   << "    DefaultCameraMode: Free\n"
+                  << "    ContentPath: .autosave/hidden.bin\n"
+                  << "    DataPath: terrain_data\n"
                   << "  Children:\n"
                   << "    - ClassName: Animation\n"
                   << "      Name: R6Walk\n"
@@ -6837,7 +7014,9 @@ int runAssetPathRegression() {
 #else
             "Recubin.exe";
 #endif
-        const bool packaged = Packager::package(packageConfig, [](const std::string& message) {
+        std::vector<std::string> packageLogs;
+        const bool packaged = Packager::package(packageConfig, [&packageLogs](const std::string& message) {
+            packageLogs.push_back(message);
             std::cout << "[Packager] " << message << '\n';
         });
 #ifdef __APPLE__
@@ -6851,7 +7030,7 @@ int runAssetPathRegression() {
         const std::filesystem::path packageContentRoot = packageRoot;
 #endif
         const std::string packagedScene = FileLoader::readText(
-            std::filesystem::relative(packageContentRoot / "assets/scenes/PortablePackage.yaml",
+            std::filesystem::relative(packageContentRoot / "assets/scenes/PortablePackage.rcbn",
                                        tempRoot).generic_string());
         const std::string packagedStartup = FileLoader::readText(
             std::filesystem::relative(packageContentRoot / "startup.yaml",
@@ -6872,6 +7051,14 @@ int runAssetPathRegression() {
                    packagedStartup.find(packageConfig.applicationId) != std::string::npos &&
                    packagedScene.find('\\') == std::string::npos,
                "packager copies referenced assets, runtime fonts, and portable YAML paths");
+        expect(!std::filesystem::exists(packageContentRoot / ".autosave" / "hidden.bin") &&
+                   !std::filesystem::exists(packageContentRoot / "terrain_data" / ".autosave" / "hidden.chunk") &&
+                   std::filesystem::exists(packageContentRoot / "terrain_data" / "visible.chunk") &&
+                   std::any_of(packageLogs.begin(), packageLogs.end(), [](const std::string& message) {
+                       return message.find("autosave") != std::string::npos ||
+                              message.find("Autosave") != std::string::npos;
+                   }),
+               "packager excludes explicit and nested autosave data while retaining terrain data");
 
         Packager::Config unicodePackageConfig = packageConfig;
         unicodePackageConfig.outputDir = "日本語出力";
@@ -6890,7 +7077,7 @@ int runAssetPathRegression() {
         const std::filesystem::path unicodeContentRoot = unicodePackageRoot;
 #endif
         const std::filesystem::path unicodeScenePath =
-            unicodeContentRoot / AssetPath::fromStored("assets/scenes/てすと.yaml");
+            unicodeContentRoot / AssetPath::fromStored("assets/scenes/てすと.rcbn");
         const std::string unicodeScene = FileLoader::readText(
             AssetPath::toStored(std::filesystem::relative(unicodeScenePath, tempRoot)));
         const std::string unicodeStartup = FileLoader::readText(
@@ -6900,7 +7087,7 @@ int runAssetPathRegression() {
                    std::filesystem::is_regular_file(unicodeScenePath) &&
                    unicodeScene.find(unicodePackageConfig.applicationId) != std::string::npos &&
                    unicodeStartup.find("GameName: てすと") != std::string::npos &&
-                   unicodeStartup.find("StartScene: assets/scenes/てすと.yaml") != std::string::npos,
+                   unicodeStartup.find("StartScene: assets/scenes/てすと.rcbn") != std::string::npos,
                "packager preserves Japanese game and output paths");
 #ifdef __APPLE__
         const std::string plist = FileLoader::readText(
@@ -9585,6 +9772,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--user-character-smoothing-regression", runUserCharacterSmoothingRegression),
         REG("--user-input-controls-regression", runUserInputControlsRegression),
         REG("--viewport-helper-regression", runViewportHelperRegression),
+        REG("--autosave-regression", runAutosaveRegression),
         REG("--asset-path-regression", runAssetPathRegression),
         REG("--app-image-regression", runAppImageRegression),
         REG("--runtime-launch-args-regression", runRuntimeLaunchArgsRegression),

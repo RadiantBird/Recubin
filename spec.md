@@ -327,3 +327,12 @@ Replication、Luau の `workspace`、Primary Viewport、Explorer を追従させ
 `--ui-automation` を指定したEditorだけがstdin操作と意味IDによるUI target登録を有効化する。
 通常起動ではreader、入力注入、target登録、captureはno-op。captureはmain viewportの
 default back framebufferをphysical pixel sizeでRGBA PNGとして保存する。
+
+## Scene Autosave / Crash Recovery
+
+Editorは`.autosave/<scene-name>/`へRecoveryと世代snapshotを保存する。Recoveryは1秒debounce、
+snapshotは5分周期で、保存は一時ファイルからatomic replaceする。異常終了時に残るlockと有効な
+Recoveryは次回起動時に最新候補をモーダル表示し、Recoverは正式Sceneを変更せず復旧内容を未保存
+状態で開く。候補走査では現在のactive sessionを除外し、lockだけが残ってRecoveryが未作成・欠落の
+場合は正常な非候補としてログなしで無視する。filesystem検査失敗と破損Recoveryは具体的なpath付きで
+エラーログを出す。正常終了・正常Scene切替・DiscardではlockとRecoveryを削除しsnapshotは保持する。

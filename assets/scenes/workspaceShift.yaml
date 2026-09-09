@@ -154,6 +154,26 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
+        - ClassName: Cube
+          Name: Cube1
+          Properties:
+            Position: [-6.3114233, 0.99999976, -2.01726]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: false
+            CanCollide: true
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            Locked: false
+            MassDensity: 1
+            CCDMode: Default
+            LockFlags: []
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
     - ClassName: PathfindingService
       Name: PathfindingService
     - ClassName: Workspace

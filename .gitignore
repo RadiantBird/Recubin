@@ -14,6 +14,9 @@ assets/bin
 editor_settings.yaml
 
 desktop.ini
+prompt.md
+/.autosave/
+_snapshot.rcbn
 
 *.glb
 *.gltf
@@ -24,6 +27,7 @@ desktop.ini
 *.exe
 
 Claude's last exam/
+CodexField/
 assets/scenes/.navcache/_snapshot_Workspace.navcache
 assets/scenes/.navcache/pathfinder_Workspace.navcache
 test_security/

@@ -108,6 +108,15 @@ hierarchyPanel->m_clipboard
 - Fileメニューの`Restore Default Animations`をユーザーが明示実行した場合だけ標準Walk参照を再設定する。
 - `migrateCharacterAnimationBindings`はGUIを構築しないTree＋metadataの静的処理で、Editor表示側も同じ結果を利用する。
 
+## Scene Autosave / Crash Recovery
+
+EditorManagerは起動時のcurrent pathをproject rootとしてAutosaveManagerを所有する。
+Edit中の変更は1秒debounceの`recovery.rcbn`と5分周期の世代snapshotへ同期保存し、
+正常なScene切替・終了時はlockとrecoveryだけを削除する。起動時に有効な残存lockを検出した場合は
+Welcomeより先にRecoveryモーダルを表示し、Recover、Autosaveフォルダー表示、Discardを提供する。
+Recoverはrecoveryをsource、lock記録のScenePathをlogical pathとしてtransactional loadし、
+正式Sceneファイルを上書きしない。
+
 # Play 中の Workspace 追従
 
 Play 中はローカル Character の所属 Workspace が Primary Viewport と Explorer の表示対象になる。

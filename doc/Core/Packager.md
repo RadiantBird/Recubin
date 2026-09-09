@@ -78,17 +78,22 @@ Packager::package(cfg, log)
   1. 出力先（Windowsはフォルダ、macOSはApp BundleのContents/Resources）に assets/{image,sound,scripts,scenes} を作成
   2. assets/fonts/ と shaders/*.glsl をコピー（Renderer が相対パスで探すため）
   3. scenePath の YAML をパース
-  4. ContentPath / Texture / FacePath / MeshFile / IconPath / SkyboxPaths を再帰的に収集
+  4. ContentPath / Texture / FacePath / MeshFile / IconPath / SkyboxPaths と Terrain の DataPath を再帰的に収集
   5. 収集したファイルごとに:
        .luau/.lua → luau_compile() で .luauc にインプロセス変換（失敗時はソースをコピー）
        それ以外   → 拡張子で assets/{image,sound,scripts} に振り分けてコピー
-  6. YAML 内の旧パスを新しい相対パスへ書き換えて assets/scenes/{gameName}.yaml に出力
+  6. YAML 内の旧パスを新しい相対パスへ書き換えて assets/scenes/{gameName}.rcbn に出力
   7. エディターの隣にあるRecubinEngine（Windowsは.exe）をコピー。見つからない場合は失敗
      （Windowsのみlauncher.exeと同ディレクトリの全DLLもコピー）
   8. startup.yaml（GameName / StartScene）と README.txt を出力
   9. macOSではInfo.plistを生成し、ルートAppImageがあれば内蔵writerでAppIcon.icnsを生成
  10. macOSでは完成したApp Bundle全体をad-hoc署名し、厳格検証する
 ```
+
+明示参照ファイルと Terrain の `DataPath` をコピーする際、パス要素に `.autosave` を含む参照は
+エディター専用データとして除外する。Terrain の再帰コピーでも `.autosave` ディレクトリ以下を
+ディレクトリ単位でスキップし、除外した参照またはディレクトリごとに `WARN` をログへ出力する。
+パッケージの `startup.yaml` に書き込む `StartScene` も `assets/scenes/{gameName}.rcbn` を指す。
 
 ## 依存関係
 
