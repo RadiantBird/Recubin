@@ -86,7 +86,8 @@ public:
     };
     PendingSceneRequest pendingScene;
 
-    EditorManager(Workspace* workspace, User* user, Instance* system = nullptr);
+    EditorManager(Workspace* workspace, User* user, Instance* system,
+                  const std::filesystem::path& autosaveRoot);
 
     // DockSpace + 全パネルを描画する（ImGui フレーム内で呼ぶ）
     void render(GLFWwindow* window) override;
@@ -178,7 +179,7 @@ private:
     Instance*  m_system    = nullptr;
     User*      m_user      = nullptr;
     bool       m_isDirty   = false;
-    AutosaveManager m_autosave{std::filesystem::current_path()};
+    AutosaveManager m_autosave;
     SceneLoader::SceneDocumentMetadata m_sceneMetadata;
     bool m_showLoadError = false;
     std::string m_loadError;

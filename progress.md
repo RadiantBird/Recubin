@@ -416,9 +416,18 @@
 - ReleaseのRecubin／RecubinEngine／RecubinTest 3ターゲットbuild成功。対象3回帰PASS、GUI smoke PASS。F12一時abortの実機検証PASS後、hookは完全削除した。
 - 全回帰は49 dedicated両backend＋9 scenesで242 passed / 0 failed Regression OK。Windows `py`不在のため、同等のVS CMake direct buildを使用した。
 
-## 2026-09-09: Autosave候補走査の不要エラー抑制
+## 2026-09-11: Autosave候補走査の不要エラー抑制
 
 - 現在のactive sessionをCrash Recovery候補から除外し、lockだけでRecovery未作成・欠落のディレクトリは
   正常な非候補としてエラーログなしで無視するよう修正した。実際のfilesystem検査失敗と破損Recoveryの
   path付きエラーログは維持した。
-- `--autosave-regression`へactive session自身の除外とorphan lockの非候補判定を追加した。ビルド・回帰は未実施。
+- Releaseビルド成功。`--autosave-regression`へactive session自身の除外とorphan lockの非候補判定を追加し、全件PASS。
+
+## 2026-09-11: Autosave保存先の実行ファイル基準化
+
+- Windows版EditorのAutosave保存・Recovery探索rootを起動CWDから`Recubin.exe`の親ディレクトリへ変更した。
+  実行ファイル位置は`GetModuleFileNameW`を優先し、失敗時は`argv[0]`の絶対化、起動CWDの順でfallbackする。
+- EditorManagerへ保存rootを明示注入し、AutosaveManagerの内部命名からproject root前提を除去した。
+  旧CWD配下のAutosaveは移行・走査・削除しない。
+- Autosave回帰へ保存rootとCWDの分離・CWD変更後の候補探索を追加し、GUI Recovery fixtureもexe隣へ変更した。
+  Release 3ターゲットbuildとAutosave回帰に成功し、全回帰は49 dedicated両backend＋9 scenesで242 passed / 0 failed。

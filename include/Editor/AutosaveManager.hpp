@@ -26,8 +26,8 @@ public:
         std::filesystem::file_time_type modified{};
     };
 
-    explicit AutosaveManager(std::filesystem::path projectRoot);
-    AutosaveManager(std::filesystem::path projectRoot, Config config);
+    explicit AutosaveManager(std::filesystem::path storageRoot);
+    AutosaveManager(std::filesystem::path storageRoot, Config config);
     ~AutosaveManager();
 
     bool beginSession(Instance* root, const std::string& logicalScenePath);
@@ -68,7 +68,7 @@ private:
     void cleanupTransientFiles(const std::filesystem::path& directory) const;
     void resetTimers(std::chrono::steady_clock::time_point now);
 
-    std::filesystem::path m_projectRoot;
+    std::filesystem::path m_storageRoot;
     std::filesystem::path m_logicalScenePath;
     std::filesystem::path m_sessionDirectory;
     Config m_config;

@@ -31,14 +31,15 @@ RegularFileState inspectRegularFile(const std::filesystem::path& path, std::erro
 }
 }
 
-AutosaveManager::AutosaveManager(std::filesystem::path projectRoot)
-    : AutosaveManager(std::move(projectRoot), Config{}) {}
+AutosaveManager::AutosaveManager(std::filesystem::path storageRoot)
+    : AutosaveManager(std::move(storageRoot), Config{}) {}
 
-AutosaveManager::AutosaveManager(std::filesystem::path projectRoot, Config config)
-    : m_projectRoot(std::move(projectRoot)), m_config(config) {
+AutosaveManager::AutosaveManager(std::filesystem::path storageRoot, Config config)
+    : m_storageRoot(std::move(storageRoot)), m_config(config) {
     std::error_code ec;
-    m_projectRoot = std::filesystem::absolute(m_projectRoot, ec);
-    if (ec) m_projectRoot = std::filesystem::current_path();
+    const auto absoluteRoot = std::filesystem::absolute(m_storageRoot, ec);
+    if (!ec) m_storageRoot = absoluteRoot.lexically_normal();
+    else m_storageRoot = m_storageRoot.lexically_normal();
 }
 
 AutosaveManager::~AutosaveManager() = default;
@@ -76,7 +77,7 @@ bool AutosaveManager::beginSession(Instance* root, const std::filesystem::path& 
         m_logicalScenePath = logicalScenePath.empty() ? std::filesystem::path{} :
             std::filesystem::absolute(logicalScenePath, ec);
         if (ec) m_logicalScenePath = logicalScenePath;
-        m_sessionDirectory = m_projectRoot / ".autosave" / normalizedSceneName(m_logicalScenePath);
+        m_sessionDirectory = m_storageRoot / ".autosave" / normalizedSceneName(m_logicalScenePath);
         std::filesystem::create_directories(m_sessionDirectory, ec);
         if (ec) {
             RCBN_ERROR("Autosave: cannot create " << pathString(m_sessionDirectory) << ": " << ec.message());
@@ -326,7 +327,7 @@ bool AutosaveManager::readCandidate(const std::filesystem::path& directory, Reco
 
 std::vector<AutosaveManager::RecoveryCandidate> AutosaveManager::findCrashRecoveries() const {
     std::vector<RecoveryCandidate> result; std::error_code ec;
-    const auto root = m_projectRoot / ".autosave";
+    const auto root = m_storageRoot / ".autosave";
     if (!std::filesystem::is_directory(root, ec)) return result;
     for (const auto& e : std::filesystem::directory_iterator(root, ec)) {
         if (ec) break;

@@ -330,7 +330,11 @@ default back framebufferをphysical pixel sizeでRGBA PNGとして保存する�
 
 ## Scene Autosave / Crash Recovery
 
-Editorは`.autosave/<scene-name>/`へRecoveryと世代snapshotを保存する。Recoveryは1秒debounce、
+Windows版Editorは実行中の`Recubin.exe`と同じディレクトリの
+`.autosave/<scene-name>/`へRecoveryと世代snapshotを保存する。実行ファイル位置は
+`GetModuleFileNameW`で解決し、失敗時だけ`argv[0]`の絶対化、起動CWDの順でfallbackする。
+macOSは従来どおり起動CWDを保存基準とする。旧CWD配下のAutosaveは移行・走査・削除しない。
+Recoveryは1秒debounce、
 snapshotは5分周期で、保存は一時ファイルからatomic replaceする。異常終了時に残るlockと有効な
 Recoveryは次回起動時に最新候補をモーダル表示し、Recoverは正式Sceneを変更せず復旧内容を未保存
 状態で開く。候補走査では現在のactive sessionを除外し、lockだけが残ってRecoveryが未作成・欠落の

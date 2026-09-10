@@ -140,7 +140,9 @@ std::string migrateLegacyWalkContentPath(const std::string& currentScenePath,
 //  EditorManager 実装
 // ===================================================
 
-EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system) {
+EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
+                             const std::filesystem::path& autosaveRoot)
+    : m_autosave(autosaveRoot) {
     m_workspace = workspace;
     m_system    = system;
     m_user      = user;

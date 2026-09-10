@@ -134,13 +134,14 @@ def run_dedicated(test_exe: Path, mode: str, backend: str) -> tuple[bool, int, i
 
 
 def run_gui_smoke(editor_exe: Path, temp_dir: Path) -> bool:
-    candidate_dir = ROOT_DIR / ".autosave" / "gui_smoke.rcbn"
+    autosave_root = editor_exe.resolve().parent / ".autosave"
+    candidate_dir = autosave_root / "gui_smoke.rcbn"
     try:
         return _run_gui_smoke_impl(editor_exe, temp_dir, candidate_dir)
     finally:
         # The target is fixed and narrowly scoped; never remove the whole
-        # project .autosave root because other editor sessions may exist.
-        if candidate_dir.parent == ROOT_DIR / ".autosave" and candidate_dir.exists():
+        # executable-adjacent .autosave root because other sessions may exist.
+        if candidate_dir.parent == autosave_root and candidate_dir.exists():
             shutil.rmtree(candidate_dir)
 
 
@@ -283,15 +284,12 @@ def _run_gui_smoke_impl(editor_exe: Path, temp_dir: Path, candidate_dir: Path) -
             re.IGNORECASE)
         if error_marker is None:
             continue
-        # A pre-existing candidate with a missing/corrupt recovery is expected
-        # to be rejected during startup.  Whitelist only those precise
-        # Autosave diagnostics; UI automation and save failures remain fatal.
-        missing_recovery = re.search(
-            r"Autosave: cannot inspect recovery .*cannot find (?:the )?file", line,
-            re.IGNORECASE)
+        # A pre-existing corrupt recovery may be rejected during startup.
+        # Missing recovery is a normal non-candidate and must not log an error.
+        # UI automation and save failures remain fatal.
         corrupt_recovery = re.search(
             r"Autosave: corrupt recovery ", line, re.IGNORECASE)
-        if missing_recovery or corrupt_recovery:
+        if corrupt_recovery:
             continue
         unexpected_errors.append(line)
     if process.returncode != 0 or unexpected_errors:

@@ -6712,18 +6712,29 @@ int runAutosaveRegression() {
             std::chrono::steady_clock::now().time_since_epoch().count()));
     std::error_code ec;
     fs::create_directories(rootPath, ec);
+    const fs::path originalCwd = fs::current_path(ec);
+    const fs::path storageRoot = rootPath / "executable-directory";
+    const fs::path launchCwd = rootPath / "launch-directory";
+    const fs::path changedCwd = rootPath / "changed-launch-directory";
+    fs::create_directories(storageRoot, ec);
+    fs::create_directories(launchCwd, ec);
+    fs::create_directories(changedCwd, ec);
+    fs::current_path(launchCwd, ec);
+    expect(!ec, "autosave regression starts from a CWD outside the storage root");
     AutosaveManager::Config config;
     config.recoveryDebounce = std::chrono::milliseconds(1000);
     config.snapshotInterval = std::chrono::seconds(300);
     config.retryBackoff = std::chrono::seconds(0);
     config.snapshotCount = 5;
     auto system = std::make_shared<System>();
-    AutosaveManager manager(rootPath, config);
+    AutosaveManager manager(storageRoot, config);
     expect(manager.beginSession(system.get(), rootPath / "Main.rcbn"),
            "named session creates its autosave lock");
-    const fs::path namedDir = rootPath / ".autosave" / "Main.rcbn";
+    const fs::path namedDir = storageRoot / ".autosave" / "Main.rcbn";
     expect(fs::exists(namedDir / "session.lock") && manager.logicalScenePath().filename() == "Main.rcbn",
            "named session uses scene filename directory");
+    expect(!fs::exists(launchCwd / ".autosave"),
+           "explicit storage root does not create autosave data below the launch CWD");
     manager.markSceneChanged();
     auto now = std::chrono::steady_clock::now();
     expect(!manager.update(now), "recovery debounce delays immediate update");
@@ -6735,6 +6746,11 @@ int runAutosaveRegression() {
     expect(manager.update(now + std::chrono::seconds(2)), "debounce update writes recovery");
     expect(fs::exists(namedDir / "recovery.rcbn") && !manager.isRecoveryDirty(),
            "successful recovery clears only recovery dirty state");
+    fs::current_path(changedCwd, ec);
+    AutosaveManager cwdObserver(storageRoot, config);
+    expect(!ec && cwdObserver.findCrashRecoveryForScene((rootPath / "Main.rcbn").string()) != nullptr &&
+               !fs::exists(changedCwd / ".autosave"),
+           "recovery discovery remains bound to the storage root after CWD changes");
     for (int i = 0; i < 6; ++i) {
         manager.markSceneChanged();
         expect(manager.update(now + std::chrono::seconds(1) + std::chrono::seconds(300 * (i + 1))),
@@ -6761,7 +6777,7 @@ int runAutosaveRegression() {
 
     AutosaveManager::Config isolatedConfig = config;
     isolatedConfig.recoveryDebounce = std::chrono::hours(1);
-    AutosaveManager isolated(rootPath, isolatedConfig);
+    AutosaveManager isolated(storageRoot, isolatedConfig);
     auto isolatedRoot = std::make_shared<System>();
     expect(isolated.beginSession(isolatedRoot.get(), rootPath / "Isolated.rcbn"),
            "isolated snapshot session starts");
@@ -6800,22 +6816,22 @@ int runAutosaveRegression() {
            "failed atomic replace temporary path is cleaned by test teardown");
     isolated.endSessionNormally();
 
-    AutosaveManager untitled(rootPath, config);
+    AutosaveManager untitled(storageRoot, config);
     auto untitledRoot = std::make_shared<System>();
     expect(untitled.beginSession(untitledRoot.get(), fs::path{}), "untitled session starts");
-    const fs::path untitledDir = rootPath / ".autosave" / "Untitled.rcbn";
+    const fs::path untitledDir = storageRoot / ".autosave" / "Untitled.rcbn";
     expect(fs::exists(untitledDir / "session.lock"), "untitled session uses Untitled.rcbn");
     untitled.markSceneChanged();
     const auto untitledNow = std::chrono::steady_clock::now();
     expect(untitled.update(untitledNow + std::chrono::seconds(1)), "untitled recovery writes");
     expect(untitled.findCrashRecoveries().empty(),
            "active session excludes its flushed recovery from crash candidates");
-    AutosaveManager observer(rootPath, config);
+    AutosaveManager observer(storageRoot, config);
     auto candidates = observer.findCrashRecoveries();
     expect(candidates.size() == 1 && candidates.front().untitled, "valid candidate is discoverable");
     expect(observer.findCrashRecoveryForScene("") != nullptr,
            "untitled candidate can be found without a formal scene path");
-    AutosaveManager latestNamed(rootPath, config);
+    AutosaveManager latestNamed(storageRoot, config);
     auto latestRoot = std::make_shared<System>();
     expect(latestNamed.beginSession(latestRoot.get(), rootPath / "Latest.rcbn"),
            "second crash candidate session starts");
@@ -6848,18 +6864,19 @@ int runAutosaveRegression() {
                observer.discardRecovery(remainingCandidates.front()),
            "discard removes selected recovery and lock");
     untitled.endSessionNormally();
-    fs::create_directories(rootPath / ".autosave" / "Missing.rcbn", ec);
-    std::ofstream(rootPath / ".autosave" / "Missing.rcbn" / "session.lock")
+    fs::create_directories(storageRoot / ".autosave" / "Missing.rcbn", ec);
+    std::ofstream(storageRoot / ".autosave" / "Missing.rcbn" / "session.lock")
         << "ScenePath: missing.rcbn\nUntitled: false\n";
     expect(observer.findCrashRecoveries().empty(),
            "orphan lock without recovery is ignored as a non-candidate");
-    fs::create_directories(rootPath / ".autosave" / "Corrupt.rcbn", ec);
-    std::ofstream(rootPath / ".autosave" / "Corrupt.rcbn" / "session.lock")
+    fs::create_directories(storageRoot / ".autosave" / "Corrupt.rcbn", ec);
+    std::ofstream(storageRoot / ".autosave" / "Corrupt.rcbn" / "session.lock")
         << "ScenePath: corrupt.rcbn\nUntitled: false\n";
-    std::ofstream(rootPath / ".autosave" / "Corrupt.rcbn" / "recovery.rcbn") << "not: valid scene\n";
+    std::ofstream(storageRoot / ".autosave" / "Corrupt.rcbn" / "recovery.rcbn") << "not: valid scene\n";
     expect(observer.findCrashRecoveries().empty(), "corrupt recovery is rejected");
     expect(observer.findLatestCrashRecovery() == nullptr,
            "corrupt and missing recovery candidates are excluded");
+    fs::current_path(originalCwd, ec);
     fs::remove_all(rootPath, ec);
     std::cout << "[Autosave] failures=" << failures << " result="
               << (failures == 0 ? "PASS" : "FAIL") << '\n';

@@ -494,6 +494,61 @@ static int runGenTestScene(const std::string& outputPath) {
 // ===================================================
 //  main
 // ===================================================
+#ifdef _WIN32
+struct EditorExecutableLocation {
+    std::filesystem::path executablePath;
+    std::filesystem::path storageRoot;
+};
+
+static EditorExecutableLocation resolveEditorExecutableLocation(int argc, char* argv[]) {
+    std::vector<wchar_t> buffer(32768, L'\0');
+    SetLastError(ERROR_SUCCESS);
+    const DWORD length = GetModuleFileNameW(
+        nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (length > 0 && length < buffer.size()) {
+        const std::filesystem::path executable(
+            std::wstring(buffer.data(), length));
+        return {executable.lexically_normal(), executable.parent_path().lexically_normal()};
+    }
+
+    const DWORD moduleError = GetLastError();
+    if (length == 0) {
+        RCBN_ERROR("GetModuleFileNameW failed while resolving the editor executable "
+                   "(error " << moduleError << "); falling back to argv[0]");
+    } else {
+        RCBN_ERROR("GetModuleFileNameW returned a truncated editor executable path "
+                   "(buffer size " << buffer.size() << ", error " << moduleError
+                   << "); falling back to argv[0]");
+    }
+
+    std::error_code pathError;
+    if (argc > 0 && argv[0] && argv[0][0] != '\0') {
+        const auto executable = std::filesystem::absolute(
+            std::filesystem::path(argv[0]), pathError);
+        if (!pathError) {
+            const auto normalized = executable.lexically_normal();
+            return {normalized, normalized.parent_path()};
+        }
+        RCBN_ERROR("Failed to make argv[0] absolute while resolving the editor "
+                   "executable: " << pathError.message()
+                   << "; falling back to the current working directory");
+    } else {
+        RCBN_ERROR("argv[0] is unavailable while resolving the editor executable; "
+                   "falling back to the current working directory");
+    }
+
+    pathError.clear();
+    const auto currentDirectory = std::filesystem::current_path(pathError);
+    if (pathError) {
+        RCBN_ERROR("Failed to resolve the current working directory for Autosave: "
+                   << pathError.message());
+        return {std::filesystem::path("Recubin.exe"), std::filesystem::path(".")};
+    }
+    const auto normalizedDirectory = currentDirectory.lexically_normal();
+    return {normalizedDirectory / "Recubin.exe", normalizedDirectory};
+}
+#endif
+
 int main(int argc, char* argv[]) {
     GuiAutomation::configureFromArgs(argc, argv);
     const RuntimeLaunchArgs runtimeArgs = parseRuntimeLaunchArgs(argc, argv);
@@ -531,7 +586,21 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Hello world!\n"
               << "Recubin Studio v0.999\n";
-    std::filesystem::path engineExePath = (argc > 0 && argv[0]) ? std::filesystem::path(argv[0]) : std::filesystem::path();
+#ifdef _WIN32
+    const auto executableLocation = resolveEditorExecutableLocation(argc, argv);
+    const std::filesystem::path engineExePath = executableLocation.executablePath;
+    const std::filesystem::path autosaveRoot = executableLocation.storageRoot;
+#else
+    const std::filesystem::path engineExePath =
+        (argc > 0 && argv[0]) ? std::filesystem::path(argv[0]) : std::filesystem::path();
+    std::error_code autosaveRootError;
+    std::filesystem::path autosaveRoot = std::filesystem::current_path(autosaveRootError);
+    if (autosaveRootError) {
+        RCBN_ERROR("Failed to resolve the current working directory for Autosave: "
+                   << autosaveRootError.message());
+        autosaveRoot = ".";
+    }
+#endif
 
     windows(
         DWORD myPid = GetCurrentProcessId();
@@ -630,7 +699,8 @@ int main(int argc, char* argv[]) {
     // ===================================================
     //  EditorManager を Renderer に接続
     // ===================================================
-    auto editorOwned = std::make_unique<EditorManager>(workspace.get(), user.get(), system.get());
+    auto editorOwned = std::make_unique<EditorManager>(
+        workspace.get(), user.get(), system.get(), autosaveRoot);
     EditorManager* ed = editorOwned.get();
     ed->setSceneMetadata(initialSceneMetadata);
     if (initialSceneMetadata.applicationIdGenerated) ed->markDirty();

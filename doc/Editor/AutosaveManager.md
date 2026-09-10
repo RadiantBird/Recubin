@@ -1,7 +1,11 @@
 # AutosaveManager
 
 `AutosaveManager` owns one editor session under
-`<project>/.autosave/<scene filename>/`. Recovery is debounced by one second;
+`<storage root>/.autosave/<scene filename>/`. The caller supplies the storage
+root explicitly. On Windows, `main.cpp` resolves it to the directory containing
+the running `Recubin.exe`; on macOS the current working directory remains the
+storage root. Existing Autosave data below an old working directory is not
+migrated, scanned, or removed. Recovery is debounced by one second;
 periodic snapshots default to five minutes and five generations. Writes are
 performed synchronously through a same-directory temporary file followed by an
 atomic replacement. A session lock and recovery document are removed by

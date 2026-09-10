@@ -110,7 +110,9 @@ hierarchyPanel->m_clipboard
 
 ## Scene Autosave / Crash Recovery
 
-EditorManagerは起動時のcurrent pathをproject rootとしてAutosaveManagerを所有する。
+EditorManagerはコンストラクタで明示的なAutosave保存rootを受け取り、AutosaveManagerへ渡す。
+Windowsでは`main.cpp`が`GetModuleFileNameW`で取得した実行中の`Recubin.exe`の親ディレクトリ、
+macOSでは従来どおり起動CWDが保存rootになる。旧CWD配下のAutosaveは自動移行・候補走査しない。
 Edit中の変更は1秒debounceの`recovery.rcbn`と5分周期の世代snapshotへ同期保存し、
 正常なScene切替・終了時はlockとrecoveryだけを削除する。起動時に有効な残存lockを検出した場合は
 Welcomeより先にRecoveryモーダルを表示し、Recover、Autosaveフォルダー表示、Discardを提供する。
