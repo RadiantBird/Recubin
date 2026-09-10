@@ -4,10 +4,19 @@
 #include <string>
 #include <string_view>
 
+enum class YamlFailureKind {
+    None,
+    Io,
+    Parse,
+    Guard,
+    Emit,
+};
+
 struct YamlLoadResult {
     YAML::Node node;
     bool success = false;
     bool loadFailed = false;
+    YamlFailureKind failureKind = YamlFailureKind::None;
     std::string error;
 };
 
@@ -15,6 +24,7 @@ using GuardedYamlDocument = YamlLoadResult;
 
 struct YamlSaveResult {
     bool success = false;
+    YamlFailureKind failureKind = YamlFailureKind::None;
     std::string error;
 };
 

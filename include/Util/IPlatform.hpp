@@ -62,6 +62,9 @@ public:
     // OS標準のファイルマネージャー(エクスプローラー/Finder相当)でパスを開く
     virtual void revealInFileManager(const std::string& path) = 0;
 
+    // OS標準の同期エラーダイアログを表示する。終了処理中でも利用できる。
+    virtual void showErrorDialog(const std::string& title, const std::string& message) = 0;
+
     // OS固有のアプリケーションアイコンを設定する。空パスは既定アイコンへの復帰を表す。
     // ウィンドウ単位のアイコンしか持たないOSはUnsupportedを返し、呼び出し側で処理する。
     virtual ApplicationIconResult setApplicationIcon(const std::string& path) = 0;

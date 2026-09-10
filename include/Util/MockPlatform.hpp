@@ -10,10 +10,13 @@
 // ==================================================================
 class MockPlatform : public IPlatform {
 public:
+    struct ErrorDialog { std::string title; std::string message; };
+    std::vector<ErrorDialog> errorDialogs;
     std::string openFileDialog(const std::vector<FileFilter>&) override;
     std::string saveFileDialog(const std::vector<FileFilter>&, const std::string&) override;
     std::string openFolderDialog() override;
     void revealInFileManager(const std::string&) override;
+    void showErrorDialog(const std::string& title, const std::string& message) override;
     ApplicationIconResult setApplicationIcon(const std::string&) override;
     void setupConsoleUtf8() override;
     void setupDllSearchPath() override;

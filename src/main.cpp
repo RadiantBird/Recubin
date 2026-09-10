@@ -4,6 +4,9 @@
 #else
     #define windows(...)
 #endif
+#ifdef __APPLE__
+    #include <mach-o/dyld.h>
+#endif
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -55,6 +58,7 @@
 #include <Util/RuntimeLaunchArgs.hpp>
 #include <Util/UUID.hpp>
 #include <Util/YamlLoadResult.hpp>
+#include <Util/EditorLaunchPath.hpp>
 
 #include <iostream>
 #include <algorithm>
@@ -67,6 +71,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <unordered_set>
 #include <cmath>
 #include <cstddef>
 #include <yaml-cpp/yaml.h>
@@ -164,16 +169,54 @@ static void resetTerrainStreamers(const std::vector<std::shared_ptr<Workspace>>&
 // エディター設定（前回開いていたシーンパスなど）の保存先
 static std::string kEditorSettingsPath = "editor_settings.yaml";
 static bool g_editorSettingsLoadFailed = false;
+static std::unordered_set<std::string> g_editorSettingsIoFailures;
+
+static std::string absoluteDisplayPath(const std::filesystem::path& path) {
+    std::error_code error;
+    const auto absolute = std::filesystem::absolute(path, error);
+    return AssetPath::toStored((error ? path : absolute).lexically_normal());
+}
+
+static void showInternalIoFailureOnce(const std::string& operation,
+                                      const std::filesystem::path& path,
+                                      const std::string& reason) {
+    const std::string key = operation + "\n" + absoluteDisplayPath(path);
+    if (!g_editorSettingsIoFailures.insert(key).second) return;
+    std::string message = Loc::t(Loc::LocKey::InternalIoPermissionHint);
+    message += "\n\n";
+    message += Loc::t(Loc::LocKey::InternalIoOperationLabel);
+    message += ": " + operation + "\n";
+    message += Loc::t(Loc::LocKey::InternalIoPathLabel);
+    message += ": " + absoluteDisplayPath(path) + "\n";
+    message += Loc::t(Loc::LocKey::InternalIoReasonLabel);
+    message += ": " + reason;
+    getPlatform().showErrorDialog(Loc::t(Loc::LocKey::InternalIoErrorTitle), message);
+}
+
+static void clearInternalIoFailure(const std::string& operation,
+                                   const std::filesystem::path& path) {
+    g_editorSettingsIoFailures.erase(operation + "\n" + absoluteDisplayPath(path));
+}
 
 // editor_settings.yaml 全体を読み込む（無ければ空ノード）
 static YAML::Node loadEditorSettings() {
-    if (!std::filesystem::exists(kEditorSettingsPath)) return YAML::Node();
+    std::error_code inspectError;
+    if (!std::filesystem::exists(kEditorSettingsPath, inspectError)) {
+        if (inspectError) {
+            showInternalIoFailureOnce("Read editor settings", kEditorSettingsPath,
+                                      inspectError.message());
+        } else clearInternalIoFailure("Read editor settings", kEditorSettingsPath);
+        return YAML::Node();
+    }
     const YamlLoadResult loaded = loadYamlFile(kEditorSettingsPath);
     if (!loaded.success) {
         g_editorSettingsLoadFailed = true;
         RCBN_ERROR("Failed to load editor settings: " << loaded.error);
+        if (loaded.failureKind == YamlFailureKind::Io)
+            showInternalIoFailureOnce("Read editor settings", kEditorSettingsPath, loaded.error);
         return YAML::Node();
     }
+    clearInternalIoFailure("Read editor settings", kEditorSettingsPath);
     if (loaded.node && !loaded.node.IsMap()) {
         g_editorSettingsLoadFailed = true;
         RCBN_ERROR("Invalid editor settings root: expected a YAML map");
@@ -186,7 +229,11 @@ static YAML::Node loadEditorSettings() {
 static void writeEditorSettings(const YAML::Node& root) {
     const YamlSaveResult saved = saveYamlFileGuarded(
         kEditorSettingsPath, root, g_editorSettingsLoadFailed);
-    if (!saved.success) RCBN_ERROR("Failed to save editor settings: " << saved.error);
+    if (!saved.success) {
+        RCBN_ERROR("Failed to save editor settings: " << saved.error);
+        if (saved.failureKind == YamlFailureKind::Io)
+            showInternalIoFailureOnce("Write editor settings", kEditorSettingsPath, saved.error);
+    } else clearInternalIoFailure("Write editor settings", kEditorSettingsPath);
 }
 
 // 前回開いていたシーンパスを読み込む。記録が無い/壊れている場合は空文字列を返す
@@ -547,6 +594,41 @@ static EditorExecutableLocation resolveEditorExecutableLocation(int argc, char* 
     const auto normalizedDirectory = currentDirectory.lexically_normal();
     return {normalizedDirectory / "Recubin.exe", normalizedDirectory};
 }
+#elif defined(__APPLE__)
+static std::filesystem::path resolveMacEditorExecutablePath(int argc, char* argv[]) {
+    uint32_t bufferSize = 0;
+    _NSGetExecutablePath(nullptr, &bufferSize);
+    if (bufferSize > 0) {
+        std::vector<char> buffer(bufferSize, '\0');
+        if (_NSGetExecutablePath(buffer.data(), &bufferSize) == 0) {
+            std::error_code canonicalError;
+            const auto executable = std::filesystem::weakly_canonical(
+                std::filesystem::path(buffer.data()), canonicalError);
+            if (!canonicalError) return executable.lexically_normal();
+            RCBN_ERROR("Failed to canonicalize _NSGetExecutablePath result: "
+                       << canonicalError.message() << "; falling back to argv[0]");
+        } else {
+            RCBN_ERROR("_NSGetExecutablePath failed with buffer size " << bufferSize
+                       << "; falling back to argv[0]");
+        }
+    } else {
+        RCBN_ERROR("_NSGetExecutablePath did not provide a buffer size; falling back to argv[0]");
+    }
+
+    std::error_code pathError;
+    if (argc > 0 && argv[0] && argv[0][0] != '\0') {
+        const auto executable = std::filesystem::absolute(argv[0], pathError);
+        if (!pathError) return executable.lexically_normal();
+        RCBN_ERROR("Failed to make argv[0] absolute while resolving the editor executable: "
+                   << pathError.message() << "; falling back to the current working directory");
+    }
+    pathError.clear();
+    const auto currentDirectory = std::filesystem::current_path(pathError);
+    if (!pathError) return (currentDirectory / "Recubin").lexically_normal();
+    RCBN_ERROR("Failed to resolve the current working directory for the editor executable: "
+               << pathError.message());
+    return "Recubin";
+}
 #endif
 
 int main(int argc, char* argv[]) {
@@ -590,9 +672,34 @@ int main(int argc, char* argv[]) {
     const auto executableLocation = resolveEditorExecutableLocation(argc, argv);
     const std::filesystem::path engineExePath = executableLocation.executablePath;
     const std::filesystem::path autosaveRoot = executableLocation.storageRoot;
-#else
+#elif defined(__APPLE__)
+    std::error_code launchRootError;
+    std::filesystem::path launchRoot = std::filesystem::current_path(launchRootError);
+    if (launchRootError) {
+        RCBN_ERROR("Failed to resolve the launch working directory: "
+                   << launchRootError.message());
+        launchRoot = ".";
+    }
     const std::filesystem::path engineExePath =
-        (argc > 0 && argv[0]) ? std::filesystem::path(argv[0]) : std::filesystem::path();
+        resolveMacEditorExecutablePath(argc, argv);
+    const auto selectedRoot = selectMacEditorRoot(engineExePath, launchRoot);
+    std::filesystem::path autosaveRoot = selectedRoot.root;
+    if (selectedRoot.portable) {
+        std::error_code changeRootError;
+        std::filesystem::current_path(selectedRoot.root, changeRootError);
+        if (changeRootError) {
+            RCBN_ERROR("Failed to switch to the portable Studio root "
+                       << AssetPath::toStored(selectedRoot.root) << ": "
+                       << changeRootError.message());
+            showInternalIoFailureOnce("Use portable Studio folder", selectedRoot.root,
+                                      changeRootError.message());
+            autosaveRoot = launchRoot;
+        } else if (!uiAutomationScene) {
+            kEditorSettingsPath = AssetPath::toStored(
+                (selectedRoot.root / "editor_settings.yaml").lexically_normal());
+        }
+    }
+#else
     std::error_code autosaveRootError;
     std::filesystem::path autosaveRoot = std::filesystem::current_path(autosaveRootError);
     if (autosaveRootError) {
@@ -600,6 +707,10 @@ int main(int argc, char* argv[]) {
                    << autosaveRootError.message());
         autosaveRoot = ".";
     }
+    std::error_code executableError;
+    const std::filesystem::path engineExePath = (argc > 0 && argv[0])
+        ? std::filesystem::absolute(argv[0], executableError)
+        : std::filesystem::path();
 #endif
 
     windows(

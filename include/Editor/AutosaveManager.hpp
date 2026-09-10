@@ -4,12 +4,17 @@
 #include <Util/AssetPath.hpp>
 #include <chrono>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 class AutosaveManager {
 public:
+    using IoFailureCallback = std::function<void(
+        const std::string& operation, const std::filesystem::path& path,
+        const std::string& reason)>;
     struct Config {
         std::chrono::milliseconds recoveryDebounce{1000};
         std::chrono::seconds snapshotInterval{300};
@@ -43,6 +48,7 @@ public:
     bool update();
     bool update(std::chrono::steady_clock::time_point now);
     bool flushRecovery();
+    void setIoFailureCallback(IoFailureCallback callback);
 
     std::vector<RecoveryCandidate> findCrashRecoveries() const;
     std::shared_ptr<RecoveryCandidate> findLatestCrashRecovery() const;
@@ -60,13 +66,18 @@ public:
 private:
     bool saveRecovery(std::chrono::steady_clock::time_point now);
     bool saveSnapshot(std::chrono::steady_clock::time_point now);
-    bool atomicWrite(const std::filesystem::path& target, const std::string& data) const;
+    bool atomicWrite(const std::filesystem::path& target, const std::string& data,
+                     const std::string& operation) const;
     bool writeLock() const;
-    static bool readCandidate(const std::filesystem::path& directory,
-                              RecoveryCandidate& candidate);
+    bool readCandidate(const std::filesystem::path& directory,
+                       RecoveryCandidate& candidate) const;
     static std::string normalizedSceneName(const std::filesystem::path& path);
     void cleanupTransientFiles(const std::filesystem::path& directory) const;
     void resetTimers(std::chrono::steady_clock::time_point now);
+    void notifyIoFailure(const std::string& operation, const std::filesystem::path& path,
+                         const std::string& reason) const;
+    void notifyIoSuccess(const std::string& operation,
+                         const std::filesystem::path& path) const;
 
     std::filesystem::path m_storageRoot;
     std::filesystem::path m_logicalScenePath;
@@ -81,4 +92,6 @@ private:
     std::chrono::steady_clock::time_point m_lastSnapshot{};
     std::chrono::steady_clock::time_point m_lastRecoveryAttempt{};
     std::chrono::steady_clock::time_point m_lastSnapshotAttempt{};
+    IoFailureCallback m_ioFailureCallback;
+    mutable std::unordered_set<std::string> m_reportedIoFailures;
 };

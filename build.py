@@ -5,6 +5,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +61,44 @@ def copy_if_different(source: Path, destination: Path) -> bool:
         return False
     shutil.copy2(source, destination)
     return True
+
+
+def prepare_studio_package_directory(pkg_dir: Path) -> bool:
+    """Refresh generated Studio files while preserving local autosave data."""
+    autosave_dir = pkg_dir / ".autosave"
+    if autosave_dir.exists() and not autosave_dir.is_dir():
+        print(f"[ERROR] Autosave path is not a directory: {autosave_dir}")
+        return False
+    if pkg_dir.exists():
+        for child in pkg_dir.iterdir():
+            if child.name == ".autosave":
+                continue
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+    else:
+        pkg_dir.mkdir(parents=True)
+    autosave_dir.mkdir(parents=True, exist_ok=True)
+    return True
+
+
+def create_studio_archive(pkg_dir: Path, archive_base: Path) -> Path:
+    """Archive Studio without leaking local autosaves, but keep its empty marker."""
+    zip_path = archive_base.with_suffix(".zip")
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        package_name = pkg_dir.name
+        archive.writestr(f"{package_name}/.autosave/", b"")
+        for path in sorted(pkg_dir.rglob("*")):
+            relative = path.relative_to(pkg_dir)
+            if relative.parts and relative.parts[0] == ".autosave":
+                continue
+            archive_name = Path(package_name) / relative
+            if path.is_dir():
+                archive.writestr(archive_name.as_posix().rstrip("/") + "/", b"")
+            else:
+                archive.write(path, archive_name.as_posix())
+    return zip_path
 
 
 def normalize_config(value: str | None) -> str:
@@ -558,9 +597,8 @@ def package_editor_for_windows(config: str) -> int:
 
     build_dir = BUILD_DIR / config
     pkg_dir = DIST_DIR / "RecubinStudio"
-    if pkg_dir.exists():
-        shutil.rmtree(pkg_dir)
-    pkg_dir.mkdir(parents=True)
+    if not prepare_studio_package_directory(pkg_dir):
+        return 1
 
     def copy_executable(src: Path, dst: Path) -> bool:
         if not src.exists():
@@ -664,7 +702,7 @@ If Recubin.exe does not start, run redist/vc_redist.x64.exe before launching Rec
     # zip 生成
     date_str = datetime.date.today().strftime("%Y%m%d")
     archive_base = DIST_DIR / f"RecubinStudio-{date_str}"
-    zip_path = shutil.make_archive(str(archive_base), "zip", root_dir=DIST_DIR, base_dir="RecubinStudio")
+    zip_path = create_studio_archive(pkg_dir, archive_base)
 
     print(f"[SUCCESS] Packaged studio at {pkg_dir}")
     print(f"[SUCCESS] Created archive at {zip_path}")
@@ -683,48 +721,19 @@ def package_editor_for_macos(config: str) -> int:
             print(f"[ERROR] Executable not found: {executable}")
             return 1
 
-    bundle_dir = DIST_DIR / "RecubinStudio.app"
-    if bundle_dir.exists():
-        shutil.rmtree(bundle_dir)
-
-    contents_dir = bundle_dir / "Contents"
-    macos_dir = contents_dir / "MacOS"
-    resources_dir = contents_dir / "Resources"
-    macos_dir.mkdir(parents=True, exist_ok=True)
-    resources_dir.mkdir(parents=True, exist_ok=True)
+    pkg_dir = DIST_DIR / "RecubinStudio"
+    if not prepare_studio_package_directory(pkg_dir):
+        return 1
 
     for source, destination in (
-        (recubin_executable, macos_dir / "Recubin"),
-        (engine_executable, macos_dir / "RecubinEngine"),
+        (recubin_executable, pkg_dir / "Recubin"),
+        (engine_executable, pkg_dir / "RecubinEngine"),
     ):
         shutil.copy2(source, destination)
         destination.chmod(destination.stat().st_mode | 0o111)
 
-    info_plist = """<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key>
-    <string>Recubin</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.recubin.studio</string>
-    <key>CFBundleName</key>
-    <string>Recubin Studio</string>
-    <key>CFBundleDisplayName</key>
-    <string>Recubin Studio</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.999</string>
-    <key>CFBundleVersion</key>
-    <string>0.999</string>
-</dict>
-</plist>
-"""
-    (contents_dir / "Info.plist").write_text(info_plist, encoding="utf-8")
-
     shaders_src = ROOT_DIR / "shaders"
-    shaders_dst = resources_dir / "shaders"
+    shaders_dst = pkg_dir / "shaders"
     shaders_dst.mkdir(parents=True, exist_ok=True)
     shader_paths = list(shaders_src.glob("*.glsl"))
     if not shader_paths:
@@ -735,20 +744,20 @@ def package_editor_for_macos(config: str) -> int:
 
     fonts_src = ROOT_DIR / "assets" / "fonts"
     if not fonts_src.is_dir():
-        print("[ERROR] assets/fonts folder missing - cannot package macOS bundle.")
+        print("[ERROR] assets/fonts folder missing - cannot package macOS Studio.")
         return 1
-    (resources_dir / "assets").mkdir(parents=True, exist_ok=True)
-    shutil.copytree(fonts_src, resources_dir / "assets" / "fonts")
+    (pkg_dir / "assets").mkdir(parents=True, exist_ok=True)
+    shutil.copytree(fonts_src, pkg_dir / "assets" / "fonts")
 
     for dir_name in ("scenes", "image", "models", "scripts"):
-        (resources_dir / "assets" / dir_name).mkdir(parents=True, exist_ok=True)
+        (pkg_dir / "assets" / dir_name).mkdir(parents=True, exist_ok=True)
 
     optional_files = (
-        (ROOT_DIR / "imgui.ini", resources_dir / "imgui.ini", "imgui.ini not found - skipping."),
-        (ROOT_DIR / "LICENCE", resources_dir / "LICENSE", "LICENSE not found - skipping."),
+        (ROOT_DIR / "imgui.ini", pkg_dir / "imgui.ini", "imgui.ini not found - skipping."),
+        (ROOT_DIR / "LICENCE", pkg_dir / "LICENSE", "LICENSE not found - skipping."),
         (
             ROOT_DIR / "LICENCE_3RD_PARTY",
-            resources_dir / "LICENCE_3RD_PARTY",
+            pkg_dir / "LICENCE_3RD_PARTY",
             "LICENCE_3RD_PARTY not found - skipping.",
         ),
     )
@@ -758,30 +767,34 @@ def package_editor_for_macos(config: str) -> int:
         else:
             print(f"[WARNING] {warning}")
 
+    (pkg_dir / "readme.txt").write_text(
+        "Recubin is the editor (Studio). RecubinEngine is the runtime used by "
+        "the in-editor game Packager. Keep both executables in this folder.\n",
+        encoding="utf-8",
+    )
+
     try:
-        result = subprocess.call([
-            "/usr/bin/codesign", "--force", "--deep", "--sign", "-", str(bundle_dir)
-        ], cwd=ROOT_DIR)
-        if result != 0:
-            print("[ERROR] macOS bundle signing failed.")
-            return result
-        result = subprocess.call([
-            "/usr/bin/codesign", "--verify", "--deep", "--strict", str(bundle_dir)
-        ], cwd=ROOT_DIR)
+        for executable in (pkg_dir / "Recubin", pkg_dir / "RecubinEngine"):
+            result = subprocess.call([
+                "/usr/bin/codesign", "--force", "--sign", "-", str(executable)
+            ], cwd=ROOT_DIR)
+            if result != 0:
+                print(f"[ERROR] macOS executable signing failed: {executable}")
+                return result
+            result = subprocess.call([
+                "/usr/bin/codesign", "--verify", "--strict", str(executable)
+            ], cwd=ROOT_DIR)
+            if result != 0:
+                print(f"[ERROR] macOS executable signature verification failed: {executable}")
+                return result
     except OSError as exc:
         print(f"[ERROR] Failed to run codesign: {exc}")
         return 1
-    if result != 0:
-        print("[ERROR] macOS bundle signature verification failed.")
-        return result
-
     date_str = datetime.date.today().strftime("%Y%m%d")
     archive_base = DIST_DIR / f"RecubinStudio-macos-{date_str}"
-    zip_path = shutil.make_archive(
-        str(archive_base), "zip", root_dir=DIST_DIR, base_dir="RecubinStudio.app"
-    )
+    zip_path = create_studio_archive(pkg_dir, archive_base)
 
-    print(f"[SUCCESS] Packaged studio at {bundle_dir}")
+    print(f"[SUCCESS] Packaged studio at {pkg_dir}")
     print(f"[SUCCESS] Created archive at {zip_path}")
     return 0
 

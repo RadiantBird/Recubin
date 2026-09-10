@@ -36,6 +36,8 @@ enum class LocKey {
     RestoreDefaultR6Button, RestoreDefaultR6Unavailable,
     CrashRecoveryTitle, CrashRecoveryMessage, CrashRecoveryRecover,
     CrashRecoveryOpenFolder, CrashRecoveryDiscard,
+    InternalIoErrorTitle, InternalIoPermissionHint,
+    InternalIoOperationLabel, InternalIoPathLabel, InternalIoReasonLabel,
 
     // ---- EditorManager: ツールバー ----
     PlayButton, PauseButton, StopButton,

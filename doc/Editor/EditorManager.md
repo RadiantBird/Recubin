@@ -111,13 +111,16 @@ hierarchyPanel->m_clipboard
 ## Scene Autosave / Crash Recovery
 
 EditorManagerはコンストラクタで明示的なAutosave保存rootを受け取り、AutosaveManagerへ渡す。
-Windowsでは`main.cpp`が`GetModuleFileNameW`で取得した実行中の`Recubin.exe`の親ディレクトリ、
-macOSでは従来どおり起動CWDが保存rootになる。旧CWD配下のAutosaveは自動移行・候補走査しない。
+Windowsでは`main.cpp`が`GetModuleFileNameW`で取得した実行中の`Recubin.exe`の親ディレクトリを使う。
+macOSの平坦portable配布は`.autosave` markerと必須resourceを確認して実行ファイル隣へCWD、設定、
+Autosave rootを揃え、開発実行は従来の起動CWDを使う。旧CWD配下のAutosaveは自動移行・候補走査しない。
 Edit中の変更は1秒debounceの`recovery.rcbn`と5分周期の世代snapshotへ同期保存し、
 正常なScene切替・終了時はlockとrecoveryだけを削除する。起動時に有効な残存lockを検出した場合は
 Welcomeより先にRecoveryモーダルを表示し、Recover、Autosaveフォルダー表示、Discardを提供する。
 Recoverはrecoveryをsource、lock記録のScenePathをlogical pathとしてtransactional loadし、
 正式Sceneファイルを上書きしない。
+設定ファイルとAutosaveの実I/O失敗は日英のOS標準ダイアログへoperation、絶対path、OS理由を表示する。
+同一障害の連続表示は抑制し、成功後の再発時は再通知する。
 
 # Play 中の Workspace 追従
 

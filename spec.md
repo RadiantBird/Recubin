@@ -330,13 +330,21 @@ default back framebufferをphysical pixel sizeでRGBA PNGとして保存する�
 
 ## Scene Autosave / Crash Recovery
 
-Windows版Editorは実行中の`Recubin.exe`と同じディレクトリの
+Windows版Editorと平坦portable配布のmacOS Editorは実行中の`Recubin`と同じディレクトリの
 `.autosave/<scene-name>/`へRecoveryと世代snapshotを保存する。実行ファイル位置は
 `GetModuleFileNameW`で解決し、失敗時だけ`argv[0]`の絶対化、起動CWDの順でfallbackする。
-macOSは従来どおり起動CWDを保存基準とする。旧CWD配下のAutosaveは移行・走査・削除しない。
+macOSは実行ファイル隣に`.autosave` marker、`RecubinEngine`、`shaders`、`assets/fonts`が揃う場合だけ
+portable配布と判定し、CWD、`editor_settings.yaml`、Autosave rootを実行ファイル隣へ揃える。
+開発実行は従来の起動CWDを維持する。旧CWD配下のAutosaveは移行・走査・削除しない。
 Recoveryは1秒debounce、
 snapshotは5分周期で、保存は一時ファイルからatomic replaceする。異常終了時に残るlockと有効な
 Recoveryは次回起動時に最新候補をモーダル表示し、Recoverは正式Sceneを変更せず復旧内容を未保存
 状態で開く。候補走査では現在のactive sessionを除外し、lockだけが残ってRecoveryが未作成・欠落の
 場合は正常な非候補としてログなしで無視する。filesystem検査失敗と破損Recoveryは具体的なpath付きで
 エラーログを出す。正常終了・正常Scene切替・DiscardではlockとRecoveryを削除しsnapshotは保持する。
+設定とAutosaveの実I/O失敗はOS標準ダイアログへ日英で操作、絶対path、理由を示す。同一操作/pathの
+連続失敗は一度だけ表示し、成功後に再発した場合は再通知する。欠落・破損YAML・serialization失敗はログのみとする。
+
+macOS Studio配布は`.app`ではなく`RecubinStudio/`直下に`Recubin`、`RecubinEngine`、assets、shaders、
+文書、空の`.autosave/`を置く平坦zipとする。再packageはローカルのAutosave内容を保持するがzipへは含めない。
+Studio用の両Mach-Oは個別にad-hoc署名する。ゲームPackagerが作るmacOS `.app`は変更しない。

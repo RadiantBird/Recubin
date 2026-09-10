@@ -3,7 +3,9 @@
 #include <Util/Logger.hpp>
 #include <fstream>
 #include <algorithm>
+#include <limits>
 #include <system_error>
+#include <cerrno>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -12,6 +14,10 @@
 namespace {
 using Clock = std::chrono::steady_clock;
 std::string pathString(const std::filesystem::path& p) { return AssetPath::toStored(p); }
+
+std::string streamIoReason(const char* fallback) {
+    return errno != 0 ? std::generic_category().message(errno) : fallback;
+}
 
 enum class RegularFileState { Regular, Missing, NotRegular, Error };
 
@@ -43,6 +49,23 @@ AutosaveManager::AutosaveManager(std::filesystem::path storageRoot, Config confi
 }
 
 AutosaveManager::~AutosaveManager() = default;
+
+void AutosaveManager::setIoFailureCallback(IoFailureCallback callback) {
+    m_ioFailureCallback = std::move(callback);
+}
+
+void AutosaveManager::notifyIoFailure(const std::string& operation,
+                                      const std::filesystem::path& path,
+                                      const std::string& reason) const {
+    const std::string key = operation + "\n" + pathString(path.lexically_normal());
+    if (m_reportedIoFailures.insert(key).second && m_ioFailureCallback)
+        m_ioFailureCallback(operation, path, reason);
+}
+
+void AutosaveManager::notifyIoSuccess(const std::string& operation,
+                                      const std::filesystem::path& path) const {
+    m_reportedIoFailures.erase(operation + "\n" + pathString(path.lexically_normal()));
+}
 
 std::string AutosaveManager::normalizedSceneName(const std::filesystem::path& path) {
     if (path.empty()) return "Untitled.rcbn";
@@ -81,8 +104,10 @@ bool AutosaveManager::beginSession(Instance* root, const std::filesystem::path& 
         std::filesystem::create_directories(m_sessionDirectory, ec);
         if (ec) {
             RCBN_ERROR("Autosave: cannot create " << pathString(m_sessionDirectory) << ": " << ec.message());
+            notifyIoFailure("Create autosave directory", m_sessionDirectory, ec.message());
             return false;
         }
+        notifyIoSuccess("Create autosave directory", m_sessionDirectory);
         m_active = true;
         m_recoveryDirty = false;
         m_snapshotDirty = false;
@@ -131,22 +156,34 @@ bool AutosaveManager::writeLock() const {
             RCBN_ERROR("Autosave: lock YAML emitter failed");
             return false;
         }
-        return atomicWrite(m_sessionDirectory / "session.lock", emitter.c_str());
+        return atomicWrite(m_sessionDirectory / "session.lock", emitter.c_str(),
+                           "Write autosave session lock");
     } catch (const std::exception& e) {
         RCBN_ERROR("Autosave: lock serialization failed: " << e.what());
     } catch (...) { RCBN_ERROR("Autosave: lock serialization failed"); }
     return false;
 }
 
-bool AutosaveManager::atomicWrite(const std::filesystem::path& target, const std::string& data) const {
+bool AutosaveManager::atomicWrite(const std::filesystem::path& target, const std::string& data,
+                                  const std::string& operation) const {
     try {
         std::filesystem::path tmp = target;
         tmp += ".tmp";
+        errno = 0;
         std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-        if (!out) { RCBN_ERROR("Autosave: cannot open " << pathString(target) << ".tmp"); return false; }
+        if (!out) {
+            RCBN_ERROR("Autosave: cannot open " << pathString(tmp));
+            notifyIoFailure(operation, target,
+                            streamIoReason("unable to open temporary file for writing"));
+            return false;
+        }
         out.write(data.data(), static_cast<std::streamsize>(data.size()));
         out.flush();
-        if (!out) { RCBN_ERROR("Autosave: write failed " << pathString(target) << ".tmp"); return false; }
+        if (!out) {
+            RCBN_ERROR("Autosave: write failed " << pathString(tmp));
+            notifyIoFailure(operation, target, streamIoReason("temporary file write failed"));
+            return false;
+        }
         out.close();
 #ifdef _WIN32
         const auto wt = target.wstring(); const auto wm = tmp.wstring();
@@ -156,21 +193,34 @@ bool AutosaveManager::atomicWrite(const std::filesystem::path& target, const std
                 if (!MoveFileExW(wm.c_str(), wt.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
                     RCBN_ERROR("Autosave: ReplaceFileW and MoveFileExW failed for " << pathString(target)
                                << " (errors " << replaceError << ", " << GetLastError() << ")");
+                    notifyIoFailure(operation, target,
+                                    std::system_category().message(GetLastError()));
                     return false;
                 }
             }
         } else if (!MoveFileExW(wm.c_str(), wt.c_str(), MOVEFILE_WRITE_THROUGH)) {
             RCBN_ERROR("Autosave: MoveFileExW failed for " << pathString(target)
                        << " (error " << GetLastError() << ")");
+            notifyIoFailure(operation, target, std::system_category().message(GetLastError()));
             return false;
         }
 #else
         std::error_code ec; std::filesystem::rename(tmp, target, ec);
-        if (ec) { RCBN_ERROR("Autosave: atomic replace failed " << pathString(target) << ": " << ec.message()); return false; }
+        if (ec) {
+            RCBN_ERROR("Autosave: atomic replace failed " << pathString(target) << ": " << ec.message());
+            notifyIoFailure(operation, target, ec.message());
+            return false;
+        }
 #endif
+        notifyIoSuccess(operation, target);
         return true;
-    } catch (const std::exception& e) { RCBN_ERROR("Autosave write failed " << pathString(target) << ": " << e.what()); }
-    catch (...) { RCBN_ERROR("Autosave write failed " << pathString(target)); }
+    } catch (const std::exception& e) {
+        RCBN_ERROR("Autosave write failed " << pathString(target) << ": " << e.what());
+        notifyIoFailure(operation, target, e.what());
+    } catch (...) {
+        RCBN_ERROR("Autosave write failed " << pathString(target));
+        notifyIoFailure(operation, target, "unknown filesystem error");
+    }
     return false;
 }
 
@@ -178,7 +228,8 @@ bool AutosaveManager::saveRecovery(Clock::time_point now) {
     if (!m_root) { RCBN_ERROR("Autosave: recovery save skipped because root is null"); m_lastRecoveryAttempt = now; return false; }
     const auto serialized = SceneLoader::serializeSceneResult(m_root, m_metadata);
     if (!serialized) { RCBN_ERROR("Autosave recovery serialization failed: " << serialized.message); m_lastRecoveryAttempt = now; return false; }
-    const bool ok = atomicWrite(m_sessionDirectory / "recovery.rcbn", serialized.yaml);
+    const bool ok = atomicWrite(m_sessionDirectory / "recovery.rcbn", serialized.yaml,
+                                "Write autosave recovery");
     if (!ok) m_lastRecoveryAttempt = now;
     return ok;
 }
@@ -194,8 +245,14 @@ bool AutosaveManager::saveSnapshot(Clock::time_point now) {
     std::filesystem::path selected;
     for (std::size_t i = 0; i < m_config.snapshotCount; ++i) {
         auto candidate = m_sessionDirectory / ("snapshot_" + std::to_string(i) + ".rcbn");
-        if (!std::filesystem::exists(candidate, ec)) { selected = candidate; break; }
-        if (ec) { RCBN_ERROR("Autosave: snapshot existence check failed for " << pathString(candidate) << ": " << ec.message()); return false; }
+        const bool exists = std::filesystem::exists(candidate, ec);
+        if (ec) {
+            RCBN_ERROR("Autosave: snapshot existence check failed for " << pathString(candidate) << ": " << ec.message());
+            notifyIoFailure("Inspect autosave snapshot", candidate, ec.message());
+            return false;
+        }
+        notifyIoSuccess("Inspect autosave snapshot", candidate);
+        if (!exists) { selected = candidate; break; }
         slots.push_back(candidate);
     }
     if (selected.empty() && slots.empty()) { RCBN_ERROR("Autosave: no snapshot slot available"); return false; }
@@ -208,8 +265,10 @@ bool AutosaveManager::saveSnapshot(Clock::time_point now) {
             const auto mtime = std::filesystem::last_write_time(slot, mtimeError);
             if (mtimeError) {
                 RCBN_ERROR("Autosave: cannot read snapshot mtime " << pathString(slot) << ": " << mtimeError.message());
+                notifyIoFailure("Inspect autosave snapshot", slot, mtimeError.message());
                 return false;
             }
+            notifyIoSuccess("Inspect autosave snapshot", slot);
             if (!haveOldest || mtime < oldestTime) {
                 oldest = slot;
                 oldestTime = mtime;
@@ -222,7 +281,7 @@ bool AutosaveManager::saveSnapshot(Clock::time_point now) {
         }
         selected = oldest;
     }
-    const bool ok = atomicWrite(selected, serialized.yaml);
+    const bool ok = atomicWrite(selected, serialized.yaml, "Write autosave snapshot");
     if (ok) m_lastSnapshot = now;
     return ok;
 }
@@ -255,25 +314,43 @@ void AutosaveManager::cleanupTransientFiles(const std::filesystem::path& directo
     for (const auto& e : std::filesystem::directory_iterator(directory, ec)) {
         if (e.path().extension() == ".tmp") {
             std::filesystem::remove(e.path(), ec);
-            if (ec) RCBN_ERROR("Autosave: failed to remove temporary file " << pathString(e.path()) << ": " << ec.message());
-            else RCBN_LOG("Autosave removed stale temporary file " << pathString(e.path()));
+            if (ec) {
+                RCBN_ERROR("Autosave: failed to remove temporary file " << pathString(e.path()) << ": " << ec.message());
+                notifyIoFailure("Delete autosave temporary file", e.path(), ec.message());
+            } else {
+                notifyIoSuccess("Delete autosave temporary file", e.path());
+                RCBN_LOG("Autosave removed stale temporary file " << pathString(e.path()));
+            }
         }
     }
-    if (ec) RCBN_ERROR("Autosave: temporary-file directory iteration failed for " << pathString(directory) << ": " << ec.message());
+    if (ec) {
+        RCBN_ERROR("Autosave: temporary-file directory iteration failed for " << pathString(directory) << ": " << ec.message());
+        notifyIoFailure("Scan autosave temporary files", directory, ec.message());
+    } else notifyIoSuccess("Scan autosave temporary files", directory);
 }
 
 void AutosaveManager::endSessionNormally() {
     if (!m_active) return;
     std::error_code ec;
-    std::filesystem::remove(m_sessionDirectory / "session.lock", ec);
-    if (ec) RCBN_ERROR("Autosave: failed to remove session lock: " << ec.message());
-    std::filesystem::remove(m_sessionDirectory / "recovery.rcbn", ec);
-    if (ec) RCBN_ERROR("Autosave: failed to remove recovery: " << ec.message());
+    const auto lock = m_sessionDirectory / "session.lock";
+    std::filesystem::remove(lock, ec);
+    if (ec) {
+        RCBN_ERROR("Autosave: failed to remove session lock: " << ec.message());
+        notifyIoFailure("Delete autosave session lock", lock, ec.message());
+    } else notifyIoSuccess("Delete autosave session lock", lock);
+    ec.clear();
+    const auto recovery = m_sessionDirectory / "recovery.rcbn";
+    std::filesystem::remove(recovery, ec);
+    if (ec) {
+        RCBN_ERROR("Autosave: failed to remove recovery: " << ec.message());
+        notifyIoFailure("Delete autosave recovery", recovery, ec.message());
+    } else notifyIoSuccess("Delete autosave recovery", recovery);
     cleanupTransientFiles(m_sessionDirectory);
     m_active = false; m_recoveryDirty = false; m_snapshotDirty = false; m_root = nullptr;
 }
 
-bool AutosaveManager::readCandidate(const std::filesystem::path& directory, RecoveryCandidate& candidate) {
+bool AutosaveManager::readCandidate(const std::filesystem::path& directory,
+                                    RecoveryCandidate& candidate) const {
     try {
         const auto lock = directory / "session.lock";
         const auto recovery = directory / "recovery.rcbn";
@@ -281,6 +358,7 @@ bool AutosaveManager::readCandidate(const std::filesystem::path& directory, Reco
         const auto lockState = inspectRegularFile(lock, lockError);
         if (lockState == RegularFileState::Error) {
             RCBN_ERROR("Autosave: cannot inspect lock " << pathString(lock) << ": " << lockError.message());
+            notifyIoFailure("Inspect autosave session lock", lock, lockError.message());
             return false;
         }
         if (lockState == RegularFileState::Missing) {
@@ -291,10 +369,12 @@ bool AutosaveManager::readCandidate(const std::filesystem::path& directory, Reco
             RCBN_ERROR("Autosave: recovery candidate rejected; lock is not a regular file " << pathString(lock));
             return false;
         }
+        notifyIoSuccess("Inspect autosave session lock", lock);
         std::error_code recoveryError;
         const auto recoveryState = inspectRegularFile(recovery, recoveryError);
         if (recoveryState == RegularFileState::Error) {
             RCBN_ERROR("Autosave: cannot inspect recovery " << pathString(recovery) << ": " << recoveryError.message());
+            notifyIoFailure("Inspect autosave recovery", recovery, recoveryError.message());
             return false;
         }
         if (recoveryState == RegularFileState::Missing) return false;
@@ -302,23 +382,56 @@ bool AutosaveManager::readCandidate(const std::filesystem::path& directory, Reco
             RCBN_ERROR("Autosave: recovery candidate rejected; recovery is not a regular file " << pathString(recovery));
             return false;
         }
-        const auto lockText = FileLoader::readText(AssetPath::toStored(lock));
-        if (lockText.empty()) {
+        notifyIoSuccess("Inspect autosave recovery", recovery);
+        errno = 0;
+        std::ifstream lockFile(lock, std::ios::binary);
+        if (!lockFile) {
             RCBN_ERROR("Autosave: cannot read lock " << pathString(lock));
+            notifyIoFailure("Read autosave session lock", lock,
+                            streamIoReason("unable to open file for reading"));
+            return false;
+        }
+        const std::string lockText((std::istreambuf_iterator<char>(lockFile)),
+                                   std::istreambuf_iterator<char>());
+        if (lockFile.bad()) {
+            RCBN_ERROR("Autosave: cannot read lock " << pathString(lock));
+            notifyIoFailure("Read autosave session lock", lock, streamIoReason("file read failed"));
+            return false;
+        }
+        notifyIoSuccess("Read autosave session lock", lock);
+        if (lockText.empty()) {
+            RCBN_ERROR("Autosave: empty lock " << pathString(lock));
             return false;
         }
         YAML::Node node = YAML::Load(lockText);
         candidate.directory = directory; candidate.lockPath = lock; candidate.recoveryPath = recovery;
         candidate.logicalScenePath = node["ScenePath"] ? node["ScenePath"].as<std::string>() : "";
         candidate.untitled = node["Untitled"] && node["Untitled"].as<bool>();
+        errno = 0;
+        std::ifstream recoveryFile(recovery, std::ios::binary);
+        if (!recoveryFile) {
+            RCBN_ERROR("Autosave: cannot read recovery " << pathString(recovery));
+            notifyIoFailure("Read autosave recovery", recovery,
+                            streamIoReason("unable to open file for reading"));
+            return false;
+        }
+        recoveryFile.ignore(std::numeric_limits<std::streamsize>::max());
+        if (recoveryFile.bad()) {
+            RCBN_ERROR("Autosave: cannot read recovery " << pathString(recovery));
+            notifyIoFailure("Read autosave recovery", recovery, streamIoReason("file read failed"));
+            return false;
+        }
+        notifyIoSuccess("Read autosave recovery", recovery);
         auto loaded = SceneLoader::loadSceneResult(AssetPath::toStored(recovery));
         if (!loaded) { RCBN_ERROR("Autosave: corrupt recovery " << pathString(recovery) << ": " << loaded.message); return false; }
         std::error_code mtimeError;
         candidate.modified = std::filesystem::last_write_time(recovery, mtimeError);
         if (mtimeError) {
             RCBN_ERROR("Autosave: cannot read recovery mtime " << pathString(recovery) << ": " << mtimeError.message());
+            notifyIoFailure("Inspect autosave recovery", recovery, mtimeError.message());
             return false;
         }
+        notifyIoSuccess("Inspect autosave recovery", recovery);
         return true;
     } catch (const std::exception& e) { RCBN_ERROR("Autosave candidate rejected " << pathString(directory) << ": " << e.what()); }
     catch (...) { RCBN_ERROR("Autosave candidate rejected " << pathString(directory)); }
@@ -328,12 +441,22 @@ bool AutosaveManager::readCandidate(const std::filesystem::path& directory, Reco
 std::vector<AutosaveManager::RecoveryCandidate> AutosaveManager::findCrashRecoveries() const {
     std::vector<RecoveryCandidate> result; std::error_code ec;
     const auto root = m_storageRoot / ".autosave";
-    if (!std::filesystem::is_directory(root, ec)) return result;
+    if (!std::filesystem::is_directory(root, ec)) {
+        if (ec) {
+            RCBN_ERROR("Autosave: cannot inspect recovery root " << pathString(root) << ": " << ec.message());
+            notifyIoFailure("Scan autosave recoveries", root, ec.message());
+        }
+        return result;
+    }
+    notifyIoSuccess("Scan autosave recoveries", root);
     for (const auto& e : std::filesystem::directory_iterator(root, ec)) {
         if (ec) break;
         std::error_code entryError;
         if (!e.is_directory(entryError)) {
-            if (entryError) RCBN_ERROR("Autosave: candidate directory check failed for " << pathString(e.path()) << ": " << entryError.message());
+            if (entryError) {
+                RCBN_ERROR("Autosave: candidate directory check failed for " << pathString(e.path()) << ": " << entryError.message());
+                notifyIoFailure("Scan autosave recoveries", e.path(), entryError.message());
+            }
             continue;
         }
         if (m_active && e.path().lexically_normal() == m_sessionDirectory.lexically_normal()) continue;
@@ -343,15 +466,20 @@ std::vector<AutosaveManager::RecoveryCandidate> AutosaveManager::findCrashRecove
         if (lockState == RegularFileState::Missing) continue;
         if (lockState == RegularFileState::Error) {
             RCBN_ERROR("Autosave: cannot inspect lock " << pathString(lockPath) << ": " << lockPresenceError.message());
+            notifyIoFailure("Inspect autosave session lock", lockPath, lockPresenceError.message());
             continue;
         }
         if (lockState == RegularFileState::NotRegular) {
             RCBN_ERROR("Autosave: recovery candidate rejected; lock is not a regular file " << pathString(lockPath));
             continue;
         }
+        notifyIoSuccess("Inspect autosave session lock", lockPath);
         RecoveryCandidate c; if (readCandidate(e.path(), c)) result.push_back(std::move(c));
     }
-    if (ec) RCBN_ERROR("Autosave: recovery directory iteration failed for " << pathString(root) << ": " << ec.message());
+    if (ec) {
+        RCBN_ERROR("Autosave: recovery directory iteration failed for " << pathString(root) << ": " << ec.message());
+        notifyIoFailure("Scan autosave recoveries", root, ec.message());
+    } else notifyIoSuccess("Scan autosave recoveries", root);
     return result;
 }
 
@@ -387,12 +515,14 @@ bool AutosaveManager::validateRecoveryCandidate(const RecoveryCandidate& candida
     if (mtimeError) {
         RCBN_ERROR("Autosave: cannot revalidate recovery mtime " << pathString(candidate.recoveryPath)
                    << ": " << mtimeError.message());
+        notifyIoFailure("Inspect autosave recovery", candidate.recoveryPath, mtimeError.message());
         return false;
     }
     if (currentMtime != candidate.modified) {
         RCBN_ERROR("Autosave: recovery changed during candidate interaction " << pathString(candidate.recoveryPath));
         return false;
     }
+    notifyIoSuccess("Inspect autosave recovery", candidate.recoveryPath);
     return current.lockPath == candidate.lockPath &&
            current.recoveryPath == candidate.recoveryPath &&
            current.logicalScenePath == candidate.logicalScenePath &&
@@ -402,13 +532,23 @@ bool AutosaveManager::validateRecoveryCandidate(const RecoveryCandidate& candida
 bool AutosaveManager::discardRecovery(const RecoveryCandidate& candidate) const {
     std::error_code ec;
     std::filesystem::remove(candidate.recoveryPath, ec);
-    if (ec) RCBN_ERROR("Autosave: failed to discard recovery " << pathString(candidate.recoveryPath) << ": " << ec.message());
+    if (ec) {
+        RCBN_ERROR("Autosave: failed to discard recovery " << pathString(candidate.recoveryPath) << ": " << ec.message());
+        notifyIoFailure("Delete autosave recovery", candidate.recoveryPath, ec.message());
+    } else notifyIoSuccess("Delete autosave recovery", candidate.recoveryPath);
+    ec.clear();
     std::filesystem::remove(candidate.lockPath, ec);
-    if (ec) RCBN_ERROR("Autosave: failed to discard lock " << pathString(candidate.lockPath) << ": " << ec.message());
+    if (ec) {
+        RCBN_ERROR("Autosave: failed to discard lock " << pathString(candidate.lockPath) << ": " << ec.message());
+        notifyIoFailure("Delete autosave session lock", candidate.lockPath, ec.message());
+    } else notifyIoSuccess("Delete autosave session lock", candidate.lockPath);
     cleanupTransientFiles(candidate.directory);
     std::error_code checkError;
     const bool removed = !std::filesystem::exists(candidate.recoveryPath, checkError) &&
                          !std::filesystem::exists(candidate.lockPath, checkError);
-    if (checkError) RCBN_ERROR("Autosave: discard verification failed for " << pathString(candidate.directory) << ": " << checkError.message());
+    if (checkError) {
+        RCBN_ERROR("Autosave: discard verification failed for " << pathString(candidate.directory) << ": " << checkError.message());
+        notifyIoFailure("Verify autosave discard", candidate.directory, checkError.message());
+    } else notifyIoSuccess("Verify autosave discard", candidate.directory);
     return removed && !checkError;
 }

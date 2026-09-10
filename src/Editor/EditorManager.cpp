@@ -146,6 +146,23 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
     m_workspace = workspace;
     m_system    = system;
     m_user      = user;
+    m_autosave.setIoFailureCallback([](const std::string& operation,
+                                       const std::filesystem::path& path,
+                                       const std::string& reason) {
+        std::error_code ec;
+        const auto absolute = std::filesystem::absolute(path, ec);
+        const std::string displayedPath = AssetPath::toStored(
+            (ec ? path : absolute).lexically_normal());
+        std::string message = Loc::t(Loc::LocKey::InternalIoPermissionHint);
+        message += "\n\n";
+        message += Loc::t(Loc::LocKey::InternalIoOperationLabel);
+        message += ": " + operation + "\n";
+        message += Loc::t(Loc::LocKey::InternalIoPathLabel);
+        message += ": " + displayedPath + "\n";
+        message += Loc::t(Loc::LocKey::InternalIoReasonLabel);
+        message += ": " + reason;
+        getPlatform().showErrorDialog(Loc::t(Loc::LocKey::InternalIoErrorTitle), message);
+    });
 
     consolePanel        = std::make_unique<ConsolePanel>();
     hierarchyPanel      = std::make_unique<SceneHierarchyPanel>();

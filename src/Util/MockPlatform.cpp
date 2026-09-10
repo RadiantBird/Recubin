@@ -15,6 +15,10 @@ std::string MockPlatform::openFolderDialog() {
 
 void MockPlatform::revealInFileManager(const std::string&) {}
 
+void MockPlatform::showErrorDialog(const std::string& title, const std::string& message) {
+    errorDialogs.push_back({title, message});
+}
+
 ApplicationIconResult MockPlatform::setApplicationIcon(const std::string&) {
     return ApplicationIconResult::Unsupported;
 }

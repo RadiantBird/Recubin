@@ -71,6 +71,11 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "復旧", "Recover" },
     { "自動保存フォルダーを開く", "Open Autosave Folder" },
     { "破棄", "Discard" },
+    { "内部ファイルの読み書きエラー", "Internal File I/O Error" },
+    { "保存先フォルダーへのアクセス権限を確認してください。", "Check your access permissions for the storage folder." },
+    { "操作", "Operation" },
+    { "パス", "Path" },
+    { "理由", "Reason" },
 
     // ---- EditorManager: ツールバー ----
     { "  再生  ",           "  Play  " },

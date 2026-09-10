@@ -431,3 +431,15 @@
   旧CWD配下のAutosaveは移行・走査・削除しない。
 - Autosave回帰へ保存rootとCWDの分離・CWD変更後の候補探索を追加し、GUI Recovery fixtureもexe隣へ変更した。
   Release 3ターゲットbuildとAutosave回帰に成功し、全回帰は49 dedicated両backend＋9 scenesで242 passed / 0 failed。
+
+## 2026-09-11: macOS Studio平坦packageと内部I/O通知
+
+- macOS Studio配布を`.app`から平坦な`RecubinStudio/`＋zipへ変更し、Windows/macOSとも`.autosave` markerを
+  作成する。再packageでは既存Autosaveを保持し、archiveには空markerだけを含める。
+- macOS portable配布は実行ファイル隣のmarkerと必須resourceから判定し、CWD、設定、Autosave rootを
+  同じ場所へ揃える。開発実行とゲーム用macOS App Bundleは維持する。
+- `IPlatform`へ同期エラーダイアログを追加し、設定とAutosaveの実I/O失敗をoperation/path単位で一度だけ
+  通知する。成功後の再失敗は再通知し、欠落・parse・serialization障害はログだけに残す。
+- Windows Release 3ターゲットbuild、Python layout回帰、対象C++回帰、GUI smokeを含む全回帰に成功し、
+  49 dedicated両backend＋9 scenesで242 passed / 0 failed。Mac実機でのpackage、署名、Finder起動、
+  権限エラー通知確認は未実施のため、`TODO.md`のMac release項目は未完了のまま維持する。

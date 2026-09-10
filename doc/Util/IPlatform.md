@@ -2,7 +2,7 @@
 
 `include/Util/IPlatform.hpp` / `include/Util/Platform.hpp`
 
-OS依存の操作(ファイル/フォルダダイアログ、ファイルマネージャーで開く、コンソールのUTF8設定、
+OS依存の操作(ファイル/フォルダダイアログ、ファイルマネージャーで開く、同期エラー通知、コンソールのUTF8設定、
 動的ライブラリのロード)を抽象化するインターフェイス。`IInputBackend`と同じ設計方針で、
 呼び出し側はこのIF経由でのみOS機能を使い、特定OSのAPIに直接依存しない。
 
@@ -19,6 +19,7 @@ OS依存の操作(ファイル/フォルダダイアログ、ファイルマネ�
 | `saveFileDialog(filters, defaultExt)` | ファイルを保存するダイアログ。`defaultExt`は拡張子未入力時に補う既定拡張子 |
 | `openFolderDialog()` | フォルダ選択ダイアログ |
 | `revealInFileManager(path)` | OS標準のファイルマネージャー(エクスプローラー/Finder相当)でパスを開く |
+| `showErrorDialog(title, message)` | OS標準の同期エラーダイアログを表示。Windowsは`MessageBoxW`、macOSはメインスレッドの`NSAlert` |
 | `setupConsoleUtf8()` | 起動時に1回呼ぶ、コンソールの入出力コードページをUTF-8にする処理 |
 | `loadDynamicLibrary(name)` / `getSymbol(handle, name)` / `freeDynamicLibrary(handle)` | 動的ライブラリのロード(`void*`ハンドルで抽象化) |
 
@@ -31,7 +32,7 @@ OS依存の操作(ファイル/フォルダダイアログ、ファイルマネ�
 |---|---|---|
 | `WindowsPlatform` | `include/Util/WindowsPlatform.hpp` / `src/Util/WindowsPlatform.cpp` | COMファイルダイアログ・`ShellExecuteW`・`SetConsoleOutputCP`・`LoadLibraryA`等を集約した実装 |
 | `MacPlatform` | `include/Util/MacPlatform.hpp` / `src/Util/MacPlatform.mm` | Cocoaの`NSOpenPanel`/`NSSavePanel`/`NSWorkspace`と`dlopen`/`dlsym`/`dlclose`を使うmacOS実装 |
-| `MockPlatform` | `include/Util/MockPlatform.hpp` | OS非依存のスタブ実装。ダイアログ系は空文字列、その他はno-op |
+| `MockPlatform` | `include/Util/MockPlatform.hpp` | OS非依存のスタブ実装。エラーダイアログはtitle/messageを記録し、その他のダイアログ系は空文字列 |
 
 `getPlatform()`はWindowsでは`WindowsPlatform`、macOSでは`MacPlatform`、それ以外では
 `MockPlatform`を返す。環境変数`RECUBIN_MOCK_PLATFORM`が設定されている場合は、OSに関係なく

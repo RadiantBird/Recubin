@@ -46,6 +46,7 @@
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
 #include <Util/YamlLoadResult.hpp>
+#include <Util/EditorLaunchPath.hpp>
 #include <stb_image.h>
 
 #include <Core/LuauEngine.hpp>
@@ -6816,6 +6817,38 @@ int runAutosaveRegression() {
            "failed atomic replace temporary path is cleaned by test teardown");
     isolated.endSessionNormally();
 
+    AutosaveManager::Config ioConfig = config;
+    ioConfig.recoveryDebounce = std::chrono::milliseconds(0);
+    ioConfig.snapshotInterval = std::chrono::hours(1);
+    AutosaveManager ioManager(storageRoot, ioConfig);
+    auto ioRoot = std::make_shared<System>();
+    expect(ioManager.beginSession(ioRoot.get(), rootPath / "IoFailure.rcbn"),
+           "I/O notification session starts");
+    std::vector<std::string> autosaveIoFailures;
+    ioManager.setIoFailureCallback([&](const std::string& operation, const fs::path& path,
+                                       const std::string& reason) {
+        autosaveIoFailures.push_back(operation + "|" + path.string() + "|" + reason);
+    });
+    const auto ioTarget = ioManager.autosaveDirectory() / "recovery.rcbn";
+    fs::create_directory(ioTarget.string() + ".tmp", ec);
+    ioManager.markSceneChanged();
+    const auto ioNow = std::chrono::steady_clock::now();
+    expect(!ioManager.update(ioNow) && autosaveIoFailures.size() == 1,
+           "first autosave I/O failure invokes the callback");
+    expect(!ioManager.update(ioNow + std::chrono::seconds(1)) &&
+               autosaveIoFailures.size() == 1,
+           "repeated autosave I/O failure is reported only once per operation and path");
+    fs::remove_all(ioTarget.string() + ".tmp", ec);
+    expect(ioManager.update(ioNow + std::chrono::seconds(2)),
+           "autosave succeeds after the I/O failure is removed");
+    fs::create_directory(ioTarget.string() + ".tmp", ec);
+    ioManager.markSceneChanged();
+    expect(!ioManager.update(ioNow + std::chrono::seconds(3)) &&
+               autosaveIoFailures.size() == 2,
+           "a successful autosave re-arms the I/O failure notification");
+    fs::remove_all(ioTarget.string() + ".tmp", ec);
+    ioManager.endSessionNormally();
+
     AutosaveManager untitled(storageRoot, config);
     auto untitledRoot = std::make_shared<System>();
     expect(untitled.beginSession(untitledRoot.get(), fs::path{}), "untitled session starts");
@@ -6930,6 +6963,22 @@ int runAssetPathRegression() {
             std::chrono::steady_clock::now().time_since_epoch().count()));
     std::error_code ec;
     std::filesystem::create_directories(tempRoot / "assets", ec);
+    const auto portableRoot = tempRoot / "RecubinStudio";
+    const auto developmentRoot = tempRoot / "development-cwd";
+    std::filesystem::create_directories(portableRoot / ".autosave", ec);
+    std::filesystem::create_directories(portableRoot / "shaders", ec);
+    std::filesystem::create_directories(portableRoot / "assets" / "fonts", ec);
+    std::filesystem::create_directories(developmentRoot, ec);
+    std::ofstream(portableRoot / "RecubinEngine", std::ios::binary) << "runtime";
+    const auto portableSelection = selectMacEditorRoot(
+        portableRoot / "Recubin", developmentRoot);
+    expect(portableSelection.portable && portableSelection.root == portableRoot,
+           "macOS flat Studio marker and required resources select the executable directory");
+    std::filesystem::remove(portableRoot / "RecubinEngine", ec);
+    const auto developmentSelection = selectMacEditorRoot(
+        portableRoot / "Recubin", developmentRoot);
+    expect(!developmentSelection.portable && developmentSelection.root == developmentRoot,
+           "macOS development launch without complete portable resources keeps launch CWD");
     if (ec) {
         expect(false, "temporary asset directory can be created");
         return 1;
@@ -7262,6 +7311,11 @@ int runAppImageRegression() {
     };
 
     MockPlatform mockPlatform;
+    mockPlatform.showErrorDialog("title", "message");
+    expect(mockPlatform.errorDialogs.size() == 1 &&
+               mockPlatform.errorDialogs.front().title == "title" &&
+               mockPlatform.errorDialogs.front().message == "message",
+           "mock platform records native error dialogs");
     expect(mockPlatform.setApplicationIcon("") == ApplicationIconResult::Unsupported &&
                mockPlatform.setApplicationIcon("assets/image/hooo.png") ==
                    ApplicationIconResult::Unsupported,
@@ -9727,13 +9781,22 @@ int runYamlErrorRegression() {
     const std::string original = "broken: [1, 2\n";
     { std::ofstream file(path, std::ios::binary); file << original; }
     const auto loaded = loadYamlFile(path.string());
-    if (loaded.success || !loaded.loadFailed || loaded.error.empty()) ++failures;
+    if (loaded.success || !loaded.loadFailed || loaded.error.empty() ||
+        loaded.failureKind != YamlFailureKind::Parse) ++failures;
     const auto before = FileLoader::readText(path.string());
     const auto saved = saveYamlFileGuarded(path.string(), YAML::Node(YAML::NodeType::Map), loaded.loadFailed);
     const auto after = FileLoader::readText(path.string());
-    if (saved.success || saved.error.empty() || before != after) ++failures;
+    if (saved.success || saved.error.empty() || before != after ||
+        saved.failureKind != YamlFailureKind::Guard) ++failures;
     const auto textLoaded = loadYamlText("broken: [1, 2\n", "startup.yaml");
-    if (textLoaded.success || textLoaded.error.empty()) ++failures;
+    if (textLoaded.success || textLoaded.error.empty() ||
+        textLoaded.failureKind != YamlFailureKind::Parse) ++failures;
+    const auto missingLoaded = loadYamlFile((path.string() + ".missing"));
+    if (missingLoaded.success || missingLoaded.failureKind != YamlFailureKind::Io) ++failures;
+    const auto ioSave = saveYamlFileGuarded(
+        std::filesystem::temp_directory_path().string(),
+        YAML::Node(YAML::NodeType::Map), false);
+    if (ioSave.success || ioSave.failureKind != YamlFailureKind::Io) ++failures;
     const auto terrainDir = std::filesystem::temp_directory_path() / "recubin_yaml_error_terrain";
     std::filesystem::create_directories(terrainDir);
     const auto regionPath = terrainDir / "r_0_0.yaml";

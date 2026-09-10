@@ -200,6 +200,11 @@ void WindowsPlatform::revealInFileManager(const std::string& path) {
     ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOW);
 }
 
+void WindowsPlatform::showErrorDialog(const std::string& title, const std::string& message) {
+    MessageBoxW(nullptr, utf8ToWide(message).c_str(), utf8ToWide(title).c_str(),
+                MB_OK | MB_ICONERROR | MB_TASKMODAL);
+}
+
 ApplicationIconResult WindowsPlatform::setApplicationIcon(const std::string& path) {
     (void)path;
     return ApplicationIconResult::Unsupported;

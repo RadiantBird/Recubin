@@ -214,6 +214,18 @@ void MacPlatform::revealInFileManager(const std::string& path) {
     });
 }
 
+void MacPlatform::showErrorDialog(const std::string& title, const std::string& message) {
+    runVoidOperationOnMain([&title, &message]() {
+        @autoreleasepool {
+            NSAlert* alert = [[[NSAlert alloc] init] autorelease];
+            alert.alertStyle = NSAlertStyleCritical;
+            alert.messageText = [NSString stringWithUTF8String:title.c_str()];
+            alert.informativeText = [NSString stringWithUTF8String:message.c_str()];
+            [alert runModal];
+        }
+    });
+}
+
 ApplicationIconResult MacPlatform::setApplicationIcon(const std::string& path) {
     ApplicationIconResult result = ApplicationIconResult::Failed;
     runVoidOperationOnMain([&path, &result]() {
