@@ -19,6 +19,18 @@ struct R6JointTopology {
     std::string part1Name;
 };
 
+class BaseCube;
+
+struct CharacterGroundHeightSettings {
+    float targetDistance;
+    float maxFloorDetectionDistance;
+    float landingCaptureDistance;
+    float stiffness;
+    float damping;
+    float maxUpwardAcceleration;
+    float gravityCompensation;
+};
+
 // デフォルトキャラクターリグ(Humanoid + Root/Head/Torso/LeftArm/RightArm/LeftLeg/RightLegの7パーツ)を
 // 生成し、parentの子としてaddChildする。
 // User::spawnCharacterのフォールバック生成(StarterCharacter用)と、
@@ -33,6 +45,8 @@ namespace CharacterRig {
                        const CFrame& transform, const CFrame& c1);
     void calculateMotor6DBind(const CFrame& part0, const CFrame& part1,
                               CFrame& c0, CFrame& c1);
+    const CharacterGroundHeightSettings& groundHeightSettings();
+    std::vector<std::shared_ptr<BaseCube>> collectR6Bodies(Instance* model);
     // parentの子としてリグ(Humanoid+7パーツ)を追加する。basePosはRootのワールド座標
     // (省略時は原点)。追加後、Torso/Head/腕/脚はRootからの相対位置へ自動配置される。
     void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3& basePos = Vector3(0.0f, 0.0f, 0.0f));

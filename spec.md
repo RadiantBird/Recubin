@@ -151,6 +151,11 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   Rootの直立と方位はGyroで制御する。Character用GyroはX/Zを0度へ固定し、Yだけを入力方向へ
   更新する。移動入力が無いフレームではY目標を更新せず、最後の方位を維持する。
 
+  既定Rootの描画Sizeは`(2,2,1)`、中心は従来の`basePos`を維持する。接地時はRoot中心から下向きに
+  一度だけfloorをsampleし、R6 bind poseの足裏に対応するdistance `2.0`をGroundHeight controllerで保つ。
+  controllerは各dynamic R6 bodyへ同じ上向き加速度をmass比例のadditive Forceとして与える。
+  遠距離の床へ吸着せず、jump上昇中は停止し、下降してlanding captureへ入った時だけ再開する。
+
 ## Gyro
   Gyroは1つのPartへworld基準の角度制御を加える単一body constraintとする。X/Y/Zはそれぞれ
   Enabled、TargetAngle（度）、MaxTorque、MaxAngularSpeed（度/秒）を独立して持つ。無効な軸へは

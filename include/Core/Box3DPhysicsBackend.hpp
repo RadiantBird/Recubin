@@ -147,6 +147,7 @@ public:
     CFrame getBodyWorldCFrame(const BaseCube& cube) const override;
     void setBodyWorldCFrame(BaseCube& cube, const CFrame& worldCFrame) override;
     Vector3 getLinearVelocity(const BaseCube& cube) const override;
+    std::optional<float> getBodyMass(const BaseCube& cube) const override;
     void setLinearVelocity(BaseCube& cube, const Vector3& velocity) override;
     void setAngularVelocity(BaseCube& cube, const Vector3& velocity) override;
     void setGravityEnabled(BaseCube& cube, bool enabled) override;

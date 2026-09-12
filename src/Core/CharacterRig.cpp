@@ -8,8 +8,45 @@
 #include <Instances/Motor6D.hpp>
 #include <Math/Quaternion.hpp>
 #include <Util/Color4.hpp>
+#include <iterator>
+#include <utility>
 
 namespace CharacterRig {
+
+const CharacterGroundHeightSettings& groundHeightSettings() {
+    // @RadiantBird 2026/09/13:
+    // Root center and the unchanged bind pose put the feet bottom at y=-2.
+    // Detection/capture remain close so hover cannot attract a distant fall.
+    static const CharacterGroundHeightSettings settings{
+        2.0f,
+        3.0f,
+        2.5f,
+        120.0f,
+        20.0f,
+        400.0f,
+        196.2f,
+    };
+    return settings;
+}
+
+std::vector<std::shared_ptr<BaseCube>> collectR6Bodies(Instance* model) {
+    std::vector<std::shared_ptr<BaseCube>> bodies;
+    if (!model) return bodies;
+    static constexpr const char* BODY_NAMES[] = {
+        "Root", "Torso", "Head", "LeftArm", "RightArm",
+        "LeftLeg", "RightLeg",
+    };
+    bodies.reserve(std::size(BODY_NAMES));
+    const auto& children = model->getChildren();
+    for (const char* name : BODY_NAMES) {
+        const auto found = children.find(name);
+        if (found == children.end()) continue;
+        if (auto body = std::dynamic_pointer_cast<BaseCube>(found->second)) {
+            bodies.push_back(std::move(body));
+        }
+    }
+    return bodies;
+}
 
 const std::vector<R6JointBinding>& r6JointBindings() {
     static const std::vector<R6JointBinding> bindings = {
@@ -86,7 +123,7 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3
     walkAnimation->ContentPath = "assets/anims/r6_walk.rcanim";
     walkAnimation->loadContent();
 
-    auto root     = std::make_shared<Cube>(basePos, Vector3(2.0f, 4.0f, 1.0f), 0);
+    auto root     = std::make_shared<Cube>(basePos, Vector3(2.0f, 2.0f, 1.0f), 0);
     auto head     = std::make_shared<Sphere>(basePos, Vector3(1.25f, 1.25f, 1.25f));
     auto torso    = std::make_shared<Cube>(basePos, Vector3(2.0f, 2.0f, 1.0f), 0);
     auto leftArm  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);

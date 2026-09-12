@@ -176,6 +176,7 @@ private:
     bool m_dead = false;
     bool m_ragdollEntered = false;
     float m_deathElapsed = 0.0f;
+    bool m_hoverSuppressedForJump = false;
 
     // 兄弟パーツは親Modelのchildrenが所有し、Humanoidは非所有参照だけを保持する
     std::weak_ptr<BaseCube> m_root;
@@ -219,4 +220,7 @@ private:
     const AnimationClip& resolveWalkClip() const;
     std::shared_ptr<Motor6D> findJointMotor(const std::string& jointName) const;
     void setJointTransform(const std::string& jointName, const CFrame& transform);
+    std::vector<std::shared_ptr<BaseCube>> collectCharacterBodies() const;
+    void setHoverForces(Physics* physics, bool enabled, float acceleration);
+    void updateGroundHover(Physics* physics, const std::shared_ptr<BaseCube>& root);
 };

@@ -9,6 +9,10 @@
 ## 継承
 Root の移動・回転は Root member のワールド CFrame を基準に行う。身体 Animation は local pose を更新し、Parent や Weld 用の座標補正を行わない。
 
+接地判定とGroundHeight hoverは同じ1回の下向きraycast結果を使う。目標distanceは2 studで、各dynamic R6
+bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を設定する。jump開始時、死亡、
+着席、無効状態では全hover Forceをzero/disabledにする。jump上昇中と床がcapture外の下降中は再開しない。
+
 `Instance` → `Humanoid`
 
 ## メンバ変数

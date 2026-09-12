@@ -3,6 +3,7 @@
 #include <include/Core/PhysicsTypes.hpp>
 #include <include/Math/Vector3.hpp>
 #include <memory>
+#include <optional>
 #include <string>
 #include <cstdint>
 
@@ -58,6 +59,9 @@ public:
     virtual CFrame getBodyWorldCFrame(const BaseCube& cube) const = 0;
     virtual void setBodyWorldCFrame(BaseCube& cube, const CFrame& worldCFrame) = 0;
     virtual Vector3 getLinearVelocity(const BaseCube& cube) const = 0;
+    virtual std::optional<float> getBodyMass(const BaseCube&) const {
+        return std::nullopt;
+    }
     virtual void setLinearVelocity(BaseCube& cube, const Vector3& velocity) = 0;
     virtual void setAngularVelocity(BaseCube& cube, const Vector3& velocity) = 0;
     virtual void setGravityEnabled(BaseCube& cube, bool enabled) = 0;

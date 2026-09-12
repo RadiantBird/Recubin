@@ -20,6 +20,7 @@ Box3Dを使った剛体物理シミュレーション。Cubeへのbody割り当�
 | `removeCube(cube)` | アクターをシーンから削除・メモリ解放 |
 | `update(workspace, dt)` | 物理ステップを進め、全キューブの `syncPhysics()` を呼ぶ |
 | `raycast(origin, direction, maxDistance, hitResult, ignoreActor)` | 光線と物理シーンの交差判定 |
+| `getBodyMass(cube)` | 現在のnative body massをread-onlyで取得。不正body/massはpath付きで報告 |
 
 ## RaycastHit 構造体
 

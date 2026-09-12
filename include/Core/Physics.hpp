@@ -81,6 +81,7 @@ public:
     CFrame getMemberWorldCFrame(const BaseCube& cube) const;
     void setMemberWorldCFrame(BaseCube& cube, const CFrame& worldCFrame);
     Vector3 getLinearVelocity(const BaseCube& cube) const;
+    std::optional<float> getBodyMass(const BaseCube& cube) const;
     void setLinearVelocity(BaseCube& cube, const Vector3& velocity);
     void setAngularVelocity(BaseCube& cube, const Vector3& velocity);
     void setGravityEnabled(BaseCube& cube, bool enabled);

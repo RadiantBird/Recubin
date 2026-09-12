@@ -23,6 +23,8 @@
 
 namespace {
 
+constexpr const char* HOVER_FORCE_NAME = "CharacterHoverForce";
+
 std::shared_ptr<Force> findCharacterYawForce(
     const std::shared_ptr<BaseCube>& root
 ) {
@@ -42,6 +44,113 @@ std::shared_ptr<Force> findCharacterYawForce(
     );
 }
 
+}
+
+std::vector<std::shared_ptr<BaseCube>>
+Humanoid::collectCharacterBodies() const {
+    auto model = Parent.lock();
+    auto bodies = CharacterRig::collectR6Bodies(model.get());
+    auto root = getRootPart();
+    if (
+        root &&
+        std::none_of(
+            bodies.begin(),
+            bodies.end(),
+            [&](const auto& body) { return body == root; }
+        )
+    ) {
+        bodies.insert(bodies.begin(), std::move(root));
+    }
+    return bodies;
+}
+
+void Humanoid::setHoverForces(
+    Physics* physics,
+    bool enabled,
+    float acceleration
+) {
+    for (const auto& body : collectCharacterBodies()) {
+        if (!body) continue;
+        const auto found = body->getChildren().find(HOVER_FORCE_NAME);
+        std::shared_ptr<Force> force;
+        if (found != body->getChildren().end()) {
+            force = std::dynamic_pointer_cast<Force>(found->second);
+            if (!force) {
+                RCBN_ERROR(
+                    "Humanoid \"" << getFullPath()
+                    << "\": reserved hover child \""
+                    << body->getFullPath() << '\\' << HOVER_FORCE_NAME
+                    << "\" is not a Force"
+                );
+                continue;
+            }
+        } else if (enabled) {
+            force = std::make_shared<Force>();
+            force->Name = HOVER_FORCE_NAME;
+            body->addChild(force);
+        }
+        if (!force) continue;
+        if (!enabled || body->Anchored || !physics || !physics->hasBody(*body)) {
+            force->Value = {};
+            force->Enabled = false;
+            continue;
+        }
+        const auto mass = physics->getBodyMass(*body);
+        if (!mass) {
+            force->Value = {};
+            force->Enabled = false;
+            continue;
+        }
+        force->Torque = false;
+        force->MaintainVelocity = false;
+        force->Value = Vector3(0.0f, *mass * acceleration, 0.0f);
+        force->Enabled = acceleration > 0.0f;
+    }
+}
+
+void Humanoid::updateGroundHover(
+    Physics* physics,
+    const std::shared_ptr<BaseCube>& root
+) {
+    if (!physics || !root || m_dead || m_seated) {
+        setHoverForces(physics, false, 0.0f);
+        isGrounded = false;
+        return;
+    }
+    const auto& settings = CharacterRig::groundHeightSettings();
+    RaycastHit floor;
+    auto character = Parent.lock();
+    const bool hasFloor = physics->raycast(
+        root->getWorldPosition(),
+        Vector3(0.0f, -1.0f, 0.0f),
+        settings.maxFloorDetectionDistance,
+        floor,
+        character.get()
+    );
+    const float verticalVelocity = physics->getLinearVelocity(*root).y;
+    isGrounded =
+        hasFloor && floor.distance <= settings.landingCaptureDistance;
+    if (m_hoverSuppressedForJump) {
+        const bool descendingIntoCapture =
+            verticalVelocity <= 0.0f && isGrounded;
+        if (!descendingIntoCapture) {
+            setHoverForces(physics, false, 0.0f);
+            return;
+        }
+        m_hoverSuppressedForJump = false;
+    }
+    if (!hasFloor) {
+        setHoverForces(physics, false, 0.0f);
+        return;
+    }
+    const float acceleration = std::clamp(
+        settings.gravityCompensation +
+            settings.stiffness * (settings.targetDistance - floor.distance) -
+            settings.damping * verticalVelocity,
+        0.0f,
+        settings.maxUpwardAcceleration
+    );
+    setHoverForces(physics, true, acceleration);
 }
 
 // プロパティ・メタデータ表（単一の正）。ここから Luau getter/setter・YAML 読込/保存・
@@ -225,6 +334,7 @@ void Humanoid::setHealth(float v) {
     if (Health <= 0.0f && wasAlive) {
         Health = 0.0f;
         m_dead = true;
+        setHoverForces(nullptr, false, 0.0f);
         if (Died) Died->fire(); // connect 済みなら m_mainL 経由で Lua へ通知
     }
 }
@@ -245,7 +355,7 @@ bool Humanoid::isRespawnReady() const {
 }
 
 void Humanoid::enterRagdoll(Physics* physics) {
-    (void)physics;
+    setHoverForces(physics, false, 0.0f);
     auto root = getRootPart();
     if (!root) {
         if (auto parent = Parent.lock()) resolveParts(parent.get());
@@ -319,9 +429,15 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
                      const Vector3& targetMoveDir, bool ctrlLockEnabled, Physics* physics,
                      bool leftArmRaised, bool rightArmRaised,
                      float forwardAxis, float rightAxis, float smoothing, float deltaTime) {
-    if (m_dead) return;
+    if (m_dead) {
+        setHoverForces(physics, false, 0.0f);
+        return;
+    }
     auto root = getRootPart();
-    if (!root || !physics || !physics->hasBody(*root)) return;
+    if (!root || !physics || !physics->hasBody(*root)) {
+        setHoverForces(physics, false, 0.0f);
+        return;
+    }
 
     auto yawForce =
         findCharacterYawForce(root);
@@ -335,6 +451,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         }
     }
     if (m_seated) {
+        setHoverForces(physics, false, 0.0f);
         if (auto gyro = m_rootGyro.lock()) {
             gyro->setEnabled(false);
         }
@@ -499,19 +616,12 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         }
     }
 
-    // --- 地面判定 ---
-    RaycastHit hit;
-    float maxDist = (root->Size.y / 2.0f) + 0.2f;
-
-    auto character = Parent.lock();
-
-    isGrounded = physics->raycast(
-        root->getWorldPosition(),
-        Vector3(0, -1, 0),
-        maxDist,
-        hit,
-        character.get()
-    );
+    if (trussCube) {
+        setHoverForces(physics, false, 0.0f);
+        isGrounded = false;
+    } else {
+        updateGroundHover(physics, root);
+    }
 
     applyBodyAnimation(leftArmRaised, rightArmRaised);
 }
@@ -583,6 +693,9 @@ void Humanoid::jump(Physics* physics) {
         return;
     }
 
+    m_hoverSuppressedForJump = true;
+    setHoverForces(physics, false, 0.0f);
+
     // @RadiantBird 2026/09/13:
     // Character Rig v2 uses independent physical bodies connected by Motor6D.
     // Launching only Root makes the joints drag the rest of the character
@@ -613,25 +726,9 @@ void Humanoid::jump(Physics* physics) {
             );
         };
 
-    applyJumpVelocity(
-        root
-    );
-
-    applyJumpVelocity(
-        getTorsoPart()
-    );
-
-    applyJumpVelocity(
-        getHeadPart()
-    );
-
-    applyJumpVelocity(
-        getLeftArmPart()
-    );
-
-    applyJumpVelocity(
-        getRightArmPart()
-    );
+    for (const auto& body : collectCharacterBodies()) {
+        applyJumpVelocity(body);
+    }
 
     applyJumpVelocity(
         getLeftLegPart()

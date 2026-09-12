@@ -549,6 +549,28 @@ Vector3 Box3DPhysicsBackend::getLinearVelocity(const BaseCube& cube) const {
         ? fromB3Length(b3Body_GetLinearVelocity(id)) : Vector3();
 }
 
+std::optional<float> Box3DPhysicsBackend::getBodyMass(
+    const BaseCube& cube
+) const {
+    const b3BodyId id = bodyId(cube);
+    if (B3_IS_NULL(id) || !b3Body_IsValid(id)) {
+        RCBN_ERROR(
+            "Cannot read Box3D mass for \"" << cube.getFullPath()
+            << "\": invalid body"
+        );
+        return std::nullopt;
+    }
+    const float mass = b3Body_GetMass(id);
+    if (!std::isfinite(mass) || mass <= 0.0f) {
+        RCBN_ERROR(
+            "Cannot read Box3D mass for \"" << cube.getFullPath()
+            << "\": invalid mass=" << mass
+        );
+        return std::nullopt;
+    }
+    return mass;
+}
+
 void Box3DPhysicsBackend::setLinearVelocity(
     BaseCube& cube, const Vector3& velocity) {
     const b3BodyId id = bodyId(cube);

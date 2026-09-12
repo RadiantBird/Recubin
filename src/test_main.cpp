@@ -10892,6 +10892,162 @@ int runMotor6DGyroRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runCharacterHoverRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[CharacterHoverRegression] "
+                  << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "HoverWorkspace";
+    auto floor = std::make_shared<Cube>(
+        Vector3(0.0f, -0.5f, 0.0f),
+        Vector3(40.0f, 1.0f, 40.0f),
+        Cube::defaultTextureID
+    );
+    floor->Name = "HoverFloor";
+    floor->Anchored = true;
+    auto character = std::make_shared<Model>();
+    character->Name = "HoverCharacter";
+    CharacterRig::buildDefaultRigParts(
+        character,
+        Vector3(0.0f, 2.6f, 0.0f)
+    );
+    auto humanoid = std::dynamic_pointer_cast<Humanoid>(
+        character->getChildren().at("Humanoid")
+    );
+    auto root = std::dynamic_pointer_cast<BaseCube>(
+        character->getChildren().at("Root")
+    );
+    workspace->addChild(floor);
+    workspace->addChild(character);
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    if (physics) {
+        physics->update(*workspace, 0.0f);
+        for (int step = 0; step < 360; ++step) {
+            humanoid->move(
+                Vector3(0.0f, 0.0f, -1.0f),
+                Vector3(1.0f, 0.0f, 0.0f),
+                false,
+                Vector3(),
+                false,
+                physics,
+                false,
+                false,
+                0.0f,
+                0.0f,
+                1.0f,
+                1.0f / 60.0f
+            );
+            physics->update(*workspace, 1.0f / 60.0f);
+        }
+    }
+    const float settledHeight = root->getWorldPosition().y;
+    std::cout << "[CharacterHoverRegression] settledHeight="
+              << settledHeight << '\n';
+    expect(
+        physics && std::abs(settledHeight - 2.0f) < 0.2f,
+        "hover settles Root at the R6 bind-pose ground height"
+    );
+
+    bool allBodiesShareAcceleration = true;
+    float sampledAcceleration = -1.0f;
+    const auto bodies = CharacterRig::collectR6Bodies(character.get());
+    for (const auto& body : bodies) {
+        auto mass = physics ? physics->getBodyMass(*body) : std::nullopt;
+        auto found = body->getChildren().find("CharacterHoverForce");
+        auto force = found == body->getChildren().end()
+            ? nullptr
+            : std::dynamic_pointer_cast<Force>(found->second);
+        if (!mass || !force || !force->Enabled) {
+            allBodiesShareAcceleration = false;
+            continue;
+        }
+        const float acceleration = force->Value.y / *mass;
+        if (sampledAcceleration < 0.0f) {
+            sampledAcceleration = acceleration;
+        } else if (std::abs(acceleration - sampledAcceleration) > 0.01f) {
+            allBodiesShareAcceleration = false;
+        }
+    }
+    std::cout << "[CharacterHoverRegression] bodies=" << bodies.size()
+              << " acceleration=" << sampledAcceleration << '\n';
+    expect(
+        bodies.size() == 7 && allBodiesShareAcceleration,
+        "all dynamic R6 bodies receive equal mass-scaled hover acceleration"
+    );
+
+    humanoid->jump(physics);
+    bool hoverOffAtLaunch = true;
+    bool equalLaunchVelocity = true;
+    for (const auto& body : bodies) {
+        auto found = body->getChildren().find("CharacterHoverForce");
+        auto force = found == body->getChildren().end()
+            ? nullptr
+            : std::dynamic_pointer_cast<Force>(found->second);
+        hoverOffAtLaunch = hoverOffAtLaunch && force &&
+            !force->Enabled && force->Value.lengthSquared() == 0.0f;
+        equalLaunchVelocity = equalLaunchVelocity &&
+            std::abs(physics->getLinearVelocity(*body).y - humanoid->JumpPower) <
+                0.01f;
+    }
+    expect(
+        hoverOffAtLaunch && equalLaunchVelocity,
+        "jump disables every hover Force before equal-body launch velocity"
+    );
+
+    bool hoverStayedOffWhileRising = true;
+    bool hoverResumed = false;
+    float peakHeight = root->getWorldPosition().y;
+    for (int step = 0; step < 360; ++step) {
+        humanoid->move(
+            Vector3(0.0f, 0.0f, -1.0f),
+            Vector3(1.0f, 0.0f, 0.0f),
+            false,
+            Vector3(),
+            false,
+            physics,
+            false,
+            false,
+            0.0f,
+            0.0f,
+            1.0f,
+            1.0f / 60.0f
+        );
+        const bool rising = physics->getLinearVelocity(*root).y > 0.0f;
+        for (const auto& body : bodies) {
+            auto found = body->getChildren().find("CharacterHoverForce");
+            auto force = found == body->getChildren().end()
+                ? nullptr
+                : std::dynamic_pointer_cast<Force>(found->second);
+            if (rising && force && force->Enabled) {
+                hoverStayedOffWhileRising = false;
+            }
+            if (!rising && force && force->Enabled) {
+                hoverResumed = true;
+            }
+        }
+        physics->update(*workspace, 1.0f / 60.0f);
+        peakHeight = std::max(peakHeight, root->getWorldPosition().y);
+    }
+    std::cout << "[CharacterHoverRegression] peakHeight=" << peakHeight
+              << " landedHeight=" << root->getWorldPosition().y << '\n';
+    expect(
+        hoverStayedOffWhileRising && hoverResumed &&
+            peakHeight > settledHeight + 1.0f &&
+            std::abs(root->getWorldPosition().y - 2.0f) < 0.25f,
+        "jump suppression releases only while descending into capture range"
+    );
+
+    std::cout << "[CharacterHoverRegression] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int runYamlErrorRegression() {
     int failures = 0;
     std::error_code error;
@@ -10952,6 +11108,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--animation-clip-regression", runAnimationClipRegression),
         REG("--character-rig-v2", runAnimationClipRegression),
         REG("--motor6d-gyro-regression", runMotor6DGyroRegression),
+        REG("--character-hover-regression", runCharacterHoverRegression),
         REG("--default-camera-mode-regression", runDefaultCameraModeRegression),
         REG("--scene-load-transaction-regression", runSceneLoadTransactionRegression),
         REG("--system-extension-regression", runSystemExtensionRegression),
