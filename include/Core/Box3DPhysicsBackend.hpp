@@ -22,6 +22,7 @@ private:
         std::weak_ptr<Instance> constraint;
         PhysicsConstraintHandle handle;
         b3JointId jointId = b3_nullJointId;
+        b3BodyId auxiliaryBodyId = b3_nullBodyId;
     };
 
     struct NoCollisionEntry {
@@ -155,6 +156,8 @@ public:
     void createWeld(
         const std::shared_ptr<Weld>& weld, Workspace& workspace) override;
     void createMotor(const std::shared_ptr<Motor>& motor) override;
+    void createMotor6D(const std::shared_ptr<Motor6D>& motor) override;
+    void createGyro(const std::shared_ptr<Gyro>& gyro) override;
     void createBallSocket(const std::shared_ptr<BallSocket>& ballSocket) override;
     void createNoCollision(const std::shared_ptr<NoCollision>& noCollision) override;
     void removeConstraint(const std::shared_ptr<Instance>& constraint) override;

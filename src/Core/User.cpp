@@ -7,6 +7,7 @@
 #include <Instances/SpawnLocation.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Animation.hpp>
+#include <Instances/Weld.hpp>
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
 #include <include/Core/LuauEngine.hpp>
@@ -124,6 +125,10 @@ void User::initializeInventory() {
 }
 
 void User::resetToolState() {
+    if (m_toolWeld) {
+        if (auto parent = m_toolWeld->Parent.lock()) parent->removeChild(m_toolWeld->Name);
+        m_toolWeld.reset();
+    }
     for (auto& slot : Slots) slot = nullptr;
     currentTool      = nullptr;
     currentSlotIndex = -1;
@@ -196,6 +201,10 @@ void User::removeToolReferences(const std::shared_ptr<Tool>& tool) {
         if (slot == tool) slot = nullptr;
     }
     if (currentTool == tool) {
+        if (m_toolWeld) {
+            if (auto parent = m_toolWeld->Parent.lock()) parent->removeChild(m_toolWeld->Name);
+            m_toolWeld.reset();
+        }
         currentTool = nullptr;
         currentSlotIndex = -1;
     }
@@ -220,6 +229,10 @@ std::shared_ptr<Tool> User::removeToolFromSlot(int slotIndex) {
 
     // 装備中なら解除する（character から外れる前に状態を整える）
     if (currentTool == tool) {
+        if (m_toolWeld) {
+            if (auto parent = m_toolWeld->Parent.lock()) parent->removeChild(m_toolWeld->Name);
+            m_toolWeld.reset();
+        }
         currentTool->Equipped = false;
         currentTool = nullptr;
         currentSlotIndex = -1;
@@ -360,6 +373,10 @@ bool User::selectToolSlot(int slot) {
     if (!character || index < 0 || index >= static_cast<int>(Slots.size())) return false;
     const int previous = currentSlotIndex;
     if (currentTool) {
+        if (m_toolWeld) {
+            if (auto parent = m_toolWeld->Parent.lock()) parent->removeChild(m_toolWeld->Name);
+            m_toolWeld.reset();
+        }
         currentTool->Equipped = false;
         character->removeChild(currentTool->Name);
         Inventory->addChild(std::static_pointer_cast<Instance>(currentTool));
@@ -371,6 +388,19 @@ bool User::selectToolSlot(int slot) {
     currentTool->Equipped = true;
     Inventory->removeChild(currentTool->Name);
     character->addChild(std::static_pointer_cast<Instance>(currentTool));
+    if (humanoid && currentTool->Handle) {
+        const bool useLeft = currentTool->Hand == Tool::ToolHand::Left;
+        auto arm = useLeft ? humanoid->getLeftArmPart() : humanoid->getRightArmPart();
+        if (arm) {
+            const CFrame target = arm->getWorldCFrame()
+                * CFrame(Vector3(0.0f, 0.0f, -1.0f))
+                * CFrame(currentTool->Position, currentTool->Rotation);
+            currentTool->Handle->setWorldCFrame(target);
+            m_toolWeld = std::make_shared<Weld>(arm, currentTool->Handle);
+            m_toolWeld->Name = "ToolGrip";
+            character->addChild(m_toolWeld);
+        }
+    }
     currentSlotIndex = index;
     return true;
 }
@@ -595,55 +625,16 @@ void User::processMovement(bool viewportFocused, Physics* physics, float deltaTi
                 accelerationMultiplier = 1.0f;
             }
 
-            // Free モードでもボディパーツを Root に追従させる
-            // （Character モードでは humanoid->move() 内で呼ばれる）
-            bool leftArmRaised = false, rightArmRaised = false;
-            getToolArmRaiseState(leftArmRaised, rightArmRaised);
-            if (humanoid && !humanoid->isDead()) humanoid->applyBodyAnimation(leftArmRaised, rightArmRaised);
         } else if (controlMode == ControlMode::Character && character && humanoid) {
             processCharacterMovement(physics, deltaTime);
-        } else if (controlMode == ControlMode::Program) {
-            // Program モードでもボディパーツを Root に追従させる
-            // （カメラはLuauが制御するが、キャラクター自体の同期は他モードと同様に必要）
-            bool leftArmRaised = false, rightArmRaised = false;
-            getToolArmRaiseState(leftArmRaised, rightArmRaised);
-            if (humanoid) humanoid->applyBodyAnimation(leftArmRaised, rightArmRaised);
         }
-    }
-    else {
-        // Focusがどうであれ、ボディパーツはRootに追従させるべきであるため
-        bool leftArmRaised = false, rightArmRaised = false;
-        getToolArmRaiseState(leftArmRaised, rightArmRaised);
-        if (humanoid && !humanoid->isDead()) humanoid->applyBodyAnimation(leftArmRaised, rightArmRaised);
     }
 }
 
 void User::getToolArmRaiseState(bool& leftArmRaised, bool& rightArmRaised) const {
     bool toolEquipped = currentTool && currentTool->Equipped;
-    leftArmRaised  = toolEquipped && (currentTool->Hand == Tool::ToolHand::Left  || currentTool->Hand == Tool::ToolHand::Both);
-    rightArmRaised = toolEquipped && (currentTool->Hand == Tool::ToolHand::Right || currentTool->Hand == Tool::ToolHand::Both);
-}
-
-static void attachToolHandle(
-    const std::shared_ptr<BaseCube>& arm,
-    const std::shared_ptr<Tool>& tool,
-    const Quaternion& rootRotation,
-    Physics* physics
-) {
-    if (!arm || !tool || !tool->Handle) return;
-    (void)rootRotation;
-    CFrame armCFrame = arm->getWorldCFrame();
-    const float TOOL_FORWARD_OFFSET = 1.0f;
-    // Keep the offset in hand-local coordinates so parent/model rotation is
-    // applied exactly once by CFrame composition.
-    const CFrame handleCFrame = armCFrame
-        * CFrame(Vector3(0.0f, 0.0f, -TOOL_FORWARD_OFFSET))
-        * CFrame(tool->Position, tool->Rotation);
-    if (physics) {
-        physics->moveWeldAssembly(tool->Handle, handleCFrame);
-    } else {
-        tool->Handle->setWorldCFrame(handleCFrame);
-    }
+    leftArmRaised  = toolEquipped && currentTool->Hand == Tool::ToolHand::Left;
+    rightArmRaised = toolEquipped && currentTool->Hand != Tool::ToolHand::Left;
 }
 
 // キャラクターの移動・カメラ追従（移動・回転・歩行アニメ・接地判定そのものはHumanoidが行う）
@@ -685,7 +676,6 @@ void User::processCharacterMovement(Physics* physics, float deltaTime) {
         rightAxis = std::clamp(Vector3::Dot(m_scriptMoveDirection, flatRight), -1.0f, 1.0f);
     }
 
-    bool toolEquipped   = currentTool && currentTool->Equipped;
     bool leftArmRaised = false, rightArmRaised = false;
     getToolArmRaiseState(leftArmRaised, rightArmRaised);
 
@@ -699,18 +689,6 @@ void User::processCharacterMovement(Physics* physics, float deltaTime) {
 
     humanoid->move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, physics,
                    leftArmRaised, rightArmRaised, forwardAxis, rightAxis, characterSmoothing, deltaTime);
-
-    // --- 装備中のツールを手の位置に追従させる ---
-    if (toolEquipped) {
-        if (currentTool->Hand == Tool::ToolHand::Left) {
-            auto leftArm = humanoid->getLeftArmPart();
-            attachToolHandle(leftArm, currentTool, root->getRotation(), physics);
-        }
-        if (currentTool->Hand != Tool::ToolHand::Left) {
-            auto rightArm = humanoid->getRightArmPart();
-            attachToolHandle(rightArm, currentTool, root->getRotation(), physics);
-        }
-    }
 
     // --- カメラ追従 ---
     const Vector3 headOffset = Vector3(0, 2.5f, 0); // Humanoid::applyBodyAnimation()のheadOffsetと一致させる

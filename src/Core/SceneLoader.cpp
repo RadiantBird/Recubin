@@ -38,6 +38,8 @@
 #include <Instances/Rod.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
+#include <Instances/Motor6D.hpp>
+#include <Instances/Gyro.hpp>
 #include <Instances/BallSocket.hpp>
 #include <Instances/NoCollision.hpp>
 #include <Instances/ValueBase.hpp>
@@ -415,6 +417,8 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "ObjectValue")     return std::make_shared<ObjectValue>();
     if (className == "Weld")  return std::make_shared<Weld>();
     if (className == "Motor")        return std::make_shared<Motor>();
+    if (className == "Motor6D")      return std::make_shared<Motor6D>();
+    if (className == "Gyro")         return std::make_shared<Gyro>();
     if (className == "Attachment")   return std::make_shared<Attachment>();
     if (className == "Force")        return std::make_shared<Force>();
     if (className == "TextLabel")    return std::make_shared<TextLabel>();
@@ -515,6 +519,16 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
                 auto motor = std::static_pointer_cast<Motor>(child);
                 resolvePair(c, "Motor", motor->m_cube0Name, motor->m_cube1Name,
                             [&](auto c0, auto c1) { motor->setCubes(c0, c1); motor->resolveReferencesAndRegister(); });
+            } else if (child->IsA("Motor6D")) {
+                auto motor = std::static_pointer_cast<Motor6D>(child);
+                resolvePair(c, "Motor6D", motor->m_cube0Name, motor->m_cube1Name,
+                            [&](auto part0, auto part1) { motor->setPart0(part0); motor->setPart1(part1); motor->resolveReferencesAndRegister(); });
+            } else if (child->IsA("Gyro")) {
+                auto gyro = std::static_pointer_cast<Gyro>(child);
+                if (!gyro->m_cube0Name.empty()) {
+                    auto part = resolveFor(c, gyro->m_cube0Name);
+                    if (part) gyro->setPart(part);
+                }
             } else if (child->IsA("ObjectValue")) {
                 auto ov = std::static_pointer_cast<ObjectValue>(child);
                 if (!ov->m_targetPathName.empty()) {
@@ -561,6 +575,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                  || inst->IsA("Rope") || inst->IsA("Rod") || inst->IsA("BallSocket")
                  || inst->IsA("NoCollision")
                  || inst->IsA("Weld") || inst->IsA("Motor")
+                 || inst->IsA("Motor6D") || inst->IsA("Gyro")
                  || inst->getClassName() == "Force"
                  || inst->IsA("ScreenGuiObject")
                  || inst->IsA("WorldGuiObject")
@@ -827,6 +842,17 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << YAML::EndSeq;
             out << YAML::Key << "DriveVelocity" << YAML::Value << m->DriveVelocity;
             out << YAML::Key << "MaxForce"      << YAML::Value << m->MaxForce;
+        }
+        if (inst->IsA("Motor6D")) {
+            auto* motor = static_cast<Motor6D*>(inst);
+            motor->refreshRefNames();
+            PropertyRegistry::saveProperties(out, inst, "Motor6D");
+        }
+        if (inst->IsA("Gyro")) {
+            auto* gyro = static_cast<Gyro*>(inst);
+            gyro->refreshRefNames();
+            gyro->m_cube1Name = gyro->m_cube0Name;
+            PropertyRegistry::saveProperties(out, inst, "Gyro");
         }
 
         if (inst->getClassName() == "Force") {

@@ -95,6 +95,8 @@ public:
     void createRod(const std::shared_ptr<Rod>& rod);
     void createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace);
     void createMotor(const std::shared_ptr<Motor>& motor);
+    void createMotor6D(const std::shared_ptr<Motor6D>& motor);
+    void createGyro(const std::shared_ptr<Gyro>& gyro);
     void createBallSocket(const std::shared_ptr<BallSocket>& ballSocket);
     void createNoCollision(const std::shared_ptr<NoCollision>& noCollision);
     void removeConstraint(const std::shared_ptr<Instance>& constraint);

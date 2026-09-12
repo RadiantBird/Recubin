@@ -13,6 +13,8 @@ class Rope;
 class Rod;
 class Weld;
 class Motor;
+class Motor6D;
+class Gyro;
 class BallSocket;
 class NoCollision;
 struct CFrame;
@@ -70,6 +72,8 @@ public:
     virtual void createRod(const std::shared_ptr<Rod>& rod) = 0;
     virtual void createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace) = 0;
     virtual void createMotor(const std::shared_ptr<Motor>& motor) = 0;
+    virtual void createMotor6D(const std::shared_ptr<Motor6D>& motor) = 0;
+    virtual void createGyro(const std::shared_ptr<Gyro>& gyro) = 0;
     virtual void createBallSocket(const std::shared_ptr<BallSocket>& ballSocket) = 0;
     virtual void createNoCollision(const std::shared_ptr<NoCollision>& noCollision) = 0;
     virtual void removeConstraint(const std::shared_ptr<Instance>& constraint) = 0;

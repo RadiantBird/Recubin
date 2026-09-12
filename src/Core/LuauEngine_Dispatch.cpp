@@ -7,6 +7,8 @@
 #include "include/Instances/Decal.hpp"
 #include "include/Instances/SurfaceMark.hpp"
 #include "include/Instances/Motor.hpp"
+#include "include/Instances/Motor6D.hpp"
+#include "include/Instances/Gyro.hpp"
 #include "include/Instances/Sound.hpp"
 #include "include/Instances/Lighting.hpp"
 #include "include/Instances/Rope.hpp"
@@ -432,6 +434,8 @@ void LuauEngine::InitDispatchTable_Base() {
     PropertyRegistry::applyToDispatch("LiquidCube", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("SpawnLocation", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Force", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Motor6D", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Gyro", DispatchTable, SetterTable);
     // Force.Value を既存のスキーマ名として維持しつつ、Luau では一般的な Force 名でも扱えるようにする。
     DispatchTable["Force"]["Force"] = getter_vec3<Force, &Force::Value>();
     SetterTable["Force"]["Force"] = setter_vec3<Force, &Force::Value>();

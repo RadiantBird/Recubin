@@ -28,6 +28,7 @@ struct camera {
 };
 
 class Workspace;
+class Weld;
 
 class User : public Instance {
 public:
@@ -125,6 +126,7 @@ public:
     std::shared_ptr<Folder> Inventory = std::make_shared<Folder>(); // ユーザーのインベントリ（アイテムを入れるためのフォルダ）
     std::array<std::shared_ptr<Tool>, 10> Slots = {};
     std::shared_ptr<Tool> currentTool = nullptr; // 現在手に持っているアイテム（スロットから参照）
+    std::shared_ptr<Weld> m_toolWeld;
     int currentSlotIndex = -1; // 現在選択されているスロットのインデックス（0-9、-1は未選択）
 
     enum class ControlMode {

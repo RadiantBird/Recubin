@@ -13,6 +13,12 @@ struct R6JointBinding {
     CFrame jointToPartBind;
 };
 
+struct R6JointTopology {
+    std::string jointName;
+    std::string part0Name;
+    std::string part1Name;
+};
+
 // デフォルトキャラクターリグ(Humanoid + Root/Head/Torso/LeftArm/RightArm/LeftLeg/RightLegの7パーツ)を
 // 生成し、parentの子としてaddChildする。
 // User::spawnCharacterのフォールバック生成(StarterCharacter用)と、
@@ -20,7 +26,13 @@ struct R6JointBinding {
 namespace CharacterRig {
     const std::vector<R6JointBinding>& r6JointBindings();
     const R6JointBinding* findR6Joint(const std::string& jointName);
+    const std::vector<R6JointTopology>& r6JointTopology();
+    const R6JointTopology* findR6JointTopology(const std::string& jointName);
     CFrame applyR6Joint(const CFrame& root, const R6JointBinding& binding, const CFrame& delta);
+    CFrame applyMotor6D(const CFrame& part0, const CFrame& c0,
+                       const CFrame& transform, const CFrame& c1);
+    void calculateMotor6DBind(const CFrame& part0, const CFrame& part1,
+                              CFrame& c0, CFrame& c1);
     // parentの子としてリグ(Humanoid+7パーツ)を追加する。basePosはRootのワールド座標
     // (省略時は原点)。追加後、Torso/Head/腕/脚はRootからの相対位置へ自動配置される。
     void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3& basePos = Vector3(0.0f, 0.0f, 0.0f));

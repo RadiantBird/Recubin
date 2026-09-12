@@ -26,7 +26,8 @@ static const bool s_animationRegistered = [] {
 }();
 
 Animation::Animation() : Instance("Animation"), m_clip(std::make_unique<AnimationClip>()) {
-    m_clip->space = "model_relative";
+    m_clip->rig = "R6";
+    m_clip->space = "joint_delta";
 }
 
 bool Animation::IsA(std::string className) {
@@ -37,28 +38,24 @@ bool Animation::IsA(std::string className) {
 void Animation::setProperty(const std::string& name, const YAML::Node& value) {
     if (PropertyRegistry::loadProperty(this, "Animation", name, value)) return;
 
-    // Scene埋め込みAnimationの旧形式はschema外として読み込み続ける。
     if (name == "Space") {
-        if (value.as<std::string>("") == "joint_delta") {
-            m_clip->space = "joint_delta"; m_clip->rig = "R6";
-        }
+        m_clip->space = "joint_delta";
+        m_clip->rig = "R6";
         return;
     }
     if (name == "Rig") {
-        m_clip->rig = value.as<std::string>("R6");
+        m_clip->rig = "R6";
         return;
     }
     if (name == "Tracks") {
         m_clip->tracks.clear();
-        m_source = AnimationSource::LegacyEmbedded;
+        m_source = AnimationSource::Embedded;
         m_loadStatus = AnimationClipLoadStatus::Success;
         m_loadMessage.clear();
         for (const auto& trackNode : value) {
             AnimTrack track;
-            track.targetKind = m_clip->space == "joint_delta"
-                ? AnimationClipTrackTarget::Joint
-                : AnimationClipTrackTarget::Part;
-            track.targetName = trackNode["PartName"].as<std::string>("");
+            track.targetKind = AnimationClipTrackTarget::Joint;
+            track.targetName = trackNode["JointName"].as<std::string>("");
             const YAML::Node& keys = trackNode["Keyframes"];
             for (const auto& keyNode : keys) {
                 Keyframe kf;
@@ -121,7 +118,7 @@ void Animation::syncClipMetadata() {
 
 void Animation::setClip(const AnimationClip& clip) {
     m_clip = std::make_unique<AnimationClip>(clip);
-    m_source = AnimationSource::LegacyEmbedded;
+    m_source = AnimationSource::Embedded;
     m_loadStatus = AnimationClipLoadStatus::Success;
     m_loadMessage.clear();
     m_usingBuiltInFallback = false;
@@ -161,7 +158,7 @@ std::string Animation::getSourceName() const {
     switch (m_source) {
         case AnimationSource::File: return "File";
         case AnimationSource::BuiltIn: return "BuiltIn";
-        default: return "LegacyEmbedded";
+        default: return "Embedded";
     }
 }
 
@@ -211,9 +208,7 @@ CFrame Animation::evaluateTrack(const AnimTrack& track, float t) const {
 }
 
 AnimTrack& Animation::trackFor(const std::string& partName) {
-    return m_clip->trackFor(partName,
-        m_clip->space == "joint_delta" ? AnimationClipTrackTarget::Joint
-                                        : AnimationClipTrackTarget::Part);
+    return m_clip->trackFor(partName, AnimationClipTrackTarget::Joint);
 }
 
 void Animation::addOrReplaceKey(const std::string& partName, float time,
@@ -236,92 +231,20 @@ void Animation::addOrReplaceKey(const std::string& partName, float time,
 }
 
 bool Animation::exportToFile(const std::string& path) const {
-    if (path.size() >= 7) {
-        std::string ext = path.substr(path.size() - 7);
-        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
-        if (ext == ".rcanim") {
-            if (m_clip->space == "joint_delta") return AnimationClipIO::save(path, *m_clip);
-            AnimationClip converted; converted.name = Name; converted.length = Length; converted.speed = Speed; converted.looped = Looped;
-            for (const auto& legacy : m_clip->tracks) {
-                const auto* binding = CharacterRig::findR6Joint(legacy.targetName);
-                if (!binding || legacy.keyframes.empty()) {
-                    // Legacy names use body-part names rather than joint names.
-                    static const std::pair<const char*, const char*> names[] = {
-                        {"LeftArm","LeftShoulder"},{"RightArm","RightShoulder"},{"LeftLeg","LeftHip"},{"RightLeg","RightHip"},{"Torso","Torso"},{"Head","Head"}};
-                    for (const auto& n : names) if (legacy.targetName == n.first) { binding = CharacterRig::findR6Joint(n.second); break; }
-                }
-                if (!binding || legacy.keyframes.empty()) return false;
-                for (const auto& key : legacy.keyframes)
-                    converted.addKey(binding->jointName, key.time,
-                        binding->rootToJoint.inverse() * key.delta * binding->jointToPartBind.inverse(), key.easing);
-            }
-            return AnimationClipIO::save(path, converted);
-        }
-    }
-    YAML::Emitter out;
-    out << YAML::BeginMap;
-    out << YAML::Key << "Animation" << YAML::Value << YAML::BeginMap;
-    out << YAML::Key << "Length" << YAML::Value << Length;
-    out << YAML::Key << "Speed"  << YAML::Value << Speed;
-    out << YAML::Key << "Looped" << YAML::Value << Looped;
-    out << YAML::Key << "Tracks" << YAML::Value << YAML::BeginSeq;
-    for (const AnimTrack& tr : m_clip->tracks) {
-        out << YAML::BeginMap;
-        out << YAML::Key << "PartName" << YAML::Value << tr.targetName;
-        out << YAML::Key << "Keyframes" << YAML::Value << YAML::BeginSeq;
-        for (const Keyframe& kf : tr.keyframes) {
-            out << YAML::BeginMap;
-            out << YAML::Key << "Time" << YAML::Value << kf.time;
-            out << YAML::Key << "Position" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << kf.delta.Position.x << kf.delta.Position.y << kf.delta.Position.z
-                << YAML::EndSeq;
-            out << YAML::Key << "Rotation" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << kf.delta.Rotation.x << kf.delta.Rotation.y
-                << kf.delta.Rotation.z << kf.delta.Rotation.w
-                << YAML::EndSeq;
-            out << YAML::Key << "Easing" << YAML::Value << static_cast<int>(kf.easing);
-            out << YAML::EndMap;
-        }
-        out << YAML::EndSeq;
-        out << YAML::EndMap;
-    }
-    out << YAML::EndSeq;
-    out << YAML::EndMap; // Animation
-    out << YAML::EndMap;
-
-    std::ofstream ofs(path, std::ios::binary);
-    if (!ofs.is_open()) return false;
-    ofs << out.c_str();
-    return ofs.good();
+    if (!m_clip || m_clip->rig != "R6" || m_clip->space != "joint_delta") return false;
+    if (path.size() < 7 || path.substr(path.size() - 7) != ".rcanim") return false;
+    return AnimationClipIO::save(path, *m_clip);
 }
 
 bool Animation::importFromFile(const std::string& path) {
-    YAML::Node root;
-    try {
-        root = YAML::LoadFile(path); // ライブラリ例外は境界で捕捉してリターンコードに変換
-    } catch (...) {
-        return false;
-    }
-    if (root["recubin"] && root["recubin"]["type"].as<std::string>("") == "animation") {
-        auto result = AnimationClipIO::load(path);
-        if (!result) return false;
-        m_clip = std::make_unique<AnimationClip>(result.clip);
-        ContentPath = path;
-        m_source = AnimationSource::File;
-        m_loadStatus = AnimationClipLoadStatus::Success;
-        m_loadMessage.clear();
-        syncClipMetadata();
-        return true;
-    }
-    const YAML::Node& a = root["Animation"];
-    if (!a) return false;
-    // 既存のsetPropertyのパース処理を再利用する
-    if (a["Length"]) setProperty("Length", a["Length"]);
-    if (a["Speed"])  setProperty("Speed",  a["Speed"]);
-    if (a["Looped"]) setProperty("Looped", a["Looped"]);
-    if (a["Tracks"]) setProperty("Tracks", a["Tracks"]);
+    const auto result = AnimationClipIO::load(path);
+    if (!result || result.clip.rig != "R6" || result.clip.space != "joint_delta") return false;
+    m_clip = std::make_unique<AnimationClip>(result.clip);
+    ContentPath = path;
+    m_source = AnimationSource::File;
+    m_loadStatus = AnimationClipLoadStatus::Success;
+    m_loadMessage.clear();
+    syncClipMetadata();
     return true;
 }
 

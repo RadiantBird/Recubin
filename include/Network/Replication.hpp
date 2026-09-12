@@ -16,6 +16,7 @@ class BaseCube;
 class Instance;
 class Humanoid;
 class Physics;
+class Gyro;
 class Cube;
 struct ReplicationTestAccess;
 
@@ -74,7 +75,7 @@ private:
     struct RemoteAvatar {
         std::shared_ptr<Model> model;
         std::shared_ptr<User> identity; // System.Users配下のUser identity(見つからない場合はnullptrのまま)
-        // Root含む全パーツと、生成時Root world相対のオフセット(剛体一括追従用)。生ポインタの所有はmodel。
+        // Rootを先頭に含むリグパーツ。表示同期ではRootだけを直接更新する。
         std::vector<std::pair<BaseCube*, CFrame>> parts;
         CFrame current;         // 平滑表示中の姿勢
         bool   hasPose = false; // 初回受信前はfalse(初回はスナップ)
@@ -88,7 +89,7 @@ private:
     void sendAvatarUpdates(float dt);   // 20Hz: Client=AvatarState送信 / Host=自姿勢記録+AvatarBatch配布
     void hostSendSimulationClock(float dt, Physics* physics);
     void reconcileAvatars();            // ロスターと生成済みアバターの突き合わせ(生成/破棄)
-    void applyAvatarPoses(float dt);    // 受信姿勢を平滑補間して各パーツのworld CFrameへ書き込み
+    void applyAvatarPoses(float dt);    // 受信姿勢を平滑補間してRoot world CFrameへ書き込み
     void reconcileLocalPose(); // Client: Hostから受信した自分の権威姿勢とローカル予測のズレが大きければスナップ補正する
     bool getLocalRootCFrame(CFrame& out) const; // 自キャラRootのワールド姿勢。無ければfalse
     void spawnRemoteAvatar(PeerId id);
@@ -168,6 +169,7 @@ private:
     void rescanPredictionStaticGeometry();       // 約2秒ごと: 静的ジオメトリの差分ミラーリング
 
     std::unique_ptr<Physics> m_predictionPhysics;
+    std::shared_ptr<Gyro> m_predictionGyro;
     std::shared_ptr<Cube> m_shadowRoot;
     std::shared_ptr<Humanoid> m_predictionHumanoid;
     std::unordered_map<std::string, std::shared_ptr<BaseCube>> m_predictionStaticMirror; // path -> ミラーCube

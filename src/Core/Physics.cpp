@@ -1,10 +1,11 @@
 #include "include/Core/Physics.hpp"
 #include "include/Core/Box3DPhysicsBackend.hpp"
-#include "include/Core/PhysXPhysicsBackend.hpp"
 #include "include/Instances/BaseCube.hpp"
 #include "include/Instances/Attachment.hpp"
 #include "include/Instances/BallSocket.hpp"
 #include "include/Instances/Motor.hpp"
+#include "include/Instances/Motor6D.hpp"
+#include "include/Instances/Gyro.hpp"
 #include "include/Instances/NoCollision.hpp"
 #include "include/Instances/PhysicsConstraint.hpp"
 #include "include/Instances/Rod.hpp"
@@ -95,10 +96,7 @@ float IPhysicsBackend::getAccumulatorAlpha() const {
 
 Physics::Physics()
     : m_backendType(s_requestedBackend) {
-    if (m_backendType == PhysicsBackendType::PhysX)
-        m_backend = std::make_unique<PhysXPhysicsBackend>(this);
-    else if (m_backendType == PhysicsBackendType::Box3D)
-        m_backend = std::make_unique<Box3DPhysicsBackend>(this);
+    m_backend = std::make_unique<Box3DPhysicsBackend>(this);
 }
 
 Physics::~Physics() = default;
@@ -115,15 +113,15 @@ bool Physics::configureBackendFromCommandLine(int argc, char* argv[]) {
             return false;
         }
 
-        PhysicsBackendType parsed;
-        if (std::strcmp(argument + 10, "physx") == 0)
-            parsed = PhysicsBackendType::PhysX;
-        else if (std::strcmp(argument + 10, "box3d") == 0)
-            parsed = PhysicsBackendType::Box3D;
-        else {
+        if (std::strcmp(argument + 10, "physx") == 0) {
+            RCBN_ERROR("Physics backend is no longer supported: physx");
+            return false;
+        }
+        if (std::strcmp(argument + 10, "box3d") != 0) {
             RCBN_ERROR("Invalid physics backend: " << (argument + 10));
             return false;
         }
+        const PhysicsBackendType parsed = PhysicsBackendType::Box3D;
 
         if (found && parsed != requested) {
             RCBN_ERROR("Conflicting physics backend options");
@@ -324,6 +322,16 @@ void Physics::reconcileConstraints(Workspace& workspace) {
             attachment1 = constraint->m_attachment1.lock();
             handle = constraint->m_constraintHandle;
             axis = constraint->Axis;
+        } else if (value->IsA("Motor6D")) {
+            auto constraint = std::static_pointer_cast<Motor6D>(value);
+            cube0 = constraint->m_cube0.lock();
+            cube1 = constraint->m_cube1.lock();
+            handle = constraint->m_constraintHandle;
+        } else if (value->IsA("Gyro")) {
+            auto constraint = std::static_pointer_cast<Gyro>(value);
+            cube0 = constraint->m_cube0.lock();
+            cube1 = cube0;
+            handle = constraint->m_constraintHandle;
         } else if (value->IsA("NoCollision")) {
             auto constraint = std::static_pointer_cast<NoCollision>(value);
             cube0 = constraint->m_cube0.lock();
@@ -371,6 +379,11 @@ void Physics::reconcileConstraints(Workspace& workspace) {
             ? attachment0->relativeToAncestor(cube0.get()) : CFrame();
         current.localFrame1 = attachment1
             ? attachment1->relativeToAncestor(cube1.get()) : CFrame();
+        if (value->IsA("Motor6D")) {
+            auto constraint = std::static_pointer_cast<Motor6D>(value);
+            current.localFrame0 = constraint->C0;
+            current.localFrame1 = constraint->C1;
+        }
         current.axis = axis;
 
         const bool bindingFinite =
@@ -547,6 +560,8 @@ void Physics::createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace
     RCBN_PHYSICS_VOID(createWeld, weld, workspace);
 }
 void Physics::createMotor(const std::shared_ptr<Motor>& motor) { RCBN_PHYSICS_VOID(createMotor, motor); }
+void Physics::createMotor6D(const std::shared_ptr<Motor6D>& motor) { RCBN_PHYSICS_VOID(createMotor6D, motor); }
+void Physics::createGyro(const std::shared_ptr<Gyro>& gyro) { RCBN_PHYSICS_VOID(createGyro, gyro); }
 void Physics::createBallSocket(const std::shared_ptr<BallSocket>& ballSocket) {
     RCBN_PHYSICS_VOID(createBallSocket, ballSocket);
 }

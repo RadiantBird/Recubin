@@ -10,6 +10,7 @@
 #include <Instances/BaseCube.hpp>
 #include <Instances/NoCollision.hpp>
 #include <Instances/Humanoid.hpp>
+#include <Instances/Gyro.hpp>
 #include <Instances/Cube.hpp>
 #include <Util/Logger.hpp>
 
@@ -53,6 +54,7 @@ void ReplicationManager::setWorkspace(std::shared_ptr<Workspace> workspace) {
     m_clientObjects.clear();
 
     if (m_predictionPhysics) m_predictionPhysics->clearCubes();
+    m_predictionGyro.reset();
     m_predictionStaticMirror.clear();
     m_predictionHumanoid.reset();
     m_shadowRoot.reset();
@@ -588,7 +590,10 @@ void ReplicationManager::applyAvatarPoses(float dt) {
         }
 
         for (auto& [part, rel] : avatar.parts) {
-            part->setWorldCFrame(avatar.current * rel);
+            if (part && part->Name == "Root") {
+                part->setWorldCFrame(avatar.current);
+                break;
+            }
         }
         if (avatar.humanoid) {
             avatar.humanoid->setWalkCycle(avatar.walkCycle);
@@ -1097,6 +1102,12 @@ void ReplicationManager::ensurePredictionScene() {
     m_predictionHumanoid = std::make_shared<Humanoid>();
     m_predictionHumanoid->setRootPart(m_shadowRoot);
     m_predictionPhysics->createActor(m_shadowRoot);
+    m_predictionGyro = std::make_shared<Gyro>();
+    m_predictionGyro->Name = "PredictionRootGyro";
+    m_predictionGyro->setPart(m_shadowRoot);
+    m_predictionGyro->setTargetRotation(realRoot->getWorldCFrame().Rotation);
+    m_predictionHumanoid->setRootGyro(m_predictionGyro);
+    m_predictionPhysics->createGyro(m_predictionGyro);
 
     m_predictionSceneReady = true;
     RCBN_LOG("Replication: prediction scene created (shadow root size=" << realRoot->Size.x << "," << realRoot->Size.y << "," << realRoot->Size.z << ")");

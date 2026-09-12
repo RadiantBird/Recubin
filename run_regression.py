@@ -408,7 +408,7 @@ def main() -> int:
     total_failed = 0
     any_crash = False
 
-    for backend in ("physx", "box3d"):
+    for backend in ("box3d",):
         for mode in registered:
             ok, passed, failed = run_dedicated(test_exe, mode, backend)
             total_passed += passed

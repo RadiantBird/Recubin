@@ -58,6 +58,8 @@
 #include "include/Instances/Rod.hpp"
 #include "include/Instances/Weld.hpp"
 #include "include/Instances/Motor.hpp"
+#include "include/Instances/Motor6D.hpp"
+#include "include/Instances/Gyro.hpp"
 #include "include/Instances/BallSocket.hpp"
 #include "include/Instances/NoCollision.hpp"
 #include "include/Instances/ValueBase.hpp"
@@ -2651,6 +2653,8 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "ObjectValue",      [] { return std::make_shared<ObjectValue>(); } },
         { "Weld",             [] { return std::make_shared<Weld>(); } },
         { "Motor",            [] { return std::make_shared<Motor>(); } },
+        { "Motor6D",          [] { return std::make_shared<Motor6D>(); } },
+        { "Gyro",             [] { return std::make_shared<Gyro>(); } },
         { "Attachment",       [] { return std::make_shared<Attachment>(); } },
         { "Force",            [] { return std::make_shared<Force>(); } },
         { "TextLabel",        [] { return std::make_shared<TextLabel>(); } },

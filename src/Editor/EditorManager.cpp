@@ -23,6 +23,8 @@
 #include <Instances/SpawnLocation.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
+#include <Instances/Motor6D.hpp>
+#include <Instances/Gyro.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/Rope.hpp>
 #include <Instances/Attachment.hpp>
@@ -1515,6 +1517,10 @@ void EditorManager::renderToolbarPhysics() {
     tryAddObjectButton<Weld>(ICON_WELD, "Weld", "Weld", parent, btnSz);
     ImGui::SameLine();
     tryAddObjectButton<Motor>(ICON_MOTOR, "Motor", "Motor", parent, btnSz);
+    ImGui::SameLine();
+    tryAddObjectButton<Motor6D>(ICON_MOTOR, "Motor6D", "Motor6D", parent, btnSz);
+    ImGui::SameLine();
+    tryAddObjectButton<Gyro>(ICON_MOTOR, "Gyro", "Gyro", parent, btnSz);
     ImGui::SameLine();
     tryAddObjectButton<Rod>(ICON_ROD, "Rod", "Rod", parent, btnSz);
     ImGui::SameLine();

@@ -20,6 +20,8 @@
 #include <Instances/Cylinder.hpp>
 #include <Instances/Force.hpp>
 #include <Instances/Motor.hpp>
+#include <Instances/Motor6D.hpp>
+#include <Instances/Gyro.hpp>
 #include <Instances/NoCollision.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/TriangularPrism.hpp>
@@ -4222,24 +4224,10 @@ PhysicsPerformanceResult runPhysicsPerformanceWorkload() {
     return result;
 }
 
-bool configurePhysicsBackendForPerformance(const char* backend) {
-    char program[] = "RecubinTest";
-    char physxOption[] = "--physics=physx";
-    char box3dOption[] = "--physics=box3d";
-    char* arguments[] = {
-        program,
-        std::strcmp(backend, "box3d") == 0 ? box3dOption : physxOption
-    };
-    return Physics::configureBackendFromCommandLine(2, arguments);
-}
-
 int runPhysicsPerformanceGuard(int argc, char* argv[]) {
-    const char* explicitBackend = nullptr;
     double referenceMilliseconds = 0.0;
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument(argv[i]);
-        if (argument == "--physics=physx") explicitBackend = "physx";
-        if (argument == "--physics=box3d") explicitBackend = "box3d";
         constexpr std::string_view prefix = "--physics-performance-reference-ms=";
         if (argument.starts_with(prefix)) {
             const std::string number(argument.substr(prefix.size()));
@@ -4261,35 +4249,15 @@ int runPhysicsPerformanceGuard(int argc, char* argv[]) {
         if (!passed) ++failures;
     };
 
-    if (explicitBackend) {
-        const PhysicsPerformanceResult selected = runPhysicsPerformanceWorkload();
-        reportResult(selected);
-        if (referenceMilliseconds > 0.0 &&
-            selected.backend == PhysicsBackendType::Box3D) {
-            const bool ratioPassed =
-                selected.medianMilliseconds <= referenceMilliseconds * 1.5;
-            std::cout << "[PhysicsPerformanceGuard] backend=box3d "
-                      << (ratioPassed ? "PASS" : "FAIL")
-                      << ": ratio=" << selected.medianMilliseconds / referenceMilliseconds
-                      << " limit=1.5 reference_ms=" << referenceMilliseconds << "\n";
-            if (!ratioPassed) ++failures;
-        }
-    } else {
-        configurePhysicsBackendForPerformance("physx");
-        const PhysicsPerformanceResult physxResult = runPhysicsPerformanceWorkload();
-        reportResult(physxResult);
-        configurePhysicsBackendForPerformance("box3d");
-        const PhysicsPerformanceResult box3dResult = runPhysicsPerformanceWorkload();
-        reportResult(box3dResult);
+    const PhysicsPerformanceResult box3dResult = runPhysicsPerformanceWorkload();
+    reportResult(box3dResult);
+    if (referenceMilliseconds > 0.0) {
         const bool ratioPassed =
-            physxResult.available && box3dResult.available &&
-            box3dResult.medianMilliseconds <= physxResult.medianMilliseconds * 1.5;
-        const double ratio = physxResult.medianMilliseconds > 0.0
-            ? box3dResult.medianMilliseconds / physxResult.medianMilliseconds
-            : std::numeric_limits<double>::infinity();
+            box3dResult.medianMilliseconds <= referenceMilliseconds * 1.5;
         std::cout << "[PhysicsPerformanceGuard] backend=box3d "
                   << (ratioPassed ? "PASS" : "FAIL")
-                  << ": ratio=" << ratio << " limit=1.5\n";
+                  << ": ratio=" << box3dResult.medianMilliseconds / referenceMilliseconds
+                  << " limit=1.5 reference_ms=" << referenceMilliseconds << "\n";
         if (!ratioPassed) ++failures;
     }
     return failures == 0 ? 0 : 1;
@@ -7989,6 +7957,26 @@ static int runAnimationClipRegression() {
                    starterHumanoid->getWalkAnimation() == starterWalk &&
                    starterWalk->ContentPath == "assets/anims/r6_walk.rcanim",
                "default StarterCharacter exposes R6Walk and Humanoid references it");
+        auto starterRoot = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("Root"));
+        auto starterTorso = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("Torso"));
+        auto rootJoint = std::dynamic_pointer_cast<Motor6D>(starter->getChildren().at("RootJoint"));
+        auto rootRagdoll = std::dynamic_pointer_cast<BallSocket>(starter->getChildren().at("RootJointRagdoll"));
+        auto rootGyro = std::dynamic_pointer_cast<Gyro>(starter->getChildren().at("RootGyro"));
+        expect(starterRoot && starterTorso && rootJoint && rootRagdoll && rootGyro &&
+                   starterRoot->CanCollide && !starterRoot->Anchored &&
+                   !starterTorso->CanCollide && !starterTorso->Anchored &&
+                   rootJoint->getPart0() == starterRoot && rootJoint->getPart1() == starterTorso &&
+                   !rootRagdoll->Enabled && rootGyro->getPart() == starterRoot,
+               "default R6 builds a dynamic Motor6D rig with disabled ragdoll constraints and RootGyro");
+        if (starterRoot && starterTorso && rootJoint) {
+            const CFrame bound = CharacterRig::applyMotor6D(
+                starterRoot->getWorldCFrame(), rootJoint->C0,
+                rootJoint->Transform, rootJoint->C1);
+            expect(near(bound.Position.x, starterTorso->getWorldPosition().x) &&
+                       near(bound.Position.y, starterTorso->getWorldPosition().y) &&
+                       near(bound.Position.z, starterTorso->getWorldPosition().z),
+                   "default RootJoint bind preserves the authored world pose");
+        }
         auto model = User::buildCharacterModel(system.get(), "ClipInjectionCharacter");
         std::shared_ptr<Humanoid> humanoid;
         if (model) {
@@ -8018,49 +8006,50 @@ static int runAnimationClipRegression() {
                        near(a.Rotation.w, b.Rotation.w);
             };
             auto rootPart = humanoid->getRootPart();
+            auto leftShoulder = std::dynamic_pointer_cast<Motor6D>(model->getChildren().at("LeftShoulder"));
+            auto rightShoulder = std::dynamic_pointer_cast<Motor6D>(model->getChildren().at("RightShoulder"));
+            auto leftHip = std::dynamic_pointer_cast<Motor6D>(model->getChildren().at("LeftHip"));
             const auto* shoulderBinding = CharacterRig::findR6Joint("LeftShoulder");
             const auto* hipBinding = CharacterRig::findR6Joint("LeftHip");
             humanoid->setIsGroundedForReplication(true);
             humanoid->setWalkCycle(0.0f);
             humanoid->applyBodyAnimation(true, false);
             auto toolLeft = humanoid->getLeftArmPart();
-            expect(rootPart && shoulderBinding && toolLeft && sameCFrame(
-                       toolLeft->getWorldCFrame(),
-                       CharacterRig::applyR6Joint(rootPart->getCFrame(), *shoulderBinding,
-                           CFrame::fromAxisAngle(Vector3(1, 0, 0), 90.0f))),
-                   "tool left-arm pose uses the R6 shoulder binding");
+            expect(rootPart && shoulderBinding && toolLeft && leftShoulder && sameCFrame(
+                       leftShoulder->Transform,
+                       CFrame::fromAxisAngle(Vector3(1, 0, 0), 90.0f)),
+                   "tool left-arm pose updates the R6 shoulder Motor6D");
             humanoid->setSeatedForReplication(true);
             humanoid->applyBodyAnimation(false, false);
             auto seatedLeft = humanoid->getLeftArmPart();
             auto seatedLeg = humanoid->getLeftLegPart();
             expect(rootPart && shoulderBinding && hipBinding && seatedLeft && seatedLeg &&
-                   sameCFrame(seatedLeft->getWorldCFrame(), CharacterRig::applyR6Joint(
-                       rootPart->getCFrame(), *shoulderBinding,
-                       CFrame::fromAxisAngle(Vector3(1, 0, 0), 10.0f))) &&
-                   sameCFrame(seatedLeg->getWorldCFrame(), CharacterRig::applyR6Joint(
-                       rootPart->getCFrame(), *hipBinding,
-                       CFrame::fromAxisAngle(Vector3(1, 0, 0), 90.0f))),
-                   "seated arm and leg poses use the R6 bindings");
+                   leftShoulder && leftHip && sameCFrame(leftShoulder->Transform,
+                       CFrame::fromAxisAngle(Vector3(1, 0, 0), 10.0f)) &&
+                   sameCFrame(leftHip->Transform,
+                       CFrame::fromAxisAngle(Vector3(1, 0, 0), 90.0f)),
+                   "seated arm and leg poses update the R6 Motor6Ds");
             humanoid->setSeatedForReplication(false);
             humanoid->setWalkCycle(0.0f);
             humanoid->applyBodyAnimation(false, false);
             auto neutralLeft = humanoid->getLeftArmPart();
-            auto neutralLeftCFrame = neutralLeft ? neutralLeft->getWorldCFrame() : CFrame();
+            auto neutralLeftCFrame = leftShoulder ? leftShoulder->Transform : CFrame();
             auto neutralLeg = humanoid->getLeftLegPart();
-            auto neutralLegCFrame = neutralLeg ? neutralLeg->getWorldCFrame() : CFrame();
+            auto neutralLegCFrame = leftHip ? leftHip->Transform : CFrame();
             humanoid->setWalkCycle(0.25f);
             humanoid->applyBodyAnimation(false, false);
             auto left = humanoid->getLeftArmPart();
             auto right = humanoid->getRightArmPart();
-            expect(left && right && left->getWorldCFrame().Rotation.x *
-                       right->getWorldCFrame().Rotation.x < -1e-4f,
+            expect(left && right && leftShoulder && rightShoulder &&
+                       leftShoulder->Transform.Rotation.x *
+                       rightShoulder->Transform.Rotation.x < -1e-4f,
                    "injected walk produces opposite left/right arm poses");
-            const auto animatedLeftCFrame = left ? left->getWorldCFrame() : CFrame();
-            const auto animatedLegCFrame = neutralLeg ? neutralLeg->getWorldCFrame() : CFrame();
+            const auto animatedLeftCFrame = leftShoulder ? leftShoulder->Transform : CFrame();
+            const auto animatedLegCFrame = leftHip ? leftHip->Transform : CFrame();
             humanoid->setWalkCycle(0.0f);
             humanoid->applyBodyAnimation(false, false);
-            const auto returnedLeftCFrame = left ? left->getWorldCFrame() : CFrame();
-            const auto returnedLegCFrame = neutralLeg ? neutralLeg->getWorldCFrame() : CFrame();
+            const auto returnedLeftCFrame = leftShoulder ? leftShoulder->Transform : CFrame();
+            const auto returnedLegCFrame = leftHip ? leftHip->Transform : CFrame();
             expect(!near(animatedLeftCFrame.Rotation.x, neutralLeftCFrame.Rotation.x, 1e-3f) &&
                    near(returnedLeftCFrame.Rotation.x, neutralLeftCFrame.Rotation.x, 1e-3f) &&
                    !near(animatedLegCFrame.Rotation.x, neutralLegCFrame.Rotation.x, 1e-3f) &&
@@ -8071,7 +8060,7 @@ static int runAnimationClipRegression() {
                    "grounded walk returns the shoulder to its neutral binding pose");
             humanoid->setIsGroundedForReplication(false);
             humanoid->applyBodyAnimation(false, false);
-            expect(left && left->getWorldCFrame().Rotation.w < 0.99f,
+            expect(left && leftShoulder && leftShoulder->Transform.Rotation.w < 0.99f,
                    "airborne Humanoid keeps its distinct fallback pose");
             humanoid->setIsGroundedForReplication(true);
             auto custom = std::make_shared<Animation>();
@@ -8091,11 +8080,10 @@ static int runAnimationClipRegression() {
             humanoid->playAnimation(custom);
             humanoid->updateAnimation(0.1f);
             auto customLeft = humanoid->getLeftArmPart();
-            expect(rootPart && shoulderBinding && customLeft && sameCFrame(
-                       customLeft->getWorldCFrame(),
-                       CharacterRig::applyR6Joint(rootPart->getCFrame(), *shoulderBinding,
-                           CFrame::fromAxisAngle(Vector3(1, 0, 0), 55.0f))),
-                   "custom joint_delta Animation overrides the basic walk pose");
+            expect(rootPart && shoulderBinding && customLeft && leftShoulder && sameCFrame(
+                       leftShoulder->Transform,
+                       CFrame::fromAxisAngle(Vector3(1, 0, 0), 55.0f)),
+                   "custom joint_delta Animation overrides the shoulder Motor6D transform");
             humanoid->stopAnimation();
         }
     }
@@ -10252,6 +10240,8 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--yaml-error-regression", runYamlErrorRegression),
         REG("--nat-codec-regression", runNatCodecRegression),
         REG("--animation-clip-regression", runAnimationClipRegression),
+        REG("--character-rig-v2", runAnimationClipRegression),
+        REG("--motor6d-gyro", runAnimationClipRegression),
         REG("--default-camera-mode-regression", runDefaultCameraModeRegression),
         REG("--scene-load-transaction-regression", runSceneLoadTransactionRegression),
         REG("--system-extension-regression", runSystemExtensionRegression),

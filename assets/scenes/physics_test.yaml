@@ -3,963 +3,2025 @@ Root:
     MaxClonesPerFrame: 1000
     MaxRestartsPerFrame: 100
     ScriptLoopTimeoutSeconds: 10
-    BaseResolution: [1024, 768]
+    BaseResolution:
+    - 1024
+    - 768
     UseNetwork: false
   Children:
-    - ClassName: StarterCharacter
-      Name: StarterCharacter
-      Children:
-        - ClassName: Cube
-          Name: LeftArm
-          Properties:
-            Position: [-1.5, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Humanoid
-          Name: Humanoid
-          Properties:
-            WalkSpeed: 24
-            JumpPower: 50
-            ClimbSpeed: 5
-            JumpHeight: 6.3710494
-            MaxHealth: 100
-            RespawnTime: 5
-            Health: 100
-        - ClassName: Cube
-          Name: RightArm
-          Properties:
-            Position: [1.5, 0, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Root
-          Properties:
-            Position: [0, 5.411, 0]
-            Size: [2, 4, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.13333334, 0.52156866, 0.6509804, 0]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: LeftLeg
-          Properties:
-            Position: [-0.5, -2, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0.14, 0.32, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Sphere
-          Name: Head
-          Properties:
-            Position: [0, 1.5415881, 0]
-            Size: [1.25, 1.25, 1.25]
-            Rotation: [0.003965542, 1.7881531e-08, 9.582263e-07, 0.99999213]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Decal
-              Name: Decal_Front
-              Properties:
-                Face: 0
-                Texture: assets/image/hooo.png
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
-        - ClassName: Cube
-          Name: RightLeg
-          Properties:
-            Position: [0.5, -2, 0]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0.14, 0.32, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: MeshCube
-          Name: Hair
-          Properties:
-            Position: [0, 0.509, 0.151]
-            Size: [4, 4, 4]
-            Rotation: [-9.099629e-07, 1, -9.099629e-07, -4.371056e-08]
-            Color: [0.3569231, 0.3569231, 0.3569231, 1]
-            Anchored: false
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            MeshFile: assets/models/hair-Curuata.glb
-          Children:
-            - ClassName: Weld
-              Name: Weld
-              Properties:
-                Cube0: StarterCharacter\Hair
-                Cube1: StarterCharacter\Head
-        - ClassName: MeshCube
-          Name: Torso
-          Properties:
-            Position: [0, 0, 0]
-            Size: [2, 1.985, 2]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.14509805, 0.4862745, 0.47058824, 1]
-            Anchored: true
-            CanCollide: false
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            MeshFile: assets/models/GirlTorso.glb
-          Children:
-            - ClassName: Decal
-              Name: Decal
-              Properties:
-                Face: 0
-                Texture: ""
-                UVCenter: [0.2, 0.7]
-                UVRadius: 0.4
-                Mode: 1
-        - ClassName: Script
-          Name: KeyframeCheck
-          Properties:
-            ContentPath: scripts/KeyframeCheck.luau
-            Enabled: true
-        - ClassName: Animation
-          Name: Animation
-          Properties:
-            Length: 1.66
-            Speed: 1
-            Looped: true
-            Tracks:
-              - PartName: Head
-                Keyframes:
-                  - Time: 0
-                    Position: [0, 2.5, 0]
-                    Rotation: [0, 0, 0, 1]
-                    Easing: 0
-                  - Time: 0.33
-                    Position: [1.5, 2.5, 0]
-                    Rotation: [0, 0, 0, 1]
-                    Easing: 3
-                  - Time: 0.66
-                    Position: [0, 2.5, 0]
-                    Rotation: [0, 0, 0, 1]
-                    Easing: 2
-                  - Time: 1
-                    Position: [0, 2.5, 0]
-                    Rotation: [0, 0, 0, 1]
-                    Easing: 3
-                  - Time: 1.33
-                    Position: [-1.5, 2.5, 0]
-                    Rotation: [0, 0, 0, 1]
-                    Easing: 2
-                  - Time: 1.66
-                    Position: [0, 2.5, 0]
-                    Rotation: [0, 0, 0, 1]
-                    Easing: 3
-    - ClassName: Users
-      Name: Users
-      Children:
-        - ClassName: User
-          Name: User
-          Properties:
-            ControlMode: Free
-            Speed: 0.25
-            RotationSpeed: 1
-            MouseRotationSpeed: 0.15
-            CameraDistance: 10
-            ZoomSpeed: 0.1
-            MouseZoomSpeed: 1
-          Children:
-            - ClassName: Folder
-              Name: Inventory
-    - ClassName: Workspace
-      Name: Workspace
+  - ClassName: StarterCharacter
+    Name: StarterCharacter
+    Children:
+    - ClassName: Cube
+      Name: LeftArm
       Properties:
-        Gravity: [0, -196.20001, 0]
-        Wind: [0, 0, 0]
-        PhysicsEnabled: true
-      Children:
-        - ClassName: Lighting
-          Name: Lighting
-          Properties:
-            Direction: [1, -1, -1]
-            Brightness: 1
-            Color: [1, 1, 1, 1]
-        - ClassName: Cube
-          Name: Spinner
-          Properties:
-            Position: [-2.791353, 1, -3.5121393]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0.953846, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Force
-              Name: Force
-              Properties:
-                Enabled: true
-                Torque: true
-                MaintainVelocity: true
-                Value: [0, 25, 0]
-        - ClassName: Cube
-          Name: Cube11
-          Properties:
-            Position: [41.20535, 8.204606, 48.33006]
-            Size: [2, 2, 2]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0, 0.8861542, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: NoCollision
-              Name: NoCollision
-              Properties:
-                Cube0: Cube11
-                Cube1: Cube9
-        - ClassName: Cube
-          Name: Cube2
-          Properties:
-            Position: [2.6748984, 1, 1.7505639]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Baseplate
-          Properties:
-            Position: [0, 0, 0]
-            Size: [2048, 1, 2048]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.41230768, 0.40342718, 0, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Texture
-              Name: Texture
-              Properties:
-                Face: 2
-                Color: [1, 0.60923076, 0, 1]
-                StudsPerTileU: 1
-                StudsPerTileV: 1
-                Texture: assets/image/Grass_Texture.png
-        - ClassName: Cube
-          Name: Cube12
-          Properties:
-            Position: [41.500244, 2.1143181, -10]
-            Size: [1, 3.2286363, 16]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: ObjectValue
-          Name: ObjectValue
-          Properties:
-            Value: Users\User
-        - ClassName: Cube
-          Name: Cube1
-          Properties:
-            Position: [-0.96932274, 1, 1.4414189]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Weld
-              Name: Weld
-              Properties:
-                Cube0: Cube1
-                Cube1: Cube2
-        - ClassName: Cube
-          Name: Cube14
-          Properties:
-            Position: [33, 2, -2]
-            Size: [1, 3.2286363, 16]
-            Rotation: [0, -0.7069341, 0, 0.70727944]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Rocket
-          Properties:
-            Position: [-4.542341, 1, -7.077483]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.3916592, 1, 0.21230769, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Force
-              Name: Force
-              Properties:
-                Enabled: true
-                Torque: false
-                MaintainVelocity: true
-                Value: [0, 10, 0]
-        - ClassName: Cube
-          Name: Cube7
-          Properties:
-            Position: [40.251728, 1.0099322, 10.073042]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0.8615384, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: BallSocket
-              Name: BallSocket
-              Properties:
-                Cube0: Cube7
-                Cube1: Cube8
-                Attachment0: Attachment
-                Attachment1: Attachment
-            - ClassName: Attachment
-              Name: Attachment
-              Properties:
-                Position: [0, 0.5, 0]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0, 1]
-        - ClassName: Truss
-          Name: Truss
-          Properties:
-            Position: [-3.6178303, 12.633546, 5.11372]
-            Size: [1, 24.267092, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.4276923, 0.4276923, 0.4276923, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Cube
-          Properties:
-            Position: [6.614261, 34.455994, 0.1996634]
-            Size: [1, 1, 1]
-            Rotation: [0.14565179, 0.44363645, 0.846377, 0.25616044]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Cube10
-          Properties:
-            Position: [25, 2, -10]
-            Size: [1, 3.2286363, 16]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Cube3
-          Properties:
-            Position: [-8.11783, 24.267092, 5.11372]
-            Size: [8, 1, 8]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Cube4
-          Properties:
-            Position: [2.4147403, 1, -4.1188874]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Motor
-              Name: Motor
-              Properties:
-                Cube0: Cube4
-                Cube1: Cube5
-                Attachment0: Attachment
-                Attachment1: Attachment
-                Axis: [0, 1, 0]
-                DriveVelocity: 1
-                MaxForce: 1000
-            - ClassName: Attachment
-              Name: Attachment
-              Properties:
-                Position: [0, 0.5, 0]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0.70710677, 0.70710677]
-        - ClassName: Cube
-          Name: Cube5
-          Properties:
-            Position: [2.4147403, 2.6421003, -4.1188874]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Attachment
-              Name: Attachment
-              Properties:
-                Position: [0, -0.5, 0]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, -0.70710677, 0.70710677]
-        - ClassName: Cube
-          Name: DamagePart
-          Properties:
-            Position: [25.527336, 0.625, 6.813034]
-            Size: [4, 0.25, 4]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0, 0, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Folder
-              Name: Folder
-            - ClassName: Script
-              Name: DamageScript
-              Properties:
-                ContentPath: scripts/DamageScript.luau
-                Enabled: true
-        - ClassName: Cube
-          Name: Jumper1
-          Properties:
-            Position: [-411.29907, -0.33188152, 29.32892]
-            Size: [200, 1, 40]
-            Rotation: [0, 0, 0.089232475, 0.99601084]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Jumper
-          Properties:
-            Position: [-213.93259, 8.508381, 29.32892]
-            Size: [200, 1, 40]
-            Rotation: [0, 0, -0.04428276, 0.999019]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Cube15
-          Properties:
-            Position: [37.025127, 3.5, -11.798359]
-            Size: [2, 1, 4]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 0.75
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Cube
-          Name: Cube6
-          Properties:
-            Position: [8.170935, 2.0406718, -20.80815]
-            Size: [1, 3.0813432, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: Animation
-          Name: Animation
-          Properties:
-            Length: 1
-            Speed: 0.5
-            Looped: false
-            Tracks:
-              - PartName: Cube6
-                Keyframes:
-                  - Time: 0
-                    Position: [8.170935, 2.0406718, -20.80815]
-                    Rotation: [0, 0, 0, 1]
-                    Easing: 0
-                  - Time: 0.17
-                    Position: [8.170935, 2.0406718, -20.80815]
-                    Rotation: [0.025090951, 0.04601596, -0.3416759, 0.93835527]
-                    Easing: 4
-                  - Time: 0.48
-                    Position: [8.170935, 2.0406718, -20.80815]
-                    Rotation: [0.00049867056, 0.00091475225, -0.0067918263, 0.9999764]
-                    Easing: 4
-                  - Time: 0.84
-                    Position: [8.170935, 2.0406718, -20.80815]
-                    Rotation: [-0.5937714, -0.0032998528, -0.0060063847, 0.8046046]
-                    Easing: 2
-                  - Time: 1
-                    Position: [8.170935, 2.0406718, -20.80815]
-                    Rotation: [0, 0, 0, 1]
-                    Easing: 1
-        - ClassName: Model
-          Name: Car
-          Properties:
-            Position: [0, 0, 0]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-          Children:
-            - ClassName: Cube
-              Name: Chassis
-              Properties:
-                Position: [7, 8, 33]
-                Size: [20, 2, 10]
-                Rotation: [0, 0, 0, 1]
-                Color: [0, 0, 1, 1]
-                Anchored: false
-                CanCollide: true
-                CastShadow: true
-                Unlit: false
-                MassDensity: 1
-                MaterialType: 0
-                StaticFriction: 0.5
-                DynamicFriction: 0.5
-                Restitution: 0.1
-              Children:
-                - ClassName: Motor
-                  Name: Motor
-                  Properties:
-                    Cube0: Car\Chassis
-                    Cube1: Car\Wheel
-                    Attachment0: Attachment
-                    Attachment1: Attachment
-                    Axis: [0, 0, 1]
-                    DriveVelocity: 5
-                    MaxForce: 1000
-                - ClassName: Motor
-                  Name: Motor2
-                  Properties:
-                    Cube0: Car\Chassis
-                    Cube1: Car\Wheel1
-                    Attachment0: Attachment3
-                    Attachment1: Attachment
-                    Axis: [0, 0, 1]
-                    DriveVelocity: 5
-                    MaxForce: 1000
-                - ClassName: Attachment
-                  Name: Attachment
-                  Properties:
-                    Position: [-7.75, -0.5, 5]
-                    Size: [0, 0, 0]
-                    Rotation: [0, 0, 0, 1]
-                - ClassName: Motor
-                  Name: Motor3
-                  Properties:
-                    Cube0: Car\Chassis
-                    Cube1: Car\Wheel3
-                    Attachment0: Attachment2
-                    Attachment1: Attachment
-                    Axis: [0, 0, 1]
-                    DriveVelocity: 5
-                    MaxForce: 1000
-                - ClassName: Attachment
-                  Name: Attachment1
-                  Properties:
-                    Position: [-7.75, -0.5, -5]
-                    Size: [0, 0, 0]
-                    Rotation: [0, 0, 0, 1]
-                - ClassName: Attachment
-                  Name: Attachment3
-                  Properties:
-                    Position: [8.25, -0.5, 5]
-                    Size: [0, 0, 0]
-                    Rotation: [0, 0, 0, 1]
-                - ClassName: Motor
-                  Name: Motor1
-                  Properties:
-                    Cube0: Car\Chassis
-                    Cube1: Car\Wheel2
-                    Attachment0: Attachment1
-                    Attachment1: Attachment
-                    Axis: [0, 0, 1]
-                    DriveVelocity: 5
-                    MaxForce: 1000
-                - ClassName: Attachment
-                  Name: Attachment2
-                  Properties:
-                    Position: [8.25, -0.5, -5]
-                    Size: [0, 0, 0]
-                    Rotation: [0, 0, 0, 1]
-            - ClassName: Cylinder
-              Name: Wheel1
-              Properties:
-                Position: [15.203148, 7.5, 39.5]
-                Size: [4, 1, 4]
-                Rotation: [0.70710677, 0, 0, 0.70710677]
-                Color: [0.35076922, 0.35076922, 0.35076922, 1]
-                Anchored: false
-                CanCollide: true
-                CastShadow: true
-                Unlit: false
-                MassDensity: 1
-                MaterialType: 0
-                StaticFriction: 0.5
-                DynamicFriction: 0.5
-                Restitution: 0.1
-              Children:
-                - ClassName: Attachment
-                  Name: Attachment
-                  Properties:
-                    Position: [0, -0.49999997, -2.9802322e-08]
-                    Size: [0, 0, 0]
-                    Rotation: [0, 0, 0, 1]
-            - ClassName: Cylinder
-              Name: Wheel
-              Properties:
-                Position: [-0.7968526, 7.5, 39.5]
-                Size: [4, 1, 4]
-                Rotation: [0.70710677, 0, 0, 0.70710677]
-                Color: [0.34901962, 0.34901962, 0.34901962, 0.98039216]
-                Anchored: false
-                CanCollide: true
-                CastShadow: true
-                Unlit: false
-                MassDensity: 1
-                MaterialType: 0
-                StaticFriction: 0.5
-                DynamicFriction: 0.5
-                Restitution: 0.1
-              Children:
-                - ClassName: Attachment
-                  Name: Attachment
-                  Properties:
-                    Position: [0, -0.49999997, -2.9802322e-08]
-                    Size: [0, 0, 0]
-                    Rotation: [0, 0, 0, 1]
-            - ClassName: Seat
-              Name: Seat
-              Properties:
-                Position: [6.103081, 9.5, 33.11529]
-                Size: [4, 1, 2]
-                Rotation: [0, 0.70710677, 0, 0.70710677]
-                Color: [0.2523077, 0.2523077, 0.2523077, 1]
-                Anchored: false
-                CanCollide: true
-                CastShadow: true
-                Unlit: false
-                MassDensity: 1
-                MaterialType: 0
-                StaticFriction: 0.5
-                DynamicFriction: 0.5
-                Restitution: 0.1
-              Children:
-                - ClassName: Weld
-                  Name: Weld
-                  Properties:
-                    Cube0: Car\Seat
-                    Cube1: Car\Chassis
-                - ClassName: Decal
-                  Name: Decal
-                  Properties:
-                    Face: 0
-                    UVCenter: [0.5, 0.5]
-                    UVRadius: 0.15
-                    Mode: 0
-            - ClassName: Cylinder
-              Name: Wheel3
-              Properties:
-                Position: [15.203148, 7.5, 25.5]
-                Size: [4, 1, 4]
-                Rotation: [0.70710677, 0, 0, 0.70710677]
-                Color: [0.35076922, 0.35076922, 0.35076922, 1]
-                Anchored: false
-                CanCollide: true
-                CastShadow: true
-                Unlit: false
-                MassDensity: 1
-                MaterialType: 0
-                StaticFriction: 0.5
-                DynamicFriction: 0.5
-                Restitution: 0.1
-              Children:
-                - ClassName: Attachment
-                  Name: Attachment
-                  Properties:
-                    Position: [0, 0.49999997, 2.9802322e-08]
-                    Size: [0, 0, 0]
-                    Rotation: [0, 0, 0, 1]
-            - ClassName: Cylinder
-              Name: Wheel2
-              Properties:
-                Position: [-0.7968526, 7.5, 25.5]
-                Size: [4, 1, 4]
-                Rotation: [0.70710677, 0, 0, 0.70710677]
-                Color: [0.35076922, 0.35076922, 0.35076922, 1]
-                Anchored: false
-                CanCollide: true
-                CastShadow: true
-                Unlit: false
-                MassDensity: 1
-                MaterialType: 0
-                StaticFriction: 0.5
-                DynamicFriction: 0.5
-                Restitution: 0.1
-              Children:
-                - ClassName: Attachment
-                  Name: Attachment
-                  Properties:
-                    Position: [0, 0.49999997, 2.9802322e-08]
-                    Size: [0, 0, 0]
-                    Rotation: [0, 0, 0, 1]
-        - ClassName: Cube
-          Name: Cube8
-          Properties:
-            Position: [40.251728, 2.8293927, 10.073042]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.7076924, 1, 0, 1]
-            Anchored: false
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-          Children:
-            - ClassName: Attachment
-              Name: Attachment
-              Properties:
-                Position: [0, -0.5, 0]
-                Size: [0, 0, 0]
-                Rotation: [0, 0, 0, 1]
-        - ClassName: Cube
-          Name: Cube9
-          Properties:
-            Position: [41.18279, 2.5, 48.33006]
-            Size: [4, 4, 4]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 0.5019608]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-        - ClassName: LiquidCube
-          Name: LiquidCube
-          Properties:
-            Position: [33, 1, -10]
-            Size: [16, 4, 16]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.2, 0.5, 0.9, 0.5]
-            Anchored: true
-            CanCollide: false
-            CastShadow: false
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Density: 1
-        - ClassName: Cube
-          Name: Cube13
-          Properties:
-            Position: [33, 2.1143181, -18.503906]
-            Size: [1, 3.2286363, 16]
-            Rotation: [0, -0.7069341, 0, 0.70727944]
-            Color: [1, 1, 1, 1]
-            Anchored: true
-            CanCollide: true
-            CastShadow: true
-            Unlit: false
-            MassDensity: 1
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-    - ClassName: AppImage
-      Name: AppImage
+        Position:
+        - -1.5
+        - 0
+        - 0
+        Size:
+        - 1
+        - 2
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        LockFlags: []
+    - ClassName: Humanoid
+      Name: Humanoid
       Properties:
-        IconPath: assets/image/the-cat.png
-    - ClassName: PathfindingService
-      Name: PathfindingService
+        WalkSpeed: 24
+        JumpPower: 50
+        ClimbSpeed: 5
+        JumpHeight: 6.3710494
+        MaxHealth: 100
+        RespawnTime: 5
+        Health: 100
+    - ClassName: Cube
+      Name: RightArm
+      Properties:
+        Position:
+        - 1.5
+        - 0
+        - 0
+        Size:
+        - 1
+        - 2
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        LockFlags: []
+    - ClassName: Cube
+      Name: Root
+      Properties:
+        Position:
+        - 0
+        - 5.411
+        - 0
+        Size:
+        - 2
+        - 4
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.13333334
+        - 0.52156866
+        - 0.6509804
+        - 0
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        LockFlags: []
+    - ClassName: Cube
+      Name: LeftLeg
+      Properties:
+        Position:
+        - -0.5
+        - -2
+        - 0
+        Size:
+        - 1
+        - 2
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0
+        - 0.14
+        - 0.32
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        LockFlags: []
+    - ClassName: Sphere
+      Name: Head
+      Properties:
+        Position:
+        - 0
+        - 1.5415881
+        - 0
+        Size:
+        - 1.25
+        - 1.25
+        - 1.25
+        Rotation:
+        - 0.003965542
+        - 1.7881531e-08
+        - 9.582263e-07
+        - 0.99999213
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        LockFlags: []
+      Children:
+      - ClassName: Decal
+        Name: Decal_Front
+        Properties:
+          Face: 0
+          Texture: assets/image/hooo.png
+          UVCenter:
+          - 0.5
+          - 0.5
+          UVRadius: 0.15
+          Mode: 0
+    - ClassName: Cube
+      Name: RightLeg
+      Properties:
+        Position:
+        - 0.5
+        - -2
+        - 0
+        Size:
+        - 1
+        - 2
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0
+        - 0.14
+        - 0.32
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        LockFlags: []
+    - ClassName: MeshCube
+      Name: Hair
+      Properties:
+        Position:
+        - 0
+        - 0.509
+        - 0.151
+        Size:
+        - 4
+        - 4
+        - 4
+        Rotation:
+        - -9.099629e-07
+        - 1
+        - -9.099629e-07
+        - -4.371056e-08
+        Color:
+        - 0.3569231
+        - 0.3569231
+        - 0.3569231
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        MeshFile: assets/models/hair-Curuata.glb
+      Children:
+      - ClassName: Weld
+        Name: Weld
+        Properties:
+          Cube0: StarterCharacter\Hair
+          Cube1: StarterCharacter\Head
+    - ClassName: MeshCube
+      Name: Torso
+      Properties:
+        Position:
+        - 0
+        - 0
+        - 0
+        Size:
+        - 2
+        - 1.985
+        - 2
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.14509805
+        - 0.4862745
+        - 0.47058824
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        MeshFile: assets/models/GirlTorso.glb
+        LockFlags: []
+      Children:
+      - ClassName: Decal
+        Name: Decal
+        Properties:
+          Face: 0
+          Texture: ''
+          UVCenter:
+          - 0.2
+          - 0.7
+          UVRadius: 0.4
+          Mode: 1
+    - ClassName: Script
+      Name: KeyframeCheck
+      Properties:
+        ContentPath: scripts/KeyframeCheck.luau
+        Enabled: true
+    - ClassName: Animation
+      Name: Animation
+      Properties:
+        Length: 1.66
+        Speed: 1
+        Looped: true
+        Tracks:
+        - PartName: Head
+          Keyframes:
+          - Time: 0
+            Position:
+            - 0
+            - 2.5
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+            Easing: 0
+          - Time: 0.33
+            Position:
+            - 1.5
+            - 2.5
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+            Easing: 3
+          - Time: 0.66
+            Position:
+            - 0
+            - 2.5
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+            Easing: 2
+          - Time: 1
+            Position:
+            - 0
+            - 2.5
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+            Easing: 3
+          - Time: 1.33
+            Position:
+            - -1.5
+            - 2.5
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+            Easing: 2
+          - Time: 1.66
+            Position:
+            - 0
+            - 2.5
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+            Easing: 3
+    - ClassName: Motor6D
+      Name: RootJoint
+      Properties:
+        Part0: StarterCharacter\Root
+        Part1: StarterCharacter\Torso
+        C0:
+          Position:
+          - 0.0
+          - -5.411
+          - 0.0
+          Rotation:
+          - 0.0
+          - 0.0
+          - 0.0
+          - 1.0
+        C1:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Transform:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Frequency: 10
+        DampingRatio: 1
+    - ClassName: BallSocket
+      Name: RootJointRagdoll
+      Properties:
+        Cube0: StarterCharacter\Root
+        Cube1: StarterCharacter\Torso
+        Enabled: false
+    - ClassName: Motor6D
+      Name: Neck
+      Properties:
+        Part0: StarterCharacter\Torso
+        Part1: StarterCharacter\Head
+        C0:
+          Position:
+          - 0.0
+          - 1.5415881
+          - 0.0
+          Rotation:
+          - 0.0039655420285792465
+          - 1.7881531128870326e-08
+          - 9.582263069058369e-07
+          - 0.9999921372068388
+        C1:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Transform:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Frequency: 10
+        DampingRatio: 1
+    - ClassName: BallSocket
+      Name: NeckRagdoll
+      Properties:
+        Cube0: StarterCharacter\Torso
+        Cube1: StarterCharacter\Head
+        Enabled: false
+    - ClassName: Motor6D
+      Name: LeftShoulder
+      Properties:
+        Part0: StarterCharacter\Torso
+        Part1: StarterCharacter\LeftArm
+        C0:
+          Position:
+          - -1.5
+          - 0.0
+          - 0.0
+          Rotation:
+          - 0.0
+          - 0.0
+          - 0.0
+          - 1.0
+        C1:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Transform:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Frequency: 10
+        DampingRatio: 1
+    - ClassName: BallSocket
+      Name: LeftShoulderRagdoll
+      Properties:
+        Cube0: StarterCharacter\Torso
+        Cube1: StarterCharacter\LeftArm
+        Enabled: false
+    - ClassName: Motor6D
+      Name: RightShoulder
+      Properties:
+        Part0: StarterCharacter\Torso
+        Part1: StarterCharacter\RightArm
+        C0:
+          Position:
+          - 1.5
+          - 0.0
+          - 0.0
+          Rotation:
+          - 0.0
+          - 0.0
+          - 0.0
+          - 1.0
+        C1:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Transform:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Frequency: 10
+        DampingRatio: 1
+    - ClassName: BallSocket
+      Name: RightShoulderRagdoll
+      Properties:
+        Cube0: StarterCharacter\Torso
+        Cube1: StarterCharacter\RightArm
+        Enabled: false
+    - ClassName: Motor6D
+      Name: LeftHip
+      Properties:
+        Part0: StarterCharacter\Torso
+        Part1: StarterCharacter\LeftLeg
+        C0:
+          Position:
+          - -0.5
+          - -2.0
+          - 0.0
+          Rotation:
+          - 0.0
+          - 0.0
+          - 0.0
+          - 1.0
+        C1:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Transform:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Frequency: 10
+        DampingRatio: 1
+    - ClassName: BallSocket
+      Name: LeftHipRagdoll
+      Properties:
+        Cube0: StarterCharacter\Torso
+        Cube1: StarterCharacter\LeftLeg
+        Enabled: false
+    - ClassName: Motor6D
+      Name: RightHip
+      Properties:
+        Part0: StarterCharacter\Torso
+        Part1: StarterCharacter\RightLeg
+        C0:
+          Position:
+          - 0.5
+          - -2.0
+          - 0.0
+          Rotation:
+          - 0.0
+          - 0.0
+          - 0.0
+          - 1.0
+        C1:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Transform:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Frequency: 10
+        DampingRatio: 1
+    - ClassName: BallSocket
+      Name: RightHipRagdoll
+      Properties:
+        Cube0: StarterCharacter\Torso
+        Cube1: StarterCharacter\RightLeg
+        Enabled: false
+    - ClassName: Gyro
+      Name: RootGyro
+      Properties:
+        Part: StarterCharacter\Root
+        TargetRotation:
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        Frequency: 8
+        DampingRatio: 1
+        MaxTorque: 10000
+  - ClassName: Users
+    Name: Users
+    Children:
+    - ClassName: User
+      Name: User
+      Properties:
+        ControlMode: Free
+        Speed: 0.25
+        RotationSpeed: 1
+        MouseRotationSpeed: 0.15
+        CameraDistance: 10
+        ZoomSpeed: 0.1
+        MouseZoomSpeed: 1
+      Children:
+      - ClassName: Folder
+        Name: Inventory
+  - ClassName: Workspace
+    Name: Workspace
+    Properties:
+      Gravity:
+      - 0
+      - -196.20001
+      - 0
+      Wind:
+      - 0
+      - 0
+      - 0
+      PhysicsEnabled: true
+    Children:
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction:
+        - 1
+        - -1
+        - -1
+        Brightness: 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+    - ClassName: Cube
+      Name: Spinner
+      Properties:
+        Position:
+        - -2.791353
+        - 1
+        - -3.5121393
+        Size:
+        - 1
+        - 1
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0
+        - 0.953846
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+      Children:
+      - ClassName: Force
+        Name: Force
+        Properties:
+          Enabled: true
+          Torque: true
+          MaintainVelocity: true
+          Value:
+          - 0
+          - 25
+          - 0
+    - ClassName: Cube
+      Name: Cube11
+      Properties:
+        Position:
+        - 41.20535
+        - 8.204606
+        - 48.33006
+        Size:
+        - 2
+        - 2
+        - 2
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 0
+        - 0.8861542
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+      Children:
+      - ClassName: NoCollision
+        Name: NoCollision
+        Properties:
+          Cube0: Cube11
+          Cube1: Cube9
+    - ClassName: Cube
+      Name: Cube2
+      Properties:
+        Position:
+        - 2.6748984
+        - 1
+        - 1.7505639
+        Size:
+        - 1
+        - 1
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: Baseplate
+      Properties:
+        Position:
+        - 0
+        - 0
+        - 0
+        Size:
+        - 2048
+        - 1
+        - 2048
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.41230768
+        - 0.40342718
+        - 0
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+      Children:
+      - ClassName: Texture
+        Name: Texture
+        Properties:
+          Face: 2
+          Color:
+          - 1
+          - 0.60923076
+          - 0
+          - 1
+          StudsPerTileU: 1
+          StudsPerTileV: 1
+          Texture: assets/image/Grass_Texture.png
+    - ClassName: Cube
+      Name: Cube12
+      Properties:
+        Position:
+        - 41.500244
+        - 2.1143181
+        - -10
+        Size:
+        - 1
+        - 3.2286363
+        - 16
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: ObjectValue
+      Name: ObjectValue
+      Properties:
+        Value: Users\User
+    - ClassName: Cube
+      Name: Cube1
+      Properties:
+        Position:
+        - -0.96932274
+        - 1
+        - 1.4414189
+        Size:
+        - 1
+        - 1
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+      Children:
+      - ClassName: Weld
+        Name: Weld
+        Properties:
+          Cube0: Cube1
+          Cube1: Cube2
+    - ClassName: Cube
+      Name: Cube14
+      Properties:
+        Position:
+        - 33
+        - 2
+        - -2
+        Size:
+        - 1
+        - 3.2286363
+        - 16
+        Rotation:
+        - 0
+        - -0.7069341
+        - 0
+        - 0.70727944
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: Rocket
+      Properties:
+        Position:
+        - -4.542341
+        - 1
+        - -7.077483
+        Size:
+        - 1
+        - 1
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.3916592
+        - 1
+        - 0.21230769
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+      Children:
+      - ClassName: Force
+        Name: Force
+        Properties:
+          Enabled: true
+          Torque: false
+          MaintainVelocity: true
+          Value:
+          - 0
+          - 10
+          - 0
+    - ClassName: Cube
+      Name: Cube7
+      Properties:
+        Position:
+        - 40.251728
+        - 1.0099322
+        - 10.073042
+        Size:
+        - 1
+        - 1
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0
+        - 0.8615384
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+      Children:
+      - ClassName: BallSocket
+        Name: BallSocket
+        Properties:
+          Cube0: Cube7
+          Cube1: Cube8
+          Attachment0: Attachment
+          Attachment1: Attachment
+      - ClassName: Attachment
+        Name: Attachment
+        Properties:
+          Position:
+          - 0
+          - 0.5
+          - 0
+          Size:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+    - ClassName: Truss
+      Name: Truss
+      Properties:
+        Position:
+        - -3.6178303
+        - 12.633546
+        - 5.11372
+        Size:
+        - 1
+        - 24.267092
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.4276923
+        - 0.4276923
+        - 0.4276923
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: Cube
+      Properties:
+        Position:
+        - 6.614261
+        - 34.455994
+        - 0.1996634
+        Size:
+        - 1
+        - 1
+        - 1
+        Rotation:
+        - 0.14565179
+        - 0.44363645
+        - 0.846377
+        - 0.25616044
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: Cube10
+      Properties:
+        Position:
+        - 25
+        - 2
+        - -10
+        Size:
+        - 1
+        - 3.2286363
+        - 16
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: Cube3
+      Properties:
+        Position:
+        - -8.11783
+        - 24.267092
+        - 5.11372
+        Size:
+        - 8
+        - 1
+        - 8
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: Cube4
+      Properties:
+        Position:
+        - 2.4147403
+        - 1
+        - -4.1188874
+        Size:
+        - 1
+        - 1
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+      Children:
+      - ClassName: Motor
+        Name: Motor
+        Properties:
+          Cube0: Cube4
+          Cube1: Cube5
+          Attachment0: Attachment
+          Attachment1: Attachment
+          Axis:
+          - 0
+          - 1
+          - 0
+          DriveVelocity: 1
+          MaxForce: 1000
+      - ClassName: Attachment
+        Name: Attachment
+        Properties:
+          Position:
+          - 0
+          - 0.5
+          - 0
+          Size:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0.70710677
+          - 0.70710677
+    - ClassName: Cube
+      Name: Cube5
+      Properties:
+        Position:
+        - 2.4147403
+        - 2.6421003
+        - -4.1188874
+        Size:
+        - 1
+        - 1
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+      Children:
+      - ClassName: Attachment
+        Name: Attachment
+        Properties:
+          Position:
+          - 0
+          - -0.5
+          - 0
+          Size:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - -0.70710677
+          - 0.70710677
+    - ClassName: Cube
+      Name: DamagePart
+      Properties:
+        Position:
+        - 25.527336
+        - 0.625
+        - 6.813034
+        Size:
+        - 4
+        - 0.25
+        - 4
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 0
+        - 0
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+      Children:
+      - ClassName: Folder
+        Name: Folder
+      - ClassName: Script
+        Name: DamageScript
+        Properties:
+          ContentPath: scripts/DamageScript.luau
+          Enabled: true
+    - ClassName: Cube
+      Name: Jumper1
+      Properties:
+        Position:
+        - -411.29907
+        - -0.33188152
+        - 29.32892
+        Size:
+        - 200
+        - 1
+        - 40
+        Rotation:
+        - 0
+        - 0
+        - 0.089232475
+        - 0.99601084
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: Jumper
+      Properties:
+        Position:
+        - -213.93259
+        - 8.508381
+        - 29.32892
+        Size:
+        - 200
+        - 1
+        - 40
+        Rotation:
+        - 0
+        - 0
+        - -0.04428276
+        - 0.999019
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: Cube15
+      Properties:
+        Position:
+        - 37.025127
+        - 3.5
+        - -11.798359
+        Size:
+        - 2
+        - 1
+        - 4
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 0.75
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: Cube6
+      Properties:
+        Position:
+        - 8.170935
+        - 2.0406718
+        - -20.80815
+        Size:
+        - 1
+        - 3.0813432
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Animation
+      Name: Animation
+      Properties:
+        Length: 1
+        Speed: 0.5
+        Looped: false
+        Tracks:
+        - PartName: Cube6
+          Keyframes:
+          - Time: 0
+            Position:
+            - 8.170935
+            - 2.0406718
+            - -20.80815
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+            Easing: 0
+          - Time: 0.17
+            Position:
+            - 8.170935
+            - 2.0406718
+            - -20.80815
+            Rotation:
+            - 0.025090951
+            - 0.04601596
+            - -0.3416759
+            - 0.93835527
+            Easing: 4
+          - Time: 0.48
+            Position:
+            - 8.170935
+            - 2.0406718
+            - -20.80815
+            Rotation:
+            - 0.00049867056
+            - 0.00091475225
+            - -0.0067918263
+            - 0.9999764
+            Easing: 4
+          - Time: 0.84
+            Position:
+            - 8.170935
+            - 2.0406718
+            - -20.80815
+            Rotation:
+            - -0.5937714
+            - -0.0032998528
+            - -0.0060063847
+            - 0.8046046
+            Easing: 2
+          - Time: 1
+            Position:
+            - 8.170935
+            - 2.0406718
+            - -20.80815
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+            Easing: 1
+    - ClassName: Model
+      Name: Car
+      Properties:
+        Position:
+        - 0
+        - 0
+        - 0
+        Size:
+        - 1
+        - 1
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+      Children:
+      - ClassName: Cube
+        Name: Chassis
+        Properties:
+          Position:
+          - 7
+          - 8
+          - 33
+          Size:
+          - 20
+          - 2
+          - 10
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+          Color:
+          - 0
+          - 0
+          - 1
+          - 1
+          Anchored: false
+          CanCollide: true
+          CastShadow: true
+          Unlit: false
+          MassDensity: 1
+          MaterialType: 0
+          StaticFriction: 0.5
+          DynamicFriction: 0.5
+          Restitution: 0.1
+        Children:
+        - ClassName: Motor
+          Name: Motor
+          Properties:
+            Cube0: Car\Chassis
+            Cube1: Car\Wheel
+            Attachment0: Attachment
+            Attachment1: Attachment
+            Axis:
+            - 0
+            - 0
+            - 1
+            DriveVelocity: 5
+            MaxForce: 1000
+        - ClassName: Motor
+          Name: Motor2
+          Properties:
+            Cube0: Car\Chassis
+            Cube1: Car\Wheel1
+            Attachment0: Attachment3
+            Attachment1: Attachment
+            Axis:
+            - 0
+            - 0
+            - 1
+            DriveVelocity: 5
+            MaxForce: 1000
+        - ClassName: Attachment
+          Name: Attachment
+          Properties:
+            Position:
+            - -7.75
+            - -0.5
+            - 5
+            Size:
+            - 0
+            - 0
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+        - ClassName: Motor
+          Name: Motor3
+          Properties:
+            Cube0: Car\Chassis
+            Cube1: Car\Wheel3
+            Attachment0: Attachment2
+            Attachment1: Attachment
+            Axis:
+            - 0
+            - 0
+            - 1
+            DriveVelocity: 5
+            MaxForce: 1000
+        - ClassName: Attachment
+          Name: Attachment1
+          Properties:
+            Position:
+            - -7.75
+            - -0.5
+            - -5
+            Size:
+            - 0
+            - 0
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+        - ClassName: Attachment
+          Name: Attachment3
+          Properties:
+            Position:
+            - 8.25
+            - -0.5
+            - 5
+            Size:
+            - 0
+            - 0
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+        - ClassName: Motor
+          Name: Motor1
+          Properties:
+            Cube0: Car\Chassis
+            Cube1: Car\Wheel2
+            Attachment0: Attachment1
+            Attachment1: Attachment
+            Axis:
+            - 0
+            - 0
+            - 1
+            DriveVelocity: 5
+            MaxForce: 1000
+        - ClassName: Attachment
+          Name: Attachment2
+          Properties:
+            Position:
+            - 8.25
+            - -0.5
+            - -5
+            Size:
+            - 0
+            - 0
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+      - ClassName: Cylinder
+        Name: Wheel1
+        Properties:
+          Position:
+          - 15.203148
+          - 7.5
+          - 39.5
+          Size:
+          - 4
+          - 1
+          - 4
+          Rotation:
+          - 0.70710677
+          - 0
+          - 0
+          - 0.70710677
+          Color:
+          - 0.35076922
+          - 0.35076922
+          - 0.35076922
+          - 1
+          Anchored: false
+          CanCollide: true
+          CastShadow: true
+          Unlit: false
+          MassDensity: 1
+          MaterialType: 0
+          StaticFriction: 0.5
+          DynamicFriction: 0.5
+          Restitution: 0.1
+        Children:
+        - ClassName: Attachment
+          Name: Attachment
+          Properties:
+            Position:
+            - 0
+            - -0.49999997
+            - -2.9802322e-08
+            Size:
+            - 0
+            - 0
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+      - ClassName: Cylinder
+        Name: Wheel
+        Properties:
+          Position:
+          - -0.7968526
+          - 7.5
+          - 39.5
+          Size:
+          - 4
+          - 1
+          - 4
+          Rotation:
+          - 0.70710677
+          - 0
+          - 0
+          - 0.70710677
+          Color:
+          - 0.34901962
+          - 0.34901962
+          - 0.34901962
+          - 0.98039216
+          Anchored: false
+          CanCollide: true
+          CastShadow: true
+          Unlit: false
+          MassDensity: 1
+          MaterialType: 0
+          StaticFriction: 0.5
+          DynamicFriction: 0.5
+          Restitution: 0.1
+        Children:
+        - ClassName: Attachment
+          Name: Attachment
+          Properties:
+            Position:
+            - 0
+            - -0.49999997
+            - -2.9802322e-08
+            Size:
+            - 0
+            - 0
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+      - ClassName: Seat
+        Name: Seat
+        Properties:
+          Position:
+          - 6.103081
+          - 9.5
+          - 33.11529
+          Size:
+          - 4
+          - 1
+          - 2
+          Rotation:
+          - 0
+          - 0.70710677
+          - 0
+          - 0.70710677
+          Color:
+          - 0.2523077
+          - 0.2523077
+          - 0.2523077
+          - 1
+          Anchored: false
+          CanCollide: true
+          CastShadow: true
+          Unlit: false
+          MassDensity: 1
+          MaterialType: 0
+          StaticFriction: 0.5
+          DynamicFriction: 0.5
+          Restitution: 0.1
+        Children:
+        - ClassName: Weld
+          Name: Weld
+          Properties:
+            Cube0: Car\Seat
+            Cube1: Car\Chassis
+        - ClassName: Decal
+          Name: Decal
+          Properties:
+            Face: 0
+            UVCenter:
+            - 0.5
+            - 0.5
+            UVRadius: 0.15
+            Mode: 0
+      - ClassName: Cylinder
+        Name: Wheel3
+        Properties:
+          Position:
+          - 15.203148
+          - 7.5
+          - 25.5
+          Size:
+          - 4
+          - 1
+          - 4
+          Rotation:
+          - 0.70710677
+          - 0
+          - 0
+          - 0.70710677
+          Color:
+          - 0.35076922
+          - 0.35076922
+          - 0.35076922
+          - 1
+          Anchored: false
+          CanCollide: true
+          CastShadow: true
+          Unlit: false
+          MassDensity: 1
+          MaterialType: 0
+          StaticFriction: 0.5
+          DynamicFriction: 0.5
+          Restitution: 0.1
+        Children:
+        - ClassName: Attachment
+          Name: Attachment
+          Properties:
+            Position:
+            - 0
+            - 0.49999997
+            - 2.9802322e-08
+            Size:
+            - 0
+            - 0
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+      - ClassName: Cylinder
+        Name: Wheel2
+        Properties:
+          Position:
+          - -0.7968526
+          - 7.5
+          - 25.5
+          Size:
+          - 4
+          - 1
+          - 4
+          Rotation:
+          - 0.70710677
+          - 0
+          - 0
+          - 0.70710677
+          Color:
+          - 0.35076922
+          - 0.35076922
+          - 0.35076922
+          - 1
+          Anchored: false
+          CanCollide: true
+          CastShadow: true
+          Unlit: false
+          MassDensity: 1
+          MaterialType: 0
+          StaticFriction: 0.5
+          DynamicFriction: 0.5
+          Restitution: 0.1
+        Children:
+        - ClassName: Attachment
+          Name: Attachment
+          Properties:
+            Position:
+            - 0
+            - 0.49999997
+            - 2.9802322e-08
+            Size:
+            - 0
+            - 0
+            - 0
+            Rotation:
+            - 0
+            - 0
+            - 0
+            - 1
+    - ClassName: Cube
+      Name: Cube8
+      Properties:
+        Position:
+        - 40.251728
+        - 2.8293927
+        - 10.073042
+        Size:
+        - 1
+        - 1
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.7076924
+        - 1
+        - 0
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+      Children:
+      - ClassName: Attachment
+        Name: Attachment
+        Properties:
+          Position:
+          - 0
+          - -0.5
+          - 0
+          Size:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+    - ClassName: Cube
+      Name: Cube9
+      Properties:
+        Position:
+        - 41.18279
+        - 2.5
+        - 48.33006
+        Size:
+        - 4
+        - 4
+        - 4
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 0.5019608
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: LiquidCube
+      Name: LiquidCube
+      Properties:
+        Position:
+        - 33
+        - 1
+        - -10
+        Size:
+        - 16
+        - 4
+        - 16
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.2
+        - 0.5
+        - 0.9
+        - 0.5
+        Anchored: true
+        CanCollide: false
+        CastShadow: false
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        Density: 1
+    - ClassName: Cube
+      Name: Cube13
+      Properties:
+        Position:
+        - 33
+        - 2.1143181
+        - -18.503906
+        Size:
+        - 1
+        - 3.2286363
+        - 16
+        Rotation:
+        - 0
+        - -0.7069341
+        - 0
+        - 0.70727944
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+  - ClassName: AppImage
+    Name: AppImage
+    Properties:
+      IconPath: assets/image/the-cat.png
+  - ClassName: PathfindingService
+    Name: PathfindingService

@@ -11,6 +11,8 @@ class Physics;   // Forward declaration
 class AnimationClip;
 class Seat;      // Forward declaration
 class Weld;      // Forward declaration
+class Gyro;
+class Motor6D;
 
 // ==================================================================
 //  Humanoid
@@ -69,6 +71,7 @@ public:
 
     // ネットワーク予測用。通常の兄弟パーツ解決ではresolveParts()を使う
     void setRootPart(const std::shared_ptr<BaseCube>& root);
+    void setRootGyro(const std::shared_ptr<Gyro>& gyro);
 
     // WASD相当の入力を受けて移動・回転・歩行アニメ・接地判定・身体パーツの再配置を行う
     // flatForward/flatRight: カメラ由来の水平方向ベクトル, targetMoveDir: 押下キーから求めた移動方向(未押下なら長さ0)
@@ -182,6 +185,7 @@ private:
     std::weak_ptr<BaseCube> m_rightArm;
     std::weak_ptr<BaseCube> m_leftLeg;
     std::weak_ptr<BaseCube> m_rightLeg;
+    std::weak_ptr<Gyro> m_rootGyro;
 
     // --- Seat(着席) ---
     bool m_seated = false;
@@ -213,4 +217,6 @@ private:
 
     Pose computePose(bool leftArmRaised, bool rightArmRaised) const;
     const AnimationClip& resolveWalkClip() const;
+    std::shared_ptr<Motor6D> findJointMotor(const std::string& jointName) const;
+    void setJointTransform(const std::string& jointName, const CFrame& transform);
 };

@@ -3,6 +3,9 @@
 #include <Instances/Cube.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/Animation.hpp>
+#include <Instances/BallSocket.hpp>
+#include <Instances/Gyro.hpp>
+#include <Instances/Motor6D.hpp>
 #include <Math/Quaternion.hpp>
 #include <Util/Color4.hpp>
 
@@ -23,8 +26,33 @@ const R6JointBinding* findR6Joint(const std::string& name) {
     for (const auto& b : r6JointBindings()) if (b.jointName == name) return &b;
     return nullptr;
 }
+const std::vector<R6JointTopology>& r6JointTopology() {
+    static const std::vector<R6JointTopology> topology = {
+        {"RootJoint", "Root", "Torso"},
+        {"Neck", "Torso", "Head"},
+        {"LeftShoulder", "Torso", "LeftArm"},
+        {"RightShoulder", "Torso", "RightArm"},
+        {"LeftHip", "Torso", "LeftLeg"},
+        {"RightHip", "Torso", "RightLeg"},
+    };
+    return topology;
+}
+const R6JointTopology* findR6JointTopology(const std::string& name) {
+    for (const auto& joint : r6JointTopology())
+        if (joint.jointName == name) return &joint;
+    return nullptr;
+}
 CFrame applyR6Joint(const CFrame& root, const R6JointBinding& binding, const CFrame& delta) {
     return root * binding.rootToJoint * delta * binding.jointToPartBind;
+}
+CFrame applyMotor6D(const CFrame& part0, const CFrame& c0,
+                    const CFrame& transform, const CFrame& c1) {
+    return part0 * c0 * transform * c1.inverse();
+}
+void calculateMotor6DBind(const CFrame& part0, const CFrame& part1,
+                          CFrame& c0, CFrame& c1) {
+    c0 = part0.inverse() * part1;
+    c1 = CFrame();
 }
 
 void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3& basePos) {
@@ -56,10 +84,11 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3
     leftLeg->Name  = "LeftLeg";
     rightLeg->Name = "RightLeg";
 
-    head->Anchored = torso->Anchored = leftArm->Anchored = rightArm->Anchored = leftLeg->Anchored = rightLeg->Anchored = true;
+    root->Anchored = head->Anchored = torso->Anchored = leftArm->Anchored = rightArm->Anchored = leftLeg->Anchored = rightLeg->Anchored = false;
+    root->CanCollide = true;
     head->CanCollide = torso->CanCollide = leftArm->CanCollide = rightArm->CanCollide = leftLeg->CanCollide = rightLeg->CanCollide = false;
 
-    root->LockFlags = PhysicsLockFlags::AngularX | PhysicsLockFlags::AngularZ;
+    root->LockFlags = PhysicsLockFlags::None;
     root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // NOTE: physics root は非表示 (alpha=0)
 
     torso->Color    = Color4::FromRGB(100, 12, 32);
@@ -81,12 +110,44 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3
     parent->addChild(rightLeg);
     parent->addChild(walkAnimation);
 
+    // Establish the visible bind pose before deriving Motor6D bind frames.
+    for (const auto& binding : r6JointBindings()) {
+        auto part = std::dynamic_pointer_cast<BaseCube>(parent->getChildren().at(binding.partName));
+        part->setWorldCFrame(applyR6Joint(root->getWorldCFrame(), binding, CFrame()));
+    }
+
+    for (const auto& topology : r6JointTopology()) {
+        auto part0 = std::dynamic_pointer_cast<BaseCube>(parent->getChildren().at(topology.part0Name));
+        auto part1 = std::dynamic_pointer_cast<BaseCube>(parent->getChildren().at(topology.part1Name));
+        auto motor = std::make_shared<Motor6D>();
+        motor->Name = topology.jointName;
+        motor->setPart0(part0);
+        motor->setPart1(part1);
+        CFrame c0;
+        CFrame c1;
+        calculateMotor6DBind(part0->getWorldCFrame(), part1->getWorldCFrame(), c0, c1);
+        motor->setC0(c0);
+        motor->setC1(c1);
+        motor->setTransform(CFrame());
+        parent->addChild(motor);
+
+        auto ragdoll = std::make_shared<BallSocket>(part0, part1);
+        ragdoll->Name = topology.jointName + "Ragdoll";
+        ragdoll->Enabled = false;
+        parent->addChild(ragdoll);
+    }
+
+    auto gyro = std::make_shared<Gyro>();
+    gyro->Name = "RootGyro";
+    gyro->setPart(root);
+    gyro->setTargetRotation(root->getWorldCFrame().Rotation);
+    parent->addChild(gyro);
+
     // 参照は全ての兄弟がparentへ接続された後に設定し、
     // YAMLとclone remapで使えるparent相対パスも同時に確定させる。
     humanoid->setWalkAnimation(walkAnimation);
 
     humanoid->resolveParts(parent.get());
-    humanoid->applyBodyAnimation(false, false);
 }
 
 } // namespace CharacterRig

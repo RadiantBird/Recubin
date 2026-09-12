@@ -77,7 +77,6 @@
 #include <yaml-cpp/yaml.h>
 #include "include/stb_image.h"
 
-#include <PhysX/PxPhysicsAPI.h>
 #include <memory>
 
 #include <Math/Quaternion.hpp>
@@ -1002,6 +1001,12 @@ int main(int argc, char* argv[]) {
             // This wakes on any GLFW event (input, resize, close, etc.) and
             // otherwise gives us one low-FPS refresh to keep the UI alive.
             glfwWaitEventsTimeout(editorIdleFrameSeconds);
+        }
+        
+        // don't delete just comment-out it
+        if (glfwGetKey(window, GLFW_KEY_F12) == GLFW_PRESS) {
+            std::cout << "F12 emergency stop DD:\n";
+            std::abort();
         }
 
         if (glfwWindowShouldClose(window)) {

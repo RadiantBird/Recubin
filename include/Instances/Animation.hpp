@@ -18,7 +18,7 @@ using Keyframe = AnimationClipKeyframe;
 using AnimTrack = AnimationClipTrack;
 
 enum class AnimationSource {
-    LegacyEmbedded,
+    Embedded,
     File,
     BuiltIn
 };
@@ -76,14 +76,13 @@ public:
     // 保存参照は書き換えず、この実行中だけ内蔵Clipを返す。
     const AnimationClip& resolveR6WalkClip() const;
 
-    // 単体の .yaml ファイルへ書き出す/読み込む（シーンとは独立した再利用用）。
-    // 成功時 true を返す（失敗はリターンコードで扱い、例外は投げない）。
+    // Editorの.rcanimファイル操作。旧単体Animation YAMLは受け付けない。
     bool exportToFile(const std::string& path) const;
     bool importFromFile(const std::string& path);
 
 private:
     std::unique_ptr<AnimationClip> m_clip;
-    AnimationSource m_source = AnimationSource::LegacyEmbedded;
+    AnimationSource m_source = AnimationSource::Embedded;
     AnimationClipLoadStatus m_loadStatus = AnimationClipLoadStatus::Success;
     std::string m_loadMessage;
     mutable bool m_usingBuiltInFallback = false;

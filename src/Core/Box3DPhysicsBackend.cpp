@@ -6,6 +6,8 @@
 #include <include/Instances/Force.hpp>
 #include <include/Instances/LiquidCube.hpp>
 #include <include/Instances/Motor.hpp>
+#include <include/Instances/Motor6D.hpp>
+#include <include/Instances/Gyro.hpp>
 #include <include/Instances/NoCollision.hpp>
 #include <include/Instances/Rod.hpp>
 #include <include/Instances/Rope.hpp>
@@ -882,6 +884,12 @@ void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
         } else if (value->IsA("Motor")) {
             auto c = std::static_pointer_cast<Motor>(value);
             first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        } else if (value->IsA("Motor6D")) {
+            auto c = std::static_pointer_cast<Motor6D>(value);
+            first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        } else if (value->IsA("Gyro")) {
+            auto c = std::static_pointer_cast<Gyro>(value);
+            first = c->m_cube0.lock();
         }
         if (first == cube || second == cube) attachedConstraints.push_back(value);
     }
@@ -976,6 +984,9 @@ void Box3DPhysicsBackend::clearCubes() {
         if (auto value = entry.constraint.lock()) clearConstraintHandle(*value);
         if (B3_IS_NON_NULL(entry.jointId) && b3Joint_IsValid(entry.jointId))
             b3DestroyJoint(entry.jointId, false);
+        if (B3_IS_NON_NULL(entry.auxiliaryBodyId) &&
+            b3Body_IsValid(entry.auxiliaryBodyId))
+            b3DestroyBody(entry.auxiliaryBodyId);
     }
     m_constraints.clear();
     for (NoCollisionEntry& entry : m_noCollisionEntries) {
@@ -1423,6 +1434,10 @@ void Box3DPhysicsBackend::clearConstraintHandle(Instance& constraint) {
         static_cast<BallSocket&>(constraint).m_constraintHandle = {};
     else if (constraint.IsA("Motor"))
         static_cast<Motor&>(constraint).m_constraintHandle = {};
+    else if (constraint.IsA("Motor6D"))
+        static_cast<Motor6D&>(constraint).m_constraintHandle = {};
+    else if (constraint.IsA("Gyro"))
+        static_cast<Gyro&>(constraint).m_constraintHandle = {};
     else if (constraint.IsA("NoCollision"))
         static_cast<NoCollision&>(constraint).m_constraintHandle = {};
 }
@@ -1524,6 +1539,12 @@ void Box3DPhysicsBackend::rebuildAssembly(
         } else if (value->IsA("Motor")) {
             auto c = std::static_pointer_cast<Motor>(value);
             first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        } else if (value->IsA("Motor6D")) {
+            auto c = std::static_pointer_cast<Motor6D>(value);
+            first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        } else if (value->IsA("Gyro")) {
+            auto c = std::static_pointer_cast<Gyro>(value);
+            first = c->m_cube0.lock();
         }
         return (first && members.contains(first.get())) ||
                (second && members.contains(second.get()));
@@ -1533,6 +1554,9 @@ void Box3DPhysicsBackend::rebuildAssembly(
         if (!value || value->IsA("Weld") || !touchesMembers(value)) continue;
         if (B3_IS_NON_NULL(entry.jointId) && b3Joint_IsValid(entry.jointId))
             b3DestroyJoint(entry.jointId, false);
+        if (B3_IS_NON_NULL(entry.auxiliaryBodyId) &&
+            b3Body_IsValid(entry.auxiliaryBodyId))
+            b3DestroyBody(entry.auxiliaryBodyId);
         clearConstraintHandle(*value);
         recreate.push_back(value);
     }
@@ -1578,6 +1602,10 @@ void Box3DPhysicsBackend::rebuildAssembly(
             createBallSocket(std::static_pointer_cast<BallSocket>(value));
         else if (value->IsA("Motor"))
             createMotor(std::static_pointer_cast<Motor>(value));
+        else if (value->IsA("Motor6D"))
+            createMotor6D(std::static_pointer_cast<Motor6D>(value));
+        else if (value->IsA("Gyro"))
+            createGyro(std::static_pointer_cast<Gyro>(value));
     }
 }
 
@@ -1779,6 +1807,79 @@ void Box3DPhysicsBackend::createMotor(const std::shared_ptr<Motor>& motor) {
     b3Joint_WakeBodies(joint);
 }
 
+void Box3DPhysicsBackend::createMotor6D(
+    const std::shared_ptr<Motor6D>& motor) {
+    if (!motor || findConstraint(motor)) return;
+    auto first = motor->m_cube0.lock();
+    auto second = motor->m_cube1.lock();
+    if (!first || !second || first == second) return;
+    const b3BodyId bodyA = bodyId(*first);
+    const b3BodyId bodyB = bodyId(*second);
+    if (B3_IS_NULL(bodyA) || B3_IS_NULL(bodyB)) return;
+    if (idsEqual(bodyA, bodyB)) {
+        const auto handle = allocateLogicalConstraintHandle();
+        motor->m_constraintHandle = handle;
+        m_constraints.push_back({motor, handle, b3_nullJointId});
+        return;
+    }
+
+    b3SphericalJointDef definition = b3DefaultSphericalJointDef();
+    definition.base.bodyIdA = bodyA;
+    definition.base.bodyIdB = bodyB;
+    definition.base.localFrameA = toB3Transform(
+        first->m_compoundLocalOffset * motor->C0);
+    definition.base.localFrameB = toB3Transform(
+        second->m_compoundLocalOffset * motor->C1);
+    definition.base.userData = motor.get();
+    definition.enableSpring = true;
+    definition.hertz = motor->Frequency;
+    definition.dampingRatio = motor->DampingRatio;
+    definition.targetRotation = toB3Quaternion(motor->Transform.Rotation);
+    const b3JointId joint = b3CreateSphericalJoint(m_worldId, &definition);
+    if (B3_IS_NULL(joint)) return;
+    const PhysicsConstraintHandle handle{b3StoreJointId(joint)};
+    motor->m_constraintHandle = handle;
+    m_constraints.push_back({motor, handle, joint});
+    b3Joint_WakeBodies(joint);
+}
+
+void Box3DPhysicsBackend::createGyro(const std::shared_ptr<Gyro>& gyro) {
+    if (!gyro || findConstraint(gyro)) return;
+    auto part = gyro->m_cube0.lock();
+    if (!part) return;
+    const b3BodyId body = bodyId(*part);
+    if (B3_IS_NULL(body)) return;
+
+    const CFrame memberWorld = bodyWorldFrame(body) * part->m_compoundLocalOffset;
+    b3BodyDef referenceDefinition = b3DefaultBodyDef();
+    referenceDefinition.type = b3_staticBody;
+    referenceDefinition.position = toB3Position(memberWorld.Position);
+    referenceDefinition.rotation = toB3Quaternion(gyro->TargetRotation);
+    const b3BodyId reference = b3CreateBody(m_worldId, &referenceDefinition);
+    if (B3_IS_NULL(reference)) return;
+
+    b3MotorJointDef definition = b3DefaultMotorJointDef();
+    definition.base.bodyIdA = reference;
+    definition.base.bodyIdB = body;
+    definition.base.localFrameA = toB3Transform(CFrame());
+    definition.base.localFrameB = toB3Transform(part->m_compoundLocalOffset);
+    definition.base.userData = gyro.get();
+    definition.linearHertz = 0.0f;
+    definition.maxSpringForce = 0.0f;
+    definition.angularHertz = gyro->Frequency;
+    definition.angularDampingRatio = gyro->DampingRatio;
+    definition.maxSpringTorque = gyro->MaxTorque * TORQUE_TO_MKS;
+    const b3JointId joint = b3CreateMotorJoint(m_worldId, &definition);
+    if (B3_IS_NULL(joint)) {
+        b3DestroyBody(reference);
+        return;
+    }
+    const PhysicsConstraintHandle handle{b3StoreJointId(joint)};
+    gyro->m_constraintHandle = handle;
+    m_constraints.push_back({gyro, handle, joint, reference});
+    b3Joint_WakeBodies(joint);
+}
+
 void Box3DPhysicsBackend::createNoCollision(
     const std::shared_ptr<NoCollision>& noCollision) {
     if (!noCollision) return;
@@ -1851,6 +1952,9 @@ void Box3DPhysicsBackend::removeConstraint(
         if (B3_IS_NON_NULL(iterator->jointId) &&
             b3Joint_IsValid(iterator->jointId))
             b3DestroyJoint(iterator->jointId, true);
+        if (B3_IS_NON_NULL(iterator->auxiliaryBodyId) &&
+            b3Body_IsValid(iterator->auxiliaryBodyId))
+            b3DestroyBody(iterator->auxiliaryBodyId);
         clearConstraintHandle(*constraint);
         m_constraints.erase(iterator);
         return;
@@ -1891,6 +1995,12 @@ void Box3DPhysicsBackend::removeConstraint(
         } else if (value->IsA("Motor")) {
             auto c = std::static_pointer_cast<Motor>(value);
             first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        } else if (value->IsA("Motor6D")) {
+            auto c = std::static_pointer_cast<Motor6D>(value);
+            first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        } else if (value->IsA("Gyro")) {
+            auto c = std::static_pointer_cast<Gyro>(value);
+            first = c->m_cube0.lock();
         }
         return (first && groupSet.contains(first.get())) ||
                (second && groupSet.contains(second.get()));
@@ -1900,6 +2010,9 @@ void Box3DPhysicsBackend::removeConstraint(
         if (!value || value->IsA("Weld") || !touches(value)) continue;
         if (B3_IS_NON_NULL(entry.jointId) && b3Joint_IsValid(entry.jointId))
             b3DestroyJoint(entry.jointId, false);
+        if (B3_IS_NON_NULL(entry.auxiliaryBodyId) &&
+            b3Body_IsValid(entry.auxiliaryBodyId))
+            b3DestroyBody(entry.auxiliaryBodyId);
         clearConstraintHandle(*value);
         recreate.push_back(value);
     }
@@ -1962,6 +2075,10 @@ void Box3DPhysicsBackend::removeConstraint(
             createBallSocket(std::static_pointer_cast<BallSocket>(value));
         else if (value->IsA("Motor"))
             createMotor(std::static_pointer_cast<Motor>(value));
+        else if (value->IsA("Motor6D"))
+            createMotor6D(std::static_pointer_cast<Motor6D>(value));
+        else if (value->IsA("Gyro"))
+            createGyro(std::static_pointer_cast<Gyro>(value));
     }
 }
 
@@ -2001,6 +2118,36 @@ void Box3DPhysicsBackend::updateConstraint(
         b3RevoluteJoint_SetMaxMotorTorque(
             entry->jointId, motorTorqueToMks(motor->MaxForce));
         b3Joint_WakeBodies(entry->jointId);
+        return;
+    }
+    if (constraint->IsA("Motor6D")) {
+        auto motor = std::static_pointer_cast<Motor6D>(constraint);
+        if (B3_IS_NULL(entry->jointId) || !b3Joint_IsValid(entry->jointId))
+            return;
+        b3SphericalJoint_SetSpringHertz(entry->jointId, motor->Frequency);
+        b3SphericalJoint_SetSpringDampingRatio(
+            entry->jointId, motor->DampingRatio);
+        b3SphericalJoint_SetTargetRotation(
+            entry->jointId, toB3Quaternion(motor->Transform.Rotation));
+        b3Joint_WakeBodies(entry->jointId);
+        return;
+    }
+    if (constraint->IsA("Gyro")) {
+        auto gyro = std::static_pointer_cast<Gyro>(constraint);
+        if (B3_IS_NULL(entry->jointId) || !b3Joint_IsValid(entry->jointId) ||
+            B3_IS_NULL(entry->auxiliaryBodyId) ||
+            !b3Body_IsValid(entry->auxiliaryBodyId))
+            return;
+        b3Body_SetTransform(
+            entry->auxiliaryBodyId,
+            b3Body_GetPosition(entry->auxiliaryBodyId),
+            toB3Quaternion(gyro->TargetRotation));
+        b3MotorJoint_SetAngularHertz(entry->jointId, gyro->Frequency);
+        b3MotorJoint_SetAngularDampingRatio(
+            entry->jointId, gyro->DampingRatio);
+        b3MotorJoint_SetMaxSpringTorque(
+            entry->jointId, gyro->MaxTorque * TORQUE_TO_MKS);
+        b3Joint_WakeBodies(entry->jointId);
     }
 }
 
@@ -2023,6 +2170,9 @@ void Box3DPhysicsBackend::removeExpiredEntries() {
         if (B3_IS_NON_NULL(iterator->jointId) &&
             b3Joint_IsValid(iterator->jointId))
             b3DestroyJoint(iterator->jointId, false);
+        if (B3_IS_NON_NULL(iterator->auxiliaryBodyId) &&
+            b3Body_IsValid(iterator->auxiliaryBodyId))
+            b3DestroyBody(iterator->auxiliaryBodyId);
         iterator = m_constraints.erase(iterator);
     }
     m_noCollisionEntries.erase(
@@ -2114,6 +2264,10 @@ void Box3DPhysicsBackend::createPendingConstraints(Workspace& workspace) {
             createBallSocket(std::static_pointer_cast<BallSocket>(value));
         else if (value->IsA("Motor"))
             createMotor(std::static_pointer_cast<Motor>(value));
+        else if (value->IsA("Motor6D"))
+            createMotor6D(std::static_pointer_cast<Motor6D>(value));
+        else if (value->IsA("Gyro"))
+            createGyro(std::static_pointer_cast<Gyro>(value));
         else if (value->IsA("NoCollision"))
             createNoCollision(std::static_pointer_cast<NoCollision>(value));
     }
@@ -2149,6 +2303,12 @@ void Box3DPhysicsBackend::update(Workspace& workspace, float dt) {
         } else if (value->IsA("Motor")) {
             auto c = std::static_pointer_cast<Motor>(value);
             invalid = isOutside(c->m_cube0) || isOutside(c->m_cube1);
+        } else if (value->IsA("Motor6D")) {
+            auto c = std::static_pointer_cast<Motor6D>(value);
+            invalid = isOutside(c->m_cube0) || isOutside(c->m_cube1);
+        } else if (value->IsA("Gyro")) {
+            auto c = std::static_pointer_cast<Gyro>(value);
+            invalid = isOutside(c->m_cube0);
         }
         if (invalid) invalidConstraints.push_back(value);
     }

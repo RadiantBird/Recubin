@@ -5,6 +5,9 @@
 #include <Instances/Spatial.hpp>
 #include <Instances/Seat.hpp>
 #include <Instances/Weld.hpp>
+#include <Instances/BallSocket.hpp>
+#include <Instances/Gyro.hpp>
+#include <Instances/Motor6D.hpp>
 #include <Instances/Workspace.hpp>
 #include <include/Core/Physics.hpp>
 #include <include/Core/PropertyRegistry.hpp>
@@ -179,14 +182,10 @@ std::shared_ptr<BaseCube> Humanoid::getRightLegPart() const {
 
 void Humanoid::setRootPart(const std::shared_ptr<BaseCube>& root) {
     m_root = root;
-    if (!root) return;
+}
 
-    // RootはX/Z軸の回転をロックし、転倒しないようにする（Y軸回転=向き変えのみ許可）。
-    root->LockFlags = PhysicsLockFlags::AngularX | PhysicsLockFlags::AngularZ;
-    // アクター生成後に呼ばれた場合（保存済みシーンのNPC等、遅延resolveParts）でも
-    // 転倒防止が効くよう、既存アクターへ直接反映する
-    if (root->lastWorkspace && root->lastWorkspace->getPhysicsEngine())
-        root->lastWorkspace->getPhysicsEngine()->applyLockFlags(*root);
+void Humanoid::setRootGyro(const std::shared_ptr<Gyro>& gyro) {
+    m_rootGyro = gyro;
 }
 
 void Humanoid::setHealth(float v) {
@@ -221,6 +220,7 @@ bool Humanoid::isRespawnReady() const {
 }
 
 void Humanoid::enterRagdoll(Physics* physics) {
+    (void)physics;
     auto root = getRootPart();
     if (!root) {
         if (auto parent = Parent.lock()) resolveParts(parent.get());
@@ -230,38 +230,21 @@ void Humanoid::enterRagdoll(Physics* physics) {
     m_ragdollEntered = true;
 
     stopAnimation();
-
-    // -1..1 の乱数
-    auto frand = []() { return (static_cast<float>(std::rand()) / RAND_MAX) * 2.0f - 1.0f; };
-
-    // Root は不可視の物理ボディ。散乱に干渉しないよう衝突を無効化してアクターを外す
-    if (root) {
-        root->CanCollide = false;
-        if (physics) physics->recreateActor(root);
+    if (auto gyro = m_rootGyro.lock()) gyro->setEnabled(false);
+    if (auto model = Parent.lock()) {
+        for (const auto& topology : CharacterRig::r6JointTopology()) {
+            if (auto motor = std::dynamic_pointer_cast<Motor6D>(
+                    model->getChildren().contains(topology.jointName)
+                        ? model->getChildren().at(topology.jointName) : nullptr))
+                motor->setEnabled(false);
+            const std::string ragdollName = topology.jointName + "Ragdoll";
+            if (auto ragdoll = std::dynamic_pointer_cast<BallSocket>(
+                    model->getChildren().contains(ragdollName)
+                        ? model->getChildren().at(ragdollName) : nullptr))
+                ragdoll->setEnabled(true);
+        }
     }
 
-    // 各ボディパーツを動的アクター化してランダムに吹き飛ばす
-    std::shared_ptr<BaseCube> parts[] = {
-        getTorsoPart(),
-        getHeadPart(),
-        getLeftArmPart(),
-        getRightArmPart(),
-        getLeftLegPart(),
-        getRightLegPart(),
-    };
-    for (auto& part : parts) {
-        if (!part) continue;
-        part->CanCollide = true;
-        part->Anchored   = false;
-        part->LockFlags  = PhysicsLockFlags::None; // 自由に回転させる
-        if (!physics) continue;
-        physics->recreateActor(part);
-        float speed = 8.0f + (static_cast<float>(std::rand()) / RAND_MAX) * 7.0f; // 8..15
-        physics->setLinearVelocity(*part,
-            Vector3(frand() * speed, 6.0f + frand() * 4.0f, frand() * speed));
-        physics->setAngularVelocity(*part,
-            Vector3(frand() * 10.0f, frand() * 10.0f, frand() * 10.0f));
-    }
 }
 
 void Humanoid::resolveParts(Instance* characterModel) {
@@ -281,10 +264,21 @@ void Humanoid::resolveParts(Instance* characterModel) {
     m_rightArm = std::dynamic_pointer_cast<BaseCube>(find("RightArm"));
     m_leftLeg  = std::dynamic_pointer_cast<BaseCube>(find("LeftLeg"));
     m_rightLeg = std::dynamic_pointer_cast<BaseCube>(find("RightLeg"));
+    m_rootGyro = std::dynamic_pointer_cast<Gyro>(find("RootGyro"));
+}
 
-    // RootはX/Z軸の回転をロックし、転倒しないようにする（Y軸回転=向き変えのみ許可）。
-    // ユーザーがStarterCharacter内に独自のCubeを"Root"として置いた場合も同じ挙動にするため、
-    // 物理アクター生成前のここで毎回設定する。実処理はsetRootPart()に集約する
+std::shared_ptr<Motor6D> Humanoid::findJointMotor(const std::string& jointName) const {
+    auto model = Parent.lock();
+    if (!model) return nullptr;
+    auto child = model->getChildren().find(jointName);
+    return child == model->getChildren().end()
+        ? nullptr : std::dynamic_pointer_cast<Motor6D>(child->second);
+}
+
+void Humanoid::setJointTransform(const std::string& jointName, const CFrame& transform) {
+    const std::string motorName = jointName == "Torso" ? "RootJoint"
+        : jointName == "Head" ? "Neck" : jointName;
+    if (auto motor = findJointMotor(motorName)) motor->setTransform(transform);
 }
 
 void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool isPressingMove,
@@ -304,6 +298,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         }
     }
     if (m_seated) {
+        if (auto gyro = m_rootGyro.lock()) gyro->setEnabled(false);
         if (auto seat = m_seat.lock()) {
             seat->Throttle = forwardAxis;
             seat->Steer    = rightAxis;
@@ -327,18 +322,19 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     // --- 向き(Rotation)の更新 ---
     // Truss接触中は向きを固定する(自動回転させると登坂中に姿勢が崩れて落下してしまうため)
     if (!trussCube) {
-        Quaternion targetRot = root->getRotation();
+        Quaternion targetRot = root->getWorldCFrame().Rotation;
         if (ctrlLockEnabled) {
             // CtrlLock中は常にカメラの正面方向を向く（Roblox ShiftLock方式）
             targetRot = Quaternion::LookRotation(flatForward, Vector3(0, 1, 0));
         } else if (isPressingMove) {
             targetRot = Quaternion::LookRotation(targetMoveDir, Vector3(0, 1, 0));
         }
-        // LookRotation は world 向き。Root の保存値は最近傍 Spatial 親基準の
-        // local rotation なので、親の回転を除去してから通常の setter へ渡す。
-        if (auto* parent = root->getCoordinateParent())
-            targetRot = parent->getWorldCFrame().Rotation.conjugate() * targetRot;
-        root->setRotation(Quaternion::Slerp(root->getRotation(), targetRot, smoothingAlpha));
+        const Quaternion currentWorld = root->getWorldCFrame().Rotation;
+        const Quaternion targetWorld = Quaternion::Slerp(currentWorld, targetRot, smoothingAlpha);
+        if (auto gyro = m_rootGyro.lock()) {
+            gyro->setEnabled(true);
+            gyro->setTargetRotation(targetWorld);
+        }
     }
 
     // --- 物理速度の適用 ---
@@ -434,6 +430,7 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
     if (!root || !physics || !physics->hasBody(*root) || !seat) return;
 
     seat->setOccupant(std::static_pointer_cast<Humanoid>(shared_from_this()));
+    if (auto gyro = m_rootGyro.lock()) gyro->setEnabled(false);
 
     // RootをSeatの向きのまま直上へスナップし、速度をゼロクリアしてからWeldで固定する。
     // Decal.FrontはCubeローカル+Z面(Renderer_GUI.cpp参照)だが、Humanoidの正面(getForward)は-Z基準のため、
@@ -497,6 +494,11 @@ void Humanoid::standUp(Physics* physics) {
     if (auto seat = m_seat.lock()) seat->clearOccupant();
     m_seat.reset();
     m_seated = false;
+    if (auto gyro = m_rootGyro.lock()) {
+        const float yaw = root ? root->getWorldCFrame().Rotation.toEuler().y : 0.0f;
+        gyro->setTargetRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), yaw));
+        gyro->setEnabled(true);
+    }
 }
 
 // ============================================================
@@ -588,22 +590,14 @@ void Humanoid::updateAnimation(float dt) {
 
     // キーフレームはRoot相対で保持されているため、現在のRoot CFrameに合成して
     // キャラクターの移動・回転に追従させる（歩行アニメと同じ基準）
-    CFrame rootCF = root ? root->getCFrame() : CFrame();
     if (m_currentAnim->getClip() && m_currentAnim->getClip()->space == "joint_delta") {
         for (const auto& track : m_currentAnim->getClip()->tracks) {
             const auto* binding = CharacterRig::findR6Joint(track.targetName);
             if (!binding || !root) continue;
-            auto child = model->getChild(binding->partName);
-            auto part = dynamic_cast<Spatial*>(child);
-            if (part) part->setCFrame(CharacterRig::applyR6Joint(rootCF, *binding, m_currentAnim->getClip()->evaluate(track, m_animTime)));
+            setJointTransform(track.targetName,
+                              m_currentAnim->getClip()->evaluate(track, m_animTime));
         }
         return;
-    }
-    for (const AnimTrack& track : m_currentAnim->getTracks()) {
-        Instance* child = model->getChild(track.targetName);
-        Spatial* part = dynamic_cast<Spatial*>(child);
-        if (!part || part == root.get()) continue; // Rootは物理駆動なので動かさない
-        part->setCFrame(rootCF * m_currentAnim->evaluateTrack(track, m_animTime));
     }
 }
 
@@ -735,12 +729,11 @@ void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
     };
 
     auto apply = [&](const char* joint, const std::shared_ptr<BaseCube>& part, float angle, const CFrame* direct = nullptr) {
-        if (part) if (const auto* binding = CharacterRig::findR6Joint(joint))
-            part->setCFrame(CharacterRig::applyR6Joint(root->getCFrame(), *binding,
-                direct ? *direct : CFrame::fromAxisAngle(Vector3(1,0,0), angle)));
+        if (part) setJointTransform(joint,
+            direct ? *direct : CFrame::fromAxisAngle(Vector3(1,0,0), angle));
     };
-    if (torso) if (auto b = CharacterRig::findR6Joint("Torso")) torso->setCFrame(CharacterRig::applyR6Joint(root->getCFrame(), *b, CFrame()));
-    if (head) if (auto b = CharacterRig::findR6Joint("Head")) head->setCFrame(CharacterRig::applyR6Joint(root->getCFrame(), *b, CFrame()));
+    if (torso) setJointTransform("RootJoint", CFrame());
+    if (head) setJointTransform("Neck", CFrame());
     CFrame leftArmDelta = clipDelta("LeftShoulder", pose.leftArm);
     CFrame rightArmDelta = clipDelta("RightShoulder", pose.rightArm);
     CFrame leftLegDelta = clipDelta("LeftHip", pose.leftLeg);
@@ -752,14 +745,14 @@ void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
         rightArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 10.0f);
         leftLegDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 90.0f);
         rightLegDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 90.0f);
-    } else {
-        if (leftArmRaised) leftArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 90.0f);
-        if (rightArmRaised) rightArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 90.0f);
-        if (!isGrounded) {
-            if (!leftArmRaised) leftArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 180.0f);
-            if (!rightArmRaised) rightArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 180.0f);
-        }
+    } else if (!isGrounded) {
+        leftArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 180.0f);
+        rightArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 180.0f);
     }
+    // Priority is walk/idle -> jump -> seat -> equip. Explicit Animation tracks
+    // are evaluated later by updateAnimation() and override only named joints.
+    if (leftArmRaised) leftArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 90.0f);
+    if (rightArmRaised) rightArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 90.0f);
     apply("LeftShoulder", leftArm, pose.leftArm, &leftArmDelta); apply("RightShoulder", rightArm, pose.rightArm, &rightArmDelta);
     apply("LeftHip", leftLeg, pose.leftLeg, &leftLegDelta); apply("RightHip", rightLeg, pose.rightLeg, &rightLegDelta);
 }
