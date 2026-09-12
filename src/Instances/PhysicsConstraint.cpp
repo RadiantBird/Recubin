@@ -26,6 +26,28 @@ PhysicsConstraint::~PhysicsConstraint() {
     m_constraintHandle = {};
 }
 
+void PhysicsConstraint::registerIfReady() {
+    if (!Enabled) return;
+    auto* workspaceRaw = findFirstAncestorWorkspace();
+    if (!workspaceRaw) return;
+    auto* workspace = static_cast<Workspace*>(workspaceRaw);
+    auto resolveCube = [&](std::weak_ptr<BaseCube>& target, const std::string& name) {
+        if (target.lock() || name.empty()) return;
+        Instance* found = workspace->getChildByPath(name);
+        if (found && found->IsA("BaseCube"))
+            target = std::static_pointer_cast<BaseCube>(found->shared_from_this());
+    };
+    resolveCube(m_cube0, m_cube0Name);
+    resolveCube(m_cube1, m_cube1Name);
+    resolveAdditionalReferences();
+    if (!m_cube0.lock() || !m_cube1.lock() || !additionalReferencesReady()) return;
+    if (!m_constraintHandle) workspace->registerConstraint(shared_from_this());
+}
+
+void PhysicsConstraint::resolveReferencesAndRegister() {
+    registerIfReady();
+}
+
 bool PhysicsConstraint::IsA(std::string className) {
     if (className == "PhysicsConstraint") return true;
     return Instance::IsA(className);
@@ -33,6 +55,7 @@ bool PhysicsConstraint::IsA(std::string className) {
 
 void PhysicsConstraint::setCubes(std::shared_ptr<BaseCube> cube0,
                                  std::shared_ptr<BaseCube> cube1) {
+    invalidateBinding();
     m_cube0 = cube0;
     m_cube1 = cube1;
     m_cube0Name = cube0 ? cube0->getWorkspaceRelativePath() : "";
@@ -41,12 +64,14 @@ void PhysicsConstraint::setCubes(std::shared_ptr<BaseCube> cube0,
 }
 
 void PhysicsConstraint::setCube0(std::shared_ptr<BaseCube> cube) {
+    invalidateBinding();
     m_cube0 = cube;
     m_cube0Name = cube ? cube->getWorkspaceRelativePath() : "";
     registerIfReady();
 }
 
 void PhysicsConstraint::setCube1(std::shared_ptr<BaseCube> cube) {
+    invalidateBinding();
     m_cube1 = cube;
     m_cube1Name = cube ? cube->getWorkspaceRelativePath() : "";
     registerIfReady();
@@ -64,11 +89,16 @@ void PhysicsConstraint::refreshRefNames() {
 
 void PhysicsConstraint::setEnabled(bool enabled) {
     if (Enabled == enabled) return;
+    invalidateBinding();
     Enabled = enabled;
-    if (!Enabled && m_constraintHandle && m_lastWorkspace &&
-        m_lastWorkspace->getPhysicsEngine())
-        m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
     if (Enabled) registerIfReady();
+}
+
+void PhysicsConstraint::invalidateBinding() {
+    if (!m_constraintHandle || !m_lastWorkspace ||
+        !m_lastWorkspace->getPhysicsEngine()) return;
+    m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
+    m_constraintHandle = {};
 }
 
 void PhysicsConstraint::onAncestorChanged() {

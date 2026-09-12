@@ -5,6 +5,7 @@
 #include <fstream>
 #include <filesystem>
 #include <Core/CharacterRig.hpp>
+#include <Util/Logger.hpp>
 
 static bool finite(float v) { return std::isfinite(v); }
 static EasingType parseEasing(const YAML::Node& n, bool& ok) {
@@ -111,10 +112,14 @@ AnimationClipLoadResult AnimationClipIO::load(const std::string& path) {
                 float t = kn["time"].as<float>(-1); auto p = kn["position"]; auto q = kn["rotation"]; bool ok = true;
                 if (!finite(t) || t < 0 || t > c.length) { r.status=AnimationClipLoadStatus::InvalidData; r.message="keyframe time out of range"; return r; }
                 if (!p || p.size()!=3 || !q || q.size()!=4) { r.status=AnimationClipLoadStatus::InvalidData; r.message="invalid keyframe position or rotation shape"; return r; }
-                Vector3 pos(p[0].as<float>(),p[1].as<float>(),p[2].as<float>()); Quaternion rot(q[3].as<float>(),q[0].as<float>(),q[1].as<float>(),q[2].as<float>());
+                Vector3 pos(p[0].as<float>(),p[1].as<float>(),p[2].as<float>()); Quaternion rot;
+                const float rawLengthSquared = q[0].as<float>() * q[0].as<float>() +
+                    q[1].as<float>() * q[1].as<float>() + q[2].as<float>() * q[2].as<float>() +
+                    q[3].as<float>() * q[3].as<float>();
+                if (std::isfinite(rawLengthSquared) && std::abs(rawLengthSquared - 1.0f) > 1e-4f)
+                    RCBN_WARN("normalizing animation quaternion from " << path << " (lengthSquared=" << rawLengthSquared << ")");
+                if (!Quaternion::tryFromComponents(q[3].as<float>(), q[0].as<float>(), q[1].as<float>(), q[2].as<float>(), rot)) { r.status=AnimationClipLoadStatus::InvalidData; r.message="invalid quaternion"; return r; }
                 for (float v : {pos.x,pos.y,pos.z,rot.x,rot.y,rot.z,rot.w}) if (!finite(v)) { r.status=AnimationClipLoadStatus::InvalidData; r.message="non-finite keyframe value"; return r; }
-                const float norm = std::sqrt(rot.w*rot.w + rot.x*rot.x + rot.y*rot.y + rot.z*rot.z);
-                if (norm < 1e-5f || std::fabs(norm - 1.0f) > 0.01f) { r.status=AnimationClipLoadStatus::InvalidData; r.message="invalid quaternion"; return r; }
                 c.addKey(joint,t,CFrame(pos,rot),parseEasing(kn["easing"],ok)); if (!ok) { r.status=AnimationClipLoadStatus::InvalidData; r.message="unknown easing"; return r; }
             }
         }

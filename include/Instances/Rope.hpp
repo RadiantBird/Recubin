@@ -21,9 +21,8 @@ class Rope : public PhysicsConstraint {
     friend class Renderer;
 
     // 両方のCubeが解決済みなら制約をWorkspaceに登録する（setProperty/setCube0/setCube1から共通利用）
-    void registerIfReady();
     // 名前が設定済みで未解決のAttachment参照を対応Cube配下から遅延解決する
-    void resolveAttachments();
+    void resolveAdditionalReferences() override;
 public:
     float MaxDistance = 0.0f; // 0 = 生成時の距離を自動使用
     float Stiffness   = 100.0f;

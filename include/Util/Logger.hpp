@@ -20,6 +20,16 @@ inline std::function<void(const std::string&)> g_logHook;
 inline std::function<void(const std::string&)> g_luauLogHook;
 
 #ifdef RECUBIN_DEBUG
+
+    #define RCBN_ASSERT(cond, msg)                                      \
+        do {                                                            \
+            if (!(cond)) {                                              \
+                std::cerr << "[ASSERT] " << msg                         \
+                        << " (" << __FILE__ << ":" << __LINE__ << ")\n"; \
+                std::abort();                                           \
+            }                                                           \
+        } while (0)
+
     #define RCBN_LOG(msg) \
         do { \
             std::ostringstream _ss; _ss << "[" << ::Util::getFileName(__FILE__) << ":" << __LINE__ << "] " << msg; \
@@ -48,6 +58,7 @@ inline std::function<void(const std::string&)> g_luauLogHook;
             if (g_logHook) g_logHook("[TRACE]" + _ss.str()); \
         } while(0)
 #else
+    #define RCBN_ASSERT(cond, msg) ((void)0)
     #define RCBN_LOG(msg)   ((void)0)
     #define RCBN_WARN(msg)  ((void)0)
     #define RCBN_ERROR(msg) ((void)0)

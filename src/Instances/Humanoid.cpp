@@ -327,18 +327,18 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     // --- 向き(Rotation)の更新 ---
     // Truss接触中は向きを固定する(自動回転させると登坂中に姿勢が崩れて落下してしまうため)
     if (!trussCube) {
-        Quaternion targetRot = root->Rotation;
+        Quaternion targetRot = root->getRotation();
         if (ctrlLockEnabled) {
             // CtrlLock中は常にカメラの正面方向を向く（Roblox ShiftLock方式）
             targetRot = Quaternion::LookRotation(flatForward, Vector3(0, 1, 0));
         } else if (isPressingMove) {
             targetRot = Quaternion::LookRotation(targetMoveDir, Vector3(0, 1, 0));
         }
-        root->Rotation = Quaternion::Slerp(root->Rotation, targetRot, smoothingAlpha);
-
-        CFrame bodyCFrame = physics->getBodyWorldCFrame(*root);
-        bodyCFrame.Rotation = root->Rotation;
-        physics->setBodyWorldCFrame(*root, bodyCFrame);
+        // LookRotation は world 向き。Root の保存値は最近傍 Spatial 親基準の
+        // local rotation なので、親の回転を除去してから通常の setter へ渡す。
+        if (auto* parent = root->getCoordinateParent())
+            targetRot = parent->getWorldCFrame().Rotation.conjugate() * targetRot;
+        root->setRotation(Quaternion::Slerp(root->getRotation(), targetRot, smoothingAlpha));
     }
 
     // --- 物理速度の適用 ---
@@ -440,7 +440,7 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
     // Seatの回転をそのまま使うとFrontとは逆の-Z方向を向いてしまう。180度反転して整合させる
     CFrame target = seat->getWorldCFrame() * CFrame(0, seat->Size.y * 0.001f - root->Size.y * 0.01f, 0)
                   * CFrame::fromAxisAngle(Vector3(0, 1, 0), 0.0f); // やっぱり必要なさそうなので0.0にした
-    physics->setBodyWorldCFrame(*root, target);
+    physics->moveWeldAssembly(root, target);
     physics->setLinearVelocity(*root, Vector3());
     physics->setAngularVelocity(*root, Vector3());
     physics->syncCube(*root);
@@ -458,21 +458,9 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
         m_seatWeld->setCube0(root);
         m_seatWeld->setCube1(seat);
 
-        // Weldの実際のcompound化(Physics::createWeld)は本来次フレームのPhysics::update()
-        // 冒頭まで遅延される。その間にも物理シミュレーションが1ステップ以上進んでしまい、
-        // まだ独立した自由な剛体のRootが重力等でスナップ直後の姿勢から動いてしまうと、
-        // そのズレた姿勢がそのまま車両アセンブリの原点として焼き付き、Seat/Chassis/車輪
-        // すべてが恒久的にずれる。スナップした直後のこのフレームのうちに同期的にWeldを
-        // 確定させることで、その空白窓を無くす
-        Workspace* ws = static_cast<Workspace*>(wsRaw);
-        physics->createWeld(m_seatWeld, *ws);
-
-        // setCube1()のregisterIfReady()がすでにこのWeldをpendingConstraintsへ積んでいる。
-        // 消さずに残すと次フレームのPhysics::update()冒頭で同じWeldに対しcreateWeldが
-        // 二重に走り、車輪Motor(assembly内のcubeを参照しているため巻き添えで再構築される)
-        // まで無駄にもう一度作り直されてしまう。二重処理を避けるためここで取り除く
-        auto& pending = ws->pendingConstraints;
-        pending.erase(std::remove(pending.begin(), pending.end(), m_seatWeld), pending.end());
+        // Weld は Physics の pending transaction で確定する。body pose を直接
+        // 操作したり pending リストを手動編集したりせず、登録経路を一つにする。
+        // Workspace の pending constraint queue が次の安全窓で一度だけ処理する。
     }
 
     m_seated = true;
@@ -498,13 +486,12 @@ void Humanoid::standUp(Physics* physics) {
 
     // 降りるホップ + シートから離れて再着席ループを防ぐ
     if (root && physics && physics->hasBody(*root)) {
+        CFrame target = root->getWorldCFrame();
+        target.Position.y += root->Size.y;
+        physics->moveWeldAssembly(root, target);
         Vector3 vel = physics->getLinearVelocity(*root);
         vel.y = JumpPower;
         physics->setLinearVelocity(*root, vel);
-        CFrame bodyCFrame = physics->getBodyWorldCFrame(*root);
-        bodyCFrame.Position.y += root->Size.y;
-        physics->setBodyWorldCFrame(*root, bodyCFrame);
-        physics->syncCube(*root);
     }
 
     if (auto seat = m_seat.lock()) seat->clearOccupant();
@@ -601,14 +588,14 @@ void Humanoid::updateAnimation(float dt) {
 
     // キーフレームはRoot相対で保持されているため、現在のRoot CFrameに合成して
     // キャラクターの移動・回転に追従させる（歩行アニメと同じ基準）
-    CFrame rootCF = root ? root->cframe : CFrame();
+    CFrame rootCF = root ? root->getCFrame() : CFrame();
     if (m_currentAnim->getClip() && m_currentAnim->getClip()->space == "joint_delta") {
         for (const auto& track : m_currentAnim->getClip()->tracks) {
             const auto* binding = CharacterRig::findR6Joint(track.targetName);
             if (!binding || !root) continue;
             auto child = model->getChild(binding->partName);
             auto part = dynamic_cast<Spatial*>(child);
-            if (part) part->cframe = CharacterRig::applyR6Joint(rootCF, *binding, m_currentAnim->getClip()->evaluate(track, m_animTime));
+            if (part) part->setCFrame(CharacterRig::applyR6Joint(rootCF, *binding, m_currentAnim->getClip()->evaluate(track, m_animTime)));
         }
         return;
     }
@@ -616,7 +603,7 @@ void Humanoid::updateAnimation(float dt) {
         Instance* child = model->getChild(track.targetName);
         Spatial* part = dynamic_cast<Spatial*>(child);
         if (!part || part == root.get()) continue; // Rootは物理駆動なので動かさない
-        part->cframe = rootCF * m_currentAnim->evaluateTrack(track, m_animTime);
+        part->setCFrame(rootCF * m_currentAnim->evaluateTrack(track, m_animTime));
     }
 }
 
@@ -749,11 +736,11 @@ void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
 
     auto apply = [&](const char* joint, const std::shared_ptr<BaseCube>& part, float angle, const CFrame* direct = nullptr) {
         if (part) if (const auto* binding = CharacterRig::findR6Joint(joint))
-            part->cframe = CharacterRig::applyR6Joint(root->cframe, *binding,
-                direct ? *direct : CFrame::fromAxisAngle(Vector3(1,0,0), angle));
+            part->setCFrame(CharacterRig::applyR6Joint(root->getCFrame(), *binding,
+                direct ? *direct : CFrame::fromAxisAngle(Vector3(1,0,0), angle)));
     };
-    if (torso) if (auto b = CharacterRig::findR6Joint("Torso")) torso->cframe = CharacterRig::applyR6Joint(root->cframe, *b, CFrame());
-    if (head) if (auto b = CharacterRig::findR6Joint("Head")) head->cframe = CharacterRig::applyR6Joint(root->cframe, *b, CFrame());
+    if (torso) if (auto b = CharacterRig::findR6Joint("Torso")) torso->setCFrame(CharacterRig::applyR6Joint(root->getCFrame(), *b, CFrame()));
+    if (head) if (auto b = CharacterRig::findR6Joint("Head")) head->setCFrame(CharacterRig::applyR6Joint(root->getCFrame(), *b, CFrame()));
     CFrame leftArmDelta = clipDelta("LeftShoulder", pose.leftArm);
     CFrame rightArmDelta = clipDelta("RightShoulder", pose.rightArm);
     CFrame leftLegDelta = clipDelta("LeftHip", pose.leftLeg);

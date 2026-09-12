@@ -622,7 +622,7 @@ void MeshCube::setProperty(const std::string& name, const YAML::Node& value) {
 }
 
 std::shared_ptr<Instance> MeshCube::clone() const {
-    auto copy = std::make_shared<MeshCube>(this->Position, this->Size);
+    auto copy = std::make_shared<MeshCube>(this->getPosition(), this->Size);
     if (this->m_fallbackActive) {
         copy->activateFallback(this->MeshFile);
     } else if (!this->MeshFile.empty()) {

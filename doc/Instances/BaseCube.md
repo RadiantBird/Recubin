@@ -27,12 +27,14 @@
 | メソッド | 説明 |
 |---|---|
 | `syncPhysics()` | PhysX から位置・回転を読み取り CFrame に反映 |
-| `teleportTo(pos)` | 物理をバイパスして位置を直接設定 |
+| `teleportTo(pos)` | member のローカル位置を物理へ反映する移動 |
 | `setSize(newSize)` | サイズ変更 → PhysX アクターを再構築 |
 | `onAncestorChanged()` | Workspace への追加/削除時に自動で物理登録/解除 |
 | `setProperty(name, value)` | YAML デシリアライズ用 |
 
 ## 物理登録フロー
+
+Weld で接続された BaseCube は一つの assembly/body として扱われる。member の姿勢は Spatial のワールド CFrame と body 原点の間で変換され、Parent 変更だけでは子孫を追従させない。
 
 ```
 setParent(workspace)

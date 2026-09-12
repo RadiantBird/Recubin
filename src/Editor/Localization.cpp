@@ -139,6 +139,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "子として貼り付け",     "Paste as Child" },
     { "子をすべて選択",       "Select All Children" },
     { "グループ化",            "Group" },
+    { "座標を再計算",          "Recalculate Coordinates" },
     { "オブジェクトを挿入", "Insert Object" },
     { "インスタンスをグループ化", "Group Instances" },
     { "インスタンスを置換", "Replace Instance" },

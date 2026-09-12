@@ -1,5 +1,7 @@
 #include <Instances/Tool.hpp>
 #include <Core/User.hpp>
+#include <Util/Logger.hpp>
+#include <cmath>
 
 Tool::Tool(std::string name) : Instance(name) {
     Activated = std::make_shared<RCBNScriptSignal>();
@@ -16,8 +18,15 @@ void Tool::setProperty(const std::string& name, const YAML::Node& value) {
         return;
     }
     if (name == "Rotation" && value.IsSequence() && value.size() == 4) {
-        Rotation = Quaternion(value[3].as<float>(), value[0].as<float>(),
-                              value[1].as<float>(), value[2].as<float>());
+        Quaternion rotation;
+        const float lenSq = value[0].as<float>() * value[0].as<float>() +
+            value[1].as<float>() * value[1].as<float>() + value[2].as<float>() * value[2].as<float>() +
+            value[3].as<float>() * value[3].as<float>();
+        if (std::isfinite(lenSq) && std::abs(lenSq - 1.0f) > 1e-4f)
+            RCBN_WARN("normalizing Tool Rotation property from YAML (lengthSquared=" << lenSq << ")");
+        if (Quaternion::tryFromComponents(value[3].as<float>(), value[0].as<float>(),
+                                           value[1].as<float>(), value[2].as<float>(), rotation))
+            Rotation = rotation;
         return;
     }
     if (name == "Hand") {

@@ -43,7 +43,6 @@ public:
     virtual void update(Workspace& workspace, float dt) = 0;
     virtual void stepOnce(float dt) = 0;
     virtual void syncAllCubes() = 0;
-    virtual void syncWeldKinematics() = 0;
     virtual void moveWeldAssembly(const std::shared_ptr<BaseCube>& member, const CFrame& worldCFrame) = 0;
 
     virtual void createActor(const std::shared_ptr<BaseCube>& cube) = 0;

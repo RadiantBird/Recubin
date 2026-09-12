@@ -65,7 +65,7 @@ physx::PxTransform toPxTransform(const CFrame& value) {
 CFrame fromPxTransform(const physx::PxTransform& value) {
     return CFrame(
         Vector3(value.p.x, value.p.y, value.p.z),
-        Quaternion(value.q.w, value.q.x, value.q.y, value.q.z));
+        Quaternion::fromNormalizedComponents(value.q.w, value.q.x, value.q.y, value.q.z));
 }
 
 float cframeDifference(const CFrame& first, const CFrame& second) {
@@ -317,14 +317,22 @@ void PhysXPhysicsBackend::syncCube(BaseCube& cube) {
     if (cube.Anchored) {
         auto* kinematic = actor->is<physx::PxRigidDynamic>();
         if (kinematic && (kinematic->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) {
+            const bool isCompound = std::count_if(cubes.begin(), cubes.end(),
+                [&](const CubeEntry& entry) { return entry.actor == actor; }) > 1;
+            if (isCompound) {
+                // Weld compound の body poseを唯一の物理側の正とする。各 anchored
+                // member の CFrame から毎フレーム driver を選ぶと、member 間で
+                // body が振動し、姿勢が累積 drift する。
+                const physx::PxTransform pose = actor->getGlobalPose().transform(
+                    toPxTransform(cube.m_compoundLocalOffset));
+                cube.setWorldCFrame(fromPxTransform(pose));
+                return;
+            }
             const CFrame world = cube.getWorldCFrame();
             const physx::PxTransform cubeWorldPose = toPxTransform(world);
             const physx::PxTransform compoundTarget =
                 cubeWorldPose.transform(toPxTransform(cube.m_compoundLocalOffset).getInverse());
-            if (cube.m_weldKinematic)
-                kinematic->setGlobalPose(compoundTarget);
-            else
-                kinematic->setKinematicTarget(compoundTarget);
+            kinematic->setKinematicTarget(compoundTarget);
         }
         return;
     }
@@ -730,7 +738,6 @@ void PhysXPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
     scene->addActor(*actor);
     setActor(cube->m_bodyHandle, actor);
     cube->m_physicsOwner = m_facade;
-    cube->m_weldKinematic = false;
     auto existing = std::find_if(
         cubes.begin(), cubes.end(),
         [&](const CubeEntry& entry) { return entry.cubeRaw == cube.get(); });
@@ -842,7 +849,9 @@ void PhysXPhysicsBackend::enqueueResize(const std::shared_ptr<BaseCube>& cube) {
 }
 
 void PhysXPhysicsBackend::enqueueSetRotation(const std::shared_ptr<BaseCube>& cube, Quaternion rot) {
-    m_pendingOps.push_back({ PendingOp::Type::SetRotation, std::weak_ptr<BaseCube>(cube), rot });
+    if (!cube) return;
+    m_pendingOps.push_back({ PendingOp::Type::SetCFrame,
+        std::weak_ptr<BaseCube>(cube), CFrame(cube->getWorldCFrame().Position, rot) });
 }
 
 void PhysXPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
@@ -912,7 +921,6 @@ void PhysXPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
     scene->addActor(*replacement);
     setActor(cube->m_bodyHandle, replacement);
     cube->m_physicsOwner = m_facade;
-    cube->m_weldKinematic = false;
     cubeActor = replacement;
 
     // cubes 配列内の古いエントリを新アクターに同期（同期しないと cleanup ループが
@@ -1421,10 +1429,12 @@ void PhysXPhysicsBackend::stepOnce(float dt) {
         if (!actor) continue;
         if (op.type == PendingOp::Type::Resize) {
             recreateActor(cube);
-        } else if (op.type == PendingOp::Type::SetRotation) {
-            physx::PxTransform pose = actor->getGlobalPose();
-            pose.q = physx::PxQuat(op.rotation.x, op.rotation.y, op.rotation.z, op.rotation.w);
-            actor->setGlobalPose(pose);
+        } else if (op.type == PendingOp::Type::SetCFrame) {
+            // Pending pose は member の world CFrame。compound actor の pose を
+            // 直接差し替えず、member offset を逆変換して actor 原点を求める。
+            const CFrame memberPose = op.frame;
+            actor->setGlobalPose(toPxTransform(
+                memberPose * cube->m_compoundLocalOffset.inverse()));
         }
     }
     m_pendingOps.clear();
@@ -1432,11 +1442,10 @@ void PhysXPhysicsBackend::stepOnce(float dt) {
 
 void PhysXPhysicsBackend::syncAllCubes() {
     for (auto& entry : cubes) {
-        if (auto cube = entry.cube.lock(); cube && !cube->m_weldKinematic) {
+        if (auto cube = entry.cube.lock()) {
             syncCube(*cube);
         }
     }
-    syncWeldKinematics();
 }
 
 std::shared_ptr<BaseCube> PhysXPhysicsBackend::resolveContactIdentity(
@@ -1680,53 +1689,6 @@ void PhysXPhysicsBackend::removeInvalidConstraints(Workspace& workspace) {
                 return std::binary_search(stale.begin(), stale.end(), constraint);
             }),
         workspace.pendingConstraints.end());
-}
-
-void PhysXPhysicsBackend::syncWeldKinematics() {
-    std::unordered_set<physx::PxRigidActor*> visited;
-    for (const CubeEntry& seedEntry : cubes) {
-        auto seed = seedEntry.cube.lock();
-        physx::PxRigidActor* actor = seedEntry.actor;
-        if (!seed || !seed->m_weldKinematic || !actor ||
-            !visited.insert(actor).second)
-            continue;
-
-        std::vector<std::shared_ptr<BaseCube>> members;
-        for (const CubeEntry& entry : cubes) {
-            if (entry.actor != actor) continue;
-            if (auto member = entry.cube.lock()) members.push_back(member);
-        }
-
-        const CFrame currentBody = fromPxTransform(actor->getGlobalPose());
-        CFrame driverTarget = currentBody;
-        float driverDifference = -std::numeric_limits<float>::infinity();
-        const BaseCube* driver = nullptr;
-        for (const auto& member : members) {
-            if (!member || !member->Anchored) continue;
-            const CFrame candidate =
-                member->getWorldCFrame() * member->m_compoundLocalOffset.inverse();
-            const float difference = cframeDifference(candidate, currentBody);
-            if (!std::isfinite(difference)) continue;
-            if (difference > driverDifference ||
-                (difference == driverDifference && driver &&
-                 std::less<const BaseCube*>{}(member.get(), driver))) {
-                driverDifference = difference;
-                driverTarget = candidate;
-                driver = member.get();
-            }
-        }
-
-        auto* dynamic = actor->is<physx::PxRigidDynamic>();
-        if (driver && dynamic &&
-            (dynamic->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) {
-            dynamic->setGlobalPose(toPxTransform(driverTarget));
-        }
-        const CFrame confirmedBody = fromPxTransform(actor->getGlobalPose());
-        for (const auto& member : members) {
-            if (member)
-                member->setWorldCFrame(confirmedBody * member->m_compoundLocalOffset);
-        }
-    }
 }
 
 void PhysXPhysicsBackend::moveWeldAssembly(const std::shared_ptr<BaseCube>& member, const CFrame& worldCFrame) {
@@ -2123,6 +2085,10 @@ void PhysXPhysicsBackend::rebuildGroup(const std::vector<std::shared_ptr<BaseCub
     physx::PxVec3 savedLinearVelocity(0.0f);
     physx::PxVec3 savedAngularVelocity(0.0f);
     bool restoreDynamicVelocity = false;
+    float savedLinearDamping = 0.0f;
+    float savedAngularDamping = 0.0f;
+    bool savedGravityDisabled = false;
+    bool savedAwake = true;
     for (auto& cube : assembly) {
         if (!cube) continue;
         cube->m_physicsOwner = m_facade;
@@ -2131,6 +2097,10 @@ void PhysXPhysicsBackend::rebuildGroup(const std::vector<std::shared_ptr<BaseCub
         if (!dynamic || (dynamic->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)) continue;
         savedLinearVelocity = dynamic->getLinearVelocity();
         savedAngularVelocity = dynamic->getAngularVelocity();
+        savedLinearDamping = dynamic->getLinearDamping();
+        savedAngularDamping = dynamic->getAngularDamping();
+        savedGravityDisabled = dynamic->getActorFlags() & physx::PxActorFlag::eDISABLE_GRAVITY;
+        savedAwake = dynamic->isSleeping() == false;
         restoreDynamicVelocity = true;
         break;
     }
@@ -2216,9 +2186,13 @@ void PhysXPhysicsBackend::rebuildGroup(const std::vector<std::shared_ptr<BaseCub
         compound->setMassSpaceInertiaTensor(
             physx::PxVec3(1.0f, 1.0f, 1.0f));
     }
+    compound->setLinearDamping(savedLinearDamping);
+    compound->setAngularDamping(savedAngularDamping);
+    compound->setActorFlag(physx::PxActorFlag::eDISABLE_GRAVITY, savedGravityDisabled);
     if (restoreDynamicVelocity && !anyAnchored) {
         compound->setLinearVelocity(savedLinearVelocity);
         compound->setAngularVelocity(savedAngularVelocity);
+        if (!savedAwake) compound->putToSleep();
     }
     compound->userData = originCube.get();
     for (physx::PxU32 index = 0; index < compound->getNbShapes(); ++index) {
@@ -2252,7 +2226,6 @@ void PhysXPhysicsBackend::rebuildGroup(const std::vector<std::shared_ptr<BaseCub
         cube->m_compoundLocalOffset =
             fromPxTransform(localOffsets[cube.get()]);
         cube->m_physicsOwner = m_facade;
-        cube->m_weldKinematic = anyAnchored;
         auto entry = std::find_if(
             cubes.begin(), cubes.end(), [&](const CubeEntry& candidate) {
                 return candidate.cubeRaw == cube.get();

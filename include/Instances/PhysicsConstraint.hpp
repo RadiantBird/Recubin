@@ -26,7 +26,12 @@ protected:
     PhysicsConstraintHandle m_constraintHandle;
     Workspace* m_lastWorkspace = nullptr;
 
-    virtual void registerIfReady() = 0;
+    void registerIfReady();
+    virtual void resolveAdditionalReferences() {}
+    virtual bool additionalReferencesReady() const { return true; }
+    // endpoint/property変更時に既存 native binding を安全窓で破棄し、次回の
+    // registerIfReady() による pending 登録へ戻す共通 dirty 経路。
+    void invalidateBinding();
 
 public:
     bool Enabled = true;
@@ -45,6 +50,8 @@ public:
     std::shared_ptr<BaseCube> getCube1() const;
     void refreshRefNames();
     void setEnabled(bool enabled);
+    // SceneLoader/editor が参照解決完了後に一度だけ呼ぶ公開入口。
+    void resolveReferencesAndRegister();
     void onAncestorChanged() override;
     void setProperty(const std::string& name, const YAML::Node& value) override;
 };

@@ -7,6 +7,8 @@
 身体パーツの所有者は親Modelの `children` であり、Humanoidはprivateな `weak_ptr` だけを保持する。C++側は各パーツgetterが返す一時的な `shared_ptr` を処理中だけ保持するため、親Modelの破棄後にHumanoidだけが残っても身体パーツの寿命は延長されない。この参照はLuau/YAMLプロパティやシリアライズ形式には公開されない。
 
 ## 継承
+Root の移動・回転は Root member のワールド CFrame を基準に行う。身体 Animation は local pose を更新し、Parent や Weld 用の座標補正を行わない。
+
 `Instance` → `Humanoid`
 
 ## メンバ変数

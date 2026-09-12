@@ -424,7 +424,6 @@ void Physics::stepOnce(float dt) {
     advanceWavePhaseCorrection(m_backend->getSimulationTick() - before);
 }
 void Physics::syncAllCubes() { RCBN_PHYSICS_VOID(syncAllCubes); }
-void Physics::syncWeldKinematics() { RCBN_PHYSICS_VOID(syncWeldKinematics); }
 void Physics::moveWeldAssembly(const std::shared_ptr<BaseCube>& member, const CFrame& cframe) {
     RCBN_PHYSICS_VOID(moveWeldAssembly, member, cframe);
 }
@@ -484,14 +483,15 @@ PhysicsBodyHandle Physics::getBodyHandle(const BaseCube& cube) const {
     return ownsBody(cube) ? cube.m_bodyHandle : PhysicsBodyHandle{};
 }
 
-CFrame Physics::getBodyWorldCFrame(const BaseCube& cube) const {
-    return isAvailable() && ownsBody(cube)
-        ? m_backend->getBodyWorldCFrame(cube) : CFrame();
+CFrame Physics::getMemberWorldCFrame(const BaseCube& cube) const {
+    if (!isAvailable() || !ownsBody(cube)) return cube.getWorldCFrame();
+    return m_backend->getBodyWorldCFrame(cube) * cube.m_compoundLocalOffset;
 }
 
-void Physics::setBodyWorldCFrame(BaseCube& cube, const CFrame& cframe) {
-    if (isAvailable() && ownsBody(cube))
-        m_backend->setBodyWorldCFrame(cube, cframe);
+void Physics::setMemberWorldCFrame(BaseCube& cube, const CFrame& worldCFrame) {
+    if (!isAvailable() || !ownsBody(cube)) return;
+    m_backend->setBodyWorldCFrame(
+        cube, worldCFrame * cube.m_compoundLocalOffset.inverse());
 }
 
 Vector3 Physics::getLinearVelocity(const BaseCube& cube) const {

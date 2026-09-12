@@ -490,8 +490,7 @@ static void applyWorldCFrameLive(Spatial* s, const CFrame& world) {
     if (!s) return;
     if (s->IsA("BaseCube")) {
         CFrame local=world;
-        auto p=s->Parent.lock();
-        if (p&&p->IsA("Spatial")) local=static_cast<Spatial*>(p.get())->getWorldCFrame().inverse()*world;
+        if (auto* p = s->getCoordinateParent()) local=p->getWorldCFrame().inverse()*world;
         auto* b=static_cast<BaseCube*>(s); b->teleportTo(local.Position); b->setRotation(local.Rotation);
     } else s->setWorldCFrame(world);
 }
@@ -1141,7 +1140,8 @@ static void drawVec3Field(const char* id,
                 if (prop == "Position") bc->teleportTo(newVal);
                 else if (prop == "Size") bc->setSize(newVal);
             } else {
-                val = newVal;  // 非 BaseCube の Spatial（cframe.Position / Size を直接更新）
+                if (prop == "Position") sp->setPosition(newVal);
+                else val = newVal;  // 非 BaseCube の Spatial（Size）
             }
         }
 
@@ -1491,7 +1491,8 @@ void PropertiesPanel::onRender() {
 
         ImGui::Text("Position");
         ImGui::SameLine(80.0f);
-        drawVec3Field("Position", s->Position, 0.05f, -1e9f, 1e9f, spSp, "Position", m_history);
+        Vector3 position = s->getPosition();
+        drawVec3Field("Position", position, 0.05f, -1e9f, 1e9f, spSp, "Position", m_history);
 
         ImGui::Text("Size");
         ImGui::SameLine(80.0f);
@@ -1503,18 +1504,18 @@ void PropertiesPanel::onRender() {
         {
             // before は実 Quaternion を保存（Euler 往復変換のロスを避ける）
             static std::unordered_map<std::string, Quaternion> s_rotBefore;
-            Vector3 euler = s->cframe.Rotation.toEuler();
+            Vector3 euler = s->getRotation().toEuler();
             float rot[3] = { euler.x, euler.y, euler.z };
             float rotW = ImGui::GetContentRegionAvail().x;
             if (rotW < 60.0f) rotW = 60.0f;
             ImGui::SetNextItemWidth(rotW);
             ImGui::PushID("Rotation");
             bool rotChanged = ImGui::DragFloat3("##rot", rot, 1.0f, -360.0f, 360.0f, "%.1f");
-            if (ImGui::IsItemActivated()) s_rotBefore["rot"] = s->cframe.Rotation;
-            if (rotChanged) s->cframe.Rotation = Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2]));
+            if (ImGui::IsItemActivated()) s_rotBefore["rot"] = s->getRotation();
+            if (rotChanged) s->setRotation(Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2])));
             if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
                 Quaternion qBefore = s_rotBefore["rot"];
-                Quaternion qAfter  = s->cframe.Rotation;  // 適用済みの実値
+                Quaternion qAfter  = s->getRotation();  // 適用済みの実値
                 auto sSp = std::static_pointer_cast<Spatial>(inst->shared_from_this());
                 m_history->record(std::make_unique<SetRotationCommand>(sSp, qBefore, qAfter));
             }
@@ -1528,15 +1529,15 @@ void PropertiesPanel::onRender() {
             static char s_cfBuf[160] = {};
             static bool s_cfEditing = false;
             if (!s_cfEditing) {
-                Vector3 euler = s->cframe.Rotation.toEuler();
+                Vector3 euler = s->getRotation().toEuler();
                 snprintf(s_cfBuf, sizeof(s_cfBuf), "%.3f, %.3f, %.3f, %.2f, %.2f, %.2f",
-                         s->Position.x, s->Position.y, s->Position.z,
+                         s->getPosition().x, s->getPosition().y, s->getPosition().z,
                          euler.x, euler.y, euler.z);
             }
             static CFrame s_cfBefore;
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
             ImGui::InputText("##cframe6", s_cfBuf, sizeof(s_cfBuf));
-            if (ImGui::IsItemActivated()) { s_cfEditing = true; s_cfBefore = s->cframe; }
+            if (ImGui::IsItemActivated()) { s_cfEditing = true; s_cfBefore = s->getCFrame(); }
             if (ImGui::IsItemDeactivatedAfterEdit()) {
                 float v[6];
                 if (sscanf(s_cfBuf, "%f , %f , %f , %f , %f , %f",

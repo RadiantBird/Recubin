@@ -20,9 +20,8 @@ class BallSocket : public PhysicsConstraint {
     friend class Renderer;
 
     // 両方のCubeが解決済みなら制約をWorkspaceに登録する（setProperty/setCube0/setCube1から共通利用）
-    void registerIfReady();
     // 名前が設定済みで未解決のAttachment参照を対応Cube配下から遅延解決する
-    void resolveAttachments();
+    void resolveAdditionalReferences() override;
 public:
     std::string m_attachment0Name; // Cube0配下の子孫パス（空=未使用）
     std::string m_attachment1Name; // Cube1配下の子孫パス（空=未使用）

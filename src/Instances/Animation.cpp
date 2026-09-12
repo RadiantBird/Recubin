@@ -9,6 +9,7 @@
 #include <fstream>
 #include <cctype>
 #include <Util/AssetPath.hpp>
+#include <Util/Logger.hpp>
 
 static const bool s_animationRegistered = [] {
     using namespace PropertyRegistry;
@@ -68,9 +69,18 @@ void Animation::setProperty(const std::string& name, const YAML::Node& value) {
                 kf.delta.Position = Vector3(pos[0].as<float>(), pos[1].as<float>(), pos[2].as<float>());
 
                 const YAML::Node& rot = keyNode["Rotation"];
-                if (rot && rot.size() == 4) // 保存順は [x, y, z, w]
-                    kf.delta.Rotation = Quaternion(rot[3].as<float>(), rot[0].as<float>(),
-                                                    rot[1].as<float>(), rot[2].as<float>());
+                if (rot && rot.size() == 4) { // 保存順は [x, y, z, w]
+                    const float lenSq = rot[0].as<float>() * rot[0].as<float>() +
+                        rot[1].as<float>() * rot[1].as<float>() +
+                        rot[2].as<float>() * rot[2].as<float>() +
+                        rot[3].as<float>() * rot[3].as<float>();
+                    if (std::isfinite(lenSq) && std::abs(lenSq - 1.0f) > 1e-4f)
+                        RCBN_WARN("normalizing legacy Animation Rotation (lengthSquared=" << lenSq << ")");
+                    Quaternion rotation;
+                    if (Quaternion::tryFromComponents(rot[3].as<float>(), rot[0].as<float>(),
+                                                       rot[1].as<float>(), rot[2].as<float>(), rotation))
+                        kf.delta.Rotation = rotation;
+                }
 
                 kf.easing = static_cast<EasingType>(keyNode["Easing"].as<int>(0));
                 track.keyframes.push_back(kf);

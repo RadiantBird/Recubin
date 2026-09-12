@@ -47,9 +47,9 @@ void Model::onChildrenChanged() {
 }
 
 std::shared_ptr<Instance> Model::clone() const {
-    auto copy = std::make_shared<Model>(Position, Size);
+    auto copy = std::make_shared<Model>(getPosition(), Size);
     copy->Name = Name;
-    copy->cframe = cframe;
+    copy->setCFrame(getCFrame());
 
     for (auto const& [name, child] : children) {
         copy->addChild(child->clone());

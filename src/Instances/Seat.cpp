@@ -13,7 +13,7 @@ static const bool s_seatRegistered = []{
 }();
 
 std::shared_ptr<Instance> Seat::clone() const {
-    auto copy = std::make_shared<Seat>(this->Position, this->Size, Cube::defaultTextureID);
+    auto copy = std::make_shared<Seat>(this->getPosition(), this->Size, Cube::defaultTextureID);
     // m_occupantは複製しない(新規シートは空席から始まる)
     cloneBaseCubeStateAndChildrenTo(copy);
     return copy;

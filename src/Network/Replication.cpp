@@ -639,8 +639,8 @@ void ReplicationManager::reconcileLocalPose() {
             corrected.Rotation = Quaternion::Slerp(local.Rotation, target.Rotation, 0.25f);
         }
         Physics* physics = m_workspace ? m_workspace->getPhysicsEngine() : nullptr;
-        if (physics) physics->setBodyWorldCFrame(*root, corrected);
-        root->cframe = corrected;
+        if (physics) physics->setMemberWorldCFrame(*root, corrected);
+        root->setWorldCFrame(corrected);
     };
 
     // 予測シーンがまだ使えない初期フレームだけは、Host姿勢を直接目標にする。
@@ -663,12 +663,12 @@ void ReplicationManager::reconcileLocalPose() {
     if (m_predictionPhysics && m_predictionPhysics->hasBody(*m_shadowRoot)) {
         CFrame shadowBodyCFrame = m_hostAuthoritativeSelfPose;
         shadowBodyCFrame.Rotation = firstEntry.rotationBefore;
-        m_predictionPhysics->setBodyWorldCFrame(*m_shadowRoot, shadowBodyCFrame);
+        m_predictionPhysics->setMemberWorldCFrame(*m_shadowRoot, shadowBodyCFrame);
         m_predictionPhysics->setLinearVelocity(*m_shadowRoot, m_hostAuthoritativeSelfVel);
         m_predictionPhysics->setAngularVelocity(*m_shadowRoot, Vector3());
     }
-    m_shadowRoot->cframe = m_hostAuthoritativeSelfPose;
-    m_shadowRoot->cframe.Rotation = firstEntry.rotationBefore;
+    m_shadowRoot->setCFrame(CFrame(m_hostAuthoritativeSelfPose.Position,
+                                   firstEntry.rotationBefore));
 
     // 2. Humanoidの内部補間状態を、一番古い未ack入力の「適用前」状態へ復元
     m_predictionHumanoid->setCurrentMoveDir(firstEntry.currentMoveDirBefore);
@@ -872,7 +872,7 @@ void ReplicationManager::hostSendWorldTransforms(bool forceAll) {
         auto cube = obj.cube.lock();
         if (!cube) continue;
 
-        const CFrame& cf = cube->cframe;
+        const CFrame cf = cube->getCFrame();
         bool moved = false;
         if (obj.hasSent) {
             Vector3 dp = cf.Position - obj.lastSent.Position;
@@ -997,7 +997,7 @@ void ReplicationManager::clientApplyWorldSmoothing(float dt) {
             obj.current.Rotation = Quaternion::Slerp(obj.current.Rotation, obj.target.Rotation, alpha);
         }
 
-        cube->cframe = obj.current;
+        cube->setWorldCFrame(obj.current);
     }
 }
 
@@ -1066,7 +1066,7 @@ void ReplicationManager::bufferLocalInput(float dt) {
     entry.dt = dt;
     entry.currentMoveDirBefore = m_user->humanoid->getCurrentMoveDir();
     entry.walkCycleBefore      = m_user->humanoid->getWalkCycle();
-    entry.rotationBefore       = root ? root->Rotation : Quaternion();
+    entry.rotationBefore       = root ? root->getRotation() : Quaternion();
 
     m_inputHistory.push_back(entry);
 
@@ -1093,7 +1093,7 @@ void ReplicationManager::ensurePredictionScene() {
     m_shadowRoot->Name = "PredictionShadowRoot";
     m_shadowRoot->Anchored = false;
     m_shadowRoot->CanCollide = true;
-    m_shadowRoot->cframe = realRoot->getWorldCFrame();
+    m_shadowRoot->setCFrame(realRoot->getWorldCFrame());
     m_predictionHumanoid = std::make_shared<Humanoid>();
     m_predictionHumanoid->setRootPart(m_shadowRoot);
     m_predictionPhysics->createActor(m_shadowRoot);
@@ -1111,9 +1111,9 @@ void ReplicationManager::syncPredictionShadowToLocal() {
 
     CFrame realCFrame = realRoot->getWorldCFrame();
 
-    m_predictionPhysics->setBodyWorldCFrame(*m_shadowRoot, realCFrame);
+    m_predictionPhysics->setMemberWorldCFrame(*m_shadowRoot, realCFrame);
 
-    m_shadowRoot->cframe = realCFrame;
+    m_shadowRoot->setCFrame(realCFrame);
 
     m_predictionPhysics->setLinearVelocity(*m_shadowRoot, Vector3());
     m_predictionPhysics->setAngularVelocity(*m_shadowRoot, Vector3());
@@ -1149,7 +1149,7 @@ void ReplicationManager::rescanPredictionStaticGeometry() {
         mirror->Name = "Mirror_" + target->Name;
         mirror->Anchored = true;
         mirror->CanCollide = true;
-        mirror->cframe = target->getWorldCFrame();
+        mirror->setCFrame(target->getWorldCFrame());
         m_predictionPhysics->createActor(mirror);
         newMirror[path] = mirror;
         added++;

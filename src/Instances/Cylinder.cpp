@@ -158,7 +158,7 @@ void Cylinder::draw(int modelLoc, int shaderProgram) {
 }
 
 std::shared_ptr<Instance> Cylinder::clone() const {
-    auto copy = std::make_shared<Cylinder>(this->Position, this->Size);
+    auto copy = std::make_shared<Cylinder>(this->getPosition(), this->Size);
     cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }

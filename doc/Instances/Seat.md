@@ -8,6 +8,8 @@
 
 ## 継承
 
+着席時の Root 配置と SeatWeld 登録は一つの物理トランザクションとして処理し、body 原点を member ワールド座標として扱わない。
+
 `Instance` → `Spatial` → `BaseCube` → `Cube` → `Seat`
 
 ## メンバ変数

@@ -331,8 +331,6 @@ bool User::moveCharacterToWorkspace(Workspace& destination) {
     auto current = getCharacterWorkspace();
     if (current == &destination) return true;
 
-    if (current && current->getPhysicsEngine())
-        current->getPhysicsEngine()->syncWeldKinematics();
     const CFrame worldCFrame = character->getWorldCFrame();
 
     auto characterInstance = std::static_pointer_cast<Instance>(character);
@@ -633,11 +631,14 @@ static void attachToolHandle(
     Physics* physics
 ) {
     if (!arm || !tool || !tool->Handle) return;
+    (void)rootRotation;
     CFrame armCFrame = arm->getWorldCFrame();
-    Vector3 charForward = rootRotation.getForward();
     const float TOOL_FORWARD_OFFSET = 1.0f;
-    armCFrame.Position = armCFrame.Position + charForward * TOOL_FORWARD_OFFSET;
-    const CFrame handleCFrame = armCFrame * CFrame(tool->Position, tool->Rotation);
+    // Keep the offset in hand-local coordinates so parent/model rotation is
+    // applied exactly once by CFrame composition.
+    const CFrame handleCFrame = armCFrame
+        * CFrame(Vector3(0.0f, 0.0f, -TOOL_FORWARD_OFFSET))
+        * CFrame(tool->Position, tool->Rotation);
     if (physics) {
         physics->moveWeldAssembly(tool->Handle, handleCFrame);
     } else {
@@ -703,11 +704,11 @@ void User::processCharacterMovement(Physics* physics, float deltaTime) {
     if (toolEquipped) {
         if (currentTool->Hand == Tool::ToolHand::Left) {
             auto leftArm = humanoid->getLeftArmPart();
-            attachToolHandle(leftArm, currentTool, root->Rotation, physics);
+            attachToolHandle(leftArm, currentTool, root->getRotation(), physics);
         }
         if (currentTool->Hand != Tool::ToolHand::Left) {
             auto rightArm = humanoid->getRightArmPart();
-            attachToolHandle(rightArm, currentTool, root->Rotation, physics);
+            attachToolHandle(rightArm, currentTool, root->getRotation(), physics);
         }
     }
 
@@ -1051,7 +1052,7 @@ void User::placeCharacterAtSpawn(
         targetRoot = spawn->getWorldCFrame() *
             CFrame(0.0f, (spawn->Size.y + root->Size.y) * 0.5f, 0.0f);
     }
-    model->cframe = targetRoot * root->cframe.inverse();
+    model->setCFrame(targetRoot * root->getCFrame().inverse());
 }
 
 void User::spawnCharacter(Instance* searchRoot, Workspace* workspace,
@@ -1099,7 +1100,7 @@ void User::spawnCharacter(Instance* searchRoot, Workspace* workspace,
     }
     if (initialPosition) {
         // Play HereはSpawnLocationより明示Model.Positionを優先する。
-        character->Position = *initialPosition;
+        character->setPosition(*initialPosition);
     } else {
         placeCharacterAtSpawn(character, humanoid, workspace, peerId);
     }

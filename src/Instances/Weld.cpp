@@ -4,6 +4,7 @@
 #include <include/Core/Physics.hpp>
 #include <queue>
 #include <set>
+#include <algorithm>
 #include <unordered_set>
 #include <utility>
 
@@ -21,28 +22,6 @@ void Weld::refreshRefNames() {
         m_cube0Name = c0->getWorkspaceRelativePath();
     if (auto c1 = m_cube1.lock(); c1 && !m_cube1Name.empty())
         m_cube1Name = c1->getWorkspaceRelativePath();
-}
-
-void Weld::registerIfReady() {
-    if (!Enabled) return;
-    auto* ws_raw = findFirstAncestorWorkspace();
-    if (!ws_raw) return;
-    Workspace* ws = static_cast<Workspace*>(ws_raw);
-    // 片方だけ名前で指定され未解決のCube(例: ロード時にCube1が空で、実行時にsetCube1された
-    // ケース。SceneLoaderの解決パスは両Cubeが揃ったときだけ解決するため、もう片方は未設定の
-    // まま残る)を、保存済みの名前から遅延解決する
-    if (!m_cube0.lock() && !m_cube0Name.empty()) {
-        auto* child = ws->getChildByPath(m_cube0Name);
-        if (child && child->IsA("BaseCube"))
-            m_cube0 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
-    }
-    if (!m_cube1.lock() && !m_cube1Name.empty()) {
-        auto* child = ws->getChildByPath(m_cube1Name);
-        if (child && child->IsA("BaseCube"))
-            m_cube1 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
-    }
-    if (m_cube0.lock() && m_cube1.lock())
-        ws->registerConstraint(shared_from_this());
 }
 
 void Weld::invalidateBinding() {
@@ -162,5 +141,11 @@ Weld::collectAssembly(const std::shared_ptr<BaseCube>& start, const Instance& ro
         }
     }
 
+    // unordered_map の反復順に依存すると compound の body 原点が実行ごとに
+    // 変わり、rebuild 後の姿勢・速度復元が不定になる。永続パスで固定する。
+    std::sort(result.begin(), result.end(),
+        [](const auto& lhs, const auto& rhs) {
+            return lhs->getFullPath() < rhs->getFullPath();
+        });
     return result;
 }

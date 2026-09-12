@@ -22,9 +22,8 @@ class Motor : public PhysicsConstraint {
     friend class Renderer;
 
     // 両方のCubeが解決済みなら制約をWorkspaceに登録する（setProperty/setCube0/setCube1から共通利用）
-    void registerIfReady();
     // 名前が設定済みで未解決のAttachment参照を対応Cube配下から遅延解決する
-    void resolveAttachments();
+    void resolveAdditionalReferences() override;
     // Axisや参照先などjoint frameが変わるプロパティの変更時だけnative jointを再生成する
     void recreateConstraint();
 public:

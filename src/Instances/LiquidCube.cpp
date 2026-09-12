@@ -51,7 +51,7 @@ void LiquidCube::draw(int modelLoc, int shaderProgram) {
 }
 
 std::shared_ptr<Instance> LiquidCube::clone() const {
-    auto copy = std::make_shared<LiquidCube>(this->Position, this->Size);
+    auto copy = std::make_shared<LiquidCube>(this->getPosition(), this->Size);
     PropertyRegistry::cloneFields(this, copy.get(), "LiquidCube");  // Density
     cloneBaseCubeStateAndChildrenTo(copy);
     return copy;

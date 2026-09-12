@@ -5,6 +5,7 @@
 
 #include <Math/Vector3.hpp>
 #include <Math/Quaternion.hpp>
+#include <Util/Logger.hpp>
 
 // 手書きバイトパッキング(リトルエンディアン前提、既存のChat/DummyPositionと同じ方式)
 struct ByteWriter {
@@ -27,7 +28,10 @@ struct ByteWriter {
         std::memcpy(data.data() + off, &v, sizeof(v));
     }
     void writeVector3(const Vector3& v) { writeF32(v.x); writeF32(v.y); writeF32(v.z); }
-    void writeQuat(const Quaternion& q) { writeF32(q.x); writeF32(q.y); writeF32(q.z); writeF32(q.w); }
+    void writeQuat(const Quaternion& q) {
+        q.assertNormalized("ByteWriter::writeQuat");
+        writeF32(q.x); writeF32(q.y); writeF32(q.z); writeF32(q.w);
+    }
 };
 
 // 読み出し。残量不足なら false を返す
@@ -63,6 +67,14 @@ struct ByteReader {
         return readF32(out.x) && readF32(out.y) && readF32(out.z);
     }
     bool readQuat(Quaternion& out) {
-        return readF32(out.x) && readF32(out.y) && readF32(out.z) && readF32(out.w);
+        Quaternion candidate;
+        if (!readF32(candidate.x) || !readF32(candidate.y) ||
+            !readF32(candidate.z) || !readF32(candidate.w)) return false;
+        const float lenSq = candidate.lengthSquared();
+        if (std::isfinite(lenSq) && std::abs(lenSq - 1.0f) > 1e-4f)
+            RCBN_WARN("normalizing Quaternion received from ByteReader (lengthSquared=" << lenSq << ")");
+        if (!candidate.tryNormalize()) return false;
+        out = candidate;
+        return true;
     }
 };

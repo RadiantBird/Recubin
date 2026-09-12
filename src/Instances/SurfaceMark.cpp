@@ -59,9 +59,9 @@ void SurfaceMark::setProperty(const std::string& name, const YAML::Node& value) 
 }
 
 std::shared_ptr<Instance> SurfaceMark::clone() const {
-    auto copy = std::make_shared<SurfaceMark>(Position, Size);
+    auto copy = std::make_shared<SurfaceMark>(getPosition(), Size);
     copy->Name = Name;
-    copy->cframe.Rotation = cframe.Rotation;
+    copy->setRotation(getRotation());
     PropertyRegistry::cloneFields(this, copy.get(), "SurfaceMark");
     copy->TextureID = TextureID;
     std::vector<std::shared_ptr<Instance>> refs;

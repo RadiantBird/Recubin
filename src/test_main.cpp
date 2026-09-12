@@ -291,7 +291,6 @@ int runWeldRegression(const std::shared_ptr<Workspace>& workspace) {
     float overallMaxDelta = 0.0f;
     for (int frame = 1; frame <= 3; ++frame) {
         physics->update(*workspace, 1.0f / 60.0f);
-        physics->syncWeldKinematics();
 
         float maxDelta = 0.0f;
         const PoseSample* worst = nullptr;
@@ -310,7 +309,7 @@ int runWeldRegression(const std::shared_ptr<Workspace>& workspace) {
                       << " before=[" << worst->position.x << ',' << worst->position.y << ',' << worst->position.z << ']'
                       << " after=[" << now.x << ',' << now.y << ',' << now.z << ']';
             if (physics->hasBody(*worst->cube)) {
-                const CFrame bodyPose = physics->getBodyWorldCFrame(*worst->cube);
+                const CFrame bodyPose = physics->getMemberWorldCFrame(*worst->cube);
                 std::cout << " body=[" << bodyPose.Position.x << ',' << bodyPose.Position.y << ',' << bodyPose.Position.z << ']'
                           << " bodyQ=[" << bodyPose.Rotation.x << ',' << bodyPose.Rotation.y << ','
                           << bodyPose.Rotation.z << ',' << bodyPose.Rotation.w << ']';
@@ -740,7 +739,7 @@ int runStarterAccessoryWeldRegression() {
     const CFrame initialHairRelative(
         Vector3(0.2f, 0.85f, 0.1f),
         Quaternion::fromAxisAngle(Vector3(0, 1, 0), 17.0f));
-    templateHair->cframe = templateHead->cframe * initialHairRelative;
+    templateHair->setCFrame(templateHead->getCFrame() * initialHairRelative);
     starter->addChild(templateHair);
     auto templateWeld = std::make_shared<Weld>(templateHead, templateHair);
     templateWeld->Name = "HairWeld";
@@ -753,7 +752,7 @@ int runStarterAccessoryWeldRegression() {
     const CFrame initialGlassesRelative(
         Vector3(0.0f, 0.05f, -0.62f),
         Quaternion::fromAxisAngle(Vector3(0, 1, 0), -9.0f));
-    templateGlasses->cframe = templateHead->cframe * initialGlassesRelative;
+    templateGlasses->setCFrame(templateHead->getCFrame() * initialGlassesRelative);
     starter->addChild(templateGlasses);
     auto glassesWeld = std::make_shared<Weld>(templateHead, templateGlasses);
     glassesWeld->Name = "GlassesWeld";
@@ -831,8 +830,8 @@ int runStarterAccessoryWeldRegression() {
 
     // Spawn the two complete rigs apart before native bodies are constructed.
     // Preserve both accessory offsets so compound-local poses start valid.
-    a.root->cframe = CFrame(Vector3(12.0f, 5.0f, -3.0f));
-    b.root->cframe = CFrame(Vector3(-14.0f, 8.0f, 6.0f));
+    a.root->setCFrame(CFrame(Vector3(12.0f, 5.0f, -3.0f)));
+    b.root->setCFrame(CFrame(Vector3(-14.0f, 8.0f, 6.0f)));
     a.humanoid->applyBodyAnimation(false, false);
     b.humanoid->applyBodyAnimation(false, false);
     a.hair->setWorldCFrame(a.head->getWorldCFrame() * hairRelativeA);
@@ -855,7 +854,7 @@ int runStarterAccessoryWeldRegression() {
         const CFrame secondHeadBefore = b.head->getWorldCFrame();
         const CFrame secondHairBefore = b.hair->getWorldCFrame();
         const CFrame secondGlassesBefore = b.glasses->getWorldCFrame();
-        physics->setBodyWorldCFrame(*a.root, CFrame(
+        physics->setMemberWorldCFrame(*a.root, CFrame(
             Vector3(12.0f, 5.0f, -3.0f),
             Quaternion::fromAxisAngle(Vector3(0, 1, 0), 35.0f)));
         physics->syncCube(*a.root);
@@ -867,12 +866,11 @@ int runStarterAccessoryWeldRegression() {
                    cframeNear(secondGlassesBefore, b.glasses->getWorldCFrame()),
                "Humanoid updates only logical rig parts before compound synchronization");
 
-        physics->setBodyWorldCFrame(*b.root, CFrame(
+        physics->setMemberWorldCFrame(*b.root, CFrame(
             Vector3(-14.0f, 8.0f, 6.0f),
             Quaternion::fromAxisAngle(Vector3(0, 1, 0), -50.0f)));
         physics->syncCube(*b.root);
         b.humanoid->applyBodyAnimation(false, false);
-        physics->syncWeldKinematics();
         expect(cframeNear(hairRelativeA,
                    a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame()) &&
                    cframeNear(glassesRelativeA,
@@ -906,13 +904,12 @@ int runStarterAccessoryWeldRegression() {
                         6.0f + std::sin(phase * 0.04f) * 0.9f),
                 Quaternion::fromAxisAngle(Vector3(0, 1, 0), -phase * 1.1f));
 
-            physics->setBodyWorldCFrame(*a.root, rootTargetA);
-            physics->setBodyWorldCFrame(*b.root, rootTargetB);
+            physics->setMemberWorldCFrame(*a.root, rootTargetA);
+            physics->setMemberWorldCFrame(*b.root, rootTargetB);
             physics->syncCube(*a.root);
             physics->syncCube(*b.root);
             a.humanoid->applyBodyAnimation(false, false);
             b.humanoid->applyBodyAnimation(false, false);
-            physics->syncWeldKinematics();
 
             auto validate = [&]() {
                 relativePosesPreserved = relativePosesPreserved &&
@@ -1212,10 +1209,10 @@ int runSpawnLocationRegression() {
     CharacterRig::buildDefaultRigParts(starter);
     auto templateRoot = std::dynamic_pointer_cast<BaseCube>(starter->children.at("Root"));
     auto templateHead = std::dynamic_pointer_cast<BaseCube>(starter->children.at("Head"));
-    templateRoot->cframe = CFrame(
+    templateRoot->setCFrame(CFrame(
         Vector3(1.0f, 0.5f, -2.0f),
-        Quaternion::fromAxisAngle(Vector3(0, 1, 0), 12.0f));
-    templateHead->cframe = CFrame(Vector3(0, 3, 0));
+        Quaternion::fromAxisAngle(Vector3(0, 1, 0), 12.0f)));
+    templateHead->setCFrame(CFrame(Vector3(0, 3, 0)));
     system->addChild(starter);
 
     auto folderA = std::make_shared<Folder>();
@@ -1223,9 +1220,9 @@ int runSpawnLocationRegression() {
     auto folderZ = std::make_shared<Folder>();
     folderZ->Name = "Z";
     auto spawnA = std::make_shared<SpawnLocation>(Vector3(8, 2, -4));
-    spawnA->cframe.Rotation = Quaternion::fromEuler(Vector3(20, 45, -15));
+    spawnA->setRotation(Quaternion::fromEuler(Vector3(20, 45, -15)));
     auto spawnZ = std::make_shared<SpawnLocation>(Vector3(-12, 5, 7));
-    spawnZ->cframe.Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), -30.0f);
+    spawnZ->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), -30.0f));
     auto disabled = std::make_shared<SpawnLocation>(Vector3(100, 100, 100));
     disabled->Name = "Disabled";
     disabled->Enabled = false;
@@ -1288,7 +1285,7 @@ int runSpawnLocationRegression() {
                cframeNear(root2->getWorldCFrame(), expectedZ) &&
                cframeNear(root3->getWorldCFrame(), expectedA),
            "full-path sorting maps peer0/peer1/peer3 to first spawn and peer2 to second");
-    const CFrame rootToHead = templateRoot->cframe.inverse() * templateHead->cframe;
+    const CFrame rootToHead = templateRoot->getCFrame().inverse() * templateHead->getCFrame();
     expect(cframeNear(root0->getWorldCFrame().inverse() *
                           user0->humanoid->getHeadPart()->getWorldCFrame(), rootToHead),
            "full CFrame spawn placement preserves the original Root-to-part assembly pose");
@@ -1296,7 +1293,7 @@ int runSpawnLocationRegression() {
     auto playHereUser = std::make_shared<User>(std::make_unique<NullInputBackend>());
     const Vector3 playHere(33, 44, 55);
     playHereUser->spawnCharacter(system.get(), workspace.get(), playHere);
-    expect(playHereUser->character->Position == playHere,
+    expect(playHereUser->character->getCFrame().Position == playHere,
            "Play Here explicit Model.Position overrides SpawnLocation selection");
 
     workspace->addChild(user2->character);
@@ -1370,9 +1367,9 @@ int runRemoteAvatarSpawnTransformRegression() {
     auto templateHair = std::make_shared<Cube>(
         Vector3(), Vector3(1.4f, 0.4f, 1.4f), Cube::defaultTextureID);
     templateHair->Name = "Hair";
-    templateHair->cframe = templateHead->cframe * CFrame(
+    templateHair->setCFrame(templateHead->getCFrame() * CFrame(
         Vector3(0.15f, 0.85f, -0.1f),
-        Quaternion::fromEuler(Vector3(8.0f, -13.0f, 5.0f)));
+        Quaternion::fromEuler(Vector3(8.0f, -13.0f, 5.0f))));
     templateHair->Anchored = true;
     templateHair->CanCollide = false;
     starter->addChild(templateHair);
@@ -1393,9 +1390,9 @@ int runRemoteAvatarSpawnTransformRegression() {
     auto folderB = std::make_shared<Folder>();
     folderB->Name = "B";
     auto spawnA = std::make_shared<SpawnLocation>(Vector3(18, 3, -11));
-    spawnA->cframe.Rotation = Quaternion::fromEuler(Vector3(19, -34, 12));
+    spawnA->setRotation(Quaternion::fromEuler(Vector3(19, -34, 12)));
     auto spawnB = std::make_shared<SpawnLocation>(Vector3(-23, 7, 9));
-    spawnB->cframe.Rotation = Quaternion::fromEuler(Vector3(-21, 47, -16));
+    spawnB->setRotation(Quaternion::fromEuler(Vector3(-21, 47, -16)));
     folderA->addChild(spawnA);
     folderB->addChild(spawnB);
     workspace->addChild(folderB);
@@ -2024,7 +2021,6 @@ HumanoidRigCollisionResult simulateHumanoidRigCollision(
     for (int frame = 0; frame < 480; ++frame) {
         physics->update(*workspace, 1.0f / 60.0f);
         humanoid->applyBodyAnimation(false, false);
-        physics->syncWeldKinematics();
 
         const Vector3 position = root->getWorldPosition();
         const Vector3 velocity = physics->getLinearVelocity(*root);
@@ -4338,9 +4334,9 @@ int runSoundStretchRegression() {
 
     AudioService spatialAudio;
     auto spatialRoot = std::make_shared<Model>(Vector3(10, 0, 0));
-    spatialRoot->Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f);
+    spatialRoot->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f));
     auto spatialParent = std::make_shared<Model>(Vector3(0, 2, 0));
-    spatialParent->Rotation = Quaternion::fromAxisAngle(Vector3(0, 0, 1), 90.0f);
+    spatialParent->setRotation(Quaternion::fromAxisAngle(Vector3(0, 0, 1), 90.0f));
     auto spatialSound = std::make_shared<Sound>(spatialAudio);
     spatialSound->Position = Vector3(3, 0, 0);
     spatialRoot->addChild(spatialParent);
@@ -4583,12 +4579,12 @@ int runPhysicsLifecycleRegression() {
     workspaceA->addChild(cube);
     physicsA->update(*workspaceA, 1.0f / 60.0f);
     expect(physicsA->hasBody(*cube), "Cube is created in Workspace A");
-    const CFrame beforeReparent = physicsA->getBodyWorldCFrame(*cube);
+    const CFrame beforeReparent = physicsA->getMemberWorldCFrame(*cube);
 
     cube->setParent(folder);
     expect(physicsA->hasBody(*cube),
            "same-Workspace reparent keeps the existing body");
-    expect(sameCFrame(beforeReparent, physicsA->getBodyWorldCFrame(*cube)),
+    expect(sameCFrame(beforeReparent, physicsA->getMemberWorldCFrame(*cube)),
            "same-Workspace reparent preserves the body pose");
     physicsA->update(*workspaceA, 1.0f / 60.0f);
     expect(physicsA->hasBody(*cube),
@@ -4772,7 +4768,7 @@ int runContactReentryRegression() {
         ++callbacks;
         poseWasSynchronized = positionDistance(
             falling->getWorldPosition(),
-            physicsA->getBodyWorldCFrame(*falling).Position) <= 0.01f;
+            physicsA->getMemberWorldCFrame(*falling).Position) <= 0.01f;
         if (callbacks == 1) {
             // callback中のreparentとshape再構築要求は、native step完了後の
             // 安全窓で処理されなければならない。
@@ -5124,7 +5120,7 @@ int runMultiWorkspaceRegression() {
 
     auto character = std::make_shared<Model>(Vector3(3, 4, 5), Vector3(1, 2, 1));
     character->Name = "Character";
-    character->Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 37.0f);
+    character->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 37.0f));
     workspaceA->addChild(character);
     user->character = character;
     const CFrame originalCFrame = character->getWorldCFrame();
@@ -5619,7 +5615,7 @@ HumanoidFrameRateSample sampleHumanoidSmoothing(float smoothing) {
 
     humanoid->move(Vector3(0, 0, -1), Vector3(1, 0, 0), true, Vector3(1, 0, 0), false,
                    physics, false, false, 1.0f, 0.0f, smoothing, 1.0f / 60.0f);
-    return { humanoid->getWalkCycle(), humanoid->getCurrentMoveDir(), root->Rotation, true };
+    return { humanoid->getWalkCycle(), humanoid->getCurrentMoveDir(), root->getCFrame().Rotation, true };
 }
 
 int runUserCharacterSmoothingRegression() {
@@ -6171,7 +6167,7 @@ HumanoidFrameRateSample sampleHumanoidAtFrameRate(int frameRate) {
     return {
         humanoid->getWalkCycle(),
         humanoid->getCurrentMoveDir(),
-        root->Rotation,
+        root->getCFrame().Rotation,
         true,
     };
 }
@@ -6320,8 +6316,8 @@ int runViewportHelperRegression() {
            "screen-center ray uses the camera origin and forward direction");
 
     auto transformParent = std::make_shared<Model>(Vector3(10.0f, 2.0f, -4.0f));
-    transformParent->Rotation =
-        Quaternion::fromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), 90.0f);
+    transformParent->setRotation(
+        Quaternion::fromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), 90.0f));
     auto transformChild = std::make_shared<BaseCube>(
         Vector3(1.0f, 0.0f, 0.0f), Vector3(1.0f, 1.0f, 1.0f));
     transformChild->Name = "TransformChild";
@@ -7423,12 +7419,12 @@ static int runSurfaceMarkRegression() {
            "SurfaceMark has the independent Spatial inheritance");
     expect(mark.Position == Vector3(0, 0, 0) && mark.Size == Vector3(4, 4, 4) &&
            mark.getForward() == Vector3(0, 0, -1), "SurfaceMark defaults are stable");
-    mark.Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f);
+    mark.setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f));
     expect(mark.getForward().x < -0.99f && std::fabs(mark.getForward().z) < 0.01f,
            "SurfaceMark forward follows rotation");
     auto parent = std::make_shared<Model>(Vector3(10, 0, 0), Vector3(1, 1, 1));
     auto child = std::make_shared<SurfaceMark>();
-    child->Position = Vector3(2, 0, 0);
+    child->setPosition(Vector3(2, 0, 0));
     parent->addChild(child);
     expect(std::fabs(child->getWorldPosition().x - 12.0f) < 0.001f,
            "SurfaceMark follows parent Spatial transform");
@@ -7438,7 +7434,7 @@ static int runSurfaceMarkRegression() {
            !child->intersectsSphere(Vector3(12, 0, 0.1f), 0.01f) &&
            !child->intersectsSphere(Vector3(100, 0, 0), 0.1f),
            "SurfaceMark projection volume culls spheres");
-    child->Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f);
+    child->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f));
     expect(child->intersectsSphere(Vector3(8, 0, 2), 0.1f),
            "SurfaceMark projection volume follows rotation");
     auto filterWorkspace = std::make_shared<Workspace>();
@@ -7534,7 +7530,7 @@ static int runSurfaceMarkRegression() {
     child->Color = Color4(0.2f, 0.3f, 0.4f, 0.5f);
     child->setTexturePath("assets/mark.png");
     auto copy = std::dynamic_pointer_cast<SurfaceMark>(child->clone());
-    expect(copy && copy->Position == child->Position && copy->Size == child->Size &&
+    expect(copy && copy->getCFrame().Position == child->getCFrame().Position && copy->Size == child->Size &&
            copy->Color == child->Color && copy->texturePath == child->texturePath,
            "SurfaceMark clone preserves authoring properties");
     const auto& schema = PropertyRegistry::schemaFor("SurfaceMark");
@@ -7548,22 +7544,22 @@ static int runSurfaceMarkRegression() {
     auto workspace = std::make_shared<Workspace>();
     auto saved = std::make_shared<SurfaceMark>();
     saved->Name = "Paint";
-    saved->Position = Vector3(3, 4, 5);
+    saved->setPosition(Vector3(3, 4, 5));
     saved->Size = Vector3(2, 3, 6);
-    saved->Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 30.0f);
+    saved->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 30.0f));
     saved->Color = Color4(0.1f, 0.2f, 0.3f, 0.4f);
     saved->setTexturePath("assets/paint.png");
     workspace->addChild(saved); root->addChild(workspace);
     expect(SceneLoader::saveSceneResult(root.get(), tempPath.string()), "SurfaceMark YAML save succeeds");
     auto loadedRoot = SceneLoader::loadScene(tempPath.string());
     auto loaded = loadedRoot ? dynamic_cast<SurfaceMark*>(loadedRoot->getChildByPath("Workspace\\Paint")) : nullptr;
-    expect(loaded && loaded->Position == saved->Position && loaded->Size == saved->Size &&
+    expect(loaded && loaded->getCFrame().Position == saved->getCFrame().Position && loaded->Size == saved->Size &&
            loaded->Color == saved->Color && loaded->texturePath == saved->texturePath,
            "SurfaceMark YAML round-trip preserves transform, color and texture");
-    expect(loaded && std::fabs(loaded->Rotation.w - saved->Rotation.w) < 1e-4f &&
-           std::fabs(loaded->Rotation.x - saved->Rotation.x) < 1e-4f &&
-           std::fabs(loaded->Rotation.y - saved->Rotation.y) < 1e-4f &&
-           std::fabs(loaded->Rotation.z - saved->Rotation.z) < 1e-4f,
+    expect(loaded && std::fabs(loaded->getCFrame().Rotation.w - saved->getCFrame().Rotation.w) < 1e-4f &&
+           std::fabs(loaded->getCFrame().Rotation.x - saved->getCFrame().Rotation.x) < 1e-4f &&
+           std::fabs(loaded->getCFrame().Rotation.y - saved->getCFrame().Rotation.y) < 1e-4f &&
+           std::fabs(loaded->getCFrame().Rotation.z - saved->getCFrame().Rotation.z) < 1e-4f,
            "SurfaceMark YAML round-trip preserves rotation");
     std::error_code removeError; std::filesystem::remove(tempPath, removeError);
 
@@ -7834,7 +7830,7 @@ static int runAnimationClipRegression() {
             auto toolLeft = humanoid->getLeftArmPart();
             expect(rootPart && shoulderBinding && toolLeft && sameCFrame(
                        toolLeft->getWorldCFrame(),
-                       CharacterRig::applyR6Joint(rootPart->cframe, *shoulderBinding,
+                       CharacterRig::applyR6Joint(rootPart->getCFrame(), *shoulderBinding,
                            CFrame::fromAxisAngle(Vector3(1, 0, 0), 90.0f))),
                    "tool left-arm pose uses the R6 shoulder binding");
             humanoid->setSeatedForReplication(true);
@@ -7843,10 +7839,10 @@ static int runAnimationClipRegression() {
             auto seatedLeg = humanoid->getLeftLegPart();
             expect(rootPart && shoulderBinding && hipBinding && seatedLeft && seatedLeg &&
                    sameCFrame(seatedLeft->getWorldCFrame(), CharacterRig::applyR6Joint(
-                       rootPart->cframe, *shoulderBinding,
+                       rootPart->getCFrame(), *shoulderBinding,
                        CFrame::fromAxisAngle(Vector3(1, 0, 0), 10.0f))) &&
                    sameCFrame(seatedLeg->getWorldCFrame(), CharacterRig::applyR6Joint(
-                       rootPart->cframe, *hipBinding,
+                       rootPart->getCFrame(), *hipBinding,
                        CFrame::fromAxisAngle(Vector3(1, 0, 0), 90.0f))),
                    "seated arm and leg poses use the R6 bindings");
             humanoid->setSeatedForReplication(false);
@@ -7901,7 +7897,7 @@ static int runAnimationClipRegression() {
             auto customLeft = humanoid->getLeftArmPart();
             expect(rootPart && shoulderBinding && customLeft && sameCFrame(
                        customLeft->getWorldCFrame(),
-                       CharacterRig::applyR6Joint(rootPart->cframe, *shoulderBinding,
+                       CharacterRig::applyR6Joint(rootPart->getCFrame(), *shoulderBinding,
                            CFrame::fromAxisAngle(Vector3(1, 0, 0), 55.0f))),
                    "custom joint_delta Animation overrides the basic walk pose");
             humanoid->stopAnimation();
@@ -8773,7 +8769,7 @@ static int runSceneHierarchyGroupingRegression() {
     auto transformRoot = std::make_shared<Workspace>();
     auto parentA = std::make_shared<Model>(Vector3(10, 0, 0));
     auto parentB = std::make_shared<Model>(Vector3(-4, 2, 3));
-    parentB->Rotation = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f);
+    parentB->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f));
     auto transformA = std::make_shared<Cube>(Vector3(1, 0, 0), Vector3(1, 2, 3), Cube::defaultTextureID);
     auto transformB = std::make_shared<Cube>(Vector3(0, 1, 0), Vector3(2, 2, 2), Cube::defaultTextureID);
     parentA->addChild(transformA); parentB->addChild(transformB);
@@ -9483,18 +9479,22 @@ static int runPropertySchemaRegression() {
     expect(!removeError, "Script schema regression removes temporary source file");
 
     const auto sameQuaternion = [](const Quaternion& left, const Quaternion& right) {
-        return left.w == right.w && left.x == right.x && left.y == right.y &&
-               left.z == right.z;
+        return std::abs(left.w - right.w) < 1e-5f &&
+               std::abs(left.x - right.x) < 1e-5f &&
+               std::abs(left.y - right.y) < 1e-5f &&
+               std::abs(left.z - right.z) < 1e-5f;
     };
     const auto sameCFrame = [&](const CFrame& left, const CFrame& right) {
         return left.Position == right.Position && sameQuaternion(left.Rotation, right.Rotation);
     };
 
     auto cframeValue = std::make_shared<CFrameValue>();
-    cframeValue->Value = CFrame(Vector3(-9.0f, 8.0f, -7.0f),
-                                Quaternion(0.5f, -0.25f, 0.75f, -1.0f));
+    cframeValue->Value = CFrame(Vector3(-9.0f, 8.0f, -7.0f));
+    Quaternion expectedCFrameRotation;
+    Quaternion::tryFromComponents(1.0f, 0.25f, -0.5f, 0.75f,
+                                   expectedCFrameRotation);
     const CFrame expectedCFrame(Vector3(1.0f, -2.0f, 3.0f),
-                                Quaternion(1.0f, 0.25f, -0.5f, 0.75f));
+                                expectedCFrameRotation);
     cframeValue->setProperty("Value", YAML::Load(
         "{Position: [1.0, -2.0, 3.0], Rotation: [0.25, -0.5, 0.75, 1.0]}"));
     const auto cframeSchema = PropertyRegistry::collectApplicableSchema(cframeValue.get());
@@ -9526,8 +9526,10 @@ static int runPropertySchemaRegression() {
            "CFrameValue save keeps the Position/Rotation YAML form");
 
     auto quaternionValue = std::make_shared<QuaternionValue>();
-    quaternionValue->Value = Quaternion(-1.0f, 2.0f, -3.0f, 4.0f);
-    const Quaternion expectedQuaternion(0.875f, -0.5f, 0.25f, -0.75f);
+    quaternionValue->Value = Quaternion::fromEuler(Vector3(-11.0f, 23.0f, 7.0f));
+    Quaternion expectedQuaternion;
+    Quaternion::tryFromComponents(0.875f, -0.5f, 0.25f, -0.75f,
+                                   expectedQuaternion);
     quaternionValue->setProperty("Value", YAML::Load("[-0.5, 0.25, -0.75, 0.875]"));
     const auto quaternionSchema = PropertyRegistry::collectApplicableSchema(quaternionValue.get());
     const auto quaternionValueDesc = findProperty(quaternionSchema, "Value");
@@ -9774,6 +9776,228 @@ int runAudioServiceRegistrationRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runTransformInvariantRegression(const char* name) {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << '[' << name << "] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    Quaternion normalized;
+    expect(Quaternion::tryFromComponents(0.948722f, -0.331362f,
+                                          -0.0692405f, -0.0241901f,
+                                          normalized) && normalized.isNormalized(),
+           "normalizes the reported non-unit quaternion");
+    Quaternion invalid;
+    expect(!Quaternion::tryFromComponents(0.0f, 0.0f, 0.0f, 0.0f, invalid),
+           "rejects a zero quaternion");
+    expect(!Quaternion::tryFromComponents(
+               std::numeric_limits<float>::quiet_NaN(), 0, 0, 0, invalid),
+           "rejects a non-finite quaternion");
+
+    const Quaternion source = Quaternion::fromEuler(Vector3(17, -31, 53));
+    Matrix4 matrix = Matrix4::FromQuaternion(source);
+    matrix.m[0] *= 3.0f; matrix.m[1] *= 3.0f; matrix.m[2] *= 3.0f;
+    matrix.m[4] *= 0.25f; matrix.m[5] *= 0.25f; matrix.m[6] *= 0.25f;
+    matrix.m[8] *= 2.0f; matrix.m[9] *= 2.0f; matrix.m[10] *= 2.0f;
+    const CFrame extracted = CFrame::FromMatrix4(matrix);
+    expect(extracted.Rotation.isNormalized(),
+           "matrix extraction returns a unit quaternion after scale removal");
+    const CFrame roundTrip = CFrame::FromMatrix4(extracted.toMatrix4());
+    expect(roundTrip.Rotation.isNormalized() &&
+               std::abs(roundTrip.Position.x) < 1e-5f,
+           "CFrame matrix round-trip remains finite and normalized");
+
+    Quaternion accumulated;
+    const Quaternion step = Quaternion::fromAxisAngle(Vector3(0, 1, 0), 1.0f);
+    for (int i = 0; i < 1000; ++i) accumulated = accumulated * step;
+    expect(accumulated.isNormalized(), "repeated composition preserves unit length");
+    return failures == 0 ? 0 : 1;
+}
+
+static int runQuaternionInvariantRegression() {
+    const int local = runTransformInvariantRegression("QuaternionInvariantRegression");
+    const int property = runPropertySchemaRegression();
+    const int animation = runAnimationClipRegression();
+    const int network = runNetworkCoreRegression();
+    return (local || property || animation || network) ? 1 : 0;
+}
+
+static int runSpatialCoordinateAssertions() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[SpatialCoordinateRegression] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto parent = std::make_shared<Model>(Vector3(10, 2, -4));
+    parent->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 35));
+    auto folder = std::make_shared<Folder>();
+    auto middle = std::make_shared<Model>(Vector3(2, 3, 1));
+    auto leaf = std::make_shared<SurfaceMark>();
+    leaf->setCFrame(CFrame(Vector3(1, 4, -2),
+                           Quaternion::fromAxisAngle(Vector3(1, 0, 0), 12)));
+    parent->addChild(folder); folder->addChild(middle); middle->addChild(leaf);
+    const CFrame before = leaf->getWorldCFrame();
+    parent->setCFrame(CFrame(Vector3(-7, 8, 3),
+                              Quaternion::fromAxisAngle(Vector3(0, 0, 1), 48)));
+    expect(sameCFrame(leaf->getWorldCFrame(), before),
+           "three-level child through Folder keeps world pose after parent move");
+    const CFrame oldWorld = leaf->getWorldCFrame();
+    leaf->setWorldCFrame(CFrame(Vector3(5, 6, 7),
+                                Quaternion::fromAxisAngle(Vector3(0, 1, 0), 20)));
+    const CFrame roundTrip = leaf->getCFrame();
+    leaf->setCFrame(roundTrip);
+    expect(sameCFrame(leaf->getWorldCFrame(), oldWorld) == false &&
+               sameCFrame(leaf->getWorldCFrame(), CFrame(Vector3(5, 6, 7),
+                   Quaternion::fromAxisAngle(Vector3(0, 1, 0), 20))),
+           "world/local CFrame round-trip preserves requested world pose");
+    const CFrame reparentWorld = leaf->getWorldCFrame();
+    leaf->setParent(nullptr);
+    expect(sameCFrame(leaf->getWorldCFrame(), reparentWorld),
+           "detach preserves world pose");
+    return failures;
+}
+
+static int runCoordinateRecalculateAssertions() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[CoordinateRecalculateRegression] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto parent = std::make_shared<Model>(Vector3(10, 0, 0));
+    auto folder = std::make_shared<Folder>();
+    auto child = std::make_shared<SurfaceMark>(Vector3(2, 3, 4));
+    parent->addChild(folder); folder->addChild(child);
+    const CFrame world = child->getWorldCFrame();
+    const CFrame beforeLocal = child->getCFrame();
+    const CFrame afterLocal = parent->getWorldCFrame().inverse() * world;
+    std::vector<RecalculateSpatialCoordinatesCommand::Entry> entries;
+    entries.push_back({child, beforeLocal, afterLocal});
+    RecalculateSpatialCoordinatesCommand command(std::move(entries));
+    command.execute();
+    const CFrame executedLocal = child->getCFrame();
+    expect(sameCFrame(child->getWorldCFrame(), world),
+           "execute preserves immutable world snapshot");
+    command.undo();
+    expect(sameCFrame(child->getCFrame(), beforeLocal), "undo restores before local CFrame");
+    command.execute();
+    expect(sameCFrame(child->getCFrame(), executedLocal), "redo restores after local CFrame");
+    command.execute();
+    expect(sameCFrame(child->getCFrame(), executedLocal), "repeated execute is idempotent");
+    return failures;
+}
+
+static int runWeldAssemblyAssertions() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[WeldAssemblyStateRegression] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Gravity = {};
+    workspace->initPhysics();
+    auto root = std::make_shared<Cube>(Vector3(0, 4, 0), Vector3(2, 2, 2), 0);
+    auto member = std::make_shared<Cube>(Vector3(3, 4, 0), Vector3(1, 1, 1), 0);
+    auto anchored = std::make_shared<Cube>(Vector3(0, 4, 3), Vector3(1, 1, 1), 0);
+    root->Anchored = true;
+    workspace->addChild(root); workspace->addChild(member); workspace->addChild(anchored);
+    auto weld = std::make_shared<Weld>(root, member);
+    workspace->addChild(weld);
+    Physics* physics = workspace->getPhysicsEngine();
+    physics->update(*workspace, 0.0f);
+    expect(physics->hasBody(*root) && physics->hasBody(*member),
+           "Weld members register native bodies");
+    expect(physics->getBodyHandle(*root) == physics->getBodyHandle(*member),
+           "Weld members share one native body");
+    const CFrame relative = root->getWorldCFrame().inverse() * member->getWorldCFrame();
+    const CFrame target(Vector3(8, 6, -2), Quaternion::fromEuler(Vector3(0, 35, 0)));
+    physics->setMemberWorldCFrame(*member, target);
+    physics->update(*workspace, 1.0f / 60.0f);
+    const CFrame currentRelative = root->getWorldCFrame().inverse() * member->getWorldCFrame();
+    expect(sameCFrame(relative, currentRelative), "moving one member preserves Weld relative pose");
+    expect(member->getWorldCFrame().Rotation.isNormalized() &&
+               std::isfinite(physics->getLinearVelocity(*member).x),
+           "Weld member pose and velocity remain finite");
+    const Vector3 size = member->Size;
+    member->setSize(Vector3(2, 1, 1));
+    physics->update(*workspace, 1.0f / 60.0f);
+    expect(member->Size.x == 2.0f && member->Size.y == size.y && member->Size.z == size.z,
+           "member size mutation is retained after assembly update");
+    weld->setParent(nullptr);
+    physics->update(*workspace, 1.0f / 60.0f);
+    expect(physics->getBodyHandle(*root) != physics->getBodyHandle(*member),
+           "removing Weld splits the native body");
+    return failures;
+}
+
+static int runDriftSoakAssertions() {
+    int failures = 0;
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Gravity = {};
+    workspace->initPhysics();
+    auto root = std::make_shared<Cube>(Vector3(0, 3, 0), Vector3(2, 2, 2), 0);
+    auto member = std::make_shared<Cube>(Vector3(2, 3, 0), Vector3(1, 1, 1), 0);
+    root->Anchored = true;
+    workspace->addChild(root); workspace->addChild(member);
+    auto weld = std::make_shared<Weld>(root, member);
+    workspace->addChild(weld);
+    Physics* physics = workspace->getPhysicsEngine();
+    physics->update(*workspace, 0.0f);
+    const Vector3 rootSize = root->Size;
+    const Vector3 memberSize = member->Size;
+    for (int step = 0; step < 300; ++step) {
+        physics->update(*workspace, 1.0f / 60.0f);
+        const CFrame rootPose = root->getWorldCFrame();
+        const CFrame memberPose = member->getWorldCFrame();
+        if (!rootPose.Rotation.isNormalized() || !memberPose.Rotation.isNormalized() ||
+            !finiteCFrame(rootPose) || !finiteCFrame(memberPose) ||
+            root->Size != rootSize || member->Size != memberSize) {
+            ++failures;
+            break;
+        }
+    }
+    std::cout << "[CoordinateDriftSoakRegression] "
+              << (failures == 0 ? "PASS: " : "FAIL: ")
+              << "300 compound physics steps preserve finite unit poses and sizes\n";
+    return failures;
+}
+
+static int runSpatialCoordinateRegression() {
+    const int local = runTransformInvariantRegression("SpatialCoordinateRegression");
+    const int assertions = runSpatialCoordinateAssertions();
+    const int hierarchy = runSceneHierarchyGroupingRegression();
+    const int lifecycle = runPhysicsLifecycleRegression();
+    return (local || assertions || hierarchy || lifecycle) ? 1 : 0;
+}
+static int runCoordinateRecalculateRegression() {
+    const int local = runTransformInvariantRegression("CoordinateRecalculateRegression");
+    const int assertions = runCoordinateRecalculateAssertions();
+    // Grouping exercises the same immutable world-frame snapshot and local
+    // reconstruction path used by coordinate recalculation, including undo.
+    const int hierarchy = runSceneHierarchyGroupingRegression();
+    return (local || assertions || hierarchy) ? 1 : 0;
+}
+static int runWeldAssemblyStateRegression() {
+    const int local = runTransformInvariantRegression("WeldAssemblyStateRegression");
+    const int assertions = runWeldAssemblyAssertions();
+    const int migration = runPhysicsMigrationRegression();
+    const int rebind = runConstraintRebindRegression();
+    const int tool = runToolWeldRegression();
+    return (local || assertions || migration || rebind || tool) ? 1 : 0;
+}
+static int runCoordinateDriftSoakRegression() {
+    const int local = runTransformInvariantRegression("CoordinateDriftSoakRegression");
+    const int assertions = runDriftSoakAssertions();
+    const int rig = runHumanoidRigCollisionRegression();
+    const int seat = runSeatNetworkRegression();
+    const int tool = runToolWeldReequipRegression();
+    return (local || assertions || rig || seat || tool) ? 1 : 0;
+}
+
 int runYamlErrorRegression() {
     int failures = 0;
     std::error_code error;
@@ -9867,6 +10091,11 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--seat-network-regression", runSeatNetworkRegression),
         REG("--physical-file-instance-regression", runPhysicalFileInstanceRegression),
         REG("--property-schema-regression", runPropertySchemaRegression),
+        REG("--quaternion-invariant-regression", runQuaternionInvariantRegression),
+        REG("--spatial-coordinate-regression", runSpatialCoordinateRegression),
+        REG("--coordinate-recalculate-regression", runCoordinateRecalculateRegression),
+        REG("--weld-assembly-state-regression", runWeldAssemblyStateRegression),
+        REG("--coordinate-drift-soak-regression", runCoordinateDriftSoakRegression),
         REG("--surface-mark-regression", runSurfaceMarkRegression),
         REG("--tool-weld-regression", runToolWeldRegression),
         REG("--tool-weld-reequip-regression", runToolWeldReequipRegression),

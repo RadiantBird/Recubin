@@ -80,6 +80,8 @@
 #include <PhysX/PxPhysicsAPI.h>
 #include <memory>
 
+#include <Math/Quaternion.hpp>
+
 #define ENABLE_BETA 1 // enable beta features
 #if ENABLE_BETA
     #define beta(...) __VA_ARGS__
@@ -328,12 +330,18 @@ static void loadEditorPreferences(EditorManager* ed, User* user) {
         if (c["Pos"] && c["Pos"].IsSequence() && c["Pos"].size() == 3 &&
             c["Rot"] && c["Rot"].IsSequence() && c["Rot"].size() == 4) {
             Vector3 pos(c["Pos"][0].as<float>(), c["Pos"][1].as<float>(), c["Pos"][2].as<float>());
-            Quaternion rot(
-                c["Rot"][3].as<float>(), // w
-                c["Rot"][0].as<float>(), // x
-                c["Rot"][1].as<float>(), // y
-                c["Rot"][2].as<float>()  // z
-            );
+            Quaternion rot = Quaternion();
+            {
+                Quaternion q = Quaternion();
+                q.tryFromComponents(
+                    c["Rot"][3].as<float>(), // w
+                    c["Rot"][0].as<float>(), // x
+                    c["Rot"][1].as<float>(), // y
+                    c["Rot"][2].as<float>(), // z
+                    rot
+                );
+            }
+            
             user->setCameraCFrame(CFrame(pos, rot));
         }
     }
@@ -1379,12 +1387,6 @@ int main(int argc, char* argv[]) {
         // workspace内の全Humanoid(NPC含む)が対象(旧: user->humanoidのみに限定されていた)
         if (isPlaying && runtimeFrameOk && !isPaused && !navMeshBusy) {
             Humanoid::updateAll(workspace.get(), deltaTime, workspace->getPhysicsEngine());
-        }
-
-        // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、
-        // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす
-        if (isPlaying && runtimeFrameOk && !isPaused && !navMeshBusy && workspace->getPhysicsEngine()) {
-            workspace->getPhysicsEngine()->syncWeldKinematics();
         }
 
         // ---- Pキー: Workspace 切り替え ----

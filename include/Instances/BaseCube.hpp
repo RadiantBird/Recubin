@@ -28,11 +28,6 @@ private:
     PhysicsBodyHandle m_bodyHandle;
     CFrame m_compoundLocalOffset;
     Physics* m_physicsOwner = nullptr;
-    // このキューブがアンカーを含むWeldのキネマティックcompoundのメンバーであるか。
-    // true のときは syncPhysics() でキネマティック駆動を setKinematicTarget ではなく
-    // 即時姿勢更新で行い、アニメ駆動部(Head等)への追従ラグを無くす。
-    // 単独のキネマティック(動くプラットフォーム等)は false のままで通常の駆動を使う。
-    bool m_weldKinematic = false;
     // 最近傍のCharacter Modelから伝播する、保存・複製・公開対象外の実行時ID。
     std::uint32_t m_characterCollisionGroup = 0;
 

@@ -5,6 +5,8 @@
 キャラクターが装備できる道具インスタンス。`Handle`（`BaseCube`）を1つ持ち、Userの装備状態に応じて `Equipped` が切り替わる。`Hand`で左右/両手持ちを指定し、`Activated`シグナルで使用アクションを通知する。HumanoidはTool自体を知らず、Userが腕ポーズ上書き指示（`leftArmRaised`/`rightArmRaised`）としてHumanoid.moveへ渡す。
 
 ## 継承
+Handle の装着位置は手のワールド CFrame と Tool の local offset を合成して求め、装着後は通常の Weld assembly として追従する。
+
 `Instance` → `Tool`
 
 ## メンバ変数

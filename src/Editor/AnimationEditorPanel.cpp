@@ -54,7 +54,7 @@ void AnimationEditorPanel::saveBindPose(Instance* model) {
     if (model) {
         for (auto const& [name, child] : model->getChildren()) {
             if (auto* sp = dynamic_cast<Spatial*>(child.get()))
-                m_bindPose[name] = sp->cframe;
+                m_bindPose[name] = sp->getCFrame();
         }
     }
     m_poseSaved  = true;
@@ -65,7 +65,7 @@ void AnimationEditorPanel::restoreBindPose() {
     if (m_poseSaved && m_savedModel) {
         for (auto const& [name, cf] : m_bindPose) {
             if (auto* sp = dynamic_cast<Spatial*>(m_savedModel->getChild(name)))
-                sp->cframe = cf;
+                sp->setCFrame(cf);
         }
     }
     m_bindPose.clear();
@@ -83,20 +83,20 @@ void AnimationEditorPanel::applyPreview(Animation* anim, Instance* model, float 
     if (!anim || !model) return;
     // キーフレームはRoot相対なので、現在のRoot CFrameに合成して適用する
     Spatial* root = dynamic_cast<Spatial*>(model->getChild("Root"));
-    CFrame rootCF = root ? root->cframe : CFrame();
+    CFrame rootCF = root ? root->getCFrame() : CFrame();
     if (const auto* clip = anim->getClip(); clip && clip->space == "joint_delta") {
         for (const auto& track : clip->tracks) {
             const auto* binding = CharacterRig::findR6Joint(track.targetName);
             Spatial* sp = binding ? dynamic_cast<Spatial*>(model->getChild(binding->partName)) : nullptr;
             if (!binding || !sp || sp == root) continue;
-            sp->cframe = CharacterRig::applyR6Joint(rootCF, *binding, clip->evaluate(track, t));
+            sp->setCFrame(CharacterRig::applyR6Joint(rootCF, *binding, clip->evaluate(track, t)));
         }
         return;
     }
     for (const AnimTrack& track : anim->getTracks()) {
         Spatial* sp = dynamic_cast<Spatial*>(model->getChild(track.targetName));
         if (!sp || sp == root) continue;
-        sp->cframe = rootCF * anim->evaluateTrack(track, t);
+        sp->setCFrame(rootCF * anim->evaluateTrack(track, t));
     }
 }
 
@@ -227,9 +227,9 @@ void AnimationEditorPanel::onRender() {
         if (ImGui::Button(Loc::t(Loc::LocKey::AddKeyButton))) {
             // Cubeの現在ローカルCFrameをRoot相対に変換して記録する
             Spatial* root = dynamic_cast<Spatial*>(model->getChild("Root"));
-            CFrame rel = keyPart->cframe;
+            CFrame rel = keyPart->getCFrame();
             if (root && keyPart != root)
-                rel = root->cframe.inverse() * keyPart->cframe;
+                rel = root->getCFrame().inverse() * keyPart->getCFrame();
             if (auto* clip = anim->getClip(); clip && clip->space == "joint_delta") {
                 const auto* binding = [&]() -> const R6JointBinding* {
                     for (const auto& candidate : CharacterRig::r6JointBindings())

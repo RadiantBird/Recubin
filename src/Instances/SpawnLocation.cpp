@@ -25,7 +25,7 @@ void SpawnLocation::setProperty(
 }
 
 std::shared_ptr<Instance> SpawnLocation::clone() const {
-    auto copy = std::make_shared<SpawnLocation>(Position);
+    auto copy = std::make_shared<SpawnLocation>(getPosition());
     PropertyRegistry::cloneFields(this, copy.get(), "SpawnLocation");
     cloneBaseCubeStateAndChildrenTo(copy);
     return copy;

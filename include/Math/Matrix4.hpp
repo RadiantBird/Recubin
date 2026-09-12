@@ -100,6 +100,7 @@ struct Matrix4 {
     }
 
     static Matrix4 FromQuaternion(const Quaternion& q) {
+        q.assertNormalized("Matrix4::FromQuaternion");
         Matrix4 res;
         float xx = q.x * q.x; float yy = q.y * q.y; float zz = q.z * q.z;
         float xy = q.x * q.y; float xz = q.x * q.z; float yz = q.y * q.z;

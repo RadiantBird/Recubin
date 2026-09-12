@@ -204,19 +204,22 @@ void BaseCube::setRotation(Quaternion localRot) {
         return;
     }
     const float dot = std::abs(
-        cframe.Rotation.w * localRot.w + cframe.Rotation.x * localRot.x +
-        cframe.Rotation.y * localRot.y + cframe.Rotation.z * localRot.z);
+        getRotation().w * localRot.w + getRotation().x * localRot.x +
+        getRotation().y * localRot.y + getRotation().z * localRot.z);
     if (dot >= 0.9999999f) return;
-    cframe.Rotation = localRot;
+    commitCFrame(CFrame(getPosition(), localRot), SpatialUpdateOrigin::Physics);
     if (!lastWorkspace || !lastWorkspace->physicsEngine ||
         !lastWorkspace->physicsEngine->hasBody(*this)) return;
     Quaternion worldRot = getWorldCFrame().Rotation;
     if (SystemState::get().isPlaying) {
-        lastWorkspace->physicsEngine->enqueueSetRotation(std::static_pointer_cast<BaseCube>(shared_from_this()), worldRot);
+        // Position と rotation は actor へ別々に送らず、member world pose として
+        // 同じ pending/synchronization 経路で処理する。
+        CFrame target(getWorldCFrame().Position, worldRot);
+        lastWorkspace->physicsEngine->moveWeldAssembly(
+            std::static_pointer_cast<BaseCube>(shared_from_this()), target);
     } else {
-        CFrame bodyCFrame = lastWorkspace->physicsEngine->getBodyWorldCFrame(*this);
-        bodyCFrame.Rotation = worldRot;
-        lastWorkspace->physicsEngine->setBodyWorldCFrame(*this, bodyCFrame);
+        lastWorkspace->physicsEngine->setMemberWorldCFrame(
+            *this, CFrame(getWorldCFrame().Position, worldRot));
     }
 }
 
@@ -293,12 +296,12 @@ void BaseCube::syncPhysics() {
 
 // localPos: 親 Spatial からの相対座標
 void BaseCube::teleportTo(Vector3 localPos) {
-    cframe.Position = localPos;
+    commitCFrame(CFrame(localPos, getRotation()), SpatialUpdateOrigin::Physics);
     if (lastWorkspace && lastWorkspace->physicsEngine &&
         lastWorkspace->physicsEngine->hasBody(*this)) {
-        CFrame bodyCFrame = lastWorkspace->physicsEngine->getBodyWorldCFrame(*this);
-        bodyCFrame.Position = getWorldCFrame().Position;
-        lastWorkspace->physicsEngine->setBodyWorldCFrame(*this, bodyCFrame);
+        CFrame memberTarget = getWorldCFrame();
+        memberTarget.Position = getWorldCFrame().Position;
+        lastWorkspace->physicsEngine->setMemberWorldCFrame(*this, memberTarget);
     }
 }
 
@@ -392,7 +395,7 @@ void BaseCube::cloneBaseCubeStateAndChildrenTo(
     copy->UseTriplanar = UseTriplanar;
     copy->TextureScale = TextureScale;
     copy->Locked = Locked;
-    copy->cframe = cframe;
+    copy->setCFrame(getCFrame());
     copy->Size = Size;
     copy->material = material;
     copy->MassDensity = MassDensity;

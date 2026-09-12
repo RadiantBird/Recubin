@@ -936,7 +936,7 @@ bool SceneHierarchyPanel::executeClassPickerSelection(const std::string& selecte
         if (!m_history) return false;
         auto obj = InstanceCatalog::create(selected);
         if (obj && obj->IsA("Spatial"))
-            static_cast<Spatial*>(obj.get())->cframe.Position = computeSpawnPos(m_user, workspace);
+            static_cast<Spatial*>(obj.get())->setPosition(computeSpawnPos(m_user, workspace));
         auto insertParent = m_classPickerParent;
         if (selected == "SurfaceMark" && insertParent->IsA("BaseCube") && workspace)
             insertParent = workspace->shared_from_this();
@@ -944,12 +944,12 @@ bool SceneHierarchyPanel::executeClassPickerSelection(const std::string& selecte
         if (selected == "Sun" && m_user && obj) {
             auto* sun = static_cast<Sun*>(obj.get());
             float rad = sun->Angle * (3.14159265f / 180.0f);
-            sun->cframe.Position = m_user->cpos + Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f;
+            sun->setPosition(m_user->cpos + Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f);
         }
         if (selected == "Moon" && m_user && obj) {
             auto* moon = static_cast<Moon*>(obj.get());
             float rad = 45.0f * (3.14159265f / 180.0f);
-            moon->cframe.Position = m_user->cpos - Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f;
+            moon->setPosition(m_user->cpos - Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f);
         }
         if (!obj) return false;
         obj->Name = uniqueName(insertParent, selected);
@@ -1197,7 +1197,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
             if (m_user) {
                 float rad = obj->Angle * (3.14159265f / 180.0f);
                 Vector3 dir(0.0f, std::sin(rad), std::cos(rad));
-                obj->cframe.Position = m_user->cpos + dir * 1000.0f;
+                obj->setPosition(m_user->cpos + dir * 1000.0f);
             }
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
@@ -1212,7 +1212,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
                 }
                 float rad = angle * (3.14159265f / 180.0f);
                 Vector3 dir(0.0f, std::sin(rad), std::cos(rad));
-                obj->cframe.Position = m_user->cpos - dir * 1000.0f;
+                obj->setPosition(m_user->cpos - dir * 1000.0f);
             }
             m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
         }
@@ -1374,6 +1374,53 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
     GuiAutomation::registerLastItem("Explorer/Context/Group");
     if (groupClicked && m_history)
         openClassPicker(ClassPickerMode::Group, inst);
+
+    // Rebuild local coordinates from one immutable world-pose snapshot.  This
+    // is deliberately a single command so the operation is fully undoable.
+    std::vector<Instance*> coordinateRoots;
+    for (Instance* target : selectedInstances) {
+        if (!target) continue;
+        bool covered = false;
+        for (auto parent = target->Parent.lock(); parent; parent = parent->Parent.lock()) {
+            if (std::find(selectedInstances.begin(), selectedInstances.end(), parent.get())
+                    != selectedInstances.end()) {
+                covered = true;
+                break;
+            }
+        }
+        if (!covered) coordinateRoots.push_back(target);
+    }
+    const bool canRecalculate = !readOnly && !coordinateRoots.empty() && m_history;
+    const bool recalculateClicked = ImGui::MenuItem(
+        Loc::t(Loc::LocKey::MenuRecalculateCoordinates), nullptr, false, canRecalculate);
+    GuiAutomation::registerLastItem("Explorer/Context/RecalculateCoordinates");
+    if (recalculateClicked) {
+        std::vector<RecalculateSpatialCoordinatesCommand::Entry> entries;
+        std::unordered_map<Spatial*, CFrame> worldSnapshot;
+        std::function<void(Instance&)> collect = [&](Instance& node) {
+            if (auto* spatial = dynamic_cast<Spatial*>(&node))
+                worldSnapshot.emplace(spatial, spatial->getWorldCFrame());
+            for (const auto& [_, child] : node.children)
+                if (child) collect(*child);
+        };
+        for (Instance* root : coordinateRoots) if (root) collect(*root);
+
+        for (const auto& [spatial, world] : worldSnapshot) {
+            CFrame local = world;
+            if (auto* parent = spatial->getCoordinateParent()) {
+                auto it = worldSnapshot.find(parent);
+                const CFrame parentWorld = it != worldSnapshot.end()
+                    ? it->second : parent->getWorldCFrame();
+                local = parentWorld.inverse() * world;
+            }
+            entries.push_back({
+                std::static_pointer_cast<Spatial>(spatial->shared_from_this()),
+                spatial->getCFrame(), local});
+        }
+        if (!entries.empty())
+            m_history->execute(std::make_unique<RecalculateSpatialCoordinatesCommand>(
+                std::move(entries)));
+    }
 #if 0 // Legacy hierarchical grouping menu.
     if (ImGui::BeginMenu(Loc::t(Loc::LocKey::MenuGroup)) && m_history) {
         bool inSelection = std::find(selectedInstances.begin(), selectedInstances.end(), inst)
@@ -1453,7 +1500,7 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
                 auto sun = std::make_shared<Sun>();
                 if (m_user) {
                     float rad = sun->Angle * (3.14159265f / 180.0f);
-                    sun->cframe.Position = m_user->cpos + Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f;
+                    sun->setPosition(m_user->cpos + Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f);
                 }
                 return sun;
             });
@@ -1465,7 +1512,7 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
                     if (child && child->IsA("Sun")) { angle = static_cast<Sun*>(child.get())->Angle; break; }
                 if (m_user) {
                     float rad = angle * (3.14159265f / 180.0f);
-                    moon->cframe.Position = m_user->cpos - Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f;
+                    moon->setPosition(m_user->cpos - Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f);
                 }
                 return moon;
             });

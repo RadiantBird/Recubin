@@ -64,10 +64,10 @@ private:
         const physx::PxTransform& transform);
 
     struct PendingOp {
-        enum class Type { Resize, SetRotation };
+        enum class Type { Resize, SetCFrame };
         Type      type;
         std::weak_ptr<BaseCube> cube;
-        Quaternion rotation;
+        CFrame frame;
     };
     std::vector<PendingOp> m_pendingOps;
 
@@ -134,7 +134,6 @@ public:
     // アンカー駆動のキネマティックWeld(帽子等)を、アニメ更新後に即時同期する。
     // フレームループ内で processInput(Humanoidのパーツ配置)の後・描画の前に呼ぶことで、
     // 帽子がHead等のアニメ駆動部にラグ無く追従する。
-    void syncWeldKinematics() override;
     // memberを指定ワールド姿勢へ移動する。Weld連結体なら全メンバーを剛体として追従させ、
     // actor未作成時もCFrameへ同じ変換を反映するため、Toolの装備直後にも使用できる。
     void moveWeldAssembly(const std::shared_ptr<BaseCube>& member, const CFrame& worldCFrame) override;

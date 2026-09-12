@@ -1,9 +1,41 @@
 #include "include/Instances/Instance.hpp"
+#include "include/Instances/Spatial.hpp"
 #include "include/Util/Logger.hpp"
 #include <algorithm>
 #include <cassert>
 #include <functional>
 #include <vector>
+
+namespace {
+struct SpatialPose {
+    Spatial* spatial;
+    CFrame world;
+    std::size_t depth;
+};
+
+void snapshotSpatialTree(Instance& root, std::vector<SpatialPose>& poses,
+                         std::size_t depth = 0) {
+    if (auto* spatial = dynamic_cast<Spatial*>(&root)) {
+        poses.push_back({spatial, spatial->getWorldCFrame(), depth});
+    }
+    for (const auto& [_, child] : root.children) {
+        if (child) snapshotSpatialTree(*child, poses, depth + 1);
+    }
+}
+
+void restoreSpatialTree(const std::vector<SpatialPose>& poses) {
+    // 親の姿勢を先に復元してから子を復元する。保存済みワールド値だけを
+    // 参照するため、復元途中の親変更が子孫へ累積しない。
+    std::vector<const SpatialPose*> ordered;
+    ordered.reserve(poses.size());
+    for (const auto& pose : poses) ordered.push_back(&pose);
+    std::sort(ordered.begin(), ordered.end(),
+              [](const SpatialPose* lhs, const SpatialPose* rhs) {
+                  return lhs->depth < rhs->depth;
+              });
+    for (const SpatialPose* pose : ordered) pose->spatial->setWorldCFrame(pose->world);
+}
+}
 
 #ifdef _WIN32
     #undef getClassName // Windowsの勝手な置換をここで無効化する
@@ -31,6 +63,9 @@ void Instance::onChildrenChanged() {}
 void Instance::setParent(std::shared_ptr<Instance> newParent) {
     auto currentParent = this->Parent.lock();
     if (currentParent == newParent) return;
+
+    std::vector<SpatialPose> savedSpatialPoses;
+    snapshotSpatialTree(*this, savedSpatialPoses);
 
     // 循環参照の防止（親が自分自身や自分の子孫にならないか）
     std::shared_ptr<Instance> check = newParent;
@@ -72,6 +107,8 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
     if (currentParent) currentParent->onChildrenChanged();
     if (newParent) newParent->onChildrenChanged();
     this->onAncestorChanged();
+
+    restoreSpatialTree(savedSpatialPoses);
 }
 
 Instance* Instance::findFirstAncestorWorkspace() {
@@ -169,10 +206,7 @@ bool Instance::removeChild(string name) {
     auto it = this->children.find(name);
     if (it != this->children.end()) {
         auto child = it->second;
-        child->Parent = {};
-        this->children.erase(it);
-        onChildrenChanged();
-        child->onAncestorChanged();
+        child->setParent(nullptr);
         return true;
     }
     return false;

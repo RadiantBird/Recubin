@@ -3,7 +3,7 @@
 std::shared_ptr<Instance> Attachment::clone() const {
     auto c = std::make_shared<Attachment>();
     c->Name   = Name;
-    c->cframe = cframe;
+    c->setCFrame(getCFrame());
     c->Size   = Size;
     for (auto const& [n, ch] : children) c->addChild(ch->clone());
     return c;
@@ -18,11 +18,11 @@ std::shared_ptr<Attachment> Attachment::findUnder(Instance* root, const std::str
 }
 
 CFrame Attachment::relativeToAncestor(const Instance* ancestor) const {
-    CFrame rel = cframe;
+    CFrame rel = getCFrame();
     for (auto p = Parent.lock(); p; p = p->Parent.lock()) {
         if (p.get() == ancestor) return rel;
         if (p->IsA("Spatial"))
-            rel = static_cast<const Spatial*>(p.get())->cframe * rel;
+            rel = static_cast<const Spatial*>(p.get())->getCFrame() * rel;
     }
-    return cframe; // ancestor が祖先に無い場合のフォールバック
+    return getCFrame(); // ancestor が祖先に無い場合のフォールバック
 }

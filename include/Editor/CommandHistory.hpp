@@ -301,6 +301,21 @@ private:
     void apply(const CFrame& v);
 };
 
+// 選択サブツリーのワールド姿勢を保ったままローカル座標を再計算する。
+struct RecalculateSpatialCoordinatesCommand : Command {
+    struct Entry {
+        std::shared_ptr<Spatial> target;
+        CFrame beforeLocal;
+        CFrame afterLocal;
+    };
+    std::vector<Entry> m_entries;
+    explicit RecalculateSpatialCoordinatesCommand(std::vector<Entry> entries);
+    void execute() override;
+    void undo() override;
+private:
+    void apply(bool after);
+};
+
 // 複数SpatialのワールドCFrameとSizeを一つのUndo単位で変更する。
 struct MultiSpatialTransformCommand : Command {
     struct Entry {

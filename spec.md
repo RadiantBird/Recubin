@@ -31,16 +31,15 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 `Restore Default Animations`を実行した場合だけとする。
 
 ## 特殊なインスタンス
+  `EnableIOAPI`が有効な場合のみLuauへ`IO.ReadText`/`ReadBytes`/`WriteText`/`WriteBytes`/`AppendText`/
+  `AppendBytes`/`Exists`/`IsFile`/`IsDirectory`/`List`/`CreateDirectory`/`Copy`/`Move`/`Remove`/`RemoveTree`
+  を公開する。読取りは値または状態、変更系の成功は`true`、権限不足・不正パス・I/O失敗はエラーとする。
+  相対パスは起動時のポータブルroot直下、External許可時のみ絶対パスを許可し、`..`・symlink脱出を拒否する。RemoveTreeは
+  ポータブルroot、ホーム、ドライブ／FS rootを保護する。TextFile.Contentを含むデータサイズ上限は128 MiB。
+  `EnableIPCAPI`では`Connect`/`Send`/`Receive`/`Close`のstubを公開するが未実装エラーを返す。拡張同意receiptは
+  構成versionとIO/IPC/External権限集合を保存・比較し、Editorと`--editor-test`では警告とreceiptをバイパスする。
 
-### システム拡張API
-
-`EnableIOAPI`が有効な場合のみLuauへ`IO.ReadText`/`ReadBytes`/`WriteText`/`WriteBytes`/`AppendText`/
-`AppendBytes`/`Exists`/`IsFile`/`IsDirectory`/`List`/`CreateDirectory`/`Copy`/`Move`/`Remove`/`RemoveTree`
-を公開する。読取りは値または状態、変更系の成功は`true`、権限不足・不正パス・I/O失敗はエラーとする。
-相対パスは起動時のポータブルroot直下、External許可時のみ絶対パスを許可し、`..`・symlink脱出を拒否する。RemoveTreeは
-ポータブルroot、ホーム、ドライブ／FS rootを保護する。TextFile.Contentを含むデータサイズ上限は128 MiB。
-`EnableIPCAPI`では`Connect`/`Send`/`Receive`/`Close`のstubを公開するが未実装エラーを返す。拡張同意receiptは
-構成versionとIO/IPC/External権限集合を保存・比較し、Editorと`--editor-test`では警告とreceiptをバイパスする。
+## システム拡張API
 - **System**: シングルトン。常に1つのみ存在。Insert Objectリストには登録しない。
   `ApplicationId`（UUID）と、`EnableIOAPI`、`EnableIPCAPI`、`EnableExternalFileAccess`の
   システム拡張フラグを保持する。これらはエディターでのみ変更でき、Luauからは読み取り専用である。
@@ -78,6 +77,92 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   - 複数選択時は共通プロパティの和集合を表示する
   - プロパティにはエディターで実行できる関数のボタンも含める(ScriptのRestartなど)
   
+## 座標系
+  座標はエディター上では親を中心にする
+
+  Workspace/
+    A/
+      B/
+        C/
+          D/
+  ---
+
+  となっている場合、DはCを中心として、CはB,BはA、Aはワールド座標。
+  この法則はModel配下のBaseCube、子Modelに適用される。
+  「座標を再計算」ボタンを追加する。いったんワールド座標にすべてを展開し、
+  それをこの座標階層ごとに再計算して代入する。
+  また、
+
+  ---
+  A/
+    Folder/
+      B
+  ---
+  のように、Spatialを継承していないインスタンスが間にある場合、
+  Bの座標系は親をたどってSpatialを継承した最初のインスタンスの座標系とする。
+  この場合はBはAに属する。
+
+  物理エンジンはワールド座標で計算。
+
+  座標はCFrameとして扱う。Positionを直接計算しない。
+  Positionはローカル、WorldPositionはグローバルとして扱い、Positionは座標階層を元に計算して代入される。
+
+  実行時にローカル座標系はすべてワールド座標系に変換される。
+  スクリプトの代入もローカル座標系で設定したらワールド座標系に変換してから代入する。
+
+## Weld(溶接)
+  Parentによる親子関係は座標系・インスタンス階層のみを表し、
+  親が移動しても子は追従しない。
+  BaseCube同士を追従させる場合はWeldを使用する。
+
+  WeldされたBaseCubeはひとつのアセンブリとして扱う。
+  Weldで接続されているBaseCube同士には当たり判定を発生させない。
+  アセンブリ外のBaseCubeとは通常通り当たり判定を行う。
+
+  Weldで接続されたグループ内にAnchored=trueのBaseCubeがひとつでも存在する場合、
+  そのアセンブリ全体をAnchoredとして扱う。
+
+  AnchoredされたBaseCubeが存在しない場合、
+  アセンブリ全体をひとつの剛体として物理エンジン上で扱う。
+
+  Weldによって座標系の意味を変更しない。
+  Weldは追従関係のみを担当し、ローカル座標・ワールド座標の変換は座標系側で処理する。
+
+## NoCollision
+  NoCollisionは指定した2つのBaseCube間の当たり判定のみを無効化する。
+
+  Weldと異なり、追従や剛体の結合は行わない。
+
+  WeldされたBaseCube同士は元から内部衝突を行わないため、
+  同一のペアにNoCollisionを設定した場合は実質的に効果を持たない。
+
+## Character
+  Characterも通常のBaseCubeとWeldによるアセンブリとして扱う。
+
+  RootをCharacterの基準となるBaseCubeとする。
+  Character自身による移動、ジャンプなどの操作はRootを基準として物理エンジンへ反映する。
+
+  腕、脚、頭などの各部位はRootを基準としたアセンブリの一部として扱う。
+  外部オブジェクトからの衝突は各部位に対して通常通り発生する。
+
+  Character専用の物理挙動は必要以上に追加せず、
+  通常のWeldアセンブリと同じ規則を優先する。
+
+## Tool
+  ToolのHandleと、装備する腕の基準となる回転は一致させる。
+  Toolを装備するためだけの特殊な回転補正をWeldや座標系に持たせない。
+
+  Toolの装備による腕の姿勢変更はAnimation側で処理する。
+
+## Animation
+  装備、ジャンプなどの視覚的な姿勢変更は物理や座標系ではなくAnimationで処理する。
+
+  装備時は通常姿勢から装備姿勢へ回転を補間する。
+  ジャンプ時も腕や脚の回転を補間し、着地後に通常姿勢へ戻す。
+
+  基本的に関節の回転を補間する単純な方式とし、
+  見た目を成立させるためにRoot、Weld、CFrameへ特殊な補正を追加しない。
+
 ## 方角
 - +Zが東
 - -Zが西
@@ -128,152 +213,6 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   `CharacterAdded`を発火する。死亡respawnでもactive WorkspaceからSpawnLocationを再選択する。
   Play Hereの初回だけは明示されたModel.PositionをSpawnLocationより優先し、respawnは通常選択へ戻る。
 
-### ネットワークIDと正式名
-
-- `System.UseNetwork=true`でHost/Client起動した場合、Hostが割り当てたPeerIdを唯一の命名根拠とする。
-- 全端末でUserは`User_<PeerId>`、Characterは`PlayerCharacter_<PeerId>`として表現する。名前文字列は通信しない。
-- ClientはWelcomeでPeerIdが確定するまでScript、Character生成、物理更新を開始しない。
-- ネットワークUser/CharacterのNameは実行中ロックされ、通常のName変更は警告付きで無視される。
-- 正式名との衝突は自動サフィックスせず、ネットワークゲームを明示的なエラーで停止する。
-- Offline起動では従来の`User` / `PlayerCharacter`を維持する。ネットワーク時の旧パス互換は提供しない。
-- リモートAvatarは生成時の`Root.WorldCFrame.inverse() * Part.WorldCFrame`を各パーツのRoot相対姿勢として
-  保持し、受信・補間したRoot姿勢へ`setWorldCFrame(RootPose * RelativePose)`で適用する。
-  SpawnLocationによってAvatar Model自身が非identity CFrameを持つ場合もModel変換を二重適用せず、
-  Model CFrame、身体・Weldアクセサリの相対姿勢を維持する。Avatarのwire形式と補間方式は変えない。
-
-### IPv4 NAT越えとルーム接続
-
-- `System.UseNetwork=true`のランタイムは、`--host [listen-port]`で8文字のルームを作成し、
-  `--connect <room-code>`で参加する。直接IPアドレスを指定する旧CLIは使用しない。
-- ローカルUDPポートは`--listen-port <port>`でも指定でき、省略時はOSが空きポートを選ぶ。
-- STUNとランデブーの接続先は`startup.yaml`の`StunServer` / `RendezvousServer`、または
-  `--stun <host[:port]>` / `--rendezvous <host[:port]>`で指定する。CLI指定を優先し、
-  既定ポートはそれぞれ3478/3479とする。ホスト名の既定値は持たず、未設定時は起動に失敗する。
-- 同一のIPv4 UDPソケットでSTUN Binding、ランデブー、双方向ホールパンチ、ENet通信を処理する。
-  候補はLocal、ServerReflexive、PeerReflexiveの順に保持し、200ms間隔・最大8秒で直接接続を試す。
-- ランデブーが発行する128-bit admission token、ゲームプロトコルversion、room epochが一致する
-  HelloだけをHostが受理する。候補とtokenはRosterへ含め、ホスト移行後もPeerIdを維持する。
-- ホスト移行では選出されたClientが既存UDPソケットのままHostへ昇格し、ランデブーへPromoteを通知する。
-  残存Clientは更新候補で再パンチし、サービス停止時もキャッシュ済み候補を試す。
-- 接続失敗は`MissingConfig`、`StunTimeout`、`RoomNotFound`、`RoomFull`、
-  `RendezvousTimeout`、`PunchTimeout`、`AdmissionRejected`、`EnetTimeout`に分類する。
-- IPv4直結のみを対象とし、TURN/ゲーム通信リレー、IPv6、通信暗号化、アカウント認証、
-  ランデブーの永続化・高可用化は対象外とする。運用とプロトコルの詳細は
-  `doc/Network/NatTraversal.md`を参照する。
-
-### エディター内プレイテスト
-
-- エディターのプレイツールバーでは`Normal`、`PlayHere`、`LocalServer`を選択する。
-  選択中のモードと実行中のモードは別状態として保持し、プレイ中の選択変更を現在の実行へ
-  反映しない。選択モードとLocalServerのクライアント数は`editor_settings.yaml`へ保存する。
-- `Normal`は従来のオフラインPlayとスポーン位置を維持する。`PlayHere`はプレイ開始時の
-  プライマリViewportカメラ座標を初回CharacterのModel原点にそのまま使用し、
-  `CharacterAdded`はその座標を設定した後に発火する。死亡後のrespawnは従来どおりとする。
-- `LocalServer`は`System.UseNetwork=true`の場合だけ開始できる。無効時はローカライズ済みの
-  エラーを表示し、Playスナップショットの保存、ネットワーク開始、子プロセス起動を行わない。
-  未保存の編集内容を含む既存のPlayスナップショットを、サーバーと全クライアントが共有する。
-- LocalServer中のエディターは空きUDPポートで待ち受ける専用Hostであり、観察カメラを
-  `Free`に固定する。専用HostのPeerIdは1だが非プレイヤーとしてRosterへ記録し、
-  対応するUser/Characterを`System.Users`、Luauの`User`グローバル、Workspaceへ生成しない。
-  最初のプレイヤークライアントにはPeerId 2を割り当てる。
-- 専用Hostでは`Script`のみ、外部クライアントでは`LocalScript`のみを実行する。接続した
-  プレイヤーのUser/Characterは専用Host側にも生成し、Hostが物理とワールド状態を権威的に
-  シミュレーションして各クライアントへ配信する。非プレイヤーPeerはAvatar生成対象外とする。
-- LocalServerの人数は専用Hostを含まない外部クライアント窓数で、1〜8、既定値は2とする。
-  各`RecubinEngine`はlocalhostへDirect接続し、STUN／ランデブーは使用しない。ツールバーには
-  接続済み数／指定数を表示し、ネットワークテスト中はPauseを無効化する。
-- クライアントはエディター実行ファイルと同じディレクトリの`RecubinEngine`を、プロジェクト
-  ルートを作業ディレクトリとして起動する。エディターテスト用ランタイムCLIは
-  `--scene <snapshot>`、`--direct-connect 127.0.0.1:<port>`、`--listen-port 0`、
-  `--window-title "Client N"`、`--editor-test`とする。`--editor-test`はlocalhostへのDirect
-  クライアント接続かつ`--scene`と`--window-title`が指定された場合だけ許可し、そのクライアントの
-  AssetGuardをエディター相当にして未パッケージの絶対アセット参照を許可する。`--scene`と
-  `--window-title`は値を必須とし、各オプションの重複指定と`--option=value`形式を拒否する。
-- 実行ファイル欠落、Host開始失敗、途中のクライアント起動失敗では開始済みクライアント、
-  ネットワーク、シーンをロールバックする。実行中に個別クライアントが終了した場合は残りを
-  継続し、終了コードとログ場所をConsoleへ記録する。
-- Stopまたはエディター終了時は全クライアントへ通常終了を要求し、期限後に残るものだけを
-  強制終了する。終了待ちはフレームを停止しない状態機械で行い、片付け中は再Playを無効化する。
-  NetworkManagerのコールバック、Replication、専用サーバー状態を解除した後、Play開始前の
-  スナップショットを再読込する。
-
-## キャラクター(Humanoidクラス)
-- StarterCharacter内のテンプレート、またはそのclone後にRoot/Torso/Head/LeftArm/RightArm/
-  LeftLeg/RightLegという名前の兄弟Cube/Sphereを探して保持し、移動・ジャンプ・接地判定・
-  歩行アニメーション・一人称時の身体非表示を行う
-- `WalkSpeed`/`JumpPower`/`ClimbSpeed`を持つ(旧CharacterSettingの`moveSpeed`/`jumpPower`の統合先)
-- GLFWwindow/SystemStateには依存しない。Userが入力をベクトル/boolに変換して渡す
-- 移動方向と向きの補間率は呼び出し元Userの`CharacterSmoothing`で決まり、フレームレート補正式を適用する
-- `jump()`は接地中に加え、`LiquidCube`に水没中も許可される(水中でもジャンプ/浮上できる)
-- `Truss`に接触中は、W/Sで垂直移動、A/Dで水平ストレイフする(通常の歩行の代わり)
-- `Seat`に接触すると自動着席し、Rootを`Weld`でSeatに固定する。着席中はジャンプキーで離脱し、
-  WASDの入力はSeat.Steer/Seat.Throttleの更新にのみ使われる(通常の移動はしない)
-
-## レイキャスト
-PhysXに実装されているもののこと。
-もしくは他...
-
-## ファイルパスを要求するプロパティ
-- エディターに参照ボタンを追加する
-- 読み込みに失敗すれば警告ログを出力
-- 必要に応じてフォールバック処理/強制終了
-
-## 物理制約
-- ツリー構造のどこにあっても有効
-- 必要なプロパティがそろえば自動で初期化される
-- `Rope`、`Rod`、`BallSocket`、`Weld`、`Motor`、`NoCollision` は `Enabled`（既定値`true`）を持ち、`true` の場合のみ物理制約を有効化する。
-- Box3D の ConvexMesh および Terrain 凸包は物理生成時に最大44頂点へ簡略化する。
-  有限な頂点から凸包を生成できない場合は、ローカル境界Boxを衝突形状として使用する。
-  この処理は物理形状だけを対象とし、描画モデルは変更しない。
-
-## スクリプト
-- スクリプトは自身の最初の先祖のworkspaceをグローバル変数として参照する
-- スクリプトのソースコードは**エンジンによってアプリ実行中に動的に変更されることはない**
-
-## Luau バインディング
-
-### ChatService
-
-- `ChatService:SendMessage(text)` は最大512 UTF-8 bytesのメッセージをHost経由で全Peerへ送る。
-- `ChatService.MessageReceived` は `(senderPeerId, text)` で発火する。
-### プロパティ解決の優先順位
-- `instance.Key` のアクセスは、まずクラスのプロパティ（DispatchTable）を解決し、
-  **プロパティが見つからない場合のみ**同名の子インスタンスを返す（Roblox 互換のドットチェーン）。
-  → プロパティと同名の子がある場合、常にプロパティが優先される。
-- プロパティ表は最派生クラス名をキーにキャッシュされる。基底クラスと派生クラスで
-  **同名プロパティを定義しない**こと（衝突時の優先順位は未規定）。
-
-### 値型（Luau グローバル）
-- `Vector3.new(x,y,z)` / `Vector2.new(x,y)` / `Color4.new(r,g,b,a)`
-- `Quaternion.new(w,x,y,z)`（引数なしで単位回転）/ `Quaternion.fromEuler(Vector3)` /
-  `Quaternion.fromAxisAngle(axis, angleDeg)` / `Quaternion.Slerp(a,b,t)` /
-  `Quaternion.LookRotation(forward[, up])`（-Zが正面の規約）。
-  フィールド `.w/.x/.y/.z`、`:toEuler()`。`q * q`（合成）、`q * Vector3`（回転）。
-- `CFrame.new()` / `(x,y,z)` / `(Vector3 pos)` / `(Vector3 pos, Quaternion rot)` /
-  `CFrame.fromAxisAngle(axis, angleDeg)` / `CFrame.lookAt(eye, target[, up])`。
-  `CFrame.new` の第2引数は Quaternion 以外（Vector3 等）だとエラーになる。
-  フィールド `.Position`(Vector3)/`.Rotation`(Quaternion)、
-  `:inverse()`。`cf * cf`（合成）、`cf * Vector3`（ワールド点）。
-
-### Spatial 系トランスフォーム（BaseCube/Model/Sound 等）
-- `Position`(Vector3) / `Size`(Vector3) / `Rotation`(Quaternion) / `CFrame`(CFrame) を Read/Write。
-  読み取り専用の `WorldPosition`(Vector3) / `WorldCFrame`(CFrame)。
-- BaseCube 系では Write 時に PhysX 姿勢へ親チェーン合成込みで同期する。
-
-### Instance 共通
-- `Parent` は Read/Write（書込で reparent。`nil` 代入で親なし化）。
-- `instance:Clone()` … サブツリーを複製し（制約参照も張り替え）、**親なし**で返す。
-  返り値の `.Parent` を設定するまでツリーには入らない。
-- Luau 側が保持する Instance 参照は `weak_ptr` であり、対象が破棄されると以後
-  `instance.AnyProperty` は常に `nil` を返す（クラッシュはしない）。**死亡→respawn で
-  `PlayerCharacter`/`Root` 等は都度新規インスタンスとして作り直されるため、スクリプト起動時に
-  一度だけ `WaitChild`/`FindChild` で取得した参照は respawn を跨いで無効になる。**
-  respawn を跨いで参照を使い続けたいスクリプトは、Heartbeat 等の中で毎回
-  `workspace:FindChild("PlayerCharacter")` のように再取得すること。
-
-### 数値プロパティのクランプ
-- 不正値が困る一部の数値（Humanoid.WalkSpeed/JumpPower/MaxHealth、各種ライトの
-  Brightness/Range/Angle 等）は Luau 書込時に定義レンジ `[lo, hi]` へクランプされる。
 
 ## GUI（ScreenGui/SurfaceGui/BillboardGui）
 - ScreenGuiObject と WorldGuiObject は共通基底 GuiObject（Active/Size/Norm/Visible/

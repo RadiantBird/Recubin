@@ -62,7 +62,7 @@ enum class LocKey {
     CategoryScript, CategoryScriptDesc,
     SwitchToWorkspace, OpenInNewViewport, InsertObjectMenu,
     MenuDelete, MenuCopy, MenuPaste, MenuPasteAsChild, MenuSelectAllChildren,
-    MenuGroup,
+    MenuGroup, MenuRecalculateCoordinates,
     InstancePickerTitleInsert, InstancePickerTitleGroup, InstancePickerTitleReplace,
     InstancePickerSearch, InstancePickerNoResults, InstancePickerReferenceWarning,
     InstancePickerReplaceAndClear, InstancePickerCancel,

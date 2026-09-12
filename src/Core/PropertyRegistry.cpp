@@ -3,6 +3,8 @@
 #include <Instances/Script.hpp>
 #include <algorithm>
 #include <unordered_set>
+#include <Util/Logger.hpp>
+#include <cmath>
 
 namespace PropertyRegistry {
 
@@ -147,15 +149,29 @@ static PropValue valueFromYaml(const YAML::Node& n, const PropertyDesc& d,
             float values[4];
             if (readFloatSequence(n["Position"], values, 3))
                 frame.Position = Vector3(values[0], values[1], values[2]);
-            if (readFloatSequence(n["Rotation"], values, 4))
-                frame.Rotation = Quaternion(values[3], values[0], values[1], values[2]);
+            if (readFloatSequence(n["Rotation"], values, 4)) {
+                const float lenSq = values[0] * values[0] + values[1] * values[1] +
+                    values[2] * values[2] + values[3] * values[3];
+                if (std::isfinite(lenSq) && std::abs(lenSq - 1.0f) > 1e-4f)
+                    RCBN_WARN("normalizing CFrame Rotation property from YAML (lengthSquared=" << lenSq << ")");
+                Quaternion rotation;
+                if (Quaternion::tryFromComponents(values[3], values[0], values[1], values[2], rotation))
+                    frame.Rotation = rotation;
+            }
             return frame;
         }
         case PropType::Quaternion: {
             float values[4];
             if (!readFloatSequence(n, values, 4))
                 return currentValue ? *currentValue : PropValue(Quaternion());
-            return Quaternion(values[3], values[0], values[1], values[2]);
+            const float lenSq = values[0] * values[0] + values[1] * values[1] +
+                values[2] * values[2] + values[3] * values[3];
+            if (std::isfinite(lenSq) && std::abs(lenSq - 1.0f) > 1e-4f)
+                RCBN_WARN("normalizing Quaternion property from YAML (lengthSquared=" << lenSq << ")");
+            Quaternion rotation;
+            if (!Quaternion::tryFromComponents(values[3], values[0], values[1], values[2], rotation))
+                return currentValue ? *currentValue : PropValue(Quaternion());
+            return rotation;
         }
         case PropType::Enum: {
             if (d.yamlEnumAsString) {
@@ -298,7 +314,7 @@ void copyCompatibleProperties(const Instance* src, Instance* dst) {
     // the same family.
     if (const auto* sourceSpatial = dynamic_cast<const Spatial*>(src)) {
         if (auto* targetSpatial = dynamic_cast<Spatial*>(dst)) {
-            targetSpatial->cframe = sourceSpatial->cframe;
+            targetSpatial->setCFrame(sourceSpatial->getCFrame());
             targetSpatial->Size = sourceSpatial->Size;
         }
     }

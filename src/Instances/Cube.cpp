@@ -195,7 +195,7 @@ void Cube::draw(int modelLoc, int shaderProgram) {
 }
 
 std::shared_ptr<Instance> Cube::clone() const {
-    auto copy = std::make_shared<Cube>(this->Position, this->Size, Cube::defaultTextureID);
+    auto copy = std::make_shared<Cube>(this->getPosition(), this->Size, Cube::defaultTextureID);
     cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }

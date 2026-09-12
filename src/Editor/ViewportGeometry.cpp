@@ -8,21 +8,18 @@
 namespace ViewportGeometry {
 
 Vector3 worldToLocalPosition(const Vector3& worldPosition, const Spatial& spatial) {
-    auto parent = spatial.Parent.lock();
-    if (parent && parent->IsA("Spatial")) {
-        CFrame parentWorld = static_cast<Spatial*>(parent.get())->getWorldCFrame();
-        return parentWorld.Rotation.conjugate().rotate(worldPosition - parentWorld.Position);
-    }
-    return worldPosition;
+    CFrame world = spatial.getWorldCFrame();
+    world.Position = worldPosition;
+    return spatial.getCoordinateParent()
+        ? (spatial.getCoordinateParent()->getWorldCFrame().inverse() * world).Position
+        : worldPosition;
 }
 
 Quaternion worldToLocalRotation(const Quaternion& worldRotation, const Spatial& spatial) {
-    auto parent = spatial.Parent.lock();
-    if (parent && parent->IsA("Spatial")) {
-        CFrame parentWorld = static_cast<Spatial*>(parent.get())->getWorldCFrame();
-        return parentWorld.Rotation.conjugate() * worldRotation;
-    }
-    return worldRotation;
+    CFrame world(spatial.getWorldPosition(), worldRotation);
+    return spatial.getCoordinateParent()
+        ? (spatial.getCoordinateParent()->getWorldCFrame().inverse() * world).Rotation
+        : worldRotation;
 }
 
 Ray makeScreenRay(

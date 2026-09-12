@@ -46,6 +46,8 @@ Physics::update(workspace, dt)
   2. scene->simulate(dt)
   3. scene->fetchResults()
   4. 各 BaseCube::syncPhysics() で位置・回転を取り込む
+
+Weld assembly の body 原点と member のワールド CFrame は別概念である。外部 API は member ワールド姿勢を基準にし、body 原点への変換は backend 内部だけで行う。Topology/形状変更は固定ステップ前にまとめ、rebuild 前の姿勢・速度・sleep 状態を保持する。NoCollision は指定 pair のフィルタだけを変更する。
 ```
 
 ## 依存関係

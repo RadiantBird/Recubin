@@ -283,7 +283,7 @@ b3Quat toB3Quaternion(const Quaternion& value) {
 }
 
 Quaternion fromB3Quaternion(b3Quat value) {
-    return {value.s, value.v.x, value.v.y, value.v.z};
+    return Quaternion::fromNormalizedComponents(value.s, value.v.x, value.v.y, value.v.z);
 }
 
 b3Transform toB3Transform(const CFrame& value) {
@@ -324,11 +324,11 @@ Quaternion rotationFromZ(const Vector3& directionValue) {
     if (direction.length() < 1.0e-5f) direction = from;
     const float dot = std::clamp(Vector3::Dot(from, direction), -1.0f, 1.0f);
     if (dot > 0.999999f) return Quaternion();
-    if (dot < -0.999999f) return Quaternion(0.0f, 0.0f, 1.0f, 0.0f);
+    if (dot < -0.999999f) return Quaternion::fromNormalizedComponents(0.0f, 0.0f, 1.0f, 0.0f);
     Vector3 cross = Vector3::Cross(from, direction);
     const float scale = std::sqrt((1.0f + dot) * 2.0f);
     const float inverse = 1.0f / scale;
-    return Quaternion(
+    return Quaternion::fromNormalizedComponents(
         scale * 0.5f,
         cross.x * inverse,
         cross.y * inverse,
@@ -781,7 +781,6 @@ void Box3DPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
         return;
     }
     assignBody(*cube, id, CFrame());
-    cube->m_weldKinematic = false;
     m_bodies.push_back({cube, cube.get(), id});
 }
 
@@ -851,7 +850,6 @@ void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
         m_shapeLogOwners[cube.get()] = cube;
     }
     assignBody(*cube, replacement, CFrame());
-    cube->m_weldKinematic = false;
     m_bodies.push_back({cube, cube.get(), replacement});
     if (hadGravitySetting) m_gravityEnabled[cube.get()] = explicitGravity;
     b3Body_Enable(replacement);
@@ -896,7 +894,6 @@ void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
 
     const b3BodyId oldId = bodyId(*cube);
     assignBody(*cube, b3_nullBodyId, CFrame());
-    cube->m_weldKinematic = false;
 
     m_bodies.erase(
         std::remove_if(m_bodies.begin(), m_bodies.end(),
@@ -937,7 +934,6 @@ void Box3DPhysicsBackend::onCubeDestroyed(BaseCube& cube) {
             b3Body_SetUserData(oldId, nullptr);
     }
     assignBody(cube, b3_nullBodyId, CFrame());
-    cube.m_weldKinematic = false;
     m_bodies.erase(
         std::remove_if(m_bodies.begin(), m_bodies.end(),
             [&](const BodyEntry& entry) { return entry.cubeRaw == &cube; }),
@@ -964,7 +960,6 @@ void Box3DPhysicsBackend::destroyUniqueBodies() {
             b3DestroyBody(entry.bodyId);
         if (auto cube = entry.cube.lock()) {
             assignBody(*cube, b3_nullBodyId, CFrame());
-            cube->m_weldKinematic = false;
         }
         entry.bodyId = b3_nullBodyId;
     }
@@ -996,16 +991,20 @@ void Box3DPhysicsBackend::syncCube(BaseCube& cube) {
     const b3BodyId id = bodyId(cube);
     if (B3_IS_NULL(id)) return;
     if (cube.Anchored) {
+        const bool isCompound = std::count_if(m_bodies.begin(), m_bodies.end(),
+            [&](const BodyEntry& entry) { return idsEqual(entry.bodyId, id); }) > 1;
+        if (isCompound) {
+            // Weld compound は body pose を物理側の正として member へ反映する。
+            cube.setWorldCFrame(bodyWorldFrame(id) * cube.m_compoundLocalOffset);
+            return;
+        }
         const CFrame cubeWorld = cube.getWorldCFrame();
         const CFrame bodyTarget = cubeWorld * cube.m_compoundLocalOffset.inverse();
         b3WorldTransform target = {
             toB3Position(bodyTarget.Position),
             toB3Quaternion(bodyTarget.Rotation),
         };
-        if (cube.m_weldKinematic)
-            b3Body_SetTransform(id, target.p, target.q);
-        else
-            b3Body_SetTargetTransform(id, target, FIXED_STEP, true);
+        b3Body_SetTargetTransform(id, target, FIXED_STEP, true);
         return;
     }
     cube.setWorldCFrame(bodyWorldFrame(id) * cube.m_compoundLocalOffset);
@@ -1013,57 +1012,8 @@ void Box3DPhysicsBackend::syncCube(BaseCube& cube) {
 
 void Box3DPhysicsBackend::syncAllCubes() {
     for (BodyEntry& entry : m_bodies) {
-        if (auto cube = entry.cube.lock(); cube && !cube->m_weldKinematic)
+        if (auto cube = entry.cube.lock())
             syncCube(*cube);
-    }
-    syncWeldKinematics();
-}
-
-void Box3DPhysicsBackend::syncWeldKinematics() {
-    std::unordered_set<std::uint64_t> visited;
-    for (const BodyEntry& seedEntry : m_bodies) {
-        auto seed = seedEntry.cube.lock();
-        const b3BodyId id = seedEntry.bodyId;
-        if (!seed || !seed->m_weldKinematic || B3_IS_NULL(id) ||
-            !b3Body_IsValid(id))
-            continue;
-        const std::uint64_t stored = b3StoreBodyId(id);
-        if (!visited.insert(stored).second) continue;
-
-        std::vector<std::shared_ptr<BaseCube>> members;
-        for (const BodyEntry& entry : m_bodies) {
-            if (!idsEqual(entry.bodyId, id)) continue;
-            if (auto member = entry.cube.lock()) members.push_back(member);
-        }
-
-        const CFrame currentBody = bodyWorldFrame(id);
-        CFrame driverTarget = currentBody;
-        float driverDifference = -std::numeric_limits<float>::infinity();
-        const BaseCube* driver = nullptr;
-        for (const auto& member : members) {
-            if (!member || !member->Anchored) continue;
-            const CFrame candidate =
-                member->getWorldCFrame() * member->m_compoundLocalOffset.inverse();
-            const float difference = cframeDifference(candidate, currentBody);
-            if (!std::isfinite(difference)) continue;
-            if (difference > driverDifference ||
-                (difference == driverDifference && driver &&
-                 std::less<const BaseCube*>{}(member.get(), driver))) {
-                driverDifference = difference;
-                driverTarget = candidate;
-                driver = member.get();
-            }
-        }
-
-        if (driver && std::isfinite(driverDifference)) {
-            b3Body_SetTransform(id, toB3Position(driverTarget.Position),
-                               toB3Quaternion(driverTarget.Rotation));
-        }
-        const CFrame confirmedBody = bodyWorldFrame(id);
-        for (const auto& member : members) {
-            if (member)
-                member->setWorldCFrame(confirmedBody * member->m_compoundLocalOffset);
-        }
     }
 }
 
@@ -1609,7 +1559,6 @@ void Box3DPhysicsBackend::rebuildAssembly(
         if (!cube) continue;
         const CFrame local = localFrames[cube.get()];
         assignBody(*cube, newBody, local);
-        cube->m_weldKinematic = anchored;
         auto found = std::find_if(
             m_bodies.begin(), m_bodies.end(),
             [&](const BodyEntry& entry) { return entry.cubeRaw == cube.get(); });
@@ -1647,7 +1596,8 @@ void Box3DPhysicsBackend::createWeld(
         weld->m_constraintHandle = handle;
         m_constraints.push_back({weld, handle, b3_nullJointId});
     }
-    rebuildAssembly(Weld::collectAssembly(first, workspace));
+    if (!m_batchCreatingConstraints)
+        rebuildAssembly(Weld::collectAssembly(first, workspace));
 }
 
 void Box3DPhysicsBackend::createRope(const std::shared_ptr<Rope>& rope) {
@@ -2090,9 +2040,23 @@ void Box3DPhysicsBackend::removeExpiredEntries() {
 }
 
 void Box3DPhysicsBackend::createPendingConstraints(Workspace& workspace) {
+    m_batchCreatingConstraints = true;
     for (const auto& value : workspace.pendingConstraints) {
         if (value && value->IsA("Weld"))
             createWeld(std::static_pointer_cast<Weld>(value), workspace);
+    }
+    m_batchCreatingConstraints = false;
+
+    std::set<BaseCube*> rebuilt;
+    for (const auto& value : workspace.pendingConstraints) {
+        if (!value || !value->IsA("Weld")) continue;
+        auto weld = std::static_pointer_cast<Weld>(value);
+        auto first = weld->m_cube0.lock();
+        if (!first || rebuilt.contains(first.get())) continue;
+        auto assembly = Weld::collectAssembly(first, workspace);
+        rebuildAssembly(assembly);
+        for (const auto& member : assembly)
+            if (member) rebuilt.insert(member.get());
     }
     for (const auto& value : workspace.pendingConstraints) {
         if (!value || value->IsA("Weld")) continue;

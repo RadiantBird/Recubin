@@ -26,28 +26,7 @@ void BallSocket::refreshRefNames() {
             m_attachment1Name = a1->getPathUpTo(c1.get());
 }
 
-void BallSocket::registerIfReady() {
-    if (!Enabled) return;
-    auto* ws_raw = findFirstAncestorWorkspace();
-    if (!ws_raw) return;
-    Workspace* ws = static_cast<Workspace*>(ws_raw);
-    // 片方だけ名前で指定され未解決のCubeを、保存済みの名前から遅延解決する（Weld と同じ理由）
-    if (!m_cube0.lock() && !m_cube0Name.empty()) {
-        auto* child = ws->getChildByPath(m_cube0Name);
-        if (child && child->IsA("BaseCube"))
-            m_cube0 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
-    }
-    if (!m_cube1.lock() && !m_cube1Name.empty()) {
-        auto* child = ws->getChildByPath(m_cube1Name);
-        if (child && child->IsA("BaseCube"))
-            m_cube1 = std::static_pointer_cast<BaseCube>(child->shared_from_this());
-    }
-    resolveAttachments();
-    if (m_cube0.lock() && m_cube1.lock())
-        ws->registerConstraint(shared_from_this());
-}
-
-void BallSocket::resolveAttachments() {
+void BallSocket::resolveAdditionalReferences() {
     if (!m_attachment0.lock() && !m_attachment0Name.empty())
         if (auto c0 = m_cube0.lock())
             m_attachment0 = Attachment::findUnder(c0.get(), m_attachment0Name);

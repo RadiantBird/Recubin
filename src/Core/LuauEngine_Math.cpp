@@ -378,7 +378,13 @@ int LuauEngine::quat_constructor(lua_State* L) {
         float x = (float)luaL_checknumber(L, 2);
         float y = (float)luaL_checknumber(L, 3);
         float z = (float)luaL_checknumber(L, 4);
-        q = Quaternion(w, x, y, z);
+        const float lenSq = w * w + x * x + y * y + z * z;
+        if (std::isfinite(lenSq) && std::abs(lenSq - 1.0f) > 1e-4f)
+            RCBN_WARN("normalizing Quaternion.new arguments (lengthSquared=" << lenSq << ")");
+        if (!Quaternion::tryFromComponents(w, x, y, z, q)) {
+            luaL_error(L, "Quaternion.new: components must be finite and non-zero");
+            return 0;
+        }
     }
     pushQuaternion(L, q);
     return 1;
@@ -437,14 +443,8 @@ int LuauEngine::quat_index(lua_State* L) {
 }
 
 int LuauEngine::quat_newindex(lua_State* L) {
-    Quaternion* q = (Quaternion*)luaL_checkudata(L, 1, RCBN_QUATERNION_METATABLE);
-    std::string_view key = luaL_checkstring(L, 2);
-    float value = (float)luaL_checknumber(L, 3);
-
-    if (key == "w") q->w = value;
-    else if (key == "x") q->x = value;
-    else if (key == "y") q->y = value;
-    else if (key == "z") q->z = value;
+    (void)luaL_checkudata(L, 1, RCBN_QUATERNION_METATABLE);
+    luaL_error(L, "Quaternion components are read-only; construct a new Quaternion instead");
     return 0;
 }
 

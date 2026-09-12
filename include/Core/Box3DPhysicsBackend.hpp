@@ -69,6 +69,7 @@ private:
     std::vector<BodyEntry> m_bodies;
     std::vector<ConstraintEntry> m_constraints;
     std::vector<NoCollisionEntry> m_noCollisionEntries;
+    bool m_batchCreatingConstraints = false;
     std::shared_ptr<const std::set<CubePair>> m_noCollisionSnapshot;
     std::vector<TerrainEntry> m_terrains;
     std::unordered_map<const BaseCube*, BuoyancyProxy> m_buoyancyProxyCache;
@@ -124,7 +125,6 @@ public:
     void update(Workspace& workspace, float dt) override;
     void stepOnce(float dt) override;
     void syncAllCubes() override;
-    void syncWeldKinematics() override;
     void moveWeldAssembly(
         const std::shared_ptr<BaseCube>& member, const CFrame& worldCFrame) override;
 

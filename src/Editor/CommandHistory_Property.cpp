@@ -22,7 +22,7 @@ void SetVec3Command::undo() { apply(m_before); }
 void SetVec3Command::apply(const Vector3& v) {
     if (!m_target) return;
     if (m_target->IsA("BaseCube")) { auto* b=static_cast<BaseCube*>(m_target.get()); if(m_prop=="Position")b->teleportTo(v); else if(m_prop=="Size")b->setSize(v); }
-    else { if(m_prop=="Position")m_target->cframe.Position=v; else if(m_prop=="Size")m_target->Size=v; }
+    else { if(m_prop=="Position")m_target->setPosition(v); else if(m_prop=="Size")m_target->Size=v; }
 }
 SetColorCommand::SetColorCommand(std::shared_ptr<BaseCube> t, Color4 b, Color4 a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetColorCommand::execute(){if(m_target)m_target->Color=m_after;} void SetColorCommand::undo(){if(m_target)m_target->Color=m_before;}
@@ -51,13 +51,13 @@ void MultiRenameInstanceCommand::apply(bool after){
         e.target->renameToAuthoritative(after ? e.after : e.before);
 }
 SetRotationCommand::SetRotationCommand(std::shared_ptr<Spatial> t,Quaternion b,Quaternion a):m_target(std::move(t)),m_before(b),m_after(a){}
-void SetRotationCommand::execute(){if(m_target)m_target->cframe.Rotation=m_after;} void SetRotationCommand::undo(){if(m_target)m_target->cframe.Rotation=m_before;}
+void SetRotationCommand::execute(){if(m_target)m_target->setRotation(m_after);} void SetRotationCommand::undo(){if(m_target)m_target->setRotation(m_before);}
 SetToolPositionCommand::SetToolPositionCommand(std::shared_ptr<Tool> t,Vector3 b,Vector3 a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetToolPositionCommand::execute(){if(m_target)m_target->Position=m_after;} void SetToolPositionCommand::undo(){if(m_target)m_target->Position=m_before;}
 SetToolRotationCommand::SetToolRotationCommand(std::shared_ptr<Tool> t,Quaternion b,Quaternion a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetToolRotationCommand::execute(){if(m_target)m_target->Rotation=m_after;} void SetToolRotationCommand::undo(){if(m_target)m_target->Rotation=m_before;}
 SetSpatialCFrameCommand::SetSpatialCFrameCommand(std::shared_ptr<Spatial> t,CFrame b,CFrame a):m_target(std::move(t)),m_before(b),m_after(a){}
-void SetSpatialCFrameCommand::execute(){apply(m_after);} void SetSpatialCFrameCommand::undo(){apply(m_before);} void SetSpatialCFrameCommand::apply(const CFrame& v){if(!m_target)return;if(m_target->IsA("BaseCube")){auto*b=static_cast<BaseCube*>(m_target.get());b->teleportTo(v.Position);b->setRotation(v.Rotation);}else m_target->cframe=v;}
+void SetSpatialCFrameCommand::execute(){apply(m_after);} void SetSpatialCFrameCommand::undo(){apply(m_before);} void SetSpatialCFrameCommand::apply(const CFrame& v){if(!m_target)return;if(m_target->IsA("BaseCube")){auto*b=static_cast<BaseCube*>(m_target.get());b->teleportTo(v.Position);b->setRotation(v.Rotation);}else m_target->setCFrame(v);}
 MultiSpatialTransformCommand::MultiSpatialTransformCommand(std::vector<Entry> e):m_entries(std::move(e)){}
 void MultiSpatialTransformCommand::execute(){apply(true);} void MultiSpatialTransformCommand::undo(){apply(false);}
 void MultiSpatialTransformCommand::apply(bool after){
@@ -79,7 +79,7 @@ GizmoCommand::GizmoCommand(std::shared_ptr<BaseCube> t,GizmoState b,GizmoState a
 void GizmoCommand::execute(){apply(m_after);} void GizmoCommand::undo(){apply(m_before);} void GizmoCommand::apply(const GizmoState&s){if(!m_target)return;m_target->teleportTo(s.position);m_target->setSize(s.size);m_target->setRotation(s.rotation);}
 MultiGizmoCommand::MultiGizmoCommand(std::vector<Entry> e):m_entries(std::move(e)){}
 void MultiGizmoCommand::execute(){for(auto&e:m_entries)applyState(e.target,e.after);} void MultiGizmoCommand::undo(){for(auto&e:m_entries)applyState(e.target,e.before);}
-void MultiGizmoCommand::applyState(const std::shared_ptr<Spatial>& sp,const GizmoState&s){if(!sp||sp->Parent.expired())return;if(sp->IsA("BaseCube")){auto*b=static_cast<BaseCube*>(sp.get());b->teleportTo(s.position);b->setSize(s.size);b->setRotation(s.rotation);}else{sp->Position=s.position;sp->Size=s.size;sp->Rotation=s.rotation;}}
+void MultiGizmoCommand::applyState(const std::shared_ptr<Spatial>& sp,const GizmoState&s){if(!sp||sp->Parent.expired())return;if(sp->IsA("BaseCube")){auto*b=static_cast<BaseCube*>(sp.get());b->teleportTo(s.position);b->setSize(s.size);b->setRotation(s.rotation);}else{sp->setCFrame(CFrame(s.position,s.rotation));sp->Size=s.size;}}
 
 SetDecalColorCommand::SetDecalColorCommand(std::shared_ptr<Decal> t,Color4 b,Color4 a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetDecalColorCommand::execute(){if(m_target)m_target->Color=m_after;} void SetDecalColorCommand::undo(){if(m_target)m_target->Color=m_before;}

@@ -65,7 +65,6 @@ public:
     void update(Workspace& workspace, float dt);
     void stepOnce(float dt);
     void syncAllCubes();
-    void syncWeldKinematics();
     void moveWeldAssembly(const std::shared_ptr<BaseCube>& member, const CFrame& worldCFrame);
 
     void createActor(const std::shared_ptr<BaseCube>& cube);
@@ -77,8 +76,10 @@ public:
     bool hasBody(const BaseCube& cube) const;
     bool sharesBody(const BaseCube& first, const BaseCube& second) const;
     PhysicsBodyHandle getBodyHandle(const BaseCube& cube) const;
-    CFrame getBodyWorldCFrame(const BaseCube& cube) const;
-    void setBodyWorldCFrame(BaseCube& cube, const CFrame& worldCFrame);
+    // Public transform API: all CFrames are member world poses. Backend body
+    // origin access remains an implementation detail of the facade.
+    CFrame getMemberWorldCFrame(const BaseCube& cube) const;
+    void setMemberWorldCFrame(BaseCube& cube, const CFrame& worldCFrame);
     Vector3 getLinearVelocity(const BaseCube& cube) const;
     void setLinearVelocity(BaseCube& cube, const Vector3& velocity);
     void setAngularVelocity(BaseCube& cube, const Vector3& velocity);

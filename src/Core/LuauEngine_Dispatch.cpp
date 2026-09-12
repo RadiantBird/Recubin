@@ -374,16 +374,16 @@ void LuauEngine::InitDispatchTable_Base() {
     // --- Spatial（Position/Size/Rotation/CFrame を基底で公開。Model/Sound にも波及）---
     // Position/Rotation は cframe への参照エイリアスでメンバポインタ不可のため手書き。
     DispatchTable["Spatial"]["Position"] = [](lua_State* L, Instance* obj) {
-        pushVector3(L, static_cast<Spatial*>(obj)->cframe.Position);
+        pushVector3(L, static_cast<Spatial*>(obj)->getCFrame().Position);
         return 1;
     };
     DispatchTable["Spatial"]["Size"]     = getter_vec3<Spatial, &Spatial::Size>();
     DispatchTable["Spatial"]["Rotation"] = [](lua_State* L, Instance* obj) {
-        pushQuaternion(L, static_cast<Spatial*>(obj)->cframe.Rotation);
+        pushQuaternion(L, static_cast<Spatial*>(obj)->getCFrame().Rotation);
         return 1;
     };
     DispatchTable["Spatial"]["CFrame"] = [](lua_State* L, Instance* obj) {
-        pushCFrame(L, static_cast<Spatial*>(obj)->cframe);
+        pushCFrame(L, static_cast<Spatial*>(obj)->getCFrame());
         return 1;
     };
     DispatchTable["Spatial"]["WorldPosition"] = [](lua_State* L, Instance* obj) {
@@ -849,7 +849,7 @@ void LuauEngine::InitSetterTable_Base() {
     SetterTable["Spatial"]["Position"] = [](lua_State* L, Instance* obj) {
         Vector3* v = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
         if (auto* cube = dynamic_cast<BaseCube*>(obj)) cube->teleportTo(*v);
-        else static_cast<Spatial*>(obj)->cframe.Position = *v;
+        else static_cast<Spatial*>(obj)->setPosition(*v);
         return 0;
     };
     SetterTable["Spatial"]["Size"] = [](lua_State* L, Instance* obj) {
@@ -861,13 +861,13 @@ void LuauEngine::InitSetterTable_Base() {
     SetterTable["Spatial"]["Rotation"] = [](lua_State* L, Instance* obj) {
         Quaternion* q = (Quaternion*)luaL_checkudata(L, 3, LuauEngine::RCBN_QUATERNION_METATABLE);
         if (auto* cube = dynamic_cast<BaseCube*>(obj)) cube->setRotation(*q);
-        else static_cast<Spatial*>(obj)->cframe.Rotation = *q;
+        else static_cast<Spatial*>(obj)->setRotation(*q);
         return 0;
     };
     SetterTable["Spatial"]["CFrame"] = [](lua_State* L, Instance* obj) {
         CFrame* cf = (CFrame*)luaL_checkudata(L, 3, LuauEngine::RCBN_CFRAME_METATABLE);
         if (auto* cube = dynamic_cast<BaseCube*>(obj)) { cube->teleportTo(cf->Position); cube->setRotation(cf->Rotation); }
-        else static_cast<Spatial*>(obj)->cframe = *cf;
+        else static_cast<Spatial*>(obj)->setCFrame(*cf);
         return 0;
     };
     SetterTable["BaseCube"]["Color"]        = setter_color4     <BaseCube, &BaseCube::Color>();

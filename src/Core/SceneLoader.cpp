@@ -468,15 +468,15 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
             } else if (child->IsA("Rope")) {
                 auto rope = std::static_pointer_cast<Rope>(child);
                 resolvePair(c, "Rope", rope->m_cube0Name, rope->m_cube1Name,
-                            [&](auto c0, auto c1) { rope->setCubes(c0, c1); rope->resolveAttachments(); });
+                            [&](auto c0, auto c1) { rope->setCubes(c0, c1); rope->resolveReferencesAndRegister(); });
             } else if (child->IsA("Rod")) {
                 auto rod = std::static_pointer_cast<Rod>(child);
                 resolvePair(c, "Rod", rod->m_cube0Name, rod->m_cube1Name,
-                            [&](auto c0, auto c1) { rod->setCubes(c0, c1); rod->resolveAttachments(); });
+                            [&](auto c0, auto c1) { rod->setCubes(c0, c1); rod->resolveReferencesAndRegister(); });
             } else if (child->IsA("BallSocket")) {
                 auto bs = std::static_pointer_cast<BallSocket>(child);
                 resolvePair(c, "BallSocket", bs->m_cube0Name, bs->m_cube1Name,
-                            [&](auto c0, auto c1) { bs->setCubes(c0, c1); bs->resolveAttachments(); });
+                            [&](auto c0, auto c1) { bs->setCubes(c0, c1); bs->resolveReferencesAndRegister(); });
             } else if (child->IsA("NoCollision")) {
                 auto nc = std::static_pointer_cast<NoCollision>(child);
                 resolvePair(c, "NoCollision", nc->m_cube0Name, nc->m_cube1Name,
@@ -488,7 +488,7 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
             } else if (child->IsA("Motor")) {
                 auto motor = std::static_pointer_cast<Motor>(child);
                 resolvePair(c, "Motor", motor->m_cube0Name, motor->m_cube1Name,
-                            [&](auto c0, auto c1) { motor->setCubes(c0, c1); motor->resolveAttachments(); });
+                            [&](auto c0, auto c1) { motor->setCubes(c0, c1); motor->resolveReferencesAndRegister(); });
             } else if (child->IsA("ObjectValue")) {
                 auto ov = std::static_pointer_cast<ObjectValue>(child);
                 if (!ov->m_targetPathName.empty()) {
@@ -557,7 +557,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             const Spatial* s = static_cast<const Spatial*>(inst);
             out << YAML::Key << "Position" << YAML::Value
                 << YAML::Flow << YAML::BeginSeq
-                << s->Position.x << s->Position.y << s->Position.z
+                << s->getPosition().x << s->getPosition().y << s->getPosition().z
                 << YAML::EndSeq;
             out << YAML::Key << "Size" << YAML::Value
                 << YAML::Flow << YAML::BeginSeq
@@ -565,8 +565,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << YAML::EndSeq;
             out << YAML::Key << "Rotation" << YAML::Value
                 << YAML::Flow << YAML::BeginSeq
-                << s->cframe.Rotation.x << s->cframe.Rotation.y
-                << s->cframe.Rotation.z << s->cframe.Rotation.w
+                << s->getRotation().x << s->getRotation().y
+                << s->getRotation().z << s->getRotation().w
                 << YAML::EndSeq;
         }
         if (inst->IsA("BaseCube")) {

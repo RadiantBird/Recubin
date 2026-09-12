@@ -790,11 +790,6 @@ int main(int argc, char* argv[]) {
         if (!navMeshBusy)
             Humanoid::updateAll(workspace.get(), deltaTime, workspace->getPhysicsEngine());
 
-        // Humanoidのパーツ配置(processInput内のapplyBodyAnimation)が終わった直後に、
-        // アンカー駆動のキネマティックWeld(帽子等)を即時同期して追従ラグを無くす
-        if (!navMeshBusy && workspace->getPhysicsEngine())
-            workspace->getPhysicsEngine()->syncWeldKinematics();
-
         if (!navMeshBusy) {
             Vector3 terrainCenter = user->cpos;
             if (user->humanoid) {

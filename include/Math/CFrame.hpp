@@ -8,7 +8,9 @@ struct CFrame {
     Quaternion Rotation;
 
     CFrame() : Position(0, 0, 0), Rotation() {}
-    CFrame(const Vector3& pos, const Quaternion& rot) : Position(pos), Rotation(rot) {}
+    CFrame(const Vector3& pos, const Quaternion& rot) : Position(pos), Rotation(rot) {
+        Rotation.assertNormalized("CFrame::CFrame");
+    }
     CFrame(const Vector3& pos) : Position(pos), Rotation() {}
     CFrame(float x, float y, float z) : Position(x, y, z), Rotation() {}
 

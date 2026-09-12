@@ -5,6 +5,8 @@
 2つの`BaseCube`を`PxRigidDynamic`のコンパウンド（剛体結合）で固定する物理制約インスタンス。Motorと同様に`Cube0`/`Cube1`が揃うと自動でWorkspaceに登録される。`collectAssembly()`により、Weldで連結されたアセンブリ全体をMotor境界を越えずにBFS収集できる（ラグドールやアセンブリ操作で使用想定）。
 
 ## 継承
+Weld の追従は物理 assembly の責務であり、Parent 階層による座標合成とは独立している。assembly rebuild 時は member のワールド姿勢と物理状態を保持する。
+
 `Instance` → `Weld`
 
 ## メンバ変数
