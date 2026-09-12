@@ -403,11 +403,8 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
                 constexpr float DEGREES_TO_RADIANS =
                     0.01745329251994329577f;
 
-                constexpr float TURN_RESPONSE =
-                    10.0f;
-
-                constexpr float MAX_TURN_SPEED =
-                    8.0f;
+                constexpr float TURN_RESPONSE = 30.0f;
+                constexpr float MAX_TURN_SPEED = 20.0f;
 
                 const float targetYaw =
                     Gyro::headingAngleFromDirection(
