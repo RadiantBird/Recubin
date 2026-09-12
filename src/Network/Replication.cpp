@@ -1105,7 +1105,18 @@ void ReplicationManager::ensurePredictionScene() {
     m_predictionGyro = std::make_shared<Gyro>();
     m_predictionGyro->Name = "PredictionRootGyro";
     m_predictionGyro->setPart(m_shadowRoot);
-    m_predictionGyro->setTargetRotation(realRoot->getWorldCFrame().Rotation);
+
+    // @RadiantBird 2026/09/12:
+    // Prediction has no CharacterRig builder, so initialize its three axes
+    // here, then use the shared Character heading conversion.
+    m_predictionGyro->setAxisEnabled(GyroAxis::X, true);
+    m_predictionGyro->setTargetAngle(GyroAxis::X, 0.0f);
+    m_predictionGyro->setAxisEnabled(GyroAxis::Y, true);
+    m_predictionGyro->setAxisEnabled(GyroAxis::Z, true);
+    m_predictionGyro->setTargetAngle(GyroAxis::Z, 0.0f);
+    m_predictionGyro->setCharacterRotation(
+        realRoot->getWorldCFrame().Rotation
+    );
     m_predictionHumanoid->setRootGyro(m_predictionGyro);
     m_predictionPhysics->createGyro(m_predictionGyro);
 

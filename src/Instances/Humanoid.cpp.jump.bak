@@ -7,8 +7,6 @@
 #include <Instances/Weld.hpp>
 #include <Instances/BallSocket.hpp>
 #include <Instances/Gyro.hpp>
-#include <Instances/Force.hpp>
-#include <Util/Logger.hpp>
 #include <Instances/Motor6D.hpp>
 #include <Instances/Workspace.hpp>
 #include <include/Core/Physics.hpp>
@@ -20,29 +18,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
-
-namespace {
-
-std::shared_ptr<Force> findCharacterYawForce(
-    const std::shared_ptr<BaseCube>& root
-) {
-    if (!root) {
-        return nullptr;
-    }
-
-    const auto& children = root->getChildren();
-    const auto it = children.find("YawForce");
-
-    if (it == children.end()) {
-        return nullptr;
-    }
-
-    return std::dynamic_pointer_cast<Force>(
-        it->second
-    );
-}
-
-}
 
 // プロパティ・メタデータ表（単一の正）。ここから Luau getter/setter・YAML 読込/保存・
 // clone が一括生成される。アニメーション系メソッドと TakeDamage は LuauEngine の
@@ -255,16 +230,7 @@ void Humanoid::enterRagdoll(Physics* physics) {
     m_ragdollEntered = true;
 
     stopAnimation();
-
-    if (auto gyro = m_rootGyro.lock()) {
-        gyro->setEnabled(false);
-    }
-
-    if (auto yawForce = findCharacterYawForce(root)) {
-        yawForce->Value.y = 0.0f;
-        yawForce->Enabled = false;
-    }
-
+    if (auto gyro = m_rootGyro.lock()) gyro->setEnabled(false);
     if (auto model = Parent.lock()) {
         for (const auto& topology : CharacterRig::r6JointTopology()) {
             if (auto motor = std::dynamic_pointer_cast<Motor6D>(
@@ -323,9 +289,6 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     auto root = getRootPart();
     if (!root || !physics || !physics->hasBody(*root)) return;
 
-    auto yawForce =
-        findCharacterYawForce(root);
-
     // --- Seat: 未着席なら接触判定、着席中ならSteer/Throttle更新のみ行って抜ける ---
     if (!m_seated && physics) {
         if (BaseCube* seatCube = physics->findOverlapping(*root, "Seat")) {
@@ -335,30 +298,13 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         }
     }
     if (m_seated) {
-        if (auto gyro = m_rootGyro.lock()) {
-            gyro->setEnabled(false);
-        }
-
-        if (yawForce) {
-            yawForce->Value.y = 0.0f;
-            yawForce->Enabled = false;
-        }
-
+        if (auto gyro = m_rootGyro.lock()) gyro->setEnabled(false);
         if (auto seat = m_seat.lock()) {
             seat->Throttle = forwardAxis;
             seat->Steer    = rightAxis;
         }
-
-        applyBodyAnimation(
-            leftArmRaised,
-            rightArmRaised
-        );
-
+        applyBodyAnimation(leftArmRaised, rightArmRaised);
         return;
-    }
-
-    if (yawForce) {
-        yawForce->Enabled = true;
     }
 
     const float frameScale = std::max(deltaTime, 0.0f) * 60.0f;
@@ -379,98 +325,30 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         const Vector3* headingDirection = nullptr;
 
         if (ctrlLockEnabled) {
+            // CtrlLock中は常にカメラの正面方向を向く（Roblox ShiftLock方式）
             headingDirection = &flatForward;
-        }
-        else if (isPressingMove) {
+        } else if (isPressingMove) {
             headingDirection = &targetMoveDir;
         }
 
-        // X/Z remain physical Gyro axes.
-        if (auto gyro = m_rootGyro.lock()) {
+        // @RadiantBird 2026/09/12:
+        // Do not derive Character yaw by decomposing a tilted Root quaternion.
+        // With no heading input, leave the previous Gyro target untouched.
+        if (headingDirection) {
+            auto gyro = m_rootGyro.lock();
+
+            if (!gyro) {
+                RCBN_ERROR(
+                    "Humanoid \"" << getFullPath()
+                    << "\" cannot update heading because RootGyro is missing"
+                );
+            } else {
+                gyro->setCharacterHeading(*headingDirection);
+                gyro->setEnabled(true);
+            }
+        } else if (auto gyro = m_rootGyro.lock()) {
             gyro->setEnabled(true);
         }
-
-        if (yawForce) {
-            if (
-                headingDirection &&
-                headingDirection->lengthSquared() > 1e-8f
-            ) {
-                // @RadiantBird 2026/09/13:
-                // Character yaw is intentionally controlled by angular
-                // velocity instead of Gyro torque. Pitch and roll remain
-                // physical so stopping and acceleration can still make the
-                // character lean naturally.
-                constexpr float DEGREES_TO_RADIANS =
-                    0.01745329251994329577f;
-
-                constexpr float TURN_RESPONSE =
-                    10.0f;
-
-                constexpr float MAX_TURN_SPEED =
-                    8.0f;
-
-                const float targetYaw =
-                    Gyro::headingAngleFromDirection(
-                        *headingDirection
-                    );
-
-                const float currentYaw =
-                    Gyro::angleFromRotation(
-                        GyroAxis::Y,
-                        root->getWorldCFrame().Rotation
-                    );
-
-                float errorDegrees =
-                    targetYaw - currentYaw;
-
-                while (errorDegrees > 180.0f) {
-                    errorDegrees -= 360.0f;
-                }
-
-                while (errorDegrees < -180.0f) {
-                    errorDegrees += 360.0f;
-                }
-
-                const float desiredYawVelocity =
-                    std::clamp(
-                        errorDegrees *
-                            DEGREES_TO_RADIANS *
-                            TURN_RESPONSE,
-                        -MAX_TURN_SPEED,
-                        MAX_TURN_SPEED
-                    );
-
-                yawForce->Value.y =
-                    desiredYawVelocity;
-
-                // RCBN_LOG(
-                //     "Yaw target=" << targetYaw
-                //     << " current=" << currentYaw
-                //     << " error=" << errorDegrees
-                //     << " velocity=" << desiredYawVelocity
-                // )
-
-                yawForce->Value.y =
-                    desiredYawVelocity;
-
-                // const Vector3 actualAngularVelocity =
-                //     physics->getAngularVelocity(*root);
-
-                RCBN_LOG(
-                    "Yaw command=" << desiredYawVelocity
-                    // << " actualY=" << actualAngularVelocity.y
-                    << " error=" << errorDegrees
-                );
-                
-            }
-            else {
-                yawForce->Value.y = 0.0f;
-            }
-        }
-    }
-    else if (yawForce) {
-        // Keep the current heading while climbing.
-        yawForce->Value.y = 0.0f;
     }
 
     // --- 物理速度の適用 ---
@@ -555,94 +433,18 @@ void Humanoid::setJumpHeight(float height) {
 }
 
 void Humanoid::jump(Physics* physics) {
-    if (m_dead || !physics) {
-        return;
-    }
-
+    if (m_dead) return;
     auto root = getRootPart();
-
     if (!root) {
         resolveParts(Parent.lock().get());
         root = getRootPart();
     }
-
-    if (
-        !root ||
-        !physics->hasBody(*root)
-    ) {
-        return;
-    }
-
-    const bool submerged =
-        physics->findOverlapping(
-            *root,
-            "LiquidCube"
-        ) != nullptr;
-
-    if (
-        !isGrounded &&
-        !submerged
-    ) {
-        return;
-    }
-
-    // @RadiantBird 2026/09/13:
-    // Character Rig v2 uses independent physical bodies connected by Motor6D.
-    // Launching only Root makes the joints drag the rest of the character
-    // upward from one point, which introduces unwanted rotation.
-    //
-    // Give every primary R6 body the same vertical launch velocity instead.
-    // Preserve each body's existing horizontal velocity.
-    auto applyJumpVelocity =
-        [&](const std::shared_ptr<BaseCube>& part) {
-            if (
-                !part ||
-                !physics->hasBody(*part)
-            ) {
-                return;
-            }
-
-            Vector3 velocity =
-                physics->getLinearVelocity(
-                    *part
-                );
-
-            velocity.y =
-                JumpPower;
-
-            physics->setLinearVelocity(
-                *part,
-                velocity
-            );
-        };
-
-    applyJumpVelocity(
-        root
-    );
-
-    applyJumpVelocity(
-        getTorsoPart()
-    );
-
-    applyJumpVelocity(
-        getHeadPart()
-    );
-
-    applyJumpVelocity(
-        getLeftArmPart()
-    );
-
-    applyJumpVelocity(
-        getRightArmPart()
-    );
-
-    applyJumpVelocity(
-        getLeftLegPart()
-    );
-
-    applyJumpVelocity(
-        getRightLegPart()
-    );
+    if (!root || !physics || !physics->hasBody(*root)) return;
+    bool submerged = physics && physics->findOverlapping(*root, "LiquidCube") != nullptr;
+    if (!isGrounded && !submerged) return;
+    Vector3 vel = physics->getLinearVelocity(*root);
+    vel.y = JumpPower;
+    physics->setLinearVelocity(*root, vel);
 }
 
 void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {

@@ -330,35 +330,125 @@ std::shared_ptr<Instance> Instance::cloneTree() const {
 }
 
 std::vector<std::shared_ptr<Instance>> Instance::cloneForest(
-    const std::vector<std::shared_ptr<Instance>>& roots) {
+    const std::vector<std::shared_ptr<Instance>>& roots
+) {
     std::vector<std::shared_ptr<Instance>> copies;
     CloneRemap map;
 
-    std::function<void(const Instance&, const std::shared_ptr<Instance>&)> buildMap =
-        [&](const Instance& original, const std::shared_ptr<Instance>& copy) {
-            if (!copy) return;
-            map[const_cast<Instance*>(&original)] = copy;
-            for (auto const& [name, originalChild] : original.children) {
-                auto it = copy->children.find(name);
-                if (originalChild && it != copy->children.end()) buildMap(*originalChild, it->second);
+    // clone() 内の addChild() は通常のreparentと同じく
+    // world transformを維持するため、nested Spatialのlocal CFrameを
+    // 書き換えてしまう。
+    //
+    // @RadiantBird 2026/09/13:
+    // Clone must preserve the source tree's local coordinate system.
+    // Reparenting semantics must not alter cloned local transforms.
+    std::vector<std::pair<Spatial*, CFrame>> localCFrames;
+
+    std::function<void(
+        const Instance&,
+        const std::shared_ptr<Instance>&
+    )> buildMap =
+        [&](const Instance& original,
+            const std::shared_ptr<Instance>& copy) {
+            if (!copy) {
+                return;
+            }
+
+            map[
+                const_cast<Instance*>(&original)
+            ] = copy;
+
+            auto* originalSpatial =
+                dynamic_cast<const Spatial*>(&original);
+
+            auto* copySpatial =
+                dynamic_cast<Spatial*>(copy.get());
+
+            if (originalSpatial && copySpatial) {
+                localCFrames.emplace_back(
+                    copySpatial,
+                    originalSpatial->getCFrame()
+                );
+            }
+
+            for (
+                const auto& [name, originalChild]
+                : original.children
+            ) {
+                if (!originalChild) {
+                    continue;
+                }
+
+                auto iterator =
+                    copy->children.find(name);
+
+                if (
+                    iterator == copy->children.end() ||
+                    !iterator->second
+                ) {
+                    continue;
+                }
+
+                buildMap(
+                    *originalChild,
+                    iterator->second
+                );
             }
         };
 
     for (const auto& root : roots) {
-        if (!root) continue;
+        if (!root) {
+            continue;
+        }
+
         auto copy = root->clone();
-        if (!copy) continue;
-        buildMap(*root, copy);
-        copies.push_back(std::move(copy));
+
+        if (!copy) {
+            continue;
+        }
+
+        buildMap(
+            *root,
+            copy
+        );
+
+        copies.push_back(
+            std::move(copy)
+        );
     }
 
-    std::function<void(Instance&)> applyRemap = [&](Instance& copy) {
-        copy.remapClonedInstances(map);
-        for (auto const& [name, child] : copy.children)
-            if (child) applyRemap(*child);
-    };
-    for (const auto& copy : copies)
-        if (copy) applyRemap(*copy);
+    // clone() の再帰 addChild() が壊したlocal transformを、
+    // 元ツリーの値へ一括で戻す。
+    Spatial::applyLocalCFrameBatch(
+        localCFrames
+    );
+
+    std::function<void(Instance&)> applyRemap =
+        [&](Instance& copy) {
+            copy.remapClonedInstances(
+                map
+            );
+
+            for (
+                const auto& [name, child]
+                : copy.children
+            ) {
+                if (child) {
+                    applyRemap(
+                        *child
+                    );
+                }
+            }
+        };
+
+    for (const auto& copy : copies) {
+        if (copy) {
+            applyRemap(
+                *copy
+            );
+        }
+    }
+
     return copies;
 }
 

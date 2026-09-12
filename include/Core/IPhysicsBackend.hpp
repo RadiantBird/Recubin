@@ -79,8 +79,14 @@ public:
     virtual void removeConstraint(const std::shared_ptr<Instance>& constraint) = 0;
     virtual void updateConstraint(const std::shared_ptr<Instance>& constraint) = 0;
 
-    virtual bool raycast(const Vector3& origin, const Vector3& direction, float maxDistance,
-                         RaycastHit& hitResult, const BaseCube* ignoreCube = nullptr) = 0;
+    virtual bool raycast(
+        const Vector3& origin,
+        const Vector3& direction,
+        float maxDistance,
+        RaycastHit& hitResult,
+        const Instance* excludeRoot
+    ) = 0;
+    
     virtual BaseCube* findOverlapping(const BaseCube& cube, const std::string& className,
                                       float margin = 0.0f) const = 0;
 

@@ -49,6 +49,7 @@ Instance
   ├─ FileRef                 ← アセットパス参照
   ├─ Tool                    ← 装備可能な道具
   ├─ Motor                   ← 物理制約（回転駆動）
+  ├─ Gyro                    ← 単一Partの軸別world角度制御
   ├─ Weld                    ← 物理制約（剛体結合）
   ├─ Rope                    ← 物理制約（バネ付き距離拘束）
   ├─ Rod                     ← 物理制約（固定長距離拘束）
@@ -106,6 +107,7 @@ Instance
 | [FileRef](FileRef.md) | `include/Instances/FileRef.hpp` | アセットパス参照 |
 | [Tool](Tool.md) | `include/Instances/Tool.hpp` | 装備可能な道具 |
 | [Motor](Motor.md) | `include/Instances/Motor.hpp` | 物理制約（回転駆動） |
+| [Gyro](Gyro.md) | `include/Instances/Gyro.hpp` | 単一Partの軸別world角度制御 |
 | [Weld](Weld.md) | `include/Instances/Weld.hpp` | 物理制約（剛体結合） |
 | [Rope](Rope.md) | `include/Instances/Rope.hpp` | 物理制約（バネ付き距離拘束） |
 | [Rod](Rod.md) | `include/Instances/Rod.hpp` | 物理制約（固定長距離拘束） |

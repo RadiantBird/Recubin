@@ -40,7 +40,7 @@ Root の移動・回転は Root member のワールド CFrame を基準に行う
 | `set/getWalkAnimation`、`set/getJumpAnimation`、`set/getEquipAnimation` | Animation参照を明示的に設定・取得 |
 | `getRootPart()`/`getTorsoPart()`/`getHeadPart()`/左右の腕・脚getter | C++処理向けにweak参照を一時的な`shared_ptr`へ昇格。期限切れ時は`nullptr` |
 | `setRootPart(root)` | ネットワーク予測用Rootの非所有参照を設定し、通常Rootと同じ角度ロックを適用。Luau/YAMLには非公開 |
-| `move(...)` | WASD相当の入力から移動・回転・壁ずり・歩行アニメ・接地判定・身体配置を実行 |
+| `move(...)` | WASD相当の入力から移動、GyroのY方位、歩行アニメ、接地判定、身体配置を更新。無入力時は最後のGyro方位を維持 |
 | `moveToward(target, physics, arrivalRadius)` | パス追従用の1フレーム移動（`move()`のロジックを流用） |
 | `jump()` | 接地中のみJumpPowerで上方向速度をセット |
 | `setHealth(v)`/`takeDamage(n)` | クランプしつつ設定。0以下遷移でDied発火 |

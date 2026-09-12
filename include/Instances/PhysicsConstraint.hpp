@@ -27,6 +27,9 @@ protected:
     Workspace* m_lastWorkspace = nullptr;
 
     void registerIfReady();
+    // Most constraints connect two physical endpoints. Single-body controllers
+    // override this without fabricating a second endpoint.
+    virtual bool endpointsReady() const;
     virtual void resolveAdditionalReferences() {}
     virtual bool additionalReferencesReady() const { return true; }
     // endpoint/property変更時に既存 native binding を安全窓で破棄し、次回の
@@ -48,6 +51,7 @@ public:
     void setCube1(std::shared_ptr<BaseCube> cube);
     std::shared_ptr<BaseCube> getCube0() const;
     std::shared_ptr<BaseCube> getCube1() const;
+    PhysicsConstraintHandle getConstraintHandle() const;
     void refreshRefNames();
     void setEnabled(bool enabled);
     // SceneLoader/editor が参照解決完了後に一度だけ呼ぶ公開入口。

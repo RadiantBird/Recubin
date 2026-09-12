@@ -107,7 +107,6 @@ private:
     std::shared_ptr<BaseCube> resolveContactIdentity(const void* identity) const;
     void applyBuoyancy();
     void applyForces();
-    void applyMaintainedVelocities();
     void applyGyroForces();
     void reportGyroErrorOnce(
         const std::string& key,
@@ -171,12 +170,8 @@ public:
     void updateConstraint(const std::shared_ptr<Instance>& constraint) override;
 
     bool raycast(
-        const Vector3& origin,
-        const Vector3& direction,
-        float maxDistance,
-        RaycastHit& hitResult,
-        const Instance* excludeRoot = nullptr
-    ) override;
+        const Vector3& origin, const Vector3& direction, float maxDistance,
+        RaycastHit& hitResult, const BaseCube* ignoreCube = nullptr) override;
     BaseCube* findOverlapping(
         const BaseCube& cube, const std::string& className,
         float margin = 0.0f) const override;

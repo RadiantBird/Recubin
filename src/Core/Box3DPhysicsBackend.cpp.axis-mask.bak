@@ -1101,7 +1101,6 @@ void Box3DPhysicsBackend::applyForces() {
         bool gravityEnabled = true;
         Vector3 linearTarget;
         Vector3 angularTarget;
-        Vector3 angularAxisMask = {1.0f, 1.0f, 1.0f};
         std::vector<const Force*> additive;
         for (const BodyEntry& entry : m_bodies) {
             if (!idsEqual(entry.bodyId, id)) continue;
@@ -1120,7 +1119,6 @@ void Box3DPhysicsBackend::applyForces() {
                 } else if (force->Torque) {
                     maintainAngular = true;
                     angularTarget = force->Value;
-                    angularAxisMask = force->AxisMask;
                 } else {
                     maintainLinear = true;
                     linearTarget = force->Value;
@@ -1145,158 +1143,9 @@ void Box3DPhysicsBackend::applyForces() {
             }
         }
         if (maintainLinear)
-            b3Body_SetLinearVelocity(
-                id,
-                toB3Length(linearTarget)
-            );
-
-        if (maintainAngular) {
-            const b3Vec3 currentAngularVelocity =
-                b3Body_GetAngularVelocity(id);
-
-            b3Vec3 targetAngularVelocity =
-                toB3Vector(angularTarget);
-
-            // @RadiantBird 2026/09/13:
-            // MaintainVelocity used to replace X/Y/Z together.
-            // Preserve unmasked axes so a character can use Force for
-            // deterministic yaw while Gyro still controls physical pitch
-            // and roll.
-            if (angularAxisMask.x == 0.0f) {
-                targetAngularVelocity.x =
-                    currentAngularVelocity.x;
-            }
-
-            if (angularAxisMask.y == 0.0f) {
-                targetAngularVelocity.y =
-                    currentAngularVelocity.y;
-            }
-
-            if (angularAxisMask.z == 0.0f) {
-                targetAngularVelocity.z =
-                    currentAngularVelocity.z;
-            }
-
-            b3Body_SetAngularVelocity(
-                id,
-                targetAngularVelocity
-            );
-        }
-    }
-}
-
-void Box3DPhysicsBackend::applyMaintainedVelocities() {
-    std::set<std::uint64_t> visited;
-
-    for (const BodyEntry& bodyEntry : m_bodies) {
-        const b3BodyId id = bodyEntry.bodyId;
-
-        if (
-            B3_IS_NULL(id) ||
-            !b3Body_IsValid(id) ||
-            b3Body_GetType(id) != b3_dynamicBody
-        ) {
-            continue;
-        }
-
-        if (!visited.insert(b3StoreBodyId(id)).second) {
-            continue;
-        }
-
-        bool maintainLinear = false;
-        bool maintainAngular = false;
-
-        Vector3 linearTarget;
-        Vector3 angularTarget;
-
-        Vector3 angularAxisMask = {
-            1.0f,
-            1.0f,
-            1.0f
-        };
-
-        for (const BodyEntry& entry : m_bodies) {
-            if (!idsEqual(entry.bodyId, id)) {
-                continue;
-            }
-
-            auto member = entry.cube.lock();
-
-            if (!member) {
-                continue;
-            }
-
-            for (const auto& [name, child] : member->children) {
-                (void)name;
-
-                if (
-                    !child ||
-                    !child->IsA("Force")
-                ) {
-                    continue;
-                }
-
-                const auto* force =
-                    static_cast<const Force*>(child.get());
-
-                if (
-                    !force->Enabled ||
-                    !force->MaintainVelocity
-                ) {
-                    continue;
-                }
-
-                if (force->Torque) {
-                    maintainAngular = true;
-                    angularTarget = force->Value;
-                    angularAxisMask = force->AxisMask;
-                }
-                else {
-                    maintainLinear = true;
-                    linearTarget = force->Value;
-                }
-            }
-        }
-
-        // @RadiantBird 2026/09/13:
-        // MaintainVelocity is authoritative. Box3D contacts,
-        // friction and constraints are allowed to solve normally,
-        // then the requested maintained velocity is restored after
-        // the solver has finished.
-        if (maintainLinear) {
-            b3Body_SetLinearVelocity(
-                id,
-                toB3Length(linearTarget)
-            );
-        }
-
-        if (maintainAngular) {
-            const b3Vec3 currentAngularVelocity =
-                b3Body_GetAngularVelocity(id);
-
-            b3Vec3 targetAngularVelocity =
-                toB3Vector(angularTarget);
-
-            if (angularAxisMask.x == 0.0f) {
-                targetAngularVelocity.x =
-                    currentAngularVelocity.x;
-            }
-
-            if (angularAxisMask.y == 0.0f) {
-                targetAngularVelocity.y =
-                    currentAngularVelocity.y;
-            }
-
-            if (angularAxisMask.z == 0.0f) {
-                targetAngularVelocity.z =
-                    currentAngularVelocity.z;
-            }
-
-            b3Body_SetAngularVelocity(
-                id,
-                targetAngularVelocity
-            );
-        }
+            b3Body_SetLinearVelocity(id, toB3Length(linearTarget));
+        if (maintainAngular)
+            b3Body_SetAngularVelocity(id, toB3Vector(angularTarget));
     }
 }
 
@@ -1697,58 +1546,23 @@ void Box3DPhysicsBackend::dispatchContactEvents() {
 
 void Box3DPhysicsBackend::stepOnce(float dt) {
     if (!isAvailable()) return;
-
-    m_accumulator += std::clamp(
-        dt,
-        0.0f,
-        0.25f
-    );
-
+    m_accumulator += std::clamp(dt, 0.0f, 0.25f);
     int stepCount = 0;
-
-    while (
-        m_accumulator >= FIXED_STEP &&
-        stepCount < MAX_STEPS
-    ) {
+    while (m_accumulator >= FIXED_STEP && stepCount < MAX_STEPS) {
         applyBuoyancy();
         applyForces();
         applyGyroForces();
-
-        b3World_Step(
-            m_worldId,
-            FIXED_STEP,
-            SUB_STEPS
-        );
-
-        // @RadiantBird 2026/09/13:
-        // MaintainVelocity is authoritative.
-        // Contacts, friction and constraints may alter velocity during
-        // b3World_Step(), so restore the requested maintained axes after
-        // the solver has finished.
-        applyMaintainedVelocities();
-
+        b3World_Step(m_worldId, FIXED_STEP, SUB_STEPS);
         ++m_simulationTick;
         processContactEvents();
-
         m_accumulator -= FIXED_STEP;
         ++stepCount;
     }
-
-    if (
-        stepCount == MAX_STEPS &&
-        m_accumulator >= FIXED_STEP
-    ) {
+    if (stepCount == MAX_STEPS && m_accumulator >= FIXED_STEP) {
         m_accumulator = 0.0f;
-        RCBN_WARN(
-            "Box3D physics safety break engaged"
-        );
+        RCBN_WARN("Box3D physics safety break engaged");
     }
-
-    m_accumulatorAlpha = std::clamp(
-        m_accumulator / FIXED_STEP,
-        0.0f,
-        1.0f
-    );
+    m_accumulatorAlpha = std::clamp(m_accumulator / FIXED_STEP, 0.0f, 1.0f);
 }
 
 Box3DPhysicsBackend::CubePair Box3DPhysicsBackend::normalizePair(

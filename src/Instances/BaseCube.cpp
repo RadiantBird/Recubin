@@ -234,8 +234,11 @@ void BaseCube::setAnchored(bool anchored) {
 void BaseCube::setCanCollide(bool canCollide) {
     if (CanCollide == canCollide) return;
     CanCollide = canCollide;
-    if (lastWorkspace && lastWorkspace->physicsEngine) {
-        lastWorkspace->physicsEngine->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
+    if (m_physicsOwner && m_physicsOwner->hasBody(*this)) {
+        // The Box3D shape remains present for mass and inertia. Toggling
+        // collision therefore only changes its collision/query filter and
+        // must not recreate the body or invalidate constraints.
+        m_physicsOwner->refreshCollisionFilter(*this);
     }
 }
 

@@ -451,3 +451,22 @@
   deserialization batchで復元するよう修正した。通常のreparent仕様は維持する。
 - `--viewport-helper-regression`で物理同期後のModel/子姿勢、保存YAML、再読込後のlocal/world姿勢を
   検証予定。ビルド・回帰テストは未実施。
+
+## 2026-09-12: Gyroの軸別独立制御への移行
+
+- GyroをQuaternion目標からX/Y/Z各軸の独立設定へ再設計し、単一Partをworld角度へ制御する形へ変更した。
+- Box3D fixed step前に応答率20/sのcritical PDトルクを軸ごとに計算し、compound member offsetを含むworld回転と
+  world inverse inertiaを使って制御する。`MaxTorque`だけを1/400変換し、角速度上限とトルク上限を個別に適用する。
+- `CharacterRig`がX/Z直立軸を初期化し、HumanoidとReplicationの共通Gyro helperはY方位だけを更新する。
+  Humanoidは水平入力方向から方位を直接算出し、無入力時は最後のY目標を維持する。
+- `PhysicsConstraint::endpointsReady()`を二端constraintの既定判定とし、Gyroは一端判定をoverrideする。
+  ancestor変更時も`registerIfReady()`へ統一し、Gyroの設定変更はnative objectを再生成せずbodyをwakeする。
+- 異常ログにはGyroとPartのfull pathを含め、正常復帰時に重複抑制keyを解除して再発を観測可能にした。
+- 独立した`--motor6d-gyro-regression`へ角度helper、軸独立性、Humanoid入力、既定Rig、compound Motor6D、
+  Scene round-tripの検証を追加した。
+- Windows Releaseビルドはconfigure起動時に`FileNotFoundError: [WinError 2]`で停止した。
+  ビルド成果物を更新できなかったため、対象回帰は未実施。
+- `--motor6d-gyro-regression`の初回実行でHumanoid fixtureがactor reconcile前にbodyを確認していたため、
+  `initPhysics()`後に`Physics::update(..., 0)`を行うよう修正した。さらに実Box3D stepによる各軸・四象限収束、
+  inertia補償、torque差、外乱復帰、disabled軸、角速度制限、Weld compound、scene load・handle維持、
+  default R6の方位・直立復帰を追加した。再ビルドと回帰再実行は親エージェント側で実施予定。

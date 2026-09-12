@@ -10182,6 +10182,716 @@ static int runCoordinateDriftSoakRegression() {
     return (local || assertions || rig || seat || tool) ? 1 : 0;
 }
 
+int runMotor6DGyroRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[Motor6DGyroRegression] "
+                  << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) {
+            ++failures;
+        }
+    };
+
+    // @RadiantBird 2026/09/12:
+    // Heading must come from the direction itself. Euler decomposition of a
+    // tilted Root can feed an unrelated value into the Character Y controller.
+    expect(near(Gyro::headingAngleFromDirection(Vector3(0, 0, -1)), 0.0f),
+           "forward -Z maps to zero degrees");
+    expect(near(Gyro::headingAngleFromDirection(Vector3(1, 0, 0)), -90.0f),
+           "forward +X maps to minus ninety degrees");
+    expect(near(std::abs(Gyro::headingAngleFromDirection(Vector3(0, 0, 1))), 180.0f),
+           "forward +Z maps to one hundred eighty degrees");
+    expect(near(Gyro::headingAngleFromDirection(Vector3(-1, 0, 0)), 90.0f),
+           "forward -X maps to ninety degrees");
+    expect(near(
+               Gyro::angleFromRotation(
+                   GyroAxis::X,
+                   Quaternion::fromEuler(Vector3(30.0f, 0.0f, 0.0f))
+               ),
+               30.0f
+           ),
+           "X-axis rotation maps to the X target angle");
+    expect(near(
+               Gyro::angleFromRotation(
+                   GyroAxis::Y,
+                   Quaternion::fromEuler(Vector3(0.0f, 50.0f, 0.0f))
+               ),
+               50.0f
+           ),
+           "Y-axis rotation maps to the Y target angle");
+    expect(near(
+               Gyro::angleFromRotation(
+                   GyroAxis::Z,
+                   Quaternion::fromEuler(Vector3(0.0f, 0.0f, 40.0f))
+               ),
+               40.0f
+           ),
+           "Z-axis rotation maps to the Z target angle");
+
+    auto standaloneGyro = std::make_shared<Gyro>();
+    standaloneGyro->setAxisEnabled(GyroAxis::X, true);
+    standaloneGyro->setTargetAngle(GyroAxis::X, 12.0f);
+    standaloneGyro->setMaxTorque(GyroAxis::X, 120.0f);
+    standaloneGyro->setMaxAngularSpeed(GyroAxis::X, 30.0f);
+    standaloneGyro->setAxisEnabled(GyroAxis::Y, true);
+    standaloneGyro->setTargetAngle(GyroAxis::Y, -45.0f);
+    standaloneGyro->setAxisEnabled(GyroAxis::Z, false);
+    standaloneGyro->setTargetAngle(GyroAxis::Z, 73.0f);
+    expect(standaloneGyro->getAxisSettings(GyroAxis::X).TargetAngle == 12.0f &&
+               standaloneGyro->getAxisSettings(GyroAxis::Y).TargetAngle == -45.0f &&
+               standaloneGyro->getAxisSettings(GyroAxis::Z).TargetAngle == 73.0f &&
+               !standaloneGyro->getAxisSettings(GyroAxis::Z).Enabled,
+           "axis targets and enabled states remain independent");
+
+    auto movementWorkspace = std::make_shared<Workspace>();
+    auto movementCharacter = std::make_shared<Model>();
+    movementCharacter->Name = "MovementCharacter";
+    auto movementRoot = std::make_shared<Cube>(
+        Vector3(0.0f, 4.0f, 0.0f),
+        Vector3(2.0f, 2.0f, 1.0f),
+        Cube::defaultTextureID
+    );
+    movementRoot->Name = "Root";
+    movementRoot->Anchored = false;
+    auto movementHumanoid = std::make_shared<Humanoid>();
+    movementHumanoid->Name = "Humanoid";
+    auto movementGyro = std::make_shared<Gyro>();
+    movementGyro->Name = "RootGyro";
+    movementCharacter->addChild(movementRoot);
+    movementCharacter->addChild(movementHumanoid);
+    movementCharacter->addChild(movementGyro);
+    movementGyro->setPart(movementRoot);
+    movementGyro->setAxisEnabled(GyroAxis::X, true);
+    movementGyro->setTargetAngle(GyroAxis::X, 0.0f);
+    movementGyro->setAxisEnabled(GyroAxis::Y, true);
+    movementGyro->setAxisEnabled(GyroAxis::Z, true);
+    movementGyro->setTargetAngle(GyroAxis::Z, 0.0f);
+    movementHumanoid->setRootPart(movementRoot);
+    movementHumanoid->setRootGyro(movementGyro);
+    movementWorkspace->addChild(movementCharacter);
+    movementWorkspace->initPhysics();
+    Physics* movementPhysics = movementWorkspace->getPhysicsEngine();
+    if (movementPhysics) {
+        // initPhysics() only creates the backend. The first update reconciles
+        // pending actors and constraints into Box3D.
+        movementPhysics->update(*movementWorkspace, 0.0f);
+    }
+    const bool movementBodyReady =
+        movementPhysics && movementPhysics->hasBody(*movementRoot);
+    expect(movementBodyReady,
+           "Humanoid heading fixture creates a Box3D Root body");
+    if (movementBodyReady) {
+        movementHumanoid->move(
+            Vector3(0, 0, -1),
+            Vector3(1, 0, 0),
+            true,
+            Vector3(1, 0, 0),
+            false,
+            movementPhysics,
+            false,
+            false,
+            1.0f,
+            0.0f,
+            1.0f,
+            1.0f / 60.0f
+        );
+        const float movingHeading =
+            movementGyro->getAxisSettings(GyroAxis::Y).TargetAngle;
+        expect(near(movingHeading, -90.0f),
+               "Humanoid writes heading directly from movement direction");
+
+        movementHumanoid->move(
+            Vector3(0, 0, -1),
+            Vector3(1, 0, 0),
+            false,
+            Vector3(),
+            false,
+            movementPhysics,
+            false,
+            false,
+            0.0f,
+            0.0f,
+            1.0f,
+            1.0f / 60.0f
+        );
+        expect(near(
+                   movementGyro->getAxisSettings(GyroAxis::Y).TargetAngle,
+                   movingHeading
+               ),
+               "Humanoid keeps the last Gyro heading without input");
+    }
+
+    struct GyroFixture {
+        std::shared_ptr<Workspace> workspace;
+        std::shared_ptr<Cube> part;
+        std::shared_ptr<Gyro> gyro;
+        Physics* physics = nullptr;
+    };
+
+    auto makeGyroFixture = [](
+        const std::string& name,
+        const Vector3& size,
+        const Quaternion& rotation
+    ) {
+        GyroFixture fixture;
+        fixture.workspace = std::make_shared<Workspace>();
+        fixture.workspace->Name = name + "Workspace";
+        fixture.workspace->Gravity = {};
+        fixture.part = std::make_shared<Cube>(
+            Vector3(0.0f, 8.0f, 0.0f),
+            size,
+            Cube::defaultTextureID
+        );
+        fixture.part->Name = name + "Part";
+        fixture.part->Anchored = false;
+        fixture.part->setRotation(rotation);
+        fixture.gyro = std::make_shared<Gyro>();
+        fixture.gyro->Name = name + "Gyro";
+        fixture.workspace->addChild(fixture.part);
+        fixture.workspace->addChild(fixture.gyro);
+        fixture.gyro->setPart(fixture.part);
+        fixture.workspace->initPhysics();
+        fixture.physics = fixture.workspace->getPhysicsEngine();
+        if (fixture.physics) {
+            fixture.physics->update(*fixture.workspace, 0.0f);
+        }
+        return fixture;
+    };
+
+    auto angularError = [](float actual, float target) {
+        float error = actual - target;
+        while (error > 180.0f) {
+            error -= 360.0f;
+        }
+        while (error < -180.0f) {
+            error += 360.0f;
+        }
+        return std::abs(error);
+    };
+
+    auto measuredAngle = [](const GyroFixture& fixture, GyroAxis axis) {
+        return Gyro::angleFromRotation(
+            axis,
+            fixture.part->getWorldCFrame().Rotation
+        );
+    };
+
+    auto stepFixture = [](GyroFixture& fixture, int steps) {
+        if (!fixture.physics) {
+            return;
+        }
+        for (int step = 0; step < steps; ++step) {
+            fixture.physics->update(
+                *fixture.workspace,
+                1.0f / 60.0f
+            );
+        }
+    };
+
+    auto configureSingleAxis = [](
+        GyroFixture& fixture,
+        GyroAxis axis,
+        float target,
+        float maxTorque = 1000000.0f,
+        float maxSpeed = 720.0f
+    ) {
+        fixture.gyro->setAxisEnabled(GyroAxis::X, false);
+        fixture.gyro->setAxisEnabled(GyroAxis::Y, false);
+        fixture.gyro->setAxisEnabled(GyroAxis::Z, false);
+        fixture.gyro->setTargetAngle(axis, target);
+        fixture.gyro->setMaxTorque(axis, maxTorque);
+        fixture.gyro->setMaxAngularSpeed(axis, maxSpeed);
+        fixture.gyro->setAxisEnabled(axis, true);
+    };
+
+    // @RadiantBird 2026/09/12:
+    // These cases step real Box3D bodies. Static angle helper assertions alone
+    // cannot detect an incorrect torque sign, inertia frame, or reconcile path.
+    const std::array<std::pair<GyroAxis, float>, 6> convergenceCases{{
+        {GyroAxis::X, 55.0f},
+        {GyroAxis::Z, -65.0f},
+        {GyroAxis::Y, 45.0f},
+        {GyroAxis::Y, 135.0f},
+        {GyroAxis::Y, -135.0f},
+        {GyroAxis::Y, 179.0f},
+    }};
+    for (size_t index = 0; index < convergenceCases.size(); ++index) {
+        const auto [axis, target] = convergenceCases[index];
+        auto fixture = makeGyroFixture(
+            "Convergence" + std::to_string(index),
+            Vector3(2.0f, 2.0f, 2.0f),
+            Quaternion()
+        );
+        configureSingleAxis(fixture, axis, target);
+        const bool ready =
+            fixture.physics &&
+            fixture.physics->hasBody(*fixture.part) &&
+            static_cast<bool>(fixture.gyro->getConstraintHandle());
+        stepFixture(fixture, 240);
+        const float finalAngle = measuredAngle(fixture, axis);
+        std::cout << "[Motor6DGyroRegression] convergence case=" << index
+                  << " target=" << target
+                  << " actual=" << finalAngle
+                  << " error=" << angularError(finalAngle, target) << '\n';
+        expect(
+            ready && angularError(finalAngle, target) < 4.0f,
+            "real Box3D Gyro converges for X/Z and Y quadrants"
+        );
+    }
+
+    auto convergenceStep = [&](GyroFixture& fixture, GyroAxis axis, float target) {
+        for (int step = 0; step < 240; ++step) {
+            if (angularError(measuredAngle(fixture, axis), target) < 5.0f) {
+                return step;
+            }
+            stepFixture(fixture, 1);
+        }
+        return 240;
+    };
+
+    auto lightBody = makeGyroFixture(
+        "LightInertia",
+        Vector3(1.0f, 1.0f, 1.0f),
+        Quaternion()
+    );
+    auto heavyBody = makeGyroFixture(
+        "HeavyInertia",
+        Vector3(4.0f, 3.0f, 2.0f),
+        Quaternion()
+    );
+    configureSingleAxis(lightBody, GyroAxis::Y, 90.0f);
+    configureSingleAxis(heavyBody, GyroAxis::Y, 90.0f);
+    const int lightSteps = convergenceStep(lightBody, GyroAxis::Y, 90.0f);
+    const int heavySteps = convergenceStep(heavyBody, GyroAxis::Y, 90.0f);
+    std::cout << "[Motor6DGyroRegression] inertia convergence lightSteps="
+              << lightSteps << " heavySteps=" << heavySteps << '\n';
+    expect(
+        lightSteps < 240 && heavySteps < 240 &&
+            std::abs(lightSteps - heavySteps) <= 12,
+        "world inertia compensation keeps unsaturated convergence time similar"
+    );
+
+    auto lowTorque = makeGyroFixture(
+        "LowTorque",
+        Vector3(3.0f, 3.0f, 3.0f),
+        Quaternion()
+    );
+    auto highTorque = makeGyroFixture(
+        "HighTorque",
+        Vector3(3.0f, 3.0f, 3.0f),
+        Quaternion()
+    );
+    configureSingleAxis(lowTorque, GyroAxis::Y, 90.0f, 80.0f, 720.0f);
+    configureSingleAxis(highTorque, GyroAxis::Y, 90.0f, 8000.0f, 720.0f);
+    stepFixture(lowTorque, 60);
+    stepFixture(highTorque, 60);
+    const float lowTorqueError =
+        angularError(measuredAngle(lowTorque, GyroAxis::Y), 90.0f);
+    const float highTorqueError =
+        angularError(measuredAngle(highTorque, GyroAxis::Y), 90.0f);
+    std::cout << "[Motor6DGyroRegression] torque response lowError="
+              << lowTorqueError << " highError=" << highTorqueError << '\n';
+    expect(
+        highTorqueError + 15.0f < lowTorqueError,
+        "high MaxTorque recovers substantially faster than low MaxTorque"
+    );
+
+    auto disturbed = makeGyroFixture(
+        "Disturbed",
+        Vector3(2.0f, 2.0f, 2.0f),
+        Quaternion()
+    );
+    configureSingleAxis(disturbed, GyroAxis::X, 0.0f);
+    disturbed.physics->setAngularVelocity(
+        *disturbed.part,
+        Vector3(5.0f, 0.0f, 0.0f)
+    );
+    stepFixture(disturbed, 30);
+    const float disturbedAngle =
+        angularError(measuredAngle(disturbed, GyroAxis::X), 0.0f);
+    stepFixture(disturbed, 210);
+    const float recoveredAngle =
+        angularError(measuredAngle(disturbed, GyroAxis::X), 0.0f);
+    std::cout << "[Motor6DGyroRegression] disturbance peakAngle="
+              << disturbedAngle << " recoveredError=" << recoveredAngle << '\n';
+    expect(
+        disturbedAngle > 1.0f && recoveredAngle < 3.0f,
+        "Gyro returns upright after angular-velocity disturbance"
+    );
+
+    auto disabledAxis = makeGyroFixture(
+        "DisabledAxis",
+        Vector3(2.0f, 2.0f, 2.0f),
+        Quaternion()
+    );
+    configureSingleAxis(disabledAxis, GyroAxis::X, 60.0f);
+    disabledAxis.gyro->setTargetAngle(GyroAxis::Z, 90.0f);
+    disabledAxis.gyro->setAxisEnabled(GyroAxis::Z, false);
+    stepFixture(disabledAxis, 180);
+    const float disabledX = measuredAngle(disabledAxis, GyroAxis::X);
+    const float disabledZ = measuredAngle(disabledAxis, GyroAxis::Z);
+    std::cout << "[Motor6DGyroRegression] disabled axis x="
+              << disabledX << " z=" << disabledZ << '\n';
+    expect(
+        angularError(disabledX, 60.0f) < 4.0f &&
+            std::abs(disabledZ) < 4.0f,
+        "disabled Gyro axis receives no intended target correction"
+    );
+
+    auto speedLimited = makeGyroFixture(
+        "SpeedLimited",
+        Vector3(2.0f, 2.0f, 2.0f),
+        Quaternion()
+    );
+    configureSingleAxis(
+        speedLimited,
+        GyroAxis::Y,
+        120.0f,
+        1000000.0f,
+        30.0f
+    );
+    float previousAngle = measuredAngle(speedLimited, GyroAxis::Y);
+    float maximumMeasuredSpeed = 0.0f;
+    for (int step = 0; step < 90; ++step) {
+        stepFixture(speedLimited, 1);
+        const float currentAngle = measuredAngle(speedLimited, GyroAxis::Y);
+        maximumMeasuredSpeed = std::max(
+            maximumMeasuredSpeed,
+            angularError(currentAngle, previousAngle) * 60.0f
+        );
+        previousAngle = currentAngle;
+    }
+    std::cout << "[Motor6DGyroRegression] speed limit maxMeasuredDegPerSec="
+              << maximumMeasuredSpeed << '\n';
+    expect(
+        maximumMeasuredSpeed > 10.0f && maximumMeasuredSpeed < 42.0f,
+        "MaxAngularSpeed limits commanded target motion"
+    );
+    speedLimited.physics->setAngularVelocity(
+        *speedLimited.part,
+        Vector3(0.0f, 4.0f, 0.0f)
+    );
+    const float overspeedStart = measuredAngle(speedLimited, GyroAxis::Y);
+    stepFixture(speedLimited, 1);
+    const float firstOverspeedDelta = angularError(
+        measuredAngle(speedLimited, GyroAxis::Y),
+        overspeedStart
+    );
+    stepFixture(speedLimited, 45);
+    const float settledStart = measuredAngle(speedLimited, GyroAxis::Y);
+    stepFixture(speedLimited, 1);
+    const float settledDelta = angularError(
+        measuredAngle(speedLimited, GyroAxis::Y),
+        settledStart
+    );
+    std::cout << "[Motor6DGyroRegression] overspeed firstDelta="
+              << firstOverspeedDelta
+              << " settledDelta=" << settledDelta << '\n';
+    expect(
+        firstOverspeedDelta > 1.0f && settledDelta < firstOverspeedDelta * 0.6f,
+        "Gyro brakes externally imposed overspeed"
+    );
+
+    auto rig = std::make_shared<Model>();
+    rig->Name = "GyroRig";
+    CharacterRig::buildDefaultRigParts(rig);
+    auto root = std::dynamic_pointer_cast<BaseCube>(rig->getChildren().at("Root"));
+    auto rigGyro = std::dynamic_pointer_cast<Gyro>(rig->getChildren().at("RootGyro"));
+    auto rootJoint = std::dynamic_pointer_cast<Motor6D>(
+        rig->getChildren().at("RootJoint")
+    );
+    expect(root && rigGyro && rigGyro->getPart() == root &&
+               rigGyro->getAxisSettings(GyroAxis::X).Enabled &&
+               rigGyro->getAxisSettings(GyroAxis::Y).Enabled &&
+               rigGyro->getAxisSettings(GyroAxis::Z).Enabled &&
+               near(rigGyro->getAxisSettings(GyroAxis::X).TargetAngle, 0.0f) &&
+               near(rigGyro->getAxisSettings(GyroAxis::Z).TargetAngle, 0.0f),
+           "default rig uses one-part Gyro with X/Z upright control");
+
+    if (root && rootJoint) {
+        const CFrame compoundTransform(
+            Vector3(0.25f, -0.5f, 0.75f),
+            Quaternion::fromEuler(Vector3(15.0f, 25.0f, -35.0f))
+        );
+        const CFrame expected = CharacterRig::applyMotor6D(
+            root->getWorldCFrame(),
+            rootJoint->C0,
+            compoundTransform,
+            rootJoint->C1
+        );
+        rootJoint->setTransform(compoundTransform);
+        const CFrame actual = CharacterRig::applyMotor6D(
+            root->getWorldCFrame(),
+            rootJoint->C0,
+            rootJoint->Transform,
+            rootJoint->C1
+        );
+        expect(sameCFrame(actual, expected),
+               "Motor6D preserves compound translation and three-axis rotation");
+    }
+
+    auto compoundWorkspace = std::make_shared<Workspace>();
+    compoundWorkspace->Name = "CompoundGyroWorkspace";
+    compoundWorkspace->Gravity = {};
+    auto compoundRoot = std::make_shared<Cube>(
+        Vector3(0.0f, 8.0f, 0.0f),
+        Vector3(2.0f, 2.0f, 2.0f),
+        Cube::defaultTextureID
+    );
+    auto compoundMember = std::make_shared<Cube>(
+        Vector3(3.0f, 8.0f, 0.0f),
+        Vector3(1.0f, 2.0f, 1.0f),
+        Cube::defaultTextureID
+    );
+    compoundRoot->Name = "CompoundRoot";
+    compoundMember->Name = "CompoundMember";
+    compoundRoot->Anchored = false;
+    compoundMember->Anchored = false;
+    compoundMember->setRotation(
+        Quaternion::fromEuler(Vector3(42.0f, 0.0f, 0.0f))
+    );
+    compoundWorkspace->addChild(compoundRoot);
+    compoundWorkspace->addChild(compoundMember);
+    auto compoundWeld = std::make_shared<Weld>(
+        compoundRoot,
+        compoundMember
+    );
+    compoundWeld->Name = "CompoundWeld";
+    compoundWorkspace->addChild(compoundWeld);
+    auto compoundGyro = std::make_shared<Gyro>();
+    compoundGyro->Name = "CompoundMemberGyro";
+    compoundWorkspace->addChild(compoundGyro);
+    compoundGyro->setPart(compoundMember);
+    compoundGyro->setAxisEnabled(GyroAxis::X, true);
+    compoundGyro->setTargetAngle(GyroAxis::X, 0.0f);
+    compoundGyro->setMaxTorque(GyroAxis::X, 1000000.0f);
+    compoundGyro->setMaxAngularSpeed(GyroAxis::X, 720.0f);
+    compoundWorkspace->initPhysics();
+    Physics* compoundPhysics = compoundWorkspace->getPhysicsEngine();
+    if (compoundPhysics) {
+        compoundPhysics->update(*compoundWorkspace, 0.0f);
+        for (int step = 0; step < 240; ++step) {
+            compoundPhysics->update(
+                *compoundWorkspace,
+                1.0f / 60.0f
+            );
+        }
+    }
+    const float compoundMemberX = Gyro::angleFromRotation(
+        GyroAxis::X,
+        compoundMember->getWorldCFrame().Rotation
+    );
+    std::cout << "[Motor6DGyroRegression] compound memberX="
+              << compoundMemberX << '\n';
+    expect(
+        compoundPhysics &&
+            compoundPhysics->sharesBody(*compoundRoot, *compoundMember) &&
+            angularError(compoundMemberX, 0.0f) < 4.0f,
+        "Gyro controls a Weld member using its compound world offset"
+    );
+
+    auto dynamicRigWorkspace = std::make_shared<Workspace>();
+    dynamicRigWorkspace->Name = "DynamicRigGyroWorkspace";
+    dynamicRigWorkspace->Gravity = {};
+    dynamicRigWorkspace->addChild(rig);
+    dynamicRigWorkspace->initPhysics();
+    Physics* dynamicRigPhysics = dynamicRigWorkspace->getPhysicsEngine();
+    if (dynamicRigPhysics) {
+        dynamicRigPhysics->update(*dynamicRigWorkspace, 0.0f);
+    }
+    const bool dynamicRigReady =
+        dynamicRigPhysics && root && rigGyro &&
+        dynamicRigPhysics->hasBody(*root) &&
+        static_cast<bool>(rigGyro->getConstraintHandle());
+    const std::array<Vector3, 4> rigHeadings{{
+        Vector3(0.0f, 0.0f, -1.0f),
+        Vector3(1.0f, 0.0f, 0.0f),
+        Vector3(0.0f, 0.0f, 1.0f),
+        Vector3(-1.0f, 0.0f, 0.0f),
+    }};
+    bool rigHeadingsConverged = dynamicRigReady;
+    if (dynamicRigReady) {
+        for (const Vector3& heading : rigHeadings) {
+            rigGyro->setCharacterHeading(heading);
+            for (int step = 0; step < 240; ++step) {
+                dynamicRigPhysics->update(
+                    *dynamicRigWorkspace,
+                    1.0f / 60.0f
+                );
+            }
+            const float target = Gyro::headingAngleFromDirection(heading);
+            const float actual = Gyro::angleFromRotation(
+                GyroAxis::Y,
+                root->getWorldCFrame().Rotation
+            );
+            std::cout << "[Motor6DGyroRegression] rig heading target="
+                      << target << " actual=" << actual
+                      << " error=" << angularError(actual, target) << '\n';
+            rigHeadingsConverged =
+                rigHeadingsConverged && angularError(actual, target) < 7.0f;
+        }
+    }
+    expect(
+        rigHeadingsConverged,
+        "default R6 follows forward/back/left/right Gyro headings"
+    );
+    if (dynamicRigReady) {
+        dynamicRigPhysics->setAngularVelocity(
+            *root,
+            Vector3(4.0f, 0.0f, -3.0f)
+        );
+        for (int step = 0; step < 300; ++step) {
+            dynamicRigPhysics->update(
+                *dynamicRigWorkspace,
+                1.0f / 60.0f
+            );
+        }
+    }
+    const float rigRecoveredX = root
+        ? Gyro::angleFromRotation(
+            GyroAxis::X,
+            root->getWorldCFrame().Rotation
+        )
+        : 180.0f;
+    const float rigRecoveredZ = root
+        ? Gyro::angleFromRotation(
+            GyroAxis::Z,
+            root->getWorldCFrame().Rotation
+        )
+        : 180.0f;
+    std::cout << "[Motor6DGyroRegression] rig upright x="
+              << rigRecoveredX << " z=" << rigRecoveredZ << '\n';
+    expect(
+        dynamicRigReady &&
+            angularError(rigRecoveredX, 0.0f) < 7.0f &&
+            angularError(rigRecoveredZ, 0.0f) < 7.0f,
+        "default R6 restores X/Z upright after angular disturbance"
+    );
+
+    auto sceneRoot = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "GyroWorkspace";
+    auto scenePart = std::make_shared<Cube>(
+        Vector3(),
+        Vector3(2.0f, 2.0f, 2.0f),
+        Cube::defaultTextureID
+    );
+    scenePart->Name = "GyroPart";
+    scenePart->Anchored = false;
+    auto sceneGyro = std::make_shared<Gyro>();
+    sceneGyro->Name = "AxisGyro";
+    workspace->addChild(scenePart);
+    workspace->addChild(sceneGyro);
+    sceneGyro->setPart(scenePart);
+    sceneGyro->setAxisEnabled(GyroAxis::X, true);
+    sceneGyro->setTargetAngle(GyroAxis::X, 17.0f);
+    sceneGyro->setMaxTorque(GyroAxis::X, 321.0f);
+    sceneGyro->setMaxAngularSpeed(GyroAxis::X, 54.0f);
+    sceneGyro->setAxisEnabled(GyroAxis::Y, false);
+    sceneGyro->setTargetAngle(GyroAxis::Y, -86.0f);
+    sceneGyro->setAxisEnabled(GyroAxis::Z, true);
+    sceneGyro->setTargetAngle(GyroAxis::Z, 29.0f);
+    sceneRoot->addChild(workspace);
+
+    const auto scenePath = std::filesystem::temp_directory_path() /
+        "recubin_motor6d_gyro_regression.rcbn";
+    expect(SceneLoader::saveSceneResult(sceneRoot.get(), scenePath.string()),
+           "Gyro scene saves");
+    const auto loadedResult = SceneLoader::loadSceneResult(scenePath.string());
+    Instance* loadedWorkspaceNode = loadedResult.root
+        ? loadedResult.root->getChild("GyroWorkspace")
+        : nullptr;
+    auto loadedWorkspace = loadedWorkspaceNode
+        ? std::dynamic_pointer_cast<Workspace>(
+            loadedWorkspaceNode->shared_from_this()
+        )
+        : nullptr;
+    Instance* loadedGyroNode = loadedWorkspace
+        ? loadedWorkspace->getChild("AxisGyro")
+        : nullptr;
+    Instance* loadedPartNode = loadedWorkspace
+        ? loadedWorkspace->getChild("GyroPart")
+        : nullptr;
+    auto loadedGyro = loadedGyroNode
+        ? std::dynamic_pointer_cast<Gyro>(
+            loadedGyroNode->shared_from_this()
+        )
+        : nullptr;
+    auto loadedPart = loadedPartNode
+        ? std::dynamic_pointer_cast<BaseCube>(
+            loadedPartNode->shared_from_this()
+        )
+        : nullptr;
+    expect(loadedGyro && loadedPart && loadedGyro->getPart() == loadedPart &&
+               loadedGyro->getAxisSettings(GyroAxis::X).Enabled &&
+               near(loadedGyro->getAxisSettings(GyroAxis::X).TargetAngle, 17.0f) &&
+               near(loadedGyro->getAxisSettings(GyroAxis::X).MaxTorque, 321.0f) &&
+               near(loadedGyro->getAxisSettings(GyroAxis::X).MaxAngularSpeed, 54.0f) &&
+               !loadedGyro->getAxisSettings(GyroAxis::Y).Enabled &&
+               near(loadedGyro->getAxisSettings(GyroAxis::Y).TargetAngle, -86.0f) &&
+               loadedGyro->getAxisSettings(GyroAxis::Z).Enabled &&
+               near(loadedGyro->getAxisSettings(GyroAxis::Z).TargetAngle, 29.0f),
+           "scene round-trip preserves Part and independent axis settings");
+    bool loadedGyroControlsBody = false;
+    bool loadedHandleStable = false;
+    if (loadedWorkspace && loadedGyro && loadedPart) {
+        loadedWorkspace->Gravity = {};
+        loadedWorkspace->initPhysics();
+        Physics* loadedPhysics = loadedWorkspace->getPhysicsEngine();
+        if (loadedPhysics) {
+            loadedPhysics->update(*loadedWorkspace, 0.0f);
+            const PhysicsConstraintHandle initialHandle =
+                loadedGyro->getConstraintHandle();
+            const float initialX = Gyro::angleFromRotation(
+                GyroAxis::X,
+                loadedPart->getWorldCFrame().Rotation
+            );
+            for (int step = 0; step < 120; ++step) {
+                loadedPhysics->update(
+                    *loadedWorkspace,
+                    1.0f / 60.0f
+                );
+            }
+            const float controlledX = Gyro::angleFromRotation(
+                GyroAxis::X,
+                loadedPart->getWorldCFrame().Rotation
+            );
+            loadedGyroControlsBody =
+                loadedPhysics->hasBody(*loadedPart) &&
+                static_cast<bool>(initialHandle) &&
+                std::abs(controlledX - initialX) > 5.0f;
+            std::cout << "[Motor6DGyroRegression] loaded Gyro initialX="
+                      << initialX << " controlledX=" << controlledX
+                      << " handle=" << initialHandle.value << '\n';
+
+            loadedGyro->setTargetAngle(GyroAxis::X, -25.0f);
+            loadedPhysics->update(
+                *loadedWorkspace,
+                1.0f / 60.0f
+            );
+            loadedHandleStable =
+                loadedGyro->getConstraintHandle() == initialHandle;
+            std::cout << "[Motor6DGyroRegression] loaded Gyro updatedHandle="
+                      << loadedGyro->getConstraintHandle().value << '\n';
+        }
+    }
+    expect(
+        loadedGyroControlsBody,
+        "loaded one-endpoint Gyro registers and controls a Box3D body"
+    );
+    expect(
+        loadedHandleStable,
+        "Gyro target update preserves its logical constraint handle"
+    );
+    std::error_code removeError;
+    std::filesystem::remove(scenePath, removeError);
+
+    std::cout << "[Motor6DGyroRegression] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 int runYamlErrorRegression() {
     int failures = 0;
     std::error_code error;
@@ -10241,7 +10951,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--nat-codec-regression", runNatCodecRegression),
         REG("--animation-clip-regression", runAnimationClipRegression),
         REG("--character-rig-v2", runAnimationClipRegression),
-        REG("--motor6d-gyro", runAnimationClipRegression),
+        REG("--motor6d-gyro-regression", runMotor6DGyroRegression),
         REG("--default-camera-mode-regression", runDefaultCameraModeRegression),
         REG("--scene-load-transaction-regression", runSceneLoadTransactionRegression),
         REG("--system-extension-regression", runSystemExtensionRegression),

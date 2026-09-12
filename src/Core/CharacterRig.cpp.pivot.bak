@@ -55,27 +55,6 @@ void calculateMotor6DBind(const CFrame& part0, const CFrame& part1,
     c1 = CFrame();
 }
 
-static CFrame r6MotorC1(const std::string& jointName) {
-    // @RadiantBird 2026/09/13:
-    // Motor6D must preserve the original R6 rotation pivots.
-    // C1 is the joint frame in Part1 local coordinates.
-    if (
-        jointName == "LeftShoulder" ||
-        jointName == "RightShoulder"
-    ) {
-        return CFrame(0.0f, 0.5f, 0.0f);
-    }
-
-    if (
-        jointName == "LeftHip" ||
-        jointName == "RightHip"
-    ) {
-        return CFrame(0.0f, 1.0f, 0.0f);
-    }
-
-    return CFrame();
-}
-
 void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3& basePos) {
     if (!parent) return;
 
@@ -144,16 +123,9 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3
         motor->Name = topology.jointName;
         motor->setPart0(part0);
         motor->setPart1(part1);
-        const CFrame c1 =
-            r6MotorC1(
-                topology.jointName
-            );
-
-        const CFrame c0 =
-            part0->getWorldCFrame().inverse() *
-            part1->getWorldCFrame() *
-            c1;
-
+        CFrame c0;
+        CFrame c1;
+        calculateMotor6DBind(part0->getWorldCFrame(), part1->getWorldCFrame(), c0, c1);
         motor->setC0(c0);
         motor->setC1(c1);
         motor->setTransform(CFrame());

@@ -9,7 +9,6 @@ static const bool s_forceRegistered = []{
         field<&Force::Torque>("Torque"),
         field<&Force::MaintainVelocity>("MaintainVelocity"),
         field<&Force::Value>("Value"),
-        field<&Force::AxisMask>("AxisMask"),
     });
     return true;
 }();

@@ -575,14 +575,31 @@ void Physics::updateConstraint(const std::shared_ptr<Instance>& constraint) {
     RCBN_PHYSICS_VOID(updateConstraint, constraint);
 }
 
-bool Physics::raycast(const Vector3& origin, const Vector3& direction, float maxDistance,
-                      RaycastHit& hitResult, const BaseCube* ignoreCube) {
-    if (!isAvailable() || !finiteVector(origin) || !finiteVector(direction) ||
-        !std::isfinite(maxDistance) || maxDistance <= 0.0f) {
+bool Physics::raycast(
+    const Vector3& origin,
+    const Vector3& direction,
+    float maxDistance,
+    RaycastHit& hitResult,
+    const Instance* excludeRoot
+) {
+    if (
+        !isAvailable() ||
+        !finiteVector(origin) ||
+        !finiteVector(direction) ||
+        !std::isfinite(maxDistance) ||
+        maxDistance <= 0.0f
+    ) {
         hitResult = {};
         return false;
     }
-    return m_backend->raycast(origin, direction, maxDistance, hitResult, ignoreCube);
+
+    return m_backend->raycast(
+        origin,
+        direction,
+        maxDistance,
+        hitResult,
+        excludeRoot
+    );
 }
 
 BaseCube* Physics::findOverlapping(const BaseCube& cube, const std::string& className, float margin) const {

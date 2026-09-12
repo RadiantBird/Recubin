@@ -107,7 +107,6 @@ private:
     std::shared_ptr<BaseCube> resolveContactIdentity(const void* identity) const;
     void applyBuoyancy();
     void applyForces();
-    void applyMaintainedVelocities();
     void applyGyroForces();
     void reportGyroErrorOnce(
         const std::string& key,

@@ -148,6 +148,17 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   Character専用の物理挙動は必要以上に追加せず、
   通常のWeldアセンブリと同じ規則を優先する。
 
+  Rootの直立と方位はGyroで制御する。Character用GyroはX/Zを0度へ固定し、Yだけを入力方向へ
+  更新する。移動入力が無いフレームではY目標を更新せず、最後の方位を維持する。
+
+## Gyro
+  Gyroは1つのPartへworld基準の角度制御を加える単一body constraintとする。X/Y/Zはそれぞれ
+  Enabled、TargetAngle（度）、MaxTorque、MaxAngularSpeed（度/秒）を独立して持つ。無効な軸へは
+  トルクを加えず、複数軸を有効にした場合も各軸の設定を独立して適用する。
+
+  Characterの方位角はQuaternionのEuler分解を経由せず、水平な方向ベクトルから直接求める。
+  これによりX/Zの傾きがY目標へ混入しないようにする。
+
 ## Tool
   ToolのHandleと、装備する腕の基準となる回転は一致させる。
   Toolを装備するためだけの特殊な回転補正をWeldや座標系に持たせない。

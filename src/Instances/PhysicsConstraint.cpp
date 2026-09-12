@@ -26,6 +26,10 @@ PhysicsConstraint::~PhysicsConstraint() {
     m_constraintHandle = {};
 }
 
+bool PhysicsConstraint::endpointsReady() const {
+    return !m_cube0.expired() && !m_cube1.expired();
+}
+
 void PhysicsConstraint::registerIfReady() {
     if (!Enabled) return;
     auto* workspaceRaw = findFirstAncestorWorkspace();
@@ -40,7 +44,7 @@ void PhysicsConstraint::registerIfReady() {
     resolveCube(m_cube0, m_cube0Name);
     resolveCube(m_cube1, m_cube1Name);
     resolveAdditionalReferences();
-    if (!m_cube0.lock() || !m_cube1.lock() || !additionalReferencesReady()) return;
+    if (!endpointsReady() || !additionalReferencesReady()) return;
     if (!m_constraintHandle) workspace->registerConstraint(shared_from_this());
 }
 
@@ -79,6 +83,9 @@ void PhysicsConstraint::setCube1(std::shared_ptr<BaseCube> cube) {
 
 std::shared_ptr<BaseCube> PhysicsConstraint::getCube0() const { return m_cube0.lock(); }
 std::shared_ptr<BaseCube> PhysicsConstraint::getCube1() const { return m_cube1.lock(); }
+PhysicsConstraintHandle PhysicsConstraint::getConstraintHandle() const {
+    return m_constraintHandle;
+}
 
 void PhysicsConstraint::refreshRefNames() {
     if (auto cube0 = m_cube0.lock(); cube0 && !m_cube0Name.empty())
@@ -110,7 +117,7 @@ void PhysicsConstraint::onAncestorChanged() {
                 m_lastWorkspace->getPhysicsEngine()->removeConstraint(shared_from_this());
         }
         m_lastWorkspace = workspace;
-        if (workspace && Enabled) workspace->registerConstraint(shared_from_this());
+        registerIfReady();
     }
     Instance::onAncestorChanged();
 }

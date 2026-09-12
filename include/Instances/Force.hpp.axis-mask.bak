@@ -14,15 +14,6 @@ public:
     bool    MaintainVelocity = false;
     Vector3 Value            = {0.0f, 0.0f, 0.0f};
 
-    // @RadiantBird 2026/09/13:
-    // Torque + MaintainVelocity normally replaces the complete angular
-    // velocity vector. AxisMask allows individual world axes to keep their
-    // existing physical angular velocity instead.
-    //
-    // 1 = Force controls the axis
-    // 0 = preserve the body's current angular velocity on that axis
-    Vector3 AxisMask         = {1.0f, 1.0f, 1.0f};
-
     Force() : Instance("Force") {}
     std::string getClassName() override { return "Force"; }
     bool IsA(std::string name) override {

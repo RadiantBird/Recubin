@@ -130,72 +130,6 @@ def identity_cframe():
     }
 
 
-R6_JOINT_C1_POSITION = {
-    "RootJoint": [0.0, 0.0, 0.0],
-    "Neck": [0.0, 0.0, 0.0],
-    "LeftShoulder": [0.0, 0.5, 0.0],
-    "RightShoulder": [0.0, 0.5, 0.0],
-    "LeftHip": [0.0, 1.0, 0.0],
-    "RightHip": [0.0, 1.0, 0.0],
-}
-
-
-def multiply_cframe(a, b):
-    ap = a["Position"]
-    aq = quaternion_normalize(
-        a["Rotation"],
-        "left CFrame",
-    )
-
-    bp = b["Position"]
-    bq = quaternion_normalize(
-        b["Rotation"],
-        "right CFrame",
-    )
-
-    rotated_position = qrot(aq, bp)
-
-    return {
-        "Position": [
-            ap[index] + rotated_position[index]
-            for index in range(3)
-        ],
-        "Rotation": quaternion_normalize(
-            qmul(aq, bq),
-            "multiplied CFrame",
-        ),
-    }
-
-
-def r6_motor_bind_frames(
-    joint_name,
-    part0_frame,
-    part1_frame,
-):
-    c1 = identity_cframe()
-
-    c1["Position"] = list(
-        R6_JOINT_C1_POSITION[joint_name]
-    )
-
-    # @RadiantBird 2026/09/13:
-    # Preserve the visible bind pose while restoring the R6 joint pivot.
-    #
-    # Part0 * C0 == Part1 * C1
-    #
-    # Therefore C0 is derived after selecting the intended Part1-local
-    # pivot instead of forcing C1 to identity.
-    c0 = multiply_cframe(
-        relative(
-            part0_frame,
-            part1_frame,
-        ),
-        c1,
-    )
-
-    return c0, c1
-
-
 def join_ref(path_parts):
     if not path_parts:
         raise ValueError("cannot create an empty instance reference")
@@ -451,19 +385,13 @@ def migrate_starter(starter, starter_path):
             "Motor6D",
         )
 
-        c0, c1 = r6_motor_bind_frames(
-            joint_name,
-            frames[part0],
-            frames[part1],
-        )
-
         set_properties(
             motor,
             {
                 "Part0": ref(part0),
                 "Part1": ref(part1),
-                "C0": c0,
-                "C1": c1,
+                "C0": relative(frames[part0], frames[part1]),
+                "C1": identity_cframe(),
                 "Transform": identity_cframe(),
                 "Frequency": 10.0,
                 "DampingRatio": 1.0,
