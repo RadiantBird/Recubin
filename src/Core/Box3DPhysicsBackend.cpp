@@ -2053,8 +2053,54 @@ void Box3DPhysicsBackend::createPendingConstraints(Workspace& workspace) {
         auto weld = std::static_pointer_cast<Weld>(value);
         auto first = weld->m_cube0.lock();
         if (!first || rebuilt.contains(first.get())) continue;
+        
+        // ---------------------------------------------------------
+
         auto assembly = Weld::collectAssembly(first, workspace);
+
+        RCBN_LOG(
+            "[WELD BUILD] seed="
+            << first->getWorkspaceRelativePath()
+            << " members=" << assembly.size()
+        );
+
+        for (const auto& member : assembly) {
+            if (!member) continue;
+
+            const b3BodyId beforeId = bodyId(*member);
+
+            RCBN_LOG(
+                "  BEFORE member="
+                << member->getWorkspaceRelativePath()
+                << " body="
+                << (B3_IS_NON_NULL(beforeId) ? b3StoreBodyId(beforeId) : 0)
+            );
+        }
+
         rebuildAssembly(assembly);
+        // ---------------------------------------------------------
+        if (!assembly.empty() && assembly.front()) {
+            const b3BodyId leader = bodyId(*assembly.front());
+
+            for (const auto& member : assembly) {
+                if (!member) continue;
+
+                const b3BodyId id = bodyId(*member);
+
+                RCBN_LOG(
+                    "  AFTER member="
+                    << member->getWorkspaceRelativePath()
+                    << " body="
+                    << (B3_IS_NON_NULL(id) ? b3StoreBodyId(id) : 0)
+                    << " same="
+                    << (
+                        B3_IS_NON_NULL(leader) &&
+                        B3_IS_NON_NULL(id) &&
+                        idsEqual(leader, id)
+                    )
+                );
+            }
+        }
         for (const auto& member : assembly)
             if (member) rebuilt.insert(member.get());
     }

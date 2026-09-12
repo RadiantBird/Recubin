@@ -443,3 +443,11 @@
 - Windows Release 3ターゲットbuild、Python layout回帰、対象C++回帰、GUI smokeを含む全回帰に成功し、
   49 dedicated両backend＋9 scenesで242 passed / 0 failed。Mac実機でのpackage、署名、Finder起動、
   権限エラー通知確認は未実施のため、`TODO.md`のMac release項目は未完了のまま維持する。
+
+## 2026-09-12: SceneLoaderのlocal CFrame復元
+
+- Sceneロード中の`addChild()`がreparentのworld姿勢維持を行い、YAMLから設定済みのModel・子Spatialの
+  local CFrameを変換していたことが原因。接続前に子サブツリーのlocal CFrameを収集し、接続後に
+  deserialization batchで復元するよう修正した。通常のreparent仕様は維持する。
+- `--viewport-helper-regression`で物理同期後のModel/子姿勢、保存YAML、再読込後のlocal/world姿勢を
+  検証予定。ビルド・回帰テストは未実施。

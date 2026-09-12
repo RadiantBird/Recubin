@@ -82,8 +82,35 @@ std::shared_ptr<Instance> Weld::clone() const {
 }
 
 void Weld::remapClonedInstances(const CloneRemap& map) {
-    if (auto c0 = m_cube0.lock()) { auto it = map.find(c0.get()); if (it != map.end()) m_cube0 = std::static_pointer_cast<BaseCube>(it->second); }
-    if (auto c1 = m_cube1.lock()) { auto it = map.find(c1.get()); if (it != map.end()) m_cube1 = std::static_pointer_cast<BaseCube>(it->second); }
+    if (auto c0 = m_cube0.lock()) {
+        auto it = map.find(c0.get());
+
+        if (it != map.end()) {
+            m_cube0 = std::static_pointer_cast<BaseCube>(it->second);
+        } else {
+            RCBN_ERROR(
+                "Weld clone remap FAILED Cube0: "
+                << c0->getFullPath()
+                << " in Weld "
+                << getFullPath()
+            );
+        }
+    }
+
+    if (auto c1 = m_cube1.lock()) {
+        auto it = map.find(c1.get());
+
+        if (it != map.end()) {
+            m_cube1 = std::static_pointer_cast<BaseCube>(it->second);
+        } else {
+            RCBN_ERROR(
+                "Weld clone remap FAILED Cube1: "
+                << c1->getFullPath()
+                << " in Weld "
+                << getFullPath()
+            );
+        }
+    }
 }
 
 

@@ -973,42 +973,121 @@ static std::shared_ptr<StarterCharacter> createDefaultStarterCharacter() {
     return starter;
 }
 
-std::shared_ptr<Model> User::buildCharacterModel(Instance* searchRoot, const std::string& name) {
+std::shared_ptr<Model> User::buildCharacterModel(
+    Instance* searchRoot,
+    const std::string& name
+) {
     Instance* starter = findStarterCharacter(searchRoot);
+
     if (!starter && searchRoot) {
         auto defaultStarter = createDefaultStarterCharacter();
         searchRoot->addChild(defaultStarter);
         starter = defaultStarter.get();
-        RCBN_LOG("StarterCharacter が見つからなかったため、既定のキャラクターを生成しました");
-    }
-    if (!starter) return nullptr;
 
-    auto model = std::make_shared<Model>(Vector3(0.0f, 0.0f, 0.0f), Vector3(1, 1, 1));
+        RCBN_LOG(
+            "StarterCharacter が見つからなかったため、"
+            "既定のキャラクターを生成しました"
+        );
+    }
+
+    if (!starter) {
+        return nullptr;
+    }
+
+    auto model = std::make_shared<Model>(
+        Vector3(0.0f, 0.0f, 0.0f),
+        Vector3(1.0f, 1.0f, 1.0f)
+    );
+
     model->Name = name;
 
-    for (auto const& [childName, child] : starter->children) {
-        model->addChild(child->clone());
+    // StarterCharacter直下の全Instanceを一つのForestとしてcloneする。
+    // こうすることで、別サブツリーを指すWeld等も
+    // old Instance -> cloned Instance の共通mapで再配線される。
+    std::vector<std::shared_ptr<Instance>> roots;
+    roots.reserve(starter->children.size());
+
+    for (const auto& [childName, child] : starter->children) {
+        if (child) {
+            roots.push_back(child);
+        }
     }
-    // 制約（Weld/Rope 等）の Cube 参照をクローン側（PlayerCharacter 内）へ張り替える。
-    // 髪の Weld は兄弟 Head を参照するため、キャラ全体で一括して張り替える必要がある。
-    Instance::rebindClonedConstraints(*starter, *model);
-    // 旧SceneでWalkAnimation参照が無い場合も、Scene Treeを変更せず
-    // PlayerCharacter側にだけ可視なAnimation Instanceを作る。壊れた
-    // ユーザーAnimation参照がある場合はそれを保持し、Animation内の
-    // runtime fallbackに任せる。
+
+    auto clonedChildren = Instance::cloneForest(roots);
+
+    for (auto& clonedChild : clonedChildren) {
+        if (clonedChild) {
+            model->addChild(clonedChild);
+        }
+    }
+
+    // rebindClonedConstraints() は不要。
+    // cloneForest() が全root共通のCloneRemapを作り、
+    // remapClonedInstances()まで実行する。
+
     auto humanoidIt = model->getChildren().find("Humanoid");
+
     if (humanoidIt != model->getChildren().end()) {
-        if (auto characterHumanoid = std::dynamic_pointer_cast<Humanoid>(humanoidIt->second);
-            characterHumanoid && !characterHumanoid->getWalkAnimation() &&
-            characterHumanoid->getWalkAnimationPath().empty()) {
+        if (
+            auto characterHumanoid =
+                std::dynamic_pointer_cast<Humanoid>(humanoidIt->second);
+
+            characterHumanoid &&
+            !characterHumanoid->getWalkAnimation() &&
+            characterHumanoid->getWalkAnimationPath().empty()
+        ) {
             auto fallback = std::make_shared<Animation>();
             fallback->Name = "R6Walk";
-            fallback->setBuiltInClip(AnimationClip::defaultR6Walk());
+            fallback->setBuiltInClip(
+                AnimationClip::defaultR6Walk()
+            );
+
             model->addChild(fallback);
             characterHumanoid->setWalkAnimation(fallback);
         }
     }
+
     return model;
+}
+
+static void moveSpatialSubtreeByWorldDelta(
+    const std::shared_ptr<Instance>& root,
+    const CFrame& delta
+) {
+    if (!root) return;
+
+    struct SpatialMove {
+        std::shared_ptr<Spatial> spatial;
+        CFrame worldCFrame;
+    };
+
+    std::vector<SpatialMove> moves;
+
+    std::function<void(const std::shared_ptr<Instance>&)> collect =
+        [&](const std::shared_ptr<Instance>& instance) {
+            if (!instance) return;
+
+            if (auto spatial = std::dynamic_pointer_cast<Spatial>(instance)) {
+                moves.push_back({
+                    spatial,
+                    spatial->getWorldCFrame()
+                });
+            }
+
+            for (const auto& [name, child] : instance->children) {
+                collect(child);
+            }
+        };
+
+    collect(root);
+
+    // 先に全WorldCFrameを保存してあるので、
+    // setterによる親子座標の再計算に影響されない。
+    for (auto& move : moves) {
+        move.spatial->setWorldCFrame(
+            delta * move.worldCFrame
+        );
+    }
 }
 
 void User::placeCharacterAtSpawn(
@@ -1052,7 +1131,13 @@ void User::placeCharacterAtSpawn(
         targetRoot = spawn->getWorldCFrame() *
             CFrame(0.0f, (spawn->Size.y + root->Size.y) * 0.5f, 0.0f);
     }
-    model->setCFrame(targetRoot * root->getCFrame().inverse());
+    const CFrame currentRoot = root->getWorldCFrame();
+    const CFrame delta = targetRoot * currentRoot.inverse();
+
+    moveSpatialSubtreeByWorldDelta(
+        std::static_pointer_cast<Instance>(model),
+        delta
+    );
 }
 
 void User::spawnCharacter(Instance* searchRoot, Workspace* workspace,
@@ -1098,11 +1183,27 @@ void User::spawnCharacter(Instance* searchRoot, Workspace* workspace,
             root->CanCollide = true;
         }
     }
+    
     if (initialPosition) {
-        // Play HereはSpawnLocationより明示Model.Positionを優先する。
-        character->setPosition(*initialPosition);
-    } else {
-        placeCharacterAtSpawn(character, humanoid, workspace, peerId);
+        const CFrame current = character->getWorldCFrame();
+
+        CFrame target = current;
+        target.Position = *initialPosition;
+
+        const CFrame delta = target * current.inverse();
+
+        moveSpatialSubtreeByWorldDelta(
+            std::static_pointer_cast<Instance>(character),
+            delta
+        );
+    }
+    else {
+        placeCharacterAtSpawn(
+            character,
+            humanoid,
+            workspace,
+            peerId
+        );
     }
 
     // NOTE: この時点ではcharacterはまだWorkspaceに追加されていない(addChildは呼び出し元が行う)。

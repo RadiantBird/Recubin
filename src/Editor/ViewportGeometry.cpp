@@ -1,11 +1,24 @@
 #include <Editor/ViewportGeometry.hpp>
 
+#include <Instances/BaseCube.hpp>
 #include <Instances/Spatial.hpp>
 
 #include <algorithm>
 #include <cmath>
 
 namespace ViewportGeometry {
+
+namespace {
+
+void collectBaseCubes(Instance& root, std::vector<BaseCube*>& cubes) {
+    for (const auto& [_, child] : root.children) {
+        if (!child) continue;
+        if (auto* cube = dynamic_cast<BaseCube*>(child.get())) cubes.push_back(cube);
+        collectBaseCubes(*child, cubes);
+    }
+}
+
+} // namespace
 
 Vector3 worldToLocalPosition(const Vector3& worldPosition, const Spatial& spatial) {
     CFrame world = spatial.getWorldCFrame();
@@ -20,6 +33,39 @@ Quaternion worldToLocalRotation(const Quaternion& worldRotation, const Spatial& 
     return spatial.getCoordinateParent()
         ? (spatial.getCoordinateParent()->getWorldCFrame().inverse() * world).Rotation
         : worldRotation;
+}
+
+void applyEditorWorldCFrame(Spatial& spatial, const CFrame& worldCFrame) {
+    CFrame normalizedWorld = worldCFrame;
+    if (!normalizedWorld.Rotation.tryNormalize()) return;
+
+    CFrame local = normalizedWorld;
+    if (auto* parent = spatial.getCoordinateParent())
+        local = parent->getWorldCFrame().inverse() * normalizedWorld;
+
+    if (spatial.IsA("BaseCube")) {
+        auto& cube = static_cast<BaseCube&>(spatial);
+        cube.teleportTo(local.Position);
+        cube.setRotation(local.Rotation);
+        return;
+    }
+    if (spatial.IsA("Model")) {
+        spatial.commitCFrame(local, Spatial::SpatialUpdateOrigin::Editor);
+        std::vector<BaseCube*> cubes;
+        collectBaseCubes(spatial, cubes);
+        for (BaseCube* cube : cubes) cube->teleportTo(cube->getPosition());
+        return;
+    }
+    spatial.setWorldCFrame(normalizedWorld);
+}
+
+void applyEditorLocalCFrame(Spatial& spatial, const CFrame& localCFrame) {
+    CFrame normalizedLocal = localCFrame;
+    if (!normalizedLocal.Rotation.tryNormalize()) return;
+    const CFrame world = spatial.getCoordinateParent()
+        ? spatial.getCoordinateParent()->getWorldCFrame() * normalizedLocal
+        : normalizedLocal;
+    applyEditorWorldCFrame(spatial, world);
 }
 
 Ray makeScreenRay(

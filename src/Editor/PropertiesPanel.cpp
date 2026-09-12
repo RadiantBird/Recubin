@@ -1,5 +1,6 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/ViewportGeometry.hpp>
 #include <Editor/UiHelpers.hpp>
 #include <Editor/Localization.hpp>
 #include <Core/Physics.hpp>
@@ -488,11 +489,7 @@ static void applyMultiTransform(const std::vector<Spatial*>& spaces,
 }
 static void applyWorldCFrameLive(Spatial* s, const CFrame& world) {
     if (!s) return;
-    if (s->IsA("BaseCube")) {
-        CFrame local=world;
-        if (auto* p = s->getCoordinateParent()) local=p->getWorldCFrame().inverse()*world;
-        auto* b=static_cast<BaseCube*>(s); b->teleportTo(local.Position); b->setRotation(local.Rotation);
-    } else s->setWorldCFrame(world);
+    ViewportGeometry::applyEditorWorldCFrame(*s, world);
 }
 
 static void renderMultiTransform(const std::vector<Instance*>& valid, CommandHistory* history) {
@@ -1135,13 +1132,13 @@ static void drawVec3Field(const char* id,
 
         if (changed) {
             Vector3 newVal(arr[0], arr[1], arr[2]);
-            if (sp && sp->IsA("BaseCube")) {
-                BaseCube* bc = static_cast<BaseCube*>(sp.get());
-                if (prop == "Position") bc->teleportTo(newVal);
-                else if (prop == "Size") bc->setSize(newVal);
+            if (sp && prop == "Position") {
+                ViewportGeometry::applyEditorLocalCFrame(
+                    *sp, CFrame(newVal, sp->getRotation()));
+            } else if (sp && sp->IsA("BaseCube")) {
+                static_cast<BaseCube*>(sp.get())->setSize(newVal);
             } else {
-                if (prop == "Position") sp->setPosition(newVal);
-                else val = newVal;  // 非 BaseCube の Spatial（Size）
+                val = newVal;  // 非 BaseCube の Spatial（Size）
             }
         }
 
@@ -1512,7 +1509,9 @@ void PropertiesPanel::onRender() {
             ImGui::PushID("Rotation");
             bool rotChanged = ImGui::DragFloat3("##rot", rot, 1.0f, -360.0f, 360.0f, "%.1f");
             if (ImGui::IsItemActivated()) s_rotBefore["rot"] = s->getRotation();
-            if (rotChanged) s->setRotation(Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2])));
+            if (rotChanged) ViewportGeometry::applyEditorLocalCFrame(
+                *s, CFrame(s->getPosition(),
+                    Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2]))));
             if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
                 Quaternion qBefore = s_rotBefore["rot"];
                 Quaternion qAfter  = s->getRotation();  // 適用済みの実値

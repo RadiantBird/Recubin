@@ -25,6 +25,12 @@ YAML シーンファイルを読み込んで Instance ツリーを再構築す�
 通常クラスだけをファクトリ生成する。登録内容を保持するプロセス全体の静的状態はないため、
 失敗後や別ロードへマージ対象が漏れない。
 
+Scene YAMLの`Position`と`Rotation`は各Spatialのlocal座標として扱う。通常の`addChild()`は
+reparent時にworld姿勢を維持するため、SceneLoaderは子サブツリー内の全Spatial（Folderなどの
+非Spatial中間ノード配下を含む）のlocal CFrameを接続前に収集し、接続後に
+`Spatial::applyLocalCFrameBatch()`で復元する。この復元はdeserialization時の接続だけに限定し、
+通常のInstance reparent semanticsは変更しない。
+
 ## 対応クラス（createInstance）
 
 `Instance`, `Spatial`, `BaseCube`, `Cube`, `Script`, `Sound`, `Decal`, `Model`, `Workspace`
@@ -38,8 +44,10 @@ SceneLoader::loadScene("assets/scenes/test_scene.yaml", context)
        → context対象なら既存Instance、その他はcreateInstance(className)
        → node のプロパティを setProperty() で適用
        → 子ノードを再帰的に parseInstance()
-       → setParent() で親子関係を構築
+       → addChild() で親子関係を構築
+            → 接続前に子サブツリーのlocal CFrameを収集
             → onAncestorChanged() が伝播
+            → 接続後にdeserialization batchでlocal CFrameを復元
   → Workspace* を返す
 ```
 

@@ -4338,11 +4338,11 @@ int runSoundStretchRegression() {
     auto spatialParent = std::make_shared<Model>(Vector3(0, 2, 0));
     spatialParent->setRotation(Quaternion::fromAxisAngle(Vector3(0, 0, 1), 90.0f));
     auto spatialSound = std::make_shared<Sound>(spatialAudio);
-    spatialSound->Position = Vector3(3, 0, 0);
+    spatialSound->setPosition(Vector3(3, 0, 0));
     spatialRoot->addChild(spatialParent);
     spatialParent->addChild(spatialSound);
     const Vector3 worldPosition = spatialSound->getWorldCFrame().Position;
-    const Vector3 oldPosition = spatialParent->Position + spatialSound->Position;
+    const Vector3 oldPosition = spatialParent->getPosition() + spatialSound->getPosition();
     const Vector3 listenerPosition(0, 0, 0);
     const Vector3 listenerRight(1, 0, 0);
     const SoundSpatialMix spatialMix = Sound::calculateSpatialMix(
@@ -5459,7 +5459,9 @@ int runConstraintRebindRegression() {
     const auto originalHandle = motor->getConstraintHandle();
     expect(static_cast<bool>(originalHandle), "Motor receives an initial native binding");
 
-    attachment0->Position.x += 0.5f;
+    Vector3 attachmentPosition = attachment0->getPosition();
+    attachmentPosition.x += 0.5f;
+    attachment0->setPosition(attachmentPosition);
     physicsA->update(*workspaceA, 1.0f / 60.0f);
     const auto movedAttachmentHandle = motor->getConstraintHandle();
     expect(movedAttachmentHandle && movedAttachmentHandle != originalHandle,
@@ -6339,6 +6341,197 @@ int runViewportHelperRegression() {
                expectedLocalRotation) >= 0.9999f,
            "world rotation converts through a rotated Spatial parent");
 
+    auto editorWorkspace = std::make_shared<Workspace>();
+    auto editorModel = std::make_shared<Model>();
+    auto editorChild = std::make_shared<BaseCube>(
+        Vector3(), Vector3(1.0f, 1.0f, 1.0f));
+    editorWorkspace->addChild(editorModel);
+    editorModel->setPosition(Vector3(2.0f, 0.0f, 0.0f));
+    editorModel->addChild(editorChild);
+    editorChild->setPosition(Vector3(1.0f, 0.0f, 0.0f));
+    const CFrame editorModelBefore = editorModel->getWorldCFrame();
+    const CFrame editorChildBefore = editorChild->getWorldCFrame();
+    const CFrame editorChildLocal = editorChild->getCFrame();
+    const Vector3 editorDelta(3.0f, 4.0f, -2.0f);
+    ViewportGeometry::applyEditorWorldCFrame(
+        *editorModel,
+        CFrame(editorModelBefore.Position + editorDelta, editorModelBefore.Rotation));
+    expect(positionDistance(editorModel->getWorldPosition(),
+                            editorModelBefore.Position + editorDelta) <= 0.001f
+               && positionDistance(editorChild->getWorldPosition(),
+                                   editorChildBefore.Position + editorDelta) <= 0.001f
+               && positionDistance(editorChild->getPosition(), editorChildLocal.Position) <= 0.001f,
+           "Editor Model translation moves descendants while preserving child local position");
+
+    const Quaternion editorQuarterTurn =
+        Quaternion::fromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), 90.0f);
+    ViewportGeometry::applyEditorWorldCFrame(
+        *editorModel, CFrame(editorModel->getWorldPosition(), editorQuarterTurn));
+    const CFrame expectedRotatedChild = editorModel->getWorldCFrame() * editorChildLocal;
+    expect(positionDistance(editorChild->getWorldPosition(), expectedRotatedChild.Position) <= 0.001f
+               && quaternionDotMagnitude(editorChild->getWorldCFrame().Rotation,
+                                         expectedRotatedChild.Rotation) >= 0.9999f,
+           "Editor Model rotation carries descendants around the Model frame");
+
+    ViewportGeometry::applyEditorWorldCFrame(*editorModel, editorModelBefore);
+    CommandHistory editorHistory;
+    const GizmoState editorBeforeState{
+        editorModel->getPosition(), editorModel->Size, editorModel->getRotation()};
+    const GizmoState editorAfterState{
+        Vector3(7.0f, 1.0f, -3.0f), editorModel->Size, editorQuarterTurn};
+    editorHistory.execute(std::make_unique<MultiGizmoCommand>(
+        std::vector<MultiGizmoCommand::Entry>{{
+            editorModel, editorBeforeState, editorAfterState}}));
+    const CFrame commandChildAfter = editorModel->getWorldCFrame() * editorChildLocal;
+    expect(positionDistance(editorChild->getWorldPosition(), commandChildAfter.Position) <= 0.001f,
+           "MultiGizmoCommand execute carries Model descendants");
+    editorHistory.undo();
+    expect(positionDistance(editorModel->getWorldPosition(), editorModelBefore.Position) <= 0.001f
+               && positionDistance(editorChild->getWorldPosition(), editorChildBefore.Position) <= 0.001f
+               && positionDistance(editorChild->getPosition(), editorChildLocal.Position) <= 0.001f,
+           "MultiGizmoCommand undo restores Model descendants and child local position");
+
+    auto physicsEditorWorkspace = std::make_shared<Workspace>();
+    physicsEditorWorkspace->Name = "PhysicsEditorWorkspace";
+    physicsEditorWorkspace->Gravity = {};
+    physicsEditorWorkspace->initPhysics();
+    Physics* editorPhysics = physicsEditorWorkspace->getPhysicsEngine();
+    auto physicsEditorModel = std::make_shared<Model>();
+    physicsEditorModel->Name = "PhysicsEditorModel";
+    auto physicsEditorChild = std::make_shared<Cube>(
+        Vector3(), Vector3(2.0f, 2.0f, 2.0f), Cube::defaultTextureID);
+    physicsEditorChild->Name = "PhysicsEditorChild";
+    physicsEditorChild->Anchored = true;
+    physicsEditorWorkspace->addChild(physicsEditorModel);
+    physicsEditorModel->setCFrame(CFrame(
+        Vector3(4.0f, 2.0f, -3.0f),
+        Quaternion::fromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), 15.0f)));
+    physicsEditorModel->addChild(physicsEditorChild);
+    const CFrame physicsChildLocal(
+        Vector3(2.0f, 1.0f, -1.0f),
+        Quaternion::fromAxisAngle(Vector3(1.0f, 0.0f, 0.0f), 20.0f));
+    physicsEditorChild->setCFrame(physicsChildLocal);
+    if (editorPhysics) editorPhysics->update(*physicsEditorWorkspace, 0.0f);
+    expect(editorPhysics && editorPhysics->isAvailable()
+               && editorPhysics->hasBody(*physicsEditorChild),
+           "selected physics backend creates the Editor Model child body");
+
+    const CFrame physicsModelTarget(
+        Vector3(11.0f, 5.0f, 6.0f),
+        Quaternion::fromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), 75.0f));
+    ViewportGeometry::applyEditorWorldCFrame(*physicsEditorModel, physicsModelTarget);
+    if (editorPhysics && editorPhysics->isAvailable()) {
+        editorPhysics->update(*physicsEditorWorkspace, 1.0f / 60.0f);
+        editorPhysics->syncCube(*physicsEditorChild);
+        editorPhysics->update(*physicsEditorWorkspace, 1.0f / 60.0f);
+    }
+    const CFrame expectedPhysicsChildWorld = physicsModelTarget * physicsChildLocal;
+    expect(positionDistance(physicsEditorModel->getWorldPosition(),
+                            physicsModelTarget.Position) <= 0.001f
+               && quaternionDotMagnitude(physicsEditorModel->getWorldCFrame().Rotation,
+                                         physicsModelTarget.Rotation) >= 0.9999f
+               && positionDistance(physicsEditorChild->getPosition(),
+                                   physicsChildLocal.Position) <= 0.001f
+               && quaternionDotMagnitude(physicsEditorChild->getRotation(),
+                                         physicsChildLocal.Rotation) >= 0.9999f
+               && positionDistance(physicsEditorChild->getWorldPosition(),
+                                   expectedPhysicsChildWorld.Position) <= 0.001f
+               && quaternionDotMagnitude(physicsEditorChild->getWorldCFrame().Rotation,
+                                         expectedPhysicsChildWorld.Rotation) >= 0.9999f,
+           "Editor Model transform survives physics update and sync with child local pose intact");
+
+    const auto physicsEditorScenePath = std::filesystem::temp_directory_path() /
+        ("recubin_viewport_model_physics_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) + ".rcbn");
+    const bool physicsEditorSaved = SceneLoader::saveSceneResult(
+        physicsEditorWorkspace.get(), physicsEditorScenePath.string());
+    YAML::Node physicsEditorYaml;
+    if (physicsEditorSaved)
+        physicsEditorYaml = YAML::Load(FileLoader::readText(physicsEditorScenePath.string()));
+    YAML::Node savedPhysicsModel;
+    const YAML::Node savedRootChildren = physicsEditorYaml["Root"]["Children"];
+    if (savedRootChildren && savedRootChildren.IsSequence()) {
+        for (const YAML::Node& childNode : savedRootChildren) {
+            if (childNode["Name"] && childNode["Name"].as<std::string>() == "PhysicsEditorModel") {
+                savedPhysicsModel = childNode;
+                break;
+            }
+        }
+    }
+    YAML::Node savedPhysicsChild;
+    const YAML::Node savedModelChildren = savedPhysicsModel["Children"];
+    if (savedModelChildren && savedModelChildren.IsSequence()) {
+        for (const YAML::Node& childNode : savedModelChildren) {
+            if (childNode["Name"] && childNode["Name"].as<std::string>() == "PhysicsEditorChild") {
+                savedPhysicsChild = childNode;
+                break;
+            }
+        }
+    }
+    const auto yamlVectorNear = [](const YAML::Node& node, const Vector3& expected) {
+        return node && node.IsSequence() && node.size() == 3
+            && near(node[0].as<float>(), expected.x)
+            && near(node[1].as<float>(), expected.y)
+            && near(node[2].as<float>(), expected.z);
+    };
+    const auto yamlQuaternionNear = [](const YAML::Node& node, const Quaternion& expected) {
+        return node && node.IsSequence() && node.size() == 4
+            && quaternionDotMagnitude(
+                   Quaternion::fromNormalizedComponents(
+                       node[3].as<float>(), node[0].as<float>(),
+                       node[1].as<float>(), node[2].as<float>()),
+                   expected) >= 0.9999f;
+    };
+    const YAML::Node savedModelProperties = savedPhysicsModel["Properties"];
+    const YAML::Node savedChildProperties = savedPhysicsChild["Properties"];
+    expect(physicsEditorSaved && savedPhysicsModel && savedPhysicsChild
+               && yamlVectorNear(savedModelProperties["Position"],
+                                 physicsEditorModel->getPosition())
+               && yamlQuaternionNear(savedModelProperties["Rotation"],
+                                     physicsEditorModel->getRotation())
+               && yamlVectorNear(savedChildProperties["Position"], physicsChildLocal.Position),
+           "scene save keeps the Editor Model and child local transform properties");
+
+    const CFrame physicsModelLocalBeforeSave = physicsEditorModel->getCFrame();
+    const SceneLoader::LoadResult loadedPhysicsEditorScene =
+        SceneLoader::loadSceneResult(physicsEditorScenePath.string());
+    Model* loadedPhysicsEditorModel = nullptr;
+    BaseCube* loadedPhysicsEditorChild = nullptr;
+    if (loadedPhysicsEditorScene && loadedPhysicsEditorScene.root) {
+        Instance* modelInstance =
+            loadedPhysicsEditorScene.root->getChild("PhysicsEditorModel");
+        loadedPhysicsEditorModel = dynamic_cast<Model*>(modelInstance);
+        if (loadedPhysicsEditorModel) {
+            loadedPhysicsEditorChild = dynamic_cast<BaseCube*>(
+                loadedPhysicsEditorModel->getChild("PhysicsEditorChild"));
+        }
+    }
+    const CFrame expectedLoadedModelWorld = physicsModelLocalBeforeSave;
+    const CFrame expectedLoadedChildWorld =
+        expectedLoadedModelWorld * physicsChildLocal;
+    expect(loadedPhysicsEditorModel && loadedPhysicsEditorChild
+               && positionDistance(loadedPhysicsEditorModel->getPosition(),
+                                   physicsModelLocalBeforeSave.Position) <= 0.001f
+               && quaternionDotMagnitude(loadedPhysicsEditorModel->getRotation(),
+                                         physicsModelLocalBeforeSave.Rotation) >= 0.9999f
+               && positionDistance(loadedPhysicsEditorChild->getPosition(),
+                                   physicsChildLocal.Position) <= 0.001f
+               && quaternionDotMagnitude(loadedPhysicsEditorChild->getRotation(),
+                                         physicsChildLocal.Rotation) >= 0.9999f
+               && positionDistance(loadedPhysicsEditorModel->getWorldPosition(),
+                                   expectedLoadedModelWorld.Position) <= 0.001f
+               && quaternionDotMagnitude(
+                      loadedPhysicsEditorModel->getWorldCFrame().Rotation,
+                      expectedLoadedModelWorld.Rotation) >= 0.9999f
+               && positionDistance(loadedPhysicsEditorChild->getWorldPosition(),
+                                   expectedLoadedChildWorld.Position) <= 0.001f
+               && quaternionDotMagnitude(
+                      loadedPhysicsEditorChild->getWorldCFrame().Rotation,
+                      expectedLoadedChildWorld.Rotation) >= 0.9999f,
+           "scene load restores Model and child local transforms with composed world poses");
+    std::error_code physicsEditorRemoveError;
+    std::filesystem::remove(physicsEditorScenePath, physicsEditorRemoveError);
+
     const Matrix4 projection = Matrix4::Perspective(45.0f, 2.0f, 0.1f, 100.0f);
     const Matrix4 view = Matrix4::LookAt(
         Vector3(0.0f, 0.0f, 0.0f),
@@ -6533,8 +6726,11 @@ int runViewportHelperRegression() {
         Vector3(0.0f, 0.0f, 0.0f), Vector3(4.0f, 2.0f, 2.0f));
     boundsRight->Name = "BoundsRight";
     boundsRoot->addChild(boundsLeft);
+    boundsLeft->setPosition(Vector3(-2.0f, 1.0f, 0.0f));
     boundsRoot->addChild(boundsNested);
+    boundsNested->setPosition(Vector3(3.0f, -1.0f, 2.0f));
     boundsNested->addChild(boundsRight);
+    boundsRight->setPosition(Vector3(0.0f, 0.0f, 0.0f));
     const ViewportGeometry::WorldAabb bounds =
         ViewportSceneQueries::computeDescendantWorldAabb(*boundsRoot);
     expect(bounds.valid
@@ -6568,12 +6764,12 @@ int runViewportHelperRegression() {
     const ViewportSceneQueries::MovementBounds movingBounds =
         ViewportSceneQueries::computeMovementBounds(*moving);
     expect(near(ViewportSceneQueries::fitOnAxis(
-                    *fitWorkspace, moving->Position, movingBounds, *moving, 0),
+                    *fitWorkspace, movingBounds.center, movingBounds, *moving, 0),
                 2.0f),
            "axis collision fit resolves overlap along the requested axis");
     expect(positionDistance(
                ViewportSceneQueries::fitCollision(
-                   *fitWorkspace, moving->Position, movingBounds, *moving),
+                   *fitWorkspace, movingBounds.center, movingBounds, *moving),
                Vector3(2.0f, 0.0f, 0.0f)) <= 0.001f,
            "minimum-overlap collision fit resolves a stable axis-aligned overlap");
 
@@ -7417,15 +7613,15 @@ static int runSurfaceMarkRegression() {
     SurfaceMark mark;
     expect(mark.IsA("SurfaceMark") && mark.IsA("Spatial") && !mark.IsA("BaseCube"),
            "SurfaceMark has the independent Spatial inheritance");
-    expect(mark.Position == Vector3(0, 0, 0) && mark.Size == Vector3(4, 4, 4) &&
+    expect(mark.getPosition() == Vector3(0, 0, 0) && mark.Size == Vector3(4, 4, 4) &&
            mark.getForward() == Vector3(0, 0, -1), "SurfaceMark defaults are stable");
     mark.setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f));
     expect(mark.getForward().x < -0.99f && std::fabs(mark.getForward().z) < 0.01f,
            "SurfaceMark forward follows rotation");
     auto parent = std::make_shared<Model>(Vector3(10, 0, 0), Vector3(1, 1, 1));
     auto child = std::make_shared<SurfaceMark>();
-    child->setPosition(Vector3(2, 0, 0));
     parent->addChild(child);
+    child->setPosition(Vector3(2, 0, 0));
     expect(std::fabs(child->getWorldPosition().x - 12.0f) < 0.001f,
            "SurfaceMark follows parent Spatial transform");
     expect(child->intersectsSphere(Vector3(12, 0, 0), 0.1f) &&

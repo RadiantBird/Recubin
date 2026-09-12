@@ -4,6 +4,7 @@
 #include <Instances/System.hpp>
 #include <Instances/TextFile.hpp>
 #include <Instances/Workspace.hpp>
+#include <Instances/Spatial.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/LiquidCube.hpp>
 #include <Instances/SpawnLocation.hpp>
@@ -71,6 +72,7 @@
 #include <fstream>
 #include <memory>
 #include <filesystem>
+#include <vector>
 
 #ifdef _WIN32
 #include <windows26.h>
@@ -113,6 +115,30 @@ namespace YAML {
         }
     };
 }
+
+namespace {
+
+void collectLocalCFrames(
+    Instance& root,
+    std::vector<std::pair<Spatial*, CFrame>>& localCFrames) {
+    if (auto* spatial = dynamic_cast<Spatial*>(&root))
+        localCFrames.emplace_back(spatial, spatial->getCFrame());
+    for (const auto& [_, child] : root.children) {
+        if (child) collectLocalCFrames(*child, localCFrames);
+    }
+}
+
+void attachDeserializedChild(
+    Instance& parent,
+    const std::shared_ptr<Instance>& child) {
+    if (!child) return;
+    std::vector<std::pair<Spatial*, CFrame>> localCFrames;
+    collectLocalCFrames(*child, localCFrames);
+    parent.addChild(child);
+    Spatial::applyLocalCFrameBatch(localCFrames);
+}
+
+} // namespace
 
 SceneLoader::LoadResult SceneLoader::loadSceneResult(const std::string& filePath) {
     return loadSceneResult(filePath, LoadContext{});
@@ -217,7 +243,7 @@ SceneLoader::LoadResult SceneLoader::loadSceneResult(
                 std::string cn = itemNode["ClassName"] ? itemNode["ClassName"].as<std::string>() : "";
                 auto inst = parseInstance(itemNode, context);
                 if (inst && !context.findMergeInstance(cn)) {
-                    bag->addChild(inst);
+                    attachDeserializedChild(*bag, inst);
                 }
             }
             resolveConstraintRefs(bag.get());
@@ -243,7 +269,7 @@ SceneLoader::LoadResult SceneLoader::loadSceneResult(
                 auto inst = parseInstance(childNode, context);
                 // Context対象は呼び出し側が所有・配置するため、ここではreparentしない。
                 if (inst && !context.findMergeInstance(cn)) {
-                    bag->addChild(inst);
+                    attachDeserializedChild(*bag, inst);
                 }
             }
             resolveConstraintRefs(bag.get());
@@ -336,7 +362,7 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(
         for (const auto& childNode : node["Children"]) {
             std::shared_ptr<Instance> child = parseInstance(childNode, context);
             if (child) {
-                instance->addChild(child);
+                attachDeserializedChild(*instance, child);
             }
         }
     }

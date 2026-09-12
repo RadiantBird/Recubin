@@ -953,14 +953,16 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                     }
                     Vector3 delta        = fittedCenter - centerBefore;
                     Vector3 newWorldPos  = s->getWorldPosition() + delta;
-                    s->setWorldCFrame(CFrame(newWorldPos, s->getWorldCFrame().Rotation));
+                    ViewportGeometry::applyEditorWorldCFrame(
+                        *s, CFrame(newWorldPos, s->getWorldCFrame().Rotation));
                 } else if (isModelTarget && gizmoOp == ImGuizmo::ROTATE) {
                     // Model: AABB中心（無ければ自身のワールド位置）を軸に回転を適用
                     Quaternion rotDelta   = newRot * modelOldWorldRot.conjugate();
                     Vector3    pivotCenter = modelAabb.valid ? modelPivotCenter : modelOldWorldPos;
                     Vector3    newWorldPos = pivotCenter + rotDelta.rotate(modelOldWorldPos - pivotCenter);
                     Quaternion newWorldRot = rotDelta * modelOldWorldRot;
-                    s->setWorldCFrame(CFrame(newWorldPos, newWorldRot));
+                    ViewportGeometry::applyEditorWorldCFrame(
+                        *s, CFrame(newWorldPos, newWorldRot));
                 } else if (m_pivotActive && gizmoOp == ImGuizmo::TRANSLATE) {
                     // Tab ピボット経路: delta を全選択対象に適用（collisionFit は使わない）
                     Vector3 delta = newPos - m_pivotWorld;
@@ -971,21 +973,21 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                                 ViewportSceneQueries::isLockedBaseCube(tgt)) continue;
                         Spatial* tsp = static_cast<Spatial*>(tgt);
                         Vector3 newWorld = tsp->getWorldPosition() + delta;
-                        if (tgt->IsA("BaseCube"))
-                            static_cast<BaseCube*>(tgt)->teleportTo(ViewportGeometry::worldToLocalPosition(newWorld, *tsp));
-                        else
-                            tsp->setWorldCFrame(CFrame(newWorld, tsp->getWorldCFrame().Rotation));
+                        ViewportGeometry::applyEditorWorldCFrame(
+                            *tsp, CFrame(newWorld, tsp->getWorldCFrame().Rotation));
                     }
                     m_pivotWorld = m_pivotWorld + delta;
                 } else if (gizmoOp == ImGuizmo::TRANSLATE && haveMultiCenter) {
                     // 複数選択中心経路: 集合中心からの delta を全選択対象に適用（collisionFit は使わない）
                     Vector3 delta = newPos - multiCenter;
                     for (Instance* other : *selectedInstances) {
-                        if (!other || other->Parent.expired() || !other->IsA("BaseCube") ||
+                        if (!other || other->Parent.expired() || !other->IsA("Spatial") ||
                                 ViewportSceneQueries::isLockedBaseCube(other)) continue;
-                        BaseCube* bc = static_cast<BaseCube*>(other);
-                        Vector3 nw = bc->getWorldPosition() + delta;
-                        bc->teleportTo(ViewportGeometry::worldToLocalPosition(nw, *bc));
+                        Spatial* otherSpatial = static_cast<Spatial*>(other);
+                        Vector3 nw = otherSpatial->getWorldPosition() + delta;
+                        ViewportGeometry::applyEditorWorldCFrame(
+                            *otherSpatial,
+                            CFrame(nw, otherSpatial->getWorldCFrame().Rotation));
                     }
                 } else if (gizmoOp == ImGuizmo::TRANSLATE && workspace) {
                     // teleportTo 前のワールド座標を保存（複数選択の delta 計算用）
@@ -1011,21 +1013,21 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                         newPos = Vector3(rx, ry, rz);
                     }
                     // ワールド → ローカルに変換して設定
-                    if (inst->IsA("BaseCube"))
-                        static_cast<BaseCube*>(inst)->teleportTo(ViewportGeometry::worldToLocalPosition(newPos, *s));
-                    else
-                        s->setWorldCFrame(CFrame(newPos, s->getWorldCFrame().Rotation));
+                    ViewportGeometry::applyEditorWorldCFrame(
+                        *s, CFrame(newPos, s->getWorldCFrame().Rotation));
 
                     // 複数選択: primary の delta を残りのオブジェクトに適用
                     if (hasMultiSelection()) {
                         Vector3 deltaWorld = s->getWorldPosition() - prevPrimaryWorld;
                         for (Instance* other : *selectedInstances) {
                             if (!other || other->Parent.expired() || other == inst ||
-                                    !other->IsA("BaseCube") ||
+                                    !other->IsA("Spatial") ||
                                     ViewportSceneQueries::isLockedBaseCube(other)) continue;
-                            BaseCube* bc = static_cast<BaseCube*>(other);
-                            Vector3 nw = bc->getWorldPosition() + deltaWorld;
-                            bc->teleportTo(ViewportGeometry::worldToLocalPosition(nw, *bc));
+                            Spatial* otherSpatial = static_cast<Spatial*>(other);
+                            Vector3 nw = otherSpatial->getWorldPosition() + deltaWorld;
+                            ViewportGeometry::applyEditorWorldCFrame(
+                                *otherSpatial,
+                                CFrame(nw, otherSpatial->getWorldCFrame().Rotation));
                         }
                     }
                 } else if (gizmoOp == ImGuizmo::SCALE) {
@@ -1074,7 +1076,8 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                                     oldWorld.Position, oldWorld.Rotation, oldSize, targetSize,
                                     Vector3(signX, signY, signZ), Vector3(0.0f, 0.0f, 0.0f));
                             }
-                            bc->teleportTo(ViewportGeometry::worldToLocalPosition(targetWorld, *bc));
+                            ViewportGeometry::applyEditorWorldCFrame(
+                                *bc, CFrame(targetWorld, oldWorld.Rotation));
                             bc->setSize(targetSize);
                         }
                     } else {
@@ -1086,10 +1089,12 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                             Vector3(signX, signY, signZ), localCenterFactor);
                         if (inst->IsA("BaseCube")) {
                             BaseCube* bc = static_cast<BaseCube*>(inst);
-                            bc->teleportTo(ViewportGeometry::worldToLocalPosition(newWorldPos, *s));
+                            ViewportGeometry::applyEditorWorldCFrame(
+                                *bc, CFrame(newWorldPos, s->getWorldCFrame().Rotation));
                             bc->setSize(newSize);
                         } else {
-                            s->setWorldCFrame(CFrame(newWorldPos, s->getWorldCFrame().Rotation));
+                            ViewportGeometry::applyEditorWorldCFrame(
+                                *s, CFrame(newWorldPos, s->getWorldCFrame().Rotation));
                             s->Size = newSize;
                         }
                     }
@@ -1128,23 +1133,14 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                         }
                         Vector3 newWorldPos = pivot + rotDelta.rotate(worldStart.Position - pivot);
                         Quaternion newWorldRot = rotDelta * worldStart.Rotation;
-                        if (e.target->IsA("BaseCube")) {
-                            BaseCube* bc = static_cast<BaseCube*>(e.target.get());
-                            bc->teleportTo(ViewportGeometry::worldToLocalPosition(newWorldPos, *bc));
-                            bc->setRotation(ViewportGeometry::worldToLocalRotation(newWorldRot, *bc));
-                        } else {
-                            e.target->setWorldCFrame(CFrame(newWorldPos, newWorldRot));
-                        }
+                        ViewportGeometry::applyEditorWorldCFrame(
+                            *e.target, CFrame(newWorldPos, newWorldRot));
                     }
                     m_multiRotateGizmoCurRot = newRot;
                 } else if (gizmoOp == ImGuizmo::ROTATE) {
                     // newRot はワールド回転 → ローカルに変換
-                    Quaternion localRot = ViewportGeometry::worldToLocalRotation(newRot, *s);
-                    if (inst->IsA("BaseCube")) {
-                        static_cast<BaseCube*>(inst)->setRotation(localRot);
-                    } else {
-                        s->setRotation(localRot);
-                    }
+                    ViewportGeometry::applyEditorWorldCFrame(
+                        *s, CFrame(s->getWorldPosition(), newRot));
                 }
             }
             } // end if (!skipGizmoForModelScale)
@@ -1340,10 +1336,8 @@ void ViewportPanel::moveFreeDragSelection(const ViewportLayout& layout) {
                 }
                 Vector3 prevPrimaryWorld = s->getWorldPosition();
                 Vector3 newRootWorld = prevPrimaryWorld + (newCenter - movingBounds.center);
-                if (inst->IsA("BaseCube"))
-                    static_cast<BaseCube*>(inst)->teleportTo(ViewportGeometry::worldToLocalPosition(newRootWorld, *s));
-                else
-                    s->setWorldCFrame(CFrame(newRootWorld, s->getWorldCFrame().Rotation));
+                ViewportGeometry::applyEditorWorldCFrame(
+                    *s, CFrame(newRootWorld, s->getWorldCFrame().Rotation));
 
                 // 複数選択: primary の delta を残りのオブジェクトに適用
                 if (hasMultiSelection()) {
@@ -1354,10 +1348,8 @@ void ViewportPanel::moveFreeDragSelection(const ViewportLayout& layout) {
                                 ViewportSceneQueries::isLockedBaseCube(other)) continue;
                         Spatial* otherSpatial = static_cast<Spatial*>(other);
                         Vector3 nw = otherSpatial->getWorldPosition() + deltaWorld;
-                        if (other->IsA("BaseCube"))
-                            static_cast<BaseCube*>(other)->teleportTo(ViewportGeometry::worldToLocalPosition(nw, *otherSpatial));
-                        else
-                            otherSpatial->setWorldCFrame(CFrame(nw, otherSpatial->getWorldCFrame().Rotation));
+                        ViewportGeometry::applyEditorWorldCFrame(
+                            *otherSpatial, CFrame(nw, otherSpatial->getWorldCFrame().Rotation));
                     }
                 }
 }

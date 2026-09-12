@@ -279,9 +279,22 @@ void Physics::reconcileConstraints(Workspace& workspace) {
 
         if (value->IsA("Weld")) {
             auto constraint = std::static_pointer_cast<Weld>(value);
+
             cube0 = constraint->m_cube0.lock();
             cube1 = constraint->m_cube1.lock();
             handle = constraint->m_constraintHandle;
+
+            // RCBN_LOG(
+            //     "[WELD PTR] weld=" << constraint.get()
+            //     << " name=" << constraint->Name
+            //     << " cube0=" << cube0.get()
+            //     << " cube0Path=" << (cube0 ? cube0->getWorkspaceRelativePath() : "<null>")
+            //     << " cube1=" << cube1.get()
+            //     << " cube1Path=" << (cube1 ? cube1->getWorkspaceRelativePath() : "<null>")
+            //     << " c0ws=" << (cube0 ? cube0->findFirstAncestorWorkspace() : nullptr)
+            //     << " c1ws=" << (cube1 ? cube1->findFirstAncestorWorkspace() : nullptr)
+            //     << " expectedWs=" << &workspace
+            // );
         } else if (value->IsA("Rope")) {
             auto constraint = std::static_pointer_cast<Rope>(value);
             cube0 = constraint->m_cube0.lock();

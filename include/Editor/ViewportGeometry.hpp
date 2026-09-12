@@ -36,6 +36,8 @@ struct WorldAabb {
 
 Vector3 worldToLocalPosition(const Vector3& worldPosition, const Spatial& spatial);
 Quaternion worldToLocalRotation(const Quaternion& worldRotation, const Spatial& spatial);
+void applyEditorWorldCFrame(Spatial& spatial, const CFrame& worldCFrame);
+void applyEditorLocalCFrame(Spatial& spatial, const CFrame& localCFrame);
 
 Ray makeScreenRay(
     const Vector3& cameraPosition,
