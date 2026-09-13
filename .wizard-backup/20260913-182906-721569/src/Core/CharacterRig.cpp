@@ -146,12 +146,7 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3
     root->CanCollide = true;
     head->CanCollide = torso->CanCollide = leftArm->CanCollide = rightArm->CanCollide = leftLeg->CanCollide = rightLeg->CanCollide = false;
 
-    // @RadiantBird 2026/09/13:
-    // Walking characters keep Root pitch and roll locked for stable Roblox-style
-    // movement. States such as sitting or ragdoll may explicitly release them.
-    root->LockFlags =
-        PhysicsLockFlags::AngularX |
-        PhysicsLockFlags::AngularZ;
+    root->LockFlags = PhysicsLockFlags::None;
     root->Color = Color4(1.0f, 0.5f, 0.5f, 0.0f); // NOTE: physics root は非表示 (alpha=0)
 
     torso->Color    = Color4::FromRGB(100, 12, 32);

@@ -1,0 +1,3 @@
+wizard.py backup manifest
+
+MODIFY src/Core/CharacterRig.cpp

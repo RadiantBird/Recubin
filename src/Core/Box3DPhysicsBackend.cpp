@@ -1445,7 +1445,7 @@ void Box3DPhysicsBackend::applyGyroForces() {
             // while Gyro currently estimates control torque from Root inertia only.
             // Temporarily amplify the controller output to verify that the
             // character instability is caused by insufficient control authority.
-            constexpr float GYRO_STRENGTH = 4.8f;
+            constexpr float GYRO_STRENGTH = 5.0f;
 
             return std::clamp(
                 effectiveInertia *

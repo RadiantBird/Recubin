@@ -26,7 +26,9 @@ _snapshot.rcbn
 *.o
 *.exe
 
+# 開発支援ファイル類
 loglog.txt
+patch.txt
 
 Claude's last exam/
 CodexField/

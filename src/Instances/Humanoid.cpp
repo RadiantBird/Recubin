@@ -573,11 +573,11 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
                 // const Vector3 actualAngularVelocity =
                 //     physics->getAngularVelocity(*root);
 
-                RCBN_LOG(
-                    "Yaw command=" << desiredYawVelocity
-                    // << " actualY=" << actualAngularVelocity.y
-                    << " error=" << errorDegrees
-                );
+                // RCBN_LOG(
+                //     "Yaw command=" << desiredYawVelocity
+                //     // << " actualY=" << actualAngularVelocity.y
+                //     << " error=" << errorDegrees
+                // );
                 
             }
             else {
