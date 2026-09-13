@@ -15,16 +15,15 @@ namespace CharacterRig {
 
 const CharacterGroundHeightSettings& groundHeightSettings() {
     // @RadiantBird 2026/09/13:
-    // Root center and the unchanged bind pose put the feet bottom at y=-2.
     // Detection/capture remain close so hover cannot attract a distant fall.
     static const CharacterGroundHeightSettings settings{
-        2.0f,
         3.0f,
         3.0f,
         120.0f,
         20.0f,
         1200.0f,
         1.0f,
+        0.1f,
     };
     return settings;
 }
@@ -50,7 +49,9 @@ std::vector<std::shared_ptr<BaseCube>> collectR6Bodies(Instance* model) {
 
 const std::vector<R6JointBinding>& r6JointBindings() {
     static const std::vector<R6JointBinding> bindings = {
-        {"Torso", "Torso", CFrame(0, 1, 0), CFrame()},
+        // Root and Torso share the same authored center in the R6 bind pose.
+        // RootJoint's C0 is derived from these actual poses below.
+        {"Torso", "Torso", CFrame(0, 0, 0), CFrame()},
         {"Head", "Head", CFrame(0, 2.5f, 0), CFrame()},
         {"LeftShoulder", "LeftArm", CFrame(Vector3(-1.5f, 2, 0), Quaternion()) * CFrame(Vector3(0,-.5f,0)), CFrame(Vector3(0,.5f,0)) * CFrame(Vector3(0,-1,0))},
         {"RightShoulder", "RightArm", CFrame(Vector3(1.5f, 2, 0), Quaternion()) * CFrame(Vector3(0,-.5f,0)), CFrame(Vector3(0,.5f,0)) * CFrame(Vector3(0,-1,0))},

@@ -9,8 +9,11 @@
 ## 継承
 Root の移動・回転は Root member のワールド CFrame を基準に行う。身体 Animation は local pose を更新し、Parent や Weld 用の座標補正を行わない。
 
-接地判定とGroundHeight hoverは同じ1回の下向きraycast結果を使う。目標distanceは2 studで、各dynamic R6
-bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を設定する。jump開始時、死亡、
+接地判定とGroundHeight hoverは同じ1回の下向きraycast結果を使う。目標distanceは`HipHeight`で、各dynamic R6
+bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を設定する。未設定のHipHeightは
+初回の有効なfloor distanceから初期化され、Rootの初期高さは補正しない。HipHeightはhoverの目標値と
+着地捕捉に使い、接地状態は捕捉後の微小なfloor distance揺れでは反転させず、床が消えるかRootが上昇した
+ときに解除する。jump開始時、死亡、
 着席、無効状態では全hover Forceをzero/disabledにする。jump上昇中と床が3 studのcapture外にある下降中は
 再開しない。PD係数は`CharacterRig::groundHeightSettings()`へ集約し、Workspaceの現在重力を相殺する。
 
@@ -22,6 +25,7 @@ bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を
 |---|---|---|
 | `WalkSpeed` | `float` | 歩行速度（[0,100]にクランプ、旧CharacterSetting.moveSpeedの統合先） |
 | `JumpPower` | `float` | ジャンプ初速（[0,100]にクランプ） |
+| `HipHeight` | `float` | Root中心から真下の地面までの目標距離。未設定時は初回ground detectionの実測値で初期化 |
 | `Health` / `MaxHealth` | `float` | 現在/最大ヘルス |
 | `RespawnTime` | `float` | 死亡後の再生成までの秒数 |
 | `Died` | `shared_ptr<RCBNScriptSignal>` | Health<=0で1度だけ発火 |
@@ -89,7 +93,7 @@ enterRagdoll(physics):
 
 - `BaseCube`, `Cube`, `Sphere`, `Animation`, `Physics`, `Spatial`
 - `RCBNScriptSignal`（Died）
-- `PropertyRegistry`（WalkSpeed/JumpPower/JumpHeight/MaxHealth/RespawnTime/Health/Diedを一括登録）
+- `PropertyRegistry`（WalkSpeed/JumpPower/ClimbSpeed/HipHeight/JumpHeight/MaxHealth/RespawnTime/Health/Diedを一括登録）
 - `Math/Units.hpp`（重力定数によるJumpHeight換算）
 - `Core/AnimationClip`（内蔵R6 Walk／プロジェクト`.rcanim`共通ランタイム表現）
 

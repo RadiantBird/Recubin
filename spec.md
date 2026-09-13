@@ -152,10 +152,15 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   更新する。移動入力が無いフレームではY目標を更新せず、最後の方位を維持する。
 
   既定Rootの描画Sizeは`(2,2,1)`、中心は従来の`basePos`を維持する。接地時はRoot中心から下向きに
-  一度だけfloorをsampleし、R6 bind poseの足裏に対応するdistance `2.0`をGroundHeight controllerで保つ。
-  controllerは各dynamic R6 bodyへ同じ上向き加速度をmass比例のadditive Forceとして与える。
+  一度floorをsampleし、Humanoid.HipHeightのdistanceをGroundHeight controllerで保つ。HipHeightが
+  明示されていない場合、最初の有効なfloor distanceを初期値として採用し、Rootの初期高さを補正しない。
+  controllerは各dynamic R6 bodyへ同じ上向き加速度をmass比例のadditive Forceとして与える。接地状態は
+  HipHeightを接地状態の捕捉ゲートとして使い、捕捉後は微小なfloor distance揺れでは接地状態を反転させず、
+  床が消えるかRootが上昇したときに解除する。HipHeightが高い場合も、その目標距離までraycast範囲を拡張する。
   重力相殺は現在のWorkspace.Gravityから算出する。遠距離の床へ吸着せず、jump上昇中は停止し、
-  下降してlanding captureへ入った時だけ再開する。SpawnLocation上の初期Root高度にも同じ目標distanceを使う。
+  下降してlanding captureへ入った時だけ再開する。SpawnLocation上では明示されたHipHeightをRoot中心から
+  地面までの距離として使う。未設定の場合はSpawnLocation選択でRootの初期Yを変更せず、その後の最初の
+  floor sampleでHipHeightを初期化する。
   GroundHeight、接地、Truss中の重力設定は操作入力とは独立した物理更新として毎フレーム評価する。
   したがってFree/Program中もCharacterHoverForce、重力、衝突、LiquidCubeの液体浮力は維持される。
 

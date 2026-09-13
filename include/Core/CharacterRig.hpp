@@ -22,13 +22,13 @@ struct R6JointTopology {
 class BaseCube;
 
 struct CharacterGroundHeightSettings {
-    float targetDistance;             // stud, Root origin to floor
     float maxFloorDetectionDistance;  // stud
     float landingCaptureDistance;     // stud
     float stiffness;                  // s^-2
     float damping;                    // s^-1
     float maxUpwardAcceleration;      // stud/s^2
     float gravityCompensationScale;   // multiplier for -Workspace.Gravity.y
+    float groundQueryThickness;       // stud, thickness of the swept footprint box
 };
 
 // デフォルトキャラクターリグ(Humanoid + Root/Head/Torso/LeftArm/RightArm/LeftLeg/RightLegの7パーツ)を

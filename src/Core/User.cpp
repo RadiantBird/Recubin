@@ -1118,21 +1118,28 @@ void User::placeCharacterAtSpawn(
             return first->getFullPath() < second->getFullPath();
         });
 
-    CFrame targetRoot;
+    const CFrame currentRoot = root->getWorldCFrame();
+    CFrame targetRoot = currentRoot;
     if (!candidates.empty()) {
         const std::size_t index = spawnPeerId == 0
             ? 0
             : static_cast<std::size_t>(spawnPeerId - 1) % candidates.size();
         const auto& spawn = candidates[index];
-        const auto& groundHeight = CharacterRig::groundHeightSettings();
-        targetRoot = spawn->getWorldCFrame() *
-            CFrame(
+        // An explicit HipHeight is a user-authored Root-to-ground distance.
+        targetRoot = spawn->getWorldCFrame();
+        if (humanoid->isHipHeightExplicitlySet()) {
+            targetRoot = targetRoot * CFrame(
                 0.0f,
-                spawn->Size.y * 0.5f + groundHeight.targetDistance,
+                spawn->Size.y * 0.5f + humanoid->getHipHeight(),
                 0.0f
             );
+        } else {
+            // An unset HipHeight must not turn SpawnLocation selection into a
+            // Root height correction. Keep the authored Root Y and let the
+            // first valid ground sample capture its Root-to-ground distance.
+            targetRoot.Position.y = currentRoot.Position.y;
+        }
     }
-    const CFrame currentRoot = root->getWorldCFrame();
     const CFrame delta = targetRoot * currentRoot.inverse();
 
     moveSpatialSubtreeByWorldDelta(

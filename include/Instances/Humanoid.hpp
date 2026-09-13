@@ -6,6 +6,7 @@
 #include <Util/Color4.hpp>
 #include <Core/RCBNScriptSignal.hpp>
 #include <Instances/Animation.hpp>
+#include <cstdint>
 
 class Physics;   // Forward declaration
 class AnimationClip;
@@ -35,6 +36,16 @@ public:
     // v = sqrt(2gh), g=196.2(stud/s^2), h=6 → v ≈ 48.522
     float JumpPower  = 48.522f;
     float ClimbSpeed = 10.0f; // Truss(はしご)接触中の垂直移動速度
+
+    // Root中心から真下の地面までの目標距離。未設定時は初回ground detectionで実測する。
+    float HipHeight = 2.0f;
+
+    float getHipHeight() const { return HipHeight; }
+    void setHipHeight(float height);
+    bool isHipHeightExplicitlySet() const { return m_hipHeightExplicitlySet; }
+    bool isHipHeightInitializedFromGround() const { return m_hipHeightInitializedFromGround; }
+    // PropertyRegistryのclone/instance replacementから呼ばれる状態コピー。
+    void copyHipHeightStateTo(Humanoid& destination) const;
 
     // JumpPowerから逆算した跳躍到達高さ(stud)。設定するとJumpPowerが自動計算される
     float getJumpHeight() const;
@@ -157,7 +168,8 @@ public:
     Vector3 getHeadWorldPosition() const;
 
     // ボディパーツを Root の相対位置へ配置する（Free モードの追従でも使用）
-    void applyBodyAnimation(bool leftArmRaised, bool rightArmRaised);
+    void applyBodyAnimation(bool leftArmRaised, bool rightArmRaised,
+                             float deltaTime = 1.0f / 60.0f);
 
     // ネットワーク予測リプレイ専用: 移動アニメーションの内部補間状態を退避/復元する
     // (通常のゲームプレイでは使わない。move()の呼び出し前後で状態を巻き戻すために必要)
@@ -180,6 +192,9 @@ private:
     };
 
     float walkCycle = 0.0f;
+    // Jump shoulder animation is an explicit signed scalar shared by both
+    // shoulders.  It is never reconstructed from a quaternion.
+    float m_jumpShoulderAngle = 0.0f;
     Vector3 currentMoveDir;
     Vector3 m_smoothedHeadingDirection;
     bool isGrounded = true;
@@ -187,6 +202,12 @@ private:
     bool m_ragdollEntered = false;
     float m_deathElapsed = 0.0f;
     bool m_hoverSuppressedForJump = false;
+    bool m_hipHeightExplicitlySet = false;
+    bool m_hipHeightInitializedFromGround = false;
+#ifdef _DEBUG
+    std::uint64_t m_lastGroundDebugTick = 0;
+    bool m_hasGroundDebugTick = false;
+#endif
 
     // 兄弟パーツは親Modelのchildrenが所有し、Humanoidは非所有参照だけを保持する
     std::weak_ptr<BaseCube> m_root;

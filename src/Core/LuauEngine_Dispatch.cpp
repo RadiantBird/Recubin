@@ -541,7 +541,8 @@ void LuauEngine::InitDispatchTable_Misc() {
     };
 
     // Humanoid — フィールド/シグナルの getter/setter は PropertyRegistry の表から流し込む
-    // （WalkSpeed/JumpPower/MaxHealth/RespawnTime/Health/Died）。下記メソッド系のみ手書き。
+    // （WalkSpeed/JumpPower/ClimbSpeed/HipHeight/JumpHeight/MaxHealth/RespawnTime/Health/Died）。
+    // 下記メソッド系のみ手書き。
     PropertyRegistry::applyToDispatch("Humanoid", DispatchTable, SetterTable);
     auto pushAnimationReference = [](lua_State* L, const std::shared_ptr<Animation>& animation) -> int {
         if (animation) LuauEngine::pushInstance(L, animation);

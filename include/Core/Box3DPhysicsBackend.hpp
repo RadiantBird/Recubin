@@ -189,6 +189,14 @@ public:
         RaycastHit& hitResult,
         const Instance* excludeRoot = nullptr
     ) override;
+    bool shapeCastBox(
+        const CFrame& startFrame,
+        const Vector3& size,
+        const Vector3& direction,
+        float maxDistance,
+        ShapeCastHit& hitResult,
+        const Instance* excludeRoot = nullptr
+    ) override;
     BaseCube* findOverlapping(
         const BaseCube& cube, const std::string& className,
         float margin = 0.0f) const override;

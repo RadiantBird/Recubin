@@ -1258,9 +1258,9 @@ int runSpawnLocationRegression() {
         "User.CharacterAdded:Connect(function(character) "
         "local root = character:WaitChild('Root') "
         "local spawn = workspace:WaitChild('A'):WaitChild('SpawnLocation') "
-        "local expected = spawn.WorldCFrame * CFrame.new(0, (spawn.Size.y + root.Size.y) * 0.5, 0) "
+        "local expected = spawn.WorldCFrame "
         "local p, ep, q, eq = root.WorldCFrame.Position, expected.Position, root.WorldCFrame.Rotation, expected.Rotation "
-        "local pd = math.abs(p.x-ep.x)+math.abs(p.y-ep.y)+math.abs(p.z-ep.z) "
+        "local pd = math.abs(p.x-ep.x)+math.abs(p.y-0.5)+math.abs(p.z-ep.z) "
         "local dot = math.abs(q.w*eq.w+q.x*eq.x+q.y*eq.y+q.z*eq.z) "
         "if pd < 0.002 and math.abs(1-dot) < 0.002 then print('[SpawnLocationEvent]') end end)";
     workspace->addChild(spawnListener);
@@ -1278,10 +1278,11 @@ int runSpawnLocationRegression() {
     auto root1 = user1->humanoid->getRootPart();
     auto root2 = user2->humanoid->getRootPart();
     auto root3 = user3->humanoid->getRootPart();
-    const CFrame expectedA = spawnA->getWorldCFrame() *
-        CFrame(0, (spawnA->Size.y + root0->Size.y) * 0.5f, 0);
-    const CFrame expectedZ = spawnZ->getWorldCFrame() *
-        CFrame(0, (spawnZ->Size.y + root2->Size.y) * 0.5f, 0);
+    const float authoredRootY = templateRoot->getWorldPosition().y;
+    CFrame expectedA = spawnA->getWorldCFrame();
+    expectedA.Position.y = authoredRootY;
+    CFrame expectedZ = spawnZ->getWorldCFrame();
+    expectedZ.Position.y = authoredRootY;
     expect(cframeNear(root0->getWorldCFrame(), expectedA) &&
                cframeNear(root1->getWorldCFrame(), expectedA) &&
                cframeNear(root2->getWorldCFrame(), expectedZ) &&
@@ -8013,10 +8014,13 @@ static int runAnimationClipRegression() {
             const CFrame bound = CharacterRig::applyMotor6D(
                 starterRoot->getWorldCFrame(), rootJoint->C0,
                 rootJoint->Transform, rootJoint->C1);
-            expect(near(bound.Position.x, starterTorso->getWorldPosition().x) &&
+            expect(near(starterRoot->getWorldPosition().y,
+                        starterTorso->getWorldPosition().y) &&
+                       near(rootJoint->C0.Position.y, 0.0f) &&
+                       near(bound.Position.x, starterTorso->getWorldPosition().x) &&
                        near(bound.Position.y, starterTorso->getWorldPosition().y) &&
                        near(bound.Position.z, starterTorso->getWorldPosition().z),
-                   "default RootJoint bind preserves the authored world pose");
+                   "default Root/Torso bind uses matching centers and preserves the authored world pose");
         }
         auto model = User::buildCharacterModel(system.get(), "ClipInjectionCharacter");
         std::shared_ptr<Humanoid> humanoid;
@@ -8100,10 +8104,29 @@ static int runAnimationClipRegression() {
                    near(returnedLeftCFrame.Position.z, neutralLeftCFrame.Position.z),
                    "grounded walk returns the shoulder to its neutral binding pose");
             humanoid->setIsGroundedForReplication(false);
-            humanoid->applyBodyAnimation(false, false);
-            expect(left && leftShoulder && leftShoulder->Transform.Rotation.w < 0.99f,
-                   "airborne Humanoid keeps its distinct fallback pose");
+            for (int frame = 0; frame < 15; ++frame) {
+                humanoid->applyBodyAnimation(false, false, 1.0f / 60.0f);
+            }
+            const float jumpShoulderX = leftShoulder
+                ? leftShoulder->Transform.Rotation.x : 0.0f;
+            expect(left && right && leftShoulder && rightShoulder &&
+                       jumpShoulderX > 0.99f &&
+                       std::abs(leftShoulder->Transform.Rotation.x -
+                                rightShoulder->Transform.Rotation.x) < 1.0e-4f,
+                   "airborne shoulder angle advances to 180 degrees identically on both sides");
             humanoid->setIsGroundedForReplication(true);
+            const float landingStartX = leftShoulder
+                ? leftShoulder->Transform.Rotation.x : 0.0f;
+            humanoid->applyBodyAnimation(false, false, 1.0f / 60.0f);
+            const float landingStepX = leftShoulder
+                ? leftShoulder->Transform.Rotation.x : 0.0f;
+            for (int frame = 0; frame < 14; ++frame) {
+                humanoid->applyBodyAnimation(false, false, 1.0f / 60.0f);
+            }
+            expect(landingStartX > landingStepX &&
+                       std::abs(leftShoulder->Transform.Rotation.x) < 1.0e-4f &&
+                       std::abs(rightShoulder->Transform.Rotation.x) < 1.0e-4f,
+                   "landing shoulder angle returns toward zero in the negative direction");
             auto custom = std::make_shared<Animation>();
             custom->Length = 1.0f;
             custom->Speed = 1.0f;
@@ -9603,6 +9626,72 @@ static int runPropertySchemaRegression() {
         });
     };
 
+    auto humanoid = std::make_shared<Humanoid>();
+    const auto humanoidSchema = PropertyRegistry::collectApplicableSchema(humanoid.get());
+    const auto hipHeight = findSchemaProperty(humanoidSchema, "HipHeight");
+    expect(
+        hipHeight != humanoidSchema.end() && (*hipHeight)->type == PropType::Float &&
+            (*hipHeight)->editable && (*hipHeight)->get && (*hipHeight)->set,
+        "Humanoid HipHeight uses the generic editable float schema"
+    );
+    expect(
+        hipHeight != humanoidSchema.end() &&
+            !humanoid->isHipHeightExplicitlySet() &&
+            !humanoid->isHipHeightInitializedFromGround(),
+        "a new Humanoid distinguishes unset HipHeight from an explicit value"
+    );
+    if (hipHeight != humanoidSchema.end()) {
+        YAML::Emitter unsetOutput;
+        unsetOutput << YAML::BeginMap;
+        PropertyRegistry::saveProperties(unsetOutput, humanoid.get(), "Humanoid");
+        unsetOutput << YAML::EndMap;
+        const YAML::Node unsetSaved = YAML::Load(unsetOutput.c_str());
+        expect(!unsetSaved["HipHeight"],
+               "unset HipHeight is omitted from YAML until it has a value");
+
+        auto unsetClone = std::dynamic_pointer_cast<Humanoid>(humanoid->clone());
+        expect(
+            unsetClone && !unsetClone->isHipHeightExplicitlySet() &&
+                !unsetClone->isHipHeightInitializedFromGround(),
+            "unset HipHeight metadata survives schema-driven clone"
+        );
+
+        (*hipHeight)->set(humanoid.get(), PropValue(3.25f));
+        expect(
+            std::abs(humanoid->getHipHeight() - 3.25f) < 1.0e-5f &&
+                humanoid->isHipHeightExplicitlySet(),
+            "generic HipHeight writes reach the Humanoid setter"
+        );
+
+        YAML::Emitter output;
+        output << YAML::BeginMap;
+        PropertyRegistry::saveProperties(output, humanoid.get(), "Humanoid");
+        output << YAML::EndMap;
+        const YAML::Node saved = YAML::Load(output.c_str());
+        auto loaded = std::make_shared<Humanoid>();
+        loaded->setProperty("HipHeight", saved["HipHeight"]);
+        expect(
+            std::abs(loaded->getHipHeight() - 3.25f) < 1.0e-5f &&
+                loaded->isHipHeightExplicitlySet(),
+            "explicit HipHeight survives YAML property round-trip"
+        );
+
+        auto clone = std::dynamic_pointer_cast<Humanoid>(humanoid->clone());
+        expect(
+            clone && std::abs(clone->getHipHeight() - 3.25f) < 1.0e-5f &&
+                clone->isHipHeightExplicitlySet(),
+            "explicit HipHeight survives schema-driven clone"
+        );
+
+        auto copied = std::make_shared<Humanoid>();
+        PropertyRegistry::copyCompatibleProperties(humanoid.get(), copied.get());
+        expect(
+            copied->isHipHeightExplicitlySet() &&
+                std::abs(copied->getHipHeight() - 3.25f) < 1.0e-5f,
+            "explicit HipHeight metadata survives generic instance copy"
+        );
+    }
+
     for (const auto& [expectedClass, constraint] : constraints) {
         const auto schema = PropertyRegistry::collectApplicableSchema(constraint.get());
         const auto enabled = findEnabled(schema);
@@ -11070,12 +11159,14 @@ int runCharacterHoverRegression() {
             physics->update(*workspace, 1.0f / 60.0f);
         }
     }
-    const float settledHeight = root->getWorldPosition().y;
+    float settledHeight = root->getWorldPosition().y;
     std::cout << "[CharacterHoverRegression] settledHeight="
               << settledHeight << '\n';
     expect(
-        physics && std::abs(settledHeight - 2.0f) < 0.2f,
-        "hover settles Root at the R6 bind-pose ground height"
+        physics && std::abs(settledHeight - 2.6f) < 0.2f &&
+            humanoid->isHipHeightInitializedFromGround() &&
+            !humanoid->isHipHeightExplicitlySet(),
+        "first ground detection preserves the initial Root-to-ground distance"
     );
     expect(
         settledHeight - root->Size.y * 0.5f > 0.5f,
@@ -11109,6 +11200,18 @@ int runCharacterHoverRegression() {
         "all dynamic R6 bodies receive equal mass-scaled hover acceleration"
     );
 
+    humanoid->setHipHeight(2.0f);
+    for (int step = 0; step < 240; ++step) {
+        humanoid->updatePhysicsState(physics);
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    settledHeight = root->getWorldPosition().y;
+    expect(
+        humanoid->isHipHeightExplicitlySet() &&
+            std::abs(settledHeight - 2.0f) < 0.2f,
+        "an explicitly changed HipHeight becomes the hover target"
+    );
+
     auto modeBackend = std::make_unique<FrameRateTestInputBackend>();
     auto modeUser = std::make_shared<User>(std::move(modeBackend));
     modeUser->character = character;
@@ -11124,6 +11227,13 @@ int runCharacterHoverRegression() {
         : std::dynamic_pointer_cast<Force>(rootHover->second);
     expect(rootHoverForce && rootHoverForce->Enabled,
            "Free mode keeps CharacterHoverForce active while grounded");
+
+    physics->setLinearVelocity(*root, Vector3(0.0f, 4.0f, 0.0f));
+    humanoid->updatePhysicsState(physics);
+    expect(
+        humanoid->getIsGrounded(),
+        "positive Root Y velocity alone does not clear grounded state"
+    );
 
     for (const auto& body : bodies) {
         if (body && physics->hasBody(*body)) {
@@ -11249,6 +11359,44 @@ int runCharacterHoverRegression() {
             peakHeight > settledHeight + 1.0f &&
             std::abs(root->getWorldPosition().y - 2.0f) < 0.25f,
         "jump suppression releases only while descending into capture range"
+    );
+
+    auto edgeWorkspace = std::make_shared<Workspace>();
+    edgeWorkspace->Name = "FootprintGroundWorkspace";
+    auto edgePlatform = std::make_shared<Cube>(
+        Vector3(1.4f, -0.5f, 0.0f),
+        Vector3(1.0f, 1.0f, 2.0f),
+        Cube::defaultTextureID
+    );
+    edgePlatform->Name = "EdgePlatform";
+    edgePlatform->Anchored = true;
+    auto edgeCharacter = std::make_shared<Model>();
+    edgeCharacter->Name = "FootprintGroundCharacter";
+    CharacterRig::buildDefaultRigParts(
+        edgeCharacter,
+        Vector3(0.0f, 2.0f, 0.0f)
+    );
+    auto edgeHumanoid = std::dynamic_pointer_cast<Humanoid>(
+        edgeCharacter->getChildren().at("Humanoid")
+    );
+    auto edgeRoot = std::dynamic_pointer_cast<BaseCube>(
+        edgeCharacter->getChildren().at("Root")
+    );
+    edgeWorkspace->addChild(edgePlatform);
+    edgeWorkspace->addChild(edgeCharacter);
+    edgeWorkspace->initPhysics();
+    Physics* edgePhysics = edgeWorkspace->getPhysicsEngine();
+    if (edgePhysics) {
+        edgePhysics->update(*edgeWorkspace, 0.0f);
+    }
+    if (edgeHumanoid && edgeRoot) {
+        edgeHumanoid->setHipHeight(2.0f);
+        edgeHumanoid->setIsGroundedForReplication(false);
+        edgeHumanoid->updatePhysicsState(edgePhysics);
+    }
+    expect(
+        edgePhysics && edgeHumanoid && edgeRoot && edgeHumanoid->getIsGrounded(),
+        "footprint shape cast detects an edge platform outside the Root center ray"
     );
 
     std::cout << "[CharacterHoverRegression] failures=" << failures

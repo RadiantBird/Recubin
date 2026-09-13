@@ -118,29 +118,138 @@ void Humanoid::updateGroundHover(
         return;
     }
     const auto& settings = CharacterRig::groundHeightSettings();
-    RaycastHit floor;
+    const bool groundedBefore = isGrounded;
     auto character = Parent.lock();
-    const bool hasFloor = physics->raycast(
-        root->getWorldPosition(),
-        Vector3(0.0f, -1.0f, 0.0f),
+    const float floorDetectionDistance = std::max(
         settings.maxFloorDetectionDistance,
-        floor,
+        HipHeight + settings.landingCaptureDistance
+    );
+    const CFrame rootFrame = root->getWorldCFrame();
+    const CFrame groundQueryFrame(
+        rootFrame.pointToWorld(Vector3(
+            0.0f,
+            -root->Size.y * 0.5f - settings.groundQueryThickness * 0.5f,
+            0.0f
+        )),
+        rootFrame.Rotation
+    );
+    ShapeCastHit groundHit;
+    const bool hasFloor = physics->shapeCastBox(
+        groundQueryFrame,
+        Vector3(
+            root->Size.x,
+            settings.groundQueryThickness,
+            root->Size.z
+        ),
+        Vector3(0.0f, -1.0f, 0.0f),
+        floorDetectionDistance,
+        groundHit,
         character.get()
     );
+    RaycastHit floor;
+    if (hasFloor) {
+        floor.hit = true;
+        floor.distance = rootFrame.Position.y - groundHit.position.y;
+        floor.position = groundHit.position;
+        floor.normal = groundHit.normal;
+        floor.instance = groundHit.instance;
+    }
     const float verticalVelocity = physics->getLinearVelocity(*root).y;
-    isGrounded =
-        hasFloor && floor.distance <= settings.landingCaptureDistance;
+    bool atHipHeight = false;
+
+    const auto logGroundDebug = [&](const char* stage, float hoverAcceleration) {
+#ifdef _DEBUG
+        const std::uint64_t tick = physics->getSimulationTick();
+        if (m_hasGroundDebugTick && m_lastGroundDebugTick == tick) {
+            return;
+        }
+        m_lastGroundDebugTick = tick;
+        m_hasGroundDebugTick = true;
+
+        const auto& children = root->getChildren();
+        const auto hoverIt = children.find(HOVER_FORCE_NAME);
+        const auto hoverForce = hoverIt == children.end()
+            ? nullptr
+            : std::dynamic_pointer_cast<Force>(hoverIt->second);
+        const auto rootPosition = root->getWorldPosition();
+        const auto hitPosition = floor.position;
+        const auto hitNormal = floor.normal;
+
+        RCBN_LOG(
+            "[CharacterGroundDebug] stage=" << stage
+            << " humanoid=" << getFullPath()
+            << " humanoidPtr=" << static_cast<const void*>(this)
+            << " root=" << root->getFullPath()
+            << " rootPtr=" << static_cast<const void*>(root.get())
+            << " rootY=" << rootPosition.y
+            << " hipHeight=" << HipHeight
+            << " hipHeightExplicit=" << (m_hipHeightExplicitlySet ? 1 : 0)
+            << " hipHeightInitialized=" << (m_hipHeightInitializedFromGround ? 1 : 0)
+            << " query=shape-cast-box"
+            << " castDistance=" << floorDetectionDistance
+            << " castTravelDistance=" << groundHit.travelDistance
+            << " queryThickness=" << settings.groundQueryThickness
+            << " hasFloor=" << (hasFloor ? 1 : 0)
+            << " floorDistance=" << floor.distance
+            << " floorY=" << hitPosition.y
+            << " floorNormalX=" << hitNormal.x
+            << " floorNormalY=" << hitNormal.y
+            << " floorNormalZ=" << hitNormal.z
+            << " floorInstance=" << (floor.instance ? floor.instance->getFullPath() : "<none>")
+            << " atHipHeight=" << (atHipHeight ? 1 : 0)
+            << " groundedBefore=" << (groundedBefore ? 1 : 0)
+            << " groundedAfter=" << (isGrounded ? 1 : 0)
+            << " jumpSuppressed=" << (m_hoverSuppressedForJump ? 1 : 0)
+            << " hoverAcceleration=" << hoverAcceleration
+            << " hoverForceFound=" << (hoverForce ? 1 : 0)
+            << " hoverEnabled=" << (hoverForce && hoverForce->Enabled ? 1 : 0)
+            << " hoverValueY=" << (hoverForce ? hoverForce->Value.y : 0.0f)
+        );
+#else
+        (void)stage;
+        (void)hoverAcceleration;
+#endif
+    };
+
+    if (hasFloor && !m_hipHeightExplicitlySet && !m_hipHeightInitializedFromGround) {
+        if (!std::isfinite(floor.distance) || floor.distance < 0.0f) {
+            RCBN_WARN(
+                "Humanoid \"" << getFullPath()
+                << "\": ground detection returned invalid HipHeight distance "
+                << floor.distance
+            );
+        } else {
+            // @RadiantBird 2026/09/13:
+            // HipHeight preserves the character's intended Root-to-ground distance.
+            // Do not derive or overwrite the Root height from the visual body rig.
+            HipHeight = floor.distance;
+            m_hipHeightInitializedFromGround = true;
+        }
+    }
+    atHipHeight = hasFloor &&
+        std::abs(floor.distance - HipHeight) <= settings.landingCaptureDistance;
+    // HipHeight is the hover setpoint, not a continuously evaluated jump
+    // distance.  Use it only to acquire grounded state (and to release jump
+    // suppression).  Once acquired, keep grounded through small floor-distance
+    // jitter and leave it only when the floor disappears.
     if (m_hoverSuppressedForJump) {
-        const bool descendingIntoCapture =
-            verticalVelocity <= 0.0f && isGrounded;
+        isGrounded = false;
+        const bool descendingIntoCapture = verticalVelocity <= 0.0f && atHipHeight;
         if (!descendingIntoCapture) {
             setHoverForces(physics, false, 0.0f);
+            logGroundDebug("jump-suppressed", 0.0f);
             return;
         }
         m_hoverSuppressedForJump = false;
     }
     if (!hasFloor) {
+        isGrounded = false;
+    } else if (atHipHeight) {
+        isGrounded = true;
+    }
+    if (!hasFloor) {
         setHoverForces(physics, false, 0.0f);
+        logGroundDebug("no-floor", 0.0f);
         return;
     }
     const float gravityCompensation =
@@ -148,12 +257,13 @@ void Humanoid::updateGroundHover(
         settings.gravityCompensationScale;
     const float acceleration = std::clamp(
         gravityCompensation +
-            settings.stiffness * (settings.targetDistance - floor.distance) -
+            settings.stiffness * (HipHeight - floor.distance) -
             settings.damping * verticalVelocity,
         0.0f,
         settings.maxUpwardAcceleration
     );
     setHoverForces(physics, true, acceleration);
+    logGroundDebug("hover", acceleration);
 }
 
 // プロパティ・メタデータ表（単一の正）。ここから Luau getter/setter・YAML 読込/保存・
@@ -165,6 +275,17 @@ static const bool s_humanoidRegistered = []{
         field   <&Humanoid::WalkSpeed>  ("WalkSpeed",   0, 100).clampLua(),
         field   <&Humanoid::JumpPower>  ("JumpPower",   0, 100).clampLua(),
         field   <&Humanoid::ClimbSpeed> ("ClimbSpeed",  0, 100).clampLua(),
+        method_prop<&Humanoid::getHipHeight, &Humanoid::setHipHeight>("HipHeight", 0, 50, 0.1f)
+            .clampLua()
+            .serializeIf([](const Instance* object) {
+                const auto* humanoid = static_cast<const Humanoid*>(object);
+                return humanoid->isHipHeightExplicitlySet() ||
+                       humanoid->isHipHeightInitializedFromGround();
+            })
+            .copyStateWith([](const Instance* source, Instance* destination) {
+                static_cast<const Humanoid*>(source)->copyHipHeightStateTo(
+                    *static_cast<Humanoid*>(destination));
+            }),
         method_prop<&Humanoid::getJumpHeight, &Humanoid::setJumpHeight>("JumpHeight", 0, 50, 0.1f),
         field   <&Humanoid::MaxHealth>  ("MaxHealth",   0, 10000).clampLua(),
         field   <&Humanoid::RespawnTime>("RespawnTime", 0, 600).clampLua(),
@@ -207,6 +328,23 @@ std::shared_ptr<Instance> Humanoid::clone() const {
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());
     return copy;
+}
+
+void Humanoid::setHipHeight(float height) {
+    if (!std::isfinite(height) || height < 0.0f) {
+        RCBN_WARN(
+            "Humanoid \"" << getFullPath()
+            << "\": rejecting invalid HipHeight " << height
+        );
+        return;
+    }
+    HipHeight = height;
+    m_hipHeightExplicitlySet = true;
+}
+
+void Humanoid::copyHipHeightStateTo(Humanoid& destination) const {
+    destination.m_hipHeightExplicitlySet = m_hipHeightExplicitlySet;
+    destination.m_hipHeightInitializedFromGround = m_hipHeightInitializedFromGround;
 }
 
 static std::string animationPathFromHumanoid(const Humanoid& humanoid,
@@ -528,7 +666,8 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
 
         applyBodyAnimation(
             leftArmRaised,
-            rightArmRaised
+            rightArmRaised,
+            deltaTime
         );
 
         return;
@@ -705,7 +844,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         }
     }
 
-    applyBodyAnimation(leftArmRaised, rightArmRaised);
+    applyBodyAnimation(leftArmRaised, rightArmRaised, deltaTime);
 }
 
 bool Humanoid::moveToward(const Vector3& target, Physics* physics, float deltaTime,
@@ -777,6 +916,7 @@ void Humanoid::jump(Physics* physics) {
         return;
     }
 
+    isGrounded = false;
     m_hoverSuppressedForJump = true;
     setHoverForces(physics, false, 0.0f);
 
@@ -979,7 +1119,7 @@ void Humanoid::updateAnimation(float dt) {
     // シーンYAML読み込み時の生の絶対座標に凍りついたまま分解して見えないよう、
     // アイドルポーズへフォールバックする。move()が毎フレーム呼ばれている間はこちらは発火せず、
     // 既存の歩行/アイドルポーズがそのまま優先される(トラックで上書きされる分は下のループで再上書きされる)
-    if (!bodyPoseUpdated) applyBodyAnimation(false, false);
+    if (!bodyPoseUpdated) applyBodyAnimation(false, false, dt);
 
     // キーフレームはRoot相対で保持されているため、現在のRoot CFrameに合成して
     // キャラクターの移動・回転に追従させる（歩行アニメと同じ基準）
@@ -1085,8 +1225,8 @@ Humanoid::Pose Humanoid::computePose(bool leftArmRaised, bool rightArmRaised) co
         p.leftLeg = angle("LeftHip", p.leftLeg);
         p.rightLeg = angle("RightHip", p.rightLeg);
     } else {
-        p.leftArm  = 180.0f;
-        p.rightArm = 180.0f;
+        p.leftArm  = m_jumpShoulderAngle;
+        p.rightArm = m_jumpShoulderAngle;
         p.leftLeg  = -swing;
         p.rightLeg =  swing;
     }
@@ -1097,7 +1237,8 @@ Humanoid::Pose Humanoid::computePose(bool leftArmRaised, bool rightArmRaised) co
 // Animation: Limb組み立て（共通）
 // ============================================================
 
-void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
+void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised,
+                                  float deltaTime) {
     m_bodyPoseUpdatedThisFrame = true; // 呼ばれた事実を記録(Root未解決で以降no-opでも「試行済み」として扱う)
     auto root = getRootPart();
     if (!root) {
@@ -1112,6 +1253,26 @@ void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
     auto rightArm = getRightArmPart();
     auto leftLeg = getLeftLegPart();
     auto rightLeg = getRightLegPart();
+
+    constexpr float JUMP_SHOULDER_MAX_ANGLE = 180.0f;
+    constexpr float JUMP_SHOULDER_SPEED = 1200.0f;
+    const float animationDeltaTime =
+        std::isfinite(deltaTime) ? std::max(deltaTime, 0.0f) : 0.0f;
+
+    // Keep the jump shoulder rotation as a continuous animation-side scalar.
+    // The sign of this update is selected by the grounded state, never by a
+    // quaternion shortest-path calculation.
+    if (!isGrounded) {
+        m_jumpShoulderAngle = std::min(
+            JUMP_SHOULDER_MAX_ANGLE,
+            m_jumpShoulderAngle + JUMP_SHOULDER_SPEED * animationDeltaTime
+        );
+    } else if (m_jumpShoulderAngle > 0.0f) {
+        m_jumpShoulderAngle = std::max(
+            0.0f,
+            m_jumpShoulderAngle - JUMP_SHOULDER_SPEED * animationDeltaTime
+        );
+    }
 
     Pose pose = computePose(leftArmRaised, rightArmRaised);
     const AnimationClip& walkClip = resolveWalkClip();
@@ -1138,9 +1299,15 @@ void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised) {
         rightArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 10.0f);
         leftLegDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 90.0f);
         rightLegDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 90.0f);
-    } else if (!isGrounded) {
-        leftArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 180.0f);
-        rightArmDelta = CFrame::fromAxisAngle(Vector3(1,0,0), 180.0f);
+    } else if (!isGrounded || m_jumpShoulderAngle > 0.0f) {
+        // CFrame/Quaternion is only the final representation of the scalar
+        // animation state.  Both shoulders intentionally use the same angle.
+        const CFrame jumpShoulderDelta = CFrame::fromAxisAngle(
+            Vector3(1, 0, 0),
+            m_jumpShoulderAngle
+        );
+        leftArmDelta = jumpShoulderDelta;
+        rightArmDelta = jumpShoulderDelta;
     }
     // Priority is walk/idle -> jump -> seat -> equip. Explicit Animation tracks
     // are evaluated later by updateAnimation() and override only named joints.

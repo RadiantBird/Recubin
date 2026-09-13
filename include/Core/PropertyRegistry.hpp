@@ -56,6 +56,8 @@ struct PropertyDesc {
 
     std::string_view yamlKey;        // 空でなければ YAML のキー名に使う（Lua/エディター名と別名にできる）
     bool serialize = true, cloneable = true, editable = true;    // 各概念への参加
+    std::function<bool(const Instance*)> serializeWhen;          // falseならYAMLへ出力しない
+    std::function<void(const Instance*, Instance*)> copyState;   // clone/置換時の非property状態コピー
     bool omitEmptyString = false;    // 空文字の string は YAML へ出力しない
     bool clampOnLuaWrite = false;    // Lua 書込時に lo/hi へクランプする（数値プロパティのみ）
     bool noLuaWrite = false;         // Lua からは読取専用（YAML/clone は読み書き可のまま）
@@ -80,6 +82,16 @@ struct PropertyDesc {
     PropertyDesc& clampLua()  { clampOnLuaWrite = true; return *this; }
     // Lua からは読取専用にする（YAML 読込/保存・clone は通常通り）
     PropertyDesc& luaReadOnly() { noLuaWrite = true; return *this; }
+    // 値とは別に保持する状態をYAML出力条件へ反映する。
+    PropertyDesc& serializeIf(std::function<bool(const Instance*)> fn) {
+        serializeWhen = std::move(fn);
+        return *this;
+    }
+    // 値のclone/置換後に、値以外のproperty metadataをコピーする。
+    PropertyDesc& copyStateWith(std::function<void(const Instance*, Instance*)> fn) {
+        copyState = std::move(fn);
+        return *this;
+    }
     // ドラッグ中の毎フレーム反映用セッターを別途指定する（確定時は set が呼ばれる）
     PropertyDesc& live(std::function<void(void*, const PropValue&)> fn) { liveSet = std::move(fn); return *this; }
     // エディターでこのプロパティの直前にセクション見出しを描画する

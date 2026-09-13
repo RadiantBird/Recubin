@@ -29,6 +29,17 @@ struct RaycastHit {
     Instance* instance = nullptr;
 };
 
+// A convex box swept through the physics world. travelDistance is the amount
+// the query shape moved; callers that need a semantic distance (for example,
+// Root-center to floor) must derive it from position.
+struct ShapeCastHit {
+    bool hit = false;
+    float travelDistance = 0.0f;
+    Vector3 position;
+    Vector3 normal;
+    Instance* instance = nullptr;
+};
+
 class IPhysicsBackend {
 protected:
     std::uint64_t m_simulationTick = 0;
@@ -93,6 +104,15 @@ public:
         RaycastHit& hitResult,
         const Instance* excludeRoot
     ) = 0;
+
+    virtual bool shapeCastBox(
+        const CFrame& startFrame,
+        const Vector3& size,
+        const Vector3& direction,
+        float maxDistance,
+        ShapeCastHit& hitResult,
+        const Instance* excludeRoot
+    );
     
     virtual BaseCube* findOverlapping(const BaseCube& cube, const std::string& className,
                                       float margin = 0.0f) const = 0;

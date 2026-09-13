@@ -261,6 +261,7 @@ bool loadProperty(Instance* obj, std::string_view className,
 void saveProperties(YAML::Emitter& out, const Instance* obj, std::string_view className) {
     for (const PropertyDesc* p : collectSchema(className)) {
         if (p->kind != PropKind::Field || !p->serialize || !p->get) continue;
+        if (p->serializeWhen && !p->serializeWhen(obj)) continue;
         PropValue v = p->get(const_cast<Instance*>(obj));
         if (p->omitEmptyString && p->type == PropType::String && std::get<std::string>(v).empty())
             continue;  // 空文字は出力しない（既存挙動の保持）
@@ -269,9 +270,12 @@ void saveProperties(YAML::Emitter& out, const Instance* obj, std::string_view cl
 }
 
 void cloneFields(const Instance* src, Instance* dst, std::string_view className) {
-    for (const PropertyDesc* p : collectSchema(className))
-        if (p->kind == PropKind::Field && p->cloneable && p->get && p->set)
+    for (const PropertyDesc* p : collectSchema(className)) {
+        if (p->kind == PropKind::Field && p->cloneable && p->get && p->set) {
             p->set(dst, p->get(const_cast<Instance*>(src)));
+            if (p->copyState) p->copyState(src, dst);
+        }
+    }
 }
 
 void copyCompatibleProperties(const Instance* src, Instance* dst) {
@@ -306,6 +310,7 @@ void copyCompatibleProperties(const Instance* src, Instance* dst) {
         // replacement: a property is compatible only when its schema type is.
         if (it->second->type != d->type) continue;
         d->set(dst, value);
+        if (d->copyState) d->copyState(src, dst);
     }
 
     // Spatial and Script fields are intentionally hand-written in their

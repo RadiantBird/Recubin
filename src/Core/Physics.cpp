@@ -94,6 +94,18 @@ float IPhysicsBackend::getAccumulatorAlpha() const {
     return m_accumulatorAlpha;
 }
 
+bool IPhysicsBackend::shapeCastBox(
+    const CFrame&,
+    const Vector3&,
+    const Vector3&,
+    float,
+    ShapeCastHit& hitResult,
+    const Instance*
+) {
+    hitResult = {};
+    return false;
+}
+
 Physics::Physics()
     : m_backendType(s_requestedBackend) {
     m_backend = std::make_unique<Box3DPhysicsBackend>(this);
@@ -605,6 +617,38 @@ bool Physics::raycast(
 
     return m_backend->raycast(
         origin,
+        direction,
+        maxDistance,
+        hitResult,
+        excludeRoot
+    );
+}
+
+bool Physics::shapeCastBox(
+    const CFrame& startFrame,
+    const Vector3& size,
+    const Vector3& direction,
+    float maxDistance,
+    ShapeCastHit& hitResult,
+    const Instance* excludeRoot
+) {
+    if (
+        !isAvailable() ||
+        !finiteVector(startFrame.Position) ||
+        !validQuaternion(startFrame.Rotation) ||
+        !finiteVector(size) ||
+        size.x <= 0.0f || size.y <= 0.0f || size.z <= 0.0f ||
+        !finiteVector(direction) ||
+        !std::isfinite(maxDistance) ||
+        maxDistance <= 0.0f
+    ) {
+        hitResult = {};
+        return false;
+    }
+
+    return m_backend->shapeCastBox(
+        startFrame,
+        size,
         direction,
         maxDistance,
         hitResult,

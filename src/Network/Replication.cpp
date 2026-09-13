@@ -599,7 +599,7 @@ void ReplicationManager::applyAvatarPoses(float dt) {
             avatar.humanoid->setWalkCycle(avatar.walkCycle);
             avatar.humanoid->setIsGroundedForReplication(avatar.grounded);
             avatar.humanoid->setSeatedForReplication(avatar.seated);
-            avatar.humanoid->applyBodyAnimation(false, false);
+            avatar.humanoid->applyBodyAnimation(false, false, dt);
         }
     }
 }

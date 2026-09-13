@@ -563,3 +563,80 @@
 - native角速度をzero化しても、Box3D fixed stepの`MaintainVelocity`処理とCharacter専用YawForce再適用で回転が再発していた。
 - Free/Program遷移時に`YawForce`のValueをzero化しEnabled=falseへ変更し、Characterへ戻った後は既存`Humanoid::move()`で再有効化するよう修正した。
 - CharacterHover回帰へYawForce無効化確認を追加した。ビルド・回帰は未実施。
+
+## 2026-09-13: Humanoid HipHeight
+
+- 固定 `CharacterGroundHeightSettings::targetDistance` が `Humanoid::updateGroundHover()` のRoot-to-floor
+  setpointとして使われ、初期Root距離が異なる場合にhover加速度でRootを動かしていたことを確認した。
+  `CharacterRig`側にTorso/body geometryからRootを補正する処理は存在しない。SpawnLocationの同じ固定値利用は
+  hoverとは別の初期配置用途だったため、明示HipHeight時だけその値を使い、未設定時はRoot自身の既存配置を維持する。
+- `Humanoid::HipHeight`を追加し、未設定/明示設定をprivate stateで区別した。初回有効ground detectionではRootからの
+  実測距離だけをHipHeightへ保存し、Root位置は補正しない。明示設定は自動初期化で上書きしない。
+- `PropertyRegistry`へ条件付きYAML出力とclone/copy metadata hookを一般化し、HipHeightをgeneric float editor、
+  YAML、clone、instance copy、Luau dispatchへ接続した。未設定かつ未測定のHipHeightは保存せず、明示値または
+  groundから自動初期化された値は保存する。
+- `spec.md`と`doc/Instances/Humanoid.md`を新しいRoot基準の仕様へ更新し、property schema/hover回帰へ未設定初期距離、
+  明示値変更、YAML、clone/copyの確認を追加した。RootJoint、Motor6D、Gyro、YawForce、full-body yaw、timestepは変更していない。
+- 対象4 translation unitのWSL `g++ -std=c++23 -fsyntax-only -I. -Iinclude`は成功した。指定Release buildは
+  コンパイル前のconfigureでWindows側 `FileNotFoundError: [WinError 2]`により停止し、runtime回帰は未実施。
+- 次の一手: Windows側のconfigure/build環境を復旧後、`--character-hover-regression`、
+  `--property-schema-regression`、spawn/scene YAMLの実機回帰と、Root/Torso同一初期Yの手動確認を行う。
+
+## 2026-09-13: HipHeight接地/初期Root補正の修正
+
+- `isGrounded`の`floor.distance <= landingCaptureDistance`という絶対距離判定を廃止し、
+  `HipHeight`近傍かつRootの垂直速度がsettled threshold内の場合だけ接地とした。Jump開始時は即座に
+  `isGrounded=false`へ遷移し、上昇中の再Jumpを許可しない。
+- HipHeightが高いCharacterでもhover/landingを行えるよう、raycast範囲を`HipHeight + landingCaptureDistance`
+  まで拡張した。`landingCaptureDistance`は目標からの着地許容幅として残し、最大検出距離の用途とは分離した。
+- 未設定HipHeightの`User::placeCharacterAtSpawn()`ではSpawnLocation選択時にRootの初期Yを変更しないようにした。
+  明示HipHeightの場合だけ指定距離へ配置し、SpawnLocationがない場合も現在Root CFrameを維持する。
+- SpawnLocation/CharacterHover回帰の期待値と仕様文書を新しいRoot基準へ更新した。`include/windows26.h`の既存ユーザー変更は
+  変更せず保持している。
+- 対象C++ translation unitのsyntax checkは再度成功。Release buildとruntime回帰は前段のWindows configure
+  `FileNotFoundError: [WinError 2]`で未実施。
+- 次の一手: Windows build復旧後、特にHipHeight高値でのjump/landing、SpawnLocationなし・ありの初期Root Y保持、
+  明示HipHeightのspawn配置を実機確認する。
+
+## 2026-09-13: RootJoint bind不整合と接地状態の安定化
+
+- `triangle.rcbn` の Root/Torso が同じYなのに RootJoint C0.y が `0.749998` だったため、C0.yを0へ修正した。
+  Root/Torsoの同一中心をデフォルト生成R6のbind poseにも反映し、既存の実配置からのC0算出で同じアンカーになるようにした。
+- `isGrounded` はHipHeightの距離誤差を毎フレームの判定条件にせず、HipHeight captureで接地状態へ入り、
+  その後は床の微小距離揺れで反転しない。床が消えるかRootが上昇した場合に解除する。
+- RootJoint spring、Yaw/Gyro、HoverForceの構造は変更していない。対象C++のsyntax checkと`git diff --check`は成功。
+- Release buildはconfigure前のWindows側`FileNotFoundError: [WinError 2]`で停止し、runtime回帰は未実施。
+
+## 2026-09-13: 接地判定診断ログ追加
+
+- 挙動を変更せず、`Humanoid::updateGroundHover()`にRoot/Humanoid pointerとfull path、Root Y/垂直速度、HipHeightと初期化状態、raycast最大距離、hit距離/Y/法線、hit Instance、接地状態の前後、jump suppression、HoverForceの実効状態/値を1行で記録する診断ログを追加した。
+- Box3DのRootJoint生成時に、Part0/Part1、body ID、C0/C1、実world anchor位置と差分、spring設定を記録する診断ログを追加した。RootJointやground hoverの処理内容は変更していない。
+- `git diff --check`は成功。指定Release buildはconfigure前のWindows側`FileNotFoundError: [WinError 2]`で停止し、runtimeログの取得は未実施。
+- 今回追加した`Humanoid.cpp`と`Box3DPhysicsBackend.cpp`のWSL `g++ -std=c++23 -fsyntax-only`は成功（Box3D include pathを指定）。
+- 次の一手: Windows build復旧後、`CharacterGroundDebug`の`hasFloor`/`floorDistance`/`floorNormalY`/`rootLinearVelocityY`/`groundedBefore/After`と`CharacterJointDebug`のanchor差分を時系列で採取する。
+
+## 2026-09-13: Root footprint shape castによる接地判定
+
+- `Humanoid::updateGroundHover()`のRoot中心raycastを、Root下端直下に配置した薄いRoot footprint boxの真下shape castへ置換した。XZはRoot.Size、回転はRoot CFrameを使い、cast距離は既存の最大検出距離とHipHeight capture距離の大きい方を維持する。
+- Box3D `b3World_CastShape()` callbackは既存の親子self除外を再利用し、query filterが無効なshape、CanCollide=false、query開始位置以上のhit、上向きでないnormalを除外する。複数候補は最も近い床面を採用する。
+- floorDistanceはshape castのtravel距離を使わず、Root中心Yと採用surface hit pointのY差で算出する。grounded解除から上昇速度条件を削除し、速度はHoverの減衰およびJump suppressionのlanding判定だけに残した。
+- `CharacterGroundDebug`はshape-cast-box、cast距離/travel距離、full normal、hit instanceを記録し、同一physics tickでの重複出力を抑制した。CharacterHover回帰に正のRoot Y速度で接地維持、および中心rayを外すedge platformのfootprint検出を追加した。
+- Game側4 translation unitのWSL syntax checkと`git diff --check`は成功。`test_main.cpp`のsyntax checkはWSL環境に`GL/glu.h`がないためinclude段階で未実施。Release buildはconfigure前のWindows側`FileNotFoundError: [WinError 2]`で停止し、実機/回帰実行は未実施。
+- 次の一手: Windows buildを復旧後、`--character-hover-regression`と広い床・edge platform・壁際・段差・Jump landingの実機`brun`を実行する。
+
+## 2026-09-14: ジャンプ時の肩回転経路の固定
+
+- `prompt.md`のCharacter Rig v2ジャンプ姿勢を調査し、`Humanoid::applyBodyAnimation()`が左右肩へ厳密な`+180°`を毎フレーム渡していたことを確認した。`+180°`/`-180°`は同じ物理姿勢でQuaternionの半回転境界が経路を一意に表現できず、さらに歩行中の現在角が負側でも固定`+180°`へ遷移していたため、Motor6Dの球面補間が反対側へ回る余地があった。
+- ジャンプ肩ターゲットだけを左右共通の`+179°`へ変更した。半回転境界を避け、左右の肩が同じ符号のローカルX方向へ回転する。RootJoint、他Motor6D、物理構造、yaw、Hover、接地判定は変更していない。
+- 既存のAnimationClip回帰へ、ニュートラル状態と左右が逆符号の角度からジャンプへ遷移しても、肩ターゲットが同符号になる確認を追加した。
+- `Humanoid.cpp`、`CharacterRig.cpp`、`AnimationClip.cpp`のWSL構文チェックは成功。`test_main.cpp`はWSL環境に`GL/glu.h`がないため構文チェック未実施。指定Release buildはconfigure前のWindows側`FileNotFoundError: [WinError 2]`で停止し、回帰テストおよび実機`brun`は未実施。
+- 次の一手: Windows build復旧後、既存Animation回帰とJump→landingを実機で確認し、左右腕が常に意図した前方経路を通ることを確認する。
+
+## 2026-09-14: ジャンプ肩角度のスカラー状態化
+
+- `+179°`の境界回避と、肩ごとに`Motor6D::Transform.Rotation.toEuler()`から符号を読み直す処理を削除した。
+- `Humanoid`に左右共通の`m_jumpShoulderAngle`を追加し、`applyBodyAnimation()`内でdeltaTimeに基づき、airborne中は`angle += rate * dt`、grounded復帰後は`angle -= rate * dt`として`0..180°`へ進めるようにした。180°到達中および着地後に0°へ戻るまで、同じスカラーから両肩のMotor6D Transformを生成する。
+- `move()`、Animation fallback、remote avatar pose適用から実deltaTimeを渡すようにし、直接呼び出しには既定の1/60秒を残した。full-body yaw、Hover、HipHeight、接地、Root lock、Motor6D物理構造は変更していない。
+- Animation回帰へ、ジャンプ開始から180°到達、左右同一角度、着地後の負方向復帰を追加した。
+- 対象ゲームTUのWSL構文チェックと`git diff --check`は成功。`test_main.cpp`はWSL環境の`GL/glu.h`不足で構文チェック未実施。Release buildはconfigure前のWindows側`FileNotFoundError: [WinError 2]`で停止し、回帰テストと実機`brun`は未実施。
+- 次の一手: Windows build復旧後、Animation回帰とJump→landingを`brun`で確認する。

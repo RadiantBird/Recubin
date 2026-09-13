@@ -17,6 +17,7 @@
 #include <include/Util/Logger.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cfloat>
 #include <cmath>
 #include <functional>
@@ -2291,6 +2292,32 @@ void Box3DPhysicsBackend::createMotor6D(
     const b3BodyId bodyA = bodyId(*first);
     const b3BodyId bodyB = bodyId(*second);
     if (B3_IS_NULL(bodyA) || B3_IS_NULL(bodyB)) return;
+
+    if (motor->Name == "RootJoint") {
+        const Vector3 anchorA = (first->getWorldCFrame() * motor->C0).Position;
+        const Vector3 anchorB = (second->getWorldCFrame() * motor->C1).Position;
+        const Vector3 anchorDelta = anchorB - anchorA;
+        RCBN_LOG(
+            "[CharacterJointDebug] motor=" << motor->getFullPath()
+            << " motorPtr=" << static_cast<const void*>(motor.get())
+            << " part0=" << first->getFullPath()
+            << " part0Ptr=" << static_cast<const void*>(first.get())
+            << " part1=" << second->getFullPath()
+            << " part1Ptr=" << static_cast<const void*>(second.get())
+            << " bodyA=" << bodyA.index1
+            << " bodyB=" << bodyB.index1
+            << " c0Y=" << motor->C0.Position.y
+            << " c1Y=" << motor->C1.Position.y
+            << " anchorAY=" << anchorA.y
+            << " anchorBY=" << anchorB.y
+            << " anchorDeltaY=" << anchorDelta.y
+            << " anchorDeltaX=" << anchorDelta.x
+            << " anchorDeltaZ=" << anchorDelta.z
+            << " frequency=" << motor->Frequency
+            << " dampingRatio=" << motor->DampingRatio
+        );
+    }
+
     if (idsEqual(bodyA, bodyB)) {
         const auto handle = allocateLogicalConstraintHandle();
         motor->m_constraintHandle = handle;
@@ -2856,6 +2883,13 @@ struct RayContext {
     RaycastHit* result = nullptr;
 };
 
+struct ShapeCastContext {
+    const Instance* excludeRoot = nullptr;
+    float queryStartY = 0.0f;
+    float maximumDistance = 0.0f;
+    ShapeCastHit* result = nullptr;
+};
+
 float box3dRayCallback(
     b3ShapeId shapeId,
     b3Pos point,
@@ -2910,6 +2944,57 @@ float box3dRayCallback(
     return fraction;
 }
 
+float box3dGroundShapeCastCallback(
+    b3ShapeId shapeId,
+    b3Pos point,
+    b3Vec3 normal,
+    float fraction,
+    uint64_t,
+    int,
+    int,
+    void* rawContext
+) {
+    auto* context = static_cast<ShapeCastContext*>(rawContext);
+    auto* instance = static_cast<Instance*>(b3Shape_GetUserData(shapeId));
+    if (!instance || isRaycastExcluded(instance, context->excludeRoot)) {
+        return -1.0f;
+    }
+
+    const b3Filter filter = b3Shape_GetFilter(shapeId);
+    if (filter.categoryBits == 0 || filter.maskBits == 0) {
+        return -1.0f;
+    }
+
+    if (auto* cube = dynamic_cast<BaseCube*>(instance); cube && !cube->CanCollide) {
+        return -1.0f;
+    }
+
+    const Vector3 hitPosition = fromB3Position(point);
+    const Vector3 hitNormal = fromB3Vector(normal);
+    if (
+        !std::isfinite(hitPosition.y) ||
+        !std::isfinite(hitNormal.y) ||
+        hitPosition.y >= context->queryStartY ||
+        hitNormal.y <= 0.0f
+    ) {
+        return -1.0f;
+    }
+
+    const float floorDistance = context->queryStartY - hitPosition.y;
+    if (
+        !context->result->hit ||
+        floorDistance < context->queryStartY - context->result->position.y
+    ) {
+        context->result->hit = true;
+        context->result->travelDistance = fraction * context->maximumDistance;
+        context->result->position = hitPosition;
+        context->result->normal = hitNormal;
+        context->result->instance = instance;
+    }
+
+    return fraction;
+}
+
 }
 
 bool Box3DPhysicsBackend::raycast(
@@ -2952,6 +3037,63 @@ bool Box3DPhysicsBackend::raycast(
         &context
     );
 
+    return hitResult.hit;
+}
+
+bool Box3DPhysicsBackend::shapeCastBox(
+    const CFrame& startFrame,
+    const Vector3& size,
+    const Vector3& direction,
+    float maxDistance,
+    ShapeCastHit& hitResult,
+    const Instance* excludeRoot
+) {
+    hitResult = {};
+    if (!isAvailable() || maxDistance <= 0.0f) {
+        return false;
+    }
+
+    const Vector3 normalizedDirection = direction.normalize();
+    if (normalizedDirection.lengthSquared() <= 0.0f) {
+        return false;
+    }
+
+    const Vector3 halfSize = size * 0.5f;
+    const std::array<Vector3, 8> localCorners = {{
+        {-halfSize.x, -halfSize.y, -halfSize.z},
+        {-halfSize.x, -halfSize.y,  halfSize.z},
+        {-halfSize.x,  halfSize.y, -halfSize.z},
+        {-halfSize.x,  halfSize.y,  halfSize.z},
+        { halfSize.x, -halfSize.y, -halfSize.z},
+        { halfSize.x, -halfSize.y,  halfSize.z},
+        { halfSize.x,  halfSize.y, -halfSize.z},
+        { halfSize.x,  halfSize.y,  halfSize.z},
+    }};
+    std::array<b3Vec3, localCorners.size()> points;
+    for (std::size_t index = 0; index < localCorners.size(); ++index) {
+        points[index] = toB3Length(startFrame.Rotation.rotate(localCorners[index]));
+    }
+
+    const b3ShapeProxy proxy = {
+        points.data(),
+        static_cast<int>(points.size()),
+        0.0f,
+    };
+    ShapeCastContext context{
+        excludeRoot,
+        startFrame.Position.y,
+        maxDistance,
+        &hitResult,
+    };
+    b3World_CastShape(
+        m_worldId,
+        toB3Position(startFrame.Position),
+        &proxy,
+        toB3Length(normalizedDirection * maxDistance),
+        b3DefaultQueryFilter(),
+        box3dGroundShapeCastCallback,
+        &context
+    );
     return hitResult.hit;
 }
 
