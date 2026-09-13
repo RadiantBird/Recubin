@@ -660,3 +660,11 @@
 
 - generic `drawFilePathField()` のFragmentShaderFile等で、入力欄を単独行（最大640px）にし、`Browse`/`Clear`ボタンを次行へ移動した。長いパスでも操作ボタンと入力欄が横幅を奪い合わず、hover時の完全パス表示も維持する。
 - `git diff --check` は成功。UI実機確認は未実施。
+
+## 2026-09-14: テクスチャ alpha の描画修正
+
+- stb_image は従来どおり要求出力4チャンネル、OpenGL upload も `GL_RGBA`/`GL_RGBA` で、ロード時のalpha欠落は確認されなかった。
+- sampled `texColor.a` は最終 `FragColor.a` ではなく、Cube色と画像RGBを合成する係数として扱う。これにより透明画素では背後のシーンではなく親Cubeの色が残る。
+- `Texture` の面描画は親Cubeの `Color` を合成先とし、Textureの `Color` は画像RGBとalphaのtintとして適用するよう修正した。`Decal`も同じtint alphaを合成係数へ反映する。
+- BaseCube描画開始時にtexture tint uniformを既定値へ戻し、直前のCube faceの値が他の描画クラスへ漏れないようにした。デフォルト白テクスチャのalphaは0のまま維持する。
+- `git diff --check` は成功。WSLの構文チェックは環境に `GL/glu.h` がなく未実施。指定Release buildはWindows側 `WinError 2`、`brun` はWSL vsock エラーで未実施。

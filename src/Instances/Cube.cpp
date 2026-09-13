@@ -173,11 +173,11 @@ void Cube::draw(int modelLoc, int shaderProgram) {
             float sv = activeTexInst[i]->StudsPerTileV;
             float scaleU = (su > 0.0f) ? faceSizeU[i] / su : 1.0f;
             float scaleV = (sv > 0.0f) ? faceSizeV[i] / sv : 1.0f;
-            if (colorLoc           != -1) glUniform4f(colorLoc,        tc.r, tc.g, tc.b, tc.a);
+            if (colorLoc           != -1) glUniform4f(colorLoc,        Color.r, Color.g, Color.b, Color.a);
             if (uvScaleLoc         != -1) glUniform2f(uvScaleLoc,      scaleU, scaleV);
             if (isSurfaceGuiLoc    != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
-            if (texTintColorLoc    != -1) glUniform4f(texTintColorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
-            if (useTexTintLoc      != -1) glUniform1f(useTexTintLoc,   0.0f);
+            if (texTintColorLoc    != -1) glUniform4f(texTintColorLoc, tc.r, tc.g, tc.b, tc.a);
+            if (useTexTintLoc      != -1) glUniform1f(useTexTintLoc,   1.0f);
         } else if (activeSurfaceGui[i]) {
             if (colorLoc           != -1) glUniform4f(colorLoc,        Color.r, Color.g, Color.b, Color.a);
             if (uvScaleLoc         != -1) glUniform2f(uvScaleLoc,      1.0f, 1.0f);

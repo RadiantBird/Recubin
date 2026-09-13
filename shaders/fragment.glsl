@@ -141,12 +141,14 @@ if (useTriplanar > 0.5) {
         baseColor = VertexColor;
     } else {
         vec3 finalTexColor = texColor.rgb;
+        float textureBlendAlpha = texColor.a;
         if (uUseTextureTint > 0.5) {
             finalTexColor *= uTextureTintColor.rgb;
+            textureBlendAlpha *= uTextureTintColor.a;
         }
         baseColor = (isSurfaceGui > 0.5)
             ? mix(effColor.rgb, texColor.rgb, texColor.a)
-            : mix(effColor.rgb, finalTexColor, texColor.a);
+            : mix(effColor.rgb, finalTexColor, textureBlendAlpha);
     }
 
     // SurfaceMark overlay. During this dedicated candidate redraw the renderer
@@ -227,8 +229,8 @@ if (useTriplanar > 0.5) {
         }
     }
 
-    // texColor.a はどちらの分岐でも baseColor 側の mix() 済みなので、
-    // 出力アルファに二重で掛けない（掛けるとテクスチャ/GUIの透明部分でキューブ自体が透けてしまう）
+    // Image alpha has already been used to composite its RGB over the Cube
+    // color.  It must not make the underlying Cube transparent.
     float outAlpha = effColor.a * MatAlpha;
 
     if (unlit > 0.5) {

@@ -2099,6 +2099,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         }
     };
 
+    static CachedUniform baseCubeTintColorCache;
+    static CachedUniform baseCubeUseTintCache;
+    const int baseCubeTintColorLoc = cachedUniformLocation(shaderProgram, baseCubeTintColorCache, "uTextureTintColor");
+    const int baseCubeUseTintLoc = cachedUniformLocation(shaderProgram, baseCubeUseTintCache, "uUseTextureTint");
+
     auto renderInst = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
         if (inst->IsA("BaseCube")) {
@@ -2106,6 +2111,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             if (unlitLoc     != -1) glUniform1f(unlitLoc,     bc->Unlit        ? 1.0f : 0.0f);
             if (triplanarLoc != -1) glUniform1f(triplanarLoc, bc->UseTriplanar ? 1.0f : 0.0f);
             if (texScaleLoc  != -1) glUniform1f(texScaleLoc,  bc->TextureScale);
+            // Cube::draw() changes these per face. Reset them for every
+            // BaseCube so another draw class cannot inherit the prior face's
+            // texture tint state.
+            if (baseCubeTintColorLoc != -1) glUniform4f(baseCubeTintColorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
+            if (baseCubeUseTintLoc != -1) glUniform1f(baseCubeUseTintLoc, 0.0f);
         }
         if (inst->IsA("Cube")) {
             Cube* cube = static_cast<Cube*>(inst);
