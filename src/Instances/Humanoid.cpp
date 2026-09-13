@@ -412,6 +412,17 @@ void Humanoid::resolveParts(Instance* characterModel) {
     m_leftLeg  = std::dynamic_pointer_cast<BaseCube>(find("LeftLeg"));
     m_rightLeg = std::dynamic_pointer_cast<BaseCube>(find("RightLeg"));
     m_rootGyro = std::dynamic_pointer_cast<Gyro>(find("RootGyro"));
+
+    if (auto gyro = m_rootGyro.lock()) {
+        // @RadiantBird 2026/09/13:
+        // Existing serialized characters may still have Gyro Y enabled.
+        // YawForce owns controlled-character yaw, so disable the competing
+        // Gyro axis when the rig references are resolved.
+        gyro->setAxisEnabled(
+            GyroAxis::Y,
+            false
+        );
+    }
 }
 
 std::shared_ptr<Motor6D> Humanoid::findJointMotor(const std::string& jointName) const {
@@ -444,6 +455,12 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
 
     auto yawForce =
         findCharacterYawForce(root);
+
+    RCBN_LOG(
+        "Humanoid YawForce rootPtr=" << static_cast<const void*>(root.get())
+        << " rootPath=" << root->getFullPath()
+        << " yawForcePtr=" << static_cast<const void*>(yawForce.get())
+    );
 
     // --- Seat: 未着席なら接触判定、着席中ならSteer/Throttle更新のみ行って抜ける ---
     if (!m_seated && physics) {
@@ -516,15 +533,15 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
                 headingDirection->lengthSquared() > 1e-8f
             ) {
                 // @RadiantBird 2026/09/13:
-                // Character yaw is intentionally controlled by angular
-                // velocity instead of Gyro torque. Pitch and roll remain
-                // physical so stopping and acceleration can still make the
-                // character lean naturally.
+                // Character yaw is controlled exclusively by authoritative
+                // angular velocity. Gyro Y is disabled so the two controllers
+                // cannot fight each other.
                 constexpr float DEGREES_TO_RADIANS =
                     0.01745329251994329577f;
 
-                constexpr float TURN_RESPONSE = 30.0f;
-                constexpr float MAX_TURN_SPEED = 20.0f;
+                constexpr float MAX_TURN_SPEED = 8.0f;
+                constexpr float MIN_CONTROL_HORIZON = 1.0f / 60.0f;
+                constexpr float YAW_DEAD_ZONE_DEGREES = 0.5f;
 
                 const float targetYaw =
                     Gyro::headingAngleFromDirection(
@@ -548,36 +565,47 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
                     errorDegrees += 360.0f;
                 }
 
-                const float desiredYawVelocity =
-                    std::clamp(
-                        errorDegrees *
-                            DEGREES_TO_RADIANS *
-                            TURN_RESPONSE,
-                        -MAX_TURN_SPEED,
-                        MAX_TURN_SPEED
+                const float errorRadians =
+                    errorDegrees * DEGREES_TO_RADIANS;
+
+                const float controlHorizon =
+                    std::max(
+                        deltaTime,
+                        MIN_CONTROL_HORIZON
                     );
 
+                float desiredYawVelocity = 0.0f;
+
+                if (
+                    std::abs(errorDegrees) >
+                    YAW_DEAD_ZONE_DEGREES
+                ) {
+                    desiredYawVelocity =
+                        std::clamp(
+                            errorRadians / controlHorizon,
+                            -MAX_TURN_SPEED,
+                            MAX_TURN_SPEED
+                        );
+                }
+
                 yawForce->Value.y =
                     desiredYawVelocity;
 
-                // RCBN_LOG(
-                //     "Yaw target=" << targetYaw
-                //     << " current=" << currentYaw
-                //     << " error=" << errorDegrees
-                //     << " velocity=" << desiredYawVelocity
-                // )
-
-                yawForce->Value.y =
-                    desiredYawVelocity;
+                RCBN_LOG(
+                    "Yaw target=" << targetYaw
+                    << " current=" << currentYaw
+                    << " error=" << errorDegrees
+                    << " velocity=" << desiredYawVelocity
+                );
 
                 // const Vector3 actualAngularVelocity =
                 //     physics->getAngularVelocity(*root);
 
-                // RCBN_LOG(
-                //     "Yaw command=" << desiredYawVelocity
-                //     // << " actualY=" << actualAngularVelocity.y
-                //     << " error=" << errorDegrees
-                // );
+                RCBN_LOG(
+                    "Yaw command=" << desiredYawVelocity
+                    // << " actualY=" << actualAngularVelocity.y
+                    << " error=" << errorDegrees
+                );
                 
             }
             else {

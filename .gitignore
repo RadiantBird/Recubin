@@ -29,6 +29,7 @@ _snapshot.rcbn
 # 開発支援ファイル類
 loglog.txt
 patch.txt
+.wizard-backup/
 
 Claude's last exam/
 CodexField/

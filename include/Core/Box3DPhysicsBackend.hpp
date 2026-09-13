@@ -10,6 +10,7 @@
 #include <vector>
 
 class Physics;
+class Force;
 
 class Box3DPhysicsBackend final : public IPhysicsBackend {
 private:
@@ -62,6 +63,14 @@ private:
         bool usedBoundsFallback = false;
     };
 
+    struct YawForceDiagnostic {
+        const BaseCube* owner = nullptr;
+        const Force* force = nullptr;
+        b3BodyId bodyId = b3_nullBodyId;
+        float preStepAngularVelocityY = 0.0f;
+        float postStepAngularVelocityY = 0.0f;
+    };
+
     using CubePair = std::pair<const BaseCube*, const BaseCube*>;
 
     Physics* m_facade = nullptr;
@@ -70,6 +79,7 @@ private:
     std::uint64_t m_nextLogicalConstraintHandle = 1;
     std::vector<BodyEntry> m_bodies;
     std::vector<ConstraintEntry> m_constraints;
+    std::vector<YawForceDiagnostic> m_yawForceDiagnostics;
     std::vector<NoCollisionEntry> m_noCollisionEntries;
     bool m_batchCreatingConstraints = false;
     std::shared_ptr<const std::set<CubePair>> m_noCollisionSnapshot;

@@ -485,3 +485,18 @@
   `--character-hover-regression`は1 passed / 0 failed。静止高度1.913、jump最高高度7.579、再着地高度1.916、
   7 bodyのmass比例加速度一致、jump上昇中のhover停止と下降時の再開を確認した。
 - 実際の入力による前後左右移動、Yaw旋回、移動・旋回中jump、連続jumpの手動操作確認は未実施。
+
+## 2026-09-13: Character Rig v2 RootJoint yaw overshoot diagnostic
+
+- RootJoint spring無効化は姿勢保持を失わせるため撤回し、Motor6Dのspring設定を従来の
+  `enableSpring = true`へ戻した。
+- 次の診断として、既存の `getChildren()` 経由でYawForceを取得し、Box3D fixed stepごとにRoot bodyの
+  Value.y、Enabled、Torque、MaintainVelocity、AxisMask、pre-step、solver直後、post-MaintainVelocityの
+  Y angular velocityを同じ1行へログする変更へ切り替えた。物理値の設定変更はない。
+- 追加診断として、実際に処理されたYawForceのowner Modelから既存のR6 body列挙を使い、制御状態が有効な
+  fixed stepだけ全R6 physical bodyへ同じY angular velocityを適用する一時変更を行った。RootJoint springは維持し、
+  X/Z angular velocityは保持する。post-stepのRoot Y angular velocity変化を確認する。
+- `git diff --check`は成功。指定の `cmd.exe /d /c py build.py build` はコンパイル前に
+  `UtilBindVsockAnyPort: socket failed 1`で失敗し、ビルド結果は未検証。
+- 次の判定: commandに対する符号反転がpre-step以前、solver直後、post-MaintainVelocityのどこで
+  発生するかをログで切り分ける。
