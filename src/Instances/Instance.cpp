@@ -212,7 +212,7 @@ bool Instance::removeChild(string name) {
     return false;
 }
 
-std::string Instance::getFullPath() {
+std::string Instance::getFullPath() const {
     std::vector<string> data = {this->Name};
 
     auto parent = this->Parent.lock();

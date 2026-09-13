@@ -470,3 +470,18 @@
   `initPhysics()`後に`Physics::update(..., 0)`を行うよう修正した。さらに実Box3D stepによる各軸・四象限収束、
   inertia補償、torque差、外乱復帰、disabled軸、角速度制限、Weld compound、scene load・handle維持、
   default R6の方位・直立復帰を追加した。再ビルドと回帰再実行は親エージェント側で実施予定。
+
+## 2026-09-13: Character GroundHeight hover controller
+
+- 既定R6 Rootを通常の`Cube`のまま`Size=(2,2,1)`へ戻し、Root原点とMotor6Dのbind poseは維持した。
+  R6脚のbind poseからRoot中心と足裏の距離を2 studと定義し、SpawnLocation上でも同じ中心高度を使う。
+- Humanoidの既存下向きraycastをGroundHeight controllerとgrounded判定で共用する。床が3 stud以内のとき、
+  Workspace重力の相殺とPD補正（stiffness 120、damping 20、上向き加速度上限1200）を計算する。
+- Rootだけで身体を吊らないよう、共通のR6 body列挙をjumpとhoverで使い、各dynamic bodyのmassに比例した
+  additive `CharacterHoverForce`をbody中心へ適用する。Box3Dのread-only mass取得APIを追加した。
+- jump開始時は全hover Forceをzero/disabledにし、全bodyへ従来のlaunch velocityを設定する。上昇中は
+  hoverを再開せず、下降して3 studのlanding captureへ入った時点で再開する。死亡・着席・Truss中も無効化する。
+- Windows ReleaseのRecubin／RecubinEngine／RecubinTest 3ターゲットbuild成功。限定回帰
+  `--character-hover-regression`は1 passed / 0 failed。静止高度1.913、jump最高高度7.579、再着地高度1.916、
+  7 bodyのmass比例加速度一致、jump上昇中のhover停止と下降時の再開を確認した。
+- 実際の入力による前後左右移動、Yaw旋回、移動・旋回中jump、連続jumpの手動操作確認は未実施。

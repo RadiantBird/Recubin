@@ -1106,8 +1106,13 @@ void User::placeCharacterAtSpawn(
             ? 0
             : static_cast<std::size_t>(spawnPeerId - 1) % candidates.size();
         const auto& spawn = candidates[index];
+        const auto& groundHeight = CharacterRig::groundHeightSettings();
         targetRoot = spawn->getWorldCFrame() *
-            CFrame(0.0f, (spawn->Size.y + root->Size.y) * 0.5f, 0.0f);
+            CFrame(
+                0.0f,
+                spawn->Size.y * 0.5f + groundHeight.targetDistance,
+                0.0f
+            );
     }
     const CFrame currentRoot = root->getWorldCFrame();
     const CFrame delta = targetRoot * currentRoot.inverse();

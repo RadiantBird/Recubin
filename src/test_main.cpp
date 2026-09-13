@@ -10953,6 +10953,10 @@ int runCharacterHoverRegression() {
         physics && std::abs(settledHeight - 2.0f) < 0.2f,
         "hover settles Root at the R6 bind-pose ground height"
     );
+    expect(
+        settledHeight - root->Size.y * 0.5f > 0.5f,
+        "Root collider remains clear of the floor at rest"
+    );
 
     bool allBodiesShareAcceleration = true;
     float sampledAcceleration = -1.0f;
@@ -11002,6 +11006,7 @@ int runCharacterHoverRegression() {
 
     bool hoverStayedOffWhileRising = true;
     bool hoverResumed = false;
+    bool reachedJumpApex = false;
     float peakHeight = root->getWorldPosition().y;
     for (int step = 0; step < 360; ++step) {
         humanoid->move(
@@ -11019,12 +11024,15 @@ int runCharacterHoverRegression() {
             1.0f / 60.0f
         );
         const bool rising = physics->getLinearVelocity(*root).y > 0.0f;
+        if (!rising) {
+            reachedJumpApex = true;
+        }
         for (const auto& body : bodies) {
             auto found = body->getChildren().find("CharacterHoverForce");
             auto force = found == body->getChildren().end()
                 ? nullptr
                 : std::dynamic_pointer_cast<Force>(found->second);
-            if (rising && force && force->Enabled) {
+            if (!reachedJumpApex && rising && force && force->Enabled) {
                 hoverStayedOffWhileRising = false;
             }
             if (!rising && force && force->Enabled) {
@@ -11035,7 +11043,9 @@ int runCharacterHoverRegression() {
         peakHeight = std::max(peakHeight, root->getWorldPosition().y);
     }
     std::cout << "[CharacterHoverRegression] peakHeight=" << peakHeight
-              << " landedHeight=" << root->getWorldPosition().y << '\n';
+              << " landedHeight=" << root->getWorldPosition().y
+              << " hoverStayedOffWhileRising=" << hoverStayedOffWhileRising
+              << " hoverResumed=" << hoverResumed << '\n';
     expect(
         hoverStayedOffWhileRising && hoverResumed &&
             peakHeight > settledHeight + 1.0f &&

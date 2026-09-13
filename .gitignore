@@ -26,6 +26,8 @@ _snapshot.rcbn
 *.o
 *.exe
 
+loglog.txt
+
 Claude's last exam/
 CodexField/
 assets/scenes/.navcache/_snapshot_Workspace.navcache
@@ -48,3 +50,4 @@ Luar Programming Language/luar-vscode/*.vsix
 /NUL
 
 TestCases/NetworkTest/RecubinEngine-macos-arm64
+

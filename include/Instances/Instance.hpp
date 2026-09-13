@@ -62,7 +62,7 @@ class Instance : public std::enable_shared_from_this<Instance> {
         virtual void addChild(std::shared_ptr<Instance> child);
         bool removeChild(string name);
 
-        string getFullPath();
+        string getFullPath() const;
 
         virtual std::shared_ptr<Instance> clone() const;
 

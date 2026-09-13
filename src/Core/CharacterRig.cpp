@@ -20,11 +20,11 @@ const CharacterGroundHeightSettings& groundHeightSettings() {
     static const CharacterGroundHeightSettings settings{
         2.0f,
         3.0f,
-        2.5f,
+        3.0f,
         120.0f,
         20.0f,
-        400.0f,
-        196.2f,
+        1200.0f,
+        1.0f,
     };
     return settings;
 }

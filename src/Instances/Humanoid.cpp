@@ -143,8 +143,11 @@ void Humanoid::updateGroundHover(
         setHoverForces(physics, false, 0.0f);
         return;
     }
+    const float gravityCompensation =
+        std::max(0.0f, -physics->getGravity().y) *
+        settings.gravityCompensationScale;
     const float acceleration = std::clamp(
-        settings.gravityCompensation +
+        gravityCompensation +
             settings.stiffness * (settings.targetDistance - floor.distance) -
             settings.damping * verticalVelocity,
         0.0f,
@@ -729,14 +732,6 @@ void Humanoid::jump(Physics* physics) {
     for (const auto& body : collectCharacterBodies()) {
         applyJumpVelocity(body);
     }
-
-    applyJumpVelocity(
-        getLeftLegPart()
-    );
-
-    applyJumpVelocity(
-        getRightLegPart()
-    );
 }
 
 void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {

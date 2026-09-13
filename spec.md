@@ -154,7 +154,8 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   既定Rootの描画Sizeは`(2,2,1)`、中心は従来の`basePos`を維持する。接地時はRoot中心から下向きに
   一度だけfloorをsampleし、R6 bind poseの足裏に対応するdistance `2.0`をGroundHeight controllerで保つ。
   controllerは各dynamic R6 bodyへ同じ上向き加速度をmass比例のadditive Forceとして与える。
-  遠距離の床へ吸着せず、jump上昇中は停止し、下降してlanding captureへ入った時だけ再開する。
+  重力相殺は現在のWorkspace.Gravityから算出する。遠距離の床へ吸着せず、jump上昇中は停止し、
+  下降してlanding captureへ入った時だけ再開する。SpawnLocation上の初期Root高度にも同じ目標distanceを使う。
 
 ## Gyro
   Gyroは1つのPartへworld基準の角度制御を加える単一body constraintとする。X/Y/Zはそれぞれ
