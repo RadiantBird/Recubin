@@ -466,6 +466,7 @@ void LuauEngine::InitDispatchTable_World() {
     DispatchTable["Decal"]["TexturePath"] = getter_string<Decal, &Decal::texturePath>();
 
     PropertyRegistry::applyToDispatch("Lighting", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("PostEffect", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("LightSource", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("PointLight", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("SpotLight", DispatchTable, SetterTable);

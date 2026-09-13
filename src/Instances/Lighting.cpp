@@ -8,6 +8,8 @@ static const bool s_lightingRegistered = []{
         field<&Lighting::lightDir>  ("Direction",  -1.0f, 1.0f, 0.01f),
         field<&Lighting::brightness>("Brightness",  0.0f, 5.0f, 0.01f).clampLua(),
         field<&Lighting::lightColor>("Color"),
+        field<&Lighting::shadowDistance>("ShadowDistance", 0.0f, 10000.0f, 1.0f).clampLua(),
+        field<&Lighting::shadowFadeDistance>("ShadowFadeDistance", 0.0f, 10000.0f, 1.0f).clampLua(),
     });
     return true;
 }();

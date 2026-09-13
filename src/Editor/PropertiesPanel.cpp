@@ -258,20 +258,27 @@ static void drawFilePathField(Instance* owner, const PropertyDesc& desc,
 
     const std::string label(desc.name);
     const std::string current = std::get<std::string>(desc.get(owner));
-    char path[512] = {};
-    std::snprintf(path, sizeof(path), "%s", current.c_str());
+    std::array<char, 4096> path{};
+    std::snprintf(path.data(), path.size(), "%s", current.c_str());
     ImGui::PushID(&desc);
-    ImGui::SetNextItemWidth(std::max(1.0f, ImGui::GetContentRegionAvail().x - 108.0f));
-    if (ImGui::InputText(label.c_str(), path, sizeof(path), ImGuiInputTextFlags_EnterReturnsTrue)) {
+    // Keep the path editor on its own row.  The action buttons are placed
+    // below it so a long path gets the full panel width instead of forcing
+    // horizontal scrolling beside the buttons.
+    ImGui::SetNextItemWidth(std::clamp(ImGui::GetContentRegionAvail().x,
+                                       120.0f, 640.0f));
+    if (ImGui::InputText(label.c_str(), path.data(), path.size(), ImGuiInputTextFlags_EnterReturnsTrue)) {
         const PropValue before = desc.get(owner);
-        const PropValue after = PropValue(std::string(path));
+        const PropValue after = PropValue(std::string(path.data()));
         if (std::get<std::string>(before) != std::get<std::string>(after)) {
             if (history) history->execute(std::make_unique<SetPropertyCommand>(
                 owner->shared_from_this(), &desc, before, after));
             else PropertyRegistry::writeValue(owner, desc, after);
         }
     }
-    ImGui::SameLine();
+    if (ImGui::IsItemHovered() && !current.empty()) {
+        ImGui::SetTooltip("%s", current.c_str());
+    }
+    ImGui::NewLine();
     if (ImGui::Button(Loc::t(Loc::LocKey::Browse))) {
         const std::string selected = getPlatform().openFileDialog({{dialogLabel, dialogFilter}});
         if (!selected.empty()) {
@@ -2268,86 +2275,9 @@ void PropertiesPanel::onRender() {
 
     // ---- PostEffect ----
     if (inst->getClassName() == "PostEffect") {
-        PostEffect* pe = static_cast<PostEffect*>(inst);
-        auto peSp = std::static_pointer_cast<PostEffect>(inst->shared_from_this());
         ImGui::SeparatorText("PostEffect");
-
-        // Enabled
-        {
-            bool before = pe->Enabled;
-            bool value  = pe->Enabled;
-            if (ImGui::Checkbox("Enabled##posteffect", &value)) {
-                pe->Enabled = value;
-                if (m_history) m_history->record(std::make_unique<SetPostEffectBoolCommand>(peSp, "Enabled", before, value));
-            }
-        }
-
-        // Type (combo)
-        static const char* peTypes[] = { "None", "CRT", "Posterization", "Pixelize", "Saturation", "VHS", "ChromaticAberration" };
-        {
-            int typeIdx = static_cast<int>(pe->Type);
-            int beforeIdx = typeIdx;
-            if (ImGui::Combo("Type", &typeIdx, peTypes, 7)) {
-                PostEffectKind before = pe->Type;
-                pe->Type = static_cast<PostEffectKind>(typeIdx);
-                if (m_history) m_history->record(std::make_unique<SetPostEffectTypeCommand>(peSp, before, pe->Type));
-            }
-            (void)beforeIdx;
-        }
-
-        // ZIndex with undo
-        {
-            static int s_zBefore;
-            int zIndex = pe->ZIndex;
-            bool changed = ImGui::DragInt("ZIndex", &zIndex);
-            if (ImGui::IsItemActivated()) s_zBefore = pe->ZIndex;
-            if (changed) pe->ZIndex = zIndex;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                m_history->record(std::make_unique<SetPostEffectIntCommand>(peSp, "ZIndex", s_zBefore, pe->ZIndex));
-            }
-        }
-
-        // Intensity with undo
-        {
-            static float s_intensityBefore;
-            bool changed = ImGui::DragFloat("Intensity", &pe->Intensity, 0.01f, 0.0f, 1.0f, "%.2f");
-            if (ImGui::IsItemActivated()) s_intensityBefore = pe->Intensity;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                m_history->record(std::make_unique<SetPostEffectFloatCommand>(peSp, "Intensity", s_intensityBefore, pe->Intensity));
-            }
-        }
-
-        // Param1 / Param2: Type に応じてラベルと範囲を切替
-        const char* param1Label = "Param1";
-        const char* param2Label = nullptr;
-        float param1Min = 1.0f, param1Max = 256.0f, param1Speed = 0.1f;
-        switch (pe->Type) {
-            case PostEffectKind::CRT:                param1Label = "ScanlineCount"; param2Label = "CurveAmount"; break;
-            case PostEffectKind::Posterization:      param1Label = "Levels";        break;
-            case PostEffectKind::Pixelize:            param1Label = "PixelSize";     break;
-            case PostEffectKind::Saturation:          param1Label = "Saturation";    param1Min = -1.0f; param1Max = 2.0f; param1Speed = 0.01f; break;
-            case PostEffectKind::VHS:                 param1Label = "NoiseAmount";   param1Min = 0.0f;  param1Max = 1.0f; param1Speed = 0.01f; break;
-            case PostEffectKind::ChromaticAberration: param1Label = "Offset";        param1Min = 0.0f;  param1Max = 1.0f; param1Speed = 0.01f; break;
-            default: break;
-        }
-
-        {
-            static float s_param1Before;
-            bool changed = ImGui::DragFloat(param1Label, &pe->Param1, param1Speed, param1Min, param1Max, "%.2f");
-            if (ImGui::IsItemActivated()) s_param1Before = pe->Param1;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                m_history->record(std::make_unique<SetPostEffectFloatCommand>(peSp, "Param1", s_param1Before, pe->Param1));
-            }
-        }
-
-        if (param2Label) {
-            static float s_param2Before;
-            bool changed = ImGui::DragFloat(param2Label, &pe->Param2, 0.01f, -1.0f, 1.0f, "%.2f");
-            if (ImGui::IsItemActivated()) s_param2Before = pe->Param2;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                m_history->record(std::make_unique<SetPostEffectFloatCommand>(peSp, "Param2", s_param2Before, pe->Param2));
-            }
-        }
+        // PostEffect properties are schema-driven, including Custom shader path.
+        renderSchemaInspector(inst, "PostEffect", m_history, m_picker);
     }
 
     // ---- Terrain ----

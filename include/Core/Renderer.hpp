@@ -100,6 +100,8 @@ class Renderer {
         int          viewLoc             = -1;
         int          projectionLoc       = -1;
         int          viewPosLoc          = -1;
+        int          shadowDistanceLoc   = -1;
+        int          shadowFadeDistanceLoc = -1;
         int          hasShadowsLoc       = -1;
         int          lightSpaceMatrixLoc = -1;
         int          modelLoc            = -1;
@@ -263,6 +265,14 @@ class Renderer {
         GLuint m_postFboA = 0, m_postTexA = 0;
         GLuint m_postFboB = 0, m_postTexB = 0;
         int    m_postFboWidth = 0, m_postFboHeight = 0;
+
+        struct CustomPostEffectProgram {
+            GLuint program = 0;
+            std::filesystem::file_time_type lastWriteTime{};
+            bool hasMetadata = false;
+            bool attempted = false;
+        };
+        std::map<std::string, CustomPostEffectProgram> m_customPostEffectPrograms;
 
         void initPostEffectRenderer();
         void ensurePostEffectFBOs(int width, int height);

@@ -752,13 +752,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             PropertyRegistry::saveProperties(out, inst, "Weather");
         }
         if (inst->getClassName() == "PostEffect") {
-            const PostEffect* pe = static_cast<const PostEffect*>(inst);
-            out << YAML::Key << "Enabled"   << YAML::Value << pe->Enabled;
-            out << YAML::Key << "Type"      << YAML::Value << static_cast<int>(pe->Type);
-            out << YAML::Key << "ZIndex"    << YAML::Value << pe->ZIndex;
-            out << YAML::Key << "Intensity" << YAML::Value << pe->Intensity;
-            out << YAML::Key << "Param1"    << YAML::Value << pe->Param1;
-            out << YAML::Key << "Param2"    << YAML::Value << pe->Param2;
+            PropertyRegistry::saveProperties(out, inst, "PostEffect");
         }
         if (inst->getClassName() == "Skybox") {
             const Skybox* sb = static_cast<const Skybox*>(inst);

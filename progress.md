@@ -640,3 +640,23 @@
 - Animation回帰へ、ジャンプ開始から180°到達、左右同一角度、着地後の負方向復帰を追加した。
 - 対象ゲームTUのWSL構文チェックと`git diff --check`は成功。`test_main.cpp`はWSL環境の`GL/glu.h`不足で構文チェック未実施。Release buildはconfigure前のWindows側`FileNotFoundError: [WinError 2]`で停止し、回帰テストと実機`brun`は未実施。
 - 次の一手: Windows build復旧後、Animation回帰とJump→landingを`brun`で確認する。
+
+## 2026-09-14: Lighting shadow distance と Custom PostEffect
+
+- `Lighting`へ`ShadowDistance`（160）と`ShadowFadeDistance`（20）をPropertyRegistry経由で追加し、Directional shadow projectionとfragment shaderの3D camera-distance fadeへ接続した。ShadowDistanceが0以下ならshadow passを実行せず、不正な正射影を作らない。
+- `PostEffectKind::Custom`と`FragmentShaderFile`を追加した。PostEffectの保存・Properties editor・Luau dispatchはschema-drivenへ統一した。
+- Rendererは既存fullscreen vertex shaderと外部fragment shaderをlinkし、パスとmtimeごとに成功programをcacheする。失敗時は既存成功programを維持し、初回失敗時はpass-through。コンパイル診断は`RCBN_ERROR`でConsoleへ出力する。
+- Packagerが`FragmentShaderFile`を収集、同梱、パス書換えする。property schemaとpackage asset pathの回帰ケースを追加し、関連文書を更新した。
+- `Lighting.cpp`、`PostEffect.cpp`、`Packager.cpp`のWSL syntax checkと`git diff --check`は成功。Release buildはconfigure前にWindows側`FileNotFoundError: [WinError 2]`で停止。Renderer/Editor/SceneLoader/Luau/test TUのWSL syntax checkは環境の`GL/glu.h`不足で未実施、runtime回帰も未実施。
+- 次の一手: Windows build環境を復旧後、`--property-schema-regression`と`--asset-path-regression`を実行し、Custom shaderの成功・compile failure・mtime reload、shadow fadeを実機確認する。
+
+## 2026-09-14: FilePath editor layout
+
+- generic `drawFilePathField()` の入力幅をProperties panelの幅へ上限420px付きで収め、長いパスでパネル幅が拡張されないようにした。編集バッファは4096 byteへ拡張し、hoverで完全なパスを表示する。
+- 既存のschema-driven file property共通の `Browse`（参照）ボタンをそのまま使用するため、`PostEffect.FragmentShaderFile`にも個別UIを追加せず参照・Undo・project-relative path化を統一した。
+- `git diff --check` は成功。Windows Release buildおよびUI実機確認は既存のWindows configure `WinError 2`により未実施。
+
+## 2026-09-14: FilePath参照ボタンの行分離
+
+- generic `drawFilePathField()` のFragmentShaderFile等で、入力欄を単独行（最大640px）にし、`Browse`/`Clear`ボタンを次行へ移動した。長いパスでも操作ボタンと入力欄が横幅を奪い合わず、hover時の完全パス表示も維持する。
+- `git diff --check` は成功。UI実機確認は未実施。

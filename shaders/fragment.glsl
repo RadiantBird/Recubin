@@ -18,6 +18,8 @@ uniform vec4 ourColor;
 uniform vec3 lightDir;
 uniform float brightness;
 uniform vec3 viewPos;
+uniform float uShadowDistance;
+uniform float uShadowFadeDistance;
 uniform vec3 lightColor;
 uniform float unlit;
 uniform float u_textureScale;
@@ -242,7 +244,16 @@ if (useTriplanar > 0.5) {
     float diff = max(dot(norm, lightDirNorm), 0.0);
     vec3 diffuse = diff * lightColor * brightness;
 
-    float shadow = hasShadows * shadowCalc(FragPosLightSpace, norm, lightDirNorm);
+    float shadowFade = 0.0;
+    float fadeDistance = max(uShadowDistance, 0.0);
+    float fragmentDistance = length(FragPos - viewPos);
+    if (uShadowFadeDistance <= 0.0) {
+        shadowFade = step(fragmentDistance, fadeDistance);
+    } else if (fragmentDistance < fadeDistance) {
+        float fadeStart = max(fadeDistance - uShadowFadeDistance, 0.0);
+        shadowFade = 1.0 - smoothstep(fadeStart, fadeDistance, fragmentDistance);
+    }
+    float shadow = hasShadows * shadowCalc(FragPosLightSpace, norm, lightDirNorm) * shadowFade;
 
     vec3 lighting = ambient + (1.0 - shadow) * diffuse;
 

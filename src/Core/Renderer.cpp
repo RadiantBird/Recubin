@@ -479,6 +479,8 @@ void Renderer::init(GLFWwindow* window) {
     viewLoc             = glGetUniformLocation(shaderProgram, "view");
     projectionLoc       = glGetUniformLocation(shaderProgram, "projection");
     viewPosLoc          = glGetUniformLocation(shaderProgram, "viewPos");
+    shadowDistanceLoc   = glGetUniformLocation(shaderProgram, "uShadowDistance");
+    shadowFadeDistanceLoc = glGetUniformLocation(shaderProgram, "uShadowFadeDistance");
     hasShadowsLoc       = glGetUniformLocation(shaderProgram, "hasShadows");
     lightSpaceMatrixLoc = glGetUniformLocation(shaderProgram, "lightSpaceMatrix");
     modelLoc            = glGetUniformLocation(shaderProgram, "model");
@@ -663,6 +665,9 @@ Renderer::~Renderer() {
     if (m_postTexA)   glDeleteTextures(1, &m_postTexA);
     if (m_postFboB)   glDeleteFramebuffers(1, &m_postFboB);
     if (m_postTexB)   glDeleteTextures(1, &m_postTexB);
+    for (auto& [path, entry] : m_customPostEffectPrograms) {
+        if (entry.program) glDeleteProgram(entry.program);
+    }
 }
 
 // ===================================================
@@ -1357,6 +1362,93 @@ void Renderer::renderBrushMarker(const Matrix4& view, const Matrix4& projection,
 // ===================================================
 //  ポストエフェクト（PostEffect インスタンスの ZIndex 順チェーン適用）
 // ===================================================
+static GLuint compileCustomPostEffectProgram(const std::string& path,
+                                             const std::string& vertexSource,
+                                             const std::string& fragmentSource) {
+    if (vertexSource.empty()) {
+        RCBN_ERROR("Custom PostEffect vertex shader is empty: " << path);
+        return 0;
+    }
+    if (fragmentSource.empty()) {
+        RCBN_ERROR("Custom PostEffect fragment shader is empty: " << path);
+        return 0;
+    }
+
+    auto compile = [&](GLenum type, const std::string& source, const char* stage) -> GLuint {
+        GLuint shader = glCreateShader(type);
+        const char* sourcePtr = source.c_str();
+        glShaderSource(shader, 1, &sourcePtr, nullptr);
+        glCompileShader(shader);
+        GLint ok = GL_FALSE;
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
+        if (ok == GL_FALSE) {
+            GLint logLength = 0;
+            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
+            std::string log(static_cast<size_t>(std::max(logLength, 1)), '\0');
+            glGetShaderInfoLog(shader, logLength, nullptr, log.data());
+            RCBN_ERROR("Custom PostEffect " << stage << " shader failed (" << path << "): " << log);
+            glDeleteShader(shader);
+            return 0;
+        }
+        return shader;
+    };
+
+    GLuint vertex = compile(GL_VERTEX_SHADER, vertexSource, "vertex");
+    if (!vertex) return 0;
+    GLuint fragment = compile(GL_FRAGMENT_SHADER, fragmentSource, "fragment");
+    if (!fragment) {
+        glDeleteShader(vertex);
+        return 0;
+    }
+
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertex);
+    glAttachShader(program, fragment);
+    glLinkProgram(program);
+    GLint linked = GL_FALSE;
+    glGetProgramiv(program, GL_LINK_STATUS, &linked);
+    glDeleteShader(vertex);
+    glDeleteShader(fragment);
+    if (linked == GL_FALSE) {
+        GLint logLength = 0;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+        std::string log(static_cast<size_t>(std::max(logLength, 1)), '\0');
+        glGetProgramInfoLog(program, logLength, nullptr, log.data());
+        RCBN_ERROR("Custom PostEffect program link failed (" << path << "): " << log);
+        glDeleteProgram(program);
+        return 0;
+    }
+    return program;
+}
+
+static GLuint getCustomPostEffectProgram(
+    Renderer::CustomPostEffectProgram& entry, const std::string& path,
+    const std::string& vertexSource) {
+    std::error_code ec;
+    const std::filesystem::path sourcePath = AssetPath::fromStored(path);
+    const bool exists = std::filesystem::is_regular_file(sourcePath, ec) && !ec;
+    std::filesystem::file_time_type writeTime{};
+    if (exists) writeTime = std::filesystem::last_write_time(sourcePath, ec);
+    const bool metadataChanged = !entry.attempted || entry.hasMetadata != exists ||
+                                 (exists && (!entry.hasMetadata || entry.lastWriteTime != writeTime));
+    if (!metadataChanged) return entry.program;
+
+    entry.attempted = true;
+    entry.hasMetadata = exists;
+    entry.lastWriteTime = writeTime;
+    if (!exists) {
+        RCBN_ERROR("Custom PostEffect shader file cannot be read: " << path);
+        return entry.program;
+    }
+    const std::string fragmentSource = FileLoader::readText(path);
+    GLuint program = compileCustomPostEffectProgram(path, vertexSource, fragmentSource);
+    if (program) {
+        if (entry.program) glDeleteProgram(entry.program);
+        entry.program = program;
+    }
+    return entry.program;
+}
+
 void Renderer::initPostEffectRenderer() {
     std::string vStr = FileLoader::readText("shaders/postprocess_vertex.glsl");
     std::string fStr = FileLoader::readText("shaders/postprocess_fragment.glsl");
@@ -1472,13 +1564,10 @@ void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int wid
 
     glUseProgram(m_postShader);
     glBindVertexArray(m_postVAO);
+    const std::string postVertexSource = FileLoader::readText("shaders/postprocess_vertex.glsl");
     glUniform1i(glGetUniformLocation(m_postShader, "screenTexture"), 0);
     glUniform2f(glGetUniformLocation(m_postShader, "u_resolution"), (float)width, (float)height);
     glUniform1f(glGetUniformLocation(m_postShader, "u_time"), (float)glfwGetTime());
-    int typeLoc      = glGetUniformLocation(m_postShader, "u_effectType");
-    int intensityLoc = glGetUniformLocation(m_postShader, "u_intensity");
-    int param1Loc    = glGetUniformLocation(m_postShader, "u_param1");
-    int param2Loc    = glGetUniformLocation(m_postShader, "u_param2");
     glActiveTexture(GL_TEXTURE0);
 
     GLuint srcTex = m_postTexA;
@@ -1490,13 +1579,46 @@ void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int wid
         bool isLast = (i == effects.size() - 1);
         GLuint destFbo = isLast ? targetFbo : pingFbo;
 
+        GLuint effectProgram = m_postShader;
+        bool custom = effect->Type == PostEffectKind::Custom;
+        if (custom) {
+            const std::string path = AssetPath::normalize(effect->FragmentShaderFile);
+            if (!path.empty() && AssetGuard::allow(path)) {
+                auto& entry = m_customPostEffectPrograms[path];
+                effectProgram = getCustomPostEffectProgram(entry, path, postVertexSource);
+            } else if (path.empty()) {
+                auto& entry = m_customPostEffectPrograms["<empty>"];
+                if (!entry.attempted) {
+                    entry.attempted = true;
+                    RCBN_ERROR("Custom PostEffect has an empty FragmentShaderFile");
+                }
+                effectProgram = entry.program;
+            } else {
+                auto& entry = m_customPostEffectPrograms[path];
+                if (!entry.attempted) {
+                    entry.attempted = true;
+                    RCBN_ERROR("Custom PostEffect shader path is not allowed: " << path);
+                }
+            }
+            // A failed first compile has no program: use the built-in pass-through
+            // path so the rest of the post-effect chain remains functional.
+            if (!effectProgram) effectProgram = m_postShader;
+        }
+
         glBindFramebuffer(GL_FRAMEBUFFER, destFbo);
         glViewport(0, 0, width, height);
         glBindTexture(GL_TEXTURE_2D, srcTex);
-        glUniform1i(typeLoc, static_cast<int>(effect->Type));
-        glUniform1f(intensityLoc, effect->Intensity);
-        glUniform1f(param1Loc, effect->Param1);
-        glUniform1f(param2Loc, effect->Param2);
+        glUseProgram(effectProgram);
+        glUniform1i(glGetUniformLocation(effectProgram, "screenTexture"), 0);
+        glUniform2f(glGetUniformLocation(effectProgram, "u_resolution"), (float)width, (float)height);
+        glUniform1f(glGetUniformLocation(effectProgram, "u_time"), (float)glfwGetTime());
+        glUniform1f(glGetUniformLocation(effectProgram, "u_intensity"), effect->Intensity);
+        glUniform1f(glGetUniformLocation(effectProgram, "u_param1"), effect->Param1);
+        glUniform1f(glGetUniformLocation(effectProgram, "u_param2"), effect->Param2);
+        if (!custom || effectProgram == m_postShader) {
+            glUniform1i(glGetUniformLocation(effectProgram, "u_effectType"),
+                        effectProgram == m_postShader && custom ? 0 : static_cast<int>(effect->Type));
+        }
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
         if (!isLast) {
@@ -1763,7 +1885,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     // ---- Shadow Pass ----
     Matrix4 lightSpaceMatrix;
     bool shadowReady = false;
-    if (desc.renderShadows && lighting && shadowFBO && shadowMapTex && depthShader) {
+    if (desc.renderShadows && lighting && lighting->shadowDistance > 0.0f &&
+        shadowFBO && shadowMapTex && depthShader) {
         Vector3 ld = lighting->lightDir;
         float len = std::sqrt(ld.x*ld.x + ld.y*ld.y + ld.z*ld.z);
         if (len > 0.001f) { ld.x /= len; ld.y /= len; ld.z /= len; }
@@ -1773,7 +1896,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         // camera moved/orbited, exposing a large straight shadow boundary.
         // Centering the same fixed light-space footprint on the camera keeps
         // coverage stable while giving the visible scene useful margin.
-        constexpr float SHADOW_HALF_EXTENT = 160.0f;
+        const float shadowDistance = std::max(lighting->shadowDistance, 0.0f);
         constexpr float SHADOW_LIGHT_DISTANCE = 160.0f;
         constexpr float SHADOW_DEPTH = 800.0f;
         Vector3 shadowCenter = desc.cameraPosition; // 原点固定だと原点から離れると影が消えるため
@@ -1782,8 +1905,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                          shadowCenter.z - ld.z * SHADOW_LIGHT_DISTANCE);
         Vector3 upVec = (std::fabsf(ld.y) < 0.99f) ? Vector3(0.0f, 1.0f, 0.0f) : Vector3(0.0f, 0.0f, 1.0f);
         Matrix4 lightView = Matrix4::LookAt(lightEye, shadowCenter, upVec);
-        Matrix4 lightProj = Matrix4::Ortho(-SHADOW_HALF_EXTENT, SHADOW_HALF_EXTENT,
-                                           -SHADOW_HALF_EXTENT, SHADOW_HALF_EXTENT,
+        Matrix4 lightProj = Matrix4::Ortho(-shadowDistance, shadowDistance,
+                                           -shadowDistance, shadowDistance,
                                            0.1f, SHADOW_DEPTH);
         lightSpaceMatrix = lightProj * lightView;
 
@@ -1889,6 +2012,12 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     glUniformMatrix4fv(viewLoc,       1, GL_FALSE, view.m);
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, projection.m);
     glUniform3f(viewPosLoc, desc.cameraPosition.x, desc.cameraPosition.y, desc.cameraPosition.z);
+    if (shadowDistanceLoc != -1) {
+        glUniform1f(shadowDistanceLoc, lighting ? std::max(lighting->shadowDistance, 0.0f) : 160.0f);
+    }
+    if (shadowFadeDistanceLoc != -1) {
+        glUniform1f(shadowFadeDistanceLoc, lighting ? std::max(lighting->shadowFadeDistance, 0.0f) : 20.0f);
+    }
 
     if (lighting) {
         if (lightDirLoc   != -1) glUniform3f(lightDirLoc,   lighting->lightDir.x,  lighting->lightDir.y,  lighting->lightDir.z);

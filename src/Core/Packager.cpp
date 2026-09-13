@@ -144,7 +144,7 @@ static void collectPaths(const YAML::Node& node, std::vector<std::string>& paths
     if (node.IsMap()) {
         for (auto it = node.begin(); it != node.end(); ++it) {
             std::string key = it->first.as<std::string>();
-            if ((key == "ContentPath" || key == "Texture" || key == "FacePath" || key == "MeshFile" || key == "IconPath") && it->second.IsScalar()) {
+            if ((key == "ContentPath" || key == "Texture" || key == "FacePath" || key == "MeshFile" || key == "IconPath" || key == "FragmentShaderFile") && it->second.IsScalar()) {
                 std::string v = it->second.as<std::string>();
                 if (!v.empty()) paths.push_back(v);
             } else if (key == "SkyboxPaths" && it->second.IsSequence()) {
@@ -176,7 +176,7 @@ static void rewritePaths(YAML::Node node,
     if (node.IsMap()) {
         for (auto it = node.begin(); it != node.end(); ++it) {
             std::string key = it->first.as<std::string>();
-            if ((key == "ContentPath" || key == "Texture" || key == "FacePath" || key == "MeshFile" || key == "IconPath" || key == "DataPath") && it->second.IsScalar()) {
+            if ((key == "ContentPath" || key == "Texture" || key == "FacePath" || key == "MeshFile" || key == "IconPath" || key == "FragmentShaderFile" || key == "DataPath") && it->second.IsScalar()) {
                 std::string v = it->second.as<std::string>();
                 auto found = pathMap.find(v);
                 it->second = found != pathMap.end()

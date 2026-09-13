@@ -9,6 +9,8 @@ public:
     Vector3      lightDir   = Vector3(1.0f, -1.0f, -1.0f);
     float        brightness = 1.0f;
     Color4       lightColor = Color4(1.0f, 1.0f, 1.0f, 1.0f);
+    float        shadowDistance = 160.0f;
+    float        shadowFadeDistance = 20.0f;
 
     Lighting();
     virtual ~Lighting() = default;

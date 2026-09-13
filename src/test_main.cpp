@@ -1,6 +1,7 @@
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/PostEffect.hpp>
 #include <Instances/LiquidCube.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/LocalScript.hpp>
@@ -7220,6 +7221,13 @@ int runAssetPathRegression() {
         terrainAutosaveFile << "editor-only";
         std::ofstream terrainVisibleFile(tempRoot / "terrain_data" / "visible.chunk", std::ios::binary);
         terrainVisibleFile << "runtime";
+        std::filesystem::create_directories(tempRoot / "assets/effects", ec);
+        std::ofstream customFragmentFile(tempRoot / "assets/effects" / "wobble.frag", std::ios::binary);
+        customFragmentFile << "#version 330 core\n"
+                              "in vec2 TexCoord;\n"
+                              "out vec4 FragColor;\n"
+                              "uniform sampler2D screenTexture;\n"
+                              "void main() { FragColor = texture(screenTexture, TexCoord); }\n";
 #ifndef __APPLE__
         std::ofstream editorFile(tempRoot / "Recubin.exe", std::ios::binary);
         editorFile << "editor";
@@ -7241,6 +7249,11 @@ int runAssetPathRegression() {
                   << "      Name: R6Walk\n"
                   << "      Properties:\n"
                   << "        ContentPath: assets/anims/r6_walk.rcanim\n"
+                  << "    - ClassName: PostEffect\n"
+                  << "      Name: CustomEffect\n"
+                  << "      Properties:\n"
+                  << "        Type: 7\n"
+                  << "        FragmentShaderFile: assets/effects/wobble.frag\n"
                   << "    - ClassName: User\n"
                   << "      Properties:\n"
                   << "        CursorType: Type1\n"
@@ -7311,6 +7324,8 @@ int runAssetPathRegression() {
                    packagedScene.find("assets/models/missing.glb") != std::string::npos &&
                    std::filesystem::exists(packageContentRoot / "assets/anims/r6_walk.rcanim") &&
                    packagedScene.find("assets/anims/r6_walk.rcanim") != std::string::npos &&
+                   std::filesystem::exists(packageContentRoot / "assets/effects/wobble.frag") &&
+                   packagedScene.find("FragmentShaderFile: assets/effects/wobble.frag") != std::string::npos &&
                    packagedScene.find("ContentPath: assets/cursor.png") != std::string::npos &&
                    packagedScene.find("DefaultCameraMode: Free") != std::string::npos &&
                    packagedScene.find("Hotspot: [1, 2]") != std::string::npos &&
@@ -9690,6 +9705,60 @@ static int runPropertySchemaRegression() {
                 std::abs(copied->getHipHeight() - 3.25f) < 1.0e-5f,
             "explicit HipHeight metadata survives generic instance copy"
         );
+    }
+
+    auto lighting = std::make_shared<Lighting>();
+    const auto lightingSchema = PropertyRegistry::collectApplicableSchema(lighting.get());
+    const auto shadowDistance = findSchemaProperty(lightingSchema, "ShadowDistance");
+    const auto shadowFadeDistance = findSchemaProperty(lightingSchema, "ShadowFadeDistance");
+    expect(shadowDistance != lightingSchema.end() && shadowFadeDistance != lightingSchema.end() &&
+               (*shadowDistance)->type == PropType::Float && (*shadowFadeDistance)->type == PropType::Float,
+           "Lighting shadow distance properties use the generic float schema");
+    if (shadowDistance != lightingSchema.end() && shadowFadeDistance != lightingSchema.end()) {
+        (*shadowDistance)->set(lighting.get(), PropValue(96.0f));
+        (*shadowFadeDistance)->set(lighting.get(), PropValue(12.0f));
+        YAML::Emitter output;
+        output << YAML::BeginMap;
+        PropertyRegistry::saveProperties(output, lighting.get(), "Lighting");
+        output << YAML::EndMap;
+        const YAML::Node saved = YAML::Load(output.c_str());
+        auto loaded = std::make_shared<Lighting>();
+        loaded->setProperty("ShadowDistance", saved["ShadowDistance"]);
+        loaded->setProperty("ShadowFadeDistance", saved["ShadowFadeDistance"]);
+        auto clone = std::dynamic_pointer_cast<Lighting>(lighting->clone());
+        auto copied = std::make_shared<Lighting>();
+        PropertyRegistry::copyCompatibleProperties(lighting.get(), copied.get());
+        expect(loaded->shadowDistance == 96.0f && loaded->shadowFadeDistance == 12.0f &&
+                   clone && clone->shadowDistance == 96.0f && clone->shadowFadeDistance == 12.0f &&
+                   copied->shadowDistance == 96.0f && copied->shadowFadeDistance == 12.0f,
+               "Lighting shadow distances survive YAML, clone, and generic copy");
+    }
+
+    auto postEffect = std::make_shared<PostEffect>();
+    const auto postEffectSchema = PropertyRegistry::collectApplicableSchema(postEffect.get());
+    const auto postEffectType = findSchemaProperty(postEffectSchema, "Type");
+    const auto fragmentShaderFile = findSchemaProperty(postEffectSchema, "FragmentShaderFile");
+    expect(postEffectType != postEffectSchema.end() && (*postEffectType)->type == PropType::Enum &&
+               fragmentShaderFile != postEffectSchema.end() && (*fragmentShaderFile)->type == PropType::String &&
+               (*fragmentShaderFile)->editorWidget == EditorWidget::FilePath,
+           "PostEffect Custom type and fragment shader file are schema-driven");
+    if (postEffectType != postEffectSchema.end() && fragmentShaderFile != postEffectSchema.end()) {
+        (*postEffectType)->set(postEffect.get(), PropValue(static_cast<int>(PostEffectKind::Custom)));
+        (*fragmentShaderFile)->set(postEffect.get(), PropValue(std::string("assets/effects/wobble.frag")));
+        YAML::Emitter output;
+        output << YAML::BeginMap;
+        PropertyRegistry::saveProperties(output, postEffect.get(), "PostEffect");
+        output << YAML::EndMap;
+        const YAML::Node saved = YAML::Load(output.c_str());
+        auto loaded = std::make_shared<PostEffect>();
+        loaded->setProperty("Type", saved["Type"]);
+        loaded->setProperty("FragmentShaderFile", saved["FragmentShaderFile"]);
+        auto clone = std::dynamic_pointer_cast<PostEffect>(postEffect->clone());
+        expect(loaded->Type == PostEffectKind::Custom &&
+                   loaded->FragmentShaderFile == "assets/effects/wobble.frag" && clone &&
+                   clone->Type == PostEffectKind::Custom &&
+                   clone->FragmentShaderFile == "assets/effects/wobble.frag",
+               "Custom PostEffect survives YAML and schema-driven clone");
     }
 
     for (const auto& [expectedClass, constraint] : constraints) {

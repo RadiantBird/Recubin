@@ -104,3 +104,4 @@ Packager::package(cfg, log)
 ## 使われる場所
 
 - エディターのパッケージング機能（ビルド/エクスポート UI）から `Packager::package()` が呼ばれる
+PostEffect の `FragmentShaderFile` はシーン参照アセットとして収集・コピーされ、パッケージ内の相対パスへ書き換えられる。

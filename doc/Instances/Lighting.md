@@ -15,6 +15,8 @@
 | `lightDir` | `Vector3` | 光の方向ベクトル（既定 `(1,-1,-1)`）。PropertyRegistry範囲: 各成分 -1.0〜1.0 |
 | `brightness` | `float` | 明るさ（既定1.0、範囲: 0.0〜5.0, `clampLua()`） |
 | `lightColor` | `Color4` | 光の色（既定: 白） |
+| `shadowDistance` (`ShadowDistance`) | `float` | シャドウを適用するカメラからの最大距離（既定160.0） |
+| `shadowFadeDistance` (`ShadowFadeDistance`) | `float` | 最大距離手前からのフェード幅（既定20.0、0でハードカット） |
 
 ## メソッド
 

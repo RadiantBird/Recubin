@@ -98,12 +98,14 @@ main.cpp ループ
 
 ## Shadow Map の制約
 
-- 固定サイズ 2048×2048、正射影範囲は ±160（ワールド単位）固定。ライト空間の
+- 固定サイズ 2048×2048、正射影範囲は `Lighting.ShadowDistance`（既定 ±160 ワールド単位）。ライト空間の
   coverage はカメラ位置を中心に追従するが、カメラの向きには追従しない。これにより
   画面内に shadow map の直線的な coverage 境界が入りにくく、カメラ回転で影の向きや
   長さが変化しない。
 - `CastShadow == false` は常に影なし。true の場合は `ShadowMode`（Always/Never/Normal）で判定し、Normal は `Color.a > 0.001`、MeshCube の fallback geometry は例外として影を生成する。深度テクスチャは `GL_LINEAR`、シェーダは既存の3×3 PCFを使用する。深度バイアスは最小 0.0005、slope-scale 最大 0.0015 で、接地影と自己シャドウのアクネをバランスする
 - ライト方向は `Lighting.lightDir` のみ参照（複数ライト・ポイントライトのシャドウ未対応）
+- シャドウ距離は `Lighting.ShadowDistance`（既定160）で制限し、`ShadowFadeDistance`（既定20）でカメラからの3D距離に応じてフェードする。
+- `PostEffectKind::Custom` は指定GLSLフラグメントシェーダーをチェーンへ適用し、失敗時は直前の成功プログラムまたはパススルーへフォールバックする。
 
 ## マルチビューポートの注意点
 

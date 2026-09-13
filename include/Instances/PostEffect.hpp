@@ -9,7 +9,11 @@ enum class PostEffectKind {
     Pixelize = 3,
     Saturation = 4,
     VHS = 5,
-    ChromaticAberration = 6
+    ChromaticAberration = 6,
+
+    // 将来拡張予定...
+
+    Custom = 255 
 };
 
 class PostEffect : public Instance {
@@ -20,6 +24,7 @@ public:
     float          Intensity = 1.0f;  // 元画像とのブレンド比率 (0..1)
     float          Param1    = 8.0f;  // ScanlineCount(CRT) / Levels(Posterization) / PixelSize(Pixelize) / SaturationAmount(Saturation) / NoiseAmount(VHS) / Offset(ChromaticAberration)
     float          Param2    = 0.15f; // CurveAmount(CRT)。他タイプでは未使用
+    std::string    FragmentShaderFile;
 
     PostEffect();
     virtual ~PostEffect() = default;

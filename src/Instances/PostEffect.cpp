@@ -5,11 +5,12 @@ static const bool s_postEffectRegistered = []{
     using namespace PropertyRegistry;
     registerClass("PostEffect", {
         field<&PostEffect::Enabled>  ("Enabled"),
-        field<&PostEffect::Type>     ("Type"),
+        enumProp<&PostEffect::Type>("Type", {{"None", 0}, {"CRT", 1}, {"Posterization", 2}, {"Pixelize", 3}, {"Saturation", 4}, {"VHS", 5}, {"ChromaticAberration", 6}, {"Custom", 7}}),
         field<&PostEffect::ZIndex>   ("ZIndex"),
         field<&PostEffect::Intensity>("Intensity"),
         field<&PostEffect::Param1>   ("Param1"),
         field<&PostEffect::Param2>   ("Param2"),
+        field<&PostEffect::FragmentShaderFile>("FragmentShaderFile").omitEmpty().filePath("Fragment shader (*.frag;*.fs;*.glsl)", "*.frag;*.fs;*.glsl"),
     });
     return true;
 }();
