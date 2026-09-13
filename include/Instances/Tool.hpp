@@ -37,7 +37,12 @@ class Tool : public Instance {
             out.push_back({Handle, "BaseCube", "Tool.Handle",
                 [this](std::shared_ptr<Instance> v) { setHandleReference(std::dynamic_pointer_cast<BaseCube>(v)); }});
         }
+
+        std::shared_ptr<Instance> clone() const override;
         void setHandleReference(const std::shared_ptr<BaseCube>& handle);
+        const std::string& getHandlePath() const { return m_handleName; }
+        void setHandlePath(const std::string& path);
+        void remapClonedInstances(const CloneRemap& map) override;
 
     private:
         // Tool固有のプロパティやメソッドをここに追加

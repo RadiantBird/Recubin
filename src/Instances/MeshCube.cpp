@@ -14,6 +14,17 @@
 #include <GL/glew.h>
 #include <xatlas.h>
 #include <algorithm>
+#include <Core/PropertyRegistry.hpp>
+
+static const bool s_meshCubeRegistered = [] {
+    using namespace PropertyRegistry;
+    registerClass("MeshCube", "BaseCube", {
+        propertyViaSetProperty<&MeshCube::MeshFile>("MeshFile")
+            .filePath("MeshCube GLB", "*.glb")
+            .omitEmpty(),
+    });
+    return true;
+}();
 
 MeshCube::MeshCube(Vector3 Pos, Vector3 Sz)
     : Named<MeshCube, BaseCube>(Pos, Sz) {}
@@ -623,11 +634,7 @@ void MeshCube::setProperty(const std::string& name, const YAML::Node& value) {
 
 std::shared_ptr<Instance> MeshCube::clone() const {
     auto copy = std::make_shared<MeshCube>(this->getPosition(), this->Size);
-    if (this->m_fallbackActive) {
-        copy->activateFallback(this->MeshFile);
-    } else if (!this->MeshFile.empty()) {
-        copy->loadFromGLB(this->MeshFile);
-    }
+    PropertyRegistry::cloneFields(this, copy.get(), "MeshCube");
     cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }

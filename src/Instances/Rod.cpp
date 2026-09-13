@@ -2,7 +2,21 @@
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/Attachment.hpp>
 #include <include/Core/Physics.hpp>
+#include <include/Core/PropertyRegistry.hpp>
 #include <utility>
+
+static const bool s_rodRegistered = [] {
+    using namespace PropertyRegistry;
+    registerClass("Rod", "PhysicsConstraint", {
+        instanceRefProperty<&PhysicsConstraint::m_cube0Name>("Cube0", "BaseCube"),
+        instanceRefProperty<&PhysicsConstraint::m_cube1Name>("Cube1", "BaseCube"),
+        instanceRefProperty<&Rod::m_attachment0Name>("Attachment0", "Attachment").omitEmpty(),
+        instanceRefProperty<&Rod::m_attachment1Name>("Attachment1", "Attachment").omitEmpty(),
+        field<&Rod::Color>("Color"),
+        field<&Rod::LineWidth>("LineWidth", 0.5f, 16.0f, 0.1f),
+    });
+    return true;
+}();
 
 Rod::Rod()
     : PhysicsConstraint("Rod") {}
@@ -37,13 +51,7 @@ void Rod::resolveAdditionalReferences() {
 std::shared_ptr<Instance> Rod::clone() const {
     auto c = std::make_shared<Rod>();
     c->Name        = Name;
-    c->Enabled     = Enabled;
-    c->m_cube0Name = m_cube0Name;
-    c->m_cube1Name = m_cube1Name;
-    c->m_attachment0Name = m_attachment0Name;
-    c->m_attachment1Name = m_attachment1Name;
-    c->Color       = Color;
-    c->LineWidth   = LineWidth;
+    PropertyRegistry::cloneFields(this, c.get(), "Rod");
     c->m_cube0     = m_cube0;
     c->m_cube1     = m_cube1;
     c->m_attachment0 = m_attachment0;

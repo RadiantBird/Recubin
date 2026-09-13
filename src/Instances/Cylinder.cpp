@@ -4,6 +4,12 @@
 #include <Util/GLUniformCache.hpp>
 #include <GL/glew.h>
 #include <cmath>
+#include <include/Core/PropertyRegistry.hpp>
+
+static const bool s_cylinderRegistered = [] {
+    PropertyRegistry::registerClass("Cylinder", "BaseCube", {});
+    return true;
+}();
 
 unsigned int Cylinder::defaultTextureID = 0;
 unsigned int Cylinder::s_VAO = 0;

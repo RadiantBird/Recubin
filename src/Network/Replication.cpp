@@ -677,6 +677,8 @@ void ReplicationManager::reconcileLocalPose() {
 
     // 2. Humanoidの内部補間状態を、一番古い未ack入力の「適用前」状態へ復元
     m_predictionHumanoid->setCurrentMoveDir(firstEntry.currentMoveDirBefore);
+    m_predictionHumanoid->setSmoothedHeadingDirection(
+        firstEntry.smoothedHeadingDirectionBefore);
     m_predictionHumanoid->setWalkCycle(firstEntry.walkCycleBefore);
 
     // 3. 未ack入力を古い順に1件ずつ再生(1エントリ=1回のmove()+stepOnce()を厳守)
@@ -1070,6 +1072,8 @@ void ReplicationManager::bufferLocalInput(float dt) {
     if (entry.input.standUpRequested) m_standUpRequestSeq = entry.seq;
     entry.dt = dt;
     entry.currentMoveDirBefore = m_user->humanoid->getCurrentMoveDir();
+    entry.smoothedHeadingDirectionBefore =
+        m_user->humanoid->getSmoothedHeadingDirection();
     entry.walkCycleBefore      = m_user->humanoid->getWalkCycle();
     entry.rotationBefore       = root ? root->getRotation() : Quaternion();
 

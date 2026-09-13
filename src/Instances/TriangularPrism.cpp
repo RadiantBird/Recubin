@@ -3,6 +3,12 @@
 #include <Util/MeshEdges.hpp>
 #include <Util/GLUniformCache.hpp>
 #include <GL/glew.h>
+#include <Core/PropertyRegistry.hpp>
+
+static const bool s_triangularPrismRegistered = [] {
+    PropertyRegistry::registerClass("TriangularPrism", "BaseCube", {});
+    return true;
+}();
 
 unsigned int TriangularPrism::defaultTextureID = 0;
 unsigned int TriangularPrism::s_VAO = 0;

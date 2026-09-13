@@ -1,4 +1,14 @@
 #include <include/Instances/NoCollision.hpp>
+#include <include/Core/PropertyRegistry.hpp>
+
+static const bool s_noCollisionRegistered = [] {
+    using namespace PropertyRegistry;
+    registerClass("NoCollision", "PhysicsConstraint", {
+        instanceRefProperty<&PhysicsConstraint::m_cube0Name>("Cube0", "BaseCube"),
+        instanceRefProperty<&PhysicsConstraint::m_cube1Name>("Cube1", "BaseCube"),
+    });
+    return true;
+}();
 #include <include/Instances/Workspace.hpp>
 #include <include/Core/Physics.hpp>
 #include <utility>
@@ -59,9 +69,7 @@ void NoCollision::setProperty(const std::string& name, const YAML::Node& value) 
 std::shared_ptr<Instance> NoCollision::clone() const {
     auto c = std::make_shared<NoCollision>();
     c->Name        = Name;
-    c->Enabled     = Enabled;
-    c->m_cube0Name = m_cube0Name;
-    c->m_cube1Name = m_cube1Name;
+    PropertyRegistry::cloneFields(this, c.get(), "NoCollision");
     c->m_cube0     = m_cube0;   // 一旦は元キューブを指す（rebindClonedConstraints が張り替える）
     c->m_cube1     = m_cube1;
     for (auto const& [n, ch] : children) c->addChild(ch->clone());

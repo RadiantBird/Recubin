@@ -2,7 +2,19 @@
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/Attachment.hpp>
 #include <include/Core/Physics.hpp>
+#include <include/Core/PropertyRegistry.hpp>
 #include <utility>
+
+static const bool s_ballSocketRegistered = [] {
+    using namespace PropertyRegistry;
+    registerClass("BallSocket", "PhysicsConstraint", {
+        instanceRefProperty<&PhysicsConstraint::m_cube0Name>("Cube0", "BaseCube"),
+        instanceRefProperty<&PhysicsConstraint::m_cube1Name>("Cube1", "BaseCube"),
+        instanceRefProperty<&BallSocket::m_attachment0Name>("Attachment0", "Attachment").omitEmpty(),
+        instanceRefProperty<&BallSocket::m_attachment1Name>("Attachment1", "Attachment").omitEmpty(),
+    });
+    return true;
+}();
 
 BallSocket::BallSocket()
     : PhysicsConstraint("BallSocket") {}
@@ -37,11 +49,7 @@ void BallSocket::resolveAdditionalReferences() {
 std::shared_ptr<Instance> BallSocket::clone() const {
     auto c = std::make_shared<BallSocket>();
     c->Name        = Name;
-    c->Enabled     = Enabled;
-    c->m_cube0Name = m_cube0Name;
-    c->m_cube1Name = m_cube1Name;
-    c->m_attachment0Name = m_attachment0Name;
-    c->m_attachment1Name = m_attachment1Name;
+    PropertyRegistry::cloneFields(this, c.get(), "BallSocket");
     c->m_cube0     = m_cube0;
     c->m_cube1     = m_cube1;
     c->m_attachment0 = m_attachment0;

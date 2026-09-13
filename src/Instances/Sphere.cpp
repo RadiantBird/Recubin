@@ -3,6 +3,12 @@
 #include <Util/GLUniformCache.hpp>
 #include <GL/glew.h>
 #include <cmath>
+#include <include/Core/PropertyRegistry.hpp>
+
+static const bool s_sphereRegistered = [] {
+    PropertyRegistry::registerClass("Sphere", "BaseCube", {});
+    return true;
+}();
 
 unsigned int Sphere::defaultTextureID = 0;
 unsigned int Sphere::s_VAO = 0;

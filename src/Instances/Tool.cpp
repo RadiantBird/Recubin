@@ -1,7 +1,34 @@
 #include <Instances/Tool.hpp>
 #include <Core/User.hpp>
+#include <Core/PropertyRegistry.hpp>
 #include <Util/Logger.hpp>
 #include <cmath>
+
+static const bool s_toolRegistered = [] {
+    using namespace PropertyRegistry;
+    PropertyDesc handle = custom("Handle", PropType::String,
+        [](Instance* instance) {
+            return PropValue(static_cast<Tool*>(instance)->getHandlePath());
+        },
+        [](Instance* instance, const PropValue& value) {
+            static_cast<Tool*>(instance)->setHandlePath(std::get<std::string>(value));
+        });
+    handle.omitEmpty();
+    handle.instanceRefClass = "BaseCube";
+    handle.editorWidget = EditorWidget::InstanceReference;
+
+    registerClass("Tool", "Instance", {
+        sig<&Tool::Activated>("Activated"),
+        field<&Tool::Equipped>("Equipped").luaReadOnly().noEditor().noClone().noYaml(),
+        enumProp<&Tool::Hand>("Hand", {
+            {"Right", 0}, {"Left", 1}, {"Both", 2}
+        }, true),
+        field<&Tool::Position>("Position", -1.0e9f, 1.0e9f, 0.05f),
+        field<&Tool::Rotation>("Rotation", -360.0f, 360.0f, 1.0f),
+        handle,
+    });
+    return true;
+}();
 
 Tool::Tool(std::string name) : Instance(name) {
     Activated = std::make_shared<RCBNScriptSignal>();
@@ -12,7 +39,13 @@ void Tool::setHandleReference(const std::shared_ptr<BaseCube>& handle) {
     m_handleName = handle ? handle->getWorkspaceRelativePath() : std::string{};
 }
 
+void Tool::setHandlePath(const std::string& path) {
+    m_handleName = path;
+    resolveHandle();
+}
+
 void Tool::setProperty(const std::string& name, const YAML::Node& value) {
+    if (PropertyRegistry::loadProperty(this, "Tool", name, value)) return;
     if (name == "Position" && value.IsSequence() && value.size() == 3) {
         Position = Vector3(value[0].as<float>(), value[1].as<float>(), value[2].as<float>());
         return;
@@ -40,6 +73,22 @@ void Tool::setProperty(const std::string& name, const YAML::Node& value) {
         return;
     }
     Instance::setProperty(name, value);
+}
+
+std::shared_ptr<Instance> Tool::clone() const {
+    auto copy = std::make_shared<Tool>(Name);
+    PropertyRegistry::cloneFields(this, copy.get(), "Tool");
+    for (auto const& [name, child] : children) copy->addChild(child->clone());
+    return copy;
+}
+
+void Tool::remapClonedInstances(const CloneRemap& map) {
+    if (!Handle) return;
+    const auto it = map.find(Handle.get());
+    if (it != map.end()) {
+        Handle = std::static_pointer_cast<BaseCube>(it->second);
+        m_handleName = Handle->getWorkspaceRelativePath();
+    }
 }
 
 void Tool::resolveHandle() {

@@ -47,6 +47,7 @@ struct BufferedInput {
     // このエントリの入力を適用する"前"の、ローカルHumanoidの内部状態のスナップショット
     // (リプレイ開始時に一番古い未ackエントリのこれへ復元してから再生する)
     Vector3 currentMoveDirBefore{};
+    Vector3 smoothedHeadingDirectionBefore{};
     float walkCycleBefore = 0.0f;
     Quaternion rotationBefore{};
 };

@@ -52,7 +52,7 @@ public:
     std::shared_ptr<BaseCube> getCube0() const;
     std::shared_ptr<BaseCube> getCube1() const;
     PhysicsConstraintHandle getConstraintHandle() const;
-    void refreshRefNames();
+    virtual void refreshRefNames();
     void setEnabled(bool enabled);
     // SceneLoader/editor が参照解決完了後に一度だけ呼ぶ公開入口。
     void resolveReferencesAndRegister();

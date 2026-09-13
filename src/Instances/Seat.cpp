@@ -5,9 +5,9 @@
 // System.BaseResolutionのような設計値ではないためYAMLには保存しない(noYaml)
 static const bool s_seatRegistered = []{
     using namespace PropertyRegistry;
-    registerClass("Seat", {
-        field<&Seat::Steer>   ("Steer",    -1, 1).luaReadOnly().noYaml(),
-        field<&Seat::Throttle>("Throttle", -1, 1).luaReadOnly().noYaml(),
+    registerClass("Seat", "Cube", {
+        field<&Seat::Steer>   ("Steer",    -1, 1).luaReadOnly().noYaml().noEditor(),
+        field<&Seat::Throttle>("Throttle", -1, 1).luaReadOnly().noYaml().noEditor(),
     });
     return true;
 }();

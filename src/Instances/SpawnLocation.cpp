@@ -3,7 +3,7 @@
 
 static const bool s_spawnLocationRegistered = [] {
     using namespace PropertyRegistry;
-    registerClass("SpawnLocation", {
+    registerClass("SpawnLocation", "Cube", {
         field<&SpawnLocation::Enabled>("Enabled").group("Spawn"),
     });
     return true;

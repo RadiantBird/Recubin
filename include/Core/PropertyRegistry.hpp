@@ -179,6 +179,43 @@ PropertyDesc instanceRefField(std::string_view name, std::string_view targetClas
     return d;
 }
 
+// Instance参照を文字列として保持しつつ、編集/YAML/clone時の書込みは
+// 対象Instanceのvirtual setPropertyへ通す。参照解決やnative再登録を持つ
+// Instanceで、単純なfield<M>による直接代入を避けるために使う。
+template<auto M>
+PropertyDesc instanceRefProperty(std::string_view name, std::string_view targetClass) {
+    using C = typename member_traits<M>::Class;
+    using V = typename member_traits<M>::Value;
+    static_assert(std::is_same_v<V, std::string>,
+                  "instanceRefProperty requires a std::string member");
+    PropertyDesc d = field<M>(name);
+    d.set = [name](Instance* o, const PropValue& value) {
+        YAML::Node node;
+        node = std::get<std::string>(value);
+        static_cast<C*>(o)->setProperty(std::string(name), node);
+    };
+    d.instanceRefClass = targetClass;
+    d.editorWidget = EditorWidget::InstanceReference;
+    return d;
+}
+
+// String property whose runtime side effects live in the owning Instance's
+// virtual setProperty implementation (for example a mesh file load).
+template<auto M>
+PropertyDesc propertyViaSetProperty(std::string_view name) {
+    using C = typename member_traits<M>::Class;
+    using V = typename member_traits<M>::Value;
+    static_assert(std::is_same_v<V, std::string>,
+                  "propertyViaSetProperty requires a std::string member");
+    PropertyDesc d = field<M>(name);
+    d.set = [name](Instance* o, const PropValue& value) {
+        YAML::Node node;
+        node = std::get<std::string>(value);
+        static_cast<C*>(o)->setProperty(std::string(name), node);
+    };
+    return d;
+}
+
 // 読みはフィールド、Luau 書込のみセッターメソッド経由（YAML/clone/editor はフィールド直）
 template<auto Field, auto SetMethod>
 PropertyDesc fieldVia(std::string_view name, float lo = 0.0f, float hi = 0.0f, float step = 0.1f) {

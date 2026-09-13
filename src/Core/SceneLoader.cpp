@@ -697,9 +697,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             PropertyRegistry::saveProperties(out, inst, inst->getClassName());
         }
         if (inst->getClassName() == "MeshCube") {
-            const MeshCube* mc = static_cast<const MeshCube*>(inst);
-            if (!mc->MeshFile.empty())
-                out << YAML::Key << "MeshFile" << YAML::Value << mc->MeshFile;
+            PropertyRegistry::saveProperties(out, inst, "MeshCube");
         }
         if (inst->getClassName() == "Terrain") {
             const Terrain* tr = static_cast<const Terrain*>(inst);
@@ -780,79 +778,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             out << YAML::Key << "Speed"         << YAML::Value << snd->getSpeed();
             out << YAML::Key << "PreservePitch" << YAML::Value << snd->getPreservePitch();
         }
-        if (inst->IsA("Rope")) {
-            Rope* r = static_cast<Rope*>(inst);
-            r->refreshRefNames();
-            out << YAML::Key << "Enabled"      << YAML::Value << r->Enabled;
-            out << YAML::Key << "Cube0"       << YAML::Value << r->m_cube0Name;
-            out << YAML::Key << "Cube1"       << YAML::Value << r->m_cube1Name;
-            if (!r->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << r->m_attachment0Name;
-            if (!r->m_attachment1Name.empty()) out << YAML::Key << "Attachment1" << YAML::Value << r->m_attachment1Name;
-            out << YAML::Key << "MaxDistance" << YAML::Value << r->MaxDistance;
-            out << YAML::Key << "Stiffness"   << YAML::Value << r->Stiffness;
-            out << YAML::Key << "Damping"     << YAML::Value << r->Damping;
-            out << YAML::Key << "Color"     << YAML::Value << YAML::Flow << YAML::BeginSeq << r->Color.r << r->Color.g << r->Color.b << r->Color.a << YAML::EndSeq;
-            out << YAML::Key << "LineWidth" << YAML::Value << r->LineWidth;
-        }
-        if (inst->IsA("Rod")) {
-            Rod* r = static_cast<Rod*>(inst);
-            r->refreshRefNames();
-            out << YAML::Key << "Enabled" << YAML::Value << r->Enabled;
-            out << YAML::Key << "Cube0" << YAML::Value << r->m_cube0Name;
-            out << YAML::Key << "Cube1" << YAML::Value << r->m_cube1Name;
-            if (!r->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << r->m_attachment0Name;
-            if (!r->m_attachment1Name.empty()) out << YAML::Key << "Attachment1" << YAML::Value << r->m_attachment1Name;
-            out << YAML::Key << "Color"     << YAML::Value << YAML::Flow << YAML::BeginSeq << r->Color.r << r->Color.g << r->Color.b << r->Color.a << YAML::EndSeq;
-            out << YAML::Key << "LineWidth" << YAML::Value << r->LineWidth;
-        }
-        if (inst->IsA("BallSocket")) {
-            BallSocket* bs = static_cast<BallSocket*>(inst);
-            bs->refreshRefNames();
-            out << YAML::Key << "Enabled" << YAML::Value << bs->Enabled;
-            out << YAML::Key << "Cube0" << YAML::Value << bs->m_cube0Name;
-            out << YAML::Key << "Cube1" << YAML::Value << bs->m_cube1Name;
-            if (!bs->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << bs->m_attachment0Name;
-            if (!bs->m_attachment1Name.empty()) out << YAML::Key << "Attachment1" << YAML::Value << bs->m_attachment1Name;
-        }
-        if (inst->IsA("NoCollision")) {
-            NoCollision* nc = static_cast<NoCollision*>(inst);
-            nc->refreshRefNames();
-            out << YAML::Key << "Enabled" << YAML::Value << nc->Enabled;
-            out << YAML::Key << "Cube0" << YAML::Value << nc->m_cube0Name;
-            out << YAML::Key << "Cube1" << YAML::Value << nc->m_cube1Name;
-        }
-        if (inst->IsA("Weld")) {
-            Weld* w = static_cast<Weld*>(inst);
-            w->refreshRefNames();
-            out << YAML::Key << "Enabled" << YAML::Value << w->Enabled;
-            out << YAML::Key << "Cube0" << YAML::Value << w->m_cube0Name;
-            out << YAML::Key << "Cube1" << YAML::Value << w->m_cube1Name;
-        }
-        if (inst->IsA("Motor")) {
-            Motor* m = static_cast<Motor*>(inst);
-            m->refreshRefNames();
-            out << YAML::Key << "Enabled" << YAML::Value << m->Enabled;
-            out << YAML::Key << "Cube0" << YAML::Value << m->m_cube0Name;
-            out << YAML::Key << "Cube1" << YAML::Value << m->m_cube1Name;
-            if (!m->m_attachment0Name.empty()) out << YAML::Key << "Attachment0" << YAML::Value << m->m_attachment0Name;
-            if (!m->m_attachment1Name.empty()) out << YAML::Key << "Attachment1" << YAML::Value << m->m_attachment1Name;
-            out << YAML::Key << "Axis"  << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << m->Axis.x << m->Axis.y << m->Axis.z
-                << YAML::EndSeq;
-            out << YAML::Key << "DriveVelocity" << YAML::Value << m->DriveVelocity;
-            out << YAML::Key << "MaxForce"      << YAML::Value << m->MaxForce;
-        }
-        if (inst->IsA("Motor6D")) {
-            auto* motor = static_cast<Motor6D*>(inst);
-            motor->refreshRefNames();
-            PropertyRegistry::saveProperties(out, inst, "Motor6D");
-        }
-        if (inst->IsA("Gyro")) {
-            auto* gyro = static_cast<Gyro*>(inst);
-            gyro->refreshRefNames();
-            gyro->m_cube1Name = gyro->m_cube0Name;
-            PropertyRegistry::saveProperties(out, inst, "Gyro");
+        if (inst->IsA("PhysicsConstraint")) {
+            static_cast<PhysicsConstraint*>(inst)->refreshRefNames();
+            PropertyRegistry::saveProperties(out, inst, inst->getClassName());
         }
 
         if (inst->getClassName() == "Force") {
@@ -926,19 +854,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             PropertyRegistry::saveProperties(out, sys, "System");  // BaseResolution
         }
         if (inst->getClassName() == "Tool") {
-            const Tool* tool = static_cast<const Tool*>(inst);
-            static const char* handNames[] = { "Right", "Left", "Both" };
-            out << YAML::Key << "Hand" << YAML::Value << handNames[static_cast<int>(tool->Hand)];
-            out << YAML::Key << "Position" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << tool->Position.x << tool->Position.y << tool->Position.z
-                << YAML::EndSeq;
-            out << YAML::Key << "Rotation" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << tool->Rotation.x << tool->Rotation.y << tool->Rotation.z << tool->Rotation.w
-                << YAML::EndSeq;
-            if (!tool->m_handleName.empty())
-                out << YAML::Key << "Handle" << YAML::Value << tool->m_handleName;
+            PropertyRegistry::saveProperties(out, inst, "Tool");
         }
         if (inst->getClassName() == "IntValue")     PropertyRegistry::saveProperties(out, inst, "IntValue");
         if (inst->getClassName() == "BoolValue")     PropertyRegistry::saveProperties(out, inst, "BoolValue");

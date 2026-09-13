@@ -433,7 +433,15 @@ void LuauEngine::InitDispatchTable_Base() {
 
     PropertyRegistry::applyToDispatch("LiquidCube", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("SpawnLocation", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("PhysicsConstraint", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Force", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("MeshCube", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Rope", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Rod", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("BallSocket", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("NoCollision", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Weld", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Motor", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Motor6D", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Gyro", DispatchTable, SetterTable);
     // Force.Value を既存のスキーマ名として維持しつつ、Luau では一般的な Force 名でも扱えるようにする。
@@ -505,39 +513,9 @@ void LuauEngine::InitDispatchTable_World() {
 
 // ==================== Getter: Rope, Rod, Weld, Motor ====================
 void LuauEngine::InitDispatchTable_Physics() {
-    DispatchTable["Rope"]["Enabled"] = getter_bool<Rope, &Rope::Enabled>();
-    DispatchTable["Rope"]["Attachment0"] = getter_string<Rope, &Rope::m_attachment0Name>();
-    DispatchTable["Rope"]["Attachment1"] = getter_string<Rope, &Rope::m_attachment1Name>();
-    DispatchTable["Rope"]["MaxDistance"] = getter_number <Rope, &Rope::MaxDistance>();
-    DispatchTable["Rope"]["Stiffness"]   = getter_number <Rope, &Rope::Stiffness>();
-    DispatchTable["Rope"]["Damping"]     = getter_number <Rope, &Rope::Damping>();
-    DispatchTable["Rope"]["LineWidth"]   = getter_number <Rope, &Rope::LineWidth>();
-    DispatchTable["Rope"]["Color"]       = getter_color4 <Rope, &Rope::Color>();
-
-    DispatchTable["Rod"]["Attachment0"] = getter_string<Rod, &Rod::m_attachment0Name>();
-    DispatchTable["Rod"]["Enabled"] = getter_bool<Rod, &Rod::Enabled>();
-    DispatchTable["Rod"]["Attachment1"] = getter_string<Rod, &Rod::m_attachment1Name>();
-    DispatchTable["Rod"]["LineWidth"] = getter_number <Rod, &Rod::LineWidth>();
-    DispatchTable["Rod"]["Color"]     = getter_color4 <Rod, &Rod::Color>();
-
-    DispatchTable["BallSocket"]["Attachment0"] = getter_string<BallSocket, &BallSocket::m_attachment0Name>();
-    DispatchTable["BallSocket"]["Enabled"] = getter_bool<BallSocket, &BallSocket::Enabled>();
-    DispatchTable["BallSocket"]["Attachment1"] = getter_string<BallSocket, &BallSocket::m_attachment1Name>();
-
-    DispatchTable["Weld"]["Cube0"] = getter_string<Weld, &Weld::m_cube0Name>();
-    DispatchTable["Weld"]["Enabled"] = getter_bool<Weld, &Weld::Enabled>();
-    DispatchTable["Weld"]["Cube1"] = getter_string<Weld, &Weld::m_cube1Name>();
-
-    DispatchTable["NoCollision"]["Cube0"] = getter_string<NoCollision, &NoCollision::m_cube0Name>();
-    DispatchTable["NoCollision"]["Enabled"] = getter_bool<NoCollision, &NoCollision::Enabled>();
-    DispatchTable["NoCollision"]["Cube1"] = getter_string<NoCollision, &NoCollision::m_cube1Name>();
-
-    DispatchTable["Motor"]["Attachment0"]   = getter_string<Motor, &Motor::m_attachment0Name>();
-    DispatchTable["Motor"]["Enabled"]        = getter_bool<Motor, &Motor::Enabled>();
-    DispatchTable["Motor"]["Attachment1"]   = getter_string<Motor, &Motor::m_attachment1Name>();
-    DispatchTable["Motor"]["DriveVelocity"] = getter_number<Motor, &Motor::DriveVelocity>();
-    DispatchTable["Motor"]["MaxForce"]      = getter_number<Motor, &Motor::MaxForce>();
-    DispatchTable["Motor"]["Axis"]          = getter_vec3  <Motor, &Motor::Axis>();
+    // Physics Instance getters are installed from PropertyRegistry in the
+    // world/base initialization phase.  Keep this hook for non-property
+    // physics methods without maintaining a second getter table.
 }
 
 // ==================== Getter: Sound, Humanoid, AppImage, Script ====================
@@ -636,14 +614,7 @@ void LuauEngine::InitDispatchTable_Misc() {
         lua_setmetatable(L, -2);
         return 1;
     };
-    DispatchTable["Tool"]["Activated"]  = getter_signal<Tool, &Tool::Activated>();
-    DispatchTable["Tool"]["Equipped"]   = getter_bool  <Tool, &Tool::Equipped>();  // read-only（装着ロジックは別経路）
-    DispatchTable["Tool"]["Hand"]       = getter_number<Tool, &Tool::Hand>();
-    DispatchTable["Tool"]["Position"]   = getter_vec3<Tool, &Tool::Position>();
-    DispatchTable["Tool"]["Rotation"] = [](lua_State* L, Instance* obj) {
-        pushQuaternion(L, static_cast<Tool*>(obj)->Rotation);
-        return 1;
-    };
+    PropertyRegistry::applyToDispatch("Tool", DispatchTable, SetterTable);
 
     // User.CharacterAdded: 新しいキャラクター(PlayerCharacter)がspawnされるたび発火(初回spawn+全respawn)。
     // Luau側にcharacter(Model)を引数で渡す
@@ -963,51 +934,10 @@ void LuauEngine::InitSetterTable_World() {
 
 // ==================== Setter: Weld, Rope, Rod, Motor ====================
 void LuauEngine::InitSetterTable_Physics() {
-    SetterTable["Weld"]["Enabled"] = setter_method_bool<Weld, &Weld::setEnabled>();
-    SetterTable["Weld"]["Cube0"] = setter_cube_ref<Weld, &Weld::setCube0>();
-    SetterTable["Weld"]["Cube1"] = setter_cube_ref<Weld, &Weld::setCube1>();
-
-    SetterTable["NoCollision"]["Cube0"] = setter_cube_ref<NoCollision, &NoCollision::setCube0>();
-    SetterTable["NoCollision"]["Enabled"] = setter_method_bool<NoCollision, &NoCollision::setEnabled>();
-    SetterTable["NoCollision"]["Cube1"] = setter_cube_ref<NoCollision, &NoCollision::setCube1>();
-
-    SetterTable["Rope"]["Cube0"]       = setter_cube_ref     <Rope, &Rope::setCube0>();
-    SetterTable["Rope"]["Enabled"]      = setter_method_bool<Rope, &Rope::setEnabled>();
-    SetterTable["Rope"]["Cube1"]       = setter_cube_ref     <Rope, &Rope::setCube1>();
-    SetterTable["Rope"]["Attachment0"] = setter_property_string("Attachment0");
-    SetterTable["Rope"]["Attachment1"] = setter_property_string("Attachment1");
-    SetterTable["Rope"]["MaxDistance"] = setter_method_float<Rope, &Rope::setMaxDistance>();
-    SetterTable["Rope"]["Stiffness"]   = setter_method_float<Rope, &Rope::setStiffness>();
-    SetterTable["Rope"]["Damping"]     = setter_method_float<Rope, &Rope::setDamping>();
-    SetterTable["Rope"]["LineWidth"]   = setter_number      <Rope, &Rope::LineWidth>();
-    SetterTable["Rope"]["Color"]       = setter_color4      <Rope, &Rope::Color>();
-
-    SetterTable["Rod"]["Cube0"]     = setter_cube_ref<Rod, &Rod::setCube0>();
-    SetterTable["Rod"]["Enabled"]    = setter_method_bool<Rod, &Rod::setEnabled>();
-    SetterTable["Rod"]["Cube1"]     = setter_cube_ref<Rod, &Rod::setCube1>();
-    SetterTable["Rod"]["Attachment0"] = setter_property_string("Attachment0");
-    SetterTable["Rod"]["Attachment1"] = setter_property_string("Attachment1");
-    SetterTable["Rod"]["LineWidth"] = setter_number<Rod, &Rod::LineWidth>();
-    SetterTable["Rod"]["Color"]     = setter_color4<Rod, &Rod::Color>();
-
-    SetterTable["BallSocket"]["Cube0"]     = setter_cube_ref<BallSocket, &BallSocket::setCube0>();
-    SetterTable["BallSocket"]["Enabled"]    = setter_method_bool<BallSocket, &BallSocket::setEnabled>();
-    SetterTable["BallSocket"]["Cube1"]     = setter_cube_ref<BallSocket, &BallSocket::setCube1>();
-    SetterTable["BallSocket"]["Attachment0"] = setter_property_string("Attachment0");
-    SetterTable["BallSocket"]["Attachment1"] = setter_property_string("Attachment1");
-
-    SetterTable["Motor"]["Cube0"]         = setter_cube_ref<Motor, &Motor::setCube0>();
-    SetterTable["Motor"]["Enabled"]       = setter_method_bool<Motor, &Motor::setEnabled>();
-    SetterTable["Motor"]["Cube1"]         = setter_cube_ref<Motor, &Motor::setCube1>();
-    SetterTable["Motor"]["Attachment0"]   = setter_property_string("Attachment0");
-    SetterTable["Motor"]["Attachment1"]   = setter_property_string("Attachment1");
-    SetterTable["Motor"]["DriveVelocity"] = setter_method_float<Motor, &Motor::setDriveVelocity>();
-    SetterTable["Motor"]["MaxForce"]      = setter_method_float<Motor, &Motor::setMaxForce>();
-    SetterTable["Motor"]["Axis"] = [](lua_State* L, Instance* obj) {
-        Vector3* axis = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
-        static_cast<Motor*>(obj)->setAxis(*axis);
-        return 0;
-    };
+    // Physics Instance properties are registered through PropertyRegistry and
+    // installed during InitDispatchTable_World.  Keep this phase for future
+    // non-schema methods only; duplicating schema setters here would let the
+    // legacy path drift from YAML/editor behavior.
 }
 
 // ==================== Setter: Sound, Humanoid, AppImage, Script ====================
@@ -1019,13 +949,6 @@ void LuauEngine::InitSetterTable_Misc() {
     SetterTable["Sound"]["TimePosition"]  = setter_method_float<Sound, &Sound::seekSeconds>();
     SetterTable["Sound"]["AutoPlay"]      = setter_bool        <Sound, &Sound::autoPlay>();
 
-    SetterTable["Tool"]["Hand"]     = setter_number<Tool, &Tool::Hand>();
-    SetterTable["Tool"]["Position"] = setter_vec3<Tool, &Tool::Position>();
-    SetterTable["Tool"]["Rotation"] = [](lua_State* L, Instance* obj) {
-        Quaternion* q = (Quaternion*)luaL_checkudata(L, 3, LuauEngine::RCBN_QUATERNION_METATABLE);
-        static_cast<Tool*>(obj)->Rotation = *q;
-        return 0;
-    };
 
     // FileRef.Source: FileRef インスタンスを代入して消費者にロードさせる（生パスは扱わない）
     SetterTable["Sound"]["Source"] = [](lua_State* L, Instance* o) {

@@ -500,3 +500,24 @@
   `UtilBindVsockAnyPort: socket failed 1`で失敗し、ビルド結果は未検証。
 - 次の判定: commandに対する符号反転がpre-step以前、solver直後、post-MaintainVelocityのどこで
   発生するかをログで切り分ける。
+
+## 2026-09-13: CharacterSmoothing yaw配線とInstance schema監査
+
+- CharacterSmoothingのdt補間状態をHumanoidへ追加し、通常移動は既存のcurrentMoveDir、CtrlLockは
+  平滑化済みcamera headingをYawForceの目標方向へ渡すよう再配線した。Replication replay用に補間状態も保存・復元する。
+- 基準コミット`2bf9f2f`以降のInstance差分を確認した結果、追加Instanceそのものはなく、差分は
+  Box3D/CharacterRig/Humanoidの変更だった。一方、既存のPhysics/Character InstanceにはPropertyRegistry・
+  PropertiesPanel・SceneLoader・Luau dispatchの配線漏れが残っていたため、実在するクラスを監査対象に含めた。
+- BallSocket/Rod/Rope/Motor/NoCollision/Weld、MeshCube、Toolのスキーマを追加し、BaseCube派生の
+  Cube/Sphere/Cylinder/TriangularPrism/Truss/Seat/SpawnLocation/LiquidCube/Skybox/Sun/Moonの継承鎖を登録した。
+  物理制約の手書きProperties UI・保存・Luau getter/setterをschema駆動へ寄せた。
+- Task 1/2の変更はまだコミットされていない。Gitは`.git/index.lock`作成時にRead-only filesystemとなり、
+  別コミット化できなかった。
+- Release buildは`cmd.exe /d /c py build.py build`のconfigure起動で`FileNotFoundError: WinError 2`により停止。
+  WSL側の限定C++ syntax checkはconstraint/Tool/PropertyRegistryで成功したが、Windows buildとruntime回帰は未実施。
+- SeatのSteer/Throttleはエンジン更新のライブ値としてeditor非公開（Luau読取専用・YAML非保存）に整理し、
+  `--property-schema-regression`相当のschema/setter検証コードへRope/Motor/Tool/BaseCube派生の確認を追加した。
+- MeshCubeと二体PhysicsConstraint群のcloneも登録schemaの`cloneFields()`を通すようにし、clone対象のメタデータを
+  手書きコピーと分離しないよう整理した。参照weak_ptrの再結合処理は既存のremap経路を維持する。
+- 最終局所syntax checkはSeat/Tool/制約群/PropertyRegistryとHumanoid/Replicationで成功。指定Release buildの再試行も
+  同じ`WinError 2`でconfigure前に停止したため、Task 1/2のruntime確認は未完了。

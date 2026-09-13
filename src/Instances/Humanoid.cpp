@@ -506,6 +506,25 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     // --- 移動ベクトルの補間 ---
     currentMoveDir = currentMoveDir + (targetMoveDir - currentMoveDir) * smoothingAlpha;
 
+    const Vector3 flatHeading(
+        flatForward.x,
+        0.0f,
+        flatForward.z
+    );
+    if (flatHeading.lengthSquared() > 1.0e-8f) {
+        const Vector3 targetHeading = flatHeading.normalize();
+        if (m_smoothedHeadingDirection.lengthSquared() <= 1.0e-8f) {
+            m_smoothedHeadingDirection = targetHeading;
+        }
+        else {
+            m_smoothedHeadingDirection =
+                m_smoothedHeadingDirection +
+                (targetHeading - m_smoothedHeadingDirection) * smoothingAlpha;
+            if (m_smoothedHeadingDirection.lengthSquared() > 1.0e-8f)
+                m_smoothedHeadingDirection = m_smoothedHeadingDirection.normalize();
+        }
+    }
+
     // --- Truss(はしご)接触判定。登坂中は重力を切り、静止していても留まれるようにする ---
     BaseCube* trussCube = physics ? physics->findOverlapping(*root, "Truss", 0.5f) : nullptr;
     physics->setGravityEnabled(*root, trussCube == nullptr);
@@ -516,10 +535,10 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         const Vector3* headingDirection = nullptr;
 
         if (ctrlLockEnabled) {
-            headingDirection = &flatForward;
+            headingDirection = &m_smoothedHeadingDirection;
         }
         else if (isPressingMove) {
-            headingDirection = &targetMoveDir;
+            headingDirection = &currentMoveDir;
         }
 
         // X/Z remain physical Gyro axes.

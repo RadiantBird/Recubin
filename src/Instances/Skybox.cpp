@@ -1,6 +1,12 @@
 #include <include/Instances/Skybox.hpp>
 #include <include/Instances/Decal.hpp>
 #include <include/Core/Renderer.hpp>
+#include <include/Core/PropertyRegistry.hpp>
+
+static const bool s_skyboxRegistered = [] {
+    PropertyRegistry::registerClass("Skybox", "Cube", {});
+    return true;
+}();
 
 Skybox::Skybox() : Named<Skybox, Cube>(Vector3(0,0,0), Vector3(5000.0f, 5000.0f, 5000.0f), 0) {
     Name = "Skybox";

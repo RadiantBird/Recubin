@@ -26,7 +26,7 @@ public:
     // セーブ直前に呼ばれ、生きている参照から現在の正しいパスを再生成する
     // （Cube のリパレント/リネームでパス文字列が古くなるため）。
     // 名前が空 = 「未設定」の正当な状態なので復活させない
-    void refreshRefNames();
+    void refreshRefNames() override;
 
     // 指定キューブに Weld で連鎖接続された全 BaseCube を収集する（BFS）
     // root: 溶接ツリーを走査する起点（Workspace でも StarterCharacter/System でも可）

@@ -7,7 +7,7 @@
 
 static const bool s_liquidCubeRegistered = []{
     using namespace PropertyRegistry;
-    registerClass("LiquidCube", {
+    registerClass("LiquidCube", "BaseCube", {
         field<&LiquidCube::Density>("Density", 0.0f, 50.0f, 0.1f),
     });
     return true;

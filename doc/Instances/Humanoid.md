@@ -61,7 +61,8 @@ bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を
 ```
 move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, physics, ..., smoothing)
   ├─ currentMoveDir をtargetMoveDirへ補間(User.CharacterSmoothing、既定0.15)
-  ├─ 向き決定: CtrlLock中はカメラ正面 / 移動中は移動方向 へSlerp
+  ├─ flatForwardをCharacterSmoothingでdt補間したheadingを更新
+  ├─ 向き決定: CtrlLock中は平滑化済みカメラ正面 / 移動中は平滑化済み移動方向
   ├─ 壁ずり: 進行方向にレイキャストし、法線成分を速度から除去
   ├─ PhysXアクターへ水平速度を適用（Y速度は保持）
   ├─ walkCycle更新（押下中は加算、離した後は0.5basisで戻す）

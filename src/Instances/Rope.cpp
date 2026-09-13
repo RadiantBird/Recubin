@@ -2,8 +2,25 @@
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/Attachment.hpp>
 #include <include/Core/Physics.hpp>
+#include <include/Core/PropertyRegistry.hpp>
 #include <cmath>
 #include <utility>
+
+static const bool s_ropeRegistered = [] {
+    using namespace PropertyRegistry;
+    registerClass("Rope", "PhysicsConstraint", {
+        instanceRefProperty<&PhysicsConstraint::m_cube0Name>("Cube0", "BaseCube"),
+        instanceRefProperty<&PhysicsConstraint::m_cube1Name>("Cube1", "BaseCube"),
+        instanceRefProperty<&Rope::m_attachment0Name>("Attachment0", "Attachment").omitEmpty(),
+        instanceRefProperty<&Rope::m_attachment1Name>("Attachment1", "Attachment").omitEmpty(),
+        method_prop<&Rope::getMaxDistance, &Rope::setMaxDistance>("MaxDistance", 0.0f, 1.0e6f, 0.1f),
+        method_prop<&Rope::getStiffness, &Rope::setStiffness>("Stiffness", 0.0f, 1.0e6f, 1.0f),
+        method_prop<&Rope::getDamping, &Rope::setDamping>("Damping", 0.0f, 1.0e6f, 0.1f),
+        field<&Rope::Color>("Color"),
+        field<&Rope::LineWidth>("LineWidth", 0.5f, 16.0f, 0.1f),
+    });
+    return true;
+}();
 
 Rope::Rope()
     : PhysicsConstraint("Rope") {}
@@ -59,16 +76,7 @@ void Rope::setDamping(float v) {
 std::shared_ptr<Instance> Rope::clone() const {
     auto c = std::make_shared<Rope>();
     c->Name        = Name;
-    c->Enabled     = Enabled;
-    c->m_cube0Name = m_cube0Name;
-    c->m_cube1Name = m_cube1Name;
-    c->m_attachment0Name = m_attachment0Name;
-    c->m_attachment1Name = m_attachment1Name;
-    c->MaxDistance = MaxDistance;
-    c->Stiffness   = Stiffness;
-    c->Damping     = Damping;
-    c->Color       = Color;
-    c->LineWidth   = LineWidth;
+    PropertyRegistry::cloneFields(this, c.get(), "Rope");
     c->m_cube0     = m_cube0;
     c->m_cube1     = m_cube1;
     c->m_attachment0 = m_attachment0;

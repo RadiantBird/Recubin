@@ -1,7 +1,7 @@
 # Luau バインディング 未実装チェックリスト
 
 > 目的: Instance 各クラスの public なプロパティ / メソッド / シグナルのうち、**Luau から到達できないもの**を洗い出す。
-> このドキュメントは「監査結果」であり、実装はまだ行っていない。各項目の実装可否は別途判断する。
+> このドキュメントは Luau 配線の監査結果。実装済み項目は実装側の schema/dispatch と同期して更新する。
 >
 > 対象範囲: プロパティ + メソッド + 未実装 Luau 型（CFrame / Quaternion 等）。
 
@@ -21,21 +21,17 @@
    `applyToDispatch("...")` 呼び出しリストと照合。
 4. 差分（C++に存在するが Luau 未到達）を ❌ として抽出。
 
-**確定事実:**
-- `registerClass` 済みクラス（19件）: AppImage, Humanoid, BillboardGui, GuiButton,
-  ImageButton, ImageLabel, Lighting, LightSource, LiquidCube, Moon, PointLight,
-  ProximityPrompt, ScreenGuiObject, SurfaceGui, SpotLight, Sun, TextButton, TextLabel, WorldGuiObject
-- `applyToDispatch` 済み（17件）: LiquidCube, Sun, Moon, Lighting, LightSource, PointLight,
-  SpotLight, Humanoid, AppImage, ScreenGuiObject, GuiButton, TextLabel, TextButton,
-  WorldGuiObject, SurfaceGui, BillboardGui, ProximityPrompt
-- **差分 = ImageLabel, ImageButton**（registerClass したが applyToDispatch 漏れ → 🔧要配線）
-- Rope / Rod / Motor / Weld は `registerClass` されておらず **Dispatch 手書き専用**（PR には無い）。
+**監査時点の確定事実:**
+- Physics/Character 系の `Force`, `Gyro`, `Motor6D` は schema 登録と Luau dispatch 配線済み。
+- `PhysicsConstraint` と派生の `Rope`, `Rod`, `BallSocket`, `NoCollision`, `Weld`, `Motor` も
+  schema を基準に YAML/clone/editor/Luau を接続済み。
+- ImageLabel / ImageButton の dispatch 配線漏れなど、今回の対象外の既存項目は下記の未実装表に残す。
 
 ---
 
 ## 0. 最優先（バグ・基盤の欠落）
 
-> パス系は開発中とパッケージ後で異なってしまうので、実装にはこの問題の解決が必要なので、今回は実装しないことにしました。
+> パス系の既存規約は維持し、今回対象の参照プロパティは型付き Instance picker と既存の相対パス解決を共有する。
 - [ ] 🔧 **ImageLabel.Image** — `registerClass` 済みだが `InitDispatchTable_GUI()` の applyToDispatch に無く Luau から不可視。`PropertyRegistry::applyToDispatch("ImageLabel", ...)` を1行追加するだけで解消。
 - [ ] 🔧 **ImageButton.Image** — 同上。`applyToDispatch("ImageButton", ...)` 追加。
 - [x] ❌ **CFrame 型（Luau）** — メタテーブル未定義（現状は `RCBN_Vector3/Vector2/Color4` のみ）。`Spatial.cframe` を公開する前提となる基盤。
@@ -90,7 +86,7 @@
 | Sun | Angle | ✅ | applyToDispatch 済 |
 | Moon | （無し） | ✅ | |
 | **LiquidCube** | Density | ✅ | applyToDispatch 済 |
-| **MeshCube** | MeshFile | ⚠️ get のみ | 手書き。**setter / loadFromGLB 未公開** |
+| **MeshCube** | MeshFile | ✅ | PropertyRegistry経由。setter は loadFromGLB と物理actor再生成を呼ぶ |
 
 ---
 
@@ -123,16 +119,16 @@
 
 ## 5. 物理コンストレイント（Weld / Rope / Rod / Motor）
 
-すべて Dispatch 手書き専用（PropertyRegistry 未登録）。
+共通の Enabled と各クラス固有プロパティを PropertyRegistry から配線する。
 
 | クラス | バインド済 | 未バインド |
 |---|---|---|
-| Weld | Cube0 / Cube1 | — |
-| Rope | MaxDistance / Stiffness / Damping / LineWidth / Color / Cube0 / Cube1 | — |
-| Rod | LineWidth / Color / Cube0 / Cube1 | — |
-| Motor | DriveVelocity / MaxForce / Cube0 / Cube1 | **Axis(Vec3)** ❌ |
-
-- [x] ❌ **Motor.Axis** — ヘッダに存在するが Dispatch 未登録。
+| Weld | Cube0 / Cube1 / Enabled | — |
+| Rope | MaxDistance / Stiffness / Damping / LineWidth / Color / Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
+| Rod | LineWidth / Color / Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
+| BallSocket | Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
+| NoCollision | Cube0 / Cube1 / Enabled | — |
+| Motor | Axis / DriveVelocity / MaxForce / Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
 
 ---
 
@@ -154,7 +150,7 @@
 | **PostEffect** | Enabled/Type/ZIndex/Intensity/Param1/Param2 | ❌ | **クラスごと未バインド** |
 | **Animation** | Length / Speed / addOrReplaceKey / removeKey / import・exportToFile | ❌ | **クラスごと未バインド** |
 | **Tool** | Activated(Signal) | ✅ | |
-| **Tool** | **Equipped / Hand / Handle** | ❌ | 3メンバ未公開 |
+| **Tool** | Equipped / Hand / Handle | ✅ | Equipped は Luau 読取専用。Hand/Handle は読み書き可能 |
 | **Model** | Position / Size | ❌ | Spatial 基底未バインド |
 | System | Heartbeat | ✅ | |
 | System | BaseResolution | ⚠️ get のみ | PR経由・`.luaReadOnly()`で意図的にset不可（ScreenGui基準解像度） |
@@ -174,8 +170,8 @@
 3. **Spatial 基底**: Position/Size/Rotation/cframe（Model/Sound に波及）
 4. **クラスごと未バインド 3件**: Texture, PostEffect, Animation
 5. **個別プロパティ漏れ**: BaseCube(CastShadow/Unlit/UseTriplanar/TextureScale/material/Rotation),
-   Decal(texturePath/Color), Tool(Equipped/Hand/Handle), Sound(autoPlay/ContentPath/SoundGroup),
-   Motor(Axis), Skybox(skyboxPaths), MeshCube(setter/loadFromGLB), Script(Source setter), Instance(Parent setter)
+   Decal(texturePath/Color), Sound(autoPlay/ContentPath/SoundGroup),
+   Skybox(skyboxPaths), Script(Source setter), Instance(Parent setter)
 
 > 注: §6 のうち Animation / MeshCube / Skybox / Model / Folder / StarterCharacter / UserInput / System / Event
 > のメンバ詳細は調査時のヘッダ要約に基づく。実装着手前に該当ヘッダを再確認すること。

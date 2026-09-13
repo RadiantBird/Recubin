@@ -4,6 +4,12 @@
 #include <Util/GLUniformCache.hpp>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <include/Core/PropertyRegistry.hpp>
+
+static const bool s_cubeRegistered = [] {
+    PropertyRegistry::registerClass("Cube", "BaseCube", {});
+    return true;
+}();
 
 unsigned int Cube::defaultTextureID = 0;
 unsigned int Cube::s_VAO = 0;

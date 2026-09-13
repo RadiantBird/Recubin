@@ -5563,6 +5563,7 @@ int runTerrainInstanceRegression() {
 struct HumanoidFrameRateSample {
     float walkCycle = 0.0f;
     Vector3 currentMoveDir;
+    Vector3 smoothedHeadingDirection;
     Quaternion rootRotation;
     bool valid = false;
 };
@@ -5585,7 +5586,33 @@ HumanoidFrameRateSample sampleHumanoidSmoothing(float smoothing) {
 
     humanoid->move(Vector3(0, 0, -1), Vector3(1, 0, 0), true, Vector3(1, 0, 0), false,
                    physics, false, false, 1.0f, 0.0f, smoothing, 1.0f / 60.0f);
-    return { humanoid->getWalkCycle(), humanoid->getCurrentMoveDir(), root->getCFrame().Rotation, true };
+    return { humanoid->getWalkCycle(), humanoid->getCurrentMoveDir(),
+             humanoid->getSmoothedHeadingDirection(), root->getCFrame().Rotation, true };
+}
+
+Vector3 sampleHumanoidCtrlLockHeading(float smoothing) {
+    auto workspace = std::make_shared<Workspace>();
+    auto root = std::make_shared<BaseCube>(Vector3(0, 100, 0), Vector3(2, 2, 2));
+    root->Name = "CtrlLockSmoothingRoot";
+    auto humanoid = std::make_shared<Humanoid>();
+    humanoid->Name = "CtrlLockSmoothingHumanoid";
+    humanoid->setRootPart(root);
+    workspace->addChild(root);
+    workspace->addChild(humanoid);
+    workspace->initPhysics();
+
+    Physics* physics = workspace->getPhysicsEngine();
+    if (!physics) return {};
+    physics->update(*workspace, 0.0f);
+    if (!physics->hasBody(*root)) return {};
+
+    humanoid->move(Vector3(0, 0, -1), Vector3(1, 0, 0), false,
+                   Vector3(0, 0, -1), true, physics, false, false,
+                   0.0f, 0.0f, smoothing, 1.0f / 60.0f);
+    humanoid->move(Vector3(1, 0, 0), Vector3(0, 0, -1), false,
+                   Vector3(1, 0, 0), true, physics, false, false,
+                   0.0f, 0.0f, smoothing, 1.0f / 60.0f);
+    return humanoid->getSmoothedHeadingDirection();
 }
 
 int runUserCharacterSmoothingRegression() {
@@ -5649,6 +5676,16 @@ int runUserCharacterSmoothingRegression() {
            "one applies movement direction without interpolation");
     expect(frozen.currentMoveDir.length() < 0.001f,
            "zero does not follow the movement target");
+
+    const Vector3 ctrlSmooth = sampleHumanoidCtrlLockHeading(0.15f);
+    const Vector3 ctrlImmediate = sampleHumanoidCtrlLockHeading(1.0f);
+    const Vector3 ctrlFrozen = sampleHumanoidCtrlLockHeading(0.0f);
+    expect(ctrlImmediate.x > 0.999f && std::abs(ctrlImmediate.z) < 0.001f,
+           "CtrlLock smoothing one follows the camera heading immediately");
+    expect(ctrlSmooth.x > 0.0f && ctrlSmooth.x < ctrlImmediate.x && ctrlSmooth.z < 0.0f,
+           "CtrlLock CharacterSmoothing delays camera-heading changes");
+    expect(ctrlFrozen.x < 0.001f && ctrlFrozen.z < -0.999f,
+           "CtrlLock smoothing zero keeps the previous camera heading");
 
     std::cout << "[UserCharacterSmoothing] failures=" << failures
               << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
@@ -6137,6 +6174,7 @@ HumanoidFrameRateSample sampleHumanoidAtFrameRate(int frameRate) {
     return {
         humanoid->getWalkCycle(),
         humanoid->getCurrentMoveDir(),
+        humanoid->getSmoothedHeadingDirection(),
         root->getCFrame().Rotation,
         true,
     };
@@ -6196,6 +6234,9 @@ int runFrameRateInvarianceRegression() {
                "Humanoid walkCycle is frame-rate invariant");
         expect(positionDistance(sample.currentMoveDir, humanoidBaseline.currentMoveDir) <= 0.0001f,
                "Humanoid currentMoveDir is frame-rate invariant");
+        expect(positionDistance(sample.smoothedHeadingDirection,
+                                humanoidBaseline.smoothedHeadingDirection) <= 0.0001f,
+               "Humanoid smoothed heading is frame-rate invariant");
         expect(quaternionDotMagnitude(sample.rootRotation, humanoidBaseline.rootRotation) >= 0.9999f,
                "Humanoid root rotation is frame-rate invariant");
     }
@@ -9555,6 +9596,12 @@ static int runPropertySchemaRegression() {
         return std::find_if(schema.begin(), schema.end(),
             [](const PropertyDesc* desc) { return desc && desc->name == "Enabled"; });
     };
+    const auto findSchemaProperty = [](const std::vector<const PropertyDesc*>& schema,
+                                       std::string_view name) {
+        return std::find_if(schema.begin(), schema.end(), [name](const PropertyDesc* desc) {
+            return desc && desc->name == name;
+        });
+    };
 
     for (const auto& [expectedClass, constraint] : constraints) {
         const auto schema = PropertyRegistry::collectApplicableSchema(constraint.get());
@@ -9582,6 +9629,82 @@ static int runPropertySchemaRegression() {
                std::string(expectedClass) +
                    " generic property command undo restores Enabled");
     }
+
+    const auto ropeSchema = PropertyRegistry::collectApplicableSchema(constraints[0].second.get());
+    const auto ropeDistance = findSchemaProperty(ropeSchema, "MaxDistance");
+    expect(ropeDistance != ropeSchema.end() && (*ropeDistance)->type == PropType::Float &&
+               (*ropeDistance)->get && (*ropeDistance)->set,
+           "Rope exposes editable distance through its derived schema");
+    if (ropeDistance != ropeSchema.end()) {
+        auto rope = std::static_pointer_cast<Rope>(constraints[0].second);
+        SetPropertyCommand distanceCommand(
+            rope, *ropeDistance, PropertyRegistry::readValue(rope.get(), **ropeDistance),
+            PropValue(3.25f));
+        distanceCommand.execute();
+        expect(std::abs(rope->getMaxDistance() - 3.25f) < 1.0e-5f,
+               "Rope MaxDistance editor command reaches the runtime setter");
+        distanceCommand.undo();
+    }
+
+    const auto motorSchema = PropertyRegistry::collectApplicableSchema(constraints[4].second.get());
+    const auto motorAxis = findSchemaProperty(motorSchema, "Axis");
+    expect(motorAxis != motorSchema.end() && (*motorAxis)->type == PropType::Vec3 &&
+               (*motorAxis)->get && (*motorAxis)->set,
+           "Motor exposes Axis through its derived schema");
+    if (motorAxis != motorSchema.end()) {
+        auto motor = std::static_pointer_cast<Motor>(constraints[4].second);
+        SetPropertyCommand axisCommand(
+            motor, *motorAxis, PropertyRegistry::readValue(motor.get(), **motorAxis),
+            PropValue(Vector3(0.0f, 1.0f, 0.0f)));
+        axisCommand.execute();
+        expect(motor->Axis == Vector3(0.0f, 1.0f, 0.0f),
+               "Motor Axis editor command reaches the runtime setter");
+        axisCommand.undo();
+    }
+
+    auto tool = std::make_shared<Tool>("PropertySchemaTool");
+    const auto toolSchema = PropertyRegistry::collectApplicableSchema(tool.get());
+    const auto toolHand = findSchemaProperty(toolSchema, "Hand");
+    const auto toolHandle = findSchemaProperty(toolSchema, "Handle");
+    const auto toolEquipped = findSchemaProperty(toolSchema, "Equipped");
+    expect(toolHand != toolSchema.end() && (*toolHand)->type == PropType::Enum &&
+               (*toolHand)->get && (*toolHand)->set,
+           "Tool exposes Hand as a typed enum property");
+    expect(toolHandle != toolSchema.end() && (*toolHandle)->type == PropType::String &&
+               (*toolHandle)->instanceRefClass == "BaseCube" && (*toolHandle)->set,
+           "Tool exposes Handle as a typed BaseCube reference");
+    expect(toolEquipped != toolSchema.end() && !(*toolEquipped)->editable &&
+               (*toolEquipped)->noLuaWrite,
+           "Tool Equipped remains runtime-state only for editor/Luau writes");
+    if (toolHand != toolSchema.end()) {
+        SetPropertyCommand handCommand(
+            tool, *toolHand, PropertyRegistry::readValue(tool.get(), **toolHand),
+            PropValue(1));
+        handCommand.execute();
+        expect(tool->Hand == Tool::ToolHand::Left,
+               "Tool Hand editor command reaches the runtime enum field");
+        handCommand.undo();
+    }
+
+    auto liquid = std::make_shared<LiquidCube>(Vector3(), Vector3(1.0f, 1.0f, 1.0f));
+    auto spawn = std::make_shared<SpawnLocation>();
+    auto seat = std::make_shared<Seat>(
+        Vector3(), Vector3(1.0f, 1.0f, 1.0f), Cube::defaultTextureID);
+    const auto liquidSchema = PropertyRegistry::collectApplicableSchema(liquid.get());
+    const auto spawnSchema = PropertyRegistry::collectApplicableSchema(spawn.get());
+    const auto seatSchema = PropertyRegistry::collectApplicableSchema(seat.get());
+    const auto density = findSchemaProperty(liquidSchema, "Density");
+    const auto spawnEnabled = findSchemaProperty(spawnSchema, "Enabled");
+    const auto seatSteer = findSchemaProperty(seatSchema, "Steer");
+    expect(density != liquidSchema.end() && (*density)->type == PropType::Float &&
+               (*density)->get && (*density)->set,
+           "LiquidCube inherits BaseCube schema and exposes Density");
+    expect(spawnEnabled != spawnSchema.end() && (*spawnEnabled)->type == PropType::Bool &&
+               (*spawnEnabled)->get && (*spawnEnabled)->set,
+           "SpawnLocation inherits Cube schema and exposes Enabled");
+    expect(seatSteer != seatSchema.end() && !(*seatSteer)->editable &&
+               (*seatSteer)->noLuaWrite && !(*seatSteer)->serialize,
+           "Seat live Steer remains visible to metadata but hidden from editor/YAML/Luau writes");
 
     // PropertiesPanel の和集合表示は ImGui に依存するため、ここではその入力となる
     // スキーマ可用性だけを検証する。Rope の Enabled は混在選択でも 1/2 件で残る。

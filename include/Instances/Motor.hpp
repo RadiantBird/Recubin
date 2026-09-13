@@ -40,10 +40,12 @@ public:
     // セーブ直前に呼ばれ、生きている参照から現在の正しいパスを再生成する
     // （Cube のリパレント/リネームでパス文字列が古くなるため）。
     // 名前が空 = 「未設定」の正当な状態なので復活させない
-    void refreshRefNames();
+    void refreshRefNames() override;
     void setDriveVelocity(float v);
     void setMaxForce(float v);
     void setAxis(Vector3 axis);
+    float getDriveVelocity() const { return DriveVelocity; }
+    float getMaxForce() const { return MaxForce; }
     PhysicsConstraintHandle getConstraintHandle() const;
 
     virtual std::string getClassName() override;

@@ -299,16 +299,21 @@ static void drawFilePathField(Instance* owner, const PropertyDesc& desc,
 
 static void renderSchemaInspector(Instance* inst, const char* className,
                                   CommandHistory* history, PickerState* picker) {
+    (void)className;
     static PropValue s_before;  // 編集開始時の値（同時編集は1つなので単一でよい）
-    for (const auto& d : PropertyRegistry::schemaFor(className)) {
-        const PropertyDesc* dp = &d;
+    // The runtime type is the source of truth.  The old className-only lookup
+    // silently omitted derived properties (notably Motor6D/Gyro and the
+    // concrete two-body constraints) from the inspector.
+    for (const PropertyDesc* dp : PropertyRegistry::collectApplicableSchema(inst)) {
+        if (!dp) continue;
+        const PropertyDesc& d = *dp;
         if (d.kind != PropKind::Field || !d.editable || !d.get) continue;
         // Animation references are rendered as type-safe Instance pickers below;
         // exposing their serialized path as a free-form string is misleading.
-        if (std::string_view(className) == "Humanoid" &&
+        if (inst->getClassName() == "Humanoid" &&
              (d.name == "WalkAnimation" || d.name == "JumpAnimation" ||
              d.name == "EquipAnimation")) continue;
-        if (std::string_view(className) == "System" && d.name == "ApplicationId") continue;
+        if (inst->getClassName() == "System" && d.name == "ApplicationId") continue;
         if (d.editorWidget == EditorWidget::FilePath) {
             drawFilePathField(inst, d, history);
             continue;
@@ -1658,15 +1663,6 @@ void PropertiesPanel::onRender() {
     if (inst->getClassName() == "MeshCube") {
         MeshCube* mc = static_cast<MeshCube*>(inst);
         ImGui::SeparatorText("MeshCube");
-        ImGui::LabelText("MeshFile", "%s", mc->MeshFile.empty() ? "(none)" : mc->MeshFile.c_str());
-        if (ImGui::Button(locId(Loc::LocKey::Browse, "##meshcube").c_str())) {
-            std::string path = getPlatform().openFileDialog({{"GLB (*.glb)", "*.glb"}});
-            if (!path.empty()) {
-                YAML::Node node; node = toProjectRelative(path);
-                mc->setProperty("MeshFile", node);
-            }
-        }
-
         if (ImGui::Button(locId(Loc::LocKey::RegenerateUVButton, "##meshcubeuvregen").c_str())) {
             ImGui::OpenPopup("###MeshCubeUVRegenConfirm");
         }
@@ -1693,22 +1689,6 @@ void PropertiesPanel::onRender() {
         if (m_decalPlace) {
             ImGui::Checkbox("Decal配置モード", &m_decalPlace->active);
         }
-    }
-
-    // ---- LiquidCube（Density、スキーマ駆動） ----
-    if (inst->getClassName() == "LiquidCube") {
-        ImGui::SeparatorText("LiquidCube");
-        renderSchemaInspector(inst, "LiquidCube", m_history, m_picker);
-    }
-    if (inst->getClassName() == "SpawnLocation") {
-        ImGui::SeparatorText("SpawnLocation");
-        renderSchemaInspector(inst, "SpawnLocation", m_history, m_picker);
-    }
-
-    // ---- Sun（Angle、スキーマ駆動） ----
-    if (inst->getClassName() == "Sun") {
-        ImGui::SeparatorText("Sun");
-        renderSchemaInspector(inst, "Sun", m_history, m_picker);
     }
 
     if (inst->IsA("PhysicalFileInstance")) {
@@ -2237,54 +2217,10 @@ void PropertiesPanel::onRender() {
         }
     }
 
-    // ---- Tool ----
+    // ---- Tool (all editable state is schema-driven) ----
     if (inst->getClassName() == "Tool") {
-        Tool* tool = static_cast<Tool*>(inst);
-        auto toolSp = std::static_pointer_cast<Tool>(inst->shared_from_this());
         ImGui::SeparatorText("Tool");
-
-        // Equipped flag (ReadOnly: ゲームプレイ中にUser側で制御されるため編集不可)
-        ImGui::LabelText("Equipped", "%s", tool->Equipped ? "true" : "false");
-
-        // Hand (combo)
-        {
-            static const char* handModes[] = { "Right", "Left", "Both" };
-            int handIdx = static_cast<int>(tool->Hand);
-            if (ImGui::Combo("Hand", &handIdx, handModes, 3)) {
-                tool->Hand = static_cast<Tool::ToolHand>(handIdx);
-            }
-        }
-
-        // Handle reference（制約と同じ Pick 機構で指定。Viewport / ヒエラルキーから選択可）
-        ImGui::Text("Position");
-        ImGui::SameLine(80.0f);
-        drawToolVec3Field("ToolPosition", tool->Position, 0.05f, -1e9f, 1e9f, toolSp, m_history);
-
-        ImGui::Text("Rotation");
-        ImGui::SameLine(80.0f);
-        {
-            static Quaternion s_before;
-            Vector3 euler = tool->Rotation.toEuler();
-            float rotation[3] = { euler.x, euler.y, euler.z };
-            Quaternion beforeEdit = tool->Rotation;
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            if (ImGui::DragFloat3("##ToolRotation", rotation, 1.0f, -360.0f, 360.0f, "%.1f")) {
-                tool->Rotation = Quaternion::fromEuler(Vector3(rotation[0], rotation[1], rotation[2]));
-            }
-            if (ImGui::IsItemActivated()) s_before = beforeEdit;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                m_history->record(std::make_unique<SetToolRotationCommand>(
-                    toolSp, s_before, tool->Rotation));
-            }
-        }
-
-        // Handle reference（制約と同じ Pick 機構で指定。Viewport / ヒエラルキーから選択可）
-        drawConstraintCubeRef("Handle", tool->m_handleName, "Handle", toolSp);
-        if (tool->Handle) {
-            ImGui::TextDisabled("\xe2\x86\x92 %s", tool->Handle->Name.c_str());
-        } else if (!tool->m_handleName.empty()) {
-            ImGui::TextDisabled("\xe2\x86\x92 %s", Loc::t(Loc::LocKey::ToolUnresolved));
-        }
+        renderSchemaInspector(inst, "Tool", m_history, m_picker);
     }
 
     // ---- Lighting（スキーマ駆動） ----
@@ -2561,131 +2497,6 @@ void PropertiesPanel::onRender() {
         renderSchemaInspector(inst, "PhysicsConstraint", m_history, m_picker);
     }
 
-    // ---- Rope ----
-    if (inst->getClassName() == "Rope") {
-        Rope* rope = static_cast<Rope*>(inst);
-        auto ropeSp = std::static_pointer_cast<Rope>(inst->shared_from_this());
-        ImGui::SeparatorText("Rope");
-
-        drawConstraintCubeRef("Cube0", rope->m_cube0Name, "Cube0", ropeSp);
-        drawConstraintCubeRef("Cube1", rope->m_cube1Name, "Cube1", ropeSp);
-        drawConstraintAttachmentRef("Attachment0", rope->m_attachment0Name, "Attachment0", rope->m_cube0Name, ropeSp);
-        drawConstraintAttachmentRef("Attachment1", rope->m_attachment1Name, "Attachment1", rope->m_cube1Name, ropeSp);
-
-        static float s_rf;
-        { ImGui::DragFloat("MaxDistance", &rope->MaxDistance, 0.1f, 0.0f, 1e6f);
-          if (ImGui::IsItemActivated()) s_rf = rope->MaxDistance;
-          if (ImGui::IsItemDeactivatedAfterEdit()) {
-              rope->setMaxDistance(rope->MaxDistance);
-              if (m_history) m_history->record(std::make_unique<SetRopeFloatCommand>(ropeSp, "MaxDistance", s_rf, rope->MaxDistance)); } }
-        { ImGui::DragFloat("Stiffness",   &rope->Stiffness,  1.0f, 0.0f, 1e6f);
-          if (ImGui::IsItemActivated()) s_rf = rope->Stiffness;
-          if (ImGui::IsItemDeactivatedAfterEdit()) {
-              rope->setStiffness(rope->Stiffness);
-              if (m_history) m_history->record(std::make_unique<SetRopeFloatCommand>(ropeSp, "Stiffness", s_rf, rope->Stiffness)); } }
-        { ImGui::DragFloat("Damping",     &rope->Damping,    0.1f, 0.0f, 1e6f);
-          if (ImGui::IsItemActivated()) s_rf = rope->Damping;
-          if (ImGui::IsItemDeactivatedAfterEdit()) {
-              rope->setDamping(rope->Damping);
-              if (m_history) m_history->record(std::make_unique<SetRopeFloatCommand>(ropeSp, "Damping", s_rf, rope->Damping)); } }
-        { static Color4 s_rc;
-          float col[4] = { rope->Color.r, rope->Color.g, rope->Color.b, rope->Color.a };
-          if (ImGui::ColorEdit4("Color", col)) { rope->Color = {col[0], col[1], col[2], col[3]}; }
-          if (ImGui::IsItemActivated()) s_rc = rope->Color;
-          if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
-              m_history->record(std::make_unique<SetRopeColorCommand>(ropeSp, s_rc, rope->Color)); }
-        { static float s_rlw;
-          if (ImGui::DragFloat("LineWidth", &rope->LineWidth, 0.1f, 0.5f, 16.0f)){}
-          if (ImGui::IsItemActivated()) s_rlw = rope->LineWidth;
-          if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
-              m_history->record(std::make_unique<SetRopeLineWidthCommand>(ropeSp, s_rlw, rope->LineWidth)); }
-    }
-
-    // ---- Rod ----
-    if (inst->getClassName() == "Rod") {
-        Rod* rod = static_cast<Rod*>(inst);
-        auto rodSp = std::static_pointer_cast<Rod>(inst->shared_from_this());
-        ImGui::SeparatorText("Rod");
-        drawConstraintCubeRef("Cube0", rod->m_cube0Name, "Cube0", rodSp);
-        drawConstraintCubeRef("Cube1", rod->m_cube1Name, "Cube1", rodSp);
-        drawConstraintAttachmentRef("Attachment0", rod->m_attachment0Name, "Attachment0", rod->m_cube0Name, rodSp);
-        drawConstraintAttachmentRef("Attachment1", rod->m_attachment1Name, "Attachment1", rod->m_cube1Name, rodSp);
-        { static Color4 s_rdc;
-          float col[4] = { rod->Color.r, rod->Color.g, rod->Color.b, rod->Color.a };
-          if (ImGui::ColorEdit4("Color", col)) { rod->Color = {col[0], col[1], col[2], col[3]}; }
-          if (ImGui::IsItemActivated()) s_rdc = rod->Color;
-          if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
-              m_history->record(std::make_unique<SetRodColorCommand>(rodSp, s_rdc, rod->Color)); }
-        { static float s_rdlw;
-          if (ImGui::DragFloat("LineWidth", &rod->LineWidth, 0.1f, 0.5f, 16.0f)){}
-          if (ImGui::IsItemActivated()) s_rdlw = rod->LineWidth;
-          if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
-              m_history->record(std::make_unique<SetRodLineWidthCommand>(rodSp, s_rdlw, rod->LineWidth)); }
-    }
-
-    // ---- BallSocket ----
-    if (inst->getClassName() == "BallSocket") {
-        BallSocket* bs = static_cast<BallSocket*>(inst);
-        auto bsSp = std::static_pointer_cast<BallSocket>(inst->shared_from_this());
-        ImGui::SeparatorText("BallSocket");
-        drawConstraintCubeRef("Cube0", bs->m_cube0Name, "Cube0", bsSp);
-        drawConstraintCubeRef("Cube1", bs->m_cube1Name, "Cube1", bsSp);
-        drawConstraintAttachmentRef("Attachment0", bs->m_attachment0Name, "Attachment0", bs->m_cube0Name, bsSp);
-        drawConstraintAttachmentRef("Attachment1", bs->m_attachment1Name, "Attachment1", bs->m_cube1Name, bsSp);
-    }
-
-    // ---- NoCollision ----
-    if (inst->getClassName() == "NoCollision") {
-        NoCollision* nc = static_cast<NoCollision*>(inst);
-        auto ncSp = std::static_pointer_cast<NoCollision>(inst->shared_from_this());
-        ImGui::SeparatorText("NoCollision");
-        drawConstraintCubeRef("Cube0", nc->m_cube0Name, "Cube0", ncSp);
-        drawConstraintCubeRef("Cube1", nc->m_cube1Name, "Cube1", ncSp);
-    }
-
-    // ---- Weld ----
-    if (inst->getClassName() == "Weld") {
-        Weld* weld = static_cast<Weld*>(inst);
-        auto weldSp = std::static_pointer_cast<Weld>(inst->shared_from_this());
-        ImGui::SeparatorText("Weld");
-        drawConstraintCubeRef("Cube0", weld->m_cube0Name, "Cube0", weldSp);
-        drawConstraintCubeRef("Cube1", weld->m_cube1Name, "Cube1", weldSp);
-    }
-
-    // ---- Motor ----
-    if (inst->getClassName() == "Motor") {
-        Motor* motor = static_cast<Motor*>(inst);
-        auto motorSp = std::static_pointer_cast<Motor>(inst->shared_from_this());
-        ImGui::SeparatorText("Motor");
-
-        drawConstraintCubeRef("Cube0", motor->m_cube0Name, "Cube0", motorSp);
-        drawConstraintCubeRef("Cube1", motor->m_cube1Name, "Cube1", motorSp);
-        drawConstraintAttachmentRef("Attachment0", motor->m_attachment0Name, "Attachment0", motor->m_cube0Name, motorSp);
-        drawConstraintAttachmentRef("Attachment1", motor->m_attachment1Name, "Attachment1", motor->m_cube1Name, motorSp);
-
-        { static Vector3 s_axisBefore;
-          float ax[3] = { motor->Axis.x, motor->Axis.y, motor->Axis.z };
-          bool ch = ImGui::DragFloat3("Axis", ax, 0.01f, -1.0f, 1.0f, "%.3f");
-          if (ImGui::IsItemActivated()) s_axisBefore = motor->Axis;
-          if (ch) motor->setAxis(Vector3(ax[0], ax[1], ax[2]));
-          if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
-              m_history->record(std::make_unique<SetMotorAxisCommand>(motorSp, s_axisBefore, motor->Axis)); }
-
-        static float s_mf;
-        { float value = motor->DriveVelocity;
-          bool changed = ImGui::DragFloat("DriveVelocity", &value, 0.1f, -1e4f, 1e4f);
-          if (ImGui::IsItemActivated()) s_mf = motor->DriveVelocity;
-          if (changed) motor->setDriveVelocity(value);
-          if (ImGui::IsItemDeactivatedAfterEdit()) {
-              if (m_history) m_history->record(std::make_unique<SetMotorFloatCommand>(motorSp, "DriveVelocity", s_mf, motor->DriveVelocity)); } }
-        { float value = motor->MaxForce;
-          bool changed = ImGui::DragFloat("MaxForce", &value, 10.0f, 0.0f, 1e7f);
-          if (ImGui::IsItemActivated()) s_mf = motor->MaxForce;
-          if (changed) motor->setMaxForce(value);
-          if (ImGui::IsItemDeactivatedAfterEdit()) {
-              if (m_history) m_history->record(std::make_unique<SetMotorFloatCommand>(motorSp, "MaxForce", s_mf, motor->MaxForce)); } }
-    }
-
     // ---- AppImage ----
     if (inst->getClassName() == "AppImage") {
         AppImage* ai = static_cast<AppImage*>(inst);
@@ -2727,12 +2538,6 @@ void PropertiesPanel::onRender() {
         ImGui::SeparatorText("Animation");
         drawAnimationInspector(
             std::static_pointer_cast<Animation>(inst->shared_from_this()), m_history);
-    }
-
-    // ---- Seat（Steer/Throttleは着席中エンジンが書き込むLua読取専用値。確認用に表示） ----
-    if (inst->getClassName() == "Seat") {
-        ImGui::SeparatorText("Seat");
-        renderSchemaInspector(inst, "Seat", m_history, m_picker);
     }
 
     // ---- ScreenGuiObject ----

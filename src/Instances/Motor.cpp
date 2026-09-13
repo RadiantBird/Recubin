@@ -2,8 +2,29 @@
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/Attachment.hpp>
 #include <include/Core/Physics.hpp>
+#include <include/Core/PropertyRegistry.hpp>
 #include <cmath>
 #include <utility>
+
+static const bool s_motorRegistered = [] {
+    using namespace PropertyRegistry;
+    registerClass("Motor", "PhysicsConstraint", {
+        instanceRefProperty<&PhysicsConstraint::m_cube0Name>("Cube0", "BaseCube"),
+        instanceRefProperty<&PhysicsConstraint::m_cube1Name>("Cube1", "BaseCube"),
+        instanceRefProperty<&Motor::m_attachment0Name>("Attachment0", "Attachment").omitEmpty(),
+        instanceRefProperty<&Motor::m_attachment1Name>("Attachment1", "Attachment").omitEmpty(),
+        custom("Axis", PropType::Vec3,
+            [](Instance* instance) {
+                return PropValue(static_cast<Motor*>(instance)->Axis);
+            },
+            [](Instance* instance, const PropValue& value) {
+                static_cast<Motor*>(instance)->setAxis(std::get<Vector3>(value));
+            }),
+        method_prop<&Motor::getDriveVelocity, &Motor::setDriveVelocity>("DriveVelocity", -1.0e4f, 1.0e4f, 0.1f),
+        method_prop<&Motor::getMaxForce, &Motor::setMaxForce>("MaxForce", 0.0f, 1.0e7f, 10.0f),
+    });
+    return true;
+}();
 
 Motor::Motor()
     : PhysicsConstraint("Motor") {}
@@ -76,14 +97,7 @@ PhysicsConstraintHandle Motor::getConstraintHandle() const {
 std::shared_ptr<Instance> Motor::clone() const {
     auto c = std::make_shared<Motor>();
     c->Name          = Name;
-    c->Enabled       = Enabled;
-    c->m_cube0Name   = m_cube0Name;
-    c->m_cube1Name   = m_cube1Name;
-    c->m_attachment0Name = m_attachment0Name;
-    c->m_attachment1Name = m_attachment1Name;
-    c->Axis          = Axis;
-    c->DriveVelocity = DriveVelocity;
-    c->MaxForce      = MaxForce;
+    PropertyRegistry::cloneFields(this, c.get(), "Motor");
     c->m_cube0       = m_cube0;
     c->m_cube1       = m_cube1;
     c->m_attachment0 = m_attachment0;

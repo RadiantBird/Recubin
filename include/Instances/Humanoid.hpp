@@ -158,6 +158,8 @@ public:
     void  setWalkCycle(float v) { walkCycle = v; }
     Vector3 getCurrentMoveDir() const { return currentMoveDir; }
     void  setCurrentMoveDir(const Vector3& v) { currentMoveDir = v; }
+    Vector3 getSmoothedHeadingDirection() const { return m_smoothedHeadingDirection; }
+    void  setSmoothedHeadingDirection(const Vector3& v) { m_smoothedHeadingDirection = v; }
     bool  getIsGrounded() const { return isGrounded; }
     void  setIsGroundedForReplication(bool v) { isGrounded = v; }
     void  setSeatedForReplication(bool v) { m_seated = v; }
@@ -172,6 +174,7 @@ private:
 
     float walkCycle = 0.0f;
     Vector3 currentMoveDir;
+    Vector3 m_smoothedHeadingDirection;
     bool isGrounded = true;
     bool m_dead = false;
     bool m_ragdollEntered = false;
