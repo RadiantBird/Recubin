@@ -133,7 +133,10 @@ public:
         Free,
         Character,
         Program // Luauがカメラを直接制御する(CameraCFrameプロパティ経由)
-    } controlMode = ControlMode::Character;
+    };
+
+    ControlMode getControlMode() const { return m_controlMode; }
+    void setControlMode(ControlMode mode) { m_controlMode = mode; }
 
     // ネットワークレプリケーション用: 直近のprocessCharacterMovement()で使われた移動入力
     // (Clientはこれをそのままホストへ送信し、ホスト側で権威的に再シミュレートする)
@@ -305,6 +308,8 @@ private:
     bool m_cameraInputEnabled = true;
     bool m_hotkeyInputEnabled = true;
     bool m_toolInputEnabled = true;
+    ControlMode m_controlMode = ControlMode::Character;
+    std::optional<ControlMode> m_lastProcessedControlMode;
 
     // CtrlLock(Roblox ShiftLock相当)
     bool ctrlLockEnabled = false;

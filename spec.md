@@ -156,6 +156,8 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   controllerは各dynamic R6 bodyへ同じ上向き加速度をmass比例のadditive Forceとして与える。
   重力相殺は現在のWorkspace.Gravityから算出する。遠距離の床へ吸着せず、jump上昇中は停止し、
   下降してlanding captureへ入った時だけ再開する。SpawnLocation上の初期Root高度にも同じ目標distanceを使う。
+  GroundHeight、接地、Truss中の重力設定は操作入力とは独立した物理更新として毎フレーム評価する。
+  したがってFree/Program中もCharacterHoverForce、重力、衝突、LiquidCubeの液体浮力は維持される。
 
 ## Gyro
   Gyroは1つのPartへworld基準の角度制御を加える単一body constraintとする。X/Y/Zはそれぞれ
@@ -220,6 +222,8 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
     - ゲームランタイムではSystem.DefaultCameraMode（Free/Character/Program、既定Character）を
       Userの起動カメラモードへ適用する。旧シーンや未知の値はCharacterへフォールバックする。
     - Humanoid死亡中もカメラ入力とLキーのモード切替を受け付ける。Characterではキャラクターを移動・追従させずその場でカメラを回転し、Freeではカメラを自由移動できる。Free移動中も死亡ラグドールの姿勢を上書きしない。
+    - ControlModeは入力操作とカメラ制御だけを切り替える。PlayerCharacterの物理状態更新は全モードで継続する。
+      CharacterからFree/Programへ移行した瞬間は、Character入力が残した水平速度と角速度を0へ戻し、Character専用のYawForceを無効化する。ジャンプ・落下の垂直速度は維持する。
 - `CharacterAdded`(Signal): 新しいローカルCharacterがspawnされるたび発火する(初回spawn +
   死亡respawn全て)。Luau側にはspawn直後のcharacter(Model)が引数として渡される
   (この時点ではまだWorkspaceに未追加。Root等のパーツ参照はresolveParts済みで取得可能)。

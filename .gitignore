@@ -46,6 +46,9 @@ Luar Programming Language/luar-vscode/node_modules/
 Luar Programming Language/luar-vscode/out/
 Luar Programming Language/luar-vscode/*.vsix
 
+# Local Codex/Claude session settings
+/.claude/settings.local.json
+
 # Local backup of nested repository metadata after vendoring
 .nested-git-backups/
 
@@ -53,4 +56,3 @@ Luar Programming Language/luar-vscode/*.vsix
 /NUL
 
 TestCases/NetworkTest/RecubinEngine-macos-arm64
-

@@ -39,7 +39,7 @@ void copySystemScalars(const System& source, System& destination) {
 }
 
 void copyUserScalars(const User& source, User& destination) {
-    destination.controlMode = source.controlMode;
+    destination.setControlMode(source.getControlMode());
     destination.speed = source.speed;
     destination.rotationSpeed = source.rotationSpeed;
     destination.mouseRotationSpeed = source.mouseRotationSpeed;
@@ -117,14 +117,14 @@ std::shared_ptr<Users> findUsers(const std::shared_ptr<System>& system) {
 void applyDefaultCameraMode(const System& system, User& user) {
     switch (system.DefaultCameraMode) {
         case System::CameraMode::Free:
-            user.controlMode = User::ControlMode::Free;
+            user.setControlMode(User::ControlMode::Free);
             break;
         case System::CameraMode::Program:
-            user.controlMode = User::ControlMode::Program;
+            user.setControlMode(User::ControlMode::Program);
             break;
         case System::CameraMode::Character:
         default:
-            user.controlMode = User::ControlMode::Character;
+            user.setControlMode(User::ControlMode::Character);
             break;
     }
 }

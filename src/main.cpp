@@ -757,7 +757,7 @@ int main(int argc, char* argv[]) {
     auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
     auto user         = std::make_shared<User>(std::make_unique<GLFWInputBackend>(window));
-    user->controlMode = User::ControlMode::Free; // エディターではフリーモードから開始(パッケージされたゲームランタイムはCharacterモードから開始)
+    user->setControlMode(User::ControlMode::Free); // エディターではフリーモードから開始(パッケージされたゲームランタイムはCharacterモードから開始)
     // Inventory の初期化は SceneRuntime::loadAndBind() 側で行う
     // (シーンYAMLに保存済みのInventoryがあればそちらを優先採用するため、先読みで空Folderを付けない)
 
@@ -933,7 +933,7 @@ int main(int argc, char* argv[]) {
         }
         if (usersContainer && user->Parent.expired()) usersContainer->addChild(user);
         luauEngine->setGlobalInstance("User", user);
-        user->controlMode = User::ControlMode::Free;
+        user->setControlMode(User::ControlMode::Free);
     };
 
     // The editor does not need a busy loop while it is idle.  Keep the
@@ -1045,7 +1045,7 @@ int main(int argc, char* argv[]) {
             if (playMode == EditorPlayMode::LocalServer && !system->UseNetwork) {
                 ed->showLocalServerNetworkRequiredError();
                 ed->mode = EditorMode::Edit;
-                user->controlMode = User::ControlMode::Free;
+                user->setControlMode(User::ControlMode::Free);
                 state.isPlaying = false;
                 state.inputState = InputState::Editor;
                 playTransitionAccepted = false;
@@ -1124,7 +1124,7 @@ int main(int argc, char* argv[]) {
                 }
 
                 if (playTransitionAccepted) {
-                    user->controlMode = User::ControlMode::Free;
+                    user->setControlMode(User::ControlMode::Free);
                     user->despawnCharacter();
                     if (auto parent = user->Parent.lock()) parent->removeChild(user->Name);
                     luauEngine->clearGlobalInstance("User");
@@ -1285,7 +1285,7 @@ int main(int argc, char* argv[]) {
         const bool localServerFrame = isPlaying && playTransitionAccepted && ed &&
             ed->activePlayMode() == EditorPlayMode::LocalServer;
         if (localServerFrame) {
-            user->controlMode = User::ControlMode::Free;
+            user->setControlMode(User::ControlMode::Free);
             NetworkManager::get().update(deltaTime);
 
             int connectedPlayers = 0;
@@ -1312,7 +1312,7 @@ int main(int argc, char* argv[]) {
                     std::string("Local server failed: ") +
                     NetworkManager::connectionErrorToString(error));
                 ed->mode = EditorMode::Edit;
-                user->controlMode = User::ControlMode::Free;
+                user->setControlMode(User::ControlMode::Free);
                 state.isPlaying = false;
                 state.inputState = InputState::Editor;
                 runtimeFrameOk = false;
@@ -1321,7 +1321,7 @@ int main(int argc, char* argv[]) {
                 if (editorReplication->hasFatalIdentityError()) {
                     ed->showPlayStartError("Local server replication failed.");
                     ed->mode = EditorMode::Edit;
-                    user->controlMode = User::ControlMode::Free;
+                    user->setControlMode(User::ControlMode::Free);
                     state.isPlaying = false;
                     state.inputState = InputState::Editor;
                     runtimeFrameOk = false;
@@ -1363,7 +1363,7 @@ int main(int argc, char* argv[]) {
             if (luauEngine->consumeSafetyHaltRequest()) {
                 // Stopボタン(EditorManager.cpp)と同じ状態遷移
                 ed->mode = EditorMode::Edit;
-                if (user) user->controlMode = User::ControlMode::Free;
+                if (user) user->setControlMode(User::ControlMode::Free);
                 RCBN_LOG("[INFO] Stopped due to safety limit breach. Switched to Free Camera mode.");
             }
         }

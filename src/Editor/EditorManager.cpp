@@ -796,7 +796,7 @@ void EditorManager::renderPlayLoadConfirmDialog() {
         if (ImGui::Button(Loc::t(Loc::LocKey::PlayLoadConfirm), ImVec2(150, 0))) {
             mode = EditorMode::Edit;
             if (m_user) {
-                m_user->controlMode = User::ControlMode::Free;
+                m_user->setControlMode(User::ControlMode::Free);
                 RCBN_LOG("[INFO] Stopped due to scene load request. Switched to Free Camera mode.");
             }
             const std::string path = m_pendingPlayLoadPath;
@@ -1229,7 +1229,7 @@ void EditorManager::renderToolbarBasic() {
         if (drawIconButton(ICON_STOP, Loc::t(Loc::LocKey::StopButton), iconBtnSz)) {
             mode = EditorMode::Edit;
             if (m_user) {
-                m_user->controlMode = User::ControlMode::Free;
+            m_user->setControlMode(User::ControlMode::Free);
                 RCBN_LOG("[INFO] Stopped. Switched to Free Camera mode.");
             }
             else {

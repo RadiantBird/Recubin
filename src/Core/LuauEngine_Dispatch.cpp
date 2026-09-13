@@ -714,8 +714,8 @@ void LuauEngine::InitDispatchTable_Misc() {
     // User.ControlMode ("Free"/"Character"/"Program")
     DispatchTable["User"]["ControlMode"] = [](lua_State* L, Instance* obj) {
         auto* u = static_cast<User*>(obj);
-        const char* s = u->controlMode == User::ControlMode::Free      ? "Free"
-                       : u->controlMode == User::ControlMode::Program  ? "Program"
+        const char* s = u->getControlMode() == User::ControlMode::Free      ? "Free"
+                       : u->getControlMode() == User::ControlMode::Program  ? "Program"
                                                                         : "Character";
         lua_pushstring(L, s);
         return 1;
@@ -979,9 +979,9 @@ void LuauEngine::InitSetterTable_Misc() {
     SetterTable["User"]["ControlMode"] = [](lua_State* L, Instance* obj) {
         std::string s = luaL_checkstring(L, 3);
         auto* u = static_cast<User*>(obj);
-        if (s == "Free")         u->controlMode = User::ControlMode::Free;
-        else if (s == "Program") u->controlMode = User::ControlMode::Program;
-        else                     u->controlMode = User::ControlMode::Character;
+        if (s == "Free")         u->setControlMode(User::ControlMode::Free);
+        else if (s == "Program") u->setControlMode(User::ControlMode::Program);
+        else                     u->setControlMode(User::ControlMode::Character);
         return 0;
     };
     SetterTable["User"]["CursorType"] = [](lua_State* L, Instance* obj) -> int {

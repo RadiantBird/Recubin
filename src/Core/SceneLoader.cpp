@@ -813,8 +813,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         }
         if (inst->getClassName() == "User") {
             const User* usr = static_cast<const User*>(inst);
-            const char* controlModeStr = usr->controlMode == User::ControlMode::Free      ? "Free"
-                                        : usr->controlMode == User::ControlMode::Program   ? "Program"
+            const char* controlModeStr = usr->getControlMode() == User::ControlMode::Free      ? "Free"
+                                        : usr->getControlMode() == User::ControlMode::Program   ? "Program"
                                                                                             : "Character";
             out << YAML::Key << "ControlMode" << YAML::Value << controlModeStr;
             out << YAML::Key << "Speed"             << YAML::Value << usr->speed;

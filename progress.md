@@ -521,3 +521,45 @@
   手書きコピーと分離しないよう整理した。参照weak_ptrの再結合処理は既存のremap経路を維持する。
 - 最終局所syntax checkはSeat/Tool/制約群/PropertyRegistryとHumanoid/Replicationで成功。指定Release buildの再試行も
   同じ`WinError 2`でconfigure前に停止したため、Task 1/2のruntime確認は未完了。
+
+## 2026-09-13: Directional Light shadow coverage boundary
+
+- `shaders/fragment.glsl` の shadow 判定を修正。`fragPosLightSpace.w <= 0`、投影後 depth の
+  `[0,1]` 外を影なしとして扱い、3x3 PCF の各 sample UV も明示的に範囲内だけ sample するようにした。
+  shadow map 外の border 値に判定を依存しない。
+- 調査の結果、sampler は `GL_CLAMP_TO_BORDER`、`GL_COMPARE_NONE`、border depth `1.0` であり、
+  範囲外 sample を暗い影にする設定ではなかった。主因は `±80` の固定 orthographic coverage の端が
+  地面へ直線境界として現れることと判断した。
+- `src/Core/Renderer.cpp` の Directional Light shadow projection をカメラ位置中心・カメラ向き非依存のまま
+  `±160`、light depth `800` へ拡大。`doc/Rendering.md` の記述も更新した。
+- `git diff --check` は成功。`cmd.exe /d /c py build.py build` はコンパイル前に
+  `UtilBindVsockAnyPort: socket failed 1` で停止し、Windows Release build と実機の視覚確認は未検証。
+## 2026-09-13: ControlModeとCharacterHoverの責務分離
+
+- `Humanoid::updatePhysicsState()`を追加し、接地raycast、CharacterHoverForce、Truss中の重力設定を
+  `move()`から分離した。UserのFree/Character/Programに関係なく、PlayerCharacterの物理状態を毎入力フレーム更新する。
+- ControlModeをprivate保持へ変更し、`getControlMode()`/`setControlMode()`を追加した。User、SceneRuntime、SceneLoader、Luau、Editor、起動停止処理、テストの直接代入をaccessor経由へ統一した。
+- CharacterHover回帰へFree中の接地hover維持と、jump後Freeへ切り替えた際のhover抑制継続・着地復帰を追加した。NPCの`moveToward()`後も物理状態更新を行う。
+- `spec.md`と`doc/Instances/Humanoid.md`へ、操作モードと物理更新が独立し、Free/Programでも重力・衝突・CharacterHoverForce・LiquidCube浮力を維持する仕様を追記した。
+- `git diff --check`は成功。指定Release buildはconfigure時の`WinError 2`、既存buildのtarget buildはWSL/Windows CMake cacheと`Visual Studio 18 2026` generatorの不一致で停止したため、Windows buildと`--character-hover-regression`/`--user-input-controls-regression`は未実施。
+- 次の一手: Windows側でRelease buildを再実行し、対象2回帰を実行する。失敗時はmode切替回帰とhover状態ログを確認する。
+## 2026-09-13: Free切替時のCharacter水平速度停止
+
+- Character入力中にFreeへ切り替えると、既存R6 bodyのX/Z速度が残って移動し続けるため、Free/Program遷移時に全bodyの水平速度だけをzero化する処理を追加した。Y速度、hover、jump抑制は維持する。
+- Lキーによる同一フレーム切替と、外部setterによるフレーム間切替の両方を`User::processInput()`で処理する。
+- `Humanoid::stopHorizontalMovement()`を追加した。ビルド・回帰は未実施。
+## 2026-09-13: Free切替時のCharacter角速度停止
+
+- Character操作中にFreeへ切り替えるとGyro・接触等で設定された角速度が残り、キャラクターが回り続けるため、既存のFree/Program遷移停止処理で全R6 bodyの角速度もzero化するよう修正した。
+- 垂直速度、hover、jump抑制状態は維持する。CharacterHover回帰へ角速度停止確認を追加した。
+- ビルド・回帰は未実施。次の一手はWindows Release build後に`--character-hover-regression`と`--user-input-controls-regression`を実行すること。
+## 2026-09-13: Physics角速度取得APIの追加
+
+- `Physics::getAngularVelocity(const BaseCube&)`を追加し、`IPhysicsBackend`、Box3D backendから汎用取得できるようにした。
+- Box3Dはnative body値を返し、backend既定実装はゼロ値。PhysXレガシーコードは変更していない。
+- `git diff --check`は成功。Release buildと対象回帰テストは未実施。
+## 2026-09-13: Free切替後のYawForce再適用停止
+
+- native角速度をzero化しても、Box3D fixed stepの`MaintainVelocity`処理とCharacter専用YawForce再適用で回転が再発していた。
+- Free/Program遷移時に`YawForce`のValueをzero化しEnabled=falseへ変更し、Characterへ戻った後は既存`Humanoid::move()`で再有効化するよう修正した。
+- CharacterHover回帰へYawForce無効化確認を追加した。ビルド・回帰は未実施。

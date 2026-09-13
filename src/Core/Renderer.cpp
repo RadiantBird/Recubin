@@ -1767,11 +1767,24 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         Vector3 ld = lighting->lightDir;
         float len = std::sqrt(ld.x*ld.x + ld.y*ld.y + ld.z*ld.z);
         if (len > 0.001f) { ld.x /= len; ld.y /= len; ld.z /= len; }
-        Vector3 shadowCenter = desc.cameraPosition; // カメラ位置に追従させる(原点固定だと原点から離れると影が消えるため)
-        Vector3 lightEye(shadowCenter.x - ld.x * 80.0f, shadowCenter.y - ld.y * 80.0f, shadowCenter.z - ld.z * 80.0f);
+        // Keep the directional-light basis independent from the camera
+        // orientation.  The previous 160x160 coverage was small enough that
+        // the edge of the shadow map could cross the visible ground as the
+        // camera moved/orbited, exposing a large straight shadow boundary.
+        // Centering the same fixed light-space footprint on the camera keeps
+        // coverage stable while giving the visible scene useful margin.
+        constexpr float SHADOW_HALF_EXTENT = 160.0f;
+        constexpr float SHADOW_LIGHT_DISTANCE = 160.0f;
+        constexpr float SHADOW_DEPTH = 800.0f;
+        Vector3 shadowCenter = desc.cameraPosition; // 原点固定だと原点から離れると影が消えるため
+        Vector3 lightEye(shadowCenter.x - ld.x * SHADOW_LIGHT_DISTANCE,
+                         shadowCenter.y - ld.y * SHADOW_LIGHT_DISTANCE,
+                         shadowCenter.z - ld.z * SHADOW_LIGHT_DISTANCE);
         Vector3 upVec = (std::fabsf(ld.y) < 0.99f) ? Vector3(0.0f, 1.0f, 0.0f) : Vector3(0.0f, 0.0f, 1.0f);
         Matrix4 lightView = Matrix4::LookAt(lightEye, shadowCenter, upVec);
-        Matrix4 lightProj = Matrix4::Ortho(-80.0f, 80.0f, -80.0f, 80.0f, 0.1f, 400.0f);
+        Matrix4 lightProj = Matrix4::Ortho(-SHADOW_HALF_EXTENT, SHADOW_HALF_EXTENT,
+                                           -SHADOW_HALF_EXTENT, SHADOW_HALF_EXTENT,
+                                           0.1f, SHADOW_DEPTH);
         lightSpaceMatrix = lightProj * lightView;
 
         FrameProfiler::get().beginSection("shadow");

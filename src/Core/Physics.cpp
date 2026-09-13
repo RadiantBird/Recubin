@@ -525,6 +525,11 @@ Vector3 Physics::getLinearVelocity(const BaseCube& cube) const {
         ? m_backend->getLinearVelocity(cube) : Vector3();
 }
 
+Vector3 Physics::getAngularVelocity(const BaseCube& cube) const {
+    return isAvailable() && ownsBody(cube)
+        ? m_backend->getAngularVelocity(cube) : Vector3();
+}
+
 std::optional<float> Physics::getBodyMass(const BaseCube& cube) const {
     if (!isAvailable()) return std::nullopt;
     return m_backend->getBodyMass(cube);

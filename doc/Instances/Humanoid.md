@@ -2,7 +2,7 @@
 
 `include/Instances/Humanoid.hpp`
 
-キャラクターコントローラー。StarterCharacter内のテンプレート、またはそのclone後のModelから `Root`/`Torso`/`Head`/`LeftArm`/`RightArm`/`LeftLeg`/`RightLeg` という名前の兄弟 `Cube`/`Sphere` を探して参照し、移動・ジャンプ・接地判定・歩行アニメーション・一人称時の身体非表示・ヘルス管理・死亡演出（ラグドール）・キーフレームアニメーション再生を一括して行う（spec.md「キャラクター」節）。GLFWwindow/SystemStateには依存せず、入力はUser側がベクトル/boolへ変換して渡す。
+キャラクターコントローラー。StarterCharacter内のテンプレート、またはそのclone後のModelから `Root`/`Torso`/`Head`/`LeftArm`/`RightArm`/`LeftLeg`/`RightLeg` という名前の兄弟 `Cube`/`Sphere` を探して参照し、移動・ジャンプ・接地判定・歩行アニメーション・一人称時の身体非表示・ヘルス管理・死亡演出（ラグドール）・キーフレームアニメーション再生を行う（spec.md「キャラクター」節）。接地・GroundHeight hover・Truss重力は `updatePhysicsState()` でControlModeから独立して更新する。GLFWwindow/SystemStateには依存せず、入力はUser側がベクトル/boolへ変換して渡す。
 
 身体パーツの所有者は親Modelの `children` であり、Humanoidはprivateな `weak_ptr` だけを保持する。C++側は各パーツgetterが返す一時的な `shared_ptr` を処理中だけ保持するため、親Modelの破棄後にHumanoidだけが残っても身体パーツの寿命は延長されない。この参照はLuau/YAMLプロパティやシリアライズ形式には公開されない。
 
@@ -45,7 +45,9 @@ bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を
 | `set/getWalkAnimation`、`set/getJumpAnimation`、`set/getEquipAnimation` | Animation参照を明示的に設定・取得 |
 | `getRootPart()`/`getTorsoPart()`/`getHeadPart()`/左右の腕・脚getter | C++処理向けにweak参照を一時的な`shared_ptr`へ昇格。期限切れ時は`nullptr` |
 | `setRootPart(root)` | ネットワーク予測用Rootの非所有参照を設定し、通常Rootと同じ角度ロックを適用。Luau/YAMLには非公開 |
-| `move(...)` | WASD相当の入力から移動、GyroのY方位、歩行アニメ、接地判定、身体配置を更新。無入力時は最後のGyro方位を維持 |
+| `move(...)` | WASD相当の入力から移動、GyroのY方位、歩行アニメ、身体配置を更新。無入力時は最後のGyro方位を維持 |
+| `updatePhysicsState(physics)` | ControlModeに関係なく接地raycast、GroundHeight hover、Truss中の重力設定を更新 |
+| `stopCharacterMotion(physics)` | Character操作からFree/Programへ移行する際、全身の水平・角速度を停止し、Character専用YawForceを無効化して垂直速度を保持 |
 | `moveToward(target, physics, arrivalRadius)` | パス追従用の1フレーム移動（`move()`のロジックを流用） |
 | `jump()` | 接地中のみJumpPowerで上方向速度をセット |
 | `setHealth(v)`/`takeDamage(n)` | クランプしつつ設定。0以下遷移でDied発火 |
@@ -64,7 +66,7 @@ move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, phy
   ├─ flatForwardをCharacterSmoothingでdt補間したheadingを更新
   ├─ 向き決定: CtrlLock中は平滑化済みカメラ正面 / 移動中は平滑化済み移動方向
   ├─ 壁ずり: 進行方向にレイキャストし、法線成分を速度から除去
-  ├─ PhysXアクターへ水平速度を適用（Y速度は保持）
+  ├─ Box3D bodyへ水平速度を適用（Y速度は保持）
   ├─ walkCycle更新（押下中は加算、離した後は0.5basisで戻す）
   ├─ 接地判定: Root下方向へレイキャスト
   └─ applyBodyAnimation() でボディパーツを再配置

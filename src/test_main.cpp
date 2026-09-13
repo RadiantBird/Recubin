@@ -5882,7 +5882,7 @@ int runUserInputControlsRegression() {
     expect(anchorX == 80.0 && anchorY == 70.0 && input->cursorX == 80.0 && input->cursorY == 70.0,
            "MouseLock viewport changes recenter the camera anchor without a delta");
     const Quaternion beforeProgramRotation = user->cam.Orientation;
-    user->controlMode = User::ControlMode::Program;
+    user->setControlMode(User::ControlMode::Program);
     input->cursorX = 140.0;
     input->cursorY = 110.0;
     user->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
@@ -5891,7 +5891,7 @@ int runUserInputControlsRegression() {
                user->cam.Orientation.y == beforeProgramRotation.y &&
                user->cam.Orientation.z == beforeProgramRotation.z,
            "Program MouseLock retains capture but never applies cursor rotation");
-    user->controlMode = User::ControlMode::Character;
+    user->setControlMode(User::ControlMode::Character);
     user->setMouseLockEnabled(false);
 
     user->setMoveDirection(Vector3(3, 0, 0));
@@ -5920,7 +5920,7 @@ int runUserInputControlsRegression() {
     auto inputHumanoid = std::make_shared<Humanoid>();
     inputHumanoid->setRootPart(inputRoot);
     user->humanoid = inputHumanoid;
-    user->controlMode = User::ControlMode::Character;
+    user->setControlMode(User::ControlMode::Character);
 
     auto deadBackend = std::make_unique<FrameRateTestInputBackend>();
     auto* deadInput = deadBackend.get();
@@ -5932,7 +5932,7 @@ int runUserInputControlsRegression() {
     deadHumanoid->setHealth(0.0f);
     deadUser->character = deadCharacter;
     deadUser->humanoid = deadHumanoid;
-    deadUser->controlMode = User::ControlMode::Character;
+    deadUser->setControlMode(User::ControlMode::Character);
     deadUser->cpos = Vector3(10, 20, 30);
     deadUser->cam.Orientation = Quaternion();
     deadUser->updateVectors();
@@ -5951,7 +5951,7 @@ int runUserInputControlsRegression() {
     deadUser->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
     deadInput->pressedKeys.erase(KeyCode::L);
     deadUser->processInput(nullptr, 1.0f / 60.0f, true, true, true, false);
-    expect(deadUser->controlMode == User::ControlMode::Free,
+    expect(deadUser->getControlMode() == User::ControlMode::Free,
            "L switches to Free while the Humanoid is dead");
     const Vector3 deadFreeCameraPosition = deadUser->cpos;
     deadInput->pressedKeys.insert(KeyCode::W);
@@ -6189,7 +6189,7 @@ CameraFrameRateSample sampleCameraAtFrameRate(int frameRate, KeyCode key) {
     auto backend = std::make_unique<FrameRateTestInputBackend>();
     backend->pressedKeys.insert(key);
     auto user = std::make_shared<User>(std::move(backend));
-    user->controlMode = User::ControlMode::Free;
+    user->setControlMode(User::ControlMode::Free);
 
     const float dt = 1.0f / static_cast<float>(frameRate);
     for (int frame = 0; frame < frameRate; ++frame) {
@@ -6880,7 +6880,7 @@ int runViewportHelperRegression() {
     auto zoomBackend = std::make_unique<FrameRateTestInputBackend>();
     FrameRateTestInputBackend* zoomInput = zoomBackend.get();
     auto zoomUser = std::make_shared<User>(std::move(zoomBackend));
-    zoomUser->controlMode = User::ControlMode::Free;
+    zoomUser->setControlMode(User::ControlMode::Free);
     const Vector3 zoomStart = zoomUser->cpos;
     zoomInput->scrollDelta = 2.0;
     zoomUser->processInput(nullptr, 1.0f / 60.0f, true, false, false, false);
@@ -8512,7 +8512,7 @@ static int runDefaultCameraModeRegression() {
             ? User::ControlMode::Free
             : mode == System::CameraMode::Program
                 ? User::ControlMode::Program : User::ControlMode::Character;
-        expect(user.controlMode == expected,
+        expect(user.getControlMode() == expected,
                "default camera mode maps explicitly to User control mode");
     }
 
@@ -8703,7 +8703,7 @@ static int runSceneLoadTransactionRegression() {
                liveSystem->DefaultCameraMode == System::CameraMode::Program &&
                liveSystem->BaseResolution == Vector2(1280.0f, 720.0f) &&
                liveSystem->UseNetwork &&
-               liveUser->controlMode == User::ControlMode::Program &&
+               liveUser->getControlMode() == User::ControlMode::Program &&
                liveUser->speed == 0.75f && liveUser->characterSmoothing == 0.75f &&
                !liveUser->isMovementInputEnabled() && !liveUser->isCameraInputEnabled() &&
                !liveUser->isHotkeyInputEnabled() && !liveUser->isToolInputEnabled() &&
@@ -11052,6 +11052,7 @@ int runCharacterHoverRegression() {
     if (physics) {
         physics->update(*workspace, 0.0f);
         for (int step = 0; step < 360; ++step) {
+            humanoid->updatePhysicsState(physics);
             humanoid->move(
                 Vector3(0.0f, 0.0f, -1.0f),
                 Vector3(1.0f, 0.0f, 0.0f),
@@ -11108,6 +11109,55 @@ int runCharacterHoverRegression() {
         "all dynamic R6 bodies receive equal mass-scaled hover acceleration"
     );
 
+    auto modeBackend = std::make_unique<FrameRateTestInputBackend>();
+    auto modeUser = std::make_shared<User>(std::move(modeBackend));
+    modeUser->character = character;
+    modeUser->humanoid = humanoid;
+    modeUser->setControlMode(User::ControlMode::Free);
+    for (int step = 0; step < 60; ++step) {
+        modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    auto rootHover = root->getChildren().find("CharacterHoverForce");
+    auto rootHoverForce = rootHover == root->getChildren().end()
+        ? nullptr
+        : std::dynamic_pointer_cast<Force>(rootHover->second);
+    expect(rootHoverForce && rootHoverForce->Enabled,
+           "Free mode keeps CharacterHoverForce active while grounded");
+
+    for (const auto& body : bodies) {
+        if (body && physics->hasBody(*body)) {
+            const Vector3 velocity = physics->getLinearVelocity(*body);
+            physics->setLinearVelocity(*body, Vector3(7.0f, velocity.y, -5.0f));
+            physics->setAngularVelocity(*body, Vector3(1.0f, 2.0f, 3.0f));
+        }
+    }
+    modeUser->setControlMode(User::ControlMode::Character);
+    modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
+    modeUser->setControlMode(User::ControlMode::Free);
+    modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
+    bool horizontalVelocityStopped = true;
+    bool angularVelocityStopped = true;
+    for (const auto& body : bodies) {
+        if (!body || !physics->hasBody(*body)) continue;
+        const Vector3 velocity = physics->getLinearVelocity(*body);
+        horizontalVelocityStopped = horizontalVelocityStopped &&
+            std::abs(velocity.x) < 0.01f && std::abs(velocity.z) < 0.01f;
+        const Vector3 angularVelocity = physics->getAngularVelocity(*body);
+        angularVelocityStopped = angularVelocityStopped &&
+            angularVelocity.lengthSquared() < 0.0001f;
+    }
+    expect(horizontalVelocityStopped && angularVelocityStopped,
+           "entering Free stops Character movement and angular velocity while preserving vertical physics");
+    auto yawForceIt = root->getChildren().find("YawForce");
+    auto yawForce = yawForceIt == root->getChildren().end()
+        ? nullptr
+        : std::dynamic_pointer_cast<Force>(yawForceIt->second);
+    expect(!yawForce || !yawForce->Enabled,
+           "entering Free disables the Character yaw controller");
+
+    modeUser->setControlMode(User::ControlMode::Character);
+    modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
     humanoid->jump(physics);
     bool hoverOffAtLaunch = true;
     bool equalLaunchVelocity = true;
@@ -11127,11 +11177,36 @@ int runCharacterHoverRegression() {
         "jump disables every hover Force before equal-body launch velocity"
     );
 
+    modeUser->setControlMode(User::ControlMode::Free);
+    bool modeSwitchHoverStayedOff = true;
+    bool modeSwitchLanded = false;
+    for (int step = 0; step < 360; ++step) {
+        modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
+        auto modeForceIt = root->getChildren().find("CharacterHoverForce");
+        auto modeForce = modeForceIt == root->getChildren().end()
+            ? nullptr
+            : std::dynamic_pointer_cast<Force>(modeForceIt->second);
+        const float yVelocity = physics->getLinearVelocity(*root).y;
+        if (yVelocity > 0.0f && modeForce && modeForce->Enabled)
+            modeSwitchHoverStayedOff = false;
+        physics->update(*workspace, 1.0f / 60.0f);
+        if (yVelocity <= 0.0f && modeForce && modeForce->Enabled) {
+            modeSwitchLanded = true;
+            break;
+        }
+    }
+    expect(modeSwitchHoverStayedOff && modeSwitchLanded,
+           "switching to Free during a jump preserves suppression until landing");
+
+    modeUser->setControlMode(User::ControlMode::Character);
+    modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
+    humanoid->jump(physics);
     bool hoverStayedOffWhileRising = true;
     bool hoverResumed = false;
     bool reachedJumpApex = false;
     float peakHeight = root->getWorldPosition().y;
     for (int step = 0; step < 360; ++step) {
+        humanoid->updatePhysicsState(physics);
         humanoid->move(
             Vector3(0.0f, 0.0f, -1.0f),
             Vector3(1.0f, 0.0f, 0.0f),

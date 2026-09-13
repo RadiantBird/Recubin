@@ -282,8 +282,8 @@ void User::updateMouseCapture() {
 }
 
 std::string User::toggleControlMode() {
-    controlMode = controlMode == ControlMode::Free ? ControlMode::Character : ControlMode::Free;
-    return controlMode == ControlMode::Free ? "Free" : "Character";
+    setControlMode(getControlMode() == ControlMode::Free ? ControlMode::Character : ControlMode::Free);
+    return getControlMode() == ControlMode::Free ? "Free" : "Character";
 }
 
 bool User::toggleCtrlLock() { return setCtrlLockEnabled(!ctrlLockEnabled); }
@@ -451,7 +451,7 @@ void User::resetInputRuntimeState() {
 bool User::processCameraRotation(bool viewportFocused, float deltaTime, bool builtinInputEnabled) {
     const bool physicalAltDown = m_input->isKeyDown(KeyCode::LeftAlt) ||
         m_input->isKeyDown(KeyCode::RightAlt);
-    if (controlMode == ControlMode::Program) {
+    if (getControlMode() == ControlMode::Program) {
         // Program はカメラを回さない。右ドラッグ/Alt が残した一時捕捉だけを
         // 解放し、MouseLock と外部ドラッグの所有分は updateMouseCapture() に任せる。
         m_altLookActive = false;
@@ -565,10 +565,10 @@ void User::processZoom(bool keyboardZoomEnabled, bool mouseZoomEnabled, float de
     // 無効時も毎フレーム破棄しておかないと、ビューポート外でのスクロールが
     // 消費されずに溜まり、後でhoverしただけの瞬間にまとめて適用されてしまう
     const double scrollDelta = m_input->consumeScrollDelta();
-    if (controlMode == ControlMode::Program) return; // Luauがカメラを直接制御するため入力は無視する
+    if (getControlMode() == ControlMode::Program) return; // Luauがカメラを直接制御するため入力は無視する
 
     const float keyboardZoom = zoomSpeed * std::max(deltaTime, 0.0f) * 60.0f;
-    if (controlMode == ControlMode::Free) {
+    if (getControlMode() == ControlMode::Free) {
         if (keyboardZoomEnabled && m_input->isKeyDown(KeyCode::I)) cpos = cpos + forward * keyboardZoom;
         if (keyboardZoomEnabled && m_input->isKeyDown(KeyCode::O)) cpos = cpos - forward * keyboardZoom;
         if (mouseZoomEnabled && scrollDelta != 0.0) {
@@ -587,7 +587,7 @@ void User::processZoom(bool keyboardZoomEnabled, bool mouseZoomEnabled, float de
 // 移動ディスパッチ（Free / Character を振り分け）
 void User::processMovement(bool viewportFocused, Physics* physics, float deltaTime) {
     if (viewportFocused || m_hasScriptMoveDirection) {
-        if (controlMode == ControlMode::Free) {
+        if (getControlMode() == ControlMode::Free) {
             Vector3 moveDirection{};
 
             if (m_hasScriptMoveDirection) {
@@ -625,7 +625,7 @@ void User::processMovement(bool viewportFocused, Physics* physics, float deltaTi
                 accelerationMultiplier = 1.0f;
             }
 
-        } else if (controlMode == ControlMode::Character && character && humanoid) {
+        } else if (getControlMode() == ControlMode::Character && character && humanoid) {
             processCharacterMovement(physics, deltaTime);
         }
     }
@@ -719,7 +719,7 @@ void User::processHotkeys(Physics* physics) {
 
     // 左Ctrlキー: CtrlLock ON/OFFトグル
     bool ctrlKeyPressed = m_input->isKeyDown(KeyCode::LeftControl);
-    if (ctrlKeyPressed && !lastCtrlKeyPressed && controlMode == ControlMode::Character) {
+    if (ctrlKeyPressed && !lastCtrlKeyPressed && getControlMode() == ControlMode::Character) {
         toggleCtrlLock();
         RCBN_LOG(ctrlLockEnabled ? "CtrlLock: ON" : "CtrlLock: OFF");
     }
@@ -752,7 +752,7 @@ void User::processToolkeys(bool viewportFocused, bool isGameplayInput, bool want
         KeyCode::Num6, KeyCode::Num7, KeyCode::Num8, KeyCode::Num9, KeyCode::Num0
     };
     const bool actionsEnabled = isGameplayInput && character && viewportFocused &&
-        controlMode == ControlMode::Character && !wantsTextInput;
+        getControlMode() == ControlMode::Character && !wantsTextInput;
 
     for (int i = 0; i < 10; i++) {
         const bool pressed = m_input->isKeyDown(keys[i]);
@@ -787,6 +787,15 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     if (!m_input) return;
     m_lastViewportFocused = viewportFocused;
 
+    // 外部setterで前フレーム間にFree/Programへ切り替えられた場合も、
+    // Character入力が残した水平速度を最初の物理更新前に止める。
+    if (m_lastProcessedControlMode &&
+        *m_lastProcessedControlMode == ControlMode::Character &&
+        getControlMode() != ControlMode::Character && humanoid) {
+        humanoid->stopCharacterMotion(physics);
+    }
+    m_lastProcessedControlMode = getControlMode();
+
     // ジャンプ要求は毎フレームクリアし、processHotkeys()内でSpace押下時にのみセットする
     // (ネットワークレプリケーション用: このフレームでジャンプ要求があったかをlastMovementInputに残す)
     lastMovementInput.jumpRequested = false;
@@ -819,11 +828,12 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     }
     if (humanoid) humanoid->updateFirstPersonState(cameraDistance <= firstPersonThreshold);
     // 死亡中はキャラクター移動を駆動しない（ばらしたパーツを上書きしないため）
-    if (!humanoid || !humanoid->isDead() || controlMode == ControlMode::Free) {
+    if (!humanoid || !humanoid->isDead() || getControlMode() == ControlMode::Free) {
         processMovement(viewportFocused && !wantsTextInput, physics, deltaTime);
     }
+    if (humanoid && character) humanoid->updatePhysicsState(physics);
     if (rotated) updateVectors();
-    if (m_movementInputEnabled && !wantsTextInput && controlMode == ControlMode::Character &&
+    if (m_movementInputEnabled && !wantsTextInput && getControlMode() == ControlMode::Character &&
         m_input->isKeyDown(KeyCode::Space)) {
         queueJump();
     }
@@ -835,6 +845,14 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
         lastCtrlKeyPressed = m_input->isKeyDown(KeyCode::LeftControl);
         lastCtrlLockFKeyPressed = m_input->isKeyDown(KeyCode::F);
     }
+
+    // Lキー切替はこのフレームの入力処理後に発生するため、同じフレーム内で
+    // Characterの水平速度を止める。Y速度とhoverのjump抑制状態は変更しない。
+    if (m_lastProcessedControlMode == ControlMode::Character &&
+        getControlMode() != ControlMode::Character && humanoid) {
+        humanoid->stopCharacterMotion(physics);
+    }
+    m_lastProcessedControlMode = getControlMode();
     if (m_toolInputEnabled) {
         processToolkeys(viewportFocused, isGameplayInput, wantsTextInput);
         processMouse(isGameplayInput && !wantsTextInput);
@@ -910,7 +928,7 @@ void User::setCharacterFromScript(std::shared_ptr<Model> newCharacter) {
     if (!newCharacter) {
         character = nullptr;
         humanoid = nullptr;
-        controlMode = ControlMode::Free;
+        setControlMode(ControlMode::Free);
         return;
     }
 
@@ -920,7 +938,7 @@ void User::setCharacterFromScript(std::shared_ptr<Model> newCharacter) {
     humanoid = (it != character->getChildren().end()) ? std::dynamic_pointer_cast<Humanoid>(it->second) : nullptr;
     if (humanoid) humanoid->resolveParts(character.get());
 
-    if (controlMode == ControlMode::Free) controlMode = ControlMode::Character;
+    if (getControlMode() == ControlMode::Free) setControlMode(ControlMode::Character);
 
     if (CharacterAdded) {
         auto self = character;
@@ -1214,9 +1232,9 @@ bool User::IsA(std::string className) {
 void User::setProperty(const std::string& name, const YAML::Node& value) {
     if (name == "ControlMode") {
         std::string s = value.as<std::string>();
-        if (s == "Free")         controlMode = ControlMode::Free;
-        else if (s == "Program") controlMode = ControlMode::Program;
-        else                     controlMode = ControlMode::Character;
+        if (s == "Free")         setControlMode(ControlMode::Free);
+        else if (s == "Program") setControlMode(ControlMode::Program);
+        else                     setControlMode(ControlMode::Character);
         return;
     }
     if (name == "Speed")             { speed             = value.as<float>(); return; }

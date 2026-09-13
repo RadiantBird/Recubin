@@ -11,7 +11,8 @@
                 "UNICODE",
                 "_UNICODE",
                 "YAML_CPP_STATIC_LIBRARIES",
-                "GLEW_STATIC"
+                "GLEW_STATIC",
+                "NOMINMAX"
             ],
             "windowsSdkVersion": "10.0.26100.0",
             "compilerPath": "cl.exe",

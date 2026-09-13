@@ -325,6 +325,46 @@ void Humanoid::setRootGyro(const std::shared_ptr<Gyro>& gyro) {
     m_rootGyro = gyro;
 }
 
+void Humanoid::updatePhysicsState(Physics* physics) {
+    auto root = getRootPart();
+    if (!root || !physics || !physics->hasBody(*root)) {
+        setHoverForces(physics, false, 0.0f);
+        return;
+    }
+
+    const bool onTruss = physics->findOverlapping(*root, "Truss", 0.5f) != nullptr;
+    physics->setGravityEnabled(*root, !onTruss);
+    if (onTruss) {
+        setHoverForces(physics, false, 0.0f);
+        isGrounded = false;
+        return;
+    }
+
+    updateGroundHover(physics, root);
+}
+
+void Humanoid::stopCharacterMotion(Physics* physics) {
+    if (!physics) {
+        return;
+    }
+
+    auto root = getRootPart();
+    if (auto yawForce = findCharacterYawForce(root)) {
+        yawForce->Value = Vector3();
+        yawForce->Enabled = false;
+    }
+
+    for (const auto& body : collectCharacterBodies()) {
+        if (!body || !physics->hasBody(*body)) {
+            continue;
+        }
+
+        const Vector3 velocity = physics->getLinearVelocity(*body);
+        physics->setLinearVelocity(*body, Vector3(0.0f, velocity.y, 0.0f));
+        physics->setAngularVelocity(*body, Vector3());
+    }
+}
+
 void Humanoid::setHealth(float v) {
     if (std::isnan(v)) {
         RCBN_ERROR("Received NaN value for Health, rejected.");
@@ -456,11 +496,11 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     auto yawForce =
         findCharacterYawForce(root);
 
-    RCBN_LOG(
-        "Humanoid YawForce rootPtr=" << static_cast<const void*>(root.get())
-        << " rootPath=" << root->getFullPath()
-        << " yawForcePtr=" << static_cast<const void*>(yawForce.get())
-    );
+    // RCBN_LOG(
+    //     "Humanoid YawForce rootPtr=" << static_cast<const void*>(root.get())
+    //     << " rootPath=" << root->getFullPath()
+    //     << " yawForcePtr=" << static_cast<const void*>(yawForce.get())
+    // );
 
     // --- Seat: 未着席なら接触判定、着席中ならSteer/Throttle更新のみ行って抜ける ---
     if (!m_seated && physics) {
@@ -527,7 +567,6 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
 
     // --- Truss(はしご)接触判定。登坂中は重力を切り、静止していても留まれるようにする ---
     BaseCube* trussCube = physics ? physics->findOverlapping(*root, "Truss", 0.5f) : nullptr;
-    physics->setGravityEnabled(*root, trussCube == nullptr);
 
     // --- 向き(Rotation)の更新 ---
     // Truss接触中は向きを固定する(自動回転させると登坂中に姿勢が崩れて落下してしまうため)
@@ -610,21 +649,21 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
                 yawForce->Value.y =
                     desiredYawVelocity;
 
-                RCBN_LOG(
-                    "Yaw target=" << targetYaw
-                    << " current=" << currentYaw
-                    << " error=" << errorDegrees
-                    << " velocity=" << desiredYawVelocity
-                );
+                // RCBN_LOG(
+                //     "Yaw target=" << targetYaw
+                //     << " current=" << currentYaw
+                //     << " error=" << errorDegrees
+                //     << " velocity=" << desiredYawVelocity
+                // );
 
                 // const Vector3 actualAngularVelocity =
                 //     physics->getAngularVelocity(*root);
 
-                RCBN_LOG(
-                    "Yaw command=" << desiredYawVelocity
-                    // << " actualY=" << actualAngularVelocity.y
-                    << " error=" << errorDegrees
-                );
+                // RCBN_LOG(
+                //     "Yaw command=" << desiredYawVelocity
+                //     // << " actualY=" << actualAngularVelocity.y
+                //     << " error=" << errorDegrees
+                // );
                 
             }
             else {
@@ -666,13 +705,6 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         }
     }
 
-    if (trussCube) {
-        setHoverForces(physics, false, 0.0f);
-        isGrounded = false;
-    } else {
-        updateGroundHover(physics, root);
-    }
-
     applyBodyAnimation(leftArmRaised, rightArmRaised);
 }
 
@@ -692,12 +724,14 @@ bool Humanoid::moveToward(const Vector3& target, Physics* physics, float deltaTi
     if (dist <= arrivalRadius) {
         move(Vector3(0, 0, -1), Vector3(1, 0, 0), false, Vector3(0, 0, 0), false,
              physics, false, false, 0.0f, 0.0f, 0.15f, deltaTime);
+        updatePhysicsState(physics);
         return true;
     }
 
     Vector3 dir = toTarget.normalize();
     move(dir, Vector3::Cross(Vector3(0, 1, 0), dir), true, dir, false,
          physics, false, false, 0.0f, 0.0f, 0.15f, deltaTime);
+    updatePhysicsState(physics);
     return false;
 }
 

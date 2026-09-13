@@ -550,6 +550,12 @@ Vector3 Box3DPhysicsBackend::getLinearVelocity(const BaseCube& cube) const {
         ? fromB3Length(b3Body_GetLinearVelocity(id)) : Vector3();
 }
 
+Vector3 Box3DPhysicsBackend::getAngularVelocity(const BaseCube& cube) const {
+    const b3BodyId id = bodyId(cube);
+    return B3_IS_NON_NULL(id)
+        ? fromB3Vector(b3Body_GetAngularVelocity(id)) : Vector3();
+}
+
 std::optional<float> Box3DPhysicsBackend::getBodyMass(
     const BaseCube& cube
 ) const {
@@ -1797,26 +1803,26 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
             if (!diagnostic.owner || !diagnostic.force ||
                 B3_IS_NULL(diagnostic.bodyId))
                 continue;
-            RCBN_LOG(
-                "YawForce owner=" << diagnostic.owner->getFullPath()
-                << " ownerPtr=" << static_cast<const void*>(diagnostic.owner)
-                << " forcePtr=" << static_cast<const void*>(diagnostic.force)
-                << " bodyId=" << b3StoreBodyId(diagnostic.bodyId)
-                << " Value.y=" << diagnostic.force->Value.y
-                << " Enabled=" << (diagnostic.force->Enabled ? 1 : 0)
-                << " Torque=" << (diagnostic.force->Torque ? 1 : 0)
-                << " MaintainVelocity="
-                << (diagnostic.force->MaintainVelocity ? 1 : 0)
-                << " AxisMask=(" << diagnostic.force->AxisMask.x
-                << "," << diagnostic.force->AxisMask.y
-                << "," << diagnostic.force->AxisMask.z << ")"
-                << " pre-step angularVelocity.y="
-                << diagnostic.preStepAngularVelocityY
-                << " post-step angularVelocity.y="
-                << diagnostic.postStepAngularVelocityY
-                << " post-MaintainVelocity angularVelocity.y="
-                << b3Body_GetAngularVelocity(diagnostic.bodyId).y
-            );
+            // RCBN_LOG(
+            //     "YawForce owner=" << diagnostic.owner->getFullPath()
+            //     << " ownerPtr=" << static_cast<const void*>(diagnostic.owner)
+            //     << " forcePtr=" << static_cast<const void*>(diagnostic.force)
+            //     << " bodyId=" << b3StoreBodyId(diagnostic.bodyId)
+            //     << " Value.y=" << diagnostic.force->Value.y
+            //     << " Enabled=" << (diagnostic.force->Enabled ? 1 : 0)
+            //     << " Torque=" << (diagnostic.force->Torque ? 1 : 0)
+            //     << " MaintainVelocity="
+            //     << (diagnostic.force->MaintainVelocity ? 1 : 0)
+            //     << " AxisMask=(" << diagnostic.force->AxisMask.x
+            //     << "," << diagnostic.force->AxisMask.y
+            //     << "," << diagnostic.force->AxisMask.z << ")"
+            //     << " pre-step angularVelocity.y="
+            //     << diagnostic.preStepAngularVelocityY
+            //     << " post-step angularVelocity.y="
+            //     << diagnostic.postStepAngularVelocityY
+            //     << " post-MaintainVelocity angularVelocity.y="
+            //     << b3Body_GetAngularVelocity(diagnostic.bodyId).y
+            // );
         }
 
         ++m_simulationTick;
@@ -1836,10 +1842,10 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
         );
     }
 
-    RCBN_LOG(
-        "Physics steps=" << stepCount
-        << " dt=" << dt
-    );
+    // RCBN_LOG(
+    //     "Physics steps=" << stepCount
+    //     << " dt=" << dt
+    // );
 
     m_accumulatorAlpha = std::clamp(
         m_accumulator / FIXED_STEP,

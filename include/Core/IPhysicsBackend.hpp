@@ -59,6 +59,9 @@ public:
     virtual CFrame getBodyWorldCFrame(const BaseCube& cube) const = 0;
     virtual void setBodyWorldCFrame(BaseCube& cube, const CFrame& worldCFrame) = 0;
     virtual Vector3 getLinearVelocity(const BaseCube& cube) const = 0;
+    virtual Vector3 getAngularVelocity(const BaseCube&) const {
+        return Vector3();
+    }
     virtual std::optional<float> getBodyMass(const BaseCube&) const {
         return std::nullopt;
     }

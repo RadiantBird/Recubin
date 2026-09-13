@@ -83,6 +83,13 @@ public:
               bool leftArmRaised, bool rightArmRaised,
               float forwardAxis, float rightAxis, float smoothing, float deltaTime);
 
+    // 入力モードに依存しない物理状態（接地、hover、Truss重力）を更新する。
+    void updatePhysicsState(Physics* physics);
+
+    // Free/Programへ移行した際に、Character入力が残した移動・回転速度を止める。
+    // 垂直速度はジャンプ・落下の継続に必要なため保持する。
+    void stopCharacterMotion(Physics* physics);
+
     // 接地中、または水没中にJumpPowerで上方向の速度をセットする
     void jump(Physics* physics);
 

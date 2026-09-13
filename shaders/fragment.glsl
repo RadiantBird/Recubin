@@ -68,23 +68,39 @@ uniform vec3      uLocalBoundsMin;         // MeshCubeローカルAABB
 uniform vec3      uLocalBoundsMax;
 
 float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
+    // The light-space projection is a homogeneous clip-space position.  Do
+    // not attempt a divide for vertices behind the light camera: an invalid
+    // w can turn into an apparently valid UV and make the shadow test depend
+    // on the sampler border state.
+    if (fragPosLightSpace.w <= 0.0) return 0.0;
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
     if (projCoords.x < 0.0 || projCoords.x > 1.0 ||
-        projCoords.y < 0.0 || projCoords.y > 1.0) {
+        projCoords.y < 0.0 || projCoords.y > 1.0 ||
+        projCoords.z < 0.0 || projCoords.z > 1.0) {
         return 0.0;
     }
-    if (projCoords.z > 1.0) return 0.0;
     float currentDepth = projCoords.z;
     float bias = max(0.0015 * (1.0 - dot(norm, lightDirNorm)), 0.0005);
     float shadow = 0.0;
+    float sampleCount = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
     for (int x = -1; x <= 1; ++x)
         for (int y = -1; y <= 1; ++y) {
-            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+            vec2 sampleUv = projCoords.xy + vec2(x, y) * texelSize;
+            // Keep the PCF kernel from consulting the border value.  The
+            // explicit range test above handles the fragment itself, while
+            // this test handles the three-by-three footprint at the edge.
+            // Out-of-coverage samples are lit, never shadowed.
+            if (sampleUv.x < 0.0 || sampleUv.x > 1.0 ||
+                sampleUv.y < 0.0 || sampleUv.y > 1.0) {
+                continue;
+            }
+            float pcfDepth = texture(shadowMap, sampleUv).r;
             shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+            sampleCount += 1.0;
         }
-    return shadow / 9.0;
+    return sampleCount > 0.0 ? shadow / sampleCount : 0.0;
 }
 
 void main() {
