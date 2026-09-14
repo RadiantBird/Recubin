@@ -6,6 +6,25 @@ static const char* faceNames[] = { "Front", "Back", "Top", "Bottom", "Right", "L
 
 static const bool s_decalRegistered = []{
     using namespace PropertyRegistry;
+    PropertyDesc face = custom("Face", PropType::Enum,
+        [](Instance* instance) {
+            return PropValue(static_cast<int>(static_cast<Decal*>(instance)->face));
+        },
+        [](Instance* instance, const PropValue& value) {
+            static_cast<Decal*>(instance)->setFace(static_cast<Face>(std::get<int>(value)));
+        });
+    face.enumNames = {{"Front", 0}, {"Back", 1}, {"Top", 2}, {"Bottom", 3},
+                      {"Right", 4}, {"Left", 5}};
+    face.noEditor();
+    PropertyDesc mode = custom("Mode", PropType::Enum,
+        [](Instance* instance) {
+            return PropValue(static_cast<int>(static_cast<Decal*>(instance)->Mode));
+        },
+        [](Instance* instance, const PropValue& value) {
+            static_cast<Decal*>(instance)->setMode(static_cast<DecalMode>(std::get<int>(value)));
+        });
+    mode.enumNames = {{"UV", 0}, {"Face", 1}};
+    mode.noEditor();
     registerClass("Decal", "Instance", {
         custom("Texture", PropType::String,
             [](Instance* instance) {
@@ -14,17 +33,23 @@ static const bool s_decalRegistered = []{
             [](Instance* instance, const PropValue& value) {
                 static_cast<Decal*>(instance)->setTexturePath(std::get<std::string>(value));
             }).omitEmpty().filePath("Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"),
-        custom("Face", PropType::Int,
+        face,
+        field<&Decal::Color>("Color"),
+        custom("UVCenter", PropType::Vec2,
             [](Instance* instance) {
-                return PropValue(static_cast<int>(static_cast<Decal*>(instance)->face));
+                return PropValue(static_cast<Decal*>(instance)->UVCenter);
             },
             [](Instance* instance, const PropValue& value) {
-                static_cast<Decal*>(instance)->setFace(static_cast<Face>(std::get<int>(value)));
-            }),
-        field<&Decal::Color>("Color"),
-        field<&Decal::UVCenter>("UVCenter"),
-        field<&Decal::UVRadius>("UVRadius"),
-        field<&Decal::Mode>("Mode"),
+                static_cast<Decal*>(instance)->setUVCenter(std::get<Vector2>(value));
+            }).noEditor(),
+        custom("UVRadius", PropType::Float,
+            [](Instance* instance) {
+                return PropValue(static_cast<Decal*>(instance)->UVRadius);
+            },
+            [](Instance* instance, const PropValue& value) {
+                static_cast<Decal*>(instance)->setUVRadius(std::get<float>(value));
+            }).noEditor(),
+        mode,
     });
     return true;
 }();
@@ -59,6 +84,18 @@ void Decal::setFace(Face f) {
         Name = "Decal_" + std::string(faceNames[(int)f]);
     }
     face = f;
+}
+
+void Decal::setMode(DecalMode mode) {
+    Mode = mode;
+}
+
+void Decal::setUVCenter(const Vector2& center) {
+    UVCenter = center;
+}
+
+void Decal::setUVRadius(float radius) {
+    UVRadius = radius;
 }
 
 void Decal::setTexturePath(const std::string& path) {

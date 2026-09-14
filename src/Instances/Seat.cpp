@@ -6,8 +6,8 @@
 static const bool s_seatRegistered = []{
     using namespace PropertyRegistry;
     registerClass("Seat", "Cube", {
-        field<&Seat::Steer>   ("Steer",    -1, 1).luaReadOnly().noYaml().noEditor(),
-        field<&Seat::Throttle>("Throttle", -1, 1).luaReadOnly().noYaml().noEditor(),
+        field<&Seat::Steer>   ("Steer",    -1, 1).luaReadOnly().noYaml().noClone().noEditor(),
+        field<&Seat::Throttle>("Throttle", -1, 1).luaReadOnly().noYaml().noClone().noEditor(),
     });
     return true;
 }();
@@ -15,6 +15,7 @@ static const bool s_seatRegistered = []{
 std::shared_ptr<Instance> Seat::clone() const {
     auto copy = std::make_shared<Seat>(this->getPosition(), this->Size, Cube::defaultTextureID);
     // m_occupantは複製しない(新規シートは空席から始まる)
+    PropertyRegistry::cloneFields(this, copy.get(), "Seat");
     cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }

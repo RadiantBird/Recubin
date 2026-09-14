@@ -43,7 +43,14 @@ const bool s_scriptRegistered = [] {
             [](Instance* instance, const PropValue& value) {
                 setScriptPath(*static_cast<Script*>(instance), std::get<std::string>(value));
             }).yaml("ContentPath").filePath("Luau Script (*.luau;*.lua;*.luauc)",
-                                            "*.luau;*.lua;*.luauc").noClone(),
+                                            "*.luau;*.lua;*.luauc")
+               .copyStateWith([](const Instance* source, Instance* destination) {
+                   const auto* src = static_cast<const Script*>(source);
+                   auto* dst = static_cast<Script*>(destination);
+                   dst->Source = src->Source;
+                   dst->Path = src->Path;
+                   dst->isPrecompiled = src->isPrecompiled;
+               }),
     });
     return true;
 }();
@@ -94,10 +101,6 @@ std::shared_ptr<Instance> Script::clone() const {
     auto copy = std::make_shared<Script>();
     copy->Name          = Name;
     PropertyRegistry::cloneFields(this, copy.get(), "Script");
-    // Path はclone時に再読込せず、元のソース／bytecode状態をそのまま復元する。
-    copy->Source        = Source;
-    copy->Path          = Path;
-    copy->isPrecompiled = isPrecompiled;
     // 実行時状態(Coroutine/Sleeping/Completed/lastWorkspace等)は複製せず新規のまま
     for (auto const& [n, child] : children)
         copy->addChild(child->clone());

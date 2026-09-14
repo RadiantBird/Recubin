@@ -56,11 +56,16 @@ struct PropertyDesc {
 
     std::string_view yamlKey;        // 空でなければ YAML のキー名に使う（Lua/エディター名と別名にできる）
     bool serialize = true, cloneable = true, editable = true;    // 各概念への参加
+    bool multiEditable = true;                                   // multi editor への参加
+    bool editorReadOnly = false;                                 // 表示するが editor からは変更不可
     std::function<bool(const Instance*)> serializeWhen;          // falseならYAMLへ出力しない
+    std::function<bool(Instance*, const YAML::Node&)> yamlDeserialize;
+    std::function<void(YAML::Emitter&, const Instance*, std::string_view)> yamlSerialize;
     std::function<void(const Instance*, Instance*)> copyState;   // clone/置換時の非property状態コピー
     bool omitEmptyString = false;    // 空文字の string は YAML へ出力しない
     bool clampOnLuaWrite = false;    // Lua 書込時に lo/hi へクランプする（数値プロパティのみ）
     bool noLuaWrite = false;         // Lua からは読取専用（YAML/clone は読み書き可のまま）
+    bool noLuaRead = false;          // Lua から不可視（YAML/clone/editor は個別設定に従う）
     float lo = 0.0f, hi = 0.0f, step = 0.1f;                     // エディター用レンジ
     std::string_view separator{};     // 空でなければ、このプロパティの直前に ImGui::SeparatorText を描画する（"Appearance"等）
     std::string_view instanceRefClass{}; // 非空なら指定IsA型だけを受けるInstance参照文字列
@@ -75,13 +80,16 @@ struct PropertyDesc {
     PropertyDesc& readOnly()  { set = nullptr; luaSet = nullptr; return *this; }
     PropertyDesc& noYaml()    { serialize = false; return *this; }
     PropertyDesc& noClone()   { cloneable = false; return *this; }
-    PropertyDesc& noEditor()  { editable = false; return *this; }
+    PropertyDesc& noEditor()  { editable = false; multiEditable = false; return *this; }
+    PropertyDesc& multiOnly() { editable = false; multiEditable = true; return *this; }
+    PropertyDesc& readOnlyInEditor() { editorReadOnly = true; return *this; }
     PropertyDesc& omitEmpty() { omitEmptyString = true; return *this; }
     PropertyDesc& yaml(std::string_view key) { yamlKey = key; return *this; }
     // 不正値が困る数値は Lua 書込時に lo/hi へクランプ（lo<hi のときのみ有効）
     PropertyDesc& clampLua()  { clampOnLuaWrite = true; return *this; }
     // Lua からは読取専用にする（YAML 読込/保存・clone は通常通り）
     PropertyDesc& luaReadOnly() { noLuaWrite = true; return *this; }
+    PropertyDesc& luaHidden() { noLuaRead = true; noLuaWrite = true; return *this; }
     // 値とは別に保持する状態をYAML出力条件へ反映する。
     PropertyDesc& serializeIf(std::function<bool(const Instance*)> fn) {
         serializeWhen = std::move(fn);
@@ -90,6 +98,15 @@ struct PropertyDesc {
     // 値のclone/置換後に、値以外のproperty metadataをコピーする。
     PropertyDesc& copyStateWith(std::function<void(const Instance*, Instance*)> fn) {
         copyState = std::move(fn);
+        return *this;
+    }
+    PropertyDesc& yamlReadWith(std::function<bool(Instance*, const YAML::Node&)> fn) {
+        yamlDeserialize = std::move(fn);
+        return *this;
+    }
+    PropertyDesc& yamlWriteWith(
+        std::function<void(YAML::Emitter&, const Instance*, std::string_view)> fn) {
+        yamlSerialize = std::move(fn);
         return *this;
     }
     // ドラッグ中の毎フレーム反映用セッターを別途指定する（確定時は set が呼ばれる）
@@ -303,7 +320,7 @@ void registerClass(std::string_view className, std::string_view baseClassName,
 // registerClass 済みの全クラス名（H-2: applyToDispatch 配線漏れ検出用）
 std::vector<std::string_view> registeredClassNames();
 
-// 自クラスのみ（Lua dispatch 登録用。基底解決は instance_index が担う）
+// 自クラスのみ（登録・診断用）。実際の dispatch 配線は collectSchema を使う。
 const std::vector<PropertyDesc>& schemaFor(std::string_view className);
 // 基底→派生の順に集約（YAML/clone/editor 用）
 std::vector<const PropertyDesc*> collectSchema(std::string_view className);
@@ -314,7 +331,13 @@ std::vector<const PropertyDesc*> collectApplicableSchema(Instance* obj);
 
 bool loadProperty(Instance* obj, std::string_view className,
                   const std::string& name, const YAML::Node& value);
+// 実行時の IsA() に一致する schema を使って1キーを読み込む。
+// 具象型が未登録でも基底型の property を扱えるようにする。
+bool loadApplicableProperty(Instance* obj, const std::string& name,
+                            const YAML::Node& value);
 void saveProperties(YAML::Emitter& out, const Instance* obj, std::string_view className);
+// className を呼び出し側で列挙せず、実行時型に適用される schema を保存する。
+void saveApplicableProperties(YAML::Emitter& out, const Instance* obj);
 void cloneFields(const Instance* src, Instance* dst, std::string_view className);
 // Copy properties shared by the source and destination schemas.  Values whose
 // representation is not accepted by the destination are intentionally skipped.

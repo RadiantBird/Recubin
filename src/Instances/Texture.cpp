@@ -6,6 +6,15 @@ static const char* faceNames[] = { "Front", "Back", "Top", "Bottom", "Right", "L
 
 static const bool s_textureRegistered = []{
     using namespace PropertyRegistry;
+    PropertyDesc face = custom("Face", PropType::Enum,
+        [](Instance* instance) {
+            return PropValue(static_cast<int>(static_cast<Texture*>(instance)->face));
+        },
+        [](Instance* instance, const PropValue& value) {
+            static_cast<Texture*>(instance)->setFace(static_cast<Face>(std::get<int>(value)));
+        });
+    face.enumNames = {{"Front", 0}, {"Back", 1}, {"Top", 2}, {"Bottom", 3},
+                      {"Right", 4}, {"Left", 5}};
     registerClass("Texture", "Instance", {
         custom("Texture", PropType::String,
             [](Instance* instance) {
@@ -14,13 +23,7 @@ static const bool s_textureRegistered = []{
             [](Instance* instance, const PropValue& value) {
                 static_cast<Texture*>(instance)->setTexturePath(std::get<std::string>(value));
             }).omitEmpty().filePath("Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"),
-        custom("Face", PropType::Int,
-            [](Instance* instance) {
-                return PropValue(static_cast<int>(static_cast<Texture*>(instance)->face));
-            },
-            [](Instance* instance, const PropValue& value) {
-                static_cast<Texture*>(instance)->setFace(static_cast<Face>(std::get<int>(value)));
-            }),
+        face,
         field<&Texture::Color>("Color"),
         field<&Texture::StudsPerTileU>("StudsPerTileU"),
         field<&Texture::StudsPerTileV>("StudsPerTileV"),

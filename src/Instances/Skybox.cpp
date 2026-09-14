@@ -34,6 +34,7 @@ std::shared_ptr<Instance> Skybox::clone() const {
     for (int i = 0; i < 6; i++) {
         copy->skyboxPaths[i] = this->skyboxPaths[i];
     }
+    PropertyRegistry::cloneFields(this, copy.get(), "Skybox");
     cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }

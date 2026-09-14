@@ -112,6 +112,10 @@ public:
     bool isCameraInputEnabled() const { return m_cameraInputEnabled; }
     bool isHotkeyInputEnabled() const { return m_hotkeyInputEnabled; }
     bool isToolInputEnabled() const { return m_toolInputEnabled; }
+    void setMovementInputEnabled(bool value) { m_movementInputEnabled = value; }
+    void setCameraInputEnabled(bool value) { m_cameraInputEnabled = value; }
+    void setHotkeyInputEnabled(bool value) { m_hotkeyInputEnabled = value; }
+    void setToolInputEnabled(bool value) { m_toolInputEnabled = value; }
     CursorType getCursorType() const { return m_cursorType; }
     void setCursorType(CursorType type);
     const CursorImageSlot& getCursorImageSlot(std::size_t index) const;

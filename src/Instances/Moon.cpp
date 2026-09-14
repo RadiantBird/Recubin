@@ -18,6 +18,7 @@ Moon::Moon() : Named<Moon, Sphere>(Vector3(0, 0, 0), Vector3(150.0f, 150.0f, 150
 
 std::shared_ptr<Instance> Moon::clone() const {
     auto copy = std::make_shared<Moon>();
+    PropertyRegistry::cloneFields(this, copy.get(), "Moon");
     cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }

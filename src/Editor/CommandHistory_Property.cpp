@@ -23,8 +23,7 @@ void SetVec3Command::undo() { apply(m_before); }
 void SetVec3Command::apply(const Vector3& v) {
     if (!m_target) return;
     if (m_prop=="Position") ViewportGeometry::applyEditorLocalCFrame(*m_target, CFrame(v, m_target->getRotation()));
-    else if (m_target->IsA("BaseCube")) static_cast<BaseCube*>(m_target.get())->setSize(v);
-    else if (m_prop=="Size") m_target->Size=v;
+    else if (m_prop=="Size") m_target->setSize(v);
 }
 SetColorCommand::SetColorCommand(std::shared_ptr<BaseCube> t, Color4 b, Color4 a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetColorCommand::execute(){if(m_target)m_target->Color=m_after;} void SetColorCommand::undo(){if(m_target)m_target->Color=m_before;}
@@ -67,26 +66,25 @@ void MultiSpatialTransformCommand::apply(bool after){
         const CFrame& cf=after?e.afterCFrame:e.beforeCFrame;
         const Vector3& sz=after?e.afterSize:e.beforeSize;
         ViewportGeometry::applyEditorWorldCFrame(*e.target,cf);
-        if(e.target->IsA("BaseCube")) static_cast<BaseCube*>(e.target.get())->setSize(sz);
-        else e.target->Size=sz;
+        e.target->setSize(sz);
     }
 }
 GizmoCommand::GizmoCommand(std::shared_ptr<BaseCube> t,GizmoState b,GizmoState a):m_target(std::move(t)),m_before(b),m_after(a){}
 void GizmoCommand::execute(){apply(m_after);} void GizmoCommand::undo(){apply(m_before);} void GizmoCommand::apply(const GizmoState&s){if(!m_target)return;m_target->teleportTo(s.position);m_target->setSize(s.size);m_target->setRotation(s.rotation);}
 MultiGizmoCommand::MultiGizmoCommand(std::vector<Entry> e):m_entries(std::move(e)){}
 void MultiGizmoCommand::execute(){for(auto&e:m_entries)applyState(e.target,e.after);} void MultiGizmoCommand::undo(){for(auto&e:m_entries)applyState(e.target,e.before);}
-void MultiGizmoCommand::applyState(const std::shared_ptr<Spatial>& sp,const GizmoState&s){if(!sp||sp->Parent.expired())return;ViewportGeometry::applyEditorLocalCFrame(*sp,CFrame(s.position,s.rotation));if(sp->IsA("BaseCube"))static_cast<BaseCube*>(sp.get())->setSize(s.size);else sp->Size=s.size;}
+void MultiGizmoCommand::applyState(const std::shared_ptr<Spatial>& sp,const GizmoState&s){if(!sp||sp->Parent.expired())return;ViewportGeometry::applyEditorLocalCFrame(*sp,CFrame(s.position,s.rotation));sp->setSize(s.size);}
 
 SetDecalColorCommand::SetDecalColorCommand(std::shared_ptr<Decal> t,Color4 b,Color4 a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetDecalColorCommand::execute(){if(m_target)m_target->Color=m_after;} void SetDecalColorCommand::undo(){if(m_target)m_target->Color=m_before;}
 SetDecalFaceCommand::SetDecalFaceCommand(std::shared_ptr<Decal> t,Face b,Face a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetDecalFaceCommand::execute(){if(m_target)m_target->setFace(m_after);} void SetDecalFaceCommand::undo(){if(m_target)m_target->setFace(m_before);}
 SetDecalModeCommand::SetDecalModeCommand(std::shared_ptr<Decal> t,DecalMode b,DecalMode a):m_target(std::move(t)),m_before(b),m_after(a){}
-void SetDecalModeCommand::execute(){if(m_target)m_target->Mode=m_after;} void SetDecalModeCommand::undo(){if(m_target)m_target->Mode=m_before;}
+void SetDecalModeCommand::execute(){if(m_target)m_target->setMode(m_after);} void SetDecalModeCommand::undo(){if(m_target)m_target->setMode(m_before);}
 SetDecalTextureCommand::SetDecalTextureCommand(std::shared_ptr<Decal> t,std::string bp,unsigned int bi,std::string ap,unsigned int ai):m_target(std::move(t)),m_beforePath(std::move(bp)),m_afterPath(std::move(ap)),m_beforeID(bi),m_afterID(ai){}
 void SetDecalTextureCommand::execute(){if(m_target){m_target->texturePath=m_afterPath;m_target->TextureID=m_afterID;}} void SetDecalTextureCommand::undo(){if(m_target){m_target->texturePath=m_beforePath;m_target->TextureID=m_beforeID;}}
 SetDecalUVCommand::SetDecalUVCommand(std::shared_ptr<Decal> t,Vector2 bc,float br,Vector2 ac,float ar):m_target(std::move(t)),m_beforeCenter(bc),m_afterCenter(ac),m_beforeRadius(br),m_afterRadius(ar){}
-void SetDecalUVCommand::execute(){if(m_target){m_target->UVCenter=m_afterCenter;m_target->UVRadius=m_afterRadius;}} void SetDecalUVCommand::undo(){if(m_target){m_target->UVCenter=m_beforeCenter;m_target->UVRadius=m_beforeRadius;}}
+void SetDecalUVCommand::execute(){if(m_target){m_target->setUVCenter(m_afterCenter);m_target->setUVRadius(m_afterRadius);}} void SetDecalUVCommand::undo(){if(m_target){m_target->setUVCenter(m_beforeCenter);m_target->setUVRadius(m_beforeRadius);}}
 SetTextureFaceCommand::SetTextureFaceCommand(std::shared_ptr<Texture> t,Face b,Face a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetTextureFaceCommand::execute(){if(m_target)m_target->setFace(m_after);} void SetTextureFaceCommand::undo(){if(m_target)m_target->setFace(m_before);}
 SetTextureTextureCommand::SetTextureTextureCommand(std::shared_ptr<Texture> t,std::string bp,unsigned int bi,std::string ap,unsigned int ai):m_target(std::move(t)),m_beforePath(std::move(bp)),m_afterPath(std::move(ap)),m_beforeID(bi),m_afterID(ai){}

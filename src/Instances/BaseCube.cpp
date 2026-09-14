@@ -25,12 +25,7 @@ bool validQuaternion(const Quaternion& value) {
 }
 }
 
-// ─── エディターUI専用のプロパティスキーマ登録 ───
-// BaseCube の YAML 保存(SceneLoader)と Luau ディスパッチ(LuauEngine_Dispatch)は
-// それぞれ手書きの実装が既に存在するため、この登録は PropertiesPanel のインスペクタ
-// 描画だけを駆動する。saveProperties("BaseCube") / applyToDispatch("BaseCube", ...) は
-// どこからも呼ばないこと（呼ぶと手書き実装と二重化・衝突する）。誤って呼ばれても実害が
-// 出ないよう、各プロパティは noYaml() で YAML 対象外にしてある。
+// BaseCube の通常 property は schema を YAML / clone / editor / Luau で共有する。
 static const bool s_baseCubeRegistered = []{
     using namespace PropertyRegistry;
 
@@ -39,14 +34,12 @@ static const bool s_baseCubeRegistered = []{
         [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->Anchored); },
         [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setAnchored(std::get<bool>(v)); });
     anchored.group("Physics");
-    anchored.noYaml();
 
     // MassDensity: ドラッグ中はフィールド書込のみ、確定時に setMassDensity() で actor 再生成
     PropertyDesc massDensity = custom("MassDensity", PropType::Float,
         [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->MassDensity); },
         [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setMassDensity(std::get<float>(v)); });
     massDensity.lo = 0.01f; massDensity.hi = 50.0f; massDensity.step = 0.01f;
-    massDensity.noYaml();
 
     PropertyDesc ccdMode = custom("CCDMode", PropType::Enum,
         [](Instance* o) {
@@ -58,13 +51,61 @@ static const bool s_baseCubeRegistered = []{
             static_cast<BaseCube*>(o)->setCCDMode(mode);
         });
     ccdMode.enumNames = { {"Default", 0}, {"Bullet", 1} };
-    ccdMode.noYaml();
+    ccdMode.yamlEnumAsString = true;
 
     PropertyDesc locked = custom("Locked", PropType::Bool,
         [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->Locked);},
         [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setLocked(std::get<bool>(v)); });
     locked.group("Editor");
-    locked.noYaml();
+
+    PropertyDesc lockFlags = custom("LockFlags", PropType::Int,
+        [](Instance* object) {
+            return PropValue(static_cast<int>(static_cast<BaseCube*>(object)->LockFlags));
+        },
+        [](Instance* object, const PropValue& value) {
+            static_cast<BaseCube*>(object)->setLockFlags(
+                static_cast<PhysicsLockFlags>(std::get<int>(value)));
+        });
+    lockFlags.noEditor().luaHidden();
+    lockFlags.yamlReadWith([](Instance* object, const YAML::Node& value) {
+        PhysicsLockFlags flags = PhysicsLockFlags::None;
+        if (!value.IsSequence()) {
+            RCBN_WARN("LockFlags must be a YAML sequence");
+            return true;
+        }
+        for (const YAML::Node& item : value) {
+            if (!item.IsScalar()) {
+                RCBN_WARN("Ignoring non-scalar LockFlags value");
+                continue;
+            }
+            const std::string flag = item.as<std::string>();
+            if (flag == "LinearX") flags |= PhysicsLockFlags::LinearX;
+            else if (flag == "LinearY") flags |= PhysicsLockFlags::LinearY;
+            else if (flag == "LinearZ") flags |= PhysicsLockFlags::LinearZ;
+            else if (flag == "AngularX") flags |= PhysicsLockFlags::AngularX;
+            else if (flag == "AngularY") flags |= PhysicsLockFlags::AngularY;
+            else if (flag == "AngularZ") flags |= PhysicsLockFlags::AngularZ;
+            else RCBN_WARN("Ignoring unknown LockFlags value: " << flag);
+        }
+        static_cast<BaseCube*>(object)->setLockFlags(flags);
+        return true;
+    });
+    lockFlags.yamlWriteWith([](YAML::Emitter& out, const Instance* object,
+                               std::string_view yamlKey) {
+        const auto* cube = static_cast<const BaseCube*>(object);
+        out << YAML::Key << std::string(yamlKey) << YAML::Value
+            << YAML::Flow << YAML::BeginSeq;
+        for (const auto& [flag, name] : {
+                 std::pair{PhysicsLockFlags::LinearX, "LinearX"},
+                 std::pair{PhysicsLockFlags::LinearY, "LinearY"},
+                 std::pair{PhysicsLockFlags::LinearZ, "LinearZ"},
+                 std::pair{PhysicsLockFlags::AngularX, "AngularX"},
+                 std::pair{PhysicsLockFlags::AngularY, "AngularY"},
+                 std::pair{PhysicsLockFlags::AngularZ, "AngularZ"}}) {
+            if (hasPhysicsLockFlag(cube->LockFlags, flag)) out << name;
+        }
+        out << YAML::EndSeq;
+    });
 
     PropertyDesc shadowMode = custom("ShadowMode", PropType::Enum,
         [](Instance* o) { return PropValue(static_cast<int>(static_cast<BaseCube*>(o)->ShadowMode)); },
@@ -74,7 +115,18 @@ static const bool s_baseCubeRegistered = []{
             static_cast<BaseCube*>(o)->ShadowMode = static_cast<::ShadowMode>(value);
         });
     shadowMode.enumNames = { {"Always", 0}, {"Never", 1}, {"Normal", 2} };
-    shadowMode.noYaml();
+    shadowMode.yamlEnumAsString = true;
+    shadowMode.yamlReadWith([](Instance* object, const YAML::Node& value) {
+        const std::string name = value.as<std::string>("");
+        int mode = static_cast<int>(::ShadowMode::Normal);
+        if (name == "Always") mode = static_cast<int>(::ShadowMode::Always);
+        else if (name == "Never") mode = static_cast<int>(::ShadowMode::Never);
+        else if (name != "Normal") {
+            RCBN_WARN("Unknown ShadowMode value '" << name << "'; using Normal");
+        }
+        static_cast<BaseCube*>(object)->ShadowMode = static_cast<::ShadowMode>(mode);
+        return true;
+    });
 
     // MaterialType: プリセット選択で material 一式を上書きする
     PropertyDesc materialType = custom("MaterialType", PropType::Enum,
@@ -84,7 +136,6 @@ static const bool s_baseCubeRegistered = []{
         });
     materialType.enumNames = { {"Plastic", 0}, {"Wood", 1}, {"Metal", 2}, {"Stone", 3} };
     materialType.group("Material");
-    materialType.noYaml();
 
     // friction/restitution: ドラッグ中はフィールド書込のみ、確定時に setMaterial() で actor 再生成
     auto frictionProp = [](std::string_view propName, float Material::* field) {
@@ -97,19 +148,20 @@ static const bool s_baseCubeRegistered = []{
                 bc->setMaterial(updated);
             });
         d.lo = 0.0f; d.hi = 2.0f; d.step = 0.01f;
-        d.noYaml();
         return d;
     };
 
-    registerClass("BaseCube", {
-        field<&BaseCube::Color>("Color").group("Appearance").noYaml(),
-        field<&BaseCube::CastShadow>("CastShadow").noYaml(),
+    registerClass("BaseCube", "Spatial", {
+        field<&BaseCube::Color>("Color").group("Appearance"),
+        field<&BaseCube::CastShadow>("CastShadow"),
         shadowMode,
-        field<&BaseCube::Unlit>("Unlit").noYaml(),
+        field<&BaseCube::Unlit>("Unlit"),
+        field<&BaseCube::UseTriplanar>("UseTriplanar"),
+        field<&BaseCube::TextureScale>("TextureScale", 0.01f, 100.0f, 0.01f),
         anchored,
         custom("CanCollide", PropType::Bool,
             [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->CanCollide); },
-            [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setCanCollide(std::get<bool>(v)); }).noYaml(),
+            [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setCanCollide(std::get<bool>(v)); }),
         massDensity,
         ccdMode,
         materialType,
@@ -117,6 +169,7 @@ static const bool s_baseCubeRegistered = []{
         frictionProp("DynamicFriction", &Material::dynamicFriction),
         frictionProp("Restitution", &Material::restitution),
         locked,
+        lockFlags,
     });
     return true;
 }();
@@ -179,7 +232,7 @@ void BaseCube::onAncestorChanged() {
     Instance::onAncestorChanged();
 }
 
-void BaseCube::setSize(Vector3 newSize) {
+void BaseCube::setSize(const Vector3& newSize) {
     if (!finiteVector3(newSize) || newSize.x <= 0.0f ||
         newSize.y <= 0.0f || newSize.z <= 0.0f) {
         RCBN_ERROR("Rejected invalid Size for " << Name);
@@ -197,8 +250,17 @@ void BaseCube::setSize(Vector3 newSize) {
     }
 }
 
+void BaseCube::setCFrame(const CFrame& value) {
+    teleportTo(value.Position);
+    setRotation(value.Rotation);
+}
+
+void BaseCube::setPosition(const Vector3& value) {
+    teleportTo(value);
+}
+
 // localRot: 親 Spatial からの相対回転
-void BaseCube::setRotation(Quaternion localRot) {
+void BaseCube::setRotation(const Quaternion& localRot) {
     if (!validQuaternion(localRot)) {
         RCBN_ERROR("Rejected invalid Rotation for " << Name);
         return;
@@ -326,84 +388,14 @@ unsigned int BaseCube::getDecalTexture(Face face, unsigned int fallback) const {
 }
 
 void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "Anchored") {
-        setAnchored(value.as<bool>());
-    } else if (name == "CanCollide") {
-        setCanCollide(value.as<bool>());
-    } else if (name == "Color") {
-        Color4 color(0,0,0,0);
-        color.r = value[0].as<float>();
-        color.g = value[1].as<float>();
-        color.b = value[2].as<float>();
-        color.a = value[3].as<float>();
-        this->Color = color;
-    } else if (name == "CastShadow") {
-        this->CastShadow = value.as<bool>();
-    } else if (name == "ShadowMode") {
-        const std::string mode = value.as<std::string>();
-        if (mode == "Always") this->ShadowMode = ::ShadowMode::Always;
-        else if (mode == "Never") this->ShadowMode = ::ShadowMode::Never;
-        else this->ShadowMode = ::ShadowMode::Normal;
-    } else if (name == "Unlit") {
-        this->Unlit = value.as<bool>();
-    } else if (name == "UseTriplanar") {
-        this->UseTriplanar = value.as<bool>();
-    } else if (name == "TextureScale") {
-        this->TextureScale = value.as<float>();
-    } else if (name == "MaterialType") {
-        material.type = static_cast<MaterialType>(value.as<int>());
-    } else if (name == "StaticFriction") {
-        material.staticFriction = value.as<float>();
-    } else if (name == "DynamicFriction") {
-        material.dynamicFriction = value.as<float>();
-    } else if (name == "Restitution") {
-        material.restitution = value.as<float>();
-    } else if (name == "MassDensity") {
-        setMassDensity(value.as<float>());
-    } else if (name == "Locked") {
-        setLocked(value.as<bool>());
-    } else if (name == "CCDMode") {
-        const std::string mode = value.as<std::string>();
-        setCCDMode(mode == "Bullet" ? CCDMode::Bullet : CCDMode::Default);
-    } else if (name == "LockFlags") {
-        PhysicsLockFlags flags = PhysicsLockFlags::None;
-        if (value.IsSequence()) {
-            for (const YAML::Node& item : value) {
-                const std::string flag = item.as<std::string>();
-                if (flag == "LinearX") flags |= PhysicsLockFlags::LinearX;
-                else if (flag == "LinearY") flags |= PhysicsLockFlags::LinearY;
-                else if (flag == "LinearZ") flags |= PhysicsLockFlags::LinearZ;
-                else if (flag == "AngularX") flags |= PhysicsLockFlags::AngularX;
-                else if (flag == "AngularY") flags |= PhysicsLockFlags::AngularY;
-                else if (flag == "AngularZ") flags |= PhysicsLockFlags::AngularZ;
-                else RCBN_WARN("Ignoring unknown LockFlags value: " << flag);
-            }
-        }
-        setLockFlags(flags);
-    } else {
-        Spatial::setProperty(name, value);
-    }
+    if (PropertyRegistry::loadProperty(this, "BaseCube", name, value)) return;
+    Spatial::setProperty(name, value);
 }
 
 void BaseCube::cloneBaseCubeStateAndChildrenTo(
     const std::shared_ptr<BaseCube>& copy) const {
     if (!copy) return;
     copy->Name = Name;
-    copy->Color = Color;
-    copy->Anchored = Anchored;
-    copy->CanCollide = CanCollide;
-    copy->CastShadow = CastShadow;
-    copy->ShadowMode = ShadowMode;
-    copy->Unlit = Unlit;
-    copy->UseTriplanar = UseTriplanar;
-    copy->TextureScale = TextureScale;
-    copy->Locked = Locked;
-    copy->setCFrame(getCFrame());
-    copy->Size = Size;
-    copy->material = material;
-    copy->MassDensity = MassDensity;
-    copy->LockFlags = LockFlags;
-    copy->CollisionDetection = CollisionDetection;
     for (const auto& [name, child] : children) {
         (void)name;
         copy->addChild(child->clone());

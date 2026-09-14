@@ -339,7 +339,9 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(
     if (node["Properties"]) {
         YAML::Node props = node["Properties"];
         for (auto it = props.begin(); it != props.end(); ++it) {
-            instance->setProperty(it->first.as<std::string>(), it->second);
+            const std::string propertyName = it->first.as<std::string>();
+            if (!PropertyRegistry::loadApplicableProperty(instance.get(), propertyName, it->second))
+                instance->setProperty(propertyName, it->second);
         }
     }
     if (className == "Terrain" &&
@@ -561,159 +563,31 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     out << YAML::Key << "Name"      << YAML::Value << inst->Name;
 
     // プロパティ
-    bool hasProps = inst->IsA("Spatial") || inst->IsA("Script")
-                 || inst->getClassName() == "Sound" || inst->getClassName() == "Decal"
-                 || inst->getClassName() == "SurfaceMark"
-                 || inst->getClassName() == "Texture"
-                 || inst->getClassName() == "Lighting" || inst->getClassName() == "Skybox"
-                 || inst->IsA("LightSource")
-                 || inst->getClassName() == "PostEffect"
-                 || inst->getClassName() == "AppImage"
-                 || inst->IsA("PhysicalFileInstance")
-                 || inst->getClassName() == "Humanoid"
-                 || inst->getClassName() == "Animation"
-                 || inst->IsA("Rope") || inst->IsA("Rod") || inst->IsA("BallSocket")
-                 || inst->IsA("NoCollision")
-                 || inst->IsA("Weld") || inst->IsA("Motor")
-                 || inst->IsA("Motor6D") || inst->IsA("Gyro")
-                 || inst->getClassName() == "Force"
-                 || inst->IsA("ScreenGuiObject")
-                 || inst->IsA("WorldGuiObject")
-                 || inst->getClassName() == "ProximityPrompt"
-                 || inst->getClassName() == "Terrain"
-                 || inst->getClassName() == "User"
-                 || inst->getClassName() == "Tool"
-                 || inst->getClassName() == "System"
-                 || inst->getClassName() == "ParticleEmitter"
-                 || inst->getClassName() == "Weather"
-                 || inst->getClassName() == "Canvas"
-                 || inst->getClassName() == "Highlight"
-                 || inst->IsA("ValueBase")
-                 || inst->IsA("Workspace"); // NOTE: プロパティを最近追加した
+    const bool hasSchemaProperties = !PropertyRegistry::collectApplicableSchema(inst).empty();
+    const bool hasSpecialProperties = inst->getClassName() == "User" ||
+                                      inst->getClassName() == "Skybox" ||
+                                      inst->getClassName() == "NumberValue" ||
+                                      inst->getClassName() == "ObjectValue";
+    const bool hasProps = hasSchemaProperties || hasSpecialProperties;
 
     if (hasProps) {
         out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
 
-        if (inst->IsA("Spatial")) {
-            const Spatial* s = static_cast<const Spatial*>(inst);
-            out << YAML::Key << "Position" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << s->getPosition().x << s->getPosition().y << s->getPosition().z
-                << YAML::EndSeq;
-            out << YAML::Key << "Size" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << s->Size.x << s->Size.y << s->Size.z
-                << YAML::EndSeq;
-            out << YAML::Key << "Rotation" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << s->getRotation().x << s->getRotation().y
-                << s->getRotation().z << s->getRotation().w
-                << YAML::EndSeq;
+        // Constraint paths depend on the current hierarchy, so update them
+        // before the schema serializes Part0/Part1/Cube0/Cube1.
+        if (inst->IsA("PhysicsConstraint")) {
+            static_cast<PhysicsConstraint*>(inst)->refreshRefNames();
         }
-        if (inst->IsA("BaseCube")) {
-            const BaseCube* bc = static_cast<const BaseCube*>(inst);
-            out << YAML::Key << "Color" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << bc->Color.r << bc->Color.g << bc->Color.b << bc->Color.a
-                << YAML::EndSeq;
-            out << YAML::Key << "Anchored"   << YAML::Value << bc->Anchored;
-            out << YAML::Key << "CanCollide" << YAML::Value << bc->CanCollide;
-            out << YAML::Key << "CastShadow" << YAML::Value << bc->CastShadow;
-            out << YAML::Key << "ShadowMode" << YAML::Value
-                << (bc->ShadowMode == ShadowMode::Always ? "Always" :
-                    bc->ShadowMode == ShadowMode::Never ? "Never" : "Normal");
-            out << YAML::Key << "Unlit"      << YAML::Value << bc->Unlit;
-            out << YAML::Key << "Locked"     << YAML::Value << bc->Locked;
-            out << YAML::Key << "MassDensity" << YAML::Value << bc->MassDensity;
-            out << YAML::Key << "CCDMode" << YAML::Value
-                << (bc->CollisionDetection == CCDMode::Bullet ? "Bullet" : "Default");
-            out << YAML::Key << "LockFlags" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq;
-            for (const auto& [flag, name] : {
-                     std::pair{PhysicsLockFlags::LinearX, "LinearX"},
-                     std::pair{PhysicsLockFlags::LinearY, "LinearY"},
-                     std::pair{PhysicsLockFlags::LinearZ, "LinearZ"},
-                     std::pair{PhysicsLockFlags::AngularX, "AngularX"},
-                     std::pair{PhysicsLockFlags::AngularY, "AngularY"},
-                     std::pair{PhysicsLockFlags::AngularZ, "AngularZ"}}) {
-                if (hasPhysicsLockFlag(bc->LockFlags, flag)) out << name;
-            }
-            out << YAML::EndSeq;
-            out << YAML::Key << "MaterialType"    << YAML::Value << static_cast<int>(bc->material.type);
-            out << YAML::Key << "StaticFriction"  << YAML::Value << bc->material.staticFriction;
-            out << YAML::Key << "DynamicFriction" << YAML::Value << bc->material.dynamicFriction;
-            out << YAML::Key << "Restitution"     << YAML::Value << bc->material.restitution;
-        }
-        if (inst->getClassName() == "LiquidCube") {
-            PropertyRegistry::saveProperties(out, inst, "LiquidCube");  // Density
-        }
-        if (inst->getClassName() == "SpawnLocation") {
-            PropertyRegistry::saveProperties(out, inst, "SpawnLocation");
-        }
-        if (inst->getClassName() == "Sun") {
-            PropertyRegistry::saveProperties(out, inst, "Sun");  // Angle
-        }
-        if (inst->IsA("Script")) {
-            const Script* sc = static_cast<const Script*>(inst);
-            out << YAML::Key << "ContentPath" << YAML::Value << sc->Path;
-            out << YAML::Key << "Enabled"     << YAML::Value << sc->Enabled;
-        }
-        if (inst->getClassName() == "Decal") {
-            const Decal* d = static_cast<const Decal*>(inst);
-            out << YAML::Key << "Face"    << YAML::Value << static_cast<int>(d->face);
-            if (!d->texturePath.empty())
-                out << YAML::Key << "Texture" << YAML::Value << d->texturePath;
-            out << YAML::Key << "UVCenter" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << d->UVCenter.x << d->UVCenter.y
-                << YAML::EndSeq;
-            out << YAML::Key << "UVRadius" << YAML::Value << d->UVRadius;
-            out << YAML::Key << "Mode" << YAML::Value << static_cast<int>(d->Mode);
-        }
+        PropertyRegistry::saveApplicableProperties(out, inst);
         if (inst->getClassName() == "SurfaceMark") {
-            PropertyRegistry::saveProperties(out, inst, "SurfaceMark");
             auto* mark = static_cast<SurfaceMark*>(inst);
             mark->refreshFilterPaths();
             out << YAML::Key << "FilterInstances" << YAML::Value << YAML::Flow << YAML::BeginSeq;
             for (const auto& path : mark->getFilterPaths()) out << path;
             out << YAML::EndSeq;
         }
-        if (inst->getClassName() == "Texture") {
-            const Texture* tx = static_cast<const Texture*>(inst);
-            out << YAML::Key << "Face" << YAML::Value << static_cast<int>(tx->face);
-            out << YAML::Key << "Color" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << tx->Color.r << tx->Color.g << tx->Color.b << tx->Color.a
-                << YAML::EndSeq;
-            out << YAML::Key << "StudsPerTileU" << YAML::Value << tx->StudsPerTileU;
-            out << YAML::Key << "StudsPerTileV" << YAML::Value << tx->StudsPerTileV;
-            if (!tx->texturePath.empty())
-                out << YAML::Key << "Texture" << YAML::Value << tx->texturePath;
-        }
-        if (inst->getClassName() == "AppImage") {
-            PropertyRegistry::saveProperties(out, inst, "AppImage");
-        }
-        if (inst->IsA("PhysicalFileInstance")) {
-            PropertyRegistry::saveProperties(out, inst, inst->getClassName());
-        }
-        if (inst->getClassName() == "MeshCube") {
-            PropertyRegistry::saveProperties(out, inst, "MeshCube");
-        }
-        if (inst->getClassName() == "Terrain") {
-            const Terrain* tr = static_cast<const Terrain*>(inst);
-            out << YAML::Key << "Enabled"  << YAML::Value << tr->Enabled;
-            out << YAML::Key << "DataPath" << YAML::Value << tr->DataPath;
-            out << YAML::Key << "Seed"     << YAML::Value << tr->Seed;
-            out << YAML::Key << "Flat"     << YAML::Value << tr->Flat;
-        }
-        if (inst->getClassName() == "Humanoid") {
-            // プロパティは PropertyRegistry の表から出力（WalkSpeed/JumpPower/
-            // MaxHealth/RespawnTime/Health をまとめて保存）
-            PropertyRegistry::saveProperties(out, inst, "Humanoid");
-        }
         if (inst->getClassName() == "Animation") {
             const Animation* anim = static_cast<const Animation*>(inst);
-            PropertyRegistry::saveProperties(out, inst, "Animation");
             if (anim->ContentPath.empty()) {
                 if (const auto* clip = anim->getClip()) {
                     // 旧Scene埋め込みAnimationの互換保存。データの実体は
@@ -738,22 +612,6 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 }
             }
         }
-        if (inst->getClassName() == "Lighting") {
-            PropertyRegistry::saveProperties(out, inst, "Lighting");
-        }
-        if (inst->IsA("LightSource")) {
-            // 基底走査 save: LightSource(Color/Brightness/Range) + 派生分(SpotLight.Angle等)を最派生名で一括出力
-            PropertyRegistry::saveProperties(out, inst, inst->getClassName());
-        }
-        if (inst->getClassName() == "ParticleEmitter") {
-            PropertyRegistry::saveProperties(out, inst, "ParticleEmitter");
-        }
-        if (inst->getClassName() == "Weather") {
-            PropertyRegistry::saveProperties(out, inst, "Weather");
-        }
-        if (inst->getClassName() == "PostEffect") {
-            PropertyRegistry::saveProperties(out, inst, "PostEffect");
-        }
         if (inst->getClassName() == "Skybox") {
             const Skybox* sb = static_cast<const Skybox*>(inst);
             out << YAML::Key << "SkyboxPaths" << YAML::Value
@@ -762,66 +620,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                 << sb->skyboxPaths[3] << sb->skyboxPaths[4] << sb->skyboxPaths[5]
                 << YAML::EndSeq;
         }
-        if (inst->getClassName() == "Sound") {
-            const Sound* snd = static_cast<const Sound*>(inst);
-            out << YAML::Key << "ContentPath"   << YAML::Value << snd->getContentPath();
-            out << YAML::Key << "Looped"        << YAML::Value << snd->isLooping();
-            out << YAML::Key << "SoundGroup"    << YAML::Value << snd->getSoundGroup();
-            out << YAML::Key << "AutoPlay"      << YAML::Value << snd->getAutoPlay();
-            out << YAML::Key << "Volume"        << YAML::Value << snd->getVolume();
-            out << YAML::Key << "Speed"         << YAML::Value << snd->getSpeed();
-            out << YAML::Key << "PreservePitch" << YAML::Value << snd->getPreservePitch();
-        }
-        if (inst->IsA("PhysicsConstraint")) {
-            static_cast<PhysicsConstraint*>(inst)->refreshRefNames();
-            PropertyRegistry::saveProperties(out, inst, inst->getClassName());
-        }
-
-        if (inst->getClassName() == "Force") {
-            PropertyRegistry::saveProperties(out, inst, "Force");
-        }
-
-        if (inst->IsA("ScreenGuiObject")) {
-            PropertyRegistry::saveProperties(out, inst, inst->getClassName());
-        }
-        if (inst->IsA("Workspace")) {
-            const Workspace* ws = static_cast<const Workspace*>(inst);
-            out << YAML::Key << "Gravity" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << ws->Gravity.x << ws->Gravity.y << ws->Gravity.z
-                << YAML::EndSeq;
-            out << YAML::Key << "Wind" << YAML::Value
-                << YAML::Flow << YAML::BeginSeq
-                << ws->Wind.x << ws->Wind.y << ws->Wind.z
-                << YAML::EndSeq;
-            out << YAML::Key << "PhysicsEnabled" << YAML::Value << ws->PhysicsEnabled;
-        }
-        if (inst->IsA("WorldGuiObject")) {
-            PropertyRegistry::saveProperties(out, inst, inst->getClassName());
-        }
-        if (inst->getClassName() == "Canvas") {
-            PropertyRegistry::saveProperties(out, inst, "Canvas");
-        }
-        if (inst->getClassName() == "Highlight") {
-            PropertyRegistry::saveProperties(out, inst, "Highlight");
-        }
         if (inst->getClassName() == "User") {
             const User* usr = static_cast<const User*>(inst);
-            const char* controlModeStr = usr->getControlMode() == User::ControlMode::Free      ? "Free"
-                                        : usr->getControlMode() == User::ControlMode::Program   ? "Program"
-                                                                                            : "Character";
-            out << YAML::Key << "ControlMode" << YAML::Value << controlModeStr;
-            out << YAML::Key << "Speed"             << YAML::Value << usr->speed;
-            out << YAML::Key << "RotationSpeed"     << YAML::Value << usr->rotationSpeed;
-            out << YAML::Key << "MouseRotationSpeed" << YAML::Value << usr->mouseRotationSpeed;
-            out << YAML::Key << "CharacterSmoothing" << YAML::Value << usr->characterSmoothing;
-            out << YAML::Key << "MovementInputEnabled" << YAML::Value << usr->isMovementInputEnabled();
-            out << YAML::Key << "CameraInputEnabled" << YAML::Value << usr->isCameraInputEnabled();
-            out << YAML::Key << "HotkeyInputEnabled" << YAML::Value << usr->isHotkeyInputEnabled();
-            out << YAML::Key << "ToolInputEnabled" << YAML::Value << usr->isToolInputEnabled();
-            out << YAML::Key << "CameraDistance"    << YAML::Value << usr->cameraDistance;
-            out << YAML::Key << "ZoomSpeed"         << YAML::Value << usr->zoomSpeed;
-            out << YAML::Key << "MouseZoomSpeed"    << YAML::Value << usr->mouseZoomSpeed;
             const auto cursorTypeName = [](User::CursorType type) {
                 static const char* names[] = {"Default", "Type1", "Type2", "Type3", "Type4", "Type5", "Type6", "Type7", "Type8", "Type9", "Type10"};
                 const int i = static_cast<int>(type);
@@ -839,27 +639,10 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             }
             out << YAML::EndSeq;
         }
-        if (inst->getClassName() == "System") {
-            const System* sys = static_cast<const System*>(inst);
-            out << YAML::Key << "MaxClonesPerFrame"        << YAML::Value << sys->MaxClonesPerFrame;
-            out << YAML::Key << "MaxRestartsPerFrame"      << YAML::Value << sys->MaxRestartsPerFrame;
-            out << YAML::Key << "MaxTasksPerFrame"         << YAML::Value << sys->MaxTasksPerFrame;
-            out << YAML::Key << "ScriptLoopTimeoutSeconds" << YAML::Value << sys->ScriptLoopTimeoutSeconds;
-            PropertyRegistry::saveProperties(out, sys, "System");  // BaseResolution
-        }
-        if (inst->getClassName() == "Tool") {
-            PropertyRegistry::saveProperties(out, inst, "Tool");
-        }
-        if (inst->getClassName() == "IntValue")     PropertyRegistry::saveProperties(out, inst, "IntValue");
-        if (inst->getClassName() == "BoolValue")     PropertyRegistry::saveProperties(out, inst, "BoolValue");
-        if (inst->getClassName() == "Vector3Value")  PropertyRegistry::saveProperties(out, inst, "Vector3Value");
-        if (inst->getClassName() == "Color4Value")   PropertyRegistry::saveProperties(out, inst, "Color4Value");
         if (inst->getClassName() == "NumberValue") {
             NumberValue* nv = static_cast<NumberValue*>(inst);
             out << YAML::Key << "Value" << YAML::Value << nv->Value;
         }
-        if (inst->getClassName() == "QuaternionValue") PropertyRegistry::saveProperties(out, inst, "QuaternionValue");
-        if (inst->getClassName() == "CFrameValue") PropertyRegistry::saveProperties(out, inst, "CFrameValue");
         if (inst->getClassName() == "ObjectValue") {
             ObjectValue* ov = static_cast<ObjectValue*>(inst);
             ov->refreshRefName();
@@ -953,12 +736,8 @@ SceneLoader::SerializeResult SceneLoader::serializeSceneResult(
     // Root(System)自身はChildrenの一部として保存されない仮想的な親のため、
     // そのプロパティはここで別途保存する
     if (root->getClassName() == "System") {
-        const System* sys = static_cast<const System*>(root);
         out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
-        out << YAML::Key << "MaxClonesPerFrame"        << YAML::Value << sys->MaxClonesPerFrame;
-        out << YAML::Key << "MaxRestartsPerFrame"      << YAML::Value << sys->MaxRestartsPerFrame;
-        out << YAML::Key << "ScriptLoopTimeoutSeconds" << YAML::Value << sys->ScriptLoopTimeoutSeconds;
-        PropertyRegistry::saveProperties(out, sys, "System");  // BaseResolution
+        PropertyRegistry::saveApplicableProperties(out, root);
         out << YAML::EndMap;
     }
 

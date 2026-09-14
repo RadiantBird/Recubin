@@ -55,7 +55,11 @@ void Animation::setProperty(const std::string& name, const YAML::Node& value) {
         for (const auto& trackNode : value) {
             AnimTrack track;
             track.targetKind = AnimationClipTrackTarget::Joint;
-            track.targetName = trackNode["JointName"].as<std::string>("");
+            // Older embedded scenes used PartName, while newer clip data uses
+            // JointName. Accept both to preserve pre-schema scene data.
+            track.targetName = trackNode["JointName"]
+                ? trackNode["JointName"].as<std::string>("")
+                : trackNode["PartName"].as<std::string>("");
             const YAML::Node& keys = trackNode["Keyframes"];
             for (const auto& keyNode : keys) {
                 Keyframe kf;
@@ -238,14 +242,36 @@ bool Animation::exportToFile(const std::string& path) const {
 
 bool Animation::importFromFile(const std::string& path) {
     const auto result = AnimationClipIO::load(path);
-    if (!result || result.clip.rig != "R6" || result.clip.space != "joint_delta") return false;
-    m_clip = std::make_unique<AnimationClip>(result.clip);
-    ContentPath = path;
-    m_source = AnimationSource::File;
-    m_loadStatus = AnimationClipLoadStatus::Success;
-    m_loadMessage.clear();
-    syncClipMetadata();
-    return true;
+    if (result && result.clip.rig == "R6" && result.clip.space == "joint_delta") {
+        m_clip = std::make_unique<AnimationClip>(result.clip);
+        ContentPath = path;
+        m_source = AnimationSource::File;
+        m_loadStatus = AnimationClipLoadStatus::Success;
+        m_loadMessage.clear();
+        syncClipMetadata();
+        return true;
+    }
+
+    // Compatibility adapter for the pre-.rcanim form:
+    // Animation: { Length, Speed, Looped, Tracks: [{ PartName, Keyframes }] }.
+    try {
+        const YAML::Node legacy = YAML::LoadFile(path)["Animation"];
+        if (!legacy || !legacy.IsMap() || !legacy["Tracks"] ||
+            !legacy["Tracks"].IsSequence()) {
+            return false;
+        }
+        if (legacy["Length"]) setProperty("Length", legacy["Length"]);
+        if (legacy["Speed"]) setProperty("Speed", legacy["Speed"]);
+        if (legacy["Looped"]) setProperty("Looped", legacy["Looped"]);
+        setProperty("Tracks", legacy["Tracks"]);
+        ContentPath = path;
+        m_source = AnimationSource::File;
+        m_loadStatus = AnimationClipLoadStatus::Success;
+        m_loadMessage.clear();
+        return true;
+    } catch (const YAML::Exception&) {
+        return false;
+    }
 }
 
 void Animation::removeKey(const std::string& partName, float time) {

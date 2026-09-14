@@ -661,6 +661,17 @@
 - generic `drawFilePathField()` のFragmentShaderFile等で、入力欄を単独行（最大640px）にし、`Browse`/`Clear`ボタンを次行へ移動した。長いパスでも操作ボタンと入力欄が横幅を奪い合わず、hover時の完全パス表示も維持する。
 - `git diff --check` は成功。UI実機確認は未実施。
 
+## 2026-09-14: Properties schema-driven migration
+
+- `prompt.md`に従い、PropertyRegistryへ実行時適用schemaのYAML load/save入口、schemaのYAML serialize/deserialize callback、Lua hidden/editor read-only/multi-only metadataを追加した。Luau dispatchも基底→派生schemaを走査するよう統一した。
+- SpatialのPosition/Size/Rotation/CFrame、BaseCubeの通常propertyとLockFlags、Workspace、System、User、Terrain、Script、Sound、Decal、Texture、SurfaceMark、Weather、GUI画像/FilePath、PhysicalFileの通常propertyをschema経由へ寄せた。LockFlagsの既存YAML配列表現とScript.Path→ContentPath、SurfaceMark.TexturePath→Textureのaliasは維持した。
+- SceneLoaderの通常property手書き保存を`saveApplicableProperties()`へ置換し、読込も`loadApplicableProperty()`を先に通すよう変更した。BaseCube/Script/Decal/Texture/SurfaceMark/Terrain/Sound/Spatial等の通常保存分岐を削減した。
+- PropertiesPanelの通常rendererをschema集合の共通rendererへ統一し、FilePath/InstanceReference/Enum/Bool/Int/Float/String/Vector/Color/CFrame/Quaternionとmulti-editをdescriptor metadataから処理するようにした。旧multi-transform、旧Vec3 renderer、旧constraint参照renderer、User通常propertyの専用commandを削除した。
+- cloneは派生BaseCubeのschema二重適用を避け、各cloneでschemaを一度だけ適用するよう整理した。Script metadataは`copyStateWith`へ移し、replacementも`collectApplicableSchema()`同士で互換propertyをコピーするよう変更した。Spatial Size/Decal Mode/UV/transform commandの変更はsetter経由へ寄せた。
+- 残るPropertiesPanelのclass-specific処理は、SurfaceMark.FilterInstances、MeshCube UV再生成/Decal配置、Sound再生操作、Script restart/open、Decal親依存UI、User.CursorImages、Terrain folder/regenerate/randomize、Skybox faces、Humanoid animation references、AnimationClip status、GUI Font adapter、ObjectValueなどのspecial adapter/actionに限定した。これらは通常property rendererへ混ぜていない。
+- 対象変更translation unitはWSL `g++ -std=c++23 -DGLEW_NO_GLU -fsyntax-only`で検査成功。`git diff --check`も成功。指定Release buildは`cmd.exe /d /c py build.py build`がcmakeをWindows PATHから起動できず`WinError 2`で停止したため、リンク済みbuildとruntime回帰は未実施。既存の`src/Core/Box3DPhysicsBackend.cpp`ユーザー変更は保持した。
+- 次の一手: Windows側cmake環境を復旧し、schema/YAML round-trip、clone/replacement、multi-edit、Luau dispatch、FilePath/InstanceReferenceの既存回帰とUI実機確認を実行する。
+
 ## 2026-09-14: テクスチャ alpha の描画修正
 
 - stb_image は従来どおり要求出力4チャンネル、OpenGL upload も `GL_RGBA`/`GL_RGBA` で、ロード時のalpha欠落は確認されなかった。
@@ -668,3 +679,20 @@
 - `Texture` の面描画は親Cubeの `Color` を合成先とし、Textureの `Color` は画像RGBとalphaのtintとして適用するよう修正した。`Decal`も同じtint alphaを合成係数へ反映する。
 - BaseCube描画開始時にtexture tint uniformを既定値へ戻し、直前のCube faceの値が他の描画クラスへ漏れないようにした。デフォルト白テクスチャのalphaは0のまま維持する。
 - `git diff --check` は成功。WSLの構文チェックは環境に `GL/glu.h` がなく未実施。指定Release buildはWindows側 `WinError 2`、`brun` はWSL vsock エラーで未実施。
+
+## 2026-09-14: User.ControlMode の YAML enum 文字列表現修正
+
+- `triangle.rcbn` の `User.Properties.ControlMode: Free` が `yaml-cpp ... bad conversion` になる原因を調査した。`User` schema の `ControlMode` が `PropType::Enum` でありながら `yamlEnumAsString` 未設定のため、`PropertyRegistry::valueFromYaml()` が `n.as<int>()` を実行していた。
+- `User.ControlMode` schema に `yamlEnumAsString = true` を設定し、`Free` / `Character` / `Program` の保存・読込を文字列表現へ統一した。
+- DefaultCameraMode 回帰へ User.ControlMode の YAML string save/load round-trip 確認を追加した。
+- `User.cpp` と `test_main.cpp` の `g++ -fsyntax-only`、`git diff --check` は成功。Windows Release build は CMake が Windows PATH にないため configure 前の `WinError 2` で停止し、リンク済み回帰実行は未実施。既存の `Box3DPhysicsBackend.cpp` ユーザー変更は保持した。
+
+## 2026-09-14: RootJoint 分離と schema 回帰の修正
+
+- 物理駆動キャラクターの Root/Torso 分離を調査し、`Box3DPhysicsBackend::createMotor6D()` のRootJoint診断分岐に、同一body用だった`return`だけが残っていたことを確認した。RootJointが実Box3D joint生成へ到達しない不具合を修正し、`idsEqual(bodyA, bodyB)`の場合だけlogical constraintとして終了する従来の制御へ戻した。実機でのキャラクター動作は正常であることを確認済み。
+- schema 保存前に`PhysicsConstraint::refreshRefNames()`を実行するよう修正し、rename後のWeld/Motor等が古い参照パスをsceneへ保存する問題を修正した。
+- Animation embedded sceneの`PartName`/`JointName`両形式を受理し、旧`Animation: { Tracks: ... }`YAMLを`Animation::importFromFile()`で読む互換adapterを追加した。
+- 不明な文字列enumはPropertyRegistryで警告して現在値を保持するようにした。ShadowModeだけは既存仕様をschema adapterとして明示し、未知値を`Normal`へ戻す。
+- Seatのlive input `Steer`/`Throttle`を`noClone()`化した。Decal/TextureのFace/Modeがschema上`Enum`であること、Root高さ2の床上中心Yがおよそ1であること、SpawnLocationなしではauthored Root poseを保持することに合わせ、回帰の期待値を更新した。
+- `PropertyRegistry.cpp`、`SceneLoader.cpp`、`Animation.cpp`、`Seat.cpp`、`BaseCube.cpp`のWSL syntax checkと`git diff --check`は成功。Windows側Release buildはこのWSL環境ではCMakeがPATHに無く`WinError 2`で停止したが、ユーザー側では実機動作正常を確認済み。
+- 次の一手: Windows環境で必要になった場合に`--animation-clip-regression`、`--property-schema-regression`、`--shadow-mode-regression`、`--starter-weld-rename-regression`を再実行する。残るGyro/Motor/collision-filter回帰はschema修正とは別のBox3D物理課題として扱う。

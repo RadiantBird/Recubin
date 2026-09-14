@@ -10,10 +10,14 @@ static const bool s_systemRegistered = []{
     registerClass("System", {
         field<&System::BaseResolution>("BaseResolution", 1.f, 16384.f, 1.f).luaReadOnly(),
         field<&System::UseNetwork>("UseNetwork"),
-        field<&System::ApplicationId>("ApplicationId").luaReadOnly().noEditor(),
+        field<&System::ApplicationId>("ApplicationId").luaReadOnly().readOnlyInEditor(),
         field<&System::EnableIOAPI>("EnableIOAPI").luaReadOnly(),
         field<&System::EnableIPCAPI>("EnableIPCAPI").luaReadOnly(),
         field<&System::EnableExternalFileAccess>("EnableExternalFileAccess").luaReadOnly(),
+        field<&System::MaxClonesPerFrame>("MaxClonesPerFrame", 0.0f, 1000000.0f, 1.0f).luaReadOnly(),
+        field<&System::MaxRestartsPerFrame>("MaxRestartsPerFrame", 0.0f, 1000000.0f, 1.0f).luaReadOnly(),
+        field<&System::MaxTasksPerFrame>("MaxTasksPerFrame", 0.0f, 1000000.0f, 1.0f).luaReadOnly(),
+        field<&System::ScriptLoopTimeoutSeconds>("ScriptLoopTimeoutSeconds", 0.0f, 60.0f, 0.05f).luaReadOnly(),
         enumProp<&System::DefaultCameraMode>("DefaultCameraMode", {
             {"Character", static_cast<int>(System::CameraMode::Character)},
             {"Free", static_cast<int>(System::CameraMode::Free)},

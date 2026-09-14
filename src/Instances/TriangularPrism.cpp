@@ -174,6 +174,7 @@ void TriangularPrism::draw(int modelLoc, int shaderProgram) {
 
 std::shared_ptr<Instance> TriangularPrism::clone() const {
     auto copy = std::make_shared<TriangularPrism>(this->getPosition(), this->Size);
+    PropertyRegistry::cloneFields(this, copy.get(), "TriangularPrism");
     cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }

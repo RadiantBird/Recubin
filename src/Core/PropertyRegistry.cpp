@@ -177,6 +177,10 @@ static PropValue valueFromYaml(const YAML::Node& n, const PropertyDesc& d,
             if (d.yamlEnumAsString) {
                 std::string s = n.as<std::string>();
                 for (const auto& [name, val] : d.enumNames) if (name == s) return val;
+                RCBN_WARN("Unknown enum value '" << s << "' for property '"
+                          << d.name << "'; keeping the current value");
+                if (currentValue && std::holds_alternative<int>(*currentValue))
+                    return std::get<int>(*currentValue);
                 return 0;
             }
             return n.as<int>();
@@ -249,7 +253,9 @@ std::vector<const PropertyDesc*> collectApplicableSchema(Instance* obj) {
 bool loadProperty(Instance* obj, std::string_view className,
                   const std::string& name, const YAML::Node& value) {
     for (const PropertyDesc* p : collectSchema(className)) {
-        if (p->kind == PropKind::Field && p->serialize && p->set && p->effYamlKey() == name) {
+        if (p->kind == PropKind::Field && p->serialize && p->effYamlKey() == name) {
+            if (p->yamlDeserialize && p->yamlDeserialize(obj, value)) return true;
+            if (!p->set) continue;
             const PropValue currentValue = p->get ? p->get(obj) : PropValue(0.0f);
             p->set(obj, valueFromYaml(value, *p, p->get ? &currentValue : nullptr));
             return true;
@@ -258,14 +264,55 @@ bool loadProperty(Instance* obj, std::string_view className,
     return false;
 }
 
+bool loadApplicableProperty(Instance* obj, const std::string& name,
+                            const YAML::Node& value) {
+    if (!obj) return false;
+    for (const PropertyDesc* p : collectApplicableSchema(obj)) {
+        if (!p || p->kind != PropKind::Field || !p->serialize)
+            continue;
+        if (p->effYamlKey() != name) continue;
+        if (p->yamlDeserialize && p->yamlDeserialize(obj, value)) return true;
+        if (!p->set) continue;
+        const PropValue currentValue = p->get ? p->get(obj) : PropValue(0.0f);
+        p->set(obj, valueFromYaml(value, *p, p->get ? &currentValue : nullptr));
+        return true;
+    }
+    return false;
+}
+
 void saveProperties(YAML::Emitter& out, const Instance* obj, std::string_view className) {
     for (const PropertyDesc* p : collectSchema(className)) {
-        if (p->kind != PropKind::Field || !p->serialize || !p->get) continue;
+        if (p->kind != PropKind::Field || !p->serialize) continue;
         if (p->serializeWhen && !p->serializeWhen(obj)) continue;
+        if (p->yamlSerialize) {
+            p->yamlSerialize(out, obj, p->effYamlKey());
+            continue;
+        }
+        if (!p->get) continue;
         PropValue v = p->get(const_cast<Instance*>(obj));
         if (p->omitEmptyString && p->type == PropType::String && std::get<std::string>(v).empty())
             continue;  // 空文字は出力しない（既存挙動の保持）
         valueToYaml(out, *p, v);
+    }
+}
+
+void saveApplicableProperties(YAML::Emitter& out, const Instance* obj) {
+    if (!obj) return;
+    std::unordered_set<const PropertyDesc*> seen;
+    for (const PropertyDesc* p : collectApplicableSchema(const_cast<Instance*>(obj))) {
+        if (!p || !seen.insert(p).second) continue;
+        if (p->kind != PropKind::Field || !p->serialize) continue;
+        if (p->serializeWhen && !p->serializeWhen(obj)) continue;
+        if (p->yamlSerialize) {
+            p->yamlSerialize(out, obj, p->effYamlKey());
+            continue;
+        }
+        if (!p->get) continue;
+        const PropValue value = p->get(const_cast<Instance*>(obj));
+        if (p->omitEmptyString && p->type == PropType::String &&
+            std::get<std::string>(value).empty())
+            continue;
+        valueToYaml(out, *p, value);
     }
 }
 
@@ -280,26 +327,14 @@ void cloneFields(const Instance* src, Instance* dst, std::string_view className)
 
 void copyCompatibleProperties(const Instance* src, Instance* dst) {
     if (!src || !dst) return;
-    // Some concrete scene classes (Cube/Sphere and other BaseCube-derived
-    // types) intentionally have no own registry row. Gather each side's
-    // complete schema independently; unrelated replacement classes can still
-    // share editor properties without sharing an inheritance relationship.
-    std::vector<const PropertyDesc*> source;
-    std::vector<const PropertyDesc*> target;
-    for (const auto className : registeredClassNames()) {
-        if (const_cast<Instance*>(src)->IsA(std::string(className))) {
-            const auto schema = collectSchema(className);
-            source.insert(source.end(), schema.begin(), schema.end());
-        }
-        if (dst->IsA(std::string(className))) {
-            const auto schema = collectSchema(className);
-            target.insert(target.end(), schema.begin(), schema.end());
-        }
-    }
+    // collectApplicableSchema preserves base-to-derived order and also covers
+    // concrete instances whose own class has no registry row.
+    const auto source = collectApplicableSchema(const_cast<Instance*>(src));
+    const auto target = collectApplicableSchema(dst);
     std::unordered_map<std::string_view, const PropertyDesc*> byName;
     for (const auto* d : source) {
         if (d && d->kind == PropKind::Field && d->cloneable && d->get)
-            byName.emplace(d->name, d);
+            byName[d->name] = d;
     }
     for (const auto* d : target) {
         if (!d || d->kind != PropKind::Field || !d->cloneable || !d->set) continue;
@@ -313,33 +348,19 @@ void copyCompatibleProperties(const Instance* src, Instance* dst) {
         if (d->copyState) d->copyState(src, dst);
     }
 
-    // Spatial and Script fields are intentionally hand-written in their
-    // classes (rather than registered schemas), but remain serialized editor
-    // state and must survive class replacement when the destination supports
-    // the same family.
-    if (const auto* sourceSpatial = dynamic_cast<const Spatial*>(src)) {
-        if (auto* targetSpatial = dynamic_cast<Spatial*>(dst)) {
-            targetSpatial->setCFrame(sourceSpatial->getCFrame());
-            targetSpatial->Size = sourceSpatial->Size;
-        }
-    }
-    if (const auto* sourceScript = dynamic_cast<const Script*>(src)) {
-        if (auto* targetScript = dynamic_cast<Script*>(dst)) {
-            targetScript->Source = sourceScript->Source;
-            targetScript->Path = sourceScript->Path;
-            targetScript->Enabled = sourceScript->Enabled;
-        }
-    }
 }
 
 void applyToDispatch(std::string_view className, GetterMap& getters, SetterMap& setters) {
-    for (const auto& d : schemaFor(className)) {  // 自クラスのみ
-        const PropertyDesc* dp = &d;
+    // Luau も YAML / clone / editor と同じ基底→派生走査を使う。派生側の
+    // descriptor が同名 property を持つ場合は、後に現れる派生定義を優先する。
+    for (const PropertyDesc* dp : collectSchema(className)) {
+        if (!dp) continue;
+        const PropertyDesc& d = *dp;
         if (d.kind == PropKind::Signal) {
             if (d.signalGet) getters[className][d.name] = d.signalGet;
             continue;
         }
-        if (d.get) {
+        if (d.get && !d.noLuaRead) {
             getters[className][d.name] = [dp](lua_State* L, Instance* o) {
                 return valueToLua(L, *dp, dp->get(o));
             };

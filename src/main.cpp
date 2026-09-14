@@ -673,8 +673,12 @@ int main(int argc, char* argv[]) {
     getPlatform().setupDllSearchPath();
     if (!Physics::configureBackendFromCommandLine(argc, argv)) return -1;
 
+    constexpr const char* BuildDate = __DATE__;
+    constexpr const char* BuildTime = __TIME__;
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.999\n";
+              << "Recubin Studio v0.999\n"
+              << "build: "
+              << __DATE__ << ' ' << __TIME__ << '\n';
 #ifdef _WIN32
     const auto executableLocation = resolveEditorExecutableLocation(argc, argv);
     const std::filesystem::path engineExePath = executableLocation.executablePath;
@@ -796,6 +800,8 @@ int main(int argc, char* argv[]) {
     workspace->initPhysics();
 
     // 古い形式のYAML対応: System直下のLightingを見つけたら、WorkspaceのLightingにプロパティを移して削除
+    // @RadiantBird 2026/09/14:
+    //  私しか試したことがないだろうし古すぎて役に立たないので削除予定の互換性コードです。
     for (auto it = system->children.begin(); it != system->children.end(); ) {
         if (it->second->IsA("Lighting")) {
             auto oldLighting = std::static_pointer_cast<Lighting>(it->second);
@@ -810,6 +816,7 @@ int main(int argc, char* argv[]) {
             ++it;
         }
     }
+
     renderer->m_onButtonActivated = [&](GuiButton* btn) {
         luauEngine->onGuiButtonActivated(btn);
     };

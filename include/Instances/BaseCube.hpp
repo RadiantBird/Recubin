@@ -80,8 +80,10 @@ public:
     bool shouldCastShadow(bool hasVisibleFallbackGeometry = false) const;
     void syncPhysics();
     void teleportTo(Vector3 pos);
-    void setSize(Vector3 newSize);
-    void setRotation(Quaternion rot);
+    void setCFrame(const CFrame& value) override;
+    void setPosition(const Vector3& value) override;
+    void setSize(const Vector3& newSize) override;
+    void setRotation(const Quaternion& rot) override;
     void setAnchored(bool anchored);
     void setCanCollide(bool canCollide);
     void setLocked(bool locked);

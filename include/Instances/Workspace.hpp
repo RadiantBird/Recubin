@@ -59,4 +59,9 @@ class Workspace : public Instance {
 
         // 自身が所有するPhysicsインスタンスを生成してセット
         void initPhysics();
+
+        void setGravity(const Vector3& value);
+        Vector3 getGravity() const { return Gravity; }
+        bool getPhysicsEnabled() const { return PhysicsEnabled; }
+        void setPhysicsEnabled(bool enabled) { PhysicsEnabled = enabled; }
 };

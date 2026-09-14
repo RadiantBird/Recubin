@@ -40,7 +40,7 @@ void PhysicalFileInstanceRegistry::registerTextFileType() {
         {custom("StorageId", PropType::String,
             [](Instance* i) -> PropValue { return static_cast<TextFile*>(i)->StorageId; },
             [](Instance* i, const PropValue& v) { static_cast<TextFile*>(i)->StorageId = std::get<std::string>(v); })
-             .noEditor().luaReadOnly(),
+             .readOnlyInEditor().luaReadOnly(),
          });
     return true;
     }();

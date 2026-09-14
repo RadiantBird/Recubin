@@ -2297,25 +2297,25 @@ void Box3DPhysicsBackend::createMotor6D(
         const Vector3 anchorA = (first->getWorldCFrame() * motor->C0).Position;
         const Vector3 anchorB = (second->getWorldCFrame() * motor->C1).Position;
         const Vector3 anchorDelta = anchorB - anchorA;
-        RCBN_LOG(
-            "[CharacterJointDebug] motor=" << motor->getFullPath()
-            << " motorPtr=" << static_cast<const void*>(motor.get())
-            << " part0=" << first->getFullPath()
-            << " part0Ptr=" << static_cast<const void*>(first.get())
-            << " part1=" << second->getFullPath()
-            << " part1Ptr=" << static_cast<const void*>(second.get())
-            << " bodyA=" << bodyA.index1
-            << " bodyB=" << bodyB.index1
-            << " c0Y=" << motor->C0.Position.y
-            << " c1Y=" << motor->C1.Position.y
-            << " anchorAY=" << anchorA.y
-            << " anchorBY=" << anchorB.y
-            << " anchorDeltaY=" << anchorDelta.y
-            << " anchorDeltaX=" << anchorDelta.x
-            << " anchorDeltaZ=" << anchorDelta.z
-            << " frequency=" << motor->Frequency
-            << " dampingRatio=" << motor->DampingRatio
-        );
+        // RCBN_LOG(
+        //     "[CharacterJointDebug] motor=" << motor->getFullPath()
+        //     << " motorPtr=" << static_cast<const void*>(motor.get())
+        //     << " part0=" << first->getFullPath()
+        //     << " part0Ptr=" << static_cast<const void*>(first.get())
+        //     << " part1=" << second->getFullPath()
+        //     << " part1Ptr=" << static_cast<const void*>(second.get())
+        //     << " bodyA=" << bodyA.index1
+        //     << " bodyB=" << bodyB.index1
+        //     << " c0Y=" << motor->C0.Position.y
+        //     << " c1Y=" << motor->C1.Position.y
+        //     << " anchorAY=" << anchorA.y
+        //     << " anchorBY=" << anchorB.y
+        //     << " anchorDeltaY=" << anchorDelta.y
+        //     << " anchorDeltaX=" << anchorDelta.x
+        //     << " anchorDeltaZ=" << anchorDelta.z
+        //     << " frequency=" << motor->Frequency
+        //     << " dampingRatio=" << motor->DampingRatio
+        // );
     }
 
     if (idsEqual(bodyA, bodyB)) {

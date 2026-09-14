@@ -141,6 +141,7 @@ void Sphere::draw(int modelLoc, int shaderProgram) {
 
 std::shared_ptr<Instance> Sphere::clone() const {
     auto copy = std::make_shared<Sphere>(this->getPosition(), this->Size);
+    PropertyRegistry::cloneFields(this, copy.get(), "Sphere");
     cloneBaseCubeStateAndChildrenTo(copy);
     return copy;
 }

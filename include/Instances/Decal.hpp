@@ -41,6 +41,9 @@ public:
     virtual std::shared_ptr<Instance> clone() const override;
 
     void setFace(Face f);
+    void setMode(DecalMode mode);
+    void setUVCenter(const Vector2& center);
+    void setUVRadius(float radius);
     // パスからテクスチャを読み込み texturePath/TextureID を更新する（FileRef.Source 経由でも使用）
     void setTexturePath(const std::string& path);
 };

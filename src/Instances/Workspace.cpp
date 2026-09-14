@@ -7,9 +7,9 @@
 static const bool s_workspaceRegistered = []{
     using namespace PropertyRegistry;
     registerClass("Workspace", {
-        field<&Workspace::Gravity>("Gravity"),
+        method_prop<&Workspace::getGravity, &Workspace::setGravity>("Gravity"),
         field<&Workspace::Wind>("Wind"),
-        field<&Workspace::PhysicsEnabled>("PhysicsEnabled"),
+        method_prop<&Workspace::getPhysicsEnabled, &Workspace::setPhysicsEnabled>("PhysicsEnabled"),
     });
     return true;
 }();
@@ -53,6 +53,11 @@ void Workspace::unregisterConstraint(const Instance* c) {
 }
 
 Workspace::Workspace() : Instance("Workspace") {}
+
+void Workspace::setGravity(const Vector3& value) {
+    Gravity = value;
+    if (physicsEngine) physicsEngine->setGravity(value);
+}
 
 Workspace::~Workspace() {
     for (auto& [name, child] : children) {

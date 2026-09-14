@@ -1077,7 +1077,7 @@ int runStarterRootSpawnRegression() {
         const bool finiteVelocity = std::isfinite(finalVelocity.x) &&
             std::isfinite(finalVelocity.y) && std::isfinite(finalVelocity.z);
         const bool settled = initialY > 10.0f && minimumY < 3.0f &&
-            finalY > 1.5f && finalY < 2.5f && finiteVelocity &&
+            finalY > 0.5f && finalY < 1.5f && finiteVelocity &&
             std::abs(finalVelocity.y) < 1.0f;
         expect(settled,
                "normalized Root falls from the spawn height and settles on the floor");
@@ -1310,8 +1310,9 @@ int runSpawnLocationRegression() {
     auto originUser = std::make_shared<User>(std::make_unique<NullInputBackend>());
     originUser->spawnCharacter(system.get(), emptyWorkspace.get());
     expect(originUser->humanoid &&
-               cframeNear(originUser->humanoid->getRootPart()->getWorldCFrame(), CFrame()),
-           "absence of enabled SpawnLocations places Root at the world origin");
+               cframeNear(originUser->humanoid->getRootPart()->getWorldCFrame(),
+                           templateRoot->getWorldCFrame()),
+           "absence of enabled SpawnLocations preserves the authored Root pose");
 
     std::error_code ec;
     const auto yamlPath = std::filesystem::temp_directory_path(ec) /
@@ -8552,6 +8553,26 @@ static int runDefaultCameraModeRegression() {
                 ? User::ControlMode::Program : User::ControlMode::Character;
         expect(user.getControlMode() == expected,
                "default camera mode maps explicitly to User control mode");
+
+        User savedUser(std::make_unique<NullInputBackend>());
+        savedUser.setControlMode(
+            mode == System::CameraMode::Free
+                ? User::ControlMode::Free
+                : mode == System::CameraMode::Program
+                    ? User::ControlMode::Program : User::ControlMode::Character);
+        YAML::Emitter userOutput;
+        userOutput << YAML::BeginMap;
+        PropertyRegistry::saveProperties(userOutput, &savedUser, "User");
+        userOutput << YAML::EndMap;
+        const YAML::Node savedUserProperties = YAML::Load(userOutput.c_str());
+        expect(savedUserProperties["ControlMode"] &&
+                   savedUserProperties["ControlMode"].as<std::string>() == name,
+               "User YAML stores ControlMode as a string");
+
+        User loadedUser(std::make_unique<NullInputBackend>());
+        loadedUser.setProperty("ControlMode", savedUserProperties["ControlMode"]);
+        expect(loadedUser.getControlMode() == savedUser.getControlMode(),
+               "User YAML reads string ControlMode");
     }
 
     System unknown;
@@ -10031,8 +10052,8 @@ static int runPropertySchemaRegression() {
     auto decal = std::make_shared<Decal>();
     const auto decalSchema = PropertyRegistry::collectApplicableSchema(decal.get());
     const std::array<std::pair<std::string_view, PropType>, 6> decalProperties = {{
-        {"Texture", PropType::String}, {"Face", PropType::Int}, {"Color", PropType::Color4},
-        {"UVCenter", PropType::Vec2}, {"UVRadius", PropType::Float}, {"Mode", PropType::Int},
+        {"Texture", PropType::String}, {"Face", PropType::Enum}, {"Color", PropType::Color4},
+        {"UVCenter", PropType::Vec2}, {"UVRadius", PropType::Float}, {"Mode", PropType::Enum},
     }};
     const auto decalTexture = findProperty(decalSchema, "Texture");
     const auto decalFace = findProperty(decalSchema, "Face");
@@ -10062,7 +10083,7 @@ static int runPropertySchemaRegression() {
     auto texture = std::make_shared<Texture>();
     const auto textureSchema = PropertyRegistry::collectApplicableSchema(texture.get());
     const std::array<std::pair<std::string_view, PropType>, 5> textureProperties = {{
-        {"Texture", PropType::String}, {"Face", PropType::Int}, {"Color", PropType::Color4},
+        {"Texture", PropType::String}, {"Face", PropType::Enum}, {"Color", PropType::Color4},
         {"StudsPerTileU", PropType::Float}, {"StudsPerTileV", PropType::Float},
     }};
     const auto texturePath = findProperty(textureSchema, "Texture");

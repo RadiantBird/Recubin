@@ -18,7 +18,9 @@ const bool s_surfaceMarkRegistered = [] {
                },
                [](Instance* object, const PropValue& value) {
                    static_cast<SurfaceMark*>(object)->setTexturePath(std::get<std::string>(value));
-               }).yaml("Texture").omitEmpty().noEditor().luaReadOnly()
+               }).yaml("Texture").omitEmpty()
+                 .filePath("Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga")
+                 .luaReadOnly()
     });
     return true;
 }();
@@ -59,9 +61,8 @@ void SurfaceMark::setProperty(const std::string& name, const YAML::Node& value) 
 }
 
 std::shared_ptr<Instance> SurfaceMark::clone() const {
-    auto copy = std::make_shared<SurfaceMark>(getPosition(), Size);
+    auto copy = std::make_shared<SurfaceMark>();
     copy->Name = Name;
-    copy->setRotation(getRotation());
     PropertyRegistry::cloneFields(this, copy.get(), "SurfaceMark");
     copy->TextureID = TextureID;
     std::vector<std::shared_ptr<Instance>> refs;

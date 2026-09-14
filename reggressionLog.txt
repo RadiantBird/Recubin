@@ -1,0 +1,1877 @@
+﻿[INFO] Registry contains 57 dedicated regressions.
+[SoundStretchRegression] PASS: ライブ編集通知はdirtyを中継してUndo履歴を増やさない
+[SoundStretchRegression] PASS: Sound uses rotated multi-level Spatial world position for volume and pan
+[SoundStretchRegression] PASS: Speed=2.0を処理できる
+[SoundStretchRegression] PASS: Speed=2.0で出力時間が半分になる
+[SoundStretchRegression] PASS: Speed=2.0の全出力がfinite
+[SoundStretchRegression] PASS: Speed=2.0で440Hz付近を維持する
+[SoundStretchRegression] Speed=2 frames=48000 estimatedHz=440
+[SoundStretchRegression] PASS: Speed=0.5を処理できる
+[SoundStretchRegression] PASS: Speed=0.5で出力時間が倍になる
+[SoundStretchRegression] PASS: Speed=0.5の全出力がfinite
+[SoundStretchRegression] PASS: Speed=0.5で440Hz付近を維持する
+[SoundStretchRegression] Speed=0.5 frames=192000 estimatedHz=440
+[SoundStretchRegression] PASS: 複数ブロックのフレーム比累積誤差が1フレーム以内
+[SoundStretchRegression] PASS: Speedを0.25〜4.0へクランプする
+[SoundStretchRegression] PASS: Sound::setSpeed/getSpeed経路でもSpeedをクランプする
+[SoundStretchRegression] PASS: Sound::setVolume/getVolume経路でVolumeの下限を0にクランプする
+[SoundStretchRegression] PASS: Sound::setVolume/getVolume経路でVolumeの上限を8にクランプする
+[SoundStretchRegression] PASS: Sound::setVolume/getVolume経路で非finite値を1に戻す
+[SoundStretchRegression] PASS
+[RecubinTest] 1 passed, 0 failed.
+[AudioServiceInitialization] PASS: initialization and idempotent teardown
+[RecubinTest] 1 passed, 0 failed.
+[AudioServiceRegistration] PASS: 未初期化AudioServiceでもWorkspace内Soundを登録する
+[AudioServiceRegistration] PASS: 同一SoundのWorkspace内reparentで登録数が1のままになる
+[AudioServiceRegistration] PASS: Workspace外detachでSound登録が解除される
+[AudioServiceRegistration] PASS: 次のSound登録時にexpired weak参照を掃除する
+[AudioServiceRegistration] PASS: Sound削除時にexpired weak参照も掃除する
+[AudioServiceRegistration] PASS
+[RecubinTest] 1 passed, 0 failed.
+[YamlErrorRegression] PASS: malformed YAML is reported and guarded save preserves content
+[RecubinTest] 1 passed, 0 failed.
+[NatCodecRegression] PASS: RFC8489 Binding requestをnetwork byte orderで生成する
+[NatCodecRegression] PASS: 未知属性を読み飛ばしIPv4 XOR-MAPPED-ADDRESSをENet表現へ復号する
+[NatCodecRegression] PASS: 異なるSTUN transaction IDを拒否する
+[NatCodecRegression] PASS: 切り詰められたSTUN応答を拒否する
+[NatCodecRegression] PASS: IPv6 XOR-MAPPED-ADDRESSを明示的に拒否する
+[NatCodecRegression] PASS: 候補一覧を境界検証付きで往復する
+[NatCodecRegression] PASS: 上限を超える候補一覧を拒否する
+[NatCodecRegression] PASS: ランデブーフレームをnetwork byte orderで往復する
+[NatCodecRegression] PASS: 未知のランデブープロトコルversionを拒否する
+[NatCodecRegression] PASS: 参加token付きパンチpacketを境界検証付きで往復する
+[NatCodecRegression] PASS: 切り詰められたパンチpacketを拒否する
+[RecubinTest] 1 passed, 0 failed.
+[PASS] built-in walk has the R6 joint-delta identity
+[PASS] built-in walk has the expected cycle length and looping
+[PASS] built-in walk contains five shoulder keys
+[PASS] walk shoulder key reaches the expected 35 degree pose
+[PASS] walk midpoint preserves joint translation
+[PASS] joint delta composes after the rig root transform
+[PASS] R6 joint binding composes translated and rotated roots correctly
+[PASS] eased clip saves
+[PASS] rcanim round-trip preserves easing modes
+[RCBN_WARN][AnimationClip.cpp:120] normalizing animation quaternion from C:\Users\Ryarta\AppData\Local\Temp\recubin_animation_clip_regression_41\zero_quaternion.rcanim (lengthSquared=0)
+[PASS] zero quaternion is rejected for the quaternion reason
+[PASS] duplicate known-joint tracks are rejected for the duplicate reason
+[PASS] animation clip saves as rcanim
+[PASS] saved rcanim loads successfully
+[PASS] rcanim round-trip preserves joint key count
+[PASS] malformed rcanim is rejected
+[PASS] wrong document type is rejected
+[PASS] newer animation version is rejected
+[PASS] legacy Animation and following Scene child both survive round-trip
+[PASS] legacy Animation tracks remain present before following child
+[PASS] default StarterCharacter exposes R6Walk and Humanoid references it
+[PASS] default R6 builds a dynamic Motor6D rig with disabled ragdoll constraints and RootGyro
+[PASS] default Root/Torso bind uses matching centers and preserves the authored world pose
+[PASS] StarterCharacter Animation reference is remapped into generated User Humanoid
+[PASS] Walk, Jump, and Equip references all remap to PlayerCharacter clones
+[PASS] tool left-arm pose updates the R6 shoulder Motor6D
+[PASS] seated arm and leg poses update the R6 Motor6Ds
+[PASS] injected walk produces opposite left/right arm poses
+[PASS] grounded walk returns the shoulder to its neutral binding pose
+[PASS] airborne shoulder angle advances to 180 degrees identically on both sides
+[PASS] landing shoulder angle returns toward zero in the negative direction
+[PASS] custom joint_delta Animation overrides the shoulder Motor6D transform
+[PASS] non-empty unresolved WalkAnimation path is preserved without runtime reference replacement
+[PASS] joint_delta Animation clip survives Scene save/load
+[PASS] joint_delta clip survives a second Scene round-trip
+[PASS] project walk clip is written
+[PASS] valid project walk Animation is selected
+[PASS] missing project walk Animation keeps its reference and falls back at runtime
+[PASS] invalid project walk Animation preserves failure and falls back at runtime
+[PASS] custom Walk asset is written
+[PASS] valid custom Walk remains the preferred PlayerCharacter reference
+[PASS] missing custom Walk keeps its Animation and ContentPath during runtime fallback
+[PASS] broken custom Walk keeps its Animation and ContentPath during runtime fallback
+[PASS] unbound legacy character receives a visible runtime-only built-in Walk
+[PASS] Scene with a Humanoid Animation reference saves
+[PASS] Humanoid Animation reference and ContentPath survive Scene round-trip
+[PASS] headerless scene loads as implicit version zero
+[PASS] retired R6 generation header remains readable as compatibility metadata
+[PASS] scene metadata saves with character binding migration version
+[PASS] new Scene saves emit only the character binding migration header
+[PASS] character binding migration metadata round-trips without retired fields
+[PASS] scene loader rejects a mismatched document type
+[PASS] scene loader rejects a newer scene version
+[ERROR] --animation-clip-regression (box3d) failed or was not parseable
+[PASS] built-in walk has the R6 joint-delta identity
+[PASS] built-in walk has the expected cycle length and looping
+[PASS] built-in walk contains five shoulder keys
+[PASS] walk shoulder key reaches the expected 35 degree pose
+[PASS] walk midpoint preserves joint translation
+[PASS] joint delta composes after the rig root transform
+[PASS] R6 joint binding composes translated and rotated roots correctly
+[PASS] eased clip saves
+[PASS] rcanim round-trip preserves easing modes
+[RCBN_WARN][AnimationClip.cpp:120] normalizing animation quaternion from C:\Users\Ryarta\AppData\Local\Temp\recubin_animation_clip_regression_41\zero_quaternion.rcanim (lengthSquared=0)
+[PASS] zero quaternion is rejected for the quaternion reason
+[PASS] duplicate known-joint tracks are rejected for the duplicate reason
+[PASS] animation clip saves as rcanim
+[PASS] saved rcanim loads successfully
+[PASS] rcanim round-trip preserves joint key count
+[PASS] malformed rcanim is rejected
+[PASS] wrong document type is rejected
+[PASS] newer animation version is rejected
+[PASS] legacy Animation and following Scene child both survive round-trip
+[PASS] legacy Animation tracks remain present before following child
+[PASS] default StarterCharacter exposes R6Walk and Humanoid references it
+[PASS] default R6 builds a dynamic Motor6D rig with disabled ragdoll constraints and RootGyro
+[PASS] default Root/Torso bind uses matching centers and preserves the authored world pose
+[PASS] StarterCharacter Animation reference is remapped into generated User Humanoid
+[PASS] Walk, Jump, and Equip references all remap to PlayerCharacter clones
+[PASS] tool left-arm pose updates the R6 shoulder Motor6D
+[PASS] seated arm and leg poses update the R6 Motor6Ds
+[PASS] injected walk produces opposite left/right arm poses
+[PASS] grounded walk returns the shoulder to its neutral binding pose
+[PASS] airborne shoulder angle advances to 180 degrees identically on both sides
+[PASS] landing shoulder angle returns toward zero in the negative direction
+[PASS] custom joint_delta Animation overrides the shoulder Motor6D transform
+[PASS] non-empty unresolved WalkAnimation path is preserved without runtime reference replacement
+[PASS] joint_delta Animation clip survives Scene save/load
+[PASS] joint_delta clip survives a second Scene round-trip
+[PASS] project walk clip is written
+[PASS] valid project walk Animation is selected
+[PASS] missing project walk Animation keeps its reference and falls back at runtime
+[PASS] invalid project walk Animation preserves failure and falls back at runtime
+[PASS] custom Walk asset is written
+[PASS] valid custom Walk remains the preferred PlayerCharacter reference
+[PASS] missing custom Walk keeps its Animation and ContentPath during runtime fallback
+[PASS] broken custom Walk keeps its Animation and ContentPath during runtime fallback
+[PASS] unbound legacy character receives a visible runtime-only built-in Walk
+[PASS] Scene with a Humanoid Animation reference saves
+[PASS] Humanoid Animation reference and ContentPath survive Scene round-trip
+[PASS] headerless scene loads as implicit version zero
+[PASS] retired R6 generation header remains readable as compatibility metadata
+[PASS] scene metadata saves with character binding migration version
+[PASS] new Scene saves emit only the character binding migration header
+[PASS] character binding migration metadata round-trips without retired fields
+[PASS] scene loader rejects a mismatched document type
+[PASS] scene loader rejects a newer scene version
+[ERROR] --character-rig-v2 (box3d) failed or was not parseable
+[Motor6DGyroRegression] PASS: forward -Z maps to zero degrees
+[Motor6DGyroRegression] PASS: forward +X maps to minus ninety degrees
+[Motor6DGyroRegression] PASS: forward +Z maps to one hundred eighty degrees
+[Motor6DGyroRegression] PASS: forward -X maps to ninety degrees
+[Motor6DGyroRegression] PASS: X-axis rotation maps to the X target angle
+[Motor6DGyroRegression] PASS: Y-axis rotation maps to the Y target angle
+[Motor6DGyroRegression] PASS: Z-axis rotation maps to the Z target angle
+[Motor6DGyroRegression] PASS: axis targets and enabled states remain independent
+[Motor6DGyroRegression] PASS: Humanoid heading fixture creates a Box3D Root body
+[Motor6DGyroRegression] FAIL: Humanoid writes heading directly from movement direction
+[Motor6DGyroRegression] PASS: Humanoid keeps the last Gyro heading without input
+[Motor6DGyroRegression] convergence case=0 target=55 actual=40.211 error=14.789
+[Motor6DGyroRegression] FAIL: real Box3D Gyro converges for X/Z and Y quadrants
+[Motor6DGyroRegression] convergence case=1 target=-65 actual=-50.211 error=14.789
+[Motor6DGyroRegression] FAIL: real Box3D Gyro converges for X/Z and Y quadrants
+[Motor6DGyroRegression] convergence case=2 target=45 actual=30.2109 error=14.7891
+[Motor6DGyroRegression] FAIL: real Box3D Gyro converges for X/Z and Y quadrants
+[Motor6DGyroRegression] convergence case=3 target=135 actual=120.211 error=14.789
+[Motor6DGyroRegression] FAIL: real Box3D Gyro converges for X/Z and Y quadrants
+[Motor6DGyroRegression] convergence case=4 target=-135 actual=-120.211 error=14.789
+[Motor6DGyroRegression] FAIL: real Box3D Gyro converges for X/Z and Y quadrants
+[Motor6DGyroRegression] convergence case=5 target=179 actual=164.211 error=14.789
+[Motor6DGyroRegression] FAIL: real Box3D Gyro converges for X/Z and Y quadrants
+[Motor6DGyroRegression] inertia convergence lightSteps=15 heavySteps=15
+[Motor6DGyroRegression] PASS: world inertia compensation keeps unsaturated convergence time similar
+[Motor6DGyroRegression] torque response lowError=33.176 highError=3.17048
+[Motor6DGyroRegression] PASS: high MaxTorque recovers substantially faster than low MaxTorque
+[Motor6DGyroRegression] disturbance peakAngle=14.6091 recoveredError=14.789
+[Motor6DGyroRegression] FAIL: Gyro returns upright after angular-velocity disturbance
+[Motor6DGyroRegression] disabled axis x=45.211 z=0.000281326
+[Motor6DGyroRegression] FAIL: disabled Gyro axis receives no intended target correction
+[Motor6DGyroRegression] speed limit maxMeasuredDegPerSec=1701.25
+[Motor6DGyroRegression] FAIL: MaxAngularSpeed limits commanded target motion
+[Motor6DGyroRegression] overspeed firstDelta=3.09617 settledDelta=27.731
+[Motor6DGyroRegression] FAIL: Gyro brakes externally imposed overspeed
+[Motor6DGyroRegression] FAIL: default rig uses one-part Gyro with X/Z upright control
+[Motor6DGyroRegression] PASS: Motor6D preserves compound translation and three-axis rotation
+[Motor6DGyroRegression] compound memberX=14.789
+[Motor6DGyroRegression] FAIL: Gyro controls a Weld member using its compound world offset
+[Motor6DGyroRegression] rig heading target=-0 actual=-18.4131 error=18.4131
+[Motor6DGyroRegression] rig heading target=-90 actual=-18.4413 error=71.5587
+[Motor6DGyroRegression] rig heading target=-180 actual=-18.4466 error=161.553
+[Motor6DGyroRegression] rig heading target=90 actual=-18.4476 error=108.448
+[Motor6DGyroRegression] FAIL: default R6 follows forward/back/left/right Gyro headings
+[Motor6DGyroRegression] rig upright x=0 z=0
+[Motor6DGyroRegression] PASS: default R6 restores X/Z upright after angular disturbance
+[Motor6DGyroRegression] PASS: Gyro scene saves
+[Motor6DGyroRegression] PASS: scene round-trip preserves Part and independent axis settings
+[Motor6DGyroRegression] loaded Gyro initialX=0 controlledX=142.927 handle=1
+[Motor6DGyroRegression] loaded Gyro updatedHandle=1
+[Motor6DGyroRegression] PASS: loaded one-endpoint Gyro registers and controls a Box3D body
+[Motor6DGyroRegression] PASS: Gyro target update preserves its logical constraint handle
+[Motor6DGyroRegression] failures=14 result=FAIL
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --motor6d-gyro-regression (box3d) failed or was not parseable
+[CharacterHoverRegression] settledHeight=2.6
+[CharacterHoverRegression] PASS: first ground detection preserves the initial Root-to-ground distance
+[CharacterHoverRegression] PASS: Root collider remains clear of the floor at rest
+[CharacterHoverRegression] bodies=7 acceleration=196.2
+[CharacterHoverRegression] PASS: all dynamic R6 bodies receive equal mass-scaled hover acceleration
+[CharacterHoverRegression] PASS: an explicitly changed HipHeight becomes the hover target
+[CharacterHoverRegression] PASS: Free mode keeps CharacterHoverForce active while grounded
+[CharacterHoverRegression] PASS: positive Root Y velocity alone does not clear grounded state
+[CharacterHoverRegression] PASS: entering Free stops Character movement and angular velocity while preserving vertical physics
+[CharacterHoverRegression] PASS: entering Free disables the Character yaw controller
+[CharacterHoverRegression] PASS: jump disables every hover Force before equal-body launch velocity
+[CharacterHoverRegression] PASS: switching to Free during a jump preserves suppression until landing
+[CharacterHoverRegression] peakHeight=9.55832 landedHeight=2 hoverStayedOffWhileRising=1 hoverResumed=1
+[CharacterHoverRegression] PASS: jump suppression releases only while descending into capture range
+[CharacterHoverRegression] PASS: footprint shape cast detects an edge platform outside the Root center ray
+[CharacterHoverRegression] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[DefaultCameraMode] PASS: System YAML stores each camera mode as a string
+[DefaultCameraMode] PASS: System setProperty reads each camera mode
+[DefaultCameraMode] PASS: default camera mode maps explicitly to User control mode
+[DefaultCameraMode] PASS: User YAML stores ControlMode as a string
+[DefaultCameraMode] PASS: User YAML reads string ControlMode
+[DefaultCameraMode] PASS: System YAML stores each camera mode as a string
+[DefaultCameraMode] PASS: System setProperty reads each camera mode
+[DefaultCameraMode] PASS: default camera mode maps explicitly to User control mode
+[DefaultCameraMode] PASS: User YAML stores ControlMode as a string
+[DefaultCameraMode] PASS: User YAML reads string ControlMode
+[DefaultCameraMode] PASS: System YAML stores each camera mode as a string
+[DefaultCameraMode] PASS: System setProperty reads each camera mode
+[DefaultCameraMode] PASS: default camera mode maps explicitly to User control mode
+[DefaultCameraMode] PASS: User YAML stores ControlMode as a string
+[DefaultCameraMode] PASS: User YAML reads string ControlMode
+[DefaultCameraMode] PASS: unknown camera mode falls back to Character
+[DefaultCameraMode] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[SceneLoadTransaction] PASS: transaction scene fixture is written
+[SceneLoadTransaction] PASS: invalid User property fixture is written
+[SceneLoadTransaction] PASS: missing User/Inventory fixture is written
+[SceneLoadTransaction] PASS: LoadContext isolation fixture is written
+[SceneLoadTransaction] PASS: User/Inventory/Tool scene stages successfully
+[SceneLoadTransaction] PASS: staged tree retains User/Inventory/Tool without skipping User
+[SceneLoadTransaction] PASS: staged ObjectValue resolves Users\User to the staged User
+[SceneLoadTransaction] PASS: staging leaves the live tree and scalar values unchanged
+[SceneLoadTransaction] PASS: remote staged User does not replace the local User singleton
+[SceneLoadTransaction] PASS: invalid User property fails staging with YamlError
+[SceneLoadTransaction] PASS: failed staging preserves the current live scene
+[SceneLoadTransaction] PASS: commit replaces System children with the staged scene
+[SceneLoadTransaction] PASS: commit preserves live System/User identities and replaces staged User
+[SceneLoadTransaction] PASS: commit keeps the ObjectValue instance and re-resolves it to the live User
+[SceneLoadTransaction] PASS: commit preserves input, signals, and camera runtime state
+[SceneLoadTransaction] PASS: commit applies persisted System/User scalar values
+[SceneLoadTransaction] PASS: commit adopts Inventory and synchronizes staged Tools
+[SceneLoadTransaction] PASS: commit supplies default runtime services
+[SceneLoadTransaction] PASS: missing User and Inventory are supplied during commit
+[SceneLoadTransaction] PASS: non-empty missing path is a staging failure
+[SceneLoadTransaction] PASS: empty path commits a new scene with default Workspace and Lighting
+[SceneLoadTransaction] PASS: LoadContext merges into its explicitly registered System
+[SceneLoadTransaction] PASS: LoadContext registrations do not leak into later loads
+[SceneLoadTransaction] PASS: temporary fixture is removed: recubin_scene_transaction_10665219194400.yaml
+[SceneLoadTransaction] PASS: temporary fixture is removed: recubin_scene_transaction_invalid_10665219194400.yaml
+[SceneLoadTransaction] PASS: temporary fixture is removed: recubin_scene_transaction_missing_user_10665219194400.yaml
+[SceneLoadTransaction] PASS: temporary fixture is removed: recubin_scene_transaction_context_only_10665219194400.yaml
+[SceneLoadTransaction] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[SystemExtension] PASS: binary write succeeds
+[SystemExtension] PASS: relative I/O writes directly below the explicit root
+[SystemExtension] PASS: binary NUL round-trip
+[SystemExtension] PASS: append succeeds
+[SystemExtension] PASS: typed file/directory results
+[SystemExtension] PASS: directory creation succeeds
+[SystemExtension] PASS: copy succeeds
+[SystemExtension] PASS: deterministic directory listing
+[SystemExtension] PASS: parent traversal rejected
+[SystemExtension] PASS: runtime root cannot be removed
+[SystemExtension] PASS: TextFile overlay write succeeds
+[SystemExtension] PASS: TextFile overlay is stored below root/textfiles
+[SystemExtension] PASS: TextFile overlay read succeeds
+[SystemExtension] PASS: explicit roots are shared directly
+[SystemExtension] PASS: files over 128 MiB are rejected
+[SystemExtension] PASS: copy overwrite policy is enforced
+[SystemExtension] PASS: recursive removal succeeds
+[SystemExtension] PASS: external-disabled file system rejects absolute paths
+[SystemExtension] PASS: external access permits absolute paths
+[SystemExtension] PASS: System extension defaults are disabled with an application id
+[SystemExtension] PASS: System extension YAML save succeeds
+[SystemExtension] PASS: System extension YAML round-trip preserves values
+[SystemExtension] PASS: extension consent warns on first launch
+[SystemExtension] PASS: same extension consent does not warn again
+[SystemExtension] PASS: extension consent receipt is stored directly below root
+[SystemExtension] PASS: extension consent warns when configuration changes
+[SystemExtension] PASS: extension consent round-trip preserves exact set
+[SystemExtension] PASS: default file system uses construction-time current directory
+[SystemExtension] PASS: Luau IO permission and read-only System assignments are handled
+[SystemExtension] PASS: System extension fields remain read-only from Luau
+[SystemExtension] PASS: Luau enabled IO binary round-trip succeeds
+[SystemExtension] PASS: enabled IPC reports not implemented
+[SystemExtension] PASS: TextFile Content overlay works without exposing StorageId
+[RecubinTest] 1 passed, 0 failed.
+[RCBN_WARN][Instance.cpp:102] setParent: Key collision for 'Model' in Workspace. Renamed new child to 'Model1' to avoid overwriting existing instance.
+[RCBN_WARN][Script.cpp:30] Failed to load script source: old.luau
+[Luau] [HighlightPass]
+[Grouping] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[GuiAutomation] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[PhysicsMigrationRegression] backend=box3d PASS: backend initialization
+[PhysicsMigrationRegression] backend=box3d PASS: triangle mesh + convex terrain creation
+[PhysicsMigrationRegression] backend=box3d PASS: chunk-equivalent seam raycast and Terrain userData
+[PhysicsMigrationRegression] backend=box3d PASS: convex ramp top raycast
+[PhysicsMigrationRegression] backend=box3d PASS: convex terrain side raycast
+[PhysicsMigrationRegression] backend=box3d PASS: cube/sphere/convex public Workspace registration
+[PhysicsMigrationRegression] backend=box3d metric=terrain_vertical max_final_penetration=0 default_min_y=0.598637 default_final_y=0.598638 default_final_speed=0 bullet_min_y=0.598619 bullet_final_y=0.598619 bullet_final_speed=0 cube_min_y=1.09739 cube_final_y=1.09862 sphere_min_y=0.9 sphere_final_y=1.09862 convex_min_y=0.847503 convex_final_y=0.847869 convex_final_x=15.109 convex_min_vertex_y=0.0978812 convex_terrain_penetration=0 convex_support=floor tunneled=false
+[PhysicsMigrationRegression] backend=box3d PASS: Default and Bullet vertical 400 studs/s Terrain penetration <= 0.02
+[PhysicsMigrationRegression] backend=box3d metric=terrain_horizontal max_final_penetration=0 default_max_x=77.4113 default_final_x=68.0934 default_final_speed=0 bullet_max_x=77.4 bullet_final_x=66.1601 bullet_final_speed=0 tunneled=false
+[PhysicsMigrationRegression] backend=box3d PASS: Default and Bullet horizontal 400 studs/s Terrain penetration <= 0.02
+[PhysicsMigrationRegression] backend=box3d PASS: no NaN/Inf during collision and constraint workload
+[PhysicsMigrationRegression] backend=box3d metric=settled cube drift/RMS/non-amplifying energy drift=0 velocity_rms=0 early_energy=19.3491 late_energy=19.3491
+[PhysicsMigrationRegression] backend=box3d PASS: settled cube drift/RMS/non-amplifying energy
+[PhysicsMigrationRegression] backend=box3d metric=settled sphere drift/RMS/non-amplifying energy drift=0 velocity_rms=0 early_energy=19.3492 late_energy=19.3492
+[PhysicsMigrationRegression] backend=box3d PASS: settled sphere drift/RMS/non-amplifying energy
+[PhysicsMigrationRegression] backend=box3d metric=settled convex drift/RMS/non-amplifying energy drift=0 velocity_rms=0 early_energy=0 late_energy=0
+[PhysicsMigrationRegression] backend=box3d PASS: settled convex drift/RMS/non-amplifying energy
+[PhysicsMigrationRegression] backend=box3d metric=rope initial_distance=5 final_distance=8 max_distance=8 tail_velocity_rms=0 stiffness=60 damping=15
+[PhysicsMigrationRegression] backend=box3d PASS: Rope slack/max-distance/damping steady state <= 0.05
+[PhysicsMigrationRegression] backend=box3d metric=max_only_rope final_distance=8 max_distance=8 stiffness=0
+[PhysicsMigrationRegression] backend=box3d PASS: Rope Stiffness=0 max-only limit <= 0.05
+[PhysicsMigrationRegression] backend=box3d metric=rod initial_distance=6 final_distance=6.00128 error=0.00128412
+[PhysicsMigrationRegression] backend=box3d PASS: Rod rest length error <= 0.05
+[PhysicsMigrationRegression] backend=box3d PASS: BallSocket anchor error <= 0.05
+[PhysicsMigrationRegression] backend=box3d PASS: Weld relative CFrame error <= 0.001
+[PhysicsMigrationRegression] backend=box3d PASS: Motor Axis/DriveVelocity/MaxForce finite overload stop
+[PhysicsMigrationRegression] backend=box3d PASS: NoCollision suppresses specified pair only
+[PhysicsMigrationRegression] backend=box3d metric=motor_axis_diagnostic initial_axis=[0,-1.19209e-07,1] initial_abs_world_z_dot=1 final_axis=[-0.992208,-0.106706,0.0643231] final_quat=[-0.000729546,0.742266,-0.668316,-0.0489336] abs_world_z_dot=0.0643231 initial_attachment_separation=1.99997 attachment_separation=1.99959 initial_handle=25769803777 sleeping_handle=25769803956 updated_handle=25769804316 positive_angle=3.08477 negative_angle=-3.11012 zero_torque_angle=0.0509065 recovered_angle=-0.00284788
+[PhysicsMigrationRegression] backend=box3d FAIL: Motor wakes, reverses, and resumes without replacing its handle
+[PhysicsMigrationRegression] backend=box3d metric=motor_axis_setter previous_handle=25769804316 same_axis_handle=25769804316 changed_axis_handle=25769804317 expected_axis=[0,0,-1] cylinder_local_y=[-0.992233,0.0638898,0.106733] abs_axis_dot=0.106733 anchor_error=1.99959
+[PhysicsMigrationRegression] backend=box3d FAIL: Motor Axis setter recreates frame only when axis changes
+[PhysicsMigrationRegression] backend=box3d metric=motor_wake_car settled_position=[-82.5749,-29.0486,193.269] final_position=[640.631,-1721.11,147.773] horizontal_distance=724.636 minimum_axis_dot=0.0602901 maximum_attachment_separation=4.1155 handles_stable=false finite=true
+[PhysicsMigrationRegression] backend=box3d FAIL: four-wheel Motor car wakes and travels after resting
+[PhysicsMigrationRegression] backend=box3d metric=motor_scale_diagnostic case=AirSingle grounded=false mismatch=false repeat_setter=true horizontal_distance=0 relative_angular_velocity=2.40984 max_anchor_error=9.54951 min_axis_dot=0.930211 handles_stable=false finite=true
+[PhysicsMigrationRegression] backend=box3d metric=motor_scale_diagnostic case=GroundOnce grounded=true mismatch=false repeat_setter=false horizontal_distance=514.471 relative_angular_velocity=-6.0951 max_anchor_error=9.50387 min_axis_dot=0.440502 handles_stable=false finite=true
+[PhysicsMigrationRegression] backend=box3d metric=motor_scale_diagnostic case=GroundRepeat grounded=true mismatch=false repeat_setter=true horizontal_distance=65.696 relative_angular_velocity=5.0756 max_anchor_error=9.50267 min_axis_dot=0.272617 handles_stable=false finite=true
+[PhysicsMigrationRegression] backend=box3d metric=motor_scale_diagnostic case=GroundMismatch grounded=true mismatch=true repeat_setter=true horizontal_distance=12.8312 relative_angular_velocity=2.7084 max_anchor_error=9.48483 min_axis_dot=0.0339991 handles_stable=false finite=true
+[PhysicsMigrationRegression] backend=box3d FAIL: isolated full-scale Motor reaches target speed and preserves its frame
+[PhysicsMigrationRegression] backend=box3d FAIL: full-scale grounded Motor diagnostics remain finite
+[PhysicsMigrationRegression] backend=box3d FAIL: full-scale Motor drive matches the PhysX compatibility envelope
+[PhysicsMigrationRegression] backend=box3d FAIL: repeating DriveVelocity each tick preserves Motor behavior
+[PhysicsMigrationRegression] backend=box3d metric=liquid_jump submerged_velocity=48.522 airborne_velocity=0
+[PhysicsMigrationRegression] backend=box3d PASS: submerged Humanoid can jump while airborne Humanoid cannot
+[PhysicsMigrationRegression] backend=box3d PASS: two adjacent Chunk caches create independent terrain handles
+[PhysicsMigrationRegression] backend=box3d metric=chunk_seam left_y=64 right_y=64
+[PhysicsMigrationRegression] backend=box3d PASS: actual adjacent Chunk origin conversion has no raycast seam
+[PhysicsMigrationRegression] backend=box3d metric=chunk_seam_body min_y=64.3486 final_y=64.3486 final_speed=0
+[PhysicsMigrationRegression] backend=box3d PASS: small dynamic body does not pass through actual Chunk boundary
+[PhysicsMigrationRegression] backend=box3d metric=chunk_atomic_replace old_handle=214748364801 new_handle=227633266689 replaced_y=68 neighbor_y=64
+[PhysicsMigrationRegression] backend=box3d PASS: buildChunkPhysics atomically replaces one Chunk and preserves neighbor
+[PhysicsMigrationRegression] backend=box3d PASS: all BlockShape cache creates terrain handle
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Cube enum=1 hit=true hit_y=68
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_TopNE enum=2 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_TopNW enum=3 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_TopSE enum=4 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_TopSW enum=5 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_BotNE enum=6 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_BotNW enum=7 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_BotSE enum=8 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_BotSW enum=9 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_TopNE enum=10 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_TopNW enum=11 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_TopSE enum=12 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_TopSW enum=13 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_BotNE enum=14 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_BotNW enum=15 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_BotSE enum=16 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_BotSW enum=17 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Ramp_N enum=18 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Ramp_S enum=19 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Ramp_E enum=20 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Ramp_W enum=21 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape_summary tested=21 failed=0
+[PhysicsMigrationRegression] backend=box3d PASS: Cube/Wedge8/Tetra8/Ramp4 all produce backend collision
+[PhysicsMigrationRegression] backend=box3d metric=dynamic_dynamic_ccd contacts=1 tunneled_before_contact=false final_separation=-17.5396 completely_passed=false
+[PhysicsMigrationRegression] backend=box3d PASS: Bullet 400 studs/s dynamic-dynamic CCD hits dynamic target
+[PhysicsMigrationRegression] backend=box3d failures=7 result=FAIL
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --physics-migration-regression (box3d) failed or was not parseable
+[PhysicsLifecycle] PASS: Cube is created in Workspace A
+[PhysicsLifecycle] PASS: same-Workspace reparent keeps the existing body
+[PhysicsLifecycle] PASS: same-Workspace reparent preserves the body pose
+[PhysicsLifecycle] PASS: same-Workspace reparent does not lose the body after flush
+[PhysicsLifecycle] PASS: direct A-to-B move invalidates the old owner immediately
+[PhysicsLifecycle] PASS: direct A-to-B move creates a body in B
+[PhysicsLifecycle] PASS: old world has no ghost shape after direct move
+[PhysicsLifecycle] PASS: new world raycast resolves the moved Cube
+[PhysicsLifecycle] PASS: Weld members initially share one body
+[RCBN_WARN][Physics.cpp:376] Constraint "Weld" crosses Workspace boundaries; native binding disabled
+[PhysicsLifecycle] PASS: remaining Weld component is rebuilt in the old world
+[PhysicsLifecycle] PASS: departing Weld member receives a body in the new world
+[PhysicsLifecycle] PASS: old Weld compound contains no departing member ghost shape
+[PhysicsLifecycle] PASS
+[RecubinTest] 1 passed, 0 failed.
+[ConstraintRebind] PASS: Motor receives an initial native binding
+[ConstraintRebind] PASS: Attachment transform change rebuilds the native binding
+[ConstraintRebind] PASS: invalid endpoint path clears the old weak binding and native joint
+[ConstraintRebind] PASS: valid endpoint path reconnects automatically
+[RCBN_WARN][Physics.cpp:376] Constraint "Motor" crosses Workspace boundaries; native binding disabled
+[ConstraintRebind] PASS: cross-Workspace endpoint has no native binding
+[ConstraintRebind] PASS: endpoint departure preserves the logical Constraint Instance
+[ConstraintRebind] PASS: returning endpoint reconnects during the next fixed-step flush
+[ConstraintRebind] PASS
+[RecubinTest] 1 passed, 0 failed.
+[TerrainInstance] PASS: recursive enumeration finds multiple nested Terrain instances
+[TerrainInstance] PASS: new Terrain has no implicit current-directory DataPath
+[TerrainInstance] PASS: empty DataPath does not create a streamer or terrain directory
+[TerrainInstance] PASS: all enabled Terrain instances own independent streamers
+[TerrainInstance] PASS: disabling one Terrain immediately releases only its streamer
+[TerrainInstance] PASS: re-enabling Terrain recreates its streamer on update
+[TerrainInstance] PASS: Workspace move releases old-world Terrain resources immediately
+[TerrainInstance] PASS: moved Terrain creates an independent streamer in the new Workspace
+[TerrainInstance] PASS: clone preserves Terrain type and settings
+[TerrainInstance] PASS: clone does not duplicate streamer or native handles
+[TerrainInstance] PASS: non-empty Terrain descriptor creates collision
+[TerrainInstance] PASS: empty replacement destroys the final Terrain collision handle
+[TerrainInstance] PASS
+[RecubinTest] 1 passed, 0 failed.
+[FixedStepForce] backend=box3d metric=dt_invariance p30=5.02083 p60=5.02083 p120=5.02083 v30=9.99999 v60=9.99999 v120=9.99999
+[FixedStepForce] backend=box3d PASS: Force integration is invariant at render dt 1/30, 1/60, and 1/120
+[FixedStepForce] backend=box3d PASS: Torque integration is invariant at render dt 1/30, 1/60, and 1/120
+[FixedStepForce] backend=box3d metric=maintain_priority actual=[3,4,5]
+[FixedStepForce] backend=box3d PASS: MaintainVelocity overrides gravity, buoyancy, and additive Force
+[FixedStepForce] backend=box3d failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[ContactReentry] backend=box3d PASS: contact is dispatched once without callback re-entry
+[ContactReentry] backend=box3d PASS: contact dispatch occurs after native pose synchronization
+[ContactReentry] backend=box3d PASS: callback reparent immediately detaches the old-world body
+[ContactReentry] backend=box3d PASS: callback reparent registers the body in the destination world
+[ContactReentry] backend=box3d PASS: callback resize is applied in the next safe update window
+[ContactReentry] backend=box3d PASS: compound raycast reports the member shape that was hit
+[ContactReentry] backend=box3d PASS: ignoreCube skips only its member shape, not the whole compound
+[ContactReentry] backend=box3d failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[RCBN_DEBUG][NetworkManager.cpp:165] NetworkManager: local CPU score = 654974
+[RCBN_DEBUG][NetworkManager.cpp:182] NetworkManager: Host started on port 49850
+[NetworkCore] PASS: dedicated host reserves PeerId 1 and is not a player
+[NetworkCore] PASS: dedicated host roster entry preserves the non-player flag
+[RCBN_DEBUG][NetworkManager.cpp:1155] NetworkManager: peer connected (16777343:49851)
+[RCBN_WARN][NetworkManager.cpp:1246] NetworkManager: rejected unauthorised Hello
+[NetworkCore] PASS: direct host rejects an old game protocol version before admission
+[RCBN_DEBUG][NetworkManager.cpp:1155] NetworkManager: peer connected (16777343:49852)
+[RCBN_DEBUG][NetworkManager.cpp:1304] NetworkManager: [hello] assigned peer id=2 listenPort=0
+[NetworkCore] PASS: roster round-trip preserves dedicated and player participation flags
+[RCBN_DEBUG][User.cpp:1040] StarterCharacter が見つからなかったため、既定のキャラクターを生成しました
+[RCBN_DEBUG][Replication.cpp:548] Replication: spawned PlayerCharacter_2
+[RCBN_DEBUG][Replication.cpp:873] Replication: world mapping broadcast 0 objects
+[NetworkCore] PASS: replication excludes the dedicated peer and creates the player identity
+[RCBN_DEBUG][NetworkManager.cpp:1168] NetworkManager: peer disconnected
+[NetworkCore] PASS: dedicated host executes Script and skips LocalScript
+[NetworkCore] PASS: dedicated host shuts down cleanly after direct clients leave
+[NetworkCore] PASS: CharacterAdded position listener starts successfully
+[RCBN_DEBUG][User.cpp:1040] StarterCharacter が見つからなかったため、既定のキャラクターを生成しました
+[Luau] [NetworkCoreSpawnEvent]
+[RCBN_DEBUG][User.cpp:1281] Spawning character...
+[NetworkCore] PASS: spawnCharacter applies the requested initial model position
+[NetworkCore] PASS: CharacterAdded observes the requested position before firing
+[NetworkCore] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[MultiWorkspace] backend=box3d PASS: Character workspace resolves to nearest ancestor
+[MultiWorkspace] backend=box3d PASS: Moving to the current Workspace is a successful no-op
+[MultiWorkspace] backend=box3d PASS: Character move preserves world CFrame
+[MultiWorkspace] backend=box3d PASS: Detached Character reports no Workspace
+[MultiWorkspace] backend=box3d PASS: Detached Character leaves the active Workspace unchanged
+[MultiWorkspace] backend=box3d PASS: No-character observer leaves the active Workspace unchanged
+[MultiWorkspace] backend=box3d PASS: Detached Character can be explicitly attached to a Workspace
+[MultiWorkspace] backend=box3d PASS: Luau Character.Parent assignment moves Character workspace
+[RCBN_DEBUG][Replication.cpp:1018] Replication: released 0 world objects (anchored -> dynamic)
+[MultiWorkspace] backend=box3d PASS: Workspace and Physics binding switch atomically
+[MultiWorkspace] backend=box3d PASS: Workspace switch advances the packet binding generation
+[RCBN_WARN][Replication.cpp:108] Replication update rejected a Physics pointer from a different active Workspace
+[MultiWorkspace] backend=box3d PASS: update rejects a Physics pointer from the previous Workspace
+[MultiWorkspace] backend=box3d PASS: update accepts the currently bound Workspace Physics
+[RCBN_DEBUG][Replication.cpp:1018] Replication: released 0 world objects (anchored -> dynamic)
+[MultiWorkspace] backend=box3d PASS: unbinding clears Workspace and Physics in one generation
+[MultiWorkspace] backend=box3d failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[PhysicsRollback] backend=box3d PASS: same-value setters preserve the native body handle
+[PhysicsRollback] backend=box3d PASS: invalid Size setter leaves logical and native state unchanged
+[PhysicsRollback] backend=box3d PASS: invalid replacement descriptor retains the old collision body
+[PhysicsRollback] backend=box3d PASS: invalid Terrain replacement retains the old handle and collision
+[PhysicsRollback] backend=box3d PASS: empty Terrain descriptor does not create a native handle
+[PhysicsRollback] backend=box3d PASS: removed pending Cube is not resurrected when physics resumes
+[PhysicsRollback] backend=box3d PASS: clone preserves LockFlags, CCDMode, and Locked without native handles
+[PhysicsRollback] backend=box3d PASS: LockFlags string sequence survives YAML save/load
+[PhysicsRollback] backend=box3d failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[Box3DHullRegression] PASS: >=64-point convex creates a standalone body and raycasts
+[Box3DHullRegression] PASS: multiple dense convexes build one welded compound
+[Box3DHullRegression] PASS: >=64-point terrain convex is simplified and raycasts
+[RCBN_WARN][Box3DPhysicsBackend.cpp:488] Box3D convex hull used local bounds fallback: DegenerateHull
+[Box3DHullRegression] PASS: degenerate convex uses its off-center local bounds for collision
+[Box3DHullRegression] PASS: repeated degenerate rebuilds emit one bounds fallback warning
+[RCBN_WARN][Box3DPhysicsBackend.cpp:488] Box3D convex hull used local bounds fallback: DegenerateHull
+[Box3DHullRegression] PASS: normal hull success resets bounds fallback warning suppression
+[Box3DHullRegression] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[Box3DBuoyancyRegression] PASS: Box3D backend initialization
+[Box3DBuoyancyRegression] metric=wave_formula max_error=0
+[Box3DBuoyancyRegression] PASS: waveHeight matches deterministic formula at all corners/times
+[Box3DBuoyancyRegression] PASS: 1/60 physics steps advance tick and wave time deterministically
+[Box3DBuoyancyRegression] PASS: PhysicsEnabled=false pauses tick and wave time
+[Box3DBuoyancyRegression] PASS: physics clock resumes after PhysicsEnabled=true
+[Box3DBuoyancyRegression] metric=clock_snap requested_tick=23 actual_tick=23 requested_alpha=0.25 actual_alpha=0.25
+[Box3DBuoyancyRegression] PASS: synchronizeSimulationClock first sample snaps
+[Box3DBuoyancyRegression] metric=clock_slew correction_ticks=0.1
+[Box3DBuoyancyRegression] PASS: small clock difference slews by at most 0.1 tick per step
+[Box3DBuoyancyRegression] metric=clock_wrap requested_tick=4294967294 actual_tick=4294967294 requested_alpha=0.75 actual_alpha=0.75
+[Box3DBuoyancyRegression] PASS: synchronized simulation clock preserves U32 wrap-near phase
+[Box3DBuoyancyRegression] metric=buoyancy shape=Box wet_vy=21.7204 dry_vy=-26.16 delta=47.8804
+[Box3DBuoyancyRegression] PASS: Box
+[Box3DBuoyancyRegression] metric=buoyancy shape=Sphere wet_vy=21.7204 dry_vy=-26.16 delta=47.8804
+[Box3DBuoyancyRegression] PASS: Sphere
+[Box3DBuoyancyRegression] metric=buoyancy shape=TriangularPrism wet_vy=21.7204 dry_vy=-26.16 delta=47.8804
+[Box3DBuoyancyRegression] PASS: TriangularPrism
+[Box3DBuoyancyRegression] metric=zero_density wet_vy=-21.7204 dry_vy=-26.16 dry_difference_informational=4.43962 density2_box_vy=21.7204 density_delta=43.4408
+[Box3DBuoyancyRegression] PASS: Density=0 has no upward buoyancy while submerged damping remains active
+[Box3DBuoyancyRegression] metric=neutral_sphere density=1 vy=1.97957e-06 tolerance=2
+[Box3DBuoyancyRegression] PASS: fully submerged Density=1 Sphere is neutrally buoyant within 2 studs/s
+[Box3DBuoyancyRegression] metric=maintain_velocity_buoyancy mass_density=0.25 liquid_density=1 actual_velocity=[0,0,0] expected_velocity=[0,0,0] error=[0,0,0] tolerance=0.05
+[Box3DBuoyancyRegression] PASS: MaintainVelocity zero overrides gravity and accumulated buoyancy
+[Box3DBuoyancyRegression] metric=rotated_obb_control outside_vy=-26.16 control_vy=-26.16 difference=0
+[Box3DBuoyancyRegression] PASS: rotated LiquidCube does not buoy old-AABB-only control body
+[Box3DBuoyancyRegression] metric=liquid_removal former_wet_vy=-19.62 control_vy=-19.62 difference=0
+[Box3DBuoyancyRegression] PASS: Liquid removal clears damping and restores gravity acceleration
+[Box3DBuoyancyRegression] metric=buoyant_weld relative_position_error=0 finite=true
+[Box3DBuoyancyRegression] PASS: two-member buoyant Weld remains finite with <=0.001 stud error
+BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 guard_ms=4
+[Box3DBuoyancyRegression] PASS: 128 Sphere buoyancy median stays within 4ms
+[Box3DBuoyancyRegression] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[FrameRateInvariance] PASS: Humanoid physics body is available
+[FrameRateInvariance] PASS: Humanoid walkCycle is frame-rate invariant
+[FrameRateInvariance] PASS: Humanoid currentMoveDir is frame-rate invariant
+[FrameRateInvariance] PASS: Humanoid smoothed heading is frame-rate invariant
+[FrameRateInvariance] PASS: Humanoid root rotation is frame-rate invariant
+[FrameRateInvariance] PASS: Humanoid physics body is available
+[FrameRateInvariance] PASS: Humanoid walkCycle is frame-rate invariant
+[FrameRateInvariance] PASS: Humanoid currentMoveDir is frame-rate invariant
+[FrameRateInvariance] PASS: Humanoid smoothed heading is frame-rate invariant
+[FrameRateInvariance] PASS: Humanoid root rotation is frame-rate invariant
+[FrameRateInvariance] PASS: Humanoid physics body is available
+[FrameRateInvariance] PASS: Humanoid walkCycle is frame-rate invariant
+[FrameRateInvariance] PASS: Humanoid currentMoveDir is frame-rate invariant
+[FrameRateInvariance] PASS: Humanoid smoothed heading is frame-rate invariant
+[FrameRateInvariance] PASS: Humanoid root rotation is frame-rate invariant
+[FrameRateInvariance] PASS: Free camera W movement is frame-rate invariant
+[FrameRateInvariance] PASS: Free camera arrow rotation is frame-rate invariant
+[FrameRateInvariance] PASS: Free camera I-key zoom is frame-rate invariant
+[FrameRateInvariance] PASS: Free camera O-key zoom is frame-rate invariant
+[FrameRateInvariance] PASS: Free camera W preserves the 60 Hz movement rate
+[FrameRateInvariance] PASS: Free camera I/O preserves the 60 Hz zoom rate
+[FrameRateInvariance] PASS
+[RecubinTest] 1 passed, 0 failed.
+[UserCharacterSmoothing] PASS: default is the previous 0.15 smoothing rate
+[UserCharacterSmoothing] PASS: YAML setter clamps values above one
+[UserCharacterSmoothing] PASS: YAML setter clamps values below zero
+[UserCharacterSmoothing] PASS: YAML NaN resets to the safe default
+[UserCharacterSmoothing] PASS: scene save persists CharacterSmoothing
+[UserCharacterSmoothing] PASS: temporary save fixture is removed
+[UserCharacterSmoothing] PASS: Luau getter/setter clamps and handles NaN
+[UserCharacterSmoothing] PASS: Humanoid smoothing samples initialize physics bodies
+[UserCharacterSmoothing] PASS: 0.15 retains the former one-frame interpolation rate
+[UserCharacterSmoothing] PASS: one applies movement direction without interpolation
+[UserCharacterSmoothing] PASS: zero does not follow the movement target
+[UserCharacterSmoothing] PASS: CtrlLock smoothing one follows the camera heading immediately
+[UserCharacterSmoothing] PASS: CtrlLock CharacterSmoothing delays camera-heading changes
+[UserCharacterSmoothing] PASS: CtrlLock smoothing zero keeps the previous camera heading
+[UserCharacterSmoothing] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[UserInputControls] PASS: cursor processing PNG fixtures are written
+[UserInputControls] PASS: custom cursor defaults to Default
+[UserInputControls] PASS: custom cursor size defaults to 32 logical pixels
+[UserInputControls] PASS: custom cursor size clamps to the minimum
+[UserInputControls] PASS: custom cursor size clamps to the maximum
+[UserInputControls] PASS: custom cursor slot path and hotspot are mutable
+[UserInputControls] PASS: User passes only processed RGBA cursor data to the input backend
+[UserInputControls] PASS: unchanged cursor processing settings reuse the cached revision
+[UserInputControls] PASS: content scale resizes the cursor and logical hotspot to physical pixels
+[UserInputControls] PASS: different source aspect ratios preserve the same configured long edge
+[UserInputControls] PASS: cursor fixture is prepared before its file update
+[UserInputControls] PASS: cursor processing fixture can be updated
+[UserInputControls] PASS: cursor file mtime changes regenerate the processed revision
+[UserInputControls] PASS: cursor Size and hotspot changes regenerate and clamp processed data
+[UserInputControls] PASS: unchanged missing cursor input safely remains a cached failure
+[UserInputControls] PASS: a failed cursor retries when the file mtime becomes available
+[UserInputControls] PASS: NullInputBackend rejects processed cursors safely
+[UserInputControls] PASS: custom cursor is not applied outside gameplay viewport
+[UserInputControls] PASS: Default cursor falls back to the platform cursor
+[UserInputControls] PASS: empty cursor slot falls back to the platform cursor
+[UserInputControls] PASS: MouseLock can be enabled for cursor arbitration
+[UserInputControls] PASS: MouseLock reapplies capture and suppresses custom cursor
+[UserInputControls] PASS: User.Input exposes all raw F1-F12 key states
+[UserInputControls] PASS: YAML controls persist all input categories
+[UserInputControls] PASS: MouseLock captures through the fake backend when focused viewport is valid
+[UserInputControls] PASS: MouseLock releases the fake backend
+[UserInputControls] PASS: F8 enables MouseLock only during focused gameplay input
+[UserInputControls] PASS: F8 toggles MouseLock off on its next rising edge
+[UserInputControls] PASS: F8 is ignored outside gameplay input
+[UserInputControls] PASS: F8 is ignored without viewport focus
+[UserInputControls] PASS: F8 is ignored while text input owns the keyboard
+[UserInputControls] PASS: Camera category gates the F8 builtin only
+[UserInputControls] PASS: direct MouseLock bypasses the camera input category
+[UserInputControls] PASS: Escape requests exit without releasing MouseLock
+[UserInputControls] PASS: viewport focus loss releases MouseLock capture
+[UserInputControls] PASS: MouseLock can be restored after focus returns
+[UserInputControls] PASS: MouseLock viewport changes recenter the camera anchor without a delta
+[UserInputControls] PASS: Program MouseLock retains capture but never applies cursor rotation
+[UserInputControls] PASS: P key does not request a workspace switch
+[UserInputControls] PASS: direct workspace switch request bypasses categories
+[UserInputControls] PASS: unhandled exit request is consumed immediately
+[UserInputControls] PASS: direct one-based tool selection and activation work
+[UserInputControls] PASS: dead Character keeps camera position while allowing in-place rotation
+[RCBN_DEBUG][User.cpp:770] Control Mode: Free
+[UserInputControls] PASS: L switches to Free while the Humanoid is dead
+[UserInputControls] PASS: dead Free mode still allows free camera movement
+[UserInputControls] PASS: Movement category gates W builtin while raw input remains available
+[UserInputControls] PASS: Camera category gates arrow rotation while raw input remains available
+[UserInputControls] PASS: Hotkey category gates Escape builtin while raw input remains available
+[UserInputControls] PASS: Tool category gates Num/left-click and synchronizes held input without latent activation
+[UserInputControls] PASS: persistent world-space script movement works unfocused and clear sends zero Character input
+[UserInputControls] PASS: direct Jump is queued and consumed by the next physics input frame
+[UserInputControls] PASS: Luau exposes category properties and direct input APIs
+[UserInputControls] PASS: Luau exposes CursorType enum and cursor settings
+[UserInputControls] PASS: raw F-key Pressed and Released signals deliver exact F2 names while categories are disabled
+[UserInputControls] PASS: Luau can subscribe to User.ExitRequested
+[UserInputControls] PASS: Escape listener exit is pending and held Escape does not refire
+[UserInputControls] PASS: CancelExit and ConfirmExit resolve the listener-aware exit request
+[UserInputControls] PASS: SceneLoader saves and loads input and custom cursor properties
+[UserInputControls] PASS: legacy YAML without input category properties keeps true defaults
+[UserInputControls] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[ViewportHelperRegression] PASS: external OBB ray hit preserves distance, axis, and face sign
+[ViewportHelperRegression] PASS: inside OBB ray exits with the established axis/sign semantics
+[ViewportHelperRegression] PASS: rotated OBB ray hit reports the rotated local face
+[ViewportHelperRegression] PASS: SAT rejects separated OBBs
+[ViewportHelperRegression] PASS: SAT treats exact face contact as non-intersection
+[ViewportHelperRegression] PASS: SAT accepts positive-volume overlap
+[ViewportHelperRegression] PASS: screen-center ray uses the camera origin and forward direction
+[ViewportHelperRegression] PASS: world position converts through a rotated Spatial parent
+[ViewportHelperRegression] PASS: world rotation converts through a rotated Spatial parent
+[ViewportHelperRegression] PASS: Editor Model translation moves descendants while preserving child local position
+[ViewportHelperRegression] PASS: Editor Model rotation carries descendants around the Model frame
+[ViewportHelperRegression] PASS: MultiGizmoCommand execute carries Model descendants
+[ViewportHelperRegression] PASS: MultiGizmoCommand undo restores Model descendants and child local position
+[ViewportHelperRegression] PASS: selected physics backend creates the Editor Model child body
+[ViewportHelperRegression] PASS: Editor Model transform survives physics update and sync with child local pose intact
+[ViewportHelperRegression] PASS: scene save keeps the Editor Model and child local transform properties
+[ViewportHelperRegression] PASS: scene load restores Model and child local transforms with composed world poses
+[ViewportHelperRegression] PASS: front-facing center point projects to the viewport center
+[ViewportHelperRegression] PASS: point behind the camera is not visible
+[ViewportHelperRegression] PASS: Billboard projection is invariant between 1x and 2x framebuffer density
+[ViewportHelperRegression] PASS: positive local Y Billboard offset projects directly above its parent
+[ViewportHelperRegression] PASS: Billboard offset follows the parent local rotation
+[ViewportHelperRegression] PASS: nearest BaseCube search traverses nested instances
+[ViewportHelperRegression] PASS: selection promotes the nearest cube to its topmost Model
+[ViewportHelperRegression] PASS: nearest BaseCube exclusion skips the target subtree
+[ViewportHelperRegression] PASS: front Locked cube remains the hit ahead of an unlocked cube
+[ViewportHelperRegression] PASS: Locked cube blocks selection without promoting to its Model
+[ViewportHelperRegression] PASS: front loose cube remains ahead of a rear Model target
+[ViewportHelperRegression] PASS: empty space inside a Model AABB is not selectable
+[ViewportHelperRegression] PASS: BaseCube picker returns the nearest cube
+[ViewportHelperRegression] PASS: Attachment picker uses the fixed helper hit volume
+[ViewportHelperRegression] PASS: box selection collects an unlocked cube
+[ViewportHelperRegression] PASS: box selection excludes a Locked cube and its descendants
+[ViewportHelperRegression] PASS: descendant world AABB includes nested BaseCubes
+[ViewportHelperRegression] PASS: Model movement bounds use the descendant world AABB
+[ViewportHelperRegression] PASS: BaseCube movement bounds preserve its rotated world OBB
+[ViewportHelperRegression] PASS: Model highlight query returns descendant BaseCubes only once
+[ViewportHelperRegression] PASS: axis collision fit resolves overlap along the requested axis
+[ViewportHelperRegression] PASS: minimum-overlap collision fit resolves a stable axis-aligned overlap
+[ViewportHelperRegression] PASS: Model collision fit uses its AABB and excludes its descendant subtree
+[ViewportHelperRegression] PASS: additive resize produces the same world delta for different initial sizes
+[ViewportHelperRegression] PASS: additive resize preserves unchanged axes, absolute snap, and minimum size
+[ViewportHelperRegression] PASS: fixed-face resize preserves centered Spatial behavior
+[ViewportHelperRegression] PASS: SurfaceMark resize keeps the near origin or far face fixed
+[ViewportHelperRegression] PASS: SurfaceMark fixed-face resize follows world rotation
+[ViewportHelperRegression] PASS: group scale applies an axis factor to every selected size
+[ViewportHelperRegression] PASS: uniform group scale clamps one common factor to every minimum size
+[ViewportHelperRegression] PASS: group scale factor snap uses increments around one
+[ViewportHelperRegression] PASS: axis group scale clamps every axis against all selected sizes
+[ViewportHelperRegression] PASS: group scale applies world-axis position factors around a fixed pivot
+[ViewportHelperRegression] PASS: individual resize keeps the grabbed face fixed after rotation
+[ViewportHelperRegression] PASS: focused but non-hovered viewport consumes scroll without zooming
+[ViewportHelperRegression] PASS: hovered viewport applies mouse-wheel zoom
+[ViewportHelperRegression] PASS: focused viewport keeps keyboard zoom when the mouse is outside
+[ViewportHelperRegression] PASS
+[RecubinTest] 1 passed, 0 failed.
+[Autosave] PASS: autosave regression starts from a CWD outside the storage root
+[Autosave] PASS: named session creates its autosave lock
+[Autosave] PASS: named session uses scene filename directory
+[Autosave] PASS: explicit storage root does not create autosave data below the launch CWD
+[Autosave] PASS: recovery debounce delays immediate update
+[Autosave] PASS: recovery remains debounced before one second
+[Autosave] PASS: repeated change postpones recovery debounce
+[Autosave] PASS: debounce update writes recovery
+[Autosave] PASS: successful recovery clears only recovery dirty state
+[Autosave] PASS: recovery discovery remains bound to the storage root after CWD changes
+[Autosave] PASS: snapshot update writes changed scene
+[Autosave] PASS: snapshot update writes changed scene
+[Autosave] PASS: snapshot update writes changed scene
+[Autosave] PASS: snapshot update writes changed scene
+[Autosave] PASS: snapshot update writes changed scene
+[Autosave] PASS: snapshot update writes changed scene
+[Autosave] PASS: snapshot rotation retains five generations
+[Autosave] PASS: all rotated snapshots remain readable Scene YAML
+[Autosave] PASS: normal session end removes lock and recovery
+[Autosave] PASS: normal session end preserves snapshots
+[Autosave] PASS: isolated snapshot session starts
+[Autosave] PASS: clean session skips snapshot after interval
+[Autosave] PASS: snapshot writes independently of recovery debounce
+[Autosave] PASS: snapshot success clears snapshot dirty but preserves recovery dirty
+[Autosave] PASS: failed serialization preserves dirty state
+[Autosave] PASS: failed serialization leaves no recovery temporary file
+[Autosave] PASS: failed serialization preserves existing recovery bytes
+[Autosave] PASS: atomic replace failure preserves existing recovery bytes
+[Autosave] PASS: failed atomic replace temporary path is cleaned by test teardown
+[Autosave] PASS: I/O notification session starts
+[Autosave] PASS: first autosave I/O failure invokes the callback
+[Autosave] PASS: repeated autosave I/O failure is reported only once per operation and path
+[Autosave] PASS: autosave succeeds after the I/O failure is removed
+[Autosave] PASS: a successful autosave re-arms the I/O failure notification
+[Autosave] PASS: untitled session starts
+[Autosave] PASS: untitled session uses Untitled.rcbn
+[Autosave] PASS: untitled recovery writes
+[Autosave] PASS: active session excludes its flushed recovery from crash candidates
+[Autosave] PASS: valid candidate is discoverable
+[Autosave] PASS: untitled candidate can be found without a formal scene path
+[Autosave] PASS: second crash candidate session starts
+[Autosave] PASS: second crash candidate writes recovery
+[Autosave] PASS: latest recovery selects the intended Latest directory and logical path
+[Autosave] PASS: named candidate can be found by formal scene path
+[Autosave] PASS: discard removes selected recovery and lock
+[Autosave] PASS: orphan lock without recovery is ignored as a non-candidate
+[Autosave] PASS: corrupt recovery is rejected
+[Autosave] PASS: corrupt and missing recovery candidates are excluded
+[Autosave] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[AssetPath] PASS: Windows separators normalize to portable separators
+[AssetPath] PASS: portable separators remain unchanged
+[AssetPath] PASS: empty asset path remains unset
+[AssetPath] PASS: stored filesystem paths always use portable separators
+[AssetPath] PASS: UTF-8 asset paths round-trip without using the Windows ANSI code page
+[AssetPath] PASS: Windows runtime content root resolves beside the executable
+[AssetPath] PASS: macOS runtime content root resolves to Bundle Resources
+[AssetPath] PASS: runtime content root is absent when startup.yaml is missing
+[AssetPath] PASS: explicit scene keeps the caller working directory
+[AssetPath] PASS: macOS flat Studio marker and required resources select the executable directory
+[AssetPath] PASS: macOS development launch without complete portable resources keeps launch CWD
+[AssetPath] PASS: runtime test fonts can be staged for packaging
+[AssetPath] PASS: temporary asset directory can become the working directory
+[RCBN_DEBUG][AssetGuard.cpp:30] AssetGuard enabled. Root: C:\Users\Ryarta\AppData\Local\Temp\recubin_asset_path_10667223815900
+[AssetPath] PASS: text loader accepts both separator styles
+[AssetPath] PASS: binary loader accepts both separator styles
+[AssetPath] PASS: guard accepts an in-root Windows-style path
+[RCBN_WARN][AssetGuard.cpp:46] Blocked out-of-root asset path: ..\outside.txt (resolved: C:\Users\Ryarta\AppData\Local\Temp\outside.txt)
+[AssetPath] PASS: guard rejects Windows-style parent traversal
+[Packager] Output: package-output/PortablePackage
+[Packager] [OK] Runtime fonts copied: 2 file(s)
+[Packager] [WARN] No .glsl files found in shaders/ — rendering may be broken
+[Packager] [WARN] Skipping editor autosave reference: .autosave/hidden.bin
+[Packager] [OK] Copied: assets/anims/r6_walk.rcanim -> assets/anims/r6_walk.rcanim
+[Packager] [OK] Copied: assets/effects/wobble.frag -> assets/effects/wobble.frag
+[Packager] [OK] Copied: assets\cursor.png -> assets/cursor.png
+[Packager] [WARN] File not found, skipping: assets\models\missing.glb
+[Packager] [OK] Copied: assets\sample.bin -> assets/sample.bin
+[Packager] [WARN] Skipping editor autosave directory: terrain_data/.autosave
+[Packager] [OK] Terrain data: terrain_data -> terrain_data
+[Packager] [OK] Scene written: package-output/PortablePackage/assets/scenes/PortablePackage.rcbn
+[Packager] [OK] Runtime: RecubinEngine.exe
+[Packager] [WARN] launcher.exe not found — run 'py build.py launcher Release' first
+[Packager] [OK] startup.yaml written
+[Packager] [DONE] Package created: package-output/PortablePackage
+[AssetPath] PASS: packager copies referenced assets, runtime fonts, and portable YAML paths
+[AssetPath] PASS: packager excludes explicit and nested autosave data while retaining terrain data
+[Packager] Output: 日本語出力/てすと
+[Packager] [OK] Runtime fonts copied: 2 file(s)
+[Packager] [WARN] No .glsl files found in shaders/ — rendering may be broken
+[Packager] [WARN] Skipping editor autosave reference: .autosave/hidden.bin
+[Packager] [OK] Copied: assets/anims/r6_walk.rcanim -> assets/anims/r6_walk.rcanim
+[Packager] [OK] Copied: assets/effects/wobble.frag -> assets/effects/wobble.frag
+[Packager] [OK] Copied: assets\cursor.png -> assets/cursor.png
+[Packager] [WARN] File not found, skipping: assets\models\missing.glb
+[Packager] [OK] Copied: assets\sample.bin -> assets/sample.bin
+[Packager] [WARN] Skipping editor autosave directory: terrain_data/.autosave
+[Packager] [OK] Terrain data: terrain_data -> terrain_data
+[Packager] [OK] Scene written: 日本語出力/てすと/assets/scenes/てすと.rcbn
+[Packager] [OK] Runtime: RecubinEngine.exe
+[Packager] [WARN] launcher.exe not found — run 'py build.py launcher Release' first
+[Packager] [OK] startup.yaml written
+[Packager] [DONE] Package created: 日本語出力/てすと
+[AssetPath] PASS: packager preserves Japanese game and output paths
+[AssetPath] PASS: original working directory is restored
+[AssetPath] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[AppImage] PASS: mock platform records native error dialogs
+[AppImage] PASS: unsupported platforms leave application icons to the GLFW fallback
+[AppImage] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[RuntimeLaunchArgs] PASS: scene and title override while unrelated network arguments are ignored
+[RuntimeLaunchArgs] PASS: editor test flag is accepted without a value
+[RuntimeLaunchArgs] PASS: duplicate editor test flag is rejected
+[RuntimeLaunchArgs] PASS: equals-form editor test flag is rejected
+[RuntimeLaunchArgs] PASS: missing scene value is rejected
+[RuntimeLaunchArgs] PASS: missing window title value is rejected
+[RuntimeLaunchArgs] PASS: duplicate scene override is rejected
+[RuntimeLaunchArgs] PASS: equals-form runtime options are rejected
+[RuntimeLaunchArgs] PASS: GUI automation scene/settings pair is parsed
+[RuntimeLaunchArgs] PASS: launch parser accepts individual values before main enforces the required pair
+[RuntimeLaunchArgs] PASS: missing GUI automation pair values are rejected
+[RuntimeLaunchArgs] PASS: mock platform reports child process launch as unsupported
+[RuntimeLaunchArgs] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[RCBN_WARN][Instance.cpp:262] renameTo: Key collision for 'Hair' in Model. Renamed to 'Hair1' to avoid overwriting existing instance.
+[RCBN_WARN][Instance.cpp:262] renameTo: Key collision for 'Head' in Model. Renamed to 'Head1' to avoid overwriting existing instance.
+[StarterWeldRename] PASS: collision renames update instance names and parent lookup keys
+[RCBN_WARN][Instance.cpp:262] renameTo: Key collision for 'Hair' in Model. Renamed to 'Hair1' to avoid overwriting existing instance.
+[RCBN_WARN][Instance.cpp:262] renameTo: Key collision for 'Head' in Model. Renamed to 'Head1' to avoid overwriting existing instance.
+[StarterWeldRename] FAIL: save-time refresh follows repeated and collision-renamed parts
+[StarterWeldRename] FAIL: scene serialization writes refreshed StarterCharacter paths
+[StarterWeldRename] PASS: character clone Weld targets renamed clone parts, not template parts
+[StarterWeldRename] PASS: self-contained StarterCharacter Hair/Head paths resolve to a Weld assembly
+[StarterWeldRename] failures=2 result=FAIL
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --starter-weld-rename-regression (box3d) failed or was not parseable
+[StarterAccessoryWeld] PASS: two standard StarterCharacter clones contain independent accessory rigs
+[StarterAccessoryWeld] PASS: each cloned Weld assembly excludes the other character
+[StarterAccessoryWeld] PASS: multiple anchored accessories form one independent compound per rig
+[StarterAccessoryWeld] FAIL: Humanoid updates only logical rig parts before compound synchronization
+[StarterAccessoryWeld] PASS: one compound sync follows both anchored accessories from each Head driver
+[StarterAccessoryWeld] PASS: Head/Hair/Glasses relative poses survive 180 compound sync frames
+[StarterAccessoryWeld] FAIL: all body and accessory parts remain finite and near their own Root
+[StarterAccessoryWeld] FAIL: continuous translation and rotation never mixes the two rig assemblies
+[StarterAccessoryWeld] FAIL: compound pose synchronization leaves Root velocities finite and bounded
+[StarterAccessoryWeld] diagnostics maxPartDistance=24.5998 part=B/Glasses frame=179 maxRootSpeed=308.556 speedFrame=179
+[StarterAccessoryWeld] failures=4 result=FAIL
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --starter-accessory-weld-regression (box3d) failed or was not parseable
+[StarterRootSpawn] PASS: CharacterAdded Root normalization listener starts successfully
+[Luau] [StarterRootSpawnEvent]
+[RCBN_DEBUG][User.cpp:1281] Spawning character...
+[StarterRootSpawn] PASS: spawnCharacter normalizes only the cloned local Root physics flags
+[StarterRootSpawn] PASS: CharacterAdded observes the normalized Root before firing completes
+[StarterRootSpawn] PASS: saved StarterCharacter Root flags remain unchanged for serialization and retry
+[StarterRootSpawn] PASS: selected physics backend is available for spawned Root simulation
+[StarterRootSpawn] FAIL: normalized Root falls from the spawn height and settles on the floor
+[StarterRootSpawn] diagnostics backend=box3d initialY=16 minimumY=0.140507 finalY=0.981979 velocity=[0,0,0]
+[StarterRootSpawn] failures=1 result=FAIL
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --starter-root-spawn-regression (box3d) failed or was not parseable
+[SpawnLocation] PASS: default SpawnLocation state matches the editor/runtime contract
+[SpawnLocation] PASS: Named supplies the complete SpawnLocation IsA inheritance chain
+[SpawnLocation] PASS: shared BaseCube factory covers every concrete BaseCube class only
+[SpawnLocation] PASS: BaseCube clone helper preserves design/custom state and children without runtime ownership
+[SpawnLocation] PASS: BaseCube clone helper keeps each derived class's persistent custom state
+[SpawnLocation] FAIL: BaseCube clone helper excludes Seat live input and occupant runtime state
+[Luau] [SpawnLocationLuau]
+[SpawnLocation] PASS: Luau Instance.new accepts SpawnLocation through the shared factory
+[SpawnLocation] PASS: SpawnLocation Enabled is readable and writable from Luau
+[SpawnLocation] PASS: CharacterAdded final-CFrame listener starts successfully
+[Luau] [SpawnLocationEvent]
+[RCBN_DEBUG][User.cpp:1281] Spawning character...
+[SpawnLocation] PASS: CharacterAdded observes the selected SpawnLocation full CFrame
+[RCBN_DEBUG][User.cpp:1281] Spawning character...
+[RCBN_DEBUG][User.cpp:1281] Spawning character...
+[RCBN_DEBUG][User.cpp:1281] Spawning character...
+[SpawnLocation] PASS: full-path sorting maps peer0/peer1/peer3 to first spawn and peer2 to second
+[SpawnLocation] PASS: full CFrame spawn placement preserves the original Root-to-part assembly pose
+[RCBN_DEBUG][User.cpp:1281] Spawning character...
+[SpawnLocation] PASS: Play Here explicit Model.Position overrides SpawnLocation selection
+[RCBN_DEBUG][User.cpp:1281] Spawning character...
+[SpawnLocation] PASS: respawn reuses the active Workspace and selected SpawnLocation
+[RCBN_DEBUG][User.cpp:1281] Spawning character...
+[SpawnLocation] FAIL: absence of enabled SpawnLocations places Root at the world origin
+[SpawnLocation] PASS: SceneLoader shared factory round-trips SpawnLocation YAML and Enabled
+[SpawnLocation] failures=2 result=FAIL
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --spawn-location-regression (box3d) failed or was not parseable
+[RCBN_DEBUG][Replication.cpp:548] Replication: spawned PlayerCharacter_2
+[RCBN_DEBUG][Replication.cpp:548] Replication: spawned PlayerCharacter_3
+[RemoteAvatarSpawnTransform] PASS: actual spawnRemoteAvatar path creates two independent avatar Models
+[RemoteAvatarSpawnTransform] PASS: spawned avatars contain standard body parts and cloned Weld accessory
+[RemoteAvatarSpawnTransform] FAIL: PeerId mapping applies each nonidentity SpawnLocation full CFrame
+[RemoteAvatarSpawnTransform] PASS: remote avatar Models retain nonidentity spawn transforms
+[RemoteAvatarSpawnTransform] PASS: runtime physics registration completes before remote pose application
+[RCBN_DEBUG][Replication.cpp:585] Replication: first pose for peer 2
+[RCBN_DEBUG][Replication.cpp:585] Replication: first pose for peer 3
+[RemoteAvatarSpawnTransform] PASS: first received poses snap both Roots to exact world CFrames
+[RemoteAvatarSpawnTransform] FAIL: body and Weld accessory relative poses survive world-pose application
+[RemoteAvatarSpawnTransform] PASS: cloned Weld assemblies remain separated between peers
+[RemoteAvatarSpawnTransform] PASS: second pose interpolates only its target peer in world space
+[RemoteAvatarSpawnTransform] PASS: pose application preserves each nonidentity Model CFrame
+[RemoteAvatarSpawnTransform] PASS: multiple peer identities retain their own canonical avatar Models
+[RCBN_DEBUG][Replication.cpp:548] Replication: spawned PlayerCharacter_2
+[RCBN_DEBUG][Replication.cpp:585] Replication: first pose for peer 2
+[RemoteAvatarSpawnTransform] PASS: legacy no-SpawnLocation identity Model follows the same world-pose path
+[RemoteAvatarSpawnTransform] failures=2 result=FAIL
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --remote-avatar-spawn-transform-regression (box3d) failed or was not parseable
+[RCBN_WARN][MeshCube.cpp:466] MeshCube: GLBの解析に失敗しました: assets/models/__recubin_missing_mesh_fallback__.glb
+[MeshCubeFallback] PASS: missing GLB preserves its path and activates box fallback geometry
+[MeshCubeFallback] PASS: fallback physics hull contains the eight unit-box corners
+[RCBN_WARN][MeshCube.cpp:466] MeshCube: GLBの解析に失敗しました: assets/models/__recubin_missing_mesh_fallback__.glb
+[MeshCubeFallback] PASS: clone preserves fallback state without discarding the requested path
+[MeshCubeFallback] PASS: empty mesh request remains an explicit no-model state
+[MeshCubeFallback] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[ShadowMode] PASS: default mode is Normal
+[ShadowMode] PASS: transparent cube follows each ShadowMode
+[ShadowMode] PASS: opaque cube follows each ShadowMode
+[ShadowMode] PASS: transparent cube follows each ShadowMode
+[ShadowMode] PASS: opaque cube follows each ShadowMode
+[ShadowMode] PASS: transparent cube follows each ShadowMode
+[ShadowMode] PASS: opaque cube follows each ShadowMode
+[ShadowMode] PASS: CastShadow false overrides Always
+[ShadowMode] PASS: YAML setter accepts Always
+[ShadowMode] PASS: YAML setter accepts Never
+[ShadowMode] FAIL: unknown YAML mode falls back to Normal
+[ShadowMode] PASS: clone preserves ShadowMode and CastShadow
+[RCBN_WARN][MeshCube.cpp:466] MeshCube: GLBの解析に失敗しました: assets/models/__recubin_missing_shadow_mode__.glb
+[ShadowMode] PASS: missing MeshCube fallback casts a Normal shadow
+[ShadowMode] PASS: Scene YAML round-trip preserves ShadowMode
+[ShadowMode] PASS: Scene YAML writes ShadowMode
+[ShadowMode] PASS: legacy YAML without ShadowMode defaults to Normal
+[ShadowMode] failures=1 result=FAIL
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --shadow-mode-regression (box3d) failed or was not parseable
+[HumanoidRigCollisionRegression] backend=box3d case=baseline_root_only expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] backend=box3d case=torso_original expected_y=2 final_y=1.99727 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=2 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] backend=box3d case=hair_weld_original expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_original expected_y=2 final_y=1.99727 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=2 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_no_weld expected_y=2 final_y=1.99727 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=3 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_noncollide expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_anchored expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] filter_probe initial_self=0 self_out=1 self_back=1 humanoid_removed=2 humanoid_restored=2 initial_tool=0 tool_out=1 tool_back=1 remote_npc=1 floor=1 clone=1 nested=1 ragdoll_self=0 ragdoll_out=0 raycast_self=true overlap_self=true result=FAIL
+[HumanoidRigCollisionRegression] rig_cases=PASS failures=1 result=FAIL
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --humanoid-rig-collision-regression (box3d) failed or was not parseable
+[SeatNetworkRegression] PASS: Humanoid seats and Seat occupant is set
+[SeatNetworkRegression] PASS: standUp clears SeatWeld and occupant
+[SeatNetworkRegression] PASS: standUp removes SeatWeld instance
+[SeatNetworkRegression] PASS: standUp applies upward hop velocity
+[RecubinTest] 1 passed, 0 failed.
+[PhysicalFileInstance] PASS: direct construction initializes the shared schema before setProperty/clone
+[PhysicalFileInstance] PASS: registry exposes at least one physical file type
+[PhysicalFileInstance] PASS: TextLabel FontFile uses the typed instance-reference metadata
+[PhysicalFileInstance] PASS: TextButton exposes GuiButton HoverEnded signal schema
+[PhysicalFileInstance] PASS: ImageButton exposes GuiButton HoverEnded signal schema
+[PhysicalFileInstance] PASS: TextFile is scene-owned and not Luau-creatable
+[PhysicalFileInstance] PASS: registry create preserves class and IsA chain for TextFile
+[PhysicalFileInstance] PASS: SceneLoader factory delegates TextFile to the registry
+[PhysicalFileInstance] PASS: ContentPath setter normalizes Path for TextFile
+[PhysicalFileInstance] PASS: clone preserves type, Path, and Name for TextFile
+[PhysicalFileInstance] PASS: TextFile clone receives a distinct StorageId
+[PhysicalFileInstance] PASS: registry create preserves class and IsA chain for FileRef
+[PhysicalFileInstance] PASS: SceneLoader factory delegates FileRef to the registry
+[PhysicalFileInstance] PASS: ContentPath setter normalizes Path for FileRef
+[PhysicalFileInstance] PASS: clone preserves type, Path, and Name for FileRef
+[PhysicalFileInstance] PASS: registry create preserves class and IsA chain for FontFile
+[PhysicalFileInstance] PASS: SceneLoader factory delegates FontFile to the registry
+[PhysicalFileInstance] PASS: ContentPath setter normalizes Path for FontFile
+[PhysicalFileInstance] PASS: clone preserves type, Path, and Name for FontFile
+[PhysicalFileInstance] PASS: registry retains the FileRef and FontFile compatibility class names
+[PhysicalFileInstance] PASS: YAML keeps FileRef/FontFile class names and the ContentPath key
+[PhysicalFileInstance] PASS: Scene YAML round-trip preserves ContentPath for TextFile
+[PhysicalFileInstance] PASS: Scene YAML round-trip preserves ContentPath for FileRef
+[PhysicalFileInstance] PASS: Scene YAML round-trip preserves ContentPath for FontFile
+[PhysicalFileInstance] PASS: temporary physical-file Scene is removed
+[Luau] [PhysicalFileLuau:FileRef]
+[Luau] [PhysicalFileLuau:FontFile]
+[PhysicalFileInstance] PASS: Luau physical-file factory script executes
+[PhysicalFileInstance] PASS: Luau Instance.new creates FileRef and exposes readable Path
+[PhysicalFileInstance] PASS: Luau Instance.new creates FontFile and exposes readable Path
+[PhysicalFileInstance] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[PropertySchema] PASS: Humanoid HipHeight uses the generic editable float schema
+[PropertySchema] PASS: a new Humanoid distinguishes unset HipHeight from an explicit value
+[PropertySchema] PASS: unset HipHeight is omitted from YAML until it has a value
+[PropertySchema] PASS: unset HipHeight metadata survives schema-driven clone
+[PropertySchema] PASS: generic HipHeight writes reach the Humanoid setter
+[PropertySchema] PASS: explicit HipHeight survives YAML property round-trip
+[PropertySchema] PASS: explicit HipHeight survives schema-driven clone
+[PropertySchema] PASS: explicit HipHeight metadata survives generic instance copy
+[PropertySchema] PASS: Lighting shadow distance properties use the generic float schema
+[PropertySchema] PASS: Lighting shadow distances survive YAML, clone, and generic copy
+[PropertySchema] PASS: PostEffect Custom type and fragment shader file are schema-driven
+[PropertySchema] PASS: Custom PostEffect survives YAML and schema-driven clone
+[PropertySchema] PASS: Rope constraint instance is covered
+[PropertySchema] PASS: Rope inherits one editable PhysicsConstraint.Enabled schema
+[PropertySchema] PASS: Rope Enabled schema reads its default value
+[PropertySchema] PASS: Rope generic property command executes the Enabled setter
+[PropertySchema] PASS: Rope generic property command undo restores Enabled
+[PropertySchema] PASS: Rod constraint instance is covered
+[PropertySchema] PASS: Rod inherits one editable PhysicsConstraint.Enabled schema
+[PropertySchema] PASS: Rod Enabled schema reads its default value
+[PropertySchema] PASS: Rod generic property command executes the Enabled setter
+[PropertySchema] PASS: Rod generic property command undo restores Enabled
+[PropertySchema] PASS: BallSocket constraint instance is covered
+[PropertySchema] PASS: BallSocket inherits one editable PhysicsConstraint.Enabled schema
+[PropertySchema] PASS: BallSocket Enabled schema reads its default value
+[PropertySchema] PASS: BallSocket generic property command executes the Enabled setter
+[PropertySchema] PASS: BallSocket generic property command undo restores Enabled
+[PropertySchema] PASS: Weld constraint instance is covered
+[PropertySchema] PASS: Weld inherits one editable PhysicsConstraint.Enabled schema
+[PropertySchema] PASS: Weld Enabled schema reads its default value
+[PropertySchema] PASS: Weld generic property command executes the Enabled setter
+[PropertySchema] PASS: Weld generic property command undo restores Enabled
+[PropertySchema] PASS: Motor constraint instance is covered
+[PropertySchema] PASS: Motor inherits one editable PhysicsConstraint.Enabled schema
+[PropertySchema] PASS: Motor Enabled schema reads its default value
+[PropertySchema] PASS: Motor generic property command executes the Enabled setter
+[PropertySchema] PASS: Motor generic property command undo restores Enabled
+[PropertySchema] PASS: NoCollision constraint instance is covered
+[PropertySchema] PASS: NoCollision inherits one editable PhysicsConstraint.Enabled schema
+[PropertySchema] PASS: NoCollision Enabled schema reads its default value
+[PropertySchema] PASS: NoCollision generic property command executes the Enabled setter
+[PropertySchema] PASS: NoCollision generic property command undo restores Enabled
+[PropertySchema] PASS: Rope exposes editable distance through its derived schema
+[PropertySchema] PASS: Rope MaxDistance editor command reaches the runtime setter
+[PropertySchema] PASS: Motor exposes Axis through its derived schema
+[PropertySchema] PASS: Motor Axis editor command reaches the runtime setter
+[PropertySchema] PASS: Tool exposes Hand as a typed enum property
+[PropertySchema] PASS: Tool exposes Handle as a typed BaseCube reference
+[PropertySchema] PASS: Tool Equipped remains runtime-state only for editor/Luau writes
+[PropertySchema] PASS: Tool Hand editor command reaches the runtime enum field
+[PropertySchema] PASS: LiquidCube inherits BaseCube schema and exposes Density
+[PropertySchema] PASS: SpawnLocation inherits Cube schema and exposes Enabled
+[PropertySchema] PASS: Seat live Steer remains visible to metadata but hidden from editor/YAML/Luau writes
+[PropertySchema] PASS: partial Rope/Cube selection retains Enabled schema availability for 1/2 targets
+[PropertySchema] PASS: Script script instance is covered
+[PropertySchema] PASS: Script inherits editable Script.Enabled schema
+[PropertySchema] PASS: Script inherits Script.Path schema with ContentPath YAML key
+[PropertySchema] PASS: Script generic property command disables Enabled
+[PropertySchema] PASS: Script generic property command restores Enabled
+[PropertySchema] PASS: LocalScript script instance is covered
+[PropertySchema] PASS: LocalScript inherits editable Script.Enabled schema
+[PropertySchema] PASS: LocalScript inherits Script.Path schema with ContentPath YAML key
+[PropertySchema] PASS: LocalScript generic property command disables Enabled
+[PropertySchema] PASS: LocalScript generic property command restores Enabled
+[PropertySchema] PASS: ModuleScript script instance is covered
+[PropertySchema] PASS: ModuleScript inherits editable Script.Enabled schema
+[PropertySchema] PASS: ModuleScript inherits Script.Path schema with ContentPath YAML key
+[PropertySchema] PASS: ModuleScript generic property command disables Enabled
+[PropertySchema] PASS: ModuleScript generic property command restores Enabled
+[PropertySchema] PASS: Script ContentPath schema setter loads source text
+[PropertySchema] PASS: Script Path YAML alias preserves source loading
+[PropertySchema] PASS: Script Source YAML alias preserves source loading
+[PropertySchema] PASS: Script schema regression removes temporary source file
+[RCBN_WARN][PropertyRegistry.cpp:156] normalizing CFrame Rotation property from YAML (lengthSquared=1.875)
+[PropertySchema] PASS: CFrameValue exposes an editable CFrame Value schema
+[PropertySchema] PASS: CFrameValue YAML Value setter updates an existing value
+[PropertySchema] PASS: CFrameValue clone preserves Value
+[PropertySchema] PASS: CFrameValue save keeps the Position/Rotation YAML form
+[RCBN_WARN][PropertyRegistry.cpp:170] normalizing Quaternion property from YAML (lengthSquared=1.64062)
+[PropertySchema] PASS: QuaternionValue exposes an editable Quaternion Value schema
+[PropertySchema] PASS: QuaternionValue YAML Value setter updates an existing value
+[PropertySchema] PASS: QuaternionValue clone preserves Value
+[PropertySchema] PASS: QuaternionValue save keeps the XYZW YAML sequence form
+[PropertySchema] FAIL: Decal exposes Texture, Face, and visual property schemas
+[PropertySchema] PASS: generic property command uses Decal Texture custom setter
+[PropertySchema] PASS: generic property command undo restores Decal Texture through its custom setter
+[PropertySchema] PASS: generic property command uses Decal Face custom setter
+[PropertySchema] PASS: generic property command undo restores Decal Face through its custom setter
+[PropertySchema] FAIL: Texture exposes Texture, Face, and tiling property schemas
+[PropertySchema] PASS: generic property command uses Texture Texture custom setter
+[PropertySchema] PASS: generic property command undo restores Texture Texture through its custom setter
+[PropertySchema] PASS: generic property command uses Texture Face custom setter
+[PropertySchema] PASS: generic property command undo restores Texture Face through its custom setter
+[PropertySchema] PASS: Workspace exposes Gravity, Wind, and PhysicsEnabled schemas
+[PropertySchema] PASS: Workspace YAML setters update Gravity, Wind, and PhysicsEnabled
+[PropertySchema] PASS: Workspace cloneTree preserves the Workspace type
+[PropertySchema] PASS: Workspace cloneTree preserves Name and persistent properties
+[PropertySchema] PASS: Workspace cloneTree clones children with the cloned parent
+[PropertySchema] failures=2 result=FAIL
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --property-schema-regression (box3d) failed or was not parseable
+[QuaternionInvariantRegression] PASS: normalizes the reported non-unit quaternion
+[QuaternionInvariantRegression] PASS: rejects a zero quaternion
+[QuaternionInvariantRegression] PASS: rejects a non-finite quaternion
+[QuaternionInvariantRegression] PASS: matrix extraction returns a unit quaternion after scale removal
+[QuaternionInvariantRegression] PASS: CFrame matrix round-trip remains finite and normalized
+[QuaternionInvariantRegression] PASS: repeated composition preserves unit length
+[PropertySchema] PASS: Humanoid HipHeight uses the generic editable float schema
+[PropertySchema] PASS: a new Humanoid distinguishes unset HipHeight from an explicit value
+[PropertySchema] PASS: unset HipHeight is omitted from YAML until it has a value
+[PropertySchema] PASS: unset HipHeight metadata survives schema-driven clone
+[PropertySchema] PASS: generic HipHeight writes reach the Humanoid setter
+[PropertySchema] PASS: explicit HipHeight survives YAML property round-trip
+[PropertySchema] PASS: explicit HipHeight survives schema-driven clone
+[PropertySchema] PASS: explicit HipHeight metadata survives generic instance copy
+[PropertySchema] PASS: Lighting shadow distance properties use the generic float schema
+[PropertySchema] PASS: Lighting shadow distances survive YAML, clone, and generic copy
+[PropertySchema] PASS: PostEffect Custom type and fragment shader file are schema-driven
+[PropertySchema] PASS: Custom PostEffect survives YAML and schema-driven clone
+[PropertySchema] PASS: Rope constraint instance is covered
+[PropertySchema] PASS: Rope inherits one editable PhysicsConstraint.Enabled schema
+[PropertySchema] PASS: Rope Enabled schema reads its default value
+[PropertySchema] PASS: Rope generic property command executes the Enabled setter
+[PropertySchema] PASS: Rope generic property command undo restores Enabled
+[PropertySchema] PASS: Rod constraint instance is covered
+[PropertySchema] PASS: Rod inherits one editable PhysicsConstraint.Enabled schema
+[PropertySchema] PASS: Rod Enabled schema reads its default value
+[PropertySchema] PASS: Rod generic property command executes the Enabled setter
+[PropertySchema] PASS: Rod generic property command undo restores Enabled
+[PropertySchema] PASS: BallSocket constraint instance is covered
+[PropertySchema] PASS: BallSocket inherits one editable PhysicsConstraint.Enabled schema
+[PropertySchema] PASS: BallSocket Enabled schema reads its default value
+[PropertySchema] PASS: BallSocket generic property command executes the Enabled setter
+[PropertySchema] PASS: BallSocket generic property command undo restores Enabled
+[PropertySchema] PASS: Weld constraint instance is covered
+[PropertySchema] PASS: Weld inherits one editable PhysicsConstraint.Enabled schema
+[PropertySchema] PASS: Weld Enabled schema reads its default value
+[PropertySchema] PASS: Weld generic property command executes the Enabled setter
+[PropertySchema] PASS: Weld generic property command undo restores Enabled
+[PropertySchema] PASS: Motor constraint instance is covered
+[PropertySchema] PASS: Motor inherits one editable PhysicsConstraint.Enabled schema
+[PropertySchema] PASS: Motor Enabled schema reads its default value
+[PropertySchema] PASS: Motor generic property command executes the Enabled setter
+[PropertySchema] PASS: Motor generic property command undo restores Enabled
+[PropertySchema] PASS: NoCollision constraint instance is covered
+[PropertySchema] PASS: NoCollision inherits one editable PhysicsConstraint.Enabled schema
+[PropertySchema] PASS: NoCollision Enabled schema reads its default value
+[PropertySchema] PASS: NoCollision generic property command executes the Enabled setter
+[PropertySchema] PASS: NoCollision generic property command undo restores Enabled
+[PropertySchema] PASS: Rope exposes editable distance through its derived schema
+[PropertySchema] PASS: Rope MaxDistance editor command reaches the runtime setter
+[PropertySchema] PASS: Motor exposes Axis through its derived schema
+[PropertySchema] PASS: Motor Axis editor command reaches the runtime setter
+[PropertySchema] PASS: Tool exposes Hand as a typed enum property
+[PropertySchema] PASS: Tool exposes Handle as a typed BaseCube reference
+[PropertySchema] PASS: Tool Equipped remains runtime-state only for editor/Luau writes
+[PropertySchema] PASS: Tool Hand editor command reaches the runtime enum field
+[PropertySchema] PASS: LiquidCube inherits BaseCube schema and exposes Density
+[PropertySchema] PASS: SpawnLocation inherits Cube schema and exposes Enabled
+[PropertySchema] PASS: Seat live Steer remains visible to metadata but hidden from editor/YAML/Luau writes
+[PropertySchema] PASS: partial Rope/Cube selection retains Enabled schema availability for 1/2 targets
+[PropertySchema] PASS: Script script instance is covered
+[PropertySchema] PASS: Script inherits editable Script.Enabled schema
+[PropertySchema] PASS: Script inherits Script.Path schema with ContentPath YAML key
+[PropertySchema] PASS: Script generic property command disables Enabled
+[PropertySchema] PASS: Script generic property command restores Enabled
+[PropertySchema] PASS: LocalScript script instance is covered
+[PropertySchema] PASS: LocalScript inherits editable Script.Enabled schema
+[PropertySchema] PASS: LocalScript inherits Script.Path schema with ContentPath YAML key
+[PropertySchema] PASS: LocalScript generic property command disables Enabled
+[PropertySchema] PASS: LocalScript generic property command restores Enabled
+[PropertySchema] PASS: ModuleScript script instance is covered
+[PropertySchema] PASS: ModuleScript inherits editable Script.Enabled schema
+[PropertySchema] PASS: ModuleScript inherits Script.Path schema with ContentPath YAML key
+[PropertySchema] PASS: ModuleScript generic property command disables Enabled
+[PropertySchema] PASS: ModuleScript generic property command restores Enabled
+[PropertySchema] PASS: Script ContentPath schema setter loads source text
+[PropertySchema] PASS: Script Path YAML alias preserves source loading
+[PropertySchema] PASS: Script Source YAML alias preserves source loading
+[PropertySchema] PASS: Script schema regression removes temporary source file
+[RCBN_WARN][PropertyRegistry.cpp:156] normalizing CFrame Rotation property from YAML (lengthSquared=1.875)
+[PropertySchema] PASS: CFrameValue exposes an editable CFrame Value schema
+[PropertySchema] PASS: CFrameValue YAML Value setter updates an existing value
+[PropertySchema] PASS: CFrameValue clone preserves Value
+[PropertySchema] PASS: CFrameValue save keeps the Position/Rotation YAML form
+[RCBN_WARN][PropertyRegistry.cpp:170] normalizing Quaternion property from YAML (lengthSquared=1.64062)
+[PropertySchema] PASS: QuaternionValue exposes an editable Quaternion Value schema
+[PropertySchema] PASS: QuaternionValue YAML Value setter updates an existing value
+[PropertySchema] PASS: QuaternionValue clone preserves Value
+[PropertySchema] PASS: QuaternionValue save keeps the XYZW YAML sequence form
+[PropertySchema] FAIL: Decal exposes Texture, Face, and visual property schemas
+[PropertySchema] PASS: generic property command uses Decal Texture custom setter
+[PropertySchema] PASS: generic property command undo restores Decal Texture through its custom setter
+[PropertySchema] PASS: generic property command uses Decal Face custom setter
+[PropertySchema] PASS: generic property command undo restores Decal Face through its custom setter
+[PropertySchema] FAIL: Texture exposes Texture, Face, and tiling property schemas
+[PropertySchema] PASS: generic property command uses Texture Texture custom setter
+[PropertySchema] PASS: generic property command undo restores Texture Texture through its custom setter
+[PropertySchema] PASS: generic property command uses Texture Face custom setter
+[PropertySchema] PASS: generic property command undo restores Texture Face through its custom setter
+[PropertySchema] PASS: Workspace exposes Gravity, Wind, and PhysicsEnabled schemas
+[PropertySchema] PASS: Workspace YAML setters update Gravity, Wind, and PhysicsEnabled
+[PropertySchema] PASS: Workspace cloneTree preserves the Workspace type
+[PropertySchema] PASS: Workspace cloneTree preserves Name and persistent properties
+[PropertySchema] PASS: Workspace cloneTree clones children with the cloned parent
+[PropertySchema] failures=2 result=FAIL
+[PASS] built-in walk has the R6 joint-delta identity
+[PASS] built-in walk has the expected cycle length and looping
+[PASS] built-in walk contains five shoulder keys
+[PASS] walk shoulder key reaches the expected 35 degree pose
+[PASS] walk midpoint preserves joint translation
+[PASS] joint delta composes after the rig root transform
+[PASS] R6 joint binding composes translated and rotated roots correctly
+[PASS] eased clip saves
+[PASS] rcanim round-trip preserves easing modes
+[RCBN_WARN][AnimationClip.cpp:120] normalizing animation quaternion from C:\Users\Ryarta\AppData\Local\Temp\recubin_animation_clip_regression_41\zero_quaternion.rcanim (lengthSquared=0)
+[PASS] zero quaternion is rejected for the quaternion reason
+[PASS] duplicate known-joint tracks are rejected for the duplicate reason
+[PASS] animation clip saves as rcanim
+[PASS] saved rcanim loads successfully
+[PASS] rcanim round-trip preserves joint key count
+[PASS] malformed rcanim is rejected
+[PASS] wrong document type is rejected
+[PASS] newer animation version is rejected
+[PASS] legacy Animation and following Scene child both survive round-trip
+[PASS] legacy Animation tracks remain present before following child
+[PASS] default StarterCharacter exposes R6Walk and Humanoid references it
+[PASS] default R6 builds a dynamic Motor6D rig with disabled ragdoll constraints and RootGyro
+[PASS] default Root/Torso bind uses matching centers and preserves the authored world pose
+[PASS] StarterCharacter Animation reference is remapped into generated User Humanoid
+[PASS] Walk, Jump, and Equip references all remap to PlayerCharacter clones
+[PASS] tool left-arm pose updates the R6 shoulder Motor6D
+[PASS] seated arm and leg poses update the R6 Motor6Ds
+[PASS] injected walk produces opposite left/right arm poses
+[PASS] grounded walk returns the shoulder to its neutral binding pose
+[PASS] airborne shoulder angle advances to 180 degrees identically on both sides
+[PASS] landing shoulder angle returns toward zero in the negative direction
+[PASS] custom joint_delta Animation overrides the shoulder Motor6D transform
+[PASS] non-empty unresolved WalkAnimation path is preserved without runtime reference replacement
+[PASS] joint_delta Animation clip survives Scene save/load
+[PASS] joint_delta clip survives a second Scene round-trip
+[PASS] project walk clip is written
+[PASS] valid project walk Animation is selected
+[PASS] missing project walk Animation keeps its reference and falls back at runtime
+[PASS] invalid project walk Animation preserves failure and falls back at runtime
+[PASS] custom Walk asset is written
+[PASS] valid custom Walk remains the preferred PlayerCharacter reference
+[PASS] missing custom Walk keeps its Animation and ContentPath during runtime fallback
+[PASS] broken custom Walk keeps its Animation and ContentPath during runtime fallback
+[PASS] unbound legacy character receives a visible runtime-only built-in Walk
+[PASS] Scene with a Humanoid Animation reference saves
+[PASS] Humanoid Animation reference and ContentPath survive Scene round-trip
+[PASS] headerless scene loads as implicit version zero
+[PASS] retired R6 generation header remains readable as compatibility metadata
+[PASS] scene metadata saves with character binding migration version
+[PASS] new Scene saves emit only the character binding migration header
+[PASS] character binding migration metadata round-trips without retired fields
+[PASS] scene loader rejects a mismatched document type
+[PASS] scene loader rejects a newer scene version
+[ERROR] --quaternion-invariant-regression (box3d) failed or was not parseable
+[SpatialCoordinateRegression] PASS: normalizes the reported non-unit quaternion
+[SpatialCoordinateRegression] PASS: rejects a zero quaternion
+[SpatialCoordinateRegression] PASS: rejects a non-finite quaternion
+[SpatialCoordinateRegression] PASS: matrix extraction returns a unit quaternion after scale removal
+[SpatialCoordinateRegression] PASS: CFrame matrix round-trip remains finite and normalized
+[SpatialCoordinateRegression] PASS: repeated composition preserves unit length
+[SpatialCoordinateRegression] PASS: three-level child through Folder keeps world pose after parent move
+[SpatialCoordinateRegression] PASS: world/local CFrame round-trip preserves requested world pose
+[SpatialCoordinateRegression] PASS: detach preserves world pose
+[RCBN_WARN][Instance.cpp:102] setParent: Key collision for 'Model' in Workspace. Renamed new child to 'Model1' to avoid overwriting existing instance.
+[RCBN_WARN][Script.cpp:30] Failed to load script source: old.luau
+[Luau] [HighlightPass]
+[Grouping] failures=0 result=PASS
+[PhysicsLifecycle] PASS: Cube is created in Workspace A
+[PhysicsLifecycle] PASS: same-Workspace reparent keeps the existing body
+[PhysicsLifecycle] PASS: same-Workspace reparent preserves the body pose
+[PhysicsLifecycle] PASS: same-Workspace reparent does not lose the body after flush
+[PhysicsLifecycle] PASS: direct A-to-B move invalidates the old owner immediately
+[PhysicsLifecycle] PASS: direct A-to-B move creates a body in B
+[PhysicsLifecycle] PASS: old world has no ghost shape after direct move
+[PhysicsLifecycle] PASS: new world raycast resolves the moved Cube
+[PhysicsLifecycle] PASS: Weld members initially share one body
+[RCBN_WARN][Physics.cpp:376] Constraint "Weld" crosses Workspace boundaries; native binding disabled
+[PhysicsLifecycle] PASS: remaining Weld component is rebuilt in the old world
+[PhysicsLifecycle] PASS: departing Weld member receives a body in the new world
+[PhysicsLifecycle] PASS: old Weld compound contains no departing member ghost shape
+[PhysicsLifecycle] PASS
+[RecubinTest] 1 passed, 0 failed.
+[CoordinateRecalculateRegression] PASS: normalizes the reported non-unit quaternion
+[CoordinateRecalculateRegression] PASS: rejects a zero quaternion
+[CoordinateRecalculateRegression] PASS: rejects a non-finite quaternion
+[CoordinateRecalculateRegression] PASS: matrix extraction returns a unit quaternion after scale removal
+[CoordinateRecalculateRegression] PASS: CFrame matrix round-trip remains finite and normalized
+[CoordinateRecalculateRegression] PASS: repeated composition preserves unit length
+[CoordinateRecalculateRegression] PASS: execute preserves immutable world snapshot
+[CoordinateRecalculateRegression] PASS: undo restores before local CFrame
+[CoordinateRecalculateRegression] PASS: redo restores after local CFrame
+[CoordinateRecalculateRegression] PASS: repeated execute is idempotent
+[RCBN_WARN][Instance.cpp:102] setParent: Key collision for 'Model' in Workspace. Renamed new child to 'Model1' to avoid overwriting existing instance.
+[RCBN_WARN][Script.cpp:30] Failed to load script source: old.luau
+[Luau] [HighlightPass]
+[Grouping] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[WeldAssemblyStateRegression] PASS: normalizes the reported non-unit quaternion
+[WeldAssemblyStateRegression] PASS: rejects a zero quaternion
+[WeldAssemblyStateRegression] PASS: rejects a non-finite quaternion
+[WeldAssemblyStateRegression] PASS: matrix extraction returns a unit quaternion after scale removal
+[WeldAssemblyStateRegression] PASS: CFrame matrix round-trip remains finite and normalized
+[WeldAssemblyStateRegression] PASS: repeated composition preserves unit length
+[RCBN_WARN][Instance.cpp:102] setParent: Key collision for 'BaseCube' in Workspace. Renamed new child to 'BaseCube1' to avoid overwriting existing instance.
+[RCBN_WARN][Instance.cpp:102] setParent: Key collision for 'BaseCube' in Workspace. Renamed new child to 'BaseCube2' to avoid overwriting existing instance.
+[WeldAssemblyStateRegression] PASS: Weld members register native bodies
+[WeldAssemblyStateRegression] PASS: Weld members share one native body
+[WeldAssemblyStateRegression] PASS: moving one member preserves Weld relative pose
+[WeldAssemblyStateRegression] PASS: Weld member pose and velocity remain finite
+[WeldAssemblyStateRegression] PASS: member size mutation is retained after assembly update
+[WeldAssemblyStateRegression] PASS: removing Weld splits the native body
+[PhysicsMigrationRegression] backend=box3d PASS: backend initialization
+[PhysicsMigrationRegression] backend=box3d PASS: triangle mesh + convex terrain creation
+[PhysicsMigrationRegression] backend=box3d PASS: chunk-equivalent seam raycast and Terrain userData
+[PhysicsMigrationRegression] backend=box3d PASS: convex ramp top raycast
+[PhysicsMigrationRegression] backend=box3d PASS: convex terrain side raycast
+[PhysicsMigrationRegression] backend=box3d PASS: cube/sphere/convex public Workspace registration
+[PhysicsMigrationRegression] backend=box3d metric=terrain_vertical max_final_penetration=0 default_min_y=0.598637 default_final_y=0.598638 default_final_speed=0 bullet_min_y=0.598619 bullet_final_y=0.598619 bullet_final_speed=0 cube_min_y=1.09739 cube_final_y=1.09862 sphere_min_y=0.9 sphere_final_y=1.09862 convex_min_y=0.847503 convex_final_y=0.847869 convex_final_x=15.109 convex_min_vertex_y=0.0978812 convex_terrain_penetration=0 convex_support=floor tunneled=false
+[PhysicsMigrationRegression] backend=box3d PASS: Default and Bullet vertical 400 studs/s Terrain penetration <= 0.02
+[PhysicsMigrationRegression] backend=box3d metric=terrain_horizontal max_final_penetration=0 default_max_x=77.4113 default_final_x=68.0934 default_final_speed=0 bullet_max_x=77.4 bullet_final_x=66.1601 bullet_final_speed=0 tunneled=false
+[PhysicsMigrationRegression] backend=box3d PASS: Default and Bullet horizontal 400 studs/s Terrain penetration <= 0.02
+[PhysicsMigrationRegression] backend=box3d PASS: no NaN/Inf during collision and constraint workload
+[PhysicsMigrationRegression] backend=box3d metric=settled cube drift/RMS/non-amplifying energy drift=0 velocity_rms=0 early_energy=19.3491 late_energy=19.3491
+[PhysicsMigrationRegression] backend=box3d PASS: settled cube drift/RMS/non-amplifying energy
+[PhysicsMigrationRegression] backend=box3d metric=settled sphere drift/RMS/non-amplifying energy drift=0 velocity_rms=0 early_energy=19.3492 late_energy=19.3492
+[PhysicsMigrationRegression] backend=box3d PASS: settled sphere drift/RMS/non-amplifying energy
+[PhysicsMigrationRegression] backend=box3d metric=settled convex drift/RMS/non-amplifying energy drift=0 velocity_rms=0 early_energy=0 late_energy=0
+[PhysicsMigrationRegression] backend=box3d PASS: settled convex drift/RMS/non-amplifying energy
+[PhysicsMigrationRegression] backend=box3d metric=rope initial_distance=5 final_distance=8 max_distance=8 tail_velocity_rms=0 stiffness=60 damping=15
+[PhysicsMigrationRegression] backend=box3d PASS: Rope slack/max-distance/damping steady state <= 0.05
+[PhysicsMigrationRegression] backend=box3d metric=max_only_rope final_distance=8 max_distance=8 stiffness=0
+[PhysicsMigrationRegression] backend=box3d PASS: Rope Stiffness=0 max-only limit <= 0.05
+[PhysicsMigrationRegression] backend=box3d metric=rod initial_distance=6 final_distance=6.00128 error=0.00128412
+[PhysicsMigrationRegression] backend=box3d PASS: Rod rest length error <= 0.05
+[PhysicsMigrationRegression] backend=box3d PASS: BallSocket anchor error <= 0.05
+[PhysicsMigrationRegression] backend=box3d PASS: Weld relative CFrame error <= 0.001
+[PhysicsMigrationRegression] backend=box3d PASS: Motor Axis/DriveVelocity/MaxForce finite overload stop
+[PhysicsMigrationRegression] backend=box3d PASS: NoCollision suppresses specified pair only
+[PhysicsMigrationRegression] backend=box3d metric=motor_axis_diagnostic initial_axis=[0,-1.19209e-07,1] initial_abs_world_z_dot=1 final_axis=[-0.992208,-0.106706,0.0643231] final_quat=[-0.000729546,0.742266,-0.668316,-0.0489336] abs_world_z_dot=0.0643231 initial_attachment_separation=1.99997 attachment_separation=1.99959 initial_handle=25769803777 sleeping_handle=25769803956 updated_handle=25769804316 positive_angle=3.08477 negative_angle=-3.11012 zero_torque_angle=0.0509065 recovered_angle=-0.00284788
+[PhysicsMigrationRegression] backend=box3d FAIL: Motor wakes, reverses, and resumes without replacing its handle
+[PhysicsMigrationRegression] backend=box3d metric=motor_axis_setter previous_handle=25769804316 same_axis_handle=25769804316 changed_axis_handle=25769804317 expected_axis=[0,0,-1] cylinder_local_y=[-0.992233,0.0638898,0.106733] abs_axis_dot=0.106733 anchor_error=1.99959
+[PhysicsMigrationRegression] backend=box3d FAIL: Motor Axis setter recreates frame only when axis changes
+[PhysicsMigrationRegression] backend=box3d metric=motor_wake_car settled_position=[-82.5749,-29.0486,193.269] final_position=[640.631,-1721.11,147.773] horizontal_distance=724.636 minimum_axis_dot=0.0602901 maximum_attachment_separation=4.1155 handles_stable=false finite=true
+[PhysicsMigrationRegression] backend=box3d FAIL: four-wheel Motor car wakes and travels after resting
+[PhysicsMigrationRegression] backend=box3d metric=motor_scale_diagnostic case=AirSingle grounded=false mismatch=false repeat_setter=true horizontal_distance=0 relative_angular_velocity=2.40984 max_anchor_error=9.54951 min_axis_dot=0.930211 handles_stable=false finite=true
+[PhysicsMigrationRegression] backend=box3d metric=motor_scale_diagnostic case=GroundOnce grounded=true mismatch=false repeat_setter=false horizontal_distance=514.471 relative_angular_velocity=-6.0951 max_anchor_error=9.50387 min_axis_dot=0.440502 handles_stable=false finite=true
+[PhysicsMigrationRegression] backend=box3d metric=motor_scale_diagnostic case=GroundRepeat grounded=true mismatch=false repeat_setter=true horizontal_distance=65.696 relative_angular_velocity=5.0756 max_anchor_error=9.50267 min_axis_dot=0.272617 handles_stable=false finite=true
+[PhysicsMigrationRegression] backend=box3d metric=motor_scale_diagnostic case=GroundMismatch grounded=true mismatch=true repeat_setter=true horizontal_distance=12.8312 relative_angular_velocity=2.7084 max_anchor_error=9.48483 min_axis_dot=0.0339991 handles_stable=false finite=true
+[PhysicsMigrationRegression] backend=box3d FAIL: isolated full-scale Motor reaches target speed and preserves its frame
+[PhysicsMigrationRegression] backend=box3d FAIL: full-scale grounded Motor diagnostics remain finite
+[PhysicsMigrationRegression] backend=box3d FAIL: full-scale Motor drive matches the PhysX compatibility envelope
+[PhysicsMigrationRegression] backend=box3d FAIL: repeating DriveVelocity each tick preserves Motor behavior
+[PhysicsMigrationRegression] backend=box3d metric=liquid_jump submerged_velocity=48.522 airborne_velocity=0
+[PhysicsMigrationRegression] backend=box3d PASS: submerged Humanoid can jump while airborne Humanoid cannot
+[PhysicsMigrationRegression] backend=box3d PASS: two adjacent Chunk caches create independent terrain handles
+[PhysicsMigrationRegression] backend=box3d metric=chunk_seam left_y=64 right_y=64
+[PhysicsMigrationRegression] backend=box3d PASS: actual adjacent Chunk origin conversion has no raycast seam
+[PhysicsMigrationRegression] backend=box3d metric=chunk_seam_body min_y=64.3486 final_y=64.3486 final_speed=0
+[PhysicsMigrationRegression] backend=box3d PASS: small dynamic body does not pass through actual Chunk boundary
+[PhysicsMigrationRegression] backend=box3d metric=chunk_atomic_replace old_handle=214748364801 new_handle=227633266689 replaced_y=68 neighbor_y=64
+[PhysicsMigrationRegression] backend=box3d PASS: buildChunkPhysics atomically replaces one Chunk and preserves neighbor
+[PhysicsMigrationRegression] backend=box3d PASS: all BlockShape cache creates terrain handle
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Cube enum=1 hit=true hit_y=68
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_TopNE enum=2 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_TopNW enum=3 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_TopSE enum=4 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_TopSW enum=5 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_BotNE enum=6 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_BotNW enum=7 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_BotSE enum=8 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Wedge_BotSW enum=9 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_TopNE enum=10 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_TopNW enum=11 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_TopSE enum=12 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_TopSW enum=13 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_BotNE enum=14 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_BotNW enum=15 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_BotSE enum=16 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Tetra_BotSW enum=17 hit=true hit_y=72
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Ramp_N enum=18 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Ramp_S enum=19 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Ramp_E enum=20 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape shape=Ramp_W enum=21 hit=true hit_y=70
+[PhysicsMigrationRegression] backend=box3d metric=block_shape_summary tested=21 failed=0
+[PhysicsMigrationRegression] backend=box3d PASS: Cube/Wedge8/Tetra8/Ramp4 all produce backend collision
+[PhysicsMigrationRegression] backend=box3d metric=dynamic_dynamic_ccd contacts=1 tunneled_before_contact=false final_separation=-17.5396 completely_passed=false
+[PhysicsMigrationRegression] backend=box3d PASS: Bullet 400 studs/s dynamic-dynamic CCD hits dynamic target
+[PhysicsMigrationRegression] backend=box3d failures=7 result=FAIL
+[ConstraintRebind] PASS: Motor receives an initial native binding
+[ConstraintRebind] PASS: Attachment transform change rebuilds the native binding
+[ConstraintRebind] PASS: invalid endpoint path clears the old weak binding and native joint
+[ConstraintRebind] PASS: valid endpoint path reconnects automatically
+[RCBN_WARN][Physics.cpp:376] Constraint "Motor" crosses Workspace boundaries; native binding disabled
+[ConstraintRebind] PASS: cross-Workspace endpoint has no native binding
+[ConstraintRebind] PASS: endpoint departure preserves the logical Constraint Instance
+[ConstraintRebind] PASS: returning endpoint reconnects during the next fixed-step flush
+[ConstraintRebind] PASS
+[ToolWeldRegression] PASS: actor未作成でもHandleが目標姿勢へ移動する
+[ToolWeldRegression] PASS: actor未作成でもTool外のWeld部品が同じ変換で追従する
+[ToolWeldRegression] PASS: actor未作成でも複数のWeld部品が同じ変換で追従する
+[ToolWeldRegression] PASS: 物理登録後にWeld連結体が1つのcompound actorを共有する
+[ToolWeldRegression] PASS: compound構築後もHandleが目標姿勢へ移動する
+[ToolWeldRegression] PASS: compound構築後もBladeのHandle相対姿勢を維持する
+[ToolWeldRegression] PASS: compound構築後もGuardのHandle相対姿勢を維持する
+[ToolWeldRegression] PASS: WeldなしTool部品も単体で追従する
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --weld-assembly-state-regression (box3d) failed or was not parseable
+[CoordinateDriftSoakRegression] PASS: normalizes the reported non-unit quaternion
+[CoordinateDriftSoakRegression] PASS: rejects a zero quaternion
+[CoordinateDriftSoakRegression] PASS: rejects a non-finite quaternion
+[CoordinateDriftSoakRegression] PASS: matrix extraction returns a unit quaternion after scale removal
+[CoordinateDriftSoakRegression] PASS: CFrame matrix round-trip remains finite and normalized
+[CoordinateDriftSoakRegression] PASS: repeated composition preserves unit length
+[RCBN_WARN][Instance.cpp:102] setParent: Key collision for 'BaseCube' in Workspace. Renamed new child to 'BaseCube1' to avoid overwriting existing instance.
+[CoordinateDriftSoakRegression] PASS: 300 compound physics steps preserve finite unit poses and sizes
+[HumanoidRigCollisionRegression] backend=box3d case=baseline_root_only expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] backend=box3d case=torso_original expected_y=2 final_y=1.99727 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=2 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] backend=box3d case=hair_weld_original expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_original expected_y=2 final_y=1.99727 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=2 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_no_weld expected_y=2 final_y=1.99727 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=3 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_noncollide expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_anchored expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
+[HumanoidRigCollisionRegression] filter_probe initial_self=0 self_out=1 self_back=1 humanoid_removed=2 humanoid_restored=2 initial_tool=0 tool_out=1 tool_back=1 remote_npc=1 floor=1 clone=1 nested=1 ragdoll_self=0 ragdoll_out=0 raycast_self=true overlap_self=true result=FAIL
+[HumanoidRigCollisionRegression] rig_cases=PASS failures=1 result=FAIL
+[SeatNetworkRegression] PASS: Humanoid seats and Seat occupant is set
+[SeatNetworkRegression] PASS: standUp clears SeatWeld and occupant
+[SeatNetworkRegression] PASS: standUp removes SeatWeld instance
+[SeatNetworkRegression] PASS: standUp applies upward hop velocity
+[ToolWeldReequipRegression] PASS: 初回装備で全Weld部品がcompound actorを共有する
+[ToolWeldReequipRegression] PASS: 解除時にWorkspace外のTool部品のactorを解放する
+[ToolWeldReequipRegression] PASS: 再装備で全Weld部品がcompound actorを再共有する
+[ToolWeldReequipRegression] PASS: 再装備後もHandleを移動できる
+[ToolWeldReequipRegression] PASS: 再装備後も全Weld部品の相対CFrameを維持する
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --coordinate-drift-soak-regression (box3d) failed or was not parseable
+[PASS] SurfaceMark has the independent Spatial inheritance
+[PASS] SurfaceMark defaults are stable
+[PASS] SurfaceMark forward follows rotation
+[PASS] SurfaceMark follows parent Spatial transform
+[PASS] SurfaceMark projection volume culls spheres
+[PASS] SurfaceMark projection volume follows rotation
+[PASS] SurfaceMark Exclude empty filter allows all targets
+[PASS] SurfaceMark Include empty filter rejects all targets
+[PASS] SurfaceMark filter matches exact and Model descendants with deduplication
+[PASS] SurfaceMark filter matches Folder descendants
+[PASS] SurfaceMark Exclude filter rejects exact and descendant targets
+[PASS] Expired SurfaceMark filter references are ignored
+[PASS] SurfaceMark cloneForest remaps live filters and preserves unresolved paths
+[PASS] SurfaceMark filter YAML save succeeds
+[PASS] SurfaceMark filter YAML round-trip resolves paths
+[PASS] SurfaceMark Workspace filter resolves and matches descendants after YAML round-trip
+[PASS] SurfaceMark filter path refresh follows rename
+[PASS] SurfaceMark filter rename YAML save succeeds
+[PASS] SurfaceMark renamed filter path resolves after save and reload
+[PASS] Unresolved SurfaceMark filter paths are retained
+[PASS] SurfaceMark clone preserves authoring properties
+[PASS] SurfaceMark property schema exposes Color and TexturePath
+[PASS] SceneLoader creates SurfaceMark instances
+[PASS] SurfaceMark YAML save succeeds
+[PASS] SurfaceMark YAML round-trip preserves transform, color and texture
+[PASS] SurfaceMark YAML round-trip preserves rotation
+[Luau] [SurfaceMarkLuau]
+[PASS] SurfaceMark Luau factory script executes
+[PASS] SurfaceMark Luau exposes Color, Source, TexturePath and TextureID
+[RecubinTest] 1 passed, 0 failed.
+[ToolWeldRegression] PASS: actor未作成でもHandleが目標姿勢へ移動する
+[ToolWeldRegression] PASS: actor未作成でもTool外のWeld部品が同じ変換で追従する
+[ToolWeldRegression] PASS: actor未作成でも複数のWeld部品が同じ変換で追従する
+[ToolWeldRegression] PASS: 物理登録後にWeld連結体が1つのcompound actorを共有する
+[ToolWeldRegression] PASS: compound構築後もHandleが目標姿勢へ移動する
+[ToolWeldRegression] PASS: compound構築後もBladeのHandle相対姿勢を維持する
+[ToolWeldRegression] PASS: compound構築後もGuardのHandle相対姿勢を維持する
+[ToolWeldRegression] PASS: WeldなしTool部品も単体で追従する
+[RecubinTest] 1 passed, 0 failed.
+[ToolWeldReequipRegression] PASS: 初回装備で全Weld部品がcompound actorを共有する
+[ToolWeldReequipRegression] PASS: 解除時にWorkspace外のTool部品のactorを解放する
+[ToolWeldReequipRegression] PASS: 再装備で全Weld部品がcompound actorを再共有する
+[ToolWeldReequipRegression] PASS: 再装備後もHandleを移動できる
+[ToolWeldReequipRegression] PASS: 再装備後も全Weld部品の相対CFrameを維持する
+[RecubinTest] 1 passed, 0 failed.
+[RCBN_DEBUG][User.cpp:1040] StarterCharacter が見つからなかったため、既定のキャラクターを生成しました
+[RCBN_DEBUG][User.cpp:1281] Spawning character...
+[ToolRespawnRegression] PASS: 死亡前の装備Toolがcompound actorを持つ
+[RCBN_DEBUG][User.cpp:1281] Spawning character...
+[ToolRespawnRegression] PASS: respawnで新しいcharacterが生成される
+[ToolRespawnRegression] PASS: 装備Toolが新しいcharacterの子へ移る
+[ToolRespawnRegression] PASS: 装備状態・currentTool・スロット番号を維持する
+[ToolRespawnRegression] PASS: 再装備後のToolがInventoryに残らない
+[ToolRespawnRegression] PASS: 旧characterにToolが残らない
+[ToolRespawnRegression] PASS: respawn後の物理更新でToolのcompound actorを再構築する
+[RecubinTest] 1 passed, 0 failed.
+[RCBN_WARN][User.cpp:213] User::syncToolsFromInventory: hotbar is full; ignoring Tool InventoryTool10
+[RCBN_WARN][User.cpp:213] User::syncToolsFromInventory: hotbar is full; ignoring Tool InventoryTool11
+[InventoryToolSyncRegression] PASS: Inventory直下のToolだけが最大10個ホットバーへ登録される
+[InventoryToolSyncRegression] PASS: ホットバー範囲外のスロットは取得できない
+[InventoryToolSyncRegression] PASS: 非ToolのInventory子は保持される
+[InventoryToolSyncRegression] PASS: 11個目以降のToolもInventoryに残る
+[InventoryToolSyncRegression] PASS: InventoryからWorkspaceへ移したToolのスロット参照を即座に破棄する
+[InventoryToolSyncRegression] PASS: リロード時にInventory本体と全スロット参照を持ち越さない
+[InventoryToolSyncRegression] PASS: SceneLoaderのInventory採用順序でも移動後のスロット参照を破棄する
+[RecubinTest] 1 passed, 0 failed.
+[HumanoidPartRefRegression] PASS: resolveParts()が全兄弟パーツを正しく解決する
+[HumanoidPartRefRegression] PASS: Humanoidだけを保持しても兄弟パーツの寿命を延長しない
+[HumanoidPartRefRegression] PASS: 親Model破棄後は全getterがnullptrを返す
+[HumanoidPartRefRegression] PASS: 期限切れ後の座標取得・身体配置・一人称更新が安全にフォールバックする
+[HumanoidPartRefRegression] PASS: setRootPart()が予測用Rootを参照できるようにする
+[HumanoidPartRefRegression] PASS: setRootPart()は予測用Rootを所有しない
+[RecubinTest] 1 passed, 0 failed.
+PHYSICS_PERF backend=box3d median_ms=0.8633 p95_ms=1.7214 max_ms=1.8632 bodies=256 constraints=256 hz=60 substeps_equivalent=4 spiral_guard=PASS
+[PhysicsPerformanceGuard] backend=box3d PASS: median and spiral-of-death guard
+[RecubinTest] 1 passed, 0 failed.
+[WeldRegression] anchored assembly root=ChainAnchor members=4
+[WeldRegression] frame=1 maxPositionDelta=0
+[WeldRegression] frame=2 maxPositionDelta=0
+[WeldRegression] frame=3 maxPositionDelta=0
+[WeldRegression] assemblies=1 sampledCubes=4
+[WeldRegression] PASS
+[RecubinTest] 1 passed, 0 failed.
+Hello world!
+Recubin Studio v0.999
+build: Sep 14 2026 13:57:59
+initing GLFW...
+creating window...
+making context...
+initing GLEW...
+[RCBN_DEBUG][main.cpp:863] Editor initialized.
+[UIAUTO] OK wait target Editor/CrashRecovery/Recover
+[UIAUTO] OK wait target Editor/CrashRecovery/OpenFolder
+[UIAUTO] OK wait target Editor/CrashRecovery/Discard
+[UIAUTO] OK click Editor/CrashRecovery/Recover
+[UIAUTO] OK wait target Explorer/Node/System\Workspace\RecoveredTarget
+[UIAUTO] OK focus_window
+[UIAUTO] OK wait target Explorer/Node/System\
+[UIAUTO] OK right_click Explorer/Node/System\Workspace
+[UIAUTO] OK wait target Explorer/Context/InsertObject
+[UIAUTO] OK click Explorer/Context/InsertObject
+[UIAUTO] OK wait target Explorer/ClassPicker/Search
+[UIAUTO] OK click Explorer/ClassPicker/Search
+[UIAUTO] OK type
+[UIAUTO] OK wait target Explorer/ClassPicker/Class/Sound
+[UIAUTO] OK click Explorer/ClassPicker/Class/Sound
+[UIAUTO] OK wait target Explorer/Node/System\Workspace\Sound1
+[UIAUTO] OK key
+[UIAUTO] OK key
+[UIAUTO] OK right_click Explorer/Node/System\Workspace
+[UIAUTO] OK wait target Explorer/Context/InsertObject
+[UIAUTO] OK click Explorer/Context/InsertObject
+[UIAUTO] OK wait target Explorer/ClassPicker/Search
+[UIAUTO] OK click Explorer/ClassPicker/Search
+[UIAUTO] OK type
+[UIAUTO] OK wait target Explorer/ClassPicker/Class/SurfaceMark
+[UIAUTO] OK click Explorer/ClassPicker/Class/SurfaceMark
+[UIAUTO] OK wait target Explorer/Node/System\Workspace\SurfaceMark1
+[UIAUTO] OK key
+[UIAUTO] OK key
+[UIAUTO] OK right_click Explorer/Node/System\Workspace\FontFile
+[UIAUTO] OK wait target Explorer/Context/ReplaceInstance
+[UIAUTO] OK click Explorer/Context/ReplaceInstance
+[UIAUTO] OK wait target Explorer/ClassPicker/Search
+[UIAUTO] OK click Explorer/ClassPicker/Search
+[UIAUTO] OK type
+[UIAUTO] OK wait target Explorer/ClassPicker/Class/Script
+[UIAUTO] OK click Explorer/ClassPicker/Class/Script
+[UIAUTO] OK wait target Explorer/ClassPicker/ConfirmReplace
+[UIAUTO] OK click Explorer/ClassPicker/Search
+[UIAUTO] OK key
+[UIAUTO] OK type
+[UIAUTO] OK wait target Explorer/ClassPicker/Class/Folder
+[UIAUTO] OK click Explorer/ClassPicker/Class/Folder
+[UIAUTO] OK wait target Explorer/ClassPicker/ConfirmReplace
+[UIAUTO] OK click Explorer/ClassPicker/ConfirmReplace
+[UIAUTO] OK key
+[UIAUTO] OK key
+[UIAUTO] OK capture C:\Users\Ryarta\AppData\Local\Temp\tmpm_l2r3s_\gui_smoke.png
+[UIAUTO] OK quit
+[UIAUTO] OK wait target Editor/UnsavedChanges/QuitWithoutSaving
+[UIAUTO] OK click Editor/UnsavedChanges/QuitWithoutSaving
+[DEBUG] Main loop ended.
+[RCBN_DEBUG][main.cpp:1514] Shutting down...
+[INFO] Generating all-instances scene via Recubin.exe --gen-test-scene ...
+Hello world!
+Recubin Studio v0.999
+build: Sep 14 2026 13:57:59
+Loaded script from scripts/gen_test_scene_check.luau
+[gen-test-scene] Wrote 45 instances (+DecalHost, +check script) to C:\Users\Ryarta\AppData\Local\Temp\tmpm_l2r3s_\gen_test_scene.rcbn
+
+[INFO] Running C:\Users\Ryarta\AppData\Local\Temp\tmpm_l2r3s_\gen_test_scene.rcbn ...
+[Luau] [PASS] gen-test-scene: all required instances present (47 workspace children)
+[RecubinTest] 1 passed, 0 failed.
+
+[INFO] Running C:\Users\Ryarta\Documents\Recubin\assets\scenes\physics_test.yaml ...
+[Luau] === PlayAnimation started ===
+[RecubinTest] 0 passed, 0 failed.
+
+[INFO] Running C:\Users\Ryarta\Documents\Recubin\assets\scenes\pathfinder.yaml ...
+[Luau] Vector3(6.561512, -22.000000, -2.981810)
+[Luau] Vector3(6.561512, -22.000000, -2.981810)
+[RCBN_DEBUG][PathfindingService.cpp:148] NavMesh build: workspace=Workspace tiles=64 workers=15 elapsed=152.249ms
+[Luau] [PathfindingTest] waypoints: 4
+[Luau] [PASS] 経路を取得しました
+[Luau]   #1 Walk (-7.4, -24.2, 23.8)
+[Luau]   #2 Jump (3.8, -24.2, 7.0)
+[Luau]   #3 Walk (6.2, -22.2, 2.5)
+[Luau]   #4 Walk (6.6, -22.2, -3.0)
+[Luau] [PathfindingTest] waypoints: 4
+[Luau] [PASS] 経路を取得しました
+[Luau]   #1 Walk (12.7, -24.2, 39.7)
+[Luau]   #2 Jump (3.8, -24.2, 7.0)
+[Luau]   #3 Walk (6.2, -22.2, 2.5)
+[Luau]   #4 Walk (6.6, -22.2, -3.0)
+[Luau] !?!?!?!?
+[RecubinTest] 2 passed, 0 failed.
+
+[INFO] Running C:\Users\Ryarta\Documents\Recubin\assets\scenes\void.yaml ...
+[RecubinTest] 0 passed, 0 failed.
+
+[INFO] Running C:\Users\Ryarta\Documents\Recubin\assets\scenes\terrain_test.yaml ...
+[Luau] 配置したブロック数: 0
+[Luau] 配置したブロック数: 0
+[Luau] 配置したブロック数: 0
+[Luau] 配置したブロック数: 0
+[Luau] 配置したブロック数: 0
+[Luau] 配置したブロック数: 0
+[Luau] 配置したブロック数: 0
+[Luau] 配置したブロック数: 0
+[Luau] 配置したブロック数: 0
+[Luau] 配置したブロック数: 0
+[RecubinTest] 0 passed, 0 failed.
+
+[INFO] Running C:\Users\Ryarta\Documents\Recubin\assets\scenes\test_scene.yaml ...
+[RCBN_WARN][Script.cpp:30] Failed to load script source: 
+[RecubinTest] 0 passed, 0 failed.
+
+[INFO] Running C:\Users\Ryarta\Documents\Recubin\assets\scenes\signal_test.yaml ...
+[Luau] === Signal Test Start ===
+[Luau] [PASS] SignalEvent Instance.new + Fire/Connect with args
+[Luau] [PASS] Scene-loaded SignalEvent Fire/Connect
+[Luau] === Listeners registered, waiting for events... ===
+[RecubinTest] 2 passed, 0 failed.
+
+[INFO] Running C:\Users\Ryarta\Documents\Recubin\assets\scenes\value_test.yaml ...
+[Luau] --- IntValue ---
+[Luau] [PASS] FindChild TestIntValue
+[Luau] [PASS] scene IntValue.Value == 7
+[Luau] [PASS] new IntValue.Value == 42
+[Luau] [PASS] IntValue.Changed fired with new value
+[Luau] --- BoolValue ---
+[Luau] [PASS] FindChild TestBoolValue
+[Luau] [PASS] scene BoolValue.Value == true
+[Luau] [PASS] new BoolValue.Value == true
+[Luau] [PASS] BoolValue.Changed fired with new value
+[Luau] --- NumberValue ---
+[Luau] [PASS] FindChild TestNumberValue
+[Luau] [PASS] scene NumberValue.Value == 3.14159
+[Luau] [PASS] new NumberValue.Value == 2.5
+[Luau] [PASS] NumberValue.Changed fired with new value
+[Luau] --- Vector3Value ---
+[Luau] [PASS] FindChild TestVector3Value
+[Luau] [PASS] scene Vector3Value.Value == Vector3.new(1,2,3)
+[Luau] [PASS] new Vector3Value.Value == Vector3.new(4,5,6)
+[Luau] [PASS] Vector3Value.Changed fired with new value
+[Luau] --- Color4Value ---
+[Luau] [PASS] FindChild TestColor4Value
+[Luau] [PASS] scene Color4Value.Value == Color4.new(1,0,0,1)
+[Luau] [PASS] new Color4Value.Value == Color4.new(0,1,0,1)
+[Luau] [PASS] Color4Value.Changed fired with new value
+[Luau] --- CFrameValue ---
+[Luau] [PASS] FindChild TestCFrameValue
+[Luau] [PASS] scene CFrameValue.Value.Position == Vector3.new(1,2,3)
+[Luau] [PASS] scene CFrameValue.Value.Rotation == Quaternion.new()
+[Luau] [PASS] new CFrameValue.Value.Position == Vector3.new(4,5,6)
+[Luau] [PASS] new CFrameValue.Value.Rotation == qRot
+[Luau] [PASS] CFrameValue.Changed fired with new value
+[Luau] --- QuaternionValue ---
+[Luau] [PASS] FindChild TestQuaternionValue
+[Luau] [PASS] scene QuaternionValue.Value == Quaternion.new()
+[Luau] [PASS] new QuaternionValue.Value == qNew
+[Luau] [PASS] QuaternionValue.Changed fired with new value
+[Luau] --- ObjectValue ---
+[Luau] [PASS] FindChild Target
+[Luau] [PASS] FindChild TestObjectValue
+[Luau] [PASS] scene ObjectValue.Value resolved to Target (path resolved)
+[Luau] [PASS] scene ObjectValue.Value shares identity with Target (rename reflected)
+[Luau] [PASS] new ObjectValue.Value resolved to target
+[Luau] [PASS] new ObjectValue.Value shares identity with target (rename reflected)
+[Luau] [PASS] ObjectValue.Value == nil after unset
+[Luau] [PASS] ObjectValue.Changed fired with nil
+[Luau] [PASS] ObjectValue.Changed fired with Instance again
+[Luau] --- テスト完了 ---
+[RecubinTest] 39 passed, 0 failed.
+
+[INFO] Running C:\Users\Ryarta\AppData\Local\Temp\tmpm_l2r3s_\test_bindings_sound.yaml ...
+[DEBUG] Audio loaded: C:/Users/Ryarta/AppData/Local/Temp/tmpm_l2r3s_/regression_sound.wav
+[Luau] --- Globals ---
+[Luau] [PASS] workspace != nil
+[Luau] [PASS] script != nil
+[Luau] [PASS] workspace.Name == 'Workspace'
+[Luau] [PASS] script.Name == 'TestBindings'
+[Luau] --- Table tostring ---
+[Luau] [PASS] tostring formats nested tables
+[Luau] [PASS] tostring detects table cycles
+[Luau] {[nested] = {[count] = 2, [values] = {[1] = first, [2] = second}}, [label] = outer}
+[Luau] [PASS] print accepts tables
+[Luau] --- Vector3 Arithmetic ---
+[Luau] [PASS] Vector3 __add
+[Luau] [PASS] Vector3 __sub
+[Luau] [PASS] Vector3 __unm
+[Luau] [PASS] Vector3 __mul (scalar, vec*n)
+[Luau] [PASS] Vector3 __mul (scalar, n*vec)
+[Luau] [PASS] Vector3 __mul (componentwise)
+[Luau] [PASS] Vector3 __div (scalar)
+[Luau] [PASS] Vector3 __eq
+[Luau] --- Vector2 Arithmetic ---
+[Luau] [PASS] Vector2 __add
+[Luau] [PASS] Vector2 __sub
+[Luau] [PASS] Vector2 __unm
+[Luau] [PASS] Vector2 __mul (scalar)
+[Luau] [PASS] Vector2 __mul (componentwise)
+[Luau] [PASS] Vector2 __div (scalar)
+[Luau] [PASS] Vector2 __eq
+[Luau] --- Color4 Arithmetic ---
+[Luau] [PASS] Color4 __add
+[Luau] [PASS] Color4 __sub
+[Luau] [PASS] Color4 __mul (scalar)
+[Luau] [PASS] Color4 __div (scalar)
+[Luau] [PASS] Color4 __eq
+[Luau] [PASS] Color4.fromRGBA
+[Luau] --- Instance ---
+[Luau] [PASS] FindChild TestCube
+[Luau] [PASS] Parent: cube.Parent == workspace
+[Luau] [PASS] IsA: cube:IsA('BaseCube')
+[Luau] [PASS] IsA: cube:IsA('Cube')
+[Luau] [PASS] IsA: cube:IsA('Sound') == false
+[Luau] [PASS] GetChildren returns table
+[Luau] [PASS] GetChildren has items
+[Luau]   GetChildren count: 9
+[Luau] --- BaseCube ---
+[Luau] [PASS] Position getter is not nil
+[Luau] [PASS] Position.x is number
+[Luau]   Position: Vector3(0.000000, 0.000000, 0.000000)
+[Luau] [PASS] Color getter is not nil
+[Luau] [PASS] Color.r is number
+[Luau]   Color: Color4(1.000000, 0.300000, 0.100000, 1.000000)
+[Luau] [PASS] Size getter is not nil
+[Luau] [PASS] Size setter (x)
+[Luau] [PASS] Anchored getter == false
+[Luau] [PASS] Anchored setter = true
+[Luau] [PASS] Locked getter == false
+[Luau] [PASS] Locked setter = true
+[Luau] [PASS] CanCollide getter == true
+[Luau] [PASS] CanCollide setter = false
+[Luau] [PASS] Velocity getter is not nil
+[Luau] [PASS] Velocity.y is number
+[Luau]   Velocity: Vector3(0.000000, 0.000000, 0.000000)
+[Luau] --- Workspace.Gravity ---
+[Luau] [PASS] Gravity getter is not nil
+[Luau] [PASS] Gravity.y < 0 (default)
+[Luau]   Gravity: Vector3(0.000000, -196.200012, 0.000000)
+[Luau] [PASS] Gravity setter (y == -20)
+[Luau] --- Motor ---
+[Luau] [PASS] FindChild TestMotor
+[Luau] [PASS] DriveVelocity getter is number
+[Luau] [PASS] MaxForce getter is number
+[Luau]   DriveVelocity: 2
+[Luau]   MaxForce: 1000
+[Luau] [PASS] DriveVelocity setter = 3
+[Luau] [PASS] MaxForce setter = 500
+[Luau] --- Tool ---
+[Luau] [PASS] Tool.Position getter is Vector3
+[Luau] [PASS] Tool.Position setter
+[Luau] [PASS] Tool.Rotation getter is Quaternion
+[Luau] [PASS] Tool.Rotation setter
+[Luau] --- Sound ---
+[Luau] [PASS] FindChild Sound
+[Luau] [PASS] IsPlaying getter (initially false)
+[Luau] [PASS] Looped getter is bool
+[Luau] [PASS] Volume getter is number
+[Luau]   Volume: 1
+[Luau] [PASS] Looped setter = true
+[Luau]   [Sound] Playing for 3 seconds... (サウンドが聞こえますか？)
+[Luau] [PASS] IsPlaying at 1s
+[Luau] [PASS] IsPlaying at 3s
+[Luau] [PASS] IsPlaying after Stop()
+[Luau] --- Lighting ---
+[Luau] [PASS] FindChild Lighting
+[Luau] [PASS] Brightness getter is number
+[Luau]   Brightness: 1
+[Luau] [PASS] Brightness setter = 0.5
+[Luau] --- Destroy ---
+[Luau] [PASS] FindChild Dummy
+[Luau] [PASS] Destroy: Dummy removed
+[Luau] --- Quaternion / CFrame ---
+[Luau] [PASS] Quaternion.new() is identity (w==1)
+[Luau] [PASS] Quaternion.fromEuler is not nil
+[Luau] [PASS] Quaternion fields are numbers
+[Luau] [PASS] Quaternion:toEuler returns Vector3
+[Luau] [PASS] Quaternion.fromAxisAngle is not nil
+[Luau] [PASS] CFrame.Position.x == 1
+[Luau] [PASS] CFrame.Rotation is not nil
+[Luau] [PASS] CFrame * Vector3 returns Vector3
+[Luau] [PASS] LookRotation(-Z) is identity
+[Luau] [PASS] lookAt Position is eye
+[Luau] [PASS] lookAt faces target (+X)
+[Luau] [PASS] CFrame.new(pos, Vector3) errors
+[Luau] --- Spatial transform ---
+[Luau] [PASS] BaseCube.Rotation getter is not nil
+[Luau] [PASS] BaseCube.Rotation setter applied
+[Luau] [PASS] BaseCube.CFrame getter is not nil
+[Luau] [PASS] WorldPosition getter is not nil
+[Luau] --- BaseCube render flags ---
+[Luau] [PASS] CastShadow getter is bool
+[Luau] [PASS] CastShadow setter = false
+[Luau] [PASS] Unlit getter is bool
+[Luau] [PASS] TextureScale getter is number
+[Luau] --- Motor.Axis ---
+[Luau] [PASS] Axis getter is not nil
+[Luau] [PASS] Axis setter (y == 1)
+[Luau] --- Clone / reparent ---
+[Luau] [PASS] Clone returns instance
+[Luau] [PASS] Clone has no parent yet
+[Luau] [PASS] Clone parented to workspace
+[Luau] --- clamp ---
+[Luau] [PASS] Brightness clamped to >= 0
+[Luau] --- FileRef ---
+[Luau] --- テスト完了 ---
+[RecubinTest] 100 passed, 0 failed.
+
+[SUMMARY] 186 passed, 12 failed across 9 scenes.
+[SUMMARY] Regression FAILED.
+
+-----------
+
+PS C:\Users\Ryarta\Documents\Recubin> py .\run_regression.py > .\reggressionLog.txt
+[TerrainStreamer] Failed to load region YAML: C:/Users/Ryarta/AppData/Local/Temp/recubin_yaml_error_terrain/r_0_0.yaml: yaml-cpp: error at line 2, column 1: end of sequence flow not found
+[TerrainStreamer] Skipping write of corrupt region: C:/Users/Ryarta/AppData/Local/Temp/recubin_yaml_error_terrain/r_0_0.yaml
+[TerrainStreamer] Skipping write of corrupt region: C:/Users/Ryarta/AppData/Local/Temp/recubin_yaml_error_terrain/r_0_0.yaml
+[FAIL] legacy Animation YAML remains importable
+[FAIL] Scene round-trip preserves joint_delta track and keyframe
+[FAIL] unmigrated empty R6 Walk binding is filled once with the standard asset
+[FAIL] legacy Animation YAML remains importable
+[FAIL] Scene round-trip preserves joint_delta track and keyframe
+[FAIL] unmigrated empty R6 Walk binding is filled once with the standard asset
+[SceneLoader] Exception: yaml-cpp: error at line 8, column 20: bad conversion
+[FileLoader] Error: Could not open text file: C:\Users\Ryarta\AppData\Local\Temp\recubin_scene_transaction_not_found_10665219194400.yaml
+[FileLoader] Error: Could not open text file: old.luau
+[RCBN_ERROR][BaseCube.cpp:227] Rejected invalid Size for RollbackCube
+[RCBN_ERROR][Physics.cpp:489] Refusing invalid replacement body descriptor; old body retained: RollbackCube
+[RCBN_ERROR][Physics.cpp:691] Rejected invalid Terrain replacement; old handle retained
+[RCBN_ERROR][Physics.cpp:678] Rejected invalid Terrain physics descriptor
+[RCBN_ERROR][AutosaveManager.cpp:175] Autosave: cannot open C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/IoFailure.rcbn/recovery.rcbn.tmp
+[RCBN_ERROR][AutosaveManager.cpp:175] Autosave: cannot open C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/IoFailure.rcbn/recovery.rcbn.tmp
+[RCBN_ERROR][AutosaveManager.cpp:175] Autosave: cannot open C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/IoFailure.rcbn/recovery.rcbn.tmp
+[SceneLoader] Error: No Root defined in C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/Corrupt.rcbn/recovery.rcbn
+[RCBN_ERROR][AutosaveManager.cpp:426] Autosave: corrupt recovery C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/Corrupt.rcbn/recovery.rcbn: No Root defined
+[SceneLoader] Error: No Root defined in C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/Corrupt.rcbn/recovery.rcbn
+[RCBN_ERROR][AutosaveManager.cpp:426] Autosave: corrupt recovery C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/Corrupt.rcbn/recovery.rcbn: No Root defined
+[RCBN_ERROR][Box3DPhysicsBackend.cpp:1528] Gyro "System\RemoteAvatarSpawnTransformWorkspace\PlayerCharacter_2\RootGyro": Part "System\RemoteAvatarSpawnTransformWorkspace\PlayerCharacter_2\Root" does not have a dynamic Box3D body
+[RCBN_ERROR][Box3DPhysicsBackend.cpp:1528] Gyro "System\RemoteAvatarSpawnTransformWorkspace\PlayerCharacter_3\RootGyro": Part "System\RemoteAvatarSpawnTransformWorkspace\PlayerCharacter_3\Root" does not have a dynamic Box3D body
+[RCBN_ERROR][Box3DPhysicsBackend.cpp:1528] Gyro "System\Workspace\PlayerCharacter_2\RootGyro": Part "System\Workspace\PlayerCharacter_2\Root" does not have a dynamic Box3D body
+[FAIL] legacy Animation YAML remains importable
+[FAIL] Scene round-trip preserves joint_delta track and keyframe
+[FAIL] unmigrated empty R6 Walk binding is filled once with the standard asset
+[FileLoader] Error: Could not open text file: old.luau
+[FileLoader] Error: Could not open text file: old.luau
+[SurfaceMark] unresolved FilterInstances path: Missing\Target
+[SurfaceMark] unresolved FilterInstances path: Missing\Target
+[SurfaceMark] unresolved FilterInstances path: Missing\Target
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'TargetRotation' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'Frequency' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'DampingRatio' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'TargetRotation' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'Frequency' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'DampingRatio' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'TargetRotation' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'Frequency' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'DampingRatio' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'TargetRotation' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'Frequency' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'DampingRatio' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'TargetRotation' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'Frequency' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'DampingRatio' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
+[FileLoader] Error: Could not open text file: 
+[RCBN_ERROR][BaseCube.cpp:227] Rejected invalid Size for BaseCube

@@ -373,21 +373,9 @@ void LuauEngine::InitDispatchTable_Base() {
     DispatchTable["Instance"]["Destroy"]     = getter_closure(instance_destroy_closure,      "Destroy");
     DispatchTable["Instance"]["Clone"]       = getter_closure(instance_clone_closure,        "Clone");
 
-    // --- Spatial（Position/Size/Rotation/CFrame を基底で公開。Model/Sound にも波及）---
-    // Position/Rotation は cframe への参照エイリアスでメンバポインタ不可のため手書き。
-    DispatchTable["Spatial"]["Position"] = [](lua_State* L, Instance* obj) {
-        pushVector3(L, static_cast<Spatial*>(obj)->getCFrame().Position);
-        return 1;
-    };
-    DispatchTable["Spatial"]["Size"]     = getter_vec3<Spatial, &Spatial::Size>();
-    DispatchTable["Spatial"]["Rotation"] = [](lua_State* L, Instance* obj) {
-        pushQuaternion(L, static_cast<Spatial*>(obj)->getCFrame().Rotation);
-        return 1;
-    };
-    DispatchTable["Spatial"]["CFrame"] = [](lua_State* L, Instance* obj) {
-        pushCFrame(L, static_cast<Spatial*>(obj)->getCFrame());
-        return 1;
-    };
+    PropertyRegistry::applyToDispatch("Spatial", DispatchTable, SetterTable);
+
+    // WorldPosition/WorldCFrame は保存・編集対象ではない派生 read-only 値。
     DispatchTable["Spatial"]["WorldPosition"] = [](lua_State* L, Instance* obj) {
         pushVector3(L, static_cast<Spatial*>(obj)->getWorldPosition());
         return 1;
@@ -398,25 +386,8 @@ void LuauEngine::InitDispatchTable_Base() {
     };
 
     // --- BaseCube（Position/Size は Spatial に集約。物理特有のみ残置）---
-    DispatchTable["BaseCube"]["Color"]        = getter_color4 <BaseCube, &BaseCube::Color>();
-    DispatchTable["BaseCube"]["Anchored"]     = getter_bool   <BaseCube, &BaseCube::Anchored>();
-    DispatchTable["BaseCube"]["CanCollide"]   = getter_bool   <BaseCube, &BaseCube::CanCollide>();
-    DispatchTable["BaseCube"]["CastShadow"]   = getter_bool   <BaseCube, &BaseCube::CastShadow>();
-    DispatchTable["BaseCube"]["ShadowMode"]   = [](lua_State* L, Instance* obj) {
-        const auto mode = static_cast<BaseCube*>(obj)->ShadowMode;
-        lua_pushstring(L, mode == ShadowMode::Always ? "Always" : mode == ShadowMode::Never ? "Never" : "Normal");
-        return 1;
-    };
-    DispatchTable["BaseCube"]["Unlit"]        = getter_bool   <BaseCube, &BaseCube::Unlit>();
-    DispatchTable["BaseCube"]["UseTriplanar"] = getter_bool   <BaseCube, &BaseCube::UseTriplanar>();
-    DispatchTable["BaseCube"]["TextureScale"] = getter_number <BaseCube, &BaseCube::TextureScale>();
-    DispatchTable["BaseCube"]["Locked"]       = getter_bool   <BaseCube, &BaseCube::Locked>();
+    PropertyRegistry::applyToDispatch("BaseCube", DispatchTable, SetterTable);
     DispatchTable["BaseCube"]["Touched"]      = getter_signal <BaseCube, &BaseCube::Touched>();
-    DispatchTable["BaseCube"]["CCDMode"]      = [](lua_State* L, Instance* obj) {
-        const auto* cube = static_cast<BaseCube*>(obj);
-        lua_pushstring(L, cube->CollisionDetection == CCDMode::Bullet ? "Bullet" : "Default");
-        return 1;
-    };
     // Velocity is read from the physics actor at runtime, no direct field to bind
     DispatchTable["BaseCube"]["Velocity"]   = [](lua_State* L, Instance* obj) {
         auto* cube = static_cast<BaseCube*>(obj);
@@ -453,17 +424,14 @@ void LuauEngine::InitDispatchTable_Base() {
 
 // ==================== Getter: Workspace, Decal, Lighting, System, Event ====================
 void LuauEngine::InitDispatchTable_World() {
-    DispatchTable["Workspace"]["Gravity"]        = getter_vec3<Workspace, &Workspace::Gravity>();
-    DispatchTable["Workspace"]["Wind"]           = getter_vec3<Workspace, &Workspace::Wind>();
-    DispatchTable["Workspace"]["PhysicsEnabled"] = getter_bool<Workspace, &Workspace::PhysicsEnabled>();
     DispatchTable["Workspace"]["Raycast"]        = getter_closure(workspace_raycast_closure, "Raycast");
+    PropertyRegistry::applyToDispatch("Workspace", DispatchTable, SetterTable);
 
     DispatchTable["Decal"]["TextureID"]   = getter_number<Decal, &Decal::TextureID>();
-    DispatchTable["Decal"]["Face"]        = getter_number<Decal, &Decal::face>();
-    DispatchTable["Decal"]["Mode"]        = getter_number<Decal, &Decal::Mode>();
-    DispatchTable["Decal"]["Color"]       = getter_color4<Decal, &Decal::Color>();
     // TexturePath は読み取りのみ（書込はテクスチャ再読込が必要で、パス問題と同様に未対応）
     DispatchTable["Decal"]["TexturePath"] = getter_string<Decal, &Decal::texturePath>();
+    PropertyRegistry::applyToDispatch("Decal", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Texture", DispatchTable, SetterTable);
 
     PropertyRegistry::applyToDispatch("Lighting", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("PostEffect", DispatchTable, SetterTable);
@@ -523,23 +491,16 @@ void LuauEngine::InitDispatchTable_Physics() {
 void LuauEngine::InitDispatchTable_Misc() {
     // Sound — properties backed by getter methods
     DispatchTable["Sound"]["IsPlaying"]     = getter_method_bool  <Sound, &Sound::isPlaying>();
-    DispatchTable["Sound"]["Looped"]        = getter_method_bool  <Sound, &Sound::isLooping>();
-    DispatchTable["Sound"]["Volume"]        = getter_method_number<Sound, &Sound::getVolume>();
-    DispatchTable["Sound"]["Speed"]         = getter_method_number<Sound, &Sound::getSpeed>();
-    DispatchTable["Sound"]["PreservePitch"] = getter_method_bool  <Sound, &Sound::getPreservePitch>();
     DispatchTable["Sound"]["TimePosition"]  = getter_method_number<Sound, &Sound::getPlaybackTime>();
     DispatchTable["Sound"]["Length"]        = getter_method_number<Sound, &Sound::getLength>();
     DispatchTable["Sound"]["Play"]          = getter_closure(sound_play_closure,  "Play");
     DispatchTable["Sound"]["Stop"]          = getter_closure(sound_stop_closure,  "Stop");
     DispatchTable["Sound"]["Reset"]         = getter_closure(sound_reset_closure, "Reset");
     DispatchTable["Sound"]["Seek"]          = getter_closure(sound_seek_closure,  "Seek");
-    DispatchTable["Sound"]["AutoPlay"]      = getter_bool<Sound, &Sound::autoPlay>();
-    DispatchTable["Sound"]["ContentPath"]   = [](lua_State* L, Instance* o) {  // read-only
-        lua_pushstring(L, static_cast<Sound*>(o)->getContentPath().c_str()); return 1;
-    };
     DispatchTable["Sound"]["SoundGroup"]    = [](lua_State* L, Instance* o) {  // read-only
         lua_pushstring(L, static_cast<Sound*>(o)->getSoundGroup().c_str()); return 1;
     };
+    PropertyRegistry::applyToDispatch("Sound", DispatchTable, SetterTable);
 
     // Humanoid — フィールド/シグナルの getter/setter は PropertyRegistry の表から流し込む
     // （WalkSpeed/JumpPower/ClimbSpeed/HipHeight/JumpHeight/MaxHealth/RespawnTime/Health/Died）。
@@ -727,6 +688,9 @@ void LuauEngine::InitDispatchTable_Misc() {
         pushCFrame(L, static_cast<User*>(obj)->getCameraCFrame());
         return 1;
     };
+    // User の通常 property は schema を唯一の宣言元にする。Character/Cursor
+    // などの実行時参照・action だけをこのブロックに残す。
+    PropertyRegistry::applyToDispatch("User", DispatchTable, SetterTable);
     DispatchTable["UserInput"]["Pressed"]   = getter_signal<UserInput, &UserInput::Pressed>();
     DispatchTable["UserInput"]["Released"]  = getter_signal<UserInput, &UserInput::Released>();
     DispatchTable["UserInput"]["IsPressed"] = getter_closure(userinput_ispressed_closure, "IsPressed");
@@ -778,11 +742,10 @@ void LuauEngine::InitDispatchTable_Misc() {
 
     DispatchTable["MeshCube"]["MeshFile"] = getter_string<MeshCube, &MeshCube::MeshFile>();
 
-    DispatchTable["Script"]["Enabled"] = getter_bool  <Script, &Script::Enabled>();
-    DispatchTable["Script"]["Path"]    = getter_string<Script, &Script::Path>();
     DispatchTable["Script"]["Source"]  = getter_string<Script, &Script::Source>();
     DispatchTable["Script"]["Aborted"] = getter_bool  <Script, &Script::Aborted>();  // read-only（安全対策のタイムアウト等で自動的にセットされる）
     DispatchTable["Script"]["Restart"] = getter_closure(script_restart_closure, "Restart");
+    PropertyRegistry::applyToDispatch("Script", DispatchTable, SetterTable);
 
     // ── Value系インスタンス ──
     PropertyRegistry::applyToDispatch("ValueBase",     DispatchTable, SetterTable);
@@ -820,75 +783,20 @@ void LuauEngine::InitSetterTable_Base() {
         return 0;
     };
 
+    PropertyRegistry::applyToDispatch("Spatial", DispatchTable, SetterTable);
+
     // --- Spatial: Position/Size/Rotation/CFrame を基底で公開。
     // BaseCube なら物理同期メソッド（teleportTo/setSize/setRotation。親チェーン合成込み）に委譲し、
     // 非 Cube（Model/Sound）は cframe を直接更新する。
-    SetterTable["Spatial"]["Position"] = [](lua_State* L, Instance* obj) {
-        Vector3* v = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
-        if (auto* cube = dynamic_cast<BaseCube*>(obj)) cube->teleportTo(*v);
-        else static_cast<Spatial*>(obj)->setPosition(*v);
-        return 0;
-    };
-    SetterTable["Spatial"]["Size"] = [](lua_State* L, Instance* obj) {
-        Vector3* v = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
-        if (auto* cube = dynamic_cast<BaseCube*>(obj)) cube->setSize(*v);
-        else static_cast<Spatial*>(obj)->Size = *v;
-        return 0;
-    };
-    SetterTable["Spatial"]["Rotation"] = [](lua_State* L, Instance* obj) {
-        Quaternion* q = (Quaternion*)luaL_checkudata(L, 3, LuauEngine::RCBN_QUATERNION_METATABLE);
-        if (auto* cube = dynamic_cast<BaseCube*>(obj)) cube->setRotation(*q);
-        else static_cast<Spatial*>(obj)->setRotation(*q);
-        return 0;
-    };
-    SetterTable["Spatial"]["CFrame"] = [](lua_State* L, Instance* obj) {
-        CFrame* cf = (CFrame*)luaL_checkudata(L, 3, LuauEngine::RCBN_CFRAME_METATABLE);
-        if (auto* cube = dynamic_cast<BaseCube*>(obj)) { cube->teleportTo(cf->Position); cube->setRotation(cf->Rotation); }
-        else static_cast<Spatial*>(obj)->setCFrame(*cf);
-        return 0;
-    };
-    SetterTable["BaseCube"]["Color"]        = setter_color4     <BaseCube, &BaseCube::Color>();
-    SetterTable["BaseCube"]["Anchored"]     = setter_method_bool<BaseCube, &BaseCube::setAnchored>();
-    SetterTable["BaseCube"]["CanCollide"]   = setter_method_bool<BaseCube, &BaseCube::setCanCollide>();
-    SetterTable["BaseCube"]["CastShadow"]   = setter_bool       <BaseCube, &BaseCube::CastShadow>();
-    SetterTable["BaseCube"]["ShadowMode"]   = [](lua_State* L, Instance* obj) {
-        const std::string mode = luaL_checkstring(L, 3);
-        auto* cube = static_cast<BaseCube*>(obj);
-        if (mode == "Always") cube->ShadowMode = ShadowMode::Always;
-        else if (mode == "Never") cube->ShadowMode = ShadowMode::Never;
-        else cube->ShadowMode = ShadowMode::Normal;
-        return 0;
-    };
-    SetterTable["BaseCube"]["Unlit"]        = setter_bool       <BaseCube, &BaseCube::Unlit>();
-    SetterTable["BaseCube"]["UseTriplanar"] = setter_bool       <BaseCube, &BaseCube::UseTriplanar>();
-    SetterTable["BaseCube"]["TextureScale"] = setter_number     <BaseCube, &BaseCube::TextureScale>();
-    SetterTable["BaseCube"]["Locked"]       = setter_method_bool<BaseCube, &BaseCube::setLocked>();
-    SetterTable["BaseCube"]["CCDMode"] = [](lua_State* L, Instance* obj) {
-        const std::string mode = luaL_checkstring(L, 3);
-        static_cast<BaseCube*>(obj)->setCCDMode(
-            mode == "Bullet" ? CCDMode::Bullet : CCDMode::Default);
-        return 0;
-    };
+    PropertyRegistry::applyToDispatch("Spatial", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("BaseCube", DispatchTable, SetterTable);
 }
 
 // ==================== Setter: Workspace, Decal, Lighting ====================
 void LuauEngine::InitSetterTable_World() {
-    // Gravity: must also propagate to the physics engine
-    SetterTable["Workspace"]["Wind"] = setter_vec3<Workspace, &Workspace::Wind>();
-
-    SetterTable["Workspace"]["Gravity"] = [](lua_State* L, Instance* obj) {
-        auto* ws = static_cast<Workspace*>(obj);
-        Vector3* v = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
-        ws->Gravity = *v;
-        if (ws->getPhysicsEngine()) ws->getPhysicsEngine()->setGravity(*v);
-        return 0;
-    };
-    SetterTable["Workspace"]["PhysicsEnabled"] = setter_bool<Workspace, &Workspace::PhysicsEnabled>();
+    PropertyRegistry::applyToDispatch("Workspace", DispatchTable, SetterTable);
 
     SetterTable["Decal"]["TextureID"] = setter_number<Decal, &Decal::TextureID>();
-    SetterTable["Decal"]["Face"]      = setter_number<Decal, &Decal::face>();
-    SetterTable["Decal"]["Mode"]      = setter_number<Decal, &Decal::Mode>();
-    SetterTable["Decal"]["Color"]     = setter_color4<Decal, &Decal::Color>();
     // FileRef.Source: 画像 FileRef を代入してテクスチャを適用
     SetterTable["Decal"]["Source"] = [](lua_State* L, Instance* o) {
         std::string p; if (getFileRefPath(L, 3, p)) static_cast<Decal*>(o)->setTexturePath(p);
@@ -930,6 +838,8 @@ void LuauEngine::InitSetterTable_World() {
         std::string p; if (getFileRefPath(L, 3, p)) static_cast<Texture*>(o)->setTexturePath(p);
         return 0;
     };
+    PropertyRegistry::applyToDispatch("Decal", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Texture", DispatchTable, SetterTable);
 
     // Lighting の setter は applyToDispatch（InitDispatchTable_World）で登録済み
 }
@@ -944,12 +854,7 @@ void LuauEngine::InitSetterTable_Physics() {
 
 // ==================== Setter: Sound, Humanoid, AppImage, Script ====================
 void LuauEngine::InitSetterTable_Misc() {
-    SetterTable["Sound"]["Looped"]        = setter_method_bool <Sound, &Sound::setLooping>();
-    SetterTable["Sound"]["Volume"]        = setter_method_float<Sound, &Sound::setVolume>();
-    SetterTable["Sound"]["Speed"]         = setter_method_float<Sound, &Sound::setSpeed>();
-    SetterTable["Sound"]["PreservePitch"] = setter_method_bool <Sound, &Sound::setPreservePitch>();
     SetterTable["Sound"]["TimePosition"]  = setter_method_float<Sound, &Sound::seekSeconds>();
-    SetterTable["Sound"]["AutoPlay"]      = setter_bool        <Sound, &Sound::autoPlay>();
 
 
     // FileRef.Source: FileRef インスタンスを代入して消費者にロードさせる（生パスは扱わない）
@@ -973,9 +878,6 @@ void LuauEngine::InitSetterTable_Misc() {
     // Humanoid のフィールド setter は PropertyRegistry::applyToDispatch（InitDispatchTable_Misc）で登録済み
 
     // AppImage の setter は applyToDispatch（InitDispatchTable_Misc）で登録済み
-
-    SetterTable["Script"]["Enabled"] = setter_bool  <Script, &Script::Enabled>();
-    SetterTable["Script"]["Path"]    = setter_string<Script, &Script::Path>();
 
     // User.ControlMode ("Free"/"Character"/"Program")
     SetterTable["User"]["ControlMode"] = [](lua_State* L, Instance* obj) {
@@ -1053,6 +955,10 @@ void LuauEngine::InitSetterTable_Misc() {
         return 0;
     };
 
+    PropertyRegistry::applyToDispatch("User", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Sound", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Script", DispatchTable, SetterTable);
+
     // ── Value系インスタンス ──
     SetterTable["NumberValue"]["Value"] = [](lua_State* L, Instance* obj) -> int {
         auto* self = static_cast<NumberValue*>(obj);
@@ -1100,10 +1006,7 @@ void LuauEngine::InitDispatchTable_GUI() {
     DispatchTable["Canvas"]["WorldToUV"] = getter_closure(canvas_world_to_uv_closure, "WorldToUV");
 
     // --- Terrain ---
-    DispatchTable["Terrain"]["Enabled"]    = getter_bool<Terrain, &Terrain::Enabled>();
-    DispatchTable["Terrain"]["DataPath"]   = getter_string<Terrain, &Terrain::DataPath>();
-    DispatchTable["Terrain"]["Seed"]       = getter_number<Terrain, &Terrain::Seed>();
-    DispatchTable["Terrain"]["Flat"]       = getter_bool<Terrain, &Terrain::Flat>();
+    PropertyRegistry::applyToDispatch("Terrain", DispatchTable, SetterTable);
     DispatchTable["Terrain"]["SetBlock"]    = getter_closure(terrain_set_block_closure,    "SetBlock");
     DispatchTable["Terrain"]["RemoveBlock"] = getter_closure(terrain_remove_block_closure, "RemoveBlock");
     DispatchTable["Terrain"]["GetBlock"]    = getter_closure(terrain_get_block_closure,    "GetBlock");
@@ -1123,8 +1026,5 @@ void LuauEngine::InitSetterTable_GUI() {
     // GUI 一族の setter は applyToDispatch（InitDispatchTable_GUI）で登録済み
 
     // --- Terrain ---
-    SetterTable["Terrain"]["Enabled"]  = setter_bool<Terrain, &Terrain::Enabled>();
-    // DataPath は Lua から書込不可（任意ディレクトリへの地形YAML書出しを防ぐ）。読取は getter で可能。
-    SetterTable["Terrain"]["Seed"]     = setter_number<Terrain, &Terrain::Seed>();
-    SetterTable["Terrain"]["Flat"]     = setter_bool<Terrain, &Terrain::Flat>();
+    PropertyRegistry::applyToDispatch("Terrain", DispatchTable, SetterTable);
 }

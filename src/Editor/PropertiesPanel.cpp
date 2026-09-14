@@ -1,19 +1,14 @@
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/CommandHistory.hpp>
-#include <Editor/ViewportGeometry.hpp>
 #include <Editor/UiHelpers.hpp>
 #include <Editor/Localization.hpp>
 #include <Core/Physics.hpp>
 #include <Core/PhysicalFileInstanceRegistry.hpp>
-#include <Instances/TextFile.hpp>
 #include <Core/User.hpp>
-#include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
-#include <Instances/BaseCube.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/LiquidCube.hpp>
 #include <Instances/SpawnLocation.hpp>
-#include <Instances/Spatial.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/FileRef.hpp>
@@ -82,44 +77,6 @@
 //  → スキーマに1行足すだけでインスペクタに反映され、エディター取り残しを防ぐ。
 // ===================================================
 namespace {
-class SetUserCharacterSmoothingCommand final : public Command {
-public:
-    SetUserCharacterSmoothingCommand(std::shared_ptr<User> target, float before, float after)
-        : m_target(std::move(target)), m_before(before), m_after(after) {}
-
-    void execute() override { apply(m_after); }
-    void undo() override { apply(m_before); }
-
-private:
-    void apply(float value) {
-        if (!m_target) return;
-        YAML::Node node;
-        node = value;
-        m_target->setProperty("CharacterSmoothing", node);
-    }
-
-    std::shared_ptr<User> m_target;
-    float m_before;
-    float m_after;
-};
-
-class SetUserInputBoolCommand final : public Command {
-public:
-    SetUserInputBoolCommand(std::shared_ptr<User> target, std::string property, bool before, bool after)
-        : m_target(std::move(target)), m_property(std::move(property)), m_before(before), m_after(after) {}
-    void execute() override { apply(m_after); }
-    void undo() override { apply(m_before); }
-private:
-    void apply(bool value) {
-        if (!m_target) return;
-        YAML::Node node; node = value;
-        m_target->setProperty(m_property, node);
-    }
-    std::shared_ptr<User> m_target;
-    std::string m_property;
-    bool m_before, m_after;
-};
-
 class SetUserCursorCommand final : public Command {
 public:
     enum class Kind { Type, Path, HotspotX, HotspotY, Size };
@@ -315,12 +272,6 @@ static void renderSchemaInspector(Instance* inst, const char* className,
         if (!dp) continue;
         const PropertyDesc& d = *dp;
         if (d.kind != PropKind::Field || !d.editable || !d.get) continue;
-        // Animation references are rendered as type-safe Instance pickers below;
-        // exposing their serialized path as a free-form string is misleading.
-        if (inst->getClassName() == "Humanoid" &&
-             (d.name == "WalkAnimation" || d.name == "JumpAnimation" ||
-             d.name == "EquipAnimation")) continue;
-        if (inst->getClassName() == "System" && d.name == "ApplicationId") continue;
         if (d.editorWidget == EditorWidget::FilePath) {
             drawFilePathField(inst, d, history);
             continue;
@@ -329,7 +280,7 @@ static void renderSchemaInspector(Instance* inst, const char* className,
             drawInstanceReferenceField(inst, d, history, picker);
             continue;
         }
-        const bool readOnly = !d.set;
+        const bool readOnly = d.editorReadOnly || !d.set;
         std::string label(d.name);
         // liveSet があればドラッグ中はそちらを使う（軽量反映）。無ければ set をそのまま使う
         auto applyLive = [&d](Instance* o, const PropValue& v) {
@@ -478,81 +429,10 @@ static bool propValuesEqual(const PropValue& left, const PropValue& right) {
     }
 }
 
-static void applyMultiTransform(const std::vector<Spatial*>& spaces,
-                                const std::vector<CFrame>& beforeCf,
-                                const std::vector<Vector3>& beforeSize,
-                                const std::vector<CFrame>& afterCf,
-                                const std::vector<Vector3>& afterSize,
-                                CommandHistory* history) {
-    std::vector<MultiSpatialTransformCommand::Entry> entries;
-    for (size_t i=0;i<spaces.size();++i) {
-        if (!spaces[i] || !spaces[i]->Parent.lock()) continue;
-        MultiSpatialTransformCommand::Entry e;
-        e.target=std::static_pointer_cast<Spatial>(spaces[i]->shared_from_this());
-        e.beforeCFrame=beforeCf[i]; e.afterCFrame=afterCf[i];
-        e.beforeSize=beforeSize[i]; e.afterSize=afterSize[i];
-        entries.push_back(std::move(e));
-    }
-    if (!entries.empty()) {
-        auto command=std::make_unique<MultiSpatialTransformCommand>(std::move(entries));
-        command->execute();
-        if (history) history->record(std::move(command));
-    }
-}
-static void applyWorldCFrameLive(Spatial* s, const CFrame& world) {
-    if (!s) return;
-    ViewportGeometry::applyEditorWorldCFrame(*s, world);
-}
+// Multi-edit is descriptor-driven in renderMultiInspector below.
 
-static void renderMultiTransform(const std::vector<Instance*>& valid, CommandHistory* history) {
-    std::vector<Spatial*> spaces;
-    for (Instance* i:valid) if (i && i->IsA("Spatial")) spaces.push_back(static_cast<Spatial*>(i));
-    if (spaces.size()!=valid.size()) return;
-    std::vector<CFrame> beforeCf; std::vector<Vector3> beforeSize;
-    for (auto* s:spaces) { beforeCf.push_back(s->getWorldCFrame()); beforeSize.push_back(s->Size); }
-    auto currentCf=beforeCf;
-    auto currentSize=beforeSize;
-    static std::vector<CFrame> editBeforeCf;
-    static std::vector<Vector3> editBeforeSize;
-    static std::unordered_map<std::string,std::array<char,192>> buffers;
-    static std::unordered_map<std::string,bool> expanded;
-    static std::unordered_map<std::string,bool> editing;
-    auto vecField = [&](const char* label, bool sizeField) {
-        std::string key=std::string("multi_")+label;
-        Vector3 v=sizeField?currentSize[0]:currentCf[0].Position;
-        auto& b=buffers[key]; if(!editing[key]&&!expanded[key]) std::snprintf(b.data(),b.size(),"%.3f, %.3f, %.3f",v.x,v.y,v.z);
-        ImGui::Text("%s",label); ImGui::SameLine(80.0f); ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x-28.0f);
-        bool enter=ImGui::InputText(("##"+key).c_str(),b.data(),b.size(),ImGuiInputTextFlags_EnterReturnsTrue);
-        bool activated=ImGui::IsItemActivated(), deactivatedAfter=ImGui::IsItemDeactivatedAfterEdit(), deactivated=ImGui::IsItemDeactivated();
-        if(activated) editing[key]=true;
-        ImGui::SameLine(); std::string expandLabel=(expanded[key]?"-##":"+##")+key; if(ImGui::SmallButton(expandLabel.c_str())) expanded[key]=!expanded[key];
-        if(enter||deactivatedAfter){float a[3]; if(parseFloats(b.data(),a,3) && (!sizeField || (a[0]>0&&a[1]>0&&a[2]>0))){Vector3 nv(a[0],a[1],a[2]);for(size_t i=0;i<spaces.size();++i){if(sizeField)currentSize[i]=nv;else currentCf[i].Position=nv;}applyMultiTransform(spaces,beforeCf,beforeSize,currentCf,currentSize,history);}} if(deactivated) editing[key]=false;
-        if(expanded[key]) { ImGui::Indent(12); float a[3]={v.x,v.y,v.z}; ImGui::PushID(key.c_str()); bool ch=ImGui::DragFloat3("##axes",a,0.05f,sizeField?0.01f:-1e9f,sizeField?1000.f:1e9f); if(ImGui::IsItemActivated()){editBeforeCf=beforeCf;editBeforeSize=beforeSize;} if(ch){for(size_t i=0;i<spaces.size();++i){Vector3 old=sizeField?currentSize[i]:currentCf[i].Position;Vector3 nv=old; if(a[0]!=v.x)nv.x=a[0];if(a[1]!=v.y)nv.y=a[1];if(a[2]!=v.z)nv.z=a[2];if(sizeField&&(nv.x<=0||nv.y<=0||nv.z<=0))continue;if(sizeField)currentSize[i]=nv;else currentCf[i].Position=nv; if(sizeField){if(spaces[i]->IsA("BaseCube"))static_cast<BaseCube*>(spaces[i])->setSize(nv);else spaces[i]->Size=nv;}else applyWorldCFrameLive(spaces[i],currentCf[i]);}} if(ImGui::IsItemDeactivatedAfterEdit())applyMultiTransform(spaces,editBeforeCf.empty()?beforeCf:editBeforeCf,editBeforeSize.empty()?beforeSize:editBeforeSize,currentCf,currentSize,history); ImGui::PopID(); ImGui::Unindent(12); }
-    };
-    vecField("Position",false); vecField("Size",true);
-    ImGui::Text("CFrame"); ImGui::SameLine(80.0f);
-    static char cfbuf[256]={}; static bool cfedit=false;
-    if(!cfedit){Vector3 e=currentCf[0].Rotation.toEuler();std::snprintf(cfbuf,sizeof(cfbuf),"%.3f, %.3f, %.3f, %.2f, %.2f, %.2f",currentCf[0].Position.x,currentCf[0].Position.y,currentCf[0].Position.z,e.x,e.y,e.z);}
-    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x-28.0f); bool cfEnter=ImGui::InputText("##multi_cframe",cfbuf,sizeof(cfbuf),ImGuiInputTextFlags_EnterReturnsTrue);
-    bool cfSubmit=cfEnter||ImGui::IsItemDeactivatedAfterEdit(), cfActivated=ImGui::IsItemActivated(), cfDeactivated=ImGui::IsItemDeactivated(); if(cfActivated)cfedit=true;
-    ImGui::SameLine(); std::string cframeExpandLabel=(expanded["multi_CFrame"]?"-##":"+##")+std::string("multi_cf_expand"); if(ImGui::SmallButton(cframeExpandLabel.c_str())) expanded["multi_CFrame"]=!expanded["multi_CFrame"];
-    if(cfSubmit){float a[6];if(parseFloats(cfbuf,a,6)){for(auto& c:currentCf)c=CFrame(Vector3(a[0],a[1],a[2]),Quaternion::fromEuler(Vector3(a[3],a[4],a[5])));applyMultiTransform(spaces,beforeCf,beforeSize,currentCf,currentSize,history);}} if(cfDeactivated)cfedit=false;
-    if(expanded["multi_CFrame"]) {
-        ImGui::Indent(12); float p[3]={currentCf[0].Position.x,currentCf[0].Position.y,currentCf[0].Position.z};
-        ImGui::DragFloat3("Position##multi_cf_axes",p,0.05f,-1e9f,1e9f);
-        if(ImGui::IsItemActivated()){editBeforeCf=beforeCf;editBeforeSize=beforeSize;}
-        if(ImGui::IsItemEdited()) { Vector3 primary=currentCf[0].Position; bool changed[3]={p[0]!=primary.x,p[1]!=primary.y,p[2]!=primary.z}; for(size_t i=0;i<spaces.size();++i){Vector3 nv=currentCf[i].Position;if(changed[0])nv.x=p[0];if(changed[1])nv.y=p[1];if(changed[2])nv.z=p[2];currentCf[i].Position=nv;applyWorldCFrameLive(spaces[i],currentCf[i]);} }
-        if(ImGui::IsItemDeactivatedAfterEdit())applyMultiTransform(spaces,editBeforeCf,editBeforeSize,currentCf,currentSize,history);
-        Vector3 e=currentCf[0].Rotation.toEuler(); float r[3]={e.x,e.y,e.z};
-        ImGui::DragFloat3("Rotation##multi_cf_axes",r,1.0f,-360.f,360.f);
-        if(ImGui::IsItemActivated()){editBeforeCf=beforeCf;editBeforeSize=beforeSize;}
-        if(ImGui::IsItemEdited()) { Vector3 primary=currentCf[0].Rotation.toEuler(); bool changed[3]={r[0]!=primary.x,r[1]!=primary.y,r[2]!=primary.z}; for(size_t i=0;i<spaces.size();++i){Vector3 own=currentCf[i].Rotation.toEuler();if(changed[0])own.x=r[0];if(changed[1])own.y=r[1];if(changed[2])own.z=r[2];currentCf[i].Rotation=Quaternion::fromEuler(own);applyWorldCFrameLive(spaces[i],currentCf[i]);} }
-        if(ImGui::IsItemDeactivatedAfterEdit())applyMultiTransform(spaces,editBeforeCf,editBeforeSize,currentCf,currentSize,history);
-        ImGui::Unindent(12);
-    }
-}
-
-static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHistory* history) {
+static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHistory* history,
+                                 PickerState* picker) {
     static std::vector<PropValue> s_multiBefore;
 
     std::vector<Instance*> valid;
@@ -580,8 +460,6 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
         for(Instance* t:valid){if(t->isRuntimeNameLocked())continue;auto p=t->Parent.lock();std::string desired=std::string(multiName)+(suffix?std::to_string(suffix):"");if(p){auto& used=occupied[p.get()];while(used.count(desired)){++suffix;desired=std::string(multiName)+std::to_string(suffix);}used.insert(desired);}++suffix;if(desired!=t->Name)entries.push_back({t->shared_from_this(),t->Name,desired});}
         if(!entries.empty()){auto command=std::make_unique<MultiRenameInstanceCommand>(std::move(entries));command->execute();if(history)history->record(std::move(command));}
     }
-    renderMultiTransform(valid, history);
-
     // multiEditKey（未指定時は表示名）と、値型・Editor種別・参照対象型が
     // 一致するプロパティだけを同じ一括編集行として扱う。
     auto multiCompatibilityKey = [](const PropertyDesc& desc) {
@@ -623,14 +501,11 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
     for (Instance* inst : valid) {
         std::unordered_set<std::string> seenForInstance;
         for (const PropertyDesc* desc : buildSchema(inst)) {
-            if (desc->kind != PropKind::Field || !desc->editable || !desc->get || !desc->set)
+            if (desc->kind != PropKind::Field || !desc->multiEditable ||
+                desc->editorReadOnly ||
+                !desc->get || !desc->set)
                 continue;
-            // FilePath / InstanceReference は個別のダイアログ・Picker 操作と
-            // Undo 状態を持つため、通常の String 一括入力へ流用しない。
-            if (desc->editorWidget != EditorWidget::Auto)
-                continue;
-            if (desc->name == "Name" || desc->name == "Position" || desc->name == "Size" ||
-                desc->name == "CFrame" || desc->name == "Rotation")
+            if (desc->name == "Name")
                 continue;
             const std::string key = multiCompatibilityKey(*desc);
             if (!seenForInstance.insert(key).second) continue;
@@ -684,6 +559,88 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
             }
             if (!composite->empty()) history->record(std::move(composite));
         };
+
+        if (d0->editorWidget == EditorWidget::FilePath) {
+            const std::string current = mixed
+                ? std::string(Loc::t(Loc::LocKey::MixedValue))
+                : std::get<std::string>(cur);
+            ImGui::Text("%s: %s", name.c_str(), current.empty() ? "(none)" : current.c_str());
+            std::string dialogLabel(d0->editorDialogLabel);
+            std::string dialogFilter(d0->editorDialogFilter);
+            if ((dialogLabel.empty() || dialogFilter.empty()) &&
+                !rows.empty() && rows.front().first->IsA("PhysicalFileInstance")) {
+                if (const auto* type = PhysicalFileInstanceRegistry::find(
+                        rows.front().first->getClassName())) {
+                    dialogLabel = std::string(type->dialogLabel);
+                    dialogFilter = std::string(type->dialogFilter);
+                }
+            }
+            if (dialogLabel.empty()) dialogLabel = "Files (*.*)";
+            if (dialogFilter.empty()) dialogFilter = "*.*";
+            if (ImGui::Button((std::string(Loc::t(Loc::LocKey::Browse)) + "##multi_path").c_str())) {
+                const std::string selected = getPlatform().openFileDialog({
+                    {dialogLabel, dialogFilter}});
+                if (!selected.empty()) {
+                    applyLiveAll(PropValue(toProjectRelative(selected)));
+                    recordCurrentValues();
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Clear##multi_path")) {
+                applyLiveAll(PropValue(std::string{}));
+                recordCurrentValues();
+            }
+            ImGui::PopID();
+            continue;
+        }
+
+        if (d0->editorWidget == EditorWidget::InstanceReference) {
+            const std::string current = mixed
+                ? std::string(Loc::t(Loc::LocKey::MixedValue))
+                : std::get<std::string>(cur);
+            ImGui::Text("%s: %s", name.c_str(), current.empty() ? "(none)" : current.c_str());
+            if (picker && ImGui::Button("Pick##multi_reference")) {
+                using Target = std::pair<std::weak_ptr<Instance>, const PropertyDesc*>;
+                std::vector<Target> targets;
+                targets.reserve(rows.size());
+                for (const auto& [target, desc] : rows)
+                    targets.emplace_back(target->shared_from_this(), desc);
+                const std::string targetClass(d0->instanceRefClass);
+                picker->active = true;
+                picker->pickAnyInstance = false;
+                picker->pickAttachment = false;
+                picker->pickClassName = targetClass;
+                picker->prop.clear();
+                picker->constraint = nullptr;
+                picker->onPick = [targets = std::move(targets), targetClass, history](
+                                      std::shared_ptr<Instance> picked) mutable {
+                    if (!picked || !picked->IsA(targetClass)) return;
+                    auto composite = std::make_unique<CompositeCommand>();
+                    for (const auto& [weakTarget, desc] : targets) {
+                        auto target = weakTarget.lock();
+                        if (!target || !desc || !desc->get || !desc->set) continue;
+                        const PropValue before = desc->get(target.get());
+                        const PropValue after = PropValue(picked->getWorkspaceRelativePath());
+                        if (!propValuesEqual(before, after))
+                            composite->add(std::make_unique<SetPropertyCommand>(
+                                target, desc, before, after));
+                    }
+                    if (composite->empty()) return;
+                    if (history) history->execute(std::move(composite));
+                    else composite->execute();
+                };
+            }
+            ImGui::SameLine();
+            const bool canClear = !mixed && !std::get<std::string>(cur).empty();
+            if (!canClear) ImGui::BeginDisabled();
+            if (ImGui::Button("Clear##multi_reference")) {
+                applyLiveAll(PropValue(std::string{}));
+                recordCurrentValues();
+            }
+            if (!canClear) ImGui::EndDisabled();
+            ImGui::PopID();
+            continue;
+        }
 
         switch (d0->type) {
             case PropType::Float: {
@@ -1000,40 +957,7 @@ static void drawHumanoidAnimationReference(const char* label,
     ImGui::EndCombo();
 }
 
-static void drawAnimationInspector(const std::shared_ptr<Animation>& animation,
-                                   CommandHistory* history) {
-    static std::unordered_map<Animation*, std::string> beforePaths;
-    char pathBuffer[512] = {};
-    std::snprintf(pathBuffer, sizeof(pathBuffer), "%s", animation->ContentPath.c_str());
-    ImGui::SetNextItemWidth(-1.0f);
-    const bool pathChanged = ImGui::InputText("ContentPath", pathBuffer, sizeof(pathBuffer));
-    if (ImGui::IsItemActivated()) beforePaths[animation.get()] = animation->ContentPath;
-    if (pathChanged) {
-        YAML::Node node; node = std::string(pathBuffer);
-        animation->setProperty("ContentPath", node);
-    }
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
-        const std::string before = beforePaths[animation.get()];
-        const std::string after = animation->ContentPath;
-        if (history && before != after)
-            history->record(std::make_unique<SetConstraintCubeNameCommand>(
-                animation, "ContentPath", before, after));
-    }
-    if (ImGui::Button(Loc::t(Loc::LocKey::Browse))) {
-        const std::string selected = getPlatform().openFileDialog(
-            {{"Recubin Animation (*.rcanim)", "*.rcanim"}});
-        if (!selected.empty()) {
-            const std::string after = toProjectRelative(selected);
-            if (after != animation->ContentPath) {
-                if (history) history->execute(std::make_unique<SetConstraintCubeNameCommand>(
-                    animation, "ContentPath", animation->ContentPath, after));
-                else {
-                    YAML::Node node; node = after;
-                    animation->setProperty("ContentPath", node);
-                }
-            }
-        }
-    }
+static void drawAnimationInspector(const std::shared_ptr<Animation>& animation) {
     ImGui::LabelText("Source", "%s", animation->getSourceName().c_str());
     ImGui::LabelText("LoadStatus", "%s", animation->getLoadStatusName().c_str());
     ImGui::LabelText("UsingBuiltInFallback", "%s",
@@ -1047,207 +971,6 @@ static void drawAnimationInspector(const std::shared_ptr<Animation>& animation,
 
 PropertiesPanel::PropertiesPanel()
     : EditorPanel("Properties") {}
-
-// ===================================================
-//  Vector3 一括入力 + 展開式フィールド
-//  collapsed: InputText "x, y, z"  [▼]
-//  expanded : DragFloat × 3         [▲]
-// ===================================================
-static std::shared_ptr<Tool> s_toolVec3Target;
-
-static void drawVec3Field(const char* id,
-                          Vector3& val,
-                          float speed, float minVal, float maxVal,
-                          std::shared_ptr<Spatial> sp,
-                          const std::string& prop,
-                          CommandHistory* history)
-{
-    static std::unordered_map<std::string, bool>    s_exp;
-    static std::unordered_map<std::string, Vector3> s_before;
-    bool& expanded = s_exp[id];
-
-    // 折りたたみ: InputText "x, y, z"
-    {
-        char buf[128];
-        snprintf(buf, sizeof(buf), "%.3f, %.3f, %.3f", val.x, val.y, val.z);
-
-        // [+/-] と [丸] の2ボタン分の幅は言語によって変わる（例: "丸" vs "Round"）ため、
-        // 固定マジックナンバーではなく実際のラベル幅から動的に算出する。
-        const ImGuiStyle& style = ImGui::GetStyle();
-        const char* expLabel = expanded ? "-" : "+";
-        float expBtnW   = ImGui::CalcTextSize(expLabel).x + style.FramePadding.x * 2.0f;
-        float roundBtnW = ImGui::CalcTextSize(Loc::t(Loc::LocKey::RoundButton)).x + style.FramePadding.x * 2.0f;
-        float reserved  = expBtnW + roundBtnW + style.ItemSpacing.x * 2.0f;
-
-        float w = ImGui::GetContentRegionAvail().x - reserved;
-        if (w < 60.0f) w = 60.0f;
-        ImGui::SetNextItemWidth(w);
-
-        std::string txtId = std::string("##txt_") + id;
-        if (ImGui::InputText(txtId.c_str(), buf, sizeof(buf),
-                             ImGuiInputTextFlags_EnterReturnsTrue)) {
-            float x = val.x, y = val.y, z = val.z;
-            int valueCount = sscanf(buf, "%f , %f , %f", &x, &y, &z);
-            if (valueCount >= 1) {
-                if (valueCount == 1) y = x;
-                if (valueCount <= 2) z = y;
-                Vector3 newVal(x, y, z);
-                if (history && sp) {
-                    history->execute(std::make_unique<SetVec3Command>(sp, prop, val, newVal));
-                } else if (history && s_toolVec3Target) {
-                    Vector3 before = val;
-                    val = newVal;
-                    history->record(std::make_unique<SetToolPositionCommand>(
-                        s_toolVec3Target, before, newVal));
-                } else {
-                    val = newVal;
-                }
-            }
-        }
-        ImGui::SameLine();
-        std::string btnId = std::string(expanded ? "-##col_" : "+##exp_") + id;
-        if (ImGui::SmallButton(btnId.c_str())) expanded = !expanded;
-
-        // 整数に丸めるボタン: 各成分を最近傍整数に丸めて適用（Undo 連携）
-        ImGui::SameLine();
-        std::string roundId = std::string(Loc::t(Loc::LocKey::RoundButton)) + "##round_" + id;
-        if (ImGui::SmallButton(roundId.c_str())) {
-            Vector3 newVal(
-                std::clamp(std::round(val.x), minVal, maxVal),
-                std::clamp(std::round(val.y), minVal, maxVal),
-                std::clamp(std::round(val.z), minVal, maxVal));
-            if (history && sp) {
-                history->execute(std::make_unique<SetVec3Command>(sp, prop, val, newVal));
-            } else if (history && s_toolVec3Target) {
-                Vector3 before = val;
-                val = newVal;
-                history->record(std::make_unique<SetToolPositionCommand>(
-                    s_toolVec3Target, before, newVal));
-            } else {
-                val = newVal;
-            }
-        }
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", Loc::t(Loc::LocKey::RoundTooltip));
-    }
-
-    // 展開: DragFloat3
-    if (expanded) {
-        ImGui::Indent(12.0f);
-        ImGui::PushID(id);
-
-        std::string key = std::string(id) + "_before";
-        float arr[3] = { val.x, val.y, val.z };
-        Vector3 beforeEdit = val;
-        bool changed = ImGui::DragFloat3("##drag", arr, speed, minVal, maxVal);
-
-        if (ImGui::IsItemActivated()) s_before[key] = s_toolVec3Target ? beforeEdit : val;
-
-        if (changed) {
-            Vector3 newVal(arr[0], arr[1], arr[2]);
-            if (sp && prop == "Position") {
-                ViewportGeometry::applyEditorLocalCFrame(
-                    *sp, CFrame(newVal, sp->getRotation()));
-            } else if (sp && sp->IsA("BaseCube")) {
-                static_cast<BaseCube*>(sp.get())->setSize(newVal);
-            } else {
-                val = newVal;  // 非 BaseCube の Spatial（Size）
-            }
-        }
-
-        if (ImGui::IsItemDeactivatedAfterEdit() && history && sp) {
-            Vector3 after(arr[0], arr[1], arr[2]);
-            history->record(std::make_unique<SetVec3Command>(sp, prop, s_before[key], after));
-        } else if (ImGui::IsItemDeactivatedAfterEdit() && history && s_toolVec3Target) {
-            Vector3 after(arr[0], arr[1], arr[2]);
-            history->record(std::make_unique<SetToolPositionCommand>(
-                s_toolVec3Target, s_before[key], after));
-        }
-
-        ImGui::PopID();
-        ImGui::Unindent(12.0f);
-    }
-}
-
-static void drawToolVec3Field(const char* id,
-                              Vector3& val,
-                              float speed, float minVal, float maxVal,
-                              const std::shared_ptr<Tool>& tool,
-                              CommandHistory* history)
-{
-    s_toolVec3Target = tool;
-    drawVec3Field(id, val, speed, minVal, maxVal, nullptr, "", history);
-    s_toolVec3Target.reset();
-}
-
-void PropertiesPanel::drawConstraintCubeRef(const char* label, std::string& nameRef,
-                                             const char* prop,
-                                             const std::shared_ptr<Instance>& inst)
-{
-    static std::unordered_map<std::string, std::string> s_before;
-    std::string key = std::string(prop) + "_" + inst->Name;
-
-    bool isPickingThis = m_picker && m_picker->active
-                      && m_picker->constraint == inst.get()
-                      && m_picker->prop == prop;
-    bool anyPicking    = m_picker && m_picker->active;
-
-    // ラベルを左に手動描画し、InputText は ## ID で幅を正確に制御する
-    ImGui::TextUnformatted(label);
-    ImGui::SameLine();
-
-    float btnW  = 46.0f;
-    float space = ImGui::GetStyle().ItemSpacing.x;
-    float fieldW = ImGui::GetContentRegionAvail().x - btnW - space;
-    if (fieldW < 60.0f) fieldW = 60.0f;
-    ImGui::SetNextItemWidth(fieldW);
-
-    char buf[512] = {};
-    strncpy(buf, nameRef.c_str(), sizeof(buf) - 1);
-    std::string inputId = "##cuberef_" + key;
-    ImGui::InputText(inputId.c_str(), buf, sizeof(buf));
-    if (ImGui::IsItemActivated()) s_before[key] = nameRef;
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
-        std::string before = s_before[key];
-        std::string after(buf);
-        YAML::Node node;
-        node = after;
-        inst->setProperty(prop, node);
-        if (before != after && m_history)
-            m_history->record(std::make_unique<SetConstraintCubeNameCommand>(
-                inst, prop, before, after));
-    }
-
-    ImGui::SameLine();
-
-    if (isPickingThis) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9f, 0.4f, 0.1f, 1.0f));
-        if (ImGui::Button(("Cancel##pick_" + key).c_str(), ImVec2(btnW, 0)))
-            m_picker->active = false;
-        ImGui::PopStyleColor();
-    } else {
-        if (anyPicking) ImGui::BeginDisabled();
-        if (ImGui::Button(("Pick##" + key).c_str(), ImVec2(btnW, 0))) {
-            m_picker->active          = true;
-            m_picker->pickAttachment  = false;
-            m_picker->pickAnyInstance = false;
-            m_picker->pickClassName.clear();
-            m_picker->prop            = prop;
-            m_picker->constraint      = inst.get();
-            m_picker->onPick = [inst, propStr = std::string(prop),
-                                 nameRefPtr = &nameRef, hist = m_history]
-                               (std::shared_ptr<Instance> cube) {
-                std::string before = *nameRefPtr;
-                std::string after  = cube->getWorkspaceRelativePath();
-                YAML::Node n; n = after;
-                inst->setProperty(propStr, n);
-                if (hist && before != after)
-                    hist->record(std::make_unique<SetConstraintCubeNameCommand>(
-                        inst, propStr, before, after));
-            };
-        }
-        if (anyPicking) ImGui::EndDisabled();
-    }
-}
 
 void PropertiesPanel::drawObjectValueRef(const char* label, const std::shared_ptr<Instance>& inst)
 {
@@ -1310,90 +1033,6 @@ void PropertiesPanel::drawObjectValueRef(const char* label, const std::shared_pt
     }
 }
 
-void PropertiesPanel::drawConstraintAttachmentRef(const char* label, std::string& nameRef,
-                                                   const char* prop, const std::string& cubeName,
-                                                   const std::shared_ptr<Instance>& inst)
-{
-    static std::unordered_map<std::string, std::string> s_before;
-    std::string key = std::string(prop) + "_" + inst->Name;
-
-    bool isPickingThis = m_picker && m_picker->active
-                      && m_picker->constraint == inst.get()
-                      && m_picker->prop == prop;
-    bool anyPicking    = m_picker && m_picker->active;
-
-    ImGui::TextUnformatted(label);
-    ImGui::SameLine();
-
-    float btnW  = 46.0f;
-    float space = ImGui::GetStyle().ItemSpacing.x;
-    float fieldW = ImGui::GetContentRegionAvail().x - btnW - space;
-    if (fieldW < 60.0f) fieldW = 60.0f;
-    ImGui::SetNextItemWidth(fieldW);
-
-    char buf[512] = {};
-    strncpy(buf, nameRef.c_str(), sizeof(buf) - 1);
-    std::string inputId = "##attref_" + key;
-    ImGui::InputText(inputId.c_str(), buf, sizeof(buf));
-    if (ImGui::IsItemActivated()) s_before[key] = nameRef;
-    if (ImGui::IsItemDeactivatedAfterEdit()) {
-        std::string after(buf);
-        std::string before = s_before[key];
-        // setProperty 経由で weak_ptr のリセットと registerIfReady() の再解決を走らせる
-        YAML::Node n; n = after;
-        inst->setProperty(prop, n);
-        if (before != after && m_history)
-            m_history->record(std::make_unique<SetConstraintCubeNameCommand>(
-                inst, prop, before, after));
-    }
-
-    ImGui::SameLine();
-
-    if (isPickingThis) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.9f, 0.4f, 0.1f, 1.0f));
-        if (ImGui::Button(("Cancel##pick_" + key).c_str(), ImVec2(btnW, 0)))
-            m_picker->active = false;
-        ImGui::PopStyleColor();
-    } else {
-        if (anyPicking) ImGui::BeginDisabled();
-        if (ImGui::Button(("Pick##" + key).c_str(), ImVec2(btnW, 0))) {
-            m_picker->active          = true;
-            m_picker->pickAttachment  = true;
-            m_picker->pickAnyInstance = false;
-            m_picker->pickClassName.clear();
-            m_picker->prop            = prop;
-            m_picker->constraint      = inst.get();
-            m_picker->onPick = [inst, propStr = std::string(prop), cubeName,
-                                 nameRefPtr = &nameRef, hist = m_history]
-                               (std::shared_ptr<Instance> att) {
-                // Attachment のパスは「最寄りの BaseCube 祖先」相対で保存する
-                //（解決側 Attachment::findUnder(cubeX, path) と対になる形式）
-                Instance* anchorCube = nullptr;
-                for (auto p = att->Parent.lock(); p; p = p->Parent.lock())
-                    if (p->IsA("BaseCube")) { anchorCube = p.get(); break; }
-                if (!anchorCube) {
-                    RCBN_WARN(propStr << ": Attachment \"" << att->Name
-                              << "\" は BaseCube の配下に無いため指定できません");
-                    return;
-                }
-                // 対応する Cube0/Cube1 と違うキューブ配下なら解決できないので知らせる（設定自体は行う）
-                if (!cubeName.empty() && cubeName != anchorCube->getWorkspaceRelativePath()) {
-                    RCBN_WARN(propStr << ": Attachment \"" << att->Name << "\" は \""
-                              << cubeName << "\" ではなく \"" << anchorCube->getWorkspaceRelativePath()
-                              << "\" の配下にあります。対応する Cube 参照も合わせてください");
-                }
-                std::string before = *nameRefPtr;
-                std::string after  = att->getPathUpTo(anchorCube);
-                YAML::Node n; n = after;
-                inst->setProperty(propStr, n);
-                if (hist && before != after)
-                    hist->record(std::make_unique<SetConstraintCubeNameCommand>(
-                        inst, propStr, before, after));
-            };
-        }
-        if (anyPicking) ImGui::EndDisabled();
-    }
-}
 
 void PropertiesPanel::onRender() {
     ImGui::SetNextWindowSize(ImVec2(300, 400), ImGuiCond_FirstUseEver);
@@ -1405,7 +1044,7 @@ void PropertiesPanel::onRender() {
 
     Instance* inst = selectedInstance ? *selectedInstance : nullptr;
     if (selectedInstances && selectedInstances->size() > 1) {
-        renderMultiInspector(*selectedInstances, m_history);
+        renderMultiInspector(*selectedInstances, m_history, m_picker);
         if (readOnly) ImGui::EndDisabled();
         ImGui::End();
         return;
@@ -1491,91 +1130,14 @@ void PropertiesPanel::onRender() {
         clearNameEdit();
     }
 
-    // ---- Spatial (Position / Size) ----
-    if (inst->IsA("Spatial")) {
-        Spatial* s = static_cast<Spatial*>(inst);
-        auto spSp = std::static_pointer_cast<Spatial>(inst->shared_from_this());
-
-        ImGui::SeparatorText("Transform");
-
-        ImGui::Text("Position");
-        ImGui::SameLine(80.0f);
-        Vector3 position = s->getPosition();
-        drawVec3Field("Position", position, 0.05f, -1e9f, 1e9f, spSp, "Position", m_history);
-
-        ImGui::Text("Size");
-        ImGui::SameLine(80.0f);
-        drawVec3Field("Size", s->Size, 0.05f, 0.01f, 1000.0f, spSp, "Size", m_history);
-
-        // Rotation (Euler 角, 度数)
-        ImGui::Text("Rotation");
-        ImGui::SameLine(80.0f);
-        {
-            // before は実 Quaternion を保存（Euler 往復変換のロスを避ける）
-            static std::unordered_map<std::string, Quaternion> s_rotBefore;
-            Vector3 euler = s->getRotation().toEuler();
-            float rot[3] = { euler.x, euler.y, euler.z };
-            float rotW = ImGui::GetContentRegionAvail().x;
-            if (rotW < 60.0f) rotW = 60.0f;
-            ImGui::SetNextItemWidth(rotW);
-            ImGui::PushID("Rotation");
-            bool rotChanged = ImGui::DragFloat3("##rot", rot, 1.0f, -360.0f, 360.0f, "%.1f");
-            if (ImGui::IsItemActivated()) s_rotBefore["rot"] = s->getRotation();
-            if (rotChanged) ViewportGeometry::applyEditorLocalCFrame(
-                *s, CFrame(s->getPosition(),
-                    Quaternion::fromEuler(Vector3(rot[0], rot[1], rot[2]))));
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                Quaternion qBefore = s_rotBefore["rot"];
-                Quaternion qAfter  = s->getRotation();  // 適用済みの実値
-                auto sSp = std::static_pointer_cast<Spatial>(inst->shared_from_this());
-                m_history->record(std::make_unique<SetRotationCommand>(sSp, qBefore, qAfter));
-            }
-            ImGui::PopID();
-        }
-
-        // CFrame (pos + rot(Euler度) の6値一括編集。テキストなのでコピペで姿勢を移せる)
-        ImGui::Text("CFrame");
-        ImGui::SameLine(80.0f);
-        {
-            static char s_cfBuf[160] = {};
-            static bool s_cfEditing = false;
-            if (!s_cfEditing) {
-                Vector3 euler = s->getRotation().toEuler();
-                snprintf(s_cfBuf, sizeof(s_cfBuf), "%.3f, %.3f, %.3f, %.2f, %.2f, %.2f",
-                         s->getPosition().x, s->getPosition().y, s->getPosition().z,
-                         euler.x, euler.y, euler.z);
-            }
-            static CFrame s_cfBefore;
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            ImGui::InputText("##cframe6", s_cfBuf, sizeof(s_cfBuf));
-            if (ImGui::IsItemActivated()) { s_cfEditing = true; s_cfBefore = s->getCFrame(); }
-            if (ImGui::IsItemDeactivatedAfterEdit()) {
-                float v[6];
-                if (sscanf(s_cfBuf, "%f , %f , %f , %f , %f , %f",
-                           &v[0], &v[1], &v[2], &v[3], &v[4], &v[5]) == 6) {
-                    CFrame after(Vector3(v[0], v[1], v[2]),
-                                 Quaternion::fromEuler(Vector3(v[3], v[4], v[5])));
-                    if (m_history) {
-                        m_history->execute(std::make_unique<SetSpatialCFrameCommand>(spSp, s_cfBefore, after));
-                    }
-                }
-            }
-            if (ImGui::IsItemDeactivated()) s_cfEditing = false;
-        }
-    }
-
-    // ---- BaseCube (Color / Anchored / CanCollide / Material、スキーマ駆動) ----
-    if (inst->IsA("BaseCube")) {
-        renderSchemaInspector(inst, "BaseCube", m_history, m_picker);
-    }
+    // Instance 側 schema の基底→派生集合だけを描画する。通常 property の
+    // class-specific UI はここへ流れ、特殊な adapter/action だけが下に残る。
+    renderSchemaInspector(inst, inst->getClassName().c_str(), m_history, m_picker);
 
     // ---- SurfaceMark (空間からの投影画像) ----
     if (inst->getClassName() == "SurfaceMark") {
         ImGui::SeparatorText("SurfaceMark");
         ImGui::TextDisabled("Size: X = Width, Y = Height, Z = Projection Depth");
-        // Color は SurfaceMark の PropertyRegistry スキーマから描画する。
-        renderSchemaInspector(inst, "SurfaceMark", m_history, m_picker);
-
         auto mark = static_cast<SurfaceMark*>(inst);
         auto commitFilter = [this, mark](const std::vector<std::shared_ptr<Instance>>& before,
                                          const std::vector<std::string>& beforePaths) {
@@ -1632,38 +1194,6 @@ void PropertiesPanel::onRender() {
             ImGui::PopID();
         }
 
-        // TexturePath は画像ファイル参照として表示し、変更を汎用Undoへ記録する。
-        const PropertyDesc* textureDesc = nullptr;
-        for (const auto& d : PropertyRegistry::schemaFor("SurfaceMark")) {
-            if (d.name == "TexturePath") { textureDesc = &d; break; }
-        }
-        if (textureDesc && textureDesc->get) {
-            const std::string path = std::get<std::string>(textureDesc->get(inst));
-            ImGui::LabelText("Texture", "%s", path.empty() ? "(none)" : path.c_str());
-            if (ImGui::Button(locId(Loc::LocKey::Browse, "##surfacemark").c_str())) {
-                std::string selected = getPlatform().openFileDialog(
-                    {{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
-                if (!selected.empty()) {
-                    const PropValue before = textureDesc->get(inst);
-                    const PropValue after = PropValue(toProjectRelative(selected));
-                    PropertyRegistry::writeValue(inst, *textureDesc, after);
-                    if (m_history)
-                        m_history->record(std::make_unique<SetPropertyCommand>(
-                            inst->shared_from_this(), textureDesc, before, after));
-                }
-            }
-            ImGui::SameLine();
-            ImGui::BeginDisabled(path.empty());
-            if (ImGui::Button("Clear##surfacemark")) {
-                const PropValue before = textureDesc->get(inst);
-                const PropValue after = PropValue(std::string());
-                PropertyRegistry::writeValue(inst, *textureDesc, after);
-                if (m_history)
-                    m_history->record(std::make_unique<SetPropertyCommand>(
-                        inst->shared_from_this(), textureDesc, before, after));
-            }
-            ImGui::EndDisabled();
-        }
     }
 
     // ---- MeshCube ----
@@ -1698,88 +1228,11 @@ void PropertiesPanel::onRender() {
         }
     }
 
-    if (inst->IsA("PhysicalFileInstance")) {
-        ImGui::SeparatorText(inst->getClassName().c_str());
-        renderSchemaInspector(inst, "PhysicalFileInstance", m_history, m_picker);
-    }
-    if (inst->getClassName() == "TextFile") {
-        const auto* textFile = static_cast<const TextFile*>(inst);
-        ImGui::SeparatorText("TextFile");
-        ImGui::LabelText("StorageId", "%s", textFile->StorageId.c_str());
-    }
-
-    // ---- Sound ----
+    // ---- Sound actions ----
     if (inst->getClassName() == "Sound") {
         Sound* snd = static_cast<Sound*>(inst);
-        auto sndSp = std::static_pointer_cast<Sound>(inst->shared_from_this());
         ImGui::SeparatorText("Sound");
-        ImGui::LabelText("ContentPath", "%s", snd->getContentPath().c_str());
-        if (ImGui::Button(locId(Loc::LocKey::Browse, "##sound").c_str())) {
-            std::string path = getPlatform().openFileDialog({{"Audio (*.mp3;*.wav;*.ogg)", "*.mp3;*.wav;*.ogg"}});
-            if (!path.empty()) {
-                YAML::Node node; node = path;
-                snd->setProperty("ContentPath", node);
-            }
-        }
-
-        // AutoPlay with undo
-        {
-            bool prev = snd->autoPlay;
-            if (ImGui::Checkbox("AutoPlay", &snd->autoPlay) && m_history && snd->autoPlay != prev)
-                m_history->record(std::make_unique<SetSoundBoolCommand>(sndSp, "AutoPlay", prev, snd->autoPlay));
-        }
-
-        // Looped with undo
-        {
-            bool looping = snd->isLooping();
-            bool prev = looping;
-            if (ImGui::Checkbox("Looped", &looping)) {
-                snd->setLooping(looping);
-                if (m_history)
-                    m_history->record(std::make_unique<SetSoundBoolCommand>(sndSp, "Looped", prev, looping));
-            }
-        }
-
-        // Volume with undo（編集開始時の値を記録し、確定時にコマンド化）
-        {
-            static float volBefore = 0.0f;
-            float vol = snd->getVolume();
-            bool changed = ImGui::DragFloat("Volume", &vol, 0.01f, 0.0f, 8.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
-            if (ImGui::IsItemActivated()) volBefore = snd->getVolume();
-            if (changed) {
-                snd->setVolume(vol);
-                if (m_history) m_history->notifyChanged();
-            }
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history && vol != volBefore)
-                m_history->record(std::make_unique<SetSoundFloatCommand>(sndSp, "Volume", volBefore, vol));
-        }
-
-        // Speed with undo
-        {
-            static float spdBefore = 1.0f;
-            float spd = snd->getSpeed();
-            bool changed = ImGui::DragFloat("Speed", &spd, 0.01f, 0.25f, 4.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
-            if (ImGui::IsItemActivated()) spdBefore = snd->getSpeed();
-            if (changed) {
-                snd->setSpeed(spd);
-                if (m_history) m_history->notifyChanged();
-            }
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history && spd != spdBefore)
-                m_history->record(std::make_unique<SetSoundFloatCommand>(sndSp, "Speed", spdBefore, spd));
-        }
-
-        // PreservePitch with undo
-        {
-            bool pp = snd->getPreservePitch();
-            bool prev = pp;
-            if (ImGui::Checkbox("PreservePitch", &pp)) {
-                snd->setPreservePitch(pp);
-                if (m_history)
-                    m_history->record(std::make_unique<SetSoundBoolCommand>(sndSp, "PreservePitch", prev, pp));
-            }
-        }
-
-        // 再生時間スクラバ（ライブ値のため Undo 対象外）
+        // 再生時間スクラバと再生操作は property ではなく EditorAction。
         {
             float len = snd->getLength();
             if (len > 0.0f) {
@@ -1801,28 +1254,9 @@ void PropertiesPanel::onRender() {
     // ---- Script ----
     if (inst->IsA("Script")) {
         Script* sc = static_cast<Script*>(inst);
-        auto scSp = std::static_pointer_cast<Script>(inst->shared_from_this());
-        ImGui::SeparatorText("Script");
-        ImGui::LabelText("Source", "%s", sc->Path.c_str());
-        if (ImGui::Button(locId(Loc::LocKey::Browse, "##script").c_str())) {
-            std::string path = getPlatform().openFileDialog({{"Luau Script (*.luau;*.lua)", "*.luau;*.lua"}});
-            if (!path.empty()) {
-                YAML::Node node; node = path;
-                sc->setProperty("Path", node);
-            }
-        }
-        ImGui::SameLine();
+        ImGui::SeparatorText("Script actions");
         if (ImGui::Button(Loc::t(Loc::LocKey::OpenExternalEditor)) && !sc->Path.empty()) {
             getPlatform().revealInFileManager(sc->Path);
-        }
-
-        {
-            bool before = sc->Enabled;
-            bool value  = sc->Enabled;
-            if (ImGui::Checkbox("Enabled", &value)) {
-                sc->Enabled = value;
-                if (m_history) m_history->record(std::make_unique<SetScriptBoolCommand>(scSp, "Enabled", before, value));
-            }
         }
 
         ImGui::BeginDisabled();
@@ -1855,7 +1289,7 @@ void PropertiesPanel::onRender() {
                 DecalMode newMode = static_cast<DecalMode>(modeIdx);
                 if (newMode != dcl->Mode) {
                     DecalMode oldMode = dcl->Mode;
-                    dcl->Mode = newMode;
+                    dcl->setMode(newMode);
                     if (m_history)
                         m_history->record(std::make_unique<SetDecalModeCommand>(dclSp, oldMode, newMode));
                 }
@@ -1869,7 +1303,7 @@ void PropertiesPanel::onRender() {
                 float center[2] = { dcl->UVCenter.x, dcl->UVCenter.y };
                 bool centerChanged = ImGui::DragFloat2("UVCenter", center, 0.01f, 0.0f, 1.0f, "%.3f");
                 if (ImGui::IsItemActivated()) { s_dclUVCenterBefore = dcl->UVCenter; s_dclUVRadiusBefore = dcl->UVRadius; }
-                if (centerChanged) dcl->UVCenter = Vector2(center[0], center[1]);
+                if (centerChanged) dcl->setUVCenter(Vector2(center[0], center[1]));
                 if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
                     m_history->record(std::make_unique<SetDecalUVCommand>(
                         dclSp, s_dclUVCenterBefore, s_dclUVRadiusBefore, dcl->UVCenter, dcl->UVRadius));
@@ -1878,7 +1312,7 @@ void PropertiesPanel::onRender() {
                 float radius = dcl->UVRadius;
                 bool radiusChanged = ImGui::DragFloat("UVRadius", &radius, 0.005f, 0.01f, 1.0f, "%.3f");
                 if (ImGui::IsItemActivated()) { s_dclUVCenterBefore = dcl->UVCenter; s_dclUVRadiusBefore = dcl->UVRadius; }
-                if (radiusChanged) dcl->UVRadius = radius;
+                if (radiusChanged) dcl->setUVRadius(radius);
                 if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
                     m_history->record(std::make_unique<SetDecalUVCommand>(
                         dclSp, s_dclUVCenterBefore, s_dclUVRadiusBefore, dcl->UVCenter, dcl->UVRadius));
@@ -1912,152 +1346,6 @@ void PropertiesPanel::onRender() {
             }
         }
 
-        // Color with undo
-        {
-            static Color4 s_dclColorBefore;
-            float col[4] = { dcl->Color.r, dcl->Color.g, dcl->Color.b, dcl->Color.a };
-            if (ImGui::IsItemActivated()) s_dclColorBefore = dcl->Color;
-            bool colorChanged = ImGui::ColorEdit4("Color##decal", col);
-            if (ImGui::IsItemActivated()) s_dclColorBefore = dcl->Color;
-            if (colorChanged) dcl->Color = Color4(col[0], col[1], col[2], col[3]);
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                Color4 after(col[0], col[1], col[2], col[3]);
-                m_history->record(std::make_unique<SetDecalColorCommand>(dclSp, s_dclColorBefore, after));
-            }
-        }
-
-        // Texture with undo
-        ImGui::LabelText("Texture", "%s", dcl->texturePath.c_str());
-        if (ImGui::Button(locId(Loc::LocKey::Browse, "##decal").c_str())) {
-            std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
-            if (!path.empty()) {
-                std::string oldPath = dcl->texturePath;
-                unsigned int oldID  = dcl->TextureID;
-                YAML::Node node; node = path;
-                dcl->setProperty("Texture", node);
-                if (m_history)
-                    m_history->record(std::make_unique<SetDecalTextureCommand>(
-                        dclSp, oldPath, oldID, dcl->texturePath, dcl->TextureID));
-            }
-        }
-    }
-
-    // ---- Texture ----
-    if (inst->getClassName() == "Texture") {
-        Texture* tx = static_cast<Texture*>(inst);
-        auto txSp = std::static_pointer_cast<Texture>(inst->shared_from_this());
-        ImGui::SeparatorText("Texture");
-
-        // Face combo with undo
-        {
-            static const char* faceItems[] = { "Front", "Back", "Top", "Bottom", "Right", "Left" };
-            int faceIdx = static_cast<int>(tx->face);
-            if (ImGui::Combo("Face##tex", &faceIdx, faceItems, 6)) {
-                Face newFace = static_cast<Face>(faceIdx);
-                if (newFace != tx->face) {
-                    Face oldFace = tx->face;
-                    tx->setFace(newFace);
-                    if (m_history)
-                        m_history->record(std::make_unique<SetTextureFaceCommand>(txSp, oldFace, newFace));
-                }
-            }
-        }
-
-        // Color with undo
-        {
-            static Color4 s_txColorBefore;
-            float col[4] = { tx->Color.r, tx->Color.g, tx->Color.b, tx->Color.a };
-            if (ImGui::IsItemActivated()) s_txColorBefore = tx->Color;
-            bool colorChanged = ImGui::ColorEdit4("Color##tex", col);
-            if (ImGui::IsItemActivated()) s_txColorBefore = tx->Color;
-            if (colorChanged) tx->Color = Color4(col[0], col[1], col[2], col[3]);
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                Color4 after(col[0], col[1], col[2], col[3]);
-                m_history->record(std::make_unique<SetTextureColorCommand>(txSp, s_txColorBefore, after));
-            }
-        }
-
-        // StudsPerTileU / V with undo
-        {
-            static float s_studsUBefore, s_studsVBefore;
-            float studsU = tx->StudsPerTileU;
-            float studsV = tx->StudsPerTileV;
-            if (ImGui::DragFloat("StudsPerTileU", &studsU, 0.1f, 0.01f, 100.0f)) {
-                if (ImGui::IsItemActivated()) { s_studsUBefore = tx->StudsPerTileU; s_studsVBefore = tx->StudsPerTileV; }
-                tx->StudsPerTileU = studsU;
-            }
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                m_history->record(std::make_unique<SetTextureStudsCommand>(
-                    txSp, s_studsUBefore, s_studsVBefore, tx->StudsPerTileU, tx->StudsPerTileV));
-            }
-            if (ImGui::DragFloat("StudsPerTileV", &studsV, 0.1f, 0.01f, 100.0f)) {
-                if (ImGui::IsItemActivated()) { s_studsUBefore = tx->StudsPerTileU; s_studsVBefore = tx->StudsPerTileV; }
-                tx->StudsPerTileV = studsV;
-            }
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history) {
-                m_history->record(std::make_unique<SetTextureStudsCommand>(
-                    txSp, s_studsUBefore, s_studsVBefore, tx->StudsPerTileU, tx->StudsPerTileV));
-            }
-        }
-
-        // Texture path with undo
-        ImGui::LabelText("Texture##texpath", "%s", tx->texturePath.c_str());
-        if (ImGui::Button(locId(Loc::LocKey::Browse, "##tex").c_str())) {
-            std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
-            if (!path.empty()) {
-                std::string oldPath = tx->texturePath;
-                unsigned int oldID  = tx->TextureID;
-                YAML::Node node; node = path;
-                tx->setProperty("Texture", node);
-                if (m_history)
-                    m_history->record(std::make_unique<SetTextureTextureCommand>(
-                        txSp, oldPath, oldID, tx->texturePath, tx->TextureID));
-            }
-        }
-    }
-
-    // ---- System ----
-    if (inst->getClassName() == "System") {
-        System* sys = static_cast<System*>(inst);
-        auto sysSp = std::static_pointer_cast<System>(inst->shared_from_this());
-
-        // BaseResolutionは安全マージンではないため、Safety Limits欄の外（上）に表示する。
-        ImGui::SeparatorText("System");
-        renderSchemaInspector(inst, "System", m_history, m_picker);
-        ImGui::LabelText("ApplicationId", "%s", sys->ApplicationId.c_str());
-
-        ImGui::SeparatorText("System (Safety Limits)");
-
-        {
-            static int s_before;
-            ImGui::DragInt("MaxClonesPerFrame", &sys->MaxClonesPerFrame, 1.0f, 0, 1000000);
-            if (ImGui::IsItemActivated()) s_before = sys->MaxClonesPerFrame;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
-                m_history->record(std::make_unique<SetSystemIntCommand>(sysSp, "MaxClonesPerFrame", s_before, sys->MaxClonesPerFrame));
-        }
-        {
-            static int s_before;
-            ImGui::DragInt("MaxRestartsPerFrame", &sys->MaxRestartsPerFrame, 1.0f, 0, 1000000);
-            if (ImGui::IsItemActivated()) s_before = sys->MaxRestartsPerFrame;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
-                m_history->record(std::make_unique<SetSystemIntCommand>(sysSp, "MaxRestartsPerFrame", s_before, sys->MaxRestartsPerFrame));
-        }
-        {
-            static int s_before;
-            ImGui::DragInt("MaxTasksPerFrame", &sys->MaxTasksPerFrame, 1.0f, 0, 1000000);
-            if (ImGui::IsItemActivated()) s_before = sys->MaxTasksPerFrame;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
-                m_history->record(std::make_unique<SetSystemIntCommand>(sysSp, "MaxTasksPerFrame", s_before, sys->MaxTasksPerFrame));
-        }
-        {
-            static float s_before;
-            ImGui::DragFloat("ScriptLoopTimeoutSeconds", &sys->ScriptLoopTimeoutSeconds, 0.05f, 0.0f, 60.0f, "%.2f");
-            if (ImGui::IsItemActivated()) s_before = sys->ScriptLoopTimeoutSeconds;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
-                m_history->record(std::make_unique<SetSystemFloatCommand>(sysSp, "ScriptLoopTimeoutSeconds", s_before, sys->ScriptLoopTimeoutSeconds));
-        }
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("0 or below disables the loop timeout check");
     }
 
     // ---- User ----
@@ -2065,18 +1353,6 @@ void PropertiesPanel::onRender() {
         User* usr = static_cast<User*>(inst);
         auto usrSp = std::static_pointer_cast<User>(inst->shared_from_this());
         ImGui::SeparatorText("User");
-
-        // ControlMode (combo)
-        {
-            static const char* controlModes[] = { "Free", "Character", "Program" };
-            int modeIdx = (usr->getControlMode() == User::ControlMode::Free) ? 0
-                        : (usr->getControlMode() == User::ControlMode::Character) ? 1 : 2;
-            if (ImGui::Combo("ControlMode", &modeIdx, controlModes, 3)) {
-                usr->setControlMode((modeIdx == 0) ? User::ControlMode::Free
-                                  : (modeIdx == 1) ? User::ControlMode::Character
-                                                    : User::ControlMode::Program);
-            }
-        }
 
         // Custom mouse cursors.  The image slots are intentionally explicit so
         // their serialized names remain stable (CursorImages[0..9]).
@@ -2166,45 +1442,6 @@ void PropertiesPanel::onRender() {
             ImGui::EndDisabled();
         }
 
-        // Character mode parameters
-        ImGui::DragFloat("Speed", &usr->speed, 0.01f, 0.0f, 10.0f, "%.3f");
-        ImGui::DragFloat("RotationSpeed", &usr->rotationSpeed, 0.01f, 0.0f, 10.0f, "%.3f");
-        ImGui::DragFloat("MouseRotationSpeed", &usr->mouseRotationSpeed, 0.01f, 0.0f, 2.0f, "%.3f");
-        auto inputCheckbox = [&](const char* label, const char* property, bool current) {
-            const bool before = current;
-            bool value = current;
-            if (ImGui::Checkbox(label, &value)) {
-                YAML::Node node; node = value;
-                usr->setProperty(property, node);
-                if (m_history) m_history->record(std::make_unique<SetUserInputBoolCommand>(
-                    usrSp, property, before, value));
-            }
-        };
-        inputCheckbox("MovementInputEnabled", "MovementInputEnabled", usr->isMovementInputEnabled());
-        inputCheckbox("CameraInputEnabled", "CameraInputEnabled", usr->isCameraInputEnabled());
-        inputCheckbox("HotkeyInputEnabled", "HotkeyInputEnabled", usr->isHotkeyInputEnabled());
-        inputCheckbox("ToolInputEnabled", "ToolInputEnabled", usr->isToolInputEnabled());
-        {
-            static float s_before;
-            const float beforeEdit = usr->characterSmoothing;
-            float value = usr->characterSmoothing;
-            if (ImGui::SliderFloat("CharacterSmoothing", &value, 0.0f, 1.0f, "%.3f")) {
-                YAML::Node node;
-                node = value;
-                usr->setProperty("CharacterSmoothing", node);
-            }
-            if (ImGui::IsItemActivated()) s_before = beforeEdit;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
-                m_history->record(std::make_unique<SetUserCharacterSmoothingCommand>(
-                    usrSp, s_before, usr->characterSmoothing));
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("1.0 applies movement direction and facing immediately; 0.0 stops following the target.");
-        }
-        ImGui::DragFloat("CameraDistance", &usr->cameraDistance, 0.1f, 1.0f, 50.0f, "%.2f");
-        ImGui::DragFloat("ZoomSpeed", &usr->zoomSpeed, 0.01f, 0.0f, 1.0f, "%.3f");
-        ImGui::DragFloat("MouseZoomSpeed", &usr->mouseZoomSpeed, 0.1f, 0.0f, 10.0f, "%.2f");
-        ImGui::DragFloat("GizmoSize", &usr->gizmoSize, 0.01f, 0.05f, 0.50f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-
         // Current slot index (read-only)
         ImGui::LabelText("CurrentSlotIndex", "%d", usr->currentSlotIndex);
 
@@ -2224,76 +1461,11 @@ void PropertiesPanel::onRender() {
         }
     }
 
-    // ---- Tool (all editable state is schema-driven) ----
-    if (inst->getClassName() == "Tool") {
-        ImGui::SeparatorText("Tool");
-        renderSchemaInspector(inst, "Tool", m_history, m_picker);
-    }
-
-    // ---- Lighting（スキーマ駆動） ----
-    if (inst->getClassName() == "Lighting") {
-        ImGui::SeparatorText("Lighting");
-        renderSchemaInspector(inst, "Lighting", m_history, m_picker);
-    }
-
-    // ---- LightSource（PointLight / SpotLight、スキーマ駆動） ----
-    if (inst->IsA("LightSource")) {
-        ImGui::SeparatorText("Light");
-        renderSchemaInspector(inst, "LightSource", m_history, m_picker);
-    }
-    if (inst->getClassName() == "SpotLight") {
-        ImGui::SeparatorText("SpotLight");
-        renderSchemaInspector(inst, "SpotLight", m_history, m_picker);
-    }
-
-    // ---- ParticleEmitter（スキーマ駆動） ----
-    if (inst->getClassName() == "ParticleEmitter") {
-        ImGui::SeparatorText("ParticleEmitter");
-        renderSchemaInspector(inst, "ParticleEmitter", m_history, m_picker);
-    }
-
-    // ---- Weather（スキーマ駆動。文字列プロパティ(ClearAmbientPath等)は上のInputTextで直接編集可能だが、
-    //      音声ファイル選択の利便性のため参照ボタンも添える） ----
-    if (inst->getClassName() == "Weather") {
-        ImGui::SeparatorText("Weather");
-        renderSchemaInspector(inst, "Weather", m_history, m_picker);
-
-        auto browseAmbient = [&](const char* propName, const char* idSuffix) {
-            std::string btnLabel = std::string(propName) + " " + Loc::t(Loc::LocKey::Browse) + "##" + idSuffix;
-            if (ImGui::Button(btnLabel.c_str())) {
-                std::string path = getPlatform().openFileDialog({{"Audio (*.mp3;*.wav;*.ogg)", "*.mp3;*.wav;*.ogg"}});
-                if (!path.empty()) {
-                    YAML::Node node; node = path;
-                    inst->setProperty(propName, node);
-                }
-            }
-        };
-        browseAmbient("ClearAmbientPath", "weatherclear");
-        browseAmbient("RainAmbientPath",  "weatherrain");
-        browseAmbient("SnowAmbientPath",  "weathersnow");
-    }
-
-    // ---- PostEffect ----
-    if (inst->getClassName() == "PostEffect") {
-        ImGui::SeparatorText("PostEffect");
-        // PostEffect properties are schema-driven, including Custom shader path.
-        renderSchemaInspector(inst, "PostEffect", m_history, m_picker);
-    }
-
     // ---- Terrain ----
     if (inst->getClassName() == "Terrain") {
         Terrain* terrain = static_cast<Terrain*>(inst);
         auto terrSp = std::static_pointer_cast<Terrain>(inst->shared_from_this());
         ImGui::SeparatorText("Terrain");
-
-        {
-            bool before = terrain->Enabled;
-            bool value  = terrain->Enabled;
-            if (ImGui::Checkbox("Enabled##terrain", &value)) {
-                terrain->setEnabled(value);
-                if (m_history) m_history->record(std::make_unique<SetTerrainBoolCommand>(terrSp, "Enabled", before, value));
-            }
-        }
 
         // データ保存先ディレクトリ（リージョンファイルの置き場所）— フォルダ参照
         ImGui::LabelText("DataPath", "%s", terrain->DataPath.c_str());
@@ -2349,29 +1521,15 @@ void PropertiesPanel::onRender() {
             ImGui::EndPopup();
         }
 
-        // 生成設定（Seed / Flat）
-        ImGui::Separator();
-        {
-            static int s_before;
-            ImGui::InputInt("Seed##terrain", &terrain->Seed);
-            if (ImGui::IsItemActivated()) s_before = terrain->Seed;
-            if (ImGui::IsItemDeactivatedAfterEdit() && m_history)
-                m_history->record(std::make_unique<SetTerrainIntCommand>(terrSp, "Seed", s_before, terrain->Seed));
-        }
         ImGui::SameLine();
         if (ImGui::Button(locId(Loc::LocKey::TerrainRandomize, "##terrainseed").c_str())) {
             int before = terrain->Seed;
             std::random_device rd;
-            terrain->Seed = static_cast<int>(rd());
-            if (m_history) m_history->record(std::make_unique<SetTerrainIntCommand>(terrSp, "Seed", before, terrain->Seed));
-        }
-        {
-            bool before = terrain->Flat;
-            bool value  = terrain->Flat;
-            if (ImGui::Checkbox(locId(Loc::LocKey::TerrainFlatCheckbox, "##terrain").c_str(), &value)) {
-                terrain->Flat = value;
-                if (m_history) m_history->record(std::make_unique<SetTerrainBoolCommand>(terrSp, "Flat", before, value));
-            }
+            const int after = static_cast<int>(rd());
+            YAML::Node node;
+            node = after;
+            terrain->setProperty("Seed", node);
+            if (m_history) m_history->record(std::make_unique<SetTerrainIntCommand>(terrSp, "Seed", before, after));
         }
 
         if (ImGui::Button(locId(Loc::LocKey::TerrainRegenerateButton, "##terrainregen").c_str())) {
@@ -2422,38 +1580,8 @@ void PropertiesPanel::onRender() {
         }
     }
 
-    // ---- PhysicsConstraint（スキーマ駆動の共通プロパティ） ----
-    if (inst->IsA("PhysicsConstraint")) {
-        renderSchemaInspector(inst, "PhysicsConstraint", m_history, m_picker);
-    }
-
-    // ---- AppImage ----
-    if (inst->getClassName() == "AppImage") {
-        AppImage* ai = static_cast<AppImage*>(inst);
-        ImGui::SeparatorText("AppImage");
-#ifdef __APPLE__
-        ImGui::TextDisabled("macOS: Used as the Dock/Application icon while running.");
-#endif
-        ImGui::LabelText("IconPath", "%s", ai->iconPath.empty() ? "(none)" : ai->iconPath.c_str());
-        if (ImGui::Button(locId(Loc::LocKey::Browse, "##appimage").c_str())) {
-            std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.ico)", "*.png;*.jpg;*.bmp;*.ico"}});
-            if (!path.empty()) {
-                YAML::Node node; node = toProjectRelative(path);
-                ai->setProperty("IconPath", node);
-            }
-        }
-    }
-
-    // ---- Force（スキーマ駆動） ----
-    if (inst->getClassName() == "Force") {
-        ImGui::SeparatorText("Force");
-        renderSchemaInspector(inst, "Force", m_history, m_picker);
-    }
-
     // ---- Humanoid（スキーマ駆動。プロパティ追加はスキーマに1行足すだけ） ----
     if (inst->getClassName() == "Humanoid") {
-        ImGui::SeparatorText("Humanoid");
-        renderSchemaInspector(inst, "Humanoid", m_history, m_picker);
         auto humanoid = std::static_pointer_cast<Humanoid>(inst->shared_from_this());
         ImGui::SeparatorText("Animation References");
         drawHumanoidAnimationReference("WalkAnimation", humanoid,
@@ -2466,65 +1594,15 @@ void PropertiesPanel::onRender() {
 
     if (inst->getClassName() == "Animation") {
         ImGui::SeparatorText("Animation");
-        drawAnimationInspector(
-            std::static_pointer_cast<Animation>(inst->shared_from_this()), m_history);
+        drawAnimationInspector(std::static_pointer_cast<Animation>(inst->shared_from_this()));
     }
 
-    // ---- ScreenGuiObject ----
-    // ---- GUI 一族（スキーマ駆動。基底は IsA ブロック、葉は getClassName ブロックで描画） ----
-    if (inst->IsA("GuiObject")) {
-        ImGui::SeparatorText("GuiObject");
-        renderSchemaInspector(inst, "GuiObject", m_history, m_picker);
-    }
-    if (inst->IsA("ScreenGuiObject")) {
-        ImGui::SeparatorText("ScreenGuiObject");
-        renderSchemaInspector(inst, "ScreenGuiObject", m_history, m_picker);
-    }
+    // ---- GUI の特殊 adapter ----
     if (inst->getClassName() == "TextLabel") {
-        ImGui::SeparatorText("TextLabel");
-        renderSchemaInspector(inst, "TextLabel", m_history, m_picker);
         drawFontSelection(static_cast<ScreenGuiObject*>(inst), m_history, m_picker);
     }
     if (inst->getClassName() == "TextButton") {
-        ImGui::SeparatorText("TextButton");
-        renderSchemaInspector(inst, "TextButton", m_history, m_picker);
         drawFontSelection(static_cast<ScreenGuiObject*>(inst), m_history, m_picker);
-    }
-    if (inst->getClassName() == "SurfaceGui") {
-        ImGui::SeparatorText("SurfaceGui");
-        renderSchemaInspector(inst, "SurfaceGui", m_history, m_picker);
-    }
-    if (inst->getClassName() == "Canvas") {
-        ImGui::SeparatorText("Canvas");
-        renderSchemaInspector(inst, "Canvas", m_history, m_picker);
-    }
-    if (inst->getClassName() == "Highlight") {
-        ImGui::SeparatorText("Highlight");
-        renderSchemaInspector(inst, "Highlight", m_history, m_picker);
-    }
-    if (inst->getClassName() == "BillboardGui") {
-        ImGui::SeparatorText("BillboardGui");
-        renderSchemaInspector(inst, "BillboardGui", m_history, m_picker);
-    }
-    if (inst->getClassName() == "ProximityPrompt") {
-        ImGui::SeparatorText("ProximityPrompt");
-        renderSchemaInspector(inst, "ProximityPrompt", m_history, m_picker);
-    }
-    if (inst->getClassName() == "IntValue") {
-        ImGui::SeparatorText("IntValue");
-        renderSchemaInspector(inst, "IntValue", m_history, m_picker);
-    }
-    if (inst->getClassName() == "BoolValue") {
-        ImGui::SeparatorText("BoolValue");
-        renderSchemaInspector(inst, "BoolValue", m_history, m_picker);
-    }
-    if (inst->getClassName() == "Vector3Value") {
-        ImGui::SeparatorText("Vector3Value");
-        renderSchemaInspector(inst, "Vector3Value", m_history, m_picker);
-    }
-    if (inst->getClassName() == "Color4Value") {
-        ImGui::SeparatorText("Color4Value");
-        renderSchemaInspector(inst, "Color4Value", m_history, m_picker);
     }
     if (inst->getClassName() == "NumberValue") {
         ImGui::SeparatorText("NumberValue");
@@ -2544,53 +1622,10 @@ void PropertiesPanel::onRender() {
                 inst->shared_from_this(), s_numBefore[key], nv->Value));
         }
     }
-    if (inst->getClassName() == "CFrameValue") {
-        ImGui::SeparatorText("CFrameValue");
-        renderSchemaInspector(inst, "CFrameValue", m_history, m_picker);
-    }
-    if (inst->getClassName() == "QuaternionValue") {
-        ImGui::SeparatorText("QuaternionValue");
-        renderSchemaInspector(inst, "QuaternionValue", m_history, m_picker);
-    }
     if (inst->getClassName() == "ObjectValue") {
         ImGui::SeparatorText("ObjectValue");
         drawObjectValueRef("Value", std::static_pointer_cast<Instance>(inst->shared_from_this()));
     }
-    if (inst->getClassName() == "ImageLabel" || inst->getClassName() == "ImageButton") {
-        const std::string cn = inst->getClassName();
-        ImGui::SeparatorText(cn.c_str());
-
-        // Image: パス表示 + 参照ボタン（Decal/AppImage と同方式）
-        const PropertyDesc* imgDesc = nullptr;
-        for (const auto& d : PropertyRegistry::schemaFor(cn)) {
-            if (d.name == "Image") { imgDesc = &d; break; }
-        }
-        std::string cur = imgDesc ? std::get<std::string>(imgDesc->get(inst)) : std::string();
-        ImGui::LabelText("Image", "%s", cur.empty() ? "(none)" : cur.c_str());
-        if (ImGui::Button(locId(Loc::LocKey::Browse, "##image").c_str()) && imgDesc) {
-            std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
-            if (!path.empty()) {
-                PropValue before = imgDesc->get(inst);
-                PropertyRegistry::writeValue(inst, *imgDesc, PropValue(path));
-                if (m_history)
-                    m_history->record(std::make_unique<SetPropertyCommand>(
-                        inst->shared_from_this(), imgDesc, before, PropValue(path)));
-            }
-        }
-    }
-
-    // ---- Workspace ----
-    if (inst->IsA("Workspace")) {
-        Workspace* ws = static_cast<Workspace*>(inst);
-        ImGui::SeparatorText("Workspace");
-        ImGui::Checkbox("PhysicsEnabled", &ws->PhysicsEnabled);
-        float grav[3] = { ws->Gravity.x, ws->Gravity.y, ws->Gravity.z };
-        if (ImGui::DragFloat3("Gravity", grav, 0.1f, -300.0f, 300.0f)) {
-            ws->Gravity = Vector3(grav[0], grav[1], grav[2]);
-            if (ws->getPhysicsEngine()) ws->getPhysicsEngine()->setGravity(ws->Gravity);
-        }
-    }
-
     if (readOnly) ImGui::EndDisabled();
     ImGui::End();
 }

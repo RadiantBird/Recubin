@@ -11,6 +11,7 @@
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
 #include <include/Core/LuauEngine.hpp>
+#include <include/Core/PropertyRegistry.hpp>
 #include <algorithm>
 
 User* User::s_instance = nullptr;
@@ -22,6 +23,59 @@ float sanitizeCharacterSmoothing(float value) {
     if (!std::isfinite(value)) return DEFAULT_CHARACTER_SMOOTHING;
     return std::clamp(value, 0.0f, 1.0f);
 }
+
+const bool s_userRegistered = [] {
+    using namespace PropertyRegistry;
+    PropertyDesc controlMode = custom("ControlMode", PropType::Enum,
+        [](Instance* object) {
+            return PropValue(static_cast<int>(static_cast<User*>(object)->getControlMode()));
+        },
+        [](Instance* object, const PropValue& value) {
+            static_cast<User*>(object)->setControlMode(
+                static_cast<User::ControlMode>(std::get<int>(value)));
+        });
+    controlMode.enumNames = {{"Free", 0}, {"Character", 1}, {"Program", 2}};
+    controlMode.yamlEnumAsString = true;
+    PropertyDesc smoothing = custom("CharacterSmoothing", PropType::Float,
+        [](Instance* object) { return PropValue(static_cast<User*>(object)->characterSmoothing); },
+        [](Instance* object, const PropValue& value) {
+            static_cast<User*>(object)->characterSmoothing =
+                sanitizeCharacterSmoothing(std::get<float>(value));
+        });
+    smoothing.lo = 0.0f; smoothing.hi = 1.0f; smoothing.step = 0.01f;
+    registerClass("User", {
+        controlMode,
+        field<&User::speed>("Speed", 0.0f, 10.0f, 0.01f),
+        field<&User::rotationSpeed>("RotationSpeed", 0.0f, 10.0f, 0.01f),
+        field<&User::mouseRotationSpeed>("MouseRotationSpeed", 0.0f, 2.0f, 0.01f),
+        smoothing,
+        field<&User::cameraDistance>("CameraDistance", 1.0f, 50.0f, 0.1f),
+        field<&User::zoomSpeed>("ZoomSpeed", 0.0f, 1.0f, 0.01f),
+        field<&User::mouseZoomSpeed>("MouseZoomSpeed", 0.0f, 10.0f, 0.1f),
+        field<&User::gizmoSize>("GizmoSize", 0.05f, 0.50f, 0.01f).noYaml().luaReadOnly(),
+        custom("MovementInputEnabled", PropType::Bool,
+            [](Instance* object) { return PropValue(static_cast<User*>(object)->isMovementInputEnabled()); },
+            [](Instance* object, const PropValue& value) {
+                static_cast<User*>(object)->setMovementInputEnabled(std::get<bool>(value));
+            }),
+        custom("CameraInputEnabled", PropType::Bool,
+            [](Instance* object) { return PropValue(static_cast<User*>(object)->isCameraInputEnabled()); },
+            [](Instance* object, const PropValue& value) {
+                static_cast<User*>(object)->setCameraInputEnabled(std::get<bool>(value));
+            }),
+        custom("HotkeyInputEnabled", PropType::Bool,
+            [](Instance* object) { return PropValue(static_cast<User*>(object)->isHotkeyInputEnabled()); },
+            [](Instance* object, const PropValue& value) {
+                static_cast<User*>(object)->setHotkeyInputEnabled(std::get<bool>(value));
+            }),
+        custom("ToolInputEnabled", PropType::Bool,
+            [](Instance* object) { return PropValue(static_cast<User*>(object)->isToolInputEnabled()); },
+            [](Instance* object, const PropValue& value) {
+                static_cast<User*>(object)->setToolInputEnabled(std::get<bool>(value));
+            }),
+    });
+    return true;
+}();
 }
 void User::setCursorType(CursorType type) {
     const auto value = static_cast<int>(type);
@@ -1237,24 +1291,7 @@ bool User::IsA(std::string className) {
 }
 
 void User::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "ControlMode") {
-        std::string s = value.as<std::string>();
-        if (s == "Free")         setControlMode(ControlMode::Free);
-        else if (s == "Program") setControlMode(ControlMode::Program);
-        else                     setControlMode(ControlMode::Character);
-        return;
-    }
-    if (name == "Speed")             { speed             = value.as<float>(); return; }
-    if (name == "RotationSpeed")     { rotationSpeed      = value.as<float>(); return; }
-    if (name == "MouseRotationSpeed"){ mouseRotationSpeed = value.as<float>(); return; }
-    if (name == "CharacterSmoothing") { characterSmoothing = sanitizeCharacterSmoothing(value.as<float>()); return; }
-    if (name == "MovementInputEnabled") { m_movementInputEnabled = value.as<bool>(); return; }
-    if (name == "CameraInputEnabled") { m_cameraInputEnabled = value.as<bool>(); return; }
-    if (name == "HotkeyInputEnabled") { m_hotkeyInputEnabled = value.as<bool>(); return; }
-    if (name == "ToolInputEnabled") { m_toolInputEnabled = value.as<bool>(); return; }
-    if (name == "CameraDistance")    { cameraDistance     = value.as<float>(); return; }
-    if (name == "ZoomSpeed")         { zoomSpeed          = value.as<float>(); return; }
-    if (name == "MouseZoomSpeed")    { mouseZoomSpeed     = value.as<float>(); return; }
+    if (PropertyRegistry::loadProperty(this, "User", name, value)) return;
     if (name == "CursorType") {
         const std::string s = value.as<std::string>();
         if (s == "Type1") setCursorType(CursorType::Type1); else if (s == "Type2") setCursorType(CursorType::Type2);

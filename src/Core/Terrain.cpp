@@ -615,9 +615,17 @@ static const bool s_terrainRegistered = [] {
             },
             [](Instance* instance, const PropValue& value) {
                 static_cast<Terrain*>(instance)->setDataPath(std::get<std::string>(value));
-            }).luaReadOnly(),
-        field<&Terrain::Seed>("Seed"),
-        field<&Terrain::Flat>("Flat"),
+            }).luaReadOnly().noEditor(),
+        custom("Seed", PropType::Int,
+            [](Instance* instance) { return PropValue(static_cast<Terrain*>(instance)->Seed); },
+            [](Instance* instance, const PropValue& value) {
+                static_cast<Terrain*>(instance)->Seed = std::get<int>(value);
+            }),
+        custom("Flat", PropType::Bool,
+            [](Instance* instance) { return PropValue(static_cast<Terrain*>(instance)->Flat); },
+            [](Instance* instance, const PropValue& value) {
+                static_cast<Terrain*>(instance)->Flat = std::get<bool>(value);
+            }),
     });
     return true;
 }();

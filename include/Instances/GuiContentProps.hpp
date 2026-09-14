@@ -27,7 +27,8 @@ PropertyDesc image() {
     using C = typename PropertyRegistry::member_traits<M>::Class;
     return PropertyRegistry::custom("Image", PropType::String,
         [](Instance* o) { return PropValue((static_cast<C*>(o)->*M).getImage()); },
-        [](Instance* o, const PropValue& v) { (static_cast<C*>(o)->*M).setImage(std::get<std::string>(v)); });
+        [](Instance* o, const PropValue& v) { (static_cast<C*>(o)->*M).setImage(std::get<std::string>(v)); })
+        .filePath("Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga");
 }
 
 } // namespace GuiContentProps

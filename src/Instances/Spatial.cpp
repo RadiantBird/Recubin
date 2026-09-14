@@ -1,8 +1,56 @@
 #include "include/Instances/Spatial.hpp"
+#include "include/Core/PropertyRegistry.hpp"
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 namespace {
+const bool s_spatialRegistered = [] {
+    using namespace PropertyRegistry;
+    PropertyDesc position = custom("Position", PropType::Vec3,
+            [](Instance* object) {
+                return PropValue(static_cast<Spatial*>(object)->getPosition());
+            },
+            [](Instance* object, const PropValue& value) {
+                static_cast<Spatial*>(object)->setPosition(std::get<Vector3>(value));
+            });
+    position.lo = -1.0e9f;
+    position.hi = 1.0e9f;
+    position.step = 0.05f;
+    position.group("Spatial");
+
+    PropertyDesc size = custom("Size", PropType::Vec3,
+            [](Instance* object) {
+                return PropValue(static_cast<Spatial*>(object)->Size);
+            },
+            [](Instance* object, const PropValue& value) {
+                static_cast<Spatial*>(object)->setSize(std::get<Vector3>(value));
+            });
+    size.lo = 0.001f;
+    size.hi = 1.0e6f;
+    size.step = 0.05f;
+
+    registerClass("Spatial", "Instance", {
+        position,
+        size,
+        custom("Rotation", PropType::Quaternion,
+            [](Instance* object) {
+                return PropValue(static_cast<Spatial*>(object)->getRotation());
+            },
+            [](Instance* object, const PropValue& value) {
+                static_cast<Spatial*>(object)->setRotation(std::get<Quaternion>(value));
+            }),
+        custom("CFrame", PropType::CFrame,
+            [](Instance* object) {
+                return PropValue(static_cast<Spatial*>(object)->getCFrame());
+            },
+            [](Instance* object, const PropValue& value) {
+                static_cast<Spatial*>(object)->setCFrame(std::get<CFrame>(value));
+            }).noYaml().multiOnly()
+    });
+    return true;
+}();
+
 struct DescendantPose {
     Spatial* target;
     CFrame world;
@@ -95,6 +143,15 @@ void Spatial::setRotation(const Quaternion& value) {
     setCFrame(valueFrame);
 }
 
+void Spatial::setSize(const Vector3& value) {
+    if (!std::isfinite(value.x) || !std::isfinite(value.y) ||
+        !std::isfinite(value.z) || value.x <= 0.0f || value.y <= 0.0f ||
+        value.z <= 0.0f) {
+        return;
+    }
+    Size = value;
+}
+
 void Spatial::applyLocalCFrameBatch(
     const std::vector<std::pair<Spatial*, CFrame>>& values) {
     for (const auto& [target, value] : values) {
@@ -113,24 +170,6 @@ bool Spatial::IsA(std::string className) {
 }
 
 void Spatial::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "Position" || name == "Size") {
-        if (value.IsSequence() && value.size() == 3) {
-            Vector3 vec;
-            vec.x = value[0].as<float>();
-            vec.y = value[1].as<float>();
-            vec.z = value[2].as<float>();
-            if (name == "Position") this->setPosition(vec);
-            else                     this->Size     = vec;
-        }
-    } else if (name == "Rotation") {
-        // [x, y, z, w] 形式で保存された Quaternion を読み込む
-        if (value.IsSequence() && value.size() == 4) {
-            Quaternion rotation;
-            if (Quaternion::tryFromComponents(value[3].as<float>(), value[0].as<float>(),
-                                               value[1].as<float>(), value[2].as<float>(), rotation))
-                setRotation(rotation);
-        }
-    } else {
-        Instance::setProperty(name, value);
-    }
+    if (PropertyRegistry::loadProperty(this, "Spatial", name, value)) return;
+    Instance::setProperty(name, value);
 }

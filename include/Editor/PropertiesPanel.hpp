@@ -1,8 +1,6 @@
 #pragma once
 #include <Editor/EditorPanel.hpp>
 #include <Instances/Instance.hpp>
-#include <Instances/Spatial.hpp>
-#include <Instances/BaseCube.hpp>
 #include <functional>
 #include <memory>
 #include <string>
@@ -52,15 +50,6 @@ public:
     void onRender() override;
 
 private:
-    void drawConstraintCubeRef(const char* label, std::string& nameRef,
-                               const char* prop,
-                               const std::shared_ptr<Instance>& inst);
-    // Attachment名（対応Cube配下の子孫パス）の参照フィールド。手入力＋Pickボタン。
-    // cubeName は対応する Cube0/Cube1 の名前（Pick時の配下チェックに使う）
-    void drawConstraintAttachmentRef(const char* label, std::string& nameRef,
-                                     const char* prop, const std::string& cubeName,
-                                     const std::shared_ptr<Instance>& inst);
-
     // ObjectValue.Value 用: テキストのパス入力欄のみ(ビューポートPickボタンは無し)
     void drawObjectValueRef(const char* label, const std::shared_ptr<Instance>& inst);
 
