@@ -249,16 +249,19 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
             float walkCycle = 0.0f;
             bool grounded = true;
             bool seated = false;
+            bool ragdoll = false;
             if (id == net.getLocalPeerId()) {
                 if (m_user && m_user->humanoid) {
                     walkCycle = m_user->humanoid->getWalkCycle();
                     grounded = m_user->humanoid->getIsGrounded();
                     seated = m_user->humanoid->isSeated();
+                    ragdoll = m_user->humanoid->isRagdoll();
                 }
             } else if (auto avatarIt = m_remoteAvatars.find(id); avatarIt != m_remoteAvatars.end() && avatarIt->second.humanoid) {
                 walkCycle = avatarIt->second.humanoid->getWalkCycle();
                 grounded = avatarIt->second.humanoid->getIsGrounded();
                 seated = avatarIt->second.humanoid->isSeated();
+                ragdoll = avatarIt->second.humanoid->isRagdoll();
             }
             w.writeU32(id);
             w.writeVector3(pose.Position);
@@ -267,7 +270,9 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
             auto seqIt = m_lastProcessedSeq.find(id);
             w.writeU32(seqIt != m_lastProcessedSeq.end() ? seqIt->second : 0u);
             w.writeF32(walkCycle);
-            w.writeU8(static_cast<uint8_t>((grounded ? 1 : 0) | (seated ? 2 : 0)));
+            w.writeU8(static_cast<uint8_t>(
+                (grounded ? 1 : 0) | (seated ? 2 : 0) |
+                (ragdoll ? 4 : 0)));
         }
         net.sendBytes(w.data, NetworkChannel::Unreliable);
     }
@@ -339,6 +344,10 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
             if (!r.readU32(id) || !r.readVector3(pos) || !r.readQuat(rot) || !r.readVector3(vel)
                 || !r.readU32(lastProcessedSeq) || !r.readF32(walkCycle) || !r.readU8(visualFlags)) return;
             if (id == localId) {
+                if (m_user && m_user->humanoid) {
+                    m_user->humanoid->setRagdollStateForReplication(
+                        (visualFlags & 4) != 0, m_physics);
+                }
                 m_hostAuthoritativeSelfPose = CFrame(pos, rot);
                 m_hasHostAuthoritativeSelfPose = true;
                 m_hostAckedSeq = lastProcessedSeq;
@@ -350,6 +359,11 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
                 avatarIt->second.walkCycle = walkCycle;
                 avatarIt->second.grounded = (visualFlags & 1) != 0;
                 avatarIt->second.seated = (visualFlags & 2) != 0;
+                avatarIt->second.ragdoll = (visualFlags & 4) != 0;
+                if (avatarIt->second.humanoid) {
+                    avatarIt->second.humanoid->setRagdollStateForReplication(
+                        avatarIt->second.ragdoll, m_physics);
+                }
             }
             // 他ピア分の速度は読み捨て(表示はRoot姿勢の平滑補間を使う)
         }
@@ -575,6 +589,7 @@ void ReplicationManager::applyAvatarPoses(float dt) {
         // 初期Weldのoffsetはテンプレート姿勢のまま確定させる。受信姿勢や歩行アニメを
         // pendingConstraintsのflush前に適用すると、Headだけが動いた状態を焼き付けてしまう。
         if (hasPendingPhysicsRegistration(avatar)) continue;
+        if (avatar.humanoid && avatar.humanoid->isRagdoll()) continue;
         auto it = m_latestPoses.find(id);
         if (it == m_latestPoses.end()) continue;
         const CFrame& pose = it->second;
@@ -595,7 +610,7 @@ void ReplicationManager::applyAvatarPoses(float dt) {
                 break;
             }
         }
-        if (avatar.humanoid) {
+        if (avatar.humanoid && !avatar.humanoid->isRagdoll()) {
             avatar.humanoid->setWalkCycle(avatar.walkCycle);
             avatar.humanoid->setIsGroundedForReplication(avatar.grounded);
             avatar.humanoid->setSeatedForReplication(avatar.seated);

@@ -721,3 +721,63 @@
 - vertex shaderはview-space depthを出力し、fragment shaderはその値でcascadeを選択する。split前後の約8%だけ隣接cascadeを追加で3x3 PCFし、境界をblendする。既存のnormalize、受け側slope bias、手動3x3 PCF、`ShadowDistance`/`ShadowFadeDistance` fade、light→surfaceの方向規約は維持した。
 - `Renderer.cpp`のWSL syntax checkと`git diff --check`は成功。GLSL validatorはWSL環境に存在しなかった。Release buildは`cmd.exe /d /c py build.py build`がWindows側CMakeをPATHから起動できず`WinError 2`でconfigure前に停止したため、CSMを含む`brun`と実機での境界線・shimmer・acne/peter-panning目視は未実施。
 - 次の一手: Windows側のCMake環境を復旧し、Release build後に近距離cube/character、長い斜めedge、cascade境界、遠距離ShadowDistance、fade、カメラ移動/回転、light direction変更、水平/斜面を`brun`で確認する。
+- 2026-09-14: Character Ragdoll
+
+  - `Humanoid`へ`Normal/Ragdoll`状態と`ImpactRagdollThreshold`（既定45）、`RagdollRecoverySpeed`（既定1.5）、
+    `RagdollRecoveryDelay`（既定1.0）をschema経由で追加した。YAML、clone、PropertiesPanel、Luauは既存schema dispatchを利用する。
+  - Box3Dのhit eventでcontact normal impulseを優先し、body massでstud/s相当へ換算した値を、同一physics update内のCubeごとの最大impactとして蓄積するAPIを追加した。impulseが無い場合はBox3Dのnormal approach speedを利用する。
+  - impact閾値超過でmovement/jump/hover/full-body yaw/Gyro/Root AngularX・AngularZ lock/Motor6D姿勢制御を停止し、既存R6 BallSocketを有効化する。BallSocketは対応Motor6DのC0/C1をfallback anchorとして使い、別のCFrame補正やMotor6D作り直しは行わない。
+  - Ragdoll中だけR6 body collisionを有効化し、character collision groupで内部self-collisionを抑制して外部world collisionを許可する。Root lockと元のcollision stateは復帰時に復元する。低線速度・低角速度・body support・delay成立で自動復帰し、位置teleportは行わない。
+  - AvatarBatchのvisual flagsへRagdoll bitを追加し、Host権威のNormal/Ragdollをremote/localへ反映する。Ragdoll中のremote表示は受信Root poseで上書きしない。
+  - `Humanoid.cpp`、`Box3DPhysicsBackend.cpp`、`Physics.cpp`、`Replication.cpp`と関連headerのWSL `g++ -std=c++23 -DGLEW_NO_GLU -fsyntax-only`は成功。`cmd.exe /d /c py build.py build`はWindows側CMake未配置による`WinError 2`でconfigure前に停止し、WSLからの既存Visual Studio buildもCMake cacheのWindows/WSLパス不一致で停止した。Release `RecubinTest`/`brun`/実機確認は未実施。
+  - 次の一手: Windows側CMake/PATHを復旧後、`--humanoid-rig-collision-regression`、`--character-hover-regression`、Ragdoll impact→recovery限定回帰を実行し、通常jump着地・高所落下・壁衝突・動くCube衝突・坂転がり・復帰直後の移動/jump・remote stateを実機確認する。
+
+## 2026-09-14: Hybrid Ragdoll recovery
+
+- Ragdoll復帰を`Normal`へ直接遷移させず、`Normal`/`Ragdoll`/`Recovering`の3状態へ変更した。Ragdoll中の低線速度・低角速度・support・delay成立時はRecoveringへ入り、Recovering中はmovement/jump/hover/通常animationを停止する。
+- Recovering開始時にBallSocketを無効化してMotor6DのTransformをbind poseへ戻し、Root lockとYawForceを無効化したまま、既存RootGyroのX/Y/Zを一時的に有効化する。X/Zは0度、YはRagdoll中の水平headingを目標にして物理的にuprightへ戻すため、BallSocketとMotor6Dの強い同時拘束を避ける。
+- Rootのupright error、Pitch/Roll errorが3度以下、角速度が0.2以下の状態を0.1秒安定確認した後、現在位置と保持YawからPitch/Rollだけを除去したCFrameを一度だけ適用する。その直後にRoot角速度、Root lock、collision、Gyro/YawForce、hover、movement/jumpを順序どおり復元してNormalへ戻す。
+- YawはForwardのXZ投影を優先し、投影不能時はRight、最後にRagdoll直前の有効Yawへfallbackする。倒立時にForward投影が約180度反転するケースは直前Yawを維持する。Recovering中の診断ログへstate、upright/pitch/roll error、angular speed、timer、final normalizationを追加した。
+- `doc/Instances/Humanoid.md`と`spec.md`を3状態・ハイブリッド復帰仕様へ更新した。
+- `Humanoid.cpp`、`Humanoid.hpp`、および既存Ragdoll関連実装のWSL `g++ -std=c++23 -DGLEW_NO_GLU -fsyntax-only`は成功。`git diff --check`は既存のCRLF変換警告のみで、Whitespace errorはなし。Release build、RecubinTest、brun、実機の14ケース確認は未実施。
+- 現在の未解決事項: Windows側CMake/PATHが未復旧のためMSVCリンクとruntime確認ができない。次の一手はWindows Release build後、前後/左右/逆さま/坂/壁際/転がり/Recovering・Yaw維持・復帰直後の移動jump・flip/oscillationを実機確認すること。
+
+## 2026-09-14: Ragdoll recovery speed fallback
+
+- Gyroがuprightへ到達できずRecoveringが停滞するケースに、speed-fallbackを追加した。Recovering開始から1.0秒経過後、Root線速度が`RagdollRecoverySpeed`以下、角速度が0.5 rad/s以下、supportが存在する状態を0.1秒継続した場合、Gyro姿勢誤差に関係なく最終CFrame正規化へ進む。
+- Fallbackでも現在位置と保持Yawを使い、Pitch/Rollのみを除去するCFrame適用は一度だけ。高速回転中・空中では適用せず、通常のgyro復帰経路と同じcontroller復帰順序を使用する。診断ログの最終化modeは`gyro`/`speed-fallback`で区別する。
+- `Humanoid.cpp`のC++23 `g++ -fsyntax-only`は成功。`git diff --check`は既存CRLF変換警告のみでWhitespace errorなし。Release build、brun、実機再確認は未実施。
+- 次の一手: Windows側CMake復旧後、画像のような静止横倒し、前後/左右倒れ、逆さま、坂・壁際、転がり後のspeed-fallback、復帰後の移動/jump、flip/oscillationを確認する。
+
+## 2026-09-14: Practical recovery relaxation
+
+- Gyro成功条件をupright/Pitch/Roll 10度以下、角速度1.0 rad/s以下へ緩和した。0.1秒安定後に`gyro-success`として最終化する。
+- Recovering開始0.75秒後から、線速度3.0以下、角速度2.0 rad/s以下、接地0.15秒継続で`speed-fallback`を許可した。1.5秒経過後は、接地0.15秒継続していれば速度条件を問わず`timeout-fallback`を許可し、永久待機を防ぐ。
+- 接地継続は`m_recoveryGroundedTime`で管理し、単一frameのRaycast結果を復帰条件にしない。最終CFrame処理とcontroller復帰順序は共通経路のまま維持した。
+- `Humanoid.cpp`、`Replication.cpp`、`Physics.cpp`、`Box3DPhysicsBackend.cpp`をC++23 `g++ -fsyntax-only`で検査し成功。対象変更の`git diff --check`もexit 0。
+- `cmd.exe /d /c py build.py build`はWindows CMake未配置の`WinError 2`でconfigure前に停止。`cmd.exe /d /c py build.py brun Release`もWSL vsock環境エラーで起動できず、brun/実機確認は未実施。
+
+## 2026-09-14: Ragdoll recovery support height correction
+
+- Recovering専用のsupport scanを追加した。Rootの現在YawでRootのX/Z footprint（各軸0.15 stud余白）を薄いboxとして、`RootY + max(0.25, HipHeight + 0.25)`から下向きにshape castする。cast長は想定Root高さとRoot高さの大きい方に1 studの下方余裕を加え、Character階層を除外する。
+- shape castへ`minimumNormalY`引数を追加し、通常時ground detectionは従来の閾値を維持した。Recovering scanだけ`0.5`を要求して壁を除外し、Box3D callbackが複数候補から最も高い有効support面を選ぶ既存動作を利用する。
+- Recovering中のsupportを0.15秒継続して検出し、最後の有効support Yを保存する。最終CFrameは`targetY = max(currentRootY, supportY + HipHeight)`で計算し、X/Z・Yawを維持したまま必要な上方向だけ補正する。scanが一時的に失敗しても最後の有効supportを使い、未取得時はエラーを記録して現在Yを維持する。
+- 最終化ログへ`supportY`、`currentY`、`targetY`、`yCorrection`を追加した。既存の`gyro-success`/`speed-fallback`/`timeout-fallback` modeログとcontroller復帰順序は維持した。
+- `Humanoid.cpp`、`Physics.cpp`、`Box3DPhysicsBackend.cpp`のGCC C++23構文検査と対象差分の`git diff --check`は成功。Windows Release buildはCMake未配置による`WinError 2`、`brun`はWSL vsockエラーのため未実施。前後/横倒れ、壁際、段差、坂、沈み込み、実機のめり込み・跳ね上がり確認は未実施。
+
+## 2026-09-14: Practical Ragdoll recovery thresholds
+
+- Recoveringのgyro成功条件をupright/Pitch/Roll 3度から10度、角速度0.2から1.0 rad/sへ緩和した。0.1秒の安定維持は継続し、成功ログは`gyro-success`を出す。
+- speed-fallbackをRecovering開始0.75秒後から利用し、Root線速度3.0以下、角速度2.0 rad/s以下、接地継続0.15秒で最終CFrame正規化を一度だけ行う。接地は単一frameではなく専用timerで判定する。
+- Recoveringが1.5秒続き、接地が0.15秒継続していれば、速度条件を満たさなくても`timeout-fallback`で最終CFrame正規化を行う。これによりRecoveringの永久待機を防止する。復帰順序とPosition/Yaw維持、Pitch/Rollのみ除去のCFrame処理は共通経路で維持した。
+- `Humanoid.cpp`の対象TU構文検査を実行予定。Release build、brun、実機確認はWindows側CMake未配置のため未実施。
+
+## 2026-09-14: Ragdoll recovery full-rig finalization diagnosis
+
+- Rootだけを最終CFrame移動していたため、R6 bodyが兄弟として旧Ragdoll位置に残り、次の物理更新でMotor6Dが旧bodyとの拘束を再適用する構造を確認した。既存の`supportY=2.5`、`currentY=3.03805`、`targetY=5.5`ログはRootの移動だけを示しており、他bodyの追従を保証していなかった。
+- `Humanoid`へfinalization前・全body整列直後・次のphysics update後の診断ログを追加した。Root/Torso/Head/LeftLeg/RightLegのposition/bottomY、support instance/Y/normal、HipHeight、各Motor6D/BallSocketのEnabled、Humanoid/Physics pointer、physics tick、updateAll invocationを記録する。
+- Ragdoll開始時にR6 Motor6DのC0/C1からRoot基準のbind poseを保存する。finalization時はBallSocket無効化、Motor6D無効化、Rootと全bodyを`targetRootCFrame * bindPoseRelativeToRoot`へ一度だけ配置、全body速度ゼロ化、Motor6D再有効化、Root lock/collision/Gyro/YawForce/hover/Normalの順に復帰する。
+- `targetRootY=max(currentRootY,supportY+HipHeight)`を基本値とし、bind poseの最下端がsupportY+0.02未満になる場合だけその差分を上方向へ追加補正する。Yawは保存済みRagdoll yaw/fallbackを維持する。
+- `updateAll`のトップレベル invocation IDを追加し、固定timestepで同じphysics tickが続く場合の誤検出を避けて同一invocationの二重更新だけを警告する。ソース上、呼び出しはRecubin/RecubinEngine各1箇所で、同一実行ファイル内の二重呼び出しは確認できない。
+- `Humanoid.cpp`、`Physics.cpp`、`Box3DPhysicsBackend.cpp`のGCC C++23 syntax checkは成功。`git diff --check`はexit 0。Windows `cmd.exe /d /c py build.py build`はCMake起動不能（WinError 2）、`py build.py brun Release`はWSL vsockエラーで未実行。実機でのbefore/after/nextログおよび14ケースのめり込み確認は未検証。
+- 次の一手: Windows側で再build後、追加診断の3 phaseログを取得し、全bodyがbind poseへ移動したこと、次physics update後もbottomYがsupport以上を保つこと、同一`updateAllInvocation`の重複有無、前後/横/逆さ/坂/壁際/段差/転がり後を確認する。

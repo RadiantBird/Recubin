@@ -20,10 +20,80 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 
 namespace {
 
 constexpr const char* HOVER_FORCE_NAME = "CharacterHoverForce";
+constexpr float RADIANS_TO_DEGREES = 180.0f / 3.14159265f;
+constexpr float RECOVERY_UPRIGHT_ERROR_DEGREES = 10.0f;
+constexpr float RECOVERY_ANGULAR_SPEED = 1.0f;
+constexpr float RECOVERY_UPRIGHT_SETTLE_TIME = 0.1f;
+constexpr float RECOVERY_GYRO_TIMEOUT = 0.75f;
+constexpr float RECOVERY_FALLBACK_LINEAR_SPEED = 3.0f;
+constexpr float RECOVERY_FALLBACK_ANGULAR_SPEED = 2.0f;
+constexpr float RECOVERY_TIMEOUT = 1.5f;
+constexpr float RECOVERY_GROUNDED_SETTLE_TIME = 0.15f;
+constexpr float RECOVERY_SUPPORT_FOOTPRINT_MARGIN = 0.15f;
+constexpr float RECOVERY_SUPPORT_SCAN_START_OFFSET = 0.25f;
+constexpr float RECOVERY_SUPPORT_SCAN_BELOW_FOOT = 1.0f;
+constexpr float YAW_PROJECTION_EPSILON_SQUARED = 1.0e-8f;
+
+std::uint64_t g_humanoidUpdateAllInvocation = 0;
+std::uint32_t g_humanoidUpdateAllDepth = 0;
+std::uint64_t g_currentHumanoidUpdateAllInvocation = 0;
+
+bool tryGetHorizontalYaw(
+    const Quaternion& rotation,
+    float& yawDegrees
+) {
+    const auto tryDirection = [&](const Vector3& direction) {
+        const Vector3 horizontal(direction.x, 0.0f, direction.z);
+        if (horizontal.lengthSquared() <= YAW_PROJECTION_EPSILON_SQUARED) {
+            return false;
+        }
+        yawDegrees = Gyro::headingAngleFromDirection(horizontal);
+        return std::isfinite(yawDegrees);
+    };
+
+    if (tryDirection(rotation.getForward())) {
+        return true;
+    }
+    return tryDirection(rotation.getRight());
+}
+
+float uprightErrorDegrees(const Quaternion& rotation) {
+    const Vector3 up = rotation.getUp();
+    const float upLength = up.length();
+    if (!std::isfinite(upLength) || upLength <= 1.0e-6f) {
+        return 180.0f;
+    }
+    const float normalizedUpY = std::clamp(up.y / upLength, -1.0f, 1.0f);
+    return std::acos(normalizedUpY) * RADIANS_TO_DEGREES;
+}
+
+float wrappedAngleDifferenceDegrees(float first, float second) {
+    float difference = first - second;
+    while (difference > 180.0f) difference -= 360.0f;
+    while (difference < -180.0f) difference += 360.0f;
+    return difference;
+}
+
+float bodyBottomYAtWorldFrame(
+    const BaseCube& body,
+    const CFrame& worldFrame
+) {
+    const Vector3 halfSize = body.Size * 0.5f;
+    const Vector3 axisX = worldFrame.Rotation.rotate(
+        Vector3(halfSize.x, 0.0f, 0.0f));
+    const Vector3 axisY = worldFrame.Rotation.rotate(
+        Vector3(0.0f, halfSize.y, 0.0f));
+    const Vector3 axisZ = worldFrame.Rotation.rotate(
+        Vector3(0.0f, 0.0f, halfSize.z));
+    const float verticalExtent =
+        std::abs(axisX.y) + std::abs(axisY.y) + std::abs(axisZ.y);
+    return worldFrame.Position.y - verticalExtent;
+}
 
 std::shared_ptr<Force> findCharacterYawForce(
     const std::shared_ptr<BaseCube>& root
@@ -287,6 +357,12 @@ static const bool s_humanoidRegistered = []{
                     *static_cast<Humanoid*>(destination));
             }),
         method_prop<&Humanoid::getJumpHeight, &Humanoid::setJumpHeight>("JumpHeight", 0, 50, 0.1f),
+        field   <&Humanoid::ImpactRagdollThreshold>(
+            "ImpactRagdollThreshold", 0, 1000, 1.0f).clampLua(),
+        field   <&Humanoid::RagdollRecoverySpeed>(
+            "RagdollRecoverySpeed", 0, 100, 0.1f).clampLua(),
+        field   <&Humanoid::RagdollRecoveryDelay>(
+            "RagdollRecoveryDelay", 0, 60, 0.1f).clampLua(),
         field   <&Humanoid::MaxHealth>  ("MaxHealth",   0, 10000).clampLua(),
         field   <&Humanoid::RespawnTime>("RespawnTime", 0, 600).clampLua(),
         fieldVia<&Humanoid::Health, &Humanoid::setHealth>("Health", 0, 100),
@@ -463,7 +539,834 @@ void Humanoid::setRootGyro(const std::shared_ptr<Gyro>& gyro) {
     m_rootGyro = gyro;
 }
 
+void Humanoid::restoreRagdollCollision() {
+    for (const auto& body : collectCharacterBodies()) {
+        if (!body) continue;
+        auto saved = std::find_if(
+            m_savedCollisionModes.begin(),
+            m_savedCollisionModes.end(),
+            [&](const auto& entry) { return entry.first.lock() == body; });
+        if (saved == m_savedCollisionModes.end()) {
+            RCBN_ERROR(
+                "Humanoid \"" << getFullPath()
+                << "\": missing saved collision state for \""
+                << body->getFullPath() << '\"'
+            );
+            continue;
+        }
+        body->setCanCollide(saved->second);
+    }
+    m_savedCollisionModes.clear();
+}
+
+void Humanoid::setMotor6DConstraintsEnabled(bool enabled) {
+    auto model = Parent.lock();
+    if (!model) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": cannot change Motor6D constraints without a character model"
+        );
+        return;
+    }
+
+    for (const auto& topology : CharacterRig::r6JointTopology()) {
+        const auto motorIt = model->getChildren().find(topology.jointName);
+        const auto motor = motorIt == model->getChildren().end()
+            ? nullptr : std::dynamic_pointer_cast<Motor6D>(motorIt->second);
+        if (!motor) {
+            RCBN_WARN(
+                "Humanoid \"" << getFullPath()
+                << "\": missing Motor6D \"" << topology.jointName << '\"'
+            );
+        }
+        if (!motor) continue;
+        if (!enabled) {
+            motor->setEnabled(false);
+            continue;
+        }
+        motor->setTransform(CFrame());
+        motor->setEnabled(true);
+    }
+}
+
+void Humanoid::setBallSocketConstraintsEnabled(bool enabled) {
+    auto model = Parent.lock();
+    if (!model) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": cannot change BallSocket constraints without a character model"
+        );
+        return;
+    }
+
+    for (const auto& topology : CharacterRig::r6JointTopology()) {
+        const auto ragdollIt = model->getChildren().find(
+            topology.jointName + "Ragdoll");
+        const auto ragdoll = ragdollIt == model->getChildren().end()
+            ? nullptr : std::dynamic_pointer_cast<BallSocket>(ragdollIt->second);
+        if (!ragdoll) {
+            RCBN_WARN(
+                "Humanoid \"" << getFullPath()
+                << "\": missing BallSocket \""
+                << topology.jointName << "Ragdoll\""
+            );
+            continue;
+        }
+        ragdoll->setEnabled(enabled);
+    }
+}
+
+void Humanoid::setRagdollConstraintsEnabled(bool enabled) {
+    if (enabled) {
+        setMotor6DConstraintsEnabled(false);
+        setBallSocketConstraintsEnabled(true);
+        return;
+    }
+    setBallSocketConstraintsEnabled(false);
+    setMotor6DConstraintsEnabled(true);
+}
+
+void Humanoid::saveRagdollBindPose() {
+    m_savedRagdollBindPoses.clear();
+
+    auto model = Parent.lock();
+    auto root = getRootPart();
+    if (!model || !root) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": cannot save Ragdoll bind pose without model and Root"
+        );
+        return;
+    }
+
+    const CFrame rootWorldFrame = root->getWorldCFrame();
+    std::vector<std::pair<std::string, CFrame>> relativePoses;
+    relativePoses.emplace_back("Root", CFrame());
+    m_savedRagdollBindPoses.push_back({root, CFrame()});
+
+    const auto findBody = [&model](const std::string& name) {
+        const auto found = model->getChildren().find(name);
+        if (found == model->getChildren().end()) return std::shared_ptr<BaseCube>();
+        return std::dynamic_pointer_cast<BaseCube>(found->second);
+    };
+    for (const auto& topology : CharacterRig::r6JointTopology()) {
+        const auto body = findBody(topology.part1Name);
+        if (!body) {
+            RCBN_ERROR(
+                "Humanoid \"" << getFullPath()
+                << "\": cannot save bind pose; missing body \""
+                << topology.part1Name << '"'
+            );
+            continue;
+        }
+
+        CFrame relative;
+        const auto parentBody = findBody(topology.part0Name);
+        const auto motor = findJointMotor(topology.jointName);
+        const auto parentPoseIt = std::find_if(
+            relativePoses.begin(), relativePoses.end(),
+            [&](const auto& entry) { return entry.first == topology.part0Name; });
+        if (parentBody && motor && parentPoseIt != relativePoses.end()) {
+            // Transform is deliberately excluded: bind pose means C0/C1 with
+            // the animation delta cleared.
+            relative = parentPoseIt->second * motor->C0 * motor->C1.inverse();
+        } else {
+            if (!parentBody) {
+                RCBN_ERROR(
+                    "Humanoid \"" << getFullPath()
+                    << "\": cannot derive bind pose parent \""
+                    << topology.part0Name << '"'
+                );
+            }
+            if (!motor) {
+                RCBN_ERROR(
+                    "Humanoid \"" << getFullPath()
+                    << "\": cannot derive bind pose Motor6D \""
+                    << topology.jointName << '"'
+                );
+            }
+            relative = rootWorldFrame.inverse() * body->getWorldCFrame();
+        }
+
+        relativePoses.emplace_back(topology.part1Name, relative);
+        m_savedRagdollBindPoses.push_back({body, relative});
+    }
+}
+
+void Humanoid::logRagdollRecoveryRigState(
+    Physics* physics,
+    const char* phase
+) const {
+    const std::uint64_t tick = physics ? physics->getSimulationTick() : 0;
+    RCBN_LOG(
+        "[Ragdoll] recovery diagnostic phase=" << (phase ? phase : "unknown")
+        << " humanoid=\"" << getFullPath() << '"'
+        << " humanoidPtr=" << static_cast<const void*>(this)
+        << " physicsPtr=" << static_cast<const void*>(physics)
+        << " physicsTick=" << tick
+        << " updateAllInvocation=" << g_currentHumanoidUpdateAllInvocation
+        << " supportInstance=\""
+        << (m_recoverySupportInstancePath.empty()
+                ? "<none>" : m_recoverySupportInstancePath)
+        << "\" supportY=" << m_recoverySupportY
+        << " supportNormal=" << m_recoverySupportNormal.toString()
+        << " hipHeight=" << HipHeight
+    );
+
+    const auto model = Parent.lock();
+    const auto logBody = [&](const char* name) {
+        std::shared_ptr<BaseCube> body;
+        if (model) {
+            const auto found = model->getChildren().find(name);
+            if (found != model->getChildren().end()) {
+                body = std::dynamic_pointer_cast<BaseCube>(found->second);
+            }
+        }
+        if (!body) {
+            RCBN_ERROR(
+                "Humanoid \"" << getFullPath()
+                << "\": recovery diagnostic body is missing \""
+                << name << '"'
+            );
+            return;
+        }
+        const CFrame frame = body->getWorldCFrame();
+        RCBN_LOG(
+            "[Ragdoll] recovery body phase=" << (phase ? phase : "unknown")
+            << " name=" << name
+            << " position=" << frame.Position.toString()
+            << " bottomY=" << bodyBottomYAtWorldFrame(*body, frame)
+        );
+    };
+    logBody("Root");
+    logBody("Torso");
+    logBody("Head");
+    logBody("LeftLeg");
+    logBody("RightLeg");
+
+    if (!model) return;
+    for (const auto& topology : CharacterRig::r6JointTopology()) {
+        const auto motorIt = model->getChildren().find(topology.jointName);
+        const auto ballIt = model->getChildren().find(
+            topology.jointName + "Ragdoll");
+        const auto motor = motorIt == model->getChildren().end()
+            ? nullptr : std::dynamic_pointer_cast<Motor6D>(motorIt->second);
+        const auto ball = ballIt == model->getChildren().end()
+            ? nullptr : std::dynamic_pointer_cast<BallSocket>(ballIt->second);
+        RCBN_LOG(
+            "[Ragdoll] recovery constraint phase="
+            << (phase ? phase : "unknown")
+            << " joint=" << topology.jointName
+            << " motorEnabled=" << (motor && motor->Enabled ? 1 : 0)
+            << " ballSocketEnabled=" << (ball && ball->Enabled ? 1 : 0)
+        );
+    }
+}
+
+bool Humanoid::hasRagdollSupport(Physics* physics) const {
+    if (!physics) return false;
+    auto character = Parent.lock();
+    if (!character) return false;
+    for (const auto& body : collectCharacterBodies()) {
+        if (!body || !physics->hasBody(*body)) continue;
+        RaycastHit hit;
+        const float distance = std::max(0.5f, body->Size.y * 0.5f + 0.75f);
+        if (physics->raycast(
+                body->getWorldPosition(),
+                Vector3(0.0f, -1.0f, 0.0f),
+                distance,
+                hit,
+                character.get())) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Humanoid::findRagdollRecoverySupport(
+    Physics* physics,
+    float& supportY,
+    Vector3* supportNormal,
+    std::string* supportInstancePath
+) const {
+    supportY = 0.0f;
+    if (supportNormal) *supportNormal = Vector3(0.0f, 1.0f, 0.0f);
+    if (supportInstancePath) supportInstancePath->clear();
+    if (!physics) return false;
+
+    auto character = Parent.lock();
+    auto root = getRootPart();
+    if (!character || !root || !physics->hasBody(*root)) return false;
+
+    const CFrame rootFrame = root->getWorldCFrame();
+    float yawDegrees = m_recoveryYawDegrees;
+    if (!m_recoveryYawValid && !tryGetHorizontalYaw(
+            rootFrame.Rotation,
+            yawDegrees)) {
+        yawDegrees = m_hasLastValidYaw ? m_lastValidYawDegrees : 0.0f;
+    }
+
+    const float desiredRootHeight =
+        std::isfinite(HipHeight) && HipHeight >= 0.0f
+            ? HipHeight
+            : std::max(root->Size.y * 0.5f, 0.1f);
+    // Start above the expected support plane so a Root that has sunk into the
+    // floor can still be recovered by the downward sweep.
+    const float scanStartOffset = std::max(
+        RECOVERY_SUPPORT_SCAN_START_OFFSET,
+        desiredRootHeight + RECOVERY_SUPPORT_SCAN_START_OFFSET
+    );
+    const CFrame scanFrame(
+        rootFrame.Position + Vector3(0.0f, scanStartOffset, 0.0f),
+        Quaternion::fromEuler(Vector3(0.0f, yawDegrees, 0.0f))
+    );
+    const Vector3 footprintSize(
+        std::max(root->Size.x, 0.1f) +
+            RECOVERY_SUPPORT_FOOTPRINT_MARGIN * 2.0f,
+        0.2f,
+        std::max(root->Size.z, 0.1f) +
+            RECOVERY_SUPPORT_FOOTPRINT_MARGIN * 2.0f
+    );
+    const float scanDistance = std::max(
+        scanStartOffset + desiredRootHeight +
+            RECOVERY_SUPPORT_SCAN_BELOW_FOOT,
+        scanStartOffset + root->Size.y + RECOVERY_SUPPORT_SCAN_BELOW_FOOT
+    );
+
+    ShapeCastHit hit;
+    if (!physics->shapeCastBox(
+            scanFrame,
+            footprintSize,
+            Vector3(0.0f, -1.0f, 0.0f),
+            scanDistance,
+            hit,
+            character.get(),
+            0.5f)) {
+        return false;
+    }
+    if (!std::isfinite(hit.position.y) || !std::isfinite(hit.normal.y)) {
+        return false;
+    }
+
+    supportY = hit.position.y;
+    if (supportNormal) *supportNormal = hit.normal;
+    if (supportInstancePath) {
+        *supportInstancePath = hit.instance
+            ? hit.instance->getFullPath() : "<none>";
+    }
+    return true;
+}
+
+void Humanoid::updateRagdoll(float dt, Physics* physics) {
+    if (!physics) return;
+    const bool invalidSettings =
+        !std::isfinite(ImpactRagdollThreshold) ||
+        ImpactRagdollThreshold <= 0.0f ||
+        !std::isfinite(RagdollRecoverySpeed) ||
+        RagdollRecoverySpeed < 0.0f ||
+        !std::isfinite(RagdollRecoveryDelay) ||
+        RagdollRecoveryDelay < 0.0f;
+    if (invalidSettings) {
+        if (!m_invalidRagdollSettingsReported) {
+            RCBN_ERROR(
+                "Humanoid \"" << getFullPath()
+                << "\": invalid Ragdoll settings threshold="
+                << ImpactRagdollThreshold
+                << " recoverySpeed=" << RagdollRecoverySpeed
+                << " recoveryDelay=" << RagdollRecoveryDelay
+            );
+            m_invalidRagdollSettingsReported = true;
+        }
+        return;
+    }
+    m_invalidRagdollSettingsReported = false;
+    if (m_recoveryDiagnosticPendingPhysicsLog) {
+        logRagdollRecoveryRigState(physics, "next-physics-update");
+        m_recoveryDiagnosticPendingPhysicsLog = false;
+    }
+    const std::uint64_t physicsTick = physics->getSimulationTick();
+    if (m_hasLastRagdollUpdateInvocation &&
+        m_lastRagdollUpdateInvocation ==
+            g_currentHumanoidUpdateAllInvocation) {
+        ++m_ragdollUpdatesThisInvocation;
+        RCBN_WARN(
+            "[Ragdoll] duplicate updateAll observation humanoid=\""
+            << getFullPath() << '"'
+            << " humanoidPtr=" << static_cast<const void*>(this)
+            << " physicsPtr=" << static_cast<const void*>(physics)
+            << " physicsTick=" << physicsTick
+            << " updateAllInvocation=" << g_currentHumanoidUpdateAllInvocation
+            << " updateCount=" << m_ragdollUpdatesThisInvocation
+        );
+    } else {
+        m_lastRagdollUpdateInvocation = g_currentHumanoidUpdateAllInvocation;
+        m_ragdollUpdatesThisInvocation = 1;
+        m_hasLastRagdollUpdateInvocation = true;
+    }
+    if (m_state == State::Normal) {
+        float impact = 0.0f;
+        for (const auto& body : collectCharacterBodies()) {
+            if (!body || !physics->hasBody(*body)) continue;
+            impact = std::max(impact, physics->consumeContactImpact(*body));
+        }
+        if (impact >= ImpactRagdollThreshold) {
+            enterRagdoll(physics, impact);
+        }
+        return;
+    }
+
+    if (m_state == State::Recovering) {
+        updateRagdollRecovery(dt, physics);
+        return;
+    }
+
+    if (m_dead) return;
+    auto root = getRootPart();
+    if (!root || !physics->hasBody(*root)) {
+        m_ragdollStableTime = 0.0f;
+        return;
+    }
+
+    const Vector3 linearVelocity = physics->getLinearVelocity(*root);
+    const Vector3 angularVelocity = physics->getAngularVelocity(*root);
+    const float linearSpeed = linearVelocity.length();
+    const float angularSpeed = angularVelocity.length();
+    const bool stable = std::isfinite(linearSpeed) &&
+        std::isfinite(angularSpeed) &&
+        linearSpeed <= RagdollRecoverySpeed &&
+        angularSpeed <= 1.5f && hasRagdollSupport(physics);
+    if (stable) {
+        const float stableTimeBefore = m_ragdollStableTime;
+        m_ragdollStableTime += std::max(dt, 0.0f);
+        if (stableTimeBefore <= 0.0f) {
+            RCBN_LOG(
+                "[Ragdoll] recovery stable started humanoid=\""
+                << getFullPath() << '\"'
+                << " humanoidPtr=" << static_cast<const void*>(this)
+                << " physicsPtr=" << static_cast<const void*>(physics)
+                << " physicsTick=" << physics->getSimulationTick()
+                << " updateAllInvocation=" << g_currentHumanoidUpdateAllInvocation
+                << " updateCount=" << m_ragdollUpdatesThisInvocation
+            );
+        }
+    } else {
+        m_ragdollStableTime = 0.0f;
+    }
+    if (m_ragdollStableTime >= RagdollRecoveryDelay) {
+        recoverFromRagdoll(physics);
+    }
+}
+
+void Humanoid::beginRagdollRecovery(Physics* physics) {
+    if (m_state != State::Ragdoll || m_dead) return;
+
+    if (!physics) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": cannot begin Ragdoll recovery without Physics"
+        );
+        return;
+    }
+
+    auto root = getRootPart();
+    if (!root) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": cannot begin Ragdoll recovery without Root"
+        );
+        return;
+    }
+
+    m_state = State::Recovering;
+    m_recoveryElapsedTime = 0.0f;
+    m_recoveryGroundedTime = 0.0f;
+    m_recoverySupportY = 0.0f;
+    m_recoverySupportNormal = Vector3(0.0f, 1.0f, 0.0f);
+    m_recoverySupportInstancePath.clear();
+    m_recoverySupportValid = false;
+    m_recoveryUprightStableTime = 0.0f;
+    m_recoveryFallbackStableTime = 0.0f;
+    m_recoveryFinalNormalizationApplied = false;
+    m_recoveryUprightStableReported = false;
+    m_recoveryFallbackReported = false;
+    m_recoveryMissingBodyReported = false;
+    m_recoveryDiagnosticPendingPhysicsLog = false;
+    m_recoveryYawValid = tryGetHorizontalYaw(
+        root->getWorldCFrame().Rotation,
+        m_recoveryYawDegrees);
+    if (m_recoveryYawValid && m_hasLastValidYaw) {
+        const Vector3 up = root->getWorldCFrame().Rotation.getUp();
+        const float yawJump = std::abs(wrappedAngleDifferenceDegrees(
+            m_recoveryYawDegrees,
+            m_lastValidYawDegrees));
+        if (up.y < -0.5f && yawJump > 150.0f) {
+            m_recoveryYawDegrees = m_lastValidYawDegrees;
+        }
+    }
+    if (!m_recoveryYawValid && m_hasLastValidYaw) {
+        m_recoveryYawDegrees = m_lastValidYawDegrees;
+        m_recoveryYawValid = true;
+    }
+    if (!m_recoveryYawValid) {
+        m_recoveryYawDegrees = 0.0f;
+        RCBN_WARN(
+            "Humanoid \"" << getFullPath()
+            << "\": Ragdoll recovery has no valid horizontal yaw; using 0"
+        );
+    }
+
+    // BallSocket is disabled before Motor6D is enabled.  This leaves only the
+    // normal bind-pose constraint in control while the RootGyro performs the
+    // physical upright recovery.
+    setRagdollConstraintsEnabled(false);
+    setHoverForces(physics, false, 0.0f);
+    if (auto yawForce = findCharacterYawForce(root)) {
+        yawForce->Value = Vector3();
+        yawForce->Enabled = false;
+    }
+    root->setLockFlags(PhysicsLockFlags::None);
+
+    if (auto gyro = m_rootGyro.lock()) {
+        const auto ySettings = gyro->getAxisSettings(GyroAxis::Y);
+        m_savedRootGyroYEnabled = ySettings.Enabled;
+        m_savedRootGyroYTarget = ySettings.TargetAngle;
+        m_savedRootGyroYStateValid = true;
+
+        gyro->setTargetAngle(GyroAxis::X, 0.0f);
+        gyro->setTargetAngle(GyroAxis::Y, m_recoveryYawDegrees);
+        gyro->setTargetAngle(GyroAxis::Z, 0.0f);
+        gyro->setAxisEnabled(GyroAxis::X, true);
+        gyro->setAxisEnabled(GyroAxis::Y, true);
+        gyro->setAxisEnabled(GyroAxis::Z, true);
+        gyro->setEnabled(true);
+    } else {
+        RCBN_WARN(
+            "Humanoid \"" << getFullPath()
+            << "\": RootGyro is missing during Ragdoll recovery"
+        );
+    }
+
+    RCBN_LOG(
+        "[Ragdoll] state=Recovering humanoid=\"" << getFullPath()
+        << "\" yaw=" << m_recoveryYawDegrees
+        << " uprightThreshold=" << RECOVERY_UPRIGHT_ERROR_DEGREES
+        << " angularThreshold=" << RECOVERY_ANGULAR_SPEED
+    );
+}
+
+void Humanoid::updateRagdollRecovery(float dt, Physics* physics) {
+    auto root = getRootPart();
+    if (!root || !physics || !physics->hasBody(*root)) {
+        m_recoveryUprightStableTime = 0.0f;
+        if (!m_recoveryMissingBodyReported) {
+            RCBN_ERROR(
+                "Humanoid \"" << getFullPath()
+                << "\": Root body is unavailable during Ragdoll recovery"
+            );
+            m_recoveryMissingBodyReported = true;
+        }
+        return;
+    }
+    m_recoveryMissingBodyReported = false;
+    m_recoveryElapsedTime += std::max(dt, 0.0f);
+
+    const CFrame rootFrame = root->getWorldCFrame();
+    const float uprightError = uprightErrorDegrees(rootFrame.Rotation);
+    const float pitchError = std::abs(
+        Gyro::angleFromRotation(GyroAxis::X, rootFrame.Rotation));
+    const float rollError = std::abs(
+        Gyro::angleFromRotation(GyroAxis::Z, rootFrame.Rotation));
+    const float linearSpeed = physics->getLinearVelocity(*root).length();
+    const float angularSpeed = physics->getAngularVelocity(*root).length();
+    float supportY = 0.0f;
+    Vector3 supportNormal;
+    std::string supportInstancePath;
+    const bool grounded = findRagdollRecoverySupport(
+        physics, supportY, &supportNormal, &supportInstancePath);
+    if (grounded) {
+        m_recoverySupportY = supportY;
+        m_recoverySupportNormal = supportNormal;
+        m_recoverySupportInstancePath = supportInstancePath;
+        m_recoverySupportValid = true;
+        m_recoveryGroundedTime += std::max(dt, 0.0f);
+    } else {
+        m_recoveryGroundedTime = 0.0f;
+    }
+    const bool upright = std::isfinite(uprightError) &&
+        std::isfinite(pitchError) && std::isfinite(rollError) &&
+        std::isfinite(linearSpeed) &&
+        std::isfinite(angularSpeed) &&
+        uprightError <= RECOVERY_UPRIGHT_ERROR_DEGREES &&
+        pitchError <= RECOVERY_UPRIGHT_ERROR_DEGREES &&
+        rollError <= RECOVERY_UPRIGHT_ERROR_DEGREES &&
+        angularSpeed <= RECOVERY_ANGULAR_SPEED;
+
+    if (!upright) {
+        m_recoveryUprightStableTime = 0.0f;
+        m_recoveryUprightStableReported = false;
+    } else {
+        const float stableTimeBefore = m_recoveryUprightStableTime;
+        m_recoveryUprightStableTime += std::max(dt, 0.0f);
+        if (stableTimeBefore <= 0.0f && !m_recoveryUprightStableReported) {
+            m_recoveryUprightStableReported = true;
+            RCBN_LOG(
+                "[Ragdoll] upright stable humanoid=\"" << getFullPath()
+                << "\""
+                << " uprightError=" << uprightError
+                << " pitchError=" << pitchError
+                << " rollError=" << rollError
+                << " angularSpeed=" << angularSpeed
+                << " recoveryTimer=" << m_recoveryUprightStableTime
+            );
+        }
+
+        if (m_recoveryUprightStableTime >= RECOVERY_UPRIGHT_SETTLE_TIME) {
+            finalizeRagdollRecovery(physics, "gyro-success");
+            return;
+        }
+    }
+
+    const bool fallbackStable =
+        m_recoveryElapsedTime >= RECOVERY_GYRO_TIMEOUT &&
+        linearSpeed <= RECOVERY_FALLBACK_LINEAR_SPEED &&
+        angularSpeed <= RECOVERY_FALLBACK_ANGULAR_SPEED &&
+        m_recoveryGroundedTime >= RECOVERY_GROUNDED_SETTLE_TIME;
+    if (!fallbackStable) {
+        m_recoveryFallbackStableTime = 0.0f;
+        m_recoveryFallbackReported = false;
+    } else {
+        const float fallbackTimeBefore = m_recoveryFallbackStableTime;
+        m_recoveryFallbackStableTime += std::max(dt, 0.0f);
+        if (fallbackTimeBefore <= 0.0f && !m_recoveryFallbackReported) {
+            m_recoveryFallbackReported = true;
+            RCBN_LOG(
+                "[Ragdoll] gyro fallback stable humanoid=\"" << getFullPath()
+                << "\""
+                << " uprightError=" << uprightError
+                << " pitchError=" << pitchError
+                << " rollError=" << rollError
+                << " linearSpeed=" << linearSpeed
+                << " angularSpeed=" << angularSpeed
+                << " recoveryTimer=" << m_recoveryElapsedTime
+                << " fallbackTimer=" << m_recoveryFallbackStableTime
+            );
+        }
+
+        if (m_recoveryFallbackStableTime >= RECOVERY_UPRIGHT_SETTLE_TIME) {
+            finalizeRagdollRecovery(physics, "speed-fallback");
+            return;
+        }
+    }
+
+    if (m_recoveryElapsedTime >= RECOVERY_TIMEOUT &&
+        m_recoveryGroundedTime >= RECOVERY_GROUNDED_SETTLE_TIME) {
+        finalizeRagdollRecovery(physics, "timeout-fallback");
+    }
+}
+
+void Humanoid::finalizeRagdollRecovery(
+    Physics* physics,
+    const char* recoveryReason
+) {
+    if (m_state != State::Recovering || m_recoveryFinalNormalizationApplied) {
+        return;
+    }
+
+    auto root = getRootPart();
+    if (!root) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": cannot finalize Ragdoll recovery without Root"
+        );
+        return;
+    }
+
+    const CFrame currentFrame = root->getWorldCFrame();
+    float supportY = 0.0f;
+    Vector3 supportNormal;
+    std::string supportInstancePath;
+    if (findRagdollRecoverySupport(
+            physics, supportY, &supportNormal, &supportInstancePath)) {
+        m_recoverySupportY = supportY;
+        m_recoverySupportNormal = supportNormal;
+        m_recoverySupportInstancePath = supportInstancePath;
+        m_recoverySupportValid = true;
+    }
+    if (!m_recoverySupportValid) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": Ragdoll recovery support scan returned no valid support"
+        );
+    }
+
+    const float desiredRootHeight =
+        std::isfinite(HipHeight) && HipHeight >= 0.0f
+            ? HipHeight
+            : std::max(root->Size.y * 0.5f, 0.1f);
+    const float currentY = currentFrame.Position.y;
+    float targetY = m_recoverySupportValid
+        ? std::max(currentY, m_recoverySupportY + desiredRootHeight)
+        : currentY;
+    const float finalSupportY = m_recoverySupportY;
+    float finalYawDegrees = m_recoveryYawDegrees;
+    if (!m_recoveryYawValid && !tryGetHorizontalYaw(
+            currentFrame.Rotation, finalYawDegrees)) {
+        finalYawDegrees = m_hasLastValidYaw ? m_lastValidYawDegrees : 0.0f;
+    }
+
+    Vector3 finalPosition = currentFrame.Position;
+    finalPosition.y = targetY;
+    CFrame finalWorldFrame(
+        finalPosition,
+        Quaternion::fromEuler(Vector3(0.0f, finalYawDegrees, 0.0f)));
+
+    logRagdollRecoveryRigState(physics, "before-normalization");
+
+    // Both constraints are detached before any body is moved.  In particular,
+    // Motor6D must not pull an old ragdoll body back while Root is normalized.
+    setBallSocketConstraintsEnabled(false);
+    setMotor6DConstraintsEnabled(false);
+
+    struct PendingBodyPose {
+        std::shared_ptr<BaseCube> body;
+        CFrame worldFrame;
+    };
+    std::vector<PendingBodyPose> pendingBodyPoses;
+    pendingBodyPoses.reserve(m_savedRagdollBindPoses.size());
+    float lowestBodyBottomY = std::numeric_limits<float>::infinity();
+    for (const auto& savedPose : m_savedRagdollBindPoses) {
+        const auto body = savedPose.body.lock();
+        if (!body) {
+            RCBN_ERROR(
+                "Humanoid \"" << getFullPath()
+                << "\": saved Ragdoll bind pose body expired"
+            );
+            continue;
+        }
+        const CFrame bodyWorldFrame = finalWorldFrame * savedPose.relativeToRoot;
+        lowestBodyBottomY = std::min(
+            lowestBodyBottomY,
+            bodyBottomYAtWorldFrame(*body, bodyWorldFrame));
+        pendingBodyPoses.push_back({body, bodyWorldFrame});
+    }
+
+    // HipHeight remains the primary Root-to-support target.  Only a downward
+    // bind-pose extent that would penetrate the selected support is corrected,
+    // and the correction is upward-only.
+    constexpr float RECOVERY_GROUND_CLEARANCE = 0.02f;
+    if (m_recoverySupportValid &&
+        std::isfinite(lowestBodyBottomY) &&
+        lowestBodyBottomY < m_recoverySupportY + RECOVERY_GROUND_CLEARANCE) {
+        const float yCorrection =
+            m_recoverySupportY + RECOVERY_GROUND_CLEARANCE - lowestBodyBottomY;
+        targetY += yCorrection;
+        finalPosition.y = targetY;
+        finalWorldFrame.Position.y = targetY;
+        for (auto& pending : pendingBodyPoses) {
+            for (const auto& savedPose : m_savedRagdollBindPoses) {
+                if (savedPose.body.lock() == pending.body) {
+                    pending.worldFrame = finalWorldFrame * savedPose.relativeToRoot;
+                    break;
+                }
+            }
+        }
+    }
+
+    const auto setBodyWorldPose = [](const std::shared_ptr<BaseCube>& body,
+                                     const CFrame& worldFrame) {
+        if (!body) return;
+        const auto* coordinateParent = body->getCoordinateParent();
+        const CFrame localFrame = coordinateParent
+            ? coordinateParent->getWorldCFrame().inverse() * worldFrame
+            : worldFrame;
+        body->setCFrame(localFrame);
+    };
+    for (const auto& pending : pendingBodyPoses) {
+        setBodyWorldPose(pending.body, pending.worldFrame);
+    }
+    if (pendingBodyPoses.empty()) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": no saved Ragdoll bind pose bodies were available"
+        );
+    }
+
+    for (const auto& pending : pendingBodyPoses) {
+        if (!physics->hasBody(*pending.body)) {
+            RCBN_ERROR(
+                "Humanoid \"" << getFullPath()
+                << "\": bind pose body has no physics body \""
+                << pending.body->getFullPath() << '"'
+            );
+            continue;
+        }
+        physics->setLinearVelocity(*pending.body, Vector3());
+        physics->setAngularVelocity(*pending.body, Vector3());
+    }
+    m_recoveryFinalNormalizationApplied = true;
+    logRagdollRecoveryRigState(physics, "after-normalization");
+
+    // Re-register the normal physical bind constraints only after every body
+    // has been moved and its velocity has been cleared.
+    setMotor6DConstraintsEnabled(true);
+
+    if (m_savedRootLockFlagsValid) {
+        root->setLockFlags(m_savedRootLockFlags);
+    }
+    restoreRagdollCollision();
+
+    if (auto gyro = m_rootGyro.lock()) {
+        if (m_savedRootGyroYStateValid) {
+            gyro->setTargetAngle(GyroAxis::Y, m_savedRootGyroYTarget);
+            gyro->setAxisEnabled(GyroAxis::Y, m_savedRootGyroYEnabled);
+        } else {
+            gyro->setAxisEnabled(GyroAxis::Y, false);
+        }
+        gyro->setAxisEnabled(GyroAxis::X, true);
+        gyro->setTargetAngle(GyroAxis::X, 0.0f);
+        gyro->setAxisEnabled(GyroAxis::Z, true);
+        gyro->setTargetAngle(GyroAxis::Z, 0.0f);
+        gyro->setEnabled(true);
+    }
+    if (auto yawForce = findCharacterYawForce(root)) {
+        yawForce->Value = Vector3();
+        yawForce->Enabled = true;
+    }
+
+    m_state = State::Normal;
+    m_ragdollStableTime = 0.0f;
+    m_recoveryElapsedTime = 0.0f;
+    m_recoveryGroundedTime = 0.0f;
+    m_recoveryUprightStableTime = 0.0f;
+    m_recoveryFallbackStableTime = 0.0f;
+    m_lastImpactStrength = 0.0f;
+    m_savedRootGyroYStateValid = false;
+    m_recoveryYawValid = false;
+    m_hoverSuppressedForJump = false;
+    isGrounded = false;
+    updateGroundHover(physics, root);
+    m_recoveryDiagnosticPendingPhysicsLog = true;
+
+    RCBN_LOG(
+        "[Ragdoll] final normalization humanoid=\"" << getFullPath()
+        << "\""
+        << " mode=" << (recoveryReason ? recoveryReason : "unknown")
+        << " yaw=" << finalYawDegrees
+        << " supportY=" << finalSupportY
+        << " currentY=" << currentY
+        << " targetY=" << targetY
+        << " yCorrection=" << (targetY - currentY)
+        << " position=" << finalPosition.toString()
+    );
+    RCBN_LOG("[Ragdoll] state=Normal humanoid=\"" << getFullPath() << '"');
+}
+
 void Humanoid::updatePhysicsState(Physics* physics) {
+    if (m_state != State::Normal) {
+        setHoverForces(physics, false, 0.0f);
+        isGrounded = false;
+        return;
+    }
     auto root = getRootPart();
     if (!root || !physics || !physics->hasBody(*root)) {
         setHoverForces(physics, false, 0.0f);
@@ -527,7 +1430,7 @@ void Humanoid::takeDamage(float n) {
 void Humanoid::updateDeath(float dt, Physics* physics) {
     if (!m_dead) return;
 
-    enterRagdoll(physics);
+    if (m_state == State::Normal) enterRagdoll(physics);
     m_deathElapsed += dt;
 }
 
@@ -535,16 +1438,42 @@ bool Humanoid::isRespawnReady() const {
     return m_dead && m_deathElapsed >= RespawnTime;
 }
 
-void Humanoid::enterRagdoll(Physics* physics) {
-    setHoverForces(physics, false, 0.0f);
+void Humanoid::enterRagdoll(Physics* physics, float impactStrength) {
+    if (m_state != State::Normal) return;
+
     auto root = getRootPart();
     if (!root) {
         if (auto parent = Parent.lock()) resolveParts(parent.get());
         root = getRootPart();
     }
-    if (m_ragdollEntered) return;
-    m_ragdollEntered = true;
+    if (!root) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": cannot enter Ragdoll without Root"
+        );
+        return;
+    }
 
+    saveRagdollBindPose();
+    m_state = State::Ragdoll;
+    m_ragdollStableTime = 0.0f;
+    m_recoveryUprightStableTime = 0.0f;
+    m_lastImpactStrength = impactStrength;
+    m_savedRootLockFlags = root->LockFlags;
+    m_savedRootLockFlagsValid = true;
+    float entryYaw = 0.0f;
+    if (tryGetHorizontalYaw(root->getWorldCFrame().Rotation, entryYaw)) {
+        m_lastValidYawDegrees = entryYaw;
+        m_hasLastValidYaw = true;
+    }
+
+    RCBN_LOG(
+        "[Ragdoll] entered humanoid=\"" << getFullPath()
+        << "\" impact=" << impactStrength
+        << " threshold=" << ImpactRagdollThreshold
+    );
+
+    setHoverForces(physics, false, 0.0f);
     stopAnimation();
 
     if (auto gyro = m_rootGyro.lock()) {
@@ -556,19 +1485,42 @@ void Humanoid::enterRagdoll(Physics* physics) {
         yawForce->Enabled = false;
     }
 
-    if (auto model = Parent.lock()) {
-        for (const auto& topology : CharacterRig::r6JointTopology()) {
-            if (auto motor = std::dynamic_pointer_cast<Motor6D>(
-                    model->getChildren().contains(topology.jointName)
-                        ? model->getChildren().at(topology.jointName) : nullptr))
-                motor->setEnabled(false);
-            const std::string ragdollName = topology.jointName + "Ragdoll";
-            if (auto ragdoll = std::dynamic_pointer_cast<BallSocket>(
-                    model->getChildren().contains(ragdollName)
-                        ? model->getChildren().at(ragdollName) : nullptr))
-                ragdoll->setEnabled(true);
-        }
+    root->setLockFlags(PhysicsLockFlags::None);
+    // Save collision modes before changing any mode.  Root is included so
+    // custom rigs restore exactly.
+    m_savedCollisionModes.clear();
+    for (const auto& body : collectCharacterBodies()) {
+        if (!body) continue;
+        m_savedCollisionModes.emplace_back(body, body->CanCollide);
     }
+    for (const auto& body : collectCharacterBodies()) {
+        if (!body) continue;
+        body->setCanCollide(true);
+        if (physics && physics->hasBody(*body))
+            physics->setGravityEnabled(*body, true);
+    }
+    setRagdollConstraintsEnabled(true);
+}
+
+void Humanoid::recoverFromRagdoll(Physics* physics) {
+    if (m_state != State::Ragdoll || m_dead) return;
+    beginRagdollRecovery(physics);
+}
+
+void Humanoid::setRagdollStateForReplication(
+    bool ragdoll,
+    Physics* physics) {
+    if (ragdoll) {
+        if (m_state == State::Normal) enterRagdoll(physics);
+        return;
+    }
+    if (m_state == State::Ragdoll && !m_dead) {
+        recoverFromRagdoll(physics);
+    }
+}
+
+void Humanoid::setRagdollStateForReplication(bool ragdoll) {
+    setRagdollStateForReplication(ragdoll, nullptr);
 
 }
 
@@ -590,6 +1542,14 @@ void Humanoid::resolveParts(Instance* characterModel) {
     m_leftLeg  = std::dynamic_pointer_cast<BaseCube>(find("LeftLeg"));
     m_rightLeg = std::dynamic_pointer_cast<BaseCube>(find("RightLeg"));
     m_rootGyro = std::dynamic_pointer_cast<Gyro>(find("RootGyro"));
+
+    if (auto root = getRootPart()) {
+        float yawDegrees = 0.0f;
+        if (tryGetHorizontalYaw(root->getWorldCFrame().Rotation, yawDegrees)) {
+            m_lastValidYawDegrees = yawDegrees;
+            m_hasLastValidYaw = true;
+        }
+    }
 
     if (auto gyro = m_rootGyro.lock()) {
         // @RadiantBird 2026/09/13:
@@ -621,7 +1581,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
                      const Vector3& targetMoveDir, bool ctrlLockEnabled, Physics* physics,
                      bool leftArmRaised, bool rightArmRaised,
                      float forwardAxis, float rightAxis, float smoothing, float deltaTime) {
-    if (m_dead) {
+    if (m_dead || m_state != State::Normal) {
         setHoverForces(physics, false, 0.0f);
         return;
     }
@@ -629,6 +1589,12 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     if (!root || !physics || !physics->hasBody(*root)) {
         setHoverForces(physics, false, 0.0f);
         return;
+    }
+
+    float currentYawDegrees = 0.0f;
+    if (tryGetHorizontalYaw(root->getWorldCFrame().Rotation, currentYawDegrees)) {
+        m_lastValidYawDegrees = currentYawDegrees;
+        m_hasLastValidYaw = true;
     }
 
     auto yawForce =
@@ -885,7 +1851,7 @@ void Humanoid::setJumpHeight(float height) {
 }
 
 void Humanoid::jump(Physics* physics) {
-    if (m_dead || !physics) {
+    if (m_dead || m_state != State::Normal || !physics) {
         return;
     }
 
@@ -1064,7 +2030,7 @@ void Humanoid::updateAnimation(float dt) {
     bool bodyPoseUpdated = m_bodyPoseUpdatedThisFrame;
     m_bodyPoseUpdatedThisFrame = false;
 
-    if (!m_animPlaying || !m_currentAnim) return;
+    if (m_state != State::Normal || !m_animPlaying || !m_currentAnim) return;
 
     // 対象パーツの解決先となるModel(=このHumanoidの親)
     Instance* model = Parent.lock().get();
@@ -1240,6 +2206,7 @@ Humanoid::Pose Humanoid::computePose(bool leftArmRaised, bool rightArmRaised) co
 void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised,
                                   float deltaTime) {
     m_bodyPoseUpdatedThisFrame = true; // 呼ばれた事実を記録(Root未解決で以降no-opでも「試行済み」として扱う)
+    if (m_state != State::Normal) return;
     auto root = getRootPart();
     if (!root) {
         if (Instance* model = Parent.lock().get()) resolveParts(model);
@@ -1319,11 +2286,18 @@ void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised,
 
 void Humanoid::updateAll(Instance* root, float dt, Physics* physics) {
     if (!root) return;
+    if (g_humanoidUpdateAllDepth == 0) {
+        ++g_humanoidUpdateAllInvocation;
+        g_currentHumanoidUpdateAllInvocation = g_humanoidUpdateAllInvocation;
+    }
+    ++g_humanoidUpdateAllDepth;
     if (root->IsA("Humanoid")) {
         auto* humanoid = static_cast<Humanoid*>(root);
         humanoid->updateDeath(dt, physics);
+        humanoid->updateRagdoll(dt, physics);
         humanoid->updateAnimation(dt);
     }
     for (auto const& [name, child] : root->getChildren())
         updateAll(child.get(), dt, physics);
+    --g_humanoidUpdateAllDepth;
 }

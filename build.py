@@ -1,5 +1,4 @@
-import concurrent.futures
-import datetime
+
 import filecmp
 import os
 import platform
@@ -210,16 +209,13 @@ def build_executable_targets_in_parallel(config: str) -> int:
         "RecubinTest",
     )
 
-    cpu_count = os.cpu_count() or 1
-
-    # @RadiantBird 2026/09/13:
-    # Recubin, RecubinEngine and RecubinTest all consume RecubinCore.
-    # Build that shared object target once before starting independent target
-    # builds. This avoids making multiple build processes compile the same
-    # shared object library at the same time.
-    print("[INFO] Building shared RecubinCore...")
-
-    common_args = [
+    # @RadiantBird 2026/09/14:
+    # Run all executable targets through one CMake/MSBuild invocation.
+    # Multiple concurrent `cmake --build` processes can race on shared
+    # dependencies such as Recast and contend for MSBuild .tlog files
+    # (for example Recast.lastbuildstate). Let the build system see the
+    # complete dependency graph and parallelize safely inside one process.
+    args = [
         "cmake",
         "--build",
         str(BUILD_DIR),
@@ -229,112 +225,23 @@ def build_executable_targets_in_parallel(config: str) -> int:
     ]
 
     if not IS_WINDOWS:
-        common_args.append("4")
+        args.append("4")
 
-    common_args += [
+    args += [
         "--target",
-        "RecubinCore",
+        *targets,
     ]
 
-    result = run_command(common_args)
+    print(
+        "[INFO] Building executable targets in one build graph: "
+        + ", ".join(targets)
+    )
+
+    result = run_command(args)
 
     if result != 0:
-        print("[ERROR] RecubinCore build failed.")
+        print("[ERROR] Executable target build failed.")
         return result
-
-    # @RadiantBird 2026/09/13:
-    # The three executable targets have independent compile/link stages after
-    # RecubinCore is ready. Start one CMake build process per target so their
-    # linker stages are allowed to overlap instead of waiting in a single
-    # multi-target build invocation.
-    #
-    # Do not give every child process the entire machine. Divide the available
-    # logical CPUs between them so a full rebuild does not create 3x CPU
-    # oversubscription.
-    jobs_per_target = max(
-        1,
-        cpu_count // len(targets),
-    )
-
-    print(
-        f"[INFO] Building executable targets concurrently: "
-        f"{', '.join(targets)}"
-    )
-    print(
-        f"[INFO] {cpu_count} logical CPU(s), "
-        f"{jobs_per_target} job(s) per target."
-    )
-
-    def build_target(target: str) -> tuple[str, int]:
-        args = [
-            "cmake",
-            "--build",
-            str(BUILD_DIR),
-            "--config",
-            config,
-            "--parallel",
-            str(jobs_per_target),
-            "--target",
-            target,
-        ]
-
-        print(f"[BUILD] Starting {target}...")
-
-        target_result = run_command(args)
-
-        if target_result == 0:
-            print(f"[BUILD] Finished {target}.")
-        else:
-            print(
-                f"[ERROR] {target} failed "
-                f"with exit code {target_result}."
-            )
-
-        return target, target_result
-
-    results: dict[str, int] = {}
-
-    with concurrent.futures.ThreadPoolExecutor(
-        max_workers=len(targets),
-    ) as executor:
-        futures = {
-            executor.submit(build_target, target): target
-            for target in targets
-        }
-
-        for future in concurrent.futures.as_completed(futures):
-            target = futures[future]
-
-            try:
-                completed_target, target_result = future.result()
-            except Exception as exc:
-                print(
-                    f"[ERROR] Build worker for {target} crashed: {exc}"
-                )
-                results[target] = 1
-                continue
-
-            results[completed_target] = target_result
-
-    failed_targets = [
-        target
-        for target in targets
-        if results.get(target, 1) != 0
-    ]
-
-    if failed_targets:
-        print(
-            "[ERROR] Failed target(s): "
-            + ", ".join(failed_targets)
-        )
-
-        for target in failed_targets:
-            result = results.get(target, 1)
-
-            if result != 0:
-                return result
-
-        return 1
 
     print("[SUCCESS] All executable targets finished.")
     return 0

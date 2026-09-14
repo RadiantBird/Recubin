@@ -73,6 +73,11 @@ public:
     virtual Vector3 getAngularVelocity(const BaseCube&) const {
         return Vector3();
     }
+    // Returns and clears the maximum contact impact accumulated for this body
+    // since the previous physics update.
+    virtual float consumeContactImpact(const BaseCube&) {
+        return 0.0f;
+    }
     virtual std::optional<float> getBodyMass(const BaseCube&) const {
         return std::nullopt;
     }
@@ -111,7 +116,8 @@ public:
         const Vector3& direction,
         float maxDistance,
         ShapeCastHit& hitResult,
-        const Instance* excludeRoot
+        const Instance* excludeRoot,
+        float minimumNormalY = 0.0f
     );
     
     virtual BaseCube* findOverlapping(const BaseCube& cube, const std::string& className,

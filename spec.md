@@ -164,6 +164,27 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   GroundHeight、接地、Truss中の重力設定は操作入力とは独立した物理更新として毎フレーム評価する。
   したがってFree/Program中もCharacterHoverForce、重力、衝突、LiquidCubeの液体浮力は維持される。
 
+  Humanoidは`Normal`/`Ragdoll`/`Recovering`の状態を持つ。Box3Dのcontact hit eventから接触点のnormal impulseを優先して
+  impactを求め、利用できない場合は接触法線方向の相対接近速度を使う。Character bodyごとの同一physics tickの
+  最大impactが`Humanoid.ImpactRagdollThreshold`（既定45 stud/s相当）以上になった場合、movement、jump、hover、
+  full-body yaw、RootのAngularX/AngularZ lock、Motor6D姿勢制御を停止し、既存R6 Motor6DのC0/C1 bind anchorを
+  使うBallSocketを有効化する。Ragdoll中だけbody collisionを有効化するが、Character collision groupで内部self-collision
+  は抑制し、外部worldとの衝突を許可する。死亡時も同じ遷移を使う。
+
+  死亡していないRagdollは、Rootの線速度が`RagdollRecoverySpeed`（既定1.5 stud/s）以下、角速度が低く、R6 bodyの
+  いずれかが接地し、その状態が`RagdollRecoveryDelay`（既定1秒）続いた場合に`Recovering`へ遷移する。Recoveringでは
+  BallSocketを先に無効化してMotor6Dをbind poseへ戻し、Root lockとhoverを無効にしたままRootGyroのX/Y/Zで物理的にuprightへ戻す。
+  upright error、Pitch/Roll errorが10度以下、Root角速度が1.0 rad/s以下の状態を0.1秒維持した後、現在位置と有効Yawを維持してPitch/Rollだけを除去する
+  CFrameを一度だけ適用する（`gyro-success`）。その直後にRoot角速度、Root lock、通常collision、Gyro/yaw、hover、movement/jumpを順に復元して`Normal`へ戻す。
+  Gyroがuprightへ到達できない場合でも、Recovering開始から0.75秒以上経過し、Root線速度が3.0以下、角速度が2.0 rad/s以下、接地が0.15秒続けば
+  `speed-fallback`として同じCFrame正規化を一度だけ適用する。さらに1.5秒経過後、接地が0.15秒続いていれば速度に関係なく`timeout-fallback`で最終化する。
+  Recoveringの接地は通常時のground detectionとは別のsupport scanで判定する。Rootの現在YawでRootのX/Z footprintを薄いboxとして、
+  Rootの想定足元より少し上から`HipHeight + 1 stud`以上の下方へshape castし、Character階層を除外する。接触法線のY成分が0.5未満の壁面は除外し、
+  複数候補では最も高い上向き面をsupportとして採用する。このscanの結果は0.15秒継続していることを復帰条件に使う。
+  最終CFrame正規化のYは、現在Root Yを下限として`max(currentRootY, supportY + HipHeight)`で求める。X/ZとYawは維持し、
+  必要な最小上方向補正だけを加えるため、Rootを空中へ下げたり大きく持ち上げたりしない。
+  Recovering中もNetworkのAvatarBatchではRagdoll bitを維持し、Host権威の復帰完了までremote poseで物理姿勢を上書きしない。
+
 ## Gyro
   Gyroは1つのPartへworld基準の角度制御を加える単一body constraintとする。X/Y/Zはそれぞれ
   Enabled、TargetAngle（度）、MaxTorque、MaxAngularSpeed（度/秒）を独立して持つ。無効な軸へは

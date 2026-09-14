@@ -92,6 +92,7 @@ private:
     // setGravityEnabled() の論理状態。MaintainVelocity による一時抑止を
     // 解除した際、明示的に無効化された重力を誤って有効化しないため保持する。
     std::unordered_map<const BaseCube*, bool> m_gravityEnabled;
+    std::unordered_map<const BaseCube*, float> m_contactImpacts;
     // native callback 中はInstanceへ触れず、shape userDataの値だけを積む。
     std::vector<std::pair<const void*, const void*>> m_pendingContacts;
     std::unordered_set<std::string> m_gyroErrorKeys;
@@ -158,6 +159,7 @@ public:
     void setBodyWorldCFrame(BaseCube& cube, const CFrame& worldCFrame) override;
     Vector3 getLinearVelocity(const BaseCube& cube) const override;
     Vector3 getAngularVelocity(const BaseCube& cube) const override;
+    float consumeContactImpact(const BaseCube& cube) override;
     std::optional<float> getBodyMass(const BaseCube& cube) const override;
     void setLinearVelocity(BaseCube& cube, const Vector3& velocity) override;
     void setAngularVelocity(BaseCube& cube, const Vector3& velocity) override;
@@ -195,7 +197,8 @@ public:
         const Vector3& direction,
         float maxDistance,
         ShapeCastHit& hitResult,
-        const Instance* excludeRoot = nullptr
+        const Instance* excludeRoot = nullptr,
+        float minimumNormalY = 0.0f
     ) override;
     BaseCube* findOverlapping(
         const BaseCube& cube, const std::string& className,

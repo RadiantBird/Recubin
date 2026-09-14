@@ -9,13 +9,18 @@
 ## 継承
 Root の移動・回転は Root member のワールド CFrame を基準に行う。身体 Animation は local pose を更新し、Parent や Weld 用の座標補正を行わない。
 
-接地判定とGroundHeight hoverは同じ1回の下向きraycast結果を使う。目標distanceは`HipHeight`で、各dynamic R6
+接地判定とGroundHeight hoverは同じ1回の下向きshape cast結果を使う。目標distanceは`HipHeight`で、各dynamic R6
 bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を設定する。未設定のHipHeightは
 初回の有効なfloor distanceから初期化され、Rootの初期高さは補正しない。HipHeightはhoverの目標値と
 着地捕捉に使い、接地状態は捕捉後の微小なfloor distance揺れでは反転させず、床が消えるかRootが上昇した
 ときに解除する。jump開始時、死亡、
-着席、無効状態では全hover Forceをzero/disabledにする。jump上昇中と床が3 studのcapture外にある下降中は
+着席、無効状態、Ragdoll中では全hover Forceをzero/disabledにする。jump上昇中と床が3 studのcapture外にある下降中は
 再開しない。PD係数は`CharacterRig::groundHeightSettings()`へ集約し、Workspaceの現在重力を相殺する。
+
+`Normal`/`Ragdoll`/`Recovering`状態を明示的に持つ。Box3Dのhit eventで得た接触点の`totalNormalImpulse`を優先し、
+取得できない場合は接近速度を接触法線方向のimpactとして扱う。Characterの全bodyについてphysics tick内の最大値だけを
+評価し、`ImpactRagdollThreshold`以上でRagdollへ遷移する。既定値は45 stud/s相当で、通常の短いjump着地では
+発動しにくく、強い床・壁・物体衝突を対象にする。
 
 `Instance` → `Humanoid`
 
@@ -26,12 +31,16 @@ bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を
 | `WalkSpeed` | `float` | 歩行速度（[0,100]にクランプ、旧CharacterSetting.moveSpeedの統合先） |
 | `JumpPower` | `float` | ジャンプ初速（[0,100]にクランプ） |
 | `HipHeight` | `float` | Root中心から真下の地面までの目標距離。未設定時は初回ground detectionの実測値で初期化 |
+| `ImpactRagdollThreshold` | `float` | 接触impactがこの値以上でRagdollへ遷移（既定45） |
+| `RagdollRecoverySpeed` | `float` | 復帰判定に使うRoot線速度上限（既定1.5 stud/s） |
+| `RagdollRecoveryDelay` | `float` | 低速・接地状態を継続する時間（既定1秒） |
 | `Health` / `MaxHealth` | `float` | 現在/最大ヘルス |
 | `RespawnTime` | `float` | 死亡後の再生成までの秒数 |
 | `Died` | `shared_ptr<RCBNScriptSignal>` | Health<=0で1度だけ発火 |
 | `KeyframeReached` | `shared_ptr<RCBNScriptSignal>` | 再生位置が既存キーフレームの時刻を通過した瞬間に発火。引数は`(partName: string, time: number)` |
 | `m_root`/`m_torso`/`m_head`/`m_leftArm`/`m_rightArm`/`m_leftLeg`/`m_rightLeg` | `weak_ptr<BaseCube>` | `resolveParts()` で解決されるprivateな非所有の兄弟パーツ参照 |
 | `m_dead` | `bool` | 死亡フラグ |
+| `m_state` | `Normal/Ragdoll/Recovering` | 通常姿勢制御、物理Ragdoll、物理upright復帰の状態 |
 | `walkCycle` | `float` | 歩行アニメーションの位相（0..1） |
 | `isGrounded` | `bool` | 接地判定結果 |
 | `isFirstPerson` / `bodyColorsSaved` / `saved*Color` | - | 一人称時の身体非表示・色の退避用 |
@@ -55,7 +64,8 @@ bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を
 | `moveToward(target, physics, arrivalRadius)` | パス追従用の1フレーム移動（`move()`のロジックを流用） |
 | `jump()` | 接地中のみJumpPowerで上方向速度をセット |
 | `setHealth(v)`/`takeDamage(n)` | クランプしつつ設定。0以下遷移でDied発火 |
-| `enterRagdoll(physics)` | 全身パーツを動的アクター化しランダム速度で吹き飛ばす |
+| `enterRagdoll(physics)` | Motor6Dを無効化し、既存R6 BallSocketを有効化してcollision/Root lock/hover/yawを切り替える |
+| `recoverFromRagdoll(physics)` | 条件成立後に`Recovering`へ遷移する。BallSocketを先に無効化し、Motor6D bind poseとRootGyroで物理的にuprightへ戻す |
 | `playAnimation`/`pauseAnimation`/`stopAnimation`/`setAnimationSpeed` | Animation再生制御 |
 | `updateAnimation(dt)` | AnimationClip（内蔵または.rcanim）を評価し、RigのJoint/Pivotバインドオフセットと合成してパーツCFrameを更新（Rootは物理駆動のため対象外） |
 | `updateFirstPersonState(wantsFirstPerson)` | 一人称/三人称切替時に身体色を透明化/復元 |
@@ -82,11 +92,22 @@ move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, phy
 jump(): isGrounded && Root->actor が真の場合のみ Y速度=JumpPower をセット
 
 enterRagdoll(physics):
-  stopAnimation()
-  Root: CanCollide=false, recreateActor() （散乱物に干渉させない不可視物理体）
-  Torso/Head/LeftArm/RightArm/LeftLeg/RightLeg 各パーツ:
-    CanCollide=true, Anchored=false, LockFlags解除
-    recreateActor() → ランダムな水平速度・上方向速度・角速度を設定
+  state=Ragdoll, stopAnimation(), hover/yaw/Gyro/Root lockを無効化
+  Motor6Dを無効化し、同名Motor6DのC0/C1 bind anchorを使うBallSocketを有効化
+  R6 bodyのcollisionを一時的に有効化する（Character collision groupにより内部self-collisionは抑制）
+
+recoverFromRagdoll(physics):
+  低速・低角速度・いずれかのbodyの接地・RecoveryDelay成立を確認してstate=Recovering
+  BallSocketを無効化してMotor6DのTransformをbind poseへ戻し、RootGyroのX/Y/Zで物理的にuprightへ戻す
+  uprightError <= 10度、Pitch/Roll誤差 <= 10度、Root角速度 <= 1.0 rad/sで0.1秒安定したらgyro-successとして最終化する
+  Recovering専用support scanはRootのX/Z footprintを薄いboxとしてRootの想定足元より少し上から下方へshape castする（Rootが沈んだ場合も床を拾える）。Character自身を除外し、
+  normal.y >= 0.5の上向き面だけを採用する。複数候補では最も高いsupport面を使い、接地は0.15秒継続していることを要求する
+  現在のX/ZとRecovering開始時の有効Yawを維持し、Pitch/Rollだけを除去する。Yは`max(currentRootY, supportY + HipHeight)`で計算し、
+  めり込み回避に必要な最小上方向補正だけを加えたCFrameを一度だけ適用する
+  Gyroでuprightへ到達できない場合も、Recovering開始から0.75秒後にRoot線速度 <= 3.0、角速度 <= 2.0 rad/s、接地を0.15秒確認したら
+  speed-fallbackとして同じ最終CFrame正規化を一度だけ行う。さらに1.5秒経過後、接地が0.15秒続いていればtimeout-fallbackで速度に関係なく最終化する
+  直後にRoot角速度、Root lock、通常collision、Gyro/YawForce、hover、movement、jumpを順に復元してNormalへ戻す
+  Recovering中はmovement、jump、hover、通常アニメーションを無効にし、BallSocketとMotor6Dを同時に有効化しない
 ```
 
 ## 依存関係

@@ -7,6 +7,9 @@
 #include <Core/RCBNScriptSignal.hpp>
 #include <Instances/Animation.hpp>
 #include <cstdint>
+#include <string>
+#include <utility>
+#include <vector>
 
 class Physics;   // Forward declaration
 class AnimationClip;
@@ -25,6 +28,12 @@ class Motor6D;
 // ==================================================================
 class Humanoid : public Instance {
 public:
+    enum class State {
+        Normal,
+        Ragdoll,
+        Recovering,
+    };
+
     /*
         @RadiantBird
         2026/07/19:
@@ -39,6 +48,9 @@ public:
 
     // Root中心から真下の地面までの目標距離。未設定時は初回ground detectionで実測する。
     float HipHeight = 2.0f;
+    float ImpactRagdollThreshold = 45.0f;
+    float RagdollRecoverySpeed = 1.5f;
+    float RagdollRecoveryDelay = 1.0f;
 
     float getHipHeight() const { return HipHeight; }
     void setHipHeight(float height);
@@ -121,8 +133,16 @@ public:
     // 死亡演出を開始し、死亡後の経過時間を更新する
     void updateDeath(float dt, Physics* physics);
     bool isRespawnReady() const;
-    // 死亡演出: 各ボディパーツを動的アクター化してランダムに吹き飛ばす（ラグドール）
-    void enterRagdoll(Physics* physics);
+    // Ragdollへ遷移する。死亡・衝撃の演出は各ボディパーツを物理駆動する。
+    void enterRagdoll(Physics* physics, float impactStrength = 0.0f);
+    // RagdollからRecoveringへ遷移する。Normal化は物理的upright後に一度だけ行う。
+    void recoverFromRagdoll(Physics* physics);
+    State getState() const { return m_state; }
+    bool isRagdoll() const { return m_state != State::Normal; }
+    bool isRecovering() const { return m_state == State::Recovering; }
+    // Network replication applies an authoritative Ragdoll/Recovering
+    // transition without inventing a local impact.
+    void setRagdollStateForReplication(bool ragdoll, Physics* physics);
 
     // --- アニメーション再生 ---
     // Animationインスタンスを再生する（先頭から）
@@ -157,7 +177,7 @@ public:
     void updateAnimation(float dt);
 
     // メインループから毎フレーム1回だけ呼ぶ。ツリーを再帰的に辿り、見つけた全Humanoidの
-    // updateDeath(dt, physics)とupdateAnimation(dt)を呼ぶ(ParticleEmitter::updateAllと同じ木構造走査パターン)
+    // 死亡・Ragdoll復帰・Animationを更新する(ParticleEmitter::updateAllと同じ木構造走査パターン)
     static void updateAll(Instance* root, float dt, Physics* physics);
 
     // 一人称視点かどうかをUser側から渡し、身体パーツの透明化/復元を行う
@@ -182,6 +202,7 @@ public:
     bool  getIsGrounded() const { return isGrounded; }
     void  setIsGroundedForReplication(bool v) { isGrounded = v; }
     void  setSeatedForReplication(bool v) { m_seated = v; }
+    void setRagdollStateForReplication(bool v);
 
 private:
     struct Pose {
@@ -189,6 +210,11 @@ private:
         float rightArm;
         float leftLeg;
         float rightLeg;
+    };
+
+    struct SavedRagdollBindPose {
+        std::weak_ptr<BaseCube> body;
+        CFrame relativeToRoot;
     };
 
     float walkCycle = 0.0f;
@@ -199,8 +225,38 @@ private:
     Vector3 m_smoothedHeadingDirection;
     bool isGrounded = true;
     bool m_dead = false;
-    bool m_ragdollEntered = false;
+    State m_state = State::Normal;
     float m_deathElapsed = 0.0f;
+    float m_ragdollStableTime = 0.0f;
+    float m_recoveryElapsedTime = 0.0f;
+    float m_recoveryGroundedTime = 0.0f;
+    float m_recoverySupportY = 0.0f;
+    Vector3 m_recoverySupportNormal = Vector3(0.0f, 1.0f, 0.0f);
+    std::string m_recoverySupportInstancePath;
+    float m_recoveryUprightStableTime = 0.0f;
+    float m_recoveryFallbackStableTime = 0.0f;
+    float m_lastImpactStrength = 0.0f;
+    float m_lastValidYawDegrees = 0.0f;
+    float m_recoveryYawDegrees = 0.0f;
+    bool m_invalidRagdollSettingsReported = false;
+    bool m_hasLastValidYaw = false;
+    bool m_recoveryYawValid = false;
+    bool m_recoverySupportValid = false;
+    bool m_recoveryFinalNormalizationApplied = false;
+    bool m_recoveryUprightStableReported = false;
+    bool m_recoveryFallbackReported = false;
+    bool m_recoveryMissingBodyReported = false;
+    bool m_recoveryDiagnosticPendingPhysicsLog = false;
+    std::uint64_t m_lastRagdollUpdateInvocation = 0;
+    std::uint32_t m_ragdollUpdatesThisInvocation = 0;
+    bool m_hasLastRagdollUpdateInvocation = false;
+    PhysicsLockFlags m_savedRootLockFlags = PhysicsLockFlags::None;
+    bool m_savedRootLockFlagsValid = false;
+    bool m_savedRootGyroYEnabled = false;
+    float m_savedRootGyroYTarget = 0.0f;
+    bool m_savedRootGyroYStateValid = false;
+    std::vector<std::pair<std::weak_ptr<BaseCube>, bool>> m_savedCollisionModes;
+    std::vector<SavedRagdollBindPose> m_savedRagdollBindPoses;
     bool m_hoverSuppressedForJump = false;
     bool m_hipHeightExplicitlySet = false;
     bool m_hipHeightInitializedFromGround = false;
@@ -254,4 +310,21 @@ private:
     std::vector<std::shared_ptr<BaseCube>> collectCharacterBodies() const;
     void setHoverForces(Physics* physics, bool enabled, float acceleration);
     void updateGroundHover(Physics* physics, const std::shared_ptr<BaseCube>& root);
+    void updateRagdoll(float dt, Physics* physics);
+    void updateRagdollRecovery(float dt, Physics* physics);
+    void finalizeRagdollRecovery(Physics* physics, const char* recoveryReason);
+    void beginRagdollRecovery(Physics* physics);
+    void saveRagdollBindPose();
+    void logRagdollRecoveryRigState(Physics* physics, const char* phase) const;
+    bool hasRagdollSupport(Physics* physics) const;
+    bool findRagdollRecoverySupport(
+        Physics* physics,
+        float& supportY,
+        Vector3* supportNormal = nullptr,
+        std::string* supportInstancePath = nullptr
+    ) const;
+    void setMotor6DConstraintsEnabled(bool enabled);
+    void setBallSocketConstraintsEnabled(bool enabled);
+    void setRagdollConstraintsEnabled(bool enabled);
+    void restoreRagdollCollision();
 };

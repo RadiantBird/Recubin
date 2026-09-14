@@ -22,6 +22,7 @@ Box3Dを使った剛体物理シミュレーション。Cubeへのbody割り当�
 | `raycast(origin, direction, maxDistance, hitResult, ignoreActor)` | 光線と物理シーンの交差判定 |
 | `getBodyMass(cube)` | 現在のnative body massをread-onlyで取得。不正body/massはpath付きで報告 |
 | `getAngularVelocity(cube)` | native bodyの角速度をread-onlyで取得。body未接続時はゼロ |
+| `consumeContactImpact(cube)` | 前回physics update以降のCube単位最大contact impactを返して消費。Box3Dはnormal impulseを優先し、無い場合はnormal approach speedをstud/s相当へ換算 |
 
 ## RaycastHit 構造体
 

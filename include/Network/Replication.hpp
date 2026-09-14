@@ -85,6 +85,7 @@ private:
         float  walkCycle = 0.0f;            // Hostから受信した歩行アニメ位相
         bool   grounded = true;             // Host権威の接地状態
         bool   seated = false;              // Host権威の着席状態
+        bool   ragdoll = false;             // Host権威のRagdoll状態
     };
 
     void sendAvatarUpdates(float dt);   // 20Hz: Client=AvatarState送信 / Host=自姿勢記録+AvatarBatch配布

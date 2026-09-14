@@ -557,6 +557,14 @@ Vector3 Box3DPhysicsBackend::getAngularVelocity(const BaseCube& cube) const {
         ? fromB3Vector(b3Body_GetAngularVelocity(id)) : Vector3();
 }
 
+float Box3DPhysicsBackend::consumeContactImpact(const BaseCube& cube) {
+    const auto iterator = m_contactImpacts.find(&cube);
+    if (iterator == m_contactImpacts.end()) return 0.0f;
+    const float impact = iterator->second;
+    m_contactImpacts.erase(iterator);
+    return impact;
+}
+
 std::optional<float> Box3DPhysicsBackend::getBodyMass(
     const BaseCube& cube
 ) const {
@@ -633,6 +641,7 @@ void Box3DPhysicsBackend::refreshCollisionFilter(BaseCube& cube) {
         filter.maskBits = maskBits;
         b3Shape_SetFilter(shape, filter, true);
         b3Shape_EnableContactEvents(shape, cube.CanCollide);
+        b3Shape_EnableHitEvents(shape, cube.CanCollide);
         changed = true;
     }
     if (changed) b3Body_SetAwake(id, true);
@@ -658,6 +667,7 @@ b3ShapeId Box3DPhysicsBackend::createCubeShape(
     }
     definition.enableCustomFiltering = true;
     definition.enableContactEvents = cube->CanCollide;
+    definition.enableHitEvents = cube->CanCollide;
     definition.updateBodyMass = true;
 
     if (cube->getPhysicsShape() == PhysicsShape::Sphere) {
@@ -1034,6 +1044,7 @@ void Box3DPhysicsBackend::destroyUniqueBodies() {
 
 void Box3DPhysicsBackend::clearCubes() {
     m_pendingContacts.clear();
+    m_contactImpacts.clear();
     for (ConstraintEntry& entry : m_constraints) {
         if (auto value = entry.constraint.lock()) clearConstraintHandle(*value);
         if (B3_IS_NON_NULL(entry.jointId) && b3Joint_IsValid(entry.jointId))
@@ -1737,6 +1748,68 @@ void Box3DPhysicsBackend::processContactEvents() {
         const void* second = b3Shape_GetUserData(event.shapeIdB);
         if (first && second) m_pendingContacts.emplace_back(first, second);
     }
+
+    constexpr float STUDS_PER_METER = 20.0f;
+    for (int index = 0; index < events.hitCount; ++index) {
+        const b3ContactHitEvent& event = events.hitEvents[index];
+        if (!b3Shape_IsValid(event.shapeIdA) ||
+            !b3Shape_IsValid(event.shapeIdB)) {
+            continue;
+        }
+
+        auto* first = static_cast<const BaseCube*>(
+            b3Shape_GetUserData(event.shapeIdA));
+        auto* second = static_cast<const BaseCube*>(
+            b3Shape_GetUserData(event.shapeIdB));
+        if (!first && !second) continue;
+
+        const float approachImpact = std::max(0.0f, event.approachSpeed) *
+            STUDS_PER_METER;
+        float firstImpulseImpact = 0.0f;
+        float secondImpulseImpact = 0.0f;
+        if (b3Contact_IsValid(event.contactId)) {
+            const b3ContactData data = b3Contact_GetData(event.contactId);
+            const b3BodyId bodyA = b3Shape_GetBody(event.shapeIdA);
+            const b3BodyId bodyB = b3Shape_GetBody(event.shapeIdB);
+            const float massA = B3_IS_NON_NULL(bodyA)
+                ? b3Body_GetMass(bodyA) : 0.0f;
+            const float massB = B3_IS_NON_NULL(bodyB)
+                ? b3Body_GetMass(bodyB) : 0.0f;
+            for (int manifoldIndex = 0;
+                 manifoldIndex < data.manifoldCount; ++manifoldIndex) {
+                const b3Manifold& manifold = data.manifolds[manifoldIndex];
+                for (int pointIndex = 0;
+                     pointIndex < manifold.pointCount; ++pointIndex) {
+                    const float impulse = std::max(
+                        0.0f,
+                        manifold.points[pointIndex].totalNormalImpulse);
+                    if (massA > 0.0f && std::isfinite(massA)) {
+                        firstImpulseImpact = std::max(
+                            firstImpulseImpact,
+                            impulse / massA * STUDS_PER_METER);
+                    }
+                    if (massB > 0.0f && std::isfinite(massB)) {
+                        secondImpulseImpact = std::max(
+                            secondImpulseImpact,
+                            impulse / massB * STUDS_PER_METER);
+                    }
+                }
+            }
+        }
+
+        const float firstImpact = firstImpulseImpact > 0.0f
+            ? firstImpulseImpact : approachImpact;
+        const float secondImpact = secondImpulseImpact > 0.0f
+            ? secondImpulseImpact : approachImpact;
+        if (first) {
+            m_contactImpacts[first] = std::max(
+                m_contactImpacts[first], firstImpact);
+        }
+        if (second) {
+            m_contactImpacts[second] = std::max(
+                m_contactImpacts[second], secondImpact);
+        }
+    }
 }
 
 std::shared_ptr<BaseCube> Box3DPhysicsBackend::resolveContactIdentity(
@@ -1764,6 +1837,11 @@ void Box3DPhysicsBackend::dispatchContactEvents() {
 
 void Box3DPhysicsBackend::stepOnce(float dt) {
     if (!isAvailable()) return;
+
+    // Humanoid consumes this map after Physics::update().  Start each update
+    // with a fresh observation window so unrelated bodies cannot retain stale
+    // impacts indefinitely.
+    m_contactImpacts.clear();
 
     m_accumulator += std::clamp(
         dt,
@@ -2216,13 +2294,45 @@ void Box3DPhysicsBackend::createBallSocket(
         m_constraints.push_back({ballSocket, handle, b3_nullJointId});
         return;
     }
+    CFrame frameA = attachmentFrame(
+        first->m_compoundLocalOffset,
+        ballSocket->m_attachment0,
+        first.get());
+    CFrame frameB = attachmentFrame(
+        second->m_compoundLocalOffset,
+        ballSocket->m_attachment1,
+        second.get());
+
+    // CharacterRig creates disabled <MotorName>Ragdoll BallSockets beside
+    // their Motor6D.  Reuse the Motor6D bind frames when explicit attachments
+    // are absent so enabling ragdoll preserves the authored joint anchors.
+    if (ballSocket->m_attachment0.expired() &&
+        ballSocket->m_attachment1.expired()) {
+        const std::string suffix = "Ragdoll";
+        if (ballSocket->Name.size() > suffix.size() &&
+            ballSocket->Name.ends_with(suffix)) {
+            const std::string motorName = ballSocket->Name.substr(
+                0, ballSocket->Name.size() - suffix.size());
+            auto parent = ballSocket->Parent.lock();
+            if (parent) {
+                const auto motorIt = parent->getChildren().find(motorName);
+                if (motorIt != parent->getChildren().end()) {
+                    auto motor = std::dynamic_pointer_cast<Motor6D>(
+                        motorIt->second);
+                    if (motor) {
+                        frameA = first->m_compoundLocalOffset * motor->C0;
+                        frameB = second->m_compoundLocalOffset * motor->C1;
+                    }
+                }
+            }
+        }
+    }
+
     b3SphericalJointDef definition = b3DefaultSphericalJointDef();
     definition.base.bodyIdA = bodyA;
     definition.base.bodyIdB = bodyB;
-    definition.base.localFrameA = toB3Transform(attachmentFrame(
-        first->m_compoundLocalOffset, ballSocket->m_attachment0, first.get()));
-    definition.base.localFrameB = toB3Transform(attachmentFrame(
-        second->m_compoundLocalOffset, ballSocket->m_attachment1, second.get()));
+    definition.base.localFrameA = toB3Transform(frameA);
+    definition.base.localFrameB = toB3Transform(frameB);
     definition.base.userData = ballSocket.get();
     const b3JointId joint = b3CreateSphericalJoint(m_worldId, &definition);
     if (B3_IS_NULL(joint)) return;
@@ -2887,6 +2997,7 @@ struct ShapeCastContext {
     const Instance* excludeRoot = nullptr;
     float queryStartY = 0.0f;
     float maximumDistance = 0.0f;
+    float minimumNormalY = 0.0f;
     ShapeCastHit* result = nullptr;
 };
 
@@ -2975,7 +3086,7 @@ float box3dGroundShapeCastCallback(
         !std::isfinite(hitPosition.y) ||
         !std::isfinite(hitNormal.y) ||
         hitPosition.y >= context->queryStartY ||
-        hitNormal.y <= 0.0f
+        hitNormal.y <= context->minimumNormalY
     ) {
         return -1.0f;
     }
@@ -3046,7 +3157,8 @@ bool Box3DPhysicsBackend::shapeCastBox(
     const Vector3& direction,
     float maxDistance,
     ShapeCastHit& hitResult,
-    const Instance* excludeRoot
+    const Instance* excludeRoot,
+    float minimumNormalY
 ) {
     hitResult = {};
     if (!isAvailable() || maxDistance <= 0.0f) {
@@ -3083,6 +3195,7 @@ bool Box3DPhysicsBackend::shapeCastBox(
         excludeRoot,
         startFrame.Position.y,
         maxDistance,
+        minimumNormalY,
         &hitResult,
     };
     b3World_CastShape(

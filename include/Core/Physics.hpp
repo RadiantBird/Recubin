@@ -82,6 +82,7 @@ public:
     void setMemberWorldCFrame(BaseCube& cube, const CFrame& worldCFrame);
     Vector3 getLinearVelocity(const BaseCube& cube) const;
     Vector3 getAngularVelocity(const BaseCube& cube) const;
+    float consumeContactImpact(const BaseCube& cube) const;
     std::optional<float> getBodyMass(const BaseCube& cube) const;
     void setLinearVelocity(BaseCube& cube, const Vector3& velocity);
     void setAngularVelocity(BaseCube& cube, const Vector3& velocity);
@@ -118,7 +119,8 @@ public:
         const Vector3& direction,
         float maxDistance,
         ShapeCastHit& hitResult,
-        const Instance* excludeRoot = nullptr
+        const Instance* excludeRoot = nullptr,
+        float minimumNormalY = 0.0f
     );
     
     BaseCube* findOverlapping(const BaseCube& cube, const std::string& className,

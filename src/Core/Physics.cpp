@@ -100,7 +100,8 @@ bool IPhysicsBackend::shapeCastBox(
     const Vector3&,
     float,
     ShapeCastHit& hitResult,
-    const Instance*
+    const Instance*,
+    float
 ) {
     hitResult = {};
     return false;
@@ -542,6 +543,11 @@ Vector3 Physics::getAngularVelocity(const BaseCube& cube) const {
         ? m_backend->getAngularVelocity(cube) : Vector3();
 }
 
+float Physics::consumeContactImpact(const BaseCube& cube) const {
+    return isAvailable() && ownsBody(cube)
+        ? m_backend->consumeContactImpact(cube) : 0.0f;
+}
+
 std::optional<float> Physics::getBodyMass(const BaseCube& cube) const {
     if (!isAvailable()) return std::nullopt;
     return m_backend->getBodyMass(cube);
@@ -630,7 +636,8 @@ bool Physics::shapeCastBox(
     const Vector3& direction,
     float maxDistance,
     ShapeCastHit& hitResult,
-    const Instance* excludeRoot
+    const Instance* excludeRoot,
+    float minimumNormalY
 ) {
     if (
         !isAvailable() ||
@@ -640,7 +647,9 @@ bool Physics::shapeCastBox(
         size.x <= 0.0f || size.y <= 0.0f || size.z <= 0.0f ||
         !finiteVector(direction) ||
         !std::isfinite(maxDistance) ||
-        maxDistance <= 0.0f
+        maxDistance <= 0.0f ||
+        !std::isfinite(minimumNormalY) ||
+        minimumNormalY < -1.0f || minimumNormalY > 1.0f
     ) {
         hitResult = {};
         return false;
@@ -652,7 +661,8 @@ bool Physics::shapeCastBox(
         direction,
         maxDistance,
         hitResult,
-        excludeRoot
+        excludeRoot,
+        minimumNormalY
     );
 }
 
