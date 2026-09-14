@@ -9,6 +9,12 @@ class Attachment;
 class PhysXPhysicsBackend;
 class Box3DPhysicsBackend;
 
+enum class BallSocketAngularMode {
+    Free = 0,
+    Limited = 1,
+    Locked = 2,
+};
+
 class BallSocket : public PhysicsConstraint {
     std::weak_ptr<Attachment> m_attachment0; // 任意。設定時はこの位置にアンカーする
     std::weak_ptr<Attachment> m_attachment1;
@@ -19,10 +25,22 @@ class BallSocket : public PhysicsConstraint {
     friend class SceneLoader;
     friend class Renderer;
 
+    void refreshAngularBinding();
+
     // 両方のCubeが解決済みなら制約をWorkspaceに登録する（setProperty/setCube0/setCube1から共通利用）
     // 名前が設定済みで未解決のAttachment参照を対応Cube配下から遅延解決する
     void resolveAdditionalReferences() override;
 public:
+    BallSocketAngularMode AngularXMode = BallSocketAngularMode::Free;
+    BallSocketAngularMode AngularYMode = BallSocketAngularMode::Free;
+    BallSocketAngularMode AngularZMode = BallSocketAngularMode::Free;
+    float AngularXMin = -180.0f;
+    float AngularXMax = 180.0f;
+    float AngularYMin = -180.0f;
+    float AngularYMax = 180.0f;
+    float AngularZMin = -180.0f;
+    float AngularZMax = 180.0f;
+
     std::string m_attachment0Name; // Cube0配下の子孫パス（空=未使用）
     std::string m_attachment1Name; // Cube1配下の子孫パス（空=未使用）
 
@@ -33,6 +51,16 @@ public:
     // （Cube のリパレント/リネームでパス文字列が古くなるため）。
     // 名前が空 = 「未設定」の正当な状態なので復活させない
     void refreshRefNames() override;
+
+    void setAngularXMode(BallSocketAngularMode mode);
+    void setAngularYMode(BallSocketAngularMode mode);
+    void setAngularZMode(BallSocketAngularMode mode);
+    void setAngularXMin(float angle);
+    void setAngularXMax(float angle);
+    void setAngularYMin(float angle);
+    void setAngularYMax(float angle);
+    void setAngularZMin(float angle);
+    void setAngularZMax(float angle);
 
     virtual std::string getClassName() override;
     virtual bool IsA(std::string className) override;

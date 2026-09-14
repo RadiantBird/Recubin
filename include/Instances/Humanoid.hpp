@@ -49,7 +49,7 @@ public:
     // Root中心から真下の地面までの目標距離。未設定時は初回ground detectionで実測する。
     float HipHeight = 2.0f;
     float ImpactRagdollThreshold = 45.0f;
-    float RagdollRecoverySpeed = 1.5f;
+    float RagdollRecoverySpeed = 2.5f;
     float RagdollRecoveryDelay = 1.0f;
 
     float getHipHeight() const { return HipHeight; }

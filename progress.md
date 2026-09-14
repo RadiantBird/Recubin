@@ -781,3 +781,19 @@
 - `updateAll`のトップレベル invocation IDを追加し、固定timestepで同じphysics tickが続く場合の誤検出を避けて同一invocationの二重更新だけを警告する。ソース上、呼び出しはRecubin/RecubinEngine各1箇所で、同一実行ファイル内の二重呼び出しは確認できない。
 - `Humanoid.cpp`、`Physics.cpp`、`Box3DPhysicsBackend.cpp`のGCC C++23 syntax checkは成功。`git diff --check`はexit 0。Windows `cmd.exe /d /c py build.py build`はCMake起動不能（WinError 2）、`py build.py brun Release`はWSL vsockエラーで未実行。実機でのbefore/after/nextログおよび14ケースのめり込み確認は未検証。
 - 次の一手: Windows側で再build後、追加診断の3 phaseログを取得し、全bodyがbind poseへ移動したこと、次physics update後もbottomYがsupport以上を保つこと、同一`updateAllInvocation`の重複有無、前後/横/逆さ/坂/壁際/段差/転がり後を確認する。
+
+## 2026-09-14: BallSocket per-axis angular limits
+
+- `BallSocket`へ`AngularX/Y/ZMode`（`Free`/`Limited`/`Locked`）と各軸のMin/Max角度（度）を追加し、既定値は全軸Free、Min=-180、Max=180とした。値変更時は既存native jointを再生成し、invalid mode/非有限角度はfull path付きwarningで保持値を維持する。
+- Box3D spherical jointへlocal joint frameの相対quaternion軸別constraintを追加した。Limitedはlower/upperの一方向impulse、Lockedは0度のbilateral impulseとしてsolverで解き、毎frameのEuler角clampは行わない。constraint torque/errorとrecording replayにも統合した。
+- BallSocket生成時はAttachmentのlocal frame、R6 ragdollのAttachmentなし経路はMotor6D C0/C1 bind frameをBox3Dへ渡す。制限軸はこのframe基準で評価し、`collideConnected=true`にしてBallSocketがcollisionを抑止しないようにした。collision無効化はNoCollision側の責務のまま維持した。
+- schemaへ9プロパティを登録し、generic Properties/YAML/clone/Luau経路へ統合した。PropertiesPanel固有分岐は追加していない。R6のNeck/Shoulder/Hipへ有限な初期制限を設定し、復帰時は既存順序でBallSocketを先に無効化してMotor6Dと競合しない。
+- `BallSocket` schema回帰、Box3D C/C++ syntax check、Box3D単体CMake build、Box3D全unit tests（local frame基準のX Limited/Y Lockedを含むAll Box3D tests passed）、対象差分の`git diff --check`を成功。runtime変更時にsleep中bodyも再評価できるよう新APIでwakeする。
+- Windows `cmd.exe /d /c py build.py brun Release`は`UtilBindVsockAnyPort:309: socket failed 1`で起動できず、Recubin実機のRagdoll/NoCollision/Character方向別確認は未検証。次の一手はWindows側再build後、Neck/Shoulder/Hipのlimit到達時のsolver安定性、向き変更、collisionペア、Ragdoll復帰を実機で確認する。
+
+## 2026-09-14: Relaxed Ragdoll recovery fallback
+
+- Ragdoll入口の既定Root線速度上限を2.5 stud/s、角速度上限を2.0 rad/sへ緩和し、低速タイマーはsupport scanの失敗だけではリセットしないようにした。supportが無い場合も`RagdollRecoveryDelay`後さらに0.75秒の猶予で`Recovering`へ進めるため、空中で静止したケースが永久にRagdollへ残らない。明示された`RagdollRecoverySpeed`値はそのまま尊重する。
+- Recoveringのgyro成功条件をupright/Pitch/Roll 15度以下、角速度1.5 rad/s以下へ緩和した。speed-fallbackは開始0.5秒後、線速度4.0以下・角速度2.5 rad/s以下でsupportなしでも実行でき、timeout-fallbackは1.25秒後にsupport・速度条件なしで実行する。
+- support scanが得られた場合は従来どおり最終Root Yの補正へ使い、得られない場合は現在Root Yを維持する。fallbackを許可したことはwarningで観測可能にした。BallSocket/NoCollision、Motor6D復帰順序、全身bind pose正規化は変更していない。
+- `spec.md`と`doc/Instances/Humanoid.md`へ新しい復帰条件を反映した。`Humanoid.cpp`のGCC C++23構文検査と`git diff --check`は成功。`cmd.exe /d /c py build.py brun Release`はWSL vsockの`UtilBindVsockAnyPort:309: socket failed 1`で起動できず、実機の復帰挙動は未検証。

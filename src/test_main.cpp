@@ -9809,6 +9809,79 @@ static int runPropertySchemaRegression() {
                    " generic property command undo restores Enabled");
     }
 
+    {
+        auto ballSocket = std::static_pointer_cast<BallSocket>(constraints[2].second);
+        const auto ballSchema = PropertyRegistry::collectApplicableSchema(ballSocket.get());
+        const auto findBallProperty = [&](std::string_view name) {
+            return findSchemaProperty(ballSchema, name);
+        };
+        const std::array<std::string_view, 9> angularProperties = {
+            "AngularXMode", "AngularXMin", "AngularXMax",
+            "AngularYMode", "AngularYMin", "AngularYMax",
+            "AngularZMode", "AngularZMin", "AngularZMax",
+        };
+        expect(std::all_of(angularProperties.begin(), angularProperties.end(),
+                   [&](std::string_view name) {
+                       const auto property = findBallProperty(name);
+                       return property != ballSchema.end() && (*property)->get &&
+                              (*property)->set;
+                   }),
+               "BallSocket angular limits are all exposed by the generic schema");
+        expect(ballSocket->AngularXMode == BallSocketAngularMode::Free &&
+                   ballSocket->AngularYMode == BallSocketAngularMode::Free &&
+                   ballSocket->AngularZMode == BallSocketAngularMode::Free,
+               "BallSocket angular modes default to Free for compatibility");
+
+        const auto xMode = findBallProperty("AngularXMode");
+        const auto xMin = findBallProperty("AngularXMin");
+        const auto xMax = findBallProperty("AngularXMax");
+        const auto yMode = findBallProperty("AngularYMode");
+        const auto yMin = findBallProperty("AngularYMin");
+        const auto yMax = findBallProperty("AngularYMax");
+        const auto zMode = findBallProperty("AngularZMode");
+        const auto zMin = findBallProperty("AngularZMin");
+        const auto zMax = findBallProperty("AngularZMax");
+        if (xMode != ballSchema.end() && xMin != ballSchema.end() &&
+            xMax != ballSchema.end() && yMode != ballSchema.end() &&
+            yMin != ballSchema.end() && yMax != ballSchema.end() &&
+            zMode != ballSchema.end() && zMin != ballSchema.end() &&
+            zMax != ballSchema.end()) {
+            (*xMode)->set(ballSocket.get(), PropValue(1));
+            (*xMin)->set(ballSocket.get(), PropValue(-35.0f));
+            (*xMax)->set(ballSocket.get(), PropValue(35.0f));
+            (*yMode)->set(ballSocket.get(), PropValue(1));
+            (*yMin)->set(ballSocket.get(), PropValue(-70.0f));
+            (*yMax)->set(ballSocket.get(), PropValue(70.0f));
+            (*zMode)->set(ballSocket.get(), PropValue(2));
+            (*zMin)->set(ballSocket.get(), PropValue(-30.0f));
+            (*zMax)->set(ballSocket.get(), PropValue(30.0f));
+
+            YAML::Emitter output;
+            output << YAML::BeginMap;
+            PropertyRegistry::saveProperties(output, ballSocket.get(), "BallSocket");
+            output << YAML::EndMap;
+            const YAML::Node saved = YAML::Load(output.c_str());
+            auto loaded = std::make_shared<BallSocket>();
+            loaded->setProperty("AngularXMode", saved["AngularXMode"]);
+            loaded->setProperty("AngularXMin", saved["AngularXMin"]);
+            loaded->setProperty("AngularXMax", saved["AngularXMax"]);
+            loaded->setProperty("AngularYMode", saved["AngularYMode"]);
+            loaded->setProperty("AngularYMin", saved["AngularYMin"]);
+            loaded->setProperty("AngularYMax", saved["AngularYMax"]);
+            loaded->setProperty("AngularZMode", saved["AngularZMode"]);
+            loaded->setProperty("AngularZMin", saved["AngularZMin"]);
+            loaded->setProperty("AngularZMax", saved["AngularZMax"]);
+            auto clone = std::dynamic_pointer_cast<BallSocket>(ballSocket->clone());
+            expect(saved["AngularXMode"].as<std::string>() == "Limited" &&
+                       saved["AngularZMode"].as<std::string>() == "Locked" &&
+                       loaded->AngularXMin == -35.0f && loaded->AngularYMax == 70.0f &&
+                       loaded->AngularZMode == BallSocketAngularMode::Locked && clone &&
+                       clone->AngularXMin == -35.0f &&
+                       clone->AngularZMax == 30.0f,
+                   "BallSocket angular limits survive YAML, setProperty, and clone");
+        }
+    }
+
     const auto ropeSchema = PropertyRegistry::collectApplicableSchema(constraints[0].second.get());
     const auto ropeDistance = findSchemaProperty(ropeSchema, "MaxDistance");
     expect(ropeDistance != ropeSchema.end() && (*ropeDistance)->type == PropType::Float &&

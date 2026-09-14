@@ -204,6 +204,39 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3
 
         auto ragdoll = std::make_shared<BallSocket>(part0, part1);
         ragdoll->Name = topology.jointName + "Ragdoll";
+        if (topology.jointName == "Neck") {
+            ragdoll->setAngularXMode(BallSocketAngularMode::Limited);
+            ragdoll->setAngularXMin(-45.0f);
+            ragdoll->setAngularXMax(45.0f);
+            ragdoll->setAngularYMode(BallSocketAngularMode::Limited);
+            ragdoll->setAngularYMin(-60.0f);
+            ragdoll->setAngularYMax(60.0f);
+            ragdoll->setAngularZMode(BallSocketAngularMode::Limited);
+            ragdoll->setAngularZMin(-35.0f);
+            ragdoll->setAngularZMax(35.0f);
+        } else if (topology.jointName == "LeftShoulder" ||
+                   topology.jointName == "RightShoulder") {
+            ragdoll->setAngularXMode(BallSocketAngularMode::Limited);
+            ragdoll->setAngularXMin(-90.0f);
+            ragdoll->setAngularXMax(90.0f);
+            ragdoll->setAngularYMode(BallSocketAngularMode::Limited);
+            ragdoll->setAngularYMin(-75.0f);
+            ragdoll->setAngularYMax(75.0f);
+            ragdoll->setAngularZMode(BallSocketAngularMode::Limited);
+            ragdoll->setAngularZMin(-110.0f);
+            ragdoll->setAngularZMax(110.0f);
+        } else if (topology.jointName == "LeftHip" ||
+                   topology.jointName == "RightHip") {
+            ragdoll->setAngularXMode(BallSocketAngularMode::Limited);
+            ragdoll->setAngularXMin(-50.0f);
+            ragdoll->setAngularXMax(50.0f);
+            ragdoll->setAngularYMode(BallSocketAngularMode::Limited);
+            ragdoll->setAngularYMin(-45.0f);
+            ragdoll->setAngularYMax(45.0f);
+            ragdoll->setAngularZMode(BallSocketAngularMode::Limited);
+            ragdoll->setAngularZMin(-40.0f);
+            ragdoll->setAngularZMax(40.0f);
+        }
         ragdoll->Enabled = false;
         parent->addChild(ragdoll);
     }

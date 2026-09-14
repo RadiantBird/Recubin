@@ -26,14 +26,15 @@ namespace {
 
 constexpr const char* HOVER_FORCE_NAME = "CharacterHoverForce";
 constexpr float RADIANS_TO_DEGREES = 180.0f / 3.14159265f;
-constexpr float RECOVERY_UPRIGHT_ERROR_DEGREES = 10.0f;
-constexpr float RECOVERY_ANGULAR_SPEED = 1.0f;
+constexpr float RECOVERY_ENTRY_ANGULAR_SPEED = 2.0f;
+constexpr float RECOVERY_NO_SUPPORT_ENTRY_GRACE = 0.75f;
+constexpr float RECOVERY_UPRIGHT_ERROR_DEGREES = 15.0f;
+constexpr float RECOVERY_ANGULAR_SPEED = 1.5f;
 constexpr float RECOVERY_UPRIGHT_SETTLE_TIME = 0.1f;
-constexpr float RECOVERY_GYRO_TIMEOUT = 0.75f;
-constexpr float RECOVERY_FALLBACK_LINEAR_SPEED = 3.0f;
-constexpr float RECOVERY_FALLBACK_ANGULAR_SPEED = 2.0f;
-constexpr float RECOVERY_TIMEOUT = 1.5f;
-constexpr float RECOVERY_GROUNDED_SETTLE_TIME = 0.15f;
+constexpr float RECOVERY_GYRO_TIMEOUT = 0.5f;
+constexpr float RECOVERY_FALLBACK_LINEAR_SPEED = 4.0f;
+constexpr float RECOVERY_FALLBACK_ANGULAR_SPEED = 2.5f;
+constexpr float RECOVERY_TIMEOUT = 1.25f;
 constexpr float RECOVERY_SUPPORT_FOOTPRINT_MARGIN = 0.15f;
 constexpr float RECOVERY_SUPPORT_SCAN_START_OFFSET = 0.25f;
 constexpr float RECOVERY_SUPPORT_SCAN_BELOW_FOOT = 1.0f;
@@ -931,11 +932,12 @@ void Humanoid::updateRagdoll(float dt, Physics* physics) {
     const Vector3 angularVelocity = physics->getAngularVelocity(*root);
     const float linearSpeed = linearVelocity.length();
     const float angularSpeed = angularVelocity.length();
-    const bool stable = std::isfinite(linearSpeed) &&
+    const bool lowSpeed = std::isfinite(linearSpeed) &&
         std::isfinite(angularSpeed) &&
         linearSpeed <= RagdollRecoverySpeed &&
-        angularSpeed <= 1.5f && hasRagdollSupport(physics);
-    if (stable) {
+        angularSpeed <= RECOVERY_ENTRY_ANGULAR_SPEED;
+    const bool hasSupport = hasRagdollSupport(physics);
+    if (lowSpeed) {
         const float stableTimeBefore = m_ragdollStableTime;
         m_ragdollStableTime += std::max(dt, 0.0f);
         if (stableTimeBefore <= 0.0f) {
@@ -947,12 +949,18 @@ void Humanoid::updateRagdoll(float dt, Physics* physics) {
                 << " physicsTick=" << physics->getSimulationTick()
                 << " updateAllInvocation=" << g_currentHumanoidUpdateAllInvocation
                 << " updateCount=" << m_ragdollUpdatesThisInvocation
+                << " support=" << (hasSupport ? 1 : 0)
             );
         }
     } else {
         m_ragdollStableTime = 0.0f;
     }
-    if (m_ragdollStableTime >= RagdollRecoveryDelay) {
+    const float noSupportRecoveryDelay =
+        RagdollRecoveryDelay + RECOVERY_NO_SUPPORT_ENTRY_GRACE;
+    const bool recoveryGate = hasSupport ||
+        m_ragdollStableTime >= noSupportRecoveryDelay;
+    if (lowSpeed && m_ragdollStableTime >= RagdollRecoveryDelay &&
+        recoveryGate) {
         recoverFromRagdoll(physics);
     }
 }
@@ -1129,8 +1137,7 @@ void Humanoid::updateRagdollRecovery(float dt, Physics* physics) {
     const bool fallbackStable =
         m_recoveryElapsedTime >= RECOVERY_GYRO_TIMEOUT &&
         linearSpeed <= RECOVERY_FALLBACK_LINEAR_SPEED &&
-        angularSpeed <= RECOVERY_FALLBACK_ANGULAR_SPEED &&
-        m_recoveryGroundedTime >= RECOVERY_GROUNDED_SETTLE_TIME;
+        angularSpeed <= RECOVERY_FALLBACK_ANGULAR_SPEED;
     if (!fallbackStable) {
         m_recoveryFallbackStableTime = 0.0f;
         m_recoveryFallbackReported = false;
@@ -1158,8 +1165,7 @@ void Humanoid::updateRagdollRecovery(float dt, Physics* physics) {
         }
     }
 
-    if (m_recoveryElapsedTime >= RECOVERY_TIMEOUT &&
-        m_recoveryGroundedTime >= RECOVERY_GROUNDED_SETTLE_TIME) {
+    if (m_recoveryElapsedTime >= RECOVERY_TIMEOUT) {
         finalizeRagdollRecovery(physics, "timeout-fallback");
     }
 }
@@ -1193,9 +1199,10 @@ void Humanoid::finalizeRagdollRecovery(
         m_recoverySupportValid = true;
     }
     if (!m_recoverySupportValid) {
-        RCBN_ERROR(
+        RCBN_WARN(
             "Humanoid \"" << getFullPath()
-            << "\": Ragdoll recovery support scan returned no valid support"
+            << "\": Ragdoll recovery support scan returned no valid support; "
+            << "preserving the current Root height"
         );
     }
 

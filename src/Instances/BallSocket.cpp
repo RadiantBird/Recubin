@@ -3,15 +3,73 @@
 #include <include/Instances/Attachment.hpp>
 #include <include/Core/Physics.hpp>
 #include <include/Core/PropertyRegistry.hpp>
+#include <include/Util/Logger.hpp>
+#include <cmath>
 #include <utility>
+
+namespace {
+
+template<auto Field, auto Setter>
+PropertyDesc ballSocketModeProperty(
+    std::string_view name,
+    const std::vector<std::pair<std::string_view, int>>& names) {
+    PropertyDesc property = PropertyRegistry::custom(
+        name, PropType::Enum,
+        [](Instance* object) {
+            return PropValue(static_cast<int>(
+                static_cast<BallSocket*>(object)->*Field));
+        },
+        [](Instance* object, const PropValue& value) {
+            (static_cast<BallSocket*>(object)->*Setter)(
+                static_cast<BallSocketAngularMode>(std::get<int>(value)));
+        });
+    property.enumNames = names;
+    property.yamlEnumAsString = true;
+    return property;
+}
+
+template<auto Field, auto Setter>
+PropertyDesc ballSocketAngleProperty(
+    std::string_view name) {
+    PropertyDesc property = PropertyRegistry::custom(
+        name, PropType::Float,
+        [](Instance* object) {
+            return PropValue(
+                static_cast<BallSocket*>(object)->*Field);
+        },
+        [](Instance* object, const PropValue& value) {
+            (static_cast<BallSocket*>(object)->*Setter)(
+                std::get<float>(value));
+        });
+    property.lo = -180.0f;
+    property.hi = 180.0f;
+    property.step = 1.0f;
+    return property;
+}
+
+} // namespace
 
 static const bool s_ballSocketRegistered = [] {
     using namespace PropertyRegistry;
+    const std::vector<std::pair<std::string_view, int>> angularModes = {
+        {"Free", static_cast<int>(BallSocketAngularMode::Free)},
+        {"Limited", static_cast<int>(BallSocketAngularMode::Limited)},
+        {"Locked", static_cast<int>(BallSocketAngularMode::Locked)},
+    };
     registerClass("BallSocket", "PhysicsConstraint", {
         instanceRefProperty<&PhysicsConstraint::m_cube0Name>("Cube0", "BaseCube"),
         instanceRefProperty<&PhysicsConstraint::m_cube1Name>("Cube1", "BaseCube"),
         instanceRefProperty<&BallSocket::m_attachment0Name>("Attachment0", "Attachment").omitEmpty(),
         instanceRefProperty<&BallSocket::m_attachment1Name>("Attachment1", "Attachment").omitEmpty(),
+        ballSocketModeProperty<&BallSocket::AngularXMode, &BallSocket::setAngularXMode>("AngularXMode", angularModes),
+        ballSocketAngleProperty<&BallSocket::AngularXMin, &BallSocket::setAngularXMin>("AngularXMin"),
+        ballSocketAngleProperty<&BallSocket::AngularXMax, &BallSocket::setAngularXMax>("AngularXMax"),
+        ballSocketModeProperty<&BallSocket::AngularYMode, &BallSocket::setAngularYMode>("AngularYMode", angularModes),
+        ballSocketAngleProperty<&BallSocket::AngularYMin, &BallSocket::setAngularYMin>("AngularYMin"),
+        ballSocketAngleProperty<&BallSocket::AngularYMax, &BallSocket::setAngularYMax>("AngularYMax"),
+        ballSocketModeProperty<&BallSocket::AngularZMode, &BallSocket::setAngularZMode>("AngularZMode", angularModes),
+        ballSocketAngleProperty<&BallSocket::AngularZMin, &BallSocket::setAngularZMin>("AngularZMin"),
+        ballSocketAngleProperty<&BallSocket::AngularZMax, &BallSocket::setAngularZMax>("AngularZMax"),
     });
     return true;
 }();
@@ -46,6 +104,126 @@ void BallSocket::resolveAdditionalReferences() {
         if (auto c1 = m_cube1.lock())
             m_attachment1 = Attachment::findUnder(c1.get(), m_attachment1Name);
 }
+
+namespace {
+
+bool isValidBallSocketAngularMode(BallSocketAngularMode mode) {
+    return mode == BallSocketAngularMode::Free ||
+           mode == BallSocketAngularMode::Limited ||
+           mode == BallSocketAngularMode::Locked;
+}
+
+void reportInvalidBallSocketMode(const BallSocket& socket, const char* property,
+                                 BallSocketAngularMode mode) {
+    RCBN_WARN("BallSocket \"" << socket.getFullPath() << "\": " << property
+              << " has invalid mode value " << static_cast<int>(mode)
+              << "; keeping the previous value");
+}
+
+void reportInvalidBallSocketAngle(const BallSocket& socket, const char* property,
+                                  float value) {
+    RCBN_WARN("BallSocket \"" << socket.getFullPath() << "\": " << property
+              << " must be finite; keeping the previous value (received "
+              << value << ")");
+}
+
+} // namespace
+
+void BallSocket::refreshAngularBinding() {
+    invalidateBinding();
+    registerIfReady();
+}
+
+void BallSocket::setAngularXMode(BallSocketAngularMode mode) {
+    if (!isValidBallSocketAngularMode(mode)) {
+        reportInvalidBallSocketMode(*this, "AngularXMode", mode);
+        return;
+    }
+    if (AngularXMode == mode) return;
+    AngularXMode = mode;
+    refreshAngularBinding();
+}
+
+void BallSocket::setAngularYMode(BallSocketAngularMode mode) {
+    if (!isValidBallSocketAngularMode(mode)) {
+        reportInvalidBallSocketMode(*this, "AngularYMode", mode);
+        return;
+    }
+    if (AngularYMode == mode) return;
+    AngularYMode = mode;
+    refreshAngularBinding();
+}
+
+void BallSocket::setAngularZMode(BallSocketAngularMode mode) {
+    if (!isValidBallSocketAngularMode(mode)) {
+        reportInvalidBallSocketMode(*this, "AngularZMode", mode);
+        return;
+    }
+    if (AngularZMode == mode) return;
+    AngularZMode = mode;
+    refreshAngularBinding();
+}
+
+void BallSocket::setAngularXMin(float angle) {
+    if (!std::isfinite(angle)) {
+        reportInvalidBallSocketAngle(*this, "AngularXMin", angle);
+        return;
+    }
+    if (AngularXMin == angle) return;
+    AngularXMin = angle;
+    refreshAngularBinding();
+}
+
+void BallSocket::setAngularXMax(float angle) {
+    if (!std::isfinite(angle)) {
+        reportInvalidBallSocketAngle(*this, "AngularXMax", angle);
+        return;
+    }
+    if (AngularXMax == angle) return;
+    AngularXMax = angle;
+    refreshAngularBinding();
+}
+
+void BallSocket::setAngularYMin(float angle) {
+    if (!std::isfinite(angle)) {
+        reportInvalidBallSocketAngle(*this, "AngularYMin", angle);
+        return;
+    }
+    if (AngularYMin == angle) return;
+    AngularYMin = angle;
+    refreshAngularBinding();
+}
+
+void BallSocket::setAngularYMax(float angle) {
+    if (!std::isfinite(angle)) {
+        reportInvalidBallSocketAngle(*this, "AngularYMax", angle);
+        return;
+    }
+    if (AngularYMax == angle) return;
+    AngularYMax = angle;
+    refreshAngularBinding();
+}
+
+void BallSocket::setAngularZMin(float angle) {
+    if (!std::isfinite(angle)) {
+        reportInvalidBallSocketAngle(*this, "AngularZMin", angle);
+        return;
+    }
+    if (AngularZMin == angle) return;
+    AngularZMin = angle;
+    refreshAngularBinding();
+}
+
+void BallSocket::setAngularZMax(float angle) {
+    if (!std::isfinite(angle)) {
+        reportInvalidBallSocketAngle(*this, "AngularZMax", angle);
+        return;
+    }
+    if (AngularZMax == angle) return;
+    AngularZMax = angle;
+    refreshAngularBinding();
+}
+
 std::shared_ptr<Instance> BallSocket::clone() const {
     auto c = std::make_shared<BallSocket>();
     c->Name        = Name;
@@ -96,6 +274,8 @@ void BallSocket::setProperty(const std::string& name, const YAML::Node& value) {
         m_attachment1Name = value.as<std::string>();
         m_attachment1.reset();
     } else {
+        if (PropertyRegistry::loadProperty(this, "BallSocket", name, value))
+            return;
         PhysicsConstraint::setProperty(name, value);
     }
     registerIfReady();

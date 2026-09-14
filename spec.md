@@ -136,6 +136,21 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   WeldされたBaseCube同士は元から内部衝突を行わないため、
   同一のペアにNoCollisionを設定した場合は実質的に効果を持たない。
 
+## BallSocket
+  BallSocketは共有アンカーを維持する球面jointであり、`AngularXMode`、`AngularYMode`、
+  `AngularZMode`をそれぞれ`Free`、`Limited`、`Locked`へ設定できる。既定値は後方互換のため
+  3軸とも`Free`とする。`Limited`では対応する`Angular{X,Y,Z}Min/Max`（度）を使い、`Locked`
+  ではその軸のbind poseからの相対回転を0度へ拘束する。
+
+  制限軸はworld axisではなく、BallSocket生成時の`localFrameA/B`で定義されたbind poseの
+  joint frame基準とする。AttachmentがあればAttachmentのlocal frameを使い、R6 ragdollの
+  Attachmentが無いBallSocketは対応Motor6DのC0/C1 bind frameを使う。Box3D spherical joint
+  内の相対quaternion軸角 constraintとしてsolverに渡し、Euler角を毎frame直接clampしない。
+  3軸FreeのBallSocketは従来どおり無制限球面jointとして動作する。
+
+  BallSocketは接続body同士のcollisionを変更しない。collision無効化はNoCollisionだけが担当し、
+  RagdollのNeck/Shoulder/Hipにはそれぞれlocal joint frame基準の有限な制限を設定する。
+
 ## Character
   Characterも通常のBaseCubeとWeldによるアセンブリとして扱う。
 
@@ -171,16 +186,18 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   使うBallSocketを有効化する。Ragdoll中だけbody collisionを有効化するが、Character collision groupで内部self-collision
   は抑制し、外部worldとの衝突を許可する。死亡時も同じ遷移を使う。
 
-  死亡していないRagdollは、Rootの線速度が`RagdollRecoverySpeed`（既定1.5 stud/s）以下、角速度が低く、R6 bodyの
-  いずれかが接地し、その状態が`RagdollRecoveryDelay`（既定1秒）続いた場合に`Recovering`へ遷移する。Recoveringでは
+  死亡していないRagdollは、Rootの線速度が`RagdollRecoverySpeed`（既定2.5 stud/s）以下、角速度が2.0 rad/s以下で、低速状態が
+  `RagdollRecoveryDelay`（既定1秒）続いた場合に`Recovering`へ遷移する。通常はR6 bodyのいずれかの接地も確認し、support scanが一時的に
+  失敗している場合は追加0.75秒の猶予後に接地なしでも遷移する。Recoveringでは
   BallSocketを先に無効化してMotor6Dをbind poseへ戻し、Root lockとhoverを無効にしたままRootGyroのX/Y/Zで物理的にuprightへ戻す。
-  upright error、Pitch/Roll errorが10度以下、Root角速度が1.0 rad/s以下の状態を0.1秒維持した後、現在位置と有効Yawを維持してPitch/Rollだけを除去する
+  upright error、Pitch/Roll errorが15度以下、Root角速度が1.5 rad/s以下の状態を0.1秒維持した後、現在位置と有効Yawを維持してPitch/Rollだけを除去する
   CFrameを一度だけ適用する（`gyro-success`）。その直後にRoot角速度、Root lock、通常collision、Gyro/yaw、hover、movement/jumpを順に復元して`Normal`へ戻す。
-  Gyroがuprightへ到達できない場合でも、Recovering開始から0.75秒以上経過し、Root線速度が3.0以下、角速度が2.0 rad/s以下、接地が0.15秒続けば
-  `speed-fallback`として同じCFrame正規化を一度だけ適用する。さらに1.5秒経過後、接地が0.15秒続いていれば速度に関係なく`timeout-fallback`で最終化する。
+  Gyroがuprightへ到達できない場合でも、Recovering開始から0.5秒以上経過し、Root線速度が4.0以下、角速度が2.5 rad/s以下なら
+  supportの有無に関係なく`speed-fallback`として同じCFrame正規化を一度だけ適用する。さらに1.25秒経過後は、速度・supportの有無に関係なく
+  `timeout-fallback`で最終化する。supportが得られた場合だけYを必要最小限補正し、得られない場合は現在Root Yを維持する。
   Recoveringの接地は通常時のground detectionとは別のsupport scanで判定する。Rootの現在YawでRootのX/Z footprintを薄いboxとして、
   Rootの想定足元より少し上から`HipHeight + 1 stud`以上の下方へshape castし、Character階層を除外する。接触法線のY成分が0.5未満の壁面は除外し、
-  複数候補では最も高い上向き面をsupportとして採用する。このscanの結果は0.15秒継続していることを復帰条件に使う。
+  複数候補では最も高い上向き面をsupportとして採用する。scan結果は通常のY補正に使うが、supportの一時的な欠落で復帰処理を永久待機させない。
   最終CFrame正規化のYは、現在Root Yを下限として`max(currentRootY, supportY + HipHeight)`で求める。X/ZとYawは維持し、
   必要な最小上方向補正だけを加えるため、Rootを空中へ下げたり大きく持ち上げたりしない。
   Recovering中もNetworkのAvatarBatchではRagdoll bitを維持し、Host権威の復帰完了までremote poseで物理姿勢を上書きしない。

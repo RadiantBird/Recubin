@@ -2331,11 +2331,44 @@ void Box3DPhysicsBackend::createBallSocket(
     b3SphericalJointDef definition = b3DefaultSphericalJointDef();
     definition.base.bodyIdA = bodyA;
     definition.base.bodyIdB = bodyB;
+    // BallSocket constrains rotation, but it does not own collision policy.
+    // NoCollision supplies the explicit pair filter when requested.
+    definition.base.collideConnected = true;
     definition.base.localFrameA = toB3Transform(frameA);
     definition.base.localFrameB = toB3Transform(frameB);
     definition.base.userData = ballSocket.get();
     const b3JointId joint = b3CreateSphericalJoint(m_worldId, &definition);
     if (B3_IS_NULL(joint)) return;
+    const auto axisLimitMask = [](BallSocketAngularMode mode) {
+        return mode == BallSocketAngularMode::Limited ? 1u : 0u;
+    };
+    const auto axisLockMask = [](BallSocketAngularMode mode) {
+        return mode == BallSocketAngularMode::Locked ? 1u : 0u;
+    };
+    const Vector3 lower(
+        ballSocket->AngularXMin * pi / 180.0f,
+        ballSocket->AngularYMin * pi / 180.0f,
+        ballSocket->AngularZMin * pi / 180.0f);
+    const Vector3 upper(
+        ballSocket->AngularXMax * pi / 180.0f,
+        ballSocket->AngularYMax * pi / 180.0f,
+        ballSocket->AngularZMax * pi / 180.0f);
+    const uint32_t limitMask =
+        axisLimitMask(ballSocket->AngularXMode) |
+        (axisLimitMask(ballSocket->AngularYMode) << 1u) |
+        (axisLimitMask(ballSocket->AngularZMode) << 2u);
+    const uint32_t lockMask =
+        axisLockMask(ballSocket->AngularXMode) |
+        (axisLockMask(ballSocket->AngularYMode) << 1u) |
+        (axisLockMask(ballSocket->AngularZMode) << 2u);
+    if (limitMask != 0 || lockMask != 0) {
+        b3SphericalJoint_SetAngularLimits(
+            joint,
+            {lower.x, lower.y, lower.z},
+            {upper.x, upper.y, upper.z},
+            limitMask,
+            lockMask);
+    }
     const PhysicsConstraintHandle handle{b3StoreJointId(joint)};
     ballSocket->m_constraintHandle = handle;
     m_constraints.push_back({ballSocket, handle, joint});
