@@ -10,7 +10,6 @@ layout (location = 9) in vec4 aInstColor;  // インスタンスごとの色
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
-uniform mat4 lightSpaceMatrix;
 uniform float uTime;      // 経過秒（波アニメ用）
 uniform float uIsLiquid;  // LiquidCube 描画時 1.0
 uniform float uInstanced;                  // 1.0 でインスタンス属性からモデル行列と色を取る
@@ -18,7 +17,7 @@ uniform float uInstanced;                  // 1.0 でインスタンス属性か
 out vec3 Normal;
 out vec3 FragPos;
 out vec2 TexCoord;
-out vec4 FragPosLightSpace;
+out float ViewDepth;
 out vec3 VertexColor;
 out float MatAlpha;
 out vec3 LocalPos;
@@ -45,6 +44,7 @@ void main() {
     LocalPos = p;
     LocalNormal = aNormal;
     InstColor = (uInstanced > 0.5) ? aInstColor : vec4(1.0);
-    FragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0);
-    gl_Position = projection * view * vec4(FragPos, 1.0);
+    vec4 viewPosition = view * vec4(FragPos, 1.0);
+    ViewDepth = -viewPosition.z;
+    gl_Position = projection * viewPosition;
 }

@@ -4,7 +4,7 @@ out vec4 FragColor;
 in vec3 Normal;
 in vec3 FragPos;
 in vec2 TexCoord;
-in vec4 FragPosLightSpace;
+in float ViewDepth;
 in vec3 VertexColor;
 in float MatAlpha;
 in vec3 LocalPos;
@@ -12,7 +12,10 @@ in vec3 LocalNormal;
 in vec4 InstColor;
 
 uniform sampler2D ourTexture;
-uniform sampler2D shadowMap;
+uniform sampler2DArray shadowMap;
+uniform mat4 lightSpaceMatrices[3];
+uniform vec3 uShadowCascadeSplits;
+uniform vec2 uShadowCascadeBlend;
 uniform float hasShadows;
 uniform vec4 ourColor;
 uniform vec3 lightDir;
@@ -69,7 +72,7 @@ uniform int       uDecalFace[MAX_DECALS];  // Face番号(0=Front..5=Left)
 uniform vec3      uLocalBoundsMin;         // MeshCubeローカルAABB
 uniform vec3      uLocalBoundsMax;
 
-float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
+float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm, int cascadeIndex) {
     // The light-space projection is a homogeneous clip-space position.  Do
     // not attempt a divide for vertices behind the light camera: an invalid
     // w can turn into an apparently valid UV and make the shadow test depend
@@ -82,27 +85,42 @@ float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm) {
         projCoords.z < 0.0 || projCoords.z > 1.0) {
         return 0.0;
     }
+    vec3 shadowNormal = normalize(norm);
+    vec3 shadowLightDir = normalize(lightDirNorm);
     float currentDepth = projCoords.z;
-    float bias = max(0.0015 * (1.0 - dot(norm, lightDirNorm)), 0.0005);
+    float normalLight = clamp(dot(shadowNormal, shadowLightDir), 0.0, 1.0);
+    // The bias is in the projected depth domain. Keep the minimum small so
+    // contact shadows remain attached, and increase it only as the receiver
+    // becomes grazing to the light direction.
+    const float MIN_SHADOW_BIAS = 0.00035;
+    const float SLOPE_SHADOW_BIAS = 0.0012;
+    float bias = max(SLOPE_SHADOW_BIAS * (1.0 - normalLight), MIN_SHADOW_BIAS);
     float shadow = 0.0;
     float sampleCount = 0.0;
-    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    ivec2 mapSize = textureSize(shadowMap, 0).xy;
+    vec2 texelSize = 1.0 / vec2(mapSize);
+    ivec2 centerTexel = ivec2(floor(projCoords.xy / texelSize));
     for (int x = -1; x <= 1; ++x)
         for (int y = -1; y <= 1; ++y) {
-            vec2 sampleUv = projCoords.xy + vec2(x, y) * texelSize;
             // Keep the PCF kernel from consulting the border value.  The
             // explicit range test above handles the fragment itself, while
             // this test handles the three-by-three footprint at the edge.
             // Out-of-coverage samples are lit, never shadowed.
-            if (sampleUv.x < 0.0 || sampleUv.x > 1.0 ||
-                sampleUv.y < 0.0 || sampleUv.y > 1.0) {
+            ivec2 sampleTexel = centerTexel + ivec2(x, y);
+            if (sampleTexel.x < 0 || sampleTexel.x >= mapSize.x ||
+                sampleTexel.y < 0 || sampleTexel.y >= mapSize.y) {
                 continue;
             }
-            float pcfDepth = texture(shadowMap, sampleUv).r;
+            float pcfDepth = texelFetch(shadowMap, ivec3(sampleTexel, cascadeIndex), 0).r;
             shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
             sampleCount += 1.0;
         }
     return sampleCount > 0.0 ? shadow / sampleCount : 0.0;
+}
+
+float shadowForCascade(int cascadeIndex, vec3 norm, vec3 lightDirNorm) {
+    vec4 fragPosLightSpace = lightSpaceMatrices[cascadeIndex] * vec4(FragPos, 1.0);
+    return shadowCalc(fragPosLightSpace, norm, lightDirNorm, cascadeIndex);
 }
 
 void main() {
@@ -255,7 +273,56 @@ if (useTriplanar > 0.5) {
         float fadeStart = max(fadeDistance - uShadowFadeDistance, 0.0);
         shadowFade = 1.0 - smoothstep(fadeStart, fadeDistance, fragmentDistance);
     }
-    float shadow = hasShadows * shadowCalc(FragPosLightSpace, norm, lightDirNorm) * shadowFade;
+
+    // Select the cascade using the same view-space depth produced by the
+    // vertex shader. Only the two cascades around a split are sampled, and
+    // only within a small transition band, so ordinary fragments pay for one
+    // PCF lookup while split boundaries remain free of a hard line.
+    float cascadedShadow = 0.0;
+    if (hasShadows > 0.5 && shadowFade > 0.0 && ViewDepth >= 0.0 &&
+        ViewDepth <= uShadowCascadeSplits.z) {
+        int cascadeIndex = ViewDepth < uShadowCascadeSplits.x ? 0 :
+                           (ViewDepth < uShadowCascadeSplits.y ? 1 : 2);
+        if (cascadeIndex == 0) {
+            cascadedShadow = shadowForCascade(0, norm, lightDirNorm);
+            if (ViewDepth > uShadowCascadeSplits.x - uShadowCascadeBlend.x) {
+                float blend = smoothstep(
+                    uShadowCascadeSplits.x - uShadowCascadeBlend.x,
+                    uShadowCascadeSplits.x + uShadowCascadeBlend.x,
+                    ViewDepth);
+                cascadedShadow = mix(cascadedShadow,
+                                     shadowForCascade(1, norm, lightDirNorm), blend);
+            }
+        } else if (cascadeIndex == 1) {
+            cascadedShadow = shadowForCascade(1, norm, lightDirNorm);
+            if (ViewDepth < uShadowCascadeSplits.x + uShadowCascadeBlend.x) {
+                float blend = smoothstep(
+                    uShadowCascadeSplits.x - uShadowCascadeBlend.x,
+                    uShadowCascadeSplits.x + uShadowCascadeBlend.x,
+                    ViewDepth);
+                cascadedShadow = mix(shadowForCascade(0, norm, lightDirNorm),
+                                     cascadedShadow, blend);
+            } else if (ViewDepth > uShadowCascadeSplits.y - uShadowCascadeBlend.y) {
+                float blend = smoothstep(
+                    uShadowCascadeSplits.y - uShadowCascadeBlend.y,
+                    uShadowCascadeSplits.y + uShadowCascadeBlend.y,
+                    ViewDepth);
+                cascadedShadow = mix(cascadedShadow,
+                                     shadowForCascade(2, norm, lightDirNorm), blend);
+            }
+        } else {
+            cascadedShadow = shadowForCascade(2, norm, lightDirNorm);
+            if (ViewDepth < uShadowCascadeSplits.y + uShadowCascadeBlend.y) {
+                float blend = smoothstep(
+                    uShadowCascadeSplits.y - uShadowCascadeBlend.y,
+                    uShadowCascadeSplits.y + uShadowCascadeBlend.y,
+                    ViewDepth);
+                cascadedShadow = mix(shadowForCascade(1, norm, lightDirNorm),
+                                     cascadedShadow, blend);
+            }
+        }
+    }
+    float shadow = hasShadows * cascadedShadow * shadowFade;
 
     vec3 lighting = ambient + (1.0 - shadow) * diffuse;
 

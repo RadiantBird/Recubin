@@ -40,8 +40,10 @@
 #include <include/Instances/PostEffect.hpp>
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstring>
 #include <filesystem>
+#include <limits>
 #include <unordered_set>
 
 
@@ -482,7 +484,9 @@ void Renderer::init(GLFWwindow* window) {
     shadowDistanceLoc   = glGetUniformLocation(shaderProgram, "uShadowDistance");
     shadowFadeDistanceLoc = glGetUniformLocation(shaderProgram, "uShadowFadeDistance");
     hasShadowsLoc       = glGetUniformLocation(shaderProgram, "hasShadows");
-    lightSpaceMatrixLoc = glGetUniformLocation(shaderProgram, "lightSpaceMatrix");
+    lightSpaceMatricesLoc = glGetUniformLocation(shaderProgram, "lightSpaceMatrices[0]");
+    shadowCascadeSplitsLoc = glGetUniformLocation(shaderProgram, "uShadowCascadeSplits");
+    shadowCascadeBlendLoc = glGetUniformLocation(shaderProgram, "uShadowCascadeBlend");
     modelLoc            = glGetUniformLocation(shaderProgram, "model");
     unlitLoc            = glGetUniformLocation(shaderProgram, "unlit");
     triplanarLoc        = glGetUniformLocation(shaderProgram, "useTriplanar");
@@ -553,20 +557,25 @@ void Renderer::init(GLFWwindow* window) {
     // --- Shadow Map FBO + 深度テクスチャ生成 ---
     {
         glGenTextures(1, &shadowMapTex);
-        glBindTexture(GL_TEXTURE_2D, shadowMapTex);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE,
+        glBindTexture(GL_TEXTURE_2D_ARRAY, shadowMapTex);
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT24,
+                     SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, SHADOW_CASCADE_COUNT,
                      0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        // PCF is performed by explicit depth comparisons in the fragment
+        // shader. Filtering the depth texture here would compare against
+        // bilinearly blended depths instead of nine actual texels.
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
         float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-        glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+        glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
 
         glGenFramebuffers(1, &shadowFBO);
         glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowMapTex, 0);
+        glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowMapTex, 0, 0);
         glDrawBuffer(GL_NONE);
         glReadBuffer(GL_NONE);
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
@@ -1882,65 +1891,200 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     for (auto const& [name, child] : desc.workspace->getChildren()) collectInstCubes(collectInstCubes, child.get());
     if (instCulled > 0) FrameProfiler::get().addCount("cubesCulled", instCulled);
 
+    // Normalize once so the shadow basis and the main-pass lighting use the
+    // same direction. A zero/NaN direction would make LookAt and normalize
+    // in the shader produce undefined coordinates, so fall back visibly to
+    // the engine default and report the invalid authored value.
+    Vector3 lightDirection(1.0f, -1.0f, -1.0f);
+    bool lightDirectionValid = true;
+    static const Lighting* lastInvalidLighting = nullptr;
+    if (lighting) {
+        const Vector3 authoredDirection = lighting->lightDir;
+        const bool finite = std::isfinite(authoredDirection.x) &&
+                            std::isfinite(authoredDirection.y) &&
+                            std::isfinite(authoredDirection.z);
+        const float length = authoredDirection.length();
+        lightDirectionValid = finite && std::isfinite(length) && length > 0.001f;
+        if (lightDirectionValid) {
+            lightDirection = authoredDirection / length;
+            lastInvalidLighting = nullptr;
+        } else {
+            if (lastInvalidLighting != lighting) {
+                RCBN_WARN("Lighting '" << lighting->Name << "' has an invalid Direction (" <<
+                          authoredDirection.x << ", " << authoredDirection.y << ", " <<
+                          authoredDirection.z << "); using (1,-1,-1)");
+                lastInvalidLighting = lighting;
+            }
+        }
+    }
+
     // ---- Shadow Pass ----
-    Matrix4 lightSpaceMatrix;
+    std::array<Matrix4, SHADOW_CASCADE_COUNT> lightSpaceMatrices{};
+    std::array<float, SHADOW_CASCADE_COUNT> shadowCascadeSplits = {15.0f, 45.0f, 160.0f};
+    std::array<float, SHADOW_CASCADE_COUNT - 1> shadowCascadeBlend = {1.0f, 1.0f};
     bool shadowReady = false;
-    if (desc.renderShadows && lighting && lighting->shadowDistance > 0.0f &&
+    if (desc.renderShadows && lighting && lightDirectionValid &&
+        std::isfinite(lighting->shadowDistance) && lighting->shadowDistance > 0.1f &&
         shadowFBO && shadowMapTex && depthShader) {
-        Vector3 ld = lighting->lightDir;
-        float len = std::sqrt(ld.x*ld.x + ld.y*ld.y + ld.z*ld.z);
-        if (len > 0.001f) { ld.x /= len; ld.y /= len; ld.z /= len; }
-        // Keep the directional-light basis independent from the camera
-        // orientation.  The previous 160x160 coverage was small enough that
-        // the edge of the shadow map could cross the visible ground as the
-        // camera moved/orbited, exposing a large straight shadow boundary.
-        // Centering the same fixed light-space footprint on the camera keeps
-        // coverage stable while giving the visible scene useful margin.
-        const float shadowDistance = std::max(lighting->shadowDistance, 0.0f);
-        constexpr float SHADOW_LIGHT_DISTANCE = 160.0f;
-        constexpr float SHADOW_DEPTH = 800.0f;
-        Vector3 shadowCenter = desc.cameraPosition; // 原点固定だと原点から離れると影が消えるため
-        Vector3 lightEye(shadowCenter.x - ld.x * SHADOW_LIGHT_DISTANCE,
-                         shadowCenter.y - ld.y * SHADOW_LIGHT_DISTANCE,
-                         shadowCenter.z - ld.z * SHADOW_LIGHT_DISTANCE);
-        Vector3 upVec = (std::fabsf(ld.y) < 0.99f) ? Vector3(0.0f, 1.0f, 0.0f) : Vector3(0.0f, 0.0f, 1.0f);
-        Matrix4 lightView = Matrix4::LookAt(lightEye, shadowCenter, upVec);
-        Matrix4 lightProj = Matrix4::Ortho(-shadowDistance, shadowDistance,
-                                           -shadowDistance, shadowDistance,
-                                           0.1f, SHADOW_DEPTH);
-        lightSpaceMatrix = lightProj * lightView;
+        constexpr float CAMERA_NEAR = 0.1f;
+        constexpr float CASCADE_SPLIT_LAMBDA = 0.7f;
+        constexpr float CASCADE_XY_MARGIN = 8.0f;
+        constexpr float CASCADE_DEPTH_MARGIN = 32.0f;
+        const float shadowDistance = lighting->shadowDistance;
+        const float tanHalfFov = std::tan(fovYDegrees * pi / 360.0f);
+        const Vector3 cameraForward = desc.cameraForward.normalize();
+        const Vector3 cameraRight = Vector3::Cross(cameraForward, desc.cameraUp).normalize();
+        const Vector3 cameraUp = Vector3::Cross(cameraRight, cameraForward).normalize();
+        const Vector3 ld = lightDirection;
+        const Vector3 lightUpReference = (std::fabsf(ld.y) < 0.99f) ?
+            Vector3(0.0f, 1.0f, 0.0f) : Vector3(0.0f, 0.0f, 1.0f);
+        const Vector3 lightRight = Vector3::Cross(ld, lightUpReference).normalize();
+        const Vector3 lightUp = Vector3::Cross(lightRight, ld).normalize();
+
+        // Practical split scheme: the logarithmic term preserves near-camera
+        // detail while the linear term prevents the far cascade from becoming
+        // unusably deep. The final split is exactly ShadowDistance so the
+        // existing distance/fade semantics remain unchanged.
+        const float cascadeRange = std::max(shadowDistance - CAMERA_NEAR, 0.001f);
+        for (int cascade = 0; cascade < SHADOW_CASCADE_COUNT - 1; ++cascade) {
+            const float fraction = static_cast<float>(cascade + 1) /
+                                   static_cast<float>(SHADOW_CASCADE_COUNT);
+            const float linearSplit = CAMERA_NEAR + cascadeRange * fraction;
+            const float logarithmicSplit = CAMERA_NEAR *
+                std::pow(shadowDistance / CAMERA_NEAR, fraction);
+            shadowCascadeSplits[cascade] =
+                linearSplit * (1.0f - CASCADE_SPLIT_LAMBDA) +
+                logarithmicSplit * CASCADE_SPLIT_LAMBDA;
+        }
+        shadowCascadeSplits[SHADOW_CASCADE_COUNT - 1] = shadowDistance;
+        const float firstCascadeRange = shadowCascadeSplits[0] - CAMERA_NEAR;
+        const float secondCascadeRange = shadowCascadeSplits[1] - shadowCascadeSplits[0];
+        shadowCascadeBlend[0] = std::min(
+            std::max(firstCascadeRange * 0.08f, 0.25f), firstCascadeRange * 0.45f);
+        shadowCascadeBlend[1] = std::min(
+            std::max(secondCascadeRange * 0.08f, 0.25f), secondCascadeRange * 0.45f);
+
+        for (int cascade = 0; cascade < SHADOW_CASCADE_COUNT; ++cascade) {
+            const float sliceNear = (cascade == 0) ? CAMERA_NEAR : shadowCascadeSplits[cascade - 1];
+            const float sliceFar = shadowCascadeSplits[cascade];
+            const Vector3 nearCenter = desc.cameraPosition + cameraForward * sliceNear;
+            const Vector3 farCenter = desc.cameraPosition + cameraForward * sliceFar;
+            const float nearHalfHeight = tanHalfFov * sliceNear;
+            const float farHalfHeight = tanHalfFov * sliceFar;
+            const float nearHalfWidth = nearHalfHeight * aspect;
+            const float farHalfWidth = farHalfHeight * aspect;
+            const std::array<Vector3, 8> frustumCorners = {
+                nearCenter - cameraRight * nearHalfWidth - cameraUp * nearHalfHeight,
+                nearCenter + cameraRight * nearHalfWidth - cameraUp * nearHalfHeight,
+                nearCenter - cameraRight * nearHalfWidth + cameraUp * nearHalfHeight,
+                nearCenter + cameraRight * nearHalfWidth + cameraUp * nearHalfHeight,
+                farCenter - cameraRight * farHalfWidth - cameraUp * farHalfHeight,
+                farCenter + cameraRight * farHalfWidth - cameraUp * farHalfHeight,
+                farCenter - cameraRight * farHalfWidth + cameraUp * farHalfHeight,
+                farCenter + cameraRight * farHalfWidth + cameraUp * farHalfHeight
+            };
+
+            float minLightX = std::numeric_limits<float>::max();
+            float maxLightX = std::numeric_limits<float>::lowest();
+            float minLightY = std::numeric_limits<float>::max();
+            float maxLightY = std::numeric_limits<float>::lowest();
+            float minLightDepth = std::numeric_limits<float>::max();
+            float maxLightDepth = std::numeric_limits<float>::lowest();
+            for (const Vector3& corner : frustumCorners) {
+                const float lightX = Vector3::Dot(lightRight, corner);
+                const float lightY = Vector3::Dot(lightUp, corner);
+                const float lightDepth = Vector3::Dot(ld, corner);
+                minLightX = std::min(minLightX, lightX);
+                maxLightX = std::max(maxLightX, lightX);
+                minLightY = std::min(minLightY, lightY);
+                maxLightY = std::max(maxLightY, lightY);
+                minLightDepth = std::min(minLightDepth, lightDepth);
+                maxLightDepth = std::max(maxLightDepth, lightDepth);
+            }
+
+            const float halfWidth = std::max((maxLightX - minLightX) * 0.5f + CASCADE_XY_MARGIN, 0.001f);
+            const float halfHeight = std::max((maxLightY - minLightY) * 0.5f + CASCADE_XY_MARGIN, 0.001f);
+            const float centerX = (maxLightX + minLightX) * 0.5f;
+            const float centerY = (maxLightY + minLightY) * 0.5f;
+            const float texelWidth = (2.0f * halfWidth) / static_cast<float>(SHADOW_MAP_SIZE);
+            const float texelHeight = (2.0f * halfHeight) / static_cast<float>(SHADOW_MAP_SIZE);
+            const float snappedCenterX = std::round(centerX / texelWidth) * texelWidth;
+            const float snappedCenterY = std::round(centerY / texelHeight) * texelHeight;
+
+            // The light camera looks along lightDir (the engine's light->surface
+            // convention). Its near/far values come from this slice's actual
+            // light-space bounds plus a bounded caster margin, not a global
+            // ShadowDistance-sized depth box.
+            const float lightNear = 0.1f;
+            const float lightFar = std::max(lightNear + 1.0f,
+                maxLightDepth - minLightDepth + CASCADE_DEPTH_MARGIN * 2.0f);
+            const Vector3 lightEye = lightRight * snappedCenterX +
+                                     lightUp * snappedCenterY +
+                                     ld * (minLightDepth - CASCADE_DEPTH_MARGIN);
+            const Matrix4 lightView = Matrix4::LookAt(lightEye, lightEye + ld, lightUpReference);
+            const Matrix4 lightProj = Matrix4::Ortho(-halfWidth, halfWidth,
+                                                      -halfHeight, halfHeight,
+                                                      lightNear, lightFar);
+            lightSpaceMatrices[cascade] = lightProj * lightView;
+        }
 
         FrameProfiler::get().beginSection("shadow");
         glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
         glViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
-        glClearDepth(1.0);
-        glClear(GL_DEPTH_BUFFER_BIT);
+        // The main pass can leave depth writes disabled after translucent
+        // geometry. A shadow map must always be freshly cleared and written
+        // with a normal depth test, otherwise stale depth texels look like
+        // broad self-shadow bands.
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LESS);
+        glDepthMask(GL_TRUE);
+        // Offset the caster depth during rasterization. This compensates for
+        // the depth slope within a shadow-map texel; the receiver-side bias
+        // remains small and angle dependent so contact shadows do not float.
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(1.0f, 1.0f);
 
         glUseProgram(depthShader);
         static CachedUniform s_lsmDepthLocCache;
         static CachedUniform s_modelDepthLocCache;
         int lsmDepthLoc  = cachedUniformLocation(depthShader, s_lsmDepthLocCache,  "lightSpaceMatrix");
         int modelDepthLoc = cachedUniformLocation(depthShader, s_modelDepthLocCache, "model");
-        glUniformMatrix4fv(lsmDepthLoc, 1, GL_FALSE, lightSpaceMatrix.m);
-        if (m_uTimeDepthLoc != -1) glUniform1f(m_uTimeDepthLoc, lighting && desc.workspace->getPhysicsEngine() ? desc.workspace->getPhysicsEngine()->getWaveTime() : 0.0f);
-        if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, 0.0f);
-
-        if (m_uInstancedDepthLoc != -1) {
-            bool anyShadowInst = false;
-            for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
-                const auto& batch = m_instBatches[shapeIdx].shadow;
-                if (batch.empty() || instShapes[shapeIdx].vao == 0) continue;
-                if (!anyShadowInst) { glUniform1f(m_uInstancedDepthLoc, 1.0f); anyShadowInst = true; }
-                glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
-                glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(batch.size() * sizeof(CubeInstanceData)),
-                             batch.data(), GL_STREAM_DRAW);
-                glBindVertexArray(instShapes[shapeIdx].vao);
-                glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
-                                        GL_UNSIGNED_INT, 0, (GLsizei)batch.size());
-                FrameProfiler::get().addCount("shadowCubes", (long long)batch.size());
+        for (int cascade = 0; cascade < SHADOW_CASCADE_COUNT; ++cascade) {
+            glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                                      shadowMapTex, 0, cascade);
+            glClearDepth(1.0);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            glUniformMatrix4fv(lsmDepthLoc, 1, GL_FALSE, lightSpaceMatrices[cascade].m);
+            if (m_uTimeDepthLoc != -1) {
+                glUniform1f(m_uTimeDepthLoc,
+                            lighting && desc.workspace->getPhysicsEngine()
+                                ? desc.workspace->getPhysicsEngine()->getWaveTime() : 0.0f);
             }
-            if (anyShadowInst) { glBindVertexArray(0); glUniform1f(m_uInstancedDepthLoc, 0.0f); }
-        }
+            if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, 0.0f);
+
+            if (m_uInstancedDepthLoc != -1) {
+                bool anyShadowInst = false;
+                for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
+                    const auto& batch = m_instBatches[shapeIdx].shadow;
+                    if (batch.empty() || instShapes[shapeIdx].vao == 0) continue;
+                    if (!anyShadowInst) {
+                        glUniform1f(m_uInstancedDepthLoc, 1.0f);
+                        anyShadowInst = true;
+                    }
+                    glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
+                    glBufferData(GL_ARRAY_BUFFER,
+                                 (GLsizeiptr)(batch.size() * sizeof(CubeInstanceData)),
+                                 batch.data(), GL_STREAM_DRAW);
+                    glBindVertexArray(instShapes[shapeIdx].vao);
+                    glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
+                                            GL_UNSIGNED_INT, 0, (GLsizei)batch.size());
+                    FrameProfiler::get().addCount("shadowCubes", (long long)batch.size());
+                }
+                if (anyShadowInst) {
+                    glBindVertexArray(0);
+                    glUniform1f(m_uInstancedDepthLoc, 0.0f);
+                }
+            }
 
         auto shadowRender = [&](auto& self, Instance* inst) -> void {
             if (!inst) return;
@@ -1997,7 +2141,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 }
             }
         }
+        }
         glBindVertexArray(0);
+        glDisable(GL_POLYGON_OFFSET_FILL);
 
         shadowReady = true;
         // メインFBOに戻す
@@ -2013,14 +2159,18 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, projection.m);
     glUniform3f(viewPosLoc, desc.cameraPosition.x, desc.cameraPosition.y, desc.cameraPosition.z);
     if (shadowDistanceLoc != -1) {
-        glUniform1f(shadowDistanceLoc, lighting ? std::max(lighting->shadowDistance, 0.0f) : 160.0f);
+        const float shadowDistance = lighting && std::isfinite(lighting->shadowDistance) ?
+            std::max(lighting->shadowDistance, 0.0f) : 160.0f;
+        glUniform1f(shadowDistanceLoc, shadowDistance);
     }
     if (shadowFadeDistanceLoc != -1) {
-        glUniform1f(shadowFadeDistanceLoc, lighting ? std::max(lighting->shadowFadeDistance, 0.0f) : 20.0f);
+        const float shadowFadeDistance = lighting && std::isfinite(lighting->shadowFadeDistance) ?
+            std::max(lighting->shadowFadeDistance, 0.0f) : 20.0f;
+        glUniform1f(shadowFadeDistanceLoc, shadowFadeDistance);
     }
 
     if (lighting) {
-        if (lightDirLoc   != -1) glUniform3f(lightDirLoc,   lighting->lightDir.x,  lighting->lightDir.y,  lighting->lightDir.z);
+        if (lightDirLoc   != -1) glUniform3f(lightDirLoc,   lightDirection.x,  lightDirection.y,  lightDirection.z);
         if (brightnessLoc != -1) glUniform1f(brightnessLoc, lighting->brightness);
         if (lightColorLoc != -1) glUniform3f(lightColorLoc, lighting->lightColor.r, lighting->lightColor.g, lighting->lightColor.b);
     } else {
@@ -2066,10 +2216,21 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     }
 
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, shadowReady ? shadowMapTex : 0);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, shadowReady ? shadowMapTex : 0);
     glActiveTexture(GL_TEXTURE0);
-    glUniformMatrix4fv(lightSpaceMatrixLoc, 1, GL_FALSE, lightSpaceMatrix.m);
-    glUniform1f(hasShadowsLoc, shadowReady ? 1.0f : 0.0f);
+    if (lightSpaceMatricesLoc != -1) {
+        glUniformMatrix4fv(lightSpaceMatricesLoc, SHADOW_CASCADE_COUNT, GL_FALSE,
+                           lightSpaceMatrices[0].m);
+    }
+    if (shadowCascadeSplitsLoc != -1) {
+        glUniform3f(shadowCascadeSplitsLoc,
+                    shadowCascadeSplits[0], shadowCascadeSplits[1], shadowCascadeSplits[2]);
+    }
+    if (shadowCascadeBlendLoc != -1) {
+        glUniform2f(shadowCascadeBlendLoc,
+                    shadowCascadeBlend[0], shadowCascadeBlend[1]);
+    }
+    if (hasShadowsLoc != -1) glUniform1f(hasShadowsLoc, shadowReady ? 1.0f : 0.0f);
 
     glBindVertexArray(VAO);
 

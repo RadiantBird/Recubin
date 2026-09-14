@@ -46,8 +46,9 @@ main.cpp ループ
 4. Workspace ツリーから `Lighting` インスタンスを再帰探索 (`findLightingInTree`)
 5. **Skybox 同期**: `desc.isFocused` のときだけ Skybox インスタンスをカメラ位置へ追従
 6. **Shadow Pass**（`desc.renderShadows` かつ Lighting/shadowFBO が有効な場合のみ）
-   - ライト方向から正射影のライトビュー/プロジェクションを構成し `lightSpaceMatrix` を計算
-   - `shadowFBO`（2048×2048 深度テクスチャ）へ `depthShader` でシーン全体（`BaseCube` 系 + Terrain チャンク）を描画
+   - カメラ frustum の 3 slice に対して practical split（linear/logarithmic、lambda=0.7）を計算
+   - 各 slice の8頂点を light-space へ変換し、caster margin 付きの tight-fit orthographic projection を構成。XY中心は cascade ごとの texel grid に snap
+   - `shadowFBO`へ `GL_TEXTURE_2D_ARRAY` の layer 0/1/2として、2048×2048×3 の深度マップへ `depthShader` でシーン全体（`BaseCube` 系 + Terrain チャンク）を3回描画
    - 完了後メイン FBO に戻す
 7. **Main Pass**
    - `shaderProgram` を使用、`view`/`projection`/`viewPos`/`lightDir`/`brightness` をセット
@@ -70,7 +71,7 @@ main.cpp ループ
 
 - 頂点属性: `aPos`(0), `aNormal`(1), `aTexCoord`(2), `aVertexColor`(3, Terrain用)
 - ライティング: Lambert 拡散光 + 固定 ambient(0.3) のみ。スペキュラなし
-- シャドウ: 3×3 PCF、深度バイアスは法線とライト方向の内積に応じて可変（最小 0.0005、slope-scale 最大 0.0015）。バイアスを小さくして接地影を復元する一方、自己シャドウのアクネが発生しやすくなるトレードオフがある
+- シャドウ: `ViewDepth` で3 cascadeから選択し、splitの前後8%程度だけ隣接cascadeも同時サンプルして境界をblend。各cascadeの `sampler2DArray` layerを最近傍深度9回比較する手動3×3 PCFで、深度バイアスは法線とライト方向の内積に応じて可変（最小 0.00035、slope-scale 0.0012）
 - `useTriplanar`: ON のとき FragPos の3平面（XY/XZ/ZY）から法線ブレンドでサンプリングしテクスチャの伸び・タイル割れを回避
 - `useVertexColor`: ON のとき頂点カラー（Terrain）を直接 baseColor として使用しテクスチャ合成をスキップ
 - `unlit`: ON のときライティング計算をスキップして `ourColor`/テクスチャのみで出力（GUI ベイク・デカール等）
@@ -98,11 +99,10 @@ main.cpp ループ
 
 ## Shadow Map の制約
 
-- 固定サイズ 2048×2048、正射影範囲は `Lighting.ShadowDistance`（既定 ±160 ワールド単位）。ライト空間の
-  coverage はカメラ位置を中心に追従するが、カメラの向きには追従しない。これにより
-  画面内に shadow map の直線的な coverage 境界が入りにくく、カメラ回転で影の向きや
-  長さが変化しない。
-- `CastShadow == false` は常に影なし。true の場合は `ShadowMode`（Always/Never/Normal）で判定し、Normal は `Color.a > 0.001`、MeshCube の fallback geometry は例外として影を生成する。深度テクスチャは `GL_LINEAR`、シェーダは既存の3×3 PCFを使用する。深度バイアスは最小 0.0005、slope-scale 最大 0.0015 で、接地影と自己シャドウのアクネをバランスする
+- 固定サイズ 2048×2048×3（`GL_TEXTURE_2D_ARRAY`、layer 0/1/2）。分割は `ShadowDistance` を終端とする practical split（linear/logarithmic の混合、lambda=0.7）。各 cascade はカメラ frustum slice の light-space bounds + XY 8 / depth 32 の bounded marginで正射影範囲を決めるため、遠距離まで1つの大きな projection に押し込まない。
+- 各 cascade の light-space XY中心は、その cascade の `projectionWidth/2048`、`projectionHeight/2048` を単位に丸める。カメラの微小移動では shadow texel の境界が world 上を泳がず、カメラ回転と light direction の変更時は基底・projectionを再計算する。
+- `CastShadow == false` は常に影なし。true の場合は `ShadowMode`（Always/Never/Normal）で判定し、Normal は `Color.a > 0.001`、MeshCube の fallback geometry は例外として影を生成する。深度テクスチャは 24-bit + `GL_NEAREST`、シェーダは最近傍深度を9回比較する手動3×3 PCFを使用する。受け側の深度バイアスは `max(0.00035, 0.0012*(1-clamp(dot(normalize(N), normalize(L)),0,1)))` の slope-scaled bias とし、書き込み側は `glPolygonOffset(1.0, 1.0)` を使う
+- 各 cascade の light-space depth は slice の min/max と depth margin から設定し、casterがnear/farで切れない余裕を持たせる。
 - ライト方向は `Lighting.lightDir` のみ参照（複数ライト・ポイントライトのシャドウ未対応）
 - シャドウ距離は `Lighting.ShadowDistance`（既定160）で制限し、`ShadowFadeDistance`（既定20）でカメラからの3D距離に応じてフェードする。
 - `PostEffectKind::Custom` は指定GLSLフラグメントシェーダーをチェーンへ適用し、失敗時は直前の成功プログラムまたはパススルーへフォールバックする。

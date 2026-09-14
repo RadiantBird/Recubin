@@ -696,3 +696,28 @@
 - Seatのlive input `Steer`/`Throttle`を`noClone()`化した。Decal/TextureのFace/Modeがschema上`Enum`であること、Root高さ2の床上中心Yがおよそ1であること、SpawnLocationなしではauthored Root poseを保持することに合わせ、回帰の期待値を更新した。
 - `PropertyRegistry.cpp`、`SceneLoader.cpp`、`Animation.cpp`、`Seat.cpp`、`BaseCube.cpp`のWSL syntax checkと`git diff --check`は成功。Windows側Release buildはこのWSL環境ではCMakeがPATHに無く`WinError 2`で停止したが、ユーザー側では実機動作正常を確認済み。
 - 次の一手: Windows環境で必要になった場合に`--animation-clip-regression`、`--property-schema-regression`、`--shadow-mode-regression`、`--starter-weld-rename-regression`を再実行する。残るGyro/Motor/collision-filter回帰はschema修正とは別のBox3D物理課題として扱う。
+
+## 2026-09-14: Directional shadow PCF stability
+
+- 既存の 2048×2048 shadow map を監査し、深度テクスチャを明示的な 24-bit depth + `GL_NEAREST` に変更した。PCFは補間済み深度ではなく、`texelFetch`で有効範囲内の最近傍深度を3×3（最大9回）比較する手動PCFへ整理した。
+- Directional shadow projectionはライト空間のright/up基底でカメラ中心を求め、`2*ShadowDistance/2048` world unitsのtexel gridへsnapしてからview matrixを構築するようにした。ライト方向の変更は毎フレーム基底を再計算して反映する。
+- 固定800だったライト空間depth rangeを`0.1..(2*ShadowDistance+32)`へ縮小し、light cameraを`ShadowDistance+16`離した。これにより既定ShadowDistance=160で深度精度を改善し、近距離casterのnear-plane clippingに余裕を残した。
+- biasは`max(0.00035, 0.0012*(1-clamp(dot(normal, lightDir),0,1)))`へ変更。無効なLighting.Directionは警告して既定方向へフォールバックし、main/shadow passで同じ正規化方向を使う。ShadowDistance/ShadowFadeDistanceの既存距離fade接続は維持した。
+- `git diff --check`と`g++ -std=c++23 -DGLEW_NO_GLU -fsyntax-only -I. -Iinclude src/Core/Renderer.cpp`は成功。`cmd.exe /d /c py build.py build`はCMakeがWindows PATHに無く`WinError 2`でconfigure前に停止したため、Release build / `brun` / 実機での斜めedge・移動shimmer・距離fade確認は未実施。
+- 次の一手: Windows側で`cmd.exe /d /c py build.py build`を再試行し、可能なら`brun`で長い斜めedge、cube、細いobject、水平/斜面、カメラ移動/回転、light direction変更、ShadowDistance/ShadowFadeDistanceを確認する。
+## 2026-09-14: Shadow acne diagnosis and caster offset
+
+- `shadowCalc()`を再監査し、main passで`normalize(Normal)`/`normalize(-lightDir)`済みであること、depth passのLookAtが`lightDir`（light→surface）方向、shaderの`-lightDir`がsurface→lightであることを確認した。shadowCalc内でもNormal/Lightを明示normalizeして呼び出し側依存を除いた。
+- 広い平面へ広範囲に出るacneの主因として、shadow map生成passに`GL_POLYGON_OFFSET_FILL`が無く、rasterizerの面勾配を深度書き込み側で補償していなかった点を特定した。`glPolygonOffset(1.0, 1.0)`をshadow passだけに適用し、pass後に無効化する。
+- shadow pass開始時に`GL_DEPTH_TEST`、`GL_LESS`、`GL_TRUE`を明示し、前の半透明描画でdepth writeが無効化された状態やstale depth clearを防止する。受け側biasの式・値、PCF、texel snapping、ShadowDistance/ShadowFadeDistanceは維持した。
+- receiver-plane `fwidth` biasは今回は追加していない。まず正規化、caster-side polygon offset、既存slope biasで原因を分離し、過剰biasによるpeter-panningを避けるためである。
+- `g++ -std=c++23 -DGLEW_NO_GLU -fsyntax-only -I. -Iinclude src/Core/Renderer.cpp`と`git diff --check`は成功。`cmd.exe /d /c py build.py build`は今回もCMakeがWindows PATHに無く`WinError 2`でconfigure前に停止したため、新バイナリの`brun`と実機でのacne/peter-panning目視は未検証。
+
+## 2026-09-14: Cascaded directional shadow map
+
+- directional shadowを単一projectionから3 cascadeへ移行した。`ShadowDistance`を終端とするpractical split（linear/logarithmic混合、lambda=0.7）を毎フレーム計算し、既定160では実splitはおよそ16.8 / 41.6 / 160となる。
+- shadow mapを2048×2048の`GL_TEXTURE_2D_ARRAY`（24-bit depth、3 layer）へ変更し、同じshadow caster sceneをlayer 0/1/2へ3回描画する。FBOは`glFramebufferTextureLayer`でcascadeを切り替え、既存のdepth test/write・`glPolygonOffset(1,1)`・caster判定を維持した。
+- 各cascadeはカメラの実frustum sliceの8頂点をlight-spaceへ変換し、XY bounds + 8、depth bounds + 32のbounded marginでtight-fit orthographic projectionを構築する。light eyeをslice最小depthより32だけlight側へ置き、near=0.1 / far=range+64としてcaster marginをnear clipしない。XY中心はcascadeごとの`projectionWidth/2048`・`projectionHeight/2048`でsnapし、単一の広い`ShadowDistance`投影を使わない。
+- vertex shaderはview-space depthを出力し、fragment shaderはその値でcascadeを選択する。split前後の約8%だけ隣接cascadeを追加で3x3 PCFし、境界をblendする。既存のnormalize、受け側slope bias、手動3x3 PCF、`ShadowDistance`/`ShadowFadeDistance` fade、light→surfaceの方向規約は維持した。
+- `Renderer.cpp`のWSL syntax checkと`git diff --check`は成功。GLSL validatorはWSL環境に存在しなかった。Release buildは`cmd.exe /d /c py build.py build`がWindows側CMakeをPATHから起動できず`WinError 2`でconfigure前に停止したため、CSMを含む`brun`と実機での境界線・shimmer・acne/peter-panning目視は未実施。
+- 次の一手: Windows側のCMake環境を復旧し、Release build後に近距離cube/character、長い斜めedge、cascade境界、遠距離ShadowDistance、fade、カメラ移動/回転、light direction変更、水平/斜面を`brun`で確認する。

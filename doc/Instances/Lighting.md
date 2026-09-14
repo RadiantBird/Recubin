@@ -35,15 +35,15 @@ Renderer::renderScene() (毎フレーム)
   → findLightingInTree(workspace) で Workspace 木を走査し Lighting を検索
 
 Shadow Pass (Lighting が見つかった場合)
-  → ld = normalize(lighting->lightDir)
-  → shadowCenter = desc.cameraPosition（カメラ位置に追従。原点固定だと原点から離れた位置で影が消えるため）
-  → lightEye = shadowCenter - ld * 80, lightView = LookAt(lightEye, shadowCenter, up)
-  → lightProj = Ortho(-80..80, -80..80, 0.1..400)
-  → lightSpaceMatrix = lightProj * lightView
-  → `CastShadow` と `ShadowMode` の共通判定を満たす BaseCube、および Terrain をシャドウマップへ描画（深度テクスチャは GL_LINEAR、3×3 PCF）。深度バイアスは最小 0.0005、slope-scale 最大 0.0015 とし、接地影を保つ一方で自己シャドウのアクネとのトレードオフがある
+  → ld = normalize(lighting->lightDir)（無効値は警告して既定方向へフォールバック）
+  → `ShadowDistance` を終端に practical split（3 cascade、linear/logarithmic混合 lambda=0.7）
+  → 各カメラ frustum slice の8頂点をlight-spaceへ変換し、bounds + XY margin 8 / depth margin 32で cascadeごとのtight-fit Orthoを作成
+  → cascadeごとにlight-space XY中心を `projectionWidth/2048`、`projectionHeight/2048` のtexel gridへsnap
+  → `GL_TEXTURE_2D_ARRAY` の layer 0/1/2を切り替え、`CastShadow` と `ShadowMode` の共通判定を満たす BaseCube、および Terrain を各cascadeへ描画（24-bit深度、GL_NEAREST、手動3×3 PCF）。受け側biasは最小 0.00035、slope-scale 0.0012、書き込み側は `glPolygonOffset(1.0, 1.0)` とする
 
 Main Pass
   → lighting があれば lightDir/brightness/lightColor をシェーダ uniform へ
+  → view-space depthでcascadeを選択し、split近傍8%程度だけ隣接cascadeのPCF結果をblend
   → 無ければ既定値 (1,-1,-1) / 1.0 / 白 にフォールバック
 ```
 

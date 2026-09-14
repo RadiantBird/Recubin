@@ -103,7 +103,9 @@ class Renderer {
         int          shadowDistanceLoc   = -1;
         int          shadowFadeDistanceLoc = -1;
         int          hasShadowsLoc       = -1;
-        int          lightSpaceMatrixLoc = -1;
+        int          lightSpaceMatricesLoc = -1;
+        int          shadowCascadeSplitsLoc = -1;
+        int          shadowCascadeBlendLoc = -1;
         int          modelLoc            = -1;
         int          unlitLoc            = -1;
         int          triplanarLoc        = -1;
@@ -147,6 +149,7 @@ class Renderer {
         unsigned int shadowFBO     = 0;
         unsigned int shadowMapTex  = 0;
         unsigned int depthShader   = 0;
+        static constexpr int SHADOW_CASCADE_COUNT = 3;
         static const int SHADOW_MAP_SIZE = 2048;
         unsigned int surfaceMarkFBO = 0;
         unsigned int surfaceMarkDepthTex = 0;
