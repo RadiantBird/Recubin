@@ -30,6 +30,9 @@ class Humanoid : public Instance {
 public:
     enum class State {
         Normal,
+        // Truss上の垂直入力。Ragdollとは独立した通常操作状態。
+        ClimbingUp,
+        ClimbingDown,
         Ragdoll,
         Recovering,
     };
@@ -138,8 +141,14 @@ public:
     // RagdollからRecoveringへ遷移する。Normal化は物理的upright後に一度だけ行う。
     void recoverFromRagdoll(Physics* physics);
     State getState() const { return m_state; }
-    bool isRagdoll() const { return m_state != State::Normal; }
+    bool isRagdoll() const {
+        return m_state == State::Ragdoll || m_state == State::Recovering;
+    }
     bool isRecovering() const { return m_state == State::Recovering; }
+    bool isClimbing() const {
+        return m_state == State::ClimbingUp ||
+            m_state == State::ClimbingDown;
+    }
     // Network replication applies an authoritative Ragdoll/Recovering
     // transition without inventing a local impact.
     void setRagdollStateForReplication(bool ragdoll, Physics* physics);
@@ -258,6 +267,9 @@ private:
     std::vector<std::pair<std::weak_ptr<BaseCube>, bool>> m_savedCollisionModes;
     std::vector<SavedRagdollBindPose> m_savedRagdollBindPoses;
     bool m_hoverSuppressedForJump = false;
+    // Jumpまたは地面到達でTruss制御を脱出した後、RootがTrussのAABBを
+    // 離れるまで重力無効化・昇降Forceへの再入場を防ぐ。
+    bool m_trussControlSuppressed = false;
     bool m_hipHeightExplicitlySet = false;
     bool m_hipHeightInitializedFromGround = false;
 #ifdef _DEBUG
@@ -309,6 +321,13 @@ private:
     void setJointTransform(const std::string& jointName, const CFrame& transform);
     std::vector<std::shared_ptr<BaseCube>> collectCharacterBodies() const;
     void setHoverForces(Physics* physics, bool enabled, float acceleration);
+    void setCharacterGravity(Physics* physics, bool enabled);
+    void setClimbForces(
+        Physics* physics,
+        bool enabled,
+        const Vector3& targetVelocity
+    );
+    void cancelCharacterDescent(Physics* physics);
     void updateGroundHover(Physics* physics, const std::shared_ptr<BaseCube>& root);
     void updateRagdoll(float dt, Physics* physics);
     void updateRagdollRecovery(float dt, Physics* physics);
@@ -317,6 +336,13 @@ private:
     void saveRagdollBindPose();
     void logRagdollRecoveryRigState(Physics* physics, const char* phase) const;
     bool hasRagdollSupport(Physics* physics) const;
+    bool findRootSupport(
+        Physics* physics,
+        float yawDegrees,
+        float& supportY,
+        Vector3* supportNormal = nullptr,
+        std::string* supportInstancePath = nullptr
+    ) const;
     bool findRagdollRecoverySupport(
         Physics* physics,
         float& supportY,

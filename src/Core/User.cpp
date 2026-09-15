@@ -783,7 +783,7 @@ void User::processHotkeys(Physics* physics) {
     bool ctrlLockFKeyPressed = m_input->isKeyDown(KeyCode::F);
     if (ctrlLockFKeyPressed && !lastCtrlLockFKeyPressed) {
         toggleCtrlLockOffset();
-        RCBN_LOG(ctrlLockOffsetRight ? "CtrlLock offset: Right" : "CtrlLock offset: Left");
+        // RCBN_LOG(ctrlLockOffsetRight ? "CtrlLock offset: Right" : "CtrlLock offset: Left");
     }
     lastCtrlLockFKeyPressed = ctrlLockFKeyPressed;
 }

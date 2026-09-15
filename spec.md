@@ -181,9 +181,19 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   地面までの距離として使う。未設定の場合はSpawnLocation選択でRootの初期Yを変更せず、その後の最初の
   floor sampleでHipHeightを初期化する。
   GroundHeight、接地、Truss中の重力設定は操作入力とは独立した物理更新として毎フレーム評価する。
+  Truss接触時はCharacter Modelに属する全dynamic R6 bodyの重力を無効化する。W入力中は`ClimbingUp`、S入力中は
+  `ClimbingDown`状態へ遷移し、各bodyの`CharacterClimbForce`へ水平方向のストレイフ速度と`ClimbSpeed`の昇降速度を
+  MaintainVelocityとして設定する。垂直入力が無い場合もTruss上で速度0を維持し、Trussから離れたらForceを無効化して
+  全bodyの重力を復帰する。昇降状態はRagdoll状態として扱わない。`ClimbingUp`/`ClimbingDown`中にJumpした場合は
+  `Normal`へ戻し、Truss用Forceを無効化して全bodyへ通常のJumpPowerを適用する。Jump直後にTrussへ重なっていても、
+  Truss制御で重力を再び無効化しない。
+  `ClimbingDown`中はRoot footprintの下方向box castでCharacter自身を除外し、normal.yが0.5以上の最も高いsupportを確認する。
+  Rootからsupportまでの距離が`HipHeight + 0.2 stud`以下になった場合は、地面へめり込む前に`Normal`へ自動遷移する。
+  この遷移では各bodyに残った負のY速度だけを0へ戻し、上向き速度・Position・CFrameは変更しない。
+  Trussが床まで続いていても、RootがTrussのAABBを離れるまでTruss制御を再開しない。
   したがってFree/Program中もCharacterHoverForce、重力、衝突、LiquidCubeの液体浮力は維持される。
 
-  Humanoidは`Normal`/`Ragdoll`/`Recovering`の状態を持つ。Box3Dのcontact hit eventから接触点のnormal impulseを優先して
+  Humanoidは`Normal`/`ClimbingUp`/`ClimbingDown`/`Ragdoll`/`Recovering`の状態を持つ。Box3Dのcontact hit eventから接触点のnormal impulseを優先して
   impactを求め、利用できない場合は接触法線方向の相対接近速度を使う。Character bodyごとの同一physics tickの
   最大impactが`Humanoid.ImpactRagdollThreshold`（既定45 stud/s相当）以上になった場合、movement、jump、hover、
   full-body yaw、RootのAngularX/AngularZ lock、Motor6D姿勢制御を停止し、既存R6 Motor6DのC0/C1 bind anchorを

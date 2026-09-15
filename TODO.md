@@ -62,7 +62,7 @@
 
 ### レンダリング関連
 
-- [ ] Weatherクラスで雲の色を変更可能にする(Color4)
+- [x] Weatherクラスで雲の色を変更可能にする(Color4)
 - [~] BaseCubeマテリアルに基づくPBRレンダリング(保留)
   - 反射率プロパティを新しく追加
   - レイトレーシングはしない
@@ -146,7 +146,7 @@
   特にリファクタリングでは、「今見えているバグを最短で直す」ことよりも、「同じ種類のバグが次のInstance追加時に再発しない構造にする」ことを優先してほしいです。
   ```
 
-- [ ] 全InstanceのPropertiesをスキーマ駆動へ移行する
+- [x] 全InstanceのPropertiesをスキーマ駆動へ移行する
       - Toolなど、YAMLとLuauで値の表現が異なる特殊プロパティを共通スキーマ化する
       - FilePath／InstanceReferenceの複数選択編集を共通レンダラへ統合する
       - Terrain生成などの特殊操作をEditorActionDescへ移行する

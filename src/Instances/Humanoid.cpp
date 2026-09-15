@@ -25,6 +25,7 @@
 namespace {
 
 constexpr const char* HOVER_FORCE_NAME = "CharacterHoverForce";
+constexpr const char* CLIMB_FORCE_NAME = "CharacterClimbForce";
 constexpr float RADIANS_TO_DEGREES = 180.0f / 3.14159265f;
 constexpr float RECOVERY_ENTRY_ANGULAR_SPEED = 2.0f;
 constexpr float RECOVERY_NO_SUPPORT_ENTRY_GRACE = 0.75f;
@@ -35,9 +36,10 @@ constexpr float RECOVERY_GYRO_TIMEOUT = 0.5f;
 constexpr float RECOVERY_FALLBACK_LINEAR_SPEED = 4.0f;
 constexpr float RECOVERY_FALLBACK_ANGULAR_SPEED = 2.5f;
 constexpr float RECOVERY_TIMEOUT = 1.25f;
-constexpr float RECOVERY_SUPPORT_FOOTPRINT_MARGIN = 0.15f;
-constexpr float RECOVERY_SUPPORT_SCAN_START_OFFSET = 0.25f;
-constexpr float RECOVERY_SUPPORT_SCAN_BELOW_FOOT = 1.0f;
+constexpr float ROOT_SUPPORT_FOOTPRINT_MARGIN = 0.15f;
+constexpr float ROOT_SUPPORT_SCAN_START_OFFSET = 0.25f;
+constexpr float ROOT_SUPPORT_SCAN_BELOW_FOOT = 1.0f;
+constexpr float TRUSS_DESCENT_EXIT_MARGIN = 0.2f;
 constexpr float YAW_PROJECTION_EPSILON_SQUARED = 1.0e-8f;
 
 std::uint64_t g_humanoidUpdateAllInvocation = 0;
@@ -179,6 +181,87 @@ void Humanoid::setHoverForces(
     }
 }
 
+void Humanoid::setCharacterGravity(Physics* physics, bool enabled) {
+    if (!physics) {
+        return;
+    }
+
+    for (const auto& body : collectCharacterBodies()) {
+        if (!body || !physics->hasBody(*body)) {
+            continue;
+        }
+        physics->setGravityEnabled(*body, enabled);
+    }
+}
+
+void Humanoid::setClimbForces(
+    Physics* physics,
+    bool enabled,
+    const Vector3& targetVelocity
+) {
+    for (const auto& body : collectCharacterBodies()) {
+        if (!body) {
+            continue;
+        }
+
+        const auto found = body->getChildren().find(CLIMB_FORCE_NAME);
+        std::shared_ptr<Force> force;
+        if (found != body->getChildren().end()) {
+            force = std::dynamic_pointer_cast<Force>(found->second);
+            if (!force) {
+                RCBN_ERROR(
+                    "Humanoid \"" << getFullPath()
+                    << "\": reserved climb child \""
+                    << body->getFullPath() << '\\' << CLIMB_FORCE_NAME
+                    << "\" is not a Force"
+                );
+                continue;
+            }
+        } else if (enabled) {
+            force = std::make_shared<Force>();
+            force->Name = CLIMB_FORCE_NAME;
+            body->addChild(force);
+        }
+
+        if (!force) {
+            continue;
+        }
+
+        force->Value = {};
+        force->Enabled = false;
+        force->Torque = false;
+        force->MaintainVelocity = true;
+
+        if (!enabled || body->Anchored || !physics ||
+            !physics->hasBody(*body)) {
+            continue;
+        }
+
+        force->Value = targetVelocity;
+        force->Enabled = true;
+    }
+}
+
+void Humanoid::cancelCharacterDescent(Physics* physics) {
+    if (!physics) {
+        return;
+    }
+
+    for (const auto& body : collectCharacterBodies()) {
+        if (!body || !physics->hasBody(*body)) {
+            continue;
+        }
+
+        Vector3 velocity = physics->getLinearVelocity(*body);
+        if (velocity.y >= 0.0f) {
+            continue;
+        }
+
+        velocity.y = 0.0f;
+        physics->setLinearVelocity(*body, velocity);
+    }
+}
+
 void Humanoid::updateGroundHover(
     Physics* physics,
     const std::shared_ptr<BaseCube>& root
@@ -246,36 +329,36 @@ void Humanoid::updateGroundHover(
         const auto hitPosition = floor.position;
         const auto hitNormal = floor.normal;
 
-        RCBN_LOG(
-            "[CharacterGroundDebug] stage=" << stage
-            << " humanoid=" << getFullPath()
-            << " humanoidPtr=" << static_cast<const void*>(this)
-            << " root=" << root->getFullPath()
-            << " rootPtr=" << static_cast<const void*>(root.get())
-            << " rootY=" << rootPosition.y
-            << " hipHeight=" << HipHeight
-            << " hipHeightExplicit=" << (m_hipHeightExplicitlySet ? 1 : 0)
-            << " hipHeightInitialized=" << (m_hipHeightInitializedFromGround ? 1 : 0)
-            << " query=shape-cast-box"
-            << " castDistance=" << floorDetectionDistance
-            << " castTravelDistance=" << groundHit.travelDistance
-            << " queryThickness=" << settings.groundQueryThickness
-            << " hasFloor=" << (hasFloor ? 1 : 0)
-            << " floorDistance=" << floor.distance
-            << " floorY=" << hitPosition.y
-            << " floorNormalX=" << hitNormal.x
-            << " floorNormalY=" << hitNormal.y
-            << " floorNormalZ=" << hitNormal.z
-            << " floorInstance=" << (floor.instance ? floor.instance->getFullPath() : "<none>")
-            << " atHipHeight=" << (atHipHeight ? 1 : 0)
-            << " groundedBefore=" << (groundedBefore ? 1 : 0)
-            << " groundedAfter=" << (isGrounded ? 1 : 0)
-            << " jumpSuppressed=" << (m_hoverSuppressedForJump ? 1 : 0)
-            << " hoverAcceleration=" << hoverAcceleration
-            << " hoverForceFound=" << (hoverForce ? 1 : 0)
-            << " hoverEnabled=" << (hoverForce && hoverForce->Enabled ? 1 : 0)
-            << " hoverValueY=" << (hoverForce ? hoverForce->Value.y : 0.0f)
-        );
+        // RCBN_LOG(
+        //     "[CharacterGroundDebug] stage=" << stage
+        //     << " humanoid=" << getFullPath()
+        //     << " humanoidPtr=" << static_cast<const void*>(this)
+        //     << " root=" << root->getFullPath()
+        //     << " rootPtr=" << static_cast<const void*>(root.get())
+        //     << " rootY=" << rootPosition.y
+        //     << " hipHeight=" << HipHeight
+        //     << " hipHeightExplicit=" << (m_hipHeightExplicitlySet ? 1 : 0)
+        //     << " hipHeightInitialized=" << (m_hipHeightInitializedFromGround ? 1 : 0)
+        //     << " query=shape-cast-box"
+        //     << " castDistance=" << floorDetectionDistance
+        //     << " castTravelDistance=" << groundHit.travelDistance
+        //     << " queryThickness=" << settings.groundQueryThickness
+        //     << " hasFloor=" << (hasFloor ? 1 : 0)
+        //     << " floorDistance=" << floor.distance
+        //     << " floorY=" << hitPosition.y
+        //     << " floorNormalX=" << hitNormal.x
+        //     << " floorNormalY=" << hitNormal.y
+        //     << " floorNormalZ=" << hitNormal.z
+        //     << " floorInstance=" << (floor.instance ? floor.instance->getFullPath() : "<none>")
+        //     << " atHipHeight=" << (atHipHeight ? 1 : 0)
+        //     << " groundedBefore=" << (groundedBefore ? 1 : 0)
+        //     << " groundedAfter=" << (isGrounded ? 1 : 0)
+        //     << " jumpSuppressed=" << (m_hoverSuppressedForJump ? 1 : 0)
+        //     << " hoverAcceleration=" << hoverAcceleration
+        //     << " hoverForceFound=" << (hoverForce ? 1 : 0)
+        //     << " hoverEnabled=" << (hoverForce && hoverForce->Enabled ? 1 : 0)
+        //     << " hoverValueY=" << (hoverForce ? hoverForce->Value.y : 0.0f)
+        // );
 #else
         (void)stage;
         (void)hoverAcceleration;
@@ -699,20 +782,20 @@ void Humanoid::logRagdollRecoveryRigState(
     const char* phase
 ) const {
     const std::uint64_t tick = physics ? physics->getSimulationTick() : 0;
-    RCBN_LOG(
-        "[Ragdoll] recovery diagnostic phase=" << (phase ? phase : "unknown")
-        << " humanoid=\"" << getFullPath() << '"'
-        << " humanoidPtr=" << static_cast<const void*>(this)
-        << " physicsPtr=" << static_cast<const void*>(physics)
-        << " physicsTick=" << tick
-        << " updateAllInvocation=" << g_currentHumanoidUpdateAllInvocation
-        << " supportInstance=\""
-        << (m_recoverySupportInstancePath.empty()
-                ? "<none>" : m_recoverySupportInstancePath)
-        << "\" supportY=" << m_recoverySupportY
-        << " supportNormal=" << m_recoverySupportNormal.toString()
-        << " hipHeight=" << HipHeight
-    );
+    // RCBN_LOG(
+    //     "[Ragdoll] recovery diagnostic phase=" << (phase ? phase : "unknown")
+    //     << " humanoid=\"" << getFullPath() << '"'
+    //     << " humanoidPtr=" << static_cast<const void*>(this)
+    //     << " physicsPtr=" << static_cast<const void*>(physics)
+    //     << " physicsTick=" << tick
+    //     << " updateAllInvocation=" << g_currentHumanoidUpdateAllInvocation
+    //     << " supportInstance=\""
+    //     << (m_recoverySupportInstancePath.empty()
+    //             ? "<none>" : m_recoverySupportInstancePath)
+    //     << "\" supportY=" << m_recoverySupportY
+    //     << " supportNormal=" << m_recoverySupportNormal.toString()
+    //     << " hipHeight=" << HipHeight
+    // );
 
     const auto model = Parent.lock();
     const auto logBody = [&](const char* name) {
@@ -732,12 +815,12 @@ void Humanoid::logRagdollRecoveryRigState(
             return;
         }
         const CFrame frame = body->getWorldCFrame();
-        RCBN_LOG(
-            "[Ragdoll] recovery body phase=" << (phase ? phase : "unknown")
-            << " name=" << name
-            << " position=" << frame.Position.toString()
-            << " bottomY=" << bodyBottomYAtWorldFrame(*body, frame)
-        );
+        // RCBN_LOG(
+        //     "[Ragdoll] recovery body phase=" << (phase ? phase : "unknown")
+        //     << " name=" << name
+        //     << " position=" << frame.Position.toString()
+        //     << " bottomY=" << bodyBottomYAtWorldFrame(*body, frame)
+        // );
     };
     logBody("Root");
     logBody("Torso");
@@ -754,13 +837,13 @@ void Humanoid::logRagdollRecoveryRigState(
             ? nullptr : std::dynamic_pointer_cast<Motor6D>(motorIt->second);
         const auto ball = ballIt == model->getChildren().end()
             ? nullptr : std::dynamic_pointer_cast<BallSocket>(ballIt->second);
-        RCBN_LOG(
-            "[Ragdoll] recovery constraint phase="
-            << (phase ? phase : "unknown")
-            << " joint=" << topology.jointName
-            << " motorEnabled=" << (motor && motor->Enabled ? 1 : 0)
-            << " ballSocketEnabled=" << (ball && ball->Enabled ? 1 : 0)
-        );
+        // RCBN_LOG(
+        //     "[Ragdoll] recovery constraint phase="
+        //     << (phase ? phase : "unknown")
+        //     << " joint=" << topology.jointName
+        //     << " motorEnabled=" << (motor && motor->Enabled ? 1 : 0)
+        //     << " ballSocketEnabled=" << (ball && ball->Enabled ? 1 : 0)
+        // );
     }
 }
 
@@ -784,8 +867,9 @@ bool Humanoid::hasRagdollSupport(Physics* physics) const {
     return false;
 }
 
-bool Humanoid::findRagdollRecoverySupport(
+bool Humanoid::findRootSupport(
     Physics* physics,
+    float yawDegrees,
     float& supportY,
     Vector3* supportNormal,
     std::string* supportInstancePath
@@ -800,11 +884,12 @@ bool Humanoid::findRagdollRecoverySupport(
     if (!character || !root || !physics->hasBody(*root)) return false;
 
     const CFrame rootFrame = root->getWorldCFrame();
-    float yawDegrees = m_recoveryYawDegrees;
-    if (!m_recoveryYawValid && !tryGetHorizontalYaw(
-            rootFrame.Rotation,
-            yawDegrees)) {
-        yawDegrees = m_hasLastValidYaw ? m_lastValidYawDegrees : 0.0f;
+    if (!std::isfinite(yawDegrees)) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": Root support scan received invalid yaw " << yawDegrees
+        );
+        return false;
     }
 
     const float desiredRootHeight =
@@ -814,8 +899,8 @@ bool Humanoid::findRagdollRecoverySupport(
     // Start above the expected support plane so a Root that has sunk into the
     // floor can still be recovered by the downward sweep.
     const float scanStartOffset = std::max(
-        RECOVERY_SUPPORT_SCAN_START_OFFSET,
-        desiredRootHeight + RECOVERY_SUPPORT_SCAN_START_OFFSET
+        ROOT_SUPPORT_SCAN_START_OFFSET,
+        desiredRootHeight + ROOT_SUPPORT_SCAN_START_OFFSET
     );
     const CFrame scanFrame(
         rootFrame.Position + Vector3(0.0f, scanStartOffset, 0.0f),
@@ -823,15 +908,15 @@ bool Humanoid::findRagdollRecoverySupport(
     );
     const Vector3 footprintSize(
         std::max(root->Size.x, 0.1f) +
-            RECOVERY_SUPPORT_FOOTPRINT_MARGIN * 2.0f,
+            ROOT_SUPPORT_FOOTPRINT_MARGIN * 2.0f,
         0.2f,
         std::max(root->Size.z, 0.1f) +
-            RECOVERY_SUPPORT_FOOTPRINT_MARGIN * 2.0f
+            ROOT_SUPPORT_FOOTPRINT_MARGIN * 2.0f
     );
     const float scanDistance = std::max(
         scanStartOffset + desiredRootHeight +
-            RECOVERY_SUPPORT_SCAN_BELOW_FOOT,
-        scanStartOffset + root->Size.y + RECOVERY_SUPPORT_SCAN_BELOW_FOOT
+            ROOT_SUPPORT_SCAN_BELOW_FOOT,
+        scanStartOffset + root->Size.y + ROOT_SUPPORT_SCAN_BELOW_FOOT
     );
 
     ShapeCastHit hit;
@@ -856,6 +941,32 @@ bool Humanoid::findRagdollRecoverySupport(
             ? hit.instance->getFullPath() : "<none>";
     }
     return true;
+}
+
+bool Humanoid::findRagdollRecoverySupport(
+    Physics* physics,
+    float& supportY,
+    Vector3* supportNormal,
+    std::string* supportInstancePath
+) const {
+    auto root = getRootPart();
+    if (!root) {
+        return false;
+    }
+
+    float yawDegrees = m_recoveryYawDegrees;
+    if (!m_recoveryYawValid && !tryGetHorizontalYaw(
+            root->getWorldCFrame().Rotation,
+            yawDegrees)) {
+        yawDegrees = m_hasLastValidYaw ? m_lastValidYawDegrees : 0.0f;
+    }
+    return findRootSupport(
+        physics,
+        yawDegrees,
+        supportY,
+        supportNormal,
+        supportInstancePath
+    );
 }
 
 void Humanoid::updateRagdoll(float dt, Physics* physics) {
@@ -920,6 +1031,9 @@ void Humanoid::updateRagdoll(float dt, Physics* physics) {
         updateRagdollRecovery(dt, physics);
         return;
     }
+    if (isClimbing()) {
+        return;
+    }
 
     if (m_dead) return;
     auto root = getRootPart();
@@ -941,16 +1055,16 @@ void Humanoid::updateRagdoll(float dt, Physics* physics) {
         const float stableTimeBefore = m_ragdollStableTime;
         m_ragdollStableTime += std::max(dt, 0.0f);
         if (stableTimeBefore <= 0.0f) {
-            RCBN_LOG(
-                "[Ragdoll] recovery stable started humanoid=\""
-                << getFullPath() << '\"'
-                << " humanoidPtr=" << static_cast<const void*>(this)
-                << " physicsPtr=" << static_cast<const void*>(physics)
-                << " physicsTick=" << physics->getSimulationTick()
-                << " updateAllInvocation=" << g_currentHumanoidUpdateAllInvocation
-                << " updateCount=" << m_ragdollUpdatesThisInvocation
-                << " support=" << (hasSupport ? 1 : 0)
-            );
+            // RCBN_LOG(
+            //     "[Ragdoll] recovery stable started humanoid=\""
+            //     << getFullPath() << '\"'
+            //     << " humanoidPtr=" << static_cast<const void*>(this)
+            //     << " physicsPtr=" << static_cast<const void*>(physics)
+            //     << " physicsTick=" << physics->getSimulationTick()
+            //     << " updateAllInvocation=" << g_currentHumanoidUpdateAllInvocation
+            //     << " updateCount=" << m_ragdollUpdatesThisInvocation
+            //     << " support=" << (hasSupport ? 1 : 0)
+            // );
         }
     } else {
         m_ragdollStableTime = 0.0f;
@@ -1054,12 +1168,12 @@ void Humanoid::beginRagdollRecovery(Physics* physics) {
         );
     }
 
-    RCBN_LOG(
-        "[Ragdoll] state=Recovering humanoid=\"" << getFullPath()
-        << "\" yaw=" << m_recoveryYawDegrees
-        << " uprightThreshold=" << RECOVERY_UPRIGHT_ERROR_DEGREES
-        << " angularThreshold=" << RECOVERY_ANGULAR_SPEED
-    );
+    // RCBN_LOG(
+    //     "[Ragdoll] state=Recovering humanoid=\"" << getFullPath()
+    //     << "\" yaw=" << m_recoveryYawDegrees
+    //     << " uprightThreshold=" << RECOVERY_UPRIGHT_ERROR_DEGREES
+    //     << " angularThreshold=" << RECOVERY_ANGULAR_SPEED
+    // );
 }
 
 void Humanoid::updateRagdollRecovery(float dt, Physics* physics) {
@@ -1117,15 +1231,15 @@ void Humanoid::updateRagdollRecovery(float dt, Physics* physics) {
         m_recoveryUprightStableTime += std::max(dt, 0.0f);
         if (stableTimeBefore <= 0.0f && !m_recoveryUprightStableReported) {
             m_recoveryUprightStableReported = true;
-            RCBN_LOG(
-                "[Ragdoll] upright stable humanoid=\"" << getFullPath()
-                << "\""
-                << " uprightError=" << uprightError
-                << " pitchError=" << pitchError
-                << " rollError=" << rollError
-                << " angularSpeed=" << angularSpeed
-                << " recoveryTimer=" << m_recoveryUprightStableTime
-            );
+            // RCBN_LOG(
+            //     "[Ragdoll] upright stable humanoid=\"" << getFullPath()
+            //     << "\""
+            //     << " uprightError=" << uprightError
+            //     << " pitchError=" << pitchError
+            //     << " rollError=" << rollError
+            //     << " angularSpeed=" << angularSpeed
+            //     << " recoveryTimer=" << m_recoveryUprightStableTime
+            // );
         }
 
         if (m_recoveryUprightStableTime >= RECOVERY_UPRIGHT_SETTLE_TIME) {
@@ -1146,17 +1260,17 @@ void Humanoid::updateRagdollRecovery(float dt, Physics* physics) {
         m_recoveryFallbackStableTime += std::max(dt, 0.0f);
         if (fallbackTimeBefore <= 0.0f && !m_recoveryFallbackReported) {
             m_recoveryFallbackReported = true;
-            RCBN_LOG(
-                "[Ragdoll] gyro fallback stable humanoid=\"" << getFullPath()
-                << "\""
-                << " uprightError=" << uprightError
-                << " pitchError=" << pitchError
-                << " rollError=" << rollError
-                << " linearSpeed=" << linearSpeed
-                << " angularSpeed=" << angularSpeed
-                << " recoveryTimer=" << m_recoveryElapsedTime
-                << " fallbackTimer=" << m_recoveryFallbackStableTime
-            );
+            // RCBN_LOG(
+            //     "[Ragdoll] gyro fallback stable humanoid=\"" << getFullPath()
+            //     << "\""
+            //     << " uprightError=" << uprightError
+            //     << " pitchError=" << pitchError
+            //     << " rollError=" << rollError
+            //     << " linearSpeed=" << linearSpeed
+            //     << " angularSpeed=" << angularSpeed
+            //     << " recoveryTimer=" << m_recoveryElapsedTime
+            //     << " fallbackTimer=" << m_recoveryFallbackStableTime
+            // );
         }
 
         if (m_recoveryFallbackStableTime >= RECOVERY_UPRIGHT_SETTLE_TIME) {
@@ -1354,40 +1468,52 @@ void Humanoid::finalizeRagdollRecovery(
     updateGroundHover(physics, root);
     m_recoveryDiagnosticPendingPhysicsLog = true;
 
-    RCBN_LOG(
-        "[Ragdoll] final normalization humanoid=\"" << getFullPath()
-        << "\""
-        << " mode=" << (recoveryReason ? recoveryReason : "unknown")
-        << " yaw=" << finalYawDegrees
-        << " supportY=" << finalSupportY
-        << " currentY=" << currentY
-        << " targetY=" << targetY
-        << " yCorrection=" << (targetY - currentY)
-        << " position=" << finalPosition.toString()
-    );
-    RCBN_LOG("[Ragdoll] state=Normal humanoid=\"" << getFullPath() << '"');
+    // RCBN_LOG(
+    //     "[Ragdoll] final normalization humanoid=\"" << getFullPath()
+    //     << "\""
+    //     << " mode=" << (recoveryReason ? recoveryReason : "unknown")
+    //     << " yaw=" << finalYawDegrees
+    //     << " supportY=" << finalSupportY
+    //     << " currentY=" << currentY
+    //     << " targetY=" << targetY
+    //     << " yCorrection=" << (targetY - currentY)
+    //     << " position=" << finalPosition.toString()
+    // );
+    // RCBN_LOG("[Ragdoll] state=Normal humanoid=\"" << getFullPath() << '"');
 }
 
 void Humanoid::updatePhysicsState(Physics* physics) {
-    if (m_state != State::Normal) {
+    if (m_state == State::Ragdoll || m_state == State::Recovering) {
         setHoverForces(physics, false, 0.0f);
+        setClimbForces(physics, false, Vector3());
         isGrounded = false;
         return;
     }
     auto root = getRootPart();
     if (!root || !physics || !physics->hasBody(*root)) {
         setHoverForces(physics, false, 0.0f);
+        setClimbForces(physics, false, Vector3());
         return;
     }
 
-    const bool onTruss = physics->findOverlapping(*root, "Truss", 0.5f) != nullptr;
-    physics->setGravityEnabled(*root, !onTruss);
+    const bool touchingTruss =
+        physics->findOverlapping(*root, "Truss", 0.5f) != nullptr;
+    if (m_trussControlSuppressed && !touchingTruss) {
+        m_trussControlSuppressed = false;
+    }
+    const bool onTruss = touchingTruss && !m_trussControlSuppressed;
     if (onTruss) {
+        setCharacterGravity(physics, false);
         setHoverForces(physics, false, 0.0f);
         isGrounded = false;
         return;
     }
 
+    if (isClimbing()) {
+        m_state = State::Normal;
+    }
+    setCharacterGravity(physics, true);
+    setClimbForces(physics, false, Vector3());
     updateGroundHover(physics, root);
 }
 
@@ -1437,7 +1563,7 @@ void Humanoid::takeDamage(float n) {
 void Humanoid::updateDeath(float dt, Physics* physics) {
     if (!m_dead) return;
 
-    if (m_state == State::Normal) enterRagdoll(physics);
+    if (!isRagdoll()) enterRagdoll(physics);
     m_deathElapsed += dt;
 }
 
@@ -1446,7 +1572,7 @@ bool Humanoid::isRespawnReady() const {
 }
 
 void Humanoid::enterRagdoll(Physics* physics, float impactStrength) {
-    if (m_state != State::Normal) return;
+    if (isRagdoll()) return;
 
     auto root = getRootPart();
     if (!root) {
@@ -1463,6 +1589,7 @@ void Humanoid::enterRagdoll(Physics* physics, float impactStrength) {
 
     saveRagdollBindPose();
     m_state = State::Ragdoll;
+    m_trussControlSuppressed = false;
     m_ragdollStableTime = 0.0f;
     m_recoveryUprightStableTime = 0.0f;
     m_lastImpactStrength = impactStrength;
@@ -1474,11 +1601,11 @@ void Humanoid::enterRagdoll(Physics* physics, float impactStrength) {
         m_hasLastValidYaw = true;
     }
 
-    RCBN_LOG(
-        "[Ragdoll] entered humanoid=\"" << getFullPath()
-        << "\" impact=" << impactStrength
-        << " threshold=" << ImpactRagdollThreshold
-    );
+    // RCBN_LOG(
+    //     "[Ragdoll] entered humanoid=\"" << getFullPath()
+    //     << "\" impact=" << impactStrength
+    //     << " threshold=" << ImpactRagdollThreshold
+    // );
 
     setHoverForces(physics, false, 0.0f);
     stopAnimation();
@@ -1518,7 +1645,7 @@ void Humanoid::setRagdollStateForReplication(
     bool ragdoll,
     Physics* physics) {
     if (ragdoll) {
-        if (m_state == State::Normal) enterRagdoll(physics);
+        if (!isRagdoll()) enterRagdoll(physics);
         return;
     }
     if (m_state == State::Ragdoll && !m_dead) {
@@ -1588,7 +1715,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
                      const Vector3& targetMoveDir, bool ctrlLockEnabled, Physics* physics,
                      bool leftArmRaised, bool rightArmRaised,
                      float forwardAxis, float rightAxis, float smoothing, float deltaTime) {
-    if (m_dead || m_state != State::Normal) {
+    if (m_dead || (m_state != State::Normal && !isClimbing())) {
         setHoverForces(physics, false, 0.0f);
         return;
     }
@@ -1678,7 +1805,58 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     }
 
     // --- Truss(はしご)接触判定。登坂中は重力を切り、静止していても留まれるようにする ---
-    BaseCube* trussCube = physics ? physics->findOverlapping(*root, "Truss", 0.5f) : nullptr;
+    BaseCube* trussCube =
+        physics ? physics->findOverlapping(*root, "Truss", 0.5f) : nullptr;
+    if (m_trussControlSuppressed) {
+        if (trussCube) {
+            trussCube = nullptr;
+        } else {
+            m_trussControlSuppressed = false;
+        }
+    }
+
+    if (trussCube && forwardAxis < 0.0f) {
+        float yawDegrees = 0.0f;
+        if (!tryGetHorizontalYaw(root->getWorldCFrame().Rotation, yawDegrees)) {
+            yawDegrees = m_hasLastValidYaw ? m_lastValidYawDegrees : 0.0f;
+        }
+
+        float supportY = 0.0f;
+        if (findRootSupport(physics, yawDegrees, supportY)) {
+            const float desiredRootHeight =
+                std::isfinite(HipHeight) && HipHeight >= 0.0f
+                    ? HipHeight
+                    : std::max(root->Size.y * 0.5f, 0.1f);
+            const float supportDistance =
+                root->getWorldPosition().y - supportY;
+            if (std::isfinite(supportDistance) &&
+                supportDistance <=
+                    desiredRootHeight + TRUSS_DESCENT_EXIT_MARGIN) {
+                m_state = State::Normal;
+                m_trussControlSuppressed = true;
+                cancelCharacterDescent(physics);
+                trussCube = nullptr;
+            }
+        }
+    }
+
+    if (trussCube) {
+        if (forwardAxis > 0.0f) {
+            m_state = State::ClimbingUp;
+        } else if (forwardAxis < 0.0f) {
+            m_state = State::ClimbingDown;
+        } else if (isClimbing()) {
+            m_state = State::Normal;
+        }
+        setCharacterGravity(physics, false);
+        setHoverForces(physics, false, 0.0f);
+    } else {
+        if (isClimbing()) {
+            m_state = State::Normal;
+        }
+        setCharacterGravity(physics, true);
+        setClimbForces(physics, false, Vector3());
+    }
 
     // --- 向き(Rotation)の更新 ---
     // Truss接触中は向きを固定する(自動回転させると登坂中に姿勢が崩れて落下してしまうため)
@@ -1793,7 +1971,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         // Truss(はしご)接触中: W/Sで垂直方向、A/Dで水平ストレイフ
         Vector3 climbVel = flatRight * (rightAxis * WalkSpeed);
         climbVel.y = forwardAxis * ClimbSpeed;
-        physics->setLinearVelocity(*root, climbVel);
+        setClimbForces(physics, true, climbVel);
     } else if (currentMoveDir.length() > 0.01f) {
         Vector3 velocity = currentMoveDir * WalkSpeed;
         Vector3 currentVel = physics->getLinearVelocity(*root);
@@ -1858,7 +2036,8 @@ void Humanoid::setJumpHeight(float height) {
 }
 
 void Humanoid::jump(Physics* physics) {
-    if (m_dead || m_state != State::Normal || !physics) {
+    const bool climbingJump = isClimbing();
+    if (m_dead || (m_state != State::Normal && !climbingJump) || !physics) {
         return;
     }
 
@@ -1882,13 +2061,16 @@ void Humanoid::jump(Physics* physics) {
             "LiquidCube"
         ) != nullptr;
 
-    if (
-        !isGrounded &&
-        !submerged
-    ) {
+    if (!climbingJump && !isGrounded && !submerged) {
         return;
     }
 
+    if (climbingJump) {
+        m_state = State::Normal;
+        m_trussControlSuppressed = true;
+        setCharacterGravity(physics, true);
+        setClimbForces(physics, false, Vector3());
+    }
     isGrounded = false;
     m_hoverSuppressedForJump = true;
     setHoverForces(physics, false, 0.0f);
@@ -2037,7 +2219,10 @@ void Humanoid::updateAnimation(float dt) {
     bool bodyPoseUpdated = m_bodyPoseUpdatedThisFrame;
     m_bodyPoseUpdatedThisFrame = false;
 
-    if (m_state != State::Normal || !m_animPlaying || !m_currentAnim) return;
+    if ((m_state != State::Normal && !isClimbing()) ||
+        !m_animPlaying || !m_currentAnim) {
+        return;
+    }
 
     // 対象パーツの解決先となるModel(=このHumanoidの親)
     Instance* model = Parent.lock().get();
@@ -2213,7 +2398,7 @@ Humanoid::Pose Humanoid::computePose(bool leftArmRaised, bool rightArmRaised) co
 void Humanoid::applyBodyAnimation(bool leftArmRaised, bool rightArmRaised,
                                   float deltaTime) {
     m_bodyPoseUpdatedThisFrame = true; // 呼ばれた事実を記録(Root未解決で以降no-opでも「試行済み」として扱う)
-    if (m_state != State::Normal) return;
+    if (m_state != State::Normal && !isClimbing()) return;
     auto root = getRootPart();
     if (!root) {
         if (Instance* model = Parent.lock().get()) resolveParts(model);

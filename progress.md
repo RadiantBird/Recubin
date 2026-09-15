@@ -829,3 +829,27 @@
 - `doc/Instances/Weather.md`と`spec.md`へColor4とワールド高度の仕様を追記し、PropertySchema回帰へWeatherのColor4/高度のYAML・clone検証を追加した。
 - `Weather.cpp`、`Renderer.cpp`、`test_main.cpp`のGCC C++23構文検査と対象差分の`git diff --check`は成功。Windows Release build、RecubinTest実行、Rendererの実機描画確認は未実施。
 - 次の一手: Windows側のCMake/PATH復旧後に再buildし、`--property-schema-regression`でWeatherの回帰を実行し、カメラY移動時の固定高度・CloudColor/alphaを実機確認する。
+
+## 2026-09-15: Character Truss climbing states and full-rig gravity
+
+- 新しい複数body Character RigでTrussがRootだけの旧制御に依存していたため、Humanoidへ`ClimbingUp`/`ClimbingDown`状態を追加した。昇降状態はRagdoll/Recoveringとは別扱いにし、Ragdoll判定・死亡遷移・replication判定が昇降状態を誤認しないようにした。
+- Truss接触中は`collectCharacterBodies()`で得られるRoot/Torso/Head/両腕/両脚の全dynamic bodyについて重力を無効化する。各bodyへ`CharacterClimbForce`を作成し、`MaintainVelocity`で水平ストレイフ速度と`ClimbSpeed`の上昇/下降速度を適用する。垂直入力がない場合はTruss上で速度0を維持する。
+- Trussから離れたら昇降Forceを無効化し、全bodyの重力を復帰して既存GroundHeight hoverへ戻る。Motor6Dや既存のRoot yaw制御の構造は変更していない。
+- `Humanoid.cpp`のGCC C++23構文検査と`git diff --check`は終了コード0。Windows正式Release buildはCMake実行ファイルがPATHに無く`WinError 2`でconfigure前に停止したため、RecubinTest/brun/実機でのTruss昇降確認は未実施。
+- 次の一手: Windows側CMake/PATH復旧後、垂直TrussでW/Sの上昇下降、入力停止時の停止、A/Dストレイフ、Truss離脱後の重力復帰、坂・壁際・Ragdoll衝突、各bodyの速度と重力設定を確認する。
+
+## 2026-09-15: Jump escape from Truss climbing
+
+- `Humanoid::jump()`をClimbingUp/ClimbingDown中も受け付けるようにし、接地判定を要求せず全R6 bodyへ通常のJumpPowerを適用する。成功時は`Normal`へ遷移し、`CharacterClimbForce`を無効化して全bodyの重力を復帰する。
+- Jump直後にRootがまだTrussのAABB内にあるフレームで、`updatePhysicsState()`や`move()`が再びTruss重力無効化へ戻らないよう、一時的な`m_climbJumpSuppressed`を追加した。Trussから離れた時点で自動解除する。Ragdoll開始時にも解除する。
+- `spec.md`と`doc/Instances/Humanoid.md`へClimbing中Jumpの仕様を追記した。
+- `Humanoid.cpp`のGCC C++23構文検査と`git diff --check`は終了コード0。Windows Release build、brun、実機でのTruss脱出とJump軌道は未検証。
+- 次の一手: Windows側再build後、ClimbingUp/Down中のJump、同一フレームのTruss重なり、重力復帰、全bodyのJump速度、Truss離脱後の通常GroundHeight hoverを確認する。
+
+## 2026-09-15: Truss descent ground escape
+
+- Ragdoll復帰専用だったRoot footprint support scanを`findRootSupport()`へ共通化した。Character自身を除外する下向きbox castで、normal.y>=0.5の最も高いsupportだけを採用するため、Truss側面・壁面を地面として扱わない。
+- `ClimbingDown`で下降入力中、`RootY - supportY <= HipHeight + 0.2`を満たすとTrussを自動脱出する。`Normal`へ遷移し、Truss Forceを止め、全body重力と既存GroundHeight hoverを復帰する。位置/CFrameは変更しない。
+- 直前の`-ClimbSpeed`が次のphysics stepへ残らないよう、脱出時は各R6 bodyの負のY速度だけを0にする。上向き速度とX/Z速度は保持する。Trussが地面まで続く場合はRootがTruss AABBを離れるまでTruss制御を抑制し、同じ入力で再び下降へ入らない。
+- `Humanoid.cpp`のGCC C++23構文検査と`git diff --check`は終了コード0。Windows Release build、brun、実機の床際Truss下降・段差・坂・壁際は未検証。
+- 次の一手: Windows側再build後、地面まで伸びたTrussでの連続S入力、段差/坂/壁際、既に低いRoot位置、auto escape後のhover安定化と歩行/jumpを確認する。

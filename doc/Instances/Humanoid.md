@@ -17,7 +17,16 @@ bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を
 着席、無効状態、Ragdoll中では全hover Forceをzero/disabledにする。jump上昇中と床が3 studのcapture外にある下降中は
 再開しない。PD係数は`CharacterRig::groundHeightSettings()`へ集約し、Workspaceの現在重力を相殺する。
 
-`Normal`/`Ragdoll`/`Recovering`状態を明示的に持つ。Box3Dのhit eventで得た接触点の`totalNormalImpulse`を優先し、
+`Normal`/`ClimbingUp`/`ClimbingDown`/`Ragdoll`/`Recovering`状態を明示的に持つ。Truss接触中にW入力があると
+`ClimbingUp`、S入力があると`ClimbingDown`へ遷移し、垂直入力が無い場合は`Normal`へ戻る。昇降中はCharacter Modelの
+全dynamic R6 bodyの重力を無効化し、各bodyの`CharacterClimbForce`で水平方向のストレイフ速度と`ClimbSpeed`の昇降速度を
+MaintainVelocityとして適用する。Trussから離れたらForceを無効化し、全bodyの重力を復帰する。
+`ClimbingUp`/`ClimbingDown`中のJumpは接地判定を待たずに実行でき、`Normal`へ戻ってTruss用Forceと重力制御を解除する。
+`ClimbingDown`中はRoot footprintの下方向box castで上向きのsupport面を探し、`HipHeight + 0.2 stud`まで近づくと
+自動で`Normal`へ戻る。このとき全bodyの負のY速度だけを0へ戻る。Trussが地面まで生えていても、RootがTrussのAABBを
+抜けるまで再度Truss制御へ入らない。
+
+Box3Dのhit eventで得た接触点の`totalNormalImpulse`を優先し、
 取得できない場合は接近速度を接触法線方向のimpactとして扱う。Characterの全bodyについてphysics tick内の最大値だけを
 評価し、`ImpactRagdollThreshold`以上でRagdollへ遷移する。既定値は45 stud/s相当で、通常の短いjump着地では
 発動しにくく、強い床・壁・物体衝突を対象にする。
@@ -40,7 +49,7 @@ bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を
 | `KeyframeReached` | `shared_ptr<RCBNScriptSignal>` | 再生位置が既存キーフレームの時刻を通過した瞬間に発火。引数は`(partName: string, time: number)` |
 | `m_root`/`m_torso`/`m_head`/`m_leftArm`/`m_rightArm`/`m_leftLeg`/`m_rightLeg` | `weak_ptr<BaseCube>` | `resolveParts()` で解決されるprivateな非所有の兄弟パーツ参照 |
 | `m_dead` | `bool` | 死亡フラグ |
-| `m_state` | `Normal/Ragdoll/Recovering` | 通常姿勢制御、物理Ragdoll、物理upright復帰の状態 |
+| `m_state` | `Normal/ClimbingUp/ClimbingDown/Ragdoll/Recovering` | 通常姿勢制御、Truss昇降、物理Ragdoll、物理upright復帰の状態 |
 | `walkCycle` | `float` | 歩行アニメーションの位相（0..1） |
 | `isGrounded` | `bool` | 接地判定結果 |
 | `isFirstPerson` / `bodyColorsSaved` / `saved*Color` | - | 一人称時の身体非表示・色の退避用 |
@@ -62,7 +71,7 @@ bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を
 | `updatePhysicsState(physics)` | ControlModeに関係なく接地raycast、GroundHeight hover、Truss中の重力設定を更新 |
 | `stopCharacterMotion(physics)` | Character操作からFree/Programへ移行する際、全身の水平・角速度を停止し、Character専用YawForceを無効化して垂直速度を保持 |
 | `moveToward(target, physics, arrivalRadius)` | パス追従用の1フレーム移動（`move()`のロジックを流用） |
-| `jump()` | 接地中のみJumpPowerで上方向速度をセット |
+| `jump()` | 通常時は接地中、Climbing中は接地判定なしでJumpPowerを適用。Climbing中のJumpは`Normal`へ戻してTrussから脱出 |
 | `setHealth(v)`/`takeDamage(n)` | クランプしつつ設定。0以下遷移でDied発火 |
 | `enterRagdoll(physics)` | Motor6Dを無効化し、既存R6 BallSocketを有効化してcollision/Root lock/hover/yawを切り替える |
 | `recoverFromRagdoll(physics)` | 条件成立後に`Recovering`へ遷移する。BallSocketを先に無効化し、Motor6D bind poseとRootGyroで物理的にuprightへ戻す |
@@ -89,7 +98,7 @@ move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, phy
 ## フロー — ジャンプ/死亡演出
 
 ```
-jump(): isGrounded && Root->actor が真の場合のみ Y速度=JumpPower をセット
+jump(): NormalではisGroundedまたは水中、Climbingでは接地判定なしで全bodyのY速度=JumpPowerをセット。Climbing時はNormalへ戻る
 
 enterRagdoll(physics):
   state=Ragdoll, stopAnimation(), hover/yaw/Gyro/Root lockを無効化
