@@ -14,6 +14,37 @@
     Windowsと同じファイル形式でパッケージするように修正する。
     - autosaveディレクトリも考慮する
 
+- [ ] エクスプローラー（ヒエラルキー）の要素の並べ順を定義する
+  - 違うインスタンスの場合
+    - 重要なインスタンスを最初に並べる
+      (Workspace > Folder > Model > Script > LocalScript > ModuleScript > ファイル類 > ValueBase > BaseCube > ...)
+    - 優先順位が定義されていないインスタンスは最後尾に並べる
+    - インスタンスは同じ種類ごとにまとめて並べる
+  - 同じインスタンスの場合
+    - 名前をASCII順に並べる
+    - 名前に数字が含まれる場合、その数字は数値として比較し、小さい順に並べる
+      例:
+      Cube1
+      Cube2
+      Cube3
+      Cube10
+      Cube20
+  - 名前を変更した場合は、編集確定後に並べ直す
+  - 並べ替えによって選択状態や展開状態が失われないようにする
+
+  例:
+  Cube1
+  Cube3
+  Cube2
+  Script
+  IntValue
+  ↓↓↓
+  Script
+  IntValue
+  Cube1
+  Cube2
+  Cube3
+
 # 物理エンジン関係
 
 ```

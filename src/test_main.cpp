@@ -8979,18 +8979,54 @@ static int runSceneHierarchyGroupingRegression() {
            "invalid Explorer anchor appends only the clicked target for Ctrl+Shift");
 
     const auto directChildren = SceneHierarchySelection::collectDirectChildren(*selectionRoot);
-    std::vector<Instance*> expectedDirectChildren;
-    for (const auto& [name, child] : selectionRoot->getChildren())
-        if (child) expectedDirectChildren.push_back(child.get());
+    const std::vector<Instance*> expectedDirectChildren = {
+        selectionA.get(), selectionB.get(), selectionC.get()};
     expect(directChildren == expectedDirectChildren &&
                std::find(directChildren.begin(), directChildren.end(), selectionRoot.get())
                    == directChildren.end() &&
                std::find(directChildren.begin(), directChildren.end(), collapsedGrandchild.get())
-                   == directChildren.end(),
+               == directChildren.end(),
            "select children returns direct children only in Explorer display order");
     Folder emptySelectionParent;
     expect(SceneHierarchySelection::collectDirectChildren(emptySelectionParent).empty(),
            "select children returns an empty selection for a leaf");
+
+    auto orderingRoot = std::make_shared<Folder>();
+    auto orderingCube10 = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+    auto orderingCube2 = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+    auto orderingCube1 = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+    auto orderingScript = std::make_shared<Script>();
+    auto orderingValue = std::make_shared<IntValue>();
+    auto orderingFile = std::make_shared<TextFile>();
+    orderingCube10->Name = "Cube10";
+    orderingCube2->Name = "Cube2";
+    orderingCube1->Name = "Cube1";
+    orderingScript->Name = "Script";
+    orderingValue->Name = "IntValue";
+    orderingFile->Name = "TextFile";
+    orderingRoot->addChild(orderingCube10);
+    orderingRoot->addChild(orderingCube2);
+    orderingRoot->addChild(orderingCube1);
+    orderingRoot->addChild(orderingScript);
+    orderingRoot->addChild(orderingValue);
+    orderingRoot->addChild(orderingFile);
+    const auto orderedChildren = SceneHierarchySelection::collectDirectChildren(*orderingRoot);
+    const std::vector<Instance*> expectedOrderedChildren = {
+        orderingScript.get(), orderingFile.get(), orderingValue.get(),
+        orderingCube1.get(), orderingCube2.get(), orderingCube10.get()};
+    expect(orderedChildren == expectedOrderedChildren,
+           "Explorer groups priorities and compares numeric name suffixes naturally");
+
+    auto renameOrderingCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+    renameOrderingCube->Name = "Cube3";
+    orderingRoot->addChild(renameOrderingCube);
+    renameOrderingCube->renameTo("Cube0");
+    const auto reorderedAfterRename = SceneHierarchySelection::collectDirectChildren(*orderingRoot);
+    const std::vector<Instance*> expectedAfterRename = {
+        orderingScript.get(), orderingFile.get(), orderingValue.get(),
+        renameOrderingCube.get(), orderingCube1.get(), orderingCube2.get(), orderingCube10.get()};
+    expect(reorderedAfterRename == expectedAfterRename,
+           "Explorer order is recalculated after a committed rename without replacing instances");
 
     auto workspace = std::make_shared<Workspace>();
     auto cube = std::make_shared<Cube>(Vector3(4, 2, -3), Vector3(1, 1, 1), Cube::defaultTextureID);

@@ -445,11 +445,7 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
     }
 
     if (!isLeaf && open) {
-        std::vector<Instance*> children;
-        children.reserve(inst->getChildren().size());
-        for (auto const& [name, child] : inst->getChildren()) {
-            if (child) children.push_back(child.get());
-        }
+        const auto children = SceneHierarchySelection::collectDirectChildren(*inst);
         for (Instance* child : children) {
             drawNode(child);
         }

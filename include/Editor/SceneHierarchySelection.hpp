@@ -6,6 +6,11 @@ class Instance;
 
 namespace SceneHierarchySelection {
 
+// Sorts instances in the order used by the Explorer.  The order groups the
+// important instance families first, then groups concrete classes within a
+// family, and finally compares names using natural ASCII ordering.
+void sortForExplorer(std::vector<Instance*>& instances);
+
 // Selects the inclusive range between anchor and target in visible-order.
 // If the anchor is not visible, target is used as a safe single-item range.
 // append preserves the existing selection order and adds only missing items.

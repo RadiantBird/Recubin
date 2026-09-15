@@ -307,6 +307,12 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   クリック判定の誤動作）を起こす。
 - Explorer の Insert Object / Group は検索付きクラスピッカーから選択する。分類は既存分類に加えて Container、File、Script を持ち、検索は大文字小文字を区別しない部分一致とする。
 - Explorer の Replace Instance は単一ノードを同名の選択クラスへ置換する。共通プロパティは移送し、互換性のないプロパティは破棄する。子要素は同一オブジェクトを維持して新しい親へ移動し、Undo/Redo で完全に復元する。System、Workspace、親を持たないルートは対象外とする。
+- Explorer の各親直下の要素は、`Workspace`、`Folder`、`Model`、`Script`、`LocalScript`、`ModuleScript`、
+  物理ファイル (`PhysicalFileInstance`)、`ValueBase`、`BaseCube`、その他の順で表示する。優先順位が
+  同じ要素は具体的なクラスごとにまとめ、名前を ASCII 順で並べる。名前中の連続した数字は数値として
+  比較するため、`Cube1`、`Cube2`、`Cube10` の順になる。優先順位未定義のクラスは最後尾に置く。
+  名前変更の確定後は表示順を再計算する。並び替えは表示用配列だけを変更し、Instance の親子関係、
+  選択状態、展開状態を変更しない。
 
 置換確認は現在選択中のクラスに紐づけ、選択クラスが変わった場合は再確認する。TextFileの
 グループ化確定・取消では保留対象を破棄する。PropertyRegistryの移送は継承関係のないクラス間でも

@@ -26,6 +26,21 @@
 | `drawNode(inst)` *(private)* | ノードを再帰的に描画（右クリックコンテキストメニュー含む） |
 | `renderNewScriptDialog()` *(private)* | Script インスタンス追加ダイアログを描画（ポップアップ外ファイルピッカーと連携） |
 
+## Explorer の並び順
+
+各親の直下の子は、次の優先順位で表示する。
+
+`Workspace` → `Folder` → `Model` → `Script` → `LocalScript` → `ModuleScript` →
+物理ファイル (`PhysicalFileInstance`) → `ValueBase` → `BaseCube` → その他
+
+同じ優先グループ内では具体的なクラスをまとめ、同じクラスの名前を ASCII 順で比較する。
+名前中の連続した数字は数値として比較するため、`Cube1`、`Cube2`、`Cube10` の順になる。
+優先順位がないクラスは最後尾で、クラス名を決定キーにする。並び替えは表示用の一時的な
+ポインタ配列に対して行うため、Instance の所有関係や名前キーは変更しない。
+
+名前変更の確定後は次の描画で同じソートを再実行する。ImGui のツリーノード ID、選択状態、
+展開状態は Instance ポインタを基準にしているため、並び替えで失われない。
+
 ## 動作
 
 - ツリー上でクリックすると `selectedInstance` が更新され、`PropertiesPanel` / `ViewportPanel` にリアルタイム反映される

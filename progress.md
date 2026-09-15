@@ -797,3 +797,14 @@
 - Recoveringのgyro成功条件をupright/Pitch/Roll 15度以下、角速度1.5 rad/s以下へ緩和した。speed-fallbackは開始0.5秒後、線速度4.0以下・角速度2.5 rad/s以下でsupportなしでも実行でき、timeout-fallbackは1.25秒後にsupport・速度条件なしで実行する。
 - support scanが得られた場合は従来どおり最終Root Yの補正へ使い、得られない場合は現在Root Yを維持する。fallbackを許可したことはwarningで観測可能にした。BallSocket/NoCollision、Motor6D復帰順序、全身bind pose正規化は変更していない。
 - `spec.md`と`doc/Instances/Humanoid.md`へ新しい復帰条件を反映した。`Humanoid.cpp`のGCC C++23構文検査と`git diff --check`は成功。`cmd.exe /d /c py build.py brun Release`はWSL vsockの`UtilBindVsockAnyPort:309: socket failed 1`で起動できず、実機の復帰挙動は未検証。
+
+## 2026-09-15: Explorer hierarchy sorting
+
+- Explorerの各親直下の表示を共通ソートへ変更した。`Workspace`、`Folder`、`Model`、`Script`、`LocalScript`、`ModuleScript`、
+  `PhysicalFileInstance`系、`ValueBase`系、`BaseCube`系、その他の優先順位でグループ化し、同じ具体クラス内の名前はASCII自然順で比較する。
+  数字列は数値比較するため`Cube1`、`Cube2`、`Cube10`の順になる。未定義クラスは最後尾でクラス名を決定キーにする。
+- `SceneHierarchyPanel`の表示と`SceneHierarchySelection::collectDirectChildren`を同じソート経路へ統一した。Shift範囲選択と直下子選択の順序もExplorer表示と一致する。
+- 名前変更後は既存のInstanceポインタ／ImGui IDを維持したまま子配列を再収集するため、表示順だけが更新され、選択状態・展開状態・所有関係は失われない。
+- `src/Editor/SceneHierarchySelection.cpp`、`src/Editor/SceneHierarchyPanel.cpp`、`src/test_main.cpp`のGCC C++23構文検査と`git diff --check`は成功。並び順、自然数値順、rename後の再ソート回帰を追加した。
+- Windows正式Release buildは`cmd.exe /d /c py build.py build`がCMakeをPATHから起動できず`WinError 2`でconfigure前に停止した。既存`build/Release/RecubinTest.exe`は2026-09-14生成で変更より古いため、追加回帰は未実行。
+- 次の一手: Windows側CMake/PATH復旧後に再buildし、`--scene-hierarchy-grouping-regression`でExplorerソート回帰を実行する。ImGui実機で名前変更後の選択・展開状態も確認する。
