@@ -99,6 +99,9 @@ private:
 
     static bool customFilter(
         b3ShapeId shapeIdA, b3ShapeId shapeIdB, void* context);
+    bool isBallSocketManagedBody(b3BodyId bodyId) const;
+    bool isBallSocketCollisionPair(
+        b3BodyId bodyA, b3BodyId bodyB) const;
 
     b3BodyId bodyId(const BaseCube& cube) const;
     static SafeHullResult createSafeHull(

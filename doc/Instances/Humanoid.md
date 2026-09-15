@@ -94,7 +94,9 @@ jump(): isGrounded && Root->actor が真の場合のみ Y速度=JumpPower をセ
 enterRagdoll(physics):
   state=Ragdoll, stopAnimation(), hover/yaw/Gyro/Root lockを無効化
   Motor6Dを無効化し、同名Motor6DのC0/C1 bind anchorを使うBallSocketを有効化
-  R6 bodyのcollisionを一時的に有効化する（Character collision groupにより内部self-collisionは抑制）
+  R6 bodyのcollisionを一時的に有効化する（通常Characterの内部self-collisionは抑制するが、
+  Ragdoll中にBallSocketで管理されるbody同士は異なるBallSocket chain間でもcollisionを許可し、
+  明示的なNoCollisionを優先する）
   Neck/Shoulder/HipのBallSocketはlocal joint frame基準のAngularX/Y/Z制限を使うため、Neckの360度回転や
   肩・股関節の裏返りを抑止する。復帰時はBallSocketを先に無効化してからMotor6Dを再有効化する
 

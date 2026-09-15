@@ -617,8 +617,10 @@ void Box3DPhysicsBackend::refreshCollisionFilter(BaseCube& cube) {
     const int shapeCount = b3Body_GetShapeCount(id);
     std::vector<b3ShapeId> shapes(shapeCount);
     b3Body_GetShapes(id, shapes.data(), shapeCount);
-    const int groupIndex = cube.m_characterCollisionGroup == 0
-        ? 0 : -static_cast<int>(cube.m_characterCollisionGroup);
+    // Character self-collision is resolved by customFilter so an enabled
+    // BallSocket can opt its connected pair back into collision.  A negative
+    // native groupIndex would be rejected before the joint is considered.
+    const int groupIndex = 0;
     const std::uint64_t categoryBits = cube.CanCollide
         ? B3_DEFAULT_CATEGORY_BITS
         : 0;
@@ -655,8 +657,10 @@ b3ShapeId Box3DPhysicsBackend::createCubeShape(
     definition.userData = cube.get();
     definition.baseMaterial = toB3Material(cube->material);
     definition.density = std::max(cube->MassDensity, 0.01f) * DENSITY_TO_MKS;
-    definition.filter.groupIndex = cube->m_characterCollisionGroup == 0
-        ? 0 : -static_cast<int>(cube->m_characterCollisionGroup);
+    // Character self-collision is resolved by customFilter so an enabled
+    // BallSocket can opt its connected pair back into collision.  A negative
+    // native groupIndex would be rejected before the joint is considered.
+    definition.filter.groupIndex = 0;
     if (!cube->CanCollide) {
         // @RadiantBird 2026/09/12:
         // CanCollide controls participation, not physical mass. Keeping the
@@ -1939,16 +1943,74 @@ Box3DPhysicsBackend::CubePair Box3DPhysicsBackend::normalizePair(
         ? CubePair{second, first} : CubePair{first, second};
 }
 
+bool Box3DPhysicsBackend::isBallSocketCollisionPair(
+    b3BodyId bodyA, b3BodyId bodyB) const {
+    if (B3_IS_NULL(bodyA) || B3_IS_NULL(bodyB) || idsEqual(bodyA, bodyB)) {
+        return false;
+    }
+    for (const ConstraintEntry& entry : m_constraints) {
+        const auto constraint = entry.constraint.lock();
+        if (!constraint || !constraint->IsA("BallSocket") ||
+            B3_IS_NULL(entry.jointId) || !b3Joint_IsValid(entry.jointId)) {
+            continue;
+        }
+        const b3BodyId jointBodyA = b3Joint_GetBodyA(entry.jointId);
+        const b3BodyId jointBodyB = b3Joint_GetBodyB(entry.jointId);
+        if ((idsEqual(jointBodyA, bodyA) && idsEqual(jointBodyB, bodyB)) ||
+            (idsEqual(jointBodyA, bodyB) && idsEqual(jointBodyB, bodyA))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Box3DPhysicsBackend::isBallSocketManagedBody(b3BodyId bodyId) const {
+    if (B3_IS_NULL(bodyId) || !b3Body_IsValid(bodyId)) return false;
+    for (const ConstraintEntry& entry : m_constraints) {
+        const auto constraint = entry.constraint.lock();
+        if (!constraint || !constraint->IsA("BallSocket") ||
+            B3_IS_NULL(entry.jointId) || !b3Joint_IsValid(entry.jointId)) {
+            continue;
+        }
+        if (idsEqual(b3Joint_GetBodyA(entry.jointId), bodyId) ||
+            idsEqual(b3Joint_GetBodyB(entry.jointId), bodyId)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool Box3DPhysicsBackend::customFilter(
     b3ShapeId shapeIdA, b3ShapeId shapeIdB, void* context) {
     auto* backend = static_cast<Box3DPhysicsBackend*>(context);
     if (!backend) return true;
-    auto* first = static_cast<const BaseCube*>(b3Shape_GetUserData(shapeIdA));
-    auto* second = static_cast<const BaseCube*>(b3Shape_GetUserData(shapeIdB));
+    const auto* first = static_cast<const BaseCube*>(
+        b3Shape_GetUserData(shapeIdA));
+    const auto* second = static_cast<const BaseCube*>(
+        b3Shape_GetUserData(shapeIdB));
     if (!first || !second) return true;
     const auto snapshot = backend->m_noCollisionSnapshot;
-    return !snapshot ||
-           !snapshot->contains(normalizePair(first, second));
+    if (snapshot && snapshot->contains(normalizePair(first, second))) {
+        return false;
+    }
+
+    const bool sameCharacterGroup =
+        first->m_characterCollisionGroup != 0 &&
+        first->m_characterCollisionGroup == second->m_characterCollisionGroup;
+    if (!sameCharacterGroup) return true;
+
+    const b3BodyId bodyA = b3Shape_GetBody(shapeIdA);
+    const b3BodyId bodyB = b3Shape_GetBody(shapeIdB);
+    // Character self-collision suppression remains for ordinary body pairs,
+    // but it must not suppress contact between two separate BallSocket
+    // chains.  Ragdoll parts in different constraints are still ordinary
+    // Box3D shapes and should collide unless NoCollision explicitly rejects
+    // this exact pair above.
+    if (backend->isBallSocketManagedBody(bodyA) &&
+        backend->isBallSocketManagedBody(bodyB)) {
+        return true;
+    }
+    return backend->isBallSocketCollisionPair(bodyA, bodyB);
 }
 
 void Box3DPhysicsBackend::rebuildNoCollisionSnapshot() {

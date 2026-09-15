@@ -2054,6 +2054,7 @@ struct CharacterCollisionFilterProbeResult {
     int cloneContacts = 0;
     int nestedCharacterContacts = 0;
     int ragdollSelfContacts = 0;
+    int ragdollCrossContacts = 0;
     int ragdollContactsAfterReparentOut = 0;
     bool raycastDetectedSelfPart = false;
     bool overlapDetectedSelfBlock = false;
@@ -2138,15 +2139,29 @@ CharacterCollisionFilterProbeResult runCharacterCollisionFilterProbe() {
     auto ragdollTorso = std::make_shared<BaseCube>(
         Vector3(18, 2, 0), Vector3(2, 2, 2));
     ragdollTorso->Name = "Torso";
-    ragdollTorso->Anchored = true;
-    ragdollTorso->CanCollide = false;
+    ragdollTorso->Anchored = false;
+    ragdollTorso->CanCollide = true;
     auto ragdollHead = std::make_shared<BaseCube>(
         Vector3(18, 2, 0), Vector3(2, 2, 2));
     ragdollHead->Name = "Head";
-    ragdollHead->Anchored = true;
-    ragdollHead->CanCollide = false;
+    ragdollHead->Anchored = false;
+    ragdollHead->CanCollide = true;
+    auto ragdollOther = std::make_shared<BaseCube>(
+        Vector3(18, 2, 0), Vector3(2, 2, 2));
+    ragdollOther->Name = "OtherBody";
+    ragdollOther->Anchored = false;
+    ragdollOther->CanCollide = true;
     ragdollCharacter.model->addChild(ragdollTorso);
     ragdollCharacter.model->addChild(ragdollHead);
+    ragdollCharacter.model->addChild(ragdollOther);
+    auto ragdollBallSocket = std::make_shared<BallSocket>(
+        ragdollTorso, ragdollHead);
+    ragdollBallSocket->Name = "RagdollCollisionBallSocket";
+    ragdollCharacter.model->addChild(ragdollBallSocket);
+    auto ragdollOtherBallSocket = std::make_shared<BallSocket>(
+        ragdollCharacter.root, ragdollOther);
+    ragdollOtherBallSocket->Name = "RagdollOtherCollisionBallSocket";
+    ragdollCharacter.model->addChild(ragdollOtherBallSocket);
     ragdollCharacter.humanoid->resolveParts(ragdollCharacter.model.get());
 
     auto isPair = [](BaseCube* first, BaseCube* second,
@@ -2157,6 +2172,7 @@ CharacterCollisionFilterProbeResult runCharacterCollisionFilterProbe() {
     int selfContacts = 0;
     int toolContacts = 0;
     int ragdollContacts = 0;
+    int ragdollCrossContacts = 0;
     const auto previousContactCallback = Physics::s_contactCallback;
     Physics::s_contactCallback = [&](BaseCube* first, BaseCube* second) {
         if (isPair(first, second, selfCharacter.root.get(), selfBlock.get()))
@@ -2173,6 +2189,8 @@ CharacterCollisionFilterProbeResult runCharacterCollisionFilterProbe() {
             ++result.nestedCharacterContacts;
         if (isPair(first, second, ragdollTorso.get(), ragdollHead.get()))
             ++ragdollContacts;
+        if (isPair(first, second, ragdollTorso.get(), ragdollOther.get()))
+            ++ragdollCrossContacts;
     };
 
     auto step = [&] {
@@ -2207,6 +2225,7 @@ CharacterCollisionFilterProbeResult runCharacterCollisionFilterProbe() {
     resetPair(*ragdollTorso, *ragdollHead, {18, 2, 0});
     step();
     result.ragdollSelfContacts = ragdollContacts;
+    result.ragdollCrossContacts = ragdollCrossContacts;
 
     ragdollHead->setParent(workspace);
     resetPair(*ragdollTorso, *ragdollHead, {18, 2, 0});
@@ -2343,7 +2362,8 @@ int runHumanoidRigCollisionRegression() {
         probe.toolContactsAfterReparentBack == probe.toolContactsAfterReparentOut &&
         probe.remoteNpcContacts > 0 && probe.floorContacts > 0 &&
         probe.cloneContacts > 0 && probe.nestedCharacterContacts > 0 &&
-        probe.ragdollSelfContacts == 0 &&
+        probe.ragdollSelfContacts > 0 &&
+        probe.ragdollCrossContacts > 0 &&
         probe.ragdollContactsAfterReparentOut > probe.ragdollSelfContacts &&
         probe.raycastDetectedSelfPart && probe.overlapDetectedSelfBlock;
     if (!probeHealthy) ++failures;
@@ -2361,6 +2381,7 @@ int runHumanoidRigCollisionRegression() {
               << " clone=" << probe.cloneContacts
               << " nested=" << probe.nestedCharacterContacts
               << " ragdoll_self=" << probe.ragdollSelfContacts
+              << " ragdoll_cross=" << probe.ragdollCrossContacts
               << " ragdoll_out=" << probe.ragdollContactsAfterReparentOut
               << " raycast_self="
               << (probe.raycastDetectedSelfPart ? "true" : "false")

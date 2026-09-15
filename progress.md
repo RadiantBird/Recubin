@@ -808,3 +808,16 @@
 - `src/Editor/SceneHierarchySelection.cpp`、`src/Editor/SceneHierarchyPanel.cpp`、`src/test_main.cpp`のGCC C++23構文検査と`git diff --check`は成功。並び順、自然数値順、rename後の再ソート回帰を追加した。
 - Windows正式Release buildは`cmd.exe /d /c py build.py build`がCMakeをPATHから起動できず`WinError 2`でconfigure前に停止した。既存`build/Release/RecubinTest.exe`は2026-09-14生成で変更より古いため、追加回帰は未実行。
 - 次の一手: Windows側CMake/PATH復旧後に再buildし、`--scene-hierarchy-grouping-regression`でExplorerソート回帰を実行する。ImGui実機で名前変更後の選択・展開状態も確認する。
+
+## 2026-09-15: BallSocket connected collision filter fix
+
+- 原因はBallSocketの`collideConnected`設定ではなく、Character Modelの`m_characterCollisionGroup`をBox3D nativeの負の`groupIndex`へ変換していたことだった。Box3Dはshape filterをjointの`collideConnected`判定より先に評価するため、同じCharacter内のBallSocket接続pairも常時除外されていた。
+- Character groupのself-collision判定をnative groupIndexからBox3D custom filterへ移し、BallSocket接続pairは通すようにした。NoCollision snapshotは先に評価するため、明示的なNoCollisionはBallSocketより優先される。CanCollide=falseのcategory/mask除外は維持した。
+- Character collision regressionへBallSocket接続pairの衝突確認を追加し、従来の未接続self-collision抑制、reparent後の外部衝突、NoCollisionの責務分離を維持する設計にした。
+- `Box3DPhysicsBackend.cpp`（`-Itemp_libs/box3d/include`指定）、`test_main.cpp`のGCC C++23構文検査と対象差分の`git diff --check`は成功。`brun Release`はWSLの`UtilBindVsockAnyPort:309: socket failed 1`で起動できず、更新後の回帰実行と実機接触確認は未実施。
+
+## 2026-09-15: BallSocket chain cross-collision fix
+
+- 追加調査で、BallSocket直結pair以外の同一Character bodyが、Character collision groupのcustom filterで拒否されていることを特定した。BallSocketに管理される両bodyは、異なるBallSocket chain間でもcustom filterを通すようにした。
+- NoCollision snapshotは引き続き最初に評価するため、明示的なNoCollisionはBallSocket chain間の許可より優先する。通常Characterの未管理body間self-collision抑制、Character外のcollision、native groupIndex=0、BallSocketの`collideConnected=true`は維持した。
+- Character collision regressionへ、同一Ragdoll内の別BallSocket pair間のcontact確認を追加した。`Box3DPhysicsBackend.cpp`と`test_main.cpp`のGCC C++23構文検査、対象差分の`git diff --check`は成功。Windows `brun Release`はWSLのvsockエラーで起動できず、実機接触・NoCollision優先は未検証。

@@ -183,8 +183,10 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   impactを求め、利用できない場合は接触法線方向の相対接近速度を使う。Character bodyごとの同一physics tickの
   最大impactが`Humanoid.ImpactRagdollThreshold`（既定45 stud/s相当）以上になった場合、movement、jump、hover、
   full-body yaw、RootのAngularX/AngularZ lock、Motor6D姿勢制御を停止し、既存R6 Motor6DのC0/C1 bind anchorを
-  使うBallSocketを有効化する。Ragdoll中だけbody collisionを有効化するが、Character collision groupで内部self-collision
-  は抑制し、外部worldとの衝突を許可する。死亡時も同じ遷移を使う。
+  使うBallSocketを有効化する。Ragdoll中だけbody collisionを有効化する。通常Characterの内部self-collisionは
+  Character collision groupで抑制するが、Ragdoll中にBallSocketで管理されるbody同士は異なるBallSocket chain間でも
+  collisionを許可する。明示的なNoCollisionはこの許可より優先し、外部worldとの衝突を許可する。
+  死亡時も同じ遷移を使う。
 
   死亡していないRagdollは、Rootの線速度が`RagdollRecoverySpeed`（既定2.5 stud/s）以下、角速度が2.0 rad/s以下で、低速状態が
   `RagdollRecoveryDelay`（既定1秒）続いた場合に`Recovering`へ遷移する。通常はR6 bodyのいずれかの接地も確認し、support scanが一時的に
