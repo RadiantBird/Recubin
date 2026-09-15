@@ -34,6 +34,7 @@
 #include <Instances/Seat.hpp>
 #include <Instances/Skybox.hpp>
 #include <Instances/Sun.hpp>
+#include <Instances/Weather.hpp>
 #include <Instances/FileRef.hpp>
 #include <Instances/FontFile.hpp>
 #include <Instances/TextFile.hpp>
@@ -9810,6 +9811,34 @@ static int runPropertySchemaRegression() {
                    clone && clone->shadowDistance == 96.0f && clone->shadowFadeDistance == 12.0f &&
                    copied->shadowDistance == 96.0f && copied->shadowFadeDistance == 12.0f,
                "Lighting shadow distances survive YAML, clone, and generic copy");
+    }
+
+    {
+        auto weather = std::make_shared<Weather>();
+        const auto weatherSchema = PropertyRegistry::collectApplicableSchema(weather.get());
+        const auto cloudColor = findSchemaProperty(weatherSchema, "CloudColor");
+        const auto cloudHeight = findSchemaProperty(weatherSchema, "CloudHeight");
+        expect(cloudColor != weatherSchema.end() && (*cloudColor)->type == PropType::Color4 &&
+                   cloudHeight != weatherSchema.end() && (*cloudHeight)->type == PropType::Float,
+               "Weather exposes Color4 cloud color and world-space cloud height properties");
+        if (cloudColor != weatherSchema.end() && cloudHeight != weatherSchema.end()) {
+            const Color4 expectedColor(0.4f, 0.5f, 0.7f, 0.8f);
+            (*cloudColor)->set(weather.get(), PropValue(expectedColor));
+            (*cloudHeight)->set(weather.get(), PropValue(1234.0f));
+
+            YAML::Emitter output;
+            output << YAML::BeginMap;
+            PropertyRegistry::saveProperties(output, weather.get(), "Weather");
+            output << YAML::EndMap;
+            const YAML::Node saved = YAML::Load(output.c_str());
+            auto loaded = std::make_shared<Weather>();
+            loaded->setProperty("CloudColor", saved["CloudColor"]);
+            loaded->setProperty("CloudHeight", saved["CloudHeight"]);
+            auto clone = std::dynamic_pointer_cast<Weather>(weather->clone());
+            expect(loaded->CloudColor == expectedColor && loaded->CloudHeight == 1234.0f &&
+                       clone && clone->CloudColor == expectedColor && clone->CloudHeight == 1234.0f,
+                   "Weather cloud color and world height survive YAML and clone");
+        }
     }
 
     auto postEffect = std::make_shared<PostEffect>();

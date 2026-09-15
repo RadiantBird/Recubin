@@ -18,7 +18,8 @@ Workspaceの直接の子として配置する想定（Sun/Moon/Skyboxと同じ�
 | `CurrentWeather` | `WeatherType`(enum) | `Clear`/`Rain`/`Snow`。Luauから読み書き可能 |
 | `CloudCover` | `float` | 雲の被覆率 [0,1] |
 | `CloudDensity` | `float` | 雲の濃さ・不透明度 [0,1] |
-| `CloudHeight` | `float` | カメラ基準の雲層の高さ(stud) |
+| `CloudColor` | `Color4` | 雲の色と基準アルファ。`CloudDensity`と乗算される |
+| `CloudHeight` | `float` | ワールド空間における雲層のY座標(stud)。カメラには追従しない |
 | `WindDirection` | `Vector3` | 風向き+速さ。`Workspace::Wind`へ毎フレーム反映される |
 | `LightningEnabled` | `bool` | 雷の個別無効化スイッチ |
 | `LightningInterval` | `float` | 平均落雷間隔（秒）。既定15秒、範囲1〜120秒。小さいほど頻繁に発生する |
@@ -58,7 +59,7 @@ Workspaceの直接の子として配置する想定（Sun/Moon/Skyboxと同じ�
 
 `ParticleEmitter`と同様、`update()`はメインループから毎フレーム1回だけ呼ぶ（`renderViewport`は
 ビューポートの数だけ複数回呼ばれるため、そこで状態を進めると多重更新になる）。`Renderer::renderClouds()`は
-`Weather`の`CloudCover`/`CloudDensity`/`CloudHeight`/`getCloudScrollOffset()`を読むだけで、状態を変更しない。
+`Weather`の`CloudCover`/`CloudDensity`/`CloudColor`/`CloudHeight`/`getCloudScrollOffset()`を読むだけで、状態を変更しない。
 
 ## 雷の仕組み
 

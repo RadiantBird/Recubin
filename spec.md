@@ -31,6 +31,10 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 `Restore Default Animations`を実行した場合だけとする。
 
 ## 特殊なインスタンス
+  `Weather`はWorkspace直下に置く天候システムで、`CloudColor`（`Color4`）と
+  `CloudHeight`（ワールド空間の雲層Y座標）を保持する。雲の水平クアッドはカメラのX/Zへ
+  移動して描画範囲を維持するが、Y座標は`CloudHeight`を使い、カメラのYには追従しない。
+  雲のアルファは`CloudDensity`と`CloudColor.a`を乗算して決める。
   `EnableIOAPI`が有効な場合のみLuauへ`IO.ReadText`/`ReadBytes`/`WriteText`/`WriteBytes`/`AppendText`/
   `AppendBytes`/`Exists`/`IsFile`/`IsDirectory`/`List`/`CreateDirectory`/`Copy`/`Move`/`Remove`/`RemoveTree`
   を公開する。読取りは値または状態、変更系の成功は`true`、権限不足・不正パス・I/O失敗はエラーとする。

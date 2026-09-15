@@ -799,10 +799,11 @@ uniform sampler2D cloudTex;
 uniform vec2  windOffset;
 uniform float cloudCover;
 uniform float cloudDensity;
+uniform vec4  cloudColor;
 void main() {
     float n = texture(cloudTex, vUV - windOffset).r;
-    float alpha = smoothstep(1.0 - cloudCover, 1.0, n) * cloudDensity;
-    FragColor = vec4(0.92, 0.93, 0.95, alpha);
+    float alpha = smoothstep(1.0 - cloudCover, 1.0, n) * cloudDensity * cloudColor.a;
+    FragColor = vec4(cloudColor.rgb, alpha);
 }
 )";
     auto compile = [](const char* src, GLenum type) -> GLuint {
@@ -878,7 +879,7 @@ void Renderer::renderClouds(Workspace& workspace, const Matrix4& view, const Mat
     if (!weather || !weather->Enabled) return;
 
     float halfSize = 2000.0f;
-    float y = cameraPosition.y + weather->CloudHeight;
+    const float y = weather->CloudHeight;
     float cx = cameraPosition.x;
     float cz = cameraPosition.z;
     // UVは大きめのタイル数でスクロールを滑らかに見せる
@@ -901,6 +902,9 @@ void Renderer::renderClouds(Workspace& workspace, const Matrix4& view, const Mat
     glUniform2f(glGetUniformLocation(m_cloudShader, "windOffset"), scroll.x, scroll.y);
     glUniform1f(glGetUniformLocation(m_cloudShader, "cloudCover"), weather->CloudCover);
     glUniform1f(glGetUniformLocation(m_cloudShader, "cloudDensity"), weather->CloudDensity);
+    glUniform4f(glGetUniformLocation(m_cloudShader, "cloudColor"),
+                weather->CloudColor.r, weather->CloudColor.g,
+                weather->CloudColor.b, weather->CloudColor.a);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_cloudNoiseTex);

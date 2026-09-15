@@ -3,6 +3,7 @@
 #include <include/Instances/Named.hpp>
 #include <include/Math/Vector2.hpp>
 #include <include/Math/Vector3.hpp>
+#include <include/Util/Color4.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -30,7 +31,8 @@ public:
     WeatherType CurrentWeather   = WeatherType::Clear;
     float       CloudCover       = 0.5f;
     float       CloudDensity     = 0.6f;
-    float       CloudHeight      = 300.0f;
+    Color4      CloudColor       = Color4(0.92f, 0.93f, 0.95f, 1.0f);
+    float       CloudHeight      = 300.0f; // ワールド空間の雲層Y座標(stud)
     Vector3     WindDirection    = Vector3(0.0f, 0.0f, 0.0f);
     bool        LightningEnabled = true;
     float       LightningInterval = 15.0f;

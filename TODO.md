@@ -14,7 +14,7 @@
     Windowsと同じファイル形式でパッケージするように修正する。
     - autosaveディレクトリも考慮する
 
-- [ ] エクスプローラー（ヒエラルキー）の要素の並べ順を定義する
+- [x] エクスプローラー（ヒエラルキー）の要素の並べ順を定義する
   - 違うインスタンスの場合
     - 重要なインスタンスを最初に並べる
       (Workspace > Folder > Model > Script > LocalScript > ModuleScript > ファイル類 > ValueBase > BaseCube > ...)

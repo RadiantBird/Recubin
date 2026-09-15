@@ -57,6 +57,7 @@ static const bool s_weatherRegistered = []{
             {{"Clear", 0}, {"Rain", 1}, {"Snow", 2}}, /*yamlAsString*/true),
         field<&Weather::CloudCover>      ("CloudCover",       0.0f, 1.0f,    0.01f).clampLua(),
         field<&Weather::CloudDensity>    ("CloudDensity",     0.0f, 1.0f,    0.01f).clampLua(),
+        field<&Weather::CloudColor>      ("CloudColor"),
         field<&Weather::CloudHeight>     ("CloudHeight",      50.0f, 2000.0f, 5.0f).clampLua(),
         field<&Weather::WindDirection>   ("WindDirection"),
         field<&Weather::LightningEnabled>("LightningEnabled"),

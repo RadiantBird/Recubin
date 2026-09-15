@@ -821,3 +821,11 @@
 - 追加調査で、BallSocket直結pair以外の同一Character bodyが、Character collision groupのcustom filterで拒否されていることを特定した。BallSocketに管理される両bodyは、異なるBallSocket chain間でもcustom filterを通すようにした。
 - NoCollision snapshotは引き続き最初に評価するため、明示的なNoCollisionはBallSocket chain間の許可より優先する。通常Characterの未管理body間self-collision抑制、Character外のcollision、native groupIndex=0、BallSocketの`collideConnected=true`は維持した。
 - Character collision regressionへ、同一Ragdoll内の別BallSocket pair間のcontact確認を追加した。`Box3DPhysicsBackend.cpp`と`test_main.cpp`のGCC C++23構文検査、対象差分の`git diff --check`は成功。Windows `brun Release`はWSLのvsockエラーで起動できず、実機接触・NoCollision優先は未検証。
+
+## 2026-09-15: Weather cloud color and fixed world height
+
+- `Weather`へ`CloudColor`（`Color4`、既定値`0.92/0.93/0.95/1.0`）を追加し、PropertyRegistry経由でProperties、YAML、clone、Luauへ接続した。雲のアルファは`CloudDensity * CloudColor.a`とする。
+- `CloudHeight`をカメラ基準ではなくワールド空間のY座標として扱うよう変更した。雲の水平クアッドは従来どおりカメラのX/Zを追従するが、Yは`CloudHeight`から変化しない。
+- `doc/Instances/Weather.md`と`spec.md`へColor4とワールド高度の仕様を追記し、PropertySchema回帰へWeatherのColor4/高度のYAML・clone検証を追加した。
+- `Weather.cpp`、`Renderer.cpp`、`test_main.cpp`のGCC C++23構文検査と対象差分の`git diff --check`は成功。Windows Release build、RecubinTest実行、Rendererの実機描画確認は未実施。
+- 次の一手: Windows側のCMake/PATH復旧後に再buildし、`--property-schema-regression`でWeatherの回帰を実行し、カメラY移動時の固定高度・CloudColor/alphaを実機確認する。
