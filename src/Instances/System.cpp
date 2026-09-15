@@ -4,6 +4,7 @@
 #include <Core/PropertyRegistry.hpp>
 #include <algorithm>
 #include <Util/UUID.hpp>
+#include <Util/Logger.hpp>
 
 static const bool s_systemRegistered = []{
     using namespace PropertyRegistry;
@@ -67,6 +68,15 @@ void System::setProperty(const std::string& name, const YAML::Node& value) {
             if (RecubinUUID::isValid(candidate)) ApplicationId = candidate;
         }
         return;
+    }
+    if (name == "DefaultCameraMode" && value.IsScalar()) {
+        const std::string mode = value.as<std::string>();
+        if (mode != "Character" && mode != "Free" && mode != "Program") {
+            RCBN_WARN("Unknown DefaultCameraMode '" << mode
+                      << "'; falling back to Character");
+            DefaultCameraMode = CameraMode::Character;
+            return;
+        }
     }
     if (PropertyRegistry::loadProperty(this, "System", name, value)) return;
     if (name == "MaxClonesPerFrame")        { MaxClonesPerFrame        = value.as<int>();   return; }

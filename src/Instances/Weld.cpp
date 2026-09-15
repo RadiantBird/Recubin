@@ -28,10 +28,6 @@ Weld::Weld(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
 
 void Weld::refreshRefNames() {
     PhysicsConstraint::refreshRefNames();
-    if (auto c0 = m_cube0.lock(); c0 && !m_cube0Name.empty())
-        m_cube0Name = c0->getWorkspaceRelativePath();
-    if (auto c1 = m_cube1.lock(); c1 && !m_cube1Name.empty())
-        m_cube1Name = c1->getWorkspaceRelativePath();
 }
 
 void Weld::invalidateBinding() {

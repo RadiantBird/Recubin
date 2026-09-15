@@ -108,6 +108,16 @@ std::shared_ptr<Animation> addDefaultR6Walk(const R6AnimationBindingTarget& targ
     animation->setProperty("ContentPath", pathNode);
     target.character->addChild(animation);
     target.humanoid->setWalkAnimation(animation);
+    if (target.humanoid->getWalkAnimation() != animation ||
+        target.humanoid->getWalkAnimationPath() != "R6Walk" ||
+        animation->ContentPath != contentPath ||
+        target.character->getChild("R6Walk") != animation.get()) {
+        RCBN_ERROR("R6 Walk migration produced an incomplete binding: character="
+                   << target.character->getFullPath()
+                   << " humanoidPath=" << target.humanoid->getWalkAnimationPath()
+                   << " contentPath=" << animation->ContentPath);
+        return nullptr;
+    }
     return animation;
 }
 
@@ -698,11 +708,26 @@ EditorManager::migrateCharacterAnimationBindings(
         return CharacterAnimationMigrationResult::NotApplicable;
 
     bool insertedWalk = false;
-    if (target.humanoid->getWalkAnimationPath().empty()) {
+    const std::string& walkPath = target.humanoid->getWalkAnimationPath();
+    const bool hasWalkReference = !walkPath.empty() &&
+        target.character->getChildByPath(walkPath) != nullptr;
+    if (!hasWalkReference) {
+        // A legacy rig can retain the serialized "R6Walk" path after its
+        // generated Animation child was removed. Treat that stale path as an
+        // empty binding, while preserving genuinely custom unresolved paths.
+        if (!walkPath.empty() && walkPath != "R6Walk") {
+            metadata.characterAnimationBindingsVersion = 1;
+            return CharacterAnimationMigrationResult::RecordedOnly;
+        }
         const std::string contentPath = metadata.legacyWalkContentPath.empty()
             ? "assets/anims/r6_walk.rcanim"
             : migrateLegacyWalkContentPath(scenePath, metadata.legacyWalkContentPath);
         insertedWalk = addDefaultR6Walk(target, contentPath) != nullptr;
+        if (!insertedWalk) {
+            // Do not mark a failed migration as complete; the next load must
+            // be able to retry after the malformed rig is repaired.
+            return CharacterAnimationMigrationResult::NotApplicable;
+        }
     }
     metadata.characterAnimationBindingsVersion = 1;
     return insertedWalk ? CharacterAnimationMigrationResult::Inserted

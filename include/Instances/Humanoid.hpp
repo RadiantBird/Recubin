@@ -7,6 +7,7 @@
 #include <Core/RCBNScriptSignal.hpp>
 #include <Instances/Animation.hpp>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -328,6 +329,15 @@ private:
         const Vector3& targetVelocity
     );
     void cancelCharacterDescent(Physics* physics);
+    // Returns the mass-weighted vertical landing impact speed remaining after
+    // the ordinary landing-capture braking distance.  This keeps the
+    // ImpactRagdollThreshold speed-compatible while preserving the energy
+    // that dynamic hover capture would otherwise remove before contact.
+    std::optional<float> getLandingImpactEquivalentSpeed(
+        Physics* physics,
+        float maximumNetUpwardAcceleration,
+        float ordinaryCaptureDistance
+    ) const;
     void updateGroundHover(Physics* physics, const std::shared_ptr<BaseCube>& root);
     void updateRagdoll(float dt, Physics* physics);
     void updateRagdollRecovery(float dt, Physics* physics);

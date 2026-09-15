@@ -255,10 +255,9 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3
     gyro->setAxisEnabled(GyroAxis::Z, true);
     gyro->setTargetAngle(GyroAxis::Z, 0.0f);
 
-    // @RadiantBird 2026/09/13:
-    // Character yaw is driven by YawForce angular velocity control.
-    // Do not let Gyro Y fight the authoritative yaw controller.
-    gyro->setAxisEnabled(GyroAxis::Y, false);
+    // Yaw is part of the same physical controller as pitch and roll. Keeping
+    // this axis enabled avoids a competing Force-based heading controller.
+    gyro->setAxisEnabled(GyroAxis::Y, true);
     gyro->setTargetAngle(
         GyroAxis::Y,
         root->getWorldCFrame().Rotation.toEuler().y

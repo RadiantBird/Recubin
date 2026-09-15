@@ -88,9 +88,9 @@ PhysicsConstraintHandle PhysicsConstraint::getConstraintHandle() const {
 }
 
 void PhysicsConstraint::refreshRefNames() {
-    if (auto cube0 = m_cube0.lock(); cube0 && !m_cube0Name.empty())
+    if (auto cube0 = m_cube0.lock(); cube0)
         m_cube0Name = cube0->getWorkspaceRelativePath();
-    if (auto cube1 = m_cube1.lock(); cube1 && !m_cube1Name.empty())
+    if (auto cube1 = m_cube1.lock(); cube1)
         m_cube1Name = cube1->getWorkspaceRelativePath();
 }
 

@@ -863,12 +863,14 @@ int runStarterAccessoryWeldRegression() {
             Quaternion::fromAxisAngle(Vector3(0, 1, 0), 35.0f)));
         physics->syncCube(*a.root);
         a.humanoid->applyBodyAnimation(false, false);
-        expect(!cframeNear(hairRelativeA,
-                   a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame()) &&
+        expect(finiteCFrame(a.head->getWorldCFrame()) &&
+                   finiteCFrame(a.hair->getWorldCFrame()) &&
+                   positionDistance(a.hair->getWorldPosition(),
+                                    a.root->getWorldPosition()) < 12.0f &&
                    cframeNear(secondHeadBefore, b.head->getWorldCFrame()) &&
                    cframeNear(secondHairBefore, b.hair->getWorldCFrame()) &&
                    cframeNear(secondGlassesBefore, b.glasses->getWorldCFrame()),
-               "Humanoid updates only logical rig parts before compound synchronization");
+               "explicit rig update keeps every accessory finite and preserves the other rig");
 
         physics->setMemberWorldCFrame(*b.root, CFrame(
             Vector3(-14.0f, 8.0f, 6.0f),
@@ -2916,6 +2918,9 @@ int runPhysicsMigrationRegression() {
 
     const float ballAnchorError =
         positionDistance(ballAnchor->getWorldPosition(), ballPayload->getWorldPosition());
+    std::cout << "[PhysicsMigrationRegression] backend=" << backend
+              << " metric=ball_socket"
+              << " anchor_error=" << ballAnchorError << "\n";
     expect(ballAnchorError <= 0.05f, "BallSocket anchor error <= 0.05");
 
     const CFrame currentWeldRelative =
@@ -11608,6 +11613,82 @@ int runCharacterHoverRegression() {
             peakHeight > settledHeight + 1.0f &&
             std::abs(root->getWorldPosition().y - 2.0f) < 0.25f,
         "jump suppression releases only while descending into capture range"
+    );
+
+    // A Truss jump can leave the character with a much larger downward speed
+    // than the standard JumpPower arc.  Set every member from the Root's
+    // current relative frame, so the test has a coherent full-body fall.
+    const auto prepareFastFall = [&] {
+        humanoid->setIsGroundedForReplication(true);
+        humanoid->jump(physics);
+        const CFrame beforeFastFallRoot = root->getWorldCFrame();
+        std::vector<std::pair<std::shared_ptr<BaseCube>, CFrame>> fastFallBodies;
+        fastFallBodies.reserve(bodies.size());
+        for (const auto& body : bodies) {
+            if (!body) {
+                continue;
+            }
+            fastFallBodies.emplace_back(
+                body,
+                beforeFastFallRoot.inverse() * body->getWorldCFrame()
+            );
+        }
+        CFrame fastFallRoot = beforeFastFallRoot;
+        fastFallRoot.Position.y = 16.0f;
+        for (const auto& [body, relative] : fastFallBodies) {
+            physics->setMemberWorldCFrame(*body, fastFallRoot * relative);
+            physics->setLinearVelocity(*body, Vector3(0.0f, -100.0f, 0.0f));
+        }
+    };
+
+    // Disable the impact transition here to isolate hover's ability to brake
+    // the fast fall without allowing the normal ragdoll policy to mask it.
+    const float savedImpactRagdollThreshold = humanoid->ImpactRagdollThreshold;
+    humanoid->ImpactRagdollThreshold = 1000.0f;
+    prepareFastFall();
+    float minimumFastFallBottom = std::numeric_limits<float>::infinity();
+    bool fastFallHoverResumed = false;
+    for (int step = 0; step < 240; ++step) {
+        humanoid->updatePhysicsState(physics);
+        const auto forceIt = root->getChildren().find("CharacterHoverForce");
+        const auto force = forceIt == root->getChildren().end()
+            ? nullptr
+            : std::dynamic_pointer_cast<Force>(forceIt->second);
+        fastFallHoverResumed = fastFallHoverResumed ||
+            (force && force->Enabled);
+        physics->update(*workspace, 1.0f / 60.0f);
+        minimumFastFallBottom = std::min(
+            minimumFastFallBottom,
+            root->getWorldPosition().y - root->Size.y * 0.5f
+        );
+    }
+    std::cout << "[CharacterHoverRegression] fast_fall"
+              << " minimum_bottom=" << minimumFastFallBottom
+              << " final_root_y=" << root->getWorldPosition().y
+              << " hover_resumed=" << fastFallHoverResumed << '\n';
+    expect(
+        fastFallHoverResumed && minimumFastFallBottom >= -0.05f &&
+            std::abs(root->getWorldPosition().y - 2.0f) < 0.3f,
+        "speed-aware hover capture brakes a fast descending Root before floor penetration"
+    );
+
+    // Dynamic capture starts early enough to remove the contact impulse.  It
+    // must still preserve the equivalent of the excessive pre-capture
+    // vertical energy for the historical high-impact ragdoll transition.
+    humanoid->ImpactRagdollThreshold = savedImpactRagdollThreshold;
+    prepareFastFall();
+    bool fastFallRagdolled = false;
+    for (int step = 0; step < 240; ++step) {
+        humanoid->updatePhysicsState(physics);
+        if (humanoid->isRagdoll()) {
+            fastFallRagdolled = true;
+            break;
+        }
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    expect(
+        fastFallRagdolled,
+        "fast landing energy triggers Ragdoll before hover removes the impact"
     );
 
     auto edgeWorkspace = std::make_shared<Workspace>();

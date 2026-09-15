@@ -262,6 +262,104 @@ void Humanoid::cancelCharacterDescent(Physics* physics) {
     }
 }
 
+std::optional<float> Humanoid::getLandingImpactEquivalentSpeed(
+    Physics* physics,
+    float maximumNetUpwardAcceleration,
+    float ordinaryCaptureDistance
+) const {
+    if (!physics) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": cannot measure landing energy without Physics"
+        );
+        return std::nullopt;
+    }
+    if (!std::isfinite(maximumNetUpwardAcceleration) ||
+        maximumNetUpwardAcceleration < 0.0f ||
+        !std::isfinite(ordinaryCaptureDistance) ||
+        ordinaryCaptureDistance < 0.0f) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": invalid landing-energy braking parameters acceleration="
+            << maximumNetUpwardAcceleration
+            << " captureDistance=" << ordinaryCaptureDistance
+        );
+        return std::nullopt;
+    }
+
+    double totalMass = 0.0;
+    double verticalKineticEnergy = 0.0;
+    for (const auto& body : collectCharacterBodies()) {
+        if (!body) {
+            RCBN_ERROR(
+                "Humanoid \"" << getFullPath()
+                << "\": null character body while measuring landing energy"
+            );
+            return std::nullopt;
+        }
+        if (!physics->hasBody(*body)) {
+            RCBN_ERROR(
+                "Humanoid \"" << getFullPath()
+                << "\": character body \"" << body->getFullPath()
+                << "\" has no native body while measuring landing energy"
+            );
+            return std::nullopt;
+        }
+        const auto mass = physics->getBodyMass(*body);
+        if (!mass) {
+            RCBN_ERROR(
+                "Humanoid \"" << getFullPath()
+                << "\": cannot read mass for character body \""
+                << body->getFullPath()
+                << "\" while measuring landing energy"
+            );
+            return std::nullopt;
+        }
+        const float verticalVelocity = physics->getLinearVelocity(*body).y;
+        if (!std::isfinite(verticalVelocity)) {
+            RCBN_ERROR(
+                "Humanoid \"" << getFullPath()
+                << "\": non-finite vertical velocity for character body \""
+                << body->getFullPath() << "\": " << verticalVelocity
+            );
+            return std::nullopt;
+        }
+
+        const float downwardVelocity = std::min(verticalVelocity, 0.0f);
+        totalMass += *mass;
+        verticalKineticEnergy += 0.5 * static_cast<double>(*mass) *
+            static_cast<double>(downwardVelocity) * downwardVelocity;
+    }
+    if (!std::isfinite(totalMass) || totalMass <= 0.0 ||
+        !std::isfinite(verticalKineticEnergy)) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": invalid aggregate landing energy mass=" << totalMass
+            << " verticalKineticEnergy=" << verticalKineticEnergy
+        );
+        return std::nullopt;
+    }
+
+    const double ordinaryCaptureBrakingEnergy = totalMass *
+        static_cast<double>(maximumNetUpwardAcceleration) *
+        ordinaryCaptureDistance;
+    const double residualEnergy = std::max(
+        0.0,
+        verticalKineticEnergy - ordinaryCaptureBrakingEnergy
+    );
+    const double equivalentSpeedSquared =
+        2.0 * residualEnergy / totalMass;
+    if (!std::isfinite(equivalentSpeedSquared) || equivalentSpeedSquared < 0.0) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": invalid landing impact speed squared="
+            << equivalentSpeedSquared
+        );
+        return std::nullopt;
+    }
+    return static_cast<float>(std::sqrt(equivalentSpeedSquared));
+}
+
 void Humanoid::updateGroundHover(
     Physics* physics,
     const std::shared_ptr<BaseCube>& root
@@ -274,9 +372,36 @@ void Humanoid::updateGroundHover(
     const auto& settings = CharacterRig::groundHeightSettings();
     const bool groundedBefore = isGrounded;
     auto character = Parent.lock();
+    const float verticalVelocity = physics->getLinearVelocity(*root).y;
+    if (!std::isfinite(verticalVelocity)) {
+        RCBN_ERROR(
+            "Humanoid \"" << getFullPath()
+            << "\": Root vertical velocity is non-finite while updating hover: "
+            << verticalVelocity
+        );
+        setHoverForces(physics, false, 0.0f);
+        isGrounded = false;
+        return;
+    }
+    const float downwardSpeed = std::max(0.0f, -verticalVelocity);
+    const float gravityMagnitude = std::max(0.0f, -physics->getGravity().y);
+    const float maximumNetUpwardAcceleration =
+        settings.maxUpwardAcceleration - gravityMagnitude;
+    float brakingDistance = 0.0f;
+    if (maximumNetUpwardAcceleration > 0.0f) {
+        brakingDistance = downwardSpeed * downwardSpeed /
+            (2.0f * maximumNetUpwardAcceleration);
+    }
+    constexpr float PHYSICS_STEP_SECONDS = 1.0f / 60.0f;
+    constexpr float CAPTURE_SAFETY_MARGIN = 0.25f;
+    const float dynamicLandingCaptureDistance = std::max(
+        settings.landingCaptureDistance,
+        brakingDistance + downwardSpeed * PHYSICS_STEP_SECONDS +
+            CAPTURE_SAFETY_MARGIN
+    );
     const float floorDetectionDistance = std::max(
         settings.maxFloorDetectionDistance,
-        HipHeight + settings.landingCaptureDistance
+        HipHeight + dynamicLandingCaptureDistance
     );
     const CFrame rootFrame = root->getWorldCFrame();
     const CFrame groundQueryFrame(
@@ -308,7 +433,6 @@ void Humanoid::updateGroundHover(
         floor.normal = groundHit.normal;
         floor.instance = groundHit.instance;
     }
-    const float verticalVelocity = physics->getLinearVelocity(*root).y;
     bool atHipHeight = false;
 
     const auto logGroundDebug = [&](const char* stage, float hoverAcceleration) {
@@ -380,6 +504,11 @@ void Humanoid::updateGroundHover(
             m_hipHeightInitializedFromGround = true;
         }
     }
+    const bool withinLandingCapture = hasFloor &&
+        std::abs(floor.distance - HipHeight) <=
+            dynamicLandingCaptureDistance;
+    const bool enteringAirborneLandingCapture = !groundedBefore &&
+        verticalVelocity <= 0.0f && withinLandingCapture;
     atHipHeight = hasFloor &&
         std::abs(floor.distance - HipHeight) <= settings.landingCaptureDistance;
     // HipHeight is the hover setpoint, not a continuously evaluated jump
@@ -388,13 +517,26 @@ void Humanoid::updateGroundHover(
     // jitter and leave it only when the floor disappears.
     if (m_hoverSuppressedForJump) {
         isGrounded = false;
-        const bool descendingIntoCapture = verticalVelocity <= 0.0f && atHipHeight;
+        const bool descendingIntoCapture =
+            verticalVelocity <= 0.0f && withinLandingCapture;
         if (!descendingIntoCapture) {
             setHoverForces(physics, false, 0.0f);
             logGroundDebug("jump-suppressed", 0.0f);
             return;
         }
         m_hoverSuppressedForJump = false;
+    }
+    if (enteringAirborneLandingCapture) {
+        const auto landingImpact = getLandingImpactEquivalentSpeed(
+            physics,
+            std::max(0.0f, maximumNetUpwardAcceleration),
+            settings.landingCaptureDistance
+        );
+        if (landingImpact && *landingImpact >= ImpactRagdollThreshold) {
+            enterRagdoll(physics, *landingImpact);
+            isGrounded = false;
+            return;
+        }
     }
     if (!hasFloor) {
         isGrounded = false;
@@ -1439,10 +1581,8 @@ void Humanoid::finalizeRagdollRecovery(
     if (auto gyro = m_rootGyro.lock()) {
         if (m_savedRootGyroYStateValid) {
             gyro->setTargetAngle(GyroAxis::Y, m_savedRootGyroYTarget);
-            gyro->setAxisEnabled(GyroAxis::Y, m_savedRootGyroYEnabled);
-        } else {
-            gyro->setAxisEnabled(GyroAxis::Y, false);
         }
+        gyro->setAxisEnabled(GyroAxis::Y, true);
         gyro->setAxisEnabled(GyroAxis::X, true);
         gyro->setTargetAngle(GyroAxis::X, 0.0f);
         gyro->setAxisEnabled(GyroAxis::Z, true);
@@ -1451,7 +1591,7 @@ void Humanoid::finalizeRagdollRecovery(
     }
     if (auto yawForce = findCharacterYawForce(root)) {
         yawForce->Value = Vector3();
-        yawForce->Enabled = true;
+        yawForce->Enabled = false;
     }
 
     m_state = State::Normal;
@@ -1685,16 +1825,6 @@ void Humanoid::resolveParts(Instance* characterModel) {
         }
     }
 
-    if (auto gyro = m_rootGyro.lock()) {
-        // @RadiantBird 2026/09/13:
-        // Existing serialized characters may still have Gyro Y enabled.
-        // YawForce owns controlled-character yaw, so disable the competing
-        // Gyro axis when the rig references are resolved.
-        gyro->setAxisEnabled(
-            GyroAxis::Y,
-            false
-        );
-    }
 }
 
 std::shared_ptr<Motor6D> Humanoid::findJointMotor(const std::string& jointName) const {
@@ -1870,91 +2000,49 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
             headingDirection = &currentMoveDir;
         }
 
-        // X/Z remain physical Gyro axes.
+        // An authored Angular Force owns yaw.  The generated RootGyro remains
+        // the fallback for rigs without that controller and always stabilizes
+        // pitch and roll.
         if (auto gyro = m_rootGyro.lock()) {
             gyro->setEnabled(true);
+            gyro->setAxisEnabled(GyroAxis::Y, !yawForce);
+            if (!yawForce && headingDirection &&
+                headingDirection->lengthSquared() > 1e-8f) {
+                gyro->setCharacterHeading(*headingDirection);
+            }
         }
 
         if (yawForce) {
-            if (
-                headingDirection &&
-                headingDirection->lengthSquared() > 1e-8f
-            ) {
-                // @RadiantBird 2026/09/13:
-                // Character yaw is controlled exclusively by authoritative
-                // angular velocity. Gyro Y is disabled so the two controllers
-                // cannot fight each other.
+            if (headingDirection &&
+                headingDirection->lengthSquared() > 1e-8f) {
                 constexpr float DEGREES_TO_RADIANS =
                     0.01745329251994329577f;
-
                 constexpr float MAX_TURN_SPEED = 8.0f;
                 constexpr float MIN_CONTROL_HORIZON = 1.0f / 60.0f;
                 constexpr float YAW_DEAD_ZONE_DEGREES = 0.5f;
 
                 const float targetYaw =
-                    Gyro::headingAngleFromDirection(
-                        *headingDirection
-                    );
-
-                const float currentYaw =
-                    Gyro::angleFromRotation(
-                        GyroAxis::Y,
-                        root->getWorldCFrame().Rotation
-                    );
-
-                float errorDegrees =
-                    targetYaw - currentYaw;
-
+                    Gyro::headingAngleFromDirection(*headingDirection);
+                const float currentYaw = Gyro::angleFromRotation(
+                    GyroAxis::Y,
+                    root->getWorldCFrame().Rotation);
+                float errorDegrees = targetYaw - currentYaw;
                 while (errorDegrees > 180.0f) {
                     errorDegrees -= 360.0f;
                 }
-
                 while (errorDegrees < -180.0f) {
                     errorDegrees += 360.0f;
                 }
 
-                const float errorRadians =
-                    errorDegrees * DEGREES_TO_RADIANS;
-
-                const float controlHorizon =
-                    std::max(
-                        deltaTime,
-                        MIN_CONTROL_HORIZON
-                    );
-
                 float desiredYawVelocity = 0.0f;
-
-                if (
-                    std::abs(errorDegrees) >
-                    YAW_DEAD_ZONE_DEGREES
-                ) {
-                    desiredYawVelocity =
-                        std::clamp(
-                            errorRadians / controlHorizon,
-                            -MAX_TURN_SPEED,
-                            MAX_TURN_SPEED
-                        );
+                if (std::abs(errorDegrees) > YAW_DEAD_ZONE_DEGREES) {
+                    desiredYawVelocity = std::clamp(
+                        errorDegrees * DEGREES_TO_RADIANS /
+                            std::max(deltaTime, MIN_CONTROL_HORIZON),
+                        -MAX_TURN_SPEED,
+                        MAX_TURN_SPEED);
                 }
-
-                yawForce->Value.y =
-                    desiredYawVelocity;
-
-                // RCBN_LOG(
-                //     "Yaw target=" << targetYaw
-                //     << " current=" << currentYaw
-                //     << " error=" << errorDegrees
-                //     << " velocity=" << desiredYawVelocity
-                // );
-
-                // const Vector3 actualAngularVelocity =
-                //     physics->getAngularVelocity(*root);
-
-                // RCBN_LOG(
-                //     "Yaw command=" << desiredYawVelocity
-                //     // << " actualY=" << actualAngularVelocity.y
-                //     << " error=" << errorDegrees
-                // );
-                
+                yawForce->Value.y = desiredYawVelocity;
             }
             else {
                 yawForce->Value.y = 0.0f;

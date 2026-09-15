@@ -540,9 +540,12 @@ CFrame Box3DPhysicsBackend::getBodyWorldCFrame(const BaseCube& cube) const {
 void Box3DPhysicsBackend::setBodyWorldCFrame(
     BaseCube& cube, const CFrame& worldCFrame) {
     const b3BodyId id = bodyId(cube);
-    if (B3_IS_NULL(id)) return;
+    if (B3_IS_NULL(id) || !b3Body_IsValid(id)) return;
     b3Body_SetTransform(id, toB3Position(worldCFrame.Position),
                        toB3Quaternion(worldCFrame.Rotation));
+    b3Body_SetLinearVelocity(id, b3Vec3_zero);
+    b3Body_SetAngularVelocity(id, b3Vec3_zero);
+    b3Body_SetAwake(id, true);
 }
 
 Vector3 Box3DPhysicsBackend::getLinearVelocity(const BaseCube& cube) const {
@@ -631,13 +634,6 @@ void Box3DPhysicsBackend::refreshCollisionFilter(BaseCube& cube) {
     for (b3ShapeId shape : shapes) {
         if (b3Shape_GetUserData(shape) != &cube) continue;
         b3Filter filter = b3Shape_GetFilter(shape);
-        if (
-            filter.groupIndex == groupIndex &&
-            filter.categoryBits == categoryBits &&
-            filter.maskBits == maskBits
-        ) {
-            continue;
-        }
         filter.groupIndex = groupIndex;
         filter.categoryBits = categoryBits;
         filter.maskBits = maskBits;
@@ -1500,17 +1496,8 @@ void Box3DPhysicsBackend::applyGyroForces() {
             const float maximumTorque =
                 settings.MaxTorque * TORQUE_TO_MKS;
 
-            // @RadiantBird 2026/09/13:
-            // Character Rig v2 drives several dynamic bodies through Motor6D,
-            // while Gyro currently estimates control torque from Root inertia only.
-            // Temporarily amplify the controller output to verify that the
-            // character instability is caused by insufficient control authority.
-            constexpr float GYRO_STRENGTH = 5.0f;
-
             return std::clamp(
-                effectiveInertia *
-                    angularAcceleration *
-                    GYRO_STRENGTH,
+                effectiveInertia * angularAcceleration,
                 -maximumTorque,
                 maximumTorque
             );
@@ -2346,10 +2333,19 @@ void Box3DPhysicsBackend::createBallSocket(
     if (!ballSocket || findConstraint(ballSocket)) return;
     auto first = ballSocket->m_cube0.lock();
     auto second = ballSocket->m_cube1.lock();
-    if (!first || !second) return;
+    if (!first || !second) {
+        RCBN_ERROR("BallSocket \"" << ballSocket->getFullPath()
+            << "\": unresolved Cube0/Cube1 endpoint");
+        return;
+    }
     const b3BodyId bodyA = bodyId(*first);
     const b3BodyId bodyB = bodyId(*second);
-    if (B3_IS_NULL(bodyA) || B3_IS_NULL(bodyB)) return;
+    if (B3_IS_NULL(bodyA) || B3_IS_NULL(bodyB) ||
+        !b3Body_IsValid(bodyA) || !b3Body_IsValid(bodyB)) {
+        RCBN_ERROR("BallSocket \"" << ballSocket->getFullPath()
+            << "\": endpoint has no valid Box3D body");
+        return;
+    }
     if (idsEqual(bodyA, bodyB)) {
         const auto handle = allocateLogicalConstraintHandle();
         ballSocket->m_constraintHandle = handle;
@@ -2393,14 +2389,22 @@ void Box3DPhysicsBackend::createBallSocket(
     b3SphericalJointDef definition = b3DefaultSphericalJointDef();
     definition.base.bodyIdA = bodyA;
     definition.base.bodyIdB = bodyB;
-    // BallSocket constrains rotation, but it does not own collision policy.
-    // NoCollision supplies the explicit pair filter when requested.
-    definition.base.collideConnected = true;
+    // A free-standing BallSocket commonly starts with overlapping shapes;
+    // suppress their contact response so the joint can establish its anchor
+    // without the solver pushing the bodies apart. Character ragdolls opt in
+    // to connected collision and are filtered by customFilter/NoCollision.
+    definition.base.collideConnected =
+        first->m_characterCollisionGroup != 0 &&
+        first->m_characterCollisionGroup == second->m_characterCollisionGroup;
     definition.base.localFrameA = toB3Transform(frameA);
     definition.base.localFrameB = toB3Transform(frameB);
     definition.base.userData = ballSocket.get();
     const b3JointId joint = b3CreateSphericalJoint(m_worldId, &definition);
-    if (B3_IS_NULL(joint)) return;
+    if (B3_IS_NULL(joint)) {
+        RCBN_ERROR("BallSocket \"" << ballSocket->getFullPath()
+            << "\": Box3D spherical joint creation failed");
+        return;
+    }
     const auto axisLimitMask = [](BallSocketAngularMode mode) {
         return mode == BallSocketAngularMode::Limited ? 1u : 0u;
     };

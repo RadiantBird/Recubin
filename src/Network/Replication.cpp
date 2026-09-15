@@ -604,11 +604,62 @@ void ReplicationManager::applyAvatarPoses(float dt) {
             avatar.current.Rotation = Quaternion::Slerp(avatar.current.Rotation, pose.Rotation, alpha);
         }
 
-        for (auto& [part, rel] : avatar.parts) {
+        BaseCube* root = nullptr;
+        for (const auto& [part, rel] : avatar.parts) {
+            (void)rel;
             if (part && part->Name == "Root") {
-                part->setWorldCFrame(avatar.current);
+                root = part;
                 break;
             }
+        }
+        if (!root) {
+            RCBN_ERROR("Replication: remote avatar " << id
+                       << " has no Root while applying pose");
+            continue;
+        }
+
+        // A rig may contain several logical members backed by one native
+        // compound body (for example Head + Weld accessories).  Applying the
+        // root alone leaves the other members at their old world poses, while
+        // applying the same transform once per member moves a compound more
+        // than once.  Snapshot the current member pose and move each native
+        // body exactly once by the same world delta.
+        const CFrame currentRoot = m_physics && m_physics->hasBody(*root)
+            ? m_physics->getMemberWorldCFrame(*root)
+            : root->getWorldCFrame();
+        const CFrame worldDelta = avatar.current * currentRoot.inverse();
+        std::unordered_set<std::uint64_t> movedBodies;
+        std::unordered_set<BaseCube*> movedMembers;
+        std::vector<BaseCube*> nativeMembersToSync;
+        for (const auto& [part, rel] : avatar.parts) {
+            (void)rel;
+            if (!part || !movedMembers.insert(part).second) continue;
+
+            if (m_physics && m_physics->hasBody(*part)) {
+                const PhysicsBodyHandle handle = m_physics->getBodyHandle(*part);
+                if (!handle) {
+                    RCBN_ERROR("Replication: remote avatar " << id
+                               << " has invalid native body handle for "
+                               << part->Name);
+                    continue;
+                }
+                nativeMembersToSync.push_back(part);
+                if (movedBodies.insert(handle.value).second) {
+                    const CFrame memberPose = m_physics->getMemberWorldCFrame(*part);
+                    m_physics->setMemberWorldCFrame(
+                        *part, worldDelta * memberPose);
+                }
+                continue;
+            }
+
+            part->setWorldCFrame(worldDelta * part->getWorldCFrame());
+        }
+        // setMemberWorldCFrame updates the native body. Synchronize its
+        // logical members immediately so rendering/constraints observe the
+        // new pose before the next physics step. Every member is synchronized,
+        // while the native body teleport above remains unique per body.
+        for (BaseCube* member : nativeMembersToSync) {
+            m_physics->syncCube(*member);
         }
         if (avatar.humanoid && !avatar.humanoid->isRagdoll()) {
             avatar.humanoid->setWalkCycle(avatar.walkCycle);

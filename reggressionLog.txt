@@ -60,6 +60,7 @@
 [PASS] malformed rcanim is rejected
 [PASS] wrong document type is rejected
 [PASS] newer animation version is rejected
+[PASS] legacy Animation YAML remains importable
 [PASS] legacy Animation and following Scene child both survive round-trip
 [PASS] legacy Animation tracks remain present before following child
 [PASS] default StarterCharacter exposes R6Walk and Humanoid references it
@@ -76,6 +77,7 @@
 [PASS] custom joint_delta Animation overrides the shoulder Motor6D transform
 [PASS] non-empty unresolved WalkAnimation path is preserved without runtime reference replacement
 [PASS] joint_delta Animation clip survives Scene save/load
+[PASS] Scene round-trip preserves joint_delta track and keyframe
 [PASS] joint_delta clip survives a second Scene round-trip
 [PASS] project walk clip is written
 [PASS] valid project walk Animation is selected
@@ -114,6 +116,7 @@
 [PASS] malformed rcanim is rejected
 [PASS] wrong document type is rejected
 [PASS] newer animation version is rejected
+[PASS] legacy Animation YAML remains importable
 [PASS] legacy Animation and following Scene child both survive round-trip
 [PASS] legacy Animation tracks remain present before following child
 [PASS] default StarterCharacter exposes R6Walk and Humanoid references it
@@ -130,6 +133,7 @@
 [PASS] custom joint_delta Animation overrides the shoulder Motor6D transform
 [PASS] non-empty unresolved WalkAnimation path is preserved without runtime reference replacement
 [PASS] joint_delta Animation clip survives Scene save/load
+[PASS] Scene round-trip preserves joint_delta track and keyframe
 [PASS] joint_delta clip survives a second Scene round-trip
 [PASS] project walk clip is written
 [PASS] valid project walk Animation is selected
@@ -237,9 +241,11 @@
 [DefaultCameraMode] PASS: default camera mode maps explicitly to User control mode
 [DefaultCameraMode] PASS: User YAML stores ControlMode as a string
 [DefaultCameraMode] PASS: User YAML reads string ControlMode
-[DefaultCameraMode] PASS: unknown camera mode falls back to Character
-[DefaultCameraMode] failures=0 result=PASS
-[RecubinTest] 1 passed, 0 failed.
+[RCBN_WARN][PropertyRegistry.cpp:181] Unknown enum value 'Unknown' for property 'DefaultCameraMode'; keeping the current value
+[DefaultCameraMode] FAIL: unknown camera mode falls back to Character
+[DefaultCameraMode] failures=1 result=FAIL
+[RecubinTest] 0 passed, 1 failed.
+[ERROR] --default-camera-mode-regression (box3d) failed or was not parseable
 [SceneLoadTransaction] PASS: transaction scene fixture is written
 [SceneLoadTransaction] PASS: invalid User property fixture is written
 [SceneLoadTransaction] PASS: missing User/Inventory fixture is written
@@ -263,10 +269,10 @@
 [SceneLoadTransaction] PASS: empty path commits a new scene with default Workspace and Lighting
 [SceneLoadTransaction] PASS: LoadContext merges into its explicitly registered System
 [SceneLoadTransaction] PASS: LoadContext registrations do not leak into later loads
-[SceneLoadTransaction] PASS: temporary fixture is removed: recubin_scene_transaction_10665219194400.yaml
-[SceneLoadTransaction] PASS: temporary fixture is removed: recubin_scene_transaction_invalid_10665219194400.yaml
-[SceneLoadTransaction] PASS: temporary fixture is removed: recubin_scene_transaction_missing_user_10665219194400.yaml
-[SceneLoadTransaction] PASS: temporary fixture is removed: recubin_scene_transaction_context_only_10665219194400.yaml
+[SceneLoadTransaction] PASS: temporary fixture is removed: recubin_scene_transaction_15256518412400.yaml
+[SceneLoadTransaction] PASS: temporary fixture is removed: recubin_scene_transaction_invalid_15256518412400.yaml
+[SceneLoadTransaction] PASS: temporary fixture is removed: recubin_scene_transaction_missing_user_15256518412400.yaml
+[SceneLoadTransaction] PASS: temporary fixture is removed: recubin_scene_transaction_context_only_15256518412400.yaml
 [SceneLoadTransaction] failures=0 result=PASS
 [RecubinTest] 1 passed, 0 failed.
 [SystemExtension] PASS: binary write succeeds
@@ -333,7 +339,7 @@
 [PhysicsMigrationRegression] backend=box3d PASS: Rope Stiffness=0 max-only limit <= 0.05
 [PhysicsMigrationRegression] backend=box3d metric=rod initial_distance=6 final_distance=6.00128 error=0.00128412
 [PhysicsMigrationRegression] backend=box3d PASS: Rod rest length error <= 0.05
-[PhysicsMigrationRegression] backend=box3d PASS: BallSocket anchor error <= 0.05
+[PhysicsMigrationRegression] backend=box3d FAIL: BallSocket anchor error <= 0.05
 [PhysicsMigrationRegression] backend=box3d PASS: Weld relative CFrame error <= 0.001
 [PhysicsMigrationRegression] backend=box3d PASS: Motor Axis/DriveVelocity/MaxForce finite overload stop
 [PhysicsMigrationRegression] backend=box3d PASS: NoCollision suppresses specified pair only
@@ -386,7 +392,7 @@
 [PhysicsMigrationRegression] backend=box3d PASS: Cube/Wedge8/Tetra8/Ramp4 all produce backend collision
 [PhysicsMigrationRegression] backend=box3d metric=dynamic_dynamic_ccd contacts=1 tunneled_before_contact=false final_separation=-17.5396 completely_passed=false
 [PhysicsMigrationRegression] backend=box3d PASS: Bullet 400 studs/s dynamic-dynamic CCD hits dynamic target
-[PhysicsMigrationRegression] backend=box3d failures=7 result=FAIL
+[PhysicsMigrationRegression] backend=box3d failures=8 result=FAIL
 [RecubinTest] 0 passed, 1 failed.
 [ERROR] --physics-migration-regression (box3d) failed or was not parseable
 [PhysicsLifecycle] PASS: Cube is created in Workspace A
@@ -398,7 +404,7 @@
 [PhysicsLifecycle] PASS: old world has no ghost shape after direct move
 [PhysicsLifecycle] PASS: new world raycast resolves the moved Cube
 [PhysicsLifecycle] PASS: Weld members initially share one body
-[RCBN_WARN][Physics.cpp:376] Constraint "Weld" crosses Workspace boundaries; native binding disabled
+[RCBN_WARN][Physics.cpp:377] Constraint "Weld" crosses Workspace boundaries; native binding disabled
 [PhysicsLifecycle] PASS: remaining Weld component is rebuilt in the old world
 [PhysicsLifecycle] PASS: departing Weld member receives a body in the new world
 [PhysicsLifecycle] PASS: old Weld compound contains no departing member ghost shape
@@ -408,7 +414,7 @@
 [ConstraintRebind] PASS: Attachment transform change rebuilds the native binding
 [ConstraintRebind] PASS: invalid endpoint path clears the old weak binding and native joint
 [ConstraintRebind] PASS: valid endpoint path reconnects automatically
-[RCBN_WARN][Physics.cpp:376] Constraint "Motor" crosses Workspace boundaries; native binding disabled
+[RCBN_WARN][Physics.cpp:377] Constraint "Motor" crosses Workspace boundaries; native binding disabled
 [ConstraintRebind] PASS: cross-Workspace endpoint has no native binding
 [ConstraintRebind] PASS: endpoint departure preserves the logical Constraint Instance
 [ConstraintRebind] PASS: returning endpoint reconnects during the next fixed-step flush
@@ -444,19 +450,19 @@
 [ContactReentry] backend=box3d PASS: ignoreCube skips only its member shape, not the whole compound
 [ContactReentry] backend=box3d failures=0 result=PASS
 [RecubinTest] 1 passed, 0 failed.
-[RCBN_DEBUG][NetworkManager.cpp:165] NetworkManager: local CPU score = 654974
-[RCBN_DEBUG][NetworkManager.cpp:182] NetworkManager: Host started on port 49850
+[RCBN_DEBUG][NetworkManager.cpp:165] NetworkManager: local CPU score = 646344
+[RCBN_DEBUG][NetworkManager.cpp:182] NetworkManager: Host started on port 63512
 [NetworkCore] PASS: dedicated host reserves PeerId 1 and is not a player
 [NetworkCore] PASS: dedicated host roster entry preserves the non-player flag
-[RCBN_DEBUG][NetworkManager.cpp:1155] NetworkManager: peer connected (16777343:49851)
+[RCBN_DEBUG][NetworkManager.cpp:1155] NetworkManager: peer connected (16777343:63513)
 [RCBN_WARN][NetworkManager.cpp:1246] NetworkManager: rejected unauthorised Hello
 [NetworkCore] PASS: direct host rejects an old game protocol version before admission
-[RCBN_DEBUG][NetworkManager.cpp:1155] NetworkManager: peer connected (16777343:49852)
+[RCBN_DEBUG][NetworkManager.cpp:1155] NetworkManager: peer connected (16777343:63514)
 [RCBN_DEBUG][NetworkManager.cpp:1304] NetworkManager: [hello] assigned peer id=2 listenPort=0
 [NetworkCore] PASS: roster round-trip preserves dedicated and player participation flags
 [RCBN_DEBUG][User.cpp:1040] StarterCharacter が見つからなかったため、既定のキャラクターを生成しました
-[RCBN_DEBUG][Replication.cpp:548] Replication: spawned PlayerCharacter_2
-[RCBN_DEBUG][Replication.cpp:873] Replication: world mapping broadcast 0 objects
+[RCBN_DEBUG][Replication.cpp:562] Replication: spawned PlayerCharacter_2
+[RCBN_DEBUG][Replication.cpp:888] Replication: world mapping broadcast 0 objects
 [NetworkCore] PASS: replication excludes the dedicated peer and creates the player identity
 [RCBN_DEBUG][NetworkManager.cpp:1168] NetworkManager: peer disconnected
 [NetworkCore] PASS: dedicated host executes Script and skips LocalScript
@@ -477,13 +483,13 @@
 [MultiWorkspace] backend=box3d PASS: No-character observer leaves the active Workspace unchanged
 [MultiWorkspace] backend=box3d PASS: Detached Character can be explicitly attached to a Workspace
 [MultiWorkspace] backend=box3d PASS: Luau Character.Parent assignment moves Character workspace
-[RCBN_DEBUG][Replication.cpp:1018] Replication: released 0 world objects (anchored -> dynamic)
+[RCBN_DEBUG][Replication.cpp:1033] Replication: released 0 world objects (anchored -> dynamic)
 [MultiWorkspace] backend=box3d PASS: Workspace and Physics binding switch atomically
 [MultiWorkspace] backend=box3d PASS: Workspace switch advances the packet binding generation
 [RCBN_WARN][Replication.cpp:108] Replication update rejected a Physics pointer from a different active Workspace
 [MultiWorkspace] backend=box3d PASS: update rejects a Physics pointer from the previous Workspace
 [MultiWorkspace] backend=box3d PASS: update accepts the currently bound Workspace Physics
-[RCBN_DEBUG][Replication.cpp:1018] Replication: released 0 world objects (anchored -> dynamic)
+[RCBN_DEBUG][Replication.cpp:1033] Replication: released 0 world objects (anchored -> dynamic)
 [MultiWorkspace] backend=box3d PASS: unbinding clears Workspace and Physics in one generation
 [MultiWorkspace] backend=box3d failures=0 result=PASS
 [RecubinTest] 1 passed, 0 failed.
@@ -537,7 +543,7 @@
 [Box3DBuoyancyRegression] PASS: Liquid removal clears damping and restores gravity acceleration
 [Box3DBuoyancyRegression] metric=buoyant_weld relative_position_error=0 finite=true
 [Box3DBuoyancyRegression] PASS: two-member buoyant Weld remains finite with <=0.001 stud error
-BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 guard_ms=4
+BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8728 average_ms=1.02887 guard_ms=4
 [Box3DBuoyancyRegression] PASS: 128 Sphere buoyancy median stays within 4ms
 [Box3DBuoyancyRegression] failures=0 result=PASS
 [RecubinTest] 1 passed, 0 failed.
@@ -761,7 +767,7 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [AssetPath] PASS: macOS development launch without complete portable resources keeps launch CWD
 [AssetPath] PASS: runtime test fonts can be staged for packaging
 [AssetPath] PASS: temporary asset directory can become the working directory
-[RCBN_DEBUG][AssetGuard.cpp:30] AssetGuard enabled. Root: C:\Users\Ryarta\AppData\Local\Temp\recubin_asset_path_10667223815900
+[RCBN_DEBUG][AssetGuard.cpp:30] AssetGuard enabled. Root: C:\Users\Ryarta\AppData\Local\Temp\recubin_asset_path_15258481374700
 [AssetPath] PASS: text loader accepts both separator styles
 [AssetPath] PASS: binary loader accepts both separator styles
 [AssetPath] PASS: guard accepts an in-root Windows-style path
@@ -855,17 +861,15 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [StarterRootSpawn] PASS: CharacterAdded observes the normalized Root before firing completes
 [StarterRootSpawn] PASS: saved StarterCharacter Root flags remain unchanged for serialization and retry
 [StarterRootSpawn] PASS: selected physics backend is available for spawned Root simulation
-[StarterRootSpawn] FAIL: normalized Root falls from the spawn height and settles on the floor
-[StarterRootSpawn] diagnostics backend=box3d initialY=16 minimumY=0.140507 finalY=0.981979 velocity=[0,0,0]
-[StarterRootSpawn] failures=1 result=FAIL
-[RecubinTest] 0 passed, 1 failed.
-[ERROR] --starter-root-spawn-regression (box3d) failed or was not parseable
+[StarterRootSpawn] PASS: normalized Root falls from the spawn height and settles on the floor
+[StarterRootSpawn] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
 [SpawnLocation] PASS: default SpawnLocation state matches the editor/runtime contract
 [SpawnLocation] PASS: Named supplies the complete SpawnLocation IsA inheritance chain
 [SpawnLocation] PASS: shared BaseCube factory covers every concrete BaseCube class only
 [SpawnLocation] PASS: BaseCube clone helper preserves design/custom state and children without runtime ownership
 [SpawnLocation] PASS: BaseCube clone helper keeps each derived class's persistent custom state
-[SpawnLocation] FAIL: BaseCube clone helper excludes Seat live input and occupant runtime state
+[SpawnLocation] PASS: BaseCube clone helper excludes Seat live input and occupant runtime state
 [Luau] [SpawnLocationLuau]
 [SpawnLocation] PASS: Luau Instance.new accepts SpawnLocation through the shared factory
 [SpawnLocation] PASS: SpawnLocation Enabled is readable and writable from Luau
@@ -883,28 +887,27 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [RCBN_DEBUG][User.cpp:1281] Spawning character...
 [SpawnLocation] PASS: respawn reuses the active Workspace and selected SpawnLocation
 [RCBN_DEBUG][User.cpp:1281] Spawning character...
-[SpawnLocation] FAIL: absence of enabled SpawnLocations places Root at the world origin
+[SpawnLocation] PASS: absence of enabled SpawnLocations preserves the authored Root pose
 [SpawnLocation] PASS: SceneLoader shared factory round-trips SpawnLocation YAML and Enabled
-[SpawnLocation] failures=2 result=FAIL
-[RecubinTest] 0 passed, 1 failed.
-[ERROR] --spawn-location-regression (box3d) failed or was not parseable
-[RCBN_DEBUG][Replication.cpp:548] Replication: spawned PlayerCharacter_2
-[RCBN_DEBUG][Replication.cpp:548] Replication: spawned PlayerCharacter_3
+[SpawnLocation] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
+[RCBN_DEBUG][Replication.cpp:562] Replication: spawned PlayerCharacter_2
+[RCBN_DEBUG][Replication.cpp:562] Replication: spawned PlayerCharacter_3
 [RemoteAvatarSpawnTransform] PASS: actual spawnRemoteAvatar path creates two independent avatar Models
 [RemoteAvatarSpawnTransform] PASS: spawned avatars contain standard body parts and cloned Weld accessory
 [RemoteAvatarSpawnTransform] FAIL: PeerId mapping applies each nonidentity SpawnLocation full CFrame
 [RemoteAvatarSpawnTransform] PASS: remote avatar Models retain nonidentity spawn transforms
 [RemoteAvatarSpawnTransform] PASS: runtime physics registration completes before remote pose application
-[RCBN_DEBUG][Replication.cpp:585] Replication: first pose for peer 2
-[RCBN_DEBUG][Replication.cpp:585] Replication: first pose for peer 3
+[RCBN_DEBUG][Replication.cpp:600] Replication: first pose for peer 2
+[RCBN_DEBUG][Replication.cpp:600] Replication: first pose for peer 3
 [RemoteAvatarSpawnTransform] PASS: first received poses snap both Roots to exact world CFrames
 [RemoteAvatarSpawnTransform] FAIL: body and Weld accessory relative poses survive world-pose application
 [RemoteAvatarSpawnTransform] PASS: cloned Weld assemblies remain separated between peers
 [RemoteAvatarSpawnTransform] PASS: second pose interpolates only its target peer in world space
 [RemoteAvatarSpawnTransform] PASS: pose application preserves each nonidentity Model CFrame
 [RemoteAvatarSpawnTransform] PASS: multiple peer identities retain their own canonical avatar Models
-[RCBN_DEBUG][Replication.cpp:548] Replication: spawned PlayerCharacter_2
-[RCBN_DEBUG][Replication.cpp:585] Replication: first pose for peer 2
+[RCBN_DEBUG][Replication.cpp:562] Replication: spawned PlayerCharacter_2
+[RCBN_DEBUG][Replication.cpp:600] Replication: first pose for peer 2
 [RemoteAvatarSpawnTransform] PASS: legacy no-SpawnLocation identity Model follows the same world-pose path
 [RemoteAvatarSpawnTransform] failures=2 result=FAIL
 [RecubinTest] 0 passed, 1 failed.
@@ -927,16 +930,16 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [ShadowMode] PASS: CastShadow false overrides Always
 [ShadowMode] PASS: YAML setter accepts Always
 [ShadowMode] PASS: YAML setter accepts Never
-[ShadowMode] FAIL: unknown YAML mode falls back to Normal
+[RCBN_WARN][BaseCube.cpp:125] Unknown ShadowMode value 'unknown'; using Normal
+[ShadowMode] PASS: unknown YAML mode falls back to Normal
 [ShadowMode] PASS: clone preserves ShadowMode and CastShadow
 [RCBN_WARN][MeshCube.cpp:466] MeshCube: GLBの解析に失敗しました: assets/models/__recubin_missing_shadow_mode__.glb
 [ShadowMode] PASS: missing MeshCube fallback casts a Normal shadow
 [ShadowMode] PASS: Scene YAML round-trip preserves ShadowMode
 [ShadowMode] PASS: Scene YAML writes ShadowMode
 [ShadowMode] PASS: legacy YAML without ShadowMode defaults to Normal
-[ShadowMode] failures=1 result=FAIL
-[RecubinTest] 0 passed, 1 failed.
-[ERROR] --shadow-mode-regression (box3d) failed or was not parseable
+[ShadowMode] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
 [HumanoidRigCollisionRegression] backend=box3d case=baseline_root_only expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
 [HumanoidRigCollisionRegression] backend=box3d case=torso_original expected_y=2 final_y=1.99727 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=2 available=true finite=true result=PASS
 [HumanoidRigCollisionRegression] backend=box3d case=hair_weld_original expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
@@ -944,7 +947,19 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_no_weld expected_y=2 final_y=1.99727 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=3 available=true finite=true result=PASS
 [HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_noncollide expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
 [HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_anchored expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
-[HumanoidRigCollisionRegression] filter_probe initial_self=0 self_out=1 self_back=1 humanoid_removed=2 humanoid_restored=2 initial_tool=0 tool_out=1 tool_back=1 remote_npc=1 floor=1 clone=1 nested=1 ragdoll_self=0 ragdoll_out=0 raycast_self=true overlap_self=true result=FAIL
+[RCBN_WARN][Humanoid.cpp:664] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing Motor6D "RootJoint"
+[RCBN_WARN][Humanoid.cpp:664] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing Motor6D "Neck"
+[RCBN_WARN][Humanoid.cpp:664] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing Motor6D "LeftShoulder"
+[RCBN_WARN][Humanoid.cpp:664] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing Motor6D "RightShoulder"
+[RCBN_WARN][Humanoid.cpp:664] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing Motor6D "LeftHip"
+[RCBN_WARN][Humanoid.cpp:664] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing Motor6D "RightHip"
+[RCBN_WARN][Humanoid.cpp:696] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing BallSocket "RootJointRagdoll"
+[RCBN_WARN][Humanoid.cpp:696] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing BallSocket "NeckRagdoll"
+[RCBN_WARN][Humanoid.cpp:696] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing BallSocket "LeftShoulderRagdoll"
+[RCBN_WARN][Humanoid.cpp:696] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing BallSocket "RightShoulderRagdoll"
+[RCBN_WARN][Humanoid.cpp:696] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing BallSocket "LeftHipRagdoll"
+[RCBN_WARN][Humanoid.cpp:696] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing BallSocket "RightHipRagdoll"
+[HumanoidRigCollisionRegression] filter_probe initial_self=0 self_out=1 self_back=1 humanoid_removed=1 humanoid_restored=1 initial_tool=0 tool_out=1 tool_back=1 remote_npc=1 floor=1 clone=1 nested=1 ragdoll_self=1 ragdoll_cross=1 ragdoll_out=1 raycast_self=true overlap_self=true result=FAIL
 [HumanoidRigCollisionRegression] rig_cases=PASS failures=1 result=FAIL
 [RecubinTest] 0 passed, 1 failed.
 [ERROR] --humanoid-rig-collision-regression (box3d) failed or was not parseable
@@ -995,6 +1010,8 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PropertySchema] PASS: explicit HipHeight metadata survives generic instance copy
 [PropertySchema] PASS: Lighting shadow distance properties use the generic float schema
 [PropertySchema] PASS: Lighting shadow distances survive YAML, clone, and generic copy
+[PropertySchema] PASS: Weather exposes Color4 cloud color and world-space cloud height properties
+[PropertySchema] PASS: Weather cloud color and world height survive YAML and clone
 [PropertySchema] PASS: PostEffect Custom type and fragment shader file are schema-driven
 [PropertySchema] PASS: Custom PostEffect survives YAML and schema-driven clone
 [PropertySchema] PASS: Rope constraint instance is covered
@@ -1027,6 +1044,9 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PropertySchema] PASS: NoCollision Enabled schema reads its default value
 [PropertySchema] PASS: NoCollision generic property command executes the Enabled setter
 [PropertySchema] PASS: NoCollision generic property command undo restores Enabled
+[PropertySchema] PASS: BallSocket angular limits are all exposed by the generic schema
+[PropertySchema] PASS: BallSocket angular modes default to Free for compatibility
+[PropertySchema] PASS: BallSocket angular limits survive YAML, setProperty, and clone
 [PropertySchema] PASS: Rope exposes editable distance through its derived schema
 [PropertySchema] PASS: Rope MaxDistance editor command reaches the runtime setter
 [PropertySchema] PASS: Motor exposes Axis through its derived schema
@@ -1068,12 +1088,12 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PropertySchema] PASS: QuaternionValue YAML Value setter updates an existing value
 [PropertySchema] PASS: QuaternionValue clone preserves Value
 [PropertySchema] PASS: QuaternionValue save keeps the XYZW YAML sequence form
-[PropertySchema] FAIL: Decal exposes Texture, Face, and visual property schemas
+[PropertySchema] PASS: Decal exposes Texture, Face, and visual property schemas
 [PropertySchema] PASS: generic property command uses Decal Texture custom setter
 [PropertySchema] PASS: generic property command undo restores Decal Texture through its custom setter
 [PropertySchema] PASS: generic property command uses Decal Face custom setter
 [PropertySchema] PASS: generic property command undo restores Decal Face through its custom setter
-[PropertySchema] FAIL: Texture exposes Texture, Face, and tiling property schemas
+[PropertySchema] PASS: Texture exposes Texture, Face, and tiling property schemas
 [PropertySchema] PASS: generic property command uses Texture Texture custom setter
 [PropertySchema] PASS: generic property command undo restores Texture Texture through its custom setter
 [PropertySchema] PASS: generic property command uses Texture Face custom setter
@@ -1083,9 +1103,8 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PropertySchema] PASS: Workspace cloneTree preserves the Workspace type
 [PropertySchema] PASS: Workspace cloneTree preserves Name and persistent properties
 [PropertySchema] PASS: Workspace cloneTree clones children with the cloned parent
-[PropertySchema] failures=2 result=FAIL
-[RecubinTest] 0 passed, 1 failed.
-[ERROR] --property-schema-regression (box3d) failed or was not parseable
+[PropertySchema] failures=0 result=PASS
+[RecubinTest] 1 passed, 0 failed.
 [QuaternionInvariantRegression] PASS: normalizes the reported non-unit quaternion
 [QuaternionInvariantRegression] PASS: rejects a zero quaternion
 [QuaternionInvariantRegression] PASS: rejects a non-finite quaternion
@@ -1102,6 +1121,8 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PropertySchema] PASS: explicit HipHeight metadata survives generic instance copy
 [PropertySchema] PASS: Lighting shadow distance properties use the generic float schema
 [PropertySchema] PASS: Lighting shadow distances survive YAML, clone, and generic copy
+[PropertySchema] PASS: Weather exposes Color4 cloud color and world-space cloud height properties
+[PropertySchema] PASS: Weather cloud color and world height survive YAML and clone
 [PropertySchema] PASS: PostEffect Custom type and fragment shader file are schema-driven
 [PropertySchema] PASS: Custom PostEffect survives YAML and schema-driven clone
 [PropertySchema] PASS: Rope constraint instance is covered
@@ -1134,6 +1155,9 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PropertySchema] PASS: NoCollision Enabled schema reads its default value
 [PropertySchema] PASS: NoCollision generic property command executes the Enabled setter
 [PropertySchema] PASS: NoCollision generic property command undo restores Enabled
+[PropertySchema] PASS: BallSocket angular limits are all exposed by the generic schema
+[PropertySchema] PASS: BallSocket angular modes default to Free for compatibility
+[PropertySchema] PASS: BallSocket angular limits survive YAML, setProperty, and clone
 [PropertySchema] PASS: Rope exposes editable distance through its derived schema
 [PropertySchema] PASS: Rope MaxDistance editor command reaches the runtime setter
 [PropertySchema] PASS: Motor exposes Axis through its derived schema
@@ -1175,12 +1199,12 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PropertySchema] PASS: QuaternionValue YAML Value setter updates an existing value
 [PropertySchema] PASS: QuaternionValue clone preserves Value
 [PropertySchema] PASS: QuaternionValue save keeps the XYZW YAML sequence form
-[PropertySchema] FAIL: Decal exposes Texture, Face, and visual property schemas
+[PropertySchema] PASS: Decal exposes Texture, Face, and visual property schemas
 [PropertySchema] PASS: generic property command uses Decal Texture custom setter
 [PropertySchema] PASS: generic property command undo restores Decal Texture through its custom setter
 [PropertySchema] PASS: generic property command uses Decal Face custom setter
 [PropertySchema] PASS: generic property command undo restores Decal Face through its custom setter
-[PropertySchema] FAIL: Texture exposes Texture, Face, and tiling property schemas
+[PropertySchema] PASS: Texture exposes Texture, Face, and tiling property schemas
 [PropertySchema] PASS: generic property command uses Texture Texture custom setter
 [PropertySchema] PASS: generic property command undo restores Texture Texture through its custom setter
 [PropertySchema] PASS: generic property command uses Texture Face custom setter
@@ -1190,7 +1214,7 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PropertySchema] PASS: Workspace cloneTree preserves the Workspace type
 [PropertySchema] PASS: Workspace cloneTree preserves Name and persistent properties
 [PropertySchema] PASS: Workspace cloneTree clones children with the cloned parent
-[PropertySchema] failures=2 result=FAIL
+[PropertySchema] failures=0 result=PASS
 [PASS] built-in walk has the R6 joint-delta identity
 [PASS] built-in walk has the expected cycle length and looping
 [PASS] built-in walk contains five shoulder keys
@@ -1209,6 +1233,7 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PASS] malformed rcanim is rejected
 [PASS] wrong document type is rejected
 [PASS] newer animation version is rejected
+[PASS] legacy Animation YAML remains importable
 [PASS] legacy Animation and following Scene child both survive round-trip
 [PASS] legacy Animation tracks remain present before following child
 [PASS] default StarterCharacter exposes R6Walk and Humanoid references it
@@ -1225,6 +1250,7 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PASS] custom joint_delta Animation overrides the shoulder Motor6D transform
 [PASS] non-empty unresolved WalkAnimation path is preserved without runtime reference replacement
 [PASS] joint_delta Animation clip survives Scene save/load
+[PASS] Scene round-trip preserves joint_delta track and keyframe
 [PASS] joint_delta clip survives a second Scene round-trip
 [PASS] project walk clip is written
 [PASS] valid project walk Animation is selected
@@ -1267,7 +1293,7 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PhysicsLifecycle] PASS: old world has no ghost shape after direct move
 [PhysicsLifecycle] PASS: new world raycast resolves the moved Cube
 [PhysicsLifecycle] PASS: Weld members initially share one body
-[RCBN_WARN][Physics.cpp:376] Constraint "Weld" crosses Workspace boundaries; native binding disabled
+[RCBN_WARN][Physics.cpp:377] Constraint "Weld" crosses Workspace boundaries; native binding disabled
 [PhysicsLifecycle] PASS: remaining Weld component is rebuilt in the old world
 [PhysicsLifecycle] PASS: departing Weld member receives a body in the new world
 [PhysicsLifecycle] PASS: old Weld compound contains no departing member ghost shape
@@ -1325,7 +1351,7 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PhysicsMigrationRegression] backend=box3d PASS: Rope Stiffness=0 max-only limit <= 0.05
 [PhysicsMigrationRegression] backend=box3d metric=rod initial_distance=6 final_distance=6.00128 error=0.00128412
 [PhysicsMigrationRegression] backend=box3d PASS: Rod rest length error <= 0.05
-[PhysicsMigrationRegression] backend=box3d PASS: BallSocket anchor error <= 0.05
+[PhysicsMigrationRegression] backend=box3d FAIL: BallSocket anchor error <= 0.05
 [PhysicsMigrationRegression] backend=box3d PASS: Weld relative CFrame error <= 0.001
 [PhysicsMigrationRegression] backend=box3d PASS: Motor Axis/DriveVelocity/MaxForce finite overload stop
 [PhysicsMigrationRegression] backend=box3d PASS: NoCollision suppresses specified pair only
@@ -1378,12 +1404,12 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [PhysicsMigrationRegression] backend=box3d PASS: Cube/Wedge8/Tetra8/Ramp4 all produce backend collision
 [PhysicsMigrationRegression] backend=box3d metric=dynamic_dynamic_ccd contacts=1 tunneled_before_contact=false final_separation=-17.5396 completely_passed=false
 [PhysicsMigrationRegression] backend=box3d PASS: Bullet 400 studs/s dynamic-dynamic CCD hits dynamic target
-[PhysicsMigrationRegression] backend=box3d failures=7 result=FAIL
+[PhysicsMigrationRegression] backend=box3d failures=8 result=FAIL
 [ConstraintRebind] PASS: Motor receives an initial native binding
 [ConstraintRebind] PASS: Attachment transform change rebuilds the native binding
 [ConstraintRebind] PASS: invalid endpoint path clears the old weak binding and native joint
 [ConstraintRebind] PASS: valid endpoint path reconnects automatically
-[RCBN_WARN][Physics.cpp:376] Constraint "Motor" crosses Workspace boundaries; native binding disabled
+[RCBN_WARN][Physics.cpp:377] Constraint "Motor" crosses Workspace boundaries; native binding disabled
 [ConstraintRebind] PASS: cross-Workspace endpoint has no native binding
 [ConstraintRebind] PASS: endpoint departure preserves the logical Constraint Instance
 [ConstraintRebind] PASS: returning endpoint reconnects during the next fixed-step flush
@@ -1413,7 +1439,19 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_no_weld expected_y=2 final_y=1.99727 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=3 available=true finite=true result=PASS
 [HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_noncollide expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
 [HumanoidRigCollisionRegression] backend=box3d case=torso_and_hair_anchored expected_y=2 final_y=1.997 min_y=1.67807 penetration=0.321933 velocity=[0,0,0] speed=0 same_character_contacts=0 floor_contacts=1 available=true finite=true result=PASS
-[HumanoidRigCollisionRegression] filter_probe initial_self=0 self_out=1 self_back=1 humanoid_removed=2 humanoid_restored=2 initial_tool=0 tool_out=1 tool_back=1 remote_npc=1 floor=1 clone=1 nested=1 ragdoll_self=0 ragdoll_out=0 raycast_self=true overlap_self=true result=FAIL
+[RCBN_WARN][Humanoid.cpp:664] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing Motor6D "RootJoint"
+[RCBN_WARN][Humanoid.cpp:664] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing Motor6D "Neck"
+[RCBN_WARN][Humanoid.cpp:664] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing Motor6D "LeftShoulder"
+[RCBN_WARN][Humanoid.cpp:664] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing Motor6D "RightShoulder"
+[RCBN_WARN][Humanoid.cpp:664] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing Motor6D "LeftHip"
+[RCBN_WARN][Humanoid.cpp:664] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing Motor6D "RightHip"
+[RCBN_WARN][Humanoid.cpp:696] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing BallSocket "RootJointRagdoll"
+[RCBN_WARN][Humanoid.cpp:696] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing BallSocket "NeckRagdoll"
+[RCBN_WARN][Humanoid.cpp:696] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing BallSocket "LeftShoulderRagdoll"
+[RCBN_WARN][Humanoid.cpp:696] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing BallSocket "RightShoulderRagdoll"
+[RCBN_WARN][Humanoid.cpp:696] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing BallSocket "LeftHipRagdoll"
+[RCBN_WARN][Humanoid.cpp:696] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": missing BallSocket "RightHipRagdoll"
+[HumanoidRigCollisionRegression] filter_probe initial_self=0 self_out=1 self_back=1 humanoid_removed=1 humanoid_restored=1 initial_tool=0 tool_out=1 tool_back=1 remote_npc=1 floor=1 clone=1 nested=1 ragdoll_self=1 ragdoll_cross=1 ragdoll_out=1 raycast_self=true overlap_self=true result=FAIL
 [HumanoidRigCollisionRegression] rig_cases=PASS failures=1 result=FAIL
 [SeatNetworkRegression] PASS: Humanoid seats and Seat occupant is set
 [SeatNetworkRegression] PASS: standUp clears SeatWeld and occupant
@@ -1499,7 +1537,7 @@ BOX3D_BUOYANCY_PERF spheres=128 steps=60 median_ms=0.8468 average_ms=0.973755 gu
 [HumanoidPartRefRegression] PASS: setRootPart()が予測用Rootを参照できるようにする
 [HumanoidPartRefRegression] PASS: setRootPart()は予測用Rootを所有しない
 [RecubinTest] 1 passed, 0 failed.
-PHYSICS_PERF backend=box3d median_ms=0.8633 p95_ms=1.7214 max_ms=1.8632 bodies=256 constraints=256 hz=60 substeps_equivalent=4 spiral_guard=PASS
+PHYSICS_PERF backend=box3d median_ms=1.4327 p95_ms=1.6867 max_ms=2.3372 bodies=256 constraints=256 hz=60 substeps_equivalent=4 spiral_guard=PASS
 [PhysicsPerformanceGuard] backend=box3d PASS: median and spiral-of-death guard
 [RecubinTest] 1 passed, 0 failed.
 [WeldRegression] anchored assembly root=ChainAnchor members=4
@@ -1511,7 +1549,7 @@ PHYSICS_PERF backend=box3d median_ms=0.8633 p95_ms=1.7214 max_ms=1.8632 bodies=2
 [RecubinTest] 1 passed, 0 failed.
 Hello world!
 Recubin Studio v0.999
-build: Sep 14 2026 13:57:59
+build: Sep 15 2026 18:12:21
 initing GLFW...
 creating window...
 making context...
@@ -1564,7 +1602,7 @@ initing GLEW...
 [UIAUTO] OK click Explorer/ClassPicker/ConfirmReplace
 [UIAUTO] OK key
 [UIAUTO] OK key
-[UIAUTO] OK capture C:\Users\Ryarta\AppData\Local\Temp\tmpm_l2r3s_\gui_smoke.png
+[UIAUTO] OK capture C:\Users\Ryarta\AppData\Local\Temp\tmpj5ga_rwl\gui_smoke.png
 [UIAUTO] OK quit
 [UIAUTO] OK wait target Editor/UnsavedChanges/QuitWithoutSaving
 [UIAUTO] OK click Editor/UnsavedChanges/QuitWithoutSaving
@@ -1573,11 +1611,11 @@ initing GLEW...
 [INFO] Generating all-instances scene via Recubin.exe --gen-test-scene ...
 Hello world!
 Recubin Studio v0.999
-build: Sep 14 2026 13:57:59
+build: Sep 15 2026 18:12:21
 Loaded script from scripts/gen_test_scene_check.luau
-[gen-test-scene] Wrote 45 instances (+DecalHost, +check script) to C:\Users\Ryarta\AppData\Local\Temp\tmpm_l2r3s_\gen_test_scene.rcbn
+[gen-test-scene] Wrote 45 instances (+DecalHost, +check script) to C:\Users\Ryarta\AppData\Local\Temp\tmpj5ga_rwl\gen_test_scene.rcbn
 
-[INFO] Running C:\Users\Ryarta\AppData\Local\Temp\tmpm_l2r3s_\gen_test_scene.rcbn ...
+[INFO] Running C:\Users\Ryarta\AppData\Local\Temp\tmpj5ga_rwl\gen_test_scene.rcbn ...
 [Luau] [PASS] gen-test-scene: all required instances present (47 workspace children)
 [RecubinTest] 1 passed, 0 failed.
 
@@ -1588,7 +1626,7 @@ Loaded script from scripts/gen_test_scene_check.luau
 [INFO] Running C:\Users\Ryarta\Documents\Recubin\assets\scenes\pathfinder.yaml ...
 [Luau] Vector3(6.561512, -22.000000, -2.981810)
 [Luau] Vector3(6.561512, -22.000000, -2.981810)
-[RCBN_DEBUG][PathfindingService.cpp:148] NavMesh build: workspace=Workspace tiles=64 workers=15 elapsed=152.249ms
+[RCBN_DEBUG][PathfindingService.cpp:148] NavMesh build: workspace=Workspace tiles=64 workers=15 elapsed=161.46ms
 [Luau] [PathfindingTest] waypoints: 4
 [Luau] [PASS] 経路を取得しました
 [Luau]   #1 Walk (-7.4, -24.2, 23.8)
@@ -1682,8 +1720,8 @@ Loaded script from scripts/gen_test_scene_check.luau
 [Luau] --- テスト完了 ---
 [RecubinTest] 39 passed, 0 failed.
 
-[INFO] Running C:\Users\Ryarta\AppData\Local\Temp\tmpm_l2r3s_\test_bindings_sound.yaml ...
-[DEBUG] Audio loaded: C:/Users/Ryarta/AppData/Local/Temp/tmpm_l2r3s_/regression_sound.wav
+[INFO] Running C:\Users\Ryarta\AppData\Local\Temp\tmpj5ga_rwl\test_bindings_sound.yaml ...
+[DEBUG] Audio loaded: C:/Users/Ryarta/AppData/Local/Temp/tmpj5ga_rwl/regression_sound.wav
 [Luau] --- Globals ---
 [Luau] [PASS] workspace != nil
 [Luau] [PASS] script != nil
@@ -1818,43 +1856,49 @@ Loaded script from scripts/gen_test_scene_check.luau
 [Luau] --- テスト完了 ---
 [RecubinTest] 100 passed, 0 failed.
 
-[SUMMARY] 186 passed, 12 failed across 9 scenes.
+[SUMMARY] 189 passed, 9 failed across 9 scenes.
 [SUMMARY] Regression FAILED.
 
------------
+---
 
 PS C:\Users\Ryarta\Documents\Recubin> py .\run_regression.py > .\reggressionLog.txt
 [TerrainStreamer] Failed to load region YAML: C:/Users/Ryarta/AppData/Local/Temp/recubin_yaml_error_terrain/r_0_0.yaml: yaml-cpp: error at line 2, column 1: end of sequence flow not found
 [TerrainStreamer] Skipping write of corrupt region: C:/Users/Ryarta/AppData/Local/Temp/recubin_yaml_error_terrain/r_0_0.yaml
 [TerrainStreamer] Skipping write of corrupt region: C:/Users/Ryarta/AppData/Local/Temp/recubin_yaml_error_terrain/r_0_0.yaml
-[FAIL] legacy Animation YAML remains importable
-[FAIL] Scene round-trip preserves joint_delta track and keyframe
 [FAIL] unmigrated empty R6 Walk binding is filled once with the standard asset
-[FAIL] legacy Animation YAML remains importable
-[FAIL] Scene round-trip preserves joint_delta track and keyframe
 [FAIL] unmigrated empty R6 Walk binding is filled once with the standard asset
 [SceneLoader] Exception: yaml-cpp: error at line 8, column 20: bad conversion
-[FileLoader] Error: Could not open text file: C:\Users\Ryarta\AppData\Local\Temp\recubin_scene_transaction_not_found_10665219194400.yaml
+[FileLoader] Error: Could not open text file: C:\Users\Ryarta\AppData\Local\Temp\recubin_scene_transaction_not_found_15256518412400.yaml
 [FileLoader] Error: Could not open text file: old.luau
-[RCBN_ERROR][BaseCube.cpp:227] Rejected invalid Size for RollbackCube
-[RCBN_ERROR][Physics.cpp:489] Refusing invalid replacement body descriptor; old body retained: RollbackCube
-[RCBN_ERROR][Physics.cpp:691] Rejected invalid Terrain replacement; old handle retained
-[RCBN_ERROR][Physics.cpp:678] Rejected invalid Terrain physics descriptor
-[RCBN_ERROR][AutosaveManager.cpp:175] Autosave: cannot open C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/IoFailure.rcbn/recovery.rcbn.tmp
-[RCBN_ERROR][AutosaveManager.cpp:175] Autosave: cannot open C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/IoFailure.rcbn/recovery.rcbn.tmp
-[RCBN_ERROR][AutosaveManager.cpp:175] Autosave: cannot open C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/IoFailure.rcbn/recovery.rcbn.tmp
-[SceneLoader] Error: No Root defined in C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/Corrupt.rcbn/recovery.rcbn
-[RCBN_ERROR][AutosaveManager.cpp:426] Autosave: corrupt recovery C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/Corrupt.rcbn/recovery.rcbn: No Root defined
-[SceneLoader] Error: No Root defined in C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/Corrupt.rcbn/recovery.rcbn
-[RCBN_ERROR][AutosaveManager.cpp:426] Autosave: corrupt recovery C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_10667079145000/executable-directory/.autosave/Corrupt.rcbn/recovery.rcbn: No Root defined
-[RCBN_ERROR][Box3DPhysicsBackend.cpp:1528] Gyro "System\RemoteAvatarSpawnTransformWorkspace\PlayerCharacter_2\RootGyro": Part "System\RemoteAvatarSpawnTransformWorkspace\PlayerCharacter_2\Root" does not have a dynamic Box3D body
-[RCBN_ERROR][Box3DPhysicsBackend.cpp:1528] Gyro "System\RemoteAvatarSpawnTransformWorkspace\PlayerCharacter_3\RootGyro": Part "System\RemoteAvatarSpawnTransformWorkspace\PlayerCharacter_3\Root" does not have a dynamic Box3D body
-[RCBN_ERROR][Box3DPhysicsBackend.cpp:1528] Gyro "System\Workspace\PlayerCharacter_2\RootGyro": Part "System\Workspace\PlayerCharacter_2\Root" does not have a dynamic Box3D body
-[FAIL] legacy Animation YAML remains importable
-[FAIL] Scene round-trip preserves joint_delta track and keyframe
+[RCBN_ERROR][BaseCube.cpp:238] Rejected invalid Size for RollbackCube
+[RCBN_ERROR][Physics.cpp:490] Refusing invalid replacement body descriptor; old body retained: RollbackCube
+[RCBN_ERROR][Physics.cpp:701] Rejected invalid Terrain replacement; old handle retained
+[RCBN_ERROR][Physics.cpp:688] Rejected invalid Terrain physics descriptor
+[RCBN_ERROR][AutosaveManager.cpp:175] Autosave: cannot open C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_15258338708000/executable-directory/.autosave/IoFailure.rcbn/recovery.rcbn.tmp
+[RCBN_ERROR][AutosaveManager.cpp:175] Autosave: cannot open C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_15258338708000/executable-directory/.autosave/IoFailure.rcbn/recovery.rcbn.tmp
+[RCBN_ERROR][AutosaveManager.cpp:175] Autosave: cannot open C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_15258338708000/executable-directory/.autosave/IoFailure.rcbn/recovery.rcbn.tmp
+[SceneLoader] Error: No Root defined in C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_15258338708000/executable-directory/.autosave/Corrupt.rcbn/recovery.rcbn
+[RCBN_ERROR][AutosaveManager.cpp:426] Autosave: corrupt recovery C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_15258338708000/executable-directory/.autosave/Corrupt.rcbn/recovery.rcbn: No Root defined
+[SceneLoader] Error: No Root defined in C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_15258338708000/executable-directory/.autosave/Corrupt.rcbn/recovery.rcbn
+[RCBN_ERROR][AutosaveManager.cpp:426] Autosave: corrupt recovery C:/Users/Ryarta/AppData/Local/Temp/recubin_autosave_regression_15258338708000/executable-directory/.autosave/Corrupt.rcbn/recovery.rcbn: No Root defined
+[RCBN_ERROR][Box3DPhysicsBackend.cpp:1543] Gyro "System\RemoteAvatarSpawnTransformWorkspace\PlayerCharacter_2\RootGyro": Part "System\RemoteAvatarSpawnTransformWorkspace\PlayerCharacter_2\Root" does not have a dynamic Box3D body
+[RCBN_ERROR][Box3DPhysicsBackend.cpp:1543] Gyro "System\RemoteAvatarSpawnTransformWorkspace\PlayerCharacter_3\RootGyro": Part "System\RemoteAvatarSpawnTransformWorkspace\PlayerCharacter_3\Root" does not have a dynamic Box3D body
+[RCBN_ERROR][Box3DPhysicsBackend.cpp:1543] Gyro "System\Workspace\PlayerCharacter_2\RootGyro": Part "System\Workspace\PlayerCharacter_2\Root" does not have a dynamic Box3D body
+[RCBN_ERROR][Humanoid.cpp:770] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": cannot derive bind pose Motor6D "RootJoint"
+[RCBN_ERROR][Humanoid.cpp:770] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": cannot derive bind pose Motor6D "Neck"
+[RCBN_ERROR][Humanoid.cpp:743] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": cannot save bind pose; missing body "LeftArm"
+[RCBN_ERROR][Humanoid.cpp:743] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": cannot save bind pose; missing body "RightArm"
+[RCBN_ERROR][Humanoid.cpp:743] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": cannot save bind pose; missing body "LeftLeg"
+[RCBN_ERROR][Humanoid.cpp:743] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": cannot save bind pose; missing body "RightLeg"
 [FAIL] unmigrated empty R6 Walk binding is filled once with the standard asset
 [FileLoader] Error: Could not open text file: old.luau
 [FileLoader] Error: Could not open text file: old.luau
+[RCBN_ERROR][Humanoid.cpp:770] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": cannot derive bind pose Motor6D "RootJoint"
+[RCBN_ERROR][Humanoid.cpp:770] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": cannot derive bind pose Motor6D "Neck"
+[RCBN_ERROR][Humanoid.cpp:743] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": cannot save bind pose; missing body "LeftArm"
+[RCBN_ERROR][Humanoid.cpp:743] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": cannot save bind pose; missing body "RightArm"
+[RCBN_ERROR][Humanoid.cpp:743] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": cannot save bind pose; missing body "LeftLeg"
+[RCBN_ERROR][Humanoid.cpp:743] Humanoid "CharacterCollisionFilterProbe\RagdollCharacter\Humanoid": cannot save bind pose; missing body "RightLeg"
 [SurfaceMark] unresolved FilterInstances path: Missing\Target
 [SurfaceMark] unresolved FilterInstances path: Missing\Target
 [SurfaceMark] unresolved FilterInstances path: Missing\Target
@@ -1874,4 +1918,4 @@ PS C:\Users\Ryarta\Documents\Recubin> py .\run_regression.py > .\reggressionLog.
 [RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'Frequency' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
 [RCBN_ERROR][Gyro.cpp:521] Obsolete Gyro property 'DampingRatio' found in Gyro\. Gyro now uses per-axis X/Y/Z TargetAngle/MaxTorque/MaxAngularSpeed.
 [FileLoader] Error: Could not open text file: 
-[RCBN_ERROR][BaseCube.cpp:227] Rejected invalid Size for BaseCube
+[RCBN_ERROR][BaseCube.cpp:238] Rejected invalid Size for BaseCube

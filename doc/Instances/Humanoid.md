@@ -14,8 +14,10 @@ bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を
 初回の有効なfloor distanceから初期化され、Rootの初期高さは補正しない。HipHeightはhoverの目標値と
 着地捕捉に使い、接地状態は捕捉後の微小なfloor distance揺れでは反転させず、床が消えるかRootが上昇した
 ときに解除する。jump開始時、死亡、
-着席、無効状態、Ragdoll中では全hover Forceをzero/disabledにする。jump上昇中と床が3 studのcapture外にある下降中は
-再開しない。PD係数は`CharacterRig::groundHeightSettings()`へ集約し、Workspaceの現在重力を相殺する。
+着席、無効状態、Ragdoll中では全hover Forceをzero/disabledにする。jump上昇中は再開しない。下降中のcapture範囲は
+3 studを下限とし、現在の下降速度・最大上向き加速度・重力から求めた制動距離に1 physics step分の安全余裕を加えた値まで広げる。
+この範囲を同じshape cast検出距離へ反映して、高速のTruss jumpや落下でもRootがHipHeightを通過する前に制動を開始する。
+PD係数は`CharacterRig::groundHeightSettings()`へ集約し、Workspaceの現在重力を相殺する。
 
 `Normal`/`ClimbingUp`/`ClimbingDown`/`Ragdoll`/`Recovering`状態を明示的に持つ。Truss接触中にW入力があると
 `ClimbingUp`、S入力があると`ClimbingDown`へ遷移し、垂直入力が無い場合は`Normal`へ戻る。昇降中はCharacter Modelの
@@ -28,8 +30,9 @@ MaintainVelocityとして適用する。Trussから離れたらForceを無効化
 
 Box3Dのhit eventで得た接触点の`totalNormalImpulse`を優先し、
 取得できない場合は接近速度を接触法線方向のimpactとして扱う。Characterの全bodyについてphysics tick内の最大値だけを
-評価し、`ImpactRagdollThreshold`以上でRagdollへ遷移する。既定値は45 stud/s相当で、通常の短いjump着地では
-発動しにくく、強い床・壁・物体衝突を対象にする。
+評価し、`ImpactRagdollThreshold`以上でRagdollへ遷移する。空中状態からlanding captureへ入る時は、全bodyの下向き成分だけを質量加重した
+垂直運動エネルギーから通常の3-stud captureで吸収できる分を差し引いた残余を同じstud/s相当へ換算して判定する。
+既定値は45 stud/s相当で、通常の短いjump着地では発動しにくく、強い床・壁・物体衝突と高速Truss jump/高所落下を対象にする。
 
 `Instance` → `Humanoid`
 
@@ -40,7 +43,7 @@ Box3Dのhit eventで得た接触点の`totalNormalImpulse`を優先し、
 | `WalkSpeed` | `float` | 歩行速度（[0,100]にクランプ、旧CharacterSetting.moveSpeedの統合先） |
 | `JumpPower` | `float` | ジャンプ初速（[0,100]にクランプ） |
 | `HipHeight` | `float` | Root中心から真下の地面までの目標距離。未設定時は初回ground detectionの実測値で初期化 |
-| `ImpactRagdollThreshold` | `float` | 接触impactがこの値以上でRagdollへ遷移（既定45） |
+| `ImpactRagdollThreshold` | `float` | 接触impactまたは高速着地の残余エネルギー換算値がこの値以上でRagdollへ遷移（既定45） |
 | `RagdollRecoverySpeed` | `float` | 復帰判定に使うRoot線速度上限（既定2.5 stud/s） |
 | `RagdollRecoveryDelay` | `float` | 低速・接地状態を継続する時間（既定1秒） |
 | `Health` / `MaxHealth` | `float` | 現在/最大ヘルス |
@@ -67,7 +70,7 @@ Box3Dのhit eventで得た接触点の`totalNormalImpulse`を優先し、
 | `set/getWalkAnimation`、`set/getJumpAnimation`、`set/getEquipAnimation` | Animation参照を明示的に設定・取得 |
 | `getRootPart()`/`getTorsoPart()`/`getHeadPart()`/左右の腕・脚getter | C++処理向けにweak参照を一時的な`shared_ptr`へ昇格。期限切れ時は`nullptr` |
 | `setRootPart(root)` | ネットワーク予測用Rootの非所有参照を設定し、通常Rootと同じ角度ロックを適用。Luau/YAMLには非公開 |
-| `move(...)` | WASD相当の入力から移動、GyroのY方位、歩行アニメ、身体配置を更新。無入力時は最後のGyro方位を維持 |
+| `move(...)` | WASD相当の入力から移動、RootのYawForceがあればそのY角速度、なければGyroのY方位、歩行アニメ、身体配置を更新。無入力時は現在の方位を維持 |
 | `updatePhysicsState(physics)` | ControlModeに関係なく接地raycast、GroundHeight hover、Truss中の重力設定を更新 |
 | `stopCharacterMotion(physics)` | Character操作からFree/Programへ移行する際、全身の水平・角速度を停止し、Character専用YawForceを無効化して垂直速度を保持 |
 | `moveToward(target, physics, arrivalRadius)` | パス追従用の1フレーム移動（`move()`のロジックを流用） |

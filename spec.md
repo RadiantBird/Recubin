@@ -200,6 +200,10 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   使うBallSocketを有効化する。Ragdoll中だけbody collisionを有効化する。通常Characterの内部self-collisionは
   Character collision groupで抑制するが、Ragdoll中にBallSocketで管理されるbody同士は異なるBallSocket chain間でも
   collisionを許可する。明示的なNoCollisionはこの許可より優先し、外部worldとの衝突を許可する。
+  空中状態から動的なhover captureへ入る時は、全character bodyの下向き成分だけを質量加重した垂直運動エネルギーから通常の
+  `landingCaptureDistance`内でhoverが吸収できる制動エネルギーを差し引き、その残余を同じstud/s相当値へ換算して
+  同じ閾値で判定する。したがって通常JumpPowerの着地は維持しつつ、高速Truss jumpや高所落下のエネルギーは
+  hoverによる事前減速で失われる前にRagdoll判定へ渡される。
   死亡時も同じ遷移を使う。
 
   死亡していないRagdollは、Rootの線速度が`RagdollRecoverySpeed`（既定2.5 stud/s）以下、角速度が2.0 rad/s以下で、低速状態が

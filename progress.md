@@ -853,3 +853,48 @@
 - 直前の`-ClimbSpeed`が次のphysics stepへ残らないよう、脱出時は各R6 bodyの負のY速度だけを0にする。上向き速度とX/Z速度は保持する。Trussが地面まで続く場合はRootがTruss AABBを離れるまでTruss制御を抑制し、同じ入力で再び下降へ入らない。
 - `Humanoid.cpp`のGCC C++23構文検査と`git diff --check`は終了コード0。Windows Release build、brun、実機の床際Truss下降・段差・坂・壁際は未検証。
 - 次の一手: Windows側再build後、地面まで伸びたTrussでの連続S入力、段差/坂/壁際、既に低いRoot位置、auto escape後のhover安定化と歩行/jumpを確認する。
+
+## 2026-09-15: Regression failure migration, Gyro, compound pose fixes
+
+- Animation migration treats a stale generated `R6Walk` path as an empty binding, inserts the standard Animation once, and validates the resulting child, Humanoid reference/path, and ContentPath before recording the metadata version. A genuinely custom unresolved path remains untouched and is recorded as before.
+- Unknown YAML `System.DefaultCameraMode` now warns and falls back specifically to `Character`; generic enum fallback behavior for other properties is unchanged.
+- Default R6 RootGyro now controls Y as well as X/Z. `Humanoid::move()` supplies its heading through the Gyro and the legacy `YawForce` remains zeroed/disabled, including after ragdoll recovery. The Box3D gyro uses a world-inertia, MaxTorque and MaxAngularSpeed bounded PD torque without the former temporary strength multiplier.
+- Box3D teleports through `setMemberWorldCFrame()` now clear linear/angular velocity and wake the body. Collision filter refresh always reapplies the native filter so character reparent/group changes rebuild contacts even if filter bits are unchanged. Free-standing BallSockets suppress connected collision to preserve an overlapping initial anchor; same-character ragdoll BallSockets retain connected collision subject to customFilter/NoCollision. BallSocket failures report their full path and the migration regression prints its anchor error.
+- PhysicsConstraint/Weld serialization now regenerates Cube0/Cube1 paths from live endpoints after rename/reparent, without Weld reintroducing the old empty-name guard.
+- Remote avatar pose replication applies one world delta per native body, then synchronizes every logical native member immediately. This preserves compound accessories and Motor6D member poses without moving the Model spawn CFrame.
+- GCC C++23 syntax checks passed for `Box3DPhysicsBackend.cpp`, `CharacterRig.cpp`, `Humanoid.cpp`, `System.cpp`, `PhysicsConstraint.cpp`, and `Replication.cpp`; targeted `git diff --check` passed (only pre-existing CRLF normalization warning for `System.cpp`). Windows Release build cannot start because CMake is unavailable to `build.py` (`WinError 2`), and the existing Windows executable cannot be invoked from WSL due to the vsock error.
+- Next step: rebuild on Windows and run the requested limited regressions: animation clip/character rig/quaternion, default camera, motor6d gyro, starter weld/accessory, remote avatar spawn transform, humanoid rig collision, and physics migration. The legacy Motor compatibility-envelope assertions remain intentionally out of scope and should be reported separately.
+
+## 2026-09-15: Restore authored Character yaw Angular Force
+
+- 操作感低下の原因は直前のGyro Y一本化で、既存Rootの`YawForce`を`Humanoid::move()`が毎frameゼロ・無効化していたことだった。通常Character操作では既存YawForceを再有効化し、従来のheading errorから目標Y angular velocityを更新する処理を復元した。
+- YawForceを持つRigではRootGyro Yを無効化して二重制御を避ける。YawForceを持たない生成RigではRootGyro Yをfallbackとして有効化する。Gyro X/Zのupright stabilization、Free/Program・Seat・Ragdoll中のYawForce無効化は維持する。
+- `Humanoid.cpp`のGCC C++23 syntax checkと対象`git diff --check`は成功。Windows実機での操作感・Ragdoll復帰後の旋回は再build後に確認する。
+
+## 2026-09-15: Truss jump landing diagnosis
+
+- Truss climbing中のJumpは、直後に`Normal`、`m_trussControlSuppressed=true`、重力有効、Climb Force無効、hover停止へ遷移する。次にTruss overlapが消えればsuppressionを解除し、hoverは下降中かつHipHeight capture時まで停止する。RagdollはNormal状態で全R6 bodyのcontact impactが`ImpactRagdollThreshold`以上の場合だけ開始する。
+- 症状の「RagdollでもNormalでもない」はState定義上`ClimbingUp`/`ClimbingDown`を意味する。ソースだけでは、Truss overlapの残留、hover capture未到達、landing impactのいずれかを確定できない。
+- 一時`[TrussJumpDiag]`ログを`Humanoid.cpp`へ追加した。launch、Truss overlap解除、jump中landing impact（thresholdとRoot速度）、hover landing capture（Root/Floor/HipHeight/vertical速度）を出力する。物理値・状態遷移は変更していない。
+- `Humanoid.cpp`のGCC C++23 syntax checkと対象`git diff --check`は成功。次の一手: Windows再build後に症状を一度再現し、`TrussJumpDiag`の連続行と直前後の`Ragdoll`/`CharacterGroundDebug`/Box3D contactログを取得する。原因確定後に一時ログを削除して修正する。
+
+### 2026-09-15 diagnostic result
+
+- 実機ログで`landing-capture`時のRoot-to-floor distance=5.53827、HipHeight=3.0、下降速度=-98.8073を確認した。差分2.53827は既定`landingCaptureDistance=3.0`内なのでcaptureが成立している。
+- 既定max upward acceleration=1200、重力=-196.2のため最大実効制動加速度は約1003.8 stud/s²。98.8073 stud/sを止めるには約4.86 studs必要で、capture時の目標までの距離2.538 studsでは不足する。`updateGroundHover()`が実行されているため、この瞬間はRagdollでもTruss制御中でもない。
+- 次の修正候補: 下降速度から必要制動距離を計算してcapture範囲とshape cast検出距離を拡張し、目標HipHeightより下へ通過する前にhoverを有効化する。高速度Truss jump/落下回帰でRoot floor penetrationとstateを検証する。
+
+### 2026-09-15 implemented speed-aware landing capture
+
+- `Humanoid::updateGroundHover()`は、Root下降速度と`maxUpwardAcceleration - |gravity|`から必要制動距離を計算する。既定3 studsと、制動距離+1/60秒の移動量+0.25 studの安全余裕の大きい方をjump suppression解除用のcapture範囲にした。下向きshape castの検出距離も同じ動的範囲へ広げるため、capture開始前に床を見失わない。
+- 通常の接地状態は従来どおり3 studsの静的範囲でだけ`isGrounded=true`にする。高速fallではhoverを早く有効化するが、空中をgroundedとして扱わない。Root vertical velocityが非有限ならfull path/値をerror出力してhoverを停止する。
+- 原因確定に用いた一時`TrussJumpDiag`ログは削除した。`--character-hover-regression`へ、全R6 bodyをRoot相対姿勢のままY=-100 stud/sの高速下降へ置き、hover再開・Root bottom非貫通・HipHeightへの復帰を検査する回帰を追加した。
+- `Humanoid.cpp`と`test_main.cpp`のGCC C++23 syntax check（`-DGLEW_NO_GLU`）および対象`git diff --check`は成功。Windows Release buildと新しい限定回帰は未実行。次の一手: Windows再build後に`--character-hover-regression`、続けてTruss jump→着地を実機確認する。
+
+### 2026-09-15: Preserve high landing energy for Ragdoll
+
+- 動的hover captureは高速落下を接触前に止めるため、従来のcontact impulseだけでは強いTruss jump/落下のRagdoll判定が失われる状態だった。`Humanoid::getLandingImpactEquivalentSpeed()`を追加し、空中状態からcaptureへ入る時の全character bodyの下向き成分だけを質量加重した垂直運動エネルギーから、従来の通常`landingCaptureDistance`で最大上向き加速度が吸収できる制動エネルギーを引く。残余をmass-weighted等価速度へ戻して既存`ImpactRagdollThreshold`と比較する。
+- そのため通常のJumpPower着地は通常captureで吸収できるエネルギーとして除外され、約100 stud/sの高速落下はhoverが事前減速する前に、従来と同じ既定45 stud/s相当の閾値でRagdollへ入る。値が不正、native body/mass不足、非有限速度の場合はfull pathと値をerror出力し、通常のhover安全処理を続ける。
+- `--character-hover-regression`は高速fallを二段階に分けた。閾値1000でhoverの非貫通・HipHeight復帰を単独確認し、既定閾値へ戻した同じfull-rig fallがRagdollへ遷移することを確認する。
+- `Humanoid.cpp`と`test_main.cpp`のGCC C++23 syntax check（`-DGLEW_NO_GLU`）、対象差分の`git diff --check`は成功。WSLから既存Windows `RecubinTest.exe --character-hover-regression`を起動すると`UtilBindVsockAnyPort:309: socket failed 1`で停止し、更新後のWindows限定回帰・実機Truss jump確認は未実施。
+- 次の一手: Windows側で再build後に`RecubinTest.exe --character-hover-regression`を実行し、Trussから高くjumpして着地時にRagdollへ入ること、通常JumpPower着地ではNormal/hover復帰することを確認する。

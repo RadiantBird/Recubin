@@ -76,7 +76,7 @@ private:
     struct RemoteAvatar {
         std::shared_ptr<Model> model;
         std::shared_ptr<User> identity; // System.Users配下のUser identity(見つからない場合はnullptrのまま)
-        // Rootを先頭に含むリグパーツ。表示同期ではRootだけを直接更新する。
+        // Rootを先頭に含むリグパーツ。共有native bodyは表示同期時に一度だけ移動する。
         std::vector<std::pair<BaseCube*, CFrame>> parts;
         CFrame current;         // 平滑表示中の姿勢
         bool   hasPose = false; // 初回受信前はfalse(初回はスナップ)
@@ -91,7 +91,7 @@ private:
     void sendAvatarUpdates(float dt);   // 20Hz: Client=AvatarState送信 / Host=自姿勢記録+AvatarBatch配布
     void hostSendSimulationClock(float dt, Physics* physics);
     void reconcileAvatars();            // ロスターと生成済みアバターの突き合わせ(生成/破棄)
-    void applyAvatarPoses(float dt);    // 受信姿勢を平滑補間してRoot world CFrameへ書き込み
+    void applyAvatarPoses(float dt);    // 受信姿勢を平滑補間して全リグをworld deltaで移動
     void reconcileLocalPose(); // Client: Hostから受信した自分の権威姿勢とローカル予測のズレが大きければスナップ補正する
     bool getLocalRootCFrame(CFrame& out) const; // 自キャラRootのワールド姿勢。無ければfalse
     void spawnRemoteAvatar(PeerId id);
