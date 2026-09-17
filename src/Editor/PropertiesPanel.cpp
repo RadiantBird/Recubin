@@ -2,6 +2,7 @@
 #include <Editor/CommandHistory.hpp>
 #include <Editor/UiHelpers.hpp>
 #include <Editor/Localization.hpp>
+#include <Editor/PropertyTextInput.hpp>
 #include <Core/Physics.hpp>
 #include <Core/PhysicalFileInstanceRegistry.hpp>
 #include <Core/User.hpp>
@@ -126,6 +127,34 @@ static std::string toProjectRelative(const std::string& absPath) {
     if (stored == ".." || stored.rfind("../", 0) == 0)
         return AssetPath::toStored(absolute);
     return stored;
+}
+
+static bool propValuesEqual(const PropValue& left, const PropValue& right);
+
+static bool drawRoundButton() {
+    const bool clicked = ImGui::Button(Loc::t(Loc::LocKey::RoundButton));
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("%s", Loc::t(Loc::LocKey::RoundTooltip));
+    }
+    return clicked;
+}
+
+static Vector3 roundVector3(const Vector3& value) {
+    return Vector3(std::round(value.x), std::round(value.y), std::round(value.z));
+}
+
+static Color4 roundColor4Channels(const Color4& value) {
+    return Color4(
+        std::round(value.r * 255.0f) / 255.0f,
+        std::round(value.g * 255.0f) / 255.0f,
+        std::round(value.b * 255.0f) / 255.0f,
+        std::round(value.a * 255.0f) / 255.0f);
+}
+
+static CFrame roundCFrame(const CFrame& value) {
+    return CFrame(
+        roundVector3(value.Position),
+        Quaternion::fromEuler(roundVector3(value.Rotation.toEuler())));
 }
 
 static void drawInstanceReferenceField(Instance* owner,
@@ -293,6 +322,19 @@ static void renderSchemaInspector(Instance* inst, const char* className,
         PropValue cur = d.get(inst);
         bool itemActivated = false;
         bool itemDeactivatedAfterEdit = false;
+        bool recordedDirectly = false;
+        auto applyDiscrete = [&d, history, &recordedDirectly](
+                                 Instance* owner, const PropValue& afterValue) {
+            const PropValue beforeValue = d.get(owner);
+            if (propValuesEqual(beforeValue, afterValue)) return;
+            if (history) {
+                history->execute(std::make_unique<SetPropertyCommand>(
+                    owner->shared_from_this(), &d, beforeValue, afterValue));
+            } else {
+                d.set(owner, afterValue);
+            }
+            recordedDirectly = true;
+        };
         switch (d.type) {
             case PropType::Float: {
                 float v = std::get<float>(cur);
@@ -318,6 +360,19 @@ static void renderSchemaInspector(Instance* inst, const char* className,
             case PropType::Vec3: {
                 Vector3 v = std::get<Vector3>(cur);
                 if (ImGui::DragFloat3(label.c_str(), &v.x, d.step, d.lo, d.hi, "%.2f")) applyLive(inst, PropValue(v));
+                const float input[3] = {v.x, v.y, v.z};
+                auto textResult = PropertyTextInput::draw(
+                    (label + " (all)##vec3_text").c_str(), input, 3);
+                recordedDirectly = recordedDirectly || textResult.suppressGenericTransaction;
+                if (textResult.submitted && !textResult.invalid) {
+                    const Vector3 afterValue(textResult.values[0], textResult.values[1], textResult.values[2]);
+                    applyDiscrete(inst, PropValue(afterValue));
+                }
+                // Keep action controls below the full-width text field so a
+                // narrow Properties panel cannot clip them off-screen.
+                if (drawRoundButton()) {
+                    applyDiscrete(inst, PropValue(roundVector3(v)));
+                }
                 break;
             }
             case PropType::Vec2: {
@@ -327,7 +382,42 @@ static void renderSchemaInspector(Instance* inst, const char* className,
             }
             case PropType::Color4: {
                 Color4 v = std::get<Color4>(cur);
-                if (ImGui::ColorEdit4(label.c_str(), &v.r)) applyLive(inst, PropValue(v));
+                float channels[4] = {v.r * 255.0f, v.g * 255.0f, v.b * 255.0f, v.a * 255.0f};
+                if (ImGui::DragFloat4(label.c_str(), channels, 1.0f, 0.0f, 255.0f, "%.0f")) {
+                    applyLive(inst, PropValue(Color4(channels[0] / 255.0f, channels[1] / 255.0f,
+                                                     channels[2] / 255.0f, channels[3] / 255.0f)));
+                }
+                const float input[4] = {channels[0], channels[1], channels[2], channels[3]};
+                auto textResult = PropertyTextInput::draw(
+                    (label + " (RGBA)##color4_text").c_str(), input, 4, false, 0.0f, 255.0f);
+                recordedDirectly = recordedDirectly || textResult.suppressGenericTransaction;
+                if (textResult.submitted && !textResult.invalid) {
+                    const Color4 afterColor(textResult.values[0] / 255.0f, textResult.values[1] / 255.0f,
+                                             textResult.values[2] / 255.0f, textResult.values[3] / 255.0f);
+                    applyDiscrete(inst, PropValue(afterColor));
+                }
+                static PropValue paletteBefore;
+                if (ImGui::Button((std::string("Palette##") + label).c_str())) {
+                    paletteBefore = d.get(inst);
+                    ImGui::OpenPopup("ColorPalette");
+                }
+                if (ImGui::BeginPopup("ColorPalette")) {
+                    Color4 palette = std::get<Color4>(d.get(inst));
+                    if (ImGui::ColorPicker4("##palette", &palette.r)) applyLive(inst, PropValue(palette));
+                    if (ImGui::IsItemDeactivatedAfterEdit()) {
+                        const PropValue afterValue = d.get(inst);
+                        if (d.liveSet) d.set(inst, afterValue);
+                        if (history && !propValuesEqual(paletteBefore, afterValue)) {
+                            history->record(std::make_unique<SetPropertyCommand>(
+                                inst->shared_from_this(), &d, paletteBefore, afterValue));
+                        }
+                        recordedDirectly = true;
+                    }
+                    ImGui::EndPopup();
+                }
+                if (drawRoundButton()) {
+                    applyDiscrete(inst, PropValue(roundColor4Channels(v)));
+                }
                 break;
             }
             case PropType::CFrame: {
@@ -342,6 +432,20 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                 if (ImGui::DragFloat3("Rotation", &rotation.x, 1.0f, -360.0f, 360.0f, "%.1f")) {
                     v.Rotation = Quaternion::fromEuler(rotation);
                     applyLive(inst, PropValue(v));
+                }
+                const float input[6] = {v.Position.x, v.Position.y, v.Position.z,
+                                        rotation.x, rotation.y, rotation.z};
+                auto textResult = PropertyTextInput::draw(
+                    (label + " (all)##cframe_text").c_str(), input, 6);
+                recordedDirectly = recordedDirectly || textResult.suppressGenericTransaction;
+                if (textResult.submitted && !textResult.invalid) {
+                    const Vector3 position(textResult.values[0], textResult.values[1], textResult.values[2]);
+                    const Vector3 euler(textResult.values[3], textResult.values[4], textResult.values[5]);
+                    const CFrame afterValue(position, Quaternion::fromEuler(euler));
+                    applyDiscrete(inst, PropValue(afterValue));
+                }
+                if (drawRoundButton()) {
+                    applyDiscrete(inst, PropValue(roundCFrame(v)));
                 }
                 itemActivated = itemActivated || ImGui::IsItemActivated();
                 itemDeactivatedAfterEdit = itemDeactivatedAfterEdit || ImGui::IsItemDeactivatedAfterEdit();
@@ -372,7 +476,7 @@ static void renderSchemaInspector(Instance* inst, const char* className,
         // 編集の開始/確定を捉えて Undo 1ステップとして記録する
         if (itemActivated || ImGui::IsItemActivated())
             s_before = PropertyRegistry::readValue(inst, d);
-        if ((itemDeactivatedAfterEdit || ImGui::IsItemDeactivatedAfterEdit()) && history) {
+        if ((itemDeactivatedAfterEdit || ImGui::IsItemDeactivatedAfterEdit()) && history && !recordedDirectly) {
             PropValue after = PropertyRegistry::readValue(inst, d);
             if (d.liveSet) d.set(inst, after);  // liveSet運用のプロパティのみ、確定時に本来の set（actor再生成等）を適用
             history->record(std::make_unique<SetPropertyCommand>(
@@ -390,19 +494,6 @@ static void renderSchemaInspector(Instance* inst, const char* className,
 //  それを示しつつ、編集は選択中の全インスタンスへ同時適用する。
 //  Undo は CompositeCommand に SetPropertyCommand を束ねて1操作として記録する。
 // ===================================================
-static bool parseFloats(const char* text, float* out, int count) {
-    if (!text || !out || count <= 0) return false;
-    const char* p=text;
-    for (int i=0;i<count;++i) {
-        char* end=nullptr; out[i]=std::strtof(p,&end);
-        if (end==p || !std::isfinite(out[i])) return false;
-        p=end; while (*p==' '||*p=='\t'||*p==',') ++p;
-    }
-    while (*p==' '||*p=='\t'||*p==',') ++p;
-    if (*p!='\0') return false;
-    return true;
-}
-
 static bool propValuesEqual(const PropValue& left, const PropValue& right) {
     if (left.index() != right.index()) return false;
     switch (left.index()) {
@@ -559,6 +650,21 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
             }
             if (!composite->empty()) history->record(std::move(composite));
         };
+        auto applyDiscreteAll = [&](const PropValue& afterValue) {
+            if (history) {
+                auto composite = std::make_unique<CompositeCommand>();
+                for (size_t i = 0; i < rows.size(); ++i) {
+                    if (propValuesEqual(curVals[i], afterValue)) continue;
+                    composite->add(std::make_unique<SetPropertyCommand>(
+                        rows[i].first->shared_from_this(), rows[i].second,
+                        curVals[i], afterValue));
+                }
+                if (!composite->empty()) history->execute(std::move(composite));
+            } else {
+                for (const auto& [target, desc] : rows) desc->set(target, afterValue);
+            }
+            recordedImmediately = true;
+        };
 
         if (d0->editorWidget == EditorWidget::FilePath) {
             const std::string current = mixed
@@ -683,6 +789,18 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                 Vector3 v = std::get<Vector3>(cur);
                 const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.2f";
                 if (ImGui::DragFloat3(name.c_str(), &v.x, d0->step, d0->lo, d0->hi, fmt)) applyLiveAll(PropValue(v));
+                const float input[3] = {v.x, v.y, v.z};
+                auto textResult = PropertyTextInput::draw(
+                    (name + " (all)##vec3_text").c_str(), input, 3, mixed);
+                recordedImmediately = recordedImmediately || textResult.suppressGenericTransaction;
+                if (textResult.submitted && !textResult.invalid) {
+                    applyLiveAll(PropValue(Vector3(textResult.values[0], textResult.values[1], textResult.values[2])));
+                    recordCurrentValues();
+                    recordedImmediately = true;
+                }
+                if (drawRoundButton()) {
+                    applyDiscreteAll(PropValue(roundVector3(v)));
+                }
                 break;
             }
             case PropType::Vec2: {
@@ -693,9 +811,55 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
             }
             case PropType::Color4: {
                 Color4 v = std::get<Color4>(cur);
-                bool changed = ImGui::ColorEdit4(name.c_str(), &v.r);
+                float channels[4] = {v.r * 255.0f, v.g * 255.0f, v.b * 255.0f, v.a * 255.0f};
+                bool changed = ImGui::DragFloat4(name.c_str(), channels, 1.0f, 0.0f, 255.0f, "%.0f");
                 if (mixed) { ImGui::SameLine(); ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::MixedValue)); }
-                if (changed) applyLiveAll(PropValue(v));
+                if (changed) applyLiveAll(PropValue(Color4(channels[0] / 255.0f, channels[1] / 255.0f,
+                                                           channels[2] / 255.0f, channels[3] / 255.0f)));
+                const float input[4] = {channels[0], channels[1], channels[2], channels[3]};
+                auto textResult = PropertyTextInput::draw(
+                    (name + " (RGBA)##color4_text").c_str(), input, 4, mixed, 0.0f, 255.0f);
+                recordedImmediately = recordedImmediately || textResult.suppressGenericTransaction;
+                if (textResult.submitted && !textResult.invalid) {
+                    applyLiveAll(PropValue(Color4(textResult.values[0] / 255.0f,
+                                                  textResult.values[1] / 255.0f,
+                                                  textResult.values[2] / 255.0f,
+                                                  textResult.values[3] / 255.0f)));
+                    recordCurrentValues();
+                    recordedImmediately = true;
+                }
+                static std::vector<PropValue> paletteBeforeValues;
+                if (ImGui::Button((std::string("Palette##") + name).c_str()))
+                {
+                    paletteBeforeValues = curVals;
+                    ImGui::OpenPopup("ColorPalette");
+                }
+                if (ImGui::BeginPopup("ColorPalette")) {
+                    Color4 palette = mixed ? Color4() : std::get<Color4>(d0->get(rows.front().first));
+                    if (ImGui::ColorPicker4("##palette", &palette.r)) applyLiveAll(PropValue(palette));
+                    if (ImGui::IsItemDeactivatedAfterEdit()) {
+                        for (const auto& [target, desc] : rows) {
+                            const PropValue afterValue = desc->get(target);
+                            if (desc->liveSet) desc->set(target, afterValue);
+                        }
+                        if (history) {
+                            auto composite = std::make_unique<CompositeCommand>();
+                            for (size_t i = 0; i < rows.size() && i < paletteBeforeValues.size(); ++i) {
+                                const PropValue afterValue = rows[i].second->get(rows[i].first);
+                                if (!propValuesEqual(paletteBeforeValues[i], afterValue))
+                                    composite->add(std::make_unique<SetPropertyCommand>(
+                                        rows[i].first->shared_from_this(), rows[i].second,
+                                        paletteBeforeValues[i], afterValue));
+                            }
+                            if (!composite->empty()) history->record(std::move(composite));
+                        }
+                        recordedImmediately = true;
+                    }
+                    ImGui::EndPopup();
+                }
+                if (drawRoundButton()) {
+                    applyDiscreteAll(PropValue(roundColor4Channels(v)));
+                }
                 break;
             }
             case PropType::CFrame: {
@@ -712,6 +876,21 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                 if (ImGui::DragFloat3("Rotation", &rotation.x, 1.0f, -360.0f, 360.0f, rotationFmt)) {
                     v.Rotation = Quaternion::fromEuler(rotation);
                     applyLiveAll(PropValue(v));
+                }
+                const float input[6] = {v.Position.x, v.Position.y, v.Position.z,
+                                        rotation.x, rotation.y, rotation.z};
+                auto textResult = PropertyTextInput::draw(
+                    (name + " (all)##cframe_text").c_str(), input, 6, mixed);
+                recordedImmediately = recordedImmediately || textResult.suppressGenericTransaction;
+                if (textResult.submitted && !textResult.invalid) {
+                    const Vector3 position(textResult.values[0], textResult.values[1], textResult.values[2]);
+                    const Vector3 euler(textResult.values[3], textResult.values[4], textResult.values[5]);
+                    applyLiveAll(PropValue(CFrame(position, Quaternion::fromEuler(euler))));
+                    recordCurrentValues();
+                    recordedImmediately = true;
+                }
+                if (drawRoundButton()) {
+                    applyDiscreteAll(PropValue(roundCFrame(v)));
                 }
                 itemActivated = itemActivated || ImGui::IsItemActivated();
                 itemDeactivatedAfterEdit = itemDeactivatedAfterEdit || ImGui::IsItemDeactivatedAfterEdit();

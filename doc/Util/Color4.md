@@ -26,3 +26,6 @@ RGBA カラー表現（0〜1 の float 範囲）。
 - `BaseCube::Color`（オブジェクト色）
 - `LuauEngine` のバインディングで Luau スクリプトから読み書きされる
 - `PropertiesPanel` のカラーピッカー
+
+PropertiesPanelでは編集の利便性のためRGBAを0〜255でも表示・入力できるが、入力時に
+0〜1へ正規化される。シリアライズ、Luau、および`Color4`自身の値域は0〜1のfloatのまま。

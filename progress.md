@@ -898,3 +898,22 @@
 - `--character-hover-regression`は高速fallを二段階に分けた。閾値1000でhoverの非貫通・HipHeight復帰を単独確認し、既定閾値へ戻した同じfull-rig fallがRagdollへ遷移することを確認する。
 - `Humanoid.cpp`と`test_main.cpp`のGCC C++23 syntax check（`-DGLEW_NO_GLU`）、対象差分の`git diff --check`は成功。WSLから既存Windows `RecubinTest.exe --character-hover-regression`を起動すると`UtilBindVsockAnyPort:309: socket failed 1`で停止し、更新後のWindows限定回帰・実機Truss jump確認は未実施。
 - 次の一手: Windows側で再build後に`RecubinTest.exe --character-hover-regression`を実行し、Trussから高くjumpして着地時にRagdollへ入ること、通常JumpPower着地ではNormal/hover復帰することを確認する。
+
+## 2026-09-17: PropertiesPanel numeric list input
+
+- スキーマ駆動の単一・複数選択インスペクタへ、Vector3の`x, y, z`、CFrameの`x, y, z, pitch, yaw, roll`（度数法XYZ内因Euler）、Color4のRGBA 0〜255数値列入力を追加した。数値列はEnter時だけ確定し、個数不一致・非数・無限値は既存値を保持してUI上でエラー表示する。
+- Color4は4成分の0〜255編集、RGBA数値列、`Palette`ボタンのImGui ColorPickerを提供する。内部値・YAML・Luauの0〜1 float表現は変更していない。全経路は既存live setter/final setterとUndo/Composite Undoを通し、テキストEnterの履歴重複を防止する。
+- `PropertyTextInput`ヘルパーを追加し、固定個数・カンマ/空白区切り・有限floatの解析/整形を共通化した。`--property-text-input-regression`へ3/4/6値、空白、過不足、nan/infの回帰を追加。PropertiesPanel/Color4文書も更新した。
+- `PropertyTextInput.cpp`、`PropertiesPanel.cpp`、`test_main.cpp`のGCC C++23 syntax checkと`git diff --check`は成功。Windows `cmd.exe /d /c py build.py build`はCMake起動時の`WinError 2`でconfigure前に停止したため、新しい限定回帰と実機UIは未実行。
+- 次の一手: Windows側で再build後に`RecubinTest.exe --property-text-input-regression`を実行し、単一/複数選択のVector3/CFrame/Color4のコピーペースト、Undo/Redo、範囲外Color、無効入力、Paletteを実機確認する。
+
+### 2026-09-17: Numeric list trailing-value completion
+
+- PropertiesPanelの数値列パーサーは、1個以上かつ指定数以下の有限値を受け、未指定の末尾成分を最後に指定した値で補完するよう変更した。例としてVector3の`1,`は`1, 1, 1`、CFrameの`4, 5`は残り4成分を5、Color4の`12`は全RGBAを12として確定し、欄も正規化表記へ更新する。指定数超過・空入力・非数・無限値は引き続き拒否する。
+- `--property-text-input-regression`へ3/4/6成分の補完回帰を追加した。`PropertyTextInput.cpp`と`test_main.cpp`のGCC C++23 syntax check、対象`git diff --check`は成功。Windows build・限定回帰はCMake不在のため未実行。
+
+### 2026-09-17: Properties integer rounding controls
+
+- Vector3、CFrame、Color4の単一・複数選択プロパティへ、既存ローカライズ済みの`丸`（nearest integer）操作を復元した。Vector3はXYZ、CFrameは位置と度数法Euler角、Color4は0〜255表示のRGBAを`std::round`で丸める。変更は単一`SetPropertyCommand`または複数`CompositeCommand`で確定し、live setterを持つ対象も本来のfinal setterを通す。
+- 全数値列の後に操作ボタンを独立した行へ置いた。Color4のPaletteも数値列の右隣ではなく別行とし、狭いPropertiesPanelの横幅で丸め／Paletteボタンが画面外へ押し出されないようにした。
+- `PropertiesPanel.cpp`のGCC C++23 syntax checkと対象`git diff --check`は成功。Windows buildと実機の狭幅レイアウト・丸めUndo/RedoはCMake不在のため未実行。

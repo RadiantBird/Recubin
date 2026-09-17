@@ -78,6 +78,7 @@
 #include <Editor/SceneHierarchySelection.hpp>
 #include <Editor/InstanceCatalog.hpp>
 #include <Editor/EditorManager.hpp>
+#include <Editor/PropertyTextInput.hpp>
 #include <Editor/ViewportGeometry.hpp>
 #include <Editor/ViewportSceneQueries.hpp>
 #include <Instances/ObjectValue.hpp>
@@ -9699,6 +9700,42 @@ static int runPhysicalFileInstanceRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runPropertyTextInputRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[PropertyTextInput] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    std::vector<float> values;
+    expect(PropertyTextInput::parseFloatList("1, 2, 3", 3, values) &&
+               values == std::vector<float>({1.0f, 2.0f, 3.0f}),
+           "parses three comma-separated values");
+    expect(PropertyTextInput::parseFloatList(" 4\t, 5\n 6, 30, 60, 90 ", 6, values) &&
+               values == std::vector<float>({4.0f, 5.0f, 6.0f, 30.0f, 60.0f, 90.0f}),
+           "parses six values with mixed whitespace separators");
+    expect(PropertyTextInput::parseFloatList("255, 128, 0, 64", 4, values) &&
+               values == std::vector<float>({255.0f, 128.0f, 0.0f, 64.0f}),
+           "parses four Color4 channels");
+    expect(PropertyTextInput::parseFloatList("1, ", 3, values) &&
+               values == std::vector<float>({1.0f, 1.0f, 1.0f}),
+           "fills trailing Vector3 components from the final specified value");
+    expect(PropertyTextInput::parseFloatList("4, 5", 6, values) &&
+               values == std::vector<float>({4.0f, 5.0f, 5.0f, 5.0f, 5.0f, 5.0f}),
+           "fills trailing CFrame components from the final specified value");
+    expect(PropertyTextInput::parseFloatList("12", 4, values) &&
+               values == std::vector<float>({12.0f, 12.0f, 12.0f, 12.0f}),
+           "fills all omitted Color4 components from one value");
+    expect(!PropertyTextInput::parseFloatList("1, 2, 3, 4", 3, values),
+           "rejects extra values");
+    expect(!PropertyTextInput::parseFloatList("1, nan, 3", 3, values) &&
+               !PropertyTextInput::parseFloatList("1, inf, 3", 3, values),
+           "rejects non-finite values");
+
+    return failures == 0 ? 0 : 1;
+}
+
 static int runPropertySchemaRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const std::string& message) {
@@ -11829,6 +11866,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--humanoid-rig-collision-regression", runHumanoidRigCollisionRegression),
         REG("--seat-network-regression", runSeatNetworkRegression),
         REG("--physical-file-instance-regression", runPhysicalFileInstanceRegression),
+        REG("--property-text-input-regression", runPropertyTextInputRegression),
         REG("--property-schema-regression", runPropertySchemaRegression),
         REG("--quaternion-invariant-regression", runQuaternionInvariantRegression),
         REG("--spatial-coordinate-regression", runSpatialCoordinateRegression),
