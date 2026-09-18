@@ -51,7 +51,7 @@ public:
     float ClimbSpeed = 10.0f; // Truss(はしご)接触中の垂直移動速度
 
     // Root中心から真下の地面までの目標距離。未設定時は初回ground detectionで実測する。
-    float HipHeight = 2.0f;
+    float HipHeight = 3.0f;
     float ImpactRagdollThreshold = 45.0f;
     float RagdollRecoverySpeed = 2.5f;
     float RagdollRecoveryDelay = 1.0f;

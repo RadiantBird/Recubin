@@ -139,6 +139,30 @@ R6_JOINT_C1_POSITION = {
     "RightHip": [0.0, 1.0, 0.0],
 }
 
+R6_GYRO_PROPERTIES = {
+    "Enabled": False,
+    "XEnabled": True,
+    "XTargetAngle": 0.0,
+    "XMaxTorque": 3.4028235e38,
+    "XMaxAngularSpeed": 180.0,
+    "YEnabled": False,
+    "YTargetAngle": 0.0,
+    "YMaxTorque": 3.4028235e38,
+    "YMaxAngularSpeed": 180.0,
+    "ZEnabled": True,
+    "ZTargetAngle": 0.0,
+    "ZMaxTorque": 3.4028235e38,
+    "ZMaxAngularSpeed": 180.0,
+}
+
+R6_YAW_FORCE_PROPERTIES = {
+    "Enabled": False,
+    "Torque": True,
+    "MaintainVelocity": True,
+    "Value": [0.0, 0.0, 0.0],
+    "AxisMask": [0.0, 1.0, 0.0],
+}
+
 
 def multiply_cframe(a, b):
     ap = a["Position"]
@@ -222,7 +246,7 @@ def reference_leaf(reference):
 
 def find_starter_characters(root):
     """
-    Return (StarterCharacter node, workspace-relative path-to-StarterCharacter).
+    Return (StarterCharacter node, path-to-StarterCharacter).
 
     Reference paths in Recubin are based on Instance.Name, not ClassName.
     Entering a Workspace resets the reference path, so:
@@ -248,14 +272,12 @@ def find_starter_characters(root):
 
         if class_name == "Workspace":
             current_path = []
-        elif workspace_path is not None:
+        elif workspace_path is None:
+            current_path = []
+        else:
             current_path = [*workspace_path, instance_name(node)]
 
         if class_name == "StarterCharacter":
-            if current_path is None:
-                raise ValueError(
-                    f'StarterCharacter "{node.get("Name", "?")}" is not inside a Workspace'
-                )
             result.append((node, current_path))
 
         children = node.get("Children", [])
@@ -269,6 +291,8 @@ def find_starter_characters(root):
         for child in children:
             visit(child, current_path)
 
+    # The serialized System root itself is not part of instance references.
+    # This also allows the documented System/Storage/StarterCharacter layout.
     visit(root, None)
     return result
 
@@ -414,6 +438,26 @@ def validate_generated_rig(starter, starter_path):
     if properties(gyro).get("Part") != expected_ref("Root"):
         raise ValueError("RootGyro.Part was not migrated correctly")
 
+    gyro_properties = properties(gyro)
+    for name, expected in R6_GYRO_PROPERTIES.items():
+        if gyro_properties.get(name) != expected:
+            raise ValueError(f"RootGyro.{name} was not migrated correctly")
+
+    root = by_name.get("Root")
+    if root is None:
+        raise ValueError("missing R6 Root")
+
+    root_children = root.setdefault("Children", [])
+    root_by_name = child_index(root_children, "Root")
+    yaw_force = root_by_name.get("YawForce")
+    if yaw_force is None or yaw_force.get("ClassName") != "Force":
+        raise ValueError("missing generated Root/YawForce")
+
+    yaw_properties = properties(yaw_force)
+    for name, expected in R6_YAW_FORCE_PROPERTIES.items():
+        if yaw_properties.get(name) != expected:
+            raise ValueError(f"Root/YawForce.{name} was not migrated correctly")
+
 
 def migrate_starter(starter, starter_path):
     children = starter.setdefault("Children", [])
@@ -523,12 +567,20 @@ def migrate_starter(starter, starter_path):
         gyro,
         {
             "Part": ref("Root"),
-            "TargetRotation": frames["Root"][1],
-            "Frequency": 8.0,
-            "DampingRatio": 1.0,
-            "MaxTorque": 10000.0,
+            **R6_GYRO_PROPERTIES,
         },
     )
+
+    root = by_name["Root"]
+    root_children = root.setdefault("Children", [])
+    root_by_name = child_index(root_children, "Root")
+    yaw_force = ensure_named_instance(
+        root_children,
+        root_by_name,
+        "YawForce",
+        "Force",
+    )
+    set_properties(yaw_force, R6_YAW_FORCE_PROPERTIES)
 
     for part_name in PARTS:
         set_properties(
@@ -536,7 +588,17 @@ def migrate_starter(starter, starter_path):
             {
                 "Anchored": False,
                 "CanCollide": part_name == "Root",
-                "LockFlags": [],
+                "LockFlags": ["AngularX", "AngularZ"] if part_name == "Root" else [],
+            },
+        )
+
+    humanoid = by_name.get("Humanoid")
+    if humanoid is not None and humanoid.get("ClassName") == "Humanoid":
+        set_properties(
+            humanoid,
+            {
+                "WalkSpeed": 16.0,
+                "HipHeight": 3.0,
             },
         )
 

@@ -8048,12 +8048,30 @@ static int runAnimationClipRegression() {
         auto rootJoint = std::dynamic_pointer_cast<Motor6D>(starter->getChildren().at("RootJoint"));
         auto rootRagdoll = std::dynamic_pointer_cast<BallSocket>(starter->getChildren().at("RootJointRagdoll"));
         auto rootGyro = std::dynamic_pointer_cast<Gyro>(starter->getChildren().at("RootGyro"));
+        auto starterHead = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("Head"));
+        auto starterLeftArm = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("LeftArm"));
+        auto starterLeftLeg = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("LeftLeg"));
+        auto yawForce = starterRoot
+            ? std::dynamic_pointer_cast<Force>(starterRoot->getChild("YawForce")
+                ? starterRoot->getChild("YawForce")->shared_from_this()
+                : nullptr)
+            : nullptr;
         expect(starterRoot && starterTorso && rootJoint && rootRagdoll && rootGyro &&
                    starterRoot->CanCollide && !starterRoot->Anchored &&
                    !starterTorso->CanCollide && !starterTorso->Anchored &&
                    rootJoint->getPart0() == starterRoot && rootJoint->getPart1() == starterTorso &&
                    !rootRagdoll->Enabled && rootGyro->getPart() == starterRoot,
                "default R6 builds a dynamic Motor6D rig with disabled ragdoll constraints and RootGyro");
+        expect(starterTorso && starterHead && starterLeftArm && starterLeftLeg && yawForce &&
+                   near(starterTorso->Size.y, 2.0f) && near(starterTorso->Size.z, 2.0f) &&
+                   near(starterHead->getWorldPosition().y - starterRoot->getWorldPosition().y, 1.5f) &&
+                   near(starterLeftArm->getWorldPosition().y - starterRoot->getWorldPosition().y, 0.0f) &&
+                   near(starterLeftLeg->getWorldPosition().y - starterRoot->getWorldPosition().y, -2.0f) &&
+                   !rootGyro->getAxisSettings(GyroAxis::Y).Enabled &&
+                   !yawForce->Enabled && yawForce->Torque && yawForce->MaintainVelocity &&
+                   near(yawForce->AxisMask.x, 0.0f) && near(yawForce->AxisMask.y, 1.0f) &&
+                   near(yawForce->AxisMask.z, 0.0f),
+               "default R6 matches the authored triangle bind pose and yaw controller");
         if (starterRoot && starterTorso && rootJoint) {
             const CFrame bound = CharacterRig::applyMotor6D(
                 starterRoot->getWorldCFrame(), rootJoint->C0,

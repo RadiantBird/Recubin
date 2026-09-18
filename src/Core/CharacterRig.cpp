@@ -6,9 +6,11 @@
 #include <Instances/BallSocket.hpp>
 #include <Instances/Gyro.hpp>
 #include <Instances/Motor6D.hpp>
+#include <Instances/Force.hpp>
 #include <Math/Quaternion.hpp>
 #include <Util/Color4.hpp>
 #include <iterator>
+#include <limits>
 #include <utility>
 
 namespace CharacterRig {
@@ -49,14 +51,15 @@ std::vector<std::shared_ptr<BaseCube>> collectR6Bodies(Instance* model) {
 
 const std::vector<R6JointBinding>& r6JointBindings() {
     static const std::vector<R6JointBinding> bindings = {
-        // Root and Torso share the same authored center in the R6 bind pose.
-        // RootJoint's C0 is derived from these actual poses below.
+        // These are the bind-pose joint frames used by the authored R6 rig.
+        // The part-center offset is kept in jointToPartBind so animation
+        // deltas rotate around the same pivots as the Motor6D constraints.
         {"Torso", "Torso", CFrame(0, 0, 0), CFrame()},
-        {"Head", "Head", CFrame(0, 2.5f, 0), CFrame()},
-        {"LeftShoulder", "LeftArm", CFrame(Vector3(-1.5f, 2, 0), Quaternion()) * CFrame(Vector3(0,-.5f,0)), CFrame(Vector3(0,.5f,0)) * CFrame(Vector3(0,-1,0))},
-        {"RightShoulder", "RightArm", CFrame(Vector3(1.5f, 2, 0), Quaternion()) * CFrame(Vector3(0,-.5f,0)), CFrame(Vector3(0,.5f,0)) * CFrame(Vector3(0,-1,0))},
-        {"LeftHip", "LeftLeg", CFrame(-.5f, 0, 0), CFrame(0,-1,0)},
-        {"RightHip", "RightLeg", CFrame(.5f, 0, 0), CFrame(0,-1,0)}
+        {"Head", "Head", CFrame(0, 1.5f, 0), CFrame()},
+        {"LeftShoulder", "LeftArm", CFrame(-1.5f, 0.5f, 0), CFrame(0, -0.5f, 0)},
+        {"RightShoulder", "RightArm", CFrame(1.5f, 0.5f, 0), CFrame(0, -0.5f, 0)},
+        {"LeftHip", "LeftLeg", CFrame(-.5f, -1.0f, 0), CFrame(0, -1.0f, 0)},
+        {"RightHip", "RightLeg", CFrame(.5f, -1.0f, 0), CFrame(0, -1.0f, 0)}
     };
     return bindings;
 }
@@ -131,9 +134,6 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3
     auto rightArm = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
     auto leftLeg  = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
     auto rightLeg = std::make_shared<Cube>(basePos, Vector3(1.0f, 2.0f, 1.0f), 0);
-
-    // headを90度回転させて顔が前を向くようにする
-    head->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 90.0f));
 
     root->Name     = "Root";
     head->Name     = "Head";
@@ -243,6 +243,7 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3
 
     auto gyro = std::make_shared<Gyro>();
     gyro->Name = "RootGyro";
+    gyro->Enabled = false;
     gyro->setPart(root);
 
     // @RadiantBird 2026/09/12:
@@ -251,19 +252,33 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3
     // Y is enabled to control the facing direction.
     gyro->setAxisEnabled(GyroAxis::X, true);
     gyro->setTargetAngle(GyroAxis::X, 0.0f);
+    gyro->setMaxTorque(GyroAxis::X, std::numeric_limits<float>::max());
+    gyro->setMaxAngularSpeed(GyroAxis::X, 180.0f);
 
     gyro->setAxisEnabled(GyroAxis::Z, true);
     gyro->setTargetAngle(GyroAxis::Z, 0.0f);
+    gyro->setMaxTorque(GyroAxis::Z, std::numeric_limits<float>::max());
+    gyro->setMaxAngularSpeed(GyroAxis::Z, 180.0f);
 
-    // Yaw is part of the same physical controller as pitch and roll. Keeping
-    // this axis enabled avoids a competing Force-based heading controller.
-    gyro->setAxisEnabled(GyroAxis::Y, true);
+    // The authored rig owns yaw through its YawForce.  Keep Gyro Y disabled
+    // so the two controllers never fight over the same angular axis.
+    gyro->setAxisEnabled(GyroAxis::Y, false);
     gyro->setTargetAngle(
         GyroAxis::Y,
         root->getWorldCFrame().Rotation.toEuler().y
     );
+    gyro->setMaxTorque(GyroAxis::Y, std::numeric_limits<float>::max());
+    gyro->setMaxAngularSpeed(GyroAxis::Y, 180.0f);
 
     parent->addChild(gyro);
+
+    auto yawForce = std::make_shared<Force>();
+    yawForce->Name = "YawForce";
+    yawForce->Torque = true;
+    yawForce->MaintainVelocity = true;
+    yawForce->AxisMask = Vector3(0.0f, 1.0f, 0.0f);
+    yawForce->Enabled = false;
+    root->addChild(yawForce);
 
     // 参照は全ての兄弟がparentへ接続された後に設定し、
     // YAMLとclone remapで使えるparent相対パスも同時に確定させる。

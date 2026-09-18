@@ -968,3 +968,16 @@
 - ユーザーの実機確認により、`ShadowDistance`を広げると三角形状の境界が解消することを確認した。表示されていた境界はCSMの破損ではなく、設定されたshadow描画距離による正常なクリッピングだった。
 - 調査中に追加したcascade/depth色分け、scissor/FBO診断、receiver normal offset、camera-relative shadow座標、bounding-sphere projectionをすべて削除し、調査開始前のCSM、3x3 PCF、texel snapping、slope bias、cascade fadeへ戻した。
 - scene/autosaveおよび`ShadowDistance`の保存値は変更していない。`Renderer.cpp`のGCC C++23 syntax check、復元対象ファイルのHEAD一致確認、対象`git diff --check`は成功した。Windows build/brunはコード変更を残していないため再実行していない。
+
+### 2026-09-18: triangle R6 rig migration alignment
+
+- `/mnt/c/Users/Ryarta/DeveloppingGames/The baseplate/triangle.rcbn` の `Storage\Model` StarterCharacter を基準に、`CharacterRig::r6JointBindings()` と既定リグ生成を修正した。Torso は 2x2x2、Head は Root から +1.5、腕は同じY、脚は -2 の bind pose とし、肩/股の joint pivot と Motor6D C0/C1 が一致するようにした。triangle の WalkSpeed=32、HipHeight=3、色、RootGyro Y 無効、Root の YawForce も反映した。
+- `scripts/CharacterChanger.luau` は存在しない `workspace.Agent` を待つ処理から、spawn 済みの `User.Character` と `CharacterAdded` を検証する処理へ移行した。StarterCharacter template を直接 User.Character に差し替えず、clone 後の参照とアクセサリを保持する。
+- `src/test_main.cpp` の animation clip regression に triangle bind pose、サイズ、YawForce 設定の検査を追加した。`CharacterRig.cpp` と `test_main.cpp` の GCC C++23 syntax check は成功。`git diff --check` は既存のリポジトリ全体のCRLF警告のみ。
+- Windows Release build、更新後の `RecubinTest.exe --animation-clip-regression`、triangle.rcbn の実機起動は未実行。次の一手は Windows 側で再buildし、同回帰と triangle の spawn/歩行/アニメーション/ラグドールを確認すること。
+
+### 2026-09-18: migrate_character_rig_v2 alignment follow-up
+
+- `migrate_character_rig_v2.py` がSystem/Storage配下のStarterCharacterを見落とす問題を修正し、`Storage\Model\...` の参照パスを生成できるようにした。
+- 移行時のRootGyroを現行軸別形式（X/Z有効、Y無効、旧TargetRotation/Frequency/DampingRatioなし）へ変更し、Root/YawForce、RootのAngularX/AngularZ lock、HumanoidのWalkSpeed=32/HipHeight=3をtriangle設定へ合わせた。生成後の検証にも追加した。
+- C++既定リグのRootGyro有効状態・軸別最大トルクも移行後設定と一致させた。`python3 -m py_compile migrate_character_rig_v2.py` と triangle.rcbn dry-run（would writeのみ）は成功。GCC構文検査は次の一手で実行する。
