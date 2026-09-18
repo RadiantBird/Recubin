@@ -917,3 +917,54 @@
 - Vector3、CFrame、Color4の単一・複数選択プロパティへ、既存ローカライズ済みの`丸`（nearest integer）操作を復元した。Vector3はXYZ、CFrameは位置と度数法Euler角、Color4は0〜255表示のRGBAを`std::round`で丸める。変更は単一`SetPropertyCommand`または複数`CompositeCommand`で確定し、live setterを持つ対象も本来のfinal setterを通す。
 - 全数値列の後に操作ボタンを独立した行へ置いた。Color4のPaletteも数値列の右隣ではなく別行とし、狭いPropertiesPanelの横幅で丸め／Paletteボタンが画面外へ押し出されないようにした。
 - `PropertiesPanel.cpp`のGCC C++23 syntax checkと対象`git diff --check`は成功。Windows buildと実機の狭幅レイアウト・丸めUndo/RedoはCMake不在のため未実行。
+
+### 2026-09-17: Viewport shadow corruption diagnosis
+
+- EditorのViewport内でまれに大きな三角形／矩形状の誤影が出る症状を調査した。`renderViewport()`はImGuiのViewportPanelからも呼ばれるが、呼び出し元の`GL_SCISSOR_TEST`を保存・無効化していなかった。
+- ImGuiの画面座標clip rectangleが、3Dのshadow FBO（2048×2048）へ継承されると、cascadeのclearとcaster描画が一部矩形だけに制限され、layer内に古いdepthが残る。これがshadow mapの部分更新と大きな誤影を作る経路と判断した。
+- `renderViewport()`でscissor boxと有効状態を退避し、メインFBO clearからshadow pass、main/extrasまでscissorを無効化し、終了時に復元するよう修正した。CSMのprojection、PCF、bias、texture arrayは変更していない。
+- `Renderer.cpp`のGCC C++23 syntax checkと対象`git diff --check`は成功。Release buildとViewport実機再現確認は未実施。
+- `cmd.exe /d /c py build.py build`はCMake起動時の`WinError 2`でconfigure前に停止した。既存の実行ファイルは今回の修正を含まないため`brun`は実行していない。
+- 次の一手: Windows buildを復旧してViewportPanelで複数回再描画し、shadow mapの三角形状破綻が消えること、ImGuiのclip stateが後段へ復元されることを確認する。
+
+### 2026-09-17: CSM planar self-shadow receiver bias
+
+- scissor 修正を含む実行結果では、画面を横切る暗い帯と、同じ床の一方の三角形だけが暗くなる症状が残った。これは二種類のライトの影ではなく、cascade ごとの投影縮尺差と固定 receiver bias の不足による平面の自己影と判断した。
+- `fragment.glsl` の `shadowCalc()` は既存の最小／normal slope bias を維持した上で、投影済み UV/depth の `dFdx`/`dFdy` から receiver plane の `dz/du` と `dz/dv` を導出する。3x3 PCF の 1 texel footprint を覆う bias（scale 1.25、最大 0.0025）と既存 bias の大きい方を深度比較に使用する。全 cascade へ共通の定数を増やす方法ではない。
+- shadow pass、cascade selection/blend、texel snapping、`ShadowDistance` と `ShadowFadeDistance` は変更していない。scissor state の保存・復元修正も維持する。
+- 次の一手: Windows 側でこの shader を含めて再 build し、Baseplate の両三角形、cascade split 付近、広い平面、Cube/character の接地影を確認する。平面の帯と三角形状 acne が消え、接地影が浮かないことを確認する。
+
+### 2026-09-17: CSM shadow-source colour diagnostic
+
+- receiver-plane bias 後も改善を実機で確認できなかったため、原因を推測で固定しない。`fragment.glsl` に一時 `CSM_SHADOW_CASCADE_DEBUG_TINT` を有効化し、shadow が実際に掛かっている部分だけを cascade 0=青、1=緑、2=マゼンタで最大90%置換する診断表示を追加した。
+- split blend 領域では shadow 値と同じ係数で色も補間する。色の付かない暗部は CSM 深度比較由来ではないため、通常ライティング・マテリアル・別パスを次に調査する。原因確定後はこのマクロを0へ戻すか診断コードを削除する。
+- 実機の色分けでは cascade 0 は正常で、cascade 1（緑）と cascade 2（マゼンタ）だけが広い平面を誤って遮蔽していることを確認した。各 layer の attachment 後に FBO complete を検査し、layer 固有の深度 attachment を `glClearBufferfv(GL_DEPTH, ...)` で明示的に clear するよう変更した。不完全な layer は状態コードを error 出力し、shadow を有効化しない。
+- 追加の実機観察では、遠方からは正常だが接近すると床の三角形境界で影が急に割れる。Cube上面の2三角形は同一法線であり、メッシュ不整合ではなかった。原因候補を `shadowCalc()` の非一様なcascade分岐内で使っていた `dFdx/dFdy` receiver-plane bias に絞った。この微分はGLSL上未定義になり得て、三角形・cascade境界で不連続になる。
+- screen-space微分biasを削除した。各cascadeのlight-space matrixのXY scaleからworld-units-per-texelを復元し、受け側world positionを法線方向へ0.25〜1.5 texel分オフセットしてから投影する方式へ変更した。既存の小さいdepth-domain min/slope biasとshadow pass polygon offsetは維持する。中遠距離ほどworld offsetが自然に増え、三角形境界とカメラ距離に依存しない。
+
+### 2026-09-17: Camera-relative CSM coordinates
+
+- 実機では、カメラ回転で誤影が消える、同一平面が三角形単位で割れる、近づいてcascade 0へ入ると正常になる、sceneがworld原点から遠い、という条件を確認した。これは大きな絶対world座標とlight view translationのfloat相殺誤差が、広いcascadeほど増幅される症状と一致する。
+- CSM frustum fittingとlight-space matrixをview camera位置基準の相対座標へ変更した。メインvertex shaderは絶対`FragPos`とは別に、頂点段階で`ShadowRelativePos = FragPos - uShadowOrigin`を作って補間する。depth shaderもcasterのworld positionから同じoriginを引くため、書き込み側と比較側のdomainは一致する。
+- texel snappingはcamera-relative centerへ直接丸めず、camera originのlight-space座標をdoubleで加えて絶対world grid上で丸め、その結果だけ相対座標へ戻す。これにより従来のstable shadowを維持する。共用depth shaderを使うSurfaceMark passでは`uShadowOrigin=(0,0,0)`を明示して従来の絶対matrix domainを保つ。
+- cascade色分け診断は実機確認まで有効のまま。次の一手: world原点付近と問題座標の両方で、カメラ移動・回転、cascade 0/1/2、床の対角線、実物体の接地影を比較する。
+- `Renderer.cpp`のGCC C++23 syntax checkと対象`git diff --check`は成功。Windows Release buildは`build.py`がCMakeを起動できず`WinError 2`でconfigure前に停止したため、shader linkとbrunは未検証。
+
+### 2026-09-17: Rotation-invariant CSM projection
+
+- camera-relative化後もカメラ回転時の破綻が残った。従来は各frustum sliceをlight-spaceのtight AABBへfitしていたため、カメラ回転だけでprojection width/height、world-units-per-texel、receiver normal offsetが同時に伸縮していた。centerのtexel snappingだけではprojection scaleの変化を安定化できない。
+- 各sliceの8 cornerを包むbounding sphereを使う正方形orthographic projectionへ変更した。sphere radiusはsplit距離/FOV/aspectだけで決まり、1/16 stud単位へ切り上げるため、カメラ回転では変化しない。depth rangeもsphere直径+bounded marginとし、回転によるnear/far精度変動を除去した。
+- camera-relative座標、絶対world grid上のdouble texel snapping、3x3 PCF、normal/depth bias、cascade blend、色分け診断は維持する。次の一手: 問題地点でカメラを360度ゆっくり回し、緑/マゼンタの三角形状誤影、cascade境界、shadow swimmingを確認する。
+- 実機ではbounding sphere projection後も三角形状誤影が残った。次の診断として`shadowCalc()`がPCF occlusionと同時に、bias適用前のreceiver depthと中央shadow texel depthの差を返すよう変更した。誤影は従来のcascade色を基本とし、depth差0.001〜0.01で赤へ遷移する。cascade色のままなら近接したself-shadow/PCF slope、赤なら大きく誤ったdepthまたはtransformと切り分けられる。
+
+### 2026-09-17: Large triangle identified as scene geometry shadow
+
+- depth-delta診断で問題領域が全面赤となり、receiverと中央shadow texelに0.01以上の大きなdepth差があることを確認した。bias、PCF slope、float丸めによる自己影ではない。
+- 実行中`triangle.rcbn`の最新autosaveには、同じXY範囲を持つ`Baseplate`（Position Y=0、Size 128x5x128）と`Debugplate`（Y=-50、同サイズ）があり、双方`CastShadow=true`だった。Lighting.Direction=(0.75,-1,-1)なので、上板の影は50 studs下の板上でXへ約+37.5、Zへ約-50 studs投影される。巨大な投影矩形の境界がカメラ透視とviewport clippingで三角形状に見える。診断結果・回転/移動で見える領域が変わる挙動と一致する。
+- rendererが生成した偽影ではなくscene内の実casterが原因。確認手順は上側`Baseplate.CastShadow=false`へ一時変更すること。下側`Debugplate.CastShadow`は下板自身が他へ影を落とす設定であり、上板からの受影を止める設定ではない。
+
+### 2026-09-17: Shadow clipping investigation conclusion
+
+- ユーザーの実機確認により、`ShadowDistance`を広げると三角形状の境界が解消することを確認した。表示されていた境界はCSMの破損ではなく、設定されたshadow描画距離による正常なクリッピングだった。
+- 調査中に追加したcascade/depth色分け、scissor/FBO診断、receiver normal offset、camera-relative shadow座標、bounding-sphere projectionをすべて削除し、調査開始前のCSM、3x3 PCF、texel snapping、slope bias、cascade fadeへ戻した。
+- scene/autosaveおよび`ShadowDistance`の保存値は変更していない。`Renderer.cpp`のGCC C++23 syntax check、復元対象ファイルのHEAD一致確認、対象`git diff --check`は成功した。Windows build/brunはコード変更を残していないため再実行していない。
