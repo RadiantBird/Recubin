@@ -2960,6 +2960,15 @@ int runPhysicsMigrationRegression() {
         std::make_shared<Attachment>(Vector3(0, 2, 0));
     axisMotorAttachment1->Name = "AxisMotorAttachment1";
     axisMotorCylinder->addChild(axisMotorAttachment1);
+    const CFrame nestedAttachmentLocal(
+        Vector3(0.25f, 0.5f, -0.75f),
+        Quaternion::fromEuler(Vector3(13.0f, -27.0f, 41.0f)));
+    const CFrame axisMotorAttachment1Local = axisMotorAttachment1->getCFrame();
+    auto nestedAxisMotorAttachment =
+        std::make_shared<Attachment>(nestedAttachmentLocal.Position);
+    nestedAxisMotorAttachment->Name = "NestedAxisMotorAttachment";
+    nestedAxisMotorAttachment->setRotation(nestedAttachmentLocal.Rotation);
+    axisMotorAttachment1->addChild(nestedAxisMotorAttachment);
     auto axisMotor = std::make_shared<Motor>(
         axisMotorAnchor, axisMotorCylinder);
     axisMotor->Name = "AxisMotorDiagnostic";
@@ -3064,6 +3073,16 @@ int runPhysicsMigrationRegression() {
     const float axisMotorAttachmentSeparation = positionDistance(
         axisMotorAttachment0->getWorldCFrame().Position,
         axisMotorAttachment1->getWorldCFrame().Position);
+    const CFrame expectedNestedAxisMotorAttachmentWorld =
+        axisMotorCylinder->getWorldCFrame()
+        * axisMotorAttachment1Local
+        * nestedAttachmentLocal;
+    const float nestedAxisMotorAttachmentError = positionDistance(
+        nestedAxisMotorAttachment->getWorldCFrame().Position,
+        expectedNestedAxisMotorAttachmentWorld.Position);
+    const bool nestedAxisMotorAttachmentFrameMatches = sameCFrame(
+        nestedAxisMotorAttachment->getWorldCFrame(),
+        expectedNestedAxisMotorAttachmentWorld);
     const bool axisMotorFinalFinite =
         finiteCFrame(axisMotorFinalFrame) && finiteVector(axisMotorFinalAxis);
     std::cout << "[PhysicsMigrationRegression] backend=" << backend
@@ -3081,6 +3100,7 @@ int runPhysicsMigrationRegression() {
               << " initial_attachment_separation="
               << axisMotorInitialAttachmentSeparation
               << " attachment_separation=" << axisMotorAttachmentSeparation
+              << " nested_attachment_error=" << nestedAxisMotorAttachmentError
               << " initial_handle=" << axisMotorInitialHandle.value
               << " sleeping_handle=" << axisMotorSleepingHandle.value
               << " updated_handle=" << axisMotorUpdatedHandle.value
@@ -3097,6 +3117,8 @@ int runPhysicsMigrationRegression() {
                axisMotorWorldZDot >= 0.999f &&
                std::abs(axisMotorInitialAttachmentSeparation - 2.0f) <= 0.05f &&
                axisMotorAttachmentSeparation <= 0.05f &&
+               std::isfinite(nestedAxisMotorAttachmentError) &&
+               nestedAxisMotorAttachmentFrameMatches &&
                std::isfinite(positiveMotorAngle) && positiveMotorAngle > 0.5f &&
                std::isfinite(negativeMotorAngle) && negativeMotorAngle < -0.5f &&
                std::isfinite(zeroTorqueMotorAngle) &&
@@ -3149,6 +3171,96 @@ int runPhysicsMigrationRegression() {
                axisMotorReframedAxisDot >= 0.999f &&
                axisMotorReframedAnchorError <= 0.05f,
            "Motor Axis setter recreates frame only when axis changes");
+
+    // The first endpoint is a welded compound member.  The nested attachment
+    // must be evaluated in the native compound body frame, not from the graph
+    // transform, which can lag while the assembly is rebuilt/synchronized.
+    auto compoundRoot = addMigrationCube(
+        workspace, "MotorCompoundRoot", {0, 180, 180}, {4, 2, 4});
+    auto compoundMember = addMigrationCube(
+        workspace, "MotorCompoundMember", {4, 180, 180}, {2, 2, 2});
+    auto compoundWeld = std::make_shared<Weld>(compoundRoot, compoundMember);
+    compoundWeld->Name = "MotorCompoundWeld";
+    workspace->addChild(compoundWeld);
+
+    // Construct the dynamic compound before introducing the deliberate native
+    // pose change.  An anchored root would be synchronized back to its graph
+    // pose and would erase the stale graph/native state this regression needs.
+    physics->update(*workspace, 0.0f);
+    physics->setGravityEnabled(*compoundRoot, false);
+
+    auto nestedParent = std::make_shared<Attachment>(Vector3(2, 0, 0));
+    nestedParent->Name = "MotorCompoundAttachmentParent";
+    auto nestedAttachment = std::make_shared<Attachment>(Vector3(0, 1, 0));
+    nestedAttachment->Name = "MotorCompoundNestedAttachment";
+    nestedParent->addChild(nestedAttachment);
+    compoundMember->addChild(nestedParent);
+    const CFrame compoundNestedParentLocal = nestedParent->getCFrame();
+    const CFrame compoundNestedAttachmentLocal = nestedAttachment->getCFrame();
+
+    auto compoundRotor = addMigrationCube(
+        workspace, "MotorCompoundRotor", {17, 181, 180}, {1, 2, 1});
+    auto compoundRotorAttachment = std::make_shared<Attachment>();
+    compoundRotorAttachment->Name = "MotorCompoundRotorAttachment";
+    compoundRotor->addChild(compoundRotorAttachment);
+    physics->update(*workspace, 0.0f);
+    physics->setGravityEnabled(*compoundRotor, false);
+
+    // Deliberately move only the native compound body.  The graph pose of the
+    // member and its nested Attachment remains stale until the next sync.
+    CFrame shiftedMember = compoundMember->getWorldCFrame();
+    shiftedMember.Position.x += 10.0f;
+    physics->setMemberWorldCFrame(*compoundMember, shiftedMember);
+
+    auto compoundMotor = std::make_shared<Motor>(
+        compoundMember, compoundRotor);
+    compoundMotor->Name = "MotorCompoundNestedMotor";
+    compoundMotor->DriveVelocity = 0.0f;
+    compoundMotor->MaxForce = 1000.0f;
+    workspace->addChild(compoundMotor);
+    YAML::Node nestedAttachmentName;
+    nestedAttachmentName = nestedAttachment->Name;
+    compoundMotor->setProperty("Attachment0", nestedAttachmentName);
+    YAML::Node rotorAttachmentName;
+    rotorAttachmentName = compoundRotorAttachment->Name;
+    compoundMotor->setProperty("Attachment1", rotorAttachmentName);
+
+    physics->update(*workspace, 0.0f);
+    const PhysicsConstraintHandle compoundMotorHandle =
+        compoundMotor->getConstraintHandle();
+    for (int step = 0; step < 120; ++step)
+        physics->update(*workspace, 1.0f / 60.0f);
+    const PhysicsConstraintHandle compoundMotorFinalHandle =
+        compoundMotor->getConstraintHandle();
+    const CFrame compoundMemberFrame = compoundMember->getWorldCFrame();
+    const CFrame compoundRotorFrame = compoundRotor->getWorldCFrame();
+    const CFrame expectedNestedAttachmentFrame =
+        compoundMemberFrame * compoundNestedParentLocal
+        * compoundNestedAttachmentLocal;
+    const float compoundAttachmentError = positionDistance(
+        nestedAttachment->getWorldCFrame().Position,
+        compoundRotorAttachment->getWorldCFrame().Position);
+    const float nestedAttachmentFrameError = positionDistance(
+        nestedAttachment->getWorldCFrame().Position,
+        expectedNestedAttachmentFrame.Position);
+    const bool nestedAttachmentFrameMatches = sameCFrame(
+        nestedAttachment->getWorldCFrame(), expectedNestedAttachmentFrame);
+    std::cout << "[PhysicsMigrationRegression] backend=" << backend
+              << " metric=motor_nested_compound"
+              << " initial_handle=" << compoundMotorHandle.value
+              << " final_handle=" << compoundMotorFinalHandle.value
+              << " attachment_error=" << compoundAttachmentError
+              << " nested_attachment_frame_error="
+              << nestedAttachmentFrameError << "\n";
+    expect(compoundMotorHandle &&
+               compoundMotorFinalHandle == compoundMotorHandle &&
+               finiteCFrame(compoundMemberFrame) &&
+               finiteCFrame(compoundRotorFrame) &&
+               std::isfinite(compoundAttachmentError) &&
+               compoundAttachmentError <= 0.05f &&
+               std::isfinite(nestedAttachmentFrameError) &&
+               nestedAttachmentFrameMatches,
+           "nested Attachment Motor remains stable on a welded compound");
 
     const Vector3 carStart(-120.0f, 3.25f, 100.0f);
     auto carChassis = addMigrationCube(
@@ -11782,6 +11894,47 @@ int runCharacterHoverRegression() {
     expect(
         edgePhysics && edgeHumanoid && edgeRoot && edgeHumanoid->getIsGrounded(),
         "footprint shape cast detects an edge platform outside the Root center ray"
+    );
+
+    auto lowHipWorkspace = std::make_shared<Workspace>();
+    lowHipWorkspace->Name = "LowHipHeightGroundWorkspace";
+    auto lowHipFloor = std::make_shared<Cube>(
+        Vector3(0.0f, -0.5f, 0.0f),
+        Vector3(40.0f, 1.0f, 40.0f),
+        Cube::defaultTextureID
+    );
+    lowHipFloor->Name = "LowHipHeightFloor";
+    lowHipFloor->Anchored = true;
+    auto lowHipCharacter = std::make_shared<Model>();
+    lowHipCharacter->Name = "LowHipHeightCharacter";
+    CharacterRig::buildDefaultRigParts(
+        lowHipCharacter,
+        Vector3(0.0f, 1.0f, 0.0f)
+    );
+    auto lowHipHumanoid = std::dynamic_pointer_cast<Humanoid>(
+        lowHipCharacter->getChildren().at("Humanoid")
+    );
+    auto lowHipRoot = std::dynamic_pointer_cast<BaseCube>(
+        lowHipCharacter->getChildren().at("Root")
+    );
+    lowHipWorkspace->addChild(lowHipFloor);
+    lowHipWorkspace->addChild(lowHipCharacter);
+    lowHipWorkspace->initPhysics();
+    Physics* lowHipPhysics = lowHipWorkspace->getPhysicsEngine();
+    if (lowHipPhysics && lowHipHumanoid && lowHipRoot) {
+        lowHipPhysics->update(*lowHipWorkspace, 0.0f);
+        lowHipHumanoid->setHipHeight(0.5f);
+        lowHipHumanoid->setIsGroundedForReplication(false);
+        for (int step = 0; step < 60; ++step) {
+            lowHipHumanoid->updatePhysicsState(lowHipPhysics);
+            lowHipPhysics->update(*lowHipWorkspace, 1.0f / 60.0f);
+        }
+    }
+    expect(
+        lowHipPhysics && lowHipHumanoid && lowHipRoot &&
+            lowHipHumanoid->getIsGrounded() &&
+            lowHipRoot->getWorldPosition().y >= lowHipRoot->Size.y * 0.5f - 0.05f,
+        "a low HipHeight remains grounded when the Root collider is supported by the floor"
     );
 
     std::cout << "[CharacterHoverRegression] failures=" << failures

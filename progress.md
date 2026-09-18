@@ -981,3 +981,47 @@
 - `migrate_character_rig_v2.py` がSystem/Storage配下のStarterCharacterを見落とす問題を修正し、`Storage\Model\...` の参照パスを生成できるようにした。
 - 移行時のRootGyroを現行軸別形式（X/Z有効、Y無効、旧TargetRotation/Frequency/DampingRatioなし）へ変更し、Root/YawForce、RootのAngularX/AngularZ lock、HumanoidのWalkSpeed=32/HipHeight=3をtriangle設定へ合わせた。生成後の検証にも追加した。
 - C++既定リグのRootGyro有効状態・軸別最大トルクも移行後設定と一致させた。`python3 -m py_compile migrate_character_rig_v2.py` と triangle.rcbn dry-run（would writeのみ）は成功。GCC構文検査は次の一手で実行する。
+
+### 2026-09-18: Attachment-backed Motor native-frame correction
+
+- Character/assembly 移行後に Attachment 付き通常 `Motor` が不安定化する原因は、`Box3DPhysicsBackend::createMotor()` が joint 作成時に scene graph の `Attachment::getWorldCFrame()` を使用していたことだった。compound 再構築・native pose 更新と Spatial 同期の間では graph pose が古くなり、Box3Dへ大きく誤った anchor を渡して即時の拘束補正を発生させていた。
+- `createMotor()` は各 Attachment の nested local frame を `attachmentFrame(compoundLocalOffset, ...)` で求め、現在の native body frame と合成して pivot を作るよう変更した。Axis は従来どおり Cube0 local のままで、両revolute frameには共通のworld hinge orientationを使う。
+- `--physics-migration-regression`へ、Weld compound member配下のnested Attachmentを持つMotorで、native bodyだけを移動してgraph poseを意図的にstaleにする回帰を追加した。native binding handleの安定、有限pose、attachment separation <= 0.05を確認する。
+- `Box3DPhysicsBackend.cpp`と`test_main.cpp`のGCC C++23 syntax check、対象`git diff --check`は成功。WSLから既存Windows `RecubinTest.exe --physics-migration-regression`は`UtilBindVsockAnyPort:309: socket failed 1`で起動できず、Windows Release buildと更新後の限定回帰は未実行。
+- 次の一手: Windows側で再build後に`RecubinTest.exe --physics-migration-regression`を実行し、Floating worldのCarで静止、前後進、左右旋回、乗降中にwheel attachment・chassisが跳ねず、Motor handleが再生成されないことを確認する。
+
+### 2026-09-18: Attachment local-frame loss during physics synchronization
+
+- 実機で車輪が外側へ放り出されることから前項の作成時frame補正だけでは不十分と判断して再調査した。根本原因は`syncCube()`が`BaseCube::setWorldCFrame()`を呼ぶことだった。一般Spatialの「子のworld poseを維持する」規則により、physics tickごとにAttachmentのlocal CFrameが親bodyの逆変換へ書き換わり、Attachmentがbodyを追従しなくなっていた。
+- `syncCubeWorldCFramePreservingAttachments()`を追加した。physicsがBaseCubeを同期またはWeld assemblyを移動する前に、配下すべてのAttachment（nested Attachmentを含む）のauthored local CFrameだけを保存し、BaseCube更新後に`Spatial::applyLocalCFrameBatch()`で復元する。任意のSpatial/BaseCube childを物理追従させず、Attachmentだけを拘束アンカーとして親bodyへ追従させる。
+- `--physics-migration-regression`はnested Attachmentのworld frameが現在のowning body frameと保存済みlocal frameの合成に一致することも検査する。旧実装はphysics sync後にこの検査を満たさない。
+- `Box3DPhysicsBackend.cpp`のGCC C++23 syntax checkと対象`git diff --check`は成功。`test_main.cpp`のGCC syntax checkは環境に`GL/glu.h`が無く未実行。Windows Release buildと更新済み限定回帰は未実行。
+- 次の一手: Windows側で`py build.py build`後に`build\\Release\\RecubinTest.exe --physics-migration-regression`を実行し、Floating worldのCarを静止、前後進、旋回、Seat乗降で確認する。scene側の各Motor Attachment pairにも初期world anchor差（現在約1〜2 studs）が無いことを確認する。
+
+### 2026-09-18: Motor regression result review
+
+- Windows Release buildは成功した。`--physics-migration-regression`のプロセス失敗1件は内部で7件の既存Motor compatibility assertionが失敗したためで、ログ上の単独Motor anchor separation=5.57345、4輪car separation=654.373も含む。これは今回追加した回帰以前からprogressに「legacy Motor compatibility-envelope assertions out of scope」として残っていた失敗群であり、今回の合否を示す新規の1失敗ではない。
+- 今回追加した`motor_nested_compound`もattachment_error=861.378で失敗したが、テストがanchored compound rootへnative pose移動を行い、次のanchored syncがauthoring poseへ戻すという無効な手順だったため。rootをdynamicにして先にWeld compoundを構築し、重力を止めた上でnative poseとgraph poseの差を作るよう回帰を修正した。アンカーは作成時に一致し、Attachment local frame、anchor separation、handle、有限poseを検査する。
+- 変更後のWindows buildと限定回帰は未実行。次の一手: Windows側でrebuild後に同回帰を再実行し、新しい`metric=motor_nested_compound`が`attachment_error <= 0.05`かつPASSとなることを確認する。既存7件のMotor compatibility failureは別タスクとして原因を切り分ける。
+
+### 2026-09-18: Low HipHeight ground detection
+
+- `Humanoid::updateGroundHover()`の下向きfootprint shape castは、従来Root collider底面よりさらに下から開始していた。そのためRootの半高（既定1 stud）より低いHipHeightでは、物理collisionがRootを床上へ保持していてもcast開始位置が床下となり、下向きcastが床を検出できず`isGrounded=false`のままになっていた。これがアニメーションでJumping状態を維持する原因だった。
+- castの薄いfootprintをRoot中心から上へ半thicknessだけ置き、常にsupport面より上から下方向へ探索するよう修正した。HipHeightの意味（Root中心からsupport面までの目標distance）、capture幅、hover PD制御は変更していない。
+- `--character-hover-regression`へHipHeight=0.5（Root半高未満）の物理的に支持されたcharacterを追加し、60 physics tick後も`isGrounded`であり、Rootが床上にあることを検査する回帰を追加した。
+- `Humanoid.cpp`と`test_main.cpp`のGCC C++23 syntax check（`-DGLEW_NO_GLU`）、対象`git diff --check`は成功。Windows `cmd.exe /d /c py build.py build`はCMake起動時の`WinError 2`でconfigure前に停止したため、更新済み`RecubinTest.exe --character-hover-regression`は未実行。
+- 次の一手: Windows側でCMakeがPATHから起動できる状態にしてrebuild後、`build\\Release\\RecubinTest.exe --character-hover-regression`を実行する。LowHipHeightのPASSと、Editorで低いHipHeightのcharacterが静止中にJumpingを維持しないことを確認する。
+
+### 2026-09-18: Windows CMake discovery
+
+- `build.py`へ`find_cmake_executable()`を追加した。PATHの`cmake`を最優先し、無い場合は公式CMakeのProgram Files/LocalAppData配置、続いてProgram Files配下のVisual Studio同梱CMakeを検出し、その絶対パスをconfigureとbuildの両方へ渡す。ユーザーまたはシステムのPATHは変更しない。
+- この環境では`C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe`を検出した。`cmd.exe /d /c py build.py build`は同パスを出力して正常終了（既存出力がup-to-dateだったためcompile/linkは省略）。`python3 -m py_compile build.py`と対象`git diff --check`も成功。
+- 更新済みHipHeight回帰を強制的に含めるための`RecubinTest`直接buildは、WSL→Windowsの実行経路が`UtilBindVsockAnyPort:309: socket failed 1`で2回停止した。CMake未検出ではない。次の一手: Windows Terminalから`cmake --build build --config Release --target RecubinTest --parallel`後、`build\\Release\\RecubinTest.exe --character-hover-regression`を実行する。
+
+### 2026-09-18: Motor torque-limit stabilization
+
+- ユーザー提供の更新後`output.txt`は`--physics-migration-regression`の実行結果であり、HipHeightの`--character-hover-regression`は含まれていなかった。Motorでは新規`motor_nested_compound`を含む7 assertionが失敗し、Attachment local frameは`nested_attachment_frame_error=0`で保持される一方、anchor separationが発散していた。
+- `motorTorqueToMks()`が`MaxForce`をper-tick angular impulseと扱って`/ FIXED_STEP`していたため、Box3Dへ60倍のtorqueを渡していた。例としてMaxForce=1000は150 N*m、carの5000は750 N*mとなり、revolute jointの位置拘束を上回ってwheel/anchorを発散させる。MaxForceをMotor driveのtorque上限としてstud²→m²変換だけを行うよう修正した。
+- `motor_nested_compound` fixtureはnative移動後のnested Attachmentがx=17なのにRotor Attachmentをx=16へ置いていたため、初期anchorが一致していなかった。Rotorをx=17へ修正し、native poseからのframe計算だけを検証するfixtureにした。
+- `Box3DPhysicsBackend.cpp`と`test_main.cpp`のGCC C++23 syntax check（Box3D includeと`-DGLEW_NO_GLU`）、対象`git diff --check`は成功。Windows Release buildも成功した（Visual Studio同梱CMake自動検出を使用）。WSLから`RecubinTest.exe --physics-migration-regression`を起動する試行は`UtilBindVsockAnyPort:309: socket failed 1`で停止したため、新しい結果は未取得。
+- 次の一手: Windows側で`build\\Release\\RecubinTest.exe --physics-migration-regression`を実行し、`motor_nested_compound attachment_error <= 0.05`、axis/carのanchor separation、全体PASSを確認する。HipHeight確認は別途`build\\Release\\RecubinTest.exe --character-hover-regression`を実行する。

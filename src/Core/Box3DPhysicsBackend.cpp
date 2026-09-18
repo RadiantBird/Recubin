@@ -36,13 +36,15 @@ constexpr int SUB_STEPS = 4;
 constexpr int MAX_STEPS = 10;
 constexpr float CLIP_EPSILON = 1.0e-5f;
 constexpr int MAX_HULL_VERTICES = 44;
+constexpr float MOTOR_CONSTRAINT_HERTZ = 240.0f;
+constexpr float MOTOR_CONSTRAINT_DAMPING_RATIO = 2.0f;
 
 float motorTorqueToMks(float maxForce) {
-    // PhysX revolute joints use the legacy drive-limit contract: MaxForce is
-    // the maximum angular impulse per fixed tick in kg*stud^2/s. Box3D takes
-    // a torque in N*m, so convert the impulse to torque before converting
-    // stud^2 to m^2. This is intentionally specific to Motor; ordinary torque
-    // values continue to use TORQUE_TO_MKS directly.
+    // Motor::MaxForce is the legacy maximum angular drive impulse per fixed
+    // tick in kg*stud^2/s. Box3D expects N*m, so convert both the length unit
+    // and the fixed-tick impulse to torque. The anchor stiffness is configured
+    // independently at Motor creation; reducing this value would silently
+    // remove the authored vehicle drive force.
     return std::max(0.0f, maxForce) * TORQUE_TO_MKS / FIXED_STEP;
 }
 
@@ -349,6 +351,25 @@ CFrame attachmentFrame(
     const BaseCube* cube) {
     auto value = attachment.lock();
     return value ? cubeFrame * value->relativeToAncestor(cube) : cubeFrame;
+}
+
+void syncCubeWorldCFramePreservingAttachments(
+    BaseCube& cube, const CFrame& worldCFrame) {
+    std::vector<std::pair<Spatial*, CFrame>> attachmentLocals;
+    std::function<void(Instance&)> collectAttachments =
+        [&](Instance& parent) {
+            for (const auto& [_, child] : parent.children) {
+                if (!child) continue;
+                if (auto* attachment = dynamic_cast<Attachment*>(child.get()))
+                    attachmentLocals.emplace_back(
+                        attachment, attachment->getCFrame());
+                collectAttachments(*child);
+            }
+        };
+    collectAttachments(cube);
+
+    cube.setWorldCFrame(worldCFrame);
+    Spatial::applyLocalCFrameBatch(attachmentLocals);
 }
 }
 
@@ -1071,7 +1092,8 @@ void Box3DPhysicsBackend::syncCube(BaseCube& cube) {
             [&](const BodyEntry& entry) { return idsEqual(entry.bodyId, id); }) > 1;
         if (isCompound) {
             // Weld compound は body pose を物理側の正として member へ反映する。
-            cube.setWorldCFrame(bodyWorldFrame(id) * cube.m_compoundLocalOffset);
+            syncCubeWorldCFramePreservingAttachments(
+                cube, bodyWorldFrame(id) * cube.m_compoundLocalOffset);
             return;
         }
         const CFrame cubeWorld = cube.getWorldCFrame();
@@ -1083,7 +1105,8 @@ void Box3DPhysicsBackend::syncCube(BaseCube& cube) {
         b3Body_SetTargetTransform(id, target, FIXED_STEP, true);
         return;
     }
-    cube.setWorldCFrame(bodyWorldFrame(id) * cube.m_compoundLocalOffset);
+    syncCubeWorldCFramePreservingAttachments(
+        cube, bodyWorldFrame(id) * cube.m_compoundLocalOffset);
 }
 
 void Box3DPhysicsBackend::syncAllCubes() {
@@ -1104,7 +1127,10 @@ void Box3DPhysicsBackend::moveWeldAssembly(
     const CFrame before = member->getWorldCFrame();
     const CFrame delta = worldCFrame * before.inverse();
     for (const auto& cube : assembly)
-        if (cube) cube->setWorldCFrame(delta * cube->getWorldCFrame());
+        if (cube) {
+            syncCubeWorldCFramePreservingAttachments(
+                *cube, delta * cube->getWorldCFrame());
+        }
 
     const b3BodyId id = bodyId(*member);
     if (B3_IS_NULL(id)) return;
@@ -2455,18 +2481,25 @@ void Box3DPhysicsBackend::createMotor(const std::shared_ptr<Motor>& motor) {
         return;
     }
 
-    const CFrame cubeWorldA = bodyWorldFrame(bodyA) * first->m_compoundLocalOffset;
-    const CFrame cubeWorldB = bodyWorldFrame(bodyB) * second->m_compoundLocalOffset;
+    const CFrame bodyFrameA = bodyWorldFrame(bodyA);
+    const CFrame bodyFrameB = bodyWorldFrame(bodyB);
+    const CFrame cubeWorldA = bodyFrameA * first->m_compoundLocalOffset;
+    const CFrame cubeWorldB = bodyFrameB * second->m_compoundLocalOffset;
+    const CFrame frameA = attachmentFrame(
+        first->m_compoundLocalOffset, motor->m_attachment0, first.get());
+    const CFrame frameB = attachmentFrame(
+        second->m_compoundLocalOffset, motor->m_attachment1, second.get());
     Vector3 pivotA = (cubeWorldA.Position + cubeWorldB.Position) * 0.5f;
     Vector3 pivotB = pivotA;
     auto attachmentA = motor->m_attachment0.lock();
     auto attachmentB = motor->m_attachment1.lock();
     if (attachmentA && attachmentB) {
-        pivotA = attachmentA->getWorldCFrame().Position;
-        pivotB = attachmentB->getWorldCFrame().Position;
+        pivotA = (bodyFrameA * frameA).Position;
+        pivotB = (bodyFrameB * frameB).Position;
     } else if (attachmentA || attachmentB) {
-        pivotA = pivotB = (attachmentA ? attachmentA : attachmentB)
-            ->getWorldCFrame().Position;
+        const CFrame& frame = attachmentA ? frameA : frameB;
+        const CFrame& bodyFrame = attachmentA ? bodyFrameA : bodyFrameB;
+        pivotA = pivotB = (bodyFrame * frame).Position;
     }
     const Quaternion jointRotation =
         cubeWorldA.Rotation * rotationFromZ(motor->Axis);
@@ -2477,10 +2510,16 @@ void Box3DPhysicsBackend::createMotor(const std::shared_ptr<Motor>& motor) {
     definition.base.bodyIdA = bodyA;
     definition.base.bodyIdB = bodyB;
     definition.base.localFrameA =
-        toB3Transform(bodyWorldFrame(bodyA).inverse() * jointWorldA);
+        toB3Transform(bodyFrameA.inverse() * jointWorldA);
     definition.base.localFrameB =
-        toB3Transform(bodyWorldFrame(bodyB).inverse() * jointWorldB);
+        toB3Transform(bodyFrameB.inverse() * jointWorldB);
     definition.base.userData = motor.get();
+    // A driven wheel may apply much more angular impulse than Box3D's generic
+    // 60 Hz joint default can counter at an off-center anchor. Keep the
+    // authored drive limit, but make the hinge's positional constraint nearly
+    // rigid across the four solver substeps so the anchors cannot separate.
+    definition.base.constraintHertz = MOTOR_CONSTRAINT_HERTZ;
+    definition.base.constraintDampingRatio = MOTOR_CONSTRAINT_DAMPING_RATIO;
     definition.enableMotor = true;
     definition.motorSpeed = motor->DriveVelocity;
     definition.maxMotorTorque = motorTorqueToMks(motor->MaxForce);

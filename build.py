@@ -32,6 +32,39 @@ def run_command(args: list[str]) -> int:
     return subprocess.call(args, cwd=ROOT_DIR)
 
 
+def find_cmake_executable() -> str:
+    """Resolve CMake without requiring the interactive shell PATH to be configured."""
+    path_cmake = shutil.which("cmake")
+    if path_cmake:
+        return path_cmake
+
+    if IS_WINDOWS:
+        program_files = Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+        local_app_data = Path(os.environ.get("LOCALAPPDATA", ""))
+        candidates = [
+            program_files / "CMake" / "bin" / "cmake.exe",
+            local_app_data / "Programs" / "CMake" / "bin" / "cmake.exe",
+        ]
+        visual_studio_root = program_files / "Microsoft Visual Studio"
+        if visual_studio_root.is_dir():
+            candidates.extend(sorted(
+                visual_studio_root.glob(
+                    "*/*/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"
+                ),
+                reverse=True,
+            ))
+
+        for candidate in candidates:
+            if candidate.is_file():
+                print(f"[INFO] CMake was not on PATH; using {candidate}.")
+                return str(candidate)
+
+    raise FileNotFoundError(
+        "CMake was not found on PATH or in the supported Windows installation locations. "
+        "Install CMake or Visual Studio's CMake component."
+    )
+
+
 def files_have_same_content(source: Path, destination: Path) -> bool:
     try:
         if not destination.is_file():
@@ -202,7 +235,7 @@ def build_outputs_are_up_to_date(config: str) -> bool:
     return True
 
 
-def build_executable_targets_in_parallel(config: str) -> int:
+def build_executable_targets_in_parallel(config: str, cmake_executable: str) -> int:
     targets = (
         "Recubin",
         "RecubinEngine",
@@ -216,7 +249,7 @@ def build_executable_targets_in_parallel(config: str) -> int:
     # (for example Recast.lastbuildstate). Let the build system see the
     # complete dependency graph and parallelize safely inside one process.
     args = [
-        "cmake",
+        cmake_executable,
         "--build",
         str(BUILD_DIR),
         "--config",
@@ -250,11 +283,17 @@ def build_executable_targets_in_parallel(config: str) -> int:
 def build(config: str) -> int:
     BUILD_DIR.mkdir(exist_ok=True)
 
+    try:
+        cmake_executable = find_cmake_executable()
+    except FileNotFoundError as exc:
+        print(f"[ERROR] {exc}")
+        return 1
+
     if build_outputs_are_up_to_date(config):
         print(f"[INFO] {config} build is up to date; skipping compile and link.")
     else:
         print(f"[INFO] Configuring {config} build...")
-        configure_args = ["cmake", "-S", ".", "-B", str(BUILD_DIR)]
+        configure_args = [cmake_executable, "-S", ".", "-B", str(BUILD_DIR)]
         if IS_WINDOWS:
             configure_args += ["-A", "x64", "-D", "GLEW_STATIC=ON"]
         else:
@@ -268,7 +307,7 @@ def build(config: str) -> int:
             return result
 
         print(f"[INFO] Building {config}...")
-        result = build_executable_targets_in_parallel(config)
+        result = build_executable_targets_in_parallel(config, cmake_executable)
         if result != 0:
             print("[ERROR] Build execution failed.")
             return result

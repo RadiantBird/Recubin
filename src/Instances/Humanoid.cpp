@@ -404,10 +404,15 @@ void Humanoid::updateGroundHover(
         HipHeight + dynamicLandingCaptureDistance
     );
     const CFrame rootFrame = root->getWorldCFrame();
+    // The swept footprint must begin above every possible support surface.
+    // Starting below Root's collider works only while HipHeight is at least
+    // half the Root height.  With a lower authored HipHeight, collision keeps
+    // the Root above the floor but the old downward cast started underground
+    // and could never find that floor, leaving isGrounded false.
     const CFrame groundQueryFrame(
         rootFrame.pointToWorld(Vector3(
             0.0f,
-            -root->Size.y * 0.5f - settings.groundQueryThickness * 0.5f,
+            settings.groundQueryThickness * 0.5f,
             0.0f
         )),
         rootFrame.Rotation
