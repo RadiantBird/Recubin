@@ -346,6 +346,128 @@ bool sameCFrame(const CFrame& a, const CFrame& b) {
            near(a.Position.z, b.Position.z) && rotationDot >= 0.9999f;
 }
 
+int runToolSignalIsolationRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[ToolSignalIsolation] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "ToolSignalIsolationWorkspace";
+    system->addChild(workspace);
+
+    auto smg = std::make_shared<Tool>("SMG");
+    auto rpg = std::make_shared<Tool>("RPG");
+    auto smgScript = std::make_shared<Script>();
+    auto rpgScript = std::make_shared<Script>();
+    smgScript->Name = "SubmachineGun";
+    rpgScript->Name = "RocketLauncher";
+    // Deliberately use global function names, matching the two gameplay
+    // scripts.  The SMG callback must resolve its own shoot(), not RPG's.
+    smgScript->Source =
+        "local tool = script.Parent "
+        "function shoot() print('[ToolSignalIsolation] smg') end "
+        "function startFiring() shoot() end "
+        "tool.Activated:Connect(startFiring)";
+    rpgScript->Source =
+        "local tool = script.Parent "
+        "function shoot() print('[ToolSignalIsolation] rpg') end "
+        "tool.Activated:Connect(shoot)";
+    smg->addChild(smgScript);
+    rpg->addChild(rpgScript);
+    workspace->addChild(smg);
+    workspace->addChild(rpg);
+
+    LuauEngine engine;
+    engine.setWorkspace(workspace);
+    engine.setSystem(system.get());
+    const auto oldLogHook = g_luauLogHook;
+    int smgShots = 0;
+    int rpgShots = 0;
+    g_luauLogHook = [&](const std::string& message) {
+        if (message.find("[ToolSignalIsolation] smg") != std::string::npos) ++smgShots;
+        if (message.find("[ToolSignalIsolation] rpg") != std::string::npos) ++rpgShots;
+    };
+
+    const bool smgStarted = engine.execute(*smgScript);
+    const bool rpgStarted = engine.execute(*rpgScript);
+    smg->Activated->fire();
+    g_luauLogHook = oldLogHook;
+
+    expect(smgStarted && rpgStarted,
+           "two Tool scripts with identical global function names start successfully");
+    expect(smgShots == 1 && rpgShots == 0,
+           "SMG Activated resolves the SMG callback global without invoking RPG");
+    return failures == 0 ? 0 : 1;
+}
+
+int runWorkspaceRaycastExcludeRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[WorkspaceRaycastExclude] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "RaycastExcludeWorkspace";
+    auto firstExcluded = std::make_shared<Model>();
+    auto secondExcluded = std::make_shared<Model>();
+    firstExcluded->Name = "FirstExcluded";
+    secondExcluded->Name = "SecondExcluded";
+    auto firstCube = std::make_shared<BaseCube>(Vector3(0, 6, 0), Vector3(2, 2, 2));
+    auto secondCube = std::make_shared<BaseCube>(Vector3(0, 3, 0), Vector3(2, 2, 2));
+    auto target = std::make_shared<BaseCube>(Vector3(0, 0, 0), Vector3(2, 2, 2));
+    firstCube->Name = "FirstExcludedCube";
+    secondCube->Name = "SecondExcludedCube";
+    target->Name = "RaycastTarget";
+    firstCube->Anchored = true;
+    secondCube->Anchored = true;
+    target->Anchored = true;
+    firstExcluded->addChild(firstCube);
+    secondExcluded->addChild(secondCube);
+    workspace->addChild(firstExcluded);
+    workspace->addChild(secondExcluded);
+    workspace->addChild(target);
+    workspace->initPhysics();
+    auto* physics = workspace->getPhysicsEngine();
+    if (!physics || !physics->isAvailable()) {
+        expect(false, "physics backend is available");
+        return 1;
+    }
+    physics->update(*workspace, 1.0f / 60.0f);
+
+    auto script = std::make_shared<Script>();
+    script->Name = "RaycastExcludeScript";
+    script->Source =
+        "local hit = workspace:Raycast("
+        "Vector3.new(0, 10, 0), Vector3.new(0, -1, 0), 20, "
+        "{workspace:FindChild('FirstExcluded'), workspace:FindChild('SecondExcluded')}) "
+        "if hit and hit.Instance.Name == 'RaycastTarget' then "
+        "print('[WorkspaceRaycastExclude] target') end";
+    workspace->addChild(script);
+
+    LuauEngine engine;
+    engine.setWorkspace(workspace);
+    bool sawTarget = false;
+    const auto oldLogHook = g_luauLogHook;
+    g_luauLogHook = [&](const std::string& message) {
+        if (message.find("[WorkspaceRaycastExclude] target") != std::string::npos) {
+            sawTarget = true;
+        }
+    };
+    const bool executed = engine.execute(*script);
+    g_luauLogHook = oldLogHook;
+
+    expect(executed, "Luau Raycast with an exclusion table executes successfully");
+    expect(sawTarget,
+           "exclusion table skips every Model descendant and returns the remaining target");
+    return failures == 0 ? 0 : 1;
+}
+
 int runToolWeldRegression() {
     auto workspace = std::make_shared<Workspace>();
     auto tool = std::make_shared<Tool>("Tool");
@@ -423,6 +545,67 @@ int runToolWeldRegression() {
     physics->moveWeldAssembly(plain, plainTarget);
     expect(sameCFrame(plain->getWorldCFrame(), plainTarget),
            "WeldなしTool部品も単体で追従する", failures);
+
+    // ToolGrip is a runtime-only Weld whose endpoint frames, rather than the
+    // authored cube poses, define the handle placement.  Keep this pair
+    // separate from the regular Tool assembly so the ordinary Weld checks
+    // above continue to exercise their creation-pose behavior.
+    auto arm = std::make_shared<BaseCube>(Vector3(20.0f, 8.0f, 0.0f), Vector3(2, 2, 2));
+    auto gripHandle = std::make_shared<BaseCube>(Vector3(20.0f, 8.0f, 5.0f), Vector3(1, 1, 1));
+    arm->Name = "GripArm";
+    gripHandle->Name = "GripHandle";
+    arm->Anchored = true;
+    workspace->addChild(arm);
+    workspace->addChild(gripHandle);
+    auto toolGrip = std::make_shared<Weld>(arm, gripHandle);
+    toolGrip->Name = "ToolGrip";
+    toolGrip->setFrameOverride(CFrame(Vector3(0.0f, 0.0f, -1.0f)), CFrame());
+    workspace->addChild(toolGrip);
+    physics->update(*workspace, 1.0f / 60.0f);
+    const CFrame expectedGripHandle = arm->getWorldCFrame() *
+        CFrame(Vector3(0.0f, 0.0f, -1.0f));
+    expect(sameCFrame(gripHandle->getWorldCFrame(), expectedGripHandle),
+           "ToolGripのframe overrideでHandleを手基準へ配置する", failures);
+
+    expect(tool->IsA("Model") && tool->IsA("Spatial"),
+           "ToolはModelおよびSpatialとして振る舞う", failures);
+
+    const auto legacyToolPath = std::filesystem::temp_directory_path() /
+        ("recubin_legacy_tool_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) + ".yaml");
+    {
+        std::ofstream legacy(legacyToolPath, std::ios::trunc);
+        legacy << "ClassName: Tool\nName: LegacyTool\nProperties:\n"
+               << "  Position: [2, 3, 4]\n  Rotation: [0, 0, 0, 1]\n";
+    }
+    auto legacyTool = std::dynamic_pointer_cast<Tool>(
+        SceneLoader::loadScene(legacyToolPath.string()));
+    std::error_code legacyToolRemoveError;
+    std::filesystem::remove(legacyToolPath, legacyToolRemoveError);
+    expect(legacyTool && sameCFrame(legacyTool->getCFrame(), CFrame()) &&
+               sameCFrame(legacyTool->GripC1, CFrame(Vector3(-2, -3, -4))),
+           "旧ToolのPosition/RotationをGripC1へ移行しModel座標をidentityに保つ", failures);
+
+    const auto modernToolPath = std::filesystem::temp_directory_path() /
+        ("recubin_modern_tool_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) + ".yaml");
+    {
+        std::ofstream modern(modernToolPath, std::ios::trunc);
+        modern << "ClassName: Tool\nName: ModernTool\nProperties:\n"
+               << "  Position: [9, 8, 7]\n  Rotation: [0, 0, 0, 1]\n"
+               << "  GripC0:\n    Position: [0, 0, -2]\n"
+               << "    Rotation: [0, 0, 0, 1]\n"
+               << "  GripC1:\n    Position: [0, 0, 1]\n"
+               << "    Rotation: [0, 0, 0, 1]\n";
+    }
+    auto modernTool = std::dynamic_pointer_cast<Tool>(
+        SceneLoader::loadScene(modernToolPath.string()));
+    std::error_code modernToolRemoveError;
+    std::filesystem::remove(modernToolPath, modernToolRemoveError);
+    expect(modernTool && sameCFrame(modernTool->getCFrame(), CFrame(Vector3(9, 8, 7))) &&
+               sameCFrame(modernTool->GripC0, CFrame(Vector3(0, 0, -2))) &&
+               sameCFrame(modernTool->GripC1, CFrame(Vector3(0, 0, 1))),
+           "新形式ToolのPosition/RotationはModel local CFrameとして保持する", failures);
 
     return failures == 0 ? 0 : 1;
 }
@@ -6053,16 +6236,30 @@ int runUserInputControlsRegression() {
     auto character = std::make_shared<Model>();
     character->Name = "InputControlsCharacter";
     user->character = character;
+    auto inputRoot = std::make_shared<BaseCube>(Vector3(), Vector3(2, 2, 2));
+    auto inputRightArm = std::make_shared<BaseCube>(Vector3(1, 0, 0), Vector3(1, 2, 1));
+    auto inputHumanoid = std::make_shared<Humanoid>();
+    inputRoot->Name = "Root";
+    inputRightArm->Name = "RightArm";
+    character->addChild(inputRoot);
+    character->addChild(inputRightArm);
+    character->addChild(inputHumanoid);
+    inputHumanoid->resolveParts(character.get());
+    user->humanoid = inputHumanoid;
     user->initializeInventory();
     auto tool = std::make_shared<Tool>("InputControlsTool");
+    auto toolHandle = std::make_shared<BaseCube>(Vector3(), Vector3(1, 1, 1));
+    toolHandle->Name = "Handle";
+    tool->addChild(toolHandle);
+    tool->setHandleReference(toolHandle);
     user->addToolToSlot(tool, 0);
     expect(user->selectToolSlot(1) && user->activateTool(),
            "direct one-based tool selection and activation work");
-
-    auto inputRoot = std::make_shared<BaseCube>(Vector3(), Vector3(2, 2, 2));
-    auto inputHumanoid = std::make_shared<Humanoid>();
-    inputHumanoid->setRootPart(inputRoot);
-    user->humanoid = inputHumanoid;
+    character->removeChild("ToolGrip");
+    expect(!user->activateTool(),
+           "ToolGripを失った装備状態ではActivatedを発火しない");
+    expect(user->selectToolSlot(1) && user->selectToolSlot(1) && user->activateTool(),
+           "再装備でToolGripを再作成してActivatedを発火できる");
     user->setControlMode(User::ControlMode::Character);
 
     auto deadBackend = std::make_unique<FrameRateTestInputBackend>();
@@ -12045,6 +12242,8 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--weld-assembly-state-regression", runWeldAssemblyStateRegression),
         REG("--coordinate-drift-soak-regression", runCoordinateDriftSoakRegression),
         REG("--surface-mark-regression", runSurfaceMarkRegression),
+        REG("--workspace-raycast-exclude-regression", runWorkspaceRaycastExcludeRegression),
+        REG("--tool-signal-isolation-regression", runToolSignalIsolationRegression),
         REG("--tool-weld-regression", runToolWeldRegression),
         REG("--tool-weld-reequip-regression", runToolWeldReequipRegression),
         REG("--tool-respawn-regression", runToolRespawnRegression),

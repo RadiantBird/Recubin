@@ -54,9 +54,9 @@ void MultiRenameInstanceCommand::apply(bool after){
 SetRotationCommand::SetRotationCommand(std::shared_ptr<Spatial> t,Quaternion b,Quaternion a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetRotationCommand::execute(){if(m_target)ViewportGeometry::applyEditorLocalCFrame(*m_target,CFrame(m_target->getPosition(),m_after));} void SetRotationCommand::undo(){if(m_target)ViewportGeometry::applyEditorLocalCFrame(*m_target,CFrame(m_target->getPosition(),m_before));}
 SetToolPositionCommand::SetToolPositionCommand(std::shared_ptr<Tool> t,Vector3 b,Vector3 a):m_target(std::move(t)),m_before(b),m_after(a){}
-void SetToolPositionCommand::execute(){if(m_target)m_target->Position=m_after;} void SetToolPositionCommand::undo(){if(m_target)m_target->Position=m_before;}
+void SetToolPositionCommand::execute(){if(m_target)ViewportGeometry::applyEditorLocalCFrame(*m_target,CFrame(m_after,m_target->getRotation()));} void SetToolPositionCommand::undo(){if(m_target)ViewportGeometry::applyEditorLocalCFrame(*m_target,CFrame(m_before,m_target->getRotation()));}
 SetToolRotationCommand::SetToolRotationCommand(std::shared_ptr<Tool> t,Quaternion b,Quaternion a):m_target(std::move(t)),m_before(b),m_after(a){}
-void SetToolRotationCommand::execute(){if(m_target)m_target->Rotation=m_after;} void SetToolRotationCommand::undo(){if(m_target)m_target->Rotation=m_before;}
+void SetToolRotationCommand::execute(){if(m_target)ViewportGeometry::applyEditorLocalCFrame(*m_target,CFrame(m_target->getPosition(),m_after));} void SetToolRotationCommand::undo(){if(m_target)ViewportGeometry::applyEditorLocalCFrame(*m_target,CFrame(m_target->getPosition(),m_before));}
 SetSpatialCFrameCommand::SetSpatialCFrameCommand(std::shared_ptr<Spatial> t,CFrame b,CFrame a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetSpatialCFrameCommand::execute(){apply(m_after);} void SetSpatialCFrameCommand::undo(){apply(m_before);} void SetSpatialCFrameCommand::apply(const CFrame& v){if(m_target)ViewportGeometry::applyEditorLocalCFrame(*m_target,v);}
 MultiSpatialTransformCommand::MultiSpatialTransformCommand(std::vector<Entry> e):m_entries(std::move(e)){}

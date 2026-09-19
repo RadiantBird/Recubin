@@ -45,6 +45,14 @@ Script::onAncestorChanged()
                                         → LuauEngine::executeWorkspaceScripts()
 ```
 
+## Luau Raycast
+
+`workspace:Raycast(origin, direction, maxDistance?, exclude?)` はワールド空間で判定する。
+`exclude` には単一の Instance、または Instance の配列テーブルを渡せる。指定した Instance
+自身と、その配下にあるすべての `BaseCube` はヒット対象から除外される。たとえば
+`{User.Character}` はキャラクター全体を除外する。`direction` は方向だけを表し、到達距離は
+`maxDistance` で明示する。
+
 ## 依存関係
 
 - `Instance`, `Physics`（前方宣言）

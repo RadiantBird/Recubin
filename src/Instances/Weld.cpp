@@ -26,6 +26,21 @@ Weld::Weld(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1)
     setCubes(std::move(cube0), std::move(cube1));
 }
 
+void Weld::setFrameOverride(const CFrame& frame0, const CFrame& frame1) {
+    m_frame0Override = frame0;
+    m_frame1Override = frame1;
+    m_hasFrameOverride = true;
+    invalidateBinding();
+    registerIfReady();
+}
+
+void Weld::clearFrameOverride() {
+    if (!m_hasFrameOverride) return;
+    m_hasFrameOverride = false;
+    invalidateBinding();
+    registerIfReady();
+}
+
 void Weld::refreshRefNames() {
     PhysicsConstraint::refreshRefNames();
 }

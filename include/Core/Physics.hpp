@@ -112,6 +112,16 @@ public:
         RaycastHit& hitResult,
         const Instance* excludeRoot = nullptr
     );
+    // Excludes every listed Instance and its descendants.  This overload is
+    // intentionally implemented by the facade so existing physics backends
+    // retain their single-root query interface.
+    bool raycast(
+        const Vector3& origin,
+        const Vector3& direction,
+        float maxDistance,
+        RaycastHit& hitResult,
+        const std::vector<const Instance*>& excludeRoots
+    );
 
     bool shapeCastBox(
         const CFrame& startFrame,

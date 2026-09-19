@@ -194,6 +194,13 @@ public:
         RaycastHit& hitResult,
         const Instance* excludeRoot = nullptr
     ) override;
+    bool raycastExcluding(
+        const Vector3& origin,
+        const Vector3& direction,
+        float maxDistance,
+        RaycastHit& hitResult,
+        const std::vector<const Instance*>& excludeRoots
+    ) override;
     bool shapeCastBox(
         const CFrame& startFrame,
         const Vector3& size,

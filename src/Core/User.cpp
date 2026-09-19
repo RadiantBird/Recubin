@@ -179,10 +179,7 @@ void User::initializeInventory() {
 }
 
 void User::resetToolState() {
-    if (m_toolWeld) {
-        if (auto parent = m_toolWeld->Parent.lock()) parent->removeChild(m_toolWeld->Name);
-        m_toolWeld.reset();
-    }
+    destroyToolGrip();
     for (auto& slot : Slots) slot = nullptr;
     currentTool      = nullptr;
     currentSlotIndex = -1;
@@ -255,10 +252,8 @@ void User::removeToolReferences(const std::shared_ptr<Tool>& tool) {
         if (slot == tool) slot = nullptr;
     }
     if (currentTool == tool) {
-        if (m_toolWeld) {
-            if (auto parent = m_toolWeld->Parent.lock()) parent->removeChild(m_toolWeld->Name);
-            m_toolWeld.reset();
-        }
+        destroyToolGrip();
+        tool->Equipped = false;
         currentTool = nullptr;
         currentSlotIndex = -1;
     }
@@ -283,10 +278,7 @@ std::shared_ptr<Tool> User::removeToolFromSlot(int slotIndex) {
 
     // 装備中なら解除する（character から外れる前に状態を整える）
     if (currentTool == tool) {
-        if (m_toolWeld) {
-            if (auto parent = m_toolWeld->Parent.lock()) parent->removeChild(m_toolWeld->Name);
-            m_toolWeld.reset();
-        }
+        destroyToolGrip();
         currentTool->Equipped = false;
         currentTool = nullptr;
         currentSlotIndex = -1;
@@ -427,10 +419,7 @@ bool User::selectToolSlot(int slot) {
     if (!character || index < 0 || index >= static_cast<int>(Slots.size())) return false;
     const int previous = currentSlotIndex;
     if (currentTool) {
-        if (m_toolWeld) {
-            if (auto parent = m_toolWeld->Parent.lock()) parent->removeChild(m_toolWeld->Name);
-            m_toolWeld.reset();
-        }
+        destroyToolGrip();
         currentTool->Equipped = false;
         character->removeChild(currentTool->Name);
         Inventory->addChild(std::static_pointer_cast<Instance>(currentTool));
@@ -442,25 +431,66 @@ bool User::selectToolSlot(int slot) {
     currentTool->Equipped = true;
     Inventory->removeChild(currentTool->Name);
     character->addChild(std::static_pointer_cast<Instance>(currentTool));
-    if (humanoid && currentTool->Handle) {
-        const bool useLeft = currentTool->Hand == Tool::ToolHand::Left;
-        auto arm = useLeft ? humanoid->getLeftArmPart() : humanoid->getRightArmPart();
-        if (arm) {
-            const CFrame target = arm->getWorldCFrame()
-                * CFrame(Vector3(0.0f, 0.0f, -1.0f))
-                * CFrame(currentTool->Position, currentTool->Rotation);
-            currentTool->Handle->setWorldCFrame(target);
-            m_toolWeld = std::make_shared<Weld>(arm, currentTool->Handle);
-            m_toolWeld->Name = "ToolGrip";
-            character->addChild(m_toolWeld);
-        }
+    if (!createToolGrip(currentTool)) {
+        character->removeChild(currentTool->Name);
+        Inventory->addChild(std::static_pointer_cast<Instance>(currentTool));
+        currentTool->Equipped = false;
+        currentTool = nullptr;
+        currentSlotIndex = -1;
+        return false;
     }
     currentSlotIndex = index;
     return true;
 }
 
+void User::destroyToolGrip() {
+    if (!m_toolWeld) return;
+    if (auto parent = m_toolWeld->Parent.lock())
+        parent->removeChild(m_toolWeld->Name);
+    m_toolWeld.reset();
+}
+
+bool User::createToolGrip(const std::shared_ptr<Tool>& tool) {
+    if (!tool || !character || !humanoid) return false;
+    if (!tool->Handle) {
+        RCBN_WARN("User::createToolGrip: Tool '" << tool->getFullPath()
+                  << "' has no resolved Handle (path='" << tool->getHandlePath() << "')");
+        return false;
+    }
+
+    const bool useLeft = tool->Hand == Tool::ToolHand::Left;
+    auto arm = useLeft ? humanoid->getLeftArmPart() : humanoid->getRightArmPart();
+    if (!arm) {
+        RCBN_WARN("User::createToolGrip: Tool '" << tool->getFullPath()
+                  << "' could not resolve " << (useLeft ? "Left" : "Right") << " arm");
+        return false;
+    }
+
+    auto grip = std::make_shared<Weld>(arm, tool->Handle);
+    grip->Name = "ToolGrip";
+    grip->setFrameOverride(tool->GripC0, tool->GripC1);
+    character->addChild(grip);
+    m_toolWeld = std::move(grip);
+    return true;
+}
+
 bool User::activateTool() {
     if (!currentTool || !currentTool->Equipped) return false;
+    if (!character || currentTool->Parent.lock().get() != character.get()) {
+        RCBN_WARN("User::activateTool: Tool '" << currentTool->getFullPath()
+                  << "' is marked equipped but is not parented to the current Character");
+        return false;
+    }
+    if (!m_toolWeld || m_toolWeld->Parent.lock().get() != character.get()) {
+        RCBN_WARN("User::activateTool: Tool '" << currentTool->getFullPath()
+                  << "' is marked equipped but has no active ToolGrip Weld");
+        return false;
+    }
+    if (m_toolWeld->getCube1() != currentTool->Handle) {
+        RCBN_WARN("User::activateTool: ToolGrip endpoint does not match Handle for Tool '"
+                  << currentTool->getFullPath() << "'");
+        return false;
+    }
     currentTool->Activated->fire();
     return true;
 }
@@ -922,6 +952,7 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
 
 void User::despawnCharacter() {
     if (!character) return;
+    destroyToolGrip();
     auto parent = character->Parent.lock();
     if (parent) {
         parent->removeChild(character->Name);
@@ -966,7 +997,10 @@ void User::respawnCharacter() {
             equippedTool->Equipped = true;
             currentTool = equippedTool;
             currentSlotIndex = equippedSlotIndex;
-            return;
+            if (createToolGrip(equippedTool)) return;
+
+            character->removeChild(equippedTool->Name);
+            Inventory->addChild(std::static_pointer_cast<Instance>(equippedTool));
         }
 
         // 名前衝突等で再装備に失敗した場合もToolを失わない。

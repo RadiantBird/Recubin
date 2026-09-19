@@ -302,6 +302,8 @@ private:
 
     // currentTool/Handからleft/rightのarm-raised状態を算出する(processMovement各分岐とprocessCharacterMovementで共用)
     void getToolArmRaiseState(bool& leftArmRaised, bool& rightArmRaised) const;
+    void destroyToolGrip();
+    bool createToolGrip(const std::shared_ptr<Tool>& tool);
 
     // 外部からは参照されない内部状態（フレーム間のトグル判定）
     bool lastFKeyPressed = false; // トグル判定用

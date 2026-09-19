@@ -1,11 +1,11 @@
 #pragma once
-#include <Instances/Instance.hpp>
+#include <Instances/Model.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Core/RCBNScriptSignal.hpp>
 
 class User;
 
-class Tool : public Instance {
+class Tool : public Model {
     friend class User;
 
     public:
@@ -16,17 +16,16 @@ class Tool : public Instance {
         }
 
         virtual bool IsA(std::string className) override {
-            return className == "Tool" || Instance::IsA(className);
+            return className == "Tool" || Model::IsA(className);
         }
 
         enum class ToolHand { Right, Left, Both };
 
         bool Equipped = false;
         ToolHand Hand = ToolHand::Right;
-        // Handle を手へ装着するときに適用する、手基準のローカルオフセット。
-        // Position / Rotation としてエディターおよび Luau に公開する。
-        Vector3 Position;
-        Quaternion Rotation;
+        // ToolGrip のフレーム。armWorld * GripC0 == handleWorld * GripC1。
+        CFrame GripC0 = CFrame(Vector3(0.0f, 0.0f, -1.0f));
+        CFrame GripC1;
         std::shared_ptr<RCBNScriptSignal> Activated;
         std::shared_ptr<BaseCube> Handle;
         std::string m_handleName;  // Handle 参照名（制約の m_cube0Name と同じ規約で保存・解決）
@@ -40,6 +39,9 @@ class Tool : public Instance {
 
         std::shared_ptr<Instance> clone() const override;
         void setHandleReference(const std::shared_ptr<BaseCube>& handle);
+        // Import-only compatibility hook for legacy Position/Rotation Tool data.
+        // The caller supplies the old handle offset relative to GripC0.
+        void setLegacyGripOffset(const CFrame& legacyOffset);
         const std::string& getHandlePath() const { return m_handleName; }
         void setHandlePath(const std::string& path);
         void remapClonedInstances(const CloneRemap& map) override;

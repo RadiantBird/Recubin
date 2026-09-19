@@ -47,7 +47,7 @@ Instance
   ├─ Event                   ← カスタムイベント
   ├─ UserInput               ← User.Input（キー/マウス入力）
   ├─ FileRef                 ← アセットパス参照
-  ├─ Tool                    ← 装備可能な道具
+  ├─ Tool                    ← Model派生の装備可能な道具
   ├─ Motor                   ← 物理制約（回転駆動）
   ├─ Gyro                    ← 単一Partの軸別world角度制御
   ├─ Weld                    ← 物理制約（剛体結合）

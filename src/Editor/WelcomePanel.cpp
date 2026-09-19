@@ -1,16 +1,13 @@
 #include <Editor/WelcomePanel.hpp>
 #include <Editor/Localization.hpp>
 #include <include/stb_image.h>
+#include <Util/Logger.hpp>
 #include <algorithm>
 #include <filesystem>
 
-#ifdef _WIN32
-#include <windows26.h>
-
 namespace {
-constexpr int RECUBIN_WELCOME_LOGO = 101;
+constexpr const char* RECUBIN_WELCOME_LOGO_PATH = "assets/image/Recubin.png";
 }
-#endif
 
 // ===================================================
 //  WelcomePanel 実装
@@ -26,20 +23,16 @@ void WelcomePanel::loadLogo() {
     if (m_logoLoadAttempted) return;
     m_logoLoadAttempted = true;
 
-#ifdef _WIN32
-    HRSRC resource = FindResourceA(nullptr, MAKEINTRESOURCEA(RECUBIN_WELCOME_LOGO), RT_RCDATA);
-    HGLOBAL loadedResource = resource ? LoadResource(nullptr, resource) : nullptr;
-    const auto* resourceData = loadedResource
-        ? static_cast<const stbi_uc*>(LockResource(loadedResource)) : nullptr;
-    const DWORD resourceSize = resource ? SizeofResource(nullptr, resource) : 0;
-    if (!resourceData || resourceSize == 0) return;
-
     int channels = 0;
-    stbi_uc* pixels = stbi_load_from_memory(resourceData, static_cast<int>(resourceSize),
+    stbi_uc* pixels = stbi_load(RECUBIN_WELCOME_LOGO_PATH,
         &m_logoWidth, &m_logoHeight, &channels, 4);
     if (!pixels || m_logoWidth <= 0 || m_logoHeight <= 0) {
         if (pixels) stbi_image_free(pixels);
         m_logoWidth = m_logoHeight = 0;
+        const char* reason = stbi_failure_reason();
+        RCBN_ERROR("WelcomePanel: failed to load logo " << RECUBIN_WELCOME_LOGO_PATH
+                   << (reason ? ": " : ": unknown error")
+                   << (reason ? reason : "unknown error"));
         return;
     }
 
@@ -53,8 +46,6 @@ void WelcomePanel::loadLogo() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
     stbi_image_free(pixels);
-#else
-#endif
 }
 
 void WelcomePanel::onRender() {

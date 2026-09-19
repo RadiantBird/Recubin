@@ -3,6 +3,7 @@
 #include <Core/PropertyRegistry.hpp>
 #include <Util/Logger.hpp>
 #include <cmath>
+#include <utility>
 
 static const bool s_toolRegistered = [] {
     using namespace PropertyRegistry;
@@ -17,20 +18,21 @@ static const bool s_toolRegistered = [] {
     handle.instanceRefClass = "BaseCube";
     handle.editorWidget = EditorWidget::InstanceReference;
 
-    registerClass("Tool", "Instance", {
+    registerClass("Tool", "Model", {
         sig<&Tool::Activated>("Activated"),
         field<&Tool::Equipped>("Equipped").luaReadOnly().noEditor().noClone().noYaml(),
         enumProp<&Tool::Hand>("Hand", {
             {"Right", 0}, {"Left", 1}, {"Both", 2}
         }, true),
-        field<&Tool::Position>("Position", -1.0e9f, 1.0e9f, 0.05f),
-        field<&Tool::Rotation>("Rotation", -360.0f, 360.0f, 1.0f),
+        field<&Tool::GripC0>("GripC0"),
+        field<&Tool::GripC1>("GripC1"),
         handle,
     });
     return true;
 }();
 
-Tool::Tool(std::string name) : Instance(name) {
+Tool::Tool(std::string name) : Model() {
+    Name = std::move(name);
     Activated = std::make_shared<RCBNScriptSignal>();
 }
 
@@ -46,22 +48,6 @@ void Tool::setHandlePath(const std::string& path) {
 
 void Tool::setProperty(const std::string& name, const YAML::Node& value) {
     if (PropertyRegistry::loadProperty(this, "Tool", name, value)) return;
-    if (name == "Position" && value.IsSequence() && value.size() == 3) {
-        Position = Vector3(value[0].as<float>(), value[1].as<float>(), value[2].as<float>());
-        return;
-    }
-    if (name == "Rotation" && value.IsSequence() && value.size() == 4) {
-        Quaternion rotation;
-        const float lenSq = value[0].as<float>() * value[0].as<float>() +
-            value[1].as<float>() * value[1].as<float>() + value[2].as<float>() * value[2].as<float>() +
-            value[3].as<float>() * value[3].as<float>();
-        if (std::isfinite(lenSq) && std::abs(lenSq - 1.0f) > 1e-4f)
-            RCBN_WARN("normalizing Tool Rotation property from YAML (lengthSquared=" << lenSq << ")");
-        if (Quaternion::tryFromComponents(value[3].as<float>(), value[0].as<float>(),
-                                           value[1].as<float>(), value[2].as<float>(), rotation))
-            Rotation = rotation;
-        return;
-    }
     if (name == "Hand") {
         std::string s = value.as<std::string>();
         Hand = (s == "Left") ? ToolHand::Left : (s == "Both") ? ToolHand::Both : ToolHand::Right;
@@ -75,8 +61,14 @@ void Tool::setProperty(const std::string& name, const YAML::Node& value) {
     Instance::setProperty(name, value);
 }
 
+void Tool::setLegacyGripOffset(const CFrame& legacyOffset) {
+    GripC1 = legacyOffset.inverse();
+}
+
 std::shared_ptr<Instance> Tool::clone() const {
     auto copy = std::make_shared<Tool>(Name);
+    copy->Size = Size;
+    copy->setCFrame(getCFrame());
     PropertyRegistry::cloneFields(this, copy.get(), "Tool");
     for (auto const& [name, child] : children) copy->addChild(child->clone());
     return copy;

@@ -338,10 +338,55 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(
     // プロパティの設定
     if (node["Properties"]) {
         YAML::Node props = node["Properties"];
+        // Tool used to expose Position/Rotation as its grip offset.  Tool is
+        // now a Model, so those names also match Model's transform schema and
+        // would otherwise be consumed by PropertyRegistry before Tool can
+        // migrate them.  A document containing either Grip frame is the new
+        // format; in that representation Position/Rotation are ordinary
+        // Model transforms, not legacy grip data.
+        const bool isLegacyTool = className == "Tool" &&
+            !props["GripC0"] && !props["GripC1"];
+        Vector3 legacyGripPosition;
+        Quaternion legacyGripRotation;
+        bool hasLegacyGripPosition = false;
+        bool hasLegacyGripRotation = false;
         for (auto it = props.begin(); it != props.end(); ++it) {
             const std::string propertyName = it->first.as<std::string>();
+            if (className == "Tool" &&
+                (propertyName == "Position" || propertyName == "Rotation")) {
+                if (isLegacyTool) {
+                    if (propertyName == "Position" && it->second.IsSequence() &&
+                        it->second.size() == 3) {
+                        legacyGripPosition = Vector3(
+                            it->second[0].as<float>(), it->second[1].as<float>(),
+                            it->second[2].as<float>());
+                        hasLegacyGripPosition = true;
+                    } else if (propertyName == "Rotation" && it->second.IsSequence() &&
+                               it->second.size() == 4) {
+                        if (Quaternion::tryFromComponents(
+                                it->second[3].as<float>(), it->second[0].as<float>(),
+                                it->second[1].as<float>(), it->second[2].as<float>(),
+                                legacyGripRotation)) {
+                            hasLegacyGripRotation = true;
+                        } else {
+                            RCBN_WARN("[SceneLoader] Tool '" + instance->getFullPath() +
+                                      "' has an invalid legacy Rotation; using identity GripC1 rotation");
+                        }
+                    } else {
+                        RCBN_WARN("[SceneLoader] Tool '" + instance->getFullPath() +
+                                  "' has an invalid legacy " + propertyName + " property");
+                    }
+                    continue;
+                }
+                // In the new format these are ordinary Model transforms.
+                // Let the inherited schema consume them normally.
+            }
             if (!PropertyRegistry::loadApplicableProperty(instance.get(), propertyName, it->second))
                 instance->setProperty(propertyName, it->second);
+        }
+        if (isLegacyTool && (hasLegacyGripPosition || hasLegacyGripRotation)) {
+            auto tool = std::static_pointer_cast<Tool>(instance);
+            tool->setLegacyGripOffset(CFrame(legacyGripPosition, legacyGripRotation));
         }
     }
     if (className == "Terrain" &&

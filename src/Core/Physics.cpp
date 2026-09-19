@@ -630,6 +630,22 @@ bool Physics::raycast(
     );
 }
 
+bool Physics::raycast(
+    const Vector3& origin,
+    const Vector3& direction,
+    float maxDistance,
+    RaycastHit& hitResult,
+    const std::vector<const Instance*>& excludeRoots
+) {
+    hitResult = {};
+    if (!isAvailable() || !finiteVector(origin) || !finiteVector(direction) ||
+        !std::isfinite(maxDistance) || maxDistance <= 0.0f) {
+        return false;
+    }
+    return m_backend->raycastExcluding(
+        origin, direction, maxDistance, hitResult, excludeRoots);
+}
+
 bool Physics::shapeCastBox(
     const CFrame& startFrame,
     const Vector3& size,

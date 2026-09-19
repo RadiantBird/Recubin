@@ -4,6 +4,7 @@
 #include <include/Math/Vector3.hpp>
 #include <memory>
 #include <optional>
+#include <vector>
 #include <string>
 #include <cstdint>
 
@@ -109,6 +110,19 @@ public:
         RaycastHit& hitResult,
         const Instance* excludeRoot
     ) = 0;
+
+    // Current Box3D queries can filter multiple roots during traversal.
+    // The default keeps the retired backend's existing single-root contract.
+    virtual bool raycastExcluding(
+        const Vector3& origin,
+        const Vector3& direction,
+        float maxDistance,
+        RaycastHit& hitResult,
+        const std::vector<const Instance*>& excludeRoots
+    ) {
+        const Instance* root = excludeRoots.empty() ? nullptr : excludeRoots.front();
+        return raycast(origin, direction, maxDistance, hitResult, root);
+    }
 
     virtual bool shapeCastBox(
         const CFrame& startFrame,

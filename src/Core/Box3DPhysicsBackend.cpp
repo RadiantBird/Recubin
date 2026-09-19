@@ -2108,6 +2108,65 @@ void Box3DPhysicsBackend::rebuildAssembly(
         combinedLocks |= cube->LockFlags;
     }
 
+    // A ToolGrip Weld supplies an authored pair of endpoint frames rather than
+    // the (possibly stale) graph pose.  Keep ordinary Welds on their existing
+    // creation-pose path, but solve each transient override before creating the
+    // compound shapes.  Cube0 is the authoritative endpoint (the character's
+    // arm); Cube1 is placed so that
+    //     cube0World * frame0 == cube1World * frame1.
+    // This is intentionally done only in the temporary world-frame map: no
+    // BaseCube CFrame is written and the runtime Weld remains non-serialized.
+    for (const auto& entry : m_constraints) {
+        auto instance = entry.constraint.lock();
+        if (!instance || !instance->IsA("Weld")) continue;
+        auto weld = std::static_pointer_cast<Weld>(instance);
+        if (!weld->hasFrameOverride()) continue;
+        auto first = weld->m_cube0.lock();
+        auto second = weld->m_cube1.lock();
+        if (!first || !second || first == second) continue;
+        if (!members.contains(first.get()) || !members.contains(second.get())) continue;
+
+        auto firstFrame = worldFrames.find(first.get());
+        auto secondFrame = worldFrames.find(second.get());
+        if (firstFrame == worldFrames.end() || secondFrame == worldFrames.end()) continue;
+        const CFrame previousSecondWorld = secondFrame->second;
+        const CFrame frame0World = firstFrame->second * weld->getFrame0Override();
+        const CFrame targetSecondWorld = frame0World * weld->getFrame1Override().inverse();
+        secondFrame->second = targetSecondWorld;
+
+        // The Handle is normally the root of the Tool's own Weld tree.  Move
+        // every ordinary-Weld descendant by the same delta so its authored
+        // Handle-relative layout is preserved while the transient grip is
+        // solved.  Do not cross another override edge (or a Motor): those are
+        // independent physical relationships and must be recreated below.
+        const CFrame delta = targetSecondWorld * previousSecondWorld.inverse();
+        std::set<BaseCube*> visited;
+        std::queue<std::shared_ptr<BaseCube>> queue;
+        visited.insert(second.get());
+        queue.push(second);
+        while (!queue.empty()) {
+            auto current = queue.front();
+            queue.pop();
+            for (const auto& candidate : m_constraints) {
+                auto candidateInstance = candidate.constraint.lock();
+                if (!candidateInstance || !candidateInstance->IsA("Weld")) continue;
+                auto candidateWeld = std::static_pointer_cast<Weld>(candidateInstance);
+                if (candidateWeld->hasFrameOverride()) continue;
+                auto candidateFirst = candidateWeld->m_cube0.lock();
+                auto candidateSecond = candidateWeld->m_cube1.lock();
+                std::shared_ptr<BaseCube> neighbor;
+                if (candidateFirst == current) neighbor = candidateSecond;
+                else if (candidateSecond == current) neighbor = candidateFirst;
+                if (!neighbor || !members.contains(neighbor.get()) ||
+                    !visited.insert(neighbor.get()).second) continue;
+                const auto neighborFrame = worldFrames.find(neighbor.get());
+                if (neighborFrame != worldFrames.end())
+                    neighborFrame->second = delta * neighborFrame->second;
+                queue.push(neighbor);
+            }
+        }
+    }
+
     const auto originIt = std::find_if(
         assembly.begin(), assembly.end(),
         [](const auto& cube) { return static_cast<bool>(cube); });
@@ -3125,8 +3184,20 @@ bool isRaycastExcluded(
     return false;
 }
 
+bool isRaycastExcluded(
+    const Instance* instance,
+    const std::vector<const Instance*>& excludeRoots
+) {
+    for (const Instance* excludeRoot : excludeRoots) {
+        if (isRaycastExcluded(instance, excludeRoot)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 struct RayContext {
-    const Instance* excludeRoot = nullptr;
+    const std::vector<const Instance*>* excludeRoots = nullptr;
     float maximumDistance = 0.0f;
     RaycastHit* result = nullptr;
 };
@@ -3164,7 +3235,7 @@ float box3dRayCallback(
     if (
         isRaycastExcluded(
             instance,
-            context->excludeRoot
+            *context->excludeRoots
         )
     ) {
         return -1.0f;
@@ -3253,6 +3324,23 @@ bool Box3DPhysicsBackend::raycast(
     RaycastHit& hitResult,
     const Instance* excludeRoot
 ) {
+    if (!excludeRoot) {
+        static const std::vector<const Instance*> noExcludedRoots;
+        return raycastExcluding(
+            origin, direction, maxDistance, hitResult, noExcludedRoots);
+    }
+    const std::vector<const Instance*> excludedRoots{excludeRoot};
+    return raycastExcluding(
+        origin, direction, maxDistance, hitResult, excludedRoots);
+}
+
+bool Box3DPhysicsBackend::raycastExcluding(
+    const Vector3& origin,
+    const Vector3& direction,
+    float maxDistance,
+    RaycastHit& hitResult,
+    const std::vector<const Instance*>& excludeRoots
+) {
     hitResult = {};
 
     if (
@@ -3270,7 +3358,7 @@ bool Box3DPhysicsBackend::raycast(
     }
 
     RayContext context{
-        excludeRoot,
+        &excludeRoots,
         maxDistance,
         &hitResult
     };

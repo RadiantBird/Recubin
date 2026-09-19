@@ -71,16 +71,18 @@ int compareAsciiNatural(std::string_view lhs, std::string_view rhs) {
 
 int explorerPriority(Instance& instance) {
     const std::string className = instance.getClassName();
-    if (className == "Workspace") return 0;
-    if (className == "Folder") return 1;
-    if (className == "Model") return 2;
-    if (className == "Script") return 3;
-    if (className == "LocalScript") return 4;
-    if (className == "ModuleScript") return 5;
-    if (instance.IsA("PhysicalFileInstance")) return 6;
-    if (instance.IsA("ValueBase")) return 7;
-    if (instance.IsA("BaseCube")) return 8;
-    return 9;
+    if (className == "Users") return 0;
+    if (className == "StarterCharacter") return 1;
+    if (className == "Workspace") return 2;
+    if (className == "Folder") return 3;
+    if (className == "Model") return 4;
+    if (className == "Script") return 5;
+    if (className == "LocalScript") return 6;
+    if (className == "ModuleScript") return 7;
+    if (instance.IsA("PhysicalFileInstance")) return 8;
+    if (instance.IsA("ValueBase")) return 9;
+    if (instance.IsA("BaseCube")) return 10;
+    return 11;
 }
 
 bool explorerLess(Instance* lhs, Instance* rhs) {

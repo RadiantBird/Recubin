@@ -1025,3 +1025,33 @@
 - `motor_nested_compound` fixtureはnative移動後のnested Attachmentがx=17なのにRotor Attachmentをx=16へ置いていたため、初期anchorが一致していなかった。Rotorをx=17へ修正し、native poseからのframe計算だけを検証するfixtureにした。
 - `Box3DPhysicsBackend.cpp`と`test_main.cpp`のGCC C++23 syntax check（Box3D includeと`-DGLEW_NO_GLU`）、対象`git diff --check`は成功。Windows Release buildも成功した（Visual Studio同梱CMake自動検出を使用）。WSLから`RecubinTest.exe --physics-migration-regression`を起動する試行は`UtilBindVsockAnyPort:309: socket failed 1`で停止したため、新しい結果は未取得。
 - 次の一手: Windows側で`build\\Release\\RecubinTest.exe --physics-migration-regression`を実行し、`motor_nested_compound attachment_error <= 0.05`、axis/carのanchor separation、全体PASSを確認する。HipHeight確認は別途`build\\Release\\RecubinTest.exe --character-hover-regression`を実行する。
+
+### 2026-09-18: Tool Model migration and Grip Weld
+
+- `Tool` を `Model` 派生に変更した。Tool の `Position`/`Rotation` は通常のlocal Spatial座標となり、握り配置は保存対象の `GripC0`/`GripC1`（`armWorld * GripC0 == handleWorld * GripC1`）へ分離した。既定値は従来の手前1 studを表す`GripC0=(0,0,-1)`、`GripC1=identity`。
+- 装備時の `Handle::setWorldCFrame()` を削除した。Userは非保存の`ToolGrip` Weldへframe overrideを設定し、Box3D assembly再構築時にHandleとその通常Weld連結部品をGrip frameへ剛体配置する。通常Weldの作成時相対姿勢・公開プロパティは変更していない。解除・Inventory移動・despawn・respawnでToolGripを破棄／再作成し、Handle/対象腕が解決できない装備はpath付き警告とInventoryへのrollbackを行う。
+- SceneLoaderは`GripC0`/`GripC1`が無い旧Toolだけをlegacy形式と判定し、旧`Position`/`Rotation`を`GripC1`へ逆変換する。新形式の同名プロパティはModel local CFrameとしてロードする。Editorの旧Tool Position/Rotation undo commandもModelのlocal CFrame更新へ統一した。
+- `--tool-weld-regression`はruntime ToolGrip frame、ToolのModel/Spatial継承、legacy YAML移行、新形式のlocal CFrameを検査するよう拡張した。既存のinput回帰は実際のHumanoid/RightArm/Handleを用意してからTool装備を行う。
+- `Tool.cpp`、`Weld.cpp`、`User.cpp`、`SceneLoader.cpp`、`Box3DPhysicsBackend.cpp`、`test_main.cpp`のGCC C++23 syntax checkと対象`git diff --check`は成功。Windows `cmd.exe /d /c py build.py build`も`Recubin`/`RecubinEngine`/`RecubinTest`で成功した。
+- WSLからの`build\\Release\\RecubinTest.exe --tool-weld-regression`は`UtilBindVsockAnyPort:309: socket failed 1`で起動できず未実行。次の一手: Windows Terminalから同コマンドを実行し、ToolGrip frame、legacy/new YAML、再装備・respawnを確認する。
+
+### 2026-09-18: Tool Activated script-global isolation
+
+- SMGとRPGの`Activated` SignalはToolごとに別インスタンスだったが、Luauの各Script coroutineは同じglobal tableを使っていた。SMGがglobal `shoot()`を定義した後にRPGが同名関数を定義すると、SMGの`startFiring()`内の`shoot()`呼び出しまでRPG版へ置換され、SMGの連射がRocketLauncherの`bom`を出す状態だった。
+- `LuauEngine::execute()`は新しいScript coroutineへ`luaL_sandboxthread()`を、chunkをloadする前に適用するよう変更した。各Scriptはengine APIを親globalから読む一方、自身の`shoot`/`main`等は固有のwritable global tableへ書き込む。Tool固有のSignal経路を特別扱いせず、全Script間の同名global競合を解消する。
+- `--tool-signal-isolation-regression`を追加した。SMG/RPGが同じglobal名`shoot`を使うfixtureでSMGのActivatedだけをfireし、SMG出力1件・RPG出力0件を検査する。
+- Windows Release buildは成功。WSLからの更新済み`RecubinTest.exe --tool-signal-isolation-regression`は`UtilBindVsockAnyPort:309: socket failed 1`で起動できず未実行。次の一手: Windows Terminalで同限定回帰を実行し、Floating worldでSMG/RPGを交互に装備してSMG発射時に`bom`が出ないことを確認する。
+
+### 2026-09-19: Workspace Raycast exclusion table
+
+- Box3D backendは従来から単一`Instance` root（Modelを含む）とその子孫をray query callbackで除外できたが、Luau bindingは`BaseCube`一つしか受け付けず、`{User.Character}`のようなテーブルを無言で無視していた。
+- `workspace:Raycast(origin, direction, maxDistance?, exclude?)`の`exclude`は、単一InstanceまたはInstance配列テーブルを受け取るようにした。Box3D query callbackへ全rootを直接渡し、各root自身と子孫`BaseCube`を除外する。除外Cubeに入った後にレイを進めて再試行する実装にはせず、大きなCharacter collider内で次のhitを失わないようにした。
+- `--workspace-raycast-exclude-regression`を追加。二つのModel配下Cubeをテーブルで除外し、その奥のTargetをLuau Raycastが返すことを検査する。`doc/Instances/Workspace.md`に引数契約も記載した。
+- Windows Release buildは成功。WSLから限定回帰を起動すると`UtilBindVsockAnyPort:309: socket failed 1`で停止したため結果未取得。次の一手: Windows Terminalで`build\\Release\\RecubinTest.exe --workspace-raycast-exclude-regression`を実行し、Floating worldでは`workspace:Raycast(ray.Origin, direction, rayRange, {User.Character})`が自キャラクターをhitしないことを確認する。
+
+### 2026-09-19: Studio logo asset packaging
+
+- 既存のルート`Recubin.png`を`assets/image/Recubin.png`へ移し、Windows専用の`RecubinResources.rc`とCMakeのRCDATA埋め込みを削除した。
+- `WelcomePanel`はOS別の埋め込みリソースではなく、共通の`assets/image/Recubin.png`を`stbi_load`で読み込む。ロード失敗はパスとstb_imageの理由をログへ出す。
+- `build.py package`のWindows/macOS Studioパッケージャーは、ロゴを`assets/image/Recubin.png`へ必須コピーし、元ファイルが無い場合はエラー終了する。
+- `python3 -m py_compile build.py`、`WelcomePanel.cpp`のGCC C++23構文検査、`git diff --check`、一時ディレクトリへのロゴコピー検査、Windows Release buildは成功。GUIの実機表示とmacOS上のパッケージ起動は未検証。

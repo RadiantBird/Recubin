@@ -1,6 +1,7 @@
 #pragma once
 #include <include/Instances/PhysicsConstraint.hpp>
 #include <include/Instances/BaseCube.hpp>
+#include <include/Math/CFrame.hpp>
 #include <memory>
 #include <vector>
 
@@ -23,6 +24,14 @@ public:
     Weld();
     Weld(std::shared_ptr<BaseCube> cube0, std::shared_ptr<BaseCube> cube1);
 
+    // Runtime-only frame pair used by ToolGrip. It is deliberately not part
+    // of the property registry or clone state.
+    void setFrameOverride(const CFrame& frame0, const CFrame& frame1);
+    void clearFrameOverride();
+    bool hasFrameOverride() const { return m_hasFrameOverride; }
+    const CFrame& getFrame0Override() const { return m_frame0Override; }
+    const CFrame& getFrame1Override() const { return m_frame1Override; }
+
     // セーブ直前に呼ばれ、生きている参照から現在の正しいパスを再生成する
     // （Cube のリパレント/リネームでパス文字列が古くなるため）。
     // 名前が空 = 「未設定」の正当な状態なので復活させない
@@ -43,4 +52,9 @@ public:
         out.push_back({m_cube1.lock(), "BaseCube", "Weld.Cube1", [self](std::shared_ptr<Instance> v) { self->setCube1(std::dynamic_pointer_cast<BaseCube>(v)); }});
     }
     void remapClonedInstances(const CloneRemap& map) override;
+
+private:
+    CFrame m_frame0Override;
+    CFrame m_frame1Override;
+    bool m_hasFrameOverride = false;
 };

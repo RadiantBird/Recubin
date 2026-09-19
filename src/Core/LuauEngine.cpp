@@ -986,6 +986,14 @@ bool LuauEngine::execute(Script& script) {
             };
 
             RegisterGlobalFunctions(script.Coroutine);
+            // A Lua state is shared by all coroutine threads.  Without an
+            // isolated environment, declarations such as `function shoot()`
+            // in one Script overwrite the same global from every other
+            // Script.  In particular, a Tool callback can then invoke a
+            // function defined by another Tool's Script.  Keep the engine
+            // globals as the read-through base and give this Script its own
+            // writable global table before loading its chunk.
+            luaL_sandboxthread(script.Coroutine);
             auto* sud = (std::weak_ptr<Instance>*)lua_newuserdata(script.Coroutine, sizeof(std::weak_ptr<Instance>));
             new (sud) std::weak_ptr<Instance>(script.shared_from_this());
             luaL_getmetatable(script.Coroutine, RCBN_INST_METATABLE);
@@ -1059,6 +1067,49 @@ static std::weak_ptr<Instance>* testInstanceUserdata(lua_State* L, int idx) {
     return same ? (std::weak_ptr<Instance>*)p : nullptr;
 }
 
+static void appendRaycastExclusions(
+    lua_State* L,
+    int argumentIndex,
+    std::vector<const Instance*>& exclusions
+) {
+    if (lua_isnoneornil(L, argumentIndex)) {
+        return;
+    }
+
+    const auto appendInstance = [&](int valueIndex) {
+        auto* userdata = testInstanceUserdata(L, valueIndex);
+        if (!userdata) {
+            luaL_argerror(L, argumentIndex,
+                          "exclude must be an Instance or an array of Instances");
+            return;
+        }
+        auto instance = userdata->lock();
+        if (!instance) {
+            luaL_argerror(L, argumentIndex, "exclude contains a destroyed Instance");
+            return;
+        }
+        exclusions.push_back(instance.get());
+    };
+
+    if (testInstanceUserdata(L, argumentIndex)) {
+        appendInstance(argumentIndex);
+        return;
+    }
+    if (!isTableAt(L, argumentIndex)) {
+        luaL_argerror(L, argumentIndex,
+                      "exclude must be an Instance or an array of Instances");
+        return;
+    }
+
+    const int tableIndex = lua_absindex(L, argumentIndex);
+    const int length = lua_objlen(L, tableIndex);
+    for (int index = 1; index <= length; ++index) {
+        lua_rawgeti(L, tableIndex, index);
+        appendInstance(-1);
+        lua_pop(L, 1);
+    }
+}
+
 // ==================== Workspace Methods ====================
 int LuauEngine::workspace_raycast_closure(lua_State* L) {
     auto* ptr = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
@@ -1067,7 +1118,7 @@ int LuauEngine::workspace_raycast_closure(lua_State* L) {
     Workspace* ws = static_cast<Workspace*>(ws_shared.get());
 
     // L[1] = self, L[2] = origin, L[3] = direction,
-    // L[4] = maxDistance または legacy の除外Instance, L[5] = 除外Instance
+    // L[4] = maxDistance または legacy の除外指定, L[5] = 除外指定
     Vector3* origin    = (Vector3*)luaL_checkudata(L, 2, RCBN_VEC3_METATABLE);
     Vector3* direction = (Vector3*)luaL_checkudata(L, 3, RCBN_VEC3_METATABLE);
 
@@ -1093,19 +1144,13 @@ int LuauEngine::workspace_raycast_closure(lua_State* L) {
         return 1;
     }
 
-    // 除外Instance（省略可）。BaseCube系ならその物理ボディをraycastの除外対象にする
-    const BaseCube* ignoreCube = nullptr;
-    if (!lua_isnoneornil(L, ignoreInstanceIndex)) {
-        auto* iud = testInstanceUserdata(L, ignoreInstanceIndex);
-        if (iud) {
-            auto ignoreInst = iud->lock();
-            if (ignoreInst && ignoreInst->IsA("BaseCube"))
-                ignoreCube = static_cast<BaseCube*>(ignoreInst.get());
-        }
-    }
+    // 除外指定は単一Instanceまたは配列テーブル。Modelを渡した場合は配下の
+    // BaseCubeも除外するため、Character全体を一つの要素で除外できる。
+    std::vector<const Instance*> excludeRoots;
+    appendRaycastExclusions(L, ignoreInstanceIndex, excludeRoots);
 
     RaycastHit hit;
-    bool didHit = physics->raycast(*origin, *direction, maxDistance, hit, ignoreCube);
+    bool didHit = physics->raycast(*origin, *direction, maxDistance, hit, excludeRoots);
 
     if (!didHit || !hit.hit) {
         lua_pushnil(L);
