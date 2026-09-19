@@ -459,6 +459,9 @@ bool checkExit(EditorManager* ed, GLFWwindow& window) {
     if (ed && ed->isDirty()) {
         ed->requestSaveDialog(&window);
         glfwSetWindowShouldClose(&window, GLFW_FALSE);
+    } else if (ed && ed->hasDirtyCodeEditors()) {
+        ed->requestCodeEditorSaveDialog(&window);
+        glfwSetWindowShouldClose(&window, GLFW_FALSE);
     } else {
         return true;
     }
@@ -825,7 +828,8 @@ int main(int argc, char* argv[]) {
     //  EditorManager を Renderer に接続
     // ===================================================
     auto editorOwned = std::make_unique<EditorManager>(
-        workspace.get(), user.get(), system.get(), autosaveRoot);
+        workspace.get(), user.get(), system.get(), autosaveRoot,
+        renderer->codeEditorFont(), luauEngine->runtimeFileSystem());
     EditorManager* ed = editorOwned.get();
     ed->setSceneMetadata(initialSceneMetadata);
     if (initialSceneMetadata.applicationIdGenerated) ed->markDirty();
@@ -967,7 +971,10 @@ int main(int argc, char* argv[]) {
         if (system && RecubinUUID::isValid(system->ApplicationId)) {
             luauEngine->setRuntimeFileSystem(std::make_shared<RuntimeFileSystem>(
                 system->EnableExternalFileAccess));
+        } else {
+            luauEngine->setRuntimeFileSystem(nullptr);
         }
+        ed->setRuntimeFileSystem(luauEngine->runtimeFileSystem());
         ed->setSceneMetadata(bound.metadata);
         ed->setWorkspace(workspace.get());
         if (isDirty || bound.metadata.applicationIdGenerated) ed->markDirty();

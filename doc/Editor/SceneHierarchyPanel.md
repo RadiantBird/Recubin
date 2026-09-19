@@ -49,6 +49,7 @@
 - 右クリックの「子をすべて選択」は対象自身や孫を含めず、直下の子だけを Explorer 表示順で選択する。選択変更は Undo/Redo やシーンの dirty 状態へ影響しない
 - インスタンスの追加・削除・親変更は `m_history` 経由で Undo 対応
 - Script 追加時はダイアログで新規ファイル作成 or 既存ファイル選択を選べる（`m_doPick` / `m_pickExisting` フラグでポップアップ外ファイルピッカーを遅延実行）
+- `Script` / `TextFile` の行をダブルクリックすると `onOpenEditor` コールバックへ同じ Instance の `shared_ptr` を渡し、中央 Dock の `CodeEditorPanel` を開く。通常のクリック選択や複数選択の挙動は変えない。
 - 右クリックの「グループ化」は選択項目を Model / Folder / Tool または Insert Object の各種コンテナへまとめる。生成と親変更は `GroupInstancesCommand` の1 Undo単位で処理し、Spatial 子孫のワールド姿勢を保持する。
 
 ## 依存関係

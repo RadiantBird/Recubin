@@ -366,6 +366,17 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
         }
     }
 
+    // Explorer's tree item is the single hit target for opening auxiliary
+    // editors.  Selection still follows the normal click path above; a
+    // double-click simply forwards the same live Instance ownership to the
+    // EditorManager, which deduplicates already-open tabs.
+    if (!renaming && ImGui::IsItemHovered()
+        && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
+        && onOpenEditor
+        && (inst->IsA("Script") || inst->IsA("TextFile"))) {
+        onOpenEditor(inst->shared_from_this());
+    }
+
     // プレーンクリック（ドラッグせず離した）で複数選択を単一へ畳む
     if (!renaming && inSelection && selectedInstances.size() > 1
         && ImGui::IsItemHovered()

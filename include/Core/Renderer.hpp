@@ -250,6 +250,10 @@ class Renderer {
         // ImGui::NewFrame() より前に FontFile を atlas へ追加する。
         // 描画中の atlas 更新は避け、UTF-8 パスを持つ外部フォントもここで解決する。
         void prepareGuiFonts(Workspace& workspace);
+        // Fixed-width font shared by the editor's auxiliary code/text panels.
+        // It is loaded once during init() and remains separate from the
+        // DotGothic16 UI default font.
+        ImFont* codeEditorFont() const { return m_codeEditorFont; }
         void setChatService(const std::shared_ptr<ChatService>& service) { m_chatService = service; }
         bool isChatCapturingKeyboard() const { return m_chatOverlay.isCapturingKeyboard(); }
         void bakeSurfaceGui (SurfaceGui* sg);
@@ -258,6 +262,7 @@ class Renderer {
         std::map<std::wstring, ImFont*> m_guiFontCache;
         ImFont* m_systemDefaultGuiFont = nullptr;
         ImFont* m_dotGothicGuiFont = nullptr;
+        ImFont* m_codeEditorFont = nullptr;
 
         // カメラ回転ドラッグ中、非表示のOSカーソルの代わりにアンカー位置へ固定表示する擬似カーソル
         void drawCameraRotationCursor(User& user, GLFWwindow* window);

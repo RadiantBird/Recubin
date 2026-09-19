@@ -40,6 +40,8 @@ public:
     // Workspace 操作コールバック（main.cpp が設定）
     std::function<void(Workspace*)> onSwitchWorkspace;
     std::function<void(Workspace*)> onOpenSecondaryViewport;
+    // Script/TextFile のダブルクリックを中央の補助エディタへ転送する。
+    std::function<void(const std::shared_ptr<Instance>&)> onOpenEditor;
 
     SceneHierarchyPanel();
     void onRender() override;

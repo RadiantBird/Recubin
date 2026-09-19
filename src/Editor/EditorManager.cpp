@@ -47,6 +47,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <algorithm>
+#include <cstdint>
 #include <unordered_set>
 #include <Util/AssetPath.hpp>
 #include <Util/Logger.hpp>
@@ -184,11 +185,15 @@ std::string migrateLegacyWalkContentPath(const std::string& currentScenePath,
 // ===================================================
 
 EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
-                             const std::filesystem::path& autosaveRoot)
+                             const std::filesystem::path& autosaveRoot,
+                             ImFont* codeEditorFont,
+                             RuntimeFileSystem* runtimeFileSystem)
     : m_autosave(autosaveRoot) {
     m_workspace = workspace;
     m_system    = system;
     m_user      = user;
+    m_codeEditorFont = codeEditorFont;
+    m_runtimeFileSystem = runtimeFileSystem;
     m_autosave.setIoFailureCallback([](const std::string& operation,
                                        const std::filesystem::path& path,
                                        const std::string& reason) {
@@ -247,6 +252,9 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
     propertiesPanel->m_picker = &m_picker;
     viewportPanel->m_picker   = &m_picker;
     hierarchyPanel->m_picker  = &m_picker;
+    hierarchyPanel->onOpenEditor = [this](const std::shared_ptr<Instance>& target) {
+        openCodeEditor(target);
+    };
 
     propertiesPanel->m_terrainBrush = &m_terrainBrush;
     viewportPanel->m_terrainBrush   = &m_terrainBrush;
@@ -351,6 +359,7 @@ void EditorManager::render(GLFWwindow* window) {
 
     // ---- 未保存ダイアログ ----
     renderSaveDialog();
+    renderCodeEditorSaveDialog();
     // ---- テストプレイ中のシーン読み込み確認ダイアログ ----
     renderPlayLoadConfirmDialog();
     renderCrashRecoveryDialog();
@@ -381,7 +390,9 @@ void EditorManager::render(GLFWwindow* window) {
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu(Loc::t(Loc::LocKey::MenuFile))) {
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuNewScene), "Ctrl+N") && isEditMode()) requestNewScene();
-            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuSaveScene), "Ctrl+S") && isEditMode()) saveCurrentScene();
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuSaveScene), "Ctrl+S") && isEditMode()) {
+                if (!saveActiveCodeEditor()) saveCurrentScene();
+            }
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuOpenScene), "Ctrl+O")) openSceneDialog();
             ImGui::BeginDisabled(!isEditMode());
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuRestoreDefaultR6Animations)))
@@ -395,6 +406,7 @@ void EditorManager::render(GLFWwindow* window) {
             ImGui::Separator();
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuQuit), "Alt+F4")) {
                 if (m_isDirty) requestSaveDialog(window);
+                else if (hasDirtyCodeEditors()) requestCodeEditorSaveDialog(window);
                 else if (window) glfwSetWindowShouldClose(window, GLFW_TRUE);
             }
             ImGui::EndMenu();
@@ -453,6 +465,21 @@ void EditorManager::render(GLFWwindow* window) {
     if (consolePanel->isOpen)        consolePanel->onRender();
     if (animationPanel->isOpen)      animationPanel->onRender();
     if (welcomePanel->isOpen)        welcomePanel->onRender();
+
+    // Auxiliary Script/TextFile editors are ordinary dock windows.  They use
+    // the same central DockSpace ID as Welcome, so ImGui creates a tab beside
+    // the existing Viewport instead of a floating tool window.
+    for (auto& codeEditor : m_codeEditors) {
+        if (!codeEditor) continue;
+        codeEditor->setDockspaceId(dockId);
+        codeEditor->onRender();
+    }
+    m_codeEditors.erase(
+        std::remove_if(m_codeEditors.begin(), m_codeEditors.end(),
+                       [](const std::unique_ptr<CodeEditorPanel>& panel) {
+                           return !panel || !panel->isOpen;
+                       }),
+        m_codeEditors.end());
 
     // ---- セカンダリビューポート ----
     // 閉じられたものを削除
@@ -516,7 +543,9 @@ void EditorManager::handleEditorShortcuts() {
 
     // Ctrl+S: 保存
     if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S)) {
-        saveCurrentScene();
+        // When a code/text tab owns keyboard focus, Ctrl+S commits only that
+        // document.  Otherwise preserve the existing scene-save shortcut.
+        if (!saveActiveCodeEditor()) saveCurrentScene();
         return;
     }
 
@@ -977,6 +1006,66 @@ void EditorManager::requestSaveDialog(GLFWwindow* window) {
     m_saveDialogOpenedAt = ImGui::GetTime();
 }
 
+bool EditorManager::hasDirtyCodeEditors() const {
+    for (const auto& panel : m_codeEditors) {
+        if (panel && panel->isDirty()) return true;
+    }
+    return false;
+}
+
+void EditorManager::requestCodeEditorSaveDialog(GLFWwindow* window) {
+    m_showCodeEditorSaveDialog = true;
+    m_codeEditorDialogWindow = window;
+    m_codeEditorSaveDialogOpenedAt = ImGui::GetTime();
+}
+
+bool EditorManager::saveDirtyCodeEditors() {
+    bool allSaved = true;
+    for (auto& panel : m_codeEditors) {
+        if (!panel || !panel->isDirty()) continue;
+        if (!panel->save()) allSaved = false;
+    }
+    return allSaved;
+}
+
+void EditorManager::renderCodeEditorSaveDialog() {
+    if (m_showCodeEditorSaveDialog) {
+        ImGui::OpenPopup("###UnsavedCodeEditors");
+        m_showCodeEditorSaveDialog = false;
+    }
+
+    const char* popupTitle = Loc::t(Loc::LocKey::UnsavedCodeTitle);
+    std::string popupId = std::string(popupTitle) + "###UnsavedCodeEditors";
+    if (!ImGui::BeginPopupModal(popupId.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        return;
+    }
+
+    ImGui::Text("%s", Loc::t(Loc::LocKey::UnsavedCodeLine1));
+    ImGui::Text("%s", Loc::t(Loc::LocKey::UnsavedCodeLine2));
+    ImGui::Separator();
+    const float quitCooldown = GuiAutomation::enabled() ? 0.0f : 3.0f;
+    if (EditorUi::dangerButton(Loc::t(Loc::LocKey::SaveAndQuit),
+                               m_codeEditorSaveDialogOpenedAt, quitCooldown)) {
+        if (saveDirtyCodeEditors()) {
+            if (m_codeEditorDialogWindow)
+                glfwSetWindowShouldClose(m_codeEditorDialogWindow, GLFW_TRUE);
+            ImGui::CloseCurrentPopup();
+        }
+    }
+    ImGui::SameLine();
+    if (EditorUi::dangerButton(Loc::t(Loc::LocKey::QuitWithoutSaving),
+                               m_codeEditorSaveDialogOpenedAt, quitCooldown)) {
+        if (m_codeEditorDialogWindow)
+            glfwSetWindowShouldClose(m_codeEditorDialogWindow, GLFW_TRUE);
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (EditorUi::safeButton(Loc::t(Loc::LocKey::Cancel))) {
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+}
+
 void EditorManager::renderSaveDialog() {
     if (m_showSaveDialog) {
         ImGui::OpenPopup("###UnsavedChanges");
@@ -1105,19 +1194,21 @@ bool EditorManager::drawIconButton(const char* icon, const char* label, const Im
                                    bool selected) {
     std::string combined = icon ? (std::string(icon) + "\n" + label) : std::string(label);
 
-    ImGui::SetWindowFontScale(1.0f);
+    ImGuiStyle& style = ImGui::GetStyle();
     ImVec2 textSize = ImGui::CalcTextSize(combined.c_str());
-    float availW = btnSize.x - ImGui::GetStyle().FramePadding.x * 2.0f;
-    float availH = btnSize.y - ImGui::GetStyle().FramePadding.y * 2.0f;
+    float availW = btnSize.x - style.FramePadding.x * 2.0f;
+    float availH = btnSize.y - style.FramePadding.y * 2.0f;
 
     float scale = 1.0f;
     if (textSize.x > availW && textSize.x > 0.0f) scale = (std::min)(scale, availW / textSize.x);
     if (textSize.y > availH && textSize.y > 0.0f) scale = (std::min)(scale, availH / textSize.y);
-    scale = (std::max)(scale, 0.55f); // 可読性下限、これ以上は縮小しない
+    scale = (std::max)(scale, 0.45f);
 
-    ImGui::SetWindowFontScale(scale);
+    const float baseFontSize = style.FontSizeBase > 0.0f
+        ? style.FontSizeBase : ImGui::GetFontSize();
+    ImGui::PushFont(nullptr, baseFontSize * scale);
     bool clicked = EditorUi::glassButton(combined.c_str(), btnSize, selected);
-    ImGui::SetWindowFontScale(1.0f);
+    ImGui::PopFont();
     return clicked;
 }
 
@@ -1632,7 +1723,47 @@ void EditorManager::cleanupOrphanedSelection() {
     }
 }
 
+void EditorManager::openCodeEditor(const std::shared_ptr<Instance>& target) {
+    if (!target || (!target->IsA("Script") && !target->IsA("TextFile"))) {
+        RCBN_WARN("Editor: attempted to open an unsupported auxiliary editor target");
+        return;
+    }
+
+    for (auto& panel : m_codeEditors) {
+        if (!panel) continue;
+        auto openedTarget = panel->target();
+        if (openedTarget && openedTarget.get() == target.get()) {
+            panel->setOpen(true);
+            const std::string windowId = "###CodeEditor_" +
+                std::to_string(reinterpret_cast<std::uintptr_t>(target.get()));
+            ImGui::SetWindowFocus(windowId.c_str());
+            return;
+        }
+    }
+
+    auto panel = std::make_unique<CodeEditorPanel>(target, 0, m_codeEditorFont,
+                                                    m_runtimeFileSystem);
+    m_codeEditors.push_back(std::move(panel));
+}
+
+bool EditorManager::saveActiveCodeEditor() {
+    for (auto& panel : m_codeEditors) {
+        if (!panel || !panel->isOpen || !panel->isFocused()) continue;
+        // Return true when an editor handled the shortcut even if its target
+        // rejected the write; do not fall through and unexpectedly save the
+        // entire scene after a document I/O error.
+        panel->save();
+        return true;
+    }
+    return false;
+}
+
+void EditorManager::closeCodeEditors() {
+    m_codeEditors.clear();
+}
+
 void EditorManager::setWorkspace(Workspace* ws) {
+    closeCodeEditors();
     m_workspace                  = ws;
     hierarchyPanel->workspace    = ws;
     viewportPanel->workspace     = ws;

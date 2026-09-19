@@ -14,7 +14,8 @@ EditorManager
   ├─ ViewportPanel ←──→ ViewportFocusManager
   ├─ AnimationEditorPanel
   │    └─ selectedInstance ──→ (ポインタ共有、Hierarchyと同じ)
-  └─ ContentBrowserPanel
+  ├─ ContentBrowserPanel
+  └─ CodeEditorPanel（Script / TextFile の補助エディタ）
 ```
 
 ## クラス一覧
@@ -31,3 +32,4 @@ EditorManager
 | [ContentBrowserPanel](ContentBrowserPanel.md) | `include/Editor/ContentBrowserPanel.hpp` | アセットファイルブラウザ |
 | [ViewportFocusManager](ViewportFocusManager.md) | `include/Editor/ViewportFocusManager.hpp` | ビューポートフォーカス排他制御 |
 | [AnimationEditorPanel](AnimationEditorPanel.md) | `include/Editor/AnimationEditorPanel.hpp` | Model の Animation キーフレーム編集パネル |
+| CodeEditorPanel | `include/Editor/CodeEditorPanel.hpp` | Script / TextFile の中央Dock補助エディタ |

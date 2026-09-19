@@ -1093,3 +1093,42 @@
 ### 2026-09-19: Major separator height follow-up
 
 - Major separatorを28pxから40pxへ延長した。58pxのtoolbar button行に対して上下9pxずつのmarginを残し、Transform、Snap/Fit、Creation、Save/Loadの境界が小装飾でなく明確なgroup dividerとして見える高さにした。色、2本線の溝表現、Snap内部の余白区切りは維持する。
+
+### 2026-09-19: Script / TextFile auxiliary editor
+
+- `CodeEditorPanel` を追加し、Explorer の `Script` / `TextFile` ダブルクリックを `EditorManager::openCodeEditor()` へ接続した。同じ Instance はポインタIDで既存タブを再利用し、`MainDockSpace` に通常のDockタブとして表示する。weak pointerで対象削除・シーン切替後のdangling referenceを避ける。
+- 本文は ImGui `InputTextMultiline` の標準編集機能（Tab、選択、Clipboard、Undo/Redo、縦横スクロール）を使い、同じスクロール領域へ行番号とsyntax overlayを描画した。横スクロールでは行番号欄を固定し、Luauのkeyword/literal/string/number/type/operator/commentと複数行comment/string stateを色分けする。
+- Renderer起動時に`assets/fonts/JetBrainsMono-Medium.ttf`をFontAtlasへ一度だけ読み込み、コード本文・行番号だけに適用した。UI既定のDotGothic16は維持する。
+- Ctrl+Sはコードタブへフォーカスがある場合にScriptの`Source`と元Path、TextFileのRuntimeFileSystem overlay (`StorageId`)へ保存し、成功時にScene dirtyを更新する。dirty tabを閉じる場合はSave/Discard/Cancelを表示する。
+- `CodeEditorPanel.cpp`、`EditorManager.cpp`、`SceneHierarchyPanel.cpp`、`Renderer.cpp`、`main.cpp`のGCC C++23 syntax checkと対象`git diff --check`は成功。Windows Release `cmd.exe /d /c py build.py build`（Recubin/RecubinEngine/RecubinTest）は成功。GUIでの実機ダブルクリック・Dock配置・保存動作は未確認。次の一手はWindows上でScript/TextFileを開き、入力・スクロール・dirty/close確認・Ctrl+S・シーン切替を手動確認すること。
+- Sceneロード時にLuauが差し替えるRuntimeFileSystemをEditorManagerへ再接続し、無題Sceneでは古いoverlayを参照しないようにした。JetBrains Monoのruntime側ロードは無効化し、追加後のRelease buildも成功した。
+
+### 2026-09-19: Font Awesome merge target correction
+
+- JetBrains Mono追加後にToolbar/ExplorerのFont Awesomeアイコンが`?`へフォールバックする原因を特定した。ImGuiのFont `MergeMode`はデフォルトで`Fonts.back()`へマージするため、追加されたJetBrains Monoへアイコンが入り、既定のDotGothic16から見えなくなっていた。
+- `ImFontConfig::DstFont`をDotGothic16（または既定フォント）へ明示し、コードフォントを独立したままUIアイコンを正しいフォントへマージするよう修正した。RendererのGCC構文検査は成功。
+- 修正後のRelease buildは、起動中の`build/Release/Recubin.exe`がロックされて`LNK1104`となり、リンク未完了。Studioを終了した後に`cmd.exe /d /c py build.py build`を再実行し、アイコン表示を実機確認する。
+
+### 2026-09-19: Code editor gutter origin correction
+
+- コードエディタで入力欄の一時的な`FramePadding`を解除した後、syntax overlayが現在の通常スタイル値から本文原点を計算していたため、本文が左端へずれ、行番号が画面外へ描画されていた。`CodeEditorPanel.cpp`でガター幅と入力欄の左右・上下paddingを定数化し、行番号・本文・ガター背景を`InputTextMultiline`と同じ原点へ揃えた。
+- 変更対象の`CodeEditorPanel.cpp`は`g++ -std=c++23 -fsyntax-only -DGLEW_NO_GLU -I. -Iinclude -Isrc`を通過し、`git diff --check`も完了。Windows Releaseの`cmd.exe /d /c py build.py build`（Recubin、RecubinEngine、RecubinTest）は成功した。
+- 左端への横スクロール、行番号の可視性、編集・選択操作はGUI実機で未確認。次の一手はStudioを起動し、補助エディタを開いて横スクロール位置を変更し、行番号が固定表示されることを確認すること。
+
+### 2026-09-19: Code editor font size shortcuts
+
+- `CodeEditorPanel`へコードフォントサイズ（10〜34px、1px刻み）を追加し、コードエディタにフォーカスがある間のCtrl+`+`／Ctrl+`-`で変更できるようにした。通常キー、テンキー、日本語配列の`Shift+;`による`+`を受け付ける。`PushFont`へ同じサイズを渡すため、InputTextのカーソル・行番号・syntax overlayも同時に拡縮する。行数に応じてガター幅も拡張する。
+- `CodeEditorPanel.cpp`のGCC C++23 syntax checkは成功。Windows Release buildは`CodeEditorPanel.cpp`のコンパイルまで進んだが、起動中の`build/Release/Recubin.exe`がロックされ、リンクが`LNK1104`で停止した。Studioを終了後、`cmd.exe /d /c py build.py build`を再実行する必要がある。
+- Ctrl+ショートカットの実機操作とサイズ変更後のスクロール位置は未確認。
+
+### 2026-09-20: Code editor dirty state separation
+
+- `CodeEditorPanel`の保存完了コールバックから`EditorManager::markDirty()`を外し、Script / TextFile の外部ファイル保存でScene dirtyが立たないようにした。Scriptのファイル保存状態とSceneの保存状態を独立させた。
+- コードエディタがdirtyのままStudioを終了する場合、Scene用の未保存ダイアログとは別に、コード専用のSave / Quit Without Saving / Cancel確認を表示するよう`EditorManager`と`main.cpp`の終了経路へ追加した。タブを閉じるときの既存Save / Discard / Cancelも維持している。
+- `Localization`へコード未保存ダイアログの日本語・英語文言を追加し、`doc/Editor/CodeEditorPanel.md`と`doc/Editor/EditorManager.md`を更新した。`CodeEditorPanel.cpp`、`EditorManager.cpp`、`Localization.cpp`、`main.cpp`のGCC C++23 syntax checkと`git diff --check`は成功。Windows Release build（Recubin、RecubinEngine、RecubinTest）も成功した（既存のC4458/C4005 warningのみ）。
+
+### 2026-09-20: Confirmation UI and fullscreen toolbar consistency
+
+- CodeEditorPanelのタブ閉じる確認をEditorManagerの終了確認と同じLocalization／`EditorUi::dangerButton`／`safeButton`経路へ統一した。英語固定の小さなボタンと日本語の終了確認で見た目が分かれる問題を解消し、保存失敗時は確認を維持する。
+- Toolbarの`drawIconButton()`からウィンドウ全体へ作用する`SetWindowFontScale()`を外し、現在フォントだけを`PushFont(nullptr, baseSize * scale)`で一時縮小するようにした。DPI／フルスクリーン時にも既存の全体フォント倍率を壊さず、ボタン内に収まる倍率の下限を0.45へ調整した。
+- `CodeEditorPanel.cpp`、`EditorManager.cpp`、`Localization.cpp`のGCC C++23 syntax checkは成功。Windows Release build（Recubin、RecubinEngine、RecubinTest）も成功した（既存のC4458/C4005 warningのみ）。GUI実機での最大化・フルスクリーン表示確認は未実施。

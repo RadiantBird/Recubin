@@ -104,6 +104,16 @@ hierarchyPanel->m_clipboard
 - `CommandHistory`, `ViewportFocusManager`
 - `Workspace`, `User`, `SceneLoader`
 
+## Script / TextFile 補助エディタ
+
+Explorer の `Script` / `TextFile` 行をダブルクリックすると、`EditorManager` が同じ
+`MainDockSpace` に `CodeEditorPanel` を追加する。同一 Instance は既存タブを再利用し、
+パネルは `weak_ptr` で対象を参照するため、シーン切替・Instance削除後に dangling pointer を残さない。
+JetBrains Mono は `Renderer::init()` で一度だけ読み込み、コード本文と行番号だけへ渡す。
+エディタへフォーカスがある間の Ctrl+S は Script の `Source` / 元の `Path`、または TextFile の
+RuntimeFileSystem overlay を保存し、通常の Ctrl+S は従来どおり Scene 保存として扱う。コードファイルの
+保存では Scene dirty を変更せず、終了時にコード用の未保存確認を別途表示する。
+
 ## 使われる場所
 
 - `Renderer` が `unique_ptr<EditorManager>` として所有

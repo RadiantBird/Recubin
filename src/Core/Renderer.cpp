@@ -347,6 +347,20 @@ void Renderer::init(GLFWwindow* window) {
             io.Fonts->GetGlyphRangesJapanese());
         if (gameFont) m_dotGothicGuiFont = gameFont;
     }
+    // Code/text panels deliberately use a separate fixed-width font.  Keep it
+    // in the editor's shared atlas, but do not make it the application-wide
+    // default (the packaged runtime has no code panel).
+#ifndef EDITOR_DISABLED
+    if (std::filesystem::exists("assets/fonts/JetBrainsMono-Medium.ttf")) {
+        m_codeEditorFont = io.Fonts->AddFontFromFileTTF(
+            "assets/fonts/JetBrainsMono-Medium.ttf", 17.0f);
+        if (!m_codeEditorFont) {
+            RCBN_WARN("Renderer: failed to load code editor font assets/fonts/JetBrainsMono-Medium.ttf");
+        }
+    } else {
+        RCBN_WARN("Renderer: code editor font is missing: assets/fonts/JetBrainsMono-Medium.ttf");
+    }
+#endif
     io.FontDefault = m_dotGothicGuiFont ? m_dotGothicGuiFont : m_systemDefaultGuiFont;
     if (std::filesystem::exists("assets/fonts/fa-solid-900.ttf")) {
         // MergeModeにはマージ先が必要。ゲームフォントが無い場合は既定フォントへマージする。
@@ -355,6 +369,11 @@ void Renderer::init(GLFWwindow* window) {
             ImFontConfig cfg;
             cfg.MergeMode  = true;
             cfg.PixelSnapH = true;
+            // ImGui's MergeMode defaults to Fonts.back().  The code editor
+            // font is intentionally a separate atlas font, so make the UI
+            // font target explicit or Font Awesome glyphs disappear from the
+            // DotGothic16 default and render as '?' instead.
+            cfg.DstFont   = mergeTarget;
             static const ImWchar iconRanges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
             io.Fonts->AddFontFromFileTTF("assets/fonts/fa-solid-900.ttf", 18.0f, &cfg, iconRanges);
         }

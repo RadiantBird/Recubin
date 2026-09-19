@@ -9,6 +9,7 @@
 #include <Editor/ViewportPanel.hpp>
 #include <Editor/AnimationEditorPanel.hpp>
 #include <Editor/WelcomePanel.hpp>
+#include <Editor/CodeEditorPanel.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
@@ -19,6 +20,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include <Util/RuntimeFileSystem.hpp>
 #include <include/imgui/imgui.h>
 
 // ===================================================
@@ -87,7 +89,9 @@ public:
     PendingSceneRequest pendingScene;
 
     EditorManager(Workspace* workspace, User* user, Instance* system,
-                  const std::filesystem::path& autosaveRoot);
+                  const std::filesystem::path& autosaveRoot,
+                  ImFont* codeEditorFont = nullptr,
+                  RuntimeFileSystem* runtimeFileSystem = nullptr);
 
     // DockSpace + 全パネルを描画する（ImGui フレーム内で呼ぶ）
     void render(GLFWwindow* window) override;
@@ -96,6 +100,11 @@ public:
 
     // Stop 後の workspace リロード時に全パネルのポインタを一括更新する
     void setWorkspace(Workspace* ws);
+    // Runtime TextFile overlay service is owned by LuauEngine and may be
+    // replaced when a scene is loaded; the code editor keeps only a borrow.
+    void setRuntimeFileSystem(RuntimeFileSystem* runtimeFileSystem) {
+        m_runtimeFileSystem = runtimeFileSystem;
+    }
 
     // ViewportPanel の FBO へ 3D シーン描画を開始する前に呼ぶ
     void beginViewportRender() override;
@@ -143,6 +152,8 @@ public:
 
     // 未保存確認ダイアログを ImGui モーダルで表示する（毎フレーム render() 内で処理する）
     void requestSaveDialog(GLFWwindow* window);
+    bool hasDirtyCodeEditors() const;
+    void requestCodeEditorSaveDialog(GLFWwindow* window);
 
     // シーンファイルの読み込み要求（Open Scene / Load ボタン共通の入口）
     // Edit モード中は即座に pendingLoadPath へ反映。Play/Pause 中は終了確認ポップアップを挟む
@@ -185,6 +196,9 @@ private:
     std::string m_loadError;
     bool m_showRestoreR6Confirm = false;
     std::vector<std::shared_ptr<Instance>> m_clipboard;  // 複数コピー対応
+    std::vector<std::unique_ptr<CodeEditorPanel>> m_codeEditors;
+    ImFont* m_codeEditorFont = nullptr;
+    RuntimeFileSystem* m_runtimeFileSystem = nullptr; // Luau TextFile overlay service (borrowed)
     std::shared_ptr<AutosaveManager::RecoveryCandidate> m_recoveryCandidate;
     bool m_showCrashRecovery = false;
 
@@ -197,6 +211,9 @@ private:
     bool        m_showSaveDialog   = false;
     GLFWwindow* m_dialogWindow     = nullptr;
     double      m_saveDialogOpenedAt = 0.0;
+    bool        m_showCodeEditorSaveDialog = false;
+    GLFWwindow* m_codeEditorDialogWindow = nullptr;
+    double      m_codeEditorSaveDialogOpenedAt = 0.0;
 
     // テストプレイ中のシーン読み込み確認ダイアログ関連
     bool        m_showPlayLoadConfirm = false;
@@ -231,7 +248,7 @@ private:
     float m_uiLayoutScale = 1.0f;
 
     // icon(nullptr可)+labelを1つのボタンに描画する。ボタン幅/高さに収まらない場合は
-    // ImGui::SetWindowFontScaleで自動的にフォントを縮小する(下限0.55倍)。クリックされたらtrue。
+    // 現在のフォントだけを自動縮小する（下限0.45倍）。クリックされたらtrue。
     bool drawIconButton(const char* icon, const char* label, const ImVec2& btnSize,
                         bool selected = false);
 
@@ -246,11 +263,16 @@ private:
     void updateResponsiveScale();
     void handleEditorShortcuts();
     void renderSaveDialog();
+    void renderCodeEditorSaveDialog();
     void renderPlayLoadConfirmDialog();
     void renderCrashRecoveryDialog();
     void renderPlayStartErrorDialog();
     void renderPackageDialog();
     bool saveCurrentScene();
+    bool saveDirtyCodeEditors();
+    void openCodeEditor(const std::shared_ptr<Instance>& target);
+    bool saveActiveCodeEditor();
+    void closeCodeEditors();
     void openSceneDialog();
     void cleanupOrphanedSelection();
     void restoreDefaultR6Animations();
