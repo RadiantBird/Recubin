@@ -6,7 +6,7 @@
 #include <filesystem>
 
 namespace {
-constexpr const char* RECUBIN_WELCOME_LOGO_PATH = "assets/image/Recubin.png";
+constexpr const char* RECUBIN_WELCOME_LOGO_PATH = "assets/image/rcbnstudio.png";
 }
 
 // ===================================================
