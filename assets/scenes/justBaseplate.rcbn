@@ -1,0 +1,126 @@
+recubin:
+  type: scene
+  version: 0
+Root:
+  Properties:
+    BaseResolution: [1920, 1080]
+    UseNetwork: false
+    ApplicationId: 043d1475-09a3-4105-91af-e594058e2ba5
+    EnableIOAPI: false
+    EnableIPCAPI: false
+    EnableExternalFileAccess: false
+    MaxClonesPerFrame: 1000
+    MaxRestartsPerFrame: 100
+    MaxTasksPerFrame: 1000
+    ScriptLoopTimeoutSeconds: 2
+    DefaultCameraMode: Character
+  Children:
+    - ClassName: Users
+      Name: Users
+      Children:
+        - ClassName: User
+          Name: User
+          Properties:
+            ControlMode: Character
+            Speed: 0.25
+            RotationSpeed: 1
+            MouseRotationSpeed: 0.15
+            CharacterSmoothing: 0.15
+            CameraDistance: 17
+            ZoomSpeed: 0.1
+            MouseZoomSpeed: 1
+            MovementInputEnabled: true
+            CameraInputEnabled: true
+            HotkeyInputEnabled: true
+            ToolInputEnabled: true
+            CursorType: Default
+            CursorImages:
+              - Type: Type1
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type2
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type3
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type4
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type5
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type6
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type7
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type8
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type9
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type10
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+          Children:
+            - ClassName: Folder
+              Name: Inventory
+    - ClassName: Workspace
+      Name: Workspace
+      Properties:
+        Gravity: [0, -196.20001, 0]
+        Wind: [0, 0, 0]
+        PhysicsEnabled: true
+      Children:
+        - ClassName: Lighting
+          Name: Lighting
+          Properties:
+            Direction: [1, -1, -1]
+            Brightness: 1
+            Color: [1, 1, 1, 1]
+            ShadowDistance: 160
+            ShadowFadeDistance: 20
+        - ClassName: Cube
+          Name: Cube
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1024, 1, 1024]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.97791815, 0, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+    - ClassName: PathfindingService
+      Name: PathfindingService
+      Properties:
+        AgentRadius: 1
+        AgentHeight: 5
+        AgentMaxClimb: 0.6
+        AgentMaxSlope: 50
+        MaxJumpDistance: 6
+        MaxJumpHeight: 4

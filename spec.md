@@ -64,7 +64,8 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   ローカルpeer 0とpeer 1は先頭、peer 2以降は`(PeerId-1) % 件数`を用いる。
   CharacterのRootはSpawnLocationのfull CFrameを引き継ぎ、SpawnLocation上面へ
   `Spawn.Size.y/2 + Root.Size.y/2`だけ上げる。Model全体は元のRoot local CFrameの逆変換を
-  合成して配置し、各パーツの相対姿勢を維持する。候補が無い場合はRootをワールド原点へ置く。
+  合成して配置し、各パーツの相対姿勢を維持する。候補が無い場合はRootを`(0,100,0)`へ置き、
+  authored Root rotationは維持する。
   `Name=Spawn`の通常Cubeを暗黙変換する旧形式互換は持たず、シーン側でClassNameを明示的に
   `SpawnLocation`へ変更する。
 
@@ -172,7 +173,7 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 
   既定Rootの描画Sizeは`(2,2,1)`、中心は従来の`basePos`を維持する。接地時はRoot中心から下向きに
   一度floorをsampleし、Humanoid.HipHeightのdistanceをGroundHeight controllerで保つ。HipHeightが
-  明示されていない場合、最初の有効なfloor distanceを初期値として採用し、Rootの初期高さを補正しない。
+  明示されていない場合、Root colliderの下面がsupport surfaceへ接触または物理許容差内へ入った後の、最初の有効なfloor distanceを初期値として採用する。空中のfloor distanceは採用せず、Rootの初期高さを補正しない。
   controllerは各dynamic R6 bodyへ同じ上向き加速度をmass比例のadditive Forceとして与える。接地状態は
   HipHeightを接地状態の捕捉ゲートとして使い、捕捉後は微小なfloor distance揺れでは接地状態を反転させず、
   床が消えるかRootが上昇したときに解除する。HipHeightが高い場合も、その目標距離までraycast範囲を拡張する。

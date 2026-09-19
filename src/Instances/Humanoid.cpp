@@ -439,6 +439,10 @@ void Humanoid::updateGroundHover(
         floor.instance = groundHit.instance;
     }
     bool atHipHeight = false;
+    const float rootHalfHeight = std::abs(root->Size.y) * 0.5f;
+    constexpr float SUPPORT_PROXIMITY_TOLERANCE = 0.1f;
+    const bool awaitingAutoHipHeight =
+        !m_hipHeightExplicitlySet && !m_hipHeightInitializedFromGround;
 
     const auto logGroundDebug = [&](const char* stage, float hoverAcceleration) {
 #ifdef _DEBUG
@@ -494,14 +498,14 @@ void Humanoid::updateGroundHover(
 #endif
     };
 
-    if (hasFloor && !m_hipHeightExplicitlySet && !m_hipHeightInitializedFromGround) {
+    if (hasFloor && awaitingAutoHipHeight) {
         if (!std::isfinite(floor.distance) || floor.distance < 0.0f) {
             RCBN_WARN(
                 "Humanoid \"" << getFullPath()
                 << "\": ground detection returned invalid HipHeight distance "
                 << floor.distance
             );
-        } else {
+        } else if (floor.distance <= rootHalfHeight + SUPPORT_PROXIMITY_TOLERANCE) {
             // @RadiantBird 2026/09/13:
             // HipHeight preserves the character's intended Root-to-ground distance.
             // Do not derive or overwrite the Root height from the visual body rig.
@@ -509,13 +513,18 @@ void Humanoid::updateGroundHover(
             m_hipHeightInitializedFromGround = true;
         }
     }
-    const bool withinLandingCapture = hasFloor &&
-        std::abs(floor.distance - HipHeight) <=
+    const bool autoHipHeightPending =
+        !m_hipHeightExplicitlySet && !m_hipHeightInitializedFromGround;
+    const float effectiveHipHeight =
+        autoHipHeightPending ? rootHalfHeight : HipHeight;
+    const bool withinLandingCapture = hasFloor && !autoHipHeightPending &&
+        std::abs(floor.distance - effectiveHipHeight) <=
             dynamicLandingCaptureDistance;
     const bool enteringAirborneLandingCapture = !groundedBefore &&
         verticalVelocity <= 0.0f && withinLandingCapture;
-    atHipHeight = hasFloor &&
-        std::abs(floor.distance - HipHeight) <= settings.landingCaptureDistance;
+    atHipHeight = hasFloor && !autoHipHeightPending &&
+        std::abs(floor.distance - effectiveHipHeight) <=
+            settings.landingCaptureDistance;
     // HipHeight is the hover setpoint, not a continuously evaluated jump
     // distance.  Use it only to acquire grounded state (and to release jump
     // suppression).  Once acquired, keep grounded through small floor-distance
@@ -553,12 +562,14 @@ void Humanoid::updateGroundHover(
         logGroundDebug("no-floor", 0.0f);
         return;
     }
+    const float hoverTargetDistance =
+        awaitingAutoHipHeight ? rootHalfHeight : HipHeight;
     const float gravityCompensation =
         std::max(0.0f, -physics->getGravity().y) *
         settings.gravityCompensationScale;
     const float acceleration = std::clamp(
         gravityCompensation +
-            settings.stiffness * (HipHeight - floor.distance) -
+            settings.stiffness * (hoverTargetDistance - floor.distance) -
             settings.damping * verticalVelocity,
         0.0f,
         settings.maxUpwardAcceleration

@@ -8,6 +8,7 @@ import sys
 import zipfile
 from pathlib import Path
 from typing import Any
+import datetime
 
 
 IS_WINDOWS = platform.system() == "Windows"
@@ -105,7 +106,7 @@ def prepare_studio_package_directory(pkg_dir: Path) -> bool:
 
 def copy_studio_logo_asset(pkg_dir: Path) -> bool:
     """Copy the shared Studio logo used by the WelcomePanel."""
-    source = ROOT_DIR / "assets" / "image" / "Recubin.png"
+    source = ROOT_DIR / "assets" / "image" / "rcbnstudio.png"
     destination = pkg_dir / "assets" / "image" / source.name
     if not source.is_file():
         print(f"[ERROR] Studio logo not found: {source}")

@@ -1132,3 +1132,21 @@
 - CodeEditorPanelのタブ閉じる確認をEditorManagerの終了確認と同じLocalization／`EditorUi::dangerButton`／`safeButton`経路へ統一した。英語固定の小さなボタンと日本語の終了確認で見た目が分かれる問題を解消し、保存失敗時は確認を維持する。
 - Toolbarの`drawIconButton()`からウィンドウ全体へ作用する`SetWindowFontScale()`を外し、現在フォントだけを`PushFont(nullptr, baseSize * scale)`で一時縮小するようにした。DPI／フルスクリーン時にも既存の全体フォント倍率を壊さず、ボタン内に収まる倍率の下限を0.45へ調整した。
 - `CodeEditorPanel.cpp`、`EditorManager.cpp`、`Localization.cpp`のGCC C++23 syntax checkは成功。Windows Release build（Recubin、RecubinEngine、RecubinTest）も成功した（既存のC4458/C4005 warningのみ）。GUI実機での最大化・フルスクリーン表示確認は未実施。
+
+### 2026-09-20: Default character ground alignment and safe spawn fallback
+
+- 既定R6はRootのSize `(2,2,1)` と`basePos`を維持しつつ、可視パーツのbind poseをRoot基準で2 stud上げた。Rootが接地したとき脚の底面がRoot下端と一致するため、見た目の足が浮く／沈む配置を解消する。Motor6D bind frameもこの姿勢から再算出される。
+- enabled `SpawnLocation`が存在しない場合、ローカルとリモートのCharacter Rootは位置`(0,100,0)`へspawnし、テンプレートに設定されたRoot回転は維持する。SpawnLocationを選べる場合の既存の選択・HipHeight動作は変更しない。
+- `spec.md`、`User.hpp`、local/remote spawn回帰、既定R6 bind pose回帰を更新した。`CharacterRig.cpp`、`User.cpp`、`test_main.cpp`のGCC C++23 syntax check、対象`git diff --check`、Windows Release buildは成功。WSLからの`RecubinTest.exe --spawn-location-regression`は`UtilBindVsockAnyPort:309: socket failed 1`で起動できず未実行。次の一手: Windows Terminalで`build\\Release\\RecubinTest.exe --spawn-location-regression`と`--animation-clip-regression`を実行し、既定キャラクターの足元とfallback spawnを実機確認する。
+
+### 2026-09-20: Runtime PlayerCharacter scene persistence exclusion
+
+- `assets/scenes/justBaseplate.rcbn`の調査で、既定の`StarterCharacter`自体は`Root=[0,0,0]`、`Torso=[0,2,0]`、`RootJoint.C0=[0,2,0]`と正しかった。一方、過去のPlay中に保存されたruntime `PlayerCharacter`が同ファイルに残り、ground sample由来の`HipHeight=5.021...`と有効な`CharacterHoverForce`を持っていた。再ロードでこれが明示HipHeightとして扱われ、床から浮く原因だった。
+- SceneLoaderは予約済みruntime Model名`PlayerCharacter`および`PlayerCharacter_<PeerId>`を保存対象から除外し、既存scene読込時にも子孫を生成せずスキップする。スキップはログへ出る。`StarterCharacter`と通常Modelは保持するため、次回保存で古いruntime avatarはsceneから除去される。
+- `--runtime-character-serialization-regression`を追加し、local/remote runtime characterのsave/load除外とStarterCharacter/通常Modelの保持を検査する。`SceneLoader.cpp`と`test_main.cpp`のGCC C++23 syntax check、対象`git diff --check`、Windows Release buildは成功。WSLからの限定回帰は`UtilBindVsockAnyPort:309: socket failed 1`で実行不可。次の一手: Windows Terminalで`build\\Release\\RecubinTest.exe --runtime-character-serialization-regression`を実行し、Studioで`justBaseplate.rcbn`を開いてskipログと非浮遊の新規PlayerCharacterを確認する。
+
+### 2026-09-20: Airborne automatic HipHeight capture correction
+
+- cleanな`justBaseplate.rcbn`での実機ログにより、残留キャラクターではなくautomatic HipHeightの捕捉条件が原因と確定した。fallback spawn後の落下中、`rootY=5.5004`／`floorY=0.5`／`distance=5.0004`を初期HipHeightとして保存し、HoverForceがその誤った距離を保持していた。
+- 未設定HipHeightはRoot collider下面がsupport surfaceへ接触または0.1 stud以内となるまでfloor distanceを保存しない。捕捉前も高所spawnの安全な減速を維持するため、hover controllerはRoot半身高を一時目標とし、空中のdistanceをgrounded/landing captureへ使わない。明示HipHeightの挙動は維持する。診断用ログは原因確定後に削除した。
+- `--character-hover-regression`を接地後のautomatic HipHeight／Root下端=床上面へ更新し、`spec.md`もsupport近接後に捕捉する契約へ更新した。`Humanoid.cpp`のGCC C++23 syntax check、対象`git diff --check`、Windows Release buildは成功。WSLから限定回帰は`UtilBindVsockAnyPort:309: socket failed 1`で実行不可。次の一手: Windows側で`build\\Release\\RecubinTest.exe --character-hover-regression`を実行し、`justBaseplate.rcbn`で新規default characterの脚底が床へ接地することを確認する。

@@ -1496,10 +1496,12 @@ int runSpawnLocationRegression() {
     auto emptyWorkspace = std::make_shared<Workspace>();
     auto originUser = std::make_shared<User>(std::make_unique<NullInputBackend>());
     originUser->spawnCharacter(system.get(), emptyWorkspace.get());
+    CFrame fallbackRoot = templateRoot->getWorldCFrame();
+    fallbackRoot.Position = Vector3(0.0f, 100.0f, 0.0f);
     expect(originUser->humanoid &&
                cframeNear(originUser->humanoid->getRootPart()->getWorldCFrame(),
-                           templateRoot->getWorldCFrame()),
-           "absence of enabled SpawnLocations preserves the authored Root pose");
+                           fallbackRoot),
+           "absence of enabled SpawnLocations uses the safe fallback Root position and authored rotation");
 
     std::error_code ec;
     const auto yamlPath = std::filesystem::temp_directory_path(ec) /
@@ -1729,6 +1731,12 @@ int runRemoteAvatarSpawnTransformRegression() {
         auto legacyModel =
             ReplicationTestAccess::model(legacyReplication, 2);
         auto legacyRoot = legacyModel ? part(legacyModel, "Root") : nullptr;
+        CFrame expectedLegacyFallback = CFrame(
+            Vector3(0.0f, 100.0f, 0.0f),
+            legacyTemplateRoot->getWorldCFrame().Rotation);
+        expect(legacySpawned && legacyModel && legacyRoot &&
+                   cframeNear(legacyRoot->getWorldCFrame(), expectedLegacyFallback),
+               "legacy remote avatar uses the safe no-SpawnLocation fallback before replication poses arrive");
         legacyWorkspace->initPhysics();
         Physics* legacyPhysics = legacyWorkspace->getPhysicsEngine();
         for (int frame = 0; legacyPhysics && frame < 8 &&
@@ -8373,25 +8381,25 @@ static int runAnimationClipRegression() {
                "default R6 builds a dynamic Motor6D rig with disabled ragdoll constraints and RootGyro");
         expect(starterTorso && starterHead && starterLeftArm && starterLeftLeg && yawForce &&
                    near(starterTorso->Size.y, 2.0f) && near(starterTorso->Size.z, 2.0f) &&
-                   near(starterHead->getWorldPosition().y - starterRoot->getWorldPosition().y, 1.5f) &&
-                   near(starterLeftArm->getWorldPosition().y - starterRoot->getWorldPosition().y, 0.0f) &&
-                   near(starterLeftLeg->getWorldPosition().y - starterRoot->getWorldPosition().y, -2.0f) &&
+                   near(starterHead->getWorldPosition().y - starterRoot->getWorldPosition().y, 3.5f) &&
+                   near(starterLeftArm->getWorldPosition().y - starterRoot->getWorldPosition().y, 2.0f) &&
+                   near(starterLeftLeg->getWorldPosition().y - starterRoot->getWorldPosition().y, 0.0f) &&
                    !rootGyro->getAxisSettings(GyroAxis::Y).Enabled &&
                    !yawForce->Enabled && yawForce->Torque && yawForce->MaintainVelocity &&
                    near(yawForce->AxisMask.x, 0.0f) && near(yawForce->AxisMask.y, 1.0f) &&
                    near(yawForce->AxisMask.z, 0.0f),
-               "default R6 matches the authored triangle bind pose and yaw controller");
+               "default R6 keeps the Root-centered bind pose with grounded visible feet and yaw controller");
         if (starterRoot && starterTorso && rootJoint) {
             const CFrame bound = CharacterRig::applyMotor6D(
                 starterRoot->getWorldCFrame(), rootJoint->C0,
                 rootJoint->Transform, rootJoint->C1);
-            expect(near(starterRoot->getWorldPosition().y,
-                        starterTorso->getWorldPosition().y) &&
-                       near(rootJoint->C0.Position.y, 0.0f) &&
+            expect(near(starterTorso->getWorldPosition().y -
+                            starterRoot->getWorldPosition().y, 2.0f) &&
+                       near(rootJoint->C0.Position.y, 2.0f) &&
                        near(bound.Position.x, starterTorso->getWorldPosition().x) &&
                        near(bound.Position.y, starterTorso->getWorldPosition().y) &&
                        near(bound.Position.z, starterTorso->getWorldPosition().z),
-                   "default Root/Torso bind uses matching centers and preserves the authored world pose");
+                   "default Root/Torso bind preserves the raised visible pose and Motor6D world pose");
         }
         auto model = User::buildCharacterModel(system.get(), "ClipInjectionCharacter");
         std::shared_ptr<Humanoid> humanoid;
@@ -11781,14 +11789,14 @@ int runCharacterHoverRegression() {
     std::cout << "[CharacterHoverRegression] settledHeight="
               << settledHeight << '\n';
     expect(
-        physics && std::abs(settledHeight - 2.6f) < 0.2f &&
+        physics && std::abs(settledHeight - 1.5f) < 0.2f &&
             humanoid->isHipHeightInitializedFromGround() &&
             !humanoid->isHipHeightExplicitlySet(),
-        "first ground detection preserves the initial Root-to-ground distance"
+        "auto HipHeight is captured only after the Root reaches the support surface"
     );
     expect(
-        settledHeight - root->Size.y * 0.5f > 0.5f,
-        "Root collider remains clear of the floor at rest"
+        std::abs((settledHeight - root->Size.y * 0.5f) - 0.5f) < 0.1f,
+        "Root collider rests on the floor after auto HipHeight capture"
     );
 
     bool allBodiesShareAcceleration = true;
@@ -12180,6 +12188,86 @@ int runYamlErrorRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runRuntimeCharacterSerializationRegression() {
+    int failures = 0;
+    const auto expect = [&failures](bool condition, const char* message) {
+        std::cout << "[RuntimeCharacterSerialization] "
+                  << (condition ? "PASS" : "FAIL") << ": " << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    system->addChild(workspace);
+
+    auto authoredPeer = std::make_shared<Model>();
+    authoredPeer->Name = "AuthoredPeerModel";
+    auto starter = std::make_shared<StarterCharacter>();
+    starter->Name = "StarterCharacter";
+    auto runtime = std::make_shared<Model>();
+    runtime->Name = "PlayerCharacter";
+    auto humanoid = std::make_shared<Humanoid>();
+    humanoid->Name = "Humanoid";
+    humanoid->setHipHeight(3.0f);
+    runtime->addChild(humanoid);
+    runtime->lockRuntimeName();
+    auto runtimePeer = std::make_shared<Model>();
+    runtimePeer->Name = "PlayerCharacter_2";
+    auto peerHumanoid = std::make_shared<Humanoid>();
+    peerHumanoid->Name = "Humanoid";
+    peerHumanoid->setHipHeight(3.0f);
+    runtimePeer->addChild(peerHumanoid);
+    runtimePeer->lockRuntimeName();
+    workspace->addChild(starter);
+    // A normal authored Model remains alongside runtime canonical names.
+    auto authoredCanonical = std::make_shared<Model>();
+    authoredCanonical->Name = "AuthoredModel";
+    auto authoredWorkspace = std::make_shared<Workspace>();
+    authoredWorkspace->Name = "AuthoredWorkspace";
+    authoredWorkspace->addChild(authoredPeer);
+    authoredWorkspace->addChild(authoredCanonical);
+    system->addChild(authoredWorkspace);
+    workspace->addChild(runtime);
+    workspace->addChild(runtimePeer);
+
+    const auto serialized = SceneLoader::serializeSceneResult(system.get());
+    expect(serialized.success, "runtime-character scene serialization succeeds");
+    expect(serialized.yaml.find("StarterCharacter") != std::string::npos &&
+               serialized.yaml.find("AuthoredWorkspace") != std::string::npos,
+           "StarterCharacter and authored workspace remain in serialized scene");
+    expect(serialized.yaml.find("Name: PlayerCharacter\n") == std::string::npos &&
+               serialized.yaml.find("Name: PlayerCharacter_2\n") == std::string::npos,
+           "runtime character subtree is absent from serialized scene");
+
+    const auto legacyPath = std::filesystem::temp_directory_path() /
+        "recubin_runtime_character_legacy.yaml";
+    {
+        std::ofstream file(legacyPath, std::ios::binary);
+        file << "Root:\n  ClassName: System\n  Name: System\n  Children:\n"
+             << "    - ClassName: Workspace\n      Name: Workspace\n      Children:\n"
+             << "        - ClassName: Model\n          Name: PlayerCharacter\n"
+             << "          Children:\n            - ClassName: Humanoid\n"
+             << "              Name: Humanoid\n              Properties:\n"
+             << "                HipHeight: 3.0\n"
+             << "        - ClassName: Model\n          Name: PlayerCharacter_2\n"
+             << "        - ClassName: StarterCharacter\n          Name: StarterCharacter\n"
+             << "        - ClassName: Model\n          Name: AuthoredModel\n";
+    }
+    const auto loaded = SceneLoader::loadScene(legacyPath.string());
+    std::error_code removeError;
+    std::filesystem::remove(legacyPath, removeError);
+    auto loadedWorkspace = loaded ? loaded->getChild("Workspace") : nullptr;
+    expect(loadedWorkspace && !loadedWorkspace->children.contains("PlayerCharacter") &&
+               !loadedWorkspace->children.contains("PlayerCharacter_2") &&
+               loadedWorkspace->children.contains("StarterCharacter") &&
+               loadedWorkspace->children.contains("AuthoredModel"),
+           "legacy runtime characters are skipped while StarterCharacter loads");
+
+    std::cout << "[RuntimeCharacterSerialization] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 struct RegressionEntry {
     std::string_view name;
     int (*runner)(int, char**);
@@ -12195,6 +12283,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--audio-service-initialization-regression", runAudioServiceInitializationRegression),
         REG("--audio-service-registration-regression", runAudioServiceRegistrationRegression),
         REG("--yaml-error-regression", runYamlErrorRegression),
+        REG("--runtime-character-serialization-regression", runRuntimeCharacterSerializationRegression),
         REG("--nat-codec-regression", runNatCodecRegression),
         REG("--animation-clip-regression", runAnimationClipRegression),
         REG("--character-rig-v2", runAnimationClipRegression),

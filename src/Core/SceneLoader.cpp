@@ -75,6 +75,7 @@
 #include <memory>
 #include <filesystem>
 #include <vector>
+#include <cctype>
 
 #ifdef _WIN32
 #include <windows26.h>
@@ -116,6 +117,30 @@ namespace YAML {
             return true;
         }
     };
+}
+
+namespace {
+
+bool isCanonicalRuntimeCharacterName(const std::string& name) {
+    constexpr std::string_view prefix = "PlayerCharacter_";
+    if (name == "PlayerCharacter") return true;
+    if (!name.starts_with(prefix) || name.size() == prefix.size()) return false;
+    return std::all_of(name.begin() + static_cast<std::ptrdiff_t>(prefix.size()),
+                       name.end(), [](unsigned char c) { return std::isdigit(c) != 0; });
+}
+
+bool isRuntimeCharacterNode(const YAML::Node& node) {
+    return node && node["ClassName"] &&
+           node["ClassName"].as<std::string>() == "Model" && node["Name"] &&
+           isCanonicalRuntimeCharacterName(node["Name"].as<std::string>());
+}
+
+bool isRuntimeCharacterInstance(const Instance* instance) {
+    if (!instance) return false;
+    return const_cast<Instance*>(instance)->getClassName() == "Model" &&
+           isCanonicalRuntimeCharacterName(instance->Name);
+}
+
 }
 
 namespace {
@@ -314,6 +339,15 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(
     const LoadContext& context) {
     if (!node["ClassName"]) {
         RCBN_WARN("[SceneLoader] Instance node is missing ClassName — skipped");
+        return nullptr;
+    }
+
+    // PlayerCharacter は実行時に Workspace へ生成される予約 Model 名。
+    // 旧形式の Scene に残った avatar を読み込むと grounded 後の HipHeight
+    // や hover force まで設計データへ戻してしまうため、canonical 名を除外する。
+    if (isRuntimeCharacterNode(node)) {
+        RCBN_LOG("[SceneLoader] runtime character '" +
+                 node["Name"].as<std::string>() + "' skipped while loading");
         return nullptr;
     }
 
@@ -603,6 +637,8 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
 }
 
 void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
+    if (isRuntimeCharacterInstance(inst)) return;
+
     out << YAML::BeginMap;
     out << YAML::Key << "ClassName" << YAML::Value << inst->getClassName();
     out << YAML::Key << "Name"      << YAML::Value << inst->Name;

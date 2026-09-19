@@ -1227,6 +1227,10 @@ void User::placeCharacterAtSpawn(
             // first valid ground sample capture its Root-to-ground distance.
             targetRoot.Position.y = currentRoot.Position.y;
         }
+    } else {
+        // Keep the authored Root orientation, but make an unresolved spawn
+        // location unambiguous and safely above the default scene floor.
+        targetRoot.Position = Vector3(0.0f, 100.0f, 0.0f);
     }
     const CFrame delta = targetRoot * currentRoot.inverse();
 
