@@ -3,7 +3,7 @@
 [![Luau](https://img.shields.io/badge/Luau-Language-007ACC?logo=luau)](https://luau-lang.org/)
 [![OpenGL](https://img.shields.io/badge/OpenGL-4.1-E65226?logo=opengl)](https://www.opengl.org/)
 
-![logo](Recubin.png)
+![logo](assets/image/Recubin.png)
 
 Recubinは、Luauスクリプティング、物理遊び、複数Workspaceを備えたC++製のローカルゲームエンジンです。
 Robloxに影響を受けつつ、「もっと自由にローカルで遊べたら」を形にしています。

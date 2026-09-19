@@ -103,6 +103,25 @@ def prepare_studio_package_directory(pkg_dir: Path) -> bool:
     return True
 
 
+def copy_studio_logo_asset(pkg_dir: Path) -> bool:
+    """Copy the shared Studio logo used by the WelcomePanel."""
+    source = ROOT_DIR / "assets" / "image" / "Recubin.png"
+    destination = pkg_dir / "assets" / "image" / source.name
+    if not source.is_file():
+        print(f"[ERROR] Studio logo not found: {source}")
+        return False
+
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+    except OSError as exc:
+        print(f"[ERROR] Failed to copy Studio logo to {destination}: {exc}")
+        return False
+
+    print(f"[SUCCESS] Copied Studio logo to {destination}")
+    return True
+
+
 def create_studio_archive(pkg_dir: Path, archive_base: Path) -> Path:
     """Archive Studio without leaking local autosaves, but keep its empty marker."""
     zip_path = archive_base.with_suffix(".zip")
@@ -606,6 +625,8 @@ def package_editor_for_windows(config: str) -> int:
     # 空ディレクトリ作成
     for dir_name in ("scenes", "image", "models", "scripts"):
         (pkg_dir / "assets" / dir_name).mkdir(parents=True, exist_ok=True)
+    if not copy_studio_logo_asset(pkg_dir):
+        return 1
 
     # imgui.ini コピー
     imgui_ini = ROOT_DIR / "imgui.ini"
@@ -690,6 +711,8 @@ def package_editor_for_macos(config: str) -> int:
 
     for dir_name in ("scenes", "image", "models", "scripts"):
         (pkg_dir / "assets" / dir_name).mkdir(parents=True, exist_ok=True)
+    if not copy_studio_logo_asset(pkg_dir):
+        return 1
 
     optional_files = (
         (ROOT_DIR / "imgui.ini", pkg_dir / "imgui.ini", "imgui.ini not found - skipping."),
