@@ -56,7 +56,8 @@ main.cpp ループ
    - Workspace を再帰走査し、`Cube`/`Cylinder`/`TriangularPrism`/`Sphere`（すべて `BaseCube` 派生）を `Color.a > 0` のときだけ `draw()`
    - 各インスタンスの `Unlit`/`UseTriplanar`/`TextureScale` をユニフォームに反映
 8. **選択ハイライト**（`desc.renderHighlights` かつエディタの選択中インスタンスがある場合）
-   - BaseCube は102% スケールでワイヤーフレーム（`glPolygonMode(GL_LINE)`）の黄色アウトラインを上書き描画
+   - 通常Viewport FBOのdepthをRenderer所有のR8 Selection Mask FBOへcopyし、選択Model配下を含む全BaseCubeを同一maskへ描画する。これにより可視geometryのunionが得られる
+   - fullscreen outline shaderがmaskの8近傍をscreen-spaceでサンプルし、mask外側だけを一定2px幅のcyanで合成する。ポリゴン境界・Mesh間の内部境界・隠れた辺は表示しない
    - 直接親が `Cube` の Decal は、親Cube全体ではなく対象Faceの外縁4辺を固定ピクセル幅リボンで描画する
 9. **制約ビジュアライズ**（`desc.renderConstraints`）: `renderConstraints()` で Rope（二次ベジェ近似の垂れ下がり線）/ Rod（直線）を `m_lineShader` で描画
 10. **Terrain 描画**: `renderTerrain()` で `TerrainStreamer::getChunks()` の全チャンクメッシュを描画（頂点カラー使用、ライティングはメインシェーダーと共通）
@@ -95,7 +96,8 @@ main.cpp ループ
 | `ScreenGuiObject`（TextLabel/TextButton 等） | 3D パスとは独立。ImGui の `WindowDrawList` に直接矩形・テキストを描画（`renderScreenGui`） |
 | `WorldGuiObject`（BillboardGui/ProximityPrompt 等） | `m_lastView`/`m_lastProj` でワールド座標をスクリーン座標へ射影し、ImGui で描画（`renderWorldGui`） |
 | `SurfaceGui` | 専用 FBO にベイクして `Cube` のフェイステクスチャとして 3D 内に合成（`bakeSurfaceGui`） |
-| 選択ハイライト・ブラシマーカー・制約線 | いずれもメインシェーダーとは別の単純な `m_lineShader`／ワイヤーフレーム描画として後付け |
+| 選択ハイライト | Renderer所有のR8 Selection Mask FBOとfullscreen outline shader。選択geometryの可視部分をunionし、外周だけを合成 |
+| ブラシマーカー・制約線 | メインシェーダーとは別の `m_lineShader` による補助描画 |
 
 ## Shadow Map の制約
 

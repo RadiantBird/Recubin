@@ -160,7 +160,8 @@ static CFrame roundCFrame(const CFrame& value) {
 static void drawInstanceReferenceField(Instance* owner,
                                        const PropertyDesc& desc,
                                        CommandHistory* history,
-                                       PickerState* picker) {
+                                       PickerState* picker,
+                                       bool tableValue = false) {
     if (!owner || desc.instanceRefClass.empty() || !desc.get || !desc.set) return;
 
     const std::string propertyName(desc.name);
@@ -173,13 +174,15 @@ static void drawInstanceReferenceField(Instance* owner,
     const float spacing = ImGui::GetStyle().ItemSpacing.x;
 
     ImGui::PushID(&desc);
-    ImGui::TextUnformatted(propertyName.c_str());
-    ImGui::SameLine();
+    if (!tableValue) {
+        ImGui::TextUnformatted(propertyName.c_str());
+        ImGui::SameLine();
+    }
     ImGui::SetNextItemWidth(
         std::max(1.0f, ImGui::GetContentRegionAvail().x - BUTTON_WIDTH * 2.0f - spacing * 2.0f));
     char reference[512] = {};
     std::snprintf(reference, sizeof(reference), "%s", current.c_str());
-    ImGui::InputText("##instance_ref", reference, sizeof(reference),
+    ImGui::InputText(tableValue ? "##instance_ref_value" : "##instance_ref", reference, sizeof(reference),
                      ImGuiInputTextFlags_ReadOnly);
     ImGui::SameLine();
 
@@ -228,7 +231,7 @@ static void drawInstanceReferenceField(Instance* owner,
 }
 
 static void drawFilePathField(Instance* owner, const PropertyDesc& desc,
-                              CommandHistory* history) {
+                              CommandHistory* history, bool tableValue = false) {
     if (!owner || desc.type != PropType::String || !desc.get || !desc.set) return;
 
     std::string dialogLabel(desc.editorDialogLabel);
@@ -252,7 +255,8 @@ static void drawFilePathField(Instance* owner, const PropertyDesc& desc,
     // horizontal scrolling beside the buttons.
     ImGui::SetNextItemWidth(std::clamp(ImGui::GetContentRegionAvail().x,
                                        120.0f, 640.0f));
-    if (ImGui::InputText(label.c_str(), path.data(), path.size(), ImGuiInputTextFlags_EnterReturnsTrue)) {
+    const char* inputLabel = tableValue ? "##property_file_path" : label.c_str();
+    if (ImGui::InputText(inputLabel, path.data(), path.size(), ImGuiInputTextFlags_EnterReturnsTrue)) {
         const PropValue before = desc.get(owner);
         const PropValue after = PropValue(std::string(path.data()));
         if (std::get<std::string>(before) != std::get<std::string>(after)) {
@@ -294,6 +298,16 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                                   CommandHistory* history, PickerState* picker) {
     (void)className;
     static PropValue s_before;  // 編集開始時の値（同時編集は1つなので単一でよい）
+    if (!ImGui::BeginTable("##properties_single", 2,
+                           ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoBordersInBody |
+                               ImGuiTableFlags_BordersInnerV))
+        return;
+    ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 118.0f);
+    ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+    std::string activeCategory;
+    bool categoryOpen = true;
+    bool categoryStarted = false;
+
     // The runtime type is the source of truth.  The old className-only lookup
     // silently omitted derived properties (notably Motor6D/Gyro and the
     // concrete two-body constraints) from the inspector.
@@ -301,12 +315,32 @@ static void renderSchemaInspector(Instance* inst, const char* className,
         if (!dp) continue;
         const PropertyDesc& d = *dp;
         if (d.kind != PropKind::Field || !d.editable || !d.get) continue;
+        const std::string category = d.separator.empty()
+            ? (categoryStarted ? activeCategory : "General")
+            : std::string(d.separator);
+        if (!categoryStarted || (!d.separator.empty() && category != activeCategory)) {
+            activeCategory = category;
+            categoryStarted = true;
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            categoryOpen = ImGui::CollapsingHeader(
+                (category + "##property_category_single").c_str(),
+                ImGuiTreeNodeFlags_DefaultOpen);
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Separator();
+        }
+        if (!categoryOpen) continue;
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(d.name.data(), d.name.data() + d.name.size());
+        ImGui::TableSetColumnIndex(1);
         if (d.editorWidget == EditorWidget::FilePath) {
-            drawFilePathField(inst, d, history);
+            drawFilePathField(inst, d, history, true);
             continue;
         }
         if (!d.instanceRefClass.empty()) {
-            drawInstanceReferenceField(inst, d, history, picker);
+            drawInstanceReferenceField(inst, d, history, picker, true);
             continue;
         }
         const bool readOnly = d.editorReadOnly || !d.set;
@@ -315,7 +349,6 @@ static void renderSchemaInspector(Instance* inst, const char* className,
         auto applyLive = [&d](Instance* o, const PropValue& v) {
             if (d.liveSet) d.liveSet(o, v); else d.set(o, v);
         };
-        if (!d.separator.empty()) ImGui::SeparatorText(d.separator.data());
         ImGui::PushID(static_cast<int>(reinterpret_cast<std::uintptr_t>(dp)));
         if (readOnly) ImGui::BeginDisabled();
 
@@ -338,31 +371,31 @@ static void renderSchemaInspector(Instance* inst, const char* className,
         switch (d.type) {
             case PropType::Float: {
                 float v = std::get<float>(cur);
-                if (ImGui::DragFloat(label.c_str(), &v, d.step, d.lo, d.hi, "%.2f")) applyLive(inst, PropValue(v));
+                if (ImGui::DragFloat(("##" + label).c_str(), &v, d.step, d.lo, d.hi, "%.2f")) applyLive(inst, PropValue(v));
                 break;
             }
             case PropType::Int: {
                 int v = std::get<int>(cur);
-                if (ImGui::DragInt(label.c_str(), &v, 1.0f, (int)d.lo, (int)d.hi)) applyLive(inst, PropValue(v));
+                if (ImGui::DragInt(("##" + label).c_str(), &v, 1.0f, (int)d.lo, (int)d.hi)) applyLive(inst, PropValue(v));
                 break;
             }
             case PropType::Bool: {
                 bool v = std::get<bool>(cur);
-                if (ImGui::Checkbox(label.c_str(), &v)) applyLive(inst, PropValue(v));
+                if (ImGui::Checkbox(("##" + label).c_str(), &v)) applyLive(inst, PropValue(v));
                 break;
             }
             case PropType::String: {
                 char buf[256];
                 std::snprintf(buf, sizeof(buf), "%s", std::get<std::string>(cur).c_str());
-                if (ImGui::InputText(label.c_str(), buf, sizeof(buf))) applyLive(inst, PropValue(std::string(buf)));
+                if (ImGui::InputText(("##" + label).c_str(), buf, sizeof(buf))) applyLive(inst, PropValue(std::string(buf)));
                 break;
             }
             case PropType::Vec3: {
                 Vector3 v = std::get<Vector3>(cur);
-                if (ImGui::DragFloat3(label.c_str(), &v.x, d.step, d.lo, d.hi, "%.2f")) applyLive(inst, PropValue(v));
+                if (ImGui::DragFloat3(("##" + label).c_str(), &v.x, d.step, d.lo, d.hi, "%.2f")) applyLive(inst, PropValue(v));
                 const float input[3] = {v.x, v.y, v.z};
                 auto textResult = PropertyTextInput::draw(
-                    (label + " (all)##vec3_text").c_str(), input, 3);
+                    "##vec3_text", input, 3);
                 recordedDirectly = recordedDirectly || textResult.suppressGenericTransaction;
                 if (textResult.submitted && !textResult.invalid) {
                     const Vector3 afterValue(textResult.values[0], textResult.values[1], textResult.values[2]);
@@ -377,19 +410,19 @@ static void renderSchemaInspector(Instance* inst, const char* className,
             }
             case PropType::Vec2: {
                 Vector2 v = std::get<Vector2>(cur);
-                if (ImGui::DragFloat2(label.c_str(), &v.x, d.step, d.lo, d.hi, "%.2f")) applyLive(inst, PropValue(v));
+                if (ImGui::DragFloat2(("##" + label).c_str(), &v.x, d.step, d.lo, d.hi, "%.2f")) applyLive(inst, PropValue(v));
                 break;
             }
             case PropType::Color4: {
                 Color4 v = std::get<Color4>(cur);
                 float channels[4] = {v.r * 255.0f, v.g * 255.0f, v.b * 255.0f, v.a * 255.0f};
-                if (ImGui::DragFloat4(label.c_str(), channels, 1.0f, 0.0f, 255.0f, "%.0f")) {
+                if (ImGui::DragFloat4(("##" + label).c_str(), channels, 1.0f, 0.0f, 255.0f, "%.0f")) {
                     applyLive(inst, PropValue(Color4(channels[0] / 255.0f, channels[1] / 255.0f,
                                                      channels[2] / 255.0f, channels[3] / 255.0f)));
                 }
                 const float input[4] = {channels[0], channels[1], channels[2], channels[3]};
                 auto textResult = PropertyTextInput::draw(
-                    (label + " (RGBA)##color4_text").c_str(), input, 4, false, 0.0f, 255.0f);
+                    "##color4_text", input, 4, false, 0.0f, 255.0f);
                 recordedDirectly = recordedDirectly || textResult.suppressGenericTransaction;
                 if (textResult.submitted && !textResult.invalid) {
                     const Color4 afterColor(textResult.values[0] / 255.0f, textResult.values[1] / 255.0f,
@@ -422,7 +455,6 @@ static void renderSchemaInspector(Instance* inst, const char* className,
             }
             case PropType::CFrame: {
                 CFrame v = std::get<CFrame>(cur);
-                ImGui::TextUnformatted(label.c_str());
                 ImGui::Indent();
                 if (ImGui::DragFloat3("Position", &v.Position.x, d.step, d.lo, d.hi, "%.2f"))
                     applyLive(inst, PropValue(v));
@@ -436,7 +468,7 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                 const float input[6] = {v.Position.x, v.Position.y, v.Position.z,
                                         rotation.x, rotation.y, rotation.z};
                 auto textResult = PropertyTextInput::draw(
-                    (label + " (all)##cframe_text").c_str(), input, 6);
+                    "##cframe_text", input, 6);
                 recordedDirectly = recordedDirectly || textResult.suppressGenericTransaction;
                 if (textResult.submitted && !textResult.invalid) {
                     const Vector3 position(textResult.values[0], textResult.values[1], textResult.values[2]);
@@ -455,7 +487,7 @@ static void renderSchemaInspector(Instance* inst, const char* className,
             case PropType::Quaternion: {
                 Quaternion v = std::get<Quaternion>(cur);
                 Vector3 rotation = v.toEuler();
-                if (ImGui::DragFloat3(label.c_str(), &rotation.x, 1.0f, -360.0f, 360.0f, "%.1f"))
+                if (ImGui::DragFloat3(("##" + label).c_str(), &rotation.x, 1.0f, -360.0f, 360.0f, "%.1f"))
                     applyLive(inst, PropValue(Quaternion::fromEuler(rotation)));
                 break;
             }
@@ -467,7 +499,7 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                     items.push_back(d.enumNames[i].first.data());
                     if (d.enumNames[i].second == iv) idx = (int)i;
                 }
-                if (ImGui::Combo(label.c_str(), &idx, items.data(), (int)items.size()))
+                if (ImGui::Combo(("##" + label).c_str(), &idx, items.data(), (int)items.size()))
                     applyLive(inst, PropValue(d.enumNames[idx].second));
                 break;
             }
@@ -485,6 +517,7 @@ static void renderSchemaInspector(Instance* inst, const char* className,
         if (readOnly) ImGui::EndDisabled();
         ImGui::PopID();
     }
+    ImGui::EndTable();
 }
 
 // ===================================================
@@ -606,6 +639,16 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
         }
     }
 
+    if (!ImGui::BeginTable("##properties_multi", 2,
+                           ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoBordersInBody |
+                               ImGuiTableFlags_BordersInnerV))
+        return;
+    ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 118.0f);
+    ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+    std::string activeCategory;
+    bool categoryOpen = true;
+    bool categoryStarted = false;
+
     // 和集合を走査し、対応する型だけへ変更を適用する。
     for (auto& propertyRow : propertyRows) {
         const PropertyDesc* d0 = propertyRow.display;
@@ -614,7 +657,26 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
         if (rows.size() != valid.size())
             name += " (" + std::to_string(rows.size()) + "/" + std::to_string(valid.size()) + ")";
 
-        if (!d0->separator.empty()) ImGui::SeparatorText(d0->separator.data());
+        const std::string category = d0->separator.empty()
+            ? (categoryStarted ? activeCategory : "General")
+            : std::string(d0->separator);
+        if (!categoryStarted || (!d0->separator.empty() && category != activeCategory)) {
+            activeCategory = category;
+            categoryStarted = true;
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            categoryOpen = ImGui::CollapsingHeader(
+                (category + "##property_category_multi").c_str(),
+                ImGuiTreeNodeFlags_DefaultOpen);
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Separator();
+        }
+        if (!categoryOpen) continue;
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(name.c_str());
+        ImGui::TableSetColumnIndex(1);
         ImGui::PushID(multiCompatibilityKey(*d0).c_str());
 
         // liveSet があればドラッグ中はそちらを使う（軽量反映）。無ければ set をそのまま使う
@@ -752,18 +814,18 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
             case PropType::Float: {
                 float v = std::get<float>(cur);
                 const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.2f";
-                if (ImGui::DragFloat(name.c_str(), &v, d0->step, d0->lo, d0->hi, fmt)) applyLiveAll(PropValue(v));
+                if (ImGui::DragFloat(("##" + name).c_str(), &v, d0->step, d0->lo, d0->hi, fmt)) applyLiveAll(PropValue(v));
                 break;
             }
             case PropType::Int: {
                 int v = std::get<int>(cur);
                 const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%d";
-                if (ImGui::DragInt(name.c_str(), &v, 1.0f, (int)d0->lo, (int)d0->hi, fmt)) applyLiveAll(PropValue(v));
+                if (ImGui::DragInt(("##" + name).c_str(), &v, 1.0f, (int)d0->lo, (int)d0->hi, fmt)) applyLiveAll(PropValue(v));
                 break;
             }
             case PropType::Bool: {
                 bool v = std::get<bool>(cur);
-                bool changed = ImGui::Checkbox(name.c_str(), &v);
+                bool changed = ImGui::Checkbox(("##" + name).c_str(), &v);
                 if (mixed) { ImGui::SameLine(); ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::MixedValue)); }
                 if (changed) {
                     applyLiveAll(PropValue(v));
@@ -776,11 +838,11 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                 char buf[256];
                 if (mixed) {
                     buf[0] = '\0';
-                    if (ImGui::InputTextWithHint(name.c_str(), Loc::t(Loc::LocKey::MixedValue), buf, sizeof(buf)))
+                    if (ImGui::InputTextWithHint(("##" + name).c_str(), Loc::t(Loc::LocKey::MixedValue), buf, sizeof(buf)))
                         applyLiveAll(PropValue(std::string(buf)));
                 } else {
                     std::snprintf(buf, sizeof(buf), "%s", std::get<std::string>(cur).c_str());
-                    if (ImGui::InputText(name.c_str(), buf, sizeof(buf)))
+                    if (ImGui::InputText(("##" + name).c_str(), buf, sizeof(buf)))
                         applyLiveAll(PropValue(std::string(buf)));
                 }
                 break;
@@ -788,10 +850,10 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
             case PropType::Vec3: {
                 Vector3 v = std::get<Vector3>(cur);
                 const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.2f";
-                if (ImGui::DragFloat3(name.c_str(), &v.x, d0->step, d0->lo, d0->hi, fmt)) applyLiveAll(PropValue(v));
+                if (ImGui::DragFloat3(("##" + name).c_str(), &v.x, d0->step, d0->lo, d0->hi, fmt)) applyLiveAll(PropValue(v));
                 const float input[3] = {v.x, v.y, v.z};
                 auto textResult = PropertyTextInput::draw(
-                    (name + " (all)##vec3_text").c_str(), input, 3, mixed);
+                    "##vec3_text", input, 3, mixed);
                 recordedImmediately = recordedImmediately || textResult.suppressGenericTransaction;
                 if (textResult.submitted && !textResult.invalid) {
                     applyLiveAll(PropValue(Vector3(textResult.values[0], textResult.values[1], textResult.values[2])));
@@ -806,19 +868,19 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
             case PropType::Vec2: {
                 Vector2 v = std::get<Vector2>(cur);
                 const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.2f";
-                if (ImGui::DragFloat2(name.c_str(), &v.x, d0->step, d0->lo, d0->hi, fmt)) applyLiveAll(PropValue(v));
+                if (ImGui::DragFloat2(("##" + name).c_str(), &v.x, d0->step, d0->lo, d0->hi, fmt)) applyLiveAll(PropValue(v));
                 break;
             }
             case PropType::Color4: {
                 Color4 v = std::get<Color4>(cur);
                 float channels[4] = {v.r * 255.0f, v.g * 255.0f, v.b * 255.0f, v.a * 255.0f};
-                bool changed = ImGui::DragFloat4(name.c_str(), channels, 1.0f, 0.0f, 255.0f, "%.0f");
+                bool changed = ImGui::DragFloat4(("##" + name).c_str(), channels, 1.0f, 0.0f, 255.0f, "%.0f");
                 if (mixed) { ImGui::SameLine(); ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::MixedValue)); }
                 if (changed) applyLiveAll(PropValue(Color4(channels[0] / 255.0f, channels[1] / 255.0f,
                                                            channels[2] / 255.0f, channels[3] / 255.0f)));
                 const float input[4] = {channels[0], channels[1], channels[2], channels[3]};
                 auto textResult = PropertyTextInput::draw(
-                    (name + " (RGBA)##color4_text").c_str(), input, 4, mixed, 0.0f, 255.0f);
+                    "##color4_text", input, 4, mixed, 0.0f, 255.0f);
                 recordedImmediately = recordedImmediately || textResult.suppressGenericTransaction;
                 if (textResult.submitted && !textResult.invalid) {
                     applyLiveAll(PropValue(Color4(textResult.values[0] / 255.0f,
@@ -864,23 +926,22 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
             }
             case PropType::CFrame: {
                 CFrame v = std::get<CFrame>(cur);
-                ImGui::TextUnformatted(name.c_str());
                 ImGui::Indent();
                 const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.2f";
-                if (ImGui::DragFloat3("Position", &v.Position.x, d0->step, d0->lo, d0->hi, fmt))
+                if (ImGui::DragFloat3("##Position", &v.Position.x, d0->step, d0->lo, d0->hi, fmt))
                     applyLiveAll(PropValue(v));
                 itemActivated = ImGui::IsItemActivated();
                 itemDeactivatedAfterEdit = ImGui::IsItemDeactivatedAfterEdit();
                 Vector3 rotation = v.Rotation.toEuler();
                 const char* rotationFmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.1f";
-                if (ImGui::DragFloat3("Rotation", &rotation.x, 1.0f, -360.0f, 360.0f, rotationFmt)) {
+                if (ImGui::DragFloat3("##Rotation", &rotation.x, 1.0f, -360.0f, 360.0f, rotationFmt)) {
                     v.Rotation = Quaternion::fromEuler(rotation);
                     applyLiveAll(PropValue(v));
                 }
                 const float input[6] = {v.Position.x, v.Position.y, v.Position.z,
                                         rotation.x, rotation.y, rotation.z};
                 auto textResult = PropertyTextInput::draw(
-                    (name + " (all)##cframe_text").c_str(), input, 6, mixed);
+                    "##cframe_text", input, 6, mixed);
                 recordedImmediately = recordedImmediately || textResult.suppressGenericTransaction;
                 if (textResult.submitted && !textResult.invalid) {
                     const Vector3 position(textResult.values[0], textResult.values[1], textResult.values[2]);
@@ -901,13 +962,13 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                 Quaternion v = std::get<Quaternion>(cur);
                 Vector3 rotation = v.toEuler();
                 const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.1f";
-                if (ImGui::DragFloat3(name.c_str(), &rotation.x, 1.0f, -360.0f, 360.0f, fmt))
+                if (ImGui::DragFloat3(("##" + name).c_str(), &rotation.x, 1.0f, -360.0f, 360.0f, fmt))
                     applyLiveAll(PropValue(Quaternion::fromEuler(rotation)));
                 break;
             }
             case PropType::Enum: {
                 if (mixed) {
-                    if (ImGui::BeginCombo(name.c_str(), Loc::t(Loc::LocKey::MixedValue))) {
+                    if (ImGui::BeginCombo(("##" + name).c_str(), Loc::t(Loc::LocKey::MixedValue))) {
                         for (const auto& enumEntry : d0->enumNames) {
                             std::string enumLabel(enumEntry.first);
                             if (ImGui::Selectable(enumLabel.c_str())) {
@@ -936,7 +997,7 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                         items.push_back(d0->enumNames[i].first.data());
                         if (d0->enumNames[i].second == iv) idx = (int)i;
                     }
-                    if (ImGui::Combo(name.c_str(), &idx, items.data(), (int)items.size()))
+                    if (ImGui::Combo(("##" + name).c_str(), &idx, items.data(), (int)items.size()))
                         applyLiveAll(PropValue(d0->enumNames[idx].second));
                 }
                 break;
@@ -965,6 +1026,7 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
 
         ImGui::PopID();
     }
+    ImGui::EndTable();
 }
 
 namespace {
@@ -1256,9 +1318,21 @@ void PropertiesPanel::onRender() {
     }
 
     // ---- 基本情報 ----
-    ImGui::SeparatorText("Instance");
-    ImGui::LabelText("ClassName", "%s", inst->getClassName().c_str());
-    ImGui::LabelText("Path",      "%s", inst->getFullPath().c_str());
+    const bool instanceTable = ImGui::BeginTable(
+        "##properties_instance_info", 2,
+        ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoBordersInBody |
+            ImGuiTableFlags_BordersInnerV);
+    bool instanceOpen = instanceTable;
+    if (instanceTable) {
+        ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 118.0f);
+        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        instanceOpen = ImGui::CollapsingHeader(
+            "Instance##properties_instance_category", ImGuiTreeNodeFlags_DefaultOpen);
+        ImGui::TableSetColumnIndex(1);
+        ImGui::Separator();
+    }
 
     static std::weak_ptr<Instance> s_nameTarget;
     static std::string s_nameBefore;
@@ -1290,13 +1364,36 @@ void PropertiesPanel::onRender() {
     }
 
     const bool nameLocked = inst->isRuntimeNameLocked();
-    if (nameLocked) ImGui::BeginDisabled();
-    bool submit = ImGui::InputText("Name", s_nameBuf, sizeof(s_nameBuf),
-                                   ImGuiInputTextFlags_EnterReturnsTrue);
-    bool activated = ImGui::IsItemActivated();
-    bool deactivatedAfterEdit = ImGui::IsItemDeactivatedAfterEdit();
-    bool deactivated = ImGui::IsItemDeactivated();
-    if (nameLocked) ImGui::EndDisabled();
+    bool submit = false;
+    bool activated = false;
+    bool deactivatedAfterEdit = false;
+    bool deactivated = false;
+    if (instanceOpen) {
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Name");
+        ImGui::TableSetColumnIndex(1);
+        if (nameLocked) ImGui::BeginDisabled();
+        submit = ImGui::InputText("##instance_name", s_nameBuf, sizeof(s_nameBuf),
+                                  ImGuiInputTextFlags_EnterReturnsTrue);
+        activated = ImGui::IsItemActivated();
+        deactivatedAfterEdit = ImGui::IsItemDeactivatedAfterEdit();
+        deactivated = ImGui::IsItemDeactivated();
+        if (nameLocked) ImGui::EndDisabled();
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("ClassName");
+        ImGui::TableSetColumnIndex(1);
+        ImGui::TextUnformatted(inst->getClassName().c_str());
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Path");
+        ImGui::TableSetColumnIndex(1);
+        ImGui::TextUnformatted(inst->getFullPath().c_str());
+    }
 
     if (activated && !nameLocked) {
         s_nameTarget = inst->shared_from_this();
@@ -1308,6 +1405,9 @@ void PropertiesPanel::onRender() {
     if (deactivated) {
         clearNameEdit();
     }
+
+    if (instanceTable)
+        ImGui::EndTable();
 
     // Instance 側 schema の基底→派生集合だけを描画する。通常 property の
     // class-specific UI はここへ流れ、特殊な adapter/action だけが下に残る。

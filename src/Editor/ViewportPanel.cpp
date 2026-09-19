@@ -450,16 +450,10 @@ bool ViewportPanel::updateWeldMode(const ViewportLayout& layout) {
             const float aspect = h > 0 ? static_cast<float>(w) / static_cast<float>(h) : 1.0f;
             const Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
             const Matrix4 view = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
-            GLint oldFbo = 0, oldViewport[4] = {};
-            glGetIntegerv(GL_FRAMEBUFFER_BINDING, &oldFbo);
-            glGetIntegerv(GL_VIEWPORT, oldViewport);
-            glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-            glViewport(0, 0, fbWidth, fbHeight);
-            Renderer::instance->drawTransientHighlight(
-                hoveredCube, Color4(0.0f, 0.0f, 0.0f, 0.0f), Color4(0.15f, 1.0f, 0.25f, 1.0f), 3.0f,
-                view, projection, camPos(), 45.0f, h);
-            glBindFramebuffer(GL_FRAMEBUFFER, oldFbo);
-            glViewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
+            const std::vector<BaseCube*> weldTargets{hoveredCube};
+            Renderer::instance->renderSelectionOutline(
+                weldTargets, framebuffer, w, h, view, projection,
+                Color4(0.15f, 1.0f, 0.25f, 1.0f), 3.0f);
         }
 
         if (hoveredCube && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsUsing()) {
@@ -1175,21 +1169,11 @@ void ViewportPanel::drawHoverHighlight(const ViewportLayout& layout) {
     const float aspect = h > 0 ? static_cast<float>(w) / static_cast<float>(h) : 1.0f;
     const Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
     const Matrix4 view = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
-    GLint oldFbo = 0, oldViewport[4] = {};
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &oldFbo);
-    glGetIntegerv(GL_VIEWPORT, oldViewport);
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-    glViewport(0, 0, w, h);
-    for (BaseCube* cube : ViewportSceneQueries::collectHighlightBaseCubes(*hoverHit.target)) {
-        Renderer::instance->drawTransientHighlight(
-            cube,
-            Color4(0.0f, 0.0f, 0.0f, 0.0f),
-            Color4(1.0f, 1.0f, 1.0f, 0.45f),
-            1.5f,
-            view, projection, camPos(), 45.0f, h);
-    }
-    glBindFramebuffer(GL_FRAMEBUFFER, oldFbo);
-    glViewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
+    const std::vector<BaseCube*> hoverTargets =
+        ViewportSceneQueries::collectHighlightBaseCubes(*hoverHit.target);
+    Renderer::instance->renderSelectionOutline(
+        hoverTargets, framebuffer, w, h, view, projection,
+        Color4(1.0f, 1.0f, 1.0f, 0.45f), 1.5f);
 }
 
 void ViewportPanel::updateFreeDrag(const ViewportLayout& layout) {

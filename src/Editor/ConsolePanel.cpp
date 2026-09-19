@@ -145,6 +145,7 @@ void ConsolePanel::onRender() {
 
         // ---- System タブ ----
         if (ImGui::BeginTabItem(Loc::t(Loc::LocKey::TabSystem))) {
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6.0f, 4.0f));
             if (ImGui::SmallButton(Loc::t(Loc::LocKey::ClearButton))) { clear(); }
             ImGui::SameLine();
             const ImGuiStyle& style = ImGui::GetStyle();
@@ -153,9 +154,10 @@ void ConsolePanel::onRender() {
                                          + style.FramePadding.x * 2.0f;
             const float filterWidth = ImGui::GetContentRegionAvail().x - filterLabelWidth
                                     - style.ItemInnerSpacing.x - copyButtonWidth - style.ItemSpacing.x;
+            ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::FilterLabel));
+            ImGui::SameLine();
             ImGui::SetNextItemWidth(filterWidth > 1.0f ? filterWidth : 1.0f);
-            std::string filterLabel = std::string(Loc::t(Loc::LocKey::FilterLabel)) + "##sys";
-            ImGui::InputText(filterLabel.c_str(), filterBuf, sizeof(filterBuf));
+            ImGui::InputText("##sys", filterBuf, sizeof(filterBuf));
             std::string joined;
             for (const auto& line : logs) {
                 if (filterBuf[0] != '\0' && line.find(filterBuf) == std::string::npos) continue;
@@ -167,6 +169,7 @@ void ConsolePanel::onRender() {
             if (ImGui::SmallButton(sysCopyLabel.c_str())) {
                 ImGui::SetClipboardText(joined.c_str());
             }
+            ImGui::PopStyleVar();
             ImGui::Separator();
 
             ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.045f, 0.060f, 0.105f, 1.0f));
@@ -201,9 +204,11 @@ void ConsolePanel::onRender() {
                                          + style.FramePadding.x * 2.0f;
             const float filterWidth = ImGui::GetContentRegionAvail().x - filterLabelWidth
                                     - style.ItemInnerSpacing.x - copyButtonWidth - style.ItemSpacing.x;
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6.0f, 4.0f));
+            ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::FilterLabel));
+            ImGui::SameLine();
             ImGui::SetNextItemWidth(filterWidth > 1.0f ? filterWidth : 1.0f);
-            std::string filterLabel = std::string(Loc::t(Loc::LocKey::FilterLabel)) + "##luau";
-            ImGui::InputText(filterLabel.c_str(), luauFilterBuf, sizeof(luauFilterBuf));
+            ImGui::InputText("##luau", luauFilterBuf, sizeof(luauFilterBuf));
             std::string joined;
             for (const auto& line : luauLogs) {
                 if (luauFilterBuf[0] != '\0' && line.find(luauFilterBuf) == std::string::npos) continue;
@@ -215,6 +220,7 @@ void ConsolePanel::onRender() {
             if (ImGui::SmallButton(luauCopyLabel.c_str())) {
                 ImGui::SetClipboardText(joined.c_str());
             }
+            ImGui::PopStyleVar();
             ImGui::Separator();
 
             ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.045f, 0.060f, 0.105f, 1.0f));

@@ -1055,3 +1055,41 @@
 - `WelcomePanel`はOS別の埋め込みリソースではなく、共通の`assets/image/Recubin.png`を`stbi_load`で読み込む。ロード失敗はパスとstb_imageの理由をログへ出す。
 - `build.py package`のWindows/macOS Studioパッケージャーは、ロゴを`assets/image/Recubin.png`へ必須コピーし、元ファイルが無い場合はエラー終了する。
 - `python3 -m py_compile build.py`、`WelcomePanel.cpp`のGCC C++23構文検査、`git diff --check`、一時ディレクトリへのロゴコピー検査、Windows Release buildは成功。GUIの実機表示とmacOS上のパッケージ起動は未検証。
+
+### 2026-09-19: Viewport screen-space selection outline
+
+- エディタのBaseCube/Mesh選択表示を、硬いmesh edgeのリボン描画からRenderer所有のR8 Selection Mask FBOを使うscreen-space outlineへ変更した。通常Viewportのdepthをmask FBOへcopyして選択geometryだけをdepth test付きでmaskへ描画するため、前景に隠れた部分は表示されない。
+- primary/secondary選択およびModel配下のBaseCubeを同じmaskへ描画し、8近傍のoutline shaderでunion外周だけを2px幅のcyanとしてscene extras後・post-effect前に合成する。mask FBOはViewportサイズ変更時に再作成し、Renderer破棄時にtexture/renderbuffer/FBO/shaderを全解放する。
+- エディタ選択のBaseCube edge highlightは除去した。ゲームプレイ用`Highlight`インスタンスとDecalのface選択表示はこの変更の対象外として既存動作を維持する。`doc/Rendering.md`を現行経路へ更新した。
+- `Renderer.cpp`のGCC C++23 syntax checkと対象`git diff --check`は成功。Windows Release buildは成功（新規C4458 warningを解消済み）。実機での遮蔽・複数Mesh union・resize表示は未確認。
+
+### 2026-09-19: Selection Mask hover unification and depth stability
+
+- 実機ログで`primary=System\\Workspace\\Cube1`、`drawable geometry=1`を確認し、Selection Mask shader/FBO生成失敗ではないことを確定した。内側のcyan横線は、通常FBOの24-bit depthをcopy後に同じsurfaceをmaskへ再ラスタライズした際の量子化差による自己depth競合だった。
+- 選択、通常ホバー、Weld候補ホバーを`Renderer::renderSelectionOutline()`の共通Selection Mask経路へ統一した。旧`drawTransientHighlight()`のedge/ribbon描画は削除した。mask geometry passだけに`GL_POLYGON_OFFSET_FILL(-1,-1)`を設定して自己depth競合を除去し、全GL状態を復元する。選択=cyan 2px、通常hover=白半透明1.5px、Weld hover=緑3px。
+- `Renderer.cpp`と`ViewportPanel.cpp`のGCC C++23 syntax check、対象と新規shaderの`git diff --check`は成功。Windows Release buildは実装担当側で成功。次の一手: Windows側で`py build.py brun`を実行し、Cube/Mesh/Modelの選択、未選択hover、Weld hover、前景遮蔽、viewport resizeを実機確認する。
+- 実機で毎フレーム表示された`Selection mask/outline OpenGL error: 0x500`は、pass開始前から未回収だったGL errorをSelection pass末尾で回収して誤帰属した診断だった。mask shader/FBO/geometry入力は正常だったため、このper-frame `glGetError()`診断を削除した。FBO不完全時の明示的エラーは維持する。
+
+### 2026-09-19: prompt.md に基づくエディターGUI整理
+
+- `EditorManager` の既存ネイビー基調を維持したまま、ツールバーの通常／hover／activeボタンへ控えめな青いガラス調（上明・下暗）を追加した。文字`|`ではなく2本線の区切りを使い、SnapのMove／Rotate／Resizeは単位付きのまとまり、Collision Fitは独立した`Fit`操作として表示する。
+- `PropertiesPanel` の通常・複数選択インスペクタをProperty/Valueの2列表へ統一した。スキーマのカテゴリは該当プロパティがある場合だけ折りたたみ見出しとして表示し、InstanceのName/ClassName/Pathも同じ構造へ移した。既存のpicker、Undo、liveSet、複数選択一括編集は保持する。
+- Consoleの両タブはClear、Filter、Copyを同じ操作列へ揃え、本文との間を区切った。タブ／Explorerの既存選択・hover表現、ドッキング構造、フォント／アイコン体系は変更していない。
+- `UiHelpers.cpp`、`EditorManager.cpp`、`ConsolePanel.cpp`、`PropertiesPanel.cpp`のGCC C++23 syntax checkと`git diff --check`は成功（後者のCRLF通知は既存ファイル由来）。Windows `cmd.exe /d /c py build.py build`はRecubin、RecubinEngine、RecubinTestすべて成功。GUI自動スクリーンショット試験は方針により実施せず、見た目と操作感は手動確認待ち。
+
+### 2026-09-19: ガラス表現と可読性の改善
+
+- `EditorUi::glassButton()`は、ImGuiの標準クリック／ID／レイアウト処理をそのまま使い、標準frameを透明化した上で、backgroundだけをdraw-listの文字より前のchannelへ描画するよう変更した。このためglassのbase／sheenが文字とiconの上へ重ならず、themeのほぼ白いTextを常に高コントラストで表示する。
+- glassは暗い現在色を基調に、上下gradient、上部32%の青白いsheen、top inner highlight、下辺・右辺の暗いborderを重ねる。hover、pressed、selected、selected+hoverをそれぞれ変化させ、pressed時はsheen／top highlightを弱める。selectedは既存色を明るくするため、Weldなどのgreen semantic colorをblueへ置換しない。
+- 選択中toolbar category、Select／Move／Resize／Rotate、Terrain操作、Weld Modeを`selected`として共通helperへ渡すようにした。Dock tabはdark inactive、light active、blue-white overline（unfocused時を含む）で弱いglass表現にし、panel titleは本文をflatに保ったまま濃紺の控えめなbase／borderへ調整した。
+- `UiHelpers.cpp`と`EditorManager.cpp`のGCC C++23 syntax check、対象`git diff --check`、Windows `cmd.exe /d /c py build.py build`は成功。GUI自動スクリーンショットは方針により実施せず、実機での見た目・操作感は手動確認待ち。
+
+### 2026-09-19: Toolbar separator の行高基準化
+
+- 既存のtoolbar separatorは`GetFrameHeight()`を使っていたため、58pxのtoolbar button行ではなくテキスト行に縮んでいた。`EditorManager.cpp`の`drawToolbarMajorSeparator()`へ置換し、左右10pxの余白、58px行中央の28px、暗い青線＋淡い青線を一部品として描くようにした。
+- Play、Transform、Snap/Fit、Creation、Save/Loadの境界はMajor separatorを使用する。Snap内部のMove／Rotate／Resize／FitはMinor lineを置かず、12pxのinline gapに整理したため、細かい設定行が過密にならない。
+- `EditorManager.cpp`のGCC C++23 syntax check、対象`git diff --check`、Windows `cmd.exe /d /c py build.py build`は成功。GUI自動スクリーンショットは方針により実施せず、実機表示は手動確認待ち。
+
+### 2026-09-19: Major separator height follow-up
+
+- Major separatorを28pxから40pxへ延長した。58pxのtoolbar button行に対して上下9pxずつのmarginを残し、Transform、Snap/Fit、Creation、Save/Loadの境界が小装飾でなく明確なgroup dividerとして見える高さにした。色、2本線の溝表現、Snap内部の余白区切りは維持する。

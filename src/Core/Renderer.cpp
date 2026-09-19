@@ -623,6 +623,7 @@ void Renderer::init(GLFWwindow* window) {
 
     initLineRenderer();
     initPostEffectRenderer();
+    initSelectionRenderer();
     initParticleRenderer();
     initCloudRenderer();
 }
@@ -674,6 +675,11 @@ Renderer::~Renderer() {
     if (m_postTexA)   glDeleteTextures(1, &m_postTexA);
     if (m_postFboB)   glDeleteFramebuffers(1, &m_postFboB);
     if (m_postTexB)   glDeleteTextures(1, &m_postTexB);
+    if (m_selectionMaskFBO)   glDeleteFramebuffers(1, &m_selectionMaskFBO);
+    if (m_selectionMaskTex)   glDeleteTextures(1, &m_selectionMaskTex);
+    if (m_selectionMaskDepth) glDeleteRenderbuffers(1, &m_selectionMaskDepth);
+    if (m_selectionMaskShader) glDeleteProgram(m_selectionMaskShader);
+    if (m_selectionOutlineShader) glDeleteProgram(m_selectionOutlineShader);
     for (auto& [path, entry] : m_customPostEffectPrograms) {
         if (entry.program) glDeleteProgram(entry.program);
     }
@@ -1540,6 +1546,272 @@ void Renderer::ensurePostEffectFBOs(int width, int height) {
     m_postFboHeight = height;
 }
 
+void Renderer::initSelectionRenderer() {
+    const std::string maskVertexSource = FileLoader::readText("shaders/selection_mask_vertex.glsl");
+    const std::string maskFragmentSource = FileLoader::readText("shaders/selection_mask_fragment.glsl");
+    const std::string outlineVertexSource = FileLoader::readText("shaders/postprocess_vertex.glsl");
+    const std::string outlineFragmentSource = FileLoader::readText("shaders/selection_outline_fragment.glsl");
+    auto compile = [](GLenum type, const std::string& source, const char* label) -> GLuint {
+        if (source.empty()) {
+            RCBN_ERROR("Selection shader source is empty: " << label);
+            return 0;
+        }
+        GLuint shader = glCreateShader(type);
+        const char* src = source.c_str();
+        glShaderSource(shader, 1, &src, nullptr);
+        glCompileShader(shader);
+        GLint ok = GL_FALSE;
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
+        if (!ok) {
+            char log[1024] = {};
+            glGetShaderInfoLog(shader, sizeof(log), nullptr, log);
+            RCBN_ERROR("Selection shader compilation failed (" << label << "): " << log);
+            glDeleteShader(shader);
+            return 0;
+        }
+        return shader;
+    };
+    auto link = [](GLuint vertex, GLuint fragment, const char* label) -> GLuint {
+        if (!vertex || !fragment) return 0;
+        GLuint program = glCreateProgram();
+        glAttachShader(program, vertex);
+        glAttachShader(program, fragment);
+        glLinkProgram(program);
+        GLint ok = GL_FALSE;
+        glGetProgramiv(program, GL_LINK_STATUS, &ok);
+        if (!ok) {
+            char log[1024] = {};
+            glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+            RCBN_ERROR("Selection shader link failed (" << label << "): " << log);
+            glDeleteProgram(program);
+            return 0;
+        }
+        return program;
+    };
+    GLuint mv = compile(GL_VERTEX_SHADER, maskVertexSource, "mask vertex");
+    GLuint mf = compile(GL_FRAGMENT_SHADER, maskFragmentSource, "mask fragment");
+    m_selectionMaskShader = link(mv, mf, "mask");
+    if (mv) glDeleteShader(mv);
+    if (mf) glDeleteShader(mf);
+    GLuint ov = compile(GL_VERTEX_SHADER, outlineVertexSource, "outline vertex");
+    GLuint of = compile(GL_FRAGMENT_SHADER, outlineFragmentSource, "outline fragment");
+    m_selectionOutlineShader = link(ov, of, "outline");
+    if (ov) glDeleteShader(ov);
+    if (of) glDeleteShader(of);
+}
+
+void Renderer::ensureSelectionMaskFBO(int width, int height) {
+    if (width <= 0 || height <= 0) return;
+    if (m_selectionMaskFBO && width == m_selectionMaskWidth && height == m_selectionMaskHeight) return;
+    if (m_selectionMaskFBO) {
+        glDeleteFramebuffers(1, &m_selectionMaskFBO);
+    }
+    if (m_selectionMaskTex) {
+        glDeleteTextures(1, &m_selectionMaskTex);
+    }
+    if (m_selectionMaskDepth) {
+        glDeleteRenderbuffers(1, &m_selectionMaskDepth);
+    }
+    m_selectionMaskFBO = m_selectionMaskTex = m_selectionMaskDepth = 0;
+    glGenTextures(1, &m_selectionMaskTex);
+    glBindTexture(GL_TEXTURE_2D, m_selectionMaskTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glGenRenderbuffers(1, &m_selectionMaskDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, m_selectionMaskDepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+    glGenFramebuffers(1, &m_selectionMaskFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_selectionMaskFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_selectionMaskTex, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_selectionMaskDepth);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        RCBN_ERROR("Selection mask framebuffer is incomplete at " << width << "x" << height);
+        glDeleteFramebuffers(1, &m_selectionMaskFBO);
+        glDeleteTextures(1, &m_selectionMaskTex);
+        glDeleteRenderbuffers(1, &m_selectionMaskDepth);
+        m_selectionMaskFBO = m_selectionMaskTex = m_selectionMaskDepth = 0;
+    }
+    m_selectionMaskWidth = width;
+    m_selectionMaskHeight = height;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void Renderer::renderEditorSelectionOutline(const ViewportRenderDesc& desc, const Matrix4& view, const Matrix4& projection) {
+    const bool hasSecondarySelection = desc.selectionTargets && !desc.selectionTargets->empty();
+    if (!desc.renderHighlights || (!desc.primarySelection && !hasSecondarySelection) ||
+        !m_selectionMaskShader || !m_selectionOutlineShader || !m_postVAO) {
+        return;
+    }
+    std::vector<BaseCube*> targets;
+    auto appendTargets = [&](Instance* selected) {
+        if (selected && !selected->Parent.expired() && !selected->IsA("Decal")) {
+            collectHighlightTargets(selected, targets);
+        }
+    };
+    appendTargets(desc.primarySelection);
+    if (desc.selectionTargets) {
+        for (Instance* selected : *desc.selectionTargets) {
+            appendTargets(selected);
+        }
+    }
+    std::sort(targets.begin(), targets.end());
+    targets.erase(std::unique(targets.begin(), targets.end()), targets.end());
+
+    renderSelectionOutline(targets, desc.fbo, desc.width, desc.height,
+                           view, projection, Color4(0.25f, 0.9f, 1.0f, 1.0f), 2.0f);
+}
+
+void Renderer::renderSelectionOutline(const std::vector<BaseCube*>& targets,
+                                      GLuint destinationFbo, int width, int height,
+                                      const Matrix4& view, const Matrix4& projection,
+                                      const Color4& outlineColor, float outlineWidth) {
+    if (targets.empty() || destinationFbo == 0 || width <= 0 || height <= 0 ||
+        !m_selectionMaskShader || !m_selectionOutlineShader || !m_postVAO) {
+        return;
+    }
+    ensureSelectionMaskFBO(width, height);
+    if (!m_selectionMaskFBO) return;
+
+    GLint savedDrawFbo = 0;
+    GLint savedReadFbo = 0;
+    GLint savedViewport[4] = {};
+    GLint savedProgram = 0;
+    GLint savedDepthFunc = GL_LESS;
+    GLint savedActiveTexture = GL_TEXTURE0;
+    GLint savedTexture0 = 0;
+    GLint savedVao = 0;
+    GLint savedBlendSrcRgb = GL_ONE;
+    GLint savedBlendDstRgb = GL_ZERO;
+    GLint savedBlendSrcAlpha = GL_ONE;
+    GLint savedBlendDstAlpha = GL_ZERO;
+    GLint savedScissorBox[4] = {};
+    GLint savedPolygonMode[2] = {GL_FILL, GL_FILL};
+    GLfloat savedPolygonOffsetFactor = 0.0f;
+    GLfloat savedPolygonOffsetUnits = 0.0f;
+    GLboolean savedDepthMask = GL_TRUE;
+    const GLboolean savedDepthTest = glIsEnabled(GL_DEPTH_TEST);
+    const GLboolean savedBlend = glIsEnabled(GL_BLEND);
+    const GLboolean savedScissor = glIsEnabled(GL_SCISSOR_TEST);
+    const GLboolean savedPolygonOffset = glIsEnabled(GL_POLYGON_OFFSET_FILL);
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &savedDrawFbo);
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &savedReadFbo);
+    glGetIntegerv(GL_VIEWPORT, savedViewport);
+    glGetIntegerv(GL_CURRENT_PROGRAM, &savedProgram);
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &savedVao);
+    glGetIntegerv(GL_DEPTH_FUNC, &savedDepthFunc);
+    glGetBooleanv(GL_DEPTH_WRITEMASK, &savedDepthMask);
+    glGetIntegerv(GL_BLEND_SRC_RGB, &savedBlendSrcRgb);
+    glGetIntegerv(GL_BLEND_DST_RGB, &savedBlendDstRgb);
+    glGetIntegerv(GL_BLEND_SRC_ALPHA, &savedBlendSrcAlpha);
+    glGetIntegerv(GL_BLEND_DST_ALPHA, &savedBlendDstAlpha);
+    glGetIntegerv(GL_SCISSOR_BOX, savedScissorBox);
+    glGetIntegerv(GL_POLYGON_MODE, savedPolygonMode);
+    glGetFloatv(GL_POLYGON_OFFSET_FACTOR, &savedPolygonOffsetFactor);
+    glGetFloatv(GL_POLYGON_OFFSET_UNITS, &savedPolygonOffsetUnits);
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &savedActiveTexture);
+    glActiveTexture(GL_TEXTURE0);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &savedTexture0);
+    glDisable(GL_SCISSOR_TEST);
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, destinationFbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_selectionMaskFBO);
+    glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_selectionMaskFBO);
+    const GLenum selectionMaskFramebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (selectionMaskFramebufferStatus != GL_FRAMEBUFFER_COMPLETE) {
+        RCBN_ERROR("Selection mask framebuffer became incomplete during rendering: status=0x"
+                   << std::hex << selectionMaskFramebufferStatus << std::dec);
+    }
+    glViewport(0, 0, width, height);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    const GLfloat clearMask[] = {0.0f, 0.0f, 0.0f, 0.0f};
+    glClearBufferfv(GL_COLOR, 0, clearMask);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_FALSE);
+    // The scene and mask passes can quantize the same surface to adjacent depth
+    // values. Bias the mask slightly toward the camera to prevent self-depth holes
+    // without making the outline pass through separately occluding geometry.
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(-1.0f, -1.0f);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glDisable(GL_BLEND);
+    glUseProgram(m_selectionMaskShader);
+    glUniformMatrix4fv(glGetUniformLocation(m_selectionMaskShader, "view"), 1, GL_FALSE, view.m);
+    glUniformMatrix4fv(glGetUniformLocation(m_selectionMaskShader, "projection"), 1, GL_FALSE, projection.m);
+    const GLint selectionMaskModelLoc =
+        glGetUniformLocation(m_selectionMaskShader, "model");
+    for (BaseCube* target : targets) {
+        GLsizei count = 0;
+        if (!bindHighlightGeometry(target, count)) continue;
+        Matrix4 model = target->getWorldCFrame().toMatrix4() *
+                        Matrix4::Scale(target->Size.x, target->Size.y, target->Size.z);
+        glUniformMatrix4fv(selectionMaskModelLoc, 1, GL_FALSE, model.m);
+        glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, nullptr);
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, destinationFbo);
+    glViewport(0, 0, width, height);
+    glDisable(GL_POLYGON_OFFSET_FILL);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(m_selectionOutlineShader);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_selectionMaskTex);
+    glUniform1i(glGetUniformLocation(m_selectionOutlineShader, "selectionMask"), 0);
+    glUniform2f(glGetUniformLocation(m_selectionOutlineShader, "texelSize"),
+                1.0f / width, 1.0f / height);
+    glUniform1f(glGetUniformLocation(m_selectionOutlineShader, "outlineWidth"),
+                (std::max)(outlineWidth, 1.0f));
+    glUniform4f(glGetUniformLocation(m_selectionOutlineShader, "outlineColor"),
+                outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a);
+    glBindVertexArray(m_postVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(static_cast<GLuint>(savedVao));
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, savedDrawFbo);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, savedReadFbo);
+    glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+    glUseProgram(static_cast<GLuint>(savedProgram));
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(savedTexture0));
+    glActiveTexture(savedActiveTexture);
+    glDepthFunc(savedDepthFunc);
+    glDepthMask(savedDepthMask);
+    glPolygonMode(GL_FRONT, savedPolygonMode[0]);
+    glPolygonMode(GL_BACK, savedPolygonMode[1]);
+    glPolygonOffset(savedPolygonOffsetFactor, savedPolygonOffsetUnits);
+    if (savedPolygonOffset) {
+        glEnable(GL_POLYGON_OFFSET_FILL);
+    } else {
+        glDisable(GL_POLYGON_OFFSET_FILL);
+    }
+    glBlendFuncSeparate(savedBlendSrcRgb, savedBlendDstRgb,
+                        savedBlendSrcAlpha, savedBlendDstAlpha);
+    glScissor(savedScissorBox[0], savedScissorBox[1], savedScissorBox[2], savedScissorBox[3]);
+    if (savedScissor) {
+        glEnable(GL_SCISSOR_TEST);
+    } else {
+        glDisable(GL_SCISSOR_TEST);
+    }
+    if (savedDepthTest) {
+        glEnable(GL_DEPTH_TEST);
+    } else {
+        glDisable(GL_DEPTH_TEST);
+    }
+    if (savedBlend) {
+        glEnable(GL_BLEND);
+    } else {
+        glDisable(GL_BLEND);
+    }
+}
+
 void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int width, int height) {
     if (!m_postShader || width <= 0 || height <= 0) return;
 
@@ -1705,15 +1977,6 @@ void Renderer::drawBaseCubeHighlight(BaseCube* target, const Color4& fillColor,
 
     if (unlitLoc != -1) glUniform1f(unlitLoc, 0.0f);
     glEnable(GL_DEPTH_TEST);
-}
-
-void Renderer::drawTransientHighlight(BaseCube* target, const Color4& fillColor,
-                                      const Color4& outlineColor, float outlineThickness,
-                                      const Matrix4& view, const Matrix4& projection,
-                                      const Vector3& cameraPosition, float fovYDegrees,
-                                      int viewportHeightPx) {
-    drawBaseCubeHighlight(target, fillColor, outlineColor, outlineThickness,
-                          view, projection, cameraPosition, fovYDegrees, viewportHeightPx);
 }
 
 void Renderer::drawDecalFaceHighlight(Decal* decal, const Color4& outlineColor,
@@ -2546,27 +2809,16 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     FrameProfiler::get().beginSection("extras");
     // ---- Editor選択外枠。Highlightインスタンスの塗り設定とは独立 ----
     if (desc.renderHighlights && desc.primarySelection) {
-        static const Color4 kTransparentFill(0.0f, 0.0f, 0.0f, 0.0f);
         static const Color4 kPrimaryOutline(1.0f, 1.0f, 0.0f, 1.0f);
         static const Color4 kSecondaryOutline(1.0f, 0.59f, 0.12f, 0.82f);
         constexpr float kSelectionOutlineThickness = 2.0f;
 
-        std::unordered_set<BaseCube*> secondaryDrawn;
         if (desc.selectionTargets) {
             for (Instance* selected : *desc.selectionTargets) {
                 if (!selected || selected == desc.primarySelection || selected->Parent.expired()) continue;
                 if (selected->IsA("Decal")) {
                     drawDecalFaceHighlight(
                         static_cast<Decal*>(selected), kSecondaryOutline, kSelectionOutlineThickness,
-                        view, projection, desc.cameraPosition, fovYDegrees, desc.height);
-                    continue;
-                }
-                std::vector<BaseCube*> targets;
-                collectHighlightTargets(selected, targets);
-                for (BaseCube* bc : targets) {
-                    if (!bc || !secondaryDrawn.insert(bc).second) continue;
-                    drawBaseCubeHighlight(
-                        bc, kTransparentFill, kSecondaryOutline, kSelectionOutlineThickness,
                         view, projection, desc.cameraPosition, fovYDegrees, desc.height);
                 }
             }
@@ -2577,14 +2829,6 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 drawDecalFaceHighlight(
                     static_cast<Decal*>(desc.primarySelection), kPrimaryOutline, kSelectionOutlineThickness,
                     view, projection, desc.cameraPosition, fovYDegrees, desc.height);
-            } else {
-            std::vector<BaseCube*> primaryTargets;
-            collectHighlightTargets(desc.primarySelection, primaryTargets);
-            for (BaseCube* bc : primaryTargets) {
-                drawBaseCubeHighlight(
-                    bc, kTransparentFill, kPrimaryOutline, kSelectionOutlineThickness,
-                    view, projection, desc.cameraPosition, fovYDegrees, desc.height);
-            }
             }
         }
     }
@@ -2650,6 +2894,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         Vector3 pUp    = Vector3::Cross(pRight, desc.cameraForward).normalize();
         renderParticles(*desc.workspace, view, projection, pRight, pUp);
     }
+
+    // Screen-space editor selection outline is composited after scene overlays and before post effects.
+    renderEditorSelectionOutline(desc, view, projection);
 
     // ---- ポストエフェクト（PostEffect の ZIndex 順チェーン適用） ----
     if (desc.renderPostEffects) {

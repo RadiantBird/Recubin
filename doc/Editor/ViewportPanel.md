@@ -92,9 +92,10 @@ Select／Move／Resize／Rotateの全ツールで、Ctrl+クリックはクリ�
 修飾キーなしでクリックした場合は選択を解除する。未選択対象やLocked対象へのヒットは空間と
 みなさず、既存選択を維持する。
 
-Editor選択表示はRenderer内の実形状外枠へ統一され、Primaryは黄色、Secondaryは橙色で描画する。
-旧画面矩形とModel AABB線、Editor選択用の塗りは使用しない。Select／Move／Resize／Rotate中の未選択候補は
-白い半透明外枠で事前表示し、Highlightインスタンス自身のFillColor設定には影響しない。
+Editor選択・未選択候補ホバー・Weld候補ホバーは、Renderer所有の同一Selection Maskへ可視geometryを描画し、
+screen-space outlineとして合成する。選択はcyan 2px、通常ホバーは白半透明1.5px、Weld候補は緑3pxであり、
+mesh edgeの直接描画は使用しない。mask再描画時だけ小さなdepth offsetを使うため、同一表面の深度量子化差による
+内部の穴やZ-fightingを防ぐ。Highlightインスタンス自身のFillColor設定には影響しない。
 
 Resizeは初期Sizeへの倍率ではなく、単位スケール行列から得た係数差をワールド単位として加算する。
 複数のBaseCubeを選択したResizeでは、Resize横の常設▼メニューからIndividual（同じstud差分を

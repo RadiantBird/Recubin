@@ -269,6 +269,15 @@ class Renderer {
         GLuint m_postFboB = 0, m_postTexB = 0;
         int    m_postFboWidth = 0, m_postFboHeight = 0;
 
+        // Screen-space editor selection mask and outline resources.
+        GLuint m_selectionMaskFBO = 0;
+        GLuint m_selectionMaskTex = 0;
+        GLuint m_selectionMaskDepth = 0;
+        GLuint m_selectionMaskShader = 0;
+        GLuint m_selectionOutlineShader = 0;
+        int m_selectionMaskWidth = 0;
+        int m_selectionMaskHeight = 0;
+
         struct CustomPostEffectProgram {
             GLuint program = 0;
             std::filesystem::file_time_type lastWriteTime{};
@@ -280,6 +289,10 @@ class Renderer {
         void initPostEffectRenderer();
         void ensurePostEffectFBOs(int width, int height);
         void renderPostEffects(Workspace& workspace, GLuint targetFbo, int width, int height);
+        void initSelectionRenderer();
+        void ensureSelectionMaskFBO(int width, int height);
+        void renderEditorSelectionOutline(const ViewportRenderDesc& desc,
+                                          const Matrix4& view, const Matrix4& projection);
 
     private:
         unsigned int m_meshFallbackTexture = 0;
@@ -291,11 +304,13 @@ class Renderer {
         void attachInstanceAttribs(unsigned int vao);
 
     public:
-        void drawTransientHighlight(BaseCube* target, const Color4& fillColor,
-                                    const Color4& outlineColor, float outlineThickness,
-                                    const Matrix4& view, const Matrix4& projection,
-                                    const Vector3& cameraPosition, float fovYDegrees,
-                                    int viewportHeightPx);
+        // Render a screen-space outline for visible geometry into an existing viewport FBO.
+        // The destination depth buffer is copied into the renderer-owned mask depth buffer,
+        // so foreground geometry continues to occlude the transient outline.
+        void renderSelectionOutline(const std::vector<BaseCube*>& targets,
+                                     GLuint destinationFbo, int width, int height,
+                                     const Matrix4& view, const Matrix4& projection,
+                                     const Color4& outlineColor, float outlineWidth);
 
     private:
 

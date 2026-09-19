@@ -65,6 +65,19 @@ enum class EditorMode { Edit, Play, Pause }
 Play/Pause/Stop、Select/Move/Resize/Rotate（ギズモモード）、New Cube/New Cylinder/New Prism/New Sphere、Save/Load。  
 オブジェクト追加は `CommandHistory` 経由で Undo 対応。名前衝突は連番サフィックスで自動回避。
 
+ツールバーは青系の控えめなガラス調ボタン、2本線の区切り、選択中ツールの強調を使う。ガラスは
+暗いbase、上下の明暗差、上部30%のsheen、上端のinner highlight、下辺・右辺の暗いborderで構成し、
+文字はこれらの背景層より前面に描画する。Snap は Move／Rotate／Resize の単位付き設定としてまとまり、
+Collision Fit は独立した `Fit` 操作として表示する。
+既存のドッキング、各ツールのトグル挙動、キーボードショートカットは変更しない。
+
+大きなツールバー群の間には`drawToolbarMajorSeparator()`を置く。このhelperは左右10pxの余白と、
+58pxボタン行を基準に中央配置する40pxの暗線＋明線を一体として描画する。Snap内部は線を増やさず、
+Move／Rotate／Resize／Fitの間を12pxの余白で分ける。
+
+Dock tabは同じ配色の軽い表現として、暗いinactive tab、明るいactive tab、active時の青白い上端lineを
+使う。panel titleはより弱い濃紺のbaseとborderだけに留め、本文背景をガラス化しない。
+
 ## パネル間のデータ共有
 
 ```

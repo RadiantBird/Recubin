@@ -35,6 +35,10 @@
 BaseCubeのプロパティは、`Appearance` → `Physics` → `Material` → `Editor` のカテゴリ順で表示する。
 各カテゴリの見出しはカテゴリ先頭に一度だけ表示し、同じ見出しを重複させない。
 
+通常選択・複数選択とも、プロパティ名と値を固定幅の左列・可変幅の右列に分けて表示する。
+カテゴリは折りたたみ可能だが、登録されたプロパティがあるカテゴリだけを表示する。Instance の
+Name、ClassName、Path も同じ2列レイアウトに含める。
+
 値を変更すると `m_history` 経由で対応する Command（`SetVec3Command`、`SetColorCommand`、`SetBoolCommand` など）を記録し、Undo 対応で反映する。
 
 `Vector3` は `x, y, z`、`CFrame` は

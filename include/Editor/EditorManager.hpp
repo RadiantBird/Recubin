@@ -232,7 +232,8 @@ private:
 
     // icon(nullptr可)+labelを1つのボタンに描画する。ボタン幅/高さに収まらない場合は
     // ImGui::SetWindowFontScaleで自動的にフォントを縮小する(下限0.55倍)。クリックされたらtrue。
-    bool drawIconButton(const char* icon, const char* label, const ImVec2& btnSize);
+    bool drawIconButton(const char* icon, const char* label, const ImVec2& btnSize,
+                        bool selected = false);
 
     void renderToolbar();
     void renderToolbarTabs();

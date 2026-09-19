@@ -65,14 +65,45 @@ static bool treeContainsInstance(Instance* root, Instance* target) {
 namespace {
 
 struct EditorThemeColors {
-    ImVec4 toolbarActive   = ImVec4(0.28f, 0.48f, 0.82f, 1.0f);
-    ImVec4 toolbarInactive = ImVec4(0.14f, 0.25f, 0.48f, 1.0f);
-    ImVec4 toolbarHover    = ImVec4(0.22f, 0.39f, 0.70f, 1.0f);
+    ImVec4 toolbarActive   = ImVec4(0.24f, 0.52f, 0.90f, 1.0f);
+    ImVec4 toolbarInactive = ImVec4(0.11f, 0.25f, 0.54f, 1.0f);
+    ImVec4 toolbarHover    = ImVec4(0.18f, 0.40f, 0.76f, 1.0f);
 };
 
 const EditorThemeColors& editorThemeColors() {
     static const EditorThemeColors colors;
     return colors;
+}
+
+// A toolbar separator owns its horizontal spacing as well as its two-line groove.
+// The line height is based on the 58px toolbar button row, never the current text
+// line, so separators stay proportional beside icon buttons and Snap controls.
+void drawToolbarMajorSeparator(float scale) {
+    constexpr float TOOLBAR_ROW_HEIGHT = 58.0f;
+    constexpr float MAJOR_LINE_HEIGHT = 40.0f;
+    constexpr float SIDE_PADDING = 10.0f;
+
+    ImGui::SameLine();
+    const ImVec2 slot = ImGui::GetCursorScreenPos();
+    const float rowHeight = TOOLBAR_ROW_HEIGHT * scale;
+    const float lineHeight = MAJOR_LINE_HEIGHT * scale;
+    const float padding = SIDE_PADDING * scale;
+    const float top = slot.y + (rowHeight - lineHeight) * 0.5f;
+    const float x = slot.x + padding;
+
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    drawList->AddLine(ImVec2(x, top), ImVec2(x, top + lineHeight),
+                      ImGui::GetColorU32(ImVec4(0.055f, 0.12f, 0.24f, 0.90f)), 1.0f);
+    drawList->AddLine(ImVec2(x + 1.0f, top), ImVec2(x + 1.0f, top + lineHeight),
+                      ImGui::GetColorU32(ImVec4(0.38f, 0.64f, 0.88f, 0.66f)), 1.0f);
+    ImGui::Dummy(ImVec2(padding * 2.0f + 2.0f, rowHeight));
+    ImGui::SameLine();
+}
+
+void addToolbarInlineGap(float scale) {
+    ImGui::SameLine();
+    ImGui::Dummy(ImVec2(12.0f * scale, 0.0f));
+    ImGui::SameLine();
 }
 
 struct R6AnimationBindingTarget {
@@ -1070,7 +1101,8 @@ void EditorManager::renderPackageDialog() {
     }
 }
 
-bool EditorManager::drawIconButton(const char* icon, const char* label, const ImVec2& btnSize) {
+bool EditorManager::drawIconButton(const char* icon, const char* label, const ImVec2& btnSize,
+                                   bool selected) {
     std::string combined = icon ? (std::string(icon) + "\n" + label) : std::string(label);
 
     ImGui::SetWindowFontScale(1.0f);
@@ -1084,7 +1116,7 @@ bool EditorManager::drawIconButton(const char* icon, const char* label, const Im
     scale = (std::max)(scale, 0.55f); // 可読性下限、これ以上は縮小しない
 
     ImGui::SetWindowFontScale(scale);
-    bool clicked = ImGui::Button(combined.c_str(), btnSize);
+    bool clicked = EditorUi::glassButton(combined.c_str(), btnSize, selected);
     ImGui::SetWindowFontScale(1.0f);
     return clicked;
 }
@@ -1140,7 +1172,9 @@ void EditorManager::renderToolbarTabs() {
         ImGui::PushStyleColor(ImGuiCol_Button,
             (m_toolbarCategory == cat) ? colors.toolbarActive : colors.toolbarInactive);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colors.toolbarHover);
-        if (drawIconButton(nullptr, Loc::t(key), tabBtnSz)) m_toolbarCategory = cat;
+        if (drawIconButton(nullptr, Loc::t(key), tabBtnSz, m_toolbarCategory == cat)) {
+            m_toolbarCategory = cat;
+        }
         ImGui::PopStyleColor(2);
         ImGui::SameLine();
     };
@@ -1163,18 +1197,6 @@ void EditorManager::renderToolbarBasic() {
     const float scale = m_uiLayoutScale;
     const ImVec2 iconBtnSz = ImVec2(78.0f * scale, 58.0f * scale);
     const ImVec2 playBtnSz = ImVec2(120.0f * scale, 58.0f * scale);
-
-    auto toolbarSeparator = [scale] {
-        ImGui::SameLine();
-        ImVec2 pos = ImGui::GetCursorScreenPos();
-        float height = ImGui::GetFrameHeight();
-        ImGui::GetWindowDrawList()->AddLine(
-            ImVec2(pos.x + 4.0f * scale, pos.y + 3.0f * scale),
-            ImVec2(pos.x + 4.0f * scale, pos.y + height - 3.0f * scale),
-            ImGui::GetColorU32(ImGuiCol_Separator));
-        ImGui::Dummy(ImVec2(9.0f * scale, height));
-        ImGui::SameLine();
-    };
 
     // ---- Play方式 / Client数 / Play / Pause / Stop ----
     ImGui::BeginGroup();
@@ -1276,14 +1298,15 @@ void EditorManager::renderToolbarBasic() {
     }
     ImGui::EndGroup();
 
-    toolbarSeparator();
+    drawToolbarMajorSeparator(scale);
 
     // ---- Select / Move / Resize / Rotate ----
     if (activeViewport) {
         ImGui::PushStyleColor(ImGuiCol_Button,
             activeViewport->isSelectMode() ? colors.toolbarActive : colors.toolbarInactive);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colors.toolbarHover);
-        if (drawIconButton(ICON_SELECT, Loc::t(Loc::LocKey::SelectTool), iconBtnSz)) {
+        if (drawIconButton(ICON_SELECT, Loc::t(Loc::LocKey::SelectTool), iconBtnSz,
+                           activeViewport->isSelectMode())) {
             if (activeViewport->isSelectMode()) {
                 activeViewport->toolNone = true;
             } else {
@@ -1298,7 +1321,8 @@ void EditorManager::renderToolbarBasic() {
         ImGui::PushStyleColor(ImGuiCol_Button,
             activeViewport->isMoveMode() ? colors.toolbarActive : colors.toolbarInactive);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colors.toolbarHover);
-        if (drawIconButton(ICON_MOVE, Loc::t(Loc::LocKey::MoveTool), iconBtnSz)) {
+        if (drawIconButton(ICON_MOVE, Loc::t(Loc::LocKey::MoveTool), iconBtnSz,
+                           activeViewport->isMoveMode())) {
             if (activeViewport->isMoveMode()) {
                 activeViewport->toolNone = true;
             } else {
@@ -1314,7 +1338,8 @@ void EditorManager::renderToolbarBasic() {
         ImGui::PushStyleColor(ImGuiCol_Button,
             activeViewport->isResizeMode() ? colors.toolbarActive : colors.toolbarInactive);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colors.toolbarHover);
-        if (drawIconButton(ICON_RESIZE, Loc::t(Loc::LocKey::ResizeTool), iconBtnSz)) {
+        if (drawIconButton(ICON_RESIZE, Loc::t(Loc::LocKey::ResizeTool), iconBtnSz,
+                           activeViewport->isResizeMode())) {
             if (activeViewport->isResizeMode()) {
                 activeViewport->toolNone = true;
             } else {
@@ -1345,7 +1370,8 @@ void EditorManager::renderToolbarBasic() {
         ImGui::PushStyleColor(ImGuiCol_Button,
             activeViewport->isRotateMode() ? colors.toolbarActive : colors.toolbarInactive);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colors.toolbarHover);
-        if (drawIconButton(ICON_ROTATE, Loc::t(Loc::LocKey::RotateTool), iconBtnSz)) {
+        if (drawIconButton(ICON_ROTATE, Loc::t(Loc::LocKey::RotateTool), iconBtnSz,
+                           activeViewport->isRotateMode())) {
             if (activeViewport->isRotateMode()) {
                 activeViewport->toolNone = true;
             } else {
@@ -1368,11 +1394,21 @@ void EditorManager::renderToolbarBasic() {
         }
     }
 
-    toolbarSeparator();
+    drawToolbarMajorSeparator(scale);
 
     // ---- スナップ / 衝突フィット ----
     if (activeViewport) {
-        std::string snapTLabel = std::string(Loc::t(Loc::LocKey::SnapTranslate)) + "##snapT";
+        ImGui::TextDisabled("Snap:");
+        ImGui::SameLine();
+        auto compactSnapLabel = [](Loc::LocKey key) {
+            std::string label = Loc::t(key);
+            const std::string englishSuffix = " Snap";
+            const std::string japaneseSuffix = "スナップ";
+            if (label.ends_with(englishSuffix)) label.erase(label.size() - englishSuffix.size());
+            if (label.ends_with(japaneseSuffix)) label.erase(label.size() - japaneseSuffix.size());
+            return label;
+        };
+        std::string snapTLabel = compactSnapLabel(Loc::LocKey::SnapTranslate) + "##snapT";
         ImGui::Checkbox(snapTLabel.c_str(), &activeViewport->snapTranslate);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f * scale);
@@ -1380,9 +1416,8 @@ void EditorManager::renderToolbarBasic() {
         ImGui::DragFloat("studs##snapTVal", &activeViewport->snapTranslateVal,
                          0.005f, 0.001f, 100.0f, "%.3f");
         if (!activeViewport->snapTranslate) ImGui::EndDisabled();
-        ImGui::SameLine();
-
-        std::string snapRLabel = std::string(Loc::t(Loc::LocKey::SnapRotate)) + "##snapR";
+        addToolbarInlineGap(scale);
+        std::string snapRLabel = compactSnapLabel(Loc::LocKey::SnapRotate) + "##snapR";
         ImGui::Checkbox(snapRLabel.c_str(), &activeViewport->snapRotate);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f * scale);
@@ -1390,9 +1425,8 @@ void EditorManager::renderToolbarBasic() {
         ImGui::DragFloat("\xc2\xb0##snapRVal", &activeViewport->snapRotateVal,
                          0.05f, 0.001f, 180.0f, "%.3f");
         if (!activeViewport->snapRotate) ImGui::EndDisabled();
-        ImGui::SameLine();
-
-        std::string snapSLabel = std::string(Loc::t(Loc::LocKey::SnapScale)) + "##snapS";
+        addToolbarInlineGap(scale);
+        std::string snapSLabel = compactSnapLabel(Loc::LocKey::SnapScale) + "##snapS";
         ImGui::Checkbox(snapSLabel.c_str(), &activeViewport->snapScale);
         ImGui::SameLine();
         ImGui::SetNextItemWidth(52.0f * scale);
@@ -1400,14 +1434,15 @@ void EditorManager::renderToolbarBasic() {
         ImGui::DragFloat("studs##snapSVal", &activeViewport->snapScaleVal,
                          0.005f, 0.001f, 100.0f, "%.3f");
         if (!activeViewport->snapScale) ImGui::EndDisabled();
+        addToolbarInlineGap(scale);
+        ImGui::TextDisabled("Fit:");
         ImGui::SameLine();
-
         std::string cfLabel = std::string(Loc::t(Loc::LocKey::CollisionFit)) + "##cf";
         ImGui::Checkbox(cfLabel.c_str(), &activeViewport->collisionFit);
         ImGui::SameLine();
     }
 
-    toolbarSeparator();
+    drawToolbarMajorSeparator(scale);
 
     // ---- New Cube / New Script クイックボタン ----
     if (m_workspace) {
@@ -1420,6 +1455,8 @@ void EditorManager::renderToolbarBasic() {
     if (drawIconButton(ICON_SCRIPT, Loc::t(Loc::LocKey::NewScriptButton), iconBtnSz) && m_workspace && hierarchyPanel) {
         hierarchyPanel->requestNewScript(m_workspace->shared_from_this());
     }
+
+    drawToolbarMajorSeparator(scale);
 
     // ---- Save / Load（右端）----
     float saveLoadW = iconBtnSz.x * 2 + ImGui::GetStyle().ItemSpacing.x;
@@ -1475,7 +1512,8 @@ void EditorManager::renderToolbarTerrain() {
     ImGui::PushStyleColor(ImGuiCol_Button,
         m_terrainBrush.active ? colors.toolbarActive : colors.toolbarInactive);
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colors.toolbarHover);
-    if (drawIconButton(ICON_TERRAINBRUSH_TOGGLE, Loc::t(Loc::LocKey::TerrainBrushEdit), btnSz))
+    if (drawIconButton(ICON_TERRAINBRUSH_TOGGLE, Loc::t(Loc::LocKey::TerrainBrushEdit), btnSz,
+                       m_terrainBrush.active))
         m_terrainBrush.active = !m_terrainBrush.active;
     ImGui::PopStyleColor(2);
 
@@ -1488,14 +1526,16 @@ void EditorManager::renderToolbarTerrain() {
         ImGui::PushStyleColor(ImGuiCol_Button,
             !m_terrainBrush.paintMode ? colors.toolbarActive : colors.toolbarInactive);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colors.toolbarHover);
-        if (drawIconButton(ICON_TERRAINBRUSH_TOGGLE, Loc::t(Loc::LocKey::TerrainBrushSculptTab), btnSz)) m_terrainBrush.paintMode = false;
+        if (drawIconButton(ICON_TERRAINBRUSH_TOGGLE, Loc::t(Loc::LocKey::TerrainBrushSculptTab), btnSz,
+                           !m_terrainBrush.paintMode)) m_terrainBrush.paintMode = false;
         ImGui::PopStyleColor(2);
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button,
             m_terrainBrush.paintMode ? colors.toolbarActive : colors.toolbarInactive);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colors.toolbarHover);
-        if (drawIconButton(ICON_TERRAIN_PAINT, Loc::t(Loc::LocKey::TerrainBrushPaintTab), btnSz)) m_terrainBrush.paintMode = true;
+        if (drawIconButton(ICON_TERRAIN_PAINT, Loc::t(Loc::LocKey::TerrainBrushPaintTab), btnSz,
+                           m_terrainBrush.paintMode)) m_terrainBrush.paintMode = true;
         ImGui::PopStyleColor(2);
         ImGui::SameLine();
     }
@@ -1506,7 +1546,7 @@ void EditorManager::renderToolbarTerrain() {
             ImGui::PushStyleColor(ImGuiCol_Button,
                 active ? colors.toolbarActive : colors.toolbarInactive);
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colors.toolbarHover);
-            if (drawIconButton(icon, Loc::t(key), btnSz)) m_terrainBrush.mode = modeValue;
+            if (drawIconButton(icon, Loc::t(key), btnSz, active)) m_terrainBrush.mode = modeValue;
             ImGui::PopStyleColor(2);
             ImGui::SameLine();
         };
@@ -1532,7 +1572,7 @@ void EditorManager::renderToolbarPhysics() {
     ImGui::PushStyleColor(ImGuiCol_Button, m_weldMode.active
         ? ImVec4(0.15f, 0.68f, 0.28f, 1.0f)
         : ImVec4(0.22f, 0.40f, 0.70f, 0.60f));
-    if (drawIconButton(ICON_WELD, "Weld Mode", btnSz)) {
+    if (drawIconButton(ICON_WELD, "Weld Mode", btnSz, m_weldMode.active)) {
         m_weldMode.active = !m_weldMode.active;
         m_weldMode.cube0.reset();
     }
@@ -1785,8 +1825,8 @@ void EditorManager::applyTheme() {
     style.GrabRounding      = 2.0f;
     style.TabRounding       = 1.0f;
     style.WindowBorderSize  = 1.0f;
-    style.FrameBorderSize   = 0.0f;
-    style.ItemSpacing       = ImVec2(8, 5);
+    style.FrameBorderSize   = 1.0f;
+    style.ItemSpacing       = ImVec2(7, 4);
     style.FramePadding      = ImVec2(6, 4);
 
     ImVec4* c = style.Colors;
@@ -1801,25 +1841,34 @@ void EditorManager::applyTheme() {
     c[ImGuiCol_HeaderHovered]     = ImVec4(0.20f, 0.35f, 0.62f, 0.78f);
     c[ImGuiCol_HeaderActive]      = ImVec4(0.23f, 0.42f, 0.78f, 1.0f);
 
-    c[ImGuiCol_Button]            = ImVec4(0.14f, 0.25f, 0.48f, 1.0f);
-    c[ImGuiCol_ButtonHovered]     = ImVec4(0.22f, 0.39f, 0.70f, 1.0f);
-    c[ImGuiCol_ButtonActive]      = ImVec4(0.28f, 0.48f, 0.86f, 1.0f);
+    c[ImGuiCol_Button]            = ImVec4(0.10f, 0.23f, 0.50f, 1.0f);
+    c[ImGuiCol_ButtonHovered]     = ImVec4(0.16f, 0.35f, 0.70f, 1.0f);
+    c[ImGuiCol_ButtonActive]      = ImVec4(0.075f, 0.19f, 0.43f, 1.0f);
 
-    c[ImGuiCol_FrameBg]           = ImVec4(0.095f, 0.115f, 0.16f, 1.0f);
-    c[ImGuiCol_FrameBgHovered]    = ImVec4(0.14f, 0.18f, 0.25f, 1.0f);
-    c[ImGuiCol_FrameBgActive]     = ImVec4(0.20f, 0.28f, 0.42f, 1.0f);
+    c[ImGuiCol_FrameBg]           = ImVec4(0.055f, 0.075f, 0.14f, 1.0f);
+    c[ImGuiCol_FrameBgHovered]    = ImVec4(0.10f, 0.14f, 0.24f, 1.0f);
+    c[ImGuiCol_FrameBgActive]     = ImVec4(0.16f, 0.24f, 0.38f, 1.0f);
 
-    c[ImGuiCol_Tab]               = ImVec4(0.055f, 0.085f, 0.22f, 1.0f);
-    c[ImGuiCol_TabHovered]        = ImVec4(0.16f, 0.29f, 0.58f, 1.0f);
-    c[ImGuiCol_TabSelected]       = ImVec4(0.22f, 0.43f, 0.82f, 1.0f);
-    c[ImGuiCol_TabSelectedOverline] = ImVec4(0.50f, 0.75f, 1.0f, 1.0f);
+    // Dock tabs intentionally use a lighter version of the button glass palette:
+    // dark inactive panes, a clear active pane, and a blue-white top reflection.
+    c[ImGuiCol_Tab]               = ImVec4(0.040f, 0.075f, 0.19f, 1.0f);
+    c[ImGuiCol_TabHovered]        = ImVec4(0.10f, 0.22f, 0.48f, 1.0f);
+    c[ImGuiCol_TabSelected]       = ImVec4(0.12f, 0.29f, 0.62f, 1.0f);
+    c[ImGuiCol_TabSelectedOverline] = ImVec4(0.58f, 0.82f, 1.0f, 0.96f);
+    c[ImGuiCol_TabDimmed]         = ImVec4(0.030f, 0.055f, 0.14f, 1.0f);
+    c[ImGuiCol_TabDimmedSelected] = ImVec4(0.085f, 0.19f, 0.42f, 1.0f);
+    c[ImGuiCol_TabDimmedSelectedOverline] = ImVec4(0.38f, 0.62f, 0.92f, 0.80f);
 
-    c[ImGuiCol_TitleBg]           = ImVec4(0.045f, 0.070f, 0.18f, 1.0f);
-    c[ImGuiCol_TitleBgActive]     = ImVec4(0.10f, 0.19f, 0.42f, 1.0f);
-    c[ImGuiCol_TitleBgCollapsed]  = ImVec4(0.045f, 0.070f, 0.18f, 0.8f);
+    c[ImGuiCol_NavHighlight]       = ImVec4(0.34f, 0.62f, 1.0f, 0.90f);
 
-    c[ImGuiCol_Text]              = ImVec4(0.88f, 0.90f, 0.94f, 1.0f);
-    c[ImGuiCol_TextDisabled]      = ImVec4(0.38f, 0.42f, 0.50f, 1.0f);
+    // Panel headers stay understated: the light border is their reflection while
+    // panel contents remain flat and dark.
+    c[ImGuiCol_TitleBg]           = ImVec4(0.035f, 0.060f, 0.15f, 1.0f);
+    c[ImGuiCol_TitleBgActive]     = ImVec4(0.065f, 0.145f, 0.33f, 1.0f);
+    c[ImGuiCol_TitleBgCollapsed]  = ImVec4(0.035f, 0.060f, 0.15f, 0.88f);
+
+    c[ImGuiCol_Text]              = ImVec4(0.95f, 0.97f, 1.0f, 1.0f);
+    c[ImGuiCol_TextDisabled]      = ImVec4(0.46f, 0.51f, 0.62f, 1.0f);
 
     c[ImGuiCol_ScrollbarBg]       = ImVec4(0.09f, 0.10f, 0.12f, 1.0f);
     c[ImGuiCol_ScrollbarGrab]     = ImVec4(0.30f, 0.35f, 0.45f, 1.0f);
