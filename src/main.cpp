@@ -775,9 +775,12 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    // s_contactCallback を設定（全Physicsインスタンスで共有）
-    Physics::s_contactCallback = [&](BaseCube* a, BaseCube* b) {
-        luauEngine->onCollision(a, b);
+    // Touch callbackを設定（全Physicsインスタンスで共有）
+    Physics::s_touchCallback = [&](BaseCube* a, BaseCube* b) {
+        luauEngine->onTouched(a, b);
+    };
+    Physics::s_touchEndCallback = [&](BaseCube* a, BaseCube* b) {
+        luauEngine->onTouchEnded(a, b);
     };
 
     std::vector<std::shared_ptr<Workspace>> workspaces;

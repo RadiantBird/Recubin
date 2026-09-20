@@ -1163,3 +1163,26 @@
 - `User::placeCharacterAtSpawn()`は、明示HipHeightでは`Spawn半高 + HipHeight`、未設定では`Spawn半高 + Root半高`のlocal Y offsetをSpawnLocation full CFrameへ合成する。候補なしの`(0,100,0)`fallbackは維持し、不正model/Humanoid/Rootと候補なしはwarningで観測可能にした。原因確定用の詳細ログと、未証明のpost-attachment二重配置は削除済み。
 - `--spawn-location-regression`はStarter Rootのauthoring Yを負値にし、それを引き継がずSpawn上面へRoot半高で置くこと、full CFrameとrig相対姿勢、CharacterAdded時の最終姿勢を検査するよう更新した。矛盾していた`spec.md`のHipHeight未設定時契約も修正した。
 - Windows Release buildは`Recubin`、`RecubinEngine`、`RecubinTest`すべて成功（既存のAPIENTRY macro redefinition warningのみ）。WSLからexeは起動できないため、限定回帰と実機Play表示はWindows側での確認待ち。
+
+### 2026-09-20: Luau WorldPosition assignment
+
+- `Spatial.WorldPosition` はgetterだけがLuauへ登録されており、代入がsetter不在のまま無視されていた。`Spatial::setWorldPosition()`を追加し、現在のworld rotationを保ったfull CFrameを座標親の逆CFrameでlocalへ変換して、virtual `setPosition()`へ渡すようにした。Workspace直下では指定world値がそのままlocal値となり、BaseCubeでは既存の`teleportTo()`とBox3D同期経路を通る。
+- Luauの`Spatial.WorldPosition` setterを登録し、Vector3以外はLuauの型エラー、不正な非有限値はClassName・full path・値を含むエラーログで観測可能にした。`--spatial-coordinate-regression`へWorkspace直下と回転・移動したSpatial親配下の実Luau代入、local/world変換、physics更新後の位置保持を追加した。
+- `Spatial.cpp`、`LuauEngine_Dispatch.cpp`、`test_main.cpp`のGCC C++23 syntax check、対象差分のwhitespace check、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。WSLからの限定回帰は`UtilBindVsockAnyPort:309: socket failed 1`で起動不可。次の一手: Windows Terminalで`build\Release\RecubinTest.exe --spatial-coordinate-regression`を実行し、StudioでもWorkspace直下のBaseCubeへLuauからWorldPositionを代入して確認する。
+
+### 2026-09-20: Play Here Root alignment correction
+
+- Play開始処理はPlay Here選択時のカメラ位置を正しく`User::spawnCharacter()`へ渡していたが、明示位置分岐がHumanoid RootではなくCharacter Model原点を指定位置へ合わせていた。StarterCharacterのModel原点とRootにoffsetがあると、実際のキャラクターがカメラ位置からずれる原因だった。
+- Play Hereの初回配置は、Rootの現在のworld CFrameから回転を維持したtarget Root CFrameを作り、rig全体へ同じworld deltaを適用する。HumanoidまたはRootが解決できない場合はCharacterのClassName・Name・full pathを含むwarningを出し、不正なModel原点への代替配置を行わない。通常PlayとrespawnのSpawnLocation選択は変更していない。
+- `--spawn-location-regression`の旧Model.Position検査を、Model原点とRootが異なるfixtureでRootが明示カメラ位置へ一致し、Root-to-Head相対姿勢が維持される検査へ置換した。`User.cpp`と`test_main.cpp`のGCC C++23 syntax check、対象差分のwhitespace check、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。WSLから限定回帰は`UtilBindVsockAnyPort:309: socket failed 1`で起動不可。次の一手: Windows Terminalで`build\Release\RecubinTest.exe --spawn-location-regression`を実行し、StudioのPlay Hereを実機確認する。
+
+### 2026-09-21: Default R6 bind pose and explicit HipHeight restoration
+
+- `/mnt/c/Users/Ryarta/DeveloppingGames/The baseplate/triangle.rcbn`のStarterCharacterと生成コード・履歴を比較し、`754b116`で旧triangle bind poseが意図的に変更されていたことを特定した。既定R6をRoot/Torso同中心、Head `+1.5`、腕中心Root同高、脚中心`-2`へ復元し、Motor6DのRootJoint/Neck/Shoulder/Hip C0/C1も参照リグと一致させた。Rootと既定Cube TorsoのSizeはともに`(2,2,1)`で、triangle内Mesh Torsoの保存Size `(2,2,2)`はMesh形状固有として流用していない。
+- Humanoid.HipHeightは既定3 studの通常保存プロパティへ戻した。unset/explicit/ground-initializedの隠れ状態と、接地shape castからHipHeightを自動算出・上書きする経路を削除した。clone、instance copy、YAML、Luauの設定値は通常のPropertyRegistry経路で保持する。SpawnLocation配置は常に`Spawn.Size.y/2 + HipHeight`を使用する。
+- `--animation-clip-regression`は左右全bodyのXYZ offsetと6つのMotor6D bind frame、Torsoの物理Size `(2,2,1)`、既定HipHeight 3を検査する。property schema、spawn、CharacterAdded、hover回帰も固定HipHeight契約へ更新した。対象C++のGCC C++23 syntax check、対象差分のwhitespace check、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。WSLから限定回帰は`UtilBindVsockAnyPort:309: socket failed 1`で起動不可。次の一手: Windows Terminalで`--animation-clip-regression`、`--character-hover-regression`、`--spawn-location-regression`、`--property-schema-regression`を実行し、Studioで既定生成リグを実機確認する。
+
+### 2026-09-21: BaseCube touch overlap events
+
+- Box3DにCanTouch対応sensor shapeを追加し、Touched/TouchEndedを物理反発から分離した。CanCollide=falseでも形状overlapを検出し、CanTouch双方trueのペアのみ通知する。物理contact callbackは従来互換のまま維持し、touch callbackを分離した。
+- `--touch-event-regression`へoverlap進入・退出、通過、CanTouch抑止、物理衝突独立性、Clone/schema/YAML/Luau signal検査を追加した。Windows Release build成功。WSLからの限定回帰起動は`UtilBindVsockAnyPort:309: socket failed 1`で未実行。

@@ -62,8 +62,8 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   白、`Anchored=true`、`CanCollide=true`、`Enabled=true`とし、通常のCubeとして描画・衝突する。
   active Workspaceの全子孫にある`Enabled=true`のSpawnLocationをfull path昇順で選ぶ。
   ローカルpeer 0とpeer 1は先頭、peer 2以降は`(PeerId-1) % 件数`を用いる。
-  CharacterのRootはSpawnLocationのfull CFrameを引き継ぎ、SpawnLocation上面へ
-  `Spawn.Size.y/2 + Root.Size.y/2`だけ上げる。Model全体は元のRoot local CFrameの逆変換を
+  CharacterのRootはSpawnLocationのfull CFrameを引き継ぎ、SpawnLocation中心から
+  `Spawn.Size.y/2 + Humanoid.HipHeight`だけ上げる。Model全体は元のRoot local CFrameの逆変換を
   合成して配置し、各パーツの相対姿勢を維持する。候補が無い場合はRootを`(0,100,0)`へ置き、
   authored Root rotationは維持する。
   `Name=Spawn`の通常Cubeを暗黙変換する旧形式互換は持たず、シーン側でClassNameを明示的に
@@ -111,6 +111,7 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 
   座標はCFrameとして扱う。Positionを直接計算しない。
   Positionはローカル、WorldPositionはグローバルとして扱い、Positionは座標階層を元に計算して代入される。
+  LuauからWorldPositionへVector3を代入した場合もワールド座標として解釈し、座標親のローカル座標へ変換して反映する。
 
   実行時にローカル座標系はすべてワールド座標系に変換される。
   スクリプトの代入もローカル座標系で設定したらワールド座標系に変換してから代入する。
@@ -140,6 +141,11 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 
   WeldされたBaseCube同士は元から内部衝突を行わないため、
   同一のペアにNoCollisionを設定した場合は実質的に効果を持たない。
+
+## BaseCube接触イベント
+  現行物理バックエンドはBox3Dとする。`BaseCube.Touched`は物理的な反発ではなく、形状overlapの開始で発火し、`TouchEnded`はoverlap終了で発火する。
+  `CanCollide=false`でも形状overlapを検出し、`CanCollide`は物理応答だけを制御する。
+  ペアの両方が`CanTouch=true`の場合だけ接触イベントを発火する。`CanTouch=false`は物理応答、NoCollision、Character自己衝突の規則を変更しない。
 
 ## BallSocket
   BallSocketは共有アンカーを維持する球面jointであり、`AngularXMode`、`AngularYMode`、
@@ -171,16 +177,17 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   Rootの直立と方位はGyroで制御する。Character用GyroはX/Zを0度へ固定し、Yだけを入力方向へ
   更新する。移動入力が無いフレームではY目標を更新せず、最後の方位を維持する。
 
-  既定Rootの描画Sizeは`(2,2,1)`、中心は従来の`basePos`を維持する。接地時はRoot中心から下向きに
-  一度floorをsampleし、Humanoid.HipHeightのdistanceをGroundHeight controllerで保つ。HipHeightが
-  明示されていない場合、Root colliderの下面がsupport surfaceへ接触または物理許容差内へ入った後の、最初の有効なfloor distanceを初期値として採用する。空中のfloor distanceは採用せず、Rootの初期高さを補正しない。
+  既定RootとTorsoのSizeは`(2,2,1)`、中心は従来の`basePos`を維持する。Meshを使用するカスタムTorsoの
+  保存SizeはMesh形状に応じて異なり得るが、既定Cube Torsoの物理寸法へ流用しない。
+  接地時はRoot中心から下向きに一度floorをsampleし、保存されたHumanoid.HipHeight（既定3 stud）のdistanceを
+  GroundHeight controllerで保つ。HipHeightは常に通常の保存プロパティであり、ground sampleから自動算出・上書きしない。
   controllerは各dynamic R6 bodyへ同じ上向き加速度をmass比例のadditive Forceとして与える。接地状態は
   HipHeightを接地状態の捕捉ゲートとして使い、捕捉後は微小なfloor distance揺れでは接地状態を反転させず、
   床が消えるかRootが上昇したときに解除する。HipHeightが高い場合も、その目標距離までraycast範囲を拡張する。
   重力相殺は現在のWorkspace.Gravityから算出する。遠距離の床へ吸着せず、jump上昇中は停止し、
-  下降してlanding captureへ入った時だけ再開する。SpawnLocation上では明示されたHipHeightをRoot中心から
-  地面までの距離として使う。未設定の場合はSpawnLocation上面へRoot半身高を加えた位置へ配置し、その後の
-  最初の有効なfloor sampleでHipHeightを初期化する。
+  下降してlanding captureへ入った時だけ再開する。SpawnLocation上では保存されたHipHeightをRoot中心から
+  地面までの距離として使う。SpawnLocationがある場合はSpawnLocation上面へHipHeightを加えた位置へ配置する。
+  SpawnLocationがない場合もfallback位置へ配置し、同じHipHeightをhover目標として使う。
   GroundHeight、接地、Truss中の重力設定は操作入力とは独立した物理更新として毎フレーム評価する。
   Truss接触時はCharacter Modelに属する全dynamic R6 bodyの重力を無効化する。W入力中は`ClimbingUp`、S入力中は
   `ClimbingDown`状態へ遷移し、各bodyの`CharacterClimbForce`へ水平方向のストレイフ速度と`ClimbSpeed`の昇降速度を
@@ -296,7 +303,7 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 - StarterCharacterからcloneしたローカルCharacterは、保存されたテンプレート値にかかわらず
   Rootだけを`Anchored=false`、`CanCollide=true`へ正規化する。その後SpawnLocationで配置してから
   `CharacterAdded`を発火する。死亡respawnでもactive WorkspaceからSpawnLocationを再選択する。
-  Play Hereの初回だけは明示されたModel.PositionをSpawnLocationより優先し、respawnは通常選択へ戻る。
+  Play Hereの初回だけは明示されたHumanoid Rootのworld positionをSpawnLocationより優先し、respawnは通常選択へ戻る。
 
 
 ## GUI（ScreenGui/SurfaceGui/BillboardGui）

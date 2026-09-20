@@ -439,10 +439,7 @@ void Humanoid::updateGroundHover(
         floor.instance = groundHit.instance;
     }
     bool atHipHeight = false;
-    const float rootHalfHeight = std::abs(root->Size.y) * 0.5f;
-    constexpr float SUPPORT_PROXIMITY_TOLERANCE = 0.1f;
-    const bool awaitingAutoHipHeight =
-        !m_hipHeightExplicitlySet && !m_hipHeightInitializedFromGround;
+    const float effectiveHipHeight = HipHeight;
 
     const auto logGroundDebug = [&](const char* stage, float hoverAcceleration) {
 #ifdef _DEBUG
@@ -470,8 +467,6 @@ void Humanoid::updateGroundHover(
         //     << " rootPtr=" << static_cast<const void*>(root.get())
         //     << " rootY=" << rootPosition.y
         //     << " hipHeight=" << HipHeight
-        //     << " hipHeightExplicit=" << (m_hipHeightExplicitlySet ? 1 : 0)
-        //     << " hipHeightInitialized=" << (m_hipHeightInitializedFromGround ? 1 : 0)
         //     << " query=shape-cast-box"
         //     << " castDistance=" << floorDetectionDistance
         //     << " castTravelDistance=" << groundHit.travelDistance
@@ -498,31 +493,12 @@ void Humanoid::updateGroundHover(
 #endif
     };
 
-    if (hasFloor && awaitingAutoHipHeight) {
-        if (!std::isfinite(floor.distance) || floor.distance < 0.0f) {
-            RCBN_WARN(
-                "Humanoid \"" << getFullPath()
-                << "\": ground detection returned invalid HipHeight distance "
-                << floor.distance
-            );
-        } else if (floor.distance <= rootHalfHeight + SUPPORT_PROXIMITY_TOLERANCE) {
-            // @RadiantBird 2026/09/13:
-            // HipHeight preserves the character's intended Root-to-ground distance.
-            // Do not derive or overwrite the Root height from the visual body rig.
-            HipHeight = floor.distance;
-            m_hipHeightInitializedFromGround = true;
-        }
-    }
-    const bool autoHipHeightPending =
-        !m_hipHeightExplicitlySet && !m_hipHeightInitializedFromGround;
-    const float effectiveHipHeight =
-        autoHipHeightPending ? rootHalfHeight : HipHeight;
-    const bool withinLandingCapture = hasFloor && !autoHipHeightPending &&
+    const bool withinLandingCapture = hasFloor &&
         std::abs(floor.distance - effectiveHipHeight) <=
             dynamicLandingCaptureDistance;
     const bool enteringAirborneLandingCapture = !groundedBefore &&
         verticalVelocity <= 0.0f && withinLandingCapture;
-    atHipHeight = hasFloor && !autoHipHeightPending &&
+    atHipHeight = hasFloor &&
         std::abs(floor.distance - effectiveHipHeight) <=
             settings.landingCaptureDistance;
     // HipHeight is the hover setpoint, not a continuously evaluated jump
@@ -562,8 +538,7 @@ void Humanoid::updateGroundHover(
         logGroundDebug("no-floor", 0.0f);
         return;
     }
-    const float hoverTargetDistance =
-        awaitingAutoHipHeight ? rootHalfHeight : HipHeight;
+    const float hoverTargetDistance = HipHeight;
     const float gravityCompensation =
         std::max(0.0f, -physics->getGravity().y) *
         settings.gravityCompensationScale;
@@ -588,16 +563,7 @@ static const bool s_humanoidRegistered = []{
         field   <&Humanoid::JumpPower>  ("JumpPower",   0, 100).clampLua(),
         field   <&Humanoid::ClimbSpeed> ("ClimbSpeed",  0, 100).clampLua(),
         method_prop<&Humanoid::getHipHeight, &Humanoid::setHipHeight>("HipHeight", 0, 50, 0.1f)
-            .clampLua()
-            .serializeIf([](const Instance* object) {
-                const auto* humanoid = static_cast<const Humanoid*>(object);
-                return humanoid->isHipHeightExplicitlySet() ||
-                       humanoid->isHipHeightInitializedFromGround();
-            })
-            .copyStateWith([](const Instance* source, Instance* destination) {
-                static_cast<const Humanoid*>(source)->copyHipHeightStateTo(
-                    *static_cast<Humanoid*>(destination));
-            }),
+            .clampLua(),
         method_prop<&Humanoid::getJumpHeight, &Humanoid::setJumpHeight>("JumpHeight", 0, 50, 0.1f),
         field   <&Humanoid::ImpactRagdollThreshold>(
             "ImpactRagdollThreshold", 0, 1000, 1.0f).clampLua(),
@@ -657,12 +623,6 @@ void Humanoid::setHipHeight(float height) {
         return;
     }
     HipHeight = height;
-    m_hipHeightExplicitlySet = true;
-}
-
-void Humanoid::copyHipHeightStateTo(Humanoid& destination) const {
-    destination.m_hipHeightExplicitlySet = m_hipHeightExplicitlySet;
-    destination.m_hipHeightInitializedFromGround = m_hipHeightInitializedFromGround;
 }
 
 static std::string animationPathFromHumanoid(const Humanoid& humanoid,

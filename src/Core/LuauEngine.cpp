@@ -2943,7 +2943,7 @@ void LuauEngine::reportSafetyBreach(const std::string& reason,
     m_haltRequested = true;
 }
 
-void LuauEngine::onCollision(BaseCube* a, BaseCube* b) {
+void LuauEngine::onTouched(BaseCube* a, BaseCube* b) {
     if (!a || !b) return;
     auto aShared = std::dynamic_pointer_cast<BaseCube>(a->shared_from_this());
     auto bShared = std::dynamic_pointer_cast<BaseCube>(b->shared_from_this());
@@ -2976,6 +2976,33 @@ void LuauEngine::onCollision(BaseCube* a, BaseCube* b) {
             return 1;
         });
     }
+}
+
+void LuauEngine::onTouchEnded(BaseCube* a, BaseCube* b) {
+    if (!a || !b) return;
+    auto aShared = std::dynamic_pointer_cast<BaseCube>(a->shared_from_this());
+    auto bShared = std::dynamic_pointer_cast<BaseCube>(b->shared_from_this());
+    if (!aShared || !bShared) return;
+    std::weak_ptr<BaseCube> weakA = aShared;
+    std::weak_ptr<BaseCube> weakB = bShared;
+    auto fire = [&](const std::shared_ptr<BaseCube>& receiver,
+                    const std::weak_ptr<BaseCube>& other) {
+        if (!receiver || !receiver->TouchEnded) return;
+        receiver->TouchEnded->fire(L, [other](lua_State* Lx) -> int {
+            auto value = other.lock();
+            if (!value) { lua_pushnil(Lx); return 1; }
+            pushInstanceUserdata(Lx, std::static_pointer_cast<Instance>(value));
+            return 1;
+        });
+    };
+    fire(aShared, weakB);
+    aShared = weakA.lock();
+    bShared = weakB.lock();
+    if (!aShared || !bShared ||
+        !aShared->findFirstAncestorWorkspace() ||
+        aShared->findFirstAncestorWorkspace() !=
+            bShared->findFirstAncestorWorkspace()) return;
+    fire(bShared, weakA);
 }
 
 void LuauEngine::tickWaitingScript(const std::shared_ptr<Instance>& inst, float deltaTime) {

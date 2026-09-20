@@ -162,6 +162,9 @@ static const bool s_baseCubeRegistered = []{
         custom("CanCollide", PropType::Bool,
             [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->CanCollide); },
             [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setCanCollide(std::get<bool>(v)); }),
+        custom("CanTouch", PropType::Bool,
+            [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->CanTouch); },
+            [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setCanTouch(std::get<bool>(v)); }),
         massDensity,
         ccdMode,
         materialType,
@@ -177,6 +180,7 @@ static const bool s_baseCubeRegistered = []{
 BaseCube::BaseCube(Vector3 Pos, Vector3 Sz)
     : Spatial(Pos, Sz, "BaseCube"), Color(1, 1, 1, 1) {
     Touched = std::make_shared<RCBNScriptSignal>();
+    TouchEnded = std::make_shared<RCBNScriptSignal>();
 }
 
 bool BaseCube::IsA(std::string className) {
@@ -302,6 +306,13 @@ void BaseCube::setCanCollide(bool canCollide) {
         // must not recreate the body or invalidate constraints.
         m_physicsOwner->refreshCollisionFilter(*this);
     }
+}
+
+void BaseCube::setCanTouch(bool canTouch) {
+    if (CanTouch == canTouch) return;
+    CanTouch = canTouch;
+    if (m_physicsOwner && m_physicsOwner->hasBody(*this))
+        m_physicsOwner->refreshCollisionFilter(*this);
 }
 
 void BaseCube::setLocked(bool locked) {

@@ -636,8 +636,11 @@ int main(int argc, char* argv[]) {
         }
     };
 
-    Physics::s_contactCallback = [&](BaseCube* a, BaseCube* b) {
-        luauEngine->onCollision(a, b);
+    Physics::s_touchCallback = [&](BaseCube* a, BaseCube* b) {
+        luauEngine->onTouched(a, b);
+    };
+    Physics::s_touchEndCallback = [&](BaseCube* a, BaseCube* b) {
+        luauEngine->onTouchEnded(a, b);
     };
     NetworkManager::get().onRoleChanged = [&](NetworkRole oldRole, NetworkRole newRole) {
         RCBN_LOG("NetworkManager: role changed " << NetworkManager::roleToString(oldRole)

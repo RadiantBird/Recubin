@@ -50,18 +50,14 @@ public:
     float JumpPower  = 48.522f;
     float ClimbSpeed = 10.0f; // Truss(はしご)接触中の垂直移動速度
 
-    // Root中心から真下の地面までの目標距離。未設定時は初回ground detectionで実測する。
-    float HipHeight = 2.0f;
+    // Root中心からsupport surfaceまでの保存された目標距離。
+    float HipHeight = 3.0f;
     float ImpactRagdollThreshold = 45.0f;
     float RagdollRecoverySpeed = 2.5f;
     float RagdollRecoveryDelay = 1.0f;
 
     float getHipHeight() const { return HipHeight; }
     void setHipHeight(float height);
-    bool isHipHeightExplicitlySet() const { return m_hipHeightExplicitlySet; }
-    bool isHipHeightInitializedFromGround() const { return m_hipHeightInitializedFromGround; }
-    // PropertyRegistryのclone/instance replacementから呼ばれる状態コピー。
-    void copyHipHeightStateTo(Humanoid& destination) const;
 
     // JumpPowerから逆算した跳躍到達高さ(stud)。設定するとJumpPowerが自動計算される
     float getJumpHeight() const;
@@ -271,8 +267,6 @@ private:
     // Jumpまたは地面到達でTruss制御を脱出した後、RootがTrussのAABBを
     // 離れるまで重力無効化・昇降Forceへの再入場を防ぐ。
     bool m_trussControlSuppressed = false;
-    bool m_hipHeightExplicitlySet = false;
-    bool m_hipHeightInitializedFromGround = false;
 #ifdef _DEBUG
     std::uint64_t m_lastGroundDebugTick = 0;
     bool m_hasGroundDebugTick = false;

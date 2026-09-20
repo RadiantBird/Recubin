@@ -10,8 +10,8 @@
 Root の移動・回転は Root member のワールド CFrame を基準に行う。身体 Animation は local pose を更新し、Parent や Weld 用の座標補正を行わない。
 
 接地判定とGroundHeight hoverは同じ1回の下向きshape cast結果を使う。目標distanceは`HipHeight`で、各dynamic R6
-bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を設定する。未設定のHipHeightは
-初回の有効なfloor distanceから初期化され、Rootの初期高さは補正しない。HipHeightはhoverの目標値と
+bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を設定する。HipHeightは既定値3 studを持つ
+保存プロパティであり、Root中心からsupport surfaceまでのhover目標値と
 着地捕捉に使い、接地状態は捕捉後の微小なfloor distance揺れでは反転させず、床が消えるかRootが上昇した
 ときに解除する。jump開始時、死亡、
 着席、無効状態、Ragdoll中では全hover Forceをzero/disabledにする。jump上昇中は再開しない。下降中のcapture範囲は
@@ -42,7 +42,7 @@ Box3Dのhit eventで得た接触点の`totalNormalImpulse`を優先し、
 |---|---|---|
 | `WalkSpeed` | `float` | 歩行速度（[0,100]にクランプ、旧CharacterSetting.moveSpeedの統合先） |
 | `JumpPower` | `float` | ジャンプ初速（[0,100]にクランプ） |
-| `HipHeight` | `float` | Root中心から真下の地面までの目標距離。未設定時は初回ground detectionの実測値で初期化 |
+| `HipHeight` | `float` | Root中心から真下のsupport surfaceまでの保存された目標距離（既定3 stud） |
 | `ImpactRagdollThreshold` | `float` | 接触impactまたは高速着地の残余エネルギー換算値がこの値以上でRagdollへ遷移（既定45） |
 | `RagdollRecoverySpeed` | `float` | 復帰判定に使うRoot線速度上限（既定2.5 stud/s） |
 | `RagdollRecoveryDelay` | `float` | 低速・接地状態を継続する時間（既定1秒） |

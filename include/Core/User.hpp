@@ -209,7 +209,7 @@ public:
     // Workspaceへの追加・Humanoid解決は呼び出し元の責任。失敗時は nullptr。
     // spawnCharacter とネットワークのリモートアバター生成(ReplicationManager)が共用する。
     static std::shared_ptr<Model> buildCharacterModel(Instance* searchRoot, const std::string& name);
-    // enabled SpawnLocationをfull path順に選び、Rootを上面へ揃える。候補なしは(0,100,0)。
+    // enabled SpawnLocationをfull path順に選び、Rootを上面+HipHeightへ置く。候補なしは(0,100,0)。
     // ローカルUserとReplicationのリモートAvatar生成で共用する。
     static void placeCharacterAtSpawn(
         const std::shared_ptr<Model>& model,

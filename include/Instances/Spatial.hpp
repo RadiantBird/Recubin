@@ -32,6 +32,9 @@ public:
     virtual void setPosition(const Vector3& value);
     virtual void setRotation(const Quaternion& value);
     virtual void setSize(const Vector3& value);
+    // Set a world-space position while preserving the current world rotation.
+    // The virtual local setter keeps BaseCube physics state synchronized.
+    void setWorldPosition(const Vector3& worldPosition);
     void commitCFrame(const CFrame& value, SpatialUpdateOrigin origin);
     // Internal editor/deserialization transaction: applies already-resolved
     // local frames without recursively preserving descendants per element.

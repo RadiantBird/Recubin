@@ -19,6 +19,8 @@
 
 PhysicsBackendType Physics::s_requestedBackend = PhysicsBackendType::Box3D;
 std::function<void(BaseCube*, BaseCube*)> Physics::s_contactCallback;
+std::function<void(BaseCube*, BaseCube*)> Physics::s_touchCallback;
+std::function<void(BaseCube*, BaseCube*)> Physics::s_touchEndCallback;
 
 namespace {
 bool finiteVector(const Vector3& value) {

@@ -67,9 +67,9 @@
 ### BaseCube
 | メンバ | 種別 | 状態 | 経路 | 備考 |
 |---|---|---|---|---|
-| Position / Size / Color / Anchored / CanCollide | Field | ✅ | 手書き | Position は PhysX pose 同期、Size は setSize 経由 |
+| Position / Size / Color / Anchored / CanCollide / CanTouch | Field | ✅ | PropertyRegistry | Position は Box3D pose 同期、Size は setSize 経由 |
 | Velocity | 派生(read) | ✅ get | 手書き | actor から読む。set は無し（仕様妥当） |
-| Touched | Signal | ✅ | 手書き | |
+| Touched / TouchEnded | Signal | ✅ | 手書き | Box3Dの形状overlap開始/終了。CanCollideとは独立 |
 | **CastShadow** | Field(bool) | ❌ | 新規 | |
 | **Unlit** | Field(bool) | ❌ | 新規 | |
 | **UseTriplanar** | Field(bool) | ❌ | 新規 | |

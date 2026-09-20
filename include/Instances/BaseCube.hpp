@@ -33,9 +33,11 @@ private:
 
 public:
     std::shared_ptr<RCBNScriptSignal> Touched;
+    std::shared_ptr<RCBNScriptSignal> TouchEnded;
 
     bool Anchored = false;
     bool CanCollide = true;
+    bool CanTouch = true;
     bool CastShadow = true;
     using ShadowModeType = ::ShadowMode;
     ShadowModeType ShadowMode = ::ShadowMode::Normal;
@@ -86,6 +88,7 @@ public:
     void setRotation(const Quaternion& rot) override;
     void setAnchored(bool anchored);
     void setCanCollide(bool canCollide);
+    void setCanTouch(bool canTouch);
     void setLocked(bool locked);
     void setMaterial(const Material& m);
     void setMassDensity(float d);

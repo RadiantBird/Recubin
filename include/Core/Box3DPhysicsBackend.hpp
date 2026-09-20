@@ -95,6 +95,15 @@ private:
     std::unordered_map<const BaseCube*, float> m_contactImpacts;
     // native callback 中はInstanceへ触れず、shape userDataの値だけを積む。
     std::vector<std::pair<const void*, const void*>> m_pendingContacts;
+    std::vector<std::pair<const void*, const void*>> m_pendingTouches;
+    std::vector<std::pair<const void*, const void*>> m_pendingTouchEnds;
+    std::set<CubePair> m_activeTouches;
+    struct TouchPairRecord {
+        b3ShapeId sensorShapeId = b3_nullShapeId;
+        b3ShapeId visitorShapeId = b3_nullShapeId;
+        CubePair cubes{};
+    };
+    std::vector<TouchPairRecord> m_touchPairRecords;
     std::unordered_set<std::string> m_gyroErrorKeys;
 
     static bool customFilter(
@@ -113,7 +122,8 @@ private:
     void clearShapeLogState(const BaseCube* cube);
     void assignBody(BaseCube& cube, b3BodyId bodyId, const CFrame& localOffset);
     b3ShapeId createCubeShape(
-        b3BodyId bodyId, const std::shared_ptr<BaseCube>& cube, const CFrame& localFrame);
+        b3BodyId bodyId, const std::shared_ptr<BaseCube>& cube,
+        const CFrame& localFrame, bool sensor = false);
     void destroyUniqueBodies();
     void rebuildNoCollisionSnapshot();
     void processContactEvents();

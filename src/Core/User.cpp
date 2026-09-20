@@ -1233,9 +1233,7 @@ void User::placeCharacterAtSpawn(
             : static_cast<std::size_t>(spawnPeerId - 1) % candidates.size();
         selectedSpawn = candidates[index];
         targetRoot = selectedSpawn->getWorldCFrame();
-        const float rootToSpawnSurface = humanoid->isHipHeightExplicitlySet()
-            ? humanoid->getHipHeight()
-            : root->Size.y * 0.5f;
+        const float rootToSpawnSurface = humanoid->getHipHeight();
         targetRoot = targetRoot * CFrame(
             0.0f,
             selectedSpawn->Size.y * 0.5f + rootToSpawnSurface,
@@ -1305,19 +1303,32 @@ void User::spawnCharacter(Instance* searchRoot, Workspace* workspace,
     }
     
     if (initialPosition) {
-        const CFrame current = character->getWorldCFrame();
+        if (!humanoid) {
+            RCBN_WARN("User::spawnCharacter: Play Here target cannot be applied; "
+                      << character->getClassName() << " name=" << character->Name
+                      << " path=" << character->getFullPath()
+                      << " has no Humanoid");
+        } else {
+            const auto root = humanoid->getRootPart();
+            if (!root) {
+                RCBN_WARN("User::spawnCharacter: Play Here target cannot be applied; "
+                          << character->getClassName() << " name=" << character->Name
+                          << " path=" << character->getFullPath()
+                          << " Humanoid has no resolved Root");
+            } else {
+                const CFrame currentRoot = root->getWorldCFrame();
+                CFrame targetRoot = currentRoot;
+                targetRoot.Position = *initialPosition;
 
-        CFrame target = current;
-        target.Position = *initialPosition;
+                const CFrame delta = targetRoot * currentRoot.inverse();
 
-        const CFrame delta = target * current.inverse();
-
-        moveSpatialSubtreeByWorldDelta(
-            std::static_pointer_cast<Instance>(character),
-            delta
-        );
-    }
-    else {
+                moveSpatialSubtreeByWorldDelta(
+                    std::static_pointer_cast<Instance>(character),
+                    delta
+                );
+            }
+        }
+    } else {
         placeCharacterAtSpawn(
             character,
             humanoid,

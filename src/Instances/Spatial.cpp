@@ -1,5 +1,6 @@
 #include "include/Instances/Spatial.hpp"
 #include "include/Core/PropertyRegistry.hpp"
+#include "include/Util/Logger.hpp"
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -133,6 +134,23 @@ void Spatial::setPosition(const Vector3& value) {
     CFrame valueFrame = m_cframe;
     valueFrame.Position = value;
     setCFrame(valueFrame);
+}
+
+void Spatial::setWorldPosition(const Vector3& worldPosition) {
+    if (!std::isfinite(worldPosition.x) || !std::isfinite(worldPosition.y) ||
+        !std::isfinite(worldPosition.z)) {
+        RCBN_ERROR("Rejected invalid WorldPosition for " << getClassName()
+                   << " " << getFullPath() << ": [" << worldPosition.x
+                   << "," << worldPosition.y << "," << worldPosition.z << "]");
+        return;
+    }
+
+    CFrame world = getWorldCFrame();
+    world.Position = worldPosition;
+    CFrame local = world;
+    if (auto* coordinateParent = getCoordinateParent())
+        local = coordinateParent->getWorldCFrame().inverse() * world;
+    setPosition(local.Position);
 }
 
 void Spatial::setRotation(const Quaternion& value) {

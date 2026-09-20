@@ -375,7 +375,7 @@ void LuauEngine::InitDispatchTable_Base() {
 
     PropertyRegistry::applyToDispatch("Spatial", DispatchTable, SetterTable);
 
-    // WorldPosition/WorldCFrame は保存・編集対象ではない派生 read-only 値。
+    // WorldCFrame は保存・編集対象ではない派生 read-only 値。
     DispatchTable["Spatial"]["WorldPosition"] = [](lua_State* L, Instance* obj) {
         pushVector3(L, static_cast<Spatial*>(obj)->getWorldPosition());
         return 1;
@@ -388,6 +388,7 @@ void LuauEngine::InitDispatchTable_Base() {
     // --- BaseCube（Position/Size は Spatial に集約。物理特有のみ残置）---
     PropertyRegistry::applyToDispatch("BaseCube", DispatchTable, SetterTable);
     DispatchTable["BaseCube"]["Touched"]      = getter_signal <BaseCube, &BaseCube::Touched>();
+    DispatchTable["BaseCube"]["TouchEnded"]   = getter_signal <BaseCube, &BaseCube::TouchEnded>();
     // Velocity is read from the physics actor at runtime, no direct field to bind
     DispatchTable["BaseCube"]["Velocity"]   = [](lua_State* L, Instance* obj) {
         auto* cube = static_cast<BaseCube*>(obj);
@@ -784,6 +785,13 @@ void LuauEngine::InitSetterTable_Base() {
     };
 
     PropertyRegistry::applyToDispatch("Spatial", DispatchTable, SetterTable);
+
+    SetterTable["Spatial"]["WorldPosition"] = [](lua_State* L, Instance* obj) {
+        Vector3* value = (Vector3*)luaL_checkudata(
+            L, 3, LuauEngine::RCBN_VEC3_METATABLE);
+        static_cast<Spatial*>(obj)->setWorldPosition(*value);
+        return 0;
+    };
 
     // --- Spatial: Position/Size/Rotation/CFrame を基底で公開。
     // BaseCube なら物理同期メソッド（teleportTo/setSize/setRotation。親チェーン合成込み）に委譲し、

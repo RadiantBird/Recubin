@@ -42,6 +42,8 @@ private:
 
 public:
     static std::function<void(BaseCube*, BaseCube*)> s_contactCallback;
+    static std::function<void(BaseCube*, BaseCube*)> s_touchCallback;
+    static std::function<void(BaseCube*, BaseCube*)> s_touchEndCallback;
 
     Physics();
     ~Physics();

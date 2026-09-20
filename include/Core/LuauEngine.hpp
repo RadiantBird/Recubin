@@ -388,7 +388,8 @@ public:
     void fireHeartbeat(float dt);
     void fireNetworkRoleChanged(NetworkRole oldRole, NetworkRole newRole);
     void fireChatMessage(ChatService* service, PeerId senderId, const std::string& text);
-    void onCollision(BaseCube* a, BaseCube* b);
+    void onTouched(BaseCube* a, BaseCube* b);
+    void onTouchEnded(BaseCube* a, BaseCube* b);
 
     // 1フレームのClone/Restart上限を超えた時にtrueを返す(1回だけ)。
     // ホスト(main.cpp / game_main.cpp)が毎フレーム呼び、消費する。

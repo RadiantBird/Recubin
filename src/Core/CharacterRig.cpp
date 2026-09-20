@@ -55,14 +55,13 @@ const std::vector<R6JointBinding>& r6JointBindings() {
         // The part-center offset is kept in jointToPartBind so animation
         // deltas rotate around the same pivots as the Motor6D constraints.
         // Root is the invisible physics reference and remains centered at
-        // basePos.  The visible R6 assembly is raised by two studs so the
-        // leg bottoms share Root's lower face when Root is grounded.
-        {"Torso", "Torso", CFrame(0, 2.0f, 0), CFrame()},
-        {"Head", "Head", CFrame(0, 3.5f, 0), CFrame()},
-        {"LeftShoulder", "LeftArm", CFrame(-1.5f, 2.5f, 0), CFrame(0, -0.5f, 0)},
-        {"RightShoulder", "RightArm", CFrame(1.5f, 2.5f, 0), CFrame(0, -0.5f, 0)},
-        {"LeftHip", "LeftLeg", CFrame(-.5f, 1.0f, 0), CFrame(0, -1.0f, 0)},
-        {"RightHip", "RightLeg", CFrame(.5f, 1.0f, 0), CFrame(0, -1.0f, 0)}
+        // basePos. These frames match the authored triangle.rcbn R6 bind pose.
+        {"Torso", "Torso", CFrame(0, 0.0f, 0), CFrame()},
+        {"Head", "Head", CFrame(0, 1.5f, 0), CFrame()},
+        {"LeftShoulder", "LeftArm", CFrame(-1.5f, 0.5f, 0), CFrame(0, -0.5f, 0)},
+        {"RightShoulder", "RightArm", CFrame(1.5f, 0.5f, 0), CFrame(0, -0.5f, 0)},
+        {"LeftHip", "LeftLeg", CFrame(-.5f, -1.0f, 0), CFrame(0, -1.0f, 0)},
+        {"RightHip", "RightLeg", CFrame(.5f, -1.0f, 0), CFrame(0, -1.0f, 0)}
     };
     return bindings;
 }

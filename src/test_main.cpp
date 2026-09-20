@@ -1446,7 +1446,7 @@ int runSpawnLocationRegression() {
         "User.CharacterAdded:Connect(function(character) "
         "local root = character:WaitChild('Root') "
         "local spawn = workspace:WaitChild('A'):WaitChild('SpawnLocation') "
-        "local expected = spawn.WorldCFrame * CFrame.new(0, 1.5, 0) "
+        "local expected = spawn.WorldCFrame * CFrame.new(0, 3.5, 0) "
         "local p, ep, q, eq = root.WorldCFrame.Position, expected.Position, root.WorldCFrame.Rotation, expected.Rotation "
         "local pd = math.abs(p.x-ep.x)+math.abs(p.y-ep.y)+math.abs(p.z-ep.z) "
         "local dot = math.abs(q.w*eq.w+q.x*eq.x+q.y*eq.y+q.z*eq.z) "
@@ -1467,9 +1467,9 @@ int runSpawnLocationRegression() {
     auto root2 = user2->humanoid->getRootPart();
     auto root3 = user3->humanoid->getRootPart();
     const CFrame expectedA = spawnA->getWorldCFrame() *
-        CFrame(0.0f, (spawnA->Size.y + templateRoot->Size.y) * 0.5f, 0.0f);
+        CFrame(0.0f, spawnA->Size.y * 0.5f + user0->humanoid->getHipHeight(), 0.0f);
     const CFrame expectedZ = spawnZ->getWorldCFrame() *
-        CFrame(0.0f, (spawnZ->Size.y + templateRoot->Size.y) * 0.5f, 0.0f);
+        CFrame(0.0f, spawnZ->Size.y * 0.5f + user0->humanoid->getHipHeight(), 0.0f);
     expect(cframeNear(root0->getWorldCFrame(), expectedA) &&
                cframeNear(root1->getWorldCFrame(), expectedA) &&
                cframeNear(root2->getWorldCFrame(), expectedZ) &&
@@ -1478,7 +1478,7 @@ int runSpawnLocationRegression() {
     expect(root0->getWorldPosition().y > 0.0f &&
                root1->getWorldPosition().y > 0.0f &&
                root2->getWorldPosition().y > 0.0f,
-           "unset HipHeight places an authored negative-Y Root above each SpawnLocation");
+           "saved HipHeight places the Root above each SpawnLocation");
     const CFrame rootToHead = templateRoot->getCFrame().inverse() * templateHead->getCFrame();
     expect(cframeNear(root0->getWorldCFrame().inverse() *
                           user0->humanoid->getHeadPart()->getWorldCFrame(), rootToHead),
@@ -1487,8 +1487,22 @@ int runSpawnLocationRegression() {
     auto playHereUser = std::make_shared<User>(std::make_unique<NullInputBackend>());
     const Vector3 playHere(33, 44, 55);
     playHereUser->spawnCharacter(system.get(), workspace.get(), playHere);
-    expect(playHereUser->character->getCFrame().Position == playHere,
-           "Play Here explicit Model.Position overrides SpawnLocation selection");
+    const auto playHereRoot = playHereUser->humanoid
+        ? playHereUser->humanoid->getRootPart()
+        : nullptr;
+    const auto playHereHead = playHereUser->humanoid
+        ? playHereUser->humanoid->getHeadPart()
+        : nullptr;
+    const CFrame playHereRootToHead = templateRoot->getWorldCFrame().inverse() *
+        templateHead->getWorldCFrame();
+    expect(playHereRoot && playHereHead &&
+               positionDistance(playHereRoot->getWorldPosition(), playHere) < 1e-5f,
+           "Play Here places the Humanoid Root at the explicit camera position");
+    expect(playHereRoot && playHereHead &&
+               cframeNear(playHereRoot->getWorldCFrame().inverse() *
+                               playHereHead->getWorldCFrame(),
+                           playHereRootToHead),
+           "Play Here preserves the rig-relative pose from the authored Root");
 
     workspace->addChild(user2->character);
     user2->respawnCharacter();
@@ -8366,11 +8380,18 @@ static int runAnimationClipRegression() {
         auto starterRoot = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("Root"));
         auto starterTorso = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("Torso"));
         auto rootJoint = std::dynamic_pointer_cast<Motor6D>(starter->getChildren().at("RootJoint"));
+        auto neck = std::dynamic_pointer_cast<Motor6D>(starter->getChildren().at("Neck"));
+        auto starterLeftShoulderMotor = std::dynamic_pointer_cast<Motor6D>(starter->getChildren().at("LeftShoulder"));
+        auto starterRightShoulderMotor = std::dynamic_pointer_cast<Motor6D>(starter->getChildren().at("RightShoulder"));
+        auto starterLeftHipMotor = std::dynamic_pointer_cast<Motor6D>(starter->getChildren().at("LeftHip"));
+        auto starterRightHipMotor = std::dynamic_pointer_cast<Motor6D>(starter->getChildren().at("RightHip"));
         auto rootRagdoll = std::dynamic_pointer_cast<BallSocket>(starter->getChildren().at("RootJointRagdoll"));
         auto rootGyro = std::dynamic_pointer_cast<Gyro>(starter->getChildren().at("RootGyro"));
         auto starterHead = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("Head"));
         auto starterLeftArm = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("LeftArm"));
+        auto starterRightArm = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("RightArm"));
         auto starterLeftLeg = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("LeftLeg"));
+        auto starterRightLeg = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("RightLeg"));
         auto yawForce = starterRoot
             ? std::dynamic_pointer_cast<Force>(starterRoot->getChild("YawForce")
                 ? starterRoot->getChild("YawForce")->shared_from_this()
@@ -8382,27 +8403,51 @@ static int runAnimationClipRegression() {
                    rootJoint->getPart0() == starterRoot && rootJoint->getPart1() == starterTorso &&
                    !rootRagdoll->Enabled && rootGyro->getPart() == starterRoot,
                "default R6 builds a dynamic Motor6D rig with disabled ragdoll constraints and RootGyro");
-        expect(starterTorso && starterHead && starterLeftArm && starterLeftLeg && yawForce &&
-                   near(starterTorso->Size.y, 2.0f) && near(starterTorso->Size.z, 2.0f) &&
-                   near(starterHead->getWorldPosition().y - starterRoot->getWorldPosition().y, 3.5f) &&
-                   near(starterLeftArm->getWorldPosition().y - starterRoot->getWorldPosition().y, 2.0f) &&
-                   near(starterLeftLeg->getWorldPosition().y - starterRoot->getWorldPosition().y, 0.0f) &&
+        expect(starterRoot && starterTorso && starterHead && starterLeftArm && starterRightArm &&
+                   starterLeftLeg && starterRightLeg && yawForce && starterHumanoid &&
+                   near(starterTorso->Size.y, 2.0f) && near(starterTorso->Size.z, 1.0f) &&
+                   positionDistance(starterHead->getWorldPosition() - starterRoot->getWorldPosition(),
+                                    Vector3(0.0f, 1.5f, 0.0f)) < 1.0e-5f &&
+                   positionDistance(starterLeftArm->getWorldPosition() - starterRoot->getWorldPosition(),
+                                    Vector3(-1.5f, 0.0f, 0.0f)) < 1.0e-5f &&
+                   positionDistance(starterRightArm->getWorldPosition() - starterRoot->getWorldPosition(),
+                                    Vector3(1.5f, 0.0f, 0.0f)) < 1.0e-5f &&
+                   positionDistance(starterLeftLeg->getWorldPosition() - starterRoot->getWorldPosition(),
+                                    Vector3(-0.5f, -2.0f, 0.0f)) < 1.0e-5f &&
+                   positionDistance(starterRightLeg->getWorldPosition() - starterRoot->getWorldPosition(),
+                                    Vector3(0.5f, -2.0f, 0.0f)) < 1.0e-5f &&
+                   near(starterHumanoid->getHipHeight(), 3.0f) &&
                    !rootGyro->getAxisSettings(GyroAxis::Y).Enabled &&
                    !yawForce->Enabled && yawForce->Torque && yawForce->MaintainVelocity &&
                    near(yawForce->AxisMask.x, 0.0f) && near(yawForce->AxisMask.y, 1.0f) &&
                    near(yawForce->AxisMask.z, 0.0f),
-               "default R6 keeps the Root-centered bind pose with grounded visible feet and yaw controller");
+               "default R6 matches the authored triangle bind pose and default HipHeight");
+        expect(rootJoint && neck && starterLeftShoulderMotor && starterRightShoulderMotor &&
+                   starterLeftHipMotor && starterRightHipMotor &&
+                   positionDistance(rootJoint->C0.Position, Vector3()) < 1.0e-5f &&
+                   positionDistance(rootJoint->C1.Position, Vector3()) < 1.0e-5f &&
+                   positionDistance(neck->C0.Position, Vector3(0.0f, 1.5f, 0.0f)) < 1.0e-5f &&
+                   positionDistance(neck->C1.Position, Vector3()) < 1.0e-5f &&
+                   positionDistance(starterLeftShoulderMotor->C0.Position, Vector3(-1.5f, 0.5f, 0.0f)) < 1.0e-5f &&
+                   positionDistance(starterRightShoulderMotor->C0.Position, Vector3(1.5f, 0.5f, 0.0f)) < 1.0e-5f &&
+                   positionDistance(starterLeftShoulderMotor->C1.Position, Vector3(0.0f, 0.5f, 0.0f)) < 1.0e-5f &&
+                   positionDistance(starterRightShoulderMotor->C1.Position, Vector3(0.0f, 0.5f, 0.0f)) < 1.0e-5f &&
+                   positionDistance(starterLeftHipMotor->C0.Position, Vector3(-0.5f, -1.0f, 0.0f)) < 1.0e-5f &&
+                   positionDistance(starterRightHipMotor->C0.Position, Vector3(0.5f, -1.0f, 0.0f)) < 1.0e-5f &&
+                   positionDistance(starterLeftHipMotor->C1.Position, Vector3(0.0f, 1.0f, 0.0f)) < 1.0e-5f &&
+                   positionDistance(starterRightHipMotor->C1.Position, Vector3(0.0f, 1.0f, 0.0f)) < 1.0e-5f,
+               "default R6 Motor6D frames match the authored triangle rig");
         if (starterRoot && starterTorso && rootJoint) {
             const CFrame bound = CharacterRig::applyMotor6D(
                 starterRoot->getWorldCFrame(), rootJoint->C0,
                 rootJoint->Transform, rootJoint->C1);
             expect(near(starterTorso->getWorldPosition().y -
-                            starterRoot->getWorldPosition().y, 2.0f) &&
-                       near(rootJoint->C0.Position.y, 2.0f) &&
+                            starterRoot->getWorldPosition().y, 0.0f) &&
+                       near(rootJoint->C0.Position.y, 0.0f) &&
                        near(bound.Position.x, starterTorso->getWorldPosition().x) &&
                        near(bound.Position.y, starterTorso->getWorldPosition().y) &&
                        near(bound.Position.z, starterTorso->getWorldPosition().z),
-                   "default Root/Torso bind preserves the raised visible pose and Motor6D world pose");
+                   "default Root/Torso bind preserves the authored pose and Motor6D world pose");
         }
         auto model = User::buildCharacterModel(system.get(), "ClipInjectionCharacter");
         std::shared_ptr<Humanoid> humanoid;
@@ -10110,30 +10155,26 @@ static int runPropertySchemaRegression() {
     );
     expect(
         hipHeight != humanoidSchema.end() &&
-            !humanoid->isHipHeightExplicitlySet() &&
-            !humanoid->isHipHeightInitializedFromGround(),
-        "a new Humanoid distinguishes unset HipHeight from an explicit value"
+            std::abs(humanoid->getHipHeight() - 3.0f) < 1.0e-5f,
+        "a new Humanoid uses the default HipHeight of three studs"
     );
     if (hipHeight != humanoidSchema.end()) {
-        YAML::Emitter unsetOutput;
-        unsetOutput << YAML::BeginMap;
-        PropertyRegistry::saveProperties(unsetOutput, humanoid.get(), "Humanoid");
-        unsetOutput << YAML::EndMap;
-        const YAML::Node unsetSaved = YAML::Load(unsetOutput.c_str());
-        expect(!unsetSaved["HipHeight"],
-               "unset HipHeight is omitted from YAML until it has a value");
+        YAML::Emitter defaultOutput;
+        defaultOutput << YAML::BeginMap;
+        PropertyRegistry::saveProperties(defaultOutput, humanoid.get(), "Humanoid");
+        defaultOutput << YAML::EndMap;
+        const YAML::Node defaultSaved = YAML::Load(defaultOutput.c_str());
+        expect(defaultSaved["HipHeight"] &&
+                   std::abs(defaultSaved["HipHeight"].as<float>() - 3.0f) < 1.0e-5f,
+               "default HipHeight is always serialized");
 
-        auto unsetClone = std::dynamic_pointer_cast<Humanoid>(humanoid->clone());
-        expect(
-            unsetClone && !unsetClone->isHipHeightExplicitlySet() &&
-                !unsetClone->isHipHeightInitializedFromGround(),
-            "unset HipHeight metadata survives schema-driven clone"
-        );
+        auto defaultClone = std::dynamic_pointer_cast<Humanoid>(humanoid->clone());
+        expect(defaultClone && std::abs(defaultClone->getHipHeight() - 3.0f) < 1.0e-5f,
+               "default HipHeight survives schema-driven clone");
 
         (*hipHeight)->set(humanoid.get(), PropValue(3.25f));
         expect(
-            std::abs(humanoid->getHipHeight() - 3.25f) < 1.0e-5f &&
-                humanoid->isHipHeightExplicitlySet(),
+            std::abs(humanoid->getHipHeight() - 3.25f) < 1.0e-5f,
             "generic HipHeight writes reach the Humanoid setter"
         );
 
@@ -10145,24 +10186,21 @@ static int runPropertySchemaRegression() {
         auto loaded = std::make_shared<Humanoid>();
         loaded->setProperty("HipHeight", saved["HipHeight"]);
         expect(
-            std::abs(loaded->getHipHeight() - 3.25f) < 1.0e-5f &&
-                loaded->isHipHeightExplicitlySet(),
-            "explicit HipHeight survives YAML property round-trip"
+            std::abs(loaded->getHipHeight() - 3.25f) < 1.0e-5f,
+            "HipHeight survives YAML property round-trip"
         );
 
         auto clone = std::dynamic_pointer_cast<Humanoid>(humanoid->clone());
         expect(
-            clone && std::abs(clone->getHipHeight() - 3.25f) < 1.0e-5f &&
-                clone->isHipHeightExplicitlySet(),
-            "explicit HipHeight survives schema-driven clone"
+            clone && std::abs(clone->getHipHeight() - 3.25f) < 1.0e-5f,
+            "configured HipHeight survives schema-driven clone"
         );
 
         auto copied = std::make_shared<Humanoid>();
         PropertyRegistry::copyCompatibleProperties(humanoid.get(), copied.get());
         expect(
-            copied->isHipHeightExplicitlySet() &&
-                std::abs(copied->getHipHeight() - 3.25f) < 1.0e-5f,
-            "explicit HipHeight metadata survives generic instance copy"
+            std::abs(copied->getHipHeight() - 3.25f) < 1.0e-5f,
+            "configured HipHeight survives generic instance copy"
         );
     }
 
@@ -10882,6 +10920,45 @@ static int runSpatialCoordinateAssertions() {
     leaf->setParent(nullptr);
     expect(sameCFrame(leaf->getWorldCFrame(), reparentWorld),
            "detach preserves world pose");
+
+    auto luauWorkspace = std::make_shared<Workspace>();
+    luauWorkspace->Gravity = {};
+    luauWorkspace->initPhysics();
+    auto directCube = std::make_shared<Cube>(Vector3(3, 2, -1), Vector3(2, 2, 2), 0);
+    directCube->Anchored = true;
+    auto transformedParent = std::make_shared<Model>(Vector3(10, 4, -6));
+    transformedParent->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 37));
+    auto nestedCube = std::make_shared<Cube>(Vector3(1, 2, 3), Vector3(2, 2, 2), 0);
+    nestedCube->Anchored = true;
+    luauWorkspace->addChild(directCube);
+    luauWorkspace->addChild(transformedParent);
+    transformedParent->addChild(nestedCube);
+    luauWorkspace->getPhysicsEngine()->update(*luauWorkspace, 0.0f);
+
+    LuauEngine worldPositionEngine;
+    worldPositionEngine.setWorkspace(luauWorkspace);
+    worldPositionEngine.setGlobalInstance("DirectCube", directCube);
+    worldPositionEngine.setGlobalInstance("NestedCube", nestedCube);
+    auto worldPositionScript = std::make_shared<Script>();
+    worldPositionScript->Source =
+        "DirectCube.WorldPosition = Vector3.new(21, 7, -9)\n"
+        "NestedCube.WorldPosition = Vector3.new(-4, 8, 12)\n";
+    expect(worldPositionEngine.execute(*worldPositionScript),
+           "Luau WorldPosition assignment executes for direct and nested BaseCube");
+    const Vector3 directTarget(21, 7, -9);
+    const Vector3 nestedTarget(-4, 8, 12);
+    expect(positionDistance(directCube->getWorldPosition(), directTarget) < 0.001f &&
+               positionDistance(directCube->getPosition(), directTarget) < 0.001f,
+           "Luau WorldPosition uses world coordinates for Workspace-direct BaseCube");
+    const Vector3 nestedLocal =
+        transformedParent->getWorldCFrame().inverse().pointToWorld(nestedTarget);
+    expect(positionDistance(nestedCube->getWorldPosition(), nestedTarget) < 0.001f &&
+               positionDistance(nestedCube->getPosition(), nestedLocal) < 0.001f,
+           "Luau WorldPosition converts through a transformed Spatial parent");
+    luauWorkspace->getPhysicsEngine()->update(*luauWorkspace, 1.0f / 60.0f);
+    expect(positionDistance(directCube->getWorldPosition(), directTarget) < 0.001f &&
+               positionDistance(nestedCube->getWorldPosition(), nestedTarget) < 0.001f,
+           "Luau WorldPosition assignment synchronizes anchored physics poses");
     return failures;
 }
 
@@ -11792,14 +11869,15 @@ int runCharacterHoverRegression() {
     std::cout << "[CharacterHoverRegression] settledHeight="
               << settledHeight << '\n';
     expect(
-        physics && std::abs(settledHeight - 1.5f) < 0.2f &&
-            humanoid->isHipHeightInitializedFromGround() &&
-            !humanoid->isHipHeightExplicitlySet(),
-        "auto HipHeight is captured only after the Root reaches the support surface"
+        physics && std::abs(settledHeight - 3.0f) < 0.2f &&
+            std::abs(humanoid->getHipHeight() - 3.0f) < 1.0e-5f,
+        "default HipHeight remains three studs while Root reaches the support surface"
     );
     expect(
-        std::abs((settledHeight - root->Size.y * 0.5f) - 0.5f) < 0.1f,
-        "Root collider rests on the floor after auto HipHeight capture"
+        std::abs(settledHeight -
+                 (floor->getWorldPosition().y + floor->Size.y * 0.5f) -
+                 humanoid->getHipHeight()) < 0.1f,
+        "Root center remains aligned by the saved HipHeight target"
     );
 
     bool allBodiesShareAcceleration = true;
@@ -11836,9 +11914,9 @@ int runCharacterHoverRegression() {
     }
     settledHeight = root->getWorldPosition().y;
     expect(
-        humanoid->isHipHeightExplicitlySet() &&
+        std::abs(humanoid->getHipHeight() - 2.0f) < 1.0e-5f &&
             std::abs(settledHeight - 2.0f) < 0.2f,
-        "an explicitly changed HipHeight becomes the hover target"
+        "a changed HipHeight becomes the hover target"
     );
 
     auto modeBackend = std::make_unique<FrameRateTestInputBackend>();
@@ -12295,6 +12373,97 @@ int runRuntimeCharacterSerializationRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runTouchEventRegression() {
+    int failures = 0;
+    auto expect = [&](bool ok, const char* message) {
+        std::cout << "[TouchEvent] " << (ok ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!ok) ++failures;
+    };
+    auto workspace = std::make_shared<Workspace>();
+    workspace->setGravity({0, 0, 0});
+    workspace->initPhysics();
+    auto trigger = addMigrationCube(workspace, "Trigger", {0, 0, 0}, {2, 2, 2}, true);
+    trigger->CanCollide = false;
+    auto mover = addMigrationCube(workspace, "Mover", {-5, 0, 0}, {1, 1, 1});
+    mover->CanCollide = false;
+    auto* physics = workspace->getPhysicsEngine();
+    int begins = 0;
+    int ends = 0;
+    const auto oldBegin = Physics::s_touchCallback;
+    const auto oldEnd = Physics::s_touchEndCallback;
+    Physics::s_touchCallback = [&](BaseCube* a, BaseCube* b) {
+        if ((a == trigger.get() && b == mover.get()) ||
+            (a == mover.get() && b == trigger.get())) ++begins;
+    };
+    Physics::s_touchEndCallback = [&](BaseCube* a, BaseCube* b) {
+        if ((a == trigger.get() && b == mover.get()) ||
+            (a == mover.get() && b == trigger.get())) ++ends;
+    };
+    physics->setLinearVelocity(*mover, {2, 0, 0});
+    for (int i = 0; i < 360; ++i) physics->update(*workspace, 1.0f / 60.0f);
+    expect(begins == 1 && ends == 1, "overlap begin/end fires once with CanCollide=false");
+    expect(mover->getWorldPosition().x > 1.0f, "mover passes through trigger");
+    trigger->setCanTouch(false);
+    mover->teleportTo({-5, 0, 0});
+    physics->setLinearVelocity(*mover, {2, 0, 0});
+    for (int i = 0; i < 5; ++i) physics->update(*workspace, 1.0f / 60.0f);
+    const int previousBegins = begins;
+    const int previousEnds = ends;
+    for (int i = 0; i < 360; ++i) physics->update(*workspace, 1.0f / 60.0f);
+    expect(begins == previousBegins && ends == previousEnds, "CanTouch=false suppresses notifications");
+    auto wall = addMigrationCube(workspace, "Wall", {5, 0, 0}, {1, 4, 4}, true);
+    wall->CanTouch = false;
+    mover->CanCollide = true;
+    mover->teleportTo({2, 0, 0});
+    physics->setLinearVelocity(*mover, {2, 0, 0});
+    for (int i = 0; i < 180; ++i) physics->update(*workspace, 1.0f / 60.0f);
+    expect(mover->getWorldPosition().x < 4.5f, "CanTouch=false preserves physical collision");
+    auto clone = std::dynamic_pointer_cast<BaseCube>(trigger->clone());
+    expect(clone && clone->CanTouch == trigger->CanTouch, "clone preserves CanTouch");
+    const auto schema = PropertyRegistry::collectApplicableSchema(trigger.get());
+    const auto property = std::find_if(schema.begin(), schema.end(), [](const PropertyDesc* value) {
+        return value && value->name == "CanTouch";
+    });
+    expect(property != schema.end() && (*property)->type == PropType::Bool &&
+               (*property)->get && (*property)->set && (*property)->serialize &&
+               !(*property)->noLuaWrite,
+           "CanTouch is a serializable writable Bool property");
+    if (property != schema.end()) {
+        (*property)->set(trigger.get(), PropValue(false));
+        expect(!trigger->CanTouch, "CanTouch schema setter writes false");
+        (*property)->set(trigger.get(), PropValue(true));
+        expect(trigger->CanTouch, "CanTouch schema setter writes true");
+        YAML::Emitter emitter;
+        emitter << YAML::BeginMap;
+        PropertyRegistry::saveProperties(emitter, trigger.get(), "BaseCube");
+        emitter << YAML::EndMap;
+        const YAML::Node saved = YAML::Load(emitter.c_str());
+        expect(saved["CanTouch"] && saved["CanTouch"].as<bool>(),
+               "CanTouch is emitted to YAML");
+        auto loaded = std::make_shared<BaseCube>(Vector3(), Vector3(1, 1, 1));
+        loaded->setProperty("CanTouch", YAML::Node(false));
+        expect(!loaded->CanTouch, "CanTouch YAML setter restores false");
+    }
+    auto system = std::make_shared<System>();
+    system->addChild(workspace);
+    auto script = std::make_shared<Script>();
+    script->Source =
+        "local p = workspace.Trigger "
+        "p.CanTouch = false "
+        "assert(p.CanTouch == false) "
+        "assert(p.TouchEnded ~= nil)";
+    workspace->addChild(script);
+    LuauEngine engine;
+    engine.setSystem(system.get());
+    engine.setWorkspace(workspace);
+    expect(engine.execute(*script), "Luau reads/writes CanTouch and obtains TouchEnded");
+    expect(trigger->TouchEnded != nullptr, "TouchEnded signal exists");
+    Physics::s_touchCallback = oldBegin;
+    Physics::s_touchEndCallback = oldEnd;
+    std::cout << "[TouchEvent] failures=" << failures << " result=" << (failures ? "FAIL" : "PASS") << '\n';
+    return failures ? 1 : 0;
+}
+
 struct RegressionEntry {
     std::string_view name;
     int (*runner)(int, char**);
@@ -12344,6 +12513,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--starter-accessory-weld-regression", runStarterAccessoryWeldRegression),
         REG("--starter-root-spawn-regression", runStarterRootSpawnRegression),
         REG("--spawn-location-regression", runSpawnLocationRegression),
+        REG("--touch-event-regression", runTouchEventRegression),
         REG("--remote-avatar-spawn-transform-regression", runRemoteAvatarSpawnTransformRegression),
         REG("--meshcube-fallback-regression", runMeshCubeFallbackRegression),
         REG("--shadow-mode-regression", runShadowModeRegression),
