@@ -42,6 +42,7 @@
 #include <Instances/TextButton.hpp>
 #include <Instances/ImageButton.hpp>
 #include <Instances/ScreenGuiObject.hpp>
+#include <Instances/SurfaceGui.hpp>
 #include <Instances/SurfaceMark.hpp>
 #include <Instances/Highlight.hpp>
 #include <Instances/IntValue.hpp>
@@ -9293,6 +9294,58 @@ static int runGuiAutomationRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runGuiVisibilityRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[GuiVisibility] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto label = std::make_shared<TextLabel>();
+    label->BackgroundColor.a = 0.0f;
+    label->m_text.TextColor.a = 0.0f;
+    expect(!label->hasRenderableContent(),
+           "TextLabel with zero background/text alpha has no renderable content");
+
+    label->m_text.Text = "visible text";
+    label->m_text.TextColor.a = 1.0f;
+    expect(label->hasRenderableContent(),
+           "TextLabel text remains renderable when only its background is transparent");
+
+    label->Visible = false;
+    expect(!label->hasRenderableContent(),
+           "invisible TextLabel has no renderable content");
+
+    auto surface = std::make_shared<SurfaceGui>();
+    surface->BackgroundColor.a = 0.0f;
+    expect(!surface->hasRenderableOwnContent(),
+           "transparent SurfaceGui has no own background content");
+    auto surfaceLabel = std::make_shared<TextLabel>();
+    surfaceLabel->Visible = false;
+    surfaceLabel->BackgroundColor.a = 0.0f;
+    surfaceLabel->m_text.TextColor.a = 0.0f;
+    surface->addChild(surfaceLabel);
+    expect(!surface->hasRenderableContent(),
+           "SurfaceGui with transparent background and hidden transparent child has no content");
+
+    surfaceLabel->Visible = true;
+    surfaceLabel->m_text.Text = "surface text";
+    surfaceLabel->m_text.TextColor.a = 1.0f;
+    expect(!surface->hasRenderableOwnContent() && surface->hasRenderableContent(),
+           "SurfaceGui separates transparent own content from visible child content");
+    expect(surface->hasRenderableContent(),
+           "SurfaceGui preserves visible child text with transparent background");
+
+    surface->Visible = false;
+    expect(!surface->hasRenderableContent(),
+           "invisible SurfaceGui has no renderable content");
+
+    std::cout << "[GuiVisibility] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 static int runSceneHierarchyGroupingRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -12695,6 +12748,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--system-extension-regression", runSystemExtensionRegression),
         REG("--scene-hierarchy-grouping-regression", runSceneHierarchyGroupingRegression),
         REG("--gui-automation-regression", runGuiAutomationRegression),
+        REG("--gui-visibility-regression", runGuiVisibilityRegression),
         REG("--physics-migration-regression", runPhysicsMigrationRegression),
         REG("--physics-lifecycle-regression", runPhysicsLifecycleRegression),
         REG("--constraint-rebind-regression", runConstraintRebindRegression),

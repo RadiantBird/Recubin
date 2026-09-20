@@ -48,7 +48,7 @@ main.cpp ループ
 6. **Shadow Pass**（`desc.renderShadows` かつ Lighting/shadowFBO が有効な場合のみ）
    - カメラ frustum の 3 slice に対して practical split（linear/logarithmic、lambda=0.7）を計算
    - 各 slice の8頂点を light-space へ変換し、caster margin 付きの tight-fit orthographic projection を構成。XY中心は cascade ごとの texel grid に snap
-   - `shadowFBO`へ `GL_TEXTURE_2D_ARRAY` の layer 0/1/2として、2048×2048×3 の深度マップへ `depthShader` でシーン全体（`BaseCube` 系 + Terrain チャンク）を3回描画
+   - `shadowFBO`へ `GL_TEXTURE_2D_ARRAY` の layer 0/1/2として、2048×2048×3 の深度マップへ `depthShader` でシーン全体（`BaseCube` 系 + Terrain チャンク）を3回描画。Cube/Cylinder/Sphere/TriangularPrismはTexture、Decal、Triplanar等の見た目状態を無視して形状別にインスタンス化し、各cascadeのlight-space frustum外にあるbounding sphereは描画しない
    - 完了後メイン FBO に戻す
 7. **Main Pass**
    - `shaderProgram` を使用、`view`/`projection`/`viewPos`/`lightDir`/`brightness` をセット
@@ -65,6 +65,12 @@ main.cpp ループ
 12. **雷柱パス**: `renderLightning()` で Workspace 直下の `Weather` から `getLightningBolt()`（落雷時に `Weather::attemptStrike()` が中点変位法で生成したジグザグ頂点列）と `getLightningBoltAlpha()`（フラッシュ減衰と同期する線形アルファ）を読み、頂点列が2点未満またはアルファ0以下なら即 return。それ以外は雲パスとは別に、Rope/Rod/地形ブラシガイドと同じ `m_lineShader`／`m_lineVAO` を再利用して `GL_LINE_STRIP`（`glLineWidth(3.0f)`）で描画する（新規 GL リソースなし）
 13. **パーティクル描画**: `renderParticles()` で `ParticleEmitter` をツリーから収集し、粒子ごとにカメラ基底(`cameraRight`/`cameraUp`)でビルボード展開した頂点（`aPos`(vec3)+`aColor`(vec4)、テクスチャなし単色頂点シェーダー `m_particleShader`）を1つの頂点バッファへまとめ、`glDepthMask(GL_FALSE)`で自己遮蔽を避けつつ1回の`glDrawArrays(GL_TRIANGLES)`で描画する。粒子の状態更新（位置・寿命・発生）はここでは行わず、メインループから毎フレーム1回だけ呼ばれる`ParticleEmitter::updateAll()`が担う（`renderViewport`はビューポートの数だけ複数回呼ばれるため、状態更新をここに置くと多重更新になる）。`Weather`の雨/雪も内部で`ParticleEmitter`を使っているため、この既存パスがそのまま描画する
 14. 退避していた FBO・ビューポートに復帰。`desc.renderHighlights` が立っている呼び出し（Primary Viewport）の view/proj を `m_lastView`/`m_lastProj` に保存（GUI のワールド→スクリーン投影に使用）
+
+GUI要素は`Visible == false`または自身とGUI子孫に可視ピクセルがない場合、描画リストへの登録をスキップする。
+背景は`BackgroundColor.a`、文字は`TextColor.a`、画像はロード済みテクスチャの有無で判定する。
+SurfaceGuiは自身の背景と子要素を別々に判定するため、背景が完全透明でも可視TextLabelがあれば
+背景を透明にクリアして子だけをベイクする。自身と子の両方に可視内容がないときだけFBOベイクと
+CubeへのSurfaceGui合成を省略する。
 
 ## シェーダー仕様
 
@@ -105,6 +111,7 @@ main.cpp ループ
 - 各 cascade の light-space XY中心は、その cascade の `projectionWidth/2048`、`projectionHeight/2048` を単位に丸める。カメラの微小移動では shadow texel の境界が world 上を泳がず、カメラ回転と light direction の変更時は基底・projectionを再計算する。
 - `CastShadow == false` は常に影なし。true の場合は `ShadowMode`（Always/Never/Normal）で判定し、Normal は `Color.a > 0.001`、MeshCube の fallback geometry は例外として影を生成する。深度テクスチャは 24-bit + `GL_NEAREST`、シェーダは最近傍深度を9回比較する手動3×3 PCFを使用する。受け側の深度バイアスは `max(0.00035, 0.0012*(1-clamp(dot(normalize(N), normalize(L)),0,1)))` の slope-scaled bias とし、書き込み側は `glPolygonOffset(1.0, 1.0)` を使う
 - 各 cascade の light-space depth は slice の min/max と depth margin から設定し、casterがnear/farで切れない余裕を持たせる。
+- Shadow専用のインスタンス化・カリング結果はProfilerの`Shadow Cubes`／`Shadow Cubes Culled`で確認できる。`Shadow Cubes Culled`は3 cascadeそれぞれの判定を合計した値である。
 - ライト方向は `Lighting.lightDir` のみ参照（複数ライト・ポイントライトのシャドウ未対応）
 - シャドウ距離は `Lighting.ShadowDistance`（既定160）で制限し、`ShadowFadeDistance`（既定20）でカメラからの3D距離に応じてフェードする。
 - `PostEffectKind::Custom` は指定GLSLフラグメントシェーダーをチェーンへ適用し、失敗時は直前の成功プログラムまたはパススルーへフォールバックする。

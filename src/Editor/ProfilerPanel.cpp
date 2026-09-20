@@ -172,6 +172,8 @@ void ProfilerPanel::onRender() {
         drawCounterRow("cubesCulled", Loc::LocKey::ProfilerCubesCulled);
         drawCounterRow("instanced", Loc::LocKey::ProfilerInstanced);
         drawCounterRow("shadowCubes", Loc::LocKey::ProfilerShadowCubes);
+        drawCounterRow(
+            "shadowCubesCulled", Loc::LocKey::ProfilerShadowCubesCulled);
         ImGui::EndTable();
     }
 

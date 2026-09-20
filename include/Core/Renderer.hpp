@@ -41,6 +41,14 @@ struct CubeInstanceData {
     float color[4];  // RGBA
 };
 
+// Shadow depth pass用。深度シェーダーはdrawだけを使い、中心と半径は
+// Cascadeごとのlight-space frustum cullingにだけ使用する。
+struct ShadowInstanceData {
+    CubeInstanceData draw;
+    Vector3 center;
+    float radius = 0.0f;
+};
+
 struct ViewportRenderDesc {
     GLuint fbo = 0;
     int width = 0;
@@ -129,7 +137,7 @@ class Renderer {
         static constexpr int INST_SHAPE_COUNT = 4;
         struct InstanceBatch {
             std::vector<CubeInstanceData> main;    // メインパス用（フラスタム内）
-            std::vector<CubeInstanceData> shadow;  // シャドウパス用（CastShadow）
+            std::vector<ShadowInstanceData> shadow; // シャドウパス用（CastShadow）
             bool attribsAttached = false;          // 形状のs_VAOへ属性5-9を付与済みか
         };
         InstanceBatch m_instBatches[INST_SHAPE_COUNT];

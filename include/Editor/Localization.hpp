@@ -32,7 +32,7 @@ enum class LocKey {
     ProfilerTerrain, ProfilerWeather, ProfilerParticles, ProfilerSelectionOutline,
     ProfilerPostEffects, ProfilerEditorUi, ProfilerSwap,
     ProfilerCubesDrawn, ProfilerCubesCulled, ProfilerInstanced,
-    ProfilerShadowCubes,
+    ProfilerShadowCubes, ProfilerShadowCubesCulled,
 
     // ---- EditorManager: ダイアログ ----
     PlayLoadTitle, PlayLoadLine1, PlayLoadLine2, PlayLoadConfirm,

@@ -258,17 +258,24 @@ static bool sphereInFrustum(const FrustumPlanes& f, const Vector3& center, float
     return true;
 }
 
-// インスタンス描画できる「素のプリミティブ」の形状インデックスを返す。対象外は -1。
+// 共有VAOで描画できる素のプリミティブ形状のインデックスを返す。対象外は-1。
 // 0=Cube, 1=Cylinder, 2=Sphere, 3=TriangularPrism（Renderer::m_instBatchesの並びと一致）
 // クラス名完全一致のみ（Seat/Truss等の派生は独自描画の可能性があるため除外）。
-// Cube/Cylinder等は面デカール描画を持つため、面子要素があれば個別描画にフォールバックする。
+static int primitiveShapeIndex(BaseCube* bc) {
+    if (!bc) return -1;
+    const std::string className = bc->getClassName();
+    if (className == "Cube") return 0;
+    if (className == "Cylinder") return 1;
+    if (className == "Sphere") return 2;
+    if (className == "TriangularPrism") return 3;
+    return -1;
+}
+
+// メインパスでインスタンス描画できる「素のプリミティブ」の形状インデックスを返す。
+// Cube/Cylinder等は面デカール描画を持つため、視覚状態が個体ごとに異なる場合は
+// 個別描画へフォールバックする。
 static int instanceableShapeIndex(BaseCube* bc) {
-    std::string cn = bc->getClassName();
-    int shapeIdx = -1;
-    if      (cn == "Cube")            shapeIdx = 0;
-    else if (cn == "Cylinder")        shapeIdx = 1;
-    else if (cn == "Sphere")          shapeIdx = 2;
-    else if (cn == "TriangularPrism") shapeIdx = 3;
+    const int shapeIdx = primitiveShapeIndex(bc);
     if (shapeIdx < 0) return -1;
     if (bc->Color.a < 0.999f) return -1;  // 半透明はブレンド順の問題があるため除外
     if (bc->Unlit || bc->UseTriplanar) return -1;
@@ -280,6 +287,13 @@ static int instanceableShapeIndex(BaseCube* bc) {
         }
     }
     return shapeIdx;
+}
+
+// Shadow depth passではTexture/Decal/Triplanar等の見た目状態を読まないため、
+// 形状クラスだけが一致すればインスタンシングできる。メインパスの
+// instanceableShapeIndex()とは意図的に別判定にする。
+static int shadowInstanceableShapeIndex(BaseCube* bc) {
+    return primitiveShapeIndex(bc);
 }
 
 static bool shouldCastShadow(BaseCube* bc) {
@@ -2156,19 +2170,25 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         if (!inst) return;
         if (inst->IsA("BaseCube")) {
             BaseCube* bc = static_cast<BaseCube*>(inst);
-            int shapeIdx = instanceableShapeIndex(bc);
-            if (shapeIdx >= 0) {
+            const int mainShapeIdx = instanceableShapeIndex(bc);
+            const int shadowShapeIdx = shadowInstanceableShapeIndex(bc);
+            if (mainShapeIdx >= 0 || shadowShapeIdx >= 0) {
                 CFrame wcf = bc->getWorldCFrame();
                 Matrix4 mtx = wcf.toMatrix4() * Matrix4::Scale(bc->Size.x, bc->Size.y, bc->Size.z);
                 CubeInstanceData d;
                 std::memcpy(d.model, mtx.m, sizeof(d.model));
                 d.color[0] = bc->Color.r; d.color[1] = bc->Color.g;
                 d.color[2] = bc->Color.b; d.color[3] = bc->Color.a;
-                if (shouldCastShadow(bc)) m_instBatches[shapeIdx].shadow.push_back(d);
-                if (sphereInFrustum(camFrustum, wcf.Position, bc->Size.length() * 0.5f)) {
-                    m_instBatches[shapeIdx].main.push_back(d);
+                if (shadowShapeIdx >= 0 && shouldCastShadow(bc)) {
+                    m_instBatches[shadowShapeIdx].shadow.push_back({
+                        d, wcf.Position, bc->Size.length() * 0.5f
+                    });
+                }
+                if (mainShapeIdx >= 0 &&
+                    sphereInFrustum(camFrustum, wcf.Position, bc->Size.length() * 0.5f)) {
+                    m_instBatches[mainShapeIdx].main.push_back(d);
                 } else {
-                    instCulled++;
+                    if (mainShapeIdx >= 0) instCulled++;
                 }
             }
         }
@@ -2348,23 +2368,41 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             }
             if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, 0.0f);
 
+            const FrustumPlanes shadowFrustum =
+                extractFrustumPlanes(lightSpaceMatrices[cascade]);
             if (m_uInstancedDepthLoc != -1) {
                 bool anyShadowInst = false;
+                std::vector<CubeInstanceData> visibleShadowInstances;
                 for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
                     const auto& batch = m_instBatches[shapeIdx].shadow;
                     if (batch.empty() || instShapes[shapeIdx].vao == 0) continue;
+                    visibleShadowInstances.clear();
+                    visibleShadowInstances.reserve(batch.size());
+                    for (const ShadowInstanceData& shadowInstance : batch) {
+                        if (sphereInFrustum(
+                                shadowFrustum, shadowInstance.center, shadowInstance.radius)) {
+                            visibleShadowInstances.push_back(shadowInstance.draw);
+                        } else {
+                            FrameProfiler::get().addCount("shadowCubesCulled", 1);
+                        }
+                    }
+                    if (visibleShadowInstances.empty()) continue;
                     if (!anyShadowInst) {
                         glUniform1f(m_uInstancedDepthLoc, 1.0f);
                         anyShadowInst = true;
                     }
                     glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
                     glBufferData(GL_ARRAY_BUFFER,
-                                 (GLsizeiptr)(batch.size() * sizeof(CubeInstanceData)),
-                                 batch.data(), GL_STREAM_DRAW);
+                                 (GLsizeiptr)(visibleShadowInstances.size() * sizeof(CubeInstanceData)),
+                                 visibleShadowInstances.data(), GL_STREAM_DRAW);
                     glBindVertexArray(instShapes[shapeIdx].vao);
                     glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
-                                            GL_UNSIGNED_INT, 0, (GLsizei)batch.size());
-                    FrameProfiler::get().addCount("shadowCubes", (long long)batch.size());
+                                            GL_UNSIGNED_INT, 0,
+                                            (GLsizei)visibleShadowInstances.size());
+                    FrameProfiler::get().addCount(
+                        "shadowCubes",
+                        (long long)visibleShadowInstances.size()
+                    );
                 }
                 if (anyShadowInst) {
                     glBindVertexArray(0);
@@ -2374,11 +2412,23 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
         auto shadowRender = [&](auto& self, Instance* inst) -> void {
             if (!inst) return;
-            if (inst->IsA("BaseCube") && instanceableShapeIndex(static_cast<BaseCube*>(inst)) >= 0) {
+            const int shadowShapeIdx = inst->IsA("BaseCube")
+                ? shadowInstanceableShapeIndex(static_cast<BaseCube*>(inst))
+                : -1;
+            const bool shadowBatchHandled = shadowShapeIdx >= 0 &&
+                m_uInstancedDepthLoc != -1 &&
+                instShapes[shadowShapeIdx].vao != 0;
+            if (shadowBatchHandled) {
                 // 収集済み → インスタンス描画済み
             } else if (inst->IsA("BaseCube")) {
                 BaseCube* bc = static_cast<BaseCube*>(inst);
-                if (shouldCastShadow(bc)) {
+                const CFrame worldFrame = bc->getWorldCFrame();
+                const bool insideShadowFrustum = sphereInFrustum(
+                    shadowFrustum, worldFrame.Position, bc->Size.length() * 0.5f);
+                if (!insideShadowFrustum && shouldCastShadow(bc)) {
+                    FrameProfiler::get().addCount("shadowCubesCulled", 1);
+                }
+                if (insideShadowFrustum && shouldCastShadow(bc)) {
                     if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, bc->IsA("LiquidCube") ? 1.0f : 0.0f);
                     Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
                                        Matrix4::Scale(bc->Size.x, bc->Size.y, bc->Size.z);
@@ -2960,6 +3010,7 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
     FrameProfiler::get().addCount("cubesCulled", 0);
     FrameProfiler::get().addCount("instanced", 0);
     FrameProfiler::get().addCount("shadowCubes", 0);
+    FrameProfiler::get().addCount("shadowCubesCulled", 0);
     // Primary Viewport用の描画（スタンドアロンまたはエディターのメインビュー）
     // シーンを editor 側が描くのは ownsSceneRender()==true の実エディターのみ
     // (ViewportPanel が描き直すため、ここで描くと無駄な二重描画になる)。

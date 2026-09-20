@@ -1212,3 +1212,16 @@
 - 既存`FrameProfiler`を1秒ログ集計だけでなく、動的確保を伴わない固定長リングバッファへ各フレーム値を保存する実装へ拡張した。`physics`と`luau`は既存の実処理境界を使用し、`render`は全ViewportとImGui描画を含みメインウィンドウのswap/VSync待ちは除外する新しい区間とした。
 - `ProfilerPanel`、Localization、EditorManager、文書を追加・更新した。対象C++のGCC C++23 syntax checkと`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。GUI上のメニュー開閉、Dock配置、実負荷グラフは手動確認待ち。
 - 実機計測でRenderingが平均35.77ms、Physicsが実行中約3ms、Scriptsが約0.01msとなり、主因が描画側と判明した。ProfilerへShadow、Main Geometry、Surface Marks、各Extra pass、Editor UI、Swap/VSyncの現在・平均・最大テーブルと、描画／カリング／インスタンシング／Shadow Cube数を追加した。親区間と子区間の重複はUIと文書で明示している。追加後のGCC C++23 syntax check、`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。内訳値の実機採取は次の手動確認事項。
+
+### 2026-09-21: Shadow instancing and cascade culling
+
+- Shadow depth passはTexture、Decal、Triplanar、alpha等の見た目状態を参照しないため、Cube/Cylinder/Sphere/TriangularPrismを形状クラス単位で専用バッチへ集約した。メインパスの見た目を伴うインスタンシング条件は変更していない。depth shaderまたは形状VAOが利用できない場合は個別描画へフォールバックする。
+- 各shadow cascadeのlight-space frustumに対してcasterのbounding sphereを検査し、外側のインスタンス／個別casterを描画前に除外する。ProfilerのDraw Countersへcascade単位の`Shadow Cubes Culled`を追加し、バッチ化とカリングの効果を実測できるようにした。
+- `Renderer.cpp`、`Renderer.hpp`、ProfilerのLocalization/UI/文書を更新した。対象C++のGCC C++23 syntax checkと`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。実機での影の欠落がないこととShadow時間の改善値はWindows側で手動確認待ち。
+
+### 2026-09-21: GUI transparent/invisible draw skipping
+
+- `GuiObject::hasRenderableContent()`を追加し、`Visible`、背景アルファ、TextColorアルファ、画像テクスチャ、GUI子孫から実際に可視ピクセルがあるかを共通判定する。透明な背景を持つSurfaceGuiでも、可視TextLabelなどの子があれば描画を維持する。
+- SurfaceGuiは可視内容がない場合にFBOベイクを行わず、Cube側でもそのSurfaceGuiの合成を無視する。TextLabelなどのScreenGuiObjectは透明な背景・文字をImGui draw listへ追加しない。不可視要素の早期returnとボタンの入力経路は従来どおり維持する。
+- `--gui-visibility-regression`を追加し、透明／不可視TextLabel、透明背景＋可視テキストのSurfaceGui、SurfaceGui非表示を検査する。`GuiObject.cpp`、`Cube.cpp`、`Renderer_GUI.cpp`、`test_main.cpp`、関連文書を更新。GCC C++23 syntax check、`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功した。WSLからの回帰実行は`UtilBindVsockAnyPort:309: socket failed 1`でWindowsプロセスを起動できず、Windows側での実行待ち。
+- 透明SurfaceGuiの親背景と子GUIを分離判定する`hasRenderableOwnContent()`を追加した。親背景が完全透明なら透明クリアへ切り替え、可視子だけをベイクする。親と子の両方に内容がなければ従来どおりFBO処理とCube合成を省略する。追加修正後のGCC C++23 syntax check、`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功した。WSLからの`--gui-visibility-regression`は引き続き`UtilBindVsockAnyPort:309: socket failed 1`で起動できず、Windows側での実行待ち。

@@ -68,6 +68,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "カリングCube数",       "Cubes Culled" },
     { "インスタンス描画数",   "Instanced Cubes" },
     { "シャドウCube数",       "Shadow Cubes" },
+    { "シャドウカリング数",   "Shadow Cubes Culled" },
 
     // ---- EditorManager: ダイアログ ----
     { "テストプレイ中のシーン読込", "Load Scene During Play" },

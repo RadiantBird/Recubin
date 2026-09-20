@@ -28,7 +28,8 @@ GPU timerの値ではない。通常のDock状態ではメインウィンドウ�
 `Extra Passes Total`はHighlightsからPost Effectsまでの親区間で、`Editor UI`はEditor内のViewport描画も
 含む親区間である。親子区間は重複するため、テーブルの全行を合算して総描画時間として扱わない。
 
-描画数テーブルには、フレームごとのCubes Drawn、Cubes Culled、Instanced Cubes、Shadow Cubesを表示する。
+描画数テーブルには、フレームごとのCubes Drawn、Cubes Culled、Instanced Cubes、Shadow Cubes、
+Shadow Cubes Culledを表示する。
 複数Viewportが描画された場合は、そのフレームに描画された全Viewportの合計となる。
 
 履歴は`FrameProfiler`内部の固定長リングバッファで保持し、フレームごとの動的確保を行わない。

@@ -23,6 +23,35 @@ bool GuiObject::IsA(std::string name) {
     return Instance::IsA(name);
 }
 
+bool GuiObject::hasRenderableOwnContent() {
+    constexpr float GUI_ALPHA_EPSILON = 0.001f;
+    if (!Visible) return false;
+    if (BackgroundColor.a > GUI_ALPHA_EPSILON) return true;
+
+    if (auto* text = textContent(); text && !text->Text.empty() &&
+        text->TextColor.a > GUI_ALPHA_EPSILON) {
+        return true;
+    }
+    if (auto* image = imageContent(); image && image->textureID != 0) {
+        return true;
+    }
+    return false;
+}
+
+bool GuiObject::hasRenderableContent() {
+    if (!Visible) return false;
+    if (hasRenderableOwnContent()) return true;
+
+    for (auto const& [name, child] : getChildren()) {
+        (void)name;
+        if (!child->IsA("GuiObject")) continue;
+        if (static_cast<GuiObject*>(child.get())->hasRenderableContent()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void GuiObject::setProperty(const std::string& name, const YAML::Node& val) {
     if (PropertyRegistry::loadProperty(this, "GuiObject", name, val)) return;
     Instance::setProperty(name, val);

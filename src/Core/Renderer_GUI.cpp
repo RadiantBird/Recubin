@@ -248,12 +248,16 @@ static void drawGuiContent(ImDrawList* dl, ScreenGuiObject* sgo,
                            std::function<void(GuiButton*)>* onActivated,
                            float textScaleY = 1.0f,
                            bool fitTextToBounds = false) {
+    if (!sgo || !sgo->Visible) return;
+
     ImVec2 tl(px, py), br(px + sw, py + sh);
-    dl->AddRectFilled(tl, br, toImCol(sgo->BackgroundColor));
+    if (sgo->BackgroundColor.a > 0.001f)
+        dl->AddRectFilled(tl, br, toImCol(sgo->BackgroundColor));
     if (auto* img = sgo->imageContent(); img && img->textureID != 0)
         dl->AddImage((ImTextureID)(uintptr_t)img->textureID, tl, br,
                      ImVec2(0, 1), ImVec2(1, 0));  // 上下反転（テクスチャ原点補正）
-    if (auto* txt = sgo->textContent(); txt && !txt->Text.empty())
+    if (auto* txt = sgo->textContent(); txt && !txt->Text.empty() &&
+        txt->TextColor.a > 0.001f)
         drawGuiText(dl, sgo, px, py, sw, sh, toImCol(txt->TextColor), txt->Text.c_str(),
                     textScaleY, fitTextToBounds);
     if (onActivated && *onActivated && sgo->Active && sgo->IsA("GuiButton")) {
@@ -269,7 +273,7 @@ static void drawGuiContent(ImDrawList* dl, ScreenGuiObject* sgo,
 static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
                                   float vpX, float vpY, float vpW, float vpH,
                                   float scaleX, float scaleY,
-                                  std::function<void(GuiButton*)>& onActivated) {
+    std::function<void(GuiButton*)>& onActivated) {
     if (!sgo->Visible) return;
 
     float px = (sgo->NormType == Norm::Scale) ? sgo->Position.x * vpW + vpX : sgo->Position.x * scaleX + vpX;
@@ -344,6 +348,20 @@ static bool computeSurfaceGuiLayout(SurfaceGui* sg, SurfaceGuiLayout& out) {
 //  ImGui フレーム内（NewFrame〜EndFrame）で呼ぶこと
 // ===================================================
 void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
+    if (!sg || !sg->Visible) return;
+
+    const bool drawSurfaceBackground = sg->hasRenderableOwnContent();
+    bool hasRenderableChild = false;
+    for (auto const& [name, child] : sg->getChildren()) {
+        (void)name;
+        if (!child->IsA("ScreenGuiObject")) continue;
+        if (static_cast<ScreenGuiObject*>(child.get())->hasRenderableContent()) {
+            hasRenderableChild = true;
+            break;
+        }
+    }
+    if (!drawSurfaceBackground && !hasRenderableChild) return;
+
     SurfaceGuiLayout L;
     if (!computeSurfaceGuiLayout(sg, L)) return;
     float cW = L.cW, cH = L.cH;
@@ -378,8 +396,10 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, sg->m_fboID);
     glViewport(0, 0, w, h);
-    const Color4& bg = sg->BackgroundColor;
-    glClearColor(bg.r, bg.g, bg.b, bg.a);
+    const Color4 clearColor = drawSurfaceBackground
+        ? sg->BackgroundColor
+        : Color4(0.0f, 0.0f, 0.0f, 0.0f);
+    glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
     glClear(GL_COLOR_BUFFER_BIT);
 
     // スクリーンパイプラインに乗らない独立リスト（GetDrawListSharedDataを渡せばアクセス違反なし）
@@ -392,7 +412,7 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     for (auto& [name, child] : sg->getChildren()) {
         if (!child->IsA("ScreenGuiObject")) continue;
         auto* sgo = static_cast<ScreenGuiObject*>(child.get());
-        if (!sgo->Visible) continue;
+        if (!sgo->Visible || !sgo->hasRenderableContent()) continue;
 
         // キャンバス座標 → FBO 座標（均一スケール + オフセット）
         float cx = (sgo->NormType == Norm::Scale) ? sgo->Position.x * cW : sgo->Position.x;
@@ -557,6 +577,8 @@ static void drawWorldGuiChildren(ImDrawList* dl, WorldGuiObject* wgo,
     for (auto& [name, child] : wgo->getChildren()) {
         if (!child->IsA("ScreenGuiObject")) continue;
         auto* sgo = static_cast<ScreenGuiObject*>(child.get());
+        if (!sgo->Visible) continue;
+        if (!sgo->hasRenderableContent() && !sgo->IsA("GuiButton")) continue;
         // Norm は WorldGui パネル内の相対座標として扱う
         float origNormX = sgo->Position.x, origNormY = sgo->Position.y;
         float origSizeX = sgo->Size.x,     origSizeY = sgo->Size.y;

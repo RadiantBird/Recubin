@@ -18,6 +18,13 @@ public:
     float getTransparency() const    { return 1.f - BackgroundColor.a; }
     void  setTransparency(float t)   { BackgroundColor.a = 1.f - t; }
 
+    // 現在の要素自身が、描画対象となる可視内容を持つか。
+    // 背景・TextColor・画像のアルファ／リソースだけを対象にし、
+    // ボタンの入力可能性（Active）は判定しない。
+    bool hasRenderableOwnContent();
+    // 現在の要素またはGUI子孫が、描画対象となる可視内容を持つか。
+    bool hasRenderableContent();
+
     // HasA コンポーネント問い合わせ（保持する派生だけが override で返す。描画・エディターの分岐一本化用）
     virtual TextContent*  textContent()  { return nullptr; }
     virtual ImageContent* imageContent() { return nullptr; }
