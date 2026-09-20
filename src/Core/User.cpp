@@ -869,6 +869,7 @@ void User::processMouse(bool isGameplayInput) {
 void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
                         bool viewportHovered, bool isGameplayInput, bool wantsTextInput) {
     if (!m_input) return;
+    const bool lostViewportFocus = m_lastViewportFocused && !viewportFocused;
     m_lastViewportFocused = viewportFocused;
 
     // 外部setterで前フレーム間にFree/Programへ切り替えられた場合も、
@@ -879,6 +880,14 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
         humanoid->stopCharacterMotion(physics);
     }
     m_lastProcessedControlMode = getControlMode();
+
+    // ビューポート外へ入力フォーカスが移ると、以降はキー解放イベントを受け取れない。
+    // 直前の物理入力による水平速度を明示的に止める。スクリプト移動はフォーカス外でも
+    // 継続する仕様のため、この停止対象には含めない。
+    if (lostViewportFocus && getControlMode() == ControlMode::Character &&
+        !m_hasScriptMoveDirection && humanoid) {
+        humanoid->stopCharacterMotion(physics);
+    }
 
     // ジャンプ要求は毎フレームクリアし、processHotkeys()内でSpace押下時にのみセットする
     // (ネットワークレプリケーション用: このフレームでジャンプ要求があったかをlastMovementInputに残す)

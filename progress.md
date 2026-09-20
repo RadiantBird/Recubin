@@ -1150,3 +1150,10 @@
 - cleanな`justBaseplate.rcbn`での実機ログにより、残留キャラクターではなくautomatic HipHeightの捕捉条件が原因と確定した。fallback spawn後の落下中、`rootY=5.5004`／`floorY=0.5`／`distance=5.0004`を初期HipHeightとして保存し、HoverForceがその誤った距離を保持していた。
 - 未設定HipHeightはRoot collider下面がsupport surfaceへ接触または0.1 stud以内となるまでfloor distanceを保存しない。捕捉前も高所spawnの安全な減速を維持するため、hover controllerはRoot半身高を一時目標とし、空中のdistanceをgrounded/landing captureへ使わない。明示HipHeightの挙動は維持する。診断用ログは原因確定後に削除した。
 - `--character-hover-regression`を接地後のautomatic HipHeight／Root下端=床上面へ更新し、`spec.md`もsupport近接後に捕捉する契約へ更新した。`Humanoid.cpp`のGCC C++23 syntax check、対象`git diff --check`、Windows Release buildは成功。WSLから限定回帰は`UtilBindVsockAnyPort:309: socket failed 1`で実行不可。次の一手: Windows側で`build\\Release\\RecubinTest.exe --character-hover-regression`を実行し、`justBaseplate.rcbn`で新規default characterの脚底が床へ接地することを確認する。
+- Windows実機でdefault characterが浮かずに接地することをユーザーが確認済み。今回の修正は完了。
+
+### 2026-09-20: Character motion stops when viewport focus is lost
+
+- `User::processInput()`はビューポートがfocusedからunfocusedへ遷移したフレームに、Characterの水平速度・角速度を`Humanoid::stopCharacterMotion()`で停止する。フォーカス喪失後にキー解放を受け取れず、直前の物理速度で歩き続ける問題を解消した。Y速度は維持するため、落下・ジャンプ等の垂直物理は中断しない。
+- Luauから設定された`MoveDirection`はフォーカス外でも継続する既存仕様のため、script movement中には停止しない。`--character-hover-regression`へ通常入力のfocus loss停止を追加し、`doc/Instances/UserInput.md`へ契約を記録した。
+- `User.cpp`と`test_main.cpp`のGCC C++23 syntax check、`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。その後、メインGLFW windowが非focus／iconifiedの場合もviewport入力をfalseとして同じ停止処理へ渡すよう`main.cpp`を追加修正し、同ファイルのGCC C++23 syntax checkは成功した。追加修正後のWindows Release buildおよびWSLからの`RecubinTest.exe --character-hover-regression`は、`UtilBindVsockAnyPort:309: socket failed 1`でWindowsコマンドを開始できず未実行。次の一手: Windows Terminalから`py build.py build`、`build\\Release\\RecubinTest.exe --character-hover-regression`を実行し、Play中に移動キーを押したままビューポート外をクリックして即停止することを確認する。

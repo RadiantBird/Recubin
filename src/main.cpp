@@ -1386,7 +1386,8 @@ int main(int argc, char* argv[]) {
 
         // ---- 入力処理（エディターモードではカメラ操作のみ許可）----
         ViewportPanel* focusedVP = ed ? GetFocusedViewport() : nullptr;
-        bool primaryFocused = focusedVP != nullptr && ed && focusedVP == ed->viewportPanel.get();
+        bool primaryFocused = !windowInactive && focusedVP != nullptr && ed &&
+            focusedVP == ed->viewportPanel.get();
         state.viewportFocused    = primaryFocused;
         state.viewportHovered = ed && ed->viewportPanel && ed->viewportPanel->isHoveringViewport;
         if (!navMeshBusy) {

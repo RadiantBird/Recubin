@@ -11893,6 +11893,30 @@ int runCharacterHoverRegression() {
            "entering Free disables the Character yaw controller");
 
     modeUser->setControlMode(User::ControlMode::Character);
+    modeUser->processInput(physics, 1.0f / 60.0f, true, true, false, false);
+    for (const auto& body : bodies) {
+        if (body && physics->hasBody(*body)) {
+            const Vector3 velocity = physics->getLinearVelocity(*body);
+            physics->setLinearVelocity(*body, Vector3(7.0f, velocity.y, -5.0f));
+            physics->setAngularVelocity(*body, Vector3(1.0f, 2.0f, 3.0f));
+        }
+    }
+    modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
+    horizontalVelocityStopped = true;
+    angularVelocityStopped = true;
+    for (const auto& body : bodies) {
+        if (!body || !physics->hasBody(*body)) continue;
+        const Vector3 velocity = physics->getLinearVelocity(*body);
+        horizontalVelocityStopped = horizontalVelocityStopped &&
+            std::abs(velocity.x) < 0.01f && std::abs(velocity.z) < 0.01f;
+        const Vector3 angularVelocity = physics->getAngularVelocity(*body);
+        angularVelocityStopped = angularVelocityStopped &&
+            angularVelocity.lengthSquared() < 0.0001f;
+    }
+    expect(horizontalVelocityStopped && angularVelocityStopped,
+           "viewport focus loss stops Character movement and angular velocity");
+
+    modeUser->setControlMode(User::ControlMode::Character);
     modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
     humanoid->jump(physics);
     bool hoverOffAtLaunch = true;
