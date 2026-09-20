@@ -1400,7 +1400,7 @@ int runSpawnLocationRegression() {
     auto templateRoot = std::dynamic_pointer_cast<BaseCube>(starter->children.at("Root"));
     auto templateHead = std::dynamic_pointer_cast<BaseCube>(starter->children.at("Head"));
     templateRoot->setCFrame(CFrame(
-        Vector3(1.0f, 0.5f, -2.0f),
+        Vector3(1.0f, -1.5f, -2.0f),
         Quaternion::fromAxisAngle(Vector3(0, 1, 0), 12.0f)));
     templateHead->setCFrame(CFrame(Vector3(0, 3, 0)));
     system->addChild(starter);
@@ -1446,9 +1446,9 @@ int runSpawnLocationRegression() {
         "User.CharacterAdded:Connect(function(character) "
         "local root = character:WaitChild('Root') "
         "local spawn = workspace:WaitChild('A'):WaitChild('SpawnLocation') "
-        "local expected = spawn.WorldCFrame "
+        "local expected = spawn.WorldCFrame * CFrame.new(0, 1.5, 0) "
         "local p, ep, q, eq = root.WorldCFrame.Position, expected.Position, root.WorldCFrame.Rotation, expected.Rotation "
-        "local pd = math.abs(p.x-ep.x)+math.abs(p.y-0.5)+math.abs(p.z-ep.z) "
+        "local pd = math.abs(p.x-ep.x)+math.abs(p.y-ep.y)+math.abs(p.z-ep.z) "
         "local dot = math.abs(q.w*eq.w+q.x*eq.x+q.y*eq.y+q.z*eq.z) "
         "if pd < 0.002 and math.abs(1-dot) < 0.002 then print('[SpawnLocationEvent]') end end)";
     workspace->addChild(spawnListener);
@@ -1466,16 +1466,19 @@ int runSpawnLocationRegression() {
     auto root1 = user1->humanoid->getRootPart();
     auto root2 = user2->humanoid->getRootPart();
     auto root3 = user3->humanoid->getRootPart();
-    const float authoredRootY = templateRoot->getWorldPosition().y;
-    CFrame expectedA = spawnA->getWorldCFrame();
-    expectedA.Position.y = authoredRootY;
-    CFrame expectedZ = spawnZ->getWorldCFrame();
-    expectedZ.Position.y = authoredRootY;
+    const CFrame expectedA = spawnA->getWorldCFrame() *
+        CFrame(0.0f, (spawnA->Size.y + templateRoot->Size.y) * 0.5f, 0.0f);
+    const CFrame expectedZ = spawnZ->getWorldCFrame() *
+        CFrame(0.0f, (spawnZ->Size.y + templateRoot->Size.y) * 0.5f, 0.0f);
     expect(cframeNear(root0->getWorldCFrame(), expectedA) &&
                cframeNear(root1->getWorldCFrame(), expectedA) &&
                cframeNear(root2->getWorldCFrame(), expectedZ) &&
                cframeNear(root3->getWorldCFrame(), expectedA),
            "full-path sorting maps peer0/peer1/peer3 to first spawn and peer2 to second");
+    expect(root0->getWorldPosition().y > 0.0f &&
+               root1->getWorldPosition().y > 0.0f &&
+               root2->getWorldPosition().y > 0.0f,
+           "unset HipHeight places an authored negative-Y Root above each SpawnLocation");
     const CFrame rootToHead = templateRoot->getCFrame().inverse() * templateHead->getCFrame();
     expect(cframeNear(root0->getWorldCFrame().inverse() *
                           user0->humanoid->getHeadPart()->getWorldCFrame(), rootToHead),

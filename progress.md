@@ -1157,3 +1157,9 @@
 - `User::processInput()`はビューポートがfocusedからunfocusedへ遷移したフレームに、Characterの水平速度・角速度を`Humanoid::stopCharacterMotion()`で停止する。フォーカス喪失後にキー解放を受け取れず、直前の物理速度で歩き続ける問題を解消した。Y速度は維持するため、落下・ジャンプ等の垂直物理は中断しない。
 - Luauから設定された`MoveDirection`はフォーカス外でも継続する既存仕様のため、script movement中には停止しない。`--character-hover-regression`へ通常入力のfocus loss停止を追加し、`doc/Instances/UserInput.md`へ契約を記録した。
 - `User.cpp`と`test_main.cpp`のGCC C++23 syntax check、`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。その後、メインGLFW windowが非focus／iconifiedの場合もviewport入力をfalseとして同じ停止処理へ渡すよう`main.cpp`を追加修正し、同ファイルのGCC C++23 syntax checkは成功した。追加修正後のWindows Release buildおよびWSLからの`RecubinTest.exe --character-hover-regression`は、`UtilBindVsockAnyPort:309: socket failed 1`でWindowsコマンドを開始できず未実行。次の一手: Windows Terminalから`py build.py build`、`build\\Release\\RecubinTest.exe --character-hover-regression`を実行し、Play中に移動キーを押したままビューポート外をクリックして即停止することを確認する。
+### 2026-09-20: Normal Play SpawnLocation height correction
+
+- 実機診断で通常Playは`System\Workspace\SpawnLocation` (`[0,1.5,0]`)を正しく選択していたが、HipHeight未設定分岐がStarterCharacter Rootのauthoring Y `-1.5`を保持し、`rootAfter=[0,-1.5,0]`としていた。候補解決ではなく、SpawnLocation選択後の高さ計算が原因。
+- `User::placeCharacterAtSpawn()`は、明示HipHeightでは`Spawn半高 + HipHeight`、未設定では`Spawn半高 + Root半高`のlocal Y offsetをSpawnLocation full CFrameへ合成する。候補なしの`(0,100,0)`fallbackは維持し、不正model/Humanoid/Rootと候補なしはwarningで観測可能にした。原因確定用の詳細ログと、未証明のpost-attachment二重配置は削除済み。
+- `--spawn-location-regression`はStarter Rootのauthoring Yを負値にし、それを引き継がずSpawn上面へRoot半高で置くこと、full CFrameとrig相対姿勢、CharacterAdded時の最終姿勢を検査するよう更新した。矛盾していた`spec.md`のHipHeight未設定時契約も修正した。
+- Windows Release buildは`Recubin`、`RecubinEngine`、`RecubinTest`すべて成功（既存のAPIENTRY macro redefinition warningのみ）。WSLからexeは起動できないため、限定回帰と実機Play表示はWindows側での確認待ち。

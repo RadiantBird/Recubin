@@ -1188,9 +1188,18 @@ void User::placeCharacterAtSpawn(
     const std::shared_ptr<Humanoid>& humanoid,
     Workspace* workspace,
     std::uint32_t spawnPeerId) {
-    if (!model || !humanoid) return;
+    if (!model || !humanoid) {
+        RCBN_WARN("[SpawnPlacement] Cannot place character: model="
+                  << static_cast<bool>(model) << " humanoid="
+                  << static_cast<bool>(humanoid));
+        return;
+    }
     auto root = humanoid->getRootPart();
-    if (!root) return;
+    if (!root) {
+        RCBN_WARN("[SpawnPlacement] Cannot place character '" << model->getFullPath()
+                  << "': Humanoid Root is unresolved");
+        return;
+    }
 
     std::vector<std::shared_ptr<SpawnLocation>> candidates;
     auto collect = [&](auto& self, const std::shared_ptr<Instance>& node) -> void {
@@ -1217,25 +1226,21 @@ void User::placeCharacterAtSpawn(
 
     const CFrame currentRoot = root->getWorldCFrame();
     CFrame targetRoot = currentRoot;
+    std::shared_ptr<SpawnLocation> selectedSpawn;
     if (!candidates.empty()) {
         const std::size_t index = spawnPeerId == 0
             ? 0
             : static_cast<std::size_t>(spawnPeerId - 1) % candidates.size();
-        const auto& spawn = candidates[index];
-        // An explicit HipHeight is a user-authored Root-to-ground distance.
-        targetRoot = spawn->getWorldCFrame();
-        if (humanoid->isHipHeightExplicitlySet()) {
-            targetRoot = targetRoot * CFrame(
-                0.0f,
-                spawn->Size.y * 0.5f + humanoid->getHipHeight(),
-                0.0f
-            );
-        } else {
-            // An unset HipHeight must not turn SpawnLocation selection into a
-            // Root height correction. Keep the authored Root Y and let the
-            // first valid ground sample capture its Root-to-ground distance.
-            targetRoot.Position.y = currentRoot.Position.y;
-        }
+        selectedSpawn = candidates[index];
+        targetRoot = selectedSpawn->getWorldCFrame();
+        const float rootToSpawnSurface = humanoid->isHipHeightExplicitlySet()
+            ? humanoid->getHipHeight()
+            : root->Size.y * 0.5f;
+        targetRoot = targetRoot * CFrame(
+            0.0f,
+            selectedSpawn->Size.y * 0.5f + rootToSpawnSurface,
+            0.0f
+        );
     } else {
         // Keep the authored Root orientation, but make an unresolved spawn
         // location unambiguous and safely above the default scene floor.
@@ -1247,6 +1252,12 @@ void User::placeCharacterAtSpawn(
         std::static_pointer_cast<Instance>(model),
         delta
     );
+
+    if (!selectedSpawn) {
+        RCBN_WARN("[SpawnPlacement] No enabled SpawnLocation in workspace="
+                  << (workspace ? workspace->getFullPath() : std::string("<null>"))
+                  << "; using fallback root position (0,100,0)");
+    }
 }
 
 void User::spawnCharacter(Instance* searchRoot, Workspace* workspace,

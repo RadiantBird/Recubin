@@ -179,8 +179,8 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   床が消えるかRootが上昇したときに解除する。HipHeightが高い場合も、その目標距離までraycast範囲を拡張する。
   重力相殺は現在のWorkspace.Gravityから算出する。遠距離の床へ吸着せず、jump上昇中は停止し、
   下降してlanding captureへ入った時だけ再開する。SpawnLocation上では明示されたHipHeightをRoot中心から
-  地面までの距離として使う。未設定の場合はSpawnLocation選択でRootの初期Yを変更せず、その後の最初の
-  floor sampleでHipHeightを初期化する。
+  地面までの距離として使う。未設定の場合はSpawnLocation上面へRoot半身高を加えた位置へ配置し、その後の
+  最初の有効なfloor sampleでHipHeightを初期化する。
   GroundHeight、接地、Truss中の重力設定は操作入力とは独立した物理更新として毎フレーム評価する。
   Truss接触時はCharacter Modelに属する全dynamic R6 bodyの重力を無効化する。W入力中は`ClimbingUp`、S入力中は
   `ClimbingDown`状態へ遷移し、各bodyの`CharacterClimbForce`へ水平方向のストレイフ速度と`ClimbSpeed`の昇降速度を
