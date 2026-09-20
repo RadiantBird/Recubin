@@ -12387,6 +12387,7 @@ int runTouchEventRegression() {
     auto mover = addMigrationCube(workspace, "Mover", {-5, 0, 0}, {1, 1, 1});
     mover->CanCollide = false;
     auto* physics = workspace->getPhysicsEngine();
+    physics->update(*workspace, 0.0f);
     int begins = 0;
     int ends = 0;
     const auto oldBegin = Physics::s_touchCallback;
@@ -12402,7 +12403,17 @@ int runTouchEventRegression() {
     physics->setLinearVelocity(*mover, {2, 0, 0});
     for (int i = 0; i < 360; ++i) physics->update(*workspace, 1.0f / 60.0f);
     expect(begins == 1 && ends == 1, "overlap begin/end fires once with CanCollide=false");
-    expect(mover->getWorldPosition().x > 1.0f, "mover passes through trigger");
+    const Vector3 passThroughVelocity = physics->getLinearVelocity(*mover);
+    std::cout << "[TouchEvent] passThrough position="
+              << mover->getWorldPosition().toString()
+              << " velocity=" << passThroughVelocity.toString() << '\n';
+    expect(
+        std::abs(mover->getWorldPosition().x - 7.0f) < 0.1f &&
+            std::abs(passThroughVelocity.x - 2.0f) < 0.01f &&
+            std::abs(passThroughVelocity.y) < 0.01f &&
+            std::abs(passThroughVelocity.z) < 0.01f,
+        "CanTouch sensor overlap does not change non-colliding body motion"
+    );
     trigger->setCanTouch(false);
     mover->teleportTo({-5, 0, 0});
     physics->setLinearVelocity(*mover, {2, 0, 0});
@@ -12413,13 +12424,17 @@ int runTouchEventRegression() {
     expect(begins == previousBegins && ends == previousEnds, "CanTouch=false suppresses notifications");
     auto wall = addMigrationCube(workspace, "Wall", {5, 0, 0}, {1, 4, 4}, true);
     wall->CanTouch = false;
-    mover->CanCollide = true;
+    mover->setCanCollide(true);
     mover->teleportTo({2, 0, 0});
     physics->setLinearVelocity(*mover, {2, 0, 0});
     for (int i = 0; i < 180; ++i) physics->update(*workspace, 1.0f / 60.0f);
     expect(mover->getWorldPosition().x < 4.5f, "CanTouch=false preserves physical collision");
-    auto clone = std::dynamic_pointer_cast<BaseCube>(trigger->clone());
-    expect(clone && clone->CanTouch == trigger->CanTouch, "clone preserves CanTouch");
+    auto cloneSource = std::make_shared<Cube>(
+        Vector3(), Vector3(1.0f, 1.0f, 1.0f), Cube::defaultTextureID);
+    cloneSource->CanTouch = false;
+    auto clone = std::dynamic_pointer_cast<BaseCube>(cloneSource->clone());
+    expect(clone && clone->CanTouch == cloneSource->CanTouch,
+           "clone preserves CanTouch");
     const auto schema = PropertyRegistry::collectApplicableSchema(trigger.get());
     const auto property = std::find_if(schema.begin(), schema.end(), [](const PropertyDesc* value) {
         return value && value->name == "CanTouch";
@@ -12464,6 +12479,166 @@ int runTouchEventRegression() {
     return failures ? 1 : 0;
 }
 
+int runRagdollMotorRecoveryRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[RagdollMotorRecovery] "
+                  << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto rotationErrorDegrees = [](
+        const Quaternion& actual,
+        const Quaternion& target
+    ) {
+        const float dot = std::clamp(
+            std::abs(actual.w * target.w + actual.x * target.x +
+                     actual.y * target.y + actual.z * target.z),
+            0.0f, 1.0f);
+        return 2.0f * std::acos(dot) * 180.0f / 3.14159265358979323846f;
+    };
+
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "RagdollMotorRecoveryWorkspace";
+    workspace->Gravity = {};
+    auto character = std::make_shared<Model>();
+    character->Name = "RagdollMotorRecoveryCharacter";
+    CharacterRig::buildDefaultRigParts(character, Vector3(0.0f, 8.0f, 0.0f));
+    workspace->addChild(character);
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    const auto& characterChildren = character->getChildren();
+    auto humanoid = std::dynamic_pointer_cast<Humanoid>(
+        characterChildren.at("Humanoid"));
+    auto root = std::dynamic_pointer_cast<BaseCube>(
+        characterChildren.at("Root"));
+    auto torso = std::dynamic_pointer_cast<BaseCube>(
+        characterChildren.at("Torso"));
+    auto leftArm = std::dynamic_pointer_cast<BaseCube>(
+        characterChildren.at("LeftArm"));
+    auto leftShoulder = std::dynamic_pointer_cast<Motor6D>(
+        characterChildren.at("LeftShoulder"));
+    const bool fixtureReady =
+        physics && humanoid && root && torso && leftArm && leftShoulder;
+    expect(fixtureReady,
+           "default R6 recovery fixture resolves Humanoid, Torso, and LeftShoulder");
+    if (!fixtureReady) {
+        return failures ? failures : 1;
+    }
+    const auto touchEnabledBodies = CharacterRig::collectR6Bodies(character.get());
+    expect(
+        touchEnabledBodies.size() == 7 && std::ranges::all_of(
+            touchEnabledBodies,
+            [](const auto& body) { return body && body->CanTouch; }
+        ),
+        "Ragdoll recovery fixture keeps CanTouch enabled on every R6 body"
+    );
+
+    physics->update(*workspace, 0.0f);
+    const bool initialHandles = static_cast<bool>(leftShoulder->getConstraintHandle()) &&
+        physics->hasBody(*root) && physics->hasBody(*leftArm);
+    const CFrame initialRelative =
+        torso->getWorldCFrame().inverse() * leftArm->getWorldCFrame();
+    const CFrame initialTransform(
+        Vector3(0.0f, 0.0f, 0.0f), Quaternion::fromEuler(Vector3(55.0f, 0.0f, 0.0f)));
+    auto persistentAnimation = std::make_shared<Animation>();
+    auto persistentClip = std::make_shared<AnimationClip>();
+    persistentClip->name = "PersistentRagdollShoulder";
+    persistentClip->length = 1.0f;
+    persistentClip->speed = 1.0f;
+    persistentClip->looped = true;
+    persistentClip->addKey("LeftShoulder", 0.0f, initialTransform);
+    persistentClip->addKey("LeftShoulder", 1.0f, initialTransform);
+    persistentAnimation->setClip(persistentClip);
+    humanoid->playAnimation(persistentAnimation);
+    Humanoid::updateAll(workspace.get(), 1.0f / 60.0f, physics);
+    const CFrame initialTarget =
+        leftShoulder->C0 * initialTransform * leftShoulder->C1.inverse();
+    const float initialError = rotationErrorDegrees(
+        initialRelative.Rotation,
+        initialTarget.Rotation
+    );
+    for (int step = 0; step < 180; ++step) {
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    const CFrame initialResponse =
+        torso->getWorldCFrame().inverse() * leftArm->getWorldCFrame();
+    const float initialFinalError =
+        rotationErrorDegrees(initialResponse.Rotation, initialTarget.Rotation);
+    std::cout << "[RagdollMotorRecovery] initial handle=" << initialHandles
+              << " errorBefore=" << initialError
+              << " errorAfter=" << initialFinalError << '\n';
+    expect(initialHandles && initialError > 10.0f && initialFinalError < initialError,
+           "LeftShoulder Motor6D physically responds before ragdoll");
+
+    humanoid->enterRagdoll(physics, 100.0f);
+    expect(humanoid->isAnimationPlaying(),
+           "Ragdoll suspends the active Animation without discarding playback state");
+    physics->setAngularVelocity(*root, Vector3(2.0f, 0.0f, 0.0f));
+    for (int step = 0; step < 30; ++step) {
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    expect(humanoid->getState() == Humanoid::State::Ragdoll,
+           "Humanoid enters Ragdoll and runs physical steps");
+
+    humanoid->recoverFromRagdoll(physics);
+    for (int step = 0; step < 900 && humanoid->getState() != Humanoid::State::Normal; ++step) {
+        Humanoid::updateAll(workspace.get(), 1.0f / 60.0f, physics);
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    const bool recovered = humanoid->getState() == Humanoid::State::Normal;
+    std::cout << "[RagdollMotorRecovery] recovered state="
+              << static_cast<int>(humanoid->getState())
+              << " motorHandle=" << static_cast<bool>(leftShoulder->getConstraintHandle())
+              << '\n';
+    expect(recovered, "Ragdoll recovery reaches Normal through updateAll and physics");
+
+    leftShoulder->setTransform(CFrame());
+    for (int step = 0; step < 120; ++step) {
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    Humanoid::updateAll(workspace.get(), 1.0f / 60.0f, physics);
+    for (int step = 0; step < 180; ++step) {
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    const CFrame resumedResponse =
+        torso->getWorldCFrame().inverse() * leftArm->getWorldCFrame();
+    const float resumedError =
+        rotationErrorDegrees(resumedResponse.Rotation, initialTarget.Rotation);
+    std::cout << "[RagdollMotorRecovery] resumedAnimation playing="
+              << humanoid->isAnimationPlaying()
+              << " error=" << resumedError << '\n';
+    expect(humanoid->isAnimationPlaying() && resumedError < 5.0f,
+           "the suspended Animation resumes driving Motor6D after recovery");
+
+    const CFrame recoveryRelative =
+        torso->getWorldCFrame().inverse() * leftArm->getWorldCFrame();
+    const CFrame recoveryTransform(
+        Vector3(0.0f, 0.0f, 0.0f), Quaternion::fromEuler(Vector3(-50.0f, 0.0f, 0.0f)));
+    leftShoulder->setTransform(recoveryTransform);
+    const CFrame recoveryTarget =
+        leftShoulder->C0 * recoveryTransform * leftShoulder->C1.inverse();
+    const float recoveryBefore =
+        rotationErrorDegrees(recoveryRelative.Rotation, recoveryTarget.Rotation);
+    for (int step = 0; step < 180; ++step) {
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    const CFrame recoveryResponse =
+        torso->getWorldCFrame().inverse() * leftArm->getWorldCFrame();
+    const float recoveryAfter =
+        rotationErrorDegrees(recoveryResponse.Rotation, recoveryTarget.Rotation);
+    std::cout << "[RagdollMotorRecovery] postRecovery errorBefore=" << recoveryBefore
+              << " errorAfter=" << recoveryAfter
+              << " relativeBaselineError="
+              << rotationErrorDegrees(recoveryRelative.Rotation, initialRelative.Rotation)
+              << '\n';
+    expect(recovered && recoveryBefore > 10.0f && recoveryAfter < recoveryBefore,
+           "Motor6D physically responds again after Ragdoll recovery");
+    std::cout << "[RagdollMotorRecovery] failures=" << failures
+              << " result=" << (failures ? "FAIL" : "PASS") << '\n';
+    return failures;
+}
+
 struct RegressionEntry {
     std::string_view name;
     int (*runner)(int, char**);
@@ -12484,6 +12659,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--animation-clip-regression", runAnimationClipRegression),
         REG("--character-rig-v2", runAnimationClipRegression),
         REG("--motor6d-gyro-regression", runMotor6DGyroRegression),
+        REG("--ragdoll-motor-recovery-regression", runRagdollMotorRecoveryRegression),
         REG("--character-hover-regression", runCharacterHoverRegression),
         REG("--default-camera-mode-regression", runDefaultCameraModeRegression),
         REG("--scene-load-transaction-regression", runSceneLoadTransactionRegression),

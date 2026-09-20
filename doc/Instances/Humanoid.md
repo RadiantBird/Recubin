@@ -104,7 +104,7 @@ move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, phy
 jump(): NormalではisGroundedまたは水中、Climbingでは接地判定なしで全bodyのY速度=JumpPowerをセット。Climbing時はNormalへ戻る
 
 enterRagdoll(physics):
-  state=Ragdoll, stopAnimation(), hover/yaw/Gyro/Root lockを無効化
+  state=Ragdoll, 再生中Animationの状態と時刻を保持したまま評価を一時停止し、hover/yaw/Gyro/Root lockを無効化
   Motor6Dを無効化し、同名Motor6DのC0/C1 bind anchorを使うBallSocketを有効化
   R6 bodyのcollisionを一時的に有効化する（通常Characterの内部self-collisionは抑制するが、
   Ragdoll中にBallSocketで管理されるbody同士は異なるBallSocket chain間でもcollisionを許可し、
@@ -127,6 +127,7 @@ recoverFromRagdoll(physics):
   supportが無い場合のYは現在Root Yを維持する
   直後にRoot角速度、Root lock、通常collision、Gyro/YawForce、hover、movement、jumpを順に復元してNormalへ戻す
   Recovering中はmovement、jump、hover、通常アニメーションを無効にし、BallSocketとMotor6Dを同時に有効化しない
+  Normal復帰後はRagdoll前に再生中だったAnimationを同じ再生時刻から再開する
 ```
 
 ## 依存関係

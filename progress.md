@@ -1186,3 +1186,16 @@
 
 - Box3DにCanTouch対応sensor shapeを追加し、Touched/TouchEndedを物理反発から分離した。CanCollide=falseでも形状overlapを検出し、CanTouch双方trueのペアのみ通知する。物理contact callbackは従来互換のまま維持し、touch callbackを分離した。
 - `--touch-event-regression`へoverlap進入・退出、通過、CanTouch抑止、物理衝突独立性、Clone/schema/YAML/Luau signal検査を追加した。Windows Release build成功。WSLからの限定回帰起動は`UtilBindVsockAnyPort:309: socket failed 1`で未実行。
+
+### 2026-09-21: Ragdoll後のMotor6D Animation復帰
+
+- 復帰後のMotor6D native jointは再生成されていたが、`Humanoid::enterRagdoll()`が`stopAnimation()`を呼んで再生フラグと時刻を破棄していた。`updateAnimation()`にはRagdoll/Recovering中の評価停止が既にあるため、この重複停止を削除し、再生状態と時刻を保持してNormal復帰後に同じAnimationを再開するようにした。
+- `--ragdoll-motor-recovery-regression`を追加した。実Box3D上のdefault R6でラグドール前の肩Motor6D応答、Ragdoll/Recovering/Normal遷移、Animation再生状態の保持、復帰後のAnimation出力による物理追従、さらに別Transformへの追従を検査する。復帰Animation目標誤差は`0.256409`度、別目標は`105.16`度から`0.573347`度へ収束した。
+- Windows Release buildと専用回帰は成功。既存`--animation-clip-regression`は今回の対象項目を含む大半が成功したが、既存のcharacter animation migration期待1件が失敗した。`--motor6d-gyro-regression`もMotor6D項目は成功したが、既存のGyro期待4件が失敗しており、いずれも今回のAnimation一時停止変更とは別件として残る。
+
+### 2026-09-21: CanTouchと物理contactのfilter分離
+
+- キャラクターの`CanTouch=false`でラグドール後の動作制限が消える実機観測を受けて再調査した。Humanoid内部は`Touched`を購読していなかったが、Touch検出のため通常shapeを`CanTouch`で既定collision filterへ参加させ、物理contact候補を後段custom filterで拒否していた。この設計ではCanTouchが物理broad phaseへ混入するため、Motor6D bodyへ影響し得た。
+- Box3D shape filterを物理用categoryとTouch sensor用categoryへ分離した。`CanCollide=false, CanTouch=true`の通常shapeはTouch sensorからだけ訪問可能で、通常shape同士はbroad phase段階でcontact候補にならない。sensor eventには従来どおり通常shapeをvisitorとして使うため、CanCollide=falseの領域侵入でもTouched/TouchEndedを維持する。
+- 旧`--touch-event-regression`はbody生成前に速度を設定していたため通過試験が実際には動かず、途中の`CanCollide`もsetterを通さずnative filterを更新していなかった。fixtureを修正し、`CanTouch=true, CanCollide=false`で位置`-5`から`6.99999`へ速度`2.0`を完全維持して通過し、Touched/TouchEndedが各1回発生することを検査するようにした。
+- Windows Release build、`--touch-event-regression`、`--ragdoll-motor-recovery-regression`、`--character-hover-regression`はすべて成功。ラグドール回帰はCanTouch=trueのまま復帰後Animationと別Transformの両方へ誤差0度で収束した。

@@ -38,6 +38,29 @@ constexpr float CLIP_EPSILON = 1.0e-5f;
 constexpr int MAX_HULL_VERTICES = 44;
 constexpr float MOTOR_CONSTRAINT_HERTZ = 240.0f;
 constexpr float MOTOR_CONSTRAINT_DAMPING_RATIO = 2.0f;
+constexpr std::uint64_t TOUCH_SENSOR_CATEGORY_BITS = 1ull << 1;
+
+void configureCubeFilter(
+    b3Filter& filter,
+    bool sensor,
+    bool canCollide,
+    bool canTouch
+) {
+    filter.groupIndex = 0;
+    if (sensor) {
+        filter.categoryBits = canTouch ? TOUCH_SENSOR_CATEGORY_BITS : 0;
+        filter.maskBits = canTouch ? B3_DEFAULT_MASK_BITS : 0;
+        return;
+    }
+
+    // Primary shapes always keep their physical category for mass/query
+    // identity. A non-colliding primary only accepts the dedicated sensor
+    // category, so it can be visited by Touch without forming a contact pair.
+    filter.categoryBits = B3_DEFAULT_CATEGORY_BITS;
+    filter.maskBits = canCollide
+        ? B3_DEFAULT_MASK_BITS
+        : (canTouch ? TOUCH_SENSOR_CATEGORY_BITS : 0);
+}
 
 float motorTorqueToMks(float maxForce) {
     // Motor::MaxForce is the legacy maximum angular drive impulse per fixed
@@ -641,35 +664,25 @@ void Box3DPhysicsBackend::refreshCollisionFilter(BaseCube& cube) {
     const int shapeCount = b3Body_GetShapeCount(id);
     std::vector<b3ShapeId> shapes(shapeCount);
     b3Body_GetShapes(id, shapes.data(), shapeCount);
-    // Character self-collision is resolved by customFilter so an enabled
-    // BallSocket can opt its connected pair back into collision.  A negative
-    // native groupIndex would be rejected before the joint is considered.
-    const int groupIndex = 0;
-    const std::uint64_t categoryBits = (cube.CanCollide || cube.CanTouch)
-        ? B3_DEFAULT_CATEGORY_BITS
-        : 0;
-    const std::uint64_t maskBits = (cube.CanCollide || cube.CanTouch)
-        ? B3_DEFAULT_MASK_BITS
-        : 0;
     bool changed = false;
     for (b3ShapeId shape : shapes) {
         if (b3Shape_GetUserData(shape) != &cube) continue;
         b3Filter filter = b3Shape_GetFilter(shape);
-        filter.groupIndex = groupIndex;
-        filter.categoryBits = categoryBits;
-        filter.maskBits = maskBits;
         const bool sensor = b3Shape_IsSensor(shape);
+        configureCubeFilter(
+            filter,
+            sensor,
+            cube.CanCollide,
+            cube.CanTouch
+        );
         if (sensor) {
-            filter.categoryBits = cube.CanTouch ? B3_DEFAULT_CATEGORY_BITS : 0;
-            filter.maskBits = cube.CanTouch ? B3_DEFAULT_MASK_BITS : 0;
             b3Shape_EnableSensorEvents(shape, cube.CanTouch);
         } else {
-            filter.categoryBits = (cube.CanCollide || cube.CanTouch)
-                ? B3_DEFAULT_CATEGORY_BITS : 0;
-            filter.maskBits = (cube.CanCollide || cube.CanTouch)
-                ? B3_DEFAULT_MASK_BITS : 0;
             b3Shape_EnableContactEvents(shape, cube.CanCollide);
             b3Shape_EnableHitEvents(shape, cube.CanCollide);
+            // Box3D requires the visitor shape to opt into sensor events too.
+            // Its filter mask only accepts the dedicated sensor category when
+            // CanCollide is false, so this does not create physical contacts.
             b3Shape_EnableSensorEvents(shape, cube.CanTouch);
         }
         b3Shape_SetFilter(shape, filter, true);
@@ -688,26 +701,18 @@ b3ShapeId Box3DPhysicsBackend::createCubeShape(
     definition.baseMaterial = toB3Material(cube->material);
     definition.density = sensor ? 0.0f
         : std::max(cube->MassDensity, 0.01f) * DENSITY_TO_MKS;
-    // Character self-collision is resolved by customFilter so an enabled
-    // BallSocket can opt its connected pair back into collision.  A negative
-    // native groupIndex would be rejected before the joint is considered.
-    definition.filter.groupIndex = 0;
-    if (sensor && !cube->CanTouch) {
-        definition.filter.categoryBits = 0;
-        definition.filter.maskBits = 0;
-    }
-    if (!cube->CanCollide && !cube->CanTouch && !sensor) {
-        // @RadiantBird 2026/09/12:
-        // CanCollide controls participation, not physical mass. Keeping the
-        // shape gives independent rig bodies valid inertia while zero filter
-        // bits exclude the shape from collision and spatial queries.
-        definition.filter.categoryBits = 0;
-        definition.filter.maskBits = 0;
-    }
+    configureCubeFilter(
+        definition.filter,
+        sensor,
+        cube->CanCollide,
+        cube->CanTouch
+    );
     definition.enableCustomFiltering = true;
     definition.enableContactEvents = !sensor && cube->CanCollide;
     definition.enableHitEvents = !sensor && cube->CanCollide;
     definition.isSensor = sensor;
+    // A sensor query only reports visitor shapes that also enable sensor
+    // events. Filter categories still keep those visits out of the solver.
     definition.enableSensorEvents = cube->CanTouch;
     definition.updateBodyMass = !sensor;
 

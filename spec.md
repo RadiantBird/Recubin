@@ -146,6 +146,9 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   現行物理バックエンドはBox3Dとする。`BaseCube.Touched`は物理的な反発ではなく、形状overlapの開始で発火し、`TouchEnded`はoverlap終了で発火する。
   `CanCollide=false`でも形状overlapを検出し、`CanCollide`は物理応答だけを制御する。
   ペアの両方が`CanTouch=true`の場合だけ接触イベントを発火する。`CanTouch=false`は物理応答、NoCollision、Character自己衝突の規則を変更しない。
+  Box3DではCanTouch専用sensor categoryと物理contact categoryを分離する。通常shapeはsensorのvisitorとしてだけ
+  Touch判定へ参加できるが、通常shape同士のcontact maskはCanCollideだけで決まる。したがってCanTouchの切替は
+  bodyの速度、質量、接触反力、constraintへ影響しない。
 
 ## BallSocket
   BallSocketは共有アンカーを維持する球面jointであり、`AngularXMode`、`AngularYMode`、
@@ -212,7 +215,8 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   `landingCaptureDistance`内でhoverが吸収できる制動エネルギーを差し引き、その残余を同じstud/s相当値へ換算して
   同じ閾値で判定する。したがって通常JumpPowerの着地は維持しつつ、高速Truss jumpや高所落下のエネルギーは
   hoverによる事前減速で失われる前にRagdoll判定へ渡される。
-  死亡時も同じ遷移を使う。
+  再生中のAnimationは再生状態と時刻を保持したままRagdoll/Recovering中だけ評価を一時停止し、Normal復帰後に
+  同じAnimationを再開する。死亡時も同じ遷移を使う。
 
   死亡していないRagdollは、Rootの線速度が`RagdollRecoverySpeed`（既定2.5 stud/s）以下、角速度が2.0 rad/s以下で、低速状態が
   `RagdollRecoveryDelay`（既定1秒）続いた場合に`Recovering`へ遷移する。通常はR6 bodyのいずれかの接地も確認し、support scanが一時的に

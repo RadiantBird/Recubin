@@ -24,6 +24,8 @@ Box3D物理シミュレーション対応の3D基底クラス。Workspaceへ追�
 
 `Touched`は物理衝突ではなく、形状overlapの開始時に発火する。`TouchEnded`はoverlap終了時に発火する。物理的な衝突を無効にした`CanCollide=false`のパーツでもイベントは発火する。ペアの両方が`CanTouch=true`の場合だけ通知され、`CanTouch=false`はイベントだけを抑止して物理衝突設定には影響しない。NoCollisionやCharacter自己衝突規則も物理応答にだけ適用される。
 
+Box3DではTouch専用sensor categoryと物理contact categoryを分離する。通常shapeはsensorのvisitorとしてだけTouch判定へ参加できるが、通常shape同士のcontact maskは`CanCollide`だけで決まる。そのため`CanTouch`はbodyの速度、質量、接触反力、Motor6Dなどのconstraintへ影響しない。
+
 ## メソッド
 
 | メソッド | 説明 |

@@ -1724,7 +1724,6 @@ void Humanoid::enterRagdoll(Physics* physics, float impactStrength) {
     // );
 
     setHoverForces(physics, false, 0.0f);
-    stopAnimation();
 
     if (auto gyro = m_rootGyro.lock()) {
         gyro->setEnabled(false);
