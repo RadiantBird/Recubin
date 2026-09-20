@@ -665,30 +665,77 @@ void Box3DPhysicsBackend::refreshCollisionFilter(BaseCube& cube) {
     std::vector<b3ShapeId> shapes(shapeCount);
     b3Body_GetShapes(id, shapes.data(), shapeCount);
     bool changed = false;
+    b3ShapeId sensorShape = b3_nullShapeId;
     for (b3ShapeId shape : shapes) {
         if (b3Shape_GetUserData(shape) != &cube) continue;
         b3Filter filter = b3Shape_GetFilter(shape);
         const bool sensor = b3Shape_IsSensor(shape);
+        if (sensor) {
+            sensorShape = shape;
+            continue;
+        }
         configureCubeFilter(
             filter,
-            sensor,
+            false,
             cube.CanCollide,
             cube.CanTouch
         );
-        if (sensor) {
-            b3Shape_EnableSensorEvents(shape, cube.CanTouch);
-        } else {
-            b3Shape_EnableContactEvents(shape, cube.CanCollide);
-            b3Shape_EnableHitEvents(shape, cube.CanCollide);
-            // Box3D requires the visitor shape to opt into sensor events too.
-            // Its filter mask only accepts the dedicated sensor category when
-            // CanCollide is false, so this does not create physical contacts.
-            b3Shape_EnableSensorEvents(shape, cube.CanTouch);
-        }
+        b3Shape_EnableContactEvents(shape, cube.CanCollide);
+        b3Shape_EnableHitEvents(shape, cube.CanCollide);
+        // Box3D requires the visitor shape to opt into sensor events too.
+        // Its filter mask only accepts the dedicated sensor category when
+        // CanCollide is false, so this does not create physical contacts.
+        b3Shape_EnableSensorEvents(shape, cube.CanTouch);
         b3Shape_SetFilter(shape, filter, true);
         changed = true;
     }
+
+    const bool needsSensor = cube.CanTouch && cube.isTouchObserved();
+    if (!needsSensor && B3_IS_NON_NULL(sensorShape)) {
+        forgetTouchSensor(sensorShape);
+        b3DestroyShape(sensorShape, false);
+        changed = true;
+    } else if (needsSensor && B3_IS_NULL(sensorShape)) {
+        auto entry = std::find_if(
+            m_bodies.begin(), m_bodies.end(),
+            [&](const BodyEntry& value) { return value.cubeRaw == &cube; });
+        const auto owner = entry != m_bodies.end() ? entry->cube.lock() : nullptr;
+        if (!owner) {
+            RCBN_ERROR(
+                "Cannot create Touch sensor for \"" << cube.getFullPath()
+                << "\": owning BaseCube reference is unavailable"
+            );
+        } else if (B3_IS_NULL(createCubeShape(
+                       id, owner, cube.m_compoundLocalOffset, true))) {
+            RCBN_ERROR(
+                "Cannot create Touch sensor for \"" << cube.getFullPath()
+                << "\": native shape creation failed"
+            );
+        } else {
+            changed = true;
+        }
+    }
     if (changed) b3Body_SetAwake(id, true);
+}
+
+std::size_t Box3DPhysicsBackend::getTouchSensorShapeCount() const {
+    std::size_t result = 0;
+    for (const BodyEntry& entry : m_bodies) {
+        if (!entry.cubeRaw || B3_IS_NULL(entry.bodyId) ||
+            !b3Body_IsValid(entry.bodyId)) {
+            continue;
+        }
+        const int shapeCount = b3Body_GetShapeCount(entry.bodyId);
+        std::vector<b3ShapeId> shapes(shapeCount);
+        b3Body_GetShapes(entry.bodyId, shapes.data(), shapeCount);
+        for (b3ShapeId shape : shapes) {
+            if (b3Shape_IsSensor(shape) &&
+                b3Shape_GetUserData(shape) == entry.cubeRaw) {
+                ++result;
+            }
+        }
+    }
+    return result;
 }
 
 b3ShapeId Box3DPhysicsBackend::createCubeShape(
@@ -892,7 +939,8 @@ void Box3DPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
         b3DestroyBody(id);
         return;
     }
-    if (B3_IS_NULL(createCubeShape(id, cube, CFrame(), true))) {
+    if (cube->CanTouch && cube->isTouchObserved() &&
+        B3_IS_NULL(createCubeShape(id, cube, CFrame(), true))) {
         b3DestroyBody(id);
         return;
     }
@@ -949,7 +997,8 @@ void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
         b3DestroyBody(replacement);
         return;
     }
-    if (B3_IS_NULL(createCubeShape(replacement, cube, CFrame(), true))) {
+    if (cube->CanTouch && cube->isTouchObserved() &&
+        B3_IS_NULL(createCubeShape(replacement, cube, CFrame(), true))) {
         b3DestroyBody(replacement);
         return;
     }
@@ -1923,6 +1972,29 @@ void Box3DPhysicsBackend::processContactEvents() {
     }
 }
 
+void Box3DPhysicsBackend::forgetTouchSensor(b3ShapeId sensorShapeId) {
+    std::set<CubePair> affectedPairs;
+    m_touchPairRecords.erase(
+        std::remove_if(
+            m_touchPairRecords.begin(), m_touchPairRecords.end(),
+            [&](const TouchPairRecord& record) {
+                if (!B3_ID_EQUALS(record.sensorShapeId, sensorShapeId))
+                    return false;
+                affectedPairs.insert(record.cubes);
+                return true;
+            }),
+        m_touchPairRecords.end()
+    );
+    for (const CubePair& pair : affectedPairs) {
+        const bool stillObserved = std::any_of(
+            m_touchPairRecords.begin(), m_touchPairRecords.end(),
+            [&](const TouchPairRecord& record) {
+                return record.cubes == pair;
+            });
+        if (!stillObserved) m_activeTouches.erase(pair);
+    }
+}
+
 std::shared_ptr<BaseCube> Box3DPhysicsBackend::resolveContactIdentity(
     const void* identity) const {
     if (!identity) return {};
@@ -2119,8 +2191,7 @@ bool Box3DPhysicsBackend::customFilter(
         if (sensorA && sensorB) return false;
         const BaseCube* sensorOwner = sensorA ? first : second;
         const BaseCube* primaryOwner = sensorA ? second : first;
-        return sensorOwner != primaryOwner &&
-            std::less<const BaseCube*>()(sensorOwner, primaryOwner);
+        return sensorOwner != primaryOwner;
     }
     const auto snapshot = backend->m_noCollisionSnapshot;
     if (snapshot && snapshot->contains(normalizePair(first, second))) {
@@ -2318,7 +2389,8 @@ void Box3DPhysicsBackend::rebuildAssembly(
         localFrames[cube.get()] = local;
         const b3ShapeId shape = createCubeShape(newBody, cube, local);
         if (B3_IS_NULL(shape) ||
-            B3_IS_NULL(createCubeShape(newBody, cube, local, true)))
+            (cube->CanTouch && cube->isTouchObserved() &&
+             B3_IS_NULL(createCubeShape(newBody, cube, local, true))))
             constructionFailed = true;
     }
     if (constructionFailed) {

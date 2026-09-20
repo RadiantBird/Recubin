@@ -12388,6 +12388,34 @@ int runTouchEventRegression() {
     mover->CanCollide = false;
     auto* physics = workspace->getPhysicsEngine();
     physics->update(*workspace, 0.0f);
+    expect(
+        physics->getTouchSensorShapeCount() == 0,
+        "unobserved CanTouch cubes allocate no native sensor shapes"
+    );
+    auto system = std::make_shared<System>();
+    system->addChild(workspace);
+    LuauEngine engine;
+    engine.setSystem(system.get());
+    engine.setWorkspace(workspace);
+    auto observerScript = std::make_shared<Script>();
+    observerScript->Name = "TouchObservationLifecycle";
+    observerScript->Source =
+        "local trigger = workspace.Trigger "
+        "trigger.Touched:Once(function(other) "
+        "  assert(other == workspace.Mover) "
+        "end) "
+        "trigger.TouchEnded:Once(function(other) "
+        "  assert(other == workspace.Mover) "
+        "end)";
+    workspace->addChild(observerScript);
+    expect(
+        engine.execute(*observerScript),
+        "Luau listeners subscribe to Touched and TouchEnded"
+    );
+    expect(
+        physics->getTouchSensorShapeCount() == 1,
+        "the first listener allocates one sensor only for the observed cube"
+    );
     int begins = 0;
     int ends = 0;
     const auto oldBegin = Physics::s_touchCallback;
@@ -12395,14 +12423,20 @@ int runTouchEventRegression() {
     Physics::s_touchCallback = [&](BaseCube* a, BaseCube* b) {
         if ((a == trigger.get() && b == mover.get()) ||
             (a == mover.get() && b == trigger.get())) ++begins;
+        engine.onTouched(a, b);
     };
     Physics::s_touchEndCallback = [&](BaseCube* a, BaseCube* b) {
         if ((a == trigger.get() && b == mover.get()) ||
             (a == mover.get() && b == trigger.get())) ++ends;
+        engine.onTouchEnded(a, b);
     };
     physics->setLinearVelocity(*mover, {2, 0, 0});
     for (int i = 0; i < 360; ++i) physics->update(*workspace, 1.0f / 60.0f);
     expect(begins == 1 && ends == 1, "overlap begin/end fires once with CanCollide=false");
+    expect(
+        physics->getTouchSensorShapeCount() == 0,
+        "the final Once listener disconnect destroys the native sensor shape"
+    );
     const Vector3 passThroughVelocity = physics->getLinearVelocity(*mover);
     std::cout << "[TouchEvent] passThrough position="
               << mover->getWorldPosition().toString()
@@ -12459,8 +12493,6 @@ int runTouchEventRegression() {
         loaded->setProperty("CanTouch", YAML::Node(false));
         expect(!loaded->CanTouch, "CanTouch YAML setter restores false");
     }
-    auto system = std::make_shared<System>();
-    system->addChild(workspace);
     auto script = std::make_shared<Script>();
     script->Source =
         "local p = workspace.Trigger "
@@ -12468,9 +12500,6 @@ int runTouchEventRegression() {
         "assert(p.CanTouch == false) "
         "assert(p.TouchEnded ~= nil)";
     workspace->addChild(script);
-    LuauEngine engine;
-    engine.setSystem(system.get());
-    engine.setWorkspace(workspace);
     expect(engine.execute(*script), "Luau reads/writes CanTouch and obtains TouchEnded");
     expect(trigger->TouchEnded != nullptr, "TouchEnded signal exists");
     Physics::s_touchCallback = oldBegin;

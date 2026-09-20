@@ -149,6 +149,9 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   Box3DではCanTouch専用sensor categoryと物理contact categoryを分離する。通常shapeはsensorのvisitorとしてだけ
   Touch判定へ参加できるが、通常shape同士のcontact maskはCanCollideだけで決まる。したがってCanTouchの切替は
   bodyの速度、質量、接触反力、constraintへ影響しない。
+  Touch用sensor shapeは`Touched`または`TouchEnded`に1件以上のLuau listenerがあるBaseCubeだけが保持する。
+  最初のlistener接続時に生成し、両signalの最後のlistener切断時に破棄する。相手側のBaseCubeはlistenerを
+  持たなくてもvisitorとして検出され、ペア両側にlistenerがある場合も通知はoverlapごとに1回へ集約する。
 
 ## BallSocket
   BallSocketは共有アンカーを維持する球面jointであり、`AngularXMode`、`AngularYMode`、

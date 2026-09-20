@@ -2711,6 +2711,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     if (!depthMaskEnabled) { glDepthMask(GL_TRUE); depthMaskEnabled = true; }
     FrameProfiler::get().endSection("main");
 
+    FrameProfiler::get().beginSection("surfaceMarks");
     // ---- SurfaceMark projection overlay ----
     // Collect once per viewport; marks are ordered by full hierarchy path so
     // later marks naturally appear above earlier marks.
@@ -2825,7 +2826,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         if (savedBlend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
     }
 
+    FrameProfiler::get().endSection("surfaceMarks");
     FrameProfiler::get().beginSection("extras");
+    FrameProfiler::get().beginSection("highlights");
     // ---- Editor選択外枠。Highlightインスタンスの塗り設定とは独立 ----
     if (desc.renderHighlights && desc.primarySelection) {
         static const Color4 kPrimaryOutline(1.0f, 1.0f, 0.0f, 1.0f);
@@ -2856,13 +2859,17 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     if (desc.renderInstanceHighlights) {
         renderInstanceHighlights(*desc.workspace, view, projection, desc.cameraPosition, fovYDegrees, desc.height);
     }
+    FrameProfiler::get().endSection("highlights");
 
     // ---- 制約ビジュアライズ（Rope/Rod） ----
+    FrameProfiler::get().beginSection("constraints");
     if (desc.renderConstraints) {
         renderConstraints(*desc.workspace, view, projection, desc.cameraPosition);
     }
+    FrameProfiler::get().endSection("constraints");
 
     // ---- 物理制約デバッグビジュアライザー（Weld/Motor/Attachment/Force。デフォルトOFF） ----
+    FrameProfiler::get().beginSection("renderDebug");
     if (desc.renderPhysicsDebug) {
         renderPhysicsDebug(*desc.workspace, view, projection, desc.cameraPosition);
     }
@@ -2896,30 +2903,43 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(ribbons.size() * sizeof(float)), ribbons.data(), GL_DYNAMIC_DRAW);
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(ribbons.size() / 3)); glBindVertexArray(0); glUseProgram(shaderProgram);
     }
+    FrameProfiler::get().endSection("renderDebug");
 
     // ---- Terrain の描画 ----
-    // ---- Terrain の描画 ----
-    renderTerrain(view, projection, desc.workspace);
+    {
+        FrameProfiler::Scope scope("terrain");
+        renderTerrain(view, projection, desc.workspace);
+    }
 
     // ---- 雲の描画（Weather。状態更新はメインループ側で毎フレーム1回のみ実行済み） ----
-    renderClouds(*desc.workspace, view, projection, desc.cameraPosition);
+    {
+        FrameProfiler::Scope scope("weather");
+        renderClouds(*desc.workspace, view, projection, desc.cameraPosition);
 
-    // ---- 雷柱の描画（Weather。ジオメトリはWeather::attemptStrike()側で生成済み） ----
-    renderLightning(*desc.workspace, view, projection, desc.cameraPosition);
+        // ---- 雷柱の描画（Weather。ジオメトリはWeather::attemptStrike()側で生成済み） ----
+        renderLightning(*desc.workspace, view, projection, desc.cameraPosition);
+    }
 
     // ---- パーティクル描画（シミュレーションはメインループ側で毎フレーム1回のみ実行済み） ----
     {
+        FrameProfiler::Scope scope("particles");
         Vector3 pRight = Vector3::Cross(desc.cameraForward, desc.cameraUp).normalize();
         Vector3 pUp    = Vector3::Cross(pRight, desc.cameraForward).normalize();
         renderParticles(*desc.workspace, view, projection, pRight, pUp);
     }
 
     // Screen-space editor selection outline is composited after scene overlays and before post effects.
-    renderEditorSelectionOutline(desc, view, projection);
+    {
+        FrameProfiler::Scope scope("selectionOutline");
+        renderEditorSelectionOutline(desc, view, projection);
+    }
 
     // ---- ポストエフェクト（PostEffect の ZIndex 順チェーン適用） ----
-    if (desc.renderPostEffects) {
-        renderPostEffects(*desc.workspace, desc.fbo, desc.width, desc.height);
+    {
+        FrameProfiler::Scope scope("postEffects");
+        if (desc.renderPostEffects) {
+            renderPostEffects(*desc.workspace, desc.fbo, desc.width, desc.height);
+        }
     }
     FrameProfiler::get().endSection("extras");
 
@@ -2933,6 +2953,13 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 //  メインループから呼ぶ統合描画
 // ===================================================
 void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
+    FrameProfiler::get().beginSection("render");
+    // Register per-frame counters even when the value is zero, so the
+    // Profiler distinguishes an inactive path from missing instrumentation.
+    FrameProfiler::get().addCount("cubesDrawn", 0);
+    FrameProfiler::get().addCount("cubesCulled", 0);
+    FrameProfiler::get().addCount("instanced", 0);
+    FrameProfiler::get().addCount("shadowCubes", 0);
     // Primary Viewport用の描画（スタンドアロンまたはエディターのメインビュー）
     // シーンを editor 側が描くのは ownsSceneRender()==true の実エディターのみ
     // (ViewportPanel が描き直すため、ここで描くと無駄な二重描画になる)。
@@ -2967,6 +2994,7 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
         editor->renderUI(user, window, workspace);
         FrameProfiler::get().endSection("ui");
     }
+    FrameProfiler::get().endSection("render");
 
     FrameProfiler::get().beginSection("swap");
     glfwSwapBuffers(window);

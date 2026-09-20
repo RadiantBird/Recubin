@@ -573,6 +573,9 @@ void Physics::applyLockFlags(BaseCube& cube) {
 void Physics::refreshCollisionFilter(BaseCube& cube) {
     if (isAvailable() && ownsBody(cube)) m_backend->refreshCollisionFilter(cube);
 }
+std::size_t Physics::getTouchSensorShapeCount() const {
+    return isAvailable() ? m_backend->getTouchSensorShapeCount() : 0;
+}
 void Physics::syncCube(BaseCube& cube) {
     if (isAvailable() && ownsBody(cube)) m_backend->syncCube(cube);
 }

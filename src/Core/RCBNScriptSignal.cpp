@@ -21,7 +21,10 @@ int RCBNScriptSignal::connect(lua_State* L, int luaRef, bool once, std::string s
     if (!m_mainL) m_mainL = lua_mainthread(L);
     int id = m_nextId++;
     if (sourceLabel.empty()) sourceLabel = "Unknown signal listener";
+    const bool wasEmpty = m_listeners.empty();
     m_listeners.push_back({ luaRef, once, id, std::move(sourceLabel) });
+    if (wasEmpty && m_listenerPresenceCallback)
+        m_listenerPresenceCallback(true);
     return id;
 }
 
@@ -31,12 +34,15 @@ void RCBNScriptSignal::disconnect(int id) {
             if (m_mainL && it->luaRef != LUA_NOREF)
                 lua_unref(m_mainL, it->luaRef);
             m_listeners.erase(it);
+            if (m_listeners.empty() && m_listenerPresenceCallback)
+                m_listenerPresenceCallback(false);
             return;
         }
     }
 }
 
 void RCBNScriptSignal::disconnectAll() {
+    const bool hadListeners = !m_listeners.empty();
     if (m_mainL) {
         for (auto& l : m_listeners) {
             if (l.luaRef != LUA_NOREF)
@@ -44,6 +50,13 @@ void RCBNScriptSignal::disconnectAll() {
         }
     }
     m_listeners.clear();
+    if (hadListeners && m_listenerPresenceCallback)
+        m_listenerPresenceCallback(false);
+}
+
+void RCBNScriptSignal::setListenerPresenceCallback(
+    std::function<void(bool)> callback) {
+    m_listenerPresenceCallback = std::move(callback);
 }
 
 void RCBNScriptSignal::fire(lua_State* L, std::function<int(lua_State*)> pushArgs) {

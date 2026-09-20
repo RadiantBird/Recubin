@@ -24,6 +24,15 @@ enum class LocKey {
     PanelExplorer, PanelProperties, PanelViewport, PanelContentBrowser,
     PanelConsole, PanelAnimation, AnimationEditorWindowTitle,
     MenuPhysicsDebug, MenuRenderingDebug,
+    PanelProfiler, ProfilerRendering, ProfilerPhysics, ProfilerScripts,
+    ProfilerCurrent, ProfilerAverage, ProfilerPeak, ProfilerNoSamples,
+    ProfilerRenderingBreakdown, ProfilerDrawCounters, ProfilerNestedHint,
+    ProfilerSection, ProfilerShadow, ProfilerMainGeometry, ProfilerSurfaceMarks,
+    ProfilerExtras, ProfilerHighlights, ProfilerConstraints, ProfilerRenderDebug,
+    ProfilerTerrain, ProfilerWeather, ProfilerParticles, ProfilerSelectionOutline,
+    ProfilerPostEffects, ProfilerEditorUi, ProfilerSwap,
+    ProfilerCubesDrawn, ProfilerCubesCulled, ProfilerInstanced,
+    ProfilerShadowCubes,
 
     // ---- EditorManager: ダイアログ ----
     PlayLoadTitle, PlayLoadLine1, PlayLoadLine2, PlayLoadConfirm,

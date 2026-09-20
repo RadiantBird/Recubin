@@ -18,6 +18,7 @@ class RCBNScriptSignal : public std::enable_shared_from_this<RCBNScriptSignal> {
     lua_State*            m_mainL    = nullptr;
     std::vector<Listener> m_listeners;
     int                   m_nextId  = 0;
+    std::function<void(bool)> m_listenerPresenceCallback;
 
 public:
     ~RCBNScriptSignal();
@@ -26,6 +27,7 @@ public:
     void disconnect(int id);
     void disconnectAll();
     bool hasListeners() const { return !m_listeners.empty(); }
+    void setListenerPresenceCallback(std::function<void(bool)> callback);
     void fire(lua_State* L, std::function<int(lua_State*)> pushArgs = nullptr);
     void fire(std::function<int(lua_State*)> pushArgs = nullptr);
 };

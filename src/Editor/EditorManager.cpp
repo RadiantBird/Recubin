@@ -221,6 +221,8 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
     animationPanel->isOpen = false; // 既定では非表示
     welcomePanel        = std::make_unique<WelcomePanel>();
     welcomePanel->isOpen = false; // 既定は非表示。起動時に main.cpp が true にする
+    profilerPanel       = std::make_unique<ProfilerPanel>();
+    profilerPanel->isOpen = false;
 
     hierarchyPanel->workspace   = workspace;
     hierarchyPanel->systemRoot  = system;
@@ -419,6 +421,7 @@ void EditorManager::render(GLFWwindow* window) {
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelConsole),        nullptr, &consolePanel->isOpen);
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelAnimation),      nullptr, &animationPanel->isOpen);
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelWelcome),        nullptr, &welcomePanel->isOpen);
+            ImGui::MenuItem(Loc::t(Loc::LocKey::PanelProfiler),       nullptr, &profilerPanel->isOpen);
             ImGui::Separator();
             ImGui::MenuItem(Loc::t(Loc::LocKey::MenuPhysicsDebug),    nullptr, &viewportPanel->showPhysicsDebug);
             ImGui::MenuItem(Loc::t(Loc::LocKey::MenuRenderingDebug), nullptr, &viewportPanel->showRenderingDebug);
@@ -439,6 +442,7 @@ void EditorManager::render(GLFWwindow* window) {
     // DockSpace 本体
     ImGuiID dockId = ImGui::GetID("MainDockSpace");
     welcomePanel->dockspaceId = dockId;
+    profilerPanel->dockspaceId = dockId;
     ImGui::DockSpace(dockId, ImVec2(0, 0), ImGuiDockNodeFlags_None);
 
     ImGui::End(); // DockSpaceHost
@@ -457,6 +461,7 @@ void EditorManager::render(GLFWwindow* window) {
     consolePanel->title        = std::string(Loc::t(Loc::LocKey::PanelConsole)) + "###Console";
     animationPanel->title      = std::string(Loc::t(Loc::LocKey::AnimationEditorWindowTitle)) + "###Animation Editor";
     welcomePanel->title        = std::string(Loc::t(Loc::LocKey::PanelWelcome)) + "###Welcome";
+    profilerPanel->title       = std::string(Loc::t(Loc::LocKey::PanelProfiler)) + "###Profiler";
 
     if (hierarchyPanel->isOpen)      hierarchyPanel->onRender();
     if (propertiesPanel->isOpen)     propertiesPanel->onRender();
@@ -465,6 +470,7 @@ void EditorManager::render(GLFWwindow* window) {
     if (consolePanel->isOpen)        consolePanel->onRender();
     if (animationPanel->isOpen)      animationPanel->onRender();
     if (welcomePanel->isOpen)        welcomePanel->onRender();
+    if (profilerPanel->isOpen)       profilerPanel->onRender();
 
     // Auxiliary Script/TextFile editors are ordinary dock windows.  They use
     // the same central DockSpace ID as Welcome, so ImGui creates a tab beside

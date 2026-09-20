@@ -1199,3 +1199,16 @@
 - Box3D shape filterを物理用categoryとTouch sensor用categoryへ分離した。`CanCollide=false, CanTouch=true`の通常shapeはTouch sensorからだけ訪問可能で、通常shape同士はbroad phase段階でcontact候補にならない。sensor eventには従来どおり通常shapeをvisitorとして使うため、CanCollide=falseの領域侵入でもTouched/TouchEndedを維持する。
 - 旧`--touch-event-regression`はbody生成前に速度を設定していたため通過試験が実際には動かず、途中の`CanCollide`もsetterを通さずnative filterを更新していなかった。fixtureを修正し、`CanTouch=true, CanCollide=false`で位置`-5`から`6.99999`へ速度`2.0`を完全維持して通過し、Touched/TouchEndedが各1回発生することを検査するようにした。
 - Windows Release build、`--touch-event-regression`、`--ragdoll-motor-recovery-regression`、`--character-hover-regression`はすべて成功。ラグドール回帰はCanTouch=trueのまま復帰後Animationと別Transformの両方へ誤差0度で収束した。
+
+### 2026-09-21: Touch判定のlistener駆動化
+
+- Cube数に比例して常時作られていたBox3D Touch sensor shapeを、`Touched`または`TouchEnded`にLuau listenerが存在するBaseCubeだけが保持する設計へ変更した。最初の購読でsensorを生成し、両signalの最後の購読解除でsensorと関連する内部Touch記録を破棄する。通常shapeは購読のない相手をvisitorとして検出できるため、通知相手側の購読は不要。
+- 両Cubeが購読する場合は両方向のsensor overlapを許可し、既存のCubeペア記録でbegin/endを各1回へ集約する。これにより片側だけが購読する場合もポインタ順序に依存せず検出できる。
+- `--touch-event-regression`へnative sensor shape数の検査を追加した。未購読時0、Luauの`Touched:Once`/`TouchEnded:Once`接続後1、両イベント発火による最後のlistener解除後0を検証する。対象C++のGCC C++23 syntax check、`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。限定回帰はWSLのWindowsプロセス起動が`UtilBindVsockAnyPort:309: socket failed 1`となり未実行。次の一手はWindows Terminalから`build\Release\RecubinTest.exe --touch-event-regression`を実行すること。
+
+### 2026-09-21: Editor Profiler panel
+
+- ViewメニューへProfilerを追加し、中央Dockのタブとして描画・物理計算・スクリプト実行のCPU時間を別々の折れ線グラフで表示するようにした。各グラフは直近240フレームの現在値、平均、最大をms単位で示す。
+- 既存`FrameProfiler`を1秒ログ集計だけでなく、動的確保を伴わない固定長リングバッファへ各フレーム値を保存する実装へ拡張した。`physics`と`luau`は既存の実処理境界を使用し、`render`は全ViewportとImGui描画を含みメインウィンドウのswap/VSync待ちは除外する新しい区間とした。
+- `ProfilerPanel`、Localization、EditorManager、文書を追加・更新した。対象C++のGCC C++23 syntax checkと`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。GUI上のメニュー開閉、Dock配置、実負荷グラフは手動確認待ち。
+- 実機計測でRenderingが平均35.77ms、Physicsが実行中約3ms、Scriptsが約0.01msとなり、主因が描画側と判明した。ProfilerへShadow、Main Geometry、Surface Marks、各Extra pass、Editor UI、Swap/VSyncの現在・平均・最大テーブルと、描画／カリング／インスタンシング／Shadow Cube数を追加した。親区間と子区間の重複はUIと文書で明示している。追加後のGCC C++23 syntax check、`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。内訳値の実機採取は次の手動確認事項。

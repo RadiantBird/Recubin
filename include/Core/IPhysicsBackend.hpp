@@ -87,6 +87,7 @@ public:
     virtual void setGravityEnabled(BaseCube& cube, bool enabled) = 0;
     virtual void applyLockFlags(BaseCube& cube) = 0;
     virtual void refreshCollisionFilter(BaseCube& cube) = 0;
+    virtual std::size_t getTouchSensorShapeCount() const { return 0; }
     virtual void syncCube(BaseCube& cube) = 0;
 
     virtual void enqueueResize(const std::shared_ptr<BaseCube>& cube) = 0;

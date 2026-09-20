@@ -26,6 +26,8 @@ Box3D物理シミュレーション対応の3D基底クラス。Workspaceへ追�
 
 Box3DではTouch専用sensor categoryと物理contact categoryを分離する。通常shapeはsensorのvisitorとしてだけTouch判定へ参加できるが、通常shape同士のcontact maskは`CanCollide`だけで決まる。そのため`CanTouch`はbodyの速度、質量、接触反力、Motor6Dなどのconstraintへ影響しない。
 
+Touch用sensor shapeは、そのBaseCubeの`Touched`または`TouchEnded`をLuau scriptが購読している間だけ生成される。未購読のCubeは`CanTouch=true`でもsensor走査を行わない。最初のlistener接続で有効化され、両signalの最後のlistenerが`Disconnect`、`Once`、`Until`などで解除されると破棄される。通知相手側まで購読している必要はない。
+
 ## メソッド
 
 | メソッド | 説明 |

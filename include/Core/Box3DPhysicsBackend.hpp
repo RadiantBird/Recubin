@@ -128,6 +128,7 @@ private:
     void rebuildNoCollisionSnapshot();
     void processContactEvents();
     void dispatchContactEvents();
+    void forgetTouchSensor(b3ShapeId sensorShapeId);
     std::shared_ptr<BaseCube> resolveContactIdentity(const void* identity) const;
     void applyBuoyancy();
     void applyForces();
@@ -179,6 +180,7 @@ public:
     void setGravityEnabled(BaseCube& cube, bool enabled) override;
     void applyLockFlags(BaseCube& cube) override;
     void refreshCollisionFilter(BaseCube& cube) override;
+    std::size_t getTouchSensorShapeCount() const override;
     void syncCube(BaseCube& cube) override;
 
     void enqueueResize(const std::shared_ptr<BaseCube>& cube) override;

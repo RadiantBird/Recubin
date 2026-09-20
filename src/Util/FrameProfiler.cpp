@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <sstream>
 #include <iomanip>
+#include <algorithm>
 
 FrameProfiler& FrameProfiler::get() {
     static FrameProfiler instance;
@@ -36,22 +37,43 @@ void FrameProfiler::endSection(const char* name) {
     Section* s = findSection(name);
     if (!s->running) return;
     auto now = std::chrono::steady_clock::now();
-    s->accumMs += std::chrono::duration<double, std::milli>(now - s->begin).count();
+    const double elapsedMs =
+        std::chrono::duration<double, std::milli>(now - s->begin).count();
+    s->accumMs += elapsedMs;
+    s->frameMs += elapsedMs;
     s->running = false;
 }
 
 void FrameProfiler::addCount(const char* name, long long n) {
     Counter* c = findCounter(name);
     c->accum += n;
+    c->frameAccum += n;
 }
 
 void FrameProfiler::endFrame() {
     auto now = std::chrono::steady_clock::now();
 
+    for (Section& section : m_sections) {
+        section.history[section.historyWriteIndex] =
+            static_cast<float>(section.frameMs);
+        section.historyWriteIndex =
+            (section.historyWriteIndex + 1) % HISTORY_CAPACITY;
+        section.historyCount =
+            std::min(section.historyCount + 1, HISTORY_CAPACITY);
+        section.frameMs = 0.0;
+    }
+    for (Counter& counter : m_counters) {
+        counter.history[counter.historyWriteIndex] = counter.frameAccum;
+        counter.historyWriteIndex =
+            (counter.historyWriteIndex + 1) % HISTORY_CAPACITY;
+        counter.historyCount =
+            std::min(counter.historyCount + 1, HISTORY_CAPACITY);
+        counter.frameAccum = 0;
+    }
+
     if (!m_hasWindowStart) {
         m_windowStart = now;
         m_hasWindowStart = true;
-        return;
     }
 
     m_frames++;
@@ -83,6 +105,68 @@ void FrameProfiler::endFrame() {
         m_frames = 0;
         m_windowStart = now;
     }
+}
+
+bool FrameProfiler::getSectionSnapshot(
+    const char* name, SectionSnapshot& snapshot) const {
+    snapshot = {};
+    if (!name) return false;
+    const auto section = std::find_if(
+        m_sections.begin(), m_sections.end(),
+        [&](const Section& value) {
+            return std::strcmp(value.name, name) == 0;
+        });
+    if (section == m_sections.end()) return false;
+
+    snapshot.count = section->historyCount;
+    const std::size_t first =
+        (section->historyWriteIndex + HISTORY_CAPACITY - section->historyCount) %
+        HISTORY_CAPACITY;
+    double total = 0.0;
+    for (std::size_t index = 0; index < section->historyCount; ++index) {
+        const float sample =
+            section->history[(first + index) % HISTORY_CAPACITY];
+        snapshot.samples[index] = sample;
+        total += sample;
+        snapshot.peakMs = std::max(snapshot.peakMs, sample);
+    }
+    if (snapshot.count != 0) {
+        snapshot.latestMs = snapshot.samples[snapshot.count - 1];
+        snapshot.averageMs =
+            static_cast<float>(total / static_cast<double>(snapshot.count));
+    }
+    return true;
+}
+
+bool FrameProfiler::getCounterSnapshot(
+    const char* name, CounterSnapshot& snapshot) const {
+    snapshot = {};
+    if (!name) return false;
+    const auto counter = std::find_if(
+        m_counters.begin(), m_counters.end(),
+        [&](const Counter& value) {
+            return std::strcmp(value.name, name) == 0;
+        });
+    if (counter == m_counters.end()) return false;
+
+    snapshot.count = counter->historyCount;
+    const std::size_t first =
+        (counter->historyWriteIndex + HISTORY_CAPACITY - counter->historyCount) %
+        HISTORY_CAPACITY;
+    long double total = 0.0;
+    for (std::size_t index = 0; index < counter->historyCount; ++index) {
+        const long long sample =
+            counter->history[(first + index) % HISTORY_CAPACITY];
+        snapshot.samples[index] = sample;
+        total += static_cast<long double>(sample);
+        snapshot.peak = std::max(snapshot.peak, sample);
+    }
+    if (snapshot.count != 0) {
+        snapshot.latest = snapshot.samples[snapshot.count - 1];
+        snapshot.average = static_cast<double>(
+            total / static_cast<long double>(snapshot.count));
+    }
+    return true;
 }
 
 FrameProfiler::Scope::Scope(const char* name) : m_name(name) {

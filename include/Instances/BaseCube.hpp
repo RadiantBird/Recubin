@@ -28,8 +28,11 @@ private:
     PhysicsBodyHandle m_bodyHandle;
     CFrame m_compoundLocalOffset;
     Physics* m_physicsOwner = nullptr;
+    bool m_touchObservationActive = false;
     // 最近傍のCharacter Modelから伝播する、保存・複製・公開対象外の実行時ID。
     std::uint32_t m_characterCollisionGroup = 0;
+
+    void refreshTouchObservation();
 
 public:
     std::shared_ptr<RCBNScriptSignal> Touched;
@@ -89,6 +92,7 @@ public:
     void setAnchored(bool anchored);
     void setCanCollide(bool canCollide);
     void setCanTouch(bool canTouch);
+    bool isTouchObserved() const { return m_touchObservationActive; }
     void setLocked(bool locked);
     void setMaterial(const Material& m);
     void setMassDensity(float d);

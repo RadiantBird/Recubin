@@ -181,6 +181,21 @@ BaseCube::BaseCube(Vector3 Pos, Vector3 Sz)
     : Spatial(Pos, Sz, "BaseCube"), Color(1, 1, 1, 1) {
     Touched = std::make_shared<RCBNScriptSignal>();
     TouchEnded = std::make_shared<RCBNScriptSignal>();
+    const auto listenerChanged = [this](bool) {
+        refreshTouchObservation();
+    };
+    Touched->setListenerPresenceCallback(listenerChanged);
+    TouchEnded->setListenerPresenceCallback(listenerChanged);
+}
+
+void BaseCube::refreshTouchObservation() {
+    const bool observed =
+        (Touched && Touched->hasListeners()) ||
+        (TouchEnded && TouchEnded->hasListeners());
+    if (m_touchObservationActive == observed) return;
+    m_touchObservationActive = observed;
+    if (m_physicsOwner && m_physicsOwner->hasBody(*this))
+        m_physicsOwner->refreshCollisionFilter(*this);
 }
 
 bool BaseCube::IsA(std::string className) {

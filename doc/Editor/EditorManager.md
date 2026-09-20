@@ -20,6 +20,7 @@ enum class EditorMode { Edit, Play, Pause }
 | `propertiesPanel` | `unique_ptr<PropertiesPanel>` | プロパティインスペクタ |
 | `contentBrowserPanel` | `unique_ptr<ContentBrowserPanel>` | アセットブラウザ |
 | `viewportPanel` | `unique_ptr<ViewportPanel>` | 3D ビューポート |
+| `profilerPanel` | `unique_ptr<ProfilerPanel>` | 描画・物理・スクリプトのフレーム時間グラフ |
 | `scenePath` | `string` | 保存/読み込み対象のシーンファイルパス（デフォルト: `assets/scenes/test_scene.yaml`） |
 | `m_history` | `CommandHistory` | Undo/Redo スタック（各パネルに生ポインタで共有） |
 
@@ -101,6 +102,7 @@ hierarchyPanel->m_clipboard
 
 - ImGui, ImGuizmo
 - `ConsolePanel`, `SceneHierarchyPanel`, `PropertiesPanel`, `ContentBrowserPanel`, `ViewportPanel`
+- `ProfilerPanel`, `FrameProfiler`
 - `CommandHistory`, `ViewportFocusManager`
 - `Workspace`, `User`, `SceneLoader`
 
