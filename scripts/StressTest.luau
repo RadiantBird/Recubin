@@ -1,10 +1,10 @@
 -- StressTest
 local center = Vector3.new(25, 100, 25)
 
-local amount = 10000
-local range = 50
+local amount = 5000
+local range = 500
 local hr = range/2
-local anchored = true
+local anchored = false
 
 local rn = math.random
 

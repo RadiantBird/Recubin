@@ -70,6 +70,11 @@ render()
 | `renderGameGui(ws, user, vpX, vpY, vpW, vpH)` | Play モード時のゲーム内 GUI をまとめて描画 |
 | `bakeSurfaceGui(sg)` | `SurfaceGui` の内容をテクスチャへベイクし、対象キューブ面に貼り付けられるようにする |
 
+SurfaceGui の独立 ImGui draw list は、固定の OpenGL texture ID ではなく動的フォントアトラスの
+`TexRef` を保持する。未使用の FontSize / glyph によってベイク中にアトラスが拡張された場合も、
+draw command の参照を新しいアトラスへ追従させ、通常のフレーム末尾より前に必要な texture update を
+処理してから FBO へ描画する。アトラス更新前の欠落結果を静的ベイクキャッシュへ保存してはならない。
+
 ## 依存関係
 
 SurfaceMarkの投影では各マークのFilterMode/FilterInstancesをvolume cullより先に評価する。拒否対象は深度生成とoverlayの両方から除外されるため、除外物を貫通して奥の許可対象へ投影できる。

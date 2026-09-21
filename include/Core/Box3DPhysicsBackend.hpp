@@ -21,6 +21,8 @@ private:
         // Updated when an assembly is rebuilt. Bulk synchronization must not
         // rediscover this by scanning every BodyEntry for every cube.
         bool sharesBody = false;
+        CFrame synchronizedWorldCFrame;
+        bool hasSynchronizedWorldCFrame = false;
     };
 
     struct ConstraintEntry {
@@ -118,8 +120,7 @@ private:
     b3BodyId bodyId(const BaseCube& cube) const;
     void syncCubeWithBodyState(
         BaseCube& cube,
-        b3BodyId bodyId,
-        bool sharesBody);
+        BodyEntry& entry);
     static SafeHullResult createSafeHull(
         const std::vector<Vector3>& source, const Vector3& scale);
     void reportBoundsFallback(const std::shared_ptr<BaseCube>& cube);

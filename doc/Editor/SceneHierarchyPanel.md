@@ -23,7 +23,7 @@
 | メソッド | 説明 |
 |---|---|
 | `onRender()` | ツリービュー ImGui ウィンドウを描画 |
-| `drawNode(inst)` *(private)* | ノードを再帰的に描画（右クリックコンテキストメニュー含む） |
+| `drawNode(inst, registerVisible, renderChildren)` *(private)* | ノードを再帰的に描画（右クリックコンテキストメニュー、可視行クリッピング含む） |
 | `renderNewScriptDialog()` *(private)* | Script インスタンス追加ダイアログを描画（ポップアップ外ファイルピッカーと連携） |
 
 ## Explorer の並び順
@@ -40,6 +40,8 @@
 
 名前変更の確定後は次の描画で同じソートを再実行する。ImGui のツリーノード ID、選択状態、
 展開状態は Instance ポインタを基準にしているため、並び替えで失われない。
+
+展開された親に64個以上の閉じた兄弟行が連続する場合、`ImGuiListClipper`で現在のスクロール範囲に見える行だけImGui itemを生成する。子を持つCube等も閉じていれば対象となり、展開中のノードだけ通常の再帰描画へ分離する。Shift範囲選択用の論理的な表示順には画面外の行も保持するため、クリッピングによって選択範囲は変わらない。Ctrl+FのReveal対象とF2のrename対象はclip範囲外でも強制的にitemを生成する。
 
 ## 動作
 

@@ -254,10 +254,13 @@ void SceneHierarchyPanel::requestReveal(Instance* inst) {
     m_revealRequest = inst;
 }
 
-void SceneHierarchyPanel::drawNode(Instance* inst) {
+void SceneHierarchyPanel::drawNode(
+    Instance* inst,
+    bool registerVisible,
+    bool renderChildren) {
     if (!inst) return;
 
-    m_visibleNodes.push_back(inst);
+    if (registerVisible) m_visibleNodes.push_back(inst);
 
     ImGuiTreeNodeFlags flags =
         ImGuiTreeNodeFlags_OpenOnArrow |
@@ -455,11 +458,81 @@ void SceneHierarchyPanel::drawNode(Instance* inst) {
         ImGui::EndPopup();
     }
 
-    if (!isLeaf && open) {
+    if (!isLeaf && open && !renderChildren) {
+        // A clipped row may be opened by this frame's click. Its descendants
+        // begin rendering next frame, after it has been separated from the
+        // fixed-height clipped range.
+        ImGui::TreePop();
+    } else if (!isLeaf && open) {
         const auto children = SceneHierarchySelection::collectDirectChildren(*inst);
-        for (Instance* child : children) {
-            drawNode(child);
+        constexpr std::size_t CLIPPED_ROW_THRESHOLD = 64;
+        auto isRevealAncestor = [&](Instance* candidate) {
+            if (!candidate || !m_revealRequest) return false;
+            for (Instance* current = m_revealRequest; current;) {
+                if (current == candidate) return true;
+                const auto parent = current->Parent.lock();
+                current = parent.get();
+            }
+            return false;
+        };
+        auto isExpanded = [&](Instance* child) {
+            if (!child || child->getChildren().empty()) return false;
+            if (isRevealAncestor(child)) return true;
+            const bool defaultOpen =
+                child == systemRoot || child->IsA("Workspace");
+            return ImGui::GetStateStorage()->GetBool(
+                ImGui::GetID(child), defaultOpen);
+        };
+        auto drawCollapsedRange = [&](std::size_t begin, std::size_t end) {
+            if (begin >= end) return;
+
+            // Shift range selection uses the logical expanded order,
+            // including rows outside the current scroll viewport. Only ImGui
+            // item creation is clipped.
+            m_visibleNodes.insert(
+                m_visibleNodes.end(),
+                children.begin() + static_cast<std::ptrdiff_t>(begin),
+                children.begin() + static_cast<std::ptrdiff_t>(end));
+
+            const std::size_t count = end - begin;
+            if (count < CLIPPED_ROW_THRESHOLD) {
+                for (std::size_t index = begin; index < end; ++index) {
+                    drawNode(children[index], false, false);
+                }
+                return;
+            }
+
+            ImGuiListClipper clipper;
+            clipper.Begin(
+                static_cast<int>(count),
+                ImGui::GetTextLineHeightWithSpacing());
+            for (std::size_t index = begin; index < end; ++index) {
+                if (children[index] == m_revealRequest ||
+                    children[index] == renamingInstance) {
+                    clipper.IncludeItemByIndex(
+                        static_cast<int>(index - begin));
+                }
+            }
+            while (clipper.Step()) {
+                for (int index = clipper.DisplayStart;
+                     index < clipper.DisplayEnd;
+                     ++index) {
+                    drawNode(
+                        children[begin + static_cast<std::size_t>(index)],
+                        false,
+                        false);
+                }
+            }
+        };
+
+        std::size_t collapsedBegin = 0;
+        for (std::size_t index = 0; index < children.size(); ++index) {
+            if (!isExpanded(children[index])) continue;
+            drawCollapsedRange(collapsedBegin, index);
+            drawNode(children[index]);
+            collapsedBegin = index + 1;
         }
+        drawCollapsedRange(collapsedBegin, children.size());
         ImGui::TreePop();
     }
 }

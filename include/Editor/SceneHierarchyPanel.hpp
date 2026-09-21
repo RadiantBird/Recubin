@@ -150,7 +150,10 @@ private:
     bool m_pendingRangeAppend = false;
     Instance* m_shiftClickTarget = nullptr;
 
-    void drawNode(Instance* inst);
+    void drawNode(
+        Instance* inst,
+        bool registerVisible = true,
+        bool renderChildren = true);
     void renderTextFileDialog();
     void renderContextMenu(Instance* inst);
     void renderNewScriptDialog();

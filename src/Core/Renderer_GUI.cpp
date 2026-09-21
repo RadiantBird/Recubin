@@ -410,7 +410,11 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     _ownDl._ResetForNewFrame();
     ImDrawList* dl = &_ownDl;
     dl->PushClipRect(ImVec2(0.f, 0.f), ImVec2((float)w, (float)h), false);
-    dl->PushTextureID(ImGui::GetIO().Fonts->TexID);
+    // ImGui 1.92+ may replace/grow the font-atlas texture while CalcTextSizeA()
+    // or AddText() requests a previously unused size/glyph. Keep the atlas
+    // reference (not a snapshot of its current GL id) on this external draw
+    // list so ImGui can retarget commands created before that growth.
+    dl->PushTexture(ImGui::GetIO().Fonts->TexRef);
 
     for (auto& [name, child] : sg->getChildren()) {
         (void)name;
@@ -432,21 +436,35 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
         drawGuiContent(dl, sgo, px, py, sw, sh, nullptr);
     }
 
-    dl->PopTextureID();
+    dl->PopTexture();
     dl->PopClipRect();
+
+    bool bakeSucceeded = true;
 
     // 頂点がある場合のみ FBO にレンダリング
     if (dl->VtxBuffer.Size > 0) {
         ImDrawData dd{};
         dd.Valid            = true;
-        dd.CmdListsCount    = 1;
-        dd.TotalIdxCount    = dl->IdxBuffer.Size;
-        dd.TotalVtxCount    = dl->VtxBuffer.Size;
         dd.DisplayPos       = ImVec2(0.f, 0.f);
         dd.DisplaySize      = ImVec2((float)w, (float)h);
         dd.FramebufferScale = ImVec2(1.f, 1.f);
-        dd.CmdLists.push_back(dl);
+        // This draw data is rendered before the normal end-of-frame ImGui
+        // draw data. Forward pending dynamic-atlas uploads here; otherwise
+        // text can sample an old/uncreated atlas texture and the bad result is
+        // then retained by SurfaceGui's static bake cache.
+        dd.Textures = &ImGui::GetPlatformIO().Textures;
+        dd.AddDrawList(dl);
         ImGui_ImplOpenGL3_RenderDrawData(&dd);
+
+        for (const ImDrawCmd& command : dl->CmdBuffer) {
+            if (command.ElemCount == 0) continue;
+            if (command.GetTexID() != ImTextureID_Invalid) continue;
+
+            RCBN_WARN("SurfaceGui bake retained an invalid ImGui texture: path="
+                      << sg->getFullPath() << " size=" << w << "x" << h);
+            bakeSucceeded = false;
+            break;
+        }
     }
 
     // GL 状態を復元
@@ -455,9 +473,14 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     glViewport(vp[0], vp[1], vp[2], vp[3]);
     glClearColor(prevClearColor[0], prevClearColor[1], prevClearColor[2], prevClearColor[3]);
 
-    sg->m_bakedContentSignature = contentSignature;
-    sg->m_hasBakedContentSignature = true;
-    FrameProfiler::get().addCount("surfaceGuiBaked", 1);
+    if (bakeSucceeded) {
+        sg->m_bakedContentSignature = contentSignature;
+        sg->m_hasBakedContentSignature = true;
+        FrameProfiler::get().addCount("surfaceGuiBaked", 1);
+    } else {
+        // Retry next frame instead of permanently reusing an incomplete FBO.
+        sg->m_hasBakedContentSignature = false;
+    }
 }
 
 // ===================================================

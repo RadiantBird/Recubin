@@ -47,6 +47,10 @@ Physics::update(workspace, dt)
 Weld assembly の body 原点と member のワールド CFrame は別概念である。外部 API は member ワールド姿勢を基準にし、body 原点への変換は backend 内部だけで行う。Topology/形状変更は固定ステップ前にまとめ、rebuild 前の姿勢・速度・sleep 状態を保持する。NoCollision は指定 pair のフィルタだけを変更する。
 ```
 
+Box3D worldは内蔵スケジューラを使用する。worker数は論理プロセッサ数の半分を目安に、呼び出し元threadを含む2〜4へ制限する（単一論理プロセッサでは1）。Box3Dの推奨どおり効率コアやSMTを無制限に使用せず、小規模sceneのtask scheduling overheadを抑える。
+
+`syncAllCubes()`はBodyEntryに保持した共有body状態を使い、Cubeごとの全Body再検索を行わない。単独Anchored Cubeは最後にnative bodyへ送ったworld CFrameと現在値が同一ならBox3Dへのtarget transform更新を省略する。親Spatialの移動等でworld CFrameが変わった場合は次の同期で更新する。Weld共有bodyとdynamic bodyは従来どおりnative bodyを正としてmember姿勢を反映する。
+
 Gyroは単一Partのworld角度をX/Y/Z軸ごとに独立制御する。各軸の目標角、最大トルク、最大角速度は
 Gyro Instanceが保持し、Box3D backendは有効な軸だけへPD制御トルクを加える。
 

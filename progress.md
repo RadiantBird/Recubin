@@ -1259,3 +1259,24 @@
 - `BodyEntry`へWeld assembly再構築時に更新される`sharesBody`を追加し、bulk同期では現在のentryのbody IDと共有状態を直接`syncCubeWithBodyState()`へ渡すよう変更した。単独Bodyの生成・再生成ではfalse、assembly再構築ではlive member数に基づいて設定する。個別`syncCube()`も対応entryを一度検索し、native bodyだけ存在する不整合はpath付きerrorとして観測する。
 - 単独Anchored Cubeを毎フレームBox3Dへ同期する既存挙動は、親Spatial移動等の契約を変えず第一段階の効果だけ測るため維持した。計算量はbulk経路でO(N^2)からO(N)になった。
 - `Box3DPhysicsBackend.cpp`のGCC C++23構文検査、対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。`--physics-lifecycle-regression --physics=box3d`はWSLの`UtilBindVsockAnyPort:309: socket failed 1`でWindowsプロセスを開始できず未実行。次の一手はWindows上で同回帰を実行し、3150セル・同一カメラ・同一VSync設定でFPSを変更前と比較すること。
+- 3150セルの実機計測でPhysics最大時間が約10msから約5msへ半減し、二乗探索除去の効果を確認した。
+
+### 2026-09-21: Box3D parallel step and unchanged Anchored synchronization skip
+
+- Box3D world生成時に内蔵schedulerを有効化した。`std::thread::hardware_concurrency()`の半分を目安に、Box3Dの推奨に従い効率コア/SMTの過剰利用を避けてworker数を2〜4（単一論理processorでは1）へ制限する。実際のworker数は初期化ログへ出す。custom filterはstep中に固定されたconstraint/snapshot/Instance状態のread-only参照だけを行い、worker callbackからRecubin/Box3D状態を変更しないことを確認した。
+- BodyEntryへ最後にnative bodyと同期したmember world CFrameを保持する。単独Anchored Cubeの現在world CFrameが同一なら、毎フレーム行っていたCFrame inverseと`b3Body_SetTargetTransform()`を省略する。親Spatial移動等でworld値が変われば次のbulk syncで送信し、Weld共有bodyとdynamic bodyはnative姿勢を正として従来どおり同期する。
+- `setBodyWorldCFrame()`、単独body生成/再生成、Weld assembly再構築で同期cacheを更新する。`doc/Core/Physics.md`へworker選択と同期skip契約を記録した。
+- `Box3DPhysicsBackend.cpp`のGCC C++23構文検査、対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。WSLからのWindows回帰実行は既知の`UtilBindVsockAnyPort:309: socket failed 1`により未実施。次の一手はWindowsで`--physics-lifecycle-regression --physics=box3d`を実行し、3150セルの同一stress scene/VSync条件でFPSとPhysics最大時間を再計測すること。
+
+### 2026-09-21: Explorer visible-row clipping
+
+- Explorerは展開中の親の全childへ毎フレーム`TreeNodeEx`、選択、drag/drop、context menu処理を行っており、数千セルの親を開くだけで画面外の行までEditor UI負荷になっていた。
+- `SceneHierarchyPanel::drawNode()`は64行以上連続する閉じた兄弟を`ImGuiListClipper`へ渡し、現在のscroll viewportに見える行だけImGui itemを生成する。子を持つ閉じたCubeも対象にし、展開中のchildだけ通常再帰へ分離するため、その前後の大量行は引き続きclipされる。clip中の行を開いた場合、固定行高を壊さず次frameから子を描画する。
+- Shift範囲選択用`m_visibleNodes`には画面外を含む論理順を保持する。Ctrl+F revealとF2 rename対象はclip外でも`IncludeItemByIndex()`で生成し、既存操作を維持する。`doc/Editor/SceneHierarchyPanel.md`を更新した。
+- `SceneHierarchyPanel.cpp`のGCC C++23構文検査と対象差分の`git diff --check`は成功。Windows Release buildは`RecubinCore.lib`生成まで成功したが、起動中の`build/Release/Recubin.exe`がロックされて最終linkが`LNK1104`となった。次の一手はStudio終了後にRelease buildを再実行し、3150セルの親を展開した状態でFPS/Editor UI時間、scroll、展開、Shift選択、Ctrl+F、F2 renameを手動確認すること。
+
+### 2026-09-21: SurfaceGui dynamic font-atlas bake fix
+
+- SurfaceGuiの独立ImGui draw listが、ImGui 1.92の動的フォントアトラス`TexRef`ではなく、その時点の旧式な固定`TexID`を保持していた。大きいFontSizeや未使用glyphでベイク中にatlas textureが生成・拡張されると、一部のdraw commandだけが古い／未生成textureを参照し、欠落したTextLabelのFBOを正常結果として静的キャッシュしていた。
+- `Renderer::bakeSurfaceGui()`はfont atlasの`TexRef`を保持し、一時`ImDrawData`にもplatform texture update listを渡して、通常のframe末尾を待たずatlas upload後にFBOへ描画する。描画後も有効なtexture IDを解決できない場合はpath/size付きwarningを出し、その内容署名をcacheせず次frameに再試行する。
+- `Renderer_GUI.cpp`のGCC C++23構文検査、対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。`--gui-visibility-regression`はWSLの既知の`UtilBindVsockAnyPort:309: socket failed 1`で起動できず、実際のGL font-atlas更新を伴うfield sceneの表示確認はWindows側で行う必要がある。
