@@ -2316,32 +2316,29 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         m_instBatches[shapeIdx].shadow.clear();
     }
     long long instCulled = 0;
-    auto collectInstCubes = [&](Instance* inst) -> void {
+    auto collectInstCubes = [&](BaseCube* inst) -> void {
         if (!inst) return;
         FrameProfiler::get().addCount("treeInstancesNodes", 1);
-        if (inst->IsA("BaseCube")) {
-            FrameProfiler::get().addCount("baseCubesVisited", 1);
-            BaseCube* bc = static_cast<BaseCube*>(inst);
-            const int mainShapeIdx = instanceableShapeIndex(bc);
-            const int shadowShapeIdx = shadowInstanceableShapeIndex(bc);
-            if (mainShapeIdx >= 0 || shadowShapeIdx >= 0) {
-                CFrame wcf = bc->getWorldCFrame();
-                Matrix4 mtx = wcf.toMatrix4() * Matrix4::Scale(bc->Size.x, bc->Size.y, bc->Size.z);
-                CubeInstanceData d;
-                std::memcpy(d.model, mtx.m, sizeof(d.model));
-                d.color[0] = bc->Color.r; d.color[1] = bc->Color.g;
-                d.color[2] = bc->Color.b; d.color[3] = bc->Color.a;
-                if (shadowShapeIdx >= 0 && shouldCastShadow(bc)) {
-                    m_instBatches[shadowShapeIdx].shadow.push_back({
-                        d, wcf.Position, bc->Size.length() * 0.5f
-                    });
-                }
-                if (mainShapeIdx >= 0 &&
-                    sphereInFrustum(camFrustum, wcf.Position, bc->Size.length() * 0.5f)) {
-                    m_instBatches[mainShapeIdx].main.push_back(d);
-                } else {
-                    if (mainShapeIdx >= 0) instCulled++;
-                }
+        FrameProfiler::get().addCount("baseCubesVisited", 1);
+        const int mainShapeIdx = instanceableShapeIndex(inst);
+        const int shadowShapeIdx = shadowInstanceableShapeIndex(inst);
+        if (mainShapeIdx >= 0 || shadowShapeIdx >= 0) {
+            CFrame wcf = inst->getWorldCFrame();
+            Matrix4 mtx = wcf.toMatrix4() * Matrix4::Scale(inst->Size.x, inst->Size.y, inst->Size.z);
+            CubeInstanceData d;
+            std::memcpy(d.model, mtx.m, sizeof(d.model));
+            d.color[0] = inst->Color.r; d.color[1] = inst->Color.g;
+            d.color[2] = inst->Color.b; d.color[3] = inst->Color.a;
+            if (shadowShapeIdx >= 0 && shouldCastShadow(inst)) {
+                m_instBatches[shadowShapeIdx].shadow.push_back({
+                    d, wcf.Position, inst->Size.length() * 0.5f
+                });
+            }
+            if (mainShapeIdx >= 0 &&
+                sphereInFrustum(camFrustum, wcf.Position, inst->Size.length() * 0.5f)) {
+                m_instBatches[mainShapeIdx].main.push_back(d);
+            } else {
+                if (mainShapeIdx >= 0) instCulled++;
             }
         }
     };
@@ -2570,19 +2567,17 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 }
             }
 
-        auto shadowRender = [&](Instance* inst) -> void {
+        auto shadowRender = [&](BaseCube* inst) -> void {
             if (!inst) return;
             FrameProfiler::get().addCount("treeShadowNodes", 1);
-            const int shadowShapeIdx = inst->IsA("BaseCube")
-                ? shadowInstanceableShapeIndex(static_cast<BaseCube*>(inst))
-                : -1;
+            const int shadowShapeIdx = shadowInstanceableShapeIndex(inst);
             const bool shadowBatchHandled = shadowShapeIdx >= 0 &&
                 m_uInstancedDepthLoc != -1 &&
                 instShapes[shadowShapeIdx].vao != 0;
             if (shadowBatchHandled) {
                 // 収集済み → インスタンス描画済み
-            } else if (inst->IsA("BaseCube")) {
-                BaseCube* bc = static_cast<BaseCube*>(inst);
+            } else {
+                BaseCube* bc = inst;
                 const CFrame worldFrame = bc->getWorldCFrame();
                 const bool insideShadowFrustum = sphereInFrustum(
                     shadowFrustum, worldFrame.Position, bc->Size.length() * 0.5f);
@@ -2618,7 +2613,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 }
             }
         };
-        for (Instance* inst : desc.workspace->getRenderInstances()) shadowRender(inst);
+        for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) shadowRender(cube);
 
         // ---- Terrain Shadow ----
         Matrix4 identity;
@@ -2762,12 +2757,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     const int baseCubeTintColorLoc = cachedUniformLocation(shaderProgram, baseCubeTintColorCache, "uTextureTintColor");
     const int baseCubeUseTintLoc = cachedUniformLocation(shaderProgram, baseCubeUseTintCache, "uUseTextureTint");
 
-    auto renderInst = [&](Instance* inst) -> void {
+    auto renderInst = [&](BaseCube* inst) -> void {
         if (!inst) return;
         FrameProfiler::get().addCount("treeMainNodes", 1);
-        if (inst->IsA("BaseCube")) {
-            FrameProfiler::get().addCount("baseCubesVisited", 1);
-            BaseCube* bc = static_cast<BaseCube*>(inst);
+        FrameProfiler::get().addCount("baseCubesVisited", 1);
+        BaseCube* bc = inst;
             if (unlitLoc     != -1) glUniform1f(unlitLoc,     bc->Unlit        ? 1.0f : 0.0f);
             if (triplanarLoc != -1) glUniform1f(triplanarLoc, bc->UseTriplanar ? 1.0f : 0.0f);
             if (texScaleLoc  != -1) glUniform1f(texScaleLoc,  bc->TextureScale);
@@ -2776,7 +2770,6 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             // texture tint state.
             if (baseCubeTintColorLoc != -1) glUniform4f(baseCubeTintColorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
             if (baseCubeUseTintLoc != -1) glUniform1f(baseCubeUseTintLoc, 0.0f);
-        }
         if (inst->IsA("Cube")) {
             Cube* cube = static_cast<Cube*>(inst);
             if (instanceableShapeIndex(cube) < 0) {
@@ -2914,7 +2907,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     {
         FrameProfiler::Scope treeMain("treeMain");
-        for (Instance* inst : desc.workspace->getRenderInstances()) renderInst(inst);
+        for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) renderInst(cube);
     }
 
     // renderClouds/renderParticles等はGL_BLENDが常時有効という前提のため復元する
