@@ -12207,9 +12207,49 @@ int runCharacterHoverRegression() {
     expect(modeSwitchHoverStayedOff && modeSwitchLanded,
            "switching to Free during a jump preserves suppression until landing");
 
+    const float supportSurfaceY =
+        floor->getWorldPosition().y + floor->Size.y * 0.5f;
+    const float earlyCaptureDistance =
+        root->getWorldPosition().y - supportSurfaceY;
+    const float velocityBeforeEarlyJump =
+        physics->getLinearVelocity(*root).y;
+    humanoid->jump(physics);
+    const float velocityAfterEarlyJump =
+        physics->getLinearVelocity(*root).y;
+    expect(
+        earlyCaptureDistance > humanoid->getHipHeight() &&
+            std::abs(velocityAfterEarlyJump - velocityBeforeEarlyJump) < 0.01f,
+        "landing capture above HipHeight does not rearm a continuous ground jump"
+    );
+
+    bool reachedGroundJumpRearmHeight = false;
+    for (int step = 0; step < 180; ++step) {
+        humanoid->updatePhysicsState(physics);
+        physics->update(*workspace, 1.0f / 60.0f);
+        const float supportDistance =
+            root->getWorldPosition().y - supportSurfaceY;
+        if (supportDistance <= humanoid->getHipHeight()) {
+            humanoid->updatePhysicsState(physics);
+            reachedGroundJumpRearmHeight = true;
+            break;
+        }
+    }
+
     modeUser->setControlMode(User::ControlMode::Character);
     modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
     humanoid->jump(physics);
+    bool jumpRearmedAtHipHeight = reachedGroundJumpRearmHeight;
+    for (const auto& body : bodies) {
+        if (!body || !physics->hasBody(*body)) continue;
+        jumpRearmedAtHipHeight = jumpRearmedAtHipHeight &&
+            std::abs(physics->getLinearVelocity(*body).y - humanoid->JumpPower) <
+                0.01f;
+    }
+    expect(
+        jumpRearmedAtHipHeight,
+        "ground jump rearms only after support distance reaches HipHeight"
+    );
+
     bool hoverStayedOffWhileRising = true;
     bool hoverResumed = false;
     bool reachedJumpApex = false;

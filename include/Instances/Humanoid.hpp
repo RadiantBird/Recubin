@@ -264,6 +264,10 @@ private:
     std::vector<std::pair<std::weak_ptr<BaseCube>, bool>> m_savedCollisionModes;
     std::vector<SavedRagdollBindPose> m_savedRagdollBindPoses;
     bool m_hoverSuppressedForJump = false;
+    // Landing hover may resume above HipHeight to brake a fall. A ground jump
+    // must remain locked until the descending Root actually reaches its
+    // authored Root-to-support distance.
+    bool m_groundJumpRearmPending = false;
     // Jumpまたは地面到達でTruss制御を脱出した後、RootがTrussのAABBを
     // 離れるまで重力無効化・昇降Forceへの再入場を防ぐ。
     bool m_trussControlSuppressed = false;

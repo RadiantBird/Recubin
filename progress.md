@@ -1280,3 +1280,9 @@
 - SurfaceGuiの独立ImGui draw listが、ImGui 1.92の動的フォントアトラス`TexRef`ではなく、その時点の旧式な固定`TexID`を保持していた。大きいFontSizeや未使用glyphでベイク中にatlas textureが生成・拡張されると、一部のdraw commandだけが古い／未生成textureを参照し、欠落したTextLabelのFBOを正常結果として静的キャッシュしていた。
 - `Renderer::bakeSurfaceGui()`はfont atlasの`TexRef`を保持し、一時`ImDrawData`にもplatform texture update listを渡して、通常のframe末尾を待たずatlas upload後にFBOへ描画する。描画後も有効なtexture IDを解決できない場合はpath/size付きwarningを出し、その内容署名をcacheせず次frameに再試行する。
 - `Renderer_GUI.cpp`のGCC C++23構文検査、対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。`--gui-visibility-regression`はWSLの既知の`UtilBindVsockAnyPort:309: socket failed 1`で起動できず、実際のGL font-atlas更新を伴うfield sceneの表示確認はWindows側で行う必要がある。
+
+### 2026-09-21: HipHeight到達前の連続地上jump抑止
+
+- 着地用hoverは高速落下を安全に制動するためHipHeightより上のdynamic capture範囲で再開し、従来は同じ時点で`isGrounded`も成立し得た。そのため足がsupportへ戻る前のjump入力が受理され、空中でJumpPowerを再設定できていた。
+- 通常の地上jumpにだけruntime rearm lockを追加した。着地hoverの早期再開は維持しつつ、下降中に既存shape castが測ったRoot中心からsupport surfaceまでの距離が`HipHeight`以下になるまで次の地上jumpを拒否する。水中jumpとTruss離脱jumpは既存動作を維持し、Ragdoll復帰時はlockを初期化する。
+- `--character-hover-regression`へ、HipHeightより上でhoverが再開した瞬間のjumpが速度を変更しないことと、HipHeight到達後だけ全R6 bodyへJumpPowerが入ることを追加した。`Humanoid.cpp`と`test_main.cpp`のGCC C++23構文検査、対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。限定回帰はWSLの既知の`UtilBindVsockAnyPort:309: socket failed 1`で起動できず、Windows側での実行待ち。

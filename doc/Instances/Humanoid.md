@@ -17,6 +17,8 @@ bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を
 着席、無効状態、Ragdoll中では全hover Forceをzero/disabledにする。jump上昇中は再開しない。下降中のcapture範囲は
 3 studを下限とし、現在の下降速度・最大上向き加速度・重力から求めた制動距離に1 physics step分の安全余裕を加えた値まで広げる。
 この範囲を同じshape cast検出距離へ反映して、高速のTruss jumpや落下でもRootがHipHeightを通過する前に制動を開始する。
+着地制動の早期開始は次の地上jumpを許可しない。通常の地上jump後は、Rootが下降中で、同じshape castが測った
+Root中心からsupport surfaceまでの距離が`HipHeight`以下になるまで再jumpを拒否する。水中jumpとTruss離脱jumpはこのlockの対象外とする。
 PD係数は`CharacterRig::groundHeightSettings()`へ集約し、Workspaceの現在重力を相殺する。
 
 `Normal`/`ClimbingUp`/`ClimbingDown`/`Ragdoll`/`Recovering`状態を明示的に持つ。Truss接触中にW入力があると
@@ -74,7 +76,7 @@ Box3Dのhit eventで得た接触点の`totalNormalImpulse`を優先し、
 | `updatePhysicsState(physics)` | ControlModeに関係なく接地raycast、GroundHeight hover、Truss中の重力設定を更新 |
 | `stopCharacterMotion(physics)` | Character操作からFree/Programへ移行する際、全身の水平・角速度を停止し、Character専用YawForceを無効化して垂直速度を保持 |
 | `moveToward(target, physics, arrivalRadius)` | パス追従用の1フレーム移動（`move()`のロジックを流用） |
-| `jump()` | 通常時は接地中、Climbing中は接地判定なしでJumpPowerを適用。Climbing中のJumpは`Normal`へ戻してTrussから脱出 |
+| `jump()` | 通常時は接地中かつ前回の地上jump後にsupport距離がHipHeight以下へ戻った場合、Climbing中は接地判定なしでJumpPowerを適用。Climbing中のJumpは`Normal`へ戻してTrussから脱出 |
 | `setHealth(v)`/`takeDamage(n)` | クランプしつつ設定。0以下遷移でDied発火 |
 | `enterRagdoll(physics)` | Motor6Dを無効化し、既存R6 BallSocketを有効化してcollision/Root lock/hover/yawを切り替える |
 | `recoverFromRagdoll(physics)` | 条件成立後に`Recovering`へ遷移する。BallSocketを先に無効化し、Motor6D bind poseとRootGyroで物理的にuprightへ戻す |
@@ -101,7 +103,7 @@ move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, phy
 ## フロー — ジャンプ/死亡演出
 
 ```
-jump(): NormalではisGroundedまたは水中、Climbingでは接地判定なしで全bodyのY速度=JumpPowerをセット。Climbing時はNormalへ戻る
+jump(): NormalではisGroundedまたは水中を要求し、通常の地上jump連打は下降中のsupport距離<=HipHeightまでlockする。Climbingでは接地判定なしで全bodyのY速度=JumpPowerをセット。Climbing時はNormalへ戻る
 
 enterRagdoll(physics):
   state=Ragdoll, 再生中Animationの状態と時刻を保持したまま評価を一時停止し、hover/yaw/Gyro/Root lockを無効化

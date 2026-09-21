@@ -441,6 +441,11 @@ void Humanoid::updateGroundHover(
     bool atHipHeight = false;
     const float effectiveHipHeight = HipHeight;
 
+    if (m_groundJumpRearmPending && hasFloor &&
+        verticalVelocity <= 0.0f && floor.distance <= effectiveHipHeight) {
+        m_groundJumpRearmPending = false;
+    }
+
     const auto logGroundDebug = [&](const char* stage, float hoverAcceleration) {
 #ifdef _DEBUG
         const std::uint64_t tick = physics->getSimulationTick();
@@ -1580,6 +1585,7 @@ void Humanoid::finalizeRagdollRecovery(
     m_savedRootGyroYStateValid = false;
     m_recoveryYawValid = false;
     m_hoverSuppressedForJump = false;
+    m_groundJumpRearmPending = false;
     isGrounded = false;
     updateGroundHover(physics, root);
     m_recoveryDiagnosticPendingPhysicsLog = true;
@@ -2124,6 +2130,10 @@ void Humanoid::jump(Physics* physics) {
             "LiquidCube"
         ) != nullptr;
 
+    if (!climbingJump && m_groundJumpRearmPending && !submerged) {
+        return;
+    }
+
     if (!climbingJump && !isGrounded && !submerged) {
         return;
     }
@@ -2136,6 +2146,9 @@ void Humanoid::jump(Physics* physics) {
     }
     isGrounded = false;
     m_hoverSuppressedForJump = true;
+    if (!climbingJump && !submerged) {
+        m_groundJumpRearmPending = true;
+    }
     setHoverForces(physics, false, 0.0f);
 
     // @RadiantBird 2026/09/13:
