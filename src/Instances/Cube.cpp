@@ -122,8 +122,8 @@ void Cube::draw(int modelLoc, int shaderProgram) {
         } else if (child->getClassName() == "SurfaceGui") {
             auto* sg = static_cast<SurfaceGui*>(child.get());
             int idx = static_cast<int>(sg->face);
-            if (idx >= 0 && idx < 6 && sg->m_texID != 0 &&
-                sg->hasRenderableContent() && !activeDecals[idx]) {
+            if (idx >= 0 && idx < 6 && sg->contributesBakedVisualOverride() &&
+                !activeDecals[idx]) {
                 activeTextures[idx]   = sg->m_texID;
                 activeSurfaceGui[idx] = true;
                 anyFaceOverride = true;

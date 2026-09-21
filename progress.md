@@ -1225,3 +1225,23 @@
 - SurfaceGuiは可視内容がない場合にFBOベイクを行わず、Cube側でもそのSurfaceGuiの合成を無視する。TextLabelなどのScreenGuiObjectは透明な背景・文字をImGui draw listへ追加しない。不可視要素の早期returnとボタンの入力経路は従来どおり維持する。
 - `--gui-visibility-regression`を追加し、透明／不可視TextLabel、透明背景＋可視テキストのSurfaceGui、SurfaceGui非表示を検査する。`GuiObject.cpp`、`Cube.cpp`、`Renderer_GUI.cpp`、`test_main.cpp`、関連文書を更新。GCC C++23 syntax check、`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功した。WSLからの回帰実行は`UtilBindVsockAnyPort:309: socket failed 1`でWindowsプロセスを起動できず、Windows側での実行待ち。
 - 透明SurfaceGuiの親背景と子GUIを分離判定する`hasRenderableOwnContent()`を追加した。親背景が完全透明なら透明クリアへ切り替え、可視子だけをベイクする。親と子の両方に内容がなければ従来どおりFBO処理とCube合成を省略する。追加修正後のGCC C++23 syntax check、`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功した。WSLからの`--gui-visibility-regression`は引き続き`UtilBindVsockAnyPort:309: socket failed 1`で起動できず、Windows側での実行待ち。
+
+### 2026-09-21: SurfaceGui static bake cache
+
+- 各SurfaceGuiへ最後に正常ベイクした内容署名を保持するランタイムキャッシュを追加した。キャンバスサイズ、自身の可視背景、直接子の既存描画順、class/name、Norm/Position/Size、可視背景、文字・有効フォントサイズ・フォント選択、画像path/texture IDから署名を計算する。入力専用`Active`や透明で描画されない色などは署名対象外。
+- `Renderer::bakeSurfaceGui()`は有効なFBO/texture、同一寸法、同一署名が揃えばGL状態変更・FBO clear・ImGui draw-list生成前にreturnし、既存textureを再利用する。`Visible=false`や描画内容なしでは既存texture/cacheを保持するため、内容が同じまま再表示した場合も再利用できる。FBO完全性をベイク前に検査し、失敗はpath/status/size付きwarningとして観測可能にした。
+- 1681 SurfaceGuiのhot pathで毎フレームvector確保・sortが起きないよう、既存unordered children走査順を署名と描画で共通使用する。既存の重なり順も変更しない。Cube合成側もSurfaceGui自身と実際にベイクされる直接子の可視判定へ揃えた。
+- Profilerへ`SurfaceGui Bakes`時間、`SurfaceGui Baked`、`SurfaceGui Reused`カウンタを追加した。`--gui-visibility-regression`へ描画プロパティ変更時の署名更新、入力専用状態の除外、既定フォントサイズ追跡、cloneでのruntime cache非継承、非表示からの再利用契約を追加した。
+- 対象C++ translation unitのGCC C++23 syntax checkと対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。更新後の`--gui-visibility-regression`はWSLの`UtilBindVsockAnyPort:309: socket failed 1`でWindowsプロセスを開始できず、Windows側での実行待ち。
+### 2026-09-21: dormant SurfaceGui instancing / FPS cadence / VSync diagnostic
+
+- SurfaceGuiがCube面を実際に上書きする条件（Visible、有効なベイクtexture、自身または直接子の可視内容）を`contributesBakedVisualOverride()`へ共通化した。Cube個別描画とメインパスのインスタンシング判定が同じ述語を使うため、透明・非表示・未ベイクSurfaceGuiが存在するだけではCubeを個別描画へ落とさない。
+- FrameProfilerへswap後の`endFrame()`間隔を保持する240フレーム固定長リングを追加した。Profiler上部は現在FPS、`1000 / 平均frame ms`による平均FPS、平均frame msを表示し、VSync/idle待機を含む実cadenceを確認できる。
+- Settingsへ既定ONのVSync診断トグルを追加し、メインcontextへ即時適用する。`editor_settings.yaml`の`Preferences.VSync`へ保存・復元する。
+- `--gui-visibility-regression`へSurfaceGui override述語のtexture/Visible/child可視性遷移とclone cache非継承を追加した。変更した9 translation unitのGCC C++23構文検査と対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功した。WSLからの`--gui-visibility-regression`はWindowsプロセス開始前に`UtilBindVsockAnyPort:309: socket failed 1`で停止したため、Windows側での実行待ち。
+
+### 2026-09-21: asynchronous GPU profiler timing
+
+- Rendererが4フレーム分のOpenGL timestamp query ringを所有し、メインcontextの描画全体と、最初の有効ViewportのShadow、Main Geometry、Surface Marks、ExtrasをGPU側で計測する。最終queryの`GL_QUERY_RESULT_AVAILABLE`だけをpollし、全slotがpendingなら採取を省略してCPUを待たせない。query非対応、生成GL error、0 IDはwarningとProfilerのUnavailable表示で観測可能にした。
+- FrameProfilerにCPU `endFrame()`から独立したGPU履歴を追加し、未解決queryを0msとして混入させない。ProfilerはGPU各区間のCurrent/Average/Peakと非同期・VSync非含有の説明を表示する。FPSヘッダーを固定し、長い本文だけをchild regionでスクロールする。
+- `--frame-profiler-regression`を追加し、OpenGL contextを要しないGPU履歴のcurrent/average/peak、固定長wrap、CPU endFrameから0が混入しないことを検査する。FrameProfiler、ProfilerPanel、Localization、Renderer、test_mainのGCC C++23 syntax checkと対象差分の`git diff --check`は成功。Renderer/test_mainはWSLのGLU header不足を避けるため`-DGLEW_NO_GLU`で検査した。Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。WSLからの専用回帰はWindowsプロセス開始前に`UtilBindVsockAnyPort:309: socket failed 1`で停止したため、Windows側での実行待ち。

@@ -145,6 +145,8 @@ Welcomeより先にRecoveryモーダルを表示し、Recover、Autosaveフォ�
 Recoverはrecoveryをsource、lock記録のScenePathをlogical pathとしてtransactional loadし、
 正式Sceneファイルを上書きしない。
 設定ファイルとAutosaveの実I/O失敗は日英のOS標準ダイアログへoperation、絶対path、OS理由を表示する。
+SettingsメニューのVSync診断トグルは既定で有効とし、変更時にメインOpenGL contextへ即時適用する。
+値は`editor_settings.yaml`の`Preferences.VSync`として保存・復元する。
 同一障害の連続表示は抑制し、成功後の再発時は再通知する。
 
 # Play 中の Workspace 追従

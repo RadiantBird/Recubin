@@ -135,6 +135,10 @@ public:
     int networkClientCount() const;
     void setNetworkClientCount(int count);
 
+    bool vsyncEnabled() const { return m_vsyncEnabled; }
+    // VSyncはOpenGL context単位のため、対象windowのcontextへ明示適用する。
+    void setVSyncEnabled(bool enabled, GLFWwindow* window);
+
     // LocalServer の外部ライフサイクル状態を main.cpp から反映する。
     void setNetworkClientStatus(int connected, int expected);
     void setExternalPlayCleanup(bool cleaningUp);
@@ -228,6 +232,7 @@ private:
     int  m_connectedClientCount   = 0;
     int  m_expectedClientCount    = 0;
     bool m_externalPlayCleanup    = false;
+    bool m_vsyncEnabled           = true;
 
     enum class PlayStartErrorKind { Generic, NetworkRequired };
     bool m_showPlayStartError = false;

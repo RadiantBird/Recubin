@@ -19,6 +19,7 @@
 #include <Instances/SpotLight.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/SurfaceMark.hpp>
+#include <Instances/SurfaceGui.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/LiquidCube.hpp>
 #include <Instances/ParticleEmitter.hpp>
@@ -282,7 +283,11 @@ static int instanceableShapeIndex(BaseCube* bc) {
     if (bc->TextureScale != 1.0f) return -1;
     for (auto const& [name, child] : bc->getChildren()) {
         if (child->IsA("Decal") || child->IsA("Texture") ||
-            child->getClassName() == "SurfaceGui" || child->getClassName() == "Canvas") {
+            child->getClassName() == "Canvas") {
+            return -1;
+        }
+        if (child->getClassName() == "SurfaceGui" &&
+            static_cast<SurfaceGui*>(child.get())->contributesBakedVisualOverride()) {
             return -1;
         }
     }
@@ -321,12 +326,203 @@ void Renderer::attachInstanceAttribs(unsigned int vao) {
     glBindVertexArray(0);
 }
 
+void Renderer::initGpuProfiler() {
+    m_gpuTimingSupported =
+        (GLEW_VERSION_3_3 || GLEW_ARB_timer_query) &&
+        glQueryCounter != nullptr &&
+        glGetQueryObjectui64v != nullptr;
+    if (!m_gpuTimingSupported) {
+        FrameProfiler::get().setGpuTimingAvailable(false);
+        RCBN_WARN("Renderer: OpenGL timestamp queries are unavailable; GPU profiling is disabled");
+        return;
+    }
+
+    GLenum preexistingError = GL_NO_ERROR;
+    while ((preexistingError = glGetError()) != GL_NO_ERROR) {
+        RCBN_WARN("Renderer: pre-existing OpenGL error before GPU profiler initialization: "
+                  << static_cast<unsigned int>(preexistingError));
+    }
+    for (GpuQueryFrame& frame : m_gpuQueryFrames) {
+        glGenQueries(
+            static_cast<GLsizei>(frame.queries.size()),
+            frame.queries.data());
+    }
+
+    const GLenum allocationError = glGetError();
+    bool missingQuery = false;
+    for (const GpuQueryFrame& frame : m_gpuQueryFrames) {
+        for (GLuint query : frame.queries) {
+            if (query == 0) missingQuery = true;
+        }
+    }
+    if (allocationError != GL_NO_ERROR || missingQuery) {
+        for (GpuQueryFrame& frame : m_gpuQueryFrames) {
+            for (GLuint& query : frame.queries) {
+                if (query != 0) glDeleteQueries(1, &query);
+                query = 0;
+            }
+        }
+        RCBN_WARN("Renderer: failed to allocate GPU timestamp queries; GL error="
+                  << static_cast<unsigned int>(allocationError)
+                  << ", missingQuery=" << (missingQuery ? "true" : "false"));
+        m_gpuTimingSupported = false;
+        FrameProfiler::get().setGpuTimingAvailable(false);
+        return;
+    }
+
+    FrameProfiler::get().setGpuTimingAvailable(true);
+}
+
+void Renderer::destroyGpuProfiler() {
+    if (!m_gpuTimingSupported) return;
+
+    for (GpuQueryFrame& frame : m_gpuQueryFrames) {
+        glDeleteQueries(
+            static_cast<GLsizei>(frame.queries.size()),
+            frame.queries.data());
+        frame.queries.fill(0);
+        frame.pending = false;
+        frame.hasViewportSample = false;
+    }
+    m_gpuActiveQueryFrame = -1;
+    m_gpuTimingSupported = false;
+    FrameProfiler::get().setGpuTimingAvailable(false);
+}
+
+void Renderer::pollGpuProfiler() {
+    if (!m_gpuTimingSupported) return;
+
+    constexpr double NANOSECONDS_TO_MILLISECONDS = 1.0 / 1'000'000.0;
+    auto queryIndex = [](GpuTimestamp timestamp) {
+        return static_cast<std::size_t>(timestamp);
+    };
+    auto recordRange = [&](const char* name, GLuint64 begin, GLuint64 end) {
+        if (end < begin) {
+            RCBN_WARN("Renderer: invalid GPU timestamp order for " << name
+                      << " (begin=" << begin << ", end=" << end << ")");
+            return;
+        }
+        FrameProfiler::get().recordGpuSample(
+            name,
+            static_cast<float>(
+                static_cast<double>(end - begin) *
+                NANOSECONDS_TO_MILLISECONDS));
+    };
+
+    for (GpuQueryFrame& frame : m_gpuQueryFrames) {
+        if (!frame.pending) continue;
+
+        GLint available = GL_FALSE;
+        glGetQueryObjectiv(
+            frame.queries[queryIndex(GpuTimestamp::TotalEnd)],
+            GL_QUERY_RESULT_AVAILABLE,
+            &available);
+        if (available != GL_TRUE) continue;
+
+        std::array<GLuint64, GPU_TIMESTAMP_COUNT> timestamps{};
+        glGetQueryObjectui64v(
+            frame.queries[queryIndex(GpuTimestamp::TotalBegin)],
+            GL_QUERY_RESULT,
+            &timestamps[queryIndex(GpuTimestamp::TotalBegin)]);
+        glGetQueryObjectui64v(
+            frame.queries[queryIndex(GpuTimestamp::TotalEnd)],
+            GL_QUERY_RESULT,
+            &timestamps[queryIndex(GpuTimestamp::TotalEnd)]);
+        recordRange(
+            "gpuTotal",
+            timestamps[queryIndex(GpuTimestamp::TotalBegin)],
+            timestamps[queryIndex(GpuTimestamp::TotalEnd)]);
+
+        if (frame.hasViewportSample) {
+            constexpr std::array<GpuTimestamp, 8> VIEWPORT_TIMESTAMPS = {
+                GpuTimestamp::ShadowBegin,
+                GpuTimestamp::ShadowEnd,
+                GpuTimestamp::MainBegin,
+                GpuTimestamp::MainEnd,
+                GpuTimestamp::SurfaceMarksBegin,
+                GpuTimestamp::SurfaceMarksEnd,
+                GpuTimestamp::ExtrasBegin,
+                GpuTimestamp::ExtrasEnd,
+            };
+            for (GpuTimestamp timestamp : VIEWPORT_TIMESTAMPS) {
+                glGetQueryObjectui64v(
+                    frame.queries[queryIndex(timestamp)],
+                    GL_QUERY_RESULT,
+                    &timestamps[queryIndex(timestamp)]);
+            }
+            recordRange(
+                "gpuShadow",
+                timestamps[queryIndex(GpuTimestamp::ShadowBegin)],
+                timestamps[queryIndex(GpuTimestamp::ShadowEnd)]);
+            recordRange(
+                "gpuMain",
+                timestamps[queryIndex(GpuTimestamp::MainBegin)],
+                timestamps[queryIndex(GpuTimestamp::MainEnd)]);
+            recordRange(
+                "gpuSurfaceMarks",
+                timestamps[queryIndex(GpuTimestamp::SurfaceMarksBegin)],
+                timestamps[queryIndex(GpuTimestamp::SurfaceMarksEnd)]);
+            recordRange(
+                "gpuExtras",
+                timestamps[queryIndex(GpuTimestamp::ExtrasBegin)],
+                timestamps[queryIndex(GpuTimestamp::ExtrasEnd)]);
+        }
+
+        frame.pending = false;
+        frame.hasViewportSample = false;
+    }
+}
+
+void Renderer::beginGpuFrame() {
+    m_gpuActiveQueryFrame = -1;
+    m_gpuViewportSampled = false;
+    if (!m_gpuTimingSupported) return;
+
+    pollGpuProfiler();
+    for (std::size_t index = 0; index < m_gpuQueryFrames.size(); ++index) {
+        if (m_gpuQueryFrames[index].pending) continue;
+        m_gpuActiveQueryFrame = static_cast<int>(index);
+        m_gpuQueryFrames[index].hasViewportSample = false;
+        writeGpuTimestamp(GpuTimestamp::TotalBegin);
+        return;
+    }
+    // GPU is more than the fixed query ring behind. Skipping this frame is
+    // intentional: profiling must never force the CPU to wait for a result.
+}
+
+void Renderer::endGpuFrame() {
+    if (m_gpuActiveQueryFrame < 0) return;
+
+    writeGpuTimestamp(GpuTimestamp::TotalEnd);
+    m_gpuQueryFrames[static_cast<std::size_t>(m_gpuActiveQueryFrame)].pending = true;
+    m_gpuActiveQueryFrame = -1;
+}
+
+bool Renderer::beginGpuViewportSample() {
+    if (m_gpuActiveQueryFrame < 0 || m_gpuViewportSampled) return false;
+
+    m_gpuViewportSampled = true;
+    m_gpuQueryFrames[static_cast<std::size_t>(m_gpuActiveQueryFrame)]
+        .hasViewportSample = true;
+    return true;
+}
+
+void Renderer::writeGpuTimestamp(GpuTimestamp timestamp) {
+    if (m_gpuActiveQueryFrame < 0) return;
+    const GpuQueryFrame& frame =
+        m_gpuQueryFrames[static_cast<std::size_t>(m_gpuActiveQueryFrame)];
+    glQueryCounter(
+        frame.queries[static_cast<std::size_t>(timestamp)],
+        GL_TIMESTAMP);
+}
+
 // ===================================================
 //  init
 // ===================================================
 void Renderer::init(GLFWwindow* window) {
     instance  = this;
     m_window  = window;
+    initGpuProfiler();
 
     // ImGui 初期化（エディター/ランタイム両方でゲーム GUI 描画に必要）
     IMGUI_CHECKVERSION();
@@ -668,6 +864,8 @@ Renderer::~Renderer() {
     if (instance == this) instance = nullptr;
 
     editor.reset(); // EditorManager を先に破棄（FBO が ImGui より先に解放される）
+
+    destroyGpuProfiler();
 
     // ImGui は init で両ビルド共に生成するため、破棄も両ビルドで行う
     ImGui_ImplOpenGL3_Shutdown();
@@ -2096,6 +2294,11 @@ void Renderer::renderInstanceHighlights(Workspace& workspace, const Matrix4& vie
 void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     if (!desc.workspace || desc.width <= 0 || desc.height <= 0) return;
 
+    // Multi-viewport editor frames may call this repeatedly. The total query
+    // spans the main-context submission window, while coarse section queries
+    // sample only the first valid viewport to remain non-overlapping.
+    const bool captureGpuViewport = beginGpuViewportSample();
+
     GLint prevFBO = 0;
     GLint prevViewport[4] = {};
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
@@ -2229,6 +2432,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     std::array<float, SHADOW_CASCADE_COUNT> shadowCascadeSplits = {15.0f, 45.0f, 160.0f};
     std::array<float, SHADOW_CASCADE_COUNT - 1> shadowCascadeBlend = {1.0f, 1.0f};
     bool shadowReady = false;
+    bool capturedGpuShadow = false;
     if (desc.renderShadows && lighting && lightDirectionValid &&
         std::isfinite(lighting->shadowDistance) && lighting->shadowDistance > 0.1f &&
         shadowFBO && shadowMapTex && depthShader) {
@@ -2334,6 +2538,10 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             lightSpaceMatrices[cascade] = lightProj * lightView;
         }
 
+        if (captureGpuViewport) {
+            writeGpuTimestamp(GpuTimestamp::ShadowBegin);
+            capturedGpuShadow = true;
+        }
         FrameProfiler::get().beginSection("shadow");
         glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
         glViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
@@ -2486,9 +2694,15 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         glBindFramebuffer(GL_FRAMEBUFFER, desc.fbo);
         glViewport(0, 0, desc.width, desc.height);
         FrameProfiler::get().endSection("shadow");
+        if (captureGpuViewport) writeGpuTimestamp(GpuTimestamp::ShadowEnd);
+    }
+    if (captureGpuViewport && !capturedGpuShadow) {
+        writeGpuTimestamp(GpuTimestamp::ShadowBegin);
+        writeGpuTimestamp(GpuTimestamp::ShadowEnd);
     }
 
     // ---- Main Pass ----
+    if (captureGpuViewport) writeGpuTimestamp(GpuTimestamp::MainBegin);
     FrameProfiler::get().beginSection("main");
     glUseProgram(shaderProgram);
     glUniformMatrix4fv(viewLoc,       1, GL_FALSE, view.m);
@@ -2760,6 +2974,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     if (!blendEnabled) { glEnable(GL_BLEND); blendEnabled = true; }
     if (!depthMaskEnabled) { glDepthMask(GL_TRUE); depthMaskEnabled = true; }
     FrameProfiler::get().endSection("main");
+    if (captureGpuViewport) writeGpuTimestamp(GpuTimestamp::MainEnd);
 
     FrameProfiler::get().beginSection("surfaceMarks");
     // ---- SurfaceMark projection overlay ----
@@ -2791,6 +3006,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         return a->getFullPath() < b->getFullPath();
     });
 
+    if (captureGpuViewport) {
+        writeGpuTimestamp(GpuTimestamp::SurfaceMarksBegin);
+    }
     if (surfaceMarkFBO && surfaceMarkDepthTex && !surfaceMarks.empty() && !surfaceTargets.empty()) {
         static CachedUniform depthModelCache;
         static CachedUniform depthTimeCache;
@@ -2877,6 +3095,10 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     }
 
     FrameProfiler::get().endSection("surfaceMarks");
+    if (captureGpuViewport) {
+        writeGpuTimestamp(GpuTimestamp::SurfaceMarksEnd);
+        writeGpuTimestamp(GpuTimestamp::ExtrasBegin);
+    }
     FrameProfiler::get().beginSection("extras");
     FrameProfiler::get().beginSection("highlights");
     // ---- Editor選択外枠。Highlightインスタンスの塗り設定とは独立 ----
@@ -2992,6 +3214,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         }
     }
     FrameProfiler::get().endSection("extras");
+    if (captureGpuViewport) writeGpuTimestamp(GpuTimestamp::ExtrasEnd);
 
     glBindVertexArray(0);
     glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
@@ -3003,6 +3226,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 //  メインループから呼ぶ統合描画
 // ===================================================
 void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
+    beginGpuFrame();
     FrameProfiler::get().beginSection("render");
     // Register per-frame counters even when the value is zero, so the
     // Profiler distinguishes an inactive path from missing instrumentation.
@@ -3011,6 +3235,8 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
     FrameProfiler::get().addCount("instanced", 0);
     FrameProfiler::get().addCount("shadowCubes", 0);
     FrameProfiler::get().addCount("shadowCubesCulled", 0);
+    FrameProfiler::get().addCount("surfaceGuiBaked", 0);
+    FrameProfiler::get().addCount("surfaceGuiReused", 0);
     // Primary Viewport用の描画（スタンドアロンまたはエディターのメインビュー）
     // シーンを editor 側が描くのは ownsSceneRender()==true の実エディターのみ
     // (ViewportPanel が描き直すため、ここで描くと無駄な二重描画になる)。
@@ -3046,6 +3272,7 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
         FrameProfiler::get().endSection("ui");
     }
     FrameProfiler::get().endSection("render");
+    endGpuFrame();
 
     FrameProfiler::get().beginSection("swap");
     glfwSwapBuffers(window);

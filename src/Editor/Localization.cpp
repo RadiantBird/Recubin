@@ -19,6 +19,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "設定",              "Settings" },
     { "日本語",            "Japanese" },
     { "English",           "English" },
+    { "垂直同期（診断用）", "Vertical Sync (diagnostic)" },
 
     // ---- EditorManager: メニューバー / パネルタイトル ----
     { "ファイル",           "File" },
@@ -42,10 +43,16 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "描画",                 "Rendering" },
     { "物理計算",             "Physics" },
     { "スクリプト実行",       "Scripts" },
+    { "フレームレート",       "Frame Rate" },
+    { "平均フレーム時間",     "Average Frame Time" },
     { "現在",                 "Current" },
     { "平均",                 "Average" },
     { "最大",                 "Peak" },
     { "計測データなし",       "No samples" },
+    { "利用不可",             "Unavailable" },
+    { "GPU時間",              "GPU Timing" },
+    { "結果は非同期に数フレーム遅れて反映されます。VSync／present待機は含みません。", "Results arrive asynchronously several frames later and exclude VSync/present wait." },
+    { "GPU描画全体",          "Total GPU Rendering" },
     { "描画処理の内訳",       "Rendering Breakdown" },
     { "描画数",               "Draw Counters" },
     { "親区間と子区間は重複するため、各行を合算しないでください。", "Parent and child sections overlap; do not add the rows together." },
@@ -62,6 +69,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "パーティクル",         "Particles" },
     { "選択アウトライン",     "Selection Outline" },
     { "ポストエフェクト",     "Post Effects" },
+    { "SurfaceGuiベイク",     "SurfaceGui Bakes" },
     { "エディターUI",         "Editor UI" },
     { "Swap / VSync",         "Swap / VSync" },
     { "描画Cube数",           "Cubes Drawn" },
@@ -69,6 +77,8 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "インスタンス描画数",   "Instanced Cubes" },
     { "シャドウCube数",       "Shadow Cubes" },
     { "シャドウカリング数",   "Shadow Cubes Culled" },
+    { "SurfaceGuiベイク数",   "SurfaceGui Baked" },
+    { "SurfaceGui再利用数",   "SurfaceGui Reused" },
 
     // ---- EditorManager: ダイアログ ----
     { "テストプレイ中のシーン読込", "Load Scene During Play" },

@@ -301,7 +301,8 @@ static void savePanelVisibility(EditorManager* ed) {
 
 // エディター環境設定（物理デバッグ表示・言語・カメラ・スナップ/フィット・ギズモモード）を
 // editor_settings.yaml から復元する。記録が無い/壊れている場合は既定値のまま変更しない。
-static void loadEditorPreferences(EditorManager* ed, User* user) {
+static void loadEditorPreferences(
+    EditorManager* ed, User* user, GLFWwindow* window) {
     if (!ed || !user) return;
     YAML::Node root = loadEditorSettings();
     YAML::Node p;
@@ -317,6 +318,7 @@ static void loadEditorPreferences(EditorManager* ed, User* user) {
 
     if (p["PhysicsDebug"]) ed->viewportPanel->showPhysicsDebug = p["PhysicsDebug"].as<bool>();
     if (p["RenderingDebug"]) ed->viewportPanel->showRenderingDebug = p["RenderingDebug"].as<bool>();
+    if (p["VSync"]) ed->setVSyncEnabled(p["VSync"].as<bool>(), window);
 
     if (p["Language"]) {
         std::string lang = p["Language"].as<std::string>();
@@ -400,6 +402,7 @@ static void saveEditorPreferences(EditorManager* ed, User* user) {
 
     p["PhysicsDebug"] = ed->viewportPanel->showPhysicsDebug;
     p["RenderingDebug"] = ed->viewportPanel->showRenderingDebug;
+    p["VSync"] = ed->vsyncEnabled();
     p["Language"] = (Loc::getLanguage() == Loc::Lang::JA) ? std::string("JA") : std::string("EN");
 
     CFrame camCf = user->getCameraCFrame();
@@ -840,7 +843,7 @@ int main(int argc, char* argv[]) {
     ed->scenePath     = scenePath; // 起動時に決定したシーンパスを反映
     ed->initializeAutosaveRecovery();
     loadPanelVisibility(ed);       // 前回のパネル開閉状態を復元
-    loadEditorPreferences(ed, user.get()); // 前回のエディター環境設定を復元
+    loadEditorPreferences(ed, user.get(), window); // 前回のエディター環境設定を復元
 
     ed->welcomePanel->lastScenePath = lastScenePath;
 

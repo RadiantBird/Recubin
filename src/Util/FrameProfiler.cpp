@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
+#include <cmath>
 
 FrameProfiler& FrameProfiler::get() {
     static FrameProfiler instance;
@@ -52,6 +53,22 @@ void FrameProfiler::addCount(const char* name, long long n) {
 
 void FrameProfiler::endFrame() {
     auto now = std::chrono::steady_clock::now();
+
+    // endFrame()はswap後に呼ばれる。前回のendFrameからの間隔を使うことで、
+    // CPU区間の合計ではなくVSync/idle待機を含む実際のフレームcadenceを記録する。
+    if (m_hasPreviousFrameEnd) {
+        const double frameMs =
+            std::chrono::duration<double, std::milli>(
+                now - m_previousFrameEnd).count();
+        m_frameHistory[m_frameHistoryWriteIndex] =
+            static_cast<float>(frameMs);
+        m_frameHistoryWriteIndex =
+            (m_frameHistoryWriteIndex + 1) % HISTORY_CAPACITY;
+        m_frameHistoryCount =
+            std::min(m_frameHistoryCount + 1, HISTORY_CAPACITY);
+    }
+    m_previousFrameEnd = now;
+    m_hasPreviousFrameEnd = true;
 
     for (Section& section : m_sections) {
         section.history[section.historyWriteIndex] =
@@ -165,6 +182,91 @@ bool FrameProfiler::getCounterSnapshot(
         snapshot.latest = snapshot.samples[snapshot.count - 1];
         snapshot.average = static_cast<double>(
             total / static_cast<long double>(snapshot.count));
+    }
+    return true;
+}
+
+bool FrameProfiler::getFrameSnapshot(FrameSnapshot& snapshot) const {
+    snapshot = {};
+    if (m_frameHistoryCount == 0) return false;
+
+    snapshot.count = m_frameHistoryCount;
+    const std::size_t first =
+        (m_frameHistoryWriteIndex + HISTORY_CAPACITY - m_frameHistoryCount) %
+        HISTORY_CAPACITY;
+    double total = 0.0;
+    for (std::size_t index = 0; index < m_frameHistoryCount; ++index) {
+        const float sample =
+            m_frameHistory[(first + index) % HISTORY_CAPACITY];
+        snapshot.frameMsSamples[index] = sample;
+        total += sample;
+    }
+
+    snapshot.latestFrameMs = snapshot.frameMsSamples[snapshot.count - 1];
+    snapshot.averageFrameMs =
+        static_cast<float>(total / static_cast<double>(snapshot.count));
+    if (snapshot.latestFrameMs > 0.0f) {
+        snapshot.latestFps = 1000.0f / snapshot.latestFrameMs;
+    }
+    if (snapshot.averageFrameMs > 0.0f) {
+        snapshot.averageFps = 1000.0f / snapshot.averageFrameMs;
+    }
+    return true;
+}
+
+bool FrameProfiler::recordGpuSample(
+    const char* name,
+    float milliseconds
+) {
+    if (!name || !std::isfinite(milliseconds) || milliseconds < 0.0f) {
+        return false;
+    }
+
+    const auto metric = std::find_if(
+        m_gpuMetrics.begin(), m_gpuMetrics.end(),
+        [&](const GpuMetric& value) {
+            return std::strcmp(value.name, name) == 0;
+        });
+    if (metric == m_gpuMetrics.end()) return false;
+
+    metric->history[metric->historyWriteIndex] = milliseconds;
+    metric->historyWriteIndex =
+        (metric->historyWriteIndex + 1) % HISTORY_CAPACITY;
+    metric->historyCount =
+        std::min(metric->historyCount + 1, HISTORY_CAPACITY);
+    return true;
+}
+
+bool FrameProfiler::getGpuSnapshot(
+    const char* name,
+    GpuSnapshot& snapshot
+) const {
+    snapshot = {};
+    if (!name) return false;
+
+    const auto metric = std::find_if(
+        m_gpuMetrics.begin(), m_gpuMetrics.end(),
+        [&](const GpuMetric& value) {
+            return std::strcmp(value.name, name) == 0;
+        });
+    if (metric == m_gpuMetrics.end()) return false;
+
+    snapshot.count = metric->historyCount;
+    const std::size_t first =
+        (metric->historyWriteIndex + HISTORY_CAPACITY - metric->historyCount) %
+        HISTORY_CAPACITY;
+    double total = 0.0;
+    for (std::size_t index = 0; index < metric->historyCount; ++index) {
+        const float sample =
+            metric->history[(first + index) % HISTORY_CAPACITY];
+        snapshot.samples[index] = sample;
+        total += sample;
+        snapshot.peakMs = std::max(snapshot.peakMs, sample);
+    }
+    if (snapshot.count != 0) {
+        snapshot.latestMs = snapshot.samples[snapshot.count - 1];
+        snapshot.averageMs =
+            static_cast<float>(total / static_cast<double>(snapshot.count));
     }
     return true;
 }

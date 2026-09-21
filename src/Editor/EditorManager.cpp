@@ -321,6 +321,23 @@ void EditorManager::setNetworkClientCount(int count) {
     m_networkClientCount = std::clamp(count, 1, 8);
 }
 
+void EditorManager::setVSyncEnabled(bool enabled, GLFWwindow* window) {
+    m_vsyncEnabled = enabled;
+    if (!window) {
+        RCBN_ERROR("Cannot apply VSync: target GLFW window is null");
+        return;
+    }
+
+    GLFWwindow* previousContext = glfwGetCurrentContext();
+    if (previousContext != window) {
+        glfwMakeContextCurrent(window);
+    }
+    glfwSwapInterval(m_vsyncEnabled ? 1 : 0);
+    if (previousContext != window) {
+        glfwMakeContextCurrent(previousContext);
+    }
+}
+
 void EditorManager::setNetworkClientStatus(int connected, int expected) {
     m_connectedClientCount = (std::max)(connected, 0);
     m_expectedClientCount = (std::max)(expected, 0);
@@ -434,6 +451,12 @@ void EditorManager::render(GLFWwindow* window) {
                 Loc::setLanguage(Loc::Lang::JA);
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::LanguageEnglish), nullptr, isEn))
                 Loc::setLanguage(Loc::Lang::EN);
+            ImGui::Separator();
+            bool vsync = vsyncEnabled();
+            if (ImGui::MenuItem(
+                    Loc::t(Loc::LocKey::SettingsVSync), nullptr, &vsync)) {
+                setVSyncEnabled(vsync, window);
+            }
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();

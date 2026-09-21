@@ -27,6 +27,26 @@ public:
         long long peak = 0;
     };
 
+    struct FrameSnapshot {
+        std::array<float, HISTORY_CAPACITY> frameMsSamples{};
+        std::size_t count = 0;
+        float latestFrameMs = 0.0f;
+        float averageFrameMs = 0.0f;
+        float latestFps = 0.0f;
+        float averageFps = 0.0f;
+    };
+
+    // GPU timestamp queries resolve several frames after submission. Keep
+    // their history separate from CPU sections so endFrame() never inserts
+    // synthetic zeroes while a query is still pending.
+    struct GpuSnapshot {
+        std::array<float, HISTORY_CAPACITY> samples{};
+        std::size_t count = 0;
+        float latestMs = 0.0f;
+        float averageMs = 0.0f;
+        float peakMs = 0.0f;
+    };
+
     static FrameProfiler& get();
 
     void beginSection(const char* name);
@@ -37,6 +57,13 @@ public:
         const char* name, SectionSnapshot& snapshot) const;
     bool getCounterSnapshot(
         const char* name, CounterSnapshot& snapshot) const;
+    bool getFrameSnapshot(FrameSnapshot& snapshot) const;
+    bool recordGpuSample(const char* name, float milliseconds);
+    bool getGpuSnapshot(const char* name, GpuSnapshot& snapshot) const;
+    void setGpuTimingAvailable(bool available) {
+        m_gpuTimingAvailable = available;
+    }
+    bool isGpuTimingAvailable() const { return m_gpuTimingAvailable; }
 
     // RAIIガード（begin/endの書き忘れ防止）
     class Scope {
@@ -70,12 +97,31 @@ private:
         std::size_t historyCount = 0;
         std::size_t historyWriteIndex = 0;
     };
+    struct GpuMetric {
+        const char* name;
+        std::array<float, HISTORY_CAPACITY> history{};
+        std::size_t historyCount = 0;
+        std::size_t historyWriteIndex = 0;
+    };
 
     Section* findSection(const char* name); // strcmpで線形探索、無ければ追加
     Counter* findCounter(const char* name);
 
     std::vector<Section> m_sections; // 登録順を保持（ログの列順になる）
     std::vector<Counter> m_counters;
+    std::array<GpuMetric, 5> m_gpuMetrics{{
+        {"gpuTotal"},
+        {"gpuShadow"},
+        {"gpuMain"},
+        {"gpuSurfaceMarks"},
+        {"gpuExtras"},
+    }};
+    bool m_gpuTimingAvailable = false;
+    std::array<float, HISTORY_CAPACITY> m_frameHistory{};
+    std::size_t m_frameHistoryCount = 0;
+    std::size_t m_frameHistoryWriteIndex = 0;
+    bool m_hasPreviousFrameEnd = false;
+    std::chrono::steady_clock::time_point m_previousFrameEnd;
     int m_frames = 0;
     bool m_hasWindowStart = false;
     std::chrono::steady_clock::time_point m_windowStart;

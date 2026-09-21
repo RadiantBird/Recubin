@@ -88,6 +88,7 @@
 #include <Network/NetworkManager.hpp>
 #include <Network/Replication.hpp>
 #include <Util/Logger.hpp>
+#include <Util/FrameProfiler.hpp>
 #include <Util/AssetGuard.hpp>
 #include <Util/PngWriter.hpp>
 #include <Util/AssetPath.hpp>
@@ -9337,11 +9338,125 @@ static int runGuiVisibilityRegression() {
     expect(surface->hasRenderableContent(),
            "SurfaceGui preserves visible child text with transparent background");
 
+    expect(surface->hasRenderableDirectChild(),
+           "SurfaceGui detects its visible direct child without a render scratch allocation");
+    expect(!surface->contributesBakedVisualOverride(),
+           "SurfaceGui without a baked texture does not block primitive instancing");
+    surface->m_texID = 1;
+    expect(surface->contributesBakedVisualOverride(),
+           "visible baked SurfaceGui content contributes a cube face override");
+    surface->Visible = false;
+    expect(!surface->contributesBakedVisualOverride(),
+           "invisible baked SurfaceGui does not block primitive instancing");
+    surface->Visible = true;
+    const std::uint64_t originalSignature =
+        surface->computeRenderContentSignature(16.0f);
+
+    surfaceLabel->Position.x += 5.0f;
+    const std::uint64_t movedSignature =
+        surface->computeRenderContentSignature(16.0f);
+    expect(movedSignature != originalSignature,
+           "SurfaceGui signature changes when a rendered child moves");
+    surfaceLabel->Position.x -= 5.0f;
+
+    surfaceLabel->m_text.Text = "updated surface text";
+    expect(surface->computeRenderContentSignature(16.0f) != originalSignature,
+           "SurfaceGui signature changes when rendered text changes");
+    surfaceLabel->m_text.Text = "surface text";
+
+    surfaceLabel->Visible = false;
+    expect(!surface->hasRenderableDirectChild(),
+           "SurfaceGui direct-child visibility follows the rendered child state");
+    expect(!surface->contributesBakedVisualOverride(),
+           "transparent SurfaceGui with no visible child does not block instancing");
+    surface->BackgroundColor.a = 1.0f;
+    expect(surface->contributesBakedVisualOverride(),
+           "baked SurfaceGui own background contributes a cube face override");
+    surface->BackgroundColor.a = 0.0f;
+    surfaceLabel->Visible = true;
+
+    surfaceLabel->Active = !surfaceLabel->Active;
+    const std::uint64_t inputOnlySignature =
+        surface->computeRenderContentSignature(16.0f);
+    expect(inputOnlySignature == originalSignature,
+           "SurfaceGui signature ignores input-only child state");
+
+    surface->m_bakedContentSignature = originalSignature;
+    surface->m_hasBakedContentSignature = true;
+    auto clonedSurface = std::static_pointer_cast<SurfaceGui>(surface->clone());
+    expect(!clonedSurface->m_hasBakedContentSignature &&
+               clonedSurface->m_bakedContentSignature == 0 &&
+               clonedSurface->m_fboID == 0 && clonedSurface->m_texID == 0,
+           "SurfaceGui clone does not inherit runtime bake cache state");
+
+    // 1はpredicate検査専用の疑似ID。デストラクタからGLへ渡さない。
+    surface->m_texID = 0;
+
+    surfaceLabel->FontSize = 0.0f;
+    const std::uint64_t defaultFontSignature =
+        surface->computeRenderContentSignature(16.0f);
+    expect(defaultFontSignature != surface->computeRenderContentSignature(18.0f),
+           "SurfaceGui signature tracks the effective default font size");
+
     surface->Visible = false;
     expect(!surface->hasRenderableContent(),
            "invisible SurfaceGui has no renderable content");
+    surface->Visible = true;
+    expect(surface->computeRenderContentSignature(16.0f) == originalSignature,
+           "re-enabled unchanged SurfaceGui can reuse its previous bake signature");
 
     std::cout << "[GuiVisibility] failures=" << failures
+              << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+static int runFrameProfilerRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[FrameProfiler] "
+                  << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    FrameProfiler& profiler = FrameProfiler::get();
+    expect(profiler.recordGpuSample("gpuTotal", 1.0f) &&
+               profiler.recordGpuSample("gpuTotal", 3.0f) &&
+               profiler.recordGpuSample("gpuTotal", 2.0f),
+           "GPU samples are accepted without an OpenGL context");
+
+    FrameProfiler::GpuSnapshot snapshot;
+    expect(profiler.getGpuSnapshot("gpuTotal", snapshot) &&
+               snapshot.count == 3 &&
+               std::fabs(snapshot.latestMs - 2.0f) < 0.0001f &&
+               std::fabs(snapshot.averageMs - 2.0f) < 0.0001f &&
+               std::fabs(snapshot.peakMs - 3.0f) < 0.0001f,
+           "GPU snapshot reports current, average, and peak values");
+
+    profiler.endFrame();
+    FrameProfiler::GpuSnapshot afterEndFrame;
+    expect(profiler.getGpuSnapshot("gpuTotal", afterEndFrame) &&
+               afterEndFrame.count == 3,
+           "CPU endFrame does not inject unresolved GPU zero samples");
+    expect(!profiler.recordGpuSample("unknownGpuMetric", 1.0f) &&
+               !profiler.recordGpuSample("gpuTotal", -1.0f),
+           "unknown or invalid GPU samples are rejected");
+
+    for (std::size_t index = 1;
+         index <= FrameProfiler::HISTORY_CAPACITY + 1;
+         ++index) {
+        profiler.recordGpuSample("gpuTotal", static_cast<float>(index));
+    }
+    FrameProfiler::GpuSnapshot wrapped;
+    expect(profiler.getGpuSnapshot("gpuTotal", wrapped) &&
+               wrapped.count == FrameProfiler::HISTORY_CAPACITY &&
+               std::fabs(wrapped.samples[0] - 2.0f) < 0.0001f &&
+               std::fabs(wrapped.latestMs - 241.0f) < 0.0001f &&
+               std::fabs(wrapped.averageMs - 121.5f) < 0.0001f &&
+               std::fabs(wrapped.peakMs - 241.0f) < 0.0001f,
+           "GPU history wraps in chronological order at fixed capacity");
+
+    std::cout << "[FrameProfiler] failures=" << failures
               << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
     return failures == 0 ? 0 : 1;
 }
@@ -12749,6 +12864,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--scene-hierarchy-grouping-regression", runSceneHierarchyGroupingRegression),
         REG("--gui-automation-regression", runGuiAutomationRegression),
         REG("--gui-visibility-regression", runGuiVisibilityRegression),
+        REG("--frame-profiler-regression", runFrameProfilerRegression),
         REG("--physics-migration-regression", runPhysicsMigrationRegression),
         REG("--physics-lifecycle-regression", runPhysicsLifecycleRegression),
         REG("--constraint-rebind-regression", runConstraintRebindRegression),

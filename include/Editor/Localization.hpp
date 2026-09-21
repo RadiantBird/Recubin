@@ -15,7 +15,7 @@ enum class LocKey {
     Cancel, Browse, OK,
 
     // ---- Settingsメニュー ----
-    MenuSettings, LanguageJapanese, LanguageEnglish,
+    MenuSettings, LanguageJapanese, LanguageEnglish, SettingsVSync,
 
     // ---- EditorManager: メニューバー / パネルタイトル ----
     MenuFile, MenuSaveScene, MenuOpenScene, MenuNewScene, MenuPackageGame, MenuQuit,
@@ -25,14 +25,18 @@ enum class LocKey {
     PanelConsole, PanelAnimation, AnimationEditorWindowTitle,
     MenuPhysicsDebug, MenuRenderingDebug,
     PanelProfiler, ProfilerRendering, ProfilerPhysics, ProfilerScripts,
+    ProfilerFrameRate, ProfilerAverageFrameTime,
     ProfilerCurrent, ProfilerAverage, ProfilerPeak, ProfilerNoSamples,
+    ProfilerUnavailable, ProfilerGpuTiming, ProfilerGpuTimingHint,
+    ProfilerGpuTotal,
     ProfilerRenderingBreakdown, ProfilerDrawCounters, ProfilerNestedHint,
     ProfilerSection, ProfilerShadow, ProfilerMainGeometry, ProfilerSurfaceMarks,
     ProfilerExtras, ProfilerHighlights, ProfilerConstraints, ProfilerRenderDebug,
     ProfilerTerrain, ProfilerWeather, ProfilerParticles, ProfilerSelectionOutline,
-    ProfilerPostEffects, ProfilerEditorUi, ProfilerSwap,
+    ProfilerPostEffects, ProfilerSurfaceGuiBakeTime, ProfilerEditorUi, ProfilerSwap,
     ProfilerCubesDrawn, ProfilerCubesCulled, ProfilerInstanced,
     ProfilerShadowCubes, ProfilerShadowCubesCulled,
+    ProfilerSurfaceGuiBaked, ProfilerSurfaceGuiReused,
 
     // ---- EditorManager: ダイアログ ----
     PlayLoadTitle, PlayLoadLine1, PlayLoadLine2, PlayLoadConfirm,

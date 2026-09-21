@@ -12,6 +12,8 @@
 #include <include/Instances/Workspace.hpp>
 
 #include <iostream>
+#include <array>
+#include <cstddef>
 #include <vector>
 #include <fstream>
 #include <sstream>
@@ -310,6 +312,40 @@ class Renderer {
     private:
         unsigned int m_meshFallbackTexture = 0;
         void createMeshFallbackTexture();
+
+        static constexpr std::size_t GPU_QUERY_FRAME_COUNT = 4;
+        enum class GpuTimestamp : std::size_t {
+            TotalBegin,
+            ShadowBegin,
+            ShadowEnd,
+            MainBegin,
+            MainEnd,
+            SurfaceMarksBegin,
+            SurfaceMarksEnd,
+            ExtrasBegin,
+            ExtrasEnd,
+            TotalEnd,
+            Count
+        };
+        static constexpr std::size_t GPU_TIMESTAMP_COUNT =
+            static_cast<std::size_t>(GpuTimestamp::Count);
+        struct GpuQueryFrame {
+            std::array<GLuint, GPU_TIMESTAMP_COUNT> queries{};
+            bool pending = false;
+            bool hasViewportSample = false;
+        };
+        std::array<GpuQueryFrame, GPU_QUERY_FRAME_COUNT> m_gpuQueryFrames{};
+        bool m_gpuTimingSupported = false;
+        bool m_gpuViewportSampled = false;
+        int m_gpuActiveQueryFrame = -1;
+
+        void initGpuProfiler();
+        void destroyGpuProfiler();
+        void pollGpuProfiler();
+        void beginGpuFrame();
+        void endGpuFrame();
+        bool beginGpuViewportSample();
+        void writeGpuTimestamp(GpuTimestamp timestamp);
 
         void renderTerrain(const Matrix4& view, const Matrix4& projection, class Workspace* workspace);
 

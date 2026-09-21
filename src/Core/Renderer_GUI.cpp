@@ -14,6 +14,7 @@
 #include "include/imgui/imgui.h"
 #include "include/imgui/imgui_impl_opengl3.h"
 #include "include/Util/AssetPath.hpp"
+#include "include/Util/FrameProfiler.hpp"
 #include "include/Util/Logger.hpp"
 
 #include <algorithm>
@@ -351,16 +352,7 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     if (!sg || !sg->Visible) return;
 
     const bool drawSurfaceBackground = sg->hasRenderableOwnContent();
-    bool hasRenderableChild = false;
-    for (auto const& [name, child] : sg->getChildren()) {
-        (void)name;
-        if (!child->IsA("ScreenGuiObject")) continue;
-        if (static_cast<ScreenGuiObject*>(child.get())->hasRenderableContent()) {
-            hasRenderableChild = true;
-            break;
-        }
-    }
-    if (!drawSurfaceBackground && !hasRenderableChild) return;
+    if (!drawSurfaceBackground && !sg->hasRenderableDirectChild()) return;
 
     SurfaceGuiLayout L;
     if (!computeSurfaceGuiLayout(sg, L)) return;
@@ -368,10 +360,39 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     int   w  = L.w,  h  = L.h;
     float scale = L.scale, offX = L.offX, offY = L.offY;
 
+    const std::uint64_t contentSignature =
+        sg->computeRenderContentSignature(ImGui::GetFontSize());
+    const bool canReuse =
+        sg->m_fboID != 0 &&
+        sg->m_texID != 0 &&
+        sg->m_texW == w &&
+        sg->m_texH == h &&
+        sg->m_hasBakedContentSignature &&
+        sg->m_bakedContentSignature == contentSignature;
+    if (canReuse) {
+        FrameProfiler::get().addCount("surfaceGuiReused", 1);
+        return;
+    }
+
+    FrameProfiler::Scope bakeProfile("surfaceGuiBakes");
+
+    // GL状態はFBO/テクスチャの作成より前に保存する。初回ベイクでも
+    // 呼び出し元のFramebuffer/Texture bindingを破壊しない。
+    GLint prevFBO = 0;
+    GLint prevTexture = 0;
+    GLint vp[4] = {};
+    GLfloat prevClearColor[4] = {};
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTexture);
+    glGetIntegerv(GL_VIEWPORT, vp);
+    glGetFloatv(GL_COLOR_CLEAR_VALUE, prevClearColor);
+
     // FBO / テクスチャの作成・リサイズ
-    if (sg->m_texID == 0 || sg->m_texW != w || sg->m_texH != h) {
+    if (sg->m_fboID == 0 || sg->m_texID == 0 ||
+        sg->m_texW != w || sg->m_texH != h) {
         if (sg->m_fboID) { glDeleteFramebuffers(1, &sg->m_fboID); sg->m_fboID = 0; }
         if (sg->m_texID) { glDeleteTextures(1,    &sg->m_texID);  sg->m_texID = 0; }
+        sg->m_hasBakedContentSignature = false;
 
         glGenTextures(1, &sg->m_texID);
         glBindTexture(GL_TEXTURE_2D, sg->m_texID);
@@ -384,17 +405,26 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
         glBindFramebuffer(GL_FRAMEBUFFER, sg->m_fboID);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                GL_TEXTURE_2D, sg->m_texID, 0);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         sg->m_texW = w; sg->m_texH = h;
     }
 
-    // GL 状態を保存
-    GLint prevFBO; glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
-    GLint vp[4];   glGetIntegerv(GL_VIEWPORT, vp);
-    GLfloat prevClearColor[4]; glGetFloatv(GL_COLOR_CLEAR_VALUE, prevClearColor);
-
     glBindFramebuffer(GL_FRAMEBUFFER, sg->m_fboID);
+    const GLenum framebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (framebufferStatus != GL_FRAMEBUFFER_COMPLETE) {
+        RCBN_WARN("SurfaceGui FBO is incomplete: path=" << sg->getFullPath()
+                  << " status=" << static_cast<unsigned int>(framebufferStatus)
+                  << " size=" << w << "x" << h);
+        sg->m_hasBakedContentSignature = false;
+        glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
+        glBindTexture(GL_TEXTURE_2D, prevTexture);
+        glViewport(vp[0], vp[1], vp[2], vp[3]);
+        glClearColor(
+            prevClearColor[0], prevClearColor[1],
+            prevClearColor[2], prevClearColor[3]);
+        return;
+    }
+
     glViewport(0, 0, w, h);
     const Color4 clearColor = drawSurfaceBackground
         ? sg->BackgroundColor
@@ -410,9 +440,9 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     dl->PushTextureID(ImGui::GetIO().Fonts->TexID);
 
     for (auto& [name, child] : sg->getChildren()) {
-        if (!child->IsA("ScreenGuiObject")) continue;
+        (void)name;
+        if (!SurfaceGui::isRenderableDirectChild(child.get())) continue;
         auto* sgo = static_cast<ScreenGuiObject*>(child.get());
-        if (!sgo->Visible || !sgo->hasRenderableContent()) continue;
 
         // キャンバス座標 → FBO 座標（均一スケール + オフセット）
         float cx = (sgo->NormType == Norm::Scale) ? sgo->Position.x * cW : sgo->Position.x;
@@ -447,8 +477,13 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
 
     // GL 状態を復元
     glBindFramebuffer(GL_FRAMEBUFFER, prevFBO);
+    glBindTexture(GL_TEXTURE_2D, prevTexture);
     glViewport(vp[0], vp[1], vp[2], vp[3]);
     glClearColor(prevClearColor[0], prevClearColor[1], prevClearColor[2], prevClearColor[3]);
+
+    sg->m_bakedContentSignature = contentSignature;
+    sg->m_hasBakedContentSignature = true;
+    FrameProfiler::get().addCount("surfaceGuiBaked", 1);
 }
 
 // ===================================================
