@@ -88,6 +88,7 @@ Renderer* Renderer::instance = nullptr;
 
 static Lighting* findLightingInTree(Instance* inst) {
     if (!inst) return nullptr;
+    FrameProfiler::get().addCount("treeLightingNodes", 1);
     if (inst->IsA("Lighting")) return static_cast<Lighting*>(inst);
     for (auto& [name, child] : inst->getChildren()) {
         Lighting* found = findLightingInTree(child.get());
@@ -2334,7 +2335,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     }
 
     // Workspace 内から Lighting を取得
-    Lighting* lighting = findLightingInTree(static_cast<Instance*>(desc.workspace));
+    Lighting* lighting = nullptr;
+    {
+        FrameProfiler::Scope treeLighting("treeLighting");
+        lighting = findLightingInTree(static_cast<Instance*>(desc.workspace));
+    }
 
     // Sun・Moon の位置を毎フレーム Angle から再計算（フォーカス外でも Angle 変更を即反映するため）
     {
@@ -2371,7 +2376,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     long long instCulled = 0;
     auto collectInstCubes = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
+        FrameProfiler::get().addCount("treeInstancesNodes", 1);
         if (inst->IsA("BaseCube")) {
+            FrameProfiler::get().addCount("baseCubesVisited", 1);
             BaseCube* bc = static_cast<BaseCube*>(inst);
             const int mainShapeIdx = instanceableShapeIndex(bc);
             const int shadowShapeIdx = shadowInstanceableShapeIndex(bc);
@@ -2397,7 +2404,10 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         }
         for (auto const& [name, child] : inst->getChildren()) self(self, child.get());
     };
-    for (auto const& [name, child] : desc.workspace->getChildren()) collectInstCubes(collectInstCubes, child.get());
+    {
+        FrameProfiler::Scope treeInstances("treeInstances");
+        for (auto const& [name, child] : desc.workspace->getChildren()) collectInstCubes(collectInstCubes, child.get());
+    }
     if (instCulled > 0) FrameProfiler::get().addCount("cubesCulled", instCulled);
 
     // Normalize once so the shadow basis and the main-pass lighting use the
@@ -2474,6 +2484,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         shadowCascadeBlend[1] = std::min(
             std::max(secondCascadeRange * 0.08f, 0.25f), secondCascadeRange * 0.45f);
 
+        FrameProfiler::Scope treeShadow("treeShadow");
         for (int cascade = 0; cascade < SHADOW_CASCADE_COUNT; ++cascade) {
             const float sliceNear = (cascade == 0) ? CAMERA_NEAR : shadowCascadeSplits[cascade - 1];
             const float sliceFar = shadowCascadeSplits[cascade];
@@ -2620,6 +2631,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
         auto shadowRender = [&](auto& self, Instance* inst) -> void {
             if (!inst) return;
+            FrameProfiler::get().addCount("treeShadowNodes", 1);
             const int shadowShapeIdx = inst->IsA("BaseCube")
                 ? shadowInstanceableShapeIndex(static_cast<BaseCube*>(inst))
                 : -1;
@@ -2817,7 +2829,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     auto renderInst = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
+        FrameProfiler::get().addCount("treeMainNodes", 1);
         if (inst->IsA("BaseCube")) {
+            FrameProfiler::get().addCount("baseCubesVisited", 1);
             BaseCube* bc = static_cast<BaseCube*>(inst);
             if (unlitLoc     != -1) glUniform1f(unlitLoc,     bc->Unlit        ? 1.0f : 0.0f);
             if (triplanarLoc != -1) glUniform1f(triplanarLoc, bc->UseTriplanar ? 1.0f : 0.0f);
@@ -2966,8 +2980,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         }
     }
 
-    for (auto const& [name, child] : desc.workspace->getChildren()) {
-        renderInst(renderInst, child.get());
+    {
+        FrameProfiler::Scope treeMain("treeMain");
+        for (auto const& [name, child] : desc.workspace->getChildren()) {
+            renderInst(renderInst, child.get());
+        }
     }
 
     // renderClouds/renderParticles等はGL_BLENDが常時有効という前提のため復元する
@@ -2984,6 +3001,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     std::vector<BaseCube*> surfaceTargets;
     auto collectSurface = [&](auto& self, Instance* inst) -> void {
         if (!inst) return;
+        FrameProfiler::get().addCount("treeSurfaceMarkNodes", 1);
         if (inst->IsA("SurfaceMark")) {
             auto* mark = static_cast<SurfaceMark*>(inst);
             if (std::isfinite(mark->Size.x) && std::isfinite(mark->Size.y) && std::isfinite(mark->Size.z) &&
@@ -3001,7 +3019,10 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         }
         for (auto const& [name, child] : inst->getChildren()) self(self, child.get());
     };
-    for (auto const& [name, child] : desc.workspace->getChildren()) collectSurface(collectSurface, child.get());
+    {
+        FrameProfiler::Scope treeSurfaceMarks("treeSurfaceMarks");
+        for (auto const& [name, child] : desc.workspace->getChildren()) collectSurface(collectSurface, child.get());
+    }
     std::sort(surfaceMarks.begin(), surfaceMarks.end(), [](SurfaceMark* a, SurfaceMark* b) {
         return a->getFullPath() < b->getFullPath();
     });
@@ -3237,6 +3258,14 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
     FrameProfiler::get().addCount("shadowCubesCulled", 0);
     FrameProfiler::get().addCount("surfaceGuiBaked", 0);
     FrameProfiler::get().addCount("surfaceGuiReused", 0);
+    FrameProfiler::get().addCount("treeLightingNodes", 0);
+    FrameProfiler::get().addCount("treeInstancesNodes", 0);
+    FrameProfiler::get().addCount("treeShadowNodes", 0);
+    FrameProfiler::get().addCount("treeMainNodes", 0);
+    FrameProfiler::get().addCount("treeSurfaceMarkNodes", 0);
+    FrameProfiler::get().addCount("treeGuiNodes", 0);
+    FrameProfiler::get().addCount("baseCubesVisited", 0);
+    FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 0);
     // Primary Viewport用の描画（スタンドアロンまたはエディターのメインビュー）
     // シーンを editor 側が描くのは ownsSceneRender()==true の実エディターのみ
     // (ViewportPanel が描き直すため、ここで描くと無駄な二重描画になる)。

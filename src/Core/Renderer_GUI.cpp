@@ -122,6 +122,7 @@ ImFont* Renderer::loadGuiFont(ScreenGuiObject* sgo) {
 
 static void collectFontFileUsers(Instance* node, std::vector<ScreenGuiObject*>& out) {
     if (!node) return;
+    FrameProfiler::get().addCount("treeGuiNodes", 1);
     if (node->IsA("ScreenGuiObject"))
         out.push_back(static_cast<ScreenGuiObject*>(node));
     for (const auto& [name, child] : node->getChildren()) {
@@ -131,6 +132,7 @@ static void collectFontFileUsers(Instance* node, std::vector<ScreenGuiObject*>& 
 }
 
 void Renderer::prepareGuiFonts(Workspace& workspace) {
+    FrameProfiler::Scope treeGuiFonts("treeGuiFonts");
     std::vector<ScreenGuiObject*> guiObjects;
     collectFontFileUsers(sceneRoot(&workspace), guiObjects);
     for (ScreenGuiObject* guiObject : guiObjects) {
@@ -173,6 +175,8 @@ void Renderer::renderRuntimeChat(float vpX, float vpY, float vpW, float vpH) {
 //  ScreenGuiObject の再帰収集
 // ===================================================
 static void collectScreenGui(Instance* node, std::vector<ScreenGuiObject*>& out) {
+    if (!node) return;
+    FrameProfiler::get().addCount("treeGuiNodes", 1);
     for (auto& [name, child] : node->getChildren()) {
         // WorldGuiObject (SurfaceGui, BillboardGui等) の子はベイク専用なのでスキップ
         if (child->IsA("WorldGuiObject")) continue;
@@ -187,6 +191,7 @@ static void collectScreenGui(Instance* node, std::vector<ScreenGuiObject*>& out)
 // Model/Folderなどの下にあるBaseCubeも、ワールドGUIの描画対象に含める。
 static void collectWorldGuiHosts(Instance* node, std::vector<BaseCube*>& out) {
     if (!node) return;
+    FrameProfiler::get().addCount("treeGuiNodes", 1);
     if (node->IsA("BaseCube")) {
         out.push_back(static_cast<BaseCube*>(node));
     }
@@ -441,6 +446,7 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
 
     for (auto& [name, child] : sg->getChildren()) {
         (void)name;
+        FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 1);
         if (!SurfaceGui::isRenderableDirectChild(child.get())) continue;
         auto* sgo = static_cast<ScreenGuiObject*>(child.get());
 
@@ -707,6 +713,7 @@ static bool hitTestSurfaceGui(SurfaceGui* sg, BaseCube* cube, const Vector3& ray
     float canvasY = (fboY - L.offY) / L.scale;
 
     for (auto& [name, child] : sg->getChildren()) {
+        FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 1);
         if (!child->IsA("ScreenGuiObject")) continue;
         auto* sgo = static_cast<ScreenGuiObject*>(child.get());
         if (!sgo->Visible || !sgo->Active) continue;
@@ -740,6 +747,7 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
     // SurfaceGui を FBO テクスチャにベイク（次フレームの 3D 描画で使用）
     for (BaseCube* cube : guiHosts) {
         for (auto& [gname, ginst] : cube->getChildren()) {
+            FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 1);
             if (ginst->getClassName() == "SurfaceGui")
                 bakeSurfaceGui(static_cast<SurfaceGui*>(ginst.get()));
         }
@@ -760,6 +768,7 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
             GuiButton* bestBtn = nullptr;
             for (BaseCube* cube : guiHosts) {
                 for (auto& [gname, ginst] : cube->getChildren()) {
+                    FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 1);
                     if (ginst->getClassName() != "SurfaceGui") continue;
                     auto* sg = static_cast<SurfaceGui*>(ginst.get());
                     if (!sg->Visible) continue;
@@ -781,6 +790,7 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
     for (BaseCube* cube : guiHosts) {
 
         for (auto& [guiName, guiInst] : cube->getChildren()) {
+            FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 1);
             if (!guiInst->IsA("WorldGuiObject")) continue;
             auto* wgo = static_cast<WorldGuiObject*>(guiInst.get());
             if (!wgo->Visible) continue;
@@ -1047,6 +1057,7 @@ GameGuiRenderContext Renderer::makeGameGuiRenderContext(
 
 void Renderer::renderGameGui(
     Workspace& ws, User* user, const GameGuiRenderContext& context) {
+    FrameProfiler::Scope treeGui("treeGui");
     if (user && context.recordUserViewport) {
         // GLFWのカーソル座標はメインウィンドウclient座標。ImGui multi-viewport時の
         // contextはデスクトップ座標なので、main viewportの原点を引いて明示変換する。

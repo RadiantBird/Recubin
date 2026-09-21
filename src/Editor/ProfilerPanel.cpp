@@ -118,6 +118,45 @@ void drawCounterRow(const char* counterName, Loc::LocKey labelKey) {
     else ImGui::TextDisabled("--");
 }
 
+void drawRawTimingRow(const char* sectionName) {
+    FrameProfiler::SectionSnapshot snapshot;
+    const bool available =
+        FrameProfiler::get().getSectionSnapshot(sectionName, snapshot) &&
+        snapshot.count != 0;
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+    ImGui::TextUnformatted(sectionName);
+    for (int column = 1; column < 4; ++column) {
+        ImGui::TableSetColumnIndex(column);
+        if (!available) {
+            ImGui::TextDisabled("--");
+            continue;
+        }
+        const float value = column == 1 ? snapshot.latestMs
+            : (column == 2 ? snapshot.averageMs : snapshot.peakMs);
+        ImGui::Text("%.2f ms", value);
+    }
+}
+
+void drawRawCounterRow(const char* counterName) {
+    FrameProfiler::CounterSnapshot snapshot;
+    const bool available =
+        FrameProfiler::get().getCounterSnapshot(counterName, snapshot) &&
+        snapshot.count != 0;
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+    ImGui::TextUnformatted(counterName);
+    ImGui::TableSetColumnIndex(1);
+    if (available) ImGui::Text("%lld", snapshot.latest);
+    else ImGui::TextDisabled("--");
+    ImGui::TableSetColumnIndex(2);
+    if (available) ImGui::Text("%.1f", snapshot.average);
+    else ImGui::TextDisabled("--");
+    ImGui::TableSetColumnIndex(3);
+    if (available) ImGui::Text("%lld", snapshot.peak);
+    else ImGui::TextDisabled("--");
+}
+
 bool beginMetricTable(const char* id) {
     constexpr ImGuiTableFlags flags =
         ImGuiTableFlags_BordersInnerH |
@@ -262,6 +301,34 @@ void ProfilerPanel::onRender() {
                 "surfaceGuiBaked", Loc::LocKey::ProfilerSurfaceGuiBaked);
             drawCounterRow(
                 "surfaceGuiReused", Loc::LocKey::ProfilerSurfaceGuiReused);
+            drawRawCounterRow("treeLightingNodes");
+            drawRawCounterRow("treeInstancesNodes");
+            drawRawCounterRow("treeShadowNodes");
+            drawRawCounterRow("treeMainNodes");
+            drawRawCounterRow("treeSurfaceMarkNodes");
+            drawRawCounterRow("treeGuiNodes");
+            drawRawCounterRow("baseCubesVisited");
+            drawRawCounterRow("surfaceGuiChildrenVisited");
+            ImGui::EndTable();
+        }
+
+        if (ImGui::CollapsingHeader("Tree Traversal", ImGuiTreeNodeFlags_DefaultOpen) &&
+            beginMetricTable("##ProfilerTreeTraversalTable")) {
+            drawRawTimingRow("treeLighting");
+            drawRawTimingRow("treeInstances");
+            drawRawTimingRow("treeShadow");
+            drawRawTimingRow("treeMain");
+            drawRawTimingRow("treeSurfaceMarks");
+            drawRawTimingRow("treeGui");
+            drawRawTimingRow("treeGuiFonts");
+            drawRawCounterRow("treeLightingNodes");
+            drawRawCounterRow("treeInstancesNodes");
+            drawRawCounterRow("treeShadowNodes");
+            drawRawCounterRow("treeMainNodes");
+            drawRawCounterRow("treeSurfaceMarkNodes");
+            drawRawCounterRow("treeGuiNodes");
+            drawRawCounterRow("baseCubesVisited");
+            drawRawCounterRow("surfaceGuiChildrenVisited");
             ImGui::EndTable();
         }
     }
