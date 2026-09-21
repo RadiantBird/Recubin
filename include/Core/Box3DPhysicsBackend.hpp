@@ -18,6 +18,9 @@ private:
         std::weak_ptr<BaseCube> cube;
         BaseCube* cubeRaw = nullptr;
         b3BodyId bodyId = b3_nullBodyId;
+        // Updated when an assembly is rebuilt. Bulk synchronization must not
+        // rediscover this by scanning every BodyEntry for every cube.
+        bool sharesBody = false;
     };
 
     struct ConstraintEntry {
@@ -113,6 +116,10 @@ private:
         b3BodyId bodyA, b3BodyId bodyB) const;
 
     b3BodyId bodyId(const BaseCube& cube) const;
+    void syncCubeWithBodyState(
+        BaseCube& cube,
+        b3BodyId bodyId,
+        bool sharesBody);
     static SafeHullResult createSafeHull(
         const std::vector<Vector3>& source, const Vector3& scale);
     void reportBoundsFallback(const std::shared_ptr<BaseCube>& cube);

@@ -945,7 +945,7 @@ void Box3DPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
         return;
     }
     assignBody(*cube, id, CFrame());
-    m_bodies.push_back({cube, cube.get(), id});
+    m_bodies.push_back({cube, cube.get(), id, false});
 }
 
 void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
@@ -1019,7 +1019,7 @@ void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
         m_shapeLogOwners[cube.get()] = cube;
     }
     assignBody(*cube, replacement, CFrame());
-    m_bodies.push_back({cube, cube.get(), replacement});
+    m_bodies.push_back({cube, cube.get(), replacement, false});
     if (hadGravitySetting) m_gravityEnabled[cube.get()] = explicitGravity;
     b3Body_Enable(replacement);
     if (!awake && !cube->Anchored) b3Body_SetAwake(replacement, false);
@@ -1185,10 +1185,29 @@ void Box3DPhysicsBackend::clearCubes() {
 void Box3DPhysicsBackend::syncCube(BaseCube& cube) {
     const b3BodyId id = bodyId(cube);
     if (B3_IS_NULL(id)) return;
+
+    const auto entry = std::find_if(
+        m_bodies.begin(),
+        m_bodies.end(),
+        [&](const BodyEntry& value) {
+            return value.cubeRaw == &cube;
+        });
+    if (entry == m_bodies.end()) {
+        RCBN_ERROR(
+            "Cannot synchronize Box3D cube \"" << cube.getFullPath()
+            << "\": native body exists without a BodyEntry");
+        return;
+    }
+    const bool sharesBody = entry->sharesBody;
+    syncCubeWithBodyState(cube, id, sharesBody);
+}
+
+void Box3DPhysicsBackend::syncCubeWithBodyState(
+    BaseCube& cube,
+    b3BodyId id,
+    bool sharesBody) {
     if (cube.Anchored) {
-        const bool isCompound = std::count_if(m_bodies.begin(), m_bodies.end(),
-            [&](const BodyEntry& entry) { return idsEqual(entry.bodyId, id); }) > 1;
-        if (isCompound) {
+        if (sharesBody) {
             // Weld compound は body pose を物理側の正として member へ反映する。
             syncCubeWorldCFramePreservingAttachments(
                 cube, bodyWorldFrame(id) * cube.m_compoundLocalOffset);
@@ -1209,8 +1228,12 @@ void Box3DPhysicsBackend::syncCube(BaseCube& cube) {
 
 void Box3DPhysicsBackend::syncAllCubes() {
     for (BodyEntry& entry : m_bodies) {
-        if (auto cube = entry.cube.lock())
-            syncCube(*cube);
+        auto cube = entry.cube.lock();
+        if (!cube || B3_IS_NULL(entry.bodyId) ||
+            !b3Body_IsValid(entry.bodyId)) {
+            continue;
+        }
+        syncCubeWithBodyState(*cube, entry.bodyId, entry.sharesBody);
     }
 }
 
@@ -2462,6 +2485,13 @@ void Box3DPhysicsBackend::rebuildAssembly(
         }
     }
 
+    const std::size_t liveMemberCount = std::count_if(
+        assembly.begin(),
+        assembly.end(),
+        [](const std::shared_ptr<BaseCube>& cube) {
+            return static_cast<bool>(cube);
+        });
+    const bool sharesBody = liveMemberCount > 1;
     for (const auto& cube : assembly) {
         if (!cube) continue;
         const CFrame local = localFrames[cube.get()];
@@ -2470,9 +2500,11 @@ void Box3DPhysicsBackend::rebuildAssembly(
             m_bodies.begin(), m_bodies.end(),
             [&](const BodyEntry& entry) { return entry.cubeRaw == cube.get(); });
         if (found == m_bodies.end())
-            m_bodies.push_back({cube, cube.get(), newBody});
-        else
+            m_bodies.push_back({cube, cube.get(), newBody, sharesBody});
+        else {
             found->bodyId = newBody;
+            found->sharesBody = sharesBody;
+        }
     }
     b3Body_Enable(newBody);
 

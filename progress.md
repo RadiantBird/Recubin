@@ -1252,3 +1252,10 @@
 - Rendererが4フレーム分のOpenGL timestamp query ringを所有し、メインcontextの描画全体と、最初の有効ViewportのShadow、Main Geometry、Surface Marks、ExtrasをGPU側で計測する。最終queryの`GL_QUERY_RESULT_AVAILABLE`だけをpollし、全slotがpendingなら採取を省略してCPUを待たせない。query非対応、生成GL error、0 IDはwarningとProfilerのUnavailable表示で観測可能にした。
 - FrameProfilerにCPU `endFrame()`から独立したGPU履歴を追加し、未解決queryを0msとして混入させない。ProfilerはGPU各区間のCurrent/Average/Peakと非同期・VSync非含有の説明を表示する。FPSヘッダーを固定し、長い本文だけをchild regionでスクロールする。
 - `--frame-profiler-regression`を追加し、OpenGL contextを要しないGPU履歴のcurrent/average/peak、固定長wrap、CPU endFrameから0が混入しないことを検査する。FrameProfiler、ProfilerPanel、Localization、Renderer、test_mainのGCC C++23 syntax checkと対象差分の`git diff --check`は成功。Renderer/test_mainはWSLのGLU header不足を避けるため`-DGLEW_NO_GLU`で検査した。Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。WSLからの専用回帰はWindowsプロセス開始前に`UtilBindVsockAnyPort:309: socket failed 1`で停止したため、Windows側での実行待ち。
+
+### 2026-09-21: Box3D bulk cube synchronization complexity
+
+- `Box3DPhysicsBackend::syncAllCubes()`は全Bodyを処理する一方、各Anchored Cubeの`syncCube()`が共有Body判定のため再び全`m_bodies`を`count_if`しており、3150 Cubeで約992万回/フレームのBody ID比較になる二乗処理だった。
+- `BodyEntry`へWeld assembly再構築時に更新される`sharesBody`を追加し、bulk同期では現在のentryのbody IDと共有状態を直接`syncCubeWithBodyState()`へ渡すよう変更した。単独Bodyの生成・再生成ではfalse、assembly再構築ではlive member数に基づいて設定する。個別`syncCube()`も対応entryを一度検索し、native bodyだけ存在する不整合はpath付きerrorとして観測する。
+- 単独Anchored Cubeを毎フレームBox3Dへ同期する既存挙動は、親Spatial移動等の契約を変えず第一段階の効果だけ測るため維持した。計算量はbulk経路でO(N^2)からO(N)になった。
+- `Box3DPhysicsBackend.cpp`のGCC C++23構文検査、対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。`--physics-lifecycle-regression --physics=box3d`はWSLの`UtilBindVsockAnyPort:309: socket failed 1`でWindowsプロセスを開始できず未実行。次の一手はWindows上で同回帰を実行し、3150セル・同一カメラ・同一VSync設定でFPSを変更前と比較すること。
