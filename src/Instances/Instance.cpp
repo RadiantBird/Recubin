@@ -1,5 +1,6 @@
 #include "include/Instances/Instance.hpp"
 #include "include/Instances/Spatial.hpp"
+#include "include/Instances/Workspace.hpp"
 #include "include/Util/Logger.hpp"
 #include <algorithm>
 #include <cassert>
@@ -64,6 +65,16 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
     auto currentParent = this->Parent.lock();
     if (currentParent == newParent) return;
 
+    auto findWorkspace = [](std::shared_ptr<Instance> node) -> Workspace* {
+        while (node) {
+            if (node->IsA("Workspace")) return static_cast<Workspace*>(node.get());
+            node = node->Parent.lock();
+        }
+        return nullptr;
+    };
+    Workspace* oldWorkspace = findWorkspace(currentParent);
+    Workspace* newWorkspace = findWorkspace(newParent);
+
     std::vector<SpatialPose> savedSpatialPoses;
     snapshotSpatialTree(*this, savedSpatialPoses);
 
@@ -86,6 +97,7 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
     }
 
     // 古い親のリストから自分を削除
+    if (oldWorkspace) oldWorkspace->unregisterRenderSubtree(this);
     if (currentParent) {
         currentParent->children.erase(this->Name);
     }
@@ -103,6 +115,7 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
         }
         newParent->children[this->Name] = shared_from_this();
     }
+    if (newWorkspace) newWorkspace->registerRenderSubtree(this);
 
     if (currentParent) currentParent->onChildrenChanged();
     if (newParent) newParent->onChildrenChanged();

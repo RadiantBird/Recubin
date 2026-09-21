@@ -18,7 +18,7 @@ CastShadowの有効・無効でFPSが大きく変わらず、ProfilerでGPU Main
 
 一方、ProfilerのGPU欄にある `gpuMain` はOpenGL timestamp queryによるGPU側の計測であり、CPU `main` とは別の値である。GPU Main Geometryが短くても、CPU描画準備が重い可能性は矛盾しない。
 
-## 1フレーム内の主な全体走査
+## 実装前に確認した主な全体走査
 
 ### `renderViewport()` 内
 
@@ -54,7 +54,7 @@ ViewportのGUI描画では `renderGameGui()` から次の処理が呼ばれる�
 
 SurfaceGui自身も、ベイクが必要な場合に `computeRenderContentSignature()` を実行し、直接子を少なくとも二度走査する。したがってSurfaceGuiの数と各SurfaceGuiの子要素数が増えると、全Workspace走査とは別に、GUI子要素の反復コストも増える。
 
-## 現時点で断定できること / できないこと
+## 実装前の判定
 
 ### 断定できること
 
@@ -70,7 +70,7 @@ SurfaceGui自身も、ベイクが必要な場合に `computeRenderContentSignat
 - SurfaceGuiが主因か、Model/Folder/Characterを含む一般的なツリー走査が主因か。
 - `getWorldCFrame()`、`IsA()`、`getFullPath()`、OpenGL API呼び出し、GUI描画のどれが走査中の主要コストか。
 
-## 最も安い判別方法
+## 実装した計測と判別方法
 
 実装を最適化せず、以下のカウンタを既存のFrameProfilerへ追加した。
 
@@ -88,6 +88,14 @@ CastShadowのON/OFF、SurfaceGuiあり/なし、同じシーンで各1分ずつ�
 - SurfaceGuiあり/なしで `treeGui`または`surfaceGuiChildrenVisited`とCPU `render`が同時に大きく変わるなら、SurfaceGui経路が候補。
 - どの専用時間も小さく、`main`だけが大きい場合は、`getWorldCFrame()`、形状判定、個別GL状態設定、draw call発行の内訳を次に分ける。
 
+## キャッシュ実装後の状態と次の確認
+
+Workspaceの描画キャッシュ導入後、Renderer / Renderer_GUIの通常描画経路は型別vectorを参照する。Renderer本体に残る`getChildren()`は、選択対象の局所的な子孫収集、BaseCubeや制約の直接子判定、Workspace直下以外の非描画補助処理に限られる。SurfaceGui／BillboardGuiの直接子走査は、各GUIの内容描画・署名・ヒットテストに必要な局所走査であり、Workspace全体の再帰ではない。
+
+キャッシュの正しさは`Instance::setParent()`からのsubtree登録・解除で維持する。Sceneロード、clone、削除、親変更は既存のaddChild/removeChild/setParent経路を通るため、通常のライフサイクルではキャッシュへ反映される。
+
+次の手動確認では、Profilerの`Tree Traversal`表でcache entry処理数を確認し、CastShadow ON/OFFとSurfaceGuiあり/なしでCPU時間を比較する。最適化前の旧カウンタと単純比較するのではなく、`tree*Nodes`は「再帰ノード数」から「cache entry処理数」へ意味が変わった点に注意する。
+
 ## 次の最適化候補
 
 計測で再帰走査が支配的と確認できた場合は、毎フレームの全ツリー探索をいきなり共通化するより、まずWorkspace側に変更時更新の描画レジストリを持たせるのが安全である。候補はBaseCube、SurfaceMark、LightSource、ParticleEmitter、ScreenGuiObject、BaseCube直下のWorldGuiである。
@@ -101,3 +109,13 @@ CastShadowのON/OFF、SurfaceGuiあり/なし、同じシーンで各1分ずつ�
 - `src/Editor/ViewportPanel.cpp`: Editorビューポートからの `renderViewport()` と `renderGameGui()` 呼び出し
 - `src/Editor/EditorManager.cpp`: 毎フレームの `prepareGuiFonts()` 呼び出し
 - `src/Editor/ProfilerPanel.cpp`: CPU `render` / `main` とGPU `gpuMain`の表示
+
+## 実装結果（2026-09-21）
+
+Workspaceに全Instanceと描画型別のraw pointer cacheを追加し、Instanceのattach/detach時にsubtree単位で登録・解除するようにした。これによりclone、Sceneロード、削除、親変更は既存のsetParent経路からcacheへ反映される。Workspace破棄時はcacheをclearする。
+
+Renderer / Renderer_GUIのLighting、BaseCube、SurfaceMark、LightSource、ParticleEmitter、Highlight、Terrain、Weather、PostEffect、制約、Physics debug、ScreenGui、SurfaceGui、BillboardGui / ProximityPromptの対象取得はcache走査へ置換した。描画順、可視条件、SurfaceGuiの直接子処理、WorldGuiObject配下のScreenGui除外は維持している。
+
+既存の`tree*Nodes`カウンタ名は互換のため維持し、意味を「再帰ツリー訪問数」から「描画cache entry処理数」へ変更した。`surfaceGuiChildrenVisited`は直接親がBaseCubeであるGUIだけを数える。
+
+検証: `py .\build.py build` によりRecubin、RecubinEngine、RecubinTestのWindows Releaseビルドが成功した。既存のAPIENTRY等の警告と、Developer Command Prompt外のためlauncher buildがスキップされた状態は変更していない。

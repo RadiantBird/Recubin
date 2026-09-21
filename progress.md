@@ -1240,6 +1240,13 @@
 - Settingsへ既定ONのVSync診断トグルを追加し、メインcontextへ即時適用する。`editor_settings.yaml`の`Preferences.VSync`へ保存・復元する。
 - `--gui-visibility-regression`へSurfaceGui override述語のtexture/Visible/child可視性遷移とclone cache非継承を追加した。変更した9 translation unitのGCC C++23構文検査と対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功した。WSLからの`--gui-visibility-regression`はWindowsプロセス開始前に`UtilBindVsockAnyPort:309: socket failed 1`で停止したため、Windows側での実行待ち。
 
+### 2026-09-21: Workspace描画対象キャッシュ
+
+- Workspaceへ全Instanceと型別描画対象のraw pointer vector cacheを追加し、`Instance::setParent()`のsubtree attach/detachで登録・解除するようにした。BaseCube、SurfaceMark、LightSource、ParticleEmitter、ScreenGuiObject、WorldGuiObject、SurfaceGui、PostEffect、Highlight、Lighting、Weather、Terrainを保持する。
+- Renderer / Renderer_GUIのLighting、Cube、SurfaceMark、Shadow/Main対象、制約、Physics debug、Particle、Terrain、Weather、PostEffect、ScreenGui、SurfaceGui、BillboardGui / ProximityPromptのWorkspace全体再帰収集をcache走査へ置換した。Sun/Moon/Skyboxの残存Workspace直下走査もBaseCube cacheへ置換した。SurfaceGui等の直接子走査と選択対象の局所走査は維持した。
+- Profilerの`tree*Nodes`はcache entry処理数として継続し、報告書を実装後の意味へ更新した。`treeSurfaceMarks`のCPU計測区間がcache収集を含むよう修正した。
+- 検証: `py .\\build.py build`でRecubin / RecubinEngine / RecubinTestのWindows Release build成功、`git diff --check`成功、Diagnosticsエラーなし。キャッシュのreparent/clone/delete回帰と実機Profiler値の確認は未実施。次の一手はWindows側で既存GUI/Scene回帰とProfilerのCastShadow・SurfaceGui比較を実行する。
+
 ### 2026-09-21: asynchronous GPU profiler timing
 
 - Rendererが4フレーム分のOpenGL timestamp query ringを所有し、メインcontextの描画全体と、最初の有効ViewportのShadow、Main Geometry、Surface Marks、ExtrasをGPU側で計測する。最終queryの`GL_QUERY_RESULT_AVAILABLE`だけをpollし、全slotがpendingなら採取を省略してCPUを待たせない。query非対応、生成GL error、0 IDはwarningとProfilerのUnavailable表示で観測可能にした。

@@ -86,33 +86,6 @@ void Renderer::createMeshFallbackTexture() {
 
 Renderer* Renderer::instance = nullptr;
 
-static Lighting* findLightingInTree(Instance* inst) {
-    if (!inst) return nullptr;
-    FrameProfiler::get().addCount("treeLightingNodes", 1);
-    if (inst->IsA("Lighting")) return static_cast<Lighting*>(inst);
-    for (auto& [name, child] : inst->getChildren()) {
-        Lighting* found = findLightingInTree(child.get());
-        if (found) return found;
-    }
-    return nullptr;
-}
-
-// Point/Spot ライトを再帰収集（複数光源シェーディング用）
-static void collectLights(Instance* inst, std::vector<LightSource*>& out) {
-    if (!inst) return;
-    if (inst->IsA("LightSource")) out.push_back(static_cast<LightSource*>(inst));
-    for (auto& [name, child] : inst->getChildren())
-        collectLights(child.get(), out);
-}
-
-// ParticleEmitter を再帰収集（描画専用。シミュレーションはここでは行わない）
-static void collectParticleEmitters(Instance* inst, std::vector<ParticleEmitter*>& out) {
-    if (!inst) return;
-    if (inst->IsA("ParticleEmitter")) out.push_back(static_cast<ParticleEmitter*>(inst));
-    for (auto& [name, child] : inst->getChildren())
-        collectParticleEmitters(child.get(), out);
-}
-
 // BaseCube派生の描画用VAO/インデックス数を、BaseCube::getHighlightVAO/getHighlightIndexCountから取得してバインドする。
 // 戻り値: 描画可能なジオメトリがあれば true（VAOバインド済み・outIndexCountセット済み）
 static bool bindHighlightGeometry(BaseCube* target, GLsizei& outIndexCount) {
@@ -220,13 +193,6 @@ static void collectHighlightTargets(Instance* parent, std::vector<BaseCube*>& ou
 }
 
 // Highlight インスタンスを再帰収集（collectParticleEmittersと同じ形）
-static void collectHighlightInstances(Instance* inst, std::vector<Highlight*>& out) {
-    if (!inst) return;
-    if (inst->IsA("Highlight")) out.push_back(static_cast<Highlight*>(inst));
-    for (auto const& [name, child] : inst->getChildren())
-        collectHighlightInstances(child.get(), out);
-}
-
 // ---- メインカメラパス用フラスタムカリング ----
 // view*projection合成行列からGribb-Hartmann法で6平面(左右下上近遠)を抽出する。
 // Matrix4はOpenGL準拠の列優先(column-major)なのでm[col*4+row]でアクセスする。
@@ -1110,10 +1076,8 @@ void Renderer::renderClouds(Workspace& workspace, const Matrix4& view, const Mat
                              const Vector3& cameraPosition) {
     if (!m_cloudShader || !m_cloudNoiseTex) return;
 
-    Weather* weather = nullptr;
-    for (auto const& [name, child] : workspace.getChildren()) {
-        if (child->IsA("Weather")) { weather = static_cast<Weather*>(child.get()); break; }
-    }
+    Weather* weather = workspace.getRenderWeathers().empty()
+        ? nullptr : workspace.getRenderWeathers().front();
     if (!weather || !weather->Enabled) return;
 
     float halfSize = 2000.0f;
@@ -1164,10 +1128,8 @@ void Renderer::renderLightning(Workspace& workspace, const Matrix4& view, const 
                                 const Vector3& cameraPosition) {
     if (!m_lineShader) return;
 
-    Weather* weather = nullptr;
-    for (auto const& [name, child] : workspace.getChildren()) {
-        if (child->IsA("Weather")) { weather = static_cast<Weather*>(child.get()); break; }
-    }
+    Weather* weather = workspace.getRenderWeathers().empty()
+        ? nullptr : workspace.getRenderWeathers().front();
     if (!weather || !weather->Enabled) return;
 
     float alpha = weather->getLightningBoltAlpha();
@@ -1216,7 +1178,7 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(ribbon.size() / 3));
     };
 
-    auto scan = [&](auto& self, Instance* inst) -> void {
+    auto scan = [&](Instance* inst) -> void {
         if (!inst) return;
 
         if (inst->getClassName() == "Rope") {
@@ -1262,14 +1224,8 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
             }
         }
 
-        for (auto const& [name, child] : inst->getChildren()) {
-            self(self, child.get());
-        }
     };
-
-    for (auto const& [name, child] : workspace.getChildren()) {
-        scan(scan, child.get());
-    }
+    for (Instance* inst : workspace.getRenderInstances()) scan(inst);
 
     glBindVertexArray(0);
     glUseProgram(shaderProgram);
@@ -1374,7 +1330,7 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
         drawSegment(tip, tip - n * h - v * (h * 0.6f));
     };
 
-    auto scan = [&](auto& self, Instance* inst) -> void {
+    auto scan = [&](Instance* inst) -> void {
         if (!inst) return;
         const std::string cn = inst->getClassName();
 
@@ -1483,11 +1439,8 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
             }
         }
 
-        for (auto const& [name, child] : inst->getChildren())
-            self(self, child.get());
     };
-    for (auto const& [name, child] : workspace.getChildren())
-        scan(scan, child.get());
+    for (Instance* inst : workspace.getRenderInstances()) scan(inst);
 
     glBindVertexArray(0);
     glUseProgram(shaderProgram);
@@ -1500,8 +1453,7 @@ void Renderer::renderParticles(Workspace& workspace, const Matrix4& view, const 
                                 const Vector3& cameraRight, const Vector3& cameraUp) {
     if (!m_particleShader) return;
 
-    std::vector<ParticleEmitter*> emitters;
-    collectParticleEmitters(static_cast<Instance*>(&workspace), emitters);
+    const auto& emitters = workspace.getRenderParticleEmitters();
     if (emitters.empty()) return;
 
     Vector3 billR = cameraRight;
@@ -2048,18 +2000,8 @@ void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int wid
     if (!m_postShader || width <= 0 || height <= 0) return;
 
     std::vector<PostEffect*> effects;
-    auto collect = [&](auto& self, Instance* inst) -> void {
-        if (!inst) return;
-        if (inst->IsA("PostEffect")) {
-            auto* pe = static_cast<PostEffect*>(inst);
-            if (pe->Enabled) effects.push_back(pe);
-        }
-        for (auto const& [name, child] : inst->getChildren()) {
-            self(self, child.get());
-        }
-    };
-    for (auto const& [name, child] : workspace.getChildren()) {
-        collect(collect, child.get());
+    for (PostEffect* pe : workspace.getRenderPostEffects()) {
+        if (pe && pe->Enabled) effects.push_back(pe);
     }
     if (effects.empty()) return;
 
@@ -2273,9 +2215,7 @@ void Renderer::drawDecalFaceHighlight(Decal* decal, const Color4& outlineColor,
 
 void Renderer::renderInstanceHighlights(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                                          const Vector3& cameraPosition, float fovYDegrees, int viewportHeightPx) {
-    std::vector<Highlight*> highlights;
-    for (auto const& [name, child] : workspace.getChildren())
-        collectHighlightInstances(child.get(), highlights);
+    const auto& highlights = workspace.getRenderHighlights();
 
     for (Highlight* hl : highlights) {
         if (!hl->Enabled) continue;
@@ -2338,16 +2278,18 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     Lighting* lighting = nullptr;
     {
         FrameProfiler::Scope treeLighting("treeLighting");
-        lighting = findLightingInTree(static_cast<Instance*>(desc.workspace));
+        const auto& lightings = desc.workspace->getRenderLightings();
+        FrameProfiler::get().addCount("treeLightingNodes", (long long)lightings.size());
+        if (!lightings.empty()) lighting = lightings.front();
     }
 
     // Sun・Moon の位置を毎フレーム Angle から再計算（フォーカス外でも Angle 変更を即反映するため）
     {
         Sun*  sunInst  = nullptr;
         Moon* moonInst = nullptr;
-        for (auto const& [name, child] : desc.workspace->getChildren()) {
-            if (child->IsA("Sun"))       sunInst  = static_cast<Sun*>(child.get());
-            else if (child->IsA("Moon")) moonInst = static_cast<Moon*>(child.get());
+        for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) {
+            if (cube->IsA("Sun"))       sunInst = static_cast<Sun*>(cube);
+            else if (cube->IsA("Moon")) moonInst = static_cast<Moon*>(cube);
         }
         if (sunInst) {
             float rad = sunInst->Angle * (3.14159265f / 180.0f);
@@ -2361,9 +2303,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     // Skybox の位置をカメラに同期 (フォーカス中のみ)
     if (desc.isFocused) {
-        for (auto const& [name, child] : desc.workspace->getChildren()) {
-            if (child->IsA("Skybox")) {
-                static_cast<BaseCube*>(child.get())->teleportTo(desc.cameraPosition);
+        for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) {
+            if (cube->IsA("Skybox")) {
+                cube->teleportTo(desc.cameraPosition);
             }
         }
     }
@@ -2374,7 +2316,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         m_instBatches[shapeIdx].shadow.clear();
     }
     long long instCulled = 0;
-    auto collectInstCubes = [&](auto& self, Instance* inst) -> void {
+    auto collectInstCubes = [&](Instance* inst) -> void {
         if (!inst) return;
         FrameProfiler::get().addCount("treeInstancesNodes", 1);
         if (inst->IsA("BaseCube")) {
@@ -2402,11 +2344,10 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 }
             }
         }
-        for (auto const& [name, child] : inst->getChildren()) self(self, child.get());
     };
     {
         FrameProfiler::Scope treeInstances("treeInstances");
-        for (auto const& [name, child] : desc.workspace->getChildren()) collectInstCubes(collectInstCubes, child.get());
+        for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) collectInstCubes(cube);
     }
     if (instCulled > 0) FrameProfiler::get().addCount("cubesCulled", instCulled);
 
@@ -2629,7 +2570,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 }
             }
 
-        auto shadowRender = [&](auto& self, Instance* inst) -> void {
+        auto shadowRender = [&](Instance* inst) -> void {
             if (!inst) return;
             FrameProfiler::get().addCount("treeShadowNodes", 1);
             const int shadowShapeIdx = inst->IsA("BaseCube")
@@ -2676,18 +2617,13 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, 0.0f);
                 }
             }
-            for (auto const& [name, child] : inst->getChildren()) {
-                self(self, child.get());
-            }
         };
-        for (auto const& [name, child] : desc.workspace->getChildren()) {
-            shadowRender(shadowRender, child.get());
-        }
+        for (Instance* inst : desc.workspace->getRenderInstances()) shadowRender(inst);
 
         // ---- Terrain Shadow ----
         Matrix4 identity;
         glUniformMatrix4fv(modelDepthLoc, 1, GL_FALSE, identity.m);
-        for (Terrain* terrain : SceneRuntime::collectTerrains(desc.workspace)) {
+        for (Terrain* terrain : desc.workspace->getRenderTerrains()) {
             if (!terrain->Enabled || !terrain->streamer) continue;
             for (auto& [key, entry] : terrain->streamer->getChunks()) {
                 const Chunk& chunk = entry.chunk;
@@ -2743,8 +2679,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     // ---- 追加 Point/Spot 光源を uniform 配列へ ----
     {
-        std::vector<LightSource*> lights;
-        collectLights(static_cast<Instance*>(desc.workspace), lights);
+        const auto& lights = desc.workspace->getRenderLights();
         int count = 0;
         for (LightSource* ls : lights) {
             if (count >= MAX_LIGHTS) break;
@@ -2827,7 +2762,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     const int baseCubeTintColorLoc = cachedUniformLocation(shaderProgram, baseCubeTintColorCache, "uTextureTintColor");
     const int baseCubeUseTintLoc = cachedUniformLocation(shaderProgram, baseCubeUseTintCache, "uUseTextureTint");
 
-    auto renderInst = [&](auto& self, Instance* inst) -> void {
+    auto renderInst = [&](Instance* inst) -> void {
         if (!inst) return;
         FrameProfiler::get().addCount("treeMainNodes", 1);
         if (inst->IsA("BaseCube")) {
@@ -2937,9 +2872,6 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 }
             }
         }
-        for (auto const& [name, child] : inst->getChildren()) {
-            self(self, child.get());
-        }
     };
 
     // ---- 素のプリミティブ形状のインスタンス一括描画（不透明なので最初に描く） ----
@@ -2982,9 +2914,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     {
         FrameProfiler::Scope treeMain("treeMain");
-        for (auto const& [name, child] : desc.workspace->getChildren()) {
-            renderInst(renderInst, child.get());
-        }
+        for (Instance* inst : desc.workspace->getRenderInstances()) renderInst(inst);
     }
 
     // renderClouds/renderParticles等はGL_BLENDが常時有効という前提のため復元する
@@ -2999,17 +2929,17 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     // later marks naturally appear above earlier marks.
     std::vector<SurfaceMark*> surfaceMarks;
     std::vector<BaseCube*> surfaceTargets;
-    auto collectSurface = [&](auto& self, Instance* inst) -> void {
-        if (!inst) return;
-        FrameProfiler::get().addCount("treeSurfaceMarkNodes", 1);
-        if (inst->IsA("SurfaceMark")) {
-            auto* mark = static_cast<SurfaceMark*>(inst);
+    {
+        FrameProfiler::Scope treeSurfaceMarks("treeSurfaceMarks");
+        for (SurfaceMark* mark : desc.workspace->getRenderSurfaceMarks()) {
+            FrameProfiler::get().addCount("treeSurfaceMarkNodes", 1);
             if (std::isfinite(mark->Size.x) && std::isfinite(mark->Size.y) && std::isfinite(mark->Size.z) &&
                 std::isfinite(mark->Color.r) && std::isfinite(mark->Color.g) &&
                 std::isfinite(mark->Color.b) && std::isfinite(mark->Color.a) &&
                 mark->Size.x > 0.0f && mark->Size.y > 0.0f && mark->Size.z > 0.0f) surfaceMarks.push_back(mark);
-        } else if (inst->IsA("BaseCube")) {
-            BaseCube* cube = static_cast<BaseCube*>(inst);
+        }
+        for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) {
+            FrameProfiler::get().addCount("treeSurfaceMarkNodes", 1);
             const std::string cn = cube->getClassName();
             const bool visible = cube->Color.a > 0.001f || (cube->IsA("MeshCube") && static_cast<MeshCube*>(cube)->isUsingFallback());
             const bool hasGeometry = cube->IsA("LiquidCube") ||
@@ -3017,11 +2947,6 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             if (cn != "Skybox" && cn != "Sun" && cn != "Moon" && visible && hasGeometry)
                 surfaceTargets.push_back(cube);
         }
-        for (auto const& [name, child] : inst->getChildren()) self(self, child.get());
-    };
-    {
-        FrameProfiler::Scope treeSurfaceMarks("treeSurfaceMarks");
-        for (auto const& [name, child] : desc.workspace->getChildren()) collectSurface(collectSurface, child.get());
     }
     std::sort(surfaceMarks.begin(), surfaceMarks.end(), [](SurfaceMark* a, SurfaceMark* b) {
         return a->getFullPath() < b->getFullPath();
@@ -3251,6 +3176,8 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
     FrameProfiler::get().beginSection("render");
     // Register per-frame counters even when the value is zero, so the
     // Profiler distinguishes an inactive path from missing instrumentation.
+    // The tree*Nodes counters now count render-cache entries processed; they
+    // no longer represent recursive Workspace node visits.
     FrameProfiler::get().addCount("cubesDrawn", 0);
     FrameProfiler::get().addCount("cubesCulled", 0);
     FrameProfiler::get().addCount("instanced", 0);
@@ -3454,7 +3381,7 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection, Wor
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, whiteTexture);
 
-    for (Terrain* terrain : SceneRuntime::collectTerrains(workspace)) {
+    for (Terrain* terrain : workspace->getRenderTerrains()) {
         if (!terrain || !terrain->Enabled || !terrain->streamer) continue;
         for (auto& [key, entry] : terrain->streamer->getChunks()) {
             const Chunk& chunk = entry.chunk;

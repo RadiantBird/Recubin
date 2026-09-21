@@ -120,22 +120,10 @@ ImFont* Renderer::loadGuiFont(ScreenGuiObject* sgo) {
     return loaded;
 }
 
-static void collectFontFileUsers(Instance* node, std::vector<ScreenGuiObject*>& out) {
-    if (!node) return;
-    FrameProfiler::get().addCount("treeGuiNodes", 1);
-    if (node->IsA("ScreenGuiObject"))
-        out.push_back(static_cast<ScreenGuiObject*>(node));
-    for (const auto& [name, child] : node->getChildren()) {
-        (void)name;
-        collectFontFileUsers(child.get(), out);
-    }
-}
-
 void Renderer::prepareGuiFonts(Workspace& workspace) {
     FrameProfiler::Scope treeGuiFonts("treeGuiFonts");
-    std::vector<ScreenGuiObject*> guiObjects;
-    collectFontFileUsers(sceneRoot(&workspace), guiObjects);
-    for (ScreenGuiObject* guiObject : guiObjects) {
+    for (ScreenGuiObject* guiObject : workspace.getRenderScreenGuiObjects()) {
+        FrameProfiler::get().addCount("treeGuiNodes", 1);
         if (guiObject->UseFontFile)
             loadGuiFont(guiObject);
     }
@@ -171,33 +159,13 @@ void Renderer::renderRuntimeChat(float vpX, float vpY, float vpW, float vpH) {
     if (auto service = m_chatService.lock()) m_chatOverlay.render(*service, vpX, vpY, vpW, vpH);
 }
 
-// ===================================================
-//  ScreenGuiObject の再帰収集
-// ===================================================
-static void collectScreenGui(Instance* node, std::vector<ScreenGuiObject*>& out) {
-    if (!node) return;
-    FrameProfiler::get().addCount("treeGuiNodes", 1);
-    for (auto& [name, child] : node->getChildren()) {
-        // WorldGuiObject (SurfaceGui, BillboardGui等) の子はベイク専用なのでスキップ
-        if (child->IsA("WorldGuiObject")) continue;
-        if (child->IsA("ScreenGuiObject")) {
-            out.push_back(static_cast<ScreenGuiObject*>(child.get()));
-        }
-        collectScreenGui(child.get(), out);
+static bool hasWorldGuiAncestor(ScreenGuiObject* object) {
+    auto parent = object ? object->Parent.lock() : nullptr;
+    while (parent) {
+        if (parent->IsA("WorldGuiObject")) return true;
+        parent = parent->Parent.lock();
     }
-}
-
-// SurfaceGui/BillboardGui のホストをWorkspace直下に限定しない。
-// Model/Folderなどの下にあるBaseCubeも、ワールドGUIの描画対象に含める。
-static void collectWorldGuiHosts(Instance* node, std::vector<BaseCube*>& out) {
-    if (!node) return;
-    FrameProfiler::get().addCount("treeGuiNodes", 1);
-    if (node->IsA("BaseCube")) {
-        out.push_back(static_cast<BaseCube*>(node));
-    }
-    for (auto const& [name, child] : node->getChildren()) {
-        collectWorldGuiHosts(child.get(), out);
-    }
+    return false;
 }
 
 // ===================================================
@@ -497,7 +465,10 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
 // ===================================================
 void Renderer::renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH) {
     std::vector<ScreenGuiObject*> elements;
-    collectScreenGui(&ws, elements);
+    for (ScreenGuiObject* object : ws.getRenderScreenGuiObjects()) {
+        FrameProfiler::get().addCount("treeGuiNodes", 1);
+        if (!hasWorldGuiAncestor(object)) elements.push_back(object);
+    }
     if (elements.empty()) return;
 
     // Norm::Pixel 要素のスケール係数: System.BaseResolution に対する現在のビューポート比率
@@ -741,16 +712,12 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
     const float vpY = context.viewportY;
     const float vpW = context.viewportWidth;
     const float vpH = context.viewportHeight;
-    std::vector<BaseCube*> guiHosts;
-    collectWorldGuiHosts(&ws, guiHosts);
-
     // SurfaceGui を FBO テクスチャにベイク（次フレームの 3D 描画で使用）
-    for (BaseCube* cube : guiHosts) {
-        for (auto& [gname, ginst] : cube->getChildren()) {
-            FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 1);
-            if (ginst->getClassName() == "SurfaceGui")
-                bakeSurfaceGui(static_cast<SurfaceGui*>(ginst.get()));
-        }
+    for (SurfaceGui* sg : ws.getRenderSurfaceGuis()) {
+        auto parent = sg ? sg->Parent.lock() : nullptr;
+        if (!parent || !parent->IsA("BaseCube")) continue;
+        FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 1);
+        bakeSurfaceGui(sg);
     }
 
     // SurfaceGui クリック判定: 全キューブの全 SurfaceGui からレイと最も近く交差したボタンを探して発火する
@@ -766,18 +733,17 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
 
             float bestT = 1e30f;
             GuiButton* bestBtn = nullptr;
-            for (BaseCube* cube : guiHosts) {
-                for (auto& [gname, ginst] : cube->getChildren()) {
-                    FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 1);
-                    if (ginst->getClassName() != "SurfaceGui") continue;
-                    auto* sg = static_cast<SurfaceGui*>(ginst.get());
-                    if (!sg->Visible) continue;
+            for (SurfaceGui* sg : ws.getRenderSurfaceGuis()) {
+                auto parent = sg ? sg->Parent.lock() : nullptr;
+                if (!parent || !parent->IsA("BaseCube")) continue;
+                FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 1);
+                auto* cube = static_cast<BaseCube*>(parent.get());
+                if (!sg->Visible) continue;
 
-                    float t; ScreenGuiObject* hitChild = nullptr;
-                    if (hitTestSurfaceGui(sg, cube, rayOri, rayDir, t, hitChild) && t < bestT) {
-                        bestT   = t;
-                        bestBtn = static_cast<GuiButton*>(hitChild);
-                    }
+                float t; ScreenGuiObject* hitChild = nullptr;
+                if (hitTestSurfaceGui(sg, cube, rayOri, rayDir, t, hitChild) && t < bestT) {
+                    bestT   = t;
+                    bestBtn = static_cast<GuiButton*>(hitChild);
                 }
             }
             if (bestBtn && m_onButtonActivated) m_onButtonActivated(bestBtn);
@@ -787,17 +753,16 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
     ImDrawList* dl = ImGui::GetWindowDrawList();
     bool anyPromptHeld = false;
 
-    for (BaseCube* cube : guiHosts) {
+    for (WorldGuiObject* wgo : ws.getRenderWorldGuiObjects()) {
+        if (!wgo || wgo->getClassName() == "SurfaceGui") continue; // 3D フェイス描画に移行
+        auto parent = wgo->Parent.lock();
+        if (!parent || !parent->IsA("BaseCube")) continue;
+        FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 1);
+        BaseCube* cube = static_cast<BaseCube*>(parent.get());
+        if (!wgo->Visible) continue;
 
-        for (auto& [guiName, guiInst] : cube->getChildren()) {
-            FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 1);
-            if (!guiInst->IsA("WorldGuiObject")) continue;
-            auto* wgo = static_cast<WorldGuiObject*>(guiInst.get());
-            if (!wgo->Visible) continue;
-            if (wgo->getClassName() == "SurfaceGui") continue; // 3D フェイス描画に移行
-
-            CFrame cubeWorldCFrame = cube->getWorldCFrame();
-            Vector3 guiCenterOffset(0.0f, 0.0f, 0.0f);
+        CFrame cubeWorldCFrame = cube->getWorldCFrame();
+        Vector3 guiCenterOffset(0.0f, 0.0f, 0.0f);
 
             // SurfaceGui: フェイス中心にオフセット
             if (wgo->IsA("SurfaceGui")) {
@@ -972,7 +937,6 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
 
             drawWorldGuiChildren(dl, wgo, panelX, panelY, pw, ph, m_onButtonActivated,
                                  childScaleX, childScaleY, worldSizeMode);
-        }
     }
 
     if (SystemState::get().isPlaying) {
