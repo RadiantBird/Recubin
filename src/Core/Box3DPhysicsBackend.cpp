@@ -2243,19 +2243,25 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
             FrameProfiler::Scope scope("physics.forces");
             applyForces();
         }
+        FrameProfiler::get().addCount(
+            "physicsAwakeBeforeStep",
+            b3World_GetAwakeBodyCount(m_worldId));
         {
             FrameProfiler::Scope scope("physics.gyro");
             applyGyroForces();
         }
 
-        {
-            FrameProfiler::Scope scope("physics.box3dStep");
-            b3World_Step(
+            {
+                FrameProfiler::Scope scope("physics.box3dStep");
+                b3World_Step(
                 m_worldId,
                 FIXED_STEP,
                 SUB_STEPS
-            );
-        }
+                );
+            }
+        FrameProfiler::get().addCount(
+            "physicsAwakeAfterStep",
+            b3World_GetAwakeBodyCount(m_worldId));
 
         for (auto& diagnostic : m_yawForceDiagnostics) {
             if (B3_IS_NON_NULL(diagnostic.bodyId))
@@ -2272,6 +2278,9 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
             FrameProfiler::Scope scope("physics.maintainedVelocity");
             applyMaintainedVelocities();
         }
+        FrameProfiler::get().addCount(
+            "physicsAwakeAfterMaintain",
+            b3World_GetAwakeBodyCount(m_worldId));
 
         for (const auto& diagnostic : m_yawForceDiagnostics) {
             if (!diagnostic.owner || !diagnostic.force ||

@@ -15,6 +15,8 @@ static const bool s_systemRegistered = []{
         field<&System::EnableIOAPI>("EnableIOAPI").luaReadOnly(),
         field<&System::EnableIPCAPI>("EnableIPCAPI").luaReadOnly(),
         field<&System::EnableExternalFileAccess>("EnableExternalFileAccess").luaReadOnly(),
+        field<&System::AutoSpawnPlayerCharacter>("AutoSpawnPlayerCharacter")
+            .luaReadOnly().group("Runtime"),
         field<&System::MaxClonesPerFrame>("MaxClonesPerFrame", 0.0f, 1000000.0f, 1.0f).luaReadOnly(),
         field<&System::MaxRestartsPerFrame>("MaxRestartsPerFrame", 0.0f, 1000000.0f, 1.0f).luaReadOnly(),
         field<&System::MaxTasksPerFrame>("MaxTasksPerFrame", 0.0f, 1000000.0f, 1.0f).luaReadOnly(),

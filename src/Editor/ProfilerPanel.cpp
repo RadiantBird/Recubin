@@ -266,6 +266,12 @@ void ProfilerPanel::onRender() {
             if (beginMetricTable("##ProfilerRenderingBreakdownTable")) {
                 drawTimingRow("shadow", Loc::LocKey::ProfilerShadow);
                 drawTimingRow("main", Loc::LocKey::ProfilerMainGeometry);
+                drawRawTimingRow("render.instanceCollect");
+                drawRawTimingRow("render.shadowCull");
+                drawRawTimingRow("render.shadowUpload");
+                drawRawTimingRow("render.shadowDraw");
+                drawRawTimingRow("render.mainInstanceUpload");
+                drawRawTimingRow("render.mainInstanceDraw");
                 drawTimingRow(
                     "surfaceMarks", Loc::LocKey::ProfilerSurfaceMarks);
                 drawTimingRow("extras", Loc::LocKey::ProfilerExtras);
@@ -288,6 +294,25 @@ void ProfilerPanel::onRender() {
         }
 
         if (ImGui::CollapsingHeader(
+                "Editor UI Breakdown",
+                ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::TextWrapped(
+                "Per-panel CPU time inside EditorManager::render().");
+            if (beginMetricTable("##ProfilerEditorUiBreakdownTable")) {
+                drawRawTimingRow("ui.sceneHierarchy");
+                drawRawTimingRow("ui.properties");
+                drawRawTimingRow("ui.viewportPanelTotal");
+                drawRawTimingRow("ui.viewportScene");
+                drawRawTimingRow("ui.contentBrowser");
+                drawRawTimingRow("ui.console");
+                drawRawTimingRow("ui.animationEditor");
+                drawRawTimingRow("ui.welcome");
+                drawRawTimingRow("ui.profiler");
+                ImGui::EndTable();
+            }
+        }
+
+        if (ImGui::CollapsingHeader(
                 "Physics Breakdown",
                 ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::TextWrapped(
@@ -303,6 +328,9 @@ void ProfilerPanel::onRender() {
                 drawRawCounterRow("physicsBodies");
                 drawRawCounterRow("physicsContacts");
                 drawRawCounterRow("physicsAwakeBodies");
+                drawRawCounterRow("physicsAwakeBeforeStep");
+                drawRawCounterRow("physicsAwakeAfterStep");
+                drawRawCounterRow("physicsAwakeAfterMaintain");
                 ImGui::EndTable();
             }
         }
@@ -317,6 +345,7 @@ void ProfilerPanel::onRender() {
             drawCounterRow("shadowCubes", Loc::LocKey::ProfilerShadowCubes);
             drawCounterRow(
                 "shadowCubesCulled", Loc::LocKey::ProfilerShadowCubesCulled);
+            drawRawCounterRow("shadowMapReused");
             drawCounterRow(
                 "surfaceGuiBaked", Loc::LocKey::ProfilerSurfaceGuiBaked);
             drawCounterRow(

@@ -1,4 +1,4 @@
-import RuntimeModule
+import type RuntimeModule
 
 local RuntimeModule = require(script.RuntimeModule)
 

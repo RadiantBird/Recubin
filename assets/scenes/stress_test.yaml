@@ -12,10 +12,11 @@ Root:
     EnableIOAPI: false
     EnableIPCAPI: false
     EnableExternalFileAccess: false
-    MaxClonesPerFrame: 1000
+    AutoSpawnPlayerCharacter: false
+    MaxClonesPerFrame: 10000
     MaxRestartsPerFrame: 100
     MaxTasksPerFrame: 1000
-    ScriptLoopTimeoutSeconds: 10
+    ScriptLoopTimeoutSeconds: 30
     DefaultCameraMode: Character
   Children:
     - ClassName: StarterCharacter
@@ -434,7 +435,7 @@ Root:
           Name: User
           Properties:
             ControlMode: Free
-            Speed: 0.25
+            Speed: 1
             RotationSpeed: 1
             MouseRotationSpeed: 0.15
             CharacterSmoothing: 0.15
@@ -508,8 +509,8 @@ Root:
         - ClassName: Cube
           Name: Cube
           Properties:
-            Position: [0, -5, 0]
-            Size: [2048, 1, 2048]
+            Position: [0, -14.5, 0]
+            Size: [2048, 20, 2048]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
             CastShadow: true

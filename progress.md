@@ -1331,3 +1331,56 @@
 - `applyForces()`で`m_yawForceDiagnostics`をBodyごとに全走査していた処理を、`ForceBodyState::yawForceDiagnosticIndices`から直接参照する構造へ変更した。
 - `CharacterRig::collectR6Bodies()`の結果を同一`Model`単位で固定ステップ内にキャッシュし、複数のYawForceが同じRigを参照する場合の重複収集を避けた。診断の登録順とYawForceの適用順は維持した。
 - GCC C++23構文検査・Windows Release build・実機StressTest再計測は未実行。次の一手は構文検査後、YawForceを含むCharacterと大量ForceのProfilerで挙動と`physics.forces`を確認すること。
+
+### 2026-09-23: Renderer VSync bottleneck measurement breakdown
+
+- VSync有効時の16.67ms超過要因を分離するため、RendererのProfilerへ`render.instanceCollect`、`render.shadowCull`、`render.shadowUpload`、`render.shadowDraw`、`render.mainInstanceUpload`、`render.mainInstanceDraw`を追加した。
+- 既存のCPU `shadow`/`main`、GPU Shadow/Main、`swap`計測は維持し、インスタンス収集・Shadow Cascadeごとのカリング/VBO更新/描画・メインVBO更新/描画をProfilerで比較できるようにした。
+- 構文検査、Windows Release build、10,000 CubeのVSync on/off実機比較は未完了。次の一手は同一カメラ・同一VSync条件で安定化後に各区間のCurrent/Average/Peakを記録し、16.67ms超過の発生箇所を特定すること。
+
+### 2026-09-23: Editor UI panel measurement breakdown
+
+- 10,000 Cubeの実機ProfilerでEditor UIが平均約9.3ms、描画本体が約4.5msとなっていたため、`EditorManager::render()`の各Panelを個別計測する区間を追加した。
+- `ui.sceneHierarchy`、`ui.properties`、`ui.viewportPanel`、`ui.contentBrowser`、`ui.console`、`ui.animationEditor`、`ui.welcome`、`ui.profiler`をProfilerのEditor UI Breakdownへ表示する。Profiler自身の描画コストも分離して確認できる。
+- 構文検査、Windows Release build、同一StressTestの再計測は未完了。次の一手はExplorer/Profilerを開いた同一条件で各Panelの平均・最大値を取得し、最も重いPanelだけを最適化すること。
+
+### 2026-09-23: Viewport scene/UI timing separation
+
+- `ui.viewportPanel`がViewportPanel内の`Renderer::renderViewport()`を含むため、Editor UI時間とShadow/Main描画時間が重複して見えていた。Panel全体を`ui.viewportPanelTotal`へ改名し、内部のScene描画を`ui.viewportScene`として個別計測するよう変更した。
+- `render.instanceCollect`、`render.shadowCull`、`render.shadowUpload`、`render.shadowDraw`、`render.mainInstanceUpload`、`render.mainInstanceDraw`とGPU Shadow/Mainの既存計測は維持した。次は同一StressTestでこれらを比較し、CPU収集・Shadowカリング・GPU処理の実ホットパスを特定する。
+
+### 2026-09-23: Box3D sleep transition diagnostics
+
+- `physicsAwakeBeforeStep`、`physicsAwakeAfterStep`、`physicsAwakeAfterMaintain`を追加し、Force/Gyro適用前、Box3D solver後、MaintainVelocity復元後のawake body数を分離して観測できるようにした。
+- これにより、awake bodyの多さがsolverの接触・微小速度由来なのか、毎固定ステップの外部Body操作で再wakeされているのかを判定する。
+- GCC構文検査、Windows Release build、実機StressTest再計測は未完了。次の一手は安定化後に3つのawakeカウンタを比較すること。
+
+### 2026-09-24: Optional local PlayerCharacter spawn
+
+- `System.AutoSpawnPlayerCharacter`（既定`true`）を追加し、ゲームランタイムとエディターPlay開始時のローカルPlayerCharacter自動生成を設定で無効化できるようにした。
+- 無効時は`SceneRuntime::applyDefaultCameraMode()`が`System.DefaultCameraMode`よりFreeを優先する。リモートアバター生成は変更していない。
+- `--default-camera-mode-regression`へYAML保存と、無効時のFreeオーバーライド検査を追加した。構文検査・ビルド・回帰は次の一手。
+
+### 2026-09-24: Renderer redundant BaseCube traversal reduction
+
+- `Renderer::renderViewport()`のインスタンス収集時に、Main/Shadowで個別描画が必要なBaseCubeだけを一時vectorへ分類し、インスタンス描画済みのPrimitive Cubeを後段の`treeMain`/`treeShadow`で再走査しないようにした。
+- `SurfaceMark`が1件もない場合は、20k Cubeを対象にした`surfaceTargets`収集を行わないようにした。描画結果とSurfaceMark存在時の処理は維持した。
+- `Renderer.cpp`のGCC C++23構文検査とWindows Release build（Recubin、RecubinEngine、RecubinTest）は成功。20k Cube実機Profiler再計測は未実行。次の一手は`treeMain`/`treeShadow`/`treeSurfaceMarks`の時間と`render.instanceCollect`を変更前後で比較すること。
+
+### 2026-09-24: Moving-camera shadow refresh throttling
+
+- カメラ移動中にGPU Shadowが毎フレーム約7.8ms発生していたため、RendererへShadow cascade行列・split・blendのキャッシュを追加した。
+- 同一Workspace/FBOでカメラが移動中の連続フレームは、最初の更新後に1フレームおきでShadow mapを再生成し、間のフレームは直前のShadow mapと行列を再利用する。カメラ停止時は毎フレーム更新し、移動中は最大1フレームのShadow表示遅延を許容する。
+- `shadowMapReused`カウンターをProfilerの描画カウンターへ追加した。GCC構文検査、対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。実機で移動時FPS、GPU Shadow平均、`shadowMapReused`を確認することが次の一手。
+
+### 2026-09-24: Profiler panel visibility persistence
+
+- 既存の`main.cpp`のパネル設定保存・復元へ`Panels.Profiler`を追加し、Profilerパネルの開閉状態を`editor_settings.yaml`へ保存・復元するようにした。
+- 先に追加したDear ImGuiの`RecubinProfiler` settings handlerと`imgui.ini`への独自設定出力は削除した。メニュー操作とウィンドウのClose操作は既存の終了時パネル保存経路で扱う。
+- 作業ツリーに残っていた旧`imgui.ini`の`[RecubinProfiler]`セクションは削除し、`Open=1`を`editor_settings.yaml`の`Panels.Profiler: true`へ移行した。`EditorManager.cpp`と`main.cpp`のGCC C++23構文検査、対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。Windows側で一度Profilerを閉じて終了し、次回起動時に復元されることを確認することが次の一手。
+
+### 2026-09-24: Welcome tab startup contract restoration
+
+- `initializeAutosaveRecovery()`がクラッシュリカバリ候補ありの起動時にWelcomeを閉じていたため、リカバリモーダル表示中もWelcomeを開いたままにした。
+- `main.cpp`でもパネル設定・環境設定の復元後にWelcomeを必ず開くようにし、`editor_settings.yaml`や他のPanel状態が起動時のWelcome表示を上書きしないようにした。シーンロード後にWelcomeを閉じる既存動作は維持した。
+- `EditorManager.cpp`と`main.cpp`のGCC C++23構文検査、対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。Windows側でリカバリ候補あり／なしの両方でWelcome表示を確認することが次の一手。

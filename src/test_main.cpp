@@ -8994,6 +8994,26 @@ static int runDefaultCameraModeRegression() {
     expect(unknown.DefaultCameraMode == System::CameraMode::Character,
            "unknown camera mode falls back to Character");
 
+    System noCharacter;
+    noCharacter.AutoSpawnPlayerCharacter = false;
+    noCharacter.DefaultCameraMode = System::CameraMode::Program;
+    YAML::Emitter noCharacterOutput;
+    noCharacterOutput << YAML::BeginMap;
+    PropertyRegistry::saveProperties(noCharacterOutput, &noCharacter, "System");
+    noCharacterOutput << YAML::EndMap;
+    const std::string noCharacterYaml = noCharacterOutput.c_str();
+    expect(noCharacterYaml.find("AutoSpawnPlayerCharacter: false") != std::string::npos,
+           "System YAML stores disabled automatic PlayerCharacter spawning");
+
+    System loadedNoCharacter;
+    loadedNoCharacter.setProperty("AutoSpawnPlayerCharacter", YAML::Node(false));
+    loadedNoCharacter.DefaultCameraMode = System::CameraMode::Program;
+    User noCharacterUser(std::make_unique<NullInputBackend>());
+    SceneRuntime::applyDefaultCameraMode(loadedNoCharacter, noCharacterUser);
+    expect(!loadedNoCharacter.AutoSpawnPlayerCharacter &&
+               noCharacterUser.getControlMode() == User::ControlMode::Free,
+           "disabling automatic PlayerCharacter spawning forces Free camera mode");
+
     std::cout << "[DefaultCameraMode] failures=" << failures
               << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
     return failures == 0 ? 0 : 1;

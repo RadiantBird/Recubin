@@ -2315,6 +2315,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         m_instBatches[shapeIdx].main.clear();
         m_instBatches[shapeIdx].shadow.clear();
     }
+    std::vector<BaseCube*> individuallyRenderedMainCubes;
+    std::vector<BaseCube*> individuallyRenderedShadowCubes;
+    const auto& renderBaseCubes = desc.workspace->getRenderBaseCubes();
     long long instCulled = 0;
     auto collectInstCubes = [&](BaseCube* inst) -> void {
         if (!inst) return;
@@ -2322,6 +2325,12 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         FrameProfiler::get().addCount("baseCubesVisited", 1);
         const int mainShapeIdx = instanceableShapeIndex(inst);
         const int shadowShapeIdx = shadowInstanceableShapeIndex(inst);
+        const bool canInstanceMain = mainShapeIdx >= 0 &&
+            m_uInstancedLoc != -1 && instShapes[mainShapeIdx].vao != 0;
+        const bool canInstanceShadow = shadowShapeIdx >= 0 &&
+            m_uInstancedDepthLoc != -1 && instShapes[shadowShapeIdx].vao != 0;
+        if (!canInstanceMain) individuallyRenderedMainCubes.push_back(inst);
+        if (!canInstanceShadow) individuallyRenderedShadowCubes.push_back(inst);
         if (mainShapeIdx >= 0 || shadowShapeIdx >= 0) {
             CFrame wcf = inst->getWorldCFrame();
             Matrix4 mtx = wcf.toMatrix4() * Matrix4::Scale(inst->Size.x, inst->Size.y, inst->Size.z);
@@ -2344,7 +2353,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     };
     {
         FrameProfiler::Scope treeInstances("treeInstances");
-        for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) collectInstCubes(cube);
+        FrameProfiler::Scope instanceCollect("render.instanceCollect");
+        for (BaseCube* cube : renderBaseCubes) collectInstCubes(cube);
     }
     if (instCulled > 0) FrameProfiler::get().addCount("cubesCulled", instCulled);
 
@@ -2384,6 +2394,30 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     if (desc.renderShadows && lighting && lightDirectionValid &&
         std::isfinite(lighting->shadowDistance) && lighting->shadowDistance > 0.1f &&
         shadowFBO && shadowMapTex && depthShader) {
+        if (m_shadowCacheWorkspace != desc.workspace || m_shadowCacheFbo != desc.fbo) {
+            m_shadowCacheValid = false;
+            m_shadowCameraWasMoving = false;
+            m_shadowMotionFrame = 0;
+            m_shadowCacheWorkspace = desc.workspace;
+            m_shadowCacheFbo = desc.fbo;
+        }
+        const Vector3 normalizedShadowCameraForward = desc.cameraForward.normalize();
+        const bool shadowCameraMoving = !m_shadowCacheValid ||
+            (desc.cameraPosition - m_lastShadowCameraPosition).length() > 0.01f ||
+            Vector3::Dot(normalizedShadowCameraForward, m_lastShadowCameraForward) < 0.9999f;
+        bool updateShadowMap = true;
+        if (shadowCameraMoving) {
+            if (m_shadowCameraWasMoving) {
+                ++m_shadowMotionFrame;
+                updateShadowMap = (m_shadowMotionFrame % 2u) == 0u;
+            }
+        } else {
+            m_shadowMotionFrame = 0;
+        }
+        m_shadowCameraWasMoving = shadowCameraMoving;
+        m_lastShadowCameraPosition = desc.cameraPosition;
+        m_lastShadowCameraForward = normalizedShadowCameraForward;
+
         constexpr float CAMERA_NEAR = 0.1f;
         constexpr float CASCADE_SPLIT_LAMBDA = 0.7f;
         constexpr float CASCADE_XY_MARGIN = 8.0f;
@@ -2487,10 +2521,17 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             lightSpaceMatrices[cascade] = lightProj * lightView;
         }
 
-        if (captureGpuViewport) {
+        if (!updateShadowMap && m_shadowCacheValid) {
+            lightSpaceMatrices = m_cachedShadowMatrices;
+            shadowCascadeSplits = m_cachedShadowCascadeSplits;
+            shadowCascadeBlend = m_cachedShadowCascadeBlend;
+            shadowReady = true;
+            FrameProfiler::get().addCount("shadowMapReused", 1);
+        } else if (captureGpuViewport) {
             writeGpuTimestamp(GpuTimestamp::ShadowBegin);
             capturedGpuShadow = true;
         }
+        if (updateShadowMap || !m_shadowCacheValid) {
         FrameProfiler::get().beginSection("shadow");
         glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
         glViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
@@ -2535,12 +2576,15 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     if (batch.empty() || instShapes[shapeIdx].vao == 0) continue;
                     visibleShadowInstances.clear();
                     visibleShadowInstances.reserve(batch.size());
-                    for (const ShadowInstanceData& shadowInstance : batch) {
-                        if (sphereInFrustum(
-                                shadowFrustum, shadowInstance.center, shadowInstance.radius)) {
-                            visibleShadowInstances.push_back(shadowInstance.draw);
-                        } else {
-                            FrameProfiler::get().addCount("shadowCubesCulled", 1);
+                    {
+                        FrameProfiler::Scope shadowCull("render.shadowCull");
+                        for (const ShadowInstanceData& shadowInstance : batch) {
+                            if (sphereInFrustum(
+                                    shadowFrustum, shadowInstance.center, shadowInstance.radius)) {
+                                visibleShadowInstances.push_back(shadowInstance.draw);
+                            } else {
+                                FrameProfiler::get().addCount("shadowCubesCulled", 1);
+                            }
                         }
                     }
                     if (visibleShadowInstances.empty()) continue;
@@ -2549,13 +2593,19 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                         anyShadowInst = true;
                     }
                     glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
-                    glBufferData(GL_ARRAY_BUFFER,
-                                 (GLsizeiptr)(visibleShadowInstances.size() * sizeof(CubeInstanceData)),
-                                 visibleShadowInstances.data(), GL_STREAM_DRAW);
+                    {
+                        FrameProfiler::Scope shadowUpload("render.shadowUpload");
+                        glBufferData(GL_ARRAY_BUFFER,
+                                     (GLsizeiptr)(visibleShadowInstances.size() * sizeof(CubeInstanceData)),
+                                     visibleShadowInstances.data(), GL_STREAM_DRAW);
+                    }
                     glBindVertexArray(instShapes[shapeIdx].vao);
-                    glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
-                                            GL_UNSIGNED_INT, 0,
-                                            (GLsizei)visibleShadowInstances.size());
+                    {
+                        FrameProfiler::Scope shadowDraw("render.shadowDraw");
+                        glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
+                                                GL_UNSIGNED_INT, 0,
+                                                (GLsizei)visibleShadowInstances.size());
+                    }
                     FrameProfiler::get().addCount(
                         "shadowCubes",
                         (long long)visibleShadowInstances.size()
@@ -2613,7 +2663,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 }
             }
         };
-        for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) shadowRender(cube);
+        for (BaseCube* cube : individuallyRenderedShadowCubes) shadowRender(cube);
 
         // ---- Terrain Shadow ----
         Matrix4 identity;
@@ -2633,11 +2683,20 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         glDisable(GL_POLYGON_OFFSET_FILL);
 
         shadowReady = true;
+        m_cachedShadowMatrices = lightSpaceMatrices;
+        m_cachedShadowCascadeSplits = shadowCascadeSplits;
+        m_cachedShadowCascadeBlend = shadowCascadeBlend;
+        m_shadowCacheValid = true;
         // メインFBOに戻す
         glBindFramebuffer(GL_FRAMEBUFFER, desc.fbo);
         glViewport(0, 0, desc.width, desc.height);
         FrameProfiler::get().endSection("shadow");
         if (captureGpuViewport) writeGpuTimestamp(GpuTimestamp::ShadowEnd);
+        }
+    } else {
+        m_shadowCacheValid = false;
+        m_shadowCameraWasMoving = false;
+        m_shadowMotionFrame = 0;
     }
     if (captureGpuViewport && !capturedGpuShadow) {
         writeGpuTimestamp(GpuTimestamp::ShadowBegin);
@@ -2892,11 +2951,17 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 const auto& batch = m_instBatches[shapeIdx].main;
                 if (batch.empty() || instShapes[shapeIdx].vao == 0) continue;
                 glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
-                glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(batch.size() * sizeof(CubeInstanceData)),
-                             batch.data(), GL_STREAM_DRAW);
+                {
+                    FrameProfiler::Scope mainUpload("render.mainInstanceUpload");
+                    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(batch.size() * sizeof(CubeInstanceData)),
+                                 batch.data(), GL_STREAM_DRAW);
+                }
                 glBindVertexArray(instShapes[shapeIdx].vao);
-                glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
-                                        GL_UNSIGNED_INT, 0, (GLsizei)batch.size());
+                {
+                    FrameProfiler::Scope mainDraw("render.mainInstanceDraw");
+                    glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
+                                            GL_UNSIGNED_INT, 0, (GLsizei)batch.size());
+                }
                 FrameProfiler::get().addCount("cubesDrawn", (long long)batch.size());
                 FrameProfiler::get().addCount("instanced",  (long long)batch.size());
             }
@@ -2907,7 +2972,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     {
         FrameProfiler::Scope treeMain("treeMain");
-        for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) renderInst(cube);
+        for (BaseCube* cube : individuallyRenderedMainCubes) renderInst(cube);
     }
 
     // renderClouds/renderParticles等はGL_BLENDが常時有効という前提のため復元する
@@ -2924,21 +2989,24 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     std::vector<BaseCube*> surfaceTargets;
     {
         FrameProfiler::Scope treeSurfaceMarks("treeSurfaceMarks");
-        for (SurfaceMark* mark : desc.workspace->getRenderSurfaceMarks()) {
-            FrameProfiler::get().addCount("treeSurfaceMarkNodes", 1);
-            if (std::isfinite(mark->Size.x) && std::isfinite(mark->Size.y) && std::isfinite(mark->Size.z) &&
-                std::isfinite(mark->Color.r) && std::isfinite(mark->Color.g) &&
-                std::isfinite(mark->Color.b) && std::isfinite(mark->Color.a) &&
-                mark->Size.x > 0.0f && mark->Size.y > 0.0f && mark->Size.z > 0.0f) surfaceMarks.push_back(mark);
-        }
-        for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) {
-            FrameProfiler::get().addCount("treeSurfaceMarkNodes", 1);
-            const std::string cn = cube->getClassName();
-            const bool visible = cube->Color.a > 0.001f || (cube->IsA("MeshCube") && static_cast<MeshCube*>(cube)->isUsingFallback());
-            const bool hasGeometry = cube->IsA("LiquidCube") ||
-                (cube->getHighlightVAO() != 0 && cube->getHighlightIndexCount() != 0);
-            if (cn != "Skybox" && cn != "Sun" && cn != "Moon" && visible && hasGeometry)
-                surfaceTargets.push_back(cube);
+        const auto& renderSurfaceMarks = desc.workspace->getRenderSurfaceMarks();
+        if (!renderSurfaceMarks.empty()) {
+            for (SurfaceMark* mark : renderSurfaceMarks) {
+                FrameProfiler::get().addCount("treeSurfaceMarkNodes", 1);
+                if (std::isfinite(mark->Size.x) && std::isfinite(mark->Size.y) && std::isfinite(mark->Size.z) &&
+                    std::isfinite(mark->Color.r) && std::isfinite(mark->Color.g) &&
+                    std::isfinite(mark->Color.b) && std::isfinite(mark->Color.a) &&
+                    mark->Size.x > 0.0f && mark->Size.y > 0.0f && mark->Size.z > 0.0f) surfaceMarks.push_back(mark);
+            }
+            for (BaseCube* cube : renderBaseCubes) {
+                FrameProfiler::get().addCount("treeSurfaceMarkNodes", 1);
+                const std::string cn = cube->getClassName();
+                const bool visible = cube->Color.a > 0.001f || (cube->IsA("MeshCube") && static_cast<MeshCube*>(cube)->isUsingFallback());
+                const bool hasGeometry = cube->IsA("LiquidCube") ||
+                    (cube->getHighlightVAO() != 0 && cube->getHighlightIndexCount() != 0);
+                if (cn != "Skybox" && cn != "Sun" && cn != "Moon" && visible && hasGeometry)
+                    surfaceTargets.push_back(cube);
+            }
         }
     }
     std::sort(surfaceMarks.begin(), surfaceMarks.end(), [](SurfaceMark* a, SurfaceMark* b) {
@@ -3176,6 +3244,7 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
     FrameProfiler::get().addCount("instanced", 0);
     FrameProfiler::get().addCount("shadowCubes", 0);
     FrameProfiler::get().addCount("shadowCubesCulled", 0);
+    FrameProfiler::get().addCount("shadowMapReused", 0);
     FrameProfiler::get().addCount("surfaceGuiBaked", 0);
     FrameProfiler::get().addCount("surfaceGuiReused", 0);
     FrameProfiler::get().addCount("treeLightingNodes", 0);

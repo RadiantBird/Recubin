@@ -161,6 +161,16 @@ class Renderer {
         unsigned int depthShader   = 0;
         static constexpr int SHADOW_CASCADE_COUNT = 3;
         static const int SHADOW_MAP_SIZE = 2048;
+        std::array<Matrix4, SHADOW_CASCADE_COUNT> m_cachedShadowMatrices{};
+        std::array<float, SHADOW_CASCADE_COUNT> m_cachedShadowCascadeSplits{};
+        std::array<float, SHADOW_CASCADE_COUNT - 1> m_cachedShadowCascadeBlend{};
+        Vector3 m_lastShadowCameraPosition{};
+        Vector3 m_lastShadowCameraForward{};
+        bool m_shadowCacheValid = false;
+        bool m_shadowCameraWasMoving = false;
+        unsigned int m_shadowMotionFrame = 0;
+        Workspace* m_shadowCacheWorkspace = nullptr;
+        unsigned int m_shadowCacheFbo = 0;
         unsigned int surfaceMarkFBO = 0;
         unsigned int surfaceMarkDepthTex = 0;
         static const int SURFACE_MARK_MAP_SIZE = 1024;

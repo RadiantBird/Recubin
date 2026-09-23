@@ -49,6 +49,9 @@ class System : public Instance {
         // パッケージ済みゲーム起動時にUserへ適用するカメラモード。
         CameraMode DefaultCameraMode = CameraMode::Character;
 
+        // falseの場合、ゲーム開始時にローカルPlayerCharacterを自動生成しない。
+        bool AutoSpawnPlayerCharacter = true;
+
         System(string name = "System");
         string getClassName() override;
         bool IsA(std::string className) override;

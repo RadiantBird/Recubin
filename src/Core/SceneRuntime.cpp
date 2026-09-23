@@ -35,6 +35,7 @@ void copySystemScalars(const System& source, System& destination) {
     destination.EnableIOAPI = source.EnableIOAPI;
     destination.EnableIPCAPI = source.EnableIPCAPI;
     destination.EnableExternalFileAccess = source.EnableExternalFileAccess;
+    destination.AutoSpawnPlayerCharacter = source.AutoSpawnPlayerCharacter;
     destination.DefaultCameraMode = source.DefaultCameraMode;
 }
 
@@ -115,6 +116,10 @@ std::shared_ptr<Users> findUsers(const std::shared_ptr<System>& system) {
 } // namespace
 
 void applyDefaultCameraMode(const System& system, User& user) {
+    if (!system.AutoSpawnPlayerCharacter) {
+        user.setControlMode(User::ControlMode::Free);
+        return;
+    }
     switch (system.DefaultCameraMode) {
         case System::CameraMode::Free:
             user.setControlMode(User::ControlMode::Free);

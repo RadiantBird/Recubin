@@ -58,6 +58,9 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   `"PlayerCharacter"`、ネットワークHost/ClientではHost割り当てPeerIdに基づく
   `"PlayerCharacter_<PeerId>"`となる。StarterCharacterが存在しない場合は、既定のリグ(旧来
   ハードコードされていたもの)を持つStarterCharacterが自動的にSystem直下に生成される。
+- **System.AutoSpawnPlayerCharacter**: ゲーム開始時にローカルPlayerCharacterを自動生成するかを指定する。
+  既定値は`true`。`false`の場合はローカルPlayerCharacterを生成せず、既定カメラモードの設定値に
+  かかわらずUserの起動カメラを`Free`にする。ネットワーク接続時のリモートアバター生成はこの設定の対象外とする。
 - **SpawnLocation**: `Cube`派生の出現地点。既定値は`Name=SpawnLocation`、`Size=[8,1,8]`、
   白、`Anchored=true`、`CanCollide=true`、`Enabled=true`とし、通常のCubeとして描画・衝突する。
   active Workspaceの全子孫にある`Enabled=true`のSpawnLocationをfull path昇順で選ぶ。
@@ -298,7 +301,8 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 - ControlMode
     - エディターではデフォルトでFree
     - ゲームランタイムではSystem.DefaultCameraMode（Free/Character/Program、既定Character）を
-      Userの起動カメラモードへ適用する。旧シーンや未知の値はCharacterへフォールバックする。
+      Userの起動カメラモードへ適用する。System.AutoSpawnPlayerCharacterがfalseの場合はFreeを優先する。
+      旧シーンや未知の値はCharacterへフォールバックする。
     - Humanoid死亡中もカメラ入力とLキーのモード切替を受け付ける。Characterではキャラクターを移動・追従させずその場でカメラを回転し、Freeではカメラを自由移動できる。Free移動中も死亡ラグドールの姿勢を上書きしない。
     - ControlModeは入力操作とカメラ制御だけを切り替える。PlayerCharacterの物理状態更新は全モードで継続する。
       CharacterからFree/Programへ移行した瞬間は、Character入力が残した水平速度と角速度を0へ戻し、Character専用のYawForceを無効化する。ジャンプ・落下の垂直速度は維持する。

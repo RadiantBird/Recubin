@@ -668,7 +668,9 @@ int main(int argc, char* argv[]) {
     luauEngine->executeSystemScripts();
 
     // その後にキャラクターをスポーンする
-    user->spawnCharacter(system.get(), workspace.get());
+    if (system->AutoSpawnPlayerCharacter) {
+        user->spawnCharacter(system.get(), workspace.get());
+    }
     audioService->playAutoPlaySounds();
     if (user->character) workspace->addChild(user->character);
 
