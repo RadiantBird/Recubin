@@ -151,6 +151,10 @@ void SceneHierarchyPanel::onRender() {
     }
 
     Instance* root = systemRoot ? systemRoot : static_cast<Instance*>(workspace);
+    if (m_childrenCacheRoot != root) {
+        m_childrenCache.clear();
+        m_childrenCacheRoot = root;
+    }
     selectedInstances.erase(std::remove_if(selectedInstances.begin(), selectedInstances.end(),
         [root](Instance* inst) { return !hierarchyContainsInstance(root, inst); }),
         selectedInstances.end());
@@ -464,7 +468,7 @@ void SceneHierarchyPanel::drawNode(
         // fixed-height clipped range.
         ImGui::TreePop();
     } else if (!isLeaf && open) {
-        const auto children = SceneHierarchySelection::collectDirectChildren(*inst);
+        const auto& children = m_childrenCache.get(*inst);
         constexpr std::size_t CLIPPED_ROW_THRESHOLD = 64;
         auto isRevealAncestor = [&](Instance* candidate) {
             if (!candidate || !m_revealRequest) return false;

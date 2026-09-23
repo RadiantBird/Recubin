@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -58,6 +59,7 @@ class Instance : public std::enable_shared_from_this<Instance> {
         Instance* getChild(string child_name);
         Instance* getChildByPath(const std::string& path);
         const std::unordered_map<string, std::shared_ptr<Instance>>& getChildren();
+        std::uint64_t getChildrenRevision() const { return m_childrenRevision; }
 
         virtual void addChild(std::shared_ptr<Instance> child);
         bool removeChild(string name);
@@ -91,4 +93,5 @@ class Instance : public std::enable_shared_from_this<Instance> {
 
     private:
         bool m_runtimeNameLocked = false;
+        std::uint64_t m_childrenRevision = 0;
 };

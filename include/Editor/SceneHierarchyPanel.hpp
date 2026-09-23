@@ -3,6 +3,7 @@
 #include <Editor/EditorPanel.hpp>
 #include <Editor/CommandHistory.hpp>
 #include <Editor/InstanceCatalog.hpp>
+#include <Editor/SceneHierarchySelection.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Instance.hpp>
 #include <Core/User.hpp>
@@ -146,6 +147,8 @@ private:
     // Explorer の可視行を基準にした Shift 範囲選択状態。
     Instance* m_selectionAnchor = nullptr;
     std::vector<Instance*> m_visibleNodes;
+    SceneHierarchySelection::DirectChildrenCache m_childrenCache;
+    Instance* m_childrenCacheRoot = nullptr;
     Instance* m_pendingRangeTarget = nullptr;
     bool m_pendingRangeAppend = false;
     Instance* m_shiftClickTarget = nullptr;

@@ -158,4 +158,19 @@ std::vector<Instance*> collectDirectChildren(Instance& parent) {
     return children;
 }
 
+const std::vector<Instance*>& DirectChildrenCache::get(Instance& parent) {
+    Entry& entry = m_entries[&parent];
+    const std::uint64_t revision = parent.getChildrenRevision();
+    if (!entry.initialized || entry.revision != revision) {
+        entry.children = collectDirectChildren(parent);
+        entry.revision = revision;
+        entry.initialized = true;
+    }
+    return entry.children;
+}
+
+void DirectChildrenCache::clear() {
+    m_entries.clear();
+}
+
 } // namespace SceneHierarchySelection

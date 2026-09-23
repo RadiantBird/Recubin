@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 class Instance;
@@ -23,5 +25,22 @@ std::vector<Instance*> selectVisibleRange(
 
 // Returns only the parent's direct children in the same order used by Explorer.
 std::vector<Instance*> collectDirectChildren(Instance& parent);
+
+// Caches the Explorer order for each parent. The entry is rebuilt only when
+// the parent's child/name revision changes.
+class DirectChildrenCache {
+public:
+    const std::vector<Instance*>& get(Instance& parent);
+    void clear();
+
+private:
+    struct Entry {
+        std::uint64_t revision = 0;
+        bool initialized = false;
+        std::vector<Instance*> children;
+    };
+
+    std::unordered_map<Instance*, Entry> m_entries;
+};
 
 } // namespace SceneHierarchySelection

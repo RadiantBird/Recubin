@@ -59,7 +59,9 @@ void Instance::onAncestorChanged() {
     }
 }
 
-void Instance::onChildrenChanged() {}
+void Instance::onChildrenChanged() {
+    ++m_childrenRevision;
+}
 
 void Instance::setParent(std::shared_ptr<Instance> newParent) {
     auto currentParent = this->Parent.lock();
@@ -281,6 +283,7 @@ void Instance::renameTo(const std::string& newName) {
     parent->children.erase(this->Name);
     this->Name = finalName;
     parent->children[finalName] = self;
+    parent->onChildrenChanged();
 }
 
 bool Instance::renameToAuthoritative(const std::string& newName) {
@@ -300,6 +303,7 @@ bool Instance::renameToAuthoritative(const std::string& newName) {
     parent->children.erase(Name);
     Name = newName;
     parent->children.emplace(Name, std::move(self));
+    parent->onChildrenChanged();
     return true;
 }
 

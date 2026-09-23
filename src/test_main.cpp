@@ -9607,6 +9607,42 @@ static int runSceneHierarchyGroupingRegression() {
     expect(reorderedAfterRename == expectedAfterRename,
            "Explorer order is recalculated after a committed rename without replacing instances");
 
+    SceneHierarchySelection::DirectChildrenCache directChildrenCache;
+    const auto& cachedOrderedChildren = directChildrenCache.get(*orderingRoot);
+    expect(cachedOrderedChildren == expectedAfterRename,
+           "Explorer direct-child cache initially follows the sorted order");
+    const auto& cachedOrderedChildrenAgain = directChildrenCache.get(*orderingRoot);
+    expect(&cachedOrderedChildren == &cachedOrderedChildrenAgain,
+           "Explorer direct-child cache reuses the same entry without hierarchy changes");
+
+    auto cachedFolder = std::make_shared<Folder>();
+    cachedFolder->Name = "CachedFolder";
+    orderingRoot->addChild(cachedFolder);
+    const auto& cachedAfterAdd = directChildrenCache.get(*orderingRoot);
+    expect(std::find(cachedAfterAdd.begin(), cachedAfterAdd.end(), cachedFolder.get()) !=
+               cachedAfterAdd.end(),
+           "Explorer direct-child cache rebuilds after a child is added");
+    renameOrderingCube->setParent(cachedFolder);
+    const auto& cachedAfterReparent = directChildrenCache.get(*orderingRoot);
+    const auto& cachedFolderChildren = directChildrenCache.get(*cachedFolder);
+    expect(std::find(cachedAfterReparent.begin(), cachedAfterReparent.end(), renameOrderingCube.get()) ==
+               cachedAfterReparent.end() &&
+               std::find(cachedFolderChildren.begin(), cachedFolderChildren.end(), renameOrderingCube.get()) !=
+               cachedFolderChildren.end(),
+           "Explorer direct-child caches rebuild after a reparent");
+    auto cachedFolderCube1 = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+    cachedFolderCube1->Name = "Cube1";
+    cachedFolder->addChild(cachedFolderCube1);
+    const auto& cachedBeforeRename = directChildrenCache.get(*cachedFolder);
+    expect(cachedBeforeRename.size() == 2 && cachedBeforeRename.front() == renameOrderingCube.get() &&
+               cachedBeforeRename.back() == cachedFolderCube1.get(),
+           "Explorer direct-child cache sorts newly populated parents");
+    renameOrderingCube->renameTo("Cube9");
+    const auto& cachedAfterRename = directChildrenCache.get(*cachedFolder);
+    expect(cachedAfterRename.size() == 2 && cachedAfterRename.front() == cachedFolderCube1.get() &&
+               cachedAfterRename.back() == renameOrderingCube.get(),
+           "Explorer direct-child cache remains valid after a child rename");
+
     auto workspace = std::make_shared<Workspace>();
     auto cube = std::make_shared<Cube>(Vector3(4, 2, -3), Vector3(1, 1, 1), Cube::defaultTextureID);
     auto folder = std::make_shared<Folder>();

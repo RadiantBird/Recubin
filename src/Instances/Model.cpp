@@ -44,6 +44,7 @@ void Model::refreshCharacterCollisionGroup() {
 
 void Model::onChildrenChanged() {
     refreshCharacterCollisionGroup();
+    Instance::onChildrenChanged();
 }
 
 std::shared_ptr<Instance> Model::clone() const {

@@ -2150,9 +2150,7 @@ int LuauEngine::instance_destroy_closure(lua_State* L) {
     if (!obj) return 0;
     auto parent = obj->Parent.lock();
     if (parent) {
-        parent->children.erase(obj->Name);
-        obj->Parent.reset();
-        obj->onAncestorChanged();
+        obj->setParent(nullptr);
     }
     // s_ownedInstances が保持していた強参照も手放す（未親付けのまま Destroy されたケースの解放）
     auto& v = s_ownedInstances;
