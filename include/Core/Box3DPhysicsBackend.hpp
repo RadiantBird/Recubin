@@ -77,6 +77,18 @@ private:
         float postStepAngularVelocityY = 0.0f;
     };
 
+    struct ForceBodyState {
+        b3BodyId bodyId = b3_nullBodyId;
+        bool gravityEnabled = true;
+        bool maintainLinear = false;
+        bool maintainAngular = false;
+        Vector3 linearTarget;
+        Vector3 angularTarget;
+        Vector3 angularAxisMask = {1.0f, 1.0f, 1.0f};
+        std::vector<const Force*> additiveForces;
+        std::vector<std::size_t> yawForceDiagnosticIndices;
+    };
+
     using CubePair = std::pair<const BaseCube*, const BaseCube*>;
 
     Physics* m_facade = nullptr;
@@ -85,6 +97,10 @@ private:
     bool m_safetyBreakActive = false;
     std::uint64_t m_nextLogicalConstraintHandle = 1;
     std::vector<BodyEntry> m_bodies;
+    // Rebuilt once before a fixed step and reused after the solver. The
+    // previous implementation rediscovered each shared body by scanning all
+    // BodyEntry values for every body.
+    std::vector<ForceBodyState> m_forceBodyStates;
     std::vector<ConstraintEntry> m_constraints;
     std::vector<YawForceDiagnostic> m_yawForceDiagnostics;
     std::vector<NoCollisionEntry> m_noCollisionEntries;

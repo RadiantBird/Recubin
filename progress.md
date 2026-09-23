@@ -1286,3 +1286,48 @@
 - 着地用hoverは高速落下を安全に制動するためHipHeightより上のdynamic capture範囲で再開し、従来は同じ時点で`isGrounded`も成立し得た。そのため足がsupportへ戻る前のjump入力が受理され、空中でJumpPowerを再設定できていた。
 - 通常の地上jumpにだけruntime rearm lockを追加した。着地hoverの早期再開は維持しつつ、下降中に既存shape castが測ったRoot中心からsupport surfaceまでの距離が`HipHeight`以下になるまで次の地上jumpを拒否する。水中jumpとTruss離脱jumpは既存動作を維持し、Ragdoll復帰時はlockを初期化する。
 - `--character-hover-regression`へ、HipHeightより上でhoverが再開した瞬間のjumpが速度を変更しないことと、HipHeight到達後だけ全R6 bodyへJumpPowerが入ることを追加した。`Humanoid.cpp`と`test_main.cpp`のGCC C++23構文検査、対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。限定回帰はWSLの既知の`UtilBindVsockAnyPort:309: socket failed 1`で起動できず、Windows側での実行待ち。
+
+### 2026-09-23: Explorer direct-child sort cache
+
+- Explorerが5000 Cubeの表示中に毎フレーム`collectDirectChildren()`でポインタ配列を作り、自然順ソートしていたため、親ごとのソート済み子配列を`DirectChildrenCache`へ保持するようにした。通常フレームは同じrevisionの配列を再利用し、追加・削除・reparent・renameで該当親のrevisionが変化した場合だけ再構築・ソートする。Workspace/System切替時はExplorerキャッシュを破棄する。
+- `Instance::onChildrenChanged()`へ子revision更新を追加し、`setParent()`、`renameTo()`、`renameToAuthoritative()`の変更を通知する。`Model`のoverrideは基底通知を維持し、Luau Destroyも直接`children.erase()`せず`setParent(nullptr)`を通す。SceneHierarchy回帰へcache再利用、add、reparent、rename検査を追加した。
+- `Instance.cpp`、`Model.cpp`、`LuauEngine.cpp`、`SceneHierarchySelection.*`、`SceneHierarchyPanel.*`、`test_main.cpp`、文書を変更。対象C++のGCC C++23 syntax check、`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。`--scene-hierarchy-grouping-regression`はWSLの`UtilBindVsockAnyPort:309: socket failed 1`でWindowsプロセス開始前に未実行。次の一手はWindows Terminalで回帰を実行し、5000 CubeのExplorer開閉時FPSとExplorer表示順・rename/reparentを実機確認すること。
+
+### 2026-09-23: Box3D buoyancy broad-phase optimization
+
+- `Box3DPhysicsBackend::applyBuoyancy()`を、LiquidCubeが未登録なら即時終了する構造へ変更した。LiquidCubeはBodyEntry全走査ではなく生成・削除時にweak reference cacheへ登録する。
+- Dynamic BodyはBody IDごとに一度だけグループ化し、従来のBodyごとの全`m_bodies`再走査を廃止した。Liquidの波面prism/plane、world inverse、AABBをLiquidごとに一度だけ計算し、memberとLiquidのAABB非交差時はpolyhedron clippingを行わない。
+- MeshCubeを含む任意頂点数を維持するため固定長配列は使用せず、既存の動的proxyとcapacity再利用する動的作業vectorを使用した。浮力の体積・重心・Density=0・MaintainVelocity・Weld member処理は従来の計算契約を維持した。
+- `doc/Core/Physics.md`へ浮力のcache/broad-phase契約を追記。対象`Box3DPhysicsBackend.cpp`のGCC C++23構文検査、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。`git diff --check`は既存CRLF警告のみ。`--box3d-buoyancy-regression`はWSLの`UtilBindVsockAnyPort:309: socket failed 1`でWindowsプロセス開始前に未実行。
+- 次の一手: Windows Terminalで`build\\Release\\RecubinTest.exe --box3d-buoyancy-regression`を実行し、既存のBox/Sphere/Prism/Mesh相当の浮力、Liquid削除、Weld、性能回帰を確認する。5000 Cube StressTestではPhysics時間とFPSを変更前後で比較する。
+
+### 2026-09-23: Box3D no-liquid hot-path review and safety warning suppression
+
+- 5000 Cube・Liquidなしでも`applyForces()`と`applyMaintainedVelocities()`がBodyごとに全BodyEntryを探索していたため、有効なForceがない場合はO(N)の存在確認だけで固定ステップを終了する早期returnを追加した。重力設定が存在する場合は従来処理を維持する。
+- `syncAllCubes()`のleaf Cube同期で、子孫姿勢保存vectorとstable sortを毎回構築していた。子がないCubeは`Spatial::commitCFrame()`の直接経路へ分岐し、子を持つCubeのAttachment/Descendant保持処理は従来どおり残した。
+- 固定ステップ上限超過の`Box3D physics safety break engaged`は、継続中の毎フレームwarningを抑え、発生状態への遷移時だけ出力する。正常フレームへ戻ると次回の再発を再度報告する。
+- GCC C++23構文検査、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。専用浮力回帰はWSLからの`UtilBindVsockAnyPort:309`で未実行。次の一手はWindows側で浮力回帰とStressTestを実行し、Physics時間、Safety break発生頻度、Sleep状態を比較する。
+
+### 2026-09-23: Box3D physics breakdown diagnostics
+
+- StressTest実機画像でPhysicsが約137ms、平均約112msまで増大し、固定ステップSafety breakへ継続的に到達していることを確認した。浮力なしでも残る負荷をBox3D本体と同期処理へ分離するため、Profilerへ`physics.buoyancy`、`physics.forces`、`physics.gyro`、`physics.box3dStep`、`physics.maintainedVelocity`、`physics.contactEvents`、`physics.syncCubes`を追加した。
+- Box3Dの`bodyCount`、`contactCount`、`awakeBodyCount`もProfilerへ表示する。これにより、Sleepへ移行していないBody数と接触数、`b3World_Step()`内負荷を実機で照合できる。
+- 対象C++のGCC C++23構文検査、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。次の一手はProfilerのPhysics Breakdownを開いた状態でStressTestを実行し、`physics.box3dStep`と`physics.syncCubes`のどちらが支配的か、awake/contact数がsettle後に減るかを確認すること。
+
+### 2026-09-23: Gravity-default Force path correction
+
+- 実機Profilerで`physics.forces`が平均133.52ms、`physics.box3dStep`が平均7.82ms、`physics.syncCubes`が平均0.49msだった。Force処理が主因であることを確定した。
+- `m_gravityEnabled`には`setGravityEnabled(true)`による既定状態も登録されるため、mapが空でないことだけを理由に重いBody全走査へ入っていた。既定値`true`は毎フレーム維持する必要がないため、`false`の重力上書きまたは有効なForceが存在する場合だけ従来経路を実行するよう修正した。
+- 対象C++のGCC C++23構文検査とWindows Release build（Recubin、RecubinEngine、RecubinTest）は成功。次の一手は同じStressTestで`physics.forces`がほぼ0msへ下がり、Safety breakが消えることを確認すること。
+
+### 2026-09-23: Box3D Force body grouping
+
+- `applyForces()`と`applyMaintainedVelocities()`が、Bodyごとに全`m_bodies`を再走査していたため、Force使用時にO(N²)となっていた。Body IDを`unordered_map`で一度だけグループ化し、memberの重力設定・加算Force・MaintainVelocityのターゲットを`ForceBodyState`へ集約するよう変更した。
+- `MaintainVelocity`のsolver後復元は、solver前に構築した同じForceBodyStateを再利用する。共有BodyのForce優先順位、AxisMask、YawForce診断の既存契約は維持した。
+- `Box3DPhysicsBackend.cpp`のGCC C++23構文検査と`git diff --check`は成功。Windows Release buildとStressTest実機再計測は未実行。次の一手は`physics.forces`がBody数に対して線形となり、5000 Cubeで100ms超から大幅に低下することをWindows Profilerで確認すること。
+
+### 2026-09-23: Box3D Force diagnostic direct lookup
+
+- `applyForces()`で`m_yawForceDiagnostics`をBodyごとに全走査していた処理を、`ForceBodyState::yawForceDiagnosticIndices`から直接参照する構造へ変更した。
+- `CharacterRig::collectR6Bodies()`の結果を同一`Model`単位で固定ステップ内にキャッシュし、複数のYawForceが同じRigを参照する場合の重複収集を避けた。診断の登録順とYawForceの適用順は維持した。
+- GCC C++23構文検査・Windows Release build・実機StressTest再計測は未実行。次の一手は構文検査後、YawForceを含むCharacterと大量ForceのProfilerで挙動と`physics.forces`を確認すること。

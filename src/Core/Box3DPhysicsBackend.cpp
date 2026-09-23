@@ -1409,6 +1409,7 @@ void Box3DPhysicsBackend::enqueueSetRotation(
 
 void Box3DPhysicsBackend::applyForces() {
     m_yawForceDiagnostics.clear();
+    m_forceBodyStates.clear();
     const bool hasGravityOverride = std::any_of(
         m_gravityEnabled.begin(),
         m_gravityEnabled.end(),
@@ -1417,27 +1418,29 @@ void Box3DPhysicsBackend::applyForces() {
     // does not require a per-body maintenance pass. Only disabled gravity or
     // an active Force requires the expensive body grouping below.
     if (!hasGravityOverride && !hasEnabledForce(false)) return;
-    std::set<std::uint64_t> visited;
+    std::unordered_map<std::uint64_t, std::size_t> stateByBody;
+    stateByBody.reserve(m_bodies.size());
     for (const BodyEntry& bodyEntry : m_bodies) {
         const b3BodyId id = bodyEntry.bodyId;
         if (B3_IS_NULL(id) || !b3Body_IsValid(id) ||
             b3Body_GetType(id) != b3_dynamicBody) continue;
-        if (!visited.insert(b3StoreBodyId(id)).second) continue;
+        const std::uint64_t bodyKey = b3StoreBodyId(id);
+        auto [stateIt, inserted] = stateByBody.emplace(
+            bodyKey,
+            m_forceBodyStates.size());
+        if (inserted) {
+            m_forceBodyStates.push_back({});
+            m_forceBodyStates.back().bodyId = id;
+        }
+        ForceBodyState& state = m_forceBodyStates[stateIt->second];
 
-        bool maintainLinear = false;
-        bool maintainAngular = false;
-        bool gravityEnabled = true;
-        Vector3 linearTarget;
-        Vector3 angularTarget;
-        Vector3 angularAxisMask = {1.0f, 1.0f, 1.0f};
-        std::vector<const Force*> additive;
-        for (const BodyEntry& entry : m_bodies) {
-            if (!idsEqual(entry.bodyId, id)) continue;
+        {
+            const BodyEntry& entry = bodyEntry;
             auto member = entry.cube.lock();
             if (!member) continue;
             if (const auto gravity = m_gravityEnabled.find(member.get());
                 gravity != m_gravityEnabled.end())
-                gravityEnabled = gravityEnabled && gravity->second;
+                state.gravityEnabled = state.gravityEnabled && gravity->second;
             for (const auto& [name, child] : member->children) {
                 (void)name;
                 if (!child || !child->IsA("Force")) continue;
@@ -1448,66 +1451,70 @@ void Box3DPhysicsBackend::applyForces() {
                         force,
                         id,
                     });
+                    state.yawForceDiagnosticIndices.push_back(
+                        m_yawForceDiagnostics.size() - 1);
                 }
                 if (!force->Enabled) continue;
                 if (!force->MaintainVelocity) {
-                    additive.push_back(force);
+                    state.additiveForces.push_back(force);
                 } else if (force->Torque) {
-                    maintainAngular = true;
-                    angularTarget = force->Value;
-                    angularAxisMask = force->AxisMask;
+                    state.maintainAngular = true;
+                    state.angularTarget = force->Value;
+                    state.angularAxisMask = force->AxisMask;
                 } else {
-                    maintainLinear = true;
-                    linearTarget = force->Value;
+                    state.maintainLinear = true;
+                    state.linearTarget = force->Value;
                 }
             }
         }
+    }
 
+    std::unordered_map<Instance*, std::vector<std::shared_ptr<BaseCube>>>
+        yawRigBodiesCache;
+    for (ForceBodyState& state : m_forceBodyStates) {
+        const b3BodyId id = state.bodyId;
         // MaintainVelocityは対象系の重力・浮力・加算Force/Torqueより
         // 優先する。shared body内のどのmemberから指定されても同じ。
         b3Body_SetGravityScale(
-            id, gravityEnabled && !maintainLinear ? 1.0f : 0.0f);
-        for (const Force* force : additive) {
+            id, state.gravityEnabled && !state.maintainLinear ? 1.0f : 0.0f);
+        for (const Force* force : state.additiveForces) {
             if (force->Torque) {
-                if (maintainAngular) continue;
+                if (state.maintainAngular) continue;
                 b3Body_ApplyTorque(
                     id, {force->Value.x * TORQUE_TO_MKS,
                          force->Value.y * TORQUE_TO_MKS,
                          force->Value.z * TORQUE_TO_MKS}, true);
             } else {
-                if (maintainLinear) continue;
+                if (state.maintainLinear) continue;
                 b3Body_ApplyForceToCenter(id, toB3Length(force->Value), true);
             }
         }
-        if (maintainLinear)
-            b3Body_SetLinearVelocity(
-                id,
-                toB3Length(linearTarget)
-            );
+        if (state.maintainLinear)
+            b3Body_SetLinearVelocity(id, toB3Length(state.linearTarget));
 
-        if (maintainAngular) {
+        if (state.maintainAngular) {
             const b3Vec3 currentAngularVelocity =
                 b3Body_GetAngularVelocity(id);
 
             b3Vec3 targetAngularVelocity =
-                toB3Vector(angularTarget);
+                toB3Vector(state.angularTarget);
 
             // @RadiantBird 2026/09/13:
             // MaintainVelocity used to replace X/Y/Z together.
             // Preserve unmasked axes so a character can use Force for
             // deterministic yaw while Gyro still controls physical pitch
             // and roll.
-            if (angularAxisMask.x == 0.0f) {
+            if (state.angularAxisMask.x == 0.0f) {
                 targetAngularVelocity.x =
                     currentAngularVelocity.x;
             }
 
-            if (angularAxisMask.y == 0.0f) {
+            if (state.angularAxisMask.y == 0.0f) {
                 targetAngularVelocity.y =
                     currentAngularVelocity.y;
             }
 
-            if (angularAxisMask.z == 0.0f) {
+            if (state.angularAxisMask.z == 0.0f) {
                 targetAngularVelocity.z =
                     currentAngularVelocity.z;
             }
@@ -1520,21 +1527,26 @@ void Box3DPhysicsBackend::applyForces() {
 
         const float preStepAngularVelocityY =
             b3Body_GetAngularVelocity(id).y;
-        for (auto& diagnostic : m_yawForceDiagnostics) {
-            if (idsEqual(diagnostic.bodyId, id))
-                diagnostic.preStepAngularVelocityY = preStepAngularVelocityY;
+        for (const std::size_t diagnosticIndex :
+             state.yawForceDiagnosticIndices) {
+            auto& diagnostic = m_yawForceDiagnostics[diagnosticIndex];
+            diagnostic.preStepAngularVelocityY = preStepAngularVelocityY;
         }
 
-        for (const auto& diagnostic : m_yawForceDiagnostics) {
-            if (!idsEqual(diagnostic.bodyId, id) ||
-                !diagnostic.owner || !diagnostic.force ||
+        for (const std::size_t diagnosticIndex :
+             state.yawForceDiagnosticIndices) {
+            const auto& diagnostic = m_yawForceDiagnostics[diagnosticIndex];
+            if (!diagnostic.owner || !diagnostic.force ||
                 !diagnostic.force->Enabled || !diagnostic.force->Torque ||
                 !diagnostic.force->MaintainVelocity)
                 continue;
 
             auto model = diagnostic.owner->Parent.lock();
             if (!model) continue;
-            for (const auto& body : CharacterRig::collectR6Bodies(model.get())) {
+            auto [cacheIt, inserted] = yawRigBodiesCache.try_emplace(model.get());
+            if (inserted)
+                cacheIt->second = CharacterRig::collectR6Bodies(model.get());
+            for (const auto& body : cacheIt->second) {
                 if (!body) continue;
                 const b3BodyId bodyIdValue = bodyId(*body);
                 if (B3_IS_NULL(bodyIdValue) || !b3Body_IsValid(bodyIdValue) ||
@@ -1566,109 +1578,41 @@ bool Box3DPhysicsBackend::hasEnabledForce(bool maintainVelocityOnly) const {
 }
 
 void Box3DPhysicsBackend::applyMaintainedVelocities() {
-    if (!hasEnabledForce(true)) return;
-    std::set<std::uint64_t> visited;
-
-    for (const BodyEntry& bodyEntry : m_bodies) {
-        const b3BodyId id = bodyEntry.bodyId;
-
-        if (
-            B3_IS_NULL(id) ||
-            !b3Body_IsValid(id) ||
-            b3Body_GetType(id) != b3_dynamicBody
-        ) {
+    for (const ForceBodyState& state : m_forceBodyStates) {
+        const b3BodyId id = state.bodyId;
+        if (B3_IS_NULL(id) || !b3Body_IsValid(id) ||
+            b3Body_GetType(id) != b3_dynamicBody)
             continue;
-        }
-
-        if (!visited.insert(b3StoreBodyId(id)).second) {
-            continue;
-        }
-
-        bool maintainLinear = false;
-        bool maintainAngular = false;
-
-        Vector3 linearTarget;
-        Vector3 angularTarget;
-
-        Vector3 angularAxisMask = {
-            1.0f,
-            1.0f,
-            1.0f
-        };
-
-        for (const BodyEntry& entry : m_bodies) {
-            if (!idsEqual(entry.bodyId, id)) {
-                continue;
-            }
-
-            auto member = entry.cube.lock();
-
-            if (!member) {
-                continue;
-            }
-
-            for (const auto& [name, child] : member->children) {
-                (void)name;
-
-                if (
-                    !child ||
-                    !child->IsA("Force")
-                ) {
-                    continue;
-                }
-
-                const auto* force =
-                    static_cast<const Force*>(child.get());
-
-                if (
-                    !force->Enabled ||
-                    !force->MaintainVelocity
-                ) {
-                    continue;
-                }
-
-                if (force->Torque) {
-                    maintainAngular = true;
-                    angularTarget = force->Value;
-                    angularAxisMask = force->AxisMask;
-                }
-                else {
-                    maintainLinear = true;
-                    linearTarget = force->Value;
-                }
-            }
-        }
-
         // @RadiantBird 2026/09/13:
         // MaintainVelocity is authoritative. Box3D contacts,
         // friction and constraints are allowed to solve normally,
         // then the requested maintained velocity is restored after
         // the solver has finished.
-        if (maintainLinear) {
+        if (state.maintainLinear) {
             b3Body_SetLinearVelocity(
                 id,
-                toB3Length(linearTarget)
+                toB3Length(state.linearTarget)
             );
         }
 
-        if (maintainAngular) {
+        if (state.maintainAngular) {
             const b3Vec3 currentAngularVelocity =
                 b3Body_GetAngularVelocity(id);
 
             b3Vec3 targetAngularVelocity =
-                toB3Vector(angularTarget);
+                toB3Vector(state.angularTarget);
 
-            if (angularAxisMask.x == 0.0f) {
+            if (state.angularAxisMask.x == 0.0f) {
                 targetAngularVelocity.x =
                     currentAngularVelocity.x;
             }
 
-            if (angularAxisMask.y == 0.0f) {
+            if (state.angularAxisMask.y == 0.0f) {
                 targetAngularVelocity.y =
                     currentAngularVelocity.y;
             }
 
-            if (angularAxisMask.z == 0.0f) {
+            if (state.angularAxisMask.z == 0.0f) {
                 targetAngularVelocity.z =
                     currentAngularVelocity.z;
             }
