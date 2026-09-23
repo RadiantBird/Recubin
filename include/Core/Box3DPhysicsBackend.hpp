@@ -11,6 +11,7 @@
 
 class Physics;
 class Force;
+class LiquidCube;
 
 class Box3DPhysicsBackend final : public IPhysicsBackend {
 private:
@@ -81,6 +82,7 @@ private:
     Physics* m_facade = nullptr;
     b3WorldId m_worldId = b3_nullWorldId;
     float m_accumulator = 0.0f;
+    bool m_safetyBreakActive = false;
     std::uint64_t m_nextLogicalConstraintHandle = 1;
     std::vector<BodyEntry> m_bodies;
     std::vector<ConstraintEntry> m_constraints;
@@ -90,6 +92,13 @@ private:
     std::shared_ptr<const std::set<CubePair>> m_noCollisionSnapshot;
     std::vector<TerrainEntry> m_terrains;
     std::unordered_map<const BaseCube*, BuoyancyProxy> m_buoyancyProxyCache;
+    // LiquidCube references are maintained when physics bodies are created
+    // and removed. The buoyancy hot path must not rediscover liquids by
+    // scanning every BodyEntry for every dynamic body.
+    std::vector<std::weak_ptr<LiquidCube>> m_liquids;
+    // Reused by the mesh-capable narrow phase. Its capacity grows to the
+    // largest proxy encountered, but there is no fixed vertex limit.
+    std::vector<Vector3> m_buoyancyNormalizedVerticesScratch;
     std::set<const BaseCube*> m_boundsFallbackWarnings;
     std::unordered_map<const BaseCube*, std::set<ShapeFailureReason>>
         m_shapeFailureWarnings;
@@ -139,6 +148,7 @@ private:
     void forgetTouchSensor(b3ShapeId sensorShapeId);
     std::shared_ptr<BaseCube> resolveContactIdentity(const void* identity) const;
     void applyBuoyancy();
+    bool hasEnabledForce(bool maintainVelocityOnly) const;
     void applyForces();
     void applyMaintainedVelocities();
     void applyGyroForces();

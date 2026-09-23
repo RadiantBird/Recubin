@@ -288,6 +288,26 @@ void ProfilerPanel::onRender() {
         }
 
         if (ImGui::CollapsingHeader(
+                "Physics Breakdown",
+                ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::TextWrapped(
+                "Box3D internal step and Recubin physics synchronization time.");
+            if (beginMetricTable("##ProfilerPhysicsBreakdownTable")) {
+                drawRawTimingRow("physics.buoyancy");
+                drawRawTimingRow("physics.forces");
+                drawRawTimingRow("physics.gyro");
+                drawRawTimingRow("physics.box3dStep");
+                drawRawTimingRow("physics.maintainedVelocity");
+                drawRawTimingRow("physics.contactEvents");
+                drawRawTimingRow("physics.syncCubes");
+                drawRawCounterRow("physicsBodies");
+                drawRawCounterRow("physicsContacts");
+                drawRawCounterRow("physicsAwakeBodies");
+                ImGui::EndTable();
+            }
+        }
+
+        if (ImGui::CollapsingHeader(
                 Loc::t(Loc::LocKey::ProfilerDrawCounters),
                 ImGuiTreeNodeFlags_DefaultOpen) &&
             beginMetricTable("##ProfilerDrawCountersTable")) {

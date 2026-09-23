@@ -15,6 +15,7 @@
 #include <include/Instances/Weld.hpp>
 #include <include/Instances/Workspace.hpp>
 #include <include/Util/Logger.hpp>
+#include <Util/FrameProfiler.hpp>
 
 #include <algorithm>
 #include <array>
@@ -103,6 +104,57 @@ struct Plane {
 bool finiteVector(const Vector3& value) {
     return std::isfinite(value.x) && std::isfinite(value.y) &&
            std::isfinite(value.z);
+}
+
+struct BuoyancyAabb {
+    Vector3 minimum;
+    Vector3 maximum;
+    bool valid = false;
+};
+
+void expandBuoyancyAabb(BuoyancyAabb& bounds, const Vector3& point) {
+    if (!finiteVector(point)) return;
+    if (!bounds.valid) {
+        bounds.minimum = point;
+        bounds.maximum = point;
+        bounds.valid = true;
+        return;
+    }
+    bounds.minimum.x = std::min(bounds.minimum.x, point.x);
+    bounds.minimum.y = std::min(bounds.minimum.y, point.y);
+    bounds.minimum.z = std::min(bounds.minimum.z, point.z);
+    bounds.maximum.x = std::max(bounds.maximum.x, point.x);
+    bounds.maximum.y = std::max(bounds.maximum.y, point.y);
+    bounds.maximum.z = std::max(bounds.maximum.z, point.z);
+}
+
+bool overlapsBuoyancyAabb(
+    const BuoyancyAabb& first, const BuoyancyAabb& second) {
+    return first.valid && second.valid &&
+        first.minimum.x <= second.maximum.x &&
+        first.maximum.x >= second.minimum.x &&
+        first.minimum.y <= second.maximum.y &&
+        first.maximum.y >= second.minimum.y &&
+        first.minimum.z <= second.maximum.z &&
+        first.maximum.z >= second.minimum.z;
+}
+
+BuoyancyAabb cubeBounds(const CFrame& frame, const Vector3& size) {
+    BuoyancyAabb result;
+    const Vector3 half = size * 0.5f;
+    for (int x : {-1, 1}) {
+        for (int y : {-1, 1}) {
+            for (int z : {-1, 1}) {
+                expandBuoyancyAabb(
+                    result,
+                    frame.pointToWorld({
+                        half.x * static_cast<float>(x),
+                        half.y * static_cast<float>(y),
+                        half.z * static_cast<float>(z)}));
+            }
+        }
+    }
+    return result;
 }
 
 float cframeDifference(const CFrame& first, const CFrame& second) {
@@ -398,6 +450,18 @@ CFrame attachmentFrame(
 
 void syncCubeWorldCFramePreservingAttachments(
     BaseCube& cube, const CFrame& worldCFrame) {
+    // Most physics cubes have no descendants. Spatial::setWorldCFrame()
+    // intentionally preserves every descendant pose, but that general path
+    // allocates a pose vector and sorts it even for an empty child map.
+    // Physics already owns the authoritative world pose here, so use the
+    // direct commit path for the common leaf-cube case.
+    if (cube.children.empty()) {
+        cube.commitCFrame(
+            worldCFrame,
+            Spatial::SpatialUpdateOrigin::Deserialization);
+        return;
+    }
+
     std::vector<std::pair<Spatial*, CFrame>> attachmentLocals;
     std::function<void(Instance&)> collectAttachments =
         [&](Instance& parent) {
@@ -980,6 +1044,8 @@ void Box3DPhysicsBackend::createActor(const std::shared_ptr<BaseCube>& cube) {
     }
     assignBody(*cube, id, CFrame());
     m_bodies.push_back({cube, cube.get(), id, false, world, true});
+    if (cube->IsA("LiquidCube"))
+        m_liquids.push_back(std::static_pointer_cast<LiquidCube>(cube));
 }
 
 void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
@@ -1054,6 +1120,8 @@ void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
     }
     assignBody(*cube, replacement, CFrame());
     m_bodies.push_back({cube, cube.get(), replacement, false, pose, true});
+    if (cube->IsA("LiquidCube"))
+        m_liquids.push_back(std::static_pointer_cast<LiquidCube>(cube));
     if (hadGravitySetting) m_gravityEnabled[cube.get()] = explicitGravity;
     b3Body_Enable(replacement);
     if (!awake && !cube->Anchored) b3Body_SetAwake(replacement, false);
@@ -1061,6 +1129,14 @@ void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
 
 void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
+    m_liquids.erase(
+        std::remove_if(
+            m_liquids.begin(), m_liquids.end(),
+            [&](const std::weak_ptr<LiquidCube>& value) {
+                auto liquid = value.lock();
+                return !liquid || liquid.get() == cube.get();
+            }),
+        m_liquids.end());
     m_buoyancyProxyCache.erase(cube.get());
     m_gravityEnabled.erase(cube.get());
     clearShapeLogState(cube.get());
@@ -1140,6 +1216,15 @@ void Box3DPhysicsBackend::onCubeDestroyed(BaseCube& cube) {
             }),
         m_touchPairRecords.end());
     m_buoyancyProxyCache.erase(&cube);
+    m_liquids.erase(
+        std::remove_if(
+            m_liquids.begin(),
+            m_liquids.end(),
+            [&](const std::weak_ptr<LiquidCube>& value) {
+                auto liquid = value.lock();
+                return !liquid || liquid.get() == &cube;
+            }),
+        m_liquids.end());
     m_gravityEnabled.erase(&cube);
     clearShapeLogState(&cube);
     const b3BodyId oldId = bodyId(cube);
@@ -1214,6 +1299,8 @@ void Box3DPhysicsBackend::clearCubes() {
     rebuildNoCollisionSnapshot();
     destroyUniqueBodies();
     m_buoyancyProxyCache.clear();
+    m_liquids.clear();
+    m_buoyancyNormalizedVerticesScratch.clear();
 }
 
 void Box3DPhysicsBackend::syncCube(BaseCube& cube) {
@@ -1322,6 +1409,14 @@ void Box3DPhysicsBackend::enqueueSetRotation(
 
 void Box3DPhysicsBackend::applyForces() {
     m_yawForceDiagnostics.clear();
+    const bool hasGravityOverride = std::any_of(
+        m_gravityEnabled.begin(),
+        m_gravityEnabled.end(),
+        [](const auto& entry) { return !entry.second; });
+    // setGravityEnabled(true) is an explicit write of the default state and
+    // does not require a per-body maintenance pass. Only disabled gravity or
+    // an active Force requires the expensive body grouping below.
+    if (!hasGravityOverride && !hasEnabledForce(false)) return;
     std::set<std::uint64_t> visited;
     for (const BodyEntry& bodyEntry : m_bodies) {
         const b3BodyId id = bodyEntry.bodyId;
@@ -1454,7 +1549,24 @@ void Box3DPhysicsBackend::applyForces() {
     }
 }
 
+bool Box3DPhysicsBackend::hasEnabledForce(bool maintainVelocityOnly) const {
+    for (const BodyEntry& entry : m_bodies) {
+        auto member = entry.cube.lock();
+        if (!member) continue;
+        for (const auto& [name, child] : member->children) {
+            (void)name;
+            if (!child || !child->IsA("Force")) continue;
+            const auto* force = static_cast<const Force*>(child.get());
+            if (!force->Enabled) continue;
+            if (!maintainVelocityOnly || force->MaintainVelocity)
+                return true;
+        }
+    }
+    return false;
+}
+
 void Box3DPhysicsBackend::applyMaintainedVelocities() {
+    if (!hasEnabledForce(true)) return;
     std::set<std::uint64_t> visited;
 
     for (const BodyEntry& bodyEntry : m_bodies) {
@@ -1723,32 +1835,98 @@ void Box3DPhysicsBackend::reportGyroErrorOnce(
 
 void Box3DPhysicsBackend::applyBuoyancy() {
     if (!m_facade) return;
-    std::vector<std::shared_ptr<LiquidCube>> liquids;
-    for (const BodyEntry& entry : m_bodies) {
-        auto cube = entry.cube.lock();
-        if (cube && cube->IsA("LiquidCube"))
-            liquids.push_back(std::static_pointer_cast<LiquidCube>(cube));
-    }
 
-    std::set<std::uint64_t> visitedBodies;
-    const Vector3 gravity = getGravity();
+    m_liquids.erase(
+        std::remove_if(
+            m_liquids.begin(), m_liquids.end(),
+            [](const std::weak_ptr<LiquidCube>& value) {
+                return value.expired();
+            }),
+        m_liquids.end());
+    if (m_liquids.empty()) return;
+
+    struct LiquidInfo {
+        std::shared_ptr<LiquidCube> cube;
+        CFrame world;
+        CFrame inverse;
+        std::vector<Plane> prismPlanes[2];
+        float minimumSurfaceHeight = 0.0f;
+        BuoyancyAabb bounds;
+    };
+    struct BodyInfo {
+        b3BodyId id = b3_nullBodyId;
+        std::vector<std::shared_ptr<BaseCube>> members;
+    };
+    struct MemberInfo {
+        std::shared_ptr<BaseCube> cube;
+        CFrame world;
+        BuoyancyAabb bounds;
+        float volume = 0.0f;
+    };
+
     const float waveTime = m_facade->getWaveTime();
-    for (const BodyEntry& bodyEntry : m_bodies) {
-        const b3BodyId id = bodyEntry.bodyId;
+    std::vector<LiquidInfo> liquids;
+    liquids.reserve(m_liquids.size());
+    for (const auto& reference : m_liquids) {
+        auto liquid = reference.lock();
+        if (!liquid || !std::isfinite(liquid->Density) ||
+            !finiteVector(liquid->Size) ||
+            std::abs(liquid->Size.x) <= CLIP_EPSILON ||
+            std::abs(liquid->Size.y) <= CLIP_EPSILON ||
+            std::abs(liquid->Size.z) <= CLIP_EPSILON)
+            continue;
+
+        LiquidInfo info;
+        info.cube = std::move(liquid);
+        info.world = info.cube->getWorldCFrame();
+        info.inverse = info.world.inverse();
+        const FacePolyhedron prisms[2] = {
+            makeLiquidPrism(waveTime, false),
+            makeLiquidPrism(waveTime, true),
+        };
+        info.prismPlanes[0] = planesFromPolyhedron(prisms[0]);
+        info.prismPlanes[1] = planesFromPolyhedron(prisms[1]);
+        info.minimumSurfaceHeight = std::min({
+            0.5f + LiquidCube::waveHeight(-0.5f, 0.5f, waveTime),
+            0.5f + LiquidCube::waveHeight(-0.5f, -0.5f, waveTime),
+            0.5f + LiquidCube::waveHeight(0.5f, -0.5f, waveTime),
+            0.5f + LiquidCube::waveHeight(0.5f, 0.5f, waveTime),
+        });
+        info.bounds = cubeBounds(info.world, info.cube->Size);
+        liquids.push_back(std::move(info));
+    }
+    if (liquids.empty()) return;
+
+    std::vector<BodyInfo> bodies;
+    bodies.reserve(m_bodies.size());
+    std::unordered_map<std::uint64_t, std::size_t> bodyIndices;
+    bodyIndices.reserve(m_bodies.size());
+    for (const BodyEntry& entry : m_bodies) {
+        const b3BodyId id = entry.bodyId;
         if (B3_IS_NULL(id) || !b3Body_IsValid(id) ||
             b3Body_GetType(id) != b3_dynamicBody)
             continue;
-        const std::uint64_t stored = b3StoreBodyId(id);
-        if (!visitedBodies.insert(stored).second) continue;
+        const std::uint64_t key = b3StoreBodyId(id);
+        auto [iterator, inserted] = bodyIndices.emplace(key, bodies.size());
+        if (inserted) {
+            bodies.push_back({id, {}});
+            bodies.back().members.reserve(1);
+        }
+        if (auto member = entry.cube.lock())
+            bodies[iterator->second].members.push_back(std::move(member));
+    }
 
-        std::vector<std::shared_ptr<BaseCube>> members;
+    const Vector3 gravity = getGravity();
+    for (const BodyInfo& body : bodies) {
+        const CFrame bodyWorld = bodyWorldFrame(body.id);
+        std::vector<MemberInfo> members;
+        members.reserve(body.members.size());
         float totalBodyVolume = 0.0f;
         bool maintainsLinearVelocity = false;
-        for (const BodyEntry& entry : m_bodies) {
-            if (!idsEqual(entry.bodyId, id)) continue;
-            auto member = entry.cube.lock();
+        for (const auto& member : body.members) {
             if (!member) continue;
             for (const auto& [name, child] : member->children) {
+                (void)name;
                 if (!child || !child->IsA("Force")) continue;
                 const auto* force = static_cast<const Force*>(child.get());
                 if (force->Enabled && force->MaintainVelocity && !force->Torque) {
@@ -1756,52 +1934,46 @@ void Box3DPhysicsBackend::applyBuoyancy() {
                     break;
                 }
             }
-            if (member->IsA("LiquidCube") || !member->CanCollide) continue;
-            if (!finiteVector(member->Size)) continue;
+            if (member->IsA("LiquidCube") || !member->CanCollide ||
+                !finiteVector(member->Size))
+                continue;
             const BuoyancyProxy* proxy = getBuoyancyProxy(*member);
             if (!proxy) continue;
-            members.push_back(member);
+
+            const CFrame memberWorld =
+                bodyWorld * member->m_compoundLocalOffset;
+            const Vector3 memberScale =
+                proxy->shape == PhysicsShape::Sphere
+                ? Vector3(member->Size.x, member->Size.x, member->Size.x)
+                : member->Size;
+            BuoyancyAabb bounds;
+            for (const Vector3& source : proxy->vertices)
+                expandBuoyancyAabb(
+                    bounds, memberWorld.pointToWorld(source * memberScale));
+            if (!bounds.valid) continue;
+
             const float sizeVolume = proxy->shape == PhysicsShape::Sphere
                 ? std::abs(member->Size.x * member->Size.x * member->Size.x)
                 : std::abs(member->Size.x * member->Size.y * member->Size.z);
-            totalBodyVolume += proxy->normalizedVolume * sizeVolume *
-                               proxy->volumeCorrection;
+            const float volume = proxy->normalizedVolume * sizeVolume *
+                                 proxy->volumeCorrection;
+            if (!(volume > CLIP_EPSILON) || !std::isfinite(volume)) continue;
+            members.push_back({member, memberWorld, bounds, volume});
+            totalBodyVolume += volume;
         }
 
         float totalSubmergedVolume = 0.0f;
-        for (const auto& liquid : liquids) {
-            if (!liquid || !std::isfinite(liquid->Density) ||
-                !finiteVector(liquid->Size) ||
-                std::abs(liquid->Size.x) <= CLIP_EPSILON ||
-                std::abs(liquid->Size.y) <= CLIP_EPSILON ||
-                std::abs(liquid->Size.z) <= CLIP_EPSILON)
-                continue;
-            const CFrame liquidWorld = liquid->getWorldCFrame();
-            const CFrame liquidInverse = liquidWorld.inverse();
-            const FacePolyhedron prisms[2] = {
-                makeLiquidPrism(waveTime, false),
-                makeLiquidPrism(waveTime, true),
-            };
-            std::vector<Plane> prismPlanes[2] = {
-                planesFromPolyhedron(prisms[0]),
-                planesFromPolyhedron(prisms[1]),
-            };
-            const float minimumSurfaceHeight = std::min({
-                0.5f + LiquidCube::waveHeight(-0.5f, 0.5f, waveTime),
-                0.5f + LiquidCube::waveHeight(-0.5f, -0.5f, waveTime),
-                0.5f + LiquidCube::waveHeight(0.5f, -0.5f, waveTime),
-                0.5f + LiquidCube::waveHeight(0.5f, 0.5f, waveTime),
-            });
+        for (const LiquidInfo& liquid : liquids) {
             float liquidVolume = 0.0f;
             Vector3 liquidWeightedCenter;
-
-            for (const auto& member : members) {
-                const BuoyancyProxy* proxy = getBuoyancyProxy(*member);
+            for (const MemberInfo& member : members) {
+                if (!overlapsBuoyancyAabb(member.bounds, liquid.bounds))
+                    continue;
+                const BuoyancyProxy* proxy = getBuoyancyProxy(*member.cube);
                 if (!proxy) continue;
-                const CFrame memberWorld =
-                    bodyWorldFrame(id) * member->m_compoundLocalOffset;
-                std::vector<Vector3> normalizedVertices;
-                normalizedVertices.reserve(proxy->vertices.size());
+
+                m_buoyancyNormalizedVerticesScratch.clear();
+                m_buoyancyNormalizedVerticesScratch.reserve(proxy->vertices.size());
                 Vector3 minimum(
                     std::numeric_limits<float>::max(),
                     std::numeric_limits<float>::max(),
@@ -1813,17 +1985,18 @@ void Box3DPhysicsBackend::applyBuoyancy() {
                 for (const Vector3& source : proxy->vertices) {
                     const Vector3 memberScale =
                         proxy->shape == PhysicsShape::Sphere
-                        ? Vector3(member->Size.x, member->Size.x, member->Size.x)
-                        : member->Size;
+                        ? Vector3(member.cube->Size.x, member.cube->Size.x,
+                                  member.cube->Size.x)
+                        : member.cube->Size;
                     const Vector3 world =
-                        memberWorld.pointToWorld(source * memberScale);
-                    const Vector3 local = liquidInverse.pointToWorld(world);
-                    const Vector3 normalized = local / liquid->Size;
+                        member.world.pointToWorld(source * memberScale);
+                    const Vector3 normalized =
+                        liquid.inverse.pointToWorld(world) / liquid.cube->Size;
                     if (!finiteVector(normalized)) {
-                        normalizedVertices.clear();
+                        m_buoyancyNormalizedVerticesScratch.clear();
                         break;
                     }
-                    normalizedVertices.push_back(normalized);
+                    m_buoyancyNormalizedVerticesScratch.push_back(normalized);
                     minimum.x = std::min(minimum.x, normalized.x);
                     minimum.y = std::min(minimum.y, normalized.y);
                     minimum.z = std::min(minimum.z, normalized.z);
@@ -1831,49 +2004,42 @@ void Box3DPhysicsBackend::applyBuoyancy() {
                     maximum.y = std::max(maximum.y, normalized.y);
                     maximum.z = std::max(maximum.z, normalized.z);
                 }
-                if (normalizedVertices.empty() ||
+                if (m_buoyancyNormalizedVerticesScratch.empty() ||
                     maximum.x < -0.5f || minimum.x > 0.5f ||
                     maximum.z < -0.5f || minimum.z > 0.5f ||
                     maximum.y < -0.5f ||
                     minimum.y > 0.5f + LiquidCube::WAVE_AMPLITUDE)
                     continue;
 
+                const Vector3 memberScale =
+                    proxy->shape == PhysicsShape::Sphere
+                    ? Vector3(member.cube->Size.x, member.cube->Size.x,
+                              member.cube->Size.x)
+                    : member.cube->Size;
                 const bool fullyContained =
                     minimum.x >= -0.5f + CLIP_EPSILON &&
                     maximum.x <= 0.5f - CLIP_EPSILON &&
                     minimum.z >= -0.5f + CLIP_EPSILON &&
                     maximum.z <= 0.5f - CLIP_EPSILON &&
                     minimum.y >= -0.5f + CLIP_EPSILON &&
-                    maximum.y <= minimumSurfaceHeight - CLIP_EPSILON;
+                    maximum.y <= liquid.minimumSurfaceHeight - CLIP_EPSILON;
                 if (fullyContained) {
-                    const float sizeVolume =
-                        proxy->shape == PhysicsShape::Sphere
-                        ? std::abs(member->Size.x * member->Size.x *
-                                   member->Size.x)
-                        : std::abs(member->Size.x * member->Size.y *
-                                   member->Size.z);
-                    const float volume = proxy->normalizedVolume * sizeVolume *
-                                         proxy->volumeCorrection;
-                    const Vector3 memberScale =
-                        proxy->shape == PhysicsShape::Sphere
-                        ? Vector3(member->Size.x, member->Size.x, member->Size.x)
-                        : member->Size;
-                    const Vector3 center = memberWorld.pointToWorld(
+                    const Vector3 center = member.world.pointToWorld(
                         proxy->normalizedCentroid * memberScale);
-                    if (volume > CLIP_EPSILON && std::isfinite(volume) &&
-                        finiteVector(center)) {
-                        liquidVolume += volume;
+                    if (member.volume > CLIP_EPSILON &&
+                        std::isfinite(member.volume) && finiteVector(center)) {
+                        liquidVolume += member.volume;
                         liquidWeightedCenter =
-                            liquidWeightedCenter + center * volume;
+                            liquidWeightedCenter + center * member.volume;
                     }
                     continue;
                 }
 
-                const FacePolyhedron memberPoly =
-                    makeFacePolyhedron(normalizedVertices, proxy->faces);
+                const FacePolyhedron memberPoly = makeFacePolyhedron(
+                    m_buoyancyNormalizedVerticesScratch, proxy->faces);
                 for (int prismIndex = 0; prismIndex < 2; ++prismIndex) {
                     FacePolyhedron clipped = memberPoly;
-                    for (const Plane& plane : prismPlanes[prismIndex]) {
+                    for (const Plane& plane : liquid.prismPlanes[prismIndex]) {
                         clipped = clipPolyhedron(clipped, plane);
                         if (clipped.faces.empty()) break;
                     }
@@ -1883,12 +2049,12 @@ void Box3DPhysicsBackend::applyBuoyancy() {
                             clipped, normalizedVolume, normalizedCentroid))
                         continue;
                     const float volume = normalizedVolume *
-                        std::abs(liquid->Size.x * liquid->Size.y * liquid->Size.z) *
-                        proxy->volumeCorrection;
+                        std::abs(liquid.cube->Size.x * liquid.cube->Size.y *
+                                 liquid.cube->Size.z) * proxy->volumeCorrection;
                     if (!(volume > CLIP_EPSILON) || !std::isfinite(volume))
                         continue;
-                    const Vector3 center = liquidWorld.pointToWorld(
-                        normalizedCentroid * liquid->Size);
+                    const Vector3 center = liquid.world.pointToWorld(
+                        normalizedCentroid * liquid.cube->Size);
                     if (!finiteVector(center)) continue;
                     liquidVolume += volume;
                     liquidWeightedCenter =
@@ -1901,13 +2067,17 @@ void Box3DPhysicsBackend::applyBuoyancy() {
                 continue;
             const Vector3 centerOfBuoyancy =
                 liquidWeightedCenter / liquidVolume;
-            const float density = std::max(liquid->Density, 0.0f);
             const Vector3 force =
-                (-gravity) * (liquidVolume * density / STUDS_PER_METER);
+                (-gravity) *
+                (liquidVolume * std::max(liquid.cube->Density, 0.0f) /
+                 STUDS_PER_METER);
             if (!maintainsLinearVelocity && finiteVector(force) &&
                 finiteVector(centerOfBuoyancy))
                 b3Body_ApplyForce(
-                    id, toB3Vector(force), toB3Position(centerOfBuoyancy), true);
+                    body.id,
+                    toB3Vector(force),
+                    toB3Position(centerOfBuoyancy),
+                    true);
             totalSubmergedVolume += liquidVolume;
         }
 
@@ -1915,8 +2085,8 @@ void Box3DPhysicsBackend::applyBuoyancy() {
             ? std::clamp(totalSubmergedVolume / totalBodyVolume, 0.0f, 1.0f)
             : 0.0f;
         b3Body_SetLinearDamping(
-            id, maintainsLinearVelocity ? 0.0f : 3.0f * fraction);
-        b3Body_SetAngularDamping(id, 3.0f * fraction);
+            body.id, maintainsLinearVelocity ? 0.0f : 3.0f * fraction);
+        b3Body_SetAngularDamping(body.id, 3.0f * fraction);
     }
 }
 
@@ -2121,15 +2291,27 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
         m_accumulator >= FIXED_STEP &&
         stepCount < MAX_STEPS
     ) {
-        applyBuoyancy();
-        applyForces();
-        applyGyroForces();
+        {
+            FrameProfiler::Scope scope("physics.buoyancy");
+            applyBuoyancy();
+        }
+        {
+            FrameProfiler::Scope scope("physics.forces");
+            applyForces();
+        }
+        {
+            FrameProfiler::Scope scope("physics.gyro");
+            applyGyroForces();
+        }
 
-        b3World_Step(
-            m_worldId,
-            FIXED_STEP,
-            SUB_STEPS
-        );
+        {
+            FrameProfiler::Scope scope("physics.box3dStep");
+            b3World_Step(
+                m_worldId,
+                FIXED_STEP,
+                SUB_STEPS
+            );
+        }
 
         for (auto& diagnostic : m_yawForceDiagnostics) {
             if (B3_IS_NON_NULL(diagnostic.bodyId))
@@ -2142,7 +2324,10 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
         // Contacts, friction and constraints may alter velocity during
         // b3World_Step(), so restore the requested maintained axes after
         // the solver has finished.
-        applyMaintainedVelocities();
+        {
+            FrameProfiler::Scope scope("physics.maintainedVelocity");
+            applyMaintainedVelocities();
+        }
 
         for (const auto& diagnostic : m_yawForceDiagnostics) {
             if (!diagnostic.owner || !diagnostic.force ||
@@ -2171,21 +2356,23 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
         }
 
         ++m_simulationTick;
-        processContactEvents();
+        {
+            FrameProfiler::Scope scope("physics.contactEvents");
+            processContactEvents();
+        }
 
         m_accumulator -= FIXED_STEP;
         ++stepCount;
     }
 
-    if (
-        stepCount == MAX_STEPS &&
-        m_accumulator >= FIXED_STEP
-    ) {
+    const bool safetyBreakTriggered =
+        stepCount == MAX_STEPS && m_accumulator >= FIXED_STEP;
+    if (safetyBreakTriggered) {
         m_accumulator = 0.0f;
-        RCBN_WARN(
-            "Box3D physics safety break engaged"
-        );
+        if (!m_safetyBreakActive)
+            RCBN_WARN("Box3D physics safety break engaged");
     }
+    m_safetyBreakActive = safetyBreakTriggered;
 
     // RCBN_LOG(
     //     "Physics steps=" << stepCount
@@ -3432,7 +3619,15 @@ void Box3DPhysicsBackend::update(Workspace& workspace, float dt) {
     workspace.pendingInstances.clear();
     createPendingConstraints(workspace);
     stepOnce(dt);
-    syncAllCubes();
+    {
+        FrameProfiler::Scope scope("physics.syncCubes");
+        syncAllCubes();
+    }
+    const b3Counters counters = b3World_GetCounters(m_worldId);
+    FrameProfiler::get().addCount("physicsBodies", counters.bodyCount);
+    FrameProfiler::get().addCount("physicsContacts", counters.contactCount);
+    FrameProfiler::get().addCount(
+        "physicsAwakeBodies", b3World_GetAwakeBodyCount(m_worldId));
     dispatchContactEvents();
 }
 
