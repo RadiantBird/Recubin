@@ -1,0 +1,110 @@
+recubin:
+  type: scene
+  version: 0
+Root:
+  Properties:
+    BaseResolution: [1920, 1080]
+    UseNetwork: false
+    ApplicationId: b86c6686-13d8-40ab-b18a-3c6893021ed7
+    EnableIOAPI: false
+    EnableIPCAPI: false
+    EnableExternalFileAccess: false
+    AutoSpawnPlayerCharacter: false
+    MaxClonesPerFrame: 1000
+    MaxRestartsPerFrame: 100
+    MaxTasksPerFrame: 1000
+    ScriptLoopTimeoutSeconds: 2
+    DefaultCameraMode: Character
+  Children:
+    - ClassName: Users
+      Name: Users
+      Children:
+        - ClassName: User
+          Name: User
+          Properties:
+            ControlMode: Free
+            Speed: 0.25
+            RotationSpeed: 1
+            MouseRotationSpeed: 0.15
+            CharacterSmoothing: 0.15
+            CameraDistance: 10
+            ZoomSpeed: 0.1
+            MouseZoomSpeed: 1
+            MovementInputEnabled: true
+            CameraInputEnabled: true
+            HotkeyInputEnabled: true
+            ToolInputEnabled: true
+            CursorType: Default
+            CursorImages:
+              - Type: Type1
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type2
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type3
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type4
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type5
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type6
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type7
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type8
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type9
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type10
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+          Children:
+            - ClassName: Folder
+              Name: Inventory
+    - ClassName: Workspace
+      Name: Workspace
+      Properties:
+        Gravity: [0, -196.20001, 0]
+        Wind: [0, 0, 0]
+        PhysicsEnabled: true
+      Children:
+        - ClassName: Lighting
+          Name: Lighting
+          Properties:
+            Direction: [1, -1, -1]
+            Brightness: 1
+            Color: [1, 1, 1, 1]
+            ShadowDistance: 160
+            ShadowFadeDistance: 20
+        - ClassName: Script
+          Name: PoolTest
+          Properties:
+            Enabled: true
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\PoolTest.luau
+    - ClassName: PathfindingService
+      Name: PathfindingService
+      Properties:
+        AgentRadius: 1
+        AgentHeight: 5
+        AgentMaxClimb: 0.6
+        AgentMaxSlope: 50
+        MaxJumpDistance: 6
+        MaxJumpHeight: 4

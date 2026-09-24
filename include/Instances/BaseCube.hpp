@@ -62,6 +62,8 @@ public:
     BaseCube(Vector3 Pos, Vector3 Sz);
     virtual ~BaseCube();
 
+    void init() override;
+
     virtual PhysicsShape getPhysicsShape() const { return PhysicsShape::Box; }
     virtual std::vector<Vector3> getConvexVertices() const { return {}; }
 

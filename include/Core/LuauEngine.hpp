@@ -24,6 +24,7 @@
 #include "include/Pathfinding/PathTypes.hpp"
 #include <Network/NetworkTypes.hpp>
 #include "include/Util/RuntimeFileSystem.hpp"
+#include "include/Core/PoolService.hpp"
 
 // Forward declarations
 class Workspace;
@@ -43,6 +44,7 @@ private:
     std::weak_ptr<Workspace> workspace;  // 管理対象の Workspace
     System*    m_system = nullptr;
     std::shared_ptr<RuntimeFileSystem> m_runtimeFileSystem;
+    PoolService m_poolService;
     static Script* currentScript;  // 現在実行中のスクリプト
     std::string m_lastTraceback;   // debugprotectederror で取得したスタックトレース
 
@@ -340,6 +342,8 @@ private:
     static int connection_index(lua_State* L);
     static int connection_disconnect_closure(lua_State* L);
     static int instance_new_closure(lua_State* L);
+    static int instance_pick_closure(lua_State* L);
+    static int instance_throw_closure(lua_State* L);
     static int event_fire_closure(lua_State* L);
     static int signalevent_fire_closure(lua_State* L);
 

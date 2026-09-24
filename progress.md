@@ -1384,3 +1384,16 @@
 - `initializeAutosaveRecovery()`がクラッシュリカバリ候補ありの起動時にWelcomeを閉じていたため、リカバリモーダル表示中もWelcomeを開いたままにした。
 - `main.cpp`でもパネル設定・環境設定の復元後にWelcomeを必ず開くようにし、`editor_settings.yaml`や他のPanel状態が起動時のWelcome表示を上書きしないようにした。シーンロード後にWelcomeを閉じる既存動作は維持した。
 - `EditorManager.cpp`と`main.cpp`のGCC C++23構文検査、対象差分の`git diff --check`、Windows Release build（Recubin、RecubinEngine、RecubinTest）は成功。Windows側でリカバリ候補あり／なしの両方でWelcome表示を確認することが次の一手。
+### 2026-09-24: Instance PoolService 初期実装
+
+- Coreへ`PoolService`を追加し、Cube系クラスのwhitelist、借用中Instanceのactive map、
+  `serveObject`/`releaseObject`を実装した。Pool vectorは既存のshared_ptr親子ツリー契約に合わせ、
+  vector再配置でInstance本体が移動しない構造にした。
+- Luauへ`Instance.pick(className)`と`Instance.throw(instance)`を追加した。whitelist外のpickはwarningを
+  出して既存の`Instance.new`へフォールバックし、throwはPool借用物だけを返却する。親付きなら通常の
+  `setParent(nullptr)`で描画・Box3D登録を解除してからPoolへ戻す。
+- `Instance::init()`と`BaseCube::init()`を追加し、再貸出し時に前回の位置・基本物理プロパティを初期化する。
+- PoolService/Instance/ BaseCubeのGCC C++23構文検査は成功。LuauEngine.cppはWSL環境に`GL/glu.h`がなく
+  構文検査できなかった。Windows Release buildとLuau実行回帰は未実施。次の一手はWindows側で
+  `Instance.pick("Cube")`→Parent設定→`Instance.throw`→再pickの同一ポインタ・プロパティ初期化と、
+  whitelist外クラスのnew fallbackを確認すること。

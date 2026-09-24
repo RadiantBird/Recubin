@@ -50,6 +50,9 @@ class Instance : public std::enable_shared_from_this<Instance> {
 
         Instance(string name);
 
+        // Poolから再貸出しする前に、派生クラスが実行時状態を初期化する。
+        virtual void init() {}
+
         virtual string getClassName();
         virtual bool IsA(std::string className);
 

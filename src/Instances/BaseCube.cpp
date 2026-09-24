@@ -188,6 +188,27 @@ BaseCube::BaseCube(Vector3 Pos, Vector3 Sz)
     TouchEnded->setListenerPresenceCallback(listenerChanged);
 }
 
+void BaseCube::init() {
+    // Poolへ戻ったCubeは親とnative bodyから切り離されている。次の貸出し
+    // では、Luauが前回設定した実行時プロパティを持ち越さない。
+    Name = getClassName();
+    setCFrame(CFrame(Vector3(0.0f, 0.0f, 0.0f)));
+    Anchored = false;
+    CanCollide = true;
+    CanTouch = true;
+    CastShadow = true;
+    ShadowMode = ::ShadowMode::Normal;
+    Unlit = false;
+    UseTriplanar = false;
+    Locked = false;
+    TextureScale = 1.0f;
+    CollisionDetection = CCDMode::Default;
+    Color = Color4(1.0f, 1.0f, 1.0f, 1.0f);
+    material = Material::GetDefault(MaterialType::Plastic);
+    MassDensity = 1.0f;
+    LockFlags = PhysicsLockFlags::None;
+}
+
 void BaseCube::refreshTouchObservation() {
     const bool observed =
         (Touched && Touched->hasListeners()) ||

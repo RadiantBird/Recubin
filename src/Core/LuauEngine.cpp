@@ -613,6 +613,12 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     lua_newtable(L);
     lua_pushcfunction(L, instance_new_closure, "new");
     lua_setfield(L, -2, "new");
+    lua_pushlightuserdata(L, this);
+    lua_pushcclosure(L, instance_pick_closure, "pick", 1);
+    lua_setfield(L, -2, "pick");
+    lua_pushlightuserdata(L, this);
+    lua_pushcclosure(L, instance_throw_closure, "throw", 1);
+    lua_setfield(L, -2, "throw");
     lua_setglobal(L, "Instance");
 
     // Register custom global functions
@@ -2743,6 +2749,59 @@ int LuauEngine::instance_new_closure(lua_State* L) {
     luaL_getmetatable(L, RCBN_INST_METATABLE);
     lua_setmetatable(L, -2);
     return 1;
+}
+
+int LuauEngine::instance_pick_closure(lua_State* L) {
+    const char* requestedClass = luaL_checkstring(L, 1);
+    auto* engine = static_cast<LuauEngine*>(lua_touserdata(L, lua_upvalueindex(1)));
+    if (!engine) {
+        RCBN_ERROR("Instance.pick: LuauEngine is unavailable");
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const std::string className = requestedClass ? requestedClass : "";
+    if (!engine->m_poolService.supports(className)) {
+        RCBN_WARN("Instance.pick: class '" << className
+                  << "' is not in the pool whitelist; falling back to Instance.new");
+    }
+    std::shared_ptr<Instance> instance = engine->m_poolService.serveObject(
+        className, [className] { return createBaseCubeInstance(className); });
+    if (!instance) {
+        // Pool未対応クラスは、既存のInstance.newと同じ生成経路へ戻す。
+        lua_pushcfunction(L, instance_new_closure, "new");
+        lua_pushstring(L, className.c_str());
+        if (lua_pcall(L, 1, 1, 0) != 0) {
+            lua_error(L);
+            return 0;
+        }
+        return 1;
+    }
+
+    auto* userdata = static_cast<std::weak_ptr<Instance>*>(
+        lua_newuserdata(L, sizeof(std::weak_ptr<Instance>)));
+    new (userdata) std::weak_ptr<Instance>(instance);
+    luaL_getmetatable(L, RCBN_INST_METATABLE);
+    lua_setmetatable(L, -2);
+    return 1;
+}
+
+int LuauEngine::instance_throw_closure(lua_State* L) {
+    auto* engine = static_cast<LuauEngine*>(lua_touserdata(L, lua_upvalueindex(1)));
+    auto* userdata = static_cast<std::weak_ptr<Instance>*>(
+        luaL_checkudata(L, 1, RCBN_INST_METATABLE));
+    if (!engine) {
+        RCBN_ERROR("Instance.throw: LuauEngine is unavailable");
+        return 0;
+    }
+
+    auto instance = userdata->lock();
+    if (!instance) {
+        RCBN_WARN("Instance.throw: Instance has already been destroyed");
+        return 0;
+    }
+    engine->m_poolService.releaseObject(instance);
+    return 0;
 }
 
 // instance:Clone() — サブツリーを複製し（制約参照も張り替え）、親なしで返す。
