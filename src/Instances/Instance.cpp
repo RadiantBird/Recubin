@@ -6,6 +6,7 @@
 #include <cassert>
 #include <functional>
 #include <vector>
+#include <memory>
 
 namespace {
 struct SpatialPose {
@@ -168,8 +169,16 @@ std::string Instance::getWorkspaceRelativePath() {
     if (!stopAt) {
         // Workspace 外: 最上位の祖先（System 等）を起点にする
         Instance* top = this;
-        for (auto p = Parent.lock(); p; p = p->Parent.lock()) top = p.get();
-        stopAt = top;
+
+        for (auto p = Parent.lock(); p; p = p->Parent.lock()) {
+            top = p.get();
+        }
+        if (top->IsA("System") || top->IsA("Workspace")) {
+            stopAt = top;
+        } else {
+            // 最上位の親でない場合、それは不十分な階層になり、自分自身を参照してしまうため。
+            stopAt = top->Parent.lock().get();
+        }
     }
     return getPathUpTo(stopAt);
 }

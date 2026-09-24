@@ -798,6 +798,8 @@ int runStarterWeldRenameRegression() {
     starter->addChild(head);
     auto weld = std::make_shared<Weld>(hair, head);
     hair->addChild(weld);
+    auto noCollision = std::make_shared<NoCollision>(hair, head);
+    starter->addChild(noCollision);
 
     hair->renameTo("HairTemporary");
     head->renameTo("HeadTemporary");
@@ -858,6 +860,25 @@ int runStarterWeldRenameRegression() {
                !containsInstance(clonedAssembly, hair.get()) &&
                !containsInstance(clonedAssembly, head.get()),
            "character clone Weld targets renamed clone parts, not template parts");
+
+    std::shared_ptr<NoCollision> clonedNoCollision;
+    std::shared_ptr<Weld> clonedWeld;
+    if (character) {
+        if (auto hairChild = character->children.find("Hair1"); hairChild != character->children.end() && hairChild->second) {
+            for (const auto& [n, c] : hairChild->second->children) {
+                if (c && c->IsA("Weld")) clonedWeld = std::dynamic_pointer_cast<Weld>(c);
+            }
+        }
+        for (const auto& [n, c] : character->children) {
+            if (c && c->IsA("NoCollision")) clonedNoCollision = std::dynamic_pointer_cast<NoCollision>(c);
+        }
+    }
+    expect(clonedWeld && clonedWeld->m_cube0Name == "PlayerCharacter\\Hair1" &&
+           clonedWeld->m_cube1Name == "PlayerCharacter\\Head1",
+           "cloned Weld constraint paths are rewired to target PlayerCharacter");
+    expect(clonedNoCollision && clonedNoCollision->m_cube0Name == "PlayerCharacter\\Hair1" &&
+           clonedNoCollision->m_cube1Name == "PlayerCharacter\\Head1",
+           "cloned NoCollision constraint paths are rewired to target PlayerCharacter");
 
     auto localHair = starter->children.contains("Hair1")
         ? std::dynamic_pointer_cast<BaseCube>(starter->children.at("Hair1"))

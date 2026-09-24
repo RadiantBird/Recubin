@@ -109,6 +109,7 @@ void PhysicsConstraint::invalidateBinding() {
 }
 
 void PhysicsConstraint::onAncestorChanged() {
+    refreshRefNames();
     auto* workspace = static_cast<Workspace*>(findFirstAncestorWorkspace());
     if (workspace != m_lastWorkspace) {
         if (m_lastWorkspace) {

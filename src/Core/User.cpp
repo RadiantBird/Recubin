@@ -8,6 +8,7 @@
 #include <Instances/Workspace.hpp>
 #include <Instances/Animation.hpp>
 #include <Instances/Weld.hpp>
+#include <Instances/PhysicsConstraint.hpp>
 #include <include/Util/Logger.hpp>
 #include <include/Core/Physics.hpp>
 #include <include/Core/LuauEngine.hpp>
@@ -1114,9 +1115,18 @@ std::shared_ptr<Model> User::buildCharacterModel(
         }
     }
 
-    // rebindClonedConstraints() は不要。
-    // cloneForest() が全root共通のCloneRemapを作り、
-    // remapClonedInstances()まで実行する。
+    // model配下に組み込まれた全物理制約の参照パス (m_cube0Name, m_cube1Name 等) を
+    // 新しいモデル (PlayerCharacter) 配下のパスに再配線・更新する。
+    std::function<void(Instance*)> refreshConstraints = [&](Instance* inst) {
+        if (!inst) return;
+        if (auto* constraint = dynamic_cast<PhysicsConstraint*>(inst)) {
+            constraint->refreshRefNames();
+        }
+        for (const auto& [childName, child] : inst->children) {
+            refreshConstraints(child.get());
+        }
+    };
+    refreshConstraints(model.get());
 
     auto humanoidIt = model->getChildren().find("Humanoid");
 

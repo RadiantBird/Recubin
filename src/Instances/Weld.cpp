@@ -130,6 +130,7 @@ void Weld::remapClonedInstances(const CloneRemap& map) {
             );
         }
     }
+    refreshRefNames();
 }
 
 

@@ -194,6 +194,7 @@ void Motor6D::remapClonedInstances(const CloneRemap& map) {
 
     remap(m_cube0);
     remap(m_cube1);
+    refreshRefNames();
 }
 
 void Motor6D::collectInstanceReferences(std::vector<InstanceReference>& out) {
