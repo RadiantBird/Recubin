@@ -563,15 +563,26 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     registerExtension("IPC", "Receive", ipc_receive);
     registerExtension("IPC", "Close", ipc_close);
 
-    // Register Vector3 with new method
+    // Register Vector3 with new method.  zero is resolved through __index so
+    // each read receives an independent mutable userdata.
     lua_newtable(L);
     lua_pushcfunction(L, vec3_constructor, "new");
     lua_setfield(L, -2, "new");
-    Vector3* zeroVec = (Vector3*)lua_newuserdata(L, sizeof(Vector3));
-    *zeroVec = Vector3(0.0f, 0.0f, 0.0f);
-    luaL_getmetatable(L, RCBN_VEC3_METATABLE);
+    lua_newtable(L);
+    lua_pushcfunction(L, [](lua_State* state) -> int {
+        const char* key = luaL_checkstring(state, 2);
+        if (std::strcmp(key, "zero") != 0) {
+            lua_pushnil(state);
+            return 1;
+        }
+        auto* zero = static_cast<Vector3*>(lua_newuserdata(state, sizeof(Vector3)));
+        *zero = Vector3(0.0f, 0.0f, 0.0f);
+        luaL_getmetatable(state, RCBN_VEC3_METATABLE);
+        lua_setmetatable(state, -2);
+        return 1;
+    }, "Vector3_namespace_index");
+    lua_setfield(L, -2, "__index");
     lua_setmetatable(L, -2);
-    lua_setfield(L, -2, "zero");
     lua_setglobal(L, "Vector3");
 
     // Register Color4 with new/fromRGBA methods

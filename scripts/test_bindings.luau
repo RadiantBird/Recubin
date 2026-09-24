@@ -34,6 +34,13 @@ check("print accepts tables", pcall(function() print(nestedTable) end))
 print("--- Vector3 Arithmetic ---")
 local v3a = Vector3.new(0, 1, 2)
 local v3b = Vector3.new(1, 2, 3)
+local v3setResult = v3a:set(3, 4, 5)
+check("Vector3:set mutates and returns self", v3setResult == v3a and v3a.x == 3 and v3a.y == 4 and v3a.z == 5)
+v3a:set(0, 1, 2)
+local v3zeroA = Vector3.zero
+local v3zeroB = Vector3.zero
+v3zeroA:set(1, 2, 3)
+check("Vector3.zero returns independent userdata", v3zeroB.x == 0 and v3zeroB.y == 0 and v3zeroB.z == 0)
 check("Vector3 __add", tostring(v3a + v3b) == tostring(Vector3.new(1, 3, 5)))
 check("Vector3 __sub", tostring(v3a - v3b) == tostring(Vector3.new(-1, -1, -1)))
 local negV3a = -v3a
@@ -43,6 +50,10 @@ check("Vector3 __mul (scalar, n*vec)", tostring(2 * v3a) == tostring(Vector3.new
 check("Vector3 __mul (componentwise)", tostring(v3a * v3b) == tostring(Vector3.new(0, 2, 6)))
 check("Vector3 __div (scalar)", tostring(v3b / 2) == tostring(Vector3.new(0.5, 1, 1.5)))
 check("Vector3 __eq", Vector3.new(0, 1, 2) == v3a)
+
+local v2set = Vector2.new(1, 2)
+local v2setResult = v2set:set(3, 4)
+check("Vector2:set mutates and returns self", v2setResult == v2set and v2set.x == 3 and v2set.y == 4)
 
 print("--- Vector2 Arithmetic ---")
 local v2a = Vector2.new(1, 2)

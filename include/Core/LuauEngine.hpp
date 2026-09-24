@@ -244,6 +244,7 @@ private:
     // Vector3 methods
     static int vec3_index(lua_State* L);
     static int vec3_newindex(lua_State* L);
+    static int vec3_set(lua_State* L);
     static int vec3_tostring(lua_State* L);
     static int vec3_constructor(lua_State* L);
     // static int vec3_zeroconstructor(lua_State* L);
@@ -271,6 +272,7 @@ private:
     static int vec2_constructor(lua_State* L);
     static int vec2_index(lua_State* L);
     static int vec2_newindex(lua_State* L);
+    static int vec2_set(lua_State* L);
     static int vec2_tostring(lua_State* L);
     static int vec2_add(lua_State* L);
     static int vec2_sub(lua_State* L);

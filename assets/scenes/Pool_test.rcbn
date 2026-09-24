@@ -99,6 +99,11 @@ Root:
           Properties:
             Enabled: true
             ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\PoolTest.luau
+        - ClassName: Script
+          Name: Mutable Vector Test
+          Properties:
+            Enabled: true
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\Mutable Vector Test.luau
     - ClassName: PathfindingService
       Name: PathfindingService
       Properties:

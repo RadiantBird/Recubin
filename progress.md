@@ -1397,3 +1397,14 @@
   構文検査できなかった。Windows Release buildとLuau実行回帰は未実施。次の一手はWindows側で
   `Instance.pick("Cube")`→Parent設定→`Instance.throw`→再pickの同一ポインタ・プロパティ初期化と、
   whitelist外クラスのnew fallbackを確認すること。
+
+### 2026-09-24: Vector2/Vector3 mutable Luau binding
+
+- Luau bindingの対象は`Vector2`と`Vector3`のみで、Vector4その他のVectorN bindingは存在しないことを確認した。
+- `Vector2:set(x, y)`と`Vector3:set(x, y, z)`を追加し、既存userdataを直接変更して`self`を返すようにした。既存の
+  component代入、演算子、C++側のvalue semanticsは変更していない。
+- `Vector3.zero`は従来の共有userdataを廃止し、アクセスごとに独立したゼロuserdataを返すtable `__index`へ変更した。
+  `Vector2.zero`は新設していない。`normalize()`は従来どおり新しいuserdataを返す。
+- `scripts/test_bindings.luau`へsetの自己返却・直接変更・zero独立性の検査を追加し、Vector3文書を更新した。
+- `LuauEngine_Math.cpp`のGCC C++23構文検査、対象差分の`git diff --check`、Windows Release build
+  （Recubin、RecubinEngine、RecubinTest）は成功。全回帰テストは実行していない。

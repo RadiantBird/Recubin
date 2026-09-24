@@ -57,9 +57,21 @@ int LuauEngine::vec3_index(lua_State* L) {
             return 1;
         }, "normalize");
         return 1;
+    } else if (key == "set") {
+        lua_pushcfunction(L, vec3_set, "set");
+        return 1;
     }
 
     return 0;
+}
+
+int LuauEngine::vec3_set(lua_State* L) {
+    auto* vec = static_cast<Vector3*>(luaL_checkudata(L, 1, RCBN_VEC3_METATABLE));
+    vec->x = static_cast<float>(luaL_checknumber(L, 2));
+    vec->y = static_cast<float>(luaL_checknumber(L, 3));
+    vec->z = static_cast<float>(luaL_checknumber(L, 4));
+    lua_pushvalue(L, 1);
+    return 1;
 }
 
 int LuauEngine::vec3_newindex(lua_State* L) {
@@ -290,6 +302,9 @@ int LuauEngine::vec2_index(lua_State* L) {
     } else if (key == "Y" || key == "y") {
         lua_pushnumber(L, vec->y);
         return 1;
+    } else if (key == "set") {
+        lua_pushcfunction(L, vec2_set, "set");
+        return 1;
     }
     return 0;
 }
@@ -305,6 +320,14 @@ int LuauEngine::vec2_newindex(lua_State* L) {
         vec->y = value;
     }
     return 0;
+}
+
+int LuauEngine::vec2_set(lua_State* L) {
+    auto* vec = static_cast<Vector2*>(luaL_checkudata(L, 1, RCBN_VEC2_METATABLE));
+    vec->x = static_cast<float>(luaL_checknumber(L, 2));
+    vec->y = static_cast<float>(luaL_checknumber(L, 3));
+    lua_pushvalue(L, 1);
+    return 1;
 }
 
 int LuauEngine::vec2_tostring(lua_State* L) {
