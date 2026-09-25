@@ -1,8 +1,13 @@
 #pragma once
+
 #include "miniaudio.h"
 #include "Instances/Instance.hpp"
 #include "Math/Vector3.hpp"
 #include <vector>
+
+#define AUDIO_FILTER_NAME "Audio (*.mp3;*.wav;*.ogg;*.flac)"
+#define AUDIO_FILTER_EXT  "mp3,wav,ogg,flac"
+#define AUDIO_EXTENSION AUDIO_FILTER_NAME, AUDIO_FILTER_EXT
 
 class Sound; // 前方宣言
 

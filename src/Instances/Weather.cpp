@@ -63,11 +63,11 @@ static const bool s_weatherRegistered = []{
         field<&Weather::LightningEnabled>("LightningEnabled"),
         field<&Weather::LightningInterval>("LightningInterval", 1.0f, 120.0f, 1.0f).clampLua(),
         field<&Weather::ClearAmbientPath>("ClearAmbientPath")
-            .omitEmpty().filePath("Audio (*.mp3;*.wav;*.ogg)", "*.mp3;*.wav;*.ogg"),
+            .omitEmpty().filePath(AUDIO_EXTENSION),
         field<&Weather::RainAmbientPath> ("RainAmbientPath")
-            .omitEmpty().filePath("Audio (*.mp3;*.wav;*.ogg)", "*.mp3;*.wav;*.ogg"),
+            .omitEmpty().filePath(AUDIO_EXTENSION),
         field<&Weather::SnowAmbientPath> ("SnowAmbientPath")
-            .omitEmpty().filePath("Audio (*.mp3;*.wav;*.ogg)", "*.mp3;*.wav;*.ogg"),
+            .omitEmpty().filePath(AUDIO_EXTENSION),
         field<&Weather::AmbientVolume>   ("AmbientVolume",    0.0f, 1.0f,    0.05f).clampLua(),
     });
     return true;

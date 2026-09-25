@@ -42,7 +42,7 @@ static const bool s_soundRegistered = [] {
             },
             [](Instance* instance, const PropValue& value) {
                 static_cast<Sound*>(instance)->loadFromFile(std::get<std::string>(value));
-            }).filePath("Audio (*.mp3;*.wav;*.ogg)", "*.mp3;*.wav;*.ogg").luaReadOnly(),
+            }).filePath(AUDIO_EXTENSION).luaReadOnly(),
         field<&Sound::autoPlay>("AutoPlay"),
         method_prop<&Sound::isLooping, &Sound::setLooping>("Looped"),
         method_prop<&Sound::getSoundGroup, &Sound::setSoundGroup>("SoundGroup").luaReadOnly(),

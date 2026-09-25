@@ -1,3 +1,6 @@
+#define DR_FLAC_IMPLEMENTATION
+#include "dr_flac.h"
+
 #define MINIAUDIO_IMPLEMENTATION
 #include "Core/AudioService.hpp"
 #include "Instances/Sound.hpp"
