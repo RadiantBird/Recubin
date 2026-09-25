@@ -2909,35 +2909,33 @@ void Box3DPhysicsBackend::createBallSocket(
             << "\": Box3D spherical joint creation failed");
         return;
     }
-    const auto axisLimitMask = [](BallSocketAngularMode mode) {
-        return mode == BallSocketAngularMode::Limited ? 1u : 0u;
+    const auto limitedAngle = [](BallSocketAngularMode mode, float lower,
+                                 float upper) {
+        if (mode == BallSocketAngularMode::Locked) return 0.0f;
+        if (mode == BallSocketAngularMode::Free) return pi;
+        return std::min(std::abs(lower), std::abs(upper)) * pi / 180.0f;
     };
-    const auto axisLockMask = [](BallSocketAngularMode mode) {
-        return mode == BallSocketAngularMode::Locked ? 1u : 0u;
-    };
-    const Vector3 lower(
-        ballSocket->AngularXMin * pi / 180.0f,
-        ballSocket->AngularYMin * pi / 180.0f,
-        ballSocket->AngularZMin * pi / 180.0f);
-    const Vector3 upper(
-        ballSocket->AngularXMax * pi / 180.0f,
-        ballSocket->AngularYMax * pi / 180.0f,
-        ballSocket->AngularZMax * pi / 180.0f);
-    const uint32_t limitMask =
-        axisLimitMask(ballSocket->AngularXMode) |
-        (axisLimitMask(ballSocket->AngularYMode) << 1u) |
-        (axisLimitMask(ballSocket->AngularZMode) << 2u);
-    const uint32_t lockMask =
-        axisLockMask(ballSocket->AngularXMode) |
-        (axisLockMask(ballSocket->AngularYMode) << 1u) |
-        (axisLockMask(ballSocket->AngularZMode) << 2u);
-    if (limitMask != 0 || lockMask != 0) {
-        b3SphericalJoint_SetAngularLimits(
-            joint,
-            {lower.x, lower.y, lower.z},
-            {upper.x, upper.y, upper.z},
-            limitMask,
-            lockMask);
+    const bool coneLimited =
+        ballSocket->AngularXMode != BallSocketAngularMode::Free ||
+        ballSocket->AngularYMode != BallSocketAngularMode::Free;
+    const bool twistLimited =
+        ballSocket->AngularZMode != BallSocketAngularMode::Free;
+    if (coneLimited) {
+        const float coneAngle = std::min(
+            limitedAngle(ballSocket->AngularXMode, ballSocket->AngularXMin,
+                         ballSocket->AngularXMax),
+            limitedAngle(ballSocket->AngularYMode, ballSocket->AngularYMin,
+                         ballSocket->AngularYMax));
+        b3SphericalJoint_SetConeLimit(joint, coneAngle);
+        b3SphericalJoint_EnableConeLimit(joint, true);
+    }
+    if (twistLimited) {
+        const float lowerTwist =
+            ballSocket->AngularZMin * pi / 180.0f;
+        const float upperTwist =
+            ballSocket->AngularZMax * pi / 180.0f;
+        b3SphericalJoint_SetTwistLimits(joint, lowerTwist, upperTwist);
+        b3SphericalJoint_EnableTwistLimit(joint, true);
     }
     const PhysicsConstraintHandle handle{b3StoreJointId(joint)};
     ballSocket->m_constraintHandle = handle;
