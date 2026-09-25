@@ -1408,3 +1408,12 @@
 - `scripts/test_bindings.luau`へsetの自己返却・直接変更・zero独立性の検査を追加し、Vector3文書を更新した。
 - `LuauEngine_Math.cpp`のGCC C++23構文検査、対象差分の`git diff --check`、Windows Release build
   （Recubin、RecubinEngine、RecubinTest）は成功。全回帰テストは実行していない。
+
+### 2026-09-26: Model::pivotTo の Assembly 重複移動防止および重心 Pivot 基準修正
+
+- `Model::pivotTo` が Model 自体の初期ダミー CFrame `(0, 0, 0)` を基準に `delta` を計算していたため、子パーツ（`Root` 等）が本来移動すべき目標位置から大きくずれた空中に飛ばされて無限落下を繰り返していた問題を修正した。
+- `Model::getPivotCFrame()` を実装し、Model 内の全 BaseCube（ない場合は全 Spatial）のワールド座標の平均値（幾何学的重心）から重心 CFrame を求め、これを Pivot 基準として `delta` を計算するように変更した。
+- `std::unordered_set<const BaseCube*> processedCubes` による Assembly（`Weld::collectAssembly`）単位の 1 回移動と組み合わせ、モデル全体の構成要素の重心が正確に指定ターゲット CFrame へ合致してテレポート・着地するようにした。
+- `git diff --check` を実行し正常。環境に `g++` がないため構文検査はスキップ。
+
+

@@ -40,6 +40,7 @@
 #include "include/Instances/TextFile.hpp"
 #include "include/Util/RuntimeFileSystem.hpp"
 #include "include/Instances/Texture.hpp"
+#include "include/Instances/Model.hpp"
 #include "include/Instances/ImageLabel.hpp"
 #include "include/Instances/ImageButton.hpp"
 #include "include/Core/Terrain.hpp"
@@ -384,6 +385,8 @@ void LuauEngine::InitDispatchTable_Base() {
         pushCFrame(L, static_cast<Spatial*>(obj)->getWorldCFrame());
         return 1;
     };
+    DispatchTable["Model"]["PivotTo"] = getter_closure(
+        model_pivot_to_closure, "PivotTo");
 
     // --- BaseCube（Position/Size は Spatial に集約。物理特有のみ残置）---
     PropertyRegistry::applyToDispatch("BaseCube", DispatchTable, SetterTable);

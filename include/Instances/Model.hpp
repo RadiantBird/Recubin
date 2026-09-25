@@ -17,6 +17,8 @@ public:
         if (name == "Model") return true;
         return Spatial::IsA(name);
     }
+    CFrame getPivotCFrame() const;
+    void pivotTo(const CFrame& worldCFrame);
     void onChildrenChanged() override;
     std::shared_ptr<Instance> clone() const override;
 };

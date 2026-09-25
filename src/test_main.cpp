@@ -11200,6 +11200,101 @@ static int runSpatialCoordinateAssertions() {
     expect(positionDistance(nestedCube->getWorldPosition(), nestedTarget) < 0.001f &&
                positionDistance(nestedCube->getPosition(), nestedLocal) < 0.001f,
            "Luau WorldPosition converts through a transformed Spatial parent");
+
+    auto pivotModel = std::make_shared<Model>(
+        Vector3(4, 2, -3), Vector3(1, 1, 1));
+    auto pivotFolder = std::make_shared<Folder>();
+    auto pivotChild = std::make_shared<Cube>(
+        Vector3(2, 1, 5), Vector3(1, 1, 1), 0);
+    pivotChild->setRotation(Quaternion::fromAxisAngle(Vector3(1, 0, 0), 17));
+    pivotModel->addChild(pivotFolder);
+    pivotFolder->addChild(pivotChild);
+    auto pivotParent = std::make_shared<Model>(
+        Vector3(-20, 4, 7), Vector3(1, 1, 1));
+    pivotParent->setRotation(
+        Quaternion::fromAxisAngle(Vector3(0, 1, 0), 35));
+    pivotParent->addChild(pivotModel);
+    luauWorkspace->addChild(pivotParent);
+    const CFrame pivotRelative =
+        pivotModel->getWorldCFrame().inverse() * pivotChild->getWorldCFrame();
+    auto pivotScript = std::make_shared<Script>();
+    pivotScript->Source =
+        "PivotModel:PivotTo(CFrame.new(30, 8, -11))\n";
+    worldPositionEngine.setGlobalInstance("PivotModel", pivotModel);
+    expect(worldPositionEngine.execute(*pivotScript),
+           "Luau Model.PivotTo accepts a world CFrame");
+    expect(sameCFrame(pivotModel->getWorldCFrame(),
+                      CFrame(Vector3(30, 8, -11))) &&
+               sameCFrame(pivotModel->getWorldCFrame().inverse() *
+                              pivotChild->getWorldCFrame(), pivotRelative),
+           "Model.PivotTo preserves descendant relative world poses");
+
+    auto weldedPivotModel = std::make_shared<Model>(Vector3(0, 0, 0));
+    auto weldedA = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(2, 2, 2), 0);
+    auto weldedB = std::make_shared<Cube>(Vector3(4, 0, 0), Vector3(2, 2, 2), 0);
+    weldedA->Anchored = true;
+    weldedB->Anchored = true;
+    auto weldedAssembly = std::make_shared<Weld>(weldedA, weldedB);
+    weldedPivotModel->addChild(weldedA);
+    weldedPivotModel->addChild(weldedB);
+    weldedPivotModel->addChild(weldedAssembly);
+    luauWorkspace->addChild(weldedPivotModel);
+    const CFrame beforeWeldA = weldedA->getWorldCFrame();
+    const CFrame beforeWeldB = weldedB->getWorldCFrame();
+    const CFrame weldedTarget = CFrame(Vector3(18, 7, -9),
+        Quaternion::fromAxisAngle(Vector3(0, 1, 0), 42));
+    weldedPivotModel->pivotTo(weldedTarget);
+    const CFrame expectedB = weldedTarget * beforeWeldA.inverse() * beforeWeldB;
+    expect(sameCFrame(weldedA->getWorldCFrame(), weldedTarget) &&
+               sameCFrame(weldedB->getWorldCFrame(), expectedB),
+           "Model.PivotTo moves each welded assembly only once");
+
+    auto attachmentPivotModel = std::make_shared<Model>(Vector3(1, 2, 3));
+    auto attachmentRoot = std::make_shared<Cube>(Vector3(2, 1, -4),
+        Vector3(2, 2, 2), 0);
+    attachmentRoot->Anchored = true;
+    auto attachmentParent = std::make_shared<Attachment>(Vector3(0.75f, 0.0f, 0.25f));
+    auto attachmentChild = std::make_shared<Attachment>(Vector3(0.0f, 1.0f, -0.5f));
+    attachmentParent->addChild(attachmentChild);
+    attachmentRoot->addChild(attachmentParent);
+    attachmentPivotModel->addChild(attachmentRoot);
+    luauWorkspace->addChild(attachmentPivotModel);
+    luauWorkspace->getPhysicsEngine()->update(*luauWorkspace, 0.0f);
+    const CFrame attachmentRootBefore = attachmentRoot->getWorldCFrame();
+    const CFrame attachmentRelative =
+        attachmentRootBefore.inverse() * attachmentChild->getWorldCFrame();
+    const CFrame attachmentTarget = CFrame(Vector3(19, 9, -13),
+        Quaternion::fromAxisAngle(Vector3(0, 1, 0), 26));
+    attachmentPivotModel->pivotTo(attachmentTarget);
+    const CFrame expectedAttachmentWorld = attachmentTarget * attachmentRelative;
+    std::cout << "[SpatialCoordinateRegression] debug attachment root="
+              << attachmentRoot->getWorldCFrame().Position.x << ","
+              << attachmentRoot->getWorldCFrame().Position.y << ","
+              << attachmentRoot->getWorldCFrame().Position.z << " target="
+              << attachmentTarget.Position.x << ","
+              << attachmentTarget.Position.y << ","
+              << attachmentTarget.Position.z << " child="
+              << attachmentChild->getWorldCFrame().Position.x << ","
+              << attachmentChild->getWorldCFrame().Position.y << ","
+              << attachmentChild->getWorldCFrame().Position.z << " expected="
+              << expectedAttachmentWorld.Position.x << ","
+              << expectedAttachmentWorld.Position.y << ","
+              << expectedAttachmentWorld.Position.z << "\n";
+    expect(sameCFrame(attachmentRoot->getWorldCFrame(), attachmentTarget) &&
+               sameCFrame(attachmentChild->getWorldCFrame(), expectedAttachmentWorld),
+           "Model.PivotTo preserves attachment world transforms on physics-backed children");
+
+    auto invalidPivotScript = std::make_shared<Script>();
+    invalidPivotScript->Source =
+        "PivotModel:PivotTo(Vector3.new(1, 2, 3))\n";
+    expect(!worldPositionEngine.execute(*invalidPivotScript),
+           "Model.PivotTo rejects non-CFrame arguments");
+    auto cubePivotScript = std::make_shared<Script>();
+    cubePivotScript->Source =
+        "DirectCube:PivotTo(CFrame.new(1, 2, 3))\n";
+    expect(!worldPositionEngine.execute(*cubePivotScript),
+           "Model.PivotTo is not exposed on non-Model instances");
+
     luauWorkspace->getPhysicsEngine()->update(*luauWorkspace, 1.0f / 60.0f);
     expect(positionDistance(directCube->getWorldPosition(), directTarget) < 0.001f &&
                positionDistance(nestedCube->getWorldPosition(), nestedTarget) < 0.001f,

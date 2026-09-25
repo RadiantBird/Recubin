@@ -162,6 +162,7 @@ private:
     static int instance_is_a_closure(lua_State* L);
     static int instance_destroy_closure(lua_State* L);
     static int instance_clone_closure(lua_State* L);
+    static int model_pivot_to_closure(lua_State* L);
 
     // Runtime file and IPC extension callbacks. The engine is captured as a
     // light-userdata upvalue so the same registration works for every state.
