@@ -1,6 +1,7 @@
 #pragma once
 #include <include/Instances/Instance.hpp>
 #include <include/Instances/Workspace.hpp>
+#include <chrono>
 
 // Forward declaration
 struct lua_State;
@@ -21,6 +22,7 @@ class Script : public Instance {
         bool Aborted = false;    // エラーによる強制終了フラグ
         float SleepTime = 0.0f;
         float SleepRemaining = 0.0f;  // 残り待機時間
+        std::chrono::steady_clock::time_point lastResumeTime{};
 
         // WaitChild による条件待機（Sleeping とは独立。子の出現をポーリングする）
         bool WaitingForChild = false;

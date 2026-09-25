@@ -61,6 +61,8 @@ private:
         bool  waitingForPath = false; // PathfindingService::FindPathによる待機
         bool  finished       = false; // 掃除待ち(完了/エラー/放置yield)
         std::string sourceLabel;
+
+        std::chrono::steady_clock::time_point lastResumeTime{};
     };
     std::vector<std::unique_ptr<EngineTask>> m_tasks;
     static EngineTask* currentTask;  // 現在実行中のエンジンタスク(currentScriptと排他)

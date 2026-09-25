@@ -1,3 +1,5 @@
+local number = require("./Luar Programming Language/luau/tests/require/without_config/types/number")
+local number = require("./Luar Programming Language/luau/tests/require/without_config/types/number")
 export type Connection = {
     Disconnect: (Connection) -> ()
 }
@@ -627,7 +629,7 @@ export type IPC = {
 export type task = {
     spawn: (fn: (...any) -> (...any), ...any) -> (),
     delay: (seconds: number, fn: (...any) -> (...any), ...any) -> (),
-    wait:  (seconds: number?) -> ()
+    wait:  (seconds: number?) -> (number)
 }
 
 declare workspace: Workspace
@@ -660,7 +662,7 @@ declare require: <T>(moduleScript: ModuleScript) -> T
 
 --- Sleep the script for seconds.
 --- if seconds is nil, start in next frame. 
-declare wait: (seconds: number?) -> ()
+declare wait: (seconds: number?) -> (number)
 declare print: (...any) -> ()
 
 declare function add(instance: Instance): ()

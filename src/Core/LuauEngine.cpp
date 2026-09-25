@@ -1032,6 +1032,19 @@ bool LuauEngine::execute(Script& script) {
 
         // コルーチンを再開
         int nargs = 0;
+
+        auto now = std::chrono::steady_clock::now();
+        float delta = 0.0f;
+        if (script.lastResumeTime.time_since_epoch().count() > 0) {
+            delta = std::chrono::duration<float>(now - script.lastResumeTime).count();
+        }
+        script.lastResumeTime = now;
+
+        if (lua_status(co) == LUA_YIELD) {
+            lua_pushnumber(co, delta); 
+            nargs = 1;
+        }
+
         FPUState fpuState = saveFPU();
         m_scriptResumeStart = std::chrono::steady_clock::now();
         beginProtectedExecution();
@@ -1767,6 +1780,23 @@ void LuauEngine::resumeEngineTask(EngineTask& task, int nargs) {
     currentScript = nullptr;
     currentTask   = &task;
     task.started  = true;
+
+    if (task.started && lua_status(task.co) == LUA_YIELD) {
+        auto now = std::chrono::steady_clock::now();
+        float delta = 0.0f;
+
+        // 時計が未初期化でない場合
+        if (task.lastResumeTime.time_since_epoch().count() > 0) {
+            delta = std::chrono::duration<float>(now - task.lastResumeTime).count();
+        }
+        
+        lua_pushnumber(task.co, delta);
+        nargs = 1; // resume時にdeltaを1つ渡す
+        task.lastResumeTime = now;
+    } else {
+        // 初回起動時（task.spawn の引数渡し等）は初回時刻だけ記録
+        task.lastResumeTime = std::chrono::steady_clock::now();
+    }
 
     FPUState fpuState = saveFPU();
     m_scriptResumeStart = std::chrono::steady_clock::now();

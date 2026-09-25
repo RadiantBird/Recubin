@@ -95,6 +95,7 @@ void Script::restart() {
     WaitTimeout = -1.0f;
     WaitElapsed = 0.0f;
     WaitingForPath = false;
+    lastResumeTime = std::chrono::steady_clock::time_point{}; // タイムスタンプをクリア
 }
 
 std::shared_ptr<Instance> Script::clone() const {
