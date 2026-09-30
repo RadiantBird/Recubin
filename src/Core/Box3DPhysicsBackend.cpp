@@ -821,6 +821,11 @@ void Box3DPhysicsBackend::refreshCollisionFilter(BaseCube& cube) {
     if (changed) b3Body_SetAwake(id, true);
 }
 
+bool Box3DPhysicsBackend::isTouchActive(
+    const BaseCube& first, const BaseCube& second) const {
+    return m_activeTouches.contains(normalizePair(&first, &second));
+}
+
 std::size_t Box3DPhysicsBackend::getTouchSensorShapeCount() const {
     std::size_t result = 0;
     for (const BodyEntry& entry : m_bodies) {

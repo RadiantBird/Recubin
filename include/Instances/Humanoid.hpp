@@ -337,6 +337,8 @@ private:
         float ordinaryCaptureDistance
     ) const;
     void updateGroundHover(Physics* physics, const std::shared_ptr<BaseCube>& root);
+    // LeftLeg/RightLegのどちらかが足元で何かに接触しているか(ジャンプ許可判定用)
+    bool isLegTouching(Physics* physics) const;
     void updateRagdoll(float dt, Physics* physics);
     void updateRagdollRecovery(float dt, Physics* physics);
     void finalizeRagdollRecovery(Physics* physics, const char* recoveryReason);

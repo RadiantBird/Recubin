@@ -215,6 +215,7 @@ public:
     void applyLockFlags(BaseCube& cube) override;
     void refreshCollisionFilter(BaseCube& cube) override;
     std::size_t getTouchSensorShapeCount() const override;
+    bool isTouchActive(const BaseCube& first, const BaseCube& second) const override;
     void syncCube(BaseCube& cube) override;
 
     void enqueueResize(const std::shared_ptr<BaseCube>& cube) override;

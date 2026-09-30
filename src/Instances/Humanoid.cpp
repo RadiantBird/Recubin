@@ -360,6 +360,59 @@ std::optional<float> Humanoid::getLandingImpactEquivalentSpeed(
     return static_cast<float>(std::sqrt(equivalentSpeedSquared));
 }
 
+bool Humanoid::isLegTouching(Physics* physics) const {
+    if (!physics) return false;
+    auto character = Parent.lock();
+    if (!character) return false;
+    // 足が地面にめり込んでいる場合や接している面は初期接触扱いでシェイプキャストに
+    // 当たらないため、足の上端に薄い箱を置いて下向きに飛ばす。足裏の下約0.3studまでの
+    // 面を接触とみなす。壁を除くため、上向きの法線を持つ面だけを足場とする。
+    constexpr float FOOT_PROBE_THICKNESS = 0.1f;
+    constexpr float FOOT_CONTACT_TOLERANCE = 0.3f;
+    constexpr float MINIMUM_SUPPORT_NORMAL_Y = 0.5f;
+
+    std::vector<std::shared_ptr<BaseCube>> legs;
+    for (const char* legName : {"LeftLeg", "RightLeg"}) {
+        const auto found = character->getChildren().find(legName);
+        if (found == character->getChildren().end()) continue;
+        const auto leg = std::dynamic_pointer_cast<BaseCube>(found->second);
+        if (leg && physics->hasBody(*leg)) legs.push_back(leg);
+    }
+    // 足にTouchedが接続されている場合は、そのイベントの発火元であるセンサー接触と
+    // 判定を一致させる(接触前にジャンプしてTouchedを回避できないようにする)。
+    // 接続済みの足がある間は、未接続の足の幾何判定だけでは許可しない。
+    const auto isObserved = [](const BaseCube& leg) {
+        return leg.CanTouch && leg.isTouchObserved();
+    };
+    const bool anyObserved = std::any_of(
+        legs.begin(), legs.end(),
+        [&](const auto& leg) { return isObserved(*leg); });
+
+    for (const auto& leg : legs) {
+        const bool observed = isObserved(*leg);
+        if (anyObserved && !observed) continue;
+        const CFrame legFrame = leg->getWorldCFrame();
+        const CFrame probeFrame(
+            legFrame.pointToWorld(Vector3(
+                0.0f, leg->Size.y * 0.5f - FOOT_PROBE_THICKNESS * 0.5f, 0.0f)),
+            legFrame.Rotation);
+        ShapeCastHit hit;
+        if (!physics->shapeCastBox(
+                probeFrame,
+                Vector3(leg->Size.x * 0.9f, FOOT_PROBE_THICKNESS, leg->Size.z * 0.9f),
+                Vector3(0.0f, -1.0f, 0.0f),
+                leg->Size.y - FOOT_PROBE_THICKNESS + FOOT_CONTACT_TOLERANCE,
+                hit, character.get(), MINIMUM_SUPPORT_NORMAL_Y) || !hit.hit)
+            continue;
+        if (!observed) return true;
+        // Touchedを発火できない足場(CanTouch=falseやBaseCube以外)は従来の幾何判定で許可する。
+        const auto* support = dynamic_cast<const BaseCube*>(hit.instance);
+        if (!support || !support->CanTouch) return true;
+        if (physics->isTouchActive(*leg, *support)) return true;
+    }
+    return false;
+}
+
 void Humanoid::updateGroundHover(
     Physics* physics,
     const std::shared_ptr<BaseCube>& root
@@ -441,8 +494,10 @@ void Humanoid::updateGroundHover(
     bool atHipHeight = false;
     const float effectiveHipHeight = HipHeight;
 
-    if (m_groundJumpRearmPending && hasFloor &&
-        verticalVelocity <= 0.0f && floor.distance <= effectiveHipHeight) {
+    // 足が何かに触れた時点でジャンプを再許可する。
+    // (足にTouchedを接続するゲームで、空中ジャンプによるずるを防ぐ)
+    if (m_groundJumpRearmPending && verticalVelocity <= 0.0f &&
+        isLegTouching(physics)) {
         m_groundJumpRearmPending = false;
     }
 
@@ -2135,6 +2190,11 @@ void Humanoid::jump(Physics* physics) {
     }
 
     if (!climbingJump && !isGrounded && !submerged) {
+        return;
+    }
+
+    // 足がどちらも何にも触れていない間はジャンプさせない。
+    if (!climbingJump && !submerged && !isLegTouching(physics)) {
         return;
     }
 

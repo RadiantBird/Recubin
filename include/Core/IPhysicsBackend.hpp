@@ -88,6 +88,8 @@ public:
     virtual void applyLockFlags(BaseCube& cube) = 0;
     virtual void refreshCollisionFilter(BaseCube& cube) = 0;
     virtual std::size_t getTouchSensorShapeCount() const { return 0; }
+    // Touchedを発火させるセンサー接触が、2つのCubeの間で現在有効か
+    virtual bool isTouchActive(const BaseCube&, const BaseCube&) const { return false; }
     virtual void syncCube(BaseCube& cube) = 0;
 
     virtual void enqueueResize(const std::shared_ptr<BaseCube>& cube) = 0;

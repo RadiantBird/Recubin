@@ -92,6 +92,7 @@ public:
     void applyLockFlags(BaseCube& cube);
     void refreshCollisionFilter(BaseCube& cube);
     std::size_t getTouchSensorShapeCount() const;
+    bool isTouchActive(const BaseCube& first, const BaseCube& second) const;
     void syncCube(BaseCube& cube);
 
     void enqueueResize(const std::shared_ptr<BaseCube>& cube);
