@@ -272,6 +272,7 @@ class Renderer {
         std::map<std::wstring, ImFont*> m_guiFontCache;
         ImFont* m_systemDefaultGuiFont = nullptr;
         ImFont* m_dotGothicGuiFont = nullptr;
+        ImFont* m_mplusGuiFont = nullptr;  // UI / SystemFont::Default の既定フォント
         ImFont* m_codeEditorFont = nullptr;
 
         // カメラ回転ドラッグ中、非表示のOSカーソルの代わりにアンカー位置へ固定表示する擬似カーソル

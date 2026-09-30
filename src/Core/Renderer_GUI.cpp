@@ -138,6 +138,7 @@ ImFont* Renderer::resolveGuiFont(ScreenGuiObject* sgo) {
                 return m_dotGothicGuiFont ? m_dotGothicGuiFont : ImGui::GetFont();
             case SystemFont::Default:
             default:
+                if (m_mplusGuiFont) return m_mplusGuiFont;
                 return m_systemDefaultGuiFont ? m_systemDefaultGuiFont : ImGui::GetFont();
         }
     }

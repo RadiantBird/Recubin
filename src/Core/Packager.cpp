@@ -652,14 +652,14 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
         };
         fs::path fontSrcDir;
         for (const fs::path& candidate : fontCandidates) {
-            if (fs::exists(candidate / "DotGothic16-Regular.ttf") &&
-                fs::is_regular_file(candidate / "DotGothic16-Regular.ttf")) {
+            if (fs::exists(candidate / "MPLUS1p-Regular.ttf") &&
+                fs::is_regular_file(candidate / "MPLUS1p-Regular.ttf")) {
                 fontSrcDir = candidate;
                 break;
             }
         }
         if (fontSrcDir.empty()) {
-            log("[ERROR] Required runtime font not found: assets/fonts/DotGothic16-Regular.ttf");
+            log("[ERROR] Required runtime font not found: assets/fonts/MPLUS1p-Regular.ttf");
             return false;
         }
 

@@ -517,6 +517,14 @@ void Renderer::init(GLFWwindow* window) {
     // ゲームGUIをエディターとランタイムで同じ字形・メトリクスにする。
     // Packagerはassets/fontsを必須ランタイムリソースとして同梱する。
     m_systemDefaultGuiFont = io.Fonts->AddFontDefault();
+    if (std::filesystem::exists("assets/fonts/MPLUS1p-Regular.ttf")) {
+        m_mplusGuiFont = io.Fonts->AddFontFromFileTTF(
+            "assets/fonts/MPLUS1p-Regular.ttf", 22.0f, nullptr,
+            io.Fonts->GetGlyphRangesJapanese());
+    }
+    if (!m_mplusGuiFont) {
+        RCBN_WARN("Renderer: default UI font is missing: assets/fonts/MPLUS1p-Regular.ttf");
+    }
     ImFont* gameFont = nullptr;
     if (std::filesystem::exists("assets/fonts/DotGothic16-Regular.ttf")) {
         gameFont = io.Fonts->AddFontFromFileTTF(
@@ -533,15 +541,26 @@ void Renderer::init(GLFWwindow* window) {
             "assets/fonts/JetBrainsMono-Medium.ttf", 17.0f);
         if (!m_codeEditorFont) {
             RCBN_WARN("Renderer: failed to load code editor font assets/fonts/JetBrainsMono-Medium.ttf");
+        } else if (std::filesystem::exists("assets/fonts/MPLUS1p-Regular.ttf")) {
+            // 日本語などJetBrains Monoに無い字形はMPLUS1pへフォールバックさせる。
+            // DstFontを明示しないと直前のフォントへマージされてしまう。
+            ImFontConfig cfg;
+            cfg.MergeMode = true;
+            cfg.DstFont   = m_codeEditorFont;
+            io.Fonts->AddFontFromFileTTF("assets/fonts/MPLUS1p-Regular.ttf", 17.0f, &cfg,
+                                         io.Fonts->GetGlyphRangesJapanese());
         }
     } else {
         RCBN_WARN("Renderer: code editor font is missing: assets/fonts/JetBrainsMono-Medium.ttf");
     }
 #endif
-    io.FontDefault = m_dotGothicGuiFont ? m_dotGothicGuiFont : m_systemDefaultGuiFont;
+    // UI既定フォント: MPLUS1p → DotGothic16 → ImGui内蔵 の順にフォールバック。
+    ImFont* uiFont = m_mplusGuiFont ? m_mplusGuiFont
+                   : (m_dotGothicGuiFont ? m_dotGothicGuiFont : m_systemDefaultGuiFont);
+    io.FontDefault = uiFont;
     if (std::filesystem::exists("assets/fonts/fa-solid-900.ttf")) {
-        // MergeModeにはマージ先が必要。ゲームフォントが無い場合は既定フォントへマージする。
-        ImFont* mergeTarget = m_dotGothicGuiFont ? m_dotGothicGuiFont : m_systemDefaultGuiFont;
+        // MergeModeにはマージ先が必要。UI既定フォントへマージする。
+        ImFont* mergeTarget = uiFont;
         if (mergeTarget) {
             ImFontConfig cfg;
             cfg.MergeMode  = true;

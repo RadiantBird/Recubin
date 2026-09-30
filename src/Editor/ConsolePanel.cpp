@@ -7,6 +7,13 @@
 #include <cmath>
 
 namespace {
+// ログ本文用フォントをサイズ込みで積む。積んだ場合のみtrue（呼び出し側がPopFontする）。
+bool pushLogFont(ImFont* font) {
+    if (font == nullptr) return false;
+    ImGui::PushFont(font, font->LegacySize > 0.0f ? font->LegacySize : ImGui::GetFontSize());
+    return true;
+}
+
 ImVec4 consoleLogColor(const std::string& line, bool systemLog) {
     if (line.starts_with("[WARN]")) return ImVec4(0.90f, 0.70f, 0.18f, 1.0f);
     if (line.starts_with("[ERROR]")) return ImVec4(0.90f, 0.30f, 0.32f, 1.0f);
@@ -173,6 +180,7 @@ void ConsolePanel::onRender() {
             ImGui::Separator();
 
             ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.045f, 0.060f, 0.105f, 1.0f));
+            const bool pushedLogFont = pushLogFont(m_logFont);
             const float logWrapWidth = ImMax(1.0f, ImGui::GetContentRegionAvail().x
                                                    - ImGui::GetStyle().FramePadding.x * 2.0f
                                                    - ImGui::GetStyle().ScrollbarSize);
@@ -189,6 +197,7 @@ void ConsolePanel::onRender() {
             drawColoredConsoleText(sysParent, sysInputId,
                                    wrappedLines);
             scrollToBottom = false;
+            if (pushedLogFont) ImGui::PopFont();
             ImGui::PopStyleColor();
             ImGui::EndTabItem();
         }
@@ -224,6 +233,7 @@ void ConsolePanel::onRender() {
             ImGui::Separator();
 
             ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.045f, 0.060f, 0.105f, 1.0f));
+            const bool pushedLogFont = pushLogFont(m_logFont);
             const float logWrapWidth = ImMax(1.0f, ImGui::GetContentRegionAvail().x
                                                    - ImGui::GetStyle().FramePadding.x * 2.0f
                                                    - ImGui::GetStyle().ScrollbarSize);
@@ -240,6 +250,7 @@ void ConsolePanel::onRender() {
             drawColoredConsoleText(luauParent, luauInputId,
                                    wrappedLines);
             luauScrollToBottom = false;
+            if (pushedLogFont) ImGui::PopFont();
             ImGui::PopStyleColor();
             ImGui::EndTabItem();
         }

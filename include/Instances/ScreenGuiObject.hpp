@@ -6,6 +6,7 @@
 enum class SystemFont {
     Default = 0,
     DotGothic16 = 1,
+    MPlus = 2,
 };
 
 class ScreenGuiObject : public GuiObject {

@@ -213,6 +213,7 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
     });
 
     consolePanel        = std::make_unique<ConsolePanel>();
+    consolePanel->setLogFont(codeEditorFont);
     hierarchyPanel      = std::make_unique<SceneHierarchyPanel>();
     propertiesPanel     = std::make_unique<PropertiesPanel>();
     contentBrowserPanel = std::make_unique<ContentBrowserPanel>();
