@@ -1617,6 +1617,36 @@ void Box3DPhysicsBackend::applyMaintainedVelocities() {
                     currentAngularVelocity.z;
             }
 
+            // 摩擦などで減速した角速度で姿勢が積分されているため、
+            // 目標角速度との差分ぶんの回転をCOM回りに補正する。
+            const b3Vec3 deficit = {
+                targetAngularVelocity.x - currentAngularVelocity.x,
+                targetAngularVelocity.y - currentAngularVelocity.y,
+                targetAngularVelocity.z - currentAngularVelocity.z};
+            const float deficitLength = b3Length(deficit);
+            if (deficitLength > 1e-6f) {
+                const b3Vec3 axis = {
+                    deficit.x / deficitLength,
+                    deficit.y / deficitLength,
+                    deficit.z / deficitLength};
+                const b3Quat correction = b3MakeQuatFromAxisAngle(
+                    axis, deficitLength * FIXED_STEP);
+                const b3Quat rotation = b3NormalizeQuat(
+                    b3MulQuat(correction, b3Body_GetRotation(id)));
+                const b3Pos position = b3Body_GetPosition(id);
+                const b3Pos center = b3Body_GetWorldCenterOfMass(id);
+                const b3Vec3 offset = {
+                    static_cast<float>(position.x - center.x),
+                    static_cast<float>(position.y - center.y),
+                    static_cast<float>(position.z - center.z)};
+                const b3Vec3 rotated = b3RotateVector(correction, offset);
+                b3Pos newPosition = position;
+                newPosition.x = center.x + rotated.x;
+                newPosition.y = center.y + rotated.y;
+                newPosition.z = center.z + rotated.z;
+                b3Body_SetTransform(id, newPosition, rotation);
+            }
+
             b3Body_SetAngularVelocity(
                 id,
                 targetAngularVelocity

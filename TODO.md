@@ -12,9 +12,13 @@
 - N/A
 - [ ] TextLabel.Textを複数ライン書けるようにする
 
+- [ ] ファイルI/Oの仕組みを再調査する
+
+- [ ] アプリケーションIDは不要なので安全に削除する
+
 # 物理エンジン関係
 
-- [ ] ForceのAngularVelocityモードで正しくMaintainできていない問題を修正する
+- [ ] ForceのTorqueモードで正しくMaintainできていない問題を修正する
 
 ### レンダリング関連
 
