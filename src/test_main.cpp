@@ -38,6 +38,7 @@
 #include <Instances/FileRef.hpp>
 #include <Instances/FontFile.hpp>
 #include <Instances/TextFile.hpp>
+#include <Instances/Program.hpp>
 #include <Instances/TextLabel.hpp>
 #include <Instances/TextButton.hpp>
 #include <Instances/ImageButton.hpp>
@@ -10147,6 +10148,223 @@ static int runSystemExtensionSmokePackaging(int argc, char* argv[]) {
     return packaged ? 0 : 1;
 }
 
+// ---- Program IPC ----
+static std::string g_testExecutablePath;  // main()がargv[0]を設定(実プロセステスト用)
+
+// 行単位でエコーする子プロセス。標準入力が閉じられたら終了コード7で終わる。
+static int runIpcEchoChild() {
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        std::cout << "echo:" << line << '\n' << std::flush;
+    }
+    return 7;
+}
+
+// Programのロジックを検証するための差し替え用パイププロセス。
+class FakePipedProcess final : public IPipedProcess {
+public:
+    std::function<std::string(const std::string&)> autoReply;  // 書き込み行への応答(空=返さない)
+    std::string output;              // readAvailableが返す未読データ
+    std::vector<std::string> written;
+    bool stdinClosed = false;
+    bool terminated = false;
+    bool exitOnStdinClose = false;
+    std::optional<int> exit;
+
+    bool isRunning() override { return !exit.has_value(); }
+    std::optional<int> exitCode() override { return exit; }
+    bool write(const std::string& data) override {
+        if (stdinClosed) return false;
+        written.push_back(data);
+        if (autoReply) {
+            std::string reply = autoReply(data.substr(0, data.size() - 1));
+            if (!reply.empty()) output += reply + "\n";
+        }
+        return true;
+    }
+    bool readAvailable(std::string& out) override {
+        out += output;
+        output.clear();
+        return isRunning();
+    }
+    void closeStdin() override {
+        stdinClosed = true;
+        if (exitOnStdinClose) exit = 5;
+    }
+    bool terminate() override {
+        terminated = true;
+        exit = 1;
+        return true;
+    }
+};
+
+static int runProgramIpcRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[ProgramIpc] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    // --- メッセージのエスケープ ---
+    const std::string tricky = "a\nb\r\\n終";
+    expect(Program::decodeMessage(Program::encodeMessage(tricky)) == tricky &&
+               Program::encodeMessage(tricky).find('\n') == std::string::npos,
+           "message escaping round-trips and contains no raw newline");
+
+    // --- Call / Send / Receive / Disconnect / Connect / Close (fake process) ---
+    {
+        Program program;
+        auto fakeOwner = std::make_unique<FakePipedProcess>();
+        FakePipedProcess* fake = fakeOwner.get();
+        fake->autoReply = [](const std::string& request) { return "re:" + request; };
+        std::string error;
+        expect(!program.send("x", error) && !error.empty(), "Send before Start fails");
+        expect(program.attachProcess(std::move(fakeOwner)) && program.isConnected(),
+               "attached process is connected");
+        const uint64_t callId = program.beginCall("ping", error);
+        std::string text;
+        expect(callId != 0 && program.pollCall(callId, text) == Program::CallStatus::Pending,
+               "Call is pending before the reply is read");
+        program.poll();
+        expect(program.pollCall(callId, text) == Program::CallStatus::Ready && text == "re:ping",
+               "Call receives its response");
+        expect(fake->written.size() == 1 && fake->written[0] == "ping\n", "request is one line");
+
+        error.clear();
+        expect(program.send("s1", error), "Send succeeds");
+        program.poll();
+        auto received = program.receive(error);
+        expect(received && *received == "re:s1" && error.empty(), "Send response arrives via Receive");
+        expect(!program.receive(error) && error.empty(), "Receive returns nothing when empty");
+        error.clear();
+
+        // 切断中: Callは失敗、Callの応答は破棄、Sendの応答は溜まる
+        const uint64_t pendingCall = program.beginCall("late", error);
+        fake->autoReply = nullptr;
+        expect(program.send("kept", error), "Send before Disconnect");
+        expect(program.disconnect(error), "Disconnect succeeds");
+        expect(program.pollCall(pendingCall, text) == Program::CallStatus::Failed,
+               "pending Call fails on Disconnect");
+        expect(!program.send("x", error) && !program.receive(error) && !error.empty(),
+               "Send/Receive fail while disconnected");
+        fake->output = "re:late\nre:kept\n";
+        program.poll();
+        expect(program.connect(error), "Connect succeeds");
+        received = program.receive(error);
+        expect(received && *received == "re:kept" && !program.receive(error),
+               "Call response is dropped, Send response is buffered across Disconnect");
+
+        // Close: stdinを閉じ、終了コードを返す
+        fake->exitOnStdinClose = true;
+        expect(program.beginClose(std::chrono::seconds(3), error), "beginClose succeeds");
+        const auto code = program.pollClose();
+        expect(code && *code == 5 && !program.isStarted(), "Close returns the exit code and resets");
+    }
+    {
+        // 猶予超過で強制終了される
+        Program program;
+        auto fakeOwner = std::make_unique<FakePipedProcess>();
+        FakePipedProcess* fake = fakeOwner.get();
+        program.attachProcess(std::move(fakeOwner));
+        std::string error;
+        expect(program.beginClose(std::chrono::seconds(0), error), "beginClose with zero grace");
+        auto code = program.pollClose();
+        expect(fake->terminated && !code, "process is terminated once the grace period has passed");
+        code = program.pollClose();
+        expect(code && *code == 1, "terminated process reports its exit code");
+    }
+
+    // --- 実プロセス(Windowsのみ): 子の標準入出力パイプ ---
+#ifdef _WIN32
+    {
+        ChildProcessLaunchOptions options;
+        options.executable = std::filesystem::absolute(
+            std::filesystem::path(g_testExecutablePath)).string();
+        options.arguments = {"--ipc-echo-child"};
+        Program program;
+        auto process = getPlatform().launchPipedProcess(options);
+        expect(process != nullptr && program.attachProcess(std::move(process)),
+               "real piped child process launches");
+        std::string error;
+        const uint64_t callId = program.beginCall("héllo\nworld", error);
+        std::string text;
+        Program::CallStatus status = Program::CallStatus::Pending;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (status == Program::CallStatus::Pending &&
+               std::chrono::steady_clock::now() < deadline) {
+            program.poll();
+            status = program.pollCall(callId, text);
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        expect(status == Program::CallStatus::Ready && text == "echo:héllo\nworld",
+               "real child echoes a UTF-8 multi-line message");
+        expect(program.beginClose(std::chrono::seconds(5), error), "real child Close starts");
+        std::optional<int> code;
+        while (!code && std::chrono::steady_clock::now() < deadline) {
+            code = program.pollClose();
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        expect(code && *code == 7, "real child exit code is returned by Close");
+    }
+#endif
+
+    // --- Luau: 権限・yield・タイムアウト・Close ---
+    {
+        const auto system = std::make_shared<System>();
+        LuauEngine engine;
+        engine.setSystem(system.get());
+        auto workspace = std::make_shared<Workspace>();
+        system->addChild(workspace);
+        engine.setWorkspace(workspace);
+        auto program = std::make_shared<Program>();
+        program->Name = "Prog";
+        workspace->addChild(program);
+        engine.setGlobalInstance("Prog", program);
+
+        auto fakeOwner = std::make_unique<FakePipedProcess>();
+        FakePipedProcess* fake = fakeOwner.get();
+        fake->autoReply = [](const std::string& request) {
+            return request == "ping" ? std::string("pong") : std::string();
+        };
+        program->attachProcess(std::move(fakeOwner));
+
+        auto denied = std::make_shared<Script>();
+        denied->Source = "assert(pcall(function() Prog:Send('x') end) == false) "
+                         "assert(pcall(function() Instance.new('Program') end) == false)";
+        expect(engine.execute(*denied), "Program methods require EnableIPCAPI; Instance.new is rejected");
+
+        system->EnableIPCAPI = true;
+        auto callScript = std::make_shared<Script>();
+        callScript->Source = "Prog.Name = Prog:Call('ping')";
+        workspace->addChild(callScript);
+        engine.execute(*callScript);
+        expect(program->Name == "Prog", "Call yields without returning immediately");
+        engine.update(0.016f);
+        expect(program->Name == "pong", "Call resumes the script with the response");
+
+        auto timeoutScript = std::make_shared<Script>();
+        timeoutScript->Source =
+            "local ok = pcall(function() return Prog:Call('silent', 0.05) end) "
+            "Prog.Name = 'timeout:' .. tostring(ok)";
+        workspace->addChild(timeoutScript);
+        engine.execute(*timeoutScript);
+        std::this_thread::sleep_for(std::chrono::milliseconds(120));
+        engine.update(0.016f);
+        expect(program->Name == "timeout:false", "Call timeout surfaces as a catchable Luau error");
+
+        fake->exitOnStdinClose = true;
+        auto closeScript = std::make_shared<Script>();
+        closeScript->Source = "Prog.Name = 'closed:' .. tostring(Prog:Close(1))";
+        workspace->addChild(closeScript);
+        engine.execute(*closeScript);
+        engine.update(0.016f);
+        expect(program->Name == "closed:5" && !program->isStarted(),
+               "Close yields and returns the exit code");
+    }
+    return failures == 0 ? 0 : 1;
+}
+
 static int runPhysicalFileInstanceRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const std::string& message) {
@@ -10200,6 +10418,9 @@ static int runPhysicalFileInstanceRegression() {
         if (className == "TextFile")
             expect(!type.luaCreatable,
                    "TextFile is scene-owned and not Luau-creatable");
+        if (className == "Program")
+            expect(!type.luaCreatable,
+                   "Program is scene-owned and not Luau-creatable");
 
         auto created = PhysicalFileInstanceRegistry::create(type.className);
         expect(created && created->getClassName() == className &&
@@ -13063,6 +13284,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--default-camera-mode-regression", runDefaultCameraModeRegression),
         REG("--scene-load-transaction-regression", runSceneLoadTransactionRegression),
         REG("--system-extension-regression", runSystemExtensionRegression),
+        REG("--program-ipc-regression", runProgramIpcRegression),
         REG("--scene-hierarchy-grouping-regression", runSceneHierarchyGroupingRegression),
         REG("--gui-automation-regression", runGuiAutomationRegression),
         REG("--gui-visibility-regression", runGuiVisibilityRegression),
@@ -13132,6 +13354,10 @@ int main(int argc, char* argv[]) {
         for (const auto& entry : regressionRegistry()) std::cout << entry.name << '\n';
         return 0;
     }
+    // Program IPCテストが起動する子プロセス役。プラットフォーム初期化より前に処理する。
+    if (argc > 1 && std::string_view(argv[1]) == "--ipc-echo-child")
+        return runIpcEchoChild();
+    g_testExecutablePath = argv[0];
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
     // Physics test mode names also start with "--physics". Pass only the actual

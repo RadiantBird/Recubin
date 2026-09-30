@@ -1,6 +1,6 @@
 #include <Core/Packager.hpp>
 #include <Util/AssetPath.hpp>
-#include "include/luau/luacode.h"
+#include <Util/LuauCompile.hpp>
 #include <yaml-cpp/yaml.h>
 #include <iostream>
 #include <fstream>
@@ -117,7 +117,7 @@ static std::string compileLuauInProc(const fs::path& src, const fs::path& dstDir
     std::string source((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
 
     size_t bytecodeSize = 0;
-    char* bytecode = luau_compile(source.c_str(), source.size(), nullptr, &bytecodeSize);
+    char* bytecode = LuauCompile::compile(source, bytecodeSize);
 
     // First byte == 0 means compile error; rest of buffer is the error message
     if (!bytecode || bytecodeSize == 0 || (unsigned char)bytecode[0] == 0) {

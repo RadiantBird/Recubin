@@ -125,6 +125,87 @@ private:
     std::optional<int> m_exitCode;
 };
 
+// 標準入出力パイプ付きの子プロセス。読み取りはPeekNamedPipeで非ブロッキングに行う。
+class WindowsPipedProcess final : public IPipedProcess {
+public:
+    WindowsPipedProcess(HANDLE process, HANDLE stdinWrite, HANDLE stdoutRead)
+        : m_process(process), m_stdinWrite(stdinWrite), m_stdoutRead(stdoutRead) {}
+
+    ~WindowsPipedProcess() override {
+        closeStdin();
+        if (m_stdoutRead) CloseHandle(m_stdoutRead);
+        if (m_process) CloseHandle(m_process);
+    }
+
+    bool isRunning() override {
+        refreshExitCode();
+        return !m_exitCode.has_value();
+    }
+
+    std::optional<int> exitCode() override {
+        refreshExitCode();
+        return m_exitCode;
+    }
+
+    bool write(const std::string& data) override {
+        if (!m_stdinWrite) return false;
+        size_t written = 0;
+        while (written < data.size()) {
+            DWORD count = 0;
+            if (!WriteFile(m_stdinWrite, data.data() + written,
+                           static_cast<DWORD>(data.size() - written), &count, nullptr) ||
+                count == 0) {
+                return false;
+            }
+            written += count;
+        }
+        return true;
+    }
+
+    bool readAvailable(std::string& out) override {
+        if (!m_stdoutRead) return false;
+        for (;;) {
+            DWORD available = 0;
+            if (!PeekNamedPipe(m_stdoutRead, nullptr, 0, nullptr, &available, nullptr))
+                return false;  // 書き込み側が閉じ、読み切った
+            if (available == 0) return true;
+            std::string chunk(available, '\0');
+            DWORD read = 0;
+            if (!ReadFile(m_stdoutRead, chunk.data(), available, &read, nullptr))
+                return false;
+            out.append(chunk.data(), read);
+        }
+    }
+
+    void closeStdin() override {
+        if (m_stdinWrite) {
+            CloseHandle(m_stdinWrite);
+            m_stdinWrite = nullptr;
+        }
+    }
+
+    bool terminate() override {
+        if (!isRunning()) return true;
+        return TerminateProcess(m_process, 1) != FALSE;
+    }
+
+private:
+    void refreshExitCode() {
+        if (!m_process || m_exitCode.has_value()) return;
+        if (WaitForSingleObject(m_process, 0) != WAIT_OBJECT_0) return;
+
+        DWORD code = 0;
+        if (GetExitCodeProcess(m_process, &code)) {
+            m_exitCode = static_cast<int>(code);
+        }
+    }
+
+    HANDLE m_process = nullptr;
+    HANDLE m_stdinWrite = nullptr;
+    HANDLE m_stdoutRead = nullptr;
+    std::optional<int> m_exitCode;
+};
+
 // filtersが空の場合、IFileDialog::SetFileTypesを呼ばない(=すべてのファイルを表示)。
 // COMDLG_FILTERSPECはLPCWSTRを保持するだけなので、変換したwstringの寿命をpfd->Show()まで保つ。
 std::string runFileDialog(const CLSID& clsid, const std::vector<FileFilter>& filters,
@@ -317,6 +398,106 @@ std::unique_ptr<IChildProcess> WindowsPlatform::launchChildProcess(
     CloseHandle(processInfo.hThread);
     return std::make_unique<WindowsChildProcess>(
         processInfo.hProcess, processInfo.dwProcessId);
+}
+
+std::unique_ptr<IPipedProcess> WindowsPlatform::launchPipedProcess(
+    const ChildProcessLaunchOptions& options) {
+    if (options.executable.empty() ||
+        (options.outputLogPath.has_value() && options.outputLogPath->empty())) {
+        return nullptr;
+    }
+
+    SECURITY_ATTRIBUTES securityAttributes{};
+    securityAttributes.nLength = sizeof(securityAttributes);
+    securityAttributes.bInheritHandle = TRUE;
+
+    // 子側の端だけを継承し、親側の端(stdinWrite/stdoutRead)は継承させない。
+    HANDLE stdinRead = nullptr, stdinWrite = nullptr;
+    HANDLE stdoutRead = nullptr, stdoutWrite = nullptr;
+    if (!CreatePipe(&stdinRead, &stdinWrite, &securityAttributes, 0)) return nullptr;
+    if (!CreatePipe(&stdoutRead, &stdoutWrite, &securityAttributes, 0)) {
+        CloseHandle(stdinRead);
+        CloseHandle(stdinWrite);
+        return nullptr;
+    }
+    SetHandleInformation(stdinWrite, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(stdoutRead, HANDLE_FLAG_INHERIT, 0);
+
+    const std::wstring errorPath = options.outputLogPath.has_value()
+        ? utf8ToWide(*options.outputLogPath) : std::wstring(L"NUL");
+    HANDLE errorHandle = CreateFileW(
+        errorPath.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        &securityAttributes,
+        options.outputLogPath.has_value() ? CREATE_ALWAYS : OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL, nullptr);
+
+    const auto closeAll = [&]() {
+        if (errorHandle != INVALID_HANDLE_VALUE) CloseHandle(errorHandle);
+        CloseHandle(stdinRead);
+        CloseHandle(stdinWrite);
+        CloseHandle(stdoutRead);
+        CloseHandle(stdoutWrite);
+    };
+    if (errorHandle == INVALID_HANDLE_VALUE) {
+        closeAll();
+        return nullptr;
+    }
+
+    SIZE_T attributeBytes = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &attributeBytes);
+    std::vector<unsigned char> attributeStorage(attributeBytes);
+    auto* attributeList = reinterpret_cast<PPROC_THREAD_ATTRIBUTE_LIST>(
+        attributeStorage.data());
+    if (attributeBytes == 0 ||
+        !InitializeProcThreadAttributeList(attributeList, 1, 0, &attributeBytes)) {
+        closeAll();
+        return nullptr;
+    }
+
+    HANDLE inheritedHandles[] = {stdinRead, stdoutWrite, errorHandle};
+    if (!UpdateProcThreadAttribute(
+            attributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+            inheritedHandles, sizeof(inheritedHandles), nullptr, nullptr)) {
+        DeleteProcThreadAttributeList(attributeList);
+        closeAll();
+        return nullptr;
+    }
+
+    STARTUPINFOEXW startupInfo{};
+    startupInfo.StartupInfo.cb = sizeof(startupInfo);
+    startupInfo.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    startupInfo.StartupInfo.hStdInput = stdinRead;
+    startupInfo.StartupInfo.hStdOutput = stdoutWrite;
+    startupInfo.StartupInfo.hStdError = errorHandle;
+    startupInfo.lpAttributeList = attributeList;
+
+    const std::wstring executable = utf8ToWide(options.executable);
+    std::wstring commandLineString = makeCommandLine(options);
+    std::vector<wchar_t> commandLine(commandLineString.begin(), commandLineString.end());
+    commandLine.push_back(L'\0');
+    const std::wstring workingDirectory = utf8ToWide(options.workingDirectory);
+
+    PROCESS_INFORMATION processInfo{};
+    const BOOL created = CreateProcessW(
+        executable.c_str(), commandLine.data(), nullptr, nullptr, TRUE,
+        CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
+        nullptr, workingDirectory.empty() ? nullptr : workingDirectory.c_str(),
+        &startupInfo.StartupInfo, &processInfo);
+
+    DeleteProcThreadAttributeList(attributeList);
+    // 親側に残る子側の端は閉じる(閉じないと子の終了でEOFを検出できない)。
+    CloseHandle(errorHandle);
+    CloseHandle(stdinRead);
+    CloseHandle(stdoutWrite);
+    if (!created) {
+        CloseHandle(stdinWrite);
+        CloseHandle(stdoutRead);
+        return nullptr;
+    }
+
+    CloseHandle(processInfo.hThread);
+    return std::make_unique<WindowsPipedProcess>(
+        processInfo.hProcess, stdinWrite, stdoutRead);
 }
 
 std::optional<std::string> WindowsPlatform::pollStdinLine() {

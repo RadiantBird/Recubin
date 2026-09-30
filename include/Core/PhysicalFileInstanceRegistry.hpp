@@ -42,5 +42,6 @@ bool registerType(PhysicalFileInstanceType type,
 // Explicitly registers hand-written builtins (referenced by the registry so
 // static-library linking cannot discard their translation unit).
 void registerTextFileType();
+void registerProgramType();
 
 } // namespace PhysicalFileInstanceRegistry

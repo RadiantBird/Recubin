@@ -25,5 +25,7 @@ public:
     void freeDynamicLibrary(void*) override;
     std::unique_ptr<IChildProcess> launchChildProcess(
         const ChildProcessLaunchOptions& options) override;
+    std::unique_ptr<IPipedProcess> launchPipedProcess(
+        const ChildProcessLaunchOptions& options) override;
     std::optional<std::string> pollStdinLine() override;
 };

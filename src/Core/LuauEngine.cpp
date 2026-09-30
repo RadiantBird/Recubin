@@ -81,6 +81,8 @@
 #include "include/Core/AudioService.hpp"
 #include "include/Core/BaseCubeFactory.hpp"
 #include "include/Core/PhysicalFileInstanceRegistry.hpp"
+#include "include/Instances/Program.hpp"
+#include "include/Util/LuauCompile.hpp"
 #include <cmath>
 #include <algorithm>
 #include <float.h>
@@ -866,6 +868,10 @@ void LuauEngine::setBindings(const std::shared_ptr<Instance>& instance) {
 void LuauEngine::setGlobalInstance(const std::string& name, const std::shared_ptr<Instance>& instance) {
     setBindings(instance);
     lua_setglobal(L, name.c_str());
+    // このグローバルのフィールド読み取りをimport最適化で定数化させない(LuauCompile参照)
+    if (std::find(m_instanceGlobalNames.begin(), m_instanceGlobalNames.end(), name) ==
+        m_instanceGlobalNames.end())
+        m_instanceGlobalNames.push_back(name);
 }
 
 void LuauEngine::clearGlobalInstance(const std::string& name) {
@@ -1007,7 +1013,7 @@ bool LuauEngine::loadScriptChunk(lua_State* co, Script& script) {
                            source.data(), source.size(), 0);
     } else {
         size_t bytecodeSize = 0;
-        char* bytecode = luau_compile(source.c_str(), source.length(), nullptr, &bytecodeSize);
+        char* bytecode = LuauCompile::compile(source, bytecodeSize, m_instanceGlobalNames);
         if (!bytecode) return false;
         status = luau_load(co, ("@" + script.Name).c_str(), bytecode, bytecodeSize, 0);
         free(bytecode);
@@ -1638,6 +1644,263 @@ void LuauEngine::pollPathfindingRequests() {
         m_pendingPaths.end());
 }
 
+// ===================================================
+//  Program（IPC）
+// ===================================================
+namespace {
+// メソッドのupvalue(Program)を取り出し、EnableIPCAPIを確認する。失敗時はluaL_error。
+std::shared_ptr<Program> checkedProgram(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    auto* engine = static_cast<LuauEngine*>(lua_callbacks(L)->userdata);
+    if (!self || !engine) luaL_error(L, "Program is unavailable");
+    if (!engine->system() || !engine->system()->EnableIPCAPI)
+        luaL_error(L, "IPC API permission is not enabled");
+    return std::static_pointer_cast<Program>(self);
+}
+}
+
+std::unique_ptr<LuauEngine::PendingProgramCoroutine> LuauEngine::makeProgramWaiter(
+    lua_State* L, const std::shared_ptr<Program>& program, ProgramWait kind)
+{
+    const char* methodName = kind == ProgramWait::Call ? "Call" : "Close";
+    if (!lua_isyieldable(L))
+        luaL_error(L, "Program:%s cannot wait in a non-yieldable context", methodName);
+
+    auto pending = std::make_unique<PendingProgramCoroutine>();
+    pending->program = program;
+    pending->kind = kind;
+    pending->co = L;
+    if (currentTask && currentTask->co == L) {
+        pending->owner = PathCoroutineOwner::EngineTask;
+        pending->task = currentTask;
+        pending->context = "Task | " + currentTask->sourceLabel;
+    } else if (currentScript && currentScript->Coroutine == L) {
+        pending->owner = PathCoroutineOwner::Script;
+        pending->script = std::static_pointer_cast<Script>(currentScript->shared_from_this());
+        pending->context = "Script | " + scriptExecutionLabel(currentScript);
+    } else {
+        luaL_error(L, "Program:%s must be called from a script or task (signal callbacks cannot yield)",
+                   methodName);
+    }
+    return pending;
+}
+
+int LuauEngine::yieldForProgram(lua_State* L, std::unique_ptr<PendingProgramCoroutine> pending) {
+    auto* engine = static_cast<LuauEngine*>(lua_callbacks(L)->userdata);
+    lua_pushthread(L);
+    pending->coRef = lua_ref(L, -1);
+    lua_pop(L, 1);
+    if (pending->owner == PathCoroutineOwner::EngineTask) {
+        pending->task->waitingForPath = true;
+    } else if (auto script = pending->script.lock()) {
+        script->WaitingForPath = true;
+    }
+    engine->m_pendingPrograms.push_back(std::move(pending));
+    return lua_yield(L, 0);
+}
+
+int LuauEngine::program_start_closure(lua_State* L) {
+    auto program = checkedProgram(L);
+    std::string error;
+    if (!program->start(error)) luaL_error(L, "%s", error.c_str());
+    return 0;
+}
+
+int LuauEngine::program_send_closure(lua_State* L) {
+    auto program = checkedProgram(L);
+    size_t size = 0;
+    const char* data = luaL_checklstring(L, 2, &size);  // L[1]=self
+    std::string error;
+    if (!program->send(std::string(data, size), error)) luaL_error(L, "%s", error.c_str());
+    return 0;
+}
+
+int LuauEngine::program_receive_closure(lua_State* L) {
+    auto program = checkedProgram(L);
+    program->poll();
+    std::string error;
+    auto message = program->receive(error);
+    if (!error.empty()) luaL_error(L, "%s", error.c_str());
+    if (!message) {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushlstring(L, message->data(), message->size());
+    return 1;
+}
+
+int LuauEngine::program_connect_closure(lua_State* L) {
+    auto program = checkedProgram(L);
+    std::string error;
+    if (!program->connect(error)) luaL_error(L, "%s", error.c_str());
+    return 0;
+}
+
+int LuauEngine::program_disconnect_closure(lua_State* L) {
+    auto program = checkedProgram(L);
+    std::string error;
+    if (!program->disconnect(error)) luaL_error(L, "%s", error.c_str());
+    return 0;
+}
+
+int LuauEngine::program_call_closure(lua_State* L) {
+    auto program = checkedProgram(L);
+    size_t size = 0;
+    const char* data = luaL_checklstring(L, 2, &size);  // L[1]=self
+    const double timeoutSeconds = luaL_optnumber(L, 3, 5.0);
+    if (!(timeoutSeconds > 0.0)) luaL_error(L, "Program:Call timeout must be positive");
+
+    auto pending = makeProgramWaiter(L, program, ProgramWait::Call);
+    std::string error;
+    pending->callId = program->beginCall(std::string(data, size), error);
+    if (pending->callId == 0) luaL_error(L, "%s", error.c_str());
+    pending->deadline = std::chrono::steady_clock::now() +
+        std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+            std::chrono::duration<double>(timeoutSeconds));
+    return yieldForProgram(L, std::move(pending));
+}
+
+int LuauEngine::program_close_closure(lua_State* L) {
+    auto program = checkedProgram(L);
+    const double graceSeconds = luaL_optnumber(L, 2, Program::DEFAULT_CLOSE_GRACE_SECONDS);
+    if (!(graceSeconds >= 0.0)) luaL_error(L, "Program:Close grace period must not be negative");
+
+    auto pending = makeProgramWaiter(L, program, ProgramWait::Close);
+    std::string error;
+    if (!program->beginClose(std::chrono::duration<double>(graceSeconds), error))
+        luaL_error(L, "%s", error.c_str());
+    return yieldForProgram(L, std::move(pending));
+}
+
+void LuauEngine::resumeProgramWaiter(PendingProgramCoroutine& pending,
+                                     const ProgramWaitResult& result)
+{
+    const auto pushResult = [&](lua_State* co) {
+        if (!result.isError && pending.kind == ProgramWait::Close)
+            lua_pushnumber(co, result.exitCode);
+        else
+            lua_pushlstring(co, result.text.data(), result.text.size());
+    };
+    // 失敗はコルーチン内のLuauエラーとして再開する(pcallで捕捉できる)。
+    const auto resume = [&](lua_State* co) {
+        return result.isError ? lua_resumeerror(co, L) : lua_resume(co, L, 1);
+    };
+
+    if (pending.owner == PathCoroutineOwner::Script) {
+        auto script = pending.script.lock();
+        if (!script || script->Coroutine != pending.co) return;
+
+        script->WaitingForPath = false;
+        setWorkspaceGlobal(pending.co, resolveScriptWorkspace(*script));
+        currentScript = script.get();
+        pushResult(pending.co);
+
+        FPUState fpuState = saveFPU();
+        m_scriptResumeStart = std::chrono::steady_clock::now();
+        beginProtectedExecution();
+        const int status = resume(pending.co);
+        restoreFPU(fpuState);
+
+        if (status == LUA_YIELD) {
+            currentScript = nullptr;
+            return;
+        }
+        if (script->Coroutine != pending.co) {
+            currentScript = nullptr;
+            execute(*script);
+            return;
+        }
+        if (status == 0) {
+            script->Sleeping = false;
+            script->Completed = true;
+        } else {
+            script->Aborted = true;
+            lua_State* errState = lua_gettop(pending.co) > 0 ? pending.co : L;
+            reportProtectedError(errState, pending.context);
+        }
+        if (script->CoroutineRef != -1) lua_unref(L, script->CoroutineRef);
+        script->CoroutineRef = -1;
+        script->Coroutine = nullptr;
+        currentScript = nullptr;
+        return;
+    }
+
+    EngineTask* task = pending.task;
+    if (!task || task->finished || task->co != pending.co) return;
+    task->waitingForPath = false;
+
+    // resumeEngineTaskは再開引数をdeltaで置き換えるため使わず、同じ文脈切り替えをここで行う。
+    Script*     savedScript = currentScript;
+    EngineTask* savedTask   = currentTask;
+    currentScript = nullptr;
+    currentTask   = task;
+    pushResult(pending.co);
+
+    FPUState fpuState = saveFPU();
+    m_scriptResumeStart = std::chrono::steady_clock::now();
+    beginProtectedExecution();
+    const int status = resume(pending.co);
+    restoreFPU(fpuState);
+
+    currentTask   = savedTask;
+    currentScript = savedScript;
+
+    if (status == LUA_YIELD) {
+        if (!task->sleeping && !task->waitingForPath) task->finished = true;
+        return;
+    }
+    task->finished = true;
+    if (status != 0) {
+        lua_State* errState = (lua_gettop(task->co) > 0) ? task->co : L;
+        reportProtectedError(errState, "Task | " + task->sourceLabel);
+    }
+}
+
+void LuauEngine::pollProgramRequests() {
+    Program::pollAll();
+
+    // resume中に別のCall/Closeが登録されても、追加分は次フレームから処理する。
+    const size_t count = m_pendingPrograms.size();
+    for (size_t i = 0; i < count; ++i) {
+        PendingProgramCoroutine* queued = m_pendingPrograms[i].get();
+        if (!queued || !queued->co) continue;
+
+        ProgramWaitResult result;
+        auto program = queued->program.lock();
+        if (!program) {
+            result.isError = true;
+            result.text = "program was destroyed";
+        } else if (queued->kind == ProgramWait::Call) {
+            const Program::CallStatus status = program->pollCall(queued->callId, result.text);
+            if (status == Program::CallStatus::Pending) {
+                if (std::chrono::steady_clock::now() < queued->deadline) continue;
+                program->abandonCall(queued->callId);
+                result.isError = true;
+                result.text = "Program:Call timed out";
+            } else if (status == Program::CallStatus::Failed) {
+                result.isError = true;
+            }
+        } else if (!program->isStarted()) {
+            // 待機中に強制終了(破棄・停止)された。終了コードは得られない。
+            result.isError = true;
+            result.text = "program was closed";
+        } else {
+            const std::optional<int> exitCode = program->pollClose();
+            if (!exitCode) continue;
+            result.exitCode = *exitCode;
+        }
+
+        // resumeは新しいCall/Closeをvectorへ追加しうるため、先に所有権を外へ移す。
+        auto pendingPtr = std::move(m_pendingPrograms[i]);
+        resumeProgramWaiter(*pendingPtr, result);
+        if (pendingPtr->coRef != -1) lua_unref(L, pendingPtr->coRef);
+    }
+    m_pendingPrograms.erase(
+        std::remove(m_pendingPrograms.begin(), m_pendingPrograms.end(), nullptr),
+        m_pendingPrograms.end());
+}
+
 int LuauEngine::pathfinding_configure_closure(lua_State* L) {
     auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
     auto self = ud->lock();
@@ -1911,6 +2174,24 @@ void LuauEngine::cancelAllTasks() {
         if (pending->coRef != -1) lua_unref(L, pending->coRef);
     }
     m_pendingPaths.clear();
+    for (auto& pending : m_pendingPrograms) {
+        if (!pending) continue;
+        if (pending->owner == PathCoroutineOwner::Script) {
+            if (auto script = pending->script.lock()) {
+                script->WaitingForPath = false;
+                if (script->Coroutine == pending->co) {
+                    if (script->CoroutineRef != -1)
+                        lua_unref(L, script->CoroutineRef);
+                    script->CoroutineRef = -1;
+                    script->Coroutine = nullptr;
+                }
+            }
+        }
+        if (pending->coRef != -1) lua_unref(L, pending->coRef);
+    }
+    m_pendingPrograms.clear();
+    // 待機中のコルーチンは破棄済み。残る子プロセスも孤児にならないよう止める。
+    Program::forceCloseAll();
     for (auto& t : m_tasks) {
         if (t->coRef != -1) lua_unref(L, t->coRef);
     }
@@ -2814,6 +3095,14 @@ int LuauEngine::instance_new_closure(lua_State* L) {
         return 0;
     }
 
+    // luaCreatable=falseのPhysicalFileInstance(Programなど)もシーン専用。
+    if (const auto* fileType = PhysicalFileInstanceRegistry::find(className);
+        fileType && !fileType->luaCreatable) {
+        luaL_error(L, "Instance.new('%s') is not permitted; %s instances are scene-owned",
+                   className, className);
+        return 0;
+    }
+
     std::shared_ptr<Instance> inst = createBaseCubeInstance(className);
     if (!inst) inst = PhysicalFileInstanceRegistry::create(className);
     if (!inst) {
@@ -3159,6 +3448,7 @@ void LuauEngine::tickWaitingScript(const std::shared_ptr<Instance>& inst, float 
 
 void LuauEngine::update(float deltaTime) {
     pollPathfindingRequests();
+    pollProgramRequests();
     if (PathfindingService::IsBuildActive()) return;
     sweepOwnedInstances(); // 毎フレーム、ツリーが所有済み/破棄済みの強参照を手放す
     if (m_haltRequested) return; // 安全対策による強制停止済み

@@ -10,6 +10,13 @@ explicit absolute paths. `RemoveTree` protects the portable root, home, and file
 Send, Receive, Close as a stub; disabled permission is an authorization error and enabled calls return not-implemented.
 TextFile.Content is capped at 128 MiB and does not require IO.
 
+`Program`（[Program](../Instances/Program.md)）のメソッド`Start/Call/Send/Receive/Connect/Disconnect/Close`は
+`EnableIPCAPI`が必要。`Call`/`Close`は`FindPath`と同様にコルーチンをyieldし、`update()`先頭の
+`pollProgramRequests()`が応答・タイムアウト・終了を検出して再開する（失敗は`lua_resumeerror`によるLuauエラー）。
+待機中は`Script::WaitingForPath`/`EngineTask::waitingForPath`を「非同期待機中」として流用する。
+`cancelAllTasks()`は待機コルーチンを破棄し、全Programのプロセスを強制終了する。
+`Instance.new`は`luaCreatable=false`のPhysicalFileInstance（TextFile/Program）を拒否する。
+
 Systemの拡張権限に応じてRuntimeFileSystemをバインドする。`TextFile.Content`はI/O API権限なしで利用できる。
 `IO` APIは`EnableIOAPI`、`IPC` APIは`EnableIPCAPI`が無効な場合、Luau実行時エラーを返す。
 

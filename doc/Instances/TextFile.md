@@ -18,4 +18,5 @@ Packagerは既存の`ContentPath`追跡を使ってseedを同梱する。
 
 初回アクセス時だけ`ContentPath`のseedを`StorageId`保存先へコピーし、以後はユーザー保存を優先する。
 Contentはroot直下の`textfiles/<StorageId>.txt`へ保存され、Editorと配布ランタイムはそれぞれの起動rootによって分離される。Contentは最大128 MiBで、読み書きにI/O API権限を必要としない。
+読み書きの実装は[RuntimeFileSystem](../Util/RuntimeFileSystem.md)の`readTextFile`/`writeTextFile`。
 `StorageId`はYAMLには保存するがLuauへ公開しない。Luauの`Instance.new("TextFile")`および`TextFile:Clone()`は拒否される。

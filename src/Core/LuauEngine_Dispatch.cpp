@@ -1032,6 +1032,16 @@ void LuauEngine::InitDispatchTable_GUI() {
     PropertyRegistry::applyToDispatch("PathfindingService", DispatchTable, SetterTable);
     DispatchTable["PathfindingService"]["FindPath"] = getter_closure(pathfinding_find_path_closure, "FindPath");
     DispatchTable["PathfindingService"]["Configure"] = getter_closure(pathfinding_configure_closure, "Configure");
+
+    // --- Program (IPC) ---
+    // Path は PhysicalFileInstance の schema から流し込み済み。操作は手書きのメソッドのみ。
+    DispatchTable["Program"]["Start"]      = getter_closure(program_start_closure,      "Start");
+    DispatchTable["Program"]["Call"]       = getter_closure(program_call_closure,       "Call");
+    DispatchTable["Program"]["Send"]       = getter_closure(program_send_closure,       "Send");
+    DispatchTable["Program"]["Receive"]    = getter_closure(program_receive_closure,    "Receive");
+    DispatchTable["Program"]["Connect"]    = getter_closure(program_connect_closure,    "Connect");
+    DispatchTable["Program"]["Disconnect"] = getter_closure(program_disconnect_closure, "Disconnect");
+    DispatchTable["Program"]["Close"]      = getter_closure(program_close_closure,      "Close");
 }
 
 // ==================== Setter: GUI ====================

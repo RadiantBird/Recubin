@@ -32,6 +32,7 @@ class System;
 class GuiButton;
 class ChatService;
 class PathfindingService;
+class Program;
 
 #pragma comment(lib, "Luau.VM.lib")
 #pragma comment(lib, "Luau.Compiler.lib")
@@ -44,6 +45,8 @@ private:
     std::weak_ptr<Workspace> workspace;  // 管理対象の Workspace
     System*    m_system = nullptr;
     std::shared_ptr<RuntimeFileSystem> m_runtimeFileSystem;
+    // setGlobalInstanceで公開した名前。コンパイル時にmutableGlobalsへ渡す。
+    std::vector<std::string> m_instanceGlobalNames;
     PoolService m_poolService;
     static Script* currentScript;  // 現在実行中のスクリプト
     std::string m_lastTraceback;   // debugprotectederror で取得したスタックトレース
@@ -83,6 +86,28 @@ private:
         std::string context;
     };
     std::vector<std::unique_ptr<PendingPathCoroutine>> m_pendingPaths;
+
+    // Program:Call / Program:Close の待機中コルーチン。完了・失敗・タイムアウトで再開する。
+    // 待機中は Script::WaitingForPath / EngineTask::waitingForPath を「非同期待機中」として流用する。
+    enum class ProgramWait { Call, Close };
+    struct PendingProgramCoroutine {
+        std::weak_ptr<Program> program;
+        ProgramWait kind = ProgramWait::Call;
+        uint64_t callId = 0;
+        std::chrono::steady_clock::time_point deadline{};  // Callのみ有効
+        lua_State* co = nullptr;
+        int coRef = -1;
+        PathCoroutineOwner owner = PathCoroutineOwner::Script;
+        std::weak_ptr<Script> script;
+        EngineTask* task = nullptr;
+        std::string context;
+    };
+    struct ProgramWaitResult {
+        bool isError = false;
+        std::string text;   // 成功時のCall応答 / エラーメッセージ
+        int exitCode = 0;   // 成功時のClose終了コード
+    };
+    std::vector<std::unique_ptr<PendingProgramCoroutine>> m_pendingPrograms;
 
     // ---- 安全対策(1フレームあたりのClone/Restart/Task上限、ループタイムアウト) ----
     std::unordered_map<std::string, int> m_cloneCallCounts;
@@ -245,6 +270,21 @@ private:
     static int pathfinding_configure_closure(lua_State* L);
     static int chat_send_message_closure(lua_State* L);
 
+    // Program methods（IPC）
+    static int program_start_closure(lua_State* L);
+    static int program_call_closure(lua_State* L);
+    static int program_send_closure(lua_State* L);
+    static int program_receive_closure(lua_State* L);
+    static int program_connect_closure(lua_State* L);
+    static int program_disconnect_closure(lua_State* L);
+    static int program_close_closure(lua_State* L);
+    // Call/Closeの共通。送信前に現在のコルーチンの所有者を特定し(yield不可ならluaL_error)、
+    // 送信後に待機登録してyieldする。
+    static std::unique_ptr<PendingProgramCoroutine> makeProgramWaiter(
+        lua_State* L, const std::shared_ptr<Program>& program, ProgramWait kind);
+    static int yieldForProgram(lua_State* L, std::unique_ptr<PendingProgramCoroutine> pending);
+    void resumeProgramWaiter(PendingProgramCoroutine& pending, const ProgramWaitResult& result);
+
     // Vector3 methods
     static int vec3_index(lua_State* L);
     static int vec3_newindex(lua_State* L);
@@ -385,6 +425,8 @@ public:
     // 非同期ナビメッシュ要求をポーリングし、完了したFindPathコルーチンだけを再開する。
     // ワールド更新を停止しているフレームからも呼べる。
     void pollPathfindingRequests();
+    // 全Programのパイプを読み、完了/失敗/タイムアウトしたCall・Closeコルーチンを再開する。
+    void pollProgramRequests();
     // Signal/taskの通常yieldとFindPath待機を区別するための照会。
     bool isPathfindingCoroutine(lua_State* co) const;
     // System配下(Workspace外)スクリプトの実行状態をリセットする。

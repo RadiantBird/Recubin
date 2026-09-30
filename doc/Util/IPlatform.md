@@ -22,6 +22,12 @@ OS依存の操作(ファイル/フォルダダイアログ、ファイルマネ�
 | `showErrorDialog(title, message)` | OS標準の同期エラーダイアログを表示。Windowsは`MessageBoxW`、macOSはメインスレッドの`NSAlert` |
 | `setupConsoleUtf8()` | 起動時に1回呼ぶ、コンソールの入出力コードページをUTF-8にする処理 |
 | `loadDynamicLibrary(name)` / `getSymbol(handle, name)` / `freeDynamicLibrary(handle)` | 動的ライブラリのロード(`void*`ハンドルで抽象化) |
+| `launchChildProcess(options)` | GUIを持つ子プロセスの非同期起動（stdinはNUL）。`IChildProcess`を返す |
+| `launchPipedProcess(options)` | 標準入出力をパイプ接続した子プロセスの起動（[Program](../Instances/Program.md)用）。標準エラーは`outputLogPath`か破棄。未対応/失敗は`nullptr` |
+
+`IPipedProcess`: `isRunning()` / `exitCode()` / `write(data)`（ブロッキング）/ `readAvailable(out)`（非ブロッキング、
+読み切った後はfalse）/ `closeStdin()` / `terminate()`。Windowsは`CreatePipe`+`PeekNamedPipe`のポーリング。
+macOS・Mockは未対応で`nullptr`を返す。
 
 `FileFilter{ name, spec }`は`{"Scene (*.yaml;*.yml)", "*.yaml;*.yml"}`のようにダイアログの
 ファイル種別欄を表す。複数指定すると種別セレクタに複数エントリが並ぶ。

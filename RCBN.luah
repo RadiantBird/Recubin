@@ -187,6 +187,18 @@ export type FontFile = PhysicalFileInstance & {}
 export type TextFile = PhysicalFileInstance & {
     Content: string,
 }
+-- Requires System.EnableIPCAPI. Call and Close yield the running coroutine and
+-- raise a Luau error on failure/timeout. Messages are single lines on the wire
+-- (newlines are escaped transparently).
+export type Program = PhysicalFileInstance & {
+    Start: (Program) -> (),
+    Call: (Program, string, number?) -> string,
+    Send: (Program, string) -> (),
+    Receive: (Program) -> string?,
+    Connect: (Program) -> (),
+    Disconnect: (Program) -> (),
+    Close: (Program, number?) -> number,
+}
 
 export type Texture = Instance & {
     -- Source is write-only at runtime; Texture has no Luau getters.

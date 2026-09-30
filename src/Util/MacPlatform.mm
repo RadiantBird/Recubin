@@ -266,6 +266,12 @@ void MacPlatform::freeDynamicLibrary(void* handle) {
     if (handle) dlclose(handle);
 }
 
+// Program IPCはWindowsを先行実装。macOSは未対応(nullptr)を返す。
+std::unique_ptr<IPipedProcess> MacPlatform::launchPipedProcess(
+    const ChildProcessLaunchOptions&) {
+    return nullptr;
+}
+
 std::unique_ptr<IChildProcess> MacPlatform::launchChildProcess(
     const ChildProcessLaunchOptions& options) {
     if (options.executable.empty() ||

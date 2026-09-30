@@ -45,6 +45,23 @@ public:
     virtual bool terminate() = 0;
 };
 
+// 標準入出力をパイプで接続した子プロセス(Program IPC用)。
+// 読み取りは非ブロッキング(ポーリング)、書き込みは呼び出しスレッドでブロックしうる。
+class IPipedProcess {
+public:
+    virtual ~IPipedProcess() = default;
+
+    virtual bool isRunning() = 0;
+    virtual std::optional<int> exitCode() = 0;
+    // 標準入力へ全バイトを書く。失敗(パイプ切断など)ならfalse。
+    virtual bool write(const std::string& data) = 0;
+    // 現在読める標準出力をoutへ追記する。パイプが閉じて読み切った後はfalse。
+    virtual bool readAvailable(std::string& out) = 0;
+    // 標準入力を閉じる(子への穏当な終了要求)。
+    virtual void closeStdin() = 0;
+    virtual bool terminate() = 0;
+};
+
 class IPlatform {
 public:
     virtual ~IPlatform() = default;
@@ -82,6 +99,11 @@ public:
 
     // GUIを持つ子プロセスを非同期起動する。失敗時はnullptrを返す。
     virtual std::unique_ptr<IChildProcess> launchChildProcess(
+        const ChildProcessLaunchOptions& options) = 0;
+
+    // 標準入出力をパイプ接続した子プロセスを起動する。標準エラーはoutputLogPath
+    // (未指定なら破棄)へ出力する。未対応または失敗時はnullptrを返す。
+    virtual std::unique_ptr<IPipedProcess> launchPipedProcess(
         const ChildProcessLaunchOptions& options) = 0;
 
     // 非ブロッキングで標準入力から1行取得する。入力がまだ無い場合はnullopt。

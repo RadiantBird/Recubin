@@ -42,6 +42,11 @@ std::unique_ptr<IChildProcess> MockPlatform::launchChildProcess(
     return nullptr;
 }
 
+std::unique_ptr<IPipedProcess> MockPlatform::launchPipedProcess(
+    const ChildProcessLaunchOptions&) {
+    return nullptr;
+}
+
 std::optional<std::string> MockPlatform::pollStdinLine() {
     return std::nullopt;
 }

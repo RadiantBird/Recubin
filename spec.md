@@ -51,6 +51,11 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   初期seed、`StorageId`はユーザー領域のmutable copyを識別するUUIDである。`Content`は全文を
   読み書きでき、I/O API権限を要求しない。Luauの`Instance.new`では生成できず、エディターの
   Insert ObjectまたはSceneロードからのみ生成される。複製時は新しい`StorageId`を割り当てる。
+- **Program**: `PhysicalFileInstance`を継承し、`ContentPath`のexeを所有する。子プロセスと標準入出力の
+  パイプで文字列を交換する（1行=1メッセージ、改行はエスケープ）。`Start`/`Call`/`Send`/`Receive`/
+  `Connect`/`Disconnect`/`Close`を持ち、`EnableIPCAPI`が必要。`Call`/`Close`はコルーチンをyieldし、
+  `Close`は終了コードを返す。Luauの`Instance.new`では生成できない。Play停止・シーン切替・破棄時に
+  プロセスは強制終了される。現状はWindowsのみ対応（[doc](doc/Instances/Program.md)）。
 - **Workspace**: 複数インスタンスを持つ。切り替え可能。
 - **StarterCharacter**: System直下に置く、キャラクターのテンプレートを保持するだけのコンテナ。
   中にHumanoid・Root(Cube)・その他のCube/Sphereを通常のInsert Object操作で組み立てる。
