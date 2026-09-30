@@ -32,7 +32,7 @@
 enum class PropType { Float, Int, Bool, String, Vec3, Vec2, Color4, Enum, CFrame, Quaternion };
 enum class PropKind { Field, Signal };
 // CoreはImGuiへ依存させず、Editorが選ぶ操作種別だけを宣言する。
-enum class EditorWidget { Auto, FilePath, InstanceReference };
+enum class EditorWidget { Auto, FilePath, InstanceReference, Multiline };
 
 // 値の正規表現（Enum は int として格納）
 using PropValue = std::variant<float, int, bool, std::string, Vector3, Vector2, Color4,
@@ -119,6 +119,8 @@ struct PropertyDesc {
         editorDialogFilter = dialogFilter;
         return *this;
     }
+    // エディターで複数行テキスト入力欄を使う（String 型のみ）
+    PropertyDesc& multiline() { editorWidget = EditorWidget::Multiline; return *this; }
     PropertyDesc& multiKey(std::string_view key) { multiEditKey = key; return *this; }
 };
 

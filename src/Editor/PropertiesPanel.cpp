@@ -78,6 +78,27 @@
 //  → スキーマに1行足すだけでインスペクタに反映され、エディター取り残しを防ぐ。
 // ===================================================
 namespace {
+// 複数行String用。std::string を直接バッファにし、長さ制限なしで編集する。
+int resizeStdStringCallback(ImGuiInputTextCallbackData* data) {
+    if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
+        auto* str = static_cast<std::string*>(data->UserData);
+        str->resize(static_cast<size_t>(data->BufTextLen));
+        data->Buf = str->data();
+    }
+    return 0;
+}
+
+bool inputMultilineString(const char* id, std::string& value) {
+    constexpr int VISIBLE_LINES = 4;
+    const ImVec2 size(-FLT_MIN, ImGui::GetTextLineHeight() * VISIBLE_LINES +
+                                    ImGui::GetStyle().FramePadding.y * 2.0f);
+    const bool changed = ImGui::InputTextMultiline(
+        id, value.data(), value.size() + 1, size,
+        ImGuiInputTextFlags_CallbackResize, resizeStdStringCallback, &value);
+    if (changed) value.resize(std::strlen(value.c_str()));
+    return changed;
+}
+
 class SetUserCursorCommand final : public Command {
 public:
     enum class Kind { Type, Path, HotspotX, HotspotY, Size };
@@ -385,6 +406,11 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                 break;
             }
             case PropType::String: {
+                if (d.editorWidget == EditorWidget::Multiline) {
+                    std::string text = std::get<std::string>(cur);
+                    if (inputMultilineString(("##" + label).c_str(), text)) applyLive(inst, PropValue(text));
+                    break;
+                }
                 char buf[256];
                 std::snprintf(buf, sizeof(buf), "%s", std::get<std::string>(cur).c_str());
                 if (ImGui::InputText(("##" + label).c_str(), buf, sizeof(buf))) applyLive(inst, PropValue(std::string(buf)));
@@ -835,6 +861,12 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                 break;
             }
             case PropType::String: {
+                if (d0->editorWidget == EditorWidget::Multiline) {
+                    std::string text = mixed ? std::string() : std::get<std::string>(cur);
+                    if (inputMultilineString(("##" + name).c_str(), text))
+                        applyLiveAll(PropValue(text));
+                    break;
+                }
                 char buf[256];
                 if (mixed) {
                     buf[0] = '\0';

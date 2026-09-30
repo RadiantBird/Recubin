@@ -11,7 +11,8 @@ PropertyDesc text() {
     using C = typename PropertyRegistry::member_traits<M>::Class;
     return PropertyRegistry::custom("Text", PropType::String,
         [](Instance* o) { return PropValue((static_cast<C*>(o)->*M).Text); },
-        [](Instance* o, const PropValue& v) { (static_cast<C*>(o)->*M).Text = std::get<std::string>(v); });
+        [](Instance* o, const PropValue& v) { (static_cast<C*>(o)->*M).Text = std::get<std::string>(v); })
+        .multiline();
 }
 
 template<auto M>
