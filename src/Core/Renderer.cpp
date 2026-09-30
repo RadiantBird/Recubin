@@ -2394,30 +2394,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     if (desc.renderShadows && lighting && lightDirectionValid &&
         std::isfinite(lighting->shadowDistance) && lighting->shadowDistance > 0.1f &&
         shadowFBO && shadowMapTex && depthShader) {
-        if (m_shadowCacheWorkspace != desc.workspace || m_shadowCacheFbo != desc.fbo) {
-            m_shadowCacheValid = false;
-            m_shadowCameraWasMoving = false;
-            m_shadowMotionFrame = 0;
-            m_shadowCacheWorkspace = desc.workspace;
-            m_shadowCacheFbo = desc.fbo;
-        }
-        const Vector3 normalizedShadowCameraForward = desc.cameraForward.normalize();
-        const bool shadowCameraMoving = !m_shadowCacheValid ||
-            (desc.cameraPosition - m_lastShadowCameraPosition).length() > 0.01f ||
-            Vector3::Dot(normalizedShadowCameraForward, m_lastShadowCameraForward) < 0.9999f;
-        bool updateShadowMap = true;
-        if (shadowCameraMoving) {
-            if (m_shadowCameraWasMoving) {
-                ++m_shadowMotionFrame;
-                updateShadowMap = (m_shadowMotionFrame % 2u) == 0u;
-            }
-        } else {
-            m_shadowMotionFrame = 0;
-        }
-        m_shadowCameraWasMoving = shadowCameraMoving;
-        m_lastShadowCameraPosition = desc.cameraPosition;
-        m_lastShadowCameraForward = normalizedShadowCameraForward;
-
+        // シャドウマップは毎フレーム再描画する。カメラ移動中に隔フレームで前フレームの
+        // マップを再利用すると、動くキャスター(追従カメラ下のキャラ等)の影が1フレーム遅れ、
+        // 交互にずれてちらつく。
         constexpr float CAMERA_NEAR = 0.1f;
         constexpr float CASCADE_SPLIT_LAMBDA = 0.7f;
         constexpr float CASCADE_XY_MARGIN = 8.0f;
@@ -2521,17 +2500,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             lightSpaceMatrices[cascade] = lightProj * lightView;
         }
 
-        if (!updateShadowMap && m_shadowCacheValid) {
-            lightSpaceMatrices = m_cachedShadowMatrices;
-            shadowCascadeSplits = m_cachedShadowCascadeSplits;
-            shadowCascadeBlend = m_cachedShadowCascadeBlend;
-            shadowReady = true;
-            FrameProfiler::get().addCount("shadowMapReused", 1);
-        } else if (captureGpuViewport) {
+        if (captureGpuViewport) {
             writeGpuTimestamp(GpuTimestamp::ShadowBegin);
             capturedGpuShadow = true;
         }
-        if (updateShadowMap || !m_shadowCacheValid) {
+        {
         FrameProfiler::get().beginSection("shadow");
         glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
         glViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
@@ -2683,20 +2656,12 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         glDisable(GL_POLYGON_OFFSET_FILL);
 
         shadowReady = true;
-        m_cachedShadowMatrices = lightSpaceMatrices;
-        m_cachedShadowCascadeSplits = shadowCascadeSplits;
-        m_cachedShadowCascadeBlend = shadowCascadeBlend;
-        m_shadowCacheValid = true;
         // メインFBOに戻す
         glBindFramebuffer(GL_FRAMEBUFFER, desc.fbo);
         glViewport(0, 0, desc.width, desc.height);
         FrameProfiler::get().endSection("shadow");
         if (captureGpuViewport) writeGpuTimestamp(GpuTimestamp::ShadowEnd);
         }
-    } else {
-        m_shadowCacheValid = false;
-        m_shadowCameraWasMoving = false;
-        m_shadowMotionFrame = 0;
     }
     if (captureGpuViewport && !capturedGpuShadow) {
         writeGpuTimestamp(GpuTimestamp::ShadowBegin);
