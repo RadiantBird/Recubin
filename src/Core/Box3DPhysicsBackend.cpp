@@ -456,8 +456,13 @@ void syncCubeWorldCFramePreservingAttachments(
     // Physics already owns the authoritative world pose here, so use the
     // direct commit path for the common leaf-cube case.
     if (cube.children.empty()) {
+        // commitCFrameはローカルCFrameを受け取る。ワールド値は座標親の
+        // ローカル空間へ変換してから渡す(Model配下でのずれ防止)。
+        CFrame local = worldCFrame;
+        if (const Spatial* parent = cube.getCoordinateParent())
+            local = parent->getWorldCFrame().inverse() * worldCFrame;
         cube.commitCFrame(
-            worldCFrame,
+            local,
             Spatial::SpatialUpdateOrigin::Deserialization);
         return;
     }
@@ -1631,20 +1636,51 @@ void Box3DPhysicsBackend::applyMaintainedVelocities() {
                     deficit.z / deficitLength};
                 const b3Quat correction = b3MakeQuatFromAxisAngle(
                     axis, deficitLength * FIXED_STEP);
-                const b3Quat rotation = b3NormalizeQuat(
-                    b3MulQuat(correction, b3Body_GetRotation(id)));
-                const b3Pos position = b3Body_GetPosition(id);
-                const b3Pos center = b3Body_GetWorldCenterOfMass(id);
-                const b3Vec3 offset = {
-                    static_cast<float>(position.x - center.x),
-                    static_cast<float>(position.y - center.y),
-                    static_cast<float>(position.z - center.z)};
-                const b3Vec3 rotated = b3RotateVector(correction, offset);
-                b3Pos newPosition = position;
-                newPosition.x = center.x + rotated.x;
-                newPosition.y = center.y + rotated.y;
-                newPosition.z = center.z + rotated.z;
-                b3Body_SetTransform(id, newPosition, rotation);
+                const b3Pos pivot = b3Body_GetWorldCenterOfMass(id);
+
+                // YawForceを持つキャラクターは、Rootだけを回すとMotor6Dの
+                // ばねで他パーツが遅れて揺れるため、R6リグ全体を同じ剛体回転で補正する。
+                std::vector<b3BodyId> targets{id};
+                for (const std::size_t diagnosticIndex :
+                     state.yawForceDiagnosticIndices) {
+                    const auto& diagnostic =
+                        m_yawForceDiagnostics[diagnosticIndex];
+                    if (!diagnostic.owner || !diagnostic.force ||
+                        !diagnostic.force->Enabled ||
+                        !diagnostic.force->Torque ||
+                        !diagnostic.force->MaintainVelocity)
+                        continue;
+                    auto model = diagnostic.owner->Parent.lock();
+                    if (!model) continue;
+                    for (const auto& body : CharacterRig::collectR6Bodies(model.get())) {
+                        if (!body) continue;
+                        const b3BodyId rigBody = bodyId(*body);
+                        if (B3_IS_NULL(rigBody) || !b3Body_IsValid(rigBody) ||
+                            b3Body_GetType(rigBody) != b3_dynamicBody)
+                            continue;
+                        if (std::none_of(targets.begin(), targets.end(),
+                                [&](b3BodyId known) { return idsEqual(known, rigBody); }))
+                            targets.push_back(rigBody);
+                    }
+                    break;
+                }
+
+                for (const b3BodyId target : targets) {
+                    const b3Pos position = b3Body_GetPosition(target);
+                    const b3Vec3 offset = {
+                        static_cast<float>(position.x - pivot.x),
+                        static_cast<float>(position.y - pivot.y),
+                        static_cast<float>(position.z - pivot.z)};
+                    const b3Vec3 rotated = b3RotateVector(correction, offset);
+                    b3Pos newPosition = position;
+                    newPosition.x = pivot.x + rotated.x;
+                    newPosition.y = pivot.y + rotated.y;
+                    newPosition.z = pivot.z + rotated.z;
+                    b3Body_SetTransform(
+                        target, newPosition,
+                        b3NormalizeQuat(b3MulQuat(
+                            correction, b3Body_GetRotation(target))));
+                }
             }
 
             b3Body_SetAngularVelocity(

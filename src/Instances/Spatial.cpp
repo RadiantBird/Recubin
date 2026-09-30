@@ -1,11 +1,35 @@
 #include "include/Instances/Spatial.hpp"
 #include "include/Core/PropertyRegistry.hpp"
+#include "include/Instances/BaseCube.hpp"
 #include "include/Util/Logger.hpp"
 #include <algorithm>
+#include <functional>
 #include <cmath>
 #include <vector>
 
 namespace {
+// プロパティ(エディター/YAML)経由のローカルCFrame代入。Modelは子孫を
+// 一緒に動かす(ギズモと同じ挙動)。それ以外は従来のsetterに委ねる。
+void assignLocalCFrameProperty(Spatial* spatial, const CFrame& local) {
+    if (!spatial->IsA("Model")) {
+        spatial->setCFrame(local);
+        return;
+    }
+    CFrame normalized = local;
+    if (!normalized.Rotation.tryNormalize()) return;
+    spatial->commitCFrame(normalized, Spatial::SpatialUpdateOrigin::Editor);
+    std::vector<BaseCube*> cubes;
+    std::function<void(Instance&)> collect = [&](Instance& root) {
+        for (const auto& [_, child] : root.children) {
+            if (!child) continue;
+            if (auto* cube = dynamic_cast<BaseCube*>(child.get())) cubes.push_back(cube);
+            collect(*child);
+        }
+    };
+    collect(*spatial);
+    for (BaseCube* cube : cubes) cube->teleportTo(cube->getPosition());
+}
+
 const bool s_spatialRegistered = [] {
     using namespace PropertyRegistry;
     PropertyDesc position = custom("Position", PropType::Vec3,
@@ -13,8 +37,15 @@ const bool s_spatialRegistered = [] {
                 return PropValue(static_cast<Spatial*>(object)->getPosition());
             },
             [](Instance* object, const PropValue& value) {
-                static_cast<Spatial*>(object)->setPosition(std::get<Vector3>(value));
+                auto* spatial = static_cast<Spatial*>(object);
+                CFrame local = spatial->getCFrame();
+                local.Position = std::get<Vector3>(value);
+                if (spatial->IsA("Model")) assignLocalCFrameProperty(spatial, local);
+                else spatial->setPosition(std::get<Vector3>(value));
             });
+    position.luaSet = [](Instance* object, const PropValue& value) {
+        static_cast<Spatial*>(object)->setPosition(std::get<Vector3>(value));
+    };
     position.lo = -1.0e9f;
     position.hi = 1.0e9f;
     position.step = 0.05f;
@@ -31,24 +62,32 @@ const bool s_spatialRegistered = [] {
     size.hi = 1.0e6f;
     size.step = 0.05f;
 
-    registerClass("Spatial", "Instance", {
-        position,
-        size,
-        custom("Rotation", PropType::Quaternion,
+    PropertyDesc rotation = custom("Rotation", PropType::Quaternion,
             [](Instance* object) {
                 return PropValue(static_cast<Spatial*>(object)->getRotation());
             },
             [](Instance* object, const PropValue& value) {
-                static_cast<Spatial*>(object)->setRotation(std::get<Quaternion>(value));
-            }),
-        custom("CFrame", PropType::CFrame,
+                auto* spatial = static_cast<Spatial*>(object);
+                CFrame local = spatial->getCFrame();
+                local.Rotation = std::get<Quaternion>(value);
+                if (spatial->IsA("Model")) assignLocalCFrameProperty(spatial, local);
+                else spatial->setRotation(std::get<Quaternion>(value));
+            });
+    rotation.luaSet = [](Instance* object, const PropValue& value) {
+        static_cast<Spatial*>(object)->setRotation(std::get<Quaternion>(value));
+    };
+    PropertyDesc cframe = custom("CFrame", PropType::CFrame,
             [](Instance* object) {
                 return PropValue(static_cast<Spatial*>(object)->getCFrame());
             },
             [](Instance* object, const PropValue& value) {
-                static_cast<Spatial*>(object)->setCFrame(std::get<CFrame>(value));
-            }).noYaml().multiOnly()
-    });
+                assignLocalCFrameProperty(static_cast<Spatial*>(object), std::get<CFrame>(value));
+            });
+    cframe.luaSet = [](Instance* object, const PropValue& value) {
+        static_cast<Spatial*>(object)->setCFrame(std::get<CFrame>(value));
+    };
+    cframe.noYaml().multiOnly();
+    registerClass("Spatial", "Instance", {position, size, rotation, cframe});
     return true;
 }();
 
