@@ -1,6 +1,7 @@
 #include "include/Instances/Spatial.hpp"
 #include "include/Core/PropertyRegistry.hpp"
 #include "include/Instances/BaseCube.hpp"
+#include "include/Instances/Model.hpp"
 #include "include/Util/Logger.hpp"
 #include <algorithm>
 #include <functional>
@@ -10,9 +11,25 @@
 namespace {
 // プロパティ(エディター/YAML)経由のローカルCFrame代入。Modelは子孫を
 // 一緒に動かす(ギズモと同じ挙動)。それ以外は従来のsetterに委ねる。
+bool isPlainModel(Instance* object) {
+    return object->IsA("Model") && !object->IsA("Tool");
+}
+
 void assignLocalCFrameProperty(Spatial* spatial, const CFrame& local) {
     if (!spatial->IsA("Model")) {
         spatial->setCFrame(local);
+        return;
+    }
+    if (!spatial->IsA("Tool")) {
+        // Modelのプロパティ代入はPivotToと同じ。原点が指定姿勢になるよう、
+        // 子孫を含めて剛体的に移動する(物理ボディも同期される)。
+        auto* model = static_cast<Model*>(spatial);
+        CFrame target = local;
+        if (!target.Rotation.tryNormalize()) return;
+        if (const Spatial* parent = model->getCoordinateParent())
+            target = parent->getWorldCFrame() * target;
+        const CFrame delta = target * model->getWorldCFrame().inverse();
+        model->pivotTo(delta * model->getPivotCFrame());
         return;
     }
     CFrame normalized = local;
@@ -43,8 +60,9 @@ const bool s_spatialRegistered = [] {
                 if (spatial->IsA("Model")) assignLocalCFrameProperty(spatial, local);
                 else spatial->setPosition(std::get<Vector3>(value));
             });
-    position.luaSet = [](Instance* object, const PropValue& value) {
-        static_cast<Spatial*>(object)->setPosition(std::get<Vector3>(value));
+    position.luaSet = [position](Instance* object, const PropValue& value) {
+        if (isPlainModel(object)) position.set(object, value);
+        else static_cast<Spatial*>(object)->setPosition(std::get<Vector3>(value));
     };
     position.lo = -1.0e9f;
     position.hi = 1.0e9f;
@@ -73,8 +91,9 @@ const bool s_spatialRegistered = [] {
                 if (spatial->IsA("Model")) assignLocalCFrameProperty(spatial, local);
                 else spatial->setRotation(std::get<Quaternion>(value));
             });
-    rotation.luaSet = [](Instance* object, const PropValue& value) {
-        static_cast<Spatial*>(object)->setRotation(std::get<Quaternion>(value));
+    rotation.luaSet = [rotation](Instance* object, const PropValue& value) {
+        if (isPlainModel(object)) rotation.set(object, value);
+        else static_cast<Spatial*>(object)->setRotation(std::get<Quaternion>(value));
     };
     PropertyDesc cframe = custom("CFrame", PropType::CFrame,
             [](Instance* object) {
@@ -83,8 +102,9 @@ const bool s_spatialRegistered = [] {
             [](Instance* object, const PropValue& value) {
                 assignLocalCFrameProperty(static_cast<Spatial*>(object), std::get<CFrame>(value));
             });
-    cframe.luaSet = [](Instance* object, const PropValue& value) {
-        static_cast<Spatial*>(object)->setCFrame(std::get<CFrame>(value));
+    cframe.luaSet = [cframe](Instance* object, const PropValue& value) {
+        if (isPlainModel(object)) cframe.set(object, value);
+        else static_cast<Spatial*>(object)->setCFrame(std::get<CFrame>(value));
     };
     cframe.noYaml().multiOnly();
     registerClass("Spatial", "Instance", {position, size, rotation, cframe});
@@ -189,6 +209,13 @@ void Spatial::setWorldPosition(const Vector3& worldPosition) {
     CFrame local = world;
     if (auto* coordinateParent = getCoordinateParent())
         local = coordinateParent->getWorldCFrame().inverse() * world;
+    if (isPlainModel(this)) {
+        // Modelは代入をPivotToと同じ扱いにする(プロパティ代入と揃える)
+        CFrame newLocal = getCFrame();
+        newLocal.Position = local.Position;
+        assignLocalCFrameProperty(this, newLocal);
+        return;
+    }
     setPosition(local.Position);
 }
 

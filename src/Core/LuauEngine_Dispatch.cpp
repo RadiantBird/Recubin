@@ -387,6 +387,8 @@ void LuauEngine::InitDispatchTable_Base() {
     };
     DispatchTable["Model"]["PivotTo"] = getter_closure(
         model_pivot_to_closure, "PivotTo");
+    DispatchTable["Model"]["MoveOrigin"] = getter_closure(
+        model_move_origin_closure, "MoveOrigin");
 
     // --- BaseCube（Position/Size は Spatial に集約。物理特有のみ残置）---
     PropertyRegistry::applyToDispatch("BaseCube", DispatchTable, SetterTable);

@@ -96,6 +96,39 @@ CFrame Model::getPivotCFrame() const {
     return CFrame(centroid, modelWorld.Rotation);
 }
 
+namespace {
+constexpr float PIVOT_SYNC_EPSILON = 0.01f;
+
+bool hasDynamicCube(const Instance& root) {
+    for (const auto& [_, child] : root.children) {
+        if (!child) continue;
+        if (const auto* cube = dynamic_cast<const BaseCube*>(child.get());
+            cube && !cube->Anchored)
+            return true;
+        if (hasDynamicCube(*child)) return true;
+    }
+    return false;
+}
+}
+
+void Model::syncPivotToCentroid() {
+    if (IsA("Tool") || !hasDynamicCube(*this)) return;
+    const CFrame world = getWorldCFrame();
+    const CFrame pivot = getPivotCFrame();
+    if ((pivot.Position - world.Position).length() < PIVOT_SYNC_EPSILON) return;
+    // setWorldCFrameは子孫のワールド姿勢を保存する。物理ボディは動かさない。
+    setWorldCFrame(CFrame(pivot.Position, world.Rotation));
+}
+
+void Model::syncPivotsToCentroid(Instance& root) {
+    for (const auto& [_, child] : root.children) {
+        if (!child) continue;
+        if (auto* model = dynamic_cast<Model*>(child.get()))
+            model->syncPivotToCentroid();
+        syncPivotsToCentroid(*child);
+    }
+}
+
 void Model::pivotTo(const CFrame& worldCFrame) {
     CFrame normalized = worldCFrame;
     if (!normalized.Rotation.tryNormalize()) return;

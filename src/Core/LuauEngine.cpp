@@ -953,6 +953,26 @@ int LuauEngine::model_pivot_to_closure(lua_State* L) {
     return 0;
 }
 
+int LuauEngine::model_move_origin_closure(lua_State* L) {
+    auto* userdata = (std::weak_ptr<Instance>*)lua_touserdata(
+        L, lua_upvalueindex(1));
+    auto objShared = userdata ? userdata->lock() : nullptr;
+    if (!objShared) {
+        luaL_error(L, "Model.MoveOrigin: Model has been deleted");
+        return 0;
+    }
+    auto* model = dynamic_cast<Model*>(objShared.get());
+    if (!model) {
+        luaL_error(L, "Model.MoveOrigin is only available on Model instances");
+        return 0;
+    }
+    auto* target = (CFrame*)luaL_checkudata(
+        L, 2, LuauEngine::RCBN_CFRAME_METATABLE);
+    // 原点だけを動かす。子孫のワールド姿勢は変えない。
+    model->setWorldCFrame(*target);
+    return 0;
+}
+
 bool LuauEngine::loadScriptChunk(lua_State* co, Script& script) {
     // ファイルが真実の源: 実行直前に最新ソースを再読込する
     // (外部エディタ編集・新規作成直後の内容を反映。空読込時は既存を保持)

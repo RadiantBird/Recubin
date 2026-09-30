@@ -3,6 +3,7 @@
 #include "include/Instances/BaseCube.hpp"
 #include "include/Instances/Attachment.hpp"
 #include "include/Instances/BallSocket.hpp"
+#include "include/Instances/Model.hpp"
 #include "include/Instances/Motor.hpp"
 #include "include/Instances/Motor6D.hpp"
 #include "include/Instances/Gyro.hpp"
@@ -457,6 +458,8 @@ void Physics::update(Workspace& workspace, float dt) {
     const std::uint64_t before = m_backend->getSimulationTick();
     m_backend->update(workspace, dt);
     advanceWavePhaseCorrection(m_backend->getSimulationTick() - before);
+    // 物理で動いた子に合わせて、Modelの原点を重心へ追従させる
+    Model::syncPivotsToCentroid(workspace);
 }
 void Physics::stepOnce(float dt) {
     if (!isAvailable()) return;
