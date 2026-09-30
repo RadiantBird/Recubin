@@ -1,0 +1,40 @@
+recubin:
+  type: scene
+  version: 0
+Root:
+  Properties:
+    # Program (IPC) を使うには EnableIPCAPI が必要。ファイルI/Oは使わないので無効のまま。
+    EnableIOAPI: false
+    EnableIPCAPI: true
+    EnableExternalFileAccess: false
+    AutoSpawnPlayerCharacter: false
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Children:
+        # 子プロセス(exe)を所有する Program。ContentPath は実行する exe で、
+        # リポジトリのルートからの相対パスで書く。
+        - ClassName: Program
+          Name: EchoServer
+          Properties:
+            ContentPath: TestCases/ProgramIpcSample/assets/echo_server.exe
+        - ClassName: Folder
+          Name: IpcGui
+          Children:
+            - ClassName: TextLabel
+              Name: Log
+              Properties:
+                Position: [32, 32]
+                Size: [1000, 620]
+                Norm: Pixel
+                Active: true
+                Visible: true
+                ZIndex: 20
+                BackgroundColor: [0.02, 0.02, 0.04, 0.88]
+                TextColor: [0.85, 1, 0.85, 1]
+                FontSize: 16
+                Text: "ProgramIpcSample starting..."
+        - ClassName: Script
+          Name: ProgramIpcSample
+          Properties:
+            ContentPath: TestCases/ProgramIpcSample/scripts/ProgramIpcSample.luau

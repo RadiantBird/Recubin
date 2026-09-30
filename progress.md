@@ -54,3 +54,69 @@
 - 足のTouchedセンサーは「リスナー接続時のみ」生成（`BaseCube::isTouchObserved()`）。センサー重なりは足裏が床に触れるまで発火せず、幾何近似より数フレーム遅い。
 - `CharacterRig`のデフォルトリグは、HipHeight 3で足が床に約1stud沈んだ状態で静止する。
 - Model(Tool除く)はPlay中、動的な子を含む限り原点が重心に自動更新される。Lua/プロパティ/YAMLの`Position`代入はPivotToとして子ごと動く。
+
+---
+
+## 2026-10-01 GUIテキスト複数行・フォント(MPLUS)・ファイルI/O文書化・Program IPC実装
+
+### 1. 何をしたか
+- **TextLabel/TextButton.Textの複数行対応**: `PropertyRegistry.hpp`に`EditorWidget::Multiline`と`PropertyDesc::multiline()`を追加。`GuiContentProps.hpp`の`text()`に付与。`PropertiesPanel.cpp`に`inputMultilineString()`（std::string直結のInputTextMultiline、長さ制限なし）を追加し、単体編集・複数選択編集の両方のString分岐で使用。描画側(`Renderer_GUI.cpp`のdrawGuiText)は改行を元から扱えるため無変更。
+- **既定フォントをMPLUS1pへ**: `Renderer.cpp`で`MPLUS1p-Regular.ttf`を読み込み、`io.FontDefault`とFontAwesomeのマージ先にした（MPLUS→DotGothic16→内蔵の順でフォールバック）。`Renderer_GUI.cpp`の`resolveGuiFont`でSystemFont::DefaultをMPLUSへ。`Packager.cpp`の同梱必須フォントチェックをMPLUS1pへ。`Renderer.hpp`に`m_mplusGuiFont`追加。DotGothic16は選択肢として残した。
+- **コンソールのフォント**: `ConsolePanel`に`setLogFont()`を追加し、ログ本文を補助テキストエディタと同じJetBrains Monoで描画。`Renderer.cpp`でJetBrains MonoへMPLUS1pをMergeMode(DstFont明示)でマージし日本語をフォールバックさせた。`EditorManager.cpp`のコンストラクタで`setLogFont`。
+- **ファイルI/Oのドキュメント**: `doc/Util/RuntimeFileSystem.md`を新規作成。`doc/Util/README.md`・`doc/Instances/TextFile.md`から参照。
+- **Program(IPC)の実装**:
+  - `IPlatform.hpp`に`IPipedProcess`と`launchPipedProcess`を追加。`WindowsPlatform.cpp`(CreatePipe+PeekNamedPipeのポーリング)で実装、`MockPlatform`/`MacPlatform.mm`はnullptrスタブ。
+  - `include/Instances/Program.hpp`・`src/Instances/Program.cpp`を新規作成（PhysicalFileInstance派生、`registerProgramType()`で登録、`luaCreatable=false`）。Start/Call/Send/Receive/Connect/Disconnect/Close、改行エスケープ、FIFO応答照合、`pollAll()`/`forceCloseAll()`。
+  - `LuauEngine`(.cpp/.hpp)にprogram_*_closure、`PendingProgramCoroutine`、`pollProgramRequests()`(update先頭)、`resumeProgramWaiter()`を追加。`cancelAllTasks()`で待機破棄＋全Program強制終了。`LuauEngine_Dispatch.cpp`にDispatch登録。`instance_new_closure`で`luaCreatable=false`のPhysicalFileInstanceを拒否。
+  - 回帰テスト`--program-ipc-regression`(`test_main.cpp`: FakePipedProcess、実プロセス往復、Luau yield/タイムアウト/Close)を追加。テスト用の子プロセスは`RecubinTest.exe --ipc-echo-child`。
+  - ドキュメント: `doc/Instances/Program.md`新規、`spec.md`(Program節)、`RCBN.luah`(Program型)、`doc/Util/IPlatform.md`、`doc/Core/LuauEngine.md`、`doc/Instances/README.md`。
+- **LuauコンパイルのmutableGlobals対応（TextFile.Contentバグ修正）**: `include/Util/LuauCompile.hpp`・`src/Util/LuauCompile.cpp`を新規作成。`LuauEngine::loadScriptChunk`と`Packager::compileLuauInProc`の`luau_compile`呼び出しを`LuauCompile::compile`へ置換。`LuauEngine`に`m_instanceGlobalNames`を追加し`setGlobalInstance`で記録。
+- **サンプル**: `TestCases/ProgramIpcSample/`（`.rcbn`シーン、`scripts/ProgramIpcSample.luau`、`src/echo_server.cpp`、`assets/echo_server.exe`、`build.bat`、`README.md`）を作成。
+
+### 2. なぜそうしたか（判断理由）
+- **IPCの通信経路: 標準入出力パイプ vs 名前付きパイプ/TCP → 標準入出力を採用（ユーザー選択）**: 最も単純でWindows/Mac共通。代償としてDisconnect/Connectは「プロセスへの再接続」ではなく「こちらの送受信を止める/再開」の意味になった。
+- **Call/Closeはコルーチンをyield（ユーザー選択）**: フレームを止めないため。既存の`PathfindingService:FindPath`（PendingPathCoroutine, owner=Script/EngineTask/Signal）の型に倣った。
+- **読み取りはスレッドではなくPeekNamedPipeポーリング**: `pollStdinLine`の「reader threadを作らない」方針に合わせた。切断中も`pollAll()`で吸い上げ、子のパイプ詰まりを防ぐ。
+- **Program専用のPendingリストを作り、FindPathのコードを共通化しなかった**: CLAUDE.mdのスコープ厳守（リファクタ禁止）のため。重複はあるが既存処理を触らない方を選んだ。待機中フラグは`Script::WaitingForPath`/`EngineTask::waitingForPath`を流用。
+- **`resumeEngineTask`を使わず再開処理を別に書いた**: あれは再開引数をdeltaで上書きするため、Callの応答/終了コードを渡せない。
+- **IPC.*グローバルのスタブは据え置き**: 「最初に実装」の範囲外。廃止は別判断。
+- **MPLUS: 「既定を置換／選択肢追加／DotGothic完全置換」で迷い、既定置換+DotGothic残しを採用（ユーザー選択）**: 既存シーンの`Font: DotGothic16`を壊さないため。
+- **TextFile.Contentバグの修正: mutableGlobals(案1)／optimizationLevel=0(案2)／テストのみ修正(案3) → 案1**: 性能劣化なく、該当グローバルだけimport最適化を止められるため。Packagerにも同じ関数を適用（バイトコード事前コンパイルで直し漏れるのを防ぐ）。
+- **`--system-extension-regression`を先にgit stashでHEADに戻して確認した**: 自分の変更が原因か切り分けるため。HEADでも失敗しており既存バグと確定。
+
+### 3. 経緯
+1. 「TextLabel.Textを複数行に」→ 描画は対応済みでエディター入力欄(256バイト単行)だけが原因。フラグ追加方式で解決。
+2. 「MPLUSを採用したいが配線がわからない」→ フォント決定箇所(Renderer.cpp/Renderer_GUI.cpp)を案内し、置換。続けてコンソール用フォント指定なし→JetBrains Mono+MPLUSフォールバック。
+3. 「ファイルI/Oをまとめて」→説明後、docに保存。
+4. 「IPCの実装」→プランモードで質問(通信経路/区切り/待ち方/Close)→承認→実装。
+5. 全体回帰で`--system-extension-regression`が失敗。HEADでも再現→「TextFile.Contentの書き込みバグ調査」へ。
+6. 調査: setter/getterは正常、書込も成功しているのに2回目の`SaveData.Content`が古い値。`SaveData['Con'..'tent']`（動的キー）では新値、`--!optimize 0`でも正常 → Luauコンパイラのimport最適化（`global.field`をロード時に定数化）が原因と特定。`luaL_sandboxthread`でsafeenvが有効になるのも条件。
+7. mutableGlobalsで修正→`--system-extension-regression`が通過。
+8. 最後にIPCサンプルディレクトリを作成し、RecubinTestのシーン実行で動作確認。
+
+### 試して失敗・やり直した方法
+- **原因の推測を静的読解だけで進めた**: setter/getter/キャッシュ(`s_cache`)を読んでも原因が出ず、一時デバッグ出力(`std::cerr`)とLuaプローブで絞り込んだ。stdoutの`print`とstderrの順序が入れ替わって見え、最初は「getterが呼ばれない」ことに気づきにくかった。
+- **IPCテストのバグ**: `send`/`receive`で`error`文字列を使い回し、前のチェックの残りで`error.empty()`が失敗した（テスト側を`error.clear()`で修正）。
+- **`Instance.new('Program')`が拒否されなかった**: `luaCreatable=false`は`instance_new_closure`が見ていなかった（TextFileだけ名前直書きで拒否していた）。`PhysicalFileInstanceRegistry::find`で汎用化。
+- **サンプルのexeビルド**: ①UTF-8の日本語コメント入りソースをcl.exeが既定CP932で読んで構文崩壊 → `/utf-8`。②日本語入りの`build.bat`をcmd.exeが読めず壊れた → batはASCIIのみに。
+- **ConsolePanel**: 最初のビルド時点ではMPLUSマージ先を指定しないとFontAwesome同様に直前のフォントへマージされる（DstFont明示が必要）。
+
+### 4. 未解決・保留
+- **`IPC.Connect/Send/Receive/Close`のグローバルスタブ**が残存（`LuauEngine.cpp`、`test_main.cpp`のスタブテスト含む）。廃止するか未決。
+- **Packagerで配布したときProgramのexeが同梱されるか未検証**。バイトコード側のmutableGlobalsはPackagerでは`setGlobalInstance`の動的名(ワークスペース名と同名のグローバル)が分からず固定リストのみ。既存`.luauc`は再パッケージまで旧挙動。
+- **Programの書き込みはブロッキング**（子がstdinを読まず64KB超で詰まる）。overlapped化は未対応。Windowsのみ対応、macOSは`launchPipedProcess`がnullptr。
+- **Signalコールバック内のCall/Closeはyield不可**でエラー（FindPathと同様の制約）。
+- **`resumeEngineTask`はyield再開時にdeltaで引数を上書き**するため、タスク内でFindPathを使うと経路ではなくdeltaが返る疑い（既存コード、未確認）。
+- **エディター(Recubin.exe)でのProgramサンプルのPlay、コンソール/TextLabelの見た目(MPLUS・JetBrains Monoの実表示)は未確認**（ユーザーのルールでGUI自動起動検証は禁止。ビルド確認とRecubinTestまで）。
+- **MPLUSのサイズ(22px)**はDotGothic16に合わせた暫定値。JetBrains Mono側のMPLUSマージも17px固定。
+- **全体回帰**: 最終は198 passed/12 failed（修正前194/16）。残りは既存の失敗(`--asset-path`/`--motor6d-gyro`等)。ベースライン(130/4)とは集計単位が異なるので次回も同条件で比較すること。
+- **`TextFile`のseed/overlayテストは`--system-extension-regression`のみ**。Programの`--program-ipc-regression`はRecubinTest.exe自身を子プロセスにするためWindows限定(`#ifdef _WIN32`)。
+
+### 5. 暗黙仕様の発見（spec.mdにない）
+- **Luauのimport最適化**: `workspace`/`System`/`User`等のグローバルの`global.field`(最大3階層)は、既定コンパイルではスクリプトロード時に1回だけ解決・定数化され、以後`__index`が呼ばれない。書き込みも反映されて見えない。ローカルに取ってから読む(`local f = workspace.X; f.Y`)場合は毎回`__index`が呼ばれる。今回`LuauCompile`で対策したが、固定リスト＋`setGlobalInstance`名が対象。新しいInstanceグローバルを増やすときは`LuauCompile::instanceGlobals()`(または`setGlobalInstance`)に載せること。
+- **スクリプトの環境は`luaL_sandboxthread`でsafeenv=trueの別グローバル表**（`LuauEngine::execute`）。
+- **`Instance.new`はPhysicalFileInstanceRegistryの`luaCreatable=false`で拒否**されるようにした（TextFile以外のProgramも対象）。TextFileは従来どおり名前直書きでも拒否される。
+- **Program通信仕様**: 1行=1メッセージ、`\`→`\\`/改行→`\n`/CR→`\r`、応答はFIFO(Sendの応答と未対応の行は受信キュー)、1メッセージ1MiB・受信キュー4096件上限、Play停止/シーン切替(`cancelAllTasks`)で全Program強制終了。Disconnect中もパイプは吸い上げ続け、Callの応答のみ破棄しSendの応答は保持する。
+- **`RuntimeFileSystem`のrootはCWD**（コンストラクタ引数なし時）。エディターと配布ランタイムでTextFileのoverlay(`textfiles/<StorageId>.txt`)が分離される。
+- **RecubinTest.exeは`<scene>`引数でシーンをヘッドレス実行できる**（Scriptがそのまま動く）。`[Luau]`print出力で挙動確認に使える。
+- **MSVCの既定文字コードはCP932**。日本語UTF-8ソースには`/utf-8`が必要。`.bat`はASCIIのみ。
