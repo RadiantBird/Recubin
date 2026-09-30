@@ -18,7 +18,7 @@
 
 # 物理エンジン関係
 
-- [ ] ForceのTorqueモードで正しくMaintainできていない問題を修正する
+- [x] ForceのTorqueモードで正しくMaintainできていない問題を修正する
 
 ### レンダリング関連
 

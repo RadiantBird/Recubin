@@ -9,12 +9,12 @@ Root:
     EnableIOAPI: false
     EnableIPCAPI: false
     EnableExternalFileAccess: false
-    AutoSpawnPlayerCharacter: true
+    AutoSpawnPlayerCharacter: false
     MaxClonesPerFrame: 1000
     MaxRestartsPerFrame: 100
     MaxTasksPerFrame: 1000
     ScriptLoopTimeoutSeconds: 2
-    DefaultCameraMode: Character
+    DefaultCameraMode: Free
   Children:
     - ClassName: Users
       Name: Users

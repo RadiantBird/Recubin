@@ -1232,7 +1232,8 @@ int main(int argc, char* argv[]) {
                 if (playMode != EditorPlayMode::LocalServer) {
                     // CharacterAddedからも初期座標が見えるよう、Play Hereの位置は
                     // spawnCharacterへ直接渡す。
-                    user->spawnCharacter(system.get(), workspace.get(), playHerePosition);
+                    if (system->AutoSpawnPlayerCharacter)
+                        user->spawnCharacter(system.get(), workspace.get(), playHerePosition);
                     audioService->playAutoPlaySounds();
                     if (user->character) workspace->addChild(user->character);
                 }
