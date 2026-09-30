@@ -31,7 +31,6 @@ void copySystemScalars(const System& source, System& destination) {
     destination.ScriptLoopTimeoutSeconds = source.ScriptLoopTimeoutSeconds;
     destination.BaseResolution = source.BaseResolution;
     destination.UseNetwork = source.UseNetwork;
-    destination.ApplicationId = source.ApplicationId;
     destination.EnableIOAPI = source.EnableIOAPI;
     destination.EnableIPCAPI = source.EnableIPCAPI;
     destination.EnableExternalFileAccess = source.EnableExternalFileAccess;
@@ -270,7 +269,6 @@ StagedSceneLoad stageSceneLoad(const std::string& scenePath,
     staged.metadata.characterAnimationBindingsVersion = result.metadata.characterAnimationBindingsVersion;
     staged.metadata.legacyDefaultR6AnimationDecision = result.metadata.legacyDefaultR6AnimationDecision;
     staged.metadata.legacyWalkContentPath = result.metadata.legacyWalkContentPath;
-    staged.metadata.applicationIdGenerated = result.metadata.applicationIdGenerated;
     staged.status = result.status;
     staged.message = result.message;
     if (result && result.root != staged.system && result.root != staged.user &&
@@ -291,7 +289,6 @@ Bound commitAndBind(StagedSceneLoad&& staged,
         failed.metadata.characterAnimationBindingsVersion = staged.metadata.characterAnimationBindingsVersion;
         failed.metadata.legacyDefaultR6AnimationDecision = staged.metadata.legacyDefaultR6AnimationDecision;
         failed.metadata.legacyWalkContentPath = staged.metadata.legacyWalkContentPath;
-        failed.metadata.applicationIdGenerated = staged.metadata.applicationIdGenerated;
         failed.scenePath = staged.scenePath;
         failed.loadStatus = staged.status == SceneLoader::LoadStatus::Success
             ? SceneLoader::LoadStatus::YamlError : staged.status;

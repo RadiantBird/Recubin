@@ -45,7 +45,7 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 
 ## システム拡張API
 - **System**: シングルトン。常に1つのみ存在。Insert Objectリストには登録しない。
-  `ApplicationId`（UUID）と、`EnableIOAPI`、`EnableIPCAPI`、`EnableExternalFileAccess`の
+  `EnableIOAPI`、`EnableIPCAPI`、`EnableExternalFileAccess`の
   システム拡張フラグを保持する。これらはエディターでのみ変更でき、Luauからは読み取り専用である。
 - **TextFile**: `PhysicalFileInstance`を継承する永続テキスト資産。`ContentPath`は配布時の
   初期seed、`StorageId`はユーザー領域のmutable copyを識別するUUIDである。`Content`は全文を

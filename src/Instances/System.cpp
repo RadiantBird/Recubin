@@ -3,7 +3,6 @@
 #include <Instances/Workspace.hpp>
 #include <Core/PropertyRegistry.hpp>
 #include <algorithm>
-#include <Util/UUID.hpp>
 #include <Util/Logger.hpp>
 
 static const bool s_systemRegistered = []{
@@ -11,7 +10,6 @@ static const bool s_systemRegistered = []{
     registerClass("System", {
         field<&System::BaseResolution>("BaseResolution", 1.f, 16384.f, 1.f).luaReadOnly(),
         field<&System::UseNetwork>("UseNetwork"),
-        field<&System::ApplicationId>("ApplicationId").luaReadOnly().readOnlyInEditor(),
         field<&System::EnableIOAPI>("EnableIOAPI").luaReadOnly(),
         field<&System::EnableIPCAPI>("EnableIPCAPI").luaReadOnly(),
         field<&System::EnableExternalFileAccess>("EnableExternalFileAccess").luaReadOnly(),
@@ -31,7 +29,6 @@ static const bool s_systemRegistered = []{
 }();
 
 System::System(std::string name) : Instance(name) {
-    ApplicationId = RecubinUUID::generate();
     Heartbeat = std::make_shared<RCBNScriptSignal>();
     NetworkRoleChanged = std::make_shared<RCBNScriptSignal>();
 }
@@ -64,13 +61,6 @@ void System::addChild(std::shared_ptr<Instance> child) {
 }
 
 void System::setProperty(const std::string& name, const YAML::Node& value) {
-    if (name == "ApplicationId") {
-        if (value.IsScalar()) {
-            const auto candidate = value.as<std::string>();
-            if (RecubinUUID::isValid(candidate)) ApplicationId = candidate;
-        }
-        return;
-    }
     if (name == "DefaultCameraMode" && value.IsScalar()) {
         const std::string mode = value.as<std::string>();
         if (mode != "Character" && mode != "Free" && mode != "Program") {

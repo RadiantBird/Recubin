@@ -7672,7 +7672,6 @@ int runAssetPathRegression() {
 
         Packager::Config packageConfig;
         packageConfig.gameName = "PortablePackage";
-        packageConfig.applicationId = RecubinUUID::generate();
         packageConfig.outputDir = "package-output";
         packageConfig.scenePath = "scene.yaml";
         packageConfig.engineExePath =
@@ -7716,8 +7715,6 @@ int runAssetPathRegression() {
                    packagedScene.find("DefaultCameraMode: Free") != std::string::npos &&
                    packagedScene.find("Hotspot: [1, 2]") != std::string::npos &&
                    packagedScene.find("Size: 40") != std::string::npos &&
-                   packagedScene.find(packageConfig.applicationId) != std::string::npos &&
-                   packagedStartup.find(packageConfig.applicationId) != std::string::npos &&
                    packagedScene.find('\\') == std::string::npos,
                "packager copies referenced assets, runtime fonts, and portable YAML paths");
         expect(!std::filesystem::exists(packageContentRoot / ".autosave" / "hidden.bin") &&
@@ -7754,7 +7751,6 @@ int runAssetPathRegression() {
                 unicodeContentRoot / "startup.yaml", tempRoot)));
         expect(unicodePackaged && std::filesystem::is_directory(unicodePackageRoot) &&
                    std::filesystem::is_regular_file(unicodeScenePath) &&
-                   unicodeScene.find(unicodePackageConfig.applicationId) != std::string::npos &&
                    unicodeStartup.find("GameName: てすと") != std::string::npos &&
                    unicodeStartup.find("StartScene: assets/scenes/てすと.rcbn") != std::string::npos,
                "packager preserves Japanese game and output paths");
@@ -9995,11 +9991,9 @@ static int runSystemExtensionRegression() {
         ("recubin_system_extension_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
-    const auto applicationId = RecubinUUID::generate();
     RuntimeFileSystem fs(false, root);
     expect(static_cast<bool>(fs.write("a.bin", std::string("a\0b", 3))), "binary write succeeds");
-    expect(std::filesystem::exists(root / "a.bin") &&
-               !std::filesystem::exists(root / applicationId),
+    expect(std::filesystem::exists(root / "a.bin"),
            "relative I/O writes directly below the explicit root");
     auto bytes = fs.read("a.bin");
     expect(static_cast<bool>(bytes) && bytes.value.size() == 3 && bytes.value[1] == '\0', "binary NUL round-trip");
@@ -10036,10 +10030,9 @@ static int runSystemExtensionRegression() {
                externalFs.isFile(absoluteTarget.string()).isFile,
            "external access permits absolute paths");
     auto system = std::make_shared<System>();
-    system->ApplicationId = applicationId;
     expect(!system->EnableIOAPI && !system->EnableIPCAPI &&
-               !system->EnableExternalFileAccess && !system->ApplicationId.empty(),
-           "System extension defaults are disabled with an application id");
+               !system->EnableExternalFileAccess,
+           "System extension defaults are disabled");
     system->EnableIOAPI = true;
     system->EnableIPCAPI = true;
     system->EnableExternalFileAccess = true;
@@ -10050,8 +10043,7 @@ static int runSystemExtensionRegression() {
     SceneLoader::LoadContext loadContext;
     loadContext.registerMergeInstance("System", mergedSystem);
     const auto loadedSystem = SceneLoader::loadSceneResult(systemYaml.string(), loadContext);
-    expect(loadedSystem && mergedSystem->ApplicationId == system->ApplicationId &&
-               mergedSystem->EnableIOAPI && mergedSystem->EnableIPCAPI &&
+    expect(loadedSystem && mergedSystem->EnableIOAPI && mergedSystem->EnableIPCAPI &&
                mergedSystem->EnableExternalFileAccess,
            "System extension YAML round-trip preserves values");
     const auto consentRoot = fs.root();
@@ -10104,12 +10096,11 @@ static int runSystemExtensionRegression() {
         "assert(pcall(function() IO.Exists('x') end) == false) "
         "assert(pcall(function() IPC.Connect('x') end) == false) "
         "System.EnableIOAPI = true System.EnableIPCAPI = true "
-        "System.EnableExternalFileAccess = true System.ApplicationId = 'mutate'";
+        "System.EnableExternalFileAccess = true";
     extensionEngine.setGlobalInstance("System", system);
     expect(extensionEngine.execute(*permissionScript),
            "Luau IO permission and read-only System assignments are handled");
-    expect(!system->EnableIOAPI && !system->EnableExternalFileAccess &&
-               system->ApplicationId == applicationId,
+    expect(!system->EnableIOAPI && !system->EnableExternalFileAccess,
            "System extension fields remain read-only from Luau");
     system->EnableIOAPI = true;
     auto ioScript = std::make_shared<Script>();
@@ -10141,7 +10132,6 @@ static int runSystemExtensionSmokePackaging(int argc, char* argv[]) {
     }
     Packager::Config config;
     config.gameName = "SystemExtensionSmokePackage";
-    config.applicationId = "9b4d2c11-5e73-4a6f-8c20-1d9f7b3e6a42";
     config.scenePath = "TestCases/SystemExtensionSmoke/SystemExtensionSmoke.yaml";
     config.outputDir = argv[2];
 #ifdef __APPLE__

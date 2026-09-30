@@ -16,7 +16,6 @@
 | `MaxRestartsPerFrame` | `int` | 1フレームで許容するScript Restart回数の上限（既定100） |
 | `ScriptLoopTimeoutSeconds` | `float` | スクリプトループのタイムアウト秒数。0以下で無効（既定2.0） |
 | `BaseResolution` | `Vector2` | `ScreenGuiObject`(`Norm::Pixel`)の自動スケーリング基準解像度（既定 1920x1080）。Luauからは読み取り専用 |
-| `ApplicationId` | `string` | ゲームを識別するUUID。エディター表示は読み取り専用 |
 | `EnableIOAPI` | `bool` | Luau I/O APIの許可（既定false） |
 | `EnableIPCAPI` | `bool` | IPC APIスタブの許可（既定false） |
 | `EnableExternalFileAccess` | `bool` | ゲーム領域外ファイルアクセスの許可（既定false） |

@@ -3,7 +3,6 @@ recubin:
   version: 0
 Root:
   Properties:
-    ApplicationId: 9b4d2c11-5e73-4a6f-8c20-1d9f7b3e6a42
     EnableIOAPI: true
     EnableIPCAPI: true
     EnableExternalFileAccess: false

@@ -38,10 +38,9 @@ class System : public Instance {
         // falseの場合、区別されず、ネットワーク通信も一切行わない。
         bool UseNetwork = false;
 
-        // Persistent application identity and opt-in system extensions. These are
+        // Opt-in system extensions. These are
         // intentionally read-only from Luau; only the scene/editor may configure them.
         // Public PascalCase is retained for the existing reflection/YAML API.
-        std::string ApplicationId;
         bool EnableIOAPI = false;
         bool EnableIPCAPI = false;
         bool EnableExternalFileAccess = false;

@@ -359,7 +359,6 @@ export type System = Instance & {
     LocalPeerId: number,
     BaseResolution: Vector2, -- read only
     UseNetwork: boolean,
-    ApplicationId: string, -- read only
     EnableIOAPI: boolean, -- read only
     EnableIPCAPI: boolean, -- read only
     EnableExternalFileAccess: boolean, -- read only

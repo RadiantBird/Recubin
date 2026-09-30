@@ -56,7 +56,6 @@
 #include <Util/IPlatform.hpp>
 #include <Util/RuntimeFileSystem.hpp>
 #include <Util/RuntimeLaunchArgs.hpp>
-#include <Util/UUID.hpp>
 #include <Util/YamlLoadResult.hpp>
 #include <Util/EditorLaunchPath.hpp>
 
@@ -801,10 +800,8 @@ int main(int argc, char* argv[]) {
         workspace  = bound.workspace;
         workspaces = bound.workspaces;
         initialSceneMetadata = bound.metadata;
-        if (RecubinUUID::isValid(system->ApplicationId)) {
-            luauEngine->setRuntimeFileSystem(std::make_shared<RuntimeFileSystem>(
-                system->EnableExternalFileAccess));
-        }
+        luauEngine->setRuntimeFileSystem(std::make_shared<RuntimeFileSystem>(
+            system->EnableExternalFileAccess));
     }
     workspace->initPhysics();
 
@@ -838,7 +835,6 @@ int main(int argc, char* argv[]) {
         renderer->codeEditorFont(), luauEngine->runtimeFileSystem());
     EditorManager* ed = editorOwned.get();
     ed->setSceneMetadata(initialSceneMetadata);
-    if (initialSceneMetadata.applicationIdGenerated) ed->markDirty();
     ed->engineExePath = engineExePath.string();
     ed->scenePath     = scenePath; // 起動時に決定したシーンパスを反映
     ed->initializeAutosaveRecovery();
@@ -974,7 +970,7 @@ int main(int argc, char* argv[]) {
     auto installBoundScene = [&](SceneRuntime::Bound bound, bool isDirty) {
         workspace  = bound.workspace;
         workspaces = bound.workspaces;
-        if (system && RecubinUUID::isValid(system->ApplicationId)) {
+        if (system) {
             luauEngine->setRuntimeFileSystem(std::make_shared<RuntimeFileSystem>(
                 system->EnableExternalFileAccess));
         } else {
@@ -983,7 +979,7 @@ int main(int argc, char* argv[]) {
         ed->setRuntimeFileSystem(luauEngine->runtimeFileSystem());
         ed->setSceneMetadata(bound.metadata);
         ed->setWorkspace(workspace.get());
-        if (isDirty || bound.metadata.applicationIdGenerated) ed->markDirty();
+        if (isDirty) ed->markDirty();
         if (workspace) workspace->initPhysics();
     };
 

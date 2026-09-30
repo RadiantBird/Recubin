@@ -1,7 +1,7 @@
 # SystemExtensionSmoke
 
 This is a manual smoke fixture for the System I/O, IPC, and TextFile extensions.
-It uses the fixed ApplicationId `9b4d2c11-5e73-4a6f-8c20-1d9f7b3e6a42`, enables
+It enables
 I/O and IPC, and leaves external file access disabled.
 
 ## Editor Play

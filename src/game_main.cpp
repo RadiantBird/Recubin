@@ -44,7 +44,6 @@
 #include <Util/RuntimeLaunchArgs.hpp>
 #include <Util/RuntimeFileSystem.hpp>
 #include <Util/SystemExtensionPermissions.hpp>
-#include <Util/UUID.hpp>
 #include <Util/YamlLoadResult.hpp>
 #include <include/imgui/imgui_impl_glfw.h>
 #include <include/imgui/imgui_impl_opengl3.h>
@@ -440,10 +439,6 @@ int main(int argc, char* argv[]) {
     auto workspaces = bound.workspaces;
     auto workspace  = bound.workspace;
 
-    if (!RecubinUUID::isValid(system->ApplicationId)) {
-        RCBN_ERROR("Scene has no ApplicationId; refusing to start runtime file system.");
-        return -1;
-    }
     auto runtimeFs = std::make_shared<RuntimeFileSystem>(
         system->EnableExternalFileAccess);
     luauEngine->setRuntimeFileSystem(runtimeFs);

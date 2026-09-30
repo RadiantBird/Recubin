@@ -22,7 +22,6 @@
 #include <Instances/PostEffect.hpp>
 #include <Instances/AppImage.hpp>
 #include <Core/PhysicalFileInstanceRegistry.hpp>
-#include <Util/UUID.hpp>
 #include <functional>
 #include <Instances/SignalEvent.hpp>
 #include <Instances/Humanoid.hpp>
@@ -219,42 +218,6 @@ SceneLoader::LoadResult SceneLoader::loadSceneResult(
             return result;
         }
         YAML::Node root = config["Root"];
-
-        // Inspect the serialized tree before parsing. This covers the legacy
-        // sequence form, flat roots, and a ClassName:System root without
-        // changing the generated UUID held by the newly-created System.
-        bool foundSystem = false;
-        bool validApplicationId = false;
-        std::function<void(const YAML::Node&)> inspectSystem =
-            [&](const YAML::Node& node) {
-                if (!node) return;
-                if (node.IsMap() && node["ClassName"] &&
-                    node["ClassName"].as<std::string>() == "System") {
-                    foundSystem = true;
-                    const YAML::Node properties = node["Properties"];
-                    if (properties && properties["ApplicationId"] &&
-                        properties["ApplicationId"].IsScalar() &&
-                        RecubinUUID::isValid(properties["ApplicationId"].as<std::string>())) {
-                        validApplicationId = true;
-                    }
-                }
-                if (node.IsMap() && node["Children"])
-                    for (const auto& child : node["Children"]) inspectSystem(child);
-                if (node.IsSequence())
-                    for (const auto& child : node) inspectSystem(child);
-            };
-        inspectSystem(root);
-        // The current flat-root save form stores System properties directly on
-        // Root (without ClassName:System), so inspect that representation too.
-        if (root.IsMap() && !root["ClassName"] && root["Properties"] &&
-            root["Properties"]["ApplicationId"] &&
-            root["Properties"]["ApplicationId"].IsScalar()) {
-            foundSystem = true;
-            validApplicationId = RecubinUUID::isValid(
-                root["Properties"]["ApplicationId"].as<std::string>());
-        }
-        if (context.findMergeInstance("System") && !foundSystem) foundSystem = true;
-        result.metadata.applicationIdGenerated = foundSystem && !validApplicationId;
 
         // Context対象外のroot直下インスタンスを受け取るコンテナを決定する。
         // Systemマージ対象がある場合はそこへ直接追加し、ない場合はbagを返す。
